@@ -8,11 +8,16 @@ MONEY_TARGETS=(
   "$ROOT_DIR/services/gateway/src/domain/finance.py"
   "$ROOT_DIR/services/gateway/src/api/schemas/pydantic_models.py"
   "$ROOT_DIR/services/gateway/src/domain/invocation_response.py"
+  "$ROOT_DIR/services/gateway/src/utils/money.py"
   "$ROOT_DIR/services/gateway/src/services/analytics/gateway_events.py"
   "$ROOT_DIR/services/gateway/src/services/platform/finance_service.py"
+  "$ROOT_DIR/services/gateway/src/services/platform/tasks/consumer_withdraw_processor.py"
+  "$ROOT_DIR/services/gateway/src/services/owner/finance_service.py"
+  "$ROOT_DIR/services/gateway/src/services/owner/forwarding_billing.py"
   "$ROOT_DIR/services/gateway/src/services/provider/withdraw_helpers_mixin.py"
   "$ROOT_DIR/services/gateway/src/services/provider/withdraw_execution_mixin.py"
   "$ROOT_DIR/services/gateway/src/services/provider/withdraw_service.py"
+  "$ROOT_DIR/services/gateway-admin/src/services/dashboard/service.py"
 )
 
 echo "[ci:security] scanning money-sensitive Python files for forbidden float usage"

@@ -148,7 +148,7 @@ class FinanceDepositExecMixin:
 
         await emit_deposit_completed(
             owner,
-            amount_usdc=float(confirmed_row.amount_usdc or 0),
+            amount_usdc=Decimal(str(confirmed_row.amount_usdc or "0")),
             tx_hash=str(confirmed_row.tx_hash or ""),
         )
 
@@ -225,7 +225,7 @@ class FinanceDepositExecMixin:
             {
                 "ownerAddress": owner,
                 "txHash": tx_hash,
-                "amountUsdc": float(amount_usdc),
+                "amountUsdc": str(amount_usdc),
             }
         )
         return DepositIntentDraft(
@@ -418,7 +418,7 @@ class FinanceDepositExecMixin:
                     "businessType": "deposit",
                     "depositIntentId": next_intent.id,
                     "txHash": next_intent.tx_hash,
-                    "amountUsdc": float(next_intent.amount_usdc),
+                    "amountUsdc": str(next_intent.amount_usdc),
                     "idempotencyKey": idempotency_key,
                     "requestMeta": request_meta or {},
                 },

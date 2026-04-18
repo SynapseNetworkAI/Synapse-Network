@@ -6,6 +6,7 @@ to storage — those operations live in FinanceRefundExecMixin.
 """
 from __future__ import annotations
 
+from decimal import Decimal
 from typing import Any, List, Optional
 
 from fastapi import HTTPException
@@ -23,17 +24,18 @@ from src.services.owner.finance_constants import (
     REFUND_MANUAL_REVIEW_THRESHOLD_USDC,
     REFUND_MANUAL_TYPE,
 )
+from src.utils.money import money_str, parse_usdc
 
 
 class FinanceRefundAnalysisMixin:
     """Refund analysis helpers — no balance mutations here."""
 
     def _parse_refund_amount_usdc(
-        self, payload: dict[str, Any], available: float
-    ) -> float:
+        self, payload: dict[str, Any], available: Decimal | str | int
+    ) -> Decimal:
         raw = payload.get("amountUsdc")
         try:
-            amount = round(float(raw), 6)
+            amount = parse_usdc(raw)
         except Exception:
             raise HTTPException(
                 status_code=400,
@@ -50,7 +52,7 @@ class FinanceRefundAnalysisMixin:
                     "message": "amountUsdc must be >= 10 USDC.",
                 },
             )
-        if amount > available:
+        if amount > parse_usdc(available):
             raise HTTPException(
                 status_code=400,
                 detail={
@@ -90,7 +92,7 @@ class FinanceRefundAnalysisMixin:
         return {
             "refundId": str(row.id or ""),
             "signature": str(row.signature or ""),
-            "amountRefunded": round(float(row.amount_usdc or 0.0), 6),
+            "amountRefunded": money_str(row.amount_usdc),
             "status": str(row.status or "REQUESTED"),
             "gasPayer": str(row.gas_payer or "OWNER"),
             "gasModel": str(row.gas_model or "OWNER_PAYS_ONCHAIN"),
@@ -159,20 +161,20 @@ class FinanceRefundAnalysisMixin:
         owner: str,
         origin: RefundOriginRef,
         rows: List[RefundIntentRow],
-    ) -> dict[str, float]:
+    ) -> dict[str, Decimal]:
         refundable_total = self._sum_refundable_usage_total(owner=owner, origin=origin)
         consumed = self._sum_consumed_refunds(owner=owner, origin=origin, rows=rows)
         return {
             "refundableTotal": refundable_total,
             "alreadyConsumed": consumed,
-            "remaining": round(max(0.0, refundable_total - consumed), 6),
+            "remaining": parse_usdc(max(Decimal("0"), refundable_total - consumed)),
         }
 
     def _sum_refundable_usage_total(
         self, *, owner: str, origin: RefundOriginRef
-    ) -> float:
+    ) -> Decimal:
         usage_rows = self._load_invocation_billing_rows()  # type: ignore[attr-defined]
-        refundable_total = 0.0
+        refundable_total = Decimal("0")
         for usage in usage_rows:
             if normalize_wallet(str(usage.consumer_address or "")) != owner:
                 continue
@@ -181,16 +183,13 @@ class FinanceRefundAnalysisMixin:
                 continue
             if not self._origin_matches(usage, origin):
                 continue
-            refundable_total = round(
-                refundable_total + round(float(usage.total_charge or 0.0), 6),
-                6,
-            )
+            refundable_total = parse_usdc(refundable_total + parse_usdc(usage.total_charge))
         return refundable_total
 
     def _sum_consumed_refunds(
         self, *, owner: str, origin: RefundOriginRef, rows: List[RefundIntentRow]
-    ) -> float:
-        consumed = 0.0
+    ) -> Decimal:
+        consumed = Decimal("0")
         for row in rows:
             if self._refund_owner(row) != owner:  # type: ignore[attr-defined]
                 continue
@@ -198,7 +197,7 @@ class FinanceRefundAnalysisMixin:
                 continue
             if str(row.status or "").upper() == "REJECTED":
                 continue
-            consumed = round(consumed + round(float(row.amount_usdc or 0.0), 6), 6)
+            consumed = parse_usdc(consumed + parse_usdc(row.amount_usdc))
         return consumed
 
     def _detect_abnormal_split_refund(
@@ -224,8 +223,9 @@ class FinanceRefundAnalysisMixin:
         return count >= 2
 
     def _classify_refund_risk(
-        self, *, amount_usdc: float, refund_type: str, abnormal_split: bool
+        self, *, amount_usdc: Decimal | str | int, refund_type: str, abnormal_split: bool
     ) -> dict[str, str]:
+        amount = parse_usdc(amount_usdc)
         if abnormal_split:
             return {
                 "status": "PENDING_MANUAL_REVIEW",
@@ -233,7 +233,7 @@ class FinanceRefundAnalysisMixin:
                 "riskReasonCode": "ABNORMAL_SPLIT_REFUND_PATTERN",
                 "message": "Refund submitted for manual risk review.",
             }
-        if amount_usdc >= REFUND_MANUAL_REVIEW_THRESHOLD_USDC:
+        if amount >= Decimal(str(REFUND_MANUAL_REVIEW_THRESHOLD_USDC)).quantize(Decimal("0.000001")):
             return {
                 "status": "PENDING_MANUAL_REVIEW",
                 "riskLevel": "yellow",
@@ -312,8 +312,9 @@ class FinanceRefundAnalysisMixin:
         owner: str,
         origin: RefundOriginRef,
         rows: List[RefundIntentRow],
-        amount_usdc: float,
-    ) -> dict[str, float]:
+        amount_usdc: Decimal | str | int,
+    ) -> dict[str, Decimal]:
+        amount = parse_usdc(amount_usdc)
         limits = self._compute_refund_origin_limits(
             owner=owner, origin=origin, rows=rows
         )
@@ -325,7 +326,7 @@ class FinanceRefundAnalysisMixin:
                     "message": "No refundable completed charge found for provided origin reference.",
                 },
             )
-        if amount_usdc > limits["remaining"] + 1e-9:
+        if amount > limits["remaining"]:
             raise HTTPException(
                 status_code=400,
                 detail={
@@ -336,7 +337,7 @@ class FinanceRefundAnalysisMixin:
         return limits
 
     def _parse_refund_create_context(
-        self, payload: dict[str, Any], owner: str, available_balance: float
+        self, payload: dict[str, Any], owner: str, available_balance: Decimal | str | int
     ) -> RefundCreateContext:
         amount_usdc = self._parse_refund_amount_usdc(payload, available_balance)
         reason = str(payload.get("reason") or "").strip()
@@ -365,7 +366,7 @@ class FinanceRefundAnalysisMixin:
         )
         request_payload = {
             "ownerAddress": owner,
-            "amountUsdc": round(amount_usdc, 6),
+            "amountUsdc": money_str(amount_usdc),
             "reason": reason,
             "originRequestId": origin.request_id,
             "originTxHash": origin.tx_hash,

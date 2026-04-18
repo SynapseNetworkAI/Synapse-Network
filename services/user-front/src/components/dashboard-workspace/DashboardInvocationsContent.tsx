@@ -19,7 +19,7 @@ import { useAuth } from "@/components/WalletAuthGuard";
 import XSelect from "@/components/xui/XSelect";
 import { listPaginatedUsageLogs, type UsageLogRecord } from "@/utils/usageApi";
 import { requestV2Refund } from "@/utils/balanceApi";
-import { normalizeMoneyString } from "@/utils/money";
+import { moneyStringToNumber, normalizeMoneyString } from "@/utils/money";
 
 type InvocationStatusFilter = "all" | "accepted" | "succeeded" | "failed" | "refunded";
 
@@ -38,8 +38,9 @@ function RefundModal({ row, userAddress, onClose, onSuccess }: RefundModalProps)
   const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async () => {
-    const amountNum = parseFloat(amount);
-    if (!Number.isFinite(amountNum) || amountNum <= 0) {
+    const normalizedAmount = normalizeMoneyString(amount, "");
+    const amountNum = moneyStringToNumber(normalizedAmount);
+    if (!normalizedAmount || !Number.isFinite(amountNum) || amountNum <= 0) {
       toast.error("Please enter a valid amount.");
       return;
     }
@@ -50,7 +51,7 @@ function RefundModal({ row, userAddress, onClose, onSuccess }: RefundModalProps)
     setSubmitting(true);
     try {
       const result = await requestV2Refund(userAddress, {
-        amountUsdc: normalizeMoneyString(amountNum),
+        amountUsdc: normalizedAmount,
         originRequestId: row.request_id,
         reason: reason.trim() || undefined,
         refundType: "MANUAL_APPEAL",

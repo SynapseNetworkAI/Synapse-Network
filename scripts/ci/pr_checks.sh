@@ -8,6 +8,7 @@ echo "[ci:pr] running pull request quality gates"
 
 bash "$ROOT_DIR/scripts/ci/runtime_preflight.sh"
 bash "$ROOT_DIR/scripts/ci/security_money_scan.sh"
+bash "$ROOT_DIR/scripts/ci/security_money_ts_scan.sh"
 bash "$ROOT_DIR/scripts/ci/security_secret_scan.sh"
 bash "$ROOT_DIR/scripts/ci/docs_checks.sh"
 bash "$ROOT_DIR/scripts/ci/frontend_checks.sh"

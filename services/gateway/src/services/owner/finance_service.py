@@ -44,6 +44,7 @@ from src.services.owner.finance_refund_analysis_mixin import FinanceRefundAnalys
 from src.services.owner.finance_refund_exec_mixin import FinanceRefundExecMixin
 from src.storage.base import BaseStorage
 from src.utils.datetime_utils import now_dt_str
+from src.utils.money import money_str, parse_usdc, usdc_decimal_to_atomic
 
 
 class OwnerFinanceService(
@@ -94,45 +95,45 @@ class OwnerFinanceService(
         ledger.updated_at = now_dt_str()
         self.storage.get_data_manager().finance.balance.write_balance_ledger(ledger)
 
-    def _reserve_consumer_balance(self, owner: str, amount_usdc: float) -> None:
+    def _reserve_consumer_balance(self, owner: str, amount_usdc: Decimal | str | int) -> None:
         """Atomically move *amount_usdc* from consumer available → pending."""
         self.storage.get_data_manager().finance.balance.reserve_consumer_balance_for_withdrawal(
             owner=owner,
-            amount_usdc=amount_usdc,
+            amount_usdc=parse_usdc(amount_usdc),
             updated_at=now_dt_str(),
         )
 
     def _reserve_consumer_balance_for_manual_review(
-        self, owner: str, amount_usdc: float
+        self, owner: str, amount_usdc: Decimal | str | int
     ) -> None:
         self.storage.get_data_manager().finance.balance.reserve_consumer_balance_for_manual_review(
             owner=owner,
-            amount_usdc=amount_usdc,
+            amount_usdc=parse_usdc(amount_usdc),
             updated_at=now_dt_str(),
         )
 
-    def _move_consumer_frozen_to_pending(self, owner: str, amount_usdc: float) -> None:
+    def _move_consumer_frozen_to_pending(self, owner: str, amount_usdc: Decimal | str | int) -> None:
         self.storage.get_data_manager().finance.balance.move_consumer_frozen_to_pending(
             owner=owner,
-            amount_usdc=amount_usdc,
+            amount_usdc=parse_usdc(amount_usdc),
             updated_at=now_dt_str(),
         )
 
     def _release_consumer_pending_to_available(
-        self, owner: str, amount_usdc: float
+        self, owner: str, amount_usdc: Decimal | str | int
     ) -> None:
         self.storage.get_data_manager().finance.balance.release_consumer_pending_to_available(
             owner=owner,
-            amount_usdc=amount_usdc,
+            amount_usdc=parse_usdc(amount_usdc),
             updated_at=now_dt_str(),
         )
 
     def _release_consumer_frozen_to_available(
-        self, owner: str, amount_usdc: float
+        self, owner: str, amount_usdc: Decimal | str | int
     ) -> None:
         self.storage.get_data_manager().finance.balance.release_consumer_frozen_to_available(
             owner=owner,
-            amount_usdc=amount_usdc,
+            amount_usdc=parse_usdc(amount_usdc),
             updated_at=now_dt_str(),
         )
 
@@ -147,8 +148,8 @@ class OwnerFinanceService(
         private_key = self._require_withdraw_signer()
         nonce, chain_id = self._resolve_withdraw_nonce_and_chain(owner)
         deadline = int(time.time()) + self._resolve_withdraw_deadline_sec()
-        net_wei = int(net_usdc * (10**USDC_DECIMALS))
-        fee_wei = int(fee_usdc * (10**USDC_DECIMALS))
+        net_wei = usdc_decimal_to_atomic(net_usdc, decimals=USDC_DECIMALS)
+        fee_wei = usdc_decimal_to_atomic(fee_usdc, decimals=USDC_DECIMALS)
         typed_data = self._build_withdraw_typed_data(
             owner_wallet=owner,
             amount_wei=net_wei,
@@ -218,8 +219,8 @@ class OwnerFinanceService(
             "canRefreshBalance": confirmed,
             "depositIntentId": str(row.id or ""),
             "ownerAddress": normalize_wallet(str(row.owner_address or "")),
-            "amountUsdc": round(float(row.amount_usdc or 0), 6),
-            "creditedAmountUsdc": round(float(row.credited_amount_usdc or 0), 6),
+            "amountUsdc": money_str(row.amount_usdc),
+            "creditedAmountUsdc": money_str(row.credited_amount_usdc),
             "confirmations": int(row.confirmations or 0),
             "eventKey": str(row.event_key or "") or None,
             "confirmedAt": row.confirmed_at,
@@ -388,8 +389,8 @@ class OwnerFinanceService(
     def _reserve_pending_deposit_amount(self, owner: str, amount_usdc: Decimal) -> None:
         ledger = self._load_balance_ledger()
         consumer_wallet = ledger.ensure_consumer_wallet(owner)
-        consumer_wallet.pending_balance = round(
-            float(consumer_wallet.pending_balance or 0.0) + float(amount_usdc), 6
+        consumer_wallet.pending_balance = parse_usdc(
+            Decimal(str(consumer_wallet.pending_balance or "0")) + parse_usdc(amount_usdc)
         )
         self._save_balance_ledger(ledger)
 
@@ -398,20 +399,20 @@ class OwnerFinanceService(
     ) -> DepositBalanceMove:
         ledger = self._load_balance_ledger()
         consumer_wallet = ledger.ensure_consumer_wallet(owner)
-        available_before = round(float(consumer_wallet.available_balance or 0.0), 6)
-        pending_before = round(float(consumer_wallet.pending_balance or 0.0), 6)
-        amount = round(float(amount_usdc), 6)
-        if pending_before + 1e-9 < amount:
+        available_before = parse_usdc(consumer_wallet.available_balance)
+        pending_before = parse_usdc(consumer_wallet.pending_balance)
+        amount = parse_usdc(amount_usdc)
+        if pending_before < amount:
             raise RuntimeError("DEPOSIT_PENDING_BALANCE_INCONSISTENT")
 
-        consumer_wallet.available_balance = round(available_before + amount, 6)
-        consumer_wallet.pending_balance = round(max(0.0, pending_before - amount), 6)
+        consumer_wallet.available_balance = parse_usdc(available_before + amount)
+        consumer_wallet.pending_balance = parse_usdc(max(Decimal("0"), pending_before - amount))
         self._save_balance_ledger(ledger)
         return DepositBalanceMove(
             available_before=available_before,
-            available_after=round(float(consumer_wallet.available_balance or 0.0), 6),
+            available_after=parse_usdc(consumer_wallet.available_balance),
             pending_before=pending_before,
-            pending_after=round(float(consumer_wallet.pending_balance or 0.0), 6),
+            pending_after=parse_usdc(consumer_wallet.pending_balance),
         )
 
     def _normalize_tx_hash_or_raise(self, tx_hash: str) -> str:
@@ -426,7 +427,7 @@ class OwnerFinanceService(
             )
         return normalized
 
-    def _consume_locked_refund_amount(self, owner: str, amount_usdc: float) -> None:
+    def _consume_locked_refund_amount(self, owner: str, amount_usdc: Decimal | str | int) -> None:
         """Atomically reduce pending_balance after withdrawal/refund completion.
 
         Uses the atomic SQL path so the change is not discarded by
@@ -436,7 +437,7 @@ class OwnerFinanceService(
         try:
             self.storage.get_data_manager().finance.balance.consume_consumer_pending_for_withdrawal(
                 owner=owner,
-                amount_usdc=amount_usdc,
+                amount_usdc=parse_usdc(amount_usdc),
                 updated_at=_now(),
             )
         except RuntimeError:
@@ -448,11 +449,12 @@ class OwnerFinanceService(
                 },
             )
 
-    def _reserve_owner_refund_amount(self, owner: str, amount_usdc: float) -> None:
+    def _reserve_owner_refund_amount(self, owner: str, amount_usdc: Decimal | str | int) -> None:
         ledger = self._load_balance_ledger()
         consumer_wallet = ledger.ensure_consumer_wallet(owner)
-        available_balance = round(float(consumer_wallet.available_balance or 0.0), 6)
-        if amount_usdc > available_balance:
+        available_balance = parse_usdc(consumer_wallet.available_balance)
+        amount = parse_usdc(amount_usdc)
+        if amount > available_balance:
             raise HTTPException(
                 status_code=400,
                 detail={
@@ -460,11 +462,9 @@ class OwnerFinanceService(
                     "message": "amountUsdc exceeds owner available balance.",
                 },
             )
-        consumer_wallet.available_balance = round(
-            float(consumer_wallet.available_balance or 0.0) - amount_usdc, 6
-        )
-        consumer_wallet.pending_balance = round(
-            float(consumer_wallet.pending_balance or 0.0) + amount_usdc, 6
+        consumer_wallet.available_balance = parse_usdc(available_balance - amount)
+        consumer_wallet.pending_balance = parse_usdc(
+            Decimal(str(consumer_wallet.pending_balance or "0")) + amount
         )
         self._save_balance_ledger(ledger)
 
@@ -500,14 +500,15 @@ class OwnerFinanceService(
         *,
         pending: RefundIntentRow,
         owner: str,
-        amount_usdc: float,
+        amount_usdc: Decimal | str | int,
         idempotency_key: str,
         request_hash: str,
         redis_client: Optional[Any],
         idem_rows: List[dict[str, Any]],
     ) -> dict[str, Any]:
-        pending_amount = round(float(pending.amount_usdc or 0.0), 6)
-        if pending_amount != amount_usdc:
+        pending_amount = parse_usdc(pending.amount_usdc)
+        requested_amount = parse_usdc(amount_usdc)
+        if pending_amount != requested_amount:
             raise HTTPException(
                 status_code=409,
                 detail={

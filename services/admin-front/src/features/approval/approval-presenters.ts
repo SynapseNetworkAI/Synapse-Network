@@ -6,6 +6,7 @@ import {
   type ApprovalStatus,
   type StatusTone,
 } from "@/domain/status";
+import { parseMoneyStringForChart } from "@/lib/admin-console";
 import type { ApprovalItem } from "@/services/admin-api";
 
 const approvalTypeLabels: Record<string, string> = {
@@ -43,7 +44,7 @@ export function buildApprovalMetrics(items: ApprovalItem[]) {
   const awaitingReviewCount = items.filter((item) => isApprovalAwaitingReviewStatus(item.status)).length;
   const pendingExecutionCount = items.filter((item) => item.status === APPROVAL_STATUS.APPROVED_PENDING_EXECUTION).length;
   const projectedWithdrawAmount = projectedWithdrawReviews
-    .reduce((sum, item) => sum + Number(item.amountUsdc || 0), 0);
+    .reduce((sum, item) => sum + parseMoneyStringForChart(item.amountUsdc || "0"), 0);
 
   return {
     total: items.length,

@@ -20,6 +20,7 @@ import asyncio
 import json
 import logging
 import time
+from decimal import Decimal
 from typing import Any, Optional
 
 from src.core.config import settings
@@ -29,6 +30,7 @@ from src.services.owner.finance_constants import (
     CONSUMER_WITHDRAW_TYPE,
 )
 from src.storage.base import BaseStorage
+from src.utils.money import money_str, parse_usdc, usdc_decimal_to_atomic
 
 logger = logging.getLogger(__name__)
 
@@ -156,11 +158,11 @@ def _process_single_withdraw(storage: BaseStorage, row: Any) -> bool:
     from src.utils.datetime_utils import now_dt_str
 
     owner = normalize_wallet(str(row.owner_address or ""))
-    amount_usdc = round(float(row.amount_usdc or 0), 6)
-    fee_usdc = round(CONSUMER_WITHDRAW_FEE_USDC, 6)
-    net_usdc = round(amount_usdc - fee_usdc, 6)
-    net_wei = int(round(net_usdc * (10 ** USDC_DECIMALS)))
-    fee_wei = int(round(fee_usdc * (10 ** USDC_DECIMALS)))
+    amount_usdc = parse_usdc(row.amount_usdc)
+    fee_usdc = parse_usdc(Decimal(str(CONSUMER_WITHDRAW_FEE_USDC)))
+    net_usdc = parse_usdc(amount_usdc - fee_usdc)
+    net_wei = usdc_decimal_to_atomic(net_usdc, decimals=USDC_DECIMALS)
+    fee_wei = usdc_decimal_to_atomic(fee_usdc, decimals=USDC_DECIMALS)
 
     # Extract ticket nonce from the stored signature/request_meta if available
     ticket_nonce: Optional[int] = None
@@ -182,8 +184,8 @@ def _process_single_withdraw(storage: BaseStorage, row: Any) -> bool:
             )
         except RuntimeError:
             logger.warning(
-                "consumer_withdraw_processor: pending balance release failed for expired %s (amount=%.6f)",
-                owner, amount_usdc,
+                "consumer_withdraw_processor: pending balance release failed for expired %s (amount=%s)",
+                owner, money_str(amount_usdc),
             )
         rows = dm.system.gateway_state.read_consumer_refund_rows()
         for r in rows:
@@ -197,8 +199,8 @@ def _process_single_withdraw(storage: BaseStorage, row: Any) -> bool:
             break
         dm.system.gateway_state.write_consumer_refund_rows(rows, int(time.time()))
         logger.info(
-            "consumer_withdraw_processor: CANCELLED id=%s owner=%s amount=%.6f reason=ticket_expired",
-            row.id, owner, amount_usdc,
+            "consumer_withdraw_processor: CANCELLED id=%s owner=%s amount=%s reason=ticket_expired",
+            row.id, owner, money_str(amount_usdc),
         )
         return True
 
@@ -235,8 +237,8 @@ def _process_single_withdraw(storage: BaseStorage, row: Any) -> bool:
             )
         except RuntimeError:
             logger.warning(
-                "consumer_withdraw_processor: pending balance consume failed for %s (amount=%.6f)",
-                owner, amount_usdc,
+                "consumer_withdraw_processor: pending balance consume failed for %s (amount=%s)",
+                owner, money_str(amount_usdc),
             )
 
         # Update refund row status

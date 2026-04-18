@@ -29,39 +29,39 @@ RISK_RESTRICTED_STATUSES = {"restricted", "suspended", "blocked"}
 @dataclass(frozen=True)
 class ChargeUsageAtomicContext:
     request_id: str = ""
-    unit_price: float = 0.0
-    protocol_fee: float = 0.0
-    routing_tax: float = 0.0
+    unit_price: Decimal = Decimal("0")
+    protocol_fee: Decimal = Decimal("0")
+    routing_tax: Decimal = Decimal("0")
     usage_row: Optional[UsageLogRow] = None
     invocation: Optional[InvocationRecord] = None
 
 
-def _money_decimal(value: Decimal | str | int | float | None) -> Decimal:
+def _money_decimal(value: Decimal | str | int | None) -> Decimal:
     return MoneyCodec.coerce_decimal(value)
 
 
-def sanitize_fee_rate(raw: Any, fallback: float) -> float:
+def sanitize_fee_rate(raw: Any, fallback: Decimal | str | int) -> Decimal:
     """Clamp fee rates to [0,1] so malformed policy data cannot break settlement math."""
     try:
-        value = float(raw)
+        value = Decimal(str(raw))
     except Exception:
-        return float(fallback)
-    if value < 0:
-        return 0.0
-    if value > 1:
-        return 1.0
+        return _money_decimal(fallback)
+    if value < Decimal("0"):
+        return Decimal("0")
+    if value > Decimal("1"):
+        return Decimal("1")
     return value
 
 
-def resolve_platform_fee_rate(storage: BaseStorage, provider_wallet: str) -> float:
+def resolve_platform_fee_rate(storage: BaseStorage, provider_wallet: str) -> Decimal:
     """Resolve effective fee rate using owner override > runtime default > global config."""
-    fallback = sanitize_fee_rate(settings.platform_fee_rate, 0.10)
+    fallback = sanitize_fee_rate(settings.platform_fee_rate, Decimal("0.10"))
     policy = storage.get_data_manager().finance.fee_policy.get_platform_fee_policy()
 
     if (
         policy.updated_at is None
         and not policy.owner_rates
-        and abs(float(policy.default_rate)) < 1e-12
+        and abs(Decimal(str(policy.default_rate))) < Decimal("0.000000000001")
     ):
         policy_default = fallback
     else:
@@ -72,15 +72,15 @@ def resolve_platform_fee_rate(storage: BaseStorage, provider_wallet: str) -> flo
     return policy_default
 
 
-def resolve_gateway_routing_tax() -> float:
+def resolve_gateway_routing_tax() -> Decimal:
     """Resolve fixed routing tax per request and normalize precision for ledger safety."""
     try:
-        value = float(settings.gateway_routing_tax)
+        value = Decimal(str(settings.gateway_routing_tax))
     except Exception:
-        return 0.0
-    if value < 0:
-        return 0.0
-    return round(value, 6)
+        return Decimal("0")
+    if value < Decimal("0"):
+        return Decimal("0")
+    return MoneyCodec.quantize_usdc(value)
 
 
 def build_consumer_receipt(
@@ -88,9 +88,9 @@ def build_consumer_receipt(
     quote_id: str,
     invocation_id: str,
     service_id: str,
-    unit_price: float,
-    total_charge: float,
-    consumer_balance_after: float,
+    unit_price: Decimal | str | int,
+    total_charge: Decimal | str | int,
+    consumer_balance_after: Decimal | str | int,
 ) -> ConsumerReceipt:
     """Build consumer-visible receipt fields without leaking internal settlement splits."""
     return ConsumerReceipt(
@@ -98,9 +98,9 @@ def build_consumer_receipt(
         quoteId=quote_id,
         invocationId=invocation_id,
         serviceId=service_id,
-        totalCharge=total_charge,
-        consumerAvailableBalanceAfter=consumer_balance_after,
-        serviceUnitPrice=unit_price,
+        totalCharge=_money_decimal(total_charge),
+        consumerAvailableBalanceAfter=_money_decimal(consumer_balance_after),
+        serviceUnitPrice=_money_decimal(unit_price),
     )
 
 
@@ -121,15 +121,16 @@ def build_consumer_success_response(
 
 
 def pricing_breakdown(
-    storage: BaseStorage, provider_wallet: str, unit_price: float
-) -> tuple[float, float, float, float, float, float]:
+    storage: BaseStorage, provider_wallet: str, unit_price: Decimal | str | int
+) -> tuple[Decimal, Decimal, Decimal, Decimal, Decimal, Decimal]:
     """Compute fee decomposition used by charging, logging, and audit records."""
+    normalized_unit_price = _money_decimal(unit_price)
     fee_rate = resolve_platform_fee_rate(storage, provider_wallet)
-    protocol_fee = round(unit_price * fee_rate, 6)
+    protocol_fee = MoneyCodec.quantize_usdc(normalized_unit_price * fee_rate)
     routing_tax = resolve_gateway_routing_tax()
-    platform_fee_total = round(protocol_fee + routing_tax, 6)
-    provider_net = round(unit_price - protocol_fee, 6)
-    total_charge = round(unit_price + routing_tax, 6)
+    platform_fee_total = _money_decimal(protocol_fee + routing_tax)
+    provider_net = _money_decimal(normalized_unit_price - protocol_fee)
+    total_charge = _money_decimal(normalized_unit_price + routing_tax)
     return (
         fee_rate,
         protocol_fee,
@@ -204,17 +205,17 @@ async def charge_and_mark_usage(
     storage: BaseStorage,
     owner_wallet: str,
     provider_wallet: str,
-    total_charge: float,
-    platform_fee_total: float,
-    provider_net: float,
+    total_charge: Decimal | str | int,
+    platform_fee_total: Decimal | str | int,
+    provider_net: Decimal | str | int,
     credential_id: str,
     request_id: str = "",
-    unit_price: float = 0.0,
-    protocol_fee: float = 0.0,
-    routing_tax: float = 0.0,
+    unit_price: Decimal | str | int = Decimal("0"),
+    protocol_fee: Decimal | str | int = Decimal("0"),
+    routing_tax: Decimal | str | int = Decimal("0"),
     usage_row: Optional[UsageLogRow] = None,
     invocation: Optional[InvocationRecord] = None,
-) -> tuple[float, Optional[RuntimeCredentialRecord]]:
+) -> tuple[Decimal, Optional[RuntimeCredentialRecord]]:
     """Atomically charge consumer, credit provider/platform, and increment credential usage."""
     now = credential_service.now_ts()
 
@@ -255,15 +256,18 @@ def _charge_and_mark_usage_atomic(
     storage: BaseStorage,
     owner_wallet: str,
     provider_wallet: str,
-    total_charge: float,
-    platform_fee_total: float,
-    provider_net: float,
+    total_charge: Decimal | str | int,
+    platform_fee_total: Decimal | str | int,
+    provider_net: Decimal | str | int,
     credential_id: str,
     context: ChargeUsageAtomicContext,
     now: int,
-) -> tuple[float, Optional[RuntimeCredentialRecord]]:
-    consumer_after = 0.0
+) -> tuple[Decimal, Optional[RuntimeCredentialRecord]]:
+    consumer_after = Decimal("0")
     updated_credential = None
+    normalized_total_charge = _money_decimal(total_charge)
+    normalized_provider_net = _money_decimal(provider_net)
+    normalized_platform_fee_total = _money_decimal(platform_fee_total)
 
     normalized_usage_row = context.usage_row or UsageLogRow(
         id=(
@@ -276,53 +280,31 @@ def _charge_and_mark_usage_atomic(
         consumerAddress=owner_wallet,
         providerAddress=provider_wallet,
         status="accepted",
-        unitPrice=Decimal(str(context.unit_price)).quantize(
-            Decimal("0.000001"), rounding=ROUND_HALF_UP
-        ),
-        protocolFee=Decimal(str(context.protocol_fee)).quantize(
-            Decimal("0.000001"), rounding=ROUND_HALF_UP
-        ),
-        routingTax=Decimal(str(context.routing_tax)).quantize(
-            Decimal("0.000001"), rounding=ROUND_HALF_UP
-        ),
-        totalCharge=Decimal(str(total_charge)).quantize(
-            Decimal("0.000001"), rounding=ROUND_HALF_UP
-        ),
+        unitPrice=_money_decimal(context.unit_price),
+        protocolFee=_money_decimal(context.protocol_fee),
+        routingTax=_money_decimal(context.routing_tax),
+        totalCharge=normalized_total_charge,
     )
     try:
         result = storage.charge_consumer_and_record_usage_atomic(
             ChargeConsumerUsageCommand(
                 owner_wallet=owner_wallet,
                 provider_wallet=provider_wallet,
-                total_charge=Decimal(str(total_charge)).quantize(
-                    Decimal("0.000001"), rounding=ROUND_HALF_UP
-                ),
-                provider_net=Decimal(str(provider_net)).quantize(
-                    Decimal("0.000001"), rounding=ROUND_HALF_UP
-                ),
-                platform_fee_total=Decimal(str(platform_fee_total)).quantize(
-                    Decimal("0.000001"), rounding=ROUND_HALF_UP
-                ),
+                total_charge=normalized_total_charge,
+                provider_net=normalized_provider_net,
+                platform_fee_total=normalized_platform_fee_total,
                 request_id=context.request_id,
-                unit_price=Decimal(str(context.unit_price)).quantize(
-                    Decimal("0.000001"), rounding=ROUND_HALF_UP
-                ),
-                protocol_fee=Decimal(str(context.protocol_fee)).quantize(
-                    Decimal("0.000001"), rounding=ROUND_HALF_UP
-                ),
-                routing_tax=Decimal(str(context.routing_tax)).quantize(
-                    Decimal("0.000001"), rounding=ROUND_HALF_UP
-                ),
+                unit_price=_money_decimal(context.unit_price),
+                protocol_fee=_money_decimal(context.protocol_fee),
+                routing_tax=_money_decimal(context.routing_tax),
                 invocation=context.invocation,
                 usage_row=normalized_usage_row,
             )
         )
         if isinstance(result, dict):
-            consumer_after = float(result.get("consumerAvailableBalanceAfter") or 0.0)
+            consumer_after = _money_decimal(result.get("consumerAvailableBalanceAfter"))
         else:
-            consumer_after = float(
-                getattr(result, "consumer_available_balance_after", 0.0)
-            )
+            consumer_after = _money_decimal(getattr(result, "consumer_available_balance_after", 0))
     except RuntimeError as exc:
         if str(exc) == "INSUFFICIENT_BALANCE":
             raise HTTPException(
@@ -358,11 +340,11 @@ async def _charge_and_mark_usage_fallback(
     storage: BaseStorage,
     owner_wallet: str,
     provider_wallet: str,
-    total_charge: float,
-    platform_fee_total: float,
-    provider_net: float,
+    total_charge: Decimal | str | int,
+    platform_fee_total: Decimal | str | int,
+    provider_net: Decimal | str | int,
     credential_id: str,
-) -> tuple[float, Optional[RuntimeCredentialRecord]]:
+) -> tuple[Decimal, Optional[RuntimeCredentialRecord]]:
     total_charge_decimal = _money_decimal(total_charge)
     platform_fee_total_decimal = _money_decimal(platform_fee_total)
     provider_net_decimal = _money_decimal(provider_net)
@@ -407,16 +389,16 @@ async def _charge_and_mark_usage_fallback(
             rows[idx] = updated_credential
             credential_service.save_credential_rows(storage, rows)
 
-    return float(consumer_after), updated_credential
+    return consumer_after, updated_credential
 
 
 async def rollback_charge(
     storage: BaseStorage,
     owner_wallet: str,
     provider_wallet: str,
-    total_charge: float,
-    platform_fee_total: float,
-    provider_net: float,
+    total_charge: Decimal | str | int,
+    platform_fee_total: Decimal | str | int,
+    provider_net: Decimal | str | int,
     updated_credential: Optional[RuntimeCredentialRecord],
 ) -> None:
     """Rollback consumer/provider/platform ledger and credential usage when upstream fails."""

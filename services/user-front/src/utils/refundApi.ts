@@ -1,10 +1,11 @@
 import { buildAuthedHeaders } from "@/utils/authSession";
 import { getGatewayBaseUrl } from "@/utils/gatewayApi";
+import { normalizeMoneyString, type MoneyString } from "@/utils/money";
 
 export type RefundRecord = {
   id: string; // pseudo id or tx_hash if available
   timestamp: number;
-  amount: number;
+  amountUsdc: MoneyString;
   type: "refund" | "settlement";
   status: "PENDING" | "COMPLETED";
   txHash: string | null;
@@ -41,7 +42,7 @@ export async function fetchRefunds(userAddress: string): Promise<RefundRecord[]>
       .map((row) => ({
         id: typeof row.id === "string" ? row.id : String(row.id ?? ""),
         timestamp: row.createdAt ? Math.floor(new Date(String(row.createdAt)).getTime() / 1000) : 0,
-        amount: Number(row.amountUsdc || 0),
+        amountUsdc: normalizeMoneyString(row.amountUsdc),
         type: "refund" as const,
         status: String(row.status || "").toUpperCase() === "COMPLETED" ? "COMPLETED" : "PENDING",
         txHash: typeof row.txHash === "string" ? row.txHash : null,

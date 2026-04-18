@@ -18,18 +18,20 @@ from src.domain.finance import RefundIntentRow, RefundReviewContext
 from src.domain.operation_metadata import OperationContextMetadata
 from src.services.owner.finance_constants import CONSUMER_WITHDRAW_TYPE, REFUND_ACTIVE_STATUSES
 from src.utils.datetime_utils import now_dt_str
+from src.utils.money import money_str, parse_usdc
 
 
 class FinanceRefundExecMixin:
     """Refund execution: balance mutations, completion, and public refund methods."""
 
     def _release_locked_refund_to_available(
-        self, owner: str, amount_usdc: float
+        self, owner: str, amount_usdc: Decimal | str | int
     ) -> None:
         ledger = self._load_balance_ledger()  # type: ignore[attr-defined]
         consumer_wallet = ledger.ensure_consumer_wallet(owner)
-        locked = round(float(consumer_wallet.pending_balance or 0.0), 6)
-        if locked + 1e-9 < amount_usdc:
+        release_amount = parse_usdc(amount_usdc)
+        locked = parse_usdc(consumer_wallet.pending_balance)
+        if locked < release_amount:
             raise HTTPException(
                 status_code=409,
                 detail={
@@ -37,9 +39,9 @@ class FinanceRefundExecMixin:
                     "message": "Locked owner balance is insufficient for refund rejection release.",
                 },
             )
-        consumer_wallet.pending_balance = round(max(0.0, locked - amount_usdc), 6)
-        consumer_wallet.available_balance = round(
-            float(consumer_wallet.available_balance or 0.0) + amount_usdc, 6
+        consumer_wallet.pending_balance = parse_usdc(max(Decimal("0"), locked - release_amount))
+        consumer_wallet.available_balance = parse_usdc(
+            parse_usdc(consumer_wallet.available_balance) + release_amount
         )
         self._save_balance_ledger(ledger)  # type: ignore[attr-defined]
 
@@ -76,12 +78,13 @@ class FinanceRefundExecMixin:
         owner: str,
         rows: List[RefundIntentRow],
         target: RefundIntentRow,
-        amount_usdc: float,
+        amount_usdc: Decimal | str | int,
         reviewer_address: str,
         reviewer_note: str,
         request_meta: Optional[dict[str, Any]],
     ) -> dict[str, Any]:
-        self._release_locked_refund_to_available(owner, amount_usdc)
+        refund_amount = parse_usdc(amount_usdc)
+        self._release_locked_refund_to_available(owner, refund_amount)
         now = int(time.time())
         target.status = "REJECTED"
         target.review_decision = "REJECT"
@@ -96,7 +99,7 @@ class FinanceRefundExecMixin:
             owner,
             {
                 "refundId": str(target.id or ""),
-                "amountUsdc": amount_usdc,
+                "amountUsdc": money_str(refund_amount),
                 "reviewerAddress": reviewer_address,
                 "reviewerNote": reviewer_note,
                 "requestMeta": request_meta or {},
@@ -114,7 +117,7 @@ class FinanceRefundExecMixin:
         owner: str,
         rows: List[RefundIntentRow],
         target: RefundIntentRow,
-        amount_usdc: float,
+        amount_usdc: Decimal | str | int,
         review_decision: str,
         reviewer_address: str,
         reviewer_note: str,
@@ -155,12 +158,13 @@ class FinanceRefundExecMixin:
         rows: List[RefundIntentRow],
         target: RefundIntentRow,
         normalized_tx_hash: str,
-        amount_usdc: float,
+        amount_usdc: Decimal | str | int,
         status_before: str,
         reviewer_address: str,
         reviewer_note: str,
         request_meta: Optional[dict[str, Any]],
     ) -> dict[str, Any]:
+        refund_amount = parse_usdc(amount_usdc)
         now = int(time.time())
         target.status = "COMPLETED"
         target.tx_hash = normalized_tx_hash
@@ -179,7 +183,7 @@ class FinanceRefundExecMixin:
             {
                 "refundId": str(target.id or ""),
                 "txHash": normalized_tx_hash,
-                "amountUsdc": amount_usdc,
+                "amountUsdc": money_str(refund_amount),
                 "reviewDecision": str(target.review_decision or "APPROVE"),
                 "reviewerAddress": str(target.reviewer_address or ""),
                 "requestMeta": request_meta or {},
@@ -193,7 +197,7 @@ class FinanceRefundExecMixin:
             loop = asyncio.get_running_loop()
             loop.create_task(emit_refund_completed(
                 owner,
-                amount_usdc=amount_usdc,
+                amount_usdc=refund_amount,
                 reason_code=str(target.reason or ""),
                 tx_hash=normalized_tx_hash,
             ))
@@ -223,7 +227,7 @@ class FinanceRefundExecMixin:
             context = self._parse_refund_create_context(  # type: ignore[attr-defined]
                 payload, owner, available_balance
             )
-            amount_usdc = context.amount_usdc
+            amount_usdc = parse_usdc(context.amount_usdc)
             reason = context.reason
             evidence_summary = context.evidence_summary
             origin = context.origin
@@ -307,7 +311,7 @@ class FinanceRefundExecMixin:
             refund_row = RefundIntentRow(
                 id=refund_id,
                 ownerAddress=owner,
-                amountUsdc=Decimal(str(round(amount_usdc, 6))),
+                amountUsdc=amount_usdc,
                 reason=reason,
                 status=risk["status"],
                 signature=signature,
@@ -332,7 +336,7 @@ class FinanceRefundExecMixin:
             response = {
                 "refundId": refund_id,
                 "signature": signature,
-                "amountRefunded": round(amount_usdc, 6),
+                "amountRefunded": money_str(amount_usdc),
                 "status": risk["status"],
                 "gasPayer": "OWNER",
                 "gasModel": "OWNER_PAYS_ONCHAIN",
@@ -353,7 +357,7 @@ class FinanceRefundExecMixin:
                 owner,
                 {
                     "refundId": refund_id,
-                    "amountUsdc": round(amount_usdc, 6),
+                    "amountUsdc": money_str(amount_usdc),
                     "originRequestId": origin.request_id,
                     "originTxHash": origin.tx_hash,
                     "refundType": refund_type,
@@ -432,7 +436,7 @@ class FinanceRefundExecMixin:
             review_decision = review.decision
             reviewer_address = review.reviewer_address
             reviewer_note = review.reviewer_note
-            amount_usdc = round(float(target.amount_usdc or 0.0), 6)
+            amount_usdc = parse_usdc(target.amount_usdc)
 
             if status == "PENDING_MANUAL_REVIEW":
                 if self._is_consumer_withdraw_row(target):
@@ -518,7 +522,7 @@ class FinanceRefundExecMixin:
                     },
                 )
 
-            amount_usdc = round(float(target.amount_usdc or 0.0), 6)
+            amount_usdc = parse_usdc(target.amount_usdc)
             if status == "REQUESTED":
                 self._release_consumer_pending_to_available(owner, amount_usdc)  # type: ignore[attr-defined]
             elif status == "PENDING_MANUAL_REVIEW":
@@ -543,7 +547,7 @@ class FinanceRefundExecMixin:
                     "reasonCode": reason_code,
                     "message": target.message,
                     "txHash": normalized_tx_hash,
-                    "amountUsdc": amount_usdc,
+                    "amountUsdc": money_str(amount_usdc),
                     "requestMeta": request_meta or {},
                 },
             )
@@ -617,7 +621,7 @@ class FinanceRefundExecMixin:
                     },
                 )
 
-            amount_usdc = round(float(target.amount_usdc or 0.0), 6)
+            amount_usdc = parse_usdc(target.amount_usdc)
             now = int(time.time())
             target.reviewer_address = review.reviewer_address
             target.reviewer_note = review.reviewer_note
@@ -637,7 +641,7 @@ class FinanceRefundExecMixin:
                     owner,
                     {
                         "refundId": str(target.id or ""),
-                        "amountUsdc": amount_usdc,
+                        "amountUsdc": money_str(amount_usdc),
                         "reviewerAddress": review.reviewer_address,
                         "reviewerNote": review.reviewer_note,
                         "requestMeta": request_meta or {},
@@ -651,7 +655,7 @@ class FinanceRefundExecMixin:
 
             ticket = self._build_consumer_withdraw_ticket(  # type: ignore[attr-defined]
                 owner=owner,
-                gross_amount_usdc=Decimal(str(amount_usdc)),
+                gross_amount_usdc=amount_usdc,
             )
             self._move_consumer_frozen_to_pending(owner, amount_usdc)  # type: ignore[attr-defined]
             target.status = "REQUESTED"
@@ -671,7 +675,7 @@ class FinanceRefundExecMixin:
                 owner,
                 {
                     "refundId": str(target.id or ""),
-                    "amountUsdc": amount_usdc,
+                    "amountUsdc": money_str(amount_usdc),
                     "reviewerAddress": review.reviewer_address,
                     "reviewerNote": review.reviewer_note,
                     "requestMeta": request_meta or {},

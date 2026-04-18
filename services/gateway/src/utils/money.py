@@ -21,13 +21,13 @@ class MoneyCodec:
         return Decimal(str(value)).quantize(cls.quantizer, rounding=ROUND_HALF_UP)
 
     @classmethod
-    def coerce_decimal(cls, value: Decimal | str | int | float | None) -> Decimal:
+    def coerce_decimal(cls, value: Decimal | str | int | None) -> Decimal:
         if value is None:
             return cls.quantize_usdc(Decimal("0"))
         if isinstance(value, bool):
             raise TypeError("bool is not a valid money value")
         if isinstance(value, float):
-            return Decimal(str(value)).quantize(cls.quantizer, rounding=ROUND_HALF_UP)
+            raise TypeError("float is forbidden for money values")
         return cls.quantize_usdc(value)
 
     @classmethod
@@ -46,7 +46,7 @@ class MoneyCodec:
         return int(quantized * (Decimal(10) ** decimals))
 
     @classmethod
-    def to_wire(cls, value: Decimal | str | int | float | None) -> str:
+    def to_wire(cls, value: Decimal | str | int | None) -> str:
         return format(cls.coerce_decimal(value), "f")
 
     def with_quantizer(self, quantizer: Decimal) -> Self:
@@ -70,5 +70,5 @@ def atomic_to_usdc_decimal(amount_atomic: int | str, *, decimals: int = 18) -> D
     return MoneyCodec.from_atomic(amount_atomic, decimals=decimals)
 
 
-def money_str(value: Decimal | str | int | float | None) -> str:
+def money_str(value: Decimal | str | int | None) -> str:
     return MoneyCodec.to_wire(value)

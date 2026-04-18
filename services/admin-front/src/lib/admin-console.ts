@@ -1,6 +1,11 @@
+export type MoneyString = string;
+
+const MONEY_SCALE = 6;
+const SIGNED_MONEY_PATTERN = /^-?\d+(?:\.\d{1,6})?$/;
+
 export function formatUsdc(value: string | number | null | undefined): string {
   const raw = typeof value === "number" ? value.toString() : String(value ?? "0").trim();
-  if (!/^-?\d+(\.\d+)?$/.test(raw)) {
+  if (!SIGNED_MONEY_PATTERN.test(raw)) {
     return "0.00";
   }
   const negative = raw.startsWith("-");
@@ -10,6 +15,50 @@ export function formatUsdc(value: string | number | null | undefined): string {
   const fraction = `${fracRaw}00`.slice(0, 2);
   const groupedWhole = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   return `${negative ? "-" : ""}${groupedWhole}.${fraction}`;
+}
+
+function normalizeMoneyString(value: string | number | null | undefined): string {
+  const raw = typeof value === "number" ? value.toString() : String(value ?? "0").trim();
+  if (!SIGNED_MONEY_PATTERN.test(raw)) {
+    return "0";
+  }
+  const negative = raw.startsWith("-");
+  const normalized = negative ? raw.slice(1) : raw;
+  const [wholeRaw, fractionRaw = ""] = normalized.split(".");
+  const whole = wholeRaw.replace(/^0+(?=\d)/, "") || "0";
+  const fraction = fractionRaw.slice(0, MONEY_SCALE).replace(/0+$/, "");
+  const compact = fraction ? `${whole}.${fraction}` : whole;
+  return negative && compact !== "0" ? `-${compact}` : compact;
+}
+
+export function parseMoneyStringForChart(value: string | number | null | undefined): number {
+  return Number(normalizeMoneyString(value));
+}
+
+export function compareMoneyStrings(left: string | number | null | undefined, right: string | number | null | undefined): number {
+  const l = normalizeMoneyString(left);
+  const r = normalizeMoneyString(right);
+  if (l === r) {
+    return 0;
+  }
+  return parseMoneyStringForChart(l) > parseMoneyStringForChart(r) ? 1 : -1;
+}
+
+export function addMoneyStrings(values: Array<string | number | null | undefined>): string {
+  const total = values.reduce((sum, value) => sum + parseMoneyStringForChart(value), 0);
+  return normalizeMoneyString(total.toFixed(MONEY_SCALE));
+}
+
+export function subtractMoneyStrings(
+  left: string | number | null | undefined,
+  right: string | number | null | undefined,
+): string {
+  const delta = parseMoneyStringForChart(left) - parseMoneyStringForChart(right);
+  return normalizeMoneyString(delta.toFixed(MONEY_SCALE));
+}
+
+export function absMoneyString(value: string | number | null | undefined): string {
+  return normalizeMoneyString(Math.abs(parseMoneyStringForChart(value)).toFixed(MONEY_SCALE));
 }
 
 export function formatDateTime(value: string | null | undefined): string {

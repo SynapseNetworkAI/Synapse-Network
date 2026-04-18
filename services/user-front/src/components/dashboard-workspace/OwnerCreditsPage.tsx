@@ -29,7 +29,7 @@ import {
   calculateSpendRatio,
   getBillingCycleWindow,
 } from "@/utils/creditsSpendCap";
-import { formatMoneyString, normalizeMoneyString } from "@/utils/money";
+import { compareMoneyStrings, formatMoneyString, moneyStringToNumber, normalizeMoneyString, type MoneyString } from "@/utils/money";
 import SynapseCoreABI from "@/SynapseCoreABI.json";
 
 const DepositUsdcModal = dynamic(
@@ -140,12 +140,13 @@ function WithdrawBalanceModal({ availableBalance, userAddress, onClose, onSucces
   }, [isTxFailed, syncFailedWithdrawal, txHash, txReceiptError, withdrawResult]);
 
   const handleSubmit = async () => {
-    const num = Number.parseFloat(amount);
-    if (!Number.isFinite(num) || num <= 0) {
+    const normalizedAmount = normalizeMoneyString(amount, "");
+    const num = moneyStringToNumber(normalizedAmount);
+    if (!normalizedAmount || !Number.isFinite(num) || num <= 0) {
       toast.error("Enter a valid amount.");
       return;
     }
-    if (num > availableBalance + 1e-6) {
+    if (compareMoneyStrings(normalizedAmount, normalizeMoneyString(availableBalance)) > 0) {
       toast.error(`Amount exceeds available balance ($${availableBalance.toFixed(2)}).`);
       return;
     }
@@ -154,7 +155,7 @@ function WithdrawBalanceModal({ availableBalance, userAddress, onClose, onSucces
     let createdResult: ConsumerWithdrawIntent | null = null;
     try {
       const result = await requestConsumerWithdraw(userAddress, {
-        amountUsdc: normalizeMoneyString(num),
+        amountUsdc: normalizedAmount,
         reason: reason.trim() || undefined,
       });
       createdResult = result;
@@ -369,8 +370,8 @@ export default function OwnerCreditsPage() {
   const [pendingWithdrawal, setPendingWithdrawal] = useState<RefundIntentRecord | null>(null);
   const [optimisticBalanceOverride, setOptimisticBalanceOverride] = useState<{
     withdrawId: string;
-    amountUsdc: number;
-    targetBalance: number;
+    amountUsdc: MoneyString;
+    targetBalance: MoneyString;
   } | null>(null);
 
   // Restore optimistic override from sessionStorage on mount / address change
@@ -382,10 +383,10 @@ export default function OwnerCreditsPage() {
       if (stored) {
         const parsed = JSON.parse(stored) as {
           withdrawId: string;
-          amountUsdc: number;
-          targetBalance: number;
+          amountUsdc: MoneyString;
+          targetBalance: MoneyString;
         };
-        if (parsed.withdrawId && typeof parsed.targetBalance === "number") {
+        if (parsed.withdrawId && typeof parsed.targetBalance === "string") {
           setOptimisticBalanceOverride(parsed);
         }
       }
@@ -453,11 +454,11 @@ export default function OwnerCreditsPage() {
   const billingCycle = useMemo(() => getBillingCycleWindow(), []);
 
   const creditSummary = useMemo(() => {
-    const treasuryAvailable = Number.parseFloat(stats.ownerBalance) || 0;
-    const currentSpend = Number(spendingLimit?.currentCycleSpendUsdc ?? 0);
+    const treasuryAvailable = moneyStringToNumber(stats.ownerBalance);
+    const currentSpend = moneyStringToNumber(spendingLimit?.currentCycleSpendUsdc ?? "0");
     const billingCycleCap =
       typeof spendingLimit?.spendingLimitUsdc === "string"
-        ? Number(spendingLimit.spendingLimitUsdc)
+        ? moneyStringToNumber(spendingLimit.spendingLimitUsdc)
         : null;
     const spendRatio = calculateSpendRatio(currentSpend, billingCycleCap);
 
@@ -468,7 +469,7 @@ export default function OwnerCreditsPage() {
       spendRatio,
       remainingSpend:
         typeof spendingLimit?.remainingSpendUsdc === "string"
-          ? Number(spendingLimit.remainingSpendUsdc)
+          ? moneyStringToNumber(spendingLimit.remainingSpendUsdc)
           : null,
     };
   }, [spendingLimit, stats.ownerBalance]);
@@ -479,11 +480,11 @@ export default function OwnerCreditsPage() {
     }
 
     const serverBalance = creditSummary.remainingBalance;
-    if (serverBalance <= optimisticBalanceOverride.targetBalance + 1e-6) {
+    if (compareMoneyStrings(normalizeMoneyString(serverBalance), optimisticBalanceOverride.targetBalance) <= 0) {
       return serverBalance;
     }
 
-    return optimisticBalanceOverride.targetBalance;
+    return moneyStringToNumber(optimisticBalanceOverride.targetBalance);
   }, [creditSummary.remainingBalance, optimisticBalanceOverride]);
 
   const clearOptimisticOverride = useCallback(() => {
@@ -494,7 +495,7 @@ export default function OwnerCreditsPage() {
   useEffect(() => {
     if (
       optimisticBalanceOverride &&
-      creditSummary.remainingBalance <= optimisticBalanceOverride.targetBalance + 1e-6
+      compareMoneyStrings(normalizeMoneyString(creditSummary.remainingBalance), optimisticBalanceOverride.targetBalance) <= 0
     ) {
       setOptimisticBalanceOverride(null);
       if (optimisticStorageKey) sessionStorage.removeItem(optimisticStorageKey);
@@ -896,10 +897,9 @@ export default function OwnerCreditsPage() {
             if (isActiveWithdrawal && !result.existingWithdrawal) {
               const newOverride = {
                 withdrawId: result.withdrawId,
-                amountUsdc: Number(result.amountUsdc),
-                targetBalance: Math.max(
-                  0,
-                  displayedRemainingBalance - Number(result.amountUsdc)
+                amountUsdc: result.amountUsdc,
+                targetBalance: normalizeMoneyString(
+                  Math.max(0, displayedRemainingBalance - moneyStringToNumber(result.amountUsdc))
                 ),
               };
               setOptimisticBalanceOverride((current) =>

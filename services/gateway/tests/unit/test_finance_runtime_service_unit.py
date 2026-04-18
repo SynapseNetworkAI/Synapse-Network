@@ -169,8 +169,8 @@ class FakeStorage:
             raise self.voucher_atomic_error
         if self.voucher_atomic_result is None:
             raise RuntimeError("VOUCHER_REDEEM_RESULT_INVALID")
-        self.balance.ledger.ensure_consumer_wallet("0xabc").available_balance = float(
-            self.voucher_atomic_result.after_balance_usdc
+        self.balance.ledger.ensure_consumer_wallet("0xabc").available_balance = Decimal(
+            str(self.voucher_atomic_result.after_balance_usdc)
         )
         return self.voucher_atomic_result
 
@@ -370,7 +370,7 @@ def test_get_deposit_sync_status_returns_not_registered_for_unknown_tx_hash() ->
 
 def test_consumer_finance_refund_flow_uses_typed_rows() -> None:
     storage = FakeStorage()
-    storage.balance.ledger.ensure_consumer_wallet("0xabc").available_balance = 100.0
+    storage.balance.ledger.ensure_consumer_wallet("0xabc").available_balance = Decimal("100.000000")
     storage.gateway_state.usage_rows = [
         UsageLogRow(
             id="usage-1",
@@ -540,7 +540,7 @@ def test_provider_withdraw_atomic_path_reads_vault_liquidity_from_contract_tuple
         return SimpleNamespace(
             withdrawal_id="wd-1",
             status="APPROVED_AUTO",
-            amount_usdc=8.5,
+            amount_usdc=Decimal("8.5"),
             ticket={},
             message="ok",
             decision="green",
@@ -745,7 +745,7 @@ def test_provider_withdraw_manual_review_uses_configured_single_limit(monkeypatc
         return SimpleNamespace(
             withdrawal_id="wd-config-threshold-1",
             status="PENDING_MANUAL_REVIEW",
-            amount_usdc=60.0,
+            amount_usdc=Decimal("60.0"),
             ticket={},
             message="configured threshold hit",
             decision="yellow",
@@ -1042,12 +1042,12 @@ def test_owner_balance_summary_uses_consumer_provider_fields() -> None:
     storage = FakeStorage()
     consumer_wallet = storage.balance.ledger.ensure_consumer_wallet("0xabc")
     provider_wallet = storage.balance.ledger.ensure_provider_wallet("0xabc")
-    consumer_wallet.available_balance = 12.5
-    consumer_wallet.pending_balance = 1.25
-    consumer_wallet.frozen_balance = 0.75
-    provider_wallet.available_balance = 9.5
-    provider_wallet.pending_balance = 2.0
-    storage.balance.ledger.platform.fee_accrued = 0.4
+    consumer_wallet.available_balance = Decimal("12.5")
+    consumer_wallet.pending_balance = Decimal("1.25")
+    consumer_wallet.frozen_balance = Decimal("0.75")
+    provider_wallet.available_balance = Decimal("9.5")
+    provider_wallet.pending_balance = Decimal("2.0")
+    storage.balance.ledger.platform.fee_accrued = Decimal("0.4")
     storage.balance.ledger.updated_at = "2026-03-17 12:00:00"
 
     service = PlatformFinanceService(storage, DummyLockManager())

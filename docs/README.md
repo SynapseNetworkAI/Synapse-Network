@@ -139,6 +139,7 @@ AI 协作优先入口新增如下：
 5. [05_DevOps_Deployment/README.md](./05_DevOps_Deployment/README.md)
    本地环境、CI/CD、观测、索引器运行、金融事故响应。
 6. [06_Reference/README.md](./06_Reference/README.md)
+7. [reference/Money_Contract.md](./reference/Money_Contract.md)
    API 索引、错误码契约、Manifest 与 Runtime 对象、开发测试参考。
 
 ## 3.1 项目文档集中维护层
