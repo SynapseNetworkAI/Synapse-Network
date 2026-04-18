@@ -35,9 +35,9 @@ INDEXER_STATUS: dict[str, Any] = {
     "reconciliation": {
         "enabled": bool(settings.v2_reconciliation_enabled),
         "lastCheckAt": None,
-        "chainVaultUsdc": 0.0,
-        "ledgerObligationUsdc": 0.0,
-        "deltaUsdc": 0.0,
+        "chainVaultUsdc": "0.000000",
+        "ledgerObligationUsdc": "0.000000",
+        "deltaUsdc": "0.000000",
         "alert": False,
         "lastError": None,
     },

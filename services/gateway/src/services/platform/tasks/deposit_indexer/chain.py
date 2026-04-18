@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import json
 import os
+from decimal import Decimal
 from typing import Any, List, Optional
 
 from src.core.common import normalize_wallet
 from src.core.config import settings
+from src.utils.money import MoneyCodec
 
 from .shared import TOKEN_DECIMALS_CACHE, get_transfer_topic, get_web3, get_web3_class
 
@@ -183,9 +185,9 @@ def _decode_deposit_events_from_receipt(tx_receipt: Any) -> List[dict[str, Any]]
     return events
 
 
-def _amount_usdc_from_raw(amount_raw: int, decimals: int = 6) -> float:
+def _amount_usdc_from_raw(amount_raw: int, decimals: int = 6) -> Decimal:
     """把链上最小单位金额转换成人类可读 USDC。"""
-    return round(float(amount_raw) / float(10**decimals), 6)
+    return MoneyCodec.from_atomic(amount_raw, decimals=decimals)
 
 
 def _resolve_token_decimals(token_address: str) -> int:
@@ -221,10 +223,13 @@ def _resolve_token_decimals(token_address: str) -> int:
 
 
 def _pick_matching_event(
-    events: List[dict[str, Any]], owner_wallet: str, min_amount_usdc: float
+    events: List[dict[str, Any]],
+    owner_wallet: str,
+    min_amount_usdc: Decimal | str | int,
 ) -> Optional[dict[str, Any]]:
     """从候选事件中挑出属于 owner 且金额满足下限的最佳匹配。"""
     owner = normalize_wallet(owner_wallet)
+    minimum = MoneyCodec.coerce_decimal(min_amount_usdc)
     candidate: Optional[dict[str, Any]] = None
 
     for row in events:
@@ -235,7 +240,7 @@ def _pick_matching_event(
         amount_usdc = _amount_usdc_from_raw(
             int(row.get("amountRaw", 0)), decimals=decimals
         )
-        if amount_usdc + 1e-9 < min_amount_usdc:
+        if amount_usdc < minimum:
             continue
         if candidate is None or int(row.get("amountRaw", 0)) > int(
             candidate.get("amountRaw", 0)
@@ -282,7 +287,7 @@ def _get_confirmed_receipt_or_none(tx_hash: str) -> Optional[dict[str, Any]]:
 
 
 def _resolve_matched_event(
-    tx_receipt: Any, owner_wallet: str, min_amount_usdc: float
+    tx_receipt: Any, owner_wallet: str, min_amount_usdc: Decimal | str | int
 ) -> Optional[dict[str, Any]]:
     """从 receipt 中解出并匹配当前 intent 对应的 deposit 事件。"""
     return _pick_matching_event(

@@ -5,6 +5,7 @@ from typing import Any
 
 from src.core.common import normalize_wallet
 from src.core.config import settings
+from src.utils.money import money_str
 from src.domain.finance import BalanceLedger
 from src.storage import BaseStorage
 
@@ -76,7 +77,7 @@ def _process_replay_event(
     if not owner_wallet:
         return {"result": "skip"}
 
-    amount_usdc = 0.0
+    amount_usdc = "0.000000"
     event_key = str(event.get("eventKey") or "")
     target_intent = _find_intent_by_tx_owner(intents, normalized_tx, owner_wallet)
     if target_intent is None:
@@ -262,9 +263,9 @@ def _hydrate_runtime_status(storage: BaseStorage) -> None:
         reconciliation={
             "enabled": bool(settings.v2_reconciliation_enabled),
             "lastCheckAt": reconciliation_state.get("lastCheckAt"),
-            "chainVaultUsdc": float(reconciliation_state.get("chainVaultUsdc") or 0.0),
-            "ledgerObligationUsdc": float(reconciliation_state.get("ledgerObligationUsdc") or 0.0),
-            "deltaUsdc": float(reconciliation_state.get("deltaUsdc") or 0.0),
+            "chainVaultUsdc": money_str(reconciliation_state.get("chainVaultUsdc")),
+            "ledgerObligationUsdc": money_str(reconciliation_state.get("ledgerObligationUsdc")),
+            "deltaUsdc": money_str(reconciliation_state.get("deltaUsdc")),
             "alert": bool(reconciliation_state.get("alert") or False),
             "lastError": (indexer_state.get("reconciliation") or {}).get("lastError"),
         },
@@ -317,9 +318,9 @@ def _mark_reconciliation_failure(now: int) -> None:
         reconciliation={
             "enabled": True,
             "lastCheckAt": now,
-            "chainVaultUsdc": 0.0,
-            "ledgerObligationUsdc": 0.0,
-            "deltaUsdc": 0.0,
+            "chainVaultUsdc": "0.000000",
+            "ledgerObligationUsdc": "0.000000",
+            "deltaUsdc": "0.000000",
             "alert": False,
             "lastError": _RECONCILIATION_ERROR_CODE,
         }

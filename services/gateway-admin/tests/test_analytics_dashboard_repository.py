@@ -177,6 +177,10 @@ def test_clickhouse_invocation_revenue_counts_started_events(monkeypatch) -> Non
     assert payload["invokeStartedCount"] == 2
     assert payload["invokeCompletedCount"] == 1
     assert payload["successRate"] == 0.5
+    assert payload["gmvUsdc"] == "0.020000"
+    assert payload["priceAvgUsdc"] == "0.020000"
+    assert payload["platformFeeUsdc"] == "0.003000"
+    assert payload["providerNetUsdc"] == "0.017000"
 
 
 def test_clickhouse_overview_budget_alert_links_to_risk_drilldown(monkeypatch) -> None:
@@ -268,7 +272,12 @@ def test_clickhouse_risk_health_returns_budget_block_breakdown_and_samples(monke
 
     assert payload["budgetBlocks"][0]["errorCode"] == "OWNER_BILLING_CYCLE_LIMIT_EXCEEDED"
     assert payload["budgetBlocks"][0]["serviceId"] == "svc.echo"
+    assert payload["budgetBlocks"][0]["requiredUsdc"] == "2.500000"
+    assert payload["budgetBlocks"][0]["availableUsdc"] == "37.500000"
+    assert payload["budgetBlocks"][0]["gapUsdc"] == "0.000000"
     assert payload["budgetBlockSamples"][0]["correlationId"] == "req-owner-cap-invoke-001"
+    assert payload["budgetBlockSamples"][0]["requiredUsdc"] == "1.250000"
+    assert payload["budgetBlockSamples"][0]["availableUsdc"] == "18.750000"
 
 
 def test_clickhouse_money_flow_returns_deposit_failure_samples(monkeypatch) -> None:
@@ -305,6 +314,10 @@ def test_clickhouse_money_flow_returns_deposit_failure_samples(monkeypatch) -> N
     payload = repository.get_money_flow("7d")
 
     assert payload["depositFailedCount"] == 2
+    assert payload["depositUsdc"] == "10.000000"
+    assert payload["withdrawalUsdc"] == "0.000000"
+    assert payload["refundUsdc"] == "0.000000"
     assert payload["depositErrors"][0]["key"] == "INVALID_INTENT"
     assert payload["depositFailureSamples"][0]["errorCode"] == "INVALID_INTENT"
+    assert payload["depositFailureSamples"][0]["amountUsdc"] == "10.000000"
     assert payload["depositFailureSamples"][0]["env"] == "staging"

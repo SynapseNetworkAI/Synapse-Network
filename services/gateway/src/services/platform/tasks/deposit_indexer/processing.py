@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from decimal import Decimal
 from typing import Any, List, Optional
 from uuid import uuid4
 
@@ -9,6 +10,7 @@ from src.domain.finance import BalanceLedger
 from src.domain.ledger import DepositIntentRow
 from src.storage import BaseStorage
 from src.utils.datetime_utils import now_dt_str, to_dt_str
+from src.utils.money import MoneyCodec, money_str
 
 from .chain import (
     _amount_usdc_from_raw,
@@ -37,7 +39,7 @@ def _mark_intent_failed(intent: dict[str, Any], reason: str, now: int) -> None:
     import asyncio
     from src.services.analytics.gateway_events import emit_deposit_failed
     owner = str(intent.get("ownerAddress") or "")
-    amount = float(intent.get("amountUsdc") or 0.0)
+    amount = MoneyCodec.coerce_decimal(intent.get("amountUsdc") or Decimal("0"))
     if owner and amount > 0:
         try:
             loop = asyncio.get_running_loop()
@@ -50,7 +52,7 @@ def _extract_intent_fields(intent: dict[str, Any]) -> Optional[dict[str, Any]]:
     """抽取充值确认所需的最小字段集合。"""
     tx_hash = _normalize_tx_hash(str(intent.get("txHash") or ""))
     owner_wallet = normalize_wallet(str(intent.get("ownerAddress") or ""))
-    min_amount_usdc = float(intent.get("amountUsdc") or 0.0)
+    min_amount_usdc = MoneyCodec.coerce_decimal(intent.get("amountUsdc") or Decimal("0"))
     if not tx_hash or not owner_wallet or min_amount_usdc <= 0:
         return None
     return {
@@ -104,7 +106,7 @@ def _build_deposit_confirmation_context(
     return {
         "tx_hash": str(intent_fields["tx_hash"]),
         "owner_wallet": str(intent_fields["owner_wallet"]),
-        "min_amount_usdc": float(intent_fields["min_amount_usdc"]),
+        "min_amount_usdc": MoneyCodec.coerce_decimal(intent_fields["min_amount_usdc"]),
     }
 
 
@@ -112,7 +114,7 @@ def _resolve_deposit_receipt_state(
     *,
     tx_hash: str,
     owner_wallet: str,
-    min_amount_usdc: float,
+    min_amount_usdc: Decimal,
     now: int,
     intent: dict[str, Any],
 ) -> Optional[dict[str, Any]]:
@@ -165,7 +167,7 @@ def _apply_confirmed_balance_to_ledger(
     event_key: str,
     confirmations: int,
     ledger: BalanceLedger,
-    amount_usdc: float,
+    amount_usdc: Decimal,
     now: int,
 ) -> dict[str, Any]:
     """应用余额变更，优先走数据库原子确认路径。"""
@@ -196,10 +198,12 @@ def _apply_confirmed_balance_to_ledger(
         }
 
     consumer_wallet = ledger.ensure_consumer_wallet(owner_wallet)
-    next_balance = round(float(consumer_wallet.available_balance or 0.0) + amount_usdc, 6)
+    next_balance = MoneyCodec.coerce_decimal(
+        (consumer_wallet.available_balance or Decimal("0")) + amount_usdc
+    )
     consumer_wallet.available_balance = next_balance
     intent["status"] = "CONFIRMED"
-    intent["creditedAmountUsdc"] = amount_usdc
+    intent["creditedAmountUsdc"] = money_str(amount_usdc)
     return {"result": "ok", "next_balance": next_balance}
 
 
@@ -242,7 +246,7 @@ def _apply_confirmed_deposit(
     )
     if str(applied.get("result") or "") == "failed":
         return {"result": "failed", "changedIntent": True}
-    next_balance = float(applied.get("next_balance") or 0.0)
+    next_balance = MoneyCodec.coerce_decimal(applied.get("next_balance") or Decimal("0"))
 
     processed_keys.add(event_key)
     intent["confirmedAt"] = now
@@ -260,17 +264,17 @@ def _apply_confirmed_deposit(
             "status": "CONFIRMED",
             "txHash": tx_hash,
             "eventKey": event_key,
-            "amountUsdc": float(intent.get("creditedAmountUsdc") or amount_usdc),
-            "balanceAfter": next_balance,
+            "amountUsdc": money_str(intent.get("creditedAmountUsdc") or amount_usdc),
+            "balanceAfter": money_str(next_balance),
         },
     )
     logger.info(
-        "deposit credited owner=%s tx_hash=%s event_key=%s amount_usdc=%.6f balance_after=%.6f",
+        "deposit credited owner=%s tx_hash=%s event_key=%s amount_usdc=%s balance_after=%s",
         owner_wallet,
         tx_hash,
         event_key,
-        float(intent.get("creditedAmountUsdc") or amount_usdc),
-        next_balance,
+        money_str(intent.get("creditedAmountUsdc") or amount_usdc),
+        money_str(next_balance),
     )
 
     # Analytics: deposit_completed
@@ -280,7 +284,7 @@ def _apply_confirmed_deposit(
         loop = asyncio.get_running_loop()
         loop.create_task(emit_deposit_completed(
             owner_wallet,
-            amount_usdc=float(intent.get("creditedAmountUsdc") or amount_usdc),
+            amount_usdc=MoneyCodec.coerce_decimal(intent.get("creditedAmountUsdc") or amount_usdc),
             tx_hash=tx_hash,
         ))
     except RuntimeError:
@@ -406,7 +410,7 @@ def _find_intent_by_tx_owner(
 
 
 def _build_recovery_intent(
-    tx_hash: str, owner_wallet: str, amount_usdc: float, event_key: str, now: int
+    tx_hash: str, owner_wallet: str, amount_usdc: Decimal, event_key: str, now: int
 ) -> dict[str, Any]:
     """为链上已存在但本地缺失的充值构造补账 intent。"""
     now_text = to_dt_str(now, now_dt_str()) or now_dt_str()
@@ -415,8 +419,8 @@ def _build_recovery_intent(
         "ownerAddress": normalize_wallet(owner_wallet),
         "consumerAddress": normalize_wallet(owner_wallet),
         "txHash": _normalize_tx_hash(tx_hash),
-        "amountUsdc": round(float(amount_usdc), 6),
-        "creditedAmountUsdc": 0.0,
+        "amountUsdc": money_str(amount_usdc),
+        "creditedAmountUsdc": money_str(Decimal("0")),
         "idempotencyKey": f"deposit_backfill_{event_key.replace(':', '_')}",
         "status": "PENDING_CONFIRMATION",
         "createdAt": now_text,
