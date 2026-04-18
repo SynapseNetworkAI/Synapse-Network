@@ -223,9 +223,9 @@ class AnalyticsInvocationTrendPoint(BaseModel):
     bucket: str
     invoke_completed: int = Field(alias="invokeCompleted", serialization_alias="invokeCompleted")
     invoke_failed: int = Field(alias="invokeFailed", serialization_alias="invokeFailed")
-    gmv_usdc: float = Field(alias="gmvUsdc", serialization_alias="gmvUsdc")
-    platform_fee_usdc: float = Field(alias="platformFeeUsdc", serialization_alias="platformFeeUsdc")
-    provider_net_usdc: float = Field(alias="providerNetUsdc", serialization_alias="providerNetUsdc")
+    gmv_usdc: str = Field(alias="gmvUsdc", serialization_alias="gmvUsdc")
+    platform_fee_usdc: str = Field(alias="platformFeeUsdc", serialization_alias="platformFeeUsdc")
+    provider_net_usdc: str = Field(alias="providerNetUsdc", serialization_alias="providerNetUsdc")
 
 
 class AnalyticsInvocationRevenue(BaseModel):
@@ -235,10 +235,10 @@ class AnalyticsInvocationRevenue(BaseModel):
     invoke_completed_count: int = Field(alias="invokeCompletedCount", serialization_alias="invokeCompletedCount")
     invoke_failed_count: int = Field(alias="invokeFailedCount", serialization_alias="invokeFailedCount")
     success_rate: float = Field(alias="successRate", serialization_alias="successRate")
-    gmv_usdc: float = Field(alias="gmvUsdc", serialization_alias="gmvUsdc")
-    price_avg_usdc: float = Field(alias="priceAvgUsdc", serialization_alias="priceAvgUsdc")
-    platform_fee_usdc: float = Field(alias="platformFeeUsdc", serialization_alias="platformFeeUsdc")
-    provider_net_usdc: float = Field(alias="providerNetUsdc", serialization_alias="providerNetUsdc")
+    gmv_usdc: str = Field(alias="gmvUsdc", serialization_alias="gmvUsdc")
+    price_avg_usdc: str = Field(alias="priceAvgUsdc", serialization_alias="priceAvgUsdc")
+    platform_fee_usdc: str = Field(alias="platformFeeUsdc", serialization_alias="platformFeeUsdc")
+    provider_net_usdc: str = Field(alias="providerNetUsdc", serialization_alias="providerNetUsdc")
     latency_ms: AnalyticsLatencyPercentiles = Field(alias="latencyMs", serialization_alias="latencyMs")
     failure_stages: list[AnalyticsDistributionItem] = Field(alias="failureStages", serialization_alias="failureStages")
     error_codes: list[AnalyticsDistributionItem] = Field(alias="errorCodes", serialization_alias="errorCodes")
@@ -249,15 +249,15 @@ class AnalyticsProviderSettlementStep(BaseModel):
     event_name: str = Field(alias="eventName", serialization_alias="eventName")
     label: str
     count: int
-    amount_usdc: float = Field(alias="amountUsdc", serialization_alias="amountUsdc")
+    amount_usdc: str = Field(alias="amountUsdc", serialization_alias="amountUsdc")
     conversion_rate: float = Field(alias="conversionRate", serialization_alias="conversionRate")
 
 
 class AnalyticsTopProvider(BaseModel):
     provider_id: str = Field(alias="providerId", serialization_alias="providerId")
     service_id: str = Field(alias="serviceId", serialization_alias="serviceId")
-    gross_usdc: float = Field(alias="grossUsdc", serialization_alias="grossUsdc")
-    provider_net_usdc: float = Field(alias="providerNetUsdc", serialization_alias="providerNetUsdc")
+    gross_usdc: str = Field(alias="grossUsdc", serialization_alias="grossUsdc")
+    provider_net_usdc: str = Field(alias="providerNetUsdc", serialization_alias="providerNetUsdc")
     invoke_count: int = Field(alias="invokeCount", serialization_alias="invokeCount")
 
 
@@ -266,11 +266,11 @@ class AnalyticsProviderRevenue(BaseModel):
     revenue_provider_count: int = Field(alias="revenueProviderCount", serialization_alias="revenueProviderCount")
     first_revenue_provider_count: int = Field(alias="firstRevenueProviderCount", serialization_alias="firstRevenueProviderCount")
     avg_time_since_listing_ms: float = Field(alias="avgTimeSinceListingMs", serialization_alias="avgTimeSinceListingMs")
-    provider_gross_usdc: float = Field(alias="providerGrossUsdc", serialization_alias="providerGrossUsdc")
-    platform_fee_usdc: float = Field(alias="platformFeeUsdc", serialization_alias="platformFeeUsdc")
-    provider_net_usdc: float = Field(alias="providerNetUsdc", serialization_alias="providerNetUsdc")
-    pending_settlement_usdc: float = Field(alias="pendingSettlementUsdc", serialization_alias="pendingSettlementUsdc")
-    settlement_completed_usdc: float = Field(alias="settlementCompletedUsdc", serialization_alias="settlementCompletedUsdc")
+    provider_gross_usdc: str = Field(alias="providerGrossUsdc", serialization_alias="providerGrossUsdc")
+    platform_fee_usdc: str = Field(alias="platformFeeUsdc", serialization_alias="platformFeeUsdc")
+    provider_net_usdc: str = Field(alias="providerNetUsdc", serialization_alias="providerNetUsdc")
+    pending_settlement_usdc: str = Field(alias="pendingSettlementUsdc", serialization_alias="pendingSettlementUsdc")
+    settlement_completed_usdc: str = Field(alias="settlementCompletedUsdc", serialization_alias="settlementCompletedUsdc")
     settlement_failure_rate: float = Field(alias="settlementFailureRate", serialization_alias="settlementFailureRate")
     settlement_p95_confirm_ms: float = Field(alias="settlementP95ConfirmMs", serialization_alias="settlementP95ConfirmMs")
     settlement_funnel: list[AnalyticsProviderSettlementStep] = Field(alias="settlementFunnel", serialization_alias="settlementFunnel")
@@ -287,7 +287,7 @@ class AnalyticsFinanceContext(BaseModel):
 class AnalyticsDepositFailureSample(BaseModel):
     timestamp: str
     error_code: str = Field(alias="errorCode", serialization_alias="errorCode")
-    amount_usdc: float = Field(alias="amountUsdc", serialization_alias="amountUsdc")
+    amount_usdc: str = Field(alias="amountUsdc", serialization_alias="amountUsdc")
     env: str
     correlation_id: str = Field(default="", alias="correlationId", serialization_alias="correlationId")
     tx_hash: str = Field(default="", alias="txHash", serialization_alias="txHash")
@@ -295,11 +295,11 @@ class AnalyticsDepositFailureSample(BaseModel):
 
 class AnalyticsMoneyFlow(BaseModel):
     window: str
-    deposit_usdc: float = Field(alias="depositUsdc", serialization_alias="depositUsdc")
+    deposit_usdc: str = Field(alias="depositUsdc", serialization_alias="depositUsdc")
     deposit_failed_count: int = Field(alias="depositFailedCount", serialization_alias="depositFailedCount")
-    withdrawal_usdc: float = Field(alias="withdrawalUsdc", serialization_alias="withdrawalUsdc")
+    withdrawal_usdc: str = Field(alias="withdrawalUsdc", serialization_alias="withdrawalUsdc")
     withdrawal_failed_count: int = Field(alias="withdrawalFailedCount", serialization_alias="withdrawalFailedCount")
-    refund_usdc: float = Field(alias="refundUsdc", serialization_alias="refundUsdc")
+    refund_usdc: str = Field(alias="refundUsdc", serialization_alias="refundUsdc")
     confirm_latency_ms: AnalyticsLatencyPercentiles = Field(alias="confirmLatencyMs", serialization_alias="confirmLatencyMs")
     deposit_errors: list[AnalyticsDistributionItem] = Field(alias="depositErrors", serialization_alias="depositErrors")
     deposit_failure_samples: list[AnalyticsDepositFailureSample] = Field(default_factory=list, alias="depositFailureSamples", serialization_alias="depositFailureSamples")
@@ -320,17 +320,17 @@ class AnalyticsBudgetBlock(BaseModel):
     service_id: str = Field(alias="serviceId", serialization_alias="serviceId")
     surface: str
     count: int
-    required_usdc: float = Field(alias="requiredUsdc", serialization_alias="requiredUsdc")
-    available_usdc: float = Field(alias="availableUsdc", serialization_alias="availableUsdc")
-    gap_usdc: float = Field(alias="gapUsdc", serialization_alias="gapUsdc")
+    required_usdc: str = Field(alias="requiredUsdc", serialization_alias="requiredUsdc")
+    available_usdc: str = Field(alias="availableUsdc", serialization_alias="availableUsdc")
+    gap_usdc: str = Field(alias="gapUsdc", serialization_alias="gapUsdc")
 
 
 class AnalyticsBudgetBlockSample(BaseModel):
     timestamp: str
     service_id: str = Field(alias="serviceId", serialization_alias="serviceId")
     error_code: str = Field(alias="errorCode", serialization_alias="errorCode")
-    required_usdc: float = Field(alias="requiredUsdc", serialization_alias="requiredUsdc")
-    available_usdc: float = Field(alias="availableUsdc", serialization_alias="availableUsdc")
+    required_usdc: str = Field(alias="requiredUsdc", serialization_alias="requiredUsdc")
+    available_usdc: str = Field(alias="availableUsdc", serialization_alias="availableUsdc")
     correlation_id: str = Field(default="", alias="correlationId", serialization_alias="correlationId")
     surface: str
 
@@ -342,7 +342,7 @@ class AnalyticsRiskHealth(BaseModel):
     surfaces: list[AnalyticsDistributionItem]
     provider_health_degraded_count: int = Field(alias="providerHealthDegradedCount", serialization_alias="providerHealthDegradedCount")
     degraded_providers: list[AnalyticsDegradedProvider] = Field(alias="degradedProviders", serialization_alias="degradedProviders")
-    budget_gap_usdc: float = Field(alias="budgetGapUsdc", serialization_alias="budgetGapUsdc")
+    budget_gap_usdc: str = Field(alias="budgetGapUsdc", serialization_alias="budgetGapUsdc")
     budget_blocks: list[AnalyticsBudgetBlock] = Field(default_factory=list, alias="budgetBlocks", serialization_alias="budgetBlocks")
     budget_block_samples: list[AnalyticsBudgetBlockSample] = Field(default_factory=list, alias="budgetBlockSamples", serialization_alias="budgetBlockSamples")
     refund_reasons: list[AnalyticsDistributionItem] = Field(alias="refundReasons", serialization_alias="refundReasons")

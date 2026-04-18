@@ -35,7 +35,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Apply gateway-admin PostgreSQL migrations.")
     parser.add_argument(
         "--dsn",
-        default=os.environ.get("ADMIN_DATABASE_MIGRATION_DSN") or os.environ.get("ADMIN_DATABASE_DSN", "postgresql://synapse_admin_app:12345678@localhost:5432/synapse_gateway_admin"),
+        default=os.environ.get("ADMIN_DATABASE_MIGRATION_DSN") or os.environ.get("ADMIN_DATABASE_DSN", "postgresql://synapse_admin_app:local-dev-admin-app-password@localhost:5432/synapse_gateway_admin"),
         help="Admin database migration DSN. Defaults to ADMIN_DATABASE_MIGRATION_DSN, then ADMIN_DATABASE_DSN.",
     )
     parser.add_argument(

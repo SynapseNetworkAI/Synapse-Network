@@ -33,9 +33,6 @@ from eth_account import Account
 from eth_account.messages import encode_defunct
 from web3 import Web3
 
-# ── 默认私钥: Hardhat 本地测试链的预置账户 ──
-DEFAULT_DEPLOYER_PRIVATE_KEY = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
-DEFAULT_OWNER_PAYMENT_PRIVATE_KEY = "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"
 CONTENT_TYPE_JSON = "application/json"
 
 
@@ -305,12 +302,13 @@ def main() -> None:
     api_base = os.getenv("API_BASE", "http://127.0.0.1:8000").rstrip("/")
     rpc_url = os.getenv("RPC_URL", "http://127.0.0.1:8545")
 
-    owner_private_key = os.getenv("OWNER_PRIVATE_KEY", DEFAULT_DEPLOYER_PRIVATE_KEY)
-    deployer_private_key = os.getenv("DEPLOYER_PRIVATE_KEY", DEFAULT_DEPLOYER_PRIVATE_KEY)
-    owner_payment_private_key = os.getenv(
-        "OWNER_PAYMENT_PRIVATE_KEY",
-        owner_private_key or DEFAULT_OWNER_PAYMENT_PRIVATE_KEY,
-    )
+    owner_private_key = os.getenv("OWNER_PRIVATE_KEY", "").strip()
+    deployer_private_key = os.getenv("DEPLOYER_PRIVATE_KEY", "").strip()
+    owner_payment_private_key = os.getenv("OWNER_PAYMENT_PRIVATE_KEY", "").strip()
+    if not owner_private_key or not deployer_private_key or not owner_payment_private_key:
+        raise RuntimeError(
+            "OWNER_PRIVATE_KEY, DEPLOYER_PRIVATE_KEY, and OWNER_PAYMENT_PRIVATE_KEY must all be set explicitly."
+        )
     prompt = os.getenv("PROMPT", "daily limit regression check")
 
     print("[1/7] Authenticate owner...")

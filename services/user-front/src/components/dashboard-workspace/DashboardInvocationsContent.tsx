@@ -19,6 +19,7 @@ import { useAuth } from "@/components/WalletAuthGuard";
 import XSelect from "@/components/xui/XSelect";
 import { listPaginatedUsageLogs, type UsageLogRecord } from "@/utils/usageApi";
 import { requestV2Refund } from "@/utils/balanceApi";
+import { normalizeMoneyString } from "@/utils/money";
 
 type InvocationStatusFilter = "all" | "accepted" | "succeeded" | "failed" | "refunded";
 
@@ -49,7 +50,7 @@ function RefundModal({ row, userAddress, onClose, onSuccess }: RefundModalProps)
     setSubmitting(true);
     try {
       const result = await requestV2Refund(userAddress, {
-        amountUsdc: amountNum,
+        amountUsdc: normalizeMoneyString(amountNum),
         originRequestId: row.request_id,
         reason: reason.trim() || undefined,
         refundType: "MANUAL_APPEAL",

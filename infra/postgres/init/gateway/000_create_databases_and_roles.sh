@@ -3,19 +3,19 @@ set -euo pipefail
 
 gateway_db="${SYNAPSE_GATEWAY_DB:-${POSTGRES_DB:-synapse_gateway}}"
 gateway_app_user="${SYNAPSE_GATEWAY_APP_USER:-synapse_gateway_app}"
-gateway_app_password="${SYNAPSE_GATEWAY_APP_PASSWORD:-12345678}"
+gateway_app_password="${SYNAPSE_GATEWAY_APP_PASSWORD:-local-dev-gateway-app-password}"
 gateway_ro_user="${SYNAPSE_GATEWAY_READONLY_USER:-synapse_gateway_ro}"
-gateway_ro_password="${SYNAPSE_GATEWAY_READONLY_PASSWORD:-12345678}"
+gateway_ro_password="${SYNAPSE_GATEWAY_READONLY_PASSWORD:-local-dev-gateway-readonly-password}"
 gateway_migrator_user="${SYNAPSE_GATEWAY_MIGRATOR_USER:-synapse_gateway_migrator}"
-gateway_migrator_password="${SYNAPSE_GATEWAY_MIGRATOR_PASSWORD:-12345678}"
+gateway_migrator_password="${SYNAPSE_GATEWAY_MIGRATOR_PASSWORD:-local-dev-gateway-migrator-password}"
 
 admin_db="${SYNAPSE_ADMIN_DB:-synapse_gateway_admin}"
 admin_app_user="${SYNAPSE_ADMIN_APP_USER:-synapse_admin_app}"
-admin_app_password="${SYNAPSE_ADMIN_APP_PASSWORD:-12345678}"
+admin_app_password="${SYNAPSE_ADMIN_APP_PASSWORD:-local-dev-admin-app-password}"
 admin_ro_user="${SYNAPSE_ADMIN_READONLY_USER:-synapse_admin_ro}"
-admin_ro_password="${SYNAPSE_ADMIN_READONLY_PASSWORD:-12345678}"
+admin_ro_password="${SYNAPSE_ADMIN_READONLY_PASSWORD:-local-dev-admin-readonly-password}"
 admin_migrator_user="${SYNAPSE_ADMIN_MIGRATOR_USER:-synapse_admin_migrator}"
-admin_migrator_password="${SYNAPSE_ADMIN_MIGRATOR_PASSWORD:-12345678}"
+admin_migrator_password="${SYNAPSE_ADMIN_MIGRATOR_PASSWORD:-local-dev-admin-migrator-password}"
 
 run_psql() {
     PGPASSWORD="${POSTGRES_PASSWORD}" psql -v ON_ERROR_STOP=1 --username "${POSTGRES_USER}" "$@"

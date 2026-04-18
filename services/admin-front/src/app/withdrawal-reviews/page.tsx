@@ -7,8 +7,8 @@ import { useEffect, useMemo, useState } from "react";
 import { AdminShell } from "@/components/admin-shell";
 import { ControlPlaneLoadingScreen } from "@/components/control-plane-loading-screen";
 import { DataTable, EmptyBlock, ListFilterFieldPresets, ListFilterFields, ListFilterForm, ListPaginationBar, ListTableSurface, MessageBanner, MetricCard, OverlayPanel, SentinelStatusChip, SurfaceCard, TableBody, TableHeaderRow, Td, Th, nativeTextAreaStyle } from "@/components/console-ui";
-import { buildWithdrawReasonClusters, buildWithdrawReviewMetrics, filterWithdrawReviews, getWithdrawRiskTone, listWithdrawRiskLevels, paginateWithdrawReviews, sortWithdrawReviewsByPriority } from "@/features/withdrawal-reviews/review-presenters";
-import { formatDateTime, formatUsdc, inputText, toneFromStatus } from "@/lib/admin-console";
+import { buildWithdrawReasonClusters, buildWithdrawReviewMetrics, filterWithdrawReviews, getWithdrawalStatusLabel, getWithdrawalStatusTone, getWithdrawRiskLabel, getWithdrawRiskTone, listWithdrawRiskLevels, paginateWithdrawReviews, sortWithdrawReviewsByPriority } from "@/features/withdrawal-reviews/review-presenters";
+import { formatDateTime, formatUsdc, inputText } from "@/lib/admin-console";
 import { useProviderWithdrawReviews } from "@/features/withdrawal-reviews/use-provider-withdraw-reviews";
 import { useAdminStepUp } from "@/lib/use-admin-step-up";
 import { useAdminSession } from "@/lib/use-admin-session";
@@ -78,7 +78,7 @@ export default function WithdrawalReviewsPage() {
       value: draftFilters.riskLevel,
       onChange: (value: string) => setDraftFilters((current) => ({ ...current, riskLevel: value })),
       allLabel: "全部风险等级",
-      options: riskLevels.map((level) => ({ value: level, label: level.toUpperCase() })),
+      options: riskLevels.map((level) => ({ value: level, label: getWithdrawRiskLabel(level) })),
     }),
   ]), [draftFilters, riskLevels]);
 
@@ -208,8 +208,8 @@ export default function WithdrawalReviewsPage() {
                     <Text color="ink.500">{inputText(item.requestId)}</Text>
                   </Td>
                   <Td>{formatUsdc(item.amountUsdc)}</Td>
-                  <Td><SentinelStatusChip label={(item.riskLevel ?? "unknown").toUpperCase()} tone={getWithdrawRiskTone(item.riskLevel)} /></Td>
-                  <Td><SentinelStatusChip label={item.status} tone={toneFromStatus(item.status)} /></Td>
+                  <Td><SentinelStatusChip label={getWithdrawRiskLabel(item.riskLevel)} tone={getWithdrawRiskTone(item.riskLevel)} /></Td>
+                  <Td><SentinelStatusChip label={getWithdrawalStatusLabel(item.status)} tone={getWithdrawalStatusTone(item.status)} /></Td>
                   <Td>
                     <Button size="sm" borderRadius="full" variant="ghost" onClick={() => openReviewDetail(item.withdrawalId)}>详情</Button>
                   </Td>
@@ -272,7 +272,7 @@ export default function WithdrawalReviewsPage() {
             <Box borderRadius="20px" p="16px" bg="rgba(255,255,255,0.74)" border="1px solid rgba(99,92,82,0.10)">
               <Stack direction="row" justify="space-between" align="center">
                 <Text fontSize="11px" letterSpacing="0.16em" textTransform="uppercase" color="ink.500">处理摘要</Text>
-                <SentinelStatusChip label={(activeReview.riskLevel ?? "unknown").toUpperCase()} tone={getWithdrawRiskTone(activeReview.riskLevel)} />
+                <SentinelStatusChip label={getWithdrawRiskLabel(activeReview.riskLevel)} tone={getWithdrawRiskTone(activeReview.riskLevel)} />
               </Stack>
               <Heading mt="10px" size="sm">{inputText(activeReview.evidenceSummary ?? activeReview.message)}</Heading>
               <Text mt="8px" color="ink.500">原因标签 {inputText(activeReview.riskReasonCode)} · 流水号 {inputText(activeReview.txHash)}</Text>

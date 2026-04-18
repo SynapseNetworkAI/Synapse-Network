@@ -101,7 +101,7 @@ class CredentialIssueRequest(BaseModel):
     expiresInSec: Optional[int] = None
     maxCalls: Optional[int] = None
     rpm: Optional[int] = None
-    creditLimit: Optional[float] = None
+    creditLimit: Optional[Decimal] = None
     resetInterval: Optional[str] = None
     expiration: Optional[int] = None
 
@@ -110,7 +110,7 @@ class CredentialQuotaUpdateRequest(BaseModel):
     maxCalls: Optional[int] = None
     rpm: Optional[int] = None
     expiresAt: Optional[int] = None
-    creditLimit: Optional[float] = None
+    creditLimit: Optional[Decimal] = None
     resetInterval: Optional[str] = None
     expiration: Optional[int] = None
 
@@ -122,7 +122,7 @@ class CredentialUpdateRequest(BaseModel):
     maxCalls: Optional[int] = None
     rpm: Optional[int] = None
     expiresAt: Optional[int] = None
-    creditLimit: Optional[float] = None
+    creditLimit: Optional[Decimal] = None
     resetInterval: Optional[str] = None
     expiration: Optional[int] = None
 
@@ -170,7 +170,7 @@ class AgentInvokeRequest(BaseModel):
 
 class DepositIntentRequest(BaseModel):
     txHash: str = Field(..., min_length=66, max_length=66)
-    amountUsdc: float = Field(..., gt=0)
+    amountUsdc: Decimal = Field(..., gt=Decimal("0"))
 
     @field_validator("txHash")
     @classmethod
@@ -188,7 +188,7 @@ class DepositIntentRequest(BaseModel):
 
 class DepositAttemptRequest(BaseModel):
     attemptId: str = Field(..., min_length=1, max_length=128)
-    amountUsdc: float = Field(..., gt=0)
+    amountUsdc: Decimal = Field(..., gt=Decimal("0"))
     stage: Literal[
         "SIGN_REQUESTED",
         "TX_BROADCASTED",
@@ -239,7 +239,7 @@ class AdminDepositReplayRequest(BaseModel):
 
 
 class RefundIntentRequest(BaseModel):
-    amountUsdc: float = Field(default=10, ge=10)
+    amountUsdc: Decimal = Field(default=Decimal("10"), ge=Decimal("10"))
     reason: Optional[str] = Field(default=None, max_length=256)
     originRequestId: Optional[str] = Field(default=None, max_length=128)
     originTxHash: Optional[str] = Field(default=None, min_length=66, max_length=66)
@@ -250,7 +250,7 @@ class RefundIntentRequest(BaseModel):
 
 class ConsumerWithdrawRequest(BaseModel):
     """Withdraw unused consumer balance (unspent deposits) back to wallet."""
-    amountUsdc: float = Field(..., description="Amount in USDC to withdraw, > 0")
+    amountUsdc: Decimal = Field(..., gt=Decimal("0"), description="Amount in USDC to withdraw, > 0")
     reason: Optional[str] = Field(default=None, max_length=256)
 
 

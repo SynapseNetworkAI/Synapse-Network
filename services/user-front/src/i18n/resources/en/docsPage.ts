@@ -333,7 +333,7 @@ const docsPage: I18nMessages["docsPage"] = {
   sdkHubCardTitles: ["TypeScript SDK", "Python SDK"],
   sdkHubCardDescriptions: [
     "The reference SDK for browser and Node.js integrations. Best fit when your agent runtime already lives in TypeScript, Next.js, or a serverless edge stack.",
-    "The automation-ready SDK for Python services and backend agents. Best fit when you need wallet auth, credential issuance, and paid invocation inside Python 3.11+ systems.",
+    "The automation-ready SDK for Python services and backend agents. Best fit when you need wallet auth, credential issuance, and paid invocation inside Python 3.13+ systems.",
   ],
   sdkHubCardBullets: [
     "Wallet auth, balances, deposit intent / confirm, credential issuance, discover, invoke, receipt polling.",

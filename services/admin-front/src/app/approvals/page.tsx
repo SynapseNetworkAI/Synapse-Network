@@ -7,9 +7,10 @@ import { useEffect, useMemo, useState } from "react";
 import { AdminShell } from "@/components/admin-shell";
 import { ControlPlaneLoadingScreen } from "@/components/control-plane-loading-screen";
 import { DataTable, EmptyBlock, ListFilterFieldPresets, ListFilterFields, ListFilterForm, ListPaginationBar, ListTableSurface, MessageBanner, MetricCard, SentinelStatusChip, SurfaceCard, TableBody, TableHeaderRow, Td, Th } from "@/components/console-ui";
-import { formatDateTime, formatUsdc, toneFromStatus } from "@/lib/admin-console";
+import { APPROVAL_STATUS } from "@/domain/status";
+import { formatDateTime, formatUsdc } from "@/lib/admin-console";
 import { useAdminSession } from "@/lib/use-admin-session";
-import { buildApprovalMetrics, filterApprovals, getApprovalLevelTone, getApprovalStatusLabel, getApprovalTypeLabel, listApprovalTypes, sortApprovalsByPriority } from "@/features/approval/approval-presenters";
+import { buildApprovalMetrics, filterApprovals, getApprovalLevelTone, getApprovalStatusLabel, getApprovalStatusTone, getApprovalTypeLabel, listApprovalTypes, sortApprovalsByPriority } from "@/features/approval/approval-presenters";
 import { listApprovals, type ApprovalItem } from "@/services/admin-api";
 
 type ApprovalFilters = {
@@ -65,11 +66,11 @@ export default function ApprovalsPage() {
       onChange: (value: string) => setDraftFilters((current) => ({ ...current, status: value })),
       allLabel: "全部状态",
       options: [
-        { value: "SUBMITTED", label: "待分派" },
-        { value: "UNDER_REVIEW", label: "审核中" },
-        { value: "APPROVED_PENDING_EXECUTION", label: "待执行" },
-        { value: "REJECTED", label: "已拒绝" },
-        { value: "EXECUTED", label: "已执行" },
+        { value: APPROVAL_STATUS.SUBMITTED, label: "待分派" },
+        { value: APPROVAL_STATUS.UNDER_REVIEW, label: "审核中" },
+        { value: APPROVAL_STATUS.APPROVED_PENDING_EXECUTION, label: "待执行" },
+        { value: APPROVAL_STATUS.REJECTED, label: "已拒绝" },
+        { value: APPROVAL_STATUS.EXECUTED, label: "已执行" },
       ],
     }),
   ]), [approvalTypes, draftFilters]);
@@ -200,7 +201,7 @@ export default function ApprovalsPage() {
                     </Td>
                     <Td>{formatUsdc(item.amountUsdc)}</Td>
                     <Td><SentinelStatusChip label={item.approvalLevel} tone={getApprovalLevelTone(item.approvalLevel)} /></Td>
-                    <Td><SentinelStatusChip label={getApprovalStatusLabel(item.status)} tone={toneFromStatus(item.status)} /></Td>
+                    <Td><SentinelStatusChip label={getApprovalStatusLabel(item.status)} tone={getApprovalStatusTone(item.status)} /></Td>
                     <Td>{formatDateTime(item.createdAt)}</Td>
                   </Box>
                 ))}
@@ -235,7 +236,7 @@ export default function ApprovalsPage() {
                   <Text mt="8px" color="ink.500">{item.requesterRole} · {formatUsdc(item.amountUsdc)} USDC</Text>
                   <Stack mt="12px" direction="row" gap="8px" flexWrap="wrap">
                     <SentinelStatusChip label={item.approvalLevel} tone={getApprovalLevelTone(item.approvalLevel)} />
-                    <SentinelStatusChip label={getApprovalStatusLabel(item.status)} tone={toneFromStatus(item.status)} />
+                    <SentinelStatusChip label={getApprovalStatusLabel(item.status)} tone={getApprovalStatusTone(item.status)} />
                   </Stack>
                 </Box>
               ))}

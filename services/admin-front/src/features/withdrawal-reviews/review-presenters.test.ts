@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildWithdrawReasonClusters, buildWithdrawReviewMetrics, filterWithdrawReviews, getWithdrawRiskTone, listWithdrawRiskLevels, paginateWithdrawReviews, sortWithdrawReviewsByPriority } from "./review-presenters";
+import { buildWithdrawReasonClusters, buildWithdrawReviewMetrics, filterWithdrawReviews, getWithdrawalStatusLabel, getWithdrawalStatusTone, getWithdrawRiskTone, listWithdrawRiskLevels, paginateWithdrawReviews, sortWithdrawReviewsByPriority } from "./review-presenters";
 
 const reviews = [
   {
@@ -74,6 +74,8 @@ describe("review-presenters", () => {
     ]);
     expect(listWithdrawRiskLevels(reviews)).toEqual(["yellow", "red"]);
     expect(getWithdrawRiskTone("yellow")).toBe("orange");
+    expect(getWithdrawalStatusLabel("PENDING_MANUAL_REVIEW")).toBe("待人工审核");
+    expect(getWithdrawalStatusTone("PENDING_MANUAL_REVIEW")).toBe("orange");
   });
 
   it("returns only the reviews for the requested page", () => {

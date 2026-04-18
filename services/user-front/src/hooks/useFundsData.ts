@@ -141,7 +141,7 @@ export function useFundsData() {
         return {
           id: w.id,
           type: "Withdraw" as const,
-          amount: w.amountUsdc ?? 0,
+          amount: Number(w.amountUsdc ?? 0),
           txHash: w.txHash ?? null,
           timestamp: tsMs,
           status: statusMap[w.status?.toUpperCase()] ?? "PENDING",

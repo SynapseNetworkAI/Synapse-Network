@@ -119,8 +119,8 @@ wait_for_gateway_health() {
   return 1
 }
 
-if [[ ! -f "${ROOT_DIR}/scripts/python/resolve_python_311.sh" ]]; then
-  echo "Error: Python resolver script not found at ${ROOT_DIR}/scripts/python/resolve_python_311.sh"
+if [[ ! -f "${ROOT_DIR}/scripts/python/resolve_python_313.sh" ]]; then
+  echo "Error: Python resolver script not found at ${ROOT_DIR}/scripts/python/resolve_python_313.sh"
   exit 1
 fi
 
@@ -135,7 +135,7 @@ if [ -x "${ROOT_DIR}/services/gateway/.venv/bin/python" ]; then
 elif [ -x "${ROOT_DIR}/services/gateway/venv/bin/python" ]; then
   PYTHON_BIN="${ROOT_DIR}/services/gateway/venv/bin/python"
 else
-  PYTHON_BIN="$(bash "${ROOT_DIR}/scripts/python/resolve_python_311.sh")"
+  PYTHON_BIN="$(bash "${ROOT_DIR}/scripts/python/resolve_python_313.sh")"
 fi
 
 echo "=== Restarting gateway/gateway_fastapi.py only ==="
@@ -172,7 +172,7 @@ fi
 
 ROUTER_ADDRESS="$(node -e "const c=require('${CONFIG_FILE}'); process.stdout.write(c.SynapseCore || c.A2APaySyncRouter || '')")"
 
-DEFAULT_LOCAL_POSTGRES_DSN="postgresql://synapse:12345678@127.0.0.1:5432/synapse_gateway"
+DEFAULT_LOCAL_POSTGRES_DSN="postgresql://synapse:local-dev-postgres-password@127.0.0.1:5432/synapse_gateway"
 _LOCAL_ENV_FILE="${ROOT_DIR}/services/gateway/.env.local"
 if [[ -z "${POSTGRES_DSN:-}" && -f "$_LOCAL_ENV_FILE" ]]; then
   _dotenv_dsn="$(grep -m1 '^POSTGRES_DSN=' "$_LOCAL_ENV_FILE" | cut -d= -f2-)"

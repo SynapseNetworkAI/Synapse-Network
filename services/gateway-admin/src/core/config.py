@@ -93,11 +93,11 @@ class Settings(BaseSettings):
         alias="ADMIN_GOOGLE_AUTHENTICATOR_WINDOW",
     )
     admin_database_dsn: str = Field(
-        default="postgresql://synapse_admin_app:12345678@localhost:5432/synapse_gateway_admin",
+        default="postgresql://synapse_admin_app:local-dev-admin-app-password@localhost:5432/synapse_gateway_admin",
         alias="ADMIN_DATABASE_DSN",
     )
     gateway_readonly_dsn: str = Field(
-        default="postgresql://synapse_gateway_ro:12345678@localhost:5432/synapse_gateway",
+        default="postgresql://synapse_gateway_ro:local-dev-gateway-readonly-password@localhost:5432/synapse_gateway",
         alias="GATEWAY_READONLY_DSN",
     )
     analytics_clickhouse_url: str = Field(

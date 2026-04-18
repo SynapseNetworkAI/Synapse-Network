@@ -60,6 +60,16 @@ name: "Synapse Frontend Rules"
 - Keep client-side API adapters thin and predictable.
 - When a backend field or response shape changes, update the adapter, UI, tests, and docs together.
 
+## Domain Status Typing
+
+- Business lifecycle states must live in a fixed domain status directory such as `src/domain/status/`; do not scatter status unions or hardcoded values across pages, presenters, and components.
+- Do not introduce a global cross-domain `Status` enum or a catch-all `BusinessStatus` type. Split statuses by domain such as approval, withdrawal, execution, risk, and provider service lifecycle.
+- For TypeScript, prefer `as const` objects plus derived union types over `enum`.
+- API adapters must normalize backend status strings into domain status types before the data reaches presenters or components.
+- Core business presenters and components must not carry finance-sensitive or workflow-sensitive states as bare `string`.
+- Do not use substring heuristics such as `includes("pending")` or `includes("approved")` for business decisions. Branch on explicit domain statuses only.
+- When a backend status changes, update the matching domain type, adapter normalization, tests, and UI mappings in the same change.
+
 ## Tests and Validation
 
 - Any meaningful presenter, utility, API adapter, or component change should update tests.

@@ -4,7 +4,7 @@
 
 ## 前置条件
 
-- Python 3.11+
+- Python 3.13+
 - 依赖：`pip install requests eth-account web3`（部分脚本需要）
 - 本地环境：Gateway 运行在 `http://127.0.0.1:8000`，Hardhat/Anvil 链运行在 `http://127.0.0.1:8545`
 

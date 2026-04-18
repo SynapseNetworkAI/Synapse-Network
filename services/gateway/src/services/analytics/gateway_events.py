@@ -13,10 +13,12 @@ from __future__ import annotations
 
 import logging
 import os
+from decimal import Decimal
 from typing import Any, Optional
 
 from src.services.analytics.emitter import AnalyticsEmitter
 from src.services.analytics.privacy import sha256_hash
+from src.utils.money import money_str
 
 logger = logging.getLogger("synapse.analytics.gateway")
 
@@ -32,6 +34,10 @@ def set_emitter(emitter: AnalyticsEmitter) -> None:
 
 def get_emitter() -> Optional[AnalyticsEmitter]:
     return _emitter
+
+
+def _money(value: Decimal | str | int | None) -> str:
+    return money_str(value)
 
 
 async def _emit(
@@ -72,7 +78,7 @@ async def emit_quote_generated(
     *,
     service_id: str,
     quote_id: str,
-    price_usdc: float,
+    price_usdc: Decimal | str | int,
     correlation_id: Optional[str] = None,
 ) -> None:
     await _emit(
@@ -81,7 +87,7 @@ async def emit_quote_generated(
         extra={
             "service_id": service_id,
             "quote_id": quote_id,
-            "price_usdc": price_usdc,
+            "price_usdc": _money(price_usdc),
         },
     )
 
@@ -92,7 +98,7 @@ async def emit_invoke_completed(
     service_id: str,
     provider_address: str,
     quote_id: str,
-    price_usdc: float,
+    price_usdc: Decimal | str | int,
     latency_ms: int,
     is_first_invoke: bool = False,
     correlation_id: Optional[str] = None,
@@ -104,7 +110,7 @@ async def emit_invoke_completed(
             "service_id": service_id,
             "provider_id": sha256_hash(provider_address),
             "quote_id": quote_id,
-            "price_usdc": price_usdc,
+            "price_usdc": _money(price_usdc),
             "latency_ms": latency_ms,
             "is_first_invoke": is_first_invoke,
         },
@@ -117,7 +123,7 @@ async def emit_invoke_started(
     service_id: str,
     provider_address: str,
     quote_id: str,
-    price_usdc: float,
+    price_usdc: Decimal | str | int,
     correlation_id: Optional[str] = None,
 ) -> None:
     await _emit(
@@ -127,7 +133,7 @@ async def emit_invoke_started(
             "service_id": service_id,
             "provider_id": sha256_hash(provider_address),
             "quote_id": quote_id,
-            "price_usdc": price_usdc,
+            "price_usdc": _money(price_usdc),
         },
     )
 
@@ -161,8 +167,8 @@ async def emit_budget_blocked(
     wallet_address: str,
     *,
     service_id: str,
-    required_usdc: float,
-    available_usdc: Optional[float],
+    required_usdc: Decimal | str | int,
+    available_usdc: Optional[Decimal | str | int],
     error_code: str,
     correlation_id: Optional[str] = None,
 ) -> None:
@@ -171,8 +177,8 @@ async def emit_budget_blocked(
         correlation_id=correlation_id,
         extra={
             "service_id": service_id,
-            "required_usdc": required_usdc,
-            "available_usdc": available_usdc,
+            "required_usdc": _money(required_usdc),
+            "available_usdc": _money(available_usdc),
             "error_code": error_code,
         },
     )
@@ -183,13 +189,13 @@ async def emit_budget_blocked(
 async def emit_deposit_completed(
     wallet_address: str,
     *,
-    amount_usdc: float,
+    amount_usdc: Decimal | str | int,
     tx_hash: str,
     token_symbol: str = "USDC",
     time_to_confirm_ms: Optional[int] = None,
 ) -> None:
     extra: dict[str, Any] = {
-        "amount_usdc": amount_usdc,
+        "amount_usdc": _money(amount_usdc),
         "token_symbol": token_symbol,
         "tx_hash": tx_hash,
         "time_to_confirm_ms": int(time_to_confirm_ms or 0),
@@ -200,12 +206,12 @@ async def emit_deposit_completed(
 async def emit_deposit_failed(
     wallet_address: str,
     *,
-    amount_usdc: float,
+    amount_usdc: Decimal | str | int,
     error_code: str,
 ) -> None:
     await _emit(
         "deposit_failed", wallet_address,
-        extra={"amount_usdc": amount_usdc, "error_code": error_code},
+        extra={"amount_usdc": _money(amount_usdc), "error_code": error_code},
     )
 
 
@@ -215,7 +221,7 @@ async def emit_provider_first_revenue_received(
     provider_address: str,
     *,
     service_id: str,
-    gross_usdc: float,
+    gross_usdc: Decimal | str | int,
     time_since_listing_ms: Optional[int] = None,
     correlation_id: Optional[str] = None,
 ) -> None:
@@ -229,7 +235,7 @@ async def emit_provider_first_revenue_received(
     extra: dict[str, Any] = {
         "provider_id": sha256_hash(provider_address),
         "service_id": service_id,
-        "gross_usdc": gross_usdc,
+        "gross_usdc": _money(gross_usdc),
         "is_first_revenue": True,
     }
     if time_since_listing_ms is not None:
@@ -246,9 +252,9 @@ async def emit_provider_revenue_received(
     provider_address: str,
     *,
     service_id: str,
-    gross_usdc: float,
-    platform_fee_usdc: float,
-    provider_net_usdc: float,
+    gross_usdc: Decimal | str | int,
+    platform_fee_usdc: Decimal | str | int,
+    provider_net_usdc: Decimal | str | int,
     correlation_id: Optional[str] = None,
 ) -> None:
     await _emit(
@@ -258,9 +264,9 @@ async def emit_provider_revenue_received(
         extra={
             "provider_id": sha256_hash(provider_address),
             "service_id": service_id,
-            "gross_usdc": gross_usdc,
-            "platform_fee_usdc": platform_fee_usdc,
-            "provider_net_usdc": provider_net_usdc,
+            "gross_usdc": _money(gross_usdc),
+            "platform_fee_usdc": _money(platform_fee_usdc),
+            "provider_net_usdc": _money(provider_net_usdc),
         },
     )
 
@@ -270,13 +276,13 @@ async def emit_provider_revenue_received(
 async def emit_withdrawal_completed(
     wallet_address: str,
     *,
-    amount_usdc: float,
+    amount_usdc: Decimal | str | int,
     tx_hash: str,
     role: str = "consumer",
     time_to_confirm_ms: Optional[int] = None,
 ) -> None:
     extra: dict[str, Any] = {
-        "amount_usdc": amount_usdc,
+        "amount_usdc": _money(amount_usdc),
         "tx_hash": tx_hash,
     }
     if time_to_confirm_ms is not None:
@@ -287,14 +293,14 @@ async def emit_withdrawal_completed(
 async def emit_settlement_claim_requested(
     provider_address: str,
     *,
-    claim_usdc: float,
+    claim_usdc: Decimal | str | int,
 ) -> None:
     await _emit(
         "settlement_claim_requested", provider_address,
         role="provider",
         extra={
             "provider_id": sha256_hash(provider_address),
-            "claim_usdc": claim_usdc,
+            "claim_usdc": _money(claim_usdc),
         },
     )
 
@@ -302,7 +308,7 @@ async def emit_settlement_claim_requested(
 async def emit_settlement_claim_completed(
     provider_address: str,
     *,
-    claim_usdc: float,
+    claim_usdc: Decimal | str | int,
     tx_hash: str,
 ) -> None:
     await _emit(
@@ -310,7 +316,7 @@ async def emit_settlement_claim_completed(
         role="provider",
         extra={
             "provider_id": sha256_hash(provider_address),
-            "claim_usdc": claim_usdc,
+            "claim_usdc": _money(claim_usdc),
             "tx_hash": tx_hash,
         },
     )
@@ -321,7 +327,7 @@ async def emit_settlement_claim_completed(
 async def emit_refund_completed(
     wallet_address: str,
     *,
-    amount_usdc: float,
+    amount_usdc: Decimal | str | int,
     reason_code: str = "",
     service_id: str = "",
     tx_hash: str = "",
@@ -329,7 +335,7 @@ async def emit_refund_completed(
     await _emit(
         "refund_completed", wallet_address,
         extra={
-            "amount_usdc": amount_usdc,
+            "amount_usdc": _money(amount_usdc),
             "reason_code": reason_code,
             "service_id": service_id,
             "tx_hash": tx_hash,

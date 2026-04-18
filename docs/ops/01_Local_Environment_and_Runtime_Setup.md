@@ -475,11 +475,11 @@ TARGET_WALLET=0x1111111111111111111111111111111111111111,0x222222222222222222222
 
 #### E. Python 辅助脚本
 
-`scripts/python/resolve_python_311.sh`
+`scripts/python/resolve_python_313.sh`
 
-1. 用途：解析仓库要求的 Python 3.11 解释器
-2. 优先级：`SYNAPSE_PYTHON_BIN` -> `python3.11` -> 常见安装路径 -> pyenv shim
-3. 用法：`bash scripts/python/resolve_python_311.sh`
+1. 用途：解析仓库要求的 Python 3.13 解释器
+2. 优先级：`SYNAPSE_PYTHON_BIN` -> `python3.13` -> 常见安装路径 -> pyenv shim
+3. 用法：`bash scripts/python/resolve_python_313.sh`
 
 `scripts/generate_jwt_secret.py`
 

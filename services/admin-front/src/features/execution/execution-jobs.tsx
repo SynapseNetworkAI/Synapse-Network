@@ -2,6 +2,8 @@
 
 import { useTransition } from "react";
 
+import { EXECUTION_JOB_STATUS, executionJobStatusTone, type StatusTone } from "@/domain/status";
+import { getExecutionStatusLabel } from "@/features/execution/execution-presenters";
 import type { ExecutionJobItem } from "@/services/admin-api";
 
 
@@ -11,11 +13,11 @@ type ExecutionJobsProps = {
 };
 
 
-function getJobStatusTone(status: string): string {
-  if (status === "SUCCEEDED") {
+function getToneClassName(tone: StatusTone): string {
+  if (tone === "green") {
     return "status-pill status-pill--healthy";
   }
-  if (status === "FAILED") {
+  if (tone === "red") {
     return "status-pill status-pill--alert";
   }
   return "status-pill status-pill--degraded";
@@ -45,8 +47,8 @@ export function ExecutionJobs({ items, onRetry }: Readonly<ExecutionJobsProps>) 
                 <p className="queue__meta">approval: {job.approvalId} · target: {job.targetSystem} · retry {job.retryCount}/{job.maxRetryCount}</p>
               </div>
               <div className="pill-row">
-                <span className={getJobStatusTone(job.status)}>
-                  {job.status}
+                <span className={getToneClassName(executionJobStatusTone(job.status))}>
+                  {getExecutionStatusLabel(job.status)}
                 </span>
                 {job.errorCode ? <span className="permission-chip">{job.errorCode}</span> : null}
               </div>
@@ -55,14 +57,14 @@ export function ExecutionJobs({ items, onRetry }: Readonly<ExecutionJobsProps>) 
               <div className="pill-row">
                 {job.attempts.map((attempt) => (
                   <span key={`${job.jobId}-${attempt.attemptNo}`} className="permission-chip">
-                    #{attempt.attemptNo} {attempt.status}
+                    #{attempt.attemptNo} {getExecutionStatusLabel(attempt.status)}
                   </span>
                 ))}
               </div>
               <button
                 type="button"
                 className="button button--secondary"
-                disabled={isPending || job.status !== "FAILED"}
+                disabled={isPending || job.status !== EXECUTION_JOB_STATUS.FAILED}
                 onClick={() => startTransition(async () => onRetry(job.jobId))}
               >
                 {isPending ? "处理中..." : "重试执行"}

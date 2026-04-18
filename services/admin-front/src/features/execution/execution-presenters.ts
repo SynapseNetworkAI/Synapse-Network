@@ -1,27 +1,23 @@
+import {
+  EXECUTION_JOB_STATUS,
+  executionJobStatusLabel,
+  executionJobStatusTone,
+  isExecutionJobTerminalStatus,
+  type ExecutionJobStatus,
+  type StatusTone,
+} from "@/domain/status";
 import type { ExecutionJobItem } from "@/services/admin-api";
 
-const executionStatusLabels: Record<string, string> = {
-  PENDING: "待执行",
-  QUEUED: "排队中",
-  RUNNING: "执行中",
-  EXECUTING: "执行中",
-  RETRYING: "重试中",
-  FAILED: "执行失败",
-  SUCCEEDED: "已完成",
-};
-
-type ExecutionTone = "green" | "orange" | "red" | "gray";
-
 function isFailed(job: ExecutionJobItem): boolean {
-  return job.status === "FAILED";
+  return job.status === EXECUTION_JOB_STATUS.FAILED;
 }
 
 function isSucceeded(job: ExecutionJobItem): boolean {
-  return job.status === "SUCCEEDED";
+  return job.status === EXECUTION_JOB_STATUS.SUCCEEDED;
 }
 
 function isInflight(job: ExecutionJobItem): boolean {
-  return !isFailed(job) && !isSucceeded(job);
+  return !isExecutionJobTerminalStatus(job.status);
 }
 
 function isRetryable(job: ExecutionJobItem): boolean {
@@ -54,21 +50,12 @@ function priorityWeight(job: ExecutionJobItem): number {
   return score;
 }
 
-export function getExecutionStatusLabel(status: string): string {
-  return executionStatusLabels[status] ?? status;
+export function getExecutionStatusLabel(status: ExecutionJobStatus): string {
+  return executionJobStatusLabel(status);
 }
 
-export function getExecutionTone(status: string): ExecutionTone {
-  if (status === "FAILED") {
-    return "red";
-  }
-  if (status === "RUNNING" || status === "EXECUTING" || status === "RETRYING") {
-    return "orange";
-  }
-  if (status === "SUCCEEDED") {
-    return "green";
-  }
-  return "gray";
+export function getExecutionTone(status: ExecutionJobStatus): StatusTone {
+  return executionJobStatusTone(status);
 }
 
 export function buildExecutionMetrics(items: ExecutionJobItem[]) {

@@ -5,9 +5,7 @@
  * Phase 1 (Backend): fund buyer wallet, create agents, invoke services, verify billing
  * Phase 2 (Browser): Playwright screenshots of all dashboard pages with wallet injected
  *
- * New Buyer Wallet: Hardhat account #3
- *   address : 0x90F79bf6EB2c4f870365E785982E1f101E93b906
- *   key     : 0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6
+ * Buyer wallet must be provided via environment variables.
  *
  * Usage:
  *   cd Synapse-Network && node scripts/browser_e2e_test.js
@@ -27,9 +25,8 @@ const FRONTEND_URL = "http://localhost:3000";
 const GATEWAY_URL  = "http://localhost:8000/api";
 const CHAIN_ID     = 31337;  // Hardhat
 
-// Hardhat account index 3 — the "new buyer wallet"
-const BUYER_PRIVATE_KEY = "0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6";
-const BUYER_ADDRESS     = "0x90F79bf6EB2c4f870365E785982E1f101E93b906";
+const BUYER_PRIVATE_KEY = process.env.BUYER_PRIVATE_KEY || "";
+const BUYER_ADDRESS = process.env.BUYER_ADDRESS || "";
 
 const SCREENSHOT_DIR = path.join(
   __dirname, "..", "docs", "reference", "test", "gateway", "screenshots", "wallet-connected"
@@ -198,6 +195,9 @@ async function authenticate(privateKey, address) {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 async function main() {
+  if (!BUYER_PRIVATE_KEY || !BUYER_ADDRESS) {
+    throw new Error("BUYER_PRIVATE_KEY and BUYER_ADDRESS must be set explicitly.");
+  }
   fs.mkdirSync(SCREENSHOT_DIR, { recursive: true });
   const wallet = new ethers.Wallet(BUYER_PRIVATE_KEY);
   const address = wallet.address.toLowerCase();

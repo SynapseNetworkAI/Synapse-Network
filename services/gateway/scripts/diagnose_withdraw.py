@@ -2,18 +2,25 @@
 """
 Diagnose and fix consumer withdrawal balance inconsistency.
 Clears stale REQUESTED records, verifies fresh withdrawal.
-Run: PYTHONPATH=. .venv/bin/python3.11 scripts/diagnose_withdraw.py
+Run: PYTHONPATH=. .venv/bin/python3.13 scripts/diagnose_withdraw.py
 """
 from __future__ import annotations
-import time, uuid, json
+import os, time, uuid, json
+from decimal import Decimal
 import httpx
 from eth_account import Account
 
 GATEWAY_BASE = "http://127.0.0.1:8000"
-OWNER_KEY = "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"
+OWNER_KEY = os.getenv("OWNER_PRIVATE_KEY", "").strip()
+
+
+def money(value) -> Decimal:
+    return Decimal(str(value or "0"))
 
 
 def auth():
+    if not OWNER_KEY:
+        raise RuntimeError("OWNER_PRIVATE_KEY must be set explicitly.")
     from tests.e2e.helpers.auth import authenticate_wallet
     token, _ = authenticate_wallet(GATEWAY_BASE, OWNER_KEY)
     acct = Account.from_key(OWNER_KEY)
@@ -40,12 +47,12 @@ def list_withdrawals(hdrs: dict) -> list:
     return r.json().get("withdrawals", [])
 
 
-def withdraw(hdrs: dict, amount: float) -> tuple:
+def withdraw(hdrs: dict, amount: Decimal) -> tuple:
     idem = uuid.uuid4().hex
     r = httpx.post(
         f"{GATEWAY_BASE}/api/v1/balance/consumer/withdraw",
         headers={**hdrs, "X-Idempotency-Key": idem},
-        json={"amountUsdc": amount, "reason": "diagnose-test"},
+        json={"amountUsdc": format(amount, "f"), "reason": "diagnose-test"},
         timeout=15,
     )
     return r.status_code, r.json()
@@ -60,24 +67,24 @@ def main():
 
     # Step 1: Check current state
     b = get_balance(hdrs)
-    avail = float(b.get("consumerAvailableBalance", 0))
-    pend = float(b.get("consumerPendingBalance", 0))
+    avail = money(b.get("consumerAvailableBalance", 0))
+    pend = money(b.get("consumerPendingBalance", 0))
     print(f"\nBalance: available=${avail:.4f} pending=${pend:.4f}")
 
     ws = list_withdrawals(hdrs)
     active = [w for w in ws if w.get("status") in ("REQUESTED", "PENDING_MANUAL_REVIEW")]
     print(f"Total withdrawals: {len(ws)}, Active: {len(active)}")
     for w in active:
-        print(f"  [{w.get('status')}] id={str(w.get('id',''))[:16]}... amount=${float(w.get('amountUsdc',0)):.2f}")
+        print(f"  [{w.get('status')}] id={str(w.get('id',''))[:16]}... amount=${money(w.get('amountUsdc',0)):.2f}")
 
     # Diagnosis
-    if active and abs(pend) < 0.001:
+    if active and abs(pend) < Decimal("0.001"):
         print("\n⚠ INCONSISTENCY DETECTED: Active withdrawal records but pending_balance=0")
         print("  Root cause: balance reservation was not persisted (race condition)")
         print("  Action: The active record blocks new withdrawals but balance appears unchanged")
 
     # Step 2: Attempt a fresh withdrawal
-    amount = min(5.0, avail) if avail >= 1.0 else avail
+    amount = min(Decimal("5"), avail) if avail >= Decimal("1") else avail
     print(f"\nAttempting withdrawal of ${amount:.2f}...")
     sc, resp = withdraw(hdrs, amount)
     w_id = resp.get("withdrawId", "")
@@ -86,16 +93,16 @@ def main():
 
     time.sleep(0.3)
     b2 = get_balance(hdrs)
-    avail2 = float(b2.get("consumerAvailableBalance", 0))
-    pend2 = float(b2.get("consumerPendingBalance", 0))
+    avail2 = money(b2.get("consumerAvailableBalance", 0))
+    pend2 = money(b2.get("consumerPendingBalance", 0))
     print(f"\nPost-withdraw balance: available=${avail2:.4f} pending=${pend2:.4f}")
 
     if active:
-        if abs(avail2 - avail) < 0.001 and abs(pend2 - pend) < 0.001:
+        if abs(avail2 - avail) < Decimal("0.001") and abs(pend2 - pend) < Decimal("0.001"):
             print("  ✓ Existing active withdrawal returned idempotently without double deduction")
         else:
             print("  ✗ Active withdrawal should not change balance on repeated request")
-    elif abs(avail2 - (avail - amount)) < 0.001:
+    elif abs(avail2 - (avail - amount)) < Decimal("0.001"):
         print("  ✓ Balance correctly decreased")
     else:
         print(f"  ✗ Balance NOT decreased (expected ${avail - amount:.4f}, got ${avail2:.4f})")

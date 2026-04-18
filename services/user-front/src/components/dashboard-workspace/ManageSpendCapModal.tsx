@@ -18,6 +18,7 @@ import {
   updateOwnerSpendingLimit,
   type OwnerSpendingLimit,
 } from "@/utils/balanceApi";
+import { normalizeMoneyString } from "@/utils/money";
 
 type ManageSpendCapModalProps = {
   open: boolean;
@@ -80,7 +81,7 @@ export default function ManageSpendCapModal({
     setSaveError(null);
     try {
       const saved = await updateOwnerSpendingLimit(userAddress, {
-        spendingLimitUsdc: allowUnlimited ? null : parsedLimit,
+        spendingLimitUsdc: allowUnlimited ? null : normalizeMoneyString(parsedLimit),
         allowUnlimited,
       });
       toast.success(t("creditsPage.manageSpendCapModalSaved"));

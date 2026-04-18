@@ -29,6 +29,7 @@ import {
   calculateSpendRatio,
   getBillingCycleWindow,
 } from "@/utils/creditsSpendCap";
+import { formatMoneyString, normalizeMoneyString } from "@/utils/money";
 import SynapseCoreABI from "@/SynapseCoreABI.json";
 
 const DepositUsdcModal = dynamic(
@@ -116,7 +117,7 @@ function WithdrawBalanceModal({ availableBalance, userAddress, onClose, onSucces
     const complete = async () => {
       try {
         await completeV2Refund(userAddress, withdrawResult.withdrawId, txHash);
-        toast.success(`Withdrawal of $${withdrawResult.netUsdc.toFixed(2)} USDC completed!`);
+        toast.success(`Withdrawal of $${formatMoneyString(withdrawResult.netUsdc, 2)} USDC completed!`);
         setStep("done");
         await onSuccess({ ...withdrawResult, status: "COMPLETED" });
         onClose();
@@ -153,7 +154,7 @@ function WithdrawBalanceModal({ availableBalance, userAddress, onClose, onSucces
     let createdResult: ConsumerWithdrawIntent | null = null;
     try {
       const result = await requestConsumerWithdraw(userAddress, {
-        amountUsdc: num,
+        amountUsdc: normalizeMoneyString(num),
         reason: reason.trim() || undefined,
       });
       createdResult = result;
@@ -332,12 +333,12 @@ function WithdrawBalanceModal({ availableBalance, userAddress, onClose, onSucces
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-function formatUsd(value: number): string {
-  return `$${Math.max(0, value).toFixed(2)}`;
+function formatUsd(value: number | string): string {
+  return `$${formatMoneyString(typeof value === "number" ? normalizeMoneyString(value) : value, 2)}`;
 }
 
-function formatPlainAmount(value: number): string {
-  return Math.max(0, value).toFixed(2);
+function formatPlainAmount(value: number | string): string {
+  return formatMoneyString(typeof value === "number" ? normalizeMoneyString(value) : value, 2);
 }
 
 function formatPercent(value: number): string {
@@ -455,8 +456,8 @@ export default function OwnerCreditsPage() {
     const treasuryAvailable = Number.parseFloat(stats.ownerBalance) || 0;
     const currentSpend = Number(spendingLimit?.currentCycleSpendUsdc ?? 0);
     const billingCycleCap =
-      typeof spendingLimit?.spendingLimitUsdc === "number"
-        ? spendingLimit.spendingLimitUsdc
+      typeof spendingLimit?.spendingLimitUsdc === "string"
+        ? Number(spendingLimit.spendingLimitUsdc)
         : null;
     const spendRatio = calculateSpendRatio(currentSpend, billingCycleCap);
 
@@ -466,8 +467,8 @@ export default function OwnerCreditsPage() {
       billingCycleCap,
       spendRatio,
       remainingSpend:
-        typeof spendingLimit?.remainingSpendUsdc === "number"
-          ? spendingLimit.remainingSpendUsdc
+        typeof spendingLimit?.remainingSpendUsdc === "string"
+          ? Number(spendingLimit.remainingSpendUsdc)
           : null,
     };
   }, [spendingLimit, stats.ownerBalance]);
@@ -667,7 +668,7 @@ export default function OwnerCreditsPage() {
                     </button>
                     {pendingWithdrawal && (
                       <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 w-[220px] rounded-lg border border-[#2a2a2a] bg-[#1a1a1a] px-3 py-2 text-xs text-[#f59e0b] shadow-xl opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50">
-                        A withdrawal of ${(pendingWithdrawal.amountUsdc ?? 0).toFixed(2)} is pending. Only one active withdrawal is allowed.
+                        A withdrawal of {formatMoneyString(pendingWithdrawal.amountUsdc ?? "0", 2)} is pending. Only one active withdrawal is allowed.
                       </div>
                     )}
                   </div>
@@ -895,10 +896,10 @@ export default function OwnerCreditsPage() {
             if (isActiveWithdrawal && !result.existingWithdrawal) {
               const newOverride = {
                 withdrawId: result.withdrawId,
-                amountUsdc: result.amountUsdc,
+                amountUsdc: Number(result.amountUsdc),
                 targetBalance: Math.max(
                   0,
-                  displayedRemainingBalance - result.amountUsdc
+                  displayedRemainingBalance - Number(result.amountUsdc)
                 ),
               };
               setOptimisticBalanceOverride((current) =>

@@ -1,6 +1,13 @@
+import {
+  riskLevelLabel,
+  riskLevelTone,
+  withdrawalStatusLabel,
+  withdrawalStatusTone,
+  type RiskLevel,
+  type StatusTone,
+  type WithdrawalStatus,
+} from "@/domain/status";
 import type { ProviderWithdrawReviewItem } from "@/services/admin-api";
-
-type WithdrawRiskTone = "green" | "orange" | "red" | "gray";
 
 function priorityWeight(item: ProviderWithdrawReviewItem): number {
   let score = 0;
@@ -24,17 +31,20 @@ function priorityWeight(item: ProviderWithdrawReviewItem): number {
   return score;
 }
 
-export function getWithdrawRiskTone(level: string | null | undefined): WithdrawRiskTone {
-  if (level === "red") {
-    return "red";
-  }
-  if (level === "yellow") {
-    return "orange";
-  }
-  if (level === "green") {
-    return "green";
-  }
-  return "gray";
+export function getWithdrawRiskTone(level: RiskLevel | null | undefined): StatusTone {
+  return level ? riskLevelTone(level) : "gray";
+}
+
+export function getWithdrawRiskLabel(level: RiskLevel | null | undefined): string {
+  return level ? riskLevelLabel(level) : "UNKNOWN";
+}
+
+export function getWithdrawalStatusTone(status: WithdrawalStatus): StatusTone {
+  return withdrawalStatusTone(status);
+}
+
+export function getWithdrawalStatusLabel(status: WithdrawalStatus): string {
+  return withdrawalStatusLabel(status);
 }
 
 export function buildWithdrawReviewMetrics(items: ProviderWithdrawReviewItem[]) {
@@ -92,8 +102,8 @@ export function buildWithdrawReasonClusters(items: ProviderWithdrawReviewItem[])
   return [...buckets.values()].sort((left, right) => right.count - left.count || left.code.localeCompare(right.code));
 }
 
-export function listWithdrawRiskLevels(items: ProviderWithdrawReviewItem[]): string[] {
-  return [...new Set(items.map((item) => item.riskLevel).filter((value): value is string => Boolean(value)))];
+export function listWithdrawRiskLevels(items: ProviderWithdrawReviewItem[]): RiskLevel[] {
+  return [...new Set(items.map((item) => item.riskLevel).filter((value): value is RiskLevel => value !== null))];
 }
 
 export function paginateWithdrawReviews(items: ProviderWithdrawReviewItem[], page: number, pageSize: number): ProviderWithdrawReviewItem[] {

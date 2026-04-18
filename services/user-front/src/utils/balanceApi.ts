@@ -1,5 +1,7 @@
 import { buildAuthedHeaders, normalizeAuthApiError } from "@/utils/authSession";
+import type { RiskLevel, WithdrawalStatus } from "@/domain/status";
 import { getGatewayBaseUrl } from "@/utils/gatewayApi";
+import { normalizeMoneyString, type MoneyString } from "@/utils/money";
 
 const API_BASE = `${getGatewayBaseUrl()}/api/v1`;
 const depositIntentInflight = new Map<string, Promise<DepositIntentRecord>>();
@@ -67,18 +69,18 @@ async function readErrorPayload(
 }
 
 export type BalanceSummary = {
-  ownerBalance: number;
-  providerReceivable: number;
-  platformFeeAccrued: number;
+  ownerBalance: MoneyString;
+  providerReceivable: MoneyString;
+  platformFeeAccrued: MoneyString;
 };
 
 export type OwnerSpendingLimit = {
   ownerAddress: string;
-  spendingLimitUsdc: number | null;
+  spendingLimitUsdc: MoneyString | null;
   allowUnlimited: boolean;
   cycleInterval: "monthly";
-  currentCycleSpendUsdc: number;
-  remainingSpendUsdc: number | null;
+  currentCycleSpendUsdc: MoneyString;
+  remainingSpendUsdc: MoneyString | null;
   updatedAt: string | number | null;
 };
 
@@ -89,14 +91,14 @@ export type VoucherRedemptionRecord = {
   campaignCode: string;
   campaignDisplayName: string;
   voucherCodeLast4: string;
-  grantedAmountUsdc: number;
+  grantedAmountUsdc: MoneyString;
   ownerAddress: string;
   ledgerEntryId: string;
   targetAccountId: string;
   promoAccountId: string;
   status: string;
-  beforeBalanceUsdc: number;
-  afterBalanceUsdc: number;
+  beforeBalanceUsdc: MoneyString;
+  afterBalanceUsdc: MoneyString;
   redeemedAt: string;
 };
 
@@ -109,8 +111,8 @@ export type DepositIntentRecord = {
   id?: string;
   ownerAddress?: string;
   txHash: string;
-  amountUsdc?: number;
-  creditedAmountUsdc?: number;
+  amountUsdc?: MoneyString;
+  creditedAmountUsdc?: MoneyString;
   status: string;
   failureReason?: string;
   createdAt?: string | number;
@@ -127,8 +129,8 @@ export type DepositSyncStatus = {
   canRefreshBalance: boolean;
   depositIntentId?: string;
   ownerAddress?: string;
-  amountUsdc?: number;
-  creditedAmountUsdc?: number;
+  amountUsdc?: MoneyString;
+  creditedAmountUsdc?: MoneyString;
   confirmations?: number;
   eventKey?: string;
   confirmedAt?: number;
@@ -149,7 +151,7 @@ export type DepositAttemptRecord = {
   ownerAddress?: string;
   clientRequestId?: string;
   txHash?: string;
-  amountUsdc: number;
+  amountUsdc: MoneyString;
   stage: DepositAttemptStage;
   failureReason?: string;
   requestId?: string;
@@ -164,11 +166,11 @@ type TimestampLike = string | number | undefined;
 export type OwnerRefundIntent = {
   refundId: string;
   signature: string;
-  amountRefunded: number;
-  status: "PENDING" | "PENDING_MANUAL_REVIEW" | "COMPLETED" | "REJECTED";
+  amountRefunded: MoneyString;
+  status: WithdrawalStatus;
   gasPayer: "OWNER";
   gasModel: "OWNER_PAYS_ONCHAIN";
-  riskLevel?: "green" | "yellow" | "red";
+  riskLevel?: RiskLevel;
   riskReasonCode?: string;
   message?: string;
 };
@@ -176,17 +178,10 @@ export type OwnerRefundIntent = {
 export type RefundIntentRecord = {
   id: string;
   ownerAddress?: string;
-  amountUsdc?: number;
+  amountUsdc?: MoneyString;
   reason?: string;
-  status:
-    | "REQUESTED"
-    | "PENDING"
-    | "PENDING_MANUAL_REVIEW"
-    | "COMPLETED"
-    | "FAILED"
-    | "REJECTED"
-    | "CANCELLED";
-  riskLevel?: string;
+  status: WithdrawalStatus;
+  riskLevel?: RiskLevel;
   riskReasonCode?: string;
   message?: string;
   originRequestId?: string;
@@ -259,28 +254,22 @@ export async function getV2Balance(
 
   const payload = (await response.json()) as {
     balance?: Partial<BalanceSummary> & {
-      ownerBalance?: number;
-      consumerAvailableBalance?: number;
-      providerReceivable?: number;
-      providerReceivableBalance?: number;
-      platform?: { feeAccrued?: number };
+      ownerBalance?: string | number;
+      consumerAvailableBalance?: string | number;
+      providerReceivable?: string | number;
+      providerReceivableBalance?: string | number;
+      platform?: { feeAccrued?: string | number };
     };
   };
-  const feeFromMap = Number(payload.balance?.platform?.feeAccrued ?? 0);
+  const feeFromMap = normalizeMoneyString(payload.balance?.platform?.feeAccrued);
   return {
-    ownerBalance: Number(
-      payload.balance?.ownerBalance ??
-        payload.balance?.consumerAvailableBalance ??
-        0
+    ownerBalance: normalizeMoneyString(
+      payload.balance?.ownerBalance ?? payload.balance?.consumerAvailableBalance
     ),
-    providerReceivable: Number(
-      payload.balance?.providerReceivable ??
-        payload.balance?.providerReceivableBalance ??
-        0
+    providerReceivable: normalizeMoneyString(
+      payload.balance?.providerReceivable ?? payload.balance?.providerReceivableBalance
     ),
-    platformFeeAccrued: Number(
-      payload.balance?.platformFeeAccrued ?? feeFromMap
-    ),
+    platformFeeAccrued: normalizeMoneyString(payload.balance?.platformFeeAccrued ?? feeFromMap),
   };
 }
 
@@ -290,15 +279,17 @@ function normalizeOwnerSpendingLimit(
   return {
     ownerAddress: String(payload?.ownerAddress || "").toLowerCase(),
     spendingLimitUsdc:
-      typeof payload?.spendingLimitUsdc === "number"
-        ? payload.spendingLimitUsdc
+      payload?.spendingLimitUsdc !== undefined &&
+      payload?.spendingLimitUsdc !== null
+        ? normalizeMoneyString(payload.spendingLimitUsdc)
         : null,
     allowUnlimited: Boolean(payload?.allowUnlimited),
     cycleInterval: "monthly",
-    currentCycleSpendUsdc: Number(payload?.currentCycleSpendUsdc ?? 0),
+    currentCycleSpendUsdc: normalizeMoneyString(payload?.currentCycleSpendUsdc),
     remainingSpendUsdc:
-      typeof payload?.remainingSpendUsdc === "number"
-        ? payload.remainingSpendUsdc
+      payload?.remainingSpendUsdc !== undefined &&
+      payload?.remainingSpendUsdc !== null
+        ? normalizeMoneyString(payload.remainingSpendUsdc)
         : null,
     updatedAt: payload?.updatedAt ?? null,
   };
@@ -327,13 +318,17 @@ export async function getOwnerSpendingLimit(
 
 export async function updateOwnerSpendingLimit(
   userAddress: string,
-  payload: { spendingLimitUsdc?: number | null; allowUnlimited: boolean }
+  payload: { spendingLimitUsdc?: MoneyString | null; allowUnlimited: boolean }
 ): Promise<OwnerSpendingLimit> {
   const response = await fetch(`${API_BASE}/balance/spending-limit`, {
     method: "PUT",
     headers: buildAuthedHeaders(userAddress),
     body: JSON.stringify({
-      spendingLimitUsdc: payload.spendingLimitUsdc ?? null,
+      spendingLimitUsdc:
+        payload.spendingLimitUsdc !== undefined &&
+        payload.spendingLimitUsdc !== null
+          ? normalizeMoneyString(payload.spendingLimitUsdc)
+          : null,
       allowUnlimited: payload.allowUnlimited,
     }),
   });
@@ -372,11 +367,11 @@ export async function redeemCreditVoucher(
   const payload = (await response.json()) as {
     redemption?: Partial<VoucherRedemptionRecord>;
     balance?: Partial<BalanceSummary> & {
-      ownerBalance?: number;
-      consumerAvailableBalance?: number;
-      providerReceivable?: number;
-      providerReceivableBalance?: number;
-      platform?: { feeAccrued?: number };
+      ownerBalance?: string | number;
+      consumerAvailableBalance?: string | number;
+      providerReceivable?: string | number;
+      providerReceivableBalance?: string | number;
+      platform?: { feeAccrued?: string | number };
     };
   };
 
@@ -390,27 +385,25 @@ export async function redeemCreditVoucher(
         payload.redemption?.campaignDisplayName || ""
       ),
       voucherCodeLast4: String(payload.redemption?.voucherCodeLast4 || ""),
-      grantedAmountUsdc: Number(payload.redemption?.grantedAmountUsdc ?? 0),
+      grantedAmountUsdc: normalizeMoneyString(payload.redemption?.grantedAmountUsdc),
       ownerAddress: String(payload.redemption?.ownerAddress || userAddress),
       ledgerEntryId: String(payload.redemption?.ledgerEntryId || ""),
       targetAccountId: String(payload.redemption?.targetAccountId || ""),
       promoAccountId: String(payload.redemption?.promoAccountId || ""),
       status: String(payload.redemption?.status || "COMPLETED"),
-      beforeBalanceUsdc: Number(payload.redemption?.beforeBalanceUsdc ?? 0),
-      afterBalanceUsdc: Number(payload.redemption?.afterBalanceUsdc ?? 0),
+      beforeBalanceUsdc: normalizeMoneyString(payload.redemption?.beforeBalanceUsdc),
+      afterBalanceUsdc: normalizeMoneyString(payload.redemption?.afterBalanceUsdc),
       redeemedAt: String(payload.redemption?.redeemedAt || ""),
     },
     balance: {
-      ownerBalance: Number(
-        payload.balance?.ownerBalance ?? payload.balance?.consumerAvailableBalance ?? 0
+      ownerBalance: normalizeMoneyString(
+        payload.balance?.ownerBalance ?? payload.balance?.consumerAvailableBalance
       ),
-      providerReceivable: Number(
-        payload.balance?.providerReceivable ??
-          payload.balance?.providerReceivableBalance ??
-          0
+      providerReceivable: normalizeMoneyString(
+        payload.balance?.providerReceivable ?? payload.balance?.providerReceivableBalance
       ),
-      platformFeeAccrued: Number(
-        payload.balance?.platformFeeAccrued ?? payload.balance?.platform?.feeAccrued ?? 0
+      platformFeeAccrued: normalizeMoneyString(
+        payload.balance?.platformFeeAccrued ?? payload.balance?.platform?.feeAccrued
       ),
     },
   };
@@ -418,7 +411,7 @@ export async function redeemCreditVoucher(
 
 export async function createDepositIntent(
   userAddress: string,
-  payload: { txHash: string; amountUsdc: number }
+  payload: { txHash: string; amountUsdc: MoneyString }
 ): Promise<DepositIntentRecord> {
   const normalizedTx = String(payload.txHash || "")
     .trim()
@@ -428,8 +421,9 @@ export async function createDepositIntent(
       "Invalid txHash format. Expected 66-char 0x-prefixed hash."
     );
   }
-  if (!Number.isFinite(payload.amountUsdc) || payload.amountUsdc <= 0) {
-    throw new Error("amountUsdc must be a positive number.");
+  const normalizedAmountUsdc = normalizeMoneyString(payload.amountUsdc, "");
+  if (!normalizedAmountUsdc || normalizedAmountUsdc === "0") {
+    throw new Error("amountUsdc must be a positive decimal string.");
   }
 
   const requestKey = `${userAddress.toLowerCase()}::${normalizedTx}`;
@@ -449,6 +443,7 @@ export async function createDepositIntent(
       headers,
       body: JSON.stringify({
         ...payload,
+        amountUsdc: normalizedAmountUsdc,
         txHash: normalizedTx,
         ownerAddress: userAddress,
       }),
@@ -495,8 +490,8 @@ export async function createDepositIntent(
           ? deposit.ownerAddress
           : userAddress,
       txHash: String(deposit.txHash || data.tx_hash || payload.txHash),
-      amountUsdc: Number(deposit.amountUsdc ?? payload.amountUsdc),
-      creditedAmountUsdc: Number(deposit.creditedAmountUsdc ?? 0),
+      amountUsdc: normalizeMoneyString(deposit.amountUsdc ?? normalizedAmountUsdc),
+      creditedAmountUsdc: normalizeMoneyString(deposit.creditedAmountUsdc),
       status: String(
         (deposit as { state?: string }).state || deposit.status || "pending"
       ),
@@ -533,7 +528,7 @@ export async function recordDepositAttempt(
   userAddress: string,
   payload: {
     attemptId: string;
-    amountUsdc: number;
+    amountUsdc: MoneyString;
     stage: DepositAttemptStage;
     clientRequestId?: string;
     txHash?: string;
@@ -543,8 +538,9 @@ export async function recordDepositAttempt(
   if (!payload.attemptId.trim()) {
     throw new Error("attemptId is required.");
   }
-  if (!Number.isFinite(payload.amountUsdc) || payload.amountUsdc <= 0) {
-    throw new Error("amountUsdc must be a positive number.");
+  const normalizedAmountUsdc = normalizeMoneyString(payload.amountUsdc, "");
+  if (!normalizedAmountUsdc || normalizedAmountUsdc === "0") {
+    throw new Error("amountUsdc must be a positive decimal string.");
   }
   if (payload.txHash) {
     const normalizedTx = String(payload.txHash).trim().toLowerCase();
@@ -560,6 +556,7 @@ export async function recordDepositAttempt(
     headers: buildAuthedHeaders(userAddress),
     body: JSON.stringify({
       ...payload,
+      amountUsdc: normalizedAmountUsdc,
       txHash: payload.txHash ? payload.txHash.trim().toLowerCase() : undefined,
       failureReason: payload.failureReason?.trim() || undefined,
       clientRequestId: payload.clientRequestId?.trim() || undefined,
@@ -589,7 +586,7 @@ export async function recordDepositAttempt(
         : undefined,
     txHash:
       typeof attempt.txHash === "string" ? attempt.txHash : payload.txHash,
-    amountUsdc: Number(attempt.amountUsdc ?? payload.amountUsdc),
+    amountUsdc: normalizeMoneyString(attempt.amountUsdc ?? normalizedAmountUsdc),
     stage: String(attempt.stage || payload.stage) as DepositAttemptStage,
     failureReason:
       typeof attempt.failureReason === "string"
@@ -637,8 +634,8 @@ export async function listDepositIntents(
     ownerAddress:
       typeof row.ownerAddress === "string" ? row.ownerAddress : undefined,
     txHash: typeof row.txHash === "string" ? row.txHash : "",
-    amountUsdc: Number(row.amountUsdc ?? 0),
-    creditedAmountUsdc: Number(row.creditedAmountUsdc ?? 0),
+    amountUsdc: normalizeMoneyString(row.amountUsdc),
+    creditedAmountUsdc: normalizeMoneyString(row.creditedAmountUsdc),
     status: typeof row.status === "string" ? row.status : "pending",
     failureReason:
       typeof row.failureReason === "string" ? row.failureReason : undefined,
@@ -695,8 +692,12 @@ export async function getDepositSyncStatus(
         : undefined,
     ownerAddress:
       typeof sync.ownerAddress === "string" ? sync.ownerAddress : undefined,
-    amountUsdc: Number(sync.amountUsdc ?? 0) || undefined,
-    creditedAmountUsdc: Number(sync.creditedAmountUsdc ?? 0) || undefined,
+    amountUsdc:
+      sync.amountUsdc !== undefined ? normalizeMoneyString(sync.amountUsdc) : undefined,
+    creditedAmountUsdc:
+      sync.creditedAmountUsdc !== undefined
+        ? normalizeMoneyString(sync.creditedAmountUsdc)
+        : undefined,
     confirmations: Number(sync.confirmations ?? 0) || undefined,
     eventKey: typeof sync.eventKey === "string" ? sync.eventKey : undefined,
     confirmedAt:
@@ -712,7 +713,7 @@ export async function getDepositSyncStatus(
 export async function requestV2Refund(
   userAddress: string,
   params: {
-    amountUsdc: number;
+    amountUsdc: MoneyString;
     originRequestId?: string;
     originTxHash?: string;
     reason?: string;
@@ -725,7 +726,7 @@ export async function requestV2Refund(
   };
 
   const body: Record<string, unknown> = {
-    amountUsdc: params.amountUsdc,
+    amountUsdc: normalizeMoneyString(params.amountUsdc),
     refundType: params.refundType ?? "MANUAL_APPEAL",
   };
   if (params.originRequestId) body.originRequestId = params.originRequestId;
@@ -751,7 +752,7 @@ export async function requestV2Refund(
   return {
     refundId,
     signature,
-    amountRefunded: Number(payload.amountRefunded || 0),
+    amountRefunded: normalizeMoneyString(payload.amountRefunded),
     status: (payload.status as OwnerRefundIntent["status"]) ?? "PENDING",
     gasPayer: "OWNER",
     gasModel: "OWNER_PAYS_ONCHAIN",
@@ -776,7 +777,8 @@ export async function listV2Refunds(
     return {
       id: typeof row.id === "string" ? row.id : String(row.id ?? ""),
       ownerAddress: typeof row.ownerAddress === "string" ? row.ownerAddress : undefined,
-      amountUsdc: typeof row.amountUsdc === "number" ? row.amountUsdc : Number(row.amountUsdc || 0),
+      amountUsdc:
+        row.amountUsdc !== undefined ? normalizeMoneyString(row.amountUsdc) : undefined,
       reason: typeof row.reason === "string" ? row.reason : undefined,
       status: (row.status as RefundIntentRecord["status"]) ?? "PENDING",
       riskLevel: typeof row.riskLevel === "string" ? row.riskLevel : undefined,
@@ -803,9 +805,9 @@ export type ConsumerWithdrawTicket = {
 
 export type ConsumerWithdrawIntent = {
   withdrawId: string;
-  amountUsdc: number;
-  feeUsdc: number;
-  netUsdc: number;
+  amountUsdc: MoneyString;
+  feeUsdc: MoneyString;
+  netUsdc: MoneyString;
   status:
     | "REQUESTED"
     | "PENDING"
@@ -825,7 +827,7 @@ export type ConsumerWithdrawIntent = {
 
 export async function requestConsumerWithdraw(
   userAddress: string,
-  params: { amountUsdc: number; reason?: string }
+  params: { amountUsdc: MoneyString; reason?: string }
 ): Promise<ConsumerWithdrawIntent> {
   const headers = {
     ...buildAuthedHeaders(userAddress, true),
@@ -834,7 +836,10 @@ export async function requestConsumerWithdraw(
   const response = await fetch(`${API_BASE}/balance/consumer/withdraw`, {
     method: "POST",
     headers,
-    body: JSON.stringify({ amountUsdc: params.amountUsdc, reason: params.reason }),
+    body: JSON.stringify({
+      amountUsdc: normalizeMoneyString(params.amountUsdc),
+      reason: params.reason,
+    }),
   });
   if (!response.ok) {
     throw new Error(await readErrorMessage(response, "Withdraw request failed"));
@@ -843,8 +848,8 @@ export async function requestConsumerWithdraw(
   const rawTicket = payload.ticket as Record<string, unknown> | undefined;
   const ticket: ConsumerWithdrawTicket | undefined = rawTicket
     ? {
-        amount: typeof rawTicket.amount === "string" ? rawTicket.amount : `${Number(rawTicket.amount) || 0}`,
-        fee: typeof rawTicket.fee === "string" ? rawTicket.fee : `${Number(rawTicket.fee) || 0}`,
+        amount: normalizeMoneyString(rawTicket.amount),
+        fee: normalizeMoneyString(rawTicket.fee),
         nonce: Number(rawTicket.nonce || 0),
         deadline: Number(rawTicket.deadline || 0),
         signature: typeof rawTicket.signature === "string" ? rawTicket.signature : "",
@@ -854,9 +859,9 @@ export async function requestConsumerWithdraw(
     : undefined;
   return {
     withdrawId: typeof payload.withdrawId === "string" ? payload.withdrawId : "",
-    amountUsdc: Number(payload.amountUsdc || 0),
-    feeUsdc: Number(payload.feeUsdc || 0),
-    netUsdc: Number(payload.netUsdc || 0),
+    amountUsdc: normalizeMoneyString(payload.amountUsdc),
+    feeUsdc: normalizeMoneyString(payload.feeUsdc),
+    netUsdc: normalizeMoneyString(payload.netUsdc),
     status: (payload.status as ConsumerWithdrawIntent["status"]) ?? "PENDING",
     riskLevel: payload.riskLevel as ConsumerWithdrawIntent["riskLevel"],
     riskReasonCode: typeof payload.riskReasonCode === "string" ? payload.riskReasonCode : undefined,
@@ -883,7 +888,7 @@ export async function listConsumerWithdrawals(
     const rawTicket = row.ticket as Record<string, unknown> | undefined;
     return {
       id: typeof row.id === "string" ? row.id : String(row.id ?? ""),
-      amountUsdc: Number(row.amountUsdc || 0),
+      amountUsdc: normalizeMoneyString(row.amountUsdc),
       status: (row.status as RefundIntentRecord["status"]) ?? "PENDING",
       riskLevel: typeof row.riskLevel === "string" ? row.riskLevel : undefined,
       riskReasonCode: typeof row.riskReasonCode === "string" ? row.riskReasonCode : undefined,
@@ -893,8 +898,8 @@ export async function listConsumerWithdrawals(
       updatedAt: typeof row.updatedAt === "string" ? row.updatedAt : undefined,
       ticket: rawTicket
         ? {
-            amount: typeof rawTicket.amount === "string" ? rawTicket.amount : `${Number(rawTicket.amount) || 0}`,
-            fee: typeof rawTicket.fee === "string" ? rawTicket.fee : `${Number(rawTicket.fee) || 0}`,
+            amount: normalizeMoneyString(rawTicket.amount),
+            fee: normalizeMoneyString(rawTicket.fee),
             nonce: Number(rawTicket.nonce || 0),
             deadline: Number(rawTicket.deadline || 0),
             signature: typeof rawTicket.signature === "string" ? rawTicket.signature : "",

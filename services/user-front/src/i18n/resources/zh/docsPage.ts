@@ -326,7 +326,7 @@ const docsPage: I18nMessages["docsPage"] = {
   sdkHubCardTitles: ["TypeScript SDK", "Python SDK"],
   sdkHubCardDescriptions: [
     "浏览器、Node.js、Next.js 和现代前端/边缘运行时的标准接入方案。适合把 owner onboarding 和 agent runtime 一起放在 TS 体系里。",
-    "面向 Python 服务和后端 agent 的自动化接入方案。适合在 Python 3.11+ 系统里直接完成钱包登录、充值确认、签发凭证和服务调用。",
+    "面向 Python 服务和后端 agent 的自动化接入方案。适合在 Python 3.13+ 系统里直接完成钱包登录、充值确认、签发凭证和服务调用。",
   ],
   sdkHubCardBullets: [
     "钱包登录、余额查询、deposit intent / confirm、凭证签发、discover、invoke、receipt 轮询。",

@@ -27,10 +27,8 @@ const RPC_URL      = process.env.RPC_URL      || "http://127.0.0.1:8545";
 const CHAIN_ID     = Number(process.env.CHAIN_ID || 31337);
 const DEPOSIT_USDC = process.env.DEPOSIT_USDC || "10.0";
 
-const DEPLOYER_KEY = process.env.DEPLOYER_KEY ||
-  "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
-const BUYER_KEY = process.env.BUYER_KEY ||
-  "0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6"; // Hardhat #3
+const DEPLOYER_KEY = (process.env.DEPLOYER_KEY || "").trim();
+const BUYER_KEY = (process.env.BUYER_KEY || "").trim();
 
 const REPO_ROOT = (() => {
   let current = __dirname;
@@ -205,7 +203,7 @@ async function waitForGatewayDeposit(token, address, txHash, amountUsdc) {
   const intentKey = `e2e-deposit-${Date.now()}`;
   const intent = await apiPost(
     "/v1/balance/deposit/intent",
-    { txHash, amountUsdc: parseFloat(amountUsdc) },
+    { txHash, amountUsdc: String(amountUsdc) },
     token,
     address,
     intentKey,
@@ -220,7 +218,7 @@ async function waitForGatewayDeposit(token, address, txHash, amountUsdc) {
     if (sync.body.confirmed || syncStatus === "CONFIRMED") { ok("Gateway confirmed deposit"); return; }
     const bal = await apiGet("/v1/balance", token, address);
     const avail = Number(bal.body?.balance?.consumerAvailableBalance ?? 0);
-    if (avail >= parseFloat(amountUsdc) - 0.01) { ok(`Balance synced to ${avail.toFixed(2)} USDC`); return; }
+    if (avail >= Number(amountUsdc) - 0.01) { ok(`Balance synced to ${avail.toFixed(2)} USDC`); return; }
   }
   throw new Error(`deposit sync timeout for ${txHash}`);
 }
@@ -239,14 +237,14 @@ async function getUserUsdcBalance(userAddress) {
   const { provider, usdcAbi, usdcAddr } = getContracts();
   const usdc = new ethers.Contract(usdcAddr, usdcAbi, provider);
   const raw = await usdc.balanceOf(userAddress);
-  return parseFloat(ethers.formatUnits(raw, 18));
+  return Number(ethers.formatUnits(raw, 18));
 }
 
 async function getPlatformFeePool() {
   const { provider, coreAbi, coreAddr } = getContracts();
   const core = new ethers.Contract(coreAddr, coreAbi, provider);
   const raw = await core.platformFeePool();
-  return parseFloat(ethers.formatUnits(raw, 18));
+  return Number(ethers.formatUnits(raw, 18));
 }
 
 // ── Browser helpers ──────────────────────────────────────────────────────────
@@ -360,7 +358,10 @@ async function main() {
 
   // ── 3. Deposit ─────────────────────────────────────────────────────────
   section("3. On-chain Deposit");
-  const depositAmount = parseFloat(DEPOSIT_USDC);
+  const depositAmount = Number(DEPOSIT_USDC);
+  if (!DEPLOYER_KEY || !BUYER_KEY) {
+    throw new Error("DEPLOYER_KEY and BUYER_KEY must be set explicitly.");
+  }
   const txHash = await fundAndDeposit(BUYER_KEY, DEPOSIT_USDC);
   await waitForGatewayDeposit(token, address, txHash, DEPOSIT_USDC);
   const balAfterDeposit = await getBalanceSnapshot(token, address);

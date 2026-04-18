@@ -26,6 +26,7 @@ import {
   recordDepositAttempt,
   type DepositAttemptStage,
 } from "@/utils/balanceApi";
+import { normalizeMoneyString } from "@/utils/money";
 import { showWalletStatusToast } from "@/utils/walletToast";
 import { analytics } from "@/lib/analytics";
 
@@ -203,7 +204,7 @@ export function useVaultDeposit(options?: UseVaultDepositOptions) {
 
   const recordAttemptStage = useCallback(async (
     stage: DepositAttemptStage,
-    amountUsdc: number,
+    amountUsdc: string,
     request?: { attemptId?: string; txHash?: string; failureReason?: string },
   ) => {
     if (!address || !isSessionAuthenticated) return;
@@ -242,7 +243,7 @@ export function useVaultDeposit(options?: UseVaultDepositOptions) {
 
   const waitForDepositSync = useCallback(async (
     txHash: string,
-    amountUsdc: number,
+    amountUsdc: string,
     attemptId?: string,
   ) => {
     if (!address || !isSessionAuthenticated) return;
@@ -298,7 +299,7 @@ export function useVaultDeposit(options?: UseVaultDepositOptions) {
       return;
     }
 
-    const amountUsdc = Number(depositAmount);
+    const amountUsdc = normalizeMoneyString(depositAmount, "0");
     const attemptId = currentDepositAttemptIdRef.current ?? undefined;
     setDepositError("");
     void recordAttemptStage("RECEIPT_CONFIRMED", amountUsdc, {
@@ -335,7 +336,7 @@ export function useVaultDeposit(options?: UseVaultDepositOptions) {
 
     const failureMessage = buildDepositFailureMessage(depositReceiptError);
     setDepositError(failureMessage);
-    void recordAttemptStage("RECEIPT_FAILED", Number(depositAmount), {
+    void recordAttemptStage("RECEIPT_FAILED", normalizeMoneyString(depositAmount, "0"), {
       attemptId: currentDepositAttemptIdRef.current ?? undefined,
       txHash: hash,
       failureReason: failureMessage,
@@ -350,8 +351,8 @@ export function useVaultDeposit(options?: UseVaultDepositOptions) {
       return;
     }
 
-    const amountUsdc = Number(depositAmount);
-    if (!Number.isFinite(amountUsdc) || amountUsdc <= 0) {
+    const amountUsdc = normalizeMoneyString(depositAmount, "");
+    if (!amountUsdc || amountUsdc === "0") {
       toast.error("Invalid amount");
       return;
     }
@@ -361,8 +362,8 @@ export function useVaultDeposit(options?: UseVaultDepositOptions) {
     setDepositError("");
     await recordAttemptStage("SIGN_REQUESTED", amountUsdc, { attemptId });
 
-    if (walletUsdcBalance < amountUsdc) {
-      const failureMessage = `Insufficient wallet USDC. Need ${amountUsdc.toFixed(2)} USDC, wallet has ${walletUsdcBalance.toFixed(2)} USDC.`;
+    if (walletUsdcBalance < Number(amountUsdc)) {
+      const failureMessage = `Insufficient wallet USDC. Need ${amountUsdc} USDC, wallet has ${walletUsdcBalance.toFixed(2)} USDC.`;
       setDepositError(failureMessage);
       toast.error(failureMessage);
       return;
@@ -381,7 +382,7 @@ export function useVaultDeposit(options?: UseVaultDepositOptions) {
       chain_id: chainId,
     });
     try {
-      const amountBigInt = parseUnits(String(amountUsdc), 18);
+      const amountBigInt = parseUnits(amountUsdc, 18);
       const deadline = BigInt(Math.floor(Date.now() / 1000) + 3600);
       const nonce = usdcNonce ?? BigInt(0);
 

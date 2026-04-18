@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAccount } from "wagmi";
 import { getV2Balance } from "@/utils/balanceApi";
+import { formatMoneyString } from "@/utils/money";
 import { listUsageLogs, type UsageLogRecord } from "@/utils/usageApi";
 import { clearAuthSession } from "@/utils/authSession";
 import { useAuth } from "@/components/WalletAuthGuard";
@@ -63,7 +64,7 @@ export function useOwnerData() {
 			});
 
 			setStats({
-				ownerBalance: (balanceSummary.ownerBalance || 0).toFixed(2),
+				ownerBalance: formatMoneyString(balanceSummary.ownerBalance, 2),
 				todaySpend: "0.00",
 				todayCalls,
 				blockedCalls,
