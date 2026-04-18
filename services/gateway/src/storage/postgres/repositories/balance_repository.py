@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from decimal import Decimal
 from typing import Any, Callable
 
 from src.domain.finance import BalanceLedger, ConsumerWalletRecord, ProviderWalletRecord
@@ -168,9 +169,9 @@ class BalanceRepository:
             updated = to_dt_str(updated_at, "") or ""
             if updated > max_updated:
                 max_updated = updated
-            available_val = float(self._q6(available_balance))
-            pending_val = float(self._q6(pending_balance))
-            frozen_val = float(self._q6(frozen_balance))
+            available_val = Decimal(str(self._q6(available_balance)))
+            pending_val = Decimal(str(self._q6(pending_balance)))
+            frozen_val = Decimal(str(self._q6(frozen_balance)))
             if account_type == "consumer_wallet":
                 ledger.consumer_wallets.append(
                     ConsumerWalletRecord(

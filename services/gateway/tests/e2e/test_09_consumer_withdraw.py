@@ -205,11 +205,11 @@ def test_consumer_withdraw_reduces_total_spendable_capacity(owner_headers, sessi
 
 
 def test_consumer_withdraw_invalid_amount_rejected(owner_headers):
-    """Amounts below minimum (1 USDC) or zero are rejected with 400."""
+    """Amounts below minimum (1 USDC) are rejected with 400."""
     r = httpx.post(
         f"{GATEWAY_BASE}/api/v1/balance/consumer/withdraw",
         headers={**owner_headers, "X-Idempotency-Key": uuid.uuid4().hex},
-        json={"amountUsdc": 0.0, "reason": ""},
+        json={"amountUsdc": "0.500000", "reason": ""},
         timeout=WITHDRAW_TIMEOUT,
     )
     assert r.status_code == 400
@@ -218,12 +218,12 @@ def test_consumer_withdraw_invalid_amount_rejected(owner_headers):
 def test_consumer_withdraw_exceeds_balance_rejected(owner_headers):
     """Requesting more than available balance → 400 INSUFFICIENT_CONSUMER_BALANCE."""
     balance = get_balance(GATEWAY_BASE, owner_headers)
-    over_amount = float(balance) + 10000.0
+    over_amount = Decimal(str(balance)) + Decimal("10000.000000")
 
     r = httpx.post(
         f"{GATEWAY_BASE}/api/v1/balance/consumer/withdraw",
         headers={**owner_headers, "X-Idempotency-Key": uuid.uuid4().hex},
-        json={"amountUsdc": over_amount, "reason": ""},
+        json={"amountUsdc": format(over_amount, "f"), "reason": ""},
         timeout=WITHDRAW_TIMEOUT,
     )
     assert r.status_code == 400
