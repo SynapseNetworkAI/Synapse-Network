@@ -93,7 +93,7 @@ class TestEmitQuoteGenerated:
         assert e["distinct_id"] == sha256_hash("0xConsumer123")
         assert e["properties"]["service_id"] == "svc_1"
         assert e["properties"]["quote_id"] == "q_1"
-        assert e["properties"]["price_usdc"] == 0.05
+        assert e["properties"]["price_usdc"] == "0.050000"
         assert e["properties"]["correlation_id"] == "corr_abc"
         assert e["properties"]["role"] == "consumer"
 
@@ -116,7 +116,7 @@ class TestEmitInvokeCompleted:
         assert e["properties"]["service_id"] == "svc_2"
         assert e["properties"]["provider_id"] == sha256_hash("0xProvider")
         assert e["properties"]["quote_id"] == "q_2"
-        assert e["properties"]["price_usdc"] == 0.10
+        assert e["properties"]["price_usdc"] == "0.100000"
         assert e["properties"]["correlation_id"] == "corr_started"
 
     async def test_emits_invoke_completed(self, file_emitter, events_file):
@@ -136,7 +136,7 @@ class TestEmitInvokeCompleted:
         e = events[0]
         assert e["event_name"] == "invoke_completed"
         assert e["properties"]["provider_id"] == sha256_hash("0xProvider")
-        assert e["properties"]["price_usdc"] == 0.10
+        assert e["properties"]["price_usdc"] == "0.100000"
         assert e["properties"]["latency_ms"] == 342
         assert e["properties"]["is_first_invoke"] is True
 
@@ -185,8 +185,8 @@ class TestEmitBudgetBlocked:
         assert len(events) == 1
         e = events[0]
         assert e["event_name"] == "budget_blocked"
-        assert e["properties"]["required_usdc"] == 1.0
-        assert e["properties"]["available_usdc"] == 0.5
+        assert e["properties"]["required_usdc"] == "1.000000"
+        assert e["properties"]["available_usdc"] == "0.500000"
         assert e["properties"]["error_code"] == "BUDGET_EXHAUSTED"
 
 
@@ -204,7 +204,7 @@ class TestEmitDepositCompleted:
         assert len(events) == 1
         e = events[0]
         assert e["event_name"] == "deposit_completed"
-        assert e["properties"]["amount_usdc"] == 50.0
+        assert e["properties"]["amount_usdc"] == "50.000000"
         assert e["properties"]["tx_hash"] == "0xabc123"
         assert e["properties"]["time_to_confirm_ms"] == 5000
 
@@ -245,8 +245,8 @@ class TestEmitProviderRevenueReceived:
         assert e["event_name"] == "provider_revenue_received"
         assert e["properties"]["role"] == "provider"
         assert e["properties"]["provider_id"] == sha256_hash("0xProvider")
-        assert e["properties"]["gross_usdc"] == 0.10
-        assert e["properties"]["provider_net_usdc"] == 0.09
+        assert e["properties"]["gross_usdc"] == "0.100000"
+        assert e["properties"]["provider_net_usdc"] == "0.090000"
 
 
 class TestEmitWithdrawalCompleted:
@@ -276,7 +276,7 @@ class TestEmitSettlementClaim:
         )
         events = _read_events(events_file)
         assert events[0]["event_name"] == "settlement_claim_requested"
-        assert events[0]["properties"]["claim_usdc"] == 100.0
+        assert events[0]["properties"]["claim_usdc"] == "100.000000"
 
     async def test_settlement_claim_completed(self, file_emitter, events_file):
         set_emitter(file_emitter)

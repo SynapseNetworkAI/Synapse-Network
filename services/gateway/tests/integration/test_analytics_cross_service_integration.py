@@ -98,6 +98,10 @@ def _read_jsonl(path: Path) -> list[dict[str, Any]]:
     return [json.loads(line) for line in path.read_text().strip().splitlines() if line]
 
 
+def _money_float(value: Any) -> float:
+    return float(value)
+
+
 def _assert_no_raw_wallet(events: list[dict[str, Any]]) -> None:
     """Assert no raw 0x wallet addresses appear anywhere in the event payloads."""
     raw_re = re.compile(r"0x[0-9a-fA-F]{40}")
@@ -276,7 +280,7 @@ class TestConsumerActivationFunnel:
         assert repeat["properties"]["is_first_invoke"] is False
 
     async def test_deposit_amount_preserved_exactly(self, client: AsyncClient, events_file: Path):
-        """Deposit amount_usdc must be stored as precise float, not rounded."""
+        """Deposit amount_usdc must be stored as a precise fixed-point string."""
         await emit_deposit_completed(
             CONSUMER_WALLET,
             amount_usdc=123.456789,
@@ -286,7 +290,7 @@ class TestConsumerActivationFunnel:
 
         stored = _read_jsonl(events_file)
         assert len(stored) == 1
-        assert stored[0]["properties"]["amount_usdc"] == pytest.approx(123.456789)
+        assert _money_float(stored[0]["properties"]["amount_usdc"]) == pytest.approx(123.456789)
 
     async def test_correlation_id_links_quote_to_invoke(self, client: AsyncClient, events_file: Path):
         """quote_generated and invoke_completed for same request must share correlation_id."""
@@ -383,12 +387,14 @@ class TestProviderActivationFunnel:
         stored = _read_jsonl(events_file)
         assert len(stored) == 1
         props = stored[0]["properties"]
-        assert props["gross_usdc"] == pytest.approx(1.00)
-        assert props["platform_fee_usdc"] == pytest.approx(0.05)
-        assert props["provider_net_usdc"] == pytest.approx(0.95)
+        assert _money_float(props["gross_usdc"]) == pytest.approx(1.00)
+        assert _money_float(props["platform_fee_usdc"]) == pytest.approx(0.05)
+        assert _money_float(props["provider_net_usdc"]) == pytest.approx(0.95)
 
         # Verify 5% take rate
-        assert props["platform_fee_usdc"] == pytest.approx(props["gross_usdc"] * 0.05)
+        assert _money_float(props["platform_fee_usdc"]) == pytest.approx(
+            _money_float(props["gross_usdc"]) * 0.05
+        )
 
     async def test_provider_role_set_in_gateway_events(self, client: AsyncClient, events_file: Path):
         """All provider-side gateway events must carry role=provider."""
@@ -530,8 +536,8 @@ class TestErrorAndFailureEvents:
         stored = _read_jsonl(events_file)
         assert len(stored) == 1
         props = stored[0]["properties"]
-        assert props["required_usdc"] == pytest.approx(1.50)
-        assert props["available_usdc"] == pytest.approx(0.02)
+        assert _money_float(props["required_usdc"]) == pytest.approx(1.50)
+        assert _money_float(props["available_usdc"]) == pytest.approx(0.02)
         assert props["error_code"] == "INSUFFICIENT_BALANCE"
 
     async def test_deposit_failed_has_error_code(self, client: AsyncClient, events_file: Path):
@@ -574,7 +580,7 @@ class TestErrorAndFailureEvents:
         stored = _read_jsonl(events_file)
         assert stored[0]["event_name"] == "refund_completed"
         props = stored[0]["properties"]
-        assert props["amount_usdc"] == pytest.approx(0.10)
+        assert _money_float(props["amount_usdc"]) == pytest.approx(0.10)
         assert props["reason_code"] == "QUALITY_DISPUTE"
         assert props["service_id"] == SERVICE_ID
 
@@ -650,7 +656,7 @@ class TestWithdrawalEvents:
         stored = _read_jsonl(events_file)
         assert stored[0]["event_name"] == "withdrawal_completed"
         props = stored[0]["properties"]
-        assert props["amount_usdc"] == pytest.approx(25.0)
+        assert _money_float(props["amount_usdc"]) == pytest.approx(25.0)
         assert props["role"] == "consumer"
         assert props["time_to_confirm_ms"] == 5500
 
