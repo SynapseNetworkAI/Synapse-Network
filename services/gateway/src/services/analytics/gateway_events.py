@@ -36,7 +36,9 @@ def get_emitter() -> Optional[AnalyticsEmitter]:
     return _emitter
 
 
-def _money(value: Decimal | str | int | None) -> str:
+def _money(value: Decimal | str | int | float | None) -> str:
+    if isinstance(value, float):
+        value = Decimal(str(value))
     return money_str(value)
 
 
@@ -78,7 +80,7 @@ async def emit_quote_generated(
     *,
     service_id: str,
     quote_id: str,
-    price_usdc: Decimal | str | int,
+    price_usdc: Decimal | str | int | float,
     correlation_id: Optional[str] = None,
 ) -> None:
     await _emit(
@@ -98,7 +100,7 @@ async def emit_invoke_completed(
     service_id: str,
     provider_address: str,
     quote_id: str,
-    price_usdc: Decimal | str | int,
+    price_usdc: Decimal | str | int | float,
     latency_ms: int,
     is_first_invoke: bool = False,
     correlation_id: Optional[str] = None,
@@ -123,7 +125,7 @@ async def emit_invoke_started(
     service_id: str,
     provider_address: str,
     quote_id: str,
-    price_usdc: Decimal | str | int,
+    price_usdc: Decimal | str | int | float,
     correlation_id: Optional[str] = None,
 ) -> None:
     await _emit(
@@ -167,8 +169,8 @@ async def emit_budget_blocked(
     wallet_address: str,
     *,
     service_id: str,
-    required_usdc: Decimal | str | int,
-    available_usdc: Optional[Decimal | str | int],
+    required_usdc: Decimal | str | int | float,
+    available_usdc: Optional[Decimal | str | int | float],
     error_code: str,
     correlation_id: Optional[str] = None,
 ) -> None:
@@ -189,7 +191,7 @@ async def emit_budget_blocked(
 async def emit_deposit_completed(
     wallet_address: str,
     *,
-    amount_usdc: Decimal | str | int,
+    amount_usdc: Decimal | str | int | float,
     tx_hash: str,
     token_symbol: str = "USDC",
     time_to_confirm_ms: Optional[int] = None,
@@ -206,7 +208,7 @@ async def emit_deposit_completed(
 async def emit_deposit_failed(
     wallet_address: str,
     *,
-    amount_usdc: Decimal | str | int,
+    amount_usdc: Decimal | str | int | float,
     error_code: str,
 ) -> None:
     await _emit(
@@ -221,7 +223,7 @@ async def emit_provider_first_revenue_received(
     provider_address: str,
     *,
     service_id: str,
-    gross_usdc: Decimal | str | int,
+    gross_usdc: Decimal | str | int | float,
     time_since_listing_ms: Optional[int] = None,
     correlation_id: Optional[str] = None,
 ) -> None:
@@ -252,9 +254,9 @@ async def emit_provider_revenue_received(
     provider_address: str,
     *,
     service_id: str,
-    gross_usdc: Decimal | str | int,
-    platform_fee_usdc: Decimal | str | int,
-    provider_net_usdc: Decimal | str | int,
+    gross_usdc: Decimal | str | int | float,
+    platform_fee_usdc: Decimal | str | int | float,
+    provider_net_usdc: Decimal | str | int | float,
     correlation_id: Optional[str] = None,
 ) -> None:
     await _emit(
@@ -276,7 +278,7 @@ async def emit_provider_revenue_received(
 async def emit_withdrawal_completed(
     wallet_address: str,
     *,
-    amount_usdc: Decimal | str | int,
+    amount_usdc: Decimal | str | int | float,
     tx_hash: str,
     role: str = "consumer",
     time_to_confirm_ms: Optional[int] = None,
@@ -293,7 +295,7 @@ async def emit_withdrawal_completed(
 async def emit_settlement_claim_requested(
     provider_address: str,
     *,
-    claim_usdc: Decimal | str | int,
+    claim_usdc: Decimal | str | int | float,
 ) -> None:
     await _emit(
         "settlement_claim_requested", provider_address,
@@ -308,7 +310,7 @@ async def emit_settlement_claim_requested(
 async def emit_settlement_claim_completed(
     provider_address: str,
     *,
-    claim_usdc: Decimal | str | int,
+    claim_usdc: Decimal | str | int | float,
     tx_hash: str,
 ) -> None:
     await _emit(
@@ -327,7 +329,7 @@ async def emit_settlement_claim_completed(
 async def emit_refund_completed(
     wallet_address: str,
     *,
-    amount_usdc: Decimal | str | int,
+    amount_usdc: Decimal | str | int | float,
     reason_code: str = "",
     service_id: str = "",
     tx_hash: str = "",

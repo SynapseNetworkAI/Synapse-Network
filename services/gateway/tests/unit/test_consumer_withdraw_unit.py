@@ -44,70 +44,76 @@ class InMemoryBalanceRepo:
         self._ledger = ledger.model_copy(deep=True)
 
     def reserve_consumer_balance_for_withdrawal(
-        self, owner: str, amount_usdc: float, updated_at: str
+        self, owner: str, amount_usdc: float | Decimal, updated_at: str
     ) -> None:
         """Simulate the atomic SQL delta: available -= amount, pending += amount."""
         _ = updated_at
+        amount = float(amount_usdc)
         wallet = self._ledger.ensure_consumer_wallet(owner)
         available = float(wallet.available_balance or 0.0)
-        if available < amount_usdc - 1e-9:
+        if available < amount - 1e-9:
             raise RuntimeError("INSUFFICIENT_CONSUMER_BALANCE_ATOMIC")
-        wallet.available_balance = round(available - amount_usdc, 6)
-        wallet.pending_balance = round(float(wallet.pending_balance or 0.0) + amount_usdc, 6)
+        wallet.available_balance = round(available - amount, 6)
+        wallet.pending_balance = round(float(wallet.pending_balance or 0.0) + amount, 6)
 
     def reserve_consumer_balance_for_manual_review(
-        self, owner: str, amount_usdc: float, updated_at: str
+        self, owner: str, amount_usdc: float | Decimal, updated_at: str
     ) -> None:
         _ = updated_at
+        amount = float(amount_usdc)
         wallet = self._ledger.ensure_consumer_wallet(owner)
         available = float(wallet.available_balance or 0.0)
-        if available < amount_usdc - 1e-9:
+        if available < amount - 1e-9:
             raise RuntimeError("INSUFFICIENT_CONSUMER_BALANCE_ATOMIC")
-        wallet.available_balance = round(available - amount_usdc, 6)
-        wallet.frozen_balance = round(float(wallet.frozen_balance or 0.0) + amount_usdc, 6)
+        wallet.available_balance = round(available - amount, 6)
+        wallet.frozen_balance = round(float(wallet.frozen_balance or 0.0) + amount, 6)
 
     def move_consumer_frozen_to_pending(
-        self, owner: str, amount_usdc: float, updated_at: str
+        self, owner: str, amount_usdc: float | Decimal, updated_at: str
     ) -> None:
         _ = updated_at
+        amount = float(amount_usdc)
         wallet = self._ledger.ensure_consumer_wallet(owner)
         frozen = float(wallet.frozen_balance or 0.0)
-        if frozen < amount_usdc - 1e-9:
+        if frozen < amount - 1e-9:
             raise RuntimeError("MOVE_FROZEN_TO_PENDING_INCONSISTENT")
-        wallet.frozen_balance = round(frozen - amount_usdc, 6)
-        wallet.pending_balance = round(float(wallet.pending_balance or 0.0) + amount_usdc, 6)
+        wallet.frozen_balance = round(frozen - amount, 6)
+        wallet.pending_balance = round(float(wallet.pending_balance or 0.0) + amount, 6)
 
     def release_consumer_pending_to_available(
-        self, owner: str, amount_usdc: float, updated_at: str
+        self, owner: str, amount_usdc: float | Decimal, updated_at: str
     ) -> None:
         _ = updated_at
+        amount = float(amount_usdc)
         wallet = self._ledger.ensure_consumer_wallet(owner)
         pending = float(wallet.pending_balance or 0.0)
-        if pending < amount_usdc - 1e-9:
+        if pending < amount - 1e-9:
             raise RuntimeError("RELEASE_PENDING_TO_AVAILABLE_INCONSISTENT")
-        wallet.pending_balance = round(pending - amount_usdc, 6)
-        wallet.available_balance = round(float(wallet.available_balance or 0.0) + amount_usdc, 6)
+        wallet.pending_balance = round(pending - amount, 6)
+        wallet.available_balance = round(float(wallet.available_balance or 0.0) + amount, 6)
 
     def release_consumer_frozen_to_available(
-        self, owner: str, amount_usdc: float, updated_at: str
+        self, owner: str, amount_usdc: float | Decimal, updated_at: str
     ) -> None:
         _ = updated_at
+        amount = float(amount_usdc)
         wallet = self._ledger.ensure_consumer_wallet(owner)
         frozen = float(wallet.frozen_balance or 0.0)
-        if frozen < amount_usdc - 1e-9:
+        if frozen < amount - 1e-9:
             raise RuntimeError("RELEASE_FROZEN_TO_AVAILABLE_INCONSISTENT")
-        wallet.frozen_balance = round(frozen - amount_usdc, 6)
-        wallet.available_balance = round(float(wallet.available_balance or 0.0) + amount_usdc, 6)
+        wallet.frozen_balance = round(frozen - amount, 6)
+        wallet.available_balance = round(float(wallet.available_balance or 0.0) + amount, 6)
 
     def consume_consumer_pending_for_withdrawal(
-        self, owner: str, amount_usdc: float, updated_at: str
+        self, owner: str, amount_usdc: float | Decimal, updated_at: str
     ) -> None:
         _ = updated_at
+        amount = float(amount_usdc)
         wallet = self._ledger.ensure_consumer_wallet(owner)
         pending = float(wallet.pending_balance or 0.0)
-        if pending < amount_usdc - 1e-9:
+        if pending < amount - 1e-9:
             raise RuntimeError("CONSUME_PENDING_FOR_WITHDRAWAL_INCONSISTENT")
-        wallet.pending_balance = round(pending - amount_usdc, 6)
+        wallet.pending_balance = round(pending - amount, 6)
 
     def seed_balance(
         self, owner: str, available: float, pending: float = 0.0, frozen: float = 0.0

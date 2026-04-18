@@ -29,6 +29,7 @@ from src.services.owner.finance_constants import (
 )
 from src.domain.finance import RefundIntentRow
 from src.utils.datetime_utils import now_dt_str
+from src.utils.money import money_str
 
 
 class FinanceConsumerWithdrawMixin:
@@ -106,8 +107,9 @@ class FinanceConsumerWithdrawMixin:
         return count
 
     def _classify_consumer_withdraw_risk(
-        self, amount_usdc: float, daily_count: int
+        self, amount_usdc: Decimal | str | int, daily_count: int
     ) -> dict[str, str]:
+        amount = self._q6d(amount_usdc)
         if daily_count >= CONSUMER_WITHDRAW_MAX_DAILY_COUNT:
             return {
                 "status": "PENDING_MANUAL_REVIEW",
@@ -118,7 +120,7 @@ class FinanceConsumerWithdrawMixin:
                     "This request requires manual review."
                 ),
             }
-        if amount_usdc >= CONSUMER_WITHDRAW_MANUAL_REVIEW_THRESHOLD_USDC:
+        if amount >= self._q6d(CONSUMER_WITHDRAW_MANUAL_REVIEW_THRESHOLD_USDC):
             return {
                 "status": "PENDING_MANUAL_REVIEW",
                 "riskLevel": "yellow",
@@ -219,7 +221,7 @@ class FinanceConsumerWithdrawMixin:
                     changed = False
                     if row_status == "REQUESTED" and avail_check >= row_amount and pend_check < row_amount:
                         try:
-                            self._reserve_consumer_balance(owner, float(row_amount))  # type: ignore[attr-defined]
+                            self._reserve_consumer_balance(owner, row_amount)  # type: ignore[attr-defined]
                             changed = True
                         except RuntimeError:
                             pass
@@ -229,7 +231,7 @@ class FinanceConsumerWithdrawMixin:
                         and frozen_check < row_amount
                     ):
                         try:
-                            self._reserve_consumer_balance_for_manual_review(owner, float(row_amount))  # type: ignore[attr-defined]
+                            self._reserve_consumer_balance_for_manual_review(owner, row_amount)  # type: ignore[attr-defined]
                             changed = True
                         except RuntimeError:
                             pass
@@ -256,8 +258,8 @@ class FinanceConsumerWithdrawMixin:
                     detail={
                         "code": "INSUFFICIENT_CONSUMER_BALANCE",
                         "message": (
-                            f"Requested {float(amount_usdc):.6f} USDC exceeds available balance "
-                            f"of {float(available):.6f} USDC."
+                            f"Requested {amount_usdc:.6f} USDC exceeds available balance "
+                            f"of {available:.6f} USDC."
                         ),
                     },
                 )
@@ -267,22 +269,22 @@ class FinanceConsumerWithdrawMixin:
                 rows,
                 now,
             )
-            risk = self._classify_consumer_withdraw_risk(float(amount_usdc), daily_count)
+            risk = self._classify_consumer_withdraw_risk(amount_usdc, daily_count)
             try:
                 if risk["status"] == "PENDING_MANUAL_REVIEW":
                     self._reserve_consumer_balance_for_manual_review(
                         owner,
-                        float(amount_usdc),
+                        amount_usdc,
                     )  # type: ignore[attr-defined]
                 else:
-                    self._reserve_consumer_balance(owner, float(amount_usdc))  # type: ignore[attr-defined]
+                    self._reserve_consumer_balance(owner, amount_usdc)  # type: ignore[attr-defined]
             except RuntimeError:
                 raise HTTPException(
                     status_code=400,
                     detail={
                         "code": "INSUFFICIENT_CONSUMER_BALANCE",
                         "message": (
-                            f"Requested {float(amount_usdc):.6f} USDC exceeds available balance."
+                            f"Requested {amount_usdc:.6f} USDC exceeds available balance."
                         ),
                     },
                 )
@@ -298,7 +300,7 @@ class FinanceConsumerWithdrawMixin:
                 except Exception as exc:
                     self._release_consumer_pending_to_available(
                         owner,
-                        float(amount_usdc),
+                        amount_usdc,
                     )  # type: ignore[attr-defined]
                     raise HTTPException(
                         status_code=503,
@@ -356,7 +358,7 @@ class FinanceConsumerWithdrawMixin:
                 owner,
                 {
                     "withdrawId": withdraw_id,
-                    "amountUsdc": float(amount_usdc),
+                    "amountUsdc": money_str(amount_usdc),
                     "riskLevel": risk["riskLevel"],
                     "riskReasonCode": risk["riskReasonCode"],
                     "dailyCount": daily_count,
