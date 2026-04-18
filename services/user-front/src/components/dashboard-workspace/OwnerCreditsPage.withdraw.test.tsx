@@ -219,7 +219,7 @@ describe("OwnerCreditsPage — Withdraw", () => {
 
     await waitFor(() => {
       expect(requestConsumerWithdrawMock).toHaveBeenCalledWith("0xabc", {
-        amountUsdc: 20,
+        amountUsdc: "20",
         reason: undefined,
       });
     });
@@ -267,7 +267,7 @@ describe("OwnerCreditsPage — Withdraw", () => {
 
     await waitFor(() => {
       expect(requestConsumerWithdrawMock).toHaveBeenCalledWith("0xabc", {
-        amountUsdc: 20,
+        amountUsdc: "20",
         reason: undefined,
       });
       expect(onSuccess).toHaveBeenCalled();
