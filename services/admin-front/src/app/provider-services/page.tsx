@@ -91,11 +91,12 @@ export default function ProviderServicesPage() {
     if (!token) {
       return;
     }
+    const activeToken = token;
     let cancelled = false;
     async function run() {
       try {
         setError(null);
-        const result = await listProviderServices(token, params);
+        const result = await listProviderServices(activeToken, params);
         if (!cancelled) {
           setPayload(result);
         }
@@ -281,7 +282,7 @@ export default function ProviderServicesPage() {
                       </Td>
                       <Td>
                         <Stack direction={{ base: "column", xl: "row" }} gap="8px" flexWrap="wrap">
-                          <Button size="sm" borderRadius="14px" variant="ghost" isLoading={busyServiceId === service.serviceId} onClick={() => void runAction(service, "probe")}>Force probe</Button>
+                          <Button size="sm" borderRadius="14px" variant="ghost" loading={busyServiceId === service.serviceId} onClick={() => void runAction(service, "probe")}>Force probe</Button>
                           {service.controlStatus === "active" ? (
                             <Button size="sm" borderRadius="14px" variant="ghost" disabled={!canSubmitLifecycleAction} onClick={() => void runAction(service, "pause")}>Pause</Button>
                           ) : (

@@ -251,7 +251,7 @@ export function buildProviderSettlementCards(provider: AnalyticsProviderRevenue 
       label: "Settlement Completed",
       value: `${formatUsdc(provider?.settlementCompletedUsdc ?? 0)} USDC`,
       detail: `Available to withdraw ${formatUsdc(provider?.pendingSettlementUsdc ?? 0)} USDC`,
-      tone: (provider?.pendingSettlementUsdc ?? 0) > 0 ? "orange" : "green",
+      tone: Number(provider?.pendingSettlementUsdc ?? 0) > 0 ? "orange" : "green",
     },
     {
       key: "first-revenue",
@@ -296,7 +296,7 @@ export function buildMoneyFlowContextCards(money: AnalyticsMoneyFlow | null): An
       label: "Refund",
       value: `${formatUsdc(money?.refundUsdc ?? 0)} USDC`,
       detail: "refund_completed amount in the selected window.",
-      tone: (money?.refundUsdc ?? 0) > 0 ? "orange" : "green",
+      tone: Number(money?.refundUsdc ?? 0) > 0 ? "orange" : "green",
     },
     {
       key: "confirm-p95",
@@ -336,7 +336,7 @@ export function buildRiskSignalCards(risk: AnalyticsRiskHealth | null): Analytic
       label: "Budget Gap",
       value: `${formatUsdc(risk?.budgetGapUsdc ?? 0)} USDC`,
       detail: "required_usdc - available_usdc from budget_blocked.",
-      tone: (risk?.budgetGapUsdc ?? 0) > 0 ? "orange" : "green",
+      tone: Number(risk?.budgetGapUsdc ?? 0) > 0 ? "orange" : "green",
     },
   ];
 }

@@ -51,7 +51,7 @@ export function buildReviewHistoryMetrics(items: ProviderWithdrawReviewHistoryIt
   };
 }
 
-export function collectReviewHistoryStatuses(items: ProviderWithdrawReviewHistoryItem[]): string[] {
+export function collectReviewHistoryStatuses(items: ProviderWithdrawReviewHistoryItem[]): WithdrawalStatus[] {
   return [...new Set(items.map((item) => item.currentStatus))];
 }
 
