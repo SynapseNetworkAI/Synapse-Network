@@ -45,7 +45,10 @@ export function compareMoneyStrings(left: string | number | null | undefined, ri
 }
 
 export function addMoneyStrings(values: Array<string | number | null | undefined>): string {
-  const total = values.reduce((sum, value) => sum + parseMoneyStringForChart(value), 0);
+  const total = values.reduce<number>(
+    (sum, value) => sum + parseMoneyStringForChart(value),
+    0
+  );
   return normalizeMoneyString(total.toFixed(MONEY_SCALE));
 }
 
