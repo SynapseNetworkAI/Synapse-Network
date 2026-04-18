@@ -169,13 +169,11 @@ def should_probe_service_now(
     tier = service_probe_tier(service, now_ms=now_ms)
     if tier in {"disabled", "manual_only"}:
         return False
-    if tier == "normal":
-        return is_service_probeable(service)
-    if tier != "slow_lane":
-        return False
-
     if not is_service_probeable(service):
         return False
+    if tier not in {"normal", "slow_lane"}:
+        return False
+
     last_checked_at = _latest_target_last_checked_at(service)
     now = int(now_ms if now_ms is not None else _now_ms())
     interval_ms = service_probe_interval_ms(service, tier)

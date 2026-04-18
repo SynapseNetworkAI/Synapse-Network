@@ -6,6 +6,7 @@ from src.core.common import normalize_wallet
 from src.core.config import settings
 from src.domain.finance import BalanceLedger
 from src.storage import BaseStorage
+from src.utils.money import MoneyCodec
 
 from .chain import _amount_usdc_from_raw, _resolve_token_decimals
 from .persistence import (
@@ -18,17 +19,17 @@ from .persistence import (
 from .shared import _now, _set_status, get_web3, logger
 
 
-def _sum_ledger_obligation_usdc(ledger: BalanceLedger) -> float:
+def _sum_ledger_obligation_usdc(ledger: BalanceLedger):
     """统计买家可用+待确认资金总额，作为平台应付义务。"""
-    return ledger.total_consumer_obligation()
+    return MoneyCodec.coerce_decimal(ledger.total_consumer_obligation())
 
 
-def _read_chain_vault_balance_usdc() -> float:
+def _read_chain_vault_balance_usdc():
     """读取链上 router/vault 当前真实 USDC 余额。"""
     token = normalize_wallet(settings.usdc_token_address)
     router = normalize_wallet(settings.router_address)
     if not token or not router:
-        return 0.0
+        return MoneyCodec.coerce_decimal(0)
 
     abi = [
         {
@@ -46,7 +47,9 @@ def _read_chain_vault_balance_usdc() -> float:
         contract.functions.balanceOf(w3.to_checksum_address(router)).call()
     )
     decimals = _resolve_token_decimals(token)
-    return _amount_usdc_from_raw(raw_balance, decimals=decimals)
+    return MoneyCodec.coerce_decimal(
+        _amount_usdc_from_raw(raw_balance, decimals=decimals)
+    )
 
 
 def run_reconciliation_check_once(storage: BaseStorage) -> dict[str, Any]:
@@ -58,8 +61,9 @@ def run_reconciliation_check_once(storage: BaseStorage) -> dict[str, Any]:
     ledger = _load_balance_ledger(storage)
     ledger_obligation = _sum_ledger_obligation_usdc(ledger)
     chain_vault = _read_chain_vault_balance_usdc()
-    delta = round(abs(chain_vault - ledger_obligation), 6)
-    alert = bool(delta > float(settings.v2_reconciliation_alert_delta_usdc))
+    delta = MoneyCodec.coerce_decimal(abs(chain_vault - ledger_obligation))
+    threshold = MoneyCodec.coerce_decimal(settings.v2_reconciliation_alert_delta_usdc)
+    alert = bool(delta > threshold)
 
     state = _load_runtime_state(storage, "deposit_reconciliation_state")
     last_alert_at = int(state.get("lastAlertAt") or 0)
@@ -74,19 +78,19 @@ def run_reconciliation_check_once(storage: BaseStorage) -> dict[str, Any]:
             {
                 "businessType": "deposit",
                 "status": "ALERT",
-                "chainVaultUsdc": chain_vault,
-                "ledgerObligationUsdc": ledger_obligation,
-                "deltaUsdc": delta,
-                "thresholdUsdc": float(settings.v2_reconciliation_alert_delta_usdc),
+                "chainVaultUsdc": float(chain_vault),
+                "ledgerObligationUsdc": float(ledger_obligation),
+                "deltaUsdc": float(delta),
+                "thresholdUsdc": float(threshold),
             },
         )
 
     summary = {
         "enabled": True,
         "lastCheckAt": now,
-        "chainVaultUsdc": chain_vault,
-        "ledgerObligationUsdc": ledger_obligation,
-        "deltaUsdc": delta,
+        "chainVaultUsdc": float(chain_vault),
+        "ledgerObligationUsdc": float(ledger_obligation),
+        "deltaUsdc": float(delta),
         "alert": alert,
         "lastError": None,
     }
@@ -96,9 +100,9 @@ def run_reconciliation_check_once(storage: BaseStorage) -> dict[str, Any]:
         {
             **state,
             "lastCheckAt": now,
-            "chainVaultUsdc": chain_vault,
-            "ledgerObligationUsdc": ledger_obligation,
-            "deltaUsdc": delta,
+            "chainVaultUsdc": float(chain_vault),
+            "ledgerObligationUsdc": float(ledger_obligation),
+            "deltaUsdc": float(delta),
             "alert": alert,
         },
     )
@@ -106,9 +110,9 @@ def run_reconciliation_check_once(storage: BaseStorage) -> dict[str, Any]:
     _persist_indexer_runtime_state(storage)
     logger.info(
         "deposit reconciliation checked chain_vault=%.6f ledger_obligation=%.6f delta=%.6f alert=%s",
-        chain_vault,
-        ledger_obligation,
-        delta,
+        float(chain_vault),
+        float(ledger_obligation),
+        float(delta),
         alert,
     )
     return summary

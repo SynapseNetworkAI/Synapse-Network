@@ -153,8 +153,11 @@ def test_fee_policy_repository_read_write() -> None:
     repo = FeePolicyRepository(db, _q6)
 
     policy = repo.get_platform_fee_policy()
-    assert abs(policy.default_rate - 0.015) < 1e-9
-    assert policy.owner_rates == {"0xabc": 0.02, "0xdef": 0.03}
+    assert policy.default_rate == Decimal("0.015000")
+    assert policy.owner_rates == {
+        "0xabc": Decimal("0.020000"),
+        "0xdef": Decimal("0.030000"),
+    }
     assert policy.updated_at == "2023-11-14 22:13:20"
     assert policy.updated_by == "ops"
 
@@ -434,9 +437,9 @@ def test_balance_repository_read_and_write() -> None:
     repo = BalanceRepository(db, _q6, "UPSERT")
 
     ledger = repo.read_balance_ledger()
-    assert abs(ledger.consumer_available_balance("0xowner") - 10.0) < 1e-9
-    assert abs(ledger.provider_receivable_balance("0xprovider") - 20.0) < 1e-9
-    assert abs(ledger.platform.fee_accrued - 0.5) < 1e-9
+    assert ledger.consumer_available_balance("0xowner") == Decimal("10.000000")
+    assert ledger.provider_receivable_balance("0xprovider") == Decimal("20.000000")
+    assert ledger.platform.fee_accrued == Decimal("0.500000")
     assert ledger.updated_at == "1970-01-01 00:02:00"
 
     from src.domain.finance import (
@@ -1457,8 +1460,8 @@ def test_finance_atomic_repository_reserve_and_complete() -> None:
             amount_usdc=Decimal("2"),
         )
     )
-    assert abs(result.before_balance - 10.0) < 1e-9
-    assert abs(result.after_balance - 8.0) < 1e-9
+    assert result.before_balance == Decimal("10.000000")
+    assert result.after_balance == Decimal("8.000000")
 
     first_conn_sql = "\n".join(sql for sql, _ in db.connections[0].cursor_obj.executed)
     assert "BAL_FOR_UPDATE" in first_conn_sql
@@ -1526,7 +1529,7 @@ def test_finance_atomic_repository_processes_typed_charge_command() -> None:
         )
     )
 
-    assert abs(result.consumer_available_balance_after - 8.89) < 1e-9
+    assert result.consumer_available_balance_after == Decimal("8.890000")
     executed_sql = "\n".join(sql for sql, _ in db.connections[0].cursor_obj.executed)
     assert "INSERT INTO synapse_ledger_entries" in executed_sql
     assert "INSERT INTO synapse_runtime_state" in executed_sql

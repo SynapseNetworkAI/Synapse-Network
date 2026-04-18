@@ -504,9 +504,9 @@ def test_generate_response_v2_paid_invocation_uses_typed_execution_models(
     assert receipt.quoteId.startswith("quote-")
     assert receipt.invocationId.startswith("inv-")
     assert receipt.serviceId == "svc.echo"
-    assert receipt.serviceUnitPrice == pytest.approx(1.2)
-    assert receipt.totalCharge == pytest.approx(1.25)
-    assert receipt.consumerAvailableBalanceAfter == pytest.approx(8.75)
+    assert float(receipt.serviceUnitPrice) == pytest.approx(1.2)
+    assert float(receipt.totalCharge) == pytest.approx(1.25)
+    assert float(receipt.consumerAvailableBalanceAfter) == pytest.approx(8.75)
 
     assert response.payload.data.result == {
         "answer": "pong",
@@ -522,9 +522,9 @@ def test_generate_response_v2_paid_invocation_uses_typed_execution_models(
 
     assert storage.gateway_state.usage_rows == []
 
-    assert storage.balance.ledger.consumer_available_balance("0xabc") == pytest.approx(8.75)
-    assert storage.balance.ledger.provider_receivable_balance("0xdef") == pytest.approx(1.08)
-    assert storage.balance.ledger.platform.fee_accrued == pytest.approx(0.17)
+    assert float(storage.balance.ledger.consumer_available_balance("0xabc")) == pytest.approx(8.75)
+    assert float(storage.balance.ledger.provider_receivable_balance("0xdef")) == pytest.approx(1.08)
+    assert float(storage.balance.ledger.platform.fee_accrued) == pytest.approx(0.17)
 
     assert len(storage.audit.rows) == 1
     assert storage.audit.rows[0].action == "V2_USAGE_CHARGED"

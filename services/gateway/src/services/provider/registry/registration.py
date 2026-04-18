@@ -183,7 +183,7 @@ async def delete_service(
 
             deleted = svc.model_copy(
                 update={
-                    "status": "archived",
+                    "status": "deleted",
                     "is_active": False,
                     "updated_at": now_dt_str(),
                 }
