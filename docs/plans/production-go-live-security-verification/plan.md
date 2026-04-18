@@ -11,6 +11,7 @@ doc_status: active
 - Affected systems: contracts, gateway runtime, gateway-admin, user-front, admin-front, database, analytics/observability, CI, production operations.
 - Primary gate: `docs/ops/10_Production_Go_No_Go_Security_Verification.md`.
 - Evidence target: `validation.md` in this bundle.
+- Current plan status: `BLOCKED_NO_GO` until every external P0 production evidence item is attached.
 
 ## Change Set
 
@@ -64,3 +65,5 @@ doc_status: active
 ## Completion Rule
 
 All evidence must be attached in `validation.md`. Any unchecked item or missing evidence is a No-Go.
+
+Current status is `BLOCKED_NO_GO`: staging automation has passed, but production launch is still blocked by missing audit, chain rehearsal, load/chaos/restore, monitoring drill, production config, and sign-off evidence.

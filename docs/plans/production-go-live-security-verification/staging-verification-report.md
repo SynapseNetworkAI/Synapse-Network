@@ -10,10 +10,11 @@ doc_status: active
 
 - Environment: Staging preflight from local workspace
 - Source branch: `main`
-- Source commit: `07397fae`
-- Run time: `2026-04-18 18:45:07 +08`
+- Source commit: `51cb05d0`
+- Run time: `2026-04-18 19:00:00 +08`
 - Release decision: `NO-GO for production`
 - Staging automation result: `PASS`
+- Plan status: `BLOCKED_NO_GO`
 
 The repository-local and staging-preflight gates that can be executed from this workspace passed. Production launch is still blocked because several P0 gates require external evidence that is not present in the repository: third-party audit closure, production multisig/signer proof, fork/invariant contract tests, production dry-run evidence, real-chain small-value rehearsal, load/chaos/restore drills, alert drills, and four-owner sign-off.
 
@@ -26,10 +27,11 @@ The repository-local and staging-preflight gates that can be executed from this 
 | Money scan | PASS | `bash scripts/ci/security_money_scan.sh` -> money-sensitive float scan passed |
 | TS money scan | PASS | `bash scripts/ci/security_money_ts_scan.sh` -> money-sensitive TypeScript scan passed |
 | Secret scan | PASS | `bash scripts/ci/security_secret_scan.sh` -> secret scan passed |
+| Release Go/No-Go state check | PASS | `npm run ci:release-go-no-go` -> staging automation evidence recorded, production blockers explicit |
 | PR gate | PASS | `npm run ci:pr` completed successfully |
 | User frontend | PASS | `next lint`, `vitest run` -> 33 files / 158 tests passed, `next build` succeeded |
 | Admin frontend | PASS | `next lint`, `next build` succeeded |
-| Gateway | PASS | `pytest` -> 322 passed, 86 skipped, 1 warning |
+| Gateway | PASS | `pytest` -> 390 passed, 18 skipped, 1 warning |
 | Gateway-admin | PASS | `pytest` -> 94 passed |
 | Provider service | PASS | `pytest` -> 167 passed |
 | Contracts compile gate | PASS with limited coverage | `npm run ci:contracts` -> Nothing to compile; no root Hardhat tests found, compile gate only |
@@ -37,9 +39,13 @@ The repository-local and staging-preflight gates that can be executed from this 
 
 ## Bugfix Findings
 
-No fixable code, test, or docs bug was found during this staging preflight run.
+One fixable CI script bug was found and fixed during the second automation pass.
 
-No new `docs/reference/bugfix/` entry was created because the only gaps found are release-evidence blockers, not implementation defects observed by the executed gates.
+| Bug | Status | Verification |
+| --- | --- | --- |
+| `docs/reference/bugfix/scripts/BUG-GOLIVE-01-release-go-no-go-backtick-pattern.md` | FIXED | `npm run ci:release-go-no-go` passes |
+
+All other remaining gaps are release-evidence blockers, not implementation defects observed by the executed gates.
 
 ## Production NO-GO Blockers
 
