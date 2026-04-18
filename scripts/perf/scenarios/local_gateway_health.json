@@ -1,0 +1,14 @@
+{
+  "name": "local-gateway-health",
+  "baseUrlEnv": "SYNAPSE_LOCAL_GATEWAY_BASE_URL",
+  "requests": [
+    {
+      "name": "gateway-health",
+      "method": "GET",
+      "path": "/health",
+      "expectedStatuses": [200],
+      "weight": 1
+    }
+  ]
+}
+

@@ -1,0 +1,31 @@
+{
+  "name": "gateway-discovery-quote-invoke",
+  "baseUrlEnv": "SYNAPSE_GATEWAY_BASE_URL",
+  "headers": {
+    "Authorization": "Bearer ${SYNAPSE_AGENT_TOKEN}",
+    "X-Owner-Address": "${SYNAPSE_OWNER_WALLET}"
+  },
+  "requests": [
+    {
+      "name": "service-discovery",
+      "method": "GET",
+      "path": "/api/v1/services/discover?page=1&pageSize=10",
+      "expectedStatuses": [200],
+      "weight": 4
+    },
+    {
+      "name": "agent-invoke",
+      "method": "POST",
+      "path": "/api/v1/agent/invoke",
+      "expectedStatuses": [200],
+      "weight": 6,
+      "body": {
+        "serviceId": "${SYNAPSE_PERF_SERVICE_ID}",
+        "payload": {
+          "prompt": "staging load probe"
+        },
+        "requestId": "${SYNAPSE_PERF_REQUEST_ID_PREFIX}-invoke-{{random}}"
+      }
+    }
+  ]
+}

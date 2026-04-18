@@ -1,0 +1,45 @@
+{
+  "name": "admin-analytics-finance",
+  "baseUrlEnv": "SYNAPSE_ADMIN_GATEWAY_BASE_URL",
+  "headers": {
+    "Authorization": "Bearer ${SYNAPSE_ADMIN_TOKEN}"
+  },
+  "requests": [
+    {
+      "name": "analytics-overview",
+      "method": "GET",
+      "path": "/api/admin/v1/dashboard/analytics/overview?window=7d",
+      "expectedStatuses": [200],
+      "weight": 3
+    },
+    {
+      "name": "analytics-money-flow",
+      "method": "GET",
+      "path": "/api/admin/v1/dashboard/analytics/money-flow?window=7d",
+      "expectedStatuses": [200],
+      "weight": 2
+    },
+    {
+      "name": "analytics-provider-revenue",
+      "method": "GET",
+      "path": "/api/admin/v1/dashboard/analytics/provider-revenue?window=7d",
+      "expectedStatuses": [200],
+      "weight": 2
+    },
+    {
+      "name": "finance-overview",
+      "method": "GET",
+      "path": "/api/admin/v1/dashboard/finance",
+      "expectedStatuses": [200],
+      "weight": 2
+    },
+    {
+      "name": "provider-services",
+      "method": "GET",
+      "path": "/api/admin/v1/provider-services?page=1&pageSize=20",
+      "expectedStatuses": [200],
+      "weight": 1
+    }
+  ]
+}
+
