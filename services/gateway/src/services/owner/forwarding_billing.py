@@ -36,7 +36,9 @@ class ChargeUsageAtomicContext:
     invocation: Optional[InvocationRecord] = None
 
 
-def _money_decimal(value: Decimal | str | int | None) -> Decimal:
+def _money_decimal(value: Decimal | str | int | float | None) -> Decimal:
+    if isinstance(value, float):
+        value = Decimal(str(value))
     return MoneyCodec.coerce_decimal(value)
 
 
