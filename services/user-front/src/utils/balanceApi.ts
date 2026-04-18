@@ -1,5 +1,5 @@
 import { buildAuthedHeaders, normalizeAuthApiError } from "@/utils/authSession";
-import type { RiskLevel, WithdrawalStatus } from "@/domain/status";
+import { parseRiskLevel, parseWithdrawalStatus, type RiskLevel, type WithdrawalStatus } from "@/domain/status";
 import { getGatewayBaseUrl } from "@/utils/gatewayApi";
 import { normalizeMoneyString, type MoneyString } from "@/utils/money";
 
@@ -753,10 +753,10 @@ export async function requestV2Refund(
     refundId,
     signature,
     amountRefunded: normalizeMoneyString(payload.amountRefunded),
-    status: (payload.status as OwnerRefundIntent["status"]) ?? "PENDING",
+    status: typeof payload.status === "string" ? parseWithdrawalStatus(payload.status) ?? "PENDING" : "PENDING",
     gasPayer: "OWNER",
     gasModel: "OWNER_PAYS_ONCHAIN",
-    riskLevel: payload.riskLevel as OwnerRefundIntent["riskLevel"],
+    riskLevel: typeof payload.riskLevel === "string" ? parseRiskLevel(payload.riskLevel) ?? undefined : undefined,
     riskReasonCode: typeof payload.riskReasonCode === "string" ? payload.riskReasonCode : undefined,
     message: typeof payload.message === "string" ? payload.message : undefined,
   };
@@ -780,8 +780,8 @@ export async function listV2Refunds(
       amountUsdc:
         row.amountUsdc !== undefined ? normalizeMoneyString(row.amountUsdc) : undefined,
       reason: typeof row.reason === "string" ? row.reason : undefined,
-      status: (row.status as RefundIntentRecord["status"]) ?? "PENDING",
-      riskLevel: typeof row.riskLevel === "string" ? row.riskLevel : undefined,
+      status: typeof row.status === "string" ? parseWithdrawalStatus(row.status) ?? "PENDING" : "PENDING",
+      riskLevel: typeof row.riskLevel === "string" ? parseRiskLevel(row.riskLevel) ?? undefined : undefined,
       riskReasonCode: typeof row.riskReasonCode === "string" ? row.riskReasonCode : undefined,
       message: typeof row.message === "string" ? row.message : undefined,
       originRequestId: typeof row.originRequestId === "string" ? row.originRequestId : undefined,
