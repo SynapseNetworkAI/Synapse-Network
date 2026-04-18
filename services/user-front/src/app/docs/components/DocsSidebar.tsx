@@ -96,6 +96,8 @@ export default function DocsSidebar() {
     if (path === activePath && hash) {
       const el = document.getElementById(hash);
       if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+      setPendingHref(href);
+      router.push(href);
       return;
     }
 
