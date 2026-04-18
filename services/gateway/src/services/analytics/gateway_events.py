@@ -37,7 +37,7 @@ def get_emitter() -> Optional[AnalyticsEmitter]:
 
 
 def _money(value: Decimal | str | int | None) -> str:
-    return float(money_str(value))
+    return money_str(value)
 
 
 async def _emit(
