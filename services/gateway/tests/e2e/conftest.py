@@ -16,6 +16,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
 import pytest
+import httpx
 from eth_account import Account
 from eth_account.messages import encode_defunct
 from web3 import Web3
@@ -48,6 +49,14 @@ SESSION_ID = uuid.uuid4().hex[:8]
 
 
 # ── Session-scoped fixtures ────────────────────────────────────────────────────
+
+@pytest.fixture(scope="session", autouse=True)
+def require_live_gateway() -> None:
+    try:
+        response = httpx.get(f"{GATEWAY_BASE}/health", timeout=2.0)
+        response.raise_for_status()
+    except Exception as exc:
+        pytest.skip(f"gateway e2e services are not running locally: {exc}")
 
 @pytest.fixture(scope="session")
 def contract_config() -> dict:
