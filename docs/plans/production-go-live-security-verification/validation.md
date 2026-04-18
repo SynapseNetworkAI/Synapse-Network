@@ -12,9 +12,10 @@ This file is the evidence checklist for production launch. A checkbox without an
 
 - Environment: `Staging preflight from local workspace`
 - Source branch: `main`
-- Source commit: `07397fae`
-- Run time: `2026-04-18 18:45:07 +08`
+- Source commit: `51cb05d0`
+- Run time: `2026-04-18 19:00:00 +08`
 - Report: `docs/plans/production-go-live-security-verification/staging-verification-report.md`
+- Plan status: `BLOCKED_NO_GO`
 - Staging automation result: `PASS`
 - Production launch decision: `NO-GO for production`
 - Decision reason: repository-local gates passed, but external P0 production evidence is missing.
@@ -32,6 +33,7 @@ npm run ci:admin-front
 bash scripts/ci/security_money_scan.sh
 bash scripts/ci/security_money_ts_scan.sh
 bash scripts/ci/security_secret_scan.sh
+npm run ci:release-go-no-go
 ```
 
 ## Repository and CI Gates
@@ -39,11 +41,12 @@ bash scripts/ci/security_secret_scan.sh
 - [x] `npm run ci:docs` evidence: PASS, documentation validation passed.
 - [x] `npm run ci:pr` evidence: PASS, full PR gate completed successfully.
 - [x] Contract gate evidence: PASS with limited coverage, `npm run ci:contracts` compiled successfully but found no root Hardhat tests.
-- [x] Gateway gate evidence: PASS via `ci:pr`, `pytest` -> 322 passed, 86 skipped, 1 warning.
+- [x] Gateway gate evidence: PASS via `ci:pr`, `pytest` -> 390 passed, 18 skipped, 1 warning.
 - [x] Gateway-admin gate evidence: PASS via `ci:pr`, `pytest` -> 94 passed.
 - [x] Frontend/admin-front gate evidence: PASS via `ci:pr`; user-front lint/test/build passed, admin-front lint/build passed.
 - [x] Money scan evidence: PASS, Python money scan and TypeScript money scan passed.
 - [x] Secret scan evidence: PASS, secret scan passed.
+- [x] Release Go/No-Go state check: PASS, `npm run ci:release-go-no-go` confirms staging automation evidence is recorded and production blockers remain explicit.
 
 ## Contract and Chain Evidence
 
@@ -156,6 +159,6 @@ bash scripts/ci/security_secret_scan.sh
 ## Final Decision
 
 - Decision: `NO-GO for production`
-- Decision time: `2026-04-18 18:45:07 +08`
+- Decision time: `2026-04-18 19:00:00 +08`
 - Release owner: `TBD`
 - Notes: Staging automation passed. Production launch remains blocked by missing external P0 evidence listed above.
