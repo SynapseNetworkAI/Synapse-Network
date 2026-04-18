@@ -5,6 +5,7 @@ return invocation state or consumer-facing payloads.
 """
 from __future__ import annotations
 
+from decimal import Decimal
 from typing import Any, Optional, Union
 
 from pydantic import BaseModel
@@ -18,7 +19,7 @@ class InvocationReceiptRef(BaseModel):
 class InvocationSuccessResponse(BaseModel):
     invocationId: str
     status: str
-    chargedUsdc: float
+    chargedUsdc: Decimal
     result: Any
     receipt: InvocationReceiptRef
 
@@ -39,7 +40,7 @@ class InvocationErrorResponse(BaseModel):
 class InvocationPendingResponse(BaseModel):
     invocationId: str
     status: str
-    chargedUsdc: float
+    chargedUsdc: Decimal
 
 
 # Union of all possible invocation state shapes
@@ -53,9 +54,9 @@ class ConsumerReceipt(BaseModel):
     quoteId: str
     invocationId: str
     serviceId: str
-    totalCharge: float
-    consumerAvailableBalanceAfter: float
-    serviceUnitPrice: float
+    totalCharge: Decimal
+    consumerAvailableBalanceAfter: Decimal
+    serviceUnitPrice: Decimal
 
 
 class ConsumerResponseData(BaseModel):

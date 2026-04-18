@@ -1,3 +1,9 @@
+import {
+  withdrawalStatusLabel,
+  withdrawalStatusTone,
+  type StatusTone,
+  type WithdrawalStatus,
+} from "@/domain/status";
 import type { ProviderWithdrawReviewHistoryItem } from "@/services/admin-api";
 
 export type ReviewHistoryFlowStep = {
@@ -5,14 +11,7 @@ export type ReviewHistoryFlowStep = {
   label: string;
   detail: string;
   timestamp: string | null;
-  tone: "green" | "orange" | "red" | "gray";
-};
-
-const currentStatusLabels: Record<string, string> = {
-  APPROVED_AUTO: "已放行",
-  COMPLETED: "已完成",
-  REJECTED: "已拒绝",
-  CANCELLED: "已取消 / 已释放",
+  tone: StatusTone;
 };
 
 const decisionLabels: Record<string, string> = {
@@ -20,21 +19,12 @@ const decisionLabels: Record<string, string> = {
   REJECT: "驳回",
 };
 
-export function getReviewHistoryStatusLabel(status: string): string {
-  return currentStatusLabels[status] ?? status;
+export function getReviewHistoryStatusLabel(status: WithdrawalStatus): string {
+  return withdrawalStatusLabel(status);
 }
 
-export function getReviewHistoryStatusTone(status: string): "green" | "orange" | "red" | "gray" {
-  if (status === "COMPLETED" || status === "APPROVED_AUTO") {
-    return "green";
-  }
-  if (status === "REJECTED") {
-    return "red";
-  }
-  if (status === "CANCELLED") {
-    return "gray";
-  }
-  return "orange";
+export function getReviewHistoryStatusTone(status: WithdrawalStatus): StatusTone {
+  return withdrawalStatusTone(status);
 }
 
 export function getReviewDecisionLabel(decision: string): string {

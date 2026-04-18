@@ -39,9 +39,6 @@ from eth_account.messages import encode_defunct
 from web3 import Web3
 
 
-# ── 默认私钥: Hardhat 本地测试链的预置账户 ──
-DEFAULT_DEPLOYER_PRIVATE_KEY = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
-DEFAULT_OWNER_PAYMENT_PRIVATE_KEY = "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"
 CONTENT_TYPE_JSON = "application/json"
 
 
@@ -299,11 +296,12 @@ def main() -> None:
     service_id = require_env("SERVICE_ID")
     provider_address = require_env("PROVIDER_ADDRESS")
 
-    deployer_private_key = os.getenv("DEPLOYER_PRIVATE_KEY", DEFAULT_DEPLOYER_PRIVATE_KEY)
-    owner_payment_private_key = os.getenv(
-        "OWNER_PAYMENT_PRIVATE_KEY",
-        owner_private_key or DEFAULT_OWNER_PAYMENT_PRIVATE_KEY,
-    )
+    deployer_private_key = os.getenv("DEPLOYER_PRIVATE_KEY", "").strip()
+    owner_payment_private_key = os.getenv("OWNER_PAYMENT_PRIVATE_KEY", "").strip()
+    if not deployer_private_key or not owner_payment_private_key:
+        raise RuntimeError(
+            "DEPLOYER_PRIVATE_KEY and OWNER_PAYMENT_PRIVATE_KEY must be set explicitly."
+        )
 
     price_usdc = os.getenv("PRICE_USDC", "1")
     prompt = os.getenv("PROMPT", "hello from credential script")

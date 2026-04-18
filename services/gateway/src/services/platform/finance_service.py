@@ -19,6 +19,7 @@ from src.services.owner.finance_constants import (
 )
 from src.storage.base import BaseStorage
 from src.utils.datetime_utils import now_dt_str
+from src.utils.money import money_str, parse_usdc, quantize_usdc
 
 
 class PlatformFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
@@ -47,10 +48,10 @@ class PlatformFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         return []
 
     @staticmethod
-    def _q6(value: Decimal | str | int | float) -> Decimal:
-        return Decimal(str(value)).quantize(
+    def _q6(value: Decimal | str | int) -> Decimal:
+        return quantize_usdc(Decimal(str(value)).quantize(
             Decimal("0.000001"), rounding=ROUND_HALF_UP
-        )
+        ))
 
     @staticmethod
     def _normalize_voucher_code(value: str) -> str:
@@ -180,7 +181,7 @@ class PlatformFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
             try:
                 balance_repo.reserve_consumer_balance_for_withdrawal(
                     owner=owner,
-                    amount_usdc=float(reserve_amount),
+                    amount_usdc=reserve_amount,
                     updated_at=now_dt_str(),
                 )
             except RuntimeError:
@@ -195,7 +196,7 @@ class PlatformFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         try:
             balance_repo.reserve_consumer_balance_for_manual_review(
                 owner=owner,
-                amount_usdc=float(reserve_amount),
+                amount_usdc=reserve_amount,
                 updated_at=now_dt_str(),
             )
         except RuntimeError:
@@ -213,14 +214,14 @@ class PlatformFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
 
         return {
             "ownerAddress": normalized_owner,
-            "ownerBalance": balance_data.consumer_available_balance(normalized_owner),
-            "consumerAvailableBalance": balance_data.consumer_available_balance(normalized_owner),
-            "consumerPendingBalance": balance_data.consumer_pending_balance(normalized_owner),
-            "consumerFrozenBalance": balance_data.consumer_frozen_balance(normalized_owner),
-            "providerReceivable": balance_data.provider_receivable_balance(normalized_owner),
-            "providerReceivableBalance": balance_data.provider_receivable_balance(normalized_owner),
-            "providerLockedBalance": balance_data.provider_locked_balance(normalized_owner),
-            "platformFeeAccrued": round(balance_data.platform.fee_accrued, 6),
+            "ownerBalance": money_str(balance_data.consumer_available_balance(normalized_owner)),
+            "consumerAvailableBalance": money_str(balance_data.consumer_available_balance(normalized_owner)),
+            "consumerPendingBalance": money_str(balance_data.consumer_pending_balance(normalized_owner)),
+            "consumerFrozenBalance": money_str(balance_data.consumer_frozen_balance(normalized_owner)),
+            "providerReceivable": money_str(balance_data.provider_receivable_balance(normalized_owner)),
+            "providerReceivableBalance": money_str(balance_data.provider_receivable_balance(normalized_owner)),
+            "providerLockedBalance": money_str(balance_data.provider_locked_balance(normalized_owner)),
+            "platformFeeAccrued": money_str(balance_data.platform.fee_accrued),
             "updatedAt": balance_data.updated_at,
         }
 
@@ -246,11 +247,11 @@ class PlatformFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
 
         return {
             "ownerAddress": owner,
-            "spendingLimitUsdc": float(spending_limit) if spending_limit is not None else None,
+            "spendingLimitUsdc": money_str(spending_limit) if spending_limit is not None else None,
             "allowUnlimited": spending_limit is None,
             "cycleInterval": "monthly",
-            "currentCycleSpendUsdc": float(current_cycle_spend),
-            "remainingSpendUsdc": float(remaining) if remaining is not None else None,
+            "currentCycleSpendUsdc": money_str(current_cycle_spend),
+            "remainingSpendUsdc": money_str(remaining) if remaining is not None else None,
             "updatedAt": found.updated_at if found is not None else None,
         }
 
@@ -320,7 +321,7 @@ class PlatformFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
                 owner,
                 {
                     "allowUnlimited": allow_unlimited,
-                    "spendingLimitUsdc": float(normalized_limit) if normalized_limit is not None else None,
+                    "spendingLimitUsdc": money_str(normalized_limit) if normalized_limit is not None else None,
                     "cycleInterval": "monthly",
                     "requestMeta": request_meta or {},
                 },

@@ -1,3 +1,4 @@
+import type { WithdrawalStatus } from "@/domain/status";
 import { isAdminApiError } from "@/services/admin-api";
 
 export type WithdrawReviewDecision = "APPROVE" | "REJECT";
@@ -70,7 +71,7 @@ export function getWithdrawReviewActionErrorMessage(
 
 export function getWithdrawReviewActionSuccessMessage(input: {
   decision: WithdrawReviewDecision;
-  status: string;
+  status: WithdrawalStatus;
   message?: string | null;
 }): string {
   const prefix = input.decision === "APPROVE" ? "已提交放行处理" : "已提交驳回处理";

@@ -14,12 +14,12 @@ shift 3
 EXTRA_PACKAGES=("$@")
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-if [[ -f "${SCRIPT_DIR}/../../scripts/python/resolve_python_311.sh" ]]; then
+if [[ -f "${SCRIPT_DIR}/../../scripts/python/resolve_python_313.sh" ]]; then
   REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-elif [[ -f "${SCRIPT_DIR}/../../../scripts/python/resolve_python_311.sh" ]]; then
+elif [[ -f "${SCRIPT_DIR}/../../../scripts/python/resolve_python_313.sh" ]]; then
   REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 else
-  echo "unable to locate scripts/python/resolve_python_311.sh from ${SCRIPT_DIR}" >&2
+  echo "unable to locate scripts/python/resolve_python_313.sh from ${SCRIPT_DIR}" >&2
   exit 1
 fi
 
@@ -27,7 +27,7 @@ VENV_DIR="$PROJECT_DIR/.venv"
 PYTHON_BIN="$VENV_DIR/bin/python"
 
 if [[ ! -x "$PYTHON_BIN" ]]; then
-  PYTHON_BOOTSTRAP_BIN="$(bash "$REPO_ROOT/scripts/python/resolve_python_311.sh")"
+  PYTHON_BOOTSTRAP_BIN="$(bash "$REPO_ROOT/scripts/python/resolve_python_313.sh")"
   echo "[$LABEL] creating virtual environment in $VENV_DIR"
   "$PYTHON_BOOTSTRAP_BIN" -m venv "$VENV_DIR"
 fi

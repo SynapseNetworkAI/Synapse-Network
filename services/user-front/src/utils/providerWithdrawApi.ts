@@ -1,5 +1,6 @@
 import { buildAuthedHeaders, normalizeAuthApiError } from "@/utils/authSession";
 import { getGatewayBaseUrl } from "@/utils/gatewayApi";
+import { normalizeMoneyString, type MoneyString } from "@/utils/money";
 
 const API_BASE = `${getGatewayBaseUrl()}/api/v1/providers/withdrawals`;
 
@@ -99,7 +100,7 @@ export type ProviderWithdrawTicket = {
 
 export type ProviderWithdrawRecord = {
   id: string;
-  amountUsdc: number;
+  amountUsdc: MoneyString;
   status:
     | "REQUESTED"
     | "APPROVED_AUTO"
@@ -153,10 +154,10 @@ export async function getProviderWithdrawCapability(
   };
 }
 
-export async function createProviderWithdrawIntent(userAddress: string, amountUsdc?: number): Promise<{
+export async function createProviderWithdrawIntent(userAddress: string, amountUsdc?: MoneyString): Promise<{
   withdrawalId: string;
   status: "REQUESTED" | "APPROVED_AUTO" | "PENDING_MANUAL_REVIEW";
-  amountUsdc: number;
+  amountUsdc: MoneyString;
   ticket?: ProviderWithdrawTicket;
   message?: string;
 }> {
@@ -168,7 +169,7 @@ export async function createProviderWithdrawIntent(userAddress: string, amountUs
   const response = await fetch(`${API_BASE}/intent`, {
     method: "POST",
     headers,
-    body: JSON.stringify(typeof amountUsdc === "number" ? { amountUsdc } : {}),
+    body: JSON.stringify(typeof amountUsdc === "string" ? { amountUsdc } : {}),
   });
 
   if (!response.ok) {
@@ -214,11 +215,14 @@ export async function createProviderWithdrawIntent(userAddress: string, amountUs
   const payload = (await response.json()) as {
     withdrawalId: string;
     status: "REQUESTED" | "APPROVED_AUTO" | "PENDING_MANUAL_REVIEW";
-    amountUsdc: number;
+    amountUsdc: string | number;
     ticket?: ProviderWithdrawTicket;
     message?: string;
   };
-  return payload;
+  return {
+    ...payload,
+    amountUsdc: normalizeMoneyString(payload.amountUsdc),
+  };
 }
 
 export async function listProviderWithdrawals(userAddress: string): Promise<ProviderWithdrawRecord[]> {
@@ -245,7 +249,7 @@ export async function listProviderWithdrawals(userAddress: string): Promise<Prov
   ]);
   return rows.map((row) => ({
     id: typeof row.id === "string" ? row.id : "",
-    amountUsdc: Number(row.amountUsdc || 0),
+    amountUsdc: normalizeMoneyString(row.amountUsdc),
     status: (() => {
       const normalized = (typeof row.status === "string" ? row.status : "").toUpperCase();
       if (!validStatuses.has(normalized)) return "REQUESTED";

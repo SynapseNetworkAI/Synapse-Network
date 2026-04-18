@@ -19,7 +19,7 @@ from src.storage import PostgresAdminStore
 
 DEFAULT_EMAIL = "super@synapse.network"
 DEFAULT_PASSWORD = "qwer@1234"
-DEFAULT_LOCAL_DSN = "postgresql://synapse_admin_app:12345678@localhost:5432/synapse_gateway_admin"
+DEFAULT_LOCAL_DSN = "postgresql://synapse_admin_app:local-dev-admin-app-password@localhost:5432/synapse_gateway_admin"
 LOCAL_HOSTS = {"", "localhost", "127.0.0.1", "::1"}
 
 

@@ -20,6 +20,12 @@ import {
   type ProviderWithdrawRecord,
   type ProviderWithdrawTicket,
 } from "@/utils/providerWithdrawApi";
+import {
+  compareMoneyStrings,
+  formatMoneyString,
+  normalizeMoneyString,
+  type MoneyString,
+} from "@/utils/money";
 import { normalizeWithdrawWalletError, toSafeErrorMessage } from "@/utils/providerWithdrawWallet";
 
 const VAULT_ADDRESS = (contractConfig as { SynapseCore?: string }).SynapseCore as `0x${string}` | undefined;
@@ -95,7 +101,7 @@ function resolveTicketContractAddress(ticket: ProviderWithdrawTicket): `0x${stri
 
 function validateRequestedWithdrawAmount(
   requestedAmount: string,
-  availableReceivable: number,
+  availableReceivable: MoneyString,
   t: TranslateFn,
 ): string | null {
   if (!requestedAmount) {
@@ -105,14 +111,14 @@ function validateRequestedWithdrawAmount(
     return t("providerSettlements.invalidAmountPrecision");
   }
 
-  const parsed = Number(requestedAmount);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
+  const normalizedAmount = normalizeMoneyString(requestedAmount, "");
+  if (!normalizedAmount || normalizedAmount === "0") {
     return t("providerSettlements.invalidAmountValue");
   }
 
-  if (parsed > availableReceivable) {
+  if (compareMoneyStrings(normalizedAmount, availableReceivable) > 0) {
     return t("providerSettlements.amountExceedsAvailable", {
-      amount: availableReceivable.toFixed(6),
+      amount: formatMoneyString(availableReceivable, 6),
     });
   }
 
@@ -174,7 +180,7 @@ export default function ProviderSettlementsPage() {
   }), [t]);
 
   const PAGE_SIZE = 10;
-  const availableReceivable = Number(providerStats.receivable || 0);
+  const availableReceivable = normalizeMoneyString(providerStats.receivable);
 
   const { data: nativeBalanceData } = useBalance({ address });
   const { data: txHash, writeContractAsync, isPending: isWalletPrompting } = useWriteContract();
@@ -206,7 +212,7 @@ export default function ProviderSettlementsPage() {
       status: withdrawalStatusLabel(withdrawalStatusFilter, t),
     });
   }, [t, withdrawalStatusFilter, withdrawals.length]);
-  const lockedReceivable = Number(pendingWithdrawal?.amountUsdc || 0);
+  const lockedReceivable = normalizeMoneyString(pendingWithdrawal?.amountUsdc);
   const pendingTicket = pendingWithdrawal?.ticket;
   const pendingTicketChainMismatch = Boolean(pendingTicket?.chainId && chainId !== pendingTicket.chainId);
   const pendingTicketExpired = Boolean(
@@ -351,12 +357,12 @@ export default function ProviderSettlementsPage() {
     return validateRequestedWithdrawAmount(withdrawAmountInput.trim(), availableReceivable, t);
   }, [availableReceivable, t, withdrawAmountInput]);
 
-  const resolveRequestedWithdrawAmount = (): number | undefined => {
+  const resolveRequestedWithdrawAmount = (): MoneyString | undefined => {
     const requestedAmount = withdrawAmountInput.trim();
-    return requestedAmount ? Number(requestedAmount) : undefined;
+    return requestedAmount ? normalizeMoneyString(requestedAmount) : undefined;
   };
 
-  const validateWithdrawIntentReadiness = async (amountUsdc: number): Promise<void> => {
+  const validateWithdrawIntentReadiness = async (amountUsdc: MoneyString): Promise<void> => {
     if (!publicClient) {
       throw new Error(t("providerSettlements.walletClientUnavailable"));
     }
@@ -364,7 +370,7 @@ export default function ProviderSettlementsPage() {
       throw new Error(t("providerSettlements.vaultLiquidityInsufficient"));
     }
 
-    const requestedAmountWei = parseUnits(amountUsdc.toFixed(6), 18);
+    const requestedAmountWei = parseUnits(amountUsdc, 18);
     const vaultUsdcBalance = await publicClient.readContract({
       address: USDC_TOKEN_ADDRESS,
       abi: ERC20_BALANCE_OF_ABI,
@@ -672,13 +678,13 @@ export default function ProviderSettlementsPage() {
                   setWithdrawAmountInput(nextValue);
                 }
               }}
-              placeholder={`${availableReceivable.toFixed(6)} USDC`}
+              placeholder={`${formatMoneyString(availableReceivable, 6)} USDC`}
               className={`w-full sm:max-w-md px-3 py-2 rounded-lg border bg-[#050505] text-sm text-white outline-none placeholder:text-[#86868b] ${withdrawAmountValidationMessage ? "border-[#ef4444] focus:border-[#ef4444]" : "border-[#222222]"}`}
               disabled={isAnyLoading}
             />
             <button
               onClick={handleCreateWithdrawalIntent}
-              disabled={!isConnected || availableReceivable <= 0 || isAnyLoading || !ticketSigningEnabled || loadingWithdrawCapability || Boolean(withdrawAmountValidationMessage)}
+              disabled={!isConnected || compareMoneyStrings(availableReceivable, "0") <= 0 || isAnyLoading || !ticketSigningEnabled || loadingWithdrawCapability || Boolean(withdrawAmountValidationMessage)}
               className="px-4 py-2 rounded-lg border border-[#22c55e]/40 bg-[#22c55e]/10 text-[#22c55e] text-sm font-semibold hover:bg-[#22c55e] hover:text-black transition-colors disabled:opacity-40"
             >
               {generateClaimLabel}
@@ -698,11 +704,11 @@ export default function ProviderSettlementsPage() {
           <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 text-xs">
             <div className="rounded-lg border border-[#222222] bg-[#050505] p-3">
               <div className="uppercase tracking-[0.15em] text-[#86868b]">{t("providerSettlements.metricAvailable")}</div>
-              <div className="mt-1 font-mono text-white text-sm">{availableReceivable.toFixed(6)} USDC</div>
+              <div className="mt-1 font-mono text-white text-sm">{formatMoneyString(availableReceivable, 6)} USDC</div>
             </div>
             <div className="rounded-lg border border-[#222222] bg-[#050505] p-3">
               <div className="uppercase tracking-[0.15em] text-[#86868b]">{t("providerSettlements.metricPendingLocked")}</div>
-              <div className="mt-1 font-mono text-[#ff9f0a] text-sm">{lockedReceivable.toFixed(6)} USDC</div>
+              <div className="mt-1 font-mono text-[#ff9f0a] text-sm">{formatMoneyString(lockedReceivable, 6)} USDC</div>
             </div>
             <div className="rounded-lg border border-[#222222] bg-[#050505] p-3">
               <div className="uppercase tracking-[0.15em] text-[#86868b]">{t("providerSettlements.metricPendingTicket")}</div>
@@ -863,7 +869,7 @@ export default function ProviderSettlementsPage() {
             {filteredWithdrawals.map((row) => (
               <tr key={row.id} className="hover:bg-[#111111] transition-colors">
                 <td className="py-4 px-6 text-xs font-mono text-[#86868b]">{row.id}</td>
-                <td className="py-4 px-6 text-sm text-right font-mono text-white">{row.amountUsdc.toFixed(6)} USDC</td>
+                <td className="py-4 px-6 text-sm text-right font-mono text-white">{formatMoneyString(row.amountUsdc, 6)} USDC</td>
                 <td className="py-4 px-6 text-xs">
                   <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${withdrawalStatusBadgeClass(row.status)}`}>
                     {withdrawalStatusLabel(row.status, t)}

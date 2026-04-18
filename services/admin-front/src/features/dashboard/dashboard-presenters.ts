@@ -1,4 +1,5 @@
 import { formatDateTime, formatUsdc } from "@/lib/admin-console";
+import { APPROVAL_STATUS } from "@/domain/status";
 import { getFinanceMetricGlossary } from "@/features/finance/finance-glossary";
 import { buildFinanceCapitalPulseLanes, type CapitalPulseLane } from "@/features/finance/finance-presenters";
 import { getDiagnosticSummaryText } from "@/features/diagnostics/diagnostic-presenters";
@@ -278,12 +279,14 @@ export function buildOperationsItems(
 export function buildRiskActivityRows(approvals: ApprovalItem[]): RiskActivityRow[] {
   return approvals.map((item) => {
     let threatLevel = "monitoring";
-    if (item.approvalLevel.toLowerCase().includes("high")) {
+    if (item.approvalLevel === "L3") {
       threatLevel = "critical";
-    } else if (item.status.toLowerCase().includes("pending")) {
+    } else if (item.status === APPROVAL_STATUS.SUBMITTED || item.status === APPROVAL_STATUS.UNDER_REVIEW) {
       threatLevel = "elevated";
     }
-    const actionTaken = item.status.toLowerCase().includes("pending") ? "await review" : item.status;
+    const actionTaken = item.status === APPROVAL_STATUS.SUBMITTED || item.status === APPROVAL_STATUS.UNDER_REVIEW
+      ? "await review"
+      : item.status;
     return {
       approvalId: item.approvalId,
       createdAt: formatDateTime(item.createdAt),

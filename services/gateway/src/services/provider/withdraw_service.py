@@ -33,6 +33,7 @@ from src.services.provider.withdraw_helpers_mixin import (
 from src.services.provider.withdraw_execution_mixin import ProviderWithdrawExecutionMixin
 from src.storage.base import BaseStorage
 from src.utils.datetime_utils import now_dt_str
+from src.utils.money import money_str, parse_usdc, usdc_decimal_to_atomic
 
 
 class ProviderWithdrawService(
@@ -113,7 +114,7 @@ class ProviderWithdrawService(
             raise RuntimeError("WITHDRAW_VAULT_LIQUIDITY_CHECK_UNAVAILABLE") from exc
 
     def _assert_withdraw_vault_liquidity(self, amount_usdc: Decimal) -> None:
-        amount_wei = int(round(float(amount_usdc) * float(10**USDC_DECIMALS)))
+        amount_wei = usdc_decimal_to_atomic(amount_usdc, decimals=USDC_DECIMALS)
         vault_balance_wei = self._read_vault_liquidity_amount_wei()
         if vault_balance_wei < amount_wei:
             raise RuntimeError("INSUFFICIENT_VAULT_LIQUIDITY")
@@ -179,7 +180,7 @@ class ProviderWithdrawService(
                 )
 
             try:
-                self._assert_withdraw_vault_liquidity(Decimal(str(context.amount_usdc)))
+                self._assert_withdraw_vault_liquidity(context.amount_usdc)
             except RuntimeError as exc:
                 self._raise_withdraw_runtime_error(str(exc))
                 raise
@@ -216,7 +217,7 @@ class ProviderWithdrawService(
                 owner,
                 {
                     "withdrawalId": response["withdrawalId"],
-                    "amountUsdc": context.amount_usdc,
+                    "amountUsdc": money_str(context.amount_usdc),
                     "status": response["status"],
                     "nonce": row.nonce,
                     "deadline": row.deadline,
@@ -297,7 +298,7 @@ class ProviderWithdrawService(
                     },
                 )
 
-            amount_usdc = round(float(target.amount_usdc or 0.0), 6)
+            amount_usdc = parse_usdc(target.amount_usdc or Decimal("0"))
             if review_decision == "REJECT":
                 return self._reject_manual_review_withdrawal(
                     owner=owner,
@@ -370,7 +371,7 @@ class ProviderWithdrawService(
             if completed is not None:
                 return completed
 
-            amount_usdc = round(float(target.amount_usdc or 0.0), 6)
+            amount_usdc = parse_usdc(target.amount_usdc or Decimal("0"))
             self._consume_locked_withdraw_amount(owner, amount_usdc)
 
             now = int(time.time())
@@ -388,7 +389,7 @@ class ProviderWithdrawService(
                 {
                     "withdrawalId": str(target.id or ""),
                     "txHash": normalized_tx_hash,
-                    "amountUsdc": amount_usdc,
+                    "amountUsdc": money_str(amount_usdc),
                     "requestMeta": request_meta or {},
                 },
             )

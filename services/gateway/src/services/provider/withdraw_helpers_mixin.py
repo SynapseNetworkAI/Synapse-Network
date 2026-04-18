@@ -18,6 +18,7 @@ from src.domain.finance import BalanceLedger, WithdrawCreateContext
 from src.domain.ledger import WithdrawalIntentRow
 from src.domain.operation_metadata import OperationContextMetadata, WithdrawalTicketMetadata
 from src.utils.datetime_utils import now_dt_str, to_dt_str
+from src.utils.money import money_str, quantize_usdc
 
 ACTIVE_WITHDRAWAL_STATUSES = {
     "REQUESTED",
@@ -171,17 +172,17 @@ class ProviderWithdrawHelpersMixin:
                 continue
             if not self._is_expired_signed_withdrawal(row, now):
                 continue
-            amount_usdc = round(float(row.amount_usdc or 0.0), 6)
-            released_amount_usdc = 0.0
-            if amount_usdc > 0:
+            amount_usdc = quantize_usdc(row.amount_usdc or Decimal("0"))
+            released_amount_usdc = Decimal("0")
+            if amount_usdc > Decimal("0"):
                 released_amount_usdc = self._release_pending_withdraw_to_available(row_owner, amount_usdc)
-            release_shortfall_usdc = round(max(0.0, amount_usdc - released_amount_usdc), 6)
+            release_shortfall_usdc = quantize_usdc(max(Decimal("0"), amount_usdc - released_amount_usdc))
             row.status = "CANCELLED"
             row.updated_at = now_text
             row.completed_at = now
             row.message = (
                 EXPIRED_WITHDRAW_RELEASE_MESSAGE
-                if release_shortfall_usdc <= 1e-9
+                if release_shortfall_usdc <= Decimal("0")
                 else EXPIRED_WITHDRAW_RECONCILED_MESSAGE
             )
             changed = True
@@ -190,9 +191,9 @@ class ProviderWithdrawHelpersMixin:
                 row_owner,
                 {
                     "withdrawalId": str(row.id or ""),
-                    "amountUsdc": amount_usdc,
-                    "releasedAmountUsdc": released_amount_usdc,
-                    "releaseShortfallUsdc": release_shortfall_usdc,
+                    "amountUsdc": money_str(amount_usdc),
+                    "releasedAmountUsdc": money_str(released_amount_usdc),
+                    "releaseShortfallUsdc": money_str(release_shortfall_usdc),
                     "reason": "TICKET_EXPIRED",
                     "deadline": int(row.deadline or 0),
                 },
@@ -225,10 +226,10 @@ class ProviderWithdrawHelpersMixin:
             return row
         return None
 
-    def _parse_withdraw_amount_usdc(self, payload: dict[str, Any], available: float) -> float:
+    def _parse_withdraw_amount_usdc(self, payload: dict[str, Any], available: Decimal) -> Decimal:
         raw = payload.get("amountUsdc")
         if raw is None:
-            if available <= 0:
+            if available <= Decimal("0"):
                 raise HTTPException(
                     status_code=400,
                     detail={
@@ -236,13 +237,15 @@ class ProviderWithdrawHelpersMixin:
                         "message": "No provider receivable available for withdrawal.",
                     },
                 )
-            return round(available, 6)
+            return quantize_usdc(available)
         try:
+            if isinstance(raw, float):
+                raise TypeError("float is forbidden for amountUsdc")
             amount = Decimal(str(raw))
         except Exception:
             raise HTTPException(
                 status_code=400,
-                detail={"code": "INVALID_AMOUNT", "message": "amountUsdc must be a number."},
+                detail={"code": "INVALID_AMOUNT", "message": "amountUsdc must be a decimal string or integer value."},
             )
         if amount != amount.quantize(WITHDRAW_AMOUNT_PRECISION):
             raise HTTPException(
@@ -254,39 +257,42 @@ class ProviderWithdrawHelpersMixin:
                 status_code=400,
                 detail={"code": "INVALID_AMOUNT", "message": "amountUsdc must be greater than 0."},
             )
-        if amount > Decimal(str(available)):
+        available_amount = quantize_usdc(available)
+        if amount > available_amount:
             raise HTTPException(
                 status_code=400,
                 detail={"code": "INSUFFICIENT_PROVIDER_RECEIVABLE", "message": INSUFFICIENT_RECEIVABLE_MESSAGE},
             )
-        return float(amount)
+        return quantize_usdc(amount)
 
     def _requested_withdraw_amount_for_hash(self, payload: dict[str, Any]) -> Any:
         raw = payload.get("amountUsdc")
         if raw is None:
             return None
         try:
+            if isinstance(raw, float):
+                raise TypeError("float is forbidden for amountUsdc")
             amount = Decimal(str(raw))
             if amount != amount.quantize(WITHDRAW_AMOUNT_PRECISION):
                 return raw
-            return float(amount)
+            return money_str(amount)
         except Exception:
             return raw
 
     def _build_withdraw_create_context(
-        self, *, owner: str, payload: dict[str, Any], available_receivable: float,
+        self, *, owner: str, payload: dict[str, Any], available_receivable: Decimal,
     ) -> WithdrawCreateContext:
         amount_usdc = self._parse_withdraw_amount_usdc(payload, available_receivable)
         request_hash = self._request_hash(  # type: ignore[attr-defined]
             {"ownerAddress": owner, "amountUsdc": self._requested_withdraw_amount_for_hash(payload)}
         )
-        return WithdrawCreateContext(amount_usdc=amount_usdc, request_hash=request_hash)
+        return WithdrawCreateContext(amount_usdc=quantize_usdc(amount_usdc), request_hash=request_hash)
 
     def _build_pending_withdraw_response(self, row: WithdrawalIntentRow) -> dict[str, Any]:
         return {
             "withdrawalId": str(row.id or ""),
             "status": str(row.status or "REQUESTED"),
-            "amountUsdc": round(float(row.amount_usdc or 0.0), 6),
+            "amountUsdc": money_str(row.amount_usdc or Decimal("0")),
             "ticket": row.ticket.model_dump(by_alias=True, mode="json", exclude_none=True),
             "message": str(row.message or ""),
         }
@@ -335,52 +341,62 @@ class ProviderWithdrawHelpersMixin:
                 detail={"code": "WITHDRAWAL_TX_REPLAY_DETECTED", "message": "txHash is already bound to another withdrawal."},
             )
 
-    def _consume_locked_withdraw_amount(self, owner: str, amount_usdc: float) -> None:
+    def _consume_locked_withdraw_amount(self, owner: str, amount_usdc: Decimal) -> None:
         ledger = self._load_balance_ledger()
         provider_wallet = ledger.ensure_provider_wallet(owner)
-        locked = round(float(provider_wallet.pending_balance or 0.0), 6)
-        if locked + 1e-9 < amount_usdc:
+        locked = quantize_usdc(provider_wallet.pending_balance or Decimal("0"))
+        amount = quantize_usdc(amount_usdc)
+        if locked < amount:
             raise HTTPException(
                 status_code=409,
                 detail={"code": "WITHDRAWAL_LOCK_INCONSISTENT", "message": "Locked provider receivable is insufficient for this withdrawal intent."},
             )
-        provider_wallet.pending_balance = round(max(0.0, locked - amount_usdc), 6)
+        provider_wallet.pending_balance = quantize_usdc(max(Decimal("0"), locked - amount))
         self._save_balance_ledger(ledger)
 
-    def _release_pending_withdraw_to_available(self, owner: str, amount_usdc: float) -> float:
+    def _release_pending_withdraw_to_available(self, owner: str, amount_usdc: Decimal) -> Decimal:
         ledger = self._load_balance_ledger()
         provider_wallet = ledger.ensure_provider_wallet(owner)
-        locked = round(float(provider_wallet.pending_balance or 0.0), 6)
-        releasable_amount = round(min(max(0.0, amount_usdc), locked), 6)
-        if releasable_amount <= 0:
-            return 0.0
-        provider_wallet.pending_balance = round(max(0.0, locked - releasable_amount), 6)
-        provider_wallet.available_balance = round(float(provider_wallet.available_balance or 0.0) + releasable_amount, 6)
+        locked = quantize_usdc(provider_wallet.pending_balance or Decimal("0"))
+        requested_amount = quantize_usdc(amount_usdc)
+        releasable_amount = quantize_usdc(min(max(Decimal("0"), requested_amount), locked))
+        if releasable_amount <= Decimal("0"):
+            return Decimal("0")
+        provider_wallet.pending_balance = quantize_usdc(max(Decimal("0"), locked - releasable_amount))
+        provider_wallet.available_balance = quantize_usdc(
+            quantize_usdc(provider_wallet.available_balance or Decimal("0")) + releasable_amount
+        )
         self._save_balance_ledger(ledger)
         return releasable_amount
 
-    def _release_frozen_withdraw_to_available(self, owner: str, amount_usdc: float) -> None:
+    def _release_frozen_withdraw_to_available(self, owner: str, amount_usdc: Decimal) -> None:
         ledger = self._load_balance_ledger()
         provider_wallet = ledger.ensure_provider_wallet(owner)
-        frozen = round(float(provider_wallet.frozen_balance or 0.0), 6)
-        if frozen + 1e-9 < amount_usdc:
+        frozen = quantize_usdc(provider_wallet.frozen_balance or Decimal("0"))
+        amount = quantize_usdc(amount_usdc)
+        if frozen < amount:
             raise HTTPException(
                 status_code=409,
                 detail={"code": "WITHDRAWAL_FROZEN_INCONSISTENT", "message": "Frozen provider receivable is insufficient for this manual review action."},
             )
-        provider_wallet.frozen_balance = round(max(0.0, frozen - amount_usdc), 6)
-        provider_wallet.available_balance = round(float(provider_wallet.available_balance or 0.0) + amount_usdc, 6)
+        provider_wallet.frozen_balance = quantize_usdc(max(Decimal("0"), frozen - amount))
+        provider_wallet.available_balance = quantize_usdc(
+            quantize_usdc(provider_wallet.available_balance or Decimal("0")) + amount
+        )
         self._save_balance_ledger(ledger)
 
-    def _move_frozen_withdraw_to_pending(self, owner: str, amount_usdc: float) -> None:
+    def _move_frozen_withdraw_to_pending(self, owner: str, amount_usdc: Decimal) -> None:
         ledger = self._load_balance_ledger()
         provider_wallet = ledger.ensure_provider_wallet(owner)
-        frozen = round(float(provider_wallet.frozen_balance or 0.0), 6)
-        if frozen + 1e-9 < amount_usdc:
+        frozen = quantize_usdc(provider_wallet.frozen_balance or Decimal("0"))
+        amount = quantize_usdc(amount_usdc)
+        if frozen < amount:
             raise HTTPException(
                 status_code=409,
                 detail={"code": "WITHDRAWAL_FROZEN_INCONSISTENT", "message": "Frozen provider receivable is insufficient for this manual review action."},
             )
-        provider_wallet.frozen_balance = round(max(0.0, frozen - amount_usdc), 6)
-        provider_wallet.pending_balance = round(float(provider_wallet.pending_balance or 0.0) + amount_usdc, 6)
+        provider_wallet.frozen_balance = quantize_usdc(max(Decimal("0"), frozen - amount))
+        provider_wallet.pending_balance = quantize_usdc(
+            quantize_usdc(provider_wallet.pending_balance or Decimal("0")) + amount
+        )
         self._save_balance_ledger(ledger)

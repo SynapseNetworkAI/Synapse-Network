@@ -12,7 +12,7 @@ const RPC_URL = process.env.RPC_URL || "http://127.0.0.1:8545";
 const CHAIN_ID = Number(process.env.CHAIN_ID || 31337);
 const DEPOSIT_USDC = process.env.DEPOSIT_USDC || "10.0";
 
-const DEPLOYER_KEY = process.env.DEPLOYER_KEY || "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
+const DEPLOYER_KEY = (process.env.DEPLOYER_KEY || "").trim();
 const BUYER_KEY = process.env.BUYER_KEY || ethers.Wallet.createRandom().privateKey;
 
 const REPO_ROOT = (() => {
@@ -196,7 +196,7 @@ async function waitForGatewayDeposit(token, address, txHash, amountUsdc) {
   const intentKey = `credits-deposit-${Date.now()}`;
   const intent = await apiPost(
     "/v1/balance/deposit/intent",
-    { txHash, amountUsdc: Number.parseFloat(amountUsdc) },
+    { txHash, amountUsdc: String(amountUsdc) },
     token,
     address,
     intentKey
@@ -216,7 +216,7 @@ async function waitForGatewayDeposit(token, address, txHash, amountUsdc) {
     }
     const balance = await apiGet("/v1/balance", token, address);
     const available = Number(balance.body?.balance?.consumerAvailableBalance ?? 0);
-    if (available >= Number.parseFloat(amountUsdc) - 0.01) {
+    if (available >= Number(amountUsdc) - 0.01) {
       ok(`Balance synced to ${available.toFixed(2)} USDC`);
       return;
     }
@@ -484,6 +484,9 @@ async function runBrowserFlow(token, address, withdrawAmount) {
 }
 
 async function main() {
+  if (!DEPLOYER_KEY) {
+    throw new Error("DEPLOYER_KEY must be set explicitly.");
+  }
   section("Credits Deposit + Withdraw Validation");
 
   const healthChecks = await Promise.all([

@@ -11,7 +11,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # level, so repo root is two levels up from scripts/local, not three.
 ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 PID_FILE="${ROOT_DIR}/.local_env.pids"
-PYTHON_RESOLVER="${ROOT_DIR}/scripts/python/resolve_python_311.sh"
+PYTHON_RESOLVER="${ROOT_DIR}/scripts/python/resolve_python_313.sh"
 REQUIRED_NODE_VERSION="20.19.0"
 REQUIRED_YARN_VERSION="1.22.22"
 export HARDHAT_DISABLE_TELEMETRY_PROMPT="${HARDHAT_DISABLE_TELEMETRY_PROMPT:-true}"
@@ -239,7 +239,7 @@ if [[ -n "$EXISTING_PROVIDER_PID" ]]; then
 fi
 
 LOCAL_ENV_FILE="${ROOT_DIR}/services/gateway/.env.local"
-DEFAULT_LOCAL_POSTGRES_DSN="postgresql://synapse:12345678@127.0.0.1:5432/synapse_gateway"
+DEFAULT_LOCAL_POSTGRES_DSN="postgresql://synapse:local-dev-postgres-password@127.0.0.1:5432/synapse_gateway"
 
 # Prefer: explicit shell export > .env.local POSTGRES_DSN > hardcoded default.
 # The gateway loads .env.local with override=False, so an explicit POSTGRES_DSN

@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AdminShell } from "@/components/admin-shell";
 import { ControlPlaneLoadingScreen } from "@/components/control-plane-loading-screen";
 import { DataTable, MessageBanner, MetricCard, MetricLabelWithHint, SentinelStatusChip, SurfaceCard, TableBody, TableHeaderRow, Td, Th } from "@/components/console-ui";
-import { getApprovalStatusLabel, getApprovalTypeLabel } from "@/features/approval/approval-presenters";
+import { getApprovalStatusLabel, getApprovalStatusTone, getApprovalTypeLabel } from "@/features/approval/approval-presenters";
 import { CapitalPulseSurface } from "@/features/finance/capital-pulse-surface";
 import { CapitalPulseTrendSurface } from "@/features/finance/capital-pulse-trend-surface";
 import {
@@ -20,7 +20,7 @@ import {
   filterFinanceApprovals,
   getVaultDeltaTone,
 } from "@/features/finance/finance-presenters";
-import { formatDateTime, formatUsdc, toneFromStatus } from "@/lib/admin-console";
+import { formatDateTime, formatUsdc } from "@/lib/admin-console";
 import { useAdminSession } from "@/lib/use-admin-session";
 import {
   getActivityTrends,
@@ -221,7 +221,7 @@ export default function FinancePage() {
                   <Text color="ink.500">{item.approvalType}</Text>
                 </Td>
                 <Td>{formatUsdc(item.amountUsdc)}</Td>
-                <Td><SentinelStatusChip label={getApprovalStatusLabel(item.status)} tone={toneFromStatus(item.status)} /></Td>
+                <Td><SentinelStatusChip label={getApprovalStatusLabel(item.status)} tone={getApprovalStatusTone(item.status)} /></Td>
                 <Td>{formatDateTime(item.createdAt)}</Td>
               </Box>
             ))}

@@ -21,7 +21,7 @@ cd /Users/cliff/workspace/Synapse-Network
 docker-compose -f docker-compose/docker-compose.yml up -d postgres
 
 cd admin/gateway-admin
-python3.11 -m venv .venv
+python3.13 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 sh scripts/ops/start-local.sh

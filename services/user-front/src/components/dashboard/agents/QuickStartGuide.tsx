@@ -6,6 +6,7 @@ import { parseAbi, parseUnits, type Hex } from "viem";
 import { ChevronRight, Zap, Lock, Rocket, CheckCircle2, RefreshCw, AlertCircle, X } from "lucide-react";
 import contractConfig from "@/contract-config.json";
 import { createDepositIntent } from "@/utils/balanceApi";
+import { normalizeMoneyString } from "@/utils/money";
 import { resolvePermitDomainChainId } from "@/utils/permitChain";
 import toast from "react-hot-toast";
 
@@ -169,7 +170,7 @@ export default function QuickStartGuide({ onDepositComplete, onAgentCreated }: R
       if (userAddress) {
         createDepositIntent(userAddress, {
           txHash: hash,
-          amountUsdc: Number(depositAmount)
+          amountUsdc: normalizeMoneyString(depositAmount),
         }).catch(console.error);
       }
     }

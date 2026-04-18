@@ -60,27 +60,27 @@ Synapse 当前不应把 `gateway`、`provider_service`、`admin/gateway-admin`�
 
 ## 3. 推荐策略
 
-### 3.1 基线选择：统一到 3.11.x，而不是 3.14.x
+### 3.1 基线选择：统一到 3.13.x
 
-推荐把整个仓库的 Python minor version 基线统一到 `3.11.x`。
+推荐把整个仓库的 Python minor version 基线统一到 `3.13.x`。
 
 不建议把仓库基线直接推到 `3.14.x`，原因是：
 
-1. `3.11` 已经是成熟稳定版本，FastAPI、Pydantic、Web3、pytest、构建工具链兼容性更稳
-2. `3.11` 性能已经足够优秀，能拿到现代 CPython 的主流收益，而不用承受过新版本的生态抖动
-3. 生产、CI、本地协作最怕“有人是 3.11，有人是 3.14”，统一到 `3.11.x` 更容易复制环境
-4. 仓库里已经出现过针对 `Python 3.14` 运行时行为差异的规避注释，这说明它更适合实验，不适合当前仓库作为统一基线
+1. `3.13` 允许直接使用 `typing.Self` 和更严格的现代类型写法，适合当前仓库的资金安全收口
+2. `3.13` 对金融与结算路径的静态检查收益更高，能减少 `float` / 宽松签名继续渗透
+3. 生产、CI、本地协作最怕 minor version 漂移，统一到 `3.13.x` 更容易复制环境
+4. 统一 minor version 比“部分目录 3.12、部分目录 3.13”更不容易在资金与后台链路上产生隐性行为差异
 
 结论：
 
-1. `3.11.x` 作为 Synapse 当前仓库基线
-2. `3.14.x` 可以用于个人实验，不作为团队默认开发、CI、生产脚本基线
+1. `3.13.x` 作为 Synapse 当前仓库基线
+2. 其他 minor version 可以用于个人实验，不作为团队默认开发、CI、生产脚本基线
 
 ### 3.2 统一版本，不统一实例
 
 推荐策略是：
 
-1. 整个仓库统一一个 Python minor version 基线：`3.11.x`
+1. 整个仓库统一一个 Python minor version 基线：`3.13.x`
 2. 每个 Python 子项目各自维护自己的 `.venv`
 3. 每个子项目只安装自己声明的依赖
 4. 测试、启动、构建都从本目录的 `.venv/bin/python` 触发
@@ -119,7 +119,7 @@ Synapse 当前不应把 `gateway`、`provider_service`、`admin/gateway-admin`�
 
 ```bash
 cd /Users/cliff/workspace/Synapse-Network/gateway
-python3.11 -m venv .venv
+python3.13 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements.txt
 PYTHONPATH="$PWD" .venv/bin/python -m pytest -q
@@ -129,7 +129,7 @@ PYTHONPATH="$PWD" .venv/bin/python -m pytest -q
 
 ```bash
 cd /Users/cliff/workspace/Synapse-Network/admin/gateway-admin
-python3.11 -m venv .venv
+python3.13 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements.txt
 .venv/bin/python -m pytest -q
@@ -139,7 +139,7 @@ python -m pip install -r requirements.txt
 
 ```bash
 cd /Users/cliff/workspace/Synapse-Network/provider_service
-python3.11 -m venv .venv
+python3.13 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements.txt
 .venv/bin/python -m pytest -q
@@ -149,7 +149,7 @@ python -m pip install -r requirements.txt
 
 ```bash
 cd /Users/cliff/workspace/Synapse-Network/sdk/python
-python3.11 -m venv .venv
+python3.13 -m venv .venv
 source .venv/bin/activate
 python -m pip install -e ".[dev]"
 PYTHONPATH="$PWD" .venv/bin/python -m pytest synapse_client/test/test_client_unit.py -q
@@ -196,7 +196,7 @@ SDK 的测试与构建必须在它自己的环境里完成，否则就无法证�
 
 1. 停止在 `docs/sdk/README.md` 里使用 `admin/gateway-admin/.venv/bin/python` 作为 SDK 默认解释器
 2. 明确四个目录各自的 `.venv` 是默认事实源
-3. 在仓库根目录固定 `.python-version = 3.11`，并让 CI 和脚本都解析 `Python 3.11`
+3. 在仓库根目录固定 `.python-version = 3.13`，并让 CI 和脚本都解析 `Python 3.13`
 4. CI 继续按目录分别建环境与执行测试
 5. 后续如果要统一依赖上限，可引入共享 `constraints` 文件，但仍保持目录级虚拟环境隔离
 

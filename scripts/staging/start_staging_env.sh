@@ -12,8 +12,8 @@ find_pid_by_port() {
   lsof -t -nP -iTCP:"$port" -sTCP:LISTEN 2>/dev/null | head -n 1 || true
 }
 
-if [[ ! -f "${ROOT_DIR}/scripts/python/resolve_python_311.sh" ]]; then
-  echo "Error: Python resolver script not found at ${ROOT_DIR}/scripts/python/resolve_python_311.sh"
+if [[ ! -f "${ROOT_DIR}/scripts/python/resolve_python_313.sh" ]]; then
+  echo "Error: Python resolver script not found at ${ROOT_DIR}/scripts/python/resolve_python_313.sh"
   exit 1
 fi
 
@@ -24,7 +24,7 @@ if [[ -x "${ROOT_DIR}/services/gateway/.venv/bin/python" ]]; then
 elif [[ -x "${ROOT_DIR}/services/gateway/venv/bin/python" ]]; then
   PYTHON_BIN="${ROOT_DIR}/services/gateway/venv/bin/python"
 else
-  PYTHON_BIN="$(bash "${ROOT_DIR}/scripts/python/resolve_python_311.sh")"
+  PYTHON_BIN="$(bash "${ROOT_DIR}/scripts/python/resolve_python_313.sh")"
 fi
 
 echo "=== Starting Synapse staging profile (gateway/provider_fastapi.py only) ==="

@@ -21,6 +21,12 @@ import {
   type ProviderWithdrawRecord,
   type ProviderWithdrawTicket,
 } from "@/utils/providerWithdrawApi";
+import {
+  compareMoneyStrings,
+  formatMoneyString,
+  normalizeMoneyString,
+  type MoneyString,
+} from "@/utils/money";
 import { normalizeWithdrawWalletError, toSafeErrorMessage } from "@/utils/providerWithdrawWallet";
 
 const VAULT_ADDRESS = (contractConfig as { SynapseCore?: string }).SynapseCore as `0x${string}` | undefined;
@@ -96,7 +102,7 @@ function resolveTicketContractAddress(ticket: ProviderWithdrawTicket): `0x${stri
 
 function validateRequestedWithdrawAmount(
   requestedAmount: string,
-  availableReceivable: number,
+  availableReceivable: MoneyString,
   t: TranslateFn,
 ): string | null {
   if (!requestedAmount) {
@@ -106,14 +112,14 @@ function validateRequestedWithdrawAmount(
     return t("providerSettlements.invalidAmountPrecision");
   }
 
-  const parsed = Number(requestedAmount);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
+  const normalizedAmount = normalizeMoneyString(requestedAmount, "");
+  if (!normalizedAmount || normalizedAmount === "0") {
     return t("providerSettlements.invalidAmountValue");
   }
 
-  if (parsed > availableReceivable) {
+  if (compareMoneyStrings(normalizedAmount, availableReceivable) > 0) {
     return t("providerSettlements.amountExceedsAvailable", {
-      amount: availableReceivable.toFixed(6),
+      amount: formatMoneyString(availableReceivable, 6),
     });
   }
 
@@ -171,7 +177,7 @@ export default function ProviderWithdrawPage() {
     contractRejectedWithReason: (reason: string) => t("providerSettlements.contractRejectedWithReason", { reason }),
   }), [t]);
 
-  const availableReceivable = Number(providerStats.receivable || 0);
+  const availableReceivable = normalizeMoneyString(providerStats.receivable);
 
   const { data: nativeBalanceData } = useBalance({ address });
   const { data: txHash, writeContractAsync, isPending: isWalletPrompting } = useWriteContract();
@@ -306,12 +312,12 @@ export default function ProviderWithdrawPage() {
     return validateRequestedWithdrawAmount(withdrawAmountInput.trim(), availableReceivable, t);
   }, [availableReceivable, t, withdrawAmountInput]);
 
-  const resolveRequestedWithdrawAmount = (): number | undefined => {
+  const resolveRequestedWithdrawAmount = (): MoneyString | undefined => {
     const requestedAmount = withdrawAmountInput.trim();
-    return requestedAmount ? Number(requestedAmount) : undefined;
+    return requestedAmount ? normalizeMoneyString(requestedAmount) : undefined;
   };
 
-  const validateWithdrawIntentReadiness = async (amountUsdc: number): Promise<void> => {
+  const validateWithdrawIntentReadiness = async (amountUsdc: MoneyString): Promise<void> => {
     if (!publicClient) {
       throw new Error(t("providerSettlements.walletClientUnavailable"));
     }
@@ -319,7 +325,7 @@ export default function ProviderWithdrawPage() {
       throw new Error(t("providerSettlements.vaultLiquidityInsufficient"));
     }
 
-    const requestedAmountWei = parseUnits(amountUsdc.toFixed(6), 18);
+    const requestedAmountWei = parseUnits(amountUsdc, 18);
     const vaultUsdcBalance = await publicClient.readContract({
       address: USDC_TOKEN_ADDRESS,
       abi: ERC20_BALANCE_OF_ABI,
@@ -570,7 +576,7 @@ export default function ProviderWithdrawPage() {
             </p>
             <div className="flex items-center gap-2">
               <p className="text-[24px] font-bold leading-[32px] tracking-[-0.02em] text-white">
-                {availableReceivable.toFixed(6)} USDC
+                {formatMoneyString(availableReceivable, 6)} USDC
               </p>
             </div>
           </div>
@@ -582,7 +588,7 @@ export default function ProviderWithdrawPage() {
                   if (!isConnected) { openConnectModal?.(); return; }
                   setShowAmountInput((prev) => !prev);
                 }}
-                disabled={!isConnected || availableReceivable <= 0 || isAnyLoading || !ticketSigningEnabled || loadingWithdrawCapability || !hasEnoughGas}
+                disabled={!isConnected || compareMoneyStrings(availableReceivable, "0") <= 0 || isAnyLoading || !ticketSigningEnabled || loadingWithdrawCapability || !hasEnoughGas}
                 className="inline-flex h-[36px] min-w-[143px] items-center justify-center whitespace-nowrap rounded-full border border-[#2f3336] bg-transparent px-4 py-2 text-[14px] font-normal leading-[20px] text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {generateClaimLabel}
@@ -628,11 +634,11 @@ export default function ProviderWithdrawPage() {
                 <button
                   type="button"
                   onClick={() => {
-                    if (availableReceivable > 0) {
-                      setWithdrawAmountInput(availableReceivable.toFixed(2));
+                    if (compareMoneyStrings(availableReceivable, "0") > 0) {
+                      setWithdrawAmountInput(formatMoneyString(availableReceivable, 2).replace(/,/g, ""));
                     }
                   }}
-                  disabled={availableReceivable <= 0 || isAnyLoading}
+                  disabled={compareMoneyStrings(availableReceivable, "0") <= 0 || isAnyLoading}
                   className="mr-3 text-[11px] font-bold uppercase tracking-[0.06em] text-[#22c55e] transition hover:text-[#86efac] disabled:opacity-30 disabled:cursor-not-allowed"
                 >
                   MAX
@@ -750,7 +756,7 @@ export default function ProviderWithdrawPage() {
             {filteredWithdrawals.map((row) => (
               <tr key={row.id} className="hover:bg-[#111111] transition-colors">
                 <td className="py-4 px-6 text-xs font-mono text-[#86868b]">{row.id}</td>
-                <td className="px-6 py-4 font-mono text-sm text-right text-white">{row.amountUsdc.toFixed(6)} USDC</td>
+                <td className="px-6 py-4 font-mono text-sm text-right text-white">{formatMoneyString(row.amountUsdc, 6)} USDC</td>
                 <td className="px-6 py-4 text-xs">
                   <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${withdrawalStatusBadgeClass(row.status)}`}>
                     {withdrawalStatusLabel(row.status, t)}

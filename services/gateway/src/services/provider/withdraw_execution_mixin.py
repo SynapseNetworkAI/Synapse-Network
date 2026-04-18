@@ -31,6 +31,7 @@ from src.services.provider.withdraw_helpers_mixin import (
     MANUAL_REVIEW_APPROVED_MESSAGE,
 )
 from src.utils.datetime_utils import now_dt_str
+from src.utils.money import money_str, parse_usdc, quantize_usdc, usdc_decimal_to_atomic
 
 
 class ProviderWithdrawExecutionMixin:
@@ -39,22 +40,23 @@ class ProviderWithdrawExecutionMixin:
     def _reserve_withdraw_amount(
         self,
         owner: str,
-        amount_usdc: float,
+        amount_usdc: Decimal,
         ledger: BalanceLedger,
         *,
         lock_to_frozen: bool = False,
     ) -> None:
+        amount = quantize_usdc(amount_usdc)
         provider_wallet = ledger.ensure_provider_wallet(owner)
-        provider_wallet.available_balance = round(
-            float(provider_wallet.available_balance or 0.0) - amount_usdc, 6
+        provider_wallet.available_balance = quantize_usdc(
+            parse_usdc(provider_wallet.available_balance) - amount
         )
         if lock_to_frozen:
-            provider_wallet.frozen_balance = round(
-                float(provider_wallet.frozen_balance or 0.0) + amount_usdc, 6
+            provider_wallet.frozen_balance = quantize_usdc(
+                parse_usdc(provider_wallet.frozen_balance) + amount
             )
         else:
-            provider_wallet.pending_balance = round(
-                float(provider_wallet.pending_balance or 0.0) + amount_usdc, 6
+            provider_wallet.pending_balance = quantize_usdc(
+                parse_usdc(provider_wallet.pending_balance) + amount
             )
         reserve_provider_withdraw_atomic = getattr(
             self.storage, "reserve_provider_withdraw_atomic", None  # type: ignore[attr-defined]
@@ -64,9 +66,7 @@ class ProviderWithdrawExecutionMixin:
                 reserve_provider_withdraw_atomic(
                     ReserveProviderWithdrawCommand(
                         owner_wallet=owner,
-                        amount_usdc=Decimal(str(amount_usdc)).quantize(
-                            Decimal("0.000001"), rounding=ROUND_HALF_UP
-                        ),
+                        amount_usdc=amount,
                     )
                 )
             except RuntimeError as exc:
@@ -86,13 +86,14 @@ class ProviderWithdrawExecutionMixin:
         self,
         *,
         owner: str,
-        amount_usdc: float,
+        amount_usdc: Decimal,
         force_sign: bool = False,
     ) -> PreparedWithdrawTicket:
+        amount = quantize_usdc(amount_usdc)
         requires_manual_review = (
-            amount_usdc >= settings.withdrawal_auto_single_limit_usdc
+            amount >= parse_usdc(str(settings.withdrawal_auto_single_limit_usdc))
         ) and not force_sign
-        amount_wei = int(round(amount_usdc * float(10**USDC_DECIMALS)))
+        amount_wei = usdc_decimal_to_atomic(amount, decimals=USDC_DECIMALS)
 
         if requires_manual_review:
             return PreparedWithdrawTicket(
@@ -170,12 +171,13 @@ class ProviderWithdrawExecutionMixin:
         owner: str,
         rows: List[WithdrawalIntentRow],
         target: WithdrawalIntentRow,
-        amount_usdc: float,
+        amount_usdc: Decimal,
         reviewer_address: str,
         reviewer_note: str,
         request_meta: Optional[dict[str, Any]],
     ) -> dict[str, Any]:
-        self._release_frozen_withdraw_to_available(owner, amount_usdc)  # type: ignore[attr-defined]
+        amount = quantize_usdc(amount_usdc)
+        self._release_frozen_withdraw_to_available(owner, amount)  # type: ignore[attr-defined]
         now = int(time.time())
         now_text = now_dt_str()
         target.status = "REJECTED"
@@ -191,7 +193,7 @@ class ProviderWithdrawExecutionMixin:
             owner,
             {
                 "withdrawalId": str(target.id or ""),
-                "amountUsdc": amount_usdc,
+                "amountUsdc": money_str(amount),
                 "reviewerAddress": reviewer_address,
                 "reviewerNote": reviewer_note,
                 "requestMeta": request_meta or {},
@@ -200,7 +202,7 @@ class ProviderWithdrawExecutionMixin:
         return {
             "withdrawalId": str(target.id or ""),
             "status": "REJECTED",
-            "amountUsdc": amount_usdc,
+            "amountUsdc": money_str(amount),
             "ticket": {},
             "message": MANUAL_REVIEW_REJECT_MESSAGE,
         }
@@ -211,18 +213,19 @@ class ProviderWithdrawExecutionMixin:
         owner: str,
         rows: List[WithdrawalIntentRow],
         target: WithdrawalIntentRow,
-        amount_usdc: float,
+        amount_usdc: Decimal,
         reviewer_address: str,
         reviewer_note: str,
         request_meta: Optional[dict[str, Any]],
     ) -> dict[str, Any]:
-        self._assert_withdraw_vault_liquidity(Decimal(str(amount_usdc)))  # type: ignore[attr-defined]
+        amount = quantize_usdc(amount_usdc)
+        self._assert_withdraw_vault_liquidity(amount)  # type: ignore[attr-defined]
         ticket_payload = self._prepare_withdraw_ticket(
             owner=owner,
-            amount_usdc=amount_usdc,
+            amount_usdc=amount,
             force_sign=True,
         )
-        self._move_frozen_withdraw_to_pending(owner, amount_usdc)  # type: ignore[attr-defined]
+        self._move_frozen_withdraw_to_pending(owner, amount)  # type: ignore[attr-defined]
 
         now = int(time.time())
         now_text = now_dt_str()
@@ -247,7 +250,7 @@ class ProviderWithdrawExecutionMixin:
         response = {
             "withdrawalId": str(target.id or ""),
             "status": "APPROVED_AUTO",
-            "amountUsdc": amount_usdc,
+            "amountUsdc": money_str(amount),
             "ticket": dict(ticket_payload.ticket),
             "message": MANUAL_REVIEW_APPROVED_MESSAGE,
         }
@@ -256,7 +259,7 @@ class ProviderWithdrawExecutionMixin:
             owner,
             {
                 "withdrawalId": response["withdrawalId"],
-                "amountUsdc": amount_usdc,
+                "amountUsdc": money_str(amount),
                 "reviewerAddress": reviewer_address,
                 "reviewerNote": reviewer_note,
                 "requestMeta": request_meta or {},
@@ -268,7 +271,7 @@ class ProviderWithdrawExecutionMixin:
         self, owner: str, amount_usdc: Decimal
     ) -> PreparedWithdrawTicket:
         return self._prepare_withdraw_ticket(
-            owner=owner, amount_usdc=float(amount_usdc)
+            owner=owner, amount_usdc=amount_usdc
         )
 
     def process_withdrawal_request(
@@ -307,7 +310,7 @@ class ProviderWithdrawExecutionMixin:
         self,
         *,
         owner: str,
-        amount_usdc: float,
+        amount_usdc: Decimal,
         idempotency_key: str,
         request_hash: str,
         request_meta: Optional[dict[str, Any]],
@@ -318,9 +321,7 @@ class ProviderWithdrawExecutionMixin:
         atomic_result = self.process_withdrawal_request(
             WithdrawalAtomicRequestCommand(
                 provider_address=owner,
-                amount_usdc=Decimal(str(amount_usdc)).quantize(
-                    Decimal("0.000001"), rounding=ROUND_HALF_UP
-                ),
+                amount_usdc=quantize_usdc(amount_usdc),
                 request_id=request_id,
                 idempotency_key=idempotency_key,
                 request_meta=request_meta,
@@ -337,7 +338,7 @@ class ProviderWithdrawExecutionMixin:
         response = {
             "withdrawalId": atomic_result.withdrawal_id,
             "status": atomic_result.status,
-            "amountUsdc": atomic_result.amount_usdc,
+            "amountUsdc": money_str(atomic_result.amount_usdc),
             "ticket": dict(atomic_result.ticket),
             "message": atomic_result.message,
         }
@@ -379,7 +380,7 @@ class ProviderWithdrawExecutionMixin:
         *,
         rows: List[WithdrawalIntentRow],
         owner: str,
-        amount_usdc: float,
+        amount_usdc: Decimal,
         idempotency_key: str,
         request_hash: str,
         redis_client: Optional[Any],
@@ -391,7 +392,7 @@ class ProviderWithdrawExecutionMixin:
 
         if (
             self._withdraw_owner(pending) == owner  # type: ignore[attr-defined]
-            and round(float(pending.amount_usdc or 0.0), 6) == amount_usdc
+            and quantize_usdc(pending.amount_usdc or Decimal("0")) == quantize_usdc(amount_usdc)
         ):
             response = self._build_pending_withdraw_response(pending)  # type: ignore[attr-defined]
             await self._finish_provider_withdraw_idempotency(  # type: ignore[attr-defined]
@@ -416,7 +417,7 @@ class ProviderWithdrawExecutionMixin:
         self,
         *,
         owner: str,
-        amount_usdc: float,
+        amount_usdc: Decimal,
         idempotency_key: str,
         request_meta: Optional[dict[str, Any]],
         ticket_payload: PreparedWithdrawTicket,
@@ -437,7 +438,7 @@ class ProviderWithdrawExecutionMixin:
         row = WithdrawalIntentRow(
             id=withdrawal_id,
             ownerAddress=owner,
-            amountUsdc=Decimal(str(amount_usdc)),
+            amountUsdc=quantize_usdc(amount_usdc),
             amountWei=str(ticket_payload.amount_wei),
             feeWei=str(ticket_payload.fee_wei),
             nonce=ticket_payload.nonce,
@@ -459,7 +460,7 @@ class ProviderWithdrawExecutionMixin:
         response = {
             "withdrawalId": withdrawal_id,
             "status": status,
-            "amountUsdc": amount_usdc,
+            "amountUsdc": money_str(amount_usdc),
             "ticket": dict(ticket_payload.ticket),
             "message": message,
         }

@@ -2,24 +2,31 @@
 """
 Consumer withdrawal verification script.
 Run from services/gateway/:
-  PYTHONPATH=. .venv/bin/python3.11 scripts/verify_consumer_withdraw.py
+  PYTHONPATH=. .venv/bin/python3.13 scripts/verify_consumer_withdraw.py
 """
 from __future__ import annotations
-import json, time, uuid
+import json, os, time, uuid
+from decimal import Decimal
 from pathlib import Path
 
 import httpx
 from eth_account import Account
 
 GATEWAY_BASE = "http://127.0.0.1:8000"
-OWNER_KEY = "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"
+OWNER_KEY = os.getenv("OWNER_PRIVATE_KEY", "").strip()
 SCREENSHOTS_DIR = Path(__file__).parents[3] / "docs" / "screenshots"
 SCREENSHOTS_DIR.mkdir(parents=True, exist_ok=True)
 
-WITHDRAW_AMOUNT = 5.0  # $5 USDC (small enough to leave balance for other tests)
+WITHDRAW_AMOUNT = Decimal("5.0")  # $5 USDC (small enough to leave balance for other tests)
+
+
+def money(value) -> Decimal:
+    return Decimal(str(value or "0"))
 
 
 def auth():
+    if not OWNER_KEY:
+        raise RuntimeError("OWNER_PRIVATE_KEY must be set explicitly.")
     from tests.e2e.helpers.auth import authenticate_wallet
     token, _ = authenticate_wallet(GATEWAY_BASE, OWNER_KEY)
     acct = Account.from_key(OWNER_KEY)
@@ -40,12 +47,12 @@ def balance_full(hdrs: dict) -> dict:
     return r.json().get("balance", {})
 
 
-def withdraw(hdrs: dict, amount_usdc: float, reason: str = "verification") -> tuple[int, dict]:
+def withdraw(hdrs: dict, amount_usdc: Decimal, reason: str = "verification") -> tuple[int, dict]:
     idem = uuid.uuid4().hex
     r = httpx.post(
         f"{GATEWAY_BASE}/api/v1/balance/consumer/withdraw",
         headers={**hdrs, "X-Idempotency-Key": idem},
-        json={"amountUsdc": amount_usdc, "reason": reason},
+        json={"amountUsdc": format(amount_usdc, "f"), "reason": reason},
         timeout=15,
     )
     return r.status_code, r.json()
@@ -67,8 +74,8 @@ def main() -> None:
     # ── Step 1: Before balance ────────────────────────────────────────────────
     print("Step 1: Balance BEFORE withdrawal")
     b_before = balance_full(hdrs)
-    avail_before = float(b_before.get("consumerAvailableBalance", 0))
-    pend_before  = float(b_before.get("consumerPendingBalance", 0))
+    avail_before = money(b_before.get("consumerAvailableBalance", 0))
+    pend_before  = money(b_before.get("consumerPendingBalance", 0))
     rows_before = list_withdrawals(hdrs)
     active_before = [
         row for row in rows_before
@@ -80,7 +87,7 @@ def main() -> None:
 
     if avail_before < WITHDRAW_AMOUNT:
         print(f"\n  ⚠ available ({avail_before}) < withdraw amount ({WITHDRAW_AMOUNT}). Using max available.")
-        actual_amount = round(avail_before * 0.5, 2) if avail_before > 1 else avail_before
+        actual_amount = (avail_before * Decimal("0.5")).quantize(Decimal("0.01")) if avail_before > Decimal("1") else avail_before
     else:
         actual_amount = WITHDRAW_AMOUNT
 
@@ -97,9 +104,9 @@ def main() -> None:
     time.sleep(0.5)
     print("\nStep 3: Balance AFTER withdrawal")
     b_after = balance_full(hdrs)
-    avail_after = float(b_after.get("consumerAvailableBalance", 0))
-    pend_after  = float(b_after.get("consumerPendingBalance", 0))
-    froz_after  = float(b_after.get("consumerFrozenBalance", 0))
+    avail_after = money(b_after.get("consumerAvailableBalance", 0))
+    pend_after  = money(b_after.get("consumerPendingBalance", 0))
+    froz_after  = money(b_after.get("consumerFrozenBalance", 0))
     print(f"  consumer_available_balance : ${avail_after:.6f}  (delta: {avail_after - avail_before:+.6f})")
     print(f"  consumer_pending_balance   : ${pend_after:.6f}  (delta: {pend_after - pend_before:+.6f})")
     print(f"  consumer_frozen_balance    : ${froz_after:.6f}")
@@ -107,7 +114,7 @@ def main() -> None:
     # ── Step 4: Verify ────────────────────────────────────────────────────────
     print("\nStep 4: Assertions")
     if active_before:
-        balance_ok = abs(avail_after - avail_before) < 0.001 and abs(pend_after - pend_before) < 0.001
+        balance_ok = abs(avail_after - avail_before) < Decimal("0.001") and abs(pend_after - pend_before) < Decimal("0.001")
         print(
             f"  active request returned without double deduction: {'PASS ✓' if balance_ok else 'FAIL ✗'}"
         )
@@ -116,8 +123,8 @@ def main() -> None:
             f"before=({avail_before:.6f},{pend_before:.6f}) after=({avail_after:.6f},{pend_after:.6f})"
         )
     else:
-        balance_ok = abs(avail_after - (avail_before - actual_amount)) < 0.001
-        pending_ok = abs(pend_after - (pend_before + actual_amount)) < 0.001
+        balance_ok = abs(avail_after - (avail_before - actual_amount)) < Decimal("0.001")
+        pending_ok = abs(pend_after - (pend_before + actual_amount)) < Decimal("0.001")
         print(f"  available decreased by ${actual_amount:.2f}: {'PASS ✓' if balance_ok else 'FAIL ✗'}")
         print(f"  pending increased by ${actual_amount:.2f}: {'PASS ✓' if pending_ok else 'FAIL ✗'}")
         assert balance_ok, f"Balance error: expected {avail_before - actual_amount:.6f}, got {avail_after:.6f}"
@@ -213,7 +220,7 @@ pre{{background:#0a0a0a;border:1px solid #222;padding:12px;border-radius:8px;fon
 <tr><th>Check</th><th>Result</th></tr>
 <tr><td>available_balance decreased by ${amount:.2f} USDC</td><td>{badge(balance_ok)}</td></tr>
 <tr><td>pending_balance increased by ${amount:.2f} USDC (funds frozen)</td>
-  <td>{badge(abs(pend_after - pend_before - amount) < 0.001)}</td></tr>
+  <td>{badge(abs(pend_after - pend_before - amount) < Decimal("0.001"))}</td></tr>
 <tr><td>Withdrawal record appears in /api/v1/balance/consumer/withdrawals</td><td>{badge(record_ok)}</td></tr>
 </table>
 

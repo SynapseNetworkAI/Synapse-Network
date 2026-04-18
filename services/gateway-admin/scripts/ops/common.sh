@@ -40,7 +40,7 @@ resolve_python_bin() {
     echo "${APP_DIR}/.venv/bin/python"
     return 0
   fi
-  bash "${REPO_ROOT}/scripts/python/resolve_python_311.sh"
+  bash "${REPO_ROOT}/scripts/python/resolve_python_313.sh"
 }
 
 resolve_uvicorn_bin() {

@@ -9,7 +9,10 @@ import {
   getAnalyticsProviderRevenue,
   getAnalyticsRiskHealth,
   getCurrentAdmin,
+  listApprovals,
+  listExecutionJobs,
   listProviderServices,
+  listProviderWithdrawReviews,
   updateProviderServiceLifecycle,
   resolveAdminApiBaseUrl,
 } from "./admin-api";
@@ -171,7 +174,34 @@ describe("provider services API adapters", () => {
       status: 200,
       json: async () => ({
         success: true,
-        data: { items: [], page: 1, pageSize: 20, totalCount: 0, totalPages: 1 },
+        data: {
+          items: [],
+          page: 1,
+          pageSize: 20,
+          totalCount: 0,
+          totalPages: 1,
+          service: {
+            serviceId: "svc_quotes",
+            ownerAddress: "0xabc",
+            serviceName: "Quotes",
+            summary: "Quote endpoint",
+            tags: ["quote"],
+            pricing: {
+              amount: "1.00",
+              currency: "USDC",
+            },
+            controlStatus: "active",
+            status: "active",
+            isActive: true,
+            runtimeStatus: "healthy",
+            runtimeAvailable: true,
+            probeTier: "standard",
+            health: {},
+            targets: [],
+            createdAt: "2026-03-21T10:00:00Z",
+            updatedAt: "2026-03-21T10:00:00Z",
+          },
+        },
         requestId: "req_provider_services",
       }),
     }) as typeof fetch;
@@ -207,5 +237,142 @@ describe("provider services API adapters", () => {
     const [, init] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0] ?? [];
     expect(init?.method).toBe("POST");
     expect(init?.body).toBe(JSON.stringify({ action: "PAUSE", note: "ops pause" }));
+  });
+});
+
+describe("status normalization adapters", () => {
+  const originalFetch = globalThis.fetch;
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it("normalizes admin approval, withdrawal review, and execution statuses into domain types", async () => {
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          success: true,
+          data: {
+            items: [
+              {
+                approvalId: "appr-1",
+                approvalType: "provider_withdraw_review",
+                status: "SUBMITTED",
+                approvalLevel: "L2",
+                requesterRole: "ops",
+                amountUsdc: "12.00",
+                createdAt: "2026-03-21T10:00:00Z",
+              },
+            ],
+            nextCursor: null,
+          },
+          requestId: "req_approvals",
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          success: true,
+          data: {
+            items: [
+              {
+                withdrawalId: "wd-1",
+                ownerAddress: "0xabc",
+                amountUsdc: "8.00",
+                status: "PENDING_MANUAL_REVIEW",
+                requestId: null,
+                txHash: null,
+                riskLevel: "yellow",
+                riskReasonCode: "velocity_spike",
+                evidenceSummary: null,
+                message: null,
+                createdAt: "2026-03-21T10:00:00Z",
+                updatedAt: "2026-03-21T10:05:00Z",
+              },
+            ],
+            nextCursor: null,
+          },
+          requestId: "req_reviews",
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          success: true,
+          data: {
+            items: [
+              {
+                jobId: "job-1",
+                approvalId: "appr-1",
+                executionType: "withdrawal_release",
+                targetSystem: "gateway",
+                status: "EXECUTING",
+                idempotencyKey: "idem-1",
+                errorCode: null,
+                errorMessage: null,
+                retryCount: 0,
+                maxRetryCount: 3,
+                queuedBy: "ops",
+                updatedAt: "2026-03-21T11:00:00Z",
+                attempts: [
+                  {
+                    attemptNo: 1,
+                    status: "QUEUED",
+                    errorCode: null,
+                    errorSummary: null,
+                    finishedAt: null,
+                  },
+                ],
+              },
+            ],
+            nextCursor: null,
+          },
+          requestId: "req_jobs",
+        }),
+      }) as typeof fetch;
+
+    const [approvals, reviews, jobs] = await Promise.all([
+      listApprovals("cookie-session"),
+      listProviderWithdrawReviews("cookie-session"),
+      listExecutionJobs("cookie-session"),
+    ]);
+
+    expect(approvals.items[0]?.status).toBe("SUBMITTED");
+    expect(reviews.items[0]?.status).toBe("PENDING_MANUAL_REVIEW");
+    expect(reviews.items[0]?.riskLevel).toBe("yellow");
+    expect(jobs.items[0]?.status).toBe("RUNNING");
+    expect(jobs.items[0]?.attempts[0]?.status).toBe("PENDING");
+  });
+
+  it("rejects unknown canonical statuses instead of leaking raw strings past the API adapter", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        success: true,
+        data: {
+          items: [
+            {
+              approvalId: "appr-1",
+              approvalType: "provider_withdraw_review",
+              status: "WAITING_FOR_MAGIC",
+              approvalLevel: "L2",
+              requesterRole: "ops",
+              amountUsdc: "12.00",
+              createdAt: "2026-03-21T10:00:00Z",
+            },
+          ],
+          nextCursor: null,
+        },
+        requestId: "req_bad_approvals",
+      }),
+    }) as typeof fetch;
+
+    await expect(listApprovals("cookie-session")).rejects.toThrow("Unknown approval status: WAITING_FOR_MAGIC");
   });
 });

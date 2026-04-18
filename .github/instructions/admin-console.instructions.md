@@ -54,6 +54,7 @@ Do not place pagination controls above the list body unless the workflow explici
 - Prefer one column per business concept when scan speed matters.
 - Keep rows visually stable and easy to scan on desktop.
 - Secondary metadata should move to detail drawers or secondary surfaces rather than overloading the first column.
+- Approval, audit, execution, withdrawal-review, and other control-plane status chips must map from canonical domain status enums or unions defined from the backend contract; do not hardcode chip colors directly in page tables.
 
 ## Shared Primitive Bias
 

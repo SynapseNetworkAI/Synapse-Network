@@ -37,7 +37,7 @@ export default function PythonSdkPage() {
         <CodeBlock
           lang="bash"
           code={`cd /path/to/Synapse-Network-Sdk/python
-python3.11 -m venv .venv
+python3.13 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"`}
         />
@@ -81,7 +81,8 @@ auth.confirm_deposit(
         <p className="x-body-copy max-w-[700px]">{t("docsPage.sdkPyInvokeDescription")}</p>
         <CodeBlock
           lang="python"
-          code={`from synapse_client import SynapseClient, PriceMismatchError
+          code={`from decimal import Decimal
+from synapse_client import SynapseClient, PriceMismatchError
 
 issued = auth.issue_credential(
     name="consumer-agent-01",
@@ -98,7 +99,7 @@ client = SynapseClient(
 services = client.discover(limit=20)
 service = services[0]
 service_id = service.service_id
-price_usdc = float(service.price_usdc)  # price from discovery
+price_usdc = Decimal(service.price_usdc)
 
 try:
     # One call — cost_usdc locks the price the agent saw
@@ -167,4 +168,3 @@ except PriceMismatchError as err:
     </div>
   );
 }
-

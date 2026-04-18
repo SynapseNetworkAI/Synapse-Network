@@ -1,10 +1,22 @@
+import { clearAdminCsrfToken, readAdminCsrfTokenFromStorage, saveAdminCsrfToken } from "@/lib/admin-csrf-token";
+import {
+  assertApprovalStatus,
+  assertExecutionJobStatus,
+  assertProviderServiceStatus,
+  assertRiskLevel,
+  assertWithdrawalStatus,
+  type ApprovalStatus,
+  type ExecutionJobStatus,
+  type ProviderServiceStatus,
+  type RiskLevel,
+  type WithdrawalStatus,
+} from "@/domain/status";
+
 export type ApiEnvelope<T> = {
   success: boolean;
   data: T;
   requestId: string;
 };
-
-import { clearAdminCsrfToken, readAdminCsrfTokenFromStorage, saveAdminCsrfToken } from "@/lib/admin-csrf-token";
 
 export type ApiErrorEnvelope = {
   success: false;
@@ -233,9 +245,9 @@ export type AnalyticsInvocationTrendPoint = {
   bucket: string;
   invokeCompleted: number;
   invokeFailed: number;
-  gmvUsdc: number;
-  platformFeeUsdc: number;
-  providerNetUsdc: number;
+  gmvUsdc: string;
+  platformFeeUsdc: string;
+  providerNetUsdc: string;
 };
 
 export type AnalyticsInvocationRevenue = {
@@ -245,10 +257,10 @@ export type AnalyticsInvocationRevenue = {
   invokeCompletedCount: number;
   invokeFailedCount: number;
   successRate: number;
-  gmvUsdc: number;
-  priceAvgUsdc: number;
-  platformFeeUsdc: number;
-  providerNetUsdc: number;
+  gmvUsdc: string;
+  priceAvgUsdc: string;
+  platformFeeUsdc: string;
+  providerNetUsdc: string;
   latencyMs: AnalyticsLatencyPercentiles;
   failureStages: AnalyticsDistributionItem[];
   errorCodes: AnalyticsDistributionItem[];
@@ -260,25 +272,25 @@ export type AnalyticsProviderRevenue = {
   revenueProviderCount: number;
   firstRevenueProviderCount: number;
   avgTimeSinceListingMs: number;
-  providerGrossUsdc: number;
-  platformFeeUsdc: number;
-  providerNetUsdc: number;
-  pendingSettlementUsdc: number;
-  settlementCompletedUsdc: number;
+  providerGrossUsdc: string;
+  platformFeeUsdc: string;
+  providerNetUsdc: string;
+  pendingSettlementUsdc: string;
+  settlementCompletedUsdc: string;
   settlementFailureRate: number;
   settlementP95ConfirmMs: number;
   settlementFunnel: Array<{
     eventName: string;
     label: string;
     count: number;
-    amountUsdc: number;
+    amountUsdc: string;
     conversionRate: number;
   }>;
   topProviders: Array<{
     providerId: string;
     serviceId: string;
-    grossUsdc: number;
-    providerNetUsdc: number;
+    grossUsdc: string;
+    providerNetUsdc: string;
     invokeCount: number;
   }>;
 };
@@ -286,7 +298,7 @@ export type AnalyticsProviderRevenue = {
 export type AnalyticsDepositFailureSample = {
   timestamp: string;
   errorCode: string;
-  amountUsdc: number;
+  amountUsdc: string;
   env: string;
   correlationId: string;
   txHash: string;
@@ -294,11 +306,11 @@ export type AnalyticsDepositFailureSample = {
 
 export type AnalyticsMoneyFlow = {
   window: string;
-  depositUsdc: number;
+  depositUsdc: string;
   depositFailedCount: number;
-  withdrawalUsdc: number;
+  withdrawalUsdc: string;
   withdrawalFailedCount: number;
-  refundUsdc: number;
+  refundUsdc: string;
   confirmLatencyMs: AnalyticsLatencyPercentiles;
   depositErrors: AnalyticsDistributionItem[];
   depositFailureSamples: AnalyticsDepositFailureSample[];
@@ -317,17 +329,17 @@ export type AnalyticsBudgetBlock = {
   serviceId: string;
   surface: string;
   count: number;
-  requiredUsdc: number;
-  availableUsdc: number;
-  gapUsdc: number;
+  requiredUsdc: string;
+  availableUsdc: string;
+  gapUsdc: string;
 };
 
 export type AnalyticsBudgetBlockSample = {
   timestamp: string;
   serviceId: string;
   errorCode: string;
-  requiredUsdc: number;
-  availableUsdc: number;
+  requiredUsdc: string;
+  availableUsdc: string;
   correlationId: string;
   surface: string;
 };
@@ -344,7 +356,7 @@ export type AnalyticsRiskHealth = {
     count: number;
     reason: string;
   }>;
-  budgetGapUsdc: number;
+  budgetGapUsdc: string;
   budgetBlocks: AnalyticsBudgetBlock[];
   budgetBlockSamples: AnalyticsBudgetBlockSample[];
   refundReasons: AnalyticsDistributionItem[];
@@ -440,7 +452,7 @@ export type OperationsOverview = {
 export type ReconciliationApprovalItem = {
   approvalId: string;
   approvalType: string;
-  status: string;
+  status: ApprovalStatus;
   approvalLevel: string;
   requesterRole: string;
   amountUsdc: string;
@@ -492,7 +504,7 @@ export type ReconciliationDrilldownResult = {
 export type ApprovalItem = {
   approvalId: string;
   approvalType: string;
-  status: string;
+  status: ApprovalStatus;
   approvalLevel: string;
   requesterRole: string;
   amountUsdc: string;
@@ -508,10 +520,10 @@ export type ProviderWithdrawReviewItem = {
   withdrawalId: string;
   ownerAddress: string;
   amountUsdc: string;
-  status: string;
+  status: WithdrawalStatus;
   requestId: string | null;
   txHash: string | null;
-  riskLevel: string | null;
+  riskLevel: RiskLevel | null;
   riskReasonCode: string | null;
   evidenceSummary: string | null;
   message: string | null;
@@ -528,7 +540,7 @@ export type ProviderWithdrawReviewDecisionResult = {
   withdrawalId: string;
   ownerAddress: string;
   reviewDecision: string;
-  status: string;
+  status: WithdrawalStatus;
   message: string | null;
   requestedBy: string | null;
   ticket: Record<string, unknown>;
@@ -540,11 +552,11 @@ export type ProviderWithdrawReviewHistoryItem = {
   amountUsdc: string | null;
   requestId: string | null;
   txHash: string | null;
-  riskLevel: string | null;
+  riskLevel: RiskLevel | null;
   riskReasonCode: string | null;
   evidenceSummary: string | null;
   reviewDecision: string;
-  currentStatus: string;
+  currentStatus: WithdrawalStatus;
   reviewerEmail: string | null;
   reviewerRole: string | null;
   reviewerNote: string | null;
@@ -571,10 +583,10 @@ export type ProviderServiceItem = {
     amount: string;
     currency: string;
   };
-  controlStatus: string;
-  status: string;
+  controlStatus: ProviderServiceStatus;
+  status: ProviderServiceStatus;
   isActive: boolean;
-  runtimeStatus: string;
+  runtimeStatus: ProviderServiceStatus;
   runtimeAvailable: boolean;
   probeTier: string;
   health: {
@@ -589,7 +601,7 @@ export type ProviderServiceItem = {
   };
   targets: Array<{
     targetUrl: string;
-    status: string;
+    status: ProviderServiceStatus;
     httpStatus?: number | null;
     latencyMs?: number | null;
     consecutiveSuccesses?: number;
@@ -616,7 +628,7 @@ export type ProviderServiceActionResponse = {
 
 export type ProviderServiceDeleteResponse = {
   serviceId: string;
-  status: string;
+  status: ProviderServiceStatus;
 };
 
 export type AuditActionItem = {
@@ -641,7 +653,7 @@ export type AuditActionListResponse = {
 
 export type ExecutionAttemptItem = {
   attemptNo: number;
-  status: string;
+  status: ExecutionJobStatus;
   errorCode: string | null;
   errorSummary: string | null;
   finishedAt: string | null;
@@ -652,7 +664,7 @@ export type ExecutionJobItem = {
   approvalId: string;
   executionType: string;
   targetSystem: string;
-  status: string;
+  status: ExecutionJobStatus;
   idempotencyKey: string;
   errorCode: string | null;
   errorMessage: string | null;
@@ -670,9 +682,110 @@ export type ExecutionJobListResponse = {
 
 export type ExecutionRetryResult = {
   jobId: string;
-  status: string;
+  status: ExecutionJobStatus;
   retryCount: number;
 };
+
+type RawReconciliationApprovalItem = Omit<ReconciliationApprovalItem, "status"> & { status: string };
+type RawApprovalItem = Omit<ApprovalItem, "status"> & { status: string };
+type RawProviderWithdrawReviewItem = Omit<ProviderWithdrawReviewItem, "status" | "riskLevel"> & {
+  status: string;
+  riskLevel: string | null;
+};
+type RawProviderWithdrawReviewDecisionResult = Omit<ProviderWithdrawReviewDecisionResult, "status"> & { status: string };
+type RawProviderWithdrawReviewHistoryItem = Omit<ProviderWithdrawReviewHistoryItem, "currentStatus" | "riskLevel"> & {
+  currentStatus: string;
+  riskLevel: string | null;
+};
+type RawProviderServiceItem = Omit<ProviderServiceItem, "controlStatus" | "status" | "runtimeStatus" | "targets"> & {
+  controlStatus: string;
+  status: string;
+  runtimeStatus: string;
+  targets: Array<Omit<ProviderServiceItem["targets"][number], "status"> & { status: string }>;
+};
+type RawProviderServiceDeleteResponse = Omit<ProviderServiceDeleteResponse, "status"> & { status: string };
+type RawExecutionAttemptItem = Omit<ExecutionAttemptItem, "status"> & { status: string };
+type RawExecutionJobItem = Omit<ExecutionJobItem, "status" | "attempts"> & {
+  status: string;
+  attempts: RawExecutionAttemptItem[];
+};
+type RawExecutionRetryResult = Omit<ExecutionRetryResult, "status"> & { status: string };
+type RawReconciliationDetail = Omit<ReconciliationDetail, "priorityApprovals" | "depositRepairApprovals" | "pendingWithdrawalReviews"> & {
+  priorityApprovals: RawReconciliationApprovalItem[];
+  depositRepairApprovals: RawReconciliationApprovalItem[];
+  pendingWithdrawalReviews: RawProviderWithdrawReviewItem[];
+};
+type RawReconciliationDrilldownResult = Omit<ReconciliationDrilldownResult, "priorityApprovals" | "depositRepairApprovals" | "pendingWithdrawalReviews"> & {
+  priorityApprovals: RawReconciliationApprovalItem[];
+  depositRepairApprovals: RawReconciliationApprovalItem[];
+  pendingWithdrawalReviews: RawProviderWithdrawReviewItem[];
+};
+type RawApprovalListResponse = { items: RawApprovalItem[]; nextCursor: string | null };
+type RawProviderWithdrawReviewListResponse = { items: RawProviderWithdrawReviewItem[]; nextCursor: string | null };
+type RawProviderWithdrawReviewHistoryListResponse = Omit<ProviderWithdrawReviewHistoryListResponse, "items"> & {
+  items: RawProviderWithdrawReviewHistoryItem[];
+};
+type RawProviderServiceListResponse = Omit<ProviderServiceListResponse, "items"> & { items: RawProviderServiceItem[] };
+type RawProviderServiceActionResponse = { service: RawProviderServiceItem };
+type RawExecutionJobListResponse = { items: RawExecutionJobItem[]; nextCursor: string | null };
+
+function normalizeApprovalItem(item: RawApprovalItem): ApprovalItem {
+  return {
+    ...item,
+    status: assertApprovalStatus(item.status),
+  };
+}
+
+function normalizeReconciliationApprovalItem(item: RawReconciliationApprovalItem): ReconciliationApprovalItem {
+  return {
+    ...item,
+    status: assertApprovalStatus(item.status),
+  };
+}
+
+function normalizeProviderWithdrawReviewItem(item: RawProviderWithdrawReviewItem): ProviderWithdrawReviewItem {
+  return {
+    ...item,
+    status: assertWithdrawalStatus(item.status),
+    riskLevel: item.riskLevel === null ? null : assertRiskLevel(item.riskLevel),
+  };
+}
+
+function normalizeProviderWithdrawReviewHistoryItem(item: RawProviderWithdrawReviewHistoryItem): ProviderWithdrawReviewHistoryItem {
+  return {
+    ...item,
+    currentStatus: assertWithdrawalStatus(item.currentStatus),
+    riskLevel: item.riskLevel === null ? null : assertRiskLevel(item.riskLevel),
+  };
+}
+
+function normalizeProviderServiceItem(item: RawProviderServiceItem): ProviderServiceItem {
+  return {
+    ...item,
+    controlStatus: assertProviderServiceStatus(item.controlStatus),
+    status: assertProviderServiceStatus(item.status),
+    runtimeStatus: assertProviderServiceStatus(item.runtimeStatus),
+    targets: item.targets.map((target) => ({
+      ...target,
+      status: assertProviderServiceStatus(target.status),
+    })),
+  };
+}
+
+function normalizeExecutionAttemptItem(item: RawExecutionAttemptItem): ExecutionAttemptItem {
+  return {
+    ...item,
+    status: assertExecutionJobStatus(item.status),
+  };
+}
+
+function normalizeExecutionJobItem(item: RawExecutionJobItem): ExecutionJobItem {
+  return {
+    ...item,
+    status: assertExecutionJobStatus(item.status),
+    attempts: item.attempts.map(normalizeExecutionAttemptItem),
+  };
+}
 
 export type AdminUserItem = {
   adminId: string;
@@ -927,14 +1040,26 @@ export async function getOperationsOverview(token: string): Promise<OperationsOv
 }
 
 export async function getReconciliationDetail(token: string): Promise<ReconciliationDetail> {
-  return request<ReconciliationDetail>("/api/admin/v1/dashboard/reconciliation-detail");
+  const response = await request<RawReconciliationDetail>("/api/admin/v1/dashboard/reconciliation-detail");
+  return {
+    ...response,
+    priorityApprovals: response.priorityApprovals.map(normalizeReconciliationApprovalItem),
+    depositRepairApprovals: response.depositRepairApprovals.map(normalizeReconciliationApprovalItem),
+    pendingWithdrawalReviews: response.pendingWithdrawalReviews.map(normalizeProviderWithdrawReviewItem),
+  };
 }
 
 export async function getReconciliationDrilldown(
   token: string,
   locator: { ownerAddress?: string; requestId?: string; txHash?: string },
 ): Promise<ReconciliationDrilldownResult> {
-  return request<ReconciliationDrilldownResult>(buildPath("/api/admin/v1/dashboard/reconciliation-drilldown", locator));
+  const response = await request<RawReconciliationDrilldownResult>(buildPath("/api/admin/v1/dashboard/reconciliation-drilldown", locator));
+  return {
+    ...response,
+    priorityApprovals: response.priorityApprovals.map(normalizeReconciliationApprovalItem),
+    depositRepairApprovals: response.depositRepairApprovals.map(normalizeReconciliationApprovalItem),
+    pendingWithdrawalReviews: response.pendingWithdrawalReviews.map(normalizeProviderWithdrawReviewItem),
+  };
 }
 
 export async function getDashboardDiagnostics(token: string): Promise<DashboardDiagnostics> {
@@ -973,14 +1098,22 @@ export async function listApprovals(
   token: string,
   params?: { status?: string; approvalType?: string; limit?: number },
 ): Promise<ApprovalListResponse> {
-  return request<ApprovalListResponse>(buildPath("/api/admin/v1/approvals", params));
+  const response = await request<RawApprovalListResponse>(buildPath("/api/admin/v1/approvals", params));
+  return {
+    ...response,
+    items: response.items.map(normalizeApprovalItem),
+  };
 }
 
 export async function listProviderWithdrawReviews(
   token: string,
   params?: { limit?: number },
 ): Promise<ProviderWithdrawReviewListResponse> {
-  return request<ProviderWithdrawReviewListResponse>(buildPath("/api/admin/v1/withdrawal-reviews", params));
+  const response = await request<RawProviderWithdrawReviewListResponse>(buildPath("/api/admin/v1/withdrawal-reviews", params));
+  return {
+    ...response,
+    items: response.items.map(normalizeProviderWithdrawReviewItem),
+  };
 }
 
 export async function listProviderWithdrawReviewHistory(
@@ -996,7 +1129,11 @@ export async function listProviderWithdrawReviewHistory(
     reviewedTo?: string;
   },
 ): Promise<ProviderWithdrawReviewHistoryListResponse> {
-  return request<ProviderWithdrawReviewHistoryListResponse>(buildPath("/api/admin/v1/withdrawal-reviews/history", params));
+  const response = await request<RawProviderWithdrawReviewHistoryListResponse>(buildPath("/api/admin/v1/withdrawal-reviews/history", params));
+  return {
+    ...response,
+    items: response.items.map(normalizeProviderWithdrawReviewHistoryItem),
+  };
 }
 
 export async function decideProviderWithdrawReview(
@@ -1008,7 +1145,7 @@ export async function decideProviderWithdrawReview(
     otpCode?: string;
   },
 ): Promise<ProviderWithdrawReviewDecisionResult> {
-  return request<ProviderWithdrawReviewDecisionResult>(
+  const response = await request<RawProviderWithdrawReviewDecisionResult>(
     `/api/admin/v1/withdrawal-reviews/${withdrawalId}/decision`,
     {
       method: "POST",
@@ -1016,6 +1153,10 @@ export async function decideProviderWithdrawReview(
       body: JSON.stringify({ decision: input.decision, note: input.note }),
     },
   );
+  return {
+    ...response,
+    status: assertWithdrawalStatus(response.status),
+  };
 }
 
 export async function listProviderServices(
@@ -1028,16 +1169,21 @@ export async function listProviderServices(
     pageSize?: number;
   },
 ): Promise<ProviderServiceListResponse> {
-  return request<ProviderServiceListResponse>(buildPath("/api/admin/v1/provider-services", params));
+  const response = await request<RawProviderServiceListResponse>(buildPath("/api/admin/v1/provider-services", params));
+  return {
+    ...response,
+    items: response.items.map(normalizeProviderServiceItem),
+  };
 }
 
 export async function forceProbeProviderService(
   token: string,
   serviceId: string,
 ): Promise<ProviderServiceActionResponse> {
-  return request<ProviderServiceActionResponse>(`/api/admin/v1/provider-services/${serviceId}/force-probe`, {
+  const response = await request<RawProviderServiceActionResponse>(`/api/admin/v1/provider-services/${serviceId}/force-probe`, {
     method: "POST",
   });
+  return { service: normalizeProviderServiceItem(response.service) };
 }
 
 export async function updateProviderServiceLifecycle(
@@ -1045,10 +1191,11 @@ export async function updateProviderServiceLifecycle(
   serviceId: string,
   input: { action: "PAUSE" | "RESUME" | "SUSPEND"; note?: string },
 ): Promise<ProviderServiceActionResponse> {
-  return request<ProviderServiceActionResponse>(`/api/admin/v1/provider-services/${serviceId}/lifecycle`, {
+  const response = await request<RawProviderServiceActionResponse>(`/api/admin/v1/provider-services/${serviceId}/lifecycle`, {
     method: "POST",
     body: JSON.stringify(input),
   });
+  return { service: normalizeProviderServiceItem(response.service) };
 }
 
 export async function deleteProviderService(
@@ -1056,10 +1203,14 @@ export async function deleteProviderService(
   serviceId: string,
   note?: string,
 ): Promise<ProviderServiceDeleteResponse> {
-  return request<ProviderServiceDeleteResponse>(`/api/admin/v1/provider-services/${serviceId}`, {
+  const response = await request<RawProviderServiceDeleteResponse>(`/api/admin/v1/provider-services/${serviceId}`, {
     method: "DELETE",
     body: JSON.stringify({ note }),
   });
+  return {
+    ...response,
+    status: assertProviderServiceStatus(response.status),
+  };
 }
 
 export async function listAuditActions(
@@ -1073,7 +1224,11 @@ export async function listExecutionJobs(
   token: string,
   params?: { status?: string; approvalId?: string; targetSystem?: string; limit?: number },
 ): Promise<ExecutionJobListResponse> {
-  return request<ExecutionJobListResponse>(buildPath("/api/admin/v1/execution-jobs", params));
+  const response = await request<RawExecutionJobListResponse>(buildPath("/api/admin/v1/execution-jobs", params));
+  return {
+    ...response,
+    items: response.items.map(normalizeExecutionJobItem),
+  };
 }
 
 export async function retryExecutionJob(
@@ -1081,10 +1236,14 @@ export async function retryExecutionJob(
   jobId: string,
   otpCode?: string,
 ): Promise<ExecutionRetryResult> {
-  return request<ExecutionRetryResult>(`/api/admin/v1/execution-jobs/${jobId}/retry`, {
+  const response = await request<RawExecutionRetryResult>(`/api/admin/v1/execution-jobs/${jobId}/retry`, {
     method: "POST",
     headers: otpCode ? { "X-Admin-OTP-Code": otpCode } : undefined,
   });
+  return {
+    ...response,
+    status: assertExecutionJobStatus(response.status),
+  };
 }
 
 export async function listAdminUsers(

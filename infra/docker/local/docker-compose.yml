@@ -7,21 +7,21 @@ services:
     environment:
       - POSTGRES_DB=synapse_gateway
       - POSTGRES_USER=synapse
-      - POSTGRES_PASSWORD=12345678
+      - POSTGRES_PASSWORD=local-dev-postgres-password
       - SYNAPSE_GATEWAY_DB=synapse_gateway
       - SYNAPSE_GATEWAY_APP_USER=synapse_gateway_app
-      - SYNAPSE_GATEWAY_APP_PASSWORD=12345678
+      - SYNAPSE_GATEWAY_APP_PASSWORD=local-dev-gateway-app-password
       - SYNAPSE_GATEWAY_READONLY_USER=synapse_gateway_ro
-      - SYNAPSE_GATEWAY_READONLY_PASSWORD=12345678
+      - SYNAPSE_GATEWAY_READONLY_PASSWORD=local-dev-gateway-readonly-password
       - SYNAPSE_GATEWAY_MIGRATOR_USER=synapse_gateway_migrator
-      - SYNAPSE_GATEWAY_MIGRATOR_PASSWORD=12345678
+      - SYNAPSE_GATEWAY_MIGRATOR_PASSWORD=local-dev-gateway-migrator-password
       - SYNAPSE_ADMIN_DB=synapse_gateway_admin
       - SYNAPSE_ADMIN_APP_USER=synapse_admin_app
-      - SYNAPSE_ADMIN_APP_PASSWORD=12345678
+      - SYNAPSE_ADMIN_APP_PASSWORD=local-dev-admin-app-password
       - SYNAPSE_ADMIN_READONLY_USER=synapse_admin_ro
-      - SYNAPSE_ADMIN_READONLY_PASSWORD=12345678
+      - SYNAPSE_ADMIN_READONLY_PASSWORD=local-dev-admin-readonly-password
       - SYNAPSE_ADMIN_MIGRATOR_USER=synapse_admin_migrator
-      - SYNAPSE_ADMIN_MIGRATOR_PASSWORD=12345678
+      - SYNAPSE_ADMIN_MIGRATOR_PASSWORD=local-dev-admin-migrator-password
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ../../postgres/init:/docker-entrypoint-initdb.d:ro
@@ -39,8 +39,8 @@ services:
       - "9000:9000"
       - "9001:9001"
     environment:
-      - MINIO_ROOT_USER=minioadmin
-      - MINIO_ROOT_PASSWORD=minioadmin
+      - MINIO_ROOT_USER=local-dev-minio-admin
+      - MINIO_ROOT_PASSWORD=local-dev-minio-password
     volumes:
       - minio_data:/data
     command: server /data --console-address ":9001"

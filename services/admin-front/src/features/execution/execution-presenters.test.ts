@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildExecutionFailureClusters, buildExecutionMetrics, buildExecutionTargetCards, filterExecutionJobs, getExecutionStatusLabel, sortExecutionJobsByPriority } from "./execution-presenters";
+import { buildExecutionFailureClusters, buildExecutionMetrics, buildExecutionTargetCards, filterExecutionJobs, getExecutionStatusLabel, getExecutionTone, sortExecutionJobsByPriority } from "./execution-presenters";
 
 const jobs = [
   {
@@ -98,5 +98,6 @@ describe("execution-presenters", () => {
       { key: "gateway-admin", label: "gateway-admin", totalCount: 1, failedCount: 1, inflightCount: 0 },
     ]);
     expect(getExecutionStatusLabel("FAILED")).toBe("执行失败");
+    expect(getExecutionTone("RUNNING")).toBe("orange");
   });
 });

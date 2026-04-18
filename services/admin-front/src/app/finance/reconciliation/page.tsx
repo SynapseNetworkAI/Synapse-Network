@@ -22,8 +22,8 @@ import {
   resolveDrilldownTitle,
   resolveReconciliationStamp,
 } from "@/features/finance/reconciliation-presenters";
-import { getApprovalStatusLabel, getApprovalTypeLabel } from "@/features/approval/approval-presenters";
-import { getWithdrawRiskTone } from "@/features/withdrawal-reviews/review-presenters";
+import { getApprovalStatusLabel, getApprovalStatusTone, getApprovalTypeLabel } from "@/features/approval/approval-presenters";
+import { getWithdrawalStatusLabel, getWithdrawalStatusTone, getWithdrawRiskLabel, getWithdrawRiskTone } from "@/features/withdrawal-reviews/review-presenters";
 import { getReconciliationDetail, getReconciliationDrilldown, type ReconciliationDetail, type ReconciliationDrilldownResult } from "@/services/admin-api";
 
 function resolveTone(detail: ReconciliationDetail): "green" | "orange" | "red" {
@@ -34,19 +34,6 @@ function resolveTone(detail: ReconciliationDetail): "green" | "orange" | "red" {
     return "orange";
   }
   return "green";
-}
-
-function resolveApprovalStatusTone(status: string): "green" | "orange" | "red" | "gray" {
-  if (status === "APPROVED_PENDING_EXECUTION") {
-    return "orange";
-  }
-  if (status === "REJECTED") {
-    return "red";
-  }
-  if (status === "EXECUTED") {
-    return "green";
-  }
-  return "gray";
 }
 
 function DrilldownTokenButtons({
@@ -118,7 +105,7 @@ function PriorityApprovalsSection({
               <Text color="ink.500">{item.requesterRole}</Text>
             </Td>
             <Td>{formatUsdc(item.amountUsdc)} USDC</Td>
-            <Td><SentinelStatusChip label={getApprovalStatusLabel(item.status)} tone={resolveApprovalStatusTone(item.status)} /></Td>
+            <Td><SentinelStatusChip label={getApprovalStatusLabel(item.status)} tone={getApprovalStatusTone(item.status)} /></Td>
           </Box>
         ))}
       </TableBody>
@@ -145,7 +132,7 @@ function DepositRepairSection({
         <Box key={item.approvalId} borderRadius="20px" p="16px" bg="rgba(255,255,255,0.74)" border="1px solid rgba(99,92,82,0.10)">
           <Stack direction="row" justify="space-between" align="center">
             <Heading size="sm">{item.approvalId}</Heading>
-            <SentinelStatusChip label={getApprovalStatusLabel(item.status)} tone={resolveApprovalStatusTone(item.status)} />
+            <SentinelStatusChip label={getApprovalStatusLabel(item.status)} tone={getApprovalStatusTone(item.status)} />
           </Stack>
           <Text mt="8px" color="ink.500">{getApprovalTypeLabel(item.approvalType)} · {item.requesterRole}</Text>
           <Text mt="6px" color="ink.500">{formatUsdc(item.amountUsdc)} USDC · {formatDateTime(item.createdAt)}</Text>
@@ -199,8 +186,8 @@ function WithdrawalReviewsSection({
               <Text color="ink.500">{item.requestId ?? "-"}</Text>
             </Td>
             <Td>{formatUsdc(item.amountUsdc)} USDC</Td>
-            <Td><SentinelStatusChip label={(item.riskLevel ?? "unknown").toUpperCase()} tone={getWithdrawRiskTone(item.riskLevel)} /></Td>
-            <Td><SentinelStatusChip label={item.status} tone={item.status === "PENDING_MANUAL_REVIEW" ? "orange" : "gray"} /></Td>
+            <Td><SentinelStatusChip label={getWithdrawRiskLabel(item.riskLevel)} tone={getWithdrawRiskTone(item.riskLevel)} /></Td>
+            <Td><SentinelStatusChip label={getWithdrawalStatusLabel(item.status)} tone={getWithdrawalStatusTone(item.status)} /></Td>
           </Box>
         ))}
       </TableBody>

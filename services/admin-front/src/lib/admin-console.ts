@@ -1,12 +1,15 @@
 export function formatUsdc(value: string | number | null | undefined): string {
-  const numeric = typeof value === "number" ? value : Number(value ?? 0);
-  if (!Number.isFinite(numeric)) {
+  const raw = typeof value === "number" ? value.toString() : String(value ?? "0").trim();
+  if (!/^-?\d+(\.\d+)?$/.test(raw)) {
     return "0.00";
   }
-  return new Intl.NumberFormat("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(numeric);
+  const negative = raw.startsWith("-");
+  const normalized = negative ? raw.slice(1) : raw;
+  const [wholeRaw, fracRaw = ""] = normalized.split(".");
+  const whole = wholeRaw.replace(/^0+(?=\d)/, "") || "0";
+  const fraction = `${fracRaw}00`.slice(0, 2);
+  const groupedWhole = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return `${negative ? "-" : ""}${groupedWhole}.${fraction}`;
 }
 
 export function formatDateTime(value: string | null | undefined): string {
@@ -25,6 +28,8 @@ export function formatDateTime(value: string | null | undefined): string {
   }).format(date);
 }
 
+// Fallback-only visual helper for non-domain system signals.
+// Do not use this for finance, approval, withdrawal, or execution business flows.
 export function toneFromStatus(status: string | null | undefined): "green" | "orange" | "red" | "gray" {
   const normalized = (status ?? "").toLowerCase();
   if (["healthy", "active", "approved", "completed", "success"].some((item) => normalized.includes(item))) {

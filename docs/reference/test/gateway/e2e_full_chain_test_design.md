@@ -776,9 +776,9 @@ jobs:
       - name: Install Foundry
         run: curl -L https://foundry.paradigm.xyz | bash && $HOME/.foundry/bin/foundryup
 
-      - name: Install Python 3.11
+      - name: Install Python 3.13
         uses: actions/setup-python@v5
-        with: { python-version: "3.11" }
+        with: { python-version: "3.13" }
 
       - name: Install gateway deps
         run: pip install -r gateway/requirements.txt

@@ -1,5 +1,5 @@
 ---
-description: "Use when writing or modifying Python, FastAPI, repository, schema, service, migration, finance, provider_service, gateway, admin gateway, or sdk code. Covers Python 3.11 baseline, layering, data safety, tests, and docs sync."
+description: "Use when writing or modifying Python, FastAPI, repository, schema, service, migration, finance, provider_service, gateway, admin gateway, or sdk code. Covers Python 3.13 baseline, layering, data safety, tests, and docs sync."
 applyTo:
   - "**/*.py"
 name: "Synapse Python Rules"
@@ -14,7 +14,7 @@ name: "Synapse Python Rules"
 
 ## Runtime Baseline
 
-- Python baseline is `3.11`.
+- Python baseline is `3.13`.
 - Respect each project's local environment instead of assuming system Python.
 - When a subproject AGENTS file declares a specific interpreter or venv path, follow that path.
 

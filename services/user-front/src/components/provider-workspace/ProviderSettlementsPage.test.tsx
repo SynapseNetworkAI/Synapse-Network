@@ -150,7 +150,7 @@ describe("ProviderSettlementsPage", () => {
     await user.click(createButton);
 
     await waitFor(() => {
-      expect(createProviderWithdrawIntentMock).toHaveBeenCalledWith("0xabc", 8.5);
+      expect(createProviderWithdrawIntentMock).toHaveBeenCalledWith("0xabc", "8.5");
     });
     await waitFor(() => {
       expect(toastError).toHaveBeenCalledWith(

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Any, Callable, List, Literal, Optional
+from typing import Any, Callable, Literal, Optional, Self
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
 
@@ -18,12 +18,13 @@ from .execution import (
 )
 from .ledger import DepositIntentRow, WithdrawalIntentRow
 from .operation_metadata import OperationContextMetadata, WithdrawalTicketMetadata
+from src.utils.money import money_str, parse_usdc, quantize_usdc
 
 
 """Finance domain entities — BalanceLedger & FeePolicyEntity.
 
-所有金额字段均使用 float（与现有六位精度 quantize 保持一致），
-禁止业务层使用裸 dict[str, Any] 传递账本或费率数据。
+所有金额字段均使用 Decimal 六位精度，禁止业务层使用 float 或裸 dict[str, Any]
+传递账本、费率和结算数据。
 """
 
 
@@ -32,7 +33,7 @@ class PlatformFees(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
-    fee_accrued: float = Field(default=0.0, alias="feeAccrued")
+    fee_accrued: Decimal = Field(default=Decimal("0"), alias="feeAccrued")
 
 
 class ConsumerWalletRecord(BaseModel):
@@ -45,9 +46,9 @@ class ConsumerWalletRecord(BaseModel):
         validation_alias=AliasChoices("ownerAddress", "consumerAddress"),
         serialization_alias="ownerAddress",
     )
-    available_balance: float = Field(default=0.0, alias="availableBalance")
-    pending_balance: float = Field(default=0.0, alias="pendingBalance")
-    frozen_balance: float = Field(default=0.0, alias="frozenBalance")
+    available_balance: Decimal = Field(default=Decimal("0"), alias="availableBalance")
+    pending_balance: Decimal = Field(default=Decimal("0"), alias="pendingBalance")
+    frozen_balance: Decimal = Field(default=Decimal("0"), alias="frozenBalance")
     updated_at: str = Field(default="", alias="updatedAt")
 
 
@@ -58,9 +59,9 @@ class ProviderWalletRecord(BaseModel):
 
     owner_address: str = Field(default="", alias="ownerAddress")
     provider_id: Optional[str] = Field(default=None, alias="providerId")
-    available_balance: float = Field(default=0.0, alias="availableBalance")
-    pending_balance: float = Field(default=0.0, alias="pendingBalance")
-    frozen_balance: float = Field(default=0.0, alias="frozenBalance")
+    available_balance: Decimal = Field(default=Decimal("0"), alias="availableBalance")
+    pending_balance: Decimal = Field(default=Decimal("0"), alias="pendingBalance")
+    frozen_balance: Decimal = Field(default=Decimal("0"), alias="frozenBalance")
     updated_at: str = Field(default="", alias="updatedAt")
 
 
@@ -69,12 +70,12 @@ class BalanceLedger(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
-    consumer_wallets: List[ConsumerWalletRecord] = Field(
+    consumer_wallets: list[ConsumerWalletRecord] = Field(
         default_factory=list,
         validation_alias=AliasChoices("consumerWallets", "consumer_wallets"),
         serialization_alias="consumerWallets",
     )
-    provider_wallets: List[ProviderWalletRecord] = Field(
+    provider_wallets: list[ProviderWalletRecord] = Field(
         default_factory=list,
         validation_alias=AliasChoices("providerWallets", "provider_wallets"),
         serialization_alias="providerWallets",
@@ -111,22 +112,28 @@ class BalanceLedger(BaseModel):
     def _normalize_owner(owner_address: str) -> str:
         return str(owner_address or "").strip().lower()
 
+    @staticmethod
+    def _legacy_money(value: Decimal | str | int | float | None) -> Decimal:
+        if value is None:
+            return Decimal("0")
+        return Decimal(str(value)).quantize(Decimal("0.000001"))
+
     @classmethod
     def _consumer_wallets_from_legacy_maps(
         cls,
-        available_map: dict[str, float],
-        pending_map: dict[str, float],
-        frozen_map: dict[str, float],
-    ) -> List[ConsumerWalletRecord]:
+        available_map: dict[str, Decimal | str | int],
+        pending_map: dict[str, Decimal | str | int],
+        frozen_map: dict[str, Decimal | str | int],
+    ) -> list[ConsumerWalletRecord]:
         owners = {cls._normalize_owner(owner) for owner in available_map}
         owners |= {cls._normalize_owner(owner) for owner in pending_map}
         owners |= {cls._normalize_owner(owner) for owner in frozen_map}
         return [
             ConsumerWalletRecord(
                 ownerAddress=owner,
-                availableBalance=float(available_map.get(owner, 0.0) or 0.0),
-                pendingBalance=float(pending_map.get(owner, 0.0) or 0.0),
-                frozenBalance=float(frozen_map.get(owner, 0.0) or 0.0),
+                availableBalance=cls._legacy_money(available_map.get(owner, Decimal("0")) or Decimal("0")),
+                pendingBalance=cls._legacy_money(pending_map.get(owner, Decimal("0")) or Decimal("0")),
+                frozenBalance=cls._legacy_money(frozen_map.get(owner, Decimal("0")) or Decimal("0")),
             )
             for owner in sorted(owner for owner in owners if owner)
         ]
@@ -134,19 +141,19 @@ class BalanceLedger(BaseModel):
     @classmethod
     def _provider_wallets_from_legacy_maps(
         cls,
-        available_map: dict[str, float],
-        pending_map: dict[str, float],
-        frozen_map: dict[str, float],
-    ) -> List[ProviderWalletRecord]:
+        available_map: dict[str, Decimal | str | int],
+        pending_map: dict[str, Decimal | str | int],
+        frozen_map: dict[str, Decimal | str | int],
+    ) -> list[ProviderWalletRecord]:
         owners = {cls._normalize_owner(owner) for owner in available_map}
         owners |= {cls._normalize_owner(owner) for owner in pending_map}
         owners |= {cls._normalize_owner(owner) for owner in frozen_map}
         return [
             ProviderWalletRecord(
                 ownerAddress=owner,
-                availableBalance=float(available_map.get(owner, 0.0) or 0.0),
-                pendingBalance=float(pending_map.get(owner, 0.0) or 0.0),
-                frozenBalance=float(frozen_map.get(owner, 0.0) or 0.0),
+                availableBalance=cls._legacy_money(available_map.get(owner, Decimal("0")) or Decimal("0")),
+                pendingBalance=cls._legacy_money(pending_map.get(owner, Decimal("0")) or Decimal("0")),
+                frozenBalance=cls._legacy_money(frozen_map.get(owner, Decimal("0")) or Decimal("0")),
             )
             for owner in sorted(owner for owner in owners if owner)
         ]
@@ -167,6 +174,10 @@ class BalanceLedger(BaseModel):
         self.consumer_wallets.append(wallet)
         return wallet
 
+    def touch(self, updated_at: str) -> Self:
+        self.updated_at = updated_at
+        return self
+
     def provider_wallet(self, owner_address: str) -> Optional[ProviderWalletRecord]:
         owner = self._normalize_owner(owner_address)
         for wallet in self.provider_wallets:
@@ -183,35 +194,34 @@ class BalanceLedger(BaseModel):
         self.provider_wallets.append(wallet)
         return wallet
 
-    def consumer_available_balance(self, owner_address: str) -> float:
+    def consumer_available_balance(self, owner_address: str) -> Decimal:
         wallet = self.consumer_wallet(owner_address)
-        return round(float(wallet.available_balance or 0.0), 6) if wallet else 0.0
+        return self._legacy_money(wallet.available_balance or Decimal("0")) if wallet else Decimal("0")
 
-    def consumer_pending_balance(self, owner_address: str) -> float:
+    def consumer_pending_balance(self, owner_address: str) -> Decimal:
         wallet = self.consumer_wallet(owner_address)
-        return round(float(wallet.pending_balance or 0.0), 6) if wallet else 0.0
+        return self._legacy_money(wallet.pending_balance or Decimal("0")) if wallet else Decimal("0")
 
-    def consumer_frozen_balance(self, owner_address: str) -> float:
+    def consumer_frozen_balance(self, owner_address: str) -> Decimal:
         wallet = self.consumer_wallet(owner_address)
-        return round(float(wallet.frozen_balance or 0.0), 6) if wallet else 0.0
+        return self._legacy_money(wallet.frozen_balance or Decimal("0")) if wallet else Decimal("0")
 
-    def provider_receivable_balance(self, owner_address: str) -> float:
+    def provider_receivable_balance(self, owner_address: str) -> Decimal:
         wallet = self.provider_wallet(owner_address)
-        return round(float(wallet.available_balance or 0.0), 6) if wallet else 0.0
+        return self._legacy_money(wallet.available_balance or Decimal("0")) if wallet else Decimal("0")
 
-    def provider_locked_balance(self, owner_address: str) -> float:
+    def provider_locked_balance(self, owner_address: str) -> Decimal:
         wallet = self.provider_wallet(owner_address)
-        return round(float(wallet.pending_balance or 0.0), 6) if wallet else 0.0
+        return self._legacy_money(wallet.pending_balance or Decimal("0")) if wallet else Decimal("0")
 
-    def provider_frozen_balance(self, owner_address: str) -> float:
+    def provider_frozen_balance(self, owner_address: str) -> Decimal:
         wallet = self.provider_wallet(owner_address)
-        return round(float(wallet.frozen_balance or 0.0), 6) if wallet else 0.0
+        return self._legacy_money(wallet.frozen_balance or Decimal("0")) if wallet else Decimal("0")
 
-    def total_consumer_obligation(self) -> float:
-        return round(
-            sum(float(wallet.available_balance or 0.0) for wallet in self.consumer_wallets)
-            + sum(float(wallet.pending_balance or 0.0) for wallet in self.consumer_wallets),
-            6,
+    def total_consumer_obligation(self) -> Decimal:
+        return quantize_usdc(
+            sum(self._legacy_money(wallet.available_balance or Decimal("0")) for wallet in self.consumer_wallets)
+            + sum(self._legacy_money(wallet.pending_balance or Decimal("0")) for wallet in self.consumer_wallets)
         )
 
 
@@ -220,8 +230,8 @@ class FeePolicyEntity(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
-    default_rate: float = Field(default=0.0, alias="defaultRate")
-    owner_rates: dict[str, float] = Field(default_factory=dict, alias="ownerRates")
+    default_rate: Decimal = Field(default=Decimal("0"), alias="defaultRate")
+    owner_rates: dict[str, Decimal] = Field(default_factory=dict, alias="ownerRates")
     updated_at: Optional[str] = Field(default=None, alias="updatedAt")
     updated_by: Optional[str] = Field(default=None, alias="updatedBy")
 
@@ -341,7 +351,7 @@ class UsageLogRow(BaseModel):
 class ConsumerChargeResult(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
-    consumer_available_balance_after: float = Field(
+    consumer_available_balance_after: Decimal = Field(
         validation_alias=AliasChoices("consumerAvailableBalanceAfter"),
         serialization_alias="consumerAvailableBalanceAfter",
     )
@@ -352,14 +362,14 @@ UsageChargeResult = ConsumerChargeResult
 class BalanceMutationResult(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
-    before_balance: float = Field(alias="beforeBalance")
-    after_balance: float = Field(alias="afterBalance")
+    before_balance: Decimal = Field(alias="beforeBalance")
+    after_balance: Decimal = Field(alias="afterBalance")
 
 
 class UsageAppendBatch(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
-    rows: List[UsageLogRow] = Field(default_factory=list)
+    rows: list[UsageLogRow] = Field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -370,7 +380,7 @@ class RefundOriginRef:
 
 @dataclass(frozen=True)
 class RefundCreateContext:
-    amount_usdc: float
+    amount_usdc: Decimal
     reason: str
     evidence_summary: str
     origin: RefundOriginRef
@@ -398,15 +408,15 @@ class DepositIntentDraft:
 
 @dataclass(frozen=True)
 class DepositBalanceMove:
-    available_before: float
-    available_after: float
-    pending_before: float
-    pending_after: float
+    available_before: Decimal
+    available_after: Decimal
+    pending_before: Decimal
+    pending_after: Decimal
 
 
 @dataclass(frozen=True)
 class WithdrawCreateContext:
-    amount_usdc: float
+    amount_usdc: Decimal
     request_hash: str
 
 
@@ -415,7 +425,7 @@ class AtomicWithdrawalResult:
     decision: str
     withdrawal_id: str
     status: str
-    amount_usdc: float
+    amount_usdc: Decimal
     ticket: dict[str, Any]
     message: str
     risk_reason_code: str
@@ -435,4 +445,3 @@ class ChargeConsumerUsageCommand:
     protocol_fee: Decimal = Decimal("0")
     routing_tax: Decimal = Decimal("0")
     invocation: Optional[InvocationRecord] = None
-
