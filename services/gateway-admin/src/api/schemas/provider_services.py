@@ -27,6 +27,16 @@ class ProviderServiceItem(BaseModel):
     probe_tier: str = Field(alias="probeTier")
     health: dict[str, Any]
     targets: list[dict[str, Any]] = Field(default_factory=list)
+    adaptive_concurrency_limit: int = Field(default=0, alias="adaptiveConcurrencyLimit")
+    in_flight: int = Field(default=0, alias="inFlight")
+    queue_depth: int = Field(default=0, alias="queueDepth")
+    latency_p95_ms: int = Field(default=0, alias="latencyP95Ms")
+    error_rate: float = Field(default=0, alias="errorRate")
+    circuit_state: str = Field(default="closed", alias="circuitState")
+    last_concurrency_adjustment_at: int | None = Field(
+        default=None, alias="lastConcurrencyAdjustmentAt"
+    )
+    downstream_targets: list[dict[str, Any]] = Field(default_factory=list, alias="downstreamTargets")
     created_at: str | None = Field(default=None, alias="createdAt")
     updated_at: str | None = Field(default=None, alias="updatedAt")
 

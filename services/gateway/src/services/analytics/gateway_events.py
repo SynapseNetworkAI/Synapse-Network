@@ -465,6 +465,128 @@ async def emit_provider_health_outage(
     )
 
 
+# ── Downstream concurrency guard ────────────────────────────────
+
+async def emit_downstream_concurrency_reduced(
+    provider_address: str,
+    *,
+    service_id: str,
+    target_url: str,
+    previous_limit: int,
+    next_limit: int,
+    correlation_id: Optional[str] = None,
+) -> None:
+    await _emit(
+        "downstream_concurrency_reduced",
+        provider_address,
+        role="provider",
+        correlation_id=correlation_id,
+        extra={
+            "provider_id": sha256_hash(provider_address),
+            "service_id": service_id,
+            "target_url_hash": sha256_hash(target_url),
+            "previous_limit": previous_limit,
+            "next_limit": next_limit,
+        },
+    )
+
+
+async def emit_downstream_concurrency_recovered(
+    provider_address: str,
+    *,
+    service_id: str,
+    target_url: str,
+    previous_limit: int,
+    next_limit: int,
+    correlation_id: Optional[str] = None,
+) -> None:
+    await _emit(
+        "downstream_concurrency_recovered",
+        provider_address,
+        role="provider",
+        correlation_id=correlation_id,
+        extra={
+            "provider_id": sha256_hash(provider_address),
+            "service_id": service_id,
+            "target_url_hash": sha256_hash(target_url),
+            "previous_limit": previous_limit,
+            "next_limit": next_limit,
+        },
+    )
+
+
+async def emit_downstream_circuit_opened(
+    provider_address: str,
+    *,
+    service_id: str,
+    target_url: str,
+    adaptive_concurrency_limit: int,
+    circuit_open_sec: int,
+    correlation_id: Optional[str] = None,
+) -> None:
+    await _emit(
+        "downstream_circuit_opened",
+        provider_address,
+        role="provider",
+        correlation_id=correlation_id,
+        extra={
+            "provider_id": sha256_hash(provider_address),
+            "service_id": service_id,
+            "target_url_hash": sha256_hash(target_url),
+            "adaptive_concurrency_limit": adaptive_concurrency_limit,
+            "circuit_open_sec": circuit_open_sec,
+        },
+    )
+
+
+async def emit_downstream_request_rejected_busy(
+    provider_address: str,
+    *,
+    service_id: str,
+    target_url: str,
+    adaptive_concurrency_limit: int,
+    in_flight: int,
+    correlation_id: Optional[str] = None,
+) -> None:
+    await _emit(
+        "downstream_request_rejected_busy",
+        provider_address,
+        role="provider",
+        correlation_id=correlation_id,
+        extra={
+            "provider_id": sha256_hash(provider_address),
+            "service_id": service_id,
+            "target_url_hash": sha256_hash(target_url),
+            "adaptive_concurrency_limit": adaptive_concurrency_limit,
+            "in_flight": in_flight,
+        },
+    )
+
+
+async def emit_downstream_concurrency_guard_degraded(
+    provider_address: str,
+    *,
+    service_id: str,
+    target_url: str,
+    adaptive_concurrency_limit: int,
+    reason: str,
+    correlation_id: Optional[str] = None,
+) -> None:
+    await _emit(
+        "downstream_concurrency_guard_degraded",
+        provider_address,
+        role="provider",
+        correlation_id=correlation_id,
+        extra={
+            "provider_id": sha256_hash(provider_address),
+            "service_id": service_id,
+            "target_url_hash": sha256_hash(target_url),
+            "adaptive_concurrency_limit": adaptive_concurrency_limit,
+            "reason": reason,
+        },
+    )
+
+
 # ── Risk ────────────────────────────────────────────────────────
 
 async def emit_risk_rule_triggered(

@@ -183,28 +183,33 @@ async def _execute_invocation_pipeline(
             )
         return existing, 0.0, settlement
 
+    upstream_plan = await forwarding_upstream.prepare_upstream_call(service, request_payload)
     invocation = build_invocation_record(service, credential, quote, idempotency_key, request_payload)
-    persist_quote(storage, quote_with_status(quote, "CONSUMED"))
-    persist_invocation(storage, invocation)
 
     owner_wallet = credential_service.credential_owner_wallet(credential)
-    consumer_after, updated_credential = await forwarding_billing.charge_and_mark_usage(
-        storage, owner_wallet, provider_wallet, total_charge,
-        settlement["platform_fee_total"], settlement["provider_net"],
-        str(credential.credential.credential_id),
-        request_id=trace_request_id, unit_price=unit_price,
-        protocol_fee=settlement["protocol_fee"], routing_tax=settlement["routing_tax"],
-        usage_row=UsageLogRow(
-            id=invocation.invocation_id, ts=credential_service.now_ts(),
-            agentId=credential.agent.agent_id, requestId=trace_request_id,
-            serviceId=service.service_id, consumerAddress=owner_wallet, providerAddress=provider_wallet,
-            status="accepted", unitPrice=round(unit_price, 6),
-            protocolFee=round(settlement["protocol_fee"], 6),
-            routingTax=round(settlement["routing_tax"], 6),
-            totalCharge=round(total_charge, 6), businessType="charge", riskLevel="green",
-        ),
-        invocation=invocation,
-    )
+    try:
+        persist_quote(storage, quote_with_status(quote, "CONSUMED"))
+        persist_invocation(storage, invocation)
+        consumer_after, updated_credential = await forwarding_billing.charge_and_mark_usage(
+            storage, owner_wallet, provider_wallet, total_charge,
+            settlement["platform_fee_total"], settlement["provider_net"],
+            str(credential.credential.credential_id),
+            request_id=trace_request_id, unit_price=unit_price,
+            protocol_fee=settlement["protocol_fee"], routing_tax=settlement["routing_tax"],
+            usage_row=UsageLogRow(
+                id=invocation.invocation_id, ts=credential_service.now_ts(),
+                agentId=credential.agent.agent_id, requestId=trace_request_id,
+                serviceId=service.service_id, consumerAddress=owner_wallet, providerAddress=provider_wallet,
+                status="accepted", unitPrice=round(unit_price, 6),
+                protocolFee=round(settlement["protocol_fee"], 6),
+                routingTax=round(settlement["routing_tax"], 6),
+                totalCharge=round(total_charge, 6), businessType="charge", riskLevel="green",
+            ),
+            invocation=invocation,
+        )
+    except Exception:
+        await upstream_plan.permit.release_without_outcome()
+        raise
 
     running = invocation.model_copy(update={"status": "RUNNING", "started_at": now_dt_str(), "updated_at": now_dt_str()})
     persist_invocation(storage, running)
@@ -219,7 +224,12 @@ async def _execute_invocation_pipeline(
     )
 
     try:
-        invocation_result = await forwarding_upstream.call_upstream(service, running, request_payload)
+        invocation_result = await forwarding_upstream.call_upstream(
+            service,
+            running,
+            request_payload,
+            call_plan=upstream_plan,
+        )
     except HTTPException as exc:
         await forwarding_billing.rollback_charge(
             storage, owner_wallet, provider_wallet, total_charge,

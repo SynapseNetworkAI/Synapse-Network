@@ -1,0 +1,24 @@
+{
+  "concurrency": 2,
+  "durationSec": 10,
+  "endpoints": {
+    "admin-front-login": {
+      "avgMs": 17.769,
+      "failures": 0,
+      "p50Ms": 15.553,
+      "p95Ms": 28.803,
+      "p99Ms": 36.087,
+      "requests": 92,
+      "sampleErrors": [],
+      "statuses": {
+        "200": 92
+      },
+      "successRate": 1.0,
+      "successes": 92
+    }
+  },
+  "overallSuccessRate": 1.0,
+  "scenario": "local-admin-front-login",
+  "totalFailures": 0,
+  "totalRequests": 92
+}

@@ -241,11 +241,23 @@ slow lane 不是停止探活，而是资源保护策略：
 
 健康失败不会把服务自动改成 `inactive`。如果所有 target 连续失败达到 `unhealthyThreshold`，Gateway 自动摘流并返回 `SERVICE_UNAVAILABLE`；后续正常探活或 slow lane 探活达到 `healthyThreshold` 后自动恢复可调用状态，不需要 Provider 人工重新上线。
 
-### 9.3 Admin Provider Services 管理面
+### 9.3 下游动态并发保护
+
+健康检查判断“能不能承载流量”，动态并发保护判断“当前应该承载多少流量”。
+
+1. Gateway 对每个 `serviceId + targetUrl` 维护独立 adaptive concurrency window。
+2. 初始并发来自 `DOWNSTREAM_ADAPTIVE_DEFAULT_CONCURRENCY`，平台最大值来自 `DOWNSTREAM_ADAPTIVE_MAX_CONCURRENCY`。
+3. Provider 可选声明 `constraints.maxConcurrency`；平台会取该值、平台最大值、`maxQps * timeoutMs` 推导值三者的最小值。
+4. 下游慢、超时、429、5xx 或连接失败时，Gateway 快速降低该 target 并发；恢复后逐窗口慢升。
+5. 连续严重失败会打开短熔断，半开时只允许 1 个探测调用。
+6. `SERVICE_BUSY` 和 `SERVICE_CIRCUIT_OPEN` 都在扣费前返回，不产生成功 billing。
+7. Redis 可用时，多 Gateway 实例共享全局 in-flight counter；Redis 不可用时退回本地保守并发，并通过 analytics 暴露 degraded 状态。
+
+### 9.4 Admin Provider Services 管理面
 
 后台菜单 `Provider 服务` 用于管理注册到 Gateway 的 Provider 接口：
 
-1. 列表展示服务名、Provider、控制面状态、运行时状态、healthy target 数、lastCheckedAt、最近错误、runtimeAvailable 和 `probeTier`。
+1. 列表展示服务名、Provider、控制面状态、运行时状态、healthy target 数、lastCheckedAt、最近错误、runtimeAvailable、`probeTier`、adaptive concurrency limit、in-flight、p95 latency、error rate 和 circuit state。
 2. `Force probe` 立即探活一次，不改变控制面生命周期。
 3. `Pause service` 将服务切到 `inactive`，停止 discovery / invoke，并停止自动探活。
 4. `Resume service` 将服务切回 `active`，立即 probe；健康达标后自动进入 discovery / invoke。

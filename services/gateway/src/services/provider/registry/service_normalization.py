@@ -264,6 +264,19 @@ def normalized_constraints(req_data: dict[str, Any]) -> ServiceConstraintRecord:
             settings.gateway_min_service_qps,
             settings.gateway_max_service_qps,
         ),
+        maxConcurrency=(
+            bounded_constraint(
+                constraints,
+                "maxConcurrency",
+                "max_concurrency",
+                settings.downstream_adaptive_default_concurrency,
+                1,
+                settings.downstream_adaptive_max_concurrency,
+            )
+            if constraints.get("maxConcurrency") is not None
+            or constraints.get("max_concurrency") is not None
+            else None
+        ),
     )
 
 

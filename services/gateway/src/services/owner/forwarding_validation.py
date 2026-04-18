@@ -36,6 +36,11 @@ def effective_service_constraints(service: ServiceDefinitionRecord) -> ServiceCo
         service.constraints.max_response_bytes, settings.gateway_default_response_bytes
     )
     max_qps = as_int(service.constraints.max_qps, settings.gateway_default_service_qps)
+    max_concurrency = (
+        as_int(service.constraints.max_concurrency, settings.downstream_adaptive_default_concurrency)
+        if service.constraints.max_concurrency is not None
+        else None
+    )
 
     timeout_ms = min(
         max(timeout_ms, settings.gateway_min_timeout_ms),
@@ -52,12 +57,18 @@ def effective_service_constraints(service: ServiceDefinitionRecord) -> ServiceCo
     max_qps = min(
         max(max_qps, settings.gateway_min_service_qps), settings.gateway_max_service_qps
     )
+    if max_concurrency is not None:
+        max_concurrency = min(
+            max(max_concurrency, 1),
+            settings.downstream_adaptive_max_concurrency,
+        )
 
     return ServiceConstraintRecord(
         timeoutMs=timeout_ms,
         maxRequestBytes=max_request_bytes,
         maxResponseBytes=max_response_bytes,
         maxQps=max_qps,
+        maxConcurrency=max_concurrency,
     )
 
 

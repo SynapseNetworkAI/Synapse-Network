@@ -118,6 +118,13 @@ Agent-facing discovery / invoke 的可调用条件必须同时满足：
 
 slow lane 只节省探活资源，不改变生命周期。Provider 修复 endpoint 后，如果服务仍为 `active`，等待下一次 slow lane probe 或点击 `Force probe` 即可恢复；如果服务被 Pause 成 `inactive`，需要 Resume / 重新发布后才会重新进入自动探活。
 
+Invoke 转发还会使用动态并发保护：
+
+1. `constraints.maxConcurrency` 是 Provider 可选声明的 target 级并发上限。
+2. Gateway 会取 `constraints.maxConcurrency`、平台 `DOWNSTREAM_ADAPTIVE_MAX_CONCURRENCY`、`maxQps * timeoutMs` 推导值三者最小值作为动态并发硬上限。
+3. 下游响应慢或失败时，Gateway 自动降低并发；恢复后逐步升并发。
+4. `SERVICE_BUSY` / `SERVICE_CIRCUIT_OPEN` 发生在扣费前；`SERVICE_TIMEOUT` 表示请求已转发但超时，会走失败回滚和审计。
+
 ## 4. 不应暴露给 Agent 的字段
 
 默认不应通过 Runtime 协议暴露：
@@ -176,6 +183,7 @@ Provider Console 当前默认首屏只要求 Provider 明确以下最小接入�
 6. `gateway_extensions.health_check.path` 默认 `/health`
 7. `gateway_extensions.health_check.timeout_ms` 默认 `3000`
 8. `gateway_extensions.rate_limit_policy.max_qps` 默认 `50`
+9. `constraints.maxConcurrency` 可选；不填时由 Gateway 根据平台默认值、QPS 和超时推导。
 
 平台默认策略：
 

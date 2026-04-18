@@ -92,7 +92,7 @@ describe("review history presenters", () => {
   });
 
   it("maps labels and tones", () => {
-    expect(getReviewHistoryStatusLabel("CANCELLED")).toBe("已取消 / 已释放");
+    expect(getReviewHistoryStatusLabel("CANCELLED")).toBe("已取消");
     expect(getReviewHistoryStatusTone("COMPLETED")).toBe("green");
     expect(getReviewDecisionLabel("APPROVE")).toBe("放行");
     expect(getReviewDecisionTone("REJECT")).toBe("red");

@@ -610,6 +610,23 @@ export type ProviderServiceItem = {
     lastHealthyAt?: number | null;
     error?: string | null;
   }>;
+  adaptiveConcurrencyLimit: number;
+  inFlight: number;
+  queueDepth: number;
+  latencyP95Ms: number;
+  errorRate: number;
+  circuitState: string;
+  lastConcurrencyAdjustmentAt: number | null;
+  downstreamTargets: Array<{
+    targetUrl: string;
+    adaptiveConcurrencyLimit: number;
+    inFlight: number;
+    queueDepth: number;
+    latencyP95Ms: number;
+    errorRate: number;
+    circuitState: string;
+    lastConcurrencyAdjustmentAt: number | null;
+  }>;
   createdAt: string | null;
   updatedAt: string | null;
 };
@@ -765,6 +782,14 @@ function normalizeProviderServiceItem(item: RawProviderServiceItem): ProviderSer
     controlStatus: assertProviderServiceStatus(item.controlStatus),
     status: assertProviderServiceStatus(item.status),
     runtimeStatus: assertProviderServiceStatus(item.runtimeStatus),
+    adaptiveConcurrencyLimit: Number(item.adaptiveConcurrencyLimit ?? 0),
+    inFlight: Number(item.inFlight ?? 0),
+    queueDepth: Number(item.queueDepth ?? 0),
+    latencyP95Ms: Number(item.latencyP95Ms ?? 0),
+    errorRate: Number(item.errorRate ?? 0),
+    circuitState: String(item.circuitState ?? "closed"),
+    lastConcurrencyAdjustmentAt: item.lastConcurrencyAdjustmentAt ?? null,
+    downstreamTargets: Array.isArray(item.downstreamTargets) ? item.downstreamTargets : [],
     targets: item.targets.map((target) => ({
       ...target,
       status: assertProviderServiceStatus(target.status),

@@ -153,12 +153,23 @@ def read_invocation_by_idempotency(
 # ---------------------------------------------------------------------------
 
 def invocation_failure_status(error_code: Optional[str]) -> str:
-    retryable = {"SERVICE_UNAVAILABLE", "UPSTREAM_ERROR", "RESPONSE_PAYLOAD_TOO_LARGE"}
+    retryable = {
+        "SERVICE_UNAVAILABLE",
+        "SERVICE_TIMEOUT",
+        "UPSTREAM_ERROR",
+        "UPSTREAM_RATE_LIMITED",
+        "RESPONSE_PAYLOAD_TOO_LARGE",
+    }
     return "FAILED_RETRYABLE" if error_code in retryable else "FAILED_FINAL"
 
 
 def invocation_error_action(error_code: Optional[str]) -> Optional[str]:
-    if error_code in {"SERVICE_UNAVAILABLE", "UPSTREAM_ERROR"}:
+    if error_code in {
+        "SERVICE_UNAVAILABLE",
+        "SERVICE_TIMEOUT",
+        "UPSTREAM_ERROR",
+        "UPSTREAM_RATE_LIMITED",
+    }:
         return "retry"
     return "fix_request" if error_code else None
 

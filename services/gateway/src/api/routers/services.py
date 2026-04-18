@@ -108,6 +108,11 @@ class ConstraintsSpec(BaseModel):
         ge=settings.gateway_min_service_qps,
         le=settings.gateway_max_service_qps,
     )
+    maxConcurrency: Optional[int] = Field(
+        default=None,
+        ge=1,
+        le=settings.downstream_adaptive_max_concurrency,
+    )
 
 
 class RetryPolicySpec(BaseModel):
