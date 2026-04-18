@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 
-import { formatDateTime, formatUsdc, toneFromStatus } from "./admin-console";
+import {
+  absMoneyString,
+  addMoneyStrings,
+  compareMoneyStrings,
+  formatDateTime,
+  formatUsdc,
+  parseMoneyStringForChart,
+  subtractMoneyStrings,
+  toneFromStatus,
+} from "./admin-console";
 
 describe("formatUsdc", () => {
   it("renders two decimal places for numeric values", () => {
@@ -9,6 +18,19 @@ describe("formatUsdc", () => {
 
   it("falls back to zero for invalid values", () => {
     expect(formatUsdc("not-a-number")).toBe("0.00");
+  });
+});
+
+describe("money helpers", () => {
+  it("parses string money for chart-only numeric use", () => {
+    expect(parseMoneyStringForChart("12.345678")).toBe(12.345678);
+  });
+
+  it("compares, sums, and subtracts money strings", () => {
+    expect(compareMoneyStrings("2.5", "2.4")).toBe(1);
+    expect(addMoneyStrings(["1.25", "2.50", "0.25"])).toBe("4");
+    expect(subtractMoneyStrings("10.50", "0.25")).toBe("10.25");
+    expect(absMoneyString("-0.75")).toBe("0.75");
   });
 });
 

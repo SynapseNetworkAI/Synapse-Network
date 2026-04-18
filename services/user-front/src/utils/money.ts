@@ -41,6 +41,10 @@ export function toMoneyAtomic(value: unknown): bigint {
   return parseUnits(normalizeMoneyString(value), MONEY_SCALE);
 }
 
+export function moneyStringToNumber(value: unknown): number {
+  return Number(normalizeMoneyString(value));
+}
+
 export function compareMoneyStrings(left: unknown, right: unknown): number {
   const l = toMoneyAtomic(left);
   const r = toMoneyAtomic(right);

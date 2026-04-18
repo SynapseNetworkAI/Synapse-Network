@@ -8,6 +8,7 @@ import MockUSDCABI from "@/MockUSDCABI.json";
 import SynapseCoreABI from "@/SynapseCoreABI.json";
 import type { DeductionStatus } from "@/components/dashboard/shared/deductionStatus";
 import { listUsageLogs } from "@/utils/usageApi";
+import { moneyStringToNumber, normalizeMoneyString } from "@/utils/money";
 
 export type SettlementEvent = {
   serviceId: string;
@@ -47,7 +48,7 @@ export function useSettlementData() {
 
 
         const walletBal = await usdc.balanceOf(userAddress);
-        const usdcNum = Number.parseFloat(ethers.formatUnits(walletBal, 18));
+        const usdcNum = moneyStringToNumber(normalizeMoneyString(ethers.formatUnits(walletBal, 18)));
 
         try {
           const usageRows = await listUsageLogs(userAddress, 300);
@@ -88,8 +89,12 @@ export function useSettlementData() {
             const provider = String(log.args[1]).toLowerCase();
             if (!providerAddresses.has(provider)) return null;
 
-            const gross = Number.parseFloat(ethers.formatUnits(ethers.toBigInt(log.args[3]), 18));
-            const platformFee = Number.parseFloat(ethers.formatUnits(ethers.toBigInt(log.args[4]), 18));
+            const gross = moneyStringToNumber(
+              normalizeMoneyString(ethers.formatUnits(ethers.toBigInt(log.args[3]), 18))
+            );
+            const platformFee = moneyStringToNumber(
+              normalizeMoneyString(ethers.formatUnits(ethers.toBigInt(log.args[4]), 18))
+            );
             return {
               serviceId: String(log.args[5]),
               status: "succeeded",

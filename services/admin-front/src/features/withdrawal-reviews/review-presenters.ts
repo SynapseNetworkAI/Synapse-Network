@@ -7,6 +7,7 @@ import {
   type StatusTone,
   type WithdrawalStatus,
 } from "@/domain/status";
+import { parseMoneyStringForChart } from "@/lib/admin-console";
 import type { ProviderWithdrawReviewItem } from "@/services/admin-api";
 
 function priorityWeight(item: ProviderWithdrawReviewItem): number {
@@ -48,7 +49,7 @@ export function getWithdrawalStatusLabel(status: WithdrawalStatus): string {
 }
 
 export function buildWithdrawReviewMetrics(items: ProviderWithdrawReviewItem[]) {
-  const totalAmount = items.reduce((sum, item) => sum + Number(item.amountUsdc || 0), 0);
+  const totalAmount = items.reduce((sum, item) => sum + parseMoneyStringForChart(item.amountUsdc || "0"), 0);
 
   return {
     pendingCount: items.length,

@@ -19,6 +19,9 @@ name: "Synapse Finance Backend Rules"
 - Use `Decimal` for all money and settlement arithmetic. Never use `float`.
 - Favor consistency, auditability, and rollback safety over convenience or micro-optimizations.
 - Treat every balance mutation as transaction-sensitive and auditable.
+- Money helper signatures must not accept `float`.
+- Money schema / DTO / analytics event payload fields must cross HTTP/JSON boundaries as strings, not JSON numbers.
+- Use `Decimal.quantize()` for money rounding. Do not use `round()` on money paths.
 
 ## Idempotency and Replay Protection
 

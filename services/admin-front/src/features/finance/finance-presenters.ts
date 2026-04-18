@@ -1,4 +1,4 @@
-import { formatUsdc } from "@/lib/admin-console";
+import { absMoneyString, addMoneyStrings, formatUsdc, parseMoneyStringForChart, subtractMoneyStrings } from "@/lib/admin-console";
 import type { ActivityTrendPoint, ApprovalItem, FinanceOverview } from "@/services/admin-api";
 import { getFinanceMetricGlossary } from "@/features/finance/finance-glossary";
 
@@ -67,7 +67,7 @@ export function filterFinanceApprovals(items: ApprovalItem[]): ApprovalItem[] {
 }
 
 export function getVaultDeltaTone(value: string): "green" | "orange" | "red" {
-  const delta = Math.abs(Number(value || 0));
+  const delta = Math.abs(parseMoneyStringForChart(value));
 
   if (delta <= 0.01) {
     return "green";
@@ -89,12 +89,16 @@ function formatBucketLabel(bucketDate: string): string {
 export function buildTrendChartData(points: ActivityTrendPoint[]) {
   return points.map((point) => ({
     label: formatBucketLabel(point.bucketDate),
-    deposit: Number(point.depositUsdc || 0),
-    charge: Number(point.chargeUsdc || 0),
-    refund: Number(point.refundUsdc || 0),
-    withdrawal: Number(point.withdrawalUsdc || 0),
-    netFlow: Number(point.netFlowUsdc || 0),
+    deposit: parseMoneyStringForChart(point.depositUsdc || "0"),
+    charge: parseMoneyStringForChart(point.chargeUsdc || "0"),
+    refund: parseMoneyStringForChart(point.refundUsdc || "0"),
+    withdrawal: parseMoneyStringForChart(point.withdrawalUsdc || "0"),
+    netFlow: parseMoneyStringForChart(point.netFlowUsdc || "0"),
   }));
+}
+
+function sumMoney(values: string[]): string {
+  return addMoneyStrings(values);
 }
 
 function sumNumeric(values: number[]): number {
@@ -108,10 +112,10 @@ export function buildCapitalPulseTrendLanes(
   const latestPoint = points.at(-1);
   const latestInvocationCount = latestPoint?.invocationCount ?? overview.todayInvocationCount;
   const sevenDayInvocationCount = sumNumeric(points.map((point) => point.invocationCount));
-  const latestPlatformFee = Number(latestPoint?.platformFeeEarnedUsdc ?? overview.todayPlatformFeeEarnedUsdc ?? 0);
-  const sevenDayPlatformFee = sumNumeric(points.map((point) => Number(point.platformFeeEarnedUsdc ?? 0)));
-  const latestProviderEarned = Number(latestPoint?.providerEarnedUsdc ?? overview.todayProviderEarnedUsdc ?? 0);
-  const sevenDayProviderEarned = sumNumeric(points.map((point) => Number(point.providerEarnedUsdc ?? 0)));
+  const latestPlatformFee = latestPoint?.platformFeeEarnedUsdc ?? overview.todayPlatformFeeEarnedUsdc ?? "0";
+  const sevenDayPlatformFee = sumMoney(points.map((point) => point.platformFeeEarnedUsdc ?? "0"));
+  const latestProviderEarned = latestPoint?.providerEarnedUsdc ?? overview.todayProviderEarnedUsdc ?? "0";
+  const sevenDayProviderEarned = sumMoney(points.map((point) => point.providerEarnedUsdc ?? "0"));
 
   return [
     {
@@ -172,8 +176,8 @@ export function buildCapitalPulseTrendLanes(
       ],
       data: points.map((point) => ({
         label: formatBucketLabel(point.bucketDate),
-        primary: Number(point.platformFeeEarnedUsdc ?? 0),
-        secondary: Number(point.chargeUsdc ?? 0),
+        primary: parseMoneyStringForChart(point.platformFeeEarnedUsdc ?? "0"),
+        secondary: parseMoneyStringForChart(point.chargeUsdc ?? "0"),
       })),
       supportMetrics: [
         {
@@ -213,8 +217,8 @@ export function buildCapitalPulseTrendLanes(
       ],
       data: points.map((point) => ({
         label: formatBucketLabel(point.bucketDate),
-        primary: Number(point.providerEarnedUsdc ?? 0),
-        secondary: Number(point.withdrawalUsdc ?? 0),
+        primary: parseMoneyStringForChart(point.providerEarnedUsdc ?? "0"),
+        secondary: parseMoneyStringForChart(point.withdrawalUsdc ?? "0"),
       })),
       supportMetrics: [
         {
@@ -346,10 +350,6 @@ export function buildFinanceExposureCards(overview: FinanceOverview) {
   ];
 }
 
-function toNumber(value: string | number | null | undefined): number {
-  return Number(value ?? 0);
-}
-
 export function buildFinanceTreasuryCoreCards(
   overview: FinanceOverview,
   reconciliationDetail: ReconciliationLike | null,
@@ -390,14 +390,14 @@ export function buildFinanceDeltaCards(
   overview: FinanceOverview,
   reconciliationDetail: ReconciliationLike | null,
 ): FinanceMetricSurfaceCard[] {
-  const chainVault = toNumber(reconciliationDetail?.chainVaultUsdc);
-  const ownerLiability = toNumber(overview.ownerLiabilityUsdc);
-  const providerPayable = toNumber(overview.providerPayableUsdc);
-  const platformIncome = toNumber(overview.platformFeeBalanceUsdc);
+  const chainVault = reconciliationDetail?.chainVaultUsdc ?? "0";
+  const ownerLiability = overview.ownerLiabilityUsdc;
+  const providerPayable = overview.providerPayableUsdc;
+  const platformIncome = overview.platformFeeBalanceUsdc;
   const treasurySignedDifference = reconciliationDetail?.chainVaultUsdc === null || reconciliationDetail === null
     ? null
-    : (chainVault - (ownerLiability + providerPayable + platformIncome)).toFixed(2);
-  const treasuryAbsoluteDelta = treasurySignedDifference === null ? null : Math.abs(Number(treasurySignedDifference)).toFixed(2);
+    : formatUsdc(subtractMoneyStrings(chainVault, addMoneyStrings([ownerLiability, providerPayable, platformIncome])));
+  const treasuryAbsoluteDelta = treasurySignedDifference === null ? null : formatUsdc(absMoneyString(treasurySignedDifference));
 
   return [
     {

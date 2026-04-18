@@ -58,7 +58,7 @@ describe("fetchRefunds", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
       id: "refund-1",
-      amount: 12.5,
+      amountUsdc: "12.5",
       status: "COMPLETED",
       txHash: "0xrefund",
       type: "refund",

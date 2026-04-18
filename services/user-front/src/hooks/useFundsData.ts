@@ -8,6 +8,7 @@ import SynapseCoreABI from "@/SynapseCoreABI.json";
 import MockUSDCABI from "@/MockUSDCABI.json";
 import { fetchRefunds, type RefundRecord } from "@/utils/refundApi";
 import { listConsumerWithdrawals } from "@/utils/balanceApi";
+import { formatMoneyString, moneyStringToNumber, normalizeMoneyString } from "@/utils/money";
 
 export type LedgerRecord = {
   id: string;
@@ -50,8 +51,8 @@ export function useFundsData() {
       ]);
 
       // Assuming mock USDC has 18 decimals
-      setVaultBalance(Number.parseFloat(ethers.formatUnits(vaultBal, 18)).toFixed(2));
-      setWalletBalance(Number.parseFloat(ethers.formatUnits(walletBal, 18)).toFixed(2));
+      setVaultBalance(formatMoneyString(ethers.formatUnits(vaultBal, 18), 2));
+      setWalletBalance(formatMoneyString(ethers.formatUnits(walletBal, 18), 2));
     } catch (e) {
       console.error("fetch balances error", e);
     }
@@ -96,7 +97,7 @@ export function useFundsData() {
         onchainRecords.push({
           id: `${log.transactionHash}-${log.logIndex ?? 0}`,
           type: "Deposit",
-          amount: Number.parseFloat(ethers.formatUnits(log.args[1], 18)),
+          amount: moneyStringToNumber(normalizeMoneyString(ethers.formatUnits(log.args[1], 18))),
           txHash: log.transactionHash,
           timestamp: block ? Number(block.timestamp) * 1000 : Date.now(),
           status: "COMPLETED"
@@ -108,7 +109,7 @@ export function useFundsData() {
         onchainRecords.push({
           id: `${log.transactionHash}-${log.logIndex ?? 0}`,
           type: "Withdraw",
-          amount: Number.parseFloat(ethers.formatUnits(log.args[1], 18)),
+          amount: moneyStringToNumber(normalizeMoneyString(ethers.formatUnits(log.args[1], 18))),
           txHash: log.transactionHash,
           timestamp: block ? Number(block.timestamp) * 1000 : Date.now(),
           status: "COMPLETED"
@@ -119,7 +120,7 @@ export function useFundsData() {
       const mappedRefunds: LedgerRecord[] = refunds.map((r: RefundRecord) => ({
         id: r.id || `refund-${Math.random()}`,
         type: r.type === "refund" ? "Refund" : "Claim",
-        amount: r.amount,
+        amount: moneyStringToNumber(r.amountUsdc),
         txHash: r.txHash,
         timestamp: r.timestamp * 1000, // convert python ts to JS ts
         status: r.status
@@ -141,7 +142,7 @@ export function useFundsData() {
         return {
           id: w.id,
           type: "Withdraw" as const,
-          amount: Number(w.amountUsdc ?? 0),
+          amount: moneyStringToNumber(w.amountUsdc ?? "0"),
           txHash: w.txHash ?? null,
           timestamp: tsMs,
           status: statusMap[w.status?.toUpperCase()] ?? "PENDING",

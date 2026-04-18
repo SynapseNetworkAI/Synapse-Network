@@ -23,6 +23,7 @@ This file is the canonical workspace-level rule source for Synapse Network.
 - Treat money movement and settlement paths as transaction-sensitive and audit-sensitive.
 - Preserve idempotency, consistency, append-only auditability, and minimal error disclosure.
 - Prefer correctness and traceability over convenience whenever finance and speed conflict.
+- Money crosses boundaries as string, computes as `Decimal`, and stores as `NUMERIC(36, 6)`.
 
 ## 4. Instruction Layering
 

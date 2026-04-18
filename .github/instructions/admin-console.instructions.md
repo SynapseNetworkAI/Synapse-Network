@@ -21,6 +21,8 @@ name: "Synapse Admin Console Rules"
 - Backend-owned semantics come first.
 - Do not invent approval, audit, execution, or pagination truth in the frontend when `gateway-admin` should define it.
 - Keep wording, filters, and control flow aligned with `docs/admin/` and matching stitch prototypes.
+- Money fields must stay as `MoneyString` / string contracts through admin presenters and table state.
+- If charts need numeric values, convert through one explicit display-only helper such as `parseMoneyStringForChart()`; do not scatter raw `Number(amountUsdc)` calls through presenter logic.
 
 ## List Page Structure
 

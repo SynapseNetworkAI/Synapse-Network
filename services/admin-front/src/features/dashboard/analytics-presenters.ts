@@ -1,4 +1,4 @@
-import { formatDateTime, formatUsdc } from "@/lib/admin-console";
+import { compareMoneyStrings, formatDateTime, formatUsdc } from "@/lib/admin-console";
 import type {
   AnalyticsConsumerFunnel,
   AnalyticsDataQuality,
@@ -80,7 +80,7 @@ function formatDurationMs(value: number | null | undefined): string {
 
 function formatMetricValue(card: AnalyticsMetricCard): string {
   if (card.unit === "USDC") {
-    return `${formatUsdc(Number(card.value ?? 0))} USDC`;
+    return `${formatUsdc(typeof card.value === "number" ? card.value : String(card.value ?? "0"))} USDC`;
   }
 
   if (card.unit === "rate") {
@@ -171,8 +171,8 @@ export function buildInvocationSignalCards(invocation: AnalyticsInvocationRevenu
     {
       key: "gmv",
       label: "GMV",
-      value: `${formatUsdc(invocation?.gmvUsdc ?? 0)} USDC`,
-      detail: `Average price ${formatUsdc(invocation?.priceAvgUsdc ?? 0)} USDC`,
+      value: `${formatUsdc(invocation?.gmvUsdc ?? "0")} USDC`,
+      detail: `Average price ${formatUsdc(invocation?.priceAvgUsdc ?? "0")} USDC`,
       tone: "green",
     },
   ];
@@ -204,7 +204,7 @@ export function buildInvocationVolumeCards(invocation: AnalyticsInvocationRevenu
     {
       key: "platform-fee",
       label: "Platform Fee",
-      value: `${formatUsdc(invocation?.platformFeeUsdc ?? 0)} USDC`,
+      value: `${formatUsdc(invocation?.platformFeeUsdc ?? "0")} USDC`,
       detail: "platform_fee_usdc from invocation revenue.",
       tone: "green",
     },
@@ -223,8 +223,8 @@ export function buildProviderSignalCards(provider: AnalyticsProviderRevenue | nu
     {
       key: "provider-net",
       label: "Provider Net",
-      value: `${formatUsdc(provider?.providerNetUsdc ?? 0)} USDC`,
-      detail: `Available to withdraw ${formatUsdc(provider?.pendingSettlementUsdc ?? 0)} USDC`,
+      value: `${formatUsdc(provider?.providerNetUsdc ?? "0")} USDC`,
+      detail: `Available to withdraw ${formatUsdc(provider?.pendingSettlementUsdc ?? "0")} USDC`,
       tone: "green",
     },
     {
@@ -242,16 +242,16 @@ export function buildProviderSettlementCards(provider: AnalyticsProviderRevenue 
     {
       key: "gross",
       label: "Provider Gross",
-      value: `${formatUsdc(provider?.providerGrossUsdc ?? 0)} USDC`,
+      value: `${formatUsdc(provider?.providerGrossUsdc ?? "0")} USDC`,
       detail: "gross_usdc from provider_revenue_received.",
       tone: "green",
     },
     {
       key: "completed-settlement",
       label: "Settlement Completed",
-      value: `${formatUsdc(provider?.settlementCompletedUsdc ?? 0)} USDC`,
-      detail: `Available to withdraw ${formatUsdc(provider?.pendingSettlementUsdc ?? 0)} USDC`,
-      tone: Number(provider?.pendingSettlementUsdc ?? 0) > 0 ? "orange" : "green",
+      value: `${formatUsdc(provider?.settlementCompletedUsdc ?? "0")} USDC`,
+      detail: `Available to withdraw ${formatUsdc(provider?.pendingSettlementUsdc ?? "0")} USDC`,
+      tone: compareMoneyStrings(provider?.pendingSettlementUsdc ?? "0", "0") > 0 ? "orange" : "green",
     },
     {
       key: "first-revenue",
@@ -268,23 +268,23 @@ export function buildMoneyFlowSignalCards(money: AnalyticsMoneyFlow | null): Ana
     {
       key: "deposit",
       label: "Deposit",
-      value: `${formatUsdc(money?.depositUsdc ?? 0)} USDC`,
+      value: `${formatUsdc(money?.depositUsdc ?? "0")} USDC`,
       detail: `${formatCount(money?.depositFailedCount)} failed deposits`,
       tone: (money?.depositFailedCount ?? 0) > 0 ? "orange" : "green",
     },
     {
       key: "withdrawal",
       label: "Withdrawal",
-      value: `${formatUsdc(money?.withdrawalUsdc ?? 0)} USDC`,
+      value: `${formatUsdc(money?.withdrawalUsdc ?? "0")} USDC`,
       detail: `${formatCount(money?.withdrawalFailedCount)} failed withdrawals`,
       tone: (money?.withdrawalFailedCount ?? 0) > 0 ? "orange" : "green",
     },
     {
       key: "ledger-context",
       label: "Ledger Context",
-      value: `${formatUsdc(money?.financeContext.vaultLedgerDeltaUsdc ?? 0)} USDC`,
+      value: `${formatUsdc(money?.financeContext.vaultLedgerDeltaUsdc ?? "0")} USDC`,
       detail: `${formatCount(money?.financeContext.chainConfirmedNotLedgerConfirmedCount)} chain confirmed, not ledger confirmed`,
-      tone: Number(money?.financeContext.vaultLedgerDeltaUsdc ?? 0) > 0 ? "orange" : "green",
+      tone: compareMoneyStrings(money?.financeContext.vaultLedgerDeltaUsdc ?? "0", "0") > 0 ? "orange" : "green",
     },
   ];
 }
@@ -294,9 +294,9 @@ export function buildMoneyFlowContextCards(money: AnalyticsMoneyFlow | null): An
     {
       key: "refund",
       label: "Refund",
-      value: `${formatUsdc(money?.refundUsdc ?? 0)} USDC`,
+      value: `${formatUsdc(money?.refundUsdc ?? "0")} USDC`,
       detail: "refund_completed amount in the selected window.",
-      tone: Number(money?.refundUsdc ?? 0) > 0 ? "orange" : "green",
+      tone: compareMoneyStrings(money?.refundUsdc ?? "0", "0") > 0 ? "orange" : "green",
     },
     {
       key: "confirm-p95",
@@ -334,9 +334,9 @@ export function buildRiskSignalCards(risk: AnalyticsRiskHealth | null): Analytic
     {
       key: "budget-gap",
       label: "Budget Gap",
-      value: `${formatUsdc(risk?.budgetGapUsdc ?? 0)} USDC`,
+      value: `${formatUsdc(risk?.budgetGapUsdc ?? "0")} USDC`,
       detail: "required_usdc - available_usdc from budget_blocked.",
-      tone: Number(risk?.budgetGapUsdc ?? 0) > 0 ? "orange" : "green",
+      tone: compareMoneyStrings(risk?.budgetGapUsdc ?? "0", "0") > 0 ? "orange" : "green",
     },
   ];
 }

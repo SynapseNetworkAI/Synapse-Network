@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from decimal import Decimal, ROUND_HALF_UP
 
 from src.core.errors import BadRequestError
 from src.domain.enums import ExecutionJobStatus
@@ -238,7 +239,7 @@ class DashboardService:
         finance = self._gateway_projection.get_finance_snapshot()
         # This field is legacy-named for the admin API contract. In the UI it is
         # shown as provider "available to withdraw", not ClickHouse settlement pending.
-        payload["pendingSettlementUsdc"] = float(finance.provider_available_to_withdraw_usdc)
+        payload["pendingSettlementUsdc"] = self._format_decimal(finance.provider_available_to_withdraw_usdc)
         return payload
 
     def get_analytics_money_flow(self, window: str = "24h") -> dict:
@@ -303,7 +304,7 @@ class DashboardService:
         return {
             "withdrawalId": review.withdrawal_id,
             "ownerAddress": review.owner_address,
-            "amountUsdc": f"{review.amount_usdc:.2f}",
+            "amountUsdc": DashboardService._format_decimal(review.amount_usdc),
             "status": review.status,
             "requestId": review.request_id,
             "txHash": review.tx_hash,
@@ -575,7 +576,10 @@ class DashboardService:
 
     @staticmethod
     def _format_decimal(value) -> str:
-        return f"{value:.2f}"
+        if value is None:
+            return "0.00"
+        quantized = Decimal(str(value)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        return format(quantized, "f")
 
     @classmethod
     def _normalize_money_flow_payload(cls, payload: dict) -> dict:
