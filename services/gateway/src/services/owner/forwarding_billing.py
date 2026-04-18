@@ -20,6 +20,7 @@ from src.domain.identity import RuntimeCredentialRecord
 from src.services.platform import credential_service
 from src.storage import BaseStorage
 from src.domain.finance import ChargeConsumerUsageCommand
+from src.utils.money import MoneyCodec
 
 
 RISK_RESTRICTED_STATUSES = {"restricted", "suspended", "blocked"}
@@ -33,6 +34,10 @@ class ChargeUsageAtomicContext:
     routing_tax: float = 0.0
     usage_row: Optional[UsageLogRow] = None
     invocation: Optional[InvocationRecord] = None
+
+
+def _money_decimal(value: Decimal | str | int | float | None) -> Decimal:
+    return MoneyCodec.coerce_decimal(value)
 
 
 def sanitize_fee_rate(raw: Any, fallback: float) -> float:
@@ -358,14 +363,17 @@ async def _charge_and_mark_usage_fallback(
     provider_net: float,
     credential_id: str,
 ) -> tuple[float, Optional[RuntimeCredentialRecord]]:
-    consumer_after = 0.0
+    total_charge_decimal = _money_decimal(total_charge)
+    platform_fee_total_decimal = _money_decimal(platform_fee_total)
+    provider_net_decimal = _money_decimal(provider_net)
+    consumer_after = Decimal("0")
     updated_credential: Optional[RuntimeCredentialRecord] = None
     now = credential_service.now_ts()
     async with credential_service.write_lock:
         ledger = storage.get_data_manager().finance.balance.read_balance_ledger()
 
         consumer_balance = ledger.consumer_available_balance(owner_wallet)
-        if consumer_balance < total_charge:
+        if consumer_balance < total_charge_decimal:
             raise HTTPException(
                 status_code=402,
                 detail={
@@ -374,15 +382,15 @@ async def _charge_and_mark_usage_fallback(
                 },
             )
 
-        consumer_after = round(consumer_balance - total_charge, 6)
+        consumer_after = _money_decimal(consumer_balance - total_charge_decimal)
         consumer_wallet = ledger.ensure_consumer_wallet(owner_wallet)
         provider_wallet_row = ledger.ensure_provider_wallet(provider_wallet)
         consumer_wallet.available_balance = consumer_after
-        provider_wallet_row.available_balance = round(
-            float(provider_wallet_row.available_balance or 0.0) + provider_net, 6
+        provider_wallet_row.available_balance = _money_decimal(
+            provider_wallet_row.available_balance + provider_net_decimal
         )
-        ledger.platform.fee_accrued = round(
-            ledger.platform.fee_accrued + platform_fee_total, 6
+        ledger.platform.fee_accrued = _money_decimal(
+            ledger.platform.fee_accrued + platform_fee_total_decimal
         )
         ledger.updated_at = now
         storage.get_data_manager().finance.balance.write_balance_ledger(ledger)
@@ -399,7 +407,7 @@ async def _charge_and_mark_usage_fallback(
             rows[idx] = updated_credential
             credential_service.save_credential_rows(storage, rows)
 
-    return consumer_after, updated_credential
+    return float(consumer_after), updated_credential
 
 
 async def rollback_charge(
@@ -412,19 +420,22 @@ async def rollback_charge(
     updated_credential: Optional[RuntimeCredentialRecord],
 ) -> None:
     """Rollback consumer/provider/platform ledger and credential usage when upstream fails."""
+    total_charge_decimal = _money_decimal(total_charge)
+    platform_fee_total_decimal = _money_decimal(platform_fee_total)
+    provider_net_decimal = _money_decimal(provider_net)
     async with credential_service.write_lock:
         ledger = storage.get_data_manager().finance.balance.read_balance_ledger()
 
         consumer_wallet = ledger.ensure_consumer_wallet(owner_wallet)
         provider_wallet_row = ledger.ensure_provider_wallet(provider_wallet)
-        consumer_wallet.available_balance = round(
-            float(consumer_wallet.available_balance or 0.0) + total_charge, 6
+        consumer_wallet.available_balance = _money_decimal(
+            consumer_wallet.available_balance + total_charge_decimal
         )
-        provider_wallet_row.available_balance = round(
-            float(provider_wallet_row.available_balance or 0.0) - provider_net, 6
+        provider_wallet_row.available_balance = _money_decimal(
+            provider_wallet_row.available_balance - provider_net_decimal
         )
-        ledger.platform.fee_accrued = round(
-            ledger.platform.fee_accrued - platform_fee_total, 6
+        ledger.platform.fee_accrued = _money_decimal(
+            ledger.platform.fee_accrued - platform_fee_total_decimal
         )
         ledger.updated_at = credential_service.now_ts()
         storage.get_data_manager().finance.balance.write_balance_ledger(ledger)

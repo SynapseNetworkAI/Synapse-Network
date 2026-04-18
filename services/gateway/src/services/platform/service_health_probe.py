@@ -249,12 +249,31 @@ async def probe_service_health(
             await async_client.aclose()
 
 
+_DEFAULT_PROBE_SERVICE_HEALTH = probe_service_health
+
+
 async def force_probe_service_health(
     service: ServiceDefinitionRecord,
     client: Optional[httpx.AsyncClient] = None,
 ) -> ServiceDefinitionRecord:
+    from src.services.platform import service_health_service
+
+    local_probe_impl = probe_service_health
+    shared_probe_impl = getattr(
+        service_health_service,
+        "probe_service_health",
+        _DEFAULT_PROBE_SERVICE_HEALTH,
+    )
+    probe_impl = local_probe_impl
+    if (
+        local_probe_impl is _DEFAULT_PROBE_SERVICE_HEALTH
+        and shared_probe_impl is not _DEFAULT_PROBE_SERVICE_HEALTH
+    ):
+        probe_impl = shared_probe_impl
     async with _global_probe_limiter():
-        return await probe_service_health(service, client=client)
+        if client is None:
+            return await probe_impl(service)
+        return await probe_impl(service, client=client)
 
 
 async def _probe_candidate(

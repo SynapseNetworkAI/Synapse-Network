@@ -45,30 +45,37 @@ class InMemoryBalanceRepo:
     def reserve_consumer_balance_for_withdrawal(self, owner: str, amount_usdc: float, updated_at: str):
         _ = updated_at
         wallet = self.ledger.ensure_consumer_wallet(owner)
-        available = float(wallet.available_balance or 0.0)
-        if available + 1e-9 < amount_usdc:
+        amount = Decimal(str(amount_usdc)).quantize(Decimal("0.000001"))
+        available = Decimal(str(wallet.available_balance or 0))
+        if available < amount:
             raise RuntimeError("INSUFFICIENT_CONSUMER_BALANCE_ATOMIC")
-        wallet.available_balance = round(available - amount_usdc, 6)
-        wallet.pending_balance = round(float(wallet.pending_balance or 0.0) + amount_usdc, 6)
+        wallet.available_balance = (available - amount).quantize(Decimal("0.000001"))
+        wallet.pending_balance = (
+            Decimal(str(wallet.pending_balance or 0)) + amount
+        ).quantize(Decimal("0.000001"))
 
     def reserve_consumer_balance_for_manual_review(
         self, owner: str, amount_usdc: float, updated_at: str
     ):
         _ = updated_at
         wallet = self.ledger.ensure_consumer_wallet(owner)
-        available = float(wallet.available_balance or 0.0)
-        if available + 1e-9 < amount_usdc:
+        amount = Decimal(str(amount_usdc)).quantize(Decimal("0.000001"))
+        available = Decimal(str(wallet.available_balance or 0))
+        if available < amount:
             raise RuntimeError("INSUFFICIENT_CONSUMER_BALANCE_ATOMIC")
-        wallet.available_balance = round(available - amount_usdc, 6)
-        wallet.frozen_balance = round(float(wallet.frozen_balance or 0.0) + amount_usdc, 6)
+        wallet.available_balance = (available - amount).quantize(Decimal("0.000001"))
+        wallet.frozen_balance = (
+            Decimal(str(wallet.frozen_balance or 0)) + amount
+        ).quantize(Decimal("0.000001"))
 
     def consume_consumer_pending_for_withdrawal(self, owner: str, amount_usdc: float, updated_at: str):
         _ = updated_at
         wallet = self.ledger.ensure_consumer_wallet(owner)
-        pending = float(wallet.pending_balance or 0.0)
-        if pending + 1e-9 < amount_usdc:
+        amount = Decimal(str(amount_usdc)).quantize(Decimal("0.000001"))
+        pending = Decimal(str(wallet.pending_balance or 0))
+        if pending < amount:
             raise RuntimeError("INSUFFICIENT_CONSUMER_PENDING_ATOMIC")
-        wallet.pending_balance = round(pending - amount_usdc, 6)
+        wallet.pending_balance = (pending - amount).quantize(Decimal("0.000001"))
 
 
 class InMemoryGatewayStateRepo:
@@ -182,6 +189,10 @@ async def _async_true(*args, **kwargs):
 
 def _noop_assert_withdraw_vault_liquidity(amount_usdc) -> None:
     _ = amount_usdc
+
+
+def _money_float(value) -> float:
+    return float(value)
 
 
 def _configure_owner_service(service: OwnerFinanceService) -> None:
@@ -402,7 +413,7 @@ def test_consumer_finance_refund_flow_uses_typed_rows() -> None:
 
 def test_provider_withdraw_flow_uses_typed_rows() -> None:
     storage = FakeStorage()
-    storage.balance.ledger.ensure_provider_wallet("0xdef").available_balance = 50.0
+    storage.balance.ledger.ensure_provider_wallet("0xdef").available_balance = Decimal("50.000000")
     service = ProviderWithdrawService(storage, DummyLockManager())
     _configure_withdraw_service(service)
 
@@ -430,32 +441,32 @@ def test_provider_withdraw_flow_uses_typed_rows() -> None:
 
 def test_provider_withdraw_allows_two_decimal_amount() -> None:
     storage = FakeStorage()
-    storage.balance.ledger.ensure_provider_wallet("0xdef").available_balance = 50.0
+    storage.balance.ledger.ensure_provider_wallet("0xdef").available_balance = Decimal("50.000000")
     service = ProviderWithdrawService(storage, DummyLockManager())
     _configure_withdraw_service(service)
 
     created = asyncio.run(
         service.create_provider_withdraw_intent(
-            {"amountUsdc": 12.34},
+            {"amountUsdc": "12.34"},
             "0xdef",
             "withdraw-intent-key-0012",
         )
     )
 
     assert created["status"] == "APPROVED_AUTO"
-    assert abs(created["amountUsdc"] - 12.34) < 1e-9
+    assert created["amountUsdc"] == "12.340000"
 
 
 def test_provider_withdraw_rejects_more_than_two_decimal_places() -> None:
     storage = FakeStorage()
-    storage.balance.ledger.ensure_provider_wallet("0xdef").available_balance = 50.0
+    storage.balance.ledger.ensure_provider_wallet("0xdef").available_balance = Decimal("50.000000")
     service = ProviderWithdrawService(storage, DummyLockManager())
     _configure_withdraw_service(service)
 
     with pytest.raises(HTTPException) as exc_info:
         asyncio.run(
             service.create_provider_withdraw_intent(
-                {"amountUsdc": 12.345},
+                {"amountUsdc": "12.345"},
                 "0xdef",
                 "withdraw-intent-key-0013",
             )
@@ -469,7 +480,7 @@ def test_provider_withdraw_rejects_more_than_two_decimal_places() -> None:
 def test_provider_withdraw_blocks_when_vault_liquidity_is_insufficient_before_locking() -> None:
     storage = FakeStorage()
     wallet = storage.balance.ledger.ensure_provider_wallet("0xdef")
-    wallet.available_balance = 50.0
+    wallet.available_balance = Decimal("50.000000")
     service = ProviderWithdrawService(storage, DummyLockManager())
     _configure_withdraw_service(service)
     service._assert_withdraw_vault_liquidity = _raise_insufficient_vault_liquidity
@@ -477,7 +488,7 @@ def test_provider_withdraw_blocks_when_vault_liquidity_is_insufficient_before_lo
     with pytest.raises(HTTPException) as exc_info:
         asyncio.run(
             service.create_provider_withdraw_intent(
-                {"amountUsdc": 8.5},
+                {"amountUsdc": "8.5"},
                 "0xdef",
                 "withdraw-intent-key-liquidity-1",
             )
@@ -487,15 +498,15 @@ def test_provider_withdraw_blocks_when_vault_liquidity_is_insufficient_before_lo
     assert exc_info.value.detail["code"] == "INSUFFICIENT_VAULT_LIQUIDITY"
     assert len(storage.gateway_state.withdraw_rows) == 0
     wallet_after = storage.balance.ledger.ensure_provider_wallet("0xdef")
-    assert abs(wallet_after.available_balance - 50.0) < 1e-9
-    assert abs(wallet_after.pending_balance - 0.0) < 1e-9
-    assert abs(wallet_after.frozen_balance - 0.0) < 1e-9
+    assert abs(_money_float(wallet_after.available_balance) - 50.0) < 1e-9
+    assert abs(_money_float(wallet_after.pending_balance) - 0.0) < 1e-9
+    assert abs(_money_float(wallet_after.frozen_balance) - 0.0) < 1e-9
 
 
 def test_provider_withdraw_atomic_path_reads_vault_liquidity_from_contract_tuple() -> None:
     storage = FakeStorage()
     wallet = storage.balance.ledger.ensure_provider_wallet("0xdef")
-    wallet.available_balance = 50.0
+    wallet.available_balance = Decimal("50.000000")
     service = ProviderWithdrawService(storage, DummyLockManager())
     _configure_withdraw_service(service)
     service._assert_withdraw_vault_liquidity = ProviderWithdrawService._assert_withdraw_vault_liquidity.__get__(
@@ -540,7 +551,7 @@ def test_provider_withdraw_atomic_path_reads_vault_liquidity_from_contract_tuple
 
     created = asyncio.run(
         service.create_provider_withdraw_intent(
-            {"amountUsdc": 8.5},
+            {"amountUsdc": "8.5"},
             "0xdef",
             "withdraw-intent-key-atomic-liquidity-1",
         )
@@ -553,7 +564,7 @@ def test_provider_withdraw_atomic_path_reads_vault_liquidity_from_contract_tuple
 def test_provider_withdraw_maps_missing_vault_web3_provider_to_service_unavailable() -> None:
     storage = FakeStorage()
     wallet = storage.balance.ledger.ensure_provider_wallet("0xdef")
-    wallet.available_balance = 50.0
+    wallet.available_balance = Decimal("50.000000")
     service = ProviderWithdrawService(storage, DummyLockManager())
     _configure_withdraw_service(service)
     service._assert_withdraw_vault_liquidity = ProviderWithdrawService._assert_withdraw_vault_liquidity.__get__(
@@ -571,7 +582,7 @@ def test_provider_withdraw_maps_missing_vault_web3_provider_to_service_unavailab
     with pytest.raises(HTTPException) as exc_info:
         asyncio.run(
             service.create_provider_withdraw_intent(
-                {"amountUsdc": 8.5},
+                {"amountUsdc": "8.5"},
                 "0xdef",
                 "withdraw-intent-key-atomic-liquidity-2",
             )
@@ -584,7 +595,7 @@ def test_provider_withdraw_maps_missing_vault_web3_provider_to_service_unavailab
 def test_provider_withdraw_manual_review_approval_generates_ticket_and_moves_to_pending() -> None:
     storage = FakeStorage()
     wallet = storage.balance.ledger.ensure_provider_wallet("0xdef")
-    wallet.available_balance = 200.0
+    wallet.available_balance = Decimal("200.000000")
     service = ProviderWithdrawService(storage, DummyLockManager())
     _configure_withdraw_service(service)
 
@@ -634,9 +645,9 @@ def test_provider_withdraw_manual_review_approval_generates_ticket_and_moves_to_
 
     assert created["status"] == "PENDING_MANUAL_REVIEW"
     wallet_after_create = storage.balance.ledger.ensure_provider_wallet("0xdef")
-    assert abs(wallet_after_create.available_balance - 80.0) < 1e-9
-    assert abs(wallet_after_create.pending_balance - 0.0) < 1e-9
-    assert abs(wallet_after_create.frozen_balance - 120.0) < 1e-9
+    assert abs(_money_float(wallet_after_create.available_balance) - 80.0) < 1e-9
+    assert abs(_money_float(wallet_after_create.pending_balance) - 0.0) < 1e-9
+    assert abs(_money_float(wallet_after_create.frozen_balance) - 120.0) < 1e-9
 
     approved = asyncio.run(
         service.review_provider_withdrawal(
@@ -659,9 +670,9 @@ def test_provider_withdraw_manual_review_approval_generates_ticket_and_moves_to_
     assert row.reviewer_address == "0xreviewer"
     assert row.signature == "sig-approved"
     wallet_after_approve = storage.balance.ledger.ensure_provider_wallet("0xdef")
-    assert abs(wallet_after_approve.available_balance - 80.0) < 1e-9
-    assert abs(wallet_after_approve.pending_balance - 120.0) < 1e-9
-    assert abs(wallet_after_approve.frozen_balance - 0.0) < 1e-9
+    assert abs(_money_float(wallet_after_approve.available_balance) - 80.0) < 1e-9
+    assert abs(_money_float(wallet_after_approve.pending_balance) - 120.0) < 1e-9
+    assert abs(_money_float(wallet_after_approve.frozen_balance) - 0.0) < 1e-9
 
     completed = asyncio.run(
         service.complete_provider_withdrawal(
@@ -672,13 +683,13 @@ def test_provider_withdraw_manual_review_approval_generates_ticket_and_moves_to_
     )
     assert completed["status"] == "COMPLETED"
     wallet_after_complete = storage.balance.ledger.ensure_provider_wallet("0xdef")
-    assert abs(wallet_after_complete.pending_balance - 0.0) < 1e-9
+    assert abs(_money_float(wallet_after_complete.pending_balance) - 0.0) < 1e-9
 
 
 def test_provider_withdraw_manual_review_rejection_releases_frozen_balance() -> None:
     storage = FakeStorage()
     wallet = storage.balance.ledger.ensure_provider_wallet("0xdef")
-    wallet.available_balance = 150.0
+    wallet.available_balance = Decimal("150.000000")
     service = ProviderWithdrawService(storage, DummyLockManager())
     _configure_withdraw_service(service)
     service._prepare_withdraw_ticket = lambda **kwargs: PreparedWithdrawTicket(
@@ -723,7 +734,7 @@ def test_provider_withdraw_manual_review_rejection_releases_frozen_balance() -> 
 def test_provider_withdraw_manual_review_uses_configured_single_limit(monkeypatch) -> None:
     storage = FakeStorage()
     wallet = storage.balance.ledger.ensure_provider_wallet("0xdef")
-    wallet.available_balance = 100.0
+    wallet.available_balance = Decimal("100.000000")
     service = ProviderWithdrawService(storage, DummyLockManager())
     _configure_withdraw_service(service)
     captured_single_limit: Decimal | None = None
@@ -764,8 +775,8 @@ def test_provider_withdraw_manual_review_uses_configured_single_limit(monkeypatc
 def test_provider_withdraw_expired_ticket_releases_locked_balance_on_list() -> None:
     storage = FakeStorage()
     wallet = storage.balance.ledger.ensure_provider_wallet("0xdef")
-    wallet.available_balance = 10.0
-    wallet.pending_balance = 12.0
+    wallet.available_balance = Decimal("10.000000")
+    wallet.pending_balance = Decimal("12.000000")
 
     storage.gateway_state.withdraw_rows = [
         WithdrawalIntentRow(
@@ -807,19 +818,19 @@ def test_provider_withdraw_expired_ticket_releases_locked_balance_on_list() -> N
     assert rows[0]["status"] == "CANCELLED"
     assert "expired" in rows[0]["message"].lower()
     wallet_after = storage.balance.ledger.ensure_provider_wallet("0xdef")
-    assert abs(wallet_after.available_balance - 22.0) < 1e-9
-    assert abs(wallet_after.pending_balance - 0.0) < 1e-9
+    assert abs(_money_float(wallet_after.available_balance) - 22.0) < 1e-9
+    assert abs(_money_float(wallet_after.pending_balance) - 0.0) < 1e-9
     assert storage.audit.rows[-1].action == "PROVIDER_WITHDRAW_CANCELLED"
     assert storage.audit.rows[-1].details["reason"] == "TICKET_EXPIRED"
-    assert abs(storage.audit.rows[-1].details["releasedAmountUsdc"] - 12.0) < 1e-9
-    assert abs(storage.audit.rows[-1].details["releaseShortfallUsdc"] - 0.0) < 1e-9
+    assert abs(_money_float(storage.audit.rows[-1].details["releasedAmountUsdc"]) - 12.0) < 1e-9
+    assert abs(_money_float(storage.audit.rows[-1].details["releaseShortfallUsdc"]) - 0.0) < 1e-9
 
 
 def test_provider_withdraw_expired_ticket_cancels_even_if_locked_balance_was_already_reconciled() -> None:
     storage = FakeStorage()
     wallet = storage.balance.ledger.ensure_provider_wallet("0xdef")
-    wallet.available_balance = 10.0
-    wallet.pending_balance = 0.0
+    wallet.available_balance = Decimal("10.000000")
+    wallet.pending_balance = Decimal("0.000000")
 
     storage.gateway_state.withdraw_rows = [
         WithdrawalIntentRow(
@@ -861,19 +872,19 @@ def test_provider_withdraw_expired_ticket_cancels_even_if_locked_balance_was_alr
     assert rows[0]["status"] == "CANCELLED"
     assert "reconciled" in rows[0]["message"].lower()
     wallet_after = storage.balance.ledger.ensure_provider_wallet("0xdef")
-    assert abs(wallet_after.available_balance - 10.0) < 1e-9
-    assert abs(wallet_after.pending_balance - 0.0) < 1e-9
+    assert abs(_money_float(wallet_after.available_balance) - 10.0) < 1e-9
+    assert abs(_money_float(wallet_after.pending_balance) - 0.0) < 1e-9
     assert storage.audit.rows[-1].action == "PROVIDER_WITHDRAW_CANCELLED"
     assert storage.audit.rows[-1].details["reason"] == "TICKET_EXPIRED"
-    assert abs(storage.audit.rows[-1].details["releasedAmountUsdc"] - 0.0) < 1e-9
-    assert abs(storage.audit.rows[-1].details["releaseShortfallUsdc"] - 12.0) < 1e-9
+    assert abs(_money_float(storage.audit.rows[-1].details["releasedAmountUsdc"]) - 0.0) < 1e-9
+    assert abs(_money_float(storage.audit.rows[-1].details["releaseShortfallUsdc"]) - 12.0) < 1e-9
 
 
 def test_provider_withdraw_expired_ticket_does_not_block_new_intent() -> None:
     storage = FakeStorage()
     wallet = storage.balance.ledger.ensure_provider_wallet("0xdef")
-    wallet.available_balance = 10.0
-    wallet.pending_balance = 12.0
+    wallet.available_balance = Decimal("10.000000")
+    wallet.pending_balance = Decimal("12.000000")
 
     storage.gateway_state.withdraw_rows = [
         WithdrawalIntentRow(
@@ -923,20 +934,20 @@ def test_provider_withdraw_expired_ticket_does_not_block_new_intent() -> None:
     assert storage.gateway_state.withdraw_rows[0].status == "CANCELLED"
     assert storage.gateway_state.withdraw_rows[1].status == "APPROVED_AUTO"
     wallet_after = storage.balance.ledger.ensure_provider_wallet("0xdef")
-    assert abs(wallet_after.available_balance - 2.0) < 1e-9
-    assert abs(wallet_after.pending_balance - 20.0) < 1e-9
+    assert abs(_money_float(wallet_after.available_balance) - 2.0) < 1e-9
+    assert abs(_money_float(wallet_after.pending_balance) - 20.0) < 1e-9
 
 
 def test_provider_withdraw_expiry_reaper_scans_all_owners() -> None:
     storage = FakeStorage()
 
     wallet_a = storage.balance.ledger.ensure_provider_wallet("0xdef")
-    wallet_a.available_balance = 5.0
-    wallet_a.pending_balance = 12.0
+    wallet_a.available_balance = Decimal("5.000000")
+    wallet_a.pending_balance = Decimal("12.000000")
 
     wallet_b = storage.balance.ledger.ensure_provider_wallet("0xaaa")
-    wallet_b.available_balance = 3.0
-    wallet_b.pending_balance = 8.0
+    wallet_b.available_balance = Decimal("3.000000")
+    wallet_b.pending_balance = Decimal("8.000000")
 
     storage.gateway_state.withdraw_rows = [
         WithdrawalIntentRow(
@@ -1007,10 +1018,10 @@ def test_provider_withdraw_expiry_reaper_scans_all_owners() -> None:
     assert expired_count == 2
     assert storage.gateway_state.withdraw_rows[0].status == "CANCELLED"
     assert storage.gateway_state.withdraw_rows[1].status == "CANCELLED"
-    assert abs(storage.balance.ledger.ensure_provider_wallet("0xdef").available_balance - 17.0) < 1e-9
-    assert abs(storage.balance.ledger.ensure_provider_wallet("0xdef").pending_balance - 0.0) < 1e-9
-    assert abs(storage.balance.ledger.ensure_provider_wallet("0xaaa").available_balance - 11.0) < 1e-9
-    assert abs(storage.balance.ledger.ensure_provider_wallet("0xaaa").pending_balance - 0.0) < 1e-9
+    assert abs(_money_float(storage.balance.ledger.ensure_provider_wallet("0xdef").available_balance) - 17.0) < 1e-9
+    assert abs(_money_float(storage.balance.ledger.ensure_provider_wallet("0xdef").pending_balance) - 0.0) < 1e-9
+    assert abs(_money_float(storage.balance.ledger.ensure_provider_wallet("0xaaa").available_balance) - 11.0) < 1e-9
+    assert abs(_money_float(storage.balance.ledger.ensure_provider_wallet("0xaaa").pending_balance) - 0.0) < 1e-9
 
 
 def test_balance_service_reports_withdraw_signer_capability(monkeypatch) -> None:
@@ -1045,14 +1056,14 @@ def test_owner_balance_summary_uses_consumer_provider_fields() -> None:
 
     assert balance == {
         "ownerAddress": "0xabc",
-        "ownerBalance": 12.5,
-        "consumerAvailableBalance": 12.5,
-        "consumerPendingBalance": 1.25,
-        "consumerFrozenBalance": 0.75,
-        "providerReceivable": 9.5,
-        "providerReceivableBalance": 9.5,
-        "providerLockedBalance": 2.0,
-        "platformFeeAccrued": 0.4,
+        "ownerBalance": "12.500000",
+        "consumerAvailableBalance": "12.500000",
+        "consumerPendingBalance": "1.250000",
+        "consumerFrozenBalance": "0.750000",
+        "providerReceivable": "9.500000",
+        "providerReceivableBalance": "9.500000",
+        "providerLockedBalance": "2.000000",
+        "platformFeeAccrued": "0.400000",
         "updatedAt": "2026-03-17 12:00:00",
     }
 
@@ -1078,11 +1089,11 @@ def test_owner_balance_summary_repairs_stale_active_consumer_withdraw_gap() -> N
 
     balance = asyncio.run(service.get_balance("0xabc"))
 
-    assert balance["consumerAvailableBalance"] == 0.0
-    assert balance["consumerPendingBalance"] == 20.0
+    assert balance["consumerAvailableBalance"] == "0.000000"
+    assert balance["consumerPendingBalance"] == "20.000000"
     repaired = storage.balance.read_balance_ledger()
-    assert repaired.consumer_available_balance("0xabc") == 0.0
-    assert repaired.consumer_pending_balance("0xabc") == 20.0
+    assert repaired.consumer_available_balance("0xabc") == Decimal("0.000000")
+    assert repaired.consumer_pending_balance("0xabc") == Decimal("20.000000")
 
 
 def test_owner_balance_summary_repairs_manual_review_consumer_withdraw_gap_to_frozen() -> None:
@@ -1107,13 +1118,13 @@ def test_owner_balance_summary_repairs_manual_review_consumer_withdraw_gap_to_fr
 
     balance = asyncio.run(service.get_balance("0xabc"))
 
-    assert balance["consumerAvailableBalance"] == 0.0
-    assert balance["consumerPendingBalance"] == 0.0
-    assert balance["consumerFrozenBalance"] == 20.0
+    assert balance["consumerAvailableBalance"] == "0.000000"
+    assert balance["consumerPendingBalance"] == "0.000000"
+    assert balance["consumerFrozenBalance"] == "20.000000"
     repaired = storage.balance.read_balance_ledger()
-    assert repaired.consumer_available_balance("0xabc") == 0.0
-    assert repaired.consumer_pending_balance("0xabc") == 0.0
-    assert repaired.consumer_frozen_balance("0xabc") == 20.0
+    assert repaired.consumer_available_balance("0xabc") == Decimal("0.000000")
+    assert repaired.consumer_pending_balance("0xabc") == Decimal("0.000000")
+    assert repaired.consumer_frozen_balance("0xabc") == Decimal("20.000000")
 
 
 def test_owner_balance_summary_does_not_re_reserve_backed_manual_review_withdrawal() -> None:
@@ -1147,13 +1158,13 @@ def test_owner_balance_summary_does_not_re_reserve_backed_manual_review_withdraw
 
     balance = asyncio.run(service.get_balance("0xabc"))
 
-    assert balance["consumerAvailableBalance"] == 0.0
-    assert balance["consumerPendingBalance"] == 1.0
-    assert balance["consumerFrozenBalance"] == 20.0
+    assert balance["consumerAvailableBalance"] == "0.000000"
+    assert balance["consumerPendingBalance"] == "1.000000"
+    assert balance["consumerFrozenBalance"] == "20.000000"
     repaired = storage.balance.read_balance_ledger()
-    assert repaired.consumer_available_balance("0xabc") == 0.0
-    assert repaired.consumer_pending_balance("0xabc") == 1.0
-    assert repaired.consumer_frozen_balance("0xabc") == 20.0
+    assert repaired.consumer_available_balance("0xabc") == Decimal("0.000000")
+    assert repaired.consumer_pending_balance("0xabc") == Decimal("1.000000")
+    assert repaired.consumer_frozen_balance("0xabc") == Decimal("20.000000")
 
 
 def test_platform_finance_service_persists_owner_spending_limit() -> None:
@@ -1171,7 +1182,7 @@ def test_platform_finance_service_persists_owner_spending_limit() -> None:
     )
 
     assert saved["ownerAddress"] == "0xabc"
-    assert saved["spendingLimitUsdc"] == 25.0
+    assert saved["spendingLimitUsdc"] == "25.000000"
     assert saved["allowUnlimited"] is False
     assert saved["cycleInterval"] == "monthly"
     assert len(storage.gateway_state.owner_spend_limit_rows) == 1
@@ -1219,9 +1230,9 @@ def test_platform_finance_service_reports_current_cycle_owner_spend_limit_budget
 
     summary = asyncio.run(service.get_owner_spending_limit("0xabc"))
 
-    assert summary["spendingLimitUsdc"] == 10.0
-    assert summary["currentCycleSpendUsdc"] == 3.25
-    assert summary["remainingSpendUsdc"] == 6.75
+    assert summary["spendingLimitUsdc"] == "10.000000"
+    assert summary["currentCycleSpendUsdc"] == "3.250000"
+    assert summary["remainingSpendUsdc"] == "6.750000"
     assert summary["allowUnlimited"] is False
 
 
@@ -1292,7 +1303,7 @@ def test_platform_finance_service_redeems_voucher_and_returns_balance() -> None:
 
     assert result["redemption"]["campaignCode"] == "APRIL26"
     assert result["redemption"]["grantedAmountUsdc"] == "15.000000"
-    assert result["balance"]["ownerBalance"] == 35.0
+    assert result["balance"]["ownerBalance"] == "35.000000"
     assert storage.voucher_commands[0].normalized_code == "ABCDEFGHIJKL"
     assert storage.voucher_commands[0].code_hash
 

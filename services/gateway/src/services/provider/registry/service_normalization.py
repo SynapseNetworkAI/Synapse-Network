@@ -347,6 +347,7 @@ def service_definition_payload(
     owner_wallet: str,
     service_name: str,
     tags: List[str],
+    lifecycle_status: str,
     pricing_amount: str,
     pricing_currency: str,
     constraints: ServiceConstraintRecord,
@@ -395,6 +396,10 @@ def normalize_service_payload(
     normalized_targets = normalized_invoke_targets(invoke)
     health_check = normalized_health_check(req_data)
     constraints = normalized_constraints(req_data)
+    lifecycle_status = normalized_service_lifecycle_status(
+        req_data.get("status"),
+        is_active=bool(req_data.get("isActive", True)),
+    )
     pricing_amount, pricing_currency = resolved_pricing(req_data)
     service_name = resolved_service_name(req_data)
     tags = resolved_tags(req_data)
@@ -405,6 +410,7 @@ def normalize_service_payload(
             owner_wallet,
             service_name,
             tags,
+            lifecycle_status,
             pricing_amount,
             pricing_currency,
             constraints,
