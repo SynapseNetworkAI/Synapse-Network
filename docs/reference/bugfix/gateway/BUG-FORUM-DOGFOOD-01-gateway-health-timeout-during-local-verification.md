@@ -2,7 +2,7 @@
 
 ## Status
 
-Observed during local verification. The forum dogfood and DB reconciliation completed after applying a local-only startup guard.
+Fixed. The forum dogfood and DB reconciliation originally completed after applying a local-only startup guard; the gateway now isolates deposit indexer blocking work from the FastAPI event loop.
 
 ## Reproduction
 
@@ -36,6 +36,18 @@ CONSUMER_WITHDRAW_PROCESSOR_ENABLED=false
 
 After that, `/health` returned `{"status":"ok","version":"2.0.0"}` and the dogfood verification completed.
 
+## Fix
+
+The deposit indexer now:
+
+- runs blocking backfill, pending intent, and reconciliation work in a dedicated single-thread executor instead of the FastAPI event loop
+- applies `V2_INDEXER_STEP_TIMEOUT_SEC` around each blocking step
+- refuses to queue a second step while the previous worker thread is still running
+- exposes indexer heartbeat, step duration, consecutive failure, timeout, and stale status through `/readiness`
+- configures Web3 HTTP request timeout through `RPC_REQUEST_TIMEOUT_SEC`
+- configures PostgreSQL connection timeout through `POSTGRES_CONNECT_TIMEOUT_SEC`
+- runs service health monitor ticks in a dedicated single-thread executor so provider health checks cannot block the API event loop
+
 ## Verification
 
 Forum dogfood DB reconciliation passed:
@@ -44,14 +56,22 @@ Forum dogfood DB reconciliation passed:
 - Browser/API checks: 8 passed, 0 failed, 0 warnings
 - DB reconciliation for run `forum-20260419051638`: 4 feedback rows, 2 forum topics, 2 replies
 
+Focused stability regression passed:
+
+```bash
+cd services/gateway
+.venv/bin/python -m pytest \
+  tests/unit/test_deposit_indexer_runner_stability_unit.py \
+  tests/unit/test_gateway_readiness_endpoint_unit.py \
+  tests/unit/test_deposit_indexer_runtime_state_unit.py
+```
+
+Result: 11 passed.
+
 ## Follow-up
 
-The durable fix should make startup background work cooperative:
-
-- Ensure deposit indexer backfill/reconciliation yields before long loops.
-- Keep `/health` responsive while background processors initialize.
-- Consider exposing the blocked processor in readiness rather than blocking the event loop.
+The next architectural hardening step is to move deposit indexer, withdrawal watchers, and other compensating workers into a separate gateway worker process. That is no longer required for local dogfood stability, but remains the preferred production isolation model.
 
 ## Residual Risk
 
-This is a local dogfood startup risk, not a forum persistence bug. It can still slow local verification until the indexer startup path is made fully cooperative.
+This was a local dogfood startup risk, not a forum persistence bug. `/readiness` can now return degraded while `/health` stays responsive; operators should alert on degraded readiness rather than restarting the API process for every indexer timeout.

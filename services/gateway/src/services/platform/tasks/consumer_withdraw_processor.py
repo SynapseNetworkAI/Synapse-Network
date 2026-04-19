@@ -75,7 +75,12 @@ def _get_w3_and_core():
     router_address = str(settings.router_address or "").strip()
     if not router_address or router_address == "0x" + "0" * 40:
         return None, None
-    w3 = Web3(Web3.HTTPProvider(rpc_url))
+    w3 = Web3(
+        Web3.HTTPProvider(
+            rpc_url,
+            request_kwargs={"timeout": settings.rpc_request_timeout_sec},
+        )
+    )
     if not w3.is_connected():
         return None, None
     core = w3.eth.contract(

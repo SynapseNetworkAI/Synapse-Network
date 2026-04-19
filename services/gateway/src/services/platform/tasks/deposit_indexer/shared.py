@@ -15,16 +15,24 @@ _INDEXER_LOOP_ERROR_CODE = "INDEXER_LOOP_FAILED"
 _BACKFILL_ERROR_CODE = "INDEXER_BACKFILL_SCAN_FAILED"
 _BACKFILL_RPC_UNAVAILABLE_CODE = "INDEXER_BACKFILL_RPC_UNAVAILABLE"
 _RECONCILIATION_ERROR_CODE = "INDEXER_RECONCILIATION_FAILED"
+_STEP_TIMEOUT_ERROR_CODE = "INDEXER_STEP_TIMEOUT"
+_STEP_STILL_RUNNING_ERROR_CODE = "INDEXER_STEP_STILL_RUNNING"
 _WEB3_INSTANCE: Any = None
 _TRANSFER_TOPIC: Optional[str] = None
 
 INDEXER_STATUS: dict[str, Any] = {
     "running": False,
+    "initialized": False,
     "listenerAddress": normalize_wallet(settings.router_address),
     "lastCounters": {"credited": 0, "failed": 0, "pending": 0},
     "lastProcessedAt": None,
     "heartbeatAt": None,
     "lastError": None,
+    "consecutiveFailures": 0,
+    "stepRunning": False,
+    "lastStepStartedAt": None,
+    "lastStepFinishedAt": None,
+    "lastStepDurationMs": None,
     "backfill": {
         "enabled": bool(settings.v2_backfill_enabled),
         "lastScannedBlock": None,
@@ -56,7 +64,12 @@ def get_web3():
     global _WEB3_INSTANCE
     if _WEB3_INSTANCE is None:
         web3_class = get_web3_class()
-        _WEB3_INSTANCE = web3_class(web3_class.HTTPProvider(settings.rpc_url))
+        _WEB3_INSTANCE = web3_class(
+            web3_class.HTTPProvider(
+                settings.rpc_url,
+                request_kwargs={"timeout": settings.rpc_request_timeout_sec},
+            )
+        )
     return _WEB3_INSTANCE
 
 
@@ -114,6 +127,7 @@ def get_indexer_status() -> dict[str, Any]:
         snapshot = _public_status_snapshot()
         return {
             "running": bool(snapshot.get("running")),
+            "initialized": bool(snapshot.get("initialized")),
             "listenerAddress": str(snapshot.get("listenerAddress") or ""),
             "lastCounters": dict(
                 snapshot.get("lastCounters")
@@ -122,7 +136,14 @@ def get_indexer_status() -> dict[str, Any]:
             "lastProcessedAt": snapshot.get("lastProcessedAt"),
             "heartbeatAt": snapshot.get("heartbeatAt"),
             "lastError": snapshot.get("lastError"),
+            "consecutiveFailures": int(snapshot.get("consecutiveFailures") or 0),
+            "stepRunning": bool(snapshot.get("stepRunning")),
+            "lastStepStartedAt": snapshot.get("lastStepStartedAt"),
+            "lastStepFinishedAt": snapshot.get("lastStepFinishedAt"),
+            "lastStepDurationMs": snapshot.get("lastStepDurationMs"),
             "pollIntervalSec": settings.v2_indexer_poll_interval_sec,
+            "stepTimeoutSec": settings.v2_indexer_step_timeout_sec,
+            "staleAfterSec": settings.v2_indexer_stale_after_sec,
             "backfill": dict(snapshot.get("backfill") or {}),
             "reconciliation": dict(snapshot.get("reconciliation") or {}),
         }

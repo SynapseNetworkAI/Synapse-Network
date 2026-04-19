@@ -89,7 +89,12 @@ def _q6(value: Any) -> Decimal:
 
 
 class PostgresStorage(BaseStorage):
-    def __init__(self, dsn: str, ensure_schema: bool = True):
+    def __init__(
+        self,
+        dsn: str,
+        ensure_schema: bool = True,
+        connect_timeout_sec: int = 5,
+    ):
         if psycopg is None:
             raise RuntimeError(
                 "psycopg is not installed. Install dependency 'psycopg[binary]' before using PostgreSQL storage."
@@ -98,6 +103,7 @@ class PostgresStorage(BaseStorage):
             raise RuntimeError("POSTGRES_DSN is required when STORAGE_BACKEND=postgres")
 
         self.dsn = dsn.strip()
+        self._connect_timeout_sec = max(1, int(connect_timeout_sec or 5))
         self._db = DatabaseManager(self._connect)
         if ensure_schema:
             self._validate_schema_contract()
@@ -243,7 +249,9 @@ class PostgresStorage(BaseStorage):
     def _connect(self):
         if psycopg is None:
             raise RuntimeError("psycopg is not installed")
-        return psycopg.connect(self.dsn)
+        return psycopg.connect(
+            self.dsn, connect_timeout=self._connect_timeout_sec
+        )
 
     def get_database_manager(self) -> DatabaseManager:
         return self._db

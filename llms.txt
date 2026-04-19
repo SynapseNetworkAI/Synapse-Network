@@ -13,6 +13,7 @@ Synapse Network is an agent-first settlement layer for AI agents. The primary pr
 - docs/plans/README.md - current planning bundle entrypoint for active implementation work
 - docs/ops/10_Production_Go_No_Go_Security_Verification.md - production launch Go/No-Go gate for contracts, finance, gateway, monitoring, recovery, and sign-off
 - docs/ops/11_Performance_and_Reliability_Verification.md - performance, load, chaos, rollback, and local reliability smoke verification plan
+- docs/ops/12_Gateway_Pre_Launch_Stress_Review.md - executable gateway stress-review constraints for fake async, timeouts, DB transactions, OOM, and indexes
 
 ## Core Runtime Docs
 
@@ -50,6 +51,7 @@ Synapse Network is an agent-first settlement layer for AI agents. The primary pr
 - docs/reference/Validation_Entry_Points.md - current validation commands and workflow checks
 - npm run ci:docs - lightweight docs governance gate for root growth, retired-path regressions, and canonical metadata minimums
 - npm run ci:performance-reliability - local performance/reliability smoke for provider health probe concurrency and slow lane guardrails
+- npm run ci:gateway-stress-review - static gateway pre-launch scan for fake async, missing timeouts, transaction wait, unbounded reads, and hot-path indexes
 - docs/00_Governance/Agent_Docs_Migration_Map.md - historical map for the retired agent-doc layer and its merge into official modules
 - docs/00_Governance/exec-plans/README.md - plan structure for active and completed work
 - docs/plans/production-go-live-security-verification/README.md - executable evidence plan for production launch approval

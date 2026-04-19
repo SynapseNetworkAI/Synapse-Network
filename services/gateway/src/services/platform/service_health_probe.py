@@ -10,6 +10,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from concurrent.futures import Future, ThreadPoolExecutor
+from contextlib import suppress
 from dataclasses import dataclass
 from typing import Any, List, Optional
 
@@ -185,7 +187,7 @@ async def probe_service_health(
     owns_client = client is None
     async_client = client
     if async_client is None:
-        async_client = httpx.AsyncClient()
+        async_client = httpx.AsyncClient(timeout=httpx.Timeout(timeout_sec))
 
     try:
         next_target_health: List[ServiceHealthTargetRecord] = []
@@ -384,7 +386,8 @@ async def refresh_all_service_health(storage: BaseStorage) -> dict[str, int]:
             continue
         candidates.append(_ProbeCandidate(index=index, service=row))
 
-    async with httpx.AsyncClient() as client:
+    default_timeout_sec = max(0.1, float(settings.service_health_probe_timeout_ms) / 1000.0)
+    async with httpx.AsyncClient(timeout=httpx.Timeout(default_timeout_sec)) as client:
         runner = BoundedTaskRunner(
             _max_probe_concurrency(),
             semaphore=_global_probe_limiter(),
@@ -438,26 +441,65 @@ async def run_service_health_monitor(
     stop_event: asyncio.Event, storage: BaseStorage
 ) -> None:
     interval = max(1.0, float(settings.service_health_probe_interval_sec))
-    logger.info("Service health monitor started: interval=%ss", interval)
+    step_timeout = max(0.01, float(settings.service_health_monitor_step_timeout_sec))
+    logger.info(
+        "Service health monitor started: interval=%ss step_timeout=%ss",
+        interval,
+        step_timeout,
+    )
 
-    while not stop_event.is_set():
-        try:
-            result = await refresh_all_service_health(storage)
-            logger.debug(
-                "Service health monitor tick: scheduled=%s checked=%s updated=%s jitter_skipped=%s slow_lane_skipped=%s max_concurrency=%s",
-                result.get("scheduled"),
-                result.get("checked"),
-                result.get("updated"),
-                result.get("jitterSkipped"),
-                result.get("slowLaneSkipped"),
-                result.get("maxConcurrency"),
-            )
-        except Exception as exc:
-            logger.warning("Service health monitor tick failed: %s", exc)
+    def _run_monitor_tick() -> dict[str, int]:
+        return asyncio.run(refresh_all_service_health(storage))
 
-        try:
-            await asyncio.wait_for(stop_event.wait(), timeout=interval)
-        except asyncio.TimeoutError:
-            pass
+    executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="service-health")
+    loop = asyncio.get_running_loop()
+    active_step: Future[dict[str, int]] | None = None
+    try:
+        while not stop_event.is_set():
+            if active_step is not None and not active_step.done():
+                logger.warning(
+                    "Service health monitor skipped tick because previous tick is still running"
+                )
+            else:
+                if active_step is not None and active_step.done():
+                    with suppress(Exception):
+                        active_step.result()
+                    active_step = None
+
+                active_step = executor.submit(_run_monitor_tick)
+                wrapped_step = asyncio.wrap_future(active_step, loop=loop)
+                try:
+                    result = await asyncio.wait_for(
+                        wrapped_step,
+                        timeout=step_timeout,
+                    )
+                    logger.debug(
+                        "Service health monitor tick: scheduled=%s checked=%s updated=%s jitter_skipped=%s slow_lane_skipped=%s max_concurrency=%s",
+                        result.get("scheduled"),
+                        result.get("checked"),
+                        result.get("updated"),
+                        result.get("jitterSkipped"),
+                        result.get("slowLaneSkipped"),
+                        result.get("maxConcurrency"),
+                    )
+                    active_step = None
+                except asyncio.TimeoutError:
+                    logger.warning(
+                        "Service health monitor tick timed out after %ss",
+                        step_timeout,
+                    )
+                except Exception as exc:
+                    logger.warning("Service health monitor tick failed: %s", exc)
+                    active_step = None
+
+            try:
+                await asyncio.wait_for(stop_event.wait(), timeout=interval)
+            except asyncio.TimeoutError:
+                pass
+    finally:
+        if active_step is not None and active_step.done():
+            with suppress(Exception):
+                active_step.result()
+        executor.shutdown(wait=False, cancel_futures=True)
 
     logger.info("Service health monitor stopped")
