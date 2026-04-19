@@ -216,6 +216,14 @@ async function assertText(page, candidates, label) {
   return bodyText;
 }
 
+async function expectUrlPath(page, expectedPath) {
+  await page.waitForURL((url) => url.pathname === expectedPath, { timeout: 30000 });
+  const current = new URL(page.url());
+  if (current.pathname !== expectedPath) {
+    throw new Error(`expected URL path ${expectedPath}, got ${current.pathname}`);
+  }
+}
+
 const authPageMatrix = [
   { route: "/login", name: "login", text: ["System Authorization"] },
   { route: "/login/mfa-enroll", name: "login-mfa-enroll", text: ["MFA", "Authenticator", "Google"] },
@@ -266,6 +274,34 @@ async function verifyNavigationClicks(page) {
     if (!page.url().includes("/dashboard/overview")) {
       throw new Error(`expected /dashboard to redirect to overview, got ${page.url()}`);
     }
+    return page.url();
+  });
+  await step("click:sidebar-dashboard-parent-toggle", async () => {
+    await page.goto(pageUrl("/dashboard/overview"), { waitUntil: "networkidle", timeout: 60000 });
+    const beforeUrl = page.url();
+    const dashboardParent = page.getByRole("button", { name: /控制台/ }).first();
+    await dashboardParent.click();
+    await page.waitForTimeout(300);
+    if (page.url() !== beforeUrl) {
+      throw new Error(`clicking dashboard parent should not navigate: before=${beforeUrl} after=${page.url()}`);
+    }
+    await screenshot(page, "click-sidebar-dashboard-parent-toggle");
+    return page.url();
+  });
+  await step("click:sidebar-dashboard-leaf-pages", async () => {
+    await page.goto(pageUrl("/dashboard/overview"), { waitUntil: "networkidle", timeout: 60000 });
+    await page.locator('a[data-nav-path="/dashboard/runtime"]').first().click();
+    await expectUrlPath(page, "/dashboard/runtime");
+    await page.locator('a[data-nav-path="/dashboard/overview"]').first().click();
+    await expectUrlPath(page, "/dashboard/overview");
+    await screenshot(page, "click-sidebar-dashboard-leaf-pages");
+    return page.url();
+  });
+  await step("click:sidebar-execution-leaf-page", async () => {
+    await page.goto(pageUrl("/dashboard/overview"), { waitUntil: "networkidle", timeout: 60000 });
+    await page.locator('a[data-nav-path="/execution"]').first().click();
+    await expectUrlPath(page, "/execution");
+    await screenshot(page, "click-sidebar-execution-leaf-page");
     return page.url();
   });
   await step("click:sidebar-forum-support", async () => {

@@ -146,7 +146,10 @@ class ForumSupportService:
         except ValueError as exc:
             raise BadRequestError(str(exc)) from exc
         if updated is None:
-            raise ResourceNotFoundError("Forum response task not found or already closed")
+            current = self._repository.get_task(task_id)
+            if current is None:
+                raise ResourceNotFoundError("Forum response task not found")
+            return _task_to_dict(current)
         return _task_to_dict(updated)
 
     def ignore_task(self, task_id: str, payload: dict[str, Any], *, admin: AdminIdentity) -> dict[str, Any]:
@@ -155,7 +158,10 @@ class ForumSupportService:
             raise BadRequestError("Ignore reason is required")
         updated = self._repository.ignore_task(task_id=task_id, admin_id=admin.admin_id, reason=reason)
         if updated is None:
-            raise ResourceNotFoundError("Forum response task not found or already closed")
+            current = self._repository.get_task(task_id)
+            if current is None:
+                raise ResourceNotFoundError("Forum response task not found")
+            return _task_to_dict(current)
         return _task_to_dict(updated)
 
     @staticmethod
