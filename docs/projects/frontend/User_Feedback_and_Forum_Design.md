@@ -35,6 +35,17 @@ The design goal is low-friction reporting without leaking secrets. Feedback and 
 - Topic detail pages show the sanitized markdown text as plain text and never render raw HTML.
 - Authors can mark their own topic resolved.
 
+### Admin Forum Support
+
+- Public forum topics that need an operator response are mirrored into the admin `/forum-support` response-task queue.
+- The admin workbench is a community-support reply desk, not a public forum view and not an auto-support robot.
+- Growing/Agent may write classification, priority, suggested reply text, and links to Candidate / Requirement / Workflow follow-up records.
+- The suggested reply is advisory only. A human administrator must review, edit, and manually send every public response.
+- Sending from the admin workbench creates a real forum reply and moves the task to `responded`.
+- Ignoring from the admin workbench requires a reason and moves the task to `ignored`.
+- Historical tasks are read-only so an operator cannot accidentally send duplicate public replies.
+- Forum signals that represent bugs, feature requests, or provider-service gaps should be linked to Growing planning artifacts rather than handled only as chat.
+
 ## Gateway API
 
 - `POST /api/v1/feedback`

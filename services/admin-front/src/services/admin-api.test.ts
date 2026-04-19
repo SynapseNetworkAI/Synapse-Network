@@ -9,10 +9,13 @@ import {
   getAnalyticsProviderRevenue,
   getAnalyticsRiskHealth,
   getCurrentAdmin,
+  ignoreForumResponseTask,
   listApprovals,
   listExecutionJobs,
+  listForumResponseTasks,
   listProviderServices,
   listProviderWithdrawReviews,
+  sendForumResponseReply,
   updateProviderServiceLifecycle,
   resolveAdminApiBaseUrl,
 } from "./admin-api";
@@ -262,6 +265,110 @@ describe("provider services API adapters", () => {
     const [, init] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0] ?? [];
     expect(init?.method).toBe("POST");
     expect(init?.body).toBe(JSON.stringify({ action: "PAUSE", note: "ops pause" }));
+  });
+});
+
+describe("forum support API adapters", () => {
+  const originalFetch = globalThis.fetch;
+  const originalWindow = globalThis.window;
+  const storage = new Map<string, string>();
+
+  beforeEach(() => {
+    storage.clear();
+    Object.defineProperty(globalThis, "window", {
+      configurable: true,
+      value: {
+        location: { pathname: "/forum-support", replace: vi.fn() },
+        sessionStorage: {
+          getItem: (key: string) => storage.get(key) ?? null,
+          setItem: (key: string, value: string) => {
+            storage.set(key, value);
+          },
+          removeItem: (key: string) => {
+            storage.delete(key);
+          },
+          clear: () => {
+            storage.clear();
+          },
+        },
+      },
+    });
+    Object.defineProperty(globalThis, "sessionStorage", {
+      configurable: true,
+      value: globalThis.window.sessionStorage,
+    });
+    globalThis.sessionStorage.setItem("synapse.admin.csrfToken", "csrf-forum-support");
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        success: true,
+        data: {
+          items: [],
+          pagination: {
+            page: 1,
+            pageSize: 20,
+            total: 0,
+            totalPages: 1,
+            hasNextPage: false,
+            hasPreviousPage: false,
+          },
+          responseTaskId: "frt_1",
+          status: "responded",
+        },
+        requestId: "req_forum_support",
+      }),
+    }) as typeof fetch;
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    Object.defineProperty(globalThis, "window", {
+      configurable: true,
+      value: originalWindow,
+    });
+  });
+
+  it("maps list pageSize to the gateway-admin page_size query", async () => {
+    await listForumResponseTasks("cookie-session", {
+      status: "awaiting_response,draft_ready",
+      classification: "bug",
+      page: 2,
+      pageSize: 30,
+    });
+
+    const url = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
+    expect(url).toBe(
+      "/api/admin/v1/forum/response-tasks?status=awaiting_response%2Cdraft_ready&classification=bug&page=2&page_size=30",
+    );
+  });
+
+  it("posts human-reviewed forum replies with editable author context", async () => {
+    await sendForumResponseReply("cookie-session", "frt_1", {
+      body: "Thanks, we are investigating this.",
+      authorDisplay: "Synapse Ops",
+      authorAddress: "synapse:ops",
+    });
+
+    const [, init] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0] ?? [];
+    expect(init?.method).toBe("POST");
+    expect(new Headers(init?.headers).get("X-CSRF-Token")).toBeTruthy();
+    expect(init?.body).toBe(JSON.stringify({
+      body: "Thanks, we are investigating this.",
+      authorDisplay: "Synapse Ops",
+      authorAddress: "synapse:ops",
+    }));
+  });
+
+  it("posts ignore decisions with a required reason payload", async () => {
+    await ignoreForumResponseTask("cookie-session", "frt_1", {
+      reason: "Duplicate of an already answered topic.",
+    });
+
+    const [, init] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0] ?? [];
+    expect(init?.method).toBe("POST");
+    expect(new Headers(init?.headers).get("X-CSRF-Token")).toBeTruthy();
+    expect(init?.body).toBe(JSON.stringify({ reason: "Duplicate of an already answered topic." }));
   });
 });
 

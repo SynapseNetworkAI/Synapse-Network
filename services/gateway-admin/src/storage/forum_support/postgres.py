@@ -14,7 +14,7 @@ def _connect(dsn: str):
     import psycopg
     from psycopg.rows import dict_row
 
-    return psycopg.connect(dsn, row_factory=dict_row)
+    return psycopg.connect(dsn, row_factory=dict_row, connect_timeout=5)
 
 
 def _utcnow() -> datetime:

@@ -80,6 +80,17 @@ All list pages should follow a stable business-first structure:
 
 Use shared primitives for filters, table surfaces, and pagination. Do not rebuild page-local list scaffolding unless there is a documented exception.
 
+## Support And Community Ops Rules
+
+Support-oriented control-plane pages, including `/forum-support`, must keep automation advisory and human action explicit:
+
+1. Agent or Growing suggestions may prefill drafts, classifications, priorities, and internal links.
+2. Public replies must always require an administrator to review, edit, and click send.
+3. Do not auto-send public replies, financial commitments, production incident commitments, refund promises, or root-cause claims from generated text.
+4. Historical support tasks must be read-only by default to avoid duplicate public responses.
+5. Queue/list clicks should switch the workbench context in place; use navigation only when opening an external source of truth.
+6. Candidate, Requirement, and Workflow links are references for product follow-up, not implicit approvals or executions.
+
 ## Visual Identity
 
 Admin front follows the Synapse Sentinel cyber-industrial design language:

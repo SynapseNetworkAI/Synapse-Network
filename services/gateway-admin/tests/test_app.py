@@ -1624,6 +1624,21 @@ def test_forum_support_lists_unreplied_tasks() -> None:
     assert body["items"][0]["topic"]["title"] == "Gateway timeout while opening FAQ route"
 
 
+def test_forum_support_gets_single_response_task_context() -> None:
+    fake = FakeForumSupportService()
+    app.dependency_overrides[deps.get_forum_support_service] = lambda: fake
+    _login_as("ops@synapse.network")
+
+    response = client.get("/api/admin/v1/forum/response-tasks/frt-demo")
+
+    app.dependency_overrides.pop(deps.get_forum_support_service, None)
+    assert response.status_code == 200
+    body = response.json()["data"]
+    assert body["responseTaskId"] == "frt-demo"
+    assert body["topic"]["body"] == "FAQ route times out with 500"
+    assert body["suggestedReply"] == "Thanks, we captured this as a bug candidate."
+
+
 def test_forum_support_send_reply_marks_task_responded() -> None:
     fake = FakeForumSupportService()
     app.dependency_overrides[deps.get_forum_support_service] = lambda: fake
@@ -1639,6 +1654,24 @@ def test_forum_support_send_reply_marks_task_responded() -> None:
     assert response.status_code == 200
     assert response.json()["data"]["status"] == "responded"
     assert fake.sent[0]["admin_id"] == "adm_platform_ops_admin"
+
+
+def test_forum_support_ignore_requires_reason_and_closes_task() -> None:
+    fake = FakeForumSupportService()
+    app.dependency_overrides[deps.get_forum_support_service] = lambda: fake
+    csrf_headers = _login_as("ops@synapse.network")
+
+    response = client.post(
+        "/api/admin/v1/forum/response-tasks/frt-demo/ignore",
+        json={"reason": "Duplicate topic already answered."},
+        headers=csrf_headers,
+    )
+
+    app.dependency_overrides.pop(deps.get_forum_support_service, None)
+    assert response.status_code == 200
+    assert response.json()["data"]["status"] == "ignored"
+    assert fake.ignored[0]["payload"]["reason"] == "Duplicate topic already answered."
+    assert fake.ignored[0]["admin_id"] == "adm_platform_ops_admin"
 
 
 def test_forum_support_growing_can_push_suggestion() -> None:
@@ -1666,6 +1699,25 @@ def test_forum_support_growing_can_push_suggestion() -> None:
     assert body["status"] == "draft_ready"
     assert body["classification"] == "bug"
     assert body["linkedRequirementCandidateId"] == "42"
+
+
+def test_forum_support_growing_can_read_pending_queue() -> None:
+    fake = FakeForumSupportService()
+    app.dependency_overrides[deps.get_forum_support_service] = lambda: fake
+    app.dependency_overrides[forum_support_router.require_growing_service_token] = lambda: None
+    client.cookies.clear()
+
+    response = client.get(
+        "/api/admin/v1/forum/response-tasks/-/pending?page_size=10",
+        headers={"X-Growing-Service-Token": "test-growing-token"},
+    )
+
+    app.dependency_overrides.pop(deps.get_forum_support_service, None)
+    app.dependency_overrides.pop(forum_support_router.require_growing_service_token, None)
+    assert response.status_code == 200
+    body = response.json()["data"]
+    assert body["items"][0]["status"] == "draft_ready"
+    assert body["pagination"]["pageSize"] == 10
 
 
 def test_reconciliation_detail_exposes_runtime_breakdown_and_related_backlog() -> None:

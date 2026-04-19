@@ -6,6 +6,16 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdminShell } from "@/components/admin-shell";
 import { ControlPlaneLoadingScreen } from "@/components/control-plane-loading-screen";
 import { EmptyBlock, MessageBanner, MetricCard, SentinelStatusChip, SurfaceCard } from "@/components/console-ui";
+import {
+  buildForumGrowingLinks,
+  buildForumSupportMetrics,
+  canIgnoreForumTask,
+  canSendForumReply,
+  forumSupportModeFromStatus,
+  forumSupportStatusForMode,
+  isForumResponseTaskActionable,
+  type ForumSupportStatusMode,
+} from "@/features/forum-support/forum-support-presenters";
 import { formatDateTime } from "@/lib/admin-console";
 import { useAdminSession } from "@/lib/use-admin-session";
 import {
@@ -61,22 +71,20 @@ export default function ForumSupportPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [replyBody, setReplyBody] = useState("");
   const [ignoreReason, setIgnoreReason] = useState("");
-  const [status, setStatus] = useState("awaiting_response,draft_ready");
+  const [mode, setMode] = useState<ForumSupportStatusMode>("active");
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const status = forumSupportStatusForMode(mode);
+  const isHistoryMode = forumSupportModeFromStatus(status) === "history";
 
   const selected = useMemo(
     () => items.find((item) => item.responseTaskId === selectedId) ?? items[0] ?? null,
     [items, selectedId],
   );
-
-  const metrics = useMemo(() => ({
-    total: items.length,
-    draftReady: items.filter((item) => item.status === "draft_ready").length,
-    bugs: items.filter((item) => item.classification === "bug").length,
-    highRisk: items.filter((item) => item.priority === "high" || item.priority === "critical").length,
-  }), [items]);
+  const selectedActionable = isForumResponseTaskActionable(selected);
+  const metrics = useMemo(() => buildForumSupportMetrics(items), [items]);
+  const growingLinks = useMemo(() => buildForumGrowingLinks(selected), [selected]);
 
   const refresh = useCallback(async (activeToken = token) => {
     if (!activeToken) {
@@ -117,11 +125,12 @@ export default function ForumSupportPage() {
   }
 
   async function sendReply() {
-    if (!token || !selected) {
+    if (!token || !selected || !selectedActionable) {
       return;
     }
     setBusy(true);
     setNotice(null);
+    setError(null);
     try {
       await sendForumResponseReply(token, selected.responseTaskId, {
         body: replyBody,
@@ -138,11 +147,12 @@ export default function ForumSupportPage() {
   }
 
   async function ignoreTask() {
-    if (!token || !selected) {
+    if (!token || !selected || !selectedActionable) {
       return;
     }
     setBusy(true);
     setNotice(null);
+    setError(null);
     try {
       await ignoreForumResponseTask(token, selected.responseTaskId, { reason: ignoreReason });
       setNotice("已忽略该帖子，未回复状态已消除。");
@@ -162,8 +172,8 @@ export default function ForumSupportPage() {
       description="未回复帖子进入后台队列；Agent 只给建议，最终回复必须由管理员审核发送。"
       actions={(
         <HStack>
-          <Button variant={status.includes("responded") ? "solid" : "outline"} onClick={() => setStatus("awaiting_response,draft_ready")}>待回复</Button>
-          <Button variant={status.includes("responded") ? "outline" : "ghost"} onClick={() => setStatus("responded,ignored,closed")}>历史</Button>
+          <Button variant={mode === "active" ? "solid" : "outline"} onClick={() => setMode("active")}>待回复</Button>
+          <Button variant={mode === "history" ? "solid" : "outline"} onClick={() => setMode("history")}>历史</Button>
           <Button onClick={() => void refresh()} disabled={busy}>刷新</Button>
         </HStack>
       )}
@@ -239,9 +249,13 @@ export default function ForumSupportPage() {
                   {selected.topic?.body}
                 </Box>
                 <HStack gap="10px" flexWrap="wrap">
-                  {selected.linkedRequirementCandidateId ? (
+                  {growingLinks.length === 0 ? (
+                    <Text color="ink.500" fontSize="13px">暂无 Growing Candidate / Requirement / Workflow 链接。</Text>
+                  ) : null}
+                  {growingLinks.map((link) => (
                     <ChakraLink
-                      href={`http://localhost:9700/planning?candidate=${selected.linkedRequirementCandidateId}`}
+                      key={link.key}
+                      href={link.href}
                       target="_blank"
                       rel="noreferrer"
                       border="1px solid rgba(15,23,42,0.14)"
@@ -251,39 +265,9 @@ export default function ForumSupportPage() {
                       fontWeight="700"
                       _hover={{ textDecoration: "none", bg: "rgba(42,99,235,0.08)" }}
                     >
-                      打开 Growing Candidate
+                      {link.label}
                     </ChakraLink>
-                  ) : null}
-                  {selected.linkedRequirementId ? (
-                    <ChakraLink
-                      href={`http://localhost:9700/requirements/${selected.linkedRequirementId}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      border="1px solid rgba(15,23,42,0.14)"
-                      borderRadius="999px"
-                      px="12px"
-                      py="7px"
-                      fontWeight="700"
-                      _hover={{ textDecoration: "none", bg: "rgba(42,99,235,0.08)" }}
-                    >
-                      打开 Requirement
-                    </ChakraLink>
-                  ) : null}
-                  {selected.linkedWorkflowRunId ? (
-                    <ChakraLink
-                      href={`http://localhost:9700/workflows/${selected.linkedWorkflowRunId}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      border="1px solid rgba(15,23,42,0.14)"
-                      borderRadius="999px"
-                      px="12px"
-                      py="7px"
-                      fontWeight="700"
-                      _hover={{ textDecoration: "none", bg: "rgba(42,99,235,0.08)" }}
-                    >
-                      打开 Workflow
-                    </ChakraLink>
-                  ) : null}
+                  ))}
                 </HStack>
               </Stack>
             ) : (
@@ -293,8 +277,8 @@ export default function ForumSupportPage() {
 
           <SurfaceCard
             eyebrow="Human Reviewed Reply"
-            title="审核并发送"
-            description="Agent 草稿只是建议。管理员可编辑后以 Synapse Ops 身份回复；发送后未回复状态会立即消除。"
+            title={isHistoryMode ? "历史记录" : "审核并发送"}
+            description={isHistoryMode ? "历史任务只读，避免重复公开回复；如需追溯请查看原帖和审计记录。" : "Agent 草稿只是建议。管理员可编辑后以 Synapse Ops 身份回复；发送后未回复状态会立即消除。"}
             stamp={selected?.suggestedReplySource === "growing" ? "agent draft" : "manual"}
           >
             <Stack gap="12px">
@@ -302,7 +286,8 @@ export default function ForumSupportPage() {
                 minH="180px"
                 value={replyBody}
                 onChange={(event) => setReplyBody(event.target.value)}
-                placeholder="这里会显示 Agent 建议回复；没有建议时也可以直接手写回复。"
+                readOnly={!selectedActionable}
+                placeholder={isHistoryMode ? "历史任务不可编辑。" : "这里会显示 Agent 建议回复；没有建议时也可以直接手写回复。"}
               />
               <HStack justifyContent="space-between" alignItems="start" gap="12px" flexWrap="wrap">
                 <Box flex="1" minW="260px">
@@ -310,14 +295,15 @@ export default function ForumSupportPage() {
                     minH="70px"
                     value={ignoreReason}
                     onChange={(event) => setIgnoreReason(event.target.value)}
+                    readOnly={!selectedActionable}
                     placeholder="忽略原因，选择忽略时必填。"
                   />
                 </Box>
                 <HStack>
-                  <Button colorPalette="green" onClick={() => void sendReply()} disabled={!selected || replyBody.trim().length < 2 || busy}>
+                  <Button colorPalette="green" onClick={() => void sendReply()} disabled={!canSendForumReply(selected, replyBody, busy)}>
                     发送回复
                   </Button>
-                  <Button variant="outline" onClick={() => void ignoreTask()} disabled={!selected || ignoreReason.trim().length < 3 || busy}>
+                  <Button variant="outline" onClick={() => void ignoreTask()} disabled={!canIgnoreForumTask(selected, ignoreReason, busy)}>
                     忽略
                   </Button>
                 </HStack>
