@@ -24,7 +24,8 @@ Screenshots are evidence for visual review. The functional pass/fail decision co
 
 | Surface | Route | Required behavior | Evidence |
 | --- | --- | --- | --- |
-| Forum list | `/forum` | Shows categories, search, latest/top controls, topic list, unauthenticated posting guard | `forum-public.png`, browser assertions |
+| Forum list | `/forum` | Shows categories, search, latest/top controls, topic list, and opens topic creation in a modal instead of inline-expanding the list | `forum-public.png`, browser assertions |
+| Create topic modal | `/forum` | `New topic` opens a modal overlay; unauthenticated users see the guard and authenticated users can submit the form | `forum-create-topic-modal-unauthenticated.png`, `forum-create-topic-modal.png` |
 | Topic detail | `/forum/{topicId}` | Shows topic body, replies, resolved status, and back link | `forum-topic-detail.png`, `forum-reply-resolved.png` |
 | Docs support | `/docs/support` | Shows support hub and Developer Forum link; link navigates to `/forum` | `docs-support.png`, URL assertion |
 | Docs feedback | `/docs` footer | `Not helpful` opens feedback drawer and returns `feedbackId` | `docs-feedback-drawer.png`, API + DB assertion |
@@ -104,7 +105,8 @@ Expected files:
 - `report.json`
 - `screenshots/forum-public.png`
 - `screenshots/forum-list.png`
-- `screenshots/forum-create-topic.png`
+- `screenshots/forum-create-topic-modal-unauthenticated.png`
+- `screenshots/forum-create-topic-modal.png`
 - `screenshots/forum-topic-detail.png`
 - `screenshots/forum-reply-resolved.png`
 - `screenshots/docs-support.png`
@@ -159,6 +161,7 @@ The verification passes only when:
 - `report.json.failed.length === 0`.
 - Forum topic, reply, and feedback rows exist in Postgres.
 - UI text, API response ids, DB rows, and fixture values agree.
+- `New topic` opens a modal overlay and does not inline-expand the create form in the forum list flow.
 - `/forum` to `/forum/{topicId}` navigation works.
 - `/docs/support` to `/forum` navigation works.
 - Docs and dashboard feedback drawers display a `feedbackId`.

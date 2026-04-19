@@ -112,6 +112,8 @@ export type I18nMessages = {
     topicBodyPlaceholder: string;
     categoryLabel: string;
     postTopic: string;
+    cancelTopic: string;
+    closeTopicDialog: string;
     replyPlaceholder: string;
     postReply: string;
     markResolved: string;

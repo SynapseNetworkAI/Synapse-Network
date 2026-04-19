@@ -1,14 +1,15 @@
 // @vitest-environment jsdom
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createElement } from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import ForumPage from "@/app/forum/page";
 import { LanguageProvider } from "@/components/i18n/LanguageProvider";
 import { I18N_STORAGE_KEY } from "@/i18n/config";
 
-const { listForumTopicsMock, createForumTopicMock } = vi.hoisted(() => ({
+const { authSessionMock, listForumTopicsMock, createForumTopicMock } = vi.hoisted(() => ({
+  authSessionMock: vi.fn(),
   listForumTopicsMock: vi.fn(),
   createForumTopicMock: vi.fn(),
 }));
@@ -23,11 +24,7 @@ vi.mock("@/utils/authSession", async () => {
   const actual = await vi.importActual<typeof import("@/utils/authSession")>("@/utils/authSession");
   return {
     ...actual,
-    getStoredAuthSession: () => ({
-      token: "jwt",
-      wallet: "0xabc0000000000000000000000000000000000000",
-      expiresAt: Date.now() + 60_000,
-    }),
+    getStoredAuthSession: () => authSessionMock(),
   };
 });
 
@@ -68,9 +65,18 @@ function renderForum() {
 }
 
 describe("ForumPage", () => {
+  afterEach(() => {
+    cleanup();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.setItem(I18N_STORAGE_KEY, "en");
+    authSessionMock.mockReturnValue({
+      token: "jwt",
+      wallet: "0xabc0000000000000000000000000000000000000",
+      expiresAt: Date.now() + 60_000,
+    });
     listForumTopicsMock.mockResolvedValue({
       status: "success",
       categories: ["Questions", "Provider Services"],
@@ -89,8 +95,12 @@ describe("ForumPage", () => {
 
     expect(await screen.findByRole("heading", { name: "Developer Forum" })).toBeTruthy();
     expect(await screen.findByText("Provider service health checks are failing")).toBeTruthy();
+    expect(screen.queryByRole("dialog", { name: "Start a discussion" })).toBeNull();
+    expect(screen.queryByPlaceholderText("Title")).toBeNull();
 
     await user.click(screen.getByRole("button", { name: "New topic" }));
+    const dialog = await screen.findByRole("dialog", { name: "Start a discussion" });
+    expect(dialog).toBeTruthy();
     await user.type(screen.getByPlaceholderText("Title"), "SDK question");
     await user.type(screen.getByPlaceholderText(/Describe the question/i), "How do I call invoke safely?");
     await user.click(screen.getByRole("button", { name: "Post topic" }));
@@ -100,6 +110,23 @@ describe("ForumPage", () => {
       title: "SDK question",
       body: "How do I call invoke safely?",
     });
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Start a discussion" })).toBeNull());
     expect(await screen.findByText("SDK question")).toBeTruthy();
+  });
+
+  it("opens the topic modal for signed-out users but keeps posting disabled", async () => {
+    const user = userEvent.setup();
+    authSessionMock.mockReturnValue(null);
+    renderForum();
+
+    expect(await screen.findByRole("heading", { name: "Developer Forum" })).toBeTruthy();
+    expect(screen.queryByPlaceholderText("Title")).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "New topic" }));
+
+    expect(await screen.findByRole("dialog", { name: "Start a discussion" })).toBeTruthy();
+    expect(await screen.findByText("Connect wallet to post or reply.")).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Post topic" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(createForumTopicMock).not.toHaveBeenCalled();
   });
 });

@@ -231,13 +231,15 @@ async function verifyPublicForum(browser) {
     await page.getByPlaceholder(/Search topics/i).waitFor({ state: "visible", timeout: 15000 });
     await page.getByRole("button", { name: "Latest", exact: true }).click();
     await page.getByRole("button", { name: "Top", exact: true }).click();
+    await screenshot(page, "forum-public.png");
     await page.getByRole("button", { name: /New topic/i }).click();
+    await page.getByRole("dialog", { name: /Start a discussion/i }).waitFor({ state: "visible", timeout: 15000 });
     await assertBodyContains(page, "Connect wallet to post or reply.", "unauthenticated guard");
     const disabled = await page.getByRole("button", { name: /Post topic/i }).isDisabled();
     if (!disabled) {
       throw new Error("unauthenticated Post topic button should be disabled");
     }
-    await screenshot(page, "forum-public.png");
+    await screenshot(page, "forum-create-topic-modal-unauthenticated.png");
     return "public forum browsing and unauthenticated guard verified";
   } finally {
     await page.close().catch(() => {});
@@ -251,15 +253,17 @@ async function createUiTopicAndReply(browser) {
   try {
     await goto(page, "/forum");
     await page.getByRole("button", { name: /New topic/i }).click();
-    await page.getByPlaceholder(/^Title$/i).fill(expected.uiTopicTitle);
-    await page.locator("select").selectOption({ label: "Bugs" });
-    await page.getByPlaceholder(/Describe the question/i).fill(expected.uiTopicBody);
-    await screenshot(page, "forum-create-topic.png");
+    const dialog = page.getByRole("dialog", { name: /Start a discussion/i });
+    await dialog.waitFor({ state: "visible", timeout: 15000 });
+    await dialog.getByPlaceholder(/^Title$/i).fill(expected.uiTopicTitle);
+    await dialog.locator("select").selectOption({ label: "Bugs" });
+    await dialog.getByPlaceholder(/Describe the question/i).fill(expected.uiTopicBody);
+    await screenshot(page, "forum-create-topic-modal.png");
 
     const topicResponsePromise = page.waitForResponse((response) =>
       response.url().includes("/api/v1/forum/topics") && response.request().method() === "POST"
     );
-    await page.getByRole("button", { name: /Post topic/i }).click();
+    await dialog.getByRole("button", { name: /Post topic/i }).click();
     const topicResponse = await topicResponsePromise;
     if (!topicResponse.ok()) {
       throw new Error(`topic POST failed: ${topicResponse.status()}`);
