@@ -30,6 +30,7 @@ The design goal is low-friction reporting without leaking secrets. Feedback and 
 
 - `/forum` is publicly browsable.
 - Creating topics, replying, and marking a topic resolved require wallet JWT.
+- Creating a topic opens a modal overlay. The forum list page must remain a scanning surface with categories, search, sorting, and topics; it must not inline-expand the create-topic form in the list flow.
 - Categories are fixed for v1: `Announcements`, `Questions`, `Bugs`, `Feature Requests`, `Provider Services`, `SDKs`, `Showcase`.
 - Topic detail pages show the sanitized markdown text as plain text and never render raw HTML.
 - Authors can mark their own topic resolved.
@@ -79,7 +80,7 @@ Required browser checks:
 - Open any docs page, open `Report issue`, submit feedback, verify `feedbackId`.
 - Open `/dashboard/discovery`, click floating `Feedback`, verify drawer route context.
 - Open console top nav `Forum`, verify URL `/forum`.
-- Create forum topic, reply, mark resolved, and capture list/detail screenshots.
+- Open `New topic`, verify the create-topic modal overlay, create forum topic, reply, mark resolved, and capture list/modal/detail screenshots.
 
 Pass criteria:
 

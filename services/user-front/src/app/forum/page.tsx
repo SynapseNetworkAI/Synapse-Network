@@ -4,6 +4,15 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, Plus, Search, Sparkles } from "lucide-react";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
+import {
+  XDialog,
+  XDialogBody,
+  XDialogCloseButton,
+  XDialogFooter,
+  XDialogHeader,
+  XDialogHeaderCopy,
+  XDialogSurface,
+} from "@/components/xui/XDialog";
 import { createForumTopic, listForumTopics, type ForumTopic } from "@/utils/communityApi";
 import { getStoredAuthSession } from "@/utils/authSession";
 
@@ -16,7 +25,8 @@ export default function ForumPage() {
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showCreate, setShowCreate] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [createCategory, setCreateCategory] = useState(categories[1] ?? "Questions");
@@ -43,17 +53,32 @@ export default function ForumPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [category, sort]);
 
+  const openCreateModal = () => {
+    setCreateError(null);
+    setIsCreateModalOpen(true);
+  };
+
+  const closeCreateModal = () => {
+    setCreateError(null);
+    setIsCreateModalOpen(false);
+  };
+
+  const resetCreateForm = () => {
+    setTitle("");
+    setBody("");
+    setCreateCategory(categories[1] ?? "Questions");
+  };
+
   const submitTopic = async () => {
     setSubmitting(true);
-    setError(null);
+    setCreateError(null);
     try {
       const result = await createForumTopic({ title, body, category: createCategory });
-      setShowCreate(false);
-      setTitle("");
-      setBody("");
+      setIsCreateModalOpen(false);
+      resetCreateForm();
       setTopics((prev) => [result.topic, ...prev]);
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("forumPage.connectToPost"));
+      setCreateError(err instanceof Error ? err.message : t("forumPage.connectToPost"));
     } finally {
       setSubmitting(false);
     }
@@ -72,7 +97,7 @@ export default function ForumPage() {
             </div>
             <button
               type="button"
-              onClick={() => setShowCreate((prev) => !prev)}
+              onClick={openCreateModal}
               className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-white px-5 text-sm font-semibold text-black transition hover:bg-[#e7e9ea]"
             >
               <Plus className="h-4 w-4" />
@@ -133,45 +158,6 @@ export default function ForumPage() {
               </div>
             </div>
 
-            {showCreate ? (
-              <div className="rounded-[28px] border border-[#7ff7be]/20 bg-[#07120d] p-5">
-                <div className="flex items-center gap-2 text-[#dfffee]">
-                  <Sparkles className="h-4 w-4" />
-                  <h2 className="font-semibold">{t("forumPage.createTitle")}</h2>
-                </div>
-                {!hasSession ? <p className="mt-3 rounded-2xl bg-black/25 p-3 text-sm text-[#dfffee]/70">{t("forumPage.connectToPost")}</p> : null}
-                <div className="mt-4 grid gap-3">
-                  <input
-                    value={title}
-                    onChange={(event) => setTitle(event.target.value)}
-                    placeholder={t("forumPage.topicTitleLabel")}
-                    className="h-12 rounded-2xl border border-white/10 bg-black/30 px-4 text-sm outline-none focus:border-[#7ff7be]/45"
-                  />
-                  <select
-                    value={createCategory}
-                    onChange={(event) => setCreateCategory(event.target.value)}
-                    className="h-12 rounded-2xl border border-white/10 bg-black/30 px-4 text-sm outline-none focus:border-[#7ff7be]/45"
-                  >
-                    {categories.map((item) => <option key={item}>{item}</option>)}
-                  </select>
-                  <textarea
-                    value={body}
-                    onChange={(event) => setBody(event.target.value)}
-                    placeholder={t("forumPage.topicBodyPlaceholder")}
-                    className="min-h-[150px] resize-none rounded-3xl border border-white/10 bg-black/30 p-4 text-sm leading-6 outline-none placeholder:text-white/28 focus:border-[#7ff7be]/45"
-                  />
-                  <button
-                    type="button"
-                    disabled={!hasSession || submitting}
-                    onClick={submitTopic}
-                    className="h-11 rounded-full bg-white px-5 text-sm font-semibold text-black transition hover:bg-[#e7e9ea] disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {t("forumPage.postTopic")}
-                  </button>
-                </div>
-              </div>
-            ) : null}
-
             {error ? <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-100">{error}</div> : null}
 
             <div className="overflow-hidden rounded-[28px] border border-white/10 bg-[#0a0b0d]">
@@ -216,6 +202,78 @@ export default function ForumPage() {
           </section>
         </div>
       </section>
+
+      <XDialog open={isCreateModalOpen} ariaLabelledby="forum-create-topic-title" onDismiss={closeCreateModal}>
+        <XDialogSurface className="w-[min(94vw,680px)] border border-[#7ff7be]/20 bg-[#07120d] shadow-[0_30px_120px_rgba(0,0,0,0.55),0_0_80px_rgba(127,247,190,0.08)]">
+          <XDialogHeader className="border-b border-white/10">
+            <XDialogHeaderCopy>
+              <div className="flex items-center gap-2 text-[#dfffee]">
+                <Sparkles className="h-4 w-4" />
+                <h2 id="forum-create-topic-title" className="text-lg font-semibold tracking-[-0.02em] text-white">
+                  {t("forumPage.createTitle")}
+                </h2>
+              </div>
+              <p className="mt-2 text-sm leading-6 text-white/55">{t("forumPage.topicBodyPlaceholder")}</p>
+            </XDialogHeaderCopy>
+            <XDialogCloseButton onClick={closeCreateModal} aria-label={t("forumPage.closeTopicDialog")} />
+          </XDialogHeader>
+
+          <XDialogBody className="space-y-4">
+            {!hasSession ? (
+              <p className="rounded-2xl bg-black/25 p-3 text-sm text-[#dfffee]/70">{t("forumPage.connectToPost")}</p>
+            ) : null}
+            {createError ? (
+              <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-100">{createError}</div>
+            ) : null}
+            <label className="grid gap-2">
+              <span className="text-xs font-semibold uppercase tracking-[0.16em] text-white/38">{t("forumPage.topicTitleLabel")}</span>
+              <input
+                value={title}
+                onChange={(event) => setTitle(event.target.value)}
+                placeholder={t("forumPage.topicTitleLabel")}
+                className="h-12 rounded-2xl border border-white/10 bg-black/30 px-4 text-sm outline-none transition focus:border-[#7ff7be]/45"
+              />
+            </label>
+            <label className="grid gap-2">
+              <span className="text-xs font-semibold uppercase tracking-[0.16em] text-white/38">{t("forumPage.categoryLabel")}</span>
+              <select
+                value={createCategory}
+                onChange={(event) => setCreateCategory(event.target.value)}
+                className="h-12 rounded-2xl border border-white/10 bg-black/30 px-4 text-sm outline-none transition focus:border-[#7ff7be]/45"
+              >
+                {categories.map((item) => <option key={item}>{item}</option>)}
+              </select>
+            </label>
+            <label className="grid gap-2">
+              <span className="text-xs font-semibold uppercase tracking-[0.16em] text-white/38">{t("forumPage.topicBodyLabel")}</span>
+              <textarea
+                value={body}
+                onChange={(event) => setBody(event.target.value)}
+                placeholder={t("forumPage.topicBodyPlaceholder")}
+                className="min-h-[180px] resize-none rounded-3xl border border-white/10 bg-black/30 p-4 text-sm leading-6 outline-none placeholder:text-white/28 transition focus:border-[#7ff7be]/45"
+              />
+            </label>
+          </XDialogBody>
+
+          <XDialogFooter className="border-t border-white/10">
+            <button
+              type="button"
+              onClick={closeCreateModal}
+              className="h-11 rounded-full border border-white/10 px-5 text-sm font-semibold text-white/70 transition hover:bg-white/[0.06] hover:text-white"
+            >
+              {t("forumPage.cancelTopic")}
+            </button>
+            <button
+              type="button"
+              disabled={!hasSession || submitting || !title.trim() || !body.trim()}
+              onClick={submitTopic}
+              className="h-11 rounded-full bg-white px-5 text-sm font-semibold text-black transition hover:bg-[#e7e9ea] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {t("forumPage.postTopic")}
+            </button>
+          </XDialogFooter>
+        </XDialogSurface>
+      </XDialog>
     </main>
   );
 }

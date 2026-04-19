@@ -48,6 +48,12 @@ name: "Synapse Frontend Rules"
 - Preserve strong visual hierarchy and calm density. Avoid decorative motion or random gradients that weaken trust.
 - Motion should explain state change or focus, not exist as ornament.
 
+## Interaction Patterns
+
+- List, feed, marketplace, forum, table, and registry pages are scanning surfaces. They must not inline-expand heavy create/edit forms inside the list flow.
+- For create/edit workflows on scanning surfaces, default to an existing modal or drawer component. Inline controls are only appropriate for lightweight filters, search, sorting, or single-field quick actions.
+- Keep action errors scoped to the surface that produced them: modal submission errors stay in the modal, while list-loading errors stay with the list.
+
 ## App-Specific Conventions
 
 - In `services/user-front`, keep user-facing copy and information architecture aligned with the central product docs and i18n resources.

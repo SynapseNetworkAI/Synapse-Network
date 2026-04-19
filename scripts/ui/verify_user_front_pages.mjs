@@ -901,6 +901,15 @@ try {
         if (screenshotRow?.screenshotName) {
           await captureScreenshot(page, screenshotRow.screenshotName);
         }
+        if (row.id === "forum") {
+          await page.getByRole("button", { name: /New topic/i }).click();
+          await page.getByRole("dialog", { name: /Start a discussion/i }).waitFor({ state: "visible", timeout: 15000 });
+          const inlineTitleInputs = await page.locator("main").getByPlaceholder(/^Title$/i).count();
+          if (inlineTitleInputs > 0) {
+            throw new Error("/forum create-topic form is inline-expanded inside the page flow instead of a modal");
+          }
+          await captureScreenshot(page, "forum-create-topic-modal.png");
+        }
         return verificationDetail;
       } finally {
         await page.waitForLoadState("networkidle", { timeout: 3000 }).catch(() => {});

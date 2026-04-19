@@ -19,6 +19,8 @@ const forumPage: I18nMessages["forumPage"] = {
   topicBodyPlaceholder: "描述你的问题、bug，或者想分享的服务。支持 Markdown；密钥会被过滤。",
   categoryLabel: "分类",
   postTopic: "发布帖子",
+  cancelTopic: "取消",
+  closeTopicDialog: "关闭发帖浮层",
   replyPlaceholder: "添加一条有帮助的回复...",
   postReply: "发布回复",
   markResolved: "标记已解决",

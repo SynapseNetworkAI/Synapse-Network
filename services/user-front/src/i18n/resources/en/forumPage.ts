@@ -19,6 +19,8 @@ const forumPage: I18nMessages["forumPage"] = {
   topicBodyPlaceholder: "Describe the question, bug, or service you want to share. Markdown is supported; secrets are filtered.",
   categoryLabel: "Category",
   postTopic: "Post topic",
+  cancelTopic: "Cancel",
+  closeTopicDialog: "Close topic dialog",
   replyPlaceholder: "Add a helpful reply...",
   postReply: "Post reply",
   markResolved: "Mark resolved",
