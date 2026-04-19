@@ -159,6 +159,12 @@ export default function DocsTopNav() {
         <div className="flex items-center gap-3 shrink-0">
           <LanguageSwitcher className="tracking-[0.01em] h-[34px] rounded-[8px] border border-[#2f3336] bg-transparent text-[#71767b] text-[13px] hover:border-[#3d4043] hover:bg-[#0a0a0a] hover:text-[#e7e9ea] transition focus-visible:border-[#536471]" />
           <Link
+            {...getRouteLinkProps("/docs/support")}
+            className="hidden sm:inline-flex h-[34px] items-center rounded-[10px] border border-[#2f3336] px-3.5 text-[13px] font-semibold tracking-[-0.01em] text-[#e7e9ea] transition-colors hover:border-[#3d4043] hover:bg-[#0a0a0a]"
+          >
+            Support
+          </Link>
+          <Link
             href="/dashboard/overview"
             className="hidden sm:inline-flex items-center gap-1.5 h-[34px] px-4 rounded-[10px] bg-white text-[#0f1419] text-[13px] font-semibold tracking-[-0.01em] hover:bg-[#e7e9ea] transition-colors"
           >

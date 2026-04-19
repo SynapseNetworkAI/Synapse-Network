@@ -51,6 +51,7 @@ const docsPage: I18nMessages["docsPage"] = {
     "Changelog",
     "Status Page",
     "GitHub",
+    "Support",
   ],
   sidebarSoon: "SOON",
   notFoundTitle: "Page not found",
@@ -316,7 +317,7 @@ const docsPage: I18nMessages["docsPage"] = {
   apiLegendCreate: "Create / execute",
   apiLegendUpdate: "Update",
   apiLegendDelete: "Delete",
-  apiGroupTitles: ["Auth", "Balance", "Services", "Provider Operations", "Agent Invocations", "Credentials"],
+  apiGroupTitles: ["Auth", "Balance", "Services", "Provider Operations", "Agent Invocations", "Credentials", "Community"],
   apiGroupDescriptions: [
     "Wallet challenge, signature verification, and session lifecycle.",
     "Account balances, deposits, confirmations, and withdrawals.",
@@ -324,6 +325,7 @@ const docsPage: I18nMessages["docsPage"] = {
     "Provider secrets, earnings, withdrawal tickets, and runtime health evidence.",
     "Paid invocations and invocation history.",
     "Issue, list, and revoke agent credentials.",
+    "Contextual feedback and developer forum topics, replies, and resolution state.",
   ],
   apiAuthNoteTitle: "Authentication",
   apiAuthNoteDescription:

@@ -1,0 +1,31 @@
+import type { I18nMessages } from "@/i18n/schema";
+
+const forumPage: I18nMessages["forumPage"] = {
+  title: "Developer Forum",
+  description: "Ask questions, report bugs, share provider services, and discuss SDK integration with other Synapse builders.",
+  newTopic: "New topic",
+  searchPlaceholder: "Search topics, bugs, SDKs, services...",
+  latest: "Latest",
+  top: "Top",
+  allCategories: "All categories",
+  categories: ["Announcements", "Questions", "Bugs", "Feature Requests", "Provider Services", "SDKs", "Showcase"],
+  replies: "Replies",
+  activity: "Activity",
+  resolved: "Resolved",
+  locked: "Locked",
+  createTitle: "Start a discussion",
+  topicTitleLabel: "Title",
+  topicBodyLabel: "Body",
+  topicBodyPlaceholder: "Describe the question, bug, or service you want to share. Markdown is supported; secrets are filtered.",
+  categoryLabel: "Category",
+  postTopic: "Post topic",
+  replyPlaceholder: "Add a helpful reply...",
+  postReply: "Post reply",
+  markResolved: "Mark resolved",
+  connectToPost: "Connect wallet to post or reply.",
+  emptyTitle: "No topics yet",
+  emptyDescription: "Be the first builder to start the signal loop.",
+  loadFailed: "Forum data could not be loaded.",
+};
+
+export default forumPage;

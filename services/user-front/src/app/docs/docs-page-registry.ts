@@ -25,6 +25,7 @@ export const DOCS_IMPLEMENTED_ROUTES = [
   "/docs/sdk/typescript",
   "/docs/sdk/python",
   "/docs/contracts",
+  "/docs/support",
 ] as const;
 
 export const DOCS_PAGE_REGISTRY: DocsPageRegistryItem[] = [
@@ -93,7 +94,7 @@ export const DOCS_PAGE_REGISTRY: DocsPageRegistryItem[] = [
     href: "/docs/api-reference",
     kind: "page",
     expectedHeading: "REST API",
-    expectedAnchors: ["api-auth", "api-balance", "api-services", "api-provider", "api-invocations", "api-credentials"],
+    expectedAnchors: ["api-auth", "api-balance", "api-services", "api-provider", "api-invocations", "api-credentials", "api-community"],
     implemented: true,
     verificationMode: "render",
   },
@@ -140,6 +141,15 @@ export const DOCS_PAGE_REGISTRY: DocsPageRegistryItem[] = [
     kind: "page",
     expectedHeading: "Smart Contracts",
     expectedAnchors: ["contract-core", "contract-usdc", "contract-abi"],
+    implemented: true,
+    verificationMode: "render",
+  },
+  {
+    id: "docs-support",
+    href: "/docs/support",
+    kind: "page",
+    expectedHeading: "Developer Support",
+    expectedAnchors: [],
     implemented: true,
     verificationMode: "render",
   },

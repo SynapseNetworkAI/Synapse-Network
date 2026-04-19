@@ -13,6 +13,7 @@ from src.api.routers import (
     agent_credentials,
     provider_secrets,
     forwarding,
+    community,
 )
 from src.storage import create_storage
 from src.services.platform.tasks.deposit_indexer import run_v2_deposit_indexer
@@ -203,6 +204,7 @@ def create_app() -> FastAPI:
     )
     app.include_router(provider_secrets.router, prefix="/api", tags=["provider-secrets"])
     app.include_router(forwarding.router, prefix="/api", tags=["forwarding"])
+    app.include_router(community.router, prefix="/api", tags=["community"])
     app.include_router(events_router, tags=["analytics"])
 
     @app.get("/health")

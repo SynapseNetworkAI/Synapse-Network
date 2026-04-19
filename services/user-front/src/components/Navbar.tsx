@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Bell, ExternalLink, Network, Search } from "lucide-react";
+import { Bell, Network, Search } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import QuickAccessDialog from "@/components/QuickAccessDialog";
@@ -330,11 +330,10 @@ export default function Navbar() {
                   {t("nav.documentation")}
                 </Link>
                 <Link
-                  href="/blog"
+                  href="/forum"
                   className="inline-flex items-center gap-1 text-[15px] font-normal text-[#e7e9ea] transition hover:text-white"
                 >
                   {t("nav.forum")}
-                  <ExternalLink className="h-3.5 w-3.5 text-[#71767b]" />
                 </Link>
                 <Link
                   href="/dashboard/audit"

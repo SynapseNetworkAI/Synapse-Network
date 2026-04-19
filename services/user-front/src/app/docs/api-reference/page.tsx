@@ -22,6 +22,7 @@ const PAGE_SECTIONS = [
   "api-provider",
   "api-invocations",
   "api-credentials",
+  "api-community",
 ];
 
 // ─── Role filter ──────────────────────────────────────────────────────────────
@@ -49,7 +50,7 @@ function getGroupsForRole(groups: RouteGroup[], role: "consumer" | "provider"): 
       .filter((g) => g.routes.length > 0);
   }
   return groups
-    .filter((g) => ["api-auth", "api-balance", "api-services", "api-provider"].includes(g.id))
+    .filter((g) => ["api-auth", "api-balance", "api-services", "api-provider", "api-community"].includes(g.id))
     .map((g) => {
       if (g.id === "api-services") {
         return {

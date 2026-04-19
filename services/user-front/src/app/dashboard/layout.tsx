@@ -4,6 +4,7 @@ import {
   DashboardNavigationLoadingOverlay,
 } from "@/components/dashboard/DashboardNavigationFeedback";
 import DashboardSidebar from "@/components/dashboard/DashboardSidebar";
+import FeedbackFloatingButton from "@/components/feedback/FeedbackFloatingButton";
 import RoleGuard from "@/components/RoleGuard";
 
 export default function DashboardLayout({
@@ -21,6 +22,7 @@ export default function DashboardLayout({
             <RoleGuard>
               {children}
             </RoleGuard>
+            <FeedbackFloatingButton />
           </main>
         </div>
       </DashboardNavigationFeedbackProvider>

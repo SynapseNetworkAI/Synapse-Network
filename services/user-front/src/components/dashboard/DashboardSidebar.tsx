@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useCallback, useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { MouseEvent } from "react";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { useAccount, useDisconnect } from "wagmi";
@@ -38,7 +38,6 @@ export default function DashboardSidebar() {
   const pathname = usePathname();
   const activePath = pathname ?? "";
   const router = useRouter();
-  const [, startNavigationTransition] = useTransition();
   const { address } = useAccount();
   const { disconnect } = useDisconnect();
   const { openConnectModal } = useConnectModal();
@@ -64,41 +63,6 @@ export default function DashboardSidebar() {
     listAgentCredentials(address).then((creds) => setAgentCount(creds.length)).catch(() => {});
     listServiceRegistry(address, address).then((svcs) => setServiceCount(svcs.length)).catch(() => {});
   }, [isConnected, isSessionAuthenticated, address]);
-
-  useEffect(() => {
-    const allRoutes = [
-      "/dashboard/overview",
-      "/dashboard/agents",
-      "/dashboard/discovery",
-      "/dashboard/invocations",
-      "/dashboard/billing",
-      "/dashboard/billing/credits",
-      "/dashboard/billing/payments",
-      "/dashboard/account/settings",
-      "/dashboard/audit",
-      "/dashboard/developer",
-      providerConsoleRoute,
-      `${providerRoot}/secrets`,
-      `${providerRoot}/services`,
-      `${providerRoot}/usage`,
-      `${providerRoot}/withdraw`,
-      `${providerRoot}/withdraw/history`,
-    ];
-
-    const warmup = () => {
-      for (const route of allRoutes) {
-        router.prefetch(route);
-      }
-    };
-
-    if (typeof globalThis.requestIdleCallback === "function") {
-      const idleId = globalThis.requestIdleCallback(warmup, { timeout: 1200 });
-      return () => globalThis.cancelIdleCallback(idleId);
-    }
-
-    const timeoutId = globalThis.setTimeout(warmup, 200);
-    return () => globalThis.clearTimeout(timeoutId);
-  }, [router, providerConsoleRoute, providerRoot]);
 
   useEffect(() => {
     if (billingChildActive) {
@@ -160,26 +124,6 @@ export default function DashboardSidebar() {
     return event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey;
   };
 
-  const queueNavigation = useCallback(
-    (href: string) => {
-      beginNavigation(href);
-
-      const navigate = () => {
-        startNavigationTransition(() => {
-          router.push(href);
-        });
-      };
-
-      if (typeof globalThis.requestAnimationFrame === "function") {
-        globalThis.requestAnimationFrame(navigate);
-        return;
-      }
-
-      globalThis.setTimeout(navigate, 0);
-    },
-    [beginNavigation, router, startNavigationTransition]
-  );
-
   const handleSidebarNavigation = useCallback(
     (event: MouseEvent<HTMLAnchorElement>, href: string) => {
       if (shouldBypassNavGuard(event)) {
@@ -191,33 +135,20 @@ export default function DashboardSidebar() {
         return;
       }
 
-      event.preventDefault();
-      queueNavigation(href);
+      beginNavigation(href);
     },
-    [activePath, queueNavigation]
-  );
-
-  const prefetchRoute = useCallback(
-    (href: string) => {
-      router.prefetch(href);
-    },
-    [router]
+    [activePath, beginNavigation]
   );
 
   const getRouteLinkProps = useCallback(
     (href: string) => ({
       href,
+      prefetch: false,
       onClick: (event: MouseEvent<HTMLAnchorElement>) => {
         handleSidebarNavigation(event, href);
       },
-      onMouseEnter: () => {
-        prefetchRoute(href);
-      },
-      onFocus: () => {
-        prefetchRoute(href);
-      },
     }),
-    [handleSidebarNavigation, prefetchRoute]
+    [handleSidebarNavigation]
   );
 
   const handleWithdrawNavigation = async (event: MouseEvent<HTMLAnchorElement>, target: string) => {
@@ -239,7 +170,8 @@ export default function DashboardSidebar() {
       }
     }
 
-    queueNavigation(target);
+    beginNavigation(target);
+    router.push(target);
   };
 
   const handleLogout = useCallback(async () => {
@@ -371,18 +303,16 @@ export default function DashboardSidebar() {
             <div id="provider-settlement-subnav" className="pb-1">
               <Link
                 href={providerWithdrawRoute}
+                prefetch={false}
                 className={getSubLinkClasses(providerWithdrawRoute)}
-                onMouseEnter={() => { prefetchRoute(providerWithdrawRoute); }}
-                onFocus={() => { prefetchRoute(providerWithdrawRoute); }}
                 onClick={(event) => { void handleWithdrawNavigation(event, providerWithdrawRoute); }}
               >
                 {t("sidebar.withdraw")}
               </Link>
               <Link
                 href={providerWithdrawHistoryRoute}
+                prefetch={false}
                 className={getSubLinkClasses(providerWithdrawHistoryRoute)}
-                onMouseEnter={() => { prefetchRoute(providerWithdrawHistoryRoute); }}
-                onFocus={() => { prefetchRoute(providerWithdrawHistoryRoute); }}
                 onClick={(event) => { void handleWithdrawNavigation(event, providerWithdrawHistoryRoute); }}
               >
                 {t("sidebar.invocationRecords")}

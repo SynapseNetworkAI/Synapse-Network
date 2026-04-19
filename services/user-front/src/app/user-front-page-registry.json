@@ -67,6 +67,33 @@
     "visualVerification": "component-smoke"
   },
   {
+    "id": "forum",
+    "href": "/forum",
+    "kind": "page",
+    "audience": "community",
+    "maturity": "v1",
+    "expectedTexts": ["Developer Forum", "New topic"],
+    "purpose": "Public developer community surface for questions, bugs, feature requests, provider services, SDKs, and showcases.",
+    "primaryInteractions": ["Filter by category", "Search topics", "Create topic when authenticated", "Open topic detail"],
+    "dataVerification": "gateway-community",
+    "dataSources": ["GET /api/v1/forum/topics", "POST /api/v1/forum/topics"],
+    "visualVerification": "screenshot-required",
+    "screenshotName": "forum.png"
+  },
+  {
+    "id": "forum-topic-detail",
+    "href": "/forum/[topicId]",
+    "kind": "dynamic-page",
+    "audience": "community",
+    "maturity": "v1",
+    "expectedTexts": ["Forum", "Replies"],
+    "purpose": "Forum topic detail with sanitized body, replies, and author-owned resolved action.",
+    "primaryInteractions": ["Read topic", "Reply when authenticated", "Mark own topic resolved"],
+    "dataVerification": "gateway-community",
+    "dataSources": ["GET /api/v1/forum/topics/{topicId}", "POST /api/v1/forum/topics/{topicId}/replies", "POST /api/v1/forum/topics/{topicId}/resolve"],
+    "visualVerification": "component-smoke"
+  },
+  {
     "id": "docs-root",
     "href": "/docs",
     "kind": "page",
@@ -212,6 +239,20 @@
     "dataVerification": "static",
     "dataSources": [],
     "visualVerification": "component-smoke"
+  },
+  {
+    "id": "docs-support",
+    "href": "/docs/support",
+    "kind": "page",
+    "audience": "docs",
+    "maturity": "v1",
+    "expectedTexts": ["Developer Support", "Developer Forum"],
+    "purpose": "Support hub linking docs feedback, product bug reports, billing support, GitHub, and the developer forum.",
+    "primaryInteractions": ["Open Forum", "Open billing support", "Use docs feedback widget"],
+    "dataVerification": "static",
+    "dataSources": [],
+    "visualVerification": "screenshot-required",
+    "screenshotName": "docs-support.png"
   },
   {
     "id": "dashboard-index",
