@@ -2,12 +2,19 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from datetime import datetime, timezone
+import logging
 from typing import Any
 from uuid import uuid4
 
 from psycopg.types.json import Jsonb
 
 from src.domain import ForumResponseTask, ForumTopicContext
+
+logger = logging.getLogger(__name__)
+FORUM_RESPONSE_TASKS_SCHEMA_ERROR = (
+    "Forum support schema is missing. Apply infra/postgres/init/gateway/001_synapse_schema.sql "
+    "or the equivalent migration before using /api/admin/v1/forum/response-tasks."
+)
 
 
 def _connect(dsn: str):
@@ -75,52 +82,11 @@ class PostgresForumSupportRepository:
 
     def ensure_schema(self) -> None:
         with _connect(self._dsn) as conn, conn.cursor() as cur:
-            cur.execute(
-                """
-                CREATE TABLE IF NOT EXISTS synapse_forum_response_tasks (
-                    response_task_id TEXT PRIMARY KEY,
-                    topic_id TEXT NOT NULL REFERENCES synapse_forum_topics (topic_id) ON DELETE CASCADE,
-                    status TEXT NOT NULL DEFAULT 'awaiting_response',
-                    source TEXT NOT NULL DEFAULT 'user_post',
-                    priority TEXT NOT NULL DEFAULT 'normal',
-                    classification TEXT,
-                    suggested_reply TEXT,
-                    suggested_reply_source TEXT,
-                    suggested_reply_updated_at TIMESTAMPTZ,
-                    replied_by_admin_id TEXT,
-                    reply_id TEXT REFERENCES synapse_forum_replies (reply_id) ON DELETE SET NULL,
-                    responded_at TIMESTAMPTZ,
-                    linked_requirement_candidate_id TEXT,
-                    linked_requirement_id TEXT,
-                    linked_workflow_run_id TEXT,
-                    metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb,
-                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                    CHECK (status IN ('awaiting_response', 'draft_ready', 'responded', 'ignored', 'closed')),
-                    CHECK (source IN ('user_post', 'growing_agent', 'admin')),
-                    CHECK (priority IN ('low', 'normal', 'high', 'critical')),
-                    CHECK (
-                        classification IS NULL OR classification IN (
-                            'question', 'bug', 'feature_request', 'docs_issue',
-                            'needs_more_info', 'spam'
-                        )
-                    )
-                )
-                """
-            )
-            cur.execute(
-                """
-                CREATE UNIQUE INDEX IF NOT EXISTS uq_synapse_forum_response_tasks_active_topic
-                ON synapse_forum_response_tasks (topic_id)
-                WHERE status IN ('awaiting_response', 'draft_ready')
-                """
-            )
-            cur.execute(
-                """
-                CREATE INDEX IF NOT EXISTS idx_synapse_forum_response_tasks_status_updated
-                ON synapse_forum_response_tasks (status, updated_at DESC)
-                """
-            )
+            cur.execute("SELECT to_regclass('public.synapse_forum_response_tasks') AS table_name")
+            if cur.fetchone()["table_name"]:
+                return
+            logger.error("forum support schema missing: synapse_forum_response_tasks not found")
+            raise RuntimeError(FORUM_RESPONSE_TASKS_SCHEMA_ERROR)
 
     def backfill_open_topic_tasks(self, *, limit: int = 200) -> int:
         self.ensure_schema()

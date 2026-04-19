@@ -59,6 +59,7 @@
 1. [Admin_Front_Local_Development.md](./Admin_Front_Local_Development.md)
 2. [Admin_Front_Agent_Rules.md](./Admin_Front_Agent_Rules.md)
 3. [Admin_Forum_Support_Page_Design.md](./Admin_Forum_Support_Page_Design.md)
+4. [Admin_Front_Dogfood_E2E_Runbook.md](./Admin_Front_Dogfood_E2E_Runbook.md)
 
 项目目录内只保留：
 

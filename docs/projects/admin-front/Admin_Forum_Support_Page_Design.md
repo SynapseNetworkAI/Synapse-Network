@@ -78,3 +78,16 @@ The page passes when:
 6. Sending calls the admin API, refreshes the queue, and shows a success notice.
 7. Ignoring calls the admin API, refreshes the queue, and shows a success notice.
 8. Historical tasks render read-only and cannot be sent again.
+
+## Dogfood E2E
+
+The end-to-end admin verification lives in [Admin_Front_Dogfood_E2E_Runbook.md](./Admin_Front_Dogfood_E2E_Runbook.md).
+
+Forum Support must pass the dogfood path:
+
+1. Seed a public forum topic and `draft_ready` response task.
+2. Open `/forum-support` as an authenticated admin.
+3. Verify the queue shows the seeded topic and the Agent suggestion is editable.
+4. Send a human-edited reply.
+5. Verify gateway DB has a `synapse_forum_replies` row and the task is `responded`.
+6. Verify the dogfood report has no browser failures, hidden 500s, or console errors.

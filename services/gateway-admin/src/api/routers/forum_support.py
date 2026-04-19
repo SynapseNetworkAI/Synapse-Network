@@ -1,3 +1,4 @@
+import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, Query
@@ -17,6 +18,7 @@ from src.services.auth.service import AdminIdentity
 from src.services.forum_support import ForumSupportService
 
 router = APIRouter(prefix="/api/admin/v1/forum/response-tasks", tags=["admin-forum-support"])
+logger = logging.getLogger(__name__)
 
 
 def require_growing_service_token(
@@ -38,12 +40,23 @@ def list_response_tasks(
     page_size: Annotated[int, Query(alias="page_size", ge=1, le=100)] = 20,
 ):
     _ = admin
-    payload = forum_service.list_response_tasks(
-        status=status,
-        classification=classification,
-        page=page,
-        page_size=page_size,
-    )
+    try:
+        payload = forum_service.list_response_tasks(
+            status=status,
+            classification=classification,
+            page=page,
+            page_size=page_size,
+        )
+    except Exception:
+        logger.exception(
+            "forum response task list failed request_id=%s status=%s classification=%s page=%s page_size=%s",
+            request_id,
+            status,
+            classification,
+            page,
+            page_size,
+        )
+        raise
     return ApiResponse(data=ForumResponseTaskListResponse(**payload), request_id=request_id)
 
 
@@ -94,7 +107,11 @@ def send_response_reply(
     request_id: Annotated[str, Depends(get_request_id)],
     forum_service: Annotated[ForumSupportService, Depends(get_forum_support_service)],
 ):
-    updated = forum_service.send_reply(task_id, payload.model_dump(by_alias=True), admin=admin)
+    try:
+        updated = forum_service.send_reply(task_id, payload.model_dump(by_alias=True), admin=admin)
+    except Exception:
+        logger.exception("forum response task send failed request_id=%s task_id=%s", request_id, task_id)
+        raise
     return ApiResponse(data=ForumResponseTaskOut(**updated), request_id=request_id)
 
 
@@ -106,5 +123,9 @@ def ignore_response_task(
     request_id: Annotated[str, Depends(get_request_id)],
     forum_service: Annotated[ForumSupportService, Depends(get_forum_support_service)],
 ):
-    updated = forum_service.ignore_task(task_id, payload.model_dump(), admin=admin)
+    try:
+        updated = forum_service.ignore_task(task_id, payload.model_dump(), admin=admin)
+    except Exception:
+        logger.exception("forum response task ignore failed request_id=%s task_id=%s", request_id, task_id)
+        raise
     return ApiResponse(data=ForumResponseTaskOut(**updated), request_id=request_id)

@@ -147,11 +147,16 @@ class HttpProviderServicesAdapter:
             "Authorization": f"Bearer {self._build_gateway_token(actor, scope, request_id, body_sha256)}",
             "X-Request-Id": request_id,
         }
+        clean_params = {
+            key: value
+            for key, value in (params or {}).items()
+            if value is not None and value != ""
+        } or None
         try:
             response = httpx.request(
                 method,
                 f"{self._base_url}{path}",
-                params=params,
+                params=clean_params,
                 json=payload,
                 headers=headers,
                 timeout=self._timeout_sec,

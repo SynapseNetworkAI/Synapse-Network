@@ -40,7 +40,11 @@
     "drill:signer-rollback": "bash scripts/drills/signer_rollback.sh",
     "e2e:user-front-fullchain:seed": "node scripts/e2e/user_front_fullchain_seed.mjs",
     "e2e:user-front-fullchain:verify": "USER_FRONT_VERIFY_MODE=fullchain USER_FRONT_VERIFY_REAL_BACKEND=1 USER_FRONT_FULLCHAIN_FIXTURE=tmp/user-front-fullchain/fixture.json node scripts/ui/verify_user_front_pages.mjs",
-    "e2e:user-front-fullchain": "npm run e2e:user-front-fullchain:seed && npm run e2e:user-front-fullchain:verify"
+    "e2e:user-front-fullchain": "npm run e2e:user-front-fullchain:seed && npm run e2e:user-front-fullchain:verify",
+    "e2e:admin-front:seed": "node scripts/e2e/admin_front_seed.mjs",
+    "e2e:admin-front:dogfood": "node scripts/ui/dogfood_admin_front.mjs",
+    "e2e:admin-front:reconcile": "node scripts/e2e/admin_front_reconcile.mjs",
+    "e2e:admin-front": "npm run e2e:admin-front:seed && npm run e2e:admin-front:dogfood && npm run e2e:admin-front:reconcile"
   },
   "dependencies": {
     "@openzeppelin/contracts": "^5.0.2"
