@@ -16,6 +16,7 @@ from src.domain.admin_authorization import (
 	AdminUserRoleBinding,
 )
 from src.domain.admin_identity import AdminMfaEnrollmentChallenge, AdminMfaFactor, AdminSession, AdminUser
+from src.domain.forum_support import ForumResponseTask, ForumTopicContext
 
 __all__ = [
 	"AdminActionAudit",
@@ -35,4 +36,6 @@ __all__ = [
 	"AdminSession",
 	"AdminUser",
 	"AdminUserRoleBinding",
+	"ForumResponseTask",
+	"ForumTopicContext",
 ]

@@ -21,6 +21,7 @@ from src.services.auth.service import AdminAuthService, AdminIdentity
 from src.services.dashboard.service import DashboardService
 from src.services.execution import ExecutionService, ExecutionWorker
 from src.services.finance_admin import ProviderWithdrawReviewService
+from src.services.forum_support import ForumSupportService
 from src.storage.analytics import (
     AnalyticsDashboardRepository,
     ClickHouseAnalyticsDashboardRepository,
@@ -31,6 +32,7 @@ from src.storage.analytics import (
 )
 from src.storage import PostgresAdminStore
 from src.storage.base import AdminStore
+from src.storage.forum_support import PostgresForumSupportRepository
 
 AuthorizationHeader = Annotated[str | None, Header(alias="Authorization")]
 RequestIdHeader = Annotated[str | None, Header(alias="X-Request-Id")]
@@ -133,6 +135,17 @@ def get_provider_withdraw_review_service() -> ProviderWithdrawReviewService:
         get_provider_withdraw_review_repository(),
         get_provider_withdraw_review_adapter(),
     )
+
+
+@lru_cache(maxsize=1)
+def get_forum_support_repository() -> PostgresForumSupportRepository:
+    settings = get_settings()
+    return PostgresForumSupportRepository(settings.gateway_forum_write_dsn)
+
+
+@lru_cache(maxsize=1)
+def get_forum_support_service() -> ForumSupportService:
+    return ForumSupportService(get_forum_support_repository())
 
 
 @lru_cache(maxsize=1)

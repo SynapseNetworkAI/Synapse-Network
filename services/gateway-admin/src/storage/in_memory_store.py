@@ -53,6 +53,9 @@ APPROVAL_DECIDE = "approval:decide"
 AUDIT_READ = "audit:read"
 EXECUTION_READ = "execution:read"
 EXECUTION_RETRY = "execution:retry"
+SUPPORT_READ = "support:read"
+SUPPORT_REPLY = "support:reply"
+SUPPORT_TRIAGE = "support:triage"
 
 
 class InMemoryAdminConfigRepository:
@@ -456,6 +459,9 @@ class InMemoryAdminStore:
             AUDIT_READ: AdminPermission(AUDIT_READ, "audit", "read", PermissionRiskLevel.HIGH),
             EXECUTION_READ: AdminPermission(EXECUTION_READ, "execution", "read", PermissionRiskLevel.MEDIUM),
             EXECUTION_RETRY: AdminPermission(EXECUTION_RETRY, "execution", "retry", PermissionRiskLevel.HIGH),
+            SUPPORT_READ: AdminPermission(SUPPORT_READ, "support", "read", PermissionRiskLevel.MEDIUM),
+            SUPPORT_REPLY: AdminPermission(SUPPORT_REPLY, "support", "reply", PermissionRiskLevel.HIGH),
+            SUPPORT_TRIAGE: AdminPermission(SUPPORT_TRIAGE, "support", "triage", PermissionRiskLevel.MEDIUM),
         }
         role_permissions = [
             AdminRolePermission("super_admin", DASHBOARD_READ),
@@ -465,10 +471,16 @@ class InMemoryAdminStore:
             AdminRolePermission("super_admin", AUDIT_READ),
             AdminRolePermission("super_admin", EXECUTION_READ),
             AdminRolePermission("super_admin", EXECUTION_RETRY),
+            AdminRolePermission("super_admin", SUPPORT_READ),
+            AdminRolePermission("super_admin", SUPPORT_REPLY),
+            AdminRolePermission("super_admin", SUPPORT_TRIAGE),
             AdminRolePermission("platform_ops_admin", DASHBOARD_READ),
             AdminRolePermission("platform_ops_admin", APPROVAL_READ),
             AdminRolePermission("platform_ops_admin", EXECUTION_READ),
             AdminRolePermission("platform_ops_admin", EXECUTION_RETRY),
+            AdminRolePermission("platform_ops_admin", SUPPORT_READ),
+            AdminRolePermission("platform_ops_admin", SUPPORT_REPLY),
+            AdminRolePermission("platform_ops_admin", SUPPORT_TRIAGE),
             AdminRolePermission("finance_admin", DASHBOARD_READ),
             AdminRolePermission("finance_admin", APPROVAL_READ),
             AdminRolePermission("finance_admin", APPROVAL_SUBMIT),
@@ -488,6 +500,7 @@ class InMemoryAdminStore:
             AdminRolePermission("compliance_auditor", DASHBOARD_READ),
             AdminRolePermission("compliance_auditor", APPROVAL_READ),
             AdminRolePermission("compliance_auditor", AUDIT_READ),
+            AdminRolePermission("compliance_auditor", SUPPORT_READ),
             AdminRolePermission("readonly_analyst", DASHBOARD_READ),
         ]
         users = {

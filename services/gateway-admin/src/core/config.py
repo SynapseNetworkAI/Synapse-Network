@@ -100,6 +100,14 @@ class Settings(BaseSettings):
         default="postgresql://synapse_gateway_ro:local-dev-gateway-readonly-password@localhost:5432/synapse_gateway",
         alias="GATEWAY_READONLY_DSN",
     )
+    gateway_forum_write_dsn: str = Field(
+        default="postgresql://synapse_gateway_app:local-dev-gateway-app-password@localhost:5432/synapse_gateway",
+        alias="GATEWAY_FORUM_WRITE_DSN",
+    )
+    forum_suggestion_service_token: str = Field(
+        default="",
+        alias="GATEWAY_ADMIN_FORUM_SUGGESTION_TOKEN",
+    )
     analytics_clickhouse_url: str = Field(
         default="http://localhost:8123",
         alias="ANALYTICS_CLICKHOUSE_URL",

@@ -27,6 +27,7 @@ DEFAULT_MENU_MIGRATION_ITEM_IDS = {
     "analytics-risk-health",
     "analytics-data-quality",
     "review-history",
+    "forum-support",
 }
 DRAFT_READ_ROLES = {"super_admin", "platform_ops_admin"}
 WRITE_ROLES = {"super_admin"}
