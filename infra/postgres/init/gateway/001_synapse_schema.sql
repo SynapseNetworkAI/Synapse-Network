@@ -680,6 +680,40 @@ CREATE TABLE IF NOT EXISTS synapse_forum_reactions (
     UNIQUE (reply_id, actor_address, reaction)
 );
 
+CREATE TABLE IF NOT EXISTS synapse_forum_response_tasks (
+    response_task_id TEXT PRIMARY KEY,
+    topic_id TEXT NOT NULL REFERENCES synapse_forum_topics (topic_id) ON DELETE CASCADE,
+    status TEXT NOT NULL DEFAULT 'awaiting_response',
+    source TEXT NOT NULL DEFAULT 'user_post',
+    priority TEXT NOT NULL DEFAULT 'normal',
+    classification TEXT,
+    suggested_reply TEXT,
+    suggested_reply_source TEXT,
+    suggested_reply_updated_at TIMESTAMPTZ,
+    replied_by_admin_id TEXT,
+    reply_id TEXT REFERENCES synapse_forum_replies (reply_id) ON DELETE SET NULL,
+    responded_at TIMESTAMPTZ,
+    linked_requirement_candidate_id TEXT,
+    linked_requirement_id TEXT,
+    linked_workflow_run_id TEXT,
+    metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (status IN ('awaiting_response', 'draft_ready', 'responded', 'ignored', 'closed')),
+    CHECK (source IN ('user_post', 'growing_agent', 'admin')),
+    CHECK (priority IN ('low', 'normal', 'high', 'critical')),
+    CHECK (
+        classification IS NULL OR classification IN (
+            'question', 'bug', 'feature_request', 'docs_issue',
+            'needs_more_info', 'spam'
+        )
+    )
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_synapse_forum_response_tasks_active_topic
+ON synapse_forum_response_tasks (topic_id)
+WHERE status IN ('awaiting_response', 'draft_ready');
+
 CREATE INDEX IF NOT EXISTS idx_synapse_provider_profiles_owner
 ON synapse_provider_profiles (owner_id, updated_at DESC);
 
@@ -797,6 +831,9 @@ ON synapse_forum_topics (last_activity_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_synapse_forum_replies_topic_created
 ON synapse_forum_replies (topic_id, created_at ASC);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_forum_response_tasks_status_updated
+ON synapse_forum_response_tasks (status, updated_at DESC);
 
 CREATE UNIQUE INDEX IF NOT EXISTS uq_voucher_redemptions_code_live
 ON synapse_credit_voucher_redemptions (voucher_code_id)

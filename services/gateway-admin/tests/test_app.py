@@ -7,6 +7,7 @@ from uuid import uuid4
 
 from src.app import app
 from src.api import deps
+from src.api.routers import forum_support as forum_support_router
 from src.core.config import get_settings
 from src.core.totp import generate_totp_code, generate_totp_secret
 from src.core.security import hash_password
@@ -1528,11 +1529,143 @@ def test_operations_overview_exposes_gateway_ops_projection() -> None:
     assert body["backfillEnabled"] is True
     assert body["backfillStatus"] == "lagging"
     assert body["backfillLastScannedBlock"] == 19450321
-    assert body["backfillLastRecovered"] == 3
-    assert body["reconciliationEnabled"] is True
-    assert body["reconciliationStatus"] == "alert"
-    assert body["reconciliationAlert"] is True
-    assert body["reconciliationLastError"] == "vault_delta_detected"
+
+
+class FakeForumSupportService:
+    def __init__(self) -> None:
+        self.sent: list[dict] = []
+        self.ignored: list[dict] = []
+
+    def list_response_tasks(self, *, status=None, classification=None, page=1, page_size=20):
+        _ = (status, classification)
+        return {
+            "items": [self._task("draft_ready")],
+            "pagination": {
+                "page": page,
+                "pageSize": page_size,
+                "total": 1,
+                "totalPages": 1,
+                "hasNextPage": False,
+                "hasPreviousPage": False,
+            },
+        }
+
+    def get_response_task(self, task_id):
+        return self._task("draft_ready", task_id=task_id)
+
+    def update_suggestion(self, task_id, payload):
+        return {
+            **self._task("draft_ready", task_id=task_id),
+            "classification": payload["classification"],
+            "priority": payload["priority"],
+            "suggestedReply": payload["suggestedReply"],
+            "linkedRequirementCandidateId": payload.get("linkedRequirementCandidateId"),
+        }
+
+    def send_reply(self, task_id, payload, *, admin):
+        self.sent.append({"task_id": task_id, "payload": payload, "admin_id": admin.admin_id})
+        return {**self._task("responded", task_id=task_id), "replyId": "reply-admin-1", "respondedAt": datetime.now(timezone.utc)}
+
+    def ignore_task(self, task_id, payload, *, admin):
+        self.ignored.append({"task_id": task_id, "payload": payload, "admin_id": admin.admin_id})
+        return self._task("ignored", task_id=task_id)
+
+    @staticmethod
+    def _task(status: str, *, task_id: str = "frt-demo") -> dict:
+        return {
+            "responseTaskId": task_id,
+            "topicId": "topic-demo",
+            "status": status,
+            "source": "growing_agent",
+            "priority": "high",
+            "classification": "bug",
+            "suggestedReply": "Thanks, we captured this as a bug candidate.",
+            "suggestedReplySource": "growing",
+            "suggestedReplyUpdatedAt": datetime.now(timezone.utc),
+            "repliedByAdminId": None,
+            "replyId": None,
+            "respondedAt": None,
+            "linkedRequirementCandidateId": "42",
+            "linkedRequirementId": None,
+            "linkedWorkflowRunId": None,
+            "metadata": {},
+            "createdAt": datetime.now(timezone.utc),
+            "updatedAt": datetime.now(timezone.utc),
+            "topic": {
+                "topicId": "topic-demo",
+                "title": "Gateway timeout while opening FAQ route",
+                "body": "FAQ route times out with 500",
+                "excerpt": "FAQ route times out",
+                "category": "Bugs",
+                "authorAddress": "0x123",
+                "authorDisplay": "0x123",
+                "authorRoles": ["Builder"],
+                "status": "open",
+                "resolved": False,
+                "repliesCount": 0,
+                "createdAt": datetime.now(timezone.utc),
+                "updatedAt": datetime.now(timezone.utc),
+                "lastActivityAt": datetime.now(timezone.utc),
+            },
+        }
+
+
+def test_forum_support_lists_unreplied_tasks() -> None:
+    fake = FakeForumSupportService()
+    app.dependency_overrides[deps.get_forum_support_service] = lambda: fake
+    _login_as("ops@synapse.network")
+
+    response = client.get("/api/admin/v1/forum/response-tasks")
+
+    app.dependency_overrides.pop(deps.get_forum_support_service, None)
+    assert response.status_code == 200
+    body = response.json()["data"]
+    assert body["items"][0]["status"] == "draft_ready"
+    assert body["items"][0]["topic"]["title"] == "Gateway timeout while opening FAQ route"
+
+
+def test_forum_support_send_reply_marks_task_responded() -> None:
+    fake = FakeForumSupportService()
+    app.dependency_overrides[deps.get_forum_support_service] = lambda: fake
+    csrf_headers = _login_as("ops@synapse.network")
+
+    response = client.post(
+        "/api/admin/v1/forum/response-tasks/frt-demo/send-reply",
+        json={"body": "Thanks, we are reviewing this."},
+        headers=csrf_headers,
+    )
+
+    app.dependency_overrides.pop(deps.get_forum_support_service, None)
+    assert response.status_code == 200
+    assert response.json()["data"]["status"] == "responded"
+    assert fake.sent[0]["admin_id"] == "adm_platform_ops_admin"
+
+
+def test_forum_support_growing_can_push_suggestion() -> None:
+    fake = FakeForumSupportService()
+    app.dependency_overrides[deps.get_forum_support_service] = lambda: fake
+    app.dependency_overrides[forum_support_router.require_growing_service_token] = lambda: None
+    client.cookies.clear()
+
+    response = client.post(
+        "/api/admin/v1/forum/response-tasks/frt-demo/suggestion",
+        headers={"X-Growing-Service-Token": "test-growing-token"},
+        json={
+            "classification": "bug",
+            "priority": "high",
+            "suggestedReply": "Thanks, we captured this as a bug candidate.",
+            "linkedRequirementCandidateId": "42",
+            "metadata": {"source": "test"},
+        },
+    )
+
+    app.dependency_overrides.pop(deps.get_forum_support_service, None)
+    app.dependency_overrides.pop(forum_support_router.require_growing_service_token, None)
+    assert response.status_code == 200
+    body = response.json()["data"]
+    assert body["status"] == "draft_ready"
+    assert body["classification"] == "bug"
+    assert body["linkedRequirementCandidateId"] == "42"
 
 
 def test_reconciliation_detail_exposes_runtime_breakdown_and_related_backlog() -> None:

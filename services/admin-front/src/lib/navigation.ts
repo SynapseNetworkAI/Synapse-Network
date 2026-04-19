@@ -42,6 +42,7 @@ const navLookupById: Record<string, NavLookupRecord> = {
   "analytics-data-quality": { label: "埋点质量", description: "事件量、source coverage、隐私检查与 schema issue。" },
   execution: { label: "执行队列", description: "审批后的任务排队、重试与执行状态。" },
   "provider-services": { label: "Provider 服务", description: "注册服务、探活状态与自动摘流管理。" },
+  "forum-support": { label: "社区回复", description: "未回复帖子、Agent 建议回复与人工发送。" },
   system: { label: "系统运维", description: "Gateway、Indexer 与对账运行态。" },
   users: { label: "后台用户", description: "管理员目录、状态与 MFA 要求。" },
   "role-permissions": { label: "角色权限", description: "权限矩阵、模块边界与 reviewer 分工。" },

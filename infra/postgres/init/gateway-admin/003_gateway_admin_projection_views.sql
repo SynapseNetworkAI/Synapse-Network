@@ -401,7 +401,10 @@ VALUES
     ('approval:decide', 'approval', 'decide', 'critical', 'Approve or reject approval requests'),
     ('audit:read', 'audit', 'read', 'high', 'Read admin audit records'),
     ('execution:read', 'execution', 'read', 'medium', 'Read execution queue and execution attempt details'),
-    ('execution:retry', 'execution', 'retry', 'high', 'Retry failed execution jobs')
+    ('execution:retry', 'execution', 'retry', 'high', 'Retry failed execution jobs'),
+    ('support:read', 'support', 'read', 'medium', 'Read forum support response tasks'),
+    ('support:reply', 'support', 'reply', 'high', 'Send official forum support replies'),
+    ('support:triage', 'support', 'triage', 'medium', 'Ignore or triage forum support tasks')
 ON CONFLICT (permission_key) DO UPDATE
 SET resource_domain = EXCLUDED.resource_domain,
     action = EXCLUDED.action,
@@ -417,10 +420,16 @@ VALUES
     ('super_admin', 'audit:read', 'system_seed'),
     ('super_admin', 'execution:read', 'system_seed'),
     ('super_admin', 'execution:retry', 'system_seed'),
+    ('super_admin', 'support:read', 'system_seed'),
+    ('super_admin', 'support:reply', 'system_seed'),
+    ('super_admin', 'support:triage', 'system_seed'),
     ('platform_ops_admin', 'dashboard:read', 'system_seed'),
     ('platform_ops_admin', 'approval:read', 'system_seed'),
     ('platform_ops_admin', 'execution:read', 'system_seed'),
     ('platform_ops_admin', 'execution:retry', 'system_seed'),
+    ('platform_ops_admin', 'support:read', 'system_seed'),
+    ('platform_ops_admin', 'support:reply', 'system_seed'),
+    ('platform_ops_admin', 'support:triage', 'system_seed'),
     ('finance_admin', 'dashboard:read', 'system_seed'),
     ('finance_admin', 'approval:read', 'system_seed'),
     ('finance_admin', 'approval:submit', 'system_seed'),
@@ -440,6 +449,7 @@ VALUES
     ('compliance_auditor', 'dashboard:read', 'system_seed'),
     ('compliance_auditor', 'approval:read', 'system_seed'),
     ('compliance_auditor', 'audit:read', 'system_seed'),
+    ('compliance_auditor', 'support:read', 'system_seed'),
     ('readonly_analyst', 'dashboard:read', 'system_seed')
 ON CONFLICT (role_key, permission_key) DO NOTHING;
 

@@ -10,6 +10,7 @@ OPS_CONTROLS_LABEL = "业务控制"
 OPS_CONTROLS_DESCRIPTION = "审批、资金、风控和系统运维的受控操作入口。"
 DASHBOARD_READ_PERMISSION = "dashboard:read"
 APPROVAL_READ_PERMISSION = "approval:read"
+SUPPORT_READ_PERMISSION = "support:read"
 CONTROL_OVERVIEW_DESCRIPTION = "总览、业务运行态、执行与系统运维。"
 
 
@@ -220,6 +221,21 @@ def build_default_menu_items() -> tuple[AdminMenuConfigItem, ...]:
             required_permissions=(DASHBOARD_READ_PERMISSION,),
             sort_order=35,
             keywords=("provider", "services", "registry", "health", "discover", "invoke"),
+        ),
+        AdminMenuConfigItem(
+            item_id="forum-support",
+            section_id="control-overview",
+            section_label="控制总览",
+            section_description=CONTROL_OVERVIEW_DESCRIPTION,
+            label="社区回复",
+            href="/forum-support",
+            description="未回复帖子、Agent 建议回复和人工发送工作台。",
+            parent_item_id="control-overview",
+            node_type=MENU_NODE_PAGE,
+            icon_key="FS",
+            required_permissions=(SUPPORT_READ_PERMISSION,),
+            sort_order=36,
+            keywords=("forum", "support", "community", "reply", "agent suggestion"),
         ),
         AdminMenuConfigItem(
             item_id="system",

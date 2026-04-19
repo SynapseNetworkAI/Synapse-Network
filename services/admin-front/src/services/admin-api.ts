@@ -387,6 +387,57 @@ export type AnalyticsDataQuality = {
   }>;
 };
 
+export type ForumTopicContext = {
+  topicId: string;
+  title: string;
+  body: string;
+  excerpt: string;
+  category: string;
+  authorAddress: string;
+  authorDisplay: string;
+  authorRoles: string[];
+  status: string;
+  resolved: boolean;
+  repliesCount: number;
+  createdAt: string | null;
+  updatedAt: string | null;
+  lastActivityAt: string | null;
+};
+
+export type ForumResponseTask = {
+  responseTaskId: string;
+  topicId: string;
+  status: "awaiting_response" | "draft_ready" | "responded" | "ignored" | "closed" | string;
+  source: string;
+  priority: "low" | "normal" | "high" | "critical" | string;
+  classification: "question" | "bug" | "feature_request" | "docs_issue" | "needs_more_info" | "spam" | string | null;
+  suggestedReply: string | null;
+  suggestedReplySource: string | null;
+  suggestedReplyUpdatedAt: string | null;
+  repliedByAdminId: string | null;
+  replyId: string | null;
+  respondedAt: string | null;
+  linkedRequirementCandidateId: string | null;
+  linkedRequirementId: string | null;
+  linkedWorkflowRunId: string | null;
+  metadata: Record<string, unknown>;
+  createdAt: string | null;
+  updatedAt: string | null;
+  topic: ForumTopicContext | null;
+};
+
+export type ForumResponseTaskListResponse = {
+  items: ForumResponseTask[];
+  pagination: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+    hasNextPage: boolean;
+    hasPreviousPage: boolean;
+  };
+};
+
 export type FinanceOverview = {
   todayChargeUsdc: string;
   todayDepositUsdc: string;
@@ -1117,6 +1168,44 @@ export async function getAnalyticsRiskHealth(token: string, window: AnalyticsWin
 
 export async function getAnalyticsDataQuality(token: string, window: AnalyticsDataQualityWindow = "24h"): Promise<AnalyticsDataQuality> {
   return request<AnalyticsDataQuality>(buildPath("/api/admin/v1/dashboard/analytics/data-quality", { window }));
+}
+
+export async function listForumResponseTasks(
+  token: string,
+  params?: { status?: string; classification?: string; page?: number; pageSize?: number },
+): Promise<ForumResponseTaskListResponse> {
+  return request<ForumResponseTaskListResponse>(buildPath("/api/admin/v1/forum/response-tasks", {
+    status: params?.status,
+    classification: params?.classification,
+    page: params?.page,
+    page_size: params?.pageSize,
+  }));
+}
+
+export async function getForumResponseTask(token: string, taskId: string): Promise<ForumResponseTask> {
+  return request<ForumResponseTask>(`/api/admin/v1/forum/response-tasks/${taskId}`);
+}
+
+export async function sendForumResponseReply(
+  token: string,
+  taskId: string,
+  input: { body: string; authorDisplay?: string; authorAddress?: string },
+): Promise<ForumResponseTask> {
+  return request<ForumResponseTask>(`/api/admin/v1/forum/response-tasks/${taskId}/send-reply`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function ignoreForumResponseTask(
+  token: string,
+  taskId: string,
+  input: { reason: string },
+): Promise<ForumResponseTask> {
+  return request<ForumResponseTask>(`/api/admin/v1/forum/response-tasks/${taskId}/ignore`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
 }
 
 export async function listApprovals(
