@@ -604,3 +604,79 @@ async def emit_risk_rule_triggered(
             "severity": severity,
         },
     )
+
+
+# ── Community feedback / forum ───────────────────────────────────
+
+async def emit_feedback_submitted(
+    wallet_address: str,
+    *,
+    feedback_id: str,
+    source: str,
+    sentiment: str,
+    route: str,
+    correlation_id: Optional[str] = None,
+) -> None:
+    await _emit(
+        "feedback_submitted",
+        wallet_address,
+        role="community",
+        surface="feedback",
+        correlation_id=correlation_id,
+        extra={
+            "feedback_id": feedback_id,
+            "source": source,
+            "sentiment": sentiment,
+            "route": route,
+        },
+    )
+
+
+async def emit_forum_topic_created(
+    wallet_address: str,
+    *,
+    topic_id: str,
+    category: str,
+    correlation_id: Optional[str] = None,
+) -> None:
+    await _emit(
+        "forum_topic_created",
+        wallet_address,
+        role="community",
+        surface="forum",
+        correlation_id=correlation_id,
+        extra={"topic_id": topic_id, "category": category},
+    )
+
+
+async def emit_forum_reply_created(
+    wallet_address: str,
+    *,
+    topic_id: str,
+    reply_id: str,
+    correlation_id: Optional[str] = None,
+) -> None:
+    await _emit(
+        "forum_reply_created",
+        wallet_address,
+        role="community",
+        surface="forum",
+        correlation_id=correlation_id,
+        extra={"topic_id": topic_id, "reply_id": reply_id},
+    )
+
+
+async def emit_forum_topic_resolved(
+    wallet_address: str,
+    *,
+    topic_id: str,
+    correlation_id: Optional[str] = None,
+) -> None:
+    await _emit(
+        "forum_topic_resolved",
+        wallet_address,
+        role="community",
+        surface="forum",
+        correlation_id=correlation_id,
+        extra={"topic_id": topic_id},
+    )

@@ -95,6 +95,17 @@ function fixtureInvocations() {
   return fullchainFixture.invocation ? [fullchainFixture.invocation] : [];
 }
 
+function fixtureForumTopicId() {
+  if (!fullchainFixture) return "";
+  return String(
+    fullchainFixture.forumTopic?.topicId ||
+    fullchainFixture.forum?.topicId ||
+    fullchainFixture.forumTopicId ||
+    fullchainFixture.topicId ||
+    "",
+  );
+}
+
 function decimalToAtomic(value, decimals = 6) {
   const normalized = String(value ?? "0").trim().replace(/[$,\s]/g, "");
   const sign = normalized.startsWith("-") ? -1n : 1n;
@@ -280,6 +291,10 @@ function resolveVerificationHref(href) {
   if (href === "/docs/api-reference/[id]") {
     return "/docs/api-reference/get-balance";
   }
+  if (href === "/forum/[topicId]") {
+    const topicId = fixtureForumTopicId();
+    return topicId ? `/forum/${encodeURIComponent(topicId)}` : "/forum/smoke-topic";
+  }
   const firstService = fixtureServices()[0];
   if (VERIFY_MODE === "fullchain" && href === "/provider/health" && firstService?.id) {
     return `/provider/health?serviceId=${encodeURIComponent(firstService.id)}`;
@@ -412,7 +427,7 @@ async function verifyMarketplaceControls(page) {
 }
 
 function isRealBackendRow(row) {
-  return ["public-gateway", "authenticated-gateway", "authenticated-gateway-and-chain", "public-gateway-and-chain"].includes(row.dataVerification);
+  return ["public-gateway", "gateway-community", "authenticated-gateway", "authenticated-gateway-and-chain", "public-gateway-and-chain"].includes(row.dataVerification);
 }
 
 function isAuthenticatedRow(row) {
@@ -866,7 +881,7 @@ try {
             );
           }
         }
-        if (EFFECTIVE_REAL_BACKEND && row.dataVerification === "public-gateway") {
+        if (EFFECTIVE_REAL_BACKEND && (row.dataVerification === "public-gateway" || row.dataVerification === "gateway-community")) {
           const responses = await waitForPageGatewayEvidence(page, row);
           if (responses.length === 0) {
             throw new Error(`${row.href} did not call a public backend API`);

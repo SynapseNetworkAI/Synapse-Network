@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type React from "react";
 
@@ -12,11 +12,24 @@ const {
   prefetchMock,
   pushMock,
   disconnectMock,
+  openConnectModalMock,
+  authorizeMock,
+  navigationState,
+  authState,
 } = vi.hoisted(() => ({
   beginNavigationMock: vi.fn(),
   prefetchMock: vi.fn(),
   pushMock: vi.fn(),
   disconnectMock: vi.fn(),
+  openConnectModalMock: vi.fn(),
+  authorizeMock: vi.fn(async () => true),
+  navigationState: {
+    pathname: "/dashboard/agents",
+  },
+  authState: {
+    isConnected: true,
+    isSessionAuthenticated: true,
+  },
 }));
 
 const TRANSLATIONS: Record<string, string> = {
@@ -52,6 +65,7 @@ vi.mock("next/link", () => ({
     onClick,
     onMouseEnter,
     onFocus,
+    prefetch,
     className,
     children,
   }: {
@@ -59,23 +73,33 @@ vi.mock("next/link", () => ({
     onClick?: React.MouseEventHandler<HTMLAnchorElement>;
     onMouseEnter?: React.MouseEventHandler<HTMLAnchorElement>;
     onFocus?: React.FocusEventHandler<HTMLAnchorElement>;
+    prefetch?: boolean;
     className?: string;
     children?: React.ReactNode;
-  }) => (
-    <a
-      href={typeof href === "string" ? href : href?.pathname}
-      onClick={onClick}
-      onMouseEnter={onMouseEnter}
-      onFocus={onFocus}
-      className={className}
-    >
-      {children}
-    </a>
-  ),
+  }) => {
+    const handleClick: React.MouseEventHandler<HTMLAnchorElement> = (event) => {
+      onClick?.(event);
+      // Keep the unit test inside JSDOM; product code still uses native Link navigation.
+      event.preventDefault();
+    };
+
+    return (
+      <a
+        href={typeof href === "string" ? href : href?.pathname}
+        onClick={handleClick}
+        onMouseEnter={onMouseEnter}
+        onFocus={onFocus}
+        data-prefetch={String(prefetch)}
+        className={className}
+      >
+        {children}
+      </a>
+    );
+  },
 }));
 
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/dashboard/agents",
+  usePathname: () => navigationState.pathname,
   useRouter: () => ({
     push: pushMock,
     prefetch: prefetchMock,
@@ -84,7 +108,7 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@rainbow-me/rainbowkit", () => ({
   useConnectModal: () => ({
-    openConnectModal: vi.fn(),
+    openConnectModal: openConnectModalMock,
   }),
 }));
 
@@ -101,9 +125,9 @@ vi.mock("react-hot-toast", () => ({
 
 vi.mock("@/components/WalletAuthGuard", () => ({
   useAuth: () => ({
-    isConnected: true,
-    isSessionAuthenticated: true,
-    authorize: vi.fn(async () => true),
+    isConnected: authState.isConnected,
+    isSessionAuthenticated: authState.isSessionAuthenticated,
+    authorize: authorizeMock,
   }),
 }));
 
@@ -122,46 +146,90 @@ vi.mock("@/components/i18n/LanguageProvider", () => ({
 describe("DashboardSidebar", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-
-    vi.stubGlobal(
-      "requestAnimationFrame",
-      ((callback: FrameRequestCallback) => {
-        callback(0);
-        return 1;
-      }) as typeof requestAnimationFrame
-    );
-
-    vi.stubGlobal(
-      "requestIdleCallback",
-      ((callback: IdleRequestCallback) => {
-        callback({
-          didTimeout: false,
-          timeRemaining: () => 50,
-        } as IdleDeadline);
-        return 1;
-      }) as typeof requestIdleCallback
-    );
-
-    vi.stubGlobal(
-      "cancelIdleCallback",
-      vi.fn() as typeof cancelIdleCallback
-    );
+    navigationState.pathname = "/dashboard/agents";
+    authState.isConnected = true;
+    authState.isSessionAuthenticated = true;
+    authorizeMock.mockResolvedValue(true);
   });
 
-  it("prefetches and pushes immediately for sidebar navigation", async () => {
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("uses native Link navigation for normal sidebar links without prefetching or router push", async () => {
     const user = userEvent.setup();
 
     render(<DashboardSidebar />);
 
     const overviewLink = screen.getByRole("link", { name: /Overview/i });
+    expect(overviewLink.getAttribute("href")).toBe("/dashboard/overview");
+    expect(overviewLink.getAttribute("data-prefetch")).toBe("false");
 
     await user.hover(overviewLink);
-    expect(prefetchMock).toHaveBeenCalledWith("/dashboard/overview");
+    expect(prefetchMock).not.toHaveBeenCalled();
 
     await user.click(overviewLink);
 
     expect(beginNavigationMock).toHaveBeenCalledWith("/dashboard/overview");
-    expect(pushMock).toHaveBeenCalledWith("/dashboard/overview");
+    expect(pushMock).not.toHaveBeenCalled();
+  });
+
+  it("does not start navigation when clicking the active route", async () => {
+    const user = userEvent.setup();
+
+    render(<DashboardSidebar />);
+
+    await user.click(screen.getAllByRole("link", { name: /Agents/i }).at(0)!);
+
+    expect(beginNavigationMock).not.toHaveBeenCalled();
+    expect(pushMock).not.toHaveBeenCalled();
+  });
+
+  it("does not intercept modified clicks", async () => {
+    render(<DashboardSidebar />);
+
+    fireEvent.click(screen.getAllByRole("link", { name: /Overview/i }).at(0)!, { metaKey: true });
+
+    expect(beginNavigationMock).not.toHaveBeenCalled();
+    expect(pushMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps provider withdraw navigation behind wallet connection", async () => {
+    const user = userEvent.setup();
+    authState.isConnected = false;
+
+    render(<DashboardSidebar />);
+
+    const settlementButton = screen.getAllByRole("button", { name: /Settlement/i }).at(-1);
+    await user.click(settlementButton!);
+
+    const withdrawLink = screen.getAllByRole("link", { name: /^Withdraw$/i }).at(-1);
+    expect(withdrawLink).toBeTruthy();
+    expect(withdrawLink!.getAttribute("data-prefetch")).toBe("false");
+
+    await user.click(withdrawLink!);
+
+    expect(openConnectModalMock).toHaveBeenCalledTimes(1);
+    expect(beginNavigationMock).not.toHaveBeenCalled();
+    expect(pushMock).not.toHaveBeenCalled();
+  });
+
+  it("pushes provider withdraw after session authorization succeeds", async () => {
+    const user = userEvent.setup();
+    authState.isConnected = true;
+    authState.isSessionAuthenticated = false;
+
+    render(<DashboardSidebar />);
+
+    const settlementButton = screen.getAllByRole("button", { name: /Settlement/i }).at(-1);
+    await user.click(settlementButton!);
+
+    const withdrawLink = screen.getAllByRole("link", { name: /^Withdraw$/i }).at(-1);
+    await user.click(withdrawLink!);
+
+    expect(authorizeMock).toHaveBeenCalledTimes(1);
+    expect(beginNavigationMock).toHaveBeenCalledWith("/provider/withdraw");
+    expect(pushMock).toHaveBeenCalledWith("/provider/withdraw");
   });
 
   it("renders settlement group with withdraw sub-links before account", async () => {

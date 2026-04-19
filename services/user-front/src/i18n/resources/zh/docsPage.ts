@@ -51,6 +51,7 @@ const docsPage: I18nMessages["docsPage"] = {
     "更新日志",
     "状态页",
     "GitHub",
+    "Support",
   ],
   sidebarSoon: "即将上线",
   notFoundTitle: "页面不存在",
@@ -309,7 +310,7 @@ const docsPage: I18nMessages["docsPage"] = {
   apiLegendCreate: "创建 / 执行",
   apiLegendUpdate: "更新",
   apiLegendDelete: "删除",
-  apiGroupTitles: ["Auth", "Balance", "Services", "Provider Operations", "Agent Invocations", "Credentials"],
+  apiGroupTitles: ["Auth", "Balance", "Services", "Provider Operations", "Agent Invocations", "Credentials", "Community"],
   apiGroupDescriptions: [
     "钱包 challenge、签名验证和会话生命周期。",
     "账户余额、充值、确认和提现接口。",
@@ -317,6 +318,7 @@ const docsPage: I18nMessages["docsPage"] = {
     "Provider secret、收益、提现票据和运行时健康证据接口。",
     "付费调用和调用历史接口。",
     "Agent 凭证的发放、列表和撤销接口。",
+    "上下文反馈、开发者论坛帖子、回复与解决状态接口。",
   ],
   apiAuthNoteTitle: "认证方式",
   apiAuthNoteDescription:

@@ -19,6 +19,7 @@ import SdkPage from "@/app/docs/sdk/page";
 import TypeScriptSdkPage from "@/app/docs/sdk/typescript/page";
 import PythonSdkPage from "@/app/docs/sdk/python/page";
 import ContractsPage from "@/app/docs/contracts/page";
+import DocsSupportPage from "@/app/docs/support/page";
 
 const { pushMock, pathnameMock } = vi.hoisted(() => ({
   pushMock: vi.fn(),
@@ -60,6 +61,7 @@ describe("docs multilingual surfaces", () => {
     expect(await screen.findByText("概览")).toBeTruthy();
     expect(screen.getByText("快速开始")).toBeTruthy();
     expect(screen.getByText("搜索文档...")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Support" }).getAttribute("href")).toBe("/docs/support");
   });
 
   it("renders overview page in Chinese", async () => {
@@ -111,6 +113,7 @@ describe("docs multilingual surfaces", () => {
         createElement(TypeScriptSdkPage),
         createElement(PythonSdkPage),
         createElement(ContractsPage),
+        createElement(DocsSupportPage),
       ),
       "en",
     );
@@ -121,6 +124,7 @@ describe("docs multilingual surfaces", () => {
     expect(screen.getAllByRole("heading", { name: "TypeScript SDK" }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole("heading", { name: "Python SDK" }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole("heading", { name: "Smart Contracts" }).length).toBeGreaterThan(0);
+    expect(screen.getByRole("heading", { name: "Developer Support" })).toBeTruthy();
     expect(screen.getByText("Expose narrow agent credentials, not owner wallets")).toBeTruthy();
     expect(screen.getByText("Export callable marketplace services")).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Discover services first" })).toBeTruthy();

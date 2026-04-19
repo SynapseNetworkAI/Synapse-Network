@@ -103,6 +103,7 @@ export function getDocsNavTree(sectionLabels: string[], itemLabels: string[]): N
       id: "resources",
       label: sectionLabels[6] ?? "RESOURCES",
       items: [
+        { id: "support", label: itemLabels[33] ?? "Support", href: "/docs/support" },
         { id: "changelog", label: itemLabels[30] ?? "Changelog", href: "/blog" },
         { id: "status", label: itemLabels[31] ?? "Status Page", href: "#", soon: true },
         { id: "community", label: itemLabels[32] ?? "GitHub", href: "https://github.com/cliff-personal/Synapse-Network-Sdk", external: true },

@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import DocsPageFeedback from "./DocsPageFeedback";
 
 /**
  * Wraps docs page content with a keyed div so that React re-mounts it on
@@ -14,6 +15,7 @@ export function DocsContentWrapper({
   return (
     <div key={pathname} className="x-docs-page-enter">
       {children}
+      <DocsPageFeedback />
     </div>
   );
 }

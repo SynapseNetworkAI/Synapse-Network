@@ -1,0 +1,31 @@
+import type { I18nMessages } from "@/i18n/schema";
+
+const forumPage: I18nMessages["forumPage"] = {
+  title: "Developer Forum",
+  description: "提问、反馈 bug、展示 Provider 服务，并和其他 Synapse builder 讨论 SDK 接入。",
+  newTopic: "发布帖子",
+  searchPlaceholder: "搜索帖子、bug、SDK、服务...",
+  latest: "最新",
+  top: "热门",
+  allCategories: "全部分类",
+  categories: ["Announcements", "Questions", "Bugs", "Feature Requests", "Provider Services", "SDKs", "Showcase"],
+  replies: "回复",
+  activity: "活跃",
+  resolved: "已解决",
+  locked: "已锁定",
+  createTitle: "发起讨论",
+  topicTitleLabel: "标题",
+  topicBodyLabel: "正文",
+  topicBodyPlaceholder: "描述你的问题、bug，或者想分享的服务。支持 Markdown；密钥会被过滤。",
+  categoryLabel: "分类",
+  postTopic: "发布帖子",
+  replyPlaceholder: "添加一条有帮助的回复...",
+  postReply: "发布回复",
+  markResolved: "标记已解决",
+  connectToPost: "连接钱包后可以发帖或回复。",
+  emptyTitle: "还没有帖子",
+  emptyDescription: "做第一个点亮信号回路的 builder。",
+  loadFailed: "论坛数据加载失败。",
+};
+
+export default forumPage;

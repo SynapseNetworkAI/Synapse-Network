@@ -603,6 +603,83 @@ CREATE TABLE IF NOT EXISTS synapse_credit_voucher_redemptions (
     CHECK (status IN ('PENDING', 'COMPLETED', 'REVERSED', 'FAILED'))
 );
 
+CREATE TABLE IF NOT EXISTS synapse_feedback_reports (
+    id BIGINT GENERATED ALWAYS AS IDENTITY UNIQUE,
+    feedback_id TEXT PRIMARY KEY,
+    source TEXT NOT NULL DEFAULT 'dashboard',
+    sentiment TEXT NOT NULL DEFAULT 'report_issue',
+    category TEXT NOT NULL DEFAULT 'product_feedback',
+    message TEXT NOT NULL DEFAULT '',
+    route TEXT NOT NULL DEFAULT '',
+    page_title TEXT NOT NULL DEFAULT '',
+    language TEXT NOT NULL DEFAULT '',
+    owner_address TEXT,
+    context_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    status TEXT NOT NULL DEFAULT 'open',
+    assignee TEXT,
+    resolution_note TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (source IN ('docs', 'dashboard', 'forum', 'general')),
+    CHECK (sentiment IN ('helpful', 'not_helpful', 'report_issue')),
+    CHECK (status IN ('open', 'triaged', 'resolved', 'closed'))
+);
+
+CREATE TABLE IF NOT EXISTS synapse_forum_topics (
+    id BIGINT GENERATED ALWAYS AS IDENTITY UNIQUE,
+    topic_id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    body TEXT NOT NULL,
+    excerpt TEXT NOT NULL DEFAULT '',
+    category TEXT NOT NULL,
+    author_address TEXT NOT NULL,
+    author_display TEXT NOT NULL,
+    author_roles TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+    status TEXT NOT NULL DEFAULT 'open',
+    resolved BOOLEAN NOT NULL DEFAULT FALSE,
+    locked BOOLEAN NOT NULL DEFAULT FALSE,
+    pinned BOOLEAN NOT NULL DEFAULT FALSE,
+    views_count INTEGER NOT NULL DEFAULT 0,
+    replies_count INTEGER NOT NULL DEFAULT 0,
+    reactions_count INTEGER NOT NULL DEFAULT 0,
+    last_activity_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (category IN ('Announcements', 'Questions', 'Bugs', 'Feature Requests', 'Provider Services', 'SDKs', 'Showcase')),
+    CHECK (status IN ('open', 'resolved', 'hidden', 'locked'))
+);
+
+CREATE TABLE IF NOT EXISTS synapse_forum_replies (
+    id BIGINT GENERATED ALWAYS AS IDENTITY UNIQUE,
+    reply_id TEXT PRIMARY KEY,
+    topic_id TEXT NOT NULL REFERENCES synapse_forum_topics (topic_id) ON DELETE CASCADE,
+    body TEXT NOT NULL,
+    author_address TEXT NOT NULL,
+    author_display TEXT NOT NULL,
+    author_roles TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+    status TEXT NOT NULL DEFAULT 'visible',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (status IN ('visible', 'hidden', 'deleted'))
+);
+
+CREATE TABLE IF NOT EXISTS synapse_forum_reactions (
+    id BIGINT GENERATED ALWAYS AS IDENTITY UNIQUE,
+    reaction_id TEXT PRIMARY KEY,
+    topic_id TEXT REFERENCES synapse_forum_topics (topic_id) ON DELETE CASCADE,
+    reply_id TEXT REFERENCES synapse_forum_replies (reply_id) ON DELETE CASCADE,
+    actor_address TEXT NOT NULL,
+    reaction TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (reaction IN ('upvote', 'helpful', 'same_issue')),
+    CHECK (
+        (topic_id IS NOT NULL AND reply_id IS NULL)
+        OR (topic_id IS NULL AND reply_id IS NOT NULL)
+    ),
+    UNIQUE (topic_id, actor_address, reaction),
+    UNIQUE (reply_id, actor_address, reaction)
+);
+
 CREATE INDEX IF NOT EXISTS idx_synapse_provider_profiles_owner
 ON synapse_provider_profiles (owner_id, updated_at DESC);
 
@@ -705,6 +782,21 @@ ON synapse_credit_voucher_redemptions (owner_id, created_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_voucher_redemptions_campaign_created
 ON synapse_credit_voucher_redemptions (campaign_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_feedback_reports_route_created
+ON synapse_feedback_reports (route, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_feedback_reports_owner_created
+ON synapse_feedback_reports (owner_address, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_forum_topics_category_activity
+ON synapse_forum_topics (category, last_activity_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_forum_topics_activity
+ON synapse_forum_topics (last_activity_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_forum_replies_topic_created
+ON synapse_forum_replies (topic_id, created_at ASC);
 
 CREATE UNIQUE INDEX IF NOT EXISTS uq_voucher_redemptions_code_live
 ON synapse_credit_voucher_redemptions (voucher_code_id)
