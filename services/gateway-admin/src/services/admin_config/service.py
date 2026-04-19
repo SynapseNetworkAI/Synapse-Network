@@ -26,6 +26,7 @@ DEFAULT_MENU_MIGRATION_ITEM_IDS = {
     "analytics-money-flow",
     "analytics-risk-health",
     "analytics-data-quality",
+    "provider-services",
     "review-history",
     "forum-support",
 }
