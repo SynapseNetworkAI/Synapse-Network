@@ -34,17 +34,28 @@ The design goal is low-friction reporting without leaking secrets. Feedback and 
 - Categories are fixed for v1: `Announcements`, `Questions`, `Bugs`, `Feature Requests`, `Provider Services`, `SDKs`, `Showcase`.
 - Topic detail pages show the sanitized markdown text as plain text and never render raw HTML.
 - Authors can mark their own topic resolved.
+- Topics behave like public support tickets. The detail page shows category, author, status badges, pinned state, official-reply count, replies count, and `Views N`.
+- Status values are `open`, `awaiting_admin`, `answered`, `resolved`, `closed`, `hidden`, and legacy `locked`.
+- `closed` means public and readable, but no new replies. It is not the same as `hidden`.
+- `pinned=true` topics sort above normal topics and display a `Pinned` badge in list and detail views.
+- Reading a public topic increments `viewsCount` at the gateway API. v1 treats this as raw page views; a 30-minute visitor window can be added later if refresh inflation becomes noisy.
+- `open`, `awaiting_admin`, and `answered` allow authenticated replies. `resolved` still allows follow-up discussion. `closed`, `hidden`, and `locked` disable the reply form.
 
 ### Admin Forum Support
 
 - Public forum topics that need an operator response are mirrored into the admin `/forum-support` response-task queue.
-- The admin workbench is a community-support reply desk, not a public forum view and not an auto-support robot.
+- The admin workbench is a community-support operations desk, not an auto-support robot.
+- `/forum-support` has two main views:
+- `All Topics`: paginated topic lifecycle management with search, status, pinned state, replies, views, official replies, close/reopen, and pin/unpin.
+- `Response Queue`: the existing reviewed reply queue with Agent suggestions and human-edited public replies.
 - Growing/Agent may write classification, priority, suggested reply text, and links to Candidate / Requirement / Workflow follow-up records.
 - The suggested reply is advisory only. A human administrator must review, edit, and manually send every public response.
 - Sending from the admin workbench creates a real forum reply and moves the task to `responded`.
 - Ignoring from the admin workbench requires a reason and moves the task to `ignored`.
 - Historical tasks are read-only so an operator cannot accidentally send duplicate public replies.
 - Forum signals that represent bugs, feature requests, or provider-service gaps should be linked to Growing planning artifacts rather than handled only as chat.
+- Admin close/reopen/pin/unpin actions write lifecycle events for audit and operational handoff.
+- Closing a topic keeps it visible to users, shows the close reason, and disables further replies.
 
 ## Gateway API
 
@@ -65,6 +76,7 @@ The canonical Postgres bootstrap schema defines:
 - `synapse_forum_topics`
 - `synapse_forum_replies`
 - `synapse_forum_reactions`
+- `synapse_forum_topic_events`
 
 Existing local databases need the gateway bootstrap schema reapplied or an equivalent migration before the new endpoints can persist data. Gateway startup must not run schema scripts implicitly.
 
@@ -83,6 +95,7 @@ Required automated checks:
 - Gateway router tests verify feedback creation, forum auth requirements, topic creation, and redaction helpers.
 - Frontend tests verify feedback drawer submission redacts sensitive context.
 - Frontend tests verify forum list rendering and authenticated topic creation.
+- Frontend tests verify pinned/status/views badges and closed-topic reply lock behavior.
 - Docs tests verify `/docs/support` renders and Docs top nav links to Support.
 
 Required browser checks:
@@ -92,6 +105,9 @@ Required browser checks:
 - Open `/dashboard/discovery`, click floating `Feedback`, verify drawer route context.
 - Open console top nav `Forum`, verify URL `/forum`.
 - Open `New topic`, verify the create-topic modal overlay, create forum topic, reply, mark resolved, and capture list/modal/detail screenshots.
+- Visit a topic twice, verify `Views` increases from the gateway truth.
+- Close a topic from `/forum-support`, verify public detail remains visible but the reply form is disabled.
+- Pin a topic from `/forum-support`, verify public `/forum` list displays the `Pinned` badge and prioritizes the topic.
 
 Pass criteria:
 

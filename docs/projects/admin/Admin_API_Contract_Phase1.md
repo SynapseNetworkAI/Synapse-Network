@@ -119,8 +119,26 @@
 4. `POST /api/admin/v1/forum/response-tasks/{taskId}/ignore`：`support:triage`
 5. `GET /api/admin/v1/forum/response-tasks/-/pending`：`X-Growing-Service-Token`
 6. `POST /api/admin/v1/forum/response-tasks/{taskId}/suggestion`：`X-Growing-Service-Token`
+7. `GET /api/admin/v1/forum/topics`：`support:read`
+8. `GET /api/admin/v1/forum/topics/{topicId}`：`support:read`
+9. `POST /api/admin/v1/forum/topics/{topicId}/close`：`support:triage`
+10. `POST /api/admin/v1/forum/topics/{topicId}/reopen`：`support:triage`
+11. `POST /api/admin/v1/forum/topics/{topicId}/pin`：`support:triage`
+12. `POST /api/admin/v1/forum/topics/{topicId}/unpin`：`support:triage`
 
 状态语义：
+
+Forum topic lifecycle:
+
+1. `open`：公开可见，可回复。
+2. `awaiting_admin`：公开可见，可回复，需要官方回复。
+3. `answered`：已有官方回复，仍可继续讨论。
+4. `resolved`：已解决，仍可补充讨论。
+5. `closed`：公开可见但禁止新回复，区别于隐藏。
+6. `hidden`：普通用户不可见，仅后台审计。
+7. `locked`：兼容锁定状态，禁止回复。
+
+Forum response task lifecycle:
 
 1. `awaiting_response`：新帖子等待管理员回复。
 2. `draft_ready`：Growing/Agent 已生成建议草稿。
@@ -134,6 +152,8 @@
 2. 公开回复必须由管理员编辑后手动发送。
 3. 已进入 `responded / ignored / closed` 的历史任务必须只读，避免重复处理。
 4. locked topic 发送回复必须返回明确错误，不得写入 `synapse_forum_replies`。
+5. close topic 不隐藏内容，只锁定继续回复，并写入关闭原因与 lifecycle event。
+6. pin/unpin 只影响公开列表排序和 badge，不改变 response task 状态。
 
 ### `GET /api/admin/v1/forum/response-tasks`
 
@@ -185,6 +205,80 @@ Query:
   "requestId": "req_123"
 }
 ```
+
+### `GET /api/admin/v1/forum/topics`
+
+用途：后台分页读取所有帖子，用于 Forum Support Operations 的 `All Topics` 视图。
+
+Query:
+
+1. `status`：逗号分隔 topic 状态，默认 `open,awaiting_admin,answered,resolved`
+2. `category`
+3. `q`：搜索标题或正文
+4. `pinned`：`true / false`
+5. `page`
+6. `page_size`：默认 20，最大 100
+
+响应字段必须包含 `status`、`pinned`、`viewsCount`、`repliesCount`、`officialRepliesCount`、`closedReason`。
+
+### `GET /api/admin/v1/forum/topics/{topicId}`
+
+用途：读取单个帖子、活动 response task 和 lifecycle timeline。
+
+响应：
+
+```json
+{
+  "success": true,
+  "data": {
+    "topic": {
+      "topicId": "topic_demo",
+      "title": "Provider health issue",
+      "status": "awaiting_admin",
+      "pinned": true,
+      "viewsCount": 42,
+      "repliesCount": 1,
+      "officialRepliesCount": 0,
+      "closedReason": null
+    },
+    "responseTask": null,
+    "events": [
+      {
+        "eventId": "fte_demo",
+        "action": "pin",
+        "fromStatus": "open",
+        "toStatus": "open",
+        "reason": null
+      }
+    ]
+  },
+  "requestId": "req_123"
+}
+```
+
+### `POST /api/admin/v1/forum/topics/{topicId}/close`
+
+用途：关闭公开帖子。帖子仍可被普通用户阅读，但 public reply API 必须拒绝新回复。
+
+请求：
+
+```json
+{
+  "reason": "Duplicate of an answered SDK setup issue."
+}
+```
+
+### `POST /api/admin/v1/forum/topics/{topicId}/reopen`
+
+用途：重新打开已关闭帖子，清除关闭原因并允许用户继续回复。
+
+### `POST /api/admin/v1/forum/topics/{topicId}/pin`
+
+用途：置顶帖子。公开 `/forum` 列表按 `pinned DESC, lastActivityAt DESC` 排序。
+
+### `POST /api/admin/v1/forum/topics/{topicId}/unpin`
+
+用途：取消置顶帖子。
 
 ### `POST /api/admin/v1/forum/response-tasks/{taskId}/send-reply`
 

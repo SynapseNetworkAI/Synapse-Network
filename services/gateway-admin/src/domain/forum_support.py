@@ -15,10 +15,30 @@ class ForumTopicContext:
     author_roles: tuple[str, ...] = field(default_factory=tuple)
     topic_status: str = "open"
     resolved: bool = False
+    locked: bool = False
+    pinned: bool = False
+    views_count: int = 0
     replies_count: int = 0
+    official_replies_count: int = 0
+    closed_reason: str | None = None
+    closed_by_admin_id: str | None = None
+    closed_at: datetime | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
     last_activity_at: datetime | None = None
+
+
+@dataclass(slots=True, frozen=True)
+class ForumTopicEvent:
+    event_id: str
+    topic_id: str
+    actor_admin_id: str | None
+    action: str
+    from_status: str | None
+    to_status: str | None
+    reason: str | None
+    metadata: dict[str, Any] = field(default_factory=dict)
+    created_at: datetime | None = None
 
 
 @dataclass(slots=True, frozen=True)

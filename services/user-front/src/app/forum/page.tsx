@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, Plus, Search, Sparkles } from "lucide-react";
+import { CheckCircle2, Eye, Lock, Pin, Plus, Search, Sparkles } from "lucide-react";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
 import {
   XDialog,
@@ -161,9 +161,10 @@ export default function ForumPage() {
             {error ? <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-100">{error}</div> : null}
 
             <div className="overflow-hidden rounded-[28px] border border-white/10 bg-[#0a0b0d]">
-              <div className="grid grid-cols-[minmax(0,1fr)_80px_110px] border-b border-white/10 px-5 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-white/35">
+              <div className="grid grid-cols-[minmax(0,1fr)_76px_76px_110px] border-b border-white/10 px-5 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-white/35">
                 <span>Topic</span>
                 <span>{t("forumPage.replies")}</span>
+                <span>{t("forumPage.views")}</span>
                 <span>{t("forumPage.activity")}</span>
               </div>
               {loading ? (
@@ -178,11 +179,28 @@ export default function ForumPage() {
                   <Link
                     key={topic.topicId}
                     href={`/forum/${topic.topicId}`}
-                    className="grid grid-cols-[minmax(0,1fr)_80px_110px] gap-3 border-b border-white/10 px-5 py-5 transition hover:bg-white/[0.035]"
+                    className="grid grid-cols-[minmax(0,1fr)_76px_76px_110px] gap-3 border-b border-white/10 px-5 py-5 transition hover:bg-white/[0.035]"
                   >
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <h2 className="truncate text-base font-semibold tracking-[-0.02em]">{topic.title}</h2>
+                        {topic.pinned ? (
+                          <span className="inline-flex items-center gap-1 rounded-full border border-[#7ff7be]/25 bg-[#7ff7be]/10 px-2 py-0.5 text-[11px] text-[#dfffee]">
+                            <Pin className="h-3 w-3" />
+                            {t("forumPage.pinned")}
+                          </span>
+                        ) : null}
+                        {topic.status === "awaiting_admin" ? (
+                          <span className="rounded-full border border-amber-300/25 bg-amber-300/10 px-2 py-0.5 text-[11px] text-amber-100">
+                            {t("forumPage.awaitingAdmin")}
+                          </span>
+                        ) : null}
+                        {topic.status === "closed" ? (
+                          <span className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/[0.08] px-2 py-0.5 text-[11px] text-white/70">
+                            <Lock className="h-3 w-3" />
+                            {t("forumPage.closed")}
+                          </span>
+                        ) : null}
                         {topic.resolved ? (
                           <span className="inline-flex items-center gap-1 rounded-full border border-[#7ff7be]/25 bg-[#7ff7be]/10 px-2 py-0.5 text-[11px] text-[#dfffee]">
                             <CheckCircle2 className="h-3 w-3" />
@@ -191,9 +209,16 @@ export default function ForumPage() {
                         ) : null}
                       </div>
                       <p className="mt-1 line-clamp-2 text-sm leading-6 text-white/50">{topic.excerpt}</p>
-                      <p className="mt-2 text-xs text-white/35">{topic.category} · {topic.authorDisplay}</p>
+                      <p className="mt-2 text-xs text-white/35">
+                        {topic.category} · {topic.authorDisplay}
+                        {topic.officialRepliesCount > 0 ? ` · ${topic.officialRepliesCount} ${t("forumPage.officialReply")}` : ""}
+                      </p>
                     </div>
                     <div className="text-sm font-semibold text-white/65">{topic.repliesCount}</div>
+                    <div className="inline-flex items-start gap-1 text-sm text-white/45">
+                      <Eye className="mt-0.5 h-3.5 w-3.5" />
+                      {topic.viewsCount}
+                    </div>
                     <div className="text-sm text-white/45">{topic.lastActivityAt ? new Date(topic.lastActivityAt).toLocaleDateString() : "-"}</div>
                   </Link>
                 ))

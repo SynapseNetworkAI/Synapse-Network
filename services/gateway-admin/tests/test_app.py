@@ -1535,6 +1535,8 @@ class FakeForumSupportService:
     def __init__(self) -> None:
         self.sent: list[dict] = []
         self.ignored: list[dict] = []
+        self.closed: list[dict] = []
+        self.pinned: list[dict] = []
 
     def list_response_tasks(self, *, status=None, classification=None, page=1, page_size=20):
         _ = (status, classification)
@@ -1570,6 +1572,84 @@ class FakeForumSupportService:
         self.ignored.append({"task_id": task_id, "payload": payload, "admin_id": admin.admin_id})
         return self._task("ignored", task_id=task_id)
 
+    def list_topics(self, *, status=None, page=1, page_size=20, category=None, q=None, pinned=None):
+        _ = (status, category, q, pinned)
+        return {
+            "items": [self._topic()],
+            "pagination": {
+                "page": page,
+                "pageSize": page_size,
+                "total": 1,
+                "totalPages": 1,
+                "hasNextPage": False,
+                "hasPreviousPage": False,
+            },
+        }
+
+    def get_topic(self, topic_id):
+        return {
+            "topic": self._topic(topic_id=topic_id),
+            "responseTask": self._task("draft_ready"),
+            "events": [
+                {
+                    "eventId": "fte-demo",
+                    "topicId": topic_id,
+                    "actorAdminId": "adm_platform_ops_admin",
+                    "action": "pin",
+                    "fromStatus": "open",
+                    "toStatus": "open",
+                    "reason": None,
+                    "metadata": {"pinned": True},
+                    "createdAt": datetime.now(timezone.utc),
+                }
+            ],
+        }
+
+    def close_topic(self, topic_id, payload, *, admin):
+        self.closed.append({"topic_id": topic_id, "payload": payload, "admin_id": admin.admin_id})
+        return self._topic(topic_id=topic_id, status="closed", locked=True, closed_reason=payload["reason"])
+
+    def reopen_topic(self, topic_id, *, admin):
+        self.closed.append({"topic_id": topic_id, "payload": {"reopen": True}, "admin_id": admin.admin_id})
+        return self._topic(topic_id=topic_id, status="open", locked=False)
+
+    def pin_topic(self, topic_id, *, admin, pinned):
+        self.pinned.append({"topic_id": topic_id, "pinned": pinned, "admin_id": admin.admin_id})
+        return self._topic(topic_id=topic_id, pinned=pinned)
+
+    @staticmethod
+    def _topic(
+        *,
+        topic_id: str = "topic-demo",
+        status: str = "awaiting_admin",
+        locked: bool = False,
+        pinned: bool = True,
+        closed_reason: str | None = None,
+    ) -> dict:
+        return {
+            "topicId": topic_id,
+            "title": "Gateway timeout while opening FAQ route",
+            "body": "FAQ route times out with 500",
+            "excerpt": "FAQ route times out",
+            "category": "Bugs",
+            "authorAddress": "0x123",
+            "authorDisplay": "0x123",
+            "authorRoles": ["Builder"],
+            "status": status,
+            "resolved": status == "resolved",
+            "locked": locked,
+            "pinned": pinned,
+            "viewsCount": 7,
+            "repliesCount": 0,
+            "officialRepliesCount": 0,
+            "closedReason": closed_reason,
+            "closedByAdminId": "adm_platform_ops_admin" if closed_reason else None,
+            "closedAt": datetime.now(timezone.utc) if closed_reason else None,
+            "createdAt": datetime.now(timezone.utc),
+            "updatedAt": datetime.now(timezone.utc),
+            "lastActivityAt": datetime.now(timezone.utc),
+        }
+
     @staticmethod
     def _task(status: str, *, task_id: str = "frt-demo") -> dict:
         return {
@@ -1591,22 +1671,7 @@ class FakeForumSupportService:
             "metadata": {},
             "createdAt": datetime.now(timezone.utc),
             "updatedAt": datetime.now(timezone.utc),
-            "topic": {
-                "topicId": "topic-demo",
-                "title": "Gateway timeout while opening FAQ route",
-                "body": "FAQ route times out with 500",
-                "excerpt": "FAQ route times out",
-                "category": "Bugs",
-                "authorAddress": "0x123",
-                "authorDisplay": "0x123",
-                "authorRoles": ["Builder"],
-                "status": "open",
-                "resolved": False,
-                "repliesCount": 0,
-                "createdAt": datetime.now(timezone.utc),
-                "updatedAt": datetime.now(timezone.utc),
-                "lastActivityAt": datetime.now(timezone.utc),
-            },
+            "topic": FakeForumSupportService._topic(),
         }
 
 
@@ -1718,6 +1783,65 @@ def test_forum_support_growing_can_read_pending_queue() -> None:
     body = response.json()["data"]
     assert body["items"][0]["status"] == "draft_ready"
     assert body["pagination"]["pageSize"] == 10
+
+
+def test_forum_support_lists_all_topics_for_operations() -> None:
+    fake = FakeForumSupportService()
+    app.dependency_overrides[deps.get_forum_support_service] = lambda: fake
+    _login_as("ops@synapse.network")
+
+    response = client.get("/api/admin/v1/forum/topics?status=awaiting_admin&page_size=10&pinned=true")
+
+    app.dependency_overrides.pop(deps.get_forum_support_service, None)
+    assert response.status_code == 200
+    body = response.json()["data"]
+    assert body["items"][0]["status"] == "awaiting_admin"
+    assert body["items"][0]["pinned"] is True
+    assert body["items"][0]["viewsCount"] == 7
+    assert body["pagination"]["pageSize"] == 10
+
+
+def test_forum_support_gets_topic_detail_and_timeline() -> None:
+    fake = FakeForumSupportService()
+    app.dependency_overrides[deps.get_forum_support_service] = lambda: fake
+    _login_as("ops@synapse.network")
+
+    response = client.get("/api/admin/v1/forum/topics/topic-demo")
+
+    app.dependency_overrides.pop(deps.get_forum_support_service, None)
+    assert response.status_code == 200
+    body = response.json()["data"]
+    assert body["topic"]["topicId"] == "topic-demo"
+    assert body["responseTask"]["responseTaskId"] == "frt-demo"
+    assert body["events"][0]["action"] == "pin"
+
+
+def test_forum_support_closes_reopens_and_pins_topic() -> None:
+    fake = FakeForumSupportService()
+    app.dependency_overrides[deps.get_forum_support_service] = lambda: fake
+    csrf_headers = _login_as("ops@synapse.network")
+
+    close_response = client.post(
+        "/api/admin/v1/forum/topics/topic-demo/close",
+        json={"reason": "Duplicate answered issue."},
+        headers=csrf_headers,
+    )
+    reopen_response = client.post("/api/admin/v1/forum/topics/topic-demo/reopen", headers=csrf_headers)
+    pin_response = client.post("/api/admin/v1/forum/topics/topic-demo/pin", headers=csrf_headers)
+    unpin_response = client.post("/api/admin/v1/forum/topics/topic-demo/unpin", headers=csrf_headers)
+
+    app.dependency_overrides.pop(deps.get_forum_support_service, None)
+    assert close_response.status_code == 200
+    assert close_response.json()["data"]["status"] == "closed"
+    assert close_response.json()["data"]["closedReason"] == "Duplicate answered issue."
+    assert reopen_response.status_code == 200
+    assert reopen_response.json()["data"]["status"] == "open"
+    assert pin_response.status_code == 200
+    assert pin_response.json()["data"]["pinned"] is True
+    assert unpin_response.status_code == 200
+    assert unpin_response.json()["data"]["pinned"] is False
+    assert fake.closed[0]["admin_id"] == "adm_platform_ops_admin"
+    assert fake.pinned[-1]["pinned"] is False
 
 
 def test_reconciliation_detail_exposes_runtime_breakdown_and_related_backlog() -> None:

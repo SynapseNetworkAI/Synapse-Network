@@ -103,9 +103,17 @@ export type I18nMessages = {
     allCategories: string;
     categories: string[];
     replies: string;
+    views: string;
     activity: string;
+    pinned: string;
+    closed: string;
+    officialReply: string;
+    awaitingAdmin: string;
     resolved: string;
     locked: string;
+    closedReason: string;
+    closedDescription: string;
+    continueDiscussion: string;
     createTitle: string;
     topicTitleLabel: string;
     topicBodyLabel: string;

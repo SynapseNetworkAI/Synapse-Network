@@ -639,6 +639,9 @@ CREATE TABLE IF NOT EXISTS synapse_forum_topics (
     resolved BOOLEAN NOT NULL DEFAULT FALSE,
     locked BOOLEAN NOT NULL DEFAULT FALSE,
     pinned BOOLEAN NOT NULL DEFAULT FALSE,
+    closed_reason TEXT,
+    closed_by_admin_id TEXT,
+    closed_at TIMESTAMPTZ,
     views_count INTEGER NOT NULL DEFAULT 0,
     replies_count INTEGER NOT NULL DEFAULT 0,
     reactions_count INTEGER NOT NULL DEFAULT 0,
@@ -646,8 +649,32 @@ CREATE TABLE IF NOT EXISTS synapse_forum_topics (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CHECK (category IN ('Announcements', 'Questions', 'Bugs', 'Feature Requests', 'Provider Services', 'SDKs', 'Showcase')),
-    CHECK (status IN ('open', 'resolved', 'hidden', 'locked'))
+    CHECK (status IN ('open', 'awaiting_admin', 'answered', 'resolved', 'closed', 'hidden', 'locked'))
 );
+
+CREATE TABLE IF NOT EXISTS synapse_forum_topic_events (
+    event_id TEXT PRIMARY KEY,
+    topic_id TEXT NOT NULL REFERENCES synapse_forum_topics (topic_id) ON DELETE CASCADE,
+    actor_admin_id TEXT,
+    action TEXT NOT NULL,
+    from_status TEXT,
+    to_status TEXT,
+    reason TEXT,
+    metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE synapse_forum_topics
+ADD COLUMN IF NOT EXISTS closed_reason TEXT,
+ADD COLUMN IF NOT EXISTS closed_by_admin_id TEXT,
+ADD COLUMN IF NOT EXISTS closed_at TIMESTAMPTZ;
+
+ALTER TABLE synapse_forum_topics
+DROP CONSTRAINT IF EXISTS synapse_forum_topics_status_check;
+
+ALTER TABLE synapse_forum_topics
+ADD CONSTRAINT synapse_forum_topics_status_check
+CHECK (status IN ('open', 'awaiting_admin', 'answered', 'resolved', 'closed', 'hidden', 'locked'));
 
 CREATE TABLE IF NOT EXISTS synapse_forum_replies (
     id BIGINT GENERATED ALWAYS AS IDENTITY UNIQUE,
@@ -829,11 +856,23 @@ ON synapse_forum_topics (category, last_activity_at DESC);
 CREATE INDEX IF NOT EXISTS idx_synapse_forum_topics_activity
 ON synapse_forum_topics (last_activity_at DESC);
 
+CREATE INDEX IF NOT EXISTS idx_synapse_forum_topics_status_activity
+ON synapse_forum_topics (status, last_activity_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_forum_topics_pinned_activity
+ON synapse_forum_topics (pinned DESC, last_activity_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_forum_topics_views
+ON synapse_forum_topics (views_count DESC);
+
 CREATE INDEX IF NOT EXISTS idx_synapse_forum_replies_topic_created
 ON synapse_forum_replies (topic_id, created_at ASC);
 
 CREATE INDEX IF NOT EXISTS idx_synapse_forum_response_tasks_status_updated
 ON synapse_forum_response_tasks (status, updated_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_forum_topic_events_topic_created
+ON synapse_forum_topic_events (topic_id, created_at DESC);
 
 CREATE UNIQUE INDEX IF NOT EXISTS uq_voucher_redemptions_code_live
 ON synapse_credit_voucher_redemptions (voucher_code_id)

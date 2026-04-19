@@ -9,13 +9,19 @@ import {
   getAnalyticsProviderRevenue,
   getAnalyticsRiskHealth,
   getCurrentAdmin,
+  closeForumTopic,
+  getForumTopic,
   ignoreForumResponseTask,
   listApprovals,
   listExecutionJobs,
   listForumResponseTasks,
+  listForumTopics,
   listProviderServices,
   listProviderWithdrawReviews,
+  pinForumTopic,
+  reopenForumTopic,
   sendForumResponseReply,
+  unpinForumTopic,
   updateProviderServiceLifecycle,
   resolveAdminApiBaseUrl,
 } from "./admin-api";
@@ -369,6 +375,38 @@ describe("forum support API adapters", () => {
     expect(init?.method).toBe("POST");
     expect(new Headers(init?.headers).get("X-CSRF-Token")).toBeTruthy();
     expect(init?.body).toBe(JSON.stringify({ reason: "Duplicate of an already answered topic." }));
+  });
+
+  it("maps forum topic list filters to backend pagination parameters", async () => {
+    await listForumTopics("cookie-session", {
+      status: "open,awaiting_admin",
+      q: "wallet",
+      pinned: true,
+      page: 3,
+      pageSize: 40,
+    });
+
+    const url = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
+    expect(url).toBe(
+      "/api/admin/v1/forum/topics?status=open%2Cawaiting_admin&q=wallet&pinned=true&page=3&page_size=40",
+    );
+  });
+
+  it("reads forum topic detail and posts moderation lifecycle actions", async () => {
+    await getForumTopic("cookie-session", "topic_1");
+    await closeForumTopic("cookie-session", "topic_1", { reason: "Duplicate issue." });
+    await reopenForumTopic("cookie-session", "topic_1");
+    await pinForumTopic("cookie-session", "topic_1");
+    await unpinForumTopic("cookie-session", "topic_1");
+
+    const calls = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls;
+    expect(calls[0]?.[0]).toBe("/api/admin/v1/forum/topics/topic_1");
+    expect(calls[1]?.[0]).toBe("/api/admin/v1/forum/topics/topic_1/close");
+    expect(calls[1]?.[1]?.method).toBe("POST");
+    expect(calls[1]?.[1]?.body).toBe(JSON.stringify({ reason: "Duplicate issue." }));
+    expect(calls[2]?.[0]).toBe("/api/admin/v1/forum/topics/topic_1/reopen");
+    expect(calls[3]?.[0]).toBe("/api/admin/v1/forum/topics/topic_1/pin");
+    expect(calls[4]?.[0]).toBe("/api/admin/v1/forum/topics/topic_1/unpin");
   });
 });
 

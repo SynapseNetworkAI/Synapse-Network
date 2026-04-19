@@ -90,6 +90,9 @@ Support-oriented control-plane pages, including `/forum-support`, must keep auto
 4. Historical support tasks must be read-only by default to avoid duplicate public responses.
 5. Queue/list clicks should switch the workbench context in place; use navigation only when opening an external source of truth.
 6. Candidate, Requirement, and Workflow links are references for product follow-up, not implicit approvals or executions.
+7. Topic lifecycle actions (`close`, `reopen`, `pin`, `unpin`, `hide`) must be explicit admin actions backed by `gateway-admin` APIs and audit/timeline events.
+8. Closing a forum topic means "public but no more replies"; do not hide or delete content as a side effect of closing.
+9. Forum operations lists must use backend pagination and backend status filters. The browser must not derive "all topics" truth from the response queue.
 
 ## Visual Identity
 
