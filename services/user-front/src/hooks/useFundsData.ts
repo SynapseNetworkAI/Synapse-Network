@@ -42,11 +42,10 @@ export function useFundsData() {
     }
     try {
       const provider = new ethers.JsonRpcProvider("http://127.0.0.1:8545");
-      const vault = new ethers.Contract(contractConfig.SynapseCore, SynapseCoreABI, provider);
       const usdc = new ethers.Contract(contractConfig.MockUSDC, MockUSDCABI, provider);
 
       const [vaultBal, walletBal] = await Promise.all([
-        vault.balanceOf(userAddress).catch(() => ethers.toBigInt(0)),
+        usdc.balanceOf(contractConfig.SynapseCore).catch(() => ethers.toBigInt(0)),
         usdc.balanceOf(userAddress).catch(() => ethers.toBigInt(0)),
       ]);
 

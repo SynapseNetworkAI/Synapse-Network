@@ -64,7 +64,9 @@ function filterServices(rows: ServiceRegistryRecord[], searchParams: URLSearchPa
 export async function GET(request: Request): Promise<Response> {
   try {
     const url = new URL(request.url);
-    const rows = await discoverServices();
+    const query = url.searchParams.get("q")?.trim() || "";
+    const tag = url.searchParams.get("tag")?.trim() || "";
+    const rows = await discoverServices(query || tag || undefined);
     const services = filterServices(rows, url.searchParams);
     const page = parsePositiveInteger(url.searchParams.get("page"), DEFAULT_PAGE);
     const pageSize = parsePageSize(url.searchParams.get("pageSize"));

@@ -93,6 +93,7 @@ export type ServiceRegistryRecord = {
     healthyTargets?: number;
     totalTargets?: number;
     lastCheckedAt?: number | null;
+    runtimeAvailable?: boolean;
   };
   summary?: string | null;
   tags?: string[];
@@ -164,6 +165,7 @@ type ServiceRegistryApiRecord = Partial<ServiceRegistryRecord> & {
     healthyTargets?: number;
     totalTargets?: number;
     lastCheckedAt?: number | null;
+    runtimeAvailable?: boolean;
   };
   runtimeAvailable?: boolean;
   invocationCount?: number;
@@ -297,9 +299,17 @@ function normalizeServiceRecord(raw: ServiceRegistryApiRecord): ServiceRegistryR
     serviceId,
     pricing,
     endpoint,
-    isActive: typeof raw.isActive === "boolean" ? raw.isActive : raw.status === "active",
+    isActive: typeof raw.isActive === "boolean"
+      ? raw.isActive
+      : !["inactive", "archived", "deleted", "paused"].includes(String(raw.status || "").toLowerCase()),
     status: raw.status,
-    runtimeAvailable: typeof raw.runtimeAvailable === "boolean" ? raw.runtimeAvailable : undefined,
+    runtimeAvailable: typeof raw.runtimeAvailable === "boolean"
+      ? raw.runtimeAvailable
+      : typeof raw.serviceHealth?.runtimeAvailable === "boolean"
+        ? raw.serviceHealth.runtimeAvailable
+        : typeof raw.health?.runtimeAvailable === "boolean"
+          ? raw.health.runtimeAvailable
+          : undefined,
     invocationCount: typeof raw.invocationCount === "number" ? raw.invocationCount : 0,
     totalRevenueUsdc: typeof raw.totalRevenueUsdc === "string" ? raw.totalRevenueUsdc : "0",
     health: raw.health || raw.serviceHealth,

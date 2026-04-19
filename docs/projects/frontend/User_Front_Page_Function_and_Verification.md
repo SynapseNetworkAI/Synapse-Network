@@ -22,6 +22,11 @@ Use three layers together:
 2. **Browser click verification** confirms real navigation, redirects, hash anchors, marketplace controls, console errors, screenshots, and basic layout guards.
 3. **Backend truth verification** confirms data-backed public pages call real gateway endpoints and render from those responses. Wallet/JWT pages require an authenticated fixture before their data truth can be marked fully passed.
 
+There are two browser modes:
+
+- **Smoke mode** proves routes, copy, redirects, clicks, public gateway calls, and screenshots. Authenticated consumer/provider data may be reported as blocked when no wallet/JWT fixture is supplied.
+- **Fullchain mode** runs `scripts/e2e/user_front_fullchain_seed.mjs` first, then opens the browser with seeded consumer/provider wallet sessions. Fullchain mode is the only mode allowed to claim `blocked=0` for authenticated balances, payments, credentials, invocations, provider earnings, provider services, health, and withdrawal pages.
+
 Screenshots are evidence for visual review. They are not enough by themselves to prove functional correctness. Functional correctness requires simulated clicks and route/API assertions.
 
 ## Page Inventory
@@ -43,7 +48,7 @@ Screenshots are evidence for visual review. They are not enough by themselves to
 | `/dashboard/credentials` | implemented | Agent credentials, limits, revocation | Gateway credential APIs | Authenticated smoke; full data requires wallet/JWT |
 | `/dashboard/invocations` | implemented | Invocation history and refund entry | Gateway usage/refund APIs | Authenticated smoke; full data requires wallet/JWT |
 | `/dashboard/services` | implemented | Owner/provider-owned service registry view | Authenticated service registry APIs | Authenticated smoke |
-| `/dashboard/agents` | implemented | Agent workspace and credential linking | localStorage + gateway credentials | Browser smoke; auth actions require fixture |
+| `/dashboard/agents` | implemented | Agent workspace and credential linking | localStorage + gateway credentials | Fullchain must show seeded credential and `callsUsed >= 100`; empty state is a failure |
 | `/dashboard/audit` | implemented | Consumer audit/risk view | Gateway usage/audit projections | Authenticated smoke |
 | `/dashboard/developer` | implemented | Developer resource hub | Static | Render smoke |
 | `/dashboard/settlement` | preview | Reconciliation preview | Static preview | Render smoke; not a production reconciliation source |
@@ -144,6 +149,25 @@ USER_FRONT_VERIFY_REAL_BACKEND=1 \
 USER_FRONT_GATEWAY_HEALTH_URL=http://127.0.0.1:8000/health \
 node scripts/ui/verify_user_front_pages.mjs
 ```
+
+Run local fullchain verification:
+
+```bash
+npm run e2e:user-front-fullchain
+```
+
+Fullchain mode performs the following setup before browser assertions:
+
+- Authenticates consumer and provider local wallets.
+- Mints `1000.00` local MockUSDC, tops the consumer wallet up to `10 ETH`, approves SynapseCore, deposits to the gateway balance ledger, and registers the deposit intent.
+- Issues provider and agent credentials.
+- Starts three local mock provider upstreams.
+- Registers three active callable provider services priced at `0.10`, `0.25`, and `0.50` USDC and waits for health/discovery.
+- Invokes those services 100 times with one consumer agent credential using a deterministic `34 / 33 / 33` split.
+- Reconciles consumer charge, platform fee, and provider net from gateway usage receipts with USDC atomic `BigInt` math.
+- Verifies consumer balance, usage records, provider receivable, provider service health, provider usage, and withdrawal capability through gateway APIs and visible UI evidence.
+
+The final fullchain report only passes when `failed=0` and `blocked=0`.
 
 The browser script writes:
 
