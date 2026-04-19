@@ -81,6 +81,8 @@ def _redact_payload(value: Any, *, depth: int = 0) -> Any:
 
 
 def _topic_row_to_dict(row: Any) -> dict[str, Any]:
+    closed_reason = str(row[17] or "") if len(row) > 17 else ""
+    official_replies_count = int(row[18] or 0) if len(row) > 18 else 0
     return {
         "topicId": str(row[0]),
         "title": str(row[1] or ""),
@@ -99,6 +101,8 @@ def _topic_row_to_dict(row: Any) -> dict[str, Any]:
         "lastActivityAt": _utc_iso(row[14]),
         "createdAt": _utc_iso(row[15]),
         "updatedAt": _utc_iso(row[16]),
+        "closedReason": closed_reason,
+        "officialRepliesCount": official_replies_count,
     }
 
 
@@ -238,7 +242,15 @@ class FeedbackForumService:
                 f"""
                 SELECT topic_id, title, category, excerpt, author_address, author_display,
                        author_roles, status, resolved, locked, pinned, views_count,
-                       replies_count, reactions_count, last_activity_at, created_at, updated_at
+                       replies_count, reactions_count, last_activity_at, created_at, updated_at,
+                       closed_reason,
+                       (
+                           SELECT COUNT(*)
+                           FROM synapse_forum_replies reply
+                           WHERE reply.topic_id = synapse_forum_topics.topic_id
+                             AND reply.status <> 'hidden'
+                             AND 'Ops' = ANY(reply.author_roles)
+                       ) AS official_replies_count
                 FROM synapse_forum_topics
                 WHERE {where_sql}
                 ORDER BY pinned DESC, {order_sql}
@@ -285,7 +297,7 @@ class FeedbackForumService:
                 INSERT INTO synapse_forum_topics (
                     topic_id, title, body, excerpt, category, author_address,
                     author_display, author_roles, status, created_at, updated_at, last_activity_at
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'open', %s, %s, %s)
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'awaiting_admin', %s, %s, %s)
                 """,
                 (
                     topic_id,
@@ -333,6 +345,14 @@ class FeedbackForumService:
                 SELECT topic_id, title, category, excerpt, author_address, author_display,
                        author_roles, status, resolved, locked, pinned, views_count,
                        replies_count, reactions_count, last_activity_at, created_at, updated_at,
+                       closed_reason,
+                       (
+                           SELECT COUNT(*)
+                           FROM synapse_forum_replies reply
+                           WHERE reply.topic_id = synapse_forum_topics.topic_id
+                             AND reply.status <> 'hidden'
+                             AND 'Ops' = ANY(reply.author_roles)
+                       ) AS official_replies_count,
                        body
                 FROM synapse_forum_topics
                 WHERE topic_id = %s AND status <> 'hidden'
@@ -342,14 +362,14 @@ class FeedbackForumService:
             row = cur.fetchone()
         if not row:
             raise HTTPException(status_code=404, detail="Topic not found")
-        topic = _topic_row_to_dict(row[:17])
-        topic["body"] = str(row[17] or "")
+        topic = _topic_row_to_dict(row[:19])
+        topic["body"] = str(row[19] or "")
         return topic
 
     def _get_topic_sync(self, topic_id: str) -> dict[str, Any]:
         with self.storage.get_data_manager().uow.tx_cursor() as cur:
             cur.execute(
-                "UPDATE synapse_forum_topics SET views_count = views_count + 1 WHERE topic_id = %s",
+                "UPDATE synapse_forum_topics SET views_count = views_count + 1 WHERE topic_id = %s AND status <> 'hidden'",
                 (topic_id,),
             )
         topic = self._read_topic_sync(topic_id)
@@ -380,14 +400,17 @@ class FeedbackForumService:
         roles = self._roles_for_owner(owner)
         with self.storage.get_data_manager().uow.tx_cursor() as cur:
             cur.execute(
-                "SELECT locked FROM synapse_forum_topics WHERE topic_id = %s AND status <> 'hidden'",
+                "SELECT locked, status FROM synapse_forum_topics WHERE topic_id = %s AND status <> 'hidden'",
                 (topic_id,),
             )
             row = cur.fetchone()
             if not row:
                 raise HTTPException(status_code=404, detail="Topic not found")
-            if bool(row[0]):
+            topic_status = str(row[1] or "")
+            if bool(row[0]) or topic_status == "locked":
                 raise HTTPException(status_code=423, detail="Topic is locked")
+            if topic_status == "closed":
+                raise HTTPException(status_code=423, detail="Topic is closed")
             cur.execute(
                 """
                 INSERT INTO synapse_forum_replies (
@@ -401,6 +424,7 @@ class FeedbackForumService:
                 """
                 UPDATE synapse_forum_topics
                 SET replies_count = replies_count + 1,
+                    status = CASE WHEN status = 'awaiting_admin' THEN 'open' ELSE status END,
                     last_activity_at = %s,
                     updated_at = %s
                 WHERE topic_id = %s

@@ -15,7 +15,14 @@ class ForumTopicContextOut(BaseModel):
     author_roles: list[str] = Field(default_factory=list, alias="authorRoles", serialization_alias="authorRoles")
     status: str
     resolved: bool
+    locked: bool = False
+    pinned: bool = False
+    views_count: int = Field(default=0, alias="viewsCount", serialization_alias="viewsCount")
     replies_count: int = Field(alias="repliesCount", serialization_alias="repliesCount")
+    official_replies_count: int = Field(default=0, alias="officialRepliesCount", serialization_alias="officialRepliesCount")
+    closed_reason: str | None = Field(default=None, alias="closedReason", serialization_alias="closedReason")
+    closed_by_admin_id: str | None = Field(default=None, alias="closedByAdminId", serialization_alias="closedByAdminId")
+    closed_at: datetime | None = Field(default=None, alias="closedAt", serialization_alias="closedAt")
     created_at: datetime | None = Field(default=None, alias="createdAt", serialization_alias="createdAt")
     updated_at: datetime | None = Field(default=None, alias="updatedAt", serialization_alias="updatedAt")
     last_activity_at: datetime | None = Field(default=None, alias="lastActivityAt", serialization_alias="lastActivityAt")
@@ -57,6 +64,29 @@ class ForumResponseTaskListResponse(BaseModel):
     pagination: ForumResponseTaskPagination
 
 
+class ForumTopicEventOut(BaseModel):
+    event_id: str = Field(alias="eventId", serialization_alias="eventId")
+    topic_id: str = Field(alias="topicId", serialization_alias="topicId")
+    actor_admin_id: str | None = Field(default=None, alias="actorAdminId", serialization_alias="actorAdminId")
+    action: str
+    from_status: str | None = Field(default=None, alias="fromStatus", serialization_alias="fromStatus")
+    to_status: str | None = Field(default=None, alias="toStatus", serialization_alias="toStatus")
+    reason: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime | None = Field(default=None, alias="createdAt", serialization_alias="createdAt")
+
+
+class ForumTopicListResponse(BaseModel):
+    items: list[ForumTopicContextOut]
+    pagination: ForumResponseTaskPagination
+
+
+class ForumTopicDetailResponse(BaseModel):
+    topic: ForumTopicContextOut
+    response_task: ForumResponseTaskOut | None = Field(default=None, alias="responseTask", serialization_alias="responseTask")
+    events: list[ForumTopicEventOut] = Field(default_factory=list)
+
+
 class ForumResponseSuggestionRequest(BaseModel):
     classification: str
     priority: str = "normal"
@@ -74,4 +104,8 @@ class ForumSendReplyRequest(BaseModel):
 
 
 class ForumIgnoreTaskRequest(BaseModel):
+    reason: str
+
+
+class ForumCloseTopicRequest(BaseModel):
     reason: str

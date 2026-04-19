@@ -24,9 +24,9 @@ Screenshots are evidence for visual review. The functional pass/fail decision co
 
 | Surface | Route | Required behavior | Evidence |
 | --- | --- | --- | --- |
-| Forum list | `/forum` | Shows categories, search, latest/top controls, topic list, and opens topic creation in a modal instead of inline-expanding the list | `forum-public.png`, browser assertions |
+| Forum list | `/forum` | Shows categories, search, latest/top controls, pinned/status badges, views, topic list, and opens topic creation in a modal instead of inline-expanding the list | `forum-public.png`, browser assertions |
 | Create topic modal | `/forum` | `New topic` opens a modal overlay; unauthenticated users see the guard and authenticated users can submit the form | `forum-create-topic-modal-unauthenticated.png`, `forum-create-topic-modal.png` |
-| Topic detail | `/forum/{topicId}` | Shows topic body, replies, resolved status, and back link | `forum-topic-detail.png`, `forum-reply-resolved.png` |
+| Topic detail | `/forum/{topicId}` | Shows topic body, replies, views, official-reply count, status badges, close reason, reply lock, and back link | `forum-topic-detail.png`, `forum-reply-resolved.png`, `forum-topic-closed.png` |
 | Docs support | `/docs/support` | Shows support hub and Developer Forum link; link navigates to `/forum` | `docs-support.png`, URL assertion |
 | Docs feedback | `/docs` footer | `Not helpful` opens feedback drawer and returns `feedbackId` | `docs-feedback-drawer.png`, API + DB assertion |
 | Dashboard feedback | `/dashboard/discovery` | Floating `Feedback` opens drawer and returns `feedbackId` with route context | `dashboard-feedback-drawer.png`, API + DB assertion |
@@ -53,6 +53,7 @@ The gateway database must already contain:
 - `synapse_feedback_reports`
 - `synapse_forum_topics`
 - `synapse_forum_replies`
+- `synapse_forum_topic_events`
 
 Gateway startup intentionally does not auto-run DB bootstrap scripts. Apply the schema/bootstrap before running this verification.
 
@@ -143,7 +144,7 @@ WHERE message ILIKE '%forum-YYYYMMDD%';
 ```
 
 ```sql
-SELECT topic_id, title, category, status, resolved, replies_count
+SELECT topic_id, title, category, status, resolved, pinned, views_count, replies_count, closed_reason
 FROM synapse_forum_topics
 WHERE title ILIKE '%forum-YYYYMMDD%';
 ```
@@ -163,6 +164,10 @@ The verification passes only when:
 - UI text, API response ids, DB rows, and fixture values agree.
 - `New topic` opens a modal overlay and does not inline-expand the create form in the forum list flow.
 - `/forum` to `/forum/{topicId}` navigation works.
+- Public `/forum` displays pinned/status/views fields when the seed or admin action sets them.
+- Topic detail increments `views_count` on successful reads. If visitor-window dedupe is enabled later, the report must state whether it expects raw views or deduped views.
+- Closed topics remain publicly visible, show the close reason, and disable the reply form.
+- Pinned topics appear above ordinary topics in the public list.
 - `/docs/support` to `/forum` navigation works.
 - Docs and dashboard feedback drawers display a `feedbackId`.
 - All required screenshots exist.

@@ -9,11 +9,12 @@ from uuid import uuid4
 from psycopg.types.json import Jsonb
 
 from src.domain import ForumResponseTask, ForumTopicContext
+from src.storage.forum_support.topic_repository import PostgresForumTopicRepositoryMixin
 
 logger = logging.getLogger(__name__)
 FORUM_RESPONSE_TASKS_SCHEMA_ERROR = (
     "Forum support schema is missing. Apply infra/postgres/init/gateway/001_synapse_schema.sql "
-    "or the equivalent migration before using /api/admin/v1/forum/response-tasks."
+    "or the equivalent migration before using /api/admin/v1/forum support endpoints."
 )
 
 
@@ -40,7 +41,14 @@ def _row_to_topic(row: dict[str, Any]) -> ForumTopicContext:
         author_roles=tuple(row["author_roles"] or ()),
         topic_status=row["topic_status"],
         resolved=bool(row["resolved"]),
+        locked=bool(row.get("locked", False)),
+        pinned=bool(row.get("pinned", False)),
+        views_count=int(row.get("views_count") or 0),
         replies_count=int(row["replies_count"] or 0),
+        official_replies_count=int(row.get("official_replies_count") or 0),
+        closed_reason=row.get("closed_reason"),
+        closed_by_admin_id=row.get("closed_by_admin_id"),
+        closed_at=row.get("closed_at"),
         created_at=row["topic_created_at"],
         updated_at=row["topic_updated_at"],
         last_activity_at=row["last_activity_at"],
@@ -72,7 +80,7 @@ def _row_to_task(row: dict[str, Any]) -> ForumResponseTask:
     )
 
 
-class PostgresForumSupportRepository:
+class PostgresForumSupportRepository(PostgresForumTopicRepositoryMixin):
     def __init__(self, dsn: str) -> None:
         self._dsn = dsn
 
@@ -83,9 +91,22 @@ class PostgresForumSupportRepository:
     def ensure_schema(self) -> None:
         with _connect(self._dsn) as conn, conn.cursor() as cur:
             cur.execute("SELECT to_regclass('public.synapse_forum_response_tasks') AS table_name")
-            if cur.fetchone()["table_name"]:
+            response_tasks_exists = bool(cur.fetchone()["table_name"])
+            cur.execute("SELECT to_regclass('public.synapse_forum_topic_events') AS table_name")
+            events_exists = bool(cur.fetchone()["table_name"])
+            cur.execute(
+                """
+                SELECT COUNT(*) AS present_columns
+                FROM information_schema.columns
+                WHERE table_schema = 'public'
+                  AND table_name = 'synapse_forum_topics'
+                  AND column_name IN ('closed_reason', 'closed_by_admin_id', 'closed_at')
+                """
+            )
+            forum_ticket_columns_exist = int(cur.fetchone()["present_columns"] or 0) == 3
+            if response_tasks_exists and events_exists and forum_ticket_columns_exist:
                 return
-            logger.error("forum support schema missing: synapse_forum_response_tasks not found")
+            logger.error("forum support schema missing or stale: response_tasks=%s topic_events=%s ticket_columns=%s", response_tasks_exists, events_exists, forum_ticket_columns_exist)
             raise RuntimeError(FORUM_RESPONSE_TASKS_SCHEMA_ERROR)
 
     def backfill_open_topic_tasks(self, *, limit: int = 200) -> int:
@@ -116,7 +137,7 @@ class PostgresForumSupportRepository:
                     COALESCE(topic.created_at, NOW()),
                     NOW()
                 FROM synapse_forum_topics topic
-                WHERE topic.status = 'open'
+                WHERE topic.status IN ('open', 'awaiting_admin')
                   AND topic.resolved = FALSE
                   AND NOT EXISTS (
                     SELECT 1
@@ -165,7 +186,16 @@ class PostgresForumSupportRepository:
                     task.*,
                     topic.title, topic.body, topic.excerpt, topic.category,
                     topic.author_address, topic.author_display, topic.author_roles,
-                    topic.status AS topic_status, topic.resolved, topic.replies_count,
+                    topic.status AS topic_status, topic.resolved, topic.locked, topic.pinned,
+                    topic.views_count, topic.replies_count, topic.closed_reason,
+                    topic.closed_by_admin_id, topic.closed_at,
+                    (
+                        SELECT COUNT(*)
+                        FROM synapse_forum_replies reply
+                        WHERE reply.topic_id = topic.topic_id
+                          AND reply.status <> 'hidden'
+                          AND 'Ops' = ANY(reply.author_roles)
+                    ) AS official_replies_count,
                     topic.created_at AS topic_created_at,
                     topic.updated_at AS topic_updated_at,
                     topic.last_activity_at
@@ -196,7 +226,16 @@ class PostgresForumSupportRepository:
                     task.*,
                     topic.title, topic.body, topic.excerpt, topic.category,
                     topic.author_address, topic.author_display, topic.author_roles,
-                    topic.status AS topic_status, topic.resolved, topic.replies_count,
+                    topic.status AS topic_status, topic.resolved, topic.locked, topic.pinned,
+                    topic.views_count, topic.replies_count, topic.closed_reason,
+                    topic.closed_by_admin_id, topic.closed_at,
+                    (
+                        SELECT COUNT(*)
+                        FROM synapse_forum_replies reply
+                        WHERE reply.topic_id = topic.topic_id
+                          AND reply.status <> 'hidden'
+                          AND 'Ops' = ANY(reply.author_roles)
+                    ) AS official_replies_count,
                     topic.created_at AS topic_created_at,
                     topic.updated_at AS topic_updated_at,
                     topic.last_activity_at
@@ -205,6 +244,40 @@ class PostgresForumSupportRepository:
                 WHERE task.response_task_id = %s
                 """,
                 (task_id,),
+            )
+            row = cur.fetchone()
+        return _row_to_task(row) if row else None
+
+    def get_active_task_for_topic(self, topic_id: str) -> ForumResponseTask | None:
+        self.ensure_schema()
+        with _connect(self._dsn) as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT
+                    task.*,
+                    topic.title, topic.body, topic.excerpt, topic.category,
+                    topic.author_address, topic.author_display, topic.author_roles,
+                    topic.status AS topic_status, topic.resolved, topic.locked, topic.pinned,
+                    topic.views_count, topic.replies_count, topic.closed_reason,
+                    topic.closed_by_admin_id, topic.closed_at,
+                    (
+                        SELECT COUNT(*)
+                        FROM synapse_forum_replies reply
+                        WHERE reply.topic_id = topic.topic_id
+                          AND reply.status <> 'hidden'
+                          AND 'Ops' = ANY(reply.author_roles)
+                    ) AS official_replies_count,
+                    topic.created_at AS topic_created_at,
+                    topic.updated_at AS topic_updated_at,
+                    topic.last_activity_at
+                FROM synapse_forum_response_tasks task
+                JOIN synapse_forum_topics topic ON topic.topic_id = task.topic_id
+                WHERE task.topic_id = %s
+                  AND task.status IN ('awaiting_response', 'draft_ready')
+                ORDER BY task.updated_at DESC
+                LIMIT 1
+                """,
+                (topic_id,),
             )
             row = cur.fetchone()
         return _row_to_task(row) if row else None
@@ -307,6 +380,7 @@ class PostgresForumSupportRepository:
                 """
                 UPDATE synapse_forum_topics
                 SET replies_count = replies_count + 1,
+                    status = CASE WHEN status IN ('open', 'awaiting_admin') THEN 'answered' ELSE status END,
                     last_activity_at = %s,
                     updated_at = %s
                 WHERE topic_id = %s

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, CheckCircle2, MessageSquare } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Eye, Lock, MessageSquare, Pin } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { createForumReply, getForumTopic, resolveForumTopic, type ForumReply, type ForumTopic } from "@/utils/communityApi";
@@ -63,6 +63,8 @@ export default function ForumTopicPage() {
     }
   };
 
+  const repliesLocked = topic?.status === "closed" || topic?.status === "hidden" || topic?.locked;
+
   return (
     <main className="min-h-[calc(100vh-60px)] bg-[#050505] px-4 py-8 text-white sm:px-6 lg:px-10">
       <section className="mx-auto max-w-4xl space-y-5">
@@ -80,6 +82,32 @@ export default function ForumTopicPage() {
               <span>{topic.category}</span>
               <span>·</span>
               <span>{topic.authorDisplay}</span>
+              <span className="inline-flex items-center gap-1">
+                <Eye className="h-3 w-3" />
+                {topic.viewsCount} {t("forumPage.views")}
+              </span>
+              {topic.pinned ? (
+                <span className="inline-flex items-center gap-1 rounded-full border border-[#7ff7be]/25 bg-[#7ff7be]/10 px-2 py-0.5 text-[#dfffee]">
+                  <Pin className="h-3 w-3" />
+                  {t("forumPage.pinned")}
+                </span>
+              ) : null}
+              {topic.status === "awaiting_admin" ? (
+                <span className="rounded-full border border-amber-300/25 bg-amber-300/10 px-2 py-0.5 text-amber-100">
+                  {t("forumPage.awaitingAdmin")}
+                </span>
+              ) : null}
+              {topic.officialRepliesCount > 0 ? (
+                <span className="rounded-full border border-sky-300/25 bg-sky-300/10 px-2 py-0.5 text-sky-100">
+                  {topic.officialRepliesCount} {t("forumPage.officialReply")}
+                </span>
+              ) : null}
+              {topic.status === "closed" ? (
+                <span className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/[0.08] px-2 py-0.5 text-white/70">
+                  <Lock className="h-3 w-3" />
+                  {t("forumPage.closed")}
+                </span>
+              ) : null}
               {topic.resolved ? (
                 <span className="inline-flex items-center gap-1 rounded-full border border-[#7ff7be]/25 bg-[#7ff7be]/10 px-2 py-0.5 text-[#dfffee]">
                   <CheckCircle2 className="h-3 w-3" />
@@ -91,7 +119,21 @@ export default function ForumTopicPage() {
             <div className="mt-6 whitespace-pre-wrap rounded-[24px] border border-white/10 bg-black/20 p-5 text-[15px] leading-7 text-white/72">
               {topic.body}
             </div>
-            {session?.wallet && session.wallet.toLowerCase() === topic.authorAddress.toLowerCase() && !topic.resolved ? (
+            {topic.status === "closed" ? (
+              <div className="mt-5 rounded-[22px] border border-white/10 bg-white/[0.06] p-4">
+                <div className="flex items-center gap-2 text-sm font-semibold text-white">
+                  <Lock className="h-4 w-4" />
+                  {t("forumPage.closed")}
+                </div>
+                <p className="mt-2 text-sm leading-6 text-white/55">{t("forumPage.closedDescription")}</p>
+                {topic.closedReason ? (
+                  <p className="mt-2 text-sm leading-6 text-white/70">
+                    <span className="font-semibold">{t("forumPage.closedReason")}:</span> {topic.closedReason}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+            {session?.wallet && session.wallet.toLowerCase() === topic.authorAddress.toLowerCase() && !topic.resolved && !repliesLocked ? (
               <button
                 type="button"
                 onClick={markResolved}
@@ -118,20 +160,28 @@ export default function ForumTopicPage() {
 
           <div className="rounded-[24px] border border-white/10 bg-[#0a0b0d] p-5">
             {!session ? <p className="mb-3 text-sm text-white/45">{t("forumPage.connectToPost")}</p> : null}
-            <textarea
-              value={replyBody}
-              onChange={(event) => setReplyBody(event.target.value)}
-              placeholder={t("forumPage.replyPlaceholder")}
-              className="min-h-[120px] w-full resize-none rounded-3xl border border-white/10 bg-black/30 p-4 text-sm leading-6 outline-none placeholder:text-white/28 focus:border-[#7ff7be]/45"
-            />
-            <button
-              type="button"
-              disabled={!session || posting}
-              onClick={postReply}
-              className="mt-3 h-10 rounded-full bg-white px-5 text-sm font-semibold text-black transition hover:bg-[#e7e9ea] disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {t("forumPage.postReply")}
-            </button>
+            {repliesLocked ? (
+              <div className="rounded-3xl border border-white/10 bg-black/25 p-4 text-sm leading-6 text-white/55">
+                {t("forumPage.closedDescription")}
+              </div>
+            ) : (
+              <>
+                <textarea
+                  value={replyBody}
+                  onChange={(event) => setReplyBody(event.target.value)}
+                  placeholder={topic?.resolved ? t("forumPage.continueDiscussion") : t("forumPage.replyPlaceholder")}
+                  className="min-h-[120px] w-full resize-none rounded-3xl border border-white/10 bg-black/30 p-4 text-sm leading-6 outline-none placeholder:text-white/28 focus:border-[#7ff7be]/45"
+                />
+                <button
+                  type="button"
+                  disabled={!session || posting}
+                  onClick={postReply}
+                  className="mt-3 h-10 rounded-full bg-white px-5 text-sm font-semibold text-black transition hover:bg-[#e7e9ea] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {t("forumPage.postReply")}
+                </button>
+              </>
+            )}
           </div>
         </section>
       </section>

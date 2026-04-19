@@ -52,6 +52,7 @@ function topic(overrides = {}) {
     pinned: false,
     viewsCount: 0,
     repliesCount: 2,
+    officialRepliesCount: 0,
     reactionsCount: 0,
     lastActivityAt: "2026-04-19T00:00:00.000Z",
     createdAt: "2026-04-19T00:00:00.000Z",

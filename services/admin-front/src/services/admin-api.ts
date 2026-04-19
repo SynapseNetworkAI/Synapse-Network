@@ -398,10 +398,29 @@ export type ForumTopicContext = {
   authorRoles: string[];
   status: string;
   resolved: boolean;
+  locked: boolean;
+  pinned: boolean;
+  viewsCount: number;
   repliesCount: number;
+  officialRepliesCount: number;
+  closedReason: string | null;
+  closedByAdminId: string | null;
+  closedAt: string | null;
   createdAt: string | null;
   updatedAt: string | null;
   lastActivityAt: string | null;
+};
+
+export type ForumTopicEvent = {
+  eventId: string;
+  topicId: string;
+  actorAdminId: string | null;
+  action: string;
+  fromStatus: string | null;
+  toStatus: string | null;
+  reason: string | null;
+  metadata: Record<string, unknown>;
+  createdAt: string | null;
 };
 
 export type ForumResponseTask = {
@@ -436,6 +455,17 @@ export type ForumResponseTaskListResponse = {
     hasNextPage: boolean;
     hasPreviousPage: boolean;
   };
+};
+
+export type ForumTopicListResponse = {
+  items: ForumTopicContext[];
+  pagination: ForumResponseTaskListResponse["pagination"];
+};
+
+export type ForumTopicDetailResponse = {
+  topic: ForumTopicContext;
+  responseTask: ForumResponseTask | null;
+  events: ForumTopicEvent[];
 };
 
 export type FinanceOverview = {
@@ -975,7 +1005,7 @@ function buildRequestUrl(path: string): string {
   return ADMIN_API_BASE_URL ? `${ADMIN_API_BASE_URL}${path}` : path;
 }
 
-function buildPath(path: string, params?: Record<string, string | number | undefined>): string {
+function buildPath(path: string, params?: Record<string, string | number | boolean | undefined>): string {
   if (!params) {
     return path;
   }
@@ -1205,6 +1235,56 @@ export async function ignoreForumResponseTask(
   return request<ForumResponseTask>(`/api/admin/v1/forum/response-tasks/${taskId}/ignore`, {
     method: "POST",
     body: JSON.stringify(input),
+  });
+}
+
+export async function listForumTopics(
+  token: string,
+  params?: {
+    status?: string;
+    category?: string;
+    q?: string;
+    pinned?: boolean;
+    page?: number;
+    pageSize?: number;
+  },
+): Promise<ForumTopicListResponse> {
+  return request<ForumTopicListResponse>(buildPath("/api/admin/v1/forum/topics", {
+    status: params?.status,
+    category: params?.category,
+    q: params?.q,
+    pinned: params?.pinned,
+    page: params?.page,
+    page_size: params?.pageSize,
+  }));
+}
+
+export async function getForumTopic(token: string, topicId: string): Promise<ForumTopicDetailResponse> {
+  return request<ForumTopicDetailResponse>(`/api/admin/v1/forum/topics/${topicId}`);
+}
+
+export async function closeForumTopic(token: string, topicId: string, input: { reason: string }): Promise<ForumTopicContext> {
+  return request<ForumTopicContext>(`/api/admin/v1/forum/topics/${topicId}/close`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function reopenForumTopic(token: string, topicId: string): Promise<ForumTopicContext> {
+  return request<ForumTopicContext>(`/api/admin/v1/forum/topics/${topicId}/reopen`, {
+    method: "POST",
+  });
+}
+
+export async function pinForumTopic(token: string, topicId: string): Promise<ForumTopicContext> {
+  return request<ForumTopicContext>(`/api/admin/v1/forum/topics/${topicId}/pin`, {
+    method: "POST",
+  });
+}
+
+export async function unpinForumTopic(token: string, topicId: string): Promise<ForumTopicContext> {
+  return request<ForumTopicContext>(`/api/admin/v1/forum/topics/${topicId}/unpin`, {
+    method: "POST",
   });
 }
 

@@ -36,7 +36,9 @@ export type ForumTopic = {
   pinned: boolean;
   viewsCount: number;
   repliesCount: number;
+  officialRepliesCount: number;
   reactionsCount: number;
+  closedReason?: string | null;
   lastActivityAt: string;
   createdAt: string;
   updatedAt: string;
