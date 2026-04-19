@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import time
+from concurrent.futures import Future, ThreadPoolExecutor
+from contextlib import suppress
 from typing import Any
 
 from src.core.common import normalize_wallet
@@ -41,6 +44,8 @@ from .shared import (
     _BACKFILL_RPC_UNAVAILABLE_CODE,
     _INDEXER_LOOP_ERROR_CODE,
     _RECONCILIATION_ERROR_CODE,
+    _STEP_STILL_RUNNING_ERROR_CODE,
+    _STEP_TIMEOUT_ERROR_CODE,
     _now,
     _set_status,
     lock,
@@ -241,6 +246,12 @@ def _hydrate_runtime_status(storage: BaseStorage) -> None:
     indexer_state = _load_indexer_runtime_state(storage)
     backfill_state = _load_backfill_state(storage)
     reconciliation_state = _load_runtime_state(storage, "deposit_reconciliation_state")
+
+    def _legacy_runtime_money_str(value: object) -> str:
+        # Runtime state may contain historical JSON numbers. Convert through str
+        # at the read boundary without allowing floats into money arithmetic.
+        return money_str(str(value)) if isinstance(value, float) else money_str(value)
+
     _set_status(
         lastCounters=dict(
             indexer_state.get("lastCounters")
@@ -250,6 +261,12 @@ def _hydrate_runtime_status(storage: BaseStorage) -> None:
         lastProcessedAt=indexer_state.get("lastProcessedAt"),
         heartbeatAt=indexer_state.get("heartbeatAt"),
         lastError=indexer_state.get("lastError"),
+        consecutiveFailures=int(indexer_state.get("consecutiveFailures") or 0),
+        initialized=False,
+        stepRunning=False,
+        lastStepStartedAt=indexer_state.get("lastStepStartedAt"),
+        lastStepFinishedAt=indexer_state.get("lastStepFinishedAt"),
+        lastStepDurationMs=indexer_state.get("lastStepDurationMs"),
         backfill={
             "enabled": bool(settings.v2_backfill_enabled),
             "lastScannedBlock": backfill_state.get("lastScannedBlock"),
@@ -263,9 +280,13 @@ def _hydrate_runtime_status(storage: BaseStorage) -> None:
         reconciliation={
             "enabled": bool(settings.v2_reconciliation_enabled),
             "lastCheckAt": reconciliation_state.get("lastCheckAt"),
-            "chainVaultUsdc": money_str(reconciliation_state.get("chainVaultUsdc")),
-            "ledgerObligationUsdc": money_str(reconciliation_state.get("ledgerObligationUsdc")),
-            "deltaUsdc": money_str(reconciliation_state.get("deltaUsdc")),
+            "chainVaultUsdc": _legacy_runtime_money_str(
+                reconciliation_state.get("chainVaultUsdc")
+            ),
+            "ledgerObligationUsdc": _legacy_runtime_money_str(
+                reconciliation_state.get("ledgerObligationUsdc")
+            ),
+            "deltaUsdc": _legacy_runtime_money_str(reconciliation_state.get("deltaUsdc")),
             "alert": bool(reconciliation_state.get("alert") or False),
             "lastError": (indexer_state.get("reconciliation") or {}).get("lastError"),
         },
@@ -276,6 +297,65 @@ def _hydrate_runtime_status(storage: BaseStorage) -> None:
         backfill_state.get("lastScanAt"),
         reconciliation_state.get("lastCheckAt"),
     )
+
+
+def _mark_step_started() -> int:
+    """Record the start of a blocking indexer step and return monotonic ms."""
+    now = _now()
+    _set_status(
+        initialized=True,
+        running=True,
+        stepRunning=True,
+        lastStepStartedAt=now,
+        heartbeatAt=now,
+    )
+    return int(time.monotonic() * 1000)
+
+
+def _mark_step_finished(
+    storage: BaseStorage, *, started_monotonic_ms: int, last_error: str | None = None
+) -> None:
+    """Record the end of a blocking indexer step."""
+    finished = _now()
+    duration_ms = max(0, int(time.monotonic() * 1000) - started_monotonic_ms)
+    failures = (
+        0
+        if last_error is None
+        else int(INDEXER_STATUS.get("consecutiveFailures") or 0)
+    )
+    _set_status(
+        stepRunning=False,
+        lastStepFinishedAt=finished,
+        lastStepDurationMs=duration_ms,
+        heartbeatAt=finished,
+        lastError=last_error,
+        consecutiveFailures=failures,
+    )
+    _persist_indexer_runtime_state(storage)
+
+
+def _mark_step_timeout(storage: BaseStorage) -> None:
+    """Mark a worker step as timed out without assuming the thread was killed."""
+    now = _now()
+    failures = int(INDEXER_STATUS.get("consecutiveFailures") or 0) + 1
+    _set_status(
+        heartbeatAt=now,
+        lastError=_STEP_TIMEOUT_ERROR_CODE,
+        consecutiveFailures=failures,
+    )
+    _persist_indexer_runtime_state(storage)
+
+
+def _mark_step_still_running(storage: BaseStorage) -> None:
+    """Record that a timed-out worker is still occupying the single-flight slot."""
+    now = _now()
+    failures = int(INDEXER_STATUS.get("consecutiveFailures") or 0) + 1
+    _set_status(
+        heartbeatAt=now,
+        lastError=_STEP_STILL_RUNNING_ERROR_CODE,
+        consecutiveFailures=failures,
+    )
+    _persist_indexer_runtime_state(storage)
 
 
 def _mark_backfill_failure() -> None:
@@ -359,6 +439,39 @@ def _run_reconciliation_if_due(
         return last_reconciliation_at
 
 
+def run_indexer_blocking_step(
+    storage: BaseStorage, last_reconciliation_at: int
+) -> dict[str, int]:
+    """Run one synchronous indexer cycle in the dedicated worker thread."""
+    started = _mark_step_started()
+    try:
+        _run_backfill_if_enabled(storage)
+        process_pending_deposit_intents_once(storage)
+        next_reconciliation_at = _run_reconciliation_if_due(
+            storage, last_reconciliation_at
+        )
+    except Exception:
+        logger.exception("deposit indexer blocking step failed")
+        now = _now()
+        _set_status(
+            lastError=_INDEXER_LOOP_ERROR_CODE,
+            lastProcessedAt=now,
+            heartbeatAt=now,
+            consecutiveFailures=int(INDEXER_STATUS.get("consecutiveFailures") or 0)
+            + 1,
+        )
+        _persist_indexer_runtime_state(storage)
+        _mark_step_finished(
+            storage,
+            started_monotonic_ms=started,
+            last_error=_INDEXER_LOOP_ERROR_CODE,
+        )
+        return {"lastReconciliationAt": last_reconciliation_at}
+
+    _mark_step_finished(storage, started_monotonic_ms=started, last_error=None)
+    return {"lastReconciliationAt": next_reconciliation_at}
+
+
 async def run_v2_deposit_indexer(
     stop_event: asyncio.Event, storage: BaseStorage
 ) -> None:
@@ -370,32 +483,78 @@ async def run_v2_deposit_indexer(
         heartbeatAt=_now(),
     )
     _persist_indexer_runtime_state(storage)
+    startup_delay = max(0.0, float(settings.v2_indexer_startup_delay_sec))
     logger.info(
-        "deposit indexer started listener=%s poll_interval_sec=%s",
+        "deposit indexer started listener=%s poll_interval_sec=%s startup_delay_sec=%s step_timeout_sec=%s",
         normalize_wallet(settings.router_address),
         settings.v2_indexer_poll_interval_sec,
+        startup_delay,
+        settings.v2_indexer_step_timeout_sec,
     )
-    last_reconciliation_at = 0
-    while not stop_event.is_set():
+    if startup_delay > 0:
         try:
-            _run_backfill_if_enabled(storage)
-            process_pending_deposit_intents_once(storage)
-            last_reconciliation_at = _run_reconciliation_if_due(
-                storage, last_reconciliation_at
-            )
-        except Exception:
-            logger.exception("deposit indexer loop failed")
-            now = _now()
-            _set_status(lastError=_INDEXER_LOOP_ERROR_CODE, lastProcessedAt=now, heartbeatAt=now)
+            await asyncio.wait_for(stop_event.wait(), timeout=startup_delay)
+            _set_status(running=False, heartbeatAt=_now())
             _persist_indexer_runtime_state(storage)
-        _set_status(heartbeatAt=_now())
-        _persist_indexer_runtime_state(storage)
-        try:
-            await asyncio.wait_for(
-                stop_event.wait(), timeout=settings.v2_indexer_poll_interval_sec
-            )
+            logger.info("deposit indexer stopped before first cycle")
+            return
         except asyncio.TimeoutError:
-            continue
-    _set_status(running=False, heartbeatAt=_now())
+            pass
+    _set_status(initialized=True, heartbeatAt=_now())
     _persist_indexer_runtime_state(storage)
-    logger.info("deposit indexer stopped")
+    last_reconciliation_at = 0
+    active_step: Future[dict[str, int]] | None = None
+    executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="deposit-indexer")
+    loop = asyncio.get_running_loop()
+    try:
+        while not stop_event.is_set():
+            if active_step is not None and not active_step.done():
+                logger.warning(
+                    "deposit indexer skipped tick because previous step is still running"
+                )
+                _mark_step_still_running(storage)
+            else:
+                if active_step is not None and active_step.done():
+                    with suppress(Exception):
+                        result = active_step.result()
+                        last_reconciliation_at = int(
+                            result.get("lastReconciliationAt", last_reconciliation_at)
+                        )
+                    active_step = None
+
+                active_step = executor.submit(
+                    run_indexer_blocking_step, storage, last_reconciliation_at
+                )
+                wrapped_step = asyncio.wrap_future(active_step, loop=loop)
+                try:
+                    result = await asyncio.wait_for(
+                        wrapped_step,
+                        timeout=max(0.01, float(settings.v2_indexer_step_timeout_sec)),
+                    )
+                    last_reconciliation_at = int(
+                        result.get("lastReconciliationAt", last_reconciliation_at)
+                    )
+                    active_step = None
+                except asyncio.TimeoutError:
+                    logger.warning(
+                        "deposit indexer step timed out after %ss",
+                        settings.v2_indexer_step_timeout_sec,
+                    )
+                    _mark_step_timeout(storage)
+
+            _set_status(heartbeatAt=_now())
+            _persist_indexer_runtime_state(storage)
+            try:
+                await asyncio.wait_for(
+                    stop_event.wait(), timeout=settings.v2_indexer_poll_interval_sec
+                )
+            except asyncio.TimeoutError:
+                continue
+    finally:
+        if active_step is not None and active_step.done():
+            with suppress(Exception):
+                active_step.result()
+        executor.shutdown(wait=False, cancel_futures=True)
+        _set_status(running=False, stepRunning=False, heartbeatAt=_now())
+        _persist_indexer_runtime_state(storage)
+        logger.info("deposit indexer stopped")

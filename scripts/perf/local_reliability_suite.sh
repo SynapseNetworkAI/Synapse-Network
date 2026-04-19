@@ -129,6 +129,9 @@ main() {
   run_step "Provider probe concurrency and slow-lane regression smoke" "ci-performance-reliability" \
     npm run ci:performance-reliability
 
+  run_step "Gateway pre-launch stress static review" "ci-gateway-stress-review" \
+    npm run ci:gateway-stress-review
+
   run_step "Release Go/No-Go document gate" "ci-release-go-no-go" \
     npm run ci:release-go-no-go
 

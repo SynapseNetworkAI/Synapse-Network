@@ -68,6 +68,16 @@ cd /home/alex/Documents/cliff/Synapse-Network
 它只复用或启动本地 Postgres 进程，不会在每次 gateway restart 时重新执行 `infra/postgres/init/000_run_init_tree.sh`。如果本地数据库缺表或需要初始化，请先跑 `scripts/local/setup_local_env.sh`。
 如果误用了 `sh scripts/local/restart_gateway.sh`，脚本也会自动切回 `bash` 继续执行。
 
+本地 gateway 默认会启动 deposit indexer，但 indexer 的链上回填和对账会在专用单线程 worker 中执行，不会阻塞 FastAPI event loop。`/health` 只验证 API 进程可响应；如果链上 RPC、回填或对账变慢，`/readiness` 会显示 `deposit_indexer.degradedReasons`，例如 `indexer_step_timeout` 或 `stale_heartbeat`。
+
+关键调参项：
+
+1. `V2_INDEXER_STARTUP_DELAY_SEC`: 默认 `3` 秒，让 API 先可响应再启动第一轮索引器重活。
+2. `V2_INDEXER_STEP_TIMEOUT_SEC`: 默认 `20` 秒，限制 event loop 等待单轮 indexer worker 的时间。
+3. `RPC_REQUEST_TIMEOUT_SEC`: 默认 `15` 秒，限制 Web3 HTTP 请求，避免超时后残留幽灵线程。
+4. `POSTGRES_CONNECT_TIMEOUT_SEC`: 默认 `5` 秒，限制 Postgres 建连等待。
+5. `SERVICE_HEALTH_MONITOR_STEP_TIMEOUT_SEC`: 默认 `20` 秒，限制服务健康探测 monitor 单轮占用，避免 provider health 检查拖住 API。
+
 ## 共享测试网 / 预发环境
 
 如果要跑共享测试网环境，统一使用 `staging`，不要拿 `prod` 代替：

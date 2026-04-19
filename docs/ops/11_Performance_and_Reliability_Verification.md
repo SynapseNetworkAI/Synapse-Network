@@ -32,7 +32,8 @@ Required checks:
 1. Provider health probe burst respects `SERVICE_HEALTH_MAX_CONCURRENCY`.
 2. Long-unhealthy active services enter slow lane and avoid normal-frequency probing.
 3. Skipped slow-lane services remain visible as tracked health state and are not silently dropped.
-4. Smoke output is part of `ci:pr`, so release-gate regressions cannot bypass PR review.
+4. Gateway stress static review catches fake async, missing timeouts, wait-in-transaction, unbounded-read warnings, and missing hot-path indexes.
+5. Smoke output is part of `ci:pr`, so release-gate regressions cannot bypass PR review.
 
 Command:
 
@@ -44,6 +45,12 @@ Current implementation:
 
 ```bash
 bash scripts/ci/performance_reliability_checks.sh
+```
+
+Run the code-structure stress review directly when investigating launch-readiness hazards:
+
+```bash
+npm run ci:gateway-stress-review
 ```
 
 ## Local Manual Smoke

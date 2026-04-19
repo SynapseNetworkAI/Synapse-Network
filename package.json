@@ -11,6 +11,7 @@
     "ci:docs-pages": "cd services/user-front && yarn test:docs-pages",
     "ci:frontend": "bash scripts/ci/frontend_checks.sh",
     "ci:gateway": "bash scripts/ci/gateway_checks.sh",
+    "ci:gateway-stress-review": "bash scripts/ci/gateway_stress_review_checks.sh",
     "ci:performance-reliability": "bash scripts/ci/performance_reliability_checks.sh",
     "ci:pr": "bash scripts/ci/pr_checks.sh",
     "ci:provider-service": "bash scripts/ci/provider_service_checks.sh",

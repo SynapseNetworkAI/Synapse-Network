@@ -594,9 +594,23 @@ Gateway 至少要显式配置：
 必须可配置：
 
 1. `V2_INDEXER_POLL_INTERVAL_SEC`
-2. `V2_BACKFILL_BLOCK_BATCH`
-3. `V2_RECONCILIATION_INTERVAL_SEC`
-4. `V2_RECONCILIATION_ALERT_DELTA_USDC`
+2. `V2_INDEXER_STARTUP_DELAY_SEC`
+3. `V2_INDEXER_STEP_TIMEOUT_SEC`
+4. `V2_INDEXER_STALE_AFTER_SEC`
+5. `RPC_REQUEST_TIMEOUT_SEC`
+6. `V2_BACKFILL_BLOCK_BATCH`
+7. `V2_RECONCILIATION_INTERVAL_SEC`
+8. `V2_RECONCILIATION_ALERT_DELTA_USDC`
+9. `POSTGRES_CONNECT_TIMEOUT_SEC`
+10. `SERVICE_HEALTH_MONITOR_STEP_TIMEOUT_SEC`
+
+说明：
+
+1. `/health` 只代表 gateway API 进程和 event loop 可响应，不依赖链上 RPC 或充值索引器。
+2. `/readiness` 会暴露 deposit indexer 的 heartbeat、单轮耗时、timeout、连续失败和 degraded 原因。
+3. `V2_INDEXER_STEP_TIMEOUT_SEC` 是 event loop 对单轮 worker 的等待上限；`RPC_REQUEST_TIMEOUT_SEC` 和 `POSTGRES_CONNECT_TIMEOUT_SEC` 是底层 I/O 硬超时，必须更短或足够保守。
+4. 如果上一轮 indexer worker 仍在运行，下一轮会跳过并标记 `INDEXER_STEP_STILL_RUNNING`，不会堆积多个 backfill 线程。
+5. 服务健康探测 monitor 也在专用 worker 中运行；`SERVICE_HEALTH_MONITOR_STEP_TIMEOUT_SEC` 用于避免 provider health 检查或健康表同步拖住 API event loop。
 
 ## 5. 本地开发纪律
 

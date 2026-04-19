@@ -125,7 +125,12 @@ class BalanceWithdrawSigningMixin:
                 },
             )
         try:
-            provider = web3_class(web3_class.HTTPProvider(settings.rpc_url))
+            provider = web3_class(
+                web3_class.HTTPProvider(
+                    settings.rpc_url,
+                    request_kwargs={"timeout": settings.rpc_request_timeout_sec},
+                )
+            )
             if not provider.is_connected():
                 raise RuntimeError("rpc disconnected")
             contract = provider.eth.contract(

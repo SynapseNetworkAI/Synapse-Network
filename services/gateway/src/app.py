@@ -1,7 +1,8 @@
 import logging
 import asyncio
+import time
 from contextlib import asynccontextmanager, suppress
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from src.core.config import settings
 from src.core.cors import resolve_cors_origin_regex, resolve_cors_origins
@@ -16,7 +17,10 @@ from src.api.routers import (
     community,
 )
 from src.storage import create_storage
-from src.services.platform.tasks.deposit_indexer import run_v2_deposit_indexer
+from src.services.platform.tasks.deposit_indexer import (
+    get_indexer_status,
+    run_v2_deposit_indexer,
+)
 from src.services.platform.tasks.provider_withdraw_expiry_reaper import (
     run_provider_withdraw_expiry_reaper,
 )
@@ -40,6 +44,69 @@ def _build_monitor_state(*, enabled: bool, task: asyncio.Task | None) -> dict[st
     return {"enabled": enabled, "initialized": _task_initialized(task)}
 
 
+def _build_deposit_indexer_monitor(task: asyncio.Task | None) -> dict[str, object]:
+    snapshot = get_indexer_status()
+    heartbeat_at = snapshot.get("heartbeatAt")
+    last_step_started_at = snapshot.get("lastStepStartedAt")
+    stale_after = int(
+        snapshot.get("staleAfterSec") or settings.v2_indexer_stale_after_sec
+    )
+    step_timeout = float(
+        snapshot.get("stepTimeoutSec") or settings.v2_indexer_step_timeout_sec
+    )
+
+    heartbeat_age = None
+    if heartbeat_at is not None:
+        try:
+            heartbeat_age = max(0, int(time.time()) - int(heartbeat_at))
+        except Exception:
+            heartbeat_age = None
+
+    step_age = None
+    if bool(snapshot.get("stepRunning")) and last_step_started_at is not None:
+        try:
+            step_age = max(0, int(time.time()) - int(last_step_started_at))
+        except Exception:
+            step_age = None
+
+    task_initialized = _task_initialized(task)
+    initialized = bool(snapshot.get("initialized"))
+    consecutive_failures = int(snapshot.get("consecutiveFailures") or 0)
+    last_error = str(snapshot.get("lastError") or "")
+
+    degraded_reasons: list[str] = []
+    if not task_initialized:
+        degraded_reasons.append("task_not_running")
+    if not initialized:
+        degraded_reasons.append("initializing")
+    if heartbeat_age is not None and heartbeat_age > stale_after:
+        degraded_reasons.append("stale_heartbeat")
+    if step_age is not None and step_age > step_timeout:
+        degraded_reasons.append("step_timeout")
+    if consecutive_failures >= 3:
+        degraded_reasons.append("consecutive_failures")
+    if last_error in {"INDEXER_STEP_TIMEOUT", "INDEXER_STEP_STILL_RUNNING"}:
+        degraded_reasons.append(last_error.lower())
+
+    return {
+        "enabled": True,
+        "initialized": task_initialized and initialized,
+        "healthy": not degraded_reasons,
+        "degradedReasons": degraded_reasons,
+        "heartbeatAt": snapshot.get("heartbeatAt"),
+        "heartbeatAgeSec": heartbeat_age,
+        "lastStepStartedAt": snapshot.get("lastStepStartedAt"),
+        "lastStepFinishedAt": snapshot.get("lastStepFinishedAt"),
+        "lastStepDurationMs": snapshot.get("lastStepDurationMs"),
+        "stepRunning": bool(snapshot.get("stepRunning")),
+        "stepAgeSec": step_age,
+        "lastError": snapshot.get("lastError"),
+        "consecutiveFailures": consecutive_failures,
+        "stepTimeoutSec": step_timeout,
+        "staleAfterSec": stale_after,
+    }
+
+
 def _readiness_snapshot(app: FastAPI) -> dict[str, object]:
     state = getattr(app, "state", None)
 
@@ -48,10 +115,9 @@ def _readiness_snapshot(app: FastAPI) -> dict[str, object]:
             return None
         return getattr(state, name, None)
 
+    deposit_monitor = _build_deposit_indexer_monitor(_state_task("v2_indexer_task"))
     monitors = {
-        "deposit_indexer": _build_monitor_state(
-            enabled=True, task=_state_task("v2_indexer_task")
-        ),
+        "deposit_indexer": deposit_monitor,
         "service_health_monitor": _build_monitor_state(
             enabled=settings.service_health_monitor_enabled,
             task=_state_task("service_health_task"),
@@ -66,9 +132,10 @@ def _readiness_snapshot(app: FastAPI) -> dict[str, object]:
         ),
     }
 
-    ready = all(
+    ready = bool(deposit_monitor.get("healthy")) and all(
         (not monitor["enabled"]) or monitor["initialized"]
-        for monitor in monitors.values()
+        for name, monitor in monitors.items()
+        if name != "deposit_indexer"
     )
 
     return {"status": "ready" if ready else "degraded", "monitors": monitors}
@@ -212,8 +279,11 @@ def create_app() -> FastAPI:
         return {"status": "ok", "version": "2.0.0"}
 
     @app.get("/readiness")
-    async def readiness_check(request: Request):
-        return _readiness_snapshot(request.app)
+    async def readiness_check(request: Request, response: Response):
+        snapshot = _readiness_snapshot(request.app)
+        if snapshot.get("status") != "ready":
+            response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+        return snapshot
 
     return app
 

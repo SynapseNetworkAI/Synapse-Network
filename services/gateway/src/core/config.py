@@ -65,6 +65,27 @@ class Settings:
     v2_indexer_poll_interval_sec: float = _env_float(
         "V2_INDEXER_POLL_INTERVAL_SEC", 2.0
     )
+    # Delay first blocking indexer step so HTTP liveness can become responsive first.
+    v2_indexer_startup_delay_sec: float = max(
+        0.0, _env_float("V2_INDEXER_STARTUP_DELAY_SEC", 3.0)
+    )
+    # Upper bound for one blocking indexer step as observed by the FastAPI event loop.
+    v2_indexer_step_timeout_sec: float = max(
+        1.0, _env_float("V2_INDEXER_STEP_TIMEOUT_SEC", 20.0)
+    )
+    # Heartbeat freshness window used by readiness.
+    v2_indexer_stale_after_sec: int = max(
+        5, _env_int("V2_INDEXER_STALE_AFTER_SEC", 60)
+    )
+    # Hard timeout for Web3 HTTP calls. This must be lower than the step timeout
+    # because asyncio cannot kill a synchronous worker thread after wait_for fires.
+    rpc_request_timeout_sec: float = max(
+        1.0,
+        _env_float(
+            "RPC_REQUEST_TIMEOUT_SEC",
+            min(15.0, v2_indexer_step_timeout_sec),
+        ),
+    )
     # Reserved block batch size for indexer scaling upgrades.
     v2_indexer_block_batch: int = _env_int("V2_INDEXER_BLOCK_BATCH", 100)
     # Enable block-range backfill scanner for missed onchain deposits.
@@ -80,8 +101,8 @@ class Settings:
         2.0, _env_float("V2_RECONCILIATION_INTERVAL_SEC", 30.0)
     )
     # Alert threshold in USDC for chain-vs-ledger absolute delta.
-    v2_reconciliation_alert_delta_usdc: float = max(
-        0.0, _env_float("V2_RECONCILIATION_ALERT_DELTA_USDC", 1.0)
+    v2_reconciliation_alert_delta_usdc: str = (
+        os.getenv("V2_RECONCILIATION_ALERT_DELTA_USDC", "1.0").strip() or "1.0"
     )
     # Token contract used for onchain vault balance reconciliation.
     usdc_token_address: str = (
@@ -113,6 +134,9 @@ class Settings:
         host=postgres_host,
         port=postgres_port,
         database=postgres_db,
+    )
+    postgres_connect_timeout_sec: int = max(
+        1, _env_int("POSTGRES_CONNECT_TIMEOUT_SEC", 5)
     )
     # Auto-create PostgreSQL tables/indexes on startup when using postgres backend.
     postgres_auto_init: bool = _env_bool("POSTGRES_AUTO_INIT", True)
@@ -291,6 +315,10 @@ class Settings:
     )
     service_health_probe_interval_sec: float = _env_float(
         "SERVICE_HEALTH_PROBE_INTERVAL_SEC", 15.0
+    )
+    # Upper bound for one monitor tick as observed by the FastAPI event loop.
+    service_health_monitor_step_timeout_sec: float = max(
+        1.0, _env_float("SERVICE_HEALTH_MONITOR_STEP_TIMEOUT_SEC", 20.0)
     )
     service_health_probe_timeout_ms: int = _env_int(
         "SERVICE_HEALTH_PROBE_TIMEOUT_MS", 1500

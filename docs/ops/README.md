@@ -40,6 +40,7 @@
 7. `09_Staging_First_GCE_Rollout.md`
 8. `10_Production_Go_No_Go_Security_Verification.md`
 9. `11_Performance_and_Reliability_Verification.md`
+10. `12_Gateway_Pre_Launch_Stress_Review.md`
 
 ## 模块边界
 

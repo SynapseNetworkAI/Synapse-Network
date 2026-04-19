@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import sys
+import time
 from contextlib import contextmanager
 from types import SimpleNamespace
 
@@ -38,6 +39,7 @@ def _readiness_http_client(
     *,
     settings_overrides: dict[str, object] | None = None,
     task_overrides: dict[str, object] | None = None,
+    indexer_status_overrides: dict[str, object] | None = None,
 ):
     fake_storage = SimpleNamespace()
     monkeypatch.setattr(gateway_app, "create_storage", lambda settings: fake_storage)
@@ -47,6 +49,26 @@ def _readiness_http_client(
         patches.update(task_overrides)
     for attr, impl in patches.items():
         monkeypatch.setattr(gateway_app, attr, impl)
+
+    now = int(time.time())
+    indexer_status = {
+        "running": True,
+        "initialized": True,
+        "heartbeatAt": now,
+        "lastStepStartedAt": now - 1,
+        "lastStepFinishedAt": now,
+        "lastStepDurationMs": 10,
+        "stepRunning": False,
+        "lastError": None,
+        "consecutiveFailures": 0,
+        "stepTimeoutSec": 20.0,
+        "staleAfterSec": 60,
+    }
+    if indexer_status_overrides:
+        indexer_status.update(indexer_status_overrides)
+    monkeypatch.setattr(
+        gateway_app, "get_indexer_status", lambda: dict(indexer_status)
+    )
 
     if settings_overrides:
         for key, value in settings_overrides.items():
@@ -65,7 +87,10 @@ def test_readiness_reports_initialized_monitors(monkeypatch) -> None:
     payload = response.json()
     assert payload["status"] == "ready"
     monitors = payload["monitors"]
-    assert monitors["deposit_indexer"] == {"enabled": True, "initialized": True}
+    assert monitors["deposit_indexer"]["enabled"] is True
+    assert monitors["deposit_indexer"]["initialized"] is True
+    assert monitors["deposit_indexer"]["healthy"] is True
+    assert monitors["deposit_indexer"]["degradedReasons"] == []
     assert monitors["service_health_monitor"] == {"enabled": True, "initialized": True}
     assert monitors["provider_withdraw_expiry_reaper"] == {
         "enabled": True,
@@ -90,7 +115,9 @@ def test_readiness_marks_disabled_monitors(monkeypatch) -> None:
     payload = response.json()
     assert payload["status"] == "ready"
     monitors = payload["monitors"]
-    assert monitors["deposit_indexer"] == {"enabled": True, "initialized": True}
+    assert monitors["deposit_indexer"]["enabled"] is True
+    assert monitors["deposit_indexer"]["initialized"] is True
+    assert monitors["deposit_indexer"]["healthy"] is True
     assert monitors["service_health_monitor"] == {
         "enabled": False,
         "initialized": False,
@@ -116,8 +143,48 @@ def test_readiness_flags_degraded_when_enabled_task_missing(monkeypatch) -> None
     ) as client:
         response = client.get("/readiness")
 
-    assert response.status_code == 200
+    assert response.status_code == 503
     payload = response.json()
     assert payload["status"] == "degraded"
     monitors = payload["monitors"]
-    assert monitors["deposit_indexer"] == {"enabled": True, "initialized": False}
+    assert monitors["deposit_indexer"]["enabled"] is True
+    assert monitors["deposit_indexer"]["initialized"] is False
+    assert "task_not_running" in monitors["deposit_indexer"]["degradedReasons"]
+
+
+def test_readiness_flags_stale_deposit_indexer_heartbeat(monkeypatch) -> None:
+    with _readiness_http_client(
+        monkeypatch,
+        indexer_status_overrides={
+            "heartbeatAt": int(time.time()) - 120,
+            "staleAfterSec": 60,
+        },
+    ) as client:
+        response = client.get("/readiness")
+
+    assert response.status_code == 503
+    payload = response.json()
+    assert payload["status"] == "degraded"
+    monitor = payload["monitors"]["deposit_indexer"]
+    assert monitor["healthy"] is False
+    assert "stale_heartbeat" in monitor["degradedReasons"]
+
+
+def test_readiness_flags_timed_out_deposit_indexer_step(monkeypatch) -> None:
+    with _readiness_http_client(
+        monkeypatch,
+        indexer_status_overrides={
+            "stepRunning": True,
+            "lastStepStartedAt": int(time.time()) - 25,
+            "stepTimeoutSec": 20.0,
+            "lastError": "INDEXER_STEP_TIMEOUT",
+            "consecutiveFailures": 1,
+        },
+    ) as client:
+        response = client.get("/readiness")
+
+    assert response.status_code == 503
+    payload = response.json()
+    monitor = payload["monitors"]["deposit_indexer"]
+    assert "step_timeout" in monitor["degradedReasons"]
+    assert "indexer_step_timeout" in monitor["degradedReasons"]

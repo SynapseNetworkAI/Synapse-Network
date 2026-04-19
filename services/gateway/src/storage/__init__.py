@@ -20,7 +20,12 @@ def create_storage(settings: object) -> BaseStorage:
         raise RuntimeError("Only STORAGE_BACKEND=postgres is supported.")
     dsn = str(getattr(settings, "postgres_dsn", "") or "").strip()
     ensure_schema = bool(getattr(settings, "postgres_auto_init", True))
-    return PostgresStorage(dsn=dsn, ensure_schema=ensure_schema)
+    connect_timeout_sec = int(getattr(settings, "postgres_connect_timeout_sec", 5) or 5)
+    return PostgresStorage(
+        dsn=dsn,
+        ensure_schema=ensure_schema,
+        connect_timeout_sec=connect_timeout_sec,
+    )
 
 
 def get_storage(request: Request) -> BaseStorage:

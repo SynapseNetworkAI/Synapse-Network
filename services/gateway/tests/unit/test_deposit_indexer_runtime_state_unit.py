@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 from src.services.platform.tasks.deposit_indexer.chain import DepositIndexerRpcUnavailable
 from src.services.platform.tasks.deposit_indexer.runner import _run_backfill_if_enabled
+from src.services.platform.tasks.deposit_indexer.runner import _hydrate_runtime_status
 from src.services.platform.tasks.deposit_indexer.persistence import _persist_indexer_runtime_state
 from src.services.platform.tasks.deposit_indexer.shared import (
     INDEXER_STATUS,
@@ -16,9 +17,14 @@ from src.services.platform.tasks.deposit_indexer.shared import (
 class _FakeGatewayStateRepository:
     def __init__(self) -> None:
         self.calls: list[tuple[str, dict[str, object]]] = []
+        self.runtime_state: dict[str, dict[str, object]] = {}
 
     def write_runtime_state(self, state_key: str, payload: dict[str, object]) -> None:
         self.calls.append((state_key, payload))
+        self.runtime_state[state_key] = dict(payload)
+
+    def read_runtime_state(self, state_key: str) -> dict[str, object]:
+        return dict(self.runtime_state.get(state_key) or {})
 
 
 class _FakeDataManager:
@@ -113,6 +119,30 @@ def test_run_backfill_if_enabled_marks_rpc_unavailable_without_raising(monkeypat
         assert payload["backfill"]["lastScannedBlock"] == 19450321
         assert payload["backfill"]["lastRecovered"] == 2
         assert payload["backfill"]["lastError"] == _BACKFILL_RPC_UNAVAILABLE_CODE
+    finally:
+        INDEXER_STATUS.clear()
+        INDEXER_STATUS.update(original_status)
+
+
+def test_hydrate_runtime_status_accepts_legacy_json_number_money() -> None:
+    original_status = deepcopy(INDEXER_STATUS)
+    gateway_state_repo = _FakeGatewayStateRepository()
+    gateway_state_repo.runtime_state["deposit_reconciliation_state"] = {
+        "lastCheckAt": 1711111090,
+        "chainVaultUsdc": 10.5,
+        "ledgerObligationUsdc": 10.0,
+        "deltaUsdc": 0.5,
+        "alert": True,
+    }
+    storage = _FakeStorage(gateway_state_repo)
+
+    try:
+        _hydrate_runtime_status(storage)
+
+        reconciliation = INDEXER_STATUS["reconciliation"]
+        assert reconciliation["chainVaultUsdc"] == "10.500000"
+        assert reconciliation["ledgerObligationUsdc"] == "10.000000"
+        assert reconciliation["deltaUsdc"] == "0.500000"
     finally:
         INDEXER_STATUS.clear()
         INDEXER_STATUS.update(original_status)
