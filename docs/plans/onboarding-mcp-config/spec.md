@@ -88,7 +88,7 @@ Integration onboarding: mcp_config
       {
         "status": "OK",
         "key": "planning_bundle",
-        "detail": "2 planning bundle(s) passed plan-check"
+        "detail": "3 planning bundle(s) passed plan-check"
       }
     ]
   },
@@ -127,27 +127,27 @@ Integration onboarding: mcp_config
       {
         "status": "WARN",
         "key": "refactor_watch",
+        "detail": "services/gateway/src/services/owner/downstream_concurrency.py::_record_outcome high complexity (lines=95>40, branches=13>5, nesting=5>=4, locals=13>8, missing_guiding_comment)"
+      },
+      {
+        "status": "WARN",
+        "key": "refactor_watch",
+        "detail": "services/gateway/src/services/owner/finance_consumer_withdraw_mixin.py::FinanceConsumerWithdrawMixin.create_consumer_withdraw_intent high complexity (lines=219>40, branches=20>5, nesting=4>=4, locals=26>8, missing_guiding_comment)"
+      },
+      {
+        "status": "WARN",
+        "key": "refactor_watch",
         "detail": "services/gateway/src/storage/postgres/repositories/finance_atomic_repository.py::FinanceAtomicRepository.redeem_credit_voucher_atomic high complexity (lines=292>40, branches=21>5, nesting=4>=4, locals=36>8, missing_guiding_comment)"
       },
       {
         "status": "WARN",
         "key": "refactor_watch",
-        "detail": "services/gateway/src/services/owner/finance_consumer_withdraw_mixin.py::FinanceConsumerWithdrawMixin.create_consumer_withdraw_intent high complexity (lines=203>40, branches=15>5, nesting=4>=4, locals=31>8)"
+        "detail": "services/gateway/src/services/platform/service_health_probe.py::refresh_all_service_health high complexity (lines=70>40, branches=9>5, nesting=4>=4, locals=22>8)"
       },
       {
         "status": "WARN",
         "key": "refactor_watch",
         "detail": "services/gateway/examples/v2_daily_limit_regression.py::submit_and_wait_deposit_confirmation high complexity (lines=50>40, branches=6>5, locals=11>8, nesting=3, missing_guiding_comment)"
-      },
-      {
-        "status": "WARN",
-        "key": "refactor_watch",
-        "detail": "services/gateway/src/storage/postgres/repositories/idempotency_repository.py::IdempotencyRepository.read_idempotency_rows high complexity (lines=59>40, nesting=4>=4, locals=14>8, branches=4, missing_guiding_comment)"
-      },
-      {
-        "status": "WARN",
-        "key": "refactor_watch",
-        "detail": "services/gateway/src/storage/postgres/repositories/balance_repository.py::BalanceRepository.read_balance_ledger high complexity (lines=61>40, nesting=4>=4, locals=14>8, branches=5, missing_guiding_comment)"
       }
     ]
   }

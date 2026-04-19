@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-12T16:05:52.186773+00:00",
+  "generated_at": "2026-04-19T02:31:29.339954+00:00",
   "project_id": "synapse-network",
   "project_root": "/Users/cliff/workspace/agent/Synapse-Network",
   "overall": "PARTIAL",
@@ -69,7 +69,7 @@
         {
           "status": "OK",
           "key": "planning_bundle",
-          "detail": "2 planning bundle(s) passed plan-check"
+          "detail": "3 planning bundle(s) passed plan-check"
         }
       ]
     },
@@ -108,27 +108,27 @@
         {
           "status": "WARN",
           "key": "refactor_watch",
+          "detail": "services/gateway/src/services/owner/downstream_concurrency.py::_record_outcome high complexity (lines=95>40, branches=13>5, nesting=5>=4, locals=13>8, missing_guiding_comment)"
+        },
+        {
+          "status": "WARN",
+          "key": "refactor_watch",
+          "detail": "services/gateway/src/services/owner/finance_consumer_withdraw_mixin.py::FinanceConsumerWithdrawMixin.create_consumer_withdraw_intent high complexity (lines=219>40, branches=20>5, nesting=4>=4, locals=26>8, missing_guiding_comment)"
+        },
+        {
+          "status": "WARN",
+          "key": "refactor_watch",
           "detail": "services/gateway/src/storage/postgres/repositories/finance_atomic_repository.py::FinanceAtomicRepository.redeem_credit_voucher_atomic high complexity (lines=292>40, branches=21>5, nesting=4>=4, locals=36>8, missing_guiding_comment)"
         },
         {
           "status": "WARN",
           "key": "refactor_watch",
-          "detail": "services/gateway/src/services/owner/finance_consumer_withdraw_mixin.py::FinanceConsumerWithdrawMixin.create_consumer_withdraw_intent high complexity (lines=203>40, branches=15>5, nesting=4>=4, locals=31>8)"
+          "detail": "services/gateway/src/services/platform/service_health_probe.py::refresh_all_service_health high complexity (lines=70>40, branches=9>5, nesting=4>=4, locals=22>8)"
         },
         {
           "status": "WARN",
           "key": "refactor_watch",
           "detail": "services/gateway/examples/v2_daily_limit_regression.py::submit_and_wait_deposit_confirmation high complexity (lines=50>40, branches=6>5, locals=11>8, nesting=3, missing_guiding_comment)"
-        },
-        {
-          "status": "WARN",
-          "key": "refactor_watch",
-          "detail": "services/gateway/src/storage/postgres/repositories/idempotency_repository.py::IdempotencyRepository.read_idempotency_rows high complexity (lines=59>40, nesting=4>=4, locals=14>8, branches=4, missing_guiding_comment)"
-        },
-        {
-          "status": "WARN",
-          "key": "refactor_watch",
-          "detail": "services/gateway/src/storage/postgres/repositories/balance_repository.py::BalanceRepository.read_balance_ledger high complexity (lines=61>40, nesting=4>=4, locals=14>8, branches=5, missing_guiding_comment)"
         }
       ]
     }
@@ -167,38 +167,38 @@
       "priority": "recommended",
       "key": "refactor_bundle",
       "status": "WARN",
-      "detail": "refactor bundle ready for services/gateway/src/storage/postgres/repositories/finance_atomic_repository.py::FinanceAtomicRepository.redeem_credit_voucher_atomic",
-      "action": "Review and execute the generated refactor bundle at docs/plans/refactor-services-gateway-src-storage-postgres-repositories-finance-atomic-repository-py-redeem-credit-voucher-atomic before adding more behavior.",
-      "command": "python3 scripts/memory.py refactor-bundle . --token hotspot-af1f8f002a9e",
+      "detail": "refactor bundle ready for services/gateway/src/services/owner/downstream_concurrency.py::_record_outcome",
+      "action": "Review and execute the generated refactor bundle at docs/plans/refactor-services-gateway-src-services-owner-downstream-concurrency-py-record-outcome before adding more behavior.",
+      "command": "python3 scripts/memory.py refactor-bundle . --token hotspot-6df970994e40",
       "verify_with": "amem doctor .",
-      "done_when": "`amem doctor .` no longer reports `services/gateway/src/storage/postgres/repositories/finance_atomic_repository.py::FinanceAtomicRepository.redeem_credit_voucher_atomic` as the top refactor hotspot.",
+      "done_when": "`amem doctor .` no longer reports `services/gateway/src/services/owner/downstream_concurrency.py::_record_outcome` as the top refactor hotspot.",
       "safe_to_auto_execute": true,
       "approval_required": false,
       "approval_reason": "refreshes generated planning docs only",
       "next_command": "amem doctor .",
-      "bundle_path": "docs/plans/refactor-services-gateway-src-storage-postgres-repositories-finance-atomic-repository-py-redeem-credit-voucher-atomic",
-      "task_name": "Refactor hotspot: services/gateway/src/storage/postgres/repositories/finance_atomic_repository.py::FinanceAtomicRepository.redeem_credit_voucher_atomic",
-      "task_slug": "refactor-services-gateway-src-storage-postgres-repositories-finance-atomic-repository-py-redeem-credit-voucher-atomic",
+      "bundle_path": "docs/plans/refactor-services-gateway-src-services-owner-downstream-concurrency-py-record-outcome",
+      "task_name": "Refactor hotspot: services/gateway/src/services/owner/downstream_concurrency.py::_record_outcome",
+      "task_slug": "refactor-services-gateway-src-services-owner-downstream-concurrency-py-record-outcome",
       "hotspot_index": 1,
-      "hotspot_token": "hotspot-af1f8f002a9e",
+      "hotspot_token": "hotspot-6df970994e40",
       "hotspot": {
-        "identifier": "services/gateway/src/storage/postgres/repositories/finance_atomic_repository.py::FinanceAtomicRepository.redeem_credit_voucher_atomic",
-        "rank_token": "hotspot-af1f8f002a9e",
-        "relative_path": "services/gateway/src/storage/postgres/repositories/finance_atomic_repository.py",
-        "function_name": "redeem_credit_voucher_atomic",
-        "qualified_name": "FinanceAtomicRepository.redeem_credit_voucher_atomic",
-        "line": 52,
+        "identifier": "services/gateway/src/services/owner/downstream_concurrency.py::_record_outcome",
+        "rank_token": "hotspot-6df970994e40",
+        "relative_path": "services/gateway/src/services/owner/downstream_concurrency.py",
+        "function_name": "_record_outcome",
+        "qualified_name": "_record_outcome",
+        "line": 344,
         "status": "WARN",
-        "effective_lines": 292,
-        "branches": 21,
-        "nesting": 4,
-        "local_vars": 36,
+        "effective_lines": 95,
+        "branches": 13,
+        "nesting": 5,
+        "local_vars": 13,
         "has_guiding_comment": false,
         "issues": [
-          "lines=292>40",
-          "branches=21>5",
-          "nesting=4>=4",
-          "locals=36>8",
+          "lines=95>40",
+          "branches=13>5",
+          "nesting=5>=4",
+          "locals=13>8",
           "missing_guiding_comment"
         ],
         "score": 41
@@ -206,29 +206,29 @@
     }
   ],
   "recommended_refactor_bundle": {
-    "bundle_path": "docs/plans/refactor-services-gateway-src-storage-postgres-repositories-finance-atomic-repository-py-redeem-credit-voucher-atomic",
-    "task_name": "Refactor hotspot: services/gateway/src/storage/postgres/repositories/finance_atomic_repository.py::FinanceAtomicRepository.redeem_credit_voucher_atomic",
-    "task_slug": "refactor-services-gateway-src-storage-postgres-repositories-finance-atomic-repository-py-redeem-credit-voucher-atomic",
+    "bundle_path": "docs/plans/refactor-services-gateway-src-services-owner-downstream-concurrency-py-record-outcome",
+    "task_name": "Refactor hotspot: services/gateway/src/services/owner/downstream_concurrency.py::_record_outcome",
+    "task_slug": "refactor-services-gateway-src-services-owner-downstream-concurrency-py-record-outcome",
     "hotspot_index": 1,
-    "hotspot_token": "hotspot-af1f8f002a9e",
+    "hotspot_token": "hotspot-6df970994e40",
     "hotspot": {
-      "identifier": "services/gateway/src/storage/postgres/repositories/finance_atomic_repository.py::FinanceAtomicRepository.redeem_credit_voucher_atomic",
-      "rank_token": "hotspot-af1f8f002a9e",
-      "relative_path": "services/gateway/src/storage/postgres/repositories/finance_atomic_repository.py",
-      "function_name": "redeem_credit_voucher_atomic",
-      "qualified_name": "FinanceAtomicRepository.redeem_credit_voucher_atomic",
-      "line": 52,
+      "identifier": "services/gateway/src/services/owner/downstream_concurrency.py::_record_outcome",
+      "rank_token": "hotspot-6df970994e40",
+      "relative_path": "services/gateway/src/services/owner/downstream_concurrency.py",
+      "function_name": "_record_outcome",
+      "qualified_name": "_record_outcome",
+      "line": 344,
       "status": "WARN",
-      "effective_lines": 292,
-      "branches": 21,
-      "nesting": 4,
-      "local_vars": 36,
+      "effective_lines": 95,
+      "branches": 13,
+      "nesting": 5,
+      "local_vars": 13,
       "has_guiding_comment": false,
       "issues": [
-        "lines=292>40",
-        "branches=21>5",
-        "nesting=4>=4",
-        "locals=36>8",
+        "lines=95>40",
+        "branches=13>5",
+        "nesting=5>=4",
+        "locals=13>8",
         "missing_guiding_comment"
       ],
       "score": 41

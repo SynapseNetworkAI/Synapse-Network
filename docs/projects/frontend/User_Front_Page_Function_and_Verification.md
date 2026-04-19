@@ -3,8 +3,8 @@
 - Status: canonical
 - Code paths: `services/user-front/src/app/`, `services/user-front/src/components/`, `scripts/ui/verify_user_front_pages.mjs`
 - Scope: `services/user-front`
-- Last updated: 2026-04-18
-- Last verified against code: 2026-04-18
+- Last updated: 2026-04-19
+- Last verified against code: 2026-04-19
 - Verification registry: `services/user-front/src/app/user-front-page-registry.json`
 - Automated checks: `npm run ci:user-front-pages`, `USER_FRONT_BASE_URL=http://localhost:3000 node scripts/ui/verify_user_front_pages.mjs`
 
@@ -19,7 +19,7 @@ The source of truth for the page inventory is `services/user-front/src/app/user-
 Use three layers together:
 
 1. **Registry/Vitest verification** confirms every `page.tsx` and `route.ts` has a documented purpose, interactions, data source, visual verification mode, and redirect status.
-2. **Browser click verification** confirms real navigation, redirects, hash anchors, marketplace controls, console errors, screenshots, and basic layout guards.
+2. **Browser click verification** confirms real navigation, global Quick Access search, redirects, hash anchors, marketplace controls, console errors, screenshots, and basic layout guards.
 3. **Backend truth verification** confirms data-backed public pages call real gateway endpoints and render from those responses. Wallet/JWT pages require an authenticated fixture before their data truth can be marked fully passed.
 
 There are two browser modes:
@@ -87,12 +87,25 @@ The following are implemented but thin content surfaces:
 
 If they are expected to become production marketing pages, create a separate content/design task rather than treating them as broken routes.
 
+## Global Navigation
+
+The console navbar includes a Quick Access search dialog for jumping between consumer, provider, and public pages.
+
+Verification requirements:
+
+- The search button or `Ctrl+K` opens the dialog from console pages.
+- Clicking a filtered result navigates to the result's canonical route.
+- Pressing `Enter` activates the highlighted result.
+- Selecting the current route closes the dialog without issuing a redundant route push.
+- Browser evidence includes screenshots for the open dialog, a filtered result, and the destination page after navigation.
+
 ## Functional Success Criteria
 
 A page passes functional verification only when:
 
 - The route renders without a Next not-found page.
 - The expected heading or unique text appears.
+- Global Quick Access result clicks navigate to the exact target route.
 - Page-level primary buttons or links navigate to the expected route.
 - Redirect routes land on their documented target.
 - Hash links, such as `/docs/concepts#idempotency`, can navigate to sibling anchors such as `#settlement`.
