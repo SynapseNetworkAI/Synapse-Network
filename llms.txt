@@ -43,6 +43,9 @@ Synapse Network is an agent-first settlement layer for AI agents. The primary pr
 
 ## AI-Oriented References
 
+- AGENTS.md - unified Codex, Cursor, Claude, Gemini, and Copilot instruction bridge for routing into the shared rule stack
+- .github/instructions/README.md - routing manifest for Python, frontend, finance, docs-sync, admin-console, and safety instructions
+- docs/reference/AI_Instruction_Entrypoints.md - agent-specific entrypoint map and bridge drift policy
 - docs/06_Reference/AI_Quick_Reference.md - compressed repository facts for agents
 - docs/reference/Validation_Entry_Points.md - current validation commands and workflow checks
 - npm run ci:docs - lightweight docs governance gate for root growth, retired-path regressions, and canonical metadata minimums

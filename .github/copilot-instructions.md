@@ -41,3 +41,27 @@ python3 /Users/cliff/workspace/agent/Agents-Memory/scripts/memory.py new
 - This file is the strongest repository-wide auto-activation mechanism officially supported by GitHub Copilot custom instructions.
 - It improves default tool usage on every repository-scoped request, but it does not hard-enforce MCP tool execution when the platform chooses not to use tools.
 <!-- agents-memory:end -->
+
+# Synapse Instruction Routing
+
+After the Agents-Memory startup sequence, use the shared Synapse bridge instead of treating this file as a standalone rulebook.
+
+## Required repository context
+
+1. Read `AGENTS.md`.
+2. Read `llms.txt`.
+3. Read `docs/AGENTS.md`.
+4. Read `.github/instructions/README.md`.
+5. Read the target subproject `AGENTS.md` when working inside a service or app.
+
+## Task-specific routing
+
+- Python, FastAPI, backend, repositories, or tests: `.github/instructions/python.instructions.md`
+- React, Next.js, user-front, or shared frontend work: `.github/instructions/frontend.instructions.md`
+- Money, ledger, balances, deposits, withdrawals, refunds, settlement, idempotency, audit, or reconciliation: `.github/instructions/finance-backend.instructions.md`
+- Gateway-admin finance approvals, withdrawal reviews, refunds, or reconciliation: `.github/instructions/finance-admin.instructions.md`
+- Admin-front control-plane UI: `.github/instructions/admin-console.instructions.md`
+- Docs, instructions, behavior contracts, tests/docs sync: `.github/instructions/docs-sync.instructions.md`
+- Production, migrations, destructive operations, contract deploys, or irreversible actions: `.github/instructions/safety-guard.instructions.md`
+
+Keep this section as a bridge only. Detailed rules belong in `docs/AGENTS.md` and `.github/instructions/*.instructions.md`.

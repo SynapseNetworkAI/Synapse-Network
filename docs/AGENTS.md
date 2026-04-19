@@ -49,8 +49,10 @@ AI-readable repository entrypoints now also include:
 - `.github/instructions/admin-console.instructions.md`
 - `.github/instructions/docs-sync.instructions.md`
 - `.github/instructions/safety-guard.instructions.md`
-- Purpose: language and framework rules that should auto-attach by file type.
+- `.github/instructions/README.md`
+- Purpose: language and framework rules plus the routing manifest for agents that do not auto-attach `.github/instructions` by file type.
 - These files should carry coding style, layering, framework conventions, version baselines, and test expectations.
+- Not every agent automatically reads `.github/instructions`; Codex, Cursor, Claude, Gemini, and Copilot must enter through their bridge files and then route here.
 
 Recommended split:
 
@@ -60,7 +62,21 @@ Recommended split:
 - `finance-admin.instructions.md`: `gateway-admin` finance review, approval, withdraw-review, refund, and reconciliation control-plane rules
 - `admin-console.instructions.md`: admin-front list, pagination, state, and ops UI rules
 - `docs-sync.instructions.md`: behavior-change sync rules for code, tests, docs, and instructions
-- `safety-guard.instructions.md`: pre-flight safety checklist and blocked-patterns gate for production deployments, migrations, destructive DB ops, and irreversible operations\n\n### 4.3 Subproject Local Layer
+- `safety-guard.instructions.md`: pre-flight safety checklist and blocked-patterns gate for production deployments, migrations, destructive DB ops, and irreversible operations
+
+### 4.3 Agent Bridge Layer
+
+Bridge entrypoints:
+
+- Codex: root `AGENTS.md`
+- Cursor: `.cursor/rules/synapse-instructions.mdc`
+- Claude: `CLAUDE.md`
+- Gemini: `GEMINI.md`
+- Copilot: `.github/copilot-instructions.md`
+
+Keep those bridge files thin. They should point to `llms.txt`, `docs/AGENTS.md`, `.github/instructions/README.md`, and the matching task-specific instruction files instead of duplicating rules.
+
+### 4.4 Subproject Local Layer
 
 - `services/user-front/AGENTS.md`
 - `services/admin-front/AGENTS.md`

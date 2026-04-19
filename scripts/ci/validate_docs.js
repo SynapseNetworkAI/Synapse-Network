@@ -31,6 +31,7 @@ const inventoryPath = path.join(docsDir, "00_Governance", "Documentation_Invento
 const packageJsonPath = path.join(rootDir, "package.json");
 const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
 const availableNpmScripts = new Set(Object.keys(packageJson.scripts ?? {}));
+const instructionsDir = path.join(rootDir, ".github", "instructions");
 const requiredVerifiedWithCanonicalDocs = new Set([
   "docs/02_System_Architecture/02_Gateway_Runtime_Architecture.md",
   "docs/02_System_Architecture/03_Identity_Authentication_and_Risk_Control.md",
@@ -72,12 +73,39 @@ const historicalFilesAllowlist = new Set([
 ]);
 
 const requiredLlmsAnchors = [
+  "AGENTS.md",
+  ".github/instructions/README.md",
   "docs/AGENTS.md",
   "docs/README.md",
   "docs/ARCHITECTURE.md",
   "docs/plans/README.md",
+  "docs/reference/AI_Instruction_Entrypoints.md",
   "docs/reference/Validation_Entry_Points.md",
   "npm run ci:docs",
+];
+
+const requiredAgentBridgeFiles = [
+  "AGENTS.md",
+  "CLAUDE.md",
+  "GEMINI.md",
+  ".cursor/rules/synapse-instructions.mdc",
+  ".github/copilot-instructions.md",
+  ".github/instructions/README.md",
+];
+
+const agentBridgeFiles = [
+  "AGENTS.md",
+  "CLAUDE.md",
+  "GEMINI.md",
+  ".cursor/rules/synapse-instructions.mdc",
+  ".github/copilot-instructions.md",
+];
+
+const requiredAgentBridgeAnchors = [
+  "AGENTS.md",
+  "docs/AGENTS.md",
+  "llms.txt",
+  ".github/instructions/README.md",
 ];
 
 const requiredReadmeAnchors = [
@@ -282,6 +310,54 @@ function checkReadmeAnchors() {
   for (const anchor of requiredReadmeAnchors) {
     if (!readmeContent.includes(anchor)) {
       errors.push(`docs/README.md is missing required anchor: ${anchor}`);
+    }
+  }
+}
+
+function instructionFiles() {
+  if (!fs.existsSync(instructionsDir)) {
+    errors.push(".github/instructions directory is missing.");
+    return [];
+  }
+
+  return fs
+    .readdirSync(instructionsDir, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && entry.name.endsWith(".instructions.md"))
+    .map((entry) => entry.name)
+    .sort();
+}
+
+function checkAgentInstructionEntrypoints() {
+  for (const repoPath of requiredAgentBridgeFiles) {
+    const fullPath = path.join(rootDir, repoPath);
+    if (!fs.existsSync(fullPath)) {
+      errors.push(`AI instruction bridge file is missing: ${repoPath}`);
+    }
+  }
+
+  for (const repoPath of agentBridgeFiles) {
+    const fullPath = path.join(rootDir, repoPath);
+    if (!fs.existsSync(fullPath)) {
+      continue;
+    }
+
+    const content = readFile(fullPath);
+    for (const anchor of requiredAgentBridgeAnchors) {
+      if (!content.includes(anchor)) {
+        errors.push(`${repoPath} is missing shared instruction anchor: ${anchor}`);
+      }
+    }
+  }
+
+  const manifestPath = path.join(rootDir, ".github", "instructions", "README.md");
+  if (!fs.existsSync(manifestPath)) {
+    return;
+  }
+
+  const manifestContent = readFile(manifestPath);
+  for (const fileName of instructionFiles()) {
+    if (!manifestContent.includes(fileName)) {
+      errors.push(`.github/instructions/README.md is missing routing entry for: ${fileName}`);
     }
   }
 }
@@ -686,6 +762,7 @@ function main() {
   checkRetiredPathsDoNotExist();
   checkLlmsAnchors();
   checkReadmeAnchors();
+  checkAgentInstructionEntrypoints();
   checkReadmeLifecycleMetadata();
   checkCanonicalMetadata();
   checkRetiredLinks();

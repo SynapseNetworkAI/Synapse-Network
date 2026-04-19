@@ -1,0 +1,30 @@
+---
+description: Synapse repository instruction bridge
+globs:
+  - "**/*"
+alwaysApply: true
+---
+
+# Synapse Instruction Bridge
+
+Cursor should treat this rule as the always-on bridge into the shared Synapse instruction stack.
+
+## Startup Order
+
+1. Read `AGENTS.md`.
+2. Read `llms.txt`.
+3. Read `docs/AGENTS.md`.
+4. Read `.github/instructions/README.md`.
+5. Read the target subproject `AGENTS.md` for local commands and boundaries.
+
+## Route Task-Specific Instructions
+
+- Python, FastAPI, backend, repositories, or tests: `.github/instructions/python.instructions.md`
+- React, Next.js, user-front, or shared frontend work: `.github/instructions/frontend.instructions.md`
+- Money, ledger, balances, deposits, withdrawals, refunds, settlement, idempotency, audit, or reconciliation: `.github/instructions/finance-backend.instructions.md`
+- Gateway-admin finance approvals, withdrawal reviews, refunds, or reconciliation: `.github/instructions/finance-admin.instructions.md`
+- Admin-front control-plane UI: `.github/instructions/admin-console.instructions.md`
+- Docs, instructions, behavior contracts, tests/docs sync: `.github/instructions/docs-sync.instructions.md`
+- Production, migrations, destructive operations, contract deploys, or irreversible actions: `.github/instructions/safety-guard.instructions.md`
+
+Do not duplicate the detailed rules in this file. Route to the source files above so Cursor, Codex, Claude, Gemini, and Copilot stay aligned.
