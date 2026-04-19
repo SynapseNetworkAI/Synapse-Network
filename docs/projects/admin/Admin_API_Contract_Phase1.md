@@ -20,6 +20,7 @@
 - `dashboard`
 - `approval`
 - `provider_services`
+- `forum_support`
 
 统一前缀建议：
 
@@ -102,7 +103,136 @@
 
 ## 3. admin-front -> gateway-admin
 
-## 3.0 provider_services
+## 3.0 forum_support
+
+用途：把公开论坛里的未回复帖子收口到后台社区回复队列。Gateway-admin 负责权限、任务状态、Growing 建议写入、公开回复发送和审计边界；admin-front 只负责运营工作台展示与人工编辑。
+
+页面入口：
+
+- `/forum-support`
+
+权限：
+
+1. `GET /api/admin/v1/forum/response-tasks`：`support:read`
+2. `GET /api/admin/v1/forum/response-tasks/{taskId}`：`support:read`
+3. `POST /api/admin/v1/forum/response-tasks/{taskId}/send-reply`：`support:reply`
+4. `POST /api/admin/v1/forum/response-tasks/{taskId}/ignore`：`support:triage`
+5. `GET /api/admin/v1/forum/response-tasks/-/pending`：`X-Growing-Service-Token`
+6. `POST /api/admin/v1/forum/response-tasks/{taskId}/suggestion`：`X-Growing-Service-Token`
+
+状态语义：
+
+1. `awaiting_response`：新帖子等待管理员回复。
+2. `draft_ready`：Growing/Agent 已生成建议草稿。
+3. `responded`：管理员已发送公开 forum reply。
+4. `ignored`：管理员填写原因后忽略。
+5. `closed`：保留给后续系统关闭或批处理。
+
+关键约束：
+
+1. Growing/Agent 只写建议，不自动公开回复。
+2. 公开回复必须由管理员编辑后手动发送。
+3. 已进入 `responded / ignored / closed` 的历史任务必须只读，避免重复处理。
+4. locked topic 发送回复必须返回明确错误，不得写入 `synapse_forum_replies`。
+
+### `GET /api/admin/v1/forum/response-tasks`
+
+用途：分页读取社区回复任务。
+
+Query:
+
+1. `status`：逗号分隔状态，默认 `awaiting_response,draft_ready`
+2. `classification`：`question / bug / feature_request / docs_issue / needs_more_info / spam`
+3. `page`
+4. `page_size`
+
+响应：
+
+```json
+{
+  "success": true,
+  "data": {
+    "items": [
+      {
+        "responseTaskId": "frt_demo",
+        "topicId": "topic_demo",
+        "status": "draft_ready",
+        "source": "growing_agent",
+        "priority": "high",
+        "classification": "bug",
+        "suggestedReply": "Thanks, we captured this as a bug candidate.",
+        "linkedRequirementCandidateId": "42",
+        "linkedRequirementId": null,
+        "linkedWorkflowRunId": null,
+        "topic": {
+          "topicId": "topic_demo",
+          "title": "Gateway timeout while opening FAQ route",
+          "body": "FAQ route times out with 500",
+          "category": "Bugs",
+          "authorDisplay": "0x123"
+        }
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "pageSize": 20,
+      "total": 1,
+      "totalPages": 1,
+      "hasNextPage": false,
+      "hasPreviousPage": false
+    }
+  },
+  "requestId": "req_123"
+}
+```
+
+### `POST /api/admin/v1/forum/response-tasks/{taskId}/send-reply`
+
+用途：管理员发送最终公开回复，写入 `synapse_forum_replies`，并把 response task 标记为 `responded`。
+
+请求：
+
+```json
+{
+  "body": "Thanks, we are investigating this.",
+  "authorDisplay": "Synapse Ops",
+  "authorAddress": "synapse:ops"
+}
+```
+
+### `POST /api/admin/v1/forum/response-tasks/{taskId}/ignore`
+
+用途：管理员关闭不需要公开回复的任务。
+
+请求：
+
+```json
+{
+  "reason": "Duplicate topic already answered."
+}
+```
+
+### Growing 内部建议接口
+
+`GET /api/admin/v1/forum/response-tasks/-/pending` 读取待生成建议的任务。
+
+`POST /api/admin/v1/forum/response-tasks/{taskId}/suggestion` 写回分类、优先级、建议回复和 Growing 链接：
+
+```json
+{
+  "classification": "bug",
+  "priority": "high",
+  "suggestedReply": "Thanks, we captured this as a bug candidate.",
+  "linkedRequirementCandidateId": "42",
+  "linkedRequirementId": "req_42",
+  "linkedWorkflowRunId": "wf_42",
+  "metadata": {
+    "source": "growing-agent"
+  }
+}
+```
+
+## 3.1 provider_services
 
 用途：管理注册到 Gateway 的 Provider 服务、运行时探活状态和自动摘流状态。这里是控制台管理面，不是第二套路由或探活系统。
 
@@ -212,7 +342,7 @@ Query:
 2. 删除后 Gateway 不再自动探活，也不会进入 discovery / invoke。
 3. 历史健康数据和 audit 保留，用于追溯。
 
-## 3.1 admin_auth
+## 3.2 admin_auth
 
 ### `POST /api/admin/v1/auth/login`
 
@@ -335,7 +465,7 @@ Set-Cookie: synapse_admin_session=<opaque-session-token>; HttpOnly; Path=/; Same
 X-CSRF-Token: <csrfToken>
 ```
 
-## 3.2 dashboard
+## 3.3 dashboard
 
 ### `GET /api/admin/v1/dashboard/overview`
 
@@ -737,7 +867,7 @@ X-CSRF-Token: <csrfToken>
 - `system-center` 动作当前接入的是统一 diagnostics 语义层、execution failed jobs、approval queue 与 gateway projection 快照。
 - `indexer / backfill / reconciliation` 在 `/system` 中当前展示的是持久化任务状态，来源于 gateway 持续刷新的 `deposit_indexer_runtime_state`。
 
-## 3.3 approval
+## 3.4 approval
 
 ### `GET /api/admin/v1/approvals`
 

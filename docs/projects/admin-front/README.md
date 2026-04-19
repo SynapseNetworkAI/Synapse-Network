@@ -3,7 +3,7 @@
 - Status: canonical
 - Code paths: `admin/admin-front/`, `docs/03_Projects/admin-front/`
 - Verified with: `npm run ci:admin-front`, `npm run ci:docs`
-- Last verified against code: 2026-03-25
+- Last verified against code: 2026-04-19
 
 ## 1. 项目定位
 
@@ -58,6 +58,7 @@
 
 1. [Admin_Front_Local_Development.md](./Admin_Front_Local_Development.md)
 2. [Admin_Front_Agent_Rules.md](./Admin_Front_Agent_Rules.md)
+3. [Admin_Forum_Support_Page_Design.md](./Admin_Forum_Support_Page_Design.md)
 
 项目目录内只保留：
 
