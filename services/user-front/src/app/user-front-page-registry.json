@@ -305,7 +305,12 @@
     "purpose": "Agent credential issuance, rotation, budget limits, and revocation.",
     "primaryInteractions": ["Create credential", "Copy credential", "Revoke credential", "Search credential ID"],
     "dataVerification": "authenticated-gateway",
-    "dataSources": ["GET/POST/DELETE /api/v1/agent/credentials"],
+    "dataSources": [
+      "GET /api/v1/credentials/agent/list",
+      "GET /api/v1/credentials/agent/audit-logs",
+      "POST /api/v1/credentials/agent/issue",
+      "POST/DELETE /api/v1/credentials/agent/:credentialId"
+    ],
     "visualVerification": "screenshot-required",
     "screenshotName": "dashboard-credentials.png"
   },
@@ -346,7 +351,7 @@
     "purpose": "Agent workspace management, quick start, and credential linking.",
     "primaryInteractions": ["Create agent", "Select agent", "Issue credential", "Delete agent"],
     "dataVerification": "browser-local-plus-authenticated-gateway",
-    "dataSources": ["localStorage agent workspace", "POST /api/v1/agent/credentials"],
+    "dataSources": ["localStorage agent workspace", "GET /api/v1/credentials/agent/list", "POST /api/v1/credentials/agent/issue"],
     "visualVerification": "screenshot-required",
     "screenshotName": "dashboard-agents.png"
   },

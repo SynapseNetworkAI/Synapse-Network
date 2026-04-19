@@ -36,7 +36,10 @@
     "drill:staging-recovery-suite": "bash scripts/drills/staging_recovery_suite.sh",
     "drill:application-rollback": "bash scripts/drills/application_rollback.sh",
     "drill:config-rollback": "bash scripts/drills/config_rollback.sh",
-    "drill:signer-rollback": "bash scripts/drills/signer_rollback.sh"
+    "drill:signer-rollback": "bash scripts/drills/signer_rollback.sh",
+    "e2e:user-front-fullchain:seed": "node scripts/e2e/user_front_fullchain_seed.mjs",
+    "e2e:user-front-fullchain:verify": "USER_FRONT_VERIFY_MODE=fullchain USER_FRONT_VERIFY_REAL_BACKEND=1 USER_FRONT_FULLCHAIN_FIXTURE=tmp/user-front-fullchain/fixture.json node scripts/ui/verify_user_front_pages.mjs",
+    "e2e:user-front-fullchain": "npm run e2e:user-front-fullchain:seed && npm run e2e:user-front-fullchain:verify"
   },
   "dependencies": {
     "@openzeppelin/contracts": "^5.0.2"

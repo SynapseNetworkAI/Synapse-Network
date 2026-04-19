@@ -52,6 +52,7 @@ spec2flow
 output/
 anvil*.log
 tmp/screens/
+tmp/user-front-fullchain/
 
 # Local browser automation state
 .agent-browser/

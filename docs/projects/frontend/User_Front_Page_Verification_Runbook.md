@@ -89,6 +89,62 @@ Pass criteria:
 - `/` and `/marketplace` call real public gateway APIs and receive successful responses.
 - Authenticated consumer/provider pages are marked blocked unless a wallet/JWT fixture is provided.
 
+### 5. Fullchain Real-Data Verification
+
+Use this mode when the target is `failed=0` and `blocked=0` for the full user-front surface. It creates a local consumer/provider fixture before opening the browser.
+
+Prerequisites:
+
+- Local chain, Postgres, and gateway are running. Use `bash scripts/local/setup_local_env.sh` if they are not already up.
+- User-front is running at `http://localhost:3000`.
+- The active chain is local-only `CHAIN_ID=31337`.
+
+Run:
+
+```bash
+npm run e2e:user-front-fullchain
+```
+
+Equivalent explicit commands:
+
+```bash
+npm run e2e:user-front-fullchain:seed
+
+USER_FRONT_VERIFY_MODE=fullchain \
+USER_FRONT_VERIFY_REAL_BACKEND=1 \
+USER_FRONT_FULLCHAIN_FIXTURE=tmp/user-front-fullchain/fixture.json \
+node scripts/ui/verify_user_front_pages.mjs
+```
+
+The seed step writes `tmp/user-front-fullchain/fixture.json` and starts local mock provider upstreams. The fixture contains local JWT sessions and evidence IDs for:
+
+- Consumer wallet address and auth session.
+- Provider wallet address and auth session.
+- Chain deposit transaction hash.
+- Three registered callable service IDs.
+- Agent credential ID.
+- One hundred invocation IDs and request IDs.
+- Provider earnings and withdrawal capability response summaries.
+
+Fullchain pass criteria:
+
+- Browser report has `failed=0`.
+- Browser report has `blocked=0`.
+- `/marketplace/registry.json?q=<runId>` returns the three seeded callable services.
+- `/dashboard/agents` is not allowed to pass on empty state; it must show the seeded agent credential and verify `callsUsed >= 100`.
+- `/dashboard/credentials` must show the seeded token prefix and verify the credential is active with `callsUsed >= 100`.
+- `/dashboard/invocations` and `/provider/usage` must verify at least 100 seeded usage rows from the gateway API and match visible seeded row evidence.
+- `/dashboard/billing/credits` must match the final consumer balance from the gateway API. UI formatting may round or truncate for display, but the API/fixture value remains the source of truth.
+- `/provider/services` and `/provider/health` must verify all three seeded services are active and runtime available.
+- `/provider/withdraw` must verify provider receivable is at least the seed run's receipt-summed provider net.
+- Authenticated consumer pages render with the consumer wallet/JWT fixture and receive successful gateway responses where they are read-data pages.
+- Authenticated provider pages render with the provider wallet/JWT fixture and receive successful gateway responses where they are read-data pages.
+- Pure action/form pages, such as service deployment forms, verify authenticated render state without auto-submitting dangerous actions.
+- Screenshots are generated for the required consumer and provider pages.
+- Console errors are empty.
+
+Do not add this command to `ci:pr`. It depends on local chain, gateway, browser, and stateful fixture creation.
+
 ## Screenshot or Simulated Click?
 
 Use simulated clicks for:
@@ -136,6 +192,7 @@ For public data pages:
 For authenticated data pages:
 
 - Use a wallet/JWT fixture for full verification.
+- The canonical local fullchain fixture registers three provider services, deposits `1000.00` USDC for the consumer, issues one agent credential, performs 100 paid calls split `34 / 33 / 33`, and reconciles consumer charge, platform fee, and provider net from gateway usage receipts.
 - Verify balance, withdrawal, invocation, service, and provider earnings values against the gateway response.
 - Verify no page renders stale fixture data after a failed fetch.
 - Verify loading and error states are visible and not silently swallowed.
