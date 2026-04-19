@@ -22,26 +22,26 @@ Track Python functions that are already high-complexity or are approaching the c
 
 ## Hotspots
 
-1. [WARN] `services/gateway/src/storage/postgres/repositories/finance_atomic_repository.py::FinanceAtomicRepository.redeem_credit_voucher_atomic` line=52 metrics=(lines=292, branches=21, nesting=4, locals=36)
+1. [WARN] `services/gateway/src/services/owner/downstream_concurrency.py::_record_outcome` line=344 metrics=(lines=95, branches=13, nesting=5, locals=13)
+   - token: `hotspot-6df970994e40`
+   - issues: `lines=95>40, branches=13>5, nesting=5>=4, locals=13>8, missing_guiding_comment`
+   - bundle command: `amem refactor-bundle . --token hotspot-6df970994e40`
+2. [WARN] `services/gateway/src/services/owner/finance_consumer_withdraw_mixin.py::FinanceConsumerWithdrawMixin.create_consumer_withdraw_intent` line=140 metrics=(lines=219, branches=20, nesting=4, locals=26)
+   - token: `hotspot-ae22c6f3e3cb`
+   - issues: `lines=219>40, branches=20>5, nesting=4>=4, locals=26>8, missing_guiding_comment`
+   - bundle command: `amem refactor-bundle . --token hotspot-ae22c6f3e3cb`
+3. [WARN] `services/gateway/src/storage/postgres/repositories/finance_atomic_repository.py::FinanceAtomicRepository.redeem_credit_voucher_atomic` line=52 metrics=(lines=292, branches=21, nesting=4, locals=36)
    - token: `hotspot-af1f8f002a9e`
    - issues: `lines=292>40, branches=21>5, nesting=4>=4, locals=36>8, missing_guiding_comment`
    - bundle command: `amem refactor-bundle . --token hotspot-af1f8f002a9e`
-2. [WARN] `services/gateway/src/services/owner/finance_consumer_withdraw_mixin.py::FinanceConsumerWithdrawMixin.create_consumer_withdraw_intent` line=98 metrics=(lines=203, branches=15, nesting=4, locals=31)
-   - token: `hotspot-ae22c6f3e3cb`
-   - issues: `lines=203>40, branches=15>5, nesting=4>=4, locals=31>8`
-   - bundle command: `amem refactor-bundle . --token hotspot-ae22c6f3e3cb`
-3. [WARN] `services/gateway/examples/v2_daily_limit_regression.py::submit_and_wait_deposit_confirmation` line=231 metrics=(lines=50, branches=6, nesting=3, locals=11)
+4. [WARN] `services/gateway/src/services/platform/service_health_probe.py::refresh_all_service_health` line=354 metrics=(lines=70, branches=9, nesting=4, locals=22)
+   - token: `hotspot-765d965250dd`
+   - issues: `lines=70>40, branches=9>5, nesting=4>=4, locals=22>8`
+   - bundle command: `amem refactor-bundle . --token hotspot-765d965250dd`
+5. [WARN] `services/gateway/examples/v2_daily_limit_regression.py::submit_and_wait_deposit_confirmation` line=228 metrics=(lines=50, branches=6, nesting=3, locals=11)
    - token: `hotspot-064f920a78ca`
    - issues: `lines=50>40, branches=6>5, locals=11>8, nesting=3, missing_guiding_comment`
    - bundle command: `amem refactor-bundle . --token hotspot-064f920a78ca`
-4. [WARN] `services/gateway/src/storage/postgres/repositories/idempotency_repository.py::IdempotencyRepository.read_idempotency_rows` line=73 metrics=(lines=59, branches=4, nesting=4, locals=14)
-   - token: `hotspot-230b7cdcfbe3`
-   - issues: `lines=59>40, nesting=4>=4, locals=14>8, branches=4, missing_guiding_comment`
-   - bundle command: `amem refactor-bundle . --token hotspot-230b7cdcfbe3`
-5. [WARN] `services/gateway/src/storage/postgres/repositories/balance_repository.py::BalanceRepository.read_balance_ledger` line=136 metrics=(lines=61, branches=5, nesting=4, locals=14)
-   - token: `hotspot-27d7dd41486f`
-   - issues: `lines=61>40, nesting=4>=4, locals=14>8, branches=5, missing_guiding_comment`
-   - bundle command: `amem refactor-bundle . --token hotspot-27d7dd41486f`
 
 ## Suggested Action
 

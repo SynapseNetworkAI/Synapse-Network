@@ -239,9 +239,14 @@ export default function QuickAccessDialog({ open, onClose }: Readonly<QuickAcces
     setActiveIndex(0);
   }, [query]);
 
-  const handleNavigate = (href: string) => {
+  const activateEntry = (entry: QuickAccessEntry) => {
+    if (entry.matches(pathname)) {
+      onClose();
+      return;
+    }
+
+    router.push(entry.href);
     onClose();
-    router.push(href);
   };
 
   const handleInputKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
@@ -261,7 +266,7 @@ export default function QuickAccessDialog({ open, onClose }: Readonly<QuickAcces
       event.preventDefault();
       const target = filteredEntries[activeIndex];
       if (target) {
-        handleNavigate(target.href);
+        activateEntry(target);
       }
     }
   };
@@ -321,8 +326,10 @@ export default function QuickAccessDialog({ open, onClose }: Readonly<QuickAcces
                     <button
                       key={entry.href}
                       type="button"
+                      data-testid="quick-access-result"
+                      data-href={entry.href}
                       onMouseEnter={() => setActiveIndex(index)}
-                      onClick={() => handleNavigate(entry.href)}
+                      onClick={() => activateEntry(entry)}
                       className={[
                         "flex w-full items-start gap-3 rounded-[18px] px-4 py-3 text-left transition-[background-color,box-shadow,transform]",
                         selected

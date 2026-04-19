@@ -3,7 +3,7 @@
 - Status: canonical
 - Code paths: `services/user-front/src/app/`, `services/user-front/src/components/`, `scripts/ui/verify_user_front_pages.mjs`
 - Scope: `services/user-front`
-- Last verified against code: 2026-04-18
+- Last verified against code: 2026-04-19
 - Related design matrix: `docs/projects/frontend/User_Front_Page_Function_and_Verification.md`
 - Registry: `services/user-front/src/app/user-front-page-registry.json`
 
@@ -64,10 +64,12 @@ Pass criteria:
 
 - Every documented non-redirect page renders expected text.
 - Home page CTAs navigate to `/dashboard/overview` and `/dashboard/developer`.
+- Global Quick Access search opens from the console navbar, clicking `Credits` navigates to `/dashboard/billing/credits`, and clicking `Discovery` navigates to `/dashboard/discovery`.
 - Redirect routes land on documented targets.
 - `/docs/concepts#idempotency` can click back to `#settlement`.
 - Marketplace search and tag controls are visible.
 - Screenshot files are generated for core pages.
+- Quick Access screenshots are generated for the open dialog, filtered result, and post-navigation page.
 - No uncaught browser console errors.
 - No core screenshot page has horizontal overflow.
 
@@ -153,6 +155,7 @@ Use simulated clicks for:
 - Redirects.
 - Sidebar anchors.
 - CTA buttons.
+- Global Quick Access search results.
 - Marketplace controls.
 - API endpoint detail links.
 - Any control that changes data, filter, page, or route.

@@ -315,6 +315,24 @@ async function captureScreenshot(page, name) {
   screenshots.push(out);
 }
 
+async function openQuickAccess(page) {
+  await page.getByRole("button", { name: /Search|搜索/i }).first().click();
+  await page.locator('[role="dialog"][aria-labelledby="quick-access-title"]').waitFor({ state: "visible", timeout: 10000 });
+  await page.locator('[data-testid="quick-access-result"]').first().waitFor({ state: "visible", timeout: 10000 });
+}
+
+async function clickQuickAccessResult(page, { query, href, screenshotName }) {
+  const input = page.getByPlaceholder(/Search routes|搜索路由/i);
+  await input.fill(query);
+  const result = page.locator(`[data-testid="quick-access-result"][data-href="${href}"]`).first();
+  await result.waitFor({ state: "visible", timeout: 10000 });
+  if (screenshotName) {
+    await captureScreenshot(page, screenshotName);
+  }
+  await result.click();
+  await page.waitForURL(`**${href}`, { timeout: 20000 });
+}
+
 async function verifyGatewayHealth() {
   if (!EFFECTIVE_REAL_BACKEND) {
     warn("backend:real-data", "USER_FRONT_VERIFY_REAL_BACKEND=1 not set; browser checks still run, data truth is not enforced");
@@ -330,7 +348,9 @@ async function verifyRegistryJson() {
   const query = VERIFY_MODE === "fullchain" && fullchainFixture?.runId
     ? `?q=${encodeURIComponent(fullchainFixture.runId)}&page=1&pageSize=10`
     : "?page=1&pageSize=10";
-  const response = await fetch(`${BASE_URL}/marketplace/registry.json${query}`);
+  const response = await fetch(`${BASE_URL}/marketplace/registry.json${query}`, {
+    signal: AbortSignal.timeout(15000),
+  });
   if (!response.ok) {
     throw new Error(`registry.json failed: ${response.status}`);
   }
@@ -906,6 +926,43 @@ try {
       await goto(page, "/");
       await page.getByRole("button", { name: /Open Developer Resources/i }).click();
       await page.waitForURL("**/dashboard/developer", { timeout: 20000 });
+    } finally {
+      await page.waitForLoadState("networkidle", { timeout: 3000 }).catch(() => {});
+      await page.close().catch(() => {});
+    }
+  });
+
+  await step("click:quick-access-credits-navigation", async () => {
+    const page = await createInstrumentedPage(publicContext, "/dashboard/overview");
+    try {
+      await goto(page, "/dashboard/overview");
+      await openQuickAccess(page);
+      await captureScreenshot(page, "quick-access-open.png");
+      await clickQuickAccessResult(page, {
+        query: "Credits",
+        href: "/dashboard/billing/credits",
+        screenshotName: "quick-access-credits-result.png",
+      });
+      await page.waitForLoadState("networkidle", { timeout: 5000 }).catch(() => {});
+      await captureScreenshot(page, "quick-access-after-credits-navigation.png");
+    } finally {
+      await page.waitForLoadState("networkidle", { timeout: 3000 }).catch(() => {});
+      await page.close().catch(() => {});
+    }
+  });
+
+  await step("click:quick-access-discovery-navigation", async () => {
+    const page = await createInstrumentedPage(publicContext, "/dashboard/billing/credits");
+    try {
+      await goto(page, "/dashboard/billing/credits");
+      await openQuickAccess(page);
+      await clickQuickAccessResult(page, {
+        query: "Discovery",
+        href: "/dashboard/discovery",
+        screenshotName: "quick-access-discovery-result.png",
+      });
+      await page.waitForLoadState("networkidle", { timeout: 5000 }).catch(() => {});
+      await captureScreenshot(page, "quick-access-after-navigation.png");
     } finally {
       await page.waitForLoadState("networkidle", { timeout: 3000 }).catch(() => {});
       await page.close().catch(() => {});

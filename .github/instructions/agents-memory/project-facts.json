@@ -7,7 +7,7 @@
   "facts": {
     "language.python": false,
     "testing.pytest_configured": false,
-    "testing.layout": false
+    "testing.layout": true
   },
   "detectors": [
     {
@@ -43,8 +43,10 @@
       "id": "tests_layout",
       "kind": "path_exists",
       "output": "testing.layout",
-      "matched": false,
-      "matched_paths": [],
+      "matched": true,
+      "matched_paths": [
+        "test/"
+      ],
       "config": {
         "any_of": [
           "tests/",
