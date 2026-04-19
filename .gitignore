@@ -53,6 +53,7 @@ output/
 anvil*.log
 tmp/screens/
 tmp/user-front-fullchain/
+tmp/forum-feedback-dogfood/
 
 # Local browser automation state
 .agent-browser/
