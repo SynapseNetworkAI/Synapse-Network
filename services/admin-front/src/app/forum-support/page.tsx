@@ -132,12 +132,12 @@ export default function ForumSupportPage() {
     setNotice(null);
     setError(null);
     try {
-      await sendForumResponseReply(token, selected.responseTaskId, {
+      const updated = await sendForumResponseReply(token, selected.responseTaskId, {
         body: replyBody,
         authorDisplay: "Synapse Ops",
         authorAddress: "synapse:ops",
       });
-      setNotice("回复已发送，帖子已从未回复队列移除。");
+      setNotice(updated.status === "responded" ? "回复已发送，帖子已从未回复队列移除。" : `该任务已是 ${statusLabels[updated.status] ?? updated.status}，已刷新队列。`);
       await refresh(token);
     } catch (sendError) {
       setError(sendError instanceof Error ? sendError.message : "发送回复失败");
@@ -154,8 +154,8 @@ export default function ForumSupportPage() {
     setNotice(null);
     setError(null);
     try {
-      await ignoreForumResponseTask(token, selected.responseTaskId, { reason: ignoreReason });
-      setNotice("已忽略该帖子，未回复状态已消除。");
+      const updated = await ignoreForumResponseTask(token, selected.responseTaskId, { reason: ignoreReason });
+      setNotice(updated.status === "ignored" ? "已忽略该帖子，未回复状态已消除。" : `该任务已是 ${statusLabels[updated.status] ?? updated.status}，已刷新队列。`);
       await refresh(token);
     } catch (ignoreError) {
       setError(ignoreError instanceof Error ? ignoreError.message : "忽略帖子失败");

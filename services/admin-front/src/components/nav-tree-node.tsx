@@ -114,6 +114,8 @@ function TreeNodeRow({
 
 export function NavTreeNode({ item, depth, expandedIds, activePathIds, onToggle, onNavigate }: Readonly<NavTreeNodeProps>) {
   const hasChildren = Boolean(item.children?.length);
+  const navigablePath = hasChildren ? undefined : item.path;
+  const shouldNavigate = Boolean(navigablePath);
   const isExpanded = expandedIds.has(item.id);
   const isActive = item.path ? activePathIds.has(item.id) : false;
   const isInActiveTrail = activePathIds.has(item.id);
@@ -121,12 +123,34 @@ export function NavTreeNode({ item, depth, expandedIds, activePathIds, onToggle,
 
   return (
     <Stack gap="6px">
-      {item.path ? (
-        <Link href={item.path} onClick={onNavigate}>
+      {shouldNavigate && navigablePath ? (
+        <Link
+          href={navigablePath}
+          onClick={(event) => {
+            event.stopPropagation();
+            onNavigate();
+          }}
+          data-nav-id={item.id}
+          data-nav-path={navigablePath}
+          style={{ display: "block", textDecoration: "none" }}
+        >
           {content}
         </Link>
       ) : (
-        <Box onClick={() => hasChildren ? onToggle(item.id) : undefined} cursor={hasChildren ? "pointer" : "default"}>
+        <Box
+          onClick={() => hasChildren ? onToggle(item.id) : undefined}
+          onKeyDown={(event) => {
+            if (!hasChildren || (event.key !== "Enter" && event.key !== " ")) {
+              return;
+            }
+            event.preventDefault();
+            onToggle(item.id);
+          }}
+          cursor={hasChildren ? "pointer" : "default"}
+          role={hasChildren ? "button" : undefined}
+          tabIndex={hasChildren ? 0 : undefined}
+          aria-expanded={hasChildren ? isExpanded : undefined}
+        >
           {content}
         </Box>
       )}
