@@ -104,6 +104,10 @@ function withWindow(href: string, windowValue: string): string {
   return `${href}${joiner}window=${encodeURIComponent(windowValue)}`;
 }
 
+function analyticsTestId(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
 const topicCards = [
   {
     key: "consumer",
@@ -478,7 +482,12 @@ function AnalyticsTopicGrid({ overview, windowValue }: Readonly<{ overview: Anal
       {topicCards.map((topic) => {
         const metrics = topic.metrics.map((key) => topicMetricValue(overview.cards, key)).filter((item): item is string => Boolean(item));
         return (
-          <Link key={topic.key} href={withWindow(topic.href, windowValue)} style={{ textDecoration: "none" }}>
+          <a
+            key={topic.key}
+            href={withWindow(topic.href, windowValue)}
+            data-testid={`analytics-drilldown-${topic.key}`}
+            style={{ display: "block", textDecoration: "none" }}
+          >
             <Box
               minH="210px"
               borderRadius="26px"
@@ -500,7 +509,7 @@ function AnalyticsTopicGrid({ overview, windowValue }: Readonly<{ overview: Anal
               </Stack>
               <Text mt="16px" fontWeight="800" color="signal.700">打开专题</Text>
             </Box>
-          </Link>
+          </a>
         );
       })}
     </Grid>
@@ -549,7 +558,15 @@ export function AnalyticsOverviewScreen({ admin, token }: Readonly<AnalyticsScre
                     <Text fontWeight="800">{alert.title}</Text>
                     <Text color="ink.500">{alert.detail}</Text>
                   </Stack>
-                  {alert.href ? <Link href={alert.href}><Button borderRadius="full" size="sm" variant="ghost">查看</Button></Link> : null}
+                  {alert.href ? (
+                    <a
+                      href={alert.href}
+                      data-testid={`analytics-alert-${analyticsTestId(alert.title)}`}
+                      style={{ textDecoration: "none" }}
+                    >
+                      <Button borderRadius="full" size="sm" variant="ghost">查看</Button>
+                    </a>
+                  ) : null}
                 </HStack>
               </Box>
             ))}

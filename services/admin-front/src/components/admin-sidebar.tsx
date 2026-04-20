@@ -63,6 +63,11 @@ export function AdminSidebar({ admin, navigation, mobileOpen, onCloseMobile }: R
     setManualCollapsedIds((current) => isExpanded ? Array.from(new Set([...current, id])) : current.filter((entry) => entry !== id));
   }
 
+  function handleNavigate(href: string) {
+    onCloseMobile();
+    router.push(href);
+  }
+
   const expandedIds = new Set(resolveExpandedNavigationIds({
     manualExpandedIds,
     manualCollapsedIds,
@@ -118,7 +123,7 @@ export function AdminSidebar({ admin, navigation, mobileOpen, onCloseMobile }: R
               expandedIds={expandedIds}
               activePathIds={activePathIds}
               onToggle={handleToggle}
-              onNavigate={onCloseMobile}
+              onNavigate={handleNavigate}
             />
           ))}
           {filteredResult.filtered.length === 0 ? (

@@ -2,8 +2,6 @@
 
 import { Box, Button, Flex, Stack, Text } from "@chakra-ui/react";
 import { AnimatePresence, motion } from "framer-motion";
-import Link from "next/link";
-
 import type { NavItem } from "@/lib/navigation";
 
 const MotionBox = motion.create(Box);
@@ -19,7 +17,7 @@ type NavTreeNodeProps = {
   expandedIds: Set<string>;
   activePathIds: Set<string>;
   onToggle: (id: string) => void;
-  onNavigate: () => void;
+  onNavigate: (href: string) => void;
 };
 
 function getNodeVisualState(isActive: boolean, isInActiveTrail: boolean): NavTreeNodeVisualState {
@@ -124,18 +122,22 @@ export function NavTreeNode({ item, depth, expandedIds, activePathIds, onToggle,
   return (
     <Stack gap="6px">
       {shouldNavigate && navigablePath ? (
-        <Link
+        <a
           href={navigablePath}
           onClick={(event) => {
+            if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) {
+              return;
+            }
+            event.preventDefault();
             event.stopPropagation();
-            onNavigate();
+            onNavigate(navigablePath);
           }}
           data-nav-id={item.id}
           data-nav-path={navigablePath}
           style={{ display: "block", textDecoration: "none" }}
         >
           {content}
-        </Link>
+        </a>
       ) : (
         <Box
           onClick={() => hasChildren ? onToggle(item.id) : undefined}

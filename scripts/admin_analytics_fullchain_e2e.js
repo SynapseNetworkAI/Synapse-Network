@@ -48,6 +48,7 @@ const SCREENSHOT_DIR = path.resolve(
 
 let passed = 0;
 let failed = 0;
+const browserChecks = [];
 
 function ok(message) {
   passed += 1;
@@ -62,6 +63,7 @@ function fail(message) {
 function check(message, condition) {
   if (condition) ok(message);
   else fail(message);
+  browserChecks.push({ name: message, passed: Boolean(condition) });
 }
 
 function readReport() {
@@ -179,6 +181,112 @@ async function screenshotPage(page, route, name, expectedText) {
   return { route, filePath };
 }
 
+async function assertBodyShowsAnyValue(page, values, label) {
+  const bodyText = String(await page.textContent("body") || "").replaceAll(",", "");
+  const normalizedValues = values
+    .map((value) => String(value ?? "").replaceAll(",", "").replace(/\.000000$/, ""))
+    .filter((value) => value && value !== "0" && value !== "0.0");
+  const matched = normalizedValues.find((value) => bodyText.includes(value));
+  check(`${label} displays at least one backend value`, Boolean(matched) || normalizedValues.length === 0);
+  return matched || "";
+}
+
+async function clickWindowSwitchers(page) {
+  await page.goto(`${ADMIN_FRONT_URL}/dashboard/analytics`, { waitUntil: "networkidle", timeout: 45000 });
+  for (const windowValue of ["7d", "30d", "24h"]) {
+    await page.getByRole("button", { name: windowValue }).click();
+    await page.waitForTimeout(350);
+    const bodyText = String(await page.textContent("body") || "");
+    check(`window switcher ${windowValue} keeps overview rendered`, bodyText.includes("Analytics 总览"));
+  }
+  await page.screenshot({ path: path.join(SCREENSHOT_DIR, "08-window-switchers.png"), fullPage: true });
+  ok(`screenshot saved: ${path.join(SCREENSHOT_DIR, "08-window-switchers.png")}`);
+}
+
+async function clickAnalyticsDrilldownCards(page) {
+  const cards = [
+    ["/dashboard/analytics/consumer-funnel", "Consumer 激活漏斗"],
+    ["/dashboard/analytics/invocation-revenue", "调用与收入"],
+    ["/dashboard/analytics/provider-revenue", "Provider 收益"],
+    ["/dashboard/analytics/money-flow", "资金流"],
+    ["/dashboard/analytics/risk-health", "风控健康"],
+    ["/dashboard/analytics/data-quality", "埋点质量"],
+  ];
+  for (const [route, title] of cards) {
+    await page.goto(`${ADMIN_FRONT_URL}/dashboard/analytics`, { waitUntil: "networkidle", timeout: 45000 });
+    await page.locator(`a[href^="${route}"]`).first().click();
+    await page.waitForURL((url) => url.pathname === route, { timeout: 30000 });
+    await page.waitForLoadState("networkidle", { timeout: 30000 }).catch(() => {});
+    await page.getByText(title, { exact: false }).first().waitFor({ timeout: 15000 }).catch(() => {});
+    const bodyText = String(await page.textContent("body") || "");
+    check(`drilldown card navigates to ${route}`, bodyText.includes(title));
+  }
+  await page.screenshot({ path: path.join(SCREENSHOT_DIR, "09-drilldown-card-clicks.png"), fullPage: true });
+  ok(`screenshot saved: ${path.join(SCREENSHOT_DIR, "09-drilldown-card-clicks.png")}`);
+}
+
+async function clickBudgetBlockAlert(page, overview) {
+  const hasBudgetAlert = (overview.alerts || []).some((alert) => String(alert.title).toLowerCase().includes("budget"));
+  if (!hasBudgetAlert) {
+    ok("budget block alert drilldown skipped: no budget alert in current window");
+    return;
+  }
+  await page.goto(`${ADMIN_FRONT_URL}/dashboard/analytics`, { waitUntil: "networkidle", timeout: 45000 });
+  const link = page.locator('a[href*="/dashboard/analytics/risk-health"][href*="focus=budget_blocked"]').first();
+  await link.click();
+  await page.waitForURL((url) => url.pathname === "/dashboard/analytics/risk-health" && url.searchParams.get("focus") === "budget_blocked", { timeout: 30000 });
+  await page.waitForLoadState("networkidle", { timeout: 30000 }).catch(() => {});
+  await page.getByText("Budget blocked breakdown", { exact: false }).first().waitFor({ timeout: 15000 }).catch(() => {});
+  const bodyText = String(await page.textContent("body") || "");
+  check("budget block alert navigates to focused risk-health panel", bodyText.includes("Focused from alert") || bodyText.includes("Budget blocked breakdown"));
+  await page.screenshot({ path: path.join(SCREENSHOT_DIR, "10-budget-block-alert-drilldown.png"), fullPage: true });
+  ok(`screenshot saved: ${path.join(SCREENSHOT_DIR, "10-budget-block-alert-drilldown.png")}`);
+}
+
+async function verifyAnalyticsPageValues(page, apiData) {
+  const pages = [
+    {
+      route: "/dashboard/analytics",
+      label: "overview",
+      values: (apiData.overview.cards || []).map((card) => card.value),
+    },
+    {
+      route: "/dashboard/analytics/consumer-funnel",
+      label: "consumer funnel",
+      values: (apiData.consumerFunnel.steps || []).flatMap((step) => [step.users, step.events]),
+    },
+    {
+      route: "/dashboard/analytics/invocation-revenue",
+      label: "invocation revenue",
+      values: [apiData.invocation.quoteCount, apiData.invocation.invokeStartedCount, apiData.invocation.invokeCompletedCount, apiData.invocation.gmvUsdc],
+    },
+    {
+      route: "/dashboard/analytics/provider-revenue",
+      label: "provider revenue",
+      values: [apiData.providerRevenue.revenueProviderCount, apiData.providerRevenue.providerGrossUsdc, apiData.providerRevenue.providerNetUsdc],
+    },
+    {
+      route: "/dashboard/analytics/money-flow",
+      label: "money flow",
+      values: [apiData.moneyFlow.depositUsdc, apiData.moneyFlow.depositFailedCount, apiData.moneyFlow.withdrawalUsdc, apiData.moneyFlow.refundUsdc],
+    },
+    {
+      route: "/dashboard/analytics/risk-health",
+      label: "risk health",
+      values: [apiData.riskHealth.criticalRiskEvents, apiData.riskHealth.providerHealthDegradedCount, apiData.riskHealth.budgetGapUsdc],
+    },
+    {
+      route: "/dashboard/analytics/data-quality",
+      label: "data quality",
+      values: [apiData.dataQuality.eventCount, apiData.dataQuality.privacyViolations, apiData.dataQuality.missingRequiredProperties],
+    },
+  ];
+  for (const item of pages) {
+    await page.goto(`${ADMIN_FRONT_URL}${item.route}`, { waitUntil: "networkidle", timeout: 45000 });
+    await assertBodyShowsAnyValue(page, item.values, item.label);
+  }
+}
+
 async function verifyAdminPages(auth, report, apiData) {
   fs.mkdirSync(SCREENSHOT_DIR, { recursive: true });
   const browser = await chromium.launch({ headless: true });
@@ -222,6 +330,16 @@ async function verifyAdminPages(auth, report, apiData) {
       (report.requiredEvents || []).includes("service_registered")
         && (report.requiredEvents || []).includes("provider_revenue_received"),
     );
+    check(
+      "Analytics full-chain report includes supplemental drilldown coverage",
+      ["budget_blocked", "deposit_failed", "risk_rule_triggered", "settlement_claim_requested"].every((eventName) =>
+        (report.supplementalEvents || []).includes(eventName)
+      ),
+    );
+    await clickWindowSwitchers(page);
+    await clickAnalyticsDrilldownCards(page);
+    await clickBudgetBlockAlert(page, apiData.overview);
+    await verifyAnalyticsPageValues(page, apiData);
     return screenshots;
   } finally {
     await browser.close();
@@ -262,6 +380,7 @@ async function main() {
         verifiedAt: new Date().toISOString(),
         reportPath: REPORT_PATH,
         screenshots,
+        browserChecks,
         adminInvocationRevenue: apiData.invocation,
         adminOverview: apiData.overview,
       },

@@ -67,7 +67,7 @@ type ResolveExpandedNavigationIdsOptions = {
   query: string;
 };
 
-const defaultExpandedNavigationIds = ["control-overview", "dashboard", "analytics"];
+const defaultExpandedNavigationIds = ["control-overview", "dashboard"];
 
 function mergeLookup(item: NavItem): NavItem {
   return {
@@ -95,8 +95,9 @@ function compareMenuItems(left: AdminMenuConfigItem, right: AdminMenuConfigItem)
 
 function toNavItem(item: AdminMenuConfigItem): NavItem {
   const visual = getNavVisual(item.itemId);
-  const path = item.nodeType === "page"
-    ? item.href ?? legacyPathByItemId[item.itemId]
+  const legacyPath = legacyPathByItemId[item.itemId];
+  const path = item.nodeType === "page" || legacyPath
+    ? item.href ?? legacyPath
     : undefined;
   return mergeLookup({
     id: item.itemId,

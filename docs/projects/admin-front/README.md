@@ -59,7 +59,9 @@
 1. [Admin_Front_Local_Development.md](./Admin_Front_Local_Development.md)
 2. [Admin_Front_Agent_Rules.md](./Admin_Front_Agent_Rules.md)
 3. [Admin_Forum_Support_Page_Design.md](./Admin_Forum_Support_Page_Design.md)
-4. [Admin_Front_Dogfood_E2E_Runbook.md](./Admin_Front_Dogfood_E2E_Runbook.md)
+4. [Admin_Analytics_Page_Function_and_Verification.md](./Admin_Analytics_Page_Function_and_Verification.md)
+5. [Admin_Analytics_10k_Load_Dogfood_Verification.md](./Admin_Analytics_10k_Load_Dogfood_Verification.md)
+6. [Admin_Front_Dogfood_E2E_Runbook.md](./Admin_Front_Dogfood_E2E_Runbook.md)
 
 项目目录内只保留：
 

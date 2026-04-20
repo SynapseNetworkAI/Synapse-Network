@@ -4,10 +4,6 @@ import { describe, expect, it, vi } from "vitest";
 
 import { NavTreeNode } from "./nav-tree-node";
 
-vi.mock("next/link", () => ({
-  default: ({ children, href, onClick, ...props }: { children: React.ReactNode; href: string; onClick?: () => void }) => React.createElement("a", { href, onClick, ...props }, children),
-}));
-
 vi.mock("framer-motion", () => ({
   AnimatePresence: ({ children }: { children?: React.ReactNode }) => React.createElement(React.Fragment, null, children),
   motion: {

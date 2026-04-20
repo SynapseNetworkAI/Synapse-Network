@@ -20,6 +20,17 @@ The dogfood suite covers:
 5. Review, risk, and finance pages: `/approvals`, `/withdrawal-reviews`, `/review-history`, `/finance`, `/finance/reconciliation`, `/risk`, `/audit`.
 6. Data truth checks for Forum Support, Provider Services, Finance, and Analytics.
 
+Analytics has an additional full-chain contract in
+[Admin_Analytics_Page_Function_and_Verification.md](./Admin_Analytics_Page_Function_and_Verification.md).
+That contract verifies Gateway events reached ClickHouse, gateway-admin returns the same
+aggregates as raw ClickHouse SQL, and admin-front renders the same values on all seven
+Analytics pages.
+
+For high-volume local/staging evidence, use
+[Admin_Analytics_10k_Load_Dogfood_Verification.md](./Admin_Analytics_10k_Load_Dogfood_Verification.md).
+That suite sends 10,000 paid invokes across three Provider services and validates
+Analytics pages with baseline + delta reconciliation.
+
 ## Dependencies
 
 Run against local or staging services:
@@ -58,6 +69,40 @@ Run the full flow:
 npm run e2e:admin-front
 ```
 
+Run the Analytics-specific full-chain flow:
+
+```bash
+cd services/gateway
+ANALYTICS_FULLCHAIN_E2E=true \
+ANALYTICS_CLICKHOUSE_URL=http://localhost:8123 \
+PYTHONPATH=. pytest tests/e2e/test_01_infrastructure.py \
+  tests/e2e/test_02_wallet_auth.py \
+  tests/e2e/test_03_fund_wallet.py \
+  tests/e2e/test_04_deposit.py \
+  tests/e2e/test_05_provider_register.py \
+  tests/e2e/test_06_agent_credential.py \
+  tests/e2e/test_07_invoke.py \
+  tests/e2e/test_08_analytics_fullchain.py -q
+
+cd ../..
+ADMIN_GATEWAY_URL=http://127.0.0.1:8300 \
+ANALYTICS_CLICKHOUSE_URL=http://127.0.0.1:8123 \
+/usr/bin/python3 scripts/admin_analytics_clickhouse_regression.py
+
+ADMIN_FRONT_URL=http://127.0.0.1:4000 \
+ADMIN_GATEWAY_URL=http://127.0.0.1:8300 \
+ADMIN_SESSION_TOKEN="<synapse_admin_session>" \
+node scripts/admin_analytics_fullchain_e2e.js
+```
+
+Run the Analytics 10k load dogfood:
+
+```bash
+npm run e2e:admin-analytics-10k:fullchain
+npm run e2e:admin-analytics-10k:reconcile
+ADMIN_SESSION_TOKEN="<synapse_admin_session>" npm run e2e:admin-analytics-10k:dogfood
+```
+
 ## Environment
 
 Defaults are local-only:
@@ -83,6 +128,9 @@ The suite passes only when:
 6. `synapse_forum_response_tasks.status` becomes `responded` and `reply_id` is non-empty.
 7. Provider Services, Finance, and Analytics pages show data that came from `gateway-admin` APIs.
 8. The reconcile script confirms DB/API/UI evidence for the same run id.
+9. Analytics-specific verification confirms all seven Analytics APIs match raw ClickHouse aggregation.
+10. Analytics browser verification confirms window switchers, drilldown cards, budget-block alert drilldown, and seven screenshots.
+11. Optional 10k Analytics load verification confirms three registered Provider services, 10,000 paid invokes, `7900.000000 USDC` service-price GMV baseline, receipt total-charge GMV delta, ClickHouse ingestion, gateway-admin aggregation, and admin-front DOM values.
 
 ## Failure Handling
 
@@ -102,6 +150,21 @@ The browser run writes:
 2. `output/dogfood/admin-front/<timestamp>/report.json`
 3. Page screenshots for every covered route.
 4. Focused screenshots for Forum Support before/after reply and sidebar navigation clicks.
+
+The Analytics-specific run writes:
+
+1. `output/analytics-fullchain/report.json`
+2. `output/analytics-fullchain/admin-clickhouse-regression.json`
+3. `output/analytics-fullchain/admin-page-verification.json`
+4. `output/analytics-fullchain/screens/*.png`
+
+The 10k Analytics load run writes:
+
+1. `output/analytics-load/<runId>/fixture.json`
+2. `output/analytics-load/<runId>/report.json`
+3. `output/analytics-load/<runId>/report.md`
+4. `output/analytics-load/<runId>/admin-page-verification.json`
+5. `output/analytics-load/<runId>/screens/*.png`
 
 The seed fixture is written to:
 
