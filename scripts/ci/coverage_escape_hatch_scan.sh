@@ -17,6 +17,11 @@ is_finance_path() {
   [[ "$path" =~ (finance|withdraw|withdrawal|refund|deposit|balance|ledger|reconciliation|settlement|provider_withdraw_review|withdrawal-reviews) ]]
 }
 
+is_coverage_scoped_file() {
+  local path="$1"
+  [[ "$path" =~ \.(py|ts|tsx|js|jsx|mjs|cjs)$ ]]
+}
+
 failures=0
 current_file=""
 
@@ -25,6 +30,8 @@ while IFS= read -r line; do
     current_file="${line#+++ b/}"
     continue
   fi
+
+  is_coverage_scoped_file "$current_file" || continue
 
   [[ "$line" == +* ]] || continue
   [[ "$line" == "+++"* ]] && continue
