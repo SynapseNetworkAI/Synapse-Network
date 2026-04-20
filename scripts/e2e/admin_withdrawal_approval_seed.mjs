@@ -27,6 +27,7 @@ const DEPOSIT_USDC = process.env.ADMIN_WITHDRAWAL_APPROVAL_DEPOSIT_USDC || "10.0
 const WITHDRAW_AMOUNT_USDC = process.env.ADMIN_WITHDRAWAL_APPROVAL_AMOUNT_USDC || "2.000000";
 const CONSUMER_ETH_TARGET = process.env.ADMIN_WITHDRAWAL_APPROVAL_CONSUMER_ETH || "2.0";
 const PROVIDER_ETH_TARGET = process.env.ADMIN_WITHDRAWAL_APPROVAL_PROVIDER_ETH || "2.0";
+// withdrawal status source: services/gateway provider withdrawal state machine and synapse_vault_withdrawals.status.
 
 const ADMIN_COOKIE_NAME = process.env.ADMIN_SESSION_COOKIE_NAME || "synapse_admin_session";
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "super@synapse.network";

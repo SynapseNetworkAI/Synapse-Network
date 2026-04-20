@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -57,7 +59,7 @@ class ProviderWithdrawReviewHistoryListResponse(BaseModel):
 
 
 class ProviderWithdrawReviewDecisionRequest(BaseModel):
-    decision: str = Field(min_length=6, max_length=16)
+    decision: Literal["APPROVE", "REJECT", "HOLD", "CANCEL"]
     note: str = Field(default="", max_length=512)
 
 

@@ -83,3 +83,13 @@ name: "Synapse Finance Admin Rules"
 
 **Retry without idempotency**
 - A retry endpoint that creates a new execution record on every call without checking whether a prior attempt already succeeded. Idempotency keys are mandatory on retry paths.
+
+## Withdrawal Review E2E Lessons
+
+Provider withdrawal approval is a funds movement flow, not a simple admin queue. For any `gateway-admin` review, approval, reject, retry, or internal Gateway adapter change:
+
+- Validate decisions with `Literal`/`Enum`/dedicated validators. Do not use string length constraints for `decision`, `action`, `reviewDecision`, or money-review statuses.
+- Preserve permission, step-up, and internal service token checks. Wrong `X-Internal-Service-Token` must fail closed and leave Gateway state unchanged.
+- Do not let gateway-admin become the ledger. It may issue a review decision, but Gateway remains the source of truth for ticket, bucket, tx hash, and completed state.
+- Duplicate approval, approve-after-reject, reject-after-approve, duplicate complete, and ticket replay must be covered by tests or the admin withdrawal approval E2E.
+- When changing provider withdrawal review semantics, update `docs/architecture/Finance_Approval_Safety_Invariants.md`, run `npm run ci:finance-approval-safety`, and refresh `npm run ci:finance-approval-e2e-evidence` when finance-sensitive paths changed.

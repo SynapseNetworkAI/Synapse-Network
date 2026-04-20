@@ -94,6 +94,16 @@ Support-oriented control-plane pages, including `/forum-support`, must keep auto
 8. Closing a forum topic means "public but no more replies"; do not hide or delete content as a side effect of closing.
 9. Forum operations lists must use backend pagination and backend status filters. The browser must not derive "all topics" truth from the response queue.
 
+## Finance Approval UI Rules
+
+Withdrawal review pages are financial control surfaces. The browser may initiate a reviewed action, but it must not invent approval truth.
+
+1. `/withdrawal-reviews` must treat Gateway/Gateway-admin as the source of truth for withdrawal status, ticket, amount, reviewer, and tx hash.
+2. Approve/reject buttons must be disabled during submission to prevent double-click duplicate decisions, but backend idempotency remains mandatory.
+3. Step-up authentication must use a safe TOTP window in dogfood scripts; do not generate a code in the final seconds of a TOTP period.
+4. Any UI change that affects withdrawal approval, review history, finance reconciliation, or approval queue behavior must preserve screenshot + DB/API/chain evidence through `npm run e2e:admin-withdrawal-approval`.
+5. UI smoke does not prove funds safety. Release evidence must include provider USDC delta, vault USDC delta, DB status/txHash, and provider pending/frozen bucket checks.
+
 ## Visual Identity
 
 Admin front follows the Synapse Sentinel cyber-industrial design language:

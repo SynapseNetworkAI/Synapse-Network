@@ -1,0 +1,27 @@
+target-version = "py313"
+line-length = 100
+
+[lint]
+select = [
+  "E",
+  "F",
+  "B",
+  "C90",
+  "PL",
+  "SIM",
+  "TRY",
+  "PERF",
+  "S",
+]
+ignore = [
+  "E501",
+  "PLR0913",
+]
+
+[lint.mccabe]
+max-complexity = 10
+
+[lint.per-file-ignores]
+"services/gateway/tests/**/*.py" = ["S101", "PLR2004"]
+"services/gateway-admin/tests/**/*.py" = ["S101", "PLR2004"]
+"scripts/**/*.py" = ["S101", "PLR2004"]

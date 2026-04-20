@@ -38,6 +38,8 @@
 2. `02_Gateway_Runtime_Architecture.md`
 3. `03_Identity_Authentication_and_Risk_Control.md`
 4. `04_Domain_Model_and_Bounded_Contexts.md`
+5. `Finance_Approval_Safety_Invariants.md`
+6. `Agent_Code_Quality_Guardrails.md`
 
 ## 模块边界
 

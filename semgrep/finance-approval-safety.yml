@@ -1,0 +1,262 @@
+rules:
+  - id: fin-money-float-call
+    languages: [python]
+    severity: ERROR
+    message: >-
+      FATAL FIN-MONEY-001: float detected in a finance-sensitive path. Why dangerous:
+      binary floating point can drift money, ticket, fee, balance, or settlement values.
+      Agent fix: replace this value/type with decimal.Decimal in Python, serialize HTTP/JSON
+      money as string, and add a Decimal assertion test.
+    paths:
+      include:
+        - services/gateway/src/**/*finance*.py
+        - services/gateway/src/**/*withdraw*.py
+        - services/gateway/src/**/*refund*.py
+        - services/gateway/src/**/*balance*.py
+        - services/gateway/src/**/*ledger*.py
+        - services/gateway/src/**/*settlement*.py
+        - services/gateway-admin/src/**/*provider_withdraw_review*.py
+        - services/gateway-admin/src/**/*finance_admin*.py
+    pattern-either:
+      - patterns:
+          - pattern-either:
+              - pattern: "$VAR: float"
+              - pattern: "$VAR: Optional[float]"
+              - pattern: "$VAR: typing.Optional[float]"
+              - pattern: "$VAR: Union[..., float, ...]"
+              - pattern: "$VAR: typing.Union[..., float, ...]"
+              - pattern: "$VAR = float($X)"
+              - pattern: |
+                  def $FUNC(..., $VAR: float, ...):
+                    ...
+          - metavariable-regex:
+              metavariable: $VAR
+              regex: '(?i)(amount|usdc|balance|fee|rate|price|ledger|settlement|payout|withdraw|refund|charge|net)'
+      - patterns:
+          - pattern: |
+              def $FUNC(...) -> float:
+                ...
+          - metavariable-regex:
+              metavariable: $FUNC
+              regex: '(?i)(money|amount|usdc|balance|fee|rate|price|ledger|settlement|payout|withdraw|refund|charge|net)'
+
+  - id: fin-review-string-length-action-schema
+    languages: [python]
+    severity: ERROR
+    message: >-
+      FATAL FIN-REVIEW-002: review/action/status schema uses string length for a business
+      decision. Why dangerous: valid decisions such as REJECT can be blocked before the
+      state machine runs. Agent fix: replace this with Literal[...] or Enum validation and
+      add APPROVE and REJECT regression tests.
+    paths:
+      include:
+        - services/gateway-admin/src/api/schemas/**/*.py
+    patterns:
+      - pattern-either:
+          - pattern: "$FIELD: str = Field(..., min_length=$MIN, ...)"
+          - pattern: "$FIELD: str = Field(..., max_length=$MAX, ...)"
+          - pattern: "$FIELD: str = pydantic.Field(..., min_length=$MIN, ...)"
+          - pattern: "$FIELD: str = pydantic.Field(..., max_length=$MAX, ...)"
+      - metavariable-regex:
+          metavariable: $FIELD
+          regex: '^(decision|action|review_decision|reviewDecision|status)$'
+      - pattern-not-inside: |
+          class $CLASS(...):
+            ...
+            $FIELD: Literal[...] = ...
+      - pattern-not-inside: |
+          class $CLASS(...):
+            ...
+            $FIELD: $ENUM = ...
+            ...
+            @field_validator("$FIELD")
+            def $VALIDATOR(...):
+              ...
+
+  - id: fin-bucket-direct-mutation-service
+    languages: [python]
+    severity: ERROR
+    message: >-
+      FATAL FIN-BUCKET-003: direct balance bucket mutation outside an approved atomic
+      repository/service boundary. Why dangerous: withdrawal approval can move money into
+      the wrong bucket or complete without matching pending funds. Agent fix: route this
+      through a named atomic bucket transition method, assert rowcount, and add expected vs
+      actual balance tests.
+    paths:
+      include:
+        - services/gateway/src/api/**/*.py
+        - services/gateway/src/services/**/*.py
+      exclude:
+        - services/gateway/src/services/provider/withdraw_execution_mixin.py
+        - services/gateway/src/services/provider/withdraw_helpers_mixin.py
+        - services/gateway/src/services/owner/finance_refund_exec_mixin.py
+        - services/gateway/src/services/owner/finance_service.py
+        - services/gateway/src/services/owner/forwarding_billing.py
+        - services/gateway/src/services/platform/tasks/deposit_indexer/processing.py
+    pattern-either:
+      - pattern: $OBJ.available_balance = $VALUE
+      - pattern: $OBJ.pending_balance = $VALUE
+      - pattern: $OBJ.frozen_balance = $VALUE
+      - pattern: $OBJ.available_balance += $VALUE
+      - pattern: $OBJ.pending_balance += $VALUE
+      - pattern: $OBJ.frozen_balance += $VALUE
+      - pattern: $OBJ.available_balance -= $VALUE
+      - pattern: $OBJ.pending_balance -= $VALUE
+      - pattern: $OBJ.frozen_balance -= $VALUE
+
+  - id: fin-admin-internal-token-required
+    languages: [python]
+    severity: ERROR
+    message: >-
+      FATAL FIN-AUTH-005: gateway-admin finance/withdraw adapter call is missing visible
+      internal-token evidence. Why dangerous: admin approval paths can bypass gateway
+      authorization or fail open during token drift. Agent fix: ensure the adapter injects
+      the configured internal service token and add invalid-token regression coverage.
+    paths:
+      include:
+        - services/gateway-admin/src/**/*withdraw*.py
+        - services/gateway-admin/src/**/*finance*.py
+    patterns:
+      - pattern-either:
+          - pattern: requests.post($URL, ...)
+          - pattern: requests.put($URL, ...)
+          - pattern: requests.patch($URL, ...)
+          - pattern: requests.delete($URL, ...)
+      - metavariable-regex:
+          metavariable: $URL
+          regex: '(withdraw|refund|complete|review)'
+      - pattern-not: requests.$METHOD(..., headers=$HEADERS, ...)
+      - pattern-not-inside: |
+          $HEADERS = ...
+          ...
+          requests.$METHOD(...)
+
+  - id: fin-deadlock-catch-inside-transaction
+    languages: [python]
+    severity: ERROR
+    message: >-
+      FATAL FIN-DEADLOCK-005: DeadlockDetected is caught inside an already-open
+      transaction. Why dangerous: Postgres aborts the transaction after 40P01, so retrying
+      one SQL statement inside that transaction is unsafe. Agent fix: move retry to the
+      whole transaction boundary with @retry_on_deadlock or with transaction_with_retry(...).
+    paths:
+      include:
+        - services/gateway/src/services/**/*.py
+        - services/gateway/src/storage/postgres/repositories/**/*.py
+        - services/gateway-admin/src/services/**/*.py
+        - services/gateway-admin/src/storage/**/*.py
+    patterns:
+      - pattern-either:
+          - pattern: |
+              with $DB.tx_cursor(...):
+                ...
+                try:
+                  ...
+                except DeadlockDetected:
+                  ...
+          - pattern: |
+              with $SESSION.begin(...):
+                ...
+                try:
+                  ...
+                except DeadlockDetected:
+                  ...
+          - pattern: |
+              with $UOW.transaction(...):
+                ...
+                try:
+                  ...
+                except DeadlockDetected:
+                  ...
+          - pattern: |
+              with $UOW.tx(...):
+                ...
+                try:
+                  ...
+                except DeadlockDetected:
+                  ...
+          - pattern: |
+              with $DB.tx_cursor(...) as $CUR:
+                ...
+                try:
+                  ...
+                except DeadlockDetected:
+                  ...
+          - pattern: |
+              with $SESSION.begin(...) as $TX:
+                ...
+                try:
+                  ...
+                except DeadlockDetected:
+                  ...
+          - pattern: |
+              with $UOW.transaction(...) as $TX:
+                ...
+                try:
+                  ...
+                except DeadlockDetected:
+                  ...
+          - pattern: |
+              with $UOW.tx(...) as $TX:
+                ...
+                try:
+                  ...
+                except DeadlockDetected:
+                  ...
+
+  - id: fin-deadlock-transaction-without-boundary-retry
+    languages: [python]
+    severity: ERROR
+    message: >-
+      FATAL FIN-DEADLOCK-004: finance service transaction has no visible deadlock retry
+      boundary. Why dangerous: Postgres 40P01 can turn valid money writes into random 500s
+      under backfill, balance reads, or withdrawal load. Agent fix: wrap the full transaction
+      unit with @retry_on_deadlock or with transaction_with_retry(...) before any irreversible
+      external side effect.
+    paths:
+      include:
+        - services/gateway/src/services/**/*withdraw*.py
+        - services/gateway/src/services/**/*refund*.py
+        - services/gateway/src/services/**/*finance*.py
+      exclude:
+        - services/gateway/src/services/balance_mixins/redis_guard_rate_limit.py
+    patterns:
+      - pattern-either:
+          - pattern: |
+              with $DB.tx_cursor(...):
+                ...
+          - pattern: |
+              with $DB.tx_cursor(...) as $CUR:
+                ...
+          - pattern: |
+              with $SESSION.begin(...):
+                ...
+          - pattern: |
+              with $SESSION.begin(...) as $TX:
+                ...
+          - pattern: |
+              with $UOW.transaction(...):
+                ...
+          - pattern: |
+              with $UOW.transaction(...) as $TX:
+                ...
+          - pattern: |
+              with $UOW.tx(...):
+                ...
+          - pattern: |
+              with $UOW.tx(...) as $TX:
+                ...
+      - pattern-not-inside: |
+          @retry_on_deadlock(...)
+          def $FUNC(...):
+            ...
+      - pattern-not-inside: |
+          @retry_on_deadlock
+          def $FUNC(...):
+            ...
+      - pattern-not-inside: |
+          with transaction_with_retry(...):
+            ...
+      - pattern-not-inside: |
+          with $TX.transaction_with_retry(...):
+            ...

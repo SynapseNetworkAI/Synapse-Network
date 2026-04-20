@@ -12,6 +12,11 @@
     "ci:frontend": "bash scripts/ci/frontend_checks.sh",
     "ci:gateway": "bash scripts/ci/gateway_checks.sh",
     "ci:gateway-stress-review": "bash scripts/ci/gateway_stress_review_checks.sh",
+    "ci:finance-approval-safety": "bash scripts/ci/finance_approval_safety_scan.sh && bash scripts/ci/finance_mypy_scan.sh && bash scripts/ci/local_runtime_guard_scan.sh && node scripts/ci/e2e_script_model_drift_scan.mjs",
+    "ci:finance-approval-e2e-evidence": "node scripts/ci/finance_approval_e2e_evidence_check.mjs",
+    "ci:financial-security": "bash scripts/ci/finance_approval_safety_scan.sh && bash scripts/ci/finance_mypy_scan.sh",
+    "ci:architecture-quality": "bash scripts/ci/code_quality_architecture_scan.sh",
+    "ci:agent-guardrails": "npm run ci:financial-security && npm run ci:architecture-quality && npm run ci:diff-coverage && bash scripts/ci/local_runtime_guard_scan.sh && node scripts/ci/e2e_script_model_drift_scan.mjs",
     "ci:performance-reliability": "bash scripts/ci/performance_reliability_checks.sh",
     "ci:pr": "bash scripts/ci/pr_checks.sh",
     "ci:provider-service": "bash scripts/ci/provider_service_checks.sh",
@@ -54,7 +59,8 @@
     "e2e:admin-analytics-10k:prepare": "node scripts/e2e/admin_analytics_10k_prepare_local.mjs",
     "e2e:admin-analytics-10k:reconcile": "node scripts/e2e/admin_analytics_10k_reconcile.mjs",
     "e2e:admin-analytics-10k:dogfood": "node scripts/ui/dogfood_admin_analytics_10k.mjs",
-    "e2e:admin-analytics-10k": "npm run e2e:admin-analytics-10k:fullchain && npm run e2e:admin-analytics-10k:reconcile && npm run e2e:admin-analytics-10k:dogfood"
+    "e2e:admin-analytics-10k": "npm run e2e:admin-analytics-10k:fullchain && npm run e2e:admin-analytics-10k:reconcile && npm run e2e:admin-analytics-10k:dogfood",
+    "ci:diff-coverage": "bash scripts/ci/diff_coverage_gate.sh"
   },
   "dependencies": {
     "@openzeppelin/contracts": "^5.0.2"

@@ -110,3 +110,14 @@ These are historical failure modes in this codebase. When reviewing financial co
 **Audit trail collapse**
 - Writing only the final result to the audit log and omitting the `before_amount`, `delta`, and `request_id`.
 - A ledger entry without `actor`, `owner`, `request_id`, `before`, `after`, `delta`, and `status` is not a ledger entry.
+
+## Provider Withdrawal Approval Hard Red Lines
+
+These rules come from real Provider withdrawal approval E2E failures. Treat them as release-blocking invariants and read `docs/architecture/Finance_Approval_Safety_Invariants.md` before editing these flows.
+
+- Do not return or accept `float` in withdrawal, refund, ledger, ticket, fee, or balance payloads. Use `Decimal` internally, string on the wire, and atomic integer on-chain.
+- Do not directly mutate `available_balance`, `frozen_balance`, or `pending_balance` outside an approved atomic bucket transition. Approval must move `frozen -> pending`; complete must consume `pending`.
+- Every deposit, withdrawal, refund, review, complete, and retry path must be idempotent. Duplicate approval, duplicate complete, replayed ticket, and tampered ticket must be rejected.
+- Finance transaction boundaries must handle PostgreSQL `DeadlockDetected` / `40P01` with bounded retry when safe. Retry the whole transaction via `@retry_on_deadlock(...)` or `with transaction_with_retry(...):`; do not catch `DeadlockDetected` inside an already-open transaction and continue issuing SQL.
+- Approval decisions must be explicit enums or literals. Never encode business actions with `min_length` / `max_length`.
+- Evidence for funds approval is DB/API/chain/UI reconciliation, not UI smoke. Run `npm run e2e:admin-withdrawal-approval` and `npm run ci:finance-approval-e2e-evidence` for release-sensitive changes.

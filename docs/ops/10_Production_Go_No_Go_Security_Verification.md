@@ -108,6 +108,14 @@ The release owner must attach evidence for every item below before requesting la
 9. Production configuration review: environment, contract addresses, RPC endpoints, CORS, JWT/TOTP/internal tokens, database TLS, least-privilege accounts, backup policy, and retention policy.
 10. Approval signatures from engineering, security, finance/ledger, and operations owners.
 
+Provider withdrawal approval evidence is mandatory for any release that includes funds approval or withdrawal-review changes:
+
+1. `npm run ci:finance-approval-safety`
+2. `npm run e2e:admin-withdrawal-approval`
+3. `npm run ci:finance-approval-e2e-evidence`
+
+The evidence report must contain the finance-sensitive tree hash, fixture hash, evidence digest, expected-vs-actual DB/API/chain/UI comparisons, and security checks for duplicate approval, cross decision, tampered ticket, replayed ticket, and duplicate complete.
+
 ## Hard Stop Rules
 
 Any item below is an automatic No-Go:
@@ -123,6 +131,7 @@ Any item below is an automatic No-Go:
 - Production monitoring or alerting has not been drill-tested.
 - Backup restore has not been drill-tested.
 - Load or concurrency tests produce overdraft, duplicate debit, duplicate credit, or unexplained balance drift.
+- Provider withdrawal approval evidence is missing, stale, hand-edited, or fails its finance-sensitive tree hash / digest validation.
 - Rollback, incident, or customer communication runbook is missing.
 - `ci:pr` or a required release evidence item fails.
 

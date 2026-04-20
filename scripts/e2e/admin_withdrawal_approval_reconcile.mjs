@@ -4,8 +4,9 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import crypto from "node:crypto";
 import { ethers } from "ethers";
+import { computeFinanceSensitiveTreeHash, sha256Json } from "../lib/finance_sensitive_hash.mjs";
+import { generateTotpCode } from "../lib/totp_window.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "../..");
@@ -28,6 +29,8 @@ const ADMIN_TOTP_SECRET = process.env.ADMIN_TOTP_SECRET || "JBSWY3DPEHPK3PXP";
 const POSTGRES_DSN = process.env.GATEWAY_POSTGRES_DSN
   || process.env.POSTGRES_DSN
   || "postgresql://synapse_gateway_app:local-dev-gateway-app-password@localhost:5432/synapse_gateway";
+// withdrawal status source: services/gateway provider withdrawal state machine and synapse_vault_withdrawals.status.
+// model-drift: intentional - DB reconciliation must query canonical ledger tables and provider_wallet account kind.
 
 const passed = [];
 const failed = [];
@@ -130,34 +133,6 @@ async function adminApi(pathname, auth, { method = "GET", body, expectOk = true,
     throw new Error(`Admin API failed ${method} ${pathname}: ${response.status} ${JSON.stringify(payload).slice(0, 800)}`);
   }
   return { response, payload };
-}
-
-function base32ToBuffer(secret) {
-  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
-  let bits = "";
-  for (const char of String(secret).replace(/=+$/g, "").replace(/\s+/g, "").toUpperCase()) {
-    const value = alphabet.indexOf(char);
-    if (value < 0) throw new Error(`Invalid base32 character in ADMIN_TOTP_SECRET: ${char}`);
-    bits += value.toString(2).padStart(5, "0");
-  }
-  const bytes = [];
-  for (let index = 0; index + 8 <= bits.length; index += 8) {
-    bytes.push(Number.parseInt(bits.slice(index, index + 8), 2));
-  }
-  return Buffer.from(bytes);
-}
-
-function generateTotpCode(secret, nowMs = Date.now()) {
-  const counter = Math.floor(nowMs / 1000 / 30);
-  const counterBuffer = Buffer.alloc(8);
-  counterBuffer.writeBigUInt64BE(BigInt(counter));
-  const digest = crypto.createHmac("sha1", base32ToBuffer(secret)).update(counterBuffer).digest();
-  const offset = digest[digest.length - 1] & 0x0f;
-  const binary = ((digest[offset] & 0x7f) << 24)
-    | ((digest[offset + 1] & 0xff) << 16)
-    | ((digest[offset + 2] & 0xff) << 8)
-    | (digest[offset + 3] & 0xff);
-  return String(binary % 1_000_000).padStart(6, "0");
 }
 
 async function getChainContext() {
@@ -408,10 +383,17 @@ function verifyDogfoodReport(report, fixture) {
 }
 
 function writeReport({ fixture, dogfoodReport, beforeClaimChain, afterClaimChain, beforeClaimDbBalance, afterClaimDbBalance, dbBeforeComplete, dbAfterComplete, chainResult }) {
+  const financeSensitive = computeFinanceSensitiveTreeHash(ROOT);
+  const fixtureHash = sha256Json(fixture);
   const status = failed.length === 0 && comparisons.every((row) => row.pass) && securityChecks.every((row) => row.pass) ? "success" : "failed";
   const report = {
     status,
     generatedAt: new Date().toISOString(),
+    scriptVersion: "admin-withdrawal-approval-e2e:v1",
+    gitCommitSha: spawnSync("git", ["rev-parse", "HEAD"], { cwd: ROOT, encoding: "utf8" }).stdout.trim(),
+    financeSensitiveTreeHash: financeSensitive.hash,
+    financeSensitiveFiles: financeSensitive.files,
+    fixtureHash,
     fixturePath: FIXTURE_PATH,
     dogfoodReportPath: DOGFOOD_REPORT_PATH,
     runId: fixture.runId,
@@ -434,6 +416,14 @@ function writeReport({ fixture, dogfoodReport, beforeClaimChain, afterClaimChain
     },
     screenshots: dogfoodReport.screenshots || [],
   };
+  report.evidenceDigest = sha256Json({
+    financeSensitiveTreeHash: report.financeSensitiveTreeHash,
+    fixtureHash: report.fixtureHash,
+    comparisons: report.comparisons,
+    securityChecks: report.securityChecks,
+    txHash: report.chain.txHash,
+    withdrawalId: report.withdrawalId,
+  });
   fs.mkdirSync(OUT_DIR, { recursive: true });
   fs.writeFileSync(path.join(OUT_DIR, "reconciliation-report.json"), `${JSON.stringify(report, null, 2)}\n`);
 
@@ -450,6 +440,10 @@ function writeReport({ fixture, dogfoodReport, beforeClaimChain, afterClaimChain
     `- Run ID: ${fixture.runId}`,
     `- Withdrawal ID: ${fixture.withdrawal.withdrawalId}`,
     `- Generated at: ${report.generatedAt}`,
+    `- Finance-sensitive tree hash: ${report.financeSensitiveTreeHash}`,
+    `- Fixture hash: ${report.fixtureHash}`,
+    `- Evidence digest: ${report.evidenceDigest}`,
+    `- Script version: ${report.scriptVersion}`,
     "",
     "## Expected vs Actual",
     "",

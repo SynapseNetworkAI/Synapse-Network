@@ -1,0 +1,65 @@
+rules:
+  - id: test-python-missing-assertion
+    languages:
+      - python
+    severity: ERROR
+    message: >-
+      FATAL TEST-ASSERT-001: Python test has no assertion or semantic verify
+      helper. Why dangerous: execution-only tests can satisfy coverage while
+      proving nothing. Agent fix: add assert, pytest.raises, mock.assert_*,
+      or call an assert_/expect_/verify_ helper that checks state.
+    paths:
+      include:
+        - "**/tests/**/*.py"
+        - "**/test_*.py"
+        - "**/*_test.py"
+    patterns:
+      - pattern-either:
+          - pattern: |
+              def $FUNC(...):
+                ...
+          - pattern: |
+              async def $FUNC(...):
+                ...
+      - metavariable-regex:
+          metavariable: $FUNC
+          regex: "^test_"
+      - pattern-not-regex: "\\bassert\\b|pytest\\.raises\\(|\\.assert_[A-Za-z0-9_]+\\(|\\b(assert|expect|verify)_[A-Za-z0-9_]+\\("
+
+  - id: test-js-missing-expect
+    languages:
+      - typescript
+      - javascript
+    severity: ERROR
+    message: >-
+      FATAL TEST-ASSERT-002: JS/TS test has no expect or semantic verify
+      helper. Why dangerous: execution-only tests can satisfy coverage while
+      proving nothing. Agent fix: add expect(...), await expect(...), or call
+      an assert*/expect*/verify* helper that checks state.
+    paths:
+      include:
+        - "**/*.test.ts"
+        - "**/*.test.tsx"
+        - "**/*.spec.ts"
+        - "**/*.spec.tsx"
+        - "**/*.test.js"
+        - "**/*.spec.js"
+    patterns:
+      - pattern-either:
+          - pattern: |
+              test($DESC, (...) => {
+                ...
+              })
+          - pattern: |
+              it($DESC, (...) => {
+                ...
+              })
+          - pattern: |
+              test($DESC, async (...) => {
+                ...
+              })
+          - pattern: |
+              it($DESC, async (...) => {
+                ...
+              })
+      - pattern-not-regex: "\\bexpect\\s*\\(|\\b(assert|expect|verify)[A-Z][A-Za-z0-9_]*\\s*\\("

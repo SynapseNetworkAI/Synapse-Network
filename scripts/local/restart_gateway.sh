@@ -62,6 +62,27 @@ wait_for_postgres_ready() {
   return 1
 }
 
+probe_synapse_postgres() {
+  dsn="$1"
+  if ! command -v psql >/dev/null 2>&1; then
+    echo "Error: psql is required to validate the Synapse Postgres role/schema."
+    return 1
+  fi
+
+  probe_result="$(psql "$dsn" -X -q -t -A -v ON_ERROR_STOP=1 \
+    -c "SELECT current_user || ':' || COALESCE(to_regclass('public.synapse_owner_accounts')::text, '')" 2>/dev/null || true)"
+  case "$probe_result" in
+    *:synapse_owner_accounts|*:public.synapse_owner_accounts)
+      return 0
+      ;;
+  esac
+
+  echo "Error: 127.0.0.1:5432 is not a usable Synapse gateway Postgres instance."
+  echo "Probe expected current_user plus public.synapse_owner_accounts; got '${probe_result:-empty}'."
+  echo "Tip: stop the conflicting Postgres process or start infra/docker/local/docker-compose.yml postgres."
+  return 1
+}
+
 ensure_local_postgres() {
   existing_postgres_pid="$(find_pid_by_port 5432)"
   if [ -n "$existing_postgres_pid" ]; then
@@ -178,9 +199,10 @@ if [[ -z "${POSTGRES_DSN:-}" && -f "$_LOCAL_ENV_FILE" ]]; then
   _dotenv_dsn="$(grep -m1 '^POSTGRES_DSN=' "$_LOCAL_ENV_FILE" | cut -d= -f2-)"
   LOCAL_POSTGRES_DSN="${_dotenv_dsn:-$DEFAULT_LOCAL_POSTGRES_DSN}"
 else
-  LOCAL_POSTGRES_DSN="${POSTGRES_DSN:-$DEFAULT_LOCAL_POSTGRES_DSN}"
+LOCAL_POSTGRES_DSN="${POSTGRES_DSN:-$DEFAULT_LOCAL_POSTGRES_DSN}"
 fi
 LOCAL_POSTGRES_DSN="$(printf '%s' "$LOCAL_POSTGRES_DSN" | sed 's/@postgres:/@127.0.0.1:/')"
+probe_synapse_postgres "$LOCAL_POSTGRES_DSN"
 
 cd "${ROOT_DIR}/services/gateway"
 
