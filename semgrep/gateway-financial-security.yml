@@ -1,0 +1,262 @@
+rules:
+  - id: fin-log-sensitive-secret-python
+    languages: [python]
+    severity: ERROR
+    message: >-
+      FATAL FIN-LOG-001: logger call appears to print secret-bearing data. Why dangerous:
+      tokens, private keys, cookies, sessions, and authorization headers must never reach
+      logs or screenshots. Agent fix: remove the sensitive value, log only request_id or a
+      redacted identifier, and add a regression check if this is an error path.
+    paths:
+      include:
+        - services/gateway/src/**/*.py
+        - services/gateway-admin/src/**/*.py
+        - scripts/**/*.py
+    patterns:
+      - pattern: $LOGGER.$METHOD(..., $ARG, ...)
+      - metavariable-regex:
+          metavariable: $METHOD
+          regex: '^(debug|info|warning|error|exception|critical)$'
+      - metavariable-regex:
+          metavariable: $ARG
+          regex: '(?i)(token|password|private[_-]?key|secret|authorization|session|cookie|wallet[_-]?key)'
+
+  - id: fin-log-money-or-signature-python
+    languages: [python]
+    severity: ERROR
+    message: >-
+      FATAL FIN-LOG-002: logger call appears to print money, ledger, ticket, wallet, or
+      signature data directly. Why dangerous: logs can leak financial positions or signing
+      material. Agent fix: use the redaction/short-address helper and log request_id,
+      withdrawal_id, event_id, or aggregate status only.
+    paths:
+      include:
+        - services/gateway/src/**/*.py
+        - services/gateway-admin/src/**/*.py
+    patterns:
+      - pattern: $LOGGER.$METHOD(..., $ARG, ...)
+      - metavariable-regex:
+          metavariable: $METHOD
+          regex: '^(debug|info|warning|error|exception|critical)$'
+      - metavariable-regex:
+          metavariable: $ARG
+          regex: '(?i)(balance|amount|fee|ledger|ticket|signature|wallet|tx_hash|txHash)'
+      - pattern-not: $LOGGER.$METHOD(..., redact(...), ...)
+      - pattern-not: $LOGGER.$METHOD(..., short_address(...), ...)
+
+  - id: fin-sql-fstring-execute
+    languages: [python]
+    severity: ERROR
+    message: >-
+      FATAL FIN-SQL-001: raw SQL execution uses an f-string. Why dangerous: f-string SQL
+      can become SQL injection or broken reconciliation under malicious input. Agent fix:
+      replace with parameterized placeholders and pass values through cursor/execute
+      parameters.
+    paths:
+      include:
+        - services/gateway/src/**/*.py
+        - services/gateway-admin/src/**/*.py
+        - scripts/**/*.py
+    pattern-either:
+      - pattern: $CUR.execute(f"...")
+      - pattern: $SESSION.execute(f"...")
+      - pattern: $DB.raw(f"...")
+
+  - id: fin-sql-string-concat-execute
+    languages: [python]
+    severity: ERROR
+    message: >-
+      FATAL FIN-SQL-001: raw SQL execution appears to concatenate a query string. Why
+      dangerous: string-built SQL can inject or misquote money identifiers. Agent fix:
+      use parameterized placeholders and pass values as parameters.
+    paths:
+      include:
+        - services/gateway/src/**/*.py
+        - services/gateway-admin/src/**/*.py
+        - scripts/**/*.py
+    pattern-either:
+      - pattern: $CUR.execute("..." + $VALUE)
+      - pattern: $CUR.execute($VALUE + "...")
+      - pattern: $SESSION.execute("..." + $VALUE)
+      - pattern: $SESSION.execute($VALUE + "...")
+      - pattern: $DB.raw("..." + $VALUE)
+      - pattern: $DB.raw($VALUE + "...")
+
+  - id: fin-money-decimal-from-float-literal
+    languages: [generic]
+    severity: ERROR
+    message: >-
+      FATAL FIN-MONEY-002: Decimal is constructed from a float literal. Why dangerous:
+      Decimal(0.1) preserves binary float drift. Agent fix: use Decimal("0.1") or parse
+      a validated money string through the canonical money helper.
+    paths:
+      include:
+        - services/gateway/src/**/*finance*.py
+        - services/gateway/src/**/*withdraw*.py
+        - services/gateway/src/**/*refund*.py
+        - services/gateway/src/**/*balance*.py
+        - services/gateway/src/**/*ledger*.py
+        - services/gateway-admin/src/**/*finance*.py
+        - services/gateway-admin/src/**/*withdraw*.py
+    pattern-regex: 'Decimal\(\s*[0-9]+\.[0-9]+\s*\)'
+
+  - id: fin-money-decimal-from-float-string
+    languages: [python]
+    severity: ERROR
+    message: >-
+      FATAL FIN-MONEY-002: Decimal is constructed from str(float(...)). Why dangerous:
+      converting after float parsing already lost the exact value. Agent fix: accept money
+      as string/int/Decimal at the boundary and reject float input.
+    paths:
+      include:
+        - services/gateway/src/**/*finance*.py
+        - services/gateway/src/**/*withdraw*.py
+        - services/gateway/src/**/*refund*.py
+        - services/gateway/src/**/*balance*.py
+        - services/gateway/src/**/*ledger*.py
+        - services/gateway-admin/src/**/*finance*.py
+        - services/gateway-admin/src/**/*withdraw*.py
+    pattern: Decimal(str(float($X)))
+
+  - id: fin-round-quantize-missing-rounding
+    languages: [python]
+    severity: ERROR
+    message: >-
+      FATAL FIN-ROUND-001: Decimal.quantize is missing an explicit rounding mode in a
+      finance-sensitive path. Why dangerous: implicit rounding hides fee/provider-net drift.
+      Agent fix: route through the canonical money helper or pass the approved rounding
+      mode explicitly.
+    paths:
+      include:
+        - services/gateway/src/**/*finance*.py
+        - services/gateway/src/**/*withdraw*.py
+        - services/gateway/src/**/*refund*.py
+        - services/gateway/src/**/*balance*.py
+        - services/gateway/src/**/*ledger*.py
+    patterns:
+      - pattern: $AMOUNT.quantize(...)
+      - pattern-not: $AMOUNT.quantize(..., rounding=$ROUNDING, ...)
+
+  - id: fin-round-half-up-split
+    languages: [python]
+    severity: ERROR
+    message: >-
+      FATAL FIN-ROUND-001: ROUND_HALF_UP appears in a split/fee/provider-net path. Why
+      dangerous: half-up can create pool drift across many payouts. Agent fix: use the
+      project money helper or approved ROUND_DOWN policy for split amounts.
+    paths:
+      include:
+        - services/gateway/src/**/*finance*.py
+        - services/gateway/src/**/*withdraw*.py
+        - services/gateway/src/**/*ledger*.py
+    patterns:
+      - pattern: $AMOUNT.quantize(..., rounding=ROUND_HALF_UP, ...)
+      - metavariable-regex:
+          metavariable: $AMOUNT
+          regex: '(?i)(provider|platform|fee|split|settlement|payout|withdraw|net)'
+
+  - id: fin-secret-hardcoded-token
+    languages: [generic]
+    severity: ERROR
+    message: >-
+      FATAL FIN-SECRET-001: hardcoded secret-like token detected. Why dangerous: committed
+      keys, JWT secrets, TOTP seeds, or API keys can compromise funds and admin actions.
+      Agent fix: replace with environment injection or an ignored local example placeholder.
+    paths:
+      include:
+        - services/gateway/src/**/*.py
+        - services/gateway-admin/src/**/*.py
+        - scripts/ci/**/*.mjs
+        - scripts/ci/**/*.py
+      exclude:
+        - services/user-front/src/contract-config.json
+        - services/user-front/src/**/*ABI.json
+    pattern-regex: >-
+      (sk-[A-Za-z0-9_-]{20,}|PRIVATE_KEY\s*=\s*["'][^"']+|JWT_SECRET\s*=\s*["'][^"']+|TOTP_SECRET\s*=\s*["'][^"']+|0x[a-fA-F0-9]{64})
+
+  - id: fin-transaction-external-io
+    languages: [python]
+    severity: ERROR
+    message: >-
+      FATAL FIN-TX-001: external IO appears inside a DB transaction block. Why dangerous:
+      wait-in-transaction can hold money locks while RPC/HTTP/Kafka stalls. Agent fix:
+      fetch external data before opening the transaction, then do a short atomic write.
+    paths:
+      include:
+        - services/gateway/src/**/*.py
+        - services/gateway-admin/src/**/*.py
+    patterns:
+      - pattern-either:
+          - pattern: requests.$CALL(...)
+          - pattern: httpx.$CALL(...)
+          - pattern: Web3.HTTPProvider(...)
+          - pattern: $PRODUCER.send(...)
+          - pattern: $PRODUCER.send_and_wait(...)
+          - pattern: KafkaProducer(...)
+      - pattern-either:
+          - pattern-inside: |
+              with $DB.tx_cursor(...):
+                ...
+          - pattern-inside: |
+              with $SESSION.begin(...):
+                ...
+          - pattern-inside: |
+              with $UOW.tx(...):
+                ...
+          - pattern-inside: |
+              with $UOW.transaction(...):
+                ...
+
+  - id: fin-auth-secret-plain-compare
+    languages: [python]
+    severity: ERROR
+    message: >-
+      FATAL FIN-AUTH-001: secret or token appears to be compared with plain equality. Why
+      dangerous: auth decisions should use constant-time comparison helpers. Agent fix:
+      use hmac.compare_digest or the existing internal-token verification helper.
+    paths:
+      include:
+        - services/gateway/src/**/*.py
+        - services/gateway-admin/src/**/*.py
+    patterns:
+      - pattern-either:
+          - pattern: $LEFT == $RIGHT
+          - pattern: $LEFT != $RIGHT
+      - metavariable-regex:
+          metavariable: $LEFT
+          regex: '(?i)(token|secret|signature|authorization|internal_token)'
+
+  - id: fin-error-sensitive-response
+    languages: [python]
+    severity: ERROR
+    message: >-
+      FATAL FIN-ERROR-001: external error response appears to expose sensitive internals.
+      Why dangerous: stack traces, SQL, tokens, and private keys can leak through API
+      responses. Agent fix: return a stable error code/message and log sanitized internal
+      detail only.
+    paths:
+      include:
+        - services/gateway/src/**/*.py
+        - services/gateway-admin/src/**/*.py
+    patterns:
+      - pattern-either:
+          - pattern: HTTPException(..., detail=$DETAIL, ...)
+          - pattern: JSONResponse(..., content=$DETAIL, ...)
+          - pattern: ApiResponse(..., message=$DETAIL, ...)
+      - metavariable-regex:
+          metavariable: $DETAIL
+          regex: '(?i)(traceback|stack|sql|Authorization|private[_-]?key|secret)'
+
+  - id: fin-random-security-sensitive
+    languages: [generic]
+    severity: ERROR
+    message: >-
+      FATAL FIN-RANDOM-001: random module used for nonce, ticket, idempotency, or secret.
+      Why dangerous: predictable identifiers can break replay protection. Agent fix: use
+      secrets.token_urlsafe/token_hex or a crypto-safe helper.
+    paths:
+      include:
+        - services/gateway/src/**/*.py
+        - services/gateway-admin/src/**/*.py
+        - scripts/**/*.py
+    pattern-regex: 'random\.(random|randint|choice|choices|randrange|sample)\([^)\n]*(nonce|ticket|idempotency|secret|token|signature|password|key)'

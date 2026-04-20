@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 
-import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
+import { generateTotpCode, waitForSafeTotpWindow } from "../lib/totp_window.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "../..");
@@ -12,6 +12,7 @@ const ADMIN_FRONT_URL = (process.env.ADMIN_FRONT_URL || "http://localhost:4000")
 const ADMIN_GATEWAY_URL = (process.env.ADMIN_GATEWAY_URL || "http://localhost:8300").replace(/\/+$/, "");
 const ADMIN_COOKIE_NAME = process.env.ADMIN_SESSION_COOKIE_NAME || "synapse_admin_session";
 const ADMIN_TOTP_SECRET = process.env.ADMIN_TOTP_SECRET || "JBSWY3DPEHPK3PXP";
+// withdrawal status source: services/gateway provider withdrawal state machine and gateway-admin review projection.
 const FIXTURE_PATH = process.env.ADMIN_WITHDRAWAL_APPROVAL_FIXTURE
   ? path.resolve(process.env.ADMIN_WITHDRAWAL_APPROVAL_FIXTURE)
   : path.join(ROOT, "tmp/admin-withdrawal-approval/fixture.json");
@@ -54,49 +55,6 @@ async function step(name, fn) {
   } catch (error) {
     fail(name, error instanceof Error ? error.message : String(error));
   }
-}
-
-function base32ToBuffer(secret) {
-  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
-  let bits = "";
-  for (const char of String(secret).replace(/=+$/g, "").replace(/\s+/g, "").toUpperCase()) {
-    const value = alphabet.indexOf(char);
-    if (value < 0) throw new Error(`Invalid base32 character in ADMIN_TOTP_SECRET: ${char}`);
-    bits += value.toString(2).padStart(5, "0");
-  }
-  const bytes = [];
-  for (let index = 0; index + 8 <= bits.length; index += 8) {
-    bytes.push(Number.parseInt(bits.slice(index, index + 8), 2));
-  }
-  return Buffer.from(bytes);
-}
-
-function generateTotpCode(secret, nowMs = Date.now()) {
-  const counter = Math.floor(nowMs / 1000 / 30);
-  const counterBuffer = Buffer.alloc(8);
-  counterBuffer.writeBigUInt64BE(BigInt(counter));
-  const digest = crypto.createHmac("sha1", base32ToBuffer(secret)).update(counterBuffer).digest();
-  const offset = digest[digest.length - 1] & 0x0f;
-  const binary = ((digest[offset] & 0x7f) << 24)
-    | ((digest[offset + 1] & 0xff) << 16)
-    | ((digest[offset + 2] & 0xff) << 8)
-    | (digest[offset + 3] & 0xff);
-  return String(binary % 1_000_000).padStart(6, "0");
-}
-
-function getTotpRemainingSeconds(nowMs = Date.now()) {
-  const elapsed = Math.floor(nowMs / 1000) % 30;
-  return 30 - elapsed;
-}
-
-async function waitForFreshTotpWindow(page) {
-  let remaining = getTotpRemainingSeconds();
-  if (remaining > 7) {
-    return remaining;
-  }
-  await page.waitForTimeout((remaining + 1) * 1000);
-  remaining = getTotpRemainingSeconds();
-  return remaining;
 }
 
 async function screenshot(page, name) {
@@ -198,7 +156,10 @@ async function maybeSubmitStepUp(page) {
     return false;
   }
   await screenshot(page, "03-step-up-verification");
-  await waitForFreshTotpWindow(page);
+  await waitForSafeTotpWindow({
+    guardSeconds: 10,
+    sleep: (ms) => page.waitForTimeout(ms),
+  });
   await page.locator('input[placeholder="123456"]').fill(generateTotpCode(ADMIN_TOTP_SECRET));
   const confirmButton = page.getByRole("button", { name: /确认放行|确认|Approve|Submit/ }).last();
   await confirmButton.waitFor({ state: "visible", timeout: 10000 });

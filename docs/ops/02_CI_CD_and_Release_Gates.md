@@ -70,6 +70,8 @@ PR 阻断流水线至少要检查：
 5. `provider_service`: 创建 `provider_service/.venv`，安装目录依赖，再跑 pytest
 6. `sdk/python`: 创建 `sdk/python/.venv`，安装 editable 依赖，再跑 pytest unit tests + `python -m build`，联调 demo 保持 opt-in
 7. root contracts: hardhat compile，若存在 root `test/` 用例则继续执行 hardhat test
+8. finance approval fast gates: Semgrep 资金审批规则、local runtime DB 探针门禁、withdrawal E2E 脚本模型漂移扫描
+9. Agent architecture gates: Ruff/Radon/JSCPD changed-file gate，防止新增复杂函数和复制粘贴业务逻辑
 
 本地 hook 与 GitHub PR CI 必须共享同一个聚合入口 `scripts/ci/pr_checks.sh`，避免“本地过了、远端挂了”或“本地没拦住、远端才发现”的漂移。
 
@@ -96,6 +98,42 @@ PR 阻断流水线至少要检查：
 这条线的定位是：
 
 **任何资金安全回归，都不能进入主干。**
+
+Provider 提现审批是资金审批 release gate。任何改动触及 Gateway finance/withdraw/refund/balance/ledger、Gateway-admin withdrawal review/finance approval、admin-front withdrawal review 页面、合约 withdrawal 逻辑、或对应 E2E 脚本时，必须满足：
+
+1. `npm run ci:finance-approval-safety`
+2. `npm run e2e:admin-withdrawal-approval`
+3. `npm run ci:finance-approval-e2e-evidence`
+
+E2E evidence 使用资金敏感目录 hash，而不是只绑定全局 commit SHA。无关 README/docs 小改不会强迫重跑；资金敏感路径变化会让旧证据自动失效。
+
+### 4.2.1 Agent Architecture Quality Gate
+
+Agent 生成代码必须通过结构门禁，不能靠堆代码、复制粘贴或日志泄露换取功能测试通过。
+
+1. `npm run ci:financial-security` 运行金融安全 Semgrep 规则和 finance-only mypy 数据流门禁。
+2. `npm run ci:architecture-quality` 通过 `uvx`-first runner 运行 Ruff、Radon、JSCPD 和 repo-local finance shape scan。
+3. `npm run ci:diff-coverage` 运行增量覆盖率门禁，只检查 changed lines，finance-sensitive 路径使用更高阈值。
+4. `npm run ci:agent-guardrails` 聚合安全、复杂度、查重、增量覆盖率、runtime guard 和模型漂移扫描。
+
+第一期默认检查 changed files，避免历史复杂代码一次性阻塞全仓；但 finance-sensitive changed files 必须严格通过。
+Python guardrail 工具不使用业务 service venv；缺少 `uvx` 且 PATH 上没有对应工具时，门禁 fail closed 并提示安装 `uv`。
+
+增量覆盖率门禁统一读取 Cobertura XML：
+
+1. Python `pytest-cov` 输出 `coverage.xml`。
+2. Admin-front Vitest 输出 `services/admin-front/coverage/cobertura-coverage.xml`。
+3. User-front Vitest 输出 `services/user-front/coverage/cobertura-coverage.xml`。
+
+Diff-based gates require base branch history. GitHub Actions must avoid shallow checkout:
+
+```yaml
+- uses: actions/checkout@v4
+  with:
+    fetch-depth: 0
+```
+
+If CI cannot resolve `origin/main...HEAD`, the gate must fail closed and instruct the workflow owner to fetch base history. It must not silently skip coverage.
 
 ### 4.3 Build Release Images
 

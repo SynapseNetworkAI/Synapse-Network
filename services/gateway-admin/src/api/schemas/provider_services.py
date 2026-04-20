@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -52,7 +52,7 @@ class ProviderServiceListResponse(BaseModel):
 
 
 class ProviderServiceActionRequest(BaseModel):
-    action: str = Field(..., min_length=1, max_length=32)
+    action: Literal["PAUSE", "RESUME", "SUSPEND"]
     note: str | None = Field(default=None, max_length=500)
 
 

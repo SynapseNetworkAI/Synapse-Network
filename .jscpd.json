@@ -1,0 +1,21 @@
+{
+  "threshold": 3,
+  "minLines": 15,
+  "minTokens": 50,
+  "reporters": ["console"],
+  "formats": ["python", "typescript", "javascript", "sql"],
+  "ignore": [
+    "**/node_modules/**",
+    "**/.venv/**",
+    "**/venv/**",
+    "**/.next/**",
+    "**/output/**",
+    "**/tmp/**",
+    "**/dist/**",
+    "**/build/**",
+    "**/*ABI.json",
+    "**/contract-config.json",
+    "**/*.generated.*",
+    "**/generated/**"
+  ]
+}
