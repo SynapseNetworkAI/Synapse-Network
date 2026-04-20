@@ -30,6 +30,7 @@ from src.services.platform.tasks.consumer_withdraw_processor import (
 from src.services.platform.service_health_service import run_service_health_monitor
 from src.services.analytics.emitter import create_analytics_emitter
 from src.services.analytics import gateway_events as gw_analytics
+from src.services.owner.forwarding_upstream import close_upstream_http_client
 from src.api.routers.events import router as events_router
 
 setup_logger()
@@ -157,6 +158,8 @@ async def lifespan(app: FastAPI):
         fallback_file=settings.analytics_fallback_file,
         environment=settings.environment,
         strict_kafka=settings.analytics_strict_kafka,
+        transport=settings.analytics_transport,
+        storage=app.state.storage,
     )
     gw_analytics.set_emitter(app.state.analytics)
 
@@ -244,6 +247,7 @@ async def lifespan(app: FastAPI):
     # Cleanup analytics
     if hasattr(app.state, "analytics"):
         await app.state.analytics._backend.close()
+    await close_upstream_http_client()
 
 
 def create_app() -> FastAPI:

@@ -15,6 +15,7 @@ from .postgres.schema_contracts import (
     TableSchemaContract,
 )
 from .postgres.repositories.audit_log_repository import AuditLogRepository
+from .postgres.repositories.analytics_outbox_repository import AnalyticsOutboxRepository
 from .postgres.repositories.balance_repository import BalanceRepository
 from .postgres.repositories.credential_auth_repository import CredentialAuthRepository
 from .postgres.repositories.deposit_attempt_repository import DepositAttemptRepository
@@ -118,6 +119,7 @@ class PostgresStorage(BaseStorage):
         execution = ExecutionRepository(self._db)
         credential_auth = CredentialAuthRepository(self._db, q6)
         gateway_state = GatewayStateRepository(self._db, q6)
+        analytics_outbox = AnalyticsOutboxRepository(self._db)
         deposit_attempts = DepositAttemptRepository(self._db, q6)
         finance_atomic = FinanceAtomicRepository(
             self._db,
@@ -128,6 +130,7 @@ class PostgresStorage(BaseStorage):
             _RISK_RESTRICTED_SESSION_STATUSES,
         )
         self._deposit_attempts = deposit_attempts
+        self.analytics_outbox = analytics_outbox
         self._data_manager = SynapseDataManager(
             uow=SynapseUnitOfWork(db=self._db),
             finance=FinanceDomain(
@@ -258,6 +261,35 @@ class PostgresStorage(BaseStorage):
 
     def get_data_manager(self) -> SynapseDataManager:
         return self._data_manager
+
+    def enqueue_analytics_outbox_event(self, event: dict[str, Any]) -> None:
+        self.analytics_outbox.enqueue_event(event)
+
+    def claim_analytics_outbox_batch(self, batch_size: int):
+        return self.analytics_outbox.claim_batch(batch_size)
+
+    def delete_sent_analytics_outbox_rows(self, lease_id: str, row_ids: list[int]) -> None:
+        self.analytics_outbox.delete_sent(lease_id, row_ids)
+
+    def mark_analytics_outbox_retry(
+        self,
+        lease_id: str,
+        row: Any,
+        *,
+        error: str,
+        max_attempts: int,
+        retry_base_sec: int,
+    ) -> None:
+        self.analytics_outbox.mark_retry(
+            lease_id,
+            row,
+            error=error,
+            max_attempts=max_attempts,
+            retry_base_sec=retry_base_sec,
+        )
+
+    def read_analytics_outbox_stats(self) -> dict[str, int | str | None]:
+        return self.analytics_outbox.stats()
 
     def process_withdrawal_request_atomic(
         self,

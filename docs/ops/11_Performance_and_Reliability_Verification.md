@@ -172,6 +172,9 @@ Required scenarios:
 3. Provider health probes with mixed healthy, degraded, unhealthy, slow-lane, inactive, suspended, and deleted services.
 4. Admin analytics overview, risk-health, money-flow, provider-revenue, finance overview, reconciliation, and provider-services pages.
 5. High-concurrency money boundary tests: low balance, repeated idempotency key, duplicate request id, multiple agents for one owner, provider timeout, and database lock contention.
+6. Transactional outbox pressure: backlog growth, oldest pending age, dead-letter count, worker drain rate, and successful-row deletion.
+7. Multi-worker outbox consumption: at least three workers consume with `FOR UPDATE SKIP LOCKED` and no duplicate `event_id` delivery.
+8. HTTP provider client pool saturation: `httpx.PoolTimeout` returns `SERVICE_BUSY`, does not charge the consumer, and emits Gateway capacity metrics.
 
 Minimum report fields:
 
@@ -179,9 +182,10 @@ Minimum report fields:
 2. traffic model, duration, concurrency, and ramp profile
 3. p50/p95/p99 latency per endpoint
 4. success rate, timeout rate, 4xx/5xx/error-code distribution
-5. DB pool usage, lock wait, deadlock, queue lag, ClickHouse/Kafka lag, RPC latency
+5. DB pool usage, lock wait, deadlock, outbox backlog, queue lag, ClickHouse/Kafka lag, RPC latency
 6. ledger/vault reconciliation before and after the run
 7. incident or bugfix links for every failed threshold
+8. provider HTTP pool wait and saturation metrics
 
 Default staging thresholds:
 
@@ -194,6 +198,11 @@ Default staging thresholds:
 | Finance mutation error rate | `0 unexpected 5xx` |
 | Provider health monitor | No unbounded queue growth; checked/scheduled stats stay explainable by jitter and slow lane |
 | Ledger/vault reconciliation | `0` unexplained delta |
+| Analytics outbox | No unbounded backlog; successful rows deleted; oldest pending age explained |
+| Outbox worker concurrency | `0` duplicate event ids under 3-worker `FOR UPDATE SKIP LOCKED` drain |
+| HTTP client pool | Pool saturation returns `SERVICE_BUSY` before charge and is separately observable |
+
+Gateway production performance implementation rules live in [Gateway_Production_Performance_Stability_Optimization.md](../projects/gateway/Gateway_Production_Performance_Stability_Optimization.md).
 
 ## Chaos Drill Plan
 

@@ -212,5 +212,5 @@ class FinanceAtomicVoucherMixin:
 
             conn.commit()
         return ConsumerChargeResult(
-            consumerAvailableBalanceAfter=float(consumer_after)
+            consumerAvailableBalanceAfter=consumer_after
         )

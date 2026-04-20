@@ -381,6 +381,25 @@ CREATE TABLE IF NOT EXISTS synapse_audit_events (
     CHECK (jsonb_typeof(detail_json) = 'object')
 );
 
+CREATE TABLE IF NOT EXISTS synapse_analytics_outbox (
+    row_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    event_id TEXT NOT NULL UNIQUE,
+    event_name TEXT NOT NULL,
+    event_key TEXT NOT NULL,
+    payload JSONB NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    attempt_count INTEGER NOT NULL DEFAULT 0,
+    next_attempt_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    last_error TEXT,
+    lease_id TEXT,
+    leased_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (status IN ('pending', 'retry', 'leased', 'dead_letter')),
+    CHECK (jsonb_typeof(payload) = 'object'),
+    CHECK (attempt_count >= 0)
+);
+
 CREATE TABLE IF NOT EXISTS synapse_idempotency_keys (
     row_id BIGINT GENERATED ALWAYS AS IDENTITY UNIQUE,
     id TEXT PRIMARY KEY,
@@ -792,6 +811,13 @@ ON synapse_audit_events (owner_id, created_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_synapse_audit_events_provider_created
 ON synapse_audit_events (provider_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_analytics_outbox_claim
+ON synapse_analytics_outbox (status, next_attempt_at, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_analytics_outbox_dead_letter
+ON synapse_analytics_outbox (created_at DESC)
+WHERE status = 'dead_letter';
 
 CREATE INDEX IF NOT EXISTS idx_synapse_idempotency_keys_expires
 ON synapse_idempotency_keys (expires_at);

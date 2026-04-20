@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import logging
+import asyncio
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -177,6 +178,22 @@ class FileBackend(AnalyticsBackend):
         pass
 
 
+class PostgresOutboxBackend(AnalyticsBackend):
+    """Persists analytics events to Postgres for asynchronous Kafka delivery."""
+
+    def __init__(self, storage: object):
+        self._storage = storage
+
+    async def send(self, event: AnalyticsEvent) -> None:
+        enqueue = getattr(self._storage, "enqueue_analytics_outbox_event", None)
+        if enqueue is None:
+            raise RuntimeError("Storage does not support analytics outbox")
+        await asyncio.to_thread(enqueue, event.to_dict())
+
+    async def close(self) -> None:
+        pass
+
+
 class DualBackend(AnalyticsBackend):
     """Writes to Kafka primary, falls back to file on Kafka failure."""
 
@@ -204,6 +221,8 @@ def create_analytics_emitter(
     fallback_file: str = "logs/analytics_events.jsonl",
     environment: str = "local",
     strict_kafka: bool = False,
+    transport: str = "direct",
+    storage: object | None = None,
 ) -> AnalyticsEmitter:
     """Factory for analytics transport.
 
@@ -211,7 +230,13 @@ def create_analytics_emitter(
     Kafka with file fallback. Strict dogfood runs can force Kafka-only delivery
     even in local mode so Kafka -> ClickHouse is the only acceptable evidence.
     """
-    if strict_kafka:
+    normalized_transport = str(transport or "direct").strip().lower()
+    if normalized_transport == "outbox":
+        if storage is None:
+            raise ValueError("ANALYTICS_TRANSPORT=outbox requires storage")
+        backend = PostgresOutboxBackend(storage=storage)
+        logger.info("Analytics: Postgres transactional outbox")
+    elif strict_kafka:
         if not kafka_bootstrap_servers:
             raise ValueError("ANALYTICS_STRICT_KAFKA requires ANALYTICS_KAFKA_BOOTSTRAP_SERVERS")
         kafka = KafkaBackend(
