@@ -203,9 +203,24 @@ def create_analytics_emitter(
     kafka_topic: str = "synapse.analytics.events",
     fallback_file: str = "logs/analytics_events.jsonl",
     environment: str = "local",
+    strict_kafka: bool = False,
 ) -> AnalyticsEmitter:
-    """Factory: FileBackend for local/test, DualBackend for staging/prod."""
-    if environment in ("staging", "prod") and kafka_bootstrap_servers:
+    """Factory for analytics transport.
+
+    Local development defaults to the file backend. Production-like profiles use
+    Kafka with file fallback. Strict dogfood runs can force Kafka-only delivery
+    even in local mode so Kafka -> ClickHouse is the only acceptable evidence.
+    """
+    if strict_kafka:
+        if not kafka_bootstrap_servers:
+            raise ValueError("ANALYTICS_STRICT_KAFKA requires ANALYTICS_KAFKA_BOOTSTRAP_SERVERS")
+        kafka = KafkaBackend(
+            bootstrap_servers=kafka_bootstrap_servers,
+            topic=kafka_topic,
+        )
+        backend = kafka
+        logger.info("Analytics: Strict Kafka (%s)", kafka_bootstrap_servers)
+    elif environment in ("staging", "prod") and kafka_bootstrap_servers:
         kafka = KafkaBackend(
             bootstrap_servers=kafka_bootstrap_servers,
             topic=kafka_topic,

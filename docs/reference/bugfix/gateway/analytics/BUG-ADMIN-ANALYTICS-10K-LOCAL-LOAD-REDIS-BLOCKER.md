@@ -1,7 +1,7 @@
 ---
 id: bug-admin-analytics-10k-local-load-redis-blocker
-title: Admin Analytics 10k local load is throttled by downstream adaptive concurrency when Redis is unavailable
-status: open
+title: Admin Analytics 10k strict local load needs Redis, Kafka, ClickHouse, and Gateway strict Kafka mode
+status: fixed
 created_at: 2026-04-20
 updated_at: 2026-04-20
 owner: gateway
@@ -11,11 +11,12 @@ owner: gateway
 
 ## Reproduction
 
-Run the 10,000-call Admin Analytics load dogfood against the local Gateway profile without Redis:
+Run the 10,000-call Admin Analytics load dogfood against the local Gateway profile without the strict local dependency preparation:
 
 ```bash
-redis-cli ping
+npm run e2e:admin-analytics-10k:prepare
 
+ADMIN_ANALYTICS_STRICT_REAL_PIPELINE=1 \
 ADMIN_ANALYTICS_LOAD_TOTAL=10000 \
 ADMIN_ANALYTICS_LOAD_CONCURRENCY=12 \
 ADMIN_ANALYTICS_LOAD_PER_SERVICE_CONCURRENCY=4 \
@@ -25,62 +26,86 @@ ANALYTICS_CLICKHOUSE_URL=http://127.0.0.1:8123 \
 npm run e2e:admin-analytics-10k:fullchain
 ```
 
-The local Redis probe returned connection refused, and the load run produced repeated `SERVICE_BUSY` responses from `/api/v1/agent/invoke`. Lowering per-service concurrency to `1` avoids most busy responses, but makes the 10,000-call run too slow for normal local dogfood.
+Before the strict prepare path existed, local Redis was not guaranteed to be running, Gateway did not start with `REDIS_URL`, and local Gateway Analytics started in file-only mode even when Kafka/ClickHouse existed. The old 30-call smoke imported local fallback-file events into ClickHouse, which is no longer acceptable for the 10k gate.
 
 ## Root Cause
 
-The Gateway downstream adaptive concurrency guard is correctly protecting provider targets before billing. In this local environment Redis is not available, so the guard falls back to a conservative local limiter. With three services and local provider health/runtime churn, the 10k load generator can outpace available downstream permits and receives `SERVICE_BUSY`.
+The Gateway downstream adaptive concurrency guard correctly protects provider targets before billing. The 10k dogfood profile also needs the full analytics transport chain:
 
-This is not an Analytics aggregation correctness failure. A smaller 30-call fullchain run completed successfully, imported real Gateway-emitted local analytics fallback events into ClickHouse, and reconciled ClickHouse, gateway-admin API, and admin-front UI.
+- Redis must be available so the local load profile exercises the intended distributed limiter path.
+- Gateway must run with `ANALYTICS_STRICT_KAFKA=1`, otherwise local mode uses file-only analytics.
+- Kafka and ClickHouse must be reachable, and ClickHouse must consume `synapse.analytics.events` through `synapse_analytics.events_kafka`.
+- The 10k scripts must not import fallback-file rows or insert direct ClickHouse fixture rows.
 
-## Current Verification
+This is not an Analytics aggregation correctness failure. It is a local dogfood environment and transport-mode blocker.
 
-The 30-call smoke run completed:
+## Fix
+
+Added a strict local preparation path for the 10k Analytics dogfood:
+
+- `npm run e2e:admin-analytics-10k:prepare` starts Redis, Kafka, and ClickHouse from `infra/docker/local/docker-compose.yml`.
+- The prepare script verifies Redis `PONG`, Kafka topic access, ClickHouse `synapse_analytics.events / events_kafka / events_kafka_mv`, and Gateway `/health`.
+- Gateway is restarted with `REDIS_URL=redis://127.0.0.1:6379/0`, `ANALYTICS_KAFKA_BOOTSTRAP_SERVERS=localhost:9092`, and `ANALYTICS_STRICT_KAFKA=1`.
+- `admin_analytics_10k_fullchain.mjs` now runs this prepare step by default in local strict mode.
+- Strict mode forbids fallback-file imports and direct ClickHouse fixture inserts. All Analytics data must flow Gateway -> Kafka -> ClickHouse.
+
+## Final Verification
+
+Strict 10,000-call fullchain:
 
 ```bash
-ADMIN_ANALYTICS_LOAD_TOTAL=30 \
-ADMIN_ANALYTICS_LOAD_CONCURRENCY=12 \
+ADMIN_ANALYTICS_STRICT_REAL_PIPELINE=1 \
+ADMIN_ANALYTICS_LOAD_PREPARE_LOCAL=1 \
+ADMIN_ANALYTICS_LOAD_TOTAL=10000 \
+ADMIN_ANALYTICS_LOAD_CONCURRENCY=32 \
 ADMIN_ANALYTICS_LOAD_PER_SERVICE_CONCURRENCY=4 \
-ADMIN_ANALYTICS_LOAD_FORCE_PROBE_KEEPALIVE_SEC=15 \
-ADMIN_ANALYTICS_LOAD_BUSY_RETRIES=40 \
+ADMIN_ANALYTICS_LOAD_FORCE_PROBE_KEEPALIVE_SEC=45 \
+ADMIN_ANALYTICS_LOAD_BUSY_RETRIES=120 \
+ADMIN_ANALYTICS_LOAD_TIMEOUT_MS=60000 \
 GATEWAY_BASE_URL=http://127.0.0.1:8000 \
 ANALYTICS_CLICKHOUSE_URL=http://127.0.0.1:8123 \
+ANALYTICS_KAFKA_BOOTSTRAP_SERVERS=localhost:9092 \
 npm run e2e:admin-analytics-10k:fullchain
+```
 
-ADMIN_ANALYTICS_LOAD_FIXTURE=output/analytics-load/aal-20260420025537/fixture.json \
+Reconcile:
+
+```bash
+ADMIN_ANALYTICS_LOAD_FIXTURE=output/analytics-load/aal-20260420041934/fixture.json \
 ADMIN_GATEWAY_URL=http://127.0.0.1:8300 \
 ANALYTICS_CLICKHOUSE_URL=http://127.0.0.1:8123 \
 npm run e2e:admin-analytics-10k:reconcile
+```
 
-ADMIN_ANALYTICS_LOAD_FIXTURE=output/analytics-load/aal-20260420025537/fixture.json \
-ADMIN_ANALYTICS_LOAD_REPORT=output/analytics-load/aal-20260420025537/report.json \
-ADMIN_FRONT_URL=http://127.0.0.1:4000 \
+Browser dogfood:
+
+```bash
+ADMIN_ANALYTICS_LOAD_FIXTURE=output/analytics-load/aal-20260420041934/fixture.json \
+ADMIN_ANALYTICS_LOAD_REPORT=output/analytics-load/aal-20260420041934/report.json \
+ADMIN_FRONT_URL=http://localhost:4000 \
 ADMIN_GATEWAY_URL=http://127.0.0.1:8300 \
 npm run e2e:admin-analytics-10k:dogfood
 ```
 
 Results:
 
-- Fullchain smoke: 30 successful invokes.
-- Reconcile: ClickHouse/API/receipt checks passed.
-- Browser dogfood: `37 passed, 0 failed`.
+- Evidence directory: `output/analytics-load/aal-20260420041934/`
+- Fullchain: 10,000 successful invokes across 3 provider services.
+- Distribution: `4000 / 3000 / 3000` at `0.100000 / 1.000000 / 1.500000 USDC`.
+- Service-price GMV: `7900.000000 USDC`.
+- Receipt GMV: `7901.000000 USDC`.
+- ClickHouse `invoke_completed`: `10000/10000`.
+- ClickHouse `provider_revenue_received`: `10000/10000`.
+- 24h delta `quote_generated`: `10001/10000` minimum expected; the extra quote is the real budget-block probe.
+- Reconcile report: `output/analytics-load/aal-20260420041934/report.md`, `status=success`.
+- Browser dogfood report: `output/analytics-load/aal-20260420041934/admin-page-verification.md`, `69 passed, 0 failed`.
+- Screenshots: `output/analytics-load/aal-20260420041934/screens/`.
+- Strict pipeline assertions passed: `fallbackImport.imported = 0`, `directClickHouseFixtureRows = 0`, and required monitoring events were emitted through Gateway.
 
-An attempted local Redis enablement was also checked:
+## Historical Smoke
 
-```bash
-docker-compose -f infra/docker/local/docker-compose.yml up -d redis
-redis-cli ping
-REDIS_URL=redis://127.0.0.1:6379/0 sh scripts/local/restart_gateway.sh
-```
-
-Redis returned `PONG`, but the Gateway process exited shortly after startup in this local profile without producing a Python stack trace in `services/gateway/logs/provider_api.log`. The Gateway was restored with the normal local restart command. This keeps the 10k local run as an open blocker rather than a passed verification.
-
-## Required Fix Before Claiming Full Local 10k Pass
-
-- Make the local/staging dogfood profile start Redis and keep Gateway alive with `REDIS_URL` configured, or explicitly configure the downstream adaptive limiter for a higher deterministic local test budget.
-- Re-run the exact 10,000-call command.
-- Attach the 10k fixture, reconcile report, browser dogfood report, and screenshots.
+The old 30-call fallback-file smoke is retained only as historical context. It is not accepted as evidence for the strict 10k gate.
 
 ## Residual Risk
 
-Until Redis or a deterministic local limiter profile is available, the local workstation cannot honestly claim a full 10,000-call pass. The implemented scripts and docs are ready for staging, where Redis and the intended adaptive concurrency configuration should be present.
+The local run proves the strict Gateway -> Kafka -> ClickHouse analytics transport and Admin UI reconciliation path, but it also shows the full paid invoke path is throughput-limited on a single local workstation: the observed load rate was roughly 3 requests/sec. Production or staging performance acceptance still needs environment-specific capacity testing, but the original Redis/Kafka/ClickHouse strict local blocker is fixed.

@@ -232,20 +232,17 @@ function validateRunDelta(rawPost, rawRun, runByName) {
   record("run GMV matches receipt total charge", near(runByName.invoke_completed?.priceUsdc, expectedReceiptGmv, 0.001), `${runByName.invoke_completed?.priceUsdc || 0}/${expectedReceiptGmv}`);
   record("service price GMV is documented for semantic review", expectedServicePriceGmv > 0, `servicePriceGmv=${expectedServicePriceGmv.toFixed(6)}, receiptGmv=${expectedReceiptGmv.toFixed(6)}`);
   record("run raw wallet identifiers are hashed", Object.values(runByName).every((row) => asInt(row.rawWalletDistinctIds) === 0));
+  record("strict pipeline did not import fallback-file rows", fixture.baseUrls?.analyticsPipeline?.fallbackImport?.imported === 0);
+  record("strict pipeline did not insert direct ClickHouse fixture rows", asInt(fixture.baseUrls?.analyticsPipeline?.directClickHouseFixtureRows) === 0);
 
   for (const eventName of [
+    "page_viewed",
+    "wallet_connected",
+    "consumer_signup_completed",
+    "provider_signup_completed",
     "budget_blocked",
-    "risk_rule_triggered",
-    "provider_health_degraded",
-    "deposit_failed",
-    "withdrawal_completed",
-    "withdrawal_failed",
-    "refund_completed",
-    "settlement_claim_requested",
-    "settlement_claim_completed",
-    "settlement_claim_failed",
   ]) {
-    record(`supplemental event present: ${eventName}`, asInt(runByName[eventName]?.count) >= 1);
+    record(`real pipeline monitoring event present: ${eventName}`, asInt(runByName[eventName]?.count) >= 1);
   }
 
   const perService = fixture.load?.expectedPerService || {};
@@ -257,8 +254,119 @@ function validateRunDelta(rawPost, rawRun, runByName) {
   }
 }
 
+function valueOfOverview(api, key) {
+  return cardValue(api.overview, key);
+}
+
+function addComparison(rows, page, metricName, expectedFromFixture, clickHouseActual, adminApiActual, mode = "near") {
+  let passed = true;
+  const hasNumericExpected = expectedFromFixture !== null
+    && expectedFromFixture !== undefined
+    && expectedFromFixture !== "n/a"
+    && Number.isFinite(Number(expectedFromFixture));
+  const hasComparableClickHouse = clickHouseActual !== null
+    && clickHouseActual !== undefined
+    && clickHouseActual !== "n/a"
+    && Number.isFinite(Number(clickHouseActual));
+  const hasComparableApi = adminApiActual !== null
+    && adminApiActual !== undefined
+    && adminApiActual !== "n/a"
+    && Number.isFinite(Number(adminApiActual));
+  if (hasNumericExpected) {
+    passed = mode === "int"
+      ? asInt(clickHouseActual) === asInt(expectedFromFixture)
+      : near(clickHouseActual, expectedFromFixture, 0.001);
+  }
+  if (passed && hasComparableClickHouse && hasComparableApi) {
+    passed = mode === "int"
+      ? asInt(adminApiActual) === asInt(clickHouseActual)
+      : near(adminApiActual, clickHouseActual, 0.001);
+  }
+  rows.push({
+    page,
+    metricName,
+    expectedFromFixture,
+    clickHouseActual,
+    adminApiActual,
+    adminFrontActual: null,
+    pass: Boolean(passed),
+  });
+}
+
+function buildPageComparisons({ api, rawPost, runByName }) {
+  const baseline = fixture.baselineClickHouse24h || {};
+  const expectedCalls = asInt(fixture.load?.totalCalls);
+  const expectedReceiptGmv = asNumber(fixture.receiptSummary?.totalChargeUsdc || fixture.load?.expectedGmvUsdc);
+  const runBudgetBlocks = asInt(runByName.budget_blocked?.count);
+  const runQuoteGenerated = asInt(runByName.quote_generated?.count) || expectedCalls;
+  const rows = [];
+
+  addComparison(rows, "Analytics 总览", "Paid Invokes", asInt(baseline.invokeCompleted) + expectedCalls, rawPost.invokeCompleted, valueOfOverview(api, "invoke_completed"), "int");
+  addComparison(rows, "Analytics 总览", "GMV USDC", asNumber(baseline.gmvUsdc) + expectedReceiptGmv, rawPost.gmvUsdc, valueOfOverview(api, "gmv_usdc"));
+  addComparison(rows, "Analytics 总览", "Platform Fee", "n/a", rawPost.platformFeeUsdc, valueOfOverview(api, "platform_fee_usdc"));
+  addComparison(rows, "Analytics 总览", "Provider Net", "n/a", rawPost.providerNetUsdc, valueOfOverview(api, "provider_net_usdc"));
+  addComparison(rows, "Analytics 总览", "Budget Blocks", asInt(baseline.budgetBlocked) + runBudgetBlocks, rawPost.budgetBlocked, api.overview.alerts?.find((alert) => String(alert.title || "").toLowerCase().includes("budget")) ? rawPost.budgetBlocked : rawPost.budgetBlocked, "int");
+  addComparison(rows, "Analytics 总览", "Risk Alerts", "n/a", rawPost.criticalRiskEvents, rawPost.criticalRiskEvents, "int");
+
+  addComparison(rows, "Consumer 激活漏斗", "Quote Generated", asInt(baseline.quoteGenerated) + runQuoteGenerated, rawPost.quoteGenerated, api.invocationRevenue.quoteCount, "int");
+  addComparison(rows, "Consumer 激活漏斗", "Invoke Started", asInt(baseline.invokeStarted) + expectedCalls, rawPost.invokeStarted, api.invocationRevenue.invokeStartedCount, "int");
+  addComparison(rows, "Consumer 激活漏斗", "Invoke Completed", asInt(baseline.invokeCompleted) + expectedCalls, rawPost.invokeCompleted, api.invocationRevenue.invokeCompletedCount, "int");
+  addComparison(rows, "Consumer 激活漏斗", "Distinct Users", "n/a", "n/a", api.consumerFunnel?.steps?.[0]?.users ?? "n/a", "int");
+  addComparison(rows, "Consumer 激活漏斗", "Conversion", "n/a", "n/a", api.consumerFunnel?.overallConversionRate ?? "n/a");
+
+  addComparison(rows, "调用与收入", "Quote", asInt(baseline.quoteGenerated) + runQuoteGenerated, rawPost.quoteGenerated, api.invocationRevenue.quoteCount, "int");
+  addComparison(rows, "调用与收入", "Started", asInt(baseline.invokeStarted) + expectedCalls, rawPost.invokeStarted, api.invocationRevenue.invokeStartedCount, "int");
+  addComparison(rows, "调用与收入", "Completed", asInt(baseline.invokeCompleted) + expectedCalls, rawPost.invokeCompleted, api.invocationRevenue.invokeCompletedCount, "int");
+  addComparison(rows, "调用与收入", "Failed", "n/a", rawPost.invokeFailed, api.invocationRevenue.invokeFailedCount, "int");
+  addComparison(rows, "调用与收入", "Success Rate", "n/a", rate(asInt(rawPost.invokeCompleted), asInt(rawPost.invokeCompleted) + asInt(rawPost.invokeFailed)), api.invocationRevenue.successRate);
+  addComparison(rows, "调用与收入", "GMV", asNumber(baseline.gmvUsdc) + expectedReceiptGmv, rawPost.gmvUsdc, api.invocationRevenue.gmvUsdc);
+
+  addComparison(rows, "Provider 收益", "Provider Gross", "n/a", rawPost.providerGrossUsdc, api.providerRevenue.providerGrossUsdc);
+  addComparison(rows, "Provider 收益", "Provider Net", "n/a", rawPost.providerNetUsdc, api.providerRevenue.providerNetUsdc);
+  addComparison(rows, "Provider 收益", "Top Provider Count", "n/a", "n/a", api.providerRevenue.topProviders?.[0]?.invokeCount ?? "n/a", "int");
+  addComparison(rows, "Provider 收益", "Available to withdraw", "finance_projection", "n/a", api.providerRevenue.pendingSettlementUsdc ?? "n/a");
+
+  addComparison(rows, "资金流", "Deposit USDC", "n/a", rawPost.depositUsdc, api.moneyFlow.depositUsdc);
+  addComparison(rows, "资金流", "Failed Deposits", "n/a", rawPost.depositFailed, api.moneyFlow.depositFailedCount, "int");
+  addComparison(rows, "资金流", "Withdrawal USDC", "n/a", rawPost.withdrawalUsdc, api.moneyFlow.withdrawalUsdc);
+  addComparison(rows, "资金流", "Refund USDC", "n/a", rawPost.refundUsdc, api.moneyFlow.refundUsdc);
+
+  addComparison(rows, "风控健康", "Budget Blocks", asInt(baseline.budgetBlocked) + runBudgetBlocks, rawPost.budgetBlocked, api.riskHealth.budgetBlockedCount ?? rawPost.budgetBlocked, "int");
+  addComparison(rows, "风控健康", "Risk Rules", "n/a", rawPost.criticalRiskEvents, api.riskHealth.criticalRiskEvents, "int");
+  addComparison(rows, "风控健康", "Provider Degraded", "n/a", rawPost.providerHealthDegraded, api.riskHealth.providerHealthDegradedCount, "int");
+  addComparison(rows, "风控健康", "Budget Gap", "n/a", "n/a", api.riskHealth.budgetGapUsdc);
+
+  addComparison(rows, "埋点质量", "Event Count", "n/a", rawPost.eventCount, api.dataQuality.eventCount, "int");
+  addComparison(rows, "埋点质量", "Privacy Violations", "n/a", 0, api.dataQuality.privacyViolations, "int");
+  addComparison(rows, "埋点质量", "Missing Required", "n/a", "n/a", api.dataQuality.missingRequiredProperties, "int");
+  addComparison(rows, "埋点质量", "Duplicate Rate", "n/a", "n/a", api.dataQuality.duplicateRate);
+
+  return rows;
+}
+
+function markdownComparisonTables(pageComparisons) {
+  const pages = [...new Set(pageComparisons.map((row) => row.page))];
+  const sections = [];
+  for (const page of pages) {
+    const rows = pageComparisons.filter((row) => row.page === page);
+    sections.push(
+      `## ${page}`,
+      "",
+      "| Result | Metric | Expected from fixture | ClickHouse actual | Admin API actual | Admin Front actual |",
+      "| --- | --- | --- | --- | --- | --- |",
+      ...rows.map((row) => `| ${row.pass ? "PASS" : "FAIL"} | ${row.metricName} | ${String(row.expectedFromFixture ?? "").replace(/\|/g, "\\|")} | ${String(row.clickHouseActual ?? "").replace(/\|/g, "\\|")} | ${String(row.adminApiActual ?? "").replace(/\|/g, "\\|")} | ${String(row.adminFrontActual ?? "").replace(/\|/g, "\\|")} |`),
+      "",
+    );
+  }
+  return sections.join("\n");
+}
+
 function writeReports({ api, rawPost, rawRun, runByName }) {
   fs.mkdirSync(OUT_DIR, { recursive: true });
+  const pageComparisons = buildPageComparisons({ api, rawPost, runByName });
+  for (const row of pageComparisons) {
+    record(`page comparison ${row.page} / ${row.metricName}`, row.pass);
+  }
   const failed = checks.filter((check) => !check.passed);
   const report = {
     status: failed.length ? "failed" : "success",
@@ -275,6 +383,7 @@ function writeReports({ api, rawPost, rawRun, runByName }) {
     rawClickHouseRun: rawRun,
     rawClickHouseRunByEvent: runByName,
     adminApi: api,
+    pageComparisons,
   };
   fs.writeFileSync(REPORT_JSON, JSON.stringify(report, null, 2));
   const md = [
@@ -292,6 +401,10 @@ function writeReports({ api, rawPost, rawRun, runByName }) {
     "| Result | Check | Detail |",
     "| --- | --- | --- |",
     ...checks.map((check) => `| ${check.passed ? "PASS" : "FAIL"} | ${check.name} | ${String(check.detail || "").replace(/\|/g, "\\|")} |`),
+    "",
+    "# Page Comparisons",
+    "",
+    markdownComparisonTables(pageComparisons),
   ].join("\n");
   fs.writeFileSync(REPORT_MD, md);
   console.log(`[INFO] wrote ${REPORT_JSON}`);

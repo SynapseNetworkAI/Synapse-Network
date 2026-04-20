@@ -46,6 +46,7 @@
     "e2e:admin-front:reconcile": "node scripts/e2e/admin_front_reconcile.mjs",
     "e2e:admin-front": "npm run e2e:admin-front:seed && npm run e2e:admin-front:dogfood && npm run e2e:admin-front:reconcile",
     "e2e:admin-analytics-10k:fullchain": "node scripts/e2e/admin_analytics_10k_fullchain.mjs",
+    "e2e:admin-analytics-10k:prepare": "node scripts/e2e/admin_analytics_10k_prepare_local.mjs",
     "e2e:admin-analytics-10k:reconcile": "node scripts/e2e/admin_analytics_10k_reconcile.mjs",
     "e2e:admin-analytics-10k:dogfood": "node scripts/ui/dogfood_admin_analytics_10k.mjs",
     "e2e:admin-analytics-10k": "npm run e2e:admin-analytics-10k:fullchain && npm run e2e:admin-analytics-10k:reconcile && npm run e2e:admin-analytics-10k:dogfood"

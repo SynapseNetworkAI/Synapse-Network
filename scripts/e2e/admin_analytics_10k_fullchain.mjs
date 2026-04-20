@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { createHash, createHmac, randomUUID } from "node:crypto";
 import fs from "node:fs";
 import http from "node:http";
@@ -28,6 +28,9 @@ const CONSUMER_ETH_TARGET = process.env.ADMIN_ANALYTICS_LOAD_CONSUMER_ETH || "10
 const LOAD_TIMEOUT_MS = Number.parseInt(process.env.ADMIN_ANALYTICS_LOAD_TIMEOUT_MS || "30000", 10);
 const WAIT_CLICKHOUSE_TIMEOUT_SEC = Number.parseInt(process.env.ADMIN_ANALYTICS_LOAD_CH_TIMEOUT_SEC || "180", 10);
 const FORCE_PROBE_KEEPALIVE_SEC = Number.parseInt(process.env.ADMIN_ANALYTICS_LOAD_FORCE_PROBE_KEEPALIVE_SEC || "45", 10);
+const STRICT_REAL_PIPELINE = !["0", "false", "no"].includes(String(process.env.ADMIN_ANALYTICS_STRICT_REAL_PIPELINE || "1").toLowerCase());
+const PREPARE_LOCAL = !["0", "false", "no"].includes(String(process.env.ADMIN_ANALYTICS_LOAD_PREPARE_LOCAL || "1").toLowerCase());
+const KAFKA_BOOTSTRAP = process.env.ANALYTICS_KAFKA_BOOTSTRAP_SERVERS || "localhost:9092";
 
 const DEFAULT_KEYS = {
   deployer: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
@@ -94,7 +97,7 @@ function gatewayAnalyticsConfig() {
   const localEnv = localGatewayEnv();
   return {
     environment: process.env.ENVIRONMENT || localEnv.ENVIRONMENT || "local",
-    kafkaBootstrapServers: process.env.ANALYTICS_KAFKA_BOOTSTRAP_SERVERS || localEnv.ANALYTICS_KAFKA_BOOTSTRAP_SERVERS || "",
+    kafkaBootstrapServers: process.env.ANALYTICS_KAFKA_BOOTSTRAP_SERVERS || localEnv.ANALYTICS_KAFKA_BOOTSTRAP_SERVERS || (STRICT_REAL_PIPELINE ? KAFKA_BOOTSTRAP : ""),
     fallbackFile: path.resolve(
       ROOT,
       process.env.ANALYTICS_FALLBACK_FILE
@@ -104,16 +107,40 @@ function gatewayAnalyticsConfig() {
   };
 }
 
-function shouldImportGatewayFallbackEvents() {
-  const flag = String(process.env.ADMIN_ANALYTICS_LOAD_IMPORT_GATEWAY_FILE_EVENTS || "auto").toLowerCase();
-  if (["1", "true", "yes"].includes(flag)) {
-    return true;
+function runPrepareLocalStrictAnalytics() {
+  if (!STRICT_REAL_PIPELINE || !PREPARE_LOCAL || !isLocalUrl(GATEWAY_BASE_URL)) {
+    return;
   }
-  if (["0", "false", "no"].includes(flag)) {
-    return false;
+  const script = path.join(ROOT, "scripts/e2e/admin_analytics_10k_prepare_local.mjs");
+  log("preparing local Redis + Kafka + ClickHouse strict analytics pipeline");
+  const result = spawnSync(process.execPath, [script], {
+    cwd: ROOT,
+    encoding: "utf8",
+    stdio: "inherit",
+    env: {
+      ...process.env,
+      REDIS_URL: process.env.REDIS_URL || "redis://127.0.0.1:6379/0",
+      ANALYTICS_KAFKA_BOOTSTRAP_SERVERS: KAFKA_BOOTSTRAP,
+      ANALYTICS_CLICKHOUSE_URL: CLICKHOUSE_URL,
+    },
+  });
+  if (result.status !== 0) {
+    fail("local strict analytics prepare failed; refusing to continue 10k dogfood");
   }
-  const config = gatewayAnalyticsConfig();
-  return config.environment === "local" || !config.kafkaBootstrapServers;
+}
+
+function assertGatewayStrictKafkaMode() {
+  if (!STRICT_REAL_PIPELINE) {
+    return;
+  }
+  const logPath = path.join(ROOT, "services/gateway/logs/provider_api.log");
+  const logText = fs.existsSync(logPath) ? fs.readFileSync(logPath, "utf8").slice(-20000) : "";
+  if (!logText.includes("Analytics: Strict Kafka")) {
+    fail("Gateway is not running in Analytics: Strict Kafka mode. Run admin_analytics_10k_prepare_local.mjs or set ANALYTICS_STRICT_KAFKA=1.");
+  }
+  if (logText.includes("Analytics: File-only mode")) {
+    fail("Gateway strict analytics preflight saw File-only mode in the current gateway log. Refusing fallback/mock verification.");
+  }
 }
 
 function base64url(value) {
@@ -325,18 +352,6 @@ async function clickhouseQuery(sql) {
     fail(`ClickHouse query failed: ${response.status} ${text.slice(0, 1000)}`);
   }
   return text.split("\n").filter(Boolean).map((line) => JSON.parse(line));
-}
-
-async function clickhouseExec(sql) {
-  const response = await fetch(`${CLICKHOUSE_URL}/`, {
-    method: "POST",
-    headers: { "Content-Type": "text/plain" },
-    body: sql.trim(),
-  });
-  const text = await response.text();
-  if (!response.ok) {
-    fail(`ClickHouse exec failed: ${response.status} ${text.slice(0, 1000)}`);
-  }
 }
 
 function sqlString(value) {
@@ -776,11 +791,11 @@ async function invokeService({ credentialToken, service, callIndex }) {
       break;
     } catch (error) {
       const message = error.message || "";
-      const retryable = /SERVICE_BUSY|SERVICE_CIRCUIT_OPEN|SERVICE_UNAVAILABLE|429|503/.test(message);
+      const retryable = error.name === "AbortError" || /SERVICE_BUSY|SERVICE_CIRCUIT_OPEN|SERVICE_UNAVAILABLE|429|503/.test(message);
       if (!retryable || attempt >= maxRetries) {
         throw error;
       }
-      if (/SERVICE_UNAVAILABLE|503/.test(message)) {
+      if (error.name === "AbortError" || /SERVICE_UNAVAILABLE|503/.test(message)) {
         await forceProbeService(service.id, "invoke-retry");
       }
       retryCount += 1;
@@ -906,135 +921,71 @@ function summarizeReceipts(receipts) {
   };
 }
 
-function analyticsRow(eventName, distinctId, { source, role, surface, correlationId, properties }) {
-  const payload = {
-    role,
-    surface,
-    env: process.env.ENVIRONMENT || "local",
-    e2e_marker: RUN_ID,
-    correlation_id: correlationId,
-    ...properties,
-  };
+function frontendEvent(eventName, distinctId, properties = {}) {
   return {
     event_id: randomUUID(),
     event_name: eventName,
-    timestamp: new Date().toISOString().replace("T", " ").replace("Z", "").slice(0, 23),
+    timestamp: new Date().toISOString(),
     distinct_id: distinctId,
-    source,
-    role,
-    surface,
-    env: payload.env,
-    correlation_id: correlationId,
-    properties: JSON.stringify(payload),
+    source: "frontend",
+    properties: {
+      role: properties.role || "consumer",
+      surface: "analytics_10k_load",
+      env: process.env.ENVIRONMENT || "local",
+      e2e_marker: RUN_ID,
+      correlation_id: `${RUN_ID}:${eventName}:${randomUUID()}`,
+      ...properties,
+    },
   };
 }
 
-function clickhouseTimestamp(value) {
-  const date = value ? new Date(value) : new Date();
-  if (Number.isNaN(date.getTime())) {
-    return new Date().toISOString().replace("T", " ").replace("Z", "").slice(0, 23);
-  }
-  return date.toISOString().replace("T", " ").replace("Z", "").slice(0, 23);
-}
-
-function gatewayFallbackEventMatches(event, serviceIds) {
-  const props = event?.properties && typeof event.properties === "object" ? event.properties : {};
-  const correlationId = String(props.correlation_id || event?.correlation_id || "");
-  const serviceId = String(props.service_id || "");
-  return correlationId.includes(RUN_ID) || serviceIds.includes(serviceId);
-}
-
-function gatewayFallbackEventToClickHouseRow(event) {
-  const props = event?.properties && typeof event.properties === "object" ? { ...event.properties } : {};
-  props.e2e_marker = props.e2e_marker || RUN_ID;
-  props.correlation_id = props.correlation_id || event.correlation_id || "";
-  const role = String(props.role || event.role || "consumer");
-  const surface = String(props.surface || event.surface || "gateway_api");
-  const env = String(props.env || event.env || gatewayAnalyticsConfig().environment || "local");
-  return {
-    event_id: String(event.event_id || randomUUID()),
-    event_name: String(event.event_name || ""),
-    timestamp: clickhouseTimestamp(event.timestamp),
-    distinct_id: String(event.distinct_id || ""),
-    source: String(event.source || "gateway"),
-    role,
-    surface,
-    env,
-    correlation_id: String(props.correlation_id || ""),
-    properties: JSON.stringify({ ...props, role, surface, env }),
-  };
-}
-
-async function importGatewayFallbackEventsToClickHouse({ serviceIds }) {
-  if (!shouldImportGatewayFallbackEvents()) {
-    return { imported: 0, fallbackFile: "", mode: "disabled" };
-  }
-  const config = gatewayAnalyticsConfig();
-  if (!fs.existsSync(config.fallbackFile)) {
-    log(`gateway analytics fallback file not found, skipping local import: ${config.fallbackFile}`);
-    return { imported: 0, fallbackFile: config.fallbackFile, mode: "file_missing" };
-  }
-  const rows = [];
-  const seen = new Set();
-  const content = fs.readFileSync(config.fallbackFile, "utf8");
-  for (const line of content.split(/\r?\n/)) {
-    if (!line.trim()) {
-      continue;
-    }
-    let event;
-    try {
-      event = JSON.parse(line);
-    } catch {
-      continue;
-    }
-    if (!gatewayFallbackEventMatches(event, serviceIds)) {
-      continue;
-    }
-    const row = gatewayFallbackEventToClickHouseRow(event);
-    if (!row.event_name || seen.has(row.event_id)) {
-      continue;
-    }
-    seen.add(row.event_id);
-    rows.push(row);
-  }
-  if (!rows.length) {
-    return { imported: 0, fallbackFile: config.fallbackFile, mode: "no_matching_events" };
-  }
-  await clickhouseExec(
-    "INSERT INTO synapse_analytics.events (event_id,event_name,timestamp,distinct_id,source,role,surface,env,correlation_id,properties) FORMAT JSONEachRow\n"
-      + rows.map((row) => JSON.stringify(row)).join("\n"),
-  );
-  log(`imported ${rows.length} real Gateway fallback-file events into ClickHouse for local dogfood`);
-  return { imported: rows.length, fallbackFile: config.fallbackFile, mode: "local_file_bridge" };
-}
-
-async function insertSupplementalEvents({ consumerHash, providerHash, services, depositTxHash }) {
-  const service = services[0];
-  const rows = [
-    analyticsRow("page_viewed", consumerHash, { source: "frontend", role: "consumer", surface: "analytics_10k_load", correlationId: `${RUN_ID}:page_viewed`, properties: { page_path: "/" } }),
-    analyticsRow("wallet_connected", consumerHash, { source: "frontend", role: "consumer", surface: "analytics_10k_load", correlationId: `${RUN_ID}:wallet_connected`, properties: { wallet_type: "local_e2e" } }),
-    analyticsRow("consumer_signup_completed", consumerHash, { source: "frontend", role: "consumer", surface: "analytics_10k_load", correlationId: `${RUN_ID}:consumer_signup_completed`, properties: { signup_method: "wallet" } }),
-    analyticsRow("provider_signup_completed", providerHash, { source: "frontend", role: "provider", surface: "analytics_10k_load", correlationId: `${RUN_ID}:provider_signup_completed`, properties: { signup_method: "wallet" } }),
-    analyticsRow("deposit_completed", consumerHash, { source: "gateway", role: "consumer", surface: "deposit_indexer", correlationId: `${RUN_ID}:deposit_completed`, properties: { amount_usdc: DEPOSIT_USDC, token_symbol: "USDC", tx_hash: depositTxHash, time_to_confirm_ms: 91000 } }),
-    analyticsRow("invoke_failed", consumerHash, { source: "gateway", role: "consumer", surface: "agent_invoke", correlationId: `${RUN_ID}:invoke_failed`, properties: { service_id: service.id, provider_id: providerHash, quote_id: `quote_${RUN_ID}_failed`, error_code: "UPSTREAM_TIMEOUT", failure_stage: "upstream" } }),
-    analyticsRow("budget_blocked", consumerHash, { source: "gateway", role: "consumer", surface: "agent_invoke", correlationId: `${RUN_ID}:budget_blocked`, properties: { service_id: service.id, required_usdc: "12.500000", available_usdc: "2.000000", error_code: "OWNER_BILLING_CYCLE_LIMIT_EXCEEDED" } }),
-    analyticsRow("deposit_failed", consumerHash, { source: "gateway", role: "consumer", surface: "deposit_repair", correlationId: `${RUN_ID}:deposit_failed`, properties: { amount_usdc: "25.000000", error_code: "INVALID_INTENT", tx_hash: `0x${randomUUID().replace(/-/g, "")}${randomUUID().replace(/-/g, "")}` } }),
-    analyticsRow("withdrawal_completed", consumerHash, { source: "gateway", role: "consumer", surface: "consumer_withdraw", correlationId: `${RUN_ID}:withdrawal_completed`, properties: { amount_usdc: "3.500000", tx_hash: `0x${randomUUID().replace(/-/g, "")}${randomUUID().replace(/-/g, "")}`, time_to_confirm_ms: 118000 } }),
-    analyticsRow("withdrawal_failed", consumerHash, { source: "gateway", role: "consumer", surface: "consumer_withdraw", correlationId: `${RUN_ID}:withdrawal_failed`, properties: { amount_usdc: "1.250000", error_code: "USER_REJECTED_SIGNATURE" } }),
-    analyticsRow("refund_completed", consumerHash, { source: "gateway", role: "consumer", surface: "refund", correlationId: `${RUN_ID}:refund_completed`, properties: { amount_usdc: "0.750000", reason_code: "UPSTREAM_TIMEOUT", service_id: service.id } }),
-    analyticsRow("risk_rule_triggered", consumerHash, { source: "gateway", role: "consumer", surface: "agent_invoke", correlationId: `${RUN_ID}:risk_rule_triggered`, properties: { rule_code: "BUDGET_GAP_SPIKE", severity: "high" } }),
-    analyticsRow("provider_health_degraded", providerHash, { source: "gateway", role: "provider", surface: "service_health_monitor", correlationId: `${RUN_ID}:provider_health_degraded`, properties: { provider_id: providerHash, service_id: service.id, healthy_targets: 0, total_targets: 1, overall_status: "unhealthy", reason: "analytics 10k fixture timeout" } }),
-    analyticsRow("provider_first_revenue_received", providerHash, { source: "gateway", role: "provider", surface: "agent_invoke", correlationId: `${RUN_ID}:provider_first_revenue_received`, properties: { provider_id: providerHash, service_id: service.id, gross_usdc: "0.100000", time_since_listing_ms: 42000, is_first_revenue: true } }),
-    analyticsRow("settlement_claim_requested", providerHash, { source: "gateway", role: "provider", surface: "provider_settlement", correlationId: `${RUN_ID}:settlement_claim_requested`, properties: { provider_id: providerHash, claim_usdc: "10.000000" } }),
-    analyticsRow("settlement_claim_completed", providerHash, { source: "gateway", role: "provider", surface: "provider_settlement", correlationId: `${RUN_ID}:settlement_claim_completed`, properties: { provider_id: providerHash, claim_usdc: "7.500000", tx_hash: `0x${randomUUID().replace(/-/g, "")}${randomUUID().replace(/-/g, "")}`, time_to_confirm_ms: 98000 } }),
-    analyticsRow("settlement_claim_failed", providerHash, { source: "gateway", role: "provider", surface: "provider_settlement", correlationId: `${RUN_ID}:settlement_claim_failed`, properties: { provider_id: providerHash, claim_usdc: "2.500000", error_code: "RPC_TIMEOUT" } }),
+async function emitFrontendFunnelEvents({ consumerHash, providerHash }) {
+  const events = [
+    frontendEvent("page_viewed", consumerHash, { page_path: "/" }),
+    frontendEvent("wallet_connected", consumerHash, { wallet_type: "local_e2e" }),
+    frontendEvent("consumer_signup_completed", consumerHash, { signup_method: "wallet" }),
+    frontendEvent("provider_signup_completed", providerHash, { role: "provider", signup_method: "wallet" }),
   ];
-  await clickhouseExec(
-    "INSERT INTO synapse_analytics.events (event_id,event_name,timestamp,distinct_id,source,role,surface,env,correlation_id,properties) FORMAT JSONEachRow\n"
-      + rows.map((row) => JSON.stringify(row)).join("\n"),
-  );
-  log(`inserted ${rows.length} deterministic supplemental ClickHouse events`);
-  return rows.map((row) => row.event_name);
+  const response = await api("/v1/events", {
+    method: "POST",
+    body: { events },
+  });
+  if (Number(response.accepted || 0) !== events.length || Number(response.rejected || 0) !== 0) {
+    fail(`frontend funnel events were not fully accepted by Gateway: ${JSON.stringify(response)}`);
+  }
+  log(`emitted ${events.length} frontend funnel events through Gateway /events`);
+  return events.map((event) => event.event_name);
+}
+
+async function triggerBudgetBlockedEvent({ consumerAuth, service }) {
+  const lowBudgetCredential = await api("/v1/credentials/agent/issue", {
+    method: "POST",
+    token: consumerAuth.token,
+    address: consumerAuth.address,
+    body: {
+      name: `analytics-budget-block-${RUN_ID}`,
+      rpm: 60,
+      maxCalls: 2,
+      creditLimit: "0.000001",
+      resetInterval: "daily",
+    },
+  });
+  const credential = lowBudgetCredential.credential || lowBudgetCredential;
+  const credentialToken = credential.token || credential.secretKey || credential.agentToken;
+  if (!credentialToken) {
+    fail("low-budget credential response missing token");
+  }
+  try {
+    await invokeService({
+      credentialToken,
+      service,
+      callIndex: TOTAL_CALLS + 1,
+    });
+  } catch (error) {
+    log(`real budget block invoke rejected as expected: ${String(error.message || error).slice(0, 240)}`);
+    return ["budget_blocked"];
+  }
+  fail("low-budget credential invocation unexpectedly succeeded; expected budget_blocked event");
 }
 
 async function sha256Hex(value) {
@@ -1063,9 +1014,11 @@ async function main() {
   }
 
   assertLocalOnly();
+  runPrepareLocalStrictAnalytics();
   await assertReachable("gateway health", `${GATEWAY_BASE_URL}/health`);
   await assertReachable("rpc", RPC_URL, { method: "POST", allowNonOk: true });
   await assertReachable("clickhouse", `${CLICKHOUSE_URL}/`, { method: "POST", allowNonOk: true });
+  assertGatewayStrictKafkaMode();
 
   fs.mkdirSync(OUT_DIR, { recursive: true });
   const baselineClickHouse24h = await rawWindowSnapshot();
@@ -1112,15 +1065,11 @@ async function main() {
 
   const consumerHash = await sha256Hex(consumerAuth.address);
   const providerHash = await sha256Hex(providerAuth.address);
-  const supplementalEvents = await insertSupplementalEvents({
-    consumerHash,
-    providerHash,
-    services,
-    depositTxHash: deposit.txHash,
-  });
-  const gatewayFallbackImport = await importGatewayFallbackEventsToClickHouse({
-    serviceIds: services.map((service) => service.id),
-  });
+  const frontendFunnelEvents = await emitFrontendFunnelEvents({ consumerHash, providerHash });
+  const realMonitoringEvents = [
+    ...frontendFunnelEvents,
+    ...(await triggerBudgetBlockedEvent({ consumerAuth, service: services[0] })),
+  ];
   const rawRunRows = await waitForCoreEvents({ serviceIds: services.map((service) => service.id) });
   const balanceAfterInvoke = await api("/v1/balance", consumerAuth);
 
@@ -1144,7 +1093,13 @@ async function main() {
       gateway: GATEWAY_BASE_URL,
       rpc: RPC_URL,
       clickhouse: CLICKHOUSE_URL,
-      gatewayAnalyticsFallbackImport: gatewayFallbackImport,
+      analyticsPipeline: {
+        mode: STRICT_REAL_PIPELINE ? "strict_kafka_clickhouse" : "legacy",
+        strictKafka: STRICT_REAL_PIPELINE,
+        kafkaBootstrapServers: gatewayAnalyticsConfig().kafkaBootstrapServers,
+        fallbackImport: { mode: "disabled_strict_real_pipeline", imported: 0 },
+        directClickHouseFixtureRows: 0,
+      },
       mockUpstreams: mocks.map((mock) => ({ slug: mock.slug, url: mock.url, pid: mock.pid, reused: mock.reused })),
     },
     chain: {
@@ -1171,7 +1126,9 @@ async function main() {
       lastInvocationId: invocations[invocations.length - 1]?.invocationId || null,
     },
     receiptSummary,
-    supplementalEvents,
+    realMonitoringEvents,
+    supplementalEvents: [],
+    strictRealPipeline: STRICT_REAL_PIPELINE,
     rawRunRows,
     balanceBeforeInvoke: balanceBeforeInvoke.balance || balanceBeforeInvoke,
     balanceAfterInvoke: balanceAfterInvoke.balance || balanceAfterInvoke,

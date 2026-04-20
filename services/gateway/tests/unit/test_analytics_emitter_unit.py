@@ -155,6 +155,45 @@ class TestKafkaBackend:
         assert sent["topic"] == "events"
         assert sent["key"] == "hash"
 
+    def test_strict_kafka_requires_bootstrap_servers(self):
+        with pytest.raises(ValueError, match="ANALYTICS_STRICT_KAFKA"):
+            create_analytics_emitter(environment="local", strict_kafka=True)
+
+    async def test_strict_kafka_uses_kafka_in_local_mode(self, monkeypatch):
+        created_kwargs = {}
+        sent = {}
+
+        class FakeProducer:
+            def __init__(self, **kwargs):
+                created_kwargs.update(kwargs)
+
+            async def start(self):
+                return None
+
+            async def send_and_wait(self, *, topic, value, key):
+                sent.update({"topic": topic, "value": value, "key": key})
+
+            async def stop(self):
+                return None
+
+        monkeypatch.setitem(
+            sys.modules,
+            "aiokafka",
+            types.SimpleNamespace(AIOKafkaProducer=FakeProducer),
+        )
+        emitter = create_analytics_emitter(
+            kafka_bootstrap_servers="localhost:9092",
+            kafka_topic="synapse.analytics.events",
+            environment="local",
+            strict_kafka=True,
+        )
+
+        await emitter.emit("invoke_completed", "hash", properties={"price_usdc": "1.000000"})
+
+        assert created_kwargs["bootstrap_servers"] == "localhost:9092"
+        assert sent["topic"] == "synapse.analytics.events"
+        assert sent["key"] == "hash"
+
 
 class TestPrivacy:
     def test_sha256_hash(self):

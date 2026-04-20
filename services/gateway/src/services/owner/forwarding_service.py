@@ -370,7 +370,7 @@ async def generate_response_v2(
     log.info(
         "invocation.start",
         quote_id=quote.quote_id,
-        service_price_usdc=float(unit_price),
+        service_price_usdc=str(unit_price),
     )
     try:
         succeeded, consumer_after, settlement = await _execute_invocation_pipeline(

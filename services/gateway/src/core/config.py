@@ -444,6 +444,7 @@ class Settings:
     analytics_fallback_file: str = os.getenv(
         "ANALYTICS_FALLBACK_FILE", "logs/analytics_events.jsonl"
     )
+    analytics_strict_kafka: bool = _env_bool("ANALYTICS_STRICT_KAFKA", False)
 
     def _log_date_slug(self) -> str:
         return datetime.now(timezone.utc).strftime("%Y-%m-%d")

@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 from contextlib import contextmanager
+from decimal import Decimal
 from types import SimpleNamespace
 
 import pytest
@@ -193,6 +194,27 @@ def test_setup_logger_writes_json_file(tmp_path):
     assert record["message"] == "unit-test"
     assert record["extra"]["request_id"] == "req-demo"
     assert record["extra"]["workflow"] == "unit"
+
+
+def test_setup_logger_serializes_decimal_fields(tmp_path):
+    log_path = tmp_path / "gateway.log"
+    setup_logger(
+        log_file_path=str(log_path),
+        log_rotation="200 KB",
+        log_retention="2 days",
+        log_level="INFO",
+        serialize=True,
+        enqueue=False,
+    )
+    workflow_logger("unit", request_id="req-decimal").info(
+        "decimal-test",
+        amount_usdc=Decimal("23.703000"),
+    )
+    contents = log_path.read_text().strip().splitlines()
+    assert contents
+    record = json.loads(contents[-1])
+    assert record["message"] == "decimal-test"
+    assert record["extra"]["amount_usdc"] == "23.703000"
 
 
 def test_log_file_path_uses_daily_directory(monkeypatch, tmp_path):
