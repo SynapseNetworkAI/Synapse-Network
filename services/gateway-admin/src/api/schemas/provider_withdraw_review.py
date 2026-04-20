@@ -57,7 +57,7 @@ class ProviderWithdrawReviewHistoryListResponse(BaseModel):
 
 
 class ProviderWithdrawReviewDecisionRequest(BaseModel):
-    decision: str = Field(min_length=7, max_length=16)
+    decision: str = Field(min_length=6, max_length=16)
     note: str = Field(default="", max_length=512)
 
 

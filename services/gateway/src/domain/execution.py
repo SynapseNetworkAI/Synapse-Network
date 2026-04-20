@@ -85,7 +85,7 @@ class WithdrawalDecision(BaseModel):
     decision: Literal["green", "yellow", "red"]
     withdrawal_id: str = Field(alias="withdrawalId")
     status: str
-    amount_usdc: Optional[float] = Field(default=None, alias="amountUsdc")
+    amount_usdc: Optional[Decimal] = Field(default=None, alias="amountUsdc")
     risk_reason_code: Optional[str] = Field(default=None, alias="riskReasonCode")
     ticket: dict[str, Any] = Field(default_factory=dict)
     message: str = ""

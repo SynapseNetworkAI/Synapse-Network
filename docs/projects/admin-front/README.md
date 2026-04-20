@@ -61,7 +61,8 @@
 3. [Admin_Forum_Support_Page_Design.md](./Admin_Forum_Support_Page_Design.md)
 4. [Admin_Analytics_Page_Function_and_Verification.md](./Admin_Analytics_Page_Function_and_Verification.md)
 5. [Admin_Analytics_10k_Load_Dogfood_Verification.md](./Admin_Analytics_10k_Load_Dogfood_Verification.md)
-6. [Admin_Front_Dogfood_E2E_Runbook.md](./Admin_Front_Dogfood_E2E_Runbook.md)
+6. [Admin_Withdrawal_Approval_E2E_Verification.md](./Admin_Withdrawal_Approval_E2E_Verification.md)
+7. [Admin_Front_Dogfood_E2E_Runbook.md](./Admin_Front_Dogfood_E2E_Runbook.md)
 
 项目目录内只保留：
 
