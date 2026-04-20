@@ -54,6 +54,7 @@ anvil*.log
 tmp/screens/
 tmp/user-front-fullchain/
 tmp/forum-feedback-dogfood/
+tmp/admin-withdrawal-approval/
 
 # Local browser automation state
 .agent-browser/

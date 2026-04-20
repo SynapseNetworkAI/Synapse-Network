@@ -256,7 +256,7 @@ class BalanceRedisIdempotencyMixin:
                         "message": "Idempotency key payload mismatch.",
                     },
                 )
-            response = row.response
+            response = getattr(row, "response", None)
             return response if isinstance(response, dict) else None
         return None
 
@@ -273,18 +273,26 @@ class BalanceRedisIdempotencyMixin:
         now = int(time.time())
         owner = normalize_wallet(owner_wallet)
         expires_at = now + max(300, int(settings.finance_idempotency_ttl_sec))
-        rows.append(
-            IdempotencyRow(
-                id=str(uuid4()),
-                scope=scope,
-                owner_address=owner,
-                idempotency_key=idempotency_key,
-                request_hash=request_hash,
-                response=response,
-                created_at=now_dt_str(),
-                expires_at=expires_at,
-            )
+        next_row = IdempotencyRow(
+            id=str(uuid4()),
+            scope=scope,
+            owner_address=owner,
+            idempotency_key=idempotency_key,
+            request_hash=request_hash,
+            response=response,
+            created_at=now_dt_str(),
+            expires_at=expires_at,
         )
+        for index, row in enumerate(rows):
+            if (
+                str(getattr(row, "scope", "") or "") == scope
+                and normalize_wallet(getattr(row, "owner_address", "") or "") == owner
+                and str(getattr(row, "idempotency_key", "") or "") == idempotency_key
+            ):
+                rows[index] = next_row
+                break
+        else:
+            rows.append(next_row)
         self._save_idempotency_rows(rows)
 
     @staticmethod

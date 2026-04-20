@@ -3,6 +3,7 @@
 Extracted from redis_guard to keep each module under 500 lines.
 BalanceRedisGuardMixin in redis_guard.py inherits from this class.
 """
+import logging
 import time
 from typing import Any
 from uuid import uuid4
@@ -13,6 +14,13 @@ from src.core.common import normalize_wallet
 from src.core.config import settings
 from src.domain.idempotency import RateLimitRow
 from src.utils.datetime_utils import now_dt_str
+
+try:  # psycopg is an optional import in unit tests that stub storage only.
+    from psycopg.errors import DeadlockDetected
+except Exception:  # pragma: no cover - defensive for non-postgres test doubles
+    DeadlockDetected = ()  # type: ignore[assignment]
+
+logger = logging.getLogger(__name__)
 
 REDIS_RATE_LIMIT_LUA = """
 local current = redis.call('INCR', KEYS[1])
@@ -147,6 +155,17 @@ class BalanceRedisRateLimitMixin:
             owner, action, now, window_sec, max_per_min
         )
         if not used_redis:
-            self._enforce_owner_write_rate_limit_fallback(
-                owner, action, now, max_per_min
-            )
+            for attempt in range(3):
+                try:
+                    self._enforce_owner_write_rate_limit_fallback(
+                        owner, action, now, max_per_min
+                    )
+                    return
+                except DeadlockDetected:
+                    if attempt >= 2:
+                        raise
+                    logger.warning(
+                        "finance rate-limit fallback deadlock; retrying",
+                        extra={"owner": owner, "action": action, "attempt": attempt + 1},
+                    )
+                    time.sleep(0.05 * (attempt + 1))

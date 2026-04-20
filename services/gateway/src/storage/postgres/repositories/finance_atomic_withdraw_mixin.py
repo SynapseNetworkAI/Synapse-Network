@@ -394,7 +394,7 @@ class FinanceAtomicWithdrawMixin:
                     decision="yellow" if is_yellow else "green",
                     withdrawalId=withdrawal_id,
                     status=status,
-                    amountUsdc=float(amount),
+                    amountUsdc=amount,
                     ticket=ticket,
                     message=message,
                 )

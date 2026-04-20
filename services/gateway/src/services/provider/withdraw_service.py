@@ -136,12 +136,9 @@ class ProviderWithdrawService(
             rows = self._expire_stale_withdrawals(
                 self._normalize_withdrawal_rows(), owner
             )
-            ledger = self._load_balance_ledger()
-            available_receivable = ledger.provider_receivable_balance(owner)
-            context = self._build_withdraw_create_context(
-                owner=owner,
-                payload=payload,
-                available_receivable=available_receivable,
+            amount_usdc = self._parse_requested_withdraw_amount_usdc(payload)
+            request_hash = self._request_hash(
+                {"ownerAddress": owner, "amountUsdc": self._requested_withdraw_amount_for_hash(payload)}
             )
 
             (
@@ -151,7 +148,7 @@ class ProviderWithdrawService(
             ) = await self._begin_provider_withdraw_idempotency(
                 owner=owner,
                 idempotency_key=idempotency_key,
-                request_hash=context.request_hash,
+                request_hash=request_hash,
             )
             if existing_response is not None:
                 return existing_response
@@ -159,21 +156,29 @@ class ProviderWithdrawService(
             pending_response = await self._resolve_pending_withdrawal_response(
                 rows=rows,
                 owner=owner,
-                amount_usdc=context.amount_usdc,
+                amount_usdc=amount_usdc,
                 idempotency_key=idempotency_key,
-                request_hash=context.request_hash,
+                request_hash=request_hash,
                 redis_client=redis_client,
                 idem_rows=idem_rows,
             )
             if pending_response is not None:
                 return pending_response
 
+            ledger = self._load_balance_ledger()
+            available_receivable = ledger.provider_receivable_balance(owner)
+            context = self._build_withdraw_create_context(
+                owner=owner,
+                payload=payload,
+                available_receivable=available_receivable,
+            )
+
             if hasattr(self.storage, "process_withdrawal_request_atomic"):
                 return await self._create_provider_withdraw_intent_atomic(
                     owner=owner,
                     amount_usdc=context.amount_usdc,
                     idempotency_key=idempotency_key,
-                    request_hash=context.request_hash,
+                    request_hash=request_hash,
                     request_meta=request_meta,
                     redis_client=redis_client,
                     idem_rows=idem_rows,

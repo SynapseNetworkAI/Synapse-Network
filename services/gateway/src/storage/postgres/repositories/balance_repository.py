@@ -384,6 +384,89 @@ class BalanceRepository:
             if cur.rowcount != 1:
                 raise RuntimeError("RELEASE_FROZEN_TO_AVAILABLE_INCONSISTENT")
 
+    def consume_provider_pending_for_withdrawal(
+        self, owner: str, amount_usdc: Decimal | str | int, updated_at: str
+    ) -> None:
+        """Atomically reduce provider pending receivable after on-chain claim."""
+        account_id, _ = self._account_identity(owner, "provider")
+        amount = str(self._q6(amount_usdc))
+        with self._db.tx_cursor() as cur:
+            cur.execute(
+                """
+                UPDATE synapse_account_balances
+                SET pending_balance = pending_balance - %s,
+                    updated_at      = %s
+                WHERE account_id = %s
+                  AND pending_balance >= %s
+                """,
+                (amount, updated_at, account_id, amount),
+            )
+            if cur.rowcount != 1:
+                raise RuntimeError("CONSUME_PROVIDER_PENDING_INCONSISTENT")
+
+    def move_provider_frozen_to_pending(
+        self, owner: str, amount_usdc: Decimal | str | int, updated_at: str
+    ) -> None:
+        """Atomically move provider withdrawal amount from manual-review frozen → pending."""
+        account_id, _ = self._account_identity(owner, "provider")
+        amount = str(self._q6(amount_usdc))
+        with self._db.tx_cursor() as cur:
+            cur.execute(
+                """
+                UPDATE synapse_account_balances
+                SET frozen_balance  = frozen_balance  - %s,
+                    pending_balance = pending_balance + %s,
+                    updated_at      = %s
+                WHERE account_id = %s
+                  AND frozen_balance >= %s
+                """,
+                (amount, amount, updated_at, account_id, amount),
+            )
+            if cur.rowcount != 1:
+                raise RuntimeError("MOVE_PROVIDER_FROZEN_TO_PENDING_INCONSISTENT")
+
+    def release_provider_pending_to_available(
+        self, owner: str, amount_usdc: Decimal | str | int, updated_at: str
+    ) -> None:
+        """Atomically return provider pending withdrawal amount to receivable."""
+        account_id, _ = self._account_identity(owner, "provider")
+        amount = str(self._q6(amount_usdc))
+        with self._db.tx_cursor() as cur:
+            cur.execute(
+                """
+                UPDATE synapse_account_balances
+                SET pending_balance   = pending_balance   - %s,
+                    available_balance = available_balance + %s,
+                    updated_at        = %s
+                WHERE account_id = %s
+                  AND pending_balance >= %s
+                """,
+                (amount, amount, updated_at, account_id, amount),
+            )
+            if cur.rowcount != 1:
+                raise RuntimeError("RELEASE_PROVIDER_PENDING_TO_AVAILABLE_INCONSISTENT")
+
+    def release_provider_frozen_to_available(
+        self, owner: str, amount_usdc: Decimal | str | int, updated_at: str
+    ) -> None:
+        """Atomically return provider manual-review frozen withdrawal amount to receivable."""
+        account_id, _ = self._account_identity(owner, "provider")
+        amount = str(self._q6(amount_usdc))
+        with self._db.tx_cursor() as cur:
+            cur.execute(
+                """
+                UPDATE synapse_account_balances
+                SET frozen_balance    = frozen_balance    - %s,
+                    available_balance = available_balance + %s,
+                    updated_at        = %s
+                WHERE account_id = %s
+                  AND frozen_balance >= %s
+                """,
+                (amount, amount, updated_at, account_id, amount),
+            )
+            if cur.rowcount != 1:
+                raise RuntimeError("RELEASE_PROVIDER_FROZEN_TO_AVAILABLE_INCONSISTENT")
+
     def write_balance_ledger(self, ledger: BalanceLedger) -> None:
         """Persist the ledger's available balances.
 

@@ -47,6 +47,12 @@ WITHDRAW_ROW_STATUSES: set[WithdrawalRowStatus] = {
 class ProviderWithdrawHelpersMixin:
     """Withdrawal I/O helpers, validators, and assertion methods."""
 
+    def _provider_balance_repository(self) -> Any:
+        get_data_manager = getattr(self.storage, "get_data_manager", None)
+        if not callable(get_data_manager):
+            return None
+        return getattr(get_data_manager().finance, "balance", None)
+
     @staticmethod
     def _raise_withdraw_runtime_error(code: str) -> None:
         if code == "INSUFFICIENT_PROVIDER_RECEIVABLE":
@@ -279,6 +285,9 @@ class ProviderWithdrawHelpersMixin:
         except Exception:
             return raw
 
+    def _parse_requested_withdraw_amount_usdc(self, payload: dict[str, Any]) -> Decimal:
+        return self._parse_withdraw_amount_usdc(payload, Decimal("999999999999999999"))
+
     def _build_withdraw_create_context(
         self, *, owner: str, payload: dict[str, Any], available_receivable: Decimal,
     ) -> WithdrawCreateContext:
@@ -342,6 +351,19 @@ class ProviderWithdrawHelpersMixin:
             )
 
     def _consume_locked_withdraw_amount(self, owner: str, amount_usdc: Decimal) -> None:
+        balance_repo = self._provider_balance_repository()
+        consume_pending = getattr(balance_repo, "consume_provider_pending_for_withdrawal", None)
+        if callable(consume_pending):
+            try:
+                consume_pending(owner, amount_usdc, now_dt_str())
+                return
+            except RuntimeError as exc:
+                if str(exc) != "CONSUME_PROVIDER_PENDING_INCONSISTENT":
+                    raise
+                raise HTTPException(
+                    status_code=409,
+                    detail={"code": "WITHDRAWAL_LOCK_INCONSISTENT", "message": "Locked provider receivable is insufficient for this withdrawal intent."},
+                ) from exc
         ledger = self._load_balance_ledger()
         provider_wallet = ledger.ensure_provider_wallet(owner)
         locked = quantize_usdc(provider_wallet.pending_balance or Decimal("0"))
@@ -355,6 +377,17 @@ class ProviderWithdrawHelpersMixin:
         self._save_balance_ledger(ledger)
 
     def _release_pending_withdraw_to_available(self, owner: str, amount_usdc: Decimal) -> Decimal:
+        balance_repo = self._provider_balance_repository()
+        release_pending = getattr(balance_repo, "release_provider_pending_to_available", None)
+        if callable(release_pending):
+            amount = quantize_usdc(amount_usdc)
+            try:
+                release_pending(owner, amount, now_dt_str())
+                return amount
+            except RuntimeError as exc:
+                if str(exc) != "RELEASE_PROVIDER_PENDING_TO_AVAILABLE_INCONSISTENT":
+                    raise
+                return Decimal("0")
         ledger = self._load_balance_ledger()
         provider_wallet = ledger.ensure_provider_wallet(owner)
         locked = quantize_usdc(provider_wallet.pending_balance or Decimal("0"))
@@ -370,6 +403,19 @@ class ProviderWithdrawHelpersMixin:
         return releasable_amount
 
     def _release_frozen_withdraw_to_available(self, owner: str, amount_usdc: Decimal) -> None:
+        balance_repo = self._provider_balance_repository()
+        release_frozen = getattr(balance_repo, "release_provider_frozen_to_available", None)
+        if callable(release_frozen):
+            try:
+                release_frozen(owner, amount_usdc, now_dt_str())
+                return
+            except RuntimeError as exc:
+                if str(exc) != "RELEASE_PROVIDER_FROZEN_TO_AVAILABLE_INCONSISTENT":
+                    raise
+                raise HTTPException(
+                    status_code=409,
+                    detail={"code": "WITHDRAWAL_FROZEN_INCONSISTENT", "message": "Frozen provider receivable is insufficient for this manual review action."},
+                ) from exc
         ledger = self._load_balance_ledger()
         provider_wallet = ledger.ensure_provider_wallet(owner)
         frozen = quantize_usdc(provider_wallet.frozen_balance or Decimal("0"))
@@ -386,6 +432,19 @@ class ProviderWithdrawHelpersMixin:
         self._save_balance_ledger(ledger)
 
     def _move_frozen_withdraw_to_pending(self, owner: str, amount_usdc: Decimal) -> None:
+        balance_repo = self._provider_balance_repository()
+        move_frozen = getattr(balance_repo, "move_provider_frozen_to_pending", None)
+        if callable(move_frozen):
+            try:
+                move_frozen(owner, amount_usdc, now_dt_str())
+                return
+            except RuntimeError as exc:
+                if str(exc) != "MOVE_PROVIDER_FROZEN_TO_PENDING_INCONSISTENT":
+                    raise
+                raise HTTPException(
+                    status_code=409,
+                    detail={"code": "WITHDRAWAL_FROZEN_INCONSISTENT", "message": "Frozen provider receivable is insufficient for this manual review action."},
+                ) from exc
         ledger = self._load_balance_ledger()
         provider_wallet = ledger.ensure_provider_wallet(owner)
         frozen = quantize_usdc(provider_wallet.frozen_balance or Decimal("0"))

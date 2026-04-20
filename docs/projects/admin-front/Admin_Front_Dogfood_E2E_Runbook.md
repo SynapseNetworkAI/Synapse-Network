@@ -132,6 +132,29 @@ The suite passes only when:
 10. Analytics browser verification confirms window switchers, drilldown cards, budget-block alert drilldown, and seven screenshots.
 11. Optional 10k Analytics load verification confirms three registered Provider services, 10,000 paid invokes, `7900.000000 USDC` service-price GMV baseline, receipt total-charge GMV delta, ClickHouse ingestion, gateway-admin aggregation, and admin-front DOM values.
 
+## Provider Withdrawal Approval Full-Chain Verification
+
+Provider withdrawal approval has a separate finance-sensitive full-chain suite:
+
+```bash
+WITHDRAWAL_AUTO_SINGLE_LIMIT_USDC=1.000000 sh scripts/local/restart_gateway.sh
+sh scripts/local/restart_gateway_admin.sh
+cd services/admin-front && yarn dev
+
+npm run e2e:admin-withdrawal-approval
+```
+
+See [Admin_Withdrawal_Approval_E2E_Verification.md](./Admin_Withdrawal_Approval_E2E_Verification.md).
+
+That suite validates:
+
+1. Gateway creates a real `PENDING_MANUAL_REVIEW` Provider withdrawal from real Provider receivable.
+2. admin-front `/withdrawal-reviews` approves it through gateway-admin and Gateway internal API.
+3. Provider executes `SynapseCore.withdraw(...)` on-chain with the issued ticket.
+4. Gateway completion writes txHash and moves the withdrawal to `COMPLETED`.
+5. Postgres, Gateway API, gateway-admin API, admin-front screenshots, and chain balances agree.
+6. Duplicate withdrawal, duplicate approval, cross decision, duplicate complete, ticket replay, amount tampering, and invalid internal token checks all fail safely.
+
 ## Failure Handling
 
 If the suite fails:
