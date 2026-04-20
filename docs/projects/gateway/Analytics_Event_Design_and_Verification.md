@@ -206,9 +206,10 @@ PYTHONPATH=. pytest tests/e2e/test_analytics_e2e_pipeline.py -v --timeout=60
 2. Consumer 链上充值并由 Gateway 确认，产生 `deposit_completed`。
 3. Agent 调用 Provider 服务，产生 `quote_generated`、`invoke_started`、`invoke_completed` 和 `provider_revenue_received`。
 4. 测试写入前端漏斗事件 `page_viewed`、`wallet_connected`、`consumer_signup_completed`、`provider_signup_completed`。
-5. ClickHouse 查询校验必需事件齐全，并输出 `output/analytics-fullchain/report.json`。
-6. Admin 页面脚本读取同一份报告，调用 `gateway-admin` Analytics API，与 ClickHouse 原始窗口汇总比对，然后截图 7 个 Analytics 页面。
-7. 标准回归脚本独立调用 7 个 Admin Analytics API，并和 ClickHouse 原始聚合逐项比对，输出可归档报告。
+5. 测试写入带 `e2e_marker` 的可控补充样本，覆盖 `invoke_failed`、`budget_blocked`、`deposit_failed`、`withdrawal_*`、`refund_completed`、`risk_rule_triggered`、`provider_health_degraded` 和 `settlement_claim_*`，确保 7 个 Admin Analytics 页面都有可验证数据。
+6. ClickHouse 查询校验必需事件齐全，并输出 `output/analytics-fullchain/report.json`。
+7. Admin 页面脚本读取同一份报告，调用 `gateway-admin` Analytics API，与 ClickHouse 原始窗口汇总比对，然后真实点击窗口切换、专题卡片、budget alert drilldown，并截图 7 个 Analytics 页面。
+8. 标准回归脚本独立调用 7 个 Admin Analytics API，并和 ClickHouse 原始聚合逐项比对，输出可归档报告。
 
 Admin Analytics API 是 ClickHouse-backed 只读聚合入口，必须读取 `ANALYTICS_CLICKHOUSE_URL` 的真实事件；ClickHouse 不可用时显示 degraded/空数据，不允许用 demo/mock 指标兜底。
 
@@ -261,6 +262,12 @@ output/analytics-fullchain/admin-clickhouse-regression.json
 
 ```text
 docs/reference/test/admin_analytics_clickhouse_fullchain_regression.md
+```
+
+Admin 页面职责和逐页验证契约：
+
+```text
+docs/projects/admin-front/Admin_Analytics_Page_Function_and_Verification.md
 ```
 
 ### 4.6 Admin 告警可追溯验证

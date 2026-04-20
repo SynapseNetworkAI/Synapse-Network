@@ -115,6 +115,51 @@ describe("buildAdminNavigation", () => {
     expect(navigation[0]?.children?.[0]?.path).toBe("/dashboard/overview");
   });
 
+  it("recovers known dashboard page routes when backend node types drift", () => {
+    const navigation = buildAdminNavigation([
+      createMenuItem({
+        itemId: "control-overview",
+        label: "控制总览",
+        href: null,
+        nodeType: "category",
+        iconKey: "CT",
+      }),
+      createMenuItem({
+        itemId: "dashboard",
+        label: "控制台",
+        href: "/dashboard/overview",
+        parentItemId: "control-overview",
+        nodeType: "category",
+      }),
+      createMenuItem({
+        itemId: "dashboard-overview",
+        label: "概览",
+        href: null,
+        parentItemId: "dashboard",
+        nodeType: "panel",
+        iconKey: "01",
+        sortOrder: 11,
+      }),
+      createMenuItem({
+        itemId: "dashboard-runtime",
+        label: "运行态",
+        href: null,
+        parentItemId: "dashboard",
+        nodeType: "panel",
+        iconKey: "02",
+        sortOrder: 12,
+      }),
+    ]);
+
+    const dashboard = navigation[0]?.children?.[0];
+
+    expect(dashboard?.path).toBeUndefined();
+    expect(dashboard?.children?.map((item) => [item.id, item.path])).toEqual([
+      ["dashboard-overview", "/dashboard/overview"],
+      ["dashboard-runtime", "/dashboard/runtime"],
+    ]);
+  });
+
   it("falls back to the other-modules bucket for orphan items", () => {
     const navigation = buildAdminNavigation([
       createMenuItem({
@@ -376,6 +421,18 @@ describe("navigation tree helpers", () => {
 
     expect(expandedIds).toContain("control-overview");
     expect(expandedIds).toContain("dashboard");
+    expect(expandedIds).not.toContain("analytics");
+  });
+
+  it("expands Analytics only when the active page is inside Analytics", () => {
+    const expandedIds = resolveExpandedNavigationIds({
+      manualExpandedIds: [],
+      manualCollapsedIds: [],
+      activePath: ["control-overview", "dashboard", "analytics", "dashboard-analytics"],
+      filteredExpandedIds: [],
+      query: "",
+    });
+
     expect(expandedIds).toContain("analytics");
   });
 

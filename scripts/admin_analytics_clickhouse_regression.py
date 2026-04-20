@@ -470,6 +470,11 @@ def validate(api: dict[str, Any], raw: dict[str, Any]) -> None:
     overview_raw = raw["overview"]
     completed = as_int(overview_raw.get("invokeCompleted"))
     failed = as_int(overview_raw.get("invokeFailed"))
+    budget_blocked = as_int(overview_raw.get("budgetBlocked"))
+    deposit_failed = as_int(overview_raw.get("depositFailed"))
+    refund_usdc = as_float(overview_raw.get("refundUsdc"))
+    settlement_requested = as_int(overview_raw.get("settlementRequested"))
+    settlement_failed = as_int(overview_raw.get("settlementFailed"))
 
     record("overview GMV matches ClickHouse", near(card_value(api["overview"], "gmv_usdc"), overview_raw.get("gmvUsdc")))
     record("overview paid invokes matches ClickHouse", as_int(card_value(api["overview"], "invoke_completed")) == completed)
@@ -502,6 +507,14 @@ def validate(api: dict[str, Any], raw: dict[str, Any]) -> None:
     record("provider revenue provider count matches ClickHouse", as_int(provider.get("revenueProviderCount")) == as_int(overview_raw.get("revenueProviderCount")))
     record("provider gross matches ClickHouse", near(provider.get("providerGrossUsdc"), overview_raw.get("providerGrossUsdc")))
     record("provider net matches ClickHouse", near(provider.get("providerNetUsdc"), overview_raw.get("providerNetUsdc")))
+    record("provider settlement completed matches ClickHouse", near(provider.get("settlementCompletedUsdc"), overview_raw.get("settlementCompletedUsdc")))
+    record("provider settlement failure rate matches ClickHouse", near(provider.get("settlementFailureRate"), rate(settlement_failed, settlement_requested)))
+    record("provider settlement p95 confirm matches ClickHouse", near(provider.get("settlementP95ConfirmMs"), overview_raw.get("settlementP95ConfirmMs")))
+    if settlement_requested > 0:
+        funnel_events = {str(item.get("eventName")) for item in provider.get("settlementFunnel", [])}
+        record("provider settlement funnel includes requested events", "settlement_claim_requested" in funnel_events)
+    if as_int(overview_raw.get("firstRevenueProviderCount")) > 0:
+        record("provider first revenue count is surfaced", as_int(provider.get("firstRevenueProviderCount")) == as_int(overview_raw.get("firstRevenueProviderCount")))
     record("provider pending field is ledger projection, not ClickHouse window", "pendingSettlementUsdc" in provider)
 
     money = api["moneyFlow"]
@@ -509,11 +522,19 @@ def validate(api: dict[str, Any], raw: dict[str, Any]) -> None:
     record("money-flow failed deposit count matches ClickHouse", as_int(money.get("depositFailedCount")) == as_int(overview_raw.get("depositFailed")))
     record("money-flow withdrawal total matches ClickHouse", near(money.get("withdrawalUsdc"), overview_raw.get("withdrawalUsdc")))
     record("money-flow refund total matches ClickHouse", near(money.get("refundUsdc"), overview_raw.get("refundUsdc")))
+    if deposit_failed > 0:
+        record("money-flow exposes failed deposit distribution", len(money.get("depositErrors", [])) > 0)
+        record("money-flow exposes failed deposit samples", len(money.get("depositFailureSamples", [])) > 0)
 
     risk = api["riskHealth"]
     record("risk critical count matches ClickHouse", as_int(risk.get("criticalRiskEvents")) == as_int(overview_raw.get("criticalRiskEvents")))
     record("risk provider degraded count matches ClickHouse", as_int(risk.get("providerHealthDegradedCount")) == as_int(overview_raw.get("providerHealthDegraded")))
     record("risk budget gap matches ClickHouse", near(risk.get("budgetGapUsdc"), overview_raw.get("budgetGapUsdc")))
+    if budget_blocked > 0:
+        record("risk budget block aggregation is exposed", len(risk.get("budgetBlocks", [])) > 0)
+        record("risk budget block samples are exposed", len(risk.get("budgetBlockSamples", [])) > 0)
+    if refund_usdc > 0:
+        record("risk refund reason distribution is exposed", len(risk.get("refundReasons", [])) > 0)
 
     quality = api["dataQuality"]
     quality_raw = raw["dataQuality"]
@@ -528,6 +549,12 @@ def validate(api: dict[str, Any], raw: dict[str, Any]) -> None:
     record("data-quality missing required properties match ClickHouse", as_int(quality.get("missingRequiredProperties")) == missing_required)
     record("data-quality xor violations match ClickHouse", as_int(quality.get("xorViolations")) == raw["xorViolations"])
     record("data-quality source coverage matches ClickHouse", quality.get("sourceCoverage") == raw["sourceCoverage"])
+    freshness = {str(item.get("eventName")): item for item in quality.get("criticalEventsFreshness", [])}
+    for event_name in CRITICAL_EVENTS:
+        expected_count = as_int(raw["freshnessRows"].get(event_name, {}).get("count"))
+        if expected_count > 0:
+            record(f"data-quality critical freshness includes {event_name}", bool(freshness.get(event_name, {}).get("seen")))
+    record("data-quality schema issue samples are returned", isinstance(quality.get("schemaIssueSamples"), list))
 
 
 def screenshot_inventory() -> list[dict[str, Any]]:
