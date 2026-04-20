@@ -156,6 +156,7 @@ async def lifespan(app: FastAPI):
         kafka_topic=settings.analytics_kafka_topic,
         fallback_file=settings.analytics_fallback_file,
         environment=settings.environment,
+        strict_kafka=settings.analytics_strict_kafka,
     )
     gw_analytics.set_emitter(app.state.analytics)
 

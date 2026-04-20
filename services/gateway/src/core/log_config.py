@@ -5,6 +5,7 @@ import logging
 import shutil
 import sys
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from pathlib import Path
 from threading import Lock
 from typing import Any, TextIO
@@ -22,6 +23,14 @@ def _level_value(level: str | None) -> int:
 
 
 class JsonFormatter(logging.Formatter):
+    @staticmethod
+    def _json_default(value: Any) -> str:
+        if isinstance(value, Decimal):
+            return str(value)
+        if isinstance(value, (datetime,)):
+            return value.isoformat()
+        return str(value)
+
     def format(self, record: logging.LogRecord) -> str:
         payload: dict[str, Any] = {
             "time": datetime.fromtimestamp(record.created, tz=timezone.utc).isoformat(),
@@ -37,7 +46,7 @@ class JsonFormatter(logging.Formatter):
             payload["extra"] = extra
         if record.exc_info:
             payload["exception"] = self.formatException(record.exc_info)
-        return json.dumps(payload, ensure_ascii=False)
+        return json.dumps(payload, ensure_ascii=False, default=self._json_default)
 
 
 class DailyFileHandler(logging.Handler):

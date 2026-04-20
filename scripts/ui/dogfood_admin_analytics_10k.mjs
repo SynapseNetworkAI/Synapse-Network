@@ -20,7 +20,7 @@ const fixture = JSON.parse(fs.readFileSync(FIXTURE_PATH, "utf8"));
 const OUT_DIR = path.resolve(process.env.ADMIN_ANALYTICS_LOAD_OUTPUT_DIR || fixture.outputDir || path.dirname(FIXTURE_PATH));
 const RECONCILE_REPORT = path.resolve(process.env.ADMIN_ANALYTICS_LOAD_REPORT || path.join(OUT_DIR, "report.json"));
 const SCREENSHOT_DIR = path.join(OUT_DIR, "screens");
-const ADMIN_FRONT_URL = (process.env.ADMIN_FRONT_URL || "http://127.0.0.1:4000").replace(/\/+$/, "");
+const ADMIN_FRONT_URL = (process.env.ADMIN_FRONT_URL || "http://localhost:4000").replace(/\/+$/, "");
 const ADMIN_GATEWAY_URL = (process.env.ADMIN_GATEWAY_URL || "http://127.0.0.1:8300").replace(/\/+$/, "");
 const ADMIN_COOKIE_NAME = process.env.ADMIN_SESSION_COOKIE_NAME || "synapse_admin_session";
 
@@ -106,6 +106,24 @@ async function waitForBodyText(page, expectedText, timeout = 30000) {
   );
 }
 
+async function waitForAdminAppRendered(page, expectedText, timeout = 60000) {
+  await page.waitForFunction(
+    (text) => {
+      const bodyText = document.body?.innerText || "";
+      const appRoot = [...document.body.children].find((element) => {
+        const tagName = element.tagName.toLowerCase();
+        if (tagName === "script" || tagName === "style" || tagName === "next-route-announcer") {
+          return false;
+        }
+        return (element.textContent || "").trim().length > 0;
+      });
+      return Boolean(appRoot && bodyText.includes(text));
+    },
+    expectedText,
+    { timeout },
+  );
+}
+
 function importantValues(report) {
   const api = report.adminApi || {};
   return {
@@ -114,6 +132,12 @@ function importantValues(report) {
       String(report.expected?.expectedGmvUsdc || "").replace(/\.000000$/, ""),
       String(api.invocationRevenue?.invokeCompletedCount || ""),
       String(api.overview?.cards?.find((card) => card.key === "gmv_usdc")?.value || ""),
+    ].filter(Boolean),
+    consumerFunnel: [
+      String(api.consumerFunnel?.steps?.find((step) => step.eventName === "quote_generated")?.events || ""),
+      String(api.consumerFunnel?.steps?.find((step) => step.eventName === "invoke_started")?.events || ""),
+      String(api.consumerFunnel?.steps?.find((step) => step.eventName === "invoke_completed")?.events || ""),
+      String(api.consumerFunnel?.steps?.find((step) => step.eventName === "page_viewed")?.users || ""),
     ].filter(Boolean),
     invocationRevenue: [
       String(api.invocationRevenue?.quoteCount || ""),
@@ -145,9 +169,82 @@ function importantValues(report) {
   };
 }
 
+function comparableNumber(value) {
+  if (value === null || value === undefined || value === "n/a") {
+    return null;
+  }
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function domCandidates(value) {
+  const parsed = comparableNumber(value);
+  if (parsed === null) {
+    return [];
+  }
+  const raw = String(value).replaceAll(",", "");
+  const candidates = new Set([
+    raw,
+    raw.replace(/\.000000$/, ""),
+    raw.replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, ""),
+    parsed.toFixed(6),
+    parsed.toFixed(4),
+    parsed.toFixed(2),
+    String(Math.trunc(parsed)),
+  ]);
+  return [...candidates].filter(Boolean);
+}
+
+function pageBodyKey(pageName) {
+  const map = {
+    "Analytics 总览": "overview",
+    "Consumer 激活漏斗": "consumerFunnel",
+    "调用与收入": "invocationRevenue",
+    "Provider 收益": "providerRevenue",
+    "资金流": "moneyFlow",
+    "风控健康": "riskHealth",
+    "埋点质量": "dataQuality",
+  };
+  return map[pageName] || "";
+}
+
+function updatePageComparisonsWithDom(report, pageBodies) {
+  const rows = Array.isArray(report.pageComparisons) ? report.pageComparisons : [];
+  for (const row of rows) {
+    const body = String(pageBodies[pageBodyKey(row.page)] || "").replaceAll(",", "");
+    const candidates = domCandidates(row.adminApiActual);
+    if (!candidates.length) {
+      row.adminFrontActual = "not_asserted";
+      continue;
+    }
+    const matched = candidates.find((candidate) => body.includes(candidate));
+    row.adminFrontActual = matched || "missing";
+    row.pass = Boolean(row.pass && matched);
+    check(`DOM displays ${row.page} / ${row.metricName}`, Boolean(matched), matched || `missing ${candidates.slice(0, 4).join(", ")}`);
+  }
+  return rows;
+}
+
+function markdownComparisonTables(pageComparisons) {
+  const pages = [...new Set(pageComparisons.map((row) => row.page))];
+  const sections = [];
+  for (const page of pages) {
+    const rows = pageComparisons.filter((row) => row.page === page);
+    sections.push(
+      `## ${page}`,
+      "",
+      "| Result | Metric | Expected from fixture | ClickHouse actual | Admin API actual | Admin Front actual |",
+      "| --- | --- | --- | --- | --- | --- |",
+      ...rows.map((row) => `| ${row.pass ? "PASS" : "FAIL"} | ${row.metricName} | ${String(row.expectedFromFixture ?? "").replace(/\|/g, "\\|")} | ${String(row.clickHouseActual ?? "").replace(/\|/g, "\\|")} | ${String(row.adminApiActual ?? "").replace(/\|/g, "\\|")} | ${String(row.adminFrontActual ?? "").replace(/\|/g, "\\|")} |`),
+      "",
+    );
+  }
+  return sections.join("\n");
+}
+
 async function expectPage(page, route, title, screenshotName, values = []) {
   await page.goto(`${ADMIN_FRONT_URL}${route}`, { waitUntil: "networkidle", timeout: 60000 });
-  await page.waitForTimeout(800);
+  await waitForAdminAppRendered(page, title);
   const body = String(await page.textContent("body") || "").replaceAll(",", "");
   check(`${route} renders ${title}`, body.includes(title), body.slice(0, 160));
   const normalizedValues = values.map((value) => String(value).replaceAll(",", "").replace(/\.000000$/, "")).filter((value) => value && value !== "0");
@@ -156,12 +253,14 @@ async function expectPage(page, route, title, screenshotName, values = []) {
     check(`${route} displays backend/reconcile value`, Boolean(matched), `checked ${normalizedValues.slice(0, 4).join(", ")}`);
   }
   await screenshot(page, screenshotName);
+  return body;
 }
 
 async function clickWindowSwitchers(page) {
   await page.goto(`${ADMIN_FRONT_URL}/dashboard/analytics`, { waitUntil: "networkidle", timeout: 60000 });
+  await waitForAdminAppRendered(page, "Analytics 总览");
   for (const windowValue of ["7d", "30d", "24h"]) {
-    await page.getByRole("button", { name: windowValue }).click();
+    await page.getByRole("button", { name: windowValue, exact: true }).click();
     await page.waitForTimeout(300);
     const body = String(await page.textContent("body") || "");
     check(`window switcher ${windowValue} keeps overview rendered`, body.includes("Analytics 总览"));
@@ -180,10 +279,10 @@ async function clickDrilldowns(page) {
   ];
   for (const [key, route, title] of routes) {
     await page.goto(`${ADMIN_FRONT_URL}/dashboard/analytics`, { waitUntil: "networkidle", timeout: 60000 });
-    await waitForBodyText(page, "Analytics 总览");
+    await waitForAdminAppRendered(page, "Analytics 总览");
     await page.getByTestId(`analytics-drilldown-${key}`).click();
     await page.waitForURL((url) => url.pathname === route, { timeout: 30000 });
-    await waitForBodyText(page, title);
+    await waitForAdminAppRendered(page, title);
     const body = String(await page.textContent("body") || "");
     check(`drilldown card navigates to ${route}`, body.includes(title));
   }
@@ -198,10 +297,10 @@ async function clickBudgetAlert(page, report) {
     return;
   }
   await page.goto(`${ADMIN_FRONT_URL}/dashboard/analytics`, { waitUntil: "networkidle", timeout: 60000 });
-  await waitForBodyText(page, "Analytics 总览");
+  await waitForAdminAppRendered(page, "Analytics 总览");
   await page.getByTestId("analytics-alert-budget-blocks").click();
   await page.waitForURL((url) => url.pathname === "/dashboard/analytics/risk-health" && url.searchParams.get("focus") === "budget_blocked", { timeout: 30000 });
-  await waitForBodyText(page, "风控健康");
+  await waitForAdminAppRendered(page, "风控健康");
   const body = String(await page.textContent("body") || "");
   check("budget alert navigates to focused risk-health panel", body.includes("Focused from alert") || body.includes("Budget blocked breakdown"));
   await screenshot(page, "10-budget-block-alert-drilldown");
@@ -239,13 +338,15 @@ async function main() {
         consoleErrors.push(message.text());
       }
     });
-    await expectPage(page, "/dashboard/analytics", "Analytics 总览", "01-analytics-overview", values.overview);
-    await expectPage(page, "/dashboard/analytics/consumer-funnel", "Consumer 激活漏斗", "02-consumer-funnel", [report.expected?.totalCalls]);
-    await expectPage(page, "/dashboard/analytics/invocation-revenue", "调用与收入", "03-invocation-revenue", values.invocationRevenue);
-    await expectPage(page, "/dashboard/analytics/provider-revenue", "Provider 收益", "04-provider-revenue", values.providerRevenue);
-    await expectPage(page, "/dashboard/analytics/money-flow", "资金流", "05-money-flow", values.moneyFlow);
-    await expectPage(page, "/dashboard/analytics/risk-health", "风控健康", "06-risk-health", values.riskHealth);
-    await expectPage(page, "/dashboard/analytics/data-quality", "埋点质量", "07-data-quality", values.dataQuality);
+    const pageBodies = {};
+    pageBodies.overview = await expectPage(page, "/dashboard/analytics", "Analytics 总览", "01-analytics-overview", values.overview);
+    pageBodies.consumerFunnel = await expectPage(page, "/dashboard/analytics/consumer-funnel", "Consumer 激活漏斗", "02-consumer-funnel", values.consumerFunnel);
+    pageBodies.invocationRevenue = await expectPage(page, "/dashboard/analytics/invocation-revenue", "调用与收入", "03-invocation-revenue", values.invocationRevenue);
+    pageBodies.providerRevenue = await expectPage(page, "/dashboard/analytics/provider-revenue", "Provider 收益", "04-provider-revenue", values.providerRevenue);
+    pageBodies.moneyFlow = await expectPage(page, "/dashboard/analytics/money-flow", "资金流", "05-money-flow", values.moneyFlow);
+    pageBodies.riskHealth = await expectPage(page, "/dashboard/analytics/risk-health", "风控健康", "06-risk-health", values.riskHealth);
+    pageBodies.dataQuality = await expectPage(page, "/dashboard/analytics/data-quality", "埋点质量", "07-data-quality", values.dataQuality);
+    report.pageComparisons = updatePageComparisonsWithDom(report, pageBodies);
     await clickWindowSwitchers(page);
     await clickDrilldowns(page);
     await clickBudgetAlert(page, report);
@@ -261,12 +362,31 @@ async function main() {
     reconcileReport: RECONCILE_REPORT,
     adminFrontUrl: ADMIN_FRONT_URL,
     checks,
+    pageComparisons: report.pageComparisons || [],
     screenshots,
     consoleErrors,
   };
   const outputPath = path.join(OUT_DIR, "admin-page-verification.json");
   fs.writeFileSync(outputPath, JSON.stringify(verification, null, 2));
+  const mdPath = path.join(OUT_DIR, "admin-page-verification.md");
+  fs.writeFileSync(mdPath, [
+    "# Admin Analytics Browser Dogfood Verification",
+    "",
+    `- Status: ${verification.status}`,
+    `- Generated at: ${verification.generatedAt}`,
+    `- Fixture: ${FIXTURE_PATH}`,
+    `- Reconcile report: ${RECONCILE_REPORT}`,
+    "",
+    "# Page Comparisons",
+    "",
+    markdownComparisonTables(report.pageComparisons || []),
+    "",
+    "# Screenshots",
+    "",
+    ...screenshots.map((shot) => `- ${shot.name}: ${shot.path}`),
+  ].join("\n"));
   console.log(`[INFO] wrote ${outputPath}`);
+  console.log(`[INFO] wrote ${mdPath}`);
   console.log(`[INFO] results: ${passed} passed, ${failed} failed`);
   if (failed > 0) {
     process.exit(1);
