@@ -1712,7 +1712,7 @@ def test_finance_atomic_repository_processes_typed_withdraw_command() -> None:
 
     assert result.decision == "green"
     assert result.status == "APPROVED_AUTO"
-    assert abs(result.amount_usdc - 12.0) < 1e-9
+    assert result.amount_usdc == Decimal("12.000000")
     assert result.ticket["signature"] == "sig-1"
 
     executed_sql = "\n".join(sql for sql, _ in db.connections[0].cursor_obj.executed)
