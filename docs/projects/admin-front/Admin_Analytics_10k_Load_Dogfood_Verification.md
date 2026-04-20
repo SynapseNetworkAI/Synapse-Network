@@ -19,6 +19,8 @@ It is intentionally **not** part of `ci:pr`. It requires local or staging servic
 
 This verification is strict by default: Gateway Analytics must write to Kafka, ClickHouse must consume the Kafka topic through its Kafka Engine table and materialized view, and no fallback-file import or direct ClickHouse fixture insert may be used to claim a pass.
 
+Future production optimization may move money-critical analytics to Transactional Outbox. When that lands, this runbook's strict path becomes: ledger transaction -> analytics outbox -> gateway-worker -> Kafka -> ClickHouse -> gateway-admin -> admin-front. The no-mock rule remains unchanged: no fallback-file import and no direct ClickHouse fixture inserts.
+
 ## Scenario
 
 The fullchain script registers three callable provider services:
@@ -188,6 +190,7 @@ Do not commit `output/` evidence unless a release evidence bundle explicitly req
 - `fixture.json` contains three service ids and 10,000 successful invocation receipts.
 - `fixture.json` records `strict_kafka_clickhouse`, `fallbackImport.imported = 0`, and `directClickHouseFixtureRows = 0`.
 - ClickHouse run rows include at least 10,000 `invoke_completed` and 10,000 `provider_revenue_received` events from Kafka.
+- After Transactional Outbox is enabled, strict evidence must also show outbox backlog drained, sent rows deleted, zero dead-letter rows for the run, and no duplicate `event_id` delivery under multi-worker consumption.
 - `report.json.status === "success"`.
 - `admin-page-verification.json.status === "success"`.
 - All seven page comparison tables pass across expected fixture, ClickHouse, gateway-admin API, and admin-front DOM.

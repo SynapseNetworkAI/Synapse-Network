@@ -21,6 +21,7 @@
     "perf:local-reliability-suite": "bash scripts/perf/local_reliability_suite.sh",
     "perf:staging-load-suite": "bash scripts/perf/staging_load_suite.sh",
     "perf:gateway-load": "bash scripts/perf/gateway_load.sh",
+    "perf:gateway-http-client-pool": "services/gateway/.venv/bin/python scripts/perf/gateway_http_client_pool_qps.py",
     "perf:local-smoke": "bash scripts/perf/local_smoke.sh",
     "perf:finance-load": "bash scripts/perf/finance_load.sh",
     "perf:provider-health-load": "bash scripts/perf/provider_health_load.sh",

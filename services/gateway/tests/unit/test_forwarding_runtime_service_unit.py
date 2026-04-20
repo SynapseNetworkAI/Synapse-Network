@@ -275,6 +275,22 @@ class FakeSlowAsyncClient:
         return FakeResponse({"quote": {"answer": "slow-ok"}})
 
 
+class FakePoolTimeoutAsyncClient:
+    def __init__(self, timeout: float):
+        self.timeout = timeout
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        _ = (exc_type, exc, tb)
+        return False
+
+    async def post(self, url: str, json: dict, headers: dict):
+        _ = (url, json, headers)
+        raise forwarding_upstream.httpx.PoolTimeout("pool saturated")
+
+
 class FakeRedisCounter:
     def __init__(self, initial: int = 0):
         self.value = initial
@@ -735,6 +751,44 @@ async def test_invoke_busy_rejects_before_charge_or_success_billing(monkeypatch)
     assert storage.balance.ledger.consumer_available_balance("0xabc") == Decimal("8.750000")
     assert storage.balance.ledger.provider_receivable_balance("0xdef") == Decimal("1.080000")
     assert len(storage.audit.rows) == 1
+    assert all(row.status != "succeeded" for row in storage.gateway_state.usage_rows)
+
+
+def test_upstream_http_pool_timeout_rolls_back_charge(monkeypatch) -> None:
+    raw_token = "agt_1234567890abcdef12345678"
+    storage = FakeStorage(_service_definition(), _runtime_credential(raw_token))
+    storage.balance.ledger.ensure_consumer_wallet("0xabc").available_balance = 10.0
+
+    monkeypatch.setattr(forwarding_budget, "_get_redis_client", _async_none)
+    monkeypatch.setattr(forwarding_upstream.httpx, "AsyncClient", FakePoolTimeoutAsyncClient)
+    monkeypatch.setattr(
+        forwarding_upstream.service_health_service,
+        "get_healthy_target_urls",
+        lambda service, **_: [service.invoke.targets[0].url],
+    )
+    monkeypatch.setattr(forwarding_billing.settings, "gateway_routing_tax", 0.05, raising=False)
+    monkeypatch.setattr(
+        forwarding_upstream.settings,
+        "provider_http_client_pool_enabled",
+        True,
+        raising=False,
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(
+            forwarding_service.generate_response_v2(
+                storage,
+                InferenceRequest(prompt="hello pool", serviceId="svc.echo"),
+                "svc.echo",
+                raw_token,
+                "req-pool-timeout-001",
+            )
+        )
+
+    assert exc_info.value.status_code == 503
+    assert exc_info.value.detail["code"] == "SERVICE_BUSY"
+    assert storage.balance.ledger.consumer_available_balance("0xabc") == Decimal("10.000000")
+    assert storage.balance.ledger.provider_receivable_balance("0xdef") == Decimal("0")
     assert all(row.status != "succeeded" for row in storage.gateway_state.usage_rows)
 
 

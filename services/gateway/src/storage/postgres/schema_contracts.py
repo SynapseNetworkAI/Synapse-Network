@@ -150,6 +150,45 @@ POSTGRES_TABLE_SCHEMA_CONTRACTS: tuple[TableSchemaContract, ...] = (
         ),
     ),
     TableSchemaContract(
+        table_name="synapse_analytics_outbox",
+        required_columns=frozenset(
+            {
+                "row_id",
+                "event_id",
+                "event_name",
+                "event_key",
+                "payload",
+                "status",
+                "attempt_count",
+                "next_attempt_at",
+                "last_error",
+                "lease_id",
+                "leased_at",
+                "created_at",
+                "updated_at",
+            }
+        ),
+        required_indexes=frozenset(
+            {
+                "idx_synapse_analytics_outbox_claim",
+                "idx_synapse_analytics_outbox_dead_letter",
+            }
+        ),
+        required_constraints=(
+            _constraint("primary key on analytics outbox row", PRIMARY_KEY_FRAGMENT, "row_id"),
+            _constraint("unique analytics outbox event id", "unique", "event_id"),
+            _constraint(
+                "analytics outbox status lifecycle",
+                "check",
+                "status",
+                "pending",
+                "retry",
+                "leased",
+                "dead_letter",
+            ),
+        ),
+    ),
+    TableSchemaContract(
         table_name="synapse_idempotency_keys",
         required_columns=frozenset({"row_id", "id", "scope", "owner_id", "idempotency_key", "request_hash", "response_code", "response_digest", "created_at", "expires_at"}),
         required_indexes=frozenset({"idx_synapse_idempotency_keys_expires"}),

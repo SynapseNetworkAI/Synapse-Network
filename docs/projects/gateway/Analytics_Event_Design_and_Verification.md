@@ -131,6 +131,20 @@ distinct_id = sha256_hash(wallet_address)  # 返回 64 位 hex 字符串
 
 ---
 
+### 3.4 资金关键事件的 Transactional Outbox 方向
+
+当前实现可以直接通过 runtime emitter 写 Kafka 或本地文件。后续生产性能优化中，资金关键事件应迁移到 Transactional Outbox：
+
+1. `invoke_completed`、`provider_revenue_received`、refund、withdrawal、settlement 等代表资金事实的事件，必须和 ledger/audit/usage 在同一个 Postgres transaction 内写入 outbox。
+2. Kafka 不允许阻塞 paid invoke 请求路径；Gateway API 提交 DB 事务后即可返回，`gateway-worker` 负责 outbox -> Kafka。
+3. Outbox 是临时投递通道，不是历史归档。Worker 成功投递 Kafka 后默认删除 outbox rows，避免 Postgres table bloat。
+4. 多 worker 消费 outbox 必须使用 `FOR UPDATE SKIP LOCKED`，禁止无锁 `SELECT ... LIMIT`。
+5. ClickHouse/Admin Analytics 继续从 Kafka 消费结果验证；ledger/audit/usage 仍是资金 source of truth。
+
+详细生产性能规则见 [Gateway_Production_Performance_Stability_Optimization.md](./Gateway_Production_Performance_Stability_Optimization.md)。
+
+---
+
 ## 4. 验证协议
 
 ### 4.1 单元测试验证（无基础设施依赖）

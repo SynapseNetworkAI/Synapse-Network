@@ -445,6 +445,30 @@ class Settings:
         "ANALYTICS_FALLBACK_FILE", "logs/analytics_events.jsonl"
     )
     analytics_strict_kafka: bool = _env_bool("ANALYTICS_STRICT_KAFKA", False)
+    analytics_transport: str = (
+        os.getenv("ANALYTICS_TRANSPORT", "direct").strip().lower() or "direct"
+    )
+    analytics_outbox_batch_size: int = max(1, _env_int("ANALYTICS_OUTBOX_BATCH_SIZE", 500))
+    analytics_outbox_max_attempts: int = max(1, _env_int("ANALYTICS_OUTBOX_MAX_ATTEMPTS", 8))
+    analytics_outbox_retry_base_sec: int = max(1, _env_int("ANALYTICS_OUTBOX_RETRY_BASE_SEC", 5))
+
+    # ── Provider upstream HTTP client pool ───────────────────────
+    provider_http_client_pool_enabled: bool = _env_bool("PROVIDER_HTTP_CLIENT_POOL_ENABLED", True)
+    provider_http_client_max_connections: int = max(
+        1, _env_int("PROVIDER_HTTP_CLIENT_MAX_CONNECTIONS", 256)
+    )
+    provider_http_client_max_keepalive_connections: int = max(
+        1, _env_int("PROVIDER_HTTP_CLIENT_MAX_KEEPALIVE_CONNECTIONS", 64)
+    )
+    provider_http_client_connect_timeout_sec: float = max(
+        0.05, _env_float("PROVIDER_HTTP_CLIENT_CONNECT_TIMEOUT_SEC", 1.0)
+    )
+    provider_http_client_write_timeout_sec: float = max(
+        0.05, _env_float("PROVIDER_HTTP_CLIENT_WRITE_TIMEOUT_SEC", 2.0)
+    )
+    provider_http_client_pool_timeout_sec: float = max(
+        0.01, _env_float("PROVIDER_HTTP_CLIENT_POOL_TIMEOUT_SEC", 0.05)
+    )
 
     def _log_date_slug(self) -> str:
         return datetime.now(timezone.utc).strftime("%Y-%m-%d")
