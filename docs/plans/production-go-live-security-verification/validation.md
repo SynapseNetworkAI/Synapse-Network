@@ -36,6 +36,8 @@ bash scripts/ci/security_secret_scan.sh
 npm run ci:release-go-no-go
 npm run release:evidence:gateway-fullchain:staging
 GATEWAY_RELEASE_E2E_REQUIRED_ENV=staging npm run ci:gateway-release-e2e-evidence
+npm run e2e:withdrawal-one-ticket-evidence
+npm run ci:withdrawal-one-ticket-evidence
 ```
 
 ## Repository and CI Gates
@@ -50,6 +52,7 @@ GATEWAY_RELEASE_E2E_REQUIRED_ENV=staging npm run ci:gateway-release-e2e-evidence
 - [x] Secret scan evidence: PASS, secret scan passed.
 - [x] Release Go/No-Go state check: PASS, `npm run ci:release-go-no-go` confirms staging automation evidence is recorded and production blockers remain explicit.
 - [ ] Gateway full-chain release E2E evidence: NO-GO blocker, `npm run release:evidence:gateway-fullchain:staging` report not attached or not validated by `GATEWAY_RELEASE_E2E_REQUIRED_ENV=staging npm run ci:gateway-release-e2e-evidence`. Ordinary `ci:gateway` skip behavior is not accepted for release evidence.
+- [ ] One-ticket withdrawal release evidence: NO-GO blocker, `npm run e2e:withdrawal-one-ticket-evidence` report not attached or not validated by `npm run ci:withdrawal-one-ticket-evidence`. The evidence must include all 10 scenarios: consumer/provider normal claim, expired reaper, soft revoke race claim, soft revoke expire, consumer replay attack, and provider low-gas revert retry.
 
 ## Contract and Chain Evidence
 
@@ -76,6 +79,7 @@ GATEWAY_RELEASE_E2E_REQUIRED_ENV=staging npm run ci:gateway-release-e2e-evidence
 - [x] Refund failure recovery evidence: PASS via gateway test suite coverage in `ci:pr`.
 - [x] Consumer withdrawal failure recovery evidence: PASS via gateway test suite coverage in `ci:pr`.
 - [x] Provider withdrawal failure recovery evidence: PASS via gateway and gateway-admin test suite coverage in `ci:pr`.
+- [ ] One-ticket withdrawal expected-vs-actual evidence: NO-GO blocker, release bundle must compare ticketHash, deadline, RPC block timestamp, DB status, consumer/provider balance delta, vault delta, replay result, and low-gas retry result.
 - [ ] Ledger/vault reconciliation report: NO-GO blocker, release reconciliation report not attached.
 - [ ] Gateway full-chain expected-vs-actual report: NO-GO blocker, release evidence for deposit, confirm, discovery, quote, invoke, provider credit, receipt, consumer withdrawal, analytics Kafka/ClickHouse ingestion, and reconciliation is not attached.
 - [ ] Backup restore drill report: NO-GO blocker, restore drill evidence not attached.

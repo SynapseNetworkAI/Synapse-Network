@@ -210,11 +210,39 @@ Owner 在钱包中发起链上 withdraw 后，Platform 应推进：
 
 ### 11.2 链上失败或过期
 
-1. 已签票但未完成的单据最终需要可回收 / 可失效
-2. 释放对应的 `pending / locked` 金额
-3. 写逆向 ledger / audit 证据
-4. 业务状态推进到 `CANCELLED`，前端应允许用户基于释放后的 `available` 重新生成新 ticket
-5. 如果历史脏数据导致 `pending / locked` 已被其他补偿路径提前清空，过期清理也不能报错打断列表接口；系统应把单据推进到 `CANCELLED`，并在 audit 中记录 `releasedAmountUsdc` 与 `releaseShortfallUsdc`
+1. 链上交易 `revert` 不等于业务失败。只要 ticket 未过期且 `isTicketConsumed(ticketHash)=false`，用户可以用同一 ticket 重新发起链上 claim。
+2. 已签票但未完成的单据最终需要可回收 / 可失效。
+3. Reaper 只能在本地时间超过 `deadline + WITHDRAW_TICKET_EXPIRY_BUFFER_SEC`、RPC 链头时间超过 `deadline + WITHDRAW_RPC_FINALITY_MARGIN_SEC`、且合约返回 `isTicketConsumed(ticketHash)=false` 后释放对应的 `pending / locked` 金额。
+4. 业务状态推进到 `FAILED_EXPIRED`，用户若仍需提现必须重新创建 withdrawal；系统不刷新旧 ticket。
+5. 如果历史脏数据导致 `pending / locked` 已被其他补偿路径提前清空，过期清理也不能报错打断列表接口；系统应把单据推进到 `FAILED_EXPIRED`，并在 audit 中记录 `releasedAmountUsdc` 与 `releaseShortfallUsdc`。
+6. Admin soft revoke 不发送链上 `cancelTicket`，只进入“等待过期释放”的运营语义。若用户在 deadline 前抢跑 claim，链上事实优先，最终状态仍为 `COMPLETED`。
+
+### 11.2.1 Release evidence
+
+一次一签提现模型的 release evidence 固定为 10 个场景：
+
+1. Consumer normal claim
+2. Consumer expired reaper
+3. Consumer soft revoke race claim
+4. Consumer soft revoke expire
+5. Provider normal claim
+6. Provider expired reaper
+7. Provider soft revoke race claim
+8. Provider soft revoke expire
+9. Consumer replay attack
+10. Provider on-chain revert retry
+
+运行命令：
+
+```bash
+npm run e2e:withdrawal-one-ticket-evidence
+npm run ci:withdrawal-one-ticket-evidence
+```
+
+`provider-onchain-revert-retry` 使用极低 `gasLimit` 触发第一次链上
+Out-of-Gas revert，然后在 deadline 前用同一 ticket 正常 gas retry 成功。
+这证明链上失败 receipt 不会让 Gateway 提前进入 `FAILED_EXPIRED` 或释放
+pending funds。
 
 ### 11.3 严禁的行为
 

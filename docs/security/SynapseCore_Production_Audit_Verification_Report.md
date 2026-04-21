@@ -41,6 +41,7 @@ assurance, and it does not clear the remaining production Go/No-Go blockers.
 | `SynapseCore.setSigner` owner-only signer rotation | PASS | Contract tests verify non-owner rejection and zero signer rejection. |
 | `isTicketConsumed(ticketHash)` chain evidence | PASS | Contract exposes consumed ticket state; Gateway reaper/watcher tests use consumed-state semantics. |
 | Gateway one-ticket withdrawal lifecycle | PASS | Gateway tests cover ticket uniqueness, terminal-state rejection, reaper safety, and watcher chain-event handling. |
+| One-ticket withdrawal release evidence | REQUIRED | `npm run e2e:withdrawal-one-ticket-evidence` must produce 10 scenario files, including consumer replay attack and provider low-gas revert retry. |
 | Finance guardrails | PASS | Semgrep and finance-only mypy gates passed for changed finance-sensitive scope. |
 | Withdrawal approval E2E evidence | PASS | Latest evidence path: `output/dogfood/admin-withdrawal-approval/2026-04-20T075941909Z/`. |
 
@@ -72,6 +73,7 @@ broadcaster.
 | Fee pool isolation | PASS | `withdrawPlatformFees` restricted to `platformFeePool`. |
 | Owner-only signer rotation | PASS | `setSigner` requires owner and non-zero signer. |
 | Reaper premature release prevention | PASS | Reaper requires local deadline buffer, RPC finality margin, and `isTicketConsumed=false`. |
+| Replay and failed receipt handling | PASS | Release evidence gate requires replay revert with Gateway staying `COMPLETED`, plus low-gas revert retry with `isTicketConsumed=false` before successful retry. |
 | No hard revoke / no broadcaster policy | ACCEPTED | Short ticket TTL and passive expiry remove Gas, mempool, nonce, and reorg broadcaster risk. |
 
 ## Verification Commands
@@ -88,6 +90,8 @@ npm run ci:gateway
 npm run ci:finance-approval-safety
 npm run e2e:admin-withdrawal-approval
 npm run ci:finance-approval-e2e-evidence
+npm run e2e:withdrawal-one-ticket-evidence
+npm run ci:withdrawal-one-ticket-evidence
 npm run ci:pr
 ```
 
@@ -131,4 +135,3 @@ independent third-party audit. The smart contract and paired Gateway withdrawal
 lifecycle have no open Critical or High internal findings, but production launch
 must remain blocked until the remaining non-audit P0 evidence is attached and
 verified.
-

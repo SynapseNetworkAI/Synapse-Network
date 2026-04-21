@@ -41,7 +41,8 @@ The review covers:
 5. Admin and finance flows: manual approval, soft revoke waiting for expiry,
    audit trail, Decimal/string money contract, and bucket transitions.
 6. Evidence gates: money scan, Semgrep finance safety, finance mypy, secret
-   scan, diff coverage, contract tests, and withdrawal approval E2E evidence.
+   scan, diff coverage, contract tests, withdrawal approval E2E evidence, and
+   one-ticket withdrawal release evidence.
 
 Out of scope:
 
@@ -61,6 +62,13 @@ High-frequency balance checks, invoke debits, provider credits, withdrawal
 approval, reaper logic, and reconciliation live off-chain in Gateway and
 Gateway-admin. The contract is the final USDC custody boundary; the Gateway is
 the policy and accounting control point.
+
+The withdrawal evidence bundle for the one-ticket model must cover 10 scenarios:
+consumer/provider normal claim, expiry reaper, soft revoke race claim, soft
+revoke expiry, consumer replay attack, and provider low-gas on-chain revert
+retry. The low-gas case intentionally sends a valid ticket with an insufficient
+`gasLimit`; Gateway must not treat that failed receipt as a terminal business
+failure while the ticket is still unconsumed and before deadline.
 
 ## Trust Boundaries
 

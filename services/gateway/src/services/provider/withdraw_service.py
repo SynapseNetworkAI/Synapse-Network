@@ -349,6 +349,7 @@ class ProviderWithdrawService(
                             owner_wallet=owner,
                             tx_hash=normalized_tx_hash,
                             kind="provider_withdraw",
+                            withdrawal_id=withdrawal_id,
                         )
                     )
                 )

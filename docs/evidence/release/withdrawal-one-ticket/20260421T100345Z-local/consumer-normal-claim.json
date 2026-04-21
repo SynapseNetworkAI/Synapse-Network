@@ -1,0 +1,45 @@
+{
+  "name": "consumer-normal-claim",
+  "status": "passed",
+  "pass": true,
+  "runId": "wot-20260421100352",
+  "generatedAt": "2026-04-21T10:03:54.992Z",
+  "summary": "consumer ticket claimed and completed",
+  "role": "consumer",
+  "withdrawalId": "de00010e-a1f1-44e7-a687-4be758cb4c55",
+  "ticketHash": "0x65c25d3ffdc17e8d4ec51bcd77afe95b1b7963e51a393a128efd170e9834a88a",
+  "deadline": 1776765894,
+  "softRevoke": null,
+  "expected": {
+    "dbStatus": "COMPLETED",
+    "receiptStatus": 1
+  },
+  "actual": {
+    "dbStatus": "COMPLETED",
+    "txHash": "0xeae193ef5914ed3ec1f4a8a94057007bfa810ed363fa4a3f2fac9af766331ba3",
+    "receiptStatus": 1,
+    "completeStatus": "COMPLETED",
+    "walletDeltaAtomic": "1500000000000000000",
+    "vaultDeltaAtomic": "-1500000000000000000"
+  },
+  "comparisons": [
+    {
+      "metric": "dbStatus",
+      "expected": "COMPLETED",
+      "actual": "COMPLETED",
+      "pass": true
+    },
+    {
+      "metric": "receiptStatus",
+      "expected": "1",
+      "actual": "1",
+      "pass": true
+    },
+    {
+      "metric": "ticketConsumed",
+      "expected": "true",
+      "actual": "true",
+      "pass": true
+    }
+  ]
+}

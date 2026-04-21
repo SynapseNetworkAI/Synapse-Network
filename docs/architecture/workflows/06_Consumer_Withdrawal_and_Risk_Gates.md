@@ -126,7 +126,7 @@ sequenceDiagram
     alt 自动通过
         GW->>DB: ATOMIC UPDATE: available -= amount, pending += amount
         GW->>DB: INSERT synapse_vault_withdrawals (status=REQUESTED)
-        GW->>GW: Sign EIP-712 Withdraw ticket\n(amount=net, fee=fee, nonce, deadline)
+        GW->>GW: Sign EIP-712 Withdraw ticket\n(amount=net, fee=fee, ticketId, ticketHash, deadline)
         GW-->>FE: {status, ticket: {amount, fee, ticketId, ticketHash, deadline, signature, chainId, contractAddress}}
     else 人工审核
         GW->>DB: ATOMIC UPDATE: available -= amount, frozen += amount
@@ -173,10 +173,13 @@ sequenceDiagram
 | 合约处理 | `amount` (净额) 转给用户，`fee` 累加到 `platformFeePool` |
 | gas 费 | 用户自付（`msg.sender = Owner`） |
 
-合约视角：`withdraw(net_wei, fee_wei, nonce, deadline, sig)`
+合约视角：`withdraw(net_wei, fee_wei, ticketId, deadline, sig)`
 - `safeTransfer(msg.sender, net_wei)` → 用户收到净额
 - `platformFeePool += fee_wei` → 平台手续费留在合约内
 - Vault 总减少 = `net_wei`（fee 不离开合约，仅重新分配）
+- 如果链上交易因为低 gas、临时 pause、vault 流动性等原因 revert，但
+  deadline 未到且 `isTicketConsumed(ticketHash)=false`，Gateway 不得把业务
+  单据判为终态失败；用户可以使用同一 ticket 在 deadline 前重试。
 
 ### 7.2 Background Event Watcher（安全网）
 
@@ -261,6 +264,8 @@ Payments 的状态映射固定为：
 | 重放已用票据 | 合约 `consumedTickets[ticketHash]` 强制每张 EIP-712 final digest 只能用一次 |
 | 过期票据 | `require(block.timestamp <= deadline)` — 默认 30 分钟有效期 |
 | 平台私钥泄露 | 二方协作：即使 signer key 泄露，攻击者仍需用户钱包私钥（msg.sender）才能执行 |
+| 链上失败 receipt | 未过 deadline 且 ticket 未 consumed 时保持 active，不释放 pending |
+| Release regression | `npm run e2e:withdrawal-one-ticket-evidence` 覆盖 10 场景，包括 replay 和 low-gas retry |
 
 ## 12. 文档结论
 
