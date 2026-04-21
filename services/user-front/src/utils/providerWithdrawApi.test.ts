@@ -1,6 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { resolveProviderWithdrawApiErrorMessage } from "@/utils/providerWithdrawApi";
+vi.mock("@/utils/authSession", () => ({
+  buildAuthedHeaders: () => ({}),
+  normalizeAuthApiError: (message: string) => message,
+}));
+
+import {
+  listProviderWithdrawals,
+  resolveProviderWithdrawApiErrorMessage,
+} from "@/utils/providerWithdrawApi";
 
 describe("resolveProviderWithdrawApiErrorMessage", () => {
   it("maps vault liquidity check unavailable to a readable retry message", () => {
@@ -23,5 +31,41 @@ describe("resolveProviderWithdrawApiErrorMessage", () => {
         fallback: "Failed to create provider withdrawal",
       }),
     ).toBe("A pending provider withdrawal already exists.");
+  });
+
+  it("normalizes withdrawal ticket ids from list responses", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () =>
+      new Response(
+        JSON.stringify({
+          withdrawals: [
+            {
+              id: "wd-1",
+              amountUsdc: "1",
+              status: "APPROVED_AUTO",
+              ticket: {
+                ticketId: "abc",
+                ticketHash: "def",
+                amount: "100",
+                fee: "1",
+                deadline: 123,
+                signature: "0xsig",
+                chainId: 31337,
+                contractAddress: "0xcontract",
+              },
+            },
+          ],
+        }),
+        { status: 200 },
+      );
+
+    try {
+      const rows = await listProviderWithdrawals("0xabc");
+
+      expect(rows[0].ticket?.ticketId).toBe("0xabc");
+      expect(rows[0].ticket?.ticketHash).toBe("0xdef");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 });

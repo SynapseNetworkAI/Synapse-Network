@@ -1296,9 +1296,10 @@ export type I18nMessages = {
     walletClientUnavailable: string;
     connectWalletFirst: string;
     withdrawalContractMissing: string;
-    wrongNetwork: string;
-    ticketExpired: string;
-    gasEstimateInsufficient: string;
+	    wrongNetwork: string;
+	    ticketExpired: string;
+	    ticketExpiringSoon: string;
+	    gasEstimateInsufficient: string;
     walletRejected: string;
     insufficientNativeGas: string;
     staleTicket: string;
@@ -1372,9 +1373,10 @@ export type I18nMessages = {
     historyStatusRequested: string;
     historyStatusApprovedAuto: string;
     historyStatusPendingManualReview: string;
-    historyStatusCompleted: string;
-    historyStatusRejected: string;
-    historyStatusCancelled: string;
+	    historyStatusCompleted: string;
+	    historyStatusRejected: string;
+	    historyStatusCancelled: string;
+	    historyStatusFailedExpired: string;
     historyTableWithdrawalId: string;
     historyTableAmount: string;
     historyTableStatus: string;

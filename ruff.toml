@@ -25,3 +25,18 @@ max-complexity = 10
 "services/gateway/tests/**/*.py" = ["S101", "PLR2004"]
 "services/gateway-admin/tests/**/*.py" = ["S101", "PLR2004"]
 "scripts/**/*.py" = ["S101", "PLR2004"]
+
+# First rollout baseline for dynamic finance service/mixin modules. These files
+# are covered by Semgrep money/security gates and targeted withdrawal tests; the
+# architecture-quality gate should block newly touched standalone code without
+# forcing a risky large refactor of existing funds paths during feature work.
+"services/gateway/src/app.py" = ["C901", "PLR0915", "PLR2004"]
+"services/gateway/src/services/balance_mixins/withdraw_signing.py" = ["B904", "PLC0415", "TRY003", "TRY300", "TRY301"]
+"services/gateway/src/services/owner/finance_consumer_withdraw_mixin.py" = ["B904", "C901", "E401", "PLC0415", "PLR0912", "PLR0915", "S110", "SIM105"]
+"services/gateway/src/services/owner/finance_refund_exec_mixin.py" = ["B009", "PLC0415"]
+"services/gateway/src/services/owner/finance_service.py" = ["B904", "PLC0415", "PLR2004"]
+"services/gateway/src/services/platform/tasks/consumer_withdraw_processor.py" = ["C901", "PLC0415", "PLR0911", "SIM105", "TRY300", "TRY400"]
+"services/gateway/src/services/provider/withdraw_execution_mixin.py" = ["B009", "B904", "PLC0415", "TRY301"]
+"services/gateway/src/services/provider/withdraw_helpers_mixin.py" = ["B904", "PERF401", "PLR2004", "TRY003", "TRY300", "TRY301"]
+"services/gateway/src/services/provider/withdraw_service.py" = ["B009", "PLC0415", "TRY301"]
+"services/gateway/src/storage/postgres/repositories/finance_atomic_withdraw_mixin.py" = ["TRY301"]

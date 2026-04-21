@@ -6,7 +6,7 @@ Composed into ProviderWithdrawService via MRO.
 from __future__ import annotations
 
 import time
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal
 from typing import Any, List, Optional
 from uuid import uuid4
 
@@ -86,6 +86,7 @@ class ProviderWithdrawExecutionMixin:
         self,
         *,
         owner: str,
+        withdrawal_id: str,
         amount_usdc: Decimal,
         force_sign: bool = False,
     ) -> PreparedWithdrawTicket:
@@ -109,19 +110,20 @@ class ProviderWithdrawExecutionMixin:
             )
 
         private_key = self._require_withdraw_signer()  # type: ignore[attr-defined]
-        nonce, chain_id = self._resolve_withdraw_nonce_and_chain(owner)  # type: ignore[attr-defined]
+        chain_id = self._resolve_withdraw_chain()  # type: ignore[attr-defined]
         deadline = int(time.time()) + self._resolve_withdraw_deadline_sec()  # type: ignore[attr-defined]
         fee_wei = 0
+        ticket_id = self._derive_withdraw_ticket_id(withdrawal_id=withdrawal_id)  # type: ignore[attr-defined]
         typed_data = self._build_withdraw_typed_data(  # type: ignore[attr-defined]
             owner_wallet=owner,
             amount_wei=amount_wei,
             fee_wei=fee_wei,
-            nonce=nonce,
+            ticket_id=ticket_id,
             deadline=deadline,
             chain_id=chain_id,
             verifying_contract=normalize_wallet(settings.router_address),
         )
-        signature = self._sign_withdraw_ticket(typed_data, private_key)  # type: ignore[attr-defined]
+        signature, ticket_hash = self._sign_withdraw_ticket(typed_data, private_key)  # type: ignore[attr-defined]
 
         try:
             from eth_account import Account  # type: ignore[import-not-found]
@@ -134,15 +136,17 @@ class ProviderWithdrawExecutionMixin:
             requires_manual_review=False,
             amount_wei=amount_wei,
             fee_wei=fee_wei,
-            nonce=nonce,
             chain_id=chain_id,
             deadline=deadline,
             signature=signature,
             signer_address=signer_address,
+            ticket_id=ticket_id,
+            ticket_hash=ticket_hash,
             ticket={
+                "ticketId": ticket_id,
+                "ticketHash": ticket_hash,
                 "amount": str(amount_wei),
                 "fee": str(fee_wei),
-                "nonce": nonce,
                 "deadline": deadline,
                 "signature": signature,
                 "chainId": chain_id,
@@ -222,6 +226,7 @@ class ProviderWithdrawExecutionMixin:
         self._assert_withdraw_vault_liquidity(amount)  # type: ignore[attr-defined]
         ticket_payload = self._prepare_withdraw_ticket(
             owner=owner,
+            withdrawal_id=str(target.id or ""),
             amount_usdc=amount,
             force_sign=True,
         )
@@ -268,10 +273,10 @@ class ProviderWithdrawExecutionMixin:
         return response
 
     def _build_atomic_signing_ticket(
-        self, owner: str, amount_usdc: Decimal
+        self, owner: str, amount_usdc: Decimal, withdrawal_id: str
     ) -> PreparedWithdrawTicket:
         return self._prepare_withdraw_ticket(
-            owner=owner, amount_usdc=amount_usdc
+            owner=owner, withdrawal_id=withdrawal_id, amount_usdc=amount_usdc
         )
 
     def process_withdrawal_request(
@@ -297,8 +302,8 @@ class ProviderWithdrawExecutionMixin:
                     window_seconds=window_seconds,
                     high_risk_override=bool(high_risk_override or command.high_risk_override),
                     pre_reserve_check=self._assert_withdraw_vault_liquidity,  # type: ignore[attr-defined]
-                    sign_ticket_factory=lambda value: self._build_atomic_signing_ticket(
-                        owner, value
+                    sign_ticket_factory=lambda value, withdrawal_id: self._build_atomic_signing_ticket(
+                        owner, value, withdrawal_id
                     ),
                 )
             )
@@ -421,9 +426,9 @@ class ProviderWithdrawExecutionMixin:
         idempotency_key: str,
         request_meta: Optional[dict[str, Any]],
         ticket_payload: PreparedWithdrawTicket,
+        withdrawal_id: str,
     ) -> tuple[WithdrawalIntentRow, dict[str, Any]]:
         now_text = now_dt_str()
-        withdrawal_id = str(uuid4())
         status = (
             "PENDING_MANUAL_REVIEW"
             if ticket_payload.requires_manual_review

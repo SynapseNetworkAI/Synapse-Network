@@ -96,12 +96,14 @@ class PreparedWithdrawTicket:
     requires_manual_review: bool
     amount_wei: int
     fee_wei: int
-    nonce: int
     chain_id: int
     deadline: int
     signature: str
     signer_address: str
     ticket: dict[str, Any]
+    ticket_id: str = ""
+    ticket_hash: str = ""
+    nonce: int = 0
 
 
 @dataclass(frozen=True)
@@ -132,7 +134,7 @@ class WithdrawalAtomicRequestCommand:
     window_seconds: int
     high_risk_override: bool
     pre_reserve_check: Optional[Callable[[Decimal], None]] = None
-    sign_ticket_factory: Optional[Callable[[Decimal], PreparedWithdrawTicket]] = None
+    sign_ticket_factory: Optional[Callable[[Decimal, str], PreparedWithdrawTicket]] = None
 
 
 @dataclass(frozen=True)

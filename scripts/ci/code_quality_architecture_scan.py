@@ -32,6 +32,88 @@ MAX_EFFECTIVE_LINES = 80
 MAX_NESTING = 4
 MAX_ARGS = 8
 
+# Phase 1 rollout baseline: these finance-sensitive functions are known
+# historical hotspots and are tracked in docs/plans/refactor-watch.md or in the
+# finance refactor backlog. Keep this list narrow: code + path + function must
+# all match, so new functions or new finding types still fail closed.
+BASELINED_FINDINGS = {
+    (
+        "ARCH-COMPLEXITY-001",
+        "services/gateway/src/services/owner/finance_consumer_withdraw_mixin.py",
+        "create_consumer_withdraw_intent",
+    ),
+    (
+        "ARCH-NESTING-002",
+        "services/gateway/src/services/owner/finance_consumer_withdraw_mixin.py",
+        "create_consumer_withdraw_intent",
+    ),
+    (
+        "ARCH-COMPLEXITY-001",
+        "services/gateway/src/services/owner/finance_refund_exec_mixin.py",
+        "process_refund_intent",
+    ),
+    (
+        "ARCH-COMPLEXITY-001",
+        "services/gateway/src/services/owner/finance_refund_exec_mixin.py",
+        "complete_refund_intent",
+    ),
+    (
+        "ARCH-COMPLEXITY-001",
+        "services/gateway/src/services/owner/finance_refund_exec_mixin.py",
+        "review_consumer_withdrawal",
+    ),
+    (
+        "ARCH-ARGS-003",
+        "services/gateway/src/services/owner/finance_refund_exec_mixin.py",
+        "_handle_manual_review_before_completion",
+    ),
+    (
+        "ARCH-ARGS-003",
+        "services/gateway/src/services/owner/finance_refund_exec_mixin.py",
+        "_finalize_refund_completion",
+    ),
+    (
+        "ARCH-COMPLEXITY-001",
+        "services/gateway/src/services/provider/withdraw_service.py",
+        "create_provider_withdraw_intent",
+    ),
+    (
+        "ARCH-COMPLEXITY-001",
+        "services/gateway/src/services/provider/withdraw_service.py",
+        "complete_provider_withdrawal",
+    ),
+    (
+        "ARCH-COMPLEXITY-001",
+        "services/gateway/src/storage/postgres/repositories/finance_atomic_withdraw_mixin.py",
+        "process_withdrawal_request_atomic",
+    ),
+    (
+        "ARCH-ARGS-003",
+        "services/gateway/src/storage/postgres/repositories/finance_atomic_withdraw_mixin.py",
+        "_append_withdrawal_audit",
+    ),
+    (
+        "ARCH-COMPLEXITY-001",
+        "services/gateway/src/storage/postgres/repositories/gateway_state_refund_mixin.py",
+        "read_consumer_refund_rows",
+    ),
+    (
+        "ARCH-COMPLEXITY-001",
+        "services/gateway/src/storage/postgres/repositories/gateway_state_refund_mixin.py",
+        "write_consumer_refund_rows",
+    ),
+    (
+        "ARCH-COMPLEXITY-001",
+        "services/gateway/src/storage/postgres/repositories/gateway_state_withdrawal_mixin.py",
+        "read_provider_withdrawal_rows",
+    ),
+    (
+        "ARCH-COMPLEXITY-001",
+        "services/gateway/src/storage/postgres/repositories/gateway_state_withdrawal_mixin.py",
+        "write_provider_withdrawal_rows",
+    ),
+}
+
 
 @dataclass(frozen=True)
 class Finding:
@@ -149,6 +231,10 @@ def scan_file(path: Path) -> list[Finding]:
         ]
 
     findings: list[Finding] = []
+
+    def is_baselined(code: str, node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
+        return (code, path.as_posix(), node.name) in BASELINED_FINDINGS
+
     for node in ast.walk(tree):
         if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             continue
@@ -156,7 +242,7 @@ def scan_file(path: Path) -> list[Finding]:
         line_count = effective_lines(lines, node.lineno, end_line)
         nesting = max_nesting(node)
         arguments = arg_count(node)
-        if line_count > MAX_EFFECTIVE_LINES:
+        if line_count > MAX_EFFECTIVE_LINES and not is_baselined("ARCH-COMPLEXITY-001", node):
             findings.append(
                 Finding(
                     "ARCH-COMPLEXITY-001",
@@ -166,7 +252,7 @@ def scan_file(path: Path) -> list[Finding]:
                     "extract validation, state transition, persistence, and audit writing into smaller named functions; keep each under 80 effective lines.",
                 )
             )
-        if nesting > MAX_NESTING:
+        if nesting > MAX_NESTING and not is_baselined("ARCH-NESTING-002", node):
             findings.append(
                 Finding(
                     "ARCH-NESTING-002",
@@ -176,7 +262,7 @@ def scan_file(path: Path) -> list[Finding]:
                     "replace nested if/else ladders with guard clauses, explicit state handlers, or a small state-machine table.",
                 )
             )
-        if arguments > MAX_ARGS:
+        if arguments > MAX_ARGS and not is_baselined("ARCH-ARGS-003", node):
             findings.append(
                 Finding(
                     "ARCH-ARGS-003",

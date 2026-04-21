@@ -339,8 +339,9 @@ Headers:
 6. 自动通过时，金额从 `provider_receivable` 进入 `provider_locked_balance`，并立即返回 EIP-712 ticket
 7. 人工审核时，金额先进入 `provider_frozen_balance`，等待 admin approve / reject
 8. `amountUsdc` 如果显式传入，必须大于 `0` 且最多支持小数点后 2 位；留空时表示提取当前全部可提现金额
-9. 如果已签发的 withdrawal ticket 过期，Gateway 在后续 `GET /api/v1/providers/withdrawals` 或新的 `POST /api/v1/providers/withdrawals/intent` 调用中会自动把该单据推进到 `CANCELLED`，并把对应 `provider_locked_balance` 释放回 `provider_receivable`
+9. 如果已签发的 withdrawal ticket 过期，Gateway 只有在本地时间超过 `deadline + WITHDRAW_TICKET_EXPIRY_BUFFER_SEC`、RPC 链头时间超过 `deadline + WITHDRAW_RPC_FINALITY_MARGIN_SEC`、且合约确认 `isTicketConsumed(ticketHash)=false` 后，才会把该单据推进到 `FAILED_EXPIRED`，并把对应 `provider_locked_balance` 释放回 `provider_receivable`
 10. 如果 Gateway 当前无法连通链上 RPC 或无法校验金库 USDC 余额，接口必须返回 `503 WITHDRAW_VAULT_LIQUIDITY_CHECK_UNAVAILABLE`，不能把内部堆栈暴露成 500。
+11. 每笔 withdrawal 只会签发一次 `ticketId/ticketHash`；过期后不能刷新旧 ticket，用户必须重新创建新的提现申请。
 
 ### 3.6.1 `GET /api/v1/providers/withdrawals/capability`
 

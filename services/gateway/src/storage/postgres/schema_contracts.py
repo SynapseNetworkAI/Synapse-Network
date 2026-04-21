@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 PRIMARY_KEY_FRAGMENT = "primary key"
 WITHDRAWAL_STATUS_CHECK_FRAGMENT = (
-    "check (status in ('REQUESTED', 'SIGNED', 'FAILED', "
+    "check (status in ('REQUESTED', 'SIGNED', 'FAILED', 'FAILED_EXPIRED', "
     "'APPROVED_AUTO', 'PENDING_MANUAL_REVIEW', 'REJECTED', 'COMPLETED', 'CANCELLED'))"
 )
 WITHDRAWAL_STATUS_CHECK_REQUIRED_FRAGMENTS = (
@@ -13,6 +13,7 @@ WITHDRAWAL_STATUS_CHECK_REQUIRED_FRAGMENTS = (
     "'REQUESTED'::text",
     "'SIGNED'::text",
     "'FAILED'::text",
+    "'FAILED_EXPIRED'::text",
     "'APPROVED_AUTO'::text",
     "'PENDING_MANUAL_REVIEW'::text",
     "'REJECTED'::text",
@@ -232,8 +233,8 @@ POSTGRES_TABLE_SCHEMA_CONTRACTS: tuple[TableSchemaContract, ...] = (
     ),
     TableSchemaContract(
         table_name="synapse_vault_withdrawals",
-        required_columns=frozenset({"id", "withdrawal_id", "owner_id", "provider_id", "source_account_id", "withdrawal_kind", "tx_hash", "amount_usdc", "status", "request_id", "signature", "nonce", "deadline", "created_at", "updated_at"}),
-        required_indexes=frozenset({"idx_synapse_vault_withdrawals_kind_owner"}),
+        required_columns=frozenset({"id", "withdrawal_id", "owner_id", "provider_id", "source_account_id", "withdrawal_kind", "tx_hash", "amount_usdc", "status", "request_id", "ticket_id", "ticket_hash", "signature", "nonce", "deadline", "created_at", "updated_at"}),
+        required_indexes=frozenset({"idx_synapse_vault_withdrawals_kind_owner", "uq_synapse_vault_withdrawals_ticket_hash", "uq_synapse_vault_withdrawals_one_ticket"}),
         required_constraints=(
             _constraint("primary key on withdrawal_id", PRIMARY_KEY_FRAGMENT, "withdrawal_id"),
             _constraint(

@@ -28,6 +28,8 @@ class OperationContextMetadata(BaseModel):
 class WithdrawalTicketMetadata(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
+    ticket_id: Optional[str] = Field(default=None, alias="ticketId")
+    ticket_hash: Optional[str] = Field(default=None, alias="ticketHash")
     amount: Optional[str] = None
     fee: Optional[str] = None
     nonce: Optional[int] = None

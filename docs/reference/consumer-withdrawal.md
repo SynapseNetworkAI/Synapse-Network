@@ -86,13 +86,14 @@ If the owner sends another `POST /api/v1/balance/consumer/withdraw` while one of
 - no new row is created
 - no second balance deduction happens
 - the existing row is returned
-- if the row is `REQUESTED`, the response includes the reusable signed ticket
+- if the row is `REQUESTED`, the response includes the already-issued signed ticket metadata
 
 ## Ticket and Fee Model
 
 - `CONSUMER_WITHDRAW_FEE_USDC` is deducted from the requested amount.
 - The ticket signs the net transfer amount and the fee separately.
-- The wallet executes `SynapseCore.withdraw(net, fee, nonce, deadline, signature)`.
+- The wallet executes `SynapseCore.withdraw(net, fee, ticketId, deadline, signature)`.
+- Each withdrawal request has a single ticket lifecycle. If the ticket expires before the chain claim, Gateway closes the request as `FAILED_EXPIRED`, releases the funds, and the user must create a fresh withdrawal request.
 
 The owner receives the net amount on-chain. The fee stays inside the vault as protocol revenue.
 

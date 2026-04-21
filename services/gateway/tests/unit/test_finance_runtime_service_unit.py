@@ -214,6 +214,8 @@ def _configure_withdraw_service(service: ProviderWithdrawService) -> None:
     service._complete_idempotency_redis = _async_none
     service._enforce_owner_write_rate_limit = _async_none
     service._assert_withdraw_vault_liquidity = _noop_assert_withdraw_vault_liquidity
+    service._withdraw_rpc_head_past_deadline = lambda deadline: True
+    service._withdraw_ticket_consumed_or_unknown = lambda ticket_hash: False
     service._prepare_withdraw_ticket = lambda **kwargs: PreparedWithdrawTicket(
         requires_manual_review=False,
         amount_wei=12000000,
@@ -223,10 +225,13 @@ def _configure_withdraw_service(service: ProviderWithdrawService) -> None:
         deadline=9999999999,
         signature="sig-1",
         signer_address="0xsigner",
+        ticket_id="0x" + "1" * 64,
+        ticket_hash="0x" + "2" * 64,
         ticket={
             "amount": "12000000",
             "fee": "0",
-            "nonce": 7,
+            "ticketId": "0x" + "1" * 64,
+            "ticketHash": "0x" + "2" * 64,
             "deadline": 9999999999,
             "signature": "sig-1",
             "chainId": 31337,
@@ -803,6 +808,8 @@ def test_provider_withdraw_expired_ticket_releases_locked_balance_on_list() -> N
             ticket={
                 "amount": "12000000",
                 "fee": "0",
+                "ticketId": "0x" + "1" * 64,
+                "ticketHash": "0x" + "2" * 64,
                 "nonce": 7,
                 "deadline": 1,
                 "signature": "sig-expired",
@@ -817,12 +824,12 @@ def test_provider_withdraw_expired_ticket_releases_locked_balance_on_list() -> N
 
     rows = asyncio.run(service.list_provider_withdrawals("0xdef"))
 
-    assert rows[0]["status"] == "CANCELLED"
+    assert rows[0]["status"] == "FAILED_EXPIRED"
     assert "expired" in rows[0]["message"].lower()
     wallet_after = storage.balance.ledger.ensure_provider_wallet("0xdef")
     assert _money_decimal(wallet_after.available_balance) == Decimal("22.000000")
     assert _money_decimal(wallet_after.pending_balance) == Decimal("0.000000")
-    assert storage.audit.rows[-1].action == "PROVIDER_WITHDRAW_CANCELLED"
+    assert storage.audit.rows[-1].action == "PROVIDER_WITHDRAW_FAILED_EXPIRED"
     assert storage.audit.rows[-1].details["reason"] == "TICKET_EXPIRED"
     assert _money_decimal(storage.audit.rows[-1].details["releasedAmountUsdc"]) == Decimal("12.000000")
     assert _money_decimal(storage.audit.rows[-1].details["releaseShortfallUsdc"]) == Decimal("0.000000")
@@ -857,6 +864,8 @@ def test_provider_withdraw_expired_ticket_cancels_even_if_locked_balance_was_alr
             ticket={
                 "amount": "12000000",
                 "fee": "0",
+                "ticketId": "0x" + "1" * 64,
+                "ticketHash": "0x" + "2" * 64,
                 "nonce": 7,
                 "deadline": 1,
                 "signature": "sig-expired",
@@ -871,12 +880,12 @@ def test_provider_withdraw_expired_ticket_cancels_even_if_locked_balance_was_alr
 
     rows = asyncio.run(service.list_provider_withdrawals("0xdef"))
 
-    assert rows[0]["status"] == "CANCELLED"
+    assert rows[0]["status"] == "FAILED_EXPIRED"
     assert "reconciled" in rows[0]["message"].lower()
     wallet_after = storage.balance.ledger.ensure_provider_wallet("0xdef")
     assert _money_decimal(wallet_after.available_balance) == Decimal("10.000000")
     assert _money_decimal(wallet_after.pending_balance) == Decimal("0.000000")
-    assert storage.audit.rows[-1].action == "PROVIDER_WITHDRAW_CANCELLED"
+    assert storage.audit.rows[-1].action == "PROVIDER_WITHDRAW_FAILED_EXPIRED"
     assert storage.audit.rows[-1].details["reason"] == "TICKET_EXPIRED"
     assert _money_decimal(storage.audit.rows[-1].details["releasedAmountUsdc"]) == Decimal("0.000000")
     assert _money_decimal(storage.audit.rows[-1].details["releaseShortfallUsdc"]) == Decimal("12.000000")
@@ -911,6 +920,8 @@ def test_provider_withdraw_expired_ticket_does_not_block_new_intent() -> None:
             ticket={
                 "amount": "12000000",
                 "fee": "0",
+                "ticketId": "0x" + "1" * 64,
+                "ticketHash": "0x" + "2" * 64,
                 "nonce": 7,
                 "deadline": 1,
                 "signature": "sig-expired",
@@ -933,7 +944,7 @@ def test_provider_withdraw_expired_ticket_does_not_block_new_intent() -> None:
 
     assert created["status"] == "APPROVED_AUTO"
     assert len(storage.gateway_state.withdraw_rows) == 2
-    assert storage.gateway_state.withdraw_rows[0].status == "CANCELLED"
+    assert storage.gateway_state.withdraw_rows[0].status == "FAILED_EXPIRED"
     assert storage.gateway_state.withdraw_rows[1].status == "APPROVED_AUTO"
     wallet_after = storage.balance.ledger.ensure_provider_wallet("0xdef")
     assert _money_decimal(wallet_after.available_balance) == Decimal("2.000000")
@@ -974,6 +985,8 @@ def test_provider_withdraw_expiry_reaper_scans_all_owners() -> None:
             ticket={
                 "amount": "12000000",
                 "fee": "0",
+                "ticketId": "0x" + "1" * 64,
+                "ticketHash": "0x" + "2" * 64,
                 "nonce": 7,
                 "deadline": 1,
                 "signature": "sig-expired-a",
@@ -1003,6 +1016,8 @@ def test_provider_withdraw_expiry_reaper_scans_all_owners() -> None:
             ticket={
                 "amount": "8000000",
                 "fee": "0",
+                "ticketId": "0x" + "3" * 64,
+                "ticketHash": "0x" + "4" * 64,
                 "nonce": 9,
                 "deadline": 1,
                 "signature": "sig-expired-b",
@@ -1018,8 +1033,8 @@ def test_provider_withdraw_expiry_reaper_scans_all_owners() -> None:
     expired_count = asyncio.run(service.expire_stale_provider_withdrawals())
 
     assert expired_count == 2
-    assert storage.gateway_state.withdraw_rows[0].status == "CANCELLED"
-    assert storage.gateway_state.withdraw_rows[1].status == "CANCELLED"
+    assert storage.gateway_state.withdraw_rows[0].status == "FAILED_EXPIRED"
+    assert storage.gateway_state.withdraw_rows[1].status == "FAILED_EXPIRED"
     assert _money_decimal(storage.balance.ledger.ensure_provider_wallet("0xdef").available_balance) == Decimal("17.000000")
     assert _money_decimal(storage.balance.ledger.ensure_provider_wallet("0xdef").pending_balance) == Decimal("0.000000")
     assert _money_decimal(storage.balance.ledger.ensure_provider_wallet("0xaaa").available_balance) == Decimal("11.000000")

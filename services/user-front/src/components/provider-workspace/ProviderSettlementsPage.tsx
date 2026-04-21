@@ -15,6 +15,7 @@ import {
   createProviderWithdrawIntent,
   getProviderWithdrawCapability,
   ProviderWithdrawApiError,
+  isWithdrawTicketNearExpiry,
   type ProviderWithdrawCapability,
   listProviderWithdrawals,
   type ProviderWithdrawRecord,
@@ -54,6 +55,7 @@ const WITHDRAWAL_HISTORY_STATUS_FILTERS = [
   "COMPLETED",
   "REJECTED",
   "CANCELLED",
+  "FAILED_EXPIRED",
 ] as const;
 
 type WithdrawalHistoryStatusFilter = (typeof WITHDRAWAL_HISTORY_STATUS_FILTERS)[number];
@@ -75,6 +77,7 @@ function withdrawalStatusLabel(status: ProviderWithdrawRecord["status"], t: Tran
   if (status === "APPROVED_AUTO") return t("providerSettlements.historyStatusApprovedAuto");
   if (status === "PENDING_MANUAL_REVIEW") return t("providerSettlements.historyStatusPendingManualReview");
   if (status === "CANCELLED") return t("providerSettlements.historyStatusCancelled");
+  if (status === "FAILED_EXPIRED") return t("providerSettlements.historyStatusFailedExpired", {}, "Expired");
   if (status === "REQUESTED") return t("providerSettlements.historyStatusRequested");
   if (status === "COMPLETED") return t("providerSettlements.historyStatusCompleted");
   if (status === "REJECTED") return t("providerSettlements.historyStatusRejected");
@@ -84,7 +87,7 @@ function withdrawalStatusLabel(status: ProviderWithdrawRecord["status"], t: Tran
 function withdrawalStatusBadgeClass(status: ProviderWithdrawRecord["status"]): string {
   if (status === "COMPLETED") return "border-[#22c55e]/30 bg-[#22c55e]/10 text-[#86efac]";
   if (status === "REJECTED") return "border-[#ef4444]/30 bg-[#ef4444]/10 text-[#fca5a5]";
-  if (status === "CANCELLED") return "border-[#94a3b8]/30 bg-[#94a3b8]/10 text-[#cbd5e1]";
+  if (status === "CANCELLED" || status === "FAILED_EXPIRED") return "border-[#94a3b8]/30 bg-[#94a3b8]/10 text-[#cbd5e1]";
   if (status === "APPROVED_AUTO") return "border-[#22c55e]/30 bg-[#22c55e]/10 text-[#bbf7d0]";
   return "border-[#ff9f0a]/30 bg-[#ff9f0a]/10 text-[#ffd7a1]";
 }
@@ -486,6 +489,9 @@ export default function ProviderSettlementsPage() {
     if (ticket.deadline && ticket.deadline < Math.floor(Date.now() / 1000)) {
       throw new Error(t("providerSettlements.ticketExpired"));
     }
+    if (isWithdrawTicketNearExpiry(ticket)) {
+      throw new Error(t("providerSettlements.ticketExpiringSoon"));
+    }
 
     const symbol = nativeBalanceData?.symbol || t("providerSettlements.nativeTokenFallback");
     if (!address) {
@@ -526,7 +532,7 @@ export default function ProviderSettlementsPage() {
       args: [
         BigInt(ticket.amount),
         BigInt(ticket.fee),
-        BigInt(ticket.nonce),
+        ticket.ticketId,
         BigInt(ticket.deadline),
         normalizeSignature(ticket.signature),
       ],
@@ -566,7 +572,7 @@ export default function ProviderSettlementsPage() {
       args: [
         BigInt(ticket.amount),
         BigInt(ticket.fee),
-        BigInt(ticket.nonce),
+        ticket.ticketId,
         BigInt(ticket.deadline),
         normalizeSignature(ticket.signature),
       ],
@@ -691,7 +697,7 @@ export default function ProviderSettlementsPage() {
             </button>
             <button
               onClick={resumePendingWithdraw}
-              disabled={!pendingWithdrawal?.ticket || pendingWithdrawal?.status !== "APPROVED_AUTO" || isAnyLoading}
+              disabled={!pendingWithdrawal?.ticket || pendingWithdrawal?.status !== "APPROVED_AUTO" || isAnyLoading || isWithdrawTicketNearExpiry(pendingWithdrawal.ticket)}
               className="px-4 py-2 rounded-lg border border-[#222222] bg-[#111111] text-white text-sm font-semibold hover:bg-[#1a1a1a] transition-colors disabled:opacity-40"
             >
               {t("providerSettlements.resumePending")}
@@ -875,7 +881,7 @@ export default function ProviderSettlementsPage() {
                     {withdrawalStatusLabel(row.status, t)}
                   </span>
                 </td>
-                <td className="py-4 px-6 text-xs text-[#c5c5c7]">{row.message || (row.status === "CANCELLED" ? t("providerSettlements.expiredTicketReleasedRow") : "-")}</td>
+                <td className="py-4 px-6 text-xs text-[#c5c5c7]">{row.message || (row.status === "CANCELLED" || row.status === "FAILED_EXPIRED" ? t("providerSettlements.expiredTicketReleasedRow") : "-")}</td>
                 <td className="py-4 px-6 text-xs font-mono text-[#c5c5c7]">{row.nonce}</td>
                 <td className="py-4 px-6 text-xs text-[#86868b]">{formatTimestamp(row.createdAt, locale)}</td>
                 <td className="py-4 px-6 text-xs font-mono text-[#86868b]">{row.txHash || "-"}</td>

@@ -35,7 +35,7 @@ The E2E flow creates real Provider receivable through a paid Gateway invocation,
 4. Invoke the Provider service once through Gateway to create Provider receivable.
 5. Create a Provider withdrawal intent with `WITHDRAWAL_AUTO_SINGLE_LIMIT_USDC=1.000000`, forcing `PENDING_MANUAL_REVIEW`.
 6. Use admin-front `/withdrawal-reviews` to approve and issue a signed ticket.
-7. Execute `SynapseCore.withdraw(amount, fee, nonce, deadline, signature)` with the Provider wallet.
+7. Execute `SynapseCore.withdraw(amount, fee, ticketId, deadline, signature)` with the Provider wallet.
 8. Call Gateway complete endpoint with the tx hash.
 9. Reconcile expected vs actual data across Postgres, Gateway API, gateway-admin API, admin-front screenshots, and chain balances.
 
@@ -85,7 +85,7 @@ The reconciliation report must include these comparisons:
 | Request created | `synapse_vault_withdrawals.status = PENDING_MANUAL_REVIEW` |
 | Request created | Provider available receivable decreases and frozen balance increases by withdrawal amount |
 | Approval | Gateway and DB status become `APPROVED_AUTO` |
-| Approval | Ticket contains amount, fee, nonce, deadline, signature |
+| Approval | Ticket contains amount, fee, ticketId, ticketHash, deadline, signature |
 | Chain claim | Provider MockUSDC balance increases by ticket amount |
 | Chain claim | SynapseCore MockUSDC balance decreases by ticket amount |
 | Completion | Gateway/DB status becomes `COMPLETED` and txHash is persisted |

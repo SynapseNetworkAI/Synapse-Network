@@ -511,7 +511,7 @@ class FinanceRefundExecMixin:
                         "message": "Completed refund intent cannot be failed.",
                     },
                 )
-            if status in {"FAILED", "REJECTED", "CANCELLED"}:
+            if status in {"FAILED", "FAILED_EXPIRED", "REJECTED", "CANCELLED"}:
                 return self._fail_response(target)
             if status not in REFUND_ACTIVE_STATUSES:
                 raise HTTPException(
@@ -656,6 +656,7 @@ class FinanceRefundExecMixin:
             ticket = self._build_consumer_withdraw_ticket(  # type: ignore[attr-defined]
                 owner=owner,
                 gross_amount_usdc=amount_usdc,
+                withdrawal_id=str(target.id or ""),
             )
             self._move_consumer_frozen_to_pending(owner, amount_usdc)  # type: ignore[attr-defined]
             target.status = "REQUESTED"
@@ -666,8 +667,9 @@ class FinanceRefundExecMixin:
             target.ticket = ticket
             target.request_meta = {
                 **(target.request_meta.model_dump(by_alias=True, mode="json") if hasattr(target.request_meta, "model_dump") else (target.request_meta or {})),
-                "ticketNonce": ticket.nonce,
                 "ticketDeadline": ticket.deadline,
+                "ticketId": ticket.ticket_id,
+                "ticketHash": ticket.ticket_hash,
             }
             self._save_refund_rows(rows, now)  # type: ignore[attr-defined]
             self._append_financial_audit(  # type: ignore[attr-defined]

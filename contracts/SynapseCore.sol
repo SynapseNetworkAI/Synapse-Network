@@ -18,15 +18,15 @@ contract SynapseCore is Ownable, EIP712, ReentrancyGuard {
     // 利润记录池: ensures Admin only extracts collected fees, never user principal
     uint256 public platformFeePool;
 
-    mapping(address => uint256) public userNonces;
+    mapping(bytes32 => bool) public consumedTickets;
 
     event DepositInfo(address indexed user, uint256 amount);
-    event WithdrawInfo(address indexed user, uint256 amount, uint256 fee);
+    event WithdrawInfo(address indexed user, bytes32 indexed ticketHash, uint256 amount, uint256 fee);
     event PlatformFeeDrawn(address indexed owner, uint256 amount);
     event SignerUpdated(address oldSigner, address newSigner);
 
     bytes32 private constant WITHDRAW_TYPEHASH =
-        keccak256("Withdraw(address user,uint256 amount,uint256 fee,uint256 nonce,uint256 deadline)");
+        keccak256("Withdraw(address user,uint256 amount,uint256 fee,bytes32 ticketId,uint256 deadline)");
 
     constructor(address _usdc, address _signer, address _initialOwner) 
         Ownable(_initialOwner)
@@ -64,28 +64,29 @@ contract SynapseCore is Ownable, EIP712, ReentrancyGuard {
     function withdraw(
         uint256 amount,
         uint256 fee,
-        uint256 nonce,
+        bytes32 ticketId,
         uint256 deadline,
         bytes calldata signature
     ) external nonReentrant {
         require(block.timestamp <= deadline, "Ticket expired");
-        require(nonce == userNonces[msg.sender], "Invalid nonce");
-        
-        userNonces[msg.sender]++;
+        require(ticketId != bytes32(0), "Invalid ticket");
         
         bytes32 structHash = keccak256(abi.encode(
             WITHDRAW_TYPEHASH,
             msg.sender,
             amount,
             fee,
-            nonce,
+            ticketId,
             deadline
         ));
         
-        bytes32 hash = _hashTypedDataV4(structHash);
-        address signer = ECDSA.recover(hash, signature);
+        bytes32 ticketHash = _hashTypedDataV4(structHash);
+        require(!consumedTickets[ticketHash], "Ticket consumed");
+
+        address signer = ECDSA.recover(ticketHash, signature);
         
         require(signer == platformSigner, "Invalid Oracle Signature");
+        consumedTickets[ticketHash] = true;
         
         // 顺手牵羊 0 Gas Protocol Fee Accrual
         if (fee > 0) {
@@ -95,7 +96,11 @@ contract SynapseCore is Ownable, EIP712, ReentrancyGuard {
         // Transfer principal to the user
         usdc.safeTransfer(msg.sender, amount);
         
-        emit WithdrawInfo(msg.sender, amount, fee);
+        emit WithdrawInfo(msg.sender, ticketHash, amount, fee);
+    }
+
+    function isTicketConsumed(bytes32 ticketHash) external view returns (bool) {
+        return consumedTickets[ticketHash];
     }
 
     function withdrawPlatformFees(uint256 amount) external onlyOwner nonReentrant {

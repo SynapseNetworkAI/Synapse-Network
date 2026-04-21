@@ -1,25 +1,20 @@
 """Gateway state repository — withdrawal, billing, and runtime state mixin."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
 import json
-from typing import Any, Callable, List
+from typing import Any, List
 
 from src.domain.gateway import OwnerSpendLimitRow
-from src.domain.ledger import DepositIntentRow, WithdrawalIntentRow
+from src.domain.ledger import WithdrawalIntentRow
 from src.domain.finance import (
-    RefundIntentRow,
     UsageLogRow,
 )
 from src.domain.runtime_state import (
-    DepositMetadataState,
-    InvocationBillingState,
     VaultWithdrawalMetadataState,
 )
 from src.domain.system import ProcessedDepositEventRow, RuntimeStateRow
 from src.utils.datetime_utils import now_dt_str, to_dt_str
 
-from ..database_manager import DatabaseManager
 
 
 
@@ -37,6 +32,8 @@ class GatewayStateWithdrawalMixin:
                     vw.status,
                     vw.request_id,
                     vw.amount_usdc,
+                    vw.ticket_id,
+                    vw.ticket_hash,
                     vw.signature,
                     vw.nonce,
                     vw.deadline,
@@ -46,8 +43,8 @@ class GatewayStateWithdrawalMixin:
                 FROM synapse_vault_withdrawals vw
                 JOIN synapse_ledger_accounts account
                   ON account.account_id = vw.source_account_id
-                                JOIN synapse_owner_accounts owner
-                                    ON owner.owner_id = account.owner_id
+                JOIN synapse_owner_accounts owner
+                  ON owner.owner_id = account.owner_id
                 LEFT JOIN synapse_runtime_state rs
                   ON rs.state_key = CONCAT('vault_withdrawal_meta::', vw.withdrawal_id)
                 WHERE vw.withdrawal_kind = 'provider_withdrawal'
@@ -63,6 +60,8 @@ class GatewayStateWithdrawalMixin:
             status,
             request_id,
             amount_usdc,
+            ticket_id,
+            ticket_hash,
             signature,
             nonce,
             deadline,
@@ -73,6 +72,17 @@ class GatewayStateWithdrawalMixin:
             metadata = VaultWithdrawalMetadataState.model_validate(
                 self._payload_dict(payload)
             )
+            ticket = metadata.ticket
+            if ticket.ticket_id is None and ticket_id is not None:
+                ticket.ticket_id = str(ticket_id)
+            if ticket.ticket_hash is None and ticket_hash is not None:
+                ticket.ticket_hash = str(ticket_hash)
+            if ticket.signature is None and signature is not None:
+                ticket.signature = str(signature)
+            if ticket.nonce is None and nonce is not None:
+                ticket.nonce = int(nonce)
+            if ticket.deadline is None and deadline is not None:
+                ticket.deadline = int(deadline)
             projected.append(
                 WithdrawalIntentRow(
                     id=str(row_id),
@@ -100,7 +110,7 @@ class GatewayStateWithdrawalMixin:
                     reviewerAddress=metadata.reviewer_address,
                     reviewerNote=metadata.reviewer_note,
                     reviewedAt=metadata.reviewed_at,
-                    ticket=metadata.ticket,
+                    ticket=ticket,
                     completedAt=metadata.completed_at,
                     completeMeta=metadata.complete_meta,
                     createdAt=to_dt_str(created_at, "") or "",
@@ -129,8 +139,8 @@ class GatewayStateWithdrawalMixin:
                     INSERT INTO synapse_vault_withdrawals (
                         withdrawal_id, owner_id, provider_id, withdrawal_kind,
                         source_account_id, request_id, amount_usdc, status, tx_hash,
-                        signature, nonce, deadline, created_at, updated_at
-                    ) VALUES (%s, %s, %s, 'provider_withdrawal', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        ticket_id, ticket_hash, signature, nonce, deadline, created_at, updated_at
+                    ) VALUES (%s, %s, %s, 'provider_withdrawal', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (withdrawal_id)
                     DO UPDATE SET
                         owner_id = EXCLUDED.owner_id,
@@ -140,6 +150,8 @@ class GatewayStateWithdrawalMixin:
                         amount_usdc = EXCLUDED.amount_usdc,
                         status = EXCLUDED.status,
                         tx_hash = EXCLUDED.tx_hash,
+                        ticket_id = COALESCE(synapse_vault_withdrawals.ticket_id, EXCLUDED.ticket_id),
+                        ticket_hash = COALESCE(synapse_vault_withdrawals.ticket_hash, EXCLUDED.ticket_hash),
                         signature = EXCLUDED.signature,
                         nonce = EXCLUDED.nonce,
                         deadline = EXCLUDED.deadline,
@@ -154,6 +166,8 @@ class GatewayStateWithdrawalMixin:
                         str(self._q6(row.amount_usdc)),
                         row.status,
                         row.tx_hash.lower() if row.tx_hash else None,
+                        row.ticket.ticket_id,
+                        row.ticket.ticket_hash,
                         row.signature,
                         row.nonce,
                         row.deadline,

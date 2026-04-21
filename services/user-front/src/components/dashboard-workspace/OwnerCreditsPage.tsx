@@ -30,6 +30,7 @@ import {
   getBillingCycleWindow,
 } from "@/utils/creditsSpendCap";
 import { compareMoneyStrings, formatMoneyString, moneyStringToNumber, normalizeMoneyString, type MoneyString } from "@/utils/money";
+import { isWithdrawTicketNearExpiry } from "@/utils/providerWithdrawApi";
 import SynapseCoreABI from "@/SynapseCoreABI.json";
 
 const DepositUsdcModal = dynamic(
@@ -190,6 +191,11 @@ function WithdrawBalanceModal({ availableBalance, userAddress, onClose, onSucces
       setStep("onchain");
       const ticket = result.ticket;
       const contractAddress = (ticket.contractAddress || "") as `0x${string}`;
+      if (isWithdrawTicketNearExpiry(ticket)) {
+        toast.error("Withdrawal credential is about to expire. To avoid failed gas spend, create a new withdrawal request after this one expires.");
+        onClose();
+        return;
+      }
 
       await writeContractAsync({
         address: contractAddress,
@@ -199,7 +205,7 @@ function WithdrawBalanceModal({ availableBalance, userAddress, onClose, onSucces
         args: [
           BigInt(ticket.amount),
           BigInt(ticket.fee),
-          BigInt(ticket.nonce),
+          ticket.ticketId,
           BigInt(ticket.deadline),
           normalizeSignature(ticket.signature),
         ],

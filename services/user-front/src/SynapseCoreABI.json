@@ -193,6 +193,12 @@
         "type": "address"
       },
       {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "ticketHash",
+        "type": "bytes32"
+      },
+      {
         "indexed": false,
         "internalType": "uint256",
         "name": "amount",
@@ -207,6 +213,25 @@
     ],
     "name": "WithdrawInfo",
     "type": "event"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "name": "consumedTickets",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
   },
   {
     "inputs": [
@@ -292,6 +317,25 @@
         "internalType": "uint256[]",
         "name": "extensions",
         "type": "uint256[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "ticketHash",
+        "type": "bytes32"
+      }
+    ],
+    "name": "isTicketConsumed",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
       }
     ],
     "stateMutability": "view",
@@ -385,25 +429,6 @@
   {
     "inputs": [
       {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "name": "userNonces",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
         "internalType": "uint256",
         "name": "amount",
         "type": "uint256"
@@ -414,9 +439,9 @@
         "type": "uint256"
       },
       {
-        "internalType": "uint256",
-        "name": "nonce",
-        "type": "uint256"
+        "internalType": "bytes32",
+        "name": "ticketId",
+        "type": "bytes32"
       },
       {
         "internalType": "uint256",

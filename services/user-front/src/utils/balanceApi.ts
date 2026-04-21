@@ -794,14 +794,36 @@ export async function listV2Refunds(
 }
 
 export type ConsumerWithdrawTicket = {
+  ticketId: `0x${string}`;
+  ticketHash?: `0x${string}`;
   amount: string;
   fee: string;
-  nonce: number;
+  nonce?: number;
   deadline: number;
   signature: string;
   chainId: number;
   contractAddress: string;
 };
+
+function normalizeHex32(value: unknown): `0x${string}` {
+  const raw = typeof value === "string" ? value : "";
+  const normalized = raw.startsWith("0x") ? raw : `0x${raw}`;
+  return normalized as `0x${string}`;
+}
+
+function normalizeConsumerWithdrawTicket(rawTicket: Record<string, unknown>): ConsumerWithdrawTicket {
+  return {
+    ticketId: normalizeHex32(rawTicket.ticketId),
+    ticketHash: typeof rawTicket.ticketHash === "string" ? normalizeHex32(rawTicket.ticketHash) : undefined,
+    amount: normalizeMoneyString(rawTicket.amount),
+    fee: normalizeMoneyString(rawTicket.fee),
+    nonce: rawTicket.nonce == null ? undefined : Number(rawTicket.nonce || 0),
+    deadline: Number(rawTicket.deadline || 0),
+    signature: typeof rawTicket.signature === "string" ? rawTicket.signature : "",
+    chainId: Number(rawTicket.chainId || 0),
+    contractAddress: typeof rawTicket.contractAddress === "string" ? rawTicket.contractAddress : "",
+  };
+}
 
 export type ConsumerWithdrawIntent = {
   withdrawId: string;
@@ -840,15 +862,7 @@ export async function requestConsumerWithdraw(
   const payload = (await response.json()) as Record<string, unknown>;
   const rawTicket = payload.ticket as Record<string, unknown> | undefined;
   const ticket: ConsumerWithdrawTicket | undefined = rawTicket
-    ? {
-        amount: normalizeMoneyString(rawTicket.amount),
-        fee: normalizeMoneyString(rawTicket.fee),
-        nonce: Number(rawTicket.nonce || 0),
-        deadline: Number(rawTicket.deadline || 0),
-        signature: typeof rawTicket.signature === "string" ? rawTicket.signature : "",
-        chainId: Number(rawTicket.chainId || 0),
-        contractAddress: typeof rawTicket.contractAddress === "string" ? rawTicket.contractAddress : "",
-      }
+    ? normalizeConsumerWithdrawTicket(rawTicket)
     : undefined;
   return {
     withdrawId: typeof payload.withdrawId === "string" ? payload.withdrawId : "",
@@ -890,15 +904,7 @@ export async function listConsumerWithdrawals(
       createdAt: typeof row.createdAt === "string" ? row.createdAt : undefined,
       updatedAt: typeof row.updatedAt === "string" ? row.updatedAt : undefined,
       ticket: rawTicket
-        ? {
-            amount: normalizeMoneyString(rawTicket.amount),
-            fee: normalizeMoneyString(rawTicket.fee),
-            nonce: Number(rawTicket.nonce || 0),
-            deadline: Number(rawTicket.deadline || 0),
-            signature: typeof rawTicket.signature === "string" ? rawTicket.signature : "",
-            chainId: Number(rawTicket.chainId || 0),
-            contractAddress: typeof rawTicket.contractAddress === "string" ? rawTicket.contractAddress : "",
-          }
+        ? normalizeConsumerWithdrawTicket(rawTicket)
         : undefined,
       ownerAddress: typeof row.ownerAddress === "string" ? row.ownerAddress : undefined,
     };

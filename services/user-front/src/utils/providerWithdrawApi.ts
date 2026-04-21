@@ -89,14 +89,43 @@ export function resolveProviderWithdrawApiErrorMessage({
 }
 
 export type ProviderWithdrawTicket = {
+  ticketId: `0x${string}`;
+  ticketHash?: `0x${string}`;
   amount: string;
   fee: string;
-  nonce: number;
+  nonce?: number;
   deadline: number;
   signature: string;
   chainId: number;
   contractAddress: string;
 };
+
+export const WITHDRAW_TICKET_CRITICAL_SECONDS = 120;
+
+export function isWithdrawTicketNearExpiry(ticket: { deadline?: number }, nowSec = Math.floor(Date.now() / 1000)): boolean {
+  const deadline = Number(ticket.deadline || 0);
+  return deadline > 0 && deadline - nowSec <= WITHDRAW_TICKET_CRITICAL_SECONDS;
+}
+
+function normalizeHex32(value: unknown): `0x${string}` {
+  const raw = typeof value === "string" ? value : "";
+  const normalized = raw.startsWith("0x") ? raw : `0x${raw}`;
+  return normalized as `0x${string}`;
+}
+
+function normalizeProviderWithdrawTicket(rawTicket: Record<string, unknown>): ProviderWithdrawTicket {
+  return {
+    ticketId: normalizeHex32(rawTicket.ticketId),
+    ticketHash: typeof rawTicket.ticketHash === "string" ? normalizeHex32(rawTicket.ticketHash) : undefined,
+    amount: normalizeMoneyString(rawTicket.amount),
+    fee: normalizeMoneyString(rawTicket.fee),
+    nonce: rawTicket.nonce == null ? undefined : Number(rawTicket.nonce || 0),
+    deadline: Number(rawTicket.deadline || 0),
+    signature: typeof rawTicket.signature === "string" ? rawTicket.signature : "",
+    chainId: Number(rawTicket.chainId || 0),
+    contractAddress: typeof rawTicket.contractAddress === "string" ? rawTicket.contractAddress : "",
+  };
+}
 
 export type ProviderWithdrawRecord = {
   id: string;
@@ -107,7 +136,8 @@ export type ProviderWithdrawRecord = {
     | "PENDING_MANUAL_REVIEW"
     | "REJECTED"
     | "COMPLETED"
-    | "CANCELLED";
+    | "CANCELLED"
+    | "FAILED_EXPIRED";
   nonce: number;
   deadline: number;
   signature?: string;
@@ -245,6 +275,7 @@ export async function listProviderWithdrawals(userAddress: string): Promise<Prov
     "REJECTED",
     "COMPLETED",
     "CANCELLED",
+    "FAILED_EXPIRED",
     "PENDING",
   ]);
   return rows.map((row) => ({
@@ -262,7 +293,7 @@ export async function listProviderWithdrawals(userAddress: string): Promise<Prov
     message: typeof row.message === "string" ? row.message : undefined,
     createdAt: (row.createdAt as string | number | undefined) ?? undefined,
     completedAt: (row.completedAt as string | number | undefined) ?? undefined,
-    ticket: row.ticket && typeof row.ticket === "object" ? (row.ticket as ProviderWithdrawTicket) : undefined,
+    ticket: row.ticket && typeof row.ticket === "object" ? normalizeProviderWithdrawTicket(row.ticket as Record<string, unknown>) : undefined,
   }));
 }
 

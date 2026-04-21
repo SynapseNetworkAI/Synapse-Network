@@ -985,10 +985,10 @@ def test_gateway_state_repository_read_and_write() -> None:
         "dep-1", "0xabc", "0xtx1", "req-1", {"consumerAddress": "0xabc", "idempotencyKey": "idem-1"}, Decimal("5.0"), "CONFIRMED", "2026-03-15 14:24:00", "2026-03-15 14:24:01"
     )]]})
     db.readonly_plan.append({"fetchall": [[(
-        "ref-1", "0xabc", "0xtx2", "REQUESTED", "req-2", Decimal("0.5"), "sig-r", 9, 999, "2026-03-15 14:24:02", "2026-03-15 14:24:03", {"flowStatus": "PENDING", "consumerAddress": "0xabc", "idempotencyKey": "idem-2", "originRequestId": "req-1", "requestMeta": {"requestId": "req-2", "traceId": "trace-refund-1"}, "reviewDecision": "APPROVE", "reviewerAddress": "0xreviewer", "reviewerNote": "ok", "reviewedAt": 1711111111, "completeMeta": {"requestId": "req-complete-ref-1"}}
+        "ref-1", "0xabc", "0xtx2", "REQUESTED", "req-2", Decimal("0.5"), "0x" + "1" * 64, "0x" + "2" * 64, "sig-r", 9, 999, "2026-03-15 14:24:02", "2026-03-15 14:24:03", {"flowStatus": "PENDING", "consumerAddress": "0xabc", "idempotencyKey": "idem-2", "originRequestId": "req-1", "requestMeta": {"requestId": "req-2", "traceId": "trace-refund-1"}, "reviewDecision": "APPROVE", "reviewerAddress": "0xreviewer", "reviewerNote": "ok", "reviewedAt": 1711111111, "completeMeta": {"requestId": "req-complete-ref-1"}}
     )]]})
     db.readonly_plan.append({"fetchall": [[(
-        "wd-1", "0xabc", "0xtx3", "SIGNED", "req-3", Decimal("2.0"), "sig", 1, 0, "2026-03-15 14:24:04", "2026-03-15 14:24:05", {"flowStatus": "APPROVED_AUTO", "idempotencyKey": "idem-3", "amountWei": "2000000", "feeWei": "0", "chainId": 31337, "contractAddress": "0xcontract", "signerAddress": "0xsigner", "businessType": "withdraw", "riskLevel": "yellow", "riskReasonCode": "LARGE_WITHDRAWAL_REQUIRES_REVIEW", "requestMeta": {"requestId": "req-3", "review": {"decision": "APPROVE", "reviewerAddress": "0xreviewer"}}, "reviewDecision": "APPROVE", "reviewerAddress": "0xreviewer", "reviewerNote": "approved", "reviewedAt": 1711112222, "ticket": {"amount": "2000000", "fee": "0", "nonce": 1, "deadline": 0, "signature": "sig", "chainId": 31337, "contractAddress": "0xcontract"}, "completeMeta": {"requestId": "req-complete-wd-1"}}
+        "wd-1", "0xabc", "0xtx3", "SIGNED", "req-3", Decimal("2.0"), "0x" + "3" * 64, "0x" + "4" * 64, "sig", 1, 0, "2026-03-15 14:24:04", "2026-03-15 14:24:05", {"flowStatus": "APPROVED_AUTO", "idempotencyKey": "idem-3", "amountWei": "2000000", "feeWei": "0", "chainId": 31337, "contractAddress": "0xcontract", "signerAddress": "0xsigner", "businessType": "withdraw", "riskLevel": "yellow", "riskReasonCode": "LARGE_WITHDRAWAL_REQUIRES_REVIEW", "requestMeta": {"requestId": "req-3", "review": {"decision": "APPROVE", "reviewerAddress": "0xreviewer"}}, "reviewDecision": "APPROVE", "reviewerAddress": "0xreviewer", "reviewerNote": "approved", "reviewedAt": 1711112222, "ticket": {"amount": "2000000", "fee": "0", "ticketId": "0x" + "3" * 64, "ticketHash": "0x" + "4" * 64, "deadline": 0, "signature": "sig", "chainId": 31337, "contractAddress": "0xcontract"}, "completeMeta": {"requestId": "req-complete-wd-1"}}
     )]]})
     db.readonly_plan.append({"fetchall": [[(
         "usage-1", "agent-1", "req-u", "svc-1", "SUCCEEDED", Decimal("1.11"), "2026-03-15 14:24:08", "2026-03-15 14:24:10", "2026-03-15 14:24:08", {"ownerAddress": "0xb", "providerAddress": "0xs", "requestId": "req-u", "unitPrice": "1", "protocolFee": "0.1", "routingTax": "0.01", "totalCharge": "1.11", "businessType": "charge", "riskLevel": "green"}
@@ -1688,7 +1688,7 @@ def test_finance_atomic_repository_processes_typed_withdraw_command() -> None:
             rolling_24h_limit_usdc=Decimal("500"),
             window_seconds=86400,
             high_risk_override=False,
-            sign_ticket_factory=lambda amount: PreparedWithdrawTicket(
+            sign_ticket_factory=lambda amount, withdrawal_id: PreparedWithdrawTicket(
                 requires_manual_review=False,
                 amount_wei=int(amount * Decimal("1000000")),
                 fee_wei=0,
@@ -1697,10 +1697,13 @@ def test_finance_atomic_repository_processes_typed_withdraw_command() -> None:
                 deadline=9999999999,
                 signature="sig-1",
                 signer_address="0xsigner",
+                ticket_id="0x" + "1" * 64,
+                ticket_hash="0x" + "2" * 64,
                 ticket={
                     "amount": str(int(amount * Decimal("1000000"))),
                     "fee": "0",
-                    "nonce": 7,
+                    "ticketId": "0x" + "1" * 64,
+                    "ticketHash": "0x" + "2" * 64,
                     "deadline": 9999999999,
                     "signature": "sig-1",
                     "chainId": 31337,

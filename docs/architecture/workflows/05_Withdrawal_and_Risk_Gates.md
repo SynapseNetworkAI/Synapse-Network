@@ -87,8 +87,9 @@ Provider 提现必须先过三道门，而不是先签名再说。
 提现票据必须带：
 
 1. `signature`
-2. `nonce`
-3. `deadline`
+2. `ticketId`
+3. `ticketHash`
+4. `deadline`
 
 这些字段直接保存在 `synapse_vault_withdrawals`，并由链上合约校验。
 
@@ -157,13 +158,16 @@ Gateway 收到提现请求后，至少要先做：
 
 Platform 在离链生成：
 
-1. `nonce`
-2. `deadline`
-3. `signature`
+1. `ticketId`：由 `withdrawalId:v2:claim:1` 派生，同一 withdrawal 只允许生成一次
+2. `ticketHash`：EIP-712 final digest，包含 chainId 和 contract address
+3. `deadline`：默认 30 分钟
+4. `signature`
 
 这些值进入 `synapse_vault_withdrawals`，成为链上提现前必须持有的授权材料。
 
 对于人工审核单，这一步发生在 `APPROVE` 之后，而不是创建 intent 当下。
+
+一笔 withdrawal 只有一个 ticket 生命周期。`ticket_id`、`ticket_hash`、`deadline`、`signature` 写入后不可刷新；若 ticket 超时未上链，Gateway 只能在链头时间也越过安全窗口后把单据结案为 `FAILED_EXPIRED` 并释放 pending。用户若仍要提现，必须重新创建新的 withdrawal。
 
 ### 9.1 为什么一定要走 EIP-712
 
@@ -171,7 +175,7 @@ Platform 在离链生成：
 
 1. 链上签名可验证
 2. 离链审批和链上执行绑定
-3. nonce + deadline 防重放
+3. ticketHash + deadline 防重放
 
 ## 10. Step D: 链上广播与确认
 

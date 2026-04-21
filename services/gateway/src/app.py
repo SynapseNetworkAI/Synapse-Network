@@ -191,8 +191,8 @@ async def lifespan(app: FastAPI):
         )
 
     # Consumer withdrawal processor: recovery-only safety net.
-    # It never sends on-chain transactions; it only reconciles REQUESTED rows by
-    # observing WithdrawInfo events or cancels expired tickets.
+    # It never sends on-chain transactions; it reconciles ticketHash events and
+    # only releases expired tickets after RPC block-time safety checks.
     app.state.consumer_withdraw_processor_stop_event = asyncio.Event()
     app.state.consumer_withdraw_processor_task = None
     if settings.consumer_withdraw_processor_enabled:

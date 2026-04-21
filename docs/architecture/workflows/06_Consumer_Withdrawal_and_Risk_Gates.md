@@ -50,7 +50,7 @@ PENDING_MANUAL_REVIEW
 | `COMPLETED` | 链上交易已成功并完成收口 | `pending -= amount` |
 | `FAILED` | 钱包拒签、链上回执失败或前端显式失败回调 | `pending -> available` 或 `frozen -> available` |
 | `REJECTED` | 审核拒绝 | `frozen -> available` |
-| `CANCELLED` | ticket 过期未执行 | `pending -> available` |
+| `FAILED_EXPIRED` | ticket 过期未执行，且 RPC 链头已越过安全窗口、合约确认未消费 | `pending -> available` |
 
 ## 5. 风险三段阀门
 
@@ -108,7 +108,7 @@ PENDING_MANUAL_REVIEW
 ## 7. 主流程
 
 > **统一 Withdraw 模型**：Consumer 和 Provider 提现复用同一条链上路径 `SynapseCore.withdraw()`。
-> Gateway 签发 EIP-712 票据（含手续费），前端执行链上交易，用户付 gas。
+> Gateway 签发一次性 EIP-712 票据（`ticketId + ticketHash + deadline`，默认 30 分钟，含手续费），前端执行链上交易，用户付 gas。
 
 ```mermaid
 sequenceDiagram
@@ -127,16 +127,16 @@ sequenceDiagram
         GW->>DB: ATOMIC UPDATE: available -= amount, pending += amount
         GW->>DB: INSERT synapse_vault_withdrawals (status=REQUESTED)
         GW->>GW: Sign EIP-712 Withdraw ticket\n(amount=net, fee=fee, nonce, deadline)
-        GW-->>FE: {status, ticket: {amount, fee, nonce, deadline, signature, chainId, contractAddress}}
+        GW-->>FE: {status, ticket: {amount, fee, ticketId, ticketHash, deadline, signature, chainId, contractAddress}}
     else 人工审核
         GW->>DB: ATOMIC UPDATE: available -= amount, frozen += amount
         GW->>DB: INSERT synapse_vault_withdrawals (status=PENDING_MANUAL_REVIEW)
         GW-->>FE: {status=PENDING_MANUAL_REVIEW}
     end
 
-    FE->>SC: SynapseCore.withdraw(amount, fee, nonce, deadline, signature)\n(msg.sender = Owner, Owner pays gas)
+    FE->>SC: SynapseCore.withdraw(amount, fee, ticketId, deadline, signature)\n(msg.sender = Owner, Owner pays gas)
     SC->>SC: Verify EIP-712 signature (platformSigner)
-    SC->>SC: userNonces[user]++ | platformFeePool += fee
+    SC->>SC: consumedTickets[ticketHash] = true | platformFeePool += fee
     SC->>U: safeTransfer(USDC, amount) → Owner wallet
     SC-->>FE: tx confirmed (WithdrawInfo event)
 
@@ -183,10 +183,9 @@ sequenceDiagram
 `consumer_withdraw_processor.py` 不再直接执行链上交易。改为 **事件监听器**：
 
 1. 每 10 秒扫描 `REQUESTED` 状态的消费者提现记录
-2. 检查链上 `userNonces[owner]` 是否已超过 ticket nonce
-3. 扫描 `WithdrawInfo(user, amount, fee)` 事件匹配
+2. 扫描 `WithdrawInfo(user, ticketHash, amount, fee)` 事件匹配
 4. 找到匹配 → 自动标记 `COMPLETED`（含 txHash）
-5. 若 ticket deadline 已过且没有链上匹配 → 自动标记 `CANCELLED` 并释放 pending
+5. 若本地时间超过 `deadline + buffer`、RPC 最新区块时间超过 `deadline + margin`、且 `isTicketConsumed(ticketHash)=false` → 自动标记 `FAILED_EXPIRED` 并释放 pending
 
 这覆盖了两种极端场景：
 
@@ -259,8 +258,8 @@ Payments 的状态映射固定为：
 | 大额快速出金 | 金额阈值 + 日频次限制 → PENDING_MANUAL_REVIEW |
 | consumer 余额混用 | withdrawal_kind 强隔离，consumer 与 provider 路径完全独立 |
 | 伪造签名 | 合约验证 `ECDSA.recover(hash, signature) == platformSigner` |
-| 重放已用票据 | 合约 `userNonces[msg.sender]++` 强制递增，每张票仅能用一次 |
-| 过期票据 | `require(block.timestamp <= deadline)` — 默认 15 分钟有效期 |
+| 重放已用票据 | 合约 `consumedTickets[ticketHash]` 强制每张 EIP-712 final digest 只能用一次 |
+| 过期票据 | `require(block.timestamp <= deadline)` — 默认 30 分钟有效期 |
 | 平台私钥泄露 | 二方协作：即使 signer key 泄露，攻击者仍需用户钱包私钥（msg.sender）才能执行 |
 
 ## 12. 文档结论

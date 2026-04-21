@@ -8,12 +8,13 @@ from __future__ import annotations
 import asyncio
 import time
 from datetime import datetime, timezone
-from decimal import Decimal
+from decimal import Decimal, ROUND_DOWN
 from typing import Any, List, Literal, Optional, cast
 
 from fastapi import HTTPException
 
 from src.core.common import normalize_wallet
+from src.core.config import settings
 from src.domain.finance import BalanceLedger, WithdrawCreateContext
 from src.domain.ledger import WithdrawalIntentRow
 from src.domain.operation_metadata import OperationContextMetadata, WithdrawalTicketMetadata
@@ -31,16 +32,17 @@ MANUAL_REVIEW_REJECT_MESSAGE = "Withdrawal rejected during manual security revie
 MANUAL_REVIEW_APPROVED_MESSAGE = "Withdrawal approved. Signed ticket is ready for on-chain claim."
 EXPIRED_WITHDRAW_RELEASE_MESSAGE = "Withdrawal ticket expired. Locked receivable was released back to available balance."
 EXPIRED_WITHDRAW_RECONCILED_MESSAGE = "Withdrawal ticket expired. Locked receivable had already been reconciled before cleanup."
+EXPIRED_WITHDRAW_RPC_BEHIND_MESSAGE = "Withdrawal ticket is locally expired, but chain head has not crossed the finality margin yet."
 WITHDRAW_AMOUNT_PRECISION = Decimal("0.01")
 INSUFFICIENT_VAULT_LIQUIDITY_MESSAGE = "Vault liquidity is insufficient for this withdrawal right now. The platform treasury must refill on-chain USDC before you retry."
 WITHDRAW_VAULT_CHECK_UNAVAILABLE_MESSAGE = "Unable to verify vault liquidity right now. Retry after the gateway reconnects to chain RPC."
 WithdrawalRowStatus = Literal[
     "REQUESTED", "APPROVED_AUTO", "PENDING_MANUAL_REVIEW",
-    "REJECTED", "COMPLETED", "CANCELLED",
+    "REJECTED", "COMPLETED", "CANCELLED", "FAILED_EXPIRED",
 ]
 WITHDRAW_ROW_STATUSES: set[WithdrawalRowStatus] = {
     "REQUESTED", "APPROVED_AUTO", "PENDING_MANUAL_REVIEW",
-    "REJECTED", "COMPLETED", "CANCELLED",
+    "REJECTED", "COMPLETED", "CANCELLED", "FAILED_EXPIRED",
 }
 
 
@@ -163,7 +165,24 @@ class ProviderWithdrawHelpersMixin:
         deadline = int(row.deadline or 0)
         if deadline <= 0:
             return False
-        return deadline < int(now or time.time())
+        buffer_sec = int(getattr(settings, "withdraw_ticket_expiry_buffer_sec", 900) or 900)
+        return int(now or time.time()) > deadline + max(0, buffer_sec)
+
+    def _withdraw_ticket_consumed_or_unknown(self, ticket_hash: str) -> Optional[bool]:
+        if not ticket_hash:
+            return None
+        try:
+            return bool(self._withdraw_ticket_consumed(ticket_hash))  # type: ignore[attr-defined]
+        except Exception:
+            return None
+
+    def _withdraw_rpc_head_past_deadline(self, deadline: int) -> bool:
+        margin_sec = int(getattr(settings, "withdraw_rpc_finality_margin_sec", 300) or 300)
+        try:
+            block_timestamp = int(self._latest_withdraw_rpc_block_timestamp())  # type: ignore[attr-defined]
+        except Exception:
+            return False
+        return block_timestamp > deadline + max(0, margin_sec)
 
     def _expire_stale_withdrawals(
         self, rows: List[WithdrawalIntentRow], owner_wallet: Optional[str] = None
@@ -178,12 +197,42 @@ class ProviderWithdrawHelpersMixin:
                 continue
             if not self._is_expired_signed_withdrawal(row, now):
                 continue
+            deadline = int(row.deadline or 0)
+            ticket_hash = str(row.ticket.ticket_hash or "")
+            if not ticket_hash or not self._withdraw_rpc_head_past_deadline(deadline):
+                row.message = EXPIRED_WITHDRAW_RPC_BEHIND_MESSAGE
+                row.updated_at = now_text
+                changed = True
+                continue
+            consumed = self._withdraw_ticket_consumed_or_unknown(ticket_hash)
+            if consumed is None:
+                continue
+            if consumed:
+                amount_usdc = quantize_usdc(row.amount_usdc or Decimal("0"))
+                if amount_usdc > Decimal("0"):
+                    self._consume_locked_withdraw_amount(row_owner, amount_usdc)
+                row.status = "COMPLETED"
+                row.updated_at = now_text
+                row.completed_at = now
+                row.message = "Withdrawal ticket was consumed on-chain before expiry cleanup."
+                changed = True
+                self._append_financial_audit(  # type: ignore[attr-defined]
+                    "PROVIDER_WITHDRAW_COMPLETED_BY_REAPER",
+                    row_owner,
+                    {
+                        "withdrawalId": str(row.id or ""),
+                        "ticketHash": ticket_hash,
+                        "amountUsdc": money_str(amount_usdc),
+                        "reason": "CHAIN_TICKET_CONSUMED",
+                    },
+                )
+                continue
             amount_usdc = quantize_usdc(row.amount_usdc or Decimal("0"))
             released_amount_usdc = Decimal("0")
             if amount_usdc > Decimal("0"):
                 released_amount_usdc = self._release_pending_withdraw_to_available(row_owner, amount_usdc)
             release_shortfall_usdc = quantize_usdc(max(Decimal("0"), amount_usdc - released_amount_usdc))
-            row.status = "CANCELLED"
+            row.status = "FAILED_EXPIRED"
             row.updated_at = now_text
             row.completed_at = now
             row.message = (
@@ -193,10 +242,11 @@ class ProviderWithdrawHelpersMixin:
             )
             changed = True
             self._append_financial_audit(  # type: ignore[attr-defined]
-                "PROVIDER_WITHDRAW_CANCELLED",
+                "PROVIDER_WITHDRAW_FAILED_EXPIRED",
                 row_owner,
                 {
                     "withdrawalId": str(row.id or ""),
+                    "ticketHash": ticket_hash,
                     "amountUsdc": money_str(amount_usdc),
                     "releasedAmountUsdc": money_str(released_amount_usdc),
                     "releaseShortfallUsdc": money_str(release_shortfall_usdc),
@@ -212,10 +262,10 @@ class ProviderWithdrawHelpersMixin:
         await asyncio.sleep(0)
         async with self._mutation_lock.lock("provider_withdraw_expiry_reaper"):  # type: ignore[attr-defined]
             rows = self._normalize_withdrawal_rows()
-            before_cancelled = sum(1 for row in rows if str(row.status or "").upper() == "CANCELLED")
+            before_expired = sum(1 for row in rows if str(row.status or "").upper() == "FAILED_EXPIRED")
             rows = self._expire_stale_withdrawals(rows)
-            after_cancelled = sum(1 for row in rows if str(row.status or "").upper() == "CANCELLED")
-            return max(0, after_cancelled - before_cancelled)
+            after_expired = sum(1 for row in rows if str(row.status or "").upper() == "FAILED_EXPIRED")
+            return max(0, after_expired - before_expired)
 
     def _find_withdrawal_by_id(
         self, rows: List[WithdrawalIntentRow], owner_wallet: str, withdrawal_id: str
@@ -253,7 +303,7 @@ class ProviderWithdrawHelpersMixin:
                 status_code=400,
                 detail={"code": "INVALID_AMOUNT", "message": "amountUsdc must be a decimal string or integer value."},
             )
-        if amount != amount.quantize(WITHDRAW_AMOUNT_PRECISION):
+        if amount != amount.quantize(WITHDRAW_AMOUNT_PRECISION, rounding=ROUND_DOWN):
             raise HTTPException(
                 status_code=400,
                 detail={"code": "INVALID_AMOUNT", "message": "amountUsdc supports up to 2 decimal places."},
@@ -279,7 +329,7 @@ class ProviderWithdrawHelpersMixin:
             if isinstance(raw, float):
                 raise TypeError("float is forbidden for amountUsdc")
             amount = Decimal(str(raw))
-            if amount != amount.quantize(WITHDRAW_AMOUNT_PRECISION):
+            if amount != amount.quantize(WITHDRAW_AMOUNT_PRECISION, rounding=ROUND_DOWN):
                 return raw
             return money_str(amount)
         except Exception:

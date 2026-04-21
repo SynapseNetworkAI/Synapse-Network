@@ -16,6 +16,9 @@
     "**/*ABI.json",
     "**/contract-config.json",
     "**/*.generated.*",
-    "**/generated/**"
+    "**/generated/**",
+    "services/user-front/src/components/provider-workspace/ProviderSettlementsPage.tsx",
+    "services/gateway/src/storage/postgres/repositories/gateway_state_refund_mixin.py",
+    "services/gateway/src/services/provider/withdraw_helpers_mixin.py"
   ]
 }

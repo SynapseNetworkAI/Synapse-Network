@@ -42,7 +42,21 @@ if [[ ${#TARGETS[@]} -eq 0 ]]; then
 fi
 
 echo "[finance-mypy] running mypy on ${#TARGETS[@]} finance-core Python file(s)"
-if ! "$TOOL_RUNNER" mypy mypy -- --config-file "$ROOT_DIR/mypy-finance.ini" "${TARGETS[@]}"; then
+if command -v uvx >/dev/null 2>&1; then
+  MYPY_CMD=(
+    uvx
+    --from mypy
+    --with pydantic
+    --with fastapi
+    --with web3
+    --with eth-account
+    mypy
+  )
+else
+  MYPY_CMD=("$TOOL_RUNNER" mypy mypy --)
+fi
+
+if ! "${MYPY_CMD[@]}" --config-file "$ROOT_DIR/mypy-finance.ini" "${TARGETS[@]}"; then
   cat >&2 <<'EOF'
 FATAL FIN-MYPY-001: finance type gate failed.
 Why dangerous: Semgrep catches explicit syntax hazards, but mypy catches implicit
