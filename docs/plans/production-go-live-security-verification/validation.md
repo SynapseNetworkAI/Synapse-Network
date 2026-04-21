@@ -38,6 +38,8 @@ npm run release:evidence:gateway-fullchain:staging
 GATEWAY_RELEASE_E2E_REQUIRED_ENV=staging npm run ci:gateway-release-e2e-evidence
 npm run e2e:withdrawal-one-ticket-evidence
 npm run ci:withdrawal-one-ticket-evidence
+npm run perf:local-production-load-rehearsal
+npm run ci:local-production-load-evidence
 ```
 
 ## Repository and CI Gates
@@ -113,6 +115,7 @@ npm run ci:withdrawal-one-ticket-evidence
 ## Performance and Reliability Evidence
 
 - [x] Local performance/reliability smoke evidence: PASS, `npm run ci:performance-reliability` verifies provider health probe concurrency and slow-lane scheduling; `npm run perf:local-reliability-suite` passed automation, scenario, docs, release-gate, staging-safety-guard, gateway health, and admin-front login checks with evidence at `docs/evidence/performance/20260418T130340Z-local-reliability-suite/report.md`. This does not replace production-like load, chaos, rollback, or restore reports.
+- [ ] Local MVP production-load rehearsal evidence: NO-GO blocker for staging-prep, `npm run perf:local-production-load-rehearsal` report not attached or not validated by `npm run ci:local-production-load-evidence`. This local report must prove unique runId isolation, temporary wallet pool isolation, `chainNonceCollisionCount === 0`, bounded concurrency, graceful drain, no secret leakage, invoke/balance/deposit-confirm/withdrawal/provider-health/admin-finance lanes, and `0.000000` unexplained delta. It still does not replace staging capacity evidence.
 - [ ] Discovery/quote/invoke load test: NO-GO blocker, load report not attached.
 - [ ] Balance/deposit/withdrawal load test: NO-GO blocker, load report not attached.
 - [ ] Provider health probe load test: NO-GO blocker, load report not attached.

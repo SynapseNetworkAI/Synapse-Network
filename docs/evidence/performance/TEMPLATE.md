@@ -12,6 +12,7 @@ doc_status: draft
 - Commit:
 - Run time:
 - Runner:
+- Rehearsal run id:
 - Config manifest:
 - Test data manifest:
 - Evidence directory:
@@ -39,6 +40,15 @@ doc_status: draft
 | Flow | Duration | Concurrency | Ramp | Notes |
 | --- | --- | --- | --- | --- |
 |  |  |  |  |  |
+
+## Wallet / Signer Isolation
+
+- Consumer wallet count:
+- Provider wallet count:
+- Faucet funding strategy:
+- Per-wallet chain write serialization:
+- Chain nonce collisions:
+- Secret redaction check:
 
 ## Results
 
@@ -69,6 +79,8 @@ doc_status: draft
 - Vault before:
 - Vault after:
 - Unexplained delta:
+- Drain hard cap exceeded:
+- Abandoned in-flight requests:
 
 ## Chaos / Recovery Evidence
 

@@ -26,6 +26,8 @@ From repository root:
 14. `npm run ci:sdk-python`
 15. `npm run ci:contracts`
 16. `npm run ci:pr`
+17. `npm run perf:local-production-load-rehearsal`
+18. `npm run ci:local-production-load-evidence`
 
 Use these wrappers when final integration confidence is required.
 
@@ -151,6 +153,7 @@ Before finishing:
 8. run `npm run ci:diff-coverage` when changed code needs line-level coverage evidence; Python and Vitest coverage must be Cobertura XML
 9. run `npm run ci:agent-guardrails` when Agent-generated backend/admin code touches finance, approval, storage, or shared state-machine logic; install `uv` once if the runner reports a missing Python guardrail tool
 10. run `npm run release:evidence:gateway-fullchain:local` for a local rehearsal of the full live Gateway E2E evidence chain; run `npm run release:evidence:gateway-fullchain:staging` plus `GATEWAY_RELEASE_E2E_REQUIRED_ENV=staging npm run ci:gateway-release-e2e-evidence` for release Go/No-Go evidence
+11. run `npm run perf:local-production-load-rehearsal` and `npm run ci:local-production-load-evidence` before staging load when changing invoke, balance, deposit confirm, withdrawal, provider health, admin finance views, load-runner behavior, or wallet/signing isolation; this validates local runId isolation, temporary wallet pools, per-wallet chain serialization, bounded concurrency, drain hard cap, and no secret leakage
 
 ### Frontend work
 

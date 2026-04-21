@@ -1,0 +1,7 @@
+{
+  "rehearsalRunId": "lplr-2026-04-21T110809791Z-6f49cbcb",
+  "vaultBeforeAtomic": "100000000000000000000",
+  "vaultAfterAtomic": "98900000000000000000",
+  "vaultDeltaAtomic": "-1100000000000000000",
+  "chainNonceCollisionCount": 0
+}
