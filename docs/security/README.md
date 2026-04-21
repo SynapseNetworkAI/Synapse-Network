@@ -19,6 +19,7 @@ single runtime service.
 1. [SynapseCore_Internal_Production_Security_Audit_Report.md](./SynapseCore_Internal_Production_Security_Audit_Report.md)
 2. [SynapseCore_Internal_Audit_Closure_Log.md](./SynapseCore_Internal_Audit_Closure_Log.md)
 3. [SynapseCore_Internal_Audit_Risk_Acceptance.md](./SynapseCore_Internal_Audit_Risk_Acceptance.md)
+4. [SynapseCore_Production_Audit_Verification_Report.md](./SynapseCore_Production_Audit_Verification_Report.md)
 
 ## Audit Policy
 

@@ -59,6 +59,7 @@ Synapse Network is an agent-first settlement layer for AI agents. The primary pr
 - docs/security/SynapseCore_Internal_Production_Security_Audit_Report.md - internal SynapseCore production security audit report
 - docs/security/SynapseCore_Internal_Audit_Closure_Log.md - internal audit finding closure log
 - docs/security/SynapseCore_Internal_Audit_Risk_Acceptance.md - no-third-party-audit risk acceptance for capped MVP production
+- docs/security/SynapseCore_Production_Audit_Verification_Report.md - production-grade verification report for the internal audit evidence package
 
 ## Important Boundaries
 

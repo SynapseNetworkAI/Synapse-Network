@@ -82,6 +82,7 @@ AI 协作优先入口新增如下：
 6. [security/SynapseCore_Internal_Production_Security_Audit_Report.md](./security/SynapseCore_Internal_Production_Security_Audit_Report.md)
 7. [security/SynapseCore_Internal_Audit_Closure_Log.md](./security/SynapseCore_Internal_Audit_Closure_Log.md)
 8. [security/SynapseCore_Internal_Audit_Risk_Acceptance.md](./security/SynapseCore_Internal_Audit_Risk_Acceptance.md)
+9. [security/SynapseCore_Production_Audit_Verification_Report.md](./security/SynapseCore_Production_Audit_Verification_Report.md)
 
 ### Supplement layers
 
