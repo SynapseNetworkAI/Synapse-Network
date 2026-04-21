@@ -209,6 +209,7 @@ if [[ ! -f "$CONFIG_FILE" ]]; then
 fi
 
 ROUTER_ADDRESS=$(node -e "const c=require('${CONFIG_FILE}'); process.stdout.write(c.SynapseCore)")
+USDC_TOKEN_ADDRESS=$(node -e "const c=require('${CONFIG_FILE}'); process.stdout.write(c.MockUSDC)")
 PROVIDER_ADDRESS=$(node -e "const c=require('${CONFIG_FILE}'); process.stdout.write(c.Treasury)")
 
 echo "3) Starting gateway/gateway_fastapi.py in background (local profile)..."
@@ -262,6 +263,7 @@ if [[ -f "$LOCAL_ENV_FILE" ]]; then
 	POSTGRES_DSN="$LOCAL_POSTGRES_DSN" \
 	RPC_URL="http://127.0.0.1:8545" \
 	ROUTER_ADDRESS="$ROUTER_ADDRESS" \
+	USDC_TOKEN_ADDRESS="$USDC_TOKEN_ADDRESS" \
 	nohup "$PYTHON_BIN" gateway_fastapi.py > "${ROOT_DIR}/services/gateway/logs/provider_api.log" 2>&1 < /dev/null &
 else
 	ENVIRONMENT=local \
@@ -269,6 +271,7 @@ else
 	POSTGRES_DSN="$LOCAL_POSTGRES_DSN" \
 	RPC_URL="http://127.0.0.1:8545" \
 	ROUTER_ADDRESS="$ROUTER_ADDRESS" \
+	USDC_TOKEN_ADDRESS="$USDC_TOKEN_ADDRESS" \
 	nohup "$PYTHON_BIN" gateway_fastapi.py > "${ROOT_DIR}/services/gateway/logs/provider_api.log" 2>&1 < /dev/null &
 fi
 PROVIDER_PID=$!
@@ -325,6 +328,7 @@ echo "Anvil PID    : $ANVIL_PID"
 echo "Provider PID : $PROVIDER_PID"
 echo "Frontend PID : $FRONTEND_PID"
 echo "Router       : $ROUTER_ADDRESS"
+echo "USDC Token   : $USDC_TOKEN_ADDRESS"
 echo "Provider     : $PROVIDER_ADDRESS"
 echo "PID file     : $PID_FILE"
 echo "Frontend URL : http://127.0.0.1:3000"

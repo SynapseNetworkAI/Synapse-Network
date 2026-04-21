@@ -13,18 +13,19 @@ From repository root:
 1. `npm run ci:docs`
 2. `npm run ci:finance-approval-safety`
 3. `npm run ci:finance-approval-e2e-evidence`
-4. `npm run ci:financial-security`
-5. `npm run ci:architecture-quality`
-6. `npm run ci:diff-coverage`
-7. `npm run ci:agent-guardrails`
-8. `npm run ci:frontend`
-9. `npm run ci:admin-front`
-10. `npm run ci:admin-gateway`
-11. `npm run ci:gateway`
-12. `npm run ci:provider-service`
-13. `npm run ci:sdk-python`
-14. `npm run ci:contracts`
-15. `npm run ci:pr`
+4. `npm run ci:withdrawal-one-ticket-evidence`
+5. `npm run ci:financial-security`
+6. `npm run ci:architecture-quality`
+7. `npm run ci:diff-coverage`
+8. `npm run ci:agent-guardrails`
+9. `npm run ci:frontend`
+10. `npm run ci:admin-front`
+11. `npm run ci:admin-gateway`
+12. `npm run ci:gateway`
+13. `npm run ci:provider-service`
+14. `npm run ci:sdk-python`
+15. `npm run ci:contracts`
+16. `npm run ci:pr`
 
 Use these wrappers when final integration confidence is required.
 
@@ -146,9 +147,10 @@ Before finishing:
 4. run `npm run ci:finance-approval-safety` for approval, withdraw, refund, complete, ledger, balance, gateway-admin finance, or admin-front withdrawal-review changes; this includes Semgrep, finance-only mypy, local runtime guard, and E2E model-drift checks
 5. run `npm run ci:pr` before push for admin-front or gateway-admin changes so security, complexity, duplication, assertion-quality, coverage-escape, secret, and incremental diff-coverage gates all run against changed files
 6. run `npm run e2e:admin-withdrawal-approval` and `npm run ci:finance-approval-e2e-evidence` before release approval when funds approval behavior or evidence-sensitive paths changed
-7. run `npm run ci:diff-coverage` when changed code needs line-level coverage evidence; Python and Vitest coverage must be Cobertura XML
-8. run `npm run ci:agent-guardrails` when Agent-generated backend/admin code touches finance, approval, storage, or shared state-machine logic; install `uv` once if the runner reports a missing Python guardrail tool
-9. run `npm run release:evidence:gateway-fullchain:local` for a local rehearsal of the full live Gateway E2E evidence chain; run `npm run release:evidence:gateway-fullchain:staging` plus `GATEWAY_RELEASE_E2E_REQUIRED_ENV=staging npm run ci:gateway-release-e2e-evidence` for release Go/No-Go evidence
+7. run `npm run e2e:withdrawal-one-ticket-evidence` and `npm run ci:withdrawal-one-ticket-evidence` before release approval when one-ticket withdrawal, reaper, watcher, ticket signing, or claim completion semantics changed
+8. run `npm run ci:diff-coverage` when changed code needs line-level coverage evidence; Python and Vitest coverage must be Cobertura XML
+9. run `npm run ci:agent-guardrails` when Agent-generated backend/admin code touches finance, approval, storage, or shared state-machine logic; install `uv` once if the runner reports a missing Python guardrail tool
+10. run `npm run release:evidence:gateway-fullchain:local` for a local rehearsal of the full live Gateway E2E evidence chain; run `npm run release:evidence:gateway-fullchain:staging` plus `GATEWAY_RELEASE_E2E_REQUIRED_ENV=staging npm run ci:gateway-release-e2e-evidence` for release Go/No-Go evidence
 
 ### Frontend work
 

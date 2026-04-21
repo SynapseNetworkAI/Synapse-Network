@@ -110,6 +110,7 @@ Status mapping:
 | `COMPLETED` | `COMPLETED` |
 | `FAILED` | `FAILED` |
 | `REJECTED` | `FAILED` |
+| `FAILED_EXPIRED` | `FAILED` |
 | `CANCELLED` | `FAILED` |
 
 Other display rules:
@@ -125,9 +126,28 @@ Other display rules:
 It only does two recovery jobs:
 
 1. detect a matching on-chain `WithdrawInfo` event for a `REQUESTED` row and mark it `COMPLETED`
-2. detect an expired ticket with no on-chain execution and mark it `CANCELLED`
+2. detect an expired ticket with no on-chain execution and mark it `FAILED_EXPIRED`
 
 This watcher exists to recover from frontend interruption after ticket issuance or after on-chain success. It should never be described as a platform-owned withdrawal sender.
+
+Chain transaction failure is not a business terminal state by itself. If a user
+broadcasts a valid ticket with too little gas and the transaction reverts before
+`deadline`, Gateway must keep the withdrawal active and the ticket unconsumed;
+the user can retry the same ticket with normal gas before the deadline. Gateway
+only releases funds when the local expiry buffer, RPC block timestamp margin,
+and `isTicketConsumed(ticketHash)=false` all agree that the ticket is physically
+dead.
+
+Release evidence for this model is generated with:
+
+```bash
+npm run e2e:withdrawal-one-ticket-evidence
+npm run ci:withdrawal-one-ticket-evidence
+```
+
+The evidence bundle must include the consumer replay attack scenario and the
+provider low-gas revert retry scenario. These are the two negative cases that
+prove a failed chain receipt does not incorrectly roll the off-chain state back.
 
 ## Storage
 

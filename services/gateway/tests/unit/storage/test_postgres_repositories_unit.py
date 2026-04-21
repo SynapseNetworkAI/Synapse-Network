@@ -1492,12 +1492,14 @@ def test_finance_atomic_repository_reserve_and_complete() -> None:
         CompleteWithdrawTxCommand(
             owner_wallet="0xabc",
             tx_hash="0xtx",
-            kind="provider",
+            kind="provider_withdraw",
+            withdrawal_id="wd-1",
         )
     )
     assert ok is True
     second_conn_sql = "\n".join(sql for sql, _ in db.connections[1].cursor_obj.executed)
     assert "INSERT INTO synapse_withdraw_tx_dedup" in second_conn_sql
+    assert "UPDATE synapse_vault_withdrawals" in second_conn_sql
 
 
 def test_finance_atomic_repository_processes_typed_charge_command() -> None:

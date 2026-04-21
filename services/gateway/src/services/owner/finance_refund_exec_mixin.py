@@ -413,6 +413,7 @@ class FinanceRefundExecMixin:
                             owner_wallet=owner,
                             tx_hash=normalized_tx_hash,
                             kind="owner_refund",
+                            withdrawal_id=refund_id,
                         )
                     )
                 )

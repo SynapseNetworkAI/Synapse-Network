@@ -142,6 +142,7 @@ class CompleteWithdrawTxCommand:
     owner_wallet: str
     tx_hash: str
     kind: str
+    withdrawal_id: str | None = None
 
 
 @dataclass(frozen=True)

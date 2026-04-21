@@ -9,6 +9,7 @@ from __future__ import annotations
 import time
 from decimal import Decimal
 from typing import Any, Optional
+from uuid import uuid4
 
 from src.domain.audit import AuditLogRow
 from src.domain.execution import (
@@ -285,7 +286,7 @@ class FinanceAtomicWithdrawMixin:
                     red_reason = self._resolve_red_reason(
                         amount, historical_net_income, is_high_risk
                     )
-                    withdrawal_id = f"wd-{now}-{owner[-8:]}"
+                    withdrawal_id = f"wd-{uuid4().hex}"
 
                     if red_reason:
                         self._upsert_vault_withdrawal(
@@ -435,6 +436,12 @@ class FinanceAtomicWithdrawMixin:
     def complete_withdraw_tx_atomic(
         self, command: CompleteWithdrawTxCommand
     ) -> bool:
+        withdrawal_id = str(command.withdrawal_id or "").strip()
+        withdrawal_kind = (
+            "provider_withdrawal"
+            if str(command.kind or "").strip() == "provider_withdraw"
+            else "consumer_refund"
+        )
         with self._db.connect() as conn:  # type: ignore[attr-defined]
             with conn.cursor() as cur:
                 try:
@@ -445,5 +452,24 @@ class FinanceAtomicWithdrawMixin:
                 except _INTEGRITY_ERRORS:
                     conn.rollback()
                     return False
+                if withdrawal_id:
+                    cur.execute(
+                        """
+                        UPDATE synapse_vault_withdrawals
+                        SET status = 'COMPLETED',
+                            tx_hash = %s,
+                            updated_at = %s
+                        WHERE withdrawal_id = %s
+                          AND owner_id = %s
+                          AND withdrawal_kind = %s
+                        """,
+                        (
+                            command.tx_hash,
+                            now_dt_str(),
+                            withdrawal_id,
+                            self._owner_id(command.owner_wallet),  # type: ignore[attr-defined]
+                            withdrawal_kind,
+                        ),
+                    )
             conn.commit()
         return True

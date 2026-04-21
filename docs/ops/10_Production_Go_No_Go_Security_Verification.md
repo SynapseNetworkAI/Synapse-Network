@@ -103,13 +103,14 @@ The release owner must attach evidence for every item below before requesting la
 1. Contract security audit evidence, finding closure log, Hardhat/fork test output, deployment dry-run output, release manifest, verified contract link, and small-value chain rehearsal report. If the audit is internal/founder-led, attach the internal audit report and explicit risk acceptance and state that no independent third-party audit was performed.
 2. CI evidence for `ci:pr`, `ci:contracts`, `ci:gateway`, `ci:admin-gateway`, `ci:frontend`, `ci:admin-front`, money scan, secret scan, and docs check.
 3. Gateway full-chain release E2E report for deposit, confirm, discovery, quote, invoke, provider credit, receipt, consumer withdrawal, analytics Kafka/ClickHouse ingestion, and reconciliation. Run `npm run release:evidence:gateway-fullchain:staging` and validate it with `GATEWAY_RELEASE_E2E_REQUIRED_ENV=staging npm run ci:gateway-release-e2e-evidence`; skipped tests are not accepted as release evidence.
-4. Reconciliation report for on-chain vault, internal ledger, provider payable, platform fee, pending funds, frozen funds, and completed withdrawals.
-5. Security test report for auth/RBAC, replay, rate limit, SQL injection, SSRF, secret leak, error leak, and malicious provider response.
-6. Performance and reliability report for load tests, concurrent money tests, chaos drills, and rollback drills.
-7. Monitoring evidence: dashboard screenshots, alert screenshots, incident runbook links, on-call routing proof, and alert drill notes.
-8. Data recovery evidence: Postgres backup restore drill, chain-log replay or reconciliation drill, RPO/RTO result, and operator notes.
-9. Production configuration review: environment, contract addresses, RPC endpoints, CORS, JWT/TOTP/internal tokens, database TLS, least-privilege accounts, backup policy, and retention policy.
-10. Approval signatures from engineering, security, finance/ledger, and operations owners.
+4. One-ticket withdrawal release evidence for 10 scenarios: consumer/provider normal claim, expired reaper, soft revoke race claim, soft revoke expire, consumer replay attack, and provider low-gas revert retry. Run `npm run e2e:withdrawal-one-ticket-evidence` and validate it with `npm run ci:withdrawal-one-ticket-evidence`.
+5. Reconciliation report for on-chain vault, internal ledger, provider payable, platform fee, pending funds, frozen funds, and completed withdrawals.
+6. Security test report for auth/RBAC, replay, rate limit, SQL injection, SSRF, secret leak, error leak, and malicious provider response.
+7. Performance and reliability report for load tests, concurrent money tests, chaos drills, and rollback drills.
+8. Monitoring evidence: dashboard screenshots, alert screenshots, incident runbook links, on-call routing proof, and alert drill notes.
+9. Data recovery evidence: Postgres backup restore drill, chain-log replay or reconciliation drill, RPO/RTO result, and operator notes.
+10. Production configuration review: environment, contract addresses, RPC endpoints, CORS, JWT/TOTP/internal tokens, database TLS, least-privilege accounts, backup policy, and retention policy.
+11. Approval signatures from engineering, security, finance/ledger, and operations owners.
 
 Provider withdrawal approval evidence is mandatory for any release that includes funds approval or withdrawal-review changes:
 
@@ -118,6 +119,17 @@ Provider withdrawal approval evidence is mandatory for any release that includes
 3. `npm run ci:finance-approval-e2e-evidence`
 
 The evidence report must contain the finance-sensitive tree hash, fixture hash, evidence digest, expected-vs-actual DB/API/chain/UI comparisons, and security checks for duplicate approval, cross decision, tampered ticket, replayed ticket, and duplicate complete.
+
+One-ticket withdrawal evidence is mandatory for any release that changes
+`SynapseCore.withdraw`, ticket signing, consumer/provider withdrawal completion,
+reaper, watcher, or `FAILED_EXPIRED` semantics:
+
+1. `npm run e2e:withdrawal-one-ticket-evidence`
+2. `npm run ci:withdrawal-one-ticket-evidence`
+
+The evidence report must contain 10 scenario JSON files and expected-vs-actual
+checks for replay rejection, low-gas failed receipt retry, RPC deadline margin,
+ticketHash, DB status, and balance/vault deltas.
 
 ## Hard Stop Rules
 
@@ -136,6 +148,7 @@ Any item below is an automatic No-Go:
 - Load or concurrency tests produce overdraft, duplicate debit, duplicate credit, or unexplained balance drift.
 - Internal audit risk acceptance is missing while no independent third-party audit was performed.
 - Provider withdrawal approval evidence is missing, stale, hand-edited, or fails its finance-sensitive tree hash / digest validation.
+- One-ticket withdrawal evidence is missing, stale, hand-edited, lacks any of the 10 scenario JSON files, or fails replay / low-gas retry checks.
 - Rollback, incident, or customer communication runbook is missing.
 - `ci:pr` or a required release evidence item fails.
 

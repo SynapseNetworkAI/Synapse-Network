@@ -1,0 +1,434 @@
+[withdrawal-one-ticket] mode=local
+[withdrawal-one-ticket] evidence=/Users/cliff/workspace/agent/Synapse-Network/docs/evidence/release/withdrawal-one-ticket/20260421T100345Z-local
+[withdrawal-one-ticket] starting local postgres/redis (postgres_port=15432, postgres_db=synapse_withdrawal_one_ticket_20260421t100345z)
+ Container synapse-postgres Running
+ Container local-redis-1 Running
+[withdrawal-one-ticket] bootstrapping local contracts and gateway
+=== Synapse Local Environment Setup ===
+Using Node.js: v22.22.0
+Using npm    : 10.9.4
+Using yarn   : 1.22.22
+Port 5432 already in use by PID 2604. Reusing existing local Postgres.
+0.1) Applying local gateway/admin Postgres bootstrap schema...
+[postgres-init] running gateway/000_create_databases_and_roles.sh
+CREATE DATABASE
+ALTER ROLE
+ALTER ROLE
+ALTER ROLE
+ALTER ROLE
+ALTER ROLE
+ALTER ROLE
+[postgres-init] running gateway-admin/002_apply_admin_schema_and_grants.sh
+DO
+DO
+DO
+DO
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+psql:/Users/cliff/workspace/agent/Synapse-Network/infra/postgres/init/gateway/001_synapse_schema.sql:691: NOTICE:  column "closed_reason" of relation "synapse_forum_topics" already exists, skipping
+psql:/Users/cliff/workspace/agent/Synapse-Network/infra/postgres/init/gateway/001_synapse_schema.sql:691: NOTICE:  column "closed_by_admin_id" of relation "synapse_forum_topics" already exists, skipping
+psql:/Users/cliff/workspace/agent/Synapse-Network/infra/postgres/init/gateway/001_synapse_schema.sql:691: NOTICE:  column "closed_at" of relation "synapse_forum_topics" already exists, skipping
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+psql:/Users/cliff/workspace/agent/Synapse-Network/infra/postgres/init/gateway/001_synapse_schema.sql:915: NOTICE:  column "ticket_id" of relation "synapse_vault_withdrawals" already exists, skipping
+ALTER TABLE
+psql:/Users/cliff/workspace/agent/Synapse-Network/infra/postgres/init/gateway/001_synapse_schema.sql:918: NOTICE:  column "ticket_hash" of relation "synapse_vault_withdrawals" already exists, skipping
+ALTER TABLE
+CREATE INDEX
+CREATE INDEX
+UPDATE 0
+ALTER TABLE
+ALTER TABLE
+ALTER TABLE
+psql:/Users/cliff/workspace/agent/Synapse-Network/infra/postgres/init/gateway-admin/003_gateway_admin_projection_views.sql:20: NOTICE:  relation "admin_users" already exists, skipping
+CREATE TABLE
+psql:/Users/cliff/workspace/agent/Synapse-Network/infra/postgres/init/gateway-admin/003_gateway_admin_projection_views.sql:23: NOTICE:  relation "uq_admin_users_email_ci" already exists, skipping
+CREATE INDEX
+psql:/Users/cliff/workspace/agent/Synapse-Network/infra/postgres/init/gateway-admin/003_gateway_admin_projection_views.sql:26: NOTICE:  relation "idx_admin_users_status_updated_at" already exists, skipping
+CREATE INDEX
+psql:/Users/cliff/workspace/agent/Synapse-Network/infra/postgres/init/gateway-admin/003_gateway_admin_projection_views.sql:29: NOTICE:  relation "idx_admin_users_sso_subject" already exists, skipping
+CREATE INDEX
+psql:/Users/cliff/workspace/agent/Synapse-Network/infra/postgres/init/gateway-admin/003_gateway_admin_projection_views.sql:45: NOTICE:  relation "admin_mfa_factors" already exists, skipping
+CREATE TABLE
+psql:/Users/cliff/workspace/agent/Synapse-Network/infra/postgres/init/gateway-admin/003_gateway_admin_projection_views.sql:48: NOTICE:  relation "uq_admin_mfa_factor_identity" already exists, skipping
+CREATE INDEX
+psql:/Users/cliff/workspace/agent/Synapse-Network/infra/postgres/init/gateway-admin/003_gateway_admin_projection_views.sql:51: NOTICE:  relation "idx_admin_mfa_factors_admin_status" already exists, skipping
+CREATE INDEX
+psql:/Users/cliff/workspace/agent/Synapse-Network/infra/postgres/init/gateway-admin/003_gateway_admin_projection_views.sql:68: NOTICE:  relation "admin_sessions" already exists, skipping
+CREATE TABLE
+psql:/Users/cliff/workspace/agent/Synapse-Network/infra/postgres/init/gateway-admin/003_gateway_admin_projection_views.sql:71: NOTICE:  relation "uq_admin_sessions_token_jti" already exists, skipping
+CREATE INDEX
+psql:/Users/cliff/workspace/agent/Synapse-Network/infra/postgres/init/gateway-admin/003_gateway_admin_projection_views.sql:74: NOTICE:  relation "idx_admin_sessions_admin_status_expires" already exists, skipping
+CREATE INDEX
+psql:/Users/cliff/workspace/agent/Synapse-Network/infra/postgres/init/gateway-admin/003_gateway_admin_projection_views.sql:77: NOTICE:  relation "idx_admin_sessions_expires_at" already exists, skipping
+CREATE INDEX
+psql:/Users/cliff/workspace/agent/Synapse-Network/infra/postgres/init/gateway-admin/003_gateway_admin_projection_views.sql:94: NOTICE:  relation "admin_mfa_enrollment_challenges" already exists, skipping
+CREATE TABLE
+psql:/Users/cliff/workspace/agent/Synapse-Network/infra/postgres/init/gateway-admin/003_gateway_admin_projection_views.sql:97: NOTICE:  relation "uq_admin_mfa_enrollment_challenges_token_hash" already exists, skipping
+CREATE INDEX
+psql:/Users/cliff/workspace/agent/Synapse-Network/infra/postgres/init/gateway-admin/003_gateway_admin_projection_views.sql:100: NOTICE:  relation "idx_admin_mfa_enrollment_challenges_admin_status" already exists, skipping
+CREATE INDEX
+psql:/Users/cliff/workspace/agent/Synapse-Network/infra/postgres/init/gateway-admin/003_gateway_admin_projection_views.sql:111: NOTICE:  relation "admin_roles" already exists, skipping
+CREATE TABLE
+psql:/Users/cliff/workspace/agent/Synapse-Network/infra/postgres/init/gateway-admin/003_gateway_admin_projection_views.sql:121: NOTICE:  relation "admin_permissions" already exists, skipping
+CREATE TABLE
+psql:/Users/cliff/workspace/agent/Synapse-Network/infra/postgres/init/gateway-admin/003_gateway_admin_projection_views.sql:124: NOTICE:  relation "idx_admin_permissions_domain_action" already exists, skipping
+CREATE INDEX
+psql:/Users/cliff/workspace/agent/Synapse-Network/infra/postgres/init/gateway-admin/003_gateway_admin_projection_views.sql:132: NOTICE:  relation "admin_role_permissions" already exists, skipping
+CREATE TABLE
+psql:/Users/cliff/workspace/agent/Synapse-Network/infra/postgres/init/gateway-admin/003_gateway_admin_projection_views.sql:147: NOTICE:  relation "admin_user_role_bindings" already exists, skipping
+CREATE TABLE
+psql:/Users/cliff/workspace/agent/Synapse-Network/infra/postgres/init/gateway-admin/003_gateway_admin_projection_views.sql:150: NOTICE:  relation "idx_admin_user_role_bindings_admin_status" already exists, skipping
+CREATE INDEX
+psql:/Users/cliff/workspace/agent/Synapse-Network/infra/postgres/init/gateway-admin/003_gateway_admin_projection_views.sql:153: NOTICE:  relation "idx_admin_user_role_bindings_role_status" already exists, skipping
+CREATE INDEX
+psql:/Users/cliff/workspace/agent/Synapse-Network/infra/postgres/init/gateway-admin/003_gateway_admin_projection_views.sql:157: NOTICE:  relation "uq_admin_user_role_bindings_active" already exists, skipping
+CREATE INDEX
+psql:/Users/cliff/workspace/agent/Synapse-Network/infra/postgres/init/gateway-admin/003_gateway_admin_projection_views.sql:199: NOTICE:  relation "admin_approvals" already exists, skipping
+CREATE TABLE
+psql:/Users/cliff/workspace/agent/Synapse-Network/infra/postgres/init/gateway-admin/003_gateway_admin_projection_views.sql:202: NOTICE:  relation "idx_admin_approvals_status_created_at" already exists, skipping
+CREATE INDEX
+psql:/Users/cliff/workspace/agent/Synapse-Network/infra/postgres/init/gateway-admin/003_gateway_admin_projection_views.sql:205: NOTICE:  relation "idx_admin_approvals_type_status_created_at" already exists, skipping
+CREATE INDEX
+psql:/Users/cliff/workspace/agent/Synapse-Network/infra/postgres/init/gateway-admin/003_gateway_admin_projection_views.sql:208: NOTICE:  relation "idx_admin_approvals_requester_created_at" already exists, skipping
+CREATE INDEX
+psql:/Users/cliff/workspace/agent/Synapse-Network/infra/postgres/init/gateway-admin/003_gateway_admin_projection_views.sql:211: NOTICE:  relation "idx_admin_approvals_current_approver" already exists, skipping
+CREATE INDEX
+psql:/Users/cliff/workspace/agent/Synapse-Network/infra/postgres/init/gateway-admin/003_gateway_admin_projection_views.sql:214: NOTICE:  relation "idx_admin_approvals_resource" already exists, skipping
+CREATE INDEX
+psql:/Users/cliff/workspace/agent/Synapse-Network/infra/postgres/init/gateway-admin/003_gateway_admin_projection_views.sql:217: NOTICE:  relation "idx_admin_approvals_tx_hash" already exists, skipping
+CREATE INDEX
+psql:/Users/cliff/workspace/agent/Synapse-Network/infra/postgres/init/gateway-admin/003_gateway_admin_projection_views.sql:235: NOTICE:  relation "admin_approval_steps" already exists, skipping
+CREATE TABLE
+psql:/Users/cliff/workspace/agent/Synapse-Network/infra/postgres/init/gateway-admin/003_gateway_admin_projection_views.sql:238: NOTICE:  relation "uq_admin_approval_steps_order" already exists, skipping
+CREATE INDEX
+psql:/Users/cliff/workspace/agent/Synapse-Network/infra/postgres/init/gateway-admin/003_gateway_admin_projection_views.sql:241: NOTICE:  relation "idx_admin_approval_steps_approver_due" already exists, skipping
+CREATE INDEX
+psql:/Users/cliff/workspace/agent/Synapse-Network/infra/postgres/init/gateway-admin/003_gateway_admin_projection_views.sql:256: NOTICE:  relation "admin_approval_events" already exists, skipping
+CREATE TABLE
+psql:/Users/cliff/workspace/agent/Synapse-Network/infra/postgres/init/gateway-admin/003_gateway_admin_projection_views.sql:259: NOTICE:  relation "idx_admin_approval_events_approval_created_at" already exists, skipping
+CREATE INDEX
+psql:/Users/cliff/workspace/agent/Synapse-Network/infra/postgres/init/gateway-admin/003_gateway_admin_projection_views.sql:262: NOTICE:  relation "idx_admin_approval_events_event_type_created_at" already exists, skipping
+CREATE INDEX
+psql:/Users/cliff/workspace/agent/Synapse-Network/infra/postgres/init/gateway-admin/003_gateway_admin_projection_views.sql:286: NOTICE:  relation "admin_execution_jobs" already exists, skipping
+CREATE TABLE
+psql:/Users/cliff/workspace/agent/Synapse-Network/infra/postgres/init/gateway-admin/003_gateway_admin_projection_views.sql:289: NOTICE:  relation "uq_admin_execution_jobs_idempotency_key" already exists, skipping
+CREATE INDEX
+psql:/Users/cliff/workspace/agent/Synapse-Network/infra/postgres/init/gateway-admin/003_gateway_admin_projection_views.sql:292: NOTICE:  relation "idx_admin_execution_jobs_approval" already exists, skipping
+CREATE INDEX
+psql:/Users/cliff/workspace/agent/Synapse-Network/infra/postgres/init/gateway-admin/003_gateway_admin_projection_views.sql:295: NOTICE:  relation "idx_admin_execution_jobs_status_created_at" already exists, skipping
+CREATE INDEX
+psql:/Users/cliff/workspace/agent/Synapse-Network/infra/postgres/init/gateway-admin/003_gateway_admin_projection_views.sql:311: NOTICE:  relation "admin_execution_attempts" already exists, skipping
+CREATE TABLE
+psql:/Users/cliff/workspace/agent/Synapse-Network/infra/postgres/init/gateway-admin/003_gateway_admin_projection_views.sql:314: NOTICE:  relation "uq_admin_execution_attempts_job_attempt" already exists, skipping
+CREATE INDEX
+psql:/Users/cliff/workspace/agent/Synapse-Network/infra/postgres/init/gateway-admin/003_gateway_admin_projection_views.sql:317: NOTICE:  relation "idx_admin_execution_attempts_job_started_at" already exists, skipping
+CREATE INDEX
+psql:/Users/cliff/workspace/agent/Synapse-Network/infra/postgres/init/gateway-admin/003_gateway_admin_projection_views.sql:341: NOTICE:  relation "admin_action_audit" already exists, skipping
+CREATE TABLE
+psql:/Users/cliff/workspace/agent/Synapse-Network/infra/postgres/init/gateway-admin/003_gateway_admin_projection_views.sql:344: NOTICE:  relation "idx_admin_action_audit_operator_created_at" already exists, skipping
+CREATE INDEX
+psql:/Users/cliff/workspace/agent/Synapse-Network/infra/postgres/init/gateway-admin/003_gateway_admin_projection_views.sql:347: NOTICE:  relation "idx_admin_action_audit_approval_created_at" already exists, skipping
+CREATE INDEX
+psql:/Users/cliff/workspace/agent/Synapse-Network/infra/postgres/init/gateway-admin/003_gateway_admin_projection_views.sql:350: NOTICE:  relation "idx_admin_action_audit_request_id" already exists, skipping
+CREATE INDEX
+psql:/Users/cliff/workspace/agent/Synapse-Network/infra/postgres/init/gateway-admin/003_gateway_admin_projection_views.sql:353: NOTICE:  relation "idx_admin_action_audit_resource_created_at" already exists, skipping
+CREATE INDEX
+psql:/Users/cliff/workspace/agent/Synapse-Network/infra/postgres/init/gateway-admin/003_gateway_admin_projection_views.sql:356: NOTICE:  relation "idx_admin_action_audit_action_created_at" already exists, skipping
+CREATE INDEX
+psql:/Users/cliff/workspace/agent/Synapse-Network/infra/postgres/init/gateway-admin/003_gateway_admin_projection_views.sql:371: NOTICE:  relation "admin_audit_exports" already exists, skipping
+CREATE TABLE
+psql:/Users/cliff/workspace/agent/Synapse-Network/infra/postgres/init/gateway-admin/003_gateway_admin_projection_views.sql:374: NOTICE:  relation "idx_admin_audit_exports_operator_created_at" already exists, skipping
+CREATE INDEX
+psql:/Users/cliff/workspace/agent/Synapse-Network/infra/postgres/init/gateway-admin/003_gateway_admin_projection_views.sql:377: NOTICE:  relation "idx_admin_audit_exports_status_created_at" already exists, skipping
+CREATE INDEX
+INSERT 0 8
+INSERT 0 10
+INSERT 0 0
+INSERT 0 8
+INSERT 0 8
+INSERT 0 8
+psql:/Users/cliff/workspace/agent/Synapse-Network/infra/postgres/init/gateway-admin/003_gateway_admin_projection_views.sql:551: NOTICE:  relation "admin_config_documents" already exists, skipping
+CREATE TABLE
+COMMENT
+COMMENT
+COMMENT
+INSERT 0 0
+CREATE VIEW
+CREATE VIEW
+CREATE VIEW
+CREATE VIEW
+COMMENT
+COMMENT
+COMMENT
+COMMENT
+COMMENT
+COMMENT
+COMMENT
+COMMENT
+COMMENT
+COMMENT
+COMMENT
+COMMENT
+COMMENT
+COMMENT
+COMMENT
+COMMENT
+COMMENT
+COMMENT
+COMMENT
+COMMENT
+COMMENT
+COMMENT
+COMMENT
+COMMENT
+COMMENT
+COMMENT
+COMMENT
+COMMENT
+COMMENT
+COMMENT
+COMMENT
+COMMENT
+COMMENT
+COMMENT
+CREATE VIEW
+CREATE VIEW
+DROP VIEW
+DROP VIEW
+CREATE VIEW
+COMMENT
+CREATE VIEW
+COMMENT
+REVOKE
+REVOKE
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+REVOKE
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+ALTER DEFAULT PRIVILEGES
+ALTER DEFAULT PRIVILEGES
+ALTER DEFAULT PRIVILEGES
+ALTER DEFAULT PRIVILEGES
+GRANT
+GRANT
+GRANT
+ALTER DEFAULT PRIVILEGES
+ALTER DEFAULT PRIVILEGES
+REVOKE
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+GRANT
+ALTER DEFAULT PRIVILEGES
+ALTER DEFAULT PRIVILEGES
+ALTER DEFAULT PRIVILEGES
+ALTER DEFAULT PRIVILEGES
+GRANT
+GRANT
+GRANT
+ALTER DEFAULT PRIVILEGES
+ALTER DEFAULT PRIVILEGES
+1) Starting Anvil node in background...
+Port 8545 already in use by PID 37500. Reusing existing local RPC node.
+2) Deploying contracts to localhost...
+🚀 Starting Anvil Deployment...
+=================================================
+Owner (Admin) Address   : 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+Backend Signer Address : 0x70997970C51812dc3A010C7d01b50e0d17dc79C8
+=================================================
+
+Deploying MockUSDC (with ERC20Permit)...
+✅ MockUSDC deployed to: 0xAD2935E147b61175D5dc3A9e7bDa93B0975A43BA
+
+Deploying SynapseCore...
+✅ SynapseCore deployed to: 0x00CAC06Dd0BB4103f8b62D280fE9BCEE8f26fD59
+
+Minting initial USDC to Owner...
+✅ Minted 10000 USDC
+
+Updating Frontend Config...
+✅ Successfully updated services/user-front/src/contract-config.json!
+
+=================== 部署完毕 ===================
+IMPORTANT: 给 Python 后端用到的环境变量：
+VAULT_CONTRACT_ADDRESS="0x00CAC06Dd0BB4103f8b62D280fE9BCEE8f26fD59"
+USDC_CONTRACT_ADDRESS="0xAD2935E147b61175D5dc3A9e7bDa93B0975A43BA"
+请记得将 backendSigner (- 即 Hardhat 第 2 个号) 的私钥放入 Python 后端用于签名!
+2.1) Funding test accounts...
+Using addresses from test_eth_accounts.json.
+Sending ETH from: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+
+Funding Platform (Address: 0xA0f67a47D9eF18183Cd113eD85A654E2772c5901)
+Successfully funded 0xA0f67a47D9eF18183Cd113eD85A654E2772c5901 with 10 ETH!
+New balance: 160.0 ETH
+
+Funding ownerAgent (Address: 0xd856907d7e35A8F9bD225859A59E58577147a092)
+Successfully funded 0xd856907d7e35A8F9bD225859A59E58577147a092 with 10 ETH!
+New balance: 160.0 ETH
+
+Funding providerAgent (Address: 0x82f1C188327bFC265357A85e8A6B4a34d562D6f8)
+Successfully funded 0x82f1C188327bFC265357A85e8A6B4a34d562D6f8 with 10 ETH!
+New balance: 160.0 ETH
+
+Using addresses from test_usdc_accounts.json.
+Using MockUSDC at: 0xAD2935E147b61175D5dc3A9e7bDa93B0975A43BA
+Funding USDC to Platform (Address: 0xA0f67a47D9eF18183Cd113eD85A654E2772c5901)
+Successfully transferred 1000 USDC (18 decimals)
+Current Balance: 1000.0 USDC
+
+Funding USDC to ownerAgent (Address: 0xd856907d7e35A8F9bD225859A59E58577147a092)
+Successfully transferred 1000 USDC (18 decimals)
+Current Balance: 1000.0 USDC
+
+Funding USDC to providerAgent (Address: 0x82f1C188327bFC265357A85e8A6B4a34d562D6f8)
+Successfully transferred 1000 USDC (18 decimals)
+Current Balance: 1000.0 USDC
+
+3) Starting gateway/gateway_fastapi.py in background (local profile)...
+Using Python interpreter: /Users/cliff/workspace/agent/Synapse-Network/services/gateway/.venv/bin/python
+4) Starting frontend Next.js in background...
+Port 3000 already in use by PID 61835. Reusing existing frontend process.
+
+=== Local system running ===
+Anvil PID    : 37500
+Provider PID : 90709
+Frontend PID : 61835
+Router       : 0x00CAC06Dd0BB4103f8b62D280fE9BCEE8f26fD59
+USDC Token   : 0xAD2935E147b61175D5dc3A9e7bDa93B0975A43BA
+Provider     : 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+PID file     : /Users/cliff/workspace/agent/Synapse-Network/.local_env.pids
+Frontend URL : http://127.0.0.1:3000
+
+E2E test command:
+  cd /Users/cliff/workspace/agent/Synapse-Network
+  npx hardhat run scripts/e2e_sync_payment.js --network localhost
+
+Shutdown command:
+  bash scripts/local/stop_local_env.sh
+[withdrawal-one-ticket] mint-consumer-usdc retry 1/4: nonce has already been used (transaction="0x02f8b3827a69820150843b9aca00843b9aca0e82cad694ad2935e147b61175d5dc3a9e7bda93b0975a43ba80b84440c10f19000000000000000000000000918e89c214a446c58f284392bd09c046e7e3270b0000000000000000000000000000000000000000000000015af1d78b58c40000c080a0679977460636c1e8bad5049978eb8deb49e98caf4027b173a9029ed6b42f5f84a07d52986f19aa2e117214e2a30084cd181e51dc3ad253ae09652b7d6615dcc814", info={ "error": { "code": -32003, "message": "nonce too low" } }, code=NONCE_EXPIRED, version=6.16.0)
+[withdrawal-one-ticket] consumer-deposit retry 1/4: nonce has already been used (transaction="0x02f891827a6946843b9aca00843b9aca0e830112639400cac06dd0bb4103f8b62d280fe9bcee8f26fd5980a4b6b55f250000000000000000000000000000000000000000000000015af1d78b58c40000c001a0ebf5437f424368551c5540ce181575fe9ee8c6906352d52167685472486150ffa068ff7026d961da7c221e4dfcab9354e9e6c1d7876690dc3bd1a367ef0c886aae", info={ "error": { "code": -32003, "message": "nonce too low" } }, code=NONCE_EXPIRED, version=6.16.0)
+[withdrawal-one-ticket] PASS scenario:consumer-normal-claim - consumer ticket claimed and completed
+[withdrawal-one-ticket] PASS scenario:consumer-soft-revoke-race-claim - consumer ticket claimed and completed
+[withdrawal-one-ticket] PASS scenario:consumer-replay-attack - Replay of consumed consumer ticket reverts and Gateway remains COMPLETED
+[withdrawal-one-ticket] PASS scenario:provider-normal-claim - provider ticket claimed and completed
+[withdrawal-one-ticket] PASS scenario:provider-soft-revoke-race-claim - provider ticket claimed and completed
+[withdrawal-one-ticket] PASS scenario:provider-onchain-revert-retry - Low-gas claim reverts without consuming ticket; same ticket retries successfully before deadline
+[withdrawal-one-ticket] PASS scenario:consumer-expired-reaper - consumer ticket expired and reaper released funds
+[withdrawal-one-ticket] PASS scenario:consumer-soft-revoke-expire - consumer ticket expired and reaper released funds
+[withdrawal-one-ticket] PASS scenario:provider-expired-reaper - provider ticket expired and reaper released funds
+[withdrawal-one-ticket] PASS scenario:provider-soft-revoke-expire - provider ticket expired and reaper released funds
+[withdrawal-one-ticket] report=/Users/cliff/workspace/agent/Synapse-Network/docs/evidence/release/withdrawal-one-ticket/20260421T100345Z-local/report.md
+[withdrawal-one-ticket] PASSED
