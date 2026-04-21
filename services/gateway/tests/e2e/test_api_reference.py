@@ -19,13 +19,19 @@ import pytest
 from eth_account import Account
 from eth_account.messages import encode_defunct
 
-from tests.e2e.conftest import GATEWAY_BASE, OWNER_KEY, PROVIDER_KEY
+from tests.e2e.conftest import GATEWAY_BASE, OWNER_KEY, PROVIDER_KEY, RELEASE_E2E
 from tests.e2e.helpers.auth import authenticate_wallet
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Shared state across tests (populated by earlier tests)
 # ─────────────────────────────────────────────────────────────────────────────
 STATE: dict = {}
+
+
+def _skip_or_fail(message: str) -> None:
+    if RELEASE_E2E:
+        pytest.fail(message)
+    pytest.skip(message)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -359,6 +365,8 @@ class TestCredentials:
             timeout=15,
         )
         assert r.status_code in (200, 204), f"Expected 200/204, got {r.status_code}: {r.text}"
+        STATE.pop("agent_credential", None)
+        STATE.pop("credential_id", None)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -376,12 +384,25 @@ class TestInvocations:
             r = httpx.post(
                 f"{GATEWAY_BASE}/api/v1/credentials/agent/issue",
                 headers={"Authorization": f"Bearer {jwt}"},
-                json={"name": f"inv-test-{uuid.uuid4().hex[:6]}", "max_calls": 20, "credit_limit": 1, "rpm": 10},
+                json={
+                    "name": f"inv-test-{uuid.uuid4().hex[:6]}",
+                    "maxCalls": 20,
+                    "creditLimit": 1,
+                    "rpm": 10,
+                },
                 timeout=15,
             )
             r.raise_for_status()
             data = r.json()
-            STATE["agent_credential"] = data.get("token") or data.get("access_token") or data.get("credential_token", "")
+            nested = data.get("credential") or {}
+            STATE["agent_credential"] = (
+                data.get("token")
+                or data.get("access_token")
+                or data.get("credential_token")
+                or nested.get("token")
+                or ""
+            )
+            assert STATE["agent_credential"], f"No invocation credential token in response: {data}"
         return STATE["agent_credential"]
 
     def _discover_service_id(self) -> str | None:
@@ -399,48 +420,59 @@ class TestInvocations:
         if not services:
             return None
         first = services[0]
-        return first.get("service_id") or first.get("id")
+        return first.get("serviceId") or first.get("service_id") or first.get("id")
 
     def test_01_quote_service(self):
-        """POST /api/v1/agent/quotes → 200 with quote_id"""
+        """POST /api/v1/agent/discovery/search → 200 with live service price."""
         svc_id = self._discover_service_id()
         if not svc_id:
-            pytest.skip("No live services in discover, skipping quote test")
+            _skip_or_fail("No live services in discover, skipping quote test")
 
         r = httpx.post(
-            f"{GATEWAY_BASE}/api/v1/agent/quotes",
-            headers={"Authorization": f"Bearer {self._cred()}"},
-            json={"service_id": svc_id},
+            f"{GATEWAY_BASE}/api/v1/agent/discovery/search",
+            headers={"X-Credential": self._cred()},
+            json={"serviceId": svc_id},
             timeout=15,
         )
         assert r.status_code in (200, 201), f"Expected 200/201, got {r.status_code}: {r.text}"
         data = r.json()
-        quote_id = data.get("quote_id") or data.get("id")
-        assert quote_id, f"No quote_id in response: {data}"
-        STATE["quote_id"] = quote_id
+        results = data.get("results", [])
+        match = next((row for row in results if row.get("serviceId") == svc_id), None)
+        assert match, f"service_id {svc_id!r} not found in discovery results: {data}"
+        pricing = match.get("pricing") if isinstance(match.get("pricing"), dict) else {}
+        price_usdc = (
+            match.get("basePriceUsdc")
+            or match.get("priceUsdc")
+            or pricing.get("amount")
+        )
+        assert price_usdc, f"No service price in discovery response: {match}"
+        STATE["quote_id"] = "price_confirmed"
+        STATE["quoted_price_usdc"] = str(price_usdc)
         STATE["quoted_service_id"] = svc_id
 
     def test_02_invoke_service(self):
-        """POST /api/v1/agent/invocations → 200 with invocation_id"""
+        """POST /api/v1/agent/invoke → 200 with invocation_id"""
         quote_id = STATE.get("quote_id")
         if not quote_id:
-            pytest.skip("No quote_id from test_01, skipping invoke")
+            _skip_or_fail("No quote_id from test_01, skipping invoke")
 
         r = httpx.post(
-            f"{GATEWAY_BASE}/api/v1/agent/invocations",
+            f"{GATEWAY_BASE}/api/v1/agent/invoke",
             headers={
-                "Authorization": f"Bearer {self._cred()}",
-                "X-Idempotency-Key": f"api-ref-test-{uuid.uuid4().hex}",
+                "X-Credential": self._cred(),
             },
             json={
-                "quote_id": quote_id,
+                "serviceId": STATE["quoted_service_id"],
+                "idempotencyKey": f"api-ref-test-{uuid.uuid4().hex}",
+                "costUsdc": STATE["quoted_price_usdc"],
                 "payload": {"prompt": "API reference E2E test"},
+                "responseMode": "sync",
             },
             timeout=30,
         )
         assert r.status_code in (200, 201, 202), f"Expected 2xx, got {r.status_code}: {r.text}"
         data = r.json()
-        inv_id = data.get("invocation_id") or data.get("id")
+        inv_id = data.get("invocationId") or data.get("invocation_id") or data.get("id")
         assert inv_id, f"No invocation_id in response: {data}"
         STATE["invocation_id"] = inv_id
 
@@ -448,11 +480,11 @@ class TestInvocations:
         """GET /api/v1/agent/invocations/:id → 200 with status"""
         inv_id = STATE.get("invocation_id")
         if not inv_id:
-            pytest.skip("No invocation_id from test_02, skipping receipt check")
+            _skip_or_fail("No invocation_id from test_02, skipping receipt check")
 
         r = httpx.get(
             f"{GATEWAY_BASE}/api/v1/agent/invocations/{inv_id}",
-            headers={"Authorization": f"Bearer {self._cred()}"},
+            headers={"X-Credential": self._cred()},
             timeout=15,
         )
         assert r.status_code == 200, f"Expected 200, got {r.status_code}: {r.text}"

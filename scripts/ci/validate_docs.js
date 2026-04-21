@@ -152,6 +152,9 @@ function walkMarkdownFiles(startDir) {
   for (const entry of entries) {
     const fullPath = path.join(startDir, entry.name);
     if (entry.isDirectory()) {
+      if (fullPath === path.join(docsDir, "evidence") || fullPath.startsWith(path.join(docsDir, "evidence") + path.sep)) {
+        continue;
+      }
       results.push(...walkMarkdownFiles(fullPath));
       continue;
     }

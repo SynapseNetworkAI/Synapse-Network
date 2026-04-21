@@ -1,0 +1,104 @@
+{
+  "failed": [],
+  "passed": [
+    {
+      "actual": "0",
+      "expected": "0",
+      "metricName": "Skipped tests",
+      "pass": true,
+      "stage": "pytest"
+    },
+    {
+      "actual": "78",
+      "expected": ">=78",
+      "metricName": "Collected tests",
+      "pass": true,
+      "stage": "pytest"
+    },
+    {
+      "actual": "42242",
+      "expected": ">0",
+      "metricName": "ClickHouse events",
+      "pass": true,
+      "stage": "analytics"
+    },
+    {
+      "actual": "0",
+      "expected": "0",
+      "metricName": "Contract manifest errors",
+      "pass": true,
+      "stage": "contract"
+    },
+    {
+      "actual": "1 testcase(s) passed",
+      "expected": "pass",
+      "metricName": "deposit",
+      "pass": true,
+      "stage": "gateway-fullchain"
+    },
+    {
+      "actual": "2 testcase(s) passed",
+      "expected": "pass",
+      "metricName": "confirm",
+      "pass": true,
+      "stage": "gateway-fullchain"
+    },
+    {
+      "actual": "3 testcase(s) passed",
+      "expected": "pass",
+      "metricName": "service_discovery",
+      "pass": true,
+      "stage": "gateway-fullchain"
+    },
+    {
+      "actual": "2 testcase(s) passed",
+      "expected": "pass",
+      "metricName": "quote",
+      "pass": true,
+      "stage": "gateway-fullchain"
+    },
+    {
+      "actual": "2 testcase(s) passed",
+      "expected": "pass",
+      "metricName": "invoke",
+      "pass": true,
+      "stage": "gateway-fullchain"
+    },
+    {
+      "actual": "1 testcase(s) passed",
+      "expected": "pass",
+      "metricName": "provider_credit",
+      "pass": true,
+      "stage": "gateway-fullchain"
+    },
+    {
+      "actual": "2 testcase(s) passed",
+      "expected": "pass",
+      "metricName": "receipt",
+      "pass": true,
+      "stage": "gateway-fullchain"
+    },
+    {
+      "actual": "2 testcase(s) passed",
+      "expected": "pass",
+      "metricName": "consumer_withdrawal",
+      "pass": true,
+      "stage": "gateway-fullchain"
+    },
+    {
+      "actual": "2 testcase(s) passed",
+      "expected": "pass",
+      "metricName": "analytics_kafka_clickhouse",
+      "pass": true,
+      "stage": "gateway-fullchain"
+    },
+    {
+      "actual": "2 testcase(s) passed",
+      "expected": "pass",
+      "metricName": "ledger_vault_reconciliation",
+      "pass": true,
+      "stage": "gateway-fullchain"
+    }
+  ],
+  "source": "gateway e2e expected-vs-actual comparisons"
+}

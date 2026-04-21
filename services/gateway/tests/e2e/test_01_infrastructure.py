@@ -3,6 +3,7 @@ import httpx
 import pytest
 from web3 import Web3
 from tests.e2e.conftest import GATEWAY_BASE, PROVIDER_BASE, RPC_URL
+from tests.e2e.conftest import RELEASE_E2E
 
 
 def test_gateway_health():
@@ -17,6 +18,8 @@ def test_provider_health():
         r = httpx.get(f"{PROVIDER_BASE}/health", timeout=10)
         assert r.status_code == 200, f"Provider not healthy: {r.text}"
     except httpx.ConnectError:
+        if RELEASE_E2E:
+            pytest.fail(f"Gateway release e2e requires provider service at {PROVIDER_BASE}")
         pytest.skip("Provider service not running on :8001 — skipping provider tests")
 
 

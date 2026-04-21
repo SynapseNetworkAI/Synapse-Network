@@ -34,6 +34,8 @@ bash scripts/ci/security_money_scan.sh
 bash scripts/ci/security_money_ts_scan.sh
 bash scripts/ci/security_secret_scan.sh
 npm run ci:release-go-no-go
+npm run release:evidence:gateway-fullchain:staging
+GATEWAY_RELEASE_E2E_REQUIRED_ENV=staging npm run ci:gateway-release-e2e-evidence
 ```
 
 ## Repository and CI Gates
@@ -47,6 +49,7 @@ npm run ci:release-go-no-go
 - [x] Money scan evidence: PASS, Python money scan and TypeScript money scan passed.
 - [x] Secret scan evidence: PASS, secret scan passed.
 - [x] Release Go/No-Go state check: PASS, `npm run ci:release-go-no-go` confirms staging automation evidence is recorded and production blockers remain explicit.
+- [ ] Gateway full-chain release E2E evidence: NO-GO blocker, `npm run release:evidence:gateway-fullchain:staging` report not attached or not validated by `GATEWAY_RELEASE_E2E_REQUIRED_ENV=staging npm run ci:gateway-release-e2e-evidence`. Ordinary `ci:gateway` skip behavior is not accepted for release evidence.
 
 ## Contract and Chain Evidence
 
@@ -74,6 +77,7 @@ npm run ci:release-go-no-go
 - [x] Consumer withdrawal failure recovery evidence: PASS via gateway test suite coverage in `ci:pr`.
 - [x] Provider withdrawal failure recovery evidence: PASS via gateway and gateway-admin test suite coverage in `ci:pr`.
 - [ ] Ledger/vault reconciliation report: NO-GO blocker, release reconciliation report not attached.
+- [ ] Gateway full-chain expected-vs-actual report: NO-GO blocker, release evidence for deposit, confirm, discovery, quote, invoke, provider credit, receipt, consumer withdrawal, analytics Kafka/ClickHouse ingestion, and reconciliation is not attached.
 - [ ] Backup restore drill report: NO-GO blocker, restore drill evidence not attached.
 - [ ] Chain-log replay or reconciliation drill: NO-GO blocker, chain-log replay evidence not attached.
 

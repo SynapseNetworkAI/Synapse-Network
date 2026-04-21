@@ -9,6 +9,7 @@ Services must be running before test execution:
 from __future__ import annotations
 
 import json
+import os
 import threading
 import uuid
 from decimal import Decimal
@@ -24,20 +25,32 @@ from web3 import Web3
 # ── Directory layout ──────────────────────────────────────────────────────────
 ROOT = Path(__file__).parents[4]          # services/gateway/tests/e2e -> repo root
 FRONTEND_SRC = ROOT / "services" / "user-front" / "src"
-CONTRACT_CONFIG_PATH = FRONTEND_SRC / "contract-config.json"
+CONTRACT_CONFIG_PATH = Path(
+    os.getenv("GATEWAY_E2E_CONTRACT_CONFIG_PATH", str(FRONTEND_SRC / "contract-config.json"))
+)
 MOCK_USDC_ABI_PATH = FRONTEND_SRC / "MockUSDCABI.json"
 SYNAPSE_CORE_ABI_PATH = FRONTEND_SRC / "SynapseCoreABI.json"
 
 # ── Service URLs ───────────────────────────────────────────────────────────────
-GATEWAY_BASE = "http://127.0.0.1:8000"
-PROVIDER_BASE = "http://127.0.0.1:8001"
-RPC_URL = "http://127.0.0.1:8545"
-MOCK_SERVICE_PORT = 9099  # in-process mock provider for e2e tests
+GATEWAY_BASE = os.getenv("GATEWAY_E2E_GATEWAY_BASE", "http://127.0.0.1:8000")
+PROVIDER_BASE = os.getenv("GATEWAY_E2E_PROVIDER_BASE", "http://127.0.0.1:8001")
+RPC_URL = os.getenv("GATEWAY_E2E_RPC_URL", "http://127.0.0.1:8545")
+MOCK_SERVICE_PORT = int(os.getenv("GATEWAY_E2E_MOCK_SERVICE_PORT", "9099"))
+RELEASE_E2E = os.getenv("GATEWAY_RELEASE_E2E", "").lower() == "true"
 
 # ── Hardhat default private keys (localhost ONLY) ─────────────────────────────
-DEPLOYER_KEY = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
-OWNER_KEY    = "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"
-PROVIDER_KEY = "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ea870594801966b8ea0ecf"
+DEPLOYER_KEY = os.getenv(
+    "GATEWAY_E2E_DEPLOYER_KEY",
+    "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+)
+OWNER_KEY = os.getenv(
+    "GATEWAY_E2E_OWNER_KEY",
+    "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
+)
+PROVIDER_KEY = os.getenv(
+    "GATEWAY_E2E_PROVIDER_KEY",
+    "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ea870594801966b8ea0ecf",
+)
 
 # ── Test amounts ───────────────────────────────────────────────────────────────
 FUND_USDC    = Decimal("100")
@@ -56,6 +69,8 @@ def require_live_gateway() -> None:
         response = httpx.get(f"{GATEWAY_BASE}/health", timeout=2.0)
         response.raise_for_status()
     except Exception as exc:
+        if RELEASE_E2E:
+            pytest.fail(f"gateway release e2e requires live gateway at {GATEWAY_BASE}: {exc}")
         pytest.skip(f"gateway e2e services are not running locally: {exc}")
 
 @pytest.fixture(scope="session")

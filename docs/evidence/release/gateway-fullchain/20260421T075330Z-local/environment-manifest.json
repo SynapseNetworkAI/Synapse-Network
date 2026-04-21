@@ -1,0 +1,13 @@
+{
+  "clickHouseUrl": "http://127.0.0.1:8123",
+  "environment": "local",
+  "gatewayBaseUrl": "http://127.0.0.1:8000",
+  "generatedAt": "2026-04-21T07:54:37.717384+00:00",
+  "gitCommitSha": "f706294161bec1c90651b8cd4bc20015fbc5dbb0",
+  "gitDirty": true,
+  "kafkaBootstrapServers": "localhost:9092",
+  "kafkaTopic": "synapse.analytics.events",
+  "operator": "cliff",
+  "providerBaseUrl": "http://127.0.0.1:8001",
+  "rpcUrl": "http://127.0.0.1:8545"
+}
