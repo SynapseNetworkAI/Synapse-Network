@@ -11,6 +11,7 @@
     "ci:docs-pages": "cd services/user-front && yarn test:docs-pages",
     "ci:frontend": "bash scripts/ci/frontend_checks.sh",
     "ci:gateway": "bash scripts/ci/gateway_checks.sh",
+    "ci:gateway-release-e2e-evidence": "node scripts/ci/gateway_release_e2e_evidence_check.mjs",
     "ci:gateway-stress-review": "bash scripts/ci/gateway_stress_review_checks.sh",
     "ci:finance-approval-safety": "bash scripts/ci/finance_approval_safety_scan.sh && bash scripts/ci/finance_mypy_scan.sh && bash scripts/ci/local_runtime_guard_scan.sh && node scripts/ci/e2e_script_model_drift_scan.mjs",
     "ci:finance-approval-e2e-evidence": "node scripts/ci/finance_approval_e2e_evidence_check.mjs",
@@ -60,6 +61,8 @@
     "e2e:admin-analytics-10k:reconcile": "node scripts/e2e/admin_analytics_10k_reconcile.mjs",
     "e2e:admin-analytics-10k:dogfood": "node scripts/ui/dogfood_admin_analytics_10k.mjs",
     "e2e:admin-analytics-10k": "npm run e2e:admin-analytics-10k:fullchain && npm run e2e:admin-analytics-10k:reconcile && npm run e2e:admin-analytics-10k:dogfood",
+    "release:evidence:gateway-fullchain:local": "GATEWAY_RELEASE_E2E_ENV=local bash scripts/e2e/gateway_release_evidence_run.sh",
+    "release:evidence:gateway-fullchain:staging": "GATEWAY_RELEASE_E2E_ENV=staging bash scripts/e2e/gateway_release_evidence_run.sh",
     "ci:diff-coverage": "bash scripts/ci/diff_coverage_gate.sh"
   },
   "dependencies": {

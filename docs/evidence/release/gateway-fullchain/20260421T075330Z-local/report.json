@@ -1,0 +1,368 @@
+{
+  "analytics": {
+    "clickHouseUrl": "http://127.0.0.1:8123",
+    "errors": [],
+    "events": [
+      {
+        "count": "15",
+        "event_name": "budget_blocked"
+      },
+      {
+        "count": "28",
+        "event_name": "consumer_signup_completed"
+      },
+      {
+        "count": "8",
+        "event_name": "credential_created"
+      },
+      {
+        "count": "1",
+        "event_name": "debug_test_listener_fix"
+      },
+      {
+        "count": "41",
+        "event_name": "deposit_completed"
+      },
+      {
+        "count": "22",
+        "event_name": "deposit_failed"
+      },
+      {
+        "count": "10",
+        "event_name": "downstream_concurrency_guard_degraded"
+      },
+      {
+        "count": "203",
+        "event_name": "downstream_concurrency_recovered"
+      },
+      {
+        "count": "19",
+        "event_name": "downstream_concurrency_reduced"
+      },
+      {
+        "count": "43",
+        "event_name": "downstream_request_rejected_busy"
+      },
+      {
+        "count": "10322",
+        "event_name": "invoke_completed"
+      },
+      {
+        "count": "11",
+        "event_name": "invoke_failed"
+      },
+      {
+        "count": "10301",
+        "event_name": "invoke_started"
+      },
+      {
+        "count": "36",
+        "event_name": "page_viewed"
+      },
+      {
+        "count": "25",
+        "event_name": "provider_first_revenue_received"
+      },
+      {
+        "count": "226",
+        "event_name": "provider_health_degraded"
+      },
+      {
+        "count": "10",
+        "event_name": "provider_health_recovered"
+      },
+      {
+        "count": "10297",
+        "event_name": "provider_revenue_received"
+      },
+      {
+        "count": "28",
+        "event_name": "provider_signup_completed"
+      },
+      {
+        "count": "10383",
+        "event_name": "quote_generated"
+      },
+      {
+        "count": "11",
+        "event_name": "refund_completed"
+      },
+      {
+        "count": "11",
+        "event_name": "risk_rule_triggered"
+      },
+      {
+        "count": "82",
+        "event_name": "service_registered"
+      },
+      {
+        "count": "23",
+        "event_name": "settlement_claim_completed"
+      },
+      {
+        "count": "11",
+        "event_name": "settlement_claim_failed"
+      },
+      {
+        "count": "21",
+        "event_name": "settlement_claim_requested"
+      },
+      {
+        "count": "28",
+        "event_name": "wallet_connected"
+      },
+      {
+        "count": "15",
+        "event_name": "withdrawal_completed"
+      },
+      {
+        "count": "11",
+        "event_name": "withdrawal_failed"
+      }
+    ],
+    "totalEvents": 42242
+  },
+  "comparisons": [
+    {
+      "actual": "0",
+      "expected": "0",
+      "metricName": "Skipped tests",
+      "pass": true,
+      "stage": "pytest"
+    },
+    {
+      "actual": "78",
+      "expected": ">=78",
+      "metricName": "Collected tests",
+      "pass": true,
+      "stage": "pytest"
+    },
+    {
+      "actual": "42242",
+      "expected": ">0",
+      "metricName": "ClickHouse events",
+      "pass": true,
+      "stage": "analytics"
+    },
+    {
+      "actual": "0",
+      "expected": "0",
+      "metricName": "Contract manifest errors",
+      "pass": true,
+      "stage": "contract"
+    },
+    {
+      "actual": "1 testcase(s) passed",
+      "expected": "pass",
+      "metricName": "deposit",
+      "pass": true,
+      "stage": "gateway-fullchain"
+    },
+    {
+      "actual": "2 testcase(s) passed",
+      "expected": "pass",
+      "metricName": "confirm",
+      "pass": true,
+      "stage": "gateway-fullchain"
+    },
+    {
+      "actual": "3 testcase(s) passed",
+      "expected": "pass",
+      "metricName": "service_discovery",
+      "pass": true,
+      "stage": "gateway-fullchain"
+    },
+    {
+      "actual": "2 testcase(s) passed",
+      "expected": "pass",
+      "metricName": "quote",
+      "pass": true,
+      "stage": "gateway-fullchain"
+    },
+    {
+      "actual": "2 testcase(s) passed",
+      "expected": "pass",
+      "metricName": "invoke",
+      "pass": true,
+      "stage": "gateway-fullchain"
+    },
+    {
+      "actual": "1 testcase(s) passed",
+      "expected": "pass",
+      "metricName": "provider_credit",
+      "pass": true,
+      "stage": "gateway-fullchain"
+    },
+    {
+      "actual": "2 testcase(s) passed",
+      "expected": "pass",
+      "metricName": "receipt",
+      "pass": true,
+      "stage": "gateway-fullchain"
+    },
+    {
+      "actual": "2 testcase(s) passed",
+      "expected": "pass",
+      "metricName": "consumer_withdrawal",
+      "pass": true,
+      "stage": "gateway-fullchain"
+    },
+    {
+      "actual": "2 testcase(s) passed",
+      "expected": "pass",
+      "metricName": "analytics_kafka_clickhouse",
+      "pass": true,
+      "stage": "gateway-fullchain"
+    },
+    {
+      "actual": "2 testcase(s) passed",
+      "expected": "pass",
+      "metricName": "ledger_vault_reconciliation",
+      "pass": true,
+      "stage": "gateway-fullchain"
+    }
+  ],
+  "contract": {
+    "addresses": {
+      "MockUSDC": "0x0fe4223AD99dF788A6Dcad148eB4086E6389cEB6",
+      "SynapseCore": "0x71a0b8A2245A9770A4D887cE1E4eCc6C1d4FF28c"
+    },
+    "blockNumber": 375,
+    "chainId": 31337,
+    "codeHashes": {
+      "MockUSDC": "39eca6ff670d38da1ec43b2c0b93b3592b806845afc5c47999685adbc1442e7e",
+      "SynapseCore": "8dde65b6510e17b0033457091f59de51ebe69c71e42060bc7db83d4edc2c55ba"
+    },
+    "configPath": "/Users/cliff/workspace/agent/Synapse-Network/services/user-front/src/contract-config.json",
+    "errors": [],
+    "rpcUrl": "http://127.0.0.1:8545"
+  },
+  "environment": {
+    "clickHouseUrl": "http://127.0.0.1:8123",
+    "environment": "local",
+    "gatewayBaseUrl": "http://127.0.0.1:8000",
+    "generatedAt": "2026-04-21T07:54:37.717384+00:00",
+    "gitCommitSha": "f706294161bec1c90651b8cd4bc20015fbc5dbb0",
+    "gitDirty": true,
+    "kafkaBootstrapServers": "localhost:9092",
+    "kafkaTopic": "synapse.analytics.events",
+    "operator": "cliff",
+    "providerBaseUrl": "http://127.0.0.1:8001",
+    "rpcUrl": "http://127.0.0.1:8545"
+  },
+  "evidenceDigest": "5da61409cb57bea815a9e02f0af6b82e2b8e4d5e669cc7793ca65da1f853512b",
+  "failed": [],
+  "generatedAt": "2026-04-21T07:54:37.821946+00:00",
+  "pytest": {
+    "errors": 0,
+    "failures": 0,
+    "skipped": 0,
+    "tests": 78
+  },
+  "reconciliation": {
+    "failed": [],
+    "passed": [
+      {
+        "actual": "0",
+        "expected": "0",
+        "metricName": "Skipped tests",
+        "pass": true,
+        "stage": "pytest"
+      },
+      {
+        "actual": "78",
+        "expected": ">=78",
+        "metricName": "Collected tests",
+        "pass": true,
+        "stage": "pytest"
+      },
+      {
+        "actual": "42242",
+        "expected": ">0",
+        "metricName": "ClickHouse events",
+        "pass": true,
+        "stage": "analytics"
+      },
+      {
+        "actual": "0",
+        "expected": "0",
+        "metricName": "Contract manifest errors",
+        "pass": true,
+        "stage": "contract"
+      },
+      {
+        "actual": "1 testcase(s) passed",
+        "expected": "pass",
+        "metricName": "deposit",
+        "pass": true,
+        "stage": "gateway-fullchain"
+      },
+      {
+        "actual": "2 testcase(s) passed",
+        "expected": "pass",
+        "metricName": "confirm",
+        "pass": true,
+        "stage": "gateway-fullchain"
+      },
+      {
+        "actual": "3 testcase(s) passed",
+        "expected": "pass",
+        "metricName": "service_discovery",
+        "pass": true,
+        "stage": "gateway-fullchain"
+      },
+      {
+        "actual": "2 testcase(s) passed",
+        "expected": "pass",
+        "metricName": "quote",
+        "pass": true,
+        "stage": "gateway-fullchain"
+      },
+      {
+        "actual": "2 testcase(s) passed",
+        "expected": "pass",
+        "metricName": "invoke",
+        "pass": true,
+        "stage": "gateway-fullchain"
+      },
+      {
+        "actual": "1 testcase(s) passed",
+        "expected": "pass",
+        "metricName": "provider_credit",
+        "pass": true,
+        "stage": "gateway-fullchain"
+      },
+      {
+        "actual": "2 testcase(s) passed",
+        "expected": "pass",
+        "metricName": "receipt",
+        "pass": true,
+        "stage": "gateway-fullchain"
+      },
+      {
+        "actual": "2 testcase(s) passed",
+        "expected": "pass",
+        "metricName": "consumer_withdrawal",
+        "pass": true,
+        "stage": "gateway-fullchain"
+      },
+      {
+        "actual": "2 testcase(s) passed",
+        "expected": "pass",
+        "metricName": "analytics_kafka_clickhouse",
+        "pass": true,
+        "stage": "gateway-fullchain"
+      },
+      {
+        "actual": "2 testcase(s) passed",
+        "expected": "pass",
+        "metricName": "ledger_vault_reconciliation",
+        "pass": true,
+        "stage": "gateway-fullchain"
+      }
+    ],
+    "source": "gateway e2e expected-vs-actual comparisons"
+  },
+  "scriptVersion": "gateway-release-evidence:v1",
+  "status": "success"
+}

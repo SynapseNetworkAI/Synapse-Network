@@ -37,7 +37,7 @@ pytestmark = pytest.mark.skipif(
 async def query_clickhouse(sql: str) -> list[dict]:
     async with httpx.AsyncClient() as client:
         resp = await client.get(
-            "http://localhost:8123",
+            os.getenv("ANALYTICS_CLICKHOUSE_URL", "http://localhost:8123"),
             params={"query": sql, "default_format": "JSONEachRow"},
         )
         if resp.status_code != 200:
@@ -83,8 +83,8 @@ def _make_event(
 @pytest.fixture()
 async def kafka_backend():
     backend = KafkaBackend(
-        bootstrap_servers="localhost:9092",
-        topic="synapse.analytics.events",
+        bootstrap_servers=os.getenv("ANALYTICS_KAFKA_BOOTSTRAP_SERVERS", "localhost:9092"),
+        topic=os.getenv("ANALYTICS_KAFKA_TOPIC", "synapse.analytics.events"),
     )
     yield backend
     await backend.close()

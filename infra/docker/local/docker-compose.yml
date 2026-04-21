@@ -3,7 +3,7 @@ services:
     image: postgres:16
     container_name: synapse-postgres
     ports:
-      - "5432:5432"
+      - "${SYNAPSE_POSTGRES_HOST_PORT:-5432}:5432"
     environment:
       - POSTGRES_DB=synapse_gateway
       - POSTGRES_USER=synapse

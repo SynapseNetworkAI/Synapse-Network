@@ -1,0 +1,123 @@
+{
+  "clickHouseUrl": "http://127.0.0.1:8123",
+  "errors": [],
+  "events": [
+    {
+      "count": "15",
+      "event_name": "budget_blocked"
+    },
+    {
+      "count": "28",
+      "event_name": "consumer_signup_completed"
+    },
+    {
+      "count": "8",
+      "event_name": "credential_created"
+    },
+    {
+      "count": "1",
+      "event_name": "debug_test_listener_fix"
+    },
+    {
+      "count": "41",
+      "event_name": "deposit_completed"
+    },
+    {
+      "count": "22",
+      "event_name": "deposit_failed"
+    },
+    {
+      "count": "10",
+      "event_name": "downstream_concurrency_guard_degraded"
+    },
+    {
+      "count": "203",
+      "event_name": "downstream_concurrency_recovered"
+    },
+    {
+      "count": "19",
+      "event_name": "downstream_concurrency_reduced"
+    },
+    {
+      "count": "43",
+      "event_name": "downstream_request_rejected_busy"
+    },
+    {
+      "count": "10322",
+      "event_name": "invoke_completed"
+    },
+    {
+      "count": "11",
+      "event_name": "invoke_failed"
+    },
+    {
+      "count": "10301",
+      "event_name": "invoke_started"
+    },
+    {
+      "count": "36",
+      "event_name": "page_viewed"
+    },
+    {
+      "count": "25",
+      "event_name": "provider_first_revenue_received"
+    },
+    {
+      "count": "226",
+      "event_name": "provider_health_degraded"
+    },
+    {
+      "count": "10",
+      "event_name": "provider_health_recovered"
+    },
+    {
+      "count": "10297",
+      "event_name": "provider_revenue_received"
+    },
+    {
+      "count": "28",
+      "event_name": "provider_signup_completed"
+    },
+    {
+      "count": "10383",
+      "event_name": "quote_generated"
+    },
+    {
+      "count": "11",
+      "event_name": "refund_completed"
+    },
+    {
+      "count": "11",
+      "event_name": "risk_rule_triggered"
+    },
+    {
+      "count": "82",
+      "event_name": "service_registered"
+    },
+    {
+      "count": "23",
+      "event_name": "settlement_claim_completed"
+    },
+    {
+      "count": "11",
+      "event_name": "settlement_claim_failed"
+    },
+    {
+      "count": "21",
+      "event_name": "settlement_claim_requested"
+    },
+    {
+      "count": "28",
+      "event_name": "wallet_connected"
+    },
+    {
+      "count": "15",
+      "event_name": "withdrawal_completed"
+    },
+    {
+      "count": "11",
+      "event_name": "withdrawal_failed"
+    }
+  ],
+  "totalEvents": 42242
+}

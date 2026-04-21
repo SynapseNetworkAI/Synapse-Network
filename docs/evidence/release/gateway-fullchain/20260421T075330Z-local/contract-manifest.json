@@ -1,0 +1,15 @@
+{
+  "addresses": {
+    "MockUSDC": "0x0fe4223AD99dF788A6Dcad148eB4086E6389cEB6",
+    "SynapseCore": "0x71a0b8A2245A9770A4D887cE1E4eCc6C1d4FF28c"
+  },
+  "blockNumber": 375,
+  "chainId": 31337,
+  "codeHashes": {
+    "MockUSDC": "39eca6ff670d38da1ec43b2c0b93b3592b806845afc5c47999685adbc1442e7e",
+    "SynapseCore": "8dde65b6510e17b0033457091f59de51ebe69c71e42060bc7db83d4edc2c55ba"
+  },
+  "configPath": "/Users/cliff/workspace/agent/Synapse-Network/services/user-front/src/contract-config.json",
+  "errors": [],
+  "rpcUrl": "http://127.0.0.1:8545"
+}

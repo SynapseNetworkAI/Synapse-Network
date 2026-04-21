@@ -102,7 +102,7 @@ The release owner must attach evidence for every item below before requesting la
 
 1. Contract security audit evidence, finding closure log, Hardhat/fork test output, deployment dry-run output, release manifest, verified contract link, and small-value chain rehearsal report. If the audit is internal/founder-led, attach the internal audit report and explicit risk acceptance and state that no independent third-party audit was performed.
 2. CI evidence for `ci:pr`, `ci:contracts`, `ci:gateway`, `ci:admin-gateway`, `ci:frontend`, `ci:admin-front`, money scan, secret scan, and docs check.
-3. Full-chain E2E report for deposit, confirm, discovery, invoke, provider credit, receipt, consumer withdrawal, provider withdrawal, refund, and reconciliation.
+3. Gateway full-chain release E2E report for deposit, confirm, discovery, quote, invoke, provider credit, receipt, consumer withdrawal, analytics Kafka/ClickHouse ingestion, and reconciliation. Run `npm run release:evidence:gateway-fullchain:staging` and validate it with `GATEWAY_RELEASE_E2E_REQUIRED_ENV=staging npm run ci:gateway-release-e2e-evidence`; skipped tests are not accepted as release evidence.
 4. Reconciliation report for on-chain vault, internal ledger, provider payable, platform fee, pending funds, frozen funds, and completed withdrawals.
 5. Security test report for auth/RBAC, replay, rate limit, SQL injection, SSRF, secret leak, error leak, and malicious provider response.
 6. Performance and reliability report for load tests, concurrent money tests, chaos drills, and rollback drills.

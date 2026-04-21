@@ -107,6 +107,13 @@ Provider 提现审批是资金审批 release gate。任何改动触及 Gateway f
 
 E2E evidence 使用资金敏感目录 hash，而不是只绑定全局 commit SHA。无关 README/docs 小改不会强迫重跑；资金敏感路径变化会让旧证据自动失效。
 
+Gateway full-chain E2E 是 release evidence gate，不属于普通 PR CI。普通 `ci:gateway` 可以在 live services 缺失时让 e2e 测试 skip；release evidence 不允许 skip。发布前必须运行：
+
+1. `npm run release:evidence:gateway-fullchain:staging`
+2. `GATEWAY_RELEASE_E2E_REQUIRED_ENV=staging npm run ci:gateway-release-e2e-evidence`
+
+本地可用 `npm run release:evidence:gateway-fullchain:local` 做 rehearsal，但它只证明本地链路和证据脚本可运行，不替代 staging 或 production Go/No-Go evidence。
+
 ### 4.2.1 Agent Architecture Quality Gate
 
 Agent 生成代码必须通过结构门禁，不能靠堆代码、复制粘贴或日志泄露换取功能测试通过。
