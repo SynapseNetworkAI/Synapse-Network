@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any, Optional
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal
 
 import asyncio
 
@@ -325,12 +325,12 @@ def _charge_and_mark_usage_atomic(
                     "code": "INSUFFICIENT_BALANCE",
                     "message": "consumer balance is insufficient, please deposit first",
                 },
-            )
+            ) from exc
         if str(exc) in {"CONSUMER_RESTRICTED_RISK_BLOCK", "PROVIDER_RESTRICTED_RISK_BLOCK"}:
             raise HTTPException(
                 status_code=403,
                 detail={"code": str(exc), "message": "Charge blocked by risk policy."},
-            )
+            ) from exc
         raise
 
     return consumer_after, None
@@ -454,12 +454,13 @@ async def rollback_charge(
                     provider_net=provider_net,
                     updated_credential=updated_credential,
                 )
-            return
         except DeadlockDetected as exc:
             last_error = exc
             if attempt >= _ROLLBACK_DEADLOCK_MAX_ATTEMPTS:
                 break
             await asyncio.sleep(_ROLLBACK_DEADLOCK_BACKOFF_SEC * attempt)
+        else:
+            return
     if last_error is not None:
         raise last_error
 
