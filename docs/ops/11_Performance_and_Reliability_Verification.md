@@ -1,6 +1,6 @@
 ---
 created_at: 2026-04-18
-updated_at: 2026-04-18
+updated_at: 2026-04-21
 doc_status: active
 ---
 
@@ -115,6 +115,58 @@ docs/evidence/performance/<timestamp>-local-reliability-suite/report.md
 ```
 
 This report can mark only local automation as `PASS`. It must not mark staging load, chaos, rollback, restore, or signer blockers as passed.
+
+## Local MVP Production-Load Rehearsal
+
+Use this command when validating local concurrency and money-state safety before a staging load run:
+
+```bash
+SYNAPSE_LOAD_PROFILE=local-mvp \
+SYNAPSE_LOAD_DURATION_SEC=90 \
+SYNAPSE_LOAD_DRAIN_SEC=5 \
+SYNAPSE_LOAD_DRAIN_HARD_CAP_SEC=30 \
+SYNAPSE_LOAD_CONSUMER_WALLET_COUNT=4 \
+SYNAPSE_LOAD_PROVIDER_WALLET_COUNT=4 \
+npm run perf:local-production-load-rehearsal
+
+npm run ci:local-production-load-evidence
+```
+
+The runner is local-only. It refuses non-local Gateway, gateway-admin, RPC, or non-`31337` chain targets. By default it bootstraps the local Gateway/contracts and starts gateway-admin; set `SYNAPSE_LOAD_SKIP_LOCAL_BOOTSTRAP=1` only when those local services are already running.
+
+The `local-mvp` defaults intentionally use conservative lane concurrency so a developer laptop validates state-machine safety rather than pretending to be staging capacity. Defaults are `invoke=1`, `balance=4`, `deposit-confirm=2`, `withdrawal=1`, `provider-health=1`, and `admin-finance=2`; staging capacity runs must override these values in a dedicated environment.
+
+This rehearsal proves:
+
+1. Every run has a unique `REHEARSAL_RUN_ID`.
+2. Consumer/provider wallets are generated with `ethers.Wallet.createRandom()` for the current run only.
+3. Private keys, mnemonics, raw signatures, JWTs, admin tokens, and cookies are never written to evidence.
+4. Faucet funding is serialized from the Hardhat deployer.
+5. Each wallet shard serializes its own chain writes while different wallet shards can run concurrently.
+6. `nonce too low`, `replacement transaction underpriced`, and `already known` are classified as runner wallet-isolation issues, not Gateway 5xx.
+7. Clean local pass requires `chainNonceCollisionCount === 0`.
+8. The six MVP lanes execute: invoke, balance, deposit-confirm, withdrawal, provider-health, and admin-finance.
+9. Graceful drain finishes before the hard cap and leaves no abandoned in-flight requests.
+10. Ledger/vault reconciliation for this local run reports `0.000000` unexplained delta.
+
+Evidence is written under:
+
+```bash
+docs/evidence/performance/<timestamp>-local-production-load-rehearsal/
+```
+
+Required artifacts:
+
+1. `report.md`
+2. `report.json`
+3. `environment-manifest.json`
+4. `contract-manifest.json`
+5. `traffic-summary.json`
+6. `reconciliation-summary.json`
+
+This report is **not** staging or production capacity evidence. Local laptop p95/p99 latency is advisory only because Postgres, Redis, Anvil, Gateway, gateway-admin, the mock provider, and the load runner contend for the same machine. The hard pass/fail checks are safety checks: no unexpected 5xx, no nonce collisions, no hard-drain hang, no secret leakage, and no unexplained financial delta. Explicit overload responses such as `503 SERVICE_BUSY` are counted as expected degradation only when the lane declares them acceptable; raw `500` remains a hard failure.
+
+Staging must not use dynamic random wallets. Staging load must use pre-approved dedicated test wallets and externally funded test balances. Production must not run destructive load; production validation is capped small-value rehearsal plus read-only reconciliation and monitoring evidence.
 
 ## Staging Load Plan
 

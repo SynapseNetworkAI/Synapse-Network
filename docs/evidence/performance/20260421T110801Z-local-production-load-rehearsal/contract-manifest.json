@@ -1,0 +1,6 @@
+{
+  "chainId": 31337,
+  "synapseCore": "0xa195ACcEB1945163160CD5703Ed43E4f78176a54",
+  "mockUSDC": "0xc0c5618f0F3Fa66b496F2940f373DC366d765BAe",
+  "synapseCoreCodeHash": "0x7f6cacca739dfd607020d5e2745c71e662ee0a8f29fbc47a5f3d8f36afc7b8af"
+}

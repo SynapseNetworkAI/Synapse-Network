@@ -4,7 +4,10 @@ from dataclasses import dataclass
 from typing import Any, Optional
 from decimal import Decimal, ROUND_HALF_UP
 
+import asyncio
+
 from fastapi import HTTPException
+from psycopg.errors import DeadlockDetected
 
 from src.core.common import normalize_wallet
 from src.core.config import settings
@@ -24,6 +27,10 @@ from src.utils.money import MoneyCodec
 
 
 RISK_RESTRICTED_STATUSES = {"restricted", "suspended", "blocked"}
+_CREDENTIAL_USAGE_DEADLOCK_MAX_ATTEMPTS = 3
+_CREDENTIAL_USAGE_DEADLOCK_BACKOFF_SEC = 0.05
+_ROLLBACK_DEADLOCK_MAX_ATTEMPTS = 3
+_ROLLBACK_DEADLOCK_BACKOFF_SEC = 0.05
 
 
 @dataclass(frozen=True)
@@ -224,7 +231,7 @@ async def charge_and_mark_usage(
     _assert_not_risk_restricted_for_charge(storage, owner_wallet, provider_wallet)
 
     if hasattr(storage, "charge_consumer_and_record_usage_atomic"):
-        return _charge_and_mark_usage_atomic(
+        consumer_after, _ = _charge_and_mark_usage_atomic(
             storage=storage,
             owner_wallet=owner_wallet,
             provider_wallet=provider_wallet,
@@ -242,6 +249,10 @@ async def charge_and_mark_usage(
             ),
             now=now,
         )
+        updated_credential = await _increment_credential_usage_with_retry(
+            storage, credential_id
+        )
+        return consumer_after, updated_credential
     return await _charge_and_mark_usage_fallback(
         storage=storage,
         owner_wallet=owner_wallet,
@@ -266,7 +277,6 @@ def _charge_and_mark_usage_atomic(
     now: int,
 ) -> tuple[Decimal, Optional[RuntimeCredentialRecord]]:
     consumer_after = Decimal("0")
-    updated_credential = None
     normalized_total_charge = _money_decimal(total_charge)
     normalized_provider_net = _money_decimal(provider_net)
     normalized_platform_fee_total = _money_decimal(platform_fee_total)
@@ -323,18 +333,45 @@ def _charge_and_mark_usage_atomic(
             )
         raise
 
+    return consumer_after, None
+
+
+def _increment_credential_usage_once(
+    storage: BaseStorage, credential_id: str
+) -> Optional[RuntimeCredentialRecord]:
     rows = credential_service.load_credential_rows(storage)
     idx = credential_service.find_runtime_credential_index(rows, credential_id)
-    if idx >= 0:
-        updated_credential = credential_service.clone_runtime_credential(
-            rows[idx],
-            credential_service.CredentialPatch(
-                calls_used=int(rows[idx].metadata.calls_used or 0) + 1,
-            ),
-        )
-        rows[idx] = updated_credential
-        credential_service.save_credential_rows(storage, rows)
-    return consumer_after, updated_credential
+    if idx < 0:
+        return None
+    updated_credential = credential_service.clone_runtime_credential(
+        rows[idx],
+        credential_service.CredentialPatch(
+            calls_used=int(rows[idx].metadata.calls_used or 0) + 1,
+        ),
+    )
+    updated_rows = list(rows)
+    updated_rows[idx] = updated_credential
+    credential_service.save_credential_rows(storage, updated_rows)
+    return updated_credential
+
+
+async def _increment_credential_usage_with_retry(
+    storage: BaseStorage, credential_id: str
+) -> Optional[RuntimeCredentialRecord]:
+    """Increment credential usage outside the ledger charge transaction with deadlock retry."""
+    last_error: Optional[BaseException] = None
+    for attempt in range(1, _CREDENTIAL_USAGE_DEADLOCK_MAX_ATTEMPTS + 1):
+        try:
+            async with credential_service.write_lock:
+                return _increment_credential_usage_once(storage, credential_id)
+        except DeadlockDetected as exc:
+            last_error = exc
+            if attempt >= _CREDENTIAL_USAGE_DEADLOCK_MAX_ATTEMPTS:
+                break
+            await asyncio.sleep(_CREDENTIAL_USAGE_DEADLOCK_BACKOFF_SEC * attempt)
+    if last_error is not None:
+        raise last_error
+    return None
 
 
 async def _charge_and_mark_usage_fallback(
@@ -404,38 +441,71 @@ async def rollback_charge(
     updated_credential: Optional[RuntimeCredentialRecord],
 ) -> None:
     """Rollback consumer/provider/platform ledger and credential usage when upstream fails."""
+    last_error: Optional[BaseException] = None
+    for attempt in range(1, _ROLLBACK_DEADLOCK_MAX_ATTEMPTS + 1):
+        try:
+            async with credential_service.write_lock:
+                _rollback_charge_once(
+                    storage=storage,
+                    owner_wallet=owner_wallet,
+                    provider_wallet=provider_wallet,
+                    total_charge=total_charge,
+                    platform_fee_total=platform_fee_total,
+                    provider_net=provider_net,
+                    updated_credential=updated_credential,
+                )
+            return
+        except DeadlockDetected as exc:
+            last_error = exc
+            if attempt >= _ROLLBACK_DEADLOCK_MAX_ATTEMPTS:
+                break
+            await asyncio.sleep(_ROLLBACK_DEADLOCK_BACKOFF_SEC * attempt)
+    if last_error is not None:
+        raise last_error
+
+
+def _rollback_charge_once(
+    *,
+    storage: BaseStorage,
+    owner_wallet: str,
+    provider_wallet: str,
+    total_charge: Decimal | str | int,
+    platform_fee_total: Decimal | str | int,
+    provider_net: Decimal | str | int,
+    updated_credential: Optional[RuntimeCredentialRecord],
+) -> None:
     total_charge_decimal = _money_decimal(total_charge)
     platform_fee_total_decimal = _money_decimal(platform_fee_total)
     provider_net_decimal = _money_decimal(provider_net)
-    async with credential_service.write_lock:
-        ledger = storage.get_data_manager().finance.balance.read_balance_ledger()
 
-        consumer_wallet = ledger.ensure_consumer_wallet(owner_wallet)
-        provider_wallet_row = ledger.ensure_provider_wallet(provider_wallet)
-        consumer_wallet.available_balance = _money_decimal(
-            consumer_wallet.available_balance + total_charge_decimal
-        )
-        provider_wallet_row.available_balance = _money_decimal(
-            provider_wallet_row.available_balance - provider_net_decimal
-        )
-        ledger.platform.fee_accrued = _money_decimal(
-            ledger.platform.fee_accrued - platform_fee_total_decimal
-        )
-        ledger.updated_at = credential_service.now_ts()
-        storage.get_data_manager().finance.balance.write_balance_ledger(ledger)
+    ledger = storage.get_data_manager().finance.balance.read_balance_ledger()
+    consumer_wallet = ledger.ensure_consumer_wallet(owner_wallet)
+    provider_wallet_row = ledger.ensure_provider_wallet(provider_wallet)
+    consumer_wallet.available_balance = _money_decimal(
+        consumer_wallet.available_balance + total_charge_decimal
+    )
+    provider_wallet_row.available_balance = _money_decimal(
+        provider_wallet_row.available_balance - provider_net_decimal
+    )
+    ledger.platform.fee_accrued = _money_decimal(
+        ledger.platform.fee_accrued - platform_fee_total_decimal
+    )
+    ledger.updated_at = credential_service.now_ts()
+    storage.get_data_manager().finance.balance.write_balance_ledger(ledger)
 
-        if not updated_credential:
-            return
+    if not updated_credential:
+        return
 
-        rows = credential_service.load_credential_rows(storage)
-        idx = credential_service.find_runtime_credential_index(
-            rows, updated_credential.credential.credential_id
+    rows = credential_service.load_credential_rows(storage)
+    idx = credential_service.find_runtime_credential_index(
+        rows, updated_credential.credential.credential_id
+    )
+    if idx >= 0:
+        updated_rows = list(rows)
+        updated_rows[idx] = credential_service.clone_runtime_credential(
+            rows[idx],
+            credential_service.CredentialPatch(
+                calls_used=max(0, int(rows[idx].metadata.calls_used or 0) - 1),
+            ),
         )
-        if idx >= 0:
-            rows[idx] = credential_service.clone_runtime_credential(
-                rows[idx],
-                credential_service.CredentialPatch(
-                    calls_used=max(0, int(rows[idx].metadata.calls_used or 0) - 1),
-                ),
-            )
-            credential_service.save_credential_rows(storage, rows)
+        credential_service.save_credential_rows(storage, updated_rows)

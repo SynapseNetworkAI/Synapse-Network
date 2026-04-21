@@ -1,0 +1,97 @@
+{
+  "environment": "local",
+  "rehearsalRunId": "lplr-2026-04-21T110809791Z-6f49cbcb",
+  "gatewayBaseUrl": "http://127.0.0.1:8000",
+  "adminGatewayUrl": "http://127.0.0.1:8300",
+  "rpcUrl": "http://127.0.0.1:8545",
+  "generatedAt": "2026-04-21T11:08:09.791Z",
+  "walletPool": {
+    "consumerWalletCount": 4,
+    "providerWalletCount": 4,
+    "consumers": [
+      {
+        "role": "consumer",
+        "index": 0,
+        "address": "0xd71FC53c5d55E4cD91157463798EE5F1fEDC8670",
+        "budgetUsdc": "40.000000",
+        "fundingTxHashes": [
+          "0x66af425a58e4f008ad4588bde92b4c2132bd815be2119f0e5a4bf712a574e8e9",
+          "0xcb937e957a0062950ef731bdf2a72f141564bc190c9883ef5f0612a5dfa15bc4"
+        ]
+      },
+      {
+        "role": "consumer",
+        "index": 1,
+        "address": "0x27482536321dcaec51f81E726FF57f6e4b09bD0b",
+        "budgetUsdc": "40.000000",
+        "fundingTxHashes": [
+          "0x856403a21dd89baf4e12d232ba5b383ec066bedeeed0f8d5a8e59f22dbad9e34",
+          "0xcbb1b79e329afc03e3be6140e77159b22870f47d5cc7149ebd8aa4c98c93d3fe"
+        ]
+      },
+      {
+        "role": "consumer",
+        "index": 2,
+        "address": "0xC1CC4AaEb3553F6e10b826BB698e9f0409906B6e",
+        "budgetUsdc": "40.000000",
+        "fundingTxHashes": [
+          "0x58b57017839497d7424d4f3837355423cef5f786b6a86ba689c42ccc414f113b",
+          "0xd4b63118bf26f184a1f4bfa0af31476151e43a3fe822200fb20c75c4959b48b9"
+        ]
+      },
+      {
+        "role": "consumer",
+        "index": 3,
+        "address": "0x56Dc1e3f2753f5a4099c2E0bA0fFde1Ab444D68A",
+        "budgetUsdc": "40.000000",
+        "fundingTxHashes": [
+          "0x148bb72253df15b04fdb053d969154d4baeb95c578bca574ab6ce3f0e6af2d0a",
+          "0x1cd8ac442e77930df361f170cfdaf5f21d19ceee39ddf424759e2f5613ff1a8c"
+        ]
+      }
+    ],
+    "providers": [
+      {
+        "role": "provider",
+        "index": 0,
+        "address": "0xFC9c73f4c54A9C069BB1BAeef58Eecec50E8AA4a",
+        "serviceId": "lplr_lplr_2026_04_21T110809791Z_6f49cbcb_0",
+        "fundingTxHashes": [
+          "0x85c0bb64158965935ea48568105ff8a151f509bfbdb51a5bb9d93992170e4ada"
+        ]
+      },
+      {
+        "role": "provider",
+        "index": 1,
+        "address": "0xe451c75dE96d9e2EA1B1cDC863EDC54799D0ad65",
+        "serviceId": "lplr_lplr_2026_04_21T110809791Z_6f49cbcb_1",
+        "fundingTxHashes": [
+          "0x7c8c485540987dfe7718b59c70cfa71c23b9226e0700fcac4d2a9b2481cad792"
+        ]
+      },
+      {
+        "role": "provider",
+        "index": 2,
+        "address": "0x5D747906Bd7565BBC5CeFe43F69fD513633585fD",
+        "serviceId": "lplr_lplr_2026_04_21T110809791Z_6f49cbcb_2",
+        "fundingTxHashes": [
+          "0xf40845844cec9dae80fc73ca82c0f69c2e0ea78ec774ac40b23aa5c195b5a22d"
+        ]
+      },
+      {
+        "role": "provider",
+        "index": 3,
+        "address": "0x47e7079d9cC9Ad8BE90991e2174FD87d7cEe651d",
+        "serviceId": "lplr_lplr_2026_04_21T110809791Z_6f49cbcb_3",
+        "fundingTxHashes": [
+          "0xe74e7d7816a245b35340f2829289bfdcdbf094d3fa483168d7d33e4beace7d3c"
+        ]
+      }
+    ]
+  },
+  "mockProvider": {
+    "url": "http://127.0.0.1:19995",
+    "reused": false
+  },
+  "note": "Private keys, mnemonics, raw signatures, JWTs, and admin tokens are intentionally omitted."
+}
