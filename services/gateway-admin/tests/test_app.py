@@ -1,6 +1,8 @@
 from dataclasses import replace
 from datetime import datetime, timezone
 from decimal import Decimal
+import importlib
+import logging
 
 from fastapi.testclient import TestClient
 from uuid import uuid4
@@ -9,6 +11,7 @@ from src.app import app
 from src.api import deps
 from src.api.routers import forum_support as forum_support_router
 from src.core.config import get_settings
+from src.core.metrics import MetricsRegistry
 from src.core.totp import generate_totp_code, generate_totp_secret
 from src.core.security import hash_password
 from src.domain import AdminMfaFactor, AdminUser
@@ -148,6 +151,7 @@ TEST_PROVIDER_WITHDRAW_REVIEW_REPOSITORY = InMemoryProviderWithdrawReviewReposit
 TEST_GATEWAY_EXECUTION_ADAPTER = InMemoryGatewayExecutionAdapter()
 TEST_PROVIDER_WITHDRAW_REVIEW_ADAPTER = InMemoryProviderWithdrawReviewAdapter(TEST_PROVIDER_WITHDRAW_REVIEW_REPOSITORY)
 TEST_ANALYTICS_REPOSITORY = FakeAnalyticsDashboardRepository()
+admin_app_module = importlib.import_module("src.app")
 
 
 class FakeProviderServicesAdapter:
@@ -399,6 +403,56 @@ def test_health() -> None:
     response = client.get("/health")
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
+
+
+def test_readiness() -> None:
+    response = client.get("/readiness")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "ready"
+    assert body["components"]["gateway_adapter"]["configured"] is True
+
+
+def test_metrics_requires_internal_authorization(monkeypatch) -> None:
+    monkeypatch.setattr(
+        admin_app_module.settings,
+        "metrics_bearer_token",
+        "admin-metrics-token",
+    )
+    monkeypatch.setattr(admin_app_module.settings, "metrics_basic_username", "")
+    monkeypatch.setattr(admin_app_module.settings, "metrics_basic_password", "")
+
+    forbidden = client.get("/metrics")
+    allowed = client.get(
+        "/metrics",
+        headers={"Authorization": "Bearer admin-metrics-token"},
+    )
+
+    assert forbidden.status_code == 403
+    assert allowed.status_code == 200
+    assert "synapse_http_requests_total" in allowed.text
+
+
+def test_metrics_runtime_guard_drops_sensitive_or_long_labels(caplog) -> None:
+    registry = MetricsRegistry(service="gateway-admin")
+
+    with caplog.at_level(logging.ERROR):
+        registry.set_gauge(
+            "synapse_admin_guard_value",
+            1,
+            {"wallet": "0x" + "a" * 40},
+        )
+        registry.set_gauge(
+            "synapse_admin_guard_long_value",
+            1,
+            {"actor": "x" * 41},
+        )
+
+    rendered = registry.render()
+    assert "synapse_admin_guard_value" not in rendered
+    assert "synapse_admin_guard_long_value" not in rendered
+    assert "synapse_metric_label_rejected_total" in rendered
+    assert "METRIC_LABEL_REJECTED" in caplog.text
 
 
 def test_admin_auth_login() -> None:

@@ -40,6 +40,9 @@ npm run e2e:withdrawal-one-ticket-evidence
 npm run ci:withdrawal-one-ticket-evidence
 npm run perf:local-production-load-rehearsal
 npm run ci:local-production-load-evidence
+npm run ci:monitoring-alert-rules
+SYNAPSE_DRILL_ENV=staging SYNAPSE_DRILL_CONFIRM=I_UNDERSTAND_THIS_CHANGES_STAGING npm run drill:backup-restore:staging
+npm run ci:backup-restore-evidence
 ```
 
 ## Repository and CI Gates
@@ -53,6 +56,7 @@ npm run ci:local-production-load-evidence
 - [x] Money scan evidence: PASS, Python money scan and TypeScript money scan passed.
 - [x] Secret scan evidence: PASS, secret scan passed.
 - [x] Release Go/No-Go state check: PASS, `npm run ci:release-go-no-go` confirms staging automation evidence is recorded and production blockers remain explicit.
+- [x] Monitoring alert rule static gate: PASS, `npm run ci:monitoring-alert-rules` validates Prometheus rule structure, drill labels, and Grafana dashboard JSON.
 - [ ] Gateway full-chain release E2E evidence: NO-GO blocker, `npm run release:evidence:gateway-fullchain:staging` report not attached or not validated by `GATEWAY_RELEASE_E2E_REQUIRED_ENV=staging npm run ci:gateway-release-e2e-evidence`. Ordinary `ci:gateway` skip behavior is not accepted for release evidence.
 - [ ] One-ticket withdrawal release evidence: NO-GO blocker, `npm run e2e:withdrawal-one-ticket-evidence` report not attached or not validated by `npm run ci:withdrawal-one-ticket-evidence`. The evidence must include all 10 scenarios: consumer/provider normal claim, expired reaper, soft revoke race claim, soft revoke expire, consumer replay attack, and provider low-gas revert retry.
 
@@ -84,8 +88,8 @@ npm run ci:local-production-load-evidence
 - [ ] One-ticket withdrawal expected-vs-actual evidence: NO-GO blocker, release bundle must compare ticketHash, deadline, RPC block timestamp, DB status, consumer/provider balance delta, vault delta, replay result, and low-gas retry result.
 - [ ] Ledger/vault reconciliation report: NO-GO blocker, release reconciliation report not attached.
 - [ ] Gateway full-chain expected-vs-actual report: NO-GO blocker, release evidence for deposit, confirm, discovery, quote, invoke, provider credit, receipt, consumer withdrawal, analytics Kafka/ClickHouse ingestion, and reconciliation is not attached.
-- [ ] Backup restore drill report: NO-GO blocker, restore drill evidence not attached.
-- [ ] Chain-log replay or reconciliation drill: NO-GO blocker, chain-log replay evidence not attached.
+- [ ] Backup restore drill report: NO-GO blocker, fresh `npm run drill:backup-restore:staging` evidence not attached or not validated by `npm run ci:backup-restore-evidence`.
+- [ ] Chain-log reconciliation drill: NO-GO blocker, daily chain reconciliation evidence not attached. This is independent of v1 backup/restore drill and must not be coupled to restore evidence.
 
 ## Gateway Security Evidence
 
@@ -142,6 +146,7 @@ npm run ci:local-production-load-evidence
 - [ ] Queue and analytics lag dashboard: NO-GO blocker, dashboard link or screenshot not attached.
 - [ ] Security alert dashboard: NO-GO blocker, dashboard link or screenshot not attached.
 - [ ] Alert drill screenshots or links: NO-GO blocker, alert drill evidence not attached.
+- [ ] Metrics endpoint access control: NO-GO blocker, proxy-layer `/metrics` allowlist and app-layer metrics token proof not attached.
 - [ ] On-call route: NO-GO blocker, on-call route evidence not attached.
 - [ ] Escalation policy: NO-GO blocker, escalation policy evidence not attached.
 - [ ] Incident runbook: NO-GO blocker, incident runbook evidence not attached.
@@ -158,7 +163,7 @@ npm run ci:local-production-load-evidence
 - [ ] CORS allowlist: NO-GO blocker, production config review not attached.
 - [ ] JWT/TOTP/internal token handling: NO-GO blocker, production secret/config review not attached.
 - [ ] DB TLS and least privilege: NO-GO blocker, production DB security review not attached.
-- [ ] Backup policy: NO-GO blocker, production backup policy and restore proof not attached.
+- [ ] Backup policy: NO-GO blocker, production backup policy and fresh restore proof not attached. Backup restore evidence older than 72 hours is stale.
 - [ ] Retention policy: NO-GO blocker, production retention policy not attached.
 - [ ] Environment manifest: NO-GO blocker, environment manifest not attached.
 

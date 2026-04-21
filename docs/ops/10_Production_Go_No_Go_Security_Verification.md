@@ -108,7 +108,7 @@ The release owner must attach evidence for every item below before requesting la
 6. Security test report for auth/RBAC, replay, rate limit, SQL injection, SSRF, secret leak, error leak, and malicious provider response.
 7. Performance and reliability report for load tests, concurrent money tests, chaos drills, and rollback drills.
 8. Monitoring evidence: dashboard screenshots, alert screenshots, incident runbook links, on-call routing proof, and alert drill notes.
-9. Data recovery evidence: Postgres backup restore drill, chain-log replay or reconciliation drill, RPO/RTO result, and operator notes.
+9. Data recovery evidence: Postgres backup restore drill, ClickHouse restore freshness proof, RPO/RTO result, and operator notes. v1 restore evidence must not require Postgres-to-ClickHouse row-to-row equality or RPC chain replay.
 10. Production configuration review: environment, contract addresses, RPC endpoints, CORS, JWT/TOTP/internal tokens, database TLS, least-privilege accounts, backup policy, and retention policy.
 11. Approval signatures from engineering, security, finance/ledger, and operations owners.
 
@@ -145,6 +145,7 @@ Any item below is an automatic No-Go:
 - Secret material appears in git, logs, frontend bundles, screenshots, or external errors.
 - Production monitoring or alerting has not been drill-tested.
 - Backup restore has not been drill-tested.
+- Backup restore evidence is older than 72 hours, digest-invalid, or missing restored Postgres reconciliation and ClickHouse freshness proof.
 - Load or concurrency tests produce overdraft, duplicate debit, duplicate credit, or unexplained balance drift.
 - Internal audit risk acceptance is missing while no independent third-party audit was performed.
 - Provider withdrawal approval evidence is missing, stale, hand-edited, or fails its finance-sensitive tree hash / digest validation.

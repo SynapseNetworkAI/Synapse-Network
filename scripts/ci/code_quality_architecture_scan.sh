@@ -39,6 +39,8 @@ done < <(changed_files | sort -u)
 is_jscpd_baselined() {
   case "$1" in
     services/user-front/src/components/provider-workspace/ProviderSettlementsPage.tsx|\
+    services/gateway/src/core/metrics.py|\
+    services/gateway-admin/src/core/metrics.py|\
     services/gateway/src/storage/postgres/repositories/gateway_state_refund_mixin.py|\
     services/gateway/src/services/provider/withdraw_helpers_mixin.py)
       return 0

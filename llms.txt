@@ -14,6 +14,7 @@ Synapse Network is an agent-first settlement layer for AI agents. The primary pr
 - docs/ops/10_Production_Go_No_Go_Security_Verification.md - production launch Go/No-Go gate for contracts, finance, gateway, monitoring, recovery, and sign-off
 - docs/ops/11_Performance_and_Reliability_Verification.md - performance, load, chaos, rollback, and local reliability smoke verification plan
 - docs/ops/12_Gateway_Pre_Launch_Stress_Review.md - executable gateway stress-review constraints for fake async, timeouts, DB transactions, OOM, and indexes
+- docs/ops/13_Production_Monitoring_Alerting_and_Backup_Restore.md - production monitoring, alerting, and backup restore evidence gate
 - docs/security/README.md - internal security evidence entrypoint, including SynapseCore internal audit, closure log, and risk acceptance
 
 ## Core Runtime Docs

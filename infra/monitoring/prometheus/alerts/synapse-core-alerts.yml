@@ -1,0 +1,77 @@
+groups:
+  - name: synapse-core-p0
+    rules:
+      - alert: SynapseLedgerVaultDelta
+        expr: synapse_finance_ledger_vault_delta_usdc > 0
+        for: 2m
+        labels:
+          severity: p0
+          system: finance
+        annotations:
+          summary: "Ledger/vault reconciliation delta is non-zero"
+          runbook: "docs/ops/13_Production_Monitoring_Alerting_and_Backup_Restore.md"
+
+      - alert: SynapseNegativeBalanceAttempt
+        expr: increase(synapse_finance_negative_balance_attempt_total[5m]) > 0
+        labels:
+          severity: p0
+          system: finance
+        annotations:
+          summary: "Negative balance attempt observed"
+          runbook: "docs/ops/04_Financial_Incident_Response_and_Production_Operations.md"
+
+      - alert: SynapseWithdrawalTicketAnomaly
+        expr: increase(synapse_withdrawal_ticket_anomaly_total[5m]) > 0
+        labels:
+          severity: p0
+          system: withdrawal
+        annotations:
+          summary: "Withdrawal ticket replay, tamper, or expired-consumed anomaly"
+          runbook: "docs/ops/13_Production_Monitoring_Alerting_and_Backup_Restore.md"
+
+  - name: synapse-core-p1
+    rules:
+      - alert: SynapseGateway5xxRateHigh
+        expr: sum(rate(synapse_http_requests_total{service="gateway",status_class="5xx"}[5m])) / clamp_min(sum(rate(synapse_http_requests_total{service="gateway"}[5m])), 1) > 0.001
+        for: 5m
+        labels:
+          severity: p1
+          system: gateway
+        annotations:
+          summary: "Gateway 5xx rate is above launch SLO"
+          runbook: "docs/ops/13_Production_Monitoring_Alerting_and_Backup_Restore.md"
+
+      - alert: SynapseDepositConfirmLag
+        expr: synapse_deposit_confirm_lag_seconds > 300
+        for: 5m
+        labels:
+          severity: p1
+          system: chain
+        annotations:
+          summary: "Deposit confirmation lag is above threshold"
+          runbook: "docs/ops/03_Observability_Logging_and_Indexer_Operations.md"
+
+      - alert: SynapseAnalyticsLag
+        expr: synapse_analytics_clickhouse_lag_seconds > 300
+        for: 5m
+        labels:
+          severity: p1
+          system: analytics
+        annotations:
+          summary: "Kafka/ClickHouse analytics lag is above threshold"
+          runbook: "docs/ops/08_Analytics_Pipeline_Operations.md"
+
+  - name: synapse-drill-only
+    rules:
+      - alert: SynapseDrillLedgerDelta
+        expr: synapse_drill_finance_ledger_delta_usdc{tenant_id="drill_synthetic"} > 0
+        for: 30s
+        labels:
+          severity: drill
+          env: staging
+          is_drill: "true"
+          system: finance
+        annotations:
+          summary: "Synthetic staging drill ledger delta fired"
+          runbook: "docs/ops/13_Production_Monitoring_Alerting_and_Backup_Restore.md"
+

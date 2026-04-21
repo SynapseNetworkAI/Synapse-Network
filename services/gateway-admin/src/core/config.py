@@ -47,7 +47,10 @@ class Settings(BaseSettings):
         alias="ADMIN_LOG_RETENTION_DAYS",
     )
     log_level: str = Field(default="INFO", alias="ADMIN_LOG_LEVEL")
-    host: str = Field(default="0.0.0.0", alias="ADMIN_GATEWAY_HOST")
+    metrics_bearer_token: str = Field(default="", alias="METRICS_BEARER_TOKEN")
+    metrics_basic_username: str = Field(default="", alias="METRICS_BASIC_USERNAME")
+    metrics_basic_password: str = Field(default="", alias="METRICS_BASIC_PASSWORD")
+    host: str = Field(default="0.0.0.0", alias="ADMIN_GATEWAY_HOST")  # noqa: S104 - production ingress/LB owns public exposure.
     port: int = Field(default=8300, alias="ADMIN_GATEWAY_PORT")
     debug: bool = Field(default=True, alias="ADMIN_GATEWAY_DEBUG")
     allowed_origins: str = Field(
