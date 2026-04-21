@@ -50,12 +50,12 @@ def sha256_json(payload: Any) -> str:
 
 
 def run_text(args: list[str], cwd: Path) -> str:
-    result = subprocess.run(args, cwd=cwd, check=False, text=True, capture_output=True)
+    result = subprocess.run(args, cwd=cwd, check=False, text=True, capture_output=True)  # noqa: S603 - fixed git commands only
     return result.stdout.strip()
 
 
 def http_get_json(url: str, timeout: int = 10) -> Any:
-    request = urllib.request.Request(url, headers={"Accept": "application/json"})
+    request = urllib.request.Request(url, headers={"Accept": "application/json"})  # noqa: S310 - local/staging evidence URL
     with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310 - local/staging evidence URL
         text = response.read().decode("utf-8")
     if not text.strip():
@@ -65,7 +65,7 @@ def http_get_json(url: str, timeout: int = 10) -> Any:
 
 def clickhouse_query(base_url: str, sql: str) -> list[dict[str, Any]]:
     query_url = f"{base_url.rstrip('/')}/?{urllib.parse.urlencode({'query': sql})}"
-    request = urllib.request.Request(query_url)
+    request = urllib.request.Request(query_url)  # noqa: S310 - configured evidence URL
     with urllib.request.urlopen(request, timeout=15) as response:  # noqa: S310 - configured evidence URL
         text = response.read().decode("utf-8").strip()
     if not text:
@@ -75,7 +75,7 @@ def clickhouse_query(base_url: str, sql: str) -> list[dict[str, Any]]:
 
 def rpc_call(rpc_url: str, method: str, params: list[Any]) -> Any:
     body = json.dumps({"jsonrpc": "2.0", "id": 1, "method": method, "params": params}).encode()
-    request = urllib.request.Request(
+    request = urllib.request.Request(  # noqa: S310 - configured evidence URL
         rpc_url,
         data=body,
         headers={"Content-Type": "application/json"},
@@ -89,7 +89,7 @@ def rpc_call(rpc_url: str, method: str, params: list[Any]) -> Any:
 
 
 def parse_junit(junit_path: Path) -> dict[str, Any]:
-    tree = ET.parse(junit_path)
+    tree = ET.parse(junit_path)  # noqa: S314 - pytest generates this local evidence file
     root = tree.getroot()
     suites = [root] if root.tag == "testsuite" else list(root.findall("testsuite"))
     tests = failures = errors = skipped = 0
@@ -307,9 +307,11 @@ def main() -> int:
         )
     if pytest_summary["skipped"]:
         failed.append(f"pytest skipped={pytest_summary['skipped']}")
-    for row in comparisons:
-        if not row["pass"]:
-            failed.append(f"{row['stage']} / {row['metricName']} expected {row['expected']} actual {row['actual']}")
+    failed.extend(
+        f"{row['stage']} / {row['metricName']} expected {row['expected']} actual {row['actual']}"
+        for row in comparisons
+        if not row["pass"]
+    )
 
     reconciliation = write_reconciliation_summary(out_dir, comparisons)
     status = "success" if not failed else "failed"
