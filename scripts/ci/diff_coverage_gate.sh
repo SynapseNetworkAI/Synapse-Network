@@ -28,6 +28,9 @@ matches_regex() {
 has_match() {
   local regex="$1"
   local file
+  if [[ ${#CHANGED_FILES[@]} -eq 0 ]]; then
+    return 1
+  fi
   for file in "${CHANGED_FILES[@]}"; do
     if matches_regex "$file" "$regex"; then
       return 0

@@ -44,7 +44,7 @@ PR 阻断流水线至少要检查：
 1. Gateway 单测
 2. Gateway 关键金融安全测试
 3. admin gateway 测试
-4. admin front 构建
+4. admin front lint / test / build
 5. 合约编译或测试
 6. 前端 lint / test / build
 7. 文档链接和关键入口校验
@@ -64,9 +64,9 @@ PR 阻断流水线至少要检查：
 当前 `ci:pr` 已接入的仓库门禁建议包括：
 
 1. `apps/frontend`: lint / test / build
-2. `admin/admin-front`: lint / build
+2. `services/admin-front`: lint / Vitest / build
 3. `gateway`: 创建 `gateway/.venv`，安装目录依赖，再跑 pytest
-4. `admin/gateway-admin`: 创建 `admin/gateway-admin/.venv`，安装目录依赖，再跑 pytest
+4. `services/gateway-admin`: 创建 `services/gateway-admin/.venv`，安装目录依赖，再跑完整 pytest suite
 5. `provider_service`: 创建 `provider_service/.venv`，安装目录依赖，再跑 pytest
 6. `sdk/python`: 创建 `sdk/python/.venv`，安装 editable 依赖，再跑 pytest unit tests + `python -m build`，联调 demo 保持 opt-in
 7. root contracts: hardhat compile，若存在 root `test/` 用例则继续执行 hardhat test
@@ -75,7 +75,7 @@ PR 阻断流水线至少要检查：
 
 本地 hook 与 GitHub PR CI 必须共享同一个聚合入口 `scripts/ci/pr_checks.sh`，避免“本地过了、远端挂了”或“本地没拦住、远端才发现”的漂移。
 
-当前 Python 打包校验范围只包括 `sdk/python`，因为它是仓库内唯一带 `pyproject.toml` 的 Python 分发包；`gateway`、`admin/gateway-admin`、`provider_service` 当前仍按服务进程治理。
+当前 Python 打包校验范围只包括 `sdk/python`，因为它是仓库内唯一带 `pyproject.toml` 的 Python 分发包；`gateway`、`services/gateway-admin`、`provider_service` 当前仍按服务进程治理。
 
 当前 Python CI 的环境原则：
 
@@ -122,7 +122,7 @@ Python guardrail 工具不使用业务 service venv；缺少 `uvx` 且 PATH 上�
 增量覆盖率门禁统一读取 Cobertura XML：
 
 1. Python `pytest-cov` 输出 `coverage.xml`。
-2. Admin-front Vitest 输出 `services/admin-front/coverage/cobertura-coverage.xml`。
+2. Admin-front Vitest 输出 `services/admin-front/coverage/cobertura-coverage.xml`，且 `ci:admin-front` 本身必须执行 Vitest，不能只依赖手动测试。
 3. User-front Vitest 输出 `services/user-front/coverage/cobertura-coverage.xml`。
 
 Diff-based gates require base branch history. GitHub Actions must avoid shallow checkout:
@@ -140,8 +140,8 @@ If CI cannot resolve `origin/main...HEAD`, the gate must fail closed and instruc
 发布流水线至少要：
 
 1. 构建 `gateway`
-2. 构建 `admin/gateway-admin`
-3. 构建 `admin/admin-front`
+2. 构建 `services/gateway-admin`
+3. 构建 `services/admin-front`
 4. 生成镜像 digest
 5. 生成 SBOM
 6. 执行漏洞扫描

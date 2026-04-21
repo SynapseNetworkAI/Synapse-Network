@@ -17,6 +17,7 @@ Local execution mirror for `services/admin-front/`.
 | `yarn lint` | Run lint checks. | After meaningful modifications. |
 | `yarn test` | Execute the test suite. | After meaningful modifications. |
 | `yarn build` | Production build and type check. | Only when the task explicitly needs final build validation. |
+| `npm run ci:admin-front` | Repo-standard admin-front gate: lint, Vitest, and production build. | Before pushing admin-front changes or when final validation is needed. |
 
 Always use `yarn dev` while iterating. Do not keep the dev server running while executing `yarn build`.
 

@@ -36,8 +36,15 @@ services/gateway-admin/.venv/bin/python
 
 ```bash
 cd services/gateway-admin
-services/gateway-admin/.venv/bin/python -m pytest tests/test_app.py -q
+services/gateway-admin/.venv/bin/python -m pytest tests -q
 ```
+
+`npm run ci:admin-gateway` is the repo-standard service gate and runs the
+full gateway-admin pytest suite. Finance-review, withdrawal, refund,
+reconciliation, approval, or internal Gateway adapter changes must also pass
+the repo-level guardrails from `npm run ci:pr`, including finance Semgrep,
+finance mypy, architecture quality, secret scanning, test-quality checks, and
+incremental diff coverage.
 
 ## Operations
 

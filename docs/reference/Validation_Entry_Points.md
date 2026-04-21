@@ -55,22 +55,22 @@ Working directory: `apps/frontend/`
 2. `yarn test` for local frontend test validation
 3. `npm run ci:frontend` from repository root when repo-standard gating is needed
 
-### 3.2 admin/admin-front
+### 3.2 services/admin-front
 
-Working directory: `admin/admin-front/`
+Working directory: `services/admin-front/`
 
 1. `yarn dev` for active iteration on `http://localhost:4000`
 2. `yarn lint`
 3. `yarn test`
 4. `yarn build` only when the task explicitly needs final build confirmation
-5. `npm run ci:admin-front` from repository root when repo-standard gating is needed
+5. `npm run ci:admin-front` from repository root when repo-standard gating is needed; this runs lint, Vitest, and production build
 
-### 3.3 admin/gateway-admin
+### 3.3 services/gateway-admin
 
-Working directory: `admin/gateway-admin/`
+Working directory: `services/gateway-admin/`
 
-1. `/Users/cliff/workspace/Synapse-Network/admin/gateway-admin/.venv/bin/python -m pytest tests/test_app.py -q`
-2. `npm run ci:admin-gateway` from repository root when repo-standard gating is needed
+1. `/Users/cliff/workspace/agent/Synapse-Network/services/gateway-admin/.venv/bin/python -m pytest tests -q`
+2. `npm run ci:admin-gateway` from repository root when repo-standard gating is needed; this runs the full gateway-admin pytest suite
 
 Runtime ops anchors:
 
@@ -144,9 +144,10 @@ Before finishing:
 2. update tests if behavior changed
 3. prefer the narrow project-local test plus the matching repo `ci:*` gate when risk is high
 4. run `npm run ci:finance-approval-safety` for approval, withdraw, refund, complete, ledger, balance, gateway-admin finance, or admin-front withdrawal-review changes; this includes Semgrep, finance-only mypy, local runtime guard, and E2E model-drift checks
-5. run `npm run e2e:admin-withdrawal-approval` and `npm run ci:finance-approval-e2e-evidence` before release approval when funds approval behavior or evidence-sensitive paths changed
-6. run `npm run ci:diff-coverage` when changed code needs line-level coverage evidence; Python and Vitest coverage must be Cobertura XML
-7. run `npm run ci:agent-guardrails` when Agent-generated backend/admin code touches finance, approval, storage, or shared state-machine logic; install `uv` once if the runner reports a missing Python guardrail tool
+5. run `npm run ci:pr` before push for admin-front or gateway-admin changes so security, complexity, duplication, assertion-quality, coverage-escape, secret, and incremental diff-coverage gates all run against changed files
+6. run `npm run e2e:admin-withdrawal-approval` and `npm run ci:finance-approval-e2e-evidence` before release approval when funds approval behavior or evidence-sensitive paths changed
+7. run `npm run ci:diff-coverage` when changed code needs line-level coverage evidence; Python and Vitest coverage must be Cobertura XML
+8. run `npm run ci:agent-guardrails` when Agent-generated backend/admin code touches finance, approval, storage, or shared state-machine logic; install `uv` once if the runner reports a missing Python guardrail tool
 
 ### Frontend work
 
