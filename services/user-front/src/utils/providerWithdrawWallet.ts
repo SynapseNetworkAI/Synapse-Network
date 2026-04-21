@@ -135,7 +135,7 @@ export function normalizeWithdrawWalletError(
   if (normalizedMessage.includes("ticket expired")) {
     return resolved.ticketExpired;
   }
-  if (normalizedMessage.includes("invalid nonce")) {
+  if (normalizedMessage.includes("invalid nonce") || normalizedMessage.includes("ticket consumed")) {
     return resolved.staleTicket;
   }
   if (normalizedMessage.includes("invalid oracle signature")) {

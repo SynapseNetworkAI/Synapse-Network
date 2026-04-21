@@ -665,6 +665,129 @@ class TestConsumerWithdrawFailureAndReview(unittest.TestCase):
 
 
 class TestConsumerWithdrawProcessor(unittest.TestCase):
+    def test_processor_helpers_read_chain_events_and_state(self):
+        class DummyEvent:
+            transactionHash = bytes.fromhex("ab" * 32)
+
+        class DummyEvents:
+            class WithdrawInfo:
+                @staticmethod
+                def get_logs(**kwargs):
+                    assert kwargs["argument_filters"]["ticketHash"] == "0xhash"
+                    return [DummyEvent()]
+
+        class DummyCore:
+            events = DummyEvents()
+
+            class functions:
+                @staticmethod
+                def isTicketConsumed(ticket_hash):
+                    assert ticket_hash == "0xhash"
+                    return SimpleNamespace(call=lambda: True)
+
+        dummy_w3 = SimpleNamespace(
+            eth=SimpleNamespace(
+                block_number=10,
+                get_block=lambda block: {"timestamp": 1234},
+            )
+        )
+
+        assert withdraw_processor._find_withdraw_tx(dummy_w3, DummyCore(), OWNER, "0xhash") == "0x" + "ab" * 32
+        assert withdraw_processor._is_ticket_consumed(DummyCore(), "0xhash") is True
+        assert withdraw_processor._rpc_block_timestamp(dummy_w3) == 1234
+
+    def test_processor_helpers_treat_rpc_errors_as_unknown(self):
+        class BrokenCore:
+            class functions:
+                @staticmethod
+                def isTicketConsumed(ticket_hash):
+                    _ = ticket_hash
+                    raise RuntimeError("rpc")
+
+        broken_w3 = SimpleNamespace(
+            eth=SimpleNamespace(
+                block_number=10,
+                get_block=lambda block: (_ for _ in ()).throw(RuntimeError("rpc")),
+            )
+        )
+
+        assert withdraw_processor._find_withdraw_tx(broken_w3, object(), OWNER, "0xhash") is None
+        assert withdraw_processor._is_ticket_consumed(BrokenCore(), "0xhash") is None
+        assert withdraw_processor._rpc_block_timestamp(broken_w3) is None
+
+    def test_processor_noops_without_chain_or_ticket(self):
+        storage = FakeStorage()
+        storage.balance_repo.seed_balance(OWNER, available=20.0)
+        svc = _make_service(storage)
+        run(svc.create_consumer_withdraw_intent(
+            payload={"amountUsdc": 20.0, "reason": "no ticket"},
+            owner_wallet=OWNER,
+            idempotency_key=IDEM_KEY,
+        ))
+        row = storage.gateway_state.refund_rows[0]
+
+        with patch.object(withdraw_processor, "_get_w3_and_core", return_value=(None, None)):
+            assert withdraw_processor._process_single_withdraw(storage, row) is False
+
+        row.ticket.ticket_hash = None
+        with patch.object(withdraw_processor, "_get_w3_and_core", return_value=(SimpleNamespace(), SimpleNamespace())):
+            assert withdraw_processor._process_single_withdraw(storage, row) is False
+
+    def test_processor_failed_expired_chain_event_is_p0_anomaly(self):
+        storage = FakeStorage()
+        storage.balance_repo.seed_balance(OWNER, available=20.0)
+        svc = _make_service(storage)
+        run(svc.create_consumer_withdraw_intent(
+            payload={"amountUsdc": 20.0, "reason": "expired anomaly"},
+            owner_wallet=OWNER,
+            idempotency_key=IDEM_KEY,
+        ))
+        row = storage.gateway_state.refund_rows[0]
+        row.status = "FAILED_EXPIRED"
+
+        with patch.object(withdraw_processor, "_get_w3_and_core", return_value=(SimpleNamespace(), SimpleNamespace())), \
+             patch.object(withdraw_processor, "_find_withdraw_tx", return_value="0x" + "b" * 64):
+            assert withdraw_processor._process_single_withdraw(storage, row) is False
+
+    def test_processor_waits_when_rpc_head_is_behind_deadline(self):
+        storage = FakeStorage()
+        storage.balance_repo.seed_balance(OWNER, available=20.0)
+        svc = _make_service(storage)
+        run(svc.create_consumer_withdraw_intent(
+            payload={"amountUsdc": 20.0, "reason": "rpc behind"},
+            owner_wallet=OWNER,
+            idempotency_key=IDEM_KEY,
+        ))
+        row = storage.gateway_state.refund_rows[0]
+        row.ticket.deadline = int(time.time()) - 1000
+
+        with patch.object(withdraw_processor, "_get_w3_and_core", return_value=(SimpleNamespace(), SimpleNamespace())), \
+             patch.object(withdraw_processor, "_find_withdraw_tx", return_value=None), \
+             patch.object(withdraw_processor, "_rpc_block_timestamp", return_value=row.ticket.deadline):
+            assert withdraw_processor._process_single_withdraw(storage, row) is False
+
+    def test_processor_completes_when_expired_ticket_is_consumed_on_chain(self):
+        storage = FakeStorage()
+        storage.balance_repo.seed_balance(OWNER, available=20.0)
+        svc = _make_service(storage)
+        run(svc.create_consumer_withdraw_intent(
+            payload={"amountUsdc": 20.0, "reason": "consumed after deadline"},
+            owner_wallet=OWNER,
+            idempotency_key=IDEM_KEY,
+        ))
+        row = storage.gateway_state.refund_rows[0]
+        row.ticket.deadline = int(time.time()) - 1000
+
+        with patch.object(withdraw_processor, "_get_w3_and_core", return_value=(SimpleNamespace(), SimpleNamespace())), \
+             patch.object(withdraw_processor, "_find_withdraw_tx", return_value=None), \
+             patch.object(withdraw_processor, "_rpc_block_timestamp", return_value=int(time.time())), \
+             patch.object(withdraw_processor, "_is_ticket_consumed", return_value=True):
+            assert withdraw_processor._process_single_withdraw(storage, row) is True
+
+        ledger = storage.balance_repo.read_balance_ledger()
+        assert ledger.consumer_pending_balance(OWNER) == Decimal("0.000000")
+        assert storage.gateway_state.refund_rows[0].status == "COMPLETED"
+
     def test_processor_marks_requested_withdraw_completed_from_event_match(self):
         storage = FakeStorage()
         storage.balance_repo.seed_balance(OWNER, available=20.0)
@@ -680,7 +803,6 @@ class TestConsumerWithdrawProcessor(unittest.TestCase):
         dummy_w3 = SimpleNamespace()
         dummy_core = SimpleNamespace()
         with patch.object(withdraw_processor, "_get_w3_and_core", return_value=(dummy_w3, dummy_core)), \
-             patch.object(withdraw_processor, "_on_chain_nonce", return_value=(row.ticket.nonce or 0) + 1), \
              patch.object(withdraw_processor, "_find_withdraw_tx", return_value="0x" + "a" * 64):
             processed = withdraw_processor._process_single_withdraw(storage, row)
 
@@ -701,11 +823,14 @@ class TestConsumerWithdrawProcessor(unittest.TestCase):
             idempotency_key=IDEM_KEY,
         ))
         row = storage.gateway_state.refund_rows[0]
-        row.ticket.deadline = int(time.time()) - 10
+        row.ticket.deadline = int(time.time()) - 1000
 
         dummy_w3 = SimpleNamespace()
         dummy_core = SimpleNamespace()
-        with patch.object(withdraw_processor, "_get_w3_and_core", return_value=(dummy_w3, dummy_core)):
+        with patch.object(withdraw_processor, "_get_w3_and_core", return_value=(dummy_w3, dummy_core)), \
+             patch.object(withdraw_processor, "_find_withdraw_tx", return_value=None), \
+             patch.object(withdraw_processor, "_rpc_block_timestamp", return_value=int(time.time())), \
+             patch.object(withdraw_processor, "_is_ticket_consumed", return_value=False):
             processed = withdraw_processor._process_single_withdraw(storage, row)
 
         assert processed is True
@@ -713,5 +838,5 @@ class TestConsumerWithdrawProcessor(unittest.TestCase):
         assert ledger.consumer_available_balance(OWNER) == Decimal("20.000000")
         assert ledger.consumer_pending_balance(OWNER) == Decimal("0.000000")
         updated = storage.gateway_state.refund_rows[0]
-        assert updated.status == "CANCELLED"
+        assert updated.status == "FAILED_EXPIRED"
         assert "expired" in str(updated.message or "").lower()

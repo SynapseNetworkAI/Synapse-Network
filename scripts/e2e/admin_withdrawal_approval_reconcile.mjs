@@ -305,18 +305,18 @@ async function claimOnChainAndComplete(fixture, ticket) {
   const signature = String(ticket.signature || "").startsWith("0x") ? ticket.signature : `0x${ticket.signature}`;
   const amount = BigInt(ticket.amount);
   const fee = BigInt(ticket.fee || 0);
-  const nonce = BigInt(ticket.nonce);
+  const ticketId = ticket.ticketId;
   const deadline = BigInt(ticket.deadline);
 
   await expectContractRevert("tampered ticket amount rejected", async () => {
-    const badTx = await core.withdraw(amount + 1n, fee, nonce, deadline, signature, {
+    const badTx = await core.withdraw(amount + 1n, fee, ticketId, deadline, signature, {
       nonce: await provider.getTransactionCount(signer.address, "pending"),
     });
     await badTx.wait();
   });
 
   const withdrawTx = await sendWithRetry("provider-on-chain-withdraw", async () =>
-    core.withdraw(amount, fee, nonce, deadline, signature, {
+    core.withdraw(amount, fee, ticketId, deadline, signature, {
       nonce: await provider.getTransactionCount(signer.address, "pending"),
     })
   );
@@ -325,7 +325,7 @@ async function claimOnChainAndComplete(fixture, ticket) {
   pass("chain:provider-claim", withdrawTx.hash);
 
   await expectContractRevert("withdraw ticket replay rejected", async () => {
-    const replayTx = await core.withdraw(amount, fee, nonce, deadline, signature, {
+    const replayTx = await core.withdraw(amount, fee, ticketId, deadline, signature, {
       nonce: await provider.getTransactionCount(signer.address, "pending"),
     });
     await replayTx.wait();

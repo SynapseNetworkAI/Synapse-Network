@@ -80,6 +80,7 @@ const TRANSLATIONS: Record<string, string> = {
   "providerSettlements.walletRejected": "Wallet rejected",
   "providerSettlements.insufficientNativeGas": "Insufficient native gas",
   "providerSettlements.ticketExpired": "Ticket expired",
+  "providerSettlements.ticketExpiringSoon": "Ticket expiring soon",
   "providerSettlements.staleTicket": "Stale ticket",
   "providerSettlements.invalidSignature": "Invalid signature",
   "providerSettlements.confirmWithdraw": "Confirm",
@@ -473,5 +474,38 @@ describe("ProviderWithdrawPage", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: /Confirm/i })).toBeTruthy());
     await user.click(screen.getByRole("button", { name: /Confirm/i }));
     await waitFor(() => expect(toastError).toHaveBeenCalled());
+  });
+
+  it("blocks on-chain claim when a new ticket is inside the critical expiry window", async () => {
+    const user = userEvent.setup();
+    createProviderWithdrawIntentMock.mockResolvedValue({
+      withdrawalId: "wd-soon",
+      status: "APPROVED_AUTO",
+      amountUsdc: "5.000000",
+      ticket: {
+        ticketId: "0xabc",
+        ticketHash: "0xdef",
+        amount: "5000000000000000000",
+        fee: "0",
+        deadline: Math.floor(Date.now() / 1000) + 60,
+        signature: "0xdeadbeef",
+        chainId: 31337,
+        contractAddress: "0x00000000000000000000000000000000000000aa",
+      },
+    });
+    renderPage();
+    await waitFor(() => expect(getProviderWithdrawCapabilityMock).toHaveBeenCalled());
+    const btn = screen.getByRole("button", { name: /Generate & Claim/i }) as HTMLButtonElement;
+    await waitFor(() => expect(btn.disabled).toBe(false));
+    await user.click(btn);
+
+    await waitFor(() => expect(screen.getByRole("button", { name: /Confirm/i })).toBeTruthy());
+    await user.click(screen.getByRole("button", { name: /Confirm/i }));
+
+    await waitFor(() => {
+      expect(toastError).toHaveBeenCalledWith("Ticket expiring soon", {
+        id: "toast-provider-withdraw",
+      });
+    });
   });
 });

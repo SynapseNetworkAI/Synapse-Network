@@ -347,13 +347,15 @@ CREATE TABLE IF NOT EXISTS synapse_vault_withdrawals (
     amount_usdc NUMERIC(36, 6) NOT NULL,
     status TEXT NOT NULL DEFAULT 'REQUESTED',
     request_id TEXT,
+    ticket_id TEXT,
+    ticket_hash TEXT,
     signature TEXT,
     nonce BIGINT,
     deadline BIGINT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CHECK (amount_usdc > 0),
-    CHECK (status IN ('REQUESTED', 'SIGNED', 'FAILED', 'APPROVED_AUTO', 'PENDING_MANUAL_REVIEW', 'REJECTED', 'COMPLETED', 'CANCELLED')),
+    CHECK (status IN ('REQUESTED', 'SIGNED', 'FAILED', 'FAILED_EXPIRED', 'APPROVED_AUTO', 'PENDING_MANUAL_REVIEW', 'REJECTED', 'COMPLETED', 'CANCELLED')),
     CHECK (
         (withdrawal_kind = 'consumer_refund' AND provider_id IS NULL)
         OR (withdrawal_kind = 'provider_withdrawal' AND provider_id IS NOT NULL)
@@ -909,6 +911,20 @@ ON synapse_credit_voucher_redemptions (owner_id, client_request_id)
 WHERE client_request_id IS NOT NULL
   AND status IN ('PENDING', 'COMPLETED', 'REVERSED');
 
+ALTER TABLE IF EXISTS synapse_vault_withdrawals
+ADD COLUMN IF NOT EXISTS ticket_id TEXT;
+
+ALTER TABLE IF EXISTS synapse_vault_withdrawals
+ADD COLUMN IF NOT EXISTS ticket_hash TEXT;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_synapse_vault_withdrawals_ticket_hash
+ON synapse_vault_withdrawals (ticket_hash)
+WHERE ticket_hash IS NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_synapse_vault_withdrawals_one_ticket
+ON synapse_vault_withdrawals (withdrawal_id)
+WHERE ticket_hash IS NOT NULL;
+
 -- Reconcile legacy lowercase withdrawal statuses into the target uppercase contract.
 
 UPDATE synapse_vault_withdrawals
@@ -916,6 +932,7 @@ SET status = CASE status
     WHEN 'requested' THEN 'REQUESTED'
     WHEN 'signed' THEN 'SIGNED'
     WHEN 'failed' THEN 'FAILED'
+    WHEN 'failed_expired' THEN 'FAILED_EXPIRED'
     WHEN 'approved_auto' THEN 'APPROVED_AUTO'
     WHEN 'pending_manual_review' THEN 'PENDING_MANUAL_REVIEW'
     WHEN 'rejected' THEN 'REJECTED'
@@ -928,6 +945,7 @@ WHERE status IN (
     'requested',
     'signed',
     'failed',
+    'failed_expired',
     'approved_auto',
     'pending_manual_review',
     'rejected',
@@ -945,6 +963,7 @@ CHECK (
         'REQUESTED',
         'SIGNED',
         'FAILED',
+        'FAILED_EXPIRED',
         'APPROVED_AUTO',
         'PENDING_MANUAL_REVIEW',
         'REJECTED',

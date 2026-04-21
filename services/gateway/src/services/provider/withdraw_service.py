@@ -2,6 +2,7 @@ from typing import Any, List, Optional
 import asyncio
 import time
 from decimal import Decimal
+from uuid import uuid4
 
 from fastapi import HTTPException
 
@@ -9,7 +10,6 @@ from src.core.common import normalize_wallet
 from src.core.config import settings
 from src.core.redis_lock import RedisLockManager
 from src.domain.execution import CompleteWithdrawTxCommand
-from src.domain.ledger import WithdrawalIntentRow
 from src.services.balance_mixins import (
     BalanceAuditMixin,
     BalanceRedisGuardMixin,
@@ -18,17 +18,6 @@ from src.services.balance_mixins import (
 )
 from src.services.provider.withdraw_helpers_mixin import (
     ProviderWithdrawHelpersMixin,
-    ACTIVE_WITHDRAWAL_STATUSES,
-    INSUFFICIENT_RECEIVABLE_MESSAGE,
-    MANUAL_REVIEW_REJECT_MESSAGE,
-    MANUAL_REVIEW_APPROVED_MESSAGE,
-    EXPIRED_WITHDRAW_RELEASE_MESSAGE,
-    EXPIRED_WITHDRAW_RECONCILED_MESSAGE,
-    WITHDRAW_AMOUNT_PRECISION,
-    INSUFFICIENT_VAULT_LIQUIDITY_MESSAGE,
-    WITHDRAW_VAULT_CHECK_UNAVAILABLE_MESSAGE,
-    WithdrawalRowStatus,
-    WITHDRAW_ROW_STATUSES,
 )
 from src.services.provider.withdraw_execution_mixin import ProviderWithdrawExecutionMixin
 from src.storage.base import BaseStorage
@@ -74,7 +63,7 @@ class ProviderWithdrawService(
 
     def _sign_withdraw_ticket(
         self, typed_data: dict[str, Any], private_key: str
-    ) -> str:
+    ) -> tuple[str, str]:
         if self._signing_delegate is not None:
             return self._signing_delegate._sign_withdraw_ticket(typed_data, private_key)  # type: ignore[attr-defined]
         return super()._sign_withdraw_ticket(typed_data, private_key)
@@ -190,8 +179,9 @@ class ProviderWithdrawService(
                 self._raise_withdraw_runtime_error(str(exc))
                 raise
 
+            withdrawal_id = str(uuid4())
             ticket_payload = self._prepare_withdraw_ticket(
-                owner=owner, amount_usdc=context.amount_usdc
+                owner=owner, withdrawal_id=withdrawal_id, amount_usdc=context.amount_usdc
             )
             self._reserve_withdraw_amount(
                 owner,
@@ -205,6 +195,7 @@ class ProviderWithdrawService(
                 idempotency_key=idempotency_key,
                 request_meta=request_meta,
                 ticket_payload=ticket_payload,
+                withdrawal_id=withdrawal_id,
             )
             rows.append(row)
             self._save_withdrawal_rows(rows)
@@ -224,7 +215,7 @@ class ProviderWithdrawService(
                     "withdrawalId": response["withdrawalId"],
                     "amountUsdc": money_str(context.amount_usdc),
                     "status": response["status"],
-                    "nonce": row.nonce,
+                    "ticketHash": row.ticket.ticket_hash,
                     "deadline": row.deadline,
                     "idempotencyKey": idempotency_key,
                     "requestMeta": request_meta or {},

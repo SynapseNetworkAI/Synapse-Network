@@ -1,42 +1,27 @@
 from __future__ import annotations
 
 from typing import Any, List, Optional
-import asyncio
 import time
 from decimal import Decimal, ROUND_HALF_UP
-from uuid import uuid4
 
 from fastapi import HTTPException
 
 from src.core.common import normalize_wallet
 from src.core.redis_lock import RedisLockManager
-from src.domain.execution import (
-    CompleteWithdrawTxCommand,
-    DepositIntentConfirmCommand,
-    DepositIntentRegisterCommand,
-)
 from src.domain.finance import BalanceLedger
 from src.domain.finance import (
     DepositAttemptRow,
     DepositBalanceMove,
-    DepositIntentDraft,
-    RefundCreateContext,
     RefundIntentRow,
-    RefundOriginRef,
-    RefundReviewContext,
     UsageLogRow,
 )
 from src.domain.ledger import DepositIntentRow
-from src.domain.operation_metadata import OperationContextMetadata, WithdrawalTicketMetadata
+from src.domain.operation_metadata import WithdrawalTicketMetadata
 from src.services.balance_mixins import BalanceAuditMixin, BalanceRedisGuardMixin, BalanceWithdrawSigningMixin
 from src.services.owner.finance_constants import (
     CONSUMER_WITHDRAW_FEE_USDC,
     DEPOSIT_ATTEMPT_STAGES,
     INVALID_TX_HASH_MESSAGE,
-    REFUND_ACTIVE_STATUSES,
-    REFUND_AUTO_TYPE,
-    REFUND_MANUAL_REVIEW_THRESHOLD_USDC,
-    REFUND_MANUAL_TYPE,
 )
 from src.services.owner.finance_consumer_withdraw_mixin import FinanceConsumerWithdrawMixin
 from src.services.owner.finance_deposit_exec_mixin import FinanceDepositExecMixin
@@ -44,7 +29,7 @@ from src.services.owner.finance_refund_analysis_mixin import FinanceRefundAnalys
 from src.services.owner.finance_refund_exec_mixin import FinanceRefundExecMixin
 from src.storage.base import BaseStorage
 from src.utils.datetime_utils import now_dt_str
-from src.utils.money import money_str, parse_usdc, usdc_decimal_to_atomic
+from src.utils.money import money_str, parse_usdc, quantize_usdc, usdc_decimal_to_atomic
 
 
 class OwnerFinanceService(
@@ -138,33 +123,35 @@ class OwnerFinanceService(
         )
 
     def _build_consumer_withdraw_ticket(
-        self, *, owner: str, gross_amount_usdc: Decimal
+        self, *, owner: str, gross_amount_usdc: Decimal, withdrawal_id: str
     ) -> WithdrawalTicketMetadata:
         from src.core.config import settings
         from src.services.balance_mixins.withdraw_signing import USDC_DECIMALS
 
         fee_usdc = Decimal(str(CONSUMER_WITHDRAW_FEE_USDC))
-        net_usdc = (gross_amount_usdc - fee_usdc).quantize(Decimal("0.000001"))
+        net_usdc = quantize_usdc(gross_amount_usdc - fee_usdc)
         private_key = self._require_withdraw_signer()
-        nonce, chain_id = self._resolve_withdraw_nonce_and_chain(owner)
+        chain_id = self._resolve_withdraw_chain()
         deadline = int(time.time()) + self._resolve_withdraw_deadline_sec()
         net_wei = usdc_decimal_to_atomic(net_usdc, decimals=USDC_DECIMALS)
         fee_wei = usdc_decimal_to_atomic(fee_usdc, decimals=USDC_DECIMALS)
+        ticket_id = self._derive_withdraw_ticket_id(withdrawal_id=withdrawal_id)
         typed_data = self._build_withdraw_typed_data(
             owner_wallet=owner,
             amount_wei=net_wei,
             fee_wei=fee_wei,
-            nonce=nonce,
+            ticket_id=ticket_id,
             deadline=deadline,
             chain_id=chain_id,
             verifying_contract=normalize_wallet(settings.router_address),
         )
-        signature = self._sign_withdraw_ticket(typed_data, private_key)
+        signature, ticket_hash = self._sign_withdraw_ticket(typed_data, private_key)
         return WithdrawalTicketMetadata.model_validate(
             {
+                "ticketId": ticket_id,
+                "ticketHash": ticket_hash,
                 "amount": str(net_wei),
                 "fee": str(fee_wei),
-                "nonce": nonce,
                 "deadline": deadline,
                 "signature": signature,
                 "chainId": chain_id,

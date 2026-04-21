@@ -1,3 +1,4 @@
+import hashlib
 from typing import Any
 
 from fastapi import HTTPException
@@ -14,10 +15,14 @@ def _web3_class():
     except Exception:  # pragma: no cover
         return None
 
+Account: Any
+encode_typed_data: Any
+encode_structured_data: Any
+
 try:
     from eth_account import Account  # type: ignore[import-not-found]
 except Exception:  # pragma: no cover
-    Account = None  # type: ignore[assignment]
+    Account = None
 
 try:
     from eth_account.messages import encode_typed_data  # type: ignore[import-not-found]
@@ -25,13 +30,14 @@ except Exception:  # pragma: no cover
     encode_typed_data = None
 
 try:
-    from eth_account.messages import encode_structured_data  # type: ignore[import-not-found]
+    from eth_account.messages import encode_structured_data as _encode_structured_data  # type: ignore[import-not-found]
+    encode_structured_data = _encode_structured_data
 except Exception:  # pragma: no cover
     encode_structured_data = None
 
 WITHDRAW_DEADLINE_SEC_MIN = 60
 WITHDRAW_DEADLINE_SEC_MAX = 86400
-WITHDRAW_DEADLINE_SEC_DEFAULT = 900
+WITHDRAW_DEADLINE_SEC_DEFAULT = 1800
 USDC_DECIMALS = 18
 
 
@@ -138,11 +144,11 @@ class BalanceWithdrawSigningMixin:
                 abi=[
                     {
                         "inputs": [
-                            {"internalType": "address", "name": "", "type": "address"}
+                            {"internalType": "bytes32", "name": "ticketHash", "type": "bytes32"}
                         ],
-                        "name": "userNonces",
+                        "name": "isTicketConsumed",
                         "outputs": [
-                            {"internalType": "uint256", "name": "", "type": "uint256"}
+                            {"internalType": "bool", "name": "", "type": "bool"}
                         ],
                         "stateMutability": "view",
                         "type": "function",
@@ -157,9 +163,14 @@ class BalanceWithdrawSigningMixin:
                 status_code=503,
                 detail={
                     "code": "CHAIN_RPC_UNAVAILABLE",
-                    "message": "Unable to reach chain RPC for withdrawal nonce.",
+                    "message": "Unable to reach chain RPC for withdrawal ticket signing.",
                 },
             )
+
+    @staticmethod
+    def _derive_withdraw_ticket_id(*, withdrawal_id: str) -> str:
+        ticket_seed = f"synapse:withdraw:v2:claim:1:{withdrawal_id}".encode()
+        return "0x" + hashlib.sha256(ticket_seed).hexdigest()
 
     def _build_withdraw_typed_data(
         self,
@@ -167,7 +178,7 @@ class BalanceWithdrawSigningMixin:
         owner_wallet: str,
         amount_wei: int,
         fee_wei: int,
-        nonce: int,
+        ticket_id: str,
         deadline: int,
         chain_id: int,
         verifying_contract: str,
@@ -193,7 +204,7 @@ class BalanceWithdrawSigningMixin:
                     {"name": "user", "type": "address"},
                     {"name": "amount", "type": "uint256"},
                     {"name": "fee", "type": "uint256"},
-                    {"name": "nonce", "type": "uint256"},
+                    {"name": "ticketId", "type": "bytes32"},
                     {"name": "deadline", "type": "uint256"},
                 ],
             },
@@ -208,14 +219,14 @@ class BalanceWithdrawSigningMixin:
                 "user": checksum_owner,
                 "amount": int(amount_wei),
                 "fee": int(fee_wei),
-                "nonce": int(nonce),
+                "ticketId": str(ticket_id),
                 "deadline": int(deadline),
             },
         }
 
     def _sign_withdraw_ticket(
         self, typed_data: dict[str, Any], private_key: str
-    ) -> str:
+    ) -> tuple[str, str]:
         if Account is None:
             raise HTTPException(
                 status_code=500,
@@ -237,21 +248,46 @@ class BalanceWithdrawSigningMixin:
                 },
             )
         signed = Account.sign_message(signable, private_key=private_key)
-        return str(signed.signature.hex())
+        ticket_hash = "0x" + bytes(signed.message_hash).hex()
+        return str(signed.signature.hex()), ticket_hash
 
-    def _resolve_withdraw_nonce_and_chain(self, owner: str) -> tuple[int, int]:
-        web3_class = _web3_class()
+    def _resolve_withdraw_chain(self) -> int:
         provider, contract = self._withdraw_contract()
-        owner_for_chain = web3_class.to_checksum_address(owner) if web3_class is not None else owner
         try:
-            nonce = int(contract.functions.userNonces(owner_for_chain).call())
             chain_id = int(provider.eth.chain_id)
         except Exception:
             raise HTTPException(
                 status_code=503,
                 detail={
                     "code": "CHAIN_RPC_UNAVAILABLE",
-                    "message": "Unable to query nonce/chainId for withdrawal.",
+                    "message": "Unable to query chainId for withdrawal.",
                 },
             )
-        return nonce, chain_id
+        return chain_id
+
+    def _withdraw_ticket_consumed(self, ticket_hash: str) -> bool:
+        _provider, contract = self._withdraw_contract()
+        try:
+            return bool(contract.functions.isTicketConsumed(ticket_hash).call())
+        except Exception:
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "code": "CHAIN_RPC_UNAVAILABLE",
+                    "message": "Unable to query withdrawal ticket state.",
+                },
+            )
+
+    def _latest_withdraw_rpc_block_timestamp(self) -> int:
+        provider, _contract = self._withdraw_contract()
+        try:
+            latest_block = provider.eth.get_block("latest")
+            return int(latest_block["timestamp"])
+        except Exception:
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "code": "CHAIN_RPC_UNAVAILABLE",
+                    "message": "Unable to query latest chain block timestamp.",
+                },
+            )

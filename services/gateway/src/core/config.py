@@ -7,21 +7,21 @@ import os
 from datetime import datetime, timezone
 
 from src.core.config_loaders import (
-    _build_redis_url_from_components,
+    _build_redis_url_from_components,  # noqa: F401 - re-exported for config helper tests.
     _canonical_environment_name,
     _env_bool,
     _env_float,
     _env_int,
     _env_rate,
-    _environment_file_candidates,
+    _environment_file_candidates,  # noqa: F401 - re-exported for config helper tests.
     _gateway_root_dir,
     _load_environment_files,
     _load_router_address_from_contract_config,
     _load_usdc_address_from_contract_config,
-    _normalize_redis_input_url,
-    _redis_auth_fragment,
-    _repo_root_dir,
-    _resolve_env_file_path,
+    _normalize_redis_input_url,  # noqa: F401 - re-exported for config helper tests.
+    _redis_auth_fragment,  # noqa: F401 - re-exported for config helper tests.
+    _repo_root_dir,  # noqa: F401 - re-exported for config helper tests.
+    _resolve_env_file_path,  # noqa: F401 - re-exported for config helper tests.
     _resolve_postgres_dsn,
     _resolve_redis_url,
 )
@@ -277,9 +277,17 @@ class Settings:
         "GATEWAY_DEFAULT_RESPONSE_BYTES", 2048
     )
     gateway_default_service_qps: int = _env_int("GATEWAY_DEFAULT_SERVICE_QPS", 50)
-    # Provider withdraw ticket expiry seconds for EIP-712 signed claim payload.
+    # Withdraw ticket expiry seconds for EIP-712 signed claim payload.
     provider_withdraw_deadline_sec: int = _env_int(
-        "PROVIDER_WITHDRAW_DEADLINE_SEC", 300
+        "PROVIDER_WITHDRAW_DEADLINE_SEC", 1800
+    )
+    # The reaper must wait past local ticket expiry before releasing locked funds.
+    withdraw_ticket_expiry_buffer_sec: int = _env_int(
+        "WITHDRAW_TICKET_EXPIRY_BUFFER_SEC", 900
+    )
+    # The chain head timestamp must also pass this margin past the ticket deadline.
+    withdraw_rpc_finality_margin_sec: int = _env_int(
+        "WITHDRAW_RPC_FINALITY_MARGIN_SEC", 300
     )
     # Background reaper that periodically releases expired provider withdrawal tickets.
     provider_withdraw_expiry_reaper_enabled: bool = _env_bool(

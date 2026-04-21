@@ -239,6 +239,7 @@ class FinanceConsumerWithdrawMixin:
                         row.ticket = self._build_consumer_withdraw_ticket(
                             owner=owner,
                             gross_amount_usdc=row_amount,
+                            withdrawal_id=str(row.id or ""),
                         )  # type: ignore[attr-defined]
                         row.signature = row.ticket.signature
                         changed = True
@@ -296,6 +297,7 @@ class FinanceConsumerWithdrawMixin:
                     ticket = self._build_consumer_withdraw_ticket(
                         owner=owner,
                         gross_amount_usdc=amount_usdc,
+                        withdrawal_id=withdraw_id,
                     )  # type: ignore[attr-defined]
                 except Exception as exc:
                     self._release_consumer_pending_to_available(
@@ -331,10 +333,11 @@ class FinanceConsumerWithdrawMixin:
                     **(request_meta or {}),
                     **(
                         {
-                            "ticketNonce": ticket.nonce,
+                            "ticketId": ticket.ticket_id,
+                            "ticketHash": ticket.ticket_hash,
                             "ticketDeadline": ticket.deadline,
                         }
-                        if ticket and ticket.nonce is not None
+                        if ticket and ticket.ticket_hash
                         else {}
                     ),
                 },

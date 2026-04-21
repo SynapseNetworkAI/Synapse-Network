@@ -84,9 +84,9 @@ class FinanceAtomicWithdrawMixin:
             """
             INSERT INTO synapse_vault_withdrawals (
                 withdrawal_id, owner_id, provider_id, source_account_id, withdrawal_kind,
-                tx_hash, amount_usdc, status, request_id, signature, nonce, deadline,
+                tx_hash, amount_usdc, status, request_id, ticket_id, ticket_hash, signature, nonce, deadline,
                 created_at, updated_at
-            ) VALUES (%s, %s, %s, %s, %s::synapse_withdrawal_kind, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ) VALUES (%s, %s, %s, %s, %s::synapse_withdrawal_kind, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (withdrawal_id)
             DO UPDATE SET
                 owner_id = EXCLUDED.owner_id,
@@ -96,6 +96,8 @@ class FinanceAtomicWithdrawMixin:
                 amount_usdc = EXCLUDED.amount_usdc,
                 status = EXCLUDED.status,
                 request_id = EXCLUDED.request_id,
+                ticket_id = COALESCE(synapse_vault_withdrawals.ticket_id, EXCLUDED.ticket_id),
+                ticket_hash = COALESCE(synapse_vault_withdrawals.ticket_hash, EXCLUDED.ticket_hash),
                 signature = EXCLUDED.signature,
                 nonce = EXCLUDED.nonce,
                 deadline = EXCLUDED.deadline,
@@ -111,6 +113,8 @@ class FinanceAtomicWithdrawMixin:
                 str(self._q6(spec.amount_usdc)),  # type: ignore[attr-defined]
                 self._vault_status_from_flow_status(spec.flow_status, has_signature),  # type: ignore[attr-defined]
                 spec.request_id,
+                prepared_ticket.ticket_id if prepared_ticket else None,
+                prepared_ticket.ticket_hash if prepared_ticket else None,
                 prepared_ticket.signature if prepared_ticket else None,
                 prepared_ticket.nonce if prepared_ticket else None,
                 prepared_ticket.deadline if prepared_ticket else None,
@@ -347,7 +351,7 @@ class FinanceAtomicWithdrawMixin:
                             self._q6(pending_balance + amount), frozen_balance, now_text,  # type: ignore[attr-defined]
                         )
                         prepared_ticket = (
-                            command.sign_ticket_factory(amount)
+                            command.sign_ticket_factory(amount, withdrawal_id)
                             if command.sign_ticket_factory is not None
                             else None
                         )

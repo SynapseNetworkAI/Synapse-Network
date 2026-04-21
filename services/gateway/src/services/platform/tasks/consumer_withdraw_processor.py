@@ -8,16 +8,14 @@ task will detect the ``WithdrawInfo`` event and auto-complete the record.
 
 Flow per tick:
 1. Collect REQUESTED consumer withdrawal rows.
-2. For each, check on-chain ``userNonces[owner]``.  If the nonce has advanced
-   past the nonce stored in the signed ticket, the user has already executed.
-3. Scan recent ``WithdrawInfo(user, amount, fee)`` events to find the matching
-   tx hash.
-4. Mark the intent as **COMPLETED** with the on-chain tx hash.
+2. Scan recent ``WithdrawInfo(user, ticketHash, amount, fee)`` events.
+3. Mark matching rows as **COMPLETED** with the on-chain tx hash.
+4. Only after local expiry buffer and RPC block-time finality margin pass, query
+   ``isTicketConsumed(ticketHash)`` before releasing funds as **FAILED_EXPIRED**.
 """
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import time
 from decimal import Decimal
@@ -30,18 +28,16 @@ from src.services.owner.finance_constants import (
     CONSUMER_WITHDRAW_TYPE,
 )
 from src.storage.base import BaseStorage
-from src.utils.money import money_str, parse_usdc, usdc_decimal_to_atomic
+from src.utils.money import parse_usdc
 
 logger = logging.getLogger(__name__)
 
-USDC_DECIMALS = 18  # local hardhat MockUSDC uses 18 decimals
-
 # Minimal ABIs — only what the event watcher needs.
-_USER_NONCES_ABI = [
+_TICKET_STATE_ABI = [
     {
-        "inputs": [{"internalType": "address", "name": "", "type": "address"}],
-        "name": "userNonces",
-        "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+        "inputs": [{"internalType": "bytes32", "name": "ticketHash", "type": "bytes32"}],
+        "name": "isTicketConsumed",
+        "outputs": [{"internalType": "bool", "name": "", "type": "bool"}],
         "stateMutability": "view",
         "type": "function",
     }
@@ -51,6 +47,7 @@ _WITHDRAW_INFO_EVENT_ABI = [
         "anonymous": False,
         "inputs": [
             {"indexed": True, "internalType": "address", "name": "user", "type": "address"},
+            {"indexed": True, "internalType": "bytes32", "name": "ticketHash", "type": "bytes32"},
             {"indexed": False, "internalType": "uint256", "name": "amount", "type": "uint256"},
             {"indexed": False, "internalType": "uint256", "name": "fee", "type": "uint256"},
         ],
@@ -60,7 +57,7 @@ _WITHDRAW_INFO_EVENT_ABI = [
 ]
 
 # Combined ABI for the contract instance
-_CORE_ABI = _USER_NONCES_ABI + _WITHDRAW_INFO_EVENT_ABI
+_CORE_ABI = _TICKET_STATE_ABI + _WITHDRAW_INFO_EVENT_ABI
 
 
 def _web3():
@@ -94,18 +91,8 @@ def _get_w3_and_core():
 # On-chain helpers
 # ---------------------------------------------------------------------------
 
-def _on_chain_nonce(w3, core, owner: str) -> Optional[int]:
-    """Return the current ``userNonces[owner]`` or None on failure."""
-    Web3 = _web3()
-    try:
-        return int(core.functions.userNonces(Web3.to_checksum_address(owner)).call())
-    except Exception as exc:
-        logger.warning("consumer_withdraw_processor: nonce query failed for %s: %s", owner, exc)
-        return None
-
-
-def _find_withdraw_tx(w3, core, owner: str, amount_wei: int, fee_wei: int, lookback: int = 200) -> Optional[str]:
-    """Scan recent ``WithdrawInfo`` events for a matching (user, amount, fee) tuple."""
+def _find_withdraw_tx(w3, core, owner: str, ticket_hash: str, lookback: int = 200) -> Optional[str]:
+    """Scan recent ``WithdrawInfo`` events for the exact ticket hash."""
     Web3 = _web3()
     try:
         latest = w3.eth.block_number
@@ -114,14 +101,35 @@ def _find_withdraw_tx(w3, core, owner: str, amount_wei: int, fee_wei: int, lookb
         events = core.events.WithdrawInfo.get_logs(
             from_block=from_block,
             to_block="latest",
-            argument_filters={"user": user_checksum},
+            argument_filters={"user": user_checksum, "ticketHash": ticket_hash},
         )
         for evt in reversed(events):       # most recent first
-            if int(evt.args.amount) == amount_wei and int(evt.args.fee) == fee_wei:
-                return "0x" + evt.transactionHash.hex().removeprefix("0x")
+            return "0x" + evt.transactionHash.hex().removeprefix("0x")
     except Exception as exc:
-        logger.warning("consumer_withdraw_processor: event scan failed for %s: %s", owner, exc)
+        logger.warning(
+            "consumer_withdraw_processor: event scan failed: %s",
+            exc.__class__.__name__,
+        )
     return None
+
+
+def _is_ticket_consumed(core, ticket_hash: str) -> Optional[bool]:
+    try:
+        return bool(core.functions.isTicketConsumed(ticket_hash).call())
+    except Exception as exc:
+        logger.warning(
+            "consumer_withdraw_processor: chain state query failed: %s",
+            exc.__class__.__name__,
+        )
+        return None
+
+
+def _rpc_block_timestamp(w3) -> Optional[int]:
+    try:
+        return int(w3.eth.get_block("latest")["timestamp"])
+    except Exception as exc:
+        logger.warning("consumer_withdraw_processor: latest block timestamp query failed: %s", exc)
+        return None
 
 
 def _row_request_meta_dict(row: Any) -> dict[str, Any]:
@@ -143,14 +151,11 @@ def _ticket_deadline(row: Any) -> int:
     return int(_row_request_meta_dict(row).get("ticketDeadline") or 0)
 
 
-def _ticket_nonce(row: Any) -> Optional[int]:
+def _ticket_hash(row: Any) -> str:
     ticket = getattr(row, "ticket", None)
-    if getattr(ticket, "nonce", None) is not None:
-        return int(ticket.nonce)
-    ticket_nonce_raw = _row_request_meta_dict(row).get("ticketNonce")
-    if ticket_nonce_raw is None:
-        return None
-    return int(ticket_nonce_raw)
+    if getattr(ticket, "ticket_hash", None):
+        return str(ticket.ticket_hash or "")
+    return str(_row_request_meta_dict(row).get("ticketHash") or "")
 
 
 # ---------------------------------------------------------------------------
@@ -163,23 +168,47 @@ def _process_single_withdraw(storage: BaseStorage, row: Any) -> bool:
     from src.utils.datetime_utils import now_dt_str
 
     owner = normalize_wallet(str(row.owner_address or ""))
-    amount_usdc = parse_usdc(row.amount_usdc)
-    fee_usdc = parse_usdc(Decimal(str(CONSUMER_WITHDRAW_FEE_USDC)))
-    net_usdc = parse_usdc(amount_usdc - fee_usdc)
-    net_wei = usdc_decimal_to_atomic(net_usdc, decimals=USDC_DECIMALS)
-    fee_wei = usdc_decimal_to_atomic(fee_usdc, decimals=USDC_DECIMALS)
-
-    # Extract ticket nonce from the stored signature/request_meta if available
-    ticket_nonce: Optional[int] = None
-    meta = _row_request_meta_dict(row)
-    ticket_nonce = _ticket_nonce(row)
-
     w3, core = _get_w3_and_core()
     if w3 is None or core is None:
         return False
+    amount_usdc = parse_usdc(row.amount_usdc)
+    fee_usdc = parse_usdc(Decimal(str(CONSUMER_WITHDRAW_FEE_USDC)))
+    net_usdc = parse_usdc(amount_usdc - fee_usdc)
+    ticket_hash = _ticket_hash(row)
+    if not ticket_hash:
+        logger.warning("consumer_withdraw_processor: row %s has no claim credential digest", row.id)
+        return False
+
+    tx_hash = _find_withdraw_tx(w3, core, owner, ticket_hash)
+    if tx_hash is not None:
+        if str(getattr(row, "status", "") or "").upper() == "FAILED_EXPIRED":
+            logger.critical(
+                "P0_RECONCILIATION_ANOMALY: expired consumer withdrawal later emitted chain event id=%s",
+                row.id,
+            )
+            return False
+        return _complete_consumer_withdraw(storage, row, owner, amount_usdc, fee_usdc, net_usdc, tx_hash)
+    if str(getattr(row, "status", "") or "").upper() == "FAILED_EXPIRED":
+        return False
 
     ticket_deadline = _ticket_deadline(row)
-    if ticket_deadline > 0 and ticket_deadline < int(time.time()):
+    expiry_buffer = max(0, int(getattr(settings, "withdraw_ticket_expiry_buffer_sec", 900) or 900))
+    finality_margin = max(0, int(getattr(settings, "withdraw_rpc_finality_margin_sec", 300) or 300))
+    if ticket_deadline > 0 and int(time.time()) > ticket_deadline + expiry_buffer:
+        block_timestamp = _rpc_block_timestamp(w3)
+        if block_timestamp is None or block_timestamp <= ticket_deadline + finality_margin:
+            logger.info(
+                "consumer_withdraw_processor: RPC_BEHIND_WITHDRAW_DEADLINE id=%s",
+                row.id,
+            )
+            return False
+        consumed = _is_ticket_consumed(core, ticket_hash)
+        if consumed is None:
+            return False
+        if consumed:
+            return _complete_consumer_withdraw(
+                storage, row, owner, amount_usdc, fee_usdc, net_usdc, ""
+            )
         try:
             dm = storage.get_data_manager()
             dm.finance.balance.release_consumer_pending_to_available(
@@ -189,45 +218,38 @@ def _process_single_withdraw(storage: BaseStorage, row: Any) -> bool:
             )
         except RuntimeError:
             logger.warning(
-                "consumer_withdraw_processor: pending balance release failed for expired %s (amount=%s)",
-                owner, money_str(amount_usdc),
+                "consumer_withdraw_processor: pending release failed for expired row id=%s",
+                row.id,
             )
         rows = dm.system.gateway_state.read_consumer_refund_rows()
         for r in rows:
             if str(r.id or "") != str(row.id or ""):
                 continue
             now = int(time.time())
-            r.status = "CANCELLED"
+            r.status = "FAILED_EXPIRED"
             r.completed_at = now
             r.updated_at = now_dt_str()
-            r.message = "Withdrawal ticket expired before on-chain execution."
+            r.message = "Withdrawal ticket expired before on-chain execution. Funds were released back to available balance."
             break
         dm.system.gateway_state.write_consumer_refund_rows(rows, int(time.time()))
         logger.info(
-            "consumer_withdraw_processor: CANCELLED id=%s owner=%s amount=%s reason=ticket_expired",
-            row.id, owner, money_str(amount_usdc),
+            "consumer_withdraw_processor: FAILED_EXPIRED id=%s reason=credential_expired",
+            row.id,
         )
         return True
 
-    # Strategy 1: nonce-based detection — if the user's on-chain nonce
-    # advanced past the ticket nonce, the tx was executed.
-    if ticket_nonce is not None:
-        current_nonce = _on_chain_nonce(w3, core, owner)
-        if current_nonce is None or current_nonce <= ticket_nonce:
-            return False  # not executed yet
+    return False
 
-    # Strategy 2: event scan — find the matching WithdrawInfo event.
-    tx_hash = _find_withdraw_tx(w3, core, owner, net_wei, fee_wei)
-    if tx_hash is None:
-        # Nonce advanced but no matching event found yet — might be a different
-        # withdrawal or the event is further back than our lookback window.
-        if ticket_nonce is not None:
-            logger.info(
-                "consumer_withdraw_processor: nonce advanced for %s but no matching event found",
-                owner,
-            )
-        return False
 
+def _complete_consumer_withdraw(
+    storage: BaseStorage,
+    row: Any,
+    owner: str,
+    amount_usdc: Decimal,
+    fee_usdc: Decimal,
+    net_usdc: Decimal,
+    tx_hash: str,
+) -> bool:
     # Mark as COMPLETED
     try:
         dm = storage.get_data_manager()
@@ -242,8 +264,8 @@ def _process_single_withdraw(storage: BaseStorage, row: Any) -> bool:
             )
         except RuntimeError:
             logger.warning(
-                "consumer_withdraw_processor: pending balance consume failed for %s (amount=%s)",
-                owner, money_str(amount_usdc),
+                "consumer_withdraw_processor: pending consume failed for row id=%s",
+                row.id,
             )
 
         # Update refund row status
@@ -252,7 +274,8 @@ def _process_single_withdraw(storage: BaseStorage, row: Any) -> bool:
             if str(r.id or "") == str(row.id or ""):
                 now = int(time.time())
                 r.status = "COMPLETED"
-                r.tx_hash = tx_hash
+                if tx_hash:
+                    r.tx_hash = tx_hash
                 r.completed_at = now
                 r.updated_at = now_dt_str()
                 break
@@ -276,8 +299,8 @@ def _process_single_withdraw(storage: BaseStorage, row: Any) -> bool:
             },
         ))
         logger.info(
-            "consumer_withdraw_processor: COMPLETED id=%s owner=%s amount=%.6f tx=%s",
-            row.id, owner, amount_usdc, tx_hash,
+            "consumer_withdraw_processor: COMPLETED id=%s source=event_watcher",
+            row.id,
         )
 
         # Analytics: withdrawal_completed
@@ -294,8 +317,8 @@ def _process_single_withdraw(storage: BaseStorage, row: Any) -> bool:
         return True
     except Exception as exc:
         logger.error(
-            "consumer_withdraw_processor: failed to finalize row %s after finding tx %s: %s",
-            row.id, tx_hash, exc,
+            "consumer_withdraw_processor: failed to finalize row %s after chain event: %s",
+            row.id, exc.__class__.__name__,
         )
         return False
 
@@ -305,14 +328,14 @@ def _process_single_withdraw(storage: BaseStorage, row: Any) -> bool:
 # ---------------------------------------------------------------------------
 
 def _collect_requested_consumer_withdrawals(storage: BaseStorage) -> list:
-    """Return all RefundIntentRow with status=REQUESTED and type=CONSUMER_BALANCE_WITHDRAW."""
+    """Return active or anomaly-check consumer withdrawal rows."""
     try:
         dm = storage.get_data_manager()
         rows = dm.system.gateway_state.read_consumer_refund_rows()
         return [
             r for r in rows
             if str(r.refund_type or "") == CONSUMER_WITHDRAW_TYPE
-            and str(r.status or "").upper() == "REQUESTED"
+            and str(r.status or "").upper() in {"REQUESTED", "FAILED_EXPIRED"}
         ]
     except Exception as exc:
         logger.warning("consumer_withdraw_processor: failed to read rows: %s", exc)

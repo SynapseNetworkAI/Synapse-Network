@@ -408,7 +408,7 @@ async function main() {
     throw new Error("No signed ticket returned — aborting");
   }
 
-  ok(`Ticket: amount=${ticket.amount} fee=${ticket.fee} nonce=${ticket.nonce} deadline=${ticket.deadline}`);
+  ok(`Ticket: amount=${ticket.amount} fee=${ticket.fee} ticketId=${ticket.ticketId} deadline=${ticket.deadline}`);
 
   const balAfterWithdraw = await getBalanceSnapshot(token, address);
   ok(`Balance after withdraw: available=${balAfterWithdraw.available.toFixed(2)}, pending=${balAfterWithdraw.pending.toFixed(2)}`);
@@ -426,7 +426,7 @@ async function main() {
     coreForBuyer.withdraw(
       BigInt(ticket.amount),
       BigInt(ticket.fee),
-      BigInt(ticket.nonce),
+      ticket.ticketId,
       BigInt(ticket.deadline),
       ticketSig,
       { nonce: await chainProvider.getTransactionCount(buyerSigner.address, "pending") },

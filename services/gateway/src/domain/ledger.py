@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Any, Literal, Optional
+from typing import Literal, Optional
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
@@ -64,7 +64,7 @@ class WithdrawalIntentRow(BaseModel):
     owner_address: str = Field(alias="ownerAddress")
     tx_hash: Optional[str] = Field(default=None, alias="txHash")
     status: Literal[
-        "REQUESTED", "APPROVED_AUTO", "PENDING_MANUAL_REVIEW", "REJECTED", "COMPLETED", "CANCELLED"
+        "REQUESTED", "APPROVED_AUTO", "PENDING_MANUAL_REVIEW", "REJECTED", "COMPLETED", "CANCELLED", "FAILED_EXPIRED"
     ] = "REQUESTED"
     request_id: Optional[str] = Field(default=None, alias="requestId")
     idempotency_key: Optional[str] = Field(default=None, alias="idempotencyKey")
@@ -90,7 +90,6 @@ class WithdrawalIntentRow(BaseModel):
     reviewer_note: Optional[str] = Field(default=None, alias="reviewerNote")
     reviewed_at: Optional[int] = Field(default=None, alias="reviewedAt")
     ticket: WithdrawalTicketMetadata = Field(default_factory=WithdrawalTicketMetadata)
-    message: Optional[str] = None
     completed_at: Optional[int] = Field(default=None, alias="completedAt")
     complete_meta: OperationContextMetadata = Field(
         default_factory=OperationContextMetadata, alias="completeMeta"
