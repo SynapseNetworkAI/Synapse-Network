@@ -1,0 +1,72 @@
+{
+  "title": "Synapse Production Overview",
+  "schemaVersion": 39,
+  "version": 1,
+  "tags": ["synapse", "production", "gateway", "finance"],
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Gateway SLO - 5xx Rate",
+      "targets": [
+        {
+          "expr": "sum(rate(synapse_http_requests_total{service=\"gateway\",status_class=\"5xx\"}[5m])) / clamp_min(sum(rate(synapse_http_requests_total{service=\"gateway\"}[5m])), 1)"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Finance Anomaly - Ledger/Vault Delta",
+      "targets": [
+        {
+          "expr": "synapse_finance_ledger_vault_delta_usdc"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Withdrawal Reaper / Watcher Anomalies",
+      "targets": [
+        {
+          "expr": "increase(synapse_withdrawal_ticket_anomaly_total[5m])"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Provider Health Outages",
+      "targets": [
+        {
+          "expr": "increase(synapse_provider_health_outage_total[5m])"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Analytics Pipeline Lag",
+      "targets": [
+        {
+          "expr": "synapse_analytics_clickhouse_lag_seconds"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Admin Ops API 5xx",
+      "targets": [
+        {
+          "expr": "sum(rate(synapse_http_requests_total{service=\"gateway-admin\",status_class=\"5xx\"}[5m]))"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "DB Health - Deadlock Retries",
+      "targets": [
+        {
+          "expr": "increase(synapse_finance_deadlock_retry_total[5m])"
+        }
+      ]
+    }
+  ]
+}
+

@@ -1,8 +1,9 @@
 from contextlib import asynccontextmanager
 import asyncio
 import hmac
+import time
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Response, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -24,6 +25,7 @@ from src.core.csrf import build_admin_csrf_token
 from src.core.config import get_settings
 from src.core.errors import AppError
 from src.core.log_config import setup_logger
+from src.core.metrics import MetricsRegistry, metrics_response, observe_request_metrics
 from src.core.middleware import RequestContextMiddleware
 
 setup_logger()
@@ -114,6 +116,51 @@ def _register_exception_handlers(app: FastAPI) -> None:
 		)
 
 
+def _readiness_snapshot(app: FastAPI) -> dict[str, object]:
+	worker_enabled = bool(settings.execution_worker_enabled)
+	worker_task = getattr(app.state, "execution_worker_task", None)
+	worker_ready = (not worker_enabled) or (
+		worker_task is not None and not worker_task.done()
+	)
+	components = {
+		"admin_database": {"configured": bool(settings.admin_database_dsn)},
+		"gateway_adapter": {"configured": bool(settings.gateway_internal_base_url)},
+		"analytics_clickhouse": {"configured": bool(settings.analytics_clickhouse_url)},
+		"execution_worker": {
+			"enabled": worker_enabled,
+			"initialized": worker_ready,
+		},
+	}
+	ready = all(
+		component.get("configured", True) and component.get("initialized", True)
+		for component in components.values()
+	)
+	return {"status": "ready" if ready else "degraded", "components": components}
+
+
+def _register_metrics_and_health_routes(app: FastAPI) -> None:
+	@app.get("/health")
+	async def health_check() -> dict[str, str]:
+		return {"status": "ok", "service": "gateway-admin", "version": "0.1.0"}
+
+	@app.get("/readiness")
+	async def readiness_check(request: Request, response: Response) -> dict[str, object]:
+		snapshot = _readiness_snapshot(request.app)
+		if snapshot["status"] != "ready":
+			response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+		return snapshot
+
+	@app.get("/metrics")
+	async def metrics(request: Request) -> Response:
+		return metrics_response(
+			request,
+			request.app.state.metrics,
+			bearer_token=settings.metrics_bearer_token,
+			basic_username=settings.metrics_basic_username,
+			basic_password=settings.metrics_basic_password,
+		)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
 	app.state.settings = settings
@@ -140,6 +187,7 @@ def create_app() -> FastAPI:
 		version="0.1.0",
 		lifespan=lifespan,
 	)
+	app.state.metrics = MetricsRegistry(service="gateway-admin")
 
 	app.add_middleware(RequestContextMiddleware)
 
@@ -150,6 +198,24 @@ def create_app() -> FastAPI:
 		allow_methods=["*"],
 		allow_headers=["*"],
 	)
+
+	@app.middleware("http")
+	async def collect_runtime_metrics(request: Request, call_next):
+		if request.url.path == "/metrics":
+			return await call_next(request)
+		started_at = time.perf_counter()
+		status_code = 500
+		try:
+			response = await call_next(request)
+			status_code = response.status_code
+			return response
+		finally:
+			observe_request_metrics(
+				request.app.state.metrics,
+				request=request,
+				started_at=started_at,
+				status_code=status_code,
+			)
 
 	@app.middleware("http")
 	async def enforce_cookie_csrf(request: Request, call_next):
@@ -174,10 +240,7 @@ def create_app() -> FastAPI:
 	app.include_router(provider_withdraw_review.router)
 
 	_register_exception_handlers(app)
-
-	@app.get("/health")
-	async def health_check() -> dict[str, str]:
-		return {"status": "ok", "service": "gateway-admin", "version": "0.1.0"}
+	_register_metrics_and_health_routes(app)
 
 	return app
 

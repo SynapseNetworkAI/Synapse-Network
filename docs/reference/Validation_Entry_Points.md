@@ -28,6 +28,8 @@ From repository root:
 16. `npm run ci:pr`
 17. `npm run perf:local-production-load-rehearsal`
 18. `npm run ci:local-production-load-evidence`
+19. `npm run ci:monitoring-alert-rules`
+20. `npm run ci:backup-restore-evidence`
 
 Use these wrappers when final integration confidence is required.
 
@@ -154,6 +156,8 @@ Before finishing:
 9. run `npm run ci:agent-guardrails` when Agent-generated backend/admin code touches finance, approval, storage, or shared state-machine logic; install `uv` once if the runner reports a missing Python guardrail tool
 10. run `npm run release:evidence:gateway-fullchain:local` for a local rehearsal of the full live Gateway E2E evidence chain; run `npm run release:evidence:gateway-fullchain:staging` plus `GATEWAY_RELEASE_E2E_REQUIRED_ENV=staging npm run ci:gateway-release-e2e-evidence` for release Go/No-Go evidence
 11. run `npm run perf:local-production-load-rehearsal` and `npm run ci:local-production-load-evidence` before staging load when changing invoke, balance, deposit confirm, withdrawal, provider health, admin finance views, load-runner behavior, or wallet/signing isolation; this validates local runId isolation, temporary wallet pools, per-wallet chain serialization, bounded concurrency, drain hard cap, and no secret leakage
+12. run `npm run ci:monitoring-alert-rules` when changing metrics, readiness, dashboards, alert rules, or monitoring runbooks
+13. run `npm run drill:backup-restore:staging` and `npm run ci:backup-restore-evidence` before release approval when changing backup, restore, reconciliation, database bootstrap, ClickHouse analytics storage, or production recovery runbooks
 
 ### Frontend work
 

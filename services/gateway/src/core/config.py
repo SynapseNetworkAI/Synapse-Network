@@ -51,6 +51,12 @@ class Settings:
     log_rotation: str = os.getenv("GATEWAY_LOG_ROTATION", "00:00").strip() or "00:00"
     log_retention_days: int = max(14, _env_int("GATEWAY_LOG_RETENTION_DAYS", 14))
     log_level: str = os.getenv("GATEWAY_LOG_LEVEL", "INFO").strip().upper() or "INFO"
+    # Prometheus-compatible metrics are intentionally internal-only. The reverse
+    # proxy should also block public /metrics access; this token is the app-layer
+    # defense-in-depth guard for the Prometheus scraper.
+    metrics_bearer_token: str = os.getenv("METRICS_BEARER_TOKEN", "").strip()
+    metrics_basic_username: str = os.getenv("METRICS_BASIC_USERNAME", "").strip()
+    metrics_basic_password: str = os.getenv("METRICS_BASIC_PASSWORD", "").strip()
     # RPC endpoint used by chain-facing flows (deposit indexer, receipt checks).
     rpc_url: str = os.getenv("RPC_URL", "http://127.0.0.1:8545")
     # Listener contract for deposit events; falls back to frontend contract config.

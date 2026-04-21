@@ -41,7 +41,8 @@
 8. `10_Production_Go_No_Go_Security_Verification.md`
 9. `11_Performance_and_Reliability_Verification.md`
 10. `12_Gateway_Pre_Launch_Stress_Review.md`
-11. `../security/README.md`
+11. `13_Production_Monitoring_Alerting_and_Backup_Restore.md`
+12. `../security/README.md`
 
 ## 模块边界
 

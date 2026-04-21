@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import sys
 import time
 from contextlib import contextmanager
@@ -18,6 +19,7 @@ class _TTLCache(dict):
 sys.modules.setdefault("cachetools", SimpleNamespace(TTLCache=_TTLCache))
 
 from src import app as gateway_app
+from src.core.metrics import MetricsRegistry
 
 
 async def _background_loop_until_stopped(stop_event, storage) -> None:
@@ -188,3 +190,61 @@ def test_readiness_flags_timed_out_deposit_indexer_step(monkeypatch) -> None:
     monitor = payload["monitors"]["deposit_indexer"]
     assert "step_timeout" in monitor["degradedReasons"]
     assert "indexer_step_timeout" in monitor["degradedReasons"]
+
+
+def test_metrics_requires_configured_token(monkeypatch) -> None:
+    with _readiness_http_client(
+        monkeypatch,
+        settings_overrides={
+            "metrics_bearer_token": "",
+            "metrics_basic_username": "",
+            "metrics_basic_password": "",
+        },
+    ) as client:
+        response = client.get("/metrics")
+
+    assert response.status_code == 503
+    assert "metrics_not_configured" in response.text
+
+
+def test_metrics_requires_internal_authorization(monkeypatch) -> None:
+    with _readiness_http_client(
+        monkeypatch,
+        settings_overrides={
+            "metrics_bearer_token": "test-metrics-token",
+            "metrics_basic_username": "",
+            "metrics_basic_password": "",
+        },
+    ) as client:
+        forbidden = client.get("/metrics")
+        allowed = client.get(
+            "/metrics",
+            headers={"Authorization": "Bearer test-metrics-token"},
+        )
+
+    assert forbidden.status_code == 403
+    assert allowed.status_code == 200
+    assert allowed.headers["content-type"].startswith("text/plain")
+    assert "synapse_http_requests_total" in allowed.text
+
+
+def test_metrics_runtime_guard_drops_sensitive_or_long_labels(caplog) -> None:
+    registry = MetricsRegistry(service="gateway")
+
+    with caplog.at_level(logging.ERROR):
+        registry.set_gauge(
+            "synapse_test_guard_value",
+            1,
+            {"wallet": "0x" + "a" * 40},
+        )
+        registry.set_gauge(
+            "synapse_test_guard_long_value",
+            1,
+            {"owner": "x" * 41},
+        )
+
+    rendered = registry.render()
+    assert "synapse_test_guard_value" not in rendered
+    assert "synapse_test_guard_long_value" not in rendered
+    assert "synapse_metric_label_rejected_total" in rendered
+    assert "METRIC_LABEL_REJECTED" in caplog.text

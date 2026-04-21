@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from src.core.config import settings
 from src.core.cors import resolve_cors_origin_regex, resolve_cors_origins
 from src.core.log_config import setup_logger
+from src.core.metrics import MetricsRegistry, metrics_response, observe_request_metrics
 from src.api.routers import (
     auth,
     services,
@@ -257,6 +258,7 @@ def create_app() -> FastAPI:
         version="2.0.0",
         lifespan=lifespan,
     )
+    app.state.metrics = MetricsRegistry(service="gateway")
 
     app.add_middleware(
         CORSMiddleware,
@@ -266,6 +268,24 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    @app.middleware("http")
+    async def collect_runtime_metrics(request: Request, call_next):
+        if request.url.path == "/metrics":
+            return await call_next(request)
+        started_at = time.perf_counter()
+        status_code = 500
+        try:
+            response = await call_next(request)
+            status_code = response.status_code
+            return response
+        finally:
+            observe_request_metrics(
+                request.app.state.metrics,
+                request=request,
+                started_at=started_at,
+                status_code=status_code,
+            )
 
     # 包含所有分离的路由
     app.include_router(auth.router, prefix="/api", tags=["auth"])
@@ -289,6 +309,16 @@ def create_app() -> FastAPI:
         if snapshot.get("status") != "ready":
             response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
         return snapshot
+
+    @app.get("/metrics")
+    async def metrics(request: Request):
+        return metrics_response(
+            request,
+            request.app.state.metrics,
+            bearer_token=settings.metrics_bearer_token,
+            basic_username=settings.metrics_basic_username,
+            basic_password=settings.metrics_basic_password,
+        )
 
     return app
 
