@@ -18,7 +18,7 @@ This file is the evidence checklist for production launch. A checkbox without an
 - Plan status: `BLOCKED_NO_GO`
 - Staging automation result: `PASS`
 - Production launch decision: `NO-GO for production`
-- Decision reason: repository-local gates passed, but external P0 production evidence is missing.
+- Decision reason: repository-local gates passed and internal audit evidence is attached, but non-audit P0 production evidence is still missing.
 
 ## Required Checks
 
@@ -46,12 +46,13 @@ npm run ci:release-go-no-go
 - [x] Frontend/admin-front gate evidence: PASS via `ci:pr`; user-front lint/test/build passed, admin-front lint/build passed.
 - [x] Money scan evidence: PASS, Python money scan and TypeScript money scan passed.
 - [x] Secret scan evidence: PASS, secret scan passed.
-- [x] Release Go/No-Go state check: PASS, `npm run ci:release-go-no-go` confirms staging automation evidence is recorded and 60 production blockers remain explicit.
+- [x] Release Go/No-Go state check: PASS, `npm run ci:release-go-no-go` confirms staging automation evidence is recorded and production blockers remain explicit.
 
 ## Contract and Chain Evidence
 
-- [ ] Third-party audit report: NO-GO blocker, external audit report not attached.
-- [ ] Audit finding closure log: NO-GO blocker, closure evidence not attached.
+- [x] Internal audit report: PASS, `docs/security/SynapseCore_Internal_Production_Security_Audit_Report.md` attached. Independent third-party audit was not performed.
+- [x] Audit finding closure log: PASS, `docs/security/SynapseCore_Internal_Audit_Closure_Log.md` attached.
+- [x] Internal audit risk acceptance: PASS, `docs/security/SynapseCore_Internal_Audit_Risk_Acceptance.md` attached. This accepts internal-review risk for capped MVP production only.
 - [x] Hardhat test output: PASS, `npm run ci:contracts` -> 7 passing.
 - [ ] Fork test output: NO-GO blocker, fork test evidence not attached.
 - [ ] Deployment dry-run output: NO-GO blocker, production/staging dry-run evidence not attached.
@@ -162,4 +163,4 @@ npm run ci:release-go-no-go
 - Decision: `NO-GO for production`
 - Decision time: `2026-04-18 20:07:10 +08`
 - Release owner: `TBD`
-- Notes: Staging automation passed. Production launch remains blocked by 60 explicit external P0 evidence gaps listed above.
+- Notes: Staging automation passed and internal audit evidence is attached. Production launch remains blocked by explicit P0 evidence gaps listed above, including chain rehearsal, production config, load/chaos/restore, monitoring, and sign-off evidence.

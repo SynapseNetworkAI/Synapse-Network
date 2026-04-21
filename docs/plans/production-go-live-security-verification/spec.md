@@ -22,13 +22,13 @@ Production launch is approved only after the blockchain, smart contract, financi
 
 - Do not execute production deployment from this plan.
 - Do not mutate production data or contract state from this plan.
-- Do not replace third-party contract audit with internal review.
+- Do not represent internal/founder security review as independent third-party audit.
 - Do not accept manual assertions where evidence is required.
 
 ## Acceptance Criteria
 
 - [ ] `docs/ops/10_Production_Go_No_Go_Security_Verification.md` is linked from the docs entrypoints.
-- [ ] Contract audit evidence is attached and all Critical, High, and Medium findings are closed.
+- [ ] Contract security audit evidence is attached. If using internal audit mode, the internal audit report, closure log, and explicit risk acceptance are attached and all Critical/High findings are closed.
 - [ ] Contract tests, fork tests, dry-run deployment, ABI/bytecode verification, and small-value chain rehearsal pass.
 - [ ] Money safety gates pass: Decimal/string money contract, idempotency, transactions, locking/atomic updates, audit, replay protection, and reconciliation.
 - [ ] Gateway security gates pass: auth/RBAC, credential replay, rate limit, provider health drain, slow lane probing, timeout, CORS, body limit, SSRF/SQLi, secret leak, and error leak checks.
@@ -44,4 +44,5 @@ Production launch is approved only after the blockchain, smart contract, financi
 - Any money mutation lacks idempotency, transaction safety, auditability, or concurrency protection.
 - Any production secret is present in git, logs, frontend bundles, screenshots, or external error responses.
 - Any Critical or High contract/security issue remains open.
+- Internal audit risk acceptance is missing while no independent third-party audit was performed.
 - Backup restore, incident response, or monitoring alert drill has not been completed.

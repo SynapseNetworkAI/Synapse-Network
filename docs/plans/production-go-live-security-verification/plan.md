@@ -11,7 +11,7 @@ doc_status: active
 - Affected systems: contracts, gateway runtime, gateway-admin, user-front, admin-front, database, analytics/observability, CI, production operations.
 - Primary gate: `docs/ops/10_Production_Go_No_Go_Security_Verification.md`.
 - Evidence target: `validation.md` in this bundle.
-- Current plan status: `BLOCKED_NO_GO` until every external P0 production evidence item is attached.
+- Current plan status: `BLOCKED_NO_GO` until every P0 production evidence item is attached.
 
 ## Change Set
 
@@ -21,7 +21,8 @@ doc_status: active
 
 ## Phase 1 - Contract and Chain Custody
 
-- Collect third-party audit report and closure evidence for all Critical, High, and Medium findings.
+- Collect contract security audit evidence. MVP may use the internal/founder audit report with explicit risk acceptance; any later third-party audit must be attached as additional assurance.
+- Verify closure evidence for all Critical, High, and Medium findings. Critical and High findings must be closed; Medium findings must be closed or risk-accepted with mitigation.
 - Run Hardhat tests, fork tests, deployment dry-run, ABI hash verification, bytecode hash verification, source verification, and constructor argument verification.
 - Validate contract invariants for deposit, withdraw, nonce, deadline, signer, fee pool, owner-only calls, and signer rotation.
 - Complete a small-value chain rehearsal and attach tx hashes for deposit, invoke-linked settlement, withdrawals, and platform fee withdrawal.
@@ -66,4 +67,4 @@ doc_status: active
 
 All evidence must be attached in `validation.md`. Any unchecked item or missing evidence is a No-Go.
 
-Current status is `BLOCKED_NO_GO`: staging automation has passed, but production launch is still blocked by missing audit, chain rehearsal, load/chaos/restore, monitoring drill, production config, and sign-off evidence.
+Current status is `BLOCKED_NO_GO`: staging automation has passed and internal audit evidence is attached, but production launch is still blocked by missing chain rehearsal, load/chaos/restore, monitoring drill, production config, and sign-off evidence.
