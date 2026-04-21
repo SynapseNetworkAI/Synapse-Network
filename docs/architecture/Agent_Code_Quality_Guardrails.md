@@ -94,6 +94,7 @@ Phase 1:
 1. Changed-file gate only.
 2. Strict finance-sensitive path checks.
 3. Historical hotspots remain documented in `docs/plans/refactor-watch.md`.
+4. Service-level gates must include each app's fast unit suite: `ci:admin-front` runs Vitest in addition to lint/build, and `ci:admin-gateway` runs the full gateway-admin pytest suite.
 
 Phase 2:
 
