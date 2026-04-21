@@ -9,6 +9,8 @@ This document is the production launch gate for Synapse Network.
 
 Production launch is allowed only when every P0 gate below has passed and the release evidence bundle is complete. If any P0 item fails, is unverified, or has no evidence link, the release is a **No-Go**.
 
+Current MVP audit policy: Synapse may use a founder/internal security audit with explicit risk acceptance instead of an independent third-party audit for capped MVP production. This must never be represented as third-party assurance. If no independent third-party audit was performed, launch evidence must include the internal audit report, closure log, risk acceptance, withdrawal caps, monitoring evidence, rollback/recovery runbooks, and small-value chain rehearsal.
+
 ## Launch Principles
 
 1. Customer principal must not be transferable by the platform, a Provider, a replayed request, or an attacker.
@@ -21,7 +23,7 @@ Production launch is allowed only when every P0 gate below has passed and the re
 
 ### 1. Blockchain and Smart Contracts
 
-- Third-party audit is complete, and all Critical, High, and Medium findings are closed. Any accepted Low finding must have a written risk acceptance.
+- Security audit evidence is complete. For internal/founder audit mode, the evidence must include an internal audit report, closure log, explicit risk acceptance, and capped-MVP launch restrictions. All Critical and High findings must be closed. Medium findings must be closed or risk-accepted with mitigation. Any accepted Low or Informational finding must have written risk acceptance.
 - `SynapseCore` passes Hardhat tests, fork tests, deployment dry-run, ABI hash verification, bytecode hash verification, source verification, and constructor argument verification.
 - Core contract invariants are verified:
   - deposit only transfers USDC into the vault and emits the expected event.
@@ -33,6 +35,7 @@ Production launch is allowed only when every P0 gate below has passed and the re
 - Production owner and signer authority use multisig or hardware-backed custody. A single hot wallet must not control production contract authority.
 - Production contract release manifest records chain id, USDC address, Synapse contract address, deployer, owner, multisig, platform signer, ABI hash, bytecode hash, source verification link, and deployment transaction.
 - A small-value real-chain rehearsal is completed: deposit, gateway confirmation, paid invoke, consumer withdrawal, provider withdrawal, and platform fee withdrawal.
+- If an independent third-party audit was not performed, MVP production must use explicit withdrawal caps, signer/owner custody controls, monitoring alerts, manual rollback procedures, and documented owner risk acceptance.
 
 ### 2. Financial System and Ledger Safety
 
@@ -97,7 +100,7 @@ Production launch is allowed only when every P0 gate below has passed and the re
 
 The release owner must attach evidence for every item below before requesting launch approval.
 
-1. Contract audit report, finding closure log, Hardhat/fork test output, deployment dry-run output, release manifest, verified contract link, and small-value chain rehearsal report.
+1. Contract security audit evidence, finding closure log, Hardhat/fork test output, deployment dry-run output, release manifest, verified contract link, and small-value chain rehearsal report. If the audit is internal/founder-led, attach the internal audit report and explicit risk acceptance and state that no independent third-party audit was performed.
 2. CI evidence for `ci:pr`, `ci:contracts`, `ci:gateway`, `ci:admin-gateway`, `ci:frontend`, `ci:admin-front`, money scan, secret scan, and docs check.
 3. Full-chain E2E report for deposit, confirm, discovery, invoke, provider credit, receipt, consumer withdrawal, provider withdrawal, refund, and reconciliation.
 4. Reconciliation report for on-chain vault, internal ledger, provider payable, platform fee, pending funds, frozen funds, and completed withdrawals.
@@ -120,7 +123,7 @@ The evidence report must contain the finance-sensitive tree hash, fixture hash, 
 
 Any item below is an automatic No-Go:
 
-- Critical or High contract audit finding remains open.
+- Critical or High contract security audit finding remains open.
 - Production owner/signer authority is controlled by a single hot wallet.
 - Any money business path uses `float` or JavaScript number arithmetic.
 - Any money mutation lacks transaction, idempotency, audit, or concurrency protection.
@@ -131,6 +134,7 @@ Any item below is an automatic No-Go:
 - Production monitoring or alerting has not been drill-tested.
 - Backup restore has not been drill-tested.
 - Load or concurrency tests produce overdraft, duplicate debit, duplicate credit, or unexplained balance drift.
+- Internal audit risk acceptance is missing while no independent third-party audit was performed.
 - Provider withdrawal approval evidence is missing, stale, hand-edited, or fails its finance-sensitive tree hash / digest validation.
 - Rollback, incident, or customer communication runbook is missing.
 - `ci:pr` or a required release evidence item fails.

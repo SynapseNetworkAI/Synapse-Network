@@ -9,8 +9,8 @@ doc_status: active
 This planning bundle tracks the production launch security verification work.
 
 - Plan status: `BLOCKED_NO_GO`
-- Current verified layer: `Staging automation passed`
-- Production decision: `NO-GO until external P0 evidence is attached`
+- Current verified layer: `Staging automation passed + internal audit evidence attached`
+- Production decision: `NO-GO until remaining P0 evidence is attached`
 - Latest report: `staging-verification-report.md`
 
 Canonical gate document:

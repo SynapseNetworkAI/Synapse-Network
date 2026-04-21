@@ -14,6 +14,7 @@ Synapse Network is an agent-first settlement layer for AI agents. The primary pr
 - docs/ops/10_Production_Go_No_Go_Security_Verification.md - production launch Go/No-Go gate for contracts, finance, gateway, monitoring, recovery, and sign-off
 - docs/ops/11_Performance_and_Reliability_Verification.md - performance, load, chaos, rollback, and local reliability smoke verification plan
 - docs/ops/12_Gateway_Pre_Launch_Stress_Review.md - executable gateway stress-review constraints for fake async, timeouts, DB transactions, OOM, and indexes
+- docs/security/README.md - internal security evidence entrypoint, including SynapseCore internal audit, closure log, and risk acceptance
 
 ## Core Runtime Docs
 
@@ -55,6 +56,9 @@ Synapse Network is an agent-first settlement layer for AI agents. The primary pr
 - docs/00_Governance/Agent_Docs_Migration_Map.md - historical map for the retired agent-doc layer and its merge into official modules
 - docs/00_Governance/exec-plans/README.md - plan structure for active and completed work
 - docs/plans/production-go-live-security-verification/README.md - executable evidence plan for production launch approval
+- docs/security/SynapseCore_Internal_Production_Security_Audit_Report.md - internal SynapseCore production security audit report
+- docs/security/SynapseCore_Internal_Audit_Closure_Log.md - internal audit finding closure log
+- docs/security/SynapseCore_Internal_Audit_Risk_Acceptance.md - no-third-party-audit risk acceptance for capped MVP production
 
 ## Important Boundaries
 
@@ -77,7 +81,7 @@ For any money movement, settlement, approval, withdrawal review, refund, or reco
 
 - root CI wrappers live in package.json under ci:* scripts
 - project-local validation commands are summarized in docs/reference/Validation_Entry_Points.md
-- production launch additionally requires the evidence bundle in docs/plans/production-go-live-security-verification/validation.md
+- production launch additionally requires the evidence bundle in docs/plans/production-go-live-security-verification/validation.md and the security evidence under docs/security/
 
 ## Planning
 

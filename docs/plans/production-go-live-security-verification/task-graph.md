@@ -18,7 +18,7 @@ doc_status: active
 
 ## Dependencies
 
-- Contract audit closure must complete before production contract approval.
+- Contract security audit closure must complete before production contract approval. If no independent third-party audit was performed, internal risk acceptance and capped-MVP launch restrictions are mandatory.
 - Contract dry-run and ABI/bytecode verification must complete before small-value chain rehearsal.
 - Ledger/vault reconciliation depends on completed full-chain E2E evidence.
 - Gateway runtime security verification depends on callable provider registration and credential flows.

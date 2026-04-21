@@ -16,7 +16,7 @@ doc_status: active
 - Staging automation result: `PASS`
 - Plan status: `BLOCKED_NO_GO`
 
-The repository-local and staging-preflight gates that can be executed from this workspace passed. Production launch is still blocked because several P0 gates require external evidence that is not present in the repository: third-party audit closure, production multisig/signer proof, fork contract tests, production dry-run evidence, real-chain small-value rehearsal, load/chaos/restore drills, alert drills, and four-owner sign-off.
+The repository-local and staging-preflight gates that can be executed from this workspace passed. The contract audit policy now uses founder/internal security audit with explicit risk acceptance for capped MVP production. Production launch is still blocked because several P0 gates require evidence that is not present in the repository: production multisig/signer proof, fork contract tests, production dry-run evidence, real-chain small-value rehearsal, load/chaos/restore drills, alert drills, and four-owner sign-off.
 
 ## Automated Evidence
 
@@ -27,7 +27,7 @@ The repository-local and staging-preflight gates that can be executed from this 
 | Money scan | PASS | `bash scripts/ci/security_money_scan.sh` -> money-sensitive float scan passed |
 | TS money scan | PASS | `bash scripts/ci/security_money_ts_scan.sh` -> money-sensitive TypeScript scan passed |
 | Secret scan | PASS | `bash scripts/ci/security_secret_scan.sh` -> secret scan passed |
-| Release Go/No-Go state check | PASS | `npm run ci:release-go-no-go` -> staging automation evidence recorded, 60 explicit production blockers remain |
+| Release Go/No-Go state check | PASS | `npm run ci:release-go-no-go` -> staging automation evidence recorded and production blockers remain explicit |
 | PR gate | PASS | `npm run ci:pr` completed successfully |
 | User frontend | PASS | `next lint`, `vitest run` -> 33 files / 158 tests passed, `next build` succeeded |
 | Admin frontend | PASS | `next lint`, `next build` succeeded |
@@ -35,6 +35,7 @@ The repository-local and staging-preflight gates that can be executed from this 
 | Gateway-admin | PASS | `pytest` -> 94 passed |
 | Provider service | PASS | `pytest` -> 167 passed |
 | Contracts gate | PASS | `npm run ci:contracts` -> 7 Hardhat security invariant tests passed |
+| Internal contract security audit | PASS | Internal audit report, closure log, and risk acceptance are attached under `docs/security/`; independent third-party audit was not performed |
 | Performance/reliability smoke | PASS | `npm run ci:performance-reliability` -> provider health concurrency and slow-lane smoke passed |
 | Local reliability suite | PASS | `npm run perf:local-reliability-suite` -> automation, scenario JSON, shell syntax, docs/release gates, staging confirmation guards, gateway health, and admin-front login checks passed; report at `docs/evidence/performance/20260418T130340Z-local-reliability-suite/report.md` |
 | SDK Python | SKIPPED | `ci:pr` skipped because `sdk/python` manifest is not present |
@@ -58,7 +59,6 @@ All other remaining gaps are release-evidence blockers, not implementation defec
 
 | Blocker | Reason |
 | --- | --- |
-| Third-party contract audit evidence missing | Internal checks cannot replace external audit closure for production custody. |
 | Fork test evidence missing | Production-like chain behavior has not been verified from this evidence bundle. |
 | Deployment dry-run and ABI/bytecode evidence missing | Release manifest and deployed artifact identity are not attached. |
 | Production multisig/signer proof missing | Production owner/signer custody cannot be verified from local CI. |
@@ -71,6 +71,6 @@ All other remaining gaps are release-evidence blockers, not implementation defec
 
 ## Final Decision
 
-Staging automation passed, but production launch remains **NO-GO** with 60 explicit external P0 evidence gaps.
+Staging automation passed and internal audit evidence is attached, but production launch remains **NO-GO** with explicit P0 evidence gaps outside the internal audit.
 
 The next release owner must attach the missing production evidence in `validation.md` and rerun the applicable gates before requesting launch approval.
