@@ -66,6 +66,7 @@
 5. `docs/04_Database_Design/01_SQL_Schema_Overview.md`
 6. `docs/06_Reference/05_Runtime_API_Contract.md`
 7. `docs/06_Reference/06_Runtime_Error_Code_Catalog.md`
+8. `docs/ops/14_Gmail_Email_Notifications.md`
 
 ## 7. 项目内应保留的贴身文档
 

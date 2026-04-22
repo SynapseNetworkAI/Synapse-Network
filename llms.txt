@@ -15,6 +15,8 @@ Synapse Network is an agent-first settlement layer for AI agents. The primary pr
 - docs/ops/11_Performance_and_Reliability_Verification.md - performance, load, chaos, rollback, and local reliability smoke verification plan
 - docs/ops/12_Gateway_Pre_Launch_Stress_Review.md - executable gateway stress-review constraints for fake async, timeouts, DB transactions, OOM, and indexes
 - docs/ops/13_Production_Monitoring_Alerting_and_Backup_Restore.md - production monitoring, alerting, and backup restore evidence gate
+- docs/ops/14_Gmail_Email_Notifications.md - async Gmail SMTP notification outbox, quotas, and delivery semantics
+- docs/ops/15_Google_Cloud_Launch_Readiness.md - Google Cloud staging/prod readiness, Terraform bootstrap, and production blockers
 - docs/security/README.md - internal security evidence entrypoint, including SynapseCore internal audit, closure log, and risk acceptance
 
 ## Core Runtime Docs

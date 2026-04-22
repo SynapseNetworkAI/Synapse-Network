@@ -1,4 +1,5 @@
-from typing import Any, Callable, List, Optional
+# ruff: noqa: TRY003
+from typing import Any, List, Optional
 from decimal import Decimal, ROUND_HALF_UP
 
 from .base import (
@@ -24,7 +25,9 @@ from .postgres.repositories.fee_policy_repository import FeePolicyRepository
 from .postgres.repositories.finance_atomic_repository import FinanceAtomicRepository
 from .postgres.repositories.gateway_state_repository import GatewayStateRepository
 from .postgres.repositories.idempotency_repository import IdempotencyRepository
+from .postgres.repositories.notification_outbox_repository import NotificationOutboxRepository
 from .postgres.repositories.service_registry_repository import ServiceRegistryRepository
+from src.services.notifications.models import NotificationIntent
 from src.domain.audit import AuditLogEntry
 from src.domain.execution import (
     CompleteWithdrawTxCommand,
@@ -39,7 +42,6 @@ from src.domain.finance import (
     ChargeConsumerUsageCommand,
     ConsumerChargeResult,
     DepositAttemptRow,
-    UsageLogRow,
 )
 from src.domain.ledger import DepositIntentRow
 from src.domain.voucher import VoucherRedeemCommand, VoucherRedemptionResult
@@ -120,6 +122,7 @@ class PostgresStorage(BaseStorage):
         credential_auth = CredentialAuthRepository(self._db, q6)
         gateway_state = GatewayStateRepository(self._db, q6)
         analytics_outbox = AnalyticsOutboxRepository(self._db)
+        notification_outbox = NotificationOutboxRepository(self._db)
         deposit_attempts = DepositAttemptRepository(self._db, q6)
         finance_atomic = FinanceAtomicRepository(
             self._db,
@@ -131,6 +134,7 @@ class PostgresStorage(BaseStorage):
         )
         self._deposit_attempts = deposit_attempts
         self.analytics_outbox = analytics_outbox
+        self.notification_outbox = notification_outbox
         self._data_manager = SynapseDataManager(
             uow=SynapseUnitOfWork(db=self._db),
             finance=FinanceDomain(
@@ -290,6 +294,50 @@ class PostgresStorage(BaseStorage):
 
     def read_analytics_outbox_stats(self) -> dict[str, int | str | None]:
         return self.analytics_outbox.stats()
+
+    def enqueue_notification_outbox(self, intent: NotificationIntent) -> None:
+        self.notification_outbox.enqueue(intent)
+
+    def claim_notification_outbox_batch(self, batch_size: int):
+        return self.notification_outbox.claim_batch(batch_size)
+
+    def record_sent_notification_and_delete(
+        self,
+        lease_id: str,
+        row: Any,
+        *,
+        message_id: str | None,
+        provider_response: dict[str, Any],
+    ) -> None:
+        self.notification_outbox.record_sent_and_delete(
+            lease_id,
+            row,
+            message_id=message_id,
+            provider_response=provider_response,
+        )
+
+    def mark_notification_outbox_retry(
+        self,
+        lease_id: str,
+        row: Any,
+        *,
+        error: str,
+        max_attempts: int,
+        retry_base_sec: int,
+    ) -> None:
+        self.notification_outbox.mark_retry(
+            lease_id,
+            row,
+            error=error,
+            max_attempts=max_attempts,
+            retry_base_sec=retry_base_sec,
+        )
+
+    def read_notification_delivery_count_today(self) -> int:
+        return self.notification_outbox.delivery_count_today()
+
+    def read_notification_outbox_stats(self) -> dict[str, int | str | None]:
+        return self.notification_outbox.stats()
 
     def process_withdrawal_request_atomic(
         self,

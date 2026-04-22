@@ -35,6 +35,10 @@ From repository root:
 
 Use these wrappers when final integration confidence is required.
 
+Infrastructure preflight:
+
+1. `bash scripts/deploy/gcp_preflight.sh <gcp-project-id>` before the first Google Cloud staging Terraform apply
+
 Local hook bootstrap:
 
 1. `bash scripts/dev/install_git_hooks.sh`
@@ -98,6 +102,7 @@ Working directory: `provider_service/`
 Canonical gate:
 
 1. `npm run ci:gateway`
+2. `cd services/gateway && python -m pytest tests/unit/test_notifications_outbox_unit.py` when changing Gmail email notification outbox, sender, worker, templates, or delivery-log behavior
 
 For local gateway workflows, follow the canonical project page under `docs/03_Projects/gateway/` and its linked development guide.
 
@@ -161,6 +166,8 @@ Before finishing:
 12. run `npm run ci:monitoring-alert-rules` when changing metrics, readiness, dashboards, Alertmanager routes, Lark Relay behavior, alert rules, or monitoring runbooks
 13. run `npm run e2e:lark-alerts` and `npm run ci:lark-alert-e2e-evidence` before release approval when changing Lark webhook routing, Relay delivery, Alertmanager-to-Lark contracts, or production alert notification behavior
 14. run `npm run drill:backup-restore:staging` and `npm run ci:backup-restore-evidence` before release approval when changing backup, restore, reconciliation, database bootstrap, ClickHouse analytics storage, or production recovery runbooks
+15. run `cd services/gateway && python -m pytest tests/unit/test_notifications_outbox_unit.py` when changing Gmail email notifications; email sending must remain async outbox-driven and must not block Gateway request paths
+16. run `terraform -chdir=infra/terraform/gcp-staging fmt -check` and `terraform -chdir=infra/terraform/gcp-staging validate` when changing Google Cloud staging infrastructure; `terraform validate` requires `terraform init` first
 
 ### Frontend work
 
