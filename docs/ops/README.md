@@ -44,7 +44,8 @@
 11. `13_Production_Monitoring_Alerting_and_Backup_Restore.md`
 12. `14_Gmail_Email_Notifications.md`
 13. `15_Google_Cloud_Launch_Readiness.md`
-14. `../security/README.md`
+14. `16_Arbitrum_Sepolia_Staging_Contracts.md`
+15. `../security/README.md`
 
 ## 模块边界
 

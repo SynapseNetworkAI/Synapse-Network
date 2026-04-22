@@ -114,6 +114,14 @@ Gateway full-chain E2E 是 release evidence gate，不属于普通 PR CI。普�
 
 本地可用 `npm run release:evidence:gateway-fullchain:local` 做 rehearsal，但它只证明本地链路和证据脚本可运行，不替代 staging 或 production Go/No-Go evidence。
 
+Arbitrum Sepolia staging contract deployment is also a release evidence gate. Before Gateway staging is pointed at a public testnet contract, run:
+
+1. `npm run deploy:contracts:arbitrum-sepolia:dry-run`
+2. `npm run deploy:contracts:arbitrum-sepolia`
+3. `npm run ci:contract-deployment-evidence`
+
+The contract deployment evidence must prove `chainId=421614`, non-zero `MockUSDC` and `SynapseCore` bytecode, local ABI/bytecode hash match, constructor args hash, Arbiscan verification, staging wallet gas preflight, owner-only MockUSDC pre-mint, and no secret leakage. Local `31337` contract tests do not replace this staging evidence.
+
 ### 4.2.1 Agent Architecture Quality Gate
 
 Agent 生成代码必须通过结构门禁，不能靠堆代码、复制粘贴或日志泄露换取功能测试通过。

@@ -1,5 +1,7 @@
 {
-  "MockUSDC": "0xYourArbitrumSepoliaUsdcAddress",
-  "Treasury": "0xYourArbitrumSepoliaTreasuryAddress",
+  "chainId": 421614,
+  "chainName": "Arbitrum Sepolia",
+  "explorer": "https://sepolia.arbiscan.io",
+  "MockUSDC": "0xYourArbitrumSepoliaMockUsdcAddress",
   "SynapseCore": "0xYourArbitrumSepoliaSynapseCoreAddress"
 }

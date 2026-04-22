@@ -8,7 +8,7 @@ async function deployFixture() {
   const [owner, platformSigner, user, attacker, nextSigner] = await ethers.getSigners();
 
   const MockUSDC = await ethers.getContractFactory("MockUSDC");
-  const usdc = await MockUSDC.deploy();
+  const usdc = await MockUSDC.deploy(owner.address);
 
   const SynapseCore = await ethers.getContractFactory("SynapseCore");
   const core = await SynapseCore.deploy(
@@ -93,7 +93,7 @@ describe("SynapseCore security invariants", function () {
     ).to.be.revertedWith("Invalid USDC");
 
     const MockUSDC = await ethers.getContractFactory("MockUSDC");
-    const usdc = await MockUSDC.deploy();
+    const usdc = await MockUSDC.deploy(owner.address);
 
     await expect(
       SynapseCore.deploy(await usdc.getAddress(), ethers.ZeroAddress, owner.address),
@@ -109,6 +109,18 @@ describe("SynapseCore security invariants", function () {
       .withArgs(user.address, amount);
 
     expect(await usdc.balanceOf(await core.getAddress())).to.equal(amount);
+  });
+
+  it("restricts MockUSDC minting to the token owner", async function () {
+    const { owner, attacker, user, usdc } = await deployFixture();
+    const beforeBalance = await usdc.balanceOf(user.address);
+
+    await usdc.connect(owner).mint(user.address, 10n * TOKEN_UNIT);
+    expect(await usdc.balanceOf(user.address)).to.equal(beforeBalance + 10n * TOKEN_UNIT);
+
+    await expect(
+      usdc.connect(attacker).mint(attacker.address, 1n * TOKEN_UNIT),
+    ).to.be.reverted;
   });
 
   it("executes a valid signed withdrawal once and accrues protocol fee", async function () {

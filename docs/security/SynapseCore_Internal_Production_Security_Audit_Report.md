@@ -141,7 +141,7 @@ Required evidence for this internal audit:
 Latest repository evidence before this report:
 
 1. `ci:pr` passed during push of `f95d570e`.
-2. Contracts gate passed with 7 Hardhat security invariant tests.
+2. Contracts gate passed with 8 Hardhat security invariant tests.
 3. Gateway tests passed with 358 passed and 86 skipped in local CI.
 4. Gateway-admin tests passed with 109 passed.
 5. User-front tests passed with 194 passed.

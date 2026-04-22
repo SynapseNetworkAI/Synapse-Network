@@ -19,7 +19,7 @@ async function main() {
   // 1. 部署支持 ERC20Permit 的 MockUSDC
   console.log("Deploying MockUSDC (with ERC20Permit)...");
   const MockUSDC = await hre.ethers.getContractFactory("MockUSDC");
-  const mockUSDC = await MockUSDC.deploy();
+  const mockUSDC = await MockUSDC.deploy(owner.address);
   await mockUSDC.waitForDeployment();
   const usdcAddress = await mockUSDC.getAddress();
   console.log("✅ MockUSDC deployed to:", usdcAddress);
