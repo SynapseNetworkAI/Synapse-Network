@@ -80,12 +80,13 @@ AI 协作优先入口新增如下：
 4. [ops/13_Production_Monitoring_Alerting_and_Backup_Restore.md](./ops/13_Production_Monitoring_Alerting_and_Backup_Restore.md)
 5. [ops/14_Gmail_Email_Notifications.md](./ops/14_Gmail_Email_Notifications.md)
 6. [ops/15_Google_Cloud_Launch_Readiness.md](./ops/15_Google_Cloud_Launch_Readiness.md)
-7. [plans/production-go-live-security-verification/README.md](./plans/production-go-live-security-verification/README.md)
-8. [security/README.md](./security/README.md)
-9. [security/SynapseCore_Internal_Production_Security_Audit_Report.md](./security/SynapseCore_Internal_Production_Security_Audit_Report.md)
-10. [security/SynapseCore_Internal_Audit_Closure_Log.md](./security/SynapseCore_Internal_Audit_Closure_Log.md)
-11. [security/SynapseCore_Internal_Audit_Risk_Acceptance.md](./security/SynapseCore_Internal_Audit_Risk_Acceptance.md)
-12. [security/SynapseCore_Production_Audit_Verification_Report.md](./security/SynapseCore_Production_Audit_Verification_Report.md)
+7. [ops/16_Arbitrum_Sepolia_Staging_Contracts.md](./ops/16_Arbitrum_Sepolia_Staging_Contracts.md)
+8. [plans/production-go-live-security-verification/README.md](./plans/production-go-live-security-verification/README.md)
+9. [security/README.md](./security/README.md)
+10. [security/SynapseCore_Internal_Production_Security_Audit_Report.md](./security/SynapseCore_Internal_Production_Security_Audit_Report.md)
+11. [security/SynapseCore_Internal_Audit_Closure_Log.md](./security/SynapseCore_Internal_Audit_Closure_Log.md)
+12. [security/SynapseCore_Internal_Audit_Risk_Acceptance.md](./security/SynapseCore_Internal_Audit_Risk_Acceptance.md)
+13. [security/SynapseCore_Production_Audit_Verification_Report.md](./security/SynapseCore_Production_Audit_Verification_Report.md)
 
 ### Supplement layers
 
@@ -157,7 +158,7 @@ AI 协作优先入口新增如下：
 7. [reference/Money_Contract.md](./reference/Money_Contract.md)
    API 索引、错误码契约、Manifest 与 Runtime 对象、开发测试参考。
 
-生产上线前必须同时阅读 [ops/10_Production_Go_No_Go_Security_Verification.md](./ops/10_Production_Go_No_Go_Security_Verification.md)、[ops/11_Performance_and_Reliability_Verification.md](./ops/11_Performance_and_Reliability_Verification.md)、[ops/12_Gateway_Pre_Launch_Stress_Review.md](./ops/12_Gateway_Pre_Launch_Stress_Review.md)、[ops/13_Production_Monitoring_Alerting_and_Backup_Restore.md](./ops/13_Production_Monitoring_Alerting_and_Backup_Restore.md)、[ops/14_Gmail_Email_Notifications.md](./ops/14_Gmail_Email_Notifications.md)、[ops/15_Google_Cloud_Launch_Readiness.md](./ops/15_Google_Cloud_Launch_Readiness.md)、[plans/production-go-live-security-verification/README.md](./plans/production-go-live-security-verification/README.md) 与 [security/README.md](./security/README.md)。所有 P0 门禁和证据包通过前，禁止上线。
+生产上线前必须同时阅读 [ops/10_Production_Go_No_Go_Security_Verification.md](./ops/10_Production_Go_No_Go_Security_Verification.md)、[ops/11_Performance_and_Reliability_Verification.md](./ops/11_Performance_and_Reliability_Verification.md)、[ops/12_Gateway_Pre_Launch_Stress_Review.md](./ops/12_Gateway_Pre_Launch_Stress_Review.md)、[ops/13_Production_Monitoring_Alerting_and_Backup_Restore.md](./ops/13_Production_Monitoring_Alerting_and_Backup_Restore.md)、[ops/14_Gmail_Email_Notifications.md](./ops/14_Gmail_Email_Notifications.md)、[ops/15_Google_Cloud_Launch_Readiness.md](./ops/15_Google_Cloud_Launch_Readiness.md)、[ops/16_Arbitrum_Sepolia_Staging_Contracts.md](./ops/16_Arbitrum_Sepolia_Staging_Contracts.md)、[plans/production-go-live-security-verification/README.md](./plans/production-go-live-security-verification/README.md) 与 [security/README.md](./security/README.md)。所有 P0 门禁和证据包通过前，禁止上线。
 
 ## 3.1 项目文档集中维护层
 

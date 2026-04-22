@@ -1,9 +1,9 @@
 # contracts
 
 - Status: canonical
-- Code paths: `contracts/`, `hardhat.config.js`, `docs/03_Projects/contracts/`
-- Verified with: `npm run ci:contracts`, `npm run ci:docs`
-- Last verified against code: 2026-03-25
+- Code paths: `contracts/`, `hardhat.config.js`, `scripts/chain/`, `scripts/ci/contract_deployment_evidence_check.mjs`, `docs/projects/contracts/`
+- Verified with: `npm run ci:contracts`, `npm run deploy:contracts:arbitrum-sepolia:dry-run`, `npm run ci:contract-deployment-evidence`, `npm run ci:docs`
+- Last verified against code: 2026-04-22
 
 ## 1. 项目定位
 
@@ -14,6 +14,7 @@
 1. USDC 充值担保入口
 2. EIP-712 / Permit / 提现签名相关链上约束
 3. 本地和测试环境的合约编译、部署与验证基础
+4. Arbitrum Sepolia staging contract deployment evidence
 
 一句话：这里定义的是链上最终清算边界，而不是高频记账逻辑。
 
@@ -23,6 +24,8 @@
 - 当前核心文件：`contracts/SynapseCore.sol`
 - 测试代币：`contracts/MockUSDC.sol`
 - 编译配置：`hardhat.config.js`
+- Arbitrum Sepolia 部署脚本：`scripts/chain/deploy_arbitrum_sepolia.js`
+- Arbitrum Sepolia evidence gate：`scripts/ci/contract_deployment_evidence_check.mjs`
 
 ## 3. 职责边界
 
@@ -54,9 +57,10 @@
 
 ## 6. 项目内建议补齐
 
-根 `docs/03_Projects/contracts/` 当前集中维护：
+根 `docs/projects/contracts/` 当前集中维护：
 
 1. [Contracts_Local_Development.md](./Contracts_Local_Development.md)
+2. [Arbitrum Sepolia Staging Contracts](../../ops/16_Arbitrum_Sepolia_Staging_Contracts.md)
 
 项目目录内只保留最小入口文档：
 

@@ -101,7 +101,7 @@ Latest local verification performed for this report:
 | --- | --- |
 | `npm run ci:docs` | PASS |
 | `npm run ci:release-go-no-go` | PASS, production remains blocked by 58 explicit NO-GO blockers |
-| `npm run ci:contracts` | PASS, 7 Hardhat security invariant tests |
+| `npm run ci:contracts` | PASS, 8 Hardhat security invariant tests |
 | `npm run ci:financial-security` | PASS |
 | `npm run ci:pr` | PASS during push of `c0bc9989` |
 

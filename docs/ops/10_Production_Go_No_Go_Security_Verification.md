@@ -3,7 +3,7 @@
 - Status: canonical
 - Code paths: `contracts/`, `services/gateway/`, `services/gateway-admin/`, `services/user-front/`, `services/admin-front/`, `scripts/ci/`, `docs/plans/production-go-live-security-verification/`
 - Verified with: `npm run ci:docs`
-- Last verified against code: 2026-04-18
+- Last verified against code: 2026-04-22
 
 This document is the production launch gate for Synapse Network.
 
@@ -24,15 +24,16 @@ Current MVP audit policy: Synapse may use a founder/internal security audit with
 ### 1. Blockchain and Smart Contracts
 
 - Security audit evidence is complete. For internal/founder audit mode, the evidence must include an internal audit report, closure log, explicit risk acceptance, and capped-MVP launch restrictions. All Critical and High findings must be closed. Medium findings must be closed or risk-accepted with mitigation. Any accepted Low or Informational finding must have written risk acceptance.
-- `SynapseCore` passes Hardhat tests, fork tests, deployment dry-run, ABI hash verification, bytecode hash verification, source verification, and constructor argument verification.
+- `SynapseCore` passes Hardhat tests, fork tests, deployment dry-run, ABI hash verification, bytecode hash verification, source verification, and constructor argument verification. Staging contract evidence must include `npm run deploy:contracts:arbitrum-sepolia:dry-run`, `npm run deploy:contracts:arbitrum-sepolia`, and `npm run ci:contract-deployment-evidence`.
 - Core contract invariants are verified:
   - deposit only transfers USDC into the vault and emits the expected event.
-  - withdraw requires a valid platform signature, exact nonce, unexpired deadline, and correct chain/domain.
-  - nonce replay, deadline replay, amount tampering, fee tampering, signer tampering, and chain id mismatch all fail.
+  - withdraw requires a valid platform signature, unique ticket id, unexpired deadline, and correct chain/domain.
+  - ticket replay, deadline replay, amount tampering, fee tampering, signer tampering, and chain id mismatch all fail.
   - protocol fee only accrues to `platformFeePool`.
   - platform fee withdrawal cannot consume customer principal.
 - Malicious and edge scenarios are tested: reentrancy, fake token, invalid signer, signer rotation, owner-only methods, zero amount, excessive amount, failed token transfer, and wrong network.
 - Production owner and signer authority use multisig or hardware-backed custody. A single hot wallet must not control production contract authority.
+- Staging contract deployment evidence records Arbitrum Sepolia chain id, owner-only MockUSDC address, Synapse contract address, deployer, owner, platform signer, ABI hash, bytecode hash, source verification link, deployment transactions, wallet gas preflight, and MockUSDC pre-mint balances.
 - Production contract release manifest records chain id, USDC address, Synapse contract address, deployer, owner, multisig, platform signer, ABI hash, bytecode hash, source verification link, and deployment transaction.
 - A small-value real-chain rehearsal is completed: deposit, gateway confirmation, paid invoke, consumer withdrawal, provider withdrawal, and platform fee withdrawal.
 - If an independent third-party audit was not performed, MVP production must use explicit withdrawal caps, signer/owner custody controls, monitoring alerts, manual rollback procedures, and documented owner risk acceptance.

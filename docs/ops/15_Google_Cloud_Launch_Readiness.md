@@ -115,6 +115,47 @@ Environment variables are documented in
 
 Email is not a P0 incident channel. P0 incidents still use Lark/Prometheus.
 
+## Staging Chain Readiness
+
+Staging contracts are deployed to Arbitrum Sepolia (`chainId=421614`) with a
+self-deployed owner-only `MockUSDC`. This is the required chain target for
+Gateway staging evidence.
+
+Required commands:
+
+```bash
+npm run deploy:contracts:arbitrum-sepolia:dry-run
+npm run deploy:contracts:arbitrum-sepolia
+npm run ci:contract-deployment-evidence
+```
+
+The deployment evidence lives under:
+
+```text
+docs/evidence/release/contracts/arbitrum-sepolia/<timestamp>-deploy/
+```
+
+The evidence must prove:
+
+1. `chainId === 421614`.
+2. `MockUSDC` and `SynapseCore` bytecode exists on Arbitrum Sepolia.
+3. ABI, bytecode, and constructor arg hashes match local artifacts.
+4. Arbiscan source verification succeeded or was already verified.
+5. Deployer, contract owner, and withdraw signer are separate roles.
+6. Dedicated staging consumer/provider wallets have gas.
+7. Dedicated staging consumer/provider wallets received preallocated MockUSDC.
+
+After the gate passes, inject the manifest addresses into Gateway staging:
+
+```bash
+RPC_URL="$ARBITRUM_SEPOLIA_RPC_URL"
+ROUTER_ADDRESS="<SynapseCore from contract-manifest.json>"
+USDC_TOKEN_ADDRESS="<MockUSDC from contract-manifest.json>"
+PRIVATE_KEY="<staging withdraw signer private key>"
+```
+
+Details: `docs/ops/16_Arbitrum_Sepolia_Staging_Contracts.md`.
+
 ## Current Production NO-GO Blockers
 
 Production is still `NO-GO` until all items below have evidence:
@@ -126,6 +167,8 @@ Production is still `NO-GO` until all items below have evidence:
    - `npm run e2e:withdrawal-one-ticket-evidence`
    - `npm run ci:withdrawal-one-ticket-evidence`
 3. Contract release evidence:
+   - Arbitrum Sepolia staging dry-run and deployment evidence
+   - `npm run ci:contract-deployment-evidence`
    - fork test output
    - deployment dry-run
    - ABI hash

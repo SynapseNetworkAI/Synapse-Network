@@ -32,6 +32,8 @@ From repository root:
 20. `npm run e2e:lark-alerts`
 21. `npm run ci:lark-alert-e2e-evidence`
 22. `npm run ci:backup-restore-evidence`
+23. `npm run deploy:contracts:arbitrum-sepolia:dry-run`
+24. `npm run ci:contract-deployment-evidence`
 
 Use these wrappers when final integration confidence is required.
 
@@ -111,6 +113,9 @@ For local gateway workflows, follow the canonical project page under `docs/03_Pr
 Canonical gate:
 
 1. `npm run ci:contracts`
+2. `npm run deploy:contracts:arbitrum-sepolia:dry-run` before staging deployment
+3. `npm run deploy:contracts:arbitrum-sepolia` to deploy Arbitrum Sepolia staging contracts
+4. `npm run ci:contract-deployment-evidence` after staging deployment to verify manifest, bytecode, Arbiscan verification, wallet gas, and MockUSDC pre-mint evidence
 
 ### 3.7 sdk/python
 
@@ -168,6 +173,7 @@ Before finishing:
 14. run `npm run drill:backup-restore:staging` and `npm run ci:backup-restore-evidence` before release approval when changing backup, restore, reconciliation, database bootstrap, ClickHouse analytics storage, or production recovery runbooks
 15. run `cd services/gateway && python -m pytest tests/unit/test_notifications_outbox_unit.py` when changing Gmail email notifications; email sending must remain async outbox-driven and must not block Gateway request paths
 16. run `terraform -chdir=infra/terraform/gcp-staging fmt -check` and `terraform -chdir=infra/terraform/gcp-staging validate` when changing Google Cloud staging infrastructure; `terraform validate` requires `terraform init` first
+17. run `npm run deploy:contracts:arbitrum-sepolia:dry-run` before Arbitrum Sepolia staging deployment, then `npm run deploy:contracts:arbitrum-sepolia` and `npm run ci:contract-deployment-evidence` to close staging contract evidence; this requires live Arbitrum Sepolia RPC and funded staging deployer/consumer/provider wallets
 
 ### Frontend work
 

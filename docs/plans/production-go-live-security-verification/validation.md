@@ -26,6 +26,8 @@ This file is the evidence checklist for production launch. A checkbox without an
 npm run ci:docs
 npm run ci:pr
 npm run ci:contracts
+npm run deploy:contracts:arbitrum-sepolia:dry-run
+npm run ci:contract-deployment-evidence
 npm run ci:gateway
 npm run ci:admin-gateway
 npm run ci:frontend
@@ -49,7 +51,7 @@ npm run ci:backup-restore-evidence
 
 - [x] `npm run ci:docs` evidence: PASS, documentation validation passed.
 - [x] `npm run ci:pr` evidence: PASS, full PR gate completed successfully.
-- [x] Contract gate evidence: PASS, `npm run ci:contracts` ran 7 Hardhat security invariant tests.
+- [x] Contract gate evidence: PASS, `npm run ci:contracts` ran 8 Hardhat security invariant tests.
 - [x] Gateway gate evidence: PASS via `ci:pr`, `pytest` -> 322 passed, 86 skipped, 1 warning.
 - [x] Gateway-admin gate evidence: PASS via `ci:pr`, `pytest` -> 94 passed.
 - [x] Frontend/admin-front gate evidence: PASS via `ci:pr`; user-front lint/test/build passed, admin-front lint/build passed.
@@ -65,13 +67,14 @@ npm run ci:backup-restore-evidence
 - [x] Internal audit report: PASS, `docs/security/SynapseCore_Internal_Production_Security_Audit_Report.md` attached. Independent third-party audit was not performed.
 - [x] Audit finding closure log: PASS, `docs/security/SynapseCore_Internal_Audit_Closure_Log.md` attached.
 - [x] Internal audit risk acceptance: PASS, `docs/security/SynapseCore_Internal_Audit_Risk_Acceptance.md` attached. This accepts internal-review risk for capped MVP production only.
-- [x] Hardhat test output: PASS, `npm run ci:contracts` -> 7 passing.
+- [x] Hardhat test output: PASS, `npm run ci:contracts` -> 8 passing.
+- [ ] Arbitrum Sepolia staging deployment evidence: NO-GO blocker, `npm run deploy:contracts:arbitrum-sepolia` report not attached or not validated by `npm run ci:contract-deployment-evidence`.
 - [ ] Fork test output: NO-GO blocker, fork test evidence not attached.
-- [ ] Deployment dry-run output: NO-GO blocker, production/staging dry-run evidence not attached.
-- [ ] ABI hash: NO-GO blocker, release ABI hash not attached.
-- [ ] Bytecode hash: NO-GO blocker, release bytecode hash not attached.
-- [ ] Source verification link: NO-GO blocker, verified explorer/source link not attached.
-- [ ] Constructor args verification: NO-GO blocker, constructor args proof not attached.
+- [ ] Deployment dry-run output: NO-GO blocker, `npm run deploy:contracts:arbitrum-sepolia:dry-run` or production dry-run evidence not attached.
+- [ ] ABI hash: NO-GO blocker, release ABI hash not attached through contract deployment evidence.
+- [ ] Bytecode hash: NO-GO blocker, release bytecode hash not attached through contract deployment evidence.
+- [ ] Source verification link: NO-GO blocker, verified explorer/source link not attached through contract deployment evidence.
+- [ ] Constructor args verification: NO-GO blocker, constructor args proof not attached through contract deployment evidence.
 - [ ] Production release manifest: NO-GO blocker, production release manifest not attached.
 - [ ] Small-value chain rehearsal tx hashes: NO-GO blocker, tx evidence not attached.
 
