@@ -12,17 +12,20 @@ locals {
   )
   runtime_env = merge(
     {
-      ENVIRONMENT                         = var.environment
-      STORAGE_BACKEND                     = "postgres"
-      POSTGRES_HOST                       = "/cloudsql/${google_sql_database_instance.postgres.connection_name}"
-      POSTGRES_DB                         = var.cloud_sql_database_name
-      POSTGRES_CONNECT_TIMEOUT_SEC        = "5"
-      POSTGRES_POOL_MAX                   = "5"
-      ANALYTICS_TRANSPORT                 = "outbox"
-      ANALYTICS_STRICT_KAFKA              = "false"
-      DOWNSTREAM_ADAPTIVE_REDIS_ENABLED   = "false"
-      EMAIL_OUTBOX_ENABLED                = "true"
-      IN_APP_NOTIFICATION_CLEANUP_ENABLED = "false"
+      ENVIRONMENT                             = var.environment
+      STORAGE_BACKEND                         = "postgres"
+      POSTGRES_HOST                           = "/cloudsql/${google_sql_database_instance.postgres.connection_name}"
+      POSTGRES_DB                             = var.cloud_sql_database_name
+      POSTGRES_CONNECT_TIMEOUT_SEC            = "5"
+      POSTGRES_POOL_MAX                       = "5"
+      V2_INDEXER_ENABLED                      = "false"
+      PROVIDER_WITHDRAW_EXPIRY_REAPER_ENABLED = "false"
+      CONSUMER_WITHDRAW_PROCESSOR_ENABLED     = "false"
+      ANALYTICS_TRANSPORT                     = "outbox"
+      ANALYTICS_STRICT_KAFKA                  = "false"
+      DOWNSTREAM_ADAPTIVE_REDIS_ENABLED       = "false"
+      EMAIL_OUTBOX_ENABLED                    = "true"
+      IN_APP_NOTIFICATION_CLEANUP_ENABLED     = "false"
     },
     var.common_runtime_env,
   )
@@ -73,6 +76,67 @@ locals {
     for key, service in local.cloud_run_services : key => service
     if trimspace(service.image) != ""
   }
+  cloud_run_jobs = {
+    deposit_indexer = {
+      name        = "${local.name_prefix}-deposit-indexer"
+      image       = var.gateway_image
+      command     = ["python", "-m", "src.worker"]
+      args        = ["deposit-indexer", "--once"]
+      schedule    = "* * * * *"
+      timeout     = "50s"
+      max_retries = 0
+      retry_count = 0
+      env         = local.runtime_env
+    }
+    provider_withdraw_reaper = {
+      name        = "${local.name_prefix}-provider-withdraw-reaper"
+      image       = var.gateway_image
+      command     = ["python", "-m", "src.worker"]
+      args        = ["provider-withdraw-reaper", "--once"]
+      schedule    = "* * * * *"
+      timeout     = "50s"
+      max_retries = 0
+      retry_count = 0
+      env         = local.runtime_env
+    }
+    consumer_withdraw_processor = {
+      name        = "${local.name_prefix}-consumer-withdraw-processor"
+      image       = var.gateway_image
+      command     = ["python", "-m", "src.worker"]
+      args        = ["consumer-withdraw-processor", "--once"]
+      schedule    = "* * * * *"
+      timeout     = "50s"
+      max_retries = 0
+      retry_count = 0
+      env         = local.runtime_env
+    }
+    notification_outbox_drain = {
+      name        = "${local.name_prefix}-notification-outbox-drain"
+      image       = var.gateway_image
+      command     = ["python", "-m", "src.worker"]
+      args        = ["notification-outbox", "--once"]
+      schedule    = "* * * * *"
+      timeout     = "50s"
+      max_retries = 1
+      retry_count = 1
+      env         = local.runtime_env
+    }
+    in_app_notification_cleanup = {
+      name        = "${local.name_prefix}-in-app-notification-cleanup"
+      image       = var.gateway_image
+      command     = ["python", "-m", "src.worker"]
+      args        = ["in-app-cleanup", "--once"]
+      schedule    = "0 19 * * *"
+      timeout     = "600s"
+      max_retries = 0
+      retry_count = 0
+      env         = merge(local.runtime_env, { IN_APP_NOTIFICATION_CLEANUP_ENABLED = "true" })
+    }
+  }
+  enabled_cloud_run_jobs = {
+    for key, job in local.cloud_run_jobs : key => job
+    if trimspace(job.image) != ""
+  }
 }
 
 resource "google_artifact_registry_repository" "docker" {
@@ -119,6 +183,11 @@ resource "google_service_account" "runtime" {
   display_name = "Synapse ${var.environment} Cloud Run runtime"
 }
 
+resource "google_service_account" "scheduler" {
+  account_id   = "${local.name_prefix}-scheduler"
+  display_name = "Synapse ${var.environment} Cloud Scheduler invoker"
+}
+
 resource "google_project_iam_member" "runtime_logging_writer" {
   project = var.project_id
   role    = "roles/logging.logWriter"
@@ -141,6 +210,18 @@ resource "google_project_iam_member" "runtime_cloudsql_client" {
   project = var.project_id
   role    = "roles/cloudsql.client"
   member  = "serviceAccount:${google_service_account.runtime.email}"
+}
+
+resource "google_project_iam_member" "scheduler_run_developer" {
+  project = var.project_id
+  role    = "roles/run.developer"
+  member  = "serviceAccount:${google_service_account.scheduler.email}"
+}
+
+resource "google_service_account_iam_member" "scheduler_runtime_act_as" {
+  service_account_id = google_service_account.runtime.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${google_service_account.scheduler.email}"
 }
 
 resource "google_sql_database_instance" "postgres" {
@@ -235,5 +316,85 @@ resource "google_cloud_run_v2_service" "services" {
     google_project_iam_member.runtime_monitoring_writer,
     google_project_iam_member.runtime_secret_accessor,
     google_sql_database.gateway,
+  ]
+}
+
+resource "google_cloud_run_v2_job" "jobs" {
+  for_each = local.enabled_cloud_run_jobs
+
+  name     = each.value.name
+  location = var.region
+  labels   = local.labels
+
+  template {
+    task_count  = 1
+    parallelism = 1
+
+    template {
+      service_account = google_service_account.runtime.email
+      timeout         = each.value.timeout
+      max_retries     = each.value.max_retries
+
+      volumes {
+        name = "cloudsql"
+        cloud_sql_instance {
+          instances = [google_sql_database_instance.postgres.connection_name]
+        }
+      }
+
+      containers {
+        image   = each.value.image
+        command = each.value.command
+        args    = each.value.args
+
+        volume_mounts {
+          name       = "cloudsql"
+          mount_path = "/cloudsql"
+        }
+
+        dynamic "env" {
+          for_each = each.value.env
+          content {
+            name  = env.key
+            value = env.value
+          }
+        }
+      }
+    }
+  }
+
+  depends_on = [
+    google_project_iam_member.runtime_cloudsql_client,
+    google_project_iam_member.runtime_logging_writer,
+    google_project_iam_member.runtime_monitoring_writer,
+    google_project_iam_member.runtime_secret_accessor,
+    google_sql_database.gateway,
+  ]
+}
+
+resource "google_cloud_scheduler_job" "jobs" {
+  for_each = google_cloud_run_v2_job.jobs
+
+  name      = "${each.value.name}-schedule"
+  region    = var.region
+  schedule  = local.enabled_cloud_run_jobs[each.key].schedule
+  time_zone = var.scheduler_time_zone
+
+  retry_config {
+    retry_count = local.enabled_cloud_run_jobs[each.key].retry_count
+  }
+
+  http_target {
+    http_method = "POST"
+    uri         = "https://${var.region}-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/${var.project_id}/jobs/${each.value.name}:run"
+
+    oauth_token {
+      service_account_email = google_service_account.scheduler.email
+    }
+  }
+
+  depends_on = [
+    google_project_iam_member.scheduler_run_developer,
+    google_service_account_iam_member.scheduler_runtime_act_as,
   ]
 }

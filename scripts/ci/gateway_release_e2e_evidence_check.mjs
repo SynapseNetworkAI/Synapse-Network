@@ -18,6 +18,7 @@ const REQUIRED_FILES = [
   "contract-manifest.json",
   "analytics-clickhouse-summary.json",
   "reconciliation-summary.json",
+  "job-execution-summary.json",
 ];
 const REQUIRED_TRACE_SCENARIOS = [
   "deposit",
@@ -168,6 +169,15 @@ if (!report.pytest || report.pytest.skipped !== 0) {
     reportPath,
     `release gateway E2E must have zero skipped tests; actual=${report.pytest?.skipped}`,
     "start missing live services or fix release-mode pytest gates so failures fail closed instead of skip.",
+  );
+}
+
+if (!report.jobExecution || typeof report.jobExecution !== "object") {
+  fatal(
+    "GATEWAY-RELEASE-EVIDENCE-011",
+    reportPath,
+    "job execution evidence is missing from report.json.",
+    "rerun the gateway release evidence reporter so deposit indexing SLA and scheduled job lock skip summary are captured.",
   );
 }
 

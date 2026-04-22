@@ -11,6 +11,16 @@ from src.storage.base import BaseStorage
 logger = logging.getLogger("synapse.notifications.in_app.cleanup")
 
 
+async def run_in_app_notification_cleanup_once(storage: BaseStorage) -> dict[str, int]:
+    deleted = await cleanup_in_app_notifications_once(
+        storage,
+        retention_days=settings.in_app_notification_retention_days,
+        security_retention_days=settings.in_app_notification_security_retention_days,
+        batch_size=settings.in_app_notification_cleanup_batch_size,
+    )
+    return {"deleted": int(deleted or 0)}
+
+
 async def run_in_app_notification_cleanup(
     stop_event: asyncio.Event,
     storage: BaseStorage,
@@ -20,14 +30,9 @@ async def run_in_app_notification_cleanup(
 
     while not stop_event.is_set():
         try:
-            deleted = await cleanup_in_app_notifications_once(
-                storage,
-                retention_days=settings.in_app_notification_retention_days,
-                security_retention_days=settings.in_app_notification_security_retention_days,
-                batch_size=settings.in_app_notification_cleanup_batch_size,
-            )
-            if deleted:
-                logger.info("in_app_notification.cleanup", extra={"deleted": deleted})
+            result = await run_in_app_notification_cleanup_once(storage)
+            if result["deleted"]:
+                logger.info("in_app_notification.cleanup", extra=result)
         except Exception as exc:
             logger.warning("In-app notification cleanup failed: %s", exc)
 

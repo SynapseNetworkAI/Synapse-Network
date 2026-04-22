@@ -777,6 +777,7 @@ export type I18nMessages = {
     signInBeforePurchase: string;
     depositModalTitle: string;
     depositModalDescription: string;
+    depositConfirmationNotice: string;
     currentBillingCycle: string;
     daysRemaining: string;
     manageSpendCapTitle: string;

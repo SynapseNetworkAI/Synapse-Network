@@ -68,6 +68,9 @@ class Settings:
     )
     # Minimum block confirmations before crediting a deposit intent.
     v2_deposit_confirmations: int = _env_int("V2_DEPOSIT_CONFIRMATIONS", 1)
+    # Run the deposit indexer inside the API process. Cloud Run staging/prod
+    # should set this false and run deposit-indexer as a scheduled one-shot job.
+    v2_indexer_enabled: bool = _env_bool("V2_INDEXER_ENABLED", True)
     # Poll interval for the background deposit indexer loop.
     v2_indexer_poll_interval_sec: float = _env_float(
         "V2_INDEXER_POLL_INTERVAL_SEC", 2.0

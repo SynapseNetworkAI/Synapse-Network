@@ -89,6 +89,14 @@ async def _cancel_background_task(
 
 
 def _build_deposit_indexer_monitor(task: asyncio.Task | None) -> dict[str, object]:
+    if not settings.v2_indexer_enabled:
+        return {
+            "enabled": False,
+            "initialized": False,
+            "healthy": True,
+            "degradedReasons": [],
+        }
+
     snapshot = get_indexer_status()
     heartbeat_at = snapshot.get("heartbeatAt")
     last_step_started_at = snapshot.get("lastStepStartedAt")
@@ -180,10 +188,13 @@ def _readiness_snapshot(app: FastAPI) -> dict[str, object]:
         ),
     }
 
-    ready = bool(deposit_monitor.get("healthy")) and all(
-        (not monitor["enabled"]) or monitor["initialized"]
-        for name, monitor in monitors.items()
-        if name != "deposit_indexer"
+    ready = (
+        (not deposit_monitor.get("enabled") or bool(deposit_monitor.get("healthy")))
+        and all(
+            (not monitor["enabled"]) or monitor["initialized"]
+            for name, monitor in monitors.items()
+            if name != "deposit_indexer"
+        )
     )
 
     return {"status": "ready" if ready else "degraded", "monitors": monitors}
@@ -214,7 +225,7 @@ async def lifespan(app: FastAPI):
     # does not turn lifespan into a branchy shutdown maze.
     _start_background_task(
         app,
-        enabled=True,
+        enabled=settings.v2_indexer_enabled,
         stop_attr="v2_indexer_stop_event",
         task_attr="v2_indexer_task",
         runner=run_v2_deposit_indexer,

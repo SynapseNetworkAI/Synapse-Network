@@ -401,6 +401,7 @@ export default function ActivationRunway({
         isOpen={isDepositModalOpen}
         title={t("agentsPage.depositModalTitle")}
         description={t("agentsPage.depositModalDescription")}
+        confirmationNotice={t("creditsPage.depositConfirmationNotice")}
         amount={depositAmount}
         onAmountChange={setDepositAmount}
         error={depositError}

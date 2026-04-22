@@ -10,6 +10,8 @@ const creditsPage: I18nMessages["creditsPage"] = {
   depositModalTitle: "Purchase credits",
   depositModalDescription:
     "Deposit USDC into your Synapse vault to top up prepaid credits for API usage.",
+  depositConfirmationNotice:
+    "Blockchain confirmation is in progress. Credits usually appear within 1-2 minutes. You can keep this page open or refresh later.",
   currentBillingCycle: "Current Billing Cycle",
   daysRemaining: "Days Remaining",
   manageSpendCapTitle: "Manage Spend Cap",

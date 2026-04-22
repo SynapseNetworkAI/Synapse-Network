@@ -272,6 +272,18 @@ instance limit for five minutes, and for Gateway `too many connections` log
 matches. The Lark action should tell the operator to reduce Cloud Run
 max-instances/concurrency or upgrade Cloud SQL tier.
 
+Deposit indexing alerts:
+
+1. P2: deposit indexing delay above two minutes.
+2. P1: deposit indexing delay above five minutes.
+3. P1: scheduled job failures above threshold.
+4. P1: `JOB_SKIPPED_ALREADY_RUNNING` repeats for more than five minutes.
+
+Release evidence should record `indexed_at`, `credited_at`, delay seconds, and
+the scheduled job lock skip summary. `alreadyRunningSkipped` may be non-zero,
+but it must not coincide with duplicate credits, duplicate withdrawal release,
+or ledger/vault unexplained delta.
+
 ## Email Readiness
 
 V1 email uses Gmail SMTP or Google Workspace SMTP relay.
@@ -307,6 +319,9 @@ DOWNSTREAM_ADAPTIVE_REDIS_ENABLED=false
 
 EMAIL_OUTBOX_ENABLED=true
 IN_APP_NOTIFICATION_CLEANUP_ENABLED=false
+V2_INDEXER_ENABLED=false
+PROVIDER_WITHDRAW_EXPIRY_REAPER_ENABLED=false
+CONSUMER_WITHDRAW_PROCESSOR_ENABLED=false
 
 RPC_URL=<arbitrum-rpc-url>
 ROUTER_ADDRESS=<SynapseCore>
@@ -315,9 +330,32 @@ PRIVATE_KEY=<withdraw signer private key>
 ```
 
 API requests must not wait on Gmail, analytics publishing, notification cleanup,
-or long reaper loops. Long-running work runs as Cloud Run jobs or
-Scheduler-triggered endpoints. Money state transitions stay inside Gateway and
+deposit indexing, or long reaper loops. Long-running work runs as Cloud Run jobs
+triggered by Cloud Scheduler. Money state transitions stay inside Gateway and
 Postgres transaction boundaries.
+
+Cloud Scheduler has a hard one-minute practical floor. MVP accepts that deposit
+credits can take roughly 1-2 minutes to appear after on-chain confirmation; the
+User-front deposit modal must say this clearly instead of adding high-frequency
+RPC polling.
+
+Every money-sensitive scheduled job uses two layers of overlap protection:
+
+1. Cloud Run Job template sets `task_count=1` and `parallelism=1`.
+2. The worker takes a Postgres advisory lock at startup. If the previous
+   execution is still running, it logs `JOB_SKIPPED_ALREADY_RUNNING` and exits
+   successfully. This skip is not an incident by itself; repeated skips for more
+   than five minutes are a P1 because they indicate a stuck worker or slow RPC.
+
+Scheduled job defaults:
+
+| Job | Command | Schedule | Retry | Lock key |
+| --- | --- | --- | --- | --- |
+| Deposit indexer | `python -m src.worker deposit-indexer --once` | every 1 minute | 0 | `deposit-indexer` |
+| Provider withdrawal reaper | `python -m src.worker provider-withdraw-reaper --once` | every 1 minute | 0 | `provider-withdraw-reaper` |
+| Consumer withdrawal processor | `python -m src.worker consumer-withdraw-processor --once` | every 1 minute | 0 | `consumer-withdraw-processor` |
+| Gmail outbox drain | `python -m src.worker notification-outbox --once` | every 1 minute | 1 | `notification-outbox-drain` |
+| In-app notification cleanup | `python -m src.worker in-app-cleanup --once` | daily | 0 | `in-app-notification-cleanup` |
 
 ## Staging Chain Readiness
 

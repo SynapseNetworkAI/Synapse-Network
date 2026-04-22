@@ -134,6 +134,12 @@ variable "frontend_runtime_env" {
   default     = {}
 }
 
+variable "scheduler_time_zone" {
+  description = "Cloud Scheduler timezone for background jobs. Keep UTC for deterministic release evidence."
+  type        = string
+  default     = "Etc/UTC"
+}
+
 variable "secret_ids" {
   description = "Secret Manager secret placeholders. Values must be added out-of-band, never via Terraform variables."
   type        = set(string)

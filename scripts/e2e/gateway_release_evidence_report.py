@@ -243,6 +243,31 @@ def write_reconciliation_summary(out_dir: Path, comparisons: list[dict[str, Any]
     return summary
 
 
+def write_job_execution_summary(out_dir: Path) -> dict[str, Any]:
+    summary_path = os.getenv("GATEWAY_RELEASE_E2E_JOB_SUMMARY_PATH", "").strip()
+    if summary_path:
+        source_path = Path(summary_path).expanduser().resolve()
+        summary = json.loads(source_path.read_text(encoding="utf-8"))
+        summary["source"] = str(source_path)
+    else:
+        summary = {
+            "source": "not-provided",
+            "depositConfirmSla": {
+                "expected": "deposit credited within 1-2 minutes after on-chain confirmation",
+                "indexedAt": None,
+                "creditedAt": None,
+                "delaySeconds": None,
+            },
+            "alreadyRunningSkipped": 0,
+            "jobs": [],
+        }
+    (out_dir / "job-execution-summary.json").write_text(
+        json.dumps(summary, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return summary
+
+
 def _trace_scenario(row: dict[str, Any]) -> str:
     if row["stage"] == "gateway-fullchain":
         return str(row["metricName"])
@@ -378,6 +403,7 @@ def main() -> int:
     )
 
     reconciliation = write_reconciliation_summary(out_dir, comparisons)
+    job_execution = write_job_execution_summary(out_dir)
     trace = write_trace_jsonl(
         out_dir,
         environment=environment,
@@ -392,6 +418,7 @@ def main() -> int:
         "contract": contract,
         "analytics": analytics,
         "reconciliation": reconciliation,
+        "jobExecution": job_execution,
         "pytest": {key: value for key, value in pytest_summary.items() if key != "cases"},
         "comparisons": comparisons,
         "traceDigest": trace["digest"],
@@ -404,6 +431,7 @@ def main() -> int:
             "environment": report["environment"],
             "contract": report["contract"],
             "analytics": report["analytics"],
+            "jobExecution": report["jobExecution"],
             "pytest": report["pytest"],
             "comparisons": report["comparisons"],
             "traceDigest": report["traceDigest"],
@@ -455,6 +483,7 @@ def main() -> int:
             "- `contract-manifest.json`",
             "- `analytics-clickhouse-summary.json`",
             "- `reconciliation-summary.json`",
+            "- `job-execution-summary.json`",
         ]
     )
     (out_dir / "report.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
