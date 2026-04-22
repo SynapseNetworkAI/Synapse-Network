@@ -1,0 +1,191 @@
+[
+  {
+    "name": "p0-firing",
+    "endpoint": "/lark/p0-war-room",
+    "status": "firing",
+    "severity": "p0",
+    "system": "finance",
+    "env": "prod",
+    "businessScenario": "Ledger/Vault 对账出现非零 delta",
+    "impact": "可能存在资金账实不一致；这是 E2E 测试，不要冻结真实操作。",
+    "trigger": "ledger/vault unexplained delta > 0",
+    "action": "真实事故时冻结高危资金操作，拉取 reconciliation report；本次 LARK_E2E_TEST 不需要生产动作。",
+    "alertCount": 1,
+    "foldedCount": 0,
+    "compact": false,
+    "httpStatus": 200,
+    "ok": true,
+    "larkResponseSummary": "{\"code\":19024,\"data\":{},\"msg\":\"Key Words Not Found\"}",
+    "expected": {
+      "hasLarkE2eMarker": true,
+      "hasNoActionMarker": true
+    },
+    "actual": {
+      "hasLarkE2eMarker": true,
+      "hasNoActionMarker": true,
+      "containsSensitiveProbe": false
+    }
+  },
+  {
+    "name": "p0-resolved",
+    "endpoint": "/lark/p0-war-room",
+    "status": "resolved",
+    "severity": "p0",
+    "system": "finance",
+    "env": "prod",
+    "businessScenario": "Ledger/Vault 对账恢复",
+    "impact": "资金对账告警已恢复到阈值内；这是 E2E 测试恢复消息。",
+    "trigger": "ledger/vault unexplained delta 回到 0.000000",
+    "action": "真实事故时确认 reconciliation report 和 incident closure；本次 LARK_E2E_TEST 不需要生产动作。",
+    "alertCount": 1,
+    "foldedCount": 0,
+    "compact": false,
+    "httpStatus": 200,
+    "ok": true,
+    "larkResponseSummary": "{\"code\":19024,\"data\":{},\"msg\":\"Key Words Not Found\"}",
+    "expected": {
+      "hasLarkE2eMarker": true,
+      "hasNoActionMarker": true
+    },
+    "actual": {
+      "hasLarkE2eMarker": true,
+      "hasNoActionMarker": true,
+      "containsSensitiveProbe": false
+    }
+  },
+  {
+    "name": "prod-firing",
+    "endpoint": "/lark/prod-alerts",
+    "status": "firing",
+    "severity": "p1",
+    "system": "gateway",
+    "env": "prod",
+    "businessScenario": "Gateway invoke 核心链路失败率升高",
+    "impact": "Consumer agent 可能无法完成 quote/invoke，Provider 收入事件可能延迟入账。",
+    "trigger": "5 分钟窗口内 gateway 5xx 或 invoke failure rate 超过阈值。",
+    "action": "先查看 Gateway error dashboard，再检查 provider health、DB pool、Kafka/ClickHouse lag。",
+    "alertCount": 1,
+    "foldedCount": 0,
+    "compact": false,
+    "httpStatus": 200,
+    "ok": true,
+    "larkResponseSummary": "{\"StatusCode\":0,\"StatusMessage\":\"success\",\"code\":0,\"data\":{},\"msg\":\"success\"}",
+    "expected": {
+      "hasLarkE2eMarker": true,
+      "hasNoActionMarker": true
+    },
+    "actual": {
+      "hasLarkE2eMarker": true,
+      "hasNoActionMarker": true,
+      "containsSensitiveProbe": false
+    }
+  },
+  {
+    "name": "prod-resolved",
+    "endpoint": "/lark/prod-alerts",
+    "status": "resolved",
+    "severity": "p1",
+    "system": "gateway",
+    "env": "prod",
+    "businessScenario": "Gateway invoke 核心链路恢复",
+    "impact": "Gateway invoke 核心链路已恢复到阈值内。",
+    "trigger": "5 分钟窗口内 gateway 5xx 和 invoke failure rate 回到阈值内。",
+    "action": "确认同一 runId 没有残留 firing 告警，检查是否需要关闭 incident。",
+    "alertCount": 1,
+    "foldedCount": 0,
+    "compact": false,
+    "httpStatus": 200,
+    "ok": true,
+    "larkResponseSummary": "{\"StatusCode\":0,\"StatusMessage\":\"success\",\"code\":0,\"data\":{},\"msg\":\"success\"}",
+    "expected": {
+      "hasLarkE2eMarker": true,
+      "hasNoActionMarker": true
+    },
+    "actual": {
+      "hasLarkE2eMarker": true,
+      "hasNoActionMarker": true,
+      "containsSensitiveProbe": false
+    }
+  },
+  {
+    "name": "staging-firing",
+    "endpoint": "/lark/staging-drill",
+    "status": "firing",
+    "severity": "drill",
+    "system": "drill",
+    "env": "staging",
+    "businessScenario": "Staging drill 告警路由验证",
+    "impact": "验证 drill 不会进入生产告警群；这是演练消息，不是生产故障。",
+    "trigger": "Lark Alert E2E runner 向 staging drill endpoint 发送 firing probe。",
+    "action": "确认消息只出现在 Staging 演练群，并检查卡片脱敏/截断是否正常。",
+    "alertCount": 1,
+    "foldedCount": 0,
+    "compact": false,
+    "httpStatus": 200,
+    "ok": true,
+    "larkResponseSummary": "{\"code\":19024,\"data\":{},\"msg\":\"Key Words Not Found\"}",
+    "expected": {
+      "hasLarkE2eMarker": true,
+      "hasNoActionMarker": true
+    },
+    "actual": {
+      "hasLarkE2eMarker": true,
+      "hasNoActionMarker": true,
+      "containsSensitiveProbe": false
+    }
+  },
+  {
+    "name": "staging-resolved",
+    "endpoint": "/lark/staging-drill",
+    "status": "resolved",
+    "severity": "drill",
+    "system": "drill",
+    "env": "staging",
+    "businessScenario": "Staging drill 告警恢复验证",
+    "impact": "验证 resolved 绿色恢复卡片可达；这是演练消息。",
+    "trigger": "Lark Alert E2E runner 向 staging drill endpoint 发送 resolved probe。",
+    "action": "确认恢复消息只出现在 Staging 演练群。",
+    "alertCount": 1,
+    "foldedCount": 0,
+    "compact": false,
+    "httpStatus": 200,
+    "ok": true,
+    "larkResponseSummary": "{\"code\":19024,\"data\":{},\"msg\":\"Key Words Not Found\"}",
+    "expected": {
+      "hasLarkE2eMarker": true,
+      "hasNoActionMarker": true
+    },
+    "actual": {
+      "hasLarkE2eMarker": true,
+      "hasNoActionMarker": true,
+      "containsSensitiveProbe": false
+    }
+  },
+  {
+    "name": "staging-batch-folding",
+    "endpoint": "/lark/staging-drill",
+    "status": "firing",
+    "severity": "drill",
+    "system": "drill",
+    "env": "staging",
+    "businessScenario": "Alertmanager 同组告警折叠",
+    "impact": "验证 100 条同组告警不会撑爆 Lark 卡片，值班人员仍能看到首条和折叠数量。",
+    "trigger": "同一 groupKey 下收到 100 条告警 payload。",
+    "action": "确认卡片只展示首条详情，并显示另外 99 条已折叠。",
+    "alertCount": 100,
+    "foldedCount": 99,
+    "compact": false,
+    "httpStatus": 200,
+    "ok": true,
+    "larkResponseSummary": "{\"code\":19024,\"data\":{},\"msg\":\"Key Words Not Found\"}",
+    "expected": {
+      "hasLarkE2eMarker": true,
+      "hasNoActionMarker": true
+    },
+    "actual": {
+      "hasLarkE2eMarker": true,
+      "hasNoActionMarker": true,
+      "containsSensitiveProbe": false
+    }
+  }
+]

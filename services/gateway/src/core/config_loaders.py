@@ -178,6 +178,34 @@ def _env_int(name: str, default: int) -> int:
         return default
 
 
+def _env_int_strict_range(
+    name: str,
+    default: int,
+    *,
+    minimum: int,
+    maximum: int,
+    fatal_code: str,
+    guidance: str,
+) -> int:
+    raw = os.getenv(name)
+    if raw is None or str(raw).strip() == "":
+        value = default
+    else:
+        try:
+            value = int(str(raw).strip())
+        except Exception as exc:
+            raise RuntimeError(  # noqa: TRY003 - startup errors must include operator-ready remediation.
+                f"FATAL {fatal_code}: {name} must be an integer between {minimum} and {maximum}.\n"
+                f"Agent fix: {guidance}"
+            ) from exc
+    if value < minimum or value > maximum:
+        raise RuntimeError(  # noqa: TRY003 - startup errors must include operator-ready remediation.
+            f"FATAL {fatal_code}: {name}={value} is outside the safe range {minimum}..{maximum}.\n"
+            f"Agent fix: {guidance}"
+        )
+    return value
+
+
 def _env_float(name: str, default: float) -> float:
     raw = os.getenv(name)
     if raw is None:

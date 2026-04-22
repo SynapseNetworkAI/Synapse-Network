@@ -1,0 +1,28 @@
+{
+  "generatedAt": "2026-04-22T05:41:54.299Z",
+  "runId": "lark-e2e-mo9ml0xn-lutsy8",
+  "environment": "local",
+  "endpoints": {
+    "/lark/p0-war-room": {
+      "name": "p0-war-room",
+      "webhookEnv": "LARK_WEBHOOK_P0_WAR_ROOM",
+      "secretEnv": "LARK_SECRET_P0_WAR_ROOM",
+      "webhookConfigured": true,
+      "secretConfigured": false
+    },
+    "/lark/prod-alerts": {
+      "name": "prod-alerts",
+      "webhookEnv": "LARK_WEBHOOK_PROD_ALERTS",
+      "secretEnv": "LARK_SECRET_PROD_ALERTS",
+      "webhookConfigured": true,
+      "secretConfigured": false
+    },
+    "/lark/staging-drill": {
+      "name": "staging-drill",
+      "webhookEnv": "LARK_WEBHOOK_STAGING_DRILL",
+      "secretEnv": "LARK_SECRET_STAGING_DRILL",
+      "webhookConfigured": true,
+      "secretConfigured": false
+    }
+  }
+}

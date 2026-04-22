@@ -1,18 +1,37 @@
 project_id = "replace-with-your-gcp-project-id"
-region     = "asia-southeast1"
-zone       = "asia-southeast1-a"
-
-machine_type      = "e2-standard-4"
-boot_disk_size_gb = 200
-
-# Prefer IAP SSH. If you need direct SSH temporarily, add your office/home CIDR.
-ssh_source_ranges = []
-enable_iap_ssh    = true
+region     = "us-central1"
 
 # Must be globally unique.
 backup_bucket_name = "replace-with-unique-synapse-staging-backups-bucket"
 
 artifact_registry_repository = "synapse-staging"
+
+# Low-cost staging starts here. Upgrade to db-g1-small when E2E/load evidence
+# shows connection, CPU, or latency pressure.
+cloud_sql_tier                           = "db-f1-micro"
+cloud_sql_availability_type              = "ZONAL"
+cloud_sql_disk_type                      = "PD_SSD"
+cloud_sql_disk_size_gb                   = 20
+cloud_sql_disk_autoresize                = true
+cloud_sql_deletion_protection            = false
+cloud_sql_backup_start_time              = "19:00" # UTC; 03:00 Asia/Kuala_Lumpur
+cloud_sql_transaction_log_retention_days = 1
+cloud_sql_retained_backups               = 3
+
+# Optional: set image URLs once Artifact Registry images exist.
+# If left empty, Terraform provisions the substrate only and first deploy can use
+# gcloud run deploy.
+gateway_image       = ""
+gateway_admin_image = ""
+user_front_image    = ""
+admin_front_image   = ""
+
+common_runtime_env = {
+  ANALYTICS_KAFKA_BOOTSTRAP_SERVERS = ""
+  REDIS_URL                         = ""
+}
+
+frontend_runtime_env = {}
 
 labels = {
   owner = "synapse"

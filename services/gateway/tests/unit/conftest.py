@@ -11,6 +11,7 @@ def reset_gateway_settings():
         "service_health_monitor_enabled": gateway_app.settings.service_health_monitor_enabled,
         "provider_withdraw_expiry_reaper_enabled": gateway_app.settings.provider_withdraw_expiry_reaper_enabled,
         "consumer_withdraw_processor_enabled": gateway_app.settings.consumer_withdraw_processor_enabled,
+        "in_app_notification_cleanup_enabled": gateway_app.settings.in_app_notification_cleanup_enabled,
     }
     yield
     for key, value in snapshot.items():

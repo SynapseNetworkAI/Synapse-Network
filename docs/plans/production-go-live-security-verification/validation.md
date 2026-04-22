@@ -59,7 +59,7 @@ npm run ci:backup-restore-evidence
 - [x] Secret scan evidence: PASS, secret scan passed.
 - [x] Release Go/No-Go state check: PASS, `npm run ci:release-go-no-go` confirms staging automation evidence is recorded and production blockers remain explicit.
 - [x] Monitoring alert rule static gate: PASS, `npm run ci:monitoring-alert-rules` validates Prometheus rule structure, drill labels, and Grafana dashboard JSON.
-- [ ] Gateway full-chain release E2E evidence: NO-GO blocker, `npm run release:evidence:gateway-fullchain:staging` report not attached or not validated by `GATEWAY_RELEASE_E2E_REQUIRED_ENV=staging npm run ci:gateway-release-e2e-evidence`. Ordinary `ci:gateway` skip behavior is not accepted for release evidence.
+- [ ] Gateway full-chain release E2E evidence: NO-GO blocker, `npm run release:evidence:gateway-fullchain:staging` report not attached or not validated by `GATEWAY_RELEASE_E2E_REQUIRED_ENV=staging npm run ci:gateway-release-e2e-evidence`. Ordinary `ci:gateway` skip behavior is not accepted for release evidence. The bundle must include `trace.jsonl` with a matching `report.json.traceDigest`, zero failed reconciliation checkpoints, and no secret-like values.
 - [ ] One-ticket withdrawal release evidence: NO-GO blocker, `npm run e2e:withdrawal-one-ticket-evidence` report not attached or not validated by `npm run ci:withdrawal-one-ticket-evidence`. The evidence must include all 10 scenarios: consumer/provider normal claim, expired reaper, soft revoke race claim, soft revoke expire, consumer replay attack, and provider low-gas revert retry.
 
 ## Contract and Chain Evidence
@@ -90,7 +90,7 @@ npm run ci:backup-restore-evidence
 - [x] Provider withdrawal failure recovery evidence: PASS via gateway and gateway-admin test suite coverage in `ci:pr`.
 - [ ] One-ticket withdrawal expected-vs-actual evidence: NO-GO blocker, release bundle must compare ticketHash, deadline, RPC block timestamp, DB status, consumer/provider balance delta, vault delta, replay result, and low-gas retry result.
 - [ ] Ledger/vault reconciliation report: NO-GO blocker, release reconciliation report not attached.
-- [ ] Gateway full-chain expected-vs-actual report: NO-GO blocker, release evidence for deposit, confirm, discovery, quote, invoke, provider credit, receipt, consumer withdrawal, analytics Kafka/ClickHouse ingestion, and reconciliation is not attached.
+- [ ] Gateway full-chain expected-vs-actual report: NO-GO blocker, release evidence for deposit, confirm, discovery, quote, invoke, provider credit, receipt, consumer withdrawal, analytics outbox/projection evidence, and reconciliation is not attached.
 - [ ] Backup restore drill report: NO-GO blocker, fresh `npm run drill:backup-restore:staging` evidence not attached or not validated by `npm run ci:backup-restore-evidence`.
 - [ ] Chain-log reconciliation drill: NO-GO blocker, daily chain reconciliation evidence not attached. This is independent of v1 backup/restore drill and must not be coupled to restore evidence.
 
@@ -131,10 +131,10 @@ npm run ci:backup-restore-evidence
 - [ ] Provider outage chaos drill: NO-GO blocker, chaos drill report not attached.
 - [ ] Gateway restart chaos drill: NO-GO blocker, chaos drill report not attached.
 - [ ] Gateway-admin restart chaos drill: NO-GO blocker, chaos drill report not attached.
-- [ ] ClickHouse/Kafka outage drill: NO-GO blocker, chaos drill report not attached.
+- [ ] Analytics outbox/projection degradation drill: NO-GO blocker, chaos drill report not attached. ClickHouse/Kafka outage drill is not an MVP blocker unless those systems are reintroduced.
 - [ ] RPC outage or slow RPC drill: NO-GO blocker, chaos drill report not attached.
 - [ ] Postgres failover drill: NO-GO blocker, failover drill report not attached.
-- [ ] Redis unavailable drill: NO-GO blocker, drill report not attached.
+- [ ] Postgres idempotency/lock fallback evidence: NO-GO blocker, low-cost MVP runtime does not deploy Redis, so durable Postgres idempotency and row-lock behavior must be verified instead.
 - [ ] Application rollback drill: NO-GO blocker, rollback drill report not attached.
 - [ ] Config rollback drill: NO-GO blocker, rollback drill report not attached.
 - [ ] Signer rollback procedure: NO-GO blocker, signer rollback procedure evidence not attached.

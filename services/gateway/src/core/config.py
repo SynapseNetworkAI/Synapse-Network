@@ -12,6 +12,7 @@ from src.core.config_loaders import (
     _env_bool,
     _env_float,
     _env_int,
+    _env_int_strict_range,
     _env_rate,
     _environment_file_candidates,  # noqa: F401 - re-exported for config helper tests.
     _gateway_root_dir,
@@ -143,6 +144,17 @@ class Settings:
     )
     postgres_connect_timeout_sec: int = max(
         1, _env_int("POSTGRES_CONNECT_TIMEOUT_SEC", 5)
+    )
+    # Max reusable Postgres connections kept by each Gateway process.
+    # Keep this low on small Cloud SQL instances; total possible connections are
+    # roughly Cloud Run max instances * POSTGRES_POOL_MAX.
+    postgres_pool_max: int = _env_int_strict_range(
+        "POSTGRES_POOL_MAX",
+        5,
+        minimum=1,
+        maximum=10,
+        fatal_code="DB-CONFIG-001",
+        guidance="set POSTGRES_POOL_MAX between 1 and 10; staging default is 5.",
     )
     # Auto-create PostgreSQL tables/indexes on startup when using postgres backend.
     postgres_auto_init: bool = _env_bool("POSTGRES_AUTO_INIT", True)
@@ -483,6 +495,24 @@ class Settings:
     email_worker_batch_size: int = max(1, _env_int("EMAIL_WORKER_BATCH_SIZE", 50))
     email_outbox_max_attempts: int = max(1, _env_int("EMAIL_OUTBOX_MAX_ATTEMPTS", 8))
     email_outbox_retry_base_sec: int = max(1, _env_int("EMAIL_OUTBOX_RETRY_BASE_SEC", 30))
+
+    # ── In-App Notifications ────────────────────────────────────
+    in_app_notification_cleanup_enabled: bool = _env_bool(
+        "IN_APP_NOTIFICATION_CLEANUP_ENABLED", True
+    )
+    in_app_notification_cleanup_interval_sec: int = max(
+        60, _env_int("IN_APP_NOTIFICATION_CLEANUP_INTERVAL_SEC", 86400)
+    )
+    in_app_notification_retention_days: int = max(
+        1, _env_int("IN_APP_NOTIFICATION_RETENTION_DAYS", 90)
+    )
+    in_app_notification_security_retention_days: int = max(
+        in_app_notification_retention_days,
+        _env_int("IN_APP_NOTIFICATION_SECURITY_RETENTION_DAYS", 180),
+    )
+    in_app_notification_cleanup_batch_size: int = max(
+        1, _env_int("IN_APP_NOTIFICATION_CLEANUP_BATCH_SIZE", 1000)
+    )
 
     # ── Provider upstream HTTP client pool ───────────────────────
     provider_http_client_pool_enabled: bool = _env_bool("PROVIDER_HTTP_CLIENT_POOL_ENABLED", True)

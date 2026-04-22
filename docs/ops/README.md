@@ -45,7 +45,8 @@
 12. `14_Gmail_Email_Notifications.md`
 13. `15_Google_Cloud_Launch_Readiness.md`
 14. `16_Arbitrum_Sepolia_Staging_Contracts.md`
-15. `../security/README.md`
+15. `17_In_App_Notifications.md`
+16. `../security/README.md`
 
 ## 模块边界
 

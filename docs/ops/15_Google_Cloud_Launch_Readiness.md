@@ -17,7 +17,8 @@ Use Google Cloud official tooling, but keep production control inside Synapse
 release gates:
 
 1. `Cloud Shell` for first setup and one-off operations.
-2. `gcloud CLI` for project, IAM, VM, API, and Secret Manager operations.
+2. `gcloud CLI` for project, IAM, Cloud Run, Cloud SQL, API, and Secret
+   Manager operations.
 3. Terraform for reproducible infrastructure.
 4. Gemini CLI / Cloud Assist only as an assistant for command generation and
    troubleshooting; do not let it bypass evidence gates.
@@ -34,23 +35,51 @@ Official references:
 6. <https://support.google.com/a/answer/166852>
 7. <https://support.google.com/a/answer/2956491>
 
-## Current Staging Shape
+## MVP Low-Cost Runtime Shape
 
-V1 staging is one GCE VM running Docker Compose:
+The MVP launch path is Cloud Run + Cloud SQL first. Do **not** buy a 4c32g
+single VM and do **not** deploy Kafka, ClickHouse, Redis, Prometheus, Grafana,
+or Alertmanager as staging blockers.
+
+V1 keeps only the components needed to protect money movement and release
+evidence:
 
 1. Gateway
 2. Gateway-admin
 3. User-front
 4. Admin-front
-5. Provider runtime fixture
-6. Postgres
-7. Redis
-8. Kafka
-9. ClickHouse
-10. Nginx or Caddy
-11. Prometheus, Grafana, Alertmanager
-12. Gmail notification worker
-13. Lark alert relay or Alertmanager webhook routing
+5. Cloud SQL Postgres
+6. Secret Manager
+7. Artifact Registry
+8. Cloud Run services and lightweight jobs
+9. Cloud Scheduler for periodic jobs
+10. Cloud Logging / Cloud Monitoring
+11. Lark webhooks
+12. Gmail SMTP / Google Workspace relay
+13. Arbitrum Sepolia staging contracts
+
+V1 explicitly defers:
+
+1. Redis
+2. Kafka
+3. ClickHouse
+4. self-hosted Prometheus / Grafana / Alertmanager
+5. single-VM Docker Compose all-in-one staging
+6. GKE
+7. multi-region Cloud Run
+8. Cloud Spanner / BigQuery
+
+Replacement rules:
+
+1. Redis use cases are handled by Postgres durable idempotency, unique
+   constraints, row locks, and conservative low-traffic application limits.
+2. Kafka use cases are handled by the Postgres transactional outbox.
+3. ClickHouse use cases are handled by Postgres projections and summary tables.
+4. Prometheus/Grafana use cases are handled by Cloud Monitoring dashboards,
+   logs-based metrics, and Lark alert delivery evidence.
+
+The old GCE + Docker Compose staging plan is retained only as an emergency
+fallback in `docs/ops/09_Staging_First_GCE_Rollout.md`.
 
 Terraform scaffold:
 
@@ -72,13 +101,106 @@ The preflight verifies `gcloud`, Terraform, project access, billing, and require
 GCP APIs. It may enable missing APIs. Run it from Cloud Shell or a trusted local
 machine.
 
+## Staging Cloud Resources
+
+Staging resources:
+
+1. Cloud Run services:
+   - `synapse-staging-gateway`
+   - `synapse-staging-gateway-admin`
+   - `synapse-staging-user-front`
+   - `synapse-staging-admin-front`
+2. Cloud Run jobs or Scheduler-triggered endpoints:
+   - `notification-outbox-drain-staging`
+   - `withdrawal-reaper-staging`
+   - `in-app-notification-cleanup-staging`
+   - `backup-restore-drill-staging`
+3. Cloud SQL Postgres:
+   - `synapse-staging-postgres`
+4. Secret Manager:
+   - `synapse-staging-*`
+5. Artifact Registry:
+   - `synapse-staging`
+6. Cloud Monitoring:
+   - Gateway 5xx
+   - Cloud Run errors
+   - Cloud SQL CPU, storage, and connections
+   - job failures
+   - Lark relay failures
+
+Staging Cloud SQL starts small:
+
+```hcl
+tier               = "db-f1-micro"
+availability_type  = "ZONAL"
+disk_type          = "PD_SSD"
+disk_size          = 20
+disk_autoresize    = true
+```
+
+Staging backup policy:
+
+```hcl
+backup_configuration {
+  enabled                        = true
+  start_time                     = "19:00" # UTC; equals 03:00 Asia/Kuala_Lumpur
+  point_in_time_recovery_enabled = true
+  transaction_log_retention_days = 1
+}
+```
+
+If full-chain E2E, admin finance views, or Gateway API latency becomes unstable,
+upgrade staging to:
+
+```hcl
+tier = "db-g1-small"
+```
+
+## Production Cloud Resources
+
+Production uses the same simplified shape, but every boundary is isolated from
+staging:
+
+1. Separate Cloud SQL instance.
+2. Separate secrets.
+3. Separate Lark routes.
+4. Separate Gmail sender.
+5. Separate contract addresses.
+6. Separate owner and signer wallets.
+7. Separate domain.
+8. Separate evidence directory.
+
+Production Cloud SQL minimum:
+
+```hcl
+tier                = "db-g1-small"
+deletion_protection = true
+```
+
+Production backup policy:
+
+```hcl
+backup_configuration {
+  enabled                        = true
+  start_time                     = "19:00" # UTC; equals 03:00 Asia/Kuala_Lumpur
+  point_in_time_recovery_enabled = true
+  transaction_log_retention_days = 7
+}
+```
+
+Production must not launch until small-value chain rehearsal, withdrawal caps,
+manual approval thresholds, P0 Lark routing, restore evidence, and owner risk
+acceptance are attached.
+
 ## Google Cloud Infrastructure Checklist
 
 Before staging evidence:
 
 1. GCP project exists and billing is enabled.
 2. Required APIs are enabled:
-   - Compute Engine
+   - Cloud Run
+   - Cloud SQL Admin
+   - Cloud Scheduler
    - Secret Manager
    - Artifact Registry
    - Cloud Resource Manager
@@ -86,15 +208,69 @@ Before staging evidence:
    - Logging
    - Monitoring
    - Cloud Storage
-3. Staging VM is created by Terraform.
-4. Static IP is attached.
-5. DNS points staging domain to the static IP.
-6. TLS is configured by reverse proxy.
-7. SSH is restricted to IAP or explicit CIDR allowlist.
-8. Postgres, Redis, Kafka, and ClickHouse ports are not publicly exposed.
-9. Secrets are injected from Secret Manager or protected environment files.
-10. GCS backup bucket exists for recovery drill artifacts.
-11. Ops Agent, disk alerts, and process/health monitoring are enabled.
+3. Cloud SQL staging instance is created by Terraform.
+4. Artifact Registry exists.
+5. Secret Manager placeholders exist; real values are added out-of-band.
+6. Cloud Run runtime service account has only required roles.
+7. Gateway and Gateway-admin deploy with Cloud SQL connection limits.
+8. No Postgres port is publicly exposed.
+9. DNS points staging domains to Cloud Run or a managed load balancer.
+10. TLS is managed by Cloud Run/custom domains or load balancer.
+11. GCS backup bucket exists for recovery drill artifacts.
+12. Cloud Monitoring alerts exist for Cloud Run, Cloud SQL, and jobs.
+
+## Cloud SQL Connection Guard
+
+If staging/prod uses Cloud SQL Postgres, do not append SQLAlchemy-style
+connection pool parameters such as `?pool_size=5&max_overflow=2` to
+`POSTGRES_DSN`. Gateway uses `psycopg` plus its own `DatabaseManager`, so the
+effective pool control is the explicit environment variable below:
+
+```bash
+POSTGRES_POOL_MAX=5
+POSTGRES_CONNECT_TIMEOUT_SEC=5
+```
+
+For small Cloud SQL staging instances such as `db-f1-micro`, keep Gateway
+`POSTGRES_POOL_MAX=5` and cap Cloud Run to at most two instances. Total possible
+Gateway database connections are roughly:
+
+```text
+Cloud Run max instances * POSTGRES_POOL_MAX
+```
+
+Gateway enforces `POSTGRES_POOL_MAX` as a fail-closed safety boundary. Valid
+values are `1..10`. Values above `10`, zero, or non-integer values must stop
+startup with `DB-CONFIG-001` instead of silently falling back. This is deliberate:
+on `db-f1-micro`, excessive open connections can cause memory exhaustion that is
+harder to diagnose than a clean startup failure.
+
+Recommended MVP Cloud Run limits:
+
+1. Staging Gateway: `--concurrency=20 --max-instances=2 --min-instances=0`.
+2. Production Gateway: `--concurrency=40 --max-instances=3 --min-instances=1`.
+3. Gateway-admin: `POSTGRES_POOL_MAX=3` because admin traffic is lower and
+   queries can be heavier.
+
+Production `synapse-gateway` keeps `min-instances=1`. Treat this as payment
+entrypoint availability insurance, not a performance luxury: the first real
+deposit, invoke, or withdrawal request should not pay a cold-start penalty.
+Staging and non-critical admin/front services may keep `min-instances=0` to
+preserve the low-cost profile.
+
+Upgrade staging Cloud SQL from `db-f1-micro` to `db-g1-small` if any of these
+signals appear:
+
+1. Gateway logs contain `too many connections`.
+2. Full-chain E2E fails due to DB latency or connection timeout.
+3. Cloud SQL CPU stays above 70%.
+4. Cloud SQL active connections approach the instance limit.
+5. Finance/admin views show repeated p95 latency spikes.
+
+Alerting must include a P1 route for Cloud SQL connections above 80% of the
+instance limit for five minutes, and for Gateway `too many connections` log
+matches. The Lark action should tell the operator to reduce Cloud Run
+max-instances/concurrency or upgrade Cloud SQL tier.
 
 ## Email Readiness
 
@@ -113,7 +289,35 @@ Required:
 Environment variables are documented in
 `docs/ops/14_Gmail_Email_Notifications.md` and gateway `.env.*.example` files.
 
-Email is not a P0 incident channel. P0 incidents still use Lark/Prometheus.
+Email is not a P0 incident channel. P0 incidents use Lark alerts backed by
+Cloud Monitoring.
+
+## Gateway Runtime Configuration
+
+Staging and production run in Postgres-first mode:
+
+```bash
+STORAGE_BACKEND=postgres
+ANALYTICS_TRANSPORT=outbox
+ANALYTICS_STRICT_KAFKA=false
+ANALYTICS_KAFKA_BOOTSTRAP_SERVERS=
+
+REDIS_URL=
+DOWNSTREAM_ADAPTIVE_REDIS_ENABLED=false
+
+EMAIL_OUTBOX_ENABLED=true
+IN_APP_NOTIFICATION_CLEANUP_ENABLED=false
+
+RPC_URL=<arbitrum-rpc-url>
+ROUTER_ADDRESS=<SynapseCore>
+USDC_TOKEN_ADDRESS=<MockUSDC for staging or real USDC for production>
+PRIVATE_KEY=<withdraw signer private key>
+```
+
+API requests must not wait on Gmail, analytics publishing, notification cleanup,
+or long reaper loops. Long-running work runs as Cloud Run jobs or
+Scheduler-triggered endpoints. Money state transitions stay inside Gateway and
+Postgres transaction boundaries.
 
 ## Staging Chain Readiness
 
@@ -163,6 +367,10 @@ Production is still `NO-GO` until all items below have evidence:
 1. Gateway full-chain staging E2E:
    - `npm run release:evidence:gateway-fullchain:staging`
    - `GATEWAY_RELEASE_E2E_REQUIRED_ENV=staging npm run ci:gateway-release-e2e-evidence`
+   - Required artifacts include `trace.jsonl`; `report.json.traceDigest` must
+     equal the SHA-256 of that trace file. The trace stores sanitized request,
+     response, expected-vs-actual, reconciliation, ticket, and tx checkpoints for
+     every core scenario.
 2. One-ticket withdrawal 10-scenario evidence:
    - `npm run e2e:withdrawal-one-ticket-evidence`
    - `npm run ci:withdrawal-one-ticket-evidence`
@@ -213,22 +421,27 @@ Production is still `NO-GO` until all items below have evidence:
 ## Recommended Execution Order
 
 1. Create GCP staging infrastructure through Terraform.
-2. Deploy Docker Compose staging stack.
-3. Configure Lark alert routes and run Lark E2E evidence.
-4. Configure Gmail sender and run email notification evidence.
-5. Configure Prometheus/Grafana/Alertmanager and drill alerts.
-6. Run Gateway full-chain release E2E in staging.
-7. Run one-ticket withdrawal 10-scenario evidence.
-8. Run local and staging load/reconciliation evidence.
-9. Run backup/restore drill.
-10. Attach all evidence to production validation.
-11. Only then prepare production infrastructure and small-value rehearsal.
+2. Push images to Artifact Registry.
+3. Deploy Cloud Run services with low max-instance limits.
+4. Configure Cloud SQL connection caps and Secret Manager values.
+5. Configure Lark alert routes and run Lark E2E evidence.
+6. Configure Gmail sender and run email notification evidence.
+7. Configure Cloud Monitoring alert policies and drill alerts.
+8. Run Arbitrum Sepolia contract deployment evidence.
+9. Run Gateway full-chain release E2E in staging.
+10. Run one-ticket withdrawal 10-scenario evidence.
+11. Run local and staging load/reconciliation evidence.
+12. Run backup/restore drill.
+13. Attach all evidence to production validation.
+14. Only then prepare production infrastructure and small-value rehearsal.
 
 ## Hard Rules
 
 1. Do not use local CI as production evidence.
 2. Do not put secrets in Terraform variables, git, screenshots, or evidence.
-3. Do not expose Postgres, Kafka, ClickHouse, Redis, or `/metrics` publicly.
+3. Do not expose Postgres or `/metrics` publicly.
 4. Do not run destructive restore against production.
 5. Do not represent internal audit as third-party audit.
 6. Do not launch production while validation remains `NO-GO`.
+7. Do not reintroduce Redis, Kafka, or ClickHouse as MVP launch blockers without
+   a new cost/risk review.

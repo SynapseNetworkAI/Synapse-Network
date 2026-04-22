@@ -18,6 +18,11 @@ from src.api.routers.balance_helpers import (
     _extract_request_meta,
     _ensure_fee_policy_admin,
 )
+from src.services.notifications.in_app import (
+    build_provider_withdrawal_created_intent,
+    schedule_in_app_notification,
+)
+from src.storage import BaseStorage, get_storage
 
 router = APIRouter()
 
@@ -46,12 +51,17 @@ async def create_provider_withdraw_intent(
     ],
     owner_wallet: Annotated[str, Depends(get_owner_wallet)],
     service: Annotated[BalanceService, Depends(get_balance_service)],
+    storage: Annotated[BaseStorage, Depends(get_storage)],
 ):
     result = await service.create_provider_withdraw_intent(
         payload.model_dump(),
         owner_wallet,
         idempotency_key,
         _extract_request_meta(request),
+    )
+    schedule_in_app_notification(
+        storage,
+        build_provider_withdrawal_created_intent(owner_wallet, result),
     )
     return {"status": "success", "ownerAddress": owner_wallet, **result}
 

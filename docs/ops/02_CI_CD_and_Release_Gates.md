@@ -112,6 +112,11 @@ Gateway full-chain E2E 是 release evidence gate，不属于普通 PR CI。普�
 1. `npm run release:evidence:gateway-fullchain:staging`
 2. `GATEWAY_RELEASE_E2E_REQUIRED_ENV=staging npm run ci:gateway-release-e2e-evidence`
 
+The gateway release evidence bundle must include `trace.jsonl`. The checker
+verifies that it is non-empty, has a checkpoint for every core scenario, contains
+no secret-like material, has no failed reconciliation status, and matches
+`report.json.traceDigest`.
+
 本地可用 `npm run release:evidence:gateway-fullchain:local` 做 rehearsal，但它只证明本地链路和证据脚本可运行，不替代 staging 或 production Go/No-Go evidence。
 
 Arbitrum Sepolia staging contract deployment is also a release evidence gate. Before Gateway staging is pointed at a public testnet contract, run:

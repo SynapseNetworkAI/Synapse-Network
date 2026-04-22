@@ -1,6 +1,7 @@
 import logging
 import asyncio
 import time
+from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager, suppress
 from fastapi import FastAPI, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,6 +17,7 @@ from src.api.routers import (
     provider_secrets,
     forwarding,
     community,
+    notifications,
 )
 from src.storage import create_storage
 from src.services.platform.tasks.deposit_indexer import (
@@ -31,6 +33,7 @@ from src.services.platform.tasks.consumer_withdraw_processor import (
 from src.services.platform.service_health_service import run_service_health_monitor
 from src.services.analytics.emitter import create_analytics_emitter
 from src.services.analytics import gateway_events as gw_analytics
+from src.services.notifications.in_app_cleanup import run_in_app_notification_cleanup
 from src.services.owner.forwarding_upstream import close_upstream_http_client
 from src.api.routers.events import router as events_router
 
@@ -44,6 +47,45 @@ def _task_initialized(task: asyncio.Task | None) -> bool:
 
 def _build_monitor_state(*, enabled: bool, task: asyncio.Task | None) -> dict[str, bool]:
     return {"enabled": enabled, "initialized": _task_initialized(task)}
+
+
+def _start_background_task(
+    app: FastAPI,
+    *,
+    enabled: bool,
+    stop_attr: str,
+    task_attr: str,
+    runner: Callable[[asyncio.Event, object], Awaitable[None]],
+) -> None:
+    stop_event = asyncio.Event()
+    setattr(app.state, stop_attr, stop_event)
+    setattr(app.state, task_attr, None)
+    if enabled:
+        setattr(
+            app.state,
+            task_attr,
+            asyncio.create_task(runner(stop_event, app.state.storage)),
+        )
+
+
+async def _cancel_background_task(
+    app: FastAPI,
+    *,
+    stop_attr: str,
+    task_attr: str,
+    label: str,
+) -> None:
+    if hasattr(app.state, stop_attr):
+        getattr(app.state, stop_attr).set()
+    if not hasattr(app.state, task_attr):
+        return
+    task = getattr(app.state, task_attr)
+    if task is None:
+        return
+    task.cancel()
+    with suppress(asyncio.CancelledError):
+        await task
+    logger.info("%s task cancelled during shutdown", label)
 
 
 def _build_deposit_indexer_monitor(task: asyncio.Task | None) -> dict[str, object]:
@@ -132,6 +174,10 @@ def _readiness_snapshot(app: FastAPI) -> dict[str, object]:
             enabled=settings.consumer_withdraw_processor_enabled,
             task=_state_task("consumer_withdraw_processor_task"),
         ),
+        "in_app_notification_cleanup": _build_monitor_state(
+            enabled=settings.in_app_notification_cleanup_enabled,
+            task=_state_task("in_app_notification_cleanup_task"),
+        ),
     }
 
     ready = bool(deposit_monitor.get("healthy")) and all(
@@ -164,86 +210,77 @@ async def lifespan(app: FastAPI):
     )
     gw_analytics.set_emitter(app.state.analytics)
 
-    # 启动 V2 链上索引守护任务（主索引器）
-    # 该任务负责充值事件的异步确认与最终一致性入账。
-    app.state.v2_indexer_stop_event = asyncio.Event()
-    app.state.v2_indexer_task = asyncio.create_task(
-        run_v2_deposit_indexer(app.state.v2_indexer_stop_event, app.state.storage)
+    # Background workers are created through one helper so adding a new worker
+    # does not turn lifespan into a branchy shutdown maze.
+    _start_background_task(
+        app,
+        enabled=True,
+        stop_attr="v2_indexer_stop_event",
+        task_attr="v2_indexer_task",
+        runner=run_v2_deposit_indexer,
     )
-
-    # Service health monitor keeps provider targets fresh for discover and routing.
-    app.state.service_health_stop_event = asyncio.Event()
-    app.state.service_health_task = None
-    if settings.service_health_monitor_enabled:
-        app.state.service_health_task = asyncio.create_task(
-            run_service_health_monitor(
-                app.state.service_health_stop_event, app.state.storage
-            )
-        )
-
-    app.state.provider_withdraw_expiry_reaper_stop_event = asyncio.Event()
-    app.state.provider_withdraw_expiry_reaper_task = None
-    if settings.provider_withdraw_expiry_reaper_enabled:
-        app.state.provider_withdraw_expiry_reaper_task = asyncio.create_task(
-            run_provider_withdraw_expiry_reaper(
-                app.state.provider_withdraw_expiry_reaper_stop_event,
-                app.state.storage,
-            )
-        )
-
-    # Consumer withdrawal processor: recovery-only safety net.
-    # It never sends on-chain transactions; it reconciles ticketHash events and
-    # only releases expired tickets after RPC block-time safety checks.
-    app.state.consumer_withdraw_processor_stop_event = asyncio.Event()
-    app.state.consumer_withdraw_processor_task = None
-    if settings.consumer_withdraw_processor_enabled:
-        app.state.consumer_withdraw_processor_task = asyncio.create_task(
-            run_consumer_withdraw_processor(
-                app.state.consumer_withdraw_processor_stop_event,
-                app.state.storage,
-            )
-        )
+    _start_background_task(
+        app,
+        enabled=settings.service_health_monitor_enabled,
+        stop_attr="service_health_stop_event",
+        task_attr="service_health_task",
+        runner=run_service_health_monitor,
+    )
+    _start_background_task(
+        app,
+        enabled=settings.provider_withdraw_expiry_reaper_enabled,
+        stop_attr="provider_withdraw_expiry_reaper_stop_event",
+        task_attr="provider_withdraw_expiry_reaper_task",
+        runner=run_provider_withdraw_expiry_reaper,
+    )
+    _start_background_task(
+        app,
+        enabled=settings.consumer_withdraw_processor_enabled,
+        stop_attr="consumer_withdraw_processor_stop_event",
+        task_attr="consumer_withdraw_processor_task",
+        runner=run_consumer_withdraw_processor,
+    )
+    _start_background_task(
+        app,
+        enabled=settings.in_app_notification_cleanup_enabled,
+        stop_attr="in_app_notification_cleanup_stop_event",
+        task_attr="in_app_notification_cleanup_task",
+        runner=run_in_app_notification_cleanup,
+    )
 
     yield
     # Cleanup on shutdown
     logger.info("Application shutting down...")
-    if hasattr(app.state, "v2_indexer_stop_event"):
-        app.state.v2_indexer_stop_event.set()
-    if hasattr(app.state, "v2_indexer_task"):
-        app.state.v2_indexer_task.cancel()
-        with suppress(asyncio.CancelledError):
-            await app.state.v2_indexer_task
-        logger.info("V2 indexer task cancelled during shutdown")
-    if hasattr(app.state, "service_health_stop_event"):
-        app.state.service_health_stop_event.set()
-    if (
-        hasattr(app.state, "service_health_task")
-        and app.state.service_health_task is not None
-    ):
-        app.state.service_health_task.cancel()
-        with suppress(asyncio.CancelledError):
-            await app.state.service_health_task
-        logger.info("Service health task cancelled during shutdown")
-    if hasattr(app.state, "provider_withdraw_expiry_reaper_stop_event"):
-        app.state.provider_withdraw_expiry_reaper_stop_event.set()
-    if (
-        hasattr(app.state, "provider_withdraw_expiry_reaper_task")
-        and app.state.provider_withdraw_expiry_reaper_task is not None
-    ):
-        app.state.provider_withdraw_expiry_reaper_task.cancel()
-        with suppress(asyncio.CancelledError):
-            await app.state.provider_withdraw_expiry_reaper_task
-        logger.info("Provider withdrawal expiry reaper task cancelled during shutdown")
-    if hasattr(app.state, "consumer_withdraw_processor_stop_event"):
-        app.state.consumer_withdraw_processor_stop_event.set()
-    if (
-        hasattr(app.state, "consumer_withdraw_processor_task")
-        and app.state.consumer_withdraw_processor_task is not None
-    ):
-        app.state.consumer_withdraw_processor_task.cancel()
-        with suppress(asyncio.CancelledError):
-            await app.state.consumer_withdraw_processor_task
-        logger.info("Consumer withdrawal processor task cancelled during shutdown")
+    await _cancel_background_task(
+        app,
+        stop_attr="v2_indexer_stop_event",
+        task_attr="v2_indexer_task",
+        label="V2 indexer",
+    )
+    await _cancel_background_task(
+        app,
+        stop_attr="service_health_stop_event",
+        task_attr="service_health_task",
+        label="Service health",
+    )
+    await _cancel_background_task(
+        app,
+        stop_attr="provider_withdraw_expiry_reaper_stop_event",
+        task_attr="provider_withdraw_expiry_reaper_task",
+        label="Provider withdrawal expiry reaper",
+    )
+    await _cancel_background_task(
+        app,
+        stop_attr="consumer_withdraw_processor_stop_event",
+        task_attr="consumer_withdraw_processor_task",
+        label="Consumer withdrawal processor",
+    )
+    await _cancel_background_task(
+        app,
+        stop_attr="in_app_notification_cleanup_stop_event",
+        task_attr="in_app_notification_cleanup_task",
+        label="In-app notification cleanup",
+    )
 
     # Cleanup analytics
     if hasattr(app.state, "analytics"):
@@ -297,6 +334,7 @@ def create_app() -> FastAPI:
     app.include_router(provider_secrets.router, prefix="/api", tags=["provider-secrets"])
     app.include_router(forwarding.router, prefix="/api", tags=["forwarding"])
     app.include_router(community.router, prefix="/api", tags=["community"])
+    app.include_router(notifications.router, prefix="/api", tags=["notifications"])
     app.include_router(events_router, tags=["analytics"])
 
     @app.get("/health")

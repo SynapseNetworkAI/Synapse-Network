@@ -10,6 +10,8 @@ import pytest
 from src.services.platform.tasks.deposit_indexer import runner
 from src.services.platform.tasks.deposit_indexer import shared
 from src.services.platform import service_health_probe
+from src import storage as storage_module
+from src.core import config_loaders
 from src.storage import postgres_impl
 
 
@@ -135,6 +137,121 @@ def test_postgres_storage_passes_connect_timeout_to_psycopg(monkeypatch) -> None
         "dsn": "postgresql://gateway.test/synapse",
         "connect_timeout": 7,
     }
+
+
+def test_postgres_storage_passes_pool_max_to_database_manager(monkeypatch) -> None:
+    captured: list[dict[str, object]] = []
+
+    class _FakeDatabaseManager:
+        def __init__(self, connect_factory, *, pool_max=5):
+            captured.append(
+                {"connect_factory": connect_factory, "pool_max": pool_max}
+            )
+
+    monkeypatch.setattr(postgres_impl, "DatabaseManager", _FakeDatabaseManager)
+
+    postgres_impl.PostgresStorage(
+        "postgresql://gateway.test/synapse",
+        ensure_schema=False,
+        pool_max=2,
+    )
+
+    assert captured[0]["pool_max"] == 2
+
+
+@pytest.mark.parametrize("pool_max", [0, 11, "not-an-int"])
+def test_postgres_storage_rejects_unsafe_pool_max(monkeypatch, pool_max) -> None:
+    class _FakeDatabaseManager:
+        def __init__(self, connect_factory, *, pool_max=5):
+            raise AssertionError("DatabaseManager should not be reached")
+
+    monkeypatch.setattr(postgres_impl, "DatabaseManager", _FakeDatabaseManager)
+
+    with pytest.raises(RuntimeError, match="DB-CONFIG-001"):
+        postgres_impl.PostgresStorage(
+            "postgresql://gateway.test/synapse",
+            ensure_schema=False,
+            pool_max=pool_max,
+        )
+
+
+def test_create_storage_passes_default_and_custom_pool_max(monkeypatch) -> None:
+    captured: list[dict[str, object]] = []
+
+    class _FakePostgresStorage:
+        def __init__(self, **kwargs):
+            captured.append(kwargs)
+
+    monkeypatch.setattr(storage_module, "PostgresStorage", _FakePostgresStorage)
+
+    base_settings = {
+        "storage_backend": "postgres",
+        "postgres_dsn": "postgresql://gateway.test/synapse",
+        "postgres_auto_init": False,
+        "postgres_connect_timeout_sec": 7,
+    }
+
+    storage_module.create_storage(SimpleNamespace(**base_settings))
+    storage_module.create_storage(
+        SimpleNamespace(**base_settings, postgres_pool_max=2)
+    )
+
+    assert captured[0]["pool_max"] == 5
+    assert captured[1]["pool_max"] == 2
+
+
+@pytest.mark.parametrize("pool_max", [0, 11, "not-an-int"])
+def test_create_storage_rejects_unsafe_pool_max(monkeypatch, pool_max) -> None:
+    class _FakePostgresStorage:
+        def __init__(self, **kwargs):
+            raise AssertionError("PostgresStorage should not be reached")
+
+    monkeypatch.setattr(storage_module, "PostgresStorage", _FakePostgresStorage)
+
+    with pytest.raises(RuntimeError, match="DB-CONFIG-001"):
+        storage_module.create_storage(
+            SimpleNamespace(
+                storage_backend="postgres",
+                postgres_dsn="postgresql://gateway.test/synapse",
+                postgres_auto_init=False,
+                postgres_connect_timeout_sec=7,
+                postgres_pool_max=pool_max,
+            )
+        )
+
+
+def test_postgres_pool_env_strict_range(monkeypatch) -> None:
+    monkeypatch.delenv("POSTGRES_POOL_MAX", raising=False)
+    assert config_loaders._env_int_strict_range(
+        "POSTGRES_POOL_MAX",
+        5,
+        minimum=1,
+        maximum=10,
+        fatal_code="DB-CONFIG-001",
+        guidance="set POSTGRES_POOL_MAX between 1 and 10; staging default is 5.",
+    ) == 5
+
+    monkeypatch.setenv("POSTGRES_POOL_MAX", "10")
+    assert config_loaders._env_int_strict_range(
+        "POSTGRES_POOL_MAX",
+        5,
+        minimum=1,
+        maximum=10,
+        fatal_code="DB-CONFIG-001",
+        guidance="set POSTGRES_POOL_MAX between 1 and 10; staging default is 5.",
+    ) == 10
+
+    for value in ("0", "11", "not-an-int"):
+        monkeypatch.setenv("POSTGRES_POOL_MAX", value)
+        with pytest.raises(RuntimeError, match="DB-CONFIG-001"):
+            config_loaders._env_int_strict_range(
+                "POSTGRES_POOL_MAX",
+                5,
+                minimum=1,
+                maximum=10,
+                fatal_code="DB-CONFIG-001",
+                guidance="set POSTGRES_POOL_MAX between 1 and 10; staging default is 5.",
+            )
 
 
 @pytest.mark.asyncio
