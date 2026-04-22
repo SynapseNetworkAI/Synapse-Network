@@ -1,7 +1,7 @@
 """Deposit, refund, and consumer withdrawal balance routes."""
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Header, Query, Request
 
 from src.api.deps import get_balance_service
 from src.api.routers.balance_helpers import (
@@ -23,7 +23,13 @@ from src.api.routers.balance_helpers import (
     _ensure_fee_policy_admin,
 )
 from src.api.schemas.pydantic_models import ConsumerWithdrawRequest
-from src.storage import get_storage
+from src.services.notifications.in_app import (
+    build_consumer_withdrawal_created_intent,
+    build_deposit_confirmed_intent,
+    build_refund_completed_intent,
+    schedule_in_app_notification,
+)
+from src.storage import BaseStorage, get_storage
 
 router = APIRouter()
 
@@ -36,10 +42,13 @@ async def get_balance(
     """[极速路由] 获取当前会话 owner 的余额摘要。"""
     try:
         balance_data = await service.get_balance(owner_wallet)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Database IO blocked: {exc}",
+        ) from exc
+    else:
         return {"status": "success", "balance": balance_data}
-    except Exception as e:
-        from fastapi import HTTPException
-        raise HTTPException(status_code=500, detail=f"Database IO blocked: {str(e)}")
 
 
 @router.post("/v1/balance/deposit/intent")
@@ -119,6 +128,7 @@ async def confirm_deposit_intent(
     request: Request,
     owner_wallet: Annotated[str, Depends(get_owner_wallet)],
     service: Annotated[BalanceService, Depends(get_balance_service)],
+    storage: Annotated[BaseStorage, Depends(get_storage)],
 ):
     confirmed = await service.confirm_deposit_intent(
         owner_wallet=owner_wallet,
@@ -126,6 +136,10 @@ async def confirm_deposit_intent(
         event_key=payload.eventKey,
         confirmations=payload.confirmations,
         request_meta=_extract_request_meta(request),
+    )
+    schedule_in_app_notification(
+        storage,
+        build_deposit_confirmed_intent(owner_wallet, confirmed),
     )
     return {"status": "success", "intent": confirmed}
 
@@ -166,6 +180,7 @@ async def complete_refund(
     request: Request,
     owner_wallet: Annotated[str, Depends(get_owner_wallet)],
     service: Annotated[BalanceService, Depends(get_balance_service)],
+    storage: Annotated[BaseStorage, Depends(get_storage)],
 ):
     request_meta = _extract_request_meta(request)
     review_meta = {
@@ -180,6 +195,10 @@ async def complete_refund(
         refund_id=refund_id,
         tx_hash=payload.txHash,
         request_meta=request_meta,
+    )
+    schedule_in_app_notification(
+        storage,
+        build_refund_completed_intent(owner_wallet, {"refundId": refund_id, **result}),
     )
     return {"status": "success", "ownerAddress": owner_wallet, **result}
 
@@ -307,6 +326,7 @@ async def create_consumer_withdraw(
     ],
     owner_wallet: Annotated[str, Depends(get_owner_wallet)],
     service: Annotated[BalanceService, Depends(get_balance_service)],
+    storage: Annotated[BaseStorage, Depends(get_storage)],
 ):
     """
     Withdraw UNUSED consumer balance (unspent deposits) back to the owner wallet.
@@ -320,6 +340,10 @@ async def create_consumer_withdraw(
         owner_wallet=owner_wallet,
         idempotency_key=idempotency_key,
         request_meta=_extract_request_meta(request),
+    )
+    schedule_in_app_notification(
+        storage,
+        build_consumer_withdrawal_created_intent(owner_wallet, result),
     )
     return {"status": "success", "ownerAddress": owner_wallet, **result}
 

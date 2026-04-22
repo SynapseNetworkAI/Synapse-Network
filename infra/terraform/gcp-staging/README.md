@@ -1,21 +1,32 @@
 # GCP Staging Terraform
 
-This Terraform module provisions the minimum Google Cloud substrate for the
-single-VM staging rollout described in `docs/ops/09_Staging_First_GCE_Rollout.md`
-and `docs/ops/15_Google_Cloud_Launch_Readiness.md`.
+This module provisions the MVP staging substrate for the low-cost Cloud Run and
+Cloud SQL architecture described in
+`docs/ops/15_Google_Cloud_Launch_Readiness.md`.
 
-It intentionally creates infrastructure only. It does **not** store secret
-values, deploy application containers, or run production evidence tests.
+It intentionally does not provision the old single-VM Docker Compose stack.
+That path remains an emergency fallback only.
 
 ## Creates
 
-- VPC and subnet
-- reserved external static IP
-- firewall rules for HTTP/HTTPS and restricted SSH/IAP
-- staging service account
-- GCE VM with Docker and Ops Agent bootstrap
-- GCS backup bucket
+- Artifact Registry repository for Docker images
+- Cloud SQL Postgres instance and Gateway database
+- Cloud SQL backups with PITR enabled
+- GCS backup/evidence bucket
 - Secret Manager secret placeholders
+- Cloud Run runtime service account
+- IAM grants for logging, monitoring, Secret Manager access, and Cloud SQL
+- Optional Cloud Run services when image variables are provided
+
+## Does Not Create
+
+- Redis
+- Kafka
+- ClickHouse
+- GKE
+- single GCE VM
+- real secret values
+- production resources
 
 ## Cloud Shell Usage
 
@@ -27,13 +38,13 @@ bash scripts/deploy/gcp_preflight.sh YOUR_PROJECT_ID
 
 cd infra/terraform/gcp-staging
 cp terraform.tfvars.example terraform.tfvars
-# edit project_id, ssh_source_ranges, backup_bucket_name, and labels
+# edit project_id, backup_bucket_name, and optional image/env values
 terraform init
 terraform plan
 terraform apply
 ```
 
-After apply, set secret **values** outside Terraform, for example:
+After apply, add secret **values** outside Terraform, for example:
 
 ```bash
 printf '%s' 'real-secret-value' | \
@@ -41,3 +52,37 @@ printf '%s' 'real-secret-value' | \
 ```
 
 Do not commit `terraform.tfvars`, `.terraform/`, or real secret values.
+
+Create database users/passwords outside Terraform as well, so passwords do not
+land in Terraform state. Store the resulting password in Secret Manager and
+inject it into Cloud Run at deploy time.
+
+## First Deployment Strategy
+
+If image names are not ready, keep `gateway_image`, `gateway_admin_image`,
+`user_front_image`, and `admin_front_image` empty. Terraform will create the
+durable substrate first. Then deploy the first containers manually:
+
+```bash
+gcloud run deploy synapse-staging-gateway \
+  --region us-central1 \
+  --image us-central1-docker.pkg.dev/PROJECT/synapse-staging/gateway:TAG \
+  --concurrency 20 \
+  --max-instances 2 \
+  --min-instances 0
+```
+
+Once staging is stable, set the image variables and let Terraform own the Cloud
+Run services.
+
+## Cloud Run Scaling Guard
+
+The Gateway service uses environment-aware scaling defaults:
+
+- `environment=staging`: `concurrency=20`, `max_instances=2`, `min_instances=0`.
+- `environment=prod` or `production`: `concurrency=40`, `max_instances=3`,
+  `min_instances=1`.
+
+The production `min_instances=1` guard applies only to the Gateway payment
+entrypoint. Gateway-admin and front-end services stay at `min_instances=0`
+unless production evidence shows they need a warm instance.

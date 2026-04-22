@@ -1,0 +1,107 @@
+{
+  "status": "success",
+  "generatedAt": "2026-04-22T05:41:55.779Z",
+  "startedAt": "2026-04-22T05:41:54.299Z",
+  "finishedAt": "2026-04-22T05:41:55.779Z",
+  "runId": "lark-e2e-mo9ml0xn-lutsy8",
+  "environment": "local",
+  "sentCount": 7,
+  "failed": [],
+  "endpoints": {
+    "/lark/p0-war-room": {
+      "name": "p0-war-room",
+      "webhookEnv": "LARK_WEBHOOK_P0_WAR_ROOM",
+      "secretEnv": "LARK_SECRET_P0_WAR_ROOM",
+      "webhookConfigured": true,
+      "secretConfigured": false
+    },
+    "/lark/prod-alerts": {
+      "name": "prod-alerts",
+      "webhookEnv": "LARK_WEBHOOK_PROD_ALERTS",
+      "secretEnv": "LARK_SECRET_PROD_ALERTS",
+      "webhookConfigured": true,
+      "secretConfigured": false
+    },
+    "/lark/staging-drill": {
+      "name": "staging-drill",
+      "webhookEnv": "LARK_WEBHOOK_STAGING_DRILL",
+      "secretEnv": "LARK_SECRET_STAGING_DRILL",
+      "webhookConfigured": true,
+      "secretConfigured": false
+    }
+  },
+  "requiredScenarios": [
+    "p0-firing",
+    "p0-resolved",
+    "prod-firing",
+    "prod-resolved",
+    "staging-firing",
+    "staging-resolved",
+    "staging-batch-folding"
+  ],
+  "scenarios": [
+    {
+      "name": "p0-firing",
+      "endpoint": "/lark/p0-war-room",
+      "status": "firing",
+      "alertCount": 1,
+      "foldedCount": 0,
+      "ok": true,
+      "httpStatus": 200
+    },
+    {
+      "name": "p0-resolved",
+      "endpoint": "/lark/p0-war-room",
+      "status": "resolved",
+      "alertCount": 1,
+      "foldedCount": 0,
+      "ok": true,
+      "httpStatus": 200
+    },
+    {
+      "name": "prod-firing",
+      "endpoint": "/lark/prod-alerts",
+      "status": "firing",
+      "alertCount": 1,
+      "foldedCount": 0,
+      "ok": true,
+      "httpStatus": 200
+    },
+    {
+      "name": "prod-resolved",
+      "endpoint": "/lark/prod-alerts",
+      "status": "resolved",
+      "alertCount": 1,
+      "foldedCount": 0,
+      "ok": true,
+      "httpStatus": 200
+    },
+    {
+      "name": "staging-firing",
+      "endpoint": "/lark/staging-drill",
+      "status": "firing",
+      "alertCount": 1,
+      "foldedCount": 0,
+      "ok": true,
+      "httpStatus": 200
+    },
+    {
+      "name": "staging-resolved",
+      "endpoint": "/lark/staging-drill",
+      "status": "resolved",
+      "alertCount": 1,
+      "foldedCount": 0,
+      "ok": true,
+      "httpStatus": 200
+    },
+    {
+      "name": "staging-batch-folding",
+      "endpoint": "/lark/staging-drill",
+      "status": "firing",
+      "alertCount": 100,
+      "foldedCount": 99,
+      "ok": true,
+      "httpStatus": 200
+    }
+  ]
+}

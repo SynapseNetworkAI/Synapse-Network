@@ -18,6 +18,11 @@ venv/
 agent_wallet.json
 .env
 
+# Terraform local variable files may contain org, billing, project, or secret values.
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+
 # Service .env files (each service carries its own .env.*.example)
 services/gateway/.env.local
 services/gateway/.env.staging

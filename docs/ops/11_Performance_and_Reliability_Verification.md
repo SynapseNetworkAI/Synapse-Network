@@ -311,10 +311,6 @@ npm run chaos:rpc-outage
 SYNAPSE_CHAOS_ENV=staging \
 SYNAPSE_CHAOS_CONFIRM=I_UNDERSTAND_THIS_BREAKS_STAGING \
 npm run chaos:postgres-failover
-
-SYNAPSE_CHAOS_ENV=staging \
-SYNAPSE_CHAOS_CONFIRM=I_UNDERSTAND_THIS_BREAKS_STAGING \
-npm run chaos:redis-unavailable
 ```
 
 Required drills:
@@ -322,10 +318,10 @@ Required drills:
 1. Provider outage: unhealthy targets drain from discovery/invoke and recover after health returns.
 2. Gateway restart: in-flight idempotent operations do not double-charge or lose audit events.
 3. Gateway-admin restart: high-risk admin actions remain auditable and do not mutate runtime ledger directly.
-4. ClickHouse/Kafka outage: analytics degrades visibly without blocking money movement.
+4. Analytics outbox/projection degradation: analytics degrades visibly without blocking money movement. ClickHouse/Kafka outage is a growth-stage drill only if those systems are reintroduced.
 5. RPC outage or slow RPC: deposit/withdraw watchers degrade and recover without duplicate settlement.
 6. Postgres failover: API returns bounded errors or recovers; no partial money mutation.
-7. Redis unavailable: rate limit/idempotency fallback behavior is explicit and safe.
+7. Postgres idempotency/row-lock fallback: durable idempotency and lock behavior remains explicit and safe without Redis in the MVP runtime.
 8. Stale health: stale provider health cannot make a service callable.
 
 Every chaos drill must attach the alert fired, dashboard screenshot or link, log excerpt, recovery action, and post-drill reconciliation.

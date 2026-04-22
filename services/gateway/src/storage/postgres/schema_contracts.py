@@ -264,6 +264,62 @@ POSTGRES_TABLE_SCHEMA_CONTRACTS: tuple[TableSchemaContract, ...] = (
         ),
     ),
     TableSchemaContract(
+        table_name="synapse_in_app_notifications",
+        required_columns=frozenset(
+            {
+                "row_id",
+                "notification_id",
+                "dedupe_key",
+                "recipient_type",
+                "recipient_owner_id",
+                "recipient_admin_id",
+                "event_type",
+                "category",
+                "severity",
+                "priority",
+                "title",
+                "body",
+                "action_url",
+                "resource_type",
+                "resource_id",
+                "payload",
+                "read_at",
+                "archived_at",
+                "expires_at",
+                "created_at",
+            }
+        ),
+        required_indexes=frozenset(
+            {
+                "idx_synapse_in_app_notifications_owner_unread",
+                "idx_synapse_in_app_notifications_admin_unread",
+                "idx_synapse_in_app_notifications_owner_created",
+                "idx_synapse_in_app_notifications_dedupe",
+                "idx_synapse_in_app_notifications_expires",
+            }
+        ),
+        required_constraints=(
+            _constraint("primary key on in-app notification id", PRIMARY_KEY_FRAGMENT, "notification_id"),
+            _constraint("unique in-app notification dedupe key", "unique", "dedupe_key"),
+            _constraint(
+                "in-app notification recipient type",
+                "check",
+                "recipient_type",
+                "owner",
+                "provider",
+                "admin",
+                "ops",
+            ),
+            _constraint(
+                "in-app notification payload object",
+                "check",
+                "jsonb_typeof",
+                "payload",
+                "object",
+            ),
+        ),
+    ),
+    TableSchemaContract(
         table_name="synapse_idempotency_keys",
         required_columns=frozenset({"row_id", "id", "scope", "owner_id", "idempotency_key", "request_hash", "response_code", "response_digest", "created_at", "expires_at"}),
         required_indexes=frozenset({"idx_synapse_idempotency_keys_expires"}),

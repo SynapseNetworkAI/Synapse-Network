@@ -2,9 +2,10 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Bell, Network, Search } from "lucide-react";
+import { Network, Search } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
+import NotificationCenter from "@/components/NotificationCenter";
 import QuickAccessDialog from "@/components/QuickAccessDialog";
 import LanguageSwitcher from "@/components/i18n/LanguageSwitcher";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
@@ -335,13 +336,7 @@ export default function Navbar() {
                 >
                   {t("nav.forum")}
                 </Link>
-                <Link
-                  href="/dashboard/audit"
-                  className="inline-flex items-center justify-center text-[#71767b] transition hover:text-[#e7e9ea]"
-                  aria-label={t("nav.notifications")}
-                >
-                  <Bell className="h-[18px] w-[18px]" />
-                </Link>
+                <NotificationCenter />
               </div>
               <LanguageSwitcher className="tracking-[0.01em] focus-visible:border-[#536471]" />
             </div>

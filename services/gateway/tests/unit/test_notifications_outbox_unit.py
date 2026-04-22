@@ -12,7 +12,9 @@ from src.services.notifications.models import (
     EmailFromMissing,
     EmailSendResult,
     GmailCredentialsMissing,
+    InAppNotificationIntent,
     InvalidNotificationIntent,
+    InvalidInAppNotificationIntent,
     NotificationIntent,
     NotificationOutboxRow,
     NotificationStorageUnsupported,
@@ -26,7 +28,16 @@ from src.services.notifications.outbox_worker import (
 from src.services.notifications.sanitizer import mask_email, redact_payload, redact_text
 from src.services.notifications.sender import GmailSmtpSender
 from src.services.notifications.templates import render_notification_email
+from src.services.notifications.in_app import (
+    IN_APP_NOTIFICATION_EVENT_CATALOG,
+    SUPPRESSED_REALTIME_IN_APP_EVENTS,
+    build_deposit_confirmed_intent,
+    schedule_in_app_notification,
+)
 from src.storage.postgres_impl import PostgresStorage
+from src.storage.postgres.repositories.in_app_notification_repository import (
+    InAppNotificationRepository,
+)
 from src.storage.postgres.repositories.notification_outbox_repository import (
     NotificationOutboxRepository,
 )
@@ -93,6 +104,7 @@ class FakeCursor:
         self.statements: list[tuple[str, tuple | None]] = []
         self._fetchall_rows = fetchall_rows or []
         self._fetchone_row = fetchone_row
+        self.rowcount = 1
 
     def execute(self, sql: str, params: tuple | None = None) -> None:
         self.statements.append((sql, params))
@@ -164,12 +176,176 @@ def _intent(**overrides) -> NotificationIntent:
     return NotificationIntent(**values)
 
 
+def _in_app_intent(**overrides) -> InAppNotificationIntent:
+    values = {
+        "notification_id": "inapp-1",
+        "dedupe_key": "deposit.confirmed:0xabc:dep-1",
+        "recipient_type": "owner",
+        "recipient_owner_id": "0xABC",
+        "event_type": "deposit.confirmed",
+        "category": "deposit",
+        "severity": "success",
+        "priority": "transactional",
+        "title": "Deposit confirmed",
+        "body": "Deposit dep-1 has been credited.",
+        "action_url": "/dashboard/billing/credits",
+        "resource_type": "deposit",
+        "resource_id": "dep-1",
+        "payload": {"amount": "2.000000", "currency": "USDC", "signature": "0x" + "a" * 130},
+    }
+    values.update(overrides)
+    return InAppNotificationIntent(**values)
+
+
 def test_notification_outbox_claim_query_uses_skip_locked() -> None:
     source = inspect.getsource(NotificationOutboxRepository.claim_batch)
 
     assert "FOR UPDATE SKIP LOCKED" in source
     assert "status IN ('pending', 'retry')" in source
     assert "status = 'leased'" in source
+
+
+def test_in_app_notification_repository_inserts_sanitized_deduped_rows() -> None:
+    tx_cursor = FakeCursor()
+    repo = InAppNotificationRepository(FakeDatabaseManager(tx_cursor=tx_cursor))
+
+    repo.enqueue(_in_app_intent())
+
+    sql, params = tx_cursor.statements[0]
+    assert "INSERT INTO synapse_in_app_notifications" in sql
+    assert "ON CONFLICT (dedupe_key) DO NOTHING" in sql
+    assert params[3] == "0xabc"
+    assert params[14]
+    assert "0x" + "a" * 64 not in str(params[14])
+
+
+def test_in_app_notification_repository_rejects_missing_owner_recipient() -> None:
+    repo = InAppNotificationRepository(FakeDatabaseManager())
+
+    with pytest.raises(InvalidInAppNotificationIntent):
+        repo.enqueue(_in_app_intent(recipient_owner_id=""))
+
+
+def test_in_app_notification_repository_lists_and_marks_owner_rows() -> None:
+    row = (
+        "inapp-1",
+        "deposit.confirmed",
+        "deposit",
+        "success",
+        "transactional",
+        "Deposit confirmed",
+        "Deposit dep-1 credited.",
+        "/dashboard/billing/credits",
+        "deposit",
+        "dep-1",
+        {"amount": "2.000000", "currency": "USDC"},
+        None,
+        None,
+        None,
+        "2026-04-22T10:00:00.000Z",
+    )
+    db = FakeDatabaseManager(
+        readonly_cursor=FakeCursor(fetchall_rows=[row], fetchone_row=(2,)),
+        tx_cursor=FakeCursor(),
+    )
+    repo = InAppNotificationRepository(db)
+
+    rows = repo.list_for_owner(owner_wallet="0xABC", limit=20, cursor=None, unread_only=True)
+    assert rows[0].notification_id == "inapp-1"
+    assert rows[0].payload == {"amount": "2.000000", "currency": "USDC"}
+    assert repo.unread_count_for_owner(owner_wallet="0xABC") == 2
+    assert repo.mark_read_for_owner(owner_wallet="0xABC", notification_id="inapp-1") is True
+    assert repo.archive_for_owner(owner_wallet="0xABC", notification_id="inapp-1") is True
+
+    readonly_sql, readonly_params = db.readonly.statements[0]
+    assert "recipient_owner_id = %s" in readonly_sql
+    assert "read_at IS NULL" in readonly_sql
+    assert readonly_params[0] == "0xabc"
+
+
+def test_in_app_notification_catalog_is_metadata_only_and_complete() -> None:
+    expected_events = {
+        "deposit.confirmed",
+        "deposit.delayed",
+        "invoke.insufficient_balance",
+        "budget.cap_triggered",
+        "consumer_withdrawal.created",
+        "consumer_withdrawal.manual_review",
+        "consumer_withdrawal.ticket_ready",
+        "consumer_withdrawal.completed",
+        "consumer_withdrawal.failed_expired",
+        "consumer_withdrawal.soft_revoke_wait_expiry",
+        "refund.completed",
+        "refund.rejected",
+        "refund.failed",
+        "security.new_device_login",
+        "security.mfa_changed",
+        "security.wallet_binding_changed",
+        "security.email_changed",
+        "provider_service.approved",
+        "provider_service.rejected",
+        "provider_health.degraded",
+        "provider_health.outage",
+        "provider_health.recovered",
+        "provider_withdrawal.created",
+        "provider_withdrawal.manual_review",
+        "provider_withdrawal.ticket_ready",
+        "provider_withdrawal.rejected",
+        "provider_withdrawal.completed",
+        "provider_withdrawal.failed_expired",
+        "provider_withdrawal.soft_revoke_wait_expiry",
+    }
+    assert set(IN_APP_NOTIFICATION_EVENT_CATALOG) == expected_events
+    assert "provider_income.credited" in SUPPRESSED_REALTIME_IN_APP_EVENTS
+
+    allowed_categories = {"finance", "withdrawal", "deposit", "refund", "security", "service", "approval", "system"}
+    allowed_severities = {"info", "success", "warning", "critical"}
+    allowed_priorities = {"security", "transactional_high", "transactional", "ops", "digest"}
+    for metadata in IN_APP_NOTIFICATION_EVENT_CATALOG.values():
+        assert metadata["category"] in allowed_categories
+        assert metadata["severity"] in allowed_severities
+        assert metadata["priority"] in allowed_priorities
+
+
+def test_in_app_notification_builders_store_structured_payload_not_localized_sentences() -> None:
+    intents = [
+        build_deposit_confirmed_intent("0xABC", {"depositId": "dep-1", "amount": "2.000000"}),
+        build_deposit_confirmed_intent("0xABC", {"depositId": "dep-2", "amountUsdc": "10.500000"}),
+    ]
+    forbidden_words = ("your ", " has ", "您的", "提现", "充值", "完成")
+    for intent in intents:
+        assert intent.payload
+        assert intent.payload["currency"] == "USDC"
+        assert str(intent.payload["amount"]).count(".") <= 1
+        assert not any(
+            isinstance(value, str) and any(word in value.lower() for word in forbidden_words)
+            for value in intent.payload.values()
+        )
+
+
+def test_in_app_notification_cleanup_deletes_in_batches() -> None:
+    tx_cursor = FakeCursor()
+    repo = InAppNotificationRepository(FakeDatabaseManager(tx_cursor=tx_cursor))
+
+    deleted = repo.cleanup_expired(retention_days=90, security_retention_days=180, batch_size=25)
+
+    assert deleted == 1
+    sql, params = tx_cursor.statements[0]
+    assert "DELETE FROM synapse_in_app_notifications" in sql
+    assert params == (90, 180, 25)
+
+
+def test_in_app_notification_schedule_is_best_effort(monkeypatch, caplog) -> None:
+    class BrokenStorage:
+        def enqueue_in_app_notification(self, intent) -> None:
+            _ = intent
+            raise RuntimeError("db unavailable")
+
+    intent = build_deposit_confirmed_intent("0xABC", {"depositId": "dep-1", "amount": "2.000000"})
+
+    schedule_in_app_notification(BrokenStorage(), intent)
+
+    assert "IN_APP_NOTIFICATION_WRITE_FAILED" in caplog.text
 
 
 def test_render_notification_email_redacts_sensitive_payload() -> None:

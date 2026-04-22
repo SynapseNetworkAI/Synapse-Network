@@ -1,3 +1,5 @@
+# ruff: noqa: TRY003
+
 from fastapi import Request
 from .base import (
     AuditDomain,
@@ -8,6 +10,7 @@ from .base import (
     SystemDomain,
 )
 from .postgres_impl import PostgresStorage
+from .postgres.database_manager import normalize_pool_max
 
 
 def create_storage(settings: object) -> BaseStorage:
@@ -21,10 +24,13 @@ def create_storage(settings: object) -> BaseStorage:
     dsn = str(getattr(settings, "postgres_dsn", "") or "").strip()
     ensure_schema = bool(getattr(settings, "postgres_auto_init", True))
     connect_timeout_sec = int(getattr(settings, "postgres_connect_timeout_sec", 5) or 5)
+    raw_pool_max = getattr(settings, "postgres_pool_max", 5)
+    pool_max = normalize_pool_max(5 if raw_pool_max in (None, "") else raw_pool_max)
     return PostgresStorage(
         dsn=dsn,
         ensure_schema=ensure_schema,
         connect_timeout_sec=connect_timeout_sec,
+        pool_max=pool_max,
     )
 
 

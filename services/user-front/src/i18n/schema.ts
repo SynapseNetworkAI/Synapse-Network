@@ -16,6 +16,13 @@ export type I18nMessages = {
     documentation: string;
     forum: string;
     notifications: string;
+    notificationSubtitle: string;
+    notificationsLoading: string;
+    notificationsEmpty: string;
+    notificationLoadFailed: string;
+    markAllRead: string;
+    openNotification: string;
+    archiveNotification: string;
     gatewayNode: string;
     online: string;
     offline: string;

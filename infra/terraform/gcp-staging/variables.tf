@@ -4,15 +4,9 @@ variable "project_id" {
 }
 
 variable "region" {
-  description = "Google Cloud region for staging."
+  description = "Google Cloud region for the low-cost Cloud Run + Cloud SQL staging stack."
   type        = string
-  default     = "asia-southeast1"
-}
-
-variable "zone" {
-  description = "Google Cloud zone for the staging VM."
-  type        = string
-  default     = "asia-southeast1-a"
+  default     = "us-central1"
 }
 
 variable "environment" {
@@ -21,39 +15,123 @@ variable "environment" {
   default     = "staging"
 }
 
-variable "machine_type" {
-  description = "GCE machine type for the single-VM staging stack."
-  type        = string
-  default     = "e2-standard-4"
-}
-
-variable "boot_disk_size_gb" {
-  description = "Boot disk size for Docker volumes, logs, and staging data."
-  type        = number
-  default     = 200
-}
-
-variable "ssh_source_ranges" {
-  description = "CIDR ranges allowed to SSH directly. Prefer IAP and keep this empty when possible."
-  type        = list(string)
-  default     = []
-}
-
-variable "enable_iap_ssh" {
-  description = "Allow Google IAP TCP forwarding source range for SSH."
-  type        = bool
-  default     = true
-}
-
 variable "backup_bucket_name" {
   description = "Globally unique GCS bucket name for staging backup drill artifacts."
   type        = string
 }
 
+variable "backup_bucket_retention_days" {
+  description = "Retention for staging backup drill artifacts in the GCS bucket."
+  type        = number
+  default     = 30
+}
+
 variable "artifact_registry_repository" {
-  description = "Docker Artifact Registry repository name for future image pushes."
+  description = "Docker Artifact Registry repository name for image pushes."
   type        = string
   default     = "synapse-staging"
+}
+
+variable "cloud_sql_database_version" {
+  description = "Cloud SQL Postgres database version."
+  type        = string
+  default     = "POSTGRES_16"
+}
+
+variable "cloud_sql_database_name" {
+  description = "Gateway Postgres database name."
+  type        = string
+  default     = "synapse_gateway_staging"
+}
+
+variable "cloud_sql_tier" {
+  description = "Initial Cloud SQL tier. Upgrade from db-f1-micro to db-g1-small when evidence shows pressure."
+  type        = string
+  default     = "db-f1-micro"
+}
+
+variable "cloud_sql_availability_type" {
+  description = "Cloud SQL availability type. Staging starts ZONAL; production should evaluate REGIONAL separately."
+  type        = string
+  default     = "ZONAL"
+}
+
+variable "cloud_sql_disk_type" {
+  description = "Cloud SQL disk type."
+  type        = string
+  default     = "PD_SSD"
+}
+
+variable "cloud_sql_disk_size_gb" {
+  description = "Cloud SQL disk size in GB."
+  type        = number
+  default     = 20
+}
+
+variable "cloud_sql_disk_autoresize" {
+  description = "Enable Cloud SQL disk autoresize."
+  type        = bool
+  default     = true
+}
+
+variable "cloud_sql_deletion_protection" {
+  description = "Deletion protection for the staging Cloud SQL instance. Production must keep this true."
+  type        = bool
+  default     = false
+}
+
+variable "cloud_sql_backup_start_time" {
+  description = "Cloud SQL backup start time in UTC. 19:00 UTC equals 03:00 Asia/Kuala_Lumpur."
+  type        = string
+  default     = "19:00"
+}
+
+variable "cloud_sql_transaction_log_retention_days" {
+  description = "Cloud SQL PITR transaction log retention days. Staging defaults to 1; production should use 7."
+  type        = number
+  default     = 1
+}
+
+variable "cloud_sql_retained_backups" {
+  description = "Number of automated backups retained."
+  type        = number
+  default     = 3
+}
+
+variable "gateway_image" {
+  description = "Optional Gateway container image. Leave empty to provision substrate first and deploy with gcloud run deploy."
+  type        = string
+  default     = ""
+}
+
+variable "gateway_admin_image" {
+  description = "Optional Gateway-admin container image. Leave empty to provision substrate first."
+  type        = string
+  default     = ""
+}
+
+variable "user_front_image" {
+  description = "Optional User-front container image. Leave empty to provision substrate first."
+  type        = string
+  default     = ""
+}
+
+variable "admin_front_image" {
+  description = "Optional Admin-front container image. Leave empty to provision substrate first."
+  type        = string
+  default     = ""
+}
+
+variable "common_runtime_env" {
+  description = "Non-secret environment variables merged into Gateway and Gateway-admin Cloud Run services."
+  type        = map(string)
+  default     = {}
+}
+
+variable "frontend_runtime_env" {
+  description = "Non-secret environment variables used by front-end Cloud Run services."
+  type        = map(string)
+  default     = {}
 }
 
 variable "secret_ids" {

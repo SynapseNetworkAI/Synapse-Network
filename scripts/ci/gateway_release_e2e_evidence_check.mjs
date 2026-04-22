@@ -12,11 +12,24 @@ const REQUIRED_FILES = [
   "report.md",
   "report.json",
   "pytest-junit.xml",
+  "trace.jsonl",
   "gateway-e2e.log",
   "environment-manifest.json",
   "contract-manifest.json",
   "analytics-clickhouse-summary.json",
   "reconciliation-summary.json",
+];
+const REQUIRED_TRACE_SCENARIOS = [
+  "deposit",
+  "confirm",
+  "service_discovery",
+  "quote",
+  "invoke",
+  "provider_credit",
+  "receipt",
+  "consumer_withdrawal",
+  "analytics_kafka_clickhouse",
+  "ledger_vault_reconciliation",
 ];
 
 function latestReportPath() {
@@ -49,6 +62,10 @@ function stable(value) {
   return value;
 }
 
+function sha256File(filePath) {
+  return crypto.createHash("sha256").update(fs.readFileSync(filePath)).digest("hex");
+}
+
 function digest(report) {
   return crypto.createHash("sha256").update(JSON.stringify(stable({
     scriptVersion: report.scriptVersion,
@@ -57,8 +74,39 @@ function digest(report) {
     analytics: report.analytics,
     pytest: report.pytest,
     comparisons: report.comparisons,
+    traceDigest: report.traceDigest,
     failed: report.failed,
   }))).digest("hex");
+}
+
+function scanTraceForSecrets(traceText) {
+  const patterns = [
+    /\bauthorization\s*[:=]\s*(?!\[REDACTED\])\S+/i,
+    /\bBearer\s+[A-Za-z0-9._~+/-]+=*/i,
+    /"(?:privateKey|rawSignature|signature|jwt|adminToken|accessToken|apiKey|secret)"\s*:\s*"(?!\[REDACTED\])[^"]+"/i,
+    /\b(?:private[_-]?key|raw[_-]?signature|admin[_-]?token|access[_-]?token|api[_-]?key|secret)\s*[:=]\s*(?!\[REDACTED\])\S+/i,
+  ];
+  return patterns.filter((pattern) => pattern.test(traceText)).map((pattern) => String(pattern));
+}
+
+function parseTraceJsonl(tracePath) {
+  return fs.readFileSync(tracePath, "utf8")
+    .split(/\r?\n/)
+    .filter((line) => line.trim())
+    .map((line, index) => {
+      try {
+        return JSON.parse(line);
+      } catch (error) {
+        fatal(
+          "GATEWAY-RELEASE-EVIDENCE-012",
+          `${tracePath}:${index + 1}`,
+          `trace.jsonl line is not valid JSON: ${error.message}`,
+          "rerun the gateway release evidence generator; do not hand-edit trace.jsonl.",
+        );
+        return null;
+      }
+    })
+    .filter(Boolean);
 }
 
 function fatal(code, file, why, fix) {
@@ -156,6 +204,60 @@ if (!report.evidenceDigest || report.evidenceDigest !== digest(report)) {
     reportPath,
     "evidence digest cannot be recomputed from report payload.",
     "do not hand-edit report.json; rerun the gateway release evidence generator.",
+  );
+}
+
+const tracePath = path.join(outDir, "trace.jsonl");
+const traceText = fs.readFileSync(tracePath, "utf8");
+const traceDigest = sha256File(tracePath);
+if (!report.traceDigest || report.traceDigest !== traceDigest) {
+  fatal(
+    "GATEWAY-RELEASE-EVIDENCE-010",
+    tracePath,
+    "trace digest does not match report.json traceDigest.",
+    "rerun the gateway release evidence generator so report.json and trace.jsonl are bound together.",
+  );
+}
+
+const secretFindings = scanTraceForSecrets(traceText);
+if (secretFindings.length > 0) {
+  fatal(
+    "GATEWAY-RELEASE-EVIDENCE-011",
+    tracePath,
+    `trace.jsonl contains secret-like values: ${secretFindings.join(", ")}`,
+    "redact authorization headers, private keys, raw signatures, API keys, and tokens before writing release evidence.",
+  );
+}
+
+const traceRows = parseTraceJsonl(tracePath);
+if (traceRows.length <= 0) {
+  fatal(
+    "GATEWAY-RELEASE-EVIDENCE-013",
+    tracePath,
+    "trace.jsonl must contain at least one evidence checkpoint.",
+    "rerun the gateway release evidence generator with trace output enabled.",
+  );
+}
+
+const traceScenarios = new Set(traceRows.map((row) => String(row.scenario || "")));
+for (const scenario of REQUIRED_TRACE_SCENARIOS) {
+  if (!traceScenarios.has(scenario)) {
+    fatal(
+      "GATEWAY-RELEASE-EVIDENCE-014",
+      tracePath,
+      `trace.jsonl is missing a checkpoint for core scenario ${scenario}.`,
+      "ensure the gateway release evidence reporter writes one trace row for every core scenario.",
+    );
+  }
+}
+
+const failedTrace = traceRows.filter((row) => String(row.reconciliationStatus || "").toLowerCase() === "failed");
+if (failedTrace.length > 0) {
+  fatal(
+    "GATEWAY-RELEASE-EVIDENCE-015",
+    tracePath,
+    `trace.jsonl contains failed reconciliation checkpoints: ${failedTrace.slice(0, 5).map((row) => row.scenario).join(", ")}`,
+    "fix the expected-vs-actual mismatch and regenerate gateway release evidence.",
   );
 }
 
