@@ -2,7 +2,7 @@
 
 - Status: canonical
 - Code paths: `infra/docker/staging/`, `scripts/deploy/`, `services/user-front/.env*.example`
-- Last verified against code: 2026-04-13
+- Last verified against code: 2026-04-22
 
 ## Decision
 
@@ -47,6 +47,37 @@
 1. `infra/docker/staging/docker-compose.yml`
 2. `scripts/deploy/staging.sh`
 3. `Synapse-Network-Provider/scripts/deploy/staging.sh`
+4. `infra/terraform/gcp-staging/`
+5. `scripts/deploy/gcp_preflight.sh`
+
+## Google Cloud Bootstrap
+
+第一台 staging GCE 应通过 Terraform 创建，不建议在 Console 手点后遗忘配置。
+
+Cloud Shell 推荐流程：
+
+```bash
+gcloud auth login
+gcloud config set project <gcp-project-id>
+bash scripts/deploy/gcp_preflight.sh <gcp-project-id>
+
+cd infra/terraform/gcp-staging
+cp terraform.tfvars.example terraform.tfvars
+terraform init
+terraform plan
+terraform apply
+```
+
+Terraform 只创建基础设施和 Secret Manager secret 占位，不写入真实
+secret value。真实 secret 使用 `gcloud secrets versions add` 或部署系统注入。
+
+GCE 上线后：
+
+1. 将 staging 域名 DNS 指向 Terraform 输出的 static IP。
+2. 配置 reverse proxy 和 TLS。
+3. 从 Secret Manager 或受控 `.env.staging` 注入密钥。
+4. 启动 `infra/docker/staging/docker-compose.yml`。
+5. 再跑 release evidence；不能用本地 CI 结果冒充 staging evidence。
 
 ## Minimum Launch Gates Before Production
 
@@ -64,6 +95,9 @@
    - disk
    - process
    - error log
+7. Lark 告警真实发送 evidence
+8. Gmail async notification worker 和测试邮件 evidence
+9. Gateway full-chain staging E2E evidence
 
 ## Environment Contract
 

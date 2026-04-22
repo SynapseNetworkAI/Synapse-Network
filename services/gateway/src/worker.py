@@ -10,6 +10,10 @@ from src.services.analytics.outbox_worker import (
     drain_analytics_outbox_once,
     run_analytics_outbox_worker,
 )
+from src.services.notifications.outbox_worker import (
+    drain_notification_outbox_once,
+    run_notification_outbox_worker,
+)
 from src.storage import create_storage
 
 
@@ -28,7 +32,20 @@ async def _run(args: argparse.Namespace) -> int:
             poll_interval_sec=max(0.1, float(args.poll_interval_sec)),
         )
         return 0
-    raise ValueError(f"Unsupported worker command: {args.command}")
+    if args.command == "notification-outbox" and args.once:
+        result = await drain_notification_outbox_once(storage)
+        logging.getLogger(__name__).info("notification_outbox.once", extra=result)
+        print(result)
+        return 0
+    if args.command == "notification-outbox":
+        stop_event = asyncio.Event()
+        await run_notification_outbox_worker(
+            stop_event,
+            storage,
+            poll_interval_sec=max(0.1, float(args.poll_interval_sec)),
+        )
+        return 0
+    raise ValueError
 
 
 def main() -> int:
@@ -42,6 +59,18 @@ def main() -> int:
     )
     analytics_outbox.add_argument("--once", action="store_true", help="Drain one batch and exit.")
     analytics_outbox.add_argument(
+        "--poll-interval-sec",
+        type=float,
+        default=1.0,
+        help="Polling interval for long-running mode.",
+    )
+
+    notification_outbox = subparsers.add_parser(
+        "notification-outbox",
+        help="Drain Postgres notification outbox rows to Gmail SMTP.",
+    )
+    notification_outbox.add_argument("--once", action="store_true", help="Drain one batch and exit.")
+    notification_outbox.add_argument(
         "--poll-interval-sec",
         type=float,
         default=1.0,

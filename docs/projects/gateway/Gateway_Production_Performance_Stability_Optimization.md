@@ -3,11 +3,11 @@ id: gateway-production-performance-stability-optimization
 title: Gateway Production Performance and Stability Optimization
 status: canonical
 created_at: 2026-04-20
-updated_at: 2026-04-20
+updated_at: 2026-04-22
 owner: gateway
 verified_with:
   - npm run ci:docs
-  - cd services/gateway && .venv/bin/python -m pytest tests/unit/test_analytics_outbox_unit.py tests/unit/test_forwarding_runtime_service_unit.py::test_upstream_http_pool_timeout_rolls_back_charge -q
+  - cd services/gateway && .venv/bin/python -m pytest tests/unit/test_analytics_outbox_unit.py tests/unit/test_notifications_outbox_unit.py tests/unit/test_forwarding_runtime_service_unit.py::test_upstream_http_pool_timeout_rolls_back_charge -q
   - python3 scripts/perf/gateway_http_client_pool_qps.py --requests 1000 --concurrency 64
 ---
 
@@ -15,7 +15,7 @@ verified_with:
 
 This document captures the production performance hardening direction for the Gateway paid invocation path. The goal is to improve throughput without weakening money safety, auditability, or Analytics correctness.
 
-The current safe path is Postgres atomic charge per paid invocation. That remains the source of truth. The next optimizations must remove avoidable request-path I/O and hidden queueing while keeping ledger, audit, and analytics evidence recoverable.
+The current safe path is Postgres atomic charge per paid invocation. That remains the source of truth. The next optimizations must remove avoidable request-path I/O and hidden queueing while keeping ledger, audit, analytics evidence, and user/admin notifications recoverable.
 
 ## Design Principles
 
@@ -90,6 +90,60 @@ Metrics:
 3. `analytics_outbox_dead_letter_count`
 4. `analytics_outbox_deleted_total`
 5. `analytics_outbox_publish_latency_ms`
+
+## Transactional Outbox For Email Notifications
+
+Email delivery follows the same request-path isolation rule as Analytics:
+Gateway and Gateway-admin business paths enqueue notification intent only;
+Gmail SMTP is called only by the `notification-outbox` worker.
+
+Required behavior:
+
+1. Finance state changes write notification intent in the same DB transaction
+   when the email corresponds to a committed business state.
+2. Gmail outage, quota errors, or SMTP timeout must not fail `invoke`,
+   balance, deposit, withdrawal, approval, or reconciliation APIs.
+3. Worker delivery is at-least-once. A worker crash after Gmail accepts a
+   message but before DB commit may cause a duplicate email; that duplicate is
+   acceptable because email is not the ledger source of truth.
+4. Success rows are inserted into `synapse_notification_delivery_log` and then
+   deleted from `synapse_notification_outbox`; do not keep long-lived
+   `status='sent'` rows in the hot outbox table.
+5. Provider income credited summaries are intentionally not emailed in V1.
+   Provider revenue remains visible through dashboards and future explicit
+   digest work.
+
+Worker command:
+
+```bash
+cd services/gateway
+.venv/bin/python -m src.worker notification-outbox --once
+.venv/bin/python -m src.worker notification-outbox --poll-interval-sec 1
+```
+
+Gmail quota guard:
+
+1. Track daily Gmail accepted sends through delivery log counts.
+2. Trigger P1 before the Workspace daily quota is exhausted.
+3. After the hard limit, defer low-priority `digest` and `ops` mail while
+   allowing `security` and `transactional_high` notifications to remain
+   eligible.
+4. Never retry quota errors in a tight loop.
+
+Required email outbox index:
+
+```sql
+CREATE INDEX IF NOT EXISTS idx_synapse_notification_outbox_claim
+ON synapse_notification_outbox (status, next_attempt_at, priority, created_at);
+```
+
+Metrics:
+
+1. `email_outbox_pending_total`
+2. `email_outbox_oldest_pending_age_seconds`
+3. `email_outbox_dead_letter_total`
+4. `email_gmail_daily_quota_used`
+5. `email_gmail_quota_exceeded_total`
 
 ## Worker Concurrency With `FOR UPDATE SKIP LOCKED`
 

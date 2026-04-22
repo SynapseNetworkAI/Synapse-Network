@@ -42,7 +42,9 @@
 9. `11_Performance_and_Reliability_Verification.md`
 10. `12_Gateway_Pre_Launch_Stress_Review.md`
 11. `13_Production_Monitoring_Alerting_and_Backup_Restore.md`
-12. `../security/README.md`
+12. `14_Gmail_Email_Notifications.md`
+13. `15_Google_Cloud_Launch_Readiness.md`
+14. `../security/README.md`
 
 ## 模块边界
 

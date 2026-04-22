@@ -466,6 +466,24 @@ class Settings:
     analytics_outbox_max_attempts: int = max(1, _env_int("ANALYTICS_OUTBOX_MAX_ATTEMPTS", 8))
     analytics_outbox_retry_base_sec: int = max(1, _env_int("ANALYTICS_OUTBOX_RETRY_BASE_SEC", 5))
 
+    # ── Async Email Notifications ────────────────────────────────
+    email_transport: str = (
+        os.getenv("EMAIL_TRANSPORT", "gmail_smtp").strip().lower() or "gmail_smtp"
+    )
+    gmail_smtp_host: str = os.getenv("GMAIL_SMTP_HOST", "smtp.gmail.com").strip() or "smtp.gmail.com"
+    gmail_smtp_port: int = _env_int("GMAIL_SMTP_PORT", 587)
+    gmail_smtp_username: str = os.getenv("GMAIL_SMTP_USERNAME", "").strip()
+    gmail_smtp_app_password: str = os.getenv("GMAIL_SMTP_APP_PASSWORD", "").strip()
+    email_from: str = os.getenv("EMAIL_FROM", gmail_smtp_username).strip()
+    email_reply_to: str = os.getenv("EMAIL_REPLY_TO", "").strip()
+    email_send_timeout_sec: float = max(1.0, _env_float("EMAIL_SEND_TIMEOUT_SEC", 10.0))
+    email_max_per_minute: int = max(1, _env_int("EMAIL_MAX_PER_MINUTE", 60))
+    email_gmail_daily_soft_limit: int = max(0, _env_int("EMAIL_GMAIL_DAILY_SOFT_LIMIT", 1500))
+    email_gmail_daily_hard_limit: int = max(0, _env_int("EMAIL_GMAIL_DAILY_HARD_LIMIT", 1900))
+    email_worker_batch_size: int = max(1, _env_int("EMAIL_WORKER_BATCH_SIZE", 50))
+    email_outbox_max_attempts: int = max(1, _env_int("EMAIL_OUTBOX_MAX_ATTEMPTS", 8))
+    email_outbox_retry_base_sec: int = max(1, _env_int("EMAIL_OUTBOX_RETRY_BASE_SEC", 30))
+
     # ── Provider upstream HTTP client pool ───────────────────────
     provider_http_client_pool_enabled: bool = _env_bool("PROVIDER_HTTP_CLIENT_POOL_ENABLED", True)
     provider_http_client_max_connections: int = max(

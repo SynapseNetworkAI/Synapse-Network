@@ -190,6 +190,80 @@ POSTGRES_TABLE_SCHEMA_CONTRACTS: tuple[TableSchemaContract, ...] = (
         ),
     ),
     TableSchemaContract(
+        table_name="synapse_notification_outbox",
+        required_columns=frozenset(
+            {
+                "row_id",
+                "notification_id",
+                "dedupe_key",
+                "event_type",
+                "recipient_email",
+                "recipient_owner_id",
+                "priority",
+                "template_key",
+                "template_version",
+                "payload",
+                "status",
+                "attempt_count",
+                "next_attempt_at",
+                "last_error",
+                "lease_id",
+                "leased_at",
+                "created_at",
+                "updated_at",
+            }
+        ),
+        required_indexes=frozenset(
+            {
+                "idx_synapse_notification_outbox_claim",
+                "idx_synapse_notification_outbox_dead_letter",
+            }
+        ),
+        required_constraints=(
+            _constraint("primary key on notification outbox row", PRIMARY_KEY_FRAGMENT, "row_id"),
+            _constraint("unique notification id", "unique", "notification_id"),
+            _constraint("unique notification dedupe key", "unique", "dedupe_key"),
+            _constraint(
+                "notification outbox status lifecycle",
+                "check",
+                "status",
+                "pending",
+                "retry",
+                "leased",
+                "dead_letter",
+                "suppressed",
+            ),
+        ),
+    ),
+    TableSchemaContract(
+        table_name="synapse_notification_delivery_log",
+        required_columns=frozenset(
+            {
+                "row_id",
+                "notification_id",
+                "dedupe_key",
+                "event_type",
+                "recipient_email",
+                "recipient_owner_id",
+                "priority",
+                "template_key",
+                "template_version",
+                "message_id",
+                "provider_response",
+                "sent_at",
+            }
+        ),
+        required_indexes=frozenset(
+            {
+                "idx_synapse_notification_delivery_log_recipient_created",
+                "idx_synapse_notification_delivery_log_daily",
+            }
+        ),
+        required_constraints=(
+            _constraint("primary key on notification id", PRIMARY_KEY_FRAGMENT, "notification_id"),
+        ),
+    ),
+    TableSchemaContract(
         table_name="synapse_idempotency_keys",
         required_columns=frozenset({"row_id", "id", "scope", "owner_id", "idempotency_key", "request_hash", "response_code", "response_digest", "created_at", "expires_at"}),
         required_indexes=frozenset({"idx_synapse_idempotency_keys_expires"}),

@@ -402,6 +402,47 @@ CREATE TABLE IF NOT EXISTS synapse_analytics_outbox (
     CHECK (attempt_count >= 0)
 );
 
+CREATE TABLE IF NOT EXISTS synapse_notification_outbox (
+    row_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    notification_id TEXT NOT NULL UNIQUE,
+    dedupe_key TEXT NOT NULL UNIQUE,
+    event_type TEXT NOT NULL,
+    recipient_email TEXT NOT NULL,
+    recipient_owner_id TEXT,
+    priority TEXT NOT NULL DEFAULT 'transactional',
+    template_key TEXT NOT NULL,
+    template_version TEXT NOT NULL DEFAULT 'v1',
+    payload JSONB NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    attempt_count INTEGER NOT NULL DEFAULT 0,
+    next_attempt_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    last_error TEXT,
+    lease_id TEXT,
+    leased_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (status IN ('pending', 'retry', 'leased', 'dead_letter', 'suppressed')),
+    CHECK (priority IN ('security', 'transactional_high', 'transactional', 'ops', 'digest')),
+    CHECK (jsonb_typeof(payload) = 'object'),
+    CHECK (attempt_count >= 0)
+);
+
+CREATE TABLE IF NOT EXISTS synapse_notification_delivery_log (
+    row_id BIGINT GENERATED ALWAYS AS IDENTITY UNIQUE,
+    notification_id TEXT PRIMARY KEY,
+    dedupe_key TEXT NOT NULL,
+    event_type TEXT NOT NULL,
+    recipient_email TEXT NOT NULL,
+    recipient_owner_id TEXT,
+    priority TEXT NOT NULL,
+    template_key TEXT NOT NULL,
+    template_version TEXT NOT NULL,
+    message_id TEXT,
+    provider_response JSONB NOT NULL DEFAULT '{}'::jsonb,
+    sent_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (jsonb_typeof(provider_response) = 'object')
+);
+
 CREATE TABLE IF NOT EXISTS synapse_idempotency_keys (
     row_id BIGINT GENERATED ALWAYS AS IDENTITY UNIQUE,
     id TEXT PRIMARY KEY,
@@ -820,6 +861,19 @@ ON synapse_analytics_outbox (status, next_attempt_at, created_at);
 CREATE INDEX IF NOT EXISTS idx_synapse_analytics_outbox_dead_letter
 ON synapse_analytics_outbox (created_at DESC)
 WHERE status = 'dead_letter';
+
+CREATE INDEX IF NOT EXISTS idx_synapse_notification_outbox_claim
+ON synapse_notification_outbox (status, next_attempt_at, priority, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_notification_outbox_dead_letter
+ON synapse_notification_outbox (created_at DESC)
+WHERE status = 'dead_letter';
+
+CREATE INDEX IF NOT EXISTS idx_synapse_notification_delivery_log_recipient_created
+ON synapse_notification_delivery_log (recipient_email, sent_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_notification_delivery_log_daily
+ON synapse_notification_delivery_log (sent_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_synapse_idempotency_keys_expires
 ON synapse_idempotency_keys (expires_at);
