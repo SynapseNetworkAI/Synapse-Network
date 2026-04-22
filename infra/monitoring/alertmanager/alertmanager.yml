@@ -1,0 +1,82 @@
+global:
+  # How long Alertmanager keeps an alert active after Prometheus stops sending
+  # it. This prevents short scrape gaps from immediately generating resolved
+  # notifications.
+  resolve_timeout: 5m
+
+route:
+  # Default receiver for alerts that do not declare an explicit env/severity.
+  # It intentionally has no webhook_configs so mislabelled alerts do not leak
+  # into a production Lark group by accident.
+  receiver: blackhole-missing-env
+
+  # Group similar alerts into one Alertmanager webhook payload. The Lark Relay
+  # then shows the first alert and folds the rest, preventing giant Lark cards.
+  group_by: ["alertname", "system", "env", "severity"]
+
+  # Wait briefly for related alerts before sending the first notification.
+  group_wait: 30s
+
+  # Minimum interval between updates for an already-open alert group.
+  group_interval: 10m
+
+  # Repeat still-firing alerts every 4h so long incidents do not disappear.
+  repeat_interval: 4h
+  routes:
+    # Drill alerts always go to the staging drill group first and never fan out
+    # to production groups. This route must stay before every production route.
+    - receiver: lark-staging-drill
+      matchers:
+        - is_drill="true"
+        - env="staging"
+      continue: false
+
+    # All staging alerts go to the drill/staging group. V1 keeps staging
+    # physically isolated from production Lark rooms.
+    - receiver: lark-staging-drill
+      matchers:
+        - env="staging"
+      continue: false
+
+    # Production P0 incidents go to the finance war room.
+    - receiver: lark-p0-war-room
+      matchers:
+        - severity="p0"
+        - env="prod"
+      continue: false
+
+    # Production P1/P2 incidents go to the general production alert hall.
+    # Alertmanager remains the routing source of truth; Relay only translates.
+    - receiver: lark-prod-alerts
+      matchers:
+        - severity=~"p1|p2"
+        - env="prod"
+      continue: false
+
+receivers:
+  # Safe sink for mislabelled alerts. If alerts land here, fix labels such as
+  # env/severity/system instead of wiring this receiver to Lark.
+  - name: blackhole-missing-env
+
+  # Internal Relay endpoint for Synapse-P0-资金战情室.
+  - name: lark-p0-war-room
+    webhook_configs:
+      - url: http://lark-alert-relay:8787/lark/p0-war-room
+        # Send green recovery cards when an alert resolves.
+        send_resolved: true
+        # Relay folds batches itself, but this caps Alertmanager payload size.
+        max_alerts: 100
+
+  # Internal Relay endpoint for Synapse-Prod-告警大厅.
+  - name: lark-prod-alerts
+    webhook_configs:
+      - url: http://lark-alert-relay:8787/lark/prod-alerts
+        send_resolved: true
+        max_alerts: 100
+
+  # Internal Relay endpoint for Synapse-Staging-Drill-演练.
+  - name: lark-staging-drill
+    webhook_configs:
+      - url: http://lark-alert-relay:8787/lark/staging-drill
+        send_resolved: true
+        max_alerts: 100

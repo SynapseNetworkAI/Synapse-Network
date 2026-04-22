@@ -17,7 +17,7 @@ bash "$ROOT_DIR/scripts/ci/code_quality_architecture_scan.sh"
 bash "$ROOT_DIR/scripts/ci/diff_coverage_gate.sh"
 bash "$ROOT_DIR/scripts/ci/security_secret_scan.sh"
 bash "$ROOT_DIR/scripts/ci/gateway_stress_review_checks.sh"
-node "$ROOT_DIR/scripts/ci/monitoring_alert_rules_check.mjs"
+npm run ci:monitoring-alert-rules
 bash "$ROOT_DIR/scripts/ci/docs_checks.sh"
 bash "$ROOT_DIR/scripts/ci/release_go_no_go_checks.sh"
 bash "$ROOT_DIR/scripts/ci/frontend_checks.sh"

@@ -7,6 +7,7 @@ groups:
         labels:
           severity: p0
           system: finance
+          env: "{{ $externalLabels.env }}"
         annotations:
           summary: "Ledger/vault reconciliation delta is non-zero"
           runbook: "docs/ops/13_Production_Monitoring_Alerting_and_Backup_Restore.md"
@@ -16,6 +17,7 @@ groups:
         labels:
           severity: p0
           system: finance
+          env: "{{ $externalLabels.env }}"
         annotations:
           summary: "Negative balance attempt observed"
           runbook: "docs/ops/04_Financial_Incident_Response_and_Production_Operations.md"
@@ -25,6 +27,7 @@ groups:
         labels:
           severity: p0
           system: withdrawal
+          env: "{{ $externalLabels.env }}"
         annotations:
           summary: "Withdrawal ticket replay, tamper, or expired-consumed anomaly"
           runbook: "docs/ops/13_Production_Monitoring_Alerting_and_Backup_Restore.md"
@@ -37,6 +40,7 @@ groups:
         labels:
           severity: p1
           system: gateway
+          env: "{{ $externalLabels.env }}"
         annotations:
           summary: "Gateway 5xx rate is above launch SLO"
           runbook: "docs/ops/13_Production_Monitoring_Alerting_and_Backup_Restore.md"
@@ -47,6 +51,7 @@ groups:
         labels:
           severity: p1
           system: chain
+          env: "{{ $externalLabels.env }}"
         annotations:
           summary: "Deposit confirmation lag is above threshold"
           runbook: "docs/ops/03_Observability_Logging_and_Indexer_Operations.md"
@@ -57,9 +62,43 @@ groups:
         labels:
           severity: p1
           system: analytics
+          env: "{{ $externalLabels.env }}"
         annotations:
           summary: "Kafka/ClickHouse analytics lag is above threshold"
           runbook: "docs/ops/08_Analytics_Pipeline_Operations.md"
+
+      - alert: SynapseGatewayAdminApprovalFailure
+        expr: increase(synapse_gateway_admin_approval_failure_total[5m]) > 0
+        for: 2m
+        labels:
+          severity: p1
+          system: approval
+          env: "{{ $externalLabels.env }}"
+        annotations:
+          summary: "Gateway-admin approval or withdrawal review operation failed"
+          runbook: "docs/projects/admin-front/Admin_Withdrawal_Approval_E2E_Verification.md"
+
+      - alert: SynapseWithdrawalManualReviewBacklog
+        expr: synapse_withdrawal_manual_review_pending > 20
+        for: 10m
+        labels:
+          severity: p1
+          system: withdrawal
+          env: "{{ $externalLabels.env }}"
+        annotations:
+          summary: "Withdrawal manual review backlog is above launch threshold"
+          runbook: "docs/projects/admin-front/Admin_Withdrawal_Approval_E2E_Verification.md"
+
+      - alert: SynapseRunnerStale
+        expr: absent(synapse_runner_heartbeat_timestamp_seconds{job="workflow-runner"}) or (time() - synapse_runner_heartbeat_timestamp_seconds{job="workflow-runner"} > 600)
+        for: 5m
+        labels:
+          severity: p1
+          system: runner
+          env: "{{ $externalLabels.env }}"
+        annotations:
+          summary: "Workflow runner heartbeat is missing or stale"
+          runbook: "docs/ops/13_Production_Monitoring_Alerting_and_Backup_Restore.md"
 
   - name: synapse-drill-only
     rules:
@@ -74,4 +113,3 @@ groups:
         annotations:
           summary: "Synthetic staging drill ledger delta fired"
           runbook: "docs/ops/13_Production_Monitoring_Alerting_and_Backup_Restore.md"
-
