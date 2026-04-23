@@ -642,7 +642,12 @@ bash scripts/deploy/gcp_staging_bootstrap.sh <gcp-project-id>
 The bootstrap script:
 
 1. Verifies the active `gcloud` project matches `<gcp-project-id>`.
-2. Verifies billing access and required APIs.
+2. Verifies billing when the Billing API returns a clear answer.
+   - `billingEnabled=true`: continue.
+   - `billingEnabled=false`: fail closed.
+   - Billing API visibility/permission mismatch: warn and continue, because
+     Terraform-created Cloud SQL / Secret Manager resources already prove the
+     project is accessible.
 3. Verifies Terraform-created Cloud SQL and Secret Manager resources exist.
 4. Generates a random Cloud SQL password with `openssl rand -base64 32`.
 5. Creates or updates the `synapse_gateway_app` Cloud SQL user.

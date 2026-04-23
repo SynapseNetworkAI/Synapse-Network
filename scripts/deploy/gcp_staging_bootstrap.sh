@@ -148,10 +148,24 @@ if ! gcloud projects describe "${PROJECT_ID}" >/dev/null 2>&1; then
   exit 1
 fi
 
-if ! gcloud beta billing projects describe "${PROJECT_ID}" --format='value(billingEnabled)' 2>/dev/null | grep -qi true; then
-  echo "billing is not enabled or billing API access is missing for ${PROJECT_ID}" >&2
-  exit 1
-fi
+billing_enabled_value="$(gcloud beta billing projects describe "${PROJECT_ID}" --format='value(billingEnabled)' 2>/dev/null || true)"
+billing_enabled_value="$(printf '%s' "${billing_enabled_value}" | tr -d '[:space:]')"
+
+case "${billing_enabled_value}" in
+  true|TRUE|True)
+    echo "[gcp-staging-bootstrap] billing enabled"
+    ;;
+  false|FALSE|False)
+    echo "billing is disabled for ${PROJECT_ID}" >&2
+    echo "Agent fix: attach the project to an active billing account, then retry." >&2
+    exit 1
+    ;;
+  *)
+    echo "[gcp-staging-bootstrap] WARN: unable to verify billing state via Billing API; continuing because the project is already accessible." >&2
+    echo "[gcp-staging-bootstrap] WARN: if later resource creation fails, verify billing manually with:" >&2
+    echo "  gcloud beta billing projects describe ${PROJECT_ID}" >&2
+    ;;
+esac
 
 for api in "${REQUIRED_APIS[@]}"; do
   if ! gcloud services list --enabled --project="${PROJECT_ID}" --filter="config.name:${api}" --format='value(config.name)' | grep -qx "${api}"; then
