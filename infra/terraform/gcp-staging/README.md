@@ -109,6 +109,11 @@ Full staging checklist and commands live in
 `docs/ops/15_Google_Cloud_Launch_Readiness.md` and
 `docs/ops/17_Staging_Environment_Configuration.md`.
 
+The service list, billing model, and monthly staging cost estimate are tracked
+in `docs/ops/15_Google_Cloud_Launch_Readiness.md` under "Staging Enabled
+Services and Cost Estimate". Keep that section updated whenever this module
+adds a new managed resource or scheduled job.
+
 ## First Deployment Strategy
 
 If container image names are not ready, keep `gateway_image`,
