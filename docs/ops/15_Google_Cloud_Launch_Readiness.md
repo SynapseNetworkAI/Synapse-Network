@@ -138,11 +138,16 @@ Staging Cloud SQL starts small:
 
 ```hcl
 tier               = "db-f1-micro"
+edition            = "ENTERPRISE"
 availability_type  = "ZONAL"
 disk_type          = "PD_SSD"
 disk_size          = 20
 disk_autoresize    = true
 ```
+
+Staging must use Cloud SQL `ENTERPRISE` edition for shared-core tiers such as
+`db-f1-micro`. `ENTERPRISE_PLUS` requires performance-optimized tiers and will
+reject `db-f1-micro`.
 
 Staging backup policy:
 
@@ -253,6 +258,7 @@ region                        = "us-central1"
 environment                   = "staging"
 artifact_registry_repository  = "synapse-staging"
 cloud_sql_tier                = "db-f1-micro"
+cloud_sql_edition             = "ENTERPRISE"
 cloud_sql_backup_start_time   = "19:00" # UTC; 03:00 Asia/Kuala_Lumpur
 cloud_sql_transaction_log_retention_days = 1
 cloud_sql_retained_backups    = 3

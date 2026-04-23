@@ -50,6 +50,12 @@ variable "cloud_sql_tier" {
   default     = "db-f1-micro"
 }
 
+variable "cloud_sql_edition" {
+  description = "Cloud SQL edition. Staging must use ENTERPRISE for shared-core tiers such as db-f1-micro; ENTERPRISE_PLUS requires db-perf-optimized tiers."
+  type        = string
+  default     = "ENTERPRISE"
+}
+
 variable "cloud_sql_availability_type" {
   description = "Cloud SQL availability type. Staging starts ZONAL; production should evaluate REGIONAL separately."
   type        = string

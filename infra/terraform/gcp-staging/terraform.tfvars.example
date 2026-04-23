@@ -9,6 +9,7 @@ artifact_registry_repository = "synapse-staging"
 # Low-cost staging starts here. Upgrade to db-g1-small when E2E/load evidence
 # shows connection, CPU, or latency pressure.
 cloud_sql_tier                           = "db-f1-micro"
+cloud_sql_edition                        = "ENTERPRISE"
 cloud_sql_availability_type              = "ZONAL"
 cloud_sql_disk_type                      = "PD_SSD"
 cloud_sql_disk_size_gb                   = 20
