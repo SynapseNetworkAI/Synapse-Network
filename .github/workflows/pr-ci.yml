@@ -14,6 +14,16 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: "22"
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Export Python baseline
+        run: |
+          python - <<'PY' >> "$GITHUB_ENV"
+          import sys
+
+          print(f"SYNAPSE_PYTHON_BIN={sys.executable}")
+          PY
       - name: Install CI command-line tools
         run: |
           if ! command -v rg >/dev/null 2>&1; then
