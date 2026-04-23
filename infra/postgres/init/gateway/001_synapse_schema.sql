@@ -443,6 +443,39 @@ CREATE TABLE IF NOT EXISTS synapse_notification_delivery_log (
     CHECK (jsonb_typeof(provider_response) = 'object')
 );
 
+CREATE TABLE IF NOT EXISTS synapse_in_app_notifications (
+    row_id BIGINT GENERATED ALWAYS AS IDENTITY UNIQUE,
+    notification_id TEXT PRIMARY KEY,
+    dedupe_key TEXT NOT NULL UNIQUE,
+    recipient_type TEXT NOT NULL,
+    recipient_owner_id TEXT,
+    recipient_admin_id TEXT,
+    event_type TEXT NOT NULL,
+    category TEXT NOT NULL,
+    severity TEXT NOT NULL DEFAULT 'info',
+    priority TEXT NOT NULL DEFAULT 'transactional',
+    title TEXT NOT NULL,
+    body TEXT NOT NULL,
+    action_url TEXT,
+    resource_type TEXT,
+    resource_id TEXT,
+    payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+    read_at TIMESTAMPTZ,
+    archived_at TIMESTAMPTZ,
+    expires_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (recipient_type IN ('owner', 'provider', 'admin', 'ops')),
+    CHECK (category IN ('finance', 'withdrawal', 'deposit', 'refund', 'security', 'service', 'approval', 'system')),
+    CHECK (severity IN ('info', 'success', 'warning', 'critical')),
+    CHECK (priority IN ('security', 'transactional_high', 'transactional', 'ops', 'digest')),
+    CHECK (jsonb_typeof(payload) = 'object'),
+    CHECK (
+        (recipient_type IN ('owner', 'provider') AND recipient_owner_id IS NOT NULL)
+        OR (recipient_type = 'admin' AND recipient_admin_id IS NOT NULL)
+        OR (recipient_type = 'ops')
+    )
+);
+
 CREATE TABLE IF NOT EXISTS synapse_idempotency_keys (
     row_id BIGINT GENERATED ALWAYS AS IDENTITY UNIQUE,
     id TEXT PRIMARY KEY,
@@ -874,6 +907,24 @@ ON synapse_notification_delivery_log (recipient_email, sent_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_synapse_notification_delivery_log_daily
 ON synapse_notification_delivery_log (sent_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_in_app_notifications_owner_unread
+ON synapse_in_app_notifications (recipient_owner_id, read_at, created_at DESC)
+WHERE archived_at IS NULL;
+
+CREATE INDEX IF NOT EXISTS idx_synapse_in_app_notifications_admin_unread
+ON synapse_in_app_notifications (recipient_admin_id, read_at, created_at DESC)
+WHERE archived_at IS NULL;
+
+CREATE INDEX IF NOT EXISTS idx_synapse_in_app_notifications_owner_created
+ON synapse_in_app_notifications (recipient_owner_id, created_at DESC)
+WHERE archived_at IS NULL;
+
+CREATE INDEX IF NOT EXISTS idx_synapse_in_app_notifications_dedupe
+ON synapse_in_app_notifications (dedupe_key);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_in_app_notifications_expires
+ON synapse_in_app_notifications (expires_at);
 
 CREATE INDEX IF NOT EXISTS idx_synapse_idempotency_keys_expires
 ON synapse_idempotency_keys (expires_at);

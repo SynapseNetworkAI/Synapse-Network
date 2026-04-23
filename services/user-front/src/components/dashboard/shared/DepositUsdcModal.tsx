@@ -6,6 +6,7 @@ type DepositUsdcModalProps = {
   isOpen: boolean;
   title?: string;
   description?: string;
+  confirmationNotice?: string;
   amount: string;
   presetAmounts?: number[];
   onAmountChange: (value: string) => void;
@@ -25,6 +26,8 @@ export default function DepositUsdcModal({
   isOpen,
   title = "Deposit USDC",
   description = "Deposit USDC into your vault to pay for Synapse calls without signing each request.",
+  confirmationNotice =
+    "Blockchain confirmation is in progress. Credits usually appear within 1-2 minutes. You can keep this page open or refresh later.",
   amount,
   presetAmounts = [5, 25, 100, 250, 500],
   onAmountChange,
@@ -150,6 +153,11 @@ export default function DepositUsdcModal({
                 <p className="text-xs opacity-80">{(step === "executing_tx" || isConfirming) ? "MetaMask 弹窗：支付矿工费，将资金充入合约金库安全保管..." : "等待第一步完成"}</p>
               </div>
             </article>
+            {(step === "executing_tx" || isConfirming) ? (
+              <p className="rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-xs leading-5 text-amber-100">
+                {confirmationNotice}
+              </p>
+            ) : null}
           </section>
         )}
 

@@ -82,9 +82,9 @@ Current MVP audit policy: Synapse may use a founder/internal security audit with
   - gateway 5xx rate below 0.1%.
   - financial paths produce no negative balance, duplicate debit, duplicate credit, or unexplained balance drift.
 - High-concurrency money tests cover the same owner with multiple agents, repeated request ids, low-balance boundary, provider timeout, DB lock contention, and watcher catch-up.
-- Degradation tests prove analytics/Kafka/ClickHouse outage does not block money source-of-truth paths.
+- Degradation tests prove analytics outbox/projection failures do not block money source-of-truth paths. Kafka/ClickHouse drills are growth-stage requirements only if those systems are reintroduced.
 - Database reliability is verified: connection pool limits, slow query alerts, lock wait alerts, deadlock detection, transaction timeout, index coverage, backup, and restore.
-- Chaos drills cover provider outage, gateway restart, gateway-admin restart, ClickHouse/Kafka outage, RPC outage, slow RPC, Postgres failover, Redis unavailable, and stale health snapshots.
+- Chaos drills cover provider outage, gateway restart, gateway-admin restart, RPC outage, slow RPC, Postgres failover, and stale health snapshots. Redis/Kafka/ClickHouse unavailable drills are not MVP blockers because those systems are not in the low-cost runtime.
 - Rollback drills cover application rollback, config rollback, feature-flag shutoff, provider drain, signer rollback procedure, and database restore.
 
 ### 6. Monitoring, Alerting, and Incident Response
@@ -93,7 +93,7 @@ Current MVP audit policy: Synapse may use a founder/internal security audit with
 - Financial anomaly alerts exist for negative-balance attempts, duplicate request id spikes, ledger-vault delta, long-lived pending/frozen funds, large withdrawals, withdrawal failure rate, refund failure rate, and deposit failure spikes.
 - Chain alerts exist for unconfirmed deposits, unmatched withdrawal events, signer change, owner action, platform fee pool anomaly, USDC transfer failure, RPC lag, and watcher lag.
 - Security alerts exist for auth failure spikes, credential replay, rate-limit spikes, internal token failures, admin login anomalies, MFA anomalies, and secret scan failures.
-- SLO alerts exist for invoke p95/p99, 5xx rate, provider timeout rate, DB pool exhaustion, Kafka lag, ClickHouse lag, health monitor checked/skipped anomaly, and analytics ingestion degradation.
+- SLO alerts exist for invoke p95/p99, 5xx rate, provider timeout rate, DB pool exhaustion, Cloud SQL connection exhaustion, health monitor checked/skipped anomaly, and analytics outbox/projection degradation.
 - On-call channel, escalation path, incident template, stop-the-bleed checklist, customer communication template, and postmortem template are ready.
 - Alert drills are completed for provider unhealthy, deposit failed, budget blocked, gateway 5xx, DB pool exhaustion, duplicate request spike, and chain watcher lag.
 
@@ -103,13 +103,13 @@ The release owner must attach evidence for every item below before requesting la
 
 1. Contract security audit evidence, finding closure log, Hardhat/fork test output, deployment dry-run output, release manifest, verified contract link, and small-value chain rehearsal report. If the audit is internal/founder-led, attach the internal audit report and explicit risk acceptance and state that no independent third-party audit was performed.
 2. CI evidence for `ci:pr`, `ci:contracts`, `ci:gateway`, `ci:admin-gateway`, `ci:frontend`, `ci:admin-front`, money scan, secret scan, and docs check.
-3. Gateway full-chain release E2E report for deposit, confirm, discovery, quote, invoke, provider credit, receipt, consumer withdrawal, analytics Kafka/ClickHouse ingestion, and reconciliation. Run `npm run release:evidence:gateway-fullchain:staging` and validate it with `GATEWAY_RELEASE_E2E_REQUIRED_ENV=staging npm run ci:gateway-release-e2e-evidence`; skipped tests are not accepted as release evidence.
+3. Gateway full-chain release E2E report for deposit, confirm, discovery, quote, invoke, provider credit, receipt, consumer withdrawal, analytics outbox/projection evidence, and reconciliation. Run `npm run release:evidence:gateway-fullchain:staging` and validate it with `GATEWAY_RELEASE_E2E_REQUIRED_ENV=staging npm run ci:gateway-release-e2e-evidence`; skipped tests are not accepted as release evidence. The evidence bundle must include `trace.jsonl` and `report.json.traceDigest` so every core checkpoint can be audited without trusting the summary alone.
 4. One-ticket withdrawal release evidence for 10 scenarios: consumer/provider normal claim, expired reaper, soft revoke race claim, soft revoke expire, consumer replay attack, and provider low-gas revert retry. Run `npm run e2e:withdrawal-one-ticket-evidence` and validate it with `npm run ci:withdrawal-one-ticket-evidence`.
 5. Reconciliation report for on-chain vault, internal ledger, provider payable, platform fee, pending funds, frozen funds, and completed withdrawals.
 6. Security test report for auth/RBAC, replay, rate limit, SQL injection, SSRF, secret leak, error leak, and malicious provider response.
 7. Performance and reliability report for load tests, concurrent money tests, chaos drills, and rollback drills.
 8. Monitoring evidence: dashboard screenshots, alert screenshots, incident runbook links, on-call routing proof, and alert drill notes.
-9. Data recovery evidence: Postgres backup restore drill, ClickHouse restore freshness proof, RPO/RTO result, and operator notes. v1 restore evidence must not require Postgres-to-ClickHouse row-to-row equality or RPC chain replay.
+9. Data recovery evidence: Postgres backup restore drill, RPO/RTO result, and operator notes. MVP v1 restore evidence must not require ClickHouse restore, Postgres-to-ClickHouse row-to-row equality, or RPC chain replay.
 10. Production configuration review: environment, contract addresses, RPC endpoints, CORS, JWT/TOTP/internal tokens, database TLS, least-privilege accounts, backup policy, and retention policy.
 11. Approval signatures from engineering, security, finance/ledger, and operations owners.
 
@@ -146,7 +146,7 @@ Any item below is an automatic No-Go:
 - Secret material appears in git, logs, frontend bundles, screenshots, or external errors.
 - Production monitoring or alerting has not been drill-tested.
 - Backup restore has not been drill-tested.
-- Backup restore evidence is older than 72 hours, digest-invalid, or missing restored Postgres reconciliation and ClickHouse freshness proof.
+- Backup restore evidence is older than 72 hours, digest-invalid, or missing restored Postgres reconciliation.
 - Load or concurrency tests produce overdraft, duplicate debit, duplicate credit, or unexplained balance drift.
 - Internal audit risk acceptance is missing while no independent third-party audit was performed.
 - Provider withdrawal approval evidence is missing, stale, hand-edited, or fails its finance-sensitive tree hash / digest validation.

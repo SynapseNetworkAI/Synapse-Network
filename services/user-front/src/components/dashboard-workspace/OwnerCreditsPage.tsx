@@ -835,6 +835,7 @@ export default function OwnerCreditsPage() {
         isOpen={isDepositModalOpen}
         title={t("creditsPage.depositModalTitle")}
         description={t("creditsPage.depositModalDescription")}
+        confirmationNotice={t("creditsPage.depositConfirmationNotice")}
         amount={depositAmount}
         onAmountChange={setDepositAmount}
         error={depositError}

@@ -36,6 +36,45 @@ class NotificationOutboxRow:
 
 
 @dataclass(frozen=True)
+class InAppNotificationIntent:
+    notification_id: str
+    dedupe_key: str
+    recipient_type: str
+    event_type: str
+    category: str
+    title: str
+    body: str
+    recipient_owner_id: str | None = None
+    recipient_admin_id: str | None = None
+    severity: str = "info"
+    priority: str = "transactional"
+    action_url: str | None = None
+    resource_type: str | None = None
+    resource_id: str | None = None
+    payload: dict[str, Any] | None = None
+    expires_at: str | None = None
+
+
+@dataclass(frozen=True)
+class InAppNotificationRow:
+    notification_id: str
+    event_type: str
+    category: str
+    severity: str
+    priority: str
+    title: str
+    body: str
+    action_url: str | None
+    resource_type: str | None
+    resource_id: str | None
+    payload: dict[str, Any]
+    read_at: str | None
+    archived_at: str | None
+    expires_at: str | None
+    created_at: str
+
+
+@dataclass(frozen=True)
 class RenderedEmail:
     subject: str
     text_body: str
@@ -74,3 +113,7 @@ class UnknownNotificationTemplate(ValueError):
 
 class InvalidNotificationIntent(ValueError):
     """Raised when an outbox intent is missing required fields."""
+
+
+class InvalidInAppNotificationIntent(ValueError):
+    """Raised when an in-app notification intent is missing required fields."""

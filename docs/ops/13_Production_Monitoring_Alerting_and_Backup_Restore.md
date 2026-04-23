@@ -14,7 +14,7 @@ The v1 rule is deliberately simple:
 1. Gateway and gateway-admin expose internal-only Prometheus-compatible metrics.
 2. Production/staging alerts are grouped by asset-safety severity.
 3. Backup restore drills prove Postgres financial state can be restored and reconciled.
-4. ClickHouse restore proves analytics is queryable and fresh enough, not row-perfect with Postgres.
+4. Analytics outbox and Postgres projections remain queryable after restore.
 5. Evidence must be recent, digest-protected, and attached to Go/No-Go validation.
 
 ## 2. Metrics Endpoint Security
@@ -55,11 +55,21 @@ P1 alerts protect service availability:
 1. Gateway 5xx rate
 2. invoke success-rate degradation
 3. DB pool, lock wait, or deadlock spike
-4. deposit confirm lag
-5. long-lived pending or frozen funds
-6. Kafka / ClickHouse lag
-7. provider outage
-8. gateway-admin approval failure
+4. Cloud SQL connections above 80% of the instance limit for five minutes
+5. Gateway `too many connections` log matches
+6. deposit confirm lag
+7. long-lived pending or frozen funds
+8. analytics outbox backlog or projection freshness lag
+9. provider outage
+10. gateway-admin approval failure
+
+For Cloud SQL connection pool alerts, the Lark card must include:
+
+```text
+Business scenario: Cloud SQL connection pool near exhaustion
+Impact: Gateway finance/API requests may fail or timeout
+Action: reduce Cloud Run max instances/concurrency or upgrade Cloud SQL tier
+```
 
 P2 alerts protect operations and UX:
 
@@ -132,7 +142,7 @@ Required drill identity:
 3. dedicated staging drill wallet addresses
 4. `is_drill = true` on drill-only alert metrics
 
-Real finance reconciliation, admin analytics, and default ClickHouse dashboard queries must exclude `tenant_id = drill_synthetic`.
+Real finance reconciliation and admin analytics queries must exclude `tenant_id = drill_synthetic`.
 
 Drill alerts must include:
 
@@ -153,18 +163,19 @@ Postgres restore must verify:
 3. critical checksums are available when configured
 4. ledger/vault reconciliation reports `0.000000` unexplained delta
 
-ClickHouse restore must verify:
+MVP v1 restore drill does not require ClickHouse restore. Analytics release
+health is checked through Postgres outbox/projection freshness and admin
+analytics smoke queries. ClickHouse/Kafka restore can return as a growth-stage
+drill when those components become production dependencies.
 
-1. analytics schema exists
-2. critical event count is above the expected minimum
-3. latest freshness lag is within threshold, default `300s`
-4. admin analytics smoke queries are queryable
-
-Do not require Postgres and ClickHouse row-to-row equality. Their backup timestamps are not guaranteed to be identical, and strict equality creates false release blockers.
+Do not require Postgres and ClickHouse row-to-row equality in v1. ClickHouse is
+not part of the MVP low-cost staging/prod runtime, and strict cross-store
+equality would create false release blockers.
 
 Do not run RPC chain event replay in v1 restore drill. Chain reconciliation belongs to a separate daily reconciliation job.
 
-Redis and Kafka are not money source-of-truth systems. They can be health-checked, but they are not used to reconstruct balances.
+Redis and Kafka are not MVP money source-of-truth systems. They are not required
+for v1 restore and are not used to reconstruct balances.
 
 ## 7. Evidence Contract
 

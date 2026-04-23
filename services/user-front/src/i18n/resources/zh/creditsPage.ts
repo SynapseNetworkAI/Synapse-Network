@@ -10,6 +10,8 @@ const creditsPage: I18nMessages["creditsPage"] = {
   depositModalTitle: "购买 credits",
   depositModalDescription:
     "把 USDC 充值到 Synapse vault 中，为 API 调用补充预充值 credits。",
+  depositConfirmationNotice:
+    "区块链确认中，余额通常会在 1-2 分钟内到账。你可以保持页面打开，或稍后刷新。",
   currentBillingCycle: "当前 Billing 周期",
   daysRemaining: "剩余天数",
   manageSpendCapTitle: "管理消费上限",
