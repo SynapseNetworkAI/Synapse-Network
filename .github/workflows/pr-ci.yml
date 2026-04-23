@@ -27,5 +27,10 @@ jobs:
           if ! command -v jscpd >/dev/null 2>&1; then
             npm install -g jscpd
           fi
+      - name: Install project dependencies
+        run: |
+          npm ci
+          yarn --cwd services/user-front install --frozen-lockfile
+          yarn --cwd services/admin-front install --frozen-lockfile
       - name: Run PR checks
         run: bash scripts/ci/pr_checks.sh
