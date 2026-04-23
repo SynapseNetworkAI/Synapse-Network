@@ -327,6 +327,33 @@ def _complete_consumer_withdraw(
 # Background loop
 # ---------------------------------------------------------------------------
 
+
+async def run_consumer_withdraw_processor_once(storage: BaseStorage) -> dict[str, int]:
+    processed = 0
+    completed_or_expired = 0
+    failed = 0
+    pending = await asyncio.to_thread(_collect_requested_consumer_withdrawals, storage)
+    for row in pending:
+        try:
+            changed = await asyncio.to_thread(_process_single_withdraw, storage, row)
+            processed += 1
+            if changed:
+                completed_or_expired += 1
+        except Exception as exc:
+            failed += 1
+            logger.warning(
+                "consumer_withdraw_processor: error processing %s: %s",
+                getattr(row, "id", "?"),
+                exc,
+            )
+    return {
+        "collected": len(pending),
+        "processed": processed,
+        "completedOrExpired": completed_or_expired,
+        "failed": failed,
+    }
+
+
 def _collect_requested_consumer_withdrawals(storage: BaseStorage) -> list:
     """Return active or anomaly-check consumer withdrawal rows."""
     try:
@@ -350,19 +377,8 @@ async def run_consumer_withdraw_processor(
 
     while not stop_event.is_set():
         try:
-            pending = await asyncio.to_thread(
-                _collect_requested_consumer_withdrawals, storage
-            )
-            for row in pending:
-                if stop_event.is_set():
-                    break
-                try:
-                    await asyncio.to_thread(_process_single_withdraw, storage, row)
-                except Exception as exc:
-                    logger.warning(
-                        "consumer_withdraw_processor: error processing %s: %s",
-                        getattr(row, "id", "?"), exc,
-                    )
+            result = await run_consumer_withdraw_processor_once(storage)
+            logger.debug("consumer_withdraw_processor: tick=%s", result)
         except Exception as exc:
             logger.warning("consumer_withdraw_processor: tick failed: %s", exc)
 

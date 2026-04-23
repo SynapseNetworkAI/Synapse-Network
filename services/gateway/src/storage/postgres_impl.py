@@ -10,7 +10,7 @@ from .base import (
     SynapseUnitOfWork,
     SystemDomain,
 )
-from .postgres.database_manager import DatabaseManager
+from .postgres.database_manager import DatabaseManager, normalize_pool_max
 from .postgres.schema_contracts import (
     POSTGRES_TABLE_SCHEMA_CONTRACTS,
     TableSchemaContract,
@@ -25,6 +25,7 @@ from .postgres.repositories.fee_policy_repository import FeePolicyRepository
 from .postgres.repositories.finance_atomic_repository import FinanceAtomicRepository
 from .postgres.repositories.gateway_state_repository import GatewayStateRepository
 from .postgres.repositories.idempotency_repository import IdempotencyRepository
+from .postgres.repositories.in_app_notification_repository import InAppNotificationRepository
 from .postgres.repositories.notification_outbox_repository import NotificationOutboxRepository
 from .postgres.repositories.service_registry_repository import ServiceRegistryRepository
 from src.services.notifications.models import NotificationIntent
@@ -97,6 +98,7 @@ class PostgresStorage(BaseStorage):
         dsn: str,
         ensure_schema: bool = True,
         connect_timeout_sec: int = 5,
+        pool_max: int = 5,
     ):
         if psycopg is None:
             raise RuntimeError(
@@ -107,7 +109,10 @@ class PostgresStorage(BaseStorage):
 
         self.dsn = dsn.strip()
         self._connect_timeout_sec = max(1, int(connect_timeout_sec or 5))
-        self._db = DatabaseManager(self._connect)
+        self._db = DatabaseManager(
+            self._connect,
+            pool_max=normalize_pool_max(5 if pool_max in (None, "") else pool_max),
+        )
         if ensure_schema:
             self._validate_schema_contract()
 
@@ -123,6 +128,7 @@ class PostgresStorage(BaseStorage):
         gateway_state = GatewayStateRepository(self._db, q6)
         analytics_outbox = AnalyticsOutboxRepository(self._db)
         notification_outbox = NotificationOutboxRepository(self._db)
+        in_app_notifications = InAppNotificationRepository(self._db)
         deposit_attempts = DepositAttemptRepository(self._db, q6)
         finance_atomic = FinanceAtomicRepository(
             self._db,
@@ -135,6 +141,7 @@ class PostgresStorage(BaseStorage):
         self._deposit_attempts = deposit_attempts
         self.analytics_outbox = analytics_outbox
         self.notification_outbox = notification_outbox
+        self.in_app_notifications = in_app_notifications
         self._data_manager = SynapseDataManager(
             uow=SynapseUnitOfWork(db=self._db),
             finance=FinanceDomain(
@@ -146,6 +153,7 @@ class PostgresStorage(BaseStorage):
                 registry=service_registry,
                 credential_auth=credential_auth,
                 execution=execution,
+                in_app_notifications=in_app_notifications,
             ),
             audit=AuditDomain(logs=audit),
         )
@@ -338,6 +346,55 @@ class PostgresStorage(BaseStorage):
 
     def read_notification_outbox_stats(self) -> dict[str, int | str | None]:
         return self.notification_outbox.stats()
+
+    def enqueue_in_app_notification(self, intent: Any) -> None:
+        self.in_app_notifications.enqueue(intent)
+
+    def list_in_app_notifications(
+        self,
+        *,
+        owner_wallet: str,
+        limit: int,
+        cursor: str | None,
+        unread_only: bool,
+    ):
+        return self.in_app_notifications.list_for_owner(
+            owner_wallet=owner_wallet,
+            limit=limit,
+            cursor=cursor,
+            unread_only=unread_only,
+        )
+
+    def read_in_app_notification_unread_count(self, *, owner_wallet: str) -> int:
+        return self.in_app_notifications.unread_count_for_owner(owner_wallet=owner_wallet)
+
+    def mark_in_app_notification_read(self, *, owner_wallet: str, notification_id: str) -> bool:
+        return self.in_app_notifications.mark_read_for_owner(
+            owner_wallet=owner_wallet,
+            notification_id=notification_id,
+        )
+
+    def mark_all_in_app_notifications_read(self, *, owner_wallet: str) -> int:
+        return self.in_app_notifications.mark_all_read_for_owner(owner_wallet=owner_wallet)
+
+    def archive_in_app_notification(self, *, owner_wallet: str, notification_id: str) -> bool:
+        return self.in_app_notifications.archive_for_owner(
+            owner_wallet=owner_wallet,
+            notification_id=notification_id,
+        )
+
+    def cleanup_in_app_notifications(
+        self,
+        *,
+        retention_days: int,
+        security_retention_days: int,
+        batch_size: int,
+    ) -> int:
+        return self.in_app_notifications.cleanup_expired(
+            retention_days=retention_days,
+            security_retention_days=security_retention_days,
+            batch_size=batch_size,
+        )
 
     def process_withdrawal_request_atomic(
         self,

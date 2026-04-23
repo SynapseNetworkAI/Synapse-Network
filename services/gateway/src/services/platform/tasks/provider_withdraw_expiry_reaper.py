@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from contextlib import suppress
 
 from src.core.config import settings
 from src.services.platform.balance_service import BalanceService
@@ -9,6 +10,11 @@ from src.storage.base import BaseStorage
 
 
 logger = logging.getLogger(__name__)
+
+
+async def run_provider_withdraw_expiry_reaper_once(storage: BaseStorage) -> dict[str, int]:
+    expired_count = await BalanceService(storage).expire_stale_provider_withdrawals()
+    return {"expired": int(expired_count or 0)}
 
 
 async def run_provider_withdraw_expiry_reaper(
@@ -19,17 +25,15 @@ async def run_provider_withdraw_expiry_reaper(
 
     while not stop_event.is_set():
         try:
-            expired_count = await BalanceService(storage).expire_stale_provider_withdrawals()
+            result = await run_provider_withdraw_expiry_reaper_once(storage)
             logger.debug(
                 "Provider withdrawal expiry reaper tick: expired=%s",
-                expired_count,
+                result["expired"],
             )
         except Exception as exc:
             logger.warning("Provider withdrawal expiry reaper tick failed: %s", exc)
 
-        try:
+        with suppress(asyncio.TimeoutError):
             await asyncio.wait_for(stop_event.wait(), timeout=interval)
-        except asyncio.TimeoutError:
-            pass
 
     logger.info("Provider withdrawal expiry reaper stopped")

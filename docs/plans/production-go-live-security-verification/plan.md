@@ -53,7 +53,7 @@ doc_status: active
 
 - Run load tests for discovery, quote, invoke, balance, deposit confirm, withdrawal intent, provider health probes, admin analytics, and admin finance views.
 - Run high-concurrency money tests for low-balance boundary, repeated request id, multiple agents, provider timeout, and DB lock contention.
-- Run chaos drills for provider outage, gateway restart, gateway-admin restart, ClickHouse/Kafka outage, RPC outage, slow RPC, Postgres failover, Redis unavailable, and stale health.
+- Run chaos drills for provider outage, gateway restart, gateway-admin restart, analytics outbox/projection degradation, RPC outage, slow RPC, Postgres failover, and stale health. Redis/Kafka/ClickHouse drills are growth-stage checks only if those systems are reintroduced.
 - Run rollback drills for app rollback, config rollback, feature flag shutoff, provider drain, signer rollback, and database restore.
 
 ## Phase 6 - Monitoring, Alerts, and Sign-Off

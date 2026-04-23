@@ -41,7 +41,9 @@ fi
 echo "[gcp-preflight] billing enabled"
 
 APIS=(
-  compute.googleapis.com
+  run.googleapis.com
+  sqladmin.googleapis.com
+  cloudscheduler.googleapis.com
   secretmanager.googleapis.com
   artifactregistry.googleapis.com
   cloudresourcemanager.googleapis.com

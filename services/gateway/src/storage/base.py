@@ -35,6 +35,7 @@ class SystemDomain:
     registry: Any
     credential_auth: Any
     execution: Any = None
+    in_app_notifications: Any = None
 
 
 @dataclass(frozen=True)

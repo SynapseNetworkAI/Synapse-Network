@@ -49,6 +49,14 @@ def sha256_json(payload: Any) -> str:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
+def sha256_file(file_path: Path) -> str:
+    digest = hashlib.sha256()
+    with file_path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def run_text(args: list[str], cwd: Path) -> str:
     result = subprocess.run(args, cwd=cwd, check=False, text=True, capture_output=True)  # noqa: S603 - fixed git commands only
     return result.stdout.strip()
@@ -235,6 +243,87 @@ def write_reconciliation_summary(out_dir: Path, comparisons: list[dict[str, Any]
     return summary
 
 
+def write_job_execution_summary(out_dir: Path) -> dict[str, Any]:
+    summary_path = os.getenv("GATEWAY_RELEASE_E2E_JOB_SUMMARY_PATH", "").strip()
+    if summary_path:
+        source_path = Path(summary_path).expanduser().resolve()
+        summary = json.loads(source_path.read_text(encoding="utf-8"))
+        summary["source"] = str(source_path)
+    else:
+        summary = {
+            "source": "not-provided",
+            "depositConfirmSla": {
+                "expected": "deposit credited within 1-2 minutes after on-chain confirmation",
+                "indexedAt": None,
+                "creditedAt": None,
+                "delaySeconds": None,
+            },
+            "alreadyRunningSkipped": 0,
+            "jobs": [],
+        }
+    (out_dir / "job-execution-summary.json").write_text(
+        json.dumps(summary, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return summary
+
+
+def _trace_scenario(row: dict[str, Any]) -> str:
+    if row["stage"] == "gateway-fullchain":
+        return str(row["metricName"])
+    return str(row["stage"])
+
+
+def write_trace_jsonl(
+    out_dir: Path,
+    *,
+    environment: dict[str, Any],
+    comparisons: list[dict[str, Any]],
+) -> dict[str, Any]:
+    trace_path = out_dir / "trace.jsonl"
+    run_id = os.getenv("GATEWAY_RELEASE_E2E_RUN_ID") or out_dir.name
+    timestamp = datetime.now(timezone.utc).isoformat()
+    line_count = 0
+    with trace_path.open("w", encoding="utf-8") as handle:
+        for row in comparisons:
+            scenario = _trace_scenario(row)
+            passed = bool(row["pass"])
+            is_reconciliation = row["metricName"] == "ledger_vault_reconciliation"
+            trace = {
+                "runId": run_id,
+                "scenario": scenario,
+                "requestId": f"{run_id}:{row['stage']}:{row['metricName']}",
+                "timestamp": timestamp,
+                "method": "CHECKPOINT",
+                "path": f"/release-evidence/{row['stage']}/{row['metricName']}",
+                "httpStatus": 200 if passed else 500,
+                "durationMs": 0,
+                "sanitizedRequest": {
+                    "environment": environment.get("environment"),
+                    "stage": row["stage"],
+                    "metricName": row["metricName"],
+                },
+                "sanitizedResponse": {
+                    "detail": row["actual"],
+                    "result": "pass" if passed else "fail",
+                },
+                "expected": row["expected"],
+                "actual": row["actual"],
+                "ledgerDelta": "0.000000" if is_reconciliation else "",
+                "vaultDelta": "0.000000" if is_reconciliation else "",
+                "ticketHash": "",
+                "txHash": "",
+                "reconciliationStatus": "passed" if passed else "failed",
+            }
+            handle.write(json.dumps(trace, sort_keys=True, separators=(",", ":")) + "\n")
+            line_count += 1
+    return {
+        "path": str(trace_path),
+        "lineCount": line_count,
+        "digest": sha256_file(trace_path),
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--out-dir", required=True)
@@ -314,6 +403,12 @@ def main() -> int:
     )
 
     reconciliation = write_reconciliation_summary(out_dir, comparisons)
+    job_execution = write_job_execution_summary(out_dir)
+    trace = write_trace_jsonl(
+        out_dir,
+        environment=environment,
+        comparisons=comparisons,
+    )
     status = "success" if not failed else "failed"
     report = {
         "status": status,
@@ -323,8 +418,11 @@ def main() -> int:
         "contract": contract,
         "analytics": analytics,
         "reconciliation": reconciliation,
+        "jobExecution": job_execution,
         "pytest": {key: value for key, value in pytest_summary.items() if key != "cases"},
         "comparisons": comparisons,
+        "traceDigest": trace["digest"],
+        "traceLineCount": trace["lineCount"],
         "failed": failed,
     }
     report["evidenceDigest"] = sha256_json(
@@ -333,8 +431,10 @@ def main() -> int:
             "environment": report["environment"],
             "contract": report["contract"],
             "analytics": report["analytics"],
+            "jobExecution": report["jobExecution"],
             "pytest": report["pytest"],
             "comparisons": report["comparisons"],
+            "traceDigest": report["traceDigest"],
             "failed": report["failed"],
         }
     )
@@ -349,6 +449,8 @@ def main() -> int:
         f"- Git commit: `{environment['gitCommitSha']}`",
         f"- Git dirty: `{environment['gitDirty']}`",
         f"- Evidence digest: `{report['evidenceDigest']}`",
+        f"- Trace digest: `{report['traceDigest']}`",
+        f"- Trace lines: `{report['traceLineCount']}`",
         "",
         "## Pytest Summary",
         "",
@@ -375,11 +477,13 @@ def main() -> int:
             "## Evidence Files",
             "",
             "- `pytest-junit.xml`",
+            "- `trace.jsonl`",
             "- `gateway-e2e.log`",
             "- `environment-manifest.json`",
             "- `contract-manifest.json`",
             "- `analytics-clickhouse-summary.json`",
             "- `reconciliation-summary.json`",
+            "- `job-execution-summary.json`",
         ]
     )
     (out_dir / "report.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
