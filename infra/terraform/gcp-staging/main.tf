@@ -16,8 +16,11 @@ locals {
       STORAGE_BACKEND                         = "postgres"
       POSTGRES_HOST                           = "/cloudsql/${google_sql_database_instance.postgres.connection_name}"
       POSTGRES_DB                             = var.cloud_sql_database_name
+      POSTGRES_USER                           = "synapse_gateway_app"
+      POSTGRES_MIGRATOR_USER                  = "synapse_gateway_migrator"
       POSTGRES_CONNECT_TIMEOUT_SEC            = "5"
       POSTGRES_POOL_MAX                       = "5"
+      POSTGRES_AUTO_INIT                      = "0"
       V2_INDEXER_ENABLED                      = "false"
       PROVIDER_WITHDRAW_EXPIRY_REAPER_ENABLED = "false"
       CONSUMER_WITHDRAW_PROCESSOR_ENABLED     = "false"
@@ -131,6 +134,17 @@ locals {
       max_retries = 0
       retry_count = 0
       env         = merge(local.runtime_env, { IN_APP_NOTIFICATION_CLEANUP_ENABLED = "true" })
+    }
+    db_migrate = {
+      name        = "${local.name_prefix}-db-migrate"
+      image       = var.gateway_image
+      command     = ["bash", "scripts/deploy/migrate_db.sh"]
+      args        = [var.environment]
+      schedule    = ""
+      timeout     = "600s"
+      max_retries = 0
+      retry_count = 0
+      env         = merge(local.runtime_env, { POSTGRES_AUTO_INIT = "0" })
     }
   }
   enabled_cloud_run_jobs = {
@@ -373,7 +387,10 @@ resource "google_cloud_run_v2_job" "jobs" {
 }
 
 resource "google_cloud_scheduler_job" "jobs" {
-  for_each = google_cloud_run_v2_job.jobs
+  for_each = {
+    for key, job in google_cloud_run_v2_job.jobs : key => job
+    if trimspace(local.enabled_cloud_run_jobs[key].schedule) != ""
+  }
 
   name      = "${each.value.name}-schedule"
   region    = var.region
