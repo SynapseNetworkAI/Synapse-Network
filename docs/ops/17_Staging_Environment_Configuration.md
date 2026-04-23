@@ -221,6 +221,75 @@ shell command arguments.
 If Lark bots use keyword-only validation, leave `synapse-staging-lark-secret-*`
 unset and ensure E2E messages contain the configured keyword.
 
+### Secret Value Source Guide
+
+Not every staging secret is the same kind of value. Some are plain application
+secrets that should be generated with strong randomness. Some must come from a
+third-party dashboard. EVM private keys are neither of those: they control
+dedicated staging wallets and must be created, funded, and backed up as wallets.
+
+| Secret id | What it controls | Value class | Can be randomly generated with `openssl rand` | Source |
+| --- | --- | --- | --- | --- |
+| `synapse-staging-jwt-secret` | User-facing Gateway JWT signing and verification. | Application secret | Yes | Local secure random generation |
+| `synapse-staging-auth-secret` | Wallet login challenge/session/auth signing. | Application secret | Yes | Local secure random generation |
+| `synapse-staging-gateway-internal-jwt-secret` | Gateway-admin to Gateway internal service-token signing. | Application secret | Yes | Local secure random generation |
+| `synapse-staging-metrics-bearer-token` | `/metrics` scrape authorization token. | Ops bearer token | Yes | Local secure random generation |
+| `synapse-staging-private-key` | Gateway EIP-712 withdrawal ticket signer. | EVM private key | No | Dedicated staging withdraw signer wallet |
+| `synapse-staging-deployer-private-key` | Contract deployer for MockUSDC/SynapseCore. | EVM private key | No | Dedicated staging deployer wallet |
+| `synapse-staging-arbitrum-sepolia-rpc-url` | Arbitrum Sepolia RPC endpoint. | Third-party URL | No | Alchemy, Infura, QuickNode, or equivalent RPC provider |
+| `synapse-staging-arbiscan-api-key` | Arbiscan source verification. | Third-party API key | No | Arbiscan account |
+
+Randomly generated application secrets:
+
+```bash
+openssl rand -base64 48 | tr -d '\n' | \
+  bash scripts/deploy/gcp_put_secret.sh synapse-staging-jwt-secret
+
+openssl rand -base64 48 | tr -d '\n' | \
+  bash scripts/deploy/gcp_put_secret.sh synapse-staging-auth-secret
+
+openssl rand -base64 48 | tr -d '\n' | \
+  bash scripts/deploy/gcp_put_secret.sh synapse-staging-gateway-internal-jwt-secret
+
+openssl rand -base64 48 | tr -d '\n' | \
+  bash scripts/deploy/gcp_put_secret.sh synapse-staging-metrics-bearer-token
+```
+
+Third-party values:
+
+```bash
+printf '%s' 'https://arb-sepolia.g.alchemy.com/v2/REDACTED' | \
+  bash scripts/deploy/gcp_put_secret.sh synapse-staging-arbitrum-sepolia-rpc-url
+
+printf '%s' 'REDACTED_ARBISCAN_API_KEY' | \
+  bash scripts/deploy/gcp_put_secret.sh synapse-staging-arbiscan-api-key
+```
+
+Wallet private keys:
+
+```bash
+printf '%s' '0xREDACTED_STAGING_WITHDRAW_SIGNER_PRIVATE_KEY' | \
+  bash scripts/deploy/gcp_put_secret.sh synapse-staging-private-key
+
+printf '%s' '0xREDACTED_STAGING_DEPLOYER_PRIVATE_KEY' | \
+  bash scripts/deploy/gcp_put_secret.sh synapse-staging-deployer-private-key
+```
+
+Wallet boundaries:
+
+1. `synapse-staging-deployer-private-key` is deploy-only. It deploys MockUSDC
+   and SynapseCore, performs staging pre-mint, and should not be injected into
+   runtime Gateway services.
+2. `synapse-staging-private-key` is the Gateway withdrawal signer. Its public
+   address must equal `STAGING_WITHDRAW_SIGNER_ADDRESS` in deployment evidence.
+3. The contract owner wallet should be a separate staging wallet address. It
+   does not need to be injected into Gateway runtime.
+4. Test consumer/provider wallets are for E2E only. They need Arbitrum Sepolia
+   ETH gas and pre-minted MockUSDC, but their private keys must not be injected
+   into Gateway runtime.
+5. Never use a personal wallet, production wallet, or treasury wallet for any
+   staging secret.
+
 ## User-front
 
 File: `services/user-front/.env.staging.example`.
