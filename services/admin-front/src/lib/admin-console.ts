@@ -73,6 +73,7 @@ export function formatDateTime(value: string | null | undefined): string {
     return value;
   }
   return new Intl.DateTimeFormat("zh-CN", {
+    timeZone: "Asia/Kuala_Lumpur",
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",

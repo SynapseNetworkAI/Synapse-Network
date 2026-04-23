@@ -42,6 +42,10 @@ describe("formatDateTime", () => {
   it("returns the original string when the date is invalid", () => {
     expect(formatDateTime("bad-date")).toBe("bad-date");
   });
+
+  it("formats timestamps in the staging business timezone", () => {
+    expect(formatDateTime("2026-03-21T10:05:00Z")).toBe("03/21 18:05");
+  });
 });
 
 describe("toneFromStatus", () => {
