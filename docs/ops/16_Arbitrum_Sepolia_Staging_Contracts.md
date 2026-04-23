@@ -40,6 +40,10 @@ export STAGING_TEST_CONSUMER_ADDRESS="0x..."
 export STAGING_TEST_PROVIDER_ADDRESS="0x..."
 ```
 
+The full staging configuration matrix, including where each value lives in
+Secret Manager or Cloud Run, is maintained in
+`docs/ops/17_Staging_Environment_Configuration.md`.
+
 Role separation is mandatory:
 
 1. `STAGING_DEPLOYER_PRIVATE_KEY`: deploys contracts, pre-mints MockUSDC, then

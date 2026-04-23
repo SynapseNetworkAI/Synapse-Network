@@ -4,6 +4,11 @@ This module provisions the MVP staging substrate for the low-cost Cloud Run and
 Cloud SQL architecture described in
 `docs/ops/15_Google_Cloud_Launch_Readiness.md`.
 
+The canonical staging environment matrix for DNS, Cloud Run env, Secret
+Manager ids, frontend URLs, Gateway/Gateway-admin settings, Gmail, Lark, and
+Arbitrum Sepolia deployment variables lives in
+`docs/ops/17_Staging_Environment_Configuration.md`.
+
 It intentionally does not provision the old single-VM Docker Compose stack.
 That path remains an emergency fallback only.
 
@@ -57,11 +62,37 @@ Create database users/passwords outside Terraform as well, so passwords do not
 land in Terraform state. Store the resulting password in Secret Manager and
 inject it into Cloud Run at deploy time.
 
+## Secret Manager Default Encryption
+
+Staging secrets live in Secret Manager with Google-managed default encryption at
+rest. MVP staging does not use Cloud KMS / CMEK.
+
+Recommended flow:
+
+1. Let Terraform create Secret Manager placeholders.
+2. Run `scripts/deploy/gcp_staging_bootstrap.sh` to generate the Cloud SQL app
+   password, create/update the database user, and write the password to Secret
+   Manager.
+3. Use `scripts/deploy/gcp_put_secret.sh` to add user-provided secret values
+   from stdin.
+4. Grant the Cloud Run runtime service account
+   `roles/secretmanager.secretAccessor` on the required secrets.
+5. Inject secrets into Cloud Run with `--set-secrets`.
+
+The application should not receive KMS IAM roles. Cloud Run reads Secret Manager
+values directly; Secret Manager handles encryption at rest.
+
+Full staging checklist and commands live in
+`docs/ops/15_Google_Cloud_Launch_Readiness.md` and
+`docs/ops/17_Staging_Environment_Configuration.md`.
+
 ## First Deployment Strategy
 
-If image names are not ready, keep `gateway_image`, `gateway_admin_image`,
-`user_front_image`, and `admin_front_image` empty. Terraform will create the
-durable substrate first. Then deploy the first containers manually:
+If container image names are not ready, keep `gateway_image`,
+`gateway_admin_image`, `user_front_image`, and `admin_front_image` empty.
+These variables are Docker/OCI image URLs for Cloud Run, not website PNG/JPG
+assets. Terraform will create the durable substrate first. Then deploy the first
+containers manually:
 
 ```bash
 gcloud run deploy synapse-staging-gateway \
@@ -74,6 +105,14 @@ gcloud run deploy synapse-staging-gateway \
 
 Once staging is stable, set the image variables and let Terraform own the Cloud
 Run services.
+
+The static-assets bucket is optional for future CDN-hosted website assets. It is
+not required for Cloud Run front-end deploys because files under each Next.js
+`public/` directory are shipped inside the front-end container image.
+
+```bash
+scripts/deploy/gcp_create_staging_buckets.sh <gcp-project-id>
+```
 
 ## Cloud Run Scaling Guard
 
