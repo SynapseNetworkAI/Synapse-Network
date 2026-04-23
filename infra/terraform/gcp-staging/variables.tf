@@ -145,14 +145,25 @@ variable "secret_ids" {
   type        = set(string)
   default = [
     "synapse-staging-postgres-password",
+    "synapse-staging-admin-postgres-password",
     "synapse-staging-jwt-secret",
     "synapse-staging-auth-secret",
     "synapse-staging-private-key",
     "synapse-staging-gateway-internal-jwt-secret",
+    "synapse-staging-admin-csrf-secret",
+    "synapse-staging-gateway-admin-wallet",
     "synapse-staging-gmail-app-password",
+    "synapse-staging-gmail-username",
     "synapse-staging-lark-webhook-p0",
     "synapse-staging-lark-webhook-prod-alerts",
     "synapse-staging-lark-webhook-staging-drill",
+    "synapse-staging-lark-secret-p0",
+    "synapse-staging-lark-secret-prod-alerts",
+    "synapse-staging-lark-secret-staging-drill",
+    "synapse-staging-arbitrum-sepolia-rpc-url",
+    "synapse-staging-arbiscan-api-key",
+    "synapse-staging-deployer-private-key",
+    "synapse-staging-metrics-bearer-token",
   ]
 }
 

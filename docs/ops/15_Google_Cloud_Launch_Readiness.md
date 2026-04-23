@@ -101,6 +101,12 @@ The preflight verifies `gcloud`, Terraform, project access, billing, and require
 GCP APIs. It may enable missing APIs. Run it from Cloud Shell or a trusted local
 machine.
 
+Canonical staging configuration lives in
+`docs/ops/17_Staging_Environment_Configuration.md`. Use that document as the
+single checklist for staging DNS, Cloud Run env, Secret Manager ids, frontend
+URLs, Gateway/Gateway-admin settings, Gmail, Lark, and Arbitrum Sepolia
+deployment variables.
+
 ## Staging Cloud Resources
 
 Staging resources:
@@ -218,6 +224,338 @@ Before staging evidence:
 10. TLS is managed by Cloud Run/custom domains or load balancer.
 11. GCS backup bucket exists for recovery drill artifacts.
 12. Cloud Monitoring alerts exist for Cloud Run, Cloud SQL, and jobs.
+
+## Staging Configuration Checklist
+
+Use this section as the staging setup source of truth. Values marked as
+`secret` must be stored in Secret Manager, not in Terraform variables, git,
+screenshots, Slack/Lark, or evidence reports.
+
+### Local Terraform Input
+
+Create `infra/terraform/gcp-staging/terraform.tfvars` locally. Do not commit it.
+
+Required:
+
+```hcl
+project_id         = "<gcp-project-id>"
+backup_bucket_name = "<globally-unique-synapse-staging-backups-bucket>"
+```
+
+Recommended staging defaults:
+
+```hcl
+region                        = "us-central1"
+environment                   = "staging"
+artifact_registry_repository  = "synapse-staging"
+cloud_sql_tier                = "db-f1-micro"
+cloud_sql_backup_start_time   = "19:00" # UTC; 03:00 Asia/Kuala_Lumpur
+cloud_sql_transaction_log_retention_days = 1
+cloud_sql_retained_backups    = 3
+cloud_sql_deletion_protection = false
+```
+
+Optional image inputs. Leave them empty for substrate-first apply; set them once
+Artifact Registry images exist:
+
+```hcl
+gateway_image       = "us-central1-docker.pkg.dev/<project>/synapse-staging/gateway:<tag>"
+gateway_admin_image = "us-central1-docker.pkg.dev/<project>/synapse-staging/gateway-admin:<tag>"
+user_front_image    = "us-central1-docker.pkg.dev/<project>/synapse-staging/user-front:<tag>"
+admin_front_image   = "us-central1-docker.pkg.dev/<project>/synapse-staging/admin-front:<tag>"
+```
+
+Non-secret runtime overrides belong in `common_runtime_env` or
+`frontend_runtime_env`. Do not put passwords, private keys, JWT secrets, webhook
+URLs, or RPC API keys in these maps.
+
+### Cloud SQL
+
+Terraform creates the Cloud SQL instance and database. The application database
+user and password are created outside Terraform so the password does not enter
+Terraform state:
+
+```bash
+gcloud sql users create synapse_gateway_app \
+  --instance=synapse-staging-postgres \
+  --password='<strong-generated-password>'
+```
+
+Store the generated password in Secret Manager:
+
+```bash
+printf '%s' '<strong-generated-password>' | \
+  gcloud secrets versions add synapse-staging-postgres-password --data-file=-
+```
+
+Required Gateway database runtime values:
+
+```bash
+POSTGRES_HOST="/cloudsql/<project>:us-central1:synapse-staging-postgres"
+POSTGRES_DB="synapse_gateway_staging"
+POSTGRES_USER="synapse_gateway_app"
+POSTGRES_PASSWORD="<from Secret Manager>"
+POSTGRES_POOL_MAX=5
+POSTGRES_CONNECT_TIMEOUT_SEC=5
+```
+
+### Secret Manager Values
+
+Terraform creates secret placeholders only. Add values out-of-band with
+`gcloud secrets versions add`.
+
+Required staging secrets:
+
+| Secret id | Meaning | Used by |
+| --- | --- | --- |
+| `synapse-staging-postgres-password` | Cloud SQL Gateway app user password | Gateway, Gateway jobs |
+| `synapse-staging-admin-postgres-password` | Gateway-admin control-plane DB password | Gateway-admin |
+| `synapse-staging-jwt-secret` | User-facing JWT signing/verification secret | Gateway |
+| `synapse-staging-auth-secret` | App auth/session secret material | Gateway/User auth |
+| `synapse-staging-private-key` | Staging withdraw signer private key | Gateway ticket signing only |
+| `synapse-staging-gateway-internal-jwt-secret` | Gateway-admin to Gateway internal auth | Gateway, Gateway-admin |
+| `synapse-staging-admin-csrf-secret` | Gateway-admin CSRF/session protection secret | Gateway-admin |
+| `synapse-staging-gateway-admin-wallet` | Internal admin wallet subject/allow-list identity | Gateway, Gateway-admin |
+| `synapse-staging-gmail-app-password` | Gmail app password or SMTP relay credential | Notification outbox worker |
+| `synapse-staging-lark-webhook-p0` | P0 Lark group robot webhook URL | Lark relay / alert jobs |
+| `synapse-staging-lark-webhook-prod-alerts` | Staging/prod alert hall webhook for non-P0 route tests | Lark relay / alert jobs |
+| `synapse-staging-lark-webhook-staging-drill` | Drill-only Lark webhook URL | Drill alerts |
+| `synapse-staging-lark-secret-p0` | Optional P0 Lark signing secret | Lark relay / alert jobs |
+| `synapse-staging-lark-secret-prod-alerts` | Optional prod-alerts Lark signing secret | Lark relay / alert jobs |
+| `synapse-staging-lark-secret-staging-drill` | Optional staging drill Lark signing secret | Lark relay / alert jobs |
+
+Recommended additional secrets before release evidence:
+
+| Secret id | Meaning |
+| --- | --- |
+| `synapse-staging-arbitrum-sepolia-rpc-url` | Alchemy/Infura/other Arbitrum Sepolia RPC URL |
+| `synapse-staging-arbiscan-api-key` | Arbiscan verification API key |
+| `synapse-staging-deployer-private-key` | Staging contract deployer key, used only during deploy |
+| `synapse-staging-gmail-username` | Gmail/Workspace sender username |
+| `synapse-staging-metrics-bearer-token` | Optional metrics/readiness scrape token |
+
+Use a newline-free write pattern:
+
+```bash
+printf '%s' '<secret-value>' | \
+  gcloud secrets versions add <secret-id> --data-file=-
+```
+
+Never use `echo` for private keys or passwords; shell-dependent newline behavior
+creates invisible auth failures.
+
+### Cloud Run Runtime Environment
+
+Staging and production run in Postgres-first mode. The Gateway service and jobs
+should receive these non-secret values:
+
+```bash
+ENVIRONMENT=staging
+STORAGE_BACKEND=postgres
+ANALYTICS_TRANSPORT=outbox
+ANALYTICS_STRICT_KAFKA=false
+ANALYTICS_KAFKA_BOOTSTRAP_SERVERS=
+
+REDIS_URL=
+DOWNSTREAM_ADAPTIVE_REDIS_ENABLED=false
+
+EMAIL_OUTBOX_ENABLED=true
+IN_APP_NOTIFICATION_CLEANUP_ENABLED=false
+V2_INDEXER_ENABLED=false
+PROVIDER_WITHDRAW_EXPIRY_REAPER_ENABLED=false
+CONSUMER_WITHDRAW_PROCESSOR_ENABLED=false
+
+CHAIN_POLL_INTERVAL_SEC=15
+REAPER_POLL_INTERVAL_SEC=60
+GATEWAY_RELEASE_E2E_MAX_RPC_CONCURRENCY=3
+```
+
+The Gateway API process must not run long loops in staging. Deposit indexing,
+withdrawal reaping, email outbox draining, and notification cleanup run through
+Cloud Run Jobs triggered by Cloud Scheduler.
+
+After Arbitrum Sepolia deployment evidence passes, inject:
+
+```bash
+RPC_URL="<from synapse-staging-arbitrum-sepolia-rpc-url>"
+ROUTER_ADDRESS="<SynapseCore from contract-manifest.json>"
+USDC_TOKEN_ADDRESS="<MockUSDC from contract-manifest.json>"
+PRIVATE_KEY="<from synapse-staging-private-key>"
+```
+
+### Arbitrum Sepolia Contract Deployment
+
+Required local/deploy environment for staging contracts:
+
+```bash
+ARBITRUM_SEPOLIA_RPC_URL="<rpc-url>"
+STAGING_DEPLOYER_PRIVATE_KEY="<deployer-private-key>"
+STAGING_CONTRACT_OWNER_ADDRESS="<owner-address>"
+STAGING_WITHDRAW_SIGNER_ADDRESS="<withdraw-signer-address>"
+STAGING_TEST_CONSUMER_ADDRESS="<consumer-e2e-wallet>"
+STAGING_TEST_PROVIDER_ADDRESS="<provider-e2e-wallet>"
+ARBISCAN_API_KEY="<arbiscan-key>"
+```
+
+Preconditions:
+
+1. Deployer has enough Arbitrum Sepolia ETH for deployment.
+2. Consumer and provider test wallets each have at least `0.01 ETH` for gas.
+3. Owner, withdraw signer, deployer, consumer, and provider are separate roles.
+4. Deployment script pre-mints owner-only MockUSDC to the consumer/provider test
+   wallets.
+
+Run:
+
+```bash
+npm run deploy:contracts:arbitrum-sepolia:dry-run
+npm run deploy:contracts:arbitrum-sepolia
+npm run ci:contract-deployment-evidence
+```
+
+### Lark and Gmail
+
+Lark route secrets:
+
+```bash
+LARK_WEBHOOK_P0_WAR_ROOM="<from Secret Manager>"
+LARK_WEBHOOK_PROD_ALERTS="<from Secret Manager>"
+LARK_WEBHOOK_STAGING_DRILL="<from Secret Manager>"
+```
+
+If the Lark bot uses signature verification, also configure matching
+`LARK_SECRET_*` values. If the bot uses keyword-only verification, leave the
+secret value unset and ensure messages include the configured keyword such as
+`LARK_E2E_TEST` during E2E.
+
+Gmail/SMTP route secrets:
+
+```bash
+GMAIL_SMTP_USERNAME="<sender-email>"
+GMAIL_SMTP_APP_PASSWORD="<from Secret Manager>"
+EMAIL_FROM="Synapse Network Staging <sender-email>"
+EMAIL_REPLY_TO="<ops-or-support-email>"
+```
+
+Run evidence after deployment:
+
+```bash
+npm run e2e:lark-alerts
+npm run ci:lark-alert-e2e-evidence
+```
+
+### Staging Smoke and Evidence
+
+Minimum smoke:
+
+```bash
+curl https://api-staging.synapse-network.ai/health
+curl https://admin-api-staging.synapse-network.ai/health
+curl https://staging.synapse-network.ai/
+curl https://admin-staging.synapse-network.ai/
+```
+
+Release evidence:
+
+```bash
+npm run release:evidence:gateway-fullchain:staging
+GATEWAY_RELEASE_E2E_REQUIRED_ENV=staging npm run ci:gateway-release-e2e-evidence
+
+npm run e2e:withdrawal-one-ticket-evidence
+npm run ci:withdrawal-one-ticket-evidence
+
+npm run e2e:in-app-notifications
+npm run ci:in-app-notifications-evidence
+```
+
+## Secret Manager Default Encryption
+
+V1 uses Secret Manager as the application secret store with Google-managed
+default encryption at rest. Do **not** enable Cloud KMS / CMEK for MVP staging.
+
+This keeps the launch path simple:
+
+1. Terraform creates Secret Manager secret placeholders.
+2. `gcp_staging_bootstrap.sh` creates the Cloud SQL app user and writes the
+   generated password to Secret Manager.
+3. `gcp_put_secret.sh` writes third-party credentials and wallet material from
+   stdin into Secret Manager.
+4. Cloud Run reads secrets through Secret Manager IAM.
+
+Why no CMEK in V1:
+
+1. Secret Manager already encrypts secrets at rest by default.
+2. CMEK adds key lifecycle and IAM complexity that can break all secrets if the
+   key is disabled or misconfigured.
+3. CMEK is a future compliance option, not an MVP staging blocker.
+4. Gateway should not call KMS directly or receive KMS IAM roles.
+
+Only revisit CMEK when enterprise customers, formal compliance, or explicit
+customer-managed-key ownership becomes a real requirement.
+
+### Bootstrap Script
+
+After Terraform creates Cloud SQL and Secret Manager placeholders, run:
+
+```bash
+bash scripts/deploy/gcp_staging_bootstrap.sh <gcp-project-id>
+```
+
+The bootstrap script:
+
+1. Verifies the active `gcloud` project matches `<gcp-project-id>`.
+2. Verifies billing access and required APIs.
+3. Verifies Terraform-created Cloud SQL and Secret Manager resources exist.
+4. Generates a random Cloud SQL password with `openssl rand -base64 32`.
+5. Creates or updates the `synapse_gateway_app` Cloud SQL user.
+6. Writes the generated password to `synapse-staging-postgres-password`.
+7. Prints the remaining secret ids that still need user-provided values.
+
+It does not print the generated password, write it to disk, put it in Terraform
+state, or call any KMS/CMEK command.
+
+### Secret Writer Script
+
+Write user-provided secret values through stdin:
+
+```bash
+printf '%s' '<secret-value>' | \
+  bash scripts/deploy/gcp_put_secret.sh synapse-staging-jwt-secret
+```
+
+The secret writer:
+
+1. Only accepts secret ids beginning with `synapse-staging-`.
+2. Rejects secret values passed as CLI arguments.
+3. Rejects empty stdin.
+4. Verifies the Secret Manager placeholder exists.
+5. Adds a new secret version without printing the value.
+
+Use this for Lark webhooks, Gmail credentials, JWT secrets, Arbitrum RPC URLs,
+Arbiscan API keys, and staging private keys.
+
+### Cloud Run Access Pattern
+
+Grant the Cloud Run runtime service account access to Secret Manager:
+
+```bash
+gcloud secrets add-iam-policy-binding synapse-staging-jwt-secret \
+  --project="<gcp-project-id>" \
+  --member="serviceAccount:synapse-staging-runtime@<gcp-project-id>.iam.gserviceaccount.com" \
+  --role="roles/secretmanager.secretAccessor"
+```
+
+Then deploy with secret injection:
+
+```bash
+gcloud run deploy synapse-staging-gateway \
+  --region="us-central1" \
+  --set-secrets="JWT_SECRET=synapse-staging-jwt-secret:latest,POSTGRES_PASSWORD=synapse-staging-postgres-password:latest"
+```
+
+Cloud Run uses Secret Manager to resolve the secret. Secret Manager applies
+Google-managed default encryption at rest. The Gateway process never receives
+KMS credentials and never calls `cloudkms.googleapis.com`.
 
 ## Cloud SQL Connection Guard
 
