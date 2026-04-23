@@ -49,6 +49,29 @@ terraform plan
 terraform apply
 ```
 
+If `terraform apply` reports that the backup bucket already exists and you own
+it, that is expected when `scripts/deploy/gcp_create_staging_buckets.sh` was run
+before Terraform. Import the already-created bucket into Terraform state instead
+of deleting or recreating it:
+
+```bash
+terraform import \
+  google_storage_bucket.backups \
+  synapse-staging-backups-fabled-archive-494108-k5
+```
+
+Then rerun:
+
+```bash
+terraform plan
+terraform apply
+```
+
+Staging Cloud SQL intentionally uses `cloud_sql_edition = "ENTERPRISE"` with
+`cloud_sql_tier = "db-f1-micro"`. Do not use `ENTERPRISE_PLUS` for this MVP
+staging tier; Enterprise Plus requires the newer performance-optimized machine
+families and will reject `db-f1-micro`.
+
 After apply, add secret **values** outside Terraform, for example:
 
 ```bash

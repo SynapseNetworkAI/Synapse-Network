@@ -164,6 +164,7 @@ Local file: `infra/terraform/gcp-staging/terraform.tfvars`. Do not commit it.
 | `backup_bucket_name` | `synapse-staging-backups-<unique>` | GCS bucket for backup/evidence artifacts. | No | Ops-created globally unique name | Terraform tfvars |
 | `artifact_registry_repository` | `synapse-staging` | Docker image repository. | No | Fixed | Terraform tfvars |
 | `cloud_sql_tier` | `db-f1-micro` | Low-cost Cloud SQL starting tier. | No | Ops decision | Terraform tfvars |
+| `cloud_sql_edition` | `ENTERPRISE` | Required Cloud SQL edition for shared-core tiers such as `db-f1-micro`; do not use `ENTERPRISE_PLUS` for MVP staging. | No | Fixed | Terraform tfvars |
 | `cloud_sql_database_name` | `synapse_gateway_staging` | Gateway database name. | No | Fixed | Terraform tfvars |
 | `cloud_sql_backup_start_time` | `19:00` | UTC backup time; equals 03:00 Asia/Kuala_Lumpur. | No | Fixed | Terraform tfvars |
 | `cloud_sql_transaction_log_retention_days` | `1` | Staging PITR log retention. | No | Fixed | Terraform tfvars |
