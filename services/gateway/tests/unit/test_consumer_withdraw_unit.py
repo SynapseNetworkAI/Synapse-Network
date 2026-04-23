@@ -13,6 +13,7 @@ Covers:
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import importlib
 import time
 import unittest
@@ -29,6 +30,21 @@ from src.services.owner.finance_service import OwnerFinanceService
 from src.services.platform.tasks import consumer_withdraw_processor as withdraw_processor
 
 MoneyInput = Decimal | str | int
+
+
+def _fake_withdraw_ticket(*, withdrawal_id: str) -> WithdrawalTicketMetadata:
+    ticket_seed = f"unit-test:withdraw-ticket:{withdrawal_id}".encode()
+    ticket_hash = "0x" + hashlib.sha256(ticket_seed).hexdigest()
+    return WithdrawalTicketMetadata(
+        ticketId="0x" + hashlib.sha256(f"ticket-id:{withdrawal_id}".encode()).hexdigest(),
+        ticketHash=ticket_hash,
+        amount="19500000000000000000",
+        fee="500000000000000000",
+        deadline=int(time.time()) + 1800,
+        signature="0x" + "11" * 65,
+        chainId=31337,
+        contractAddress="0x0000000000000000000000000000000000000001",
+    )
 
 
 # ─── In-memory repos ──────────────────────────────────────────────────────────
@@ -204,6 +220,11 @@ def _make_service(storage: FakeStorage) -> OwnerFinanceService:
     svc._check_idempotency_redis = _async_none
     svc._finalize_refund_idempotency = _async_none
     svc._enforce_owner_write_rate_limit = _async_none
+    svc._build_consumer_withdraw_ticket = (  # type: ignore[method-assign]
+        lambda *, owner, gross_amount_usdc, withdrawal_id: _fake_withdraw_ticket(
+            withdrawal_id=withdrawal_id
+        )
+    )
     return svc
 
 
