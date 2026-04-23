@@ -222,7 +222,11 @@ Before staging evidence:
 8. No Postgres port is publicly exposed.
 9. DNS points staging domains to Cloud Run or a managed load balancer.
 10. TLS is managed by Cloud Run/custom domains or load balancer.
-11. GCS backup bucket exists for recovery drill artifacts.
+11. GCS staging buckets exist:
+    - `synapse-staging-static-assets-fabled-archive-494108-k5`
+    - `synapse-staging-backups-fabled-archive-494108-k5`
+    - `synapse-staging-evidence-fabled-archive-494108-k5`
+    - `synapse-terraform-state-fabled-archive-494108-k5`
 12. Cloud Monitoring alerts exist for Cloud Run, Cloud SQL, and jobs.
 
 ## Staging Configuration Checklist
@@ -239,7 +243,7 @@ Required:
 
 ```hcl
 project_id         = "<gcp-project-id>"
-backup_bucket_name = "<globally-unique-synapse-staging-backups-bucket>"
+backup_bucket_name = "synapse-staging-backups-fabled-archive-494108-k5"
 ```
 
 Recommended staging defaults:
@@ -364,6 +368,7 @@ IN_APP_NOTIFICATION_CLEANUP_ENABLED=false
 V2_INDEXER_ENABLED=false
 PROVIDER_WITHDRAW_EXPIRY_REAPER_ENABLED=false
 CONSUMER_WITHDRAW_PROCESSOR_ENABLED=false
+POSTGRES_AUTO_INIT=0
 
 CHAIN_POLL_INTERVAL_SEC=15
 REAPER_POLL_INTERVAL_SEC=60
@@ -373,6 +378,62 @@ GATEWAY_RELEASE_E2E_MAX_RPC_CONCURRENCY=3
 The Gateway API process must not run long loops in staging. Deposit indexing,
 withdrawal reaping, email outbox draining, and notification cleanup run through
 Cloud Run Jobs triggered by Cloud Scheduler.
+
+### Database Migration And Seed Boundary
+
+Database schema changes use one shared target-state SQL blueprint across local,
+staging, and production. Do not create separate `prod_migration` or
+`staging_migration` folders. The environment split is the target DSN and the
+seed policy, not the schema file.
+
+Run migrations explicitly before deploying API revisions:
+
+```bash
+bash scripts/deploy/migrate_db.sh local
+bash scripts/deploy/migrate_db.sh staging
+SYNAPSE_MIGRATION_CONFIRM=I_UNDERSTAND_THIS_CHANGES_PROD \
+  bash scripts/deploy/migrate_db.sh prod
+```
+
+Release order:
+
+1. Build images.
+2. Push images to Artifact Registry.
+3. Run `synapse-staging-db-migrate` / `synapse-prod-db-migrate`.
+4. Stop if migration or schema contract validation fails.
+5. Deploy Gateway and Gateway-admin services.
+6. Deploy frontends and background jobs.
+7. Run smoke tests and release evidence.
+
+Runtime services must use `POSTGRES_AUTO_INIT=0`. API containers validate schema
+but must not create tables, apply DDL, or run seed data. The migrator user is
+separate from the app user:
+
+- App user: runtime reads/writes only.
+- Migrator user: release-time DDL and reference data.
+- The migration runner grants runtime table/sequence privileges back to the app
+  user after applying schema, keeping API containers out of DDL territory.
+- Secret ids:
+  - `synapse-staging-postgres-password`
+  - `synapse-staging-postgres-migrator-password`
+  - `synapse-prod-postgres-password`
+  - `synapse-prod-postgres-migrator-password`
+
+Seed policy:
+
+- Reference data such as roles, permissions, and default config is allowed in
+  every environment if it is idempotent with `ON CONFLICT`.
+- Test seed, dogfood seed, fake users, fake services, fake balances, and E2E
+  fixture data are forbidden in production.
+- Local seed scripts may only target localhost resources.
+- Staging evidence seed must include `runId`, dedicated test wallets, or a test
+  tenant and must be excluded from real finance reconciliation.
+
+Production migration logs must say:
+
+```text
+PROD detected: schema/reference migration only; test seed skipped.
+```
 
 After Arbitrum Sepolia deployment evidence passes, inject:
 
@@ -689,6 +750,7 @@ Scheduled job defaults:
 
 | Job | Command | Schedule | Retry | Lock key |
 | --- | --- | --- | --- | --- |
+| DB migration | `bash scripts/deploy/migrate_db.sh staging\|prod` | manual release step only | 0 | n/a |
 | Deposit indexer | `python -m src.worker deposit-indexer --once` | every 1 minute | 0 | `deposit-indexer` |
 | Provider withdrawal reaper | `python -m src.worker provider-withdraw-reaper --once` | every 1 minute | 0 | `provider-withdraw-reaper` |
 | Consumer withdrawal processor | `python -m src.worker consumer-withdraw-processor --once` | every 1 minute | 0 | `consumer-withdraw-processor` |
@@ -798,18 +860,19 @@ Production is still `NO-GO` until all items below have evidence:
 
 1. Create GCP staging infrastructure through Terraform.
 2. Push images to Artifact Registry.
-3. Deploy Cloud Run services with low max-instance limits.
-4. Configure Cloud SQL connection caps and Secret Manager values.
-5. Configure Lark alert routes and run Lark E2E evidence.
-6. Configure Gmail sender and run email notification evidence.
-7. Configure Cloud Monitoring alert policies and drill alerts.
-8. Run Arbitrum Sepolia contract deployment evidence.
-9. Run Gateway full-chain release E2E in staging.
-10. Run one-ticket withdrawal 10-scenario evidence.
-11. Run local and staging load/reconciliation evidence.
-12. Run backup/restore drill.
-13. Attach all evidence to production validation.
-14. Only then prepare production infrastructure and small-value rehearsal.
+3. Configure Cloud SQL connection caps and Secret Manager values.
+4. Run DB migration job.
+5. Deploy Cloud Run services with low max-instance limits.
+6. Configure Lark alert routes and run Lark E2E evidence.
+7. Configure Gmail sender and run email notification evidence.
+8. Configure Cloud Monitoring alert policies and drill alerts.
+9. Run Arbitrum Sepolia contract deployment evidence.
+10. Run Gateway full-chain release E2E in staging.
+11. Run one-ticket withdrawal 10-scenario evidence.
+12. Run local and staging load/reconciliation evidence.
+13. Run backup/restore drill.
+14. Attach all evidence to production validation.
+15. Only then prepare production infrastructure and small-value rehearsal.
 
 ## Hard Rules
 

@@ -106,6 +106,25 @@ gcloud run deploy synapse-staging-gateway \
 Once staging is stable, set the image variables and let Terraform own the Cloud
 Run services.
 
+The staging buckets were created in project `fabled-archive-494108-k5` on
+2026-04-23:
+
+- `synapse-staging-static-assets-fabled-archive-494108-k5`
+- `synapse-staging-backups-fabled-archive-494108-k5`
+- `synapse-staging-evidence-fabled-archive-494108-k5`
+- `synapse-terraform-state-fabled-archive-494108-k5`
+
+Use `synapse-terraform-state-fabled-archive-494108-k5` for Terraform remote
+state and `synapse-staging-backups-fabled-archive-494108-k5` as
+`backup_bucket_name`.
+
+The backend is configured in `versions.tf`. After pulling this change or after
+creating the bucket for the first time, run:
+
+```bash
+terraform init -reconfigure
+```
+
 The static-assets bucket is optional for future CDN-hosted website assets. It is
 not required for Cloud Run front-end deploys because files under each Next.js
 `public/` directory are shipped inside the front-end container image.
@@ -125,3 +144,35 @@ The Gateway service uses environment-aware scaling defaults:
 The production `min_instances=1` guard applies only to the Gateway payment
 entrypoint. Gateway-admin and front-end services stay at `min_instances=0`
 unless production evidence shows they need a warm instance.
+
+## DB Migration Job
+
+This module creates a manual Cloud Run Job named
+`synapse-staging-db-migrate` when `gateway_image` is set. It is intentionally
+not attached to Cloud Scheduler. Run it as a release step before updating API
+services:
+
+```bash
+gcloud run jobs execute synapse-staging-db-migrate \
+  --region us-central1 \
+  --wait
+```
+
+The job runs:
+
+```bash
+bash scripts/deploy/migrate_db.sh staging
+```
+
+The Gateway image must include `services/gateway/scripts/deploy/migrate_db.sh`,
+`services/gateway/migrations/postgres/001_synapse_schema.sql`, and
+`postgresql-client`. The service-local runner uses the canonical repo SQL when
+available and falls back to the packaged SQL inside the container image.
+
+Runtime services should use `POSTGRES_AUTO_INIT=0`. Schema changes are applied
+only by the migration job or by `bash scripts/deploy/migrate_db.sh <env>` from a
+controlled release shell.
+
+Seed data is never part of Terraform. Local/dogfood seed scripts must pass
+`npm run ci:migration-seed-guard`; new seed scripts should use
+`scripts/e2e/seed_env_guard.mjs`. Production seed execution is forbidden.

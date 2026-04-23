@@ -8,6 +8,8 @@ CLOUD_SQL_INSTANCE="${CLOUD_SQL_INSTANCE:-synapse-staging-postgres}"
 CLOUD_SQL_DATABASE="${CLOUD_SQL_DATABASE:-synapse_gateway_staging}"
 DB_USER="${DB_USER:-synapse_gateway_app}"
 DB_PASSWORD_SECRET_ID="${DB_PASSWORD_SECRET_ID:-synapse-staging-postgres-password}"
+MIGRATOR_DB_USER="${MIGRATOR_DB_USER:-synapse_gateway_migrator}"
+MIGRATOR_DB_PASSWORD_SECRET_ID="${MIGRATOR_DB_PASSWORD_SECRET_ID:-synapse-staging-postgres-migrator-password}"
 ROTATE_POSTGRES_PASSWORD="${ROTATE_POSTGRES_PASSWORD:-false}"
 
 REQUIRED_APIS=(
@@ -25,6 +27,7 @@ REQUIRED_APIS=(
 
 REQUIRED_SECRET_IDS=(
   synapse-staging-postgres-password
+  synapse-staging-postgres-migrator-password
   synapse-staging-admin-postgres-password
   synapse-staging-jwt-secret
   synapse-staging-auth-secret
@@ -78,6 +81,7 @@ Environment overrides:
   CLOUD_SQL_INSTANCE           default: synapse-staging-postgres
   CLOUD_SQL_DATABASE           default: synapse_gateway_staging
   DB_USER                      default: synapse_gateway_app
+  MIGRATOR_DB_USER             default: synapse_gateway_migrator
   ROTATE_POSTGRES_PASSWORD     default: false
 
 This script does not enable or use Cloud KMS / CMEK.
@@ -115,8 +119,8 @@ if [[ ! "${CLOUD_SQL_INSTANCE}" =~ ^synapse-staging- ]]; then
   exit 2
 fi
 
-if [[ ! "${DB_PASSWORD_SECRET_ID}" =~ ^synapse-staging- ]]; then
-  echo "refusing non-staging password secret id: ${DB_PASSWORD_SECRET_ID}" >&2
+if [[ ! "${DB_PASSWORD_SECRET_ID}" =~ ^synapse-staging- || ! "${MIGRATOR_DB_PASSWORD_SECRET_ID}" =~ ^synapse-staging- ]]; then
+  echo "refusing non-staging password secret id" >&2
   exit 2
 fi
 
@@ -180,45 +184,54 @@ for secret_id in "${REQUIRED_SECRET_IDS[@]}"; do
   fi
 done
 
-USER_EXISTS=false
-if gcloud sql users list \
-  --instance="${CLOUD_SQL_INSTANCE}" \
-  --project="${PROJECT_ID}" \
-  --format='value(name)' | grep -qx "${DB_USER}"; then
-  USER_EXISTS=true
-fi
+ensure_sql_user_password() {
+  local user_name="$1"
+  local password_secret_id="$2"
+  local user_exists=false
+  local password_secret_has_version=false
 
-PASSWORD_SECRET_HAS_VERSION=false
-if enabled_secret_version_exists "${DB_PASSWORD_SECRET_ID}"; then
-  PASSWORD_SECRET_HAS_VERSION=true
-fi
-
-if [[ "${USER_EXISTS}" == "true" && "${PASSWORD_SECRET_HAS_VERSION}" == "true" && "${ROTATE_POSTGRES_PASSWORD}" != "true" ]]; then
-  echo "[gcp-staging-bootstrap] Cloud SQL user and password secret already exist; skipping password rotation."
-  echo "[gcp-staging-bootstrap] To rotate, rerun with ROTATE_POSTGRES_PASSWORD=true."
-else
-  DB_PASSWORD="$(openssl rand -base64 32)"
-  if [[ "${USER_EXISTS}" == "true" ]]; then
-    echo "[gcp-staging-bootstrap] rotating password for Cloud SQL user ${DB_USER}"
-    gcloud sql users set-password "${DB_USER}" \
-      --instance="${CLOUD_SQL_INSTANCE}" \
-      --project="${PROJECT_ID}" \
-      --password="${DB_PASSWORD}" >/dev/null
-  else
-    echo "[gcp-staging-bootstrap] creating Cloud SQL user ${DB_USER}"
-    gcloud sql users create "${DB_USER}" \
-      --instance="${CLOUD_SQL_INSTANCE}" \
-      --project="${PROJECT_ID}" \
-      --password="${DB_PASSWORD}" >/dev/null
+  if gcloud sql users list \
+    --instance="${CLOUD_SQL_INSTANCE}" \
+    --project="${PROJECT_ID}" \
+    --format='value(name)' | grep -qx "${user_name}"; then
+    user_exists=true
   fi
 
-  printf '%s' "${DB_PASSWORD}" | \
-    gcloud secrets versions add "${DB_PASSWORD_SECRET_ID}" \
+  if enabled_secret_version_exists "${password_secret_id}"; then
+    password_secret_has_version=true
+  fi
+
+  if [[ "${user_exists}" == "true" && "${password_secret_has_version}" == "true" && "${ROTATE_POSTGRES_PASSWORD}" != "true" ]]; then
+    echo "[gcp-staging-bootstrap] Cloud SQL user ${user_name} and ${password_secret_id} already exist; skipping password rotation."
+    return
+  fi
+
+  local generated_password
+  generated_password="$(openssl rand -base64 32)"
+  if [[ "${user_exists}" == "true" ]]; then
+    echo "[gcp-staging-bootstrap] rotating password for Cloud SQL user ${user_name}"
+    gcloud sql users set-password "${user_name}" \
+      --instance="${CLOUD_SQL_INSTANCE}" \
+      --project="${PROJECT_ID}" \
+      --password="${generated_password}" >/dev/null
+  else
+    echo "[gcp-staging-bootstrap] creating Cloud SQL user ${user_name}"
+    gcloud sql users create "${user_name}" \
+      --instance="${CLOUD_SQL_INSTANCE}" \
+      --project="${PROJECT_ID}" \
+      --password="${generated_password}" >/dev/null
+  fi
+
+  printf '%s' "${generated_password}" | \
+    gcloud secrets versions add "${password_secret_id}" \
       --project="${PROJECT_ID}" \
       --data-file=- >/dev/null
-  unset DB_PASSWORD
-  echo "[gcp-staging-bootstrap] wrote Cloud SQL password to ${DB_PASSWORD_SECRET_ID}"
-fi
+  unset generated_password
+  echo "[gcp-staging-bootstrap] wrote Cloud SQL password to ${password_secret_id}"
+}
+
+ensure_sql_user_password "${DB_USER}" "${DB_PASSWORD_SECRET_ID}"
+ensure_sql_user_password "${MIGRATOR_DB_USER}" "${MIGRATOR_DB_PASSWORD_SECRET_ID}"
 
 echo
 echo "[gcp-staging-bootstrap] user-provided secrets still required:"

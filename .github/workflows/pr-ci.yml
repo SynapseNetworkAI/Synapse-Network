@@ -14,11 +14,33 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: "22"
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Export Python baseline
+        run: |
+          python - <<'PY' >> "$GITHUB_ENV"
+          import sys
+
+          print(f"SYNAPSE_PYTHON_BIN={sys.executable}")
+          PY
       - name: Install CI command-line tools
         run: |
           if ! command -v rg >/dev/null 2>&1; then
             sudo apt-get update
             sudo apt-get install -y ripgrep
           fi
+          if ! command -v uvx >/dev/null 2>&1; then
+            curl -LsSf https://astral.sh/uv/install.sh | sh
+            echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          fi
+          if ! command -v jscpd >/dev/null 2>&1; then
+            npm install -g jscpd
+          fi
+      - name: Install project dependencies
+        run: |
+          npm ci
+          yarn --cwd services/user-front install --frozen-lockfile
+          yarn --cwd services/admin-front install --frozen-lockfile
       - name: Run PR checks
         run: bash scripts/ci/pr_checks.sh
