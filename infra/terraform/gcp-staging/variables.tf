@@ -145,6 +145,7 @@ variable "secret_ids" {
   type        = set(string)
   default = [
     "synapse-staging-postgres-password",
+    "synapse-staging-postgres-migrator-password",
     "synapse-staging-admin-postgres-password",
     "synapse-staging-jwt-secret",
     "synapse-staging-auth-secret",
