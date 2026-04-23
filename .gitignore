@@ -3,6 +3,9 @@ node_modules
 
 coverage
 coverage.json
+coverage.xml
+.coverage
+.coverage.*
 typechain/
 typechain-types/
 artifacts/
@@ -61,5 +64,13 @@ tmp/user-front-fullchain/
 tmp/forum-feedback-dogfood/
 tmp/admin-withdrawal-approval/
 
+# Generated evidence from real notification probes. Commit successful evidence
+# explicitly with `git add -f` when it is part of a release gate.
+docs/evidence/alerts/lark/*-lark-e2e/
+
 # Local browser automation state
 .agent-browser/
+
+# Local scratch image exports. Product assets must live under service public/
+# directories or docs assets with an intentional name.
+/logo.png
