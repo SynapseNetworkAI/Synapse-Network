@@ -151,6 +151,10 @@ locals {
     for key, job in local.cloud_run_jobs : key => job
     if trimspace(job.image) != ""
   }
+  scheduled_cloud_run_jobs = {
+    for key, job in local.enabled_cloud_run_jobs : key => job
+    if trimspace(job.schedule) != ""
+  }
 }
 
 resource "google_artifact_registry_repository" "docker" {
@@ -388,23 +392,20 @@ resource "google_cloud_run_v2_job" "jobs" {
 }
 
 resource "google_cloud_scheduler_job" "jobs" {
-  for_each = {
-    for key, job in google_cloud_run_v2_job.jobs : key => job
-    if trimspace(local.enabled_cloud_run_jobs[key].schedule) != ""
-  }
+  for_each = local.scheduled_cloud_run_jobs
 
-  name      = "${each.value.name}-schedule"
+  name      = "${google_cloud_run_v2_job.jobs[each.key].name}-schedule"
   region    = var.region
-  schedule  = local.enabled_cloud_run_jobs[each.key].schedule
+  schedule  = each.value.schedule
   time_zone = var.scheduler_time_zone
 
   retry_config {
-    retry_count = local.enabled_cloud_run_jobs[each.key].retry_count
+    retry_count = each.value.retry_count
   }
 
   http_target {
     http_method = "POST"
-    uri         = "https://${var.region}-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/${var.project_id}/jobs/${each.value.name}:run"
+    uri         = "https://${var.region}-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/${var.project_id}/jobs/${google_cloud_run_v2_job.jobs[each.key].name}:run"
 
     oauth_token {
       service_account_email = google_service_account.scheduler.email
