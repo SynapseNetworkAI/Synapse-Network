@@ -20,5 +20,12 @@ jobs:
             sudo apt-get update
             sudo apt-get install -y ripgrep
           fi
+          if ! command -v uvx >/dev/null 2>&1; then
+            curl -LsSf https://astral.sh/uv/install.sh | sh
+            echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          fi
+          if ! command -v jscpd >/dev/null 2>&1; then
+            npm install -g jscpd
+          fi
       - name: Run PR checks
         run: bash scripts/ci/pr_checks.sh
