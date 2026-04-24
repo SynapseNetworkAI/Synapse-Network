@@ -3,6 +3,18 @@ name: PR CI
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      ci_scope:
+        required: false
+        type: choice
+        default: auto
+        options:
+          - auto
+          - full
 
 jobs:
   pr-checks:
@@ -24,6 +36,67 @@ jobs:
 
           print(f"SYNAPSE_PYTHON_BIN={sys.executable}")
           PY
+      - name: Cache npm
+        uses: actions/cache@v5
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json', 'services/user-front/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
+      - name: Cache Yarn
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cache/yarn
+            ~/.yarn/cache
+          key: ${{ runner.os }}-yarn-${{ hashFiles('yarn.lock', 'services/user-front/yarn.lock', 'services/admin-front/yarn.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-yarn-
+      - name: Cache Python tooling
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.cache/uv
+          key: ${{ runner.os }}-python-${{ hashFiles('services/gateway/requirements.txt', 'services/gateway-admin/requirements.txt', 'sdk/python/requirements.txt', '**/pyproject.toml', '**/uv.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-python-
+      - name: Resolve PR CI scope
+        id: scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          requested_scope="${{ inputs.ci_scope || 'auto' }}"
+          if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
+            requested_scope="full"
+          fi
+
+          base_ref="origin/main"
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" && -n "${GITHUB_BASE_REF:-}" ]]; then
+            git fetch origin "+refs/heads/${GITHUB_BASE_REF}:refs/remotes/origin/${GITHUB_BASE_REF}"
+            base_ref="origin/${GITHUB_BASE_REF}"
+          else
+            git fetch origin "+refs/heads/main:refs/remotes/origin/main" || true
+          fi
+
+          node scripts/ci/resolve_pr_ci_scope.mjs \
+            --mode "${requested_scope}" \
+            --base "${base_ref}" \
+            --head HEAD \
+            --json pr-ci-scope.json
+
+          node - <<'NODE' >> "$GITHUB_OUTPUT"
+          const fs = require('fs')
+          const scope = JSON.parse(fs.readFileSync('pr-ci-scope.json', 'utf8'))
+          console.log(`needs_root_npm_deps=${scope.needsRootNpmDeps ? 'true' : 'false'}`)
+          console.log(`needs_user_front_deps=${scope.needsUserFrontDeps ? 'true' : 'false'}`)
+          console.log(`needs_admin_front_deps=${scope.needsAdminFrontDeps ? 'true' : 'false'}`)
+          console.log(`needs_terraform=${scope.needsTerraform ? 'true' : 'false'}`)
+          console.log(`resolved_mode=${scope.mode}`)
+          NODE
+      - name: Set up Terraform
+        if: ${{ steps.scope.outputs.needs_terraform == 'true' }}
+        uses: hashicorp/setup-terraform@v4
       - name: Install CI command-line tools
         run: |
           if ! command -v rg >/dev/null 2>&1; then
@@ -38,9 +111,26 @@ jobs:
             npm install -g jscpd
           fi
       - name: Install project dependencies
+        shell: bash
         run: |
-          npm ci
-          yarn --cwd services/user-front install --frozen-lockfile
-          yarn --cwd services/admin-front install --frozen-lockfile
+          if [[ "${NEEDS_ROOT_NPM_DEPS}" == "true" ]]; then
+            npm ci
+          else
+            echo "[ci:deps] skipping root npm ci"
+          fi
+          if [[ "${NEEDS_USER_FRONT_DEPS}" == "true" ]]; then
+            yarn --cwd services/user-front install --frozen-lockfile
+          else
+            echo "[ci:deps] skipping services/user-front install"
+          fi
+          if [[ "${NEEDS_ADMIN_FRONT_DEPS}" == "true" ]]; then
+            yarn --cwd services/admin-front install --frozen-lockfile
+          else
+            echo "[ci:deps] skipping services/admin-front install"
+          fi
+        env:
+          NEEDS_ROOT_NPM_DEPS: ${{ steps.scope.outputs.needs_root_npm_deps }}
+          NEEDS_USER_FRONT_DEPS: ${{ steps.scope.outputs.needs_user_front_deps }}
+          NEEDS_ADMIN_FRONT_DEPS: ${{ steps.scope.outputs.needs_admin_front_deps }}
       - name: Run PR checks
-        run: bash scripts/ci/pr_checks.sh
+        run: SYNAPSE_CI_SCOPE_FILE=pr-ci-scope.json SYNAPSE_CI_SCOPE=${{ steps.scope.outputs.resolved_mode }} bash scripts/ci/pr_checks.sh
