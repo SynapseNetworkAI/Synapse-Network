@@ -93,6 +93,9 @@ Dashboard 不建议自己再建一套交易明细真相表。一期建议：
 | `password_hash` | `TEXT` | 仅本地应急模式使用，可空 |
 | `require_mfa` | `BOOLEAN` | 是否强制 MFA |
 | `last_login_at` | `TIMESTAMPTZ` | 最近登录时间 |
+| `failed_login_attempts` | `INTEGER` | 连续密码或 OTP 登录失败次数，成功登录后清零 |
+| `last_failed_login_at` | `TIMESTAMPTZ` | 最近一次登录失败时间 |
+| `locked_until` | `TIMESTAMPTZ` | 账号临时锁定到期时间；大于当前时间时拒绝登录 |
 | `created_at` | `TIMESTAMPTZ` | 创建时间 |
 | `updated_at` | `TIMESTAMPTZ` | 更新时间 |
 | `disabled_at` | `TIMESTAMPTZ` | 禁用时间，可空 |
@@ -102,6 +105,15 @@ Dashboard 不建议自己再建一套交易明细真相表。一期建议：
 - `UNIQUE (lower(email))`
 - `INDEX (status, updated_at DESC)`
 - `INDEX (sso_subject)`
+- `INDEX (locked_until) WHERE locked_until IS NOT NULL`
+
+登录失败锁定策略：
+
+1. 默认 `ADMIN_LOGIN_LOCK_THRESHOLD=5`，`ADMIN_LOGIN_LOCK_HOURS=24`。
+2. 密码错误和 Google Authenticator OTP 错误共用同一个失败计数。
+3. 第 5 次失败仍返回通用 `401 UNAUTHORIZED`，同时写入 `locked_until`。
+4. 锁定期间登录返回 `423 ADMIN_ACCOUNT_LOCKED`，不向前端暴露剩余次数或锁定到期时间。
+5. 成功登录或成功完成 MFA enrollment verify 后清零失败计数与锁定状态。
 
 #### `admin_mfa_factors`
 

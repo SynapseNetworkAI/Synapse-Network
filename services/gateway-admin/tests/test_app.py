@@ -1,5 +1,5 @@
 from dataclasses import replace
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 import importlib
 import logging
@@ -10,7 +10,7 @@ from uuid import uuid4
 from src.app import app
 from src.api import deps
 from src.api.routers import forum_support as forum_support_router
-from src.core.config import get_settings
+from src.core.config import Settings, get_settings
 from src.core.metrics import MetricsRegistry
 from src.core.totp import generate_totp_code, generate_totp_secret
 from src.core.security import hash_password
@@ -391,6 +391,47 @@ def _ensure_unenrolled_admin(email: str = "unenrolled@synapse.network") -> None:
     store.identity.update_password_hash(existing.admin_id, hash_password(PLACEHOLDER_PASSWORD))
 
 
+def _create_enrolled_admin(email: str, *, require_mfa: bool = True) -> AdminUser:
+    store = _test_store()
+    existing = store.identity.get_user_by_email(email)
+    if existing is None:
+        user = store.identity.create_user(
+            AdminUser(
+                admin_id=f"admin_{uuid4().hex[:12]}",
+                email=email,
+                display_name="Lockout Test Admin",
+                status=AdminUserStatus.ACTIVE,
+                password_hash=hash_password(PLACEHOLDER_PASSWORD),
+                require_mfa=require_mfa,
+            )
+        )
+    else:
+        user = store.identity.update_user(
+            replace(
+                existing,
+                status=AdminUserStatus.ACTIVE,
+                password_hash=hash_password(PLACEHOLDER_PASSWORD),
+                require_mfa=require_mfa,
+                failed_login_attempts=0,
+                last_failed_login_at=None,
+                locked_until=None,
+                disabled_at=None,
+            )
+        )
+    if require_mfa:
+        store.identity.upsert_mfa_factor(
+            AdminMfaFactor(
+                factor_id=f"mfa_{user.admin_id}_primary",
+                admin_id=user.admin_id,
+                factor_type=MfaFactorType.TOTP,
+                factor_label="primary",
+                status=MfaFactorStatus.ACTIVE,
+                payload={"totpSecret": generate_totp_secret()},
+            )
+        )
+    return user
+
+
 def _refresh_auth_settings() -> None:
     get_settings.cache_clear()
     deps.get_auth_service.cache_clear()
@@ -722,6 +763,27 @@ def test_admin_auth_policy_exposes_google_authenticator_switches() -> None:
     assert body["totpIssuer"] == "Synapse Gateway Admin"
 
 
+def test_admin_auth_lockout_config_fail_closed() -> None:
+    assert Settings(ADMIN_LOGIN_LOCK_THRESHOLD="5", ADMIN_LOGIN_LOCK_HOURS="24").admin_login_lock_threshold == 5
+    assert Settings(ADMIN_LOGIN_LOCK_THRESHOLD="10", ADMIN_LOGIN_LOCK_HOURS="168").admin_login_lock_hours == 168
+
+    for threshold in ("0", "11", "not-a-number"):
+        try:
+            Settings(ADMIN_LOGIN_LOCK_THRESHOLD=threshold)
+        except ValueError as exc:
+            assert "ADMIN_LOGIN_LOCK_THRESHOLD" in str(exc)
+        else:
+            raise AssertionError(f"expected threshold {threshold} to fail closed")
+
+    for hours in ("0", "169", "not-a-number"):
+        try:
+            Settings(ADMIN_LOGIN_LOCK_HOURS=hours)
+        except ValueError as exc:
+            assert "ADMIN_LOGIN_LOCK_HOURS" in str(exc)
+        else:
+            raise AssertionError(f"expected lock hours {hours} to fail closed")
+
+
 def test_admin_auth_policy_disables_login_totp_when_switch_is_off(monkeypatch) -> None:
     monkeypatch.setenv("ADMIN_GOOGLE_AUTHENTICATOR_LOGIN_ENABLED", "false")
     _refresh_auth_settings()
@@ -779,23 +841,82 @@ def test_admin_auth_me_and_logout_use_cookie_session() -> None:
 
 
 def test_admin_auth_login_rejects_wrong_password() -> None:
+    email = f"wrong-password-{uuid4().hex[:8]}@synapse.network"
+    _create_enrolled_admin(email)
     response = client.post(
         "/api/admin/v1/auth/login",
         json={
-            "email": "ops@synapse.network",
+            "email": email,
             "password": "wrong-password",
-            "otpCode": _otp_code_for("ops@synapse.network"),
+            "otpCode": _otp_code_for(email),
         },
     )
     assert response.status_code == 401
     assert response.json()["error"]["code"] == "UNAUTHORIZED"
 
 
+def test_admin_auth_login_locks_after_five_wrong_passwords() -> None:
+    email = f"lock-password-{uuid4().hex[:8]}@synapse.network"
+    user = _create_enrolled_admin(email)
+    client.cookies.clear()
+
+    for _ in range(4):
+        response = client.post(
+            "/api/admin/v1/auth/login",
+            json={"email": email, "password": "wrong-password", "otpCode": _otp_code_for(email)},
+        )
+        assert response.status_code == 401
+
+    store = _test_store()
+    before_lock = store.identity.get_user_by_id(user.admin_id)
+    assert before_lock is not None
+    assert before_lock.failed_login_attempts == 4
+    assert before_lock.locked_until is None
+
+    fifth_response = client.post(
+        "/api/admin/v1/auth/login",
+        json={"email": email, "password": "wrong-password", "otpCode": _otp_code_for(email)},
+    )
+    assert fifth_response.status_code == 401
+    locked_user = store.identity.get_user_by_id(user.admin_id)
+    assert locked_user is not None
+    assert locked_user.failed_login_attempts == 5
+    assert locked_user.locked_until is not None
+
+    lock_audits = store.audit.list_actions(action_type="admin.login.locked", operator_id=user.admin_id)
+    assert len(lock_audits) == 1
+    assert lock_audits[0].detail["failureStage"] == "password"
+    assert lock_audits[0].detail["failedLoginAttempts"] == 5
+
+
+def test_admin_auth_login_blocks_locked_account_even_with_valid_credentials() -> None:
+    email = f"blocked-lock-{uuid4().hex[:8]}@synapse.network"
+    user = _create_enrolled_admin(email)
+    store = _test_store()
+    store.identity.lock_user_until(user.admin_id, datetime.now(timezone.utc) + timedelta(hours=24))
+    client.cookies.clear()
+
+    response = client.post(
+        "/api/admin/v1/auth/login",
+        json={"email": email, "password": PLACEHOLDER_PASSWORD, "otpCode": _otp_code_for(email)},
+    )
+
+    assert response.status_code == 423
+    assert response.json()["error"]["code"] == "ADMIN_ACCOUNT_LOCKED"
+    assert response.json()["error"]["message"] == "Admin account is temporarily locked. Try later or contact an owner."
+    blocked_audits = store.audit.list_actions(action_type="admin.login.blocked_locked", operator_id=user.admin_id)
+    assert len(blocked_audits) == 1
+    assert blocked_audits[0].detail["failureStage"] == "locked"
+    assert "locked_until" not in blocked_audits[0].detail
+
+
 def test_admin_auth_login_rejects_invalid_google_authenticator_code() -> None:
+    email = f"wrong-otp-{uuid4().hex[:8]}@synapse.network"
+    _create_enrolled_admin(email)
     response = client.post(
         "/api/admin/v1/auth/login",
         json={
-            "email": "ops@synapse.network",
+            "email": email,
             "password": PLACEHOLDER_PASSWORD,
             "otpCode": "000000",
         },
@@ -803,6 +924,73 @@ def test_admin_auth_login_rejects_invalid_google_authenticator_code() -> None:
 
     assert response.status_code == 401
     assert response.json()["error"]["code"] == "UNAUTHORIZED"
+
+
+def test_admin_auth_login_locks_after_five_invalid_google_authenticator_codes() -> None:
+    email = f"lock-otp-{uuid4().hex[:8]}@synapse.network"
+    user = _create_enrolled_admin(email)
+    client.cookies.clear()
+
+    for _ in range(5):
+        response = client.post(
+            "/api/admin/v1/auth/login",
+            json={"email": email, "password": PLACEHOLDER_PASSWORD, "otpCode": "000000"},
+        )
+        assert response.status_code == 401
+
+    store = _test_store()
+    locked_user = store.identity.get_user_by_id(user.admin_id)
+    assert locked_user is not None
+    assert locked_user.failed_login_attempts == 5
+    assert locked_user.locked_until is not None
+    lock_audits = store.audit.list_actions(action_type="admin.login.locked", operator_id=user.admin_id)
+    assert len(lock_audits) == 1
+    assert lock_audits[0].detail["failureStage"] == "otp"
+
+
+def test_admin_auth_login_success_clears_failure_state_after_lock_expires() -> None:
+    email = f"expired-lock-{uuid4().hex[:8]}@synapse.network"
+    user = _create_enrolled_admin(email)
+    store = _test_store()
+    store.identity.update_user(
+        replace(
+            user,
+            failed_login_attempts=5,
+            last_failed_login_at=datetime.now(timezone.utc) - timedelta(hours=2),
+            locked_until=datetime.now(timezone.utc) - timedelta(minutes=1),
+        )
+    )
+    client.cookies.clear()
+
+    response = client.post(
+        "/api/admin/v1/auth/login",
+        json={"email": email, "password": PLACEHOLDER_PASSWORD, "otpCode": _otp_code_for(email)},
+    )
+
+    assert response.status_code == 200
+    cleared_user = store.identity.get_user_by_id(user.admin_id)
+    assert cleared_user is not None
+    assert cleared_user.failed_login_attempts == 0
+    assert cleared_user.last_failed_login_at is None
+    assert cleared_user.locked_until is None
+
+
+def test_admin_auth_login_unknown_email_does_not_create_or_reveal_account() -> None:
+    email = f"unknown-{uuid4().hex[:8]}@synapse.network"
+    store = _test_store()
+    before_failure_audits = len(store.audit.list_actions(action_type="admin.login.failure"))
+    client.cookies.clear()
+
+    response = client.post(
+        "/api/admin/v1/auth/login",
+        json={"email": email, "password": "wrong-password", "otpCode": "000000"},
+    )
+
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "UNAUTHORIZED"
+    assert store.identity.get_user_by_email(email) is None
+    after_failure_audits = len(store.audit.list_actions(action_type="admin.login.failure"))
+    assert after_failure_audits == before_failure_audits
 
 
 def test_admin_users_catalog_and_create_user() -> None:

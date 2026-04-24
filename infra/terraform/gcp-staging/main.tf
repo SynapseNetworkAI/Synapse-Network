@@ -89,6 +89,8 @@ locals {
           ADMIN_SESSION_COOKIE_SECURE   = "true"
           ADMIN_SESSION_COOKIE_SAMESITE = "lax"
           ADMIN_SESSION_COOKIE_DOMAIN   = ".synapse-network.ai"
+          ADMIN_LOGIN_LOCK_THRESHOLD    = "5"
+          ADMIN_LOGIN_LOCK_HOURS        = "24"
           GATEWAY_INTERNAL_BASE_URL     = "https://api-staging.synapse-network.ai"
         },
       )

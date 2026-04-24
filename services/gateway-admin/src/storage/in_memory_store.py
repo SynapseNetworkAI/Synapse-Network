@@ -186,6 +186,41 @@ class InMemoryAdminIdentityRepository:
             return
         self._users[admin_id] = replace(user, last_login_at=_utcnow(), updated_at=_utcnow())
 
+    def record_login_failure(self, admin_id: str, failed_at: datetime) -> AdminUser | None:
+        user = self._users.get(admin_id)
+        if user is None:
+            return None
+        updated = replace(
+            user,
+            failed_login_attempts=user.failed_login_attempts + 1,
+            last_failed_login_at=failed_at,
+            updated_at=_utcnow(),
+        )
+        self._users[admin_id] = updated
+        return updated
+
+    def clear_login_failures(self, admin_id: str) -> AdminUser | None:
+        user = self._users.get(admin_id)
+        if user is None:
+            return None
+        updated = replace(
+            user,
+            failed_login_attempts=0,
+            last_failed_login_at=None,
+            locked_until=None,
+            updated_at=_utcnow(),
+        )
+        self._users[admin_id] = updated
+        return updated
+
+    def lock_user_until(self, admin_id: str, locked_until: datetime) -> AdminUser | None:
+        user = self._users.get(admin_id)
+        if user is None:
+            return None
+        updated = replace(user, locked_until=locked_until, updated_at=_utcnow())
+        self._users[admin_id] = updated
+        return updated
+
 
 class InMemoryAdminAuthorizationRepository:
     def __init__(
