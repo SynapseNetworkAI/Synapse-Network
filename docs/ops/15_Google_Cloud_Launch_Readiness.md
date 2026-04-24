@@ -220,11 +220,15 @@ Cost guardrails:
    services/jobs.
 4. Keep Artifact Registry retention short. Delete stale image tags after
    release evidence is captured.
-5. Keep Cloud Logging at `INFO` for staging and avoid per-request debug body
+5. Prefer Cloud Build for staging image builds on Apple Silicon laptops. Local
+   Docker `linux/amd64` builds emulate x86 and can OOM during Next.js builds;
+   Cloud Build shifts the heavy work to an ephemeral Google builder and pushes
+   directly to Artifact Registry.
+6. Keep Cloud Logging at `INFO` for staging and avoid per-request debug body
    logs. Debug logs can quietly become the real tax monster.
-6. Configure a Billing Budget for staging at `$50/month` with alerts at
+7. Configure a Billing Budget for staging at `$50/month` with alerts at
    `50%`, `80%`, and `100%`.
-7. If monthly staging cost exceeds `$50` before real traffic, inspect Cloud SQL,
+8. If monthly staging cost exceeds `$50` before real traffic, inspect Cloud SQL,
    Cloud Run min instances, log ingestion, image retention, and egress before
    increasing infrastructure size.
 

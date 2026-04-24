@@ -1,0 +1,10 @@
+.coverage
+.env*
+.pytest_cache
+.venv
+__pycache__
+coverage.xml
+logs
+performance_tests
+tests
+*.pyc

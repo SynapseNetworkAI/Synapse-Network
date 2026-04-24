@@ -65,6 +65,16 @@ function requireEnv(name) {
   return value.trim();
 }
 
+function requireAnyEnv(names) {
+  for (const name of names) {
+    const value = process.env[name];
+    if (value && value.trim()) {
+      return value.trim();
+    }
+  }
+  throw new Error(`Missing required env ${names.join(" or ")}`);
+}
+
 function requireAddress(name) {
   const value = requireEnv(name);
   if (!hre.ethers.isAddress(value) || isZeroAddress(value)) {
@@ -148,6 +158,11 @@ function isAlreadyVerified(error) {
   return /already verified|already been verified|contract source code already verified/i.test(text);
 }
 
+function isInvalidExplorerApiKey(error) {
+  const text = String(error && (error.message || error));
+  return /invalid api key|deprecated v1 endpoint|switch to etherscan api v2/i.test(text);
+}
+
 async function verifyWithRetry({ contractName, address, constructorArguments, retries, retryDelayMs }) {
   const attempts = [];
 
@@ -175,6 +190,16 @@ async function verifyWithRetry({ contractName, address, constructorArguments, re
           attempts,
           explorerUrl: `${EXPLORER_URL}/address/${address}#code`,
         };
+      }
+
+      if (isInvalidExplorerApiKey(error)) {
+        attempts.push({
+          attempt,
+          status: "failed",
+          error:
+            "Invalid explorer API key. Use an Etherscan API V2 key; old Arbiscan/chain-specific keys are rejected.",
+        });
+        break;
       }
 
       attempts.push({
@@ -227,7 +252,7 @@ function reportMarkdown(report) {
     "",
     "- Staging uses owner-only MockUSDC, not real USDC.",
     "- Evidence intentionally excludes private keys, RPC API keys, raw signatures, JWTs, and admin tokens.",
-    "- Arbiscan verification waits after deployment and retries bounded attempts to avoid explorer indexing races.",
+    "- Explorer verification waits after deployment and retries bounded attempts to avoid indexing races.",
   );
 
   return `${lines.join("\n")}\n`;
@@ -249,7 +274,7 @@ async function main() {
   const withdrawSignerAddress = requireAddress("STAGING_WITHDRAW_SIGNER_ADDRESS");
   const consumerAddress = requireAddress("STAGING_TEST_CONSUMER_ADDRESS");
   const providerAddress = requireAddress("STAGING_TEST_PROVIDER_ADDRESS");
-  requireEnv("ARBISCAN_API_KEY");
+  requireAnyEnv(["ETHERSCAN_API_KEY", "ARBISCAN_API_KEY"]);
 
   const deployer = new hre.ethers.Wallet(deployerPrivateKey, hre.ethers.provider);
   const minGasWei = hre.ethers.parseEther(process.env.STAGING_MIN_GAS_ETH || DEFAULT_MIN_GAS_ETH);

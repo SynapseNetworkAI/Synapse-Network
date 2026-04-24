@@ -204,3 +204,24 @@ controlled release shell.
 Seed data is never part of Terraform. Local/dogfood seed scripts must pass
 `npm run ci:migration-seed-guard`; new seed scripts should use
 `scripts/e2e/seed_env_guard.mjs`. Production seed execution is forbidden.
+
+## Automated Branch Deploys
+
+The staging GitHub workflow deploys a selected branch/tag/commit by freezing it
+to a resolved commit SHA, then building only affected services. Terraform remains
+the substrate owner; routine image rollouts use Cloud Build plus `gcloud run
+deploy` so one user-front change does not rebuild and redeploy all four services.
+
+Supported deploy scopes:
+
+```text
+auto | gateway | gateway-admin | user-front | admin-front | all
+```
+
+`auto` is resolved by `scripts/deploy/resolve_deploy_scope.mjs`. It records
+docs-only changes as `no_deploy`, runs the migration job before API rollout when
+schema files changed, and writes deployment evidence to:
+
+```text
+gs://synapse-staging-evidence-fabled-archive-494108-k5/deployments/
+```

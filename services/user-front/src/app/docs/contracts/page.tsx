@@ -9,7 +9,7 @@ import { useDocsPageNav } from "../use-docs-page-nav";
 const PAGE_SECTIONS = ["contract-core", "contract-usdc", "contract-abi"];
 
 // ── Per-environment contract addresses ────────────────────────────────────────
-// Staging / Prod addresses will be filled in after on-chain deployment.
+// Prod addresses will be filled in after production deployment.
 // Set NEXT_PUBLIC_APP_ENV=local|staging|prod in each .env file.
 type AppEnv = "local" | "staging" | "prod";
 
@@ -44,8 +44,8 @@ const ENVS: Record<AppEnv, EnvDef> = {
     color: "#6eb6f6",
     explorer: "https://sepolia.arbiscan.io",
     contracts: {
-      SynapseCore: null, // fill after testnet deployment
-      MockUSDC: null,
+      SynapseCore: "0x0bA1dcE1Cc8d877052ab1C3CE2362830459D8FF4",
+      MockUSDC: "0xfad31daE42B0046aFA106BCf56ED0dDaCA4463B9",
     },
   },
   prod: {
@@ -290,8 +290,8 @@ export default function ContractsPage() {
           <StatusBadge status="BETA" />
         </div>
         <p className="x-body-copy">
-          测试用 ERC-20 Token，18 decimals，任意地址可调用{" "}
-          <code className="text-[#c0c5cc] font-mono text-[12px]">mint()</code> 获取测试资金。
+          测试用 ERC-20 Token，18 decimals，staging 使用 owner-only{" "}
+          <code className="text-[#c0c5cc] font-mono text-[12px]">mint()</code> 和部署时预铸币。
           生产环境使用 Circle 官方 USDC（6 decimals）。
         </p>
 
@@ -315,7 +315,7 @@ export default function ContractsPage() {
           {[
             { title: "Symbol",    value: "USDC (Mock)" },
             { title: "Decimals",  value: "18 (testnet) / 6 (mainnet)" },
-            { title: "Mint",      value: "Public — 任意地址可 mint" },
+            { title: "Mint",      value: "Owner only — staging pre-mint" },
             { title: "Burn",      value: "Owner only" },
           ].map((row) => (
             <div key={row.title} className="x-panel-muted rounded-xl px-4 py-3 flex items-center justify-between">

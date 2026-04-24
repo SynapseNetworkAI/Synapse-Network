@@ -4,8 +4,11 @@
   "version": "0.1.0",
   "description": "Local Hardhat toolchain for Synapse contract deployment and test scripts",
   "scripts": {
+    "staging:arb-sepolia:wallets:status": "ENV_FILE=services/gateway/.env.staging node scripts/chain/staging_wallet_gas.js --status",
+    "staging:arb-sepolia:wallets:fund": "ENV_FILE=services/gateway/.env.staging node scripts/chain/staging_wallet_gas.js --fund",
     "deploy:contracts:arbitrum-sepolia:dry-run": "ENV_FILE=services/gateway/.env.staging SYNAPSE_DEPLOY_DRY_RUN=1 npx hardhat run scripts/chain/deploy_arbitrum_sepolia.js --network arbitrumSepolia",
     "deploy:contracts:arbitrum-sepolia": "ENV_FILE=services/gateway/.env.staging npx hardhat run scripts/chain/deploy_arbitrum_sepolia.js --network arbitrumSepolia",
+    "verify:contracts:arbitrum-sepolia:evidence": "ENV_FILE=services/gateway/.env.staging npx hardhat run scripts/chain/verify_arbitrum_sepolia_evidence.js --network arbitrumSepolia",
     "ci:contract-deployment-evidence": "node scripts/ci/contract_deployment_evidence_check.mjs",
     "ci:admin-front": "bash scripts/ci/admin_front_checks.sh",
     "ci:admin-gateway": "bash scripts/ci/admin_gateway_checks.sh",

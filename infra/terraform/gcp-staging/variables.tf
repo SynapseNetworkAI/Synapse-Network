@@ -153,6 +153,10 @@ variable "secret_ids" {
     "synapse-staging-postgres-password",
     "synapse-staging-postgres-migrator-password",
     "synapse-staging-admin-postgres-password",
+    "synapse-staging-admin-database-dsn",
+    "synapse-staging-admin-database-migration-dsn",
+    "synapse-staging-gateway-readonly-dsn",
+    "synapse-staging-gateway-forum-write-dsn",
     "synapse-staging-jwt-secret",
     "synapse-staging-auth-secret",
     "synapse-staging-private-key",
@@ -170,6 +174,7 @@ variable "secret_ids" {
     "synapse-staging-arbitrum-sepolia-rpc-url",
     "synapse-staging-arbiscan-api-key",
     "synapse-staging-deployer-private-key",
+    "synapse-staging-gas-funder-private-key",
     "synapse-staging-metrics-bearer-token",
   ]
 }

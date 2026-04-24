@@ -1,0 +1,36 @@
+{
+  "generatedAt": "2026-04-24T06:29:42.120Z",
+  "environment": "staging",
+  "network": "arbitrumSepolia",
+  "chainName": "Arbitrum Sepolia",
+  "chainId": 421614,
+  "rpc": {
+    "protocol": "https:",
+    "host": "arb-sepolia.g.alchemy.com",
+    "path": "/v2/[REDACTED]"
+  },
+  "minGasEth": "0.01",
+  "wallets": [
+    {
+      "role": "deployer",
+      "address": "0xeeD664f70F604A5c3ba9b4c6b7865eBFE6415F78",
+      "balanceEth": "0.019918614738102",
+      "minRequiredEth": "0.01",
+      "pass": true
+    },
+    {
+      "role": "consumer",
+      "address": "0xCe11fdE2BAF4FAe4029954A1Dd174CdaBDBfE934",
+      "balanceEth": "0.02",
+      "minRequiredEth": "0.01",
+      "pass": true
+    },
+    {
+      "role": "provider",
+      "address": "0xaB1190Eb3AD5094BF3bD8F0CDb1e5AE21f2D6e6E",
+      "balanceEth": "0.02",
+      "minRequiredEth": "0.01",
+      "pass": true
+    }
+  ]
+}

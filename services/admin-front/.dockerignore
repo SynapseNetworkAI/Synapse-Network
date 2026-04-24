@@ -1,0 +1,8 @@
+.env*
+.next
+coverage
+node_modules
+npm-debug.log*
+out
+package-lock.json
+tsconfig.tsbuildinfo
