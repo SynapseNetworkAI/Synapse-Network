@@ -1,7 +1,9 @@
 from collections.abc import Sequence
 from datetime import datetime
 
+import psycopg
 from psycopg import errors as psycopg_errors
+from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
 from src.domain import AdminMfaEnrollmentChallenge, AdminMfaFactor, AdminSession, AdminUser
@@ -9,9 +11,6 @@ from src.domain.enums import AdminSessionStatus, AdminUserStatus, AuthSource, Mf
 
 
 def _connect(dsn: str):
-    import psycopg
-    from psycopg.rows import dict_row
-
     return psycopg.connect(dsn, row_factory=dict_row)
 
 

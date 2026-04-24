@@ -18,6 +18,14 @@ DEVELOPMENT_CORS_ORIGINS = (
     "http://127.0.0.1:3001",
     "http://127.0.0.1:4000",
 )
+ADMIN_LOGIN_LOCK_THRESHOLD_MIN = 3
+ADMIN_LOGIN_LOCK_THRESHOLD_MAX = 10
+ADMIN_LOGIN_LOCK_HOURS_MIN = 1
+ADMIN_LOGIN_LOCK_HOURS_MAX = 168
+ADMIN_LOGIN_LOCK_THRESHOLD_TYPE_ERROR = "ADMIN_LOGIN_LOCK_THRESHOLD must be an integer between 3 and 10"
+ADMIN_LOGIN_LOCK_THRESHOLD_RANGE_ERROR = "ADMIN_LOGIN_LOCK_THRESHOLD must be between 3 and 10"
+ADMIN_LOGIN_LOCK_HOURS_TYPE_ERROR = "ADMIN_LOGIN_LOCK_HOURS must be an integer between 1 and 168"
+ADMIN_LOGIN_LOCK_HOURS_RANGE_ERROR = "ADMIN_LOGIN_LOCK_HOURS must be between 1 and 168"
 
 
 class Settings(BaseSettings):
@@ -188,9 +196,9 @@ class Settings(BaseSettings):
         try:
             threshold = int(str(value).strip())
         except (TypeError, ValueError) as exc:
-            raise ValueError("ADMIN_LOGIN_LOCK_THRESHOLD must be an integer between 3 and 10") from exc
-        if threshold < 3 or threshold > 10:
-            raise ValueError("ADMIN_LOGIN_LOCK_THRESHOLD must be between 3 and 10")
+            raise ValueError(ADMIN_LOGIN_LOCK_THRESHOLD_TYPE_ERROR) from exc
+        if threshold < ADMIN_LOGIN_LOCK_THRESHOLD_MIN or threshold > ADMIN_LOGIN_LOCK_THRESHOLD_MAX:
+            raise ValueError(ADMIN_LOGIN_LOCK_THRESHOLD_RANGE_ERROR)
         return threshold
 
     @field_validator("admin_login_lock_hours", mode="before")
@@ -199,9 +207,9 @@ class Settings(BaseSettings):
         try:
             hours = int(str(value).strip())
         except (TypeError, ValueError) as exc:
-            raise ValueError("ADMIN_LOGIN_LOCK_HOURS must be an integer between 1 and 168") from exc
-        if hours < 1 or hours > 168:
-            raise ValueError("ADMIN_LOGIN_LOCK_HOURS must be between 1 and 168")
+            raise ValueError(ADMIN_LOGIN_LOCK_HOURS_TYPE_ERROR) from exc
+        if hours < ADMIN_LOGIN_LOCK_HOURS_MIN or hours > ADMIN_LOGIN_LOCK_HOURS_MAX:
+            raise ValueError(ADMIN_LOGIN_LOCK_HOURS_RANGE_ERROR)
         return hours
 
     def cors_origins(self) -> list[str]:
