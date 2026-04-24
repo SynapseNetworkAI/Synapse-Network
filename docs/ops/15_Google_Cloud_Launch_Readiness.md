@@ -138,11 +138,16 @@ Staging Cloud SQL starts small:
 
 ```hcl
 tier               = "db-f1-micro"
+edition            = "ENTERPRISE"
 availability_type  = "ZONAL"
 disk_type          = "PD_SSD"
 disk_size          = 20
 disk_autoresize    = true
 ```
+
+Staging must use Cloud SQL `ENTERPRISE` edition for shared-core tiers such as
+`db-f1-micro`. `ENTERPRISE_PLUS` requires performance-optimized tiers and will
+reject `db-f1-micro`.
 
 Staging backup policy:
 
@@ -161,6 +166,81 @@ upgrade staging to:
 ```hcl
 tier = "db-g1-small"
 ```
+
+## Staging Enabled Services and Cost Estimate
+
+Terraform and the staging preflight enable only the MVP cloud-native substrate.
+API enablement itself is not the cost center; the bill comes from provisioned
+resources, stored data, job executions, request processing, log ingestion, and
+network egress.
+
+Required APIs enabled by `scripts/deploy/gcp_preflight.sh`:
+
+1. `run.googleapis.com`
+2. `sqladmin.googleapis.com`
+3. `cloudscheduler.googleapis.com`
+4. `secretmanager.googleapis.com`
+5. `artifactregistry.googleapis.com`
+6. `cloudresourcemanager.googleapis.com`
+7. `iam.googleapis.com`
+8. `logging.googleapis.com`
+9. `monitoring.googleapis.com`
+10. `storage.googleapis.com`
+
+Terraform-created billable resources:
+
+| Service | Terraform resource | What it is used for | Billing model | Staging default | Monthly estimate |
+| --- | --- | --- | --- | --- | --- |
+| Cloud SQL for PostgreSQL | `google_sql_database_instance.postgres`, `google_sql_database.gateway` | Source of truth for ledger, idempotency, outbox, inbox, admin projections, and jobs | Instance hours, storage, backups, network egress | `db-f1-micro`, `ENTERPRISE`, zonal, 20 GB SSD, PITR 1 day | `$12-$18` |
+| Cloud Run services | `google_cloud_run_v2_service.*` | Gateway, Gateway-admin, User-front, Admin-front | Request/instance time, vCPU, memory, requests, outbound egress, min instances if configured | Staging `min_instances=0`; services created only when image variables are non-empty | `$0-$10` for low traffic |
+| Cloud Run jobs | `google_cloud_run_v2_job.*` | Deposit indexer, withdrawal processors, notification drain, cleanup, DB migration | Job execution CPU/memory time, container startup time, outbound egress | Jobs created only when `gateway_image` is set; money jobs run every minute | `$0-$5` |
+| Cloud Scheduler | `google_cloud_scheduler_job.jobs` | Triggers periodic Cloud Run jobs | Per scheduler job per month; first 3 jobs are free per billing account | 5 scheduled jobs when `gateway_image` is set | `$0.20-$1` |
+| Artifact Registry | `google_artifact_registry_repository.docker` | Stores Docker images for Cloud Run deploys | Artifact storage over free tier, data transfer, optional vulnerability scanning | Regional repo `synapse-staging`; keep image retention tight | `$1-$3` with small image history |
+| Cloud Storage buckets | `google_storage_bucket.backups` plus manually created static/evidence/state buckets | Cloud SQL backups/export artifacts, evidence archive, static assets, Terraform state | GB-month storage, operations, retrieval, egress | Four `us-central1` buckets with versioning/lifecycle policy | `$1-$5` for tens of GB |
+| Secret Manager | `google_secret_manager_secret.placeholders` | Runtime secrets, private keys, webhook URLs, SMTP credentials, RPC keys | Active secret versions and access operations | About 20 staging secret placeholders, values added out-of-band | `$1-$3` |
+| Cloud Logging / Cloud Monitoring | Google-managed service usage from Cloud Run, Cloud SQL, jobs, alerts | Logs, metrics, alerting, dashboards, uptime/monitoring features | Log ingestion/storage and chargeable custom metrics or checks beyond free allotments | Use low-volume structured logs and avoid noisy debug logs | `$0-$5` initially |
+| IAM / service accounts / Resource Manager | `google_service_account.*`, IAM bindings | Runtime identity and least-privilege access | No direct monthly charge for IAM bindings | Runtime and Scheduler service accounts | `$0` |
+
+Current staging estimate:
+
+| Deployment phase | Expected monthly cost | Notes |
+| --- | ---: | --- |
+| Substrate only, before Cloud Run images are set | `$15-$25` | Cloud SQL, buckets, secrets, Artifact Registry, and low/no Scheduler usage dominate. |
+| MVP staging with Cloud Run services and scheduled jobs | `$25-$45` | Assumes low traffic, `min_instances=0`, small logs, small image retention, and `db-f1-micro`. |
+| Staging after Cloud SQL upgrade to `db-g1-small` | `$40-$70` | Use only if E2E/admin views show DB pressure, connection pressure, or latency instability. |
+
+Cost guardrails:
+
+1. Keep all staging Cloud Run services at `min_instances=0`; production Gateway
+   is the only MVP service that should use `min_instances=1`.
+2. Keep `POSTGRES_POOL_MAX=5` for Gateway and `POSTGRES_POOL_MAX=3` for
+   Gateway-admin so Cloud SQL does not get crushed by connection count.
+3. Do not set Cloud Run image variables until images are ready. Empty image
+   variables let Terraform create the durable substrate without starting
+   services/jobs.
+4. Keep Artifact Registry retention short. Delete stale image tags after
+   release evidence is captured.
+5. Prefer Cloud Build for staging image builds on Apple Silicon laptops. Local
+   Docker `linux/amd64` builds emulate x86 and can OOM during Next.js builds;
+   Cloud Build shifts the heavy work to an ephemeral Google builder and pushes
+   directly to Artifact Registry.
+6. Keep Cloud Logging at `INFO` for staging and avoid per-request debug body
+   logs. Debug logs can quietly become the real tax monster.
+7. Configure a Billing Budget for staging at `$50/month` with alerts at
+   `50%`, `80%`, and `100%`.
+8. If monthly staging cost exceeds `$50` before real traffic, inspect Cloud SQL,
+   Cloud Run min instances, log ingestion, image retention, and egress before
+   increasing infrastructure size.
+
+Pricing references:
+
+1. Cloud Run: <https://cloud.google.com/run/pricing>
+2. Cloud SQL for PostgreSQL: <https://cloud.google.com/sql/docs/postgres/pricing>
+3. Cloud Scheduler: <https://cloud.google.com/scheduler/pricing>
+4. Artifact Registry: <https://cloud.google.com/artifact-registry/pricing>
+5. Cloud Storage: <https://cloud.google.com/storage/pricing>
+6. Secret Manager: <https://cloud.google.com/secret-manager/pricing>
+7. Google Cloud Observability: <https://cloud.google.com/stackdriver/pricing>
 
 ## Production Cloud Resources
 
@@ -253,6 +333,7 @@ region                        = "us-central1"
 environment                   = "staging"
 artifact_registry_repository  = "synapse-staging"
 cloud_sql_tier                = "db-f1-micro"
+cloud_sql_edition             = "ENTERPRISE"
 cloud_sql_backup_start_time   = "19:00" # UTC; 03:00 Asia/Kuala_Lumpur
 cloud_sql_transaction_log_retention_days = 1
 cloud_sql_retained_backups    = 3
@@ -565,7 +646,12 @@ bash scripts/deploy/gcp_staging_bootstrap.sh <gcp-project-id>
 The bootstrap script:
 
 1. Verifies the active `gcloud` project matches `<gcp-project-id>`.
-2. Verifies billing access and required APIs.
+2. Verifies billing when the Billing API returns a clear answer.
+   - `billingEnabled=true`: continue.
+   - `billingEnabled=false`: fail closed.
+   - Billing API visibility/permission mismatch: warn and continue, because
+     Terraform-created Cloud SQL / Secret Manager resources already prove the
+     project is accessible.
 3. Verifies Terraform-created Cloud SQL and Secret Manager resources exist.
 4. Generates a random Cloud SQL password with `openssl rand -base64 32`.
 5. Creates or updates the `synapse_gateway_app` Cloud SQL user.

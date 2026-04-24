@@ -1,0 +1,27 @@
+{
+  "mockUsdcDeploy": {
+    "hash": "0x80323d7ddf3cfb6d9a6caf0a6e6a6750f3fa278ae29d54eb193b8d9e2f7960c7",
+    "blockNumber": 262475758,
+    "status": 1
+  },
+  "mockUsdcMintConsumer": {
+    "hash": "0xa7328be59408ab8726e16e4edf2912d651b9efe4416d21b0d8759f5ba849a7bd",
+    "blockNumber": 262475772,
+    "status": 1
+  },
+  "mockUsdcMintProvider": {
+    "hash": "0xbe98cbb096877a4c288ee20689cf04713f0df462240f90647c9323c21ba158d0",
+    "blockNumber": 262475785,
+    "status": 1
+  },
+  "mockUsdcTransferOwnership": {
+    "hash": "0x1222460b6907b46bdfe90c93838b292919b1810c0d49bd77ea038a7529a5ee24",
+    "blockNumber": 262475797,
+    "status": 1
+  },
+  "synapseCoreDeploy": {
+    "hash": "0x982264b9ca7822355d1e2786361c4ff207a0fb0af4d543d70aeff3c81622e60a",
+    "blockNumber": 262475811,
+    "status": 1
+  }
+}

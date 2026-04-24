@@ -49,6 +49,29 @@ terraform plan
 terraform apply
 ```
 
+If `terraform apply` reports that the backup bucket already exists and you own
+it, that is expected when `scripts/deploy/gcp_create_staging_buckets.sh` was run
+before Terraform. Import the already-created bucket into Terraform state instead
+of deleting or recreating it:
+
+```bash
+terraform import \
+  google_storage_bucket.backups \
+  synapse-staging-backups-fabled-archive-494108-k5
+```
+
+Then rerun:
+
+```bash
+terraform plan
+terraform apply
+```
+
+Staging Cloud SQL intentionally uses `cloud_sql_edition = "ENTERPRISE"` with
+`cloud_sql_tier = "db-f1-micro"`. Do not use `ENTERPRISE_PLUS` for this MVP
+staging tier; Enterprise Plus requires the newer performance-optimized machine
+families and will reject `db-f1-micro`.
+
 After apply, add secret **values** outside Terraform, for example:
 
 ```bash
@@ -85,6 +108,11 @@ values directly; Secret Manager handles encryption at rest.
 Full staging checklist and commands live in
 `docs/ops/15_Google_Cloud_Launch_Readiness.md` and
 `docs/ops/17_Staging_Environment_Configuration.md`.
+
+The service list, billing model, and monthly staging cost estimate are tracked
+in `docs/ops/15_Google_Cloud_Launch_Readiness.md` under "Staging Enabled
+Services and Cost Estimate". Keep that section updated whenever this module
+adds a new managed resource or scheduled job.
 
 ## First Deployment Strategy
 
@@ -176,3 +204,24 @@ controlled release shell.
 Seed data is never part of Terraform. Local/dogfood seed scripts must pass
 `npm run ci:migration-seed-guard`; new seed scripts should use
 `scripts/e2e/seed_env_guard.mjs`. Production seed execution is forbidden.
+
+## Automated Branch Deploys
+
+The staging GitHub workflow deploys a selected branch/tag/commit by freezing it
+to a resolved commit SHA, then building only affected services. Terraform remains
+the substrate owner; routine image rollouts use Cloud Build plus `gcloud run
+deploy` so one user-front change does not rebuild and redeploy all four services.
+
+Supported deploy scopes:
+
+```text
+auto | gateway | gateway-admin | user-front | admin-front | all
+```
+
+`auto` is resolved by `scripts/deploy/resolve_deploy_scope.mjs`. It records
+docs-only changes as `no_deploy`, runs the migration job before API rollout when
+schema files changed, and writes deployment evidence to:
+
+```text
+gs://synapse-staging-evidence-fabled-archive-494108-k5/deployments/
+```

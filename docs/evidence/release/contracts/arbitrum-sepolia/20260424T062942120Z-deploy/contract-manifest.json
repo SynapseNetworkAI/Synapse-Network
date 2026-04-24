@@ -1,0 +1,62 @@
+{
+  "generatedAt": "2026-04-24T06:29:42.120Z",
+  "environment": "staging",
+  "network": "arbitrumSepolia",
+  "chainName": "Arbitrum Sepolia",
+  "chainId": 421614,
+  "explorer": "https://sepolia.arbiscan.io",
+  "deployer": "0xeeD664f70F604A5c3ba9b4c6b7865eBFE6415F78",
+  "owner": "0x1896285a84ED0aa7C654B2547b3dDF137B974cCE",
+  "withdrawSigner": "0x1Eb2A684B8B7160D947940b644be6f939C783963",
+  "contracts": {
+    "mockUsdc": {
+      "address": "0xfad31daE42B0046aFA106BCf56ED0dDaCA4463B9",
+      "owner": "0x1896285a84ED0aa7C654B2547b3dDF137B974cCE",
+      "symbol": "USDC",
+      "decimals": 18,
+      "constructorArgs": [
+        "0xeeD664f70F604A5c3ba9b4c6b7865eBFE6415F78"
+      ],
+      "constructorArgsHash": "c03ba6afea017462678aed7b3bc9560769ab0b4cc2f1f5a56d5e0a1fb36b902f",
+      "abiHash": "85994311fabff51d33c2199d679837ceeedeff5880f2922887684b7072bf4f5a",
+      "bytecodeHash": "5cd882974597455d722cab608b85f72be555a10161e04ab791e4d7f8c9d5f8fb",
+      "deployedCodeHash": "0xd54e174d197280f82dd8dad61caaca1ac30bf2207ffab2ae6cd1b4f2a3052eea",
+      "explorerUrl": "https://sepolia.arbiscan.io/address/0xfad31daE42B0046aFA106BCf56ED0dDaCA4463B9",
+      "preMintBalances": {
+        "consumer": "100000000000000000000000",
+        "provider": "100000000000000000000000"
+      }
+    },
+    "synapseCore": {
+      "address": "0x0bA1dcE1Cc8d877052ab1C3CE2362830459D8FF4",
+      "owner": "0x1896285a84ED0aa7C654B2547b3dDF137B974cCE",
+      "withdrawSigner": "0x1Eb2A684B8B7160D947940b644be6f939C783963",
+      "usdc": "0xfad31daE42B0046aFA106BCf56ED0dDaCA4463B9",
+      "constructorArgs": [
+        "0xfad31daE42B0046aFA106BCf56ED0dDaCA4463B9",
+        "0x1Eb2A684B8B7160D947940b644be6f939C783963",
+        "0x1896285a84ED0aa7C654B2547b3dDF137B974cCE"
+      ],
+      "constructorArgsHash": "306d879ee8fec0c1c1fc28a59d9113c62e1c14e95f8aabcaa78a1b976f47950c",
+      "abiHash": "07f2bd273377e54411367b978bcabd307a698e696073b06ca263944cd45e1c3b",
+      "bytecodeHash": "b1c7bb6d53a98e4e5a97904f65f59ca117e90d57cee0d28484f72d788bb88ce1",
+      "deployedCodeHash": "0x803dfbcfccee9f521c8afca7c76dd86aa561278ad49d63c5efb4c189a3149845",
+      "explorerUrl": "https://sepolia.arbiscan.io/address/0x0bA1dcE1Cc8d877052ab1C3CE2362830459D8FF4"
+    }
+  },
+  "preMint": {
+    "amount": "100000",
+    "decimals": 18,
+    "amountAtomic": "100000000000000000000000",
+    "recipients": [
+      {
+        "role": "consumer",
+        "address": "0xCe11fdE2BAF4FAe4029954A1Dd174CdaBDBfE934"
+      },
+      {
+        "role": "provider",
+        "address": "0xaB1190Eb3AD5094BF3bD8F0CDb1e5AE21f2D6e6E"
+      }
+    ]
+  }
+}

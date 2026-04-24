@@ -2,6 +2,6 @@
   "chainId": 421614,
   "chainName": "Arbitrum Sepolia",
   "explorer": "https://sepolia.arbiscan.io",
-  "MockUSDC": "0xYourArbitrumSepoliaMockUsdcAddress",
-  "SynapseCore": "0xYourArbitrumSepoliaSynapseCoreAddress"
+  "MockUSDC": "0xfad31daE42B0046aFA106BCf56ED0dDaCA4463B9",
+  "SynapseCore": "0x0bA1dcE1Cc8d877052ab1C3CE2362830459D8FF4"
 }

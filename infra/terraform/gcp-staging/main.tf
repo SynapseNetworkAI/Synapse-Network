@@ -32,6 +32,25 @@ locals {
     },
     var.common_runtime_env,
   )
+  gateway_secret_env = {
+    POSTGRES_PASSWORD           = "synapse-staging-postgres-password"
+    JWT_SECRET                  = "synapse-staging-jwt-secret"
+    AUTH_SECRET                 = "synapse-staging-auth-secret"
+    PRIVATE_KEY                 = "synapse-staging-private-key"
+    METRICS_BEARER_TOKEN        = "synapse-staging-metrics-bearer-token"
+    GATEWAY_INTERNAL_JWT_SECRET = "synapse-staging-gateway-internal-jwt-secret"
+    RPC_URL                     = "synapse-staging-arbitrum-sepolia-rpc-url"
+  }
+  gateway_admin_secret_env = {
+    METRICS_BEARER_TOKEN          = "synapse-staging-metrics-bearer-token"
+    ADMIN_CSRF_SECRET             = "synapse-staging-admin-csrf-secret"
+    ADMIN_DATABASE_DSN            = "synapse-staging-admin-database-dsn"
+    ADMIN_DATABASE_MIGRATION_DSN  = "synapse-staging-admin-database-migration-dsn"
+    GATEWAY_READONLY_DSN          = "synapse-staging-gateway-readonly-dsn"
+    GATEWAY_FORUM_WRITE_DSN       = "synapse-staging-gateway-forum-write-dsn"
+    GATEWAY_INTERNAL_ADMIN_WALLET = "synapse-staging-gateway-admin-wallet"
+    GATEWAY_INTERNAL_JWT_SECRET   = "synapse-staging-gateway-internal-jwt-secret"
+  }
   cloud_run_services = {
     gateway = {
       name          = "${local.name_prefix}-gateway"
@@ -41,6 +60,7 @@ locals {
       min_instances = local.is_production ? 1 : 0
       max_instances = local.is_production ? 3 : 2
       env           = local.runtime_env
+      secret_env    = local.gateway_secret_env
     }
     gateway_admin = {
       name          = "${local.name_prefix}-gateway-admin"
@@ -52,9 +72,12 @@ locals {
       env = merge(
         local.runtime_env,
         {
-          POSTGRES_POOL_MAX = "3"
+          POSTGRES_POOL_MAX        = "3"
+          EXECUTION_WORKER_ENABLED = "false"
+          ADMIN_GATEWAY_PORT       = "8000"
         },
       )
+      secret_env = local.gateway_admin_secret_env
     }
     user_front = {
       name          = "${local.name_prefix}-user-front"
@@ -64,6 +87,7 @@ locals {
       min_instances = 0
       max_instances = 2
       env           = var.frontend_runtime_env
+      secret_env    = {}
     }
     admin_front = {
       name          = "${local.name_prefix}-admin-front"
@@ -73,6 +97,7 @@ locals {
       min_instances = 0
       max_instances = 1
       env           = var.frontend_runtime_env
+      secret_env    = {}
     }
   }
   enabled_cloud_run_services = {
@@ -90,6 +115,7 @@ locals {
       max_retries = 0
       retry_count = 0
       env         = local.runtime_env
+      secret_env  = local.gateway_secret_env
     }
     provider_withdraw_reaper = {
       name        = "${local.name_prefix}-provider-withdraw-reaper"
@@ -101,6 +127,7 @@ locals {
       max_retries = 0
       retry_count = 0
       env         = local.runtime_env
+      secret_env  = local.gateway_secret_env
     }
     consumer_withdraw_processor = {
       name        = "${local.name_prefix}-consumer-withdraw-processor"
@@ -112,6 +139,7 @@ locals {
       max_retries = 0
       retry_count = 0
       env         = local.runtime_env
+      secret_env  = local.gateway_secret_env
     }
     notification_outbox_drain = {
       name        = "${local.name_prefix}-notification-outbox-drain"
@@ -123,6 +151,7 @@ locals {
       max_retries = 1
       retry_count = 1
       env         = local.runtime_env
+      secret_env  = local.gateway_secret_env
     }
     in_app_notification_cleanup = {
       name        = "${local.name_prefix}-in-app-notification-cleanup"
@@ -134,6 +163,7 @@ locals {
       max_retries = 0
       retry_count = 0
       env         = merge(local.runtime_env, { IN_APP_NOTIFICATION_CLEANUP_ENABLED = "true" })
+      secret_env  = local.gateway_secret_env
     }
     db_migrate = {
       name        = "${local.name_prefix}-db-migrate"
@@ -145,11 +175,16 @@ locals {
       max_retries = 0
       retry_count = 0
       env         = merge(local.runtime_env, { POSTGRES_AUTO_INIT = "0" })
+      secret_env  = local.gateway_secret_env
     }
   }
   enabled_cloud_run_jobs = {
     for key, job in local.cloud_run_jobs : key => job
     if trimspace(job.image) != ""
+  }
+  scheduled_cloud_run_jobs = {
+    for key, job in local.enabled_cloud_run_jobs : key => job
+    if trimspace(job.schedule) != ""
   }
 }
 
@@ -246,6 +281,7 @@ resource "google_sql_database_instance" "postgres" {
 
   settings {
     tier              = var.cloud_sql_tier
+    edition           = var.cloud_sql_edition
     availability_type = var.cloud_sql_availability_type
     disk_type         = var.cloud_sql_disk_type
     disk_size         = var.cloud_sql_disk_size_gb
@@ -321,6 +357,19 @@ resource "google_cloud_run_v2_service" "services" {
           value = env.value
         }
       }
+
+      dynamic "env" {
+        for_each = each.value.secret_env
+        content {
+          name = env.key
+          value_source {
+            secret_key_ref {
+              secret  = env.value
+              version = "latest"
+            }
+          }
+        }
+      }
     }
   }
 
@@ -373,6 +422,19 @@ resource "google_cloud_run_v2_job" "jobs" {
             value = env.value
           }
         }
+
+        dynamic "env" {
+          for_each = each.value.secret_env
+          content {
+            name = env.key
+            value_source {
+              secret_key_ref {
+                secret  = env.value
+                version = "latest"
+              }
+            }
+          }
+        }
       }
     }
   }
@@ -387,23 +449,20 @@ resource "google_cloud_run_v2_job" "jobs" {
 }
 
 resource "google_cloud_scheduler_job" "jobs" {
-  for_each = {
-    for key, job in google_cloud_run_v2_job.jobs : key => job
-    if trimspace(local.enabled_cloud_run_jobs[key].schedule) != ""
-  }
+  for_each = local.scheduled_cloud_run_jobs
 
-  name      = "${each.value.name}-schedule"
+  name      = "${google_cloud_run_v2_job.jobs[each.key].name}-schedule"
   region    = var.region
-  schedule  = local.enabled_cloud_run_jobs[each.key].schedule
+  schedule  = each.value.schedule
   time_zone = var.scheduler_time_zone
 
   retry_config {
-    retry_count = local.enabled_cloud_run_jobs[each.key].retry_count
+    retry_count = each.value.retry_count
   }
 
   http_target {
     http_method = "POST"
-    uri         = "https://${var.region}-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/${var.project_id}/jobs/${each.value.name}:run"
+    uri         = "https://${var.region}-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/${var.project_id}/jobs/${google_cloud_run_v2_job.jobs[each.key].name}:run"
 
     oauth_token {
       service_account_email = google_service_account.scheduler.email
