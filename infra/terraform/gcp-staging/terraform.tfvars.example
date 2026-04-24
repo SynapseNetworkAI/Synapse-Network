@@ -32,6 +32,7 @@ admin_front_image   = ""
 
 common_runtime_env = {
   ANALYTICS_KAFKA_BOOTSTRAP_SERVERS = ""
+  CORS_ALLOW_ORIGINS                = "https://staging.synapse-network.ai"
   REDIS_URL                         = ""
   ROUTER_ADDRESS                    = "0x0bA1dcE1Cc8d877052ab1C3CE2362830459D8FF4"
   USDC_TOKEN_ADDRESS                = "0xfad31daE42B0046aFA106BCf56ED0dDaCA4463B9"
