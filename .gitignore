@@ -71,6 +71,12 @@ tmp/admin-withdrawal-approval/
 # explicitly with `git add -f` when it is part of a release gate.
 docs/evidence/alerts/lark/*-lark-e2e/
 
+# Generated contract deployment evidence can include failed dry-runs or
+# environment-specific operator artifacts. Commit successful release evidence
+# explicitly with `git add -f` when it is part of a release gate.
+docs/evidence/release/contracts/arbitrum-sepolia/*-dry-run/
+docs/evidence/release/contracts/arbitrum-sepolia/*-deploy/
+
 # Local browser automation state
 .agent-browser/
 

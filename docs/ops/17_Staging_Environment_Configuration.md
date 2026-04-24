@@ -371,6 +371,14 @@ This shell export flow is for local operator use only. It does not change Cloud
 Run runtime configuration and does not replace Secret Manager as the source of
 truth.
 
+Real `.env.staging` files are local operator convenience files and are ignored
+by git. Automated staging deploys must not read secrets from committed env
+files. They read non-secret configuration from workflow/Terraform inputs and
+inject secret values from Google Secret Manager into Cloud Run with
+`--set-secrets` or the Terraform equivalent. The committed source of truth is
+the matching `.env.staging.example` file plus the Secret Manager ids in this
+document.
+
 ### Secret Value Source Guide
 
 Not every staging secret is the same kind of value. Some are plain application
