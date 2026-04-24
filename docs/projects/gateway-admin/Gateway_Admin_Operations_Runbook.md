@@ -91,7 +91,63 @@ EXECUTION_WORKER_BATCH_SIZE=10
 
 `/api/admin/v1/auth/mfa/enroll/begin` 和 `/api/admin/v1/auth/mfa/enroll/verify` 这两个预登录首绑接口不应该要求已有会话 CSRF。
 
-### 2.4 本地 `.env.local` 对齐清单
+### 2.4 管理员登录失败锁定
+
+默认策略：
+
+1. `ADMIN_LOGIN_LOCK_THRESHOLD=5`
+2. `ADMIN_LOGIN_LOCK_HOURS=24`
+3. 密码错误和 Google Authenticator OTP 错误共用同一个失败计数。
+4. 第 5 次失败仍返回通用 `401 UNAUTHORIZED`，同时触发账号锁定。
+5. 锁定期间即使密码和 OTP 正确，也返回 `423 ADMIN_ACCOUNT_LOCKED`。
+6. 成功登录或成功完成 MFA 首绑校验后，清零 `failed_login_attempts`、`last_failed_login_at`、`locked_until`。
+
+错误码边界：
+
+1. 普通密码错误：`401 UNAUTHORIZED`，不暴露剩余次数。
+2. 普通 OTP 错误：`401 UNAUTHORIZED`，不暴露剩余次数。
+3. 锁定账号：`423 ADMIN_ACCOUNT_LOCKED`，固定文案 `Admin account is temporarily locked. Try later or contact an owner.`。
+4. 未知 email：仍返回通用 `401 UNAUTHORIZED`，不创建账号，不透露账号是否存在。
+
+审计动作：
+
+1. `admin.login.failure`: 单次密码或 OTP 失败。
+2. `admin.login.locked`: 达到阈值并写入锁定时间。
+3. `admin.login.blocked_locked`: 锁定期间拦截登录。
+4. `admin.login.success`: 成功登录并清理失败计数。
+
+审计 `detail` 只允许包含 `emailHash`、`failureStage`、`failedLoginAttempts`、`lockThreshold`、`lockHours` 等安全摘要。不要记录 password、otpCode、TOTP secret、raw signature、JWT、admin token。
+
+人工解锁 runbook：
+
+```sql
+UPDATE admin_users
+SET failed_login_attempts = 0,
+    last_failed_login_at = NULL,
+    locked_until = NULL,
+    updated_at = NOW()
+WHERE lower(email) = lower('<admin-email>');
+```
+
+执行后必须写一条人工运维记录，说明解锁原因、执行人、审批人和时间。V1 不提供自动解锁 API，避免攻击者把“解锁接口”变成新的爆破面。
+
+Cloud Monitoring / Lark P1：
+
+1. `ADMIN_ACCOUNT_LOCKED` 任意发生即触发 P1。
+2. `ADMIN_LOGIN_FAILURE` 5 分钟内超过阈值触发 P1。
+3. Lark 卡片 `business_scenario`: `Admin login brute-force or MFA guessing detected`。
+4. Lark 卡片 `action`: `Check admin_action_audit by emailHash, verify source IP/user agent, then decide whether to unlock or rotate credentials.`。
+
+本地浏览器 dogfood 验证：
+
+1. 使用独立 disposable 测试账号，不复用真实管理员。
+2. 通过 Admin-front 输入错误密码触发锁定，再用正确密码确认 `423 ADMIN_ACCOUNT_LOCKED`。
+3. 自动截图、录屏、写 `report.json` / `report.md` / `bugfix-log.md`。
+4. 测试结束后删除 disposable 账号。
+
+详细步骤见 [Gateway_Admin_Login_Lockout_Dogfood_E2E.md](./Gateway_Admin_Login_Lockout_Dogfood_E2E.md)。
+
+### 2.5 本地 `.env.local` 对齐清单
 
 本地提现审核、execution retry、以及其他 `gateway-admin -> gateway` 内部命令依赖一组内部 service token 配置。
 
@@ -132,7 +188,7 @@ GATEWAY_INTERNAL_SERVICE_SUBJECTS=service:gateway-admin
 4. `Invalid internal service token`: 两侧内部 JWT 配置未对齐。
 5. `Internal admin wallet is not allow-listed`: admin wallet 不在 gateway 白名单中。
 
-### 2.5 Provider 服务管理联调
+### 2.6 Provider 服务管理联调
 
 后台 `Provider 服务` 页面依赖 `gateway-admin -> gateway` 内部 token 调用 Gateway runtime 的 provider service management API。
 
@@ -173,7 +229,7 @@ GATEWAY_INTERNAL_SERVICE_SUBJECTS=service:gateway-admin
 4. `inactive` 服务不会被定时任务自动探活；如需恢复自动探活，先 `Resume`。
 5. 如果页面能登录但 Provider 服务列表报 401/403，优先检查内部 JWT 与 admin wallet 白名单。
 
-### 2.6 初始化 bootstrap 管理员密码
+### 2.7 初始化 bootstrap 管理员密码
 
 ```bash
 cd /Users/cliff/workspace/agent/Synapse-Network/services/gateway-admin
@@ -185,7 +241,7 @@ cd /Users/cliff/workspace/agent/Synapse-Network/services/gateway-admin
 
 这个脚本只负责给已存在的 bootstrap 管理员写入初始密码，不会创建账号或修改角色。
 
-### 2.7 重置未绑定 MFA 的联调测试管理员
+### 2.8 重置未绑定 MFA 的联调测试管理员
 
 ```bash
 cd /Users/cliff/workspace/agent/Synapse-Network/services/gateway-admin

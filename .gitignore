@@ -36,6 +36,9 @@ services/gateway-admin/.env.prod
 services/user-front/.env.local
 services/user-front/.env.staging
 services/user-front/.env.prod
+services/admin-front/.env.local
+services/admin-front/.env.staging
+services/admin-front/.env.prod
 
 # Local runtime artifacts
 .local_env.pids

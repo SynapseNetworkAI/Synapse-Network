@@ -17,6 +17,14 @@ class AuthenticationError(AppError):
         super().__init__(code="UNAUTHORIZED", message=message, status_code=401)
 
 
+class AdminAccountLockedError(AppError):
+    def __init__(
+        self,
+        message: str = "Admin account is temporarily locked. Try later or contact an owner.",
+    ) -> None:
+        super().__init__(code="ADMIN_ACCOUNT_LOCKED", message=message, status_code=423)
+
+
 class AuthorizationError(AppError):
     def __init__(self, message: str = "Permission denied") -> None:
         super().__init__(code="FORBIDDEN", message=message, status_code=403)

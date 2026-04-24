@@ -50,6 +50,10 @@ export function buildLoginErrorMessage(code: string | null, message: string | nu
     return "邮箱或密码不正确，请检查后重试。";
   }
 
+  if (code === "ADMIN_ACCOUNT_LOCKED") {
+    return "账号因连续登录失败已临时锁定，请 24 小时后重试或联系 Owner。";
+  }
+
   if (normalizedMessage === "failed to fetch" || normalizedMessage.includes("networkerror")) {
     return "暂时无法连接管理后台，请稍后重试。";
   }
