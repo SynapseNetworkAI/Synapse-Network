@@ -52,7 +52,14 @@ Local hook bootstrap:
 After installation, `git push` automatically runs `bash scripts/ci/pr_checks.sh`.
 Emergency bypass remains `git push --no-verify`.
 
-`ci:pr` starts with `bash scripts/ci/runtime_preflight.sh`. This probe gives
+`ci:pr` defaults to dynamic scope. `bash scripts/ci/pr_checks.sh` resolves changed
+files with `scripts/ci/resolve_pr_ci_scope.mjs`, prints the selected commands,
+and then runs only the relevant gates. It fails closed into full CI for CI
+workflow changes, root dependency changes, deploy-script changes, unknown paths,
+or merge-base resolution failures. Use `SYNAPSE_CI_SCOPE=full bash
+scripts/ci/pr_checks.sh` when you need the old full aggregate gate explicitly.
+
+`ci:pr` starts selected runs with `bash scripts/ci/runtime_preflight.sh`. This probe gives
 Node and each project Python virtualenv interpreter 8 seconds to print a version
 before the expensive gates run. It fails fast on the first startup failure so
 pre-push does not hang indefinitely. If the probe times out on macOS with
