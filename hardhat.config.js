@@ -72,6 +72,16 @@ for (const candidate of resolveEnvCandidates()) {
   applyEnvFile(candidate);
 }
 
+function resolvePrivateKeyAccounts(...keys) {
+  for (const key of keys) {
+    const value = process.env[key];
+    if (value && /^0x[0-9a-fA-F]{64}$/.test(value.trim())) {
+      return [value.trim()];
+    }
+  }
+  return [];
+}
+
 /** @type import('hardhat/config').HardhatUserConfig */
 module.exports = {
   solidity: {
@@ -84,21 +94,18 @@ module.exports = {
     arbitrumSepolia: {
       url: process.env.ARBITRUM_SEPOLIA_RPC_URL || "http://127.0.0.1:8545",
       chainId: ARBITRUM_SEPOLIA_CHAIN_ID,
-      accounts: process.env.STAGING_DEPLOYER_PRIVATE_KEY
-        ? [process.env.STAGING_DEPLOYER_PRIVATE_KEY]
-        : [],
+      accounts: resolvePrivateKeyAccounts("STAGING_DEPLOYER_PRIVATE_KEY"),
     },
   },
   etherscan: {
-    apiKey: {
-      arbitrumSepolia: process.env.ARBISCAN_API_KEY || "",
-    },
+    // Etherscan API V2 uses one Etherscan.io key across supported chains.
+    apiKey: process.env.ETHERSCAN_API_KEY || process.env.ARBISCAN_API_KEY || "",
     customChains: [
       {
         network: "arbitrumSepolia",
         chainId: ARBITRUM_SEPOLIA_CHAIN_ID,
         urls: {
-          apiURL: "https://api-sepolia.arbiscan.io/api",
+          apiURL: "https://api.etherscan.io/v2/api",
           browserURL: "https://sepolia.arbiscan.io",
         },
       },

@@ -1,0 +1,10 @@
+.env*
+.next
+coverage
+docs-screenshot.png
+frontend_dev.log
+node_modules
+npm-debug.log*
+out
+package-lock.json
+tsconfig.tsbuildinfo
