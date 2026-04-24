@@ -21,18 +21,22 @@ locals {
       POSTGRES_CONNECT_TIMEOUT_SEC            = "5"
       POSTGRES_POOL_MAX                       = "5"
       POSTGRES_AUTO_INIT                      = "0"
+      CORS_ALLOW_ORIGINS                      = "https://staging.synapse-network.ai"
       V2_INDEXER_ENABLED                      = "false"
       PROVIDER_WITHDRAW_EXPIRY_REAPER_ENABLED = "false"
       CONSUMER_WITHDRAW_PROCESSOR_ENABLED     = "false"
       ANALYTICS_TRANSPORT                     = "outbox"
       ANALYTICS_STRICT_KAFKA                  = "false"
+      ANALYTICS_KAFKA_BOOTSTRAP_SERVERS       = ""
       DOWNSTREAM_ADAPTIVE_REDIS_ENABLED       = "false"
+      REDIS_URL                               = ""
       EMAIL_OUTBOX_ENABLED                    = "true"
       IN_APP_NOTIFICATION_CLEANUP_ENABLED     = "false"
     },
     var.common_runtime_env,
   )
   gateway_secret_env = {
+    POSTGRES_DSN                = "synapse-staging-postgres-dsn"
     POSTGRES_PASSWORD           = "synapse-staging-postgres-password"
     JWT_SECRET                  = "synapse-staging-jwt-secret"
     AUTH_SECRET                 = "synapse-staging-auth-secret"
@@ -41,6 +45,12 @@ locals {
     GATEWAY_INTERNAL_JWT_SECRET = "synapse-staging-gateway-internal-jwt-secret"
     RPC_URL                     = "synapse-staging-arbitrum-sepolia-rpc-url"
   }
+  gateway_migration_secret_env = merge(
+    local.gateway_secret_env,
+    {
+      POSTGRES_MIGRATOR_PASSWORD = "synapse-staging-postgres-migrator-password"
+    },
+  )
   gateway_admin_secret_env = {
     METRICS_BEARER_TOKEN          = "synapse-staging-metrics-bearer-token"
     ADMIN_CSRF_SECRET             = "synapse-staging-admin-csrf-secret"
@@ -175,7 +185,7 @@ locals {
       max_retries = 0
       retry_count = 0
       env         = merge(local.runtime_env, { POSTGRES_AUTO_INIT = "0" })
-      secret_env  = local.gateway_secret_env
+      secret_env  = local.gateway_migration_secret_env
     }
   }
   enabled_cloud_run_jobs = {
