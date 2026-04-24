@@ -143,7 +143,24 @@ admin-front (browser)
 2. 是否把默认 `SameSite=Lax` 在生产进一步收紧
 3. 是否把 bootstrap/dev TOTP 配置彻底替换为正式发放和轮换机制
 
-### 3.5 第四个问题：Gateway 管理命令仍挂在主 API 面上
+### 3.5 已完成：管理员登录失败锁定
+
+`gateway-admin` 已加入账号级登录防爆破控制：
+
+1. 默认 `ADMIN_LOGIN_LOCK_THRESHOLD=5`，连续 5 次密码或 Google Authenticator OTP 失败后锁定账号。
+2. 默认 `ADMIN_LOGIN_LOCK_HOURS=24`，锁定期间返回 `423 ADMIN_ACCOUNT_LOCKED`。
+3. 锁定错误文案固定为 `Admin account is temporarily locked. Try later or contact an owner.`，不暴露剩余尝试次数或锁定到期时间。
+4. 成功登录和成功完成 MFA enrollment verify 都会清零失败计数和 `locked_until`。
+5. `admin_action_audit` 记录 `admin.login.failure`、`admin.login.locked`、`admin.login.blocked_locked`、`admin.login.success`。
+6. 审计 detail 只保存 `emailHash`、`failureStage`、`failedLoginAttempts`、`lockThreshold`、`lockHours` 等安全摘要，不保存 password、otpCode、TOTP secret、JWT、raw signature。
+
+告警边界：
+
+1. `ADMIN_ACCOUNT_LOCKED` 任意发生触发 Cloud Monitoring -> Lark P1。
+2. `ADMIN_LOGIN_FAILURE` 在 5 分钟内超过阈值触发 Lark P1。
+3. 登录请求路径只写结构化日志和审计，不同步调用 Lark webhook，避免外部告警 I/O 影响认证接口。
+
+### 3.6 第四个问题：Gateway 管理命令仍挂在主 API 面上
 
 当前 gateway 的管理命令和交易 API 在同一个服务面里，只是 path 区分为 `/api/v1/admin/...`。
 
@@ -157,7 +174,7 @@ admin-front (browser)
 1. 公网 API 面只服务 owner / provider / agent
 2. 内部命令面只服务 `gateway-admin` 或内部 orchestrator
 
-### 3.6 第五个问题：开发态 fallback 不能带入生产认知
+### 3.7 第五个问题：开发态 fallback 不能带入生产认知
 
 例如 `gateway` 某些 admin allow-list 在 development 下有 fallback 逻辑，这对本地开发友好，但不能被团队误解为生产可接受默认值。
 
