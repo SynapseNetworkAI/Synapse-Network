@@ -1,4 +1,5 @@
 from collections.abc import Sequence
+from datetime import datetime
 
 from psycopg import errors as psycopg_errors
 from psycopg.types.json import Jsonb
@@ -25,6 +26,9 @@ def _map_user(row: dict) -> AdminUser:
         password_hash=row["password_hash"],
         require_mfa=row["require_mfa"],
         last_login_at=row["last_login_at"],
+        failed_login_attempts=row.get("failed_login_attempts", 0) or 0,
+        last_failed_login_at=row.get("last_failed_login_at"),
+        locked_until=row.get("locked_until"),
         created_at=row["created_at"],
         updated_at=row["updated_at"],
         disabled_at=row["disabled_at"],
@@ -159,9 +163,10 @@ class PostgresAdminIdentityRepository:
                 """
                 INSERT INTO admin_users (
                     admin_id, email, display_name, status, auth_source, sso_subject,
-                    password_hash, require_mfa, last_login_at, created_at, updated_at, disabled_at
+                    password_hash, require_mfa, last_login_at, failed_login_attempts,
+                    last_failed_login_at, locked_until, created_at, updated_at, disabled_at
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, COALESCE(%s, NOW()), COALESCE(%s, NOW()), %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, COALESCE(%s, NOW()), COALESCE(%s, NOW()), %s)
                 RETURNING *
                 """,
                 (
@@ -174,6 +179,9 @@ class PostgresAdminIdentityRepository:
                     user.password_hash,
                     user.require_mfa,
                     user.last_login_at,
+                    user.failed_login_attempts,
+                    user.last_failed_login_at,
+                    user.locked_until,
                     user.created_at,
                     user.updated_at,
                     user.disabled_at,
@@ -191,6 +199,9 @@ class PostgresAdminIdentityRepository:
                     status = %s,
                     password_hash = %s,
                     require_mfa = %s,
+                    failed_login_attempts = %s,
+                    last_failed_login_at = %s,
+                    locked_until = %s,
                     updated_at = COALESCE(%s, NOW()),
                     disabled_at = %s
                 WHERE admin_id = %s
@@ -201,6 +212,9 @@ class PostgresAdminIdentityRepository:
                     user.status.value,
                     user.password_hash,
                     user.require_mfa,
+                    user.failed_login_attempts,
+                    user.last_failed_login_at,
+                    user.locked_until,
                     user.updated_at,
                     user.disabled_at,
                     user.admin_id,
@@ -395,3 +409,51 @@ class PostgresAdminIdentityRepository:
                 "UPDATE admin_users SET last_login_at = NOW(), updated_at = NOW() WHERE admin_id = %s",
                 (admin_id,),
             )
+
+    def record_login_failure(self, admin_id: str, failed_at: datetime) -> AdminUser | None:
+        with _connect(self._dsn) as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE admin_users
+                SET failed_login_attempts = failed_login_attempts + 1,
+                    last_failed_login_at = %s,
+                    updated_at = NOW()
+                WHERE admin_id = %s
+                RETURNING *
+                """,
+                (failed_at, admin_id),
+            )
+            row = cur.fetchone()
+        return _map_user(row) if row else None
+
+    def clear_login_failures(self, admin_id: str) -> AdminUser | None:
+        with _connect(self._dsn) as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE admin_users
+                SET failed_login_attempts = 0,
+                    last_failed_login_at = NULL,
+                    locked_until = NULL,
+                    updated_at = NOW()
+                WHERE admin_id = %s
+                RETURNING *
+                """,
+                (admin_id,),
+            )
+            row = cur.fetchone()
+        return _map_user(row) if row else None
+
+    def lock_user_until(self, admin_id: str, locked_until: datetime) -> AdminUser | None:
+        with _connect(self._dsn) as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE admin_users
+                SET locked_until = %s,
+                    updated_at = NOW()
+                WHERE admin_id = %s
+                RETURNING *
+                """,
+                (locked_until, admin_id),
+            )
+            row = cur.fetchone()
+        return _map_user(row) if row else None

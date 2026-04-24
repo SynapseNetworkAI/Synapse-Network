@@ -560,6 +560,8 @@ env creates a new Cloud Run revision; rebuild only when code changes.
 | `ADMIN_SESSION_COOKIE_SECURE` | `true` | Send admin session cookie only over HTTPS. | No | Fixed |
 | `ADMIN_SESSION_COOKIE_SAMESITE` | `lax` | Admin session CSRF boundary. | No | Fixed |
 | `ADMIN_SESSION_COOKIE_DOMAIN` | `.synapse-network.ai` | Admin session cookie domain. | No | Fixed parent domain |
+| `ADMIN_LOGIN_LOCK_THRESHOLD` | `5` | Lock an admin account after five consecutive password or OTP failures. Valid range is `3..10`; invalid values fail startup. | No | Fixed |
+| `ADMIN_LOGIN_LOCK_HOURS` | `24` | Temporary account lock duration in hours. Valid range is `1..168`; invalid values fail startup. | No | Fixed |
 | `ADMIN_CSRF_SECRET` | Secret Manager value | CSRF/session signing secret. | Yes | `synapse-staging-admin-csrf-secret` |
 | `ADMIN_DATABASE_DSN` | Secret Manager value | Admin control-plane database full DSN. | Yes | `synapse-staging-admin-database-dsn` |
 | `ADMIN_DATABASE_MIGRATION_DSN` | Secret Manager value | Admin schema migration full DSN. | Yes | `synapse-staging-admin-database-migration-dsn` |

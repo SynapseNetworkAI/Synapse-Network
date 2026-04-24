@@ -71,6 +71,8 @@ sh scripts/ops/start-prod.sh
 4. `ADMIN_GATEWAY_DEBUG`: 调试模式，local 建议 `true`，staging/prod 建议 `false`。
 5. `ADMIN_GATEWAY_ALLOWED_ORIGINS`: 后台前端跨域白名单。
 6. `ADMIN_GATEWAY_TOKEN_PREFIX`: 管理员 token 前缀，便于审计识别。
+7. `ADMIN_LOGIN_LOCK_THRESHOLD`: 管理员账号连续登录失败锁定阈值，默认 `5`，允许范围 `3..10`，越界拒绝启动。
+8. `ADMIN_LOGIN_LOCK_HOURS`: 管理员账号临时锁定时长，默认 `24` 小时，允许范围 `1..168`，越界拒绝启动。
 
 ### 4.2 数据库与只读投影配置
 

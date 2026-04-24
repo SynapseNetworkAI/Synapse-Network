@@ -35,6 +35,7 @@
 3. [Gateway_Admin_Environment_Variables.md](./Gateway_Admin_Environment_Variables.md)
 4. [Gateway_Admin_Systemd_Deployment_Example.md](./Gateway_Admin_Systemd_Deployment_Example.md)
 5. [Gateway_Admin_Agent_Rules.md](./Gateway_Admin_Agent_Rules.md)
+6. [Gateway_Admin_Login_Lockout_Dogfood_E2E.md](./Gateway_Admin_Login_Lockout_Dogfood_E2E.md)
 
 当前项目目录内暂时仍保留：
 

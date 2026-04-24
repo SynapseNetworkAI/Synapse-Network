@@ -62,6 +62,8 @@ P1 alerts protect service availability:
 8. analytics outbox backlog or projection freshness lag
 9. provider outage
 10. gateway-admin approval failure
+11. `ADMIN_ACCOUNT_LOCKED` log match from gateway-admin
+12. `ADMIN_LOGIN_FAILURE` log matches above threshold in five minutes
 
 For Cloud SQL connection pool alerts, the Lark card must include:
 
@@ -71,13 +73,20 @@ Impact: Gateway finance/API requests may fail or timeout
 Action: reduce Cloud Run max instances/concurrency or upgrade Cloud SQL tier
 ```
 
+For admin login brute-force or MFA guessing alerts, the Lark card must include:
+
+```text
+Business scenario: Admin login brute-force or MFA guessing detected
+Impact: Admin control plane account may be under credential stuffing or OTP guessing attack
+Action: check admin_action_audit by emailHash, verify source IP/user agent, keep the account locked unless an owner approves unlock
+```
+
 P2 alerts protect operations and UX:
 
-1. admin login or MFA anomaly
-2. budget blocked spike
-3. analytics degraded
-4. large queue growth
-5. provider slow-lane growth
+1. budget blocked spike
+2. analytics degraded
+3. large queue growth
+4. provider slow-lane growth
 
 ## 4. Lark Alert Routing
 

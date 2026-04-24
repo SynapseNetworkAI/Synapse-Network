@@ -66,6 +66,9 @@ describe("login presenters", () => {
     expect(buildLoginErrorMessage(null, "otpCode is required when login TOTP is enabled")).toBe(
       "请输入 Google Authenticator 的 6 位验证码。",
     );
+    expect(buildLoginErrorMessage("ADMIN_ACCOUNT_LOCKED", "Admin account is temporarily locked. Try later or contact an owner.")).toBe(
+      "账号因连续登录失败已临时锁定，请 24 小时后重试或联系 Owner。",
+    );
     expect(buildLoginErrorMessage(null, "Failed to fetch")).toBe("暂时无法连接管理后台，请稍后重试。");
     expect(buildLoginErrorMessage(null, 'Unexpected token "I", "Internal Server Error" is not valid JSON')).toBe(
       "认证服务返回了非预期响应，请检查 gateway-admin 是否已启动、日志是否有 Internal Server Error，并确认 admin-front 的 API 地址或代理配置正确。",

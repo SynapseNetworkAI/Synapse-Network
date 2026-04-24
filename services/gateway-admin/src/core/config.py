@@ -95,6 +95,14 @@ class Settings(BaseSettings):
         default=1,
         alias="ADMIN_GOOGLE_AUTHENTICATOR_WINDOW",
     )
+    admin_login_lock_threshold: int = Field(
+        default=5,
+        alias="ADMIN_LOGIN_LOCK_THRESHOLD",
+    )
+    admin_login_lock_hours: int = Field(
+        default=24,
+        alias="ADMIN_LOGIN_LOCK_HOURS",
+    )
     admin_database_dsn: str = Field(
         default="postgresql://synapse_admin_app:local-dev-admin-app-password@localhost:5432/synapse_gateway_admin",
         alias="ADMIN_DATABASE_DSN",
@@ -173,6 +181,28 @@ class Settings(BaseSettings):
             "prod": "prod",
         }
         return aliases.get(normalized, normalized or "local")
+
+    @field_validator("admin_login_lock_threshold", mode="before")
+    @classmethod
+    def validate_admin_login_lock_threshold(cls, value: object) -> int:
+        try:
+            threshold = int(str(value).strip())
+        except (TypeError, ValueError) as exc:
+            raise ValueError("ADMIN_LOGIN_LOCK_THRESHOLD must be an integer between 3 and 10") from exc
+        if threshold < 3 or threshold > 10:
+            raise ValueError("ADMIN_LOGIN_LOCK_THRESHOLD must be between 3 and 10")
+        return threshold
+
+    @field_validator("admin_login_lock_hours", mode="before")
+    @classmethod
+    def validate_admin_login_lock_hours(cls, value: object) -> int:
+        try:
+            hours = int(str(value).strip())
+        except (TypeError, ValueError) as exc:
+            raise ValueError("ADMIN_LOGIN_LOCK_HOURS must be an integer between 1 and 168") from exc
+        if hours < 1 or hours > 168:
+            raise ValueError("ADMIN_LOGIN_LOCK_HOURS must be between 1 and 168")
+        return hours
 
     def cors_origins(self) -> list[str]:
         origins = [item.strip() for item in self.allowed_origins.split(",") if item.strip()]
