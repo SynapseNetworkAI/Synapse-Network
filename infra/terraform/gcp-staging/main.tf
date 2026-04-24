@@ -82,9 +82,14 @@ locals {
       env = merge(
         local.runtime_env,
         {
-          POSTGRES_POOL_MAX        = "3"
-          EXECUTION_WORKER_ENABLED = "false"
-          ADMIN_GATEWAY_PORT       = "8000"
+          POSTGRES_POOL_MAX             = "3"
+          EXECUTION_WORKER_ENABLED      = "false"
+          ADMIN_GATEWAY_PORT            = "8000"
+          ADMIN_GATEWAY_ALLOWED_ORIGINS = "https://admin-staging.synapse-network.ai"
+          ADMIN_SESSION_COOKIE_SECURE   = "true"
+          ADMIN_SESSION_COOKIE_SAMESITE = "lax"
+          ADMIN_SESSION_COOKIE_DOMAIN   = ".synapse-network.ai"
+          GATEWAY_INTERNAL_BASE_URL     = "https://api-staging.synapse-network.ai"
         },
       )
       secret_env = local.gateway_admin_secret_env
