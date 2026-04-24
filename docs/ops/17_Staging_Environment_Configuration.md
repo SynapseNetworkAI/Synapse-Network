@@ -129,11 +129,17 @@ production or contract deployment before the substrate is stable.
    - JWT/auth/internal secrets.
    - Lark webhooks and optional Lark signing secrets.
    - Gmail username/app password.
-   - Arbitrum Sepolia RPC URL and Arbiscan API key.
+   - Arbitrum Sepolia RPC URL and Etherscan API V2 verification key.
    - Staging deployer and withdraw signer private keys.
 6. Build and push container images to Artifact Registry.
    - Then set the four `*_image` Terraform variables or deploy through
      `gcloud run deploy` for the first smoke.
+   - Recommended: use
+     `bash scripts/deploy/gcp_cloudbuild_staging_images.sh fabled-archive-494108-k5`
+     so Google Cloud Build performs the CPU/memory-heavy Next.js builds on a
+     Linux builder.
+   - Fallback: use `bash scripts/deploy/gcp_build_staging_images.sh fabled-archive-494108-k5`
+     only when local Docker has enough memory.
 7. Configure DNS and TLS.
    - `staging.synapse-network.ai`.
    - `api-staging.synapse-network.ai`.
@@ -164,6 +170,7 @@ Local file: `infra/terraform/gcp-staging/terraform.tfvars`. Do not commit it.
 | `backup_bucket_name` | `synapse-staging-backups-<unique>` | GCS bucket for backup/evidence artifacts. | No | Ops-created globally unique name | Terraform tfvars |
 | `artifact_registry_repository` | `synapse-staging` | Docker image repository. | No | Fixed | Terraform tfvars |
 | `cloud_sql_tier` | `db-f1-micro` | Low-cost Cloud SQL starting tier. | No | Ops decision | Terraform tfvars |
+| `cloud_sql_edition` | `ENTERPRISE` | Required Cloud SQL edition for shared-core tiers such as `db-f1-micro`; do not use `ENTERPRISE_PLUS` for MVP staging. | No | Fixed | Terraform tfvars |
 | `cloud_sql_database_name` | `synapse_gateway_staging` | Gateway database name. | No | Fixed | Terraform tfvars |
 | `cloud_sql_backup_start_time` | `19:00` | UTC backup time; equals 03:00 Asia/Kuala_Lumpur. | No | Fixed | Terraform tfvars |
 | `cloud_sql_transaction_log_retention_days` | `1` | Staging PITR log retention. | No | Fixed | Terraform tfvars |
@@ -177,6 +184,72 @@ them once images are pushed to Artifact Registry.
 
 These `*_image` values are Docker/OCI container image URLs for Cloud Run. They
 are not PNG/JPG/SVG website images.
+
+Recommended build path: Cloud Build. This avoids local Mac ARM to Linux amd64
+emulation and prevents Next.js production builds from being killed by local
+Docker memory pressure.
+
+```bash
+bash scripts/deploy/gcp_cloudbuild_staging_images.sh fabled-archive-494108-k5
+```
+
+Fallback local Docker build:
+
+```bash
+bash scripts/deploy/gcp_build_staging_images.sh fabled-archive-494108-k5
+```
+
+Both scripts print a ready-to-paste `terraform.tfvars` block:
+
+```hcl
+gateway_image       = "us-central1-docker.pkg.dev/fabled-archive-494108-k5/synapse-staging/gateway:<tag>"
+gateway_admin_image = "us-central1-docker.pkg.dev/fabled-archive-494108-k5/synapse-staging/gateway-admin:<tag>"
+user_front_image    = "us-central1-docker.pkg.dev/fabled-archive-494108-k5/synapse-staging/user-front:<tag>"
+admin_front_image   = "us-central1-docker.pkg.dev/fabled-archive-494108-k5/synapse-staging/admin-front:<tag>"
+```
+
+Manual equivalent:
+
+```bash
+export PROJECT_ID=fabled-archive-494108-k5
+export REGION=us-central1
+export REPO=synapse-staging
+export TAG=staging-$(date -u +%Y%m%dT%H%M%SZ)
+export REGISTRY=${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO}
+
+gcloud auth configure-docker ${REGION}-docker.pkg.dev
+
+docker build --platform linux/amd64 -t ${REGISTRY}/gateway:${TAG} services/gateway
+docker push ${REGISTRY}/gateway:${TAG}
+
+docker build --platform linux/amd64 -t ${REGISTRY}/gateway-admin:${TAG} services/gateway-admin
+docker push ${REGISTRY}/gateway-admin:${TAG}
+
+docker build --platform linux/amd64 \
+  --build-arg NEXT_PUBLIC_GATEWAY_BASE_URL=https://api-staging.synapse-network.ai \
+  --build-arg NEXT_PUBLIC_APP_ENV=staging \
+  --build-arg CONTRACT_CONFIG_SOURCE=src/contract-config.arbitrum-sepolia.example.json \
+  -t ${REGISTRY}/user-front:${TAG} \
+  services/user-front
+docker push ${REGISTRY}/user-front:${TAG}
+
+docker build --platform linux/amd64 \
+  --build-arg NEXT_PUBLIC_ADMIN_API_BASE_URL=https://admin-api-staging.synapse-network.ai \
+  --build-arg ADMIN_API_PROXY_TARGET=https://admin-api-staging.synapse-network.ai \
+  --build-arg NEXT_PUBLIC_APP_ENV=staging \
+  -t ${REGISTRY}/admin-front:${TAG} \
+  services/admin-front
+docker push ${REGISTRY}/admin-front:${TAG}
+```
+
+If a Cloud Run service was created manually before Terraform owns it, import it
+before setting its image variable and applying Terraform:
+
+```bash
+terraform -chdir=infra/terraform/gcp-staging import \
+  'google_cloud_run_v2_service.services["gateway"]' \
+  projects/fabled-archive-494108-k5/locations/us-central1/services/synapse-staging-gateway
+```
 
 ## Secret Manager
 
@@ -197,7 +270,11 @@ shell command arguments.
 | --- | --- | --- | --- | --- |
 | `synapse-staging-postgres-password` | Cloud SQL Gateway app user password. | Gateway, Gateway jobs | Auto-generated by `gcp_staging_bootstrap.sh` | Gateway deploy |
 | `synapse-staging-postgres-migrator-password` | Cloud SQL Gateway migrator user password. | DB migration job / release deploy shell | Auto-generated by `gcp_staging_bootstrap.sh` | DB migration |
-| `synapse-staging-admin-postgres-password` | Gateway-admin control-plane DB password. | Gateway-admin | User-generated strong password | Gateway-admin deploy |
+| `synapse-staging-admin-postgres-password` | Gateway-admin control-plane DB password. | Gateway-admin | Auto-generated by `gcp_staging_bootstrap.sh` | Gateway-admin deploy |
+| `synapse-staging-admin-database-dsn` | Gateway-admin control-plane full Postgres DSN. | Gateway-admin | Auto-generated by `gcp_staging_bootstrap.sh` | Gateway-admin deploy |
+| `synapse-staging-admin-database-migration-dsn` | Gateway-admin migrator full Postgres DSN. | Admin migration job / deploy shell | Auto-generated by `gcp_staging_bootstrap.sh` | Gateway-admin migration |
+| `synapse-staging-gateway-readonly-dsn` | Gateway read-only full Postgres DSN for admin projections. | Gateway-admin | Auto-generated by `gcp_staging_bootstrap.sh` | Admin finance views |
+| `synapse-staging-gateway-forum-write-dsn` | Gateway app write DSN for forum/support write-through. | Gateway-admin | Auto-generated by `gcp_staging_bootstrap.sh` | Forum/support writes |
 | `synapse-staging-jwt-secret` | Signs/verifies user-facing Gateway JWTs. | Gateway | User-generated 32+ byte secret | Gateway deploy |
 | `synapse-staging-auth-secret` | Wallet challenge/session auth secret. | Gateway | User-generated 32+ byte secret | Gateway deploy |
 | `synapse-staging-private-key` | Gateway withdrawal ticket signer private key. | Gateway | Dedicated staging withdraw signer wallet | Withdrawal ticket tests |
@@ -213,12 +290,155 @@ shell command arguments.
 | `synapse-staging-lark-secret-prod-alerts` | Optional prod-alerts Lark signing secret. | Lark relay | Lark bot config | Only if signing is enabled |
 | `synapse-staging-lark-secret-staging-drill` | Optional drill Lark signing secret. | Lark relay | Lark bot config | Only if signing is enabled |
 | `synapse-staging-arbitrum-sepolia-rpc-url` | Arbitrum Sepolia RPC URL. | Gateway, Hardhat deploy/evidence | Alchemy/Infura/other RPC provider | Contract deploy |
-| `synapse-staging-arbiscan-api-key` | Arbiscan source verification API key. | Hardhat verify | Arbiscan account | Contract deploy |
+| `synapse-staging-arbiscan-api-key` | Etherscan API V2-compatible key used for Arbitrum Sepolia source verification. The old secret id is kept for compatibility. | Hardhat verify | Etherscan account | Contract deploy |
 | `synapse-staging-deployer-private-key` | Staging contract deployer private key. | Contract deploy only | Dedicated staging deployer wallet | Contract deploy |
+| `synapse-staging-gas-funder-private-key` | Optional operator-only gas funder private key used to top up deployer/consumer/provider wallets. | Local wallet utility only | Dedicated staging gas funder wallet | Optional wallet top-up |
 | `synapse-staging-metrics-bearer-token` | Internal `/metrics` scrape bearer token. | Gateway, Gateway-admin | User-generated token | Monitoring |
+
+### Cloud SQL Database Topology
+
+Staging uses one Cloud SQL instance and multiple databases/users. Do not create
+a second Cloud SQL instance for Gateway-admin unless a future scaling review
+explicitly approves it.
+
+| Object | Name | Created by | Purpose |
+| --- | --- | --- | --- |
+| Cloud SQL instance | `synapse-staging-postgres` | Terraform | Single staging Postgres instance. |
+| Gateway database | `synapse_gateway_staging` | Terraform | Gateway ledger, outbox, inbox, projections, and runtime data. |
+| Gateway-admin database | `synapse_gateway_admin_staging` | `gcp_staging_bootstrap.sh` | Admin login/session, approval, audit, and control-plane data. |
+| Gateway app user | `synapse_gateway_app` | `gcp_staging_bootstrap.sh` | Gateway runtime write user. |
+| Gateway migrator user | `synapse_gateway_migrator` | `gcp_staging_bootstrap.sh` | Gateway schema migration user. |
+| Gateway readonly user | `synapse_gateway_ro` | `gcp_staging_bootstrap.sh` | Gateway-admin readonly access to Gateway projections and finance views. |
+| Admin app user | `synapse_admin_app` | `gcp_staging_bootstrap.sh` | Gateway-admin runtime write user. |
+| Admin migrator user | `synapse_admin_migrator` | `gcp_staging_bootstrap.sh` | Gateway-admin schema migration user. |
+
+Run bootstrap after Terraform creates the Cloud SQL instance and Secret Manager
+placeholders:
+
+```bash
+bash scripts/deploy/gcp_staging_bootstrap.sh fabled-archive-494108-k5
+```
+
+The script writes generated passwords and full DSN values directly into Secret
+Manager. It does not print the passwords, write local files, or store secret
+values in Terraform state. Re-running it is idempotent; set
+`ROTATE_POSTGRES_PASSWORD=true` only when intentionally rotating generated DB
+credentials.
 
 If Lark bots use keyword-only validation, leave `synapse-staging-lark-secret-*`
 unset and ensure E2E messages contain the configured keyword.
+
+Local-only optional variable for wallet top-up automation:
+
+| Variable | Purpose | Used by | Secret | Source | Location |
+| --- | --- | --- | --- | --- | --- |
+| `STAGING_GAS_FUNDER_PRIVATE_KEY` | Optional funded staging wallet used only by the wallet utility to top up deployer/consumer/provider gas before contract deployment. | `npm run staging:arb-sepolia:wallets:fund` | Yes | Dedicated local-only staging wallet private key | Local shell or local untracked env file only |
+| `STAGING_GAS_FUNDER_SECRET_ID` | Secret Manager id for the gas funder private key when you do not want to export the raw private key locally. | `npm run staging:arb-sepolia:wallets:fund` | No | Fixed secret id string | Local shell or local untracked env file only |
+
+Do not inject `STAGING_GAS_FUNDER_PRIVATE_KEY` into Cloud Run runtime, Terraform
+variables, or Secret Manager placeholders used by runtime services. It exists
+only to save operator time when topping up Arbitrum Sepolia gas locally or in
+Cloud Shell.
+
+Recommended upload command:
+
+```bash
+printf '%s' '0xYOUR_GAS_FUNDER_PRIVATE_KEY' | \
+  bash scripts/deploy/gcp_put_secret.sh synapse-staging-gas-funder-private-key
+```
+
+For local contract deploy work, it is normal to export the real staging secrets
+into your current shell before running wallet or deployment scripts:
+
+```bash
+export ARBITRUM_SEPOLIA_RPC_URL="$(gcloud secrets versions access latest \
+  --secret=synapse-staging-arbitrum-sepolia-rpc-url \
+  --project=fabled-archive-494108-k5)"
+export STAGING_DEPLOYER_PRIVATE_KEY="$(gcloud secrets versions access latest \
+  --secret=synapse-staging-deployer-private-key \
+  --project=fabled-archive-494108-k5)"
+export ARBISCAN_API_KEY="$(gcloud secrets versions access latest \
+  --secret=synapse-staging-arbiscan-api-key \
+  --project=fabled-archive-494108-k5)"
+```
+
+This shell export flow is for local operator use only. It does not change Cloud
+Run runtime configuration and does not replace Secret Manager as the source of
+truth.
+
+### Secret Value Source Guide
+
+Not every staging secret is the same kind of value. Some are plain application
+secrets that should be generated with strong randomness. Some must come from a
+third-party dashboard. EVM private keys are neither of those: they control
+dedicated staging wallets and must be created, funded, and backed up as wallets.
+
+| Secret id | What it controls | Value class | Can be randomly generated with `openssl rand` | Source |
+| --- | --- | --- | --- | --- |
+| `synapse-staging-jwt-secret` | User-facing Gateway JWT signing and verification. | Application secret | Yes | Local secure random generation |
+| `synapse-staging-auth-secret` | Wallet login challenge/session/auth signing. | Application secret | Yes | Local secure random generation |
+| `synapse-staging-gateway-internal-jwt-secret` | Gateway-admin to Gateway internal service-token signing. | Application secret | Yes | Local secure random generation |
+| `synapse-staging-metrics-bearer-token` | `/metrics` scrape authorization token. | Ops bearer token | Yes | Local secure random generation |
+| `synapse-staging-private-key` | Gateway EIP-712 withdrawal ticket signer. | EVM private key | No | Dedicated staging withdraw signer wallet |
+| `synapse-staging-deployer-private-key` | Contract deployer for MockUSDC/SynapseCore. | EVM private key | No | Dedicated staging deployer wallet |
+| `synapse-staging-arbitrum-sepolia-rpc-url` | Arbitrum Sepolia RPC endpoint. | Third-party URL | No | Alchemy, Infura, QuickNode, or equivalent RPC provider |
+| `synapse-staging-arbiscan-api-key` | Etherscan API V2 source verification for Arbitrum Sepolia. | Third-party API key | No | Etherscan account |
+
+Use an Etherscan API V2 key from `https://etherscan.io/myapikey` for
+`synapse-staging-arbiscan-api-key`. The secret id keeps the old Arbiscan name
+for compatibility, but old Arbiscan network-specific API keys will fail with
+`Invalid API Key (#err2)`.
+
+Randomly generated application secrets:
+
+```bash
+openssl rand -base64 48 | tr -d '\n' | \
+  bash scripts/deploy/gcp_put_secret.sh synapse-staging-jwt-secret
+
+openssl rand -base64 48 | tr -d '\n' | \
+  bash scripts/deploy/gcp_put_secret.sh synapse-staging-auth-secret
+
+openssl rand -base64 48 | tr -d '\n' | \
+  bash scripts/deploy/gcp_put_secret.sh synapse-staging-gateway-internal-jwt-secret
+
+openssl rand -base64 48 | tr -d '\n' | \
+  bash scripts/deploy/gcp_put_secret.sh synapse-staging-metrics-bearer-token
+```
+
+Third-party values:
+
+```bash
+printf '%s' 'https://arb-sepolia.g.alchemy.com/v2/REDACTED' | \
+  bash scripts/deploy/gcp_put_secret.sh synapse-staging-arbitrum-sepolia-rpc-url
+
+printf '%s' 'REDACTED_ARBISCAN_API_KEY' | \
+  bash scripts/deploy/gcp_put_secret.sh synapse-staging-arbiscan-api-key
+```
+
+Wallet private keys:
+
+```bash
+printf '%s' '0xREDACTED_STAGING_WITHDRAW_SIGNER_PRIVATE_KEY' | \
+  bash scripts/deploy/gcp_put_secret.sh synapse-staging-private-key
+
+printf '%s' '0xREDACTED_STAGING_DEPLOYER_PRIVATE_KEY' | \
+  bash scripts/deploy/gcp_put_secret.sh synapse-staging-deployer-private-key
+```
+
+Wallet boundaries:
+
+1. `synapse-staging-deployer-private-key` is deploy-only. It deploys MockUSDC
+   and SynapseCore, performs staging pre-mint, and should not be injected into
+   runtime Gateway services.
+2. `synapse-staging-private-key` is the Gateway withdrawal signer. Its public
+   address must equal `STAGING_WITHDRAW_SIGNER_ADDRESS` in deployment evidence.
+3. The contract owner wallet should be a separate staging wallet address. It
+   does not need to be injected into Gateway runtime.
+4. Test consumer/provider wallets are for E2E only. They need Arbitrum Sepolia
+   ETH gas and pre-minted MockUSDC, but their private keys must not be injected
+   into Gateway runtime.
+5. Never use a personal wallet, production wallet, or treasury wallet for any
+   staging secret.
 
 ## User-front
 
@@ -236,6 +456,20 @@ File: `services/user-front/.env.staging.example`.
 
 Do not introduce `NEXT_PUBLIC_API_BASE_URL` unless the frontend code is
 intentionally refactored. Current code uses `NEXT_PUBLIC_GATEWAY_BASE_URL`.
+
+Staging front-end contract config:
+
+| File | Purpose | Current staging values |
+| --- | --- | --- |
+| `services/user-front/src/contract-config.arbitrum-sepolia.example.json` | Canonical Arbitrum Sepolia contract config used to seed staging builds. | `SynapseCore=0x0bA1dcE1Cc8d877052ab1C3CE2362830459D8FF4`, `MockUSDC=0xfad31daE42B0046aFA106BCf56ED0dDaCA4463B9` |
+| `services/user-front/src/contract-config.json` | Runtime file imported by User-front wallet flows. For staging builds, copy the Arbitrum Sepolia config into this path before building the image. | Must match the current verified staging deployment. |
+
+Recommended staging build prep:
+
+```bash
+cp services/user-front/src/contract-config.arbitrum-sepolia.example.json \
+  services/user-front/src/contract-config.json
+```
 
 ## Gateway API
 
@@ -260,8 +494,8 @@ File: `services/gateway/.env.staging.example`.
 | `AUTH_SECRET` | Secret Manager value | Wallet challenge/session secret. | Yes | `synapse-staging-auth-secret` |
 | `GATEWAY_INTERNAL_JWT_SECRET` | Secret Manager value | Validates Gateway-admin internal tokens. | Yes | `synapse-staging-gateway-internal-jwt-secret` |
 | `RPC_URL` | Secret Manager value | Runtime Arbitrum Sepolia RPC URL. | Yes | `synapse-staging-arbitrum-sepolia-rpc-url` |
-| `ROUTER_ADDRESS` | SynapseCore address | Deployed staging SynapseCore. | No | Contract manifest |
-| `USDC_TOKEN_ADDRESS` | MockUSDC address | Deployed owner-only staging MockUSDC. | No | Contract manifest |
+| `ROUTER_ADDRESS` | `0x0bA1dcE1Cc8d877052ab1C3CE2362830459D8FF4` | Deployed staging SynapseCore. | No | `20260424T062942120Z-deploy` contract manifest |
+| `USDC_TOKEN_ADDRESS` | `0xfad31daE42B0046aFA106BCf56ED0dDaCA4463B9` | Deployed owner-only staging MockUSDC. | No | `20260424T062942120Z-deploy` contract manifest |
 | `PRIVATE_KEY` | Secret Manager value | Withdraw ticket signer private key. | Yes | `synapse-staging-private-key` |
 | `METRICS_BEARER_TOKEN` | Secret Manager value | App-layer `/metrics` guard. | Yes | `synapse-staging-metrics-bearer-token` |
 | `V2_INDEXER_ENABLED` | `false` | Disable API-process indexer; use scheduled job. | No | Fixed Cloud Run staging |
@@ -291,20 +525,23 @@ File: `services/gateway-admin/.env.staging.example`.
 
 | Variable | Staging value | Purpose | Secret | Source |
 | --- | --- | --- | --- | --- |
-| `environment` | `staging` | Admin API environment marker. | No | Fixed |
+| `ENVIRONMENT` | `staging` | Admin API environment marker. | No | Fixed |
+| `ADMIN_GATEWAY_PORT` | `8000` | Cloud Run container port for Gateway-admin. | No | Fixed |
 | `ADMIN_GATEWAY_ALLOWED_ORIGINS` | `https://admin-staging.synapse-network.ai` | Admin-front origin allowed by CORS. | No | Fixed staging domain |
 | `ADMIN_SESSION_COOKIE_SECURE` | `true` | Send admin session cookie only over HTTPS. | No | Fixed |
 | `ADMIN_SESSION_COOKIE_SAMESITE` | `lax` | Admin session CSRF boundary. | No | Fixed |
 | `ADMIN_SESSION_COOKIE_DOMAIN` | `.synapse-network.ai` | Admin session cookie domain. | No | Fixed parent domain |
 | `ADMIN_CSRF_SECRET` | Secret Manager value | CSRF/session signing secret. | Yes | `synapse-staging-admin-csrf-secret` |
-| `ADMIN_DATABASE_DSN` | Staging admin DB DSN | Admin control-plane database. | Yes | `synapse-staging-admin-postgres-password` |
-| `ADMIN_DATABASE_MIGRATION_DSN` | Staging admin migrator DSN | Admin schema migrations. | Yes | Admin DB credential |
-| `GATEWAY_READONLY_DSN` | Gateway readonly DSN | Read Gateway projections without write access. | Yes | DB readonly credential |
+| `ADMIN_DATABASE_DSN` | Secret Manager value | Admin control-plane database full DSN. | Yes | `synapse-staging-admin-database-dsn` |
+| `ADMIN_DATABASE_MIGRATION_DSN` | Secret Manager value | Admin schema migration full DSN. | Yes | `synapse-staging-admin-database-migration-dsn` |
+| `GATEWAY_READONLY_DSN` | Secret Manager value | Read Gateway projections without write access. | Yes | `synapse-staging-gateway-readonly-dsn` |
+| `GATEWAY_FORUM_WRITE_DSN` | Secret Manager value | Write forum/support records into Gateway DB where required. | Yes | `synapse-staging-gateway-forum-write-dsn` |
 | `GATEWAY_INTERNAL_BASE_URL` | `https://api-staging.synapse-network.ai` | Internal admin calls to Gateway. | No | Fixed staging domain |
 | `GATEWAY_INTERNAL_ADMIN_WALLET` | Secret Manager value or injected address | Internal admin wallet subject. | Yes/Address-sensitive | `synapse-staging-gateway-admin-wallet` |
 | `GATEWAY_INTERNAL_JWT_SECRET` | Secret Manager value | Signs Gateway-admin service tokens. | Yes | `synapse-staging-gateway-internal-jwt-secret` |
 | `GATEWAY_INTERNAL_TOKEN_ISSUER` | `gateway-admin` | Internal JWT issuer. | No | Fixed |
 | `GATEWAY_INTERNAL_TOKEN_AUDIENCE` | `gateway-internal` | Internal JWT audience. | No | Fixed |
+| `EXECUTION_WORKER_ENABLED` | `false` | Keep long-running admin worker loops out of the API-serving Cloud Run service for MVP staging. | No | Fixed |
 | `GATEWAY_INTERNAL_SERVICE_SUBJECT` | `service:gateway-admin` | Internal JWT subject. | No | Fixed |
 | `GATEWAY_INTERNAL_TIMEOUT_SEC` | `10` | Gateway internal call timeout. | No | Fixed |
 | `EXECUTION_WORKER_ENABLED` | `true` | Enable admin execution worker. | No | Fixed staging default |
@@ -323,7 +560,7 @@ These variables are required for `npm run deploy:contracts:arbitrum-sepolia:*`.
 | `STAGING_DEPLOYER_PRIVATE_KEY` | `0x...` | Deploys contracts and pre-mints MockUSDC. | Yes | Dedicated staging deployer wallet | `synapse-staging-deployer-private-key` |
 | `STAGING_CONTRACT_OWNER_ADDRESS` | `0x...` | Final owner for MockUSDC/SynapseCore. | No | Dedicated owner wallet address | Not a secret |
 | `STAGING_WITHDRAW_SIGNER_ADDRESS` | `0x...` | Public address of Gateway withdraw signer. | No | Derived from `synapse-staging-private-key` | Not a secret |
-| `ARBISCAN_API_KEY` | `...` | Arbiscan source verification. | Yes | Arbiscan account | `synapse-staging-arbiscan-api-key` |
+| `ARBISCAN_API_KEY` | `...` | Etherscan API V2 source verification for Arbitrum Sepolia. Legacy env name kept for script compatibility. | Yes | Etherscan account | `synapse-staging-arbiscan-api-key` |
 | `STAGING_TEST_CONSUMER_ADDRESS` | `0x...` | Dedicated consumer wallet for full-chain E2E. | No | Staging E2E wallet | Not a secret |
 | `STAGING_TEST_PROVIDER_ADDRESS` | `0x...` | Dedicated provider wallet for full-chain E2E. | No | Staging E2E wallet | Not a secret |
 | `STAGING_MIN_GAS_ETH` | `0.01` | Minimum ETH gas balance preflight. | No | Fixed default | Not a secret |
@@ -396,12 +633,27 @@ Gateway and Gateway-admin runtime services must run with `POSTGRES_AUTO_INIT=0`.
 They validate schema at startup but do not create or mutate tables. The release
 sequence is:
 
-1. Build image.
-2. Push Artifact Registry image.
-3. Run the DB migration job.
-4. Deploy Gateway and Gateway-admin images only after migration succeeds.
-5. Deploy frontends and scheduled jobs.
-6. Run smoke tests and release evidence.
+1. Resolve the selected branch/tag/commit into an immutable commit SHA.
+2. Resolve deploy scope (`auto`, one service, or `all`).
+3. Build only affected service images in Cloud Build.
+4. Run the DB migration job before API rollout when schema/migration files changed.
+5. Deploy affected Cloud Run services by immutable image digest when available.
+6. Run smoke tests only for affected services.
+7. Write `release-manifest.json` and upload it to the staging evidence bucket.
+
+Branch-based staging deploy is allowed, but the workflow freezes the branch HEAD
+at dispatch time. Release evidence must record `sourceRefType`, `sourceRef`,
+`resolvedCommitSha`, image tags/digests, Cloud Run revisions, smoke status, and
+the evidence URI. Do not treat a moving branch name as the deployed version.
+
+The automated workflow supports:
+
+```text
+deploy_scope=auto | gateway | gateway-admin | user-front | admin-front | all
+```
+
+`auto` uses `scripts/deploy/resolve_deploy_scope.mjs` to infer affected services.
+Docs-only changes become `no_deploy` records and do not trigger Cloud Build.
 
 Seed data is not migration data:
 
@@ -422,6 +674,41 @@ PROD detected: schema/reference migration only; test seed skipped.
 ## Smoke Tests
 
 Run after DNS/TLS and Cloud Run deploy:
+
+Update Gateway and Gateway-admin runtime env to point at the verified staging
+contracts:
+
+```bash
+gcloud run services update synapse-staging-gateway \
+  --project fabled-archive-494108-k5 \
+  --region us-central1 \
+  --update-env-vars ROUTER_ADDRESS=0x0bA1dcE1Cc8d877052ab1C3CE2362830459D8FF4,USDC_TOKEN_ADDRESS=0xfad31daE42B0046aFA106BCf56ED0dDaCA4463B9
+
+gcloud run services update synapse-staging-gateway-admin \
+  --project fabled-archive-494108-k5 \
+  --region us-central1 \
+  --update-env-vars ROUTER_ADDRESS=0x0bA1dcE1Cc8d877052ab1C3CE2362830459D8FF4,USDC_TOKEN_ADDRESS=0xfad31daE42B0046aFA106BCf56ED0dDaCA4463B9
+
+gcloud run jobs update synapse-staging-deposit-indexer \
+  --project fabled-archive-494108-k5 \
+  --region us-central1 \
+  --update-env-vars ROUTER_ADDRESS=0x0bA1dcE1Cc8d877052ab1C3CE2362830459D8FF4,USDC_TOKEN_ADDRESS=0xfad31daE42B0046aFA106BCf56ED0dDaCA4463B9
+
+gcloud run jobs update synapse-staging-provider-withdraw-reaper \
+  --project fabled-archive-494108-k5 \
+  --region us-central1 \
+  --update-env-vars ROUTER_ADDRESS=0x0bA1dcE1Cc8d877052ab1C3CE2362830459D8FF4,USDC_TOKEN_ADDRESS=0xfad31daE42B0046aFA106BCf56ED0dDaCA4463B9
+
+gcloud run jobs update synapse-staging-consumer-withdraw-processor \
+  --project fabled-archive-494108-k5 \
+  --region us-central1 \
+  --update-env-vars ROUTER_ADDRESS=0x0bA1dcE1Cc8d877052ab1C3CE2362830459D8FF4,USDC_TOKEN_ADDRESS=0xfad31daE42B0046aFA106BCf56ED0dDaCA4463B9
+```
+
+If Terraform owns Cloud Run env for this deployment, set the same values in
+local private `infra/terraform/gcp-staging/terraform.tfvars` under
+`common_runtime_env` instead of hand-updating Cloud Run. Do not commit private
+`terraform.tfvars`.
 
 ```bash
 curl https://staging.synapse-network.ai

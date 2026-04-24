@@ -10,8 +10,30 @@ on:
         required: true
         type: string
       commit_sha:
-        required: true
+        required: false
         type: string
+      source_ref_type:
+        required: false
+        type: choice
+        default: branch
+        options:
+          - branch
+          - tag
+          - commit
+      source_ref:
+        required: false
+        type: string
+      deploy_scope:
+        required: false
+        type: choice
+        default: auto
+        options:
+          - auto
+          - gateway
+          - gateway-admin
+          - user-front
+          - admin-front
+          - all
       actor:
         required: true
         type: string
@@ -25,34 +47,330 @@ on:
         required: false
         type: string
 
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    env:
+      PROJECT_ID: ${{ secrets.STAGING_GCP_PROJECT_ID || 'fabled-archive-494108-k5' }}
+      REGION: ${{ secrets.STAGING_GCP_REGION || 'us-central1' }}
+      ARTIFACT_REGISTRY_REPOSITORY: ${{ secrets.STAGING_ARTIFACT_REGISTRY_REPOSITORY || 'synapse-staging' }}
+      EVIDENCE_BUCKET: ${{ secrets.STAGING_EVIDENCE_BUCKET || 'synapse-staging-evidence-fabled-archive-494108-k5' }}
+      SOURCE_REF_TYPE: ${{ inputs.source_ref_type || 'branch' }}
+      SOURCE_REF: ${{ inputs.source_ref }}
+      DEPLOY_SCOPE: ${{ inputs.deploy_scope || 'auto' }}
+      CALLBACK_URL: ${{ inputs.callback_url }}
+      CALLBACK_TOKEN: ${{ inputs.callback_token }}
     steps:
       - uses: actions/checkout@v6
-      - name: Configure SSH
+        with:
+          fetch-depth: 0
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOY_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v3
+
+      - name: Resolve source ref
+        id: source
+        shell: bash
         run: |
-          mkdir -p ~/.ssh
-          printf '%s' "${{ secrets.STAGING_DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H "${{ secrets.STAGING_DEPLOY_HOST }}" >> ~/.ssh/known_hosts
-      - name: Run staging deployment
+          set -euo pipefail
+          git fetch origin main --prune
+          source_ref_type="${SOURCE_REF_TYPE:-branch}"
+          source_ref="${SOURCE_REF:-}"
+          legacy_commit="${{ inputs.commit_sha }}"
+
+          if [[ "${source_ref_type}" == "commit" ]]; then
+            resolved="${source_ref:-${legacy_commit}}"
+            [[ -n "${resolved}" ]] || { echo "missing commit source_ref/commit_sha" >&2; exit 2; }
+            git fetch origin "${resolved}" --depth=1 || true
+          elif [[ "${source_ref_type}" == "tag" ]]; then
+            [[ -n "${source_ref}" ]] || { echo "missing tag source_ref" >&2; exit 2; }
+            git fetch origin "+refs/tags/${source_ref}:refs/tags/${source_ref}"
+            resolved="$(git rev-parse "refs/tags/${source_ref}^{commit}")"
+          else
+            if [[ -z "${source_ref}" ]]; then
+              source_ref="$(git rev-parse --abbrev-ref HEAD)"
+            fi
+            git fetch origin "+refs/heads/${source_ref}:refs/remotes/origin/${source_ref}"
+            resolved="$(git rev-parse "refs/remotes/origin/${source_ref}^{commit}")"
+          fi
+
+          git checkout --detach "${resolved}"
+          short_sha="$(git rev-parse --short=12 HEAD)"
+          base_sha="$(git merge-base origin/main HEAD || git rev-parse HEAD^)"
+          safe_ref="$(printf '%s' "${source_ref:-commit}" | tr '/[:upper:]' '-[:lower:]' | tr -cd 'a-z0-9._-' | cut -c1-40)"
+          release_id="staging-${safe_ref}-${short_sha}-$(date -u +%Y%m%dT%H%M%SZ)"
+
+          {
+            echo "resolved_commit_sha=$(git rev-parse HEAD)"
+            echo "base_sha=${base_sha}"
+            echo "source_ref=${source_ref:-${resolved}}"
+            echo "source_ref_type=${source_ref_type}"
+            echo "release_id=${release_id}"
+            echo "short_sha=${short_sha}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Resolve deploy scope
+        id: scope
         run: |
-          ssh "${{ secrets.STAGING_DEPLOY_USER }}@${{ secrets.STAGING_DEPLOY_HOST }}" \
-            "cd '${{ secrets.STAGING_REPO_DIR }}' && COMMIT_SHA='${{ inputs.commit_sha }}' ./scripts/deploy/staging.sh"
-      - name: Report success
-        if: ${{ success() && inputs.callback_url != '' }}
+          node scripts/deploy/resolve_deploy_scope.mjs \
+            --base "${{ steps.source.outputs.base_sha }}" \
+            --head "${{ steps.source.outputs.resolved_commit_sha }}" \
+            --scope "${DEPLOY_SCOPE}" \
+            --json scope.json
+          node - <<'NODE' >> "$GITHUB_OUTPUT"
+          const fs = require('fs')
+          const scope = JSON.parse(fs.readFileSync('scope.json', 'utf8'))
+          console.log(`deploy=${scope.deploy ? 'true' : 'false'}`)
+          console.log(`services=${(scope.services || []).join(',')}`)
+          console.log(`requires_migration=${scope.requiresMigration ? 'true' : 'false'}`)
+          console.log(`requires_terraform=${scope.requiresTerraformApply ? 'true' : 'false'}`)
+          NODE
+
+      - name: Report no deploy
+        if: ${{ steps.scope.outputs.deploy == 'false' && env.CALLBACK_URL != '' }}
         run: |
+          node - <<'NODE'
+          const fs = require('fs')
+          const scope = JSON.parse(fs.readFileSync('scope.json', 'utf8'))
+          const payload = {
+            status: 'no_deploy',
+            external_run_id: process.env.GITHUB_RUN_ID,
+            external_url: `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`,
+            branch_name: process.env.SOURCE_REF || null,
+            commit_sha: process.env.RESOLVED_COMMIT_SHA,
+            health_status: 'not_applicable',
+            notes: (scope.reason || []).join('; ') || 'no deploy required',
+            metadata: { sourceRefType: process.env.SOURCE_REF_TYPE, sourceRef: process.env.SOURCE_REF, resolvedCommitSha: process.env.RESOLVED_COMMIT_SHA, deployScope: [], noDeployReason: scope.reason || [] },
+          }
+          fs.writeFileSync('callback.json', JSON.stringify(payload))
+          NODE
           curl --fail --silent --show-error \
-            -X POST "${{ inputs.callback_url }}" \
+            -X POST "${CALLBACK_URL}" \
             -H "Content-Type: application/json" \
-            -H "X-Deploy-Token: ${{ inputs.callback_token }}" \
-            -d "{\"status\":\"succeeded\",\"external_run_id\":\"${{ github.run_id }}\",\"external_url\":\"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\",\"commit_sha\":\"${{ inputs.commit_sha }}\",\"notes\":\"staging deploy succeeded\"}"
-      - name: Report failure
-        if: ${{ failure() && inputs.callback_url != '' }}
+            -H "X-Deploy-Token: ${CALLBACK_TOKEN}" \
+            -d @callback.json
+        env:
+          RESOLVED_COMMIT_SHA: ${{ steps.source.outputs.resolved_commit_sha }}
+          SOURCE_REF: ${{ steps.source.outputs.source_ref }}
+          SOURCE_REF_TYPE: ${{ steps.source.outputs.source_ref_type }}
+
+      - name: Build affected images
+        if: ${{ steps.scope.outputs.deploy == 'true' }}
         run: |
-          curl --silent --show-error \
-            -X POST "${{ inputs.callback_url }}" \
+          TAG="staging-${{ steps.source.outputs.short_sha }}-$(date -u +%Y%m%dT%H%M%SZ)"
+          bash scripts/deploy/gcp_cloudbuild_staging_images.sh "${PROJECT_ID}" \
+            --services "${{ steps.scope.outputs.services }}" \
+            --tag "${TAG}" \
+            --json-output build-images.json
+
+      - name: Resolve immutable image refs
+        if: ${{ steps.scope.outputs.deploy == 'true' }}
+        run: |
+          node - <<'NODE'
+          const fs = require('fs')
+          const { execFileSync } = require('child_process')
+          const build = JSON.parse(fs.readFileSync('build-images.json', 'utf8'))
+          const digests = {}
+          for (const [service, image] of Object.entries(build.services || {})) {
+            let digest = ''
+            try {
+              digest = execFileSync('gcloud', ['artifacts', 'docker', 'images', 'describe', image, '--format=value(image_summary.digest)'], { encoding: 'utf8' }).trim()
+            } catch {
+              digest = ''
+            }
+            const imageName = image.includes(':') ? image.slice(0, image.lastIndexOf(':')) : image
+            digests[service] = digest ? `${imageName}@${digest}` : image
+          }
+          fs.writeFileSync('image-digests.json', JSON.stringify(digests, null, 2))
+          NODE
+
+      - name: Run DB migration before API rollout
+        if: ${{ steps.scope.outputs.deploy == 'true' && steps.scope.outputs.requires_migration == 'true' }}
+        run: |
+          gateway_image="$(node -e "const d=require('./image-digests.json'); console.log(d.gateway || '')")"
+          [[ -n "${gateway_image}" ]] || { echo "migration requires a gateway image" >&2; exit 2; }
+          gcloud run jobs update synapse-staging-db-migrate \
+            --project "${PROJECT_ID}" \
+            --region "${REGION}" \
+            --image "${gateway_image}" \
+            --quiet
+          gcloud run jobs execute synapse-staging-db-migrate \
+            --project "${PROJECT_ID}" \
+            --region "${REGION}" \
+            --wait
+          echo "MIGRATION_RAN=true" >> "$GITHUB_ENV"
+          echo "MIGRATION_STATUS=passed" >> "$GITHUB_ENV"
+
+      - name: Deploy affected Cloud Run services
+        if: ${{ steps.scope.outputs.deploy == 'true' }}
+        run: |
+          node - <<'NODE' > deploy-services.sh
+          const fs = require('fs')
+          const images = JSON.parse(fs.readFileSync('image-digests.json', 'utf8'))
+          const names = {
+            gateway: 'synapse-staging-gateway',
+            'gateway-admin': 'synapse-staging-gateway-admin',
+            'user-front': 'synapse-staging-user-front',
+            'admin-front': 'synapse-staging-admin-front',
+          }
+          for (const [service, image] of Object.entries(images)) {
+            console.log(`gcloud run deploy ${names[service]} --project "$PROJECT_ID" --region "$REGION" --image '${image}' --quiet`)
+          }
+          NODE
+          bash deploy-services.sh
+
+      - name: Smoke affected services
+        if: ${{ steps.scope.outputs.deploy == 'true' }}
+        run: |
+          TOKEN="$(gcloud auth print-identity-token)"
+          node - <<'NODE' > smoke-services.sh
+          const fs = require('fs')
+          const images = JSON.parse(fs.readFileSync('image-digests.json', 'utf8'))
+          const names = {
+            gateway: 'synapse-staging-gateway',
+            'gateway-admin': 'synapse-staging-gateway-admin',
+            'user-front': 'synapse-staging-user-front',
+            'admin-front': 'synapse-staging-admin-front',
+          }
+          for (const service of Object.keys(images)) {
+            console.log(`url=$(gcloud run services describe ${names[service]} --project "$PROJECT_ID" --region "$REGION" --format='value(status.url)')`)
+            if (service === 'gateway' || service === 'gateway-admin') {
+              console.log(`curl -fsS -H "Authorization: Bearer $TOKEN" "$url/health" >/dev/null`)
+              if (service === 'gateway') console.log(`curl -fsS -H "Authorization: Bearer $TOKEN" "$url/readiness" >/dev/null`)
+            } else {
+              console.log(`curl -fsS "$url/" >/dev/null || curl -fsS -H "Authorization: Bearer $TOKEN" "$url/" >/dev/null`)
+            }
+            console.log(`echo '${service}=passed' >> smoke-status.txt`)
+          }
+          NODE
+          bash smoke-services.sh
+          node - <<'NODE'
+          const fs = require('fs')
+          const status = {}
+          for (const line of fs.readFileSync('smoke-status.txt', 'utf8').split('\n')) {
+            if (!line.trim()) continue
+            const [key, value] = line.split('=')
+            status[key] = value
+          }
+          fs.writeFileSync('smoke.json', JSON.stringify(status, null, 2))
+          NODE
+
+      - name: Capture Cloud Run revisions
+        if: ${{ steps.scope.outputs.deploy == 'true' }}
+        run: |
+          node - <<'NODE' > revision-services.sh
+          const fs = require('fs')
+          const images = JSON.parse(fs.readFileSync('image-digests.json', 'utf8'))
+          const names = {
+            gateway: 'synapse-staging-gateway',
+            'gateway-admin': 'synapse-staging-gateway-admin',
+            'user-front': 'synapse-staging-user-front',
+            'admin-front': 'synapse-staging-admin-front',
+          }
+          for (const service of Object.keys(images)) {
+            console.log(`printf '${service}=' >> revisions.env`)
+            console.log(`gcloud run services describe ${names[service]} --project "$PROJECT_ID" --region "$REGION" --format='value(status.latestReadyRevisionName)' >> revisions.env`)
+          }
+          NODE
+          bash revision-services.sh
+          node - <<'NODE'
+          const fs = require('fs')
+          const revisions = {}
+          for (const line of fs.readFileSync('revisions.env', 'utf8').split('\n')) {
+            if (!line.trim()) continue
+            const [key, value] = line.split('=')
+            revisions[key] = value
+          }
+          fs.writeFileSync('revisions.json', JSON.stringify(revisions, null, 2))
+          NODE
+
+      - name: Write and upload deployment manifest
+        if: ${{ steps.scope.outputs.deploy == 'true' }}
+        run: |
+          export RELEASE_ID="${{ steps.source.outputs.release_id }}"
+          export SOURCE_REF_TYPE="${{ steps.source.outputs.source_ref_type }}"
+          export SOURCE_REF="${{ steps.source.outputs.source_ref }}"
+          export RESOLVED_COMMIT_SHA="${{ steps.source.outputs.resolved_commit_sha }}"
+          mkdir -p "output/deployments/staging/${RELEASE_ID}"
+          node scripts/deploy/write_deployment_manifest.mjs \
+            --out "output/deployments/staging/${RELEASE_ID}/release-manifest.json" \
+            --environment staging \
+            --release-id "${RELEASE_ID}" \
+            --source-ref-type "${SOURCE_REF_TYPE}" \
+            --source-ref "${SOURCE_REF}" \
+            --resolved-commit-sha "${RESOLVED_COMMIT_SHA}" \
+            --scope scope.json \
+            --build build-images.json \
+            --image-digests image-digests.json \
+            --revisions revisions.json \
+            --smoke smoke.json
+          gcloud storage cp -r "output/deployments/staging/${RELEASE_ID}" "gs://${EVIDENCE_BUCKET}/deployments/"
+          echo "EVIDENCE_URI=gs://${EVIDENCE_BUCKET}/deployments/${RELEASE_ID}/release-manifest.json" >> "$GITHUB_ENV"
+
+      - name: Report success
+        if: ${{ success() && steps.scope.outputs.deploy == 'true' && env.CALLBACK_URL != '' }}
+        run: |
+          node - <<'NODE'
+          const fs = require('fs')
+          const manifest = JSON.parse(fs.readFileSync(`output/deployments/staging/${process.env.RELEASE_ID}/release-manifest.json`, 'utf8'))
+          const payload = {
+            status: 'succeeded',
+            external_run_id: process.env.GITHUB_RUN_ID,
+            external_url: `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`,
+            branch_name: manifest.sourceRef,
+            commit_sha: manifest.resolvedCommitSha,
+            health_status: 'passed',
+            notes: `staging deploy succeeded: ${manifest.deployScope.join(', ')}`,
+            metadata: { ...manifest, evidenceUri: process.env.EVIDENCE_URI },
+          }
+          fs.writeFileSync('callback.json', JSON.stringify(payload))
+          NODE
+          curl --fail --silent --show-error \
+            -X POST "${CALLBACK_URL}" \
             -H "Content-Type: application/json" \
-            -H "X-Deploy-Token: ${{ inputs.callback_token }}" \
-            -d "{\"status\":\"failed\",\"external_run_id\":\"${{ github.run_id }}\",\"external_url\":\"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\",\"commit_sha\":\"${{ inputs.commit_sha }}\",\"notes\":\"staging deploy failed\"}"
+            -H "X-Deploy-Token: ${CALLBACK_TOKEN}" \
+            -d @callback.json
+        env:
+          RELEASE_ID: ${{ steps.source.outputs.release_id }}
+
+      - name: Report failure
+        if: ${{ failure() && env.CALLBACK_URL != '' }}
+        run: |
+          node - <<'NODE'
+          const fs = require('fs')
+          const payload = {
+            status: 'failed',
+            external_run_id: process.env.GITHUB_RUN_ID,
+            external_url: `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`,
+            branch_name: process.env.SOURCE_REF || null,
+            commit_sha: process.env.RESOLVED_COMMIT_SHA || null,
+            health_status: 'failed',
+            notes: 'staging deploy failed; inspect GitHub Actions logs',
+            metadata: {
+              sourceRefType: process.env.SOURCE_REF_TYPE,
+              sourceRef: process.env.SOURCE_REF,
+              resolvedCommitSha: process.env.RESOLVED_COMMIT_SHA || null,
+              deployScope: process.env.DEPLOY_SCOPE,
+            },
+          }
+          fs.writeFileSync('callback.json', JSON.stringify(payload))
+          NODE
+          curl --silent --show-error \
+            -X POST "${CALLBACK_URL}" \
+            -H "Content-Type: application/json" \
+            -H "X-Deploy-Token: ${CALLBACK_TOKEN}" \
+            -d @callback.json
+        env:
+          RESOLVED_COMMIT_SHA: ${{ steps.source.outputs.resolved_commit_sha }}
+          SOURCE_REF: ${{ steps.source.outputs.source_ref }}
+          SOURCE_REF_TYPE: ${{ steps.source.outputs.source_ref_type }}
