@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import os
 import time
 from typing import Any, List, Optional
 from uuid import uuid4
@@ -100,9 +101,7 @@ class BalanceAuditMixin:
         if not hasattr(self.storage, "directory"):
             return []
 
-        import os
-
-        path = os.path.join(getattr(self.storage, "directory"), "audit_log.jsonl")
+        path = os.path.join(self.storage.directory, "audit_log.jsonl")
         if not os.path.exists(path):
             return []
 
@@ -114,7 +113,8 @@ class BalanceAuditMixin:
                     continue
                 try:
                     row = json.loads(raw)
-                except Exception:
+                except json.JSONDecodeError as exc:
+                    logger.debug("Skipping malformed finance audit JSONL row: %s", exc)
                     continue
                 if normalize_wallet(str(row.get("ownerAddress") or "")) != owner:
                     continue

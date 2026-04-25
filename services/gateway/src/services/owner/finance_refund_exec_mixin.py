@@ -101,6 +101,135 @@ class FinanceRefundExecMixin:
         method = getattr(gateway_state, method_name, None)
         return method if callable(method) else None
 
+    def _review_consumer_withdrawal_reject(
+        self,
+        *,
+        owner: str,
+        rows: List[RefundIntentRow],
+        target: RefundIntentRow,
+        amount_usdc: Decimal,
+        review: RefundReviewContext,
+        request_meta: Optional[dict[str, Any]],
+    ) -> dict[str, Any]:
+        now = int(time.time())
+        updated = target.model_copy(deep=True)
+        updated.reviewer_address = review.reviewer_address
+        updated.reviewer_note = review.reviewer_note
+        updated.reviewed_at = now
+        updated.complete_meta = request_meta or {}
+        updated.status = "REJECTED"
+        updated.review_decision = "REJECT"
+        updated.completed_at = now
+        updated.updated_at = now_dt_str()
+        updated.message = "Withdrawal rejected during manual security review."
+        audit_detail = {
+            "refundId": str(target.id or ""),
+            "amountUsdc": money_str(amount_usdc),
+            "reviewerAddress": review.reviewer_address,
+            "reviewerNote": review.reviewer_note,
+            "requestMeta": request_meta or {},
+        }
+        atomic_reject = self._atomic_consumer_review_method(
+            "reject_consumer_withdrawal_review_atomic"
+        )
+        try:
+            if atomic_reject is not None:
+                atomic_reject(
+                    owner=owner,
+                    row=updated,
+                    amount_usdc=amount_usdc,
+                    detail=audit_detail,
+                    updated_at=updated.updated_at,
+                )
+            else:
+                self._release_consumer_frozen_to_available(owner, amount_usdc)  # type: ignore[attr-defined]
+                self._replace_refund_row(rows, target, updated)
+                self._save_refund_rows(rows, now)  # type: ignore[attr-defined]
+                self._append_financial_audit(  # type: ignore[attr-defined]
+                    "CONSUMER_WITHDRAW_REVIEW_REJECTED",
+                    owner,
+                    audit_detail,
+                )
+        except RuntimeError as exc:
+            self._raise_consumer_review_balance_conflict(exc)
+        self._replace_refund_row(rows, target, updated)
+        return {
+            "refundId": str(target.id or ""),
+            "status": "REJECTED",
+            "reviewDecision": "REJECT",
+        }
+
+    def _review_consumer_withdrawal_approve(
+        self,
+        *,
+        owner: str,
+        rows: List[RefundIntentRow],
+        target: RefundIntentRow,
+        amount_usdc: Decimal,
+        review: RefundReviewContext,
+        request_meta: Optional[dict[str, Any]],
+    ) -> dict[str, Any]:
+        ticket = self._build_consumer_withdraw_ticket(  # type: ignore[attr-defined]
+            owner=owner,
+            gross_amount_usdc=amount_usdc,
+            withdrawal_id=str(target.id or ""),
+        )
+        now = int(time.time())
+        updated = target.model_copy(deep=True)
+        updated.reviewer_address = review.reviewer_address
+        updated.reviewer_note = review.reviewer_note
+        updated.reviewed_at = now
+        updated.complete_meta = request_meta or {}
+        updated.status = "REQUESTED"
+        updated.review_decision = "APPROVE"
+        updated.updated_at = now_dt_str()
+        updated.message = "Withdrawal approved. Signed ticket is ready for on-chain claim."
+        updated.signature = ticket.signature
+        updated.ticket = ticket
+        updated.request_meta = {
+            **(updated.request_meta.model_dump(by_alias=True, mode="json") if hasattr(updated.request_meta, "model_dump") else (updated.request_meta or {})),
+            "ticketDeadline": ticket.deadline,
+            "ticketId": ticket.ticket_id,
+            "ticketHash": ticket.ticket_hash,
+        }
+        audit_detail = {
+            "refundId": str(target.id or ""),
+            "amountUsdc": money_str(amount_usdc),
+            "reviewerAddress": review.reviewer_address,
+            "reviewerNote": review.reviewer_note,
+            "requestMeta": request_meta or {},
+        }
+        atomic_approve = self._atomic_consumer_review_method(
+            "approve_consumer_withdrawal_review_atomic"
+        )
+        try:
+            if atomic_approve is not None:
+                atomic_approve(
+                    owner=owner,
+                    row=updated,
+                    amount_usdc=amount_usdc,
+                    detail=audit_detail,
+                    updated_at=updated.updated_at,
+                )
+            else:
+                self._move_consumer_frozen_to_pending(owner, amount_usdc)  # type: ignore[attr-defined]
+                self._replace_refund_row(rows, target, updated)
+                self._save_refund_rows(rows, now)  # type: ignore[attr-defined]
+                self._append_financial_audit(  # type: ignore[attr-defined]
+                    "CONSUMER_WITHDRAW_REVIEW_APPROVED",
+                    owner,
+                    audit_detail,
+                )
+        except RuntimeError as exc:
+            self._raise_consumer_review_balance_conflict(exc)
+        self._replace_refund_row(rows, target, updated)
+        return {
+            "refundId": str(target.id or ""),
+            "status": "REQUESTED",
+            "reviewDecision": "APPROVE",
+            "ticket": ticket.model_dump(by_alias=True, mode="json", exclude_none=True),
+        }
+
     def _reject_refund_manual_review(
         self,
         *,
@@ -652,112 +781,22 @@ class FinanceRefundExecMixin:
                 )
 
             amount_usdc = parse_usdc(target.amount_usdc)
-            now = int(time.time())
 
             if review.decision == "REJECT":
-                updated = target.model_copy(deep=True)
-                updated.reviewer_address = review.reviewer_address
-                updated.reviewer_note = review.reviewer_note
-                updated.reviewed_at = now
-                updated.complete_meta = request_meta or {}
-                updated.status = "REJECTED"
-                updated.review_decision = "REJECT"
-                updated.completed_at = now
-                updated.updated_at = now_dt_str()
-                updated.message = "Withdrawal rejected during manual security review."
-                audit_detail = {
-                    "refundId": str(target.id or ""),
-                    "amountUsdc": money_str(amount_usdc),
-                    "reviewerAddress": review.reviewer_address,
-                    "reviewerNote": review.reviewer_note,
-                    "requestMeta": request_meta or {},
-                }
-                atomic_reject = self._atomic_consumer_review_method(
-                    "reject_consumer_withdrawal_review_atomic"
+                return self._review_consumer_withdrawal_reject(
+                    owner=owner,
+                    rows=rows,
+                    target=target,
+                    amount_usdc=amount_usdc,
+                    review=review,
+                    request_meta=request_meta,
                 )
-                try:
-                    if atomic_reject is not None:
-                        atomic_reject(
-                            owner=owner,
-                            row=updated,
-                            amount_usdc=amount_usdc,
-                            detail=audit_detail,
-                            updated_at=updated.updated_at,
-                        )
-                    else:
-                        self._release_consumer_frozen_to_available(owner, amount_usdc)  # type: ignore[attr-defined]
-                        self._replace_refund_row(rows, target, updated)
-                        self._save_refund_rows(rows, now)  # type: ignore[attr-defined]
-                        self._append_financial_audit(  # type: ignore[attr-defined]
-                            "CONSUMER_WITHDRAW_REVIEW_REJECTED",
-                            owner,
-                            audit_detail,
-                        )
-                except RuntimeError as exc:
-                    self._raise_consumer_review_balance_conflict(exc)
-                self._replace_refund_row(rows, target, updated)
-                return {
-                    "refundId": str(target.id or ""),
-                    "status": "REJECTED",
-                    "reviewDecision": "REJECT",
-                }
 
-            ticket = self._build_consumer_withdraw_ticket(  # type: ignore[attr-defined]
+            return self._review_consumer_withdrawal_approve(
                 owner=owner,
-                gross_amount_usdc=amount_usdc,
-                withdrawal_id=str(target.id or ""),
+                rows=rows,
+                target=target,
+                amount_usdc=amount_usdc,
+                review=review,
+                request_meta=request_meta,
             )
-            updated = target.model_copy(deep=True)
-            updated.reviewer_address = review.reviewer_address
-            updated.reviewer_note = review.reviewer_note
-            updated.reviewed_at = now
-            updated.complete_meta = request_meta or {}
-            updated.status = "REQUESTED"
-            updated.review_decision = "APPROVE"
-            updated.updated_at = now_dt_str()
-            updated.message = "Withdrawal approved. Signed ticket is ready for on-chain claim."
-            updated.signature = ticket.signature
-            updated.ticket = ticket
-            updated.request_meta = {
-                **(updated.request_meta.model_dump(by_alias=True, mode="json") if hasattr(updated.request_meta, "model_dump") else (updated.request_meta or {})),
-                "ticketDeadline": ticket.deadline,
-                "ticketId": ticket.ticket_id,
-                "ticketHash": ticket.ticket_hash,
-            }
-            audit_detail = {
-                "refundId": str(target.id or ""),
-                "amountUsdc": money_str(amount_usdc),
-                "reviewerAddress": review.reviewer_address,
-                "reviewerNote": review.reviewer_note,
-                "requestMeta": request_meta or {},
-            }
-            atomic_approve = self._atomic_consumer_review_method(
-                "approve_consumer_withdrawal_review_atomic"
-            )
-            try:
-                if atomic_approve is not None:
-                    atomic_approve(
-                        owner=owner,
-                        row=updated,
-                        amount_usdc=amount_usdc,
-                        detail=audit_detail,
-                        updated_at=updated.updated_at,
-                    )
-                else:
-                    self._move_consumer_frozen_to_pending(owner, amount_usdc)  # type: ignore[attr-defined]
-                    self._replace_refund_row(rows, target, updated)
-                    self._save_refund_rows(rows, now)  # type: ignore[attr-defined]
-                    self._append_financial_audit(  # type: ignore[attr-defined]
-                        "CONSUMER_WITHDRAW_REVIEW_APPROVED",
-                        owner,
-                        audit_detail,
-                    )
-            except RuntimeError as exc:
-                self._raise_consumer_review_balance_conflict(exc)
-            self._replace_refund_row(rows, target, updated)
-            return {
-                "refundId": str(target.id or ""),
-                "status": "REQUESTED",
-                "reviewDecision": "APPROVE",
-                "ticket": ticket.model_dump(by_alias=True, mode="json", exclude_none=True),
-            }

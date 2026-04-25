@@ -1,3 +1,6 @@
-from src.services.finance_admin.provider_withdraw_review_service import ProviderWithdrawReviewService
+from src.services.finance_admin.provider_withdraw_review_service import (
+    ProviderWithdrawReviewService,
+    WithdrawReviewHistoryQuery,
+)
 
-__all__ = ["ProviderWithdrawReviewService"]
+__all__ = ["ProviderWithdrawReviewService", "WithdrawReviewHistoryQuery"]
