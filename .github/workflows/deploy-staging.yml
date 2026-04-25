@@ -69,9 +69,26 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Validate staging Workload Identity configuration
+        shell: bash
+        env:
+          WIF_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          DEPLOY_SERVICE_ACCOUNT: ${{ secrets.GCP_DEPLOY_SERVICE_ACCOUNT }}
+        run: |
+          set -euo pipefail
+          missing=()
+          [[ -n "${WIF_PROVIDER}" ]] || missing+=("GCP_WORKLOAD_IDENTITY_PROVIDER")
+          [[ -n "${DEPLOY_SERVICE_ACCOUNT}" ]] || missing+=("GCP_DEPLOY_SERVICE_ACCOUNT")
+          if (( ${#missing[@]} > 0 )); then
+            printf 'Missing required GitHub Actions secret(s): %s\n' "${missing[*]}" >&2
+            printf 'Configure GCP Workload Identity Federation before dispatching staging deploy.\n' >&2
+            exit 2
+          fi
+
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v3
         with:
+          project_id: ${{ env.PROJECT_ID }}
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ secrets.GCP_DEPLOY_SERVICE_ACCOUNT }}
 

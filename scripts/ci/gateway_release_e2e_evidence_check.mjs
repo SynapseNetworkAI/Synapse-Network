@@ -32,6 +32,7 @@ const REQUIRED_TRACE_SCENARIOS = [
   "analytics_kafka_clickhouse",
   "ledger_vault_reconciliation",
 ];
+const MVP_POSTGRES_TRACE_SCENARIOS = REQUIRED_TRACE_SCENARIOS.filter((scenario) => scenario !== "analytics_kafka_clickhouse");
 
 function latestReportPath() {
   if (process.env.GATEWAY_RELEASE_E2E_EVIDENCE_DIR) {
@@ -70,9 +71,12 @@ function sha256File(filePath) {
 function digest(report) {
   return crypto.createHash("sha256").update(JSON.stringify(stable({
     scriptVersion: report.scriptVersion,
+    profile: report.profile,
+    minimumExpectedTests: report.minimumExpectedTests,
     environment: report.environment,
     contract: report.contract,
     analytics: report.analytics,
+    jobExecution: report.jobExecution,
     pytest: report.pytest,
     comparisons: report.comparisons,
     traceDigest: report.traceDigest,
@@ -132,6 +136,9 @@ if (process.exitCode) process.exit(process.exitCode);
 const outDir = path.dirname(reportPath);
 const report = JSON.parse(fs.readFileSync(reportPath, "utf8"));
 const requiredEnvironment = process.env.GATEWAY_RELEASE_E2E_REQUIRED_ENV;
+const profile = report.profile || report.environment?.profile || "full";
+const requiredTraceScenarios = profile === "mvp-postgres" ? MVP_POSTGRES_TRACE_SCENARIOS : REQUIRED_TRACE_SCENARIOS;
+const minimumExpectedTests = Number(report.minimumExpectedTests || (profile === "mvp-postgres" ? 50 : 78));
 
 for (const name of REQUIRED_FILES) {
   const filePath = path.join(outDir, name);
@@ -181,16 +188,25 @@ if (!report.jobExecution || typeof report.jobExecution !== "object") {
   );
 }
 
-if (!report.pytest || report.pytest.tests < 78) {
+if (!report.pytest || report.pytest.tests < minimumExpectedTests) {
   fatal(
     "GATEWAY-RELEASE-EVIDENCE-005",
     reportPath,
-    `expected at least 78 gateway e2e tests; actual=${report.pytest?.tests}`,
+    `expected at least ${minimumExpectedTests} gateway e2e tests for profile=${profile}; actual=${report.pytest?.tests}`,
     "rerun the full services/gateway/tests/e2e suite and ensure no test module was filtered out.",
   );
 }
 
-if (!report.analytics || Number(report.analytics.totalEvents || 0) <= 0 || (report.analytics.errors || []).length > 0) {
+if (profile === "mvp-postgres") {
+  if (!report.analytics || report.analytics.mode !== "postgres-outbox" || (report.analytics.errors || []).length > 0) {
+    fatal(
+      "GATEWAY-RELEASE-EVIDENCE-006",
+      reportPath,
+      "Postgres outbox analytics evidence is missing or errored for mvp-postgres profile.",
+      "rerun the gateway release evidence with GATEWAY_RELEASE_E2E_PROFILE=mvp-postgres and verify Postgres outbox/projection mode.",
+    );
+  }
+} else if (!report.analytics || Number(report.analytics.totalEvents || 0) <= 0 || (report.analytics.errors || []).length > 0) {
   fatal(
     "GATEWAY-RELEASE-EVIDENCE-006",
     reportPath,
@@ -250,7 +266,7 @@ if (traceRows.length <= 0) {
 }
 
 const traceScenarios = new Set(traceRows.map((row) => String(row.scenario || "")));
-for (const scenario of REQUIRED_TRACE_SCENARIOS) {
+for (const scenario of requiredTraceScenarios) {
   if (!traceScenarios.has(scenario)) {
     fatal(
       "GATEWAY-RELEASE-EVIDENCE-014",
@@ -275,4 +291,5 @@ if (process.exitCode) process.exit(process.exitCode);
 
 console.log(`[gateway-release-evidence] passed: ${reportPath}`);
 console.log(`[gateway-release-evidence] environment=${report.environment?.environment}`);
+console.log(`[gateway-release-evidence] profile=${profile}`);
 console.log(`[gateway-release-evidence] tests=${report.pytest.tests} skipped=${report.pytest.skipped}`);

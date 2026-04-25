@@ -107,6 +107,11 @@ single checklist for staging DNS, Cloud Run env, Secret Manager ids, frontend
 URLs, Gateway/Gateway-admin settings, Gmail, Lark, and Arbitrum Sepolia
 deployment variables.
 
+Canonical staging validation lives in
+`docs/ops/18_Staging_Validation_Runbook.md`. Use it after deployment to verify
+DNS/TLS, Cloud Run health, CORS, Arbitrum Sepolia contracts, Gateway full-chain
+behavior, UI dogfood, notifications, and recovery evidence.
+
 ## Staging Cloud Resources
 
 Staging resources:

@@ -28,11 +28,17 @@ locals {
       ANALYTICS_STRICT_KAFKA                  = "false"
       DOWNSTREAM_ADAPTIVE_REDIS_ENABLED       = "false"
       EMAIL_OUTBOX_ENABLED                    = "true"
+      EMAIL_TRANSPORT                         = "gmail_smtp"
+      GMAIL_SMTP_HOST                         = "smtp.gmail.com"
+      GMAIL_SMTP_PORT                         = "587"
+      EMAIL_FROM                              = "Synapse Network Staging <staging-alerts@synapse-network.ai>"
+      EMAIL_REPLY_TO                          = "support@synapse-network.ai"
       IN_APP_NOTIFICATION_CLEANUP_ENABLED     = "false"
     },
     var.common_runtime_env,
   )
   gateway_secret_env = {
+    POSTGRES_DSN                = "synapse-staging-postgres-dsn"
     POSTGRES_PASSWORD           = "synapse-staging-postgres-password"
     JWT_SECRET                  = "synapse-staging-jwt-secret"
     AUTH_SECRET                 = "synapse-staging-auth-secret"
@@ -40,6 +46,8 @@ locals {
     METRICS_BEARER_TOKEN        = "synapse-staging-metrics-bearer-token"
     GATEWAY_INTERNAL_JWT_SECRET = "synapse-staging-gateway-internal-jwt-secret"
     RPC_URL                     = "synapse-staging-arbitrum-sepolia-rpc-url"
+    GMAIL_SMTP_USERNAME         = "synapse-staging-gmail-username"
+    GMAIL_SMTP_APP_PASSWORD     = "synapse-staging-gmail-app-password"
   }
   gateway_admin_secret_env = {
     METRICS_BEARER_TOKEN          = "synapse-staging-metrics-bearer-token"
