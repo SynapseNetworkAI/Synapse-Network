@@ -7,7 +7,13 @@ import { StatusBadge } from "../components/StatusBadge";
 import { useActiveSection } from "../use-active-section";
 import { useDocsPageNav } from "../use-docs-page-nav";
 
-const PAGE_SECTIONS = ["sdk-overview", "sdk-compare"];
+const STAGING_DOC_LINKS = [
+  "https://staging.synapse-network.ai/docs/sdk",
+  "https://staging.synapse-network.ai/docs/sdk/python",
+  "https://staging.synapse-network.ai/docs/sdk/typescript",
+];
+
+const PAGE_SECTIONS = ["sdk-overview", "sdk-staging-docs", "sdk-compare"];
 
 export default function SdkPage() {
   const router = useRouter();
@@ -21,6 +27,8 @@ export default function SdkPage() {
   const cardTitles = tList("docsPage.sdkHubCardTitles");
   const cardDescriptions = tList("docsPage.sdkHubCardDescriptions");
   const cardBullets = tList("docsPage.sdkHubCardBullets");
+  const stagingDocLabels = tList("docsPage.sdkStagingDocsLinkLabels");
+  const agentQuickstartSteps = tList("docsPage.sdkAgentQuickstartSteps");
   const compareRows = tList("docsPage.sdkCompareRows");
   const compareTs = tList("docsPage.sdkCompareTypeScript");
   const comparePy = tList("docsPage.sdkComparePython");
@@ -93,6 +101,48 @@ export default function SdkPage() {
             </div>
           </button>
         ))}
+      </section>
+
+      <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+        <div className="rounded-2xl border border-[#6eb6f6]/20 bg-[#6eb6f6]/[0.05] p-6">
+          <h2 className="x-section-title text-white">{t("docsPage.sdkAgentQuickstartTitle")}</h2>
+          <p className="mt-2 text-[14px] leading-7 text-[#8b98a5]">{t("docsPage.sdkAgentQuickstartDescription")}</p>
+          <ol className="mt-5 space-y-3">
+            {agentQuickstartSteps.map((step, index) => (
+              <li key={step} className="flex gap-3 text-[13px] leading-6 text-[#c8d0d8]">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#6eb6f6]/15 text-[11px] font-semibold text-[#6eb6f6]">
+                  {index + 1}
+                </span>
+                <span>{step}</span>
+              </li>
+            ))}
+          </ol>
+        </div>
+        <div className="rounded-2xl border border-white/[0.06] bg-[#0a0b0d] p-6">
+          <h2 className="x-section-title text-white">{t("docsPage.sdkAdvancedOwnerTitle")}</h2>
+          <p className="mt-2 text-[14px] leading-7 text-[#8b98a5]">{t("docsPage.sdkAdvancedOwnerDescription")}</p>
+        </div>
+      </section>
+
+      <section id="sdk-staging-docs" className="space-y-5 rounded-2xl border border-[#7ff7be]/20 bg-[#7ff7be]/[0.05] p-6">
+        <div className="space-y-2">
+          <h2 className="x-section-title text-white">{t("docsPage.sdkStagingDocsTitle")}</h2>
+          <p className="x-body-copy max-w-[760px]">{t("docsPage.sdkStagingDocsDescription")}</p>
+        </div>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+          {STAGING_DOC_LINKS.map((href, index) => (
+            <a
+              key={href}
+              href={href}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-xl border border-white/[0.08] bg-[#0a0b0d] px-4 py-3 text-[13px] font-semibold text-[#7ff7be] transition hover:border-[#7ff7be]/50"
+            >
+              {stagingDocLabels[index] ?? href}
+            </a>
+          ))}
+        </div>
+        <p className="text-[12px] leading-6 text-[#8b98a5]">{t("docsPage.sdkStagingDocsProdReserved")}</p>
       </section>
 
       <section id="sdk-compare" className="space-y-5">

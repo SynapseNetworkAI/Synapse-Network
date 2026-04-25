@@ -31,6 +31,42 @@ export default function PythonSdkPage() {
         <p className="x-body-copy max-w-[640px]">{t("docsPage.sdkPyDescription")}</p>
       </section>
 
+      <section className="rounded-2xl border border-[#7ff7be]/20 bg-[#7ff7be]/[0.05] p-5">
+        <p className="x-body-copy max-w-[760px]">{t("docsPage.sdkRunbookBridgeDescription")}</p>
+        <a
+          href="https://staging.synapse-network.ai/docs/sdk/python"
+          target="_blank"
+          rel="noreferrer"
+          className="mt-4 inline-flex text-[13px] font-semibold text-[#7ff7be]"
+        >
+          {t("docsPage.sdkRunbookBridgePythonCta")}
+        </a>
+      </section>
+
+      <section className="rounded-2xl border border-[#6eb6f6]/20 bg-[#6eb6f6]/[0.05] p-5">
+        <h2 className="x-section-title text-white">{t("docsPage.sdkAgentQuickstartTitle")}</h2>
+        <p className="mt-2 text-[14px] leading-7 text-[#8b98a5]">{t("docsPage.sdkAgentQuickstartDescription")}</p>
+        <CodeBlock
+          lang="python"
+          code={`from synapse_client import SynapseClient
+
+client = SynapseClient(api_key="agt_xxx", environment="staging")
+
+services = client.search("free", limit=10)
+service = services[0]
+
+result = client.invoke(
+    service.service_id,
+    {"prompt": "hello"},
+    cost_usdc=float(service.price_usdc),
+    idempotency_key="agent-job-001",
+)
+
+receipt = client.get_invocation(result.invocation_id)
+print(receipt.status, receipt.charged_usdc)`}
+        />
+      </section>
+
       <section id="sdk-py" className="space-y-4">
         <h2 className="x-section-title text-white">{t("docsPage.sdkInstallTitle")}</h2>
         <p className="x-body-copy max-w-[660px]">{t("docsPage.sdkPyInstallDescription")}</p>

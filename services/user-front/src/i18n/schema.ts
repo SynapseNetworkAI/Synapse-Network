@@ -953,6 +953,18 @@ export type I18nMessages = {
     sdkEyebrow: string;
     sdkTitle: string;
     sdkDescription: string;
+    sdkStagingDocsTitle: string;
+    sdkStagingDocsDescription: string;
+    sdkStagingDocsLinkLabels: string[];
+    sdkStagingDocsProdReserved: string;
+    sdkAgentQuickstartTitle: string;
+    sdkAgentQuickstartDescription: string;
+    sdkAgentQuickstartSteps: string[];
+    sdkAdvancedOwnerTitle: string;
+    sdkAdvancedOwnerDescription: string;
+    sdkRunbookBridgeDescription: string;
+    sdkRunbookBridgePythonCta: string;
+    sdkRunbookBridgeTypeScriptCta: string;
     sdkHubCardTitles: string[];
     sdkHubCardDescriptions: string[];
     sdkHubCardBullets: string[];
