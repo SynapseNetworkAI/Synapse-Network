@@ -191,8 +191,6 @@ echo "[gcp-cloudbuild-images] region=${REGION}"
 echo "[gcp-cloudbuild-images] repository=${REPOSITORY}"
 echo "[gcp-cloudbuild-images] tag=${TAG}"
 echo "[gcp-cloudbuild-images] services=${normalized_services[*]}"
-echo "[gcp-cloudbuild-images] enabling Cloud Build API if needed"
-gcloud services enable cloudbuild.googleapis.com --project="${PROJECT_ID}" >/dev/null
 
 echo "[gcp-cloudbuild-images] submitting build to Cloud Build"
 gcloud builds submit . \
