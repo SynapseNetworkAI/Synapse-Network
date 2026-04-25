@@ -49,13 +49,21 @@ class FakeCursor:
         self,
         fetchone_queue: Optional[List[Any]] = None,
         fetchall_queue: Optional[List[Any]] = None,
+        rowcount_overrides: Optional[List[tuple[str, int]]] = None,
     ):
         self.fetchone_queue = list(fetchone_queue or [])
         self.fetchall_queue = list(fetchall_queue or [])
+        self.rowcount_overrides = list(rowcount_overrides or [])
         self.executed: List[tuple[str, Any]] = []
+        self.rowcount = 1
 
     def execute(self, sql: str, params: Any = None) -> None:
         self.executed.append((sql, params))
+        self.rowcount = 1
+        for pattern, rowcount in self.rowcount_overrides:
+            if pattern in sql:
+                self.rowcount = rowcount
+                break
 
     def fetchone(self) -> Any:
         if not self.fetchone_queue:
@@ -112,6 +120,7 @@ class FakeDB:
         cur = FakeCursor(
             fetchone_queue=plan.get("fetchone"),
             fetchall_queue=plan.get("fetchall"),
+            rowcount_overrides=plan.get("rowcount_overrides"),
         )
         self.readonly_cursors.append(cur)
         yield cur
@@ -122,6 +131,7 @@ class FakeDB:
         cur = FakeCursor(
             fetchone_queue=plan.get("fetchone"),
             fetchall_queue=plan.get("fetchall"),
+            rowcount_overrides=plan.get("rowcount_overrides"),
         )
         self.tx_cursors.append(cur)
         yield cur
@@ -1188,6 +1198,102 @@ def test_gateway_state_repository_write_paths() -> None:
     assert "agent-2" in str([params for cur in db.tx_cursors for _, params in cur.executed if params is not None])
     assert "875" in str([params for cur in db.tx_cursors for _, params in cur.executed if params is not None])
     assert "DELETE FROM synapse_processed_deposit_events" in tx_sql
+
+
+def _manual_consumer_refund_row(**overrides: Any) -> RefundIntentRow:
+    payload = {
+        "id": "ref-review-1",
+        "ownerAddress": "0xABC",
+        "amountUsdc": "7.500000",
+        "status": "PENDING_MANUAL_REVIEW",
+        "requestId": "req-review-1",
+        "idempotencyKey": "idem-review-1",
+        "reviewDecision": "REJECT",
+        "reviewerAddress": "0xReviewer",
+        "reviewerNote": "risk too high",
+        "reviewedAt": 1774012466,
+        "requestMeta": {"requestId": "req-review-1"},
+        "ticket": {
+            "ticketId": "0x" + "1" * 64,
+            "ticketHash": "0x" + "2" * 64,
+            "amount": "7500000",
+            "fee": "0",
+            "nonce": 17,
+            "deadline": 1774016066,
+            "signature": "0xsig",
+            "chainId": 421614,
+            "contractAddress": "0xrouter",
+        },
+    }
+    payload.update(overrides)
+    return RefundIntentRow.model_validate(payload)
+
+
+def test_gateway_state_repository_reject_consumer_withdrawal_review_atomic_releases_funds() -> None:
+    db = FakeDB()
+    repo = GatewayStateRepository(db, _q6)
+    row = _manual_consumer_refund_row()
+
+    repo.reject_consumer_withdrawal_review_atomic(
+        owner="0xABC",
+        row=row,
+        amount_usdc=Decimal("7.5"),
+        detail={"decision": "REJECT", "reviewerAddress": "0xReviewer"},
+        updated_at="2026-03-20 13:14:26",
+    )
+
+    tx_sql = "\n".join(sql for sql, _ in db.tx_cursors[-1].executed)
+    tx_params = [params for _, params in db.tx_cursors[-1].executed if params is not None]
+    assert "frozen_balance = frozen_balance - %s" in tx_sql
+    assert "available_balance = available_balance + %s" in tx_sql
+    assert "status = 'REJECTED'" in tx_sql
+    assert "CONSUMER_WITHDRAW_REVIEW_REJECTED" in str(tx_params)
+    assert "vault_withdrawal_meta::ref-review-1" in str(tx_params)
+
+
+def test_gateway_state_repository_reject_consumer_withdrawal_review_atomic_fails_closed() -> None:
+    db = FakeDB()
+    db.tx_plan.append({"rowcount_overrides": [("UPDATE synapse_account_balances", 0)]})
+    repo = GatewayStateRepository(db, _q6)
+
+    with pytest.raises(RuntimeError, match="RELEASE_FROZEN_TO_AVAILABLE_INCONSISTENT"):
+        repo.reject_consumer_withdrawal_review_atomic(
+            owner="0xABC",
+            row=_manual_consumer_refund_row(),
+            amount_usdc=Decimal("7.5"),
+            detail={"decision": "REJECT"},
+            updated_at="2026-03-20 13:14:26",
+        )
+
+    tx_sql = "\n".join(sql for sql, _ in db.tx_cursors[-1].executed)
+    assert "status = 'REJECTED'" not in tx_sql
+
+
+def test_gateway_state_repository_approve_consumer_withdrawal_review_atomic_moves_to_pending() -> None:
+    db = FakeDB()
+    repo = GatewayStateRepository(db, _q6)
+    row = _manual_consumer_refund_row(
+        reviewDecision="APPROVE",
+        reviewerNote="approved",
+        signature="0xsig",
+    )
+
+    repo.approve_consumer_withdrawal_review_atomic(
+        owner="0xABC",
+        row=row,
+        amount_usdc=Decimal("7.5"),
+        detail={"decision": "APPROVE", "reviewerAddress": "0xReviewer"},
+        updated_at="2026-03-20 13:14:26",
+    )
+
+    tx_sql = "\n".join(sql for sql, _ in db.tx_cursors[-1].executed)
+    tx_params = [params for _, params in db.tx_cursors[-1].executed if params is not None]
+    assert "frozen_balance = frozen_balance - %s" in tx_sql
+    assert "pending_balance = pending_balance + %s" in tx_sql
+    assert "status = 'REQUESTED'" in tx_sql
+    assert "COALESCE(ticket_id, %s)" in tx_sql
+    assert "CONSUMER_WITHDRAW_REVIEW_APPROVED" in str(tx_params)
+    assert "0x" + "2" * 64 in str(tx_params)
 
 
 def test_gateway_state_repository_reads_owner_spend_limit_rows() -> None:
