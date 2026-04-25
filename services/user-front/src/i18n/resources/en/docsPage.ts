@@ -346,6 +346,28 @@ const docsPage: I18nMessages["docsPage"] = {
   sdkTitle: "SDKs",
   sdkDescription:
     "Synapse ships Public Preview TypeScript and Python SDKs. Both cover owner onboarding, credential lifecycle, provider lifecycle, service discovery, price-asserted invoke, receipts, and core finance observability helpers.",
+  sdkStagingDocsTitle: "Staging docs are live",
+  sdkStagingDocsDescription:
+    "Use staging as the public preview runbook. The SDK README is the compact package entrypoint; these pages walk through owner wallet auth, JWT, agent credential issuance, runtime discovery, invoke, and receipt checks.",
+  sdkStagingDocsLinkLabels: ["SDK Hub", "Python staging runbook", "TypeScript staging runbook"],
+  sdkStagingDocsProdReserved:
+    "Production docs are reserved until production DNS, health checks, and docs deployment are verified.",
+  sdkAgentQuickstartTitle: "Agent Runtime Quickstart",
+  sdkAgentQuickstartDescription:
+    "For first call speed, start as an agent. Get an Agent Key from the Gateway Dashboard, create a SynapseClient, then search, invoke, and read the receipt.",
+  sdkAgentQuickstartSteps: [
+    "Gateway Dashboard -> Connect Wallet -> Generate Agent Key",
+    "Use SynapseClient with the agt_xxx key",
+    "Search free services first when balance is unknown",
+    "Always pass the discovered price and an idempotency key",
+  ],
+  sdkAdvancedOwnerTitle: "Advanced owner flow",
+  sdkAdvancedOwnerDescription:
+    "Use SynapseAuth only when an owner/backend service needs to issue credentials or manage provider services programmatically. Ordinary agents should not handle owner private keys or JWTs.",
+  sdkRunbookBridgeDescription:
+    "The SDK README quickstart is the compressed Agent Key entrypoint. This staging page also documents the advanced owner flow for programmatic credential issuance.",
+  sdkRunbookBridgePythonCta: "Open Python staging runbook",
+  sdkRunbookBridgeTypeScriptCta: "Open TypeScript staging runbook",
   sdkHubCardTitles: ["TypeScript SDK", "Python SDK"],
   sdkHubCardDescriptions: [
     "The reference SDK for browser and Node.js integrations. Best fit when your agent runtime already lives in TypeScript, Next.js, or a serverless edge stack.",

@@ -40,6 +40,47 @@ export default function TypeScriptSdkPage() {
         <p className="x-body-copy max-w-[640px]">{t("docsPage.sdkTsDescription")}</p>
       </section>
 
+      <section className="rounded-2xl border border-[#6eb6f6]/20 bg-[#6eb6f6]/[0.05] p-5">
+        <p className="x-body-copy max-w-[760px]">{t("docsPage.sdkRunbookBridgeDescription")}</p>
+        <a
+          href="https://staging.synapse-network.ai/docs/sdk/typescript"
+          target="_blank"
+          rel="noreferrer"
+          className="mt-4 inline-flex text-[13px] font-semibold text-[#6eb6f6]"
+        >
+          {t("docsPage.sdkRunbookBridgeTypeScriptCta")}
+        </a>
+      </section>
+
+      <section className="rounded-2xl border border-[#6eb6f6]/20 bg-[#6eb6f6]/[0.05] p-5">
+        <h2 className="x-section-title text-white">{t("docsPage.sdkAgentQuickstartTitle")}</h2>
+        <p className="mt-2 text-[14px] leading-7 text-[#8b98a5]">{t("docsPage.sdkAgentQuickstartDescription")}</p>
+        <CodeBlock
+          lang="typescript"
+          code={`import { SynapseClient } from "@synapse-network/sdk";
+
+const client = new SynapseClient({
+  credential: "agt_xxx",
+  environment: "staging",
+});
+
+const services = await client.search("free", { limit: 10 });
+const service = services[0];
+
+const result = await client.invoke(
+  service.serviceId ?? service.id!,
+  { prompt: "hello" },
+  {
+    costUsdc: Number(service.pricing?.amount ?? 0),
+    idempotencyKey: "agent-job-001",
+  }
+);
+
+const receipt = await client.getInvocation(result.invocationId);
+console.log(receipt.status, receipt.chargedUsdc);`}
+        />
+      </section>
+
       <section id="sdk-ts-install" className="space-y-4">
         <h2 className="x-section-title text-white">{t("docsPage.sdkInstallTitle")}</h2>
         <p className="x-body-copy max-w-[660px]">{t("docsPage.sdkTsInstallDescription")}</p>

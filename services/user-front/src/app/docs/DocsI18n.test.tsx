@@ -124,6 +124,15 @@ describe("docs multilingual surfaces", () => {
     expect(screen.getAllByText("PUBLIC PREVIEW").length).toBeGreaterThan(0);
     expect(screen.getAllByRole("heading", { name: "TypeScript SDK" }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole("heading", { name: "Python SDK" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Agent Runtime Quickstart").length).toBeGreaterThan(0);
+    expect(screen.getByText("Gateway Dashboard -> Connect Wallet -> Generate Agent Key")).toBeTruthy();
+    expect(screen.getByText("Advanced owner flow")).toBeTruthy();
+    expect(screen.getByText("Staging docs are live")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Python staging runbook" }).getAttribute("href")).toBe("https://staging.synapse-network.ai/docs/sdk/python");
+    expect(screen.getByRole("link", { name: "TypeScript staging runbook" }).getAttribute("href")).toBe("https://staging.synapse-network.ai/docs/sdk/typescript");
+    expect(screen.getByRole("link", { name: "Open Python staging runbook" }).getAttribute("href")).toBe("https://staging.synapse-network.ai/docs/sdk/python");
+    expect(screen.getByRole("link", { name: "Open TypeScript staging runbook" }).getAttribute("href")).toBe("https://staging.synapse-network.ai/docs/sdk/typescript");
+    expect(screen.getAllByText(/compressed Agent Key entrypoint/i).length).toBeGreaterThan(0);
     expect(screen.getAllByRole("heading", { name: "Smart Contracts" }).length).toBeGreaterThan(0);
     expect(screen.getByRole("heading", { name: "Developer Support" })).toBeTruthy();
     expect(screen.getByText("Expose narrow agent credentials, not owner wallets")).toBeTruthy();

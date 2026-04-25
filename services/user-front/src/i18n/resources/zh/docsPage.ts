@@ -339,6 +339,28 @@ const docsPage: I18nMessages["docsPage"] = {
   sdkTitle: "SDK",
   sdkDescription:
     "Synapse 现在提供 Public Preview 版 TypeScript SDK 和 Python SDK。两套 SDK 覆盖 owner onboarding、credential 生命周期、provider 生命周期、服务发现、价格断言调用、receipt 和核心财务可观测 helper。",
+  sdkStagingDocsTitle: "Staging 文档已上线",
+  sdkStagingDocsDescription:
+    "Public Preview 接入以 staging runbook 为准。SDK README 是压缩版包入口；这些页面会完整走过 owner 钱包登录、JWT、agent credential 签发、runtime discovery、invoke 和 receipt 检查。",
+  sdkStagingDocsLinkLabels: ["SDK Hub", "Python staging runbook", "TypeScript staging runbook"],
+  sdkStagingDocsProdReserved:
+    "Production 文档先预留，等 production DNS、health check 和 docs deployment 验证完成后再开放。",
+  sdkAgentQuickstartTitle: "Agent Runtime Quickstart",
+  sdkAgentQuickstartDescription:
+    "为了最快完成第一次调用，先站在 agent 视角接入：从 Gateway Dashboard 获取 Agent Key，创建 SynapseClient，然后搜索、调用、读取 receipt。",
+  sdkAgentQuickstartSteps: [
+    "Gateway Dashboard -> Connect Wallet -> Generate Agent Key",
+    "使用 agt_xxx 创建 SynapseClient",
+    "余额未知时优先搜索免费服务",
+    "调用时始终传入 discovery 得到的价格和 idempotency key",
+  ],
+  sdkAdvancedOwnerTitle: "Advanced owner flow",
+  sdkAdvancedOwnerDescription:
+    "只有 owner/backend 需要通过代码签发凭证或管理 Provider 服务时才使用 SynapseAuth。普通 agent 不应该处理 owner 私钥或 JWT。",
+  sdkRunbookBridgeDescription:
+    "SDK README quickstart 是压缩版 Agent Key 入口。这个 staging 页面也保留进阶 owner flow，用于通过代码签发凭证。",
+  sdkRunbookBridgePythonCta: "打开 Python staging runbook",
+  sdkRunbookBridgeTypeScriptCta: "打开 TypeScript staging runbook",
   sdkHubCardTitles: ["TypeScript SDK", "Python SDK"],
   sdkHubCardDescriptions: [
     "浏览器、Node.js、Next.js 和现代前端/边缘运行时的标准接入方案。适合把 owner onboarding 和 agent runtime 一起放在 TS 体系里。",
