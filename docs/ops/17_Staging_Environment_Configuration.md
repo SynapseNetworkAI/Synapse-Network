@@ -363,6 +363,31 @@ printf '%s' 'https://open.larksuite.com/open-apis/bot/v2/hook/...' | \
   bash scripts/deploy/gcp_put_secret.sh synapse-staging-lark-webhook-staging-drill
 ```
 
+GCP Monitoring must call gateway-admin, not the raw Lark webhook. Generate the
+receiver token and staging drill token locally, then store them in Secret
+Manager:
+
+```bash
+openssl rand -base64 48 | tr -d '\n' | \
+  bash scripts/deploy/gcp_put_secret.sh synapse-staging-gcp-alert-receiver-token
+
+openssl rand -base64 48 | tr -d '\n' | \
+  bash scripts/deploy/gcp_put_secret.sh synapse-staging-alert-drill-token
+```
+
+Before wiring the real GCP channel, verify the receiver and drill behavior with
+the local fake-Lark E2E:
+
+```bash
+npm run e2e:gcp-alerts:local
+npm run ci:gcp-alerts-local-evidence
+```
+
+This local command does not read Google Secret Manager and does not send real
+Lark messages. It proves the gateway-admin receiver auth, card redaction, Lark
+failure handling, and the Gateway 500 drill safety switches before staging gets
+touched.
+
 Application secrets and ops bearer tokens can be generated locally with strong
 randomness:
 
@@ -421,6 +446,8 @@ secrets for production.
 | `synapse-staging-lark-secret-p0` | Optional P0 Lark signing secret. | Lark relay | Lark bot config | Only if signing is enabled |
 | `synapse-staging-lark-secret-prod-alerts` | Optional prod-alerts Lark signing secret. | Lark relay | Lark bot config | Only if signing is enabled |
 | `synapse-staging-lark-secret-staging-drill` | Optional drill Lark signing secret. | Lark relay | Lark bot config | Only if signing is enabled |
+| `synapse-staging-gcp-alert-receiver-token` | Gateway-admin receiver token for GCP Monitoring webhook delivery. | Gateway-admin | User-generated token | GCP alert channel |
+| `synapse-staging-alert-drill-token` | Gateway controlled HTTP 500 drill token. | Gateway | User-generated token | Staging alert drill |
 | `synapse-staging-arbitrum-sepolia-rpc-url` | Arbitrum Sepolia RPC URL. | Gateway, Hardhat deploy/evidence | Alchemy/Infura/other RPC provider | Contract deploy |
 | `synapse-staging-arbiscan-api-key` | Etherscan API V2-compatible key used for Arbitrum Sepolia source verification. The old secret id is kept for compatibility. | Hardhat verify | Etherscan account | Contract deploy |
 | `synapse-staging-deployer-private-key` | Staging contract deployer private key. | Contract deploy only | Dedicated staging deployer wallet | Contract deploy |
@@ -901,9 +928,21 @@ Required boundaries:
 | `LARK_SECRET_P0_WAR_ROOM` | `synapse-staging-lark-secret-p0` | Optional Lark signing secret. | Only if bot signing is enabled |
 | `LARK_SECRET_PROD_ALERTS` | `synapse-staging-lark-secret-prod-alerts` | Optional Lark signing secret. | Only if bot signing is enabled |
 | `LARK_SECRET_STAGING_DRILL` | `synapse-staging-lark-secret-staging-drill` | Optional Lark signing secret. | Only if bot signing is enabled |
+| `GCP_ALERT_RECEIVER_ENABLED` | `true` | Enables gateway-admin `/api/v1/ops/webhooks/gcp-alert-receiver`. | Yes for GCP alert webhook |
+| `GCP_ALERT_RECEIVER_TOKEN` | `synapse-staging-gcp-alert-receiver-token` | Shared token required from GCP Monitoring. | Yes |
+| `GCP_ALERT_RECEIVER_USERNAME` | `synapse-gcp-alert` | HTTP Basic username for the GCP webhook channel. | Yes |
+| `GCP_ALERT_DEFAULT_ROUTE` | `staging-drill` | Default route when the GCP payload has no Lark route label. | Yes |
 
 If using keyword-only validation, configure the keyword in Lark and leave the
 `LARK_SECRET_*` variables unset.
+
+## Gateway Alert Drills
+
+| Runtime variable | Secret id / value | Purpose | Required |
+| --- | --- | --- | --- |
+| `STAGING_ALERT_DRILL_ENABLED` | `true` | Enables the controlled Gateway 500 drill endpoint in staging. Production refuses this endpoint even if configured. | Yes for alert drill |
+| `STAGING_ALERT_DRILL_TOKEN` | `synapse-staging-alert-drill-token` | Header token for `GET /api/v1/ops/drills/http-500`. | Yes for alert drill |
+| `WITHDRAWAL_TIMEOUT_ALERT_AFTER_SEC` | `900` | Existing withdrawal workers log `WITHDRAWAL_TIMEOUT` when pending work exceeds this age. | Yes |
 
 ## Cloud Run Jobs
 

@@ -37,6 +37,8 @@ locals {
       EMAIL_FROM                              = "Synapse Network Staging <staging-alerts@synapse-network.ai>"
       EMAIL_REPLY_TO                          = "support@synapse-network.ai"
       IN_APP_NOTIFICATION_CLEANUP_ENABLED     = "false"
+      WITHDRAWAL_TIMEOUT_ALERT_AFTER_SEC      = "900"
+      STAGING_ALERT_DRILL_ENABLED             = local.is_production ? "false" : "true"
     },
     var.common_runtime_env,
   )
@@ -51,6 +53,7 @@ locals {
     RPC_URL                     = "synapse-staging-arbitrum-sepolia-rpc-url"
     GMAIL_SMTP_USERNAME         = "synapse-staging-gmail-username"
     GMAIL_SMTP_APP_PASSWORD     = "synapse-staging-gmail-app-password"
+    STAGING_ALERT_DRILL_TOKEN   = "synapse-staging-alert-drill-token"
   }
   gateway_migration_secret_env = merge(
     local.gateway_secret_env,
@@ -67,6 +70,13 @@ locals {
     GATEWAY_FORUM_WRITE_DSN       = "synapse-staging-gateway-forum-write-dsn"
     GATEWAY_INTERNAL_ADMIN_WALLET = "synapse-staging-gateway-admin-wallet"
     GATEWAY_INTERNAL_JWT_SECRET   = "synapse-staging-gateway-internal-jwt-secret"
+    GCP_ALERT_RECEIVER_TOKEN      = "synapse-staging-gcp-alert-receiver-token"
+    LARK_WEBHOOK_STAGING_DRILL    = "synapse-staging-lark-webhook-staging-drill"
+    LARK_SECRET_STAGING_DRILL     = "synapse-staging-lark-secret-staging-drill"
+    LARK_WEBHOOK_P0_WAR_ROOM      = "synapse-staging-lark-webhook-p0"
+    LARK_SECRET_P0_WAR_ROOM       = "synapse-staging-lark-secret-p0"
+    LARK_WEBHOOK_PROD_ALERTS      = "synapse-staging-lark-webhook-prod-alerts"
+    LARK_SECRET_PROD_ALERTS       = "synapse-staging-lark-secret-prod-alerts"
   }
   cloud_run_services = {
     gateway = {
@@ -99,6 +109,9 @@ locals {
           ADMIN_LOGIN_LOCK_THRESHOLD    = "5"
           ADMIN_LOGIN_LOCK_HOURS        = "24"
           GATEWAY_INTERNAL_BASE_URL     = "https://api-staging.synapse-network.ai"
+          GCP_ALERT_RECEIVER_ENABLED    = "true"
+          GCP_ALERT_RECEIVER_USERNAME   = "synapse-gcp-alert"
+          GCP_ALERT_DEFAULT_ROUTE       = "staging-drill"
         },
       )
       secret_env = local.gateway_admin_secret_env

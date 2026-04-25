@@ -18,6 +18,8 @@ from .persistence import (
 )
 from .shared import _now, _set_status, get_web3, logger
 
+RECONCILIATION_ALERT_COOLDOWN_SECONDS = 300
+
 
 def _sum_ledger_obligation_usdc(ledger: BalanceLedger):
     """统计买家可用+待确认资金总额，作为平台应付义务。"""
@@ -67,9 +69,20 @@ def run_reconciliation_check_once(storage: BaseStorage) -> dict[str, Any]:
 
     state = _load_runtime_state(storage, "deposit_reconciliation_state")
     last_alert_at = int(state.get("lastAlertAt") or 0)
-    should_emit_alert = alert and (now - last_alert_at >= 300)
+    should_emit_alert = alert and (
+        now - last_alert_at >= RECONCILIATION_ALERT_COOLDOWN_SECONDS
+    )
 
     if should_emit_alert:
+        logger.error(
+            "alert_trigger=RECONCILIATION_DRIFT env=%s delta_usdc=%s "
+            "chain_vault_usdc=%s ledger_obligation_usdc=%s threshold_usdc=%s",
+            getattr(settings, "environment", "unknown"),
+            money_str(delta),
+            money_str(chain_vault),
+            money_str(ledger_obligation),
+            money_str(threshold),
+        )
         state["lastAlertAt"] = now
         _append_audit_log(
             storage,

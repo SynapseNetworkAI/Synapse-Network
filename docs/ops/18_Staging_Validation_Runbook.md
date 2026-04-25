@@ -114,7 +114,7 @@ consumer/provider wallets.
 | L2 Business E2E | Gateway full-chain deposit, invoke, withdraw, reconciliation | `GATEWAY_RELEASE_E2E_PROFILE=mvp-postgres npm run release:evidence:gateway-fullchain:staging` |
 | L3 UI dogfood | User-front/Admin-front browser render, CORS, screenshots, console/network errors | `npm run e2e:staging-ui-dogfood` |
 | L3.5 Withdrawal review dogfood | Consumer large withdrawal and Provider withdrawal approve/reject review paths with screenshots, DB, and chain evidence | `npm run e2e:withdrawal-review-dogfood:staging` |
-| L4 Notifications | Lark delivery and Gmail outbox delivery | `npm run e2e:lark-alerts`, `npm run e2e:gmail-notifications:staging` |
+| L4 Notifications | Lark delivery, local/staging GCP Monitoring receiver, and Gmail outbox delivery | `npm run e2e:lark-alerts`, `npm run e2e:gcp-alerts:local`, `npm run e2e:gcp-alerts:staging`, `npm run e2e:gmail-notifications:staging` |
 | L5 Recovery/load | Cloud SQL restore, light load, DB connection pressure | `npm run drill:backup-restore:staging`, `npm run perf:staging-load-suite` |
 | L6 Chaos | Intentional failure and rollback drills | Run only after L0-L5 are green and manually approved |
 
@@ -310,6 +310,88 @@ Success criteria:
 - Staging drill clearly says it is not a production incident.
 - Evidence does not leak webhook URLs, JWTs, private keys, raw signatures, or
   Lark signing secrets.
+
+## Step 3.5 - GCP Monitoring Alert Closure
+
+Staging uses the low-cost GCP path: GCP Monitoring webhook channel calls
+gateway-admin, and gateway-admin forwards to Lark using Secret Manager. Do not
+deploy a standalone Relay service and do not create a separate alert-probe job.
+
+First prove the local receiver and Gateway drill semantics without GCP or real
+Lark delivery:
+
+```bash
+npm run e2e:gcp-alerts:local
+npm run ci:gcp-alerts-local-evidence
+```
+
+Local evidence is written to
+`output/dogfood/gcp-alerts/<timestamp>-local-gcp-alerts/`. The checker requires
+`report.json`, `report.md`, `trace.jsonl`, and `bugfix-log.md`; the bugfix log
+must have no open bug before staging is deployed.
+
+Configure the webhook channel and policies:
+
+```bash
+export PROJECT_ID=fabled-archive-494108-k5
+export GCP_ALERT_RECEIVER_URL=https://admin-api-staging.synapse-network.ai/api/v1/ops/webhooks/gcp-alert-receiver
+export GCP_ALERT_RECEIVER_TOKEN="$(gcloud secrets versions access latest \
+  --secret=synapse-staging-gcp-alert-receiver-token \
+  --project="$PROJECT_ID")"
+
+bash scripts/deploy/gcp_configure_staging_alerts.sh \
+  "$PROJECT_ID" \
+  "$GCP_ALERT_RECEIVER_URL"
+```
+
+Validate the receiver immediately with a synthetic GCP payload:
+
+```bash
+export GCP_ALERTS_STAGING_E2E_CONFIRM=I_UNDERSTAND_THIS_SENDS_STAGING_ALERTS
+export GCP_ALERT_RECEIVER_TOKEN="$(gcloud secrets versions access latest \
+  --secret=synapse-staging-gcp-alert-receiver-token \
+  --project="$PROJECT_ID")"
+export GATEWAY_STAGING_URL=https://api-staging.synapse-network.ai
+export STAGING_ALERT_DRILL_TOKEN="$(gcloud secrets versions access latest \
+  --secret=synapse-staging-alert-drill-token \
+  --project="$PROJECT_ID")"
+
+npm run e2e:gcp-alerts:staging
+npm run ci:gcp-alerts-staging-evidence
+```
+
+For release-candidate validation, also prove that GCP Monitoring itself called
+gateway-admin after the 500 drill:
+
+```bash
+export GCP_ALERTS_REQUIRE_MONITORING_DELIVERY=true
+export GCP_ALERTS_MONITORING_WAIT_SECONDS=600
+
+npm run e2e:gcp-alerts:staging
+npm run ci:gcp-alerts-staging-evidence
+```
+
+The real Gateway 5xx policy validates by calling the controlled drill endpoint
+multiple times:
+
+```bash
+for i in {1..20}; do
+  curl -sS -o /dev/null -w "%{http_code}\n" \
+    -H "X-Synapse-Drill-Token: $STAGING_ALERT_DRILL_TOKEN" \
+    https://api-staging.synapse-network.ai/api/v1/ops/drills/http-500 || true
+done
+```
+
+Success criteria:
+
+- GCP has one webhook channel named `Synapse Staging Lark Gateway-admin Receiver`.
+- GCP has policies for Gateway 5xx rate, `WITHDRAWAL_TIMEOUT`, and `RECONCILIATION_DRIFT`.
+- Lark receives a staging drill card with `NO_ACTION_REQUIRED`.
+- In full callback mode, gateway-admin logs contain
+  `alert_trigger=GCP_ALERT_RECEIVED` for
+  `SynapseStagingGateway5xxRateHigh`.
+- Evidence under `docs/evidence/staging/gcp-alerts/` passes digest and secret-scan checks.
+- No real DB rows, balances, or chain state are mutated by the alert drill.
 
 ## Step 4 - Gmail Staging E2E
 

@@ -1,9 +1,10 @@
 import logging
 import asyncio
+import hmac
 import time
 from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager, suppress
-from fastapi import FastAPI, Request, Response, status
+from fastapi import FastAPI, Header, HTTPException, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from src.core.config import settings
 from src.core.cors import resolve_cors_origin_regex, resolve_cors_origins
@@ -368,6 +369,21 @@ def create_app() -> FastAPI:
             basic_username=settings.metrics_basic_username,
             basic_password=settings.metrics_basic_password,
         )
+
+    @app.get("/api/v1/ops/drills/http-500")
+    async def staging_http_500_drill(
+        x_synapse_drill_token: str | None = Header(default=None),
+    ):
+        if settings.environment != "staging" or not settings.staging_alert_drill_enabled:
+            raise HTTPException(status_code=404, detail="Not found")
+        expected = settings.staging_alert_drill_token
+        if not expected or not hmac.compare_digest(x_synapse_drill_token or "", expected):
+            raise HTTPException(status_code=401, detail="Invalid drill token")
+        logger.error(
+            "alert_trigger=GATEWAY_500_DRILL env=staging is_drill=true "
+            "message=controlled_gateway_500_drill"
+        )
+        raise HTTPException(status_code=500, detail="Controlled staging alert drill")
 
     return app
 
