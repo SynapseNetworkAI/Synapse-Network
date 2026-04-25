@@ -113,6 +113,7 @@ consumer/provider wallets.
 | L1 Chain smoke | Arbitrum Sepolia RPC, chain id, deployed bytecode, wallet gas | `npm run staging:arb-sepolia:wallets:status` and `npm run ci:contract-deployment-evidence` |
 | L2 Business E2E | Gateway full-chain deposit, invoke, withdraw, reconciliation | `GATEWAY_RELEASE_E2E_PROFILE=mvp-postgres npm run release:evidence:gateway-fullchain:staging` |
 | L3 UI dogfood | User-front/Admin-front browser render, CORS, screenshots, console/network errors | `npm run e2e:staging-ui-dogfood` |
+| L3.5 Withdrawal review dogfood | Consumer large withdrawal and Provider withdrawal approve/reject review paths with screenshots, DB, and chain evidence | `npm run e2e:withdrawal-review-dogfood:staging` |
 | L4 Notifications | Lark delivery and Gmail outbox delivery | `npm run e2e:lark-alerts`, `npm run e2e:gmail-notifications:staging` |
 | L5 Recovery/load | Cloud SQL restore, light load, DB connection pressure | `npm run drill:backup-restore:staging`, `npm run perf:staging-load-suite` |
 | L6 Chaos | Intentional failure and rollback drills | Run only after L0-L5 are green and manually approved |
@@ -229,6 +230,59 @@ Success criteria:
   `0x0bA1dcE1Cc8d877052ab1C3CE2362830459D8FF4`.
 - Replay is rejected on-chain or by Gateway idempotency controls.
 - Final Cloud SQL withdrawal state is completed.
+
+Automated dogfood gate:
+
+```bash
+export STAGING_WITHDRAWAL_REVIEW_DOGFOOD_CONFIRM=I_UNDERSTAND_THIS_MUTATES_STAGING
+export PROJECT_ID=fabled-archive-494108-k5
+export GATEWAY_E2E_GATEWAY_BASE=https://api-staging.synapse-network.ai
+export STAGING_ADMIN_FRONT_URL=https://admin-staging.synapse-network.ai
+export STAGING_ADMIN_API_URL=https://admin-api-staging.synapse-network.ai
+export GATEWAY_E2E_RPC_URL="$(gcloud secrets versions access latest \
+  --secret=synapse-staging-arbitrum-sepolia-rpc-url \
+  --project="$PROJECT_ID")"
+export GATEWAY_E2E_OWNER_KEY="$(gcloud secrets versions access latest \
+  --secret=synapse-staging-e2e-consumer-private-key \
+  --project="$PROJECT_ID")"
+export GATEWAY_E2E_PROVIDER_KEY="$(gcloud secrets versions access latest \
+  --secret=synapse-staging-e2e-provider-private-key \
+  --project="$PROJECT_ID")"
+export STAGING_ADMIN_E2E_PASSWORD="$(gcloud secrets versions access latest \
+  --secret=synapse-staging-admin-e2e-password \
+  --project="$PROJECT_ID")"
+export STAGING_ADMIN_E2E_OTP_SECRET="$(gcloud secrets versions access latest \
+  --secret=synapse-staging-admin-e2e-otp-secret \
+  --project="$PROJECT_ID")"
+export POSTGRES_DSN="<Cloud SQL Auth Proxy DSN>"
+export WITHDRAWAL_REVIEW_DOGFOOD_FIXTURE="<staging provider fixture json>"
+
+npm run e2e:withdrawal-review-dogfood:staging
+npm run ci:withdrawal-review-dogfood-staging-evidence
+```
+
+The staging dogfood is a manual release gate, not a PR check. It mutates
+staging chain and Cloud SQL state, captures Admin-front screenshots, records
+API/DB/chain evidence, and writes failures to `bugfix-log.md`. Failed evidence
+must not be committed as release evidence.
+
+`WITHDRAWAL_REVIEW_DOGFOOD_FIXTURE` is required for the Provider reject path. It
+must contain staging-only authenticated consumer/provider data, a Provider
+service id, and an agent credential token so the script can create real Provider
+receivable before requesting a manual-review withdrawal. Do not use production
+credentials or real customer accounts in this fixture.
+
+Deployment ordering requirement:
+
+1. Build and push Gateway/Gateway-admin/Admin-front images.
+2. Run Gateway schema migration and Gateway-admin admin DB migration.
+3. Deploy Gateway and Gateway-admin.
+4. Run smoke checks.
+5. Run withdrawal review dogfood.
+
+Do not deploy Gateway-admin before its admin DB migration; otherwise login,
+review queue, or review history can fail with 500 even when Gateway itself is
+healthy.
 
 ## Step 3 - Lark Alerts
 

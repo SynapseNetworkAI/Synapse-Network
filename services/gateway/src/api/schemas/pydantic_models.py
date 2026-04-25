@@ -1,6 +1,6 @@
 import re
 from decimal import Decimal
-from typing import Any, Literal, Optional, Annotated
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -10,8 +10,15 @@ from src.domain.service_contract import (
 
 TX_HASH_PREFIX_ERROR = "txHash must start with 0x"
 TX_HASH_FORMAT_ERROR = "txHash must be a valid 32-byte hex string"
+TX_HASH_HEX_LENGTH = 64
 EMAIL_FORMAT_ERROR = "email must be a valid address"
 EMAIL_REGEX = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+AMOUNT_USDC_DECIMAL_PLACES_ERROR = "amountUsdc supports up to 2 decimal places"
+SPENDING_LIMIT_POSITIVE_ERROR = "spendingLimitUsdc must be positive"
+SPENDING_LIMIT_DECIMAL_PLACES_ERROR = "spendingLimitUsdc supports up to 6 decimal places"
+VOUCHER_CODE_LENGTH = 12
+VOUCHER_CODE_LENGTH_ERROR = "voucherCode must contain exactly 12 alphanumeric characters"
+VOUCHER_CODE_ALPHANUMERIC_ERROR = "voucherCode must be alphanumeric"
 
 
 class BaseResponse(BaseModel):
@@ -36,7 +43,7 @@ class VerifyAuthRequest(BaseModel):
 
 class TokenResponse(BaseResponse):
     access_token: str
-    token_type: str = "bearer"
+    token_type: str = "bearer"  # noqa: S105 - OAuth token type literal, not a credential.
     expires_in: int
 
 
@@ -179,7 +186,7 @@ class DepositIntentRequest(BaseModel):
         if not normalized.startswith("0x"):
             raise ValueError(TX_HASH_PREFIX_ERROR)
         hex_part = normalized[2:]
-        if len(hex_part) != 64 or any(
+        if len(hex_part) != TX_HASH_HEX_LENGTH or any(
             ch not in "0123456789abcdefABCDEF" for ch in hex_part
         ):
             raise ValueError(TX_HASH_FORMAT_ERROR)
@@ -209,7 +216,7 @@ class DepositAttemptRequest(BaseModel):
         if not normalized.startswith("0x"):
             raise ValueError(TX_HASH_PREFIX_ERROR)
         hex_part = normalized[2:]
-        if len(hex_part) != 64 or any(
+        if len(hex_part) != TX_HASH_HEX_LENGTH or any(
             ch not in "0123456789abcdefABCDEF" for ch in hex_part
         ):
             raise ValueError(TX_HASH_FORMAT_ERROR)
@@ -231,7 +238,7 @@ class AdminDepositReplayRequest(BaseModel):
         if not normalized.startswith("0x"):
             raise ValueError(TX_HASH_PREFIX_ERROR)
         hex_part = normalized[2:]
-        if len(hex_part) != 64 or any(
+        if len(hex_part) != TX_HASH_HEX_LENGTH or any(
             ch not in "0123456789abcdefABCDEF" for ch in hex_part
         ):
             raise ValueError(TX_HASH_FORMAT_ERROR)
@@ -267,7 +274,7 @@ class RefundCompleteRequest(BaseModel):
         if not normalized.startswith("0x"):
             raise ValueError(TX_HASH_PREFIX_ERROR)
         hex_part = normalized[2:]
-        if len(hex_part) != 64 or any(
+        if len(hex_part) != TX_HASH_HEX_LENGTH or any(
             ch not in "0123456789abcdefABCDEF" for ch in hex_part
         ):
             raise ValueError(TX_HASH_FORMAT_ERROR)
@@ -292,7 +299,7 @@ class RefundFailRequest(BaseModel):
         if not normalized.startswith("0x"):
             raise ValueError(TX_HASH_PREFIX_ERROR)
         hex_part = normalized[2:]
-        if len(hex_part) != 64 or any(
+        if len(hex_part) != TX_HASH_HEX_LENGTH or any(
             ch not in "0123456789abcdefABCDEF" for ch in hex_part
         ):
             raise ValueError(TX_HASH_FORMAT_ERROR)
@@ -301,7 +308,7 @@ class RefundFailRequest(BaseModel):
 
 class AdminRefundReviewRequest(BaseModel):
     ownerAddress: str = Field(..., min_length=1, max_length=64)
-    reviewDecision: str = Field(..., min_length=7, max_length=16)
+    reviewDecision: str = Field(..., min_length=6, max_length=16)
     reviewerAddress: Optional[str] = Field(default=None, max_length=64)
     reviewerNote: Optional[str] = Field(default=None, max_length=512)
 
@@ -315,7 +322,7 @@ class ProviderWithdrawIntentRequest(BaseModel):
         if value is None:
             return None
         if value != value.quantize(Decimal("0.01")):
-            raise ValueError("amountUsdc supports up to 2 decimal places")
+            raise ValueError(AMOUNT_USDC_DECIMAL_PLACES_ERROR)
         return value
 
 
@@ -329,7 +336,7 @@ class ProviderWithdrawCompleteRequest(BaseModel):
         if not normalized.startswith("0x"):
             raise ValueError(TX_HASH_PREFIX_ERROR)
         hex_part = normalized[2:]
-        if len(hex_part) != 64 or any(
+        if len(hex_part) != TX_HASH_HEX_LENGTH or any(
             ch not in "0123456789abcdefABCDEF" for ch in hex_part
         ):
             raise ValueError(TX_HASH_FORMAT_ERROR)
@@ -342,7 +349,7 @@ class AdminProviderWithdrawCompleteRequest(ProviderWithdrawCompleteRequest):
 
 class AdminProviderWithdrawReviewRequest(BaseModel):
     ownerAddress: str = Field(..., min_length=1, max_length=64)
-    reviewDecision: str = Field(..., min_length=7, max_length=16)
+    reviewDecision: str = Field(..., min_length=6, max_length=16)
     reviewerAddress: Optional[str] = Field(default=None, max_length=64)
     reviewerNote: Optional[str] = Field(default=None, max_length=512)
 
@@ -359,9 +366,9 @@ class OwnerSpendLimitUpdateRequest(BaseModel):
         if value is None:
             return None
         if value <= 0:
-            raise ValueError("spendingLimitUsdc must be positive")
+            raise ValueError(SPENDING_LIMIT_POSITIVE_ERROR)
         if value != value.quantize(Decimal("0.000001")):
-            raise ValueError("spendingLimitUsdc supports up to 6 decimal places")
+            raise ValueError(SPENDING_LIMIT_DECIMAL_PLACES_ERROR)
         return value
 
 
@@ -373,10 +380,10 @@ class VoucherRedeemRequest(BaseModel):
     def validate_voucher_code(cls, value: str) -> str:
         normalized = str(value or "").strip().upper()
         compact = "".join(ch for ch in normalized if ch.isalnum())
-        if len(compact) != 12:
-            raise ValueError("voucherCode must contain exactly 12 alphanumeric characters")
+        if len(compact) != VOUCHER_CODE_LENGTH:
+            raise ValueError(VOUCHER_CODE_LENGTH_ERROR)
         if not compact.isalnum():
-            raise ValueError("voucherCode must be alphanumeric")
+            raise ValueError(VOUCHER_CODE_ALPHANUMERIC_ERROR)
         return normalized
 
 

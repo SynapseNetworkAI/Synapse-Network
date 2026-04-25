@@ -8,6 +8,8 @@ Synapse Network is an agent-first settlement layer for AI agents. The primary pr
 - docs/00_Governance/README.md - documentation lifecycle, ownership, drift prevention, and agent-docs migration governance
 - docs/00_Governance/Documentation_Constraints.md - hard boundaries for root docs, canonical placement, retired paths, and docs gate enforcement
 - docs/00_Governance/Documentation_Inventory.md - review inventory for root entrypoints, governance docs, canonical owners, and freshness cadence
+- docs/reference/Agent_Task_Map.md - task-to-file routing map for AI agents
+- docs/reference/Agent_Task_Map.json - machine-readable domain map for agent workflow tools
 - docs/README.md - full documentation map and recommended reading order
 - docs/ARCHITECTURE.md - top-level architecture summary across runtime, settlement, control plane, and provider systems
 - docs/plans/README.md - current planning bundle entrypoint for active implementation work
@@ -53,6 +55,8 @@ Synapse Network is an agent-first settlement layer for AI agents. The primary pr
 ## AI-Oriented References
 
 - AGENTS.md - unified Codex, Cursor, Claude, Gemini, and Copilot instruction bridge for routing into the shared rule stack
+- docs/reference/Agent_Task_Map.md - human-readable agent task routing map
+- docs/reference/Agent_Task_Map.json - machine-readable agent task routing map
 - .github/instructions/README.md - routing manifest for Python, frontend, finance, docs-sync, admin-console, and safety instructions
 - docs/reference/AI_Instruction_Entrypoints.md - agent-specific entrypoint map and bridge drift policy
 - docs/06_Reference/AI_Quick_Reference.md - compressed repository facts for agents
