@@ -34,7 +34,7 @@ export default function TypeScriptSdkPage() {
           <span className="text-[10px] font-semibold tracking-[0.14em] text-[#4e535a] uppercase">
             {t("docsPage.sdkEyebrow")}
           </span>
-          <StatusBadge status="GA" />
+          <StatusBadge status="PREVIEW" />
         </div>
         <h1 className="x-page-title text-white">{t("docsPage.sdkTsTitle")}</h1>
         <p className="x-body-copy max-w-[640px]">{t("docsPage.sdkTsDescription")}</p>
@@ -61,7 +61,7 @@ import { SynapseAuth } from "@synapse-network/sdk";
 
 const wallet = new Wallet(process.env.OWNER_PRIVATE_KEY!);
 const auth = SynapseAuth.fromWallet(wallet, {
-  gatewayUrl: "http://127.0.0.1:8000",
+  environment: "staging",
 });
 
 const jwt = await auth.getToken();
@@ -124,7 +124,7 @@ const issued = await auth.issueCredential({
 
 const client = new SynapseClient({
   credential: issued.token,
-  gatewayUrl: "http://127.0.0.1:8000",
+  environment: "staging",
 });
 
 const services = await client.discover({ limit: 20 });

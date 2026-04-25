@@ -161,6 +161,7 @@ production or contract deployment before the substrate is stable.
     - Lark E2E.
     - One-ticket withdrawal evidence.
     - Gateway full-chain staging evidence.
+    - Staging core dogfood evidence.
 
 ## Terraform Inputs
 
@@ -226,7 +227,7 @@ gcloud auth configure-docker ${REGION}-docker.pkg.dev
 docker build --platform linux/amd64 -t ${REGISTRY}/gateway:${TAG} services/gateway
 docker push ${REGISTRY}/gateway:${TAG}
 
-docker build --platform linux/amd64 -t ${REGISTRY}/gateway-admin:${TAG} services/gateway-admin
+docker build --platform linux/amd64 -f services/gateway-admin/Dockerfile -t ${REGISTRY}/gateway-admin:${TAG} .
 docker push ${REGISTRY}/gateway-admin:${TAG}
 
 docker build --platform linux/amd64 \
@@ -270,10 +271,136 @@ printf '%s' '<secret-value>' | \
 Never put secret values in Terraform variables, git, screenshots, evidence, or
 shell command arguments.
 
+### Secret Manager Write Command Cheat Sheet
+
+Always pin the project before writing staging secrets:
+
+```bash
+export PROJECT_ID=fabled-archive-494108-k5
+gcloud config set project "$PROJECT_ID"
+```
+
+EVM private keys must come from dedicated staging wallets. Do not generate them
+with `openssl rand`, and do not reuse personal, treasury, or production wallets.
+
+```bash
+printf '%s' '0xYOUR_STAGING_WITHDRAW_SIGNER_PRIVATE_KEY' | \
+  bash scripts/deploy/gcp_put_secret.sh synapse-staging-private-key
+
+printf '%s' '0xYOUR_STAGING_DEPLOYER_PRIVATE_KEY' | \
+  bash scripts/deploy/gcp_put_secret.sh synapse-staging-deployer-private-key
+
+printf '%s' '0xYOUR_STAGING_GAS_FUNDER_PRIVATE_KEY' | \
+  bash scripts/deploy/gcp_put_secret.sh synapse-staging-gas-funder-private-key
+```
+
+E2E-only wallet keys are also EVM private keys. They are used by staging
+full-chain automation and must not be injected into Gateway runtime:
+
+```bash
+printf '%s' '0xYOUR_STAGING_E2E_CONSUMER_PRIVATE_KEY' | \
+  bash scripts/deploy/gcp_put_secret.sh synapse-staging-e2e-consumer-private-key
+
+printf '%s' '0xYOUR_STAGING_E2E_PROVIDER_PRIVATE_KEY' | \
+  bash scripts/deploy/gcp_put_secret.sh synapse-staging-e2e-provider-private-key
+```
+
+Admin dogfood credentials are only for the dedicated staging admin test account.
+Do not use a real operator password for these secrets:
+
+```bash
+printf '%s' 'YOUR_STAGING_ADMIN_E2E_PASSWORD' | \
+  bash scripts/deploy/gcp_put_secret.sh synapse-staging-admin-e2e-password
+
+printf '%s' 'YOUR_STAGING_ADMIN_E2E_TOTP_SECRET' | \
+  bash scripts/deploy/gcp_put_secret.sh synapse-staging-admin-e2e-otp-secret
+```
+
+If you do not know the staging admin E2E password, reset the dedicated test
+account instead of guessing or reusing a real operator account:
+
+```bash
+bash scripts/deploy/gcp_reset_staging_admin_e2e.sh fabled-archive-494108-k5
+```
+
+The reset script:
+
+- generates a new strong password unless `STAGING_ADMIN_E2E_PASSWORD` is set;
+- generates a new Google Authenticator-compatible TOTP seed unless
+  `STAGING_ADMIN_E2E_OTP_SECRET` is set;
+- writes both values to Secret Manager;
+- resets `staging-admin-e2e@synapse-network.ai` in the Gateway-admin staging DB;
+- revokes old sessions and old active TOTP factors for that test account.
+
+The TOTP secret is not a Google login link and does not expire like a magic
+link. It is the manual key that Google Authenticator stores. The six-digit OTP
+codes generated from it expire every 30 seconds. To rotate the manual key, run
+the reset script again.
+
+Gmail staging uses SMTP app password or Workspace SMTP relay. The Gmail API is
+not required for V1 email delivery.
+
+```bash
+printf '%s' 'staging-alerts@synapse-network.ai' | \
+  bash scripts/deploy/gcp_put_secret.sh synapse-staging-gmail-username
+
+printf '%s' 'YOUR_GMAIL_APP_PASSWORD_OR_RELAY_CREDENTIAL' | \
+  bash scripts/deploy/gcp_put_secret.sh synapse-staging-gmail-app-password
+```
+
+Lark webhook URLs are required for Lark E2E. Lark signing secrets are required
+only when the bot has signing validation enabled. If the bot uses keyword-only
+validation, leave `synapse-staging-lark-secret-*` unset.
+
+```bash
+printf '%s' 'https://open.larksuite.com/open-apis/bot/v2/hook/...' | \
+  bash scripts/deploy/gcp_put_secret.sh synapse-staging-lark-webhook-p0
+
+printf '%s' 'https://open.larksuite.com/open-apis/bot/v2/hook/...' | \
+  bash scripts/deploy/gcp_put_secret.sh synapse-staging-lark-webhook-prod-alerts
+
+printf '%s' 'https://open.larksuite.com/open-apis/bot/v2/hook/...' | \
+  bash scripts/deploy/gcp_put_secret.sh synapse-staging-lark-webhook-staging-drill
+```
+
+Application secrets and ops bearer tokens can be generated locally with strong
+randomness:
+
+```bash
+openssl rand -base64 48 | tr -d '\n' | \
+  bash scripts/deploy/gcp_put_secret.sh synapse-staging-jwt-secret
+
+openssl rand -base64 48 | tr -d '\n' | \
+  bash scripts/deploy/gcp_put_secret.sh synapse-staging-auth-secret
+
+openssl rand -base64 48 | tr -d '\n' | \
+  bash scripts/deploy/gcp_put_secret.sh synapse-staging-gateway-internal-jwt-secret
+
+openssl rand -base64 48 | tr -d '\n' | \
+  bash scripts/deploy/gcp_put_secret.sh synapse-staging-admin-csrf-secret
+
+openssl rand -base64 48 | tr -d '\n' | \
+  bash scripts/deploy/gcp_put_secret.sh synapse-staging-metrics-bearer-token
+```
+
+Third-party values must come from the provider dashboard:
+
+```bash
+printf '%s' 'https://arb-sepolia.g.alchemy.com/v2/YOUR_KEY' | \
+  bash scripts/deploy/gcp_put_secret.sh synapse-staging-arbitrum-sepolia-rpc-url
+
+printf '%s' 'YOUR_ETHERSCAN_V2_API_KEY' | \
+  bash scripts/deploy/gcp_put_secret.sh synapse-staging-arbiscan-api-key
+```
+
+Production must use a separate project, helper, mailbox, wallet set, and secret
+id prefix. Never reuse staging Gmail, Lark, signer, deployer, or gas funder
+secrets for production.
+
 | Secret id | Purpose | Used by | Source | Required before |
 | --- | --- | --- | --- | --- |
 | `synapse-staging-postgres-password` | Cloud SQL Gateway app user password. | Gateway, Gateway jobs | Auto-generated by `gcp_staging_bootstrap.sh` | Gateway deploy |
-| `synapse-staging-postgres-dsn` | Gateway full Cloud SQL Unix-socket Postgres DSN. Prefer this on Cloud Run so psycopg connects through `/cloudsql/<project>:<region>:<instance>` without app-side URL reconstruction. | Gateway, Gateway jobs | Auto-generated by `gcp_staging_bootstrap.sh` from the Gateway app password | Gateway deploy |
+| `synapse-staging-postgres-dsn` | Gateway full Cloud SQL Unix-socket Postgres DSN. Prefer this on Cloud Run so psycopg connects through `/cloudsql/<project>:<region>:<instance>` without app-side URL reconstruction. | Gateway, Gateway jobs, staging E2E | Auto-generated by `gcp_staging_bootstrap.sh` from the Gateway app password | Gateway deploy / Gmail E2E |
 | `synapse-staging-postgres-migrator-password` | Cloud SQL Gateway migrator user password. | DB migration job / release deploy shell | Auto-generated by `gcp_staging_bootstrap.sh` | DB migration |
 | `synapse-staging-admin-postgres-password` | Gateway-admin control-plane DB password. | Gateway-admin | Auto-generated by `gcp_staging_bootstrap.sh` | Gateway-admin deploy |
 | `synapse-staging-admin-database-dsn` | Gateway-admin control-plane full Postgres DSN. | Gateway-admin | Auto-generated by `gcp_staging_bootstrap.sh` | Gateway-admin deploy |
@@ -298,7 +425,69 @@ shell command arguments.
 | `synapse-staging-arbiscan-api-key` | Etherscan API V2-compatible key used for Arbitrum Sepolia source verification. The old secret id is kept for compatibility. | Hardhat verify | Etherscan account | Contract deploy |
 | `synapse-staging-deployer-private-key` | Staging contract deployer private key. | Contract deploy only | Dedicated staging deployer wallet | Contract deploy |
 | `synapse-staging-gas-funder-private-key` | Optional operator-only gas funder private key used to top up deployer/consumer/provider wallets. | Local wallet utility only | Dedicated staging gas funder wallet | Optional wallet top-up |
+| `synapse-staging-e2e-consumer-private-key` | Dedicated consumer wallet private key for staging full-chain E2E only. | Local/release E2E runner | Dedicated staging E2E consumer wallet | Gateway full-chain staging E2E |
+| `synapse-staging-e2e-provider-private-key` | Dedicated provider wallet private key for staging full-chain E2E only. | Local/release E2E runner | Dedicated staging E2E provider wallet | Gateway full-chain staging E2E |
+| `synapse-staging-admin-e2e-password` | Dedicated staging admin dogfood password. | Admin-front dogfood runner | Test admin account setup | Admin-front staging dogfood |
+| `synapse-staging-admin-e2e-otp-secret` | Dedicated staging admin dogfood TOTP seed. | Admin-front dogfood runner | Test admin MFA enrollment | Admin-front staging dogfood |
 | `synapse-staging-metrics-bearer-token` | Internal `/metrics` scrape bearer token. | Gateway, Gateway-admin | User-generated token | Monitoring |
+
+### Secret Value Presence Check
+
+This check confirms that each staging Secret Manager placeholder has at least
+one enabled version. It never prints secret values.
+
+```bash
+PROJECT_ID=fabled-archive-494108-k5
+for s in $(gcloud secrets list --project="$PROJECT_ID" --filter='name:synapse-staging-' --format='value(name)' | sed 's#projects/.*/secrets/##' | sort); do
+  latest="$(gcloud secrets versions list "$s" --project="$PROJECT_ID" --filter='state:ENABLED' --sort-by='~createTime' --limit=1 --format='value(name)' 2>/dev/null || true)"
+  if [ -n "$latest" ]; then
+    printf '%-58s %s\n' "$s" "has-enabled-version"
+  else
+    printf '%-58s %s\n' "$s" "missing-enabled-version"
+  fi
+done
+```
+
+Secret Manager having a value does not mean Cloud Run is using it. Runtime
+services and jobs must explicitly inject each secret as an environment variable.
+For Gmail delivery, Gateway and `synapse-staging-notification-outbox-drain`
+must expose:
+
+- `GMAIL_SMTP_USERNAME` from `synapse-staging-gmail-username`
+- `GMAIL_SMTP_APP_PASSWORD` from `synapse-staging-gmail-app-password`
+- `POSTGRES_DSN` from `synapse-staging-postgres-dsn`
+- `EMAIL_FROM=Synapse Network Staging <staging-alerts@synapse-network.ai>`
+- `EMAIL_REPLY_TO=support@synapse-network.ai`
+
+Terraform injects the Gmail username and app password into Gateway-backed
+services and jobs through `gateway_secret_env`. It also injects
+`POSTGRES_DSN`; do not rely on split `POSTGRES_HOST=/cloudsql/...` fields for
+jobs, because the current Gateway DSN builder expects a complete Postgres DSN.
+If staging was updated manually before Terraform owns the service/job, verify
+runtime injection directly:
+
+```bash
+gcloud run jobs describe synapse-staging-notification-outbox-drain \
+  --project fabled-archive-494108-k5 \
+  --region us-central1 \
+  --format=json | jq -r '.spec.template.spec.template.spec.containers[0].env[]?.name' | sort
+```
+
+Temporary manual repair, if Terraform has not yet been applied:
+
+```bash
+gcloud run services update synapse-staging-gateway \
+  --project "$PROJECT_ID" \
+  --region us-central1 \
+  --update-secrets GMAIL_SMTP_USERNAME=synapse-staging-gmail-username:latest,GMAIL_SMTP_APP_PASSWORD=synapse-staging-gmail-app-password:latest \
+  --update-env-vars EMAIL_FROM='Synapse Network Staging <staging-alerts@synapse-network.ai>',EMAIL_REPLY_TO='support@synapse-network.ai'
+
+gcloud run jobs update synapse-staging-notification-outbox-drain \
+  --project "$PROJECT_ID" \
+  --region us-central1 \
+  --update-secrets POSTGRES_DSN=synapse-staging-postgres-dsn:latest,GMAIL_SMTP_USERNAME=synapse-staging-gmail-username:latest,GMAIL_SMTP_APP_PASSWORD=synapse-staging-gmail-app-password:latest \
+  --update-env-vars EMAIL_FROM='Synapse Network Staging <staging-alerts@synapse-network.ai>',EMAIL_REPLY_TO='support@synapse-network.ai'
+```
 
 ### Cloud SQL Database Topology
 
@@ -394,6 +583,11 @@ dedicated staging wallets and must be created, funded, and backed up as wallets.
 | `synapse-staging-metrics-bearer-token` | `/metrics` scrape authorization token. | Ops bearer token | Yes | Local secure random generation |
 | `synapse-staging-private-key` | Gateway EIP-712 withdrawal ticket signer. | EVM private key | No | Dedicated staging withdraw signer wallet |
 | `synapse-staging-deployer-private-key` | Contract deployer for MockUSDC/SynapseCore. | EVM private key | No | Dedicated staging deployer wallet |
+| `synapse-staging-gas-funder-private-key` | Optional wallet utility gas funder. | EVM private key | No | Dedicated staging gas funder wallet |
+| `synapse-staging-e2e-consumer-private-key` | Consumer-side full-chain E2E wallet. | EVM private key | No | Dedicated staging E2E consumer wallet |
+| `synapse-staging-e2e-provider-private-key` | Provider-side full-chain E2E wallet. | EVM private key | No | Dedicated staging E2E provider wallet |
+| `synapse-staging-admin-e2e-password` | Admin-front dogfood login password for the test admin account. | Test credential | No | Dedicated staging admin test account |
+| `synapse-staging-admin-e2e-otp-secret` | Admin-front dogfood TOTP seed for the test admin account. | Test credential | No | Dedicated staging admin MFA enrollment |
 | `synapse-staging-arbitrum-sepolia-rpc-url` | Arbitrum Sepolia RPC endpoint. | Third-party URL | No | Alchemy, Infura, QuickNode, or equivalent RPC provider |
 | `synapse-staging-arbiscan-api-key` | Etherscan API V2 source verification for Arbitrum Sepolia. | Third-party API key | No | Etherscan account |
 
@@ -436,6 +630,12 @@ printf '%s' '0xREDACTED_STAGING_WITHDRAW_SIGNER_PRIVATE_KEY' | \
 
 printf '%s' '0xREDACTED_STAGING_DEPLOYER_PRIVATE_KEY' | \
   bash scripts/deploy/gcp_put_secret.sh synapse-staging-deployer-private-key
+
+printf '%s' '0xREDACTED_STAGING_E2E_CONSUMER_PRIVATE_KEY' | \
+  bash scripts/deploy/gcp_put_secret.sh synapse-staging-e2e-consumer-private-key
+
+printf '%s' '0xREDACTED_STAGING_E2E_PROVIDER_PRIVATE_KEY' | \
+  bash scripts/deploy/gcp_put_secret.sh synapse-staging-e2e-provider-private-key
 ```
 
 Wallet boundaries:
@@ -452,6 +652,83 @@ Wallet boundaries:
    into Gateway runtime.
 5. Never use a personal wallet, production wallet, or treasury wallet for any
    staging secret.
+
+Admin dogfood credentials:
+
+```bash
+printf '%s' 'REDACTED_STAGING_ADMIN_E2E_PASSWORD' | \
+  bash scripts/deploy/gcp_put_secret.sh synapse-staging-admin-e2e-password
+
+printf '%s' 'REDACTED_STAGING_ADMIN_E2E_TOTP_SECRET' | \
+  bash scripts/deploy/gcp_put_secret.sh synapse-staging-admin-e2e-otp-secret
+```
+
+Recommended reset flow:
+
+```bash
+bash scripts/deploy/gcp_reset_staging_admin_e2e.sh fabled-archive-494108-k5
+```
+
+Read the password only when you need to log in:
+
+```bash
+gcloud secrets versions access latest \
+  --secret=synapse-staging-admin-e2e-password \
+  --project=fabled-archive-494108-k5
+```
+
+Read the Google Authenticator manual key only when you need to enroll or
+generate a staging E2E OTP:
+
+```bash
+gcloud secrets versions access latest \
+  --secret=synapse-staging-admin-e2e-otp-secret \
+  --project=fabled-archive-494108-k5
+```
+
+The E2E-only wallet and admin dogfood secrets are read by local/release
+automation when explicitly exported. They are not runtime secrets for Gateway,
+Gateway-admin, User-front, Admin-front, or background Cloud Run jobs.
+
+Safe local export helpers for staging validation:
+
+```bash
+export PROJECT_ID=fabled-archive-494108-k5
+export GATEWAY_E2E_RPC_URL="$(gcloud secrets versions access latest \
+  --secret=synapse-staging-arbitrum-sepolia-rpc-url \
+  --project="$PROJECT_ID")"
+export GATEWAY_E2E_OWNER_KEY="$(gcloud secrets versions access latest \
+  --secret=synapse-staging-e2e-consumer-private-key \
+  --project="$PROJECT_ID")"
+export GATEWAY_E2E_PROVIDER_KEY="$(gcloud secrets versions access latest \
+  --secret=synapse-staging-e2e-provider-private-key \
+  --project="$PROJECT_ID")"
+export STAGING_ADMIN_E2E_PASSWORD="$(gcloud secrets versions access latest \
+  --secret=synapse-staging-admin-e2e-password \
+  --project="$PROJECT_ID")"
+export STAGING_ADMIN_E2E_OTP_SECRET="$(gcloud secrets versions access latest \
+  --secret=synapse-staging-admin-e2e-otp-secret \
+  --project="$PROJECT_ID")"
+```
+
+Combined core dogfood release gate:
+
+```bash
+export STAGING_CORE_DOGFOOD_CONFIRM=I_UNDERSTAND_THIS_MUTATES_STAGING
+export GATEWAY_E2E_GATEWAY_BASE=https://api-staging.synapse-network.ai
+export STAGING_USER_FRONT_URL=https://staging.synapse-network.ai
+export STAGING_ADMIN_FRONT_URL=https://admin-staging.synapse-network.ai
+export STAGING_ADMIN_API_URL=https://admin-api-staging.synapse-network.ai
+export POSTGRES_DSN=<locally-reachable-staging-gateway-postgres-dsn>
+
+npm run e2e:staging-core-dogfood
+npm run ci:staging-core-dogfood-evidence
+```
+
+This command mutates only staging: it sends MockUSDC on Arbitrum Sepolia,
+creates Gateway deposit/withdrawal records, captures User-front/Admin-front
+screenshots, and validates DB/chain reconciliation. Do not run it against prod
+or from PR CI.
 
 ## User-front
 
@@ -510,7 +787,7 @@ image unless the code changed.
 | `POSTGRES_DB` | `synapse_gateway_staging` | Gateway database name. | No | Terraform |
 | `POSTGRES_USER` | `synapse_gateway_app` | Gateway DB app user. | No | Bootstrap |
 | `POSTGRES_PASSWORD` | Secret Manager value | Gateway DB password fallback when `POSTGRES_DSN` is not injected. | Yes | `synapse-staging-postgres-password` |
-| `POSTGRES_DSN` | Secret Manager value | Full Gateway Cloud SQL Unix-socket DSN. Cloud Run staging should inject this rather than relying only on split host/user/db fields. | Yes | `synapse-staging-postgres-dsn` |
+| `POSTGRES_DSN` | Secret Manager value | Full Gateway Cloud SQL Unix-socket DSN. Cloud Run staging should inject this rather than relying only on split host/user/db fields; staging E2E may also read it through Secret Manager or Cloud SQL Auth Proxy. | Yes | `synapse-staging-postgres-dsn` |
 | `POSTGRES_MIGRATOR_USER` | `synapse_gateway_migrator` | DB user used only by `synapse-staging-db-migrate`. | No | Bootstrap |
 | `POSTGRES_MIGRATOR_PASSWORD` | Secret Manager value | Migrator password; runtime API services must not receive this. | Yes | `synapse-staging-postgres-migrator-password` |
 | `POSTGRES_POOL_MAX` | `5` | Max reusable DB connections per instance. | No | Fixed staging safety limit |
@@ -684,6 +961,32 @@ at dispatch time. Release evidence must record `sourceRefType`, `sourceRef`,
 `resolvedCommitSha`, image tags/digests, Cloud Run revisions, smoke status, and
 the evidence URI. Do not treat a moving branch name as the deployed version.
 
+GitHub Actions authenticates to Google Cloud through Workload Identity
+Federation, not a long-lived service account JSON key. The staging workflow must
+have all of these repository secrets configured before dispatch:
+
+```text
+GCP_WORKLOAD_IDENTITY_PROVIDER
+GCP_DEPLOY_SERVICE_ACCOUNT
+STAGING_GCP_PROJECT_ID
+STAGING_GCP_REGION
+STAGING_ARTIFACT_REGISTRY_REPOSITORY
+STAGING_EVIDENCE_BUCKET
+```
+
+`GCP_WORKLOAD_IDENTITY_PROVIDER` must use the full provider resource name:
+
+```text
+projects/<PROJECT_NUMBER>/locations/global/workloadIdentityPools/<POOL_ID>/providers/<PROVIDER_ID>
+```
+
+The provider should trust only `cliff-personal/Synapse-Network` and the
+workflow-dispatch ref used for deploy orchestration. The deploy service account
+is staging-only and may build images, push to the staging Artifact Registry,
+deploy whitelisted Cloud Run staging services, run staging migration jobs, and
+write deployment evidence. It must not have production deploy or rollback
+authority.
+
 The automated workflow supports:
 
 ```text
@@ -712,6 +1015,10 @@ PROD detected: schema/reference migration only; test seed skipped.
 ## Smoke Tests
 
 Run after DNS/TLS and Cloud Run deploy:
+
+The full staging validation sequence is maintained in
+`docs/ops/18_Staging_Validation_Runbook.md`. This section keeps only the
+configuration-specific commands and contract-address update examples.
 
 Update Gateway and Gateway-admin runtime env to point at the verified staging
 contracts:
@@ -758,13 +1065,17 @@ curl https://admin-api-staging.synapse-network.ai/health
 Then run release evidence:
 
 ```bash
+npm run e2e:staging-smoke
+npm run ci:staging-smoke-evidence
+
 npm run deploy:contracts:arbitrum-sepolia:dry-run
 npm run deploy:contracts:arbitrum-sepolia
 npm run ci:contract-deployment-evidence
 
-npm run release:evidence:gateway-fullchain:staging
+GATEWAY_RELEASE_E2E_PROFILE=mvp-postgres npm run release:evidence:gateway-fullchain:staging
 GATEWAY_RELEASE_E2E_REQUIRED_ENV=staging npm run ci:gateway-release-e2e-evidence
 
+npm run e2e:staging-ui-dogfood
 npm run e2e:lark-alerts
 npm run ci:lark-alert-e2e-evidence
 ```

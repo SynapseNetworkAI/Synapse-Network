@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import { buildWithdrawReasonClusters, buildWithdrawReviewMetrics, filterWithdrawReviews, getWithdrawalStatusLabel, getWithdrawalStatusTone, getWithdrawRiskTone, listWithdrawRiskLevels, paginateWithdrawReviews, sortWithdrawReviewsByPriority } from "./review-presenters";
+import { buildWithdrawReasonClusters, buildWithdrawReviewMetrics, filterWithdrawReviews, getWithdrawalStatusLabel, getWithdrawalStatusTone, getWithdrawReviewKindLabel, getWithdrawReviewKindTone, getWithdrawRiskTone, listWithdrawRiskLevels, paginateWithdrawReviews, sortWithdrawReviewsByPriority } from "./review-presenters";
 
 const reviews = [
   {
     withdrawalId: "wd-002",
+    withdrawalKind: "provider_withdrawal",
+    reviewType: "provider_withdraw_review",
     ownerAddress: "0xbbb",
+    subjectAddress: "0xbbb",
     amountUsdc: "12.50",
     status: "PENDING_MANUAL_REVIEW",
     requestId: "req-002",
@@ -19,7 +22,10 @@ const reviews = [
   },
   {
     withdrawalId: "wd-001",
+    withdrawalKind: "consumer_refund",
+    reviewType: "consumer_withdraw_review",
     ownerAddress: "0xaaa",
+    subjectAddress: "0xaaa",
     amountUsdc: "120.00",
     status: "PENDING_MANUAL_REVIEW",
     requestId: "req-001",
@@ -33,7 +39,10 @@ const reviews = [
   },
   {
     withdrawalId: "wd-003",
+    withdrawalKind: "provider_withdrawal",
+    reviewType: "provider_withdraw_review",
     ownerAddress: "0xccc",
+    subjectAddress: "0xccc",
     amountUsdc: "8.00",
     status: "PENDING_MANUAL_REVIEW",
     requestId: null,
@@ -74,6 +83,8 @@ describe("review-presenters", () => {
     ]);
     expect(listWithdrawRiskLevels(reviews)).toEqual(["yellow", "red"]);
     expect(getWithdrawRiskTone("yellow")).toBe("orange");
+    expect(getWithdrawReviewKindLabel(reviews[1])).toBe("Consumer withdrawal");
+    expect(getWithdrawReviewKindTone(reviews[1])).toBe("orange");
     expect(getWithdrawalStatusLabel("PENDING_MANUAL_REVIEW")).toBe("待人工审核");
     expect(getWithdrawalStatusTone("PENDING_MANUAL_REVIEW")).toBe("orange");
   });

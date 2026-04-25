@@ -8,6 +8,10 @@ from src.storage.analytics.provider_withdraw_review import ProviderWithdrawRevie
 from src.domain import AdminApproval
 from src.storage.base import AdminStore
 
+ERR_DRILLDOWN_LOCATOR_REQUIRED = "ownerAddress, requestId, or txHash is required"
+ERR_DATA_QUALITY_WINDOW = "window must be one of: 1h, 24h"
+ERR_ANALYTICS_WINDOW = "window must be one of: 24h, 7d, 30d"
+
 
 class DashboardService:
     def __init__(
@@ -198,7 +202,7 @@ class DashboardService:
         request_value = request_id.strip() if request_id else None
         tx_value = tx_hash.strip() if tx_hash else None
         if not owner_value and not request_value and not tx_value:
-            raise BadRequestError("ownerAddress, requestId, or txHash is required")
+            raise BadRequestError(ERR_DRILLDOWN_LOCATOR_REQUIRED)
 
         priority_matches = [
             self._serialize_reconciliation_approval_summary(item)
@@ -260,14 +264,14 @@ class DashboardService:
     def get_analytics_data_quality(self, window: str = "24h") -> dict:
         normalized_window = window.strip().lower()
         if normalized_window not in {"1h", "24h"}:
-            raise BadRequestError("window must be one of: 1h, 24h")
+            raise BadRequestError(ERR_DATA_QUALITY_WINDOW)
         return self._analytics_dashboard.get_data_quality(normalized_window)
 
     @staticmethod
     def _normalize_analytics_window(window: str) -> str:
         normalized_window = window.strip().lower()
         if normalized_window not in {"24h", "7d", "30d"}:
-            raise BadRequestError("window must be one of: 24h, 7d, 30d")
+            raise BadRequestError(ERR_ANALYTICS_WINDOW)
         return normalized_window
 
     def _list_active_finance_approvals(self, limit: int) -> list[AdminApproval]:
@@ -303,7 +307,10 @@ class DashboardService:
     def _serialize_withdraw_review_summary(review: ProviderWithdrawReviewItem) -> dict:
         return {
             "withdrawalId": review.withdrawal_id,
+            "withdrawalKind": review.withdrawal_kind,
+            "reviewType": review.review_type,
             "ownerAddress": review.owner_address,
+            "subjectAddress": review.subject_address,
             "amountUsdc": DashboardService._format_decimal(review.amount_usdc),
             "status": review.status,
             "requestId": review.request_id,
@@ -361,9 +368,7 @@ class DashboardService:
             return True
         if request_id and review.request_id == request_id:
             return True
-        if tx_hash and review.tx_hash and review.tx_hash.lower() == tx_hash.lower():
-            return True
-        return False
+        return bool(tx_hash and review.tx_hash and review.tx_hash.lower() == tx_hash.lower())
 
     def get_system_status(self) -> dict:
         snapshot = self._gateway_projection.get_operations_snapshot()

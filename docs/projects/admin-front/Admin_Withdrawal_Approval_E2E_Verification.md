@@ -23,7 +23,13 @@ The admin control plane currently exposes these approval-related surfaces:
 4. `/execution`: Execution jobs and retries for control-plane operations.
 5. `/finance` and `/finance/reconciliation`: Finance observability and reconciliation pages used to validate approval impact.
 
-Consumer withdrawal/refund manual review exists in Gateway internal APIs, but it does not yet have a dedicated admin-front workbench equivalent to `/withdrawal-reviews`.
+Consumer withdrawal/refund manual review exists in Gateway internal APIs and the
+focused withdrawal-review dogfood gate treats `/withdrawal-reviews`
+as the unified manual review surface for both `provider_withdrawal` and
+`consumer_refund` items. The older provider approval E2E remains the canonical
+provider approve baseline; the focused gate adds provider reject plus consumer
+approve/reject coverage and verifies the consumer reject no-funds-blackhole
+invariant.
 
 ## Scenario
 
@@ -65,6 +71,27 @@ npm run e2e:admin-withdrawal-approval:dogfood
 npm run e2e:admin-withdrawal-approval:reconcile
 ```
 
+Focused local withdrawal-review dogfood:
+
+```bash
+npm run e2e:withdrawal-review-dogfood:local
+npm run ci:withdrawal-review-dogfood-local-evidence
+```
+
+The focused gate first runs the provider approve baseline above, then continues
+with:
+
+1. Consumer manual withdrawal reject: status becomes `REJECTED` and frozen funds
+   return to available funds.
+2. Consumer manual withdrawal approve: Gateway issues an EIP-712 ticket, the
+   consumer claims on-chain, and replay is rejected.
+3. Provider manual withdrawal reject: provider frozen funds return to available
+   receivable and the reviewed item cannot be approved afterward.
+
+The gate writes `report.json`, `report.md`, `trace.jsonl`, `bugfix-log.md`,
+`api-evidence.json`, `db-evidence.json`, `chain-evidence.json`, and screenshots
+under `output/dogfood/withdrawal-review/<timestamp>/`.
+
 Important environment variables:
 
 1. `GATEWAY_BASE_URL`, default `http://127.0.0.1:8000`
@@ -92,6 +119,15 @@ The reconciliation report must include these comparisons:
 | Completion | Provider pending and frozen balances return to `0.000000` for the completed withdrawal |
 | UI | `/withdrawal-reviews`, `/review-history`, and `/finance/reconciliation` screenshots exist |
 
+The focused withdrawal-review dogfood additionally requires:
+
+| Scenario | Expected |
+| --- | --- |
+| Consumer reject | `consumer_refund` status is `REJECTED`; available/frozen balance tuple returns to the pre-request values. |
+| Consumer approve | ticket is present; on-chain claim succeeds; ticket replay fails; DB status becomes `COMPLETED`. |
+| Provider reject | `provider_withdrawal` status is `REJECTED`; available/frozen balance tuple returns to the pre-request values. |
+| Unified review UI | `/withdrawal-reviews` screenshots show both `Consumer withdrawal` and `Provider withdrawal` item kinds when those items are under review. |
+
 ## Security Regression Checks
 
 The suite treats any failure here as a P0 finance bug:
@@ -118,6 +154,17 @@ The suite writes:
 5. `output/dogfood/admin-withdrawal-approval/<timestamp>/reconciliation-report.json`
 6. `output/dogfood/admin-withdrawal-approval/<timestamp>/screenshots/*.png`
 
+Focused withdrawal-review evidence writes:
+
+1. `output/dogfood/withdrawal-review/<timestamp>/report.md`
+2. `output/dogfood/withdrawal-review/<timestamp>/report.json`
+3. `output/dogfood/withdrawal-review/<timestamp>/trace.jsonl`
+4. `output/dogfood/withdrawal-review/<timestamp>/bugfix-log.md`
+5. `output/dogfood/withdrawal-review/<timestamp>/api-evidence.json`
+6. `output/dogfood/withdrawal-review/<timestamp>/db-evidence.json`
+7. `output/dogfood/withdrawal-review/<timestamp>/chain-evidence.json`
+8. `output/dogfood/withdrawal-review/<timestamp>/screenshots/*.png`
+
 Do not commit `tmp/` or `output/` evidence unless a release evidence bundle explicitly asks for it.
 
 ## Pass Criteria
@@ -142,3 +189,6 @@ If any step fails:
 3. Fix the issue.
 4. Rerun the narrow failed command.
 5. Rerun `npm run e2e:admin-withdrawal-approval` before marking the approval path verified.
+6. For consumer or reject-path changes, rerun
+   `npm run e2e:withdrawal-review-dogfood:local` and
+   `npm run ci:withdrawal-review-dogfood-local-evidence`.

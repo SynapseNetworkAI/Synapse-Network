@@ -58,6 +58,18 @@ describe("docs API reference", () => {
     }
   });
 
+  it("keeps SDK-facing credential docs on current public preview contracts", () => {
+    const paths = ALL_ROUTES.map((route) => route.path);
+    const examples = JSON.stringify(ALL_ROUTES.map((route) => route.responseExample));
+
+    expect(paths).not.toContain("/api/v1/agent/credentials");
+    expect(paths).toContain("/api/v1/credentials/agent/issue");
+    expect(paths).toContain("/api/v1/credentials/agent/list");
+    expect(paths).toContain("/api/v1/credentials/agent/:id/revoke");
+    expect(examples).not.toContain("snk_agent");
+    expect(examples).toContain("agt_xxx");
+  });
+
   it("separates consumer and provider API references by role", async () => {
     const user = userEvent.setup();
     renderDocs(createElement(ApiReferencePage));

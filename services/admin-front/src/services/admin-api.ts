@@ -599,7 +599,10 @@ export type ApprovalListResponse = {
 
 export type ProviderWithdrawReviewItem = {
   withdrawalId: string;
+  withdrawalKind: "provider_withdrawal" | "consumer_refund";
+  reviewType: "provider_withdraw_review" | "consumer_withdraw_review";
   ownerAddress: string;
+  subjectAddress: string;
   amountUsdc: string;
   status: WithdrawalStatus;
   requestId: string | null;
@@ -619,7 +622,10 @@ export type ProviderWithdrawReviewListResponse = {
 
 export type ProviderWithdrawReviewDecisionResult = {
   withdrawalId: string;
+  withdrawalKind: "provider_withdrawal" | "consumer_refund";
+  reviewType: "provider_withdraw_review" | "consumer_withdraw_review";
   ownerAddress: string;
+  subjectAddress: string;
   reviewDecision: string;
   status: WithdrawalStatus;
   message: string | null;
@@ -629,7 +635,10 @@ export type ProviderWithdrawReviewDecisionResult = {
 
 export type ProviderWithdrawReviewHistoryItem = {
   withdrawalId: string;
+  withdrawalKind: "provider_withdrawal" | "consumer_refund";
+  reviewType: "provider_withdraw_review" | "consumer_withdraw_review";
   ownerAddress: string | null;
+  subjectAddress: string | null;
   amountUsdc: string | null;
   requestId: string | null;
   txHash: string | null;
@@ -786,14 +795,25 @@ export type ExecutionRetryResult = {
 
 type RawReconciliationApprovalItem = Omit<ReconciliationApprovalItem, "status"> & { status: string };
 type RawApprovalItem = Omit<ApprovalItem, "status"> & { status: string };
-type RawProviderWithdrawReviewItem = Omit<ProviderWithdrawReviewItem, "status" | "riskLevel"> & {
+type RawProviderWithdrawReviewItem = Omit<ProviderWithdrawReviewItem, "status" | "riskLevel" | "withdrawalKind" | "reviewType" | "subjectAddress"> & {
   status: string;
   riskLevel: string | null;
+  withdrawalKind?: ProviderWithdrawReviewItem["withdrawalKind"];
+  reviewType?: ProviderWithdrawReviewItem["reviewType"];
+  subjectAddress?: string | null;
 };
-type RawProviderWithdrawReviewDecisionResult = Omit<ProviderWithdrawReviewDecisionResult, "status"> & { status: string };
-type RawProviderWithdrawReviewHistoryItem = Omit<ProviderWithdrawReviewHistoryItem, "currentStatus" | "riskLevel"> & {
+type RawProviderWithdrawReviewDecisionResult = Omit<ProviderWithdrawReviewDecisionResult, "status" | "withdrawalKind" | "reviewType" | "subjectAddress"> & {
+  status: string;
+  withdrawalKind?: ProviderWithdrawReviewDecisionResult["withdrawalKind"];
+  reviewType?: ProviderWithdrawReviewDecisionResult["reviewType"];
+  subjectAddress?: string | null;
+};
+type RawProviderWithdrawReviewHistoryItem = Omit<ProviderWithdrawReviewHistoryItem, "currentStatus" | "riskLevel" | "withdrawalKind" | "reviewType" | "subjectAddress"> & {
   currentStatus: string;
   riskLevel: string | null;
+  withdrawalKind?: ProviderWithdrawReviewHistoryItem["withdrawalKind"];
+  reviewType?: ProviderWithdrawReviewHistoryItem["reviewType"];
+  subjectAddress?: string | null;
 };
 type RawProviderServiceItem = Omit<ProviderServiceItem, "controlStatus" | "status" | "runtimeStatus" | "targets"> & {
   controlStatus: string;
@@ -842,16 +862,24 @@ function normalizeReconciliationApprovalItem(item: RawReconciliationApprovalItem
 }
 
 function normalizeProviderWithdrawReviewItem(item: RawProviderWithdrawReviewItem): ProviderWithdrawReviewItem {
+  const withdrawalKind = item.withdrawalKind ?? "provider_withdrawal";
   return {
     ...item,
+    withdrawalKind,
+    reviewType: item.reviewType ?? (withdrawalKind === "consumer_refund" ? "consumer_withdraw_review" : "provider_withdraw_review"),
+    subjectAddress: item.subjectAddress ?? item.ownerAddress,
     status: assertWithdrawalStatus(item.status),
     riskLevel: item.riskLevel === null ? null : assertRiskLevel(item.riskLevel),
   };
 }
 
 function normalizeProviderWithdrawReviewHistoryItem(item: RawProviderWithdrawReviewHistoryItem): ProviderWithdrawReviewHistoryItem {
+  const withdrawalKind = item.withdrawalKind ?? "provider_withdrawal";
   return {
     ...item,
+    withdrawalKind,
+    reviewType: item.reviewType ?? (withdrawalKind === "consumer_refund" ? "consumer_withdraw_review" : "provider_withdraw_review"),
+    subjectAddress: item.subjectAddress ?? item.ownerAddress,
     currentStatus: assertWithdrawalStatus(item.currentStatus),
     riskLevel: item.riskLevel === null ? null : assertRiskLevel(item.riskLevel),
   };
@@ -1349,6 +1377,9 @@ export async function decideProviderWithdrawReview(
   );
   return {
     ...response,
+    withdrawalKind: response.withdrawalKind ?? "provider_withdrawal",
+    reviewType: response.reviewType ?? "provider_withdraw_review",
+    subjectAddress: response.subjectAddress ?? response.ownerAddress,
     status: assertWithdrawalStatus(response.status),
   };
 }

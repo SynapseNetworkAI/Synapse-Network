@@ -232,6 +232,12 @@ Repository-level deployment execution now uses:
 
 These workflows are designed to be triggered by `Synapse-Network-Growing`, which acts as the deploy control plane for staging/prod promotion and rollback audit.
 
+Staging deploy authentication uses Google Cloud Workload Identity Federation.
+`deploy-staging.yml` requires `GCP_WORKLOAD_IDENTITY_PROVIDER` and
+`GCP_DEPLOY_SERVICE_ACCOUNT` GitHub Actions secrets in addition to the staging
+project, region, Artifact Registry repository, and evidence bucket secrets. Do
+not add or commit a GCP service account JSON key.
+
 ## Lowest-cost rollout recommendation
 
 For the current pre-launch phase, the default recommendation is:

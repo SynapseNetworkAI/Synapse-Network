@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCENARIOS: dict[str, list[str]] = {
+FULL_SCENARIOS: dict[str, list[str]] = {
     "deposit": ["test_deposit_full_pipeline"],
     "confirm": ["test_deposit_confirm", "test_balance_reflects_deposit"],
     "service_discovery": [
@@ -42,6 +42,27 @@ SCENARIOS: dict[str, list[str]] = {
         "test_consumer_withdraw_reduces_total_spendable_capacity",
     ],
 }
+MVP_POSTGRES_SCENARIOS: dict[str, list[str]] = {
+    key: value
+    for key, value in FULL_SCENARIOS.items()
+    if key != "analytics_kafka_clickhouse"
+}
+MIN_TESTS_BY_PROFILE = {
+    "full": 78,
+    "mvp-postgres": 50,
+}
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--out-dir", required=True)
+    parser.add_argument("--env", required=True)
+    parser.add_argument("--profile", default=os.getenv("GATEWAY_RELEASE_E2E_PROFILE", "full"))
+    parser.add_argument("--pytest-exit-code", required=True, type=int)
+    args = parser.parse_args()
+    if args.profile not in MIN_TESTS_BY_PROFILE:
+        parser.error(f"unsupported profile: {args.profile}")
+    return args
 
 
 def sha256_json(payload: Any) -> str:
@@ -145,9 +166,10 @@ def scenario_passed(cases: list[dict[str, Any]], patterns: list[str]) -> tuple[b
     return True, f"{len(matched)} testcase(s) passed"
 
 
-def write_environment_manifest(out_dir: Path, root: Path, env_name: str) -> dict[str, Any]:
+def write_environment_manifest(out_dir: Path, root: Path, env_name: str, profile: str) -> dict[str, Any]:
     manifest = {
         "environment": env_name,
+        "profile": profile,
         "generatedAt": datetime.now(timezone.utc).isoformat(),
         "gitCommitSha": run_text(["git", "rev-parse", "HEAD"], root),
         "gitDirty": bool(run_text(["git", "status", "--short"], root)),
@@ -205,9 +227,22 @@ def write_contract_manifest(out_dir: Path, root: Path) -> dict[str, Any]:
     return manifest
 
 
-def write_analytics_summary(out_dir: Path) -> dict[str, Any]:
+def write_analytics_summary(out_dir: Path, profile: str) -> dict[str, Any]:
+    if profile == "mvp-postgres":
+        summary: dict[str, Any] = {
+            "mode": "postgres-outbox",
+            "totalEvents": None,
+            "events": [],
+            "errors": [],
+            "skippedReason": "MVP staging uses Postgres outbox/projections and does not deploy Kafka/ClickHouse.",
+        }
+        (out_dir / "analytics-clickhouse-summary.json").write_text(
+            json.dumps(summary, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        return summary
     clickhouse_url = os.getenv("ANALYTICS_CLICKHOUSE_URL", "http://127.0.0.1:8123")
-    summary: dict[str, Any] = {"clickHouseUrl": clickhouse_url, "totalEvents": 0, "events": [], "errors": []}
+    summary: dict[str, Any] = {"mode": "clickhouse", "clickHouseUrl": clickhouse_url, "totalEvents": 0, "events": [], "errors": []}
     try:
         rows = clickhouse_query(
             clickhouse_url,
@@ -325,20 +360,17 @@ def write_trace_jsonl(
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--out-dir", required=True)
-    parser.add_argument("--env", required=True)
-    parser.add_argument("--pytest-exit-code", required=True, type=int)
-    args = parser.parse_args()
+    args = parse_args()
+    profile = args.profile
 
     root = Path(__file__).resolve().parents[2]
     out_dir = Path(args.out_dir).resolve()
     junit_path = out_dir / "pytest-junit.xml"
     failed: list[str] = []
 
-    environment = write_environment_manifest(out_dir, root, args.env)
+    environment = write_environment_manifest(out_dir, root, args.env, profile)
     contract = write_contract_manifest(out_dir, root)
-    analytics = write_analytics_summary(out_dir)
+    analytics = write_analytics_summary(out_dir, profile)
 
     if not junit_path.exists():
         failed.append("pytest-junit.xml missing")
@@ -346,6 +378,7 @@ def main() -> int:
     else:
         pytest_summary = parse_junit(junit_path)
 
+    min_tests = MIN_TESTS_BY_PROFILE[profile]
     comparisons: list[dict[str, Any]] = [
         {
             "stage": "pytest",
@@ -357,16 +390,9 @@ def main() -> int:
         {
             "stage": "pytest",
             "metricName": "Collected tests",
-            "expected": ">=78",
+            "expected": f">={min_tests}",
             "actual": str(pytest_summary["tests"]),
-            "pass": pytest_summary["tests"] >= 78,
-        },
-        {
-            "stage": "analytics",
-            "metricName": "ClickHouse events",
-            "expected": ">0",
-            "actual": str(analytics["totalEvents"]),
-            "pass": int(analytics["totalEvents"]) > 0 and not analytics["errors"],
+            "pass": pytest_summary["tests"] >= min_tests,
         },
         {
             "stage": "contract",
@@ -376,7 +402,28 @@ def main() -> int:
             "pass": len(contract["errors"]) == 0,
         },
     ]
-    for scenario, patterns in SCENARIOS.items():
+    if profile == "mvp-postgres":
+        comparisons.append(
+            {
+                "stage": "analytics",
+                "metricName": "Postgres outbox mode",
+                "expected": "postgres-outbox",
+                "actual": str(analytics["mode"]),
+                "pass": analytics["mode"] == "postgres-outbox" and not analytics["errors"],
+            }
+        )
+    else:
+        comparisons.append(
+            {
+                "stage": "analytics",
+                "metricName": "ClickHouse events",
+                "expected": ">0",
+                "actual": str(analytics["totalEvents"]),
+                "pass": int(analytics["totalEvents"]) > 0 and not analytics["errors"],
+            }
+        )
+    scenarios = MVP_POSTGRES_SCENARIOS if profile == "mvp-postgres" else FULL_SCENARIOS
+    for scenario, patterns in scenarios.items():
         ok, detail = scenario_passed(pytest_summary["cases"], patterns)
         comparisons.append(
             {
@@ -413,6 +460,8 @@ def main() -> int:
     report = {
         "status": status,
         "scriptVersion": "gateway-release-evidence:v1",
+        "profile": profile,
+        "minimumExpectedTests": min_tests,
         "generatedAt": datetime.now(timezone.utc).isoformat(),
         "environment": environment,
         "contract": contract,
@@ -428,6 +477,8 @@ def main() -> int:
     report["evidenceDigest"] = sha256_json(
         {
             "scriptVersion": report["scriptVersion"],
+            "profile": report["profile"],
+            "minimumExpectedTests": report["minimumExpectedTests"],
             "environment": report["environment"],
             "contract": report["contract"],
             "analytics": report["analytics"],
@@ -445,6 +496,7 @@ def main() -> int:
         "",
         f"- Status: `{status}`",
         f"- Environment: `{args.env}`",
+        f"- Profile: `{profile}`",
         f"- Generated at: `{report['generatedAt']}`",
         f"- Git commit: `{environment['gitCommitSha']}`",
         f"- Git dirty: `{environment['gitDirty']}`",

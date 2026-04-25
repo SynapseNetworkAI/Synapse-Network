@@ -16,11 +16,12 @@
 AI 协作优先入口新增如下：
 
 1. 仓库根 `llms.txt` 作为机器可消费的最短入口。
-2. `ARCHITECTURE.md` 作为全仓顶层结构地图。
-3. `Harness_engineering.md` 作为 AI 文档治理与落地顺序说明。
-4. `exec-plans/` 作为多步骤任务的标准执行计划目录。
-5. `00_Governance/Documentation_Constraints.md` 作为 `docs/` 目录硬边界说明。
-6. `06_Reference/Validation_Entry_Points.md` 作为当前校验入口地图。
+2. `reference/Agent_Task_Map.md` 与 `reference/Agent_Task_Map.json` 作为 Agent 的任务到文件路由地图。
+3. `ARCHITECTURE.md` 作为全仓顶层结构地图。
+4. `Harness_engineering.md` 作为 AI 文档治理与落地顺序说明。
+5. `exec-plans/` 作为多步骤任务的标准执行计划目录。
+6. `00_Governance/Documentation_Constraints.md` 作为 `docs/` 目录硬边界说明。
+7. `06_Reference/Validation_Entry_Points.md` 作为当前校验入口地图。
 
 ### 1.1 docs/ 文件地图（Agent File Map）
 
@@ -29,14 +30,16 @@ AI 协作优先入口新增如下：
 ### Root entrypoints
 
 1. [AGENTS.md](./AGENTS.md)
-2. [ARCHITECTURE.md](./ARCHITECTURE.md)
-3. [Harness_engineering.md](./Harness_engineering.md)
-4. [00_Governance/README.md](./00_Governance/README.md)
-5. [00_Governance/Documentation_Constraints.md](./00_Governance/Documentation_Constraints.md)
-6. [00_Governance/Documentation_Inventory.md](./00_Governance/Documentation_Inventory.md)
-7. [06_Reference/Validation_Entry_Points.md](./06_Reference/Validation_Entry_Points.md)
-8. [Design.md](./Design.md)
-9. [文档迁移.md](./%E6%96%87%E6%A1%A3%E8%BF%81%E7%A7%BB.md)
+2. [reference/Agent_Task_Map.md](./reference/Agent_Task_Map.md)
+3. [reference/Agent_Task_Map.json](./reference/Agent_Task_Map.json)
+4. [ARCHITECTURE.md](./ARCHITECTURE.md)
+5. [Harness_engineering.md](./Harness_engineering.md)
+6. [00_Governance/README.md](./00_Governance/README.md)
+7. [00_Governance/Documentation_Constraints.md](./00_Governance/Documentation_Constraints.md)
+8. [00_Governance/Documentation_Inventory.md](./00_Governance/Documentation_Inventory.md)
+9. [06_Reference/Validation_Entry_Points.md](./06_Reference/Validation_Entry_Points.md)
+10. [Design.md](./Design.md)
+11. [文档迁移.md](./%E6%96%87%E6%A1%A3%E8%BF%81%E7%A7%BB.md)
 
 说明：root `docs/` 当前只保留全局入口、治理文件和少量 supplementary 过渡文档，不再作为数据库、测试、监控或审批流程的长期 canonical 落点。
 
@@ -81,13 +84,15 @@ AI 协作优先入口新增如下：
 5. [ops/14_Gmail_Email_Notifications.md](./ops/14_Gmail_Email_Notifications.md)
 6. [ops/15_Google_Cloud_Launch_Readiness.md](./ops/15_Google_Cloud_Launch_Readiness.md)
 7. [ops/16_Arbitrum_Sepolia_Staging_Contracts.md](./ops/16_Arbitrum_Sepolia_Staging_Contracts.md)
-8. [ops/17_In_App_Notifications.md](./ops/17_In_App_Notifications.md)
-9. [plans/production-go-live-security-verification/README.md](./plans/production-go-live-security-verification/README.md)
-10. [security/README.md](./security/README.md)
-11. [security/SynapseCore_Internal_Production_Security_Audit_Report.md](./security/SynapseCore_Internal_Production_Security_Audit_Report.md)
-12. [security/SynapseCore_Internal_Audit_Closure_Log.md](./security/SynapseCore_Internal_Audit_Closure_Log.md)
-13. [security/SynapseCore_Internal_Audit_Risk_Acceptance.md](./security/SynapseCore_Internal_Audit_Risk_Acceptance.md)
-14. [security/SynapseCore_Production_Audit_Verification_Report.md](./security/SynapseCore_Production_Audit_Verification_Report.md)
+8. [ops/17_Staging_Environment_Configuration.md](./ops/17_Staging_Environment_Configuration.md)
+9. [ops/17_In_App_Notifications.md](./ops/17_In_App_Notifications.md)
+10. [ops/18_Staging_Validation_Runbook.md](./ops/18_Staging_Validation_Runbook.md)
+11. [plans/production-go-live-security-verification/README.md](./plans/production-go-live-security-verification/README.md)
+12. [security/README.md](./security/README.md)
+13. [security/SynapseCore_Internal_Production_Security_Audit_Report.md](./security/SynapseCore_Internal_Production_Security_Audit_Report.md)
+14. [security/SynapseCore_Internal_Audit_Closure_Log.md](./security/SynapseCore_Internal_Audit_Closure_Log.md)
+15. [security/SynapseCore_Internal_Audit_Risk_Acceptance.md](./security/SynapseCore_Internal_Audit_Risk_Acceptance.md)
+16. [security/SynapseCore_Production_Audit_Verification_Report.md](./security/SynapseCore_Production_Audit_Verification_Report.md)
 
 ### Supplement layers
 
@@ -104,7 +109,7 @@ AI 协作优先入口新增如下：
 
 建议 Agent 读取顺序：
 
-1. 先读 [AGENTS.md](./AGENTS.md)、[ARCHITECTURE.md](./ARCHITECTURE.md)、[00_Governance/README.md](./00_Governance/README.md)、[06_Reference/AI_Quick_Reference.md](./06_Reference/AI_Quick_Reference.md)。
+1. 先读 [AGENTS.md](./AGENTS.md)、[reference/Agent_Task_Map.md](./reference/Agent_Task_Map.md)、[ARCHITECTURE.md](./ARCHITECTURE.md)、[00_Governance/README.md](./00_Governance/README.md)、[06_Reference/AI_Quick_Reference.md](./06_Reference/AI_Quick_Reference.md)。
 2. 若任务涉及文档结构、入口或治理，先读 [00_Governance/Documentation_Constraints.md](./00_Governance/Documentation_Constraints.md)、[00_Governance/Documentation_Inventory.md](./00_Governance/Documentation_Inventory.md) 与 [06_Reference/Validation_Entry_Points.md](./06_Reference/Validation_Entry_Points.md)。
 3. 需要 Runtime 协议时直接看官方模块；若需要追溯旧迁移关系，再进入 [00_Governance/Agent_Docs_Migration_Map.md](./00_Governance/Agent_Docs_Migration_Map.md)。
 4. 需要业务主流程时进入 [03_Core_Workflows/README.md](./03_Core_Workflows/README.md)。
@@ -159,7 +164,7 @@ AI 协作优先入口新增如下：
 7. [reference/Money_Contract.md](./reference/Money_Contract.md)
    API 索引、错误码契约、Manifest 与 Runtime 对象、开发测试参考。
 
-生产上线前必须同时阅读 [ops/10_Production_Go_No_Go_Security_Verification.md](./ops/10_Production_Go_No_Go_Security_Verification.md)、[ops/11_Performance_and_Reliability_Verification.md](./ops/11_Performance_and_Reliability_Verification.md)、[ops/12_Gateway_Pre_Launch_Stress_Review.md](./ops/12_Gateway_Pre_Launch_Stress_Review.md)、[ops/13_Production_Monitoring_Alerting_and_Backup_Restore.md](./ops/13_Production_Monitoring_Alerting_and_Backup_Restore.md)、[ops/14_Gmail_Email_Notifications.md](./ops/14_Gmail_Email_Notifications.md)、[ops/15_Google_Cloud_Launch_Readiness.md](./ops/15_Google_Cloud_Launch_Readiness.md)、[ops/16_Arbitrum_Sepolia_Staging_Contracts.md](./ops/16_Arbitrum_Sepolia_Staging_Contracts.md)、[ops/17_In_App_Notifications.md](./ops/17_In_App_Notifications.md)、[plans/production-go-live-security-verification/README.md](./plans/production-go-live-security-verification/README.md) 与 [security/README.md](./security/README.md)。所有 P0 门禁和证据包通过前，禁止上线。
+生产上线前必须同时阅读 [ops/10_Production_Go_No_Go_Security_Verification.md](./ops/10_Production_Go_No_Go_Security_Verification.md)、[ops/11_Performance_and_Reliability_Verification.md](./ops/11_Performance_and_Reliability_Verification.md)、[ops/12_Gateway_Pre_Launch_Stress_Review.md](./ops/12_Gateway_Pre_Launch_Stress_Review.md)、[ops/13_Production_Monitoring_Alerting_and_Backup_Restore.md](./ops/13_Production_Monitoring_Alerting_and_Backup_Restore.md)、[ops/14_Gmail_Email_Notifications.md](./ops/14_Gmail_Email_Notifications.md)、[ops/15_Google_Cloud_Launch_Readiness.md](./ops/15_Google_Cloud_Launch_Readiness.md)、[ops/16_Arbitrum_Sepolia_Staging_Contracts.md](./ops/16_Arbitrum_Sepolia_Staging_Contracts.md)、[ops/17_Staging_Environment_Configuration.md](./ops/17_Staging_Environment_Configuration.md)、[ops/17_In_App_Notifications.md](./ops/17_In_App_Notifications.md)、[ops/18_Staging_Validation_Runbook.md](./ops/18_Staging_Validation_Runbook.md)、[plans/production-go-live-security-verification/README.md](./plans/production-go-live-security-verification/README.md) 与 [security/README.md](./security/README.md)。所有 P0 门禁和证据包通过前，禁止上线。
 
 ## 3.1 项目文档集中维护层
 

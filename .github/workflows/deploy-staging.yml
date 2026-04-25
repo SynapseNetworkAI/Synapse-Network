@@ -69,9 +69,26 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Validate staging Workload Identity configuration
+        shell: bash
+        env:
+          WIF_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          DEPLOY_SERVICE_ACCOUNT: ${{ secrets.GCP_DEPLOY_SERVICE_ACCOUNT }}
+        run: |
+          set -euo pipefail
+          missing=()
+          [[ -n "${WIF_PROVIDER}" ]] || missing+=("GCP_WORKLOAD_IDENTITY_PROVIDER")
+          [[ -n "${DEPLOY_SERVICE_ACCOUNT}" ]] || missing+=("GCP_DEPLOY_SERVICE_ACCOUNT")
+          if (( ${#missing[@]} > 0 )); then
+            printf 'Missing required GitHub Actions secret(s): %s\n' "${missing[*]}" >&2
+            printf 'Configure GCP Workload Identity Federation before dispatching staging deploy.\n' >&2
+            exit 2
+          fi
+
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v3
         with:
+          project_id: ${{ env.PROJECT_ID }}
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ secrets.GCP_DEPLOY_SERVICE_ACCOUNT }}
 
@@ -210,6 +227,26 @@ jobs:
             --wait
           echo "MIGRATION_RAN=true" >> "$GITHUB_ENV"
           echo "MIGRATION_STATUS=passed" >> "$GITHUB_ENV"
+
+      - name: Run Gateway-admin DB migration before Gateway-admin rollout
+        if: ${{ steps.scope.outputs.deploy == 'true' }}
+        run: |
+          gateway_admin_image="$(node -e "const d=require('./image-digests.json'); console.log(d['gateway-admin'] || '')")"
+          if [[ -z "${gateway_admin_image}" ]]; then
+            echo "Gateway-admin image not in deploy scope; skipping admin DB migration."
+            exit 0
+          fi
+          gcloud run jobs update synapse-staging-gateway-admin-db-migrate \
+            --project "${PROJECT_ID}" \
+            --region "${REGION}" \
+            --image "${gateway_admin_image}" \
+            --quiet
+          gcloud run jobs execute synapse-staging-gateway-admin-db-migrate \
+            --project "${PROJECT_ID}" \
+            --region "${REGION}" \
+            --wait
+          echo "ADMIN_MIGRATION_RAN=true" >> "$GITHUB_ENV"
+          echo "ADMIN_MIGRATION_STATUS=passed" >> "$GITHUB_ENV"
 
       - name: Deploy affected Cloud Run services
         if: ${{ steps.scope.outputs.deploy == 'true' }}

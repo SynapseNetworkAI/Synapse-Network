@@ -110,7 +110,7 @@ export default function ConsumerGuidePage() {
         ].join('\n')} />
         <StepTip accent={ACCENT}>
           {stepTips[0]}{" "}
-          <code className="text-[#c0c5cc] font-mono text-[12px]">await client.auth.connectWallet(signer)</code>{" "}
+          <code className="text-[#c0c5cc] font-mono text-[12px]">await SynapseAuth.fromWallet(wallet).getToken()</code>{" "}
         </StepTip>
       </StepItem>
 

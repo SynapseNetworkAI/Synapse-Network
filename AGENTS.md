@@ -31,6 +31,7 @@ Canonical workspace rules live in `docs/AGENTS.md`.
 
 - Codex uses this root `AGENTS.md` as the repository instruction entrypoint. Do not add or rely on a separate `CODEX.md`.
 - At the start of each repository session, read `llms.txt` first for the shortest machine-readable map, then read `docs/AGENTS.md` for canonical workspace rules.
+- For task-to-file routing, consult `docs/reference/Agent_Task_Map.md` or `docs/reference/Agent_Task_Map.json` before broad repository search.
 - Use `.github/instructions/README.md` as the routing manifest for task-specific instructions, then load only the relevant `.github/instructions/*.instructions.md` files for the current task.
 - For Python, FastAPI, or backend work, read `.github/instructions/python.instructions.md`.
 - For React, Next.js, `services/user-front`, or shared frontend work, read `.github/instructions/frontend.instructions.md`.
@@ -54,16 +55,17 @@ Canonical workspace rules live in `docs/AGENTS.md`.
 
 1. `docs/AGENTS.md`
 2. `llms.txt` for the shortest machine-readable repository map
-3. `docs/ARCHITECTURE.md` for cross-project system structure
-4. `docs/Design.md` for visual and interaction work
-5. `.github/instructions/python.instructions.md` for Python files
-6. `.github/instructions/frontend.instructions.md` for frontend files
-7. `.github/instructions/finance-backend.instructions.md` for money, settlement, idempotency, audit, and transaction-sensitive backend work
-8. `.github/instructions/finance-admin.instructions.md` for `services/gateway-admin` finance approval, withdraw-review, refund, and reconciliation control-plane work
-9. `.github/instructions/admin-console.instructions.md` for `services/admin-front` list, pagination, and control-plane UI work
-10. `.github/instructions/docs-sync.instructions.md` for behavior-changing work that must update docs, tests, and instructions together
-11. `.github/instructions/safety-guard.instructions.md` for production deployments, migrations, destructive DB ops, contract deploys, or any irreversible operation
-12. The target subproject's `AGENTS.md` for local commands and role boundaries
+3. `docs/reference/Agent_Task_Map.md` or `docs/reference/Agent_Task_Map.json` for task-to-file routing
+4. `docs/ARCHITECTURE.md` for cross-project system structure
+5. `docs/Design.md` for visual and interaction work
+6. `.github/instructions/python.instructions.md` for Python files
+7. `.github/instructions/frontend.instructions.md` for frontend files
+8. `.github/instructions/finance-backend.instructions.md` for money, settlement, idempotency, audit, and transaction-sensitive backend work
+9. `.github/instructions/finance-admin.instructions.md` for `services/gateway-admin` finance approval, withdraw-review, refund, and reconciliation control-plane work
+10. `.github/instructions/admin-console.instructions.md` for `services/admin-front` list, pagination, and control-plane UI work
+11. `.github/instructions/docs-sync.instructions.md` for behavior-changing work that must update docs, tests, and instructions together
+12. `.github/instructions/safety-guard.instructions.md` for production deployments, migrations, destructive DB ops, contract deploys, or any irreversible operation
+13. The target subproject's `AGENTS.md` for local commands and role boundaries
 
 ## Root-Level Expectations
 

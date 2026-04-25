@@ -25,7 +25,7 @@ export default function PythonSdkPage() {
           <span className="text-[10px] font-semibold tracking-[0.14em] text-[#4e535a] uppercase">
             {t("docsPage.sdkEyebrow")}
           </span>
-          <StatusBadge status="GA" />
+          <StatusBadge status="PREVIEW" />
         </div>
         <h1 className="x-page-title text-white">{t("docsPage.sdkPyTitle")}</h1>
         <p className="x-body-copy max-w-[640px]">{t("docsPage.sdkPyDescription")}</p>
@@ -52,7 +52,7 @@ pip install -e ".[dev]"`}
 
 auth = SynapseAuth.from_private_key(
     "0xYOUR_PRIVATE_KEY",
-    gateway_url="http://127.0.0.1:8000",
+    environment="staging",
 )
 
 token = auth.get_token()
@@ -93,7 +93,7 @@ issued = auth.issue_credential(
 
 client = SynapseClient(
     api_key=issued.token,
-    gateway_url="http://127.0.0.1:8000",
+    environment="staging",
 )
 
 services = client.discover(limit=20)
