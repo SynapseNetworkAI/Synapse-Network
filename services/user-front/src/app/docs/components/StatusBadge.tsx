@@ -11,6 +11,12 @@ export function StatusBadge({ status }: Readonly<{ status: string }>) {
         BETA
       </span>
     );
+  if (status === "PREVIEW")
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold tracking-widest uppercase border border-[#f7c86e]/25 bg-[#f7c86e]/10 text-[#f7c86e]">
+        PUBLIC PREVIEW
+      </span>
+    );
   return (
     <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold tracking-widest uppercase border border-white/10 bg-white/5 text-[#9a9fa6]">
       SOON
