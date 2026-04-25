@@ -205,7 +205,7 @@ docker_build_and_push() {
   fi
 
   if contains_service gateway-admin; then
-    docker build -t "${gateway_admin_image}" services/gateway-admin
+    docker build -f services/gateway-admin/Dockerfile -t "${gateway_admin_image}" .
     docker push "${gateway_admin_image}"
   fi
 
