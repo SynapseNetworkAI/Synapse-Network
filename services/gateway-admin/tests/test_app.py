@@ -25,7 +25,12 @@ from src.services.auth.service import AdminAuthService, AdminIdentity
 from src.services.dashboard.service import DashboardService
 from src.services.execution import ExecutionService
 from src.services.finance_admin import ProviderWithdrawReviewService
-from src.storage.analytics import InMemoryGatewayDashboardProjectionRepository, InMemoryProviderWithdrawReviewRepository, ProviderWithdrawReviewItem
+from src.storage.analytics import (
+    InMemoryGatewayDashboardProjectionRepository,
+    InMemoryProviderWithdrawReviewRepository,
+    PostgresProviderWithdrawReviewRepository,
+    ProviderWithdrawReviewItem,
+)
 from src.storage import InMemoryAdminStore
 
 PLACEHOLDER_PASSWORD = "phase1-" + "placeholder"
@@ -1280,6 +1285,54 @@ def test_withdraw_review_list_and_decision_supports_consumer_manual_withdrawal()
     assert audit.detail["withdrawalKind"] == "consumer_refund"
 
 
+def test_provider_withdraw_review_decision_rejects_bad_inputs() -> None:
+    csrf_headers = _login_as("finance-review@synapse.network")
+    repository = _test_provider_withdraw_review_repository()
+    non_pending_id = f"wd-reviewed-{uuid4().hex[:8]}"
+    if isinstance(repository, InMemoryProviderWithdrawReviewRepository):
+        repository._items.append(
+            ProviderWithdrawReviewItem(
+                withdrawal_id=non_pending_id,
+                withdrawal_kind="provider_withdrawal",
+                review_type="provider_withdraw_review",
+                owner_address="0x1111111111111111111111111111111111111111",
+                subject_address="0x1111111111111111111111111111111111111111",
+                amount_usdc=Decimal("64.00"),
+                status="APPROVED_AUTO",
+                request_id="already-reviewed-request",
+                tx_hash=None,
+                risk_level="yellow",
+                risk_reason_code="AUTO_SINGLE_LIMIT_EXCEEDED",
+                evidence_summary="Already reviewed fixture.",
+                message="Already reviewed.",
+                created_at="2026-03-20T09:30:00Z",
+                updated_at="2026-03-20T09:30:00Z",
+            )
+        )
+
+    invalid_decision = client.post(
+        "/api/admin/v1/withdrawal-reviews/wd-demo-review-001/decision",
+        headers={**csrf_headers, "X-Admin-OTP-Code": _otp_code_for("finance-review@synapse.network")},
+        json={"decision": "HOLD", "note": "unsupported"},
+    )
+    assert invalid_decision.status_code == 400
+
+    missing_item = client.post(
+        "/api/admin/v1/withdrawal-reviews/wd-does-not-exist/decision",
+        headers={**csrf_headers, "X-Admin-OTP-Code": _otp_code_for("finance-review@synapse.network")},
+        json={"decision": "APPROVE", "note": "missing"},
+    )
+    assert missing_item.status_code == 404
+
+    non_pending = client.post(
+        f"/api/admin/v1/withdrawal-reviews/{non_pending_id}/decision",
+        headers={**csrf_headers, "X-Admin-OTP-Code": _otp_code_for("finance-review@synapse.network")},
+        json={"decision": "REJECT", "note": "already handled"},
+    )
+    assert non_pending.status_code == 400
+    assert "not awaiting manual review" in non_pending.json()["error"]["message"]
+
+
 def test_http_withdraw_review_adapter_routes_consumer_review_to_refund_endpoint(monkeypatch) -> None:
     captured: dict[str, object] = {}
 
@@ -1476,6 +1529,62 @@ def test_provider_withdraw_review_history_supports_filters_and_pagination() -> N
     assert second_page["nextCursor"] is None
     assert second_page["totalCount"] == 2
     assert second_page["totalPages"] == 2
+
+
+def test_provider_withdraw_review_history_rejects_invalid_filters() -> None:
+    _login_as("finance-review@synapse.network")
+
+    bad_date = client.get("/api/admin/v1/withdrawal-reviews/history?reviewedFrom=2026-99-99")
+    assert bad_date.status_code == 400
+
+    bad_datetime = client.get("/api/admin/v1/withdrawal-reviews/history?reviewedTo=not-a-datetime")
+    assert bad_datetime.status_code == 400
+
+    bad_cursor = client.get("/api/admin/v1/withdrawal-reviews/history?cursor=abc")
+    assert bad_cursor.status_code == 400
+
+    negative_cursor = client.get("/api/admin/v1/withdrawal-reviews/history?cursor=-1")
+    assert negative_cursor.status_code == 400
+
+    reversed_range = client.get(
+        "/api/admin/v1/withdrawal-reviews/history?reviewedFrom=2026-03-22&reviewedTo=2026-03-21"
+    )
+    assert reversed_range.status_code == 400
+
+
+def test_postgres_withdraw_review_item_defaults_and_consumer_kind() -> None:
+    repository = PostgresProviderWithdrawReviewRepository("postgresql://example")
+    created_at = datetime(2026, 3, 20, 9, 30, tzinfo=timezone.utc)
+
+    default_item = repository._to_item(
+        {
+            "withdrawal_id": "wd-default-kind",
+            "owner_wallet": "0x1111111111111111111111111111111111111111",
+            "amount_usdc": Decimal("12.50"),
+            "status": "PENDING_MANUAL_REVIEW",
+            "payload": b'{"riskLevel":"yellow","message":"Manual review."}',
+            "created_at": created_at,
+            "updated_at": created_at,
+        }
+    )
+    assert default_item.withdrawal_kind == "provider_withdrawal"
+    assert default_item.review_type == "provider_withdraw_review"
+
+    consumer_item = repository._to_item(
+        {
+            "withdrawal_id": "wd-consumer-kind",
+            "withdrawal_kind": "consumer_refund",
+            "owner_wallet": "0x2222222222222222222222222222222222222222",
+            "amount_usdc": Decimal("600.00"),
+            "flow_status": "PENDING_MANUAL_REVIEW",
+            "payload": memoryview(b'{"riskReasonCode":"CONSUMER_WITHDRAW_MANUAL_REVIEW"}'),
+            "created_at": created_at,
+            "updated_at": created_at,
+        }
+    )
+    assert consumer_item.withdrawal_kind == "consumer_refund"
+    assert consumer_item.review_type == "consumer_withdraw_review"
+    assert consumer_item.risk_reason_code == "CONSUMER_WITHDRAW_MANUAL_REVIEW"
 
 
 def test_menu_config_snapshot_auto_adds_new_seed_menu_items() -> None:
