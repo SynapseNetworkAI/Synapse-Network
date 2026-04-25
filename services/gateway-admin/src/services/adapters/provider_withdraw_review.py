@@ -56,7 +56,9 @@ class InMemoryProviderWithdrawReviewAdapter:
         return {
             "status": status,
             "withdrawalId": item.withdrawal_id,
+            "withdrawalKind": item.withdrawal_kind,
             "ownerAddress": item.owner_address,
+            "subjectAddress": item.subject_address,
             "requestedBy": reviewer.admin_id,
             "message": message,
             "ticket": {"signature": "sig-demo-approved"} if decision == "APPROVE" else {},
@@ -97,7 +99,13 @@ class HttpProviderWithdrawReviewAdapter:
                 message="GATEWAY_INTERNAL_ADMIN_WALLET is required for provider withdrawal reviews.",
                 status_code=500,
             )
-        request_id = f"provider-withdraw-review:{item.withdrawal_id}:{decision.lower()}"
+        scope = "refund.review" if item.withdrawal_kind == "consumer_refund" else "provider_withdraw.review"
+        path = (
+            f"/api/v1/admin/refunds/{item.withdrawal_id}/review"
+            if item.withdrawal_kind == "consumer_refund"
+            else f"/api/v1/admin/providers/withdrawals/{item.withdrawal_id}/review"
+        )
+        request_id = f"{item.review_type}:{item.withdrawal_id}:{decision.lower()}"
         payload = {
             "ownerAddress": item.owner_address.lower(),
             "reviewDecision": decision,
@@ -105,12 +113,12 @@ class HttpProviderWithdrawReviewAdapter:
             "reviewerNote": note,
         }
         headers = {
-            "Authorization": f"Bearer {self._build_gateway_token(reviewer, payload, request_id)}",
+            "Authorization": f"Bearer {self._build_gateway_token(reviewer, payload, request_id, scope)}",
             "X-Request-Id": request_id,
         }
         try:
             response = httpx.post(
-                f"{self._base_url}/api/v1/admin/providers/withdrawals/{item.withdrawal_id}/review",
+                f"{self._base_url}{path}",
                 json=payload,
                 headers=headers,
                 timeout=self._timeout_sec,
@@ -142,6 +150,7 @@ class HttpProviderWithdrawReviewAdapter:
         reviewer: AdminIdentity,
         payload: dict[str, Any],
         request_id: str,
+        scope: str,
     ) -> str:
         return build_internal_service_token(
             jwt_secret=self._jwt_secret,
@@ -149,7 +158,7 @@ class HttpProviderWithdrawReviewAdapter:
             audience=self._token_audience,
             service_subject=self._service_subject,
             admin_wallet=self._admin_wallet,
-            scope="provider_withdraw.review",
+            scope=scope,
             request_id=request_id,
             body_sha256=payload_digest(payload),
             actor=reviewer,

@@ -16,12 +16,12 @@ from src.core.totp import generate_totp_code, generate_totp_secret
 from src.core.security import hash_password
 from src.domain import AdminMfaFactor, AdminUser
 from src.domain.enums import AdminUserStatus, MfaFactorStatus, MfaFactorType
-from src.services.adapters import InMemoryGatewayExecutionAdapter, InMemoryProviderWithdrawReviewAdapter
+from src.services.adapters import HttpProviderWithdrawReviewAdapter, InMemoryGatewayExecutionAdapter, InMemoryProviderWithdrawReviewAdapter
 from src.services.admin_config.service import AdminConfigService
 from src.services.admin_user.service import AdminUserService
 from src.services.approval.service import ApprovalService
 from src.services.audit.service import AuditService
-from src.services.auth.service import AdminAuthService
+from src.services.auth.service import AdminAuthService, AdminIdentity
 from src.services.dashboard.service import DashboardService
 from src.services.execution import ExecutionService
 from src.services.finance_admin import ProviderWithdrawReviewService
@@ -1229,6 +1229,124 @@ def test_provider_withdraw_review_list_and_decision() -> None:
     assert first_item["withdrawalId"] not in remaining_ids
 
 
+def test_withdraw_review_list_and_decision_supports_consumer_manual_withdrawal() -> None:
+    csrf_headers = _login_as("finance-review@synapse.network")
+    repository = _test_provider_withdraw_review_repository()
+    consumer_review_id = f"wd-consumer-review-{uuid4().hex[:8]}"
+    if isinstance(repository, InMemoryProviderWithdrawReviewRepository):
+        repository._items.append(
+            ProviderWithdrawReviewItem(
+                withdrawal_id=consumer_review_id,
+                withdrawal_kind="consumer_refund",
+                review_type="consumer_withdraw_review",
+                owner_address="0x2222222222222222222222222222222222222222",
+                subject_address="0x2222222222222222222222222222222222222222",
+                amount_usdc=Decimal("600.00"),
+                status="PENDING_MANUAL_REVIEW",
+                request_id="consumer-review-request",
+                tx_hash=None,
+                risk_level="yellow",
+                risk_reason_code="CONSUMER_WITHDRAW_MANUAL_REVIEW",
+                evidence_summary="Consumer withdrawal exceeded manual review threshold.",
+                message="Manual review required before releasing frozen consumer balance.",
+                created_at="2026-03-20T09:30:00Z",
+                updated_at="2026-03-20T09:30:00Z",
+            )
+        )
+
+    list_response = client.get("/api/admin/v1/withdrawal-reviews?limit=20")
+    assert list_response.status_code == 200
+    items = list_response.json()["data"]["items"]
+    consumer_item = next(item for item in items if item["withdrawalId"] == consumer_review_id)
+    assert consumer_item["withdrawalKind"] == "consumer_refund"
+    assert consumer_item["reviewType"] == "consumer_withdraw_review"
+
+    decision_response = client.post(
+        f"/api/admin/v1/withdrawal-reviews/{consumer_review_id}/decision",
+        headers={**csrf_headers, "X-Admin-OTP-Code": _otp_code_for("finance-review@synapse.network")},
+        json={
+            "decision": "REJECT",
+            "note": "Consumer withdrawal risk rejected; funds must return to available.",
+        },
+    )
+    assert decision_response.status_code == 200
+    result = decision_response.json()["data"]
+    assert result["withdrawalKind"] == "consumer_refund"
+    assert result["reviewDecision"] == "REJECT"
+    assert result["status"] == "REJECTED"
+
+    audit = TEST_STORE.audit.list_actions(action_type="withdrawal_review.decide", limit=1)[0]
+    assert audit.resource_type == "consumer_refund"
+    assert audit.detail["withdrawalKind"] == "consumer_refund"
+
+
+def test_http_withdraw_review_adapter_routes_consumer_review_to_refund_endpoint(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_post(url, *, json, headers, timeout):
+        captured["url"] = url
+        captured["json"] = json
+        captured["headers"] = headers
+        captured["timeout"] = timeout
+
+        class Response:
+            is_success = True
+            status_code = 200
+            text = ""
+
+            @staticmethod
+            def json():
+                return {"refundId": "wd-consumer-review-http", "status": "REJECTED"}
+
+        return Response()
+
+    monkeypatch.setattr("src.services.adapters.provider_withdraw_review.httpx.post", fake_post)
+    adapter = HttpProviderWithdrawReviewAdapter(
+        base_url="https://gateway.example",
+        admin_wallet="0x3333333333333333333333333333333333333333",
+        jwt_secret="test-secret",
+        token_issuer="gateway-admin-test",
+        token_audience="gateway-test",
+        service_subject="gateway-admin",
+        timeout_sec=3.0,
+    )
+    item = ProviderWithdrawReviewItem(
+        withdrawal_id="wd-consumer-review-http",
+        withdrawal_kind="consumer_refund",
+        review_type="consumer_withdraw_review",
+        owner_address="0x2222222222222222222222222222222222222222",
+        subject_address="0x2222222222222222222222222222222222222222",
+        amount_usdc=Decimal("600.00"),
+        status="PENDING_MANUAL_REVIEW",
+        request_id="consumer-review-request",
+        tx_hash=None,
+        risk_level="yellow",
+        risk_reason_code="CONSUMER_WITHDRAW_MANUAL_REVIEW",
+        evidence_summary="Consumer withdrawal exceeded manual review threshold.",
+        message="Manual review required before releasing frozen consumer balance.",
+        created_at="2026-03-20T09:30:00Z",
+        updated_at="2026-03-20T09:30:00Z",
+    )
+
+    result = adapter.review_withdrawal(
+        item,
+        decision="REJECT",
+        reviewer=AdminIdentity(
+            admin_id="admin-1",
+            email="finance-review@synapse.network",
+            display_name="Finance Review",
+            role="finance_reviewer",
+            permissions=("approval:decide",),
+        ),
+        note="Reject consumer manual withdrawal.",
+    )
+
+    assert result["status"] == "REJECTED"
+    assert captured["url"] == "https://gateway.example/api/v1/admin/refunds/wd-consumer-review-http/review"
+    assert captured["json"]["reviewDecision"] == "REJECT"
+    assert captured["headers"]["X-Request-Id"] == "consumer_withdraw_review:wd-consumer-review-http:reject"
+
+
 def test_provider_withdraw_review_history_returns_reviewed_items() -> None:
     csrf_headers = _login_as("finance-review@synapse.network")
     repository = _test_provider_withdraw_review_repository()
@@ -1237,7 +1355,10 @@ def test_provider_withdraw_review_history_returns_reviewed_items() -> None:
         repository._items.append(
             ProviderWithdrawReviewItem(
                 withdrawal_id=review_item_id,
+                withdrawal_kind="provider_withdrawal",
+                review_type="provider_withdraw_review",
                 owner_address="0x1111111111111111111111111111111111111111",
+                subject_address="0x1111111111111111111111111111111111111111",
                 amount_usdc=Decimal("64.00"),
                 status="PENDING_MANUAL_REVIEW",
                 request_id="history-review-request",
@@ -1288,7 +1409,10 @@ def test_provider_withdraw_review_history_supports_filters_and_pagination() -> N
             [
                 ProviderWithdrawReviewItem(
                     withdrawal_id=review_ids[0],
+                    withdrawal_kind="provider_withdrawal",
+                    review_type="provider_withdraw_review",
                     owner_address="0x9999999999999999999999999999999999999991",
+                    subject_address="0x9999999999999999999999999999999999999991",
                     amount_usdc=Decimal("51.00"),
                     status="PENDING_MANUAL_REVIEW",
                     request_id="history-page-1",
@@ -1302,7 +1426,10 @@ def test_provider_withdraw_review_history_supports_filters_and_pagination() -> N
                 ),
                 ProviderWithdrawReviewItem(
                     withdrawal_id=review_ids[1],
+                    withdrawal_kind="provider_withdrawal",
+                    review_type="provider_withdraw_review",
                     owner_address="0x9999999999999999999999999999999999999992",
+                    subject_address="0x9999999999999999999999999999999999999992",
                     amount_usdc=Decimal("52.00"),
                     status="PENDING_MANUAL_REVIEW",
                     request_id="history-page-2",

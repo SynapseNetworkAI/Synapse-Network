@@ -405,7 +405,25 @@ ADMIN_DATABASE_MIGRATION_DSN='postgresql://<schema-owner>@<host>:5432/synapse_ga
 bash scripts/ops/restart.sh local
 ```
 
-### 8.2 日常重启
+### 8.2 Staging / Prod 发布顺序
+
+共享环境不能让 `gateway-admin` 在启动时偷偷建表。发布
+`synapse-staging-gateway-admin` 或 `synapse-prod-gateway-admin` 前，必须先
+运行对应的 admin DB migration job：
+
+```bash
+gcloud run jobs execute synapse-staging-gateway-admin-db-migrate \
+  --project <project-id> \
+  --region us-central1 \
+  --wait
+```
+
+生产使用 `synapse-prod-gateway-admin-db-migrate`，并且必须先通过 staging
+同版本 evidence。Migration 失败时发布立即中止，不允许继续部署
+Gateway-admin revision。这个顺序保护登录、MFA、审计、提现审核队列和
+consumer manual withdrawal reject audit 不出现缺表 500。
+
+### 8.3 日常重启
 
 ```bash
 cd /Users/cliff/workspace/agent/Synapse-Network/services/gateway-admin
@@ -413,7 +431,7 @@ bash scripts/ops/restart.sh local
 tail -n 50 logs/gateway-admin.log
 ```
 
-### 8.3 停服维护
+### 8.4 停服维护
 
 ```bash
 cd /Users/cliff/workspace/agent/Synapse-Network/services/gateway-admin

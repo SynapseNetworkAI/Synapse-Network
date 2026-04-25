@@ -29,6 +29,13 @@ Withdrawal buckets must move only through approved atomic operations:
 4. `frozen -> available` when review rejects or expires safely.
 
 Routers, projections, UI presenters, and ad hoc scripts must not directly mutate `available_balance`, `pending_balance`, or `frozen_balance`.
+Consumer manual withdrawal reject is release-blocking here: rejecting a
+`consumer_refund` review must atomically set the withdrawal status to
+`REJECTED`, move the exact amount from `consumer_frozen_balance` back to
+`consumer_available_balance`, leave `pending_balance` unchanged, and write both
+admin and financial audit evidence. If the frozen bucket is insufficient, the
+review request must fail closed and the status must remain
+`PENDING_MANUAL_REVIEW`.
 
 Why: direct writes caused a real `WITHDRAWAL_LOCK_INCONSISTENT` defect where the provider claimed on-chain funds but Gateway could not reconcile the pending bucket.
 

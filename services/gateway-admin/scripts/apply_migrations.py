@@ -18,8 +18,16 @@ from src.core.db_migrations import apply_sql_file, grant_admin_schema_access
 
 
 def _default_sql_files() -> list[Path]:
-    init_dir = Path(__file__).resolve().parents[3] / "docker-compose" / "postgres" / "init"
-    return sorted(init_dir.glob("[0-9][0-9][0-9]_*.sql"))
+    candidates = [
+        PROJECT_ROOT / "migrations",
+        Path(__file__).resolve().parents[3] / "infra" / "postgres" / "init" / "gateway-admin",
+        Path(__file__).resolve().parents[3] / "docker-compose" / "postgres" / "init",
+    ]
+    for init_dir in candidates:
+        sql_files = sorted(init_dir.glob("[0-9][0-9][0-9]_*.sql"))
+        if sql_files:
+            return sql_files
+    return []
 
 
 def _env_or_dsn_user(env_key: str, dsn: str) -> str:

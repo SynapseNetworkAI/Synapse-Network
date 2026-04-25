@@ -303,7 +303,10 @@ class DashboardService:
     def _serialize_withdraw_review_summary(review: ProviderWithdrawReviewItem) -> dict:
         return {
             "withdrawalId": review.withdrawal_id,
+            "withdrawalKind": review.withdrawal_kind,
+            "reviewType": review.review_type,
             "ownerAddress": review.owner_address,
+            "subjectAddress": review.subject_address,
             "amountUsdc": DashboardService._format_decimal(review.amount_usdc),
             "status": review.status,
             "requestId": review.request_id,

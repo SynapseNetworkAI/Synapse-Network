@@ -515,6 +515,9 @@ describe("status normalization adapters", () => {
     expect(approvals.items[0]?.status).toBe("SUBMITTED");
     expect(reviews.items[0]?.status).toBe("PENDING_MANUAL_REVIEW");
     expect(reviews.items[0]?.riskLevel).toBe("yellow");
+    expect(reviews.items[0]?.withdrawalKind).toBe("provider_withdrawal");
+    expect(reviews.items[0]?.reviewType).toBe("provider_withdraw_review");
+    expect(reviews.items[0]?.subjectAddress).toBe("0xabc");
     expect(jobs.items[0]?.status).toBe("RUNNING");
     expect(jobs.items[0]?.attempts[0]?.status).toBe("PENDING");
   });
