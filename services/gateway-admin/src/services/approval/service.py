@@ -13,6 +13,7 @@ from src.storage.base import AdminStore
 PROVIDER_WITHDRAW_REVIEW_PREFIX = "PWR-"
 PROVIDER_WITHDRAW_REVIEW_TYPE = "provider_withdraw_review"
 PROVIDER_WITHDRAW_REVIEW_REQUESTER = "gateway_risk_engine"
+ERR_APPROVAL_NOT_FOUND = "approval not found"
 
 class ApprovalService:
     def __init__(
@@ -120,7 +121,7 @@ class ApprovalService:
 
         approval = self._store.approval.get_approval(approval_id)
         if approval is None:
-            raise ValueError(f"Approval {approval_id} not found")
+            raise ValueError(ERR_APPROVAL_NOT_FOUND)
         normalized = ApprovalDecision(decision.strip().upper())
         now = datetime.now(timezone.utc)
         steps = self._store.approval.list_approval_steps(approval_id)

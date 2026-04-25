@@ -4,11 +4,11 @@ from decimal import Decimal
 import json
 from typing import Any, Protocol
 
+import psycopg
+from psycopg.rows import dict_row
+
 
 def _connect(dsn: str):
-    import psycopg
-    from psycopg.rows import dict_row
-
     return psycopg.connect(dsn, row_factory=dict_row)
 
 
