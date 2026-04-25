@@ -232,7 +232,7 @@ jobs:
       - name: Smoke affected services
         if: ${{ steps.scope.outputs.deploy == 'true' }}
         run: |
-          TOKEN="$(gcloud auth print-identity-token)"
+          TOKEN="$(gcloud auth print-identity-token 2>/dev/null || true)"
           node - <<'NODE' > smoke-services.sh
           const fs = require('fs')
           const images = JSON.parse(fs.readFileSync('image-digests.json', 'utf8'))
@@ -245,10 +245,10 @@ jobs:
           for (const service of Object.keys(images)) {
             console.log(`url=$(gcloud run services describe ${names[service]} --project "$PROJECT_ID" --region "$REGION" --format='value(status.url)')`)
             if (service === 'gateway' || service === 'gateway-admin') {
-              console.log(`curl -fsS -H "Authorization: Bearer $TOKEN" "$url/health" >/dev/null`)
-              if (service === 'gateway') console.log(`curl -fsS -H "Authorization: Bearer $TOKEN" "$url/readiness" >/dev/null`)
+              console.log(`curl -fsS "$url/health" >/dev/null || { test -n "$TOKEN" && curl -fsS -H "Authorization: Bearer $TOKEN" "$url/health" >/dev/null; }`)
+              if (service === 'gateway') console.log(`curl -fsS "$url/readiness" >/dev/null || { test -n "$TOKEN" && curl -fsS -H "Authorization: Bearer $TOKEN" "$url/readiness" >/dev/null; }`)
             } else {
-              console.log(`curl -fsS "$url/" >/dev/null || curl -fsS -H "Authorization: Bearer $TOKEN" "$url/" >/dev/null`)
+              console.log(`curl -fsS "$url/" >/dev/null || { test -n "$TOKEN" && curl -fsS -H "Authorization: Bearer $TOKEN" "$url/" >/dev/null; }`)
             }
             console.log(`echo '${service}=passed' >> smoke-status.txt`)
           }
