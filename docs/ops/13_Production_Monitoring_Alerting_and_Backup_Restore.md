@@ -1,8 +1,8 @@
 # Production Monitoring, Alerting, and Backup Restore
 
 - Status: canonical
-- Code paths: `services/gateway/src/core/metrics.py`, `services/gateway-admin/src/core/metrics.py`, `infra/monitoring/`, `infra/docker/restore/`, `scripts/ops/lark_alert_relay.mjs`, `scripts/e2e/lark_alert_e2e.mjs`, `scripts/ci/lark_alert_e2e_evidence_check.mjs`, `scripts/drills/`, `scripts/ci/backup_restore_evidence_check.mjs`
-- Verified with: `npm run ci:monitoring-alert-rules`, `npm run ci:lark-alert-e2e-evidence`, `npm run ci:backup-restore-evidence`, `npm run ci:docs`
+- Code paths: `services/gateway/src/core/metrics.py`, `services/gateway-admin/src/core/metrics.py`, `services/gateway-admin/src/api/routers/ops_webhooks.py`, `infra/monitoring/`, `infra/docker/restore/`, `scripts/deploy/gcp_configure_staging_alerts.sh`, `scripts/e2e/lark_alert_e2e.mjs`, `scripts/e2e/gcp_alerts_local_e2e.mjs`, `scripts/e2e/gcp_alerts_staging_e2e.mjs`, `scripts/ci/lark_alert_e2e_evidence_check.mjs`, `scripts/ci/gcp_alerts_local_evidence_check.mjs`, `scripts/ci/gcp_alerts_staging_evidence_check.mjs`, `scripts/drills/`, `scripts/ci/backup_restore_evidence_check.mjs`
+- Verified with: `npm run ci:monitoring-alert-rules`, `npm run e2e:gcp-alerts:local`, `npm run ci:gcp-alerts-local-evidence`, `npm run ci:lark-alert-e2e-evidence`, `npm run ci:gcp-alerts-staging-evidence`, `npm run ci:backup-restore-evidence`, `npm run ci:docs`
 - Last verified against code: 2026-04-21
 
 ## 1. Goal
@@ -90,9 +90,28 @@ P2 alerts protect operations and UX:
 
 ## 4. Lark Alert Routing
 
-Lark v1 is webhook-only. Do not use Lark OpenAPI, message update APIs, thread APIs, or an ACK database for MVP production.
+Lark v1 is webhook-only. Do not use Lark OpenAPI, message update APIs,
+thread APIs, or an ACK database for MVP production.
 
-Alertmanager is the only routing and fanout source of truth. The Lark Relay is a translator only:
+For the low-cost GCP MVP path, do **not** deploy a standalone Relay service.
+GCP Monitoring sends webhook notifications to gateway-admin:
+
+```text
+Cloud Run / Gateway logs / Gateway-admin logs
+-> GCP Monitoring Alert Policy
+-> Webhook Channel
+-> gateway-admin /api/v1/ops/webhooks/gcp-alert-receiver
+-> Lark webhook from Secret Manager
+```
+
+The receiver is intentionally part of gateway-admin so the system avoids one
+more service, domain, CI/CD pipeline, and failure mode. It does not use admin
+session auth, but it must require a receiver token through
+`X-Synapse-Gcp-Alert-Token` or HTTP Basic auth.
+
+For the older self-hosted Prometheus/Alertmanager path, Alertmanager remains
+the routing and fanout source of truth. The standalone Lark Relay is a
+translator only:
 
 1. `POST /lark/p0-war-room` sends to `Synapse-P0-资金战情室`.
 2. `POST /lark/prod-alerts` sends to `Synapse-Prod-告警大厅`.
@@ -100,7 +119,10 @@ Alertmanager is the only routing and fanout source of truth. The Lark Relay is a
 
 The Relay must not inspect `severity` or `system` to choose a destination. If routing changes are needed, change `infra/monitoring/alertmanager/alertmanager.yml`, not Relay code.
 
-Prometheus must provide an `env` label through external labels, for example `env=prod` or `env=staging`. Production P0 alerts route to the P0 room. Production P1/P2 alerts route to the production alert hall. Staging and drill alerts route to the staging drill group only.
+Prometheus or GCP Monitoring policies must provide an `env` label, for example
+`env=prod` or `env=staging`. Production P0 alerts route to the P0 room.
+Production P1/P2 alerts route to the production alert hall. Staging and drill
+alerts route to the staging drill group only.
 
 Lark Relay runtime configuration is loaded from environment variables. Webhook URLs and robot signing secrets must come from the deployment secret store, not git-tracked files:
 
@@ -115,6 +137,10 @@ Lark Relay runtime configuration is loaded from environment variables. Webhook U
 | `LARK_SECRET_PROD_ALERTS` | Lark robot signing secret for the production alert hall webhook, if signature verification is enabled. |
 | `LARK_WEBHOOK_STAGING_DRILL` | Lark group robot webhook URL for `Synapse-Staging-Drill-演练`. |
 | `LARK_SECRET_STAGING_DRILL` | Lark robot signing secret for the staging drill webhook, if signature verification is enabled. |
+| `GCP_ALERT_RECEIVER_ENABLED` | Enables the gateway-admin GCP Monitoring webhook receiver. |
+| `GCP_ALERT_RECEIVER_TOKEN` | Shared receiver token stored in Secret Manager; never place the Lark webhook URL in the GCP channel. |
+| `GCP_ALERT_RECEIVER_USERNAME` | HTTP Basic username for GCP webhook channels, default `synapse-gcp-alert`. |
+| `GCP_ALERT_DEFAULT_ROUTE` | Default Lark route when the alert payload lacks route labels; staging uses `staging-drill`. |
 
 If a Lark robot uses keyword-only verification, the keyword belongs in the rendered alert title or summary. Do not store a keyword in `LARK_SECRET_*` unless Lark explicitly provides it as a signing secret.
 
@@ -139,6 +165,37 @@ docs/evidence/alerts/lark/<timestamp>-lark-e2e/
 `npm run e2e:lark-alerts` sends real webhook probes to all three configured Lark groups. Every probe must include `[LARK_E2E_TEST][NO_ACTION_REQUIRED]` and `runId`, and must generate `report.json`, `report.md`, `environment-manifest.json`, and `sent-messages.json`. This E2E verifies webhook reachability, signing, firing/recovery cards, batch folding, truncation, and redaction. It must never write raw webhook URLs, signing secrets, request signatures, or authorization tokens to evidence.
 
 The Lark E2E probes must also be business-readable. A successful probe card must make it clear whether the example is a Gateway invoke core-path failure, finance reconciliation anomaly, staging drill, or batch-folding test, and must include impact and recommended action text. A generic "delivery probe" without business context is not valid release evidence.
+
+GCP Monitoring staging evidence lives under:
+
+```bash
+docs/evidence/staging/gcp-alerts/<timestamp>-gcp-alerts-staging/
+```
+
+`npm run e2e:gcp-alerts:staging` posts a synthetic GCP Monitoring payload to
+the gateway-admin receiver and can optionally call the Gateway 500 drill
+endpoint. Every card must include `NO_ACTION_REQUIRED` and must not leak the
+receiver token, Lark webhook, JWT, private key, or raw signature.
+
+Before staging, the local alert E2E must pass:
+
+```bash
+npm run e2e:gcp-alerts:local
+npm run ci:gcp-alerts-local-evidence
+```
+
+Local evidence lives under:
+
+```bash
+output/dogfood/gcp-alerts/<timestamp>-local-gcp-alerts/
+```
+
+The local gate uses a fake Lark HTTP sink and FastAPI in-process clients. It
+does not call GCP and does not send real Lark messages. It verifies receiver
+auth, Basic/header token handling, redaction, Lark failure returning `502`,
+and the Gateway controlled 500 drill behavior. Both local and staging evidence
+must include `report.json`, `report.md`, `trace.jsonl`, and `bugfix-log.md`.
+The bugfix log must say `No open bugs.` for the evidence checker to pass.
 
 ## 5. Drill Isolation
 
@@ -225,6 +282,60 @@ Validate static monitoring assets:
 ```bash
 npm run ci:monitoring-alert-rules
 ```
+
+Run the local receiver/drill closure before touching staging:
+
+```bash
+npm run e2e:gcp-alerts:local
+npm run ci:gcp-alerts-local-evidence
+```
+
+Configure GCP Monitoring staging alert policies:
+
+```bash
+export PROJECT_ID=fabled-archive-494108-k5
+export GCP_ALERT_RECEIVER_URL=https://admin-api-staging.synapse-network.ai/api/v1/ops/webhooks/gcp-alert-receiver
+export GCP_ALERT_RECEIVER_TOKEN="$(gcloud secrets versions access latest \
+  --secret=synapse-staging-gcp-alert-receiver-token \
+  --project="$PROJECT_ID")"
+
+bash scripts/deploy/gcp_configure_staging_alerts.sh \
+  "$PROJECT_ID" \
+  "$GCP_ALERT_RECEIVER_URL"
+```
+
+Validate the gateway-admin receiver and optional Gateway 500 drill:
+
+```bash
+export GCP_ALERTS_STAGING_E2E_CONFIRM=I_UNDERSTAND_THIS_SENDS_STAGING_ALERTS
+export GCP_ALERT_RECEIVER_URL=https://admin-api-staging.synapse-network.ai/api/v1/ops/webhooks/gcp-alert-receiver
+export GCP_ALERT_RECEIVER_TOKEN="$(gcloud secrets versions access latest \
+  --secret=synapse-staging-gcp-alert-receiver-token \
+  --project="$PROJECT_ID")"
+export GATEWAY_STAGING_URL=https://api-staging.synapse-network.ai
+export STAGING_ALERT_DRILL_TOKEN="$(gcloud secrets versions access latest \
+  --secret=synapse-staging-alert-drill-token \
+  --project="$PROJECT_ID")"
+
+npm run e2e:gcp-alerts:staging
+npm run ci:gcp-alerts-staging-evidence
+```
+
+For the full GCP policy callback proof, enable the asynchronous wait. This can
+take 3-10 minutes because Cloud Monitoring evaluates and delivers alerts out of
+band:
+
+```bash
+export GCP_ALERTS_REQUIRE_MONITORING_DELIVERY=true
+export GCP_ALERTS_MONITORING_WAIT_SECONDS=600
+
+npm run e2e:gcp-alerts:staging
+npm run ci:gcp-alerts-staging-evidence
+```
+
+The full proof additionally requires the gateway-admin logs to contain
+`alert_trigger=GCP_ALERT_RECEIVED` for
+`SynapseStagingGateway5xxRateHigh`.
 
 Run the local Lark Relay:
 
