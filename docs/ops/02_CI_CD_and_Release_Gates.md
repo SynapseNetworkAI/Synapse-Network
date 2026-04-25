@@ -80,8 +80,9 @@ PR 阻断流水线至少要检查：
 1. `SYNAPSE_CI_SCOPE=auto` 是默认模式，先由 `scripts/ci/resolve_pr_ci_scope.mjs` 根据 `origin/main...HEAD` 的 changed files 解析需要执行的门禁。
 2. docs-only 只运行 baseline：runtime preflight、local runtime guard、migration seed guard、secret scan、docs、release Go/No-Go。
 3. 单项目变更只运行对应项目门禁，例如 `services/user-front/**` 运行 frontend gate，`services/gateway/**` 运行 gateway、finance/security 和增量覆盖率相关 gate。
-4. `.github/workflows/**`、`scripts/ci/**`、`scripts/deploy/**`、root `package.json`、root lockfile、`AGENTS.md`、未知路径或 merge-base 解析失败时，必须 fail closed 回退 full CI。
-5. `SYNAPSE_CI_SCOPE=full bash scripts/ci/pr_checks.sh` 保持完整门禁，用于主干、手动复核、nightly/full CI 和任何需要最高信心的发布前检查。
+4. `.github/workflows/**`、`scripts/ci/**`、`scripts/deploy/**`、root lockfile、root dependency 变更、核心 guardrail script 变更、`AGENTS.md`、未知路径或 merge-base 解析失败时，必须 fail closed 回退 full CI。
+5. root `package.json` 的普通 script-only 变更不再一律 full；普通 evidence/E2E wrapper 会按脚本名映射到窄门禁，例如 GCP/Lark alert wrapper 映射到 monitoring gate，合约 wrapper 映射到 contracts gate。
+6. `SYNAPSE_CI_SCOPE=full bash scripts/ci/pr_checks.sh` 保持完整门禁，用于主干、手动复核、nightly/full CI 和任何需要最高信心的发布前检查。
 
 GitHub PR CI 仍然保留单个 required check：`pr-checks`。动态 scope 只发生在这个 job 内部，避免多 job conditional required checks 造成 skipped 状态无法合并的分支保护问题。
 

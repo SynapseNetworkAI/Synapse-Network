@@ -34,6 +34,7 @@ for (const reason of scope.reasons || []) {
 NODE
 
 COMMANDS_FILE="$(mktemp "${TMPDIR:-/tmp}/synapse-pr-ci-commands.XXXXXX")"
+TIMINGS_FILE="$(mktemp "${TMPDIR:-/tmp}/synapse-pr-ci-timings.XXXXXX")"
 node - "$SCOPE_FILE" > "$COMMANDS_FILE" <<'NODE'
 const fs = require("fs");
 const scope = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
@@ -42,9 +43,8 @@ for (const command of scope.commands || []) {
 }
 NODE
 
-run_gate() {
+run_gate_command() {
   local gate="$1"
-  echo "[ci:pr] RUN ${gate}"
   case "$gate" in
     runtime_preflight)
       bash "$ROOT_DIR/scripts/ci/runtime_preflight.sh"
@@ -127,6 +127,25 @@ run_gate() {
   esac
 }
 
+run_gate() {
+  local gate="$1"
+  local started_at ended_at duration status
+  started_at="$(date +%s)"
+  echo "[ci:pr] RUN ${gate}"
+  if run_gate_command "$gate"; then
+    status="passed"
+  else
+    status="failed"
+  fi
+  ended_at="$(date +%s)"
+  duration="$((ended_at - started_at))"
+  printf '%s\t%s\t%s\n' "$gate" "$duration" "$status" >> "$TIMINGS_FILE"
+  echo "[ci:pr] DONE ${gate} status=${status} duration=${duration}s"
+  if [[ "$status" != "passed" ]]; then
+    return 1
+  fi
+}
+
 if [[ ! -s "$COMMANDS_FILE" ]]; then
   echo "FATAL CI-SCOPE-003: resolver returned no commands" >&2
   exit 2
@@ -136,5 +155,11 @@ while IFS= read -r gate; do
   [[ -n "$gate" ]] || continue
   run_gate "$gate"
 done < "$COMMANDS_FILE"
+
+echo "[ci:pr] gate duration summary"
+while IFS=$'\t' read -r gate duration status; do
+  [[ -n "$gate" ]] || continue
+  printf '[ci:pr] summary gate=%s status=%s duration=%ss\n' "$gate" "$status" "$duration"
+done < "$TIMINGS_FILE"
 
 echo "[ci:pr] completed selected quality gates"
