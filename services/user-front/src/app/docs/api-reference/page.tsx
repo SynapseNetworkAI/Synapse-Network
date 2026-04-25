@@ -268,7 +268,7 @@ export default function ApiReferencePage() {
             /api
           </code>{" "}
           <code className="text-[#c0c5cc] font-mono text-[13px] ml-1">
-            https://gateway.synapse.network
+            https://api-staging.synapse-network.ai
           </code>
         </p>
         {/* Method legend */}

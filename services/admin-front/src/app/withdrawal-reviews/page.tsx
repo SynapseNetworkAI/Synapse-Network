@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AdminShell } from "@/components/admin-shell";
 import { ControlPlaneLoadingScreen } from "@/components/control-plane-loading-screen";
 import { DataTable, EmptyBlock, ListFilterFieldPresets, ListFilterFields, ListFilterForm, ListPaginationBar, ListTableSurface, MessageBanner, MetricCard, OverlayPanel, SentinelStatusChip, SurfaceCard, TableBody, TableHeaderRow, Td, Th, nativeTextAreaStyle } from "@/components/console-ui";
-import { buildWithdrawReasonClusters, buildWithdrawReviewMetrics, filterWithdrawReviews, getWithdrawalStatusLabel, getWithdrawalStatusTone, getWithdrawRiskLabel, getWithdrawRiskTone, listWithdrawRiskLevels, paginateWithdrawReviews, sortWithdrawReviewsByPriority } from "@/features/withdrawal-reviews/review-presenters";
+import { buildWithdrawReasonClusters, buildWithdrawReviewMetrics, filterWithdrawReviews, getWithdrawalStatusLabel, getWithdrawalStatusTone, getWithdrawReviewKindLabel, getWithdrawReviewKindTone, getWithdrawRiskLabel, getWithdrawRiskTone, listWithdrawRiskLevels, paginateWithdrawReviews, sortWithdrawReviewsByPriority } from "@/features/withdrawal-reviews/review-presenters";
 import { formatDateTime, formatUsdc, inputText } from "@/lib/admin-console";
 import { useProviderWithdrawReviews } from "@/features/withdrawal-reviews/use-provider-withdraw-reviews";
 import { useAdminStepUp } from "@/lib/use-admin-step-up";
@@ -200,7 +200,10 @@ export default function WithdrawalReviewsPage() {
               {visibleItems.map((item) => (
                 <Box as="tr" key={item.withdrawalId}>
                   <Td>
-                    <Text fontWeight="700">{item.withdrawalId}</Text>
+                    <Stack direction="row" align="center" gap="8px" flexWrap="wrap">
+                      <Text fontWeight="700">{item.withdrawalId}</Text>
+                      <SentinelStatusChip label={getWithdrawReviewKindLabel(item)} tone={getWithdrawReviewKindTone(item)} />
+                    </Stack>
                     <Text color="ink.500">{formatDateTime(item.createdAt)}</Text>
                   </Td>
                   <Td>
@@ -272,7 +275,10 @@ export default function WithdrawalReviewsPage() {
             <Box borderRadius="20px" p="16px" bg="rgba(255,255,255,0.74)" border="1px solid rgba(99,92,82,0.10)">
               <Stack direction="row" justify="space-between" align="center">
                 <Text fontSize="11px" letterSpacing="0.16em" textTransform="uppercase" color="ink.500">处理摘要</Text>
-                <SentinelStatusChip label={getWithdrawRiskLabel(activeReview.riskLevel)} tone={getWithdrawRiskTone(activeReview.riskLevel)} />
+                <Stack direction="row" gap="8px">
+                  <SentinelStatusChip label={getWithdrawReviewKindLabel(activeReview)} tone={getWithdrawReviewKindTone(activeReview)} />
+                  <SentinelStatusChip label={getWithdrawRiskLabel(activeReview.riskLevel)} tone={getWithdrawRiskTone(activeReview.riskLevel)} />
+                </Stack>
               </Stack>
               <Heading mt="10px" size="sm">{inputText(activeReview.evidenceSummary ?? activeReview.message)}</Heading>
               <Text mt="8px" color="ink.500">原因标签 {inputText(activeReview.riskReasonCode)} · 流水号 {inputText(activeReview.txHash)}</Text>

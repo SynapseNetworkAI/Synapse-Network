@@ -100,7 +100,26 @@ Recommended flow:
    from stdin.
 4. Grant the Cloud Run runtime service account
    `roles/secretmanager.secretAccessor` on the required secrets.
-5. Inject secrets into Cloud Run with `--set-secrets`.
+5. Inject secrets into Cloud Run with Terraform `secret_env` or, for an
+   emergency manual repair, `gcloud run ... --update-secrets`.
+
+Gateway-backed services and jobs inject Gmail SMTP credentials from
+`synapse-staging-gmail-username` and `synapse-staging-gmail-app-password`.
+Secret Manager having a value is not enough: the Cloud Run service/job must also
+list `GMAIL_SMTP_USERNAME` and `GMAIL_SMTP_APP_PASSWORD` in its environment.
+Use `docs/ops/17_Staging_Environment_Configuration.md` for the full write,
+runtime-injection, and verification commands.
+
+Terraform also creates E2E-only Secret Manager placeholders:
+
+- `synapse-staging-e2e-consumer-private-key`
+- `synapse-staging-e2e-provider-private-key`
+- `synapse-staging-admin-e2e-password`
+- `synapse-staging-admin-e2e-otp-secret`
+
+These values are consumed only by explicit staging dogfood/full-chain E2E
+runners. They must not be injected into Gateway, Gateway-admin, frontend, or
+background Cloud Run runtime services.
 
 The application should not receive KMS IAM roles. Cloud Run reads Secret Manager
 values directly; Secret Manager handles encryption at rest.

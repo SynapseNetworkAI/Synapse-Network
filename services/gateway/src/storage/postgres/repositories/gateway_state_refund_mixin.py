@@ -1,7 +1,9 @@
 """Gateway state repository — refund row mixin."""
 from __future__ import annotations
 
+import json
 from typing import List
+from uuid import uuid4
 
 from src.domain.finance import (
     RefundIntentRow,
@@ -16,6 +18,207 @@ from src.utils.datetime_utils import now_dt_str, to_dt_str
 
 class GatewayStateRefundMixin:
     """Consumer refund row read/write operations."""
+
+    def _upsert_consumer_refund_metadata(
+        self,
+        cur,
+        row: RefundIntentRow,
+        *,
+        consumer_wallet: str,
+        updated_at: str,
+    ) -> None:
+        self._upsert_runtime_state(
+            cur,
+            self._vault_withdrawal_state_key(row.id),
+            VaultWithdrawalMetadataState(
+                consumerAddress=consumer_wallet,
+                requestId=row.request_id,
+                idempotencyKey=row.idempotency_key,
+                flowStatus=row.status,
+                reason=row.reason,
+                gasPayer=row.gas_payer,
+                gasModel=row.gas_model,
+                originRequestId=row.origin_request_id,
+                originTxHash=row.origin_tx_hash,
+                refundType=row.refund_type,
+                destinationAddress=row.destination_address,
+                evidenceSummary=row.evidence_summary,
+                riskLevel=row.risk_level,
+                riskReasonCode=row.risk_reason_code,
+                message=row.message,
+                requestMeta=row.request_meta,
+                reviewDecision=row.review_decision,
+                reviewerAddress=row.reviewer_address,
+                reviewerNote=row.reviewer_note,
+                reviewedAt=row.reviewed_at,
+                completedAt=row.completed_at,
+                completeMeta=row.complete_meta,
+                ticket=row.ticket,
+            ).model_dump(by_alias=True, mode="json"),
+            updated_at,
+        )
+
+    def _append_consumer_review_audit(
+        self,
+        cur,
+        *,
+        action: str,
+        owner: str,
+        amount_usdc,
+        detail: dict,
+    ) -> None:
+        cur.execute(
+            """
+            INSERT INTO synapse_audit_events (
+                event_id, event_type, business_type, owner_id,
+                amount_delta, result_status, detail_json
+            ) VALUES (%s, %s, 'refund', %s, %s, 'SUCCESS', %s::jsonb)
+            """,
+            (
+                str(uuid4()),
+                action,
+                self._owner_id(owner),
+                str(self._q6(amount_usdc)),
+                json.dumps(detail, default=str),
+            ),
+        )
+
+    def reject_consumer_withdrawal_review_atomic(
+        self,
+        *,
+        owner: str,
+        row: RefundIntentRow,
+        amount_usdc,
+        detail: dict,
+        updated_at: str,
+    ) -> None:
+        consumer_wallet = str(owner or "").lower()
+        amount = self._q6(amount_usdc)
+        with self._db.tx_cursor() as cur:
+            source_account_id = self._ensure_ledger_account(
+                cur,
+                consumer_wallet,
+                "consumer_wallet",
+                updated_at,
+            )
+            cur.execute(
+                """
+                UPDATE synapse_account_balances
+                SET frozen_balance = frozen_balance - %s,
+                    available_balance = available_balance + %s,
+                    updated_at = %s
+                WHERE account_id = %s
+                  AND frozen_balance >= %s
+                """,
+                (str(amount), str(amount), updated_at, source_account_id, str(amount)),
+            )
+            if cur.rowcount != 1:
+                raise RuntimeError("RELEASE_FROZEN_TO_AVAILABLE_INCONSISTENT")
+
+            cur.execute(
+                """
+                UPDATE synapse_vault_withdrawals
+                SET status = 'REJECTED',
+                    signature = NULL,
+                    updated_at = %s
+                WHERE withdrawal_id = %s
+                  AND withdrawal_kind = 'consumer_refund'
+                  AND source_account_id = %s
+                  AND status = 'PENDING_MANUAL_REVIEW'
+                """,
+                (updated_at, row.id, source_account_id),
+            )
+            if cur.rowcount != 1:
+                raise RuntimeError("CONSUMER_WITHDRAW_REVIEW_STATE_INCONSISTENT")
+
+            self._upsert_consumer_refund_metadata(
+                cur,
+                row,
+                consumer_wallet=consumer_wallet,
+                updated_at=updated_at,
+            )
+            self._append_consumer_review_audit(
+                cur,
+                action="CONSUMER_WITHDRAW_REVIEW_REJECTED",
+                owner=consumer_wallet,
+                amount_usdc=amount,
+                detail=detail,
+            )
+
+    def approve_consumer_withdrawal_review_atomic(
+        self,
+        *,
+        owner: str,
+        row: RefundIntentRow,
+        amount_usdc,
+        detail: dict,
+        updated_at: str,
+    ) -> None:
+        consumer_wallet = str(owner or "").lower()
+        amount = self._q6(amount_usdc)
+        with self._db.tx_cursor() as cur:
+            source_account_id = self._ensure_ledger_account(
+                cur,
+                consumer_wallet,
+                "consumer_wallet",
+                updated_at,
+            )
+            cur.execute(
+                """
+                UPDATE synapse_account_balances
+                SET frozen_balance = frozen_balance - %s,
+                    pending_balance = pending_balance + %s,
+                    updated_at = %s
+                WHERE account_id = %s
+                  AND frozen_balance >= %s
+                """,
+                (str(amount), str(amount), updated_at, source_account_id, str(amount)),
+            )
+            if cur.rowcount != 1:
+                raise RuntimeError("MOVE_FROZEN_TO_PENDING_INCONSISTENT")
+
+            cur.execute(
+                """
+                UPDATE synapse_vault_withdrawals
+                SET status = 'REQUESTED',
+                    ticket_id = COALESCE(ticket_id, %s),
+                    ticket_hash = COALESCE(ticket_hash, %s),
+                    signature = %s,
+                    nonce = %s,
+                    deadline = %s,
+                    updated_at = %s
+                WHERE withdrawal_id = %s
+                  AND withdrawal_kind = 'consumer_refund'
+                  AND source_account_id = %s
+                  AND status = 'PENDING_MANUAL_REVIEW'
+                """,
+                (
+                    row.ticket.ticket_id,
+                    row.ticket.ticket_hash,
+                    row.signature or row.ticket.signature or None,
+                    row.ticket.nonce,
+                    row.ticket.deadline,
+                    updated_at,
+                    row.id,
+                    source_account_id,
+                ),
+            )
+            if cur.rowcount != 1:
+                raise RuntimeError("CONSUMER_WITHDRAW_REVIEW_STATE_INCONSISTENT")
+
+            self._upsert_consumer_refund_metadata(
+                cur,
+                row,
+                consumer_wallet=consumer_wallet,
+                updated_at=updated_at,
+            )
+            self._append_consumer_review_audit(
+                cur,
+                action="CONSUMER_WITHDRAW_REVIEW_APPROVED",
+                owner=consumer_wallet,
+                amount_usdc=amount,
+                detail=detail,
+            )
 
     def read_consumer_refund_rows(self, *, owner_wallet: str | None = None) -> List[RefundIntentRow]:
         with self._db.readonly_cursor() as cur:
@@ -173,33 +376,9 @@ class GatewayStateRefundMixin:
                         row_updated_at,
                     ),
                 )
-                self._upsert_runtime_state(
+                self._upsert_consumer_refund_metadata(
                     cur,
-                    self._vault_withdrawal_state_key(row.id),
-                    VaultWithdrawalMetadataState(
-                        consumerAddress=consumer_wallet,
-                        requestId=row.request_id,
-                        idempotencyKey=row.idempotency_key,
-                        flowStatus=row.status,
-                        reason=row.reason,
-                        gasPayer=row.gas_payer,
-                        gasModel=row.gas_model,
-                        originRequestId=row.origin_request_id,
-                        originTxHash=row.origin_tx_hash,
-                        refundType=row.refund_type,
-                        destinationAddress=row.destination_address,
-                        evidenceSummary=row.evidence_summary,
-                        riskLevel=row.risk_level,
-                        riskReasonCode=row.risk_reason_code,
-                        message=row.message,
-                        requestMeta=row.request_meta,
-                        reviewDecision=row.review_decision,
-                        reviewerAddress=row.reviewer_address,
-                        reviewerNote=row.reviewer_note,
-                        reviewedAt=row.reviewed_at,
-                        completedAt=row.completed_at,
-                        completeMeta=row.complete_meta,
-                        ticket=row.ticket,
-                    ).model_dump(by_alias=True, mode="json"),
-                    row_updated_at,
+                    row,
+                    consumer_wallet=consumer_wallet,
+                    updated_at=row_updated_at,
                 )

@@ -176,6 +176,10 @@ variable "secret_ids" {
     "synapse-staging-arbiscan-api-key",
     "synapse-staging-deployer-private-key",
     "synapse-staging-gas-funder-private-key",
+    "synapse-staging-e2e-consumer-private-key",
+    "synapse-staging-e2e-provider-private-key",
+    "synapse-staging-admin-e2e-password",
+    "synapse-staging-admin-e2e-otp-secret",
     "synapse-staging-metrics-bearer-token",
   ]
 }

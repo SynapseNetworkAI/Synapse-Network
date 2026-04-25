@@ -6,13 +6,14 @@ ENV ENVIRONMENT=staging
 
 WORKDIR /app
 
-COPY requirements.txt ./
+COPY services/gateway-admin/requirements.txt ./
 RUN apt-get update \
     && apt-get install -y --no-install-recommends postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+COPY services/gateway-admin/ .
+COPY infra/postgres/init/gateway-admin ./migrations
 
 EXPOSE 8000
 

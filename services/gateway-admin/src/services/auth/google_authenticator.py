@@ -1,3 +1,4 @@
+import binascii
 from dataclasses import dataclass
 
 from src.core.config import get_settings
@@ -26,8 +27,12 @@ def verify_google_authenticator_code(factor: AdminMfaFactor, code: str) -> bool:
     if not secret:
         return False
     settings = get_settings()
-    return verify_totp_code(
-        secret,
-        code,
-        window=settings.admin_google_authenticator_window,
-    )
+    try:
+        return verify_totp_code(
+            secret,
+            code,
+            window=settings.admin_google_authenticator_window,
+        )
+    except (binascii.Error, ValueError):
+        # Invalid stored TOTP material must fail closed, not turn auth into a 500.
+        return False

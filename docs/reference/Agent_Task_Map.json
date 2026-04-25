@@ -1,0 +1,308 @@
+{
+  "schema_version": 1,
+  "repository": "Synapse-Network",
+  "updated_at": "2026-04-25",
+  "purpose": "Task-to-file routing map for AI agents. Use before broad repository search.",
+  "global_entrypoints": [
+    "llms.txt",
+    "AGENTS.md",
+    "docs/AGENTS.md",
+    ".github/instructions/README.md",
+    "docs/README.md",
+    "docs/06_Reference/AI_Quick_Reference.md",
+    "docs/reference/Validation_Entry_Points.md"
+  ],
+  "domains": [
+    {
+      "id": "gateway_runtime",
+      "title": "Gateway runtime and agent invocation",
+      "use_when": [
+        "agent discovery or invoke behavior changes",
+        "agent credentials or credential status changes",
+        "provider service runtime routing changes",
+        "runtime API contract or error code changes"
+      ],
+      "instruction_files": [
+        ".github/instructions/python.instructions.md",
+        ".github/instructions/docs-sync.instructions.md",
+        ".github/instructions/safety-guard.instructions.md"
+      ],
+      "primary_files": [
+        "services/gateway/src/api/routers/agent_credentials.py",
+        "services/gateway/src/api/routers/forwarding.py",
+        "services/gateway/src/api/routers/services.py",
+        "services/gateway/src/api/schemas/pydantic_models.py",
+        "docs/reference/05_Runtime_API_Contract.md",
+        "docs/reference/06_Runtime_Error_Code_Catalog.md"
+      ],
+      "supporting_files": [
+        "docs/03_Core_Workflows/02_Discovery_and_Gateway_Call.md",
+        "docs/reference/03_Service_Manifest_and_Runtime_Object_Reference.md",
+        "docs/reference/04_Development_Testing_and_Integration_Reference.md"
+      ],
+      "validation_commands": [
+        "npm run ci:docs",
+        "npm run ci:gateway-stress-review"
+      ],
+      "notes": [
+        "Runtime behavior changes require docs and tests in the same change.",
+        "Do not infer SDK behavior from old quote-first flows; current flow is discovery/search plus invoke plus receipt."
+      ]
+    },
+    {
+      "id": "user_front_docs",
+      "title": "Public docs pages in user-front",
+      "use_when": [
+        "the task mentions http://localhost:3000/docs",
+        "SDK docs page copy or examples need to change",
+        "API reference UI or endpoint data changes",
+        "docs navigation or public documentation status labels change"
+      ],
+      "instruction_files": [
+        ".github/instructions/frontend.instructions.md",
+        ".github/instructions/docs-sync.instructions.md"
+      ],
+      "primary_files": [
+        "services/user-front/src/app/docs/page.tsx",
+        "services/user-front/src/app/docs/sdk/page.tsx",
+        "services/user-front/src/app/docs/sdk/typescript/page.tsx",
+        "services/user-front/src/app/docs/sdk/python/page.tsx",
+        "services/user-front/src/app/docs/api-reference/page.tsx",
+        "services/user-front/src/app/docs/api-reference/[id]/page.tsx",
+        "services/user-front/src/app/docs/api-reference/endpoint-data.ts",
+        "services/user-front/src/i18n/resources/en/docsPage.ts",
+        "services/user-front/src/i18n/resources/zh/docsPage.ts"
+      ],
+      "supporting_files": [
+        "docs/sdk/README.md",
+        "docs/README.md",
+        "docs/reference/Validation_Entry_Points.md"
+      ],
+      "validation_commands": [
+        "npm run ci:docs",
+        "npm --prefix services/user-front run lint",
+        "npm --prefix services/user-front run test"
+      ],
+      "notes": [
+        "Public docs must match current SDK README and gateway endpoints.",
+        "Do not use stale gateway domain examples."
+      ]
+    },
+    {
+      "id": "user_front_product",
+      "title": "User-facing product frontend",
+      "use_when": [
+        "marketplace, console, landing, or visible product page changes",
+        "responsive UI or copy quality changes",
+        "frontend user journey changes"
+      ],
+      "instruction_files": [
+        ".github/instructions/frontend.instructions.md",
+        ".github/instructions/docs-sync.instructions.md"
+      ],
+      "primary_files": [
+        "services/user-front/src/app",
+        "services/user-front/src/components",
+        "services/user-front/src/i18n/resources"
+      ],
+      "supporting_files": [
+        "docs/01_Product_Frontend/README.md",
+        "docs/03_Projects/frontend/README.md",
+        "docs/Design.md"
+      ],
+      "validation_commands": [
+        "npm --prefix services/user-front run lint",
+        "npm --prefix services/user-front run test",
+        "npm --prefix services/user-front run build"
+      ],
+      "notes": [
+        "Frontend work should preserve product-facing polish and avoid leaking internal debug copy."
+      ]
+    },
+    {
+      "id": "sdk_contract_alignment",
+      "title": "SDK contract alignment in product docs",
+      "use_when": [
+        "SDK README and gateway docs disagree",
+        "public preview, staging, or prod SDK examples change",
+        "Python or TypeScript SDK method names are documented in product docs"
+      ],
+      "instruction_files": [
+        ".github/instructions/docs-sync.instructions.md",
+        ".github/instructions/frontend.instructions.md"
+      ],
+      "primary_files": [
+        "docs/sdk/README.md",
+        "services/user-front/src/app/docs/sdk/page.tsx",
+        "services/user-front/src/app/docs/sdk/typescript/page.tsx",
+        "services/user-front/src/app/docs/sdk/python/page.tsx",
+        "services/user-front/src/i18n/resources/en/docsPage.ts",
+        "services/user-front/src/i18n/resources/zh/docsPage.ts"
+      ],
+      "supporting_files": [
+        "../Synapse-Network-Sdk/README.md",
+        "../Synapse-Network-Sdk/docs/sdk/capability_inventory.md",
+        "../Synapse-Network-Sdk/llms.txt"
+      ],
+      "validation_commands": [
+        "npm run ci:docs",
+        "npm --prefix services/user-front run test"
+      ],
+      "notes": [
+        "This domain crosses repositories. Check the SDK repo before changing public SDK examples here."
+      ]
+    },
+    {
+      "id": "finance_sensitive_backend",
+      "title": "Finance-sensitive backend",
+      "use_when": [
+        "balance, deposit, withdrawal, refund, settlement, ledger, reconciliation, or audit changes",
+        "money movement or idempotency behavior changes"
+      ],
+      "instruction_files": [
+        ".github/instructions/python.instructions.md",
+        ".github/instructions/finance-backend.instructions.md",
+        ".github/instructions/safety-guard.instructions.md",
+        ".github/instructions/docs-sync.instructions.md"
+      ],
+      "primary_files": [
+        "services/gateway/src",
+        "docker-compose/postgres/init/gateway/001_synapse_schema.sql",
+        "docs/reference/Money_Contract.md",
+        "docs/04_Database_Design/README.md"
+      ],
+      "supporting_files": [
+        "docs/03_Core_Workflows/README.md",
+        "docs/ops/10_Production_Go_No_Go_Security_Verification.md",
+        "docs/security/README.md"
+      ],
+      "validation_commands": [
+        "npm run ci:docs",
+        "npm run ci:gateway-stress-review"
+      ],
+      "notes": [
+        "Never use floats for money.",
+        "Do not auto-run destructive database or contract operations."
+      ]
+    },
+    {
+      "id": "admin_finance_control_plane",
+      "title": "Admin finance control plane",
+      "use_when": [
+        "gateway-admin finance review changes",
+        "admin-front withdrawal, refund, or reconciliation UI changes",
+        "operator approval or audit trail changes"
+      ],
+      "instruction_files": [
+        ".github/instructions/python.instructions.md",
+        ".github/instructions/frontend.instructions.md",
+        ".github/instructions/finance-admin.instructions.md",
+        ".github/instructions/admin-console.instructions.md",
+        ".github/instructions/docs-sync.instructions.md"
+      ],
+      "primary_files": [
+        "services/gateway-admin/src",
+        "services/gateway-admin/scripts",
+        "services/admin-front/src",
+        "docs/03_Projects/gateway-admin/README.md",
+        "docs/03_Projects/admin-front/README.md"
+      ],
+      "supporting_files": [
+        "docs/projects/admin-front/Admin_Withdrawal_Approval_E2E_Verification.md",
+        "docs/ops/18_Staging_Validation_Runbook.md"
+      ],
+      "validation_commands": [
+        "npm run ci:docs",
+        "npm run ci:gateway-stress-review"
+      ],
+      "notes": [
+        "Admin finance changes usually require evidence docs and careful operator workflow review."
+      ]
+    },
+    {
+      "id": "contracts_and_deployments",
+      "title": "Contracts and deployment evidence",
+      "use_when": [
+        "Solidity, Hardhat, contract deployment, staging contract evidence, or chain configuration changes"
+      ],
+      "instruction_files": [
+        ".github/instructions/safety-guard.instructions.md",
+        ".github/instructions/docs-sync.instructions.md"
+      ],
+      "primary_files": [
+        "contracts",
+        "docs/ops/16_Arbitrum_Sepolia_Staging_Contracts.md",
+        "docs/evidence/release/contracts"
+      ],
+      "supporting_files": [
+        "docs/security/README.md",
+        "docs/ops/10_Production_Go_No_Go_Security_Verification.md"
+      ],
+      "validation_commands": [
+        "npm run ci:docs"
+      ],
+      "notes": [
+        "Contract deployments are irreversible enough to require explicit operator intent before execution."
+      ]
+    },
+    {
+      "id": "docs_governance",
+      "title": "Documentation governance",
+      "use_when": [
+        "README metadata, retired paths, canonical docs, llms.txt, AGENTS, or docs checks change"
+      ],
+      "instruction_files": [
+        ".github/instructions/docs-sync.instructions.md"
+      ],
+      "primary_files": [
+        "llms.txt",
+        "AGENTS.md",
+        "docs/README.md",
+        "docs/00_Governance/README.md",
+        "docs/00_Governance/Documentation_Constraints.md",
+        "docs/00_Governance/Documentation_Inventory.md",
+        "docs/reference/Validation_Entry_Points.md",
+        "scripts/ci/validate_docs.js"
+      ],
+      "supporting_files": [
+        "docs/reference/Agent_Task_Map.md",
+        "docs/reference/Agent_Task_Map.json"
+      ],
+      "validation_commands": [
+        "npm run ci:docs",
+        "node -e \"JSON.parse(require('fs').readFileSync('docs/reference/Agent_Task_Map.json', 'utf8'))\""
+      ],
+      "notes": [
+        "Every docs README entrypoint needs the required metadata block.",
+        "Do not reintroduce retired paths."
+      ]
+    },
+    {
+      "id": "ci_and_quality_gates",
+      "title": "CI and quality gates",
+      "use_when": [
+        "package scripts, CI wrappers, validation commands, or PR gate behavior changes"
+      ],
+      "instruction_files": [
+        ".github/instructions/docs-sync.instructions.md",
+        ".github/instructions/safety-guard.instructions.md"
+      ],
+      "primary_files": [
+        "package.json",
+        "scripts/ci",
+        ".github/workflows",
+        "docs/reference/Validation_Entry_Points.md"
+      ],
+      "supporting_files": [
+        "docs/00_Governance/Documentation_Constraints.md",
+        "docs/05_DevOps_Deployment/README.md"
+      ],
+      "validation_commands": [
+        "npm run ci:docs"
+      ],
+      "notes": [
+        "Keep local scripts and GitHub Actions entrypoints aligned."
+      ]
+    }
+  ]
+}

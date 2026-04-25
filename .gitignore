@@ -57,6 +57,7 @@ logs/
 *.log
 .spec2flow
 spec2flow
+.idea/
 .vscode/
 
 # Local generated output (Playwright screenshots, videos, metrics)
@@ -70,6 +71,7 @@ tmp/admin-withdrawal-approval/
 # Generated evidence from real notification probes. Commit successful evidence
 # explicitly with `git add -f` when it is part of a release gate.
 docs/evidence/alerts/lark/*-lark-e2e/
+docs/evidence/staging/
 
 # Generated contract deployment evidence can include failed dry-runs or
 # environment-specific operator artifacts. Commit successful release evidence

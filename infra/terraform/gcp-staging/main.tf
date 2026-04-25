@@ -31,6 +31,11 @@ locals {
       DOWNSTREAM_ADAPTIVE_REDIS_ENABLED       = "false"
       REDIS_URL                               = ""
       EMAIL_OUTBOX_ENABLED                    = "true"
+      EMAIL_TRANSPORT                         = "gmail_smtp"
+      GMAIL_SMTP_HOST                         = "smtp.gmail.com"
+      GMAIL_SMTP_PORT                         = "587"
+      EMAIL_FROM                              = "Synapse Network Staging <staging-alerts@synapse-network.ai>"
+      EMAIL_REPLY_TO                          = "support@synapse-network.ai"
       IN_APP_NOTIFICATION_CLEANUP_ENABLED     = "false"
     },
     var.common_runtime_env,
@@ -44,6 +49,8 @@ locals {
     METRICS_BEARER_TOKEN        = "synapse-staging-metrics-bearer-token"
     GATEWAY_INTERNAL_JWT_SECRET = "synapse-staging-gateway-internal-jwt-secret"
     RPC_URL                     = "synapse-staging-arbitrum-sepolia-rpc-url"
+    GMAIL_SMTP_USERNAME         = "synapse-staging-gmail-username"
+    GMAIL_SMTP_APP_PASSWORD     = "synapse-staging-gmail-app-password"
   }
   gateway_migration_secret_env = merge(
     local.gateway_secret_env,
@@ -193,6 +200,26 @@ locals {
       retry_count = 0
       env         = merge(local.runtime_env, { POSTGRES_AUTO_INIT = "0" })
       secret_env  = local.gateway_migration_secret_env
+    }
+    gateway_admin_db_migrate = {
+      name        = "${local.name_prefix}-gateway-admin-db-migrate"
+      image       = var.gateway_admin_image
+      command     = ["python", "scripts/apply_migrations.py"]
+      args        = []
+      schedule    = ""
+      timeout     = "600s"
+      max_retries = 0
+      retry_count = 0
+      env = merge(
+        local.runtime_env,
+        {
+          POSTGRES_POOL_MAX        = "3"
+          POSTGRES_AUTO_INIT       = "0"
+          EXECUTION_WORKER_ENABLED = "false"
+          ADMIN_GATEWAY_PORT       = "8000"
+        },
+      )
+      secret_env = local.gateway_admin_secret_env
     }
   }
   enabled_cloud_run_jobs = {

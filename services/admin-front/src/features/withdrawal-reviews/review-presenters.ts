@@ -48,6 +48,14 @@ export function getWithdrawalStatusLabel(status: WithdrawalStatus): string {
   return withdrawalStatusLabel(status);
 }
 
+export function getWithdrawReviewKindLabel(item: ProviderWithdrawReviewItem): string {
+  return item.withdrawalKind === "consumer_refund" ? "Consumer withdrawal" : "Provider withdrawal";
+}
+
+export function getWithdrawReviewKindTone(item: ProviderWithdrawReviewItem): StatusTone {
+  return item.withdrawalKind === "consumer_refund" ? "orange" : "gray";
+}
+
 export function buildWithdrawReviewMetrics(items: ProviderWithdrawReviewItem[]) {
   const totalAmount = items.reduce((sum, item) => sum + parseMoneyStringForChart(item.amountUsdc || "0"), 0);
 

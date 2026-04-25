@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 
 from src.api.deps import (
     get_provider_withdraw_review_service,
@@ -18,9 +18,23 @@ from src.api.schemas.provider_withdraw_review import (
     ProviderWithdrawReviewSummary,
 )
 from src.services.auth.service import AdminIdentity
-from src.services.finance_admin import ProviderWithdrawReviewService
+from src.services.finance_admin import ProviderWithdrawReviewService, WithdrawReviewHistoryQuery
 
 router = APIRouter(prefix="/api/admin/v1/withdrawal-reviews", tags=["admin-provider-withdraw-reviews"])
+
+
+def _history_query_from_request(request: Request, limit: int) -> WithdrawReviewHistoryQuery:
+    params = request.query_params
+    return WithdrawReviewHistoryQuery(
+        limit=limit,
+        query=params.get("query"),
+        reviewer=params.get("reviewer"),
+        current_status=params.get("currentStatus"),
+        review_decision=params.get("reviewDecision"),
+        reviewed_from=params.get("reviewedFrom"),
+        reviewed_to=params.get("reviewedTo"),
+        cursor=params.get("cursor"),
+    )
 
 
 @router.get("", response_model=ApiResponse)
@@ -46,26 +60,11 @@ def list_provider_withdraw_review_history(
     admin: Annotated[AdminIdentity, Depends(require_permission("approval:read"))],
     request_id: Annotated[str, Depends(get_request_id)],
     review_service: Annotated[ProviderWithdrawReviewService, Depends(get_provider_withdraw_review_service)],
-    query: Annotated[str | None, Query()] = None,
-    reviewer: Annotated[str | None, Query()] = None,
-    current_status: Annotated[str | None, Query(alias="currentStatus")] = None,
-    review_decision: Annotated[str | None, Query(alias="reviewDecision")] = None,
-    reviewed_from: Annotated[str | None, Query(alias="reviewedFrom")] = None,
-    reviewed_to: Annotated[str | None, Query(alias="reviewedTo")] = None,
-    cursor: Annotated[str | None, Query()] = None,
+    request: Request,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
 ):
     _ = admin
-    payload = review_service.list_history_items(
-        limit=limit,
-        query=query,
-        reviewer=reviewer,
-        current_status=current_status,
-        review_decision=review_decision,
-        reviewed_from=reviewed_from,
-        reviewed_to=reviewed_to,
-        cursor=cursor,
-    )
+    payload = review_service.list_history_items(_history_query_from_request(request, limit))
     return ApiResponse(
         data=ProviderWithdrawReviewHistoryListResponse(
             items=[ProviderWithdrawReviewHistoryItem(**item) for item in payload["items"]],

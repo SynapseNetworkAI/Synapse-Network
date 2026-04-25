@@ -4,6 +4,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 MODE="${GATEWAY_RELEASE_E2E_ENV:-${1:-local}}"
+PROFILE="${GATEWAY_RELEASE_E2E_PROFILE:-full}"
 TIMESTAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 OUT_DIR="${GATEWAY_RELEASE_E2E_OUT_DIR:-${ROOT_DIR}/docs/evidence/release/gateway-fullchain/${TIMESTAMP}-${MODE}}"
 LOG_FILE="${OUT_DIR}/gateway-e2e.log"
@@ -18,7 +19,13 @@ mkdir -p "$OUT_DIR"
 exec > >(tee -a "$LOG_FILE") 2>&1
 
 echo "[gateway-release-e2e] mode=${MODE}"
+echo "[gateway-release-e2e] profile=${PROFILE}"
 echo "[gateway-release-e2e] evidence=${OUT_DIR}"
+
+if [[ "$PROFILE" != "full" && "$PROFILE" != "mvp-postgres" ]]; then
+  echo "FATAL: unsupported GATEWAY_RELEASE_E2E_PROFILE=${PROFILE}. Use full or mvp-postgres." >&2
+  exit 1
+fi
 
 find_pid_by_port() {
   lsof -t -nP -iTCP:"$1" -sTCP:LISTEN 2>/dev/null | head -n 1 || true
@@ -103,9 +110,13 @@ require_staging_env() {
     GATEWAY_E2E_OWNER_KEY
     GATEWAY_E2E_PROVIDER_KEY
     POSTGRES_DSN
-    ANALYTICS_CLICKHOUSE_URL
-    ANALYTICS_KAFKA_BOOTSTRAP_SERVERS
   )
+  if [[ "$PROFILE" != "mvp-postgres" ]]; then
+    required+=(
+      ANALYTICS_CLICKHOUSE_URL
+      ANALYTICS_KAFKA_BOOTSTRAP_SERVERS
+    )
+  fi
   for name in "${required[@]}"; do
     require_env_var "$name"
   done
@@ -290,8 +301,15 @@ else
 fi
 
 export GATEWAY_RELEASE_E2E=true
-export ANALYTICS_FULLCHAIN_E2E=true
-export ANALYTICS_TEST_E2E=true
+if [[ "$PROFILE" == "mvp-postgres" ]]; then
+  export ANALYTICS_FULLCHAIN_E2E=false
+  export ANALYTICS_TEST_E2E=false
+  export ANALYTICS_TRANSPORT="${ANALYTICS_TRANSPORT:-outbox}"
+  export ANALYTICS_STRICT_KAFKA=false
+else
+  export ANALYTICS_FULLCHAIN_E2E=true
+  export ANALYTICS_TEST_E2E=true
+fi
 export ANALYTICS_KAFKA_TOPIC="${ANALYTICS_KAFKA_TOPIC:-synapse.analytics.events}"
 if [[ "$MODE" == "local" ]]; then
   export ANALYTICS_CLICKHOUSE_URL="${ANALYTICS_CLICKHOUSE_URL:-http://127.0.0.1:8123}"
@@ -305,7 +323,24 @@ fi
 set +e
 (
   cd "${ROOT_DIR}/services/gateway"
-  PYTHONPATH=. "$PYTHON_BIN" -m pytest tests/e2e -q --tb=short --junitxml="${OUT_DIR}/pytest-junit.xml"
+  if [[ "$PROFILE" == "mvp-postgres" ]]; then
+    PYTHONPATH=. "$PYTHON_BIN" -m pytest \
+      tests/e2e/test_01_infrastructure.py \
+      tests/e2e/test_02_wallet_auth.py \
+      tests/e2e/test_03_fund_wallet.py \
+      tests/e2e/test_04_deposit.py \
+      tests/e2e/test_05_provider_register.py \
+      tests/e2e/test_05_provider_register_onboarding.py \
+      tests/e2e/test_05_provider_credentials.py \
+      tests/e2e/test_06_agent_credential.py \
+      tests/e2e/test_07_invoke.py \
+      tests/e2e/test_08_cleanup.py \
+      tests/e2e/test_09_consumer_withdraw.py \
+      tests/e2e/test_api_reference.py \
+      -q --tb=short --junitxml="${OUT_DIR}/pytest-junit.xml"
+  else
+    PYTHONPATH=. "$PYTHON_BIN" -m pytest tests/e2e -q --tb=short --junitxml="${OUT_DIR}/pytest-junit.xml"
+  fi
 )
 PYTEST_EXIT=$?
 set -e
@@ -314,6 +349,7 @@ set +e
 "$PYTHON_BIN" "${ROOT_DIR}/scripts/e2e/gateway_release_evidence_report.py" \
   --out-dir "$OUT_DIR" \
   --env "$MODE" \
+  --profile "$PROFILE" \
   --pytest-exit-code "$PYTEST_EXIT"
 REPORT_EXIT=$?
 set -e
