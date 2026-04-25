@@ -472,7 +472,7 @@ function EndpointDetail({
                     &lt;token&gt;
                   </code>{" "}
                   is your{" "}
-                  {route.auth === "credential" ? "agent credential (snk_agent_…)" : "owner JWT"}.
+                  {route.auth === "credential" ? "agent credential (agt_xxx)" : "owner JWT"}.
                 </p>
                 {/* Token input for Try it */}
                 <div className="space-y-1.5 pt-1">
@@ -484,7 +484,7 @@ function EndpointDetail({
                     className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 font-mono text-[12px] text-[#c0c5cc] placeholder:text-[#4e535a] focus:border-white/20 focus:outline-none"
                     placeholder={
                       route.auth === "credential"
-                        ? "snk_agent_..."
+                        ? "agt_xxx"
                         : "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
                     }
                     value={token}

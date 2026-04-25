@@ -720,22 +720,22 @@ export const ROUTE_GROUPS: RouteGroup[] = [
       {
         id: "post-credential",
         method: "POST",
-        path: "/api/v1/agent/credentials",
+        path: "/api/v1/credentials/agent/issue",
         summary: "Issue agent credential",
         description: "Mint a new spend-limited agent credential. The returned token is used by the agent runtime for all /agent/* calls.",
         auth: "jwt",
-        bodyExample: { name: "consumer-agent-01", max_calls: 100, credit_limit: 5, rpm: 60 },
-        responseExample: { credential: { token: "snk_agent_...", credential_id: "cred_abc", name: "consumer-agent-01" } },
+        bodyExample: { name: "consumer-agent-01", maxCalls: 100, creditLimit: 5, rpm: 60 },
+        responseExample: { credential: { token: "agt_xxx", credential_id: "cred_abc", name: "consumer-agent-01" } },
         agentMeta: {
           role: "owner",
           phase: "manage",
-          note: "Owner mints a spend-limited token for an autonomous agent. max_calls and credit_limit prevent runaway spending. Pass the token to the agent — never expose the owner JWT to the agent.",
+          note: "Owner mints a spend-limited token for an autonomous agent. maxCalls and creditLimit prevent runaway spending. Pass the token to the agent — never expose the owner JWT to the agent.",
           requires: "Valid JWT with consumer_available_balance > 0",
           outputs: [
-            { key: "credential.token", desc: "Agent token (snk_agent_...) — Bearer token for all /agent/* calls" },
+            { key: "credential.token", desc: "Agent token (agt_xxx) — send as X-Credential for agent runtime calls" },
             { key: "credential.credential_id", desc: "Credential ID — use to revoke this token later" },
           ],
-          next: "Pass token to agent runtime. Agent calls GET /services/discover then POST /agent/invoke with costUsdc",
+          next: "Pass token to agent runtime. Agent calls POST /agent/discovery/search then POST /agent/invoke with costUsdc",
         },
         errors: [
           { status: 402, code: "INSUFFICIENT_BALANCE", message: "Owner has no spendable balance — deposit USDC first" },
@@ -745,7 +745,7 @@ export const ROUTE_GROUPS: RouteGroup[] = [
       {
         id: "get-credentials",
         method: "GET",
-        path: "/api/v1/agent/credentials",
+        path: "/api/v1/credentials/agent/list",
         summary: "List all credentials",
         description: "Returns all active agent credentials issued by the authenticated owner.",
         auth: "jwt",
@@ -759,8 +759,8 @@ export const ROUTE_GROUPS: RouteGroup[] = [
       },
       {
         id: "delete-credential",
-        method: "DELETE",
-        path: "/api/v1/agent/credentials/:id",
+        method: "POST",
+        path: "/api/v1/credentials/agent/:id/revoke",
         summary: "Revoke credential",
         description: "Immediately invalidates an agent credential. Any subsequent call using this token is rejected.",
         auth: "jwt",

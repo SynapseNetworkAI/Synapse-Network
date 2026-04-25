@@ -41,7 +41,7 @@ import { SynapseAuth } from "@synapse-network/sdk";
 const wallet = new Wallet(process.env.PROVIDER_PRIVATE_KEY!);
 
 const auth = SynapseAuth.fromWallet(wallet, {
-  gatewayUrl: "http://127.0.0.1:8000",
+  environment: "staging",
 });
 
 const jwt = await auth.getToken();
@@ -86,21 +86,12 @@ console.log("providerReceivable:", balance.providerReceivable);
 console.log("availableBalance:", balance.availableBalance);
     `,
     withdraw: `
-// Withdrawal is still a control-plane API call today.
-const jwt = await auth.getToken();
+const capability = await auth.getProviderWithdrawalCapability();
+const intent = await auth.createProviderWithdrawalIntent(5, {
+  idempotencyKey: crypto.randomUUID(),
+});
 
-const intent = await fetch("http://127.0.0.1:8000/api/v1/providers/withdrawals/intent", {
-  method: "POST",
-  headers: {
-    Authorization: \`Bearer \${jwt}\`,
-    "Content-Type": "application/json",
-    "X-Idempotency-Key": crypto.randomUUID(),
-  },
-  body: JSON.stringify({
-    amountUsdc: "5.00",
-  }),
-}).then((res) => res.json());
-
+console.log(capability);
 console.log(intent.withdrawalId, intent.status);
     `,
   },
@@ -110,7 +101,7 @@ from synapse_client import SynapseAuth
 
 auth = SynapseAuth.from_private_key(
     "0xYOUR_PROVIDER_PRIVATE_KEY",
-    gateway_url="http://127.0.0.1:8000",
+    environment="staging",
 )
 
 jwt = auth.get_token()
@@ -151,22 +142,15 @@ print("provider_receivable:", balance.provider_receivable)
 print("available_balance:", balance.available_balance)
     `,
     withdraw: `
-import requests
 import uuid
 
-jwt = auth.get_token()
+capability = auth.get_provider_withdrawal_capability()
+intent = auth.create_provider_withdrawal_intent(
+    5,
+    idempotency_key=str(uuid.uuid4()),
+)
 
-intent = requests.post(
-    "http://127.0.0.1:8000/api/v1/providers/withdrawals/intent",
-    headers={
-        "Authorization": f"Bearer {jwt}",
-        "Content-Type": "application/json",
-        "X-Idempotency-Key": str(uuid.uuid4()),
-    },
-    json={"amountUsdc": "5.00"},
-    timeout=30,
-).json()
-
+print(capability)
 print(intent["withdrawalId"], intent["status"])
     `,
   },

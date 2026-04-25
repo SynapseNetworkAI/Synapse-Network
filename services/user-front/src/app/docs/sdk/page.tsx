@@ -33,7 +33,7 @@ export default function SdkPage() {
       href: "/docs/sdk/typescript",
       accent: "#6eb6f6",
       icon: FileCode2,
-      status: "GA" as const,
+      status: "PREVIEW" as const,
     },
     {
       title: cardTitles[1] ?? "Python SDK",
@@ -42,7 +42,7 @@ export default function SdkPage() {
       href: "/docs/sdk/python",
       accent: "#7ff7be",
       icon: Boxes,
-      status: "GA" as const,
+      status: "PREVIEW" as const,
     },
   ];
 
@@ -53,7 +53,7 @@ export default function SdkPage() {
           <span className="text-[10px] font-semibold tracking-[0.14em] text-[#4e535a] uppercase">
             {t("docsPage.sdkEyebrow")}
           </span>
-          <StatusBadge status="GA" />
+          <StatusBadge status="PREVIEW" />
         </div>
         <h1 className="x-page-title text-white">{t("docsPage.sdkTitle")}</h1>
         <p className="x-body-copy max-w-[640px]">{t("docsPage.sdkDescription")}</p>

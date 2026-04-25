@@ -121,6 +121,7 @@ describe("docs multilingual surfaces", () => {
     expect(await screen.findByRole("heading", { name: "How Synapse Works" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "REST API" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "SDKs" })).toBeTruthy();
+    expect(screen.getAllByText("PUBLIC PREVIEW").length).toBeGreaterThan(0);
     expect(screen.getAllByRole("heading", { name: "TypeScript SDK" }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole("heading", { name: "Python SDK" }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole("heading", { name: "Smart Contracts" }).length).toBeGreaterThan(0);
