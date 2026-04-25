@@ -7,6 +7,7 @@ REPOSITORY="${ARTIFACT_REGISTRY_REPOSITORY:-synapse-staging}"
 TAG="${TAG:-staging-$(date -u +%Y%m%dT%H%M%SZ)}"
 SERVICES="gateway,gateway-admin,user-front,admin-front"
 JSON_OUTPUT=""
+BUILD_BACKEND="${STAGING_IMAGE_BUILD_BACKEND:-local-docker}"
 
 shift_if_project=false
 if [[ $# -gt 0 && "${1:-}" != --* ]]; then
@@ -191,11 +192,65 @@ echo "[gcp-cloudbuild-images] region=${REGION}"
 echo "[gcp-cloudbuild-images] repository=${REPOSITORY}"
 echo "[gcp-cloudbuild-images] tag=${TAG}"
 echo "[gcp-cloudbuild-images] services=${normalized_services[*]}"
+echo "[gcp-cloudbuild-images] build_backend=${BUILD_BACKEND}"
 
-echo "[gcp-cloudbuild-images] submitting build to Cloud Build"
-gcloud builds submit . \
-  --project="${PROJECT_ID}" \
-  --config="${tmp_config}"
+docker_build_and_push() {
+  require_cmd docker
+
+  gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+
+  if contains_service gateway; then
+    docker build -t "${gateway_image}" services/gateway
+    docker push "${gateway_image}"
+  fi
+
+  if contains_service gateway-admin; then
+    docker build -t "${gateway_admin_image}" services/gateway-admin
+    docker push "${gateway_admin_image}"
+  fi
+
+  if contains_service user-front; then
+    docker build \
+      --build-arg "NEXT_PUBLIC_GATEWAY_BASE_URL=${NEXT_PUBLIC_GATEWAY_BASE_URL:-https://api-staging.synapse-network.ai}" \
+      --build-arg "NEXT_PUBLIC_SERVICE_LIST_CACHE_TTL_MS=${NEXT_PUBLIC_SERVICE_LIST_CACHE_TTL_MS:-20000}" \
+      --build-arg "NEXT_PUBLIC_APP_ENV=${NEXT_PUBLIC_APP_ENV:-staging}" \
+      --build-arg "NEXT_PUBLIC_SUPPORT_EMAIL=${NEXT_PUBLIC_SUPPORT_EMAIL:-support@synapse-network.ai}" \
+      --build-arg "NEXT_PUBLIC_SUPPORT_PORTAL_URL=${NEXT_PUBLIC_SUPPORT_PORTAL_URL:-}" \
+      --build-arg "NEXT_PUBLIC_REOWN_PROJECT_ID=${NEXT_PUBLIC_REOWN_PROJECT_ID:-}" \
+      --build-arg "NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=${NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID:-}" \
+      --build-arg "CONTRACT_CONFIG_SOURCE=${CONTRACT_CONFIG_SOURCE:-src/contract-config.arbitrum-sepolia.example.json}" \
+      -t "${user_front_image}" \
+      services/user-front
+    docker push "${user_front_image}"
+  fi
+
+  if contains_service admin-front; then
+    docker build \
+      --build-arg "NEXT_PUBLIC_ADMIN_API_BASE_URL=${NEXT_PUBLIC_ADMIN_API_BASE_URL:-https://admin-api-staging.synapse-network.ai}" \
+      --build-arg "ADMIN_API_PROXY_TARGET=${ADMIN_API_PROXY_TARGET:-https://admin-api-staging.synapse-network.ai}" \
+      --build-arg "NEXT_PUBLIC_APP_ENV=${NEXT_PUBLIC_APP_ENV:-staging}" \
+      -t "${admin_front_image}" \
+      services/admin-front
+    docker push "${admin_front_image}"
+  fi
+}
+
+case "${BUILD_BACKEND}" in
+  local-docker)
+    echo "[gcp-cloudbuild-images] building images locally on GitHub runner"
+    docker_build_and_push
+    ;;
+  cloudbuild)
+    echo "[gcp-cloudbuild-images] submitting build to Cloud Build"
+    gcloud builds submit . \
+      --project="${PROJECT_ID}" \
+      --config="${tmp_config}"
+    ;;
+  *)
+    echo "invalid STAGING_IMAGE_BUILD_BACKEND: ${BUILD_BACKEND}" >&2
+    exit 2
+    ;;
+esac
 
 json_services="{"
 first=true
