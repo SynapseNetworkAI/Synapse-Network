@@ -1,3 +1,5 @@
+import os
+
 from src.core import config
 
 
@@ -12,7 +14,7 @@ def test_gateway_and_repo_root_dirs_are_distinct() -> None:
     repo_root = config._repo_root_dir()
 
     assert gateway_root.endswith("/gateway")
-    assert repo_root.endswith("/Synapse-Network")
+    assert os.path.join(repo_root, "services", "gateway") == gateway_root
     assert gateway_root != repo_root
 
 
