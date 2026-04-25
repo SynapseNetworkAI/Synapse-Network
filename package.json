@@ -70,6 +70,7 @@
     "e2e:admin-front:dogfood": "node scripts/ui/dogfood_admin_front.mjs",
     "e2e:admin-front:reconcile": "node scripts/e2e/admin_front_reconcile.mjs",
     "e2e:admin-front": "npm run e2e:admin-front:seed && npm run e2e:admin-front:dogfood && npm run e2e:admin-front:reconcile",
+    "e2e:admin-login-lockout:dogfood": "node scripts/ui/dogfood_admin_login_lockout.mjs",
     "e2e:admin-withdrawal-approval:seed": "node scripts/e2e/admin_withdrawal_approval_seed.mjs",
     "e2e:admin-withdrawal-approval:dogfood": "node scripts/ui/dogfood_admin_withdrawal_approval.mjs",
     "e2e:admin-withdrawal-approval:reconcile": "node scripts/e2e/admin_withdrawal_approval_reconcile.mjs",

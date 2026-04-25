@@ -9,6 +9,7 @@ CLOUD_SQL_DATABASE="${CLOUD_SQL_DATABASE:-synapse_gateway_staging}"
 ADMIN_CLOUD_SQL_DATABASE="${ADMIN_CLOUD_SQL_DATABASE:-synapse_gateway_admin_staging}"
 DB_USER="${DB_USER:-synapse_gateway_app}"
 DB_PASSWORD_SECRET_ID="${DB_PASSWORD_SECRET_ID:-synapse-staging-postgres-password}"
+DB_DSN_SECRET_ID="${DB_DSN_SECRET_ID:-synapse-staging-postgres-dsn}"
 MIGRATOR_DB_USER="${MIGRATOR_DB_USER:-synapse_gateway_migrator}"
 MIGRATOR_DB_PASSWORD_SECRET_ID="${MIGRATOR_DB_PASSWORD_SECRET_ID:-synapse-staging-postgres-migrator-password}"
 GATEWAY_READONLY_DB_USER="${GATEWAY_READONLY_DB_USER:-synapse_gateway_ro}"
@@ -36,6 +37,7 @@ REQUIRED_APIS=(
 
 REQUIRED_SECRET_IDS=(
   synapse-staging-postgres-password
+  synapse-staging-postgres-dsn
   synapse-staging-postgres-migrator-password
   synapse-staging-admin-postgres-password
   synapse-staging-admin-database-dsn
@@ -137,6 +139,7 @@ fi
 
 STAGING_SECRET_IDS_TO_VALIDATE=(
   "${DB_PASSWORD_SECRET_ID}"
+  "${DB_DSN_SECRET_ID}"
   "${MIGRATOR_DB_PASSWORD_SECRET_ID}"
   "${GATEWAY_READONLY_DSN_SECRET_ID}"
   "${GATEWAY_FORUM_WRITE_DSN_SECRET_ID}"
@@ -405,6 +408,7 @@ ensure_dsn_secret_from_password_secret() {
 ensure_sql_user_password "${DB_USER}" "${DB_PASSWORD_SECRET_ID}"
 ensure_sql_user_password "${MIGRATOR_DB_USER}" "${MIGRATOR_DB_PASSWORD_SECRET_ID}"
 ensure_sql_user_password "${ADMIN_DB_USER}" "${ADMIN_DB_PASSWORD_SECRET_ID}"
+ensure_dsn_secret_from_password_secret "${DB_USER}" "${DB_PASSWORD_SECRET_ID}" "${DB_DSN_SECRET_ID}" "${CLOUD_SQL_DATABASE}"
 ensure_sql_user_password_from_dsn_secret "${ADMIN_MIGRATOR_DB_USER}" "${ADMIN_DATABASE_MIGRATION_DSN_SECRET_ID}" "${ADMIN_CLOUD_SQL_DATABASE}"
 ensure_sql_user_password_from_dsn_secret "${GATEWAY_READONLY_DB_USER}" "${GATEWAY_READONLY_DSN_SECRET_ID}" "${CLOUD_SQL_DATABASE}"
 ensure_dsn_secret_from_password_secret "${ADMIN_DB_USER}" "${ADMIN_DB_PASSWORD_SECRET_ID}" "${ADMIN_DATABASE_DSN_SECRET_ID}" "${ADMIN_CLOUD_SQL_DATABASE}"
@@ -416,7 +420,7 @@ echo "  - instance: ${CLOUD_SQL_INSTANCE}"
 echo "  - gateway db: ${CLOUD_SQL_DATABASE}"
 echo "  - gateway-admin db: ${ADMIN_CLOUD_SQL_DATABASE}"
 echo "  - generated users: ${DB_USER}, ${MIGRATOR_DB_USER}, ${GATEWAY_READONLY_DB_USER}, ${ADMIN_DB_USER}, ${ADMIN_MIGRATOR_DB_USER}"
-echo "  - generated DSN secrets: ${ADMIN_DATABASE_DSN_SECRET_ID}, ${ADMIN_DATABASE_MIGRATION_DSN_SECRET_ID}, ${GATEWAY_READONLY_DSN_SECRET_ID}, ${GATEWAY_FORUM_WRITE_DSN_SECRET_ID}"
+echo "  - generated DSN secrets: ${DB_DSN_SECRET_ID}, ${ADMIN_DATABASE_DSN_SECRET_ID}, ${ADMIN_DATABASE_MIGRATION_DSN_SECRET_ID}, ${GATEWAY_READONLY_DSN_SECRET_ID}, ${GATEWAY_FORUM_WRITE_DSN_SECRET_ID}"
 echo
 echo "[gcp-staging-bootstrap] user-provided secrets still required:"
 for secret_id in "${USER_PROVIDED_SECRET_IDS[@]}"; do
