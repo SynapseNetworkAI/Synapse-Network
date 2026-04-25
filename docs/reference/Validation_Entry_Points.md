@@ -55,8 +55,11 @@ Emergency bypass remains `git push --no-verify`.
 `ci:pr` defaults to dynamic scope. `bash scripts/ci/pr_checks.sh` resolves changed
 files with `scripts/ci/resolve_pr_ci_scope.mjs`, prints the selected commands,
 and then runs only the relevant gates. It fails closed into full CI for CI
-workflow changes, root dependency changes, deploy-script changes, unknown paths,
-or merge-base resolution failures. Use `SYNAPSE_CI_SCOPE=full bash
+workflow changes, root dependency/lockfile changes, deploy-script changes,
+guardrail script changes, unknown paths, or merge-base resolution failures.
+Root `package.json` script-only changes are mapped narrowly when they are
+ordinary evidence/E2E wrappers. Each selected gate prints `DONE` with a duration
+and the run ends with a gate duration summary. Use `SYNAPSE_CI_SCOPE=full bash
 scripts/ci/pr_checks.sh` when you need the old full aggregate gate explicitly.
 
 `ci:pr` starts selected runs with `bash scripts/ci/runtime_preflight.sh`. This probe gives
@@ -183,6 +186,7 @@ Before finishing:
 10. run `npm run release:evidence:gateway-fullchain:local` for a local rehearsal of the full live Gateway E2E evidence chain; run `GATEWAY_RELEASE_E2E_PROFILE=mvp-postgres npm run release:evidence:gateway-fullchain:staging` plus `GATEWAY_RELEASE_E2E_REQUIRED_ENV=staging npm run ci:gateway-release-e2e-evidence` for MVP Cloud Run + Cloud SQL staging release evidence. The bundle must include a non-empty `trace.jsonl` with a matching `report.json.traceDigest`
 11. run `npm run perf:local-production-load-rehearsal` and `npm run ci:local-production-load-evidence` before staging load when changing invoke, balance, deposit confirm, withdrawal, provider health, admin finance views, load-runner behavior, or wallet/signing isolation; this validates local runId isolation, temporary wallet pools, per-wallet chain serialization, bounded concurrency, drain hard cap, and no secret leakage
 12. run `npm run ci:monitoring-alert-rules` when changing metrics, readiness, dashboards, Alertmanager routes, Lark Relay behavior, alert rules, or monitoring runbooks
+13. run `npm run e2e:gcp-alerts:local` and `npm run ci:gcp-alerts-local-evidence` before deploying GCP Monitoring receiver/drill changes; then run `npm run e2e:gcp-alerts:staging` and `npm run ci:gcp-alerts-staging-evidence` after staging deploy. Set `GCP_ALERTS_REQUIRE_MONITORING_DELIVERY=true` once per release candidate to prove GCP policy callback delivery
 13. run `npm run e2e:lark-alerts` and `npm run ci:lark-alert-e2e-evidence` before release approval when changing Lark webhook routing, Relay delivery, Alertmanager-to-Lark contracts, or production alert notification behavior
 13. run `npm run e2e:staging-smoke` and `npm run ci:staging-smoke-evidence` after staging Cloud Run, DNS, CORS, RPC, or contract-address changes; this is the first-pass live staging gate before full-chain evidence
 13. run `npm run e2e:staging-ui-dogfood` after staging User-front/Admin-front deploys to capture screenshots and browser-origin API/CORS failures

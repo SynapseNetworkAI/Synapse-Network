@@ -28,6 +28,7 @@ from src.services.owner.finance_constants import (
     CONSUMER_WITHDRAW_TYPE,
 )
 from src.storage.base import BaseStorage
+from src.utils.datetime_utils import to_epoch_seconds
 from src.utils.money import parse_usdc
 
 logger = logging.getLogger(__name__)
@@ -333,6 +334,8 @@ async def run_consumer_withdraw_processor_once(storage: BaseStorage) -> dict[str
     completed_or_expired = 0
     failed = 0
     pending = await asyncio.to_thread(_collect_requested_consumer_withdrawals, storage)
+    timeout_rows = await asyncio.to_thread(_collect_consumer_withdrawal_timeout_rows, storage)
+    _emit_consumer_withdrawal_timeout_alert(timeout_rows)
     for row in pending:
         try:
             changed = await asyncio.to_thread(_process_single_withdraw, storage, row)
@@ -367,6 +370,49 @@ def _collect_requested_consumer_withdrawals(storage: BaseStorage) -> list:
     except Exception as exc:
         logger.warning("consumer_withdraw_processor: failed to read rows: %s", exc)
         return []
+
+
+def _collect_consumer_withdrawal_timeout_rows(storage: BaseStorage) -> list:
+    try:
+        dm = storage.get_data_manager()
+        rows = dm.system.gateway_state.read_consumer_refund_rows()
+        return [
+            r for r in rows
+            if str(r.refund_type or "") == CONSUMER_WITHDRAW_TYPE
+            and str(r.status or "").upper() in {"REQUESTED", "PENDING_MANUAL_REVIEW"}
+        ]
+    except Exception as exc:
+        logger.warning("consumer_withdraw_processor: failed to read timeout rows: %s", exc)
+        return []
+
+
+def _emit_consumer_withdrawal_timeout_alert(rows: list) -> None:
+    now = int(time.time())
+    threshold = int(getattr(settings, "withdrawal_timeout_alert_after_sec", 900))
+    timed_out = []
+    for row in rows:
+        if str(getattr(row, "status", "") or "").upper() not in {
+            "REQUESTED",
+            "PENDING_MANUAL_REVIEW",
+        }:
+            continue
+        created_at = to_epoch_seconds(getattr(row, "created_at", None), default=0)
+        if created_at <= 0:
+            continue
+        age = now - created_at
+        if age >= threshold:
+            timed_out.append((row, age))
+    if not timed_out:
+        return
+    oldest_age = max(age for _, age in timed_out)
+    logger.error(
+        "alert_trigger=WITHDRAWAL_TIMEOUT env=%s withdrawal_kind=consumer "
+        "count=%s oldest_age_seconds=%s threshold_seconds=%s",
+        getattr(settings, "environment", "unknown"),
+        len(timed_out),
+        oldest_age,
+        threshold,
+    )
 
 
 async def run_consumer_withdraw_processor(

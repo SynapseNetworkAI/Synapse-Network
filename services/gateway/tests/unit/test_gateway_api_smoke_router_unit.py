@@ -110,6 +110,58 @@ def test_services_discover_router_builds_public_gateway_url(monkeypatch) -> None
     ]
 
 
+def test_staging_http_500_drill_is_disabled_by_default(monkeypatch) -> None:
+    monkeypatch.setattr(gateway_app.settings, "environment", "staging", raising=False)
+    monkeypatch.setattr(
+        gateway_app.settings, "staging_alert_drill_enabled", False, raising=False
+    )
+
+    with _http_client(monkeypatch) as client:
+        response = client.get(
+            "/api/v1/ops/drills/http-500",
+            headers={"X-Synapse-Drill-Token": "drill-token"},
+        )
+
+    assert response.status_code == 404
+
+
+def test_staging_http_500_drill_returns_controlled_500(monkeypatch) -> None:
+    monkeypatch.setattr(gateway_app.settings, "environment", "staging", raising=False)
+    monkeypatch.setattr(
+        gateway_app.settings, "staging_alert_drill_enabled", True, raising=False
+    )
+    monkeypatch.setattr(
+        gateway_app.settings, "staging_alert_drill_token", "drill-token", raising=False
+    )
+
+    with _http_client(monkeypatch) as client:
+        response = client.get(
+            "/api/v1/ops/drills/http-500",
+            headers={"X-Synapse-Drill-Token": "drill-token"},
+        )
+
+    assert response.status_code == 500
+    assert "Controlled staging alert drill" in response.text
+
+
+def test_staging_http_500_drill_refuses_prod_even_when_enabled(monkeypatch) -> None:
+    monkeypatch.setattr(gateway_app.settings, "environment", "prod", raising=False)
+    monkeypatch.setattr(
+        gateway_app.settings, "staging_alert_drill_enabled", True, raising=False
+    )
+    monkeypatch.setattr(
+        gateway_app.settings, "staging_alert_drill_token", "drill-token", raising=False
+    )
+
+    with _http_client(monkeypatch) as client:
+        response = client.get(
+            "/api/v1/ops/drills/http-500",
+            headers={"X-Synapse-Drill-Token": "drill-token"},
+        )
+
+    assert response.status_code == 404
+
+
 def test_gateway_generate_router_forwards_headers_and_structured_payload(monkeypatch) -> None:
     calls: list[dict[str, object]] = []
 

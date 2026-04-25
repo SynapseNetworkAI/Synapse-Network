@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import logging
 from contextlib import contextmanager
 from types import SimpleNamespace
 
@@ -12,6 +13,7 @@ from src.services.platform.job_locks import (
     postgres_advisory_job_lock,
 )
 from src.services.platform.tasks import consumer_withdraw_processor
+from src.services.platform.tasks import provider_withdraw_expiry_reaper
 
 
 class _FakeCursor:
@@ -78,6 +80,80 @@ def test_postgres_advisory_job_lock_skips_when_already_running() -> None:
     executed_sql = [sql for sql, _params in storage.db.conn.cursor_obj.executed]
     assert "SELECT pg_try_advisory_lock(%s)" in executed_sql
     assert "SELECT pg_advisory_unlock(%s)" not in executed_sql
+
+
+class _RowsStorage:
+    def __init__(self, *, provider_rows=None, consumer_rows=None) -> None:
+        self.provider_rows = provider_rows or []
+        self.consumer_rows = consumer_rows or []
+
+    def get_data_manager(self):
+        return SimpleNamespace(
+            system=SimpleNamespace(
+                gateway_state=SimpleNamespace(
+                    read_provider_withdrawal_rows=lambda: self.provider_rows,
+                    read_consumer_refund_rows=lambda: self.consumer_rows,
+                )
+            )
+        )
+
+
+def test_provider_withdrawal_timeout_alert_logs_timed_out_rows(
+    monkeypatch,
+    caplog,
+) -> None:
+    monkeypatch.setattr(provider_withdraw_expiry_reaper.time, "time", lambda: 1_000)
+    monkeypatch.setattr(
+        provider_withdraw_expiry_reaper.settings,
+        "withdrawal_timeout_alert_after_sec",
+        100,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        provider_withdraw_expiry_reaper.settings,
+        "environment",
+        "staging",
+        raising=False,
+    )
+    storage = _RowsStorage(
+        provider_rows=[
+            SimpleNamespace(status="COMPLETED", created_at=100),
+            SimpleNamespace(status="REQUESTED", created_at=None),
+            SimpleNamespace(status="REQUESTED", created_at=700),
+            SimpleNamespace(status="PENDING_MANUAL_REVIEW", created_at=800),
+        ]
+    )
+
+    with caplog.at_level(logging.ERROR):
+        provider_withdraw_expiry_reaper._emit_provider_withdrawal_timeout_alert(storage)
+
+    assert "alert_trigger=WITHDRAWAL_TIMEOUT" in caplog.text
+    assert "withdrawal_kind=provider" in caplog.text
+    assert "count=2" in caplog.text
+    assert "oldest_age_seconds=300" in caplog.text
+
+
+def test_provider_withdrawal_timeout_alert_skips_when_none_timed_out(
+    monkeypatch,
+    caplog,
+) -> None:
+    monkeypatch.setattr(provider_withdraw_expiry_reaper.time, "time", lambda: 1_000)
+    monkeypatch.setattr(
+        provider_withdraw_expiry_reaper.settings,
+        "withdrawal_timeout_alert_after_sec",
+        500,
+        raising=False,
+    )
+    storage = _RowsStorage(
+        provider_rows=[
+            SimpleNamespace(status="REQUESTED", created_at=900),
+        ]
+    )
+
+    with caplog.at_level(logging.ERROR):
+        provider_withdraw_expiry_reaper._emit_provider_withdrawal_timeout_alert(storage)
+
+    assert "WITHDRAWAL_TIMEOUT" not in caplog.text
 
 
 def test_postgres_advisory_job_lock_rejects_unknown_job() -> None:
@@ -222,3 +298,51 @@ async def test_consumer_withdraw_processor_once_counts_changed_and_failed(
         "completedOrExpired": 1,
         "failed": 1,
     }
+
+
+def test_collect_consumer_withdrawal_timeout_rows_filters_active_consumer_rows() -> None:
+    storage = _RowsStorage(
+        consumer_rows=[
+            SimpleNamespace(refund_type="CONSUMER_BALANCE_WITHDRAW", status="REQUESTED"),
+            SimpleNamespace(refund_type="CONSUMER_BALANCE_WITHDRAW", status="PENDING_MANUAL_REVIEW"),
+            SimpleNamespace(refund_type="CONSUMER_BALANCE_WITHDRAW", status="COMPLETED"),
+            SimpleNamespace(refund_type="other", status="REQUESTED"),
+        ]
+    )
+
+    rows = consumer_withdraw_processor._collect_consumer_withdrawal_timeout_rows(storage)
+
+    assert [row.status for row in rows] == ["REQUESTED", "PENDING_MANUAL_REVIEW"]
+
+
+def test_consumer_withdrawal_timeout_alert_logs_timed_out_rows(
+    monkeypatch,
+    caplog,
+) -> None:
+    monkeypatch.setattr(consumer_withdraw_processor.time, "time", lambda: 1_000)
+    monkeypatch.setattr(
+        consumer_withdraw_processor.settings,
+        "withdrawal_timeout_alert_after_sec",
+        100,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        consumer_withdraw_processor.settings,
+        "environment",
+        "staging",
+        raising=False,
+    )
+    rows = [
+        SimpleNamespace(status="COMPLETED", created_at=100),
+        SimpleNamespace(status="REQUESTED", created_at=None),
+        SimpleNamespace(status="REQUESTED", created_at=700),
+        SimpleNamespace(status="PENDING_MANUAL_REVIEW", created_at=800),
+    ]
+
+    with caplog.at_level(logging.ERROR):
+        consumer_withdraw_processor._emit_consumer_withdrawal_timeout_alert(rows)
+
+    assert "alert_trigger=WITHDRAWAL_TIMEOUT" in caplog.text
+    assert "withdrawal_kind=consumer" in caplog.text
+    assert "count=2" in caplog.text
+    assert "oldest_age_seconds=300" in caplog.text

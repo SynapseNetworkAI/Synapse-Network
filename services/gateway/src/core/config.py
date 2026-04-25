@@ -58,6 +58,9 @@ class Settings:
     metrics_bearer_token: str = os.getenv("METRICS_BEARER_TOKEN", "").strip()
     metrics_basic_username: str = os.getenv("METRICS_BASIC_USERNAME", "").strip()
     metrics_basic_password: str = os.getenv("METRICS_BASIC_PASSWORD", "").strip()
+    # Staging-only controlled 500 endpoint used to validate GCP Monitoring -> Lark.
+    staging_alert_drill_enabled: bool = _env_bool("STAGING_ALERT_DRILL_ENABLED", False)
+    staging_alert_drill_token: str = os.getenv("STAGING_ALERT_DRILL_TOKEN", "").strip()
     # RPC endpoint used by chain-facing flows (deposit indexer, receipt checks).
     rpc_url: str = os.getenv("RPC_URL", "http://127.0.0.1:8545")
     # Listener contract for deposit events; falls back to frontend contract config.
@@ -316,6 +319,9 @@ class Settings:
     )
     provider_withdraw_expiry_reaper_interval_sec: float = _env_float(
         "PROVIDER_WITHDRAW_EXPIRY_REAPER_INTERVAL_SEC", 30.0
+    )
+    withdrawal_timeout_alert_after_sec: int = max(
+        60, _env_int("WITHDRAWAL_TIMEOUT_ALERT_AFTER_SEC", 900)
     )
 
     # Consumer withdrawal recovery watcher: reconciles owner-executed
