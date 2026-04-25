@@ -135,9 +135,25 @@ class HttpProviderWithdrawReviewAdapter:
             return body
 
         detail = body.get("detail") if isinstance(body, dict) else {}
+        code = f"GATEWAY_HTTP_{response.status_code}"
+        message = response.text or "Gateway review request failed"
+        if isinstance(detail, dict):
+            code = str(detail.get("code") or code)
+            message = str(detail.get("message") or message)
+        elif isinstance(detail, list):
+            messages = []
+            for detail_item in detail[:3]:
+                if isinstance(detail_item, dict):
+                    messages.append(str(detail_item.get("msg") or detail_item))
+                else:
+                    messages.append(str(detail_item))
+            if messages:
+                message = "; ".join(messages)
+        elif detail:
+            message = str(detail)
         raise ProviderWithdrawReviewError(
-            code=str(detail.get("code") or f"GATEWAY_HTTP_{response.status_code}"),
-            message=str(detail.get("message") or response.text or "Gateway review request failed"),
+            code=code,
+            message=message,
             status_code=response.status_code,
         )
 

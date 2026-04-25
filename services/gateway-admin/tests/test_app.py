@@ -16,7 +16,12 @@ from src.core.totp import generate_totp_code, generate_totp_secret
 from src.core.security import hash_password
 from src.domain import AdminMfaFactor, AdminUser
 from src.domain.enums import AdminUserStatus, MfaFactorStatus, MfaFactorType
-from src.services.adapters import HttpProviderWithdrawReviewAdapter, InMemoryGatewayExecutionAdapter, InMemoryProviderWithdrawReviewAdapter
+from src.services.adapters import (
+    HttpProviderWithdrawReviewAdapter,
+    InMemoryGatewayExecutionAdapter,
+    InMemoryProviderWithdrawReviewAdapter,
+    ProviderWithdrawReviewError,
+)
 from src.services.admin_config.service import AdminConfigService
 from src.services.admin_user.service import AdminUserService
 from src.services.approval.service import ApprovalService
@@ -1398,6 +1403,111 @@ def test_http_withdraw_review_adapter_routes_consumer_review_to_refund_endpoint(
     assert captured["url"] == "https://gateway.example/api/v1/admin/refunds/wd-consumer-review-http/review"
     assert captured["json"]["reviewDecision"] == "REJECT"
     assert captured["headers"]["X-Request-Id"] == "consumer_withdraw_review:wd-consumer-review-http:reject"
+
+
+def _http_review_adapter() -> HttpProviderWithdrawReviewAdapter:
+    return HttpProviderWithdrawReviewAdapter(
+        base_url="https://gateway.example",
+        admin_wallet="0x3333333333333333333333333333333333333333",
+        jwt_secret="test-secret",
+        token_issuer="gateway-admin-test",
+        token_audience="gateway-test",
+        service_subject="gateway-admin",
+        timeout_sec=3.0,
+    )
+
+
+def _provider_review_item() -> ProviderWithdrawReviewItem:
+    return ProviderWithdrawReviewItem(
+        withdrawal_id="wd-provider-review-http",
+        withdrawal_kind="provider_withdrawal",
+        review_type="provider_withdraw_review",
+        owner_address="0x2222222222222222222222222222222222222222",
+        subject_address="0x2222222222222222222222222222222222222222",
+        amount_usdc=Decimal("64.00"),
+        status="PENDING_MANUAL_REVIEW",
+        request_id="provider-review-request",
+        tx_hash=None,
+        risk_level="yellow",
+        risk_reason_code="AUTO_SINGLE_LIMIT_EXCEEDED",
+        evidence_summary="Provider withdrawal exceeded manual review threshold.",
+        message="Manual review required before issuing withdraw ticket.",
+        created_at="2026-03-20T09:30:00Z",
+        updated_at="2026-03-20T09:30:00Z",
+    )
+
+
+def _reviewer_identity() -> AdminIdentity:
+    return AdminIdentity(
+        admin_id="admin-1",
+        email="finance-review@synapse.network",
+        display_name="Finance Review",
+        role="finance_reviewer",
+        permissions=("approval:decide",),
+    )
+
+
+def test_http_withdraw_review_adapter_handles_gateway_validation_detail_list(monkeypatch) -> None:
+    def fake_post(url, *, json, headers, timeout):
+        class Response:
+            is_success = False
+            status_code = 422
+            text = "unprocessable"
+
+            @staticmethod
+            def json():
+                return {
+                    "detail": [
+                        {"loc": ["body", "reviewDecision"], "msg": "String should have at least 6 characters"},
+                        "plain validation failure",
+                    ]
+                }
+
+        return Response()
+
+    monkeypatch.setattr("src.services.adapters.provider_withdraw_review.httpx.post", fake_post)
+    try:
+        _http_review_adapter().review_withdrawal(
+            _provider_review_item(),
+            decision="REJECT",
+            reviewer=_reviewer_identity(),
+            note="Reject provider withdrawal.",
+        )
+    except ProviderWithdrawReviewError as exc:
+        assert exc.code == "GATEWAY_HTTP_422"
+        assert "String should have at least 6 characters" in exc.message
+        assert "plain validation failure" in exc.message
+    else:
+        raise AssertionError("expected ProviderWithdrawReviewError")
+
+
+def test_http_withdraw_review_adapter_propagates_gateway_error_detail_dict(monkeypatch) -> None:
+    def fake_post(url, *, json, headers, timeout):
+        class Response:
+            is_success = False
+            status_code = 409
+            text = "conflict"
+
+            @staticmethod
+            def json():
+                return {"detail": {"code": "WITHDRAWAL_NOT_REVIEWABLE", "message": "Withdrawal is not awaiting review."}}
+
+        return Response()
+
+    monkeypatch.setattr("src.services.adapters.provider_withdraw_review.httpx.post", fake_post)
+    try:
+        _http_review_adapter().review_withdrawal(
+            _provider_review_item(),
+            decision="APPROVE",
+            reviewer=_reviewer_identity(),
+            note="Approve provider withdrawal.",
+        )
+    except ProviderWithdrawReviewError as exc:
+        assert exc.code == "WITHDRAWAL_NOT_REVIEWABLE"
+        assert exc.message == "Withdrawal is not awaiting review."
+        assert exc.status_code == 409
+    else:
+        raise AssertionError("expected ProviderWithdrawReviewError")
 
 
 def test_provider_withdraw_review_history_returns_reviewed_items() -> None:

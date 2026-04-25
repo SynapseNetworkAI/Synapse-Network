@@ -89,10 +89,13 @@ def _require_staging_target(*, dsn: str, email: str, confirmed: bool) -> tuple[s
     if "e2e" not in normalized_email and "staging" not in normalized_email:
         fail(ERROR_NON_E2E_EMAIL)
     host, dbname = _dsn_info(dsn)
-    if host not in LOCAL_HOSTS and not confirmed:
+    is_local = host in LOCAL_HOSTS
+    if not is_local and not confirmed:
         fail(ERROR_CONFIRM_STAGING)
-    if dbname and "staging" not in dbname:
+    if not is_local and dbname and "staging" not in dbname:
         fail(f"refusing to reset admin user outside a staging database: {dbname}")
+    if is_local and dbname and dbname not in {"synapse_gateway_admin"} and "staging" not in dbname:
+        fail(f"refusing to reset admin user outside a local/staging admin database: {dbname}")
     return host or "localhost", dbname
 
 
