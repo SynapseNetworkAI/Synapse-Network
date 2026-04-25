@@ -55,8 +55,11 @@ Emergency bypass remains `git push --no-verify`.
 `ci:pr` defaults to dynamic scope. `bash scripts/ci/pr_checks.sh` resolves changed
 files with `scripts/ci/resolve_pr_ci_scope.mjs`, prints the selected commands,
 and then runs only the relevant gates. It fails closed into full CI for CI
-workflow changes, root dependency changes, deploy-script changes, unknown paths,
-or merge-base resolution failures. Use `SYNAPSE_CI_SCOPE=full bash
+workflow changes, root dependency/lockfile changes, deploy-script changes,
+guardrail script changes, unknown paths, or merge-base resolution failures.
+Root `package.json` script-only changes are mapped narrowly when they are
+ordinary evidence/E2E wrappers. Each selected gate prints `DONE` with a duration
+and the run ends with a gate duration summary. Use `SYNAPSE_CI_SCOPE=full bash
 scripts/ci/pr_checks.sh` when you need the old full aggregate gate explicitly.
 
 `ci:pr` starts selected runs with `bash scripts/ci/runtime_preflight.sh`. This probe gives
