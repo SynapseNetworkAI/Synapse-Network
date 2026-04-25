@@ -228,6 +228,26 @@ jobs:
           echo "MIGRATION_RAN=true" >> "$GITHUB_ENV"
           echo "MIGRATION_STATUS=passed" >> "$GITHUB_ENV"
 
+      - name: Run Gateway-admin DB migration before Gateway-admin rollout
+        if: ${{ steps.scope.outputs.deploy == 'true' }}
+        run: |
+          gateway_admin_image="$(node -e "const d=require('./image-digests.json'); console.log(d['gateway-admin'] || '')")"
+          if [[ -z "${gateway_admin_image}" ]]; then
+            echo "Gateway-admin image not in deploy scope; skipping admin DB migration."
+            exit 0
+          fi
+          gcloud run jobs update synapse-staging-gateway-admin-db-migrate \
+            --project "${PROJECT_ID}" \
+            --region "${REGION}" \
+            --image "${gateway_admin_image}" \
+            --quiet
+          gcloud run jobs execute synapse-staging-gateway-admin-db-migrate \
+            --project "${PROJECT_ID}" \
+            --region "${REGION}" \
+            --wait
+          echo "ADMIN_MIGRATION_RAN=true" >> "$GITHUB_ENV"
+          echo "ADMIN_MIGRATION_STATUS=passed" >> "$GITHUB_ENV"
+
       - name: Deploy affected Cloud Run services
         if: ${{ steps.scope.outputs.deploy == 'true' }}
         run: |

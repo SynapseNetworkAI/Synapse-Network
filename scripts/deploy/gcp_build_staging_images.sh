@@ -39,7 +39,7 @@ docker build --platform linux/amd64 -t "${gateway_image}" services/gateway
 docker push "${gateway_image}"
 
 echo "[gcp-build-images] building gateway-admin"
-docker build --platform linux/amd64 -t "${gateway_admin_image}" services/gateway-admin
+docker build --platform linux/amd64 -f services/gateway-admin/Dockerfile -t "${gateway_admin_image}" .
 docker push "${gateway_admin_image}"
 
 echo "[gcp-build-images] building user-front"

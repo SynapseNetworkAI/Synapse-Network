@@ -7,7 +7,10 @@ class ProviderWithdrawReviewSummary(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     withdrawal_id: str = Field(alias="withdrawalId")
+    withdrawal_kind: str = Field(alias="withdrawalKind")
+    review_type: str = Field(alias="reviewType")
     owner_address: str = Field(alias="ownerAddress")
+    subject_address: str = Field(alias="subjectAddress")
     amount_usdc: str = Field(alias="amountUsdc")
     status: str
     request_id: str | None = Field(default=None, alias="requestId")
@@ -31,7 +34,10 @@ class ProviderWithdrawReviewHistoryItem(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     withdrawal_id: str = Field(alias="withdrawalId")
+    withdrawal_kind: str = Field(alias="withdrawalKind")
+    review_type: str = Field(alias="reviewType")
     owner_address: str | None = Field(default=None, alias="ownerAddress")
+    subject_address: str | None = Field(default=None, alias="subjectAddress")
     amount_usdc: str | None = Field(default=None, alias="amountUsdc")
     request_id: str | None = Field(default=None, alias="requestId")
     tx_hash: str | None = Field(default=None, alias="txHash")
@@ -67,7 +73,10 @@ class ProviderWithdrawReviewDecisionResult(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     withdrawal_id: str = Field(alias="withdrawalId")
+    withdrawal_kind: str = Field(alias="withdrawalKind")
+    review_type: str = Field(alias="reviewType")
     owner_address: str = Field(alias="ownerAddress")
+    subject_address: str = Field(alias="subjectAddress")
     review_decision: str = Field(alias="reviewDecision")
     status: str
     message: str | None = None

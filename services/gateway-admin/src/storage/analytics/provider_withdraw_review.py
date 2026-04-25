@@ -21,7 +21,10 @@ def _to_iso(value: datetime | None) -> str | None:
 @dataclass(slots=True)
 class ProviderWithdrawReviewItem:
     withdrawal_id: str
+    withdrawal_kind: str
+    review_type: str
     owner_address: str
+    subject_address: str
     amount_usdc: Decimal
     status: str
     request_id: str | None
@@ -50,7 +53,10 @@ class InMemoryProviderWithdrawReviewRepository:
             items=[
                 ProviderWithdrawReviewItem(
                     withdrawal_id="wd-demo-review-001",
+                    withdrawal_kind="provider_withdrawal",
+                    review_type="provider_withdraw_review",
                     owner_address="0x8f3a2c6d4b1180e6ac93d55aefe34c81a8d6d111",
+                    subject_address="0x8f3a2c6d4b1180e6ac93d55aefe34c81a8d6d111",
                     amount_usdc=Decimal("128.40"),
                     status="PENDING_MANUAL_REVIEW",
                     request_id="provider-withdraw-review-001",
@@ -64,7 +70,10 @@ class InMemoryProviderWithdrawReviewRepository:
                 ),
                 ProviderWithdrawReviewItem(
                     withdrawal_id="wd-demo-review-002",
+                    withdrawal_kind="provider_withdrawal",
+                    review_type="provider_withdraw_review",
                     owner_address="0x7d1a3d59ac5d5310b0ed4b14a22d6327c7911e22",
+                    subject_address="0x7d1a3d59ac5d5310b0ed4b14a22d6327c7911e22",
                     amount_usdc=Decimal("320.00"),
                     status="PENDING_MANUAL_REVIEW",
                     request_id="provider-withdraw-review-002",
@@ -100,7 +109,10 @@ class InMemoryProviderWithdrawReviewRepository:
                 continue
             updated = ProviderWithdrawReviewItem(
                 withdrawal_id=item.withdrawal_id,
+                withdrawal_kind=item.withdrawal_kind,
+                review_type=item.review_type,
                 owner_address=item.owner_address,
+                subject_address=item.subject_address,
                 amount_usdc=item.amount_usdc,
                 status=updated_status,
                 request_id=item.request_id,
@@ -127,6 +139,7 @@ class PostgresProviderWithdrawReviewRepository:
                 """
                 SELECT
                     vw.withdrawal_id,
+                    vw.withdrawal_kind,
                     owner.owner_wallet,
                     vw.amount_usdc,
                     COALESCE(rs.payload->>'flowStatus', vw.status) AS flow_status,
@@ -142,7 +155,7 @@ class PostgresProviderWithdrawReviewRepository:
                   ON owner.owner_id = account.owner_id
                 LEFT JOIN synapse_runtime_state rs
                   ON rs.state_key = CONCAT('vault_withdrawal_meta::', vw.withdrawal_id)
-                WHERE vw.withdrawal_kind = 'provider_withdrawal'
+                WHERE vw.withdrawal_kind IN ('provider_withdrawal', 'consumer_refund')
                   AND COALESCE(rs.payload->>'flowStatus', vw.status) = 'PENDING_MANUAL_REVIEW'
                 ORDER BY vw.created_at DESC
                 LIMIT %s
@@ -160,7 +173,7 @@ class PostgresProviderWithdrawReviewRepository:
                 FROM synapse_vault_withdrawals vw
                 LEFT JOIN synapse_runtime_state rs
                   ON rs.state_key = CONCAT('vault_withdrawal_meta::', vw.withdrawal_id)
-                WHERE vw.withdrawal_kind = 'provider_withdrawal'
+                WHERE vw.withdrawal_kind IN ('provider_withdrawal', 'consumer_refund')
                   AND COALESCE(rs.payload->>'flowStatus', vw.status) = 'PENDING_MANUAL_REVIEW'
                 """
             )
@@ -173,6 +186,7 @@ class PostgresProviderWithdrawReviewRepository:
                 """
                 SELECT
                     vw.withdrawal_id,
+                    vw.withdrawal_kind,
                     owner.owner_wallet,
                     vw.amount_usdc,
                     COALESCE(rs.payload->>'flowStatus', vw.status) AS flow_status,
@@ -188,7 +202,7 @@ class PostgresProviderWithdrawReviewRepository:
                   ON owner.owner_id = account.owner_id
                 LEFT JOIN synapse_runtime_state rs
                   ON rs.state_key = CONCAT('vault_withdrawal_meta::', vw.withdrawal_id)
-                WHERE vw.withdrawal_kind = 'provider_withdrawal'
+                WHERE vw.withdrawal_kind IN ('provider_withdrawal', 'consumer_refund')
                   AND vw.withdrawal_id = %s
                 LIMIT 1
                 """,
@@ -217,9 +231,15 @@ class PostgresProviderWithdrawReviewRepository:
 
     def _to_item(self, row: dict[str, Any]) -> ProviderWithdrawReviewItem:
         payload = self._payload_dict(row.get("payload"))
+        withdrawal_kind = str(row.get("withdrawal_kind") or "provider_withdrawal")
+        review_type = "consumer_withdraw_review" if withdrawal_kind == "consumer_refund" else "provider_withdraw_review"
+        owner_wallet = str(row.get("owner_wallet") or "")
         return ProviderWithdrawReviewItem(
             withdrawal_id=str(row.get("withdrawal_id") or ""),
-            owner_address=str(row.get("owner_wallet") or ""),
+            withdrawal_kind=withdrawal_kind,
+            review_type=review_type,
+            owner_address=owner_wallet,
+            subject_address=owner_wallet,
             amount_usdc=Decimal(str(row.get("amount_usdc") or "0")),
             status=str(row.get("flow_status") or row.get("status") or "REQUESTED"),
             request_id=str(row.get("request_id")) if row.get("request_id") else None,

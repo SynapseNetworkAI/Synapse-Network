@@ -221,6 +221,12 @@ class ApprovalService:
             "requesterRole": PROVIDER_WITHDRAW_REVIEW_REQUESTER,
             "amountUsdc": f"{review.amount_usdc:.2f}",
             "createdAt": review.created_at,
+            "payload": {
+                "withdrawalKind": review.withdrawal_kind,
+                "reviewType": review.review_type,
+                "ownerAddress": review.owner_address,
+                "subjectAddress": review.subject_address,
+            },
         }
 
     @staticmethod

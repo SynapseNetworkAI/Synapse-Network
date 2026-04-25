@@ -122,7 +122,7 @@ if contains_service gateway-admin; then
   cat >>"${tmp_config}" <<EOF
   - name: "gcr.io/cloud-builders/docker"
     id: "build-gateway-admin"
-    args: ["build", "-t", "${gateway_admin_image}", "services/gateway-admin"]
+    args: ["build", "-f", "services/gateway-admin/Dockerfile", "-t", "${gateway_admin_image}", "."]
   - name: "gcr.io/cloud-builders/docker"
     id: "push-gateway-admin"
     args: ["push", "${gateway_admin_image}"]

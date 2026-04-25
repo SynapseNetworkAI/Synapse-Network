@@ -157,6 +157,7 @@ production or contract deployment before the substrate is stable.
     - Lark E2E.
     - One-ticket withdrawal evidence.
     - Gateway full-chain staging evidence.
+    - Staging core dogfood evidence.
 
 ## Terraform Inputs
 
@@ -222,7 +223,7 @@ gcloud auth configure-docker ${REGION}-docker.pkg.dev
 docker build --platform linux/amd64 -t ${REGISTRY}/gateway:${TAG} services/gateway
 docker push ${REGISTRY}/gateway:${TAG}
 
-docker build --platform linux/amd64 -t ${REGISTRY}/gateway-admin:${TAG} services/gateway-admin
+docker build --platform linux/amd64 -f services/gateway-admin/Dockerfile -t ${REGISTRY}/gateway-admin:${TAG} .
 docker push ${REGISTRY}/gateway-admin:${TAG}
 
 docker build --platform linux/amd64 \
@@ -310,6 +311,27 @@ printf '%s' 'YOUR_STAGING_ADMIN_E2E_PASSWORD' | \
 printf '%s' 'YOUR_STAGING_ADMIN_E2E_TOTP_SECRET' | \
   bash scripts/deploy/gcp_put_secret.sh synapse-staging-admin-e2e-otp-secret
 ```
+
+If you do not know the staging admin E2E password, reset the dedicated test
+account instead of guessing or reusing a real operator account:
+
+```bash
+bash scripts/deploy/gcp_reset_staging_admin_e2e.sh fabled-archive-494108-k5
+```
+
+The reset script:
+
+- generates a new strong password unless `STAGING_ADMIN_E2E_PASSWORD` is set;
+- generates a new Google Authenticator-compatible TOTP seed unless
+  `STAGING_ADMIN_E2E_OTP_SECRET` is set;
+- writes both values to Secret Manager;
+- resets `staging-admin-e2e@synapse-network.ai` in the Gateway-admin staging DB;
+- revokes old sessions and old active TOTP factors for that test account.
+
+The TOTP secret is not a Google login link and does not expire like a magic
+link. It is the manual key that Google Authenticator stores. The six-digit OTP
+codes generated from it expire every 30 seconds. To rotate the manual key, run
+the reset script again.
 
 Gmail staging uses SMTP app password or Workspace SMTP relay. The Gmail API is
 not required for V1 email delivery.
@@ -629,6 +651,29 @@ printf '%s' 'REDACTED_STAGING_ADMIN_E2E_TOTP_SECRET' | \
   bash scripts/deploy/gcp_put_secret.sh synapse-staging-admin-e2e-otp-secret
 ```
 
+Recommended reset flow:
+
+```bash
+bash scripts/deploy/gcp_reset_staging_admin_e2e.sh fabled-archive-494108-k5
+```
+
+Read the password only when you need to log in:
+
+```bash
+gcloud secrets versions access latest \
+  --secret=synapse-staging-admin-e2e-password \
+  --project=fabled-archive-494108-k5
+```
+
+Read the Google Authenticator manual key only when you need to enroll or
+generate a staging E2E OTP:
+
+```bash
+gcloud secrets versions access latest \
+  --secret=synapse-staging-admin-e2e-otp-secret \
+  --project=fabled-archive-494108-k5
+```
+
 The E2E-only wallet and admin dogfood secrets are read by local/release
 automation when explicitly exported. They are not runtime secrets for Gateway,
 Gateway-admin, User-front, Admin-front, or background Cloud Run jobs.
@@ -637,6 +682,9 @@ Safe local export helpers for staging validation:
 
 ```bash
 export PROJECT_ID=fabled-archive-494108-k5
+export GATEWAY_E2E_RPC_URL="$(gcloud secrets versions access latest \
+  --secret=synapse-staging-arbitrum-sepolia-rpc-url \
+  --project="$PROJECT_ID")"
 export GATEWAY_E2E_OWNER_KEY="$(gcloud secrets versions access latest \
   --secret=synapse-staging-e2e-consumer-private-key \
   --project="$PROJECT_ID")"
@@ -650,6 +698,25 @@ export STAGING_ADMIN_E2E_OTP_SECRET="$(gcloud secrets versions access latest \
   --secret=synapse-staging-admin-e2e-otp-secret \
   --project="$PROJECT_ID")"
 ```
+
+Combined core dogfood release gate:
+
+```bash
+export STAGING_CORE_DOGFOOD_CONFIRM=I_UNDERSTAND_THIS_MUTATES_STAGING
+export GATEWAY_E2E_GATEWAY_BASE=https://api-staging.synapse-network.ai
+export STAGING_USER_FRONT_URL=https://staging.synapse-network.ai
+export STAGING_ADMIN_FRONT_URL=https://admin-staging.synapse-network.ai
+export STAGING_ADMIN_API_URL=https://admin-api-staging.synapse-network.ai
+export POSTGRES_DSN=<locally-reachable-staging-gateway-postgres-dsn>
+
+npm run e2e:staging-core-dogfood
+npm run ci:staging-core-dogfood-evidence
+```
+
+This command mutates only staging: it sends MockUSDC on Arbitrum Sepolia,
+creates Gateway deposit/withdrawal records, captures User-front/Admin-front
+screenshots, and validates DB/chain reconciliation. Do not run it against prod
+or from PR CI.
 
 ## User-front
 

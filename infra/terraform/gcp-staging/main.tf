@@ -185,6 +185,26 @@ locals {
       env         = merge(local.runtime_env, { POSTGRES_AUTO_INIT = "0" })
       secret_env  = local.gateway_secret_env
     }
+    gateway_admin_db_migrate = {
+      name        = "${local.name_prefix}-gateway-admin-db-migrate"
+      image       = var.gateway_admin_image
+      command     = ["python", "scripts/apply_migrations.py"]
+      args        = []
+      schedule    = ""
+      timeout     = "600s"
+      max_retries = 0
+      retry_count = 0
+      env = merge(
+        local.runtime_env,
+        {
+          POSTGRES_POOL_MAX        = "3"
+          POSTGRES_AUTO_INIT       = "0"
+          EXECUTION_WORKER_ENABLED = "false"
+          ADMIN_GATEWAY_PORT       = "8000"
+        },
+      )
+      secret_env = local.gateway_admin_secret_env
+    }
   }
   enabled_cloud_run_jobs = {
     for key, job in local.cloud_run_jobs : key => job

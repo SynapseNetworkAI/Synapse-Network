@@ -31,7 +31,10 @@ class ProviderWithdrawReviewService:
             "items": [
                 {
                     "withdrawalId": item.withdrawal_id,
+                    "withdrawalKind": item.withdrawal_kind,
+                    "reviewType": item.review_type,
                     "ownerAddress": item.owner_address,
+                    "subjectAddress": item.subject_address,
                     "amountUsdc": f"{item.amount_usdc:.2f}",
                     "status": item.status,
                     "requestId": item.request_id,
@@ -144,7 +147,7 @@ class ProviderWithdrawReviewService:
 
         item = self._repository.get_review_item(withdrawal_id)
         if item is None:
-            raise ResourceNotFoundError("Provider withdrawal review item not found")
+            raise ResourceNotFoundError("Withdrawal review item not found")
         if item.status != "PENDING_MANUAL_REVIEW":
             raise BadRequestError(f"Withdrawal status={item.status} is not awaiting manual review")
 
@@ -177,11 +180,15 @@ class ProviderWithdrawReviewService:
             after={
                 "status": result.get("status"),
                 "requestedBy": result.get("requestedBy"),
+                "withdrawalKind": item.withdrawal_kind,
             },
         )
         return {
             "withdrawalId": str(result.get("withdrawalId") or item.withdrawal_id),
+            "withdrawalKind": item.withdrawal_kind,
+            "reviewType": item.review_type,
             "ownerAddress": str(result.get("ownerAddress") or item.owner_address),
+            "subjectAddress": item.subject_address,
             "reviewDecision": normalized_decision,
             "status": str(result.get("status") or "unknown"),
             "message": result.get("message"),
@@ -203,23 +210,27 @@ class ProviderWithdrawReviewService:
     ) -> None:
         self._store.audit.append_action(
             AdminActionAudit(
-                action_type="provider_withdraw_review.decide",
+                action_type="withdrawal_review.decide",
                 result_status=result_status,
                 operator_id=reviewer.admin_id,
                 operator_email=reviewer.email,
                 operator_role=reviewer.role,
                 request_id=request_id,
-                resource_type="provider_withdrawal",
+                resource_type=item.withdrawal_kind,
                 resource_id=item.withdrawal_id,
                 error_code=error_code,
                 before={
                     "status": item.status,
+                    "withdrawalKind": item.withdrawal_kind,
+                    "reviewType": item.review_type,
                     "ownerAddress": item.owner_address,
+                    "subjectAddress": item.subject_address,
                     "amountUsdc": f"{item.amount_usdc:.2f}",
                 },
                 after=after or {},
                 detail={
                     "decision": decision,
+                    "withdrawalKind": item.withdrawal_kind,
                     "reviewerNote": note.strip(),
                 },
                 created_at=datetime.now(timezone.utc),
@@ -285,13 +296,17 @@ class ProviderWithdrawReviewService:
             raise BadRequestError("reviewedFrom must be <= reviewedTo")
 
     def _list_history_audits(self) -> list[AdminActionAudit]:
-        return list(
-            self._store.audit.list_actions(
-                action_type="provider_withdraw_review.decide",
-                result_status=AuditResultStatus.SUCCESS.value,
-                limit=self.HISTORY_MAX_SCAN,
+        audits: list[AdminActionAudit] = []
+        for action_type in ("withdrawal_review.decide", "provider_withdraw_review.decide"):
+            audits.extend(
+                self._store.audit.list_actions(
+                    action_type=action_type,
+                    result_status=AuditResultStatus.SUCCESS.value,
+                    limit=self.HISTORY_MAX_SCAN,
+                )
             )
-        )
+        audits.sort(key=lambda audit: audit.created_at or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
+        return audits[:self.HISTORY_MAX_SCAN]
 
     def _matches_history_filters(
         self,
@@ -374,7 +389,18 @@ class ProviderWithdrawReviewService:
         review_item = self._repository.get_review_item(withdrawal_id)
         return {
             "withdrawalId": withdrawal_id,
+            "withdrawalKind": (
+                review_item.withdrawal_kind
+                if review_item
+                else str(audit.detail.get("withdrawalKind") or audit.before.get("withdrawalKind") or "provider_withdrawal")
+            ),
+            "reviewType": (
+                review_item.review_type
+                if review_item
+                else str(audit.before.get("reviewType") or "provider_withdraw_review")
+            ),
             "ownerAddress": review_item.owner_address if review_item else audit.before.get("ownerAddress"),
+            "subjectAddress": review_item.subject_address if review_item else audit.before.get("subjectAddress"),
             "amountUsdc": self._resolve_amount_usdc(review_item, audit.before),
             "requestId": review_item.request_id if review_item else None,
             "txHash": review_item.tx_hash if review_item else None,

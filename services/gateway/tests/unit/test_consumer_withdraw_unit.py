@@ -641,6 +641,79 @@ class TestConsumerWithdrawFailureAndReview(unittest.TestCase):
         assert row.status == "REJECTED"
         assert row.review_decision == "REJECT"
 
+    def test_review_reject_fails_closed_when_frozen_balance_is_inconsistent(self):
+        storage = FakeStorage()
+        storage.balance_repo.seed_balance(OWNER, available=1000.0)
+        svc = _make_service(storage)
+
+        created = run(svc.create_consumer_withdraw_intent(
+            payload={"amountUsdc": 600.0, "reason": "large withdraw"},
+            owner_wallet=OWNER,
+            idempotency_key=IDEM_KEY,
+        ))
+        storage.balance_repo.seed_balance(OWNER, available=400.0, frozen=100.0)
+
+        with pytest.raises(HTTPException) as exc_info:
+            run(svc.review_consumer_withdrawal(
+                owner_wallet=OWNER,
+                refund_id=created["withdrawId"],
+                request_meta={
+                    "review": {
+                        "decision": "REJECT",
+                        "reviewerAddress": REVIEWER,
+                        "reviewerNote": "Velocity risk",
+                    }
+                },
+            ))
+
+        assert exc_info.value.status_code == 409
+        row = storage.gateway_state.refund_rows[0]
+        assert row.status == "PENDING_MANUAL_REVIEW"
+        assert row.review_decision is None
+        ledger = storage.balance_repo.read_balance_ledger()
+        assert ledger.consumer_available_balance(OWNER) == Decimal("400.000000")
+        assert ledger.consumer_frozen_balance(OWNER) == Decimal("100.000000")
+
+    def test_review_reject_is_idempotent_and_does_not_release_twice(self):
+        storage = FakeStorage()
+        storage.balance_repo.seed_balance(OWNER, available=1000.0)
+        svc = _make_service(storage)
+
+        created = run(svc.create_consumer_withdraw_intent(
+            payload={"amountUsdc": 600.0, "reason": "large withdraw"},
+            owner_wallet=OWNER,
+            idempotency_key=IDEM_KEY,
+        ))
+
+        first = run(svc.review_consumer_withdrawal(
+            owner_wallet=OWNER,
+            refund_id=created["withdrawId"],
+            request_meta={
+                "review": {
+                    "decision": "REJECT",
+                    "reviewerAddress": REVIEWER,
+                    "reviewerNote": "Velocity risk",
+                }
+            },
+        ))
+        second = run(svc.review_consumer_withdrawal(
+            owner_wallet=OWNER,
+            refund_id=created["withdrawId"],
+            request_meta={
+                "review": {
+                    "decision": "REJECT",
+                    "reviewerAddress": REVIEWER,
+                    "reviewerNote": "Duplicate click",
+                }
+            },
+        ))
+
+        assert first["status"] == "REJECTED"
+        assert second["status"] == "REJECTED"
+        ledger = storage.balance_repo.read_balance_ledger()
+        assert ledger.consumer_available_balance(OWNER) == Decimal("1000.000000")
+        assert ledger.consumer_frozen_balance(OWNER) == Decimal("0.000000")
+
     def test_review_approve_moves_frozen_to_pending_and_attaches_ticket(self):
         storage = FakeStorage()
         storage.balance_repo.seed_balance(OWNER, available=1000.0)
@@ -683,6 +756,39 @@ class TestConsumerWithdrawFailureAndReview(unittest.TestCase):
         row = storage.gateway_state.refund_rows[0]
         assert row.status == "REQUESTED"
         assert row.ticket.signature == "0xapproved"
+
+    def test_review_approve_signing_failure_leaves_funds_frozen(self):
+        storage = FakeStorage()
+        storage.balance_repo.seed_balance(OWNER, available=1000.0)
+        svc = _make_service(storage)
+
+        created = run(svc.create_consumer_withdraw_intent(
+            payload={"amountUsdc": 600.0, "reason": "needs review"},
+            owner_wallet=OWNER,
+            idempotency_key=IDEM_KEY,
+        ))
+
+        with patch.object(svc, "_build_consumer_withdraw_ticket", side_effect=RuntimeError("signer offline")):
+            with pytest.raises(RuntimeError):
+                run(svc.review_consumer_withdrawal(
+                    owner_wallet=OWNER,
+                    refund_id=created["withdrawId"],
+                    request_meta={
+                        "review": {
+                            "decision": "APPROVE",
+                            "reviewerAddress": REVIEWER,
+                            "reviewerNote": "Approved after manual review",
+                        }
+                    },
+                ))
+
+        ledger = storage.balance_repo.read_balance_ledger()
+        assert ledger.consumer_available_balance(OWNER) == Decimal("400.000000")
+        assert ledger.consumer_frozen_balance(OWNER) == Decimal("600.000000")
+        assert ledger.consumer_pending_balance(OWNER) == Decimal("0.000000")
+        row = storage.gateway_state.refund_rows[0]
+        assert row.status == "PENDING_MANUAL_REVIEW"
+        assert row.review_decision is None
 
 
 class TestConsumerWithdrawProcessor(unittest.TestCase):

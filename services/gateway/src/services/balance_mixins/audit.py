@@ -46,6 +46,8 @@ class BalanceAuditMixin:
             "CONSUMER_WITHDRAW_INTENT_CREATED",
             "REFUND_INTENT_COMPLETED",
             "PROVIDER_WITHDRAW_INTENT_CREATED",
+            "CONSUMER_WITHDRAW_REVIEW_APPROVED",
+            "CONSUMER_WITHDRAW_REVIEW_REJECTED",
             "PROVIDER_WITHDRAW_REVIEW_APPROVED",
             "PROVIDER_WITHDRAW_REVIEW_REJECTED",
             "PROVIDER_WITHDRAW_COMPLETED",
@@ -63,6 +65,7 @@ class BalanceAuditMixin:
             "CONSUMER_DEPOSIT_CONFIRMED_REPAIRED",
             # Consumer withdraw: start + completion
             "CONSUMER_WITHDRAW_INTENT_CREATED",
+            "CONSUMER_WITHDRAW_REVIEW_REJECTED",
             "REFUND_INTENT_COMPLETED",
             # Provider withdraw: start + review result + completion
             "PROVIDER_WITHDRAW_INTENT_CREATED",
