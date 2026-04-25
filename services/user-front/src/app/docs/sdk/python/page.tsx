@@ -4,6 +4,7 @@ import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { CodeBlock } from "../../components/CodeBlock";
 import { StatusBadge } from "../../components/StatusBadge";
 import { useActiveSection } from "../../use-active-section";
+import { SdkApiCheatsheet } from "../SdkApiCheatsheet";
 
 const PAGE_SECTIONS = ["sdk-py"];
 
@@ -29,6 +30,42 @@ export default function PythonSdkPage() {
         </div>
         <h1 className="x-page-title text-white">{t("docsPage.sdkPyTitle")}</h1>
         <p className="x-body-copy max-w-[640px]">{t("docsPage.sdkPyDescription")}</p>
+      </section>
+
+      <section className="rounded-2xl border border-[#7ff7be]/20 bg-[#7ff7be]/[0.05] p-5">
+        <p className="x-body-copy max-w-[760px]">{t("docsPage.sdkRunbookBridgeDescription")}</p>
+        <a
+          href="https://staging.synapse-network.ai/docs/sdk/python"
+          target="_blank"
+          rel="noreferrer"
+          className="mt-4 inline-flex text-[13px] font-semibold text-[#7ff7be]"
+        >
+          {t("docsPage.sdkRunbookBridgePythonCta")}
+        </a>
+      </section>
+
+      <section className="rounded-2xl border border-[#6eb6f6]/20 bg-[#6eb6f6]/[0.05] p-5">
+        <h2 className="x-section-title text-white">{t("docsPage.sdkAgentQuickstartTitle")}</h2>
+        <p className="mt-2 text-[14px] leading-7 text-[#8b98a5]">{t("docsPage.sdkAgentQuickstartDescription")}</p>
+        <CodeBlock
+          lang="python"
+          code={`from synapse_client import SynapseClient
+
+client = SynapseClient(api_key="agt_xxx", environment="staging")
+
+services = client.search("free", limit=10)
+service = services[0]
+
+result = client.invoke(
+    service.service_id,
+    {"prompt": "hello"},
+    cost_usdc=float(service.price_usdc),
+    idempotency_key="agent-job-001",
+)
+
+receipt = client.get_invocation(result.invocation_id)
+print(receipt.status, receipt.charged_usdc)`}
+        />
       </section>
 
       <section id="sdk-py" className="space-y-4">
@@ -116,53 +153,14 @@ except PriceMismatchError as err:
         />
       </section>
 
-      <section className="space-y-5">
-        <h2 className="x-section-title text-white">{t("docsPage.sdkApiCheatsheetTitle")}</h2>
-
-        <div className="text-[11px] font-semibold tracking-widest text-[#4e535a] uppercase">SynapseAuth</div>
-        <div className="overflow-hidden rounded-2xl border border-white/[0.06]">
-          <table className="w-full text-left">
-            <thead>
-              <tr className="border-b border-white/[0.06] bg-white/[0.02]">
-                <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#4e535a]">{t("docsPage.sdkMethod")}</th>
-                <th className="hidden px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#4e535a] md:table-cell">{t("docsPage.sdkReturns")}</th>
-                <th className="hidden px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#4e535a] md:table-cell">{t("docsPage.sdkDescriptionLabel")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {authMethods.map((method, index) => (
-                <tr key={method} className="border-b border-white/[0.04] last:border-b-0">
-                  <td className="px-4 py-3"><code className="font-mono text-[12px] text-[#7ff7be]">{method}</code></td>
-                  <td className="hidden px-4 py-3 md:table-cell"><code className="font-mono text-[11px] text-[#6eb6f6]">{authReturns[index] ?? ""}</code></td>
-                  <td className="hidden px-4 py-3 text-[12px] text-[#8b98a5] md:table-cell">{authDescriptions[index] ?? ""}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="pt-2 text-[11px] font-semibold tracking-widest text-[#4e535a] uppercase">SynapseClient</div>
-        <div className="overflow-hidden rounded-2xl border border-white/[0.06]">
-          <table className="w-full text-left">
-            <thead>
-              <tr className="border-b border-white/[0.06] bg-white/[0.02]">
-                <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#4e535a]">{t("docsPage.sdkMethod")}</th>
-                <th className="hidden px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#4e535a] md:table-cell">{t("docsPage.sdkReturns")}</th>
-                <th className="hidden px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#4e535a] md:table-cell">{t("docsPage.sdkDescriptionLabel")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {clientMethods.map((method, index) => (
-                <tr key={method} className="border-b border-white/[0.04] last:border-b-0">
-                  <td className="px-4 py-3"><code className="font-mono text-[12px] text-[#7ff7be]">{method}</code></td>
-                  <td className="hidden px-4 py-3 md:table-cell"><code className="font-mono text-[11px] text-[#6eb6f6]">{clientReturns[index] ?? ""}</code></td>
-                  <td className="hidden px-4 py-3 text-[12px] text-[#8b98a5] md:table-cell">{clientDescriptions[index] ?? ""}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
+      <SdkApiCheatsheet
+        title={t("docsPage.sdkApiCheatsheetTitle")}
+        methodLabel={t("docsPage.sdkMethod")}
+        returnsLabel={t("docsPage.sdkReturns")}
+        descriptionLabel={t("docsPage.sdkDescriptionLabel")}
+        authRows={{ methods: authMethods, returns: authReturns, descriptions: authDescriptions }}
+        clientRows={{ methods: clientMethods, returns: clientReturns, descriptions: clientDescriptions }}
+      />
 
       <div className="h-16" />
     </div>
