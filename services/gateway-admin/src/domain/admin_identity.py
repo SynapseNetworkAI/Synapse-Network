@@ -16,6 +16,9 @@ class AdminUser:
     password_hash: str | None = None
     require_mfa: bool = True
     last_login_at: datetime | None = None
+    failed_login_attempts: int = 0
+    last_failed_login_at: datetime | None = None
+    locked_until: datetime | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
     disabled_at: datetime | None = None

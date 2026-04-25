@@ -21,12 +21,15 @@ locals {
       POSTGRES_CONNECT_TIMEOUT_SEC            = "5"
       POSTGRES_POOL_MAX                       = "5"
       POSTGRES_AUTO_INIT                      = "0"
+      CORS_ALLOW_ORIGINS                      = "https://staging.synapse-network.ai"
       V2_INDEXER_ENABLED                      = "false"
       PROVIDER_WITHDRAW_EXPIRY_REAPER_ENABLED = "false"
       CONSUMER_WITHDRAW_PROCESSOR_ENABLED     = "false"
       ANALYTICS_TRANSPORT                     = "outbox"
       ANALYTICS_STRICT_KAFKA                  = "false"
+      ANALYTICS_KAFKA_BOOTSTRAP_SERVERS       = ""
       DOWNSTREAM_ADAPTIVE_REDIS_ENABLED       = "false"
+      REDIS_URL                               = ""
       EMAIL_OUTBOX_ENABLED                    = "true"
       EMAIL_TRANSPORT                         = "gmail_smtp"
       GMAIL_SMTP_HOST                         = "smtp.gmail.com"
@@ -49,6 +52,12 @@ locals {
     GMAIL_SMTP_USERNAME         = "synapse-staging-gmail-username"
     GMAIL_SMTP_APP_PASSWORD     = "synapse-staging-gmail-app-password"
   }
+  gateway_migration_secret_env = merge(
+    local.gateway_secret_env,
+    {
+      POSTGRES_MIGRATOR_PASSWORD = "synapse-staging-postgres-migrator-password"
+    },
+  )
   gateway_admin_secret_env = {
     METRICS_BEARER_TOKEN          = "synapse-staging-metrics-bearer-token"
     ADMIN_CSRF_SECRET             = "synapse-staging-admin-csrf-secret"
@@ -80,9 +89,16 @@ locals {
       env = merge(
         local.runtime_env,
         {
-          POSTGRES_POOL_MAX        = "3"
-          EXECUTION_WORKER_ENABLED = "false"
-          ADMIN_GATEWAY_PORT       = "8000"
+          POSTGRES_POOL_MAX             = "3"
+          EXECUTION_WORKER_ENABLED      = "false"
+          ADMIN_GATEWAY_PORT            = "8000"
+          ADMIN_GATEWAY_ALLOWED_ORIGINS = "https://admin-staging.synapse-network.ai"
+          ADMIN_SESSION_COOKIE_SECURE   = "true"
+          ADMIN_SESSION_COOKIE_SAMESITE = "lax"
+          ADMIN_SESSION_COOKIE_DOMAIN   = ".synapse-network.ai"
+          ADMIN_LOGIN_LOCK_THRESHOLD    = "5"
+          ADMIN_LOGIN_LOCK_HOURS        = "24"
+          GATEWAY_INTERNAL_BASE_URL     = "https://api-staging.synapse-network.ai"
         },
       )
       secret_env = local.gateway_admin_secret_env
@@ -183,7 +199,7 @@ locals {
       max_retries = 0
       retry_count = 0
       env         = merge(local.runtime_env, { POSTGRES_AUTO_INIT = "0" })
-      secret_env  = local.gateway_secret_env
+      secret_env  = local.gateway_migration_secret_env
     }
     gateway_admin_db_migrate = {
       name        = "${local.name_prefix}-gateway-admin-db-migrate"

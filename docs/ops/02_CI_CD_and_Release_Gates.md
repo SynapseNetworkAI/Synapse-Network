@@ -75,6 +75,24 @@ PR 阻断流水线至少要检查：
 
 本地 hook 与 GitHub PR CI 必须共享同一个聚合入口 `scripts/ci/pr_checks.sh`，避免“本地过了、远端挂了”或“本地没拦住、远端才发现”的漂移。
 
+`ci:pr` 默认采用动态 PR scope：
+
+1. `SYNAPSE_CI_SCOPE=auto` 是默认模式，先由 `scripts/ci/resolve_pr_ci_scope.mjs` 根据 `origin/main...HEAD` 的 changed files 解析需要执行的门禁。
+2. docs-only 只运行 baseline：runtime preflight、local runtime guard、migration seed guard、secret scan、docs、release Go/No-Go。
+3. 单项目变更只运行对应项目门禁，例如 `services/user-front/**` 运行 frontend gate，`services/gateway/**` 运行 gateway、finance/security 和增量覆盖率相关 gate。
+4. `.github/workflows/**`、`scripts/ci/**`、`scripts/deploy/**`、root `package.json`、root lockfile、`AGENTS.md`、未知路径或 merge-base 解析失败时，必须 fail closed 回退 full CI。
+5. `SYNAPSE_CI_SCOPE=full bash scripts/ci/pr_checks.sh` 保持完整门禁，用于主干、手动复核、nightly/full CI 和任何需要最高信心的发布前检查。
+
+GitHub PR CI 仍然保留单个 required check：`pr-checks`。动态 scope 只发生在这个 job 内部，避免多 job conditional required checks 造成 skipped 状态无法合并的分支保护问题。
+
+`.github/workflows/pr-ci.yml` 还必须使用 `actions/cache@v5` 缓存依赖下载层，保持 GitHub Actions Node 24 runtime 兼容：
+
+1. `~/.npm`，key 绑定 root 和 user-front 的 npm lockfile。
+2. Yarn v1 cache，key 绑定 root、user-front、admin-front 的 `yarn.lock`。
+3. `~/.cache/pip` 和 `~/.cache/uv`，key 绑定 Python requirements、pyproject 和 uv lock。
+
+不要缓存 `node_modules` 或 `.venv`。安装仍以 lockfile / requirements 为准，缓存只加速下载，不改变依赖确定性。
+
 当前 Python 打包校验范围只包括 `sdk/python`，因为它是仓库内唯一带 `pyproject.toml` 的 Python 分发包；`gateway`、`services/gateway-admin`、`provider_service` 当前仍按服务进程治理。
 
 当前 Python CI 的环境原则：

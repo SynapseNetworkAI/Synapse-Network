@@ -1,11 +1,12 @@
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 import hashlib
+import logging
 import secrets
 from uuid import uuid4
 
 from src.core.config import get_settings
-from src.core.errors import AuthenticationError, BadRequestError, MfaEnrollmentRequiredError
+from src.core.errors import AdminAccountLockedError, AuthenticationError, BadRequestError, MfaEnrollmentRequiredError
 from src.core.security import verify_password
 from src.core.totp import build_totp_otpauth_url, generate_totp_secret
 from src.domain import AdminActionAudit, AdminSession
@@ -18,11 +19,28 @@ DASHBOARD_READ = "dashboard:read"
 APPROVAL_READ = "approval:read"
 APPROVAL_SUBMIT = "approval:submit"
 APPROVAL_DECIDE = "approval:decide"
-INVALID_ADMIN_TOKEN = "Invalid admin token"
+INVALID_ADMIN_TOKEN = "Invalid admin token"  # noqa: S105 - user-facing auth error, not a secret.
 ADMIN_NOT_ACTIVE = "Admin account is not active"
+INVALID_ADMIN_CREDENTIALS = "Invalid admin credentials"
+EMAIL_PASSWORD_REQUIRED = "email and password are required"  # noqa: S105 - user-facing validation message.
 INVALID_GOOGLE_AUTHENTICATOR_CODE = "Invalid Google Authenticator code"
+HIGH_RISK_GOOGLE_AUTHENTICATOR_CODE_REQUIRED = "Google Authenticator code is required for high-risk actions"
 MULTIPLE_ACTIVE_GOOGLE_AUTHENTICATOR_FACTORS = "Multiple active Google Authenticator factors are configured"
+FACTOR_ID_OTP_CODE_REQUIRED = "factorId and otpCode are required"
+INVALID_MFA_ENROLLMENT_FACTOR = "Invalid MFA enrollment factor"
+MFA_ENROLLMENT_FACTOR_NOT_PENDING = "MFA enrollment factor is no longer pending"
+ADMIN_SESSION_EXPIRED = "Admin session expired"
+ENROLLMENT_TOKEN_REQUIRED = "enrollmentToken is required"  # noqa: S105 - user-facing validation message.
+INVALID_MFA_ENROLLMENT_TOKEN = "Invalid MFA enrollment token"  # noqa: S105 - user-facing auth error.
+MFA_ENROLLMENT_TOKEN_EXPIRED = "MFA enrollment token expired"  # noqa: S105 - user-facing auth error.
+MFA_ENROLLMENT_TOKEN_NOT_VALID = "MFA enrollment token is no longer valid"  # noqa: S105 - user-facing auth error.
+LOGIN_TOTP_CODE_REQUIRED = "otpCode is required when login TOTP is enabled"
+ADMIN_GOOGLE_AUTHENTICATOR_NOT_CONFIGURED = "Admin Google Authenticator is not configured"
 ENROLLMENT_TOKEN_TTL_SEC = 600
+ADMIN_ACCOUNT_LOCKED_MESSAGE = "Admin account is temporarily locked. Try later or contact an owner."
+SHORT_EMAIL_LOCAL_PART_MAX = 2
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -60,14 +78,32 @@ class AdminAuthService:
         request_id: str | None = None,
     ) -> tuple[str, AdminIdentity]:
         if not email.strip() or not password.strip():
-            raise BadRequestError("email and password are required")
+            raise BadRequestError(EMAIL_PASSWORD_REQUIRED)
         user = self._store.identity.get_user_by_email(email)
         if user is None or user.status != AdminUserStatus.ACTIVE:
-            raise AuthenticationError("Invalid admin credentials")
+            raise AuthenticationError(INVALID_ADMIN_CREDENTIALS)
+        self._reject_locked_user(user, client_ip=client_ip, user_agent=user_agent, request_id=request_id)
         if not verify_password(password, user.password_hash):
-            raise AuthenticationError("Invalid admin credentials")
+            self._record_login_failure(
+                user,
+                failure_stage="password",
+                client_ip=client_ip,
+                user_agent=user_agent,
+                request_id=request_id,
+            )
+            raise AuthenticationError(INVALID_ADMIN_CREDENTIALS)
         self._ensure_mfa_enrollment(user, client_ip=client_ip, user_agent=user_agent, request_id=request_id)
-        self._verify_login_otp(user, otp_code)
+        try:
+            self._verify_login_otp(user, otp_code)
+        except (AuthenticationError, BadRequestError):
+            self._record_login_failure(
+                user,
+                failure_stage="otp",
+                client_ip=client_ip,
+                user_agent=user_agent,
+                request_id=request_id,
+            )
+            raise
         return self._create_authenticated_session(
             user,
             client_ip=client_ip,
@@ -109,18 +145,19 @@ class AdminAuthService:
         request_id: str | None = None,
     ) -> tuple[str, AdminIdentity]:
         if not factor_id.strip() or not otp_code.strip():
-            raise BadRequestError("factorId and otpCode are required")
+            raise BadRequestError(FACTOR_ID_OTP_CODE_REQUIRED)
         challenge = self._get_valid_enrollment_challenge(enrollment_token)
         if challenge.factor_id != factor_id:
-            raise AuthenticationError("Invalid MFA enrollment factor")
+            raise AuthenticationError(INVALID_MFA_ENROLLMENT_FACTOR)
         user = self._get_active_user(challenge.admin_id)
         factor = self._store.identity.get_mfa_factor_by_id(factor_id)
         if factor is None or factor.admin_id != user.admin_id or factor.factor_type != MfaFactorType.TOTP:
-            raise AuthenticationError("Invalid MFA enrollment factor")
+            raise AuthenticationError(INVALID_MFA_ENROLLMENT_FACTOR)
         if factor.status != MfaFactorStatus.PENDING:
-            raise AuthenticationError("MFA enrollment factor is no longer pending")
+            raise AuthenticationError(MFA_ENROLLMENT_FACTOR_NOT_PENDING)
         if not verify_google_authenticator_code(factor, otp_code):
             raise AuthenticationError(INVALID_GOOGLE_AUTHENTICATOR_CODE)
+        self._store.identity.clear_login_failures(user.admin_id)
         now = datetime.now(timezone.utc)
         self._store.identity.upsert_mfa_factor(
             AdminMfaFactor(
@@ -178,7 +215,7 @@ class AdminAuthService:
         if not policy.high_risk_totp_required or not user.require_mfa:
             return
         if not (otp_code or "").strip():
-            raise AuthenticationError("Google Authenticator code is required for high-risk actions")
+            raise AuthenticationError(HIGH_RISK_GOOGLE_AUTHENTICATOR_CODE_REQUIRED)
         factor = self._get_active_totp_factor(user)
         if not verify_google_authenticator_code(factor, otp_code or ""):
             raise AuthenticationError(INVALID_GOOGLE_AUTHENTICATOR_CODE)
@@ -218,7 +255,7 @@ class AdminAuthService:
         if session is None or session.status != AdminSessionStatus.ACTIVE:
             raise AuthenticationError(INVALID_ADMIN_TOKEN)
         if session.expires_at <= datetime.now(timezone.utc):
-            raise AuthenticationError("Admin session expired")
+            raise AuthenticationError(ADMIN_SESSION_EXPIRED)
         return session
 
     def _build_identity(self, admin_id: str) -> AdminIdentity:
@@ -251,6 +288,130 @@ class AdminAuthService:
             raise AuthenticationError(ADMIN_NOT_ACTIVE)
         return user
 
+    def _reject_locked_user(
+        self,
+        user: AdminUser,
+        *,
+        client_ip: str | None,
+        user_agent: str | None,
+        request_id: str | None,
+    ) -> None:
+        now = datetime.now(timezone.utc)
+        if not user.locked_until or user.locked_until <= now:
+            return
+        detail = {
+            "emailHash": self._email_hash(user.email),
+            "failureStage": "locked",
+            "failedLoginAttempts": user.failed_login_attempts,
+            "lockHours": self._settings.admin_login_lock_hours,
+        }
+        self._store.audit.append_action(
+            AdminActionAudit(
+                action_type="admin.login.blocked_locked",
+                result_status=AuditResultStatus.DENIED,
+                operator_id=user.admin_id,
+                operator_email=user.email,
+                operator_role=self._role_for_user(user.admin_id),
+                request_id=request_id,
+                resource_type="admin_user",
+                resource_id=user.admin_id,
+                detail=detail,
+                client_ip=client_ip,
+                user_agent=user_agent,
+                created_at=now,
+            )
+        )
+        logger.warning(
+            "ADMIN_LOGIN_BLOCKED_LOCKED",
+            extra={
+                "event": "ADMIN_LOGIN_BLOCKED_LOCKED",
+                "adminId": user.admin_id,
+                "emailHash": detail["emailHash"],
+                "failedLoginAttempts": user.failed_login_attempts,
+            },
+        )
+        raise AdminAccountLockedError(ADMIN_ACCOUNT_LOCKED_MESSAGE)
+
+    def _record_login_failure(
+        self,
+        user: AdminUser,
+        *,
+        failure_stage: str,
+        client_ip: str | None,
+        user_agent: str | None,
+        request_id: str | None,
+    ) -> None:
+        now = datetime.now(timezone.utc)
+        updated_user = self._store.identity.record_login_failure(user.admin_id, now) or user
+        detail = {
+            "emailHash": self._email_hash(user.email),
+            "failureStage": failure_stage,
+            "failedLoginAttempts": updated_user.failed_login_attempts,
+            "lockThreshold": self._settings.admin_login_lock_threshold,
+        }
+        self._store.audit.append_action(
+            AdminActionAudit(
+                action_type="admin.login.failure",
+                result_status=AuditResultStatus.FAILURE,
+                operator_id=user.admin_id,
+                operator_email=user.email,
+                operator_role=self._role_for_user(user.admin_id),
+                request_id=request_id,
+                resource_type="admin_user",
+                resource_id=user.admin_id,
+                detail=detail,
+                client_ip=client_ip,
+                user_agent=user_agent,
+                created_at=now,
+            )
+        )
+        logger.warning(
+            "ADMIN_LOGIN_FAILURE",
+            extra={
+                "event": "ADMIN_LOGIN_FAILURE",
+                "adminId": user.admin_id,
+                "emailHash": detail["emailHash"],
+                "failureStage": failure_stage,
+                "failedLoginAttempts": updated_user.failed_login_attempts,
+            },
+        )
+        if updated_user.failed_login_attempts < self._settings.admin_login_lock_threshold:
+            return
+        locked_until = now + timedelta(hours=self._settings.admin_login_lock_hours)
+        locked_user = self._store.identity.lock_user_until(user.admin_id, locked_until) or updated_user
+        locked_detail = {
+            "emailHash": self._email_hash(user.email),
+            "failureStage": failure_stage,
+            "failedLoginAttempts": locked_user.failed_login_attempts,
+            "lockHours": self._settings.admin_login_lock_hours,
+        }
+        self._store.audit.append_action(
+            AdminActionAudit(
+                action_type="admin.login.locked",
+                result_status=AuditResultStatus.DENIED,
+                operator_id=user.admin_id,
+                operator_email=user.email,
+                operator_role=self._role_for_user(user.admin_id),
+                request_id=request_id,
+                resource_type="admin_user",
+                resource_id=user.admin_id,
+                detail=locked_detail,
+                client_ip=client_ip,
+                user_agent=user_agent,
+                created_at=now,
+            )
+        )
+        logger.warning(
+            "ADMIN_ACCOUNT_LOCKED",
+            extra={
+                "event": "ADMIN_ACCOUNT_LOCKED",
+                "adminId": user.admin_id,
+                "emailHash": locked_detail["emailHash"],
+                "failedLoginAttempts": locked_user.failed_login_attempts,
+                "lockHours": self._settings.admin_login_lock_hours,
+            },
+        )
+
     def _create_authenticated_session(
         self,
         user: AdminUser,
@@ -277,6 +438,7 @@ class AdminAuthService:
             created_at=now,
         )
         self._store.identity.create_session(session)
+        self._store.identity.clear_login_failures(user.admin_id)
         self._store.identity.touch_last_login(user.admin_id)
         admin = self._build_identity(user.admin_id)
         self._store.audit.append_action(
@@ -297,6 +459,12 @@ class AdminAuthService:
             )
         )
         return token, admin
+
+    def _role_for_user(self, admin_id: str) -> str:
+        for binding in self._store.authorization.list_role_bindings(admin_id):
+            if binding.status == RoleBindingStatus.ACTIVE:
+                return binding.role_key
+        return "unknown"
 
     def _ensure_mfa_enrollment(
         self,
@@ -370,11 +538,11 @@ class AdminAuthService:
 
     def _get_valid_enrollment_challenge(self, enrollment_token: str) -> AdminMfaEnrollmentChallenge:
         if not enrollment_token.strip():
-            raise BadRequestError("enrollmentToken is required")
+            raise BadRequestError(ENROLLMENT_TOKEN_REQUIRED)
         token_hash = self._hash_enrollment_token(enrollment_token)
         challenge = self._store.identity.get_mfa_enrollment_challenge_by_token_hash(token_hash)
         if challenge is None:
-            raise AuthenticationError("Invalid MFA enrollment token")
+            raise AuthenticationError(INVALID_MFA_ENROLLMENT_TOKEN)
         now = datetime.now(timezone.utc)
         if challenge.expires_at and challenge.expires_at <= now:
             self._store.identity.upsert_mfa_enrollment_challenge(
@@ -394,9 +562,9 @@ class AdminAuthService:
                     updated_at=now,
                 )
             )
-            raise AuthenticationError("MFA enrollment token expired")
+            raise AuthenticationError(MFA_ENROLLMENT_TOKEN_EXPIRED)
         if challenge.status != MfaEnrollmentChallengeStatus.ISSUED:
-            raise AuthenticationError("MFA enrollment token is no longer valid")
+            raise AuthenticationError(MFA_ENROLLMENT_TOKEN_NOT_VALID)
         return challenge
 
     def _get_or_create_pending_factor(
@@ -465,11 +633,16 @@ class AdminAuthService:
         local_part, at, domain = email.partition("@")
         if not at:
             return "***"
-        if len(local_part) <= 2:
-            masked_local = f"{local_part[:1]}***"
-        else:
-            masked_local = f"{local_part[:2]}***"
+        masked_local = (
+            f"{local_part[:1]}***"
+            if len(local_part) <= SHORT_EMAIL_LOCAL_PART_MAX
+            else f"{local_part[:2]}***"
+        )
         return f"{masked_local}@{domain}"
+
+    def _email_hash(self, email: str) -> str:
+        normalized = email.strip().lower()
+        return hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:16]
 
     def _verify_login_otp(self, user: AdminUser, otp_code: str | None) -> None:
         policy = self.get_security_policy()
@@ -479,7 +652,7 @@ class AdminAuthService:
             return
         factor = self._get_active_totp_factor(user)
         if not (otp_code or "").strip():
-            raise BadRequestError("otpCode is required when login TOTP is enabled")
+            raise BadRequestError(LOGIN_TOTP_CODE_REQUIRED)
         if not verify_google_authenticator_code(factor, otp_code or ""):
             raise AuthenticationError(INVALID_GOOGLE_AUTHENTICATOR_CODE)
 
@@ -493,7 +666,7 @@ class AdminAuthService:
             if str(factor.payload.get("totpSecret") or "").strip():
                 active_factors.append(factor)
         if not active_factors:
-            raise AuthenticationError("Admin Google Authenticator is not configured")
+            raise AuthenticationError(ADMIN_GOOGLE_AUTHENTICATOR_NOT_CONFIGURED)
         if len(active_factors) > 1:
             raise AuthenticationError(MULTIPLE_ACTIVE_GOOGLE_AUTHENTICATOR_FACTORS)
         return active_factors[0]

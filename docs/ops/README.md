@@ -46,7 +46,9 @@
 13. `15_Google_Cloud_Launch_Readiness.md`
 14. `16_Arbitrum_Sepolia_Staging_Contracts.md`
 15. `17_In_App_Notifications.md`
-16. `../security/README.md`
+16. `17_Staging_Environment_Configuration.md`
+17. `18_Staging_Domains_and_Network_Access.md`
+18. `../security/README.md`
 
 ## 模块边界
 
