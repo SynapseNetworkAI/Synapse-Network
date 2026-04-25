@@ -4,6 +4,7 @@ import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { CodeBlock } from "../../components/CodeBlock";
 import { StatusBadge } from "../../components/StatusBadge";
 import { useActiveSection } from "../../use-active-section";
+import { SdkApiCheatsheet } from "../SdkApiCheatsheet";
 
 const PAGE_SECTIONS = [
   "sdk-ts-install",
@@ -239,53 +240,16 @@ npm run test:new-consumer`}
         />
       </section>
 
-      <section id="sdk-ts-cheatsheet" className="space-y-5">
-        <h2 className="x-section-title text-white">{t("docsPage.sdkApiCheatsheetTitle")}</h2>
-
-        <div className="text-[11px] font-semibold tracking-widest text-[#4e535a] uppercase">SynapseAuth</div>
-        <div className="overflow-hidden rounded-2xl border border-white/[0.06]">
-          <table className="w-full text-left">
-            <thead>
-              <tr className="border-b border-white/[0.06] bg-white/[0.02]">
-                <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#4e535a]">{t("docsPage.sdkMethod")}</th>
-                <th className="hidden px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#4e535a] md:table-cell">{t("docsPage.sdkReturns")}</th>
-                <th className="hidden px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#4e535a] md:table-cell">{t("docsPage.sdkDescriptionLabel")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {authMethods.map((method, index) => (
-                <tr key={method} className="border-b border-white/[0.04] last:border-b-0">
-                  <td className="px-4 py-3"><code className="font-mono text-[12px] text-[#7ff7be]">{method}</code></td>
-                  <td className="hidden px-4 py-3 md:table-cell"><code className="font-mono text-[11px] text-[#6eb6f6]">{authReturns[index] ?? ""}</code></td>
-                  <td className="hidden px-4 py-3 text-[12px] text-[#8b98a5] md:table-cell">{authDescriptions[index] ?? ""}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="pt-2 text-[11px] font-semibold tracking-widest text-[#4e535a] uppercase">SynapseClient</div>
-        <div className="overflow-hidden rounded-2xl border border-white/[0.06]">
-          <table className="w-full text-left">
-            <thead>
-              <tr className="border-b border-white/[0.06] bg-white/[0.02]">
-                <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#4e535a]">{t("docsPage.sdkMethod")}</th>
-                <th className="hidden px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#4e535a] md:table-cell">{t("docsPage.sdkReturns")}</th>
-                <th className="hidden px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#4e535a] md:table-cell">{t("docsPage.sdkDescriptionLabel")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {clientMethods.map((method, index) => (
-                <tr key={method} className="border-b border-white/[0.04] last:border-b-0">
-                  <td className="px-4 py-3"><code className="font-mono text-[12px] text-[#7ff7be]">{method}</code></td>
-                  <td className="hidden px-4 py-3 md:table-cell"><code className="font-mono text-[11px] text-[#6eb6f6]">{clientReturns[index] ?? ""}</code></td>
-                  <td className="hidden px-4 py-3 text-[12px] text-[#8b98a5] md:table-cell">{clientDescriptions[index] ?? ""}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
+      <div id="sdk-ts-cheatsheet">
+        <SdkApiCheatsheet
+          title={t("docsPage.sdkApiCheatsheetTitle")}
+          methodLabel={t("docsPage.sdkMethod")}
+          returnsLabel={t("docsPage.sdkReturns")}
+          descriptionLabel={t("docsPage.sdkDescriptionLabel")}
+          authRows={{ methods: authMethods, returns: authReturns, descriptions: authDescriptions }}
+          clientRows={{ methods: clientMethods, returns: clientReturns, descriptions: clientDescriptions }}
+        />
+      </div>
 
       <div className="h-16" />
     </div>
