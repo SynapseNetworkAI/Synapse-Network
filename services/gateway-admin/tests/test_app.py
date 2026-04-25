@@ -1,14 +1,19 @@
+import asyncio
+import base64
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 import importlib
 import logging
+from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
+import pytest
 from uuid import uuid4
 
 from src.app import app
 from src.api import deps
+from src.api.routers import ops_webhooks
 from src.api.routers import forum_support as forum_support_router
 from src.core.config import Settings, get_settings
 from src.core.metrics import MetricsRegistry
@@ -30,6 +35,7 @@ from src.services.auth.service import AdminAuthService, AdminIdentity
 from src.services.dashboard.service import DashboardService
 from src.services.execution import ExecutionService
 from src.services.finance_admin import ProviderWithdrawReviewService
+from src.services.ops import lark_alerts
 from src.storage.analytics import (
     InMemoryGatewayDashboardProjectionRepository,
     InMemoryProviderWithdrawReviewRepository,
@@ -504,6 +510,388 @@ def test_metrics_runtime_guard_drops_sensitive_or_long_labels(caplog) -> None:
     assert "synapse_admin_guard_long_value" not in rendered
     assert "synapse_metric_label_rejected_total" in rendered
     assert "METRIC_LABEL_REJECTED" in caplog.text
+
+
+def _alert_receiver_settings(**overrides):
+    base = {
+        "gcp_alert_receiver_enabled": True,
+        "gcp_alert_receiver_token": "receiver-token",
+        "gcp_alert_receiver_username": "synapse-gcp-alert",
+        "gcp_alert_default_route": "staging-drill",
+        "lark_webhook_staging_drill": "https://lark.test/staging",
+        "lark_secret_staging_drill": "",
+        "lark_webhook_p0_war_room": "https://lark.test/p0",
+        "lark_secret_p0_war_room": "",
+        "lark_webhook_prod_alerts": "https://lark.test/prod",
+        "lark_secret_prod_alerts": "",
+    }
+    base.update(overrides)
+    return SimpleNamespace(**base)
+
+
+def test_gcp_alert_receiver_rejects_missing_token(monkeypatch) -> None:
+    monkeypatch.setattr(
+        ops_webhooks,
+        "get_settings",
+        lambda: _alert_receiver_settings(),
+    )
+
+    response = client.post(
+        "/api/v1/ops/webhooks/gcp-alert-receiver",
+        json={"incident": {"summary": "test"}},
+    )
+
+    assert response.status_code == 401
+
+
+def test_gcp_alert_receiver_supports_basic_auth_and_route_config(monkeypatch) -> None:
+    sent: list[dict] = []
+
+    async def fake_send(route, alert):
+        sent.append({"route": route, "alert": alert})
+        return {"ok": True, "status": 200, "route": route.name}
+
+    monkeypatch.setattr(
+        ops_webhooks,
+        "get_settings",
+        lambda: _alert_receiver_settings(),
+    )
+    monkeypatch.setattr(ops_webhooks, "send_lark_alert", fake_send)
+    credentials = base64.b64encode(b"synapse-gcp-alert:receiver-token").decode("ascii")
+
+    response = client.post(
+        "/api/v1/ops/webhooks/gcp-alert-receiver",
+        headers={"Authorization": f"Basic {credentials}"},
+        json={
+            "incident": {
+                "metadata": {
+                    "user_labels": {
+                        "route": "p0-war-room",
+                        "alertname": "PolicyLabelAlert",
+                    }
+                },
+                "summary": "basic auth receiver test",
+            }
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["route"] == "p0-war-room"
+    assert sent[0]["route"].name == "p0-war-room"
+    assert sent[0]["route"].webhook == "https://lark.test/p0"
+    assert sent[0]["alert"]["labels"]["alertname"] == "PolicyLabelAlert"
+
+
+def test_gcp_alert_receiver_denies_when_disabled_or_unconfigured(monkeypatch) -> None:
+    monkeypatch.setattr(
+        ops_webhooks,
+        "get_settings",
+        lambda: _alert_receiver_settings(gcp_alert_receiver_enabled=False),
+    )
+    disabled = client.post(
+        "/api/v1/ops/webhooks/gcp-alert-receiver",
+        headers={"X-Synapse-Gcp-Alert-Token": "receiver-token"},
+        json={"incident": {"summary": "test"}},
+    )
+
+    assert disabled.status_code == 404
+
+    monkeypatch.setattr(
+        ops_webhooks,
+        "get_settings",
+        lambda: _alert_receiver_settings(gcp_alert_receiver_token=""),
+    )
+    unconfigured = client.post(
+        "/api/v1/ops/webhooks/gcp-alert-receiver",
+        headers={"X-Synapse-Gcp-Alert-Token": "receiver-token"},
+        json={"incident": {"summary": "test"}},
+    )
+
+    assert unconfigured.status_code == 401
+
+
+def test_gcp_alert_receiver_rejects_malformed_basic_auth(monkeypatch) -> None:
+    monkeypatch.setattr(
+        ops_webhooks,
+        "get_settings",
+        lambda: _alert_receiver_settings(),
+    )
+
+    bad_base64 = client.post(
+        "/api/v1/ops/webhooks/gcp-alert-receiver",
+        headers={"Authorization": "Basic not-base64"},
+        json={"incident": {"summary": "test"}},
+    )
+    no_colon = client.post(
+        "/api/v1/ops/webhooks/gcp-alert-receiver",
+        headers={"Authorization": f"Basic {base64.b64encode(b'no-colon').decode('ascii')}"},
+        json={"incident": {"summary": "test"}},
+    )
+
+    assert bad_base64.status_code == 401
+    assert no_colon.status_code == 401
+
+
+def test_gcp_alert_receiver_converts_payload_and_sends_lark(monkeypatch) -> None:
+    sent: list[dict] = []
+
+    async def fake_send(route, alert):
+        sent.append({"route": route, "alert": alert})
+        return {"ok": True, "status": 200, "route": route.name}
+
+    monkeypatch.setattr(
+        ops_webhooks,
+        "get_settings",
+        lambda: _alert_receiver_settings(),
+    )
+    monkeypatch.setattr(ops_webhooks, "send_lark_alert", fake_send)
+
+    response = client.post(
+        "/api/v1/ops/webhooks/gcp-alert-receiver",
+        headers={"X-Synapse-Gcp-Alert-Token": "receiver-token"},
+        json={
+            "incident": {
+                "incident_id": "inc-1",
+                "state": "open",
+                "policy_name": "Synapse Staging Gateway 5xx Rate High",
+                "condition_name": "Gateway 5xx ratio > 5%",
+                "summary": "Gateway 5xx is high",
+                "url": "https://console.cloud.google.com/monitoring",
+                "resource": {
+                    "type": "cloud_run_revision",
+                    "labels": {"service_name": "synapse-staging-gateway"},
+                },
+                "metadata": {
+                    "user_labels": {
+                        "severity": "p1",
+                        "system": "gateway",
+                        "env": "staging",
+                        "route": "staging-drill",
+                        "business_scenario": "Gateway API unavailable",
+                    }
+                },
+            }
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["route"] == "staging-drill"
+    assert sent[0]["route"].name == "staging-drill"
+    alert = sent[0]["alert"]
+    assert alert["labels"]["alertname"] == "Synapse Staging Gateway 5xx Rate High"
+    assert alert["labels"]["service_name"] == "synapse-staging-gateway"
+    assert alert["annotations"]["business_scenario"] == "Gateway API unavailable"
+
+
+def test_gcp_alert_receiver_logs_success_without_secrets(monkeypatch, caplog) -> None:
+    async def fake_send(route, _alert):
+        return {"ok": True, "status": 200, "route": route.name}
+
+    monkeypatch.setattr(
+        ops_webhooks,
+        "get_settings",
+        lambda: _alert_receiver_settings(),
+    )
+    monkeypatch.setattr(ops_webhooks, "send_lark_alert", fake_send)
+
+    with caplog.at_level(logging.ERROR):
+        response = client.post(
+            "/api/v1/ops/webhooks/gcp-alert-receiver",
+            headers={"X-Synapse-Gcp-Alert-Token": "receiver-token"},
+            json={"incident": {"summary": "test", "metadata": {"user_labels": {"alertname": "ReceiverProbe"}}}},
+        )
+
+    assert response.status_code == 200
+    assert "alert_trigger=GCP_ALERT_RECEIVED" in caplog.text
+    assert "ReceiverProbe" in caplog.text
+    assert "receiver-token" not in caplog.text
+
+
+def test_gcp_alert_receiver_redacts_sensitive_payload_values() -> None:
+    alert = ops_webhooks.normalize_gcp_monitoring_payload(
+        {
+            "incident": {
+                "incident_id": "inc-secret",
+                "summary": "authorization: Bearer super-secret-token",
+                "metadata": {
+                    "user_labels": {
+                        "alertname": "SecretLeak",
+                        "private_key": "0x" + "a" * 64,
+                    }
+                },
+            }
+        }
+    )
+
+    rendered = str(alert)
+    assert "super-secret-token" not in rendered
+    assert "aaaaaaaaaaaaaaaa" not in rendered
+    assert "[REDACTED" in rendered
+
+
+def test_lark_alert_helpers_redact_and_render_business_card() -> None:
+    sanitized = lark_alerts.sanitize_payload(
+        {
+            "authorization": "Bearer token-value",
+            "items": [
+                "private_key=0x" + "a" * 64,
+                "wallet 0x1234567890abcdef1234567890abcdef12345678",
+            ],
+            "ok": 1,
+        }
+    )
+
+    assert sanitized["authorization"] == "[REDACTED]"
+    assert sanitized["items"][0] == "private_key=[REDACTED]"
+    assert "0x1234...5678" in sanitized["items"][1]
+    assert sanitized["ok"] == 1
+
+    card = lark_alerts.build_lark_card(
+        {
+            "status": "resolved",
+            "labels": {
+                "severity": "p0",
+                "system": "gateway",
+                "env": "staging",
+                "alertname": "SynapseStagingGateway5xxRateHigh",
+            },
+            "annotations": {
+                "summary": "Gateway recovered",
+                "business_scenario": "Gateway API availability",
+                "impact": "NO_ACTION_REQUIRED staging drill",
+                "trigger": "Synthetic test",
+                "action": "Check logs",
+                "message": "authorization: Bearer card-secret-token",
+                "runbook": "docs/ops/13_Production_Monitoring_Alerting_and_Backup_Restore.md",
+                "dashboard": "https://console.cloud.google.com/monitoring",
+            },
+            "fingerprint": "fp-1",
+        }
+    )
+    rendered = str(card)
+
+    assert card["msg_type"] == "interactive"
+    assert card["card"]["header"]["template"] == "green"
+    assert "[RESOLVED][P0][gateway][staging]" in rendered
+    assert "Gateway API availability" in rendered
+    assert "card-secret-token" not in rendered
+
+
+def test_lark_alert_card_compacts_large_payload() -> None:
+    card = lark_alerts.build_lark_card(
+        {
+            "status": "firing",
+            "labels": {"severity": "p1", "system": "ops", "env": "staging", "alertname": "HugeAlert"},
+            "annotations": {
+                "summary": "x" * 10_000,
+                "business_scenario": "y" * 10_000,
+                "impact": "z" * 10_000,
+                "message": "m" * 10_000,
+            },
+            "fingerprint": "huge",
+        }
+    )
+    content = card["card"]["elements"][0]["text"]["content"]
+
+    assert "HugeAlert" in content
+    assert len(str(card).encode("utf-8")) < lark_alerts.MAX_CARD_BYTES
+
+
+def test_send_lark_alert_posts_signed_card(monkeypatch) -> None:
+    sent: dict = {}
+
+    class FakeAsyncClient:
+        def __init__(self, *, timeout):
+            sent["timeout"] = timeout
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        async def post(self, webhook, json):
+            sent["webhook"] = webhook
+            sent["json"] = json
+            return SimpleNamespace(status_code=200)
+
+    monkeypatch.setattr(lark_alerts.httpx, "AsyncClient", FakeAsyncClient)
+    result = asyncio.run(
+        lark_alerts.send_lark_alert(
+            lark_alerts.LarkRoute(
+                name="staging-drill",
+                webhook="https://lark.test/hook",
+                secret="signing-secret",
+            ),
+            {
+                "status": "firing",
+                "labels": {"alertname": "SignedAlert"},
+                "annotations": {"summary": "signed"},
+            },
+        )
+    )
+
+    assert result == {"ok": True, "route": "staging-drill", "status": 200}
+    assert sent["webhook"] == "https://lark.test/hook"
+    assert sent["timeout"] == 8.0
+    assert sent["json"]["timestamp"]
+    assert sent["json"]["sign"]
+    assert sent["json"]["msg_type"] == "interactive"
+
+
+def test_send_lark_alert_fails_for_missing_webhook_or_http_error(monkeypatch, caplog) -> None:
+    with pytest.raises(lark_alerts.LarkAlertError):
+        asyncio.run(
+            lark_alerts.send_lark_alert(
+                lark_alerts.LarkRoute(name="missing", webhook=""),
+                {"labels": {}, "annotations": {}},
+            )
+        )
+
+    class FailingAsyncClient:
+        def __init__(self, *, timeout):
+            _ = timeout
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        async def post(self, webhook, json):
+            _ = webhook, json
+            return SimpleNamespace(status_code=500)
+
+    monkeypatch.setattr(lark_alerts.httpx, "AsyncClient", FailingAsyncClient)
+    with caplog.at_level(logging.ERROR), pytest.raises(lark_alerts.LarkAlertError):
+        asyncio.run(
+            lark_alerts.send_lark_alert(
+                lark_alerts.LarkRoute(name="staging-drill", webhook="https://lark.test/hook"),
+                {"labels": {}, "annotations": {}},
+            )
+        )
+
+    assert "alert_trigger=LARK_RELAY_FAILURE" in caplog.text
+
+
+def test_gcp_alert_receiver_returns_502_on_lark_failure(monkeypatch) -> None:
+    async def fake_send(_route, _alert):
+        raise ops_webhooks.LarkAlertError("lark down")
+
+    monkeypatch.setattr(
+        ops_webhooks,
+        "get_settings",
+        lambda: _alert_receiver_settings(),
+    )
+    monkeypatch.setattr(ops_webhooks, "send_lark_alert", fake_send)
+
+    response = client.post(
+        "/api/v1/ops/webhooks/gcp-alert-receiver",
+        headers={"X-Synapse-Gcp-Alert-Token": "receiver-token"},
+        json={"incident": {"summary": "test"}},
+    )
+
+    assert response.status_code == 502
 
 
 def test_admin_auth_login() -> None:

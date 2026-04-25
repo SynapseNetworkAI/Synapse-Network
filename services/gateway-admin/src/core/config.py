@@ -58,6 +58,46 @@ class Settings(BaseSettings):
     metrics_bearer_token: str = Field(default="", alias="METRICS_BEARER_TOKEN")
     metrics_basic_username: str = Field(default="", alias="METRICS_BASIC_USERNAME")
     metrics_basic_password: str = Field(default="", alias="METRICS_BASIC_PASSWORD")
+    gcp_alert_receiver_enabled: bool = Field(
+        default=False,
+        alias="GCP_ALERT_RECEIVER_ENABLED",
+    )
+    gcp_alert_receiver_token: str = Field(
+        default="",
+        alias="GCP_ALERT_RECEIVER_TOKEN",
+    )
+    gcp_alert_receiver_username: str = Field(
+        default="synapse-gcp-alert",
+        alias="GCP_ALERT_RECEIVER_USERNAME",
+    )
+    gcp_alert_default_route: str = Field(
+        default="staging-drill",
+        alias="GCP_ALERT_DEFAULT_ROUTE",
+    )
+    lark_webhook_staging_drill: str = Field(
+        default="",
+        alias="LARK_WEBHOOK_STAGING_DRILL",
+    )
+    lark_secret_staging_drill: str = Field(
+        default="",
+        alias="LARK_SECRET_STAGING_DRILL",
+    )
+    lark_webhook_p0_war_room: str = Field(
+        default="",
+        alias="LARK_WEBHOOK_P0_WAR_ROOM",
+    )
+    lark_secret_p0_war_room: str = Field(
+        default="",
+        alias="LARK_SECRET_P0_WAR_ROOM",
+    )
+    lark_webhook_prod_alerts: str = Field(
+        default="",
+        alias="LARK_WEBHOOK_PROD_ALERTS",
+    )
+    lark_secret_prod_alerts: str = Field(
+        default="",
+        alias="LARK_SECRET_PROD_ALERTS",
+    )
     host: str = Field(default="0.0.0.0", alias="ADMIN_GATEWAY_HOST")  # noqa: S104 - production ingress/LB owns public exposure.
     port: int = Field(default=8300, alias="ADMIN_GATEWAY_PORT")
     debug: bool = Field(default=True, alias="ADMIN_GATEWAY_DEBUG")

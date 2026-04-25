@@ -17,6 +17,7 @@ from src.api.routers import (
 	dashboard,
 	execution,
 	forum_support,
+	ops_webhooks,
 	provider_services,
 	provider_withdraw_review,
 )
@@ -236,6 +237,7 @@ def create_app() -> FastAPI:
 	app.include_router(audit.router)
 	app.include_router(execution.router)
 	app.include_router(forum_support.router)
+	app.include_router(ops_webhooks.router)
 	app.include_router(provider_services.router)
 	app.include_router(provider_withdraw_review.router)
 
