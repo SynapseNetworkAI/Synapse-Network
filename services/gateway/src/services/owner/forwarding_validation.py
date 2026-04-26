@@ -100,14 +100,14 @@ def parse_service_price_usdc(service_row: ServiceDefinitionRecord) -> float:
     """Parse and validate service unit price in USDC with non-negative smoke support."""
     try:
         amount = float(service_row.pricing_amount)
-    except Exception:
+    except Exception as exc:
         raise HTTPException(
             status_code=500,
             detail={
                 "code": "INVALID_SERVICE_PRICE",
                 "message": "service pricing is invalid",
             },
-        )
+        ) from exc
     if amount < 0:
         raise HTTPException(
             status_code=500,

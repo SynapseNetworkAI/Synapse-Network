@@ -844,6 +844,16 @@ def test_find_active_service_hydrates_persisted_health_snapshot() -> None:
     assert service.runtime_health.targets[0].target_url == "https://provider.test/invoke"
 
 
+def test_parse_service_price_rejects_invalid_value() -> None:
+    service = _service_definition().model_copy(update={"pricing_amount": "not-a-number"})
+
+    with pytest.raises(HTTPException) as exc_info:
+        forwarding_validation.parse_service_price_usdc(service)
+
+    assert exc_info.value.status_code == 500
+    assert exc_info.value.detail["code"] == "INVALID_SERVICE_PRICE"
+
+
 @pytest.mark.skip(reason="Route A (quote→invocations) removed; use invoke_v1 flow")
 def test_agent_quote_and_invocation_flow_persists_typed_execution_rows(monkeypatch) -> None:
     raw_token = "agt_1234567890abcdef12345678"

@@ -215,6 +215,7 @@ jobs:
           }
           fs.writeFileSync('image-digests.json', JSON.stringify(digests, null, 2))
           NODE
+          printf '{"updated":[],"smokeExecutions":[]}\n' > jobs.json
 
       - name: Run DB migration before API rollout
         if: ${{ steps.scope.outputs.deploy == 'true' && steps.scope.outputs.requires_migration == 'true' }}
@@ -241,17 +242,49 @@ jobs:
             echo "Gateway-admin image not in deploy scope; skipping admin DB migration."
             exit 0
           fi
-          gcloud run jobs update synapse-staging-gateway-admin-db-migrate \
+          bash scripts/deploy/gcp_sync_staging_jobs.sh \
             --project "${PROJECT_ID}" \
             --region "${REGION}" \
+            --service gateway-admin \
             --image "${gateway_admin_image}" \
-            --quiet
+            --json-output jobs-gateway-admin.json
+          node - <<'NODE'
+          const fs = require('fs')
+          const base = JSON.parse(fs.readFileSync('jobs.json', 'utf8'))
+          const next = JSON.parse(fs.readFileSync('jobs-gateway-admin.json', 'utf8'))
+          base.updated.push(...(next.updated || []))
+          base.smokeExecutions.push(...(next.smokeExecutions || []))
+          fs.writeFileSync('jobs.json', `${JSON.stringify(base, null, 2)}\n`)
+          NODE
           gcloud run jobs execute synapse-staging-gateway-admin-db-migrate \
             --project "${PROJECT_ID}" \
             --region "${REGION}" \
             --wait
           echo "ADMIN_MIGRATION_RAN=true" >> "$GITHUB_ENV"
           echo "ADMIN_MIGRATION_STATUS=passed" >> "$GITHUB_ENV"
+
+      - name: Sync Gateway Cloud Run Jobs image
+        if: ${{ steps.scope.outputs.deploy == 'true' }}
+        run: |
+          gateway_image="$(node -e "const d=require('./image-digests.json'); console.log(d.gateway || '')")"
+          if [[ -z "${gateway_image}" ]]; then
+            echo "Gateway image not in deploy scope; skipping Gateway job sync."
+            exit 0
+          fi
+          bash scripts/deploy/gcp_sync_staging_jobs.sh \
+            --project "${PROJECT_ID}" \
+            --region "${REGION}" \
+            --service gateway \
+            --image "${gateway_image}" \
+            --json-output jobs-gateway.json
+          node - <<'NODE'
+          const fs = require('fs')
+          const base = JSON.parse(fs.readFileSync('jobs.json', 'utf8'))
+          const next = JSON.parse(fs.readFileSync('jobs-gateway.json', 'utf8'))
+          base.updated.push(...(next.updated || []))
+          base.smokeExecutions.push(...(next.smokeExecutions || []))
+          fs.writeFileSync('jobs.json', `${JSON.stringify(base, null, 2)}\n`)
+          NODE
 
       - name: Deploy affected Cloud Run services
         if: ${{ steps.scope.outputs.deploy == 'true' }}
@@ -354,6 +387,7 @@ jobs:
             --scope scope.json \
             --build build-images.json \
             --image-digests image-digests.json \
+            --jobs jobs.json \
             --revisions revisions.json \
             --smoke smoke.json \
             --generated-at-display "${{ steps.source.outputs.display_timestamp }}" \

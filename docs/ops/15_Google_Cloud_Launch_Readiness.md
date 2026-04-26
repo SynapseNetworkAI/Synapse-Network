@@ -505,9 +505,17 @@ Release order:
    `synapse-staging-gateway-admin-db-migrate` /
    `synapse-prod-gateway-admin-db-migrate`.
 5. Stop if either migration or schema contract validation fails.
-6. Deploy Gateway and Gateway-admin services.
-7. Deploy frontends and background jobs.
-8. Run smoke tests and release evidence.
+6. If Gateway changed, update all Gateway Cloud Run Jobs to the same Gateway
+   image digest before the API rollout.
+7. Deploy Gateway and Gateway-admin services.
+8. Deploy frontends.
+9. Run smoke tests and release evidence.
+
+Gateway jobs are separate Cloud Run Jobs but not separate code packages. They run
+`python -m src.worker <job> --once` from the same Gateway image used by the API.
+Do not let `synapse-staging-gateway` and the Gateway scheduled jobs drift to
+different digests during normal releases; the release manifest must record the
+service digest, job digests, and `jobImageDrift=false`.
 
 Gateway-admin is not allowed to rely on runtime auto-init. Its admin database
 must already contain the admin users, sessions, MFA, audit, config, and
@@ -979,15 +987,16 @@ Production is still `NO-GO` until all items below have evidence:
 3. Configure Cloud SQL connection caps and Secret Manager values.
 4. Run Gateway DB migration job.
 5. Run Gateway-admin DB migration job.
-6. Deploy Cloud Run services with low max-instance limits.
-7. Configure Lark alert routes and run Lark E2E evidence.
-8. Configure Gmail sender and run email notification evidence.
-9. Configure Cloud Monitoring alert policies and drill alerts.
-10. Run Arbitrum Sepolia contract deployment evidence.
-11. Run Gateway full-chain release E2E in staging.
-12. Run one-ticket withdrawal 10-scenario evidence.
-13. Run local and staging load/reconciliation evidence.
-14. Run backup/restore drill.
+6. Sync Gateway scheduled jobs to the same Gateway image digest.
+7. Deploy Cloud Run services with low max-instance limits.
+8. Configure Lark alert routes and run Lark E2E evidence.
+9. Configure Gmail sender and run email notification evidence.
+10. Configure Cloud Monitoring alert policies and drill alerts.
+11. Run Arbitrum Sepolia contract deployment evidence.
+12. Run Gateway full-chain release E2E in staging.
+13. Run one-ticket withdrawal 10-scenario evidence.
+14. Run local and staging load/reconciliation evidence.
+15. Run backup/restore drill.
 15. Attach all evidence to production validation.
 16. Only then prepare production infrastructure and small-value rehearsal.
 
