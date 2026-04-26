@@ -476,6 +476,10 @@ def _service_definition() -> ServiceDefinitionRecord:
     )
 
 
+def _free_service_definition() -> ServiceDefinitionRecord:
+    return _service_definition().model_copy(update={"pricing_amount": Decimal("0")})
+
+
 def _signed_service_definition() -> ServiceDefinitionRecord:
     service = _service_definition()
     return service.model_copy(
@@ -790,6 +794,44 @@ def test_upstream_http_pool_timeout_rolls_back_charge(monkeypatch) -> None:
     assert storage.balance.ledger.consumer_available_balance("0xabc") == Decimal("10.000000")
     assert storage.balance.ledger.provider_receivable_balance("0xdef") == Decimal("0")
     assert all(row.status != "succeeded" for row in storage.gateway_state.usage_rows)
+
+
+def test_invoke_v1_accepts_zero_price_service_without_charging(monkeypatch) -> None:
+    raw_token = "agt_1234567890abcdef12345678"
+    storage = FakeStorage(_free_service_definition(), _runtime_credential(raw_token))
+
+    monkeypatch.setattr(forwarding_budget, "_get_redis_client", _async_none)
+    monkeypatch.setattr(forwarding_upstream.httpx, "AsyncClient", FakeAsyncClient)
+    monkeypatch.setattr(
+        forwarding_upstream.service_health_service,
+        "get_healthy_target_urls",
+        lambda service, **_: [service.invoke.targets[0].url],
+    )
+    monkeypatch.setattr(
+        forwarding_billing.settings, "gateway_routing_tax", 0.05, raising=False
+    )
+
+    response = asyncio.run(
+        forwarding_service.invoke_v1(
+            storage,
+            AgentInvokeRequest(
+                serviceId="svc.echo",
+                idempotencyKey="task-free-smoke-step-1",
+                costUsdc=Decimal("0"),
+                payload=RuntimePayloadRecord(body={"text": "hello free world"}),
+                responseMode="sync",
+            ),
+            raw_token,
+            "req-free-invoke-001",
+        )
+    )
+
+    assert response.status == "SUCCEEDED"
+    assert response.chargedUsdc == Decimal("0")
+    assert storage.balance.ledger.consumer_available_balance("0xabc") == Decimal("0")
+    assert storage.balance.ledger.provider_receivable_balance("0xdef") == Decimal("0")
+    assert storage.balance.ledger.platform.fee_accrued == Decimal("0")
+    assert all(row.total_charge == Decimal("0.000000") for row in storage.gateway_state.usage_rows)
 
 
 def test_find_active_service_hydrates_persisted_health_snapshot() -> None:

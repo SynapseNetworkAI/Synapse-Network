@@ -1,7 +1,7 @@
 # Production Monitoring, Alerting, and Backup Restore
 
 - Status: canonical
-- Code paths: `services/gateway/src/core/metrics.py`, `services/gateway-admin/src/core/metrics.py`, `services/gateway-admin/src/api/routers/ops_webhooks.py`, `infra/monitoring/`, `infra/docker/restore/`, `scripts/deploy/gcp_configure_staging_alerts.sh`, `scripts/e2e/lark_alert_e2e.mjs`, `scripts/e2e/gcp_alerts_local_e2e.mjs`, `scripts/e2e/gcp_alerts_staging_e2e.mjs`, `scripts/ci/lark_alert_e2e_evidence_check.mjs`, `scripts/ci/gcp_alerts_local_evidence_check.mjs`, `scripts/ci/gcp_alerts_staging_evidence_check.mjs`, `scripts/drills/`, `scripts/ci/backup_restore_evidence_check.mjs`
+- Code paths: `services/gateway/src/core/metrics.py`, `services/gateway-admin/src/core/metrics.py`, `services/gateway-admin/src/api/routers/ops_webhooks.py`, `infra/monitoring/`, `infra/docker/restore/`, `scripts/deploy/gcp_configure_staging_alerts.sh`, `scripts/e2e/lark_alert_e2e.mjs`, `scripts/e2e/gcp_alerts_local_e2e.mjs`, `scripts/e2e/gcp_alerts_staging_e2e.mjs`, `scripts/ci/lark_alert_e2e_evidence_check.mjs`, `scripts/ci/gcp_alerts_local_evidence_check.mjs`, `scripts/ci/gcp_alerts_staging_evidence_check.mjs`, `scripts/drills/backup_restore_staging.sh`, `scripts/drills/gcp_staging_backup_restore_drill.sh`, `scripts/ci/backup_restore_evidence_check.mjs`
 - Verified with: `npm run ci:monitoring-alert-rules`, `npm run e2e:gcp-alerts:local`, `npm run ci:gcp-alerts-local-evidence`, `npm run ci:lark-alert-e2e-evidence`, `npm run ci:gcp-alerts-staging-evidence`, `npm run ci:backup-restore-evidence`, `npm run ci:docs`
 - Last verified against code: 2026-04-21
 
@@ -367,15 +367,21 @@ Validate the latest Lark delivery evidence:
 npm run ci:lark-alert-e2e-evidence
 ```
 
-Run staging backup restore drill:
+Run staging backup restore drill against an isolated temporary Cloud SQL
+restore instance:
 
 ```bash
+PROJECT_ID=fabled-archive-494108-k5 \
 SYNAPSE_DRILL_ENV=staging \
 SYNAPSE_DRILL_CONFIRM=I_UNDERSTAND_THIS_CHANGES_STAGING \
-RESTORE_POSTGRES_DSN=postgresql://... \
-RESTORE_CLICKHOUSE_URL=http://... \
-npm run drill:backup-restore:staging
+  bash scripts/drills/gcp_staging_backup_restore_drill.sh
 ```
+
+`RESTORE_POSTGRES_DSN` is generated in memory by the wrapper after it restores
+the latest `synapse-staging-postgres` backup into a temporary Cloud SQL
+instance and starts Cloud SQL Auth Proxy. Do not point `RESTORE_POSTGRES_DSN` at
+the live staging database or at `synapse-staging-postgres-dsn`; the target must
+be an isolated restored database.
 
 Validate latest restore evidence:
 
@@ -403,4 +409,7 @@ Production is **NO-GO** if:
 7. Lark real-delivery evidence is missing, failed, stale, or leaks webhook/secret values.
 8. backup restore evidence is missing, failed, stale, or digest-invalid.
 9. restored Postgres reconciliation has non-zero unexplained delta.
-10. restored ClickHouse freshness exceeds the configured threshold.
+10. restored Postgres critical table counts are missing.
+
+ClickHouse/Kafka restore is not an MVP blocker unless those systems are
+reintroduced as production dependencies.

@@ -16,7 +16,6 @@ export SYNAPSE_DRILL_OUT_DIR="$OUT_DIR"
 
 bash "$ROOT_DIR/scripts/drills/backup_restore_prepare.sh"
 bash "$ROOT_DIR/scripts/drills/postgres_restore_validate.sh"
-bash "$ROOT_DIR/scripts/drills/clickhouse_restore_validate.sh"
 
 if [[ ! -f "$OUT_DIR/reconciliation-summary.json" ]]; then
   cat > "$OUT_DIR/reconciliation-summary.json" <<'EOF'

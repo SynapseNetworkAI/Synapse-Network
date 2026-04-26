@@ -37,6 +37,7 @@ PROVIDER_BASE = os.getenv("GATEWAY_E2E_PROVIDER_BASE", "http://127.0.0.1:8001")
 RPC_URL = os.getenv("GATEWAY_E2E_RPC_URL", "http://127.0.0.1:8545")
 MOCK_SERVICE_PORT = int(os.getenv("GATEWAY_E2E_MOCK_SERVICE_PORT", "9099"))
 RELEASE_E2E = os.getenv("GATEWAY_RELEASE_E2E", "").lower() == "true"
+PROVIDER_INVOKE_URL = os.getenv("GATEWAY_E2E_PROVIDER_INVOKE_URL", "").strip()
 
 # ── Hardhat default private keys (localhost ONLY) ─────────────────────────────
 DEPLOYER_KEY = os.getenv(
@@ -213,6 +214,9 @@ class _MockProviderHandler(BaseHTTPRequestHandler):
 @pytest.fixture(scope="session")
 def mock_service_url() -> str:
     """Start an in-process mock HTTP server and yield its base URL."""
+    if PROVIDER_INVOKE_URL:
+        yield PROVIDER_INVOKE_URL
+        return
     server = HTTPServer(("127.0.0.1", MOCK_SERVICE_PORT), _MockProviderHandler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()

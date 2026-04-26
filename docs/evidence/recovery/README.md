@@ -1,7 +1,7 @@
 # Recovery Evidence
 
 - Status: canonical
-- Code paths: `scripts/drills/backup_restore_staging.sh`, `scripts/ci/backup_restore_evidence_check.mjs`, `infra/docker/restore/docker-compose.restore.yml`
+- Code paths: `scripts/drills/backup_restore_staging.sh`, `scripts/drills/gcp_staging_backup_restore_drill.sh`, `scripts/ci/backup_restore_evidence_check.mjs`, `infra/docker/restore/docker-compose.restore.yml`
 - Verified with: `npm run ci:backup-restore-evidence`
 - Last verified against code: 2026-04-21
 
@@ -29,5 +29,9 @@ Validate the latest bundle with:
 ```bash
 npm run ci:backup-restore-evidence
 ```
+
+For staging release evidence, use `scripts/drills/gcp_staging_backup_restore_drill.sh`
+so the restore target is a temporary isolated Cloud SQL instance. The live
+staging DSN must not be used as `RESTORE_POSTGRES_DSN`.
 
 Evidence expires after 72 hours for release approval.
