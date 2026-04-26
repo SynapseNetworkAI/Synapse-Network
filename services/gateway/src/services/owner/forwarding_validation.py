@@ -97,7 +97,7 @@ def find_active_service(storage: BaseStorage, service_id: str) -> ServiceDefinit
 
 
 def parse_service_price_usdc(service_row: ServiceDefinitionRecord) -> float:
-    """Parse and validate service unit price in USDC with strict positivity checks."""
+    """Parse and validate service unit price in USDC with non-negative smoke support."""
     try:
         amount = float(service_row.pricing_amount)
     except Exception:
@@ -108,12 +108,12 @@ def parse_service_price_usdc(service_row: ServiceDefinitionRecord) -> float:
                 "message": "service pricing is invalid",
             },
         )
-    if amount <= 0:
+    if amount < 0:
         raise HTTPException(
             status_code=500,
             detail={
                 "code": "INVALID_SERVICE_PRICE",
-                "message": "service pricing must be positive",
+                "message": "service pricing must be non-negative",
             },
         )
     return round(amount, 6)

@@ -91,10 +91,14 @@ if (delta !== "0.000000") {
 }
 
 const validation = readJson(path.join(dir, "restore-validation.json"));
-const lag = Number(validation?.clickhouse?.latestFreshnessLagSeconds);
-const threshold = Number(validation?.clickhouse?.freshnessThresholdSeconds ?? 300);
-if (!Number.isFinite(lag) || lag > threshold) {
-  fail(`ClickHouse freshness lag ${lag} exceeds threshold ${threshold}`, "Restore ClickHouse analytics and verify latest freshness before accepting evidence.");
+if (validation?.postgres?.status !== "success") {
+  fail(`Postgres restore status is ${validation?.postgres?.status || "missing"}`, "Run the Postgres restore validation against an isolated restored database.");
+}
+const rowCounts = validation?.postgres?.rowCounts || {};
+for (const tableName of ["synapse_ledger_entries", "synapse_vault_withdrawals", "synapse_deposit_intents"]) {
+  if (!Number.isFinite(Number(rowCounts[tableName]))) {
+    fail(`missing restored row count for ${tableName}`, "Regenerate restore-validation.json from scripts/drills/postgres_restore_validate.sh.");
+  }
 }
 
 console.log(`[ci:backup-restore-evidence] validated ${dir}`);

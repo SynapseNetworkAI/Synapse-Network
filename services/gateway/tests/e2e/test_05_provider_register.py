@@ -8,7 +8,7 @@ from tests.e2e.conftest import PROVIDER_KEY
 
 
 def test_provider_registers_service(
-    provider_headers, provider_account, service_tool_name, session_state, mock_service_url
+    provider_headers, provider_account, service_tool_name, session_state, mock_service_url, w3
 ):
     r = httpx.post(
         f"{GATEWAY_BASE}/api/v1/services",
@@ -53,7 +53,7 @@ def test_provider_registers_service(
             },
             "payoutAccount": {
                 "payoutAddress": provider_account.address.lower(),
-                "chainId": 31337,
+                "chainId": w3.eth.chain_id,
                 "settlementCurrency": "USDC",
             },
             "providerProfile": {

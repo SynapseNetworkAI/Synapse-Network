@@ -136,7 +136,7 @@ def pricing_breakdown(
     normalized_unit_price = _money_decimal(unit_price)
     fee_rate = resolve_platform_fee_rate(storage, provider_wallet)
     protocol_fee = MoneyCodec.quantize_usdc(normalized_unit_price * fee_rate)
-    routing_tax = resolve_gateway_routing_tax()
+    routing_tax = Decimal("0") if normalized_unit_price == Decimal("0") else resolve_gateway_routing_tax()
     platform_fee_total = _money_decimal(protocol_fee + routing_tax)
     provider_net = _money_decimal(normalized_unit_price - protocol_fee)
     total_charge = _money_decimal(normalized_unit_price + routing_tax)

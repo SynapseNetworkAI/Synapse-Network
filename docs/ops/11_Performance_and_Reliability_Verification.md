@@ -186,12 +186,22 @@ The staging load suite requires these environment variables:
 
 1. `SYNAPSE_GATEWAY_BASE_URL`
 2. `SYNAPSE_ADMIN_GATEWAY_BASE_URL`
-3. `SYNAPSE_AGENT_TOKEN`
-4. `SYNAPSE_OWNER_TOKEN`
-5. `SYNAPSE_ADMIN_TOKEN`
-6. `SYNAPSE_OWNER_WALLET`
-7. `SYNAPSE_PERF_SERVICE_ID`
-8. `SYNAPSE_MONEY_CONCURRENCY_COMMAND`
+3. `SYNAPSE_PERF_SERVICE_ID`
+4. `PROJECT_ID` or explicit staging credentials:
+   `GATEWAY_E2E_OWNER_KEY`, `STAGING_ADMIN_E2E_PASSWORD`, and
+   `STAGING_ADMIN_E2E_OTP_SECRET`
+
+The suite obtains admin auth through the staging admin E2E account and exports a
+cookie/CSRF header for admin read-only load. It also authenticates the staging
+E2E consumer wallet and exports `SYNAPSE_AGENT_TOKEN`, `SYNAPSE_OWNER_TOKEN`,
+and `SYNAPSE_OWNER_WALLET`. It no longer uses a bearer-only
+`SYNAPSE_ADMIN_TOKEN` model. Destructive money-write concurrency is disabled
+by default; enable it only with both:
+
+```bash
+SYNAPSE_PERF_ENABLE_MONEY_WRITE_LOAD=1
+SYNAPSE_MONEY_CONCURRENCY_COMMAND='<explicit isolated-wallet command>'
+```
 
 Or run individual scenarios:
 

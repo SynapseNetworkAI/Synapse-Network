@@ -45,8 +45,8 @@ const failed = [];
 if (reconciliation?.postgresLedgerVault?.unexplainedDeltaUsdc !== "0.000000") {
   failed.push("postgres_ledger_vault_delta");
 }
-if (Number(restore?.clickhouse?.latestFreshnessLagSeconds) > Number(restore?.clickhouse?.freshnessThresholdSeconds ?? 300)) {
-  failed.push("clickhouse_freshness");
+if (restore?.postgres?.status !== "success") {
+  failed.push("postgres_restore_validation");
 }
 
 const report = {
@@ -74,8 +74,9 @@ fs.writeFileSync(
     "",
     "## Checks",
     "",
+    `- Postgres restore status: \`${restore?.postgres?.status || "missing"}\``,
     `- Postgres unexplained delta: \`${reconciliation?.postgresLedgerVault?.unexplainedDeltaUsdc}\``,
-    `- ClickHouse freshness lag: \`${restore?.clickhouse?.latestFreshnessLagSeconds}s\``,
+    "- ClickHouse/Kafka restore: `not required for MVP Postgres-only staging`",
   ].join("\n") + "\n",
 );
 
