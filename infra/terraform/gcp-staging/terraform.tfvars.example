@@ -29,6 +29,7 @@ gateway_image       = ""
 gateway_admin_image = ""
 user_front_image    = ""
 admin_front_image   = ""
+provider_image      = ""
 
 common_runtime_env = {
   ANALYTICS_KAFKA_BOOTSTRAP_SERVERS = ""

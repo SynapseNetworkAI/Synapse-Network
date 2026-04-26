@@ -135,7 +135,11 @@ production or contract deployment before the substrate is stable.
    - Gmail username/app password.
    - Arbitrum Sepolia RPC URL and Etherscan API V2 verification key.
    - Staging deployer and withdraw signer private keys.
-6. Build and push container images to Artifact Registry.
+6. Run the Cloud Run secret-version preflight.
+   - `bash scripts/deploy/gcp_check_staging_cloud_run_secret_versions.sh fabled-archive-494108-k5`.
+   - Do this before setting image variables or applying Cloud Run changes.
+   - This prevents `secret:latest` revision failures from half-updating staging.
+7. Build and push container images to Artifact Registry.
    - Then set the four `*_image` Terraform variables or deploy through
      `gcloud run deploy` for the first smoke.
    - Recommended: use
@@ -144,7 +148,7 @@ production or contract deployment before the substrate is stable.
      Linux builder.
    - Fallback: use `bash scripts/deploy/gcp_build_staging_images.sh fabled-archive-494108-k5`
      only when local Docker has enough memory.
-7. Configure DNS and TLS.
+8. Configure DNS and TLS.
    - `staging.synapse-network.ai`.
    - `api-staging.synapse-network.ai`.
    - `admin-staging.synapse-network.ai`.
@@ -219,7 +223,7 @@ Manual equivalent:
 export PROJECT_ID=fabled-archive-494108-k5
 export REGION=us-central1
 export REPO=synapse-staging
-export TAG=staging-$(date -u +%Y%m%dT%H%M%SZ)
+export TAG=staging-$(date -u +%Y-%m-%d-%H%M%S)
 export REGISTRY=${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO}
 
 gcloud auth configure-docker ${REGION}-docker.pkg.dev
@@ -473,6 +477,37 @@ for s in $(gcloud secrets list --project="$PROJECT_ID" --filter='name:synapse-st
     printf '%-58s %s\n' "$s" "missing-enabled-version"
   fi
 done
+```
+
+Before any Terraform apply or `gcloud run deploy` that updates Cloud Run
+services/jobs, run the Cloud Run secret-version preflight:
+
+```bash
+bash scripts/deploy/gcp_check_staging_cloud_run_secret_versions.sh fabled-archive-494108-k5
+```
+
+This is a hard deployment gate. Terraform can create Secret Manager
+placeholders, but Cloud Run resolves `secret:latest` while creating a revision
+or job. If the placeholder exists without an enabled version, Cloud Run rejects
+the revision and Terraform can fail after other resources were already updated.
+
+If the preflight fails:
+
+1. Add the missing value with `scripts/deploy/gcp_put_secret.sh` or rerun
+   `scripts/deploy/gcp_staging_bootstrap.sh` for generated database secrets.
+2. Rerun the preflight until every Cloud Run referenced secret prints `[ok]`.
+3. Only then run `terraform -chdir=infra/terraform/gcp-staging apply`.
+
+If a previous failed apply left a Cloud Run Job tainted, do not approve a plan
+that destroys the job while deletion protection is still blocking replacement.
+After the missing secret versions are fixed, clear the failed taint and let
+Terraform converge normally:
+
+```bash
+terraform -chdir=infra/terraform/gcp-staging untaint \
+  'google_cloud_run_v2_job.jobs["gateway_admin_db_migrate"]'
+terraform -chdir=infra/terraform/gcp-staging plan
+terraform -chdir=infra/terraform/gcp-staging apply
 ```
 
 Secret Manager having a value does not mean Cloud Run is using it. Runtime
@@ -999,6 +1034,12 @@ Branch-based staging deploy is allowed, but the workflow freezes the branch HEAD
 at dispatch time. Release evidence must record `sourceRefType`, `sourceRef`,
 `resolvedCommitSha`, image tags/digests, Cloud Run revisions, smoke status, and
 the evidence URI. Do not treat a moving branch name as the deployed version.
+
+Artifact Registry tags use Docker-safe UTC timestamps:
+`staging-<safe-branch>-<short-sha>-<yyyy-MM-dd-HHmmss>`. The release manifest
+also includes a human display timestamp in `yyyy-MM-dd HH:mm:ss` with
+`timestampTimezone=UTC`; UI layers may convert that ISO source time to local
+operator time for display.
 
 GitHub Actions authenticates to Google Cloud through Workload Identity
 Federation, not a long-lived service account JSON key. The staging workflow must

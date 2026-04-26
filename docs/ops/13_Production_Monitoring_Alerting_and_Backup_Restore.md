@@ -335,7 +335,7 @@ npm run ci:gcp-alerts-staging-evidence
 
 The full proof additionally requires the gateway-admin logs to contain
 `alert_trigger=GCP_ALERT_RECEIVED` for
-`SynapseStagingGateway5xxRateHigh`.
+`synapse_staging_gateway_5xx_rate_high`.
 
 Run the local Lark Relay:
 

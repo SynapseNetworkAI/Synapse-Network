@@ -46,11 +46,44 @@ Synapse-Network/
 From repo root:
 
 ```bash
+npm run dev:all
+```
+
+This starts the four local app services: Gateway, Gateway-admin, User-front, and Admin-front.
+It does not create databases, redeploy contracts, or rerun SQL bootstrap on every start.
+
+Useful lifecycle commands:
+
+```bash
+npm run dev:migrate
+npm run dev:bootstrap
+npm run dev:status
+npm run dev:logs
+npm run dev:restart
+npm run dev:stop
+```
+
+Use `npm run dev:migrate` when the gateway-admin schema is missing or after admin DB schema changes.
+Use `npm run dev:bootstrap` once for first-time local infra setup: local Postgres bootstrap, Anvil, local contract deploy, Gateway, and User-front.
+
+Provider marketplace visibility helpers:
+
+```bash
+npm run dev:provider:onboard
+npm run dev:provider:probe
+npm run dev:provider:status
+```
+
+`dev:provider:onboard` runs the sibling Provider onboarding flow and waits until the registered services are visible in Gateway public discovery. `dev:provider:probe` re-runs the local ensure + force-probe path for the current Provider services when marketplace looks stale. `dev:provider:status` prints discovery and health snapshots without mutating state.
+
+If you only need the lower-level runtime Gateway + User-front subset, use the setup script directly:
+
+```bash
 chmod +x scripts/local/setup_local_env.sh
 ./scripts/local/setup_local_env.sh
 ```
 
-This script will start local chain, deploy contracts, start backend, and run frontend.
+That script will start local chain, deploy contracts, start Gateway, and run User-front.
 It now auto-activates `Node.js 20.19.0` through `nvm` when the current shell is still on an older Node runtime.
 
 If the script says `anvil is not installed`, install Foundry first:

@@ -132,7 +132,7 @@ async function waitForMonitoringCallback({ projectId, waitSeconds }) {
     'resource.type="cloud_run_revision"',
     'resource.labels.service_name="synapse-staging-gateway-admin"',
     'textPayload:"alert_trigger=GCP_ALERT_RECEIVED"',
-    'textPayload:"SynapseStagingGateway5xxRateHigh"',
+    'textPayload:"synapse_staging_gateway_5xx_rate_high"',
   ].join(" AND ");
   while (Date.now() < deadline) {
     const result = gcloud([
