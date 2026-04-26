@@ -982,6 +982,10 @@ If using keyword-only validation, configure the keyword in Lark and leave the
 ## Cloud Run Jobs
 
 Cloud Run staging keeps long-running work out of API serving instances.
+These jobs are separate Cloud Run execution units, but they intentionally use
+the same Gateway Docker image as `synapse-staging-gateway`. The worker entrypoint
+is `python -m src.worker <job> --once`, so Gateway API and jobs share `src.core`,
+`src.storage`, domain models, money utilities, and settlement state-machine code.
 
 | Job | Command | Schedule | Lock key | Purpose |
 | --- | --- | --- | --- | --- |
@@ -995,6 +999,28 @@ Cloud Run staging keeps long-running work out of API serving instances.
 Each money-sensitive job must use `task_count=1`, `parallelism=1`, and the
 Postgres advisory lock. A lock skip logs `JOB_SKIPPED_ALREADY_RUNNING` and exits
 successfully unless repeated skips breach alert thresholds.
+
+When deploy scope includes `gateway`, the staging deploy workflow must update
+the Gateway service and all Gateway jobs to the same immutable Gateway image
+digest. Updating a job image does not execute the job; Cloud Scheduler still
+controls execution. This prevents the dangerous split-brain state where the API
+writes new ledger/storage shapes while old indexer, processor, or outbox code
+continues to run.
+
+Manual drift repair uses the same job list as the workflow:
+
+```bash
+bash scripts/deploy/gcp_sync_staging_jobs.sh \
+  --project fabled-archive-494108-k5 \
+  --region us-central1 \
+  --service gateway \
+  --image us-central1-docker.pkg.dev/fabled-archive-494108-k5/synapse-staging/gateway@sha256:<digest>
+```
+
+Use the manual script only for emergency drift repair, rollback alignment, or
+Terraform apply follow-up. Normal releases should update jobs through
+`.github/workflows/deploy-staging.yml` and record job digests in the release
+manifest.
 
 ## Migration And Seed Rules
 
@@ -1026,14 +1052,16 @@ sequence is:
 2. Resolve deploy scope (`auto`, one service, or `all`).
 3. Build only affected service images in Cloud Build.
 4. Run the DB migration job before API rollout when schema/migration files changed.
-5. Deploy affected Cloud Run services by immutable image digest when available.
-6. Run smoke tests only for affected services.
-7. Write `release-manifest.json` and upload it to the staging evidence bucket.
+5. If Gateway is affected, update all Gateway jobs to the same Gateway image digest.
+6. Deploy affected Cloud Run services by immutable image digest when available.
+7. Run smoke tests only for affected services.
+8. Write `release-manifest.json` and upload it to the staging evidence bucket.
 
 Branch-based staging deploy is allowed, but the workflow freezes the branch HEAD
 at dispatch time. Release evidence must record `sourceRefType`, `sourceRef`,
-`resolvedCommitSha`, image tags/digests, Cloud Run revisions, smoke status, and
-the evidence URI. Do not treat a moving branch name as the deployed version.
+`resolvedCommitSha`, image tags/digests, Cloud Run revisions, job image digests,
+job drift status, smoke status, and the evidence URI. Do not treat a moving
+branch name as the deployed version.
 
 Artifact Registry tags use Docker-safe UTC timestamps:
 `staging-<safe-branch>-<short-sha>-<yyyy-MM-dd-HHmmss>`. The release manifest
