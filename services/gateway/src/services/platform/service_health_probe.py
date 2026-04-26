@@ -491,3 +491,8 @@ async def refresh_all_service_health(storage: BaseStorage) -> dict[str, int]:
         "maxConcurrency": _max_probe_concurrency(),
         "maxCandidatesPerTick": max_candidates,
     }
+
+
+# Backwards-compatible import surface for tests and older callers. The actual
+# scheduler lives in service_health_scheduler so probe logic stays focused.
+from src.services.platform.service_health_scheduler import run_service_health_monitor  # noqa: E402,F401

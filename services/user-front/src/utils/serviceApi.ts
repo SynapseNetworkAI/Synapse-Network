@@ -497,6 +497,7 @@ export async function discoverServices(
     `${API_BASE_URL}/discover${queryText}`,
     {
       method: "GET",
+      cache: "no-store",
       // Public endpoint, no auth headers needed
       headers: {
         "Content-Type": "application/json",
