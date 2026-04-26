@@ -7,12 +7,14 @@ patterns continue to work unchanged.
 """
 from __future__ import annotations
 
+# ruff: noqa: C901, PLC0415, PLR0912, PLW0603
+
 import asyncio
 import logging
+import os
 import time
-from concurrent.futures import Future, ThreadPoolExecutor
-from contextlib import suppress
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Any, List, Optional
 
 import httpx
@@ -42,6 +44,7 @@ from src.services.platform.service_health_history import (
     prune_health_history,
 )
 from src.services.platform.service_health_tiers import (
+    latest_service_health_checked_at,
     service_probe_tier,
     should_probe_service_now,
 )
@@ -72,6 +75,52 @@ class _ProbeResult:
 
 def _max_probe_concurrency() -> int:
     return max(1, int(settings.service_health_max_concurrency or 1))
+
+
+def _max_candidates_per_tick() -> int:
+    raw_value = str(os.getenv("SERVICE_HEALTH_MAX_CANDIDATES_PER_TICK") or "").strip()
+    if not raw_value:
+        if str(settings.environment or "").strip().lower() == "local":
+            return 25
+        return 0
+    try:
+        return max(0, int(raw_value))
+    except ValueError:
+        return 0
+
+
+def _record_timestamp_ms(raw_value: object) -> int:
+    value = str(raw_value or "").strip()
+    if not value:
+        return 0
+    try:
+        normalized = value.replace("Z", "+00:00")
+        parsed = datetime.fromisoformat(normalized)
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return int(parsed.timestamp() * 1000)
+    except ValueError:
+        return 0
+
+
+def _candidate_priority(candidate: _ProbeCandidate) -> tuple[int, int, int, int, str]:
+    service = candidate.service
+    checked_at = latest_service_health_checked_at(service)
+    updated_at = max(
+        _record_timestamp_ms(getattr(service, "updated_at", "")),
+        _record_timestamp_ms(getattr(service, "created_at", "")),
+    )
+    tier = service_probe_tier(service)
+    active_rank = 0 if str(getattr(service, "status", "") or "").lower() == "active" else 1
+    tier_rank = 1 if tier == "slow_lane" else 0
+    missing_health_rank = 0 if checked_at <= 0 else 1
+    return (
+        tier_rank,
+        active_rank,
+        missing_health_rank,
+        -updated_at,
+        str(service.service_id or ""),
+    )
 
 
 def _global_probe_limiter() -> asyncio.Semaphore:
@@ -140,10 +189,7 @@ def _merge_target_health(
     else:
         success = 0
         failure = prev_failure + 1
-        if failure >= unhealthy_threshold:
-            status = "unhealthy"
-        else:
-            status = "degraded"
+        status = "unhealthy" if failure >= unhealthy_threshold else "degraded"
         last_healthy_at = getattr(previous, "last_healthy_at", None)
 
     return ServiceHealthTargetRecord(
@@ -386,6 +432,14 @@ async def refresh_all_service_health(storage: BaseStorage) -> dict[str, int]:
             continue
         candidates.append(_ProbeCandidate(index=index, service=row))
 
+    candidates.sort(key=_candidate_priority)
+    scheduled_before_limit = len(candidates)
+    max_candidates = _max_candidates_per_tick()
+    if max_candidates > 0 and len(candidates) > max_candidates:
+        for candidate in candidates[max_candidates:]:
+            next_rows[candidate.index] = candidate.service
+        candidates = candidates[:max_candidates]
+
     default_timeout_sec = max(0.1, float(settings.service_health_probe_timeout_ms) / 1000.0)
     async with httpx.AsyncClient(timeout=httpx.Timeout(default_timeout_sec)) as client:
         runner = BoundedTaskRunner(
@@ -426,6 +480,7 @@ async def refresh_all_service_health(storage: BaseStorage) -> dict[str, int]:
 
     return {
         "scheduled": len(candidates),
+        "scheduledBeforeLimit": scheduled_before_limit,
         "checked": checked,
         "updated": updated,
         "syncedRows": synced_rows,
@@ -434,72 +489,5 @@ async def refresh_all_service_health(storage: BaseStorage) -> dict[str, int]:
         "jitterSkipped": jitter_skipped,
         "slowLaneSkipped": slow_lane_skipped,
         "maxConcurrency": _max_probe_concurrency(),
+        "maxCandidatesPerTick": max_candidates,
     }
-
-
-async def run_service_health_monitor(
-    stop_event: asyncio.Event, storage: BaseStorage
-) -> None:
-    interval = max(1.0, float(settings.service_health_probe_interval_sec))
-    step_timeout = max(0.01, float(settings.service_health_monitor_step_timeout_sec))
-    logger.info(
-        "Service health monitor started: interval=%ss step_timeout=%ss",
-        interval,
-        step_timeout,
-    )
-
-    def _run_monitor_tick() -> dict[str, int]:
-        return asyncio.run(refresh_all_service_health(storage))
-
-    executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="service-health")
-    loop = asyncio.get_running_loop()
-    active_step: Future[dict[str, int]] | None = None
-    try:
-        while not stop_event.is_set():
-            if active_step is not None and not active_step.done():
-                logger.warning(
-                    "Service health monitor skipped tick because previous tick is still running"
-                )
-            else:
-                if active_step is not None and active_step.done():
-                    with suppress(Exception):
-                        active_step.result()
-                    active_step = None
-
-                active_step = executor.submit(_run_monitor_tick)
-                wrapped_step = asyncio.wrap_future(active_step, loop=loop)
-                try:
-                    result = await asyncio.wait_for(
-                        wrapped_step,
-                        timeout=step_timeout,
-                    )
-                    logger.debug(
-                        "Service health monitor tick: scheduled=%s checked=%s updated=%s jitter_skipped=%s slow_lane_skipped=%s max_concurrency=%s",
-                        result.get("scheduled"),
-                        result.get("checked"),
-                        result.get("updated"),
-                        result.get("jitterSkipped"),
-                        result.get("slowLaneSkipped"),
-                        result.get("maxConcurrency"),
-                    )
-                    active_step = None
-                except asyncio.TimeoutError:
-                    logger.warning(
-                        "Service health monitor tick timed out after %ss",
-                        step_timeout,
-                    )
-                except Exception as exc:
-                    logger.warning("Service health monitor tick failed: %s", exc)
-                    active_step = None
-
-            try:
-                await asyncio.wait_for(stop_event.wait(), timeout=interval)
-            except asyncio.TimeoutError:
-                pass
-    finally:
-        if active_step is not None and active_step.done():
-            with suppress(Exception):
-                active_step.result()
-        executor.shutdown(wait=False, cancel_futures=True)
-
-    logger.info("Service health monitor stopped")

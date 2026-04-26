@@ -21,10 +21,34 @@ from .payload_helpers import (
     service_lifecycle_status,
 )
 
+_MIN_FULL_PAYOUT_ADDRESS_LENGTH = 8
+
+
+def _latest_probe_error(service) -> str | None:
+    health = getattr(service, "runtime_health", None)
+    if health is None:
+        return None
+    for target in getattr(health, "targets", []) or []:
+        error = str(getattr(target, "error", "") or "").strip()
+        if error:
+            return error
+    return None
+
+
+def _owner_service_response(service) -> dict[str, Any]:
+    response = service.model_dump(by_alias=True, mode="json")
+    health = service_health_service.public_health_summary(service)
+    response["health"] = health
+    response["runtimeAvailable"] = service_health_service.is_service_discoverable(service)
+    response["probeStatus"] = health.get("probeStatus")
+    response["lastCheckedAt"] = health.get("lastCheckedAt")
+    response["probeError"] = _latest_probe_error(service)
+    return response
+
 
 def _masked_payout_address(value: str | None) -> str | None:
     normalized = str(value or "").strip()
-    if len(normalized) <= 8:
+    if len(normalized) <= _MIN_FULL_PAYOUT_ADDRESS_LENGTH:
         return normalized or None
     return f"{normalized[:6]}...{normalized[-4:]}"
 
@@ -91,7 +115,7 @@ async def register_service(
         rows.append(new_svc)
         context._save_service_registry_rows(rows)
         service_health_service.sync_service_target_health_table(context.storage, rows)
-        response = new_svc.model_dump(by_alias=True, mode="json")
+        response = _owner_service_response(new_svc)
         credential_service.append_audit_log(
             context.storage,
             "provider.service.registered",
@@ -155,7 +179,7 @@ async def update_service(
             service_health_service.sync_service_target_health_table(
                 context.storage, rows
             )
-            response = updated.model_dump(by_alias=True, mode="json")
+            response = _owner_service_response(updated)
             credential_service.append_audit_log(
                 context.storage,
                 "provider.service.updated",
@@ -219,3 +243,35 @@ async def has_owner_service(
             continue
         return not is_deleted_service(svc)
     return False
+
+
+async def force_probe_owner_service(
+    context: RegistryContext, service_record_id: str, owner_wallet: str
+) -> dict[str, Any] | None:
+    async with context._registry_lock():
+        rows = context._load_service_registry_rows()
+        for index, svc in enumerate(rows):
+            if svc.service_id != service_record_id or svc.owner_address != owner_wallet:
+                continue
+            if is_deleted_service(svc):
+                return None
+            probed = await service_health_service.force_probe_service_health(svc)
+            rows[index] = probed
+            service_health_service.sync_service_target_health_table(context.storage, rows)
+            if service_health_service.settings.service_health_history_enabled:
+                service_health_service.append_health_history_rows(
+                    context.storage,
+                    service_health_service.build_probe_history_rows(probed),
+                )
+            credential_service.append_audit_log(
+                context.storage,
+                "provider.service.force_probe",
+                owner_wallet,
+                {
+                    "serviceId": service_record_id,
+                    "runtimeAvailable": service_health_service.is_service_discoverable(probed),
+                    "probeStatus": service_health_service.public_health_summary(probed).get("probeStatus"),
+                },
+            )
+            return _owner_service_response(probed)
+    return None
