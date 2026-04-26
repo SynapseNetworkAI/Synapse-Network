@@ -1,5 +1,6 @@
 from .registration import (
     delete_service,
+    force_probe_owner_service,
     has_owner_service,
     register_service,
     update_service,
@@ -20,6 +21,7 @@ __all__ = [
     "delete_service",
     "discover_public_services",
     "discover_services",
+    "force_probe_owner_service",
     "has_owner_service",
     "health_status",
     "list_owner_services",

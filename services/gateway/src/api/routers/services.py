@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+# ruff: noqa: B008, B904, TRY003
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Header, Request
 from typing import Optional, Any, List, Annotated, Union
 from src.api.deps import get_registry_service
@@ -626,9 +628,18 @@ async def ping_service(
     x_user_address: UserAddressHeader = None,
 ):
     owner = credential_service.require_owner_wallet(authorization, x_user_address)
-    if not await service.has_owner_service(service_record_id, owner):
+    payload = await service.force_probe_owner_service(service_record_id, owner)
+    if payload is None:
         raise HTTPException(status_code=404, detail="Service not found")
-    return {"status": "success", "message": "Pong"}
+    return {
+        "status": "success",
+        "message": "Service health probe completed",
+        "service": payload,
+        "runtimeAvailable": payload.get("runtimeAvailable"),
+        "probeStatus": payload.get("probeStatus"),
+        "lastCheckedAt": payload.get("lastCheckedAt"),
+        "probeError": payload.get("probeError"),
+    }
 
 
 @router.post("/v1/services/parse-curl")
