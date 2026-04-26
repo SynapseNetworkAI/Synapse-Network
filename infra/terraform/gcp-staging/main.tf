@@ -343,11 +343,52 @@ locals {
 }
 
 resource "google_artifact_registry_repository" "docker" {
-  location      = var.region
-  repository_id = var.artifact_registry_repository
-  description   = "Synapse ${var.environment} Docker images"
-  format        = "DOCKER"
-  labels        = local.labels
+  location               = var.region
+  repository_id          = var.artifact_registry_repository
+  description            = "Synapse ${var.environment} Docker images"
+  format                 = "DOCKER"
+  labels                 = local.labels
+  cleanup_policy_dry_run = var.artifact_registry_cleanup_policy_dry_run
+
+  cleanup_policies {
+    id     = "delete-untagged-older-than-7d"
+    action = "DELETE"
+
+    condition {
+      tag_state  = "UNTAGGED"
+      older_than = "7d"
+    }
+  }
+
+  cleanup_policies {
+    id     = "delete-staging-tagged-older-than-45d"
+    action = "DELETE"
+
+    condition {
+      tag_state    = "TAGGED"
+      tag_prefixes = ["staging-"]
+      older_than   = "45d"
+    }
+  }
+
+  cleanup_policies {
+    id     = "keep-promoted-release-tags"
+    action = "KEEP"
+
+    condition {
+      tag_state    = "TAGGED"
+      tag_prefixes = ["prod-", "production-", "promoted-", "release-"]
+    }
+  }
+
+  cleanup_policies {
+    id     = "keep-recent-10-per-package"
+    action = "KEEP"
+
+    most_recent_versions {
+      keep_count = 10
+    }
+  }
 }
 
 resource "google_storage_bucket" "backups" {
