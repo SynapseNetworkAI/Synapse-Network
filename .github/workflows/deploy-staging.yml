@@ -125,7 +125,9 @@ jobs:
           short_sha="$(git rev-parse --short=12 HEAD)"
           base_sha="$(git merge-base origin/main HEAD || git rev-parse HEAD^)"
           safe_ref="$(printf '%s' "${source_ref:-commit}" | tr '/[:upper:]' '-[:lower:]' | tr -cd 'a-z0-9._-' | cut -c1-40)"
-          release_id="staging-${safe_ref}-${short_sha}-$(date -u +%Y%m%dT%H%M%SZ)"
+          display_timestamp="$(date -u '+%Y-%m-%d %H:%M:%S')"
+          tag_timestamp="$(date -u '+%Y-%m-%d-%H%M%S')"
+          release_id="staging-${safe_ref}-${short_sha}-${tag_timestamp}"
 
           {
             echo "resolved_commit_sha=$(git rev-parse HEAD)"
@@ -134,6 +136,9 @@ jobs:
             echo "source_ref_type=${source_ref_type}"
             echo "release_id=${release_id}"
             echo "short_sha=${short_sha}"
+            echo "safe_ref=${safe_ref}"
+            echo "tag_timestamp=${tag_timestamp}"
+            echo "display_timestamp=${display_timestamp}"
           } >> "$GITHUB_OUTPUT"
 
       - name: Resolve deploy scope
@@ -184,7 +189,7 @@ jobs:
       - name: Build affected images
         if: ${{ steps.scope.outputs.deploy == 'true' }}
         run: |
-          TAG="staging-${{ steps.source.outputs.short_sha }}-$(date -u +%Y%m%dT%H%M%SZ)"
+          TAG="staging-${{ steps.source.outputs.safe_ref }}-${{ steps.source.outputs.short_sha }}-${{ steps.source.outputs.tag_timestamp }}"
           bash scripts/deploy/gcp_cloudbuild_staging_images.sh "${PROJECT_ID}" \
             --services "${{ steps.scope.outputs.services }}" \
             --tag "${TAG}" \
@@ -350,7 +355,9 @@ jobs:
             --build build-images.json \
             --image-digests image-digests.json \
             --revisions revisions.json \
-            --smoke smoke.json
+            --smoke smoke.json \
+            --generated-at-display "${{ steps.source.outputs.display_timestamp }}" \
+            --timestamp-timezone UTC
           gcloud storage cp -r "output/deployments/staging/${RELEASE_ID}" "gs://${EVIDENCE_BUCKET}/deployments/"
           echo "EVIDENCE_URI=gs://${EVIDENCE_BUCKET}/deployments/${RELEASE_ID}/release-manifest.json" >> "$GITHUB_ENV"
 
