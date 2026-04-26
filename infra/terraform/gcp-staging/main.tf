@@ -22,6 +22,8 @@ locals {
       POSTGRES_POOL_MAX                       = "5"
       POSTGRES_AUTO_INIT                      = "0"
       CORS_ALLOW_ORIGINS                      = "https://staging.synapse-network.ai"
+      ROUTER_ADDRESS                          = "0x0bA1dcE1Cc8d877052ab1C3CE2362830459D8FF4"
+      USDC_TOKEN_ADDRESS                      = "0xfad31daE42B0046aFA106BCf56ED0dDaCA4463B9"
       V2_INDEXER_ENABLED                      = "false"
       PROVIDER_WITHDRAW_EXPIRY_REAPER_ENABLED = "false"
       CONSUMER_WITHDRAW_PROCESSOR_ENABLED     = "false"
@@ -37,6 +39,7 @@ locals {
       EMAIL_FROM                              = "Synapse Network Staging <staging-alerts@synapse-network.ai>"
       EMAIL_REPLY_TO                          = "support@synapse-network.ai"
       IN_APP_NOTIFICATION_CLEANUP_ENABLED     = "false"
+      WITHDRAWAL_AUTO_SINGLE_LIMIT_USDC       = "1.000000"
       WITHDRAWAL_TIMEOUT_ALERT_AFTER_SEC      = "900"
       STAGING_ALERT_DRILL_ENABLED             = local.is_production ? "false" : "true"
     },
@@ -54,6 +57,8 @@ locals {
     GMAIL_SMTP_USERNAME         = "synapse-staging-gmail-username"
     GMAIL_SMTP_APP_PASSWORD     = "synapse-staging-gmail-app-password"
     STAGING_ALERT_DRILL_TOKEN   = "synapse-staging-alert-drill-token"
+    PLATFORM_FEE_ADMIN_WALLETS  = "synapse-staging-gateway-admin-wallet"
+    INDEXER_ADMIN_WALLETS       = "synapse-staging-gateway-admin-wallet"
   }
   gateway_migration_secret_env = merge(
     local.gateway_secret_env,
@@ -78,16 +83,61 @@ locals {
     LARK_WEBHOOK_PROD_ALERTS      = "synapse-staging-lark-webhook-prod-alerts"
     LARK_SECRET_PROD_ALERTS       = "synapse-staging-lark-secret-prod-alerts"
   }
+  provider_runtime_env = {
+    PROVIDER_ENV                           = var.environment
+    PROVIDER_RUNTIME_ROLE                  = "runtime"
+    PROVIDER_PUBLIC_BASE_URL               = "https://provider-staging.synapse-network.ai"
+    PROVIDER_GATEWAY_REGISTRATION_EXPECTED = "true"
+    PROVIDER_PUBLIC_DOCS_ENABLED           = "false"
+    PROVIDER_STAGING_ENABLED_SERVICES_JSON = "[\"web3-sentiment-index\",\"protocol-fundamental-brief\",\"oss-security-healthcheck\"]"
+    PROVIDER_MAX_BODY_BYTES                = "131072"
+    PROVIDER_MAX_RESPONSE_BYTES            = "1048576"
+    PROVIDER_GLOBAL_QPS                    = "5"
+    PROVIDER_SERVICE_QPS_JSON              = "{\"web3-sentiment-index\":2,\"protocol-fundamental-brief\":1,\"oss-security-healthcheck\":1}"
+    GATEWAY_PROVIDER_SIGNATURE_ENABLED     = "true"
+    GATEWAY_PROVIDER_SIGNATURE_MAX_SKEW_S  = "300"
+    SENTIMENT_REPOSITORY_BACKEND           = "postgres"
+    SENTIMENT_SCHEDULER_ENABLED            = "false"
+    SENTIMENT_PROXY_POOL_ENABLED           = "false"
+    SENTIMENT_PROXY_POOL_URLS_JSON         = "[]"
+    SENTIMENT_PROXY_TIMEOUT_FLOOR_S        = "8"
+    VIDEO_STORAGE_BACKEND                  = "minio"
+    VIDEO_STORAGE_MINIO_ENDPOINT           = ""
+    VIDEO_STORAGE_MINIO_BUCKET             = "synapse-provider-assets-staging"
+    VIDEO_STORAGE_MINIO_SECURE             = "true"
+    SYNAPSE_ENV                            = var.environment
+    SYNAPSE_GATEWAY                        = "https://api-staging.synapse-network.ai"
+  }
+  provider_runtime_secret_env = {
+    GATEWAY_PROVIDER_SIGNATURE_SECRET = "synapse-staging-provider-signature-secret"
+    PROVIDER_SERVICE_POSTGRES_DSN     = "synapse-staging-provider-postgres-dsn"
+    ETHERSCAN_API_KEY                 = "synapse-staging-provider-etherscan-api-key"
+    TWITTER_X_API_KEY                 = "synapse-staging-provider-twitter-x-api-key"
+    TWITTER_X_API_SECRET              = "synapse-staging-provider-twitter-x-api-secret"
+    TWITTER_X_API_BEARER_TOKEN        = "synapse-staging-provider-twitter-x-bearer-token"
+    VIDEO_STORAGE_MINIO_ACCESS_KEY    = "synapse-staging-provider-minio-access-key"
+    VIDEO_STORAGE_MINIO_SECRET_KEY    = "synapse-staging-provider-minio-secret-key"
+  }
+  provider_onboarding_env = merge(
+    local.provider_runtime_env,
+    {
+      PROVIDER_RUNTIME_ROLE = "onboarding"
+    },
+  )
+  provider_onboarding_secret_env = {
+    SYNAPSE_PROVIDER_OWNER_PRIVATE_KEY = "synapse-staging-provider-onboarding-owner-private-key"
+  }
   cloud_run_services = {
     gateway = {
-      name          = "${local.name_prefix}-gateway"
-      image         = var.gateway_image
-      port          = 8000
-      concurrency   = local.is_production ? 40 : 20
-      min_instances = local.is_production ? 1 : 0
-      max_instances = local.is_production ? 3 : 2
-      env           = local.runtime_env
-      secret_env    = local.gateway_secret_env
+      name            = "${local.name_prefix}-gateway"
+      image           = var.gateway_image
+      port            = 8000
+      concurrency     = local.is_production ? 40 : 20
+      min_instances   = local.is_production ? 1 : 0
+      max_instances   = local.is_production ? 3 : 2
+      env             = local.runtime_env
+      secret_env      = local.gateway_secret_env
+      service_account = google_service_account.runtime.email
     }
     gateway_admin = {
       name          = "${local.name_prefix}-gateway-admin"
@@ -114,27 +164,41 @@ locals {
           GCP_ALERT_DEFAULT_ROUTE       = "staging-drill"
         },
       )
-      secret_env = local.gateway_admin_secret_env
+      secret_env      = local.gateway_admin_secret_env
+      service_account = google_service_account.runtime.email
     }
     user_front = {
-      name          = "${local.name_prefix}-user-front"
-      image         = var.user_front_image
-      port          = 3000
-      concurrency   = 40
-      min_instances = 0
-      max_instances = 2
-      env           = var.frontend_runtime_env
-      secret_env    = {}
+      name            = "${local.name_prefix}-user-front"
+      image           = var.user_front_image
+      port            = 3000
+      concurrency     = 40
+      min_instances   = 0
+      max_instances   = 2
+      env             = var.frontend_runtime_env
+      secret_env      = {}
+      service_account = google_service_account.runtime.email
     }
     admin_front = {
-      name          = "${local.name_prefix}-admin-front"
-      image         = var.admin_front_image
-      port          = 3000
-      concurrency   = 20
-      min_instances = 0
-      max_instances = 1
-      env           = var.frontend_runtime_env
-      secret_env    = {}
+      name            = "${local.name_prefix}-admin-front"
+      image           = var.admin_front_image
+      port            = 3000
+      concurrency     = 20
+      min_instances   = 0
+      max_instances   = 1
+      env             = var.frontend_runtime_env
+      secret_env      = {}
+      service_account = google_service_account.runtime.email
+    }
+    provider = {
+      name            = "${local.name_prefix}-provider"
+      image           = var.provider_image
+      port            = 8100
+      concurrency     = 10
+      min_instances   = 0
+      max_instances   = 2
+      env             = local.provider_runtime_env
+      secret_env      = local.provider_runtime_secret_env
+      service_account = google_service_account.provider_runtime.email
     }
   }
   enabled_cloud_run_services = {
@@ -143,76 +207,82 @@ locals {
   }
   cloud_run_jobs = {
     deposit_indexer = {
-      name        = "${local.name_prefix}-deposit-indexer"
-      image       = var.gateway_image
-      command     = ["python", "-m", "src.worker"]
-      args        = ["deposit-indexer", "--once"]
-      schedule    = "* * * * *"
-      timeout     = "50s"
-      max_retries = 0
-      retry_count = 0
-      env         = local.runtime_env
-      secret_env  = local.gateway_secret_env
+      name            = "${local.name_prefix}-deposit-indexer"
+      image           = var.gateway_image
+      command         = ["python", "-m", "src.worker"]
+      args            = ["deposit-indexer", "--once"]
+      schedule        = "* * * * *"
+      timeout         = "50s"
+      max_retries     = 0
+      retry_count     = 0
+      env             = local.runtime_env
+      secret_env      = local.gateway_secret_env
+      service_account = google_service_account.runtime.email
     }
     provider_withdraw_reaper = {
-      name        = "${local.name_prefix}-provider-withdraw-reaper"
-      image       = var.gateway_image
-      command     = ["python", "-m", "src.worker"]
-      args        = ["provider-withdraw-reaper", "--once"]
-      schedule    = "* * * * *"
-      timeout     = "50s"
-      max_retries = 0
-      retry_count = 0
-      env         = local.runtime_env
-      secret_env  = local.gateway_secret_env
+      name            = "${local.name_prefix}-provider-withdraw-reaper"
+      image           = var.gateway_image
+      command         = ["python", "-m", "src.worker"]
+      args            = ["provider-withdraw-reaper", "--once"]
+      schedule        = "* * * * *"
+      timeout         = "50s"
+      max_retries     = 0
+      retry_count     = 0
+      env             = local.runtime_env
+      secret_env      = local.gateway_secret_env
+      service_account = google_service_account.runtime.email
     }
     consumer_withdraw_processor = {
-      name        = "${local.name_prefix}-consumer-withdraw-processor"
-      image       = var.gateway_image
-      command     = ["python", "-m", "src.worker"]
-      args        = ["consumer-withdraw-processor", "--once"]
-      schedule    = "* * * * *"
-      timeout     = "50s"
-      max_retries = 0
-      retry_count = 0
-      env         = local.runtime_env
-      secret_env  = local.gateway_secret_env
+      name            = "${local.name_prefix}-consumer-withdraw-processor"
+      image           = var.gateway_image
+      command         = ["python", "-m", "src.worker"]
+      args            = ["consumer-withdraw-processor", "--once"]
+      schedule        = "* * * * *"
+      timeout         = "50s"
+      max_retries     = 0
+      retry_count     = 0
+      env             = local.runtime_env
+      secret_env      = local.gateway_secret_env
+      service_account = google_service_account.runtime.email
     }
     notification_outbox_drain = {
-      name        = "${local.name_prefix}-notification-outbox-drain"
-      image       = var.gateway_image
-      command     = ["python", "-m", "src.worker"]
-      args        = ["notification-outbox", "--once"]
-      schedule    = "* * * * *"
-      timeout     = "50s"
-      max_retries = 1
-      retry_count = 1
-      env         = local.runtime_env
-      secret_env  = local.gateway_secret_env
+      name            = "${local.name_prefix}-notification-outbox-drain"
+      image           = var.gateway_image
+      command         = ["python", "-m", "src.worker"]
+      args            = ["notification-outbox", "--once"]
+      schedule        = "* * * * *"
+      timeout         = "50s"
+      max_retries     = 1
+      retry_count     = 1
+      env             = local.runtime_env
+      secret_env      = local.gateway_secret_env
+      service_account = google_service_account.runtime.email
     }
     in_app_notification_cleanup = {
-      name        = "${local.name_prefix}-in-app-notification-cleanup"
-      image       = var.gateway_image
-      command     = ["python", "-m", "src.worker"]
-      args        = ["in-app-cleanup", "--once"]
-      schedule    = "0 19 * * *"
-      timeout     = "600s"
-      max_retries = 0
-      retry_count = 0
-      env         = merge(local.runtime_env, { IN_APP_NOTIFICATION_CLEANUP_ENABLED = "true" })
-      secret_env  = local.gateway_secret_env
+      name            = "${local.name_prefix}-in-app-notification-cleanup"
+      image           = var.gateway_image
+      command         = ["python", "-m", "src.worker"]
+      args            = ["in-app-cleanup", "--once"]
+      schedule        = "0 19 * * *"
+      timeout         = "600s"
+      max_retries     = 0
+      retry_count     = 0
+      env             = merge(local.runtime_env, { IN_APP_NOTIFICATION_CLEANUP_ENABLED = "true" })
+      secret_env      = local.gateway_secret_env
+      service_account = google_service_account.runtime.email
     }
     db_migrate = {
-      name        = "${local.name_prefix}-db-migrate"
-      image       = var.gateway_image
-      command     = ["bash", "scripts/deploy/migrate_db.sh"]
-      args        = [var.environment]
-      schedule    = ""
-      timeout     = "600s"
-      max_retries = 0
-      retry_count = 0
-      env         = merge(local.runtime_env, { POSTGRES_AUTO_INIT = "0" })
-      secret_env  = local.gateway_migration_secret_env
+      name            = "${local.name_prefix}-db-migrate"
+      image           = var.gateway_image
+      command         = ["bash", "scripts/deploy/migrate_db.sh"]
+      args            = [var.environment]
+      schedule        = ""
+      timeout         = "600s"
+      max_retries     = 0
+      retry_count     = 0
+      env             = merge(local.runtime_env, { POSTGRES_AUTO_INIT = "0" })
+      secret_env      = local.gateway_migration_secret_env
+      service_account = google_service_account.runtime.email
     }
     gateway_admin_db_migrate = {
       name        = "${local.name_prefix}-gateway-admin-db-migrate"
@@ -232,7 +302,21 @@ locals {
           ADMIN_GATEWAY_PORT       = "8000"
         },
       )
-      secret_env = local.gateway_admin_secret_env
+      secret_env      = local.gateway_admin_secret_env
+      service_account = google_service_account.runtime.email
+    }
+    provider_onboarding = {
+      name            = "${local.name_prefix}-provider-onboarding"
+      image           = var.provider_image
+      command         = ["python", "-m", "app.gateway_onboarding"]
+      args            = ["ensure", "--env", var.environment]
+      schedule        = ""
+      timeout         = "300s"
+      max_retries     = 0
+      retry_count     = 0
+      env             = local.provider_onboarding_env
+      secret_env      = local.provider_onboarding_secret_env
+      service_account = google_service_account.provider_onboarding.email
     }
   }
   enabled_cloud_run_jobs = {
@@ -294,6 +378,16 @@ resource "google_service_account" "scheduler" {
   display_name = "Synapse ${var.environment} Cloud Scheduler invoker"
 }
 
+resource "google_service_account" "provider_runtime" {
+  account_id   = "${local.name_prefix}-provider-runtime"
+  display_name = "Synapse ${var.environment} Provider runtime"
+}
+
+resource "google_service_account" "provider_onboarding" {
+  account_id   = "${local.name_prefix}-provider-onboarding"
+  display_name = "Synapse ${var.environment} Provider onboarding job"
+}
+
 resource "google_project_iam_member" "runtime_logging_writer" {
   project = var.project_id
   role    = "roles/logging.logWriter"
@@ -316,6 +410,52 @@ resource "google_project_iam_member" "runtime_cloudsql_client" {
   project = var.project_id
   role    = "roles/cloudsql.client"
   member  = "serviceAccount:${google_service_account.runtime.email}"
+}
+
+resource "google_project_iam_member" "provider_runtime_logging_writer" {
+  project = var.project_id
+  role    = "roles/logging.logWriter"
+  member  = "serviceAccount:${google_service_account.provider_runtime.email}"
+}
+
+resource "google_project_iam_member" "provider_runtime_monitoring_writer" {
+  project = var.project_id
+  role    = "roles/monitoring.metricWriter"
+  member  = "serviceAccount:${google_service_account.provider_runtime.email}"
+}
+
+resource "google_project_iam_member" "provider_runtime_cloudsql_client" {
+  project = var.project_id
+  role    = "roles/cloudsql.client"
+  member  = "serviceAccount:${google_service_account.provider_runtime.email}"
+}
+
+resource "google_project_iam_member" "provider_onboarding_logging_writer" {
+  project = var.project_id
+  role    = "roles/logging.logWriter"
+  member  = "serviceAccount:${google_service_account.provider_onboarding.email}"
+}
+
+resource "google_project_iam_member" "provider_onboarding_cloudsql_client" {
+  project = var.project_id
+  role    = "roles/cloudsql.client"
+  member  = "serviceAccount:${google_service_account.provider_onboarding.email}"
+}
+
+resource "google_secret_manager_secret_iam_member" "provider_runtime_secret_accessor" {
+  for_each  = toset(values(local.provider_runtime_secret_env))
+  project   = var.project_id
+  secret_id = google_secret_manager_secret.placeholders[each.value].secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.provider_runtime.email}"
+}
+
+resource "google_secret_manager_secret_iam_member" "provider_onboarding_secret_accessor" {
+  for_each  = toset(values(local.provider_onboarding_secret_env))
+  project   = var.project_id
+  secret_id = google_secret_manager_secret.placeholders[each.value].secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.provider_onboarding.email}"
 }
 
 resource "google_project_iam_member" "scheduler_run_developer" {
@@ -384,7 +524,7 @@ resource "google_cloud_run_v2_service" "services" {
   invoker_iam_disabled = !local.is_production
 
   template {
-    service_account                  = google_service_account.runtime.email
+    service_account                  = each.value.service_account
     max_instance_request_concurrency = each.value.concurrency
 
     volumes {
@@ -439,6 +579,10 @@ resource "google_cloud_run_v2_service" "services" {
     google_project_iam_member.runtime_logging_writer,
     google_project_iam_member.runtime_monitoring_writer,
     google_project_iam_member.runtime_secret_accessor,
+    google_project_iam_member.provider_runtime_cloudsql_client,
+    google_project_iam_member.provider_runtime_logging_writer,
+    google_project_iam_member.provider_runtime_monitoring_writer,
+    google_secret_manager_secret_iam_member.provider_runtime_secret_accessor,
     google_sql_database.gateway,
   ]
 }
@@ -456,7 +600,7 @@ resource "google_cloud_run_v2_job" "jobs" {
     parallelism = 1
 
     template {
-      service_account = google_service_account.runtime.email
+      service_account = each.value.service_account
       timeout         = each.value.timeout
       max_retries     = each.value.max_retries
 
@@ -506,6 +650,9 @@ resource "google_cloud_run_v2_job" "jobs" {
     google_project_iam_member.runtime_logging_writer,
     google_project_iam_member.runtime_monitoring_writer,
     google_project_iam_member.runtime_secret_accessor,
+    google_project_iam_member.provider_onboarding_cloudsql_client,
+    google_project_iam_member.provider_onboarding_logging_writer,
+    google_secret_manager_secret_iam_member.provider_onboarding_secret_accessor,
     google_sql_database.gateway,
   ]
 }

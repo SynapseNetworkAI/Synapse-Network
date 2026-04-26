@@ -100,8 +100,9 @@ Recommended flow:
    from stdin.
 4. Verify every Cloud Run referenced secret has an enabled version:
    `bash scripts/deploy/gcp_check_staging_cloud_run_secret_versions.sh <project-id>`.
-5. Grant the Cloud Run runtime service account
-   `roles/secretmanager.secretAccessor` on the required secrets.
+5. Grant Cloud Run service accounts access only to the secrets they need. Gateway
+   currently uses the shared runtime account; Provider runtime and Provider
+   onboarding use separate service accounts with per-secret IAM bindings.
 6. Inject secrets into Cloud Run with Terraform `secret_env` or, for an
    emergency manual repair, `gcloud run ... --update-secrets`.
 
@@ -127,6 +128,15 @@ These values are consumed only by explicit staging dogfood/full-chain E2E
 runners. They must not be injected into Gateway, Gateway-admin, frontend, or
 background Cloud Run runtime services.
 
+Provider secrets are split by physical role:
+
+- `synapse-staging-provider-signature-secret` and runtime upstream/API secrets
+  are available only to `synapse-staging-provider-runtime`.
+- `synapse-staging-provider-onboarding-owner-private-key` is available only to
+  the manual `synapse-staging-provider-onboarding` Cloud Run Job.
+- The public Provider runtime must never receive Owner private keys, wallet
+  seeds, admin JWTs, or onboarding credentials.
+
 The application should not receive KMS IAM roles. Cloud Run reads Secret Manager
 values directly; Secret Manager handles encryption at rest.
 
@@ -147,7 +157,8 @@ adds a new managed resource or scheduled job.
 ## First Deployment Strategy
 
 If container image names are not ready, keep `gateway_image`,
-`gateway_admin_image`, `user_front_image`, and `admin_front_image` empty.
+`gateway_admin_image`, `user_front_image`, `admin_front_image`, and
+`provider_image` empty.
 These variables are Docker/OCI image URLs for Cloud Run, not website PNG/JPG
 assets. Terraform will create the durable substrate first. Then deploy the first
 containers manually:
