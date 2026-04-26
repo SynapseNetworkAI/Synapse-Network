@@ -32,6 +32,12 @@ variable "artifact_registry_repository" {
   default     = "synapse-staging"
 }
 
+variable "artifact_registry_cleanup_policy_dry_run" {
+  description = "When true, Artifact Registry cleanup policies only report candidates and do not delete image versions."
+  type        = bool
+  default     = false
+}
+
 variable "cloud_sql_database_version" {
   description = "Cloud SQL Postgres database version."
   type        = string

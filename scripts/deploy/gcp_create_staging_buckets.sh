@@ -99,7 +99,32 @@ cat >"$tmp_dir/evidence-lifecycle.json" <<'JSON'
   "rule": [
     {
       "action": {"type": "Delete"},
+      "condition": {
+        "age": 30,
+        "matchesPrefix": [
+          "debug/",
+          "failed/",
+          "tmp/",
+          "staging/debug/",
+          "staging/failed/",
+          "deployments/failed/"
+        ]
+      }
+    },
+    {
+      "action": {"type": "Delete"},
       "condition": {"age": 365}
+    }
+  ]
+}
+JSON
+
+cat >"$tmp_dir/tfstate-lifecycle.json" <<'JSON'
+{
+  "rule": [
+    {
+      "action": {"type": "Delete"},
+      "condition": {"age": 365, "isLive": false}
     }
   ]
 }
@@ -129,7 +154,8 @@ gcloud storage buckets update "gs://${evidence_bucket}" \
 gcloud storage buckets update "gs://${tfstate_bucket}" \
   --uniform-bucket-level-access \
   --public-access-prevention \
-  --versioning >/dev/null
+  --versioning \
+  --lifecycle-file="$tmp_dir/tfstate-lifecycle.json" >/dev/null
 
 cat <<EOF
 [bucket] ready
