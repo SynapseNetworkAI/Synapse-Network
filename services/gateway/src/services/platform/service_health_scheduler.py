@@ -1,4 +1,5 @@
 """Background scheduler for service health refresh ticks."""
+# ruff: noqa: PLC0415
 from __future__ import annotations
 
 import asyncio
@@ -8,7 +9,6 @@ from contextlib import suppress
 
 from src.core.config import settings
 from src.storage.base import BaseStorage
-from src.services.platform.service_health_probe import refresh_all_service_health
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +25,11 @@ async def run_service_health_monitor(
     )
 
     def _run_monitor_tick() -> dict[str, int]:
-        return asyncio.run(refresh_all_service_health(storage))
+        # Import lazily so tests can monkeypatch the probe module and to avoid
+        # coupling scheduler import order to probe internals.
+        from src.services.platform import service_health_probe
+
+        return asyncio.run(service_health_probe.refresh_all_service_health(storage))
 
     executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="service-health")
     loop = asyncio.get_running_loop()
