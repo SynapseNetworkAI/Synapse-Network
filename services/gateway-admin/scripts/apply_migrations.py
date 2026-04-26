@@ -17,12 +17,26 @@ if str(PROJECT_ROOT) not in sys.path:
 from src.core.db_migrations import apply_sql_file, grant_admin_schema_access
 
 
+def _optional_ancestor(path: Path, levels: int) -> Path | None:
+    try:
+        return path.resolve().parents[levels]
+    except IndexError:
+        return None
+
+
 def _default_sql_files() -> list[Path]:
+    current_file = Path(__file__)
+    repo_root = _optional_ancestor(current_file, 3)
     candidates = [
         PROJECT_ROOT / "migrations",
-        Path(__file__).resolve().parents[3] / "infra" / "postgres" / "init" / "gateway-admin",
-        Path(__file__).resolve().parents[3] / "docker-compose" / "postgres" / "init",
     ]
+    if repo_root is not None:
+        candidates.extend(
+            [
+                repo_root / "infra" / "postgres" / "init" / "gateway-admin",
+                repo_root / "docker-compose" / "postgres" / "init",
+            ]
+        )
     for init_dir in candidates:
         sql_files = sorted(init_dir.glob("[0-9][0-9][0-9]_*.sql"))
         if sql_files:

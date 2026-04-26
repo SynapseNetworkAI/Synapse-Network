@@ -168,7 +168,7 @@ class AgentInvokeRequest(BaseModel):
     idempotencyKey: str = Field(..., min_length=1, max_length=128)
     costUsdc: Decimal = Field(
         ...,
-        gt=Decimal("0"),
+        ge=Decimal("0"),
         description="Service price the agent saw during discovery. Rejected with PRICE_MISMATCH if the live price differs.",
     )
     payload: RuntimePayloadRecord = Field(default_factory=RuntimePayloadRecord)

@@ -2,7 +2,8 @@
   "name": "provider-health-load",
   "baseUrlEnv": "SYNAPSE_ADMIN_GATEWAY_BASE_URL",
   "headers": {
-    "Authorization": "Bearer ${SYNAPSE_ADMIN_TOKEN}"
+    "Cookie": "${SYNAPSE_ADMIN_COOKIE_HEADER}",
+    "X-CSRF-Token": "${SYNAPSE_ADMIN_CSRF_TOKEN}"
   },
   "requests": [
     {

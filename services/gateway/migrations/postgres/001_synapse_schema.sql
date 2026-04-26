@@ -218,11 +218,18 @@ CREATE TABLE IF NOT EXISTS synapse_service_quotes (
     invoke_constraints JSONB NOT NULL DEFAULT '{}'::jsonb,
     expires_at TIMESTAMPTZ NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    CHECK (quoted_price_usdc > 0),
+    CHECK (quoted_price_usdc >= 0),
     CHECK (price_model IN ('fixed', 'tiered', 'quote')),
     CHECK (response_mode IN ('sync', 'async', 'stream')),
     CHECK (jsonb_typeof(invoke_constraints) = 'object')
 );
+
+ALTER TABLE synapse_service_quotes
+DROP CONSTRAINT IF EXISTS synapse_service_quotes_quoted_price_usdc_check;
+
+ALTER TABLE synapse_service_quotes
+ADD CONSTRAINT synapse_service_quotes_quoted_price_usdc_check
+CHECK (quoted_price_usdc >= 0);
 
 CREATE TABLE IF NOT EXISTS synapse_invocations (
     id BIGINT GENERATED ALWAYS AS IDENTITY UNIQUE,

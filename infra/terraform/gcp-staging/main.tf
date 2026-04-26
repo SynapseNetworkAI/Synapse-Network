@@ -318,6 +318,19 @@ locals {
       secret_env      = local.provider_onboarding_secret_env
       service_account = google_service_account.provider_onboarding.email
     }
+    provider_gpp_e2e = {
+      name            = "${local.name_prefix}-provider-gpp-e2e"
+      image           = var.provider_image
+      command         = ["python", "-m", "app.gateway_onboarding.e2e"]
+      args            = [var.environment]
+      schedule        = ""
+      timeout         = "600s"
+      max_retries     = 0
+      retry_count     = 0
+      env             = local.provider_onboarding_env
+      secret_env      = local.provider_onboarding_secret_env
+      service_account = google_service_account.provider_onboarding.email
+    }
   }
   enabled_cloud_run_jobs = {
     for key, job in local.cloud_run_jobs : key => job

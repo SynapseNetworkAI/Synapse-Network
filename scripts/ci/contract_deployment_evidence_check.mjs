@@ -392,13 +392,28 @@ async function main() {
   }
 
   const preMintAtomic = BigInt(manifest.preMint?.amountAtomic || "0");
+  const recordedPreMintBalances = mockUsdc.preMintBalances || {};
   for (const recipient of manifest.preMint?.recipients || []) {
-    const balance = await mock.balanceOf(recipient.address);
-    if (balance < preMintAtomic) {
+    const recordedBalance = BigInt(recordedPreMintBalances[recipient.role] || "0");
+    if (recordedBalance < preMintAtomic) {
       fail(
         "CONTRACT-EVIDENCE-PREMINT",
-        `${recipient.role} wallet MockUSDC balance is below pre-mint amount.`,
-        "rerun the deployment script or mint owner-only staging MockUSDC to the dedicated E2E wallet.",
+        `${recipient.role} wallet recorded pre-mint balance is below pre-mint amount.`,
+        "regenerate contract deployment evidence from the deployment script; the manifest must prove the initial staging E2E wallet pre-mint.",
+      );
+    }
+    const balance = await mock.balanceOf(recipient.address);
+    if (balance < preMintAtomic) {
+      if (process.env.CONTRACT_EVIDENCE_REQUIRE_CURRENT_PREMINT_BALANCE === "1") {
+        fail(
+          "CONTRACT-EVIDENCE-PREMINT",
+          `${recipient.role} wallet MockUSDC balance is below pre-mint amount.`,
+          "rerun the deployment script or mint owner-only staging MockUSDC to the dedicated E2E wallet.",
+        );
+      }
+      console.warn(
+        `WARN CONTRACT-EVIDENCE-PREMINT-CURRENT: ${recipient.role} wallet current MockUSDC balance is below initial pre-mint amount; ` +
+          "deployment pre-mint evidence is still valid because staging E2E wallets are mutable.",
       );
     }
   }
