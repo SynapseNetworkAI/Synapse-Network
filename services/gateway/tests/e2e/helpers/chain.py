@@ -21,6 +21,24 @@ def get_usdc_decimals(w3: Web3, usdc_contract) -> int:
         return USDC_DECIMALS
 
 
+def fee_fields(w3: Web3) -> dict:
+    """Return gas fee fields compatible with local Anvil and EIP-1559 chains."""
+    min_fee = int(w3.to_wei(0.1, "gwei"))
+    latest = w3.eth.get_block("latest")
+    base_fee = latest.get("baseFeePerGas") if isinstance(latest, dict) else None
+    if base_fee is None:
+        return {"gasPrice": max(int(w3.eth.gas_price) * 3, min_fee)}
+    try:
+        priority_fee = w3.eth.max_priority_fee
+    except Exception:
+        priority_fee = w3.to_wei(0.02, "gwei")
+    priority_fee = max(int(priority_fee), int(w3.to_wei(0.02, "gwei")))
+    return {
+        "maxPriorityFeePerGas": priority_fee,
+        "maxFeePerGas": max(int(base_fee) * 3 + priority_fee, min_fee),
+    }
+
+
 def mint_usdc(
     w3: Web3,
     usdc_contract,
@@ -39,7 +57,7 @@ def mint_usdc(
         "nonce": nonce,
         "chainId": w3.eth.chain_id,
         "gas": 200_000,
-        "gasPrice": w3.eth.gas_price,
+        **fee_fields(w3),
     })
     signed = deployer.sign_transaction(tx)
     tx_hash = w3.eth.send_raw_transaction(signed.raw_transaction)
@@ -57,8 +75,8 @@ def fund_eth(w3: Web3, from_account, to_address: str, amount_eth: Decimal) -> st
         "value": w3.to_wei(amount_eth, "ether"),
         "nonce": nonce,
         "gas": 21_000,
-        "gasPrice": w3.eth.gas_price,
         "chainId": w3.eth.chain_id,
+        **fee_fields(w3),
     }
     signed = from_account.sign_transaction(tx)
     tx_hash = w3.eth.send_raw_transaction(signed.raw_transaction)
@@ -85,7 +103,7 @@ def approve_usdc(
         "nonce": nonce,
         "chainId": w3.eth.chain_id,
         "gas": 100_000,
-        "gasPrice": w3.eth.gas_price,
+        **fee_fields(w3),
     })
     signed = owner_account.sign_transaction(tx)
     tx_hash = w3.eth.send_raw_transaction(signed.raw_transaction)
@@ -109,7 +127,7 @@ def deposit_on_chain(
         "nonce": nonce,
         "chainId": w3.eth.chain_id,
         "gas": 200_000,
-        "gasPrice": w3.eth.gas_price,
+        **fee_fields(w3),
     })
     signed = owner_account.sign_transaction(tx)
     tx_hash_bytes = w3.eth.send_raw_transaction(signed.raw_transaction)

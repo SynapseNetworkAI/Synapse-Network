@@ -331,6 +331,67 @@ function sqlLiteral(value) {
   return `'${String(value ?? "").replace(/'/g, "''")}'`;
 }
 
+function serviceEndpointId(serviceId, targetUrl, index = 0) {
+  const suffix = crypto.createHash("sha1").update(String(targetUrl)).digest("hex").slice(0, 10);
+  return `${serviceId}:ep:${index}:${suffix}`;
+}
+
+function seedServiceHealth(serviceId, targetUrl) {
+  const nowMs = Date.now();
+  const endpointId = serviceEndpointId(serviceId, targetUrl);
+  const stateKey = `service_health_meta::${serviceId}::${targetUrl}`;
+  const healthPayload = JSON.stringify({
+    status: "healthy",
+    overallStatus: "healthy",
+    lastCheckedAt: nowMs,
+    lastHealthyAt: nowMs,
+    httpStatus: 200,
+    latencyMs: 50,
+    consecutiveSuccesses: 3,
+    consecutiveFailures: 0,
+    healthyTargets: 1,
+    totalTargets: 1,
+  });
+  queryJson(`
+    WITH endpoint_upsert AS (
+      INSERT INTO synapse_service_endpoints
+        (endpoint_id, service_id, endpoint_url, auth_mode, timeout_ms,
+         max_payload_bytes, streaming_supported, async_supported,
+         callback_supported, weight, is_primary, status,
+         created_at, updated_at)
+      VALUES (
+        ${sqlLiteral(endpointId)}, ${sqlLiteral(serviceId)}, ${sqlLiteral(targetUrl)}, 'gateway_signed', 30000,
+        1048576, FALSE, FALSE,
+        FALSE, 100, TRUE, 'active',
+        NOW(), NOW()
+      )
+      ON CONFLICT (endpoint_id) DO UPDATE SET updated_at = NOW()
+      RETURNING endpoint_id
+    ),
+    snapshot_upsert AS (
+      INSERT INTO synapse_service_health_snapshots
+        (service_id, endpoint_id, health_score, p95_latency_ms,
+         last_checked_at, updated_at)
+      VALUES (${sqlLiteral(serviceId)}, ${sqlLiteral(endpointId)}, 100, 50, NOW(), NOW())
+      ON CONFLICT (service_id, endpoint_id) DO UPDATE SET
+        health_score = 100,
+        p95_latency_ms = 50,
+        last_checked_at = NOW(),
+        updated_at = NOW()
+      RETURNING service_id
+    ),
+    state_upsert AS (
+      INSERT INTO synapse_runtime_state (state_key, payload, updated_at)
+      VALUES (${sqlLiteral(stateKey)}, ${sqlLiteral(healthPayload)}::jsonb, NOW())
+      ON CONFLICT (state_key) DO UPDATE SET
+        payload = ${sqlLiteral(healthPayload)}::jsonb,
+        updated_at = NOW()
+      RETURNING state_key
+    )
+    SELECT json_build_object('serviceId', ${sqlLiteral(serviceId)}, 'endpointId', ${sqlLiteral(endpointId)})
+  `);
+}
+
 function dbBalance(ownerAddress, kind) {
   const accountPredicate = kind === "provider"
     ? "account.account_kind IN ('provider', 'provider_wallet')"
@@ -447,13 +508,23 @@ async function screenshotAdmin(page, name) {
 async function openAdminContext(adminAuth) {
   const browser = await chromium.launch({ headless: process.env.HEADLESS !== "0" });
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
-  await context.addCookies([{
+  const adminCookie = {
     name: config.adminCookieName,
     value: adminAuth.sessionToken,
-    url: config.adminFront,
     httpOnly: true,
     sameSite: "Lax",
-  }]);
+  };
+  await context.addCookies([IS_STAGING
+    ? {
+        ...adminCookie,
+        domain: ".synapse-network.ai",
+        path: "/",
+        secure: true,
+      }
+    : {
+        ...adminCookie,
+        url: config.adminFront,
+      }]);
   if (adminAuth.csrfToken) {
     await context.addInitScript((csrfToken) => {
       window.sessionStorage.setItem("synapse.admin.csrfToken", csrfToken);
@@ -543,6 +614,7 @@ async function createProviderWithdrawal(auth, amountUsdc, label) {
 }
 
 async function invokeFixtureService(fixture, suffix) {
+  seedServiceHealth(fixture.service.id, fixture.service.mockUrl);
   const requestId = `withdrawal-review-${runId()}-${suffix}`;
   const started = Date.now();
   const response = await fetch(`${config.gatewayBase}/api/v1/gateway/generate`, {
@@ -725,8 +797,12 @@ async function runMain() {
   const adminAuth = fixture?.auth?.sessionToken
     ? { sessionToken: fixture.auth.sessionToken, csrfToken: fixture.auth.csrfToken || "" }
     : await loginAdmin();
-  const consumerAuth = fixture?.consumer?.token ? fixture.consumer : await authWallet(config.consumerKey, "consumer");
-  const providerAuth = fixture?.provider?.token ? fixture.provider : await authWallet(config.providerKey, "provider");
+  const consumerAuth = !IS_STAGING && fixture?.consumer?.token
+    ? fixture.consumer
+    : await authWallet(config.consumerKey, "consumer");
+  const providerAuth = !IS_STAGING && fixture?.provider?.token
+    ? fixture.provider
+    : await authWallet(config.providerKey, "provider");
 
   await runConsumerReject(consumerAuth, adminAuth);
   await runConsumerApprove(consumerAuth, adminAuth);

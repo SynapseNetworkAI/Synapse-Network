@@ -459,6 +459,7 @@ Postgres release evidence profile:
 export PROJECT_ID=fabled-archive-494108-k5
 export GATEWAY_E2E_GATEWAY_BASE=https://api-staging.synapse-network.ai
 export GATEWAY_E2E_PROVIDER_BASE=<public-staging-provider-fixture-url>
+export GATEWAY_E2E_PROVIDER_INVOKE_URL=<public-staging-provider-fixture-invoke-url>
 export GATEWAY_E2E_RPC_URL="$(gcloud secrets versions access latest \
   --secret=synapse-staging-arbitrum-sepolia-rpc-url \
   --project="$PROJECT_ID")"
@@ -489,6 +490,11 @@ requirements. MVP staging intentionally does not deploy those components. The
 ANALYTICS_CLICKHOUSE_URL
 ANALYTICS_KAFKA_BOOTSTRAP_SERVERS
 ```
+
+For staging release E2E, `GATEWAY_E2E_PROVIDER_BASE` is used for the provider
+health preflight and `GATEWAY_E2E_PROVIDER_INVOKE_URL` is the public endpoint
+registered as the service target. Do not use `localhost` for either value in
+staging; Cloud Run cannot call a laptop-local mock provider.
 
 Success criteria:
 
@@ -636,10 +642,16 @@ Run only after L0-L4 are green:
 ```bash
 SYNAPSE_DRILL_ENV=staging \
 SYNAPSE_DRILL_CONFIRM=I_UNDERSTAND_THIS_CHANGES_STAGING \
-  npm run drill:backup-restore:staging
+PROJECT_ID=fabled-archive-494108-k5 \
+  bash scripts/drills/gcp_staging_backup_restore_drill.sh
 
 npm run ci:backup-restore-evidence
 ```
+
+The wrapper restores the latest Cloud SQL backup into a temporary isolated
+instance and injects `RESTORE_POSTGRES_DSN` in memory. Do not use
+`synapse-staging-postgres-dsn` as `RESTORE_POSTGRES_DSN`; that secret points at
+the live staging database.
 
 Light load is optional for a release candidate:
 
@@ -648,6 +660,12 @@ SYNAPSE_PERF_ENV=staging \
 SYNAPSE_PERF_CONFIRM=I_UNDERSTAND_THIS_HITS_STAGING \
   npm run perf:staging-load-suite
 ```
+
+The default staging load suite is a light-load profile: read-heavy Gateway,
+finance balance, admin read-only, and provider health. It automatically logs in
+with the dedicated staging admin E2E account to obtain cookie/CSRF auth. Money
+write concurrency is skipped unless `SYNAPSE_PERF_ENABLE_MONEY_WRITE_LOAD=1` is
+explicitly set.
 
 Do not run chaos drills during first-pass staging acceptance. Chaos requires a
 separate operator confirmation and a rollback owner present.

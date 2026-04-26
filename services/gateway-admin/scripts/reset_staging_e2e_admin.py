@@ -23,7 +23,7 @@ from src.core.totp import generate_totp_code  # noqa: E402
 
 DEFAULT_EMAIL = "staging-admin-e2e@synapse-network.ai"
 DEFAULT_DISPLAY_NAME = "Staging Admin E2E"
-DEFAULT_ROLE_KEY = "finance_admin"
+DEFAULT_ROLE_KEY = "finance_reviewer"
 LOCAL_HOSTS = {"", "localhost", "127.0.0.1", "::1"}
 MIN_PASSWORD_LENGTH = 16
 ERROR_MISSING_DSN = "missing admin database DSN"

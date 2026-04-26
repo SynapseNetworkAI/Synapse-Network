@@ -7,7 +7,7 @@ source "$ROOT_DIR/scripts/perf/lib/common.sh"
 
 synapse_require_staging_confirmation
 synapse_require_var SYNAPSE_ADMIN_GATEWAY_BASE_URL
-synapse_require_var SYNAPSE_ADMIN_TOKEN
+synapse_require_var SYNAPSE_ADMIN_COOKIE_HEADER
 
 OUT_DIR="${SYNAPSE_PERF_OUT_DIR:-$(synapse_evidence_dir "$ROOT_DIR" provider-health-load)}"
 synapse_write_run_metadata "$OUT_DIR" "provider-health-load" "$ROOT_DIR"

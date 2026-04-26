@@ -63,6 +63,13 @@ Staging uses owner-only `MockUSDC`. The deployment script pre-minted
 `100,000 MockUSDC` each to the dedicated staging consumer and provider E2E
 wallets.
 
+Those dedicated staging E2E wallets are mutable after deployment: dogfood and
+release E2E runs intentionally spend MockUSDC. The contract evidence gate proves
+the deployment-time mint transactions and recorded pre-mint balances. A current
+wallet balance below the original pre-mint amount is a warning unless
+`CONTRACT_EVIDENCE_REQUIRE_CURRENT_PREMINT_BALANCE=1` is explicitly set for a
+top-up audit.
+
 Role separation is mandatory:
 
 1. `STAGING_DEPLOYER_PRIVATE_KEY`: deploys contracts, pre-mints MockUSDC, then
@@ -349,7 +356,9 @@ The gate validates:
 8. Explorer verification is `success` or `already_verified`.
 9. Deployer, owner, and withdraw signer are separate addresses.
 10. Deployer, consumer, and provider gas preflight passed.
-11. Consumer/provider pre-mint balances are present on-chain.
+11. Consumer/provider pre-mint balances are recorded in deployment evidence;
+    current balances are allowed to be lower after staging dogfood spends
+    MockUSDC.
 12. Evidence does not leak secrets.
 
 This gate needs `ARBITRUM_SEPOLIA_RPC_URL` so it can read live bytecode and

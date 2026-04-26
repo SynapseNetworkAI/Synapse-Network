@@ -29,6 +29,7 @@ const build = readJson(arg("--build"), {});
 const revisions = readJson(arg("--revisions"), {});
 const smoke = readJson(arg("--smoke"), {});
 const imageDigests = readJson(arg("--image-digests"), {});
+const jobs = readJson(arg("--jobs"), { updated: [], smokeExecutions: [] });
 
 function pad2(value) {
   return String(value).padStart(2, "0");
@@ -53,6 +54,29 @@ function formatUtcDisplay(date) {
 const releaseId = arg("--release-id", process.env.RELEASE_ID || "");
 const generatedAtDate = new Date();
 const generatedAt = generatedAtDate.toISOString();
+const services = Object.fromEntries(
+  Object.entries(build.services || {}).map(([service, imageTag]) => [
+    service,
+    {
+      imageTag,
+      imageDigest: imageDigests[service] || imageTag,
+      cloudRunRevision: revisions[service] || null,
+      smokeStatus: smoke[service] || "not_run",
+    },
+  ]),
+);
+const gatewayServiceDigest = services.gateway?.imageDigest || null;
+const gatewayJobDigests = Object.fromEntries(
+  (jobs.updated || [])
+    .filter((job) => job.family === "gateway")
+    .map((job) => [job.job, job.effectiveImage || job.requestedImage || null]),
+);
+const gatewayJobDigestValues = Object.values(gatewayJobDigests).filter(Boolean);
+const jobImageDrift = Boolean(
+  gatewayServiceDigest &&
+  gatewayJobDigestValues.length > 0 &&
+  gatewayJobDigestValues.some((digest) => digest !== gatewayServiceDigest),
+);
 const manifest = {
   environment: arg("--environment", process.env.ENVIRONMENT || "staging"),
   releaseId,
@@ -67,17 +91,14 @@ const manifest = {
   noDeployReason: scope.deploy === false ? (scope.reason || []).join("; ") : null,
   changedFiles: scope.changedFiles || [],
   reason: scope.reason || [],
-  services: Object.fromEntries(
-    Object.entries(build.services || {}).map(([service, imageTag]) => [
-      service,
-      {
-        imageTag,
-        imageDigest: imageDigests[service] || imageTag,
-        cloudRunRevision: revisions[service] || null,
-        smokeStatus: smoke[service] || "not_run",
-      },
-    ]),
-  ),
+  services,
+  jobs: {
+    updated: jobs.updated || [],
+    smokeExecutions: jobs.smokeExecutions || [],
+    gatewayServiceDigest,
+    gatewayJobDigests,
+    jobImageDrift,
+  },
   migration: {
     ran: String(process.env.MIGRATION_RAN || "false") === "true",
     status: process.env.MIGRATION_STATUS || "skipped",
