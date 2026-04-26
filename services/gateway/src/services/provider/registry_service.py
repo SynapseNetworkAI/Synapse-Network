@@ -15,6 +15,7 @@ from .registry import (
     delete_service as delete_service_op,
     discover_public_services as discover_public_services_op,
     discover_services as discover_services_op,
+    force_probe_owner_service as force_probe_owner_service_op,
     has_owner_service as has_owner_service_op,
     health_status as health_status_op,
     list_owner_services as list_owner_services_op,
@@ -82,6 +83,11 @@ class RegistryService:
         self, service_record_id: str, owner_wallet: str
     ) -> bool:
         return await has_owner_service_op(self, service_record_id, owner_wallet)
+
+    async def force_probe_owner_service(
+        self, service_record_id: str, owner_wallet: str
+    ) -> dict[str, Any] | None:
+        return await force_probe_owner_service_op(self, service_record_id, owner_wallet)
 
     async def discover_public_services(
         self,

@@ -9,7 +9,7 @@ import pytest
 
 from src.api.routers.services import RegisterServiceRequest
 from src.domain.finance import UsageLogRow
-from src.domain.service_contract import ServiceRuntimeHealthRecord
+from src.domain.service_contract import ServiceHealthTargetRecord, ServiceRuntimeHealthRecord
 from src.domain.service_contract import ServiceDefinitionRecord
 from src.services.platform import service_health_service
 from src.services.provider.registry_service import RegistryService
@@ -112,6 +112,7 @@ def _service_payload(service_id: str | None) -> dict:
 
 
 async def _healthy_probe(payload):
+    fresh_ts = 4102444800000
     await asyncio.sleep(0)
     return payload.model_copy(
         update={
@@ -119,8 +120,16 @@ async def _healthy_probe(payload):
                 overallStatus="healthy",
                 healthyTargets=1,
                 totalTargets=1,
-                lastCheckedAt=1,
-                targets=[],
+                lastCheckedAt=fresh_ts,
+                targets=[
+                    ServiceHealthTargetRecord(
+                        targetUrl="https://quotes.test/invoke",
+                        status="healthy",
+                        weight=100,
+                        lastCheckedAt=fresh_ts,
+                        lastHealthyAt=fresh_ts,
+                    )
+                ],
             )
         }
     )
@@ -179,6 +188,80 @@ def test_registry_service_rejects_duplicate_service_id(monkeypatch) -> None:
 
     with pytest.raises(ValueError, match="already exists"):
         asyncio.run(service.register_service(_service_payload("famous_quotes_top3"), "0xdef"))
+
+
+def test_register_service_returns_runtime_probe_fields(monkeypatch) -> None:
+    storage = FakeStorage()
+    service = RegistryService(cast(BaseStorage, storage))
+
+    monkeypatch.setattr(service_health_service, "probe_service_health", _healthy_probe)
+    monkeypatch.setattr(
+        service_health_service,
+        "sync_service_target_health_table",
+        lambda storage_ref, rows: rows,
+    )
+
+    created = asyncio.run(
+        service.register_service(_service_payload("famous_quotes_top3"), "0xabc")
+    )
+
+    assert created["runtimeAvailable"] is True
+    assert created["probeStatus"] == "healthy"
+    assert created["lastCheckedAt"] == 4102444800000
+    assert created["probeError"] is None
+
+
+def test_owner_force_probe_refreshes_runtime_fields(monkeypatch) -> None:
+    storage = FakeStorage()
+    service = RegistryService(cast(BaseStorage, storage))
+
+    async def _unhealthy_probe(payload):
+        await asyncio.sleep(0)
+        return payload.model_copy(
+            update={
+                "runtime_health": ServiceRuntimeHealthRecord(
+                    overallStatus="unhealthy",
+                    healthyTargets=0,
+                    totalTargets=1,
+                    lastCheckedAt=1,
+                    targets=[
+                        ServiceHealthTargetRecord(
+                            targetUrl="https://quotes.test/invoke",
+                            status="unhealthy",
+                            weight=100,
+                            lastCheckedAt=1,
+                            error="connection refused",
+                        )
+                    ],
+                )
+            }
+        )
+
+    probes = [_unhealthy_probe, _healthy_probe]
+
+    async def _probe(payload):
+        return await probes.pop(0)(payload)
+
+    monkeypatch.setattr(service_health_service, "probe_service_health", _probe)
+    monkeypatch.setattr(
+        service_health_service,
+        "sync_service_target_health_table",
+        lambda storage_ref, rows: rows,
+    )
+    monkeypatch.setattr(service_health_service.settings, "service_health_history_enabled", False)
+
+    created = asyncio.run(
+        service.register_service(_service_payload("famous_quotes_top3"), "0xabc")
+    )
+    refreshed = asyncio.run(
+        service.force_probe_owner_service("famous_quotes_top3", "0xabc")
+    )
+
+    assert created["runtimeAvailable"] is False
+    assert created["probeError"] == "connection refused"
+    assert refreshed is not None
+    assert refreshed["runtimeAvailable"] is True
+    assert refreshed["probeStatus"] == "healthy"
 
 
 def test_delete_service_requires_inactive_state(monkeypatch) -> None:

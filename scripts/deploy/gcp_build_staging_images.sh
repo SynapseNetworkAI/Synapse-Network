@@ -4,7 +4,7 @@ set -euo pipefail
 PROJECT_ID="${1:-${PROJECT_ID:-${GOOGLE_CLOUD_PROJECT:-${CLOUDSDK_CORE_PROJECT:-}}}}"
 REGION="${REGION:-us-central1}"
 REPOSITORY="${ARTIFACT_REGISTRY_REPOSITORY:-synapse-staging}"
-TAG="${TAG:-staging-$(date -u +%Y%m%dT%H%M%SZ)}"
+TAG="${TAG:-staging-$(date -u +%Y-%m-%d-%H%M%S)}"
 
 if [[ -z "${PROJECT_ID}" ]]; then
   echo "Usage: bash scripts/deploy/gcp_build_staging_images.sh <gcp-project-id>" >&2

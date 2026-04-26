@@ -58,6 +58,8 @@ REQUIRED_SECRET_IDS=(
   synapse-staging-lark-secret-p0
   synapse-staging-lark-secret-prod-alerts
   synapse-staging-lark-secret-staging-drill
+  synapse-staging-gcp-alert-receiver-token
+  synapse-staging-alert-drill-token
   synapse-staging-arbitrum-sepolia-rpc-url
   synapse-staging-arbiscan-api-key
   synapse-staging-deployer-private-key
@@ -79,6 +81,8 @@ USER_PROVIDED_SECRET_IDS=(
   synapse-staging-lark-secret-p0
   synapse-staging-lark-secret-prod-alerts
   synapse-staging-lark-secret-staging-drill
+  synapse-staging-gcp-alert-receiver-token
+  synapse-staging-alert-drill-token
   synapse-staging-arbitrum-sepolia-rpc-url
   synapse-staging-arbiscan-api-key
   synapse-staging-deployer-private-key

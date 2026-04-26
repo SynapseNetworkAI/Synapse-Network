@@ -560,6 +560,80 @@ async def test_refresh_all_service_health_skips_fresh_rows_before_probe_queue(
 
 
 @pytest.mark.asyncio
+async def test_refresh_all_service_health_prioritizes_recent_missing_health_under_local_limit(
+    monkeypatch,
+) -> None:
+    now_ms = 1773982500000
+    old_health = ServiceRuntimeHealthRecord(
+        overallStatus="unhealthy",
+        healthyTargets=0,
+        totalTargets=1,
+        lastCheckedAt=now_ms - 120_000,
+        targets=[
+            ServiceHealthTargetRecord(
+                targetUrl="https://old_dead_service.test/invoke",
+                status="unhealthy",
+                weight=100,
+                lastCheckedAt=now_ms - 120_000,
+                consecutiveFailures=1,
+            )
+        ],
+    )
+    storage = FakeStorage(
+        [
+            service_definition(
+                "old_dead_service",
+                updated_at="2026-01-01T00:00:00Z",
+                runtime_health=old_health,
+            ),
+            service_definition(
+                "fresh_provider_service",
+                updated_at="2026-04-26T00:00:00Z",
+            ),
+        ]
+    )
+    probed: list[str] = []
+
+    async def _probe(service, client=None):
+        probed.append(str(service.service_id))
+        return service.model_copy(
+            update={
+                "runtime_health": ServiceRuntimeHealthRecord(
+                    overallStatus="healthy",
+                    healthyTargets=1,
+                    totalTargets=1,
+                    lastCheckedAt=now_ms,
+                    targets=[
+                        ServiceHealthTargetRecord(
+                            targetUrl=f"https://{service.service_id}.test/invoke",
+                            status="healthy",
+                            weight=100,
+                            lastCheckedAt=now_ms,
+                            lastHealthyAt=now_ms,
+                        )
+                    ],
+                )
+            }
+        )
+
+    monkeypatch.setenv("SERVICE_HEALTH_MAX_CANDIDATES_PER_TICK", "1")
+    monkeypatch.setattr(service_health_probe, "probe_service_health", _probe)
+    monkeypatch.setattr(service_health_probe, "_now_ms", lambda: now_ms)
+    monkeypatch.setattr(service_health_probe, "_should_prune_history", lambda now_ms: False)
+    monkeypatch.setattr(service_health_service.settings, "service_health_history_enabled", False)
+    monkeypatch.setattr(service_health_service.settings, "service_health_jitter_enabled", False)
+
+    result = await service_health_service.refresh_all_service_health(
+        cast(BaseStorage, storage)
+    )
+
+    assert result["scheduledBeforeLimit"] == 2
+    assert result["scheduled"] == 1
+    assert result["maxCandidatesPerTick"] == 1
+    assert probed == ["fresh_provider_service"]
+
+
+@pytest.mark.asyncio
 async def test_force_probe_uses_global_probe_concurrency(
     monkeypatch,
 ) -> None:

@@ -4,7 +4,8 @@ Implementation is split across:
   - service_health_utils.py   — utility and persistence helpers
   - service_health_history.py — history append and pruning helpers
   - service_health_tiers.py   — probe tier and slow lane scheduling
-  - service_health_probe.py   — probe, refresh, and monitor functions
+  - service_health_probe.py   — probe and refresh functions
+  - service_health_scheduler.py — background monitor scheduling
 
 All symbols are re-exported here so that existing callers continue to work
 unchanged, including tests that monkeypatch attributes via this module.
@@ -42,5 +43,7 @@ from src.services.platform.service_health_probe import (  # noqa: F401
     force_probe_service_health,
     probe_service_health,
     refresh_all_service_health,
+)
+from src.services.platform.service_health_scheduler import (  # noqa: F401
     run_service_health_monitor,
 )

@@ -394,6 +394,20 @@ POSTGRES_CONNECT_TIMEOUT_SEC=5
 Terraform creates secret placeholders only. Add values out-of-band with
 `gcloud secrets versions add`.
 
+Before deploying or updating any Cloud Run service/job that references
+Secret Manager, every referenced placeholder must already have at least one
+enabled version:
+
+```bash
+bash scripts/deploy/gcp_check_staging_cloud_run_secret_versions.sh fabled-archive-494108-k5
+```
+
+This check is mandatory before `terraform apply` updates Cloud Run images,
+env vars, jobs, or Scheduler-backed workers. A placeholder alone is not enough:
+Cloud Run validates `secret:latest` during revision/job creation, and a missing
+enabled version can fail the apply after unrelated resources were already
+updated.
+
 Required staging secrets:
 
 | Secret id | Meaning | Used by |

@@ -42,6 +42,7 @@ services/admin-front/.env.prod
 
 # Local runtime artifacts
 .local_env.pids
+.local_all_services.pids
 temp_check.js
 test_agents.js
 

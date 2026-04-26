@@ -128,6 +128,12 @@ variable "admin_front_image" {
   default     = ""
 }
 
+variable "provider_image" {
+  description = "Optional Provider runtime container image. Leave empty to skip Provider Cloud Run resources."
+  type        = string
+  default     = ""
+}
+
 variable "common_runtime_env" {
   description = "Non-secret environment variables merged into Gateway and Gateway-admin Cloud Run services."
   type        = map(string)
@@ -183,6 +189,15 @@ variable "secret_ids" {
     "synapse-staging-admin-e2e-password",
     "synapse-staging-admin-e2e-otp-secret",
     "synapse-staging-metrics-bearer-token",
+    "synapse-staging-provider-signature-secret",
+    "synapse-staging-provider-postgres-dsn",
+    "synapse-staging-provider-onboarding-owner-private-key",
+    "synapse-staging-provider-etherscan-api-key",
+    "synapse-staging-provider-twitter-x-api-key",
+    "synapse-staging-provider-twitter-x-api-secret",
+    "synapse-staging-provider-twitter-x-bearer-token",
+    "synapse-staging-provider-minio-access-key",
+    "synapse-staging-provider-minio-secret-key",
   ]
 }
 

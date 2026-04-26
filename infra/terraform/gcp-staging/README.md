@@ -98,10 +98,17 @@ Recommended flow:
    Manager.
 3. Use `scripts/deploy/gcp_put_secret.sh` to add user-provided secret values
    from stdin.
-4. Grant the Cloud Run runtime service account
-   `roles/secretmanager.secretAccessor` on the required secrets.
-5. Inject secrets into Cloud Run with Terraform `secret_env` or, for an
+4. Verify every Cloud Run referenced secret has an enabled version:
+   `bash scripts/deploy/gcp_check_staging_cloud_run_secret_versions.sh <project-id>`.
+5. Grant Cloud Run service accounts access only to the secrets they need. Gateway
+   currently uses the shared runtime account; Provider runtime and Provider
+   onboarding use separate service accounts with per-secret IAM bindings.
+6. Inject secrets into Cloud Run with Terraform `secret_env` or, for an
    emergency manual repair, `gcloud run ... --update-secrets`.
+
+Cloud Run resolves `secret:latest` while creating revisions/jobs. A Secret
+Manager placeholder without an enabled version is not deployable and will fail
+`terraform apply` after other resources may already have changed.
 
 Gateway-backed services and jobs inject Gmail SMTP credentials from
 `synapse-staging-gmail-username` and `synapse-staging-gmail-app-password`.
@@ -121,8 +128,22 @@ These values are consumed only by explicit staging dogfood/full-chain E2E
 runners. They must not be injected into Gateway, Gateway-admin, frontend, or
 background Cloud Run runtime services.
 
+Provider secrets are split by physical role:
+
+- `synapse-staging-provider-signature-secret` and runtime upstream/API secrets
+  are available only to `synapse-staging-provider-runtime`.
+- `synapse-staging-provider-onboarding-owner-private-key` is available only to
+  the manual `synapse-staging-provider-onboarding` Cloud Run Job.
+- The public Provider runtime must never receive Owner private keys, wallet
+  seeds, admin JWTs, or onboarding credentials.
+
 The application should not receive KMS IAM roles. Cloud Run reads Secret Manager
 values directly; Secret Manager handles encryption at rest.
+
+Cloud Run jobs in this staging module set `deletion_protection = false`.
+Jobs are replaceable orchestration shells; keeping deletion protection on can
+trap a failed job after a bad secret reference. Core stateful resources such as
+Cloud SQL continue to keep their own deletion protection rules.
 
 Full staging checklist and commands live in
 `docs/ops/15_Google_Cloud_Launch_Readiness.md` and
@@ -136,7 +157,8 @@ adds a new managed resource or scheduled job.
 ## First Deployment Strategy
 
 If container image names are not ready, keep `gateway_image`,
-`gateway_admin_image`, `user_front_image`, and `admin_front_image` empty.
+`gateway_admin_image`, `user_front_image`, `admin_front_image`, and
+`provider_image` empty.
 These variables are Docker/OCI image URLs for Cloud Run, not website PNG/JPG
 assets. Terraform will create the durable substrate first. Then deploy the first
 containers manually:

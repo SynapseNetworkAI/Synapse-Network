@@ -119,6 +119,7 @@ async def test_provider_health_probe_burst_respects_global_concurrency(
     monkeypatch.setattr(service_health_service.settings, "service_health_history_enabled", False)
     monkeypatch.setattr(service_health_service.settings, "service_health_jitter_enabled", False)
     monkeypatch.setattr(service_health_service.settings, "service_health_max_concurrency", 8)
+    monkeypatch.setenv("SERVICE_HEALTH_MAX_CANDIDATES_PER_TICK", "0")
 
     result = await service_health_service.refresh_all_service_health(
         cast(BaseStorage, storage)
@@ -174,4 +175,3 @@ async def test_long_unhealthy_services_enter_slow_lane_before_probe_queue(
     assert result["slowLaneSkipped"] == 50
     assert probed == []
     assert len(storage.registry.persisted_health_rows) == 50
-
