@@ -98,10 +98,16 @@ Recommended flow:
    Manager.
 3. Use `scripts/deploy/gcp_put_secret.sh` to add user-provided secret values
    from stdin.
-4. Grant the Cloud Run runtime service account
+4. Verify every Cloud Run referenced secret has an enabled version:
+   `bash scripts/deploy/gcp_check_staging_cloud_run_secret_versions.sh <project-id>`.
+5. Grant the Cloud Run runtime service account
    `roles/secretmanager.secretAccessor` on the required secrets.
-5. Inject secrets into Cloud Run with Terraform `secret_env` or, for an
+6. Inject secrets into Cloud Run with Terraform `secret_env` or, for an
    emergency manual repair, `gcloud run ... --update-secrets`.
+
+Cloud Run resolves `secret:latest` while creating revisions/jobs. A Secret
+Manager placeholder without an enabled version is not deployable and will fail
+`terraform apply` after other resources may already have changed.
 
 Gateway-backed services and jobs inject Gmail SMTP credentials from
 `synapse-staging-gmail-username` and `synapse-staging-gmail-app-password`.
@@ -123,6 +129,11 @@ background Cloud Run runtime services.
 
 The application should not receive KMS IAM roles. Cloud Run reads Secret Manager
 values directly; Secret Manager handles encryption at rest.
+
+Cloud Run jobs in this staging module set `deletion_protection = false`.
+Jobs are replaceable orchestration shells; keeping deletion protection on can
+trap a failed job after a bad secret reference. Core stateful resources such as
+Cloud SQL continue to keep their own deletion protection rules.
 
 Full staging checklist and commands live in
 `docs/ops/15_Google_Cloud_Launch_Readiness.md` and

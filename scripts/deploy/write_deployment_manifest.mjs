@@ -30,11 +30,35 @@ const revisions = readJson(arg("--revisions"), {});
 const smoke = readJson(arg("--smoke"), {});
 const imageDigests = readJson(arg("--image-digests"), {});
 
+function pad2(value) {
+  return String(value).padStart(2, "0");
+}
+
+function formatUtcDisplay(date) {
+  return [
+    date.getUTCFullYear(),
+    "-",
+    pad2(date.getUTCMonth() + 1),
+    "-",
+    pad2(date.getUTCDate()),
+    " ",
+    pad2(date.getUTCHours()),
+    ":",
+    pad2(date.getUTCMinutes()),
+    ":",
+    pad2(date.getUTCSeconds()),
+  ].join("");
+}
+
 const releaseId = arg("--release-id", process.env.RELEASE_ID || "");
+const generatedAtDate = new Date();
+const generatedAt = generatedAtDate.toISOString();
 const manifest = {
   environment: arg("--environment", process.env.ENVIRONMENT || "staging"),
   releaseId,
-  generatedAt: new Date().toISOString(),
+  generatedAt,
+  generatedAtDisplay: arg("--generated-at-display", process.env.GENERATED_AT_DISPLAY || formatUtcDisplay(generatedAtDate)),
+  timestampTimezone: arg("--timestamp-timezone", process.env.TIMESTAMP_TIMEZONE || "UTC"),
   sourceRefType: arg("--source-ref-type", process.env.SOURCE_REF_TYPE || ""),
   sourceRef: arg("--source-ref", process.env.SOURCE_REF || ""),
   resolvedCommitSha: arg("--resolved-commit-sha", process.env.RESOLVED_COMMIT_SHA || ""),

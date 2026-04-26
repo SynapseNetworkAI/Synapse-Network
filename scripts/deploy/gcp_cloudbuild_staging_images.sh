@@ -4,7 +4,7 @@ set -euo pipefail
 PROJECT_ID="${1:-${PROJECT_ID:-${GOOGLE_CLOUD_PROJECT:-${CLOUDSDK_CORE_PROJECT:-}}}}"
 REGION="${REGION:-us-central1}"
 REPOSITORY="${ARTIFACT_REGISTRY_REPOSITORY:-synapse-staging}"
-TAG="${TAG:-staging-$(date -u +%Y%m%dT%H%M%SZ)}"
+TAG="${TAG:-staging-$(date -u +%Y-%m-%d-%H%M%S)}"
 SERVICES="gateway,gateway-admin,user-front,admin-front"
 JSON_OUTPUT=""
 BUILD_BACKEND="${STAGING_IMAGE_BUILD_BACKEND:-local-docker}"

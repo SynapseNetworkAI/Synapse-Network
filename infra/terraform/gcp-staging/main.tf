@@ -378,6 +378,10 @@ resource "google_cloud_run_v2_service" "services" {
   location = var.region
   ingress  = "INGRESS_TRAFFIC_ALL"
   labels   = local.labels
+  # Staging uses public custom domains. Application-layer auth and receiver
+  # tokens protect privileged routes; Cloud Run IAM cannot protect browser and
+  # GCP Monitoring webhook traffic on these public hostnames.
+  invoker_iam_disabled = !local.is_production
 
   template {
     service_account                  = google_service_account.runtime.email
@@ -442,9 +446,10 @@ resource "google_cloud_run_v2_service" "services" {
 resource "google_cloud_run_v2_job" "jobs" {
   for_each = local.enabled_cloud_run_jobs
 
-  name     = each.value.name
-  location = var.region
-  labels   = local.labels
+  name                = each.value.name
+  location            = var.region
+  labels              = local.labels
+  deletion_protection = local.is_production
 
   template {
     task_count  = 1

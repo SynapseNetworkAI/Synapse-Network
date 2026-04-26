@@ -389,7 +389,7 @@ Success criteria:
 - Lark receives a staging drill card with `NO_ACTION_REQUIRED`.
 - In full callback mode, gateway-admin logs contain
   `alert_trigger=GCP_ALERT_RECEIVED` for
-  `SynapseStagingGateway5xxRateHigh`.
+  `synapse_staging_gateway_5xx_rate_high`.
 - Evidence under `docs/evidence/staging/gcp-alerts/` passes digest and secret-scan checks.
 - No real DB rows, balances, or chain state are mutated by the alert drill.
 
