@@ -38,7 +38,7 @@ class GmailSmtpSender:
         self._app_password = (
             app_password if app_password is not None else settings.gmail_smtp_app_password
         )
-        self._from_address = from_address or settings.email_from
+        self._from_address = from_address if from_address is not None else settings.email_from
         self._reply_to = reply_to if reply_to is not None else settings.email_reply_to
         self._timeout_sec = float(timeout_sec or settings.email_send_timeout_sec)
 

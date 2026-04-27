@@ -127,14 +127,14 @@ if gcloud sql instances describe "${RESTORE_INSTANCE}" --project="${PROJECT_ID}"
   exit 2
 fi
 
-BACKUP_ID="${BACKUP_ID:-$(gcloud sql backups list \
+BACKUP_NAME="${BACKUP_NAME:-$(gcloud sql backups list \
   --project="${PROJECT_ID}" \
-  --instance="${SOURCE_INSTANCE}" \
-  --sort-by='~endTime' \
+  --filter="instance:${SOURCE_INSTANCE} AND state:SUCCESSFUL" \
+  --sort-by='~backupInterval.endTime' \
   --limit=1 \
-  --format='value(id)' | head -n1)}"
+  --format='value(name)' | head -n1)}"
 
-if [[ -z "${BACKUP_ID}" ]]; then
+if [[ -z "${BACKUP_NAME}" ]]; then
   echo "[gcp-restore-drill] no Cloud SQL backups found for ${SOURCE_INSTANCE}" >&2
   echo "Agent fix: confirm automated backups are enabled and a backup has completed." >&2
   exit 1
@@ -142,13 +142,12 @@ fi
 
 echo "[gcp-restore-drill] project=${PROJECT_ID}"
 echo "[gcp-restore-drill] sourceInstance=${SOURCE_INSTANCE}"
-echo "[gcp-restore-drill] backupId=${BACKUP_ID}"
+echo "[gcp-restore-drill] backupName=${BACKUP_NAME}"
 echo "[gcp-restore-drill] restoreInstance=${RESTORE_INSTANCE}"
 
 RESTORE_CREATED="1"
-gcloud sql backups restore "${BACKUP_ID}" \
+gcloud sql backups restore "${BACKUP_NAME}" \
   --project="${PROJECT_ID}" \
-  --backup-instance="${SOURCE_INSTANCE}" \
   --restore-instance="${RESTORE_INSTANCE}" \
   --region="${REGION}" \
   --database-version="${RESTORE_DATABASE_VERSION}" \

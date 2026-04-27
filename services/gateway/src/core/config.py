@@ -504,6 +504,26 @@ class Settings:
     email_worker_batch_size: int = max(1, _env_int("EMAIL_WORKER_BATCH_SIZE", 50))
     email_outbox_max_attempts: int = max(1, _env_int("EMAIL_OUTBOX_MAX_ATTEMPTS", 8))
     email_outbox_retry_base_sec: int = max(1, _env_int("EMAIL_OUTBOX_RETRY_BASE_SEC", 30))
+    public_gateway_base_url: str = os.getenv("PUBLIC_GATEWAY_BASE_URL", "").strip().rstrip("/")
+    public_app_base_url: str = (
+        os.getenv(
+            "PUBLIC_APP_BASE_URL",
+            {
+                "local": "http://127.0.0.1:3000",
+                "staging": "https://staging.synapse-network.ai",
+                "production": "https://synapse-network.ai",
+            }.get(environment, "https://synapse-network.ai"),
+        )
+        .strip()
+        .rstrip("/")
+    )
+    email_verification_ttl_sec: int = max(300, _env_int("EMAIL_VERIFICATION_TTL_SEC", 86400))
+
+    # ── Staging transaction notifications ───────────────────────
+    transaction_lark_enabled: bool = _env_bool("TRANSACTION_LARK_ENABLED", False)
+    transaction_lark_webhook_url: str = os.getenv("TRANSACTION_LARK_WEBHOOK_URL", "").strip()
+    transaction_lark_secret: str = os.getenv("TRANSACTION_LARK_SECRET", "").strip()
+    transaction_lark_timeout_sec: float = max(1.0, _env_float("TRANSACTION_LARK_TIMEOUT_SEC", 8.0))
 
     # ── In-App Notifications ────────────────────────────────────
     in_app_notification_cleanup_enabled: bool = _env_bool(

@@ -1291,6 +1291,27 @@ def test_call_upstream_adds_gateway_signed_headers(monkeypatch) -> None:
     assert len(headers["X-Synapse-Signature"]) == 64
 
 
+def test_gateway_signature_tolerates_secret_manager_newline(monkeypatch) -> None:
+    payload = {"text": "hello typed world"}
+    monkeypatch.setattr(
+        forwarding_upstream.settings,
+        "gateway_provider_signature_secret",
+        "unit-test-provider-signature-secret",
+        raising=False,
+    )
+    without_newline = forwarding_upstream._gateway_signature(payload, "svc.echo", 1710931200)
+
+    monkeypatch.setattr(
+        forwarding_upstream.settings,
+        "gateway_provider_signature_secret",
+        "unit-test-provider-signature-secret\n",
+        raising=False,
+    )
+    with_newline = forwarding_upstream._gateway_signature(payload, "svc.echo", 1710931200)
+
+    assert with_newline == without_newline
+
+
 def test_generate_response_v2_supports_structured_payloads(monkeypatch) -> None:
     raw_token = "agt_1234567890abcdef12345678"
     storage = FakeStorage(_structured_service_definition(), _runtime_credential(raw_token))

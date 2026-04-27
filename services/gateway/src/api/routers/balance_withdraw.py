@@ -22,6 +22,7 @@ from src.services.notifications.in_app import (
     build_provider_withdrawal_created_intent,
     schedule_in_app_notification,
 )
+from src.services.notifications.transactional import build_public_app_url, schedule_transaction_notifications
 from src.storage import BaseStorage, get_storage
 
 router = APIRouter()
@@ -63,6 +64,21 @@ async def create_provider_withdraw_intent(
         storage,
         build_provider_withdrawal_created_intent(owner_wallet, result),
     )
+    result_status = str(result.get("status") or result.get("withdrawalStatus") or "").upper()
+    if result.get("ticket") or result_status in {"SIGNED", "APPROVED_AUTO"}:
+        schedule_transaction_notifications(
+            storage,
+            owner_wallet=owner_wallet,
+            template_key="provider_withdrawal_ticket_ready",
+            event_type="provider_withdrawal.ticket_ready",
+            payload={
+                "withdrawalId": result.get("withdrawalId"),
+                "amount": result.get("amount") or result.get("amountUsdc"),
+                "status": result_status or "SIGNED",
+                "ownerAddress": owner_wallet,
+                "actionUrl": build_public_app_url("/provider/withdraw"),
+            },
+        )
     return {"status": "success", "ownerAddress": owner_wallet, **result}
 
 
@@ -100,12 +116,27 @@ async def complete_provider_withdrawal(
     request: Request,
     owner_wallet: Annotated[str, Depends(get_owner_wallet)],
     service: Annotated[BalanceService, Depends(get_balance_service)],
+    storage: Annotated[BaseStorage, Depends(get_storage)],
 ):
     result = await service.complete_provider_withdrawal(
         owner_wallet=owner_wallet,
         withdrawal_id=withdrawal_id,
         tx_hash=payload.txHash,
         request_meta=_extract_request_meta(request),
+    )
+    schedule_transaction_notifications(
+        storage,
+        owner_wallet=owner_wallet,
+        template_key="provider_withdrawal_completed",
+        event_type="provider_withdrawal.completed",
+        payload={
+            "withdrawalId": withdrawal_id,
+            "amount": result.get("amount") or result.get("amountUsdc"),
+            "status": "COMPLETED",
+            "txHash": payload.txHash,
+            "ownerAddress": owner_wallet,
+            "actionUrl": build_public_app_url("/provider/withdraw"),
+        },
     )
     return {"status": "success", "ownerAddress": owner_wallet, **result}
 
@@ -120,6 +151,7 @@ async def complete_provider_withdrawal_as_admin(
     request: Request,
     principal: Annotated[InternalServicePrincipal, Depends(require_internal_scope("provider_withdraw.complete"))],
     service: Annotated[BalanceService, Depends(get_balance_service)],
+    storage: Annotated[BaseStorage, Depends(get_storage)],
 ):
     admin_wallet = _ensure_fee_policy_admin(principal.admin_wallet)
     target_owner = normalize_wallet(payload.ownerAddress)
@@ -137,6 +169,20 @@ async def complete_provider_withdrawal_as_admin(
         withdrawal_id=withdrawal_id,
         tx_hash=payload.txHash,
         request_meta=request_meta,
+    )
+    schedule_transaction_notifications(
+        storage,
+        owner_wallet=target_owner,
+        template_key="provider_withdrawal_completed",
+        event_type="provider_withdrawal.completed",
+        payload={
+            "withdrawalId": withdrawal_id,
+            "amount": result.get("amount") or result.get("amountUsdc"),
+            "status": "COMPLETED",
+            "txHash": payload.txHash,
+            "ownerAddress": target_owner,
+            "actionUrl": build_public_app_url("/provider/withdraw"),
+        },
     )
     return {
         "status": "success",
@@ -158,6 +204,7 @@ async def review_provider_withdrawal_as_admin(
     request: Request,
     principal: Annotated[InternalServicePrincipal, Depends(require_internal_scope("provider_withdraw.review"))],
     service: Annotated[BalanceService, Depends(get_balance_service)],
+    storage: Annotated[BaseStorage, Depends(get_storage)],
 ):
     admin_wallet = _ensure_fee_policy_admin(principal.admin_wallet)
     target_owner = normalize_wallet(payload.ownerAddress)
@@ -183,6 +230,35 @@ async def review_provider_withdrawal_as_admin(
         withdrawal_id=withdrawal_id,
         request_meta=request_meta,
     )
+    result_status = str(result.get("status") or result.get("withdrawalStatus") or "").upper()
+    if result_status == "REJECTED":
+        schedule_transaction_notifications(
+            storage,
+            owner_wallet=target_owner,
+            template_key="provider_withdrawal_rejected",
+            event_type="provider_withdrawal.rejected",
+            payload={
+                "withdrawalId": withdrawal_id,
+                "amount": result.get("amount") or result.get("amountUsdc"),
+                "status": "REJECTED",
+                "ownerAddress": target_owner,
+                "actionUrl": build_public_app_url("/provider/withdraw"),
+            },
+        )
+    elif result.get("ticket") or result_status in {"SIGNED", "APPROVED_AUTO"}:
+        schedule_transaction_notifications(
+            storage,
+            owner_wallet=target_owner,
+            template_key="provider_withdrawal_ticket_ready",
+            event_type="provider_withdrawal.ticket_ready",
+            payload={
+                "withdrawalId": withdrawal_id,
+                "amount": result.get("amount") or result.get("amountUsdc"),
+                "status": result_status or "SIGNED",
+                "ownerAddress": target_owner,
+                "actionUrl": build_public_app_url("/provider/withdraw"),
+            },
+        )
     return {
         "status": "success",
         "requestedBy": admin_wallet,

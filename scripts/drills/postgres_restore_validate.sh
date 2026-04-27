@@ -22,7 +22,8 @@ dsn = os.environ["RESTORE_POSTGRES_DSN"]
 queries = {
     "synapse_ledger_entries": "SELECT count(*) FROM synapse_ledger_entries;",
     "synapse_vault_withdrawals": "SELECT count(*) FROM synapse_vault_withdrawals;",
-    "synapse_deposit_intents": "SELECT count(*) FROM synapse_deposit_intents;",
+    "synapse_vault_deposits": "SELECT count(*) FROM synapse_vault_deposits;",
+    "synapse_deposit_attempts": "SELECT count(*) FROM synapse_deposit_attempts;",
 }
 
 row_counts = {}

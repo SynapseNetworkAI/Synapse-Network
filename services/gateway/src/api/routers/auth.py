@@ -1,3 +1,4 @@
+# ruff: noqa: TRY301, TRY400, B904, S106
 import logging
 import time
 from typing import Optional, Annotated
@@ -25,6 +26,11 @@ from src.core.config import settings
 from src.domain.runtime_state import AuthSessionState
 from src.storage import get_storage, BaseStorage
 from src.services.platform import credential_service
+from src.services.notifications.email_verification import (
+    build_email_verification_url,
+    verify_email_verification_token,
+)
+from src.services.notifications.transactional import schedule_transaction_notifications
 from src.utils.datetime_utils import now_dt_str
 
 logger = logging.getLogger(__name__)
@@ -264,6 +270,10 @@ async def update_me_profile(
                 ),
             )
 
+        previous_profile = storage.get_data_manager().system.credential_auth.read_owner_profile(
+            owner,
+            ensure_exists=True,
+        )
         try:
             profile = storage.get_data_manager().system.credential_auth.update_owner_profile(
                 owner,
@@ -283,6 +293,31 @@ async def update_me_profile(
                 ) from exc
             raise
 
+        email_changed = (
+            bool(profile.email)
+            and str(getattr(previous_profile, "email", "") or "").strip().lower()
+            != str(profile.email or "").strip().lower()
+        )
+        if email_changed and profile.email:
+            verification_url = build_email_verification_url(
+                owner_wallet=owner,
+                email=profile.email,
+            )
+            schedule_transaction_notifications(
+                storage,
+                owner_wallet=owner,
+                template_key="email_verification",
+                event_type="security.email_verification_requested",
+                payload={
+                    "requestId": f"email-verification:{owner}",
+                    "status": "PENDING_VERIFICATION",
+                    "actionUrl": verification_url,
+                    "emailMasked": _mask_email(profile.email),
+                },
+                require_verified_email=False,
+                send_lark=False,
+            )
+
         credential_service.append_audit_log(
             storage,
             "OWNER_PROFILE_UPDATED",
@@ -300,3 +335,53 @@ async def update_me_profile(
     except Exception as e:
         logger.error(f"Owner profile update failed: {e}")
         raise HTTPException(status_code=500, detail="Profile update failed")
+
+
+@router.get(
+    "/v1/auth/email/verify",
+    response_model=OwnerProfileResponse,
+    responses={
+        400: {"description": "Invalid or expired verification token"},
+        404: {"description": "Email profile not found"},
+        500: {"description": "Email verification failed"},
+    },
+)
+async def verify_email(
+    storage: Annotated[BaseStorage, Depends(get_storage)],
+    token: str | None = None,
+    v: str | None = None,
+):
+    try:
+        verified = verify_email_verification_token(token or v or "")
+        if not verified:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": "EMAIL_VERIFICATION_INVALID",
+                    "message": "Email verification link is invalid or expired.",
+                },
+            )
+        profile = storage.get_data_manager().system.credential_auth.verify_owner_email(
+            verified["owner"],
+            verified["email"],
+        )
+        if profile is None:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "code": "EMAIL_VERIFICATION_PROFILE_NOT_FOUND",
+                    "message": "Email address is no longer linked to this wallet.",
+                },
+            )
+        credential_service.append_audit_log(
+            storage,
+            "OWNER_EMAIL_VERIFIED",
+            profile.owner_wallet,
+            {"emailMasked": _mask_email(profile.email)},
+        )
+        return OwnerProfileResponse(success=True, profile=_owner_profile_view(profile))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Email verification failed: {e}")
+        raise HTTPException(status_code=500, detail="Email verification failed")

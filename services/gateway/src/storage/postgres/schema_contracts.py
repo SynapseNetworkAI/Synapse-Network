@@ -20,6 +20,11 @@ WITHDRAWAL_STATUS_CHECK_REQUIRED_FRAGMENTS = (
     "'COMPLETED'::text",
     "'CANCELLED'::text",
 )
+QUOTE_PRICE_NON_NEGATIVE_CHECK_REQUIRED_FRAGMENTS = (
+    "quoted_price_usdc",
+    ">=",
+    "0",
+)
 
 
 @dataclass(frozen=True)
@@ -132,6 +137,10 @@ POSTGRES_TABLE_SCHEMA_CONTRACTS: tuple[TableSchemaContract, ...] = (
         required_columns=frozenset({"id", "quote_id", "service_id", "credential_id", "agent_id", "quoted_price_usdc", "price_model", "status", "request_fingerprint", "response_mode", "invoke_constraints", "expires_at", "created_at"}),
         required_constraints=(
             _constraint("primary key on quote_id", PRIMARY_KEY_FRAGMENT, "quote_id"),
+            _constraint(
+                "quoted price allows free services and rejects negative prices",
+                *QUOTE_PRICE_NON_NEGATIVE_CHECK_REQUIRED_FRAGMENTS,
+            ),
         ),
     ),
     TableSchemaContract(
