@@ -4,7 +4,8 @@ from typing import Any
 import hashlib
 import hmac
 import json
-import random
+import logging
+import secrets
 import time
 
 import httpx
@@ -24,21 +25,31 @@ from src.services.owner.forwarding_validation import (
 )
 
 _MAX_TARGET_WEIGHT = 10000
-_shared_upstream_client: httpx.AsyncClient | None = None
-_shared_upstream_client_factory: Any = None
+_HTTP_ERROR_STATUS = 400
+_RATE_LIMIT_STATUS = 429
+logger = logging.getLogger(__name__)
+
+
+class _SharedUpstreamClientState:
+    def __init__(self) -> None:
+        self.client: httpx.AsyncClient | None = None
+        self.factory: Any = None
+
+
+_shared_upstream_client_state = _SharedUpstreamClientState()
 
 
 def _parse_target_weight(raw_weight: Any) -> int:
     try:
         weight = int(raw_weight if raw_weight is not None else 100)
-    except Exception:
+    except (TypeError, ValueError) as exc:
         raise HTTPException(
             status_code=500,
             detail={
                 "code": "INVALID_INVOKE_CONFIG",
                 "message": "invoke.targets[].weight must be an integer",
             },
-        )
+        ) from exc
     if weight <= 0 or weight > _MAX_TARGET_WEIGHT:
         raise HTTPException(
             status_code=500,
@@ -94,7 +105,14 @@ def select_weighted_target_url(
     targets, weights = normalized_weighted_targets(
         invoke, allowed_target_urls=allowed_target_urls
     )
-    return str(random.choices(targets, weights=weights, k=1)[0] or "").strip()
+    total_weight = sum(weights)
+    selected_weight = secrets.randbelow(total_weight) + 1
+    cumulative_weight = 0
+    for target, weight in zip(targets, weights, strict=True):
+        cumulative_weight += weight
+        if selected_weight <= cumulative_weight:
+            return str(target or "").strip()
+    return str(targets[-1] or "").strip()
 
 
 def _response_payload(raw_payload: Any) -> dict[str, Any]:
@@ -153,24 +171,38 @@ def _create_upstream_http_client(timeout_sec: float) -> httpx.AsyncClient:
 
 
 def _get_upstream_http_client(timeout_sec: float) -> httpx.AsyncClient:
-    global _shared_upstream_client, _shared_upstream_client_factory
     if not settings.provider_http_client_pool_enabled:
         return _create_upstream_http_client(timeout_sec)
 
     factory = httpx.AsyncClient
-    if _shared_upstream_client is None or _shared_upstream_client_factory is not factory:
-        _shared_upstream_client = _create_upstream_http_client(timeout_sec)
-        _shared_upstream_client_factory = factory
-    return _shared_upstream_client
+    state = _shared_upstream_client_state
+    if state.client is None or state.factory is not factory:
+        state.client = _create_upstream_http_client(timeout_sec)
+        state.factory = factory
+    return state.client
 
 
 async def close_upstream_http_client() -> None:
-    global _shared_upstream_client, _shared_upstream_client_factory
-    client = _shared_upstream_client
-    _shared_upstream_client = None
-    _shared_upstream_client_factory = None
+    state = _shared_upstream_client_state
+    client = state.client
+    state.client = None
+    state.factory = None
     if client is not None and hasattr(client, "aclose"):
         await client.aclose()
+
+
+def _log_provider_upstream_unavailable(
+    service: ServiceDefinitionRecord,
+    healthy_target_urls: list[str],
+) -> None:
+    logger.error(
+        "alert_trigger=PROVIDER_UPSTREAM_UNAVAILABLE env=%s service_id=%s "
+        "healthy_target_count=%s total_target_count=%s",
+        settings.environment,
+        str(service.service_id or ""),
+        len(healthy_target_urls),
+        len(service.invoke.targets or []),
+    )
 
 
 async def prepare_upstream_call(
@@ -196,9 +228,115 @@ async def prepare_upstream_call(
     allowed_urls = None
     if settings.forwarding_require_healthy_targets or healthy_target_urls:
         allowed_urls = set(healthy_target_urls)
-    upstream_url = select_weighted_target_url(service.invoke, allowed_target_urls=allowed_urls)
+    try:
+        upstream_url = select_weighted_target_url(
+            service.invoke,
+            allowed_target_urls=allowed_urls,
+        )
+    except HTTPException as exc:
+        code = exc.detail.get("code") if isinstance(exc.detail, dict) else None
+        if code == "SERVICE_UNAVAILABLE":
+            _log_provider_upstream_unavailable(service, healthy_target_urls)
+        raise
     permit = await acquire_downstream_permit(service, upstream_url)
     return UpstreamCallPlan(upstream_url, permit)
+
+
+def _forwarding_headers(
+    service: ServiceDefinitionRecord,
+    invocation: InvocationRecord,
+    request_payload: dict[str, Any],
+) -> dict[str, str]:
+    request_id_header = str(service.forwarding.request_id_header or "X-Request-Id").strip()
+    headers = {request_id_header or "X-Request-Id": invocation.idempotency_key}
+    if _resolved_auth_mode(service) == "gateway_signed":
+        signed_at = int(time.time())
+        service_id = str(service.service_id or "").strip()
+        headers.update(
+            {
+                "X-Synapse-Service-Id": service_id,
+                "X-Synapse-Signed-At": str(signed_at),
+                "X-Synapse-Signature": _gateway_signature(
+                    request_payload,
+                    service_id,
+                    signed_at,
+                ),
+            }
+        )
+    headers.update(
+        {
+            key: value
+            for key, value in service.invoke.headers_template.items()
+            if isinstance(key, str) and key.strip() and isinstance(value, str)
+        }
+    )
+    return headers
+
+
+async def _post_upstream(
+    target_url: str,
+    request_payload: dict[str, Any],
+    headers: dict[str, str],
+    timeout_sec: float,
+) -> httpx.Response:
+    if settings.provider_http_client_pool_enabled:
+        client = _get_upstream_http_client(timeout_sec)
+        return await client.post(target_url, json=request_payload, headers=headers)
+
+    async with _create_upstream_http_client(timeout_sec) as client:
+        return await client.post(target_url, json=request_payload, headers=headers)
+
+
+def _payload_too_large_exception(
+    max_response_bytes: int,
+    actual_response_bytes: int,
+) -> HTTPException:
+    return HTTPException(
+        status_code=413,
+        detail={
+            "code": "RESPONSE_PAYLOAD_TOO_LARGE",
+            "message": "Response payload exceeds service maxResponseBytes",
+            "maxResponseBytes": max_response_bytes,
+            "actualResponseBytes": actual_response_bytes,
+        },
+    )
+
+
+def _upstream_status_exception(status_code: int) -> HTTPException:
+    error_code = (
+        "UPSTREAM_RATE_LIMITED"
+        if status_code == _RATE_LIMIT_STATUS
+        else "UPSTREAM_ERROR"
+    )
+    return HTTPException(
+        status_code=503 if status_code == _RATE_LIMIT_STATUS else 502,
+        detail={
+            "code": error_code,
+            "message": f"Upstream provider returned HTTP {status_code}",
+            "upstreamStatus": status_code,
+        },
+    )
+
+
+def _extract_success_payload(
+    response: httpx.Response,
+    max_response_bytes: int,
+) -> dict[str, Any]:
+    response_size = len(response.content or b"")
+    if response_size > max_response_bytes:
+        raise _payload_too_large_exception(max_response_bytes, response_size)
+
+    status_code = int(getattr(response, "status_code", 200) or 200)
+    if status_code >= _HTTP_ERROR_STATUS:
+        raise _upstream_status_exception(status_code)
+
+    return _response_payload(response.json())
+
+
+def _exception_code(exc: HTTPException, fallback: str | None = None) -> str:
+    if isinstance(exc.detail, dict):
+        return str(exc.detail.get("code") or fallback or "UPSTREAM_ERROR")
+    return str(fallback or "UPSTREAM_ERROR")
 
 
 async def call_upstream(
@@ -219,65 +357,18 @@ async def call_upstream(
     error_code: str | None = None
     success = False
     try:
-        request_id_header = str(service.forwarding.request_id_header or "X-Request-Id").strip() or "X-Request-Id"
-        headers = {request_id_header: invocation.idempotency_key}
-        if _resolved_auth_mode(service) == "gateway_signed":
-            signed_at = int(time.time())
-            headers.update(
-                {
-                    "X-Synapse-Service-Id": str(service.service_id or "").strip(),
-                    "X-Synapse-Signed-At": str(signed_at),
-                    "X-Synapse-Signature": _gateway_signature(
-                        request_payload,
-                        str(service.service_id or "").strip(),
-                        signed_at,
-                    ),
-                }
-            )
-        for key, value in service.invoke.headers_template.items():
-            if isinstance(key, str) and key.strip() and isinstance(value, str):
-                headers[key] = value
-        if settings.provider_http_client_pool_enabled:
-            client = _get_upstream_http_client(timeout_sec)
-            response = await client.post(
-                call_plan.target_url, json=request_payload, headers=headers
-            )
-        else:
-            async with _create_upstream_http_client(timeout_sec) as client:
-                response = await client.post(
-                    call_plan.target_url, json=request_payload, headers=headers
-                )
-
+        headers = _forwarding_headers(service, invocation, request_payload)
+        response = await _post_upstream(
+            call_plan.target_url,
+            request_payload,
+            headers,
+            timeout_sec,
+        )
         status_code = int(getattr(response, "status_code", 200) or 200)
-        response_size = len(response.content or b"")
-        if response_size > constraints.max_response_bytes:
-            error_code = "RESPONSE_PAYLOAD_TOO_LARGE"
-            raise HTTPException(
-                status_code=413,
-                detail={
-                    "code": error_code,
-                    "message": "Response payload exceeds service maxResponseBytes",
-                    "maxResponseBytes": constraints.max_response_bytes,
-                    "actualResponseBytes": response_size,
-                },
-            )
-
-        if status_code >= 400:
-            error_code = "UPSTREAM_RATE_LIMITED" if status_code == 429 else "UPSTREAM_ERROR"
-            raise HTTPException(
-                status_code=502 if status_code != 429 else 503,
-                detail={
-                    "code": error_code,
-                    "message": f"Upstream provider returned HTTP {status_code}",
-                    "upstreamStatus": status_code,
-                },
-            )
-
-        data = response.json()
-        payload = _response_payload(data)
+        payload = _extract_success_payload(response, constraints.max_response_bytes)
         success = True
         return InvocationResultRecord(digest=_payload_digest(payload), payload=payload)
-    except httpx.PoolTimeout:
+    except httpx.PoolTimeout as exc:
         error_code = "SERVICE_BUSY"
         raise HTTPException(
             status_code=503,
@@ -285,8 +376,8 @@ async def call_upstream(
                 "code": error_code,
                 "message": "Gateway upstream HTTP connection pool is saturated",
             },
-        )
-    except httpx.TimeoutException:
+        ) from exc
+    except httpx.TimeoutException as exc:
         error_code = "SERVICE_TIMEOUT"
         raise HTTPException(
             status_code=504,
@@ -294,17 +385,16 @@ async def call_upstream(
                 "code": error_code,
                 "message": "Upstream provider timed out",
             },
-        )
+        ) from exc
     except HTTPException as exc:
-        if isinstance(exc.detail, dict):
-            error_code = str(exc.detail.get("code") or error_code or "UPSTREAM_ERROR")
+        error_code = _exception_code(exc, error_code)
         raise
     except Exception as exc:
         error_code = "UPSTREAM_ERROR"
         raise HTTPException(
             status_code=502,
             detail={"code": error_code, "message": f"Upstream provider failed: {exc}"},
-        )
+        ) from exc
     finally:
         latency_ms = int((time.perf_counter() - started) * 1000)
         if call_plan is not None:

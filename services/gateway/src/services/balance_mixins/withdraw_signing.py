@@ -1,10 +1,13 @@
 import hashlib
+import logging
 from typing import Any
 
 from fastapi import HTTPException
 
 from src.core.common import normalize_wallet
 from src.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 def _web3_class():
@@ -39,6 +42,19 @@ WITHDRAW_DEADLINE_SEC_MIN = 60
 WITHDRAW_DEADLINE_SEC_MAX = 86400
 WITHDRAW_DEADLINE_SEC_DEFAULT = 1800
 USDC_DECIMALS = 18
+EXPECTED_STAGING_CHAIN_ID = 421614
+
+
+def _log_chain_rpc_unavailable(context: str, exc: Exception) -> None:
+    logger.error(
+        "alert_trigger=CHAIN_RPC_UNAVAILABLE env=%s context=%s chainIdExpected=%s "
+        "rpcTimeoutSec=%s errorClass=%s",
+        settings.environment,
+        context,
+        EXPECTED_STAGING_CHAIN_ID,
+        settings.rpc_request_timeout_sec,
+        exc.__class__.__name__,
+    )
 
 
 class BalanceWithdrawSigningMixin:
@@ -158,7 +174,8 @@ class BalanceWithdrawSigningMixin:
             return provider, contract
         except HTTPException:
             raise
-        except Exception:
+        except Exception as exc:
+            _log_chain_rpc_unavailable("withdraw_contract", exc)
             raise HTTPException(
                 status_code=503,
                 detail={
@@ -255,7 +272,8 @@ class BalanceWithdrawSigningMixin:
         provider, contract = self._withdraw_contract()
         try:
             chain_id = int(provider.eth.chain_id)
-        except Exception:
+        except Exception as exc:
+            _log_chain_rpc_unavailable("resolve_withdraw_chain", exc)
             raise HTTPException(
                 status_code=503,
                 detail={
@@ -269,7 +287,8 @@ class BalanceWithdrawSigningMixin:
         _provider, contract = self._withdraw_contract()
         try:
             return bool(contract.functions.isTicketConsumed(ticket_hash).call())
-        except Exception:
+        except Exception as exc:
+            _log_chain_rpc_unavailable("withdraw_ticket_consumed", exc)
             raise HTTPException(
                 status_code=503,
                 detail={
@@ -283,7 +302,8 @@ class BalanceWithdrawSigningMixin:
         try:
             latest_block = provider.eth.get_block("latest")
             return int(latest_block["timestamp"])
-        except Exception:
+        except Exception as exc:
+            _log_chain_rpc_unavailable("latest_withdraw_rpc_block_timestamp", exc)
             raise HTTPException(
                 status_code=503,
                 detail={

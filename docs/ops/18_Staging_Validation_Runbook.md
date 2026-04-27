@@ -330,7 +330,7 @@ Local evidence is written to
 `report.json`, `report.md`, `trace.jsonl`, and `bugfix-log.md`; the bugfix log
 must have no open bug before staging is deployed.
 
-Configure the webhook channel and policies:
+Configure the webhook channel, alert policies, and GCP uptime checks:
 
 ```bash
 export PROJECT_ID=fabled-archive-494108-k5
@@ -385,13 +385,72 @@ done
 Success criteria:
 
 - GCP has one webhook channel named `Synapse Staging Lark Gateway-admin Receiver`.
-- GCP has policies for Gateway 5xx rate, `WITHDRAWAL_TIMEOUT`, and `RECONCILIATION_DRIFT`.
+- GCP has uptime checks for Gateway `/health`, Gateway `/readiness`, user-front `/`, and admin API `/health`.
+- GCP has policies for Gateway uptime, user-front uptime, admin API uptime, Gateway 5xx rate, Gateway low-traffic 5xx count, Gateway-admin 5xx rate, Cloud Run Job failure, every-minute Job freshness, `WITHDRAWAL_TIMEOUT`, `RECONCILIATION_DRIFT`, `PROVIDER_UPSTREAM_UNAVAILABLE`, and `CHAIN_RPC_UNAVAILABLE`.
+- Cloud Scheduler has enabled triggers for deposit-indexer, consumer-withdraw-processor, provider-withdraw-reaper, notification-outbox-drain, and in-app-notification-cleanup.
 - Lark receives a staging drill card with `NO_ACTION_REQUIRED`.
 - In full callback mode, gateway-admin logs contain
   `alert_trigger=GCP_ALERT_RECEIVED` for
-  `synapse_staging_gateway_5xx_rate_high`.
+  `synapse_staging_gateway_5xx_rate_high` or
+  `synapse_staging_gateway_5xx_count_high`.
 - Evidence under `docs/evidence/staging/gcp-alerts/` passes digest and secret-scan checks.
 - No real DB rows, balances, or chain state are mutated by the alert drill.
+
+Gateway outage triage:
+
+```bash
+curl -fsS https://api-staging.synapse-network.ai/health
+curl -fsS https://api-staging.synapse-network.ai/readiness
+curl -fsS https://api-staging.synapse-network.ai/api/v1/services/discover
+
+gcloud logging read \
+  'resource.type="cloud_run_revision" AND resource.labels.service_name="synapse-staging-gateway"' \
+  --project fabled-archive-494108-k5 \
+  --freshness=30m \
+  --limit=50 \
+  --format='table(timestamp,severity,textPayload)'
+
+gcloud monitoring uptime list-configs \
+  --project fabled-archive-494108-k5 \
+  --filter='displayName:"Synapse Staging"'
+
+gcloud scheduler jobs list \
+  --project fabled-archive-494108-k5 \
+  --location us-central1 \
+  --format='table(name.basename(),schedule,state,httpTarget.uri)'
+
+gcloud logging read \
+  'resource.type="cloud_run_job"' \
+  --project fabled-archive-494108-k5 \
+  --freshness=30m \
+  --limit=30 \
+  --format='table(timestamp,resource.labels.job_name,severity,textPayload)'
+```
+
+Use this interpretation before calling Gateway "down":
+
+| Signal | Meaning |
+| --- | --- |
+| `/health` fails | L0 outage: DNS, TLS, Cloud Run routing, IAM, or process down. |
+| `/health` passes but `/readiness` fails | Dependency/readiness fault, not necessarily a dead process. |
+| `/readiness` passes but `/api/v1/services/discover` fails | Business API, CORS, registry, or discovery fault. |
+| Provider invoke returns 503 with no healthy target | Provider upstream health issue, not Gateway process outage. |
+| `CHAIN_RPC_UNAVAILABLE` appears in logs | Arbitrum Sepolia RPC dependency outage or wrong RPC config. |
+| Cloud Run Job failure/freshness alert fires | Scheduled worker failed or stopped succeeding; inspect `resource.type="cloud_run_job"` logs by `job_name`. |
+
+The `/readiness` monitor block describes in-process Gateway monitors only. In
+staging, `deposit_indexer.enabled=false`,
+`provider_withdraw_expiry_reaper.enabled=false`,
+`consumer_withdraw_processor.enabled=false`, and
+`in_app_notification_cleanup.enabled=false` are expected because those workers
+run as Cloud Run Jobs through Cloud Scheduler. Use the Scheduler/Job commands
+above to verify whether they are actually enabled and succeeding.
+
+Gateway and Gateway-admin stdout/stderr logs are both collected by Google Cloud
+Logging. Use `resource.type="cloud_run_revision"` plus `service_name` for API
+services, and `resource.type="cloud_run_job"` plus `job_name` for scheduled
+workers. They live in the same project logging system but are easy to split by
+resource labels.
 
 ## Step 4 - Gmail Staging E2E
 

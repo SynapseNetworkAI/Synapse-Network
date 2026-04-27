@@ -194,6 +194,7 @@ def test_postgres_advisory_job_lock_rejects_unknown_job() -> None:
 )
 async def test_worker_one_shot_jobs_use_advisory_lock(
     monkeypatch,
+    caplog,
     command: str,
     job_name: str,
     patch_name: str,
@@ -209,6 +210,7 @@ async def test_worker_one_shot_jobs_use_advisory_lock(
 
     monkeypatch.setattr(gateway_worker, "create_storage", lambda settings: "fake-storage")
     monkeypatch.setattr(gateway_worker, "postgres_advisory_job_lock", fake_lock)
+    caplog.set_level(logging.INFO, logger=gateway_worker.__name__)
     if patch_name == "run_indexer_blocking_step":
         monkeypatch.setattr(
             gateway_worker,
@@ -228,10 +230,13 @@ async def test_worker_one_shot_jobs_use_advisory_lock(
 
     assert exit_code == 0
     assert seen == [job_name]
+    assert "alert_trigger=GATEWAY_JOB_HEARTBEAT" in caplog.text
+    assert f"job_name={job_name}" in caplog.text
+    assert "status=ok" in caplog.text
 
 
 @pytest.mark.asyncio
-async def test_worker_one_shot_job_skip_returns_success(monkeypatch) -> None:
+async def test_worker_one_shot_job_skip_returns_success(monkeypatch, caplog) -> None:
     called = False
 
     @contextmanager
@@ -246,6 +251,7 @@ async def test_worker_one_shot_job_skip_returns_success(monkeypatch) -> None:
     monkeypatch.setattr(gateway_worker, "create_storage", lambda settings: "fake-storage")
     monkeypatch.setattr(gateway_worker, "postgres_advisory_job_lock", fake_lock)
     monkeypatch.setattr(gateway_worker, "run_provider_withdraw_expiry_reaper_once", fake_reaper)
+    caplog.set_level(logging.INFO, logger=gateway_worker.__name__)
 
     exit_code = await gateway_worker._run(
         argparse.Namespace(
@@ -257,6 +263,9 @@ async def test_worker_one_shot_job_skip_returns_success(monkeypatch) -> None:
 
     assert exit_code == 0
     assert called is False
+    assert "alert_trigger=GATEWAY_JOB_HEARTBEAT" in caplog.text
+    assert "job_name=provider-withdraw-reaper" in caplog.text
+    assert "status=skipped_already_running" in caplog.text
 
 
 @pytest.mark.asyncio
