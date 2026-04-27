@@ -130,10 +130,10 @@ class BalanceLedger(BaseModel):
         owners |= {cls._normalize_owner(owner) for owner in frozen_map}
         return [
             ConsumerWalletRecord(
-                ownerAddress=owner,
-                availableBalance=cls._legacy_money(available_map.get(owner, Decimal("0")) or Decimal("0")),
-                pendingBalance=cls._legacy_money(pending_map.get(owner, Decimal("0")) or Decimal("0")),
-                frozenBalance=cls._legacy_money(frozen_map.get(owner, Decimal("0")) or Decimal("0")),
+                owner_address=owner,
+                available_balance=cls._legacy_money(available_map.get(owner, Decimal("0")) or Decimal("0")),
+                pending_balance=cls._legacy_money(pending_map.get(owner, Decimal("0")) or Decimal("0")),
+                frozen_balance=cls._legacy_money(frozen_map.get(owner, Decimal("0")) or Decimal("0")),
             )
             for owner in sorted(owner for owner in owners if owner)
         ]
@@ -150,10 +150,10 @@ class BalanceLedger(BaseModel):
         owners |= {cls._normalize_owner(owner) for owner in frozen_map}
         return [
             ProviderWalletRecord(
-                ownerAddress=owner,
-                availableBalance=cls._legacy_money(available_map.get(owner, Decimal("0")) or Decimal("0")),
-                pendingBalance=cls._legacy_money(pending_map.get(owner, Decimal("0")) or Decimal("0")),
-                frozenBalance=cls._legacy_money(frozen_map.get(owner, Decimal("0")) or Decimal("0")),
+                owner_address=owner,
+                available_balance=cls._legacy_money(available_map.get(owner, Decimal("0")) or Decimal("0")),
+                pending_balance=cls._legacy_money(pending_map.get(owner, Decimal("0")) or Decimal("0")),
+                frozen_balance=cls._legacy_money(frozen_map.get(owner, Decimal("0")) or Decimal("0")),
             )
             for owner in sorted(owner for owner in owners if owner)
         ]
@@ -170,7 +170,7 @@ class BalanceLedger(BaseModel):
         found = self.consumer_wallet(owner)
         if found is not None:
             return found
-        wallet = ConsumerWalletRecord(ownerAddress=owner)
+        wallet = ConsumerWalletRecord(owner_address=owner)
         self.consumer_wallets.append(wallet)
         return wallet
 
@@ -190,7 +190,7 @@ class BalanceLedger(BaseModel):
         found = self.provider_wallet(owner)
         if found is not None:
             return found
-        wallet = ProviderWalletRecord(ownerAddress=owner)
+        wallet = ProviderWalletRecord(owner_address=owner)
         self.provider_wallets.append(wallet)
         return wallet
 
