@@ -89,6 +89,8 @@ export function validateGcpAlertsEvidence({
     for (const name of [
       "gcp-webhook-channel-configured",
       "gcp-alert-policies-configured",
+      "gcp-uptime-checks-configured",
+      "gcp-scheduled-jobs-configured",
       "gcp-monitoring-callback-observed",
     ]) {
       const check = checks.get(name);

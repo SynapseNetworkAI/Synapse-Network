@@ -15,7 +15,13 @@ const dir = latestEvidenceDir({
 
 const validated = validateGcpAlertsEvidence({
   dir,
-  requiredChecks: ["gcp-alert-receiver-synthetic-lark"],
+  requiredChecks: [
+    "gcp-webhook-channel-configured",
+    "gcp-alert-policies-configured",
+    "gcp-uptime-checks-configured",
+    "gcp-scheduled-jobs-configured",
+    "gcp-alert-receiver-synthetic-lark",
+  ],
   optionalPassedChecks: ["gateway-controlled-500-drill"],
   requireMonitoringDelivery: process.env.GCP_ALERTS_REQUIRE_MONITORING_DELIVERY === "true",
 });

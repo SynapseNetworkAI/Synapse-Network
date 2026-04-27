@@ -1074,6 +1074,38 @@ Terraform apply follow-up. Normal releases should update jobs through
 `.github/workflows/deploy-staging.yml` and record job digests in the release
 manifest.
 
+Cloud Run Job monitoring is separate from Gateway `/readiness`:
+
+- `/readiness` reports only workers running inside the Gateway API process.
+  In staging, scheduled workers intentionally run as Cloud Run Jobs, so
+  `enabled=false` for deposit indexer, withdrawal processors, or cleanup inside
+  `/readiness` is expected.
+- GCP Monitoring alerts on any Cloud Run Job execution whose
+  `run.googleapis.com/job/completed_execution_count` result is not `succeeded`.
+- GCP Monitoring also alerts when scheduled jobs stop producing successful
+  executions: 10 minutes for every-minute jobs. The daily cleanup job is
+  covered by failed-execution alerting and Scheduler-enabled checks; V1 does
+  not use freshness for it because GCP `conditionAbsent` rejects durations
+  above 23h30m, which would false-positive before a 24h cadence.
+- Deployment/manual migration jobs are covered by failed-execution alerts, but
+  not freshness alerts because they are not periodic runtime jobs.
+
+Useful checks:
+
+```bash
+gcloud scheduler jobs list \
+  --project fabled-archive-494108-k5 \
+  --location us-central1 \
+  --format='table(name.basename(),schedule,state,httpTarget.uri)'
+
+gcloud logging read \
+  'resource.type="cloud_run_job" AND resource.labels.job_name="synapse-staging-deposit-indexer"' \
+  --project fabled-archive-494108-k5 \
+  --freshness=30m \
+  --limit=20 \
+  --format='table(timestamp,severity,textPayload)'
+```
+
 ## Migration And Seed Rules
 
 Schema is one global blueprint. Local, staging, and production all execute the
