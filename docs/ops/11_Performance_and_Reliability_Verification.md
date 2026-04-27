@@ -186,10 +186,15 @@ The staging load suite requires these environment variables:
 
 1. `SYNAPSE_GATEWAY_BASE_URL`
 2. `SYNAPSE_ADMIN_GATEWAY_BASE_URL`
-3. `SYNAPSE_PERF_SERVICE_ID`
+3. `SYNAPSE_PERF_SERVICE_ID` when overriding the default. The MVP staging default is `svc_oss_security_healthcheck` because it is deterministic, low-latency, and covered by the provider staging allowlist.
 4. `PROJECT_ID` or explicit staging credentials:
    `GATEWAY_E2E_OWNER_KEY`, `STAGING_ADMIN_E2E_PASSWORD`, and
    `STAGING_ADMIN_E2E_OTP_SECRET`
+
+MVP staging defaults intentionally use `SYNAPSE_PERF_CONCURRENCY=1` and
+`SYNAPSE_PERF_REQUEST_DELAY_MS=1000` so the suite validates availability and
+unexpected 5xx behavior without tripping the provider staging QPS guard. Raise
+these only for an explicit load rehearsal with a matching provider QPS change.
 
 The suite obtains admin auth through the staging admin E2E account and exports a
 cookie/CSRF header for admin read-only load. It also authenticates the staging

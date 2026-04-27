@@ -6,13 +6,19 @@ from types import SimpleNamespace
 import pytest
 from fastapi import HTTPException
 
-from src.api.routers import balance_deposit, balance_withdraw
+from src.api.routers import balance_deposit, balance_helpers, balance_withdraw
 from src.api.routers.balance_helpers import (
+    AdminProviderWithdrawCompleteRequest,
+    AdminProviderWithdrawReviewRequest,
+    AdminRefundCompleteRequest,
+    AdminRefundReviewRequest,
     DepositConfirmRequest,
     ProviderWithdrawIntentRequest,
+    ProviderWithdrawCompleteRequest,
     RefundCompleteRequest,
 )
 from src.api.schemas.pydantic_models import ConsumerWithdrawRequest
+from src.services.platform.internal_auth import InternalServicePrincipal
 
 
 class _Request:
@@ -22,6 +28,11 @@ class _Request:
 
 class _Storage:
     pass
+
+
+@pytest.fixture(autouse=True)
+def _allow_test_fee_admin(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(balance_helpers.settings, "platform_fee_admin_wallets", (), raising=False)
 
 
 class _BrokenBalanceService:
@@ -59,7 +70,7 @@ class _BalanceService:
         tx_hash: str,
         request_meta: dict[str, object],
     ) -> dict[str, object]:
-        assert owner_wallet == "0xAbC"
+        assert owner_wallet in {"0xAbC", "0xabc0000000000000000000000000000000000000"}
         assert refund_id == "refund-1"
         assert tx_hash == "0x" + "a" * 64
         assert request_meta["review"]["decision"] == "APPROVE"
@@ -99,6 +110,107 @@ class _BalanceService:
             "amount": "9.250000",
             "status": "REQUESTED",
         }
+
+    async def review_consumer_withdrawal(
+        self,
+        *,
+        owner_wallet: str,
+        refund_id: str,
+        request_meta: dict[str, object],
+    ) -> dict[str, object]:
+        assert owner_wallet == "0xabc0000000000000000000000000000000000000"
+        assert refund_id == "consumer-review-1"
+        assert request_meta["review"]["decision"] == "APPROVE"
+        return {
+            "withdrawalId": refund_id,
+            "amount": "6.000000",
+            "status": "SIGNED",
+            "ticket": {"ticketId": "ticket-consumer-review-1"},
+        }
+
+    async def complete_provider_withdrawal(
+        self,
+        *,
+        owner_wallet: str,
+        withdrawal_id: str,
+        tx_hash: str,
+        request_meta: dict[str, object],
+    ) -> dict[str, object]:
+        assert owner_wallet in {"0xAbC", "0xabc0000000000000000000000000000000000000"}
+        assert withdrawal_id in {"provider-complete-1", "provider-admin-complete-1"}
+        assert tx_hash == "0x" + "b" * 64
+        assert request_meta["requestId"] == "req-notify-router"
+        return {
+            "withdrawalId": withdrawal_id,
+            "amount": "4.000000",
+            "status": "COMPLETED",
+            "txHash": tx_hash,
+        }
+
+    async def review_provider_withdrawal(
+        self,
+        *,
+        owner_wallet: str,
+        withdrawal_id: str,
+        request_meta: dict[str, object],
+    ) -> dict[str, object]:
+        assert owner_wallet == "0xabc0000000000000000000000000000000000000"
+        assert withdrawal_id == "provider-review-reject-1"
+        assert request_meta["review"]["decision"] == "REJECT"
+        return {
+            "withdrawalId": withdrawal_id,
+            "amount": "3.500000",
+            "status": "REJECTED",
+        }
+
+
+class _SignedBalanceService(_BalanceService):
+    async def create_consumer_withdraw_intent(
+        self,
+        *,
+        payload: dict[str, object],
+        owner_wallet: str,
+        idempotency_key: str,
+        request_meta: dict[str, object],
+    ) -> dict[str, object]:
+        assert owner_wallet == "0xAbC"
+        assert idempotency_key == "idem-consumer-withdraw-0002"
+        assert request_meta["clientIp"] == "127.0.0.1"
+        return {
+            "withdrawalId": "consumer-withdraw-signed-1",
+            "amount": "7.500000",
+            "status": "SIGNED",
+            "ticket": {"ticketId": "ticket-consumer-withdraw-signed-1"},
+        }
+
+    async def create_provider_withdraw_intent(
+        self,
+        payload: dict[str, object],
+        owner_wallet: str,
+        idempotency_key: str,
+        request_meta: dict[str, object],
+    ) -> dict[str, object]:
+        assert owner_wallet == "0xAbC"
+        assert idempotency_key == "idem-provider-withdraw-0002"
+        assert request_meta["userAgent"] == "pytest"
+        return {
+            "withdrawalId": "provider-withdraw-signed-1",
+            "amount": "9.250000",
+            "status": "SIGNED",
+            "ticket": {"ticketId": "ticket-provider-withdraw-signed-1"},
+        }
+
+
+def _principal() -> InternalServicePrincipal:
+    return InternalServicePrincipal(
+        service_subject="gateway-admin",
+        admin_wallet="0xabc0000000000000000000000000000000000000",
+        actor_admin_id="admin-notify-router",
+        actor_role="owner",
+        request_id="req-notify-router",
+        scope="test",
+        token_id="token-notify-router",
+    )
 
 
 @pytest.mark.asyncio
@@ -174,6 +286,69 @@ async def test_complete_refund_schedules_in_app_notification(monkeypatch) -> Non
 
 
 @pytest.mark.asyncio
+async def test_complete_refund_as_admin_schedules_transaction_notification(monkeypatch) -> None:
+    calls: list[dict[str, object]] = []
+    storage = _Storage()
+    monkeypatch.setattr(
+        balance_deposit,
+        "schedule_transaction_notifications",
+        lambda storage_arg, **kwargs: calls.append({"storage": storage_arg, **kwargs}),
+    )
+
+    response = await balance_deposit.complete_refund_as_admin(
+        "refund-1",
+        AdminRefundCompleteRequest(
+            ownerAddress="0xabc0000000000000000000000000000000000000",
+            txHash="0x" + "a" * 64,
+            reviewDecision="approve",
+            reviewerAddress="0xReviewer",
+            reviewerNote="ok",
+        ),
+        _Request(),
+        _principal(),
+        _BalanceService(),
+        storage,
+    )
+
+    assert response["status"] == "success"
+    assert calls[0]["storage"] is storage
+    assert calls[0]["template_key"] == "refund_completed"
+    assert calls[0]["event_type"] == "refund.completed"
+    assert calls[0]["payload"]["actionUrl"].endswith("/dashboard/billing")
+
+
+@pytest.mark.asyncio
+async def test_review_refund_as_admin_schedules_ticket_ready_transaction_notification(monkeypatch) -> None:
+    calls: list[dict[str, object]] = []
+    storage = _Storage()
+    monkeypatch.setattr(
+        balance_deposit,
+        "schedule_transaction_notifications",
+        lambda storage_arg, **kwargs: calls.append({"storage": storage_arg, **kwargs}),
+    )
+
+    response = await balance_deposit.review_refund_as_admin(
+        "consumer-review-1",
+        AdminRefundReviewRequest(
+            ownerAddress="0xabc0000000000000000000000000000000000000",
+            reviewDecision="approve",
+            reviewerAddress="0xReviewer",
+            reviewerNote="ok",
+        ),
+        _Request(),
+        _principal(),
+        _BalanceService(),
+        storage,
+    )
+
+    assert response["status"] == "SIGNED"
+    assert calls[0]["storage"] is storage
+    assert calls[0]["template_key"] == "consumer_withdrawal_ticket_ready"
+    assert calls[0]["event_type"] == "consumer_withdrawal.ticket_ready"
+    assert calls[0]["payload"]["actionUrl"].endswith("/dashboard/billing/credits")
+
+
+@pytest.mark.asyncio
 async def test_consumer_withdraw_schedules_in_app_notification(monkeypatch) -> None:
     calls: list[tuple[object, object]] = []
     storage = _Storage()
@@ -197,6 +372,31 @@ async def test_consumer_withdraw_schedules_in_app_notification(monkeypatch) -> N
     assert calls[0][0] is storage
     assert calls[0][1].event_type == "consumer_withdrawal.created"
     assert calls[0][1].severity == "warning"
+
+
+@pytest.mark.asyncio
+async def test_consumer_withdraw_signed_schedules_ticket_ready_transaction_notification(monkeypatch) -> None:
+    calls: list[dict[str, object]] = []
+    storage = _Storage()
+    monkeypatch.setattr(
+        balance_deposit,
+        "schedule_transaction_notifications",
+        lambda storage_arg, **kwargs: calls.append({"storage": storage_arg, **kwargs}),
+    )
+
+    response = await balance_deposit.create_consumer_withdraw(
+        ConsumerWithdrawRequest(amountUsdc=Decimal("7.50"), reason="cash out"),
+        _Request(),
+        "idem-consumer-withdraw-0002",
+        "0xAbC",
+        _SignedBalanceService(),
+        storage,
+    )
+
+    assert response["status"] == "SIGNED"
+    assert calls[0]["storage"] is storage
+    assert calls[0]["template_key"] == "consumer_withdrawal_ticket_ready"
+    assert calls[0]["payload"]["withdrawalId"] == "consumer-withdraw-signed-1"
 
 
 @pytest.mark.asyncio
@@ -228,3 +428,111 @@ async def test_provider_withdraw_schedules_in_app_notification(monkeypatch) -> N
         "currency": "USDC",
         "status": "REQUESTED",
     }
+
+
+@pytest.mark.asyncio
+async def test_provider_withdraw_signed_schedules_ticket_ready_transaction_notification(monkeypatch) -> None:
+    calls: list[dict[str, object]] = []
+    storage = _Storage()
+    monkeypatch.setattr(
+        balance_withdraw,
+        "schedule_transaction_notifications",
+        lambda storage_arg, **kwargs: calls.append({"storage": storage_arg, **kwargs}),
+    )
+
+    response = await balance_withdraw.create_provider_withdraw_intent(
+        ProviderWithdrawIntentRequest(amountUsdc=Decimal("9.25")),
+        _Request(),
+        "idem-provider-withdraw-0002",
+        "0xAbC",
+        _SignedBalanceService(),
+        storage,
+    )
+
+    assert response["status"] == "SIGNED"
+    assert calls[0]["storage"] is storage
+    assert calls[0]["template_key"] == "provider_withdrawal_ticket_ready"
+    assert calls[0]["payload"]["actionUrl"].endswith("/provider/withdraw")
+
+
+@pytest.mark.asyncio
+async def test_complete_provider_withdrawal_schedules_transaction_notification(monkeypatch) -> None:
+    calls: list[dict[str, object]] = []
+    storage = _Storage()
+    monkeypatch.setattr(
+        balance_withdraw,
+        "schedule_transaction_notifications",
+        lambda storage_arg, **kwargs: calls.append({"storage": storage_arg, **kwargs}),
+    )
+
+    response = await balance_withdraw.complete_provider_withdrawal(
+        "provider-complete-1",
+        ProviderWithdrawCompleteRequest(txHash="0x" + "b" * 64),
+        _Request(),
+        "0xAbC",
+        _BalanceService(),
+        storage,
+    )
+
+    assert response["status"] == "COMPLETED"
+    assert calls[0]["storage"] is storage
+    assert calls[0]["template_key"] == "provider_withdrawal_completed"
+    assert calls[0]["payload"]["txHash"] == "0x" + "b" * 64
+
+
+@pytest.mark.asyncio
+async def test_complete_provider_withdrawal_as_admin_schedules_transaction_notification(monkeypatch) -> None:
+    calls: list[dict[str, object]] = []
+    storage = _Storage()
+    monkeypatch.setattr(
+        balance_withdraw,
+        "schedule_transaction_notifications",
+        lambda storage_arg, **kwargs: calls.append({"storage": storage_arg, **kwargs}),
+    )
+
+    response = await balance_withdraw.complete_provider_withdrawal_as_admin(
+        "provider-admin-complete-1",
+        AdminProviderWithdrawCompleteRequest(
+            ownerAddress="0xabc0000000000000000000000000000000000000",
+            txHash="0x" + "b" * 64,
+        ),
+        _Request(),
+        _principal(),
+        _BalanceService(),
+        storage,
+    )
+
+    assert response["status"] == "success"
+    assert calls[0]["storage"] is storage
+    assert calls[0]["template_key"] == "provider_withdrawal_completed"
+    assert calls[0]["owner_wallet"] == "0xabc0000000000000000000000000000000000000"
+
+
+@pytest.mark.asyncio
+async def test_review_provider_withdrawal_as_admin_schedules_rejected_transaction_notification(monkeypatch) -> None:
+    calls: list[dict[str, object]] = []
+    storage = _Storage()
+    monkeypatch.setattr(
+        balance_withdraw,
+        "schedule_transaction_notifications",
+        lambda storage_arg, **kwargs: calls.append({"storage": storage_arg, **kwargs}),
+    )
+
+    response = await balance_withdraw.review_provider_withdrawal_as_admin(
+        "provider-review-reject-1",
+        AdminProviderWithdrawReviewRequest(
+            ownerAddress="0xabc0000000000000000000000000000000000000",
+            reviewDecision="reject",
+            reviewerAddress="0xReviewer",
+            reviewerNote="not approved",
+        ),
+        _Request(),
+        _principal(),
+        _BalanceService(),
+        storage,
+    )
+
+    assert response["status"] == "REJECTED"
+    assert calls[0]["storage"] is storage
+    assert calls[0]["template_key"] == "provider_withdrawal_rejected"
+    assert calls[0]["payload"]["status"] == "REJECTED"

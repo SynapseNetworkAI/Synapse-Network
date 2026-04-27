@@ -509,6 +509,98 @@ executes the staging notification outbox Cloud Run Job, and verifies the row
 was moved into `synapse_notification_delivery_log`. It records only a recipient
 email hash, never the email password, SMTP secret, or full DSN.
 
+### Transaction Notification Acceptance
+
+Staging transaction notifications are intentionally split by audience:
+
+- User-front inbox receives product-visible money events.
+- Gmail receives transactional receipts only when the owner has a verified
+  email address.
+- Lark receives staging transaction watch cards marked
+  `STAGING_TRANSACTION_EVENT` and `NO_ACTION_REQUIRED`; these are for early
+  staging visibility, not production user notifications.
+
+Covered business events:
+
+| Event | User inbox | Gmail template | Lark staging transaction card |
+| --- | --- | --- | --- |
+| Deposit confirmed | Yes | `deposit_confirmed` | Yes |
+| Refund completed | Yes | `refund_completed` | Yes |
+| Consumer withdrawal ticket ready | Yes | `consumer_withdrawal_ticket_ready` | Yes |
+| Consumer withdrawal completed | Yes | `consumer_withdrawal_completed` | Yes |
+| Consumer withdrawal expired/failed | Yes | `consumer_withdrawal_failed_expired` | Yes |
+| Provider withdrawal ticket ready | Yes | `provider_withdrawal_ticket_ready` | Yes |
+| Provider withdrawal completed | Yes | `provider_withdrawal_completed` | Yes |
+| Provider withdrawal rejected | Yes | `provider_withdrawal_rejected` | Yes |
+
+The email template is receipt-style: black page background, white rounded
+cards, amount/status/reference details, CTA, and support footer. It must remain
+readable without remote images. Email save does not send a “saved” notification;
+new or changed email addresses receive an `email_verification` message instead.
+Only verified emails receive funding receipts.
+
+Validate transaction notifications in phases. Default local proof never sends
+real Gmail or Lark; it uses a fake Lark sink and fake email sender while
+writing to the local Gateway Postgres notification tables:
+
+```bash
+export TRANSACTION_NOTIFICATIONS_POSTGRES_DSN=postgresql://synapse_gateway_app:local-dev-gateway-app-password@localhost:5432/synapse_gateway
+export TRANSACTION_NOTIFICATIONS_TEST_EMAIL=transaction-e2e@synapse.test
+
+npm run e2e:transaction-notifications:local
+npm run ci:transaction-notifications-local-evidence
+```
+
+When validating the real local sender path, keep private values out of Git and
+put them in `services/gateway/.env.local.private` or shell exports:
+
+```bash
+export TRANSACTION_NOTIFICATIONS_TEST_EMAIL=<real-recipient@example.com>
+export TRANSACTION_NOTIFICATIONS_LOCAL_REAL_CONFIRM=I_UNDERSTAND_THIS_SENDS_REAL_LOCAL_EMAIL_AND_LARK
+export PUBLIC_APP_BASE_URL=http://127.0.0.1:3000
+
+npm run e2e:transaction-notifications:local-real
+npm run ci:transaction-notifications-local-real-evidence
+```
+
+`local-real` sends real Gmail SMTP messages and real Lark cards, but still uses
+local Gateway Postgres. It is useful before staging deploy because it proves the
+receipt template and Lark transaction card work with real external transports.
+Receipt CTA links use `PUBLIC_APP_BASE_URL`, not `PUBLIC_GATEWAY_BASE_URL`, so
+local links should point to User-front on `http://127.0.0.1:3000`.
+
+After deploying the new Gateway image to staging, run the live gate. This sends
+real staging Gmail and Lark cards, so it requires explicit confirmation and a
+Cloud SQL Auth Proxy DSN:
+
+```bash
+export PROJECT_ID=fabled-archive-494108-k5
+export REGION=us-central1
+export TRANSACTION_NOTIFICATIONS_STAGING_CONFIRM=I_UNDERSTAND_THIS_SENDS_STAGING_EMAIL_AND_LARK
+export STAGING_TRANSACTION_POSTGRES_DSN=<Cloud-SQL-Auth-Proxy-localhost-DSN>
+export STAGING_TRANSACTION_TEST_EMAIL=<verified-staging-test-email>
+
+npm run e2e:gmail-notifications:staging
+npm run ci:gmail-notifications-staging-evidence
+
+npm run e2e:transaction-notifications:staging
+npm run ci:transaction-notifications-staging-evidence
+```
+
+The transaction notification runner seeds or reuses a verified staging owner
+email, writes deposit/refund/withdrawal notification fixtures through Gateway's
+transaction notification code, executes `synapse-staging-notification-outbox-drain`,
+and verifies:
+
+- `synapse_in_app_notifications` contains product inbox rows.
+- `synapse_notification_delivery_log` contains `deposit_confirmed`,
+  `refund_completed`, and at least one withdrawal template.
+- Lark delivery evidence includes `STAGING_TRANSACTION_EVENT` and
+  `NO_ACTION_REQUIRED`.
+- Receipt HTML contains `Receipt from Synapse Network`, amount, status,
+  reference, and CTA.
+- The run has no `dead_letter` rows and no secret-like values in evidence.
+
 ## Step 5 - Reconciliation
 
 After at least one deposit and withdrawal path has run, execute the MVP

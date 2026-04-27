@@ -499,7 +499,8 @@ Release order:
 
 1. Build images.
 2. Push images to Artifact Registry.
-3. Run Gateway schema migration: `synapse-staging-db-migrate` /
+3. Run Gateway schema migration for every Gateway rollout:
+   `synapse-staging-db-migrate` /
    `synapse-prod-db-migrate`.
 4. Run Gateway-admin schema migration before any Gateway-admin rollout:
    `synapse-staging-gateway-admin-db-migrate` /
@@ -510,6 +511,14 @@ Release order:
 7. Deploy Gateway and Gateway-admin services.
 8. Deploy frontends.
 9. Run smoke tests and release evidence.
+
+For staging, Gateway releases also run the live drift guard after smoke tests.
+The guard checks free-service schema semantics (`quoted_price_usdc >= 0`),
+signature secret newline/placeholder lint, Gateway/Provider shared secret ids,
+Provider Cloud SQL attachment, Provider endpoint prefix, Provider discovery, and
+Gateway service/job image digest alignment. Production promotion must either
+reuse the same gate against production resources or provide equivalent manifest
+evidence before GO.
 
 Gateway jobs are separate Cloud Run Jobs but not separate code packages. They run
 `python -m src.worker <job> --once` from the same Gateway image used by the API.

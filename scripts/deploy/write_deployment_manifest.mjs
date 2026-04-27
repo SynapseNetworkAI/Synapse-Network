@@ -20,7 +20,7 @@ function readJson(path, fallback) {
 
 const out = arg("--out");
 if (!out) {
-  console.error("Usage: node scripts/deploy/write_deployment_manifest.mjs --out <path> [--scope scope.json] [--build build.json] [--revisions revisions.json] [--smoke smoke.json]");
+  console.error("Usage: node scripts/deploy/write_deployment_manifest.mjs --out <path> [--scope scope.json] [--build build.json] [--revisions revisions.json] [--smoke smoke.json] [--drift-guard drift-guard.json]");
   process.exit(2);
 }
 
@@ -30,6 +30,7 @@ const revisions = readJson(arg("--revisions"), {});
 const smoke = readJson(arg("--smoke"), {});
 const imageDigests = readJson(arg("--image-digests"), {});
 const jobs = readJson(arg("--jobs"), { updated: [], smokeExecutions: [] });
+const driftGuard = readJson(arg("--drift-guard"), { status: "skipped", reason: "not provided" });
 
 function pad2(value) {
   return String(value).padStart(2, "0");
@@ -102,7 +103,12 @@ const manifest = {
   migration: {
     ran: String(process.env.MIGRATION_RAN || "false") === "true",
     status: process.env.MIGRATION_STATUS || "skipped",
+    schemaValidationStatus: process.env.MIGRATION_STATUS || "skipped",
+    quotePriceConstraintFingerprint:
+      driftGuard.checks?.find?.((check) => check.name === "gateway-quote-price-contract")?.fingerprint ||
+      null,
   },
+  driftGuard,
   terraform: {
     ran: String(process.env.TERRAFORM_RAN || "false") === "true",
     status: process.env.TERRAFORM_STATUS || "skipped",
