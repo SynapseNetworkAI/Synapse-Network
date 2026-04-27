@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from typing import Any, Callable, Literal, Optional, Self
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
@@ -116,7 +116,7 @@ class BalanceLedger(BaseModel):
     def _legacy_money(value: Decimal | str | int | float | None) -> Decimal:
         if value is None:
             return Decimal("0")
-        return Decimal(str(value)).quantize(Decimal("0.000001"))
+        return Decimal(str(value)).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)
 
     @classmethod
     def _consumer_wallets_from_legacy_maps(
@@ -436,6 +436,22 @@ class AtomicWithdrawalResult:
 class ChargeConsumerUsageCommand:
     owner_wallet: str
     provider_wallet: str
+    total_charge: Decimal
+    provider_net: Decimal
+    platform_fee_total: Decimal
+    usage_row: UsageLogRow
+    request_id: str = ""
+    unit_price: Decimal = Decimal("0")
+    protocol_fee: Decimal = Decimal("0")
+    routing_tax: Decimal = Decimal("0")
+    invocation: Optional[InvocationRecord] = None
+
+
+@dataclass(frozen=True)
+class SettleConsumerHoldUsageCommand:
+    owner_wallet: str
+    provider_wallet: str
+    hold_usdc: Decimal
     total_charge: Decimal
     provider_net: Decimal
     platform_fee_total: Decimal
