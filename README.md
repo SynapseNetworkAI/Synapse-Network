@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="./services/user-front/public/brand/synapse-network-logo.svg" alt="SynapseNetwork logo" width="460" />
+</p>
+
 # Synapse Network
 
 Synapse Network is an AI-native payment and settlement infrastructure for machine-to-machine API commerce.

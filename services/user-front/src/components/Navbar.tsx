@@ -151,10 +151,14 @@ export default function Navbar() {
 
   const brandMark = (
     <span className="relative inline-flex h-8 w-8 items-center justify-center rounded-[10px] border border-white/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_10px_24px_rgba(0,0,0,0.24)] transition-transform duration-300 group-hover:scale-[1.03]">
-      <span className="absolute inset-[4px] rounded-[7px] border border-white/[0.09]" />
-      <span className="absolute left-[8px] top-[10px] h-1.5 w-1.5 rounded-full bg-[#7ff7be] shadow-[0_0_12px_rgba(127,247,190,0.7)]" />
-      <span className="absolute right-[8px] bottom-[10px] h-1.5 w-1.5 rounded-full bg-white/85 shadow-[0_0_10px_rgba(255,255,255,0.22)]" />
-      <span className="absolute left-[10px] right-[10px] top-1/2 h-px -translate-y-1/2 bg-gradient-to-r from-white/0 via-white/45 to-white/0" />
+      <Image
+        src="/logo-mark.svg"
+        alt="SynapseNetwork logo"
+        width={24}
+        height={24}
+        className="h-6 w-6"
+        priority
+      />
     </span>
   );
 

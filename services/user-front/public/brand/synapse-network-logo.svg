@@ -1,0 +1,32 @@
+<svg width="720" height="180" viewBox="0 0 720 180" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="synapse-network-logo-title">
+  <title id="synapse-network-logo-title">SynapseNetwork logo</title>
+  <defs>
+    <linearGradient id="sn-cyan" x1="30" y1="32" x2="150" y2="151" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#16D5FF"/>
+      <stop offset="1" stop-color="#0494FF"/>
+    </linearGradient>
+    <linearGradient id="sn-word" x1="414" y1="62" x2="594" y2="118" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#00D9FF"/>
+      <stop offset="1" stop-color="#0795FF"/>
+    </linearGradient>
+  </defs>
+  <rect width="720" height="180" rx="28" fill="#F8FBFF"/>
+  <g stroke-linecap="round" stroke-linejoin="round">
+    <path d="M90 90 52.5 63.4M88.8 87.2 51.6 110.8M95.7 83.1l5-38.8M101.2 87.2 134.5 66.5M103.2 94.5l37 8.3M95 101.4l5 39.4" stroke="#0E1826" stroke-width="8"/>
+    <path d="M85.5 98.8 50.8 138.2M101.2 81.7 129 34.5" stroke="#738292" stroke-width="7" stroke-dasharray="15 10"/>
+    <path d="M52.5 63.4 28.5 37.5M100.7 44.3l-.4-19M100 140.8v20" stroke="url(#sn-cyan)" stroke-width="7"/>
+    <path d="M51.6 110.8 25.8 113M134.5 66.5l21.8-16M140.2 102.8l24 2.2M50.8 138.2l-23.8 15.2" stroke="#738292" stroke-width="7"/>
+    <circle cx="90" cy="90" r="17" fill="#F8FBFF" stroke="#0E1826" stroke-width="8"/>
+    <circle cx="90" cy="90" r="5.7" fill="#0E1826"/>
+    <circle cx="28.5" cy="37.5" r="9.4" fill="#F8FBFF" stroke="#07B8FF" stroke-width="6"/>
+    <circle cx="25.8" cy="113" r="8.8" fill="#F8FBFF" stroke="#738292" stroke-width="6"/>
+    <circle cx="100.3" cy="25.3" r="8.8" fill="#F8FBFF" stroke="#07B8FF" stroke-width="6"/>
+    <circle cx="156.3" cy="50.5" r="8.8" fill="#F8FBFF" stroke="#738292" stroke-width="6"/>
+    <circle cx="164.2" cy="105" r="8.8" fill="#F8FBFF" stroke="#738292" stroke-width="6"/>
+    <circle cx="100" cy="160.8" r="8.8" fill="#F8FBFF" stroke="#07B8FF" stroke-width="6"/>
+    <circle cx="27" cy="153.4" r="8.8" fill="#F8FBFF" stroke="#738292" stroke-width="6"/>
+    <circle cx="129" cy="34.5" r="8.8" fill="#F8FBFF" stroke="#738292" stroke-width="6"/>
+  </g>
+  <text x="212" y="112" font-family="Orbitron, Rajdhani, Space Grotesk, Arial, sans-serif" font-size="48" font-weight="500" letter-spacing="-1.5" fill="#111827">Synapse</text>
+  <text x="414" y="112" font-family="Orbitron, Rajdhani, Space Grotesk, Arial, sans-serif" font-size="48" font-weight="500" letter-spacing="-1.5" fill="url(#sn-word)">Network</text>
+</svg>

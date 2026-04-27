@@ -1,6 +1,7 @@
 "use client";
 
 import { Avatar, Box, Button, Flex, Grid, Heading, HStack, Stack, Text } from "@chakra-ui/react";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -101,7 +102,9 @@ export function AdminSidebar({ admin, navigation, mobileOpen, onCloseMobile }: R
       <Flex justify="space-between" align="flex-start" gap="10px">
         <Stack gap="4px">
           <Flex align="center" gap="10px">
-            <Grid placeItems="center" w="46px" h="46px" borderRadius="14px" bg="rgba(34, 211, 238, 0.08)" color="#b3ebff" border="1px solid rgba(34, 211, 238, 0.24)" fontSize="12px" fontWeight="800" letterSpacing="0.18em">SN</Grid>
+            <Grid placeItems="center" w="46px" h="46px" borderRadius="14px" bg="rgba(248, 251, 255, 0.96)" border="1px solid rgba(34, 211, 238, 0.24)" overflow="hidden">
+              <Image src="/brand/synapse-network-icon.svg" alt="SynapseNetwork" width={36} height={36} />
+            </Grid>
             <Stack gap="1px">
               <Text fontSize="11px" letterSpacing="0.22em" textTransform="uppercase" color="rgba(244,247,251,0.52)">Synapse Network</Text>
               <Heading size="md" letterSpacing="-0.02em">Admin Sentinel</Heading>
