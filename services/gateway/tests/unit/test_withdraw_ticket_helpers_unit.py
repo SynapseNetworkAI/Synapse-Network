@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+import logging
 from decimal import Decimal
 from types import SimpleNamespace
 
@@ -9,6 +10,7 @@ from fastapi import HTTPException
 
 from src.domain.ledger import WithdrawalIntentRow
 from src.domain.operation_metadata import WithdrawalTicketMetadata
+from src.services.balance_mixins import withdraw_signing
 from src.services.balance_mixins.withdraw_signing import BalanceWithdrawSigningMixin
 from src.services.provider.withdraw_helpers_mixin import (
     EXPIRED_WITHDRAW_RELEASE_MESSAGE,
@@ -52,7 +54,7 @@ def test_withdraw_signing_queries_ticket_consumed_and_latest_block_timestamp():
     assert mixin._latest_withdraw_rpc_block_timestamp() == 456
 
 
-def test_withdraw_signing_maps_chain_query_failures_to_service_unavailable():
+def test_withdraw_signing_maps_chain_query_failures_to_service_unavailable(caplog):
     mixin = BalanceWithdrawSigningMixin()
     provider = SimpleNamespace(
         eth=SimpleNamespace(
@@ -60,6 +62,10 @@ def test_withdraw_signing_maps_chain_query_failures_to_service_unavailable():
         )
     )
     mixin._withdraw_contract = lambda: (provider, _Contract(RuntimeError("rpc")))  # type: ignore[method-assign]
+    caplog.set_level(
+        logging.ERROR,
+        logger="src.services.balance_mixins.withdraw_signing",
+    )
 
     with pytest.raises(HTTPException) as consumed_exc:
         mixin._withdraw_ticket_consumed("0xticket")
@@ -70,6 +76,63 @@ def test_withdraw_signing_maps_chain_query_failures_to_service_unavailable():
         mixin._latest_withdraw_rpc_block_timestamp()
     assert block_exc.value.status_code == 503
     assert block_exc.value.detail["code"] == "CHAIN_RPC_UNAVAILABLE"
+    assert "alert_trigger=CHAIN_RPC_UNAVAILABLE" in caplog.text
+    assert "chainIdExpected=421614" in caplog.text
+
+
+def test_withdraw_contract_logs_rpc_connection_failure(monkeypatch, caplog):
+    class _DisconnectedWeb3:
+        class HTTPProvider:
+            def __init__(self, *args, **kwargs) -> None:
+                pass
+
+        def __init__(self, provider) -> None:
+            self.eth = SimpleNamespace(contract=lambda **kwargs: object())
+
+        @staticmethod
+        def to_checksum_address(address: str) -> str:
+            return address
+
+        def is_connected(self) -> bool:
+            return False
+
+    monkeypatch.setattr(withdraw_signing, "_web3_class", lambda: _DisconnectedWeb3)
+    monkeypatch.setattr(withdraw_signing.settings, "router_address", OWNER)
+    caplog.set_level(
+        logging.ERROR,
+        logger="src.services.balance_mixins.withdraw_signing",
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        BalanceWithdrawSigningMixin()._withdraw_contract()
+
+    assert exc.value.status_code == 503
+    assert exc.value.detail["code"] == "CHAIN_RPC_UNAVAILABLE"
+    assert "alert_trigger=CHAIN_RPC_UNAVAILABLE" in caplog.text
+    assert "context=withdraw_contract" in caplog.text
+
+
+def test_resolve_withdraw_chain_logs_chain_id_query_failure(caplog):
+    class _FailingEth:
+        @property
+        def chain_id(self):
+            raise RuntimeError("rpc")
+
+    mixin = BalanceWithdrawSigningMixin()
+    provider = SimpleNamespace(eth=_FailingEth())
+    mixin._withdraw_contract = lambda: (provider, object())  # type: ignore[method-assign]
+    caplog.set_level(
+        logging.ERROR,
+        logger="src.services.balance_mixins.withdraw_signing",
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        mixin._resolve_withdraw_chain()
+
+    assert exc.value.status_code == 503
+    assert exc.value.detail["code"] == "CHAIN_RPC_UNAVAILABLE"
+    assert "alert_trigger=CHAIN_RPC_UNAVAILABLE" in caplog.text
+    assert "context=resolve_withdraw_chain" in caplog.text
 
 
 class _ProviderExpiryHarness(ProviderWithdrawHelpersMixin):

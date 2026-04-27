@@ -14,9 +14,35 @@ import {
 const EVIDENCE_ROOT = path.join(ROOT, "docs/evidence/staging/gcp-alerts");
 const CONFIRM = "I_UNDERSTAND_THIS_SENDS_STAGING_ALERTS";
 const REQUIRED_POLICIES = [
+  "Synapse Staging Admin API Health Uptime Down",
+  "Synapse Staging Chain RPC Unavailable",
+  "Synapse Staging Cloud Run Job Failed",
+  "Synapse Staging Consumer Withdraw Processor Freshness",
+  "Synapse Staging Deposit Indexer Freshness",
+  "Synapse Staging Gateway 5xx Count High",
   "Synapse Staging Gateway 5xx Rate High",
-  "Synapse Staging Withdrawal Timeout",
+  "Synapse Staging Gateway Health Uptime Down",
+  "Synapse Staging Gateway Readiness Uptime Down",
+  "Synapse Staging Gateway-admin 5xx Rate High",
+  "Synapse Staging Notification Outbox Drain Freshness",
+  "Synapse Staging Provider Upstream Unavailable",
+  "Synapse Staging Provider Withdraw Reaper Freshness",
   "Synapse Staging Reconciliation Drift",
+  "Synapse Staging User Front Uptime Down",
+  "Synapse Staging Withdrawal Timeout",
+];
+const REQUIRED_UPTIME_CHECKS = [
+  "Synapse Staging Admin API Health Uptime",
+  "Synapse Staging Gateway Health Uptime",
+  "Synapse Staging Gateway Readiness Uptime",
+  "Synapse Staging User Front Uptime",
+];
+const REQUIRED_SCHEDULED_JOBS = [
+  "synapse-staging-consumer-withdraw-processor-schedule",
+  "synapse-staging-deposit-indexer-schedule",
+  "synapse-staging-in-app-notification-cleanup-schedule",
+  "synapse-staging-notification-outbox-drain-schedule",
+  "synapse-staging-provider-withdraw-reaper-schedule",
 ];
 
 async function postSyntheticGcpAlert({ receiverUrl, token }) {
@@ -106,6 +132,34 @@ function checkMonitoringPolicies(projectId) {
   };
 }
 
+function checkUptimeChecks(projectId) {
+  const result = gcloud([
+    "monitoring",
+    "uptime",
+    "list-configs",
+    "--project",
+    projectId,
+    "--filter",
+    'displayName:"Synapse Staging"',
+    "--format",
+    "value(displayName)",
+  ]);
+  if (result.status !== 0) {
+    return {
+      status: "failed",
+      detail: redact(result.stderr || result.stdout || "gcloud uptime list-configs failed"),
+      found: [],
+    };
+  }
+  const found = new Set(result.stdout.split(/\r?\n/).map((line) => line.trim()).filter(Boolean));
+  const missing = REQUIRED_UPTIME_CHECKS.filter((name) => !found.has(name));
+  return {
+    status: missing.length === 0 ? "passed" : "failed",
+    detail: missing.length ? `missing uptime checks: ${missing.join(", ")}` : "all uptime checks found",
+    found: [...found],
+  };
+}
+
 function checkMonitoringChannel(projectId) {
   const result = gcloud([
     "alpha",
@@ -126,13 +180,65 @@ function checkMonitoringChannel(projectId) {
   };
 }
 
+function checkScheduledJobs(projectId) {
+  const result = gcloud([
+    "scheduler",
+    "jobs",
+    "list",
+    "--project",
+    projectId,
+    "--location",
+    process.env.REGION || "us-central1",
+    "--filter",
+    "name:synapse-staging-",
+    "--format",
+    "json",
+  ]);
+  if (result.status !== 0) {
+    return {
+      status: "failed",
+      detail: redact(result.stderr || result.stdout || "gcloud scheduler jobs list failed"),
+      found: [],
+    };
+  }
+  let rows = [];
+  try {
+    rows = JSON.parse(result.stdout || "[]");
+  } catch (error) {
+    return {
+      status: "failed",
+      detail: redact(`failed to parse scheduler jobs JSON: ${error.message}`),
+      found: [],
+    };
+  }
+  const scheduledJobs = rows.map((row) => ({
+    id: String(row.name || "").split("/").at(-1),
+    schedule: row.schedule || "",
+    state: row.state || "",
+    target: String(row.httpTarget?.uri || "").replace(/jobs\/([^/:]+):run$/, "jobs/$1:run"),
+  }));
+  const found = new Set(scheduledJobs.map((job) => job.id).filter(Boolean));
+  const missing = REQUIRED_SCHEDULED_JOBS.filter((name) => !found.has(name));
+  const disabled = scheduledJobs
+    .filter((job) => REQUIRED_SCHEDULED_JOBS.includes(job.id) && job.state !== "ENABLED")
+    .map((job) => job.id);
+  const failed = [...missing, ...disabled];
+  return {
+    status: failed.length === 0 ? "passed" : "failed",
+    detail: failed.length
+      ? `missing or disabled scheduled jobs: ${failed.join(", ")}`
+      : "all scheduled Cloud Run job triggers found and enabled",
+    scheduledJobs,
+  };
+}
+
 async function waitForMonitoringCallback({ projectId, waitSeconds }) {
   const deadline = Date.now() + waitSeconds * 1000;
   const filter = [
     'resource.type="cloud_run_revision"',
     'resource.labels.service_name="synapse-staging-gateway-admin"',
     'textPayload:"alert_trigger=GCP_ALERT_RECEIVED"',
-    'textPayload:"synapse_staging_gateway_5xx_rate_high"',
+    '(textPayload:"synapse_staging_gateway_5xx_rate_high" OR textPayload:"synapse_staging_gateway_5xx_count_high")',
   ].join(" AND ");
   while (Date.now() < deadline) {
     const result = gcloud([
@@ -149,7 +255,10 @@ async function waitForMonitoringCallback({ projectId, waitSeconds }) {
       "value(textPayload)",
     ]);
     if (result.status === 0 && result.stdout.includes("GCP_ALERT_RECEIVED")) {
-      return { status: "passed", detail: "gateway-admin GCP callback log observed" };
+      const detail = result.stdout.includes("synapse_staging_gateway_5xx_count_high")
+        ? "gateway-admin GCP callback log observed for 5xx count policy"
+        : "gateway-admin GCP callback log observed for 5xx rate policy";
+      return { status: "passed", detail };
     }
     await new Promise((resolve) => setTimeout(resolve, 15000));
   }
@@ -170,6 +279,11 @@ async function main() {
     || path.join(EVIDENCE_ROOT, `${timestamp()}-gcp-alerts-staging`);
   const checks = [];
   const trace = [];
+
+  checks.push({ name: "gcp-webhook-channel-configured", ...checkMonitoringChannel(projectId) });
+  checks.push({ name: "gcp-alert-policies-configured", ...checkMonitoringPolicies(projectId) });
+  checks.push({ name: "gcp-uptime-checks-configured", ...checkUptimeChecks(projectId) });
+  checks.push({ name: "gcp-scheduled-jobs-configured", ...checkScheduledJobs(projectId) });
 
   const receiver = await postSyntheticGcpAlert({ receiverUrl, token: receiverToken });
   checks.push({
@@ -211,8 +325,6 @@ async function main() {
   }
 
   if (process.env.GCP_ALERTS_REQUIRE_MONITORING_DELIVERY === "true") {
-    checks.push({ name: "gcp-webhook-channel-configured", ...checkMonitoringChannel(projectId) });
-    checks.push({ name: "gcp-alert-policies-configured", ...checkMonitoringPolicies(projectId) });
     const waitSeconds = Number.parseInt(process.env.GCP_ALERTS_MONITORING_WAIT_SECONDS || "600", 10);
     const callback = await waitForMonitoringCallback({ projectId, waitSeconds });
     checks.push({ name: "gcp-monitoring-callback-observed", ...callback });
@@ -232,6 +344,8 @@ async function main() {
     trace,
     notes: [
       "This sends a real staging Lark alert card.",
+      "This verifies GCP webhook channel, alert policies, and uptime checks exist.",
+      "This verifies scheduled Cloud Run job triggers exist and are enabled.",
       "Gateway 500 drill is executed only when GATEWAY_STAGING_URL and STAGING_ALERT_DRILL_TOKEN are set.",
       "GCP policy callback wait is enabled only when GCP_ALERTS_REQUIRE_MONITORING_DELIVERY=true.",
     ],
