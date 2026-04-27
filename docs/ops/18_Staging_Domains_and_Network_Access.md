@@ -2,7 +2,7 @@
 title: Staging Domains and Network Access
 status: active
 owner: ops
-last_reviewed: 2026-04-24
+last_reviewed: 2026-04-27
 ---
 
 # Staging Domains and Network Access
@@ -12,7 +12,7 @@ the Google Cloud staging environment.
 
 ## Summary
 
-Staging has four external HTTPS hostnames:
+Staging has five external HTTPS hostnames:
 
 | Hostname | Cloud Run service | Public access | Why |
 | --- | --- | --- | --- |
@@ -20,6 +20,7 @@ Staging has four external HTTPS hostnames:
 | `api-staging.synapse-network.ai` | `synapse-staging-gateway` | Yes | User-front calls Gateway API directly from the browser. |
 | `admin-staging.synapse-network.ai` | `synapse-staging-admin-front` | Yes | Browser-facing operations console. |
 | `admin-api-staging.synapse-network.ai` | `synapse-staging-gateway-admin` | Yes | Admin-front calls Gateway-admin API directly from the browser. |
+| `provider-staging.synapse-network.ai` | `synapse-staging-provider` | Limited | Gateway reaches Provider runtime through signed provider invoke calls. |
 
 Public access here means the Cloud Run endpoint accepts unauthenticated HTTP
 requests at the Google ingress layer. It does **not** mean the business API is
@@ -39,6 +40,7 @@ identity tokens for normal users:
 | Gateway API | Disable Cloud Run invoker IAM check if User-front calls it directly. |
 | Admin-front | Disable Cloud Run invoker IAM check so operators can open the web console. |
 | Gateway-admin API | Disable Cloud Run invoker IAM check if Admin-front calls it directly. |
+| Provider runtime | Disable Cloud Run invoker IAM check only for `/health`, `/ready`, and Gateway-signed invoke ingress. |
 
 Security controls for public API services:
 
@@ -49,6 +51,10 @@ Security controls for public API services:
   Gateway internal JWT for internal Gateway calls.
 - `/metrics` must require `METRICS_BEARER_TOKEN`; do not treat public API
   access as permission to scrape metrics.
+- Provider `/provider-services/*/invoke` must require Gateway HMAC headers:
+  `X-Synapse-Service-Id`, `X-Synapse-Signed-At`, `X-Synapse-Signature`, and
+  `X-Synapse-Request-Id`. Anonymous direct invoke must return application
+  `401/403`, not `200`.
 
 ### Must Stay Private
 
@@ -86,6 +92,7 @@ synapse-staging-user-front
 synapse-staging-gateway
 synapse-staging-admin-front
 synapse-staging-gateway-admin
+synapse-staging-provider
 ```
 
 Create Cloud Run domain mappings:
@@ -117,6 +124,12 @@ gcloud beta run domain-mappings create \
   --region "$REGION" \
   --service synapse-staging-gateway-admin \
   --domain admin-api-staging.synapse-network.ai
+
+gcloud beta run domain-mappings create \
+  --project "$PROJECT_ID" \
+  --region "$REGION" \
+  --service synapse-staging-provider \
+  --domain provider-staging.synapse-network.ai
 ```
 
 If a mapping already exists, inspect it instead of recreating it:
@@ -141,6 +154,7 @@ CNAME staging.synapse-network.ai -> ghs.googlehosted.com
 CNAME api-staging.synapse-network.ai -> ghs.googlehosted.com
 CNAME admin-staging.synapse-network.ai -> ghs.googlehosted.com
 CNAME admin-api-staging.synapse-network.ai -> ghs.googlehosted.com
+CNAME provider-staging.synapse-network.ai -> ghs.googlehosted.com
 ```
 
 Always follow the exact DNS record shown by:
@@ -154,6 +168,38 @@ gcloud beta run domain-mappings describe <hostname> \
 TLS certificates are Google-managed. After DNS is correct, certificate
 provisioning can take several minutes. Do not debug application code until the
 domain mapping reports a ready certificate.
+
+### GoDaddy DNS Entry
+
+If `synapse-network.ai` is managed in GoDaddy, add the Provider staging
+subdomain as a CNAME record after the Cloud Run domain mapping exists:
+
+```text
+Type: CNAME
+Name: provider-staging
+Value: ghs.googlehosted.com
+TTL: 600 seconds or GoDaddy default
+```
+
+Do not enter the full hostname in the `Name` field if GoDaddy already scopes the
+record to `synapse-network.ai`; use `provider-staging`, not
+`provider-staging.synapse-network.ai`. Before saving, remove any conflicting
+`A`, `AAAA`, or `CNAME` record with the same `provider-staging` name.
+
+GoDaddy path:
+
+1. Open GoDaddy Domain Portfolio.
+2. Select `synapse-network.ai`.
+3. Open DNS / Manage DNS.
+4. Add record.
+5. Choose `CNAME`.
+6. Set `Name = provider-staging`.
+7. Set `Value = ghs.googlehosted.com`.
+8. Save and wait for DNS propagation.
+
+This follows GoDaddy's CNAME record flow and Cloud Run's custom domain mapping
+flow: create the Cloud Run mapping first, then publish the DNS record shown by
+Google.
 
 ## Public Invoker Settings
 
@@ -182,6 +228,11 @@ gcloud run services update synapse-staging-admin-front \
   --no-invoker-iam-check
 
 gcloud run services update synapse-staging-gateway-admin \
+  --project "$PROJECT_ID" \
+  --region "$REGION" \
+  --no-invoker-iam-check
+
+gcloud run services update synapse-staging-provider \
   --project "$PROJECT_ID" \
   --region "$REGION" \
   --no-invoker-iam-check
@@ -247,6 +298,7 @@ dig +short staging.synapse-network.ai
 dig +short api-staging.synapse-network.ai
 dig +short admin-staging.synapse-network.ai
 dig +short admin-api-staging.synapse-network.ai
+dig +short provider-staging.synapse-network.ai
 ```
 
 Expected during Cloud Run domain mapping:
@@ -271,12 +323,15 @@ curl -I https://staging.synapse-network.ai/
 curl -I https://admin-staging.synapse-network.ai/
 curl -i https://api-staging.synapse-network.ai/health
 curl -i https://admin-api-staging.synapse-network.ai/health
+curl -i https://provider-staging.synapse-network.ai/health
+curl -i https://provider-staging.synapse-network.ai/ready
 ```
 
 Expected:
 
 - Frontend hosts return `200` or a Next.js redirect/status expected by the app.
 - API `/health` returns `200`.
+- Provider `/health` and `/ready` return `200`.
 - Auth-protected business routes return `401/403` from the application, not a
   Google Frontend `403`.
 
@@ -294,6 +349,67 @@ curl -I -H "Authorization: Bearer $(gcloud auth print-identity-token)" "$SERVICE
 
 If the first command returns Google Frontend `403` and the second returns `200`,
 disable invoker IAM check for that browser-facing service.
+
+### Provider Runtime Access
+
+Provider runtime is public only at the network layer. Business invocation still
+goes through Gateway:
+
+```text
+Agent / SDK -> api-staging.synapse-network.ai -> gateway_signed -> provider-staging.synapse-network.ai
+```
+
+Verify the Provider service exists and capture its raw Cloud Run URL:
+
+```bash
+PROVIDER_RUN_URL="$(gcloud run services describe synapse-staging-provider \
+  --project "$PROJECT_ID" \
+  --region "$REGION" \
+  --format='value(status.url)')"
+
+printf '%s\n' "$PROVIDER_RUN_URL"
+curl -i "$PROVIDER_RUN_URL/health"
+curl -i "$PROVIDER_RUN_URL/ready"
+```
+
+Verify anonymous direct invoke is rejected:
+
+```bash
+curl -i -X POST \
+  "https://provider-staging.synapse-network.ai/provider-services/web3-sentiment-index/invoke" \
+  -H 'Content-Type: application/json' \
+  -d '{"symbol":"ETH"}'
+```
+
+Expected:
+
+- DNS and TLS ready: no `Could not resolve host`, no certificate error.
+- `/health` and `/ready`: `200`.
+- `/docs` and `/openapi.json`: `404` or otherwise unavailable while
+  `PROVIDER_PUBLIC_DOCS_ENABLED=false`.
+- Unsigned `/provider-services/*/invoke`: application `401/403`.
+
+After Provider onboarding, verify Gateway discovery sees Provider services:
+
+```bash
+curl -s https://api-staging.synapse-network.ai/api/v1/services/discover | jq
+```
+
+If discovery returns an empty service list, the Provider runtime may be healthy
+but not registered or not visible through Gateway health/discovery policy. Run
+the manual onboarding and GPP E2E jobs:
+
+```bash
+gcloud run jobs execute synapse-staging-provider-onboarding \
+  --project "$PROJECT_ID" \
+  --region "$REGION" \
+  --wait
+
+gcloud run jobs execute synapse-staging-provider-gpp-e2e \
+  --project "$PROJECT_ID" \
+  --region "$REGION" \
+  --wait
+```
 
 ### CORS
 
