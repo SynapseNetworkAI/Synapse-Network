@@ -131,9 +131,9 @@ class BalanceLedger(BaseModel):
         return [
             ConsumerWalletRecord(
                 owner_address=owner,
-                available_balance=cls._legacy_money(available_map.get(owner, Decimal("0")) or Decimal("0")),
-                pending_balance=cls._legacy_money(pending_map.get(owner, Decimal("0")) or Decimal("0")),
-                frozen_balance=cls._legacy_money(frozen_map.get(owner, Decimal("0")) or Decimal("0")),
+                availableBalance=cls._legacy_money(available_map.get(owner, Decimal("0")) or Decimal("0")),
+                pendingBalance=cls._legacy_money(pending_map.get(owner, Decimal("0")) or Decimal("0")),
+                frozenBalance=cls._legacy_money(frozen_map.get(owner, Decimal("0")) or Decimal("0")),
             )
             for owner in sorted(owner for owner in owners if owner)
         ]
@@ -150,10 +150,10 @@ class BalanceLedger(BaseModel):
         owners |= {cls._normalize_owner(owner) for owner in frozen_map}
         return [
             ProviderWalletRecord(
-                owner_address=owner,
-                available_balance=cls._legacy_money(available_map.get(owner, Decimal("0")) or Decimal("0")),
-                pending_balance=cls._legacy_money(pending_map.get(owner, Decimal("0")) or Decimal("0")),
-                frozen_balance=cls._legacy_money(frozen_map.get(owner, Decimal("0")) or Decimal("0")),
+                ownerAddress=owner,
+                availableBalance=cls._legacy_money(available_map.get(owner, Decimal("0")) or Decimal("0")),
+                pendingBalance=cls._legacy_money(pending_map.get(owner, Decimal("0")) or Decimal("0")),
+                frozenBalance=cls._legacy_money(frozen_map.get(owner, Decimal("0")) or Decimal("0")),
             )
             for owner in sorted(owner for owner in owners if owner)
         ]
@@ -190,7 +190,7 @@ class BalanceLedger(BaseModel):
         found = self.provider_wallet(owner)
         if found is not None:
             return found
-        wallet = ProviderWalletRecord(owner_address=owner)
+        wallet = ProviderWalletRecord(ownerAddress=owner)
         self.provider_wallets.append(wallet)
         return wallet
 
