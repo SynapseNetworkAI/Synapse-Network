@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { Search } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect, useCallback, type MouseEvent } from "react";
@@ -106,10 +107,7 @@ export default function DocsTopNav() {
 
   const brandMark = (
     <span className="relative inline-flex h-[30px] w-[30px] items-center justify-center rounded-[8px] border border-[#2a2d31] bg-[#0d0f12]">
-      <span className="absolute inset-[4px] rounded-[5px] border border-white/[0.06]" />
-      <span className="absolute left-[7px] top-[9px] h-[5px] w-[5px] rounded-full bg-[#7ff7be]" style={{ boxShadow: "0 0 8px rgba(127,247,190,0.6)" }} />
-      <span className="absolute right-[7px] bottom-[9px] h-[5px] w-[5px] rounded-full bg-white/80" />
-      <span className="absolute left-[9px] right-[9px] top-1/2 h-px -translate-y-1/2 bg-gradient-to-r from-white/0 via-white/40 to-white/0" />
+      <Image src="/logo-mark.svg" alt="" width={22} height={22} className="h-[22px] w-[22px]" priority />
     </span>
   );
 

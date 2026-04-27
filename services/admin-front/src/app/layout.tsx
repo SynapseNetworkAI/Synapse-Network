@@ -27,6 +27,11 @@ const monoFont = IBM_Plex_Mono({
 export const metadata: Metadata = {
   title: "Synapse Network Admin Console",
   description: "Chakra-based control plane for Synapse Network administrators.",
+  icons: {
+    icon: "/brand/synapse-network-icon.svg",
+    shortcut: "/brand/synapse-network-icon.svg",
+    apple: "/brand/synapse-network-icon.svg",
+  },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
