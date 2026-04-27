@@ -25,16 +25,28 @@ from src.services.platform.tasks.provider_withdraw_expiry_reaper import (
 )
 from src.storage import create_storage
 
+logger = logging.getLogger(__name__)
+
 
 async def _run_with_job_lock(storage, job_name: str, callback):
     with postgres_advisory_job_lock(storage, job_name) as acquired:
         if not acquired:
+            logger.info(
+                "alert_trigger=GATEWAY_JOB_HEARTBEAT env=%s job_name=%s status=skipped_already_running",
+                settings.environment,
+                job_name,
+            )
             return {
                 "status": "skipped",
                 "reason": "already_running",
                 "jobName": job_name,
             }
         result = await callback()
+        logger.info(
+            "alert_trigger=GATEWAY_JOB_HEARTBEAT env=%s job_name=%s status=ok",
+            settings.environment,
+            job_name,
+        )
         return {"status": "ok", "jobName": job_name, "result": result}
 
 
@@ -123,7 +135,7 @@ async def _run(args: argparse.Namespace) -> int:
     if args.once and args.command in _ONCE_COMMANDS:
         log_name, handler = _ONCE_COMMANDS[args.command]
         result = await handler(storage)
-        logging.getLogger(__name__).info(log_name, extra=result)
+        logger.info(log_name, extra=result)
         print(result)
         return 0
     if await _run_long_lived_worker(args, storage):

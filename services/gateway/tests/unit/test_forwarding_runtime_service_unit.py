@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from contextlib import contextmanager
 from decimal import Decimal
 from types import SimpleNamespace
@@ -607,6 +608,31 @@ def test_generate_response_v2_paid_invocation_uses_typed_execution_models(
     assert storage.audit.rows[0].details["resultStatus"] == "success"
     assert storage.execution.read_quote(receipt.quoteId).status == "CONSUMED"
     assert storage.execution.read_invocation(receipt.invocationId).status == "SUCCEEDED"
+
+
+@pytest.mark.asyncio
+async def test_prepare_upstream_logs_provider_unavailable_alert(monkeypatch, caplog) -> None:
+    service = _service_definition()
+    monkeypatch.setattr(
+        forwarding_upstream.service_health_service,
+        "get_healthy_target_urls",
+        lambda service, **_: [],
+    )
+    monkeypatch.setattr(
+        forwarding_upstream.settings,
+        "forwarding_require_healthy_targets",
+        True,
+        raising=False,
+    )
+    caplog.set_level(logging.ERROR, logger=forwarding_upstream.__name__)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await forwarding_upstream.prepare_upstream_call(service, {"text": "hello"})
+
+    assert exc_info.value.status_code == 503
+    assert exc_info.value.detail["code"] == "SERVICE_UNAVAILABLE"
+    assert "alert_trigger=PROVIDER_UPSTREAM_UNAVAILABLE" in caplog.text
+    assert "service_id=svc.echo" in caplog.text
 
 
 @pytest.mark.asyncio
