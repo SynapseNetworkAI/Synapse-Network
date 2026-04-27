@@ -279,12 +279,23 @@ async def _post_upstream(
     headers: dict[str, str],
     timeout_sec: float,
 ) -> httpx.Response:
+    request_timeout = _upstream_timeout(timeout_sec)
     if settings.provider_http_client_pool_enabled:
         client = _get_upstream_http_client(timeout_sec)
-        return await client.post(target_url, json=request_payload, headers=headers)
+        return await client.post(
+            target_url,
+            json=request_payload,
+            headers=headers,
+            timeout=request_timeout,
+        )
 
     async with _create_upstream_http_client(timeout_sec) as client:
-        return await client.post(target_url, json=request_payload, headers=headers)
+        return await client.post(
+            target_url,
+            json=request_payload,
+            headers=headers,
+            timeout=request_timeout,
+        )
 
 
 def _payload_too_large_exception(
@@ -318,7 +329,16 @@ def _upstream_status_exception(status_code: int) -> HTTPException:
     )
 
 
+def _is_llm_service(service: ServiceDefinitionRecord) -> bool:
+    return (
+        str(service.service_kind or "").lower() == "llm"
+        or str(service.price_model or "").lower() == "token_metered"
+        or str(service.metering.billing_unit or "").lower() == "token"
+    )
+
+
 def _extract_success_payload(
+    service: ServiceDefinitionRecord,
     response: httpx.Response,
     max_response_bytes: int,
 ) -> dict[str, Any]:
@@ -329,6 +349,19 @@ def _extract_success_payload(
     status_code = int(getattr(response, "status_code", 200) or 200)
     if status_code >= _HTTP_ERROR_STATUS:
         raise _upstream_status_exception(status_code)
+    content_type = ""
+    try:
+        content_type = str(response.headers.get("content-type") or "")
+    except Exception:
+        content_type = ""
+    if _is_llm_service(service) and "text/event-stream" in content_type.lower():
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "code": "LLM_STREAMING_RESPONSE_NOT_SUPPORTED",
+                "message": "Provider returned a streaming LLM response; Synapse V1 requires final usage in one JSON response.",
+            },
+        )
 
     return _response_payload(response.json())
 
@@ -365,7 +398,7 @@ async def call_upstream(
             timeout_sec,
         )
         status_code = int(getattr(response, "status_code", 200) or 200)
-        payload = _extract_success_payload(response, constraints.max_response_bytes)
+        payload = _extract_success_payload(service, response, constraints.max_response_bytes)
         success = True
         return InvocationResultRecord(digest=_payload_digest(payload), payload=payload)
     except httpx.PoolTimeout as exc:
