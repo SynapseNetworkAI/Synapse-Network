@@ -45,6 +45,28 @@ class InMemoryBalanceRepo:
     def write_balance_ledger(self, ledger):
         self.ledger = ledger.model_copy(deep=True)
 
+    def reserve_consumer_balance_for_manual_review(self, owner, amount_usdc, updated_at):
+        ledger = self.read_balance_ledger()
+        wallet = ledger.ensure_consumer_wallet(owner)
+        amount = Decimal(str(amount_usdc)).quantize(Decimal("0.000001"))
+        if Decimal(str(wallet.available_balance)) < amount:
+            raise RuntimeError("INSUFFICIENT_AVAILABLE_BALANCE")
+        wallet.available_balance = (Decimal(str(wallet.available_balance)) - amount).quantize(Decimal("0.000001"))
+        wallet.frozen_balance = (Decimal(str(wallet.frozen_balance)) + amount).quantize(Decimal("0.000001"))
+        ledger.updated_at = updated_at
+        self.write_balance_ledger(ledger)
+
+    def release_consumer_frozen_to_available(self, owner, amount_usdc, updated_at):
+        ledger = self.read_balance_ledger()
+        wallet = ledger.ensure_consumer_wallet(owner)
+        amount = Decimal(str(amount_usdc)).quantize(Decimal("0.000001"))
+        if Decimal(str(wallet.frozen_balance)) < amount:
+            raise RuntimeError("RELEASE_FROZEN_TO_AVAILABLE_INCONSISTENT")
+        wallet.frozen_balance = (Decimal(str(wallet.frozen_balance)) - amount).quantize(Decimal("0.000001"))
+        wallet.available_balance = (Decimal(str(wallet.available_balance)) + amount).quantize(Decimal("0.000001"))
+        ledger.updated_at = updated_at
+        self.write_balance_ledger(ledger)
+
 
 class InMemoryFeePolicyRepo:
     def get_platform_fee_policy(self):
@@ -174,10 +196,11 @@ class FakeStorage:
 
 
 class FakeResponse:
-    def __init__(self, payload):
+    def __init__(self, payload, headers: Optional[dict[str, str]] = None):
         self._payload = payload
         self.content = json.dumps(payload).encode("utf-8")
         self.status_code = 200
+        self.headers = headers or {"content-type": "application/json"}
 
     def json(self):
         return self._payload
@@ -199,7 +222,8 @@ class FakeAsyncClient:
         _ = (exc_type, exc, tb)
         return False
 
-    async def post(self, url: str, json: dict, headers: dict):
+    async def post(self, url: str, json: dict, headers: dict, timeout=None):
+        _ = timeout
         await asyncio.sleep(0)
         type(self).last_request = {
             "url": url,
@@ -208,6 +232,58 @@ class FakeAsyncClient:
             "timeout": self.timeout,
         }
         return FakeResponse({"quote": {"answer": "pong", "echo": json["text"]}})
+
+
+class FakeLlmAsyncClient:
+    last_request = None
+
+    def __init__(self, timeout: float):
+        self.timeout = timeout
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        _ = (exc_type, exc, tb)
+        return False
+
+    async def post(self, url: str, json: dict, headers: dict, timeout=None):
+        _ = timeout
+        await asyncio.sleep(0)
+        type(self).last_request = {
+            "url": url,
+            "json": dict(json),
+            "headers": dict(headers),
+            "timeout": self.timeout,
+        }
+        return FakeResponse(
+            {
+                "id": "chatcmpl-local-001",
+                "model": "provider/deepseek-chat",
+                "choices": [{"message": {"role": "assistant", "content": "pong"}}],
+                "usage": {
+                    "prompt_tokens": 1000,
+                    "completion_tokens": 500,
+                    "total_tokens": 1500,
+                },
+            }
+        )
+
+
+class FakeMissingUsageLlmClient(FakeLlmAsyncClient):
+    async def post(self, url: str, json: dict, headers: dict, timeout=None):
+        _ = timeout
+        await asyncio.sleep(0)
+        type(self).last_request = {"url": url, "json": dict(json), "headers": dict(headers)}
+        return FakeResponse({"id": "chatcmpl-local-usage-missing", "choices": []})
+
+
+class FakeSseLlmClient(FakeLlmAsyncClient):
+    async def post(self, url: str, json: dict, headers: dict, timeout=None):
+        _ = timeout
+        await asyncio.sleep(0)
+        type(self).last_request = {"url": url, "json": dict(json), "headers": dict(headers)}
+        return FakeResponse({"event": "chunk"}, headers={"content-type": "text/event-stream"})
 
 
 class FakeStructuredAsyncClient:
@@ -223,7 +299,8 @@ class FakeStructuredAsyncClient:
         _ = (exc_type, exc, tb)
         return False
 
-    async def post(self, url: str, json: dict, headers: dict):
+    async def post(self, url: str, json: dict, headers: dict, timeout=None):
+        _ = timeout
         await asyncio.sleep(0)
         type(self).last_request = {
             "url": url,
@@ -270,7 +347,8 @@ class FakeSlowAsyncClient:
         _ = (exc_type, exc, tb)
         return False
 
-    async def post(self, url: str, json: dict, headers: dict):
+    async def post(self, url: str, json: dict, headers: dict, timeout=None):
+        _ = timeout
         _ = (url, json, headers)
         await asyncio.sleep(0.05)
         return FakeResponse({"quote": {"answer": "slow-ok"}})
@@ -287,9 +365,25 @@ class FakePoolTimeoutAsyncClient:
         _ = (exc_type, exc, tb)
         return False
 
-    async def post(self, url: str, json: dict, headers: dict):
+    async def post(self, url: str, json: dict, headers: dict, timeout=None):
+        _ = timeout
         _ = (url, json, headers)
         raise forwarding_upstream.httpx.PoolTimeout("pool saturated")
+
+
+class FakePerRequestTimeoutAsyncClient:
+    instances = []
+
+    def __init__(self, timeout, limits=None):
+        self.timeout = timeout
+        self.limits = limits
+        self.post_timeouts = []
+        type(self).instances.append(self)
+
+    async def post(self, url: str, json: dict, headers: dict, timeout=None):
+        _ = (url, json, headers)
+        self.post_timeouts.append(timeout)
+        return FakeResponse({"quote": {"answer": "ok"}})
 
 
 class FakeRedisCounter:
@@ -546,6 +640,49 @@ def _structured_service_definition() -> ServiceDefinitionRecord:
     )
 
 
+def _llm_service_definition() -> ServiceDefinitionRecord:
+    return ServiceDefinitionRecord(
+        serviceId="svc.llm.deepseek",
+        ownerAddress="0xdef",
+        serviceName="DeepSeek Chat via Provider",
+        summary="OpenAI-compatible provider-hosted LLM endpoint.",
+        status="active",
+        isActive=True,
+        pricingAmount="0",
+        pricingCurrency="USDC",
+        priceModel="token_metered",
+        serviceKind="llm",
+        tags=["llm", "deepseek"],
+        constraints={
+            "timeoutMs": 15000,
+            "maxQps": 10,
+            "maxRequestBytes": 65536,
+            "maxResponseBytes": 65536,
+        },
+        forwarding={"requestIdHeader": "X-Synapse-Request-Id"},
+        metering={
+            "billingUnit": "token",
+            "inputPricePer1MTokensUsdc": "0.140000",
+            "outputPricePer1MTokensUsdc": "0.280000",
+            "defaultMaxOutputTokens": 2048,
+            "holdBufferMultiplier": "1.2",
+            "maxAutoHoldUsdc": "1.000000",
+        },
+        invoke={
+            "method": "POST",
+            "targets": [{"url": "https://provider.test/llm/chat", "weight": 100}],
+            "request": {
+                "contentType": "application/json",
+                "schema": {"body": {"required": ["messages"]}},
+            },
+            "response": {
+                "contentType": "application/json",
+                "schema": {"body": {}},
+            },
+        },
+    )
+
+
 def test_generate_response_v2_paid_invocation_uses_typed_execution_models(
     monkeypatch,
 ) -> None:
@@ -608,6 +745,190 @@ def test_generate_response_v2_paid_invocation_uses_typed_execution_models(
     assert storage.audit.rows[0].details["resultStatus"] == "success"
     assert storage.execution.read_quote(receipt.quoteId).status == "CONSUMED"
     assert storage.execution.read_invocation(receipt.invocationId).status == "SUCCEEDED"
+
+
+def test_invoke_v1_llm_auto_preauth_settles_usage_and_releases_hold(monkeypatch) -> None:
+    raw_token = "agt_1234567890abcdef12345678"
+    storage = FakeStorage(_llm_service_definition(), _runtime_credential(raw_token))
+    storage.balance.ledger.ensure_consumer_wallet("0xabc").available_balance = Decimal("10.000000")
+
+    monkeypatch.setattr(forwarding_budget, "_get_redis_client", _async_none)
+    monkeypatch.setattr(forwarding_upstream.httpx, "AsyncClient", FakeLlmAsyncClient)
+    monkeypatch.setattr(
+        forwarding_upstream.service_health_service,
+        "get_healthy_target_urls",
+        lambda service, **_: [service.invoke.targets[0].url],
+    )
+
+    prompt = "a" * 3000
+    response = asyncio.run(
+        forwarding_service.invoke_v1(
+            storage,
+            AgentInvokeRequest(
+                serviceId="svc.llm.deepseek",
+                idempotencyKey="llm-auto-001",
+                payload=RuntimePayloadRecord(
+                    body={
+                        "model": "deepseek-chat",
+                        "messages": [{"role": "user", "content": prompt}],
+                        "max_tokens": 500,
+                    }
+                ),
+            ),
+            raw_token,
+            "req-llm-auto-001",
+        )
+    )
+
+    assert response.status == "SUCCEEDED"
+    assert Decimal(str(response.chargedUsdc)) == Decimal("0.000280")
+    assert response.result["usage"] == {
+        "inputTokens": 1000,
+        "outputTokens": 500,
+        "totalTokens": 1500,
+    }
+    assert response.result["synapse"] == {
+        "priceModel": "token_metered",
+        "holdUsdc": "0.000336",
+        "chargedUsdc": "0.000280",
+        "releasedUsdc": "0.000056",
+        "providerRevenueUsdc": "0.000252",
+        "platformFeeUsdc": "0.000028",
+        "preAuthMode": "auto",
+    }
+    assert storage.balance.ledger.consumer_available_balance("0xabc") == Decimal("9.999720")
+    assert storage.balance.ledger.consumer_frozen_balance("0xabc") == Decimal("0.000000")
+    assert storage.balance.ledger.provider_receivable_balance("0xdef") == Decimal("0.000252")
+    assert storage.balance.ledger.platform.fee_accrued == Decimal("0.000028")
+
+
+def test_invoke_v1_llm_rejects_streaming_before_upstream(monkeypatch) -> None:
+    raw_token = "agt_1234567890abcdef12345678"
+    storage = FakeStorage(_llm_service_definition(), _runtime_credential(raw_token))
+    storage.balance.ledger.ensure_consumer_wallet("0xabc").available_balance = Decimal("10.000000")
+
+    monkeypatch.setattr(forwarding_budget, "_get_redis_client", _async_none)
+    monkeypatch.setattr(forwarding_upstream.httpx, "AsyncClient", FakeLlmAsyncClient)
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(
+            forwarding_service.invoke_v1(
+                storage,
+                AgentInvokeRequest(
+                    serviceId="svc.llm.deepseek",
+                    idempotencyKey="llm-stream-001",
+                    payload=RuntimePayloadRecord(
+                        body={"messages": [{"role": "user", "content": "hi"}], "stream": True}
+                    ),
+                ),
+                raw_token,
+                "req-llm-stream-001",
+            )
+        )
+
+    assert exc_info.value.status_code == 400
+    assert exc_info.value.detail["code"] == "LLM_STREAMING_NOT_SUPPORTED"
+    assert storage.balance.ledger.consumer_available_balance("0xabc") == Decimal("10.000000")
+
+
+def test_invoke_v1_llm_missing_usage_releases_hold(monkeypatch) -> None:
+    raw_token = "agt_1234567890abcdef12345678"
+    storage = FakeStorage(_llm_service_definition(), _runtime_credential(raw_token))
+    storage.balance.ledger.ensure_consumer_wallet("0xabc").available_balance = Decimal("10.000000")
+
+    monkeypatch.setattr(forwarding_budget, "_get_redis_client", _async_none)
+    monkeypatch.setattr(forwarding_upstream.httpx, "AsyncClient", FakeMissingUsageLlmClient)
+    monkeypatch.setattr(
+        forwarding_upstream.service_health_service,
+        "get_healthy_target_urls",
+        lambda service, **_: [service.invoke.targets[0].url],
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(
+            forwarding_service.invoke_v1(
+                storage,
+                AgentInvokeRequest(
+                    serviceId="svc.llm.deepseek",
+                    idempotencyKey="llm-missing-usage-001",
+                    payload=RuntimePayloadRecord(
+                        body={"messages": [{"role": "user", "content": "hi"}], "max_tokens": 10}
+                    ),
+                ),
+                raw_token,
+                "req-llm-missing-usage-001",
+            )
+        )
+
+    assert exc_info.value.status_code == 502
+    assert exc_info.value.detail["code"] == "LLM_USAGE_MISSING"
+    assert storage.balance.ledger.consumer_available_balance("0xabc") == Decimal("10.000000")
+    assert storage.balance.ledger.consumer_frozen_balance("0xabc") == Decimal("0.000000")
+    assert storage.balance.ledger.provider_receivable_balance("0xdef") == Decimal("0")
+
+
+def test_invoke_v1_llm_explicit_max_cost_too_low(monkeypatch) -> None:
+    raw_token = "agt_1234567890abcdef12345678"
+    storage = FakeStorage(_llm_service_definition(), _runtime_credential(raw_token))
+    storage.balance.ledger.ensure_consumer_wallet("0xabc").available_balance = Decimal("10.000000")
+    monkeypatch.setattr(forwarding_budget, "_get_redis_client", _async_none)
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(
+            forwarding_service.invoke_v1(
+                storage,
+                AgentInvokeRequest(
+                    serviceId="svc.llm.deepseek",
+                    idempotencyKey="llm-max-low-001",
+                    maxCostUsdc=Decimal("0.000001"),
+                    payload=RuntimePayloadRecord(
+                        body={
+                            "messages": [{"role": "user", "content": "a" * 3000}],
+                            "max_tokens": 500,
+                        }
+                    ),
+                ),
+                raw_token,
+                "req-llm-max-low-001",
+            )
+        )
+
+    assert exc_info.value.status_code == 422
+    assert exc_info.value.detail["code"] == "LLM_MAX_COST_TOO_LOW"
+
+
+def test_invoke_v1_llm_rejects_provider_sse_response(monkeypatch) -> None:
+    raw_token = "agt_1234567890abcdef12345678"
+    storage = FakeStorage(_llm_service_definition(), _runtime_credential(raw_token))
+    storage.balance.ledger.ensure_consumer_wallet("0xabc").available_balance = Decimal("10.000000")
+
+    monkeypatch.setattr(forwarding_budget, "_get_redis_client", _async_none)
+    monkeypatch.setattr(forwarding_upstream.httpx, "AsyncClient", FakeSseLlmClient)
+    monkeypatch.setattr(
+        forwarding_upstream.service_health_service,
+        "get_healthy_target_urls",
+        lambda service, **_: [service.invoke.targets[0].url],
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(
+            forwarding_service.invoke_v1(
+                storage,
+                AgentInvokeRequest(
+                    serviceId="svc.llm.deepseek",
+                    idempotencyKey="llm-sse-001",
+                    payload=RuntimePayloadRecord(
+                        body={"messages": [{"role": "user", "content": "hi"}], "max_tokens": 10}
+                    ),
+                ),
+                raw_token,
+                "req-llm-sse-001",
+            )
+        )
+
+    assert exc_info.value.status_code == 502
+    assert exc_info.value.detail["code"] == "LLM_STREAMING_RESPONSE_NOT_SUPPORTED"
+    assert storage.balance.ledger.consumer_available_balance("0xabc") == Decimal("10.000000")
 
 
 @pytest.mark.asyncio
@@ -820,6 +1141,45 @@ def test_upstream_http_pool_timeout_rolls_back_charge(monkeypatch) -> None:
     assert storage.balance.ledger.consumer_available_balance("0xabc") == Decimal("10.000000")
     assert storage.balance.ledger.provider_receivable_balance("0xdef") == Decimal("0")
     assert all(row.status != "succeeded" for row in storage.gateway_state.usage_rows)
+
+
+def test_pooled_upstream_client_uses_per_request_timeout(monkeypatch) -> None:
+    FakePerRequestTimeoutAsyncClient.instances = []
+    forwarding_upstream._shared_upstream_client_state.client = None
+    forwarding_upstream._shared_upstream_client_state.factory = None
+    monkeypatch.setattr(
+        forwarding_upstream.settings,
+        "provider_http_client_pool_enabled",
+        True,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        forwarding_upstream.httpx,
+        "AsyncClient",
+        FakePerRequestTimeoutAsyncClient,
+    )
+
+    asyncio.run(
+        forwarding_upstream._post_upstream(
+            "https://provider.example/fast",
+            {"prompt": "fast"},
+            {},
+            3.0,
+        )
+    )
+    asyncio.run(
+        forwarding_upstream._post_upstream(
+            "https://provider.example/slow",
+            {"prompt": "slow"},
+            {},
+            15.0,
+        )
+    )
+
+    assert len(FakePerRequestTimeoutAsyncClient.instances) == 1
+    first_timeout, second_timeout = FakePerRequestTimeoutAsyncClient.instances[0].post_timeouts
+    assert first_timeout.read == 3.0
+    assert second_timeout.read == 15.0
 
 
 def test_invoke_v1_accepts_zero_price_service_without_charging(monkeypatch) -> None:
