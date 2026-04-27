@@ -572,6 +572,86 @@ must expose:
 - `POSTGRES_DSN` from `synapse-staging-postgres-dsn`
 - `EMAIL_FROM=Synapse Network Staging <staging-alerts@synapse-network.ai>`
 - `EMAIL_REPLY_TO=support@synapse-network.ai`
+- `PUBLIC_GATEWAY_BASE_URL=https://api-staging.synapse-network.ai` for API
+  callbacks such as email verification links.
+- `PUBLIC_APP_BASE_URL=https://staging.synapse-network.ai` for user-facing email
+  CTA links such as `Open Synapse`.
+- `TRANSACTION_LARK_ENABLED=true` in staging only.
+- `TRANSACTION_LARK_WEBHOOK_URL` from
+  `synapse-staging-lark-webhook-staging-drill`.
+- `TRANSACTION_LARK_SECRET` from `synapse-staging-lark-secret-staging-drill`
+  only when the Lark bot has signing enabled.
+
+Local transaction notification E2E has two modes:
+
+- Default local mode uses fake delivery sinks and does not send real Gmail or
+  real Lark.
+- `local-real` mode sends real local Gmail SMTP and real Lark. Put private
+  values in `services/gateway/.env.local.private` or shell exports; do not put
+  real app passwords, webhook URLs, or signing secrets in tracked files.
+
+Put the non-secret local defaults in `services/gateway/.env.local` or the local
+startup script:
+
+```bash
+EMAIL_OUTBOX_ENABLED=true
+EMAIL_TRANSPORT=gmail_smtp
+EMAIL_FROM='Synapse Network Local <local@synapse.test>'
+EMAIL_REPLY_TO='support@synapse-network.ai'
+PUBLIC_GATEWAY_BASE_URL=http://127.0.0.1:8000
+PUBLIC_APP_BASE_URL=http://127.0.0.1:3000
+
+TRANSACTION_LARK_ENABLED=true
+TRANSACTION_LARK_WEBHOOK_URL=http://127.0.0.1:<fake-lark-port>/lark
+TRANSACTION_LARK_SECRET=
+TRANSACTION_LARK_TIMEOUT_SEC=3
+
+POSTGRES_DSN=postgresql://synapse_gateway_app:local-dev-gateway-app-password@localhost:5432/synapse_gateway
+JWT_SECRET=replace-this-with-a-32-byte-minimum-jwt-secret
+AUTH_SECRET=replace-this-with-a-32-byte-minimum-auth-secret
+```
+
+For real local delivery, add the private values outside Git:
+
+```bash
+cat > services/gateway/.env.local.private <<'EOF'
+GMAIL_SMTP_USERNAME=<gmail-or-workspace-sender>
+GMAIL_SMTP_APP_PASSWORD=<16-char-app-password-no-spaces>
+EMAIL_FROM='Synapse Network Local <sender@example.com>'
+EMAIL_REPLY_TO=support@synapse-network.ai
+PUBLIC_APP_BASE_URL=http://127.0.0.1:3000
+TRANSACTION_LARK_WEBHOOK_URL=https://open.larksuite.com/open-apis/bot/v2/hook/...
+TRANSACTION_LARK_SECRET=<optional-signing-secret>
+TRANSACTION_NOTIFICATIONS_TEST_EMAIL=<real-recipient@example.com>
+TRANSACTION_NOTIFICATIONS_LOCAL_REAL_CONFIRM=I_UNDERSTAND_THIS_SENDS_REAL_LOCAL_EMAIL_AND_LARK
+EOF
+```
+
+Run local evidence before deploying new transaction notification code:
+
+```bash
+npm run e2e:transaction-notifications:local
+npm run ci:transaction-notifications-local-evidence
+```
+
+Run real local delivery evidence only when you intentionally want a real email
+and Lark card:
+
+```bash
+npm run e2e:transaction-notifications:local-real
+npm run ci:transaction-notifications-local-real-evidence
+```
+
+Run live staging evidence only after deploying the new Gateway image:
+
+```bash
+export TRANSACTION_NOTIFICATIONS_STAGING_CONFIRM=I_UNDERSTAND_THIS_SENDS_STAGING_EMAIL_AND_LARK
+export STAGING_TRANSACTION_POSTGRES_DSN=<Cloud-SQL-Auth-Proxy-localhost-DSN>
+export STAGING_TRANSACTION_TEST_EMAIL=<verified-staging-test-email>
+
+npm run e2e:transaction-notifications:staging
+npm run ci:transaction-notifications-staging-evidence
+```
 
 Terraform injects the Gmail username and app password into Gateway-backed
 services and jobs through `gateway_secret_env`. It also injects
@@ -602,6 +682,19 @@ gcloud run jobs update synapse-staging-notification-outbox-drain \
   --update-secrets POSTGRES_DSN=synapse-staging-postgres-dsn:latest,GMAIL_SMTP_USERNAME=synapse-staging-gmail-username:latest,GMAIL_SMTP_APP_PASSWORD=synapse-staging-gmail-app-password:latest \
   --update-env-vars EMAIL_FROM='Synapse Network Staging <staging-alerts@synapse-network.ai>',EMAIL_REPLY_TO='support@synapse-network.ai'
 ```
+
+Transaction notification behavior:
+
+- Deposit/refund/withdrawal success points enqueue Gmail receipt rows after the
+  money mutation has committed. SMTP or Lark failures must never roll back
+  ledger state.
+- Gmail receipts are sent only to verified owner emails. Saving or changing an
+  email does not send a “saved successfully” email; it sends an
+  `email_verification` message with a signed link.
+- Staging Lark transaction cards are a watch channel only. They must include
+  `STAGING_TRANSACTION_EVENT` and `NO_ACTION_REQUIRED`, and must not include
+  raw email addresses, JWTs, private keys, withdrawal tickets, signatures, or
+  webhook URLs.
 
 ### Cloud SQL Database Topology
 
@@ -1015,6 +1108,9 @@ Required boundaries:
 | `LARK_SECRET_P0_WAR_ROOM` | `synapse-staging-lark-secret-p0` | Optional Lark signing secret. | Only if bot signing is enabled |
 | `LARK_SECRET_PROD_ALERTS` | `synapse-staging-lark-secret-prod-alerts` | Optional Lark signing secret. | Only if bot signing is enabled |
 | `LARK_SECRET_STAGING_DRILL` | `synapse-staging-lark-secret-staging-drill` | Optional Lark signing secret. | Only if bot signing is enabled |
+| `TRANSACTION_LARK_WEBHOOK_URL` | `synapse-staging-lark-webhook-staging-drill` | Gateway transaction watch cards for staging receipts and withdrawals. | Yes for staging transaction watch |
+| `TRANSACTION_LARK_SECRET` | `synapse-staging-lark-secret-staging-drill` | Optional Gateway transaction-watch signing secret. | Only if bot signing is enabled |
+| `TRANSACTION_LARK_ENABLED` | `true` in staging, `false` in prod by default | Enables Gateway transaction-watch cards. | Staging only |
 | `GCP_ALERT_RECEIVER_ENABLED` | `true` | Enables gateway-admin `/api/v1/ops/webhooks/gcp-alert-receiver`. | Yes for GCP alert webhook |
 | `GCP_ALERT_RECEIVER_TOKEN` | `synapse-staging-gcp-alert-receiver-token` | Shared token required from GCP Monitoring. | Yes |
 | `GCP_ALERT_RECEIVER_USERNAME` | `synapse-gcp-alert` | HTTP Basic username for the GCP webhook channel. | Yes |
@@ -1135,11 +1231,16 @@ sequence is:
 1. Resolve the selected branch/tag/commit into an immutable commit SHA.
 2. Resolve deploy scope (`auto`, one service, or `all`).
 3. Build only affected service images in Cloud Build.
-4. Run the DB migration job before API rollout when schema/migration files changed.
+4. Run the Gateway DB migration job before every Gateway API rollout. This is
+   intentional even when no migration file changed: the migration job also runs
+   schema contract validation against the real staging Cloud SQL database and
+   catches drifted constraints.
 5. If Gateway is affected, update all Gateway jobs to the same Gateway image digest.
 6. Deploy affected Cloud Run services by immutable image digest when available.
 7. Run smoke tests only for affected services.
-8. Write `release-manifest.json` and upload it to the staging evidence bucket.
+8. If Gateway is affected, run the staging drift guard against live Cloud Run,
+   Secret Manager, Provider discovery, and Gateway job digests.
+9. Write `release-manifest.json` and upload it to the staging evidence bucket.
 
 Branch-based staging deploy is allowed, but the workflow freezes the branch HEAD
 at dispatch time. Release evidence must record `sourceRefType`, `sourceRef`,
@@ -1152,6 +1253,37 @@ Artifact Registry tags use Docker-safe UTC timestamps:
 also includes a human display timestamp in `yyyy-MM-dd HH:mm:ss` with
 `timestampTimezone=UTC`; UI layers may convert that ISO source time to local
 operator time for display.
+
+### Drift Guard Release Gate
+
+The staging deploy workflow runs `npm run ci:staging-drift-guard` whenever the
+Gateway deploy scope is active. This gate is deliberately live-environment
+focused; it prevents the exact drift classes that previously broke staging:
+
+- Free services are a product contract. `costUsdc=0.000000` is valid and
+  negative prices are invalid. The Gateway schema contract requires
+  `synapse_service_quotes.quoted_price_usdc >= 0`; an older `> 0` constraint
+  fails release validation.
+- `synapse-staging-provider-signature-secret`,
+  `synapse-staging-gcp-alert-receiver-token`, and
+  `synapse-staging-alert-drill-token` must be non-empty, non-placeholder, and
+  newline-free.
+- Gateway and Provider must both inject
+  `GATEWAY_PROVIDER_SIGNATURE_SECRET` from
+  `synapse-staging-provider-signature-secret`.
+- Provider runtime must mount
+  `fabled-archive-494108-k5:us-central1:synapse-staging-postgres` whenever it
+  uses the Cloud SQL DSN secret.
+- Provider services must remain discoverable through Gateway and must not drift
+  back to old `api-staging.../api/v1/gateway/generate` style endpoints. The
+  expected staging prefix is
+  `https://provider-staging.synapse-network.ai/provider-services/`.
+- Gateway service and Gateway jobs must share the same immutable image digest.
+
+The drift guard writes its result into `release-manifest.json` under
+`driftGuard`. A failed drift guard fails the deployment and the Growing
+DeploymentRecord should show the failed phase plus the remediation hint from
+the workflow logs.
 
 GitHub Actions authenticates to Google Cloud through Workload Identity
 Federation, not a long-lived service account JSON key. The staging workflow must

@@ -989,6 +989,41 @@ def test_credential_auth_repository_updates_owner_profile_without_touching_shell
     assert "email_verified = CASE" in update_sql
 
 
+def test_credential_auth_repository_verifies_owner_email() -> None:
+    db = FakeDB()
+    db.tx_plan.append({"fetchone": [(
+        "owner:0xabc",
+        "0xabc",
+        "Infra Desk",
+        "infra@synapse.test",
+        True,
+        False,
+        True,
+        "active",
+        "USDC",
+        "2026-04-03 10:00:00",
+        "2026-04-03 10:07:00",
+    )]})
+    repo = CredentialAuthRepository(db, _q6)
+
+    profile = repo.verify_owner_email("0xABC", "INFRA@SYNAPSE.TEST")
+
+    assert profile is not None
+    assert profile.email_verified is True
+    executed = db.tx_cursors[-1].executed
+    update_sql, params = executed[0]
+    assert "UPDATE synapse_owner_accounts" in update_sql
+    assert "email_verified = TRUE" in update_sql
+    assert params == ("0xabc", "infra@synapse.test")
+
+
+def test_credential_auth_repository_verify_owner_email_rejects_empty_inputs() -> None:
+    repo = CredentialAuthRepository(FakeDB(), _q6)
+
+    assert repo.verify_owner_email("", "infra@synapse.test") is None
+    assert repo.verify_owner_email("0xabc", "") is None
+
+
 def test_gateway_state_repository_read_and_write() -> None:
     db = FakeDB()
     db.readonly_plan.append({"fetchall": [[(

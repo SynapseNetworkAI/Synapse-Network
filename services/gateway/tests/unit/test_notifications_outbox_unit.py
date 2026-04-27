@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import smtplib
 import inspect
 from types import SimpleNamespace
@@ -28,6 +29,18 @@ from src.services.notifications.outbox_worker import (
 from src.services.notifications.sanitizer import mask_email, redact_payload, redact_text
 from src.services.notifications.sender import GmailSmtpSender
 from src.services.notifications.templates import render_notification_email
+from src.services.notifications.transactional import (
+    build_public_app_url,
+    build_notification_intent_for_owner,
+    enqueue_transaction_email,
+    schedule_transaction_notifications,
+    _send_lark_transaction_event,
+)
+from src.services.notifications.email_verification import (
+    build_email_verification_url,
+    create_email_verification_token,
+    verify_email_verification_token,
+)
 from src.services.notifications.in_app import (
     IN_APP_NOTIFICATION_EVENT_CATALOG,
     SUPPRESSED_REALTIME_IN_APP_EVENTS,
@@ -97,6 +110,64 @@ class FakeEmailSender:
             message_id="fake-message-id",
             provider_response={"transport": "fake"},
         )
+
+
+class FakeOwnerProfile:
+    def __init__(self, *, email: str | None, email_verified: bool) -> None:
+        self.email = email
+        self.email_verified = email_verified
+
+
+class FakeCredentialAuth:
+    def __init__(self, profile: FakeOwnerProfile | None) -> None:
+        self.profile = profile
+        self.calls: list[tuple[str, bool]] = []
+
+    def read_owner_profile(self, wallet: str, *, ensure_exists: bool = True):
+        self.calls.append((wallet, ensure_exists))
+        return self.profile
+
+
+class FakeTransactionalStorage:
+    def __init__(self, profile: FakeOwnerProfile | None, *, fail_enqueue: bool = False) -> None:
+        credential_auth = FakeCredentialAuth(profile)
+        self.manager = SimpleNamespace(
+            system=SimpleNamespace(credential_auth=credential_auth)
+        )
+        self.fail_enqueue = fail_enqueue
+        self.enqueued: list[NotificationIntent] = []
+
+    def get_data_manager(self):
+        return self.manager
+
+    def enqueue_notification_outbox(self, intent: NotificationIntent) -> None:
+        if self.fail_enqueue:
+            raise RuntimeError("outbox unavailable")
+        self.enqueued.append(intent)
+
+
+class FakeAsyncResponse:
+    def __init__(self, status_code: int) -> None:
+        self.status_code = status_code
+
+
+class FakeAsyncClient:
+    calls: list[dict] = []
+    status_code = 200
+
+    def __init__(self, *, timeout, trust_env):
+        self.timeout = timeout
+        self.trust_env = trust_env
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        return False
+
+    async def post(self, url: str, *, json: dict):
+        self.calls.append({"url": url, "json": json, "timeout": self.timeout, "trust_env": self.trust_env})
+        return FakeAsyncResponse(self.status_code)
 
 
 class FakeCursor:
@@ -366,6 +437,191 @@ def test_render_notification_email_redacts_sensitive_payload() -> None:
     assert "0x" + "c" * 64 not in body
 
 
+def test_render_transaction_receipt_email_uses_x_style_card_and_redacts() -> None:
+    rendered = render_notification_email(
+        "deposit_confirmed",
+        {
+            "status": "CONFIRMED",
+            "amount": "10.000000 USDC",
+            "depositId": "dep-123",
+            "txHash": "0x" + "a" * 64,
+            "actionUrl": "https://staging.synapse-network.ai/dashboard/billing",
+            "signature": "0x" + "b" * 130,
+        },
+    )
+
+    assert rendered.subject == "SynapseNetwork: Your deposit is confirmed"
+    assert "Receipt from Synapse Network" in rendered.html_body
+    assert "10.000000 USDC" in rendered.html_body
+    assert "dep-123" in rendered.text_body
+    assert "<br/>" not in rendered.html_body
+    assert "0x" + "a" * 64 not in rendered.html_body
+    assert "0x" + "b" * 64 not in rendered.html_body
+
+
+def test_render_email_verification_template_has_cta_without_saved_notice() -> None:
+    rendered = render_notification_email(
+        "email_verification",
+        {
+            "status": "PENDING_VERIFICATION",
+            "requestId": "email-verification:0xabc",
+            "actionUrl": "https://api.synapse.test/api/v1/auth/email/verify?v=abc",
+        },
+    )
+
+    assert "Verify your Synapse email" in rendered.subject
+    assert "Verify email" in rendered.html_body
+    assert "saved" not in rendered.text_body.lower()
+
+
+def test_build_transaction_email_intent_dedupes_by_event_owner_resource() -> None:
+    intent = build_notification_intent_for_owner(
+        owner_wallet="0xABC",
+        recipient_email="Owner@Synapse.Test",
+        template_key="refund_completed",
+        event_type="refund.completed",
+        resource_id="refund-1",
+        payload={"refundId": "refund-1", "private_key": "0x" + "c" * 64},
+    )
+
+    assert intent.recipient_email == "owner@synapse.test"
+    assert intent.recipient_owner_id == "0xabc"
+    assert intent.dedupe_key == "email:refund.completed:0xabc:refund-1"
+    assert intent.payload["private_key"] == "[REDACTED]"
+
+
+def test_enqueue_transaction_email_requires_verified_email() -> None:
+    storage = FakeTransactionalStorage(FakeOwnerProfile(email="owner@synapse.test", email_verified=False))
+
+    assert enqueue_transaction_email(
+        storage,
+        owner_wallet="0xABC",
+        template_key="deposit_confirmed",
+        event_type="deposit.confirmed",
+        payload={"depositId": "dep-1"},
+    ) is False
+    assert storage.enqueued == []
+
+    verified_storage = FakeTransactionalStorage(FakeOwnerProfile(email="owner@synapse.test", email_verified=True))
+    assert enqueue_transaction_email(
+        verified_storage,
+        owner_wallet="0xABC",
+        template_key="deposit_confirmed",
+        event_type="deposit.confirmed",
+        payload={"depositId": "dep-1"},
+    ) is True
+    assert verified_storage.enqueued[0].template_key == "deposit_confirmed"
+
+
+def test_enqueue_transaction_email_skips_unknown_missing_and_failed_profiles() -> None:
+    verified_storage = FakeTransactionalStorage(FakeOwnerProfile(email="owner@synapse.test", email_verified=True))
+    assert enqueue_transaction_email(
+        verified_storage,
+        owner_wallet="0xABC",
+        template_key="unknown_template",
+        event_type="deposit.confirmed",
+        payload={"depositId": "dep-1"},
+    ) is False
+    assert verified_storage.enqueued == []
+
+    missing_email = FakeTransactionalStorage(FakeOwnerProfile(email=None, email_verified=True))
+    assert enqueue_transaction_email(
+        missing_email,
+        owner_wallet="0xABC",
+        template_key="deposit_confirmed",
+        event_type="deposit.confirmed",
+        payload={"depositId": "dep-1"},
+    ) is False
+
+    failing_storage = FakeTransactionalStorage(FakeOwnerProfile(email="owner@synapse.test", email_verified=True), fail_enqueue=True)
+    assert enqueue_transaction_email(
+        failing_storage,
+        owner_wallet="0xABC",
+        template_key="deposit_confirmed",
+        event_type="deposit.confirmed",
+        payload={"depositId": "dep-1"},
+    ) is False
+
+
+def test_email_verification_token_roundtrip_and_invalid_paths(monkeypatch) -> None:
+    monkeypatch.setattr(settings, "auth_secret", "unit-test-auth-secret-with-enough-entropy", raising=False)
+    monkeypatch.setattr(settings, "email_verification_ttl_sec", 60, raising=False)
+    monkeypatch.setattr(settings, "public_gateway_base_url", "https://api.synapse.test", raising=False)
+
+    token = create_email_verification_token(owner_wallet="0xABC", email="Owner@Synapse.Test")
+    verified = verify_email_verification_token(token)
+
+    assert verified == {"owner": "0xabc", "email": "owner@synapse.test"}
+    assert verify_email_verification_token("not-a-token") is None
+    assert verify_email_verification_token(token + "tampered") is None
+    assert build_email_verification_url(owner_wallet="0xABC", email="owner@synapse.test").startswith(
+        "https://api.synapse.test/api/v1/auth/email/verify?v="
+    )
+
+
+def test_schedule_transaction_notifications_without_running_loop_enqueues_email() -> None:
+    storage = FakeTransactionalStorage(FakeOwnerProfile(email="owner@synapse.test", email_verified=True))
+
+    schedule_transaction_notifications(
+        storage,
+        owner_wallet="0xABC",
+        template_key="deposit_confirmed",
+        event_type="deposit.confirmed",
+        payload={"depositId": "dep-sync", "amount": "1.000000"},
+    )
+
+    assert storage.enqueued[0].template_key == "deposit_confirmed"
+
+
+@pytest.mark.asyncio
+async def test_lark_transaction_event_sends_signed_sanitized_card(monkeypatch) -> None:
+    FakeAsyncClient.calls = []
+    FakeAsyncClient.status_code = 200
+    monkeypatch.setattr(settings, "transaction_lark_enabled", True, raising=False)
+    monkeypatch.setattr(settings, "transaction_lark_webhook_url", "https://lark.test/hook", raising=False)
+    monkeypatch.setattr(settings, "transaction_lark_secret", "signing-secret", raising=False)
+    monkeypatch.setattr(settings, "transaction_lark_timeout_sec", 3, raising=False)
+    monkeypatch.setattr("src.services.notifications.transactional.httpx.AsyncClient", FakeAsyncClient)
+
+    sent = await _send_lark_transaction_event(
+        template_key="deposit_confirmed",
+        event_type="deposit.confirmed",
+        owner_wallet="0xABC",
+        payload={"depositId": "dep-1", "amount": "2.000000", "status": "CONFIRMED", "txHash": "0x" + "a" * 64},
+    )
+
+    assert sent is True
+    body = FakeAsyncClient.calls[0]["json"]
+    assert body["sign"]
+    assert "STAGING_TRANSACTION_EVENT" in body["card"]["elements"][0]["text"]["content"]
+    assert "[REDACTED_HEX]" in body["card"]["elements"][0]["text"]["content"]
+
+
+@pytest.mark.asyncio
+async def test_lark_transaction_event_handles_disabled_and_http_failure(monkeypatch) -> None:
+    monkeypatch.setattr(settings, "transaction_lark_enabled", False, raising=False)
+    assert await _send_lark_transaction_event(
+        template_key="deposit_confirmed",
+        event_type="deposit.confirmed",
+        owner_wallet="0xABC",
+        payload={"depositId": "dep-1"},
+    ) is False
+
+    FakeAsyncClient.calls = []
+    FakeAsyncClient.status_code = 500
+    monkeypatch.setattr(settings, "transaction_lark_enabled", True, raising=False)
+    monkeypatch.setattr(settings, "transaction_lark_webhook_url", "https://lark.test/hook", raising=False)
+    monkeypatch.setattr(settings, "transaction_lark_secret", "", raising=False)
+    monkeypatch.setattr("src.services.notifications.transactional.httpx.AsyncClient", FakeAsyncClient)
+
+    assert await _send_lark_transaction_event(
+        template_key="refund_completed",
+        event_type="refund.completed",
+        owner_wallet="0xABC",
+        payload={"refundId": "refund-1", "status": "FAILED"},
+    ) is False
+
+
 def test_render_notification_email_includes_action_url_and_rejects_unknown_template() -> None:
     rendered = render_notification_email(
         "deposit_confirmed",
@@ -379,6 +635,16 @@ def test_render_notification_email_includes_action_url_and_rejects_unknown_templ
     assert "Open Synapse: https://app.synapse.test/deposits/dep-123" in rendered.text_body
     with pytest.raises(UnknownNotificationTemplate):
         render_notification_email("unknown_template", {})
+
+
+def test_build_public_app_url_uses_user_front_base(monkeypatch) -> None:
+    monkeypatch.setattr(settings, "public_app_base_url", "http://127.0.0.1:3000")
+    monkeypatch.setattr(settings, "public_gateway_base_url", "http://127.0.0.1:8000")
+
+    assert build_public_app_url("/dashboard/billing/credits") == (
+        "http://127.0.0.1:3000/dashboard/billing/credits"
+    )
+    assert build_public_app_url("provider/withdraw") == "http://127.0.0.1:3000/provider/withdraw"
 
 
 def test_notification_sanitizer_masks_email_and_payload_values() -> None:

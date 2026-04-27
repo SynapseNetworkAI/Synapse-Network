@@ -29,6 +29,7 @@ from src.services.notifications.in_app import (
     build_refund_completed_intent,
     schedule_in_app_notification,
 )
+from src.services.notifications.transactional import build_public_app_url, schedule_transaction_notifications
 from src.storage import BaseStorage, get_storage
 
 router = APIRouter()
@@ -141,6 +142,20 @@ async def confirm_deposit_intent(
         storage,
         build_deposit_confirmed_intent(owner_wallet, confirmed),
     )
+    schedule_transaction_notifications(
+        storage,
+        owner_wallet=owner_wallet,
+        template_key="deposit_confirmed",
+        event_type="deposit.confirmed",
+        payload={
+            "depositId": confirmed.get("depositId") or confirmed.get("id") or deposit_intent_id,
+            "amount": confirmed.get("amount") or confirmed.get("amountUsdc"),
+            "status": "CONFIRMED",
+            "txHash": confirmed.get("txHash"),
+            "ownerAddress": owner_wallet,
+            "actionUrl": build_public_app_url("/dashboard/billing/credits"),
+        },
+    )
     return {"status": "success", "intent": confirmed}
 
 
@@ -200,6 +215,20 @@ async def complete_refund(
         storage,
         build_refund_completed_intent(owner_wallet, {"refundId": refund_id, **result}),
     )
+    schedule_transaction_notifications(
+        storage,
+        owner_wallet=owner_wallet,
+        template_key="refund_completed",
+        event_type="refund.completed",
+        payload={
+            "refundId": refund_id,
+            "amount": result.get("amount") or result.get("amountUsdc"),
+            "status": "COMPLETED",
+            "txHash": result.get("txHash"),
+            "ownerAddress": owner_wallet,
+            "actionUrl": build_public_app_url("/dashboard/billing"),
+        },
+    )
     return {"status": "success", "ownerAddress": owner_wallet, **result}
 
 
@@ -232,6 +261,7 @@ async def complete_refund_as_admin(
     request: Request,
     principal: Annotated[InternalServicePrincipal, Depends(require_internal_scope("refund.complete"))],
     service: Annotated[BalanceService, Depends(get_balance_service)],
+    storage: Annotated[BaseStorage, Depends(get_storage)],
 ):
     admin_wallet = _ensure_fee_policy_admin(principal.admin_wallet)
     target_owner = normalize_wallet(payload.ownerAddress)
@@ -258,6 +288,20 @@ async def complete_refund_as_admin(
         tx_hash=payload.txHash,
         request_meta=request_meta,
     )
+    schedule_transaction_notifications(
+        storage,
+        owner_wallet=target_owner,
+        template_key="refund_completed",
+        event_type="refund.completed",
+        payload={
+            "refundId": refund_id,
+            "amount": result.get("amount") or result.get("amountUsdc"),
+            "status": "COMPLETED",
+            "txHash": payload.txHash,
+            "ownerAddress": target_owner,
+            "actionUrl": build_public_app_url("/dashboard/billing"),
+        },
+    )
     return {
         "status": "success",
         "requestedBy": admin_wallet,
@@ -278,6 +322,7 @@ async def review_refund_as_admin(
     request: Request,
     principal: Annotated[InternalServicePrincipal, Depends(require_internal_scope("refund.review"))],
     service: Annotated[BalanceService, Depends(get_balance_service)],
+    storage: Annotated[BaseStorage, Depends(get_storage)],
 ):
     admin_wallet = _ensure_fee_policy_admin(principal.admin_wallet)
     target_owner = normalize_wallet(payload.ownerAddress)
@@ -303,6 +348,21 @@ async def review_refund_as_admin(
         refund_id=refund_id,
         request_meta=request_meta,
     )
+    result_status = str(result.get("status") or result.get("withdrawalStatus") or "").upper()
+    if result.get("ticket") or result_status in {"SIGNED", "APPROVED_AUTO"}:
+        schedule_transaction_notifications(
+            storage,
+            owner_wallet=target_owner,
+            template_key="consumer_withdrawal_ticket_ready",
+            event_type="consumer_withdrawal.ticket_ready",
+            payload={
+                "withdrawalId": result.get("withdrawalId") or refund_id,
+                "amount": result.get("amount") or result.get("amountUsdc"),
+                "status": result_status or "SIGNED",
+                "ownerAddress": target_owner,
+                "actionUrl": build_public_app_url("/dashboard/billing/credits"),
+            },
+        )
     return {
         "status": "success",
         "requestedBy": admin_wallet,
@@ -345,6 +405,21 @@ async def create_consumer_withdraw(
         storage,
         build_consumer_withdrawal_created_intent(owner_wallet, result),
     )
+    result_status = str(result.get("status") or result.get("withdrawalStatus") or "").upper()
+    if result.get("ticket") or result_status in {"SIGNED", "APPROVED_AUTO"}:
+        schedule_transaction_notifications(
+            storage,
+            owner_wallet=owner_wallet,
+            template_key="consumer_withdrawal_ticket_ready",
+            event_type="consumer_withdrawal.ticket_ready",
+            payload={
+                "withdrawalId": result.get("withdrawalId"),
+                "amount": result.get("amount") or result.get("amountUsdc"),
+                "status": result_status or "SIGNED",
+                "ownerAddress": owner_wallet,
+                "actionUrl": build_public_app_url("/dashboard/billing/credits"),
+            },
+        )
     return {"status": "success", "ownerAddress": owner_wallet, **result}
 
 

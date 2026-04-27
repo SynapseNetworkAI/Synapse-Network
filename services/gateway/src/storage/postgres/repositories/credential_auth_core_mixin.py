@@ -3,27 +3,16 @@ from __future__ import annotations
 
 import json
 from datetime import datetime
-from decimal import Decimal
-from typing import Any, Callable, Optional, TypeVar
+from typing import Any, Optional, TypeVar
 
 from pydantic import BaseModel
 
 from src.domain.identity import (
-    AgentCredentialRecord,
-    AgentProfileRecord,
-    BudgetPolicyRecord,
     OwnerAccountRecord,
     OwnerProfileRecord,
     RuntimeCredentialRecord,
 )
-from src.domain.runtime_state import (
-    AuthSessionState,
-    CredentialMetadataState,
-    WalletRoleState,
-)
 from src.utils.datetime_utils import now_dt_str, to_dt_str
-
-from ..database_manager import DatabaseManager
 
 StateModel = TypeVar("StateModel", bound=BaseModel)
 
@@ -296,6 +285,39 @@ class CredentialAuthCoreMixin:
             row = cur.fetchone()
         return self._row_to_owner_profile(row)
 
+    def verify_owner_email(self, wallet: str, email: str) -> Optional[OwnerProfileRecord]:
+        normalized_wallet = str(wallet or "").strip().lower()
+        normalized_email = str(email or "").strip().lower()
+        if not normalized_wallet or not normalized_email:
+            return None
+        with self._db.tx_cursor() as cur:
+            cur.execute(
+                """
+                UPDATE synapse_owner_accounts
+                SET email_verified = TRUE,
+                    updated_at = NOW()
+                WHERE owner_wallet = %s
+                  AND lower(email) = lower(%s)
+                RETURNING
+                    owner_id,
+                    owner_wallet,
+                    display_name,
+                    email,
+                    email_verified,
+                    notify_marketing,
+                    notify_alerts,
+                    status,
+                    default_currency,
+                    created_at,
+                    updated_at
+                """,
+                (normalized_wallet, normalized_email),
+            )
+            row = cur.fetchone()
+        if not row:
+            return None
+        return self._row_to_owner_profile(row)
+
     def _ensure_agent_profile(self, cur: Any, record: RuntimeCredentialRecord) -> str:
         runtime_label = str(record.agent.runtime_label or "").lower()
         owner = record.owner.model_copy(
@@ -378,7 +400,7 @@ class CredentialAuthCoreMixin:
         ]
         placeholders = self._scalar_not_in_clause(len(state_keys))
         cur.execute(
-            f"DELETE FROM synapse_runtime_state WHERE state_key LIKE %s AND state_key NOT IN ({placeholders})",
+            f"DELETE FROM synapse_runtime_state WHERE state_key LIKE %s AND state_key NOT IN ({placeholders})",  # noqa: S608
             (f"credential_meta::{credential_type}::%", *state_keys),
         )
 
@@ -407,7 +429,7 @@ class CredentialAuthCoreMixin:
               AND ac.agent_id = ap.agent_id
               AND ap.runtime_label = %s
               AND ac.credential_id NOT IN ({placeholders})
-            """,
+            """,  # noqa: S608
             (credential_type, *credential_ids),
         )
 
@@ -433,7 +455,7 @@ class CredentialAuthCoreMixin:
                 WHERE ac.agent_id = ap.agent_id
                   AND ap.runtime_label = %s
                   AND ac.credential_id NOT IN ({placeholders})
-                """,
+                """,  # noqa: S608
                 (credential_type, *credential_ids),
             )
 
@@ -449,4 +471,3 @@ class CredentialAuthCoreMixin:
             """,
             (credential_type,),
         )
-

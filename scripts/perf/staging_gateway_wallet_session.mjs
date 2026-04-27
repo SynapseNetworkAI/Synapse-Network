@@ -48,9 +48,9 @@ async function authWallet(privateKey) {
 }
 
 const existingOwnerToken = process.env.SYNAPSE_OWNER_TOKEN || "";
-const existingAgentToken = process.env.SYNAPSE_AGENT_TOKEN || "";
+const existingAgentCredential = process.env.SYNAPSE_AGENT_CREDENTIAL || process.env.SYNAPSE_AGENT_TOKEN || "";
 const existingWallet = process.env.SYNAPSE_OWNER_WALLET || "";
-if (existingOwnerToken && existingAgentToken && existingWallet) {
+if (existingOwnerToken && existingAgentCredential && existingWallet) {
   process.exit(0);
 }
 
@@ -62,8 +62,38 @@ if (!privateKey) {
 
 try {
   const auth = await authWallet(privateKey);
+  let agentCredential = existingAgentCredential;
+  if (!agentCredential) {
+    const issueResponse = await fetch(`${gatewayBase}/api/v1/credentials/agent/issue`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        Authorization: `Bearer ${auth.token}`,
+        "X-User-Address": auth.address,
+      },
+      body: JSON.stringify({
+        name: `staging-load-${Date.now()}`,
+        expiresInSec: 7200,
+        maxCalls: 100000,
+        rpm: 1200,
+        resetInterval: "never",
+      }),
+    });
+    const issuePayload = await issueResponse.json().catch(() => ({}));
+    if (!issueResponse.ok || issuePayload?.status !== "success") {
+      throw new Error(`credential issue failed: ${issueResponse.status}`);
+    }
+    agentCredential = issuePayload?.credential?.token || "";
+    if (!agentCredential) {
+      throw new Error("credential issue response missing token");
+    }
+  }
   if (!existingOwnerToken) console.log(`export SYNAPSE_OWNER_TOKEN=${shQuote(auth.token)}`);
-  if (!existingAgentToken) console.log(`export SYNAPSE_AGENT_TOKEN=${shQuote(auth.token)}`);
+  if (!existingAgentCredential) {
+    console.log(`export SYNAPSE_AGENT_CREDENTIAL=${shQuote(agentCredential)}`);
+    console.log(`export SYNAPSE_AGENT_TOKEN=${shQuote(agentCredential)}`);
+  }
   if (!existingWallet) console.log(`export SYNAPSE_OWNER_WALLET=${shQuote(auth.address)}`);
 } catch (error) {
   console.error(`FATAL STAGING-GATEWAY-SESSION-002: ${error.message}`);

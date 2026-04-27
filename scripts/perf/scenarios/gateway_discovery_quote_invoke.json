@@ -2,7 +2,7 @@
   "name": "gateway-discovery-quote-invoke",
   "baseUrlEnv": "SYNAPSE_GATEWAY_BASE_URL",
   "headers": {
-    "Authorization": "Bearer ${SYNAPSE_AGENT_TOKEN}",
+    "X-Credential": "${SYNAPSE_AGENT_CREDENTIAL}",
     "X-Owner-Address": "${SYNAPSE_OWNER_WALLET}"
   },
   "requests": [
@@ -21,10 +21,13 @@
       "weight": 6,
       "body": {
         "serviceId": "${SYNAPSE_PERF_SERVICE_ID}",
+        "idempotencyKey": "${SYNAPSE_PERF_REQUEST_ID_PREFIX}-invoke-{{random}}",
+        "costUsdc": "0.000000",
         "payload": {
-          "prompt": "staging load probe"
-        },
-        "requestId": "${SYNAPSE_PERF_REQUEST_ID_PREFIX}-invoke-{{random}}"
+          "body": {
+            "repoUrl": "https://github.com/cliff-personal/Synapse-Network"
+          }
+        }
       }
     }
   ]

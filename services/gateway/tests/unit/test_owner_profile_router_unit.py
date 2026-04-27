@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 from src import app as gateway_app
 from src.api.routers import auth as auth_router
 from src.domain.identity import OwnerProfileRecord
+from src.services.notifications.email_verification import create_email_verification_token
 from src.services.platform import credential_service
 
 
@@ -65,6 +66,22 @@ class FakeCredentialAuthRepo:
             notifyAlerts=notify_alerts,
             createdAt="2026-04-03 10:00:00",
             updatedAt="2026-04-03 10:05:00",
+        )
+        return self.profile
+
+    def verify_owner_email(self, wallet: str, email: str) -> OwnerProfileRecord | None:
+        if wallet != self.profile.owner_wallet or email != self.profile.email:
+            return None
+        self.profile = OwnerProfileRecord(
+            ownerId=self.profile.owner_id,
+            ownerWallet=self.profile.owner_wallet,
+            displayName=self.profile.display_name,
+            email=self.profile.email,
+            emailVerified=True,
+            notifyMarketing=self.profile.notify_marketing,
+            notifyAlerts=self.profile.notify_alerts,
+            createdAt=self.profile.created_at,
+            updatedAt="2026-04-03 10:10:00",
         )
         return self.profile
 
@@ -240,3 +257,26 @@ def test_update_profile_maps_email_conflict(monkeypatch) -> None:
         "code": "EMAIL_ALREADY_IN_USE",
         "message": "Email address is already linked to another wallet.",
     }
+
+
+def test_verify_email_token_marks_profile_verified_and_audits(monkeypatch) -> None:
+    monkeypatch.setattr(auth_router.settings, "auth_secret", "unit-test-auth-secret-with-enough-entropy", raising=False)
+    monkeypatch.setattr(auth_router.settings, "email_verification_ttl_sec", 60, raising=False)
+    token = create_email_verification_token(owner_wallet="0xabc", email="ops@synapse.test")
+
+    with _http_client(monkeypatch) as (client, storage):
+        response = client.get(f"/api/v1/auth/email/verify?v={token}")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["profile"]["emailVerified"] is True
+    assert storage.credential_auth.profile.email_verified is True
+    assert storage.audit.rows[-1].action == "OWNER_EMAIL_VERIFIED"
+
+
+def test_verify_email_token_rejects_bad_token(monkeypatch) -> None:
+    with _http_client(monkeypatch) as (client, _storage):
+        response = client.get("/api/v1/auth/email/verify?v=bad-token")
+
+    assert response.status_code == 400
+    assert response.json()["detail"]["code"] == "EMAIL_VERIFICATION_INVALID"
