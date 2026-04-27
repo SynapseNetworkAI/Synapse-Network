@@ -330,10 +330,14 @@ def _upstream_status_exception(status_code: int) -> HTTPException:
 
 
 def _is_llm_service(service: ServiceDefinitionRecord) -> bool:
+    service_kind = getattr(service, "service_kind", None)
+    price_model = getattr(service, "price_model", None)
+    metering = getattr(service, "metering", None)
+    billing_unit = getattr(metering, "billing_unit", None)
     return (
-        str(service.service_kind or "").lower() == "llm"
-        or str(service.price_model or "").lower() == "token_metered"
-        or str(service.metering.billing_unit or "").lower() == "token"
+        str(service_kind or "").lower() == "llm"
+        or str(price_model or "").lower() == "token_metered"
+        or str(billing_unit or "").lower() == "token"
     )
 
 
