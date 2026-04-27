@@ -143,8 +143,8 @@
 
 1. 链上交易是否成功
 2. receipt 中是否存在可识别的 deposit event
-3. `synapse_deposit_intents` 中是否有对应记录
-4. `processed_deposit_event_keys` 是否已有该 `eventKey`
+3. `synapse_vault_deposits` / `synapse_deposit_attempts` 中是否有对应记录
+4. `synapse_processed_deposit_events` 是否已有该 `eventKey`
 5. 用户当前 `available_balance / pending_balance / frozen_balance`
 6. 是否存在相关审计和审批历史
 

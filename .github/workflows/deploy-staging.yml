@@ -216,12 +216,16 @@ jobs:
           fs.writeFileSync('image-digests.json', JSON.stringify(digests, null, 2))
           NODE
           printf '{"updated":[],"smokeExecutions":[]}\n' > jobs.json
+          printf '{"status":"skipped","reason":"gateway not in deploy scope"}\n' > drift-guard.json
 
-      - name: Run DB migration before API rollout
-        if: ${{ steps.scope.outputs.deploy == 'true' && steps.scope.outputs.requires_migration == 'true' }}
+      - name: Run Gateway DB migration before Gateway rollout
+        if: ${{ steps.scope.outputs.deploy == 'true' }}
         run: |
           gateway_image="$(node -e "const d=require('./image-digests.json'); console.log(d.gateway || '')")"
-          [[ -n "${gateway_image}" ]] || { echo "migration requires a gateway image" >&2; exit 2; }
+          if [[ -z "${gateway_image}" ]]; then
+            echo "Gateway image not in deploy scope; skipping Gateway DB migration."
+            exit 0
+          fi
           gcloud run jobs update synapse-staging-db-migrate \
             --project "${PROJECT_ID}" \
             --region "${REGION}" \
@@ -340,6 +344,11 @@ jobs:
           fs.writeFileSync('smoke.json', JSON.stringify(status, null, 2))
           NODE
 
+      - name: Run staging drift guard
+        if: ${{ steps.scope.outputs.deploy == 'true' && contains(steps.scope.outputs.services, 'gateway') }}
+        run: |
+          node scripts/deploy/gcp_staging_drift_guard.mjs --out drift-guard.json
+
       - name: Capture Cloud Run revisions
         if: ${{ steps.scope.outputs.deploy == 'true' }}
         run: |
@@ -388,6 +397,7 @@ jobs:
             --build build-images.json \
             --image-digests image-digests.json \
             --jobs jobs.json \
+            --drift-guard drift-guard.json \
             --revisions revisions.json \
             --smoke smoke.json \
             --generated-at-display "${{ steps.source.outputs.display_timestamp }}" \

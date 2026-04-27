@@ -95,7 +95,12 @@ if (validation?.postgres?.status !== "success") {
   fail(`Postgres restore status is ${validation?.postgres?.status || "missing"}`, "Run the Postgres restore validation against an isolated restored database.");
 }
 const rowCounts = validation?.postgres?.rowCounts || {};
-for (const tableName of ["synapse_ledger_entries", "synapse_vault_withdrawals", "synapse_deposit_intents"]) {
+for (const tableName of [
+  "synapse_ledger_entries",
+  "synapse_vault_withdrawals",
+  "synapse_vault_deposits",
+  "synapse_deposit_attempts",
+]) {
   if (!Number.isFinite(Number(rowCounts[tableName]))) {
     fail(`missing restored row count for ${tableName}`, "Regenerate restore-validation.json from scripts/drills/postgres_restore_validate.sh.");
   }

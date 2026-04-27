@@ -1,6 +1,6 @@
 ---
 created_at: 2026-04-18
-updated_at: 2026-04-26
+updated_at: 2026-04-27
 doc_status: active
 ---
 
@@ -45,10 +45,37 @@ Fresh staging evidence:
 - [x] Local one-ticket withdrawal evidence: `docs/evidence/release/withdrawal-one-ticket/20260421T100345Z-local`, validated by `npm run ci:withdrawal-one-ticket-evidence`.
 - [x] Local MVP production-load rehearsal: `docs/evidence/performance/20260421T110801Z-local-production-load-rehearsal`, validated by `npm run ci:local-production-load-evidence`.
 
+## Staging Backup/Load Refresh
+
+- Environment: `Staging Cloud Run + Cloud SQL + Provider runtime`
+- Source branch: `main`
+- Source commit: `7ef9e0b7`
+- Run time: `2026-04-27 17:16:33 +08`
+- Plan status: `STAGING_BACKUP_LOAD_PASS_PRODUCTION_NO_GO`
+- Staging automation result: `PASS for backup restore and light-load MVP gates`
+- Production launch decision: `NO-GO for production`
+- Decision reason: staging backup restore and light-load MVP evidence now exist, but chaos/recovery, adversarial security, production config, dashboards/on-call, and owner sign-off remain incomplete.
+
+Additional fresh staging evidence:
+
+- [x] Backup restore staging drill: `docs/evidence/recovery/20260427T082355Z-backup-restore-drill`, validated by `npm run ci:backup-restore-evidence`. The drill restored the latest Cloud SQL backup to an isolated temporary Cloud SQL instance, validated Postgres critical tables, produced reconciliation summary, and deleted the temporary restore instance.
+- [x] Staging load suite: `docs/evidence/performance/20260427T091633Z-staging-load-suite`, produced by `npm run perf:staging-load-suite` with `SYNAPSE_PERF_DURATION_SEC=30`. The suite covered Gateway discovery/invoke, finance balance read-only, provider health read-only, and admin read-only routes with zero failures. Destructive money-write load remained intentionally disabled.
+
+Resolved staging defects during this refresh:
+
+- [x] Staging Gateway schema drift: `synapse_service_quotes_quoted_price_usdc_check` rejected zero-price staging services until `synapse-staging-db-migrate-rn4k8` reapplied the Git-tracked target schema.
+- [x] Provider registry drift: provider services were re-onboarded to `https://provider-staging.synapse-network.ai/provider-services/*/invoke` and verified discoverable/healthy.
+- [x] Gateway-to-Provider signature drift: `synapse-staging-provider-signature-secret` was rotated to a newline-free value and both Gateway and Provider were rolled to fresh revisions.
+- [x] Provider runtime DB wiring: `synapse-staging-provider` was bound to Cloud SQL and provider-side Postgres schema was applied before the load suite.
+- [x] Drift prevention gate added: Gateway deploys now run migration/schema
+  validation on every Gateway rollout, enforce the `quoted_price_usdc >= 0`
+  free-service contract, lint newline-sensitive staging secrets, verify
+  Gateway/Provider shared signature secret wiring, verify Provider Cloud SQL
+  attachment and endpoint prefix, and record the result in release manifest
+  `driftGuard`.
+
 Remaining staging gaps:
 
-- [ ] Backup restore staging drill: attempted on `2026-04-26` before the Postgres-only Cloud SQL restore wrapper existed. Fresh evidence must be produced by `scripts/drills/gcp_staging_backup_restore_drill.sh`, which restores to an isolated temporary Cloud SQL instance and must not point at the live staging DSN. ClickHouse/Kafka restore is no longer an MVP blocker.
-- [ ] Staging load suite: attempted on `2026-04-26` before the light-load profile and cookie/session admin auth were available. Fresh evidence must be produced by `npm run perf:staging-load-suite` with a staging-only service id and E2E wallet tokens; destructive money-write load remains opt-in.
 - [ ] Chaos/recovery drills: intentionally deferred until backup restore and staging load are green, then must be followed by smoke plus reconciliation.
 - [ ] Dedicated adversarial security evidence: SQLi, SSRF, JWT/header/path tampering, and malicious provider response reports are not attached.
 - [ ] Production-only launch controls: production release manifest, multisig/owner proof, prod config review, dashboards, on-call/escalation, incident runbooks, and owner sign-off remain NO-GO.
@@ -124,7 +151,7 @@ npm run ci:backup-restore-evidence
 - [x] One-ticket withdrawal expected-vs-actual evidence: PASS, `docs/evidence/release/withdrawal-one-ticket/20260421T100345Z-local` covers ticket hash/deadline/status/balance/replay/low-gas retry locally. Staging one-ticket evidence remains covered through full-chain and withdrawal-review dogfood, not the local one-ticket bundle.
 - [x] Ledger/vault reconciliation report: PASS for staging MVP profile, `docs/evidence/release/gateway-fullchain/20260426T020914Z-staging` reports zero reconciliation failures and validated trace digest.
 - [x] Gateway full-chain expected-vs-actual report: PASS, `docs/evidence/release/gateway-fullchain/20260426T020914Z-staging` covers deposit, discovery/quote, invoke, provider credit, consumer withdrawal, outbox/projection evidence, and reconciliation under the MVP Postgres profile.
-- [ ] Backup restore drill report: NO-GO blocker, fresh `npm run drill:backup-restore:staging` evidence not attached or not validated by `npm run ci:backup-restore-evidence`.
+- [x] Backup restore drill report: PASS for staging MVP, `docs/evidence/recovery/20260427T082355Z-backup-restore-drill` validated by `npm run ci:backup-restore-evidence`. ClickHouse/Kafka restore is not an MVP blocker while those systems are not deployed.
 - [ ] Chain-log reconciliation drill: NO-GO blocker, daily chain reconciliation evidence not attached. This is independent of v1 backup/restore drill and must not be coupled to restore evidence.
 
 ## Gateway Security Evidence
@@ -156,10 +183,10 @@ npm run ci:backup-restore-evidence
 
 - [x] Local performance/reliability smoke evidence: PASS, `npm run ci:performance-reliability` verifies provider health probe concurrency and slow-lane scheduling; `npm run perf:local-reliability-suite` passed automation, scenario, docs, release-gate, staging-safety-guard, gateway health, and admin-front login checks with evidence at `docs/evidence/performance/20260418T130340Z-local-reliability-suite/report.md`. This does not replace production-like load, chaos, rollback, or restore reports.
 - [x] Local MVP production-load rehearsal evidence: PASS, `docs/evidence/performance/20260421T110801Z-local-production-load-rehearsal` validated by `npm run ci:local-production-load-evidence`. This local report does not replace staging capacity evidence.
-- [ ] Discovery/quote/invoke load test: NO-GO blocker, load report not attached.
-- [ ] Balance/deposit/withdrawal load test: NO-GO blocker, load report not attached.
-- [ ] Provider health probe load test: NO-GO blocker, load report not attached.
-- [ ] Admin analytics and finance view load test: NO-GO blocker, load report not attached.
+- [x] Discovery/quote/invoke load test: PASS for staging MVP, `docs/evidence/performance/20260427T091633Z-staging-load-suite/gateway-load` reports 15/15 requests successful, including 10/10 `agent-invoke` calls.
+- [x] Balance read-only load test: PASS for staging MVP, `docs/evidence/performance/20260427T091633Z-staging-load-suite/finance-load` reports 22/22 owner balance requests successful. Destructive deposit/withdrawal write-load remains opt-in and was not run.
+- [x] Provider health probe load test: PASS for staging MVP, `docs/evidence/performance/20260427T091633Z-staging-load-suite/provider-health-load` reports 19/19 provider health/admin provider-service requests successful.
+- [x] Admin analytics and finance view load test: PASS for staging MVP, `docs/evidence/performance/20260427T091633Z-staging-load-suite/admin-load` reports 20/20 admin read-only requests successful across analytics overview, data quality, withdrawal reviews, and provider services.
 - [ ] High-concurrency money test: NO-GO blocker, production-grade concurrency report not attached.
 - [ ] Provider outage chaos drill: NO-GO blocker, chaos drill report not attached.
 - [ ] Gateway restart chaos drill: NO-GO blocker, chaos drill report not attached.
@@ -215,4 +242,4 @@ npm run ci:backup-restore-evidence
 - Decision: `NO-GO for production`
 - Decision time: `2026-04-18 20:07:10 +08`
 - Release owner: `TBD`
-- Notes: Staging automation now has fresh smoke, contract, Lark, gateway full-chain, Gmail, GCP alert, core dogfood, and withdrawal-review evidence. Production launch remains blocked by explicit P0 evidence gaps listed above, especially backup restore, staging load, chaos/recovery, adversarial security, production config, dashboards/on-call, and sign-off evidence.
+- Notes: Staging automation now has fresh smoke, contract, Lark, gateway full-chain, Gmail, GCP alert, core dogfood, withdrawal-review, backup restore, and light-load evidence. Production launch remains blocked by explicit P0 evidence gaps listed above, especially chaos/recovery, adversarial security, production config, dashboards/on-call, and sign-off evidence.

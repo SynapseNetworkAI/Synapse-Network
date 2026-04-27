@@ -136,7 +136,7 @@ def _resolved_auth_mode(service: ServiceDefinitionRecord) -> str:
 
 def _gateway_signature(payload: dict[str, Any], service_id: str, timestamp: int) -> str:
     canonical = f"{service_id}.{timestamp}.{_payload_digest(payload)}"
-    secret = settings.gateway_provider_signature_secret.encode("utf-8")
+    secret = settings.gateway_provider_signature_secret.strip().encode("utf-8")
     return hmac.new(secret, canonical.encode("utf-8"), hashlib.sha256).hexdigest()
 
 

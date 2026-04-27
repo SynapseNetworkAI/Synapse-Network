@@ -11,6 +11,7 @@ from types import SimpleNamespace
 from src.storage.postgres_impl import PostgresStorage
 from src.storage.postgres.schema_contracts import (
     POSTGRES_TABLE_SCHEMA_CONTRACTS,
+    QUOTE_PRICE_NON_NEGATIVE_CHECK_REQUIRED_FRAGMENTS,
     WITHDRAWAL_STATUS_CHECK_FRAGMENT,
     WITHDRAWAL_STATUS_CHECK_REQUIRED_FRAGMENTS,
 )
@@ -144,6 +145,7 @@ def test_validate_schema_contract_accepts_latest_agent_runtime_schema() -> None:
     storage = _storage_with_db(_schema_rows())
 
     storage._validate_schema_contract()
+    assert len(storage._db.readonly_cursors) >= len(POSTGRES_TABLE_SCHEMA_CONTRACTS)
 
 
 def test_validate_schema_contract_rejects_missing_owner_wallet() -> None:
@@ -285,6 +287,24 @@ def test_validate_schema_contract_rejects_missing_finance_rate_limit_index() -> 
     except RuntimeError as exc:
         assert "synapse_finance_rate_limit" in str(exc)
         assert "idx_synapse_finance_rate_limit_owner_action" in str(exc)
+
+
+def test_validate_schema_contract_rejects_legacy_positive_quote_price_constraint() -> None:
+    storage = _storage_with_db(
+        _schema_rows(
+            missing_constraint=(
+                "synapse_service_quotes",
+                QUOTE_PRICE_NON_NEGATIVE_CHECK_REQUIRED_FRAGMENTS[1],
+            )
+        )
+    )
+
+    try:
+        storage._validate_schema_contract()
+        assert False, "expected RuntimeError"
+    except RuntimeError as exc:
+        assert "synapse_service_quotes" in str(exc)
+        assert "quoted price allows free services" in str(exc)
 
 
 def test_postgres_storage_forwards_typed_finance_atomic_commands() -> None:

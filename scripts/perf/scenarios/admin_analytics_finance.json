@@ -14,23 +14,16 @@
       "weight": 3
     },
     {
-      "name": "analytics-money-flow",
+      "name": "analytics-data-quality",
       "method": "GET",
-      "path": "/api/admin/v1/dashboard/analytics/money-flow?window=7d",
+      "path": "/api/admin/v1/dashboard/analytics/data-quality?window=24h",
       "expectedStatuses": [200],
       "weight": 2
     },
     {
-      "name": "analytics-provider-revenue",
+      "name": "withdrawal-reviews",
       "method": "GET",
-      "path": "/api/admin/v1/dashboard/analytics/provider-revenue?window=7d",
-      "expectedStatuses": [200],
-      "weight": 2
-    },
-    {
-      "name": "finance-overview",
-      "method": "GET",
-      "path": "/api/admin/v1/dashboard/finance",
+      "path": "/api/admin/v1/withdrawal-reviews?page=1&pageSize=20",
       "expectedStatuses": [200],
       "weight": 2
     },

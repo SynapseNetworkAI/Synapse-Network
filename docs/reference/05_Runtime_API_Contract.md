@@ -125,7 +125,9 @@
 1. Gateway 必须重新验证这次 profile update 的 wallet signature，而不是只信 JWT
 2. 如果 `email` 被修改，`emailVerified` 会被重置为 `false`
 3. `email` 必须在全平台唯一
-4. 该接口会写 system audit log，但不会影响 credits、deposit、invoke 等核心支付链路
+4. 新增或变更邮箱会异步发送 `email_verification` 邮件；保存设置本身不发送“保存成功”邮件
+5. `GET /api/v1/auth/email/verify?v=<signed-token>` 验证邮箱后将 `emailVerified` 更新为 `true`
+6. 资金类交易邮件只发送给已验证邮箱；该接口会写 system audit log，但不会影响 credits、deposit、invoke 等核心支付链路
 
 ### 3.1 `GET /api/v1/balance`
 
