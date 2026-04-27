@@ -41,10 +41,10 @@ Current staging project bucket names:
 
 | Bucket | Purpose | Public access | Versioning | Lifecycle | Notes |
 | --- | --- | --- | --- | --- | --- |
-| `synapse-staging-static-assets-fabled-archive-494108-k5` | Optional public static assets bucket for future CDN-hosted website assets. | Private by default; can be made public/CDN-backed later. | Enabled | Old versions may be cleaned after 90 days. | Not required for Cloud Run front-end deploys. |
+| `synapse-staging-static-assets-fabled-archive-494108-k5` | Optional public static assets bucket for future CDN-hosted website assets. | Private by default; can be made public/CDN-backed later. | Enabled | Noncurrent object versions are deleted after 90 days. | Not required for Cloud Run front-end deploys. |
 | `synapse-staging-backups-fabled-archive-494108-k5` | Staging backup and restore drill artifacts. | Public access prevention enabled. | Optional | Delete staging objects after 30 days. | Never store public website assets here. |
-| `synapse-staging-evidence-fabled-archive-494108-k5` | Release evidence, E2E reports, traces, and audit proof. | Public access prevention enabled. | Optional | Retain staging evidence up to 365 days. | Contains private operational evidence; do not make public. |
-| `synapse-terraform-state-fabled-archive-494108-k5` | Terraform remote state. | Public access prevention enabled. | Enabled | No short TTL. | Highest-sensitivity infra state bucket; runtime services should not access it. |
+| `synapse-staging-evidence-fabled-archive-494108-k5` | Release evidence, E2E reports, traces, and audit proof. | Public access prevention enabled. | Optional | Release evidence is retained up to 365 days; debug/failed/tmp prefixes are deleted after 30 days. | Contains private operational evidence; do not make public. |
+| `synapse-terraform-state-fabled-archive-494108-k5` | Terraform remote state. | Public access prevention enabled. | Enabled | Live state is retained; noncurrent state versions are deleted after 365 days. | Highest-sensitivity infra state bucket; runtime services should not access it. |
 
 Creation status:
 
@@ -54,6 +54,58 @@ Creation status:
   for private buckets, versioning where required, and lifecycle policies.
 - These buckets are not secrets, but `backups`, `evidence`, and
   `terraform-state` must remain private forever.
+- Reapply lifecycle and Artifact Registry cleanup policies with:
+  `bash scripts/deploy/gcp_apply_staging_cost_controls.sh fabled-archive-494108-k5`.
+
+## Staging Storage Cost Controls
+
+Current storage cost posture:
+
+- GCS buckets are intentionally cheap and lifecycle-managed. Terraform state is
+  not short-lived; only old object versions are cleaned after 365 days.
+- Release evidence is kept long enough for staging audit/debug history. Failed,
+  debug, or temporary evidence should go under `debug/`, `failed/`, `tmp/`,
+  `staging/debug/`, `staging/failed/`, or `deployments/failed/` so it expires
+  after 30 days.
+- Artifact Registry is the resource that grows fastest because every deploy can
+  add large image layers.
+
+Artifact Registry cleanup policy for `synapse-staging`:
+
+| Policy | Action | Scope |
+| --- | --- | --- |
+| `delete-untagged-older-than-7d` | Delete | Untagged image versions older than 7 days. |
+| `delete-staging-tagged-older-than-45d` | Delete | Tags starting with `staging-` older than 45 days. |
+| `keep-promoted-release-tags` | Keep | Tags starting with `prod-`, `production-`, `promoted-`, or `release-`. |
+| `keep-recent-10-per-package` | Keep | The 10 newest versions per image package for rollback. |
+
+Apply or refresh the live policy:
+
+```bash
+export PROJECT_ID=fabled-archive-494108-k5
+gcloud config set project "$PROJECT_ID"
+
+bash scripts/deploy/gcp_apply_staging_cost_controls.sh "$PROJECT_ID"
+```
+
+To test the Artifact Registry cleanup policy without deleting candidates:
+
+```bash
+SYNAPSE_ARTIFACT_CLEANUP_DRY_RUN=1 \
+  bash scripts/deploy/gcp_apply_staging_cost_controls.sh fabled-archive-494108-k5
+```
+
+Verify:
+
+```bash
+gcloud artifacts repositories describe synapse-staging \
+  --project=fabled-archive-494108-k5 \
+  --location=us-central1 \
+  --format=json
+
+gsutil lifecycle get gs://synapse-staging-evidence-fabled-archive-494108-k5
+gsutil lifecycle get gs://synapse-terraform-state-fabled-archive-494108-k5
+```
 
 Creation commands:
 
