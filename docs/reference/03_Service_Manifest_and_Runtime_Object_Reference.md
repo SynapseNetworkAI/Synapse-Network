@@ -125,6 +125,14 @@ Invoke 转发还会使用动态并发保护：
 3. 下游响应慢或失败时，Gateway 自动降低并发；恢复后逐步升并发。
 4. `SERVICE_BUSY` / `SERVICE_CIRCUIT_OPEN` 发生在扣费前；`SERVICE_TIMEOUT` 表示请求已转发但超时，会走失败回滚和审计。
 
+同步超时按 service profile 区分：
+
+1. 普通 API service 使用短超时 profile：默认 `15000ms`，最大 `60000ms`。
+2. `serviceKind=llm` 或 `priceModel=token_metered` 使用 LLM profile：默认 `120000ms`，最大 `300000ms`。
+3. `timeoutMs=0` 不代表无限等待，会被注册校验拒绝。
+4. 超过 5 分钟的模型任务必须走后续 async invocation / callback 设计，不能占用同步 Gateway worker。
+5. 数据库 endpoint 约束允许存储到 `300000ms`，但 Gateway 运行时仍按 API/LLM profile clamp，避免普通 API 借 LLM 上限拖垮路由层。
+
 ## 4. 不应暴露给 Agent 的字段
 
 默认不应通过 Runtime 协议暴露：
@@ -184,13 +192,43 @@ Provider Console 当前默认首屏只要求 Provider 明确以下最小接入�
 7. `gateway_extensions.health_check.timeout_ms` 默认 `3000`
 8. `gateway_extensions.rate_limit_policy.max_qps` 默认 `50`
 9. `constraints.maxConcurrency` 可选；不填时由 Gateway 根据平台默认值、QPS 和超时推导。
+10. `constraints.timeoutMs` 对普通 API 默认为 `15000ms`、最大 `60000ms`；LLM/token-metered 服务默认为 `120000ms`、最大 `300000ms`。
 
 平台默认策略：
 
 1. 新建 service 默认进入 `draft`。
-2. `price_model` 在 V1 固定为 `fixed`。
+2. 普通 API service 默认 `price_model=fixed`；LLM service 必须使用 `serviceKind=llm` + `priceModel=token_metered`。
 3. 服务是否进入 discover / invoke 候选，取决于 `status=active`、`isActive=true`、健康快照未过期且至少一个 target 为 `healthy`。
 4. `quality` 由平台健康检查与运行观测生成，而不是由 Provider 手填。
+
+## 6.1 LLM / Token-Metered Service Contract
+
+Provider 可以注册 LLM 能力，但 Synapse 不托管模型供应商 API key，也不做自营模型代理商。Provider 自己接 DeepSeek、豆包、OpenAI-compatible 等上游；Gateway 只负责 token 计量、预授权冻结、真实 usage 扣费、分账、审计和对账。
+
+LLM service 必须声明：
+
+```json
+{
+  "serviceKind": "llm",
+  "priceModel": "token_metered",
+  "metering": {
+    "billingUnit": "token",
+    "inputPricePer1MTokensUsdc": "0.140000",
+    "outputPricePer1MTokensUsdc": "0.280000",
+    "defaultMaxOutputTokens": 2048,
+    "holdBufferMultiplier": "1.2",
+    "maxAutoHoldUsdc": "1.000000"
+  }
+}
+```
+
+规则：
+
+1. 价格只允许按每百万 token 计价，不允许 `pricePerToken`。
+2. `stream=true` 在 V1 会被 Gateway 拒绝，因为最终 usage 是扣费依据。
+3. 如果 Caller 不传 `maxCostUsdc`，Gateway 使用 `ceil(promptCharacters / 3)` 与 `max_tokens` 自动估算 hold。
+4. Provider 返回必须包含 final usage；缺失 usage 则释放 hold、不扣费、记录失败。
+5. 详细状态机见 `docs/projects/gateway/LLM_Token_Metered_Service_Design.md`。
 
 ## 7. AI API Parser 输入约定
 

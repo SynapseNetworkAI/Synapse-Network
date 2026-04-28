@@ -55,6 +55,16 @@
 4. `POST /api/v1/gateway/generate`
 5. `GET /api/v1/indexer/status`
 
+### 1.4 Runtime timeout profiles
+
+Gateway 同步调用按 service profile 执行 bounded timeout：
+
+1. 普通 API：`GATEWAY_DEFAULT_TIMEOUT_MS=15000`，`GATEWAY_MAX_TIMEOUT_MS=60000`。
+2. LLM / token-metered：`GATEWAY_LLM_DEFAULT_TIMEOUT_MS=120000`，`GATEWAY_LLM_MAX_TIMEOUT_MS=300000`。
+3. `timeoutMs=0` 禁止表示无限等待；注册和运行时都会拒绝或 clamp。
+4. 大模型响应超过 5 分钟的场景必须走 async invocation / callback，不能继续扩大同步 HTTP timeout。
+5. Streaming LLM V1 仍然不支持，因为 Gateway 必须拿到 final usage 才能安全计费。
+
 ## 2. Identity Semantics
 
 统一身份原则：
@@ -421,6 +431,58 @@ Headers:
 1. 成功则 capture
 2. 原子完成消费侧扣减、供给侧收益累积、平台费累积、ledger、audit
 3. 失败则 release 或 rollback
+
+### 4.4 `POST /api/v1/agent/invoke` for LLM token-metered services
+
+用途：让 Agent 调用 Provider 注册到平台的 LLM 服务，例如 DeepSeek Chat。
+
+请求约定：
+
+1. `serviceKind=llm` 或 `priceModel=token_metered` 时进入 LLM 计费路径。
+2. Caller 可传 `maxCostUsdc` 作为显式冻结上限。
+3. Caller 不传 `maxCostUsdc` 时，Gateway 根据 prompt 字符数、`max_tokens`、Provider 声明的每百万 token 单价自动计算 hold。
+4. `costUsdc` 对 LLM token-metered 调用不是必填；普通 fixed/per-call API 仍必须传 observed `costUsdc`。
+5. `stream=true` 必须返回 `400 LLM_STREAMING_NOT_SUPPORTED`，不能静默改写。
+
+自动预授权公式：
+
+```text
+input_estimated_tokens = ceil(prompt_character_count / 3)
+output_estimated_tokens = request.max_tokens || service.defaultMaxOutputTokens || 2048
+estimated_cost =
+  input_estimated_tokens * inputPricePer1MTokensUsdc / 1_000_000
+  + output_estimated_tokens * outputPricePer1MTokensUsdc / 1_000_000
+holdUsdc = ceil_to_6_decimals(estimated_cost * holdBufferMultiplier)
+```
+
+成功响应必须包含：
+
+```json
+{
+  "usage": {
+    "inputTokens": 1200,
+    "outputTokens": 300,
+    "totalTokens": 1500
+  },
+  "synapse": {
+    "priceModel": "token_metered",
+    "holdUsdc": "0.001000",
+    "chargedUsdc": "0.000253",
+    "releasedUsdc": "0.000747",
+    "providerRevenueUsdc": "0.000228",
+    "platformFeeUsdc": "0.000025",
+    "preAuthMode": "auto"
+  }
+}
+```
+
+资金不变量：
+
+1. `chargedUsdc = ceil_to_6_decimals(inputTokens * inputPricePer1MTokensUsdc / 1_000_000 + outputTokens * outputPricePer1MTokensUsdc / 1_000_000)`。
+2. `releasedUsdc = holdUsdc - chargedUsdc`。
+3. `providerRevenueUsdc + platformFeeUsdc = chargedUsdc`。
+4. Provider 成功但缺 usage 时必须释放完整 hold 且不扣费。
+5. Provider 返回 SSE 或 Caller 请求 stream 时必须失败在扣费前。
 
 ## 5. Service Control Plane
 

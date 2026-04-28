@@ -4,12 +4,13 @@ Extracted from payload_helpers to keep each module under 500 lines.
 These functions validate, normalize, and assemble service registration payloads.
 They are imported by payload_helpers, which re-exports what external modules need.
 """
+# ruff: noqa: PLR2004, S311, TRY003
 from __future__ import annotations
 
 import random
 import string
 import time
-from typing import Any, List, Literal, Optional, cast
+from typing import Any, List, Literal, cast
 
 from src.core.config import settings
 from src.domain.service_contract import (
@@ -54,6 +55,13 @@ def require_range(name: str, value: int, lower: int, upper: int) -> int:
     if value < lower or value > upper:
         raise ValueError(f"{name} must be in [{lower}, {upper}]")
     return value
+
+
+def first_present(mapping: dict[str, Any], *keys: str, fallback: Any) -> Any:
+    for key in keys:
+        if key in mapping and mapping.get(key) is not None:
+            return mapping.get(key)
+    return fallback
 
 
 def dict_payload(value: Any) -> dict[str, Any]:
@@ -138,9 +146,7 @@ def normalized_health_check(req_data: dict[str, Any]) -> dict[str, Any]:
     if not health_path:
         raise ValueError("healthCheck.path is required")
     is_active = bool(req_data.get("isActive", True))
-    lifecycle_status = normalized_service_lifecycle_status(
-        req_data.get("status"), is_active=is_active
-    )
+    normalized_service_lifecycle_status(req_data.get("status"), is_active=is_active)
     return {
         **health_check,
         "path": health_path if health_path.startswith("/") else f"/{health_path}",
@@ -223,22 +229,44 @@ def bounded_constraint(
 ) -> int:
     return require_range(
         f"constraints.{key}",
-        as_int(constraints.get(key) or constraints.get(snake_key) or fallback, fallback),
+        as_int(first_present(constraints, key, snake_key, fallback=fallback), fallback),
         lower,
         upper,
     )
 
 
+def resolved_service_kind(req_data: dict[str, Any]) -> str:
+    service_kind = str(
+        req_data.get("serviceKind") or req_data.get("service_kind") or "api"
+    ).strip().lower()
+    if service_kind not in {"api", "llm"}:
+        raise ValueError("serviceKind must be one of api, llm")
+    return service_kind
+
+
+def uses_llm_timeout_profile(req_data: dict[str, Any]) -> bool:
+    return (
+        resolved_service_kind(req_data) == "llm"
+        or resolved_price_model(req_data) == "token_metered"
+    )
+
+
 def normalized_constraints(req_data: dict[str, Any]) -> ServiceConstraintRecord:
     constraints = dict_payload(req_data.get("constraints"))
+    if uses_llm_timeout_profile(req_data):
+        timeout_default = settings.gateway_llm_default_timeout_ms
+        timeout_upper = settings.gateway_llm_max_timeout_ms
+    else:
+        timeout_default = settings.gateway_default_timeout_ms
+        timeout_upper = settings.gateway_max_timeout_ms
     return ServiceConstraintRecord(
         timeoutMs=bounded_constraint(
             constraints,
             "timeoutMs",
             "timeout_ms",
-            settings.gateway_default_timeout_ms,
+            timeout_default,
             settings.gateway_min_timeout_ms,
-            settings.gateway_max_timeout_ms,
+            timeout_upper,
         ),
         maxRequestBytes=bounded_constraint(
             constraints,
@@ -294,6 +322,40 @@ def resolved_pricing(req_data: dict[str, Any]) -> tuple[str, str]:
     return str(pricing_amount), pricing_currency
 
 
+def resolved_price_model(req_data: dict[str, Any]) -> str:
+    pricing_value = req_data.get("pricing")
+    raw = pricing_value.get("priceModel") if isinstance(pricing_value, dict) else None
+    price_model = str(raw or req_data.get("priceModel") or "fixed").strip().lower()
+    if price_model not in {"fixed", "tiered", "quote", "token_metered"}:
+        raise ValueError("priceModel must be one of fixed, tiered, quote, token_metered")
+    return price_model
+
+
+def token_metering_payload(req_data: dict[str, Any]) -> dict[str, Any]:
+    pricing_value = req_data.get("pricing")
+    pricing = pricing_value if isinstance(pricing_value, dict) else {}
+    service_kind = resolved_service_kind(req_data)
+    price_model = resolved_price_model(req_data)
+    if service_kind != "llm" and price_model != "token_metered":
+        return {}
+    if "pricePerToken" in pricing or "pricePerToken" in req_data:
+        raise ValueError(
+            "LLM token_metered pricing must use pricePer1MTokensUsdc, not pricePerToken"
+        )
+
+    def _pick(name: str, fallback: Any = None) -> Any:
+        return pricing.get(name, req_data.get(name, fallback))
+
+    return {
+        "billingUnit": "token",
+        "inputPricePer1MTokensUsdc": _pick("inputPricePer1MTokensUsdc", "0"),
+        "outputPricePer1MTokensUsdc": _pick("outputPricePer1MTokensUsdc", "0"),
+        "defaultMaxOutputTokens": int(_pick("defaultMaxOutputTokens", 2048) or 2048),
+        "holdBufferMultiplier": str(_pick("holdBufferMultiplier", "1.2") or "1.2"),
+        "maxAutoHoldUsdc": str(_pick("maxAutoHoldUsdc", "1.000000") or "1.000000"),
+    }
+
+
 def resolved_service_name(req_data: dict[str, Any]) -> str:
     return str(req_data.get("serviceName") or req_data.get("service_name") or "").strip()
 
@@ -340,10 +402,22 @@ def normalized_invoke_config(
 ) -> ServiceInvokeConfigRecord:
     request_spec = dict_payload(invoke.get("request"))
     response_spec = dict_payload(invoke.get("response"))
+    raw_timeout_ms = first_present(
+        invoke,
+        "timeoutMs",
+        "timeout_ms",
+        fallback=constraints.timeout_ms,
+    )
+    timeout_ms = require_range(
+        "invoke.timeoutMs",
+        as_int(raw_timeout_ms, constraints.timeout_ms),
+        settings.gateway_min_timeout_ms,
+        int(constraints.timeout_ms),
+    )
     return ServiceInvokeConfigRecord(
         method=_normalized_http_method(invoke.get("method")),
         targets=targets,
-        timeoutMs=int(invoke.get("timeoutMs") or constraints.timeout_ms),
+        timeoutMs=timeout_ms,
         request=ServiceRequestSpecRecord.model_validate(
             request_spec or {"contentType": JSON_CONTENT_TYPE, "schema": {}}
         ),
@@ -370,6 +444,10 @@ def service_definition_payload(
 ) -> dict[str, Any]:
     forwarding_payload = dict_payload(req_data.get("forwarding"))
     metering_payload = dict_payload(req_data.get("metering"))
+    price_model = resolved_price_model(req_data)
+    token_payload = token_metering_payload(req_data)
+    if token_payload:
+        metering_payload = {**metering_payload, **token_payload}
     return {
         "id": str(req_data.get("id") or "") or None,
         "serviceId": str(req_data.get("serviceId") or "").strip() or None,
@@ -380,6 +458,9 @@ def service_definition_payload(
         "tags": tags,
         "pricingAmount": pricing_amount,
         "pricingCurrency": pricing_currency,
+        "priceModel": price_model,
+        "serviceKind": resolved_service_kind(req_data),
+        "llm": dict_payload(req_data.get("llm")),
         "role": str(req_data.get("role") or "Provider"),
         "address": str(req_data.get("address") or owner_wallet),
         "status": lifecycle_status,

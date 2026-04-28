@@ -24,33 +24,28 @@ from src.domain.service_contract import (
 from src.services.platform import service_health_service
 from src.services.provider.registry.service_normalization import (  # re-exported
     JSON_CONTENT_TYPE,
-    as_int,
     bind_forwarding_service_id,
-    bounded_constraint,
-    default_forwarding_payload,
-    default_metering_payload,
-    dict_payload,
     ensure_unique_service_id,
     generate_service_id,
-    list_payload,
     normalize_service_payload,
-    normalized_auth_payload,
-    normalized_constraints,
-    normalized_governance,
-    normalized_health_check,
-    normalized_invoke_config,
-    normalized_invoke_targets,
-    normalized_payout_account,
-    normalized_provider_profile,
     normalized_service_lifecycle_status,
-    resolved_auth_type,
-    resolved_pricing,
-    resolved_service_name,
-    resolved_tags,
-    require_range,
-    service_definition_payload,
-    validated_invoke_payload,
 )
+
+__all__ = [
+    "JSON_CONTENT_TYPE",
+    "bind_forwarding_service_id",
+    "ensure_unique_service_id",
+    "find_owned_service",
+    "generate_service_id",
+    "history_entries_by_target",
+    "history_window_hours",
+    "is_deleted_service",
+    "normalize_service_payload",
+    "normalized_service_lifecycle_status",
+    "public_service_discovery_record",
+    "service_lifecycle_status",
+    "serialized_history_targets",
+]
 
 
 def build_public_invoke(
@@ -109,9 +104,32 @@ def public_service_discovery_record(
     return PublicServiceDiscoveryRecord(
         serviceId=svc.service_id,
         serviceName=svc.service_name,
+        serviceKind=svc.service_kind or "api",
         pricing=PublicPricingRecord(
             amount=str(svc.pricing_amount),
             currency=svc.pricing_currency,
+            priceModel=svc.price_model or "fixed",
+            inputPricePer1MTokensUsdc=(
+                str(svc.metering.input_price_per_1m_tokens_usdc)
+                if svc.metering.input_price_per_1m_tokens_usdc is not None
+                else None
+            ),
+            outputPricePer1MTokensUsdc=(
+                str(svc.metering.output_price_per_1m_tokens_usdc)
+                if svc.metering.output_price_per_1m_tokens_usdc is not None
+                else None
+            ),
+            defaultMaxOutputTokens=svc.metering.default_max_output_tokens,
+            holdBufferMultiplier=(
+                str(svc.metering.hold_buffer_multiplier)
+                if svc.metering.hold_buffer_multiplier is not None
+                else None
+            ),
+            maxAutoHoldUsdc=(
+                str(svc.metering.max_auto_hold_usdc)
+                if svc.metering.max_auto_hold_usdc is not None
+                else None
+            ),
         ),
         summary=svc.summary,
         tags=list(svc.tags),

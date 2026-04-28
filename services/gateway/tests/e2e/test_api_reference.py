@@ -407,7 +407,30 @@ class TestInvocations:
             assert STATE["agent_credential"], f"No invocation credential token in response: {data}"
         return STATE["agent_credential"]
 
-    def _discover_service_id(self) -> str | None:
+    @staticmethod
+    def _is_sync_api_service(row: dict) -> bool:
+        pricing = row.get("pricing") if isinstance(row.get("pricing"), dict) else {}
+        service_kind = str(
+            row.get("serviceKind")
+            or row.get("service_kind")
+            or pricing.get("serviceKind")
+            or ""
+        ).strip().lower()
+        price_model = str(
+            row.get("priceModel")
+            or row.get("price_model")
+            or pricing.get("priceModel")
+            or ""
+        ).strip().lower()
+        if service_kind == "llm" or price_model == "token_metered":
+            return False
+        return True
+
+    def _discover_service_id(self, fallback_invoke_url: str | None = None) -> str | None:
+        if fallback_invoke_url:
+            provider_jwt, _ = authenticate_wallet(GATEWAY_BASE, PROVIDER_KEY)
+            return self._create_release_reference_service(provider_jwt, fallback_invoke_url)
+
         jwt, _ = authenticate_wallet(GATEWAY_BASE, OWNER_KEY)
         r = httpx.get(
             f"{GATEWAY_BASE}/api/v1/services/discover",
@@ -419,6 +442,7 @@ class TestInvocations:
             return None
         data = r.json()
         services = data if isinstance(data, list) else data.get("services") or data.get("data") or []
+        services = [row for row in services if isinstance(row, dict) and self._is_sync_api_service(row)]
         if not services:
             provider_jwt, _ = authenticate_wallet(GATEWAY_BASE, PROVIDER_KEY)
             owned = httpx.get(
@@ -429,10 +453,9 @@ class TestInvocations:
             if owned.status_code != 200:
                 return None
             services = owned.json().get("services") or owned.json().get("items") or []
+            services = [row for row in services if isinstance(row, dict) and self._is_sync_api_service(row)]
             if not services:
-                if not RELEASE_E2E:
-                    return None
-                return self._create_release_reference_service(provider_jwt)
+                return self._create_release_reference_service(provider_jwt, fallback_invoke_url)
         first = services[0]
         pricing = first.get("pricing") if isinstance(first.get("pricing"), dict) else {}
         STATE["fallback_price_usdc"] = str(
@@ -443,9 +466,17 @@ class TestInvocations:
         )
         return first.get("serviceId") or first.get("service_id") or first.get("id")
 
-    def _create_release_reference_service(self, provider_jwt: str) -> str | None:
+    def _create_release_reference_service(
+        self,
+        provider_jwt: str,
+        fallback_invoke_url: str | None = None,
+    ) -> str | None:
         service_id = f"api_ref_{uuid.uuid4().hex[:8]}"
-        invoke_url = os.getenv("GATEWAY_E2E_PROVIDER_INVOKE_URL", "https://postman-echo.com/post")
+        invoke_url = (
+            fallback_invoke_url
+            or os.getenv("GATEWAY_E2E_PROVIDER_INVOKE_URL")
+            or "https://postman-echo.com/post"
+        )
         r = httpx.post(
             f"{GATEWAY_BASE}/api/v1/services",
             headers={"Authorization": f"Bearer {provider_jwt}"},
@@ -494,9 +525,9 @@ class TestInvocations:
         STATE["fallback_price_usdc"] = "0.001"
         return created
 
-    def test_01_quote_service(self):
+    def test_01_quote_service(self, mock_service_url):
         """POST /api/v1/agent/discovery/search → 200 with live service price."""
-        svc_id = self._discover_service_id()
+        svc_id = self._discover_service_id(mock_service_url)
         if not svc_id:
             _skip_or_fail("No live services in discover, skipping quote test")
 

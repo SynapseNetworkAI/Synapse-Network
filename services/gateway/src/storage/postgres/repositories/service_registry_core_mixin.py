@@ -1,31 +1,23 @@
 """Service registry repository — core helpers and upsert mixin."""
+# ruff: noqa: PLR0911, PLR2004, S324
 from __future__ import annotations
 
 import hashlib
 import json
 from datetime import datetime, timezone
-from collections import defaultdict
-from typing import Any, List
+from typing import Any
 
 from src.domain.service_contract import (
-    ServiceAuthRecord,
     ServiceConstraintRecord,
     ServiceDefinitionRecord,
     ServiceEndpointRecord,
-    ServiceForwardingRecord,
-    ServiceHealthCheckRecord,
     ServiceInvokeConfigRecord,
     ServiceInvokeTargetRecord,
-    ServiceMeteringRecord,
     ServiceRequestSpecRecord,
     ServiceResponseSpecRecord,
     ServiceSearchIndexRecord,
 )
-from src.domain.registry import ServiceTargetHealth, ServiceTargetHealthHistory
 from src.utils.datetime_utils import now_dt_str, to_dt_str
-
-from ..database_manager import DatabaseManager
-
 
 
 class ServiceRegistryCoreMixin:
@@ -281,6 +273,8 @@ class ServiceRegistryCoreMixin:
             "schemaVersion": row.schema_version,
             "role": row.role,
             "address": row.address,
+            "serviceKind": row.service_kind,
+            "priceModel": row.price_model,
             "auth": row.auth.model_dump(by_alias=True, mode="json", exclude_none=True),
             "providerProfile": row.provider_profile.model_dump(
                 by_alias=True, mode="json", exclude_none=True
@@ -406,7 +400,7 @@ class ServiceRegistryCoreMixin:
                 %s, %s, %s, %s, %s, %s,
                 %s, %s, %s::jsonb,
                 '{}'::jsonb, '{}'::jsonb, '[]'::jsonb, '[]'::jsonb,
-                'fixed', %s, TRUE,
+                %s, %s, TRUE,
                 %s, %s, %s
             )
             ON CONFLICT (service_id)
@@ -435,6 +429,7 @@ class ServiceRegistryCoreMixin:
                 row.summary or row.service_name,
                 row.role,
                 json.dumps(row.tags or []),
+                row.price_model or "fixed",
                 str(row.pricing_amount or 0),
                 row.pricing_currency or "USDC",
                 created_at,

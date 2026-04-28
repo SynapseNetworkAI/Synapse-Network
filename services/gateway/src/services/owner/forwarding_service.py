@@ -15,6 +15,7 @@ from src.domain.identity import RuntimeCredentialRecord
 from src.domain.invocation_response import ConsumerSuccessResponse, InvocationStateResponse
 from src.domain.service_contract import ServiceDefinitionRecord
 from src.services.analytics.gateway_events import (
+    emit_budget_blocked,
     emit_invoke_completed,
     emit_invoke_failed,
     emit_invoke_started,
@@ -23,7 +24,12 @@ from src.services.analytics.gateway_events import (
     emit_quote_generated,
 )
 from src.services.platform import credential_service
-from src.services.owner import forwarding_billing, forwarding_upstream, forwarding_validation
+from src.services.owner import (
+    forwarding_billing,
+    forwarding_llm,
+    forwarding_upstream,
+    forwarding_validation,
+)
 from src.services.owner.forwarding_budget import (
     budget_check,
     check_rpm_limit,
@@ -50,6 +56,7 @@ from src.utils.datetime_utils import now_dt_str
 from src.utils.logging_utils import workflow_logger
 
 _PRICE_TOLERANCE = Decimal("0.000001")
+HTTP_SERVER_ERROR_MIN = 500
 
 
 def _invocation_logger(
@@ -72,7 +79,7 @@ def _log_invocation_failure(log, exc: Exception) -> None:
     if isinstance(exc, HTTPException):
         detail = exc.detail if isinstance(exc.detail, dict) else {}
         error_code = detail.get("code") or detail.get("errorCode")
-        if exc.status_code >= 500:
+        if exc.status_code >= HTTP_SERVER_ERROR_MIN:
             log.error(
                 "invocation.failed",
                 error_code=error_code,
@@ -142,7 +149,7 @@ def _log_upstream_failure(
     )
 
 
-async def _execute_invocation_pipeline(
+async def _execute_invocation_pipeline(  # noqa: PLR0915
     storage: BaseStorage,
     credential: RuntimeCredentialRecord,
     service: ServiceDefinitionRecord,
@@ -163,7 +170,6 @@ async def _execute_invocation_pipeline(
     settlement, total_charge = _charge_amount_from_unit_price(storage, provider_wallet, unit_price)
     budget_result = await budget_check(storage, credential, total_charge)
     if not budget_result.get("allowed"):
-        from src.services.analytics.gateway_events import emit_budget_blocked
         await emit_budget_blocked(
             credential_service.credential_owner_wallet(credential),
             service_id=service.service_id,
@@ -279,7 +285,7 @@ async def _execute_invocation_pipeline(
             "quoteId": quote.quote_id, "invocationId": failed.invocation_id,
             "resultStatus": "failed", "errorCode": "UPSTREAM_ERROR", "businessType": "charge",
         })
-        raise HTTPException(status_code=502, detail={"code": "UPSTREAM_ERROR", "message": f"Upstream provider failed: {exc}"})
+        raise HTTPException(status_code=502, detail={"code": "UPSTREAM_ERROR", "message": f"Upstream provider failed: {exc}"}) from exc
 
     await record_credit_window_spend(credential, total_charge)
 
@@ -428,6 +434,25 @@ async def invoke_v1(
     credential = credential_service.resolve_active_credential(storage, token)
 
     service = forwarding_validation.find_active_service(storage, request.serviceId)
+    if forwarding_llm.is_llm_service(service):
+        invocation = await forwarding_llm.invoke_llm_v1(
+            storage,
+            request,
+            credential,
+            service,
+            trace_request_id,
+            _service_wallet(service),
+        )
+        return invocation_state_payload(invocation)
+
+    if request.costUsdc is None:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "COST_USDC_REQUIRED",
+                "message": "costUsdc is required for fixed-price API invocation.",
+            },
+        )
     live_price = forwarding_validation.parse_service_price_usdc(service)
     live_price_decimal = _q6(live_price)
     cost_decimal = _q6(request.costUsdc)

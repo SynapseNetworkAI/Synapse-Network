@@ -26,6 +26,12 @@ class PublicPricingRecord(BaseModel):
 
     amount: str = "0"
     currency: str = "USDC"
+    price_model: Literal["fixed", "tiered", "quote", "token_metered"] = Field(default="fixed", alias="priceModel")
+    input_price_per_1m_tokens_usdc: Optional[str] = Field(default=None, alias="inputPricePer1MTokensUsdc")
+    output_price_per_1m_tokens_usdc: Optional[str] = Field(default=None, alias="outputPricePer1MTokensUsdc")
+    default_max_output_tokens: Optional[int] = Field(default=None, alias="defaultMaxOutputTokens")
+    hold_buffer_multiplier: Optional[str] = Field(default=None, alias="holdBufferMultiplier")
+    max_auto_hold_usdc: Optional[str] = Field(default=None, alias="maxAutoHoldUsdc")
 
 
 class PublicHealthSummaryRecord(BaseModel):
@@ -88,12 +94,13 @@ class PublicServiceDiscoveryRecord(BaseModel):
 
     service_id: str = Field(alias="serviceId")
     service_name: str = Field(alias="serviceName")
+    service_kind: str = Field(default="api", alias="serviceKind")
     pricing: PublicPricingRecord = Field(default_factory=PublicPricingRecord)
     summary: str = ""
     tags: list[str] = Field(default_factory=list)
     status: str = "unknown"
     health: PublicHealthSummaryRecord = Field(default_factory=PublicHealthSummaryRecord)
-    invoke: "ServiceInvokeConfigRecord" = Field(default_factory=lambda: ServiceInvokeConfigRecord())
+    invoke: "ServiceInvokeConfigRecord" = Field(default_factory=lambda: ServiceInvokeConfigRecord())  # noqa: PLW0108
     quote_template: QuoteRequestDraftRecord = Field(alias="quoteTemplate")
 
 
@@ -208,6 +215,19 @@ class ServiceMeteringRecord(BaseModel):
     billable_status_classes: list[int] = Field(default_factory=list, alias="billableStatusClasses")
     request_id_required: bool = Field(default=True, alias="requestIdRequired")
     response_size_metering: bool = Field(default=True, alias="responseSizeMetering")
+    input_price_per_1m_tokens_usdc: Optional[Decimal] = Field(
+        default=None, alias="inputPricePer1MTokensUsdc"
+    )
+    output_price_per_1m_tokens_usdc: Optional[Decimal] = Field(
+        default=None, alias="outputPricePer1MTokensUsdc"
+    )
+    default_max_output_tokens: Optional[int] = Field(
+        default=None, alias="defaultMaxOutputTokens"
+    )
+    hold_buffer_multiplier: Optional[Decimal] = Field(
+        default=None, alias="holdBufferMultiplier"
+    )
+    max_auto_hold_usdc: Optional[Decimal] = Field(default=None, alias="maxAutoHoldUsdc")
 
 
 class ServiceHealthTargetRecord(BaseModel):
@@ -276,7 +296,7 @@ class ServiceManifestRecord(BaseModel):
     output_schema: SchemaDocument = Field(default_factory=SchemaDocument, alias="outputSchema")
     examples: list[ServiceExample] = Field(default_factory=list)
     limitations: list[ServiceLimitation] = Field(default_factory=list)
-    price_model: Literal["fixed", "tiered", "quote"] = Field(alias="priceModel")
+    price_model: Literal["fixed", "tiered", "quote", "token_metered"] = Field(alias="priceModel")
     base_price_usdc: Decimal = Field(default=Decimal("0"), alias="basePriceUsdc")
     quote_required: bool = Field(default=True, alias="quoteRequired")
     settlement_currency: str = Field(default="USDC", alias="settlementCurrency")
@@ -350,6 +370,11 @@ class ServiceDefinitionRecord(BaseModel):
     is_active: bool = Field(default=True, alias="isActive")
     pricing_amount: Decimal = Field(default=Decimal("0"), alias="pricingAmount")
     pricing_currency: str = Field(default="USDC", alias="pricingCurrency")
+    price_model: Literal["fixed", "tiered", "quote", "token_metered"] = Field(
+        default="fixed", alias="priceModel"
+    )
+    service_kind: Literal["api", "llm"] = Field(default="api", alias="serviceKind")
+    llm: dict[str, Any] = Field(default_factory=dict)
     constraints: ServiceConstraintRecord = Field(default_factory=ServiceConstraintRecord)
     id: Optional[str] = None
     schema_version: Optional[int] = Field(default=None, alias="schemaVersion")

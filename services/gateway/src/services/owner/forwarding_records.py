@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from decimal import Decimal, ROUND_HALF_UP
 from typing import Any, Optional
 from uuid import uuid4
 
@@ -59,17 +60,19 @@ def build_service_quote(
     service: ServiceDefinitionRecord,
     credential: RuntimeCredentialRecord,
     request_payload: dict[str, Any],
-    unit_price: float,
+    unit_price: float | Decimal,
     response_mode: str = "sync",
+    price_model: str = "fixed",
 ) -> ServiceQuoteRecord:
     created_at = now_dt_str()
+    quoted_price = Decimal(str(unit_price)).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)
     return ServiceQuoteRecord(
         quoteId=f"quote-{uuid4().hex}",
         serviceId=service.service_id,
         credentialId=credential.credential.credential_id,
         agentId=credential.agent.agent_id,
-        quotedPriceUsdc=round(unit_price, 6),
-        priceModel="fixed",
+        quotedPriceUsdc=quoted_price,
+        priceModel=price_model,
         status="OPEN",
         requestFingerprint=payload_digest({
             "serviceId": service.service_id,

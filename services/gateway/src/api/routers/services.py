@@ -93,7 +93,7 @@ class ConstraintsSpec(BaseModel):
     timeoutMs: int = Field(
         default=settings.gateway_default_timeout_ms,
         ge=settings.gateway_min_timeout_ms,
-        le=settings.gateway_max_timeout_ms,
+        le=settings.gateway_llm_max_timeout_ms,
     )
     maxResponseBytes: int = Field(
         default=settings.gateway_default_response_bytes,
@@ -193,7 +193,7 @@ class RegisterServiceRequest(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def bind_service_id_from_agent_tool_name(cls, raw: Any) -> Any:
+    def bind_service_id_and_timeout_defaults(cls, raw: Any) -> Any:
         if not isinstance(raw, dict):
             return raw
 
@@ -202,9 +202,29 @@ class RegisterServiceRequest(BaseModel):
         agent_tool_name = str(payload.get("agentToolName") or "").strip()
         if not service_id and agent_tool_name:
             payload["serviceId"] = agent_tool_name
-            return payload
-        if service_id and agent_tool_name and service_id != agent_tool_name:
+        elif service_id and agent_tool_name and service_id != agent_tool_name:
             raise ValueError("serviceId must match agentToolName when both are provided")
+        pricing = payload.get("pricing")
+        pricing_model = (
+            str(pricing.get("priceModel") or "").strip().lower()
+            if isinstance(pricing, dict)
+            else ""
+        )
+        price_model = str(payload.get("priceModel") or pricing_model or "fixed").strip().lower()
+        service_kind = str(payload.get("serviceKind") or "api").strip().lower()
+        if service_kind == "llm" or price_model == "token_metered":
+            constraints = (
+                dict(payload.get("constraints"))
+                if isinstance(payload.get("constraints"), dict)
+                else {}
+            )
+            if "timeoutMs" not in constraints and "timeout_ms" not in constraints:
+                constraints["timeoutMs"] = settings.gateway_llm_default_timeout_ms
+            payload["constraints"] = constraints
+            invoke = dict(payload.get("invoke")) if isinstance(payload.get("invoke"), dict) else None
+            if invoke is not None and "timeoutMs" not in invoke and "timeout_ms" not in invoke:
+                invoke["timeoutMs"] = constraints["timeoutMs"]
+                payload["invoke"] = invoke
         return payload
 
 

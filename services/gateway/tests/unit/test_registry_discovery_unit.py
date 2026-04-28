@@ -164,7 +164,16 @@ async def test_list_owner_services_enriches_lifecycle_status_and_health(monkeypa
 
     assert len(rows) == 1
     assert rows[0]["serviceId"] == "svc.owner-active"
-    assert rows[0]["pricing"] == {"amount": "0.01", "currency": "USDC"}
+    assert rows[0]["pricing"] == {
+        "amount": "0.01",
+        "currency": "USDC",
+        "priceModel": "fixed",
+        "inputPricePer1MTokensUsdc": None,
+        "outputPricePer1MTokensUsdc": None,
+        "defaultMaxOutputTokens": None,
+        "holdBufferMultiplier": None,
+        "maxAutoHoldUsdc": None,
+    }
     assert rows[0]["status"] == "active"
     assert rows[0]["health"]["probeStatus"] == "healthy"
     assert "overallStatus" in rows[0]["health"]
