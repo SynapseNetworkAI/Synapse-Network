@@ -636,6 +636,52 @@ def test_service_registry_repository_read_and_write() -> None:
     assert "INSERT INTO synapse_provider_payout_accounts" in all_sql
 
 
+def test_service_health_history_write_serializes_and_deletes_only_obsolete_keys() -> None:
+    db = FakeDB()
+    repo = ServiceRegistryRepository(db)
+
+    repo.write_service_target_health_history_rows(
+        [
+            ServiceTargetHealthHistory(
+                serviceId="svc-b",
+                ownerAddress="0xDEF",
+                targetUrl="https://b",
+                checkedAt=3,
+            ),
+            ServiceTargetHealthHistory(
+                serviceId="svc-a",
+                ownerAddress="0xABC",
+                targetUrl="https://a",
+                checkedAt=4,
+            ),
+        ]
+    )
+
+    tx_ops = db.tx_cursors[-1].executed
+    assert tx_ops[0] == (
+        "SELECT pg_advisory_xact_lock(hashtext(%s))",
+        ("synapse_runtime_state:service_health_history",),
+    )
+    delete_sql, delete_params = tx_ops[1]
+    assert (
+        "DELETE FROM synapse_runtime_state WHERE state_key LIKE "
+        "'service_health_history::%%' AND state_key NOT IN"
+    ) in delete_sql
+    assert delete_params == (
+        "service_health_history::svc-a",
+        "service_health_history::svc-b",
+    )
+    upsert_keys = [
+        params[0]
+        for sql, params in tx_ops
+        if "INSERT INTO synapse_runtime_state" in sql
+    ]
+    assert upsert_keys == [
+        "service_health_history::svc-a",
+        "service_health_history::svc-b",
+    ]
+
+
 def test_service_registry_repository_normalizes_datetime_health_timestamps() -> None:
     db = FakeDB()
     last_checked_at = datetime(2026, 3, 18, 14, 36, 37, tzinfo=timezone.utc)

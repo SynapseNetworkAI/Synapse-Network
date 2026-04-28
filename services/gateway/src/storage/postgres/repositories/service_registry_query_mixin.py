@@ -498,8 +498,32 @@ class ServiceRegistryQueryMixin:
             grouped[service_id].append(payload)
 
         with self._db.tx_cursor() as cur:
-            cur.execute("DELETE FROM synapse_runtime_state WHERE state_key LIKE 'service_health_history::%%'")
-            for service_id, payload_rows in grouped.items():
+            # Health history is maintained by multiple Cloud Run instances/jobs.
+            # Serialize rewrites to avoid DELETE/UPSERT deadlocks on runtime_state.
+            cur.execute(
+                "SELECT pg_advisory_xact_lock(hashtext(%s))",
+                ("synapse_runtime_state:service_health_history",),
+            )
+            if not grouped:
+                cur.execute(
+                    "DELETE FROM synapse_runtime_state "
+                    "WHERE state_key LIKE 'service_health_history::%%'"
+                )
+                return
+
+            state_keys = [
+                self._history_state_key(service_id)
+                for service_id in sorted(grouped)
+            ]
+            placeholders = self._scalar_not_in_clause(len(state_keys))
+            cur.execute(
+                "DELETE FROM synapse_runtime_state "
+                "WHERE state_key LIKE 'service_health_history::%%' "
+                f"AND state_key NOT IN ({placeholders})",
+                tuple(state_keys),
+            )
+            for service_id in sorted(grouped):
+                payload_rows = grouped[service_id]
                 self._upsert_runtime_state(
                     cur,
                     self._history_state_key(service_id),
