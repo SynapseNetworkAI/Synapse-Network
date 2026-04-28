@@ -86,6 +86,16 @@ PR 阻断流水线至少要检查：
 
 GitHub PR CI 仍然保留单个 required check：`pr-checks`。动态 scope 只发生在这个 job 内部，避免多 job conditional required checks 造成 skipped 状态无法合并的分支保护问题。
 
+`main` 分支保护必须强制：
+
+1. required status check: `pr-checks`
+2. pull request review 至少 1 人
+3. require branch up to date before merge
+4. 禁止 force push 和 branch deletion
+5. finance/security/contracts 目录变更建议配合 `CODEOWNERS` 做 owner review
+
+如果 GitHub API 因私有仓库套餐限制无法读取 branch protection，人工在 GitHub Settings 中复核以上规则，并把截图或记录附到 release evidence。
+
 `.github/workflows/pr-ci.yml` 还必须使用 `actions/cache@v5` 缓存依赖下载层，保持 GitHub Actions Node 24 runtime 兼容：
 
 1. `~/.npm`，key 绑定 root 和 user-front 的 npm lockfile。
@@ -152,8 +162,10 @@ Agent 生成代码必须通过结构门禁，不能靠堆代码、复制粘贴�
 
 1. `npm run ci:financial-security` 运行金融安全 Semgrep 规则和 finance-only mypy 数据流门禁。
 2. `npm run ci:architecture-quality` 通过 `uvx`-first runner 运行 Ruff、Radon、JSCPD 和 repo-local finance shape scan。
-3. `npm run ci:diff-coverage` 运行增量覆盖率门禁，只检查 changed lines，finance-sensitive 路径使用更高阈值。
-4. `npm run ci:agent-guardrails` 聚合安全、复杂度、查重、增量覆盖率、runtime guard 和模型漂移扫描。
+3. `npm run ci:quality-budget` 阻止新增大文件、复杂函数、无理由 lint/coverage 逃逸和 legacy 文件继续膨胀。
+4. `npm run ci:format-check` 对 changed tracked web/doc/config 文件执行 read-only Prettier check。
+5. `npm run ci:diff-coverage` 运行增量覆盖率门禁，只检查 changed lines，finance-sensitive 路径使用更高阈值。
+6. `npm run ci:agent-guardrails` 聚合安全、复杂度、查重、增量覆盖率、runtime guard 和模型漂移扫描。
 
 第一期默认检查 changed files，避免历史复杂代码一次性阻塞全仓；但 finance-sensitive changed files 必须严格通过。
 Python guardrail 工具不使用业务 service venv；缺少 `uvx` 且 PATH 上没有对应工具时，门禁 fail closed 并提示安装 `uv`。

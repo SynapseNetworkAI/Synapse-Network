@@ -481,7 +481,7 @@ async def invoke_llm_v1(
             }
         )
         persist_invocation(storage, succeeded)
-        return succeeded  # noqa: TRY300
+        return succeeded  # noqa: TRY300 - explicit success return keeps upstream billing rollback branch readable
     except Exception as exc:
         if not settled:
             _release_hold(storage, owner_wallet, plan.hold_usdc)

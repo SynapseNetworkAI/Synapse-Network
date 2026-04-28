@@ -11,7 +11,7 @@ describe("formatPricing", () => {
         priceModel: "token_metered",
         inputPricePer1MTokensUsdc: "0.140000",
         outputPricePer1MTokensUsdc: "0.280000",
-      }),
+      })
     ).toBe("0.140000 in / 0.280000 out USDC per 1M tokens");
   });
 });

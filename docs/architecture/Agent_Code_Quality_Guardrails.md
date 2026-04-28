@@ -1,9 +1,9 @@
 # Agent Code Quality Guardrails
 
 - Status: canonical
-- Code paths: `semgrep/`, `mypy-finance.ini`, `ruff.toml`, `.jscpd.json`, `scripts/ci/run_guardrail_tool.sh`, `scripts/ci/code_quality_architecture_scan.*`, `scripts/ci/finance_approval_safety_scan.sh`, `scripts/ci/finance_mypy_scan.sh`
-- Verified with: `npm run ci:agent-guardrails`, `npm run ci:architecture-quality`, `npm run ci:financial-security`
-- Last verified against code: 2026-04-20
+- Code paths: `semgrep/`, `mypy-finance.ini`, `ruff.toml`, `.jscpd.json`, `scripts/ci/run_guardrail_tool.sh`, `scripts/ci/code_quality_architecture_scan.*`, `scripts/ci/quality_budget_check.mjs`, `scripts/ci/format_check.sh`, `scripts/ci/finance_approval_safety_scan.sh`, `scripts/ci/finance_mypy_scan.sh`
+- Verified with: `npm run ci:agent-guardrails`, `npm run ci:architecture-quality`, `npm run ci:quality-budget`, `npm run ci:format-check`, `npm run ci:financial-security`
+- Last verified against code: 2026-04-28
 
 This document defines the physical gates that prevent Agent-generated code from becoming unsafe, unmaintainable, or copy-pasted across financial flows.
 
@@ -64,11 +64,32 @@ This gate runs:
 
 Phase 1 checks changed files plus finance-sensitive paths. This avoids turning historical debt into a full repository stop-the-world event while still blocking new debt. Radon/Ruff run through the same `uvx`-first runner.
 
+### Quality Budget
+
+Command: `npm run ci:quality-budget`
+
+This gate turns size and escape-hatch rules into a physical budget:
+
+1. New production source files must stay under 500 effective lines.
+2. New test-like files, E2E scripts, perf scripts, and drill scripts must stay under 800 effective lines.
+3. Legacy files above budget are explicitly baselined with their current effective-line cap; future changes cannot silently grow them.
+4. New TypeScript/TSX/JS functions and React components must stay under 120 effective lines, nesting depth 4, complexity 12, and 8 arguments unless the file is an explicit legacy function baseline.
+5. New Python functions must stay under 80 effective lines, nesting depth 4, complexity 12, and 8 arguments unless the stricter finance shape scan already owns the file.
+6. New `eslint-disable`, `@ts-ignore`, `@ts-expect-error`, `# noqa`, `# ruff: noqa`, and `type: ignore` markers must include an inline reason.
+
+The budget is a stop-loss, not an aspiration. When touching a baselined file, prefer reducing the cap by extracting shared helpers rather than increasing the baseline.
+
+### Format Check
+
+Command: `npm run ci:format-check`
+
+This gate runs Prettier in read-only `--check` mode over changed tracked TypeScript, JavaScript, JSON, YAML, and Markdown files. It is intentionally separate from lint/typecheck so formatting drift cannot hide real logic changes in noisy reviews. The gate does not scan untracked local scratch files.
+
 ### Agent Guardrails
 
 Command: `npm run ci:agent-guardrails`
 
-This combines financial security, architecture quality, local runtime guard, and E2E script model-drift scan.
+This combines financial security, architecture quality, quality budget, local runtime guard, and E2E script model-drift scan.
 
 ## Failure Output Contract
 

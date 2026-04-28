@@ -39,4 +39,3 @@ cd services/gateway && .venv/bin/python -m pytest tests/unit/storage/test_postgr
 npm run ci:docs
 git diff --check
 ```
-

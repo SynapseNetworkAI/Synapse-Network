@@ -1,5 +1,5 @@
 """Service registry repository — core helpers and upsert mixin."""
-# ruff: noqa: PLR0911, PLR2004, S324
+# ruff: noqa: PLR0911, PLR2004, S324  # reason: registry upsert paths preserve legacy branch shape and compatibility hashes
 from __future__ import annotations
 
 import hashlib

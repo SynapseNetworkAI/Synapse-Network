@@ -30,22 +30,22 @@
 6. `GET /api/v1/balance/consumer/withdrawals` ← consumer 提现记录
 7. `POST /api/v1/refund`
 8. `GET /api/v1/refunds`
-7. `GET /api/v1/usage/logs`
-8. `POST /api/v1/providers/withdrawals/intent`
-9. `GET /api/v1/providers/withdrawals/capability`
-10. `GET /api/v1/providers/withdrawals`
-11. `POST /api/v1/providers/withdrawals/{withdrawalId}/complete`
-12. `POST /api/v1/admin/providers/withdrawals/{withdrawalId}/review`
-13. `GET /api/v1/router/config`
-14. `POST /api/v1/router/config`
-15. `GET /api/v1/finance/audit-logs`
-16. `GET /api/v1/balance/spending-limit`
-17. `PUT /api/v1/balance/spending-limit`
-18. `POST /api/v1/balance/vouchers/redeem`
-18. `GET /api/v1/admin/fee-policy`
-19. `PUT /api/v1/admin/fee-policy`
-20. `POST /api/v1/admin/deposits/replay`
-21. `GET|POST|PUT|DELETE /api/v1/services*` except public discover
+9. `GET /api/v1/usage/logs`
+10. `POST /api/v1/providers/withdrawals/intent`
+11. `GET /api/v1/providers/withdrawals/capability`
+12. `GET /api/v1/providers/withdrawals`
+13. `POST /api/v1/providers/withdrawals/{withdrawalId}/complete`
+14. `POST /api/v1/admin/providers/withdrawals/{withdrawalId}/review`
+15. `GET /api/v1/router/config`
+16. `POST /api/v1/router/config`
+17. `GET /api/v1/finance/audit-logs`
+18. `GET /api/v1/balance/spending-limit`
+19. `PUT /api/v1/balance/spending-limit`
+20. `POST /api/v1/balance/vouchers/redeem`
+21. `GET /api/v1/admin/fee-policy`
+22. `PUT /api/v1/admin/fee-policy`
+23. `POST /api/v1/admin/deposits/replay`
+24. `GET|POST|PUT|DELETE /api/v1/services*` except public discover
 
 ### 1.3 Public or Runtime APIs
 
@@ -201,6 +201,7 @@ Gateway 同步调用按 service profile 执行 bounded timeout：
 > **关键区分**：本接口是提现剩余押金（unused deposit），与 `POST /api/v1/refund`（对单次调用发起争议退款）完全不同，**不需要 `originRequestId`**。
 
 Headers:
+
 - `Authorization: Bearer <token>` — 必须
 - `X-Wallet-Address: <ownerAddress>` — 必须
 - `X-Idempotency-Key: <uuid-or-hash>` — 必须（幂等保护）
@@ -226,11 +227,11 @@ Headers:
 
 风险规则：
 
-| 条件 | riskLevel | status |
-|---|---|---|
-| 正常（≤ $500，24h 内 < 3 次）| `green` | `REQUESTED` |
-| 金额 ≥ $500 USDC | `yellow` | `PENDING_MANUAL_REVIEW` |
-| 24h 内已提现 3 次 | `red` | `PENDING_MANUAL_REVIEW` |
+| 条件                          | riskLevel | status                  |
+| ----------------------------- | --------- | ----------------------- |
+| 正常（≤ $500，24h 内 < 3 次） | `green`   | `REQUESTED`             |
+| 金额 ≥ $500 USDC              | `yellow`  | `PENDING_MANUAL_REVIEW` |
+| 24h 内已提现 3 次             | `red`     | `PENDING_MANUAL_REVIEW` |
 
 安全约束：
 

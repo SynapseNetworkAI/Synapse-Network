@@ -7,7 +7,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "../..");
 
 const SCAN_DIRS = ["scripts/e2e", "scripts/perf", "scripts/drills"];
-const DIRECT_SECRET_RE = /gcloud[\s\S]{0,240}secrets[\s\S]{0,240}versions[\s\S]{0,240}access|secrets[\s\S]{0,240}versions[\s\S]{0,240}access[\s\S]{0,240}gcloud/i;
+const DIRECT_SECRET_RE =
+  /gcloud[\s\S]{0,240}secrets[\s\S]{0,240}versions[\s\S]{0,240}access|secrets[\s\S]{0,240}versions[\s\S]{0,240}access[\s\S]{0,240}gcloud/i;
 const ENV_STAGING_RE = /\.env\.staging/;
 const ALLOWED_DIRECT_SECRET_FILES = new Set([
   "scripts/drills/gcp_staging_backup_restore_drill.sh",
@@ -35,7 +36,11 @@ function walk(dir) {
 
 function isStagingOnlyE2eFile(file) {
   const base = path.basename(file).toLowerCase();
-  return base.startsWith("staging_") || base.includes("_staging_") || base.includes("staging");
+  return (
+    base.startsWith("staging_") ||
+    base.includes("_staging_") ||
+    base.includes("staging")
+  );
 }
 
 const failures = [];
@@ -45,7 +50,8 @@ for (const file of SCAN_DIRS.flatMap(walk).sort()) {
     failures.push({
       file,
       code: "E2E-ENV-SECRET-001",
-      message: "Direct gcloud Secret Manager reads are forbidden. Use scripts/lib/e2e_env_guard.mjs readStagingSecret().",
+      message:
+        "Direct gcloud Secret Manager reads are forbidden. Use scripts/lib/e2e_env_guard.mjs readStagingSecret().",
     });
   }
   if (
@@ -57,13 +63,16 @@ for (const file of SCAN_DIRS.flatMap(walk).sort()) {
     failures.push({
       file,
       code: "E2E-ENV-STAGING-FILE-001",
-      message: "Dual-mode/local E2E scripts must not load .env.staging. Use local env files for local and explicit staging env/Secret wrapper for staging.",
+      message:
+        "Dual-mode/local E2E scripts must not load .env.staging. Use local env files for local and explicit staging env/Secret wrapper for staging.",
     });
   }
 }
 
 if (failures.length > 0) {
-  console.error("FATAL E2E-ENV-ISOLATION-001: E2E environment isolation check failed.");
+  console.error(
+    "FATAL E2E-ENV-ISOLATION-001: E2E environment isolation check failed."
+  );
   for (const failure of failures) {
     console.error(`${failure.code}: ${failure.file}: ${failure.message}`);
   }

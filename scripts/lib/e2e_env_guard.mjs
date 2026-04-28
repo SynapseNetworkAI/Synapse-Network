@@ -27,14 +27,24 @@ export function readDotenvFile(filePath) {
   return parsed;
 }
 
-export function resolveE2eEnvironment({ value, defaultEnv = "local", scriptName = "e2e" } = {}) {
-  const raw = String(value || process.env.SYNAPSE_E2E_ENV || defaultEnv || "").trim().toLowerCase();
+export function resolveE2eEnvironment({
+  value,
+  defaultEnv = "local",
+  scriptName = "e2e",
+} = {}) {
+  const raw = String(value || process.env.SYNAPSE_E2E_ENV || defaultEnv || "")
+    .trim()
+    .toLowerCase();
   if (!["local", "staging"].includes(raw)) {
-    throw new Error(`${scriptName}: SYNAPSE_E2E_ENV must be local or staging; got ${raw || "<empty>"}`);
+    throw new Error(
+      `${scriptName}: SYNAPSE_E2E_ENV must be local or staging; got ${
+        raw || "<empty>"
+      }`
+    );
   }
   if (raw === "local" && hasShellProjectContext()) {
     process.stderr.write(
-      `[e2e-env-guard] warning: Google project context is present but ignored in local E2E (${scriptName}).\n`,
+      `[e2e-env-guard] warning: Google project context is present but ignored in local E2E (${scriptName}).\n`
     );
   }
   return raw;
@@ -46,7 +56,7 @@ export function hasShellProjectContext() {
       process.env.GCP_PROJECT ||
       process.env.GOOGLE_CLOUD_PROJECT ||
       process.env.CLOUDSDK_CORE_PROJECT ||
-      process.env.GOOGLE_APPLICATION_CREDENTIALS,
+      process.env.GOOGLE_APPLICATION_CREDENTIALS
   );
 }
 
@@ -63,7 +73,10 @@ export function projectIdFromEnv() {
 export function isLocalHttpUrl(value) {
   try {
     const url = new URL(String(value || ""));
-    return ["http:", "https:"].includes(url.protocol) && LOCAL_HOSTS.has(url.hostname);
+    return (
+      ["http:", "https:"].includes(url.protocol) &&
+      LOCAL_HOSTS.has(url.hostname)
+    );
   } catch {
     return false;
   }
@@ -80,23 +93,34 @@ export function isStagingHttpUrl(value) {
 
 export function assertLocalHttpUrl(name, value) {
   if (!isLocalHttpUrl(value)) {
-    throw new Error(`LOCAL_E2E_REFUSES_NON_LOCAL_ENDPOINT: ${name}=${value || "<empty>"}`);
+    throw new Error(
+      `LOCAL_E2E_REFUSES_NON_LOCAL_ENDPOINT: ${name}=${value || "<empty>"}`
+    );
   }
 }
 
 export function assertStagingHttpUrl(name, value) {
   if (!isStagingHttpUrl(value)) {
-    throw new Error(`STAGING_E2E_REQUIRES_STAGING_ENDPOINT: ${name}=${value || "<empty>"}`);
+    throw new Error(
+      `STAGING_E2E_REQUIRES_STAGING_ENDPOINT: ${name}=${value || "<empty>"}`
+    );
   }
 }
 
-export function assertLocalValue(name, value, { allowExternalWebhook = false, allowEmpty = true } = {}) {
+export function assertLocalValue(
+  name,
+  value,
+  { allowExternalWebhook = false, allowEmpty = true } = {}
+) {
   const text = String(value || "");
   if (!text) {
     if (allowEmpty) return;
     throw new Error(`LOCAL_E2E_MISSING_REQUIRED_VALUE: ${name}`);
   }
-  if (allowExternalWebhook && /^https:\/\/open\.larksuite\.com\/open-apis\/bot\/v2\/hook\//i.test(text)) {
+  if (
+    allowExternalWebhook &&
+    /^https:\/\/open\.larksuite\.com\/open-apis\/bot\/v2\/hook\//i.test(text)
+  ) {
     return;
   }
   if (STAGING_MARKERS_RE.test(text)) {
@@ -133,30 +157,49 @@ export function requireStagingConfirmation(name, expected) {
   }
 }
 
-export function readStagingSecret(secretId, { projectId = projectIdFromEnv(), required = false } = {}) {
-  const envName = String(process.env.SYNAPSE_E2E_ENV || "").trim().toLowerCase();
+export function readStagingSecret(
+  secretId,
+  { projectId = projectIdFromEnv(), required = false } = {}
+) {
+  const envName = String(process.env.SYNAPSE_E2E_ENV || "")
+    .trim()
+    .toLowerCase();
   if (envName !== "staging") {
-    throw new Error(`LOCAL_E2E_FORBIDS_GCP_SECRET_MANAGER: attempted to read ${secretId}`);
+    throw new Error(
+      `LOCAL_E2E_FORBIDS_GCP_SECRET_MANAGER: attempted to read ${secretId}`
+    );
   }
   if (process.env.ALLOW_GCP_SECRET_MANAGER !== "1") {
-    throw new Error(`STAGING_E2E_REQUIRES_ALLOW_GCP_SECRET_MANAGER: attempted to read ${secretId}`);
+    throw new Error(
+      `STAGING_E2E_REQUIRES_ALLOW_GCP_SECRET_MANAGER: attempted to read ${secretId}`
+    );
   }
   if (!/^synapse-staging-[A-Za-z0-9_-]+$/.test(secretId)) {
     throw new Error(`STAGING_E2E_FORBIDS_NON_STAGING_SECRET: ${secretId}`);
   }
   if (!projectId) {
-    if (required) throw new Error(`STAGING_E2E_MISSING_PROJECT_ID: ${secretId}`);
+    if (required)
+      throw new Error(`STAGING_E2E_MISSING_PROJECT_ID: ${secretId}`);
     return "";
   }
   try {
     return execFileSync(
       "gcloud",
-      ["secrets", "versions", "access", "latest", `--secret=${secretId}`, `--project=${projectId}`],
-      { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+      [
+        "secrets",
+        "versions",
+        "access",
+        "latest",
+        `--secret=${secretId}`,
+        `--project=${projectId}`,
+      ],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }
     ).trim();
   } catch (error) {
     if (required) {
-      throw new Error(`STAGING_E2E_SECRET_READ_FAILED: ${secretId}: ${error.message}`);
+      throw new Error(
+        `STAGING_E2E_SECRET_READ_FAILED: ${secretId}: ${error.message}`
+      );
     }
     return "";
   }

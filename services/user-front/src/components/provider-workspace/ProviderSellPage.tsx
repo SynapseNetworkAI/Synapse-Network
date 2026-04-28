@@ -8,7 +8,18 @@ import Link from "next/link";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { listApiSecrets } from "@/utils/serviceApi";
-import { Activity, AlertTriangle, Key, Database, Zap, Server, ArrowRight, TerminalSquare, RefreshCw, Plus } from "lucide-react";
+import {
+  Activity,
+  AlertTriangle,
+  Key,
+  Database,
+  Zap,
+  Server,
+  ArrowRight,
+  TerminalSquare,
+  RefreshCw,
+  Plus,
+} from "lucide-react";
 import { useDashboardData } from "@/hooks/useDashboardData";
 
 export default function ProviderConsolePage() {
@@ -22,16 +33,25 @@ export default function ProviderConsolePage() {
   const {
     services,
     providerStats,
-    handleRefresh: loadDashboardData
+    handleRefresh: loadDashboardData,
   } = useDashboardData();
 
   useEffect(() => {
-    if (!address) { setMissingCredentials(false); return; }
+    if (!address) {
+      setMissingCredentials(false);
+      return;
+    }
     let cancelled = false;
     listApiSecrets(address)
-      .then((secrets) => { if (!cancelled) setMissingCredentials(secrets.length === 0); })
-      .catch(() => { if (!cancelled) setMissingCredentials(false); });
-    return () => { cancelled = true; };
+      .then((secrets) => {
+        if (!cancelled) setMissingCredentials(secrets.length === 0);
+      })
+      .catch(() => {
+        if (!cancelled) setMissingCredentials(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [address]);
 
   const handlePublishClick = async () => {
@@ -47,7 +67,7 @@ export default function ProviderConsolePage() {
         return;
       }
       router.push("/provider/services/deploy");
-    } catch(e) {
+    } catch (e) {
       console.warn("Precheck failed", e);
       toast.error(t("providerConsolePage.verifySigningSecretFailed"));
       router.push("/provider/secrets");
@@ -61,7 +81,9 @@ export default function ProviderConsolePage() {
       try {
         const secrets = await listApiSecrets(address);
         setMissingCredentials(secrets.length === 0);
-      } catch { /* keep current state */ }
+      } catch {
+        /* keep current state */
+      }
     }
     setIsRefreshing(false);
   };
@@ -92,7 +114,11 @@ export default function ProviderConsolePage() {
             title={t("providerConsolePage.refreshConsole")}
             className="p-3 text-[#86868b] transition-colors bg-[#0a0a0a] border border-[#222222] rounded-xl hover:bg-[#111111] hover:text-[#ffffff]"
           >
-            <RefreshCw className={`w-5 h-5 ${isRefreshing ? "animate-spin text-[#22c55e]" : ""}`} />
+            <RefreshCw
+              className={`w-5 h-5 ${
+                isRefreshing ? "animate-spin text-[#22c55e]" : ""
+              }`}
+            />
           </button>
         </div>
       </div>
@@ -108,7 +134,8 @@ export default function ProviderConsolePage() {
             href="/provider/secrets"
             className="inline-flex items-center gap-1 whitespace-nowrap rounded-full border border-[#ff9f0a]/40 bg-[#ff9f0a]/20 px-4 py-1.5 text-xs font-bold text-[#ff9f0a] transition hover:bg-[#ff9f0a]/30"
           >
-            {t("providerConsolePage.credentialsBannerAction")} <ArrowRight className="h-3 w-3" />
+            {t("providerConsolePage.credentialsBannerAction")}{" "}
+            <ArrowRight className="h-3 w-3" />
           </Link>
         </div>
       )}
@@ -184,16 +211,17 @@ export default function ProviderConsolePage() {
           </h3>
           <div className="flex items-center gap-3">
             <span className="text-3xl font-[800] text-[#ffffff] font-mono tracking-tighter">
-              {isConnected ? services.filter(s => s.isActive).length : "0"}
+              {isConnected ? services.filter((s) => s.isActive).length : "0"}
             </span>
             {isConnected ? (
               <span className="flex items-center text-[10px] uppercase font-bold tracking-widest text-[#22c55e] bg-[#22c55e]/10 px-2 py-1 rounded-md border border-[#22c55e]/20">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#22c55e] animate-pulse mr-2"></span>
-                {" "}
+                <span className="w-1.5 h-1.5 rounded-full bg-[#22c55e] animate-pulse mr-2"></span>{" "}
                 {t("providerConsolePage.online")}
               </span>
             ) : (
-              <span className="text-[10px] uppercase font-bold tracking-widest text-[#86868b] bg-[#222222]/50 px-2 py-1 rounded-md">{t("providerConsolePage.offline")}</span>
+              <span className="text-[10px] uppercase font-bold tracking-widest text-[#86868b] bg-[#222222]/50 px-2 py-1 rounded-md">
+                {t("providerConsolePage.offline")}
+              </span>
             )}
           </div>
           <p className="mt-3 text-[11px] text-[#86868b] tracking-wide uppercase">
@@ -204,19 +232,38 @@ export default function ProviderConsolePage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 -mt-6">
         <div className="lg:col-span-3 p-4 bg-[#0a0a0a] border border-[#222222] rounded-2xl flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-          <div className="text-[11px] text-[#86868b] uppercase tracking-[0.2em] font-semibold">{t("providerConsolePage.settlementBreakdown")}</div>
+          <div className="text-[11px] text-[#86868b] uppercase tracking-[0.2em] font-semibold">
+            {t("providerConsolePage.settlementBreakdown")}
+          </div>
           <div className="flex flex-wrap items-center gap-3 md:gap-6">
             <div className="px-3 py-2 rounded-xl border border-[#222222] bg-[#050505]">
-              <div className="text-[10px] uppercase tracking-widest text-[#86868b]">{t("providerConsolePage.protocolFee")}</div>
-              <div className="text-sm font-mono font-bold text-[#ff9f0a]">{isConnected ? providerStats.totalFees.toFixed(4) : "0.0000"} USDC</div>
+              <div className="text-[10px] uppercase tracking-widest text-[#86868b]">
+                {t("providerConsolePage.protocolFee")}
+              </div>
+              <div className="text-sm font-mono font-bold text-[#ff9f0a]">
+                {isConnected ? providerStats.totalFees.toFixed(4) : "0.0000"}{" "}
+                USDC
+              </div>
             </div>
             <div className="px-3 py-2 rounded-xl border border-[#222222] bg-[#050505]">
-              <div className="text-[10px] uppercase tracking-widest text-[#86868b]">{t("providerConsolePage.routingTax")}</div>
-              <div className="text-sm font-mono font-bold text-[#22c55e]">{isConnected ? providerStats.totalRoutingTax.toFixed(4) : "0.0000"} USDC</div>
+              <div className="text-[10px] uppercase tracking-widest text-[#86868b]">
+                {t("providerConsolePage.routingTax")}
+              </div>
+              <div className="text-sm font-mono font-bold text-[#22c55e]">
+                {isConnected
+                  ? providerStats.totalRoutingTax.toFixed(4)
+                  : "0.0000"}{" "}
+                USDC
+              </div>
             </div>
             <div className="px-3 py-2 rounded-xl border border-[#222222] bg-[#050505]">
-              <div className="text-[10px] uppercase tracking-widest text-[#86868b]">{t("providerConsolePage.providerNetLifetime")}</div>
-              <div className="text-sm font-mono font-bold text-[#ffffff]">{isConnected ? providerStats.netEarned.toFixed(4) : "0.0000"} USDC</div>
+              <div className="text-[10px] uppercase tracking-widest text-[#86868b]">
+                {t("providerConsolePage.providerNetLifetime")}
+              </div>
+              <div className="text-sm font-mono font-bold text-[#ffffff]">
+                {isConnected ? providerStats.netEarned.toFixed(4) : "0.0000"}{" "}
+                USDC
+              </div>
             </div>
           </div>
         </div>
@@ -230,19 +277,23 @@ export default function ProviderConsolePage() {
             {t("providerConsolePage.deploymentPipeline")}
           </h2>
         </div>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Step 1 */}
           <div className="bg-[#050505] border border-[#222222] p-8 rounded-[2rem] group flex flex-col hover:border-[#444444] transition-colors">
             <div className="flex items-center justify-between mb-8">
-              <span className="text-xl font-mono font-[800] text-[#333333] group-hover:text-[#ffffff] transition-colors">01</span>
+              <span className="text-xl font-mono font-[800] text-[#333333] group-hover:text-[#ffffff] transition-colors">
+                01
+              </span>
               <Key className="w-6 h-6 text-[#86868b]" />
             </div>
-            <h3 className="text-xl font-bold text-[#ffffff] mb-3">{t("providerConsolePage.providerCredentialsTitle")}</h3>
+            <h3 className="text-xl font-bold text-[#ffffff] mb-3">
+              {t("providerConsolePage.providerCredentialsTitle")}
+            </h3>
             <p className="text-[#86868b] mb-8 font-medium leading-relaxed flex-1 text-sm">
               {t("providerConsolePage.providerCredentialsDescription")}
             </p>
-            <button 
+            <button
               onClick={() => {
                 if (!isConnected || !address) {
                   openConnectModal?.();
@@ -252,7 +303,8 @@ export default function ProviderConsolePage() {
               }}
               className="w-full py-4 text-sm font-bold border border-[#222222] text-[#ffffff] hover:bg-[#ffffff] hover:text-[#000000] transition-all bg-[#0a0a0a] flex items-center justify-center gap-2 rounded-2xl"
             >
-              {t("providerConsolePage.manageProviderCredentials")} <ArrowRight className="w-4 h-4" />
+              {t("providerConsolePage.manageProviderCredentials")}{" "}
+              <ArrowRight className="w-4 h-4" />
             </button>
           </div>
 
@@ -260,21 +312,26 @@ export default function ProviderConsolePage() {
           <div className="bg-[#0a0a0a] border border-[#22c55e]/30 p-8 rounded-[2rem] group flex flex-col relative overflow-hidden transition-all hover:border-[#22c55e]/60">
             <div className="absolute inset-0 bg-[#22c55e]/[0.02] group-hover:bg-[#22c55e]/10 transition-colors duration-500"></div>
             <div className="relative flex flex-col h-full">
-            <div className="flex items-center justify-between mb-8">
-              <span className="text-xl font-mono font-[800] text-[#22c55e]">02</span>
-              <Server className="w-6 h-6 text-[#22c55e]" />
+              <div className="flex items-center justify-between mb-8">
+                <span className="text-xl font-mono font-[800] text-[#22c55e]">
+                  02
+                </span>
+                <Server className="w-6 h-6 text-[#22c55e]" />
+              </div>
+              <h3 className="text-xl font-bold text-[#ffffff] mb-3">
+                {t("providerConsolePage.publishApiServiceTitle")}
+              </h3>
+              <p className="text-[#86868b] mb-8 font-medium leading-relaxed flex-1 text-sm group-hover:text-[#e5e5ea] transition-colors">
+                {t("providerConsolePage.publishApiServiceDescription")}
+              </p>
+              <button
+                onClick={handlePublishClick}
+                className="w-full py-4 text-sm font-bold border border-[#22c55e]/30 text-[#22c55e] hover:bg-[#22c55e] hover:text-[#000000] transition-all bg-[#000000] rounded-2xl shadow-[0_0_20px_rgba(34,197,94,0.1)] flex items-center justify-center gap-2"
+              >
+                {t("providerConsolePage.createService")}{" "}
+                <ArrowRight className="w-4 h-4" />
+              </button>
             </div>
-            <h3 className="text-xl font-bold text-[#ffffff] mb-3">{t("providerConsolePage.publishApiServiceTitle")}</h3>
-            <p className="text-[#86868b] mb-8 font-medium leading-relaxed flex-1 text-sm group-hover:text-[#e5e5ea] transition-colors">
-              {t("providerConsolePage.publishApiServiceDescription")}
-            </p>
-            <button 
-              onClick={handlePublishClick}
-              className="w-full py-4 text-sm font-bold border border-[#22c55e]/30 text-[#22c55e] hover:bg-[#22c55e] hover:text-[#000000] transition-all bg-[#000000] rounded-2xl shadow-[0_0_20px_rgba(34,197,94,0.1)] flex items-center justify-center gap-2"
-            >
-              {t("providerConsolePage.createService")} <ArrowRight className="w-4 h-4" />
-            </button>
-          </div>
           </div>
         </div>
       </section>

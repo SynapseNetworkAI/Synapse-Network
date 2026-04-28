@@ -1,5 +1,5 @@
 """Service registry repository — provider payout, persist, query, and health mixin."""
-# ruff: noqa: S608
+# ruff: noqa: S608  # reason: dynamic registry filters use controlled fragments with parameterized values
 from __future__ import annotations
 
 import json

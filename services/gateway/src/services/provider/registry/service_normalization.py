@@ -4,7 +4,7 @@ Extracted from payload_helpers to keep each module under 500 lines.
 These functions validate, normalize, and assemble service registration payloads.
 They are imported by payload_helpers, which re-exports what external modules need.
 """
-# ruff: noqa: PLR2004, S311, TRY003
+# ruff: noqa: PLR2004, S311, TRY003  # reason: normalization keeps registry literals and deterministic placeholder IDs together
 from __future__ import annotations
 
 import random
