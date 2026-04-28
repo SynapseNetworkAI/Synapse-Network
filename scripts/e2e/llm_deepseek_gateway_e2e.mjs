@@ -5,11 +5,24 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  assertLocalDsn,
+  assertLocalHttpUrl,
+  assertStagingHttpUrl,
+  assertStagingProxyDsn,
+  readDotenvFile,
+  resolveE2eEnvironment,
+} from "../lib/e2e_env_guard.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "../..");
 const GENERATED_AT = new Date();
-const ENVIRONMENT = env("LLM_DEEPSEEK_E2E_ENV", process.env.NODE_ENV === "production" ? "staging" : "local");
+const ENVIRONMENT = resolveE2eEnvironment({
+  value: process.env.LLM_DEEPSEEK_E2E_ENV,
+  defaultEnv: process.env.NODE_ENV === "production" ? "staging" : "local",
+  scriptName: "llm-deepseek",
+});
+process.env.SYNAPSE_E2E_ENV ||= ENVIRONMENT;
 const IS_STAGING = ENVIRONMENT === "staging";
 const RUN_ID = env("LLM_DEEPSEEK_E2E_RUN_ID", `llm-deepseek-${Date.now().toString(36)}`);
 const OUT_DIR = path.resolve(
@@ -21,13 +34,18 @@ const OUT_DIR = path.resolve(
   ),
 );
 
-loadEnvFile(path.join(ROOT, "services/gateway/.env.local"));
-loadEnvFile(path.join(ROOT, "services/gateway/.env.local.private"));
-if (IS_STAGING) loadEnvFile(path.join(ROOT, "services/gateway/.env.staging"));
+if (!IS_STAGING) {
+  loadEnvFile(path.join(ROOT, "services/gateway/.env.local"));
+  loadEnvFile(path.join(ROOT, "services/gateway/.env.local.private"));
+  loadEnvFile(path.join(ROOT, "services/gateway/.env.e2e.local"));
+}
 
 const config = {
   gatewayBaseUrl: trimTrailingSlash(
-    env("LLM_E2E_GATEWAY_BASE", IS_STAGING ? "https://api-staging.synapse-network.ai" : "http://127.0.0.1:8000"),
+    env(
+      "LLM_E2E_GATEWAY_BASE",
+      env("LOCAL_GATEWAY_BASE_URL", IS_STAGING ? "https://api-staging.synapse-network.ai" : "http://127.0.0.1:8000"),
+    ),
   ),
   serviceId: env("LLM_E2E_SERVICE_ID", "svc_deepseek_chat"),
   credential: env("LLM_E2E_CREDENTIAL", ""),
@@ -40,7 +58,9 @@ const config = {
     "Reply with exactly one short sentence: Synapse token-metered LLM billing smoke test passed.",
   ),
   maxTokens: Number(env("LLM_E2E_MAX_TOKENS", "32")),
-  postgresDsn: env("LLM_E2E_POSTGRES_DSN", env("POSTGRES_DSN", "")),
+  postgresDsn: IS_STAGING
+    ? env("LLM_E2E_POSTGRES_DSN", "")
+    : env("LLM_E2E_POSTGRES_DSN", env("LOCAL_POSTGRES_DSN", env("POSTGRES_DSN", ""))),
   requireDb: env("LLM_E2E_REQUIRE_DB", "0") === "1",
 };
 
@@ -56,17 +76,7 @@ function formatTimestamp(date) {
 }
 
 function loadEnvFile(filePath) {
-  if (!filePath || !fs.existsSync(filePath)) return;
-  const text = fs.readFileSync(filePath, "utf8");
-  for (const line of text.split(/\r?\n/)) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#") || !trimmed.includes("=")) continue;
-    const index = trimmed.indexOf("=");
-    const key = trimmed.slice(0, index).trim();
-    let value = trimmed.slice(index + 1).trim();
-    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
-      value = value.slice(1, -1);
-    }
+  for (const [key, value] of Object.entries(readDotenvFile(filePath))) {
     if (!process.env[key]) process.env[key] = value;
   }
 }
@@ -442,6 +452,13 @@ function renderReport(report) {
 async function main() {
   if (IS_STAGING && env("LLM_DEEPSEEK_E2E_CONFIRM") !== "I_UNDERSTAND_THIS_CALLS_LIVE_LLM_AND_CHARGES_STAGING") {
     throw new Error("Set LLM_DEEPSEEK_E2E_CONFIRM=I_UNDERSTAND_THIS_CALLS_LIVE_LLM_AND_CHARGES_STAGING for staging.");
+  }
+  if (IS_STAGING) {
+    assertStagingHttpUrl("LLM_E2E_GATEWAY_BASE", config.gatewayBaseUrl);
+    assertStagingProxyDsn("LLM_E2E_POSTGRES_DSN", config.postgresDsn, { allowEmpty: true });
+  } else {
+    assertLocalHttpUrl("LLM_E2E_GATEWAY_BASE", config.gatewayBaseUrl);
+    assertLocalDsn("LLM_E2E_POSTGRES_DSN", config.postgresDsn, { allowEmpty: true });
   }
   if (!config.credential) {
     throw new Error("LLM_E2E_CREDENTIAL is required. Use a staging/local test agent credential token, never a production credential.");

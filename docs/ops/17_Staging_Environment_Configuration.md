@@ -653,6 +653,39 @@ npm run e2e:transaction-notifications:staging
 npm run ci:transaction-notifications-staging-evidence
 ```
 
+### Local vs Staging E2E Secret Isolation
+
+Local and staging E2E must never share a secret source.
+
+- Local E2E commands set `SYNAPSE_E2E_ENV=local` and
+  `ALLOW_GCP_SECRET_MANAGER=0`; they read only local env files such as
+  `services/gateway/.env.local`, `services/gateway/.env.local.private`, and
+  `services/gateway/.env.e2e.local`.
+- Staging E2E commands set `SYNAPSE_E2E_ENV=staging` and
+  `ALLOW_GCP_SECRET_MANAGER=1`; they may read only `synapse-staging-*` secrets
+  through the shared `readStagingSecret()` wrapper.
+- A local shell can still export `PROJECT_ID` for other work. Local E2E ignores
+  that context and fails if any script attempts to read Google Secret Manager.
+- Local HTTP endpoints must be `localhost` or `127.0.0.1`. Staging HTTP
+  endpoints must be `https://*.synapse-network.ai`; staging Postgres evidence
+  may use a localhost Cloud SQL Auth Proxy DSN.
+- Do not load `services/gateway/.env.staging` from dual-mode local/staging E2E
+  scripts. Staging `.env` files are operator convenience files, not local test
+  inputs.
+
+Use the dedicated local E2E override file when shell variables are too noisy:
+
+```bash
+cp services/gateway/.env.e2e.local.example services/gateway/.env.e2e.local
+```
+
+Run the isolation static gate after changing E2E, perf, drill, or npm script
+boundaries:
+
+```bash
+npm run ci:e2e-env-isolation
+```
+
 ### LLM DeepSeek Chat Token-Metered E2E
 
 DeepSeek Chat is validated as a Provider-registered LLM service. This gate
