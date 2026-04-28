@@ -653,6 +653,45 @@ npm run e2e:transaction-notifications:staging
 npm run ci:transaction-notifications-staging-evidence
 ```
 
+### LLM DeepSeek Chat Token-Metered E2E
+
+DeepSeek Chat is validated as a Provider-registered LLM service. This gate
+proves the full Gateway path is live: discovery, invoke, final usage parsing,
+pre-auth hold, exact token charge, hold release, and Provider/Platform split.
+
+Local:
+
+```bash
+export LLM_E2E_GATEWAY_BASE=http://127.0.0.1:8000
+export LLM_E2E_SERVICE_ID=svc_deepseek_chat
+export LLM_E2E_CREDENTIAL=<local-test-agent-credential>
+export LLM_E2E_INPUT_PRICE_PER_1M_USDC=0.140000
+export LLM_E2E_OUTPUT_PRICE_PER_1M_USDC=0.280000
+
+npm run e2e:llm-deepseek:local
+npm run ci:llm-deepseek-local-evidence
+```
+
+Staging, after deploying the Gateway image that contains the LLM billing path:
+
+```bash
+export LLM_DEEPSEEK_E2E_CONFIRM=I_UNDERSTAND_THIS_CALLS_LIVE_LLM_AND_CHARGES_STAGING
+export LLM_E2E_GATEWAY_BASE=https://api-staging.synapse-network.ai
+export LLM_E2E_SERVICE_ID=svc_deepseek_chat
+export LLM_E2E_CREDENTIAL=<staging-test-agent-credential>
+export LLM_E2E_INPUT_PRICE_PER_1M_USDC=0.140000
+export LLM_E2E_OUTPUT_PRICE_PER_1M_USDC=0.280000
+export LLM_E2E_POSTGRES_DSN=<optional-Cloud-SQL-Auth-Proxy-localhost-DSN>
+
+npm run e2e:llm-deepseek:staging
+npm run ci:llm-deepseek-staging-evidence
+```
+
+Do not run the staging command from PR CI. It calls the live Provider endpoint
+and mutates staging balances. If `LLM_E2E_POSTGRES_DSN` is set, the runner also
+records the `synapse_invocations` DB row as evidence; otherwise it still
+validates the Gateway response and exact token-metered billing formula.
+
 Terraform injects the Gmail username and app password into Gateway-backed
 services and jobs through `gateway_secret_env`. It also injects
 `POSTGRES_DSN`; do not rely on split `POSTGRES_HOST=/cloudsql/...` fields for
@@ -1000,6 +1039,10 @@ image unless the code changed.
 | `POSTGRES_POOL_MAX` | `5` | Max reusable DB connections per instance. | No | Fixed staging safety limit |
 | `POSTGRES_CONNECT_TIMEOUT_SEC` | `5` | DB connect timeout. | No | Fixed |
 | `POSTGRES_AUTO_INIT` | `0` | Avoid implicit schema creation in staging. | No | Fixed |
+| `GATEWAY_DEFAULT_TIMEOUT_MS` | `15000` | Default sync timeout for ordinary API services. | No | Runtime guardrail |
+| `GATEWAY_MAX_TIMEOUT_MS` | `60000` | Maximum sync timeout for ordinary API services. | No | Runtime guardrail |
+| `GATEWAY_LLM_DEFAULT_TIMEOUT_MS` | `120000` | Default sync timeout for `serviceKind=llm` / `priceModel=token_metered`. | No | Runtime guardrail |
+| `GATEWAY_LLM_MAX_TIMEOUT_MS` | `300000` | Maximum bounded sync timeout for LLM/token-metered services. Longer tasks must use async invocation. | No | Runtime guardrail |
 | `JWT_SECRET` | Secret Manager value | User-facing JWT signing secret. | Yes | `synapse-staging-jwt-secret` |
 | `AUTH_SECRET` | Secret Manager value | Wallet challenge/session secret. | Yes | `synapse-staging-auth-secret` |
 | `GATEWAY_INTERNAL_JWT_SECRET` | Secret Manager value | Validates Gateway-admin internal tokens. | Yes | `synapse-staging-gateway-internal-jwt-secret` |

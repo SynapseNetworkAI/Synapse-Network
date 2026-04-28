@@ -144,7 +144,7 @@ CREATE TABLE IF NOT EXISTS synapse_service_manifests (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CHECK (status IN ('draft', 'active', 'paused', 'archived')),
-    CHECK (price_model IN ('fixed', 'tiered', 'quote')),
+    CHECK (price_model IN ('fixed', 'tiered', 'quote', 'token_metered')),
     CHECK (base_price_usdc >= 0),
     CHECK (jsonb_typeof(capabilities_json) = 'array'),
     CHECK (jsonb_typeof(input_schema) = 'object'),
@@ -170,7 +170,7 @@ CREATE TABLE IF NOT EXISTS synapse_service_endpoints (
     status TEXT NOT NULL DEFAULT 'active',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    CHECK (timeout_ms BETWEEN 300 AND 60000),
+    CHECK (timeout_ms BETWEEN 300 AND 300000),
     CHECK (max_payload_bytes BETWEEN 256 AND 33554432),
     CHECK (weight BETWEEN 1 AND 1000),
     CHECK (status IN ('active', 'paused', 'archived'))
@@ -219,10 +219,24 @@ CREATE TABLE IF NOT EXISTS synapse_service_quotes (
     expires_at TIMESTAMPTZ NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CHECK (quoted_price_usdc >= 0),
-    CHECK (price_model IN ('fixed', 'tiered', 'quote')),
+    CHECK (price_model IN ('fixed', 'tiered', 'quote', 'token_metered')),
     CHECK (response_mode IN ('sync', 'async', 'stream')),
     CHECK (jsonb_typeof(invoke_constraints) = 'object')
 );
+
+ALTER TABLE synapse_service_manifests
+DROP CONSTRAINT IF EXISTS synapse_service_manifests_price_model_check;
+
+ALTER TABLE synapse_service_manifests
+ADD CONSTRAINT synapse_service_manifests_price_model_check
+CHECK (price_model IN ('fixed', 'tiered', 'quote', 'token_metered'));
+
+ALTER TABLE synapse_service_quotes
+DROP CONSTRAINT IF EXISTS synapse_service_quotes_price_model_check;
+
+ALTER TABLE synapse_service_quotes
+ADD CONSTRAINT synapse_service_quotes_price_model_check
+CHECK (price_model IN ('fixed', 'tiered', 'quote', 'token_metered'));
 
 ALTER TABLE synapse_service_quotes
 DROP CONSTRAINT IF EXISTS synapse_service_quotes_quoted_price_usdc_check;
@@ -230,6 +244,13 @@ DROP CONSTRAINT IF EXISTS synapse_service_quotes_quoted_price_usdc_check;
 ALTER TABLE synapse_service_quotes
 ADD CONSTRAINT synapse_service_quotes_quoted_price_usdc_check
 CHECK (quoted_price_usdc >= 0);
+
+ALTER TABLE synapse_service_endpoints
+DROP CONSTRAINT IF EXISTS synapse_service_endpoints_timeout_ms_check;
+
+ALTER TABLE synapse_service_endpoints
+ADD CONSTRAINT synapse_service_endpoints_timeout_ms_check
+CHECK (timeout_ms BETWEEN 300 AND 300000);
 
 CREATE TABLE IF NOT EXISTS synapse_invocations (
     id BIGINT GENERATED ALWAYS AS IDENTITY UNIQUE,

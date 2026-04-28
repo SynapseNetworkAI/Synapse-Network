@@ -37,6 +37,7 @@ from src.domain.finance import (
     ChargeConsumerUsageCommand,
     DepositAttemptRow,
     RefundIntentRow,
+    SettleConsumerHoldUsageCommand,
     UsageLogRow,
 )
 from src.domain.ledger import DepositIntentRow, WithdrawalIntentRow
@@ -524,6 +525,7 @@ def test_service_registry_repository_read_and_write() -> None:
                 True,
                 Decimal("0.005"),
                 "USDC",
+                "fixed",
                 3000,
                 ["quotes", "top3"],
                 "2026-03-15 14:24:00",
@@ -1698,6 +1700,119 @@ def test_finance_atomic_repository_processes_typed_charge_command() -> None:
     assert "INSERT INTO synapse_ledger_entries" in executed_sql
     assert "INSERT INTO synapse_runtime_state" in executed_sql
     assert "UPSERT" in executed_sql
+
+
+def test_finance_atomic_repository_settles_llm_hold_and_releases_unused_balance() -> None:
+    db = FakeDB()
+    db.connect_plan.append(
+        {
+            "fetchone": [
+                (Decimal("10"), Decimal("0"), Decimal("0")),
+                (Decimal("0"), Decimal("0"), Decimal("0")),
+                (Decimal("5"), Decimal("0"), Decimal("0.000019")),
+                (Decimal("1"), Decimal("0"), Decimal("0")),
+                (Decimal("0.5"), Decimal("0"), Decimal("0")),
+                (Decimal("1"), Decimal("0"), Decimal("0")),
+                (Decimal("0.5"), Decimal("0"), Decimal("0")),
+            ]
+        }
+    )
+    repo = FinanceAtomicRepository(
+        db,
+        _q6,
+        "UPSERT",
+        "BAL_FOR_UPDATE",
+        "AUDIT_INSERT",
+        ("restricted", "suspended", "blocked"),
+    )
+
+    result = repo.settle_consumer_llm_hold_atomic(
+        SettleConsumerHoldUsageCommand(
+            owner_wallet="0xowner",
+            provider_wallet="0xprovider",
+            hold_usdc=Decimal("0.000019"),
+            total_charge=Decimal("0.000008"),
+            provider_net=Decimal("0.000007"),
+            platform_fee_total=Decimal("0.000001"),
+            usage_row=UsageLogRow(
+                id="llm-usage-1",
+                ts=123,
+                serviceId="svc_deepseek_chat",
+                consumerAddress="0xowner",
+                providerAddress="0xprovider",
+                status="accepted",
+                totalCharge=Decimal("0.000008"),
+                businessType="charge",
+                riskLevel="green",
+            ),
+            request_id="req-llm-1",
+        )
+    )
+
+    assert result.consumer_available_balance_after == Decimal("5.000011")
+    assert db.connections[0].commits == 1
+    executed_sql = "\n".join(sql for sql, _ in db.connections[0].cursor_obj.executed)
+    assert "INSERT INTO synapse_ledger_entries" in executed_sql
+    assert "INSERT INTO synapse_runtime_state" in executed_sql
+    assert "INSERT INTO synapse_audit_events" in executed_sql
+
+
+def test_finance_atomic_repository_rejects_llm_charge_above_hold() -> None:
+    repo = FinanceAtomicRepository(
+        FakeDB(),
+        _q6,
+        "UPSERT",
+        "BAL_FOR_UPDATE",
+        "AUDIT_INSERT",
+        ("restricted", "suspended", "blocked"),
+    )
+
+    with pytest.raises(RuntimeError, match="LLM_BILLING_HOLD_EXCEEDED"):
+        repo.settle_consumer_llm_hold_atomic(
+            SettleConsumerHoldUsageCommand(
+                owner_wallet="0xowner",
+                provider_wallet="0xprovider",
+                hold_usdc=Decimal("0.000010"),
+                total_charge=Decimal("0.000011"),
+                provider_net=Decimal("0.000010"),
+                platform_fee_total=Decimal("0.000001"),
+                usage_row=UsageLogRow(id="llm-usage-over-hold", ts=123),
+            )
+        )
+
+
+def test_finance_atomic_repository_rejects_missing_llm_frozen_hold() -> None:
+    db = FakeDB()
+    db.connect_plan.append(
+        {
+            "fetchone": [
+                (Decimal("10"), Decimal("0"), Decimal("0")),
+                (Decimal("0"), Decimal("0"), Decimal("0")),
+                (Decimal("5"), Decimal("0"), Decimal("0.000001")),
+            ]
+        }
+    )
+    repo = FinanceAtomicRepository(
+        db,
+        _q6,
+        "UPSERT",
+        "BAL_FOR_UPDATE",
+        "AUDIT_INSERT",
+        ("restricted", "suspended", "blocked"),
+    )
+
+    with pytest.raises(RuntimeError, match="LLM_HOLD_FROZEN_BALANCE_INCONSISTENT"):
+        repo.settle_consumer_llm_hold_atomic(
+            SettleConsumerHoldUsageCommand(
+                owner_wallet="0xowner",
+                provider_wallet="0xprovider",
+                hold_usdc=Decimal("0.000019"),
+                total_charge=Decimal("0.000008"),
+                provider_net=Decimal("0.000007"),
+                platform_fee_total=Decimal("0.000001"),
+                usage_row=UsageLogRow(id="llm-usage-missing-hold", ts=123),
+            )
+        )
 
 
 def test_finance_atomic_repository_confirm_deposit_writes_canonical_audit_evidence() -> None:

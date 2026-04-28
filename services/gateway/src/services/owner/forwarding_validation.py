@@ -18,6 +18,16 @@ _MAX_REQUEST_ID_LENGTH = 128
 _MAX_CREDENTIAL_LENGTH = 128
 
 
+def uses_llm_timeout_profile(service: ServiceDefinitionRecord) -> bool:
+    metering = getattr(service, "metering", None)
+    billing_unit = str(getattr(metering, "billing_unit", "") or "").lower()
+    return (
+        str(service.service_kind or "").lower() == "llm"
+        or str(service.price_model or "").lower() == "token_metered"
+        or billing_unit == "token"
+    )
+
+
 def as_int(raw: Any, fallback: int) -> int:
     """Convert arbitrary input to int with a safe fallback for malformed values."""
     try:
@@ -28,7 +38,13 @@ def as_int(raw: Any, fallback: int) -> int:
 
 def effective_service_constraints(service: ServiceDefinitionRecord) -> ServiceConstraintRecord:
     """Clamp provider constraints into platform-safe runtime boundaries."""
-    timeout_ms = as_int(service.constraints.timeout_ms, settings.gateway_default_timeout_ms)
+    if uses_llm_timeout_profile(service):
+        timeout_default = settings.gateway_llm_default_timeout_ms
+        timeout_upper = settings.gateway_llm_max_timeout_ms
+    else:
+        timeout_default = settings.gateway_default_timeout_ms
+        timeout_upper = settings.gateway_max_timeout_ms
+    timeout_ms = as_int(service.constraints.timeout_ms, timeout_default)
     max_request_bytes = as_int(
         service.constraints.max_request_bytes, settings.gateway_default_request_bytes
     )
@@ -44,7 +60,7 @@ def effective_service_constraints(service: ServiceDefinitionRecord) -> ServiceCo
 
     timeout_ms = min(
         max(timeout_ms, settings.gateway_min_timeout_ms),
-        settings.gateway_max_timeout_ms,
+        timeout_upper,
     )
     max_request_bytes = min(
         max(max_request_bytes, settings.gateway_min_request_bytes),

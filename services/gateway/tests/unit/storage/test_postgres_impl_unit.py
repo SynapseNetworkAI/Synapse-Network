@@ -12,6 +12,7 @@ from src.storage.postgres_impl import PostgresStorage
 from src.storage.postgres.schema_contracts import (
     POSTGRES_TABLE_SCHEMA_CONTRACTS,
     QUOTE_PRICE_NON_NEGATIVE_CHECK_REQUIRED_FRAGMENTS,
+    TOKEN_METERED_PRICE_MODEL_CHECK_REQUIRED_FRAGMENTS,
     WITHDRAWAL_STATUS_CHECK_FRAGMENT,
     WITHDRAWAL_STATUS_CHECK_REQUIRED_FRAGMENTS,
 )
@@ -305,6 +306,42 @@ def test_validate_schema_contract_rejects_legacy_positive_quote_price_constraint
     except RuntimeError as exc:
         assert "synapse_service_quotes" in str(exc)
         assert "quoted price allows free services" in str(exc)
+
+
+def test_validate_schema_contract_rejects_legacy_quote_price_model_constraint() -> None:
+    storage = _storage_with_db(
+        _schema_rows(
+            missing_constraint=(
+                "synapse_service_quotes",
+                TOKEN_METERED_PRICE_MODEL_CHECK_REQUIRED_FRAGMENTS[-1],
+            )
+        )
+    )
+
+    try:
+        storage._validate_schema_contract()
+        assert False, "expected RuntimeError"
+    except RuntimeError as exc:
+        assert "synapse_service_quotes" in str(exc)
+        assert "quote price_model supports token metered" in str(exc)
+
+
+def test_validate_schema_contract_rejects_legacy_manifest_price_model_constraint() -> None:
+    storage = _storage_with_db(
+        _schema_rows(
+            missing_constraint=(
+                "synapse_service_manifests",
+                TOKEN_METERED_PRICE_MODEL_CHECK_REQUIRED_FRAGMENTS[-1],
+            )
+        )
+    )
+
+    try:
+        storage._validate_schema_contract()
+        assert False, "expected RuntimeError"
+    except RuntimeError as exc:
+        assert "synapse_service_manifests" in str(exc)
+        assert "price_model supports token metered" in str(exc)
 
 
 def test_postgres_storage_forwards_typed_finance_atomic_commands() -> None:

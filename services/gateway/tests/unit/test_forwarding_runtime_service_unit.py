@@ -747,7 +747,6 @@ def test_generate_response_v2_paid_invocation_uses_typed_execution_models(
     assert storage.execution.read_invocation(receipt.invocationId).status == "SUCCEEDED"
 
 
-@pytest.mark.skip(reason="token-metered LLM settlement is not enabled in the fixed-price invoke path yet")
 def test_invoke_v1_llm_auto_preauth_settles_usage_and_releases_hold(monkeypatch) -> None:
     raw_token = "agt_1234567890abcdef12345678"
     storage = FakeStorage(_llm_service_definition(), _runtime_credential(raw_token))
@@ -804,7 +803,6 @@ def test_invoke_v1_llm_auto_preauth_settles_usage_and_releases_hold(monkeypatch)
     assert storage.balance.ledger.platform.fee_accrued == Decimal("0.000028")
 
 
-@pytest.mark.skip(reason="token-metered LLM settlement is not enabled in the fixed-price invoke path yet")
 def test_invoke_v1_llm_rejects_streaming_before_upstream(monkeypatch) -> None:
     raw_token = "agt_1234567890abcdef12345678"
     storage = FakeStorage(_llm_service_definition(), _runtime_credential(raw_token))
@@ -835,7 +833,6 @@ def test_invoke_v1_llm_rejects_streaming_before_upstream(monkeypatch) -> None:
     assert storage.balance.ledger.consumer_available_balance("0xabc") == Decimal("10.000000")
 
 
-@pytest.mark.skip(reason="token-metered LLM settlement is not enabled in the fixed-price invoke path yet")
 def test_invoke_v1_llm_missing_usage_releases_hold(monkeypatch) -> None:
     raw_token = "agt_1234567890abcdef12345678"
     storage = FakeStorage(_llm_service_definition(), _runtime_credential(raw_token))
@@ -873,7 +870,6 @@ def test_invoke_v1_llm_missing_usage_releases_hold(monkeypatch) -> None:
     assert storage.balance.ledger.provider_receivable_balance("0xdef") == Decimal("0")
 
 
-@pytest.mark.skip(reason="token-metered LLM settlement is not enabled in the fixed-price invoke path yet")
 def test_invoke_v1_llm_explicit_max_cost_too_low(monkeypatch) -> None:
     raw_token = "agt_1234567890abcdef12345678"
     storage = FakeStorage(_llm_service_definition(), _runtime_credential(raw_token))
