@@ -5,6 +5,8 @@ charge_consumer_and_record_usage_atomic.
 """
 from __future__ import annotations
 
+# quality-budget-disable-reason: type: ignore[attr-defined] because sibling mixins provide these members.
+
 import time
 from decimal import Decimal
 from typing import Any

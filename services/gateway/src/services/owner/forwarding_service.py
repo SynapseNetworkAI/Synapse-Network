@@ -149,7 +149,7 @@ def _log_upstream_failure(
     )
 
 
-async def _execute_invocation_pipeline(  # noqa: PLR0915
+async def _execute_invocation_pipeline(  # noqa: PLR0915 - invocation pipeline keeps transaction and audit steps in one ordered flow
     storage: BaseStorage,
     credential: RuntimeCredentialRecord,
     service: ServiceDefinitionRecord,

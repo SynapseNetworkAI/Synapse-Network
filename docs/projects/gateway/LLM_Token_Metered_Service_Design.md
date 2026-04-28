@@ -51,9 +51,9 @@ Do not use `pricePerToken`. Token prices are always expressed as USDC per one mi
 
 LLM and API services use different synchronous timeout profiles:
 
-| Service profile | Default | Maximum |
-| --- | ---: | ---: |
-| API / fixed price | `15000ms` | `60000ms` |
+| Service profile       |    Default |    Maximum |
+| --------------------- | ---------: | ---------: |
+| API / fixed price     |  `15000ms` |  `60000ms` |
 | LLM / `token_metered` | `120000ms` | `300000ms` |
 
 `timeoutMs=0` is not allowed. A model call that needs more than 5 minutes belongs in a future async invocation / callback flow, not a synchronous Gateway worker.
@@ -243,4 +243,3 @@ The checker verifies:
 5. `releasedUsdc = holdUsdc - chargedUsdc`.
 6. `providerRevenueUsdc + platformFeeUsdc = chargedUsdc`.
 7. Evidence contains no credential, API key, private key, or webhook secret.
-

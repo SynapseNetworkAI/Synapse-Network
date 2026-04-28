@@ -51,16 +51,16 @@ Synapse 的核心不是“给人手工点 API”，而是让 Agent 在受控预�
 
 ## 4. 核心表
 
-| 表 | 作用 |
-| --- | --- |
-| `synapse_service_manifests` | Service 的公开能力、价格和 schema 主体 |
-| `synapse_service_endpoints` | 真实上游 endpoint 和运行约束 |
-| `synapse_service_health_snapshots` | 健康度、延迟、成功率 |
-| `synapse_service_search_index` | discovery 检索索引 |
-| `synapse_service_quotes` | 报价、TTL、约束和价格锚点 |
-| `synapse_invocations` | 调用生命周期、状态和结果摘要 |
-| `synapse_budget_events` | reserve / capture / release 预算事件 |
-| `synapse_audit_events` | discover、invoke 过程中的关键审计事件 |
+| 表                                 | 作用                                   |
+| ---------------------------------- | -------------------------------------- |
+| `synapse_service_manifests`        | Service 的公开能力、价格和 schema 主体 |
+| `synapse_service_endpoints`        | 真实上游 endpoint 和运行约束           |
+| `synapse_service_health_snapshots` | 健康度、延迟、成功率                   |
+| `synapse_service_search_index`     | discovery 检索索引                     |
+| `synapse_service_quotes`           | 报价、TTL、约束和价格锚点              |
+| `synapse_invocations`              | 调用生命周期、状态和结果摘要           |
+| `synapse_budget_events`            | reserve / capture / release 预算事件   |
+| `synapse_audit_events`             | discover、invoke 过程中的关键审计事件  |
 
 ## 5. 主流程总览
 
@@ -328,9 +328,13 @@ result = client.invoke(svc.serviceId, {"topic": "resilience"}, cost_usdc=svc.pri
 ```typescript
 // TypeScript SDK
 const services = await client.discover();
-const result = await client.invoke(services[0].serviceId, { topic: "resilience" }, {
-  costUsdc: services[0].priceUsdc,
-});
+const result = await client.invoke(
+  services[0].serviceId,
+  { topic: "resilience" },
+  {
+    costUsdc: services[0].priceUsdc,
+  }
+);
 ```
 
 **为什么是精确断言而不是上限：**

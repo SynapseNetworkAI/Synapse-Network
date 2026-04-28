@@ -110,6 +110,9 @@ jobs:
           if ! command -v jscpd >/dev/null 2>&1; then
             npm install -g jscpd
           fi
+          if ! command -v prettier >/dev/null 2>&1; then
+            npm install -g prettier@2.8.8
+          fi
       - name: Install project dependencies
         shell: bash
         run: |
