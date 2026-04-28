@@ -8,6 +8,11 @@ import { spawnSync } from "node:child_process";
 import { chromium } from "playwright";
 import { ethers } from "ethers";
 import { generateTotpCode, waitForSafeTotpWindow } from "../lib/totp_window.mjs";
+import {
+  assertLocalDsn,
+  assertStagingHttpUrl,
+  assertStagingProxyDsn,
+} from "../lib/e2e_env_guard.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "../..");
@@ -29,7 +34,9 @@ const config = {
   adminApi: (process.env.STAGING_ADMIN_API_URL || process.env.ADMIN_GATEWAY_URL || "http://127.0.0.1:8300").replace(/\/+$/, ""),
   adminFront: (process.env.STAGING_ADMIN_FRONT_URL || process.env.ADMIN_FRONT_URL || "http://localhost:4000").replace(/\/+$/, ""),
   rpcUrl: process.env.GATEWAY_E2E_RPC_URL || process.env.RPC_URL || "http://127.0.0.1:8545",
-  postgresDsn: process.env.POSTGRES_DSN || process.env.GATEWAY_POSTGRES_DSN || "postgresql://synapse_gateway_app:local-dev-gateway-app-password@localhost:5432/synapse_gateway",
+  postgresDsn: IS_STAGING
+    ? process.env.POSTGRES_DSN || process.env.STAGING_WITHDRAWAL_REVIEW_POSTGRES_DSN || ""
+    : process.env.LOCAL_POSTGRES_DSN || process.env.POSTGRES_DSN || process.env.GATEWAY_POSTGRES_DSN || "postgresql://synapse_gateway_app:local-dev-gateway-app-password@localhost:5432/synapse_gateway",
   adminCookieName: process.env.ADMIN_SESSION_COOKIE_NAME || "synapse_admin_session",
   adminTotpSecret: process.env.STAGING_ADMIN_E2E_OTP_SECRET || process.env.ADMIN_TOTP_SECRET || "JBSWY3DPEHPK3PXP",
   adminEmail: process.env.ADMIN_EMAIL || (IS_STAGING ? "staging-admin-e2e@synapse-network.ai" : "local-admin-e2e@synapse.network"),
@@ -160,11 +167,16 @@ function assertSeedEnvironment() {
         throw new Error(`Missing staging required env: ${name}`);
       }
     }
+    assertStagingHttpUrl("GATEWAY_E2E_GATEWAY_BASE", config.gatewayBase);
+    assertStagingHttpUrl("STAGING_ADMIN_API_URL", config.adminApi);
+    assertStagingHttpUrl("STAGING_ADMIN_FRONT_URL", config.adminFront);
+    assertStagingProxyDsn("POSTGRES_DSN", config.postgresDsn, { allowEmpty: false });
     return;
   }
   if (!isLocalUrl(config.gatewayBase) || !isLocalUrl(config.adminApi) || !isLocalUrl(config.rpcUrl)) {
     throw new Error("Local withdrawal review dogfood refuses non-local Gateway/Admin/RPC endpoints.");
   }
+  assertLocalDsn("LOCAL_POSTGRES_DSN", config.postgresDsn, { allowEmpty: false });
 }
 
 function readJson(filePath) {

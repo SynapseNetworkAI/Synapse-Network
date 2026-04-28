@@ -12,7 +12,9 @@ PROJECT_DIR="$2"
 TEST_TARGET="${3:-tests}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-if [[ -f "$PROJECT_DIR/pyproject.toml" ]]; then
+if [[ -f "$PROJECT_DIR/pyproject.toml" ]] && grep -Eq '^\[project\]|\[tool\.poetry\]' "$PROJECT_DIR/pyproject.toml"; then
+  INSTALL_MODE="editable"
+elif [[ -f "$PROJECT_DIR/setup.py" || -f "$PROJECT_DIR/setup.cfg" ]]; then
   INSTALL_MODE="editable"
 else
   INSTALL_MODE="requirements"

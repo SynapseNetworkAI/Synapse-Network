@@ -1,25 +1,16 @@
 #!/usr/bin/env node
-import { spawnSync } from "node:child_process";
 import { ethers } from "ethers";
+import { assertStagingHttpUrl, projectIdFromEnv, readStagingSecret } from "../lib/e2e_env_guard.mjs";
 
 const gatewayBase = (process.env.SYNAPSE_GATEWAY_BASE_URL || "https://api-staging.synapse-network.ai").replace(/\/+$/, "");
-const projectId = process.env.PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT || process.env.CLOUDSDK_CORE_PROJECT || "";
+const projectId = projectIdFromEnv();
 
 function shQuote(value) {
   return `'${String(value ?? "").replace(/'/g, "'\"'\"'")}'`;
 }
 
 function secret(secretId) {
-  if (!projectId) return "";
-  const result = spawnSync("gcloud", [
-    "secrets",
-    "versions",
-    "access",
-    "latest",
-    `--secret=${secretId}`,
-    `--project=${projectId}`,
-  ], { encoding: "utf8" });
-  return result.status === 0 ? result.stdout.trim() : "";
+  return readStagingSecret(secretId, { projectId });
 }
 
 async function authWallet(privateKey) {
@@ -50,6 +41,12 @@ async function authWallet(privateKey) {
 const existingOwnerToken = process.env.SYNAPSE_OWNER_TOKEN || "";
 const existingAgentCredential = process.env.SYNAPSE_AGENT_CREDENTIAL || process.env.SYNAPSE_AGENT_TOKEN || "";
 const existingWallet = process.env.SYNAPSE_OWNER_WALLET || "";
+try {
+  assertStagingHttpUrl("SYNAPSE_GATEWAY_BASE_URL", gatewayBase);
+} catch (error) {
+  console.error(`FATAL STAGING-GATEWAY-SESSION-000: ${error.message}`);
+  process.exit(1);
+}
 if (existingOwnerToken && existingAgentCredential && existingWallet) {
   process.exit(0);
 }

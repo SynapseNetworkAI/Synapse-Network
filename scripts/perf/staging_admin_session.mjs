@@ -1,27 +1,18 @@
 #!/usr/bin/env node
-import { spawnSync } from "node:child_process";
 import { generateTotpCode } from "../lib/totp_window.mjs";
+import { assertStagingHttpUrl, projectIdFromEnv, readStagingSecret } from "../lib/e2e_env_guard.mjs";
 
 const adminApi = (process.env.SYNAPSE_ADMIN_GATEWAY_BASE_URL || "https://admin-api-staging.synapse-network.ai").replace(/\/+$/, "");
 const cookieName = process.env.ADMIN_SESSION_COOKIE_NAME || "synapse_admin_session";
 const email = process.env.STAGING_ADMIN_E2E_EMAIL || "staging-admin-e2e@synapse-network.ai";
-const projectId = process.env.PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT || process.env.CLOUDSDK_CORE_PROJECT || "";
+const projectId = projectIdFromEnv();
 
 function shQuote(value) {
   return `'${String(value ?? "").replace(/'/g, "'\"'\"'")}'`;
 }
 
 function secret(secretId) {
-  if (!projectId) return "";
-  const result = spawnSync("gcloud", [
-    "secrets",
-    "versions",
-    "access",
-    "latest",
-    `--secret=${secretId}`,
-    `--project=${projectId}`,
-  ], { encoding: "utf8" });
-  return result.status === 0 ? result.stdout.trim() : "";
+  return readStagingSecret(secretId, { projectId });
 }
 
 function parseSessionCookie(setCookieHeader) {
@@ -35,6 +26,12 @@ function parseSessionCookie(setCookieHeader) {
 
 const existingSession = process.env.ADMIN_SESSION_TOKEN || process.env.SYNAPSE_ADMIN_SESSION_TOKEN || "";
 const existingCsrf = process.env.ADMIN_CSRF_TOKEN || process.env.SYNAPSE_ADMIN_CSRF_TOKEN || "";
+try {
+  assertStagingHttpUrl("SYNAPSE_ADMIN_GATEWAY_BASE_URL", adminApi);
+} catch (error) {
+  console.error(`FATAL STAGING-ADMIN-SESSION-000: ${error.message}`);
+  process.exit(1);
+}
 if (existingSession) {
   console.log(`export SYNAPSE_ADMIN_COOKIE_HEADER=${shQuote(`${cookieName}=${existingSession}`)}`);
   console.log(`export SYNAPSE_ADMIN_CSRF_TOKEN=${shQuote(existingCsrf)}`);

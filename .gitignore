@@ -29,6 +29,7 @@ agent_wallet.json
 # Service .env files (each service carries its own .env.*.example)
 services/gateway/.env.local
 services/gateway/.env.local.private
+services/gateway/.env.e2e.local
 services/gateway/.env.staging
 services/gateway/.env.prod
 services/gateway-admin/.env.local

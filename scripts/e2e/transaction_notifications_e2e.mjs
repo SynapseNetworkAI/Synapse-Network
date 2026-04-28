@@ -6,19 +6,37 @@ import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  assertLocalDsn,
+  assertLocalHttpUrl,
+  assertLocalValue,
+  assertStagingProxyDsn,
+  assertStagingHttpUrl,
+  projectIdFromEnv,
+  readDotenvFile,
+  readStagingSecret,
+  resolveE2eEnvironment,
+} from "../lib/e2e_env_guard.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "../..");
 const GENERATED_AT = new Date();
-const ENVIRONMENT = (process.env.TRANSACTION_NOTIFICATIONS_ENV || "local").trim().toLowerCase();
+const ENVIRONMENT = resolveE2eEnvironment({
+  value: process.env.TRANSACTION_NOTIFICATIONS_ENV,
+  defaultEnv: "local",
+  scriptName: "transaction-notifications",
+});
+process.env.SYNAPSE_E2E_ENV ||= ENVIRONMENT;
 const IS_STAGING = ENVIRONMENT === "staging";
 const CONFIRM = "I_UNDERSTAND_THIS_SENDS_STAGING_EMAIL_AND_LARK";
 const LOCAL_REAL_CONFIRM = "I_UNDERSTAND_THIS_SENDS_REAL_LOCAL_EMAIL_AND_LARK";
 const LOCAL_ENV_FILE = path.join(ROOT, "services/gateway/.env.local");
 const LOCAL_PRIVATE_ENV_FILE = path.join(ROOT, "services/gateway/.env.local.private");
+const LOCAL_E2E_ENV_FILE = path.join(ROOT, "services/gateway/.env.e2e.local");
 const LOCAL_ENV = {
-  ...readDotenv(LOCAL_ENV_FILE),
-  ...readDotenv(LOCAL_PRIVATE_ENV_FILE),
+  ...readDotenvFile(LOCAL_ENV_FILE),
+  ...readDotenvFile(LOCAL_PRIVATE_ENV_FILE),
+  ...readDotenvFile(LOCAL_E2E_ENV_FILE),
 };
 const LOCAL_DELIVERY_MODE = (configValue("TRANSACTION_NOTIFICATIONS_LOCAL_DELIVERY_MODE", "fake") || "fake")
   .trim()
@@ -44,12 +62,15 @@ const OUT_DIR = path.resolve(
 
 const DEFAULT_LOCAL_DSN =
   "postgresql://synapse_gateway_app:local-dev-gateway-app-password@localhost:5432/synapse_gateway";
-const projectId = process.env.PROJECT_ID || process.env.GCP_PROJECT || "";
+const projectId = projectIdFromEnv();
 const region = process.env.REGION || "us-central1";
 const outboxJob = process.env.TRANSACTION_NOTIFICATIONS_OUTBOX_JOB || "synapse-staging-notification-outbox-drain";
 const postgresDsn = IS_STAGING
-  ? process.env.STAGING_TRANSACTION_POSTGRES_DSN || process.env.POSTGRES_DSN || ""
-  : configValue("TRANSACTION_NOTIFICATIONS_POSTGRES_DSN") || configValue("POSTGRES_DSN") || DEFAULT_LOCAL_DSN;
+  ? process.env.STAGING_TRANSACTION_POSTGRES_DSN || ""
+  : configValue("TRANSACTION_NOTIFICATIONS_POSTGRES_DSN") ||
+    configValue("LOCAL_POSTGRES_DSN") ||
+    configValue("POSTGRES_DSN") ||
+    DEFAULT_LOCAL_DSN;
 const testEmail = IS_STAGING
   ? process.env.STAGING_TRANSACTION_TEST_EMAIL || ""
   : configValue("TRANSACTION_NOTIFICATIONS_TEST_EMAIL") || "transaction-e2e@synapse.test";
@@ -61,26 +82,6 @@ fs.mkdirSync(OUT_DIR, { recursive: true });
 
 function formatTimestamp(date) {
   return date.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
-}
-
-function readDotenv(filePath) {
-  if (!fs.existsSync(filePath)) return {};
-  const parsed = {};
-  for (const rawLine of fs.readFileSync(filePath, "utf8").split(/\r?\n/)) {
-    const line = rawLine.trim();
-    if (!line || line.startsWith("#")) continue;
-    const match = line.match(/^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/);
-    if (!match) continue;
-    let value = match[2].trim();
-    if (
-      (value.startsWith("'") && value.endsWith("'")) ||
-      (value.startsWith('"') && value.endsWith('"'))
-    ) {
-      value = value.slice(1, -1);
-    }
-    parsed[match[1]] = value;
-  }
-  return parsed;
 }
 
 function configValue(name, fallback = "") {
@@ -191,29 +192,46 @@ function parseJsonOutput(output) {
 
 function requireLocalDsnForStaging() {
   if (!IS_STAGING) return true;
-  if (/(@|\b)(localhost|127\.0\.0\.1)(:|\/)/i.test(postgresDsn)) return true;
-  addStep(
-    "staging_postgres_proxy",
-    false,
-    "",
-    "STAGING_TRANSACTION_POSTGRES_DSN must point to a local Cloud SQL Auth Proxy host (localhost or 127.0.0.1)",
-  );
-  return false;
+  try {
+    assertStagingProxyDsn("STAGING_TRANSACTION_POSTGRES_DSN", postgresDsn, { allowEmpty: false });
+    addStep("staging_postgres_proxy", true, "Cloud SQL Auth Proxy DSN configured");
+    return true;
+  } catch (error) {
+    addStep("staging_postgres_proxy", false, "", error.message);
+    return false;
+  }
 }
 
 function readSecret(secretName) {
-  if (!projectId) return "";
   try {
-    return run("gcloud", [
-      "secrets",
-      "versions",
-      "access",
-      "latest",
-      `--secret=${secretName}`,
-      `--project=${projectId}`,
-    ]).trim();
-  } catch {
+    return readStagingSecret(secretName, { projectId });
+  } catch (error) {
+    addStep("staging_secret_access", false, "", error.message);
     return "";
+  }
+}
+
+function validateLocalProfile() {
+  try {
+    assertLocalDsn("TRANSACTION_NOTIFICATIONS_POSTGRES_DSN", postgresDsn, { allowEmpty: false });
+    assertLocalHttpUrl("PUBLIC_GATEWAY_BASE_URL", configValue("PUBLIC_GATEWAY_BASE_URL", "http://127.0.0.1:8000"));
+    assertLocalHttpUrl("PUBLIC_APP_BASE_URL", configValue("PUBLIC_APP_BASE_URL", "http://127.0.0.1:3000"));
+    assertLocalValue("TRANSACTION_LARK_WEBHOOK_URL", configValue("TRANSACTION_LARK_WEBHOOK_URL"), {
+      allowExternalWebhook: true,
+    });
+    addStep("local_env_guard", true, "local profile isolated from staging values");
+  } catch (error) {
+    addStep("local_env_guard", false, "", error.message);
+  }
+}
+
+function validateStagingProfile() {
+  try {
+    assertStagingHttpUrl("PUBLIC_GATEWAY_BASE_URL", configValue("PUBLIC_GATEWAY_BASE_URL", "https://api-staging.synapse-network.ai"));
+    assertStagingHttpUrl("PUBLIC_APP_BASE_URL", configValue("PUBLIC_APP_BASE_URL", "https://staging.synapse-network.ai"));
+    addStep("staging_env_guard", true, "staging profile isolated from local values");
+  } catch (error) {
+    addStep("staging_env_guard", false, "", error.message);
   }
 }
 
@@ -470,11 +488,13 @@ async function main() {
       if (!postgresDsn) addStep("postgres_dsn", false, "", "STAGING_TRANSACTION_POSTGRES_DSN is required");
       else addStep("postgres_dsn", true, "configured");
       requireLocalDsnForStaging();
+      validateStagingProfile();
       cloudRunEnv = cloudRunEnvCheck();
     } else {
       addStep("local_mode", true, IS_LOCAL_REAL ? "using real local Gmail SMTP and real Lark webhook" : "using fake Lark and fake email sender");
       if (!postgresDsn) addStep("postgres_dsn", false, "", "POSTGRES_DSN is required");
       else addStep("postgres_dsn", true, "configured");
+      validateLocalProfile();
       if (!testEmail) addStep("test_email", false, "", "TRANSACTION_NOTIFICATIONS_TEST_EMAIL is required");
       else addStep("test_email", true, `sha256=${sha256(testEmail)}`);
       if (IS_LOCAL_REAL) {

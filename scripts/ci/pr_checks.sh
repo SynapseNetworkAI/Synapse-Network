@@ -79,6 +79,9 @@ run_gate_command() {
     security_secret_scan)
       bash "$ROOT_DIR/scripts/ci/security_secret_scan.sh"
       ;;
+    e2e_env_isolation_check)
+      node "$ROOT_DIR/scripts/ci/e2e_env_isolation_check.mjs"
+      ;;
     gateway_stress_review_checks)
       bash "$ROOT_DIR/scripts/ci/gateway_stress_review_checks.sh"
       ;;

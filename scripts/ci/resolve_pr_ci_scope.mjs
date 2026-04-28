@@ -14,6 +14,7 @@ const FULL_COMMANDS = [
   "code_quality_architecture_scan",
   "diff_coverage_gate",
   "security_secret_scan",
+  "e2e_env_isolation_check",
   "gateway_stress_review_checks",
   "monitoring_alert_rules",
   "docs_checks",
@@ -33,6 +34,7 @@ const BASELINE_COMMANDS = [
   "local_runtime_guard_scan",
   "migration_seed_guard_scan",
   "security_secret_scan",
+  "e2e_env_isolation_check",
   "docs_checks",
   "release_go_no_go_checks",
 ];
@@ -147,6 +149,7 @@ function classifyPackageJsonChange(mergeBase, head) {
     "ci:provider-service",
     "ci:sdk-python",
     "ci:docs",
+    "ci:e2e-env-isolation",
     "ci:release-go-no-go",
     "ci:performance-reliability",
     "ci:migration-seed-guard",
@@ -155,7 +158,7 @@ function classifyPackageJsonChange(mergeBase, head) {
 
   for (const scriptName of scripts) {
     const scriptValue = String((after.scripts || {})[scriptName] || "");
-    if (guardrailScripts.has(scriptName) || /\bscripts\/ci\/(pr_checks|diff_coverage|finance_|security_|code_quality_|gateway_checks|admin_gateway_checks|frontend_checks|admin_front_checks)/.test(scriptValue)) {
+    if (guardrailScripts.has(scriptName) || /\bscripts\/ci\/(pr_checks|diff_coverage|finance_|security_|e2e_env_isolation|code_quality_|gateway_checks|admin_gateway_checks|frontend_checks|admin_front_checks)/.test(scriptValue)) {
       return { fullReason: `package.json guardrail script changed: ${scriptName}` };
     }
 

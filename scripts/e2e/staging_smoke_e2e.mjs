@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 
 import crypto from "node:crypto";
-import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { projectIdFromEnv, readStagingSecret } from "../lib/e2e_env_guard.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "../..");
@@ -59,14 +59,10 @@ function env(name, fallback = "") {
 }
 
 function readGcloudSecret(secretId) {
-  const projectId = env("PROJECT_ID", env("GCP_PROJECT", "fabled-archive-494108-k5"));
+  const projectId = projectIdFromEnv() || "fabled-archive-494108-k5";
   if (!secretId || !projectId) return "";
   try {
-    return execFileSync(
-      "gcloud",
-      ["secrets", "versions", "access", "latest", `--secret=${secretId}`, `--project=${projectId}`],
-      { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] },
-    ).trim();
+    return readStagingSecret(secretId, { projectId });
   } catch {
     return "";
   }
