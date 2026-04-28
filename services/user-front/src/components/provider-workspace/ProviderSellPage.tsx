@@ -244,7 +244,10 @@ export default function ProviderConsolePage() {
             </p>
             <button 
               onClick={() => {
-                if(!isConnected) { toast.error(t("providerConsolePage.connectTerminalToManageKeys")); return; }
+                if (!isConnected || !address) {
+                  openConnectModal?.();
+                  return;
+                }
                 router.push("/provider/secrets");
               }}
               className="w-full py-4 text-sm font-bold border border-[#222222] text-[#ffffff] hover:bg-[#ffffff] hover:text-[#000000] transition-all bg-[#0a0a0a] flex items-center justify-center gap-2 rounded-2xl"

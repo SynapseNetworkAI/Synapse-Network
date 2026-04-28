@@ -1,6 +1,9 @@
 type PricingObject = {
   amount?: string | number | null;
   currency?: string | null;
+  inputPricePer1MTokensUsdc?: string | number | null;
+  outputPricePer1MTokensUsdc?: string | number | null;
+  priceModel?: string | null;
 };
 
 export type PricingValue = string | PricingObject | null | undefined;
@@ -32,6 +35,17 @@ export function formatPricing(value: PricingValue, defaultCurrency = "USDC"): st
   }
 
   if (value && typeof value === "object") {
+    if (value.priceModel === "token_metered") {
+      const inputPrice = String(value.inputPricePer1MTokensUsdc ?? "").trim();
+      const outputPrice = String(value.outputPricePer1MTokensUsdc ?? "").trim();
+      const currency = typeof value.currency === "string" && value.currency.trim()
+        ? value.currency.trim()
+        : defaultCurrency;
+      if (inputPrice && outputPrice) {
+        return `${inputPrice} in / ${outputPrice} out ${currency} per 1M tokens`;
+      }
+    }
+
     const amount = extractPricingAmount(value, "");
     const currency = typeof value.currency === "string" ? value.currency.trim() : "";
     if (amount && currency) {
