@@ -5,7 +5,6 @@ from uuid import uuid4
 from fastapi import HTTPException
 
 from src.api.schemas.pydantic_models import CredentialIssueRequest
-from src.core.common import normalize_wallet
 from src.domain.identity import RuntimeCredentialRecord
 from src.services.platform import credential_lifecycle, credential_service
 from src.storage import BaseStorage
@@ -16,61 +15,6 @@ provider_write_lock = asyncio.Lock()
 
 def load_provider_secret_rows(storage: BaseStorage) -> List[RuntimeCredentialRecord]:
     return credential_service.load_runtime_credentials(storage, "provider")
-
-
-def save_provider_secret_rows(
-    storage: BaseStorage, rows: List[RuntimeCredentialRecord]
-) -> None:
-    normalized_rows = [
-        row.model_copy(
-            update={
-                "owner": row.owner.model_copy(
-                    update={
-                        "owner_wallet": normalize_wallet(row.owner.owner_wallet),
-                        "created_at": to_dt_str(row.owner.created_at, now_dt_str()),
-                        "updated_at": to_dt_str(row.owner.updated_at, now_dt_str()),
-                    }
-                ),
-                "agent": row.agent.model_copy(
-                    update={
-                        "runtime_label": "provider",
-                        "created_at": to_dt_str(row.agent.created_at, now_dt_str()),
-                        "updated_at": to_dt_str(row.agent.updated_at, now_dt_str()),
-                    }
-                ),
-                "credential": row.credential.model_copy(
-                    update={
-                        "issued_at": to_dt_str(row.credential.issued_at, now_dt_str()),
-                        "last_used_at": to_dt_str(row.credential.last_used_at, now_dt_str()),
-                    }
-                ),
-                "policy": (
-                    row.policy.model_copy(
-                        update={
-                            "created_at": to_dt_str(row.policy.created_at, now_dt_str()),
-                            "updated_at": to_dt_str(row.policy.updated_at, now_dt_str()),
-                        }
-                    )
-                    if row.policy is not None
-                    else None
-                ),
-                "metadata": (
-                    row.metadata.model_copy(
-                        update={
-                            "credential_type": "provider",
-                            "owner_address": normalize_wallet(row.owner.owner_wallet),
-                            "created_at": to_dt_str(row.metadata.created_at, now_dt_str()),
-                            "updated_at": to_dt_str(row.metadata.updated_at, now_dt_str()),
-                        }
-                    )
-                    if row.metadata is not None
-                    else None
-                ),
-            }
-        )
-        for row in rows
-    ]
-    credential_service.save_runtime_credentials(storage, "provider", normalized_rows)
 
 
 def list_provider_secrets_by_owner(
@@ -113,7 +57,7 @@ def list_provider_secrets_by_owner(
 
 async def issue_provider_secret_for_owner(
     storage: BaseStorage, owner_wallet: str, req: CredentialIssueRequest
-) -> dict[str, Any]:
+) -> credential_service.CredentialServiceResponse:
     now = credential_service.now_ts()
     now_str = now_dt_str()
     max_calls, rpm, credit_limit, reset_interval, expiration, expires_at = (
@@ -144,9 +88,7 @@ async def issue_provider_secret_for_owner(
     )
 
     async with provider_write_lock:
-        rows = load_provider_secret_rows(storage)
-        rows.append(record)
-        save_provider_secret_rows(storage, rows)
+        storage.get_data_manager().system.credential_auth.create_runtime_credential(record)
 
     response_payload = credential_service._build_credential_response(record)
     credential_service.append_audit_log(
@@ -163,27 +105,29 @@ async def issue_provider_secret_for_owner(
         },
     )
 
-    return {
-        "status": "success",
-        "secret": {
-            "id": response_payload["id"],
-            "name": response_payload["name"],
-            "ownerAddress": owner_wallet,
-            "secretKey": plain_token,
-            "maskedKey": f"{record.credential.secret_prefix or 'agt_'}...",
-            "status": response_payload["status"],
-            "rpm": response_payload["rpm"],
-            "creditLimit": response_payload["creditLimit"],
-            "resetInterval": response_payload["resetInterval"],
-            "expiration": response_payload["expiration"],
-            "createdAt": response_payload["createdAt"],
-        },
-    }
+    return credential_service.CredentialServiceResponse(
+        {
+            "status": "success",
+            "secret": {
+                "id": response_payload["id"],
+                "name": response_payload["name"],
+                "ownerAddress": owner_wallet,
+                "secretKey": plain_token,
+                "maskedKey": f"{record.credential.secret_prefix or 'agt_'}...",
+                "status": response_payload["status"],
+                "rpm": response_payload["rpm"],
+                "creditLimit": response_payload["creditLimit"],
+                "resetInterval": response_payload["resetInterval"],
+                "expiration": response_payload["expiration"],
+                "createdAt": response_payload["createdAt"],
+            },
+        }
+    )
 
 
 async def revoke_provider_secret_for_owner(
     storage: BaseStorage, owner_wallet: str, secret_id: str
-) -> dict[str, Any]:
+) -> credential_service.CredentialServiceResponse:
     now = credential_service.now_ts()
 
     async with provider_write_lock:
@@ -205,13 +149,22 @@ async def revoke_provider_secret_for_owner(
                 },
             )
 
-        rows[index] = credential_service.clone_runtime_credential(
-            found,
-            credential_service.CredentialPatch(status="revoked", updated_at=now_dt_str(), revoked_at=now),
-        )
-        save_provider_secret_rows(storage, rows)
+        if not storage.get_data_manager().system.credential_auth.revoke_runtime_credential(
+            secret_id,
+            owner_wallet,
+            now,
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": "SECRET_UPDATE_CONFLICT",
+                    "message": "Secret changed concurrently; refresh and retry.",
+                },
+            )
 
     credential_service.append_audit_log(
         storage, "PROVIDER_SECRET_REVOKED", owner_wallet, {"secretId": secret_id}
     )
-    return {"status": "success", "message": "Deleted"}
+    return credential_service.CredentialServiceResponse(
+        {"status": "success", "message": "Deleted"}
+    )

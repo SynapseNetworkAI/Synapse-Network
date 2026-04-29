@@ -33,8 +33,7 @@ async def test_atomic_charge_retries_deadlocked_credential_usage_without_double_
     monkeypatch,
 ) -> None:
     storage = _FakeStorage()
-    rows = [_credential()]
-    save_attempts = {"count": 0}
+    usage_attempts = {"count": 0}
 
     monkeypatch.setattr(
         forwarding_billing,
@@ -42,27 +41,16 @@ async def test_atomic_charge_retries_deadlocked_credential_usage_without_double_
         lambda *_args, **_kwargs: None,
     )
     monkeypatch.setattr(forwarding_billing, "DeadlockDetected", _FakeDeadlock)
-    monkeypatch.setattr(
-        forwarding_billing.credential_service,
-        "load_credential_rows",
-        lambda _storage: rows,
-    )
-    monkeypatch.setattr(
-        forwarding_billing.credential_service,
-        "clone_runtime_credential",
-        lambda row, patch: _credential(patch.calls_used),
-    )
-
-    def _save_rows(_storage, new_rows):
-        save_attempts["count"] += 1
-        if save_attempts["count"] == 1:
+    def _increment_usage(_storage, _credential_id, _delta=1):
+        usage_attempts["count"] += 1
+        if usage_attempts["count"] == 1:
             raise _FakeDeadlock("deadlock detected")
-        rows[:] = list(new_rows)
+        return _credential(1)
 
     monkeypatch.setattr(
         forwarding_billing.credential_service,
-        "save_credential_rows",
-        _save_rows,
+        "increment_credential_usage",
+        _increment_usage,
     )
     monkeypatch.setattr(
         forwarding_billing,
@@ -84,7 +72,7 @@ async def test_atomic_charge_retries_deadlocked_credential_usage_without_double_
     assert consumer_after == Decimal("9.000000")
     assert updated is not None
     assert updated.metadata.calls_used == 1
-    assert save_attempts["count"] == 2
+    assert usage_attempts["count"] == 2
     assert storage.charge_calls == 1
 
 
