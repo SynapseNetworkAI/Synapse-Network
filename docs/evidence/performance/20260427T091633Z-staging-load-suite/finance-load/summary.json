@@ -1,0 +1,24 @@
+{
+  "concurrency": 1,
+  "durationSec": 30,
+  "endpoints": {
+    "owner-balance": {
+      "avgMs": 407.756,
+      "failures": 0,
+      "p50Ms": 386.158,
+      "p95Ms": 571.637,
+      "p99Ms": 637.041,
+      "requests": 22,
+      "sampleErrors": [],
+      "statuses": {
+        "200": 22
+      },
+      "successRate": 1.0,
+      "successes": 22
+    }
+  },
+  "overallSuccessRate": 1.0,
+  "scenario": "finance-balance-read-only",
+  "totalFailures": 0,
+  "totalRequests": 22
+}

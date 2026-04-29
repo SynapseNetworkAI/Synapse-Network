@@ -9,6 +9,8 @@ import type { AgentCredentialRecord } from "@/utils/agentCredentialApi";
 
 type AgentsWorkspaceListPaneProps = {
   credentials: AgentCredentialRecord[];
+  agentLimit: number;
+  canCreateAgent: boolean;
   isLoading: boolean;
   isManageMode: boolean;
   selectedAgentId: string | null;
@@ -20,6 +22,8 @@ type AgentsWorkspaceListPaneProps = {
 
 export default function AgentsWorkspaceListPane({
   credentials,
+  agentLimit,
+  canCreateAgent,
   isLoading,
   isManageMode,
   selectedAgentId,
@@ -43,7 +47,13 @@ export default function AgentsWorkspaceListPane({
             variant="primary"
             size="pill"
             onClick={onOpenCreateModal}
+            disabled={!canCreateAgent}
             className="px-5"
+            title={
+              !canCreateAgent
+                ? t("agentsPage.workspaceAgentLimitReached", { limit: agentLimit })
+                : undefined
+            }
           >
             <Plus className="h-4 w-4" />
             {t("agentsPage.workspaceCreateAgentCompact")}
@@ -66,6 +76,12 @@ export default function AgentsWorkspaceListPane({
             </XButton>
           </div>
         </div>
+        <p className={cx("text-xs", canCreateAgent ? "text-gray-500" : "text-amber-200")}>
+          {t("agentsPage.workspaceAgentLimitHint", {
+            count: credentials.length,
+            limit: agentLimit,
+          })}
+        </p>
       </header>
 
       <div className="space-y-2.5">

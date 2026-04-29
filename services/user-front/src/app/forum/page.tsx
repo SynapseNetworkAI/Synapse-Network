@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { CheckCircle2, Eye, Lock, Pin, Plus, Search, Sparkles } from "lucide-react";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
 import {
@@ -16,13 +16,36 @@ import {
 import { createForumTopic, listForumTopics, type ForumTopic } from "@/utils/communityApi";
 import { getStoredAuthSession } from "@/utils/authSession";
 
+const FORUM_PAGE_SIZE = 10;
+
+type ForumPagination = {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+};
+
+const EMPTY_PAGINATION: ForumPagination = {
+  page: 1,
+  pageSize: FORUM_PAGE_SIZE,
+  total: 0,
+  totalPages: 1,
+  hasNextPage: false,
+  hasPreviousPage: false,
+};
+
 export default function ForumPage() {
   const { t, tList } = useLanguage();
   const categories = tList("forumPage.categories");
   const [topics, setTopics] = useState<ForumTopic[]>([]);
+  const [pagination, setPagination] = useState<ForumPagination>(EMPTY_PAGINATION);
+  const [page, setPage] = useState(1);
   const [category, setCategory] = useState("");
   const [sort, setSort] = useState<"latest" | "top">("latest");
   const [q, setQ] = useState("");
+  const [appliedQ, setAppliedQ] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [createError, setCreateError] = useState<string | null>(null);
@@ -34,24 +57,70 @@ export default function ForumPage() {
 
   const hasSession = useMemo(() => Boolean(getStoredAuthSession()), []);
 
-  const refresh = async () => {
+  const totalPages = Math.max(1, pagination.totalPages);
+  const showingStart = pagination.total === 0 ? 0 : (pagination.page - 1) * pagination.pageSize + 1;
+  const showingEnd = pagination.total === 0 ? 0 : Math.min(pagination.total, pagination.page * pagination.pageSize);
+  const pageNumbers = useMemo(() => {
+    const windowSize = 5;
+    const halfWindow = Math.floor(windowSize / 2);
+    const start = Math.max(1, Math.min(page - halfWindow, totalPages - windowSize + 1));
+    const end = Math.min(totalPages, start + windowSize - 1);
+
+    return Array.from({ length: end - start + 1 }, (_, index) => start + index);
+  }, [page, totalPages]);
+
+  const refresh = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await listForumTopics({ q, category: category || undefined, sort, pageSize: 20 });
+      const data = await listForumTopics({
+        q: appliedQ,
+        category: category || undefined,
+        sort,
+        page,
+        pageSize: FORUM_PAGE_SIZE,
+      });
       setTopics(data.topics);
+      setPagination({
+        ...data.pagination,
+        totalPages: Math.max(1, data.pagination.totalPages),
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : t("forumPage.loadFailed"));
       setTopics([]);
+      setPagination({ ...EMPTY_PAGINATION, page });
     } finally {
       setLoading(false);
     }
-  };
+  }, [appliedQ, category, page, sort, t]);
 
   useEffect(() => {
     void refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [category, sort]);
+  }, [refresh]);
+
+  const applySearch = () => {
+    const nextQuery = q.trim();
+    if (page === 1 && appliedQ === nextQuery) {
+      void refresh();
+      return;
+    }
+    setAppliedQ(nextQuery);
+    setPage(1);
+  };
+
+  const goToPage = (nextPage: number) => {
+    setPage(Math.min(Math.max(nextPage, 1), totalPages));
+  };
+
+  const resetPageAndCategory = (nextCategory: string) => {
+    setCategory(nextCategory);
+    setPage(1);
+  };
+
+  const resetPageAndSort = (nextSort: "latest" | "top") => {
+    setSort(nextSort);
+    setPage(1);
+  };
 
   const openCreateModal = () => {
     setCreateError(null);
@@ -76,7 +145,17 @@ export default function ForumPage() {
       const result = await createForumTopic({ title, body, category: createCategory });
       setIsCreateModalOpen(false);
       resetCreateForm();
-      setTopics((prev) => [result.topic, ...prev]);
+      setTopics((prev) => [result.topic, ...prev].slice(0, FORUM_PAGE_SIZE));
+      setPagination((prev) => {
+        const total = prev.total + 1;
+        const totalPages = Math.max(1, Math.ceil(total / prev.pageSize));
+        return {
+          ...prev,
+          total,
+          totalPages,
+          hasNextPage: prev.page < totalPages,
+        };
+      });
     } catch (err) {
       setCreateError(err instanceof Error ? err.message : t("forumPage.connectToPost"));
     } finally {
@@ -112,7 +191,7 @@ export default function ForumPage() {
             <div className="mt-3 space-y-1">
               <button
                 type="button"
-                onClick={() => setCategory("")}
+                onClick={() => resetPageAndCategory("")}
                 className={`w-full rounded-2xl px-3 py-2 text-left text-sm transition ${!category ? "bg-white/10 text-white" : "text-white/55 hover:bg-white/[0.05] hover:text-white"}`}
               >
                 {t("forumPage.allCategories")}
@@ -121,7 +200,7 @@ export default function ForumPage() {
                 <button
                   type="button"
                   key={item}
-                  onClick={() => setCategory(item)}
+                  onClick={() => resetPageAndCategory(item)}
                   className={`w-full rounded-2xl px-3 py-2 text-left text-sm transition ${category === item ? "bg-[#7ff7be]/12 text-[#dfffee]" : "text-white/55 hover:bg-white/[0.05] hover:text-white"}`}
                 >
                   {item}
@@ -138,18 +217,25 @@ export default function ForumPage() {
                   value={q}
                   onChange={(event) => setQ(event.target.value)}
                   onKeyDown={(event) => {
-                    if (event.key === "Enter") void refresh();
+                    if (event.key === "Enter") applySearch();
                   }}
                   placeholder={t("forumPage.searchPlaceholder")}
                   className="min-w-0 flex-1 bg-transparent text-sm text-white outline-none placeholder:text-white/28"
                 />
               </div>
+              <button
+                type="button"
+                onClick={applySearch}
+                className="h-11 rounded-2xl bg-white px-4 text-sm font-semibold text-black transition hover:bg-[#e7e9ea]"
+              >
+                {t("forumPage.searchAction")}
+              </button>
               <div className="flex gap-2">
                 {(["latest", "top"] as const).map((item) => (
                   <button
                     type="button"
                     key={item}
-                    onClick={() => setSort(item)}
+                    onClick={() => resetPageAndSort(item)}
                     className={`h-11 rounded-2xl px-4 text-sm font-semibold transition ${sort === item ? "bg-white text-black" : "border border-white/10 text-white/55 hover:text-white"}`}
                   >
                     {item === "latest" ? t("forumPage.latest") : t("forumPage.top")}
@@ -223,6 +309,46 @@ export default function ForumPage() {
                   </Link>
                 ))
               )}
+              <div className="flex flex-col gap-3 border-t border-white/10 px-5 py-4 md:flex-row md:items-center md:justify-between">
+                <div className="text-sm text-white/42">
+                  <p>{t("forumPage.resultRange", { start: showingStart, end: showingEnd, total: pagination.total })}</p>
+                  <p className="mt-1 text-xs text-white/30">{t("forumPage.pageStatus", { page: pagination.page, totalPages })}</p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={!pagination.hasPreviousPage || loading}
+                    onClick={() => goToPage(page - 1)}
+                    className="h-10 rounded-2xl border border-white/10 px-4 text-sm font-semibold text-white/60 transition hover:bg-white/[0.05] hover:text-white disabled:cursor-not-allowed disabled:opacity-35"
+                  >
+                    {t("forumPage.previousPage")}
+                  </button>
+                  {pageNumbers.map((item) => (
+                    <button
+                      type="button"
+                      key={item}
+                      aria-current={item === pagination.page ? "page" : undefined}
+                      onClick={() => goToPage(item)}
+                      disabled={loading}
+                      className={`h-10 min-w-10 rounded-2xl px-3 text-sm font-semibold transition ${
+                        item === pagination.page
+                          ? "bg-[#7ff7be] text-black"
+                          : "border border-white/10 text-white/55 hover:bg-white/[0.05] hover:text-white"
+                      } disabled:cursor-not-allowed disabled:opacity-35`}
+                    >
+                      {item}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    disabled={!pagination.hasNextPage || loading}
+                    onClick={() => goToPage(page + 1)}
+                    className="h-10 rounded-2xl border border-white/10 px-4 text-sm font-semibold text-white/60 transition hover:bg-white/[0.05] hover:text-white disabled:cursor-not-allowed disabled:opacity-35"
+                  >
+                    {t("forumPage.nextPage")}
+                  </button>
+                </div>
+              </div>
             </div>
           </section>
         </div>

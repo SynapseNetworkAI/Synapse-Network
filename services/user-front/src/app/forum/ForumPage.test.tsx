@@ -81,7 +81,7 @@ describe("ForumPage", () => {
     listForumTopicsMock.mockResolvedValue({
       status: "success",
       categories: ["Questions", "Provider Services"],
-      pagination: { page: 1, pageSize: 20, total: 1, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+      pagination: { page: 1, pageSize: 10, total: 1, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
       topics: [topic()],
     });
     createForumTopicMock.mockResolvedValue({
@@ -129,5 +129,41 @@ describe("ForumPage", () => {
     expect(await screen.findByText("Connect wallet to post or reply.")).toBeTruthy();
     expect((screen.getByRole("button", { name: "Post topic" }) as HTMLButtonElement).disabled).toBe(true);
     expect(createForumTopicMock).not.toHaveBeenCalled();
+  });
+
+  it("loads the next forum page using gateway pagination", async () => {
+    const user = userEvent.setup();
+    listForumTopicsMock
+      .mockResolvedValueOnce({
+        status: "success",
+        categories: ["Questions", "Provider Services"],
+        pagination: { page: 1, pageSize: 10, total: 21, totalPages: 3, hasNextPage: true, hasPreviousPage: false },
+        topics: [topic({ topicId: "topic_page_1", title: "First page topic" })],
+      })
+      .mockResolvedValueOnce({
+        status: "success",
+        categories: ["Questions", "Provider Services"],
+        pagination: { page: 2, pageSize: 10, total: 21, totalPages: 3, hasNextPage: true, hasPreviousPage: true },
+        topics: [topic({ topicId: "topic_page_2", title: "Second page topic" })],
+      });
+
+    renderForum();
+
+    expect(await screen.findByText("First page topic")).toBeTruthy();
+    expect(await screen.findByText("Showing 1-10 of 21 topics")).toBeTruthy();
+    expect(screen.getByText("Page 1 of 3")).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "Next" }));
+
+    await waitFor(() => expect(listForumTopicsMock).toHaveBeenLastCalledWith({
+      q: "",
+      category: undefined,
+      sort: "latest",
+      page: 2,
+      pageSize: 10,
+    }));
+    expect(await screen.findByText("Second page topic")).toBeTruthy();
+    expect(await screen.findByText("Showing 11-20 of 21 topics")).toBeTruthy();
+    expect(screen.getByText("Page 2 of 3")).toBeTruthy();
   });
 });

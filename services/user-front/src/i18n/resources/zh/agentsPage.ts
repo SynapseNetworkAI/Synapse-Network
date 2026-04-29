@@ -183,6 +183,8 @@ const agentsPage: I18nMessages["agentsPage"] = {
   workspaceSimpleTitle: "Agents",
   workspaceSimpleDescription: "Manage agents and agents Credential",
   workspaceCreateAgentCompact: "Create Agent +",
+  workspaceAgentLimitHint: "已创建 {{count}} / {{limit}} 个 Agent",
+  workspaceAgentLimitReached: "最多只能创建 {{limit}} 个 Agent。请先删除一个再创建新的 Agent。",
   workspaceAgentCardDescription: "这个 Agent 已创建，可直接用于调用 Synapse API。",
   workspaceDetailEmptyTitle: "查看 Agent 详情",
   workspaceDetailEmptyDescription: "点击左侧任意 Agent，查看它的运行时详情、限额和凭据控制面板。",

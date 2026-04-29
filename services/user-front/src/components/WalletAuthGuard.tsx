@@ -50,6 +50,7 @@ export default function WalletAuthGuard({ children }: Readonly<{ children: React
   const disconnectClearTimer = useRef<ReturnType<typeof globalThis.setTimeout> | null>(null);
   const pendingAutoAuthorizeWalletRef = useRef<string | null>(null);
   const autoAuthorizeTriedWalletRef = useRef<string | null>(null);
+  const authorizePromiseRef = useRef<Promise<boolean> | null>(null);
   const lastSessionExpiredToastAtRef = useRef(0);
 
   const shouldForceReconnectForCurrentRole = useCallback((): boolean => {
@@ -132,39 +133,53 @@ export default function WalletAuthGuard({ children }: Readonly<{ children: React
 
   const authorize = useCallback(async (): Promise<boolean> => {
     if (!address || !isConnected) return false;
-    setIsAuthorizing(true);
-    setAuthError(null);
 
-    try {
-      const connectedAccounts = await readInjectedAccounts();
-      if (connectedAccounts.length > 1) {
-        throw new Error("Multiple wallet accounts selected. Please keep only one account selected, then reconnect.");
-      }
+    if (authorizePromiseRef.current) {
+      return authorizePromiseRef.current;
+    }
 
-      const existing = getStoredAuthSession();
-      if (existing?.wallet === address.toLowerCase()) {
-        setVerifiedWallet(existing.wallet);
+    const nextAuthorize = (async (): Promise<boolean> => {
+      setIsAuthorizing(true);
+      setAuthError(null);
+
+      try {
+        const connectedAccounts = await readInjectedAccounts();
+        if (connectedAccounts.length > 1) {
+          throw new Error("Multiple wallet accounts selected. Please keep only one account selected, then reconnect.");
+        }
+
+        const existing = getStoredAuthSession();
+        if (existing?.wallet === address.toLowerCase()) {
+          setVerifiedWallet(existing.wallet);
+          setIsAuthorizing(false);
+          return true;
+        }
+
+        const challenge = await requestAuthChallenge(address);
+        const challengeMessage = challenge.challenge;
+        if (!challengeMessage) {
+          throw new Error("Auth challenge missing from server response");
+        }
+
+        const signature = await signChallengeMessage(challengeMessage, address);
+
+        const verified = await verifyAuthSignature(address, challengeMessage, signature);
+        storeAuthSession(verified.token, verified.wallet, verified.expiresInSec);
+
+        setVerifiedWallet(verified.wallet.toLowerCase());
         setIsAuthorizing(false);
         return true;
+      } catch (error) {
+        handleAuthorizeFailure(error);
+        return false;
       }
+    })();
 
-      const challenge = await requestAuthChallenge(address);
-      const challengeMessage = challenge.challenge;
-      if (!challengeMessage) {
-        throw new Error("Auth challenge missing from server response");
-      }
-
-      const signature = await signChallengeMessage(challengeMessage, address);
-
-      const verified = await verifyAuthSignature(address, challengeMessage, signature);
-      storeAuthSession(verified.token, verified.wallet, verified.expiresInSec);
-
-      setVerifiedWallet(verified.wallet.toLowerCase());
-      setIsAuthorizing(false);
-      return true;
-    } catch (error) {
-      handleAuthorizeFailure(error);
-      return false;
+    authorizePromiseRef.current = nextAuthorize;
+    try {
+      return await nextAuthorize;
+    } finally {
+      authorizePromiseRef.current = null;
     }
   }, [address, isConnected, signChallengeMessage, handleAuthorizeFailure]);
 

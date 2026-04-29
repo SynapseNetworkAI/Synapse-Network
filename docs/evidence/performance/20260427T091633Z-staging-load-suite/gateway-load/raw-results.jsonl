@@ -1,0 +1,15 @@
+{"error": "", "latencyMs": 402.729167, "name": "service-discovery", "ok": true, "status": 200}
+{"error": "", "latencyMs": 1258.9308330000001, "name": "agent-invoke", "ok": true, "status": 200}
+{"error": "", "latencyMs": 1222.3440420000004, "name": "agent-invoke", "ok": true, "status": 200}
+{"error": "", "latencyMs": 1130.296875, "name": "agent-invoke", "ok": true, "status": 200}
+{"error": "", "latencyMs": 1188.3415, "name": "agent-invoke", "ok": true, "status": 200}
+{"error": "", "latencyMs": 1189.2672090000005, "name": "agent-invoke", "ok": true, "status": 200}
+{"error": "", "latencyMs": 492.5759999999997, "name": "service-discovery", "ok": true, "status": 200}
+{"error": "", "latencyMs": 382.04958300000055, "name": "service-discovery", "ok": true, "status": 200}
+{"error": "", "latencyMs": 2015.6487920000004, "name": "agent-invoke", "ok": true, "status": 200}
+{"error": "", "latencyMs": 1417.9081670000003, "name": "agent-invoke", "ok": true, "status": 200}
+{"error": "", "latencyMs": 412.212874999998, "name": "service-discovery", "ok": true, "status": 200}
+{"error": "", "latencyMs": 403.39408299999843, "name": "service-discovery", "ok": true, "status": 200}
+{"error": "", "latencyMs": 1310.2039999999988, "name": "agent-invoke", "ok": true, "status": 200}
+{"error": "", "latencyMs": 1162.4892909999999, "name": "agent-invoke", "ok": true, "status": 200}
+{"error": "", "latencyMs": 1201.837916999999, "name": "agent-invoke", "ok": true, "status": 200}

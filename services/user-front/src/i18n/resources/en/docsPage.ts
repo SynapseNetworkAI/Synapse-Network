@@ -16,7 +16,14 @@ const docsPage: I18nMessages["docsPage"] = {
   topNavSearchAria: "Search docs",
   topNavSearchPlaceholder: "Search docs...",
   topNavDeveloperConsole: "Developer Console",
-  topNavTabs: ["Overview", "Getting Started", "Concepts", "API Reference", "SDK", "Contracts"],
+  topNavTabs: [
+    "Overview",
+    "Getting Started",
+    "Concepts",
+    "API Reference",
+    "SDK",
+    "Contracts",
+  ],
   onThisPageTitle: "On this page",
   sidebarSectionLabels: [
     "OVERVIEW",
@@ -74,11 +81,16 @@ const docsPage: I18nMessages["docsPage"] = {
     "Infrastructure for the AI agent economy: onchain deposit escrow, offchain instant deduction, and voucher-based gasless withdrawals for machine-to-machine payments.",
   overviewQuickStart: "Quick Start",
   overviewApiReference: "API Reference",
-  overviewFlowLine: "Consumer /deposit USDC -> Gateway /invoke -> Provider API -> settled",
+  overviewFlowLine:
+    "Consumer /deposit USDC -> Gateway /invoke -> Provider API -> settled",
   overviewFlowSubline: "platform fee accrued · provider receivable ++",
   overviewGetStartedLabel: "Get Started",
   overviewQuickCardTags: ["5 min", "10 min", "NEW"],
-  overviewQuickCardTitles: ["Use an Agent Service", "Register a Service", "TypeScript SDK"],
+  overviewQuickCardTitles: [
+    "Use an Agent Service",
+    "Register a Service",
+    "TypeScript SDK",
+  ],
   overviewQuickCardDescriptions: [
     "Deposit USDC, issue a credential, invoke an API, and settle usage instantly.",
     "Register a provider endpoint, set pricing, go live, and receive earnings in real time.",
@@ -88,7 +100,11 @@ const docsPage: I18nMessages["docsPage"] = {
   overviewArchitectureTitle: "Architecture",
   overviewArchitectureDescription:
     "Synapse uses a hybrid settlement model: USDC is escrowed onchain for guarantees, while the gateway performs millisecond offchain charging and split accounting.",
-  overviewArchitectureLabels: ["Onchain Escrow", "Offchain Settlement", "Voucher Withdrawals"],
+  overviewArchitectureLabels: [
+    "Onchain Escrow",
+    "Offchain Settlement",
+    "Voucher Withdrawals",
+  ],
   overviewArchitectureDescriptions: [
     "SynapseCore accepts USDC deposits and locks funds as spendable credit.",
     "The gateway atomically records consumer debits, provider receivables, and platform fees.",
@@ -151,7 +167,11 @@ const docsPage: I18nMessages["docsPage"] = {
   gettingStartedConsumerCta: "Consumer Guide",
   gettingStartedProviderCta: "Provider Guide",
   gettingStartedDifferenceTitle: "Core differences between the two roles",
-  gettingStartedDifferenceDims: ["Money flow", "Primary credential", "Key APIs"],
+  gettingStartedDifferenceDims: [
+    "Money flow",
+    "Primary credential",
+    "Key APIs",
+  ],
   gettingStartedDifferenceConsumer: [
     "Deposit USDC -> spend on invocations -> withdraw unused",
     "Agent Credential (agentToken)",
@@ -167,7 +187,15 @@ const docsPage: I18nMessages["docsPage"] = {
   consumerTitle: "Consumer Quick Start",
   consumerDescription:
     "From zero to first successful paid invocation — and back to your wallet — in seven steps: authenticate, deposit, discover, issue credentials, invoke, verify settlement, and withdraw. Estimated time: 10 minutes.",
-  consumerProgress: ["Auth", "Deposit", "Discover", "Credential", "Invoke", "Verify", "Withdraw"],
+  consumerProgress: [
+    "Auth",
+    "Deposit",
+    "Discover",
+    "Credential",
+    "Invoke",
+    "Verify",
+    "Withdraw",
+  ],
   consumerStepTitles: [
     "Connect wallet and get a JWT",
     "Deposit USDC",
@@ -209,7 +237,14 @@ const docsPage: I18nMessages["docsPage"] = {
   providerSdkTabs: ["TypeScript SDK", "Python SDK"],
   providerSdkSwitcherDescription:
     "Keep one workflow, switch only the code surface. Both SDKs follow the same owner-wallet control plane and the same service registration contract.",
-  providerProgress: ["Auth", "Secret", "Register", "Status", "Earnings", "Withdraw"],
+  providerProgress: [
+    "Auth",
+    "Secret",
+    "Register",
+    "Status",
+    "Earnings",
+    "Withdraw",
+  ],
   providerStepTitles: [
     "Connect wallet and get a JWT",
     "Issue a provider secret",
@@ -262,7 +297,11 @@ const docsPage: I18nMessages["docsPage"] = {
     "Force probe bypasses slow lane when you want to verify a fix immediately.",
   ],
   providerSettlementModelLabel: "Settlement split model",
-  providerSettlementModelRows: ["Consumer charge", "Provider earnings", "Platform fee"],
+  providerSettlementModelRows: [
+    "Consumer charge",
+    "Provider earnings",
+    "Platform fee",
+  ],
   providerSettlementModelValues: [
     "pricePerCall × 1",
     "pricePerCall × (1 - fee rate)",
@@ -273,6 +312,9 @@ const docsPage: I18nMessages["docsPage"] = {
     "You have completed the real provider onboarding chain: wallet auth, provider secret, service registration, owner-scoped status verification, receivable reads, and withdrawal intent creation.",
   providerServicesApiCta: "Full Services API docs",
   providerDeepDiveCta: "Open Python provider SDK",
+  providerLlmRegistrationTitle: "LLM service registration",
+  providerLlmRegistrationDescription:
+    "LLM services use serviceKind=llm and priceModel=token_metered. Price is per 1M input/output tokens; streaming is disabled in Synapse V1 so Gateway can capture final usage safely.",
   conceptsEyebrow: "Core Concepts",
   conceptsTitle: "How Synapse Works",
   conceptsDescription:
@@ -295,7 +337,16 @@ const docsPage: I18nMessages["docsPage"] = {
     "Providers submit service name, endpoint, tags, and pricing to receive a globally unique serviceId.",
     "The gateway pings provider endpoints on a schedule and automatically hides unhealthy services.",
     "Consumers can filter and search services by tag, name, and availability status.",
-    "pricePerCallUsdc controls per-call billing and can be updated over time.",
+    "API services can use fixed/per-call pricing. LLM services use token-metered pricing per 1M input/output tokens.",
+  ],
+  conceptsLlmTitle: "LLM token-metered billing",
+  conceptsLlmDescription:
+    "LLM services are registered with serviceKind=llm and priceModel=token_metered. Gateway freezes a conservative hold before the call, captures only final Provider-reported usage, and releases the rest immediately.",
+  conceptsLlmRules: [
+    "Prices are expressed as inputPricePer1MTokensUsdc and outputPricePer1MTokensUsdc, never pricePerToken.",
+    "Caller may pass maxCostUsdc; if omitted, Gateway estimates an automatic hold from prompt characters and max_tokens.",
+    "Streaming is disabled in V1 because final usage is required for billing.",
+    "Timeout, disconnect, SSE response, or missing usage releases the full hold and does not charge.",
   ],
   conceptsCredentialsTitle: "Agent Credentials",
   conceptsCredentialsDescription:
@@ -318,7 +369,10 @@ const docsPage: I18nMessages["docsPage"] = {
     "Always send an idempotency key in high-frequency or unreliable network conditions. The gateway idempotency window is 60 seconds.",
   conceptsNextTitle: "Next steps",
   conceptsNextLabels: ["API Reference", "Smart Contracts"],
-  conceptsNextDescriptions: ["Full REST endpoint catalog", "Contract addresses and ABI references"],
+  conceptsNextDescriptions: [
+    "Full REST endpoint catalog",
+    "Contract addresses and ABI references",
+  ],
   apiEyebrow: "API Reference",
   apiTitle: "REST API",
   apiDescription:
@@ -327,7 +381,15 @@ const docsPage: I18nMessages["docsPage"] = {
   apiLegendCreate: "Create / execute",
   apiLegendUpdate: "Update",
   apiLegendDelete: "Delete",
-  apiGroupTitles: ["Auth", "Balance", "Services", "Provider Operations", "Agent Invocations", "Credentials", "Community"],
+  apiGroupTitles: [
+    "Auth",
+    "Balance",
+    "Services",
+    "Provider Operations",
+    "Agent Invocations",
+    "Credentials",
+    "Community",
+  ],
   apiGroupDescriptions: [
     "Wallet challenge, signature verification, and session lifecycle.",
     "Account balances, deposits, confirmations, and withdrawals.",
@@ -359,7 +421,11 @@ const docsPage: I18nMessages["docsPage"] = {
   sdkStagingDocsTitle: "Staging docs are live",
   sdkStagingDocsDescription:
     "Use staging as the public preview runbook. The SDK README is the compact package entrypoint; these pages walk through owner wallet auth, JWT, agent credential issuance, runtime discovery, invoke, and receipt checks.",
-  sdkStagingDocsLinkLabels: ["SDK Hub", "Python staging runbook", "TypeScript staging runbook"],
+  sdkStagingDocsLinkLabels: [
+    "SDK Hub",
+    "Python staging runbook",
+    "TypeScript staging runbook",
+  ],
   sdkStagingDocsProdReserved:
     "Production docs are reserved until production DNS, health checks, and docs deployment are verified.",
   sdkAgentQuickstartTitle: "Agent Runtime Quickstart",
@@ -419,7 +485,10 @@ const docsPage: I18nMessages["docsPage"] = {
     "The canonical consumer path is discover -> select serviceId -> invoke. Discover gives the runtime structured service records instead of hardcoded API endpoints. The SDK handles quoting internally — your code sees a single invoke() call.",
   sdkTsInvokeTitle: "Issue a credential and invoke through discovery",
   sdkTsInvokeDescription:
-    "Once you issue an agent credential, discover services, then call invoke() with the service price you saw. Gateway rejects with PRICE_MISMATCH if the Provider changed the price since discovery — re-discover and retry.",
+    "Once you issue an agent credential, discover services, then call invoke() with the fixed service price you saw. For token-metered LLM services, use invokeLlm(); costUsdc is omitted and Gateway returns usage plus billing metadata.",
+  sdkLlmInvokeTitle: "Invoke token-metered LLM services",
+  sdkTsLlmInvokeDescription:
+    "Use invokeLlm() for services with serviceKind=llm and priceModel=token_metered. Do not pass costUsdc; pass optional maxCostUsdc or let Gateway calculate the automatic hold. The final charge comes from Provider usage.",
   sdkTsDirectTitle: "Known serviceId? Call it directly",
   sdkTsDirectDescription:
     "If your runtime already has a stable serviceId and its last-seen price, pass costUsdc directly. One HTTP call. Gateway returns PRICE_MISMATCH if the price changed.",
@@ -512,16 +581,11 @@ const docsPage: I18nMessages["docsPage"] = {
     "Use TS-style aliases discover, invoke, and get_invocation so Python and TypeScript integrations share one mental model.",
   ],
   sdkPyRunbookEyebrow: "Operator runbook",
-  sdkPyRunbookTitle: "From private key to charged receipt in one Python surface.",
+  sdkPyRunbookTitle:
+    "From private key to charged receipt in one Python surface.",
   sdkPyRunbookDescription:
     "Treat the Python SDK as the owner control plane plus the runtime call plane. The runbook below is the shortest honest path to first paid invocation.",
-  sdkPyFlowStepTags: [
-    "Step 01",
-    "Step 02",
-    "Step 03",
-    "Step 04",
-    "Step 05",
-  ],
+  sdkPyFlowStepTags: ["Step 01", "Step 02", "Step 03", "Step 04", "Step 05"],
   sdkPyFlowStepTitles: [
     "Authenticate the owner wallet",
     "Convert an onchain deposit into spendable balance",
@@ -550,7 +614,9 @@ const docsPage: I18nMessages["docsPage"] = {
     "The same owner auth client can mint an agent credential with a spend window, call cap, and rpm ceiling, then hand the token to a runtime client.",
   sdkPyInvokeTitle: "Discover and invoke",
   sdkPyInvokeDescription:
-    "Discover services, then call invoke() with cost_usdc = the price from discovery. Gateway rejects with PriceMismatchError if the Provider changed the price.",
+    "Discover services, then call invoke() with cost_usdc for fixed-price APIs. For token-metered LLM services, call invoke_llm(); cost_usdc is omitted and final usage drives billing.",
+  sdkPyLlmInvokeDescription:
+    "Use invoke_llm() for serviceKind=llm and priceModel=token_metered. cost_usdc is omitted; max_cost_usdc is optional, and Gateway returns usage plus Synapse billing metadata.",
   sdkPyVerifyEyebrow: "Verification chain",
   sdkPyVerifyTitle: "Validate the full chain",
   sdkPyVerifyDescription:
@@ -605,7 +671,8 @@ const docsPage: I18nMessages["docsPage"] = {
   contractsCoreDescription:
     "The main settlement contract holds USDC deposits in escrow and processes withdrawals. The gateway keeps the offchain ledger and only touches the chain during deposit or withdraw operations.",
   contractsCoreVerified: "Verified source is available on the block explorer.",
-  contractsLocalExplorerHint: "Local network, no public block explorer available.",
+  contractsLocalExplorerHint:
+    "Local network, no public block explorer available.",
   contractsNotDeployed: "Not deployed yet — update this address before launch.",
   contractsSourceTip:
     "Contract source is tracked in GitHub. Once staging or production deployments are verified on Arbiscan, the explorer links will expose full Solidity source.",
@@ -676,9 +743,9 @@ const docsPage: I18nMessages["docsPage"] = {
     "Agent-readable callable registry (public, paginated)",
     "Runtime discovery endpoint before invoke",
     "Discovery response example",
-    "Pick the serviceId and price observed during discovery",
+    "Pick serviceId plus either fixed price or LLM token pricing",
     "Found service:",
-    "Price per call:",
+    "Pricing:",
   ],
   consumerCodeCredential: [
     "Idempotent pattern: check for active credential first, use if found, create only if not",
@@ -696,7 +763,7 @@ const docsPage: I18nMessages["docsPage"] = {
     "Single call covers the full flow: discovery → debit → settlement",
     "Idempotency key — prevents double-charge on retry",
     "Use agentToken, NOT the owner JWT",
-    "Price you observed in discovery — prevents unexpected charges if price changed",
+    "Fixed API price assertion; LLM services use maxCostUsdc or automatic hold instead",
     "Gateway returns 422 PRICE_MISMATCH if live price changed — re-discover and retry",
     "Use the serviceId selected from registry/discover",
   ],
@@ -704,8 +771,8 @@ const docsPage: I18nMessages["docsPage"] = {
     "Query current account balance",
     "Decreased by this invocation's fee",
     "Verify the latest invocation record",
-    "\"settled\"",
-    "\"0.0010\"",
+    '"settled"',
+    '"0.0010"',
   ],
   consumerCodeWithdraw: [
     "Withdraw remaining consumer balance back to wallet",

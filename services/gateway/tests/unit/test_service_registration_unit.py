@@ -193,6 +193,17 @@ def test_register_service_request_applies_llm_timeout_defaults_before_validation
     assert request.invoke.timeoutMs == 120000
 
 
+def test_register_service_request_preserves_llm_token_metering_contract() -> None:
+    request = RegisterServiceRequest.model_validate(_llm_service_payload())
+    dumped = request.model_dump()
+
+    assert dumped["serviceKind"] == "llm"
+    assert dumped["priceModel"] == "token_metered"
+    assert dumped["pricing"]["priceModel"] == "token_metered"
+    assert dumped["pricing"]["inputPricePer1MTokensUsdc"] == "0.140000"
+    assert dumped["pricing"]["outputPricePer1MTokensUsdc"] == "0.280000"
+
+
 def test_llm_service_allows_long_sync_timeout_with_hard_cap() -> None:
     payload = _llm_service_payload()
     payload["constraints"]["timeoutMs"] = 300000

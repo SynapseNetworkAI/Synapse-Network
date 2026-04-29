@@ -39,6 +39,8 @@ const LazyAgentsWorkspaceDetailPane = dynamic(
   }
 );
 
+const MAX_AGENT_CREDENTIALS = 5;
+
 export default function DashboardAgentsWorkspacePage() {
   const workspaceFrameClass = "w-full max-w-[1288px]";
   const { address: userAddress, isConnected } = useAccount();
@@ -78,6 +80,19 @@ export default function DashboardAgentsWorkspacePage() {
       || newCredential
       || isEditModalOpen,
   );
+  const hasReachedAgentLimit = credentials.length >= MAX_AGENT_CREDENTIALS;
+
+  const guardAgentLimit = useCallback(() => {
+    if (!hasReachedAgentLimit) {
+      return false;
+    }
+    const message = t("agentsPage.workspaceAgentLimitReached", {
+      limit: MAX_AGENT_CREDENTIALS,
+    });
+    setError(message);
+    toast.error(message);
+    return true;
+  }, [hasReachedAgentLimit, t]);
 
   const fetchCredentials = useCallback(async () => {
     if (!userAddress || !isSessionAuthenticated) {
@@ -163,15 +178,21 @@ export default function DashboardAgentsWorkspacePage() {
 
   const handleOpenCreateModal = useCallback(async () => {
     setError(null);
+    if (guardAgentLimit()) {
+      return;
+    }
     const boundOwner = await ensureOwnerReady();
     if (!boundOwner) {
       return;
     }
     setIsCreateModalOpen(true);
-  }, [ensureOwnerReady]);
+  }, [ensureOwnerReady, guardAgentLimit]);
 
   const handleCreateCredential = async (event: FormEvent) => {
     event.preventDefault();
+    if (guardAgentLimit()) {
+      return;
+    }
     const boundOwner = await ensureOwnerReady();
     if (!boundOwner) {
       return;
@@ -333,6 +354,9 @@ export default function DashboardAgentsWorkspacePage() {
   }, [ensureOwnerReady, fetchCredentials, t]);
 
   const handleGenerateCredential = useCallback(async (agent: AgentCredentialRecord) => {
+    if (guardAgentLimit()) {
+      return;
+    }
     const boundOwner = await ensureOwnerReady();
     if (!boundOwner) {
       return;
@@ -352,7 +376,7 @@ export default function DashboardAgentsWorkspacePage() {
     } finally {
       setIsRegeneratingCredential(false);
     }
-  }, [ensureOwnerReady, fetchCredentials, t]);
+  }, [ensureOwnerReady, fetchCredentials, guardAgentLimit, t]);
 
   const selectedAgentUsagePercent = selectedAgent ? getAgentUsagePercent(selectedAgent) : 0;
   const selectedAgentRemainingCalls = selectedAgent
@@ -410,6 +434,8 @@ export default function DashboardAgentsWorkspacePage() {
       <section className={`grid ${workspaceFrameClass} grid-cols-1 items-start gap-5 xl:grid-cols-[536px_minmax(0,720px)] xl:gap-8`}>
         <AgentsWorkspaceListPane
           credentials={visibleCredentials}
+          agentLimit={MAX_AGENT_CREDENTIALS}
+          canCreateAgent={!hasReachedAgentLimit}
           isLoading={isLoading}
           isManageMode={isManageMode}
           selectedAgentId={selectedAgentId}

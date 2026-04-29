@@ -202,7 +202,7 @@ def test_contract_config_exists(contract_config):
 
 ```
 GET  /api/v1/auth/challenge?address={owner_address}
-  → { challenge: "...", message: "...", domain: "a2a-pay-network" }
+  → { challenge: "...", message: "...", domain: "synapse-network" }
 
 客户端用 eth_sign / personal_sign 对 message 签名
 

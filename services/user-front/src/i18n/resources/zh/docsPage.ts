@@ -65,7 +65,8 @@ const docsPage: I18nMessages["docsPage"] = {
   ],
   sidebarSoon: "即将上线",
   notFoundTitle: "页面不存在",
-  notFoundDescription: "这个文档页面暂时还不存在。它可能已经被移动、重命名，或者还在编写中。",
+  notFoundDescription:
+    "这个文档页面暂时还不存在。它可能已经被移动、重命名，或者还在编写中。",
   notFoundBack: "返回文档首页",
   overviewEyebrow: "开发者文档",
   overviewTitle: "Synapse Developer Platform",
@@ -73,11 +74,16 @@ const docsPage: I18nMessages["docsPage"] = {
     "面向 AI Agent 经济的基础设施：链上充值担保、链下秒级扣费、以及凭票免 Gas 提现，让机器到机器支付真正跑起来。",
   overviewQuickStart: "快速开始",
   overviewApiReference: "API 参考",
-  overviewFlowLine: "Consumer /deposit USDC -> Gateway /invoke -> Provider API -> settled",
+  overviewFlowLine:
+    "Consumer /deposit USDC -> Gateway /invoke -> Provider API -> settled",
   overviewFlowSubline: "平台手续费累计 · Provider 收益增加",
   overviewGetStartedLabel: "开始上手",
   overviewQuickCardTags: ["5 分钟", "10 分钟", "NEW"],
-  overviewQuickCardTitles: ["调用 Agent 服务", "注册一个服务", "TypeScript SDK"],
+  overviewQuickCardTitles: [
+    "调用 Agent 服务",
+    "注册一个服务",
+    "TypeScript SDK",
+  ],
   overviewQuickCardDescriptions: [
     "充值 USDC、创建凭证、调用 API，并在同一链路里完成即时结算。",
     "注册 Provider 端点、配置定价、上线接单，并实时接收收益。",
@@ -257,7 +263,11 @@ const docsPage: I18nMessages["docsPage"] = {
     "Force probe 会绕过 slow lane，适合修复后立即验证。",
   ],
   providerSettlementModelLabel: "结算分账模型",
-  providerSettlementModelRows: ["Consumer 扣费", "Provider 收益", "Platform Fee"],
+  providerSettlementModelRows: [
+    "Consumer 扣费",
+    "Provider 收益",
+    "Platform Fee",
+  ],
   providerSettlementModelValues: [
     "pricePerCall × 1",
     "pricePerCall × (1 - 手续费率)",
@@ -268,9 +278,13 @@ const docsPage: I18nMessages["docsPage"] = {
     "你已经完成真实 Provider onboarding 主链：钱包认证、provider secret、服务注册、owner 侧状态校验、收益读取和提现意图创建。",
   providerServicesApiCta: "Services API 完整文档",
   providerDeepDiveCta: "打开 Python Provider SDK",
+  providerLlmRegistrationTitle: "注册 LLM 服务",
+  providerLlmRegistrationDescription:
+    "LLM 服务使用 serviceKind=llm 和 priceModel=token_metered。价格按每百万 input/output token 定义；Synapse V1 禁用 streaming，确保 Gateway 能安全拿到最终 usage 再计费。",
   conceptsEyebrow: "核心概念",
   conceptsTitle: "Synapse 如何运作",
-  conceptsDescription: "理解链上担保、链下结算、凭证系统以及幂等写入背后的核心设计。",
+  conceptsDescription:
+    "理解链上担保、链下结算、凭证系统以及幂等写入背后的核心设计。",
   conceptsSettlementTitle: "结算如何运作",
   conceptsSettlementDescription:
     "Synapse 的结算流程分成三个阶段。扣费发生在链下，Provider 可以随时把收益提现到链上。",
@@ -289,7 +303,16 @@ const docsPage: I18nMessages["docsPage"] = {
     "提交服务名称、端点、标签与价格，获得全局唯一的 serviceId。",
     "Gateway 定时 ping Provider 端点，并自动隐藏不健康的服务。",
     "Consumer 可以按 tag、名称和状态过滤服务列表。",
-    "pricePerCallUsdc 控制每次调用的计费金额，之后也可以继续更新。",
+    "普通 API 可使用 fixed/per-call 价格；LLM 服务使用每百万 input/output token 单价。",
+  ],
+  conceptsLlmTitle: "LLM 按 token 计费",
+  conceptsLlmDescription:
+    "LLM 服务使用 serviceKind=llm 和 priceModel=token_metered 注册。Gateway 会在调用前保守冻结额度，调用成功后只按 Provider 返回的 final usage 扣费，并立即释放多余冻结金额。",
+  conceptsLlmRules: [
+    "价格字段使用 inputPricePer1MTokensUsdc 和 outputPricePer1MTokensUsdc，禁止使用 pricePerToken。",
+    "调用方可传 maxCostUsdc；不传时 Gateway 根据 prompt 字符数和 max_tokens 自动估算冻结金额。",
+    "V1 禁用 streaming，因为计费必须拿到最终 usage。",
+    "超时、连接中断、SSE 响应或缺少 usage 时完整释放冻结金额，不扣费。",
   ],
   conceptsCredentialsTitle: "Agent 凭证",
   conceptsCredentialsDescription:
@@ -315,12 +338,21 @@ const docsPage: I18nMessages["docsPage"] = {
   conceptsNextDescriptions: ["完整 REST 端点目录", "合约地址与 ABI 参考"],
   apiEyebrow: "API 参考",
   apiTitle: "REST API",
-  apiDescription: "所有路由都挂在 /api 前缀下。Public Preview Base URL：https://api-staging.synapse-network.ai",
+  apiDescription:
+    "所有路由都挂在 /api 前缀下。Public Preview Base URL：https://api-staging.synapse-network.ai",
   apiLegendRead: "读取",
   apiLegendCreate: "创建 / 执行",
   apiLegendUpdate: "更新",
   apiLegendDelete: "删除",
-  apiGroupTitles: ["Auth", "Balance", "Services", "Provider Operations", "Agent Invocations", "Credentials", "Community"],
+  apiGroupTitles: [
+    "Auth",
+    "Balance",
+    "Services",
+    "Provider Operations",
+    "Agent Invocations",
+    "Credentials",
+    "Community",
+  ],
   apiGroupDescriptions: [
     "钱包 challenge、签名验证和会话生命周期。",
     "账户余额、充值、确认和提现接口。",
@@ -352,7 +384,11 @@ const docsPage: I18nMessages["docsPage"] = {
   sdkStagingDocsTitle: "Staging 文档已上线",
   sdkStagingDocsDescription:
     "Public Preview 接入以 staging runbook 为准。SDK README 是压缩版包入口；这些页面会完整走过 owner 钱包登录、JWT、agent credential 签发、runtime discovery、invoke 和 receipt 检查。",
-  sdkStagingDocsLinkLabels: ["SDK Hub", "Python staging runbook", "TypeScript staging runbook"],
+  sdkStagingDocsLinkLabels: [
+    "SDK Hub",
+    "Python staging runbook",
+    "TypeScript staging runbook",
+  ],
   sdkStagingDocsProdReserved:
     "Production 文档先预留，等 production DNS、health check 和 docs deployment 验证完成后再开放。",
   sdkAgentQuickstartTitle: "Agent Runtime Quickstart",
@@ -412,7 +448,10 @@ const docsPage: I18nMessages["docsPage"] = {
     "Consumer 的标准主链是 discover -> 选定 serviceId -> invoke。discover 返回的是结构化服务记录，不是硬编码 API 端点。传入 discover 返回的 priceUsdc 作为 cost_usdc 即可直接调用 invoke()。",
   sdkTsInvokeTitle: "签发凭证，并通过 discovery 调用服务",
   sdkTsInvokeDescription:
-    "签发 agent credential 之后，先 discover 服务拿到价格，再调用 invoke() 并传入 costUsdc。如果服务商已更改价格，gateway 会返回 PRICE_MISMATCH，重新 discover 再重试即可。",
+    "签发 agent credential 之后，普通 fixed-price API 使用 invoke() 并传入 costUsdc。按 token 计费的 LLM 服务使用 invokeLlm()；不传 costUsdc，由 Gateway 返回 usage 和计费元数据。",
+  sdkLlmInvokeTitle: "调用按 token 计费的 LLM 服务",
+  sdkTsLlmInvokeDescription:
+    "serviceKind=llm 且 priceModel=token_metered 的服务请使用 invokeLlm()。不要传 costUsdc；可选传 maxCostUsdc，或让 Gateway 自动估算冻结金额。最终扣费只按 Provider 返回的 usage 计算。",
   sdkTsDirectTitle: "已知 serviceId 时可直接调用",
   sdkTsDirectDescription:
     "如果运行时已经持有稳定 serviceId 和上次发现的价格，直接传入 costUsdc 调用 invoke()。一次 HTTP 請求完成。如果价格发生变化，gateway 返回 PRICE_MISMATCH。",
@@ -428,7 +467,8 @@ const docsPage: I18nMessages["docsPage"] = {
   sdkTsVerificationDescription:
     "完整验收必须同时证明 discovery、invoke、receipt 和余额扣减都成立。TypeScript SDK 的 E2E 现在会同时验证“discover 选服务调用”和“已知 serviceId 直调”两条路径。",
   sdkConsumerQuickStartTitle: "Consumer 快速开始",
-  sdkConsumerQuickStartDescription: "完成钱包认证、颁发凭证和调用服务，只需要 3 步。",
+  sdkConsumerQuickStartDescription:
+    "完成钱包认证、颁发凭证和调用服务，只需要 3 步。",
   sdkDiscoveryTitle: "服务发现",
   sdkBalanceTitle: "查询余额",
   sdkDepositTitle: "充值（链上 -> 网关）",
@@ -476,12 +516,7 @@ const docsPage: I18nMessages["docsPage"] = {
   sdkPyHeroSecondaryCta: "查看 E2E 验证",
   sdkPySignalLabel: "运行态",
   sdkPySignalTitle: "冷启动 Consumer 主链",
-  sdkPySignalTitles: [
-    "Owner 登录",
-    "充值过桥",
-    "凭证签发",
-    "Receipt 验证",
-  ],
+  sdkPySignalTitles: ["Owner 登录", "充值过桥", "凭证签发", "Receipt 验证"],
   sdkPySignalValues: [
     "challenge -> sign -> verify -> JWT 缓存",
     "txHash -> intent -> confirm -> 可消费余额",
@@ -507,13 +542,7 @@ const docsPage: I18nMessages["docsPage"] = {
   sdkPyRunbookTitle: "从 private key 到已扣费 receipt，全程都在 Python 面上。",
   sdkPyRunbookDescription:
     "把 Python SDK 当成 owner 控制面和 runtime 调用面的统一入口。下面这条 runbook，就是拿到首个付费调用的最短诚实路径。",
-  sdkPyFlowStepTags: [
-    "Step 01",
-    "Step 02",
-    "Step 03",
-    "Step 04",
-    "Step 05",
-  ],
+  sdkPyFlowStepTags: ["Step 01", "Step 02", "Step 03", "Step 04", "Step 05"],
   sdkPyFlowStepTitles: [
     "登录 owner 钱包",
     "把链上充值转成可消费余额",
@@ -542,7 +571,9 @@ const docsPage: I18nMessages["docsPage"] = {
     "同一个 owner auth client 可以签发带额度窗口、调用次数上限和 rpm ceiling 的 Agent Credential，然后把 token 交给 runtime client。",
   sdkPyInvokeTitle: "发现并调用服务",
   sdkPyInvokeDescription:
-    "runtime client 先 discover 服务，然后直接 invoke。传入 cost_usdc 即可完成价格断言调用和轮询 receipt。",
+    "Discover 服务后，普通 fixed-price API 调用 invoke() 并传入 cost_usdc。按 token 计费的 LLM 服务调用 invoke_llm()；不传 cost_usdc，最终按 usage 扣费。",
+  sdkPyLlmInvokeDescription:
+    "serviceKind=llm 且 priceModel=token_metered 的服务请使用 invoke_llm()。省略 cost_usdc；max_cost_usdc 可选，Gateway 会返回 usage 和 Synapse 计费元数据。",
   sdkPyVerifyEyebrow: "验证链",
   sdkPyVerifyTitle: "验证整条链路",
   sdkPyVerifyDescription:
@@ -627,7 +658,8 @@ const docsPage: I18nMessages["docsPage"] = {
     "链上提现执行完成后的事件。",
   ],
   contractsMockTitle: "MockUSDC",
-  contractsMockDescription: "用于开发测试的 ERC-20 Token。任何地址都可以 mint 测试资金。生产环境使用 Circle 的 6 位 USDC。",
+  contractsMockDescription:
+    "用于开发测试的 ERC-20 Token。任何地址都可以 mint 测试资金。生产环境使用 Circle 的 6 位 USDC。",
   contractsMockInfoTitles: ["Symbol", "Decimals", "Mint", "Burn"],
   contractsMockInfoValues: [
     "USDC (Mock)",
@@ -635,7 +667,8 @@ const docsPage: I18nMessages["docsPage"] = {
     "公开，任意地址可 mint",
     "仅 Owner",
   ],
-  contractsMockWarning: "MockUSDC 仅供开发测试。进入生产前必须切换到真实 USDC 和 6 位 decimals。",
+  contractsMockWarning:
+    "MockUSDC 仅供开发测试。进入生产前必须切换到真实 USDC 和 6 位 decimals。",
   contractsAbiTitle: "获取 ABI / 查看源码",
   contractsAbiDescription:
     "ABI 构建产物位于 artifacts/contracts/，可以直接 import。部署并验证后，可通过区块浏览器查看链上源码。",
@@ -666,9 +699,9 @@ const docsPage: I18nMessages["docsPage"] = {
     "Agent 可读的可调用服务注册表（公开、分页）",
     "调用前的 runtime discovery 接口",
     "Discovery 响应示例",
-    "选择 discovery/registry 中的 serviceId 和价格",
+    "选择 serviceId，以及 fixed price 或 LLM token price",
     "找到服务:",
-    "每次调用:",
+    "计费:",
   ],
   consumerCodeCredential: [
     "幂等模式：先查有没有可用的 active 凭据，有则直接用，没有再新建",
@@ -686,7 +719,7 @@ const docsPage: I18nMessages["docsPage"] = {
     "一次调用完成全流程：发现 → 扣费 → 结算",
     "幂等 key，防止重复扣费",
     "注意：用 agentToken，不是 JWT",
-    "键入你发现的价格，防止价格外泄扣费",
+    "普通 API 的固定价格断言；LLM 使用 maxCostUsdc 或自动冻结",
     "如果服务实时价格发生变化，返回 422 PRICE_MISMATCH — 重新 discover 再重试",
     "使用从 registry/discover 选中的 serviceId",
   ],
@@ -694,8 +727,8 @@ const docsPage: I18nMessages["docsPage"] = {
     "查询当前账户余额",
     "减少了本次调用费用",
     "验证本次调用记录",
-    "\"settled\"",
-    "\"0.0010\"",
+    '"settled"',
+    '"0.0010"',
   ],
   consumerCodeWithdraw: [
     "将剩余的 Consumer 余额提现回钱包",

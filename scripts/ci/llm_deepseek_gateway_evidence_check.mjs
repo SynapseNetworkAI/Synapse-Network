@@ -154,6 +154,9 @@ if (sha256File(tracePath) !== report.traceDigest) {
 }
 
 const billing = report.billing || {};
+const failureScenarios = Array.isArray(report.failureScenarios)
+  ? report.failureScenarios
+  : [];
 const usage = billing.usage || {};
 const synapse = billing.synapse || {};
 const expected = parseUsdcMicros(billing.expectedChargedUsdc);
@@ -221,6 +224,64 @@ if (
     `revenue split invariant failed; provider=${synapse.providerRevenueUsdc}, platform=${synapse.platformFeeUsdc}, charged=${synapse.chargedUsdc}`,
     "fix provider/platform split accounting before rerunning evidence."
   );
+}
+
+if (ENVIRONMENT === "local") {
+  const byScenario = Object.fromEntries(
+    failureScenarios.map((scenario) => [scenario.scenario, scenario])
+  );
+  for (const name of [
+    "timeout_no_charge",
+    "missing_usage_no_charge",
+    "slow_success_charges",
+  ]) {
+    if (!byScenario[name]) {
+      fatal(
+        "LLM-DEEPSEEK-EVIDENCE-015",
+        reportPath,
+        `local LLM failure-path scenario is missing: ${name}`,
+        "rerun npm run e2e:llm-deepseek:local with local fake failure fixtures enabled."
+      );
+    }
+  }
+
+  for (const name of ["timeout_no_charge", "missing_usage_no_charge"]) {
+    const scenario = byScenario[name] || {};
+    const charged = parseUsdcMicros(scenario.chargedUsdc);
+    const providerRevenue = parseUsdcMicros(scenario.providerRevenueUsdc);
+    const platformFee = parseUsdcMicros(scenario.platformFeeUsdc);
+    if (
+      scenario.holdReleased !== true ||
+      charged !== 0n ||
+      providerRevenue !== 0n ||
+      platformFee !== 0n ||
+      !String(scenario.invocation?.status || "").startsWith("FAILED")
+    ) {
+      fatal(
+        "LLM-DEEPSEEK-EVIDENCE-016",
+        reportPath,
+        `${name} must release the full hold and charge no parties; evidence=${JSON.stringify(
+          scenario
+        ).slice(0, 1000)}`,
+        "fix LLM failure settlement so timeout/missing usage never captures estimated hold."
+      );
+    }
+  }
+
+  const slowSuccess = byScenario.slow_success_charges || {};
+  if (
+    parseUsdcMicros(slowSuccess.chargedUsdc) == null ||
+    parseUsdcMicros(slowSuccess.chargedUsdc) <= 0n ||
+    !slowSuccess.billingEvidence?.usage ||
+    slowSuccess.billingEvidence?.synapse?.priceModel !== "token_metered"
+  ) {
+    fatal(
+      "LLM-DEEPSEEK-EVIDENCE-017",
+      reportPath,
+      "slow_success_charges must prove slow in-time LLM calls still charge by final usage.",
+      "fix local slow-success fixture or LLM usage settlement evidence."
+    );
+  }
 }
 
 const allText = REQUIRED_FILES.map((name) =>

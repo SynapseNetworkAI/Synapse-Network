@@ -1,0 +1,7 @@
+{
+  "runId": "20260427T082355Z",
+  "backupStartedAt": "2026-04-27T08:28:25Z",
+  "postgresBackupPath": "",
+  "clickhouseBackupPath": "",
+  "notes": "v1 restore drill validates restored DB/schema/counts/freshness; chain replay is intentionally out of scope."
+}

@@ -178,6 +178,7 @@ npm run ci:pr
 
 This aggregates the repository PR checks currently wired in:
 
+- source API shape: public service/API methods must return typed objects, not raw `dict` / `Record<string, unknown>`; legacy debt is baselined in `scripts/ci/source_quality_baseline.json`
 - `apps/frontend`: lint / test / build
 - `admin/admin-front`: lint / build
 - `gateway`: create `gateway/.venv`, install dependencies, run pytest

@@ -1,0 +1,38 @@
+{
+  "concurrency": 1,
+  "durationSec": 30,
+  "endpoints": {
+    "agent-invoke": {
+      "avgMs": 1309.727,
+      "failures": 0,
+      "p50Ms": 1201.838,
+      "p95Ms": 2015.649,
+      "p99Ms": 2015.649,
+      "requests": 10,
+      "sampleErrors": [],
+      "statuses": {
+        "200": 10
+      },
+      "successRate": 1.0,
+      "successes": 10
+    },
+    "service-discovery": {
+      "avgMs": 418.592,
+      "failures": 0,
+      "p50Ms": 403.394,
+      "p95Ms": 492.576,
+      "p99Ms": 492.576,
+      "requests": 5,
+      "sampleErrors": [],
+      "statuses": {
+        "200": 5
+      },
+      "successRate": 1.0,
+      "successes": 5
+    }
+  },
+  "overallSuccessRate": 1.0,
+  "scenario": "gateway-discovery-quote-invoke",
+  "totalFailures": 0,
+  "totalRequests": 15
+}

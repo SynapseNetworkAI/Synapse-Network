@@ -19,6 +19,9 @@ Local execution mirror for `services/user-front/`.
 
 - Package management for `services/user-front` stays on Yarn.
 - Use the development server during iteration.
+- `yarn dev` and `yarn build` must pass `node scripts/validate_env.mjs` before Next starts or builds. Do not bypass this preflight; missing support contact or API endpoints must fail fast.
+- Browser code must read public env with explicit static keys such as `process.env.NEXT_PUBLIC_SUPPORT_EMAIL`; do not use dynamic `process.env[name]`, because Next.js will not reliably inline it into client bundles.
+- Local and release startup must prove HTTP health after the process opens a port. A listening port alone is not a successful frontend start.
 - Keep copy, IA, and user flows aligned with canonical product docs and i18n resources.
 - Wallet and payment-related UX should hide avoidable Web3 complexity rather than exposing raw protocol mechanics.
 

@@ -183,6 +183,8 @@ const agentsPage: I18nMessages["agentsPage"] = {
   workspaceSimpleTitle: "Agents",
   workspaceSimpleDescription: "Manage agents and agents Credential",
   workspaceCreateAgentCompact: "Create Agent +",
+  workspaceAgentLimitHint: "{{count}} / {{limit}} agents created",
+  workspaceAgentLimitReached: "You can create up to {{limit}} agents. Delete one before creating another.",
   workspaceAgentCardDescription: "This agent was created to use the Synapse API.",
   workspaceDetailEmptyTitle: "View Agent Details",
   workspaceDetailEmptyDescription: "Click any agent from the left panel to inspect its runtime profile, limits, and credential controls.",

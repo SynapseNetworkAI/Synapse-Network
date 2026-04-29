@@ -84,6 +84,12 @@
 8. `REQUEST_PAYLOAD_TOO_LARGE` (`413`)：请求体超过服务最大请求字节数。
 9. `RESPONSE_PAYLOAD_TOO_LARGE` (`413`)：上游响应体超过服务最大响应字节数。
 10. `UPSTREAM_ERROR` (`502`)：上游调用失败或上游返回不可交付结果。
+11. `LLM_STREAMING_NOT_SUPPORTED` (`400`)：Caller 对 token-metered LLM 传入 `stream=true`；V1 禁用 streaming，因为最终 usage 是扣费依据。
+12. `LLM_STREAMING_RESPONSE_NOT_SUPPORTED` (`502`)：Provider 返回 `text/event-stream`；Gateway 无法安全 capture final usage，完整释放 hold，不扣费。
+13. `LLM_USAGE_MISSING` (`502`)：Provider 返回成功但缺少 final `usage`；完整释放 hold，不扣费。
+14. `LLM_USAGE_INVALID` (`502`)：Provider 返回的 usage 字段类型、数值或 total 关系非法；完整释放 hold，不扣费。
+15. `LLM_MAX_COST_TOO_LOW` (`400`)：Caller 显式 `maxCostUsdc` 小于 Gateway 估算的 worst-case hold。
+16. `LLM_AUTO_HOLD_LIMIT_EXCEEDED` (`400`)：自动 hold 超过 service/provider cap；Caller 需要显式传 `maxCostUsdc` 或降低 `max_tokens`。
 
 ### 4.2 Agent Runtime Quote / Invocation / Receipt Path
 

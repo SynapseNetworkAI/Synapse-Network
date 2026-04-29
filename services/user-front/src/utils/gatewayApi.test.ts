@@ -28,6 +28,33 @@ describe("getGatewayBaseUrl", () => {
     expect(getGatewayBaseUrl()).toBe("https://gateway.synapse.local");
   });
 
+  it("keeps loopback fallback candidates when local gateway env is configured", () => {
+    vi.stubEnv("NEXT_PUBLIC_GATEWAY_BASE_URL", "http://localhost:8000///");
+
+    expect(getGatewayBaseUrl()).toBe("http://localhost:8000");
+    expect(getGatewayBaseUrlCandidates()).toEqual([
+      "http://localhost:8000",
+      "http://127.0.0.1:8000",
+    ]);
+  });
+
+  it("uses the same-origin proxy first in browser local gateway env", () => {
+    vi.stubEnv("NEXT_PUBLIC_GATEWAY_BASE_URL", "http://localhost:8000///");
+    setWindowLocation({
+      hostname: "localhost",
+      origin: "http://localhost:3000",
+      port: "3000",
+      protocol: "http:",
+    });
+
+    expect(getGatewayBaseUrl()).toBe("http://localhost:3000");
+    expect(getGatewayBaseUrlCandidates()).toEqual([
+      "http://localhost:3000",
+      "http://localhost:8000",
+      "http://127.0.0.1:8000",
+    ]);
+  });
+
   it("falls back to localhost port 8000 during local browser development", () => {
     setWindowLocation({
       hostname: "localhost",
@@ -36,8 +63,9 @@ describe("getGatewayBaseUrl", () => {
       protocol: "http:",
     });
 
-    expect(getGatewayBaseUrl()).toBe("http://localhost:8000");
+    expect(getGatewayBaseUrl()).toBe("http://localhost:3000");
     expect(getGatewayBaseUrlCandidates()).toEqual([
+      "http://localhost:3000",
       "http://localhost:8000",
       "http://127.0.0.1:8000",
     ]);
@@ -62,8 +90,9 @@ describe("getGatewayBaseUrl", () => {
       protocol: "http:",
     });
 
-    expect(getGatewayBaseUrl()).toBe("http://alex-inspiron.local:8000");
+    expect(getGatewayBaseUrl()).toBe("http://alex-inspiron.local:3000");
     expect(getGatewayBaseUrlCandidates()).toEqual([
+      "http://alex-inspiron.local:3000",
       "http://alex-inspiron.local:8000",
       "http://127.0.0.1:8000",
       "http://localhost:8000",

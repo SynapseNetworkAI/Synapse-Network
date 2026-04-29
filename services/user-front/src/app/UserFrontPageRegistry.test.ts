@@ -64,7 +64,11 @@ describe("user-front page registry", () => {
     expect(redirects.length).toBeGreaterThan(0);
     for (const row of redirects) {
       expect(row.redirectsTo, `${row.href} must document redirectsTo`).toBeTruthy();
-      expect(documentedRoutes.has(row.redirectsTo ?? ""), `${row.href} target must exist`).toBe(true);
+      if ((row.redirectsTo ?? "").startsWith("http")) {
+        expect(row.redirectsTo).toMatch(/^https:\/\//);
+      } else {
+        expect(documentedRoutes.has(row.redirectsTo ?? ""), `${row.href} target must exist`).toBe(true);
+      }
       expect(row.dataVerification).toBe("none");
     }
   });
@@ -82,7 +86,7 @@ describe("user-front page registry", () => {
       "/provider/sell",
       "/provider/settlements",
     ]);
-    expect(thinRoutes.map((row) => row.href).sort()).toEqual(["/about", "/blog"]);
+    expect(thinRoutes.map((row) => row.href).sort()).toEqual([]);
   });
 
   it("requires data-backed pages to declare backend or chain sources", () => {

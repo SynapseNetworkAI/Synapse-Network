@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Network, Search } from "lucide-react";
+import { ArrowRight, Github, Network, Search } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import NotificationCenter from "@/components/NotificationCenter";
@@ -17,6 +17,7 @@ export default function Navbar() {
   const pathname = usePathname();
   const activePath = pathname ?? "/";
   const isDocsPage = activePath.startsWith("/docs");
+  const isAboutPage = activePath === "/about" || activePath.startsWith("/about/");
   const isMarketingPage =
     !isDocsPage &&
     (activePath === "/" || activePath === "/marketplace" || activePath === "/blog" || activePath === "/about");
@@ -180,7 +181,62 @@ export default function Navbar() {
 
   return (
     <>
-      {isMarketingPage ? (
+      {isAboutPage ? (
+        <nav className="sticky top-0 z-50 border-b border-white/[0.09] bg-[#020403]/92 px-5 backdrop-blur-xl sm:px-8 lg:px-12">
+          <div className="mx-auto flex h-[70px] max-w-[1536px] items-center justify-between">
+            <Link href="/" className="group flex items-center gap-3 text-white transition hover:opacity-90">
+              {brandMark}
+              <span className="flex flex-col leading-none">
+                <span className="text-[1rem] font-semibold tracking-[-0.04em] text-white/96 sm:text-[1.05rem]">Synapse</span>
+                <span className="mt-1 text-[9px] font-medium uppercase tracking-[0.28em] text-white/38">Network</span>
+              </span>
+            </Link>
+
+            <nav className="hidden items-center gap-[42px] text-[15px] font-medium text-white/78 lg:flex" aria-label="About page navigation">
+              <Link href="/marketplace" className="transition hover:text-[#7ff7be]">
+                {lang === "en" ? "Marketplace" : t("nav.apiMarketplace")}
+              </Link>
+              <Link href="/docs" className="transition hover:text-[#7ff7be]">
+                {t("nav.docs")}
+              </Link>
+              <a
+                href="/forum"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="transition hover:text-[#7ff7be]"
+              >
+                {t("nav.forum")}
+              </a>
+              <Link href="/blog" className="transition hover:text-[#7ff7be]">
+                {t("nav.blog")}
+              </Link>
+              <Link href="/about" className="relative font-bold text-[#7ff7be]">
+                {t("nav.about")}
+                <span className="absolute left-1/2 top-[34px] h-0.5 w-[64px] -translate-x-1/2 bg-[#7ff7be]" aria-hidden="true" />
+              </Link>
+            </nav>
+
+            <div className="flex items-center gap-4">
+              <a
+                href="https://github.com/cliff-personal/Synapse-Network-Sdk"
+                target="_blank"
+                rel="noreferrer"
+                className="hidden h-10 w-10 items-center justify-center rounded-full border border-white/16 bg-black/28 text-white transition hover:border-[#7ff7be]/50 hover:text-[#7ff7be] sm:inline-flex"
+                aria-label="GitHub"
+              >
+                <Github className="h-5 w-5" />
+              </a>
+              <Link
+                href="/dashboard/overview"
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-[10px] border border-[#7ff7be]/55 px-5 text-[14px] font-bold text-[#9fffd0] transition hover:bg-[#7ff7be]/10 hover:text-white"
+              >
+                Launch Developer Console
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
+          </div>
+        </nav>
+      ) : isMarketingPage ? (
         <nav className="sticky top-0 z-50 px-4 pt-4 sm:px-6">
           <div className="mx-auto flex max-w-7xl items-center justify-between rounded-[1.35rem] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.085),rgba(255,255,255,0.025))] px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_18px_80px_rgba(0,0,0,0.38)] backdrop-blur-2xl sm:px-5">
             <div className="flex items-center gap-3 sm:gap-8">
@@ -334,12 +390,14 @@ export default function Navbar() {
                 >
                   {t("nav.documentation")}
                 </Link>
-                <Link
+                <a
                   href="/forum"
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 text-[15px] font-normal text-[#e7e9ea] transition hover:text-white"
                 >
                   {t("nav.forum")}
-                </Link>
+                </a>
                 <NotificationCenter />
               </div>
               <LanguageSwitcher className="tracking-[0.01em] focus-visible:border-[#536471]" />
