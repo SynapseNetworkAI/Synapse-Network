@@ -169,6 +169,29 @@ AND (expiresAt is None OR expiresAt > now_epoch_ms())
 
 ---
 
+### 2.4 Credential lifecycle safety rules
+
+Credential lifecycle writes are intentionally single-row operations:
+
+- `issue` creates one runtime credential and does not rewrite sibling credentials.
+- `rotate` updates only the selected credential secret hash/prefix.
+- `revoke` and `delete` mark the selected credential as `revoked`; they do not hard-delete rows.
+- quota/name updates patch only the selected credential policy or metadata.
+- usage counters increment/decrement only the selected credential metadata.
+
+History is immutable. Existing `quote` / `invocation` / `ledger` / `audit` rows may reference
+old credential and profile rows, so runtime credential APIs must never prune historical profiles
+or credentials. This is enforced by Postgres foreign keys and CI static checks.
+
+Active agent limit:
+
+- Each owner can have at most `5` active agent credentials.
+- Revoked credentials are excluded from the active limit.
+- `active_only=true` hides revoked credentials, while `active_only=false` can still show them for
+  audit/history views.
+
+---
+
 ## 三、不需要新增的接口
 
 | 需求 | 现有接口 | 说明 |

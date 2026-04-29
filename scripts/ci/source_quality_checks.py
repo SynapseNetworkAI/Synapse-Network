@@ -10,6 +10,7 @@ production source files.
 from __future__ import annotations
 
 import ast
+import json
 import os
 import re
 import shutil
@@ -28,6 +29,7 @@ SOURCE_ROOTS = (
     Path("services/user-front/src"),
     Path("services/admin-front/src"),
 )
+BASELINE_PATH = REPO_ROOT / "scripts" / "ci" / "source_quality_baseline.json"
 
 PY_RAW_MAP_RETURNS = {"dict", "Dict", "Mapping", "MutableMapping"}
 TS_RAW_MAP_PATTERNS = (
@@ -92,6 +94,11 @@ class Finding:
     symbol: str
     return_type: str
     language: str
+
+    @property
+    def baseline_key(self) -> str:
+        rel = self.path.relative_to(REPO_ROOT).as_posix()
+        return f"{self.code}:{rel}:{self.line}:{self.symbol}"
 
     def format(self) -> str:
         rel = self.path.relative_to(REPO_ROOT)
@@ -202,6 +209,10 @@ def _returns_raw_map(node: ast.AST | None) -> bool:
         return False
     if isinstance(node, ast.BinOp) and isinstance(node.op, ast.BitOr):
         return _returns_raw_map(node.left) or _returns_raw_map(node.right)
+    if isinstance(node, ast.Subscript):
+        return _returns_raw_map(node.value) or _returns_raw_map(node.slice)
+    if isinstance(node, ast.Tuple):
+        return any(_returns_raw_map(element) for element in node.elts)
     return _annotation_name(node) in PY_RAW_MAP_RETURNS
 
 
@@ -324,6 +335,14 @@ def _finding_key(finding: Finding) -> tuple[str, int, str, str]:
     return (rel, finding.line, finding.symbol, finding.return_type)
 
 
+def _load_baseline() -> set[str]:
+    baseline_path = Path(os.environ.get("SOURCE_QUALITY_BASELINE", str(BASELINE_PATH)))
+    if not baseline_path.exists():
+        return set()
+    payload = json.loads(baseline_path.read_text(encoding="utf-8"))
+    return {str(item) for item in payload.get("allow", [])}
+
+
 def scan_files(paths: list[Path], *, incremental: bool = True) -> list[Finding]:
     findings: list[Finding] = []
     for path in paths:
@@ -347,7 +366,8 @@ def scan_files(paths: list[Path], *, incremental: bool = True) -> list[Finding]:
 
 
 def main() -> int:
-    findings = scan_files(_changed_files())
+    baseline = _load_baseline()
+    findings = [finding for finding in scan_files(_changed_files()) if finding.baseline_key not in baseline]
     if findings:
         for finding in findings:
             print(finding.format(), file=sys.stderr)

@@ -21,6 +21,10 @@ find_pid_by_port() {
   lsof -t -nP -iTCP:"$port" -sTCP:LISTEN 2>/dev/null | head -n 1 || true
 }
 
+shell_quote() {
+  printf '%q' "$1"
+}
+
 resolve_compose_cmd() {
   if docker compose version >/dev/null 2>&1; then
     echo "docker compose"
@@ -69,8 +73,9 @@ probe_synapse_postgres() {
     return 1
   fi
 
-  probe_result="$(psql "$dsn" -X -q -t -A -v ON_ERROR_STOP=1 \
-    -c "SELECT current_user || ':' || COALESCE(to_regclass('public.synapse_owner_accounts')::text, '')" 2>/dev/null || true)"
+  probe_output="$(psql "$dsn" -X -q -t -A -v ON_ERROR_STOP=1 \
+    -c "SELECT current_user || ':' || current_database() || ':' || COALESCE(to_regclass('public.synapse_owner_accounts')::text, '')" 2>&1 || true)"
+  probe_result="$(printf '%s' "$probe_output" | tail -n 1)"
   case "$probe_result" in
     *:synapse_owner_accounts|*:public.synapse_owner_accounts)
       return 0
@@ -78,8 +83,17 @@ probe_synapse_postgres() {
   esac
 
   echo "Error: 127.0.0.1:5432 is not a usable Synapse gateway Postgres instance."
-  echo "Probe expected current_user plus public.synapse_owner_accounts; got '${probe_result:-empty}'."
-  echo "Tip: stop the conflicting Postgres process or start infra/docker/local/docker-compose.yml postgres."
+  echo "Probe expected current_user:database:public.synapse_owner_accounts; got '${probe_result:-empty}'."
+  if [ -n "$probe_output" ]; then
+    echo "psql output:"
+    printf '%s\n' "$probe_output"
+  fi
+  existing_postgres_pid="$(find_pid_by_port 5432)"
+  if [ -n "$existing_postgres_pid" ]; then
+    echo "Current listener on 5432:"
+    ps -p "$existing_postgres_pid" -o pid,ppid,command 2>/dev/null || true
+  fi
+  echo "Tip: stop the conflicting Postgres process or set LOCAL_GATEWAY_POSTGRES_DSN to an explicit local Synapse gateway DSN."
   return 1
 }
 
@@ -195,37 +209,60 @@ ROUTER_ADDRESS="$(node -e "const c=require('${CONFIG_FILE}'); process.stdout.wri
 
 DEFAULT_LOCAL_POSTGRES_DSN="postgresql://synapse:local-dev-postgres-password@127.0.0.1:5432/synapse_gateway"
 _LOCAL_ENV_FILE="${ROOT_DIR}/services/gateway/.env.local"
-if [[ -z "${POSTGRES_DSN:-}" && -f "$_LOCAL_ENV_FILE" ]]; then
+if [[ -n "${LOCAL_GATEWAY_POSTGRES_DSN:-}" ]]; then
+  LOCAL_POSTGRES_DSN="${LOCAL_GATEWAY_POSTGRES_DSN}"
+elif [[ -f "$_LOCAL_ENV_FILE" ]]; then
   _dotenv_dsn="$(grep -m1 '^POSTGRES_DSN=' "$_LOCAL_ENV_FILE" | cut -d= -f2-)"
   LOCAL_POSTGRES_DSN="${_dotenv_dsn:-$DEFAULT_LOCAL_POSTGRES_DSN}"
 else
-LOCAL_POSTGRES_DSN="${POSTGRES_DSN:-$DEFAULT_LOCAL_POSTGRES_DSN}"
+  if [[ -n "${POSTGRES_DSN:-}" ]]; then
+    echo "[local-gateway] ignoring ambient POSTGRES_DSN for local restart; use LOCAL_GATEWAY_POSTGRES_DSN to override intentionally."
+  fi
+  LOCAL_POSTGRES_DSN="$DEFAULT_LOCAL_POSTGRES_DSN"
 fi
 LOCAL_POSTGRES_DSN="$(printf '%s' "$LOCAL_POSTGRES_DSN" | sed 's/@postgres:/@127.0.0.1:/')"
 probe_synapse_postgres "$LOCAL_POSTGRES_DSN"
 
 cd "${ROOT_DIR}/services/gateway"
 
+ENV_FILE_ARG=""
 if [ -f "${ROOT_DIR}/services/gateway/.env.local" ]; then
-  nohup env \
-    ENVIRONMENT=local \
-    ENV_FILE=.env.local \
-    GATEWAY_RELOAD=false \
-    POSTGRES_DSN="$LOCAL_POSTGRES_DSN" \
-    RPC_URL="http://127.0.0.1:8545" \
-    ROUTER_ADDRESS="$ROUTER_ADDRESS" \
-    "$PYTHON_BIN" gateway_fastapi.py > "$LOG_FILE" 2>&1 < /dev/null &
+  ENV_FILE_ARG="ENV_FILE=.env.local"
+fi
+
+if command -v screen >/dev/null 2>&1; then
+  screen -S synapse-gateway -X quit >/dev/null 2>&1 || true
+  START_CMD="cd $(shell_quote "${ROOT_DIR}/services/gateway") && exec env \
+ENVIRONMENT=local \
+${ENV_FILE_ARG} \
+GATEWAY_RELOAD=false \
+V2_INDEXER_ENABLED=$(shell_quote "${V2_INDEXER_ENABLED:-false}") \
+V2_BACKFILL_ENABLED=$(shell_quote "${V2_BACKFILL_ENABLED:-false}") \
+V2_RECONCILIATION_ENABLED=$(shell_quote "${V2_RECONCILIATION_ENABLED:-false}") \
+PROVIDER_WITHDRAW_EXPIRY_REAPER_ENABLED=$(shell_quote "${PROVIDER_WITHDRAW_EXPIRY_REAPER_ENABLED:-false}") \
+CONSUMER_WITHDRAW_PROCESSOR_ENABLED=$(shell_quote "${CONSUMER_WITHDRAW_PROCESSOR_ENABLED:-false}") \
+POSTGRES_DSN=$(shell_quote "$LOCAL_POSTGRES_DSN") \
+RPC_URL=http://127.0.0.1:8545 \
+ROUTER_ADDRESS=$(shell_quote "$ROUTER_ADDRESS") \
+$(shell_quote "$PYTHON_BIN") gateway_fastapi.py > $(shell_quote "$LOG_FILE") 2>&1"
+  screen -dmS synapse-gateway bash -lc "$START_CMD"
+  NEW_PROVIDER_PID=""
 else
   nohup env \
     ENVIRONMENT=local \
+    ${ENV_FILE_ARG} \
     GATEWAY_RELOAD=false \
+    V2_INDEXER_ENABLED="${V2_INDEXER_ENABLED:-false}" \
+    V2_BACKFILL_ENABLED="${V2_BACKFILL_ENABLED:-false}" \
+    V2_RECONCILIATION_ENABLED="${V2_RECONCILIATION_ENABLED:-false}" \
+    PROVIDER_WITHDRAW_EXPIRY_REAPER_ENABLED="${PROVIDER_WITHDRAW_EXPIRY_REAPER_ENABLED:-false}" \
+    CONSUMER_WITHDRAW_PROCESSOR_ENABLED="${CONSUMER_WITHDRAW_PROCESSOR_ENABLED:-false}" \
     POSTGRES_DSN="$LOCAL_POSTGRES_DSN" \
     RPC_URL="http://127.0.0.1:8545" \
     ROUTER_ADDRESS="$ROUTER_ADDRESS" \
     "$PYTHON_BIN" gateway_fastapi.py > "$LOG_FILE" 2>&1 < /dev/null &
+  NEW_PROVIDER_PID=$!
 fi
-
-NEW_PROVIDER_PID=$!
 if ! wait_for_gateway_health "$HEALTH_URL" "$STARTUP_TIMEOUT_SEC"; then
   echo "Error: gateway failed health check within ${STARTUP_TIMEOUT_SEC}s. Check ${LOG_FILE}"
   stop_pid "ProviderAPI" "$NEW_PROVIDER_PID"
@@ -240,6 +277,13 @@ fi
 ACTIVE_PROVIDER_PID="$(find_pid_by_port 8000)"
 if [ -n "$ACTIVE_PROVIDER_PID" ]; then
   NEW_PROVIDER_PID="$ACTIVE_PROVIDER_PID"
+fi
+
+sleep 3
+if ! curl -fsS "$HEALTH_URL" >/dev/null 2>&1; then
+  echo "Error: gateway became healthy but exited immediately. Check ${LOG_FILE}"
+  tail -n 80 "$LOG_FILE" || true
+  exit 1
 fi
 
 if [ -f "$PID_FILE" ]; then

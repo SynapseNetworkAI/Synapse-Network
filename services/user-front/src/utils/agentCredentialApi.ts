@@ -2,7 +2,7 @@ import { buildAuthedHeaders, normalizeAuthApiError } from "@/utils/authSession";
 import { getGatewayBaseUrl, getGatewayBaseUrlCandidates } from "@/utils/gatewayApi";
 
 function buildGatewayNetworkErrorMessage(fallback: string): string {
-  return `${fallback}. Gateway unreachable at ${getGatewayBaseUrl()}. Start the gateway or set NEXT_PUBLIC_GATEWAY_BASE_URL in apps/frontend/.env.local.`;
+  return `${fallback}. Gateway unreachable at ${getGatewayBaseUrl()}. Start the gateway or set NEXT_PUBLIC_GATEWAY_BASE_URL in services/user-front/.env.local.`;
 }
 
 async function fetchAgentCredentialApi(
@@ -113,9 +113,13 @@ export async function issueAgentCredential(
   return data.credential;
 }
 
-export async function listAgentCredentials(userAddress: string): Promise<AgentCredentialRecord[]> {
+export async function listAgentCredentials(
+  userAddress: string,
+  options: { activeOnly?: boolean } = { activeOnly: true },
+): Promise<AgentCredentialRecord[]> {
+  const query = options.activeOnly === false ? "" : "?active_only=true";
   const response = await fetchAgentCredentialApi(
-    "/credentials/agent/list",
+    `/credentials/agent/list${query}`,
     {
       method: "GET",
       headers: buildAuthedHeaders(userAddress, false),

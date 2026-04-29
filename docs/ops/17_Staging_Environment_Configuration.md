@@ -1022,6 +1022,7 @@ production bundle at build time.
 | Variable                                | Staging value                            | Purpose                                             | Secret | Source                  |
 | --------------------------------------- | ---------------------------------------- | --------------------------------------------------- | ------ | ----------------------- |
 | `NEXT_PUBLIC_GATEWAY_BASE_URL`          | `https://api-staging.synapse-network.ai` | Browser API base for all user-facing Gateway calls. | No     | Fixed staging domain    |
+| `NEXT_PUBLIC_ANALYTICS_ENDPOINT`        | `https://api-staging.synapse-network.ai/api/v1/events` | Browser analytics/event ingestion endpoint. Must point to the same environment Gateway. | No | Fixed staging domain |
 | `NEXT_PUBLIC_APP_ENV`                   | `staging`                                | Public UI/runtime environment marker.               | No     | Fixed                   |
 | `NEXT_PUBLIC_SERVICE_LIST_CACHE_TTL_MS` | `20000`                                  | Service discovery cache TTL.                        | No     | Fixed default           |
 | `NEXT_PUBLIC_SUPPORT_EMAIL`             | `support@synapse-network.ai`             | Public support email shown in UI.                   | No     | Ops                     |
@@ -1031,6 +1032,17 @@ production bundle at build time.
 
 Do not introduce `NEXT_PUBLIC_API_BASE_URL` unless the frontend code is
 intentionally refactored. Current code uses `NEXT_PUBLIC_GATEWAY_BASE_URL`.
+
+`services/user-front` runs `node scripts/validate_env.mjs` before `yarn dev`
+and `yarn build`. Staging/prod builds must fail if any required public env is
+missing or invalid, especially the support contact pair:
+
+```text
+NEXT_PUBLIC_SUPPORT_EMAIL or NEXT_PUBLIC_SUPPORT_PORTAL_URL
+```
+
+This prevents Credits/Billing support panels from shipping with the fallback
+operator warning visible to users.
 
 Staging front-end contract config:
 
@@ -1313,7 +1325,9 @@ sequence is:
    catches drifted constraints.
 5. If Gateway is affected, update all Gateway jobs to the same Gateway image digest.
 6. Deploy affected Cloud Run services by immutable image digest when available.
-7. Run smoke tests only for affected services.
+7. Run HTTP smoke tests only for affected services. For User-front, do not
+   treat a listening port or Cloud Run `Ready=True` as sufficient; verify a real
+   page such as `/dashboard/account/settings` or `/` responds successfully.
 8. If Gateway is affected, run the staging drift guard against live Cloud Run,
    Secret Manager, Provider discovery, and Gateway job digests.
 9. Write `release-manifest.json` and upload it to the staging evidence bucket.

@@ -29,11 +29,15 @@ export default function PythonSdkPage() {
           <StatusBadge status="PREVIEW" />
         </div>
         <h1 className="x-page-title text-white">{t("docsPage.sdkPyTitle")}</h1>
-        <p className="x-body-copy max-w-[640px]">{t("docsPage.sdkPyDescription")}</p>
+        <p className="x-body-copy max-w-[640px]">
+          {t("docsPage.sdkPyDescription")}
+        </p>
       </section>
 
       <section className="rounded-2xl border border-[#7ff7be]/20 bg-[#7ff7be]/[0.05] p-5">
-        <p className="x-body-copy max-w-[760px]">{t("docsPage.sdkRunbookBridgeDescription")}</p>
+        <p className="x-body-copy max-w-[760px]">
+          {t("docsPage.sdkRunbookBridgeDescription")}
+        </p>
         <a
           href="https://staging.synapse-network.ai/docs/sdk/python"
           target="_blank"
@@ -45,8 +49,12 @@ export default function PythonSdkPage() {
       </section>
 
       <section className="rounded-2xl border border-[#6eb6f6]/20 bg-[#6eb6f6]/[0.05] p-5">
-        <h2 className="x-section-title text-white">{t("docsPage.sdkAgentQuickstartTitle")}</h2>
-        <p className="mt-2 text-[14px] leading-7 text-[#8b98a5]">{t("docsPage.sdkAgentQuickstartDescription")}</p>
+        <h2 className="x-section-title text-white">
+          {t("docsPage.sdkAgentQuickstartTitle")}
+        </h2>
+        <p className="mt-2 text-[14px] leading-7 text-[#8b98a5]">
+          {t("docsPage.sdkAgentQuickstartDescription")}
+        </p>
         <CodeBlock
           lang="python"
           code={`from synapse_client import SynapseClient
@@ -69,8 +77,12 @@ print(receipt.status, receipt.charged_usdc)`}
       </section>
 
       <section id="sdk-py" className="space-y-4">
-        <h2 className="x-section-title text-white">{t("docsPage.sdkInstallTitle")}</h2>
-        <p className="x-body-copy max-w-[660px]">{t("docsPage.sdkPyInstallDescription")}</p>
+        <h2 className="x-section-title text-white">
+          {t("docsPage.sdkInstallTitle")}
+        </h2>
+        <p className="x-body-copy max-w-[660px]">
+          {t("docsPage.sdkPyInstallDescription")}
+        </p>
         <CodeBlock
           lang="bash"
           code={`cd /path/to/Synapse-Network-Sdk/python
@@ -81,8 +93,12 @@ pip install -e ".[dev]"`}
       </section>
 
       <section className="space-y-4">
-        <h2 className="x-section-title text-white">{t("docsPage.sdkPyAuthTitle")}</h2>
-        <p className="x-body-copy max-w-[680px]">{t("docsPage.sdkPyAuthDescription")}</p>
+        <h2 className="x-section-title text-white">
+          {t("docsPage.sdkPyAuthTitle")}
+        </h2>
+        <p className="x-body-copy max-w-[680px]">
+          {t("docsPage.sdkPyAuthDescription")}
+        </p>
         <CodeBlock
           lang="python"
           code={`from synapse_client import SynapseAuth
@@ -101,8 +117,12 @@ print(balance.consumer_available_balance)`}
       </section>
 
       <section className="space-y-4">
-        <h2 className="x-section-title text-white">{t("docsPage.sdkDepositTitle")}</h2>
-        <p className="x-body-copy max-w-[680px]">{t("docsPage.sdkPyDepositDescription")}</p>
+        <h2 className="x-section-title text-white">
+          {t("docsPage.sdkDepositTitle")}
+        </h2>
+        <p className="x-body-copy max-w-[680px]">
+          {t("docsPage.sdkPyDepositDescription")}
+        </p>
         <CodeBlock
           lang="python"
           code={`intent = auth.register_deposit_intent(tx_hash, 10)
@@ -114,8 +134,12 @@ auth.confirm_deposit(
       </section>
 
       <section className="space-y-4">
-        <h2 className="x-section-title text-white">{t("docsPage.sdkPyInvokeTitle")}</h2>
-        <p className="x-body-copy max-w-[700px]">{t("docsPage.sdkPyInvokeDescription")}</p>
+        <h2 className="x-section-title text-white">
+          {t("docsPage.sdkPyInvokeTitle")}
+        </h2>
+        <p className="x-body-copy max-w-[700px]">
+          {t("docsPage.sdkPyInvokeDescription")}
+        </p>
         <CodeBlock
           lang="python"
           code={`from decimal import Decimal
@@ -153,13 +177,47 @@ except PriceMismatchError as err:
         />
       </section>
 
+      <section className="space-y-4">
+        <h2 className="x-section-title text-white">
+          {t("docsPage.sdkLlmInvokeTitle")}
+        </h2>
+        <p className="x-body-copy max-w-[700px]">
+          {t("docsPage.sdkPyLlmInvokeDescription")}
+        </p>
+        <CodeBlock
+          lang="python"
+          code={`result = client.invoke_llm(
+    "svc_deepseek_chat",
+    {
+        "model": "deepseek-chat",
+        "messages": [{"role": "user", "content": "Summarize this document."}],
+        "max_tokens": 512,
+        # "stream": True is rejected in Synapse V1
+    },
+    max_cost_usdc="0.010000",  # optional
+    idempotency_key="llm-job-001",
+)
+
+print(result.usage.input_tokens, result.usage.output_tokens)
+print(result.synapse.charged_usdc, result.synapse.released_usdc)`}
+        />
+      </section>
+
       <SdkApiCheatsheet
         title={t("docsPage.sdkApiCheatsheetTitle")}
         methodLabel={t("docsPage.sdkMethod")}
         returnsLabel={t("docsPage.sdkReturns")}
         descriptionLabel={t("docsPage.sdkDescriptionLabel")}
-        authRows={{ methods: authMethods, returns: authReturns, descriptions: authDescriptions }}
-        clientRows={{ methods: clientMethods, returns: clientReturns, descriptions: clientDescriptions }}
+        authRows={{
+          methods: authMethods,
+          returns: authReturns,
+          descriptions: authDescriptions,
+        }}
+        clientRows={{
+          methods: clientMethods,
+          returns: clientReturns,
+          descriptions: clientDescriptions,
+        }}
       />
 
       <div className="h-16" />

@@ -1,0 +1,13 @@
+{
+  "postgres": {
+    "checksums": {},
+    "rowCounts": {
+      "synapse_deposit_attempts": 0,
+      "synapse_ledger_entries": 22,
+      "synapse_vault_deposits": 6,
+      "synapse_vault_withdrawals": 18
+    },
+    "schemaValidated": true,
+    "status": "success"
+  }
+}

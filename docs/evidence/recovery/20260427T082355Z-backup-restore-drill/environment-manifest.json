@@ -1,0 +1,8 @@
+{
+  "runId": "20260427T082355Z",
+  "environment": "staging",
+  "gitCommit": "7ef9e0b7",
+  "generatedAt": "2026-04-27T08:28:25Z",
+  "restoreCompose": "infra/docker/restore/docker-compose.restore.yml",
+  "syntheticDrillTenantId": "drill_synthetic"
+}

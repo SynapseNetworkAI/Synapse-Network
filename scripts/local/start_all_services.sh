@@ -77,9 +77,11 @@ wait_for_http() {
   local url="$2"
   local timeout_sec="${3:-45}"
   local elapsed=0
+  local last_error=""
 
   while [[ "${elapsed}" -lt "${timeout_sec}" ]]; do
-    if curl -fsS "${url}" >/dev/null 2>&1; then
+    last_error="$(curl -fsS "${url}" 2>&1 >/dev/null || true)"
+    if [[ -z "${last_error}" ]]; then
       return 0
     fi
     sleep 1
@@ -87,6 +89,9 @@ wait_for_http() {
   done
 
   echo "Error: ${name} did not become healthy at ${url} within ${timeout_sec}s."
+  if [[ -n "${last_error}" ]]; then
+    echo "Last health check error: ${last_error}"
+  fi
   return 1
 }
 
@@ -239,19 +244,36 @@ start_gateway() {
 start_user_front() {
   if [[ -n "$(find_pid_by_port 3000)" ]]; then
     echo "user-front already running on port 3000: PID $(find_pid_by_port 3000)"
+    wait_for_http "user-front" "http://127.0.0.1:3000/dashboard/account/settings" 120
     return 0
   fi
 
   ensure_yarn_deps "${ROOT_DIR}/services/user-front"
-  echo "[local-apps] starting user-front on http://127.0.0.1:3000"
-  (
-    cd "${ROOT_DIR}/services/user-front"
-    NEXT_PUBLIC_GATEWAY_BASE_URL="${NEXT_PUBLIC_GATEWAY_BASE_URL:-http://localhost:8000}" \
-      nohup yarn dev > "${USER_FRONT_LOG}" 2>&1 < /dev/null &
-    echo $!
-  ) > /tmp/synapse-user-front.pid
-  rm -f /tmp/synapse-user-front.pid
-  wait_for_port "user-front" 3000 60
+  echo "[local-apps] starting user-front on http://localhost:3000"
+  if command -v screen >/dev/null 2>&1; then
+    screen -S synapse-user-front -X quit >/dev/null 2>&1 || true
+    screen -dmS synapse-user-front bash -lc \
+      "cd '${ROOT_DIR}/services/user-front' && exec env NEXT_PUBLIC_GATEWAY_BASE_URL='${NEXT_PUBLIC_GATEWAY_BASE_URL:-http://127.0.0.1:8000}' NEXT_PUBLIC_ANALYTICS_ENDPOINT='${NEXT_PUBLIC_ANALYTICS_ENDPOINT:-http://127.0.0.1:8000/api/v1/events}' yarn dev --hostname 0.0.0.0 > '${USER_FRONT_LOG}' 2>&1"
+  else
+    (
+      cd "${ROOT_DIR}/services/user-front"
+      nohup bash -lc 'trap "" HUP; exec env NEXT_PUBLIC_GATEWAY_BASE_URL="${NEXT_PUBLIC_GATEWAY_BASE_URL:-http://127.0.0.1:8000}" NEXT_PUBLIC_ANALYTICS_ENDPOINT="${NEXT_PUBLIC_ANALYTICS_ENDPOINT:-http://127.0.0.1:8000/api/v1/events}" yarn dev --hostname 0.0.0.0' \
+        > "${USER_FRONT_LOG}" 2>&1 < /dev/null &
+      echo $!
+    ) > /tmp/synapse-user-front.pid
+    rm -f /tmp/synapse-user-front.pid
+  fi
+  wait_for_http "user-front" "http://127.0.0.1:3000/dashboard/account/settings" 120 || {
+    echo "[local-apps] user-front failed to become healthy. Recent log:"
+    tail -n 80 "${USER_FRONT_LOG}" 2>/dev/null || true
+    return 1
+  }
+  sleep 3
+  if [[ -z "$(find_pid_by_port 3000)" ]]; then
+    echo "[local-apps] user-front became healthy but exited immediately. Recent log:"
+    tail -n 80 "${USER_FRONT_LOG}" 2>/dev/null || true
+    return 1
+  fi
 }
 
 start_gateway_admin() {
@@ -332,7 +354,7 @@ status_apps() {
   echo "=== Synapse local app service status ==="
   print_status_line "gateway" 8000 "http://127.0.0.1:8000/health"
   print_status_line "gateway-admin" 8300 "http://127.0.0.1:8300/health"
-  print_status_line "user-front" 3000 "http://127.0.0.1:3000"
+  print_status_line "user-front" 3000 "http://localhost:3000"
   print_status_line "admin-front" 4000 "http://127.0.0.1:4000/login"
   echo ""
   echo "Infra status:"

@@ -77,7 +77,7 @@ Public production functions must return typed objects, not raw maps:
 4. Use explicit TypeScript interfaces/types for client API results.
 5. Raw maps remain allowed for private helpers, request bodies, patch payloads, schema fields, and serializer functions such as `_serialize_*`, `*_payload`, `*_schema`, and `to_dict`.
 
-The gate is incremental by default. It blocks newly introduced raw-map return contracts in production source without turning historical serializer debt into a stop-the-world migration. Use `SOURCE_QUALITY_SCOPE=full` for a full audit.
+The gate is incremental by default. It blocks newly introduced raw-map return contracts in production source without turning historical serializer debt into a stop-the-world migration. Existing debt is recorded in `scripts/ci/source_quality_baseline.json`; ordinary PRs must not add baseline entries. Use `SOURCE_QUALITY_SCOPE=full` for a full audit.
 
 ### Quality Budget
 

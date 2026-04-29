@@ -334,7 +334,7 @@ function normalizeServiceRecord(raw: ServiceRegistryApiRecord): ServiceRegistryR
 const API_BASE_URL = `${getGatewayBaseUrl()}/api/v1/services`;
 
 function buildGatewayNetworkErrorMessage(fallback: string): string {
-  return `${fallback}. Gateway unreachable at ${getGatewayBaseUrl()}. Start the gateway or set NEXT_PUBLIC_GATEWAY_BASE_URL in apps/frontend/.env.local.`;
+  return `${fallback}. Gateway unreachable at ${getGatewayBaseUrl()}. Start the gateway or set NEXT_PUBLIC_GATEWAY_BASE_URL in services/user-front/.env.local.`;
 }
 
 async function fetchServiceApi(input: string, init: RequestInit, fallback: string): Promise<Response> {

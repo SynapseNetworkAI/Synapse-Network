@@ -484,6 +484,7 @@ holdUsdc = ceil_to_6_decimals(estimated_cost * holdBufferMultiplier)
 3. `providerRevenueUsdc + platformFeeUsdc = chargedUsdc`。
 4. Provider 成功但缺 usage 时必须释放完整 hold 且不扣费。
 5. Provider 返回 SSE 或 Caller 请求 stream 时必须失败在扣费前。
+6. Provider upstream timeout、连接中断、或任何未返回 final usage 的失败路径都必须释放完整 hold 且不扣费；不能用预估 hold 或 `maxCostUsdc` 作为最终扣费依据。
 
 ## 5. Service Control Plane
 

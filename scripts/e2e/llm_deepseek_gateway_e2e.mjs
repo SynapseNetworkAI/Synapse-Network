@@ -6,6 +6,13 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  registerLocalLlmService,
+  renderBugfixLog,
+  renderReport,
+  runLocalFailureFixtures,
+  startLocalLlmFixtureServer,
+} from "./lib/llm_local_fixtures.mjs";
+import {
   assertLocalDsn,
   assertLocalHttpUrl,
   assertStagingHttpUrl,
@@ -81,12 +88,22 @@ const config = {
         env("LOCAL_POSTGRES_DSN", env("POSTGRES_DSN", ""))
       ),
   requireDb: env("LLM_E2E_REQUIRE_DB", "0") === "1",
+  jwtSecret: env("JWT_SECRET", ""),
+  localProviderWallet: env(
+    "LLM_E2E_LOCAL_PROVIDER_WALLET",
+    "0x0000000000000000000000000000000000000e2e"
+  ),
+  useLocalFakeHappyPath:
+    !IS_STAGING && env("LLM_E2E_USE_REGISTERED_DEEPSEEK", "0") !== "1",
+  runLocalFailureFixtures:
+    !IS_STAGING && env("LLM_E2E_SKIP_FAILURE_FIXTURES", "0") !== "1",
 };
 
 const checks = [];
 const failed = [];
 const traceRows = [];
 const bugRows = [];
+const failureScenarios = [];
 
 fs.mkdirSync(OUT_DIR, { recursive: true });
 
@@ -221,6 +238,32 @@ function formatUsdcMicros(micros) {
   return `${sign}${whole}.${fractional}`;
 }
 
+function base64url(input) {
+  return Buffer.from(input)
+    .toString("base64")
+    .replace(/=/g, "")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_");
+}
+
+function signJwt(payload, secret) {
+  const header = { alg: "HS256", typ: "JWT" };
+  const encodedHeader = base64url(JSON.stringify(header));
+  const encodedPayload = base64url(JSON.stringify(payload));
+  const signature = crypto
+    .createHmac("sha256", secret)
+    .update(`${encodedHeader}.${encodedPayload}`)
+    .digest("base64")
+    .replace(/=/g, "")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_");
+  return `${encodedHeader}.${encodedPayload}.${signature}`;
+}
+
+function serviceSafeRunId() {
+  return RUN_ID.toLowerCase().replace(/[^a-z0-9_]+/g, "_").slice(0, 32);
+}
+
 function ceilDiv(numerator, denominator) {
   return numerator <= 0n ? 0n : (numerator + denominator - 1n) / denominator;
 }
@@ -263,6 +306,88 @@ async function timedJsonFetch(url, options = {}) {
     text,
     json,
   };
+}
+
+function psqlText(sql) {
+  return execFileSync("psql", [config.postgresDsn, "-v", "ON_ERROR_STOP=1", "-tAc", sql], {
+    encoding: "utf8",
+    env: { ...process.env, PGPASSWORD: process.env.PGPASSWORD || "" },
+    input: "",
+  }).trim();
+}
+
+function sqlLiteral(value) {
+  return `'${String(value ?? "").replace(/'/g, "''")}'`;
+}
+
+function psqlJson(sql) {
+  const output = psqlText(sql);
+  return output ? JSON.parse(output) : null;
+}
+
+function credentialHash() {
+  return crypto.createHash("sha256").update(config.credential).digest("hex");
+}
+
+function credentialOwnerWallet() {
+  if (!config.postgresDsn) return "";
+  return psqlText(`
+    SELECT COALESCE(oa.owner_wallet, '')
+    FROM synapse_agent_credentials ac
+    JOIN synapse_agent_profiles ap ON ap.agent_id = ac.agent_id
+    JOIN synapse_owner_accounts oa ON oa.owner_id = ap.owner_id
+    WHERE ac.secret_hash = ${sqlLiteral(credentialHash())}
+    LIMIT 1
+  `);
+}
+
+function consumerBalanceSnapshot(ownerWallet) {
+  if (!config.postgresDsn || !ownerWallet) return null;
+  return psqlJson(`
+    SELECT json_build_object(
+      'ownerWallet', ${sqlLiteral(ownerWallet)},
+      'availableUsdc', COALESCE(ab.available_balance, 0)::text,
+      'pendingUsdc', COALESCE(ab.pending_balance, 0)::text,
+      'frozenUsdc', COALESCE(ab.frozen_balance, 0)::text
+    )::text
+    FROM (SELECT CONCAT('consumer_wallet::', LOWER(${sqlLiteral(ownerWallet)})) AS account_id) acc
+    LEFT JOIN synapse_account_balances ab ON ab.account_id = acc.account_id
+  `);
+}
+
+function invocationByIdempotency(idempotencyKey) {
+  if (!config.postgresDsn) return null;
+  return psqlJson(`
+    SELECT json_build_object(
+      'invocationId', inv.invocation_id,
+      'serviceId', inv.service_id,
+      'status', inv.status,
+      'chargedUsdc', COALESCE(inv.charged_usdc, 0)::text,
+      'errorCode', inv.error_code,
+      'errorAction', inv.error_action,
+      'billingStateCount', (
+        SELECT COUNT(*)
+        FROM synapse_runtime_state rs
+        WHERE rs.state_key = CONCAT('invocation_billing::', inv.invocation_id)
+      )
+    )::text
+    FROM synapse_invocations inv
+    JOIN synapse_agent_credentials ac ON ac.credential_id = inv.credential_id
+    WHERE ac.secret_hash = ${sqlLiteral(credentialHash())}
+      AND inv.idempotency_key = ${sqlLiteral(idempotencyKey)}
+    ORDER BY inv.created_at DESC
+    LIMIT 1
+  `);
+}
+
+function sameBalanceSnapshot(before, after) {
+  return (
+    before &&
+    after &&
+    before.availableUsdc === after.availableUsdc &&
+    before.pendingUsdc === after.pendingUsdc &&
+    before.frozenUsdc === after.frozenUsdc
+  );
 }
 
 async function discoverService() {
@@ -380,6 +505,37 @@ async function invokeDeepSeek() {
     } body=${result.text.slice(0, 1200)}`
   );
   return result;
+}
+
+function localProviderJwt() {
+  const now = Math.floor(Date.now() / 1000);
+  return signJwt(
+    {
+      sub: config.localProviderWallet,
+      iat: now,
+      exp: now + 3600,
+      scope: "llm-e2e-local-provider",
+    },
+    config.jwtSecret
+  );
+}
+
+function localFixtureContext() {
+  return {
+    addCheck,
+    addTrace,
+    config,
+    consumerBalanceSnapshot,
+    credentialOwnerWallet,
+    failureScenarios,
+    invocationByIdempotency,
+    localProviderJwt,
+    runId: RUN_ID,
+    sameBalanceSnapshot,
+    serviceSafeRunId,
+    timedJsonFetch,
+    validateBilling,
+  };
 }
 
 function validateBilling(responseJson, discoveredService) {
@@ -567,6 +723,7 @@ function writeOutputs({
     traceDigest,
     invocationId: invokeResponse?.invocationId || "",
     billing: billingEvidence,
+    failureScenarios,
   };
   fs.writeFileSync(
     path.join(OUT_DIR, "report.json"),
@@ -579,6 +736,7 @@ function writeOutputs({
         discoveredService,
         invokeResponse,
         billingEvidence,
+        failureScenarios,
       }),
       null,
       2
@@ -588,53 +746,8 @@ function writeOutputs({
     path.join(OUT_DIR, "db-evidence.json"),
     JSON.stringify(sanitize(dbEvidence || { skipped: true }), null, 2) + "\n"
   );
-  fs.writeFileSync(path.join(OUT_DIR, "bugfix-log.md"), renderBugfixLog());
+  fs.writeFileSync(path.join(OUT_DIR, "bugfix-log.md"), renderBugfixLog(bugRows));
   fs.writeFileSync(path.join(OUT_DIR, "report.md"), renderReport(report));
-}
-
-function renderBugfixLog() {
-  if (bugRows.length === 0) {
-    return "# LLM DeepSeek E2E Bugfix Log\n\nNo open bugs.\n";
-  }
-  return [
-    "# LLM DeepSeek E2E Bugfix Log",
-    "",
-    ...bugRows.flatMap((bug) => [
-      `## ${bug.id}`,
-      "",
-      `- Severity: ${bug.severity}`,
-      `- Scenario: ${bug.scenario}`,
-      `- Evidence: ${bug.evidence || "n/a"}`,
-      `- Repro Steps: ${bug.reproSteps}`,
-      `- Expected: ${bug.expected}`,
-      `- Actual: ${bug.actual}`,
-      `- Status: ${bug.status}`,
-      "",
-    ]),
-  ].join("\n");
-}
-
-function renderReport(report) {
-  return [
-    "# LLM DeepSeek Gateway E2E",
-    "",
-    `- Environment: ${report.environment}`,
-    `- Status: ${report.status}`,
-    `- Generated at: ${report.generatedAt}`,
-    `- Gateway: ${report.gatewayBaseUrl}`,
-    `- Service: ${report.serviceId}`,
-    `- Invocation: ${report.invocationId || "n/a"}`,
-    `- Trace digest: ${report.traceDigest}`,
-    "",
-    "## Checks",
-    "",
-    "| Check | Status |",
-    "| --- | --- |",
-    ...report.checks.map(
-      (check) => `| ${check.name} | ${check.ok ? "PASS" : "FAIL"} |`
-    ),
-    "",
-  ].join("\n");
 }
 
 async function main() {
@@ -663,17 +776,48 @@ async function main() {
       "LLM_E2E_CREDENTIAL is required. Use a staging/local test agent credential token, never a production credential."
     );
   }
-  const discoveredService = await discoverService();
-  const invoke = await invokeDeepSeek();
-  const invokeJson = invoke.json || {};
-  const billingEvidence = validateBilling(invokeJson, discoveredService);
-  const dbEvidence = queryPostgresInvocation(invokeJson.invocationId);
-  writeOutputs({
-    discoveredService,
-    invokeResponse: invokeJson,
-    billingEvidence,
-    dbEvidence,
-  });
+  let localHappyFixture = null;
+  try {
+    if (config.useLocalFakeHappyPath) {
+      if (!config.postgresDsn) {
+        addCheck(
+          "llm_local_happy_fixture_db_required",
+          false,
+          {},
+          "LLM_E2E_POSTGRES_DSN or LOCAL_POSTGRES_DSN is required for local fake LLM happy path."
+        );
+      } else if (!config.jwtSecret) {
+        addCheck(
+          "llm_local_happy_fixture_jwt_required",
+          false,
+          {},
+          "JWT_SECRET is required to register the local fake LLM happy-path service."
+        );
+      } else {
+        localHappyFixture = await startLocalLlmFixtureServer();
+        config.serviceId = await registerLocalLlmService(localFixtureContext(), {
+          scenario: "happy_path",
+          targetUrl: `${localHappyFixture.baseUrl}/llm/slow-success`,
+          timeoutMs: 3000,
+        });
+      }
+    }
+
+    const discoveredService = await discoverService();
+    const invoke = await invokeDeepSeek();
+    const invokeJson = invoke.json || {};
+    const billingEvidence = validateBilling(invokeJson, discoveredService);
+    const dbEvidence = queryPostgresInvocation(invokeJson.invocationId);
+    await runLocalFailureFixtures(localFixtureContext());
+    writeOutputs({
+      discoveredService,
+      invokeResponse: invokeJson,
+      billingEvidence,
+      dbEvidence,
+    });
+  } finally {
+    if (localHappyFixture) await localHappyFixture.close();
+  }
   console.log(`[llm-deepseek-e2e] evidence=${OUT_DIR}`);
   console.log(
     `[llm-deepseek-e2e] status=${

@@ -1,0 +1,52 @@
+{
+  "concurrency": 1,
+  "durationSec": 30,
+  "endpoints": {
+    "analytics-data-quality": {
+      "avgMs": 518.898,
+      "failures": 0,
+      "p50Ms": 518.93,
+      "p95Ms": 532.262,
+      "p99Ms": 532.262,
+      "requests": 6,
+      "sampleErrors": [],
+      "statuses": {
+        "200": 6
+      },
+      "successRate": 1.0,
+      "successes": 6
+    },
+    "analytics-overview": {
+      "avgMs": 546.913,
+      "failures": 0,
+      "p50Ms": 545.904,
+      "p95Ms": 633.177,
+      "p99Ms": 633.177,
+      "requests": 9,
+      "sampleErrors": [],
+      "statuses": {
+        "200": 9
+      },
+      "successRate": 1.0,
+      "successes": 9
+    },
+    "withdrawal-reviews": {
+      "avgMs": 549.879,
+      "failures": 0,
+      "p50Ms": 530.236,
+      "p95Ms": 639.072,
+      "p99Ms": 639.072,
+      "requests": 5,
+      "sampleErrors": [],
+      "statuses": {
+        "200": 5
+      },
+      "successRate": 1.0,
+      "successes": 5
+    }
+  },
+  "overallSuccessRate": 1.0,
+  "scenario": "admin-analytics-finance",
+  "totalFailures": 0,
+  "totalRequests": 20
+}

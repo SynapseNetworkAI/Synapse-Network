@@ -1,16 +1,13 @@
 const DEFAULT_SUPPORT_SUBJECT = "Synapse support request";
 
-function readPublicEnv(name: string): string | null {
-  const value = process.env[name]?.trim();
+export function getSupportEmail(): string | null {
+  const value = process.env.NEXT_PUBLIC_SUPPORT_EMAIL?.trim();
   return value ? value : null;
 }
 
-export function getSupportEmail(): string | null {
-  return readPublicEnv("NEXT_PUBLIC_SUPPORT_EMAIL");
-}
-
 export function getSupportPortalUrl(): string | null {
-  return readPublicEnv("NEXT_PUBLIC_SUPPORT_PORTAL_URL");
+  const value = process.env.NEXT_PUBLIC_SUPPORT_PORTAL_URL?.trim();
+  return value ? value : null;
 }
 
 export function buildSupportMailto(subject?: string): string | null {

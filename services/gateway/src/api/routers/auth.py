@@ -79,7 +79,7 @@ async def get_challenge(address: str):
             raise HTTPException(status_code=400, detail="Failed to create challenge")
 
         return ChallengeResponse(
-            success=True, challenge=challenge, domain="a2a-pay-network"
+            success=True, challenge=challenge, domain="synapse-network"
         )
     except Exception as e:
         logger.error(f"Challenge generation failed: {e}")

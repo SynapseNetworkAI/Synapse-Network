@@ -1,7 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowRight, CheckCircle2, KeyRound, WalletCards, Zap } from "lucide-react";
+import {
+  ArrowRight,
+  CheckCircle2,
+  KeyRound,
+  WalletCards,
+  Zap,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { CodeBlock } from "../../components/CodeBlock";
@@ -28,6 +34,7 @@ const SDK_SNIPPETS: Record<
     auth: string;
     secret: string;
     register: string;
+    registerLlm: string;
     status: string;
     earnings: string;
     withdraw: string;
@@ -67,6 +74,21 @@ const registered = await auth.registerProviderService({
 });
 
 console.log(registered.serviceId);
+    `,
+    registerLlm: `
+const llm = await auth.provider().registerLlmService({
+  serviceName: "DeepSeek Chat",
+  serviceId: "svc_deepseek_chat",
+  endpointUrl: "https://provider.example.com/llm/deepseek-chat",
+  descriptionForModel: "OpenAI-compatible chat completion endpoint.",
+  inputPricePer1MTokensUsdc: "0.140000",
+  outputPricePer1MTokensUsdc: "0.280000",
+  defaultMaxOutputTokens: 2048,
+  maxAutoHoldUsdc: "0.050000",
+  requestTimeoutMs: 120000,
+});
+
+console.log(llm.serviceId);
     `,
     status: `
 const services = await auth.listProviderServices();
@@ -126,6 +148,21 @@ registered = auth.register_provider_service(
 
 print(registered.service_id)
     `,
+    registerLlm: `
+llm = auth.provider().register_llm_service(
+    service_name="DeepSeek Chat",
+    service_id="svc_deepseek_chat",
+    endpoint_url="https://provider.example.com/llm/deepseek-chat",
+    description_for_model="OpenAI-compatible chat completion endpoint.",
+    input_price_per_1m_tokens_usdc="0.140000",
+    output_price_per_1m_tokens_usdc="0.280000",
+    default_max_output_tokens=2048,
+    max_auto_hold_usdc="0.050000",
+    request_timeout_ms=120000,
+)
+
+print(llm.service_id)
+    `,
     status: `
 services = auth.list_provider_services()
 status = auth.get_provider_service_status(registered.service_id)
@@ -179,7 +216,7 @@ export default function ProviderGuidePage() {
     PAGE_SECTIONS.map((id, index) => ({
       id,
       label: stepTitles[index] ?? id,
-    })),
+    }))
   );
 
   const currentSnippets = SDK_SNIPPETS[sdk];
@@ -190,7 +227,11 @@ export default function ProviderGuidePage() {
         <div className="flex items-center gap-3">
           <span
             className="rounded text-[10px] font-semibold uppercase tracking-[0.14em] px-2 py-1"
-            style={{ color: ACCENT, background: `${ACCENT}12`, border: `1px solid ${ACCENT}25` }}
+            style={{
+              color: ACCENT,
+              background: `${ACCENT}12`,
+              border: `1px solid ${ACCENT}25`,
+            }}
           >
             {t("docsPage.providerEyebrow")}
           </span>
@@ -198,7 +239,9 @@ export default function ProviderGuidePage() {
             {t("docsPage.providerPageEyebrow")}
           </span>
         </div>
-        <h1 className="x-page-title text-white">{t("docsPage.providerTitle")}</h1>
+        <h1 className="x-page-title text-white">
+          {t("docsPage.providerTitle")}
+        </h1>
         <p className="x-body-copy max-w-[680px]">
           {t("docsPage.providerDescription")}
         </p>
@@ -207,7 +250,11 @@ export default function ProviderGuidePage() {
           <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#4e535a]">
             {t("docsPage.providerSdkSwitcherLabel")}
           </div>
-          <div className="inline-flex rounded-2xl border border-white/[0.08] bg-white/[0.03] p-1" role="tablist" aria-label={t("docsPage.providerSdkSwitcherLabel")}>
+          <div
+            className="inline-flex rounded-2xl border border-white/[0.08] bg-white/[0.03] p-1"
+            role="tablist"
+            aria-label={t("docsPage.providerSdkSwitcherLabel")}
+          >
             {(["typescript", "python"] as ProviderSdk[]).map((item, index) => {
               const isActive = sdk === item;
               return (
@@ -249,26 +296,55 @@ export default function ProviderGuidePage() {
                 </span>
                 {step}
               </a>
-              {index < progressLabels.length - 1 && <span className="px-1 text-[12px] text-[#3a3f45]">→</span>}
+              {index < progressLabels.length - 1 && (
+                <span className="px-1 text-[12px] text-[#3a3f45]">→</span>
+              )}
             </div>
           ))}
         </div>
       </div>
 
-      <StepItem num="01" title={stepTitles[0] ?? ""} accent={ACCENT} id="step-auth">
-        <p className="text-[13px] leading-relaxed text-[#71767b]">{stepBodies[0]}</p>
-        <CodeBlock lang={sdk === "typescript" ? "typescript" : "python"} code={currentSnippets.auth} />
+      <StepItem
+        num="01"
+        title={stepTitles[0] ?? ""}
+        accent={ACCENT}
+        id="step-auth"
+      >
+        <p className="text-[13px] leading-relaxed text-[#71767b]">
+          {stepBodies[0]}
+        </p>
+        <CodeBlock
+          lang={sdk === "typescript" ? "typescript" : "python"}
+          code={currentSnippets.auth}
+        />
         <StepTip accent={ACCENT}>{stepTips[0]}</StepTip>
       </StepItem>
 
-      <StepItem num="02" title={stepTitles[1] ?? ""} accent={ACCENT} id="step-secret">
-        <p className="text-[13px] leading-relaxed text-[#71767b]">{stepBodies[1]}</p>
-        <CodeBlock lang={sdk === "typescript" ? "typescript" : "python"} code={currentSnippets.secret} />
+      <StepItem
+        num="02"
+        title={stepTitles[1] ?? ""}
+        accent={ACCENT}
+        id="step-secret"
+      >
+        <p className="text-[13px] leading-relaxed text-[#71767b]">
+          {stepBodies[1]}
+        </p>
+        <CodeBlock
+          lang={sdk === "typescript" ? "typescript" : "python"}
+          code={currentSnippets.secret}
+        />
         <StepTip accent={ACCENT}>{stepTips[1]}</StepTip>
       </StepItem>
 
-      <StepItem num="03" title={stepTitles[2] ?? ""} accent={ACCENT} id="step-register">
-        <p className="text-[13px] leading-relaxed text-[#71767b]">{stepBodies[2]}</p>
+      <StepItem
+        num="03"
+        title={stepTitles[2] ?? ""}
+        accent={ACCENT}
+        id="step-register"
+      >
+        <p className="text-[13px] leading-relaxed text-[#71767b]">
+          {stepBodies[2]}
+        </p>
 
         <div className="mt-2 grid grid-cols-1 gap-4 xl:grid-cols-2">
           <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
@@ -278,8 +354,14 @@ export default function ProviderGuidePage() {
             </div>
             <div className="space-y-2">
               {registrationInputs.map((item) => (
-                <div key={item} className="flex gap-2 text-[13px] text-[#9aa4af]">
-                  <CheckCircle2 size={14} className="mt-[3px] shrink-0 text-[#7ff7be]" />
+                <div
+                  key={item}
+                  className="flex gap-2 text-[13px] text-[#9aa4af]"
+                >
+                  <CheckCircle2
+                    size={14}
+                    className="mt-[3px] shrink-0 text-[#7ff7be]"
+                  />
                   <span>{item}</span>
                 </div>
               ))}
@@ -293,8 +375,14 @@ export default function ProviderGuidePage() {
             </div>
             <div className="space-y-2">
               {registrationDefaults.map((item) => (
-                <div key={item} className="flex gap-2 text-[13px] text-[#9aa4af]">
-                  <KeyRound size={14} className="mt-[3px] shrink-0 text-[#6eb6f6]" />
+                <div
+                  key={item}
+                  className="flex gap-2 text-[13px] text-[#9aa4af]"
+                >
+                  <KeyRound
+                    size={14}
+                    className="mt-[3px] shrink-0 text-[#6eb6f6]"
+                  />
                   <span>{item}</span>
                 </div>
               ))}
@@ -302,12 +390,34 @@ export default function ProviderGuidePage() {
           </div>
         </div>
 
-        <CodeBlock lang={sdk === "typescript" ? "typescript" : "python"} code={currentSnippets.register} />
+        <CodeBlock
+          lang={sdk === "typescript" ? "typescript" : "python"}
+          code={currentSnippets.register}
+        />
+        <div className="rounded-xl border border-[#7ff7be]/20 bg-[#7ff7be]/[0.05] p-4">
+          <div className="mb-2 text-[13px] font-semibold text-white">
+            {t("docsPage.providerLlmRegistrationTitle")}
+          </div>
+          <p className="mb-3 text-[13px] leading-6 text-[#8b98a5]">
+            {t("docsPage.providerLlmRegistrationDescription")}
+          </p>
+          <CodeBlock
+            lang={sdk === "typescript" ? "typescript" : "python"}
+            code={currentSnippets.registerLlm}
+          />
+        </div>
         <StepTip accent={ACCENT}>{stepTips[2]}</StepTip>
       </StepItem>
 
-      <StepItem num="04" title={stepTitles[3] ?? ""} accent={ACCENT} id="step-status">
-        <p className="text-[13px] leading-relaxed text-[#71767b]">{stepBodies[3]}</p>
+      <StepItem
+        num="04"
+        title={stepTitles[3] ?? ""}
+        accent={ACCENT}
+        id="step-status"
+      >
+        <p className="text-[13px] leading-relaxed text-[#71767b]">
+          {stepBodies[3]}
+        </p>
 
         <div className="mt-2 rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
           <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#4e535a]">
@@ -315,7 +425,10 @@ export default function ProviderGuidePage() {
           </div>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
             {statusSignals.map((signal) => (
-              <div key={signal} className="rounded-xl border border-white/[0.06] bg-[#0b0d10] px-3 py-3 text-[12px] leading-6 text-[#9aa4af]">
+              <div
+                key={signal}
+                className="rounded-xl border border-white/[0.06] bg-[#0b0d10] px-3 py-3 text-[12px] leading-6 text-[#9aa4af]"
+              >
                 {signal}
               </div>
             ))}
@@ -331,21 +444,40 @@ export default function ProviderGuidePage() {
           </div>
           <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
             {healthRecoveryItems.map((item) => (
-              <div key={item} className="flex gap-2 text-[13px] leading-6 text-[#9aa4af]">
-                <CheckCircle2 size={14} className="mt-[5px] shrink-0 text-[#7ff7be]" />
+              <div
+                key={item}
+                className="flex gap-2 text-[13px] leading-6 text-[#9aa4af]"
+              >
+                <CheckCircle2
+                  size={14}
+                  className="mt-[5px] shrink-0 text-[#7ff7be]"
+                />
                 <span>{item}</span>
               </div>
             ))}
           </div>
         </div>
 
-        <CodeBlock lang={sdk === "typescript" ? "typescript" : "python"} code={currentSnippets.status} />
+        <CodeBlock
+          lang={sdk === "typescript" ? "typescript" : "python"}
+          code={currentSnippets.status}
+        />
         <StepTip accent={ACCENT}>{stepTips[3]}</StepTip>
       </StepItem>
 
-      <StepItem num="05" title={stepTitles[4] ?? ""} accent={ACCENT} id="step-earnings">
-        <p className="text-[13px] leading-relaxed text-[#71767b]">{stepBodies[4]}</p>
-        <CodeBlock lang={sdk === "typescript" ? "typescript" : "python"} code={currentSnippets.earnings} />
+      <StepItem
+        num="05"
+        title={stepTitles[4] ?? ""}
+        accent={ACCENT}
+        id="step-earnings"
+      >
+        <p className="text-[13px] leading-relaxed text-[#71767b]">
+          {stepBodies[4]}
+        </p>
+        <CodeBlock
+          lang={sdk === "typescript" ? "typescript" : "python"}
+          code={currentSnippets.earnings}
+        />
         <div
           className="mt-2 rounded-xl p-4"
           style={{ background: `${ACCENT}06`, border: `1px solid ${ACCENT}14` }}
@@ -355,11 +487,21 @@ export default function ProviderGuidePage() {
           </div>
           <div className="space-y-1.5 text-[12px]">
             {settlementRows.map((label, index) => (
-              <div key={label} className="flex items-center justify-between gap-4">
+              <div
+                key={label}
+                className="flex items-center justify-between gap-4"
+              >
                 <span className="text-[#71767b]">{label}</span>
                 <code
                   className="font-mono text-[11px]"
-                  style={{ color: index === 0 ? "#ff6b6b" : index === 1 ? ACCENT : "#f9c74f" }}
+                  style={{
+                    color:
+                      index === 0
+                        ? "#ff6b6b"
+                        : index === 1
+                        ? ACCENT
+                        : "#f9c74f",
+                  }}
                 >
                   {settlementValues[index] ?? ""}
                 </code>
@@ -370,9 +512,20 @@ export default function ProviderGuidePage() {
         <StepTip accent={ACCENT}>{stepTips[4]}</StepTip>
       </StepItem>
 
-      <StepItem num="06" title={stepTitles[5] ?? ""} accent={ACCENT} last id="step-withdraw">
-        <p className="text-[13px] leading-relaxed text-[#71767b]">{stepBodies[5]}</p>
-        <CodeBlock lang={sdk === "typescript" ? "typescript" : "python"} code={currentSnippets.withdraw} />
+      <StepItem
+        num="06"
+        title={stepTitles[5] ?? ""}
+        accent={ACCENT}
+        last
+        id="step-withdraw"
+      >
+        <p className="text-[13px] leading-relaxed text-[#71767b]">
+          {stepBodies[5]}
+        </p>
+        <CodeBlock
+          lang={sdk === "typescript" ? "typescript" : "python"}
+          code={currentSnippets.withdraw}
+        />
         <StepTip accent={ACCENT}>{stepTips[5]}</StepTip>
 
         <div
@@ -386,8 +539,12 @@ export default function ProviderGuidePage() {
             ✓
           </div>
           <div>
-            <div className="mb-1 text-[14px] font-semibold text-white">{t("docsPage.providerCompletionTitle")}</div>
-            <p className="text-[13px] text-[#71767b]">{t("docsPage.providerCompletionDescription")}</p>
+            <div className="mb-1 text-[14px] font-semibold text-white">
+              {t("docsPage.providerCompletionTitle")}
+            </div>
+            <p className="text-[13px] text-[#71767b]">
+              {t("docsPage.providerCompletionDescription")}
+            </p>
           </div>
         </div>
 
@@ -395,7 +552,11 @@ export default function ProviderGuidePage() {
           <button
             onClick={() => router.push("/docs/api-reference#api-services")}
             className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-[13px] font-medium transition-colors"
-            style={{ color: ACCENT, background: `${ACCENT}10`, border: `1px solid ${ACCENT}20` }}
+            style={{
+              color: ACCENT,
+              background: `${ACCENT}10`,
+              border: `1px solid ${ACCENT}20`,
+            }}
           >
             {t("docsPage.providerServicesApiCta")} <ArrowRight size={13} />
           </button>

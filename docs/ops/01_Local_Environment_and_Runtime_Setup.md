@@ -93,13 +93,24 @@ anvil --version
 
 单独调试 Gateway 时，应保证以下依赖先可用：
 
-1. `POSTGRES_DSN`
+1. `services/gateway/.env.local` 里的 `POSTGRES_DSN`
 2. `RPC_URL`
 3. `ROUTER_ADDRESS`
 4. `USDC_TOKEN_ADDRESS`
 5. 身份和会话密钥
 
 然后再单独启动 Gateway 进程。
+
+`scripts/local/restart_gateway.sh` 默认只读取 `services/gateway/.env.local`
+里的本地 DSN，避免 shell 或 `.zshrc` 里残留的 staging `POSTGRES_DSN`
+污染本地启动。确实需要临时覆盖时，使用显式变量：
+
+```bash
+LOCAL_GATEWAY_POSTGRES_DSN=postgresql://... bash scripts/local/restart_gateway.sh
+```
+
+不要用泛化的 `POSTGRES_DSN` 覆盖本地 restart 脚本；这是为了保证 local E2E
+不会误连 staging Cloud SQL 或另一个空库。
 
 ### 3.3 本地链调试
 

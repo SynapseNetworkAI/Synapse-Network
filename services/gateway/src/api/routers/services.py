@@ -19,7 +19,7 @@ from src.services.platform.internal_auth import (
     require_internal_scope,
 )
 from src.domain.service_contract import AgentDiscoveryQueryRecord
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from src.utils.logging_utils import workflow_logger, resolve_request_id
 
 router = APIRouter()
@@ -75,6 +75,8 @@ REGISTRATION_GUIDE_FIELDS: List[dict[str, Any]] = [
 
 
 class ServicePricing(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
     currency: str = "USD"
     amount: str
 
@@ -171,6 +173,8 @@ class GovernanceSpec(BaseModel):
 
 
 class RegisterServiceRequest(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
     serviceId: Optional[str] = None
     agentToolName: Optional[str] = None
     serviceName: str

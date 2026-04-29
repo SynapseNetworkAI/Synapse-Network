@@ -180,6 +180,15 @@ record LLM_USAGE_MISSING
 mark provider health/billing quality for review
 ```
 
+Timeout billing rule:
+
+```text
+final usage returned before timeout -> charge exact token usage
+upstream timeout / disconnect / missing usage -> release full hold and charge 0
+```
+
+Synapse V1 never captures `maxCostUsdc`, estimated hold, or auto-hold as final payment. If a Provider calls its model vendor but times out before returning final usage to Gateway, the Provider absorbs that upstream cost. Long-running model calls must use a higher bounded LLM timeout or a future async callback settlement flow.
+
 Actual charge greater than hold is a critical billing anomaly and must fail closed. Gateway must never create negative Consumer balance.
 
 ## Runtime Response
@@ -207,11 +216,10 @@ Successful LLM invocation response includes Synapse billing metadata in the resu
 
 ## E2E Gate
 
-DeepSeek Chat full-chain gate:
+LLM token-metered full-chain gate:
 
 ```bash
 export LLM_E2E_GATEWAY_BASE=http://127.0.0.1:8000
-export LLM_E2E_SERVICE_ID=svc_deepseek_chat
 export LLM_E2E_CREDENTIAL=<local-test-agent-credential>
 export LLM_E2E_INPUT_PRICE_PER_1M_USDC=0.140000
 export LLM_E2E_OUTPUT_PRICE_PER_1M_USDC=0.280000
@@ -219,6 +227,19 @@ export LLM_E2E_OUTPUT_PRICE_PER_1M_USDC=0.280000
 npm run e2e:llm-deepseek:local
 npm run ci:llm-deepseek-local-evidence
 ```
+
+Local evidence defaults to a local OpenAI-compatible fake LLM for the happy
+path, then runs fake failure fixtures. This keeps local CI independent of a
+real DeepSeek API key while still proving Gateway hold/capture/release math. To
+force local to use a registered DeepSeek Provider runtime, set
+`LLM_E2E_USE_REGISTERED_DEEPSEEK=1` and provide the Provider's local
+`DEEPSEEK_API_KEY`.
+
+Local evidence must include:
+
+1. `timeout_no_charge`: Provider exceeds Gateway timeout; hold is fully released and no Consumer/Provider/Platform charge is recorded.
+2. `missing_usage_no_charge`: Provider returns HTTP 200 without `usage`; hold is fully released and no charge is recorded.
+3. `slow_success_charges`: Provider responds within timeout with final usage; Gateway charges exact token usage.
 
 Staging uses the same gate, but explicitly confirms it mutates staging balance and calls the live Provider:
 
@@ -236,10 +257,11 @@ npm run ci:llm-deepseek-staging-evidence
 
 The checker verifies:
 
-1. DeepSeek service is discoverable.
+1. The target LLM service is discoverable.
 2. `/api/v1/agent/invoke` succeeds.
 3. Final integer usage exists.
 4. `chargedUsdc` exactly matches the per-1M-token formula.
 5. `releasedUsdc = holdUsdc - chargedUsdc`.
 6. `providerRevenueUsdc + platformFeeUsdc = chargedUsdc`.
-7. Evidence contains no credential, API key, private key, or webhook secret.
+7. Local failure fixtures prove timeout and missing usage release the full hold with zero charge.
+8. Evidence contains no credential, API key, private key, or webhook secret.

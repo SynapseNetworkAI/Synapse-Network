@@ -3,8 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "predev": "node scripts/validate_env.mjs",
     "dev": "next dev",
     "clean": "rm -rf .next",
+    "prebuild": "node scripts/validate_env.mjs",
     "build": "yarn clean && NODE_ENV=production next build",
     "start": "next start",
     "lint": "next lint",

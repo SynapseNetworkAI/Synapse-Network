@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import math
 from dataclasses import dataclass
 from decimal import Decimal, ROUND_CEILING
@@ -36,6 +37,8 @@ from src.services.platform import credential_service
 from src.storage import BaseStorage
 from src.utils.datetime_utils import now_dt_str
 from src.utils.money import MoneyCodec
+
+log = logging.getLogger(__name__)
 
 TOKEN_DIVISOR = Decimal("1000000")
 USDC_QUANT = Decimal("0.000001")
@@ -309,7 +312,18 @@ async def _settle_hold(
                 usage_row=usage_row,
             )
         )
-        await forwarding_billing._increment_credential_usage_with_retry(storage, credential_id)
+        try:
+            await forwarding_billing._increment_credential_usage_with_retry(storage, credential_id)
+        except Exception:
+            log.warning(
+                "llm_credential_usage_increment_failed",
+                extra={
+                    "credential_id": credential_id,
+                    "invocation_id": invocation.invocation_id,
+                    "request_id": request_id,
+                },
+                exc_info=True,
+            )
         return _q6(getattr(result, "consumer_available_balance_after", Decimal("0")))
 
     _release_hold(storage, owner_wallet, hold_usdc)
