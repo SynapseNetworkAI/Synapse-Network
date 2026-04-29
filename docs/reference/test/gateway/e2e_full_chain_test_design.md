@@ -10,16 +10,16 @@
 
 验证从"冷启动"到"链上充值 → 凭据调用链上结算"的完整主干链路：
 
-| # | 步骤 | 验证的核心不变量 |
-|---|------|----------------|
-| 1 | 启动基础设施（Hardhat / Anvil + Postgres + Redis + Gateway） | 所有服务健康响应 |
-| 2 | 钱包注册 / Auth Challenge-Verify | 获得有效 JWT |
-| 3 | 链上发币 + 转账 ETH/USDC 到测试钱包 | 钱包余额可用 |
-| 4 | `depositWithPermit` / `deposit` 上链 + 通知 Gateway | Gateway 链下余额 = depositAmount |
-| 5 | Provider 注册服务 | `serviceId` 可被 Discovery 返回 |
-| 6 | 创建 Agent Credential | 凭据 token 可用 |
-| 7 | Quote → Invocation 调用链 | 结算后 owner 余额减少 = 服务定价 |
-| 8 | 状态断言 + 清理 | 无残留数据影响下次运行 |
+| #   | 步骤                                                         | 验证的核心不变量                 |
+| --- | ------------------------------------------------------------ | -------------------------------- |
+| 1   | 启动基础设施（Hardhat / Anvil + Postgres + Redis + Gateway） | 所有服务健康响应                 |
+| 2   | 钱包注册 / Auth Challenge-Verify                             | 获得有效 JWT                     |
+| 3   | 链上发币 + 转账 ETH/USDC 到测试钱包                          | 钱包余额可用                     |
+| 4   | `depositWithPermit` / `deposit` 上链 + 通知 Gateway          | Gateway 链下余额 = depositAmount |
+| 5   | Provider 注册服务                                            | `serviceId` 可被 Discovery 返回  |
+| 6   | 创建 Agent Credential                                        | 凭据 token 可用                  |
+| 7   | Quote → Invocation 调用链                                    | 结算后 owner 余额减少 = 服务定价 |
+| 8   | 状态断言 + 清理                                              | 无残留数据影响下次运行           |
 
 ---
 
@@ -62,18 +62,18 @@
 
 ### 2.1 关键合约（本地部署）
 
-| 合约 | 地址来源 | 作用 |
-|------|----------|------|
-| `SynapseCore` | `apps/frontend/src/contract-config.json["SynapseCore"]` | Owner 充值 / 提现金库 |
-| `MockUSDC` | `contract-config.json["MockUSDC"]` | 测试用稳定币，`mint()` 无权限控制 |
+| 合约          | 地址来源                                                | 作用                              |
+| ------------- | ------------------------------------------------------- | --------------------------------- |
+| `SynapseCore` | `apps/frontend/src/contract-config.json["SynapseCore"]` | Owner 充值 / 提现金库             |
+| `MockUSDC`    | `contract-config.json["MockUSDC"]`                      | 测试用稳定币，`mint()` 无权限控制 |
 
 ### 2.2 测试账号约定（Hardhat 默认私钥）
 
-| 角色 | 私钥 | 说明 |
-|------|------|------|
+| 角色       | 私钥                                                                 | 说明                                             |
+| ---------- | -------------------------------------------------------------------- | ------------------------------------------------ |
 | `DEPLOYER` | `0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80` | Hardhat #0，合约部署者，可调用 `MockUSDC.mint()` |
-| `OWNER` | `0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d` | Hardhat #1，充值用户 / Agent Credential 持有者 |
-| `PROVIDER` | `0x5de4111afa1a4b94908f83103eb1f1706367c2e68ea870594801966b8ea0ecf` | Hardhat #2，Provider 注册钱包 |
+| `OWNER`    | `0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d` | Hardhat #1，充值用户 / Agent Credential 持有者   |
+| `PROVIDER` | `0x5de4111afa1a4b94908f83103eb1f1706367c2e68ea870594801966b8ea0ecf`  | Hardhat #2，Provider 注册钱包                    |
 
 > **安全提示**：上述私钥仅用于 localhost Hardhat/Anvil 测试网。禁止在任何公共网络或生产集群中使用。
 
@@ -81,15 +81,15 @@
 
 ## 3. 测试框架选型
 
-| 组件 | 选型 | 理由 |
-|------|------|------|
-| 测试框架 | `pytest` + `pytest-asyncio` | 与 Gateway Python 生态一致 |
-| HTTP 客户端 | `httpx` (async) | 支持异步 + 完整响应断言 |
-| 链交互 | `web3.py` | 已在 gateway 依赖中 |
-| 签名 | `eth-account` | EIP-191 消息签名 / EIP-712 Permit |
-| 配置注入 | `pytest fixtures` + `conftest.py` | 跨测试文件共享服务 URL、私钥、token |
-| 断言 | `pytest.raises` + `assert` + `decimal.Decimal` | 精度安全比较 |
-| 测试数据隔离 | 每次运行生成新 agent name UUID | 避免残留数据冲突 |
+| 组件         | 选型                                           | 理由                                |
+| ------------ | ---------------------------------------------- | ----------------------------------- |
+| 测试框架     | `pytest` + `pytest-asyncio`                    | 与 Gateway Python 生态一致          |
+| HTTP 客户端  | `httpx` (async)                                | 支持异步 + 完整响应断言             |
+| 链交互       | `web3.py`                                      | 已在 gateway 依赖中                 |
+| 签名         | `eth-account`                                  | EIP-191 消息签名 / EIP-712 Permit   |
+| 配置注入     | `pytest fixtures` + `conftest.py`              | 跨测试文件共享服务 URL、私钥、token |
+| 断言         | `pytest.raises` + `assert` + `decimal.Decimal` | 精度安全比较                        |
+| 测试数据隔离 | 每次运行生成新 agent name UUID                 | 避免残留数据冲突                    |
 
 **文件结构：**
 
@@ -253,6 +253,7 @@ def test_wallet_auth_full_flow():
 ```
 
 **断言重点：**
+
 - `access_token` 非空字符串
 - `401` 不出现在正常流程
 - 伪造签名返回 `401`（负面用例）
@@ -410,6 +411,7 @@ def test_deposit_full_pipeline(
 ```
 
 **关键断言：**
+
 - `receipt.status == 1`（链上成功）
 - `/v1/balance` 返回余额 ≥ 充值金额
 - 重复提交相同 `txHash` 返回幂等成功 or `409`（视实现而定）
@@ -799,16 +801,16 @@ jobs:
 
 ## 9. 负面用例清单
 
-| 场景 | 期望状态码 | 验证点 |
-|------|-----------|--------|
-| 无 token 调用鉴权接口 | 401 | `detail.code == "UNAUTHORIZED"` |
-| 伪造签名 verify | 401 | challenge mismatch |
-| 余额不足发起 invocation | 402 / 400 | `detail.code == "INSUFFICIENT_BALANCE"` |
-| 过期 / 已撤销凭据调用 | 401 / 403 | credential revoked |
-| 重复 `txHash` deposit | 200 幂等 或 409 | 余额不重复增加 |
-| `deposit` 金额与链上不符 | 400 | `AMOUNT_MISMATCH` |
-| 超过 creditLimit 调用 | 429 / 402 | `QUOTA_EXCEEDED` |
-| 无效 `quoteId` invocation | 400 / 404 | `QUOTE_NOT_FOUND` |
+| 场景                      | 期望状态码      | 验证点                                  |
+| ------------------------- | --------------- | --------------------------------------- |
+| 无 token 调用鉴权接口     | 401             | `detail.code == "UNAUTHORIZED"`         |
+| 伪造签名 verify           | 401             | challenge mismatch                      |
+| 余额不足发起 invocation   | 402 / 400       | `detail.code == "INSUFFICIENT_BALANCE"` |
+| 过期 / 已撤销凭据调用     | 401 / 403       | credential revoked                      |
+| 重复 `txHash` deposit     | 200 幂等 或 409 | 余额不重复增加                          |
+| `deposit` 金额与链上不符  | 400             | `AMOUNT_MISMATCH`                       |
+| 超过 creditLimit 调用     | 429 / 402       | `QUOTA_EXCEEDED`                        |
+| 无效 `quoteId` invocation | 400 / 404       | `QUOTE_NOT_FOUND`                       |
 
 ---
 
@@ -830,17 +832,17 @@ jobs:
 
 ## 11. 参考文件索引
 
-| 文件 | 用途 |
-|------|------|
-| `scripts/local/setup_local_env.sh` | 本地合约部署 + 基础设施启动 |
-| `scripts/local/restart_gateway.sh` | Gateway 热重启 |
-| `gateway/examples/credential_issue_invoke_revoke.py` | 凭据完整示例（可直接运行） |
-| `gateway/examples/register_provider_shelf_services.py` | Provider 注册完整示例 |
-| `gateway/examples/agent_sdk_discover_invoke.py` | Discover + 调用示例 |
-| `gateway/src/api/routers/auth.py` | Auth API 实现 |
-| `gateway/src/api/routers/balance.py` | 充值/余额 API |
-| `gateway/src/api/routers/agent_credentials.py` | 凭据 CRUD API |
-| `gateway/src/api/routers/forwarding.py` | Quote + Invocation API |
-| `gateway/src/api/routers/services.py` | 服务注册 + Discovery API |
-| `contracts/SynapseCore.sol` | 链上合约：deposit / withdraw |
-| `apps/frontend/src/contract-config.json` | 本地部署合约地址 |
+| 文件                                                   | 用途                         |
+| ------------------------------------------------------ | ---------------------------- |
+| `scripts/local/setup_local_env.sh`                     | 本地合约部署 + 基础设施启动  |
+| `scripts/local/restart_gateway.sh`                     | Gateway 热重启               |
+| `gateway/examples/credential_issue_invoke_revoke.py`   | 凭据完整示例（可直接运行）   |
+| `gateway/examples/register_provider_shelf_services.py` | Provider 注册完整示例        |
+| `gateway/examples/agent_sdk_discover_invoke.py`        | Discover + 调用示例          |
+| `gateway/src/api/routers/auth.py`                      | Auth API 实现                |
+| `gateway/src/api/routers/balance.py`                   | 充值/余额 API                |
+| `gateway/src/api/routers/agent_credentials.py`         | 凭据 CRUD API                |
+| `gateway/src/api/routers/forwarding.py`                | Quote + Invocation API       |
+| `gateway/src/api/routers/services.py`                  | 服务注册 + Discovery API     |
+| `contracts/SynapseCore.sol`                            | 链上合约：deposit / withdraw |
+| `apps/frontend/src/contract-config.json`               | 本地部署合约地址             |

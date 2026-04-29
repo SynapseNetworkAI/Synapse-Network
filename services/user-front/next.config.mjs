@@ -15,7 +15,9 @@ function normalizeGatewayProxyTarget(rawUrl) {
   }
 }
 
-const gatewayBaseUrl = normalizeGatewayProxyTarget(process.env.NEXT_PUBLIC_GATEWAY_BASE_URL);
+const gatewayBaseUrl = normalizeGatewayProxyTarget(
+  process.env.NEXT_PUBLIC_GATEWAY_BASE_URL
+);
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -52,4 +54,3 @@ const nextConfig = {
 };
 
 export default nextConfig;
-

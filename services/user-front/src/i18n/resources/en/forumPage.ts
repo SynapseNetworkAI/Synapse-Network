@@ -2,7 +2,8 @@ import type { I18nMessages } from "@/i18n/schema";
 
 const forumPage: I18nMessages["forumPage"] = {
   title: "Developer Forum",
-  description: "Ask questions, report bugs, share provider services, and discuss SDK integration with other Synapse builders.",
+  description:
+    "Ask questions, report bugs, share provider services, and discuss SDK integration with other Synapse builders.",
   newTopic: "New topic",
   searchPlaceholder: "Search topics, bugs, SDKs, services...",
   searchAction: "Search",
@@ -13,7 +14,15 @@ const forumPage: I18nMessages["forumPage"] = {
   previousPage: "Previous",
   nextPage: "Next",
   allCategories: "All categories",
-  categories: ["Announcements", "Questions", "Bugs", "Feature Requests", "Provider Services", "SDKs", "Showcase"],
+  categories: [
+    "Announcements",
+    "Questions",
+    "Bugs",
+    "Feature Requests",
+    "Provider Services",
+    "SDKs",
+    "Showcase",
+  ],
   replies: "Replies",
   views: "Views",
   activity: "Activity",
@@ -24,12 +33,14 @@ const forumPage: I18nMessages["forumPage"] = {
   resolved: "Resolved",
   locked: "Locked",
   closedReason: "Closed reason",
-  closedDescription: "This topic remains visible, but new replies are disabled by Synapse Ops.",
+  closedDescription:
+    "This topic remains visible, but new replies are disabled by Synapse Ops.",
   continueDiscussion: "Add more context",
   createTitle: "Start a discussion",
   topicTitleLabel: "Title",
   topicBodyLabel: "Body",
-  topicBodyPlaceholder: "Describe the question, bug, or service you want to share. Markdown is supported; secrets are filtered.",
+  topicBodyPlaceholder:
+    "Describe the question, bug, or service you want to share. Markdown is supported; secrets are filtered.",
   categoryLabel: "Category",
   postTopic: "Post topic",
   cancelTopic: "Cancel",

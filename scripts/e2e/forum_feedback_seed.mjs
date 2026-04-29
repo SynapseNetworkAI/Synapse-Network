@@ -11,14 +11,28 @@ const OUT_DIR = path.join(ROOT, "tmp/forum-feedback-dogfood");
 const FIXTURE_PATH = process.env.FORUM_FEEDBACK_FIXTURE
   ? path.resolve(process.env.FORUM_FEEDBACK_FIXTURE)
   : path.join(OUT_DIR, "fixture.json");
-const FORUM_BASE_URL = (process.env.FORUM_BASE_URL || process.env.USER_FRONT_BASE_URL || "http://127.0.0.1:3000").replace(/\/+$/, "");
-const GATEWAY_BASE_URL = (process.env.GATEWAY_BASE_URL || process.env.USER_FRONT_GATEWAY_BASE_URL || "http://127.0.0.1:8000").replace(/\/+$/, "");
+const FORUM_BASE_URL = (
+  process.env.FORUM_BASE_URL ||
+  process.env.USER_FRONT_BASE_URL ||
+  "http://127.0.0.1:3000"
+).replace(/\/+$/, "");
+const GATEWAY_BASE_URL = (
+  process.env.GATEWAY_BASE_URL ||
+  process.env.USER_FRONT_GATEWAY_BASE_URL ||
+  "http://127.0.0.1:8000"
+).replace(/\/+$/, "");
 const API_BASE = `${GATEWAY_BASE_URL}/api`;
 const RPC_URL = process.env.USER_FRONT_RPC_URL || "http://127.0.0.1:8545";
 const CHAIN_ID = Number.parseInt(process.env.CHAIN_ID || "31337", 10);
-const RUN_ID = process.env.FORUM_FEEDBACK_RUN_ID || `forum-${new Date().toISOString().replace(/[^0-9]/g, "").slice(0, 14)}`;
+const RUN_ID =
+  process.env.FORUM_FEEDBACK_RUN_ID ||
+  `forum-${new Date()
+    .toISOString()
+    .replace(/[^0-9]/g, "")
+    .slice(0, 14)}`;
 
-const DEFAULT_AUTHOR_KEY = "0x7c852118294f1a460a80c7c33d7409ea91c8436518e91e202d1f5f9e3544eb07";
+const DEFAULT_AUTHOR_KEY =
+  "0x7c852118294f1a460a80c7c33d7409ea91c8436518e91e202d1f5f9e3544eb07";
 const AUTHOR_KEY = process.env.FORUM_FEEDBACK_AUTHOR_KEY || DEFAULT_AUTHOR_KEY;
 
 const EXPECTED = {
@@ -54,14 +68,27 @@ function isLocalUrl(value) {
 function assertLocalOnly() {
   const usesDefaultKey = AUTHOR_KEY === DEFAULT_AUTHOR_KEY;
   if (usesDefaultKey && CHAIN_ID !== 31337) {
-    fail("Refusing to use the default forum dogfood key outside CHAIN_ID=31337.");
+    fail(
+      "Refusing to use the default forum dogfood key outside CHAIN_ID=31337."
+    );
   }
-  if (usesDefaultKey && (!isLocalUrl(FORUM_BASE_URL) || !isLocalUrl(GATEWAY_BASE_URL) || !isLocalUrl(RPC_URL))) {
-    fail("Refusing to use the default forum dogfood key against non-localhost endpoints.");
+  if (
+    usesDefaultKey &&
+    (!isLocalUrl(FORUM_BASE_URL) ||
+      !isLocalUrl(GATEWAY_BASE_URL) ||
+      !isLocalUrl(RPC_URL))
+  ) {
+    fail(
+      "Refusing to use the default forum dogfood key against non-localhost endpoints."
+    );
   }
 }
 
-async function assertReachable(name, url, { allowNonOk = false, attempts = 4, timeoutMs = 60000 } = {}) {
+async function assertReachable(
+  name,
+  url,
+  { allowNonOk = false, attempts = 4, timeoutMs = 60000 } = {}
+) {
   let lastError = null;
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     const controller = new AbortController();
@@ -69,21 +96,34 @@ async function assertReachable(name, url, { allowNonOk = false, attempts = 4, ti
     try {
       const response = await fetch(url, { signal: controller.signal });
       if (!allowNonOk && !response.ok) {
-        fail(`${name} is not ready: ${response.status} ${response.statusText} at ${url}`);
+        fail(
+          `${name} is not ready: ${response.status} ${response.statusText} at ${url}`
+        );
       }
       return response;
     } catch (error) {
       lastError = error;
-      log(`${name} reachability retry ${attempt}/${attempts}: ${error instanceof Error ? error.message : String(error)}`);
+      log(
+        `${name} reachability retry ${attempt}/${attempts}: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
       await new Promise((resolve) => setTimeout(resolve, 1000));
     } finally {
       clearTimeout(timer);
     }
   }
-  fail(`${name} is not reachable at ${url}: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
+  fail(
+    `${name} is not reachable at ${url}: ${
+      lastError instanceof Error ? lastError.message : String(lastError)
+    }`
+  );
 }
 
-async function api(pathname, { method = "GET", token, address, body, headers = {} } = {}) {
+async function api(
+  pathname,
+  { method = "GET", token, address, body, headers = {} } = {}
+) {
   const requestHeaders = {
     Accept: "application/json",
     ...headers,
@@ -112,7 +152,11 @@ async function api(pathname, { method = "GET", token, address, body, headers = {
     }
   }
   if (!response.ok) {
-    fail(`${method} ${pathname} failed: ${response.status} ${JSON.stringify(payload).slice(0, 800)}`);
+    fail(
+      `${method} ${pathname} failed: ${response.status} ${JSON.stringify(
+        payload
+      ).slice(0, 800)}`
+    );
   }
   return payload;
 }
@@ -120,7 +164,9 @@ async function api(pathname, { method = "GET", token, address, body, headers = {
 async function authenticate() {
   const wallet = new ethers.Wallet(AUTHOR_KEY);
   const address = wallet.address;
-  const challenge = await api(`/v1/auth/challenge?address=${encodeURIComponent(address)}`);
+  const challenge = await api(
+    `/v1/auth/challenge?address=${encodeURIComponent(address)}`
+  );
   const message = challenge.challenge || challenge.message;
   if (!message) {
     fail("Auth challenge missing message");
@@ -164,10 +210,18 @@ async function main() {
       context: {
         runId: RUN_ID,
         authorization: "Bearer seed-secret-token-abcdef",
-        privateKey: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        privateKey:
+          "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
       },
     },
   });
+  if (!docsFeedback.supportCaseCreated || !docsFeedback.supportTaskId) {
+    fail(
+      `Docs support feedback did not create a support case: ${JSON.stringify(
+        docsFeedback
+      ).slice(0, 800)}`
+    );
+  }
 
   const dashboardFeedback = await api("/v1/feedback", {
     method: "POST",
@@ -205,12 +259,15 @@ async function main() {
     fail("Topic creation did not return topicId");
   }
 
-  const replyResult = await api(`/v1/forum/topics/${encodeURIComponent(topicId)}/replies`, {
-    method: "POST",
-    token: author.token,
-    address: author.address,
-    body: { body: EXPECTED.seedReplyBody },
-  });
+  const replyResult = await api(
+    `/v1/forum/topics/${encodeURIComponent(topicId)}/replies`,
+    {
+      method: "POST",
+      token: author.token,
+      address: author.address,
+      body: { body: EXPECTED.seedReplyBody },
+    }
+  );
   const replyId = replyResult.reply?.replyId;
   if (!replyId) {
     fail("Reply creation did not return replyId");
@@ -234,6 +291,7 @@ async function main() {
     expected: EXPECTED,
     seed: {
       docsFeedbackId: docsFeedback.feedbackId,
+      docsSupportTaskId: docsFeedback.supportTaskId,
       dashboardFeedbackId: dashboardFeedback.feedbackId,
       topicId,
       replyId,
@@ -243,7 +301,9 @@ async function main() {
   fs.mkdirSync(path.dirname(FIXTURE_PATH), { recursive: true });
   fs.writeFileSync(FIXTURE_PATH, JSON.stringify(fixture, null, 2));
   log(`fixture written to ${path.relative(ROOT, FIXTURE_PATH)}`);
-  log(`topic ${topicId}, reply ${replyId}, feedback ${docsFeedback.feedbackId}/${dashboardFeedback.feedbackId}`);
+  log(
+    `topic ${topicId}, reply ${replyId}, feedback ${docsFeedback.feedbackId}/${dashboardFeedback.feedbackId}`
+  );
 }
 
 main().catch((error) => {

@@ -17,30 +17,46 @@ export default function Navbar() {
   const pathname = usePathname();
   const activePath = pathname ?? "/";
   const isDocsPage = activePath.startsWith("/docs");
-  const isAboutPage = activePath === "/about" || activePath.startsWith("/about/");
+  const isAboutPage =
+    activePath === "/about" || activePath.startsWith("/about/");
   const isMarketingPage =
     !isDocsPage &&
-    (activePath === "/" || activePath === "/marketplace" || activePath === "/blog" || activePath === "/about");
+    (activePath === "/" ||
+      activePath === "/marketplace" ||
+      activePath === "/blog" ||
+      activePath === "/about");
   const { t, lang } = useLanguage();
 
-  const [gatewayStatus, setGatewayStatus] = useState<"online" | "offline" | "checking">("checking");
-  const [hoveredTopNavHref, setHoveredTopNavHref] = useState<TopNavHref | null>(null);
+  const [gatewayStatus, setGatewayStatus] = useState<
+    "online" | "offline" | "checking"
+  >("checking");
+  const [hoveredTopNavHref, setHoveredTopNavHref] = useState<TopNavHref | null>(
+    null
+  );
   const [quickAccessOpen, setQuickAccessOpen] = useState(false);
-  const [sliderStyle, setSliderStyle] = useState<{ left: number; width: number; visible: boolean }>({
+  const [sliderStyle, setSliderStyle] = useState<{
+    left: number;
+    width: number;
+    visible: boolean;
+  }>({
     left: 0,
     width: 0,
     visible: false,
   });
   const topNavTrackRef = useRef<HTMLDivElement | null>(null);
-  const topNavItemRefs = useRef<Partial<Record<TopNavHref, HTMLAnchorElement | null>>>({});
+  const topNavItemRefs = useRef<
+    Partial<Record<TopNavHref, HTMLAnchorElement | null>>
+  >({});
 
   let gatewayStatusLabel = t("nav.checking");
-  let gatewayStatusClasses = "border-yellow-500/20 bg-yellow-500/[0.08] text-yellow-100";
+  let gatewayStatusClasses =
+    "border-yellow-500/20 bg-yellow-500/[0.08] text-yellow-100";
   let gatewayDotClasses = "animate-pulse bg-yellow-300";
 
   if (gatewayStatus === "online") {
     gatewayStatusLabel = t("nav.online");
-    gatewayStatusClasses = "border-[#7ff7be]/20 bg-[#7ff7be]/[0.08] text-[#bdf9dc]";
+    gatewayStatusClasses =
+      "border-[#7ff7be]/20 bg-[#7ff7be]/[0.08] text-[#bdf9dc]";
     gatewayDotClasses =
       "animate-[navPulse_2.4s_ease-in-out_infinite] bg-[#7ff7be] shadow-[0_0_12px_rgba(127,247,190,0.7)]";
   } else if (gatewayStatus === "offline") {
@@ -54,13 +70,16 @@ export default function Navbar() {
 
     const checkGateway = async () => {
       try {
-        const res = await fetch(`${getGatewayBaseUrl()}/api/v1/services/discover`, {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          signal: AbortSignal.timeout(3000),
-        });
+        const res = await fetch(
+          `${getGatewayBaseUrl()}/api/v1/services/discover`,
+          {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            signal: AbortSignal.timeout(3000),
+          }
+        );
 
         if (mounted) {
           if (!res.ok) {
@@ -86,7 +105,10 @@ export default function Navbar() {
 
   useEffect(() => {
     const handleQuickAccessShortcut = (event: KeyboardEvent) => {
-      if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "k") {
+      if (
+        !(event.metaKey || event.ctrlKey) ||
+        event.key.toLowerCase() !== "k"
+      ) {
         return;
       }
 
@@ -105,9 +127,12 @@ export default function Navbar() {
   }, [activePath]);
 
   const getActiveTopNavHref = useCallback((): TopNavHref => {
-    if (activePath === "/marketplace" || activePath.startsWith("/marketplace/")) return "/marketplace";
-    if (activePath === "/blog" || activePath.startsWith("/blog/")) return "/blog";
-    if (activePath === "/about" || activePath.startsWith("/about/")) return "/about";
+    if (activePath === "/marketplace" || activePath.startsWith("/marketplace/"))
+      return "/marketplace";
+    if (activePath === "/blog" || activePath.startsWith("/blog/"))
+      return "/blog";
+    if (activePath === "/about" || activePath.startsWith("/about/"))
+      return "/about";
     return "/marketplace";
   }, [activePath]);
 
@@ -184,16 +209,29 @@ export default function Navbar() {
       {isAboutPage ? (
         <nav className="sticky top-0 z-50 border-b border-white/[0.09] bg-[#020403]/92 px-5 backdrop-blur-xl sm:px-8 lg:px-12">
           <div className="mx-auto flex h-[70px] max-w-[1536px] items-center justify-between">
-            <Link href="/" className="group flex items-center gap-3 text-white transition hover:opacity-90">
+            <Link
+              href="/"
+              className="group flex items-center gap-3 text-white transition hover:opacity-90"
+            >
               {brandMark}
               <span className="flex flex-col leading-none">
-                <span className="text-[1rem] font-semibold tracking-[-0.04em] text-white/96 sm:text-[1.05rem]">Synapse</span>
-                <span className="mt-1 text-[9px] font-medium uppercase tracking-[0.28em] text-white/38">Network</span>
+                <span className="text-[1rem] font-semibold tracking-[-0.04em] text-white/96 sm:text-[1.05rem]">
+                  Synapse
+                </span>
+                <span className="mt-1 text-[9px] font-medium uppercase tracking-[0.28em] text-white/38">
+                  Network
+                </span>
               </span>
             </Link>
 
-            <nav className="hidden items-center gap-[42px] text-[15px] font-medium text-white/78 lg:flex" aria-label="About page navigation">
-              <Link href="/marketplace" className="transition hover:text-[#7ff7be]">
+            <nav
+              className="hidden items-center gap-[42px] text-[15px] font-medium text-white/78 lg:flex"
+              aria-label="About page navigation"
+            >
+              <Link
+                href="/marketplace"
+                className="transition hover:text-[#7ff7be]"
+              >
                 {lang === "en" ? "Marketplace" : t("nav.apiMarketplace")}
               </Link>
               <Link href="/docs" className="transition hover:text-[#7ff7be]">
@@ -212,7 +250,10 @@ export default function Navbar() {
               </Link>
               <Link href="/about" className="relative font-bold text-[#7ff7be]">
                 {t("nav.about")}
-                <span className="absolute left-1/2 top-[34px] h-0.5 w-[64px] -translate-x-1/2 bg-[#7ff7be]" aria-hidden="true" />
+                <span
+                  className="absolute left-1/2 top-[34px] h-0.5 w-[64px] -translate-x-1/2 bg-[#7ff7be]"
+                  aria-hidden="true"
+                />
               </Link>
             </nav>
 
@@ -240,11 +281,18 @@ export default function Navbar() {
         <nav className="sticky top-0 z-50 px-4 pt-4 sm:px-6">
           <div className="mx-auto flex max-w-7xl items-center justify-between rounded-[1.35rem] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.085),rgba(255,255,255,0.025))] px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_18px_80px_rgba(0,0,0,0.38)] backdrop-blur-2xl sm:px-5">
             <div className="flex items-center gap-3 sm:gap-8">
-              <Link href="/" className="group flex items-center gap-3 text-white transition-opacity hover:opacity-100">
+              <Link
+                href="/"
+                className="group flex items-center gap-3 text-white transition-opacity hover:opacity-100"
+              >
                 {brandMark}
                 <span className="flex flex-col leading-none">
-                  <span className="text-[1rem] font-semibold tracking-[-0.04em] text-white/96 sm:text-[1.05rem]">Synapse</span>
-                  <span className="mt-1 text-[9px] font-medium uppercase tracking-[0.28em] text-white/38">Network</span>
+                  <span className="text-[1rem] font-semibold tracking-[-0.04em] text-white/96 sm:text-[1.05rem]">
+                    Synapse
+                  </span>
+                  <span className="mt-1 text-[9px] font-medium uppercase tracking-[0.28em] text-white/38">
+                    Network
+                  </span>
                 </span>
               </Link>
               <div
@@ -253,7 +301,12 @@ export default function Navbar() {
                   gatewayStatusClasses,
                 ].join(" ")}
               >
-                <span className={["inline-flex h-2 w-2 rounded-full", gatewayDotClasses].join(" ")} />
+                <span
+                  className={[
+                    "inline-flex h-2 w-2 rounded-full",
+                    gatewayDotClasses,
+                  ].join(" ")}
+                />
                 <Network className="h-3.5 w-3.5 opacity-70" />
                 <span>{t("nav.gatewayNode")}</span>
                 <span className="text-white/48">/</span>
@@ -280,7 +333,9 @@ export default function Navbar() {
                 <span
                   className={[
                     "pointer-events-none absolute inset-y-0 rounded-full shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_0_18px_rgba(255,255,255,0.08)] transition-opacity ease-[cubic-bezier(0.22,1,0.36,1)]",
-                    sliderStyle.visible ? "duration-[120ms] opacity-100" : "duration-[180ms] opacity-0",
+                    sliderStyle.visible
+                      ? "duration-[120ms] opacity-100"
+                      : "duration-[180ms] opacity-0",
                   ].join(" ")}
                   style={{
                     transform: `translateX(${sliderStyle.left}px)`,
@@ -349,7 +404,10 @@ export default function Navbar() {
         <nav className="sticky top-0 z-50 border-b border-[#2f3336] bg-[#000000]">
           <div className="relative flex h-[60px] items-center px-4 sm:px-5 lg:px-7">
             <div className="flex min-w-0 w-[270px] items-center">
-              <Link href="/dashboard/overview" className="group flex min-w-0 items-center gap-3 text-white">
+              <Link
+                href="/dashboard/overview"
+                className="group flex min-w-0 items-center gap-3 text-white"
+              >
                 {consoleBrandMark}
                 <span className="min-w-0 truncate text-[14px] font-semibold tracking-[-0.01em] text-[#e7e9ea]">
                   Synapse Developer Console
@@ -365,7 +423,9 @@ export default function Navbar() {
                 aria-label={t("nav.search")}
               >
                 <Search className="h-[18px] w-[18px] shrink-0" />
-                <span className="min-w-0 flex-1 truncate text-[15px] font-normal">{t("nav.search")}</span>
+                <span className="min-w-0 flex-1 truncate text-[15px] font-normal">
+                  {t("nav.search")}
+                </span>
                 <span className="text-[13px] font-normal tracking-[0.01em] text-[#71767b]">
                   Ctrl+K
                 </span>
@@ -406,7 +466,10 @@ export default function Navbar() {
         </nav>
       )}
 
-      <QuickAccessDialog open={quickAccessOpen} onClose={() => setQuickAccessOpen(false)} />
+      <QuickAccessDialog
+        open={quickAccessOpen}
+        onClose={() => setQuickAccessOpen(false)}
+      />
     </>
   );
 }

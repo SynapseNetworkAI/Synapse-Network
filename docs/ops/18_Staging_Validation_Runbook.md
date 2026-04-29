@@ -14,12 +14,12 @@ Lark alert evidence, and a small-value production rehearsal are all attached.
 The first staging acceptance phase is not "the website opens". It is the four
 money-path arteries working together:
 
-| Core link | What must pass |
-| --- | --- |
-| Deposit Flow | Arbitrum Sepolia deposit transaction, Gateway indexer, Cloud SQL ledger credit, and owner balance update. |
+| Core link                | What must pass                                                                                                                                     |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Deposit Flow             | Arbitrum Sepolia deposit transaction, Gateway indexer, Cloud SQL ledger credit, and owner balance update.                                          |
 | Withdrawal State Machine | Consumer/provider withdrawal risk path, EIP-712 ticket signing, admin manual approval for large withdrawals, on-chain claim, and replay rejection. |
-| Lark Alerts | P0, prod-alerts style, and staging-drill routes deliver sanitized cards with business scenario and action. |
-| Reconciliation | Internal ledger and on-chain vault reconcile with `ledgerDelta=0.000000` and `vaultDelta=0.000000`. |
+| Lark Alerts              | P0, prod-alerts style, and staging-drill routes deliver sanitized cards with business scenario and action.                                         |
+| Reconciliation           | Internal ledger and on-chain vault reconcile with `ledgerDelta=0.000000` and `vaultDelta=0.000000`.                                                |
 
 Phase 1 passes only when chain transactions, Gateway API, Cloud SQL ledger,
 Admin approval, Lark notification, Gmail notification, and evidence gates are
@@ -65,12 +65,12 @@ done
 
 E2E-only boundaries:
 
-| Secret id | Purpose | Runtime injection |
-| --- | --- | --- |
+| Secret id                                  | Purpose                                                     | Runtime injection                  |
+| ------------------------------------------ | ----------------------------------------------------------- | ---------------------------------- |
 | `synapse-staging-e2e-consumer-private-key` | Consumer wallet used only by full-chain staging automation. | Never inject into Gateway runtime. |
 | `synapse-staging-e2e-provider-private-key` | Provider wallet used only by full-chain staging automation. | Never inject into Gateway runtime. |
-| `synapse-staging-admin-e2e-password` | Dedicated admin dogfood account password. | Never use a real operator account. |
-| `synapse-staging-admin-e2e-otp-secret` | Dedicated admin dogfood account TOTP seed. | Never use a real operator account. |
+| `synapse-staging-admin-e2e-password`       | Dedicated admin dogfood account password.                   | Never use a real operator account. |
+| `synapse-staging-admin-e2e-otp-secret`     | Dedicated admin dogfood account TOTP seed.                  | Never use a real operator account. |
 
 Write commands for these E2E-only values are maintained in
 `docs/ops/17_Staging_Environment_Configuration.md`.
@@ -92,14 +92,14 @@ expires every 30 seconds.
 
 Current verified staging deployment:
 
-| Field | Value |
-| --- | --- |
-| Chain | Arbitrum Sepolia `421614` |
-| SynapseCore / `ROUTER_ADDRESS` | `0x0bA1dcE1Cc8d877052ab1C3CE2362830459D8FF4` |
-| MockUSDC / `USDC_TOKEN_ADDRESS` | `0xfad31daE42B0046aFA106BCf56ED0dDaCA4463B9` |
-| Contract owner | `0x1896285a84ED0aa7C654B2547b3dDF137B974cCE` |
-| Gateway withdraw signer | `0x1Eb2A684B8B7160D947940b644be6f939C783963` |
-| Evidence | `docs/evidence/release/contracts/arbitrum-sepolia/20260424T062942120Z-deploy/` |
+| Field                           | Value                                                                          |
+| ------------------------------- | ------------------------------------------------------------------------------ |
+| Chain                           | Arbitrum Sepolia `421614`                                                      |
+| SynapseCore / `ROUTER_ADDRESS`  | `0x0bA1dcE1Cc8d877052ab1C3CE2362830459D8FF4`                                   |
+| MockUSDC / `USDC_TOKEN_ADDRESS` | `0xfad31daE42B0046aFA106BCf56ED0dDaCA4463B9`                                   |
+| Contract owner                  | `0x1896285a84ED0aa7C654B2547b3dDF137B974cCE`                                   |
+| Gateway withdraw signer         | `0x1Eb2A684B8B7160D947940b644be6f939C783963`                                   |
+| Evidence                        | `docs/evidence/release/contracts/arbitrum-sepolia/20260424T062942120Z-deploy/` |
 
 The deploy evidence proves MockUSDC and SynapseCore source verification, ABI and
 bytecode hashes, owner-only MockUSDC, and pre-mint to the dedicated staging
@@ -107,16 +107,16 @@ consumer/provider wallets.
 
 ## Validation Layers
 
-| Layer | Purpose | Command / Evidence |
-| --- | --- | --- |
-| L0 Infra smoke | DNS, TLS, Cloud Run health/readiness, CORS | `npm run e2e:staging-smoke` and `npm run ci:staging-smoke-evidence` |
-| L1 Chain smoke | Arbitrum Sepolia RPC, chain id, deployed bytecode, wallet gas | `npm run staging:arb-sepolia:wallets:status` and `npm run ci:contract-deployment-evidence` |
-| L2 Business E2E | Gateway full-chain deposit, invoke, withdraw, reconciliation | `GATEWAY_RELEASE_E2E_PROFILE=mvp-postgres npm run release:evidence:gateway-fullchain:staging` |
-| L3 UI dogfood | User-front/Admin-front browser render, CORS, screenshots, console/network errors | `npm run e2e:staging-ui-dogfood` |
-| L3.5 Withdrawal review dogfood | Consumer large withdrawal and Provider withdrawal approve/reject review paths with screenshots, DB, and chain evidence | `npm run e2e:withdrawal-review-dogfood:staging` |
-| L4 Notifications | Lark delivery, local/staging GCP Monitoring receiver, and Gmail outbox delivery | `npm run e2e:lark-alerts`, `npm run e2e:gcp-alerts:local`, `npm run e2e:gcp-alerts:staging`, `npm run e2e:gmail-notifications:staging` |
-| L5 Recovery/load | Cloud SQL restore, light load, DB connection pressure | `npm run drill:backup-restore:staging`, `npm run perf:staging-load-suite` |
-| L6 Chaos | Intentional failure and rollback drills | Run only after L0-L5 are green and manually approved |
+| Layer                          | Purpose                                                                                                                | Command / Evidence                                                                                                                     |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| L0 Infra smoke                 | DNS, TLS, Cloud Run health/readiness, CORS                                                                             | `npm run e2e:staging-smoke` and `npm run ci:staging-smoke-evidence`                                                                    |
+| L1 Chain smoke                 | Arbitrum Sepolia RPC, chain id, deployed bytecode, wallet gas                                                          | `npm run staging:arb-sepolia:wallets:status` and `npm run ci:contract-deployment-evidence`                                             |
+| L2 Business E2E                | Gateway full-chain deposit, invoke, withdraw, reconciliation                                                           | `GATEWAY_RELEASE_E2E_PROFILE=mvp-postgres npm run release:evidence:gateway-fullchain:staging`                                          |
+| L3 UI dogfood                  | User-front/Admin-front browser render, CORS, screenshots, console/network errors                                       | `npm run e2e:staging-ui-dogfood`                                                                                                       |
+| L3.5 Withdrawal review dogfood | Consumer large withdrawal and Provider withdrawal approve/reject review paths with screenshots, DB, and chain evidence | `npm run e2e:withdrawal-review-dogfood:staging`                                                                                        |
+| L4 Notifications               | Lark delivery, local/staging GCP Monitoring receiver, and Gmail outbox delivery                                        | `npm run e2e:lark-alerts`, `npm run e2e:gcp-alerts:local`, `npm run e2e:gcp-alerts:staging`, `npm run e2e:gmail-notifications:staging` |
+| L5 Recovery/load               | Cloud SQL restore, light load, DB connection pressure                                                                  | `npm run drill:backup-restore:staging`, `npm run perf:staging-load-suite`                                                              |
+| L6 Chaos                       | Intentional failure and rollback drills                                                                                | Run only after L0-L5 are green and manually approved                                                                                   |
 
 ## Step 0 - L0/L1 Preflight
 
@@ -429,14 +429,14 @@ gcloud logging read \
 
 Use this interpretation before calling Gateway "down":
 
-| Signal | Meaning |
-| --- | --- |
-| `/health` fails | L0 outage: DNS, TLS, Cloud Run routing, IAM, or process down. |
-| `/health` passes but `/readiness` fails | Dependency/readiness fault, not necessarily a dead process. |
-| `/readiness` passes but `/api/v1/services/discover` fails | Business API, CORS, registry, or discovery fault. |
-| Provider invoke returns 503 with no healthy target | Provider upstream health issue, not Gateway process outage. |
-| `CHAIN_RPC_UNAVAILABLE` appears in logs | Arbitrum Sepolia RPC dependency outage or wrong RPC config. |
-| Cloud Run Job failure/freshness alert fires | Scheduled worker failed or stopped succeeding; inspect `resource.type="cloud_run_job"` logs by `job_name`. |
+| Signal                                                    | Meaning                                                                                                    |
+| --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `/health` fails                                           | L0 outage: DNS, TLS, Cloud Run routing, IAM, or process down.                                              |
+| `/health` passes but `/readiness` fails                   | Dependency/readiness fault, not necessarily a dead process.                                                |
+| `/readiness` passes but `/api/v1/services/discover` fails | Business API, CORS, registry, or discovery fault.                                                          |
+| Provider invoke returns 503 with no healthy target        | Provider upstream health issue, not Gateway process outage.                                                |
+| `CHAIN_RPC_UNAVAILABLE` appears in logs                   | Arbitrum Sepolia RPC dependency outage or wrong RPC config.                                                |
+| Cloud Run Job failure/freshness alert fires               | Scheduled worker failed or stopped succeeding; inspect `resource.type="cloud_run_job"` logs by `job_name`. |
 
 The `/readiness` monitor block describes in-process Gateway monitors only. In
 staging, `deposit_indexer.enabled=false`,
@@ -522,21 +522,23 @@ Staging transaction notifications are intentionally split by audience:
 
 Covered business events:
 
-| Event | User inbox | Gmail template | Lark staging transaction card |
-| --- | --- | --- | --- |
-| Deposit confirmed | Yes | `deposit_confirmed` | Yes |
-| Refund completed | Yes | `refund_completed` | Yes |
-| Consumer withdrawal ticket ready | Yes | `consumer_withdrawal_ticket_ready` | Yes |
-| Consumer withdrawal completed | Yes | `consumer_withdrawal_completed` | Yes |
-| Consumer withdrawal expired/failed | Yes | `consumer_withdrawal_failed_expired` | Yes |
-| Provider withdrawal ticket ready | Yes | `provider_withdrawal_ticket_ready` | Yes |
-| Provider withdrawal completed | Yes | `provider_withdrawal_completed` | Yes |
-| Provider withdrawal rejected | Yes | `provider_withdrawal_rejected` | Yes |
+| Event                              | User inbox | Gmail template                       | Lark staging transaction card |
+| ---------------------------------- | ---------- | ------------------------------------ | ----------------------------- |
+| Deposit confirmed                  | Yes        | `deposit_confirmed`                  | Yes                           |
+| Refund completed                   | Yes        | `refund_completed`                   | Yes                           |
+| Consumer withdrawal ticket ready   | Yes        | `consumer_withdrawal_ticket_ready`   | Yes                           |
+| Consumer withdrawal completed      | Yes        | `consumer_withdrawal_completed`      | Yes                           |
+| Consumer withdrawal expired/failed | Yes        | `consumer_withdrawal_failed_expired` | Yes                           |
+| Provider withdrawal ticket ready   | Yes        | `provider_withdrawal_ticket_ready`   | Yes                           |
+| Provider withdrawal completed      | Yes        | `provider_withdrawal_completed`      | Yes                           |
+| Provider withdrawal rejected       | Yes        | `provider_withdrawal_rejected`       | Yes                           |
 
 The email template is receipt-style: black page background, white rounded
 cards, amount/status/reference details, CTA, and support footer. It must remain
 readable without remote images. Email save does not send a “saved” notification;
-new or changed email addresses receive an `email_verification` message instead.
+new or changed email addresses are staged as `pending_email` and receive an
+`email_verification` message with a 6-digit code instead. The code expires after
+10 minutes, and each wallet can send at most 5 verification emails per UTC day.
 Only verified emails receive funding receipts.
 
 Validate transaction notifications in phases. Default local proof never sends
@@ -666,6 +668,14 @@ npm run e2e:staging-ui-dogfood
 
 The runner captures screenshots and fails on page load failures, browser
 console errors, failed network requests, and browser-origin API failures.
+
+Screenshot evidence is not accepted as a raw page photo. Any dashboard,
+provider-console, or admin-console dogfood screenshot must be captured only
+after the runner proves the target UI state is visible and auth blockers are
+absent. Evidence bundles should include `screenshot-evidence.json` entries with
+expected text/selectors, forbidden text absence, DOM checkpoints, and API/DB
+checkpoints. Screenshots showing `Connect Wallet`, AuthMask, loading skeletons,
+error modals, or unrelated overlays are failed evidence and must be rerun.
 
 Evidence is written to:
 

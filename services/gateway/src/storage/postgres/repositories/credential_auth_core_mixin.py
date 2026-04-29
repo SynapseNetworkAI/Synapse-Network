@@ -129,6 +129,11 @@ class CredentialAuthCoreMixin:
             display_name,
             email,
             email_verified,
+            pending_email,
+            email_verification_expires_at,
+            email_verification_attempts,
+            email_verification_send_count,
+            email_verification_send_count_date,
             notify_marketing,
             notify_alerts,
             status,
@@ -142,6 +147,19 @@ class CredentialAuthCoreMixin:
             displayName=display_name,
             email=email,
             emailVerified=bool(email_verified),
+            pendingEmail=pending_email,
+            emailVerificationExpiresAt=(
+                to_dt_str(email_verification_expires_at)
+                if email_verification_expires_at
+                else None
+            ),
+            emailVerificationAttempts=int(email_verification_attempts or 0),
+            emailVerificationSendCount=int(email_verification_send_count or 0),
+            emailVerificationSendCountDate=(
+                str(email_verification_send_count_date)
+                if email_verification_send_count_date
+                else None
+            ),
             notifyMarketing=bool(notify_marketing),
             notifyAlerts=bool(notify_alerts),
             status=status,
@@ -174,6 +192,11 @@ class CredentialAuthCoreMixin:
                         display_name,
                         email,
                         email_verified,
+                        pending_email,
+                        email_verification_expires_at,
+                        email_verification_attempts,
+                        email_verification_send_count,
+                        email_verification_send_count_date,
                         notify_marketing,
                         notify_alerts,
                         status,
@@ -196,6 +219,11 @@ class CredentialAuthCoreMixin:
                         display_name,
                         email,
                         email_verified,
+                        pending_email,
+                        email_verification_expires_at,
+                        email_verification_attempts,
+                        email_verification_send_count,
+                        email_verification_send_count_date,
                         notify_marketing,
                         notify_alerts,
                         status,
@@ -250,11 +278,40 @@ class CredentialAuthCoreMixin:
                 UPDATE synapse_owner_accounts
                 SET
                     display_name = %s,
-                    email = %s,
+                    email = CASE
+                        WHEN %s::text IS NULL THEN NULL
+                        WHEN COALESCE(lower(email), '') = lower(%s) THEN email
+                        ELSE email
+                    END,
                     email_verified = CASE
-                        WHEN COALESCE(lower(email), '') = COALESCE(lower(%s), '')
-                            THEN email_verified
-                        ELSE FALSE
+                        WHEN %s::text IS NULL THEN FALSE
+                        WHEN COALESCE(lower(email), '') = lower(%s) THEN email_verified
+                        ELSE email_verified
+                    END,
+                    pending_email = CASE
+                        WHEN %s::text IS NULL THEN NULL
+                        WHEN COALESCE(lower(email), '') = lower(%s) THEN NULL
+                        ELSE %s
+                    END,
+                    email_verification_code_hash = CASE
+                        WHEN %s::text IS NULL OR COALESCE(lower(email), '') = lower(%s)
+                            THEN NULL
+                        ELSE email_verification_code_hash
+                    END,
+                    email_verification_expires_at = CASE
+                        WHEN %s::text IS NULL OR COALESCE(lower(email), '') = lower(%s)
+                            THEN NULL
+                        ELSE email_verification_expires_at
+                    END,
+                    email_verification_attempts = CASE
+                        WHEN %s::text IS NULL OR COALESCE(lower(email), '') = lower(%s)
+                            THEN 0
+                        ELSE email_verification_attempts
+                    END,
+                    email_verification_requested_at = CASE
+                        WHEN %s::text IS NULL OR COALESCE(lower(email), '') = lower(%s)
+                            THEN NULL
+                        ELSE email_verification_requested_at
                     END,
                     notify_marketing = %s,
                     notify_alerts = %s,
@@ -266,6 +323,11 @@ class CredentialAuthCoreMixin:
                     display_name,
                     email,
                     email_verified,
+                    pending_email,
+                    email_verification_expires_at,
+                    email_verification_attempts,
+                    email_verification_send_count,
+                    email_verification_send_count_date,
                     notify_marketing,
                     notify_alerts,
                     status,
@@ -277,45 +339,25 @@ class CredentialAuthCoreMixin:
                     normalized_display_name,
                     normalized_email,
                     normalized_email,
+                    normalized_email,
+                    normalized_email,
+                    normalized_email,
+                    normalized_email,
+                    normalized_email,
+                    normalized_email,
+                    normalized_email,
+                    normalized_email,
+                    normalized_email,
+                    normalized_email,
+                    normalized_email,
+                    normalized_email,
+                    normalized_email,
                     bool(notify_marketing),
                     bool(notify_alerts),
                     owner_id,
                 ),
             )
             row = cur.fetchone()
-        return self._row_to_owner_profile(row)
-
-    def verify_owner_email(self, wallet: str, email: str) -> Optional[OwnerProfileRecord]:
-        normalized_wallet = str(wallet or "").strip().lower()
-        normalized_email = str(email or "").strip().lower()
-        if not normalized_wallet or not normalized_email:
-            return None
-        with self._db.tx_cursor() as cur:
-            cur.execute(
-                """
-                UPDATE synapse_owner_accounts
-                SET email_verified = TRUE,
-                    updated_at = NOW()
-                WHERE owner_wallet = %s
-                  AND lower(email) = lower(%s)
-                RETURNING
-                    owner_id,
-                    owner_wallet,
-                    display_name,
-                    email,
-                    email_verified,
-                    notify_marketing,
-                    notify_alerts,
-                    status,
-                    default_currency,
-                    created_at,
-                    updated_at
-                """,
-                (normalized_wallet, normalized_email),
-            )
-            row = cur.fetchone()
-        if not row:
-            return None
         return self._row_to_owner_profile(row)
 
     def _ensure_agent_profile(self, cur: Any, record: RuntimeCredentialRecord) -> str:

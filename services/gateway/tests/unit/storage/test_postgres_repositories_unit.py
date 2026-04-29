@@ -89,6 +89,7 @@ class FakeConnection:
         self.cursor_obj = FakeCursor(
             fetchone_queue=plan.get("fetchone"),
             fetchall_queue=plan.get("fetchall"),
+            rowcount_overrides=plan.get("rowcount_overrides"),
         )
         self.commits = 0
         self.rollbacks = 0
@@ -978,6 +979,11 @@ def test_credential_auth_repository_reads_owner_profile_with_defaults() -> None:
                     "Infra Desk",
                     "ops@synapse.test",
                     False,
+                    None,
+                    None,
+                    0,
+                    0,
+                    None,
                     True,
                     False,
                     "active",
@@ -1007,8 +1013,13 @@ def test_credential_auth_repository_updates_owner_profile_without_touching_shell
         "owner:0xabc",
         "0xabc",
         "Infra Desk",
-        "infra@synapse.test",
+        "ops@synapse.test",
         False,
+        "infra@synapse.test",
+        None,
+        0,
+        1,
+        "2026-04-03",
         False,
         True,
         "active",
@@ -1026,23 +1037,32 @@ def test_credential_auth_repository_updates_owner_profile_without_touching_shell
         notify_alerts=True,
     )
 
-    assert profile.email == "infra@synapse.test"
+    assert profile.email == "ops@synapse.test"
+    assert profile.pending_email == "infra@synapse.test"
     executed = db.tx_cursors[-1].executed
     owner_upsert_sql = [sql for sql, _ in executed if "INSERT INTO synapse_owner_accounts" in sql][0]
     assert "display_name" not in owner_upsert_sql.lower()
     update_sql = [sql for sql, _ in executed if "UPDATE synapse_owner_accounts" in sql][0]
     assert "display_name = %s" in update_sql
-    assert "email_verified = CASE" in update_sql
+    assert "pending_email = CASE" in update_sql
 
 
-def test_credential_auth_repository_verifies_owner_email() -> None:
+def test_credential_auth_repository_verifies_owner_email_code() -> None:
     db = FakeDB()
-    db.tx_plan.append({"fetchone": [(
+    db.tx_plan.append({"fetchone": [
+        ("infra@synapse.test", "hash", "2026-04-03 10:10:00", 0),
+        None,
+        (
         "owner:0xabc",
         "0xabc",
         "Infra Desk",
         "infra@synapse.test",
         True,
+        None,
+        None,
+        0,
+        1,
+        "2026-04-03",
         False,
         True,
         "active",
@@ -1052,22 +1072,38 @@ def test_credential_auth_repository_verifies_owner_email() -> None:
     )]})
     repo = CredentialAuthRepository(db, _q6)
 
-    profile = repo.verify_owner_email("0xABC", "INFRA@SYNAPSE.TEST")
+    profile = repo.verify_owner_email_code(
+        "0xABC",
+        "INFRA@SYNAPSE.TEST",
+        code_hash="hash",
+        now=datetime(2026, 4, 3, 10, 0, 0),
+    )
 
-    assert profile is not None
     assert profile.email_verified is True
     executed = db.tx_cursors[-1].executed
-    update_sql, params = executed[0]
+    update_sql, params = executed[-1]
     assert "UPDATE synapse_owner_accounts" in update_sql
-    assert "email_verified = TRUE" in update_sql
-    assert params == ("0xabc", "infra@synapse.test")
+    assert "email = pending_email" in update_sql
+    assert params == ("0xabc",)
 
 
-def test_credential_auth_repository_verify_owner_email_rejects_empty_inputs() -> None:
+def test_credential_auth_repository_verify_owner_email_code_rejects_empty_inputs() -> None:
     repo = CredentialAuthRepository(FakeDB(), _q6)
 
-    assert repo.verify_owner_email("", "infra@synapse.test") is None
-    assert repo.verify_owner_email("0xabc", "") is None
+    with pytest.raises(ValueError, match="EMAIL_VERIFICATION_INVALID_REQUEST"):
+        repo.verify_owner_email_code(
+            "",
+            "infra@synapse.test",
+            code_hash="hash",
+            now=datetime(2026, 4, 3, 10, 0, 0),
+        )
+    with pytest.raises(ValueError, match="EMAIL_VERIFICATION_INVALID_REQUEST"):
+        repo.verify_owner_email_code(
+            "0xabc",
+            "",
+            code_hash="hash",
+            now=datetime(2026, 4, 3, 10, 0, 0),
+        )
 
 
 def test_gateway_state_repository_read_and_write() -> None:
@@ -1758,6 +1794,7 @@ def test_finance_atomic_repository_settles_llm_hold_and_releases_unused_balance(
                 (Decimal("0.5"), Decimal("0"), Decimal("0")),
                 (Decimal("1"), Decimal("0"), Decimal("0")),
                 (Decimal("0.5"), Decimal("0"), Decimal("0")),
+                ("agent",),
             ]
         }
     )
@@ -1789,6 +1826,7 @@ def test_finance_atomic_repository_settles_llm_hold_and_releases_unused_balance(
                 businessType="charge",
                 riskLevel="green",
             ),
+            credential_id="cred-llm-1",
             request_id="req-llm-1",
         )
     )
@@ -1799,6 +1837,122 @@ def test_finance_atomic_repository_settles_llm_hold_and_releases_unused_balance(
     assert "INSERT INTO synapse_ledger_entries" in executed_sql
     assert "INSERT INTO synapse_runtime_state" in executed_sql
     assert "INSERT INTO synapse_audit_events" in executed_sql
+    assert "SAVEPOINT llm_credential_usage_increment" in executed_sql
+    assert "FOR UPDATE OF ac" in executed_sql
+    assert "UPDATE synapse_agent_credentials" in executed_sql
+    assert "LLM_CREDENTIAL_USAGE_INCREMENT_MISSED" not in executed_sql
+
+
+def test_finance_atomic_repository_commits_llm_settlement_when_credential_missing() -> None:
+    db = FakeDB()
+    db.connect_plan.append(
+        {
+            "fetchone": [
+                (Decimal("10"), Decimal("0"), Decimal("0")),
+                (Decimal("0"), Decimal("0"), Decimal("0")),
+                (Decimal("5"), Decimal("0"), Decimal("0.000019")),
+                (Decimal("1"), Decimal("0"), Decimal("0")),
+                (Decimal("0.5"), Decimal("0"), Decimal("0")),
+                (Decimal("1"), Decimal("0"), Decimal("0")),
+                (Decimal("0.5"), Decimal("0"), Decimal("0")),
+                None,
+            ]
+        }
+    )
+    repo = FinanceAtomicRepository(
+        db,
+        _q6,
+        "UPSERT",
+        "BAL_FOR_UPDATE",
+        "AUDIT_INSERT",
+        ("restricted", "suspended", "blocked"),
+    )
+
+    result = repo.settle_consumer_llm_hold_atomic(
+        SettleConsumerHoldUsageCommand(
+            owner_wallet="0xowner",
+            provider_wallet="0xprovider",
+            hold_usdc=Decimal("0.000019"),
+            total_charge=Decimal("0.000008"),
+            provider_net=Decimal("0.000007"),
+            platform_fee_total=Decimal("0.000001"),
+            usage_row=UsageLogRow(
+                id="llm-usage-missing-credential",
+                ts=123,
+                consumerAddress="0xowner",
+                providerAddress="0xprovider",
+                status="accepted",
+                totalCharge=Decimal("0.000008"),
+                businessType="charge",
+                riskLevel="green",
+            ),
+            credential_id="missing-credential",
+            request_id="req-missing-credential",
+        )
+    )
+
+    assert result.consumer_available_balance_after == Decimal("5.000011")
+    assert db.connections[0].commits == 1
+    executed_sql = "\n".join(sql for sql, _ in db.connections[0].cursor_obj.executed)
+    assert "INSERT INTO synapse_ledger_entries" in executed_sql
+    assert "LLM_CREDENTIAL_USAGE_INCREMENT_MISSED" in str(db.connections[0].cursor_obj.executed)
+    assert "credential_not_found" in str(db.connections[0].cursor_obj.executed)
+
+
+def test_finance_atomic_repository_commits_llm_settlement_when_runtime_state_missing() -> None:
+    db = FakeDB()
+    db.connect_plan.append(
+        {
+            "fetchone": [
+                (Decimal("10"), Decimal("0"), Decimal("0")),
+                (Decimal("0"), Decimal("0"), Decimal("0")),
+                (Decimal("5"), Decimal("0"), Decimal("0.000019")),
+                (Decimal("1"), Decimal("0"), Decimal("0")),
+                (Decimal("0.5"), Decimal("0"), Decimal("0")),
+                (Decimal("1"), Decimal("0"), Decimal("0")),
+                (Decimal("0.5"), Decimal("0"), Decimal("0")),
+                ("agent",),
+            ],
+            "rowcount_overrides": [("UPDATE synapse_runtime_state", 0)],
+        }
+    )
+    repo = FinanceAtomicRepository(
+        db,
+        _q6,
+        "UPSERT",
+        "BAL_FOR_UPDATE",
+        "AUDIT_INSERT",
+        ("restricted", "suspended", "blocked"),
+    )
+
+    result = repo.settle_consumer_llm_hold_atomic(
+        SettleConsumerHoldUsageCommand(
+            owner_wallet="0xowner",
+            provider_wallet="0xprovider",
+            hold_usdc=Decimal("0.000019"),
+            total_charge=Decimal("0.000008"),
+            provider_net=Decimal("0.000007"),
+            platform_fee_total=Decimal("0.000001"),
+            usage_row=UsageLogRow(
+                id="llm-usage-missing-runtime-state",
+                ts=123,
+                consumerAddress="0xowner",
+                providerAddress="0xprovider",
+                status="accepted",
+                totalCharge=Decimal("0.000008"),
+                businessType="charge",
+                riskLevel="green",
+            ),
+            credential_id="cred-missing-runtime-state",
+            request_id="req-missing-runtime-state",
+        )
+    )
+
+    assert result.consumer_available_balance_after == Decimal("5.000011")
+    assert db.connections[0].commits == 1
+    executed = db.connections[0].cursor_obj.executed
+    assert "LLM_CREDENTIAL_USAGE_INCREMENT_MISSED" in str(executed)
+    assert "credential_runtime_state_missing" in str(executed)
 
 
 def test_finance_atomic_repository_rejects_llm_charge_above_hold() -> None:
@@ -1821,6 +1975,7 @@ def test_finance_atomic_repository_rejects_llm_charge_above_hold() -> None:
                 provider_net=Decimal("0.000010"),
                 platform_fee_total=Decimal("0.000001"),
                 usage_row=UsageLogRow(id="llm-usage-over-hold", ts=123),
+                credential_id="cred-llm-over-hold",
             )
         )
 
@@ -1855,6 +2010,7 @@ def test_finance_atomic_repository_rejects_missing_llm_frozen_hold() -> None:
                 provider_net=Decimal("0.000007"),
                 platform_fee_total=Decimal("0.000001"),
                 usage_row=UsageLogRow(id="llm-usage-missing-hold", ts=123),
+                credential_id="cred-llm-missing-hold",
             )
         )
 

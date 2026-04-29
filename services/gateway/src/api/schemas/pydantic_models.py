@@ -13,6 +13,8 @@ TX_HASH_FORMAT_ERROR = "txHash must be a valid 32-byte hex string"
 TX_HASH_HEX_LENGTH = 64
 EMAIL_FORMAT_ERROR = "email must be a valid address"
 EMAIL_REGEX = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+EMAIL_VERIFICATION_CODE_DIGITS = 6
+EMAIL_VERIFICATION_CODE_FORMAT_ERROR = "EMAIL_VERIFICATION_CODE_INVALID"
 AMOUNT_USDC_DECIMAL_PLACES_ERROR = "amountUsdc supports up to 2 decimal places"
 SPENDING_LIMIT_POSITIVE_ERROR = "spendingLimitUsdc must be positive"
 SPENDING_LIMIT_DECIMAL_PLACES_ERROR = "spendingLimitUsdc supports up to 6 decimal places"
@@ -83,11 +85,52 @@ class OwnerProfileUpdateRequest(OwnerProfilePayload):
     signature: str = Field(..., min_length=1, max_length=2048)
 
 
+class EmailVerificationCodeRequest(BaseModel):
+    email: str = Field(..., max_length=320)
+    code: str = Field(
+        ...,
+        min_length=EMAIL_VERIFICATION_CODE_DIGITS,
+        max_length=EMAIL_VERIFICATION_CODE_DIGITS,
+    )
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, value: str) -> str:
+        normalized = str(value or "").strip().lower()
+        if not normalized or not EMAIL_REGEX.match(normalized):
+            raise ValueError(EMAIL_FORMAT_ERROR)
+        return normalized
+
+    @field_validator("code")
+    @classmethod
+    def normalize_code(cls, value: str) -> str:
+        normalized = str(value or "").strip()
+        if len(normalized) != EMAIL_VERIFICATION_CODE_DIGITS or not normalized.isdigit():
+            raise ValueError(EMAIL_VERIFICATION_CODE_FORMAT_ERROR)
+        return normalized
+
+
+class EmailVerificationResendRequest(BaseModel):
+    email: str = Field(..., max_length=320)
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, value: str) -> str:
+        normalized = str(value or "").strip().lower()
+        if not normalized or not EMAIL_REGEX.match(normalized):
+            raise ValueError(EMAIL_FORMAT_ERROR)
+        return normalized
+
+
 class OwnerProfileView(BaseModel):
     ownerAddress: str
     displayName: Optional[str] = None
     email: Optional[str] = None
     emailVerified: bool = False
+    pendingEmail: Optional[str] = None
+    emailVerificationStatus: Literal["none", "pending", "expired", "locked"] = "none"
+    emailVerificationExpiresAt: Optional[str] = None
+    emailVerificationSendsRemaining: int = 5
     notifyMarketing: bool = True
     notifyAlerts: bool = True
     createdAt: str

@@ -15,7 +15,9 @@ export function buildSupportMailto(subject?: string): string | null {
   if (!email) {
     return null;
   }
-  const nextSubject = encodeURIComponent(subject?.trim() || DEFAULT_SUPPORT_SUBJECT);
+  const nextSubject = encodeURIComponent(
+    subject?.trim() || DEFAULT_SUPPORT_SUBJECT
+  );
   return `mailto:${email}?subject=${nextSubject}`;
 }
 

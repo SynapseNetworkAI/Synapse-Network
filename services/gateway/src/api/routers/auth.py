@@ -1,6 +1,7 @@
 # ruff: noqa: TRY301, TRY400, B904, S106
 import logging
 import time
+from datetime import datetime, timezone
 from typing import Optional, Annotated
 from fastapi import APIRouter, HTTPException, Depends, Header
 
@@ -14,6 +15,8 @@ from src.api.schemas.pydantic_models import (
     OwnerProfileResponse,
     OwnerProfileUpdateRequest,
     OwnerProfileView,
+    EmailVerificationCodeRequest,
+    EmailVerificationResendRequest,
 )
 from src.core.auth import (
     create_auth_challenge,
@@ -26,11 +29,15 @@ from src.core.config import settings
 from src.domain.runtime_state import AuthSessionState
 from src.storage import get_storage, BaseStorage
 from src.services.platform import credential_service
-from src.services.notifications.email_verification import (
-    build_email_verification_url,
-    verify_email_verification_token,
+from src.services.notifications.email_verification import hash_email_verification_code
+from src.services.notifications.sanitizer import mask_email
+from src.services.notifications.transactional import enqueue_account_email_notice
+from src.api.routers.auth_email_verification import (
+    email_verification_error,
+    email_verification_sends_remaining,
+    email_verification_status,
+    send_owner_email_verification_code,
 )
-from src.services.notifications.transactional import schedule_transaction_notifications
 from src.utils.datetime_utils import now_dt_str
 
 logger = logging.getLogger(__name__)
@@ -47,6 +54,10 @@ def _owner_profile_view(row) -> OwnerProfileView:
         displayName=row.display_name,
         email=row.email,
         emailVerified=row.email_verified,
+        pendingEmail=getattr(row, "pending_email", None),
+        emailVerificationStatus=email_verification_status(row),
+        emailVerificationExpiresAt=getattr(row, "email_verification_expires_at", None),
+        emailVerificationSendsRemaining=email_verification_sends_remaining(row),
         notifyMarketing=row.notify_marketing,
         notifyAlerts=row.notify_alerts,
         createdAt=row.created_at,
@@ -61,6 +72,37 @@ def _mask_email(email: Optional[str]) -> Optional[str]:
     if not local or not domain:
         return None
     return f"{local[:1]}***@{domain}"
+
+
+def _enqueue_account_email_notice(
+    storage: BaseStorage,
+    *,
+    owner: str,
+    recipient_email: Optional[str],
+    template_key: str,
+    event_type: str,
+    message: str,
+) -> None:
+    if not recipient_email:
+        return
+    enqueue_account_email_notice(
+        storage,
+        owner_wallet=owner,
+        recipient_email=recipient_email,
+        template_key=template_key,
+        event_type=event_type,
+        payload={
+            "requestId": f"{template_key}:{owner}",
+            "status": "COMPLETED",
+            "wallet": owner,
+            "emailMasked": mask_email(recipient_email),
+            "previousEmailMasked": mask_email(recipient_email),
+            "message": message,
+            "actionUrl": f"{settings.public_app_base_url.rstrip('/')}/dashboard/account/settings"
+            if settings.public_app_base_url
+            else "/dashboard/account/settings",
+        },
+    )
 
 
 @router.get(
@@ -293,29 +335,25 @@ async def update_me_profile(
                 ) from exc
             raise
 
-        email_changed = (
-            bool(profile.email)
-            and str(getattr(previous_profile, "email", "") or "").strip().lower()
-            != str(profile.email or "").strip().lower()
-        )
-        if email_changed and profile.email:
-            verification_url = build_email_verification_url(
-                owner_wallet=owner,
-                email=profile.email,
-            )
-            schedule_transaction_notifications(
+        pending_email = str(getattr(profile, "pending_email", "") or "").strip().lower()
+        previous_pending = str(getattr(previous_profile, "pending_email", "") or "").strip().lower()
+        if pending_email and pending_email != previous_pending:
+            profile = send_owner_email_verification_code(
                 storage,
-                owner_wallet=owner,
-                template_key="email_verification",
-                event_type="security.email_verification_requested",
-                payload={
-                    "requestId": f"email-verification:{owner}",
-                    "status": "PENDING_VERIFICATION",
-                    "actionUrl": verification_url,
-                    "emailMasked": _mask_email(profile.email),
-                },
-                require_verified_email=False,
-                send_lark=False,
+                owner=owner,
+                email=pending_email,
+            )
+
+        previous_email = str(getattr(previous_profile, "email", "") or "").strip().lower()
+        current_email = str(getattr(profile, "email", "") or "").strip().lower()
+        if previous_email and request.email is None and not current_email:
+            _enqueue_account_email_notice(
+                storage,
+                owner=owner,
+                recipient_email=previous_email,
+                template_key="email_removed_notice",
+                event_type="security.email_removed",
+                message="Your Synapse account email was removed. You will not receive transaction receipts or support replies by email until a new address is verified.",
             )
 
         credential_service.append_audit_log(
@@ -325,6 +363,7 @@ async def update_me_profile(
             {
                 "displayNameSet": bool(profile.display_name),
                 "emailMasked": _mask_email(profile.email),
+                "pendingEmailMasked": _mask_email(getattr(profile, "pending_email", None)),
                 "notifyMarketing": profile.notify_marketing,
                 "notifyAlerts": profile.notify_alerts,
             },
@@ -337,51 +376,140 @@ async def update_me_profile(
         raise HTTPException(status_code=500, detail="Profile update failed")
 
 
-@router.get(
-    "/v1/auth/email/verify",
+@router.post(
+    "/v1/auth/email/verify-code",
     response_model=OwnerProfileResponse,
     responses={
-        400: {"description": "Invalid or expired verification token"},
-        404: {"description": "Email profile not found"},
+        400: {"description": "Invalid or expired verification code"},
+        401: {"description": "Missing wallet session"},
+        409: {"description": "Email already in use"},
+        429: {"description": "Too many invalid attempts"},
         500: {"description": "Email verification failed"},
     },
 )
-async def verify_email(
+async def verify_email_code(
+    request: EmailVerificationCodeRequest,
     storage: Annotated[BaseStorage, Depends(get_storage)],
-    token: str | None = None,
-    v: str | None = None,
+    authorization: AuthorizationHeader = None,
+    x_user_address: UserAddressHeader = None,
 ):
     try:
-        verified = verify_email_verification_token(token or v or "")
-        if not verified:
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "code": "EMAIL_VERIFICATION_INVALID",
-                    "message": "Email verification link is invalid or expired.",
-                },
-            )
-        profile = storage.get_data_manager().system.credential_auth.verify_owner_email(
-            verified["owner"],
-            verified["email"],
+        owner = credential_service.require_owner_wallet(authorization, x_user_address)
+        code_hash = hash_email_verification_code(
+            owner_wallet=owner,
+            email=request.email,
+            code=request.code,
         )
-        if profile is None:
-            raise HTTPException(
-                status_code=404,
-                detail={
-                    "code": "EMAIL_VERIFICATION_PROFILE_NOT_FOUND",
-                    "message": "Email address is no longer linked to this wallet.",
-                },
+        previous_profile = storage.get_data_manager().system.credential_auth.read_owner_profile(
+            owner,
+            ensure_exists=False,
+        )
+        try:
+            profile = storage.get_data_manager().system.credential_auth.verify_owner_email_code(
+                owner,
+                request.email,
+                code_hash=code_hash,
+                now=datetime.now(timezone.utc),
             )
+        except ValueError as exc:
+            code = str(exc)
+            if code == "EMAIL_ALREADY_IN_USE":
+                raise email_verification_error(
+                    409,
+                    code,
+                    "Email address is already linked to another wallet.",
+                ) from exc
+            if code == "EMAIL_VERIFICATION_ATTEMPTS_EXCEEDED":
+                raise email_verification_error(
+                    429,
+                    code,
+                    "Too many incorrect codes. Please request a new verification email.",
+                ) from exc
+            if code == "EMAIL_VERIFICATION_EXPIRED":
+                raise email_verification_error(
+                    400,
+                    code,
+                    "Email verification code expired. Please request a new code.",
+                ) from exc
+            raise email_verification_error(
+                400,
+                code,
+                "Email verification code is invalid.",
+            ) from exc
         credential_service.append_audit_log(
             storage,
             "OWNER_EMAIL_VERIFIED",
             profile.owner_wallet,
             {"emailMasked": _mask_email(profile.email)},
         )
+        previous_email = str(getattr(previous_profile, "email", "") or "").strip().lower()
+        current_email = str(getattr(profile, "email", "") or "").strip().lower()
+        _enqueue_account_email_notice(
+            storage,
+            owner=owner,
+            recipient_email=current_email,
+            template_key="email_bound_success",
+            event_type="security.email_bound_success",
+            message="This email is now verified and linked to your Synapse wallet.",
+        )
+        if previous_email and previous_email != current_email:
+            _enqueue_account_email_notice(
+                storage,
+                owner=owner,
+                recipient_email=previous_email,
+                template_key="email_changed_notice",
+                event_type="security.email_changed_notice",
+                message="Your Synapse account email was changed. Future receipts and support replies will go to the newly verified address.",
+            )
         return OwnerProfileResponse(success=True, profile=_owner_profile_view(profile))
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Email verification failed: {e}")
         raise HTTPException(status_code=500, detail="Email verification failed")
+
+
+@router.post(
+    "/v1/auth/email/resend-code",
+    response_model=OwnerProfileResponse,
+    responses={
+        401: {"description": "Missing wallet session"},
+        429: {"description": "Daily verification email limit reached"},
+        500: {"description": "Email verification resend failed"},
+    },
+)
+async def resend_email_code(
+    request: EmailVerificationResendRequest,
+    storage: Annotated[BaseStorage, Depends(get_storage)],
+    authorization: AuthorizationHeader = None,
+    x_user_address: UserAddressHeader = None,
+):
+    try:
+        owner = credential_service.require_owner_wallet(authorization, x_user_address)
+        current_profile = storage.get_data_manager().system.credential_auth.read_owner_profile(
+            owner,
+            ensure_exists=True,
+        )
+        if str(getattr(current_profile, "pending_email", "") or "").lower() != request.email:
+            raise email_verification_error(
+                400,
+                "EMAIL_VERIFICATION_NOT_PENDING",
+                "No pending email verification exists for this address.",
+            )
+        profile = send_owner_email_verification_code(
+            storage,
+            owner=owner,
+            email=request.email,
+        )
+        credential_service.append_audit_log(
+            storage,
+            "OWNER_EMAIL_VERIFICATION_RESENT",
+            profile.owner_wallet,
+            {"emailMasked": _mask_email(request.email)},
+        )
+        return OwnerProfileResponse(success=True, profile=_owner_profile_view(profile))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Email verification resend failed: {e}")
+        raise HTTPException(status_code=500, detail="Email verification resend failed")

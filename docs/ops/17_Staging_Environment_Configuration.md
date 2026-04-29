@@ -573,7 +573,7 @@ must expose:
 - `EMAIL_FROM=Synapse Network Staging <staging-alerts@synapse-network.ai>`
 - `EMAIL_REPLY_TO=support@synapse-network.ai`
 - `PUBLIC_GATEWAY_BASE_URL=https://api-staging.synapse-network.ai` for API
-  callbacks such as email verification links.
+  references used in transactional email metadata.
 - `PUBLIC_APP_BASE_URL=https://staging.synapse-network.ai` for user-facing email
   CTA links such as `Open Synapse`.
 - `TRANSACTION_LARK_ENABLED=true` in staging only.
@@ -581,6 +581,13 @@ must expose:
   `synapse-staging-lark-webhook-staging-drill`.
 - `TRANSACTION_LARK_SECRET` from `synapse-staging-lark-secret-staging-drill`
   only when the Lark bot has signing enabled.
+- `SUPPORT_LARK_ENABLED=true` in staging only when support case triage cards
+  should be sent.
+- `SUPPORT_LARK_WEBHOOK_URL` from
+  `synapse-staging-lark-webhook-staging-drill` for staging, or a dedicated
+  support triage group for production.
+- `SUPPORT_LARK_SECRET` from the matching Lark signing secret only when that
+  bot has signing enabled.
 
 Local transaction notification E2E has two modes:
 
@@ -605,6 +612,10 @@ TRANSACTION_LARK_ENABLED=true
 TRANSACTION_LARK_WEBHOOK_URL=http://127.0.0.1:<fake-lark-port>/lark
 TRANSACTION_LARK_SECRET=
 TRANSACTION_LARK_TIMEOUT_SEC=3
+SUPPORT_LARK_ENABLED=true
+SUPPORT_LARK_WEBHOOK_URL=http://127.0.0.1:<fake-lark-port>/lark
+SUPPORT_LARK_SECRET=
+SUPPORT_LARK_TIMEOUT_SEC=3
 
 POSTGRES_DSN=postgresql://synapse_gateway_app:local-dev-gateway-app-password@localhost:5432/synapse_gateway
 JWT_SECRET=replace-this-with-a-32-byte-minimum-jwt-secret
@@ -622,6 +633,8 @@ EMAIL_REPLY_TO=support@synapse-network.ai
 PUBLIC_APP_BASE_URL=http://127.0.0.1:3000
 TRANSACTION_LARK_WEBHOOK_URL=https://open.larksuite.com/open-apis/bot/v2/hook/...
 TRANSACTION_LARK_SECRET=<optional-signing-secret>
+SUPPORT_LARK_WEBHOOK_URL=https://open.larksuite.com/open-apis/bot/v2/hook/...
+SUPPORT_LARK_SECRET=<optional-signing-secret>
 TRANSACTION_NOTIFICATIONS_TEST_EMAIL=<real-recipient@example.com>
 TRANSACTION_NOTIFICATIONS_LOCAL_REAL_CONFIRM=I_UNDERSTAND_THIS_SENDS_REAL_LOCAL_EMAIL_AND_LARK
 EOF
@@ -761,12 +774,67 @@ Transaction notification behavior:
   money mutation has committed. SMTP or Lark failures must never roll back
   ledger state.
 - Gmail receipts are sent only to verified owner emails. Saving or changing an
-  email does not send a “saved successfully” email; it sends an
-  `email_verification` message with a signed link.
+  email does not send a “saved successfully” email; it stages the address as
+  `pending_email` and sends an `email_verification` message with a 6-digit code.
+  Codes expire after 10 minutes; each wallet can send at most 5 verification
+  emails per UTC day, including the first send and resends.
 - Staging Lark transaction cards are a watch channel only. They must include
   `STAGING_TRANSACTION_EVENT` and `NO_ACTION_REQUIRED`, and must not include
   raw email addresses, JWTs, private keys, withdrawal tickets, signatures, or
   webhook URLs.
+
+Support case behavior:
+
+- `/docs/support` and dashboard feedback surfaces submit to
+  `POST /api/v1/feedback`.
+- `billing_support`, `bug_report`, and `docs_issue` are actionable categories:
+  Gateway writes the raw row to `synapse_feedback_reports` and creates a
+  `synapse_forum_response_tasks` item through the existing forum support
+  tables.
+- Admin operators review and reply from Admin-front `/forum-support`.
+- Admin replies create an in-app notification for the wallet owner and enqueue
+  a `support_reply` Gmail row when the owner has a verified email.
+- Support Lark cards are triage notifications. Staging cards must include
+  `SUPPORT_CASE_CREATED` and `NO_ACTION_REQUIRED`; production should route them
+  to a dedicated support/on-call group, not the transaction watch route.
+
+Support case dogfood gate:
+
+```bash
+npm run e2e:support-case-dogfood:local
+npm run ci:support-case-dogfood-local-evidence
+```
+
+The local gate restarts the local Gateway with a fake Lark sink, opens
+User-front `/docs/support`, submits a `billing_support` case, verifies the raw
+feedback row, support response task, Admin-front `/forum-support` screenshots,
+admin reply, user in-app notification, and `support_reply` email outbox row. It
+also submits `bug_report`, `docs_issue`, and `product_feedback` API fixtures to
+prove only actionable support categories enter the manual queue.
+
+After deploying the new Gateway, Gateway-admin, User-front, and Admin-front to
+staging, run:
+
+```bash
+export SUPPORT_CASE_DOGFOOD_STAGING_CONFIRM=I_UNDERSTAND_THIS_SENDS_STAGING_SUPPORT_ALERTS
+export STAGING_USER_FRONT_URL=https://staging.synapse-network.ai
+export STAGING_ADMIN_FRONT_URL=https://admin-staging.synapse-network.ai
+export GATEWAY_BASE_URL=https://api-staging.synapse-network.ai
+export STAGING_ADMIN_API_URL=https://admin-api-staging.synapse-network.ai
+export STAGING_SUPPORT_CASE_POSTGRES_DSN=<Cloud-SQL-Auth-Proxy-localhost-DSN>
+export SUPPORT_CASE_E2E_AUTHOR_KEY=<staging-only-user-wallet-private-key>
+export STAGING_ADMIN_E2E_PASSWORD=<dedicated-admin-e2e-password>
+export STAGING_ADMIN_E2E_OTP_SECRET=<dedicated-admin-e2e-totp-secret>
+export STAGING_SUPPORT_CASE_TEST_EMAIL=<verified-staging-test-email>
+
+npm run e2e:support-case-dogfood:staging
+npm run ci:support-case-dogfood-staging-evidence
+```
+
+Staging sends real support-triage Lark cards and creates staging-only support
+cases. If the verified test email is configured, Admin replies must enqueue or
+deliver a `support_reply` email. Failed dogfood runs must keep
+`bugfix-log.md`; only evidence with `failed.length === 0` is release evidence.
 
 ### Cloud SQL Database Topology
 
@@ -1019,16 +1087,16 @@ staging defaults. Rebuild and redeploy `synapse-staging-user-front` after
 changing any `NEXT_PUBLIC_*` value because Next.js bakes these values into the
 production bundle at build time.
 
-| Variable                                | Staging value                            | Purpose                                             | Secret | Source                  |
-| --------------------------------------- | ---------------------------------------- | --------------------------------------------------- | ------ | ----------------------- |
-| `NEXT_PUBLIC_GATEWAY_BASE_URL`          | `https://api-staging.synapse-network.ai` | Browser API base for all user-facing Gateway calls. | No     | Fixed staging domain    |
-| `NEXT_PUBLIC_ANALYTICS_ENDPOINT`        | `https://api-staging.synapse-network.ai/api/v1/events` | Browser analytics/event ingestion endpoint. Must point to the same environment Gateway. | No | Fixed staging domain |
-| `NEXT_PUBLIC_APP_ENV`                   | `staging`                                | Public UI/runtime environment marker.               | No     | Fixed                   |
-| `NEXT_PUBLIC_SERVICE_LIST_CACHE_TTL_MS` | `20000`                                  | Service discovery cache TTL.                        | No     | Fixed default           |
-| `NEXT_PUBLIC_SUPPORT_EMAIL`             | `support@synapse-network.ai`             | Public support email shown in UI.                   | No     | Ops                     |
-| `NEXT_PUBLIC_SUPPORT_PORTAL_URL`        | empty or support URL                     | Optional support portal deep link.                  | No     | Ops                     |
-| `NEXT_PUBLIC_REOWN_PROJECT_ID`          | empty or project id                      | Optional Reown wallet integration.                  | No     | Reown dashboard         |
-| `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID`  | empty or project id                      | Optional WalletConnect project id.                  | No     | WalletConnect dashboard |
+| Variable                                | Staging value                                          | Purpose                                                                                 | Secret | Source                  |
+| --------------------------------------- | ------------------------------------------------------ | --------------------------------------------------------------------------------------- | ------ | ----------------------- |
+| `NEXT_PUBLIC_GATEWAY_BASE_URL`          | `https://api-staging.synapse-network.ai`               | Browser API base for all user-facing Gateway calls.                                     | No     | Fixed staging domain    |
+| `NEXT_PUBLIC_ANALYTICS_ENDPOINT`        | `https://api-staging.synapse-network.ai/api/v1/events` | Browser analytics/event ingestion endpoint. Must point to the same environment Gateway. | No     | Fixed staging domain    |
+| `NEXT_PUBLIC_APP_ENV`                   | `staging`                                              | Public UI/runtime environment marker.                                                   | No     | Fixed                   |
+| `NEXT_PUBLIC_SERVICE_LIST_CACHE_TTL_MS` | `20000`                                                | Service discovery cache TTL.                                                            | No     | Fixed default           |
+| `NEXT_PUBLIC_SUPPORT_EMAIL`             | `support@synapse-network.ai`                           | Public support email shown in UI.                                                       | No     | Ops                     |
+| `NEXT_PUBLIC_SUPPORT_PORTAL_URL`        | empty or support URL                                   | Optional support portal deep link.                                                      | No     | Ops                     |
+| `NEXT_PUBLIC_REOWN_PROJECT_ID`          | empty or project id                                    | Optional Reown wallet integration.                                                      | No     | Reown dashboard         |
+| `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID`  | empty or project id                                    | Optional WalletConnect project id.                                                      | No     | WalletConnect dashboard |
 
 Do not introduce `NEXT_PUBLIC_API_BASE_URL` unless the frontend code is
 intentionally refactored. Current code uses `NEXT_PUBLIC_GATEWAY_BASE_URL`.

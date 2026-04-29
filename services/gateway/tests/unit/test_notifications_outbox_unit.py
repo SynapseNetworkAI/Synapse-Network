@@ -33,13 +33,13 @@ from src.services.notifications.transactional import (
     build_public_app_url,
     build_notification_intent_for_owner,
     enqueue_transaction_email,
+    enqueue_email_verification_code,
     schedule_transaction_notifications,
     _send_lark_transaction_event,
 )
 from src.services.notifications.email_verification import (
-    build_email_verification_url,
-    create_email_verification_token,
-    verify_email_verification_token,
+    create_email_verification_code,
+    hash_email_verification_code,
 )
 from src.services.notifications.in_app import (
     IN_APP_NOTIFICATION_EVENT_CATALOG,
@@ -459,19 +459,59 @@ def test_render_transaction_receipt_email_uses_x_style_card_and_redacts() -> Non
     assert "0x" + "b" * 64 not in rendered.html_body
 
 
-def test_render_email_verification_template_has_cta_without_saved_notice() -> None:
+def test_render_email_verification_template_has_code_without_saved_notice() -> None:
     rendered = render_notification_email(
         "email_verification",
         {
             "status": "PENDING_VERIFICATION",
             "requestId": "email-verification:0xabc",
-            "actionUrl": "https://api.synapse.test/api/v1/auth/email/verify?v=abc",
+            "verificationCode": "123456",
+            "expiresInMinutes": "10",
+            "wallet": "0xabc",
         },
     )
 
-    assert "Verify your Synapse email" in rendered.subject
-    assert "Verify email" in rendered.html_body
+    assert rendered.subject == "SynapseNetwork: Verify your email"
+    assert "123456" in rendered.html_body
+    assert "10 minutes" in rendered.html_body
     assert "saved" not in rendered.text_body.lower()
+
+
+def test_render_account_email_notice_templates() -> None:
+    for template_key in (
+        "email_bound_success",
+        "email_changed_notice",
+        "email_removed_notice",
+    ):
+        rendered = render_notification_email(
+            template_key,
+            {
+                "status": "COMPLETED",
+                "emailMasked": "n***@gmail.com",
+                "wallet": "0xabc",
+                "message": "Account email lifecycle notice.",
+            },
+        )
+
+        assert rendered.subject.startswith("SynapseNetwork:")
+        assert "Account email lifecycle notice." in rendered.html_body
+        assert "0xabc" in rendered.text_body
+
+
+def test_enqueue_email_verification_code_targets_pending_recipient() -> None:
+    storage = FakeTransactionalStorage(FakeOwnerProfile(email=None, email_verified=False))
+
+    assert enqueue_email_verification_code(
+        storage,
+        owner_wallet="0xABC",
+        recipient_email="Pending@Synapse.Test",
+        code="123456",
+        expires_in_minutes=10,
+    ) is True
+    intent = storage.enqueued[0]
+    assert intent.recipient_email == "pending@synapse.test"
+    assert intent.template_key == "email_verification"
+    assert intent.payload["verificationCode"] == "123456"
 
 
 def test_build_transaction_email_intent_dedupes_by_event_owner_resource() -> None:
@@ -543,19 +583,25 @@ def test_enqueue_transaction_email_skips_unknown_missing_and_failed_profiles() -
     ) is False
 
 
-def test_email_verification_token_roundtrip_and_invalid_paths(monkeypatch) -> None:
+def test_email_verification_code_hash_is_owner_and_email_scoped(monkeypatch) -> None:
     monkeypatch.setattr(settings, "auth_secret", "unit-test-auth-secret-with-enough-entropy", raising=False)
-    monkeypatch.setattr(settings, "email_verification_ttl_sec", 60, raising=False)
-    monkeypatch.setattr(settings, "public_gateway_base_url", "https://api.synapse.test", raising=False)
-
-    token = create_email_verification_token(owner_wallet="0xABC", email="Owner@Synapse.Test")
-    verified = verify_email_verification_token(token)
-
-    assert verified == {"owner": "0xabc", "email": "owner@synapse.test"}
-    assert verify_email_verification_token("not-a-token") is None
-    assert verify_email_verification_token(token + "tampered") is None
-    assert build_email_verification_url(owner_wallet="0xABC", email="owner@synapse.test").startswith(
-        "https://api.synapse.test/api/v1/auth/email/verify?v="
+    code = create_email_verification_code()
+    assert len(code) == 6
+    assert code.isdigit()
+    first = hash_email_verification_code(
+        owner_wallet="0xABC",
+        email="Owner@Synapse.Test",
+        code="123456",
+    )
+    assert first == hash_email_verification_code(
+        owner_wallet="0xabc",
+        email="owner@synapse.test",
+        code="123456",
+    )
+    assert first != hash_email_verification_code(
+        owner_wallet="0xabc",
+        email="other@synapse.test",
+        code="123456",
     )
 
 
@@ -637,6 +683,22 @@ def test_render_notification_email_includes_action_url_and_rejects_unknown_templ
         render_notification_email("unknown_template", {})
 
 
+def test_render_support_reply_email_template() -> None:
+    rendered = render_notification_email(
+        "support_reply",
+        {
+            "title": "Billing Support: refund is stuck",
+            "messagePreview": "We checked the refund and replied with next steps.",
+            "feedbackId": "fbk_support",
+            "actionUrl": "http://127.0.0.1:3000/forum/support_123",
+        },
+    )
+
+    assert rendered.subject == "SynapseNetwork: Synapse support replied"
+    assert "Open Synapse: http://127.0.0.1:3000/forum/support_123" in rendered.text_body
+    assert "Open support reply" in rendered.html_body
+
+
 def test_build_public_app_url_uses_user_front_base(monkeypatch) -> None:
     monkeypatch.setattr(settings, "public_app_base_url", "http://127.0.0.1:3000")
     monkeypatch.setattr(settings, "public_gateway_base_url", "http://127.0.0.1:8000")
@@ -660,7 +722,7 @@ def test_notification_sanitizer_masks_email_and_payload_values() -> None:
     assert redact_text("token=abc " + ("x" * 20), max_chars=10).endswith("... [Truncated]")
     redacted = redact_payload(payload)
     assert redacted["authorization"] == "[REDACTED]"
-    assert redacted["items"][0] == "signature=[REDACTED]"
+    assert redacted["items"][0] == "[REDACTED_SENSITIVE_FIELD]"
     assert redacted["nested"]["txHash"] == "[REDACTED_HEX]"
     assert redacted["count"] == 1
 

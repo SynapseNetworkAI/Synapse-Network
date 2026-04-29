@@ -163,6 +163,10 @@ class Settings(BaseSettings):
         default="postgresql://synapse_gateway_app:local-dev-gateway-app-password@localhost:5432/synapse_gateway",
         alias="GATEWAY_FORUM_WRITE_DSN",
     )
+    public_app_base_url: str = Field(
+        default="http://127.0.0.1:3000",
+        alias="PUBLIC_APP_BASE_URL",
+    )
     forum_suggestion_service_token: str = Field(
         default="",
         alias="GATEWAY_ADMIN_FORUM_SUGGESTION_TOKEN",

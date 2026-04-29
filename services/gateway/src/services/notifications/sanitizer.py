@@ -13,6 +13,7 @@ _SENSITIVE_KEYWORDS = (
     "token",
 )
 _LONG_HEX_RE = re.compile(r"0x[a-fA-F0-9]{64,}")
+_BEARER_RE = re.compile(r"\bBearer\s+[A-Za-z0-9._~+/-]+=*", re.IGNORECASE)
 
 
 def mask_email(email: str) -> str:
@@ -24,11 +25,12 @@ def mask_email(email: str) -> str:
 
 
 def redact_text(value: str, *, max_chars: int = 1200) -> str:
-    redacted = _LONG_HEX_RE.sub("[REDACTED_HEX]", str(value or ""))
+    redacted = _BEARER_RE.sub("[REDACTED_BEARER]", str(value or ""))
+    redacted = _LONG_HEX_RE.sub("[REDACTED_HEX]", redacted)
     for keyword in _SENSITIVE_KEYWORDS:
         redacted = re.sub(
-            rf"({keyword}\s*[:=]\s*)([^\s,;]+)",
-            r"\1[REDACTED]",
+            rf"\b{keyword}\s*[:=]\s*([^\s,;]+)",
+            "[REDACTED_SENSITIVE_FIELD]",
             redacted,
             flags=re.IGNORECASE,
         )

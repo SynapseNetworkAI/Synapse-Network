@@ -133,11 +133,14 @@ Gateway 同步调用按 service profile 执行 bounded timeout：
 语义：
 
 1. Gateway 必须重新验证这次 profile update 的 wallet signature，而不是只信 JWT
-2. 如果 `email` 被修改，`emailVerified` 会被重置为 `false`
-3. `email` 必须在全平台唯一
-4. 新增或变更邮箱会异步发送 `email_verification` 邮件；保存设置本身不发送“保存成功”邮件
-5. `GET /api/v1/auth/email/verify?v=<signed-token>` 验证邮箱后将 `emailVerified` 更新为 `true`
-6. 资金类交易邮件只发送给已验证邮箱；该接口会写 system audit log，但不会影响 credits、deposit、invoke 等核心支付链路
+2. 如果 `email` 是新增或变更，Gateway 不会直接写入 `email`；新地址只进入 `pendingEmail`
+3. Gateway 会发送 `email_verification` 六位验证码邮件，验证码 10 分钟有效
+4. `POST /api/v1/auth/email/verify-code` 验证 `email + code` 成功后，才原子写入 `email` 并设置 `emailVerified=true`
+5. `POST /api/v1/auth/email/resend-code` 可重发验证码，但每个 wallet 每个 UTC 日期最多发送 5 次，包含首次发送
+6. 换绑邮箱时旧 `email` 会保持生效，直到 `pendingEmail` 验证成功后才被替换
+7. 取消换绑通过再次提交当前已验证 `email` 完成，仍需要 wallet signature，并会清空 `pendingEmail`
+8. 清空邮箱仍需要 wallet signature，但无需验证码；清空后交易邮件和 support reply 邮件停止发送
+9. 资金类交易邮件只发送给已验证邮箱；该接口会写 system audit log，但不会影响 credits、deposit、invoke 等核心支付链路
 
 ### 3.1 `GET /api/v1/balance`
 

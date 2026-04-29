@@ -7,7 +7,9 @@ from __future__ import annotations
 
 # quality-budget-disable-reason: type: ignore[attr-defined] because sibling mixins provide these members.
 
+import logging
 import time
+from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
 
@@ -20,9 +22,256 @@ from src.domain.finance import (
 from src.domain.voucher import VoucherRedemptionResult
 from src.utils.datetime_utils import now_dt_str, to_dt_str
 
+log = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class LlmHoldSettlementAuditContext:
+    owner: str
+    provider: str
+    invocation_id: str
+    request_id: str | None
+    hold_usdc: Decimal
+    total_charge: Decimal
+    before_balance: Decimal
+    after_balance: Decimal
+
 
 class FinanceAtomicVoucherMixin:
     """Voucher/charge domain helpers and charge_consumer_and_record_usage_atomic."""
+
+    @staticmethod
+    def _credential_state_key(credential_type: str, credential_id: str) -> str:
+        return f"credential_meta::{str(credential_type or '').lower()}::{credential_id}"
+
+    def _record_llm_credential_usage_miss(
+        self,
+        cur: Any,
+        *,
+        credential_id: str,
+        invocation_id: str,
+        request_id: str,
+        owner: str,
+        reason: str,
+    ) -> None:
+        log.warning(
+            "llm_credential_usage_increment_missed",
+            extra={
+                "alert_trigger": "LLM_CREDENTIAL_USAGE_INCREMENT_MISSED",
+                "credentialId": credential_id,
+                "invocationId": invocation_id,
+                "requestId": request_id,
+                "reason": reason,
+            },
+        )
+        self._append_finance_audit_row(  # type: ignore[attr-defined]
+            cur,
+            AuditLogRow(
+                actionType="LLM_CREDENTIAL_USAGE_INCREMENT_MISSED",
+                businessType="charge",
+                riskLevel="yellow",
+                ownerAddress=owner,
+                credentialId=credential_id,
+                invocationId=invocation_id,
+                amountDelta=Decimal("0"),
+                resultStatus="WARNING",
+                status="WARNING",
+                requestId=request_id,
+                errorCode=reason,
+                message="LLM settlement committed but credential usage counter was not updated.",
+                detailJson={
+                    "credentialId": credential_id,
+                    "invocationId": invocation_id,
+                    "requestId": request_id,
+                    "reason": reason,
+                },
+            ),
+        )
+
+    def _load_llm_credential_runtime_label(
+        self,
+        cur: Any,
+        credential_id: str,
+    ) -> str | None:
+        cur.execute(
+            """
+            SELECT ap.runtime_label
+              FROM synapse_agent_credentials AS ac
+              JOIN synapse_agent_profiles AS ap ON ap.agent_id = ac.agent_id
+             WHERE ac.credential_id = %s
+             FOR UPDATE OF ac
+            """,
+            (credential_id,),
+        )
+        row = cur.fetchone()
+        if row is None:
+            return None
+        runtime_label = row[0] if isinstance(row, (list, tuple)) else row
+        return str(runtime_label or "").lower()
+
+    def _update_llm_credential_usage_state(
+        self,
+        cur: Any,
+        *,
+        credential_id: str,
+        runtime_label: str,
+        now_text: str,
+    ) -> bool:
+        cur.execute(
+            """
+            UPDATE synapse_runtime_state
+               SET payload = jsonb_set(
+                     jsonb_set(
+                       COALESCE(payload, '{}'::jsonb),
+                       '{callsUsed}',
+                       to_jsonb(
+                         CASE
+                           WHEN payload->>'callsUsed' ~ '^[0-9]+$'
+                             THEN (payload->>'callsUsed')::int + 1
+                           ELSE 1
+                         END
+                       ),
+                       true
+                     ),
+                     '{updatedAt}',
+                     to_jsonb(%s::text),
+                     true
+                   ),
+                   updated_at = %s
+             WHERE state_key = %s
+            """,
+            (
+                now_text,
+                now_text,
+                self._credential_state_key(runtime_label, credential_id),
+            ),
+        )
+        if int(getattr(cur, "rowcount", 0) or 0) <= 0:
+            return False
+        cur.execute(
+            """
+            UPDATE synapse_agent_credentials
+               SET last_used_at = %s
+             WHERE credential_id = %s
+            """,
+            (now_text, credential_id),
+        )
+        return True
+
+    def _increment_llm_credential_usage_best_effort(
+        self,
+        cur: Any,
+        *,
+        credential_id: str,
+        invocation_id: str,
+        request_id: str,
+        owner: str,
+        now_text: str,
+    ) -> None:
+        credential_key = str(credential_id or "").strip()
+        if not credential_key:
+            self._record_llm_credential_usage_miss(
+                cur,
+                credential_id=credential_key,
+                invocation_id=invocation_id,
+                request_id=request_id,
+                owner=owner,
+                reason="credential_id_missing",
+            )
+            return
+
+        try:
+            cur.execute("SAVEPOINT llm_credential_usage_increment")
+            runtime_label = self._load_llm_credential_runtime_label(cur, credential_key)
+            if runtime_label is None:
+                cur.execute("RELEASE SAVEPOINT llm_credential_usage_increment")
+                self._record_llm_credential_usage_miss(
+                    cur,
+                    credential_id=credential_key,
+                    invocation_id=invocation_id,
+                    request_id=request_id,
+                    owner=owner,
+                    reason="credential_not_found",
+                )
+                return
+
+            updated = self._update_llm_credential_usage_state(
+                cur,
+                credential_id=credential_key,
+                runtime_label=runtime_label,
+                now_text=now_text,
+            )
+            if not updated:
+                cur.execute("RELEASE SAVEPOINT llm_credential_usage_increment")
+                self._record_llm_credential_usage_miss(
+                    cur,
+                    credential_id=credential_key,
+                    invocation_id=invocation_id,
+                    request_id=request_id,
+                    owner=owner,
+                    reason="credential_runtime_state_missing",
+                )
+                return
+
+            cur.execute("RELEASE SAVEPOINT llm_credential_usage_increment")
+        except Exception as exc:
+            cur.execute("ROLLBACK TO SAVEPOINT llm_credential_usage_increment")
+            cur.execute("RELEASE SAVEPOINT llm_credential_usage_increment")
+            self._record_llm_credential_usage_miss(
+                cur,
+                credential_id=credential_key,
+                invocation_id=invocation_id,
+                request_id=request_id,
+                owner=owner,
+                reason=type(exc).__name__,
+            )
+
+    def _record_llm_hold_settled_audit(
+        self,
+        cur: Any,
+        context: LlmHoldSettlementAuditContext,
+    ) -> None:
+        self._append_finance_audit_row(  # type: ignore[attr-defined]
+            cur,
+            AuditLogRow(
+                actionType="CONSUMER_LLM_HOLD_SETTLED_ATOMIC",
+                businessType="charge",
+                riskLevel="green",
+                ownerAddress=context.owner,
+                amountDelta=-context.total_charge,
+                beforeBalance=context.before_balance,
+                afterBalance=context.after_balance,
+                resultStatus="SUCCEEDED",
+                status="SUCCEEDED",
+                requestId=context.request_id,
+                message=(
+                    f"provider={context.provider}; invocation={context.invocation_id}; "
+                    f"hold={context.hold_usdc}"
+                ),
+            ),
+        )
+
+    @staticmethod
+    def _llm_charge_command(
+        command: SettleConsumerHoldUsageCommand,
+        *,
+        total_charge: Decimal,
+        provider_net: Decimal,
+        platform_fee_total: Decimal,
+    ) -> ChargeConsumerUsageCommand:
+        return ChargeConsumerUsageCommand(
+            owner_wallet=command.owner_wallet,
+            provider_wallet=command.provider_wallet,
+            total_charge=total_charge,
+            provider_net=provider_net,
+            platform_fee_total=platform_fee_total,
+            usage_row=command.usage_row,
+            request_id=command.request_id,
+            unit_price=command.unit_price,
+            protocol_fee=command.protocol_fee,
+            routing_tax=command.routing_tax,
+            invocation=command.invocation,
+        )
 
     def _load_locked_campaign_promo_balance(
         self,
@@ -268,18 +517,11 @@ class FinanceAtomicVoucherMixin:
                     cur, "__platform__", "platform_fee", platform_after, now, now_text
                 )
 
-                charge_command = ChargeConsumerUsageCommand(
-                    owner_wallet=command.owner_wallet,
-                    provider_wallet=command.provider_wallet,
+                charge_command = self._llm_charge_command(
+                    command,
                     total_charge=total_charge,
                     provider_net=provider_net,
                     platform_fee_total=platform_fee_total,
-                    usage_row=command.usage_row,
-                    request_id=command.request_id,
-                    unit_price=command.unit_price,
-                    protocol_fee=command.protocol_fee,
-                    routing_tax=command.routing_tax,
-                    invocation=command.invocation,
                 )
                 invocation_id = (
                     str(command.invocation.invocation_id or "").strip()
@@ -289,21 +531,26 @@ class FinanceAtomicVoucherMixin:
                 row = self._build_charge_usage_row(charge_command, invocation_id, owner, provider, now)  # type: ignore[attr-defined]
                 self._record_charge_facts(cur, charge_command, row, owner, provider, now_text)  # type: ignore[attr-defined]
 
-                self._append_finance_audit_row(  # type: ignore[attr-defined]
+                self._record_llm_hold_settled_audit(
                     cur,
-                    AuditLogRow(
-                        actionType="CONSUMER_LLM_HOLD_SETTLED_ATOMIC",
-                        businessType="charge",
-                        riskLevel="green",
-                        ownerAddress=owner,
-                        amountDelta=-total_charge,
-                        beforeBalance=consumer_available,
-                        afterBalance=consumer_after,
-                        resultStatus="SUCCEEDED",
-                        status="SUCCEEDED",
-                        requestId=row.request_id,
-                        message=f"provider={provider}; invocation={row.id}; hold={hold_usdc}",
+                    LlmHoldSettlementAuditContext(
+                        owner=owner,
+                        provider=provider,
+                        invocation_id=row.id,
+                        request_id=row.request_id,
+                        hold_usdc=hold_usdc,
+                        total_charge=total_charge,
+                        before_balance=consumer_available,
+                        after_balance=consumer_after,
                     ),
+                )
+                self._increment_llm_credential_usage_best_effort(
+                    cur,
+                    credential_id=command.credential_id,
+                    invocation_id=row.id,
+                    request_id=row.request_id or command.request_id,
+                    owner=owner,
+                    now_text=now_text,
                 )
 
             conn.commit()

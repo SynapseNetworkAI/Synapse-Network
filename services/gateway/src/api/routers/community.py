@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Annotated, Any, Optional
 
 from fastapi import APIRouter, Depends, Header, Query, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from src.api.deps import get_community_service
@@ -69,6 +70,12 @@ def _client_key(request: Request, owner_wallet: str | None, action: str) -> str:
     return f"{action}:ip:{client_host}"
 
 
+def _service_result_to_dict(result: Any) -> dict[str, Any]:
+    if hasattr(result, "to_response_dict"):
+        return result.to_response_dict()
+    return dict(result)
+
+
 @router.post("/feedback")
 async def submit_feedback(
     request: Request,
@@ -76,7 +83,7 @@ async def submit_feedback(
     service: Annotated[FeedbackForumService, Depends(get_community_service)],
     authorization: AuthorizationHeader = None,
     x_user_address: UserAddressHeader = None,
-) -> dict[str, Any]:
+) -> JSONResponse:
     owner_wallet = _optional_owner_wallet(authorization, x_user_address)
     _rate_limiter.check(_client_key(request, owner_wallet, "feedback"), limit=10)
     result = await service.create_feedback(
@@ -85,14 +92,15 @@ async def submit_feedback(
         client_ip=request.client.host if request.client else None,
         user_agent=request.headers.get("user-agent"),
     )
+    response = _service_result_to_dict(result)
     await gw_analytics.emit_feedback_submitted(
         owner_wallet or "anonymous",
-        feedback_id=result["feedbackId"],
+        feedback_id=response["feedbackId"],
         source=payload.source,
         sentiment=payload.sentiment,
         route=payload.route,
     )
-    return result
+    return JSONResponse(content=response)
 
 
 @router.get("/forum/topics")
@@ -103,14 +111,15 @@ async def list_forum_topics(
     category: str | None = Query(default=None),
     q: str | None = Query(default=None),
     sort: str = Query(default="latest"),
-) -> dict[str, Any]:
-    return await service.list_topics(
+) -> JSONResponse:
+    result = await service.list_topics(
         page=page,
         page_size=page_size,
         category=category,
         q=q,
         sort="top" if sort == "top" else "latest",
     )
+    return JSONResponse(content=_service_result_to_dict(result))
 
 
 @router.post("/forum/topics")
@@ -120,24 +129,26 @@ async def create_forum_topic(
     service: Annotated[FeedbackForumService, Depends(get_community_service)],
     authorization: AuthorizationHeader = None,
     x_user_address: UserAddressHeader = None,
-) -> dict[str, Any]:
+) -> JSONResponse:
     owner_wallet = _require_owner_wallet(authorization, x_user_address)
     _rate_limiter.check(_client_key(request, owner_wallet, "forum_topic"), limit=5)
     result = await service.create_topic(payload.model_dump(), owner_wallet=owner_wallet)
+    response = _service_result_to_dict(result)
     await gw_analytics.emit_forum_topic_created(
         owner_wallet,
-        topic_id=result["topic"]["topicId"],
-        category=result["topic"]["category"],
+        topic_id=response["topic"]["topicId"],
+        category=response["topic"]["category"],
     )
-    return result
+    return JSONResponse(content=response)
 
 
 @router.get("/forum/topics/{topic_id}")
 async def get_forum_topic(
     topic_id: str,
     service: Annotated[FeedbackForumService, Depends(get_community_service)],
-) -> dict[str, Any]:
-    return await service.get_topic(topic_id)
+) -> JSONResponse:
+    result = await service.get_topic(topic_id)
+    return JSONResponse(content=_service_result_to_dict(result))
 
 
 @router.post("/forum/topics/{topic_id}/replies")
@@ -148,16 +159,17 @@ async def create_forum_reply(
     service: Annotated[FeedbackForumService, Depends(get_community_service)],
     authorization: AuthorizationHeader = None,
     x_user_address: UserAddressHeader = None,
-) -> dict[str, Any]:
+) -> JSONResponse:
     owner_wallet = _require_owner_wallet(authorization, x_user_address)
     _rate_limiter.check(_client_key(request, owner_wallet, "forum_reply"), limit=20)
     result = await service.create_reply(topic_id, payload.model_dump(), owner_wallet=owner_wallet)
+    response = _service_result_to_dict(result)
     await gw_analytics.emit_forum_reply_created(
         owner_wallet,
         topic_id=topic_id,
-        reply_id=result["reply"]["replyId"],
+        reply_id=response["reply"]["replyId"],
     )
-    return result
+    return JSONResponse(content=response)
 
 
 @router.post("/forum/topics/{topic_id}/resolve")
@@ -166,8 +178,8 @@ async def resolve_forum_topic(
     service: Annotated[FeedbackForumService, Depends(get_community_service)],
     authorization: AuthorizationHeader = None,
     x_user_address: UserAddressHeader = None,
-) -> dict[str, Any]:
+) -> JSONResponse:
     owner_wallet = _require_owner_wallet(authorization, x_user_address)
     result = await service.resolve_topic(topic_id, owner_wallet=owner_wallet)
     await gw_analytics.emit_forum_topic_resolved(owner_wallet, topic_id=topic_id)
-    return result
+    return JSONResponse(content=_service_result_to_dict(result))

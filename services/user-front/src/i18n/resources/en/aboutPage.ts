@@ -3,7 +3,8 @@ import type { I18nMessages } from "@/i18n/schema";
 const aboutPage: I18nMessages["aboutPage"] = {
   eyebrow: "About SynapseNetwork",
   title: "The settlement layer for the agent economy.",
-  description: "Collateral on-chain. Usage off-chain. Settlement with receipts.",
+  description:
+    "Collateral on-chain. Usage off-chain. Settlement with receipts.",
   primaryCta: "Explore marketplace",
   secondaryCta: "Read the docs",
   xCta: "Follow on X",
@@ -17,12 +18,22 @@ const aboutPage: I18nMessages["aboutPage"] = {
   collateralLabel: "USDC Collateral",
   collateralDescription: "On-chain escrow",
   auditLabel: "Audit-ready receipts",
-  auditChecks: ["Tamper-proof logs", "Verifiable usage", "Deterministic settlement"],
-  providerTypes: ["LLM Provider|Model inference", "Data Provider|Real-time APIs", "Tool Provider|Functions & tools"],
+  auditChecks: [
+    "Tamper-proof logs",
+    "Verifiable usage",
+    "Deterministic settlement",
+  ],
+  providerTypes: [
+    "LLM Provider|Model inference",
+    "Data Provider|Real-time APIs",
+    "Tool Provider|Functions & tools",
+  ],
   heroSignal: "Agent commerce is becoming machine-speed.",
-  heroSignalDetail: "Payments need to be just as fast, programmable, and reconcilable.",
+  heroSignalDetail:
+    "Payments need to be just as fast, programmable, and reconcilable.",
   protocolLabel: "How it works",
-  protocolTitle: "Collateral on-chain. Usage off-chain. Settlement with receipts.",
+  protocolTitle:
+    "Collateral on-chain. Usage off-chain. Settlement with receipts.",
   protocolDescription:
     "The network keeps expensive blockchain actions at the edges while every API call remains priced, metered, and traceable.",
   protocolSteps: [
@@ -32,7 +43,8 @@ const aboutPage: I18nMessages["aboutPage"] = {
     "Providers withdraw with signed tickets and on-chain finality.",
   ],
   thesisLabel: "Infrastructure thesis",
-  thesisTitle: "AI agents need a payment rail built for tiny, frequent, verifiable work.",
+  thesisTitle:
+    "AI agents need a payment rail built for tiny, frequent, verifiable work.",
   thesisDescription:
     "Credit cards and manual invoicing were built for humans. Smart contracts alone are too slow and expensive for every micro-call. SynapseNetwork joins both worlds without making builders choose.",
   thesisItems: [

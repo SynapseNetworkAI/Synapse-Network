@@ -82,7 +82,9 @@ export function startLocalLlmFixtureServer() {
       res.end(
         JSON.stringify({
           id: "missing-usage",
-          choices: [{ message: { role: "assistant", content: "missing usage" } }],
+          choices: [
+            { message: { role: "assistant", content: "missing usage" } },
+          ],
         })
       );
       return;
@@ -97,7 +99,9 @@ export function startLocalLlmFixtureServer() {
         JSON.stringify({
           id: "slow-success",
           model: "fixture/deepseek-chat",
-          choices: [{ message: { role: "assistant", content: "slow success" } }],
+          choices: [
+            { message: { role: "assistant", content: "slow success" } },
+          ],
           usage: {
             prompt_tokens: inputTokens,
             completion_tokens: outputTokens,
@@ -124,7 +128,10 @@ export function startLocalLlmFixtureServer() {
   });
 }
 
-export async function registerLocalLlmService(ctx, { scenario, targetUrl, timeoutMs }) {
+export async function registerLocalLlmService(
+  ctx,
+  { scenario, targetUrl, timeoutMs }
+) {
   const {
     addCheck,
     addTrace,
@@ -145,14 +152,17 @@ export async function registerLocalLlmService(ctx, { scenario, targetUrl, timeou
     targetUrl,
     timeoutMs,
   });
-  const result = await timedJsonFetch(`${config.gatewayBaseUrl}/api/v1/services`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${localProviderJwt()}`,
-      "X-User-Address": config.localProviderWallet,
-    },
-    body: JSON.stringify(body),
-  });
+  const result = await timedJsonFetch(
+    `${config.gatewayBaseUrl}/api/v1/services`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${localProviderJwt()}`,
+        "X-User-Address": config.localProviderWallet,
+      },
+      body: JSON.stringify(body),
+    }
+  );
   const serviceId =
     result.json?.serviceId || result.json?.service?.serviceId || serviceKey;
   addTrace({
@@ -168,8 +178,14 @@ export async function registerLocalLlmService(ctx, { scenario, targetUrl, timeou
   addCheck(
     `register_${scenario}_service`,
     result.ok && Boolean(serviceId),
-    { status: result.status, serviceId, probeStatus: result.json?.service?.probeStatus },
-    `Local LLM fixture service registration failed: status=${result.status} body=${result.text.slice(0, 1200)}`
+    {
+      status: result.status,
+      serviceId,
+      probeStatus: result.json?.service?.probeStatus,
+    },
+    `Local LLM fixture service registration failed: status=${
+      result.status
+    } body=${result.text.slice(0, 1200)}`
   );
   return serviceId;
 }
@@ -282,7 +298,12 @@ function localLlmServiceBody({
     summary: `Local LLM failure-path fixture for ${scenario}`,
     tags: ["e2e", "llm", "failure-path"],
     auth: { type: "gateway_signed" },
-    constraints: { timeoutMs, maxQps: 10, maxRequestBytes: 65536, maxResponseBytes: 65536 },
+    constraints: {
+      timeoutMs,
+      maxQps: 10,
+      maxRequestBytes: 65536,
+      maxResponseBytes: 65536,
+    },
     forwarding: { requestIdHeader: "X-Synapse-Request-Id" },
     invoke: {
       method: "POST",
@@ -329,7 +350,8 @@ async function invokeLlmFixture(ctx, params) {
     timedJsonFetch,
     validateBilling,
   } = ctx;
-  const { serviceId, scenario, expectedOk, expectedStatus, expectedCode } = params;
+  const { serviceId, scenario, expectedOk, expectedStatus, expectedCode } =
+    params;
   const idempotencyKey = `${runId}-${scenario}-001`;
   const ownerWallet = credentialOwnerWallet();
   const before = consumerBalanceSnapshot(ownerWallet);
@@ -345,19 +367,23 @@ async function invokeLlmFixture(ctx, params) {
       },
     },
   };
-  const result = await timedJsonFetch(`${config.gatewayBaseUrl}/api/v1/agent/invoke`, {
-    method: "POST",
-    headers: {
-      "X-Credential": config.credential,
-      "X-Request-Id": `${runId}:${scenario}`,
-    },
-    body: JSON.stringify(body),
-  });
+  const result = await timedJsonFetch(
+    `${config.gatewayBaseUrl}/api/v1/agent/invoke`,
+    {
+      method: "POST",
+      headers: {
+        "X-Credential": config.credential,
+        "X-Request-Id": `${runId}:${scenario}`,
+      },
+      body: JSON.stringify(body),
+    }
+  );
   const invocation = invocationByIdempotency(idempotencyKey);
   const after = consumerBalanceSnapshot(ownerWallet);
   const detail = result.json?.detail || result.json?.error || {};
   const errorCode = detail.code || invocation?.errorCode || "";
-  const chargedUsdc = invocation?.chargedUsdc || result.json?.chargedUsdc || "0.000000";
+  const chargedUsdc =
+    invocation?.chargedUsdc || result.json?.chargedUsdc || "0.000000";
   const failedNoCharge =
     !expectedOk &&
     result.status === expectedStatus &&
@@ -367,7 +393,8 @@ async function invokeLlmFixture(ctx, params) {
     String(chargedUsdc) === "0.000000" &&
     Number(invocation.billingStateCount || 0) === 0 &&
     sameBalanceSnapshot(before, after);
-  const success = expectedOk && result.ok && result.json?.status === "SUCCEEDED";
+  const success =
+    expectedOk && result.ok && result.json?.status === "SUCCEEDED";
   const billingEvidence = success
     ? validateBilling(result.json, {
         metering: {
@@ -376,7 +403,9 @@ async function invokeLlmFixture(ctx, params) {
         },
       })
     : null;
-  const ok = expectedOk ? Boolean(success && billingEvidence) : Boolean(failedNoCharge);
+  const ok = expectedOk
+    ? Boolean(success && billingEvidence)
+    : Boolean(failedNoCharge);
   const evidence = {
     scenario,
     serviceId,
@@ -388,7 +417,9 @@ async function invokeLlmFixture(ctx, params) {
     before,
     after,
     holdReleased: expectedOk ? undefined : sameBalanceSnapshot(before, after),
-    chargedUsdc: expectedOk ? result.json?.result?.synapse?.chargedUsdc : chargedUsdc,
+    chargedUsdc: expectedOk
+      ? result.json?.result?.synapse?.chargedUsdc
+      : chargedUsdc,
     providerRevenueUsdc: expectedOk
       ? result.json?.result?.synapse?.providerRevenueUsdc
       : "0.000000",
@@ -413,8 +444,12 @@ async function invokeLlmFixture(ctx, params) {
     ok,
     evidence,
     expectedOk
-      ? `Expected slow LLM fixture to charge successfully; status=${result.status} body=${result.text.slice(0, 1000)}`
-      : `Expected ${scenario} to release hold without charge; status=${result.status} code=${errorCode} invocation=${JSON.stringify(invocation)}`
+      ? `Expected slow LLM fixture to charge successfully; status=${
+          result.status
+        } body=${result.text.slice(0, 1000)}`
+      : `Expected ${scenario} to release hold without charge; status=${
+          result.status
+        } code=${errorCode} invocation=${JSON.stringify(invocation)}`
   );
   return evidence;
 }

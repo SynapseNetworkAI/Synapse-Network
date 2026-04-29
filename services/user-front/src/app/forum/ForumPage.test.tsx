@@ -8,20 +8,29 @@ import ForumPage from "@/app/forum/page";
 import { LanguageProvider } from "@/components/i18n/LanguageProvider";
 import { I18N_STORAGE_KEY } from "@/i18n/config";
 
-const { authSessionMock, listForumTopicsMock, createForumTopicMock } = vi.hoisted(() => ({
-  authSessionMock: vi.fn(),
-  listForumTopicsMock: vi.fn(),
-  createForumTopicMock: vi.fn(),
-}));
+const { authSessionMock, listForumTopicsMock, createForumTopicMock } =
+  vi.hoisted(() => ({
+    authSessionMock: vi.fn(),
+    listForumTopicsMock: vi.fn(),
+    createForumTopicMock: vi.fn(),
+  }));
 
 vi.mock("next/link", () => ({
-  default: ({ children, href, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) => (
-    <a href={href} {...props}>{children}</a>
+  default: ({
+    children,
+    href,
+    ...props
+  }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) => (
+    <a href={href} {...props}>
+      {children}
+    </a>
   ),
 }));
 
 vi.mock("@/utils/authSession", async () => {
-  const actual = await vi.importActual<typeof import("@/utils/authSession")>("@/utils/authSession");
+  const actual = await vi.importActual<typeof import("@/utils/authSession")>(
+    "@/utils/authSession"
+  );
   return {
     ...actual,
     getStoredAuthSession: () => authSessionMock(),
@@ -29,7 +38,9 @@ vi.mock("@/utils/authSession", async () => {
 });
 
 vi.mock("@/utils/communityApi", async () => {
-  const actual = await vi.importActual<typeof import("@/utils/communityApi")>("@/utils/communityApi");
+  const actual = await vi.importActual<typeof import("@/utils/communityApi")>(
+    "@/utils/communityApi"
+  );
   return {
     ...actual,
     listForumTopics: listForumTopicsMock,
@@ -62,7 +73,9 @@ function topic(overrides = {}) {
 }
 
 function renderForum() {
-  return render(createElement(LanguageProvider, null, createElement(ForumPage)));
+  return render(
+    createElement(LanguageProvider, null, createElement(ForumPage))
+  );
 }
 
 describe("ForumPage", () => {
@@ -81,12 +94,24 @@ describe("ForumPage", () => {
     listForumTopicsMock.mockResolvedValue({
       status: "success",
       categories: ["Questions", "Provider Services"],
-      pagination: { page: 1, pageSize: 10, total: 1, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+      pagination: {
+        page: 1,
+        pageSize: 10,
+        total: 1,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      },
       topics: [topic()],
     });
     createForumTopicMock.mockResolvedValue({
       status: "success",
-      topic: topic({ topicId: "topic_new", title: "SDK question", body: "How do I call invoke?", category: "SDKs" }),
+      topic: topic({
+        topicId: "topic_new",
+        title: "SDK question",
+        body: "How do I call invoke?",
+        category: "SDKs",
+      }),
     });
   });
 
@@ -94,16 +119,27 @@ describe("ForumPage", () => {
     const user = userEvent.setup();
     renderForum();
 
-    expect(await screen.findByRole("heading", { name: "Developer Forum" })).toBeTruthy();
-    expect(await screen.findByText("Provider service health checks are failing")).toBeTruthy();
-    expect(screen.queryByRole("dialog", { name: "Start a discussion" })).toBeNull();
+    expect(
+      await screen.findByRole("heading", { name: "Developer Forum" })
+    ).toBeTruthy();
+    expect(
+      await screen.findByText("Provider service health checks are failing")
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole("dialog", { name: "Start a discussion" })
+    ).toBeNull();
     expect(screen.queryByPlaceholderText("Title")).toBeNull();
 
     await user.click(screen.getByRole("button", { name: "New topic" }));
-    const dialog = await screen.findByRole("dialog", { name: "Start a discussion" });
+    const dialog = await screen.findByRole("dialog", {
+      name: "Start a discussion",
+    });
     expect(dialog).toBeTruthy();
     await user.type(screen.getByPlaceholderText("Title"), "SDK question");
-    await user.type(screen.getByPlaceholderText(/Describe the question/i), "How do I call invoke safely?");
+    await user.type(
+      screen.getByPlaceholderText(/Describe the question/i),
+      "How do I call invoke safely?"
+    );
     await user.click(screen.getByRole("button", { name: "Post topic" }));
 
     await waitFor(() => expect(createForumTopicMock).toHaveBeenCalledTimes(1));
@@ -111,7 +147,11 @@ describe("ForumPage", () => {
       title: "SDK question",
       body: "How do I call invoke safely?",
     });
-    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Start a discussion" })).toBeNull());
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: "Start a discussion" })
+      ).toBeNull()
+    );
     expect(await screen.findByText("SDK question")).toBeTruthy();
   });
 
@@ -120,14 +160,23 @@ describe("ForumPage", () => {
     authSessionMock.mockReturnValue(null);
     renderForum();
 
-    expect(await screen.findByRole("heading", { name: "Developer Forum" })).toBeTruthy();
+    expect(
+      await screen.findByRole("heading", { name: "Developer Forum" })
+    ).toBeTruthy();
     expect(screen.queryByPlaceholderText("Title")).toBeNull();
 
     await user.click(screen.getByRole("button", { name: "New topic" }));
 
-    expect(await screen.findByRole("dialog", { name: "Start a discussion" })).toBeTruthy();
-    expect(await screen.findByText("Connect wallet to post or reply.")).toBeTruthy();
-    expect((screen.getByRole("button", { name: "Post topic" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(
+      await screen.findByRole("dialog", { name: "Start a discussion" })
+    ).toBeTruthy();
+    expect(
+      await screen.findByText("Connect wallet to post or reply.")
+    ).toBeTruthy();
+    expect(
+      (screen.getByRole("button", { name: "Post topic" }) as HTMLButtonElement)
+        .disabled
+    ).toBe(true);
     expect(createForumTopicMock).not.toHaveBeenCalled();
   });
 
@@ -137,14 +186,30 @@ describe("ForumPage", () => {
       .mockResolvedValueOnce({
         status: "success",
         categories: ["Questions", "Provider Services"],
-        pagination: { page: 1, pageSize: 10, total: 21, totalPages: 3, hasNextPage: true, hasPreviousPage: false },
+        pagination: {
+          page: 1,
+          pageSize: 10,
+          total: 21,
+          totalPages: 3,
+          hasNextPage: true,
+          hasPreviousPage: false,
+        },
         topics: [topic({ topicId: "topic_page_1", title: "First page topic" })],
       })
       .mockResolvedValueOnce({
         status: "success",
         categories: ["Questions", "Provider Services"],
-        pagination: { page: 2, pageSize: 10, total: 21, totalPages: 3, hasNextPage: true, hasPreviousPage: true },
-        topics: [topic({ topicId: "topic_page_2", title: "Second page topic" })],
+        pagination: {
+          page: 2,
+          pageSize: 10,
+          total: 21,
+          totalPages: 3,
+          hasNextPage: true,
+          hasPreviousPage: true,
+        },
+        topics: [
+          topic({ topicId: "topic_page_2", title: "Second page topic" }),
+        ],
       });
 
     renderForum();
@@ -155,13 +220,15 @@ describe("ForumPage", () => {
 
     await user.click(screen.getByRole("button", { name: "Next" }));
 
-    await waitFor(() => expect(listForumTopicsMock).toHaveBeenLastCalledWith({
-      q: "",
-      category: undefined,
-      sort: "latest",
-      page: 2,
-      pageSize: 10,
-    }));
+    await waitFor(() =>
+      expect(listForumTopicsMock).toHaveBeenLastCalledWith({
+        q: "",
+        category: undefined,
+        sort: "latest",
+        page: 2,
+        pageSize: 10,
+      })
+    );
     expect(await screen.findByText("Second page topic")).toBeTruthy();
     expect(await screen.findByText("Showing 11-20 of 21 topics")).toBeTruthy();
     expect(screen.getByText("Page 2 of 3")).toBeTruthy();

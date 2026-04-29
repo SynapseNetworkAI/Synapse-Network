@@ -2,7 +2,8 @@ import type { I18nMessages } from "@/i18n/schema";
 
 const forumPage: I18nMessages["forumPage"] = {
   title: "Developer Forum",
-  description: "提问、反馈 bug、展示 Provider 服务，并和其他 Synapse builder 讨论 SDK 接入。",
+  description:
+    "提问、反馈 bug、展示 Provider 服务，并和其他 Synapse builder 讨论 SDK 接入。",
   newTopic: "发布帖子",
   searchPlaceholder: "搜索帖子、bug、SDK、服务...",
   searchAction: "搜索",
@@ -13,7 +14,15 @@ const forumPage: I18nMessages["forumPage"] = {
   previousPage: "上一页",
   nextPage: "下一页",
   allCategories: "全部分类",
-  categories: ["Announcements", "Questions", "Bugs", "Feature Requests", "Provider Services", "SDKs", "Showcase"],
+  categories: [
+    "Announcements",
+    "Questions",
+    "Bugs",
+    "Feature Requests",
+    "Provider Services",
+    "SDKs",
+    "Showcase",
+  ],
   replies: "回复",
   views: "浏览",
   activity: "活跃",
@@ -29,7 +38,8 @@ const forumPage: I18nMessages["forumPage"] = {
   createTitle: "发起讨论",
   topicTitleLabel: "标题",
   topicBodyLabel: "正文",
-  topicBodyPlaceholder: "描述你的问题、bug，或者想分享的服务。支持 Markdown；密钥会被过滤。",
+  topicBodyPlaceholder:
+    "描述你的问题、bug，或者想分享的服务。支持 Markdown；密钥会被过滤。",
   categoryLabel: "分类",
   postTopic: "发布帖子",
   cancelTopic: "取消",
