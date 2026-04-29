@@ -5,13 +5,19 @@ charge_consumer_and_record_usage_atomic.
 """
 from __future__ import annotations
 
+# quality-budget-disable-reason: type: ignore[attr-defined] because sibling mixins provide these members.
+
 import time
 from decimal import Decimal
 from typing import Any
 
 from src.domain.audit import AuditLogRow
-from src.domain.finance import ChargeConsumerUsageCommand, ConsumerChargeResult
-from src.domain.voucher import VoucherRedeemCommand
+from src.domain.finance import (
+    ChargeConsumerUsageCommand,
+    ConsumerChargeResult,
+    SettleConsumerHoldUsageCommand,
+)
+from src.domain.voucher import VoucherRedemptionResult
 from src.utils.datetime_utils import now_dt_str, to_dt_str
 
 
@@ -115,8 +121,6 @@ class FinanceAtomicVoucherMixin:
         before_balance: Decimal,
         after_balance: Decimal,
     ) -> Any:
-        from src.domain.voucher import VoucherRedemptionResult
-
         (
             redemption_id,
             voucher_code_id,
@@ -214,3 +218,93 @@ class FinanceAtomicVoucherMixin:
         return ConsumerChargeResult(
             consumerAvailableBalanceAfter=consumer_after
         )
+
+    def settle_consumer_llm_hold_atomic(
+        self,
+        command: SettleConsumerHoldUsageCommand,
+    ) -> ConsumerChargeResult:
+        """Atomically capture actual LLM usage from a pre-authorized consumer hold."""
+        now = int(time.time())
+        now_text = to_dt_str(now, now_dt_str())
+        owner = str(command.owner_wallet or "").strip().lower()
+        provider = str(command.provider_wallet or "").strip().lower()
+
+        hold_usdc = self._q6(command.hold_usdc)  # type: ignore[attr-defined]
+        total_charge = self._q6(command.total_charge)  # type: ignore[attr-defined]
+        provider_net = self._q6(command.provider_net)  # type: ignore[attr-defined]
+        platform_fee_total = self._q6(command.platform_fee_total)  # type: ignore[attr-defined]
+        if total_charge > hold_usdc:
+            raise RuntimeError("LLM_BILLING_HOLD_EXCEEDED")
+
+        with self._db.connect() as conn:  # type: ignore[attr-defined]
+            with conn.cursor() as cur:
+                self._assert_charge_not_restricted(cur, owner, provider, now)  # type: ignore[attr-defined]
+
+                consumer_available, consumer_pending, consumer_frozen = self._load_locked_balance_triplet(  # type: ignore[attr-defined]
+                    cur, owner, "consumer", now
+                )
+                if consumer_frozen < hold_usdc:
+                    raise RuntimeError("LLM_HOLD_FROZEN_BALANCE_INCONSISTENT")
+
+                provider_before = self._load_available_balance(cur, provider, "provider", now)  # type: ignore[attr-defined]
+                platform_before = self._load_available_balance(cur, "__platform__", "platform_fee", now)  # type: ignore[attr-defined]
+
+                consumer_after = self._q6(consumer_available + hold_usdc - total_charge)  # type: ignore[attr-defined]
+                consumer_frozen_after = self._q6(consumer_frozen - hold_usdc)  # type: ignore[attr-defined]
+                provider_after = self._q6(provider_before + provider_net)  # type: ignore[attr-defined]
+                platform_after = self._q6(platform_before + platform_fee_total)  # type: ignore[attr-defined]
+
+                self._upsert_balance_triplet(  # type: ignore[attr-defined]
+                    cur,
+                    owner,
+                    "consumer",
+                    consumer_after,
+                    consumer_pending,
+                    consumer_frozen_after,
+                    now_text,
+                )
+                self._set_available_balance(cur, provider, "provider", provider_after, now, now_text)  # type: ignore[attr-defined]
+                self._set_available_balance(  # type: ignore[attr-defined]
+                    cur, "__platform__", "platform_fee", platform_after, now, now_text
+                )
+
+                charge_command = ChargeConsumerUsageCommand(
+                    owner_wallet=command.owner_wallet,
+                    provider_wallet=command.provider_wallet,
+                    total_charge=total_charge,
+                    provider_net=provider_net,
+                    platform_fee_total=platform_fee_total,
+                    usage_row=command.usage_row,
+                    request_id=command.request_id,
+                    unit_price=command.unit_price,
+                    protocol_fee=command.protocol_fee,
+                    routing_tax=command.routing_tax,
+                    invocation=command.invocation,
+                )
+                invocation_id = (
+                    str(command.invocation.invocation_id or "").strip()
+                    if command.invocation is not None
+                    else str(command.usage_row.id or "").strip()
+                )
+                row = self._build_charge_usage_row(charge_command, invocation_id, owner, provider, now)  # type: ignore[attr-defined]
+                self._record_charge_facts(cur, charge_command, row, owner, provider, now_text)  # type: ignore[attr-defined]
+
+                self._append_finance_audit_row(  # type: ignore[attr-defined]
+                    cur,
+                    AuditLogRow(
+                        actionType="CONSUMER_LLM_HOLD_SETTLED_ATOMIC",
+                        businessType="charge",
+                        riskLevel="green",
+                        ownerAddress=owner,
+                        amountDelta=-total_charge,
+                        beforeBalance=consumer_available,
+                        afterBalance=consumer_after,
+                        resultStatus="SUCCEEDED",
+                        status="SUCCEEDED",
+                        requestId=row.request_id,
+                        message=f"provider={provider}; invocation={row.id}; hold={hold_usdc}",
+                    ),
+                )
+
+            conn.commit()
+        return ConsumerChargeResult(consumerAvailableBalanceAfter=consumer_after)

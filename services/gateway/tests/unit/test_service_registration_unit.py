@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from copy import deepcopy
 from decimal import Decimal
 from types import SimpleNamespace
 from typing import cast
@@ -9,9 +10,11 @@ import pytest
 
 from src.api.routers.services import RegisterServiceRequest
 from src.domain.finance import UsageLogRow
+from src.domain.service_contract import ServiceConstraintRecord, ServiceDefinitionRecord
 from src.domain.service_contract import ServiceHealthTargetRecord, ServiceRuntimeHealthRecord
-from src.domain.service_contract import ServiceDefinitionRecord
 from src.services.platform import service_health_service
+from src.services.owner.forwarding_validation import effective_service_constraints
+from src.services.provider.registry.payload_helpers import normalize_service_payload
 from src.services.provider.registry_service import RegistryService
 from src.storage.base import BaseStorage
 
@@ -111,6 +114,27 @@ def _service_payload(service_id: str | None) -> dict:
     }
 
 
+def _llm_service_payload(service_id: str = "svc_deepseek_chat") -> dict:
+    payload = deepcopy(_service_payload(service_id))
+    payload["serviceName"] = "DeepSeek Chat"
+    payload["serviceKind"] = "llm"
+    payload["priceModel"] = "token_metered"
+    payload["pricing"] = {
+        "amount": "0",
+        "currency": "USDC",
+        "priceModel": "token_metered",
+        "inputPricePer1MTokensUsdc": "0.140000",
+        "outputPricePer1MTokensUsdc": "0.280000",
+        "defaultMaxOutputTokens": 2048,
+        "holdBufferMultiplier": "1.2",
+        "maxAutoHoldUsdc": "1.000000",
+    }
+    payload["invoke"]["targets"] = [
+        {"url": "https://provider.test/provider-services/deepseek-chat/invoke", "weight": 100}
+    ]
+    return payload
+
+
 async def _healthy_probe(payload):
     fresh_ts = 4102444800000
     await asyncio.sleep(0)
@@ -145,6 +169,65 @@ def test_register_service_request_maps_agent_tool_name_to_service_id() -> None:
 
     assert request.serviceId == "famous_quotes_top3"
     assert request.model_dump()["serviceId"] == "famous_quotes_top3"
+
+
+def test_llm_service_defaults_to_bounded_llm_timeout() -> None:
+    payload = _llm_service_payload()
+    payload.pop("constraints")
+    payload["invoke"].pop("timeoutMs")
+
+    service = normalize_service_payload(payload, "0xabc")
+
+    assert service.constraints.timeout_ms == 120000
+    assert service.invoke.timeout_ms == 120000
+
+
+def test_register_service_request_applies_llm_timeout_defaults_before_validation() -> None:
+    payload = _llm_service_payload()
+    payload.pop("constraints")
+    payload["invoke"].pop("timeoutMs")
+
+    request = RegisterServiceRequest.model_validate(payload)
+
+    assert request.constraints.timeoutMs == 120000
+    assert request.invoke.timeoutMs == 120000
+
+
+def test_llm_service_allows_long_sync_timeout_with_hard_cap() -> None:
+    payload = _llm_service_payload()
+    payload["constraints"]["timeoutMs"] = 300000
+    payload["invoke"]["timeoutMs"] = 300000
+
+    service = normalize_service_payload(payload, "0xabc")
+
+    assert service.constraints.timeout_ms == 300000
+    assert service.invoke.timeout_ms == 300000
+
+
+def test_llm_service_rejects_zero_timeout_instead_of_unlimited_wait() -> None:
+    payload = _llm_service_payload()
+    payload["constraints"]["timeoutMs"] = 0
+
+    with pytest.raises(ValueError, match=r"constraints\.timeoutMs must be in"):
+        normalize_service_payload(payload, "0xabc")
+
+
+def test_api_service_rejects_llm_sized_timeout() -> None:
+    payload = _service_payload("svc_regular_api")
+    payload["constraints"]["timeoutMs"] = 120000
+    payload["invoke"]["timeoutMs"] = 120000
+
+    with pytest.raises(ValueError, match=r"constraints\.timeoutMs must be in"):
+        normalize_service_payload(payload, "0xabc")
+
+
+def test_runtime_clamps_stale_api_timeout_to_api_cap() -> None:
+    service = normalize_service_payload(
+        _service_payload("svc_regular_api"),
+        "0xabc",
+    ).model_copy(update={"constraints": ServiceConstraintRecord(timeoutMs=300000)})
+
+    assert effective_service_constraints(service).timeout_ms == 60000
 
 
 def test_register_service_request_keeps_provider_onboarding_fields() -> None:

@@ -339,20 +339,7 @@ def _charge_and_mark_usage_atomic(
 def _increment_credential_usage_once(
     storage: BaseStorage, credential_id: str
 ) -> Optional[RuntimeCredentialRecord]:
-    rows = credential_service.load_credential_rows(storage)
-    idx = credential_service.find_runtime_credential_index(rows, credential_id)
-    if idx < 0:
-        return None
-    updated_credential = credential_service.clone_runtime_credential(
-        rows[idx],
-        credential_service.CredentialPatch(
-            calls_used=int(rows[idx].metadata.calls_used or 0) + 1,
-        ),
-    )
-    updated_rows = list(rows)
-    updated_rows[idx] = updated_credential
-    credential_service.save_credential_rows(storage, updated_rows)
-    return updated_credential
+    return credential_service.increment_credential_usage(storage, credential_id, 1)
 
 
 async def _increment_credential_usage_with_retry(
@@ -416,17 +403,9 @@ async def _charge_and_mark_usage_fallback(
         ledger.updated_at = now
         storage.get_data_manager().finance.balance.write_balance_ledger(ledger)
 
-        rows = credential_service.load_credential_rows(storage)
-        idx = credential_service.find_runtime_credential_index(rows, credential_id)
-        if idx >= 0:
-            updated_credential = credential_service.clone_runtime_credential(
-                rows[idx],
-                credential_service.CredentialPatch(
-                    calls_used=int(rows[idx].metadata.calls_used or 0) + 1,
-                ),
-            )
-            rows[idx] = updated_credential
-            credential_service.save_credential_rows(storage, rows)
+        updated_credential = credential_service.increment_credential_usage(
+            storage, credential_id, 1
+        )
 
     return consumer_after, updated_credential
 
@@ -497,16 +476,8 @@ def _rollback_charge_once(
     if not updated_credential:
         return
 
-    rows = credential_service.load_credential_rows(storage)
-    idx = credential_service.find_runtime_credential_index(
-        rows, updated_credential.credential.credential_id
+    credential_service.decrement_credential_usage(
+        storage,
+        updated_credential.credential.credential_id,
+        1,
     )
-    if idx >= 0:
-        updated_rows = list(rows)
-        updated_rows[idx] = credential_service.clone_runtime_credential(
-            rows[idx],
-            credential_service.CredentialPatch(
-                calls_used=max(0, int(rows[idx].metadata.calls_used or 0) - 1),
-            ),
-        )
-        credential_service.save_credential_rows(storage, updated_rows)

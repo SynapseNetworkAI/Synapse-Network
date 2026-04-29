@@ -51,16 +51,16 @@ Synapse 的核心不是“给人手工点 API”，而是让 Agent 在受控预�
 
 ## 4. 核心表
 
-| 表 | 作用 |
-| --- | --- |
-| `synapse_service_manifests` | Service 的公开能力、价格和 schema 主体 |
-| `synapse_service_endpoints` | 真实上游 endpoint 和运行约束 |
-| `synapse_service_health_snapshots` | 健康度、延迟、成功率 |
-| `synapse_service_search_index` | discovery 检索索引 |
-| `synapse_service_quotes` | 报价、TTL、约束和价格锚点 |
-| `synapse_invocations` | 调用生命周期、状态和结果摘要 |
-| `synapse_budget_events` | reserve / capture / release 预算事件 |
-| `synapse_audit_events` | discover、invoke 过程中的关键审计事件 |
+| 表                                 | 作用                                   |
+| ---------------------------------- | -------------------------------------- |
+| `synapse_service_manifests`        | Service 的公开能力、价格和 schema 主体 |
+| `synapse_service_endpoints`        | 真实上游 endpoint 和运行约束           |
+| `synapse_service_health_snapshots` | 健康度、延迟、成功率                   |
+| `synapse_service_search_index`     | discovery 检索索引                     |
+| `synapse_service_quotes`           | 报价、TTL、约束和价格锚点              |
+| `synapse_invocations`              | 调用生命周期、状态和结果摘要           |
+| `synapse_budget_events`            | reserve / capture / release 预算事件   |
+| `synapse_audit_events`             | discover、invoke 过程中的关键审计事件  |
 
 ## 5. 主流程总览
 
@@ -221,6 +221,14 @@ Gateway 必须按成本从低到高执行：
 6. 已转发但超时的调用返回 `SERVICE_TIMEOUT`，继续走现有失败回滚和审计链路。
 7. 多 Gateway 实例下，Redis 可用时用全局 in-flight counter 兜底；Redis 不可用时退回本地保守并发并写入 degraded analytics 事件。
 
+同步 timeout profile 是计费安全边界的一部分：
+
+1. 普通 API service 只允许短同步窗口：默认 `15000ms`，最大 `60000ms`。
+2. `serviceKind=llm` 或 `priceModel=token_metered` 允许更长同步窗口：默认 `120000ms`，最大 `300000ms`。
+3. `timeoutMs=0` 禁止作为“不限超时”语义，因为它会制造无限 hold、连接池占用和 worker 饥饿。
+4. 超过 5 分钟的 LLM 任务必须升级为 async invocation，而不是继续拉长同步 HTTP。
+5. Postgres endpoint 约束上限是 `300000ms`，只是为了存储 LLM endpoint；Gateway runtime 仍会按 service profile 二次 clamp。
+
 自动摘流规则：
 
 1. `active + unhealthy` 不会被 Gateway 改写成 `inactive`。
@@ -320,9 +328,13 @@ result = client.invoke(svc.serviceId, {"topic": "resilience"}, cost_usdc=svc.pri
 ```typescript
 // TypeScript SDK
 const services = await client.discover();
-const result = await client.invoke(services[0].serviceId, { topic: "resilience" }, {
-  costUsdc: services[0].priceUsdc,
-});
+const result = await client.invoke(
+  services[0].serviceId,
+  { topic: "resilience" },
+  {
+    costUsdc: services[0].priceUsdc,
+  }
+);
 ```
 
 **为什么是精确断言而不是上限：**

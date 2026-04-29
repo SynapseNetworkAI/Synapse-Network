@@ -124,6 +124,24 @@ fi
 echo "[architecture-quality] running repo-specific finance shape scan"
 python3 "$ROOT_DIR/scripts/ci/code_quality_architecture_scan.py"
 
+echo "[architecture-quality] running source contract quality scan"
+python3 "$ROOT_DIR/scripts/ci/source_quality_checks.py"
+
+if rg -n "write_credential_rows|save_credential_rows" "$ROOT_DIR/services/gateway/src" >/tmp/synapse-credential-runtime-dangerous-writes.txt; then
+  cat >&2 <<'EOF'
+FATAL ARCH-CREDENTIAL-001: Forbidden credential full-list write path found.
+Why dangerous: runtime credential lifecycle must never replace or prune the full
+credential list because historical quotes, invocations, ledger rows, and audit
+evidence keep foreign keys to credential/profile rows.
+Agent fix: use create_runtime_credential, rotate_runtime_credential,
+revoke_runtime_credential, update_runtime_credential_policy,
+update_runtime_credential_metadata, increment_credential_usage, or
+decrement_credential_usage.
+EOF
+  cat >&2 /tmp/synapse-credential-runtime-dangerous-writes.txt
+  exit 1
+fi
+
 if [[ ${#QUALITY_FILES[@]} -gt 1 ]]; then
   echo "[architecture-quality] running JSCPD on ${#QUALITY_FILES[@]} changed code file(s)"
   "${JSCPD_CMD[@]}" --config "$ROOT_DIR/.jscpd.json" "${QUALITY_FILES[@]}" || {

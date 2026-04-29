@@ -5,35 +5,17 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 
 import pytest
+from fastapi import HTTPException
 
 from src.api.schemas.pydantic_models import (
     CredentialIssueRequest,
     CredentialQuotaUpdateRequest,
 )
-from src.core.common import normalize_wallet
 from src.domain.identity import RuntimeCredentialRecord
-from src.domain.runtime_state import AuthSessionState, WalletRoleState
 from src.services.platform import credential_service
 from src.services.provider import secret_service
 from src.utils.datetime_utils import to_dt_str
-
-
-class InMemoryCredentialAuthRepository:
-    def __init__(self) -> None:
-        self._credential_rows = {"agent": [], "provider": []}
-        self._auth_sessions: dict[str, AuthSessionState] = {}
-
-    def read_credential_rows(self, credential_type: str):
-        return list(self._credential_rows.get(credential_type, []))
-
-    def write_credential_rows(self, credential_type: str, rows):
-        self._credential_rows[credential_type] = list(rows)
-
-    def read_auth_session(self, wallet: str):
-        return self._auth_sessions.get(normalize_wallet(wallet))
-
-    def save_auth_session(self, row: AuthSessionState):
-        self._auth_sessions[normalize_wallet(row.wallet_address)] = row
+from tests.unit.credential_auth_test_helper import InMemoryCredentialAuthRepository
 
 
 class InMemoryAuditRepository:
@@ -110,6 +92,80 @@ def test_agent_credential_service_uses_runtime_models() -> None:
     )
     assert revoked["credential"]["status"] == "revoked"
     assert len(storage.audit_logs.rows) == 3
+
+
+def test_credential_service_response_keeps_mapping_compatibility() -> None:
+    response = credential_service.CredentialServiceResponse(
+        {"status": "success", "credential": {"id": "agent-123"}}
+    )
+
+    assert response["status"] == "success"
+    assert list(response) == ["status", "credential"]
+    assert len(response) == 2
+    assert response.get("missing", "fallback") == "fallback"
+
+    payload = response.to_response_dict()
+    payload["status"] = "changed"
+    assert response["status"] == "success"
+
+
+def test_runtime_credential_single_row_wrappers_delegate_to_repository() -> None:
+    storage = FakeStorage()
+
+    issued = asyncio.run(
+        credential_service.issue_credential_for_owner(
+            storage,
+            "0xABC",
+            CredentialIssueRequest(name="Wrapper Agent", maxCalls=3, rpm=5),
+        )
+    )
+    credential_id = issued["credential"]["id"]
+    record = credential_service.load_credential_rows(storage)[0]
+
+    created = credential_service.create_runtime_credential(storage, record)
+    assert created.credential.credential_id == credential_id
+
+    assert credential_service.rotate_runtime_credential(
+        storage,
+        credential_id,
+        "0xabc",
+        "new-hash",
+        "agt_new",
+        1_777_303_539,
+    )
+    rotated = credential_service.load_credential_rows(storage)[0]
+    assert rotated.credential.secret_hash == "new-hash"
+    assert rotated.credential.secret_prefix == "agt_new"
+
+    policy_record = credential_service.clone_runtime_credential(
+        rotated, credential_service.CredentialPatch(rpm=11)
+    )
+    updated_policy = credential_service.update_runtime_credential_policy(
+        storage, policy_record
+    )
+    assert updated_policy.policy.rpm_limit == 11
+
+    metadata_record = credential_service.clone_runtime_credential(
+        updated_policy, credential_service.CredentialPatch(max_calls=9)
+    )
+    updated_metadata = credential_service.update_runtime_credential_metadata(
+        storage, metadata_record
+    )
+    assert updated_metadata.metadata.max_calls == 9
+
+    incremented = credential_service.increment_credential_usage(storage, credential_id, 3)
+    assert incremented is not None
+    assert incremented.metadata.calls_used == 3
+
+    decremented = credential_service.decrement_credential_usage(storage, credential_id, 2)
+    assert decremented is not None
+    assert decremented.metadata.calls_used == 1
+
+    assert credential_service.revoke_runtime_credential(
+        storage, credential_id, "0xabc", 1_777_303_600
+    )
+    revoked = credential_service.load_credential_rows(storage)[0]
+    assert revoked.credential.status == "revoked"
 
 
 def test_agent_credential_datetime_round_trip_treats_naive_strings_as_utc() -> None:
@@ -237,7 +293,51 @@ def test_rotate_credential_for_owner_reactivates_revoked_record_in_place() -> No
     assert rows[0].credential.revoked_at is None
 
 
-def test_delete_credential_for_owner_removes_runtime_record() -> None:
+def test_issue_credential_for_owner_rejects_sixth_active_agent() -> None:
+    storage = FakeStorage()
+
+    for index in range(5):
+        issued = asyncio.run(
+            credential_service.issue_credential_for_owner(
+                storage,
+                "0xABC",
+                CredentialIssueRequest(name=f"Agent {index + 1}"),
+            )
+        )
+        assert issued["status"] == "success"
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(
+            credential_service.issue_credential_for_owner(
+                storage,
+                "0xabc",
+                CredentialIssueRequest(name="Agent 6"),
+            )
+        )
+
+    err = exc_info.value
+    assert getattr(err, "status_code", None) == 409
+    assert getattr(err, "detail", {}).get("code") == "AGENT_CREDENTIAL_LIMIT_REACHED"
+    assert len(credential_service.load_credential_rows(storage)) == 5
+
+    asyncio.run(
+        credential_service.delete_credential_for_owner(
+            storage,
+            "0xabc",
+            issued["credential"]["id"],
+        )
+    )
+    replacement = asyncio.run(
+        credential_service.issue_credential_for_owner(
+            storage,
+            "0xabc",
+            CredentialIssueRequest(name="Replacement Agent"),
+        )
+    )
+    assert replacement["status"] == "success"
+
+
+def test_delete_credential_for_owner_revokes_runtime_record() -> None:
     storage = FakeStorage()
 
     issued = asyncio.run(
@@ -258,10 +358,12 @@ def test_delete_credential_for_owner_removes_runtime_record() -> None:
         )
     )
 
-    rows = credential_service.load_credential_rows(storage)
     assert deleted["credential"]["id"] == credential_id
     assert deleted["credential"]["name"] == "Delete Me"
-    assert rows == []
+    assert deleted["credential"]["status"] == "revoked"
+    rows = credential_service.load_credential_rows(storage)
+    assert [row.credential.credential_id for row in rows] == [credential_id]
+    assert rows[0].credential.status == "revoked"
     assert storage.audit_logs.rows[-1].action == "CREDENTIAL_DELETED"
 
 

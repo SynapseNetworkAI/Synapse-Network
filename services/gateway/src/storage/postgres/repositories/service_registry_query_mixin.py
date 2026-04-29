@@ -1,4 +1,5 @@
 """Service registry repository — provider payout, persist, query, and health mixin."""
+# ruff: noqa: S608  # reason: dynamic registry filters use controlled fragments with parameterized values
 from __future__ import annotations
 
 import json
@@ -7,20 +8,17 @@ from typing import Any, List
 
 from src.domain.service_contract import (
     ServiceAuthRecord,
-    ServiceConstraintRecord,
     ServiceDefinitionRecord,
-    ServiceEndpointRecord,
     ServiceForwardingRecord,
     ServiceHealthCheckRecord,
-    ServiceInvokeConfigRecord,
-    ServiceInvokeTargetRecord,
     ServiceMeteringRecord,
-    ServiceRequestSpecRecord,
-    ServiceResponseSpecRecord,
-    ServiceSearchIndexRecord,
 )
 from src.domain.registry import ServiceTargetHealth, ServiceTargetHealthHistory
 from src.utils.datetime_utils import now_dt_str, to_dt_str
+
+SERVICE_DEFINITION_ROW_COLUMNS = 19
+HEALTHY_SCORE_THRESHOLD = 80
+
 
 class ServiceRegistryQueryMixin:
     """Provider payout, search index, service definition, and health row operations."""
@@ -127,7 +125,7 @@ class ServiceRegistryQueryMixin:
         )
 
     def _build_service_definition(self, row: tuple[object, ...]) -> ServiceDefinitionRecord | None:
-        if len(row) != 18:
+        if len(row) != SERVICE_DEFINITION_ROW_COLUMNS:
             return None
 
         (
@@ -140,6 +138,7 @@ class ServiceRegistryQueryMixin:
             is_active,
             pricing_amount,
             pricing_currency,
+            price_model,
             timeout_ms,
             tags_json,
             created_at,
@@ -191,6 +190,8 @@ class ServiceRegistryQueryMixin:
             ),
             pricingAmount=pricing_amount,
             pricingCurrency=str(pricing_currency or "USDC"),
+            priceModel=str(metadata.get("priceModel") or price_model or "fixed"),
+            serviceKind=str(metadata.get("serviceKind") or "api"),
             constraints=constraints,
             id=str(metadata.get("id") or endpoint_id or "") or None,
             schemaVersion=metadata.get("schemaVersion"),
@@ -231,6 +232,7 @@ class ServiceRegistryQueryMixin:
                     (sm.status = 'active'),
                     sm.base_price_usdc,
                     sm.settlement_currency,
+                    sm.price_model,
                     ep.timeout_ms,
                     si.tags_json,
                     sm.created_at,
@@ -364,7 +366,14 @@ class ServiceRegistryQueryMixin:
                     targetUrl=target_url,
                     weight=payload.get("weight"),
                     region=payload.get("region"),
-                    status=str(payload.get("status") or ("healthy" if int(health_score or 0) >= 80 else "unhealthy")),
+                    status=str(
+                        payload.get("status")
+                        or (
+                            "healthy"
+                            if int(health_score or 0) >= HEALTHY_SCORE_THRESHOLD
+                            else "unhealthy"
+                        )
+                    ),
                     overallStatus=payload.get("overallStatus"),
                     httpStatus=payload.get("httpStatus"),
                     latencyMs=latency_ms,
@@ -489,8 +498,32 @@ class ServiceRegistryQueryMixin:
             grouped[service_id].append(payload)
 
         with self._db.tx_cursor() as cur:
-            cur.execute("DELETE FROM synapse_runtime_state WHERE state_key LIKE 'service_health_history::%%'")
-            for service_id, payload_rows in grouped.items():
+            # Health history is maintained by multiple Cloud Run instances/jobs.
+            # Serialize rewrites to avoid DELETE/UPSERT deadlocks on runtime_state.
+            cur.execute(
+                "SELECT pg_advisory_xact_lock(hashtext(%s))",
+                ("synapse_runtime_state:service_health_history",),
+            )
+            if not grouped:
+                cur.execute(
+                    "DELETE FROM synapse_runtime_state "
+                    "WHERE state_key LIKE 'service_health_history::%%'"
+                )
+                return
+
+            state_keys = [
+                self._history_state_key(service_id)
+                for service_id in sorted(grouped)
+            ]
+            placeholders = self._scalar_not_in_clause(len(state_keys))
+            cur.execute(
+                "DELETE FROM synapse_runtime_state "
+                "WHERE state_key LIKE 'service_health_history::%%' "
+                f"AND state_key NOT IN ({placeholders})",
+                tuple(state_keys),
+            )
+            for service_id in sorted(grouped):
+                payload_rows = grouped[service_id]
                 self._upsert_runtime_state(
                     cur,
                     self._history_state_key(service_id),

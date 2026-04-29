@@ -6,9 +6,14 @@ from uuid import uuid4
 
 from fastapi import HTTPException
 
-from src.api.schemas.pydantic_models import CredentialIssueRequest, CredentialQuotaUpdateRequest, CredentialUpdateRequest
-from src.domain.identity import CredentialPatch
+from src.api.schemas.pydantic_models import (
+    CredentialIssueRequest,
+    CredentialQuotaUpdateRequest,
+    CredentialUpdateRequest,
+)
+from src.domain.identity import CredentialPatch, RuntimeCredentialRecord
 from src.services.platform.credential_service import (
+    CredentialServiceResponse,
     CredentialRuntimeSeed,
     _build_credential_response,
     append_audit_log,
@@ -23,11 +28,24 @@ from src.services.platform.credential_service import (
     now_ts,
     resolve_reset_interval,
     resolve_ttl_seconds,
-    save_credential_rows,
     token_prefix,
     write_lock,
 )
 from src.storage import BaseStorage
+
+MAX_AGENT_CREDENTIALS_PER_OWNER = 5
+
+
+def _owner_agent_credential_count(
+    rows: list[RuntimeCredentialRecord], owner_wallet: str
+) -> int:
+    return sum(
+        1
+        for row in rows
+        if credential_owner_wallet(row) == owner_wallet
+        and str(row.credential.status or "") == "active"
+    )
+
 
 def _validate_issue_request(
     req: CredentialIssueRequest, now: int
@@ -72,9 +90,19 @@ def _validate_issue_request(
     return max_calls, rpm, credit_limit, reset_interval, expiration, expires_at
 
 
+def _raise_write_conflict() -> None:
+    raise HTTPException(
+        status_code=409,
+        detail={
+            "code": "CREDENTIAL_UPDATE_CONFLICT",
+            "message": "Credential changed concurrently; refresh and retry.",
+        },
+    )
+
+
 async def issue_credential_for_owner(
     storage: BaseStorage, owner_wallet: str, req: CredentialIssueRequest
-) -> dict[str, Any]:
+) -> CredentialServiceResponse:
     now = now_ts()
     now_str = now_dt_str()
     max_calls, rpm, credit_limit, reset_interval, expiration, expires_at = (
@@ -106,8 +134,21 @@ async def issue_credential_for_owner(
 
     async with write_lock:
         rows = load_credential_rows(storage)
-        rows.append(record)
-        save_credential_rows(storage, rows)
+        if (
+            _owner_agent_credential_count(rows, owner_wallet)
+            >= MAX_AGENT_CREDENTIALS_PER_OWNER
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": "AGENT_CREDENTIAL_LIMIT_REACHED",
+                    "message": (
+                        f"Owner can create up to {MAX_AGENT_CREDENTIALS_PER_OWNER} "
+                        "agent credentials"
+                    ),
+                },
+            )
+        storage.get_data_manager().system.credential_auth.create_runtime_credential(record)
 
     response_payload = _build_credential_response(record)
     append_audit_log(
@@ -125,10 +166,12 @@ async def issue_credential_for_owner(
         },
     )
 
-    return {
-        "status": "success",
-        "credential": {**response_payload, "token": plain_token},
-    }
+    return CredentialServiceResponse(
+        {
+            "status": "success",
+            "credential": {**response_payload, "token": plain_token},
+        }
+    )
 
 
 async def revoke_credential_for_owner(
@@ -139,7 +182,7 @@ async def revoke_credential_for_owner(
     not_found_message: str = "Credential not found",
     forbidden_message: str = "Credential does not belong to current wallet",
     audit_action: str = "CREDENTIAL_REVOKED",
-) -> dict[str, Any]:
+) -> CredentialServiceResponse:
     now = now_ts()
 
     async with write_lock:
@@ -162,13 +205,19 @@ async def revoke_credential_for_owner(
             found,
             CredentialPatch(status="revoked", updated_at=now_dt_str(), revoked_at=now),
         )
-        rows[index] = updated
-        save_credential_rows(storage, rows)
+        if not storage.get_data_manager().system.credential_auth.revoke_runtime_credential(
+            credential_id,
+            owner_wallet,
+            now,
+        ):
+            _raise_write_conflict()
 
     append_audit_log(
         storage, audit_action, owner_wallet, {"credentialId": credential_id}
     )
-    return {"status": "success", "credential": _build_credential_response(updated)}
+    return CredentialServiceResponse(
+        {"status": "success", "credential": _build_credential_response(updated)}
+    )
 
 
 async def rotate_credential_for_owner(
@@ -176,10 +225,12 @@ async def rotate_credential_for_owner(
     owner_wallet: str,
     credential_id: str,
     audit_action: str = "CREDENTIAL_REGENERATED",
-) -> dict[str, Any]:
+) -> CredentialServiceResponse:
     now = now_ts()
     now_str = now_dt_str()
     plain_token = issue_token()
+    new_secret_hash = hash_token(plain_token)
+    new_secret_prefix = token_prefix(plain_token)
 
     async with write_lock:
         rows = load_credential_rows(storage)
@@ -206,16 +257,22 @@ async def rotate_credential_for_owner(
         updated = clone_runtime_credential(
             found,
             CredentialPatch(
-                secret_hash=hash_token(plain_token),
-                secret_prefix=token_prefix(plain_token),
+                secret_hash=new_secret_hash,
+                secret_prefix=new_secret_prefix,
                 status="active",
                 issued_at=now_str,
                 updated_at=now_str,
                 clear_revoked_at=True,
             ),
         )
-        rows[index] = updated
-        save_credential_rows(storage, rows)
+        if not storage.get_data_manager().system.credential_auth.rotate_runtime_credential(
+            credential_id,
+            owner_wallet,
+            new_secret_hash,
+            new_secret_prefix,
+            now,
+        ):
+            _raise_write_conflict()
 
     response_payload = _build_credential_response(updated)
     append_audit_log(
@@ -229,10 +286,12 @@ async def rotate_credential_for_owner(
             "expiresAt": response_payload["expiresAt"],
         },
     )
-    return {
-        "status": "success",
-        "credential": {**response_payload, "token": plain_token},
-    }
+    return CredentialServiceResponse(
+        {
+            "status": "success",
+            "credential": {**response_payload, "token": plain_token},
+        }
+    )
 
 
 async def delete_credential_for_owner(
@@ -240,7 +299,9 @@ async def delete_credential_for_owner(
     owner_wallet: str,
     credential_id: str,
     audit_action: str = "CREDENTIAL_DELETED",
-) -> dict[str, Any]:
+) -> CredentialServiceResponse:
+    now = now_ts()
+
     async with write_lock:
         rows = load_credential_rows(storage)
         index = find_runtime_credential_index(rows, credential_id)
@@ -263,9 +324,20 @@ async def delete_credential_for_owner(
                 },
             )
 
-        deleted_payload = _build_credential_response(found)
-        del rows[index]
-        save_credential_rows(storage, rows)
+        # Runtime credentials can be referenced by quotes, invocations, and audit rows.
+        # Deleting those rows breaks finance history and can violate FK constraints, so
+        # "delete from workspace" is implemented as a terminal revoke with delete audit.
+        updated = clone_runtime_credential(
+            found,
+            CredentialPatch(status="revoked", updated_at=now_dt_str(), revoked_at=now),
+        )
+        if not storage.get_data_manager().system.credential_auth.revoke_runtime_credential(
+            credential_id,
+            owner_wallet,
+            now,
+        ):
+            _raise_write_conflict()
+        deleted_payload = _build_credential_response(updated)
 
     append_audit_log(
         storage,
@@ -278,7 +350,7 @@ async def delete_credential_for_owner(
             "tokenPrefix": deleted_payload["tokenPrefix"],
         },
     )
-    return {"status": "success", "credential": deleted_payload}
+    return CredentialServiceResponse({"status": "success", "credential": deleted_payload})
 
 
 def _update_if_present(
@@ -329,7 +401,7 @@ async def update_credential_quota_for_owner(
     owner_wallet: str,
     credential_id: str,
     req: CredentialQuotaUpdateRequest,
-) -> dict[str, Any]:
+) -> CredentialServiceResponse:
     now = now_ts()
 
     async with write_lock:
@@ -365,8 +437,9 @@ async def update_credential_quota_for_owner(
         }.items():
             updated = _update_if_present(updated, field, value, now)
 
-        rows[index] = updated
-        save_credential_rows(storage, rows)
+        storage.get_data_manager().system.credential_auth.update_runtime_credential_policy(
+            updated
+        )
 
     append_audit_log(
         storage,
@@ -374,7 +447,9 @@ async def update_credential_quota_for_owner(
         owner_wallet,
         {"credentialId": credential_id},
     )
-    return {"status": "success", "credential": _build_credential_response(updated)}
+    return CredentialServiceResponse(
+        {"status": "success", "credential": _build_credential_response(updated)}
+    )
 
 
 async def update_credential_for_owner(
@@ -382,7 +457,7 @@ async def update_credential_for_owner(
     owner_wallet: str,
     credential_id: str,
     req: CredentialUpdateRequest,
-) -> dict[str, Any]:
+) -> CredentialServiceResponse:
     """Full credential update: name + all quota fields."""
     now = now_ts()
 
@@ -435,8 +510,12 @@ async def update_credential_for_owner(
                     }
                 )
 
-        rows[index] = updated
-        save_credential_rows(storage, rows)
+        storage.get_data_manager().system.credential_auth.update_runtime_credential_policy(
+            updated
+        )
+        storage.get_data_manager().system.credential_auth.update_runtime_credential_metadata(
+            updated
+        )
 
     append_audit_log(
         storage,
@@ -444,4 +523,6 @@ async def update_credential_for_owner(
         owner_wallet,
         {"credentialId": credential_id},
     )
-    return {"status": "success", "credential": _build_credential_response(updated)}
+    return CredentialServiceResponse(
+        {"status": "success", "credential": _build_credential_response(updated)}
+    )

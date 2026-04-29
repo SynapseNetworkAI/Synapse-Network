@@ -189,6 +189,28 @@ async def list_owner_services(context: RegistryContext, owner_wallet: str) -> li
         enriched["pricing"] = {
             "amount": str(svc.pricing_amount),
             "currency": svc.pricing_currency,
+            "priceModel": svc.price_model or "fixed",
+            "inputPricePer1MTokensUsdc": (
+                str(svc.metering.input_price_per_1m_tokens_usdc)
+                if svc.metering.input_price_per_1m_tokens_usdc is not None
+                else None
+            ),
+            "outputPricePer1MTokensUsdc": (
+                str(svc.metering.output_price_per_1m_tokens_usdc)
+                if svc.metering.output_price_per_1m_tokens_usdc is not None
+                else None
+            ),
+            "defaultMaxOutputTokens": svc.metering.default_max_output_tokens,
+            "holdBufferMultiplier": (
+                str(svc.metering.hold_buffer_multiplier)
+                if svc.metering.hold_buffer_multiplier is not None
+                else None
+            ),
+            "maxAutoHoldUsdc": (
+                str(svc.metering.max_auto_hold_usdc)
+                if svc.metering.max_auto_hold_usdc is not None
+                else None
+            ),
         }
         enriched["status"] = service_lifecycle_status(svc)
         enriched["health"] = service_health_service.public_health_summary(svc)

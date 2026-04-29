@@ -43,6 +43,7 @@ from src.domain.finance import (
     ChargeConsumerUsageCommand,
     ConsumerChargeResult,
     DepositAttemptRow,
+    SettleConsumerHoldUsageCommand,
 )
 from src.domain.ledger import DepositIntentRow
 from src.domain.voucher import VoucherRedeemCommand, VoucherRedemptionResult
@@ -426,6 +427,14 @@ class PostgresStorage(BaseStorage):
         command: ChargeConsumerUsageCommand,
     ) -> ConsumerChargeResult:
         return self._data_manager.finance.atomic.charge_consumer_and_record_usage_atomic(
+            command
+        )
+
+    def settle_consumer_llm_hold_atomic(
+        self,
+        command: SettleConsumerHoldUsageCommand,
+    ) -> ConsumerChargeResult:
+        return self._data_manager.finance.atomic.settle_consumer_llm_hold_atomic(
             command
         )
 
