@@ -94,6 +94,80 @@ def test_agent_credential_service_uses_runtime_models() -> None:
     assert len(storage.audit_logs.rows) == 3
 
 
+def test_credential_service_response_keeps_mapping_compatibility() -> None:
+    response = credential_service.CredentialServiceResponse(
+        {"status": "success", "credential": {"id": "agent-123"}}
+    )
+
+    assert response["status"] == "success"
+    assert list(response) == ["status", "credential"]
+    assert len(response) == 2
+    assert response.get("missing", "fallback") == "fallback"
+
+    payload = response.to_response_dict()
+    payload["status"] = "changed"
+    assert response["status"] == "success"
+
+
+def test_runtime_credential_single_row_wrappers_delegate_to_repository() -> None:
+    storage = FakeStorage()
+
+    issued = asyncio.run(
+        credential_service.issue_credential_for_owner(
+            storage,
+            "0xABC",
+            CredentialIssueRequest(name="Wrapper Agent", maxCalls=3, rpm=5),
+        )
+    )
+    credential_id = issued["credential"]["id"]
+    record = credential_service.load_credential_rows(storage)[0]
+
+    created = credential_service.create_runtime_credential(storage, record)
+    assert created.credential.credential_id == credential_id
+
+    assert credential_service.rotate_runtime_credential(
+        storage,
+        credential_id,
+        "0xabc",
+        "new-hash",
+        "agt_new",
+        1_777_303_539,
+    )
+    rotated = credential_service.load_credential_rows(storage)[0]
+    assert rotated.credential.secret_hash == "new-hash"
+    assert rotated.credential.secret_prefix == "agt_new"
+
+    policy_record = credential_service.clone_runtime_credential(
+        rotated, credential_service.CredentialPatch(rpm=11)
+    )
+    updated_policy = credential_service.update_runtime_credential_policy(
+        storage, policy_record
+    )
+    assert updated_policy.policy.rpm_limit == 11
+
+    metadata_record = credential_service.clone_runtime_credential(
+        updated_policy, credential_service.CredentialPatch(max_calls=9)
+    )
+    updated_metadata = credential_service.update_runtime_credential_metadata(
+        storage, metadata_record
+    )
+    assert updated_metadata.metadata.max_calls == 9
+
+    incremented = credential_service.increment_credential_usage(storage, credential_id, 3)
+    assert incremented is not None
+    assert incremented.metadata.calls_used == 3
+
+    decremented = credential_service.decrement_credential_usage(storage, credential_id, 2)
+    assert decremented is not None
+    assert decremented.metadata.calls_used == 1
+
+    assert credential_service.revoke_runtime_credential(
+        storage, credential_id, "0xabc", 1_777_303_600
+    )
+    revoked = credential_service.load_credential_rows(storage)[0]
+    assert revoked.credential.status == "revoked"
+
+
 def test_agent_credential_datetime_round_trip_treats_naive_strings_as_utc() -> None:
     if not hasattr(time, "tzset"):
         pytest.skip("tzset is not available on this platform")
