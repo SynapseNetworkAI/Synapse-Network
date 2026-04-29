@@ -5,12 +5,14 @@ from typing import Any, Callable
 
 from ..database_manager import DatabaseManager
 from .credential_auth_core_mixin import CredentialAuthCoreMixin
+from .credential_auth_email_mixin import CredentialAuthEmailMixin
 from .credential_auth_query_mixin import CredentialAuthQueryMixin
 from .credential_auth_runtime_mixin import CredentialAuthRuntimeMixin
 
 
 class CredentialAuthRepository(
     CredentialAuthCoreMixin,
+    CredentialAuthEmailMixin,
     CredentialAuthRuntimeMixin,
     CredentialAuthQueryMixin,
 ):

@@ -1,5 +1,8 @@
 import { buildAuthedHeaders, normalizeAuthApiError } from "@/utils/authSession";
-import { getGatewayBaseUrl, getGatewayBaseUrlCandidates } from "@/utils/gatewayApi";
+import {
+  getGatewayBaseUrl,
+  getGatewayBaseUrlCandidates,
+} from "@/utils/gatewayApi";
 
 function buildGatewayNetworkErrorMessage(fallback: string): string {
   return `${fallback}. Gateway unreachable at ${getGatewayBaseUrl()}. Start the gateway or set NEXT_PUBLIC_GATEWAY_BASE_URL in services/user-front/.env.local.`;
@@ -8,7 +11,7 @@ function buildGatewayNetworkErrorMessage(fallback: string): string {
 async function fetchAgentCredentialApi(
   path: string,
   init: RequestInit,
-  fallback: string,
+  fallback: string
 ): Promise<Response> {
   const baseCandidates = getGatewayBaseUrlCandidates();
   let lastError: unknown = null;
@@ -21,8 +24,13 @@ async function fetchAgentCredentialApi(
     }
   }
 
-  const reason = lastError instanceof Error && lastError.message ? ` ${lastError.message}` : "";
-  throw new Error(`${buildGatewayNetworkErrorMessage(fallback)}${reason}`.trim());
+  const reason =
+    lastError instanceof Error && lastError.message
+      ? ` ${lastError.message}`
+      : "";
+  throw new Error(
+    `${buildGatewayNetworkErrorMessage(fallback)}${reason}`.trim()
+  );
 }
 
 export type AgentCredentialRecord = {
@@ -66,16 +74,28 @@ export type AuditLogRecord = {
   details: Record<string, unknown>;
 };
 
-async function parseError(response: Response, fallback: string): Promise<string> {
+async function parseError(
+  response: Response,
+  fallback: string
+): Promise<string> {
   try {
     const text = await response.text();
     if (!text) return fallback;
-    const parsed = JSON.parse(text) as { detail?: { message?: string } | string; message?: string };
-    if (typeof parsed.detail === "string") return normalizeAuthApiError(parsed.detail, response.status);
-    if (parsed.detail && typeof parsed.detail === "object" && parsed.detail.message) {
+    const parsed = JSON.parse(text) as {
+      detail?: { message?: string } | string;
+      message?: string;
+    };
+    if (typeof parsed.detail === "string")
+      return normalizeAuthApiError(parsed.detail, response.status);
+    if (
+      parsed.detail &&
+      typeof parsed.detail === "object" &&
+      parsed.detail.message
+    ) {
       return normalizeAuthApiError(parsed.detail.message, response.status);
     }
-    if (parsed.message) return normalizeAuthApiError(parsed.message, response.status);
+    if (parsed.message)
+      return normalizeAuthApiError(parsed.message, response.status);
     return normalizeAuthApiError(text, response.status);
   } catch {
     return fallback;
@@ -102,20 +122,22 @@ export async function issueAgentCredential(
       headers: buildAuthedHeaders(userAddress),
       body: JSON.stringify(payload),
     },
-    "Failed to issue credential",
+    "Failed to issue credential"
   );
 
   if (!response.ok) {
     throw new Error(await parseError(response, "Failed to issue credential"));
   }
 
-  const data = (await response.json()) as { credential: AgentCredentialIssueResponse };
+  const data = (await response.json()) as {
+    credential: AgentCredentialIssueResponse;
+  };
   return data.credential;
 }
 
 export async function listAgentCredentials(
   userAddress: string,
-  options: { activeOnly?: boolean } = { activeOnly: true },
+  options: { activeOnly?: boolean } = { activeOnly: true }
 ): Promise<AgentCredentialRecord[]> {
   const query = options.activeOnly === false ? "" : "?active_only=true";
   const response = await fetchAgentCredentialApi(
@@ -124,25 +146,30 @@ export async function listAgentCredentials(
       method: "GET",
       headers: buildAuthedHeaders(userAddress, false),
     },
-    "Failed to list credentials",
+    "Failed to list credentials"
   );
 
   if (!response.ok) {
     throw new Error(await parseError(response, "Failed to list credentials"));
   }
 
-  const data = (await response.json()) as { credentials?: AgentCredentialRecord[] };
+  const data = (await response.json()) as {
+    credentials?: AgentCredentialRecord[];
+  };
   return Array.isArray(data.credentials) ? data.credentials : [];
 }
 
-export async function revokeAgentCredential(userAddress: string, credentialId: string): Promise<void> {
+export async function revokeAgentCredential(
+  userAddress: string,
+  credentialId: string
+): Promise<void> {
   const response = await fetchAgentCredentialApi(
     `/credentials/agent/${encodeURIComponent(credentialId)}/revoke`,
     {
       method: "POST",
       headers: buildAuthedHeaders(userAddress, false),
     },
-    "Failed to revoke credential",
+    "Failed to revoke credential"
   );
 
   if (!response.ok) {
@@ -152,7 +179,7 @@ export async function revokeAgentCredential(userAddress: string, credentialId: s
 
 export async function rotateAgentCredential(
   userAddress: string,
-  credentialId: string,
+  credentialId: string
 ): Promise<AgentCredentialIssueResponse> {
   const response = await fetchAgentCredentialApi(
     `/credentials/agent/${encodeURIComponent(credentialId)}/rotate`,
@@ -160,20 +187,22 @@ export async function rotateAgentCredential(
       method: "POST",
       headers: buildAuthedHeaders(userAddress, false),
     },
-    "Failed to rotate credential",
+    "Failed to rotate credential"
   );
 
   if (!response.ok) {
     throw new Error(await parseError(response, "Failed to rotate credential"));
   }
 
-  const data = (await response.json()) as { credential: AgentCredentialIssueResponse };
+  const data = (await response.json()) as {
+    credential: AgentCredentialIssueResponse;
+  };
   return data.credential;
 }
 
 export async function deleteAgentCredential(
   userAddress: string,
-  credentialId: string,
+  credentialId: string
 ): Promise<void> {
   const deletePath = `/credentials/agent/${encodeURIComponent(credentialId)}`;
   const headers = buildAuthedHeaders(userAddress, false);
@@ -183,7 +212,7 @@ export async function deleteAgentCredential(
       method: "DELETE",
       headers,
     },
-    "Failed to delete agent",
+    "Failed to delete agent"
   );
 
   if (response.status === 404 || response.status === 405) {
@@ -193,7 +222,7 @@ export async function deleteAgentCredential(
         method: "POST",
         headers,
       },
-      "Failed to delete agent",
+      "Failed to delete agent"
     );
   }
 
@@ -221,22 +250,27 @@ export async function updateAgentCredentialQuota(
       headers: buildAuthedHeaders(userAddress),
       body: JSON.stringify(payload),
     },
-    "Failed to update credential quota",
+    "Failed to update credential quota"
   );
 
   if (!response.ok) {
-    throw new Error(await parseError(response, "Failed to update credential quota"));
+    throw new Error(
+      await parseError(response, "Failed to update credential quota")
+    );
   }
 }
 
-export async function listAuditLogs(userAddress: string, limit: number = 100): Promise<AuditLogRecord[]> {
+export async function listAuditLogs(
+  userAddress: string,
+  limit: number = 100
+): Promise<AuditLogRecord[]> {
   const response = await fetchAgentCredentialApi(
     `/credentials/agent/audit-logs?limit=${encodeURIComponent(String(limit))}`,
     {
       method: "GET",
       headers: buildAuthedHeaders(userAddress, false),
     },
-    "Failed to list audit logs",
+    "Failed to list audit logs"
   );
 
   if (!response.ok) {

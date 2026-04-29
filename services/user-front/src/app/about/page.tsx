@@ -42,18 +42,39 @@ export default function AboutPage() {
     <main className="min-h-[calc(100vh-60px)] overflow-hidden bg-[#020403] text-white">
       <style jsx global>{`
         @keyframes synapseRail {
-          0% { transform: translateX(0); opacity: 0; }
-          12% { opacity: 0.85; }
-          72% { opacity: 0.85; }
-          100% { transform: translateX(620px); opacity: 0; }
+          0% {
+            transform: translateX(0);
+            opacity: 0;
+          }
+          12% {
+            opacity: 0.85;
+          }
+          72% {
+            opacity: 0.85;
+          }
+          100% {
+            transform: translateX(620px);
+            opacity: 0;
+          }
         }
         @keyframes aboutFlowDash {
-          0% { stroke-dashoffset: 0; }
-          100% { stroke-dashoffset: -88; }
+          0% {
+            stroke-dashoffset: 0;
+          }
+          100% {
+            stroke-dashoffset: -88;
+          }
         }
         @keyframes aboutGlowPulse {
-          0%, 100% { opacity: 0.48; transform: scale(0.98); }
-          50% { opacity: 0.9; transform: scale(1.02); }
+          0%,
+          100% {
+            opacity: 0.48;
+            transform: scale(0.98);
+          }
+          50% {
+            opacity: 0.9;
+            transform: scale(1.02);
+          }
         }
       `}</style>
       <section className="relative border-b border-white/10">
@@ -63,7 +84,9 @@ export default function AboutPage() {
 
         <div className="relative mx-auto grid min-h-[500px] max-w-[1536px] gap-8 px-5 py-8 sm:px-8 lg:grid-cols-[0.43fr_0.57fr] lg:px-16 lg:py-8">
           <div className="flex flex-col justify-center">
-            <p className="text-xs font-bold uppercase tracking-[0.32em] text-[#7ff7be]">{t("aboutPage.eyebrow")}</p>
+            <p className="text-xs font-bold uppercase tracking-[0.32em] text-[#7ff7be]">
+              {t("aboutPage.eyebrow")}
+            </p>
             <HeroTitle lang={lang} title={t("aboutPage.title")} />
             <p className="mt-5 max-w-2xl text-lg leading-8 text-white/62 md:text-xl">
               {t("aboutPage.description")}
@@ -101,13 +124,20 @@ export default function AboutPage() {
                 const icons = [Zap, CircleDollarSign, Network];
                 const Icon = icons[index] ?? Zap;
                 return (
-                  <div key={item} className="grid grid-cols-[42px_minmax(0,1fr)] gap-3 border-white/10 md:border-r md:pr-4 last:md:border-r-0">
+                  <div
+                    key={item}
+                    className="grid grid-cols-[42px_minmax(0,1fr)] gap-3 border-white/10 md:border-r md:pr-4 last:md:border-r-0"
+                  >
                     <div className="flex h-10 w-10 items-center justify-center rounded-full border border-[#7ff7be]/22 bg-[#7ff7be]/10 text-[#7ff7be]">
                       <Icon className="h-5 w-5" />
                     </div>
                     <div>
-                      <p className="text-sm font-bold leading-5 text-white">{title}</p>
-                      <p className="mt-1 text-xs leading-5 text-white/48">{body}</p>
+                      <p className="text-sm font-bold leading-5 text-white">
+                        {title}
+                      </p>
+                      <p className="mt-1 text-xs leading-5 text-white/48">
+                        {body}
+                      </p>
                     </div>
                   </div>
                 );
@@ -129,14 +159,19 @@ export default function AboutPage() {
 
       <section className="mx-auto max-w-[1536px] px-5 py-7 sm:px-8 lg:px-16">
         <div className="rounded-[10px] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.065),rgba(255,255,255,0.018))] p-6 shadow-[0_24px_90px_rgba(0,0,0,0.36)] backdrop-blur md:p-8 lg:grid lg:min-h-[198px] lg:grid-cols-[150px_minmax(0,1fr)] lg:items-center lg:gap-8">
-          <p className="text-xs font-bold uppercase tracking-[0.28em] text-[#7ff7be]">{t("aboutPage.protocolLabel")}</p>
+          <p className="text-xs font-bold uppercase tracking-[0.28em] text-[#7ff7be]">
+            {t("aboutPage.protocolLabel")}
+          </p>
           <div className="mt-8 grid gap-7 lg:mt-0 lg:grid-cols-3">
             {protocolSteps.slice(0, 3).map((step, index) => {
               const labels = ["Collateral", "Gateway", "Settlement"];
               const icons = [ShieldCheck, Zap, FileCheck2];
               const Icon = icons[index] ?? ShieldCheck;
               return (
-                <div key={step} className="relative grid grid-cols-[84px_minmax(0,1fr)] gap-5 lg:grid-cols-[96px_minmax(0,1fr)] lg:items-center">
+                <div
+                  key={step}
+                  className="relative grid grid-cols-[84px_minmax(0,1fr)] gap-5 lg:grid-cols-[96px_minmax(0,1fr)] lg:items-center"
+                >
                   {index < 2 ? (
                     <div className="absolute left-[118px] top-1/2 hidden h-px w-[calc(100%-92px)] -translate-y-1/2 bg-gradient-to-r from-[#7ff7be]/50 to-transparent lg:block" />
                   ) : null}
@@ -144,9 +179,15 @@ export default function AboutPage() {
                     <Icon className="h-9 w-9 lg:h-10 lg:w-10" />
                   </div>
                   <div>
-                    <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#7ff7be]">0{index + 1}</p>
-                    <h2 className="mt-3 text-2xl font-semibold tracking-[-0.04em]">{labels[index]}</h2>
-                    <p className="mt-3 max-w-sm text-sm leading-6 text-white/56">{step}</p>
+                    <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#7ff7be]">
+                      0{index + 1}
+                    </p>
+                    <h2 className="mt-3 text-2xl font-semibold tracking-[-0.04em]">
+                      {labels[index]}
+                    </h2>
+                    <p className="mt-3 max-w-sm text-sm leading-6 text-white/56">
+                      {step}
+                    </p>
                   </div>
                 </div>
               );
@@ -157,10 +198,14 @@ export default function AboutPage() {
 
       <section className="mx-auto grid max-w-[1536px] gap-12 px-5 py-14 sm:px-8 lg:grid-cols-[0.32fr_0.36fr_0.32fr] lg:px-16 lg:py-16">
         <div>
-          <h2 className="text-3xl font-semibold tracking-[-0.05em] md:text-4xl">{t("aboutPage.missionLabel")}</h2>
+          <h2 className="text-3xl font-semibold tracking-[-0.05em] md:text-4xl">
+            {t("aboutPage.missionLabel")}
+          </h2>
           <div className="mt-5 h-0.5 w-12 bg-[#7ff7be]" />
         </div>
-        <p className="text-xl leading-9 text-white/68">{t("aboutPage.missionBody")}</p>
+        <p className="text-xl leading-9 text-white/68">
+          {t("aboutPage.missionBody")}
+        </p>
         <div className="grid gap-6 sm:grid-cols-2">
           {values.map((item, index) => {
             const [title, body] = splitTitleBody(item);
@@ -181,13 +226,36 @@ export default function AboutPage() {
           <div className="flex items-center gap-3">
             <Network className="h-6 w-6 text-[#7ff7be]" />
             <span className="font-semibold text-white">SynapseNetwork</span>
-            <span className="hidden text-white/30 md:inline">© 2026 SynapseNetwork. All rights reserved.</span>
+            <span className="hidden text-white/30 md:inline">
+              © 2026 SynapseNetwork. All rights reserved.
+            </span>
           </div>
           <div className="flex flex-wrap items-center gap-6">
-            <Link href="/docs" className="transition hover:text-white">Docs</Link>
-            <Link href="/docs/api-reference" className="transition hover:text-white">API Reference</Link>
-            <a href="/forum" target="_blank" rel="noopener noreferrer" className="transition hover:text-white">Forum</a>
-            <a href={X_URL} target="_blank" rel="noreferrer" className="transition hover:text-white">X</a>
+            <Link href="/docs" className="transition hover:text-white">
+              Docs
+            </Link>
+            <Link
+              href="/docs/api-reference"
+              className="transition hover:text-white"
+            >
+              API Reference
+            </Link>
+            <a
+              href="/forum"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="transition hover:text-white"
+            >
+              Forum
+            </a>
+            <a
+              href={X_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="transition hover:text-white"
+            >
+              X
+            </a>
           </div>
         </div>
       </footer>
@@ -207,7 +275,9 @@ function HeroTitle({ lang, title }: { lang: string; title: string }) {
   return (
     <h1 className="mt-5 max-w-[680px] text-[clamp(2.45rem,2.72vw,2.92rem)] font-semibold leading-[1.18] tracking-[-0.055em]">
       <span className="block">The settlement layer</span>
-      <span className="block whitespace-nowrap">for the <span className="text-[#7ff7be]">agent economy.</span></span>
+      <span className="block whitespace-nowrap">
+        for the <span className="text-[#7ff7be]">agent economy.</span>
+      </span>
     </h1>
   );
 }
@@ -248,7 +318,12 @@ function HeroNetworkDiagram({
       <div className="absolute left-[34%] top-[31%] h-60 w-60 rounded-full bg-[#7ff7be]/10 blur-3xl motion-safe:animate-[aboutGlowPulse_4.8s_ease-in-out_infinite]" />
       <div className="absolute right-[18%] top-[25%] h-64 w-64 rounded-full bg-[#248cff]/12 blur-3xl motion-safe:animate-[aboutGlowPulse_5.4s_ease-in-out_infinite]" />
 
-      <svg className="pointer-events-none absolute inset-0 z-[2] h-full w-full" viewBox="0 0 880 430" preserveAspectRatio="none" aria-hidden="true">
+      <svg
+        className="pointer-events-none absolute inset-0 z-[2] h-full w-full"
+        viewBox="0 0 880 430"
+        preserveAspectRatio="none"
+        aria-hidden="true"
+      >
         <defs>
           <linearGradient id="about-left-rail" x1="0" y1="0" x2="1" y2="0">
             <stop offset="0" stopColor="#7ff7be" stopOpacity="0.9" />
@@ -260,7 +335,13 @@ function HeroNetworkDiagram({
             <stop offset="0.38" stopColor="#45a4ff" stopOpacity="0.74" />
             <stop offset="1" stopColor="#45a4ff" stopOpacity="0.92" />
           </linearGradient>
-          <filter id="about-rail-glow" x="-20%" y="-220%" width="140%" height="540%">
+          <filter
+            id="about-rail-glow"
+            x="-20%"
+            y="-220%"
+            width="140%"
+            height="540%"
+          >
             <feGaussianBlur stdDeviation="3" result="blur" />
             <feMerge>
               <feMergeNode in="blur" />
@@ -270,7 +351,14 @@ function HeroNetworkDiagram({
         </defs>
         {leftPaths.map((path, index) => (
           <g key={`left-${path}`} filter="url(#about-rail-glow)">
-            <path d={path} fill="none" stroke="url(#about-left-rail)" strokeWidth="2.6" strokeLinecap="round" opacity="0.82" />
+            <path
+              d={path}
+              fill="none"
+              stroke="url(#about-left-rail)"
+              strokeWidth="2.6"
+              strokeLinecap="round"
+              opacity="0.82"
+            />
             <path
               d={path}
               fill="none"
@@ -278,14 +366,30 @@ function HeroNetworkDiagram({
               strokeWidth="3.5"
               strokeLinecap="round"
               strokeDasharray="18 70"
-              style={{ animation: `aboutFlowDash ${2.8 + index * 0.18}s linear infinite` }}
+              style={{
+                animation: `aboutFlowDash ${
+                  2.8 + index * 0.18
+                }s linear infinite`,
+              }}
             />
-            <circle cx={398} cy={index === 0 ? 198 : index === 1 ? 214 : 230} r="4" fill="#7ff7be" />
+            <circle
+              cx={398}
+              cy={index === 0 ? 198 : index === 1 ? 214 : 230}
+              r="4"
+              fill="#7ff7be"
+            />
           </g>
         ))}
         {rightPaths.map((path, index) => (
           <g key={`right-${path}`} filter="url(#about-rail-glow)">
-            <path d={path} fill="none" stroke="url(#about-right-rail)" strokeWidth="2.6" strokeLinecap="round" opacity="0.86" />
+            <path
+              d={path}
+              fill="none"
+              stroke="url(#about-right-rail)"
+              strokeWidth="2.6"
+              strokeLinecap="round"
+              opacity="0.86"
+            />
             <path
               d={path}
               fill="none"
@@ -293,15 +397,26 @@ function HeroNetworkDiagram({
               strokeWidth="3.5"
               strokeLinecap="round"
               strokeDasharray="18 70"
-              style={{ animation: `aboutFlowDash ${2.65 + index * 0.2}s linear infinite reverse` }}
+              style={{
+                animation: `aboutFlowDash ${
+                  2.65 + index * 0.2
+                }s linear infinite reverse`,
+              }}
             />
-            <circle cx={482} cy={index === 0 ? 198 : index === 1 ? 214 : 230} r="4" fill="#45a4ff" />
+            <circle
+              cx={482}
+              cy={index === 0 ? 198 : index === 1 ? 214 : 230}
+              r="4"
+              fill="#45a4ff"
+            />
           </g>
         ))}
       </svg>
 
       <div className="absolute left-0 top-16 z-[3] w-[250px]">
-        <p className="mb-4 text-xs font-bold uppercase tracking-[0.24em] text-[#7ff7be]">{agentLabel}</p>
+        <p className="mb-4 text-xs font-bold uppercase tracking-[0.24em] text-[#7ff7be]">
+          {agentLabel}
+        </p>
         {["Agent A", "Agent B", "Agent C"].map((agent) => (
           <RailBox key={agent} className="mb-4" tone="green">
             <Bot className="h-5 w-5" />
@@ -311,7 +426,9 @@ function HeroNetworkDiagram({
       </div>
 
       <div className="absolute right-0 top-16 z-[3] w-[250px]">
-        <p className="mb-4 text-xs font-bold uppercase tracking-[0.24em] text-[#45a4ff]">{providerLabel}</p>
+        <p className="mb-4 text-xs font-bold uppercase tracking-[0.24em] text-[#45a4ff]">
+          {providerLabel}
+        </p>
         {providerRows.map((item, index) => {
           const [title, body] = splitTitleBody(item);
           const Icon = providerIcons[index] ?? Network;
@@ -320,7 +437,9 @@ function HeroNetworkDiagram({
               <Icon className="h-5 w-5" />
               <span>
                 <strong className="block text-white">{title}</strong>
-                {body ? <span className="text-xs text-white/44">{body}</span> : null}
+                {body ? (
+                  <span className="text-xs text-white/44">{body}</span>
+                ) : null}
               </span>
             </RailBox>
           );
@@ -328,11 +447,16 @@ function HeroNetworkDiagram({
       </div>
 
       <div className="absolute left-1/2 top-4 z-[4] w-[220px] -translate-x-1/2 rounded-[22px] border border-[#45a4ff]/28 bg-[#09131e]/88 p-4 text-center shadow-[0_0_60px_rgba(69,164,255,0.18)]">
-        <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#7ff7be]">{collateralLabel}</p>
+        <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#7ff7be]">
+          {collateralLabel}
+        </p>
         <p className="mt-1 text-xs text-white/58">{collateralDescription}</p>
         <div className="mt-4 flex justify-center gap-3">
           {[0, 1, 2].map((item) => (
-            <div key={item} className="flex h-11 w-11 items-center justify-center rounded-full border border-white/20 bg-[#247cff] text-white shadow-[0_0_24px_rgba(36,124,255,0.45)]">
+            <div
+              key={item}
+              className="flex h-11 w-11 items-center justify-center rounded-full border border-white/20 bg-[#247cff] text-white shadow-[0_0_24px_rgba(36,124,255,0.45)]"
+            >
               <BadgeDollarSign className="h-6 w-6" />
             </div>
           ))}
@@ -340,17 +464,41 @@ function HeroNetworkDiagram({
       </div>
 
       <div className="relative z-10 flex h-[170px] w-[230px] items-center justify-center">
-        <svg viewBox="0 0 240 178" className="h-[178px] w-[240px] drop-shadow-[0_0_55px_rgba(127,247,190,0.28)]" aria-hidden="true">
+        <svg
+          viewBox="0 0 240 178"
+          className="h-[178px] w-[240px] drop-shadow-[0_0_55px_rgba(127,247,190,0.28)]"
+          aria-hidden="true"
+        >
           <defs>
-            <linearGradient id="stack-top" x1="42" y1="32" x2="198" y2="128" gradientUnits="userSpaceOnUse">
+            <linearGradient
+              id="stack-top"
+              x1="42"
+              y1="32"
+              x2="198"
+              y2="128"
+              gradientUnits="userSpaceOnUse"
+            >
               <stop stopColor="#164a34" stopOpacity="0.98" />
               <stop offset="1" stopColor="#0a2742" stopOpacity="0.98" />
             </linearGradient>
-            <linearGradient id="stack-side" x1="42" y1="72" x2="198" y2="152" gradientUnits="userSpaceOnUse">
+            <linearGradient
+              id="stack-side"
+              x1="42"
+              y1="72"
+              x2="198"
+              y2="152"
+              gradientUnits="userSpaceOnUse"
+            >
               <stop stopColor="#0d3f2a" stopOpacity="0.72" />
               <stop offset="1" stopColor="#08243d" stopOpacity="0.66" />
             </linearGradient>
-            <filter id="stack-soft-glow" x="-30%" y="-40%" width="160%" height="190%">
+            <filter
+              id="stack-soft-glow"
+              x="-30%"
+              y="-40%"
+              width="160%"
+              height="190%"
+            >
               <feGaussianBlur stdDeviation="5" result="blur" />
               <feMerge>
                 <feMergeNode in="blur" />
@@ -359,38 +507,177 @@ function HeroNetworkDiagram({
             </filter>
           </defs>
           <g filter="url(#stack-soft-glow)">
-            <path d="M120 28 204 66 120 105 36 66Z" fill="url(#stack-top)" stroke="#96f9c7" strokeOpacity="0.7" strokeWidth="1.5" />
-            <path d="M36 66 120 105 120 137 36 98Z" fill="#0b3d28" fillOpacity="0.56" stroke="#7ff7be" strokeOpacity="0.38" strokeWidth="1.2" />
-            <path d="M204 66 120 105 120 137 204 98Z" fill="#082840" fillOpacity="0.62" stroke="#45a4ff" strokeOpacity="0.36" strokeWidth="1.2" />
-            <path d="M36 98 120 137 204 98" fill="none" stroke="#7ff7be" strokeOpacity="0.45" strokeWidth="1.4" />
-            <path d="M36 118 120 157 204 118" fill="none" stroke="#7ff7be" strokeOpacity="0.34" strokeWidth="1.4" />
-            <path d="M36 138 120 177 204 138" fill="none" stroke="#45a4ff" strokeOpacity="0.32" strokeWidth="1.4" />
-            <path d="M36 98 36 138M120 137 120 177M204 98 204 138" stroke="#7ff7be" strokeOpacity="0.23" strokeWidth="1.1" />
-            <g strokeLinecap="round" strokeLinejoin="round" transform="translate(72 41) scale(1.5)">
-              <path d="M32 32 18.5 22.4M31.5 31 18.2 39.4M34 29.5l1.8-14M36 31l12-7.4M36.6 34l13.3 3M33.8 36.4l1.8 14.2" stroke="#7ff7be" strokeWidth="3.8"/>
-              <path d="M30.5 35.4 17.9 49.6M36 29l10-17" stroke="#7ff7be" strokeOpacity="0.62" strokeWidth="3.2" strokeDasharray="7 5"/>
-              <path d="M18.5 22.4 9.8 13M35.8 15.5l-.2-6.8M35.6 50.6v7.2" stroke="#7ff7be" strokeWidth="3.2"/>
-              <path d="M18.2 39.4 8.9 40.2M48 23.6l7.8-5.8M49.9 37l8.6.8M17.9 49.6l-8.6 5.5" stroke="#7ff7be" strokeOpacity="0.62" strokeWidth="3.2"/>
-              <circle cx="32" cy="32" r="6.2" fill="#071c13" stroke="#7ff7be" strokeWidth="3.8"/>
-              <circle cx="32" cy="32" r="2.1" fill="#7ff7be"/>
-              <circle cx="9.8" cy="13" r="3.4" fill="#071c13" stroke="#7ff7be" strokeWidth="2.8"/>
-              <circle cx="8.9" cy="40.2" r="3.2" fill="#071c13" stroke="#7ff7be" strokeOpacity="0.66" strokeWidth="2.8"/>
-              <circle cx="35.6" cy="8.7" r="3.2" fill="#071c13" stroke="#7ff7be" strokeWidth="2.8"/>
-              <circle cx="55.8" cy="17.8" r="3.2" fill="#071c13" stroke="#7ff7be" strokeOpacity="0.66" strokeWidth="2.8"/>
-              <circle cx="58.5" cy="37.8" r="3.2" fill="#071c13" stroke="#7ff7be" strokeOpacity="0.66" strokeWidth="2.8"/>
-              <circle cx="35.6" cy="57.8" r="3.2" fill="#071c13" stroke="#7ff7be" strokeWidth="2.8"/>
-              <circle cx="9.3" cy="55.1" r="3.2" fill="#071c13" stroke="#7ff7be" strokeOpacity="0.66" strokeWidth="2.8"/>
-              <circle cx="46" cy="12" r="3.2" fill="#071c13" stroke="#7ff7be" strokeOpacity="0.66" strokeWidth="2.8"/>
+            <path
+              d="M120 28 204 66 120 105 36 66Z"
+              fill="url(#stack-top)"
+              stroke="#96f9c7"
+              strokeOpacity="0.7"
+              strokeWidth="1.5"
+            />
+            <path
+              d="M36 66 120 105 120 137 36 98Z"
+              fill="#0b3d28"
+              fillOpacity="0.56"
+              stroke="#7ff7be"
+              strokeOpacity="0.38"
+              strokeWidth="1.2"
+            />
+            <path
+              d="M204 66 120 105 120 137 204 98Z"
+              fill="#082840"
+              fillOpacity="0.62"
+              stroke="#45a4ff"
+              strokeOpacity="0.36"
+              strokeWidth="1.2"
+            />
+            <path
+              d="M36 98 120 137 204 98"
+              fill="none"
+              stroke="#7ff7be"
+              strokeOpacity="0.45"
+              strokeWidth="1.4"
+            />
+            <path
+              d="M36 118 120 157 204 118"
+              fill="none"
+              stroke="#7ff7be"
+              strokeOpacity="0.34"
+              strokeWidth="1.4"
+            />
+            <path
+              d="M36 138 120 177 204 138"
+              fill="none"
+              stroke="#45a4ff"
+              strokeOpacity="0.32"
+              strokeWidth="1.4"
+            />
+            <path
+              d="M36 98 36 138M120 137 120 177M204 98 204 138"
+              stroke="#7ff7be"
+              strokeOpacity="0.23"
+              strokeWidth="1.1"
+            />
+            <g
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              transform="translate(72 41) scale(1.5)"
+            >
+              <path
+                d="M32 32 18.5 22.4M31.5 31 18.2 39.4M34 29.5l1.8-14M36 31l12-7.4M36.6 34l13.3 3M33.8 36.4l1.8 14.2"
+                stroke="#7ff7be"
+                strokeWidth="3.8"
+              />
+              <path
+                d="M30.5 35.4 17.9 49.6M36 29l10-17"
+                stroke="#7ff7be"
+                strokeOpacity="0.62"
+                strokeWidth="3.2"
+                strokeDasharray="7 5"
+              />
+              <path
+                d="M18.5 22.4 9.8 13M35.8 15.5l-.2-6.8M35.6 50.6v7.2"
+                stroke="#7ff7be"
+                strokeWidth="3.2"
+              />
+              <path
+                d="M18.2 39.4 8.9 40.2M48 23.6l7.8-5.8M49.9 37l8.6.8M17.9 49.6l-8.6 5.5"
+                stroke="#7ff7be"
+                strokeOpacity="0.62"
+                strokeWidth="3.2"
+              />
+              <circle
+                cx="32"
+                cy="32"
+                r="6.2"
+                fill="#071c13"
+                stroke="#7ff7be"
+                strokeWidth="3.8"
+              />
+              <circle cx="32" cy="32" r="2.1" fill="#7ff7be" />
+              <circle
+                cx="9.8"
+                cy="13"
+                r="3.4"
+                fill="#071c13"
+                stroke="#7ff7be"
+                strokeWidth="2.8"
+              />
+              <circle
+                cx="8.9"
+                cy="40.2"
+                r="3.2"
+                fill="#071c13"
+                stroke="#7ff7be"
+                strokeOpacity="0.66"
+                strokeWidth="2.8"
+              />
+              <circle
+                cx="35.6"
+                cy="8.7"
+                r="3.2"
+                fill="#071c13"
+                stroke="#7ff7be"
+                strokeWidth="2.8"
+              />
+              <circle
+                cx="55.8"
+                cy="17.8"
+                r="3.2"
+                fill="#071c13"
+                stroke="#7ff7be"
+                strokeOpacity="0.66"
+                strokeWidth="2.8"
+              />
+              <circle
+                cx="58.5"
+                cy="37.8"
+                r="3.2"
+                fill="#071c13"
+                stroke="#7ff7be"
+                strokeOpacity="0.66"
+                strokeWidth="2.8"
+              />
+              <circle
+                cx="35.6"
+                cy="57.8"
+                r="3.2"
+                fill="#071c13"
+                stroke="#7ff7be"
+                strokeWidth="2.8"
+              />
+              <circle
+                cx="9.3"
+                cy="55.1"
+                r="3.2"
+                fill="#071c13"
+                stroke="#7ff7be"
+                strokeOpacity="0.66"
+                strokeWidth="2.8"
+              />
+              <circle
+                cx="46"
+                cy="12"
+                r="3.2"
+                fill="#071c13"
+                stroke="#7ff7be"
+                strokeOpacity="0.66"
+                strokeWidth="2.8"
+              />
             </g>
           </g>
         </svg>
       </div>
 
       <div className="absolute bottom-0 left-1/2 z-[3] w-[300px] -translate-x-1/2 rounded-[22px] border border-[#7ff7be]/30 bg-[#07130e]/94 p-5 shadow-[0_0_70px_rgba(127,247,190,0.18),inset_0_1px_0_rgba(255,255,255,0.07)] backdrop-blur-md">
-        <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#7ff7be]">{auditLabel}</p>
+        <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#7ff7be]">
+          {auditLabel}
+        </p>
         <div className="mt-3 space-y-2">
           {auditChecks.map((check) => (
-            <p key={check} className="flex items-center gap-2 text-xs text-white/70">
+            <p
+              key={check}
+              className="flex items-center gap-2 text-xs text-white/70"
+            >
               <Check className="h-3.5 w-3.5 text-[#7ff7be]" />
               {check}
             </p>
@@ -412,9 +699,10 @@ function RailBox({
   tone: "green" | "blue";
   style?: CSSProperties;
 }) {
-  const toneClass = tone === "green"
-    ? "border-[#7ff7be]/22 bg-[#07140f]/86 shadow-[0_0_28px_rgba(127,247,190,0.08)]"
-    : "border-[#45a4ff]/24 bg-[#07101a]/86 shadow-[0_0_28px_rgba(69,164,255,0.08)]";
+  const toneClass =
+    tone === "green"
+      ? "border-[#7ff7be]/22 bg-[#07140f]/86 shadow-[0_0_28px_rgba(127,247,190,0.08)]"
+      : "border-[#45a4ff]/24 bg-[#07101a]/86 shadow-[0_0_28px_rgba(69,164,255,0.08)]";
 
   return (
     <div

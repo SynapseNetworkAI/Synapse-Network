@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { getGatewayBaseUrl, getGatewayBaseUrlCandidates } from "@/utils/gatewayApi";
+import {
+  getGatewayBaseUrl,
+  getGatewayBaseUrlCandidates,
+} from "@/utils/gatewayApi";
 
 function setWindowLocation(location: {
   hostname: string;
@@ -23,7 +26,10 @@ describe("getGatewayBaseUrl", () => {
   });
 
   it("uses NEXT_PUBLIC_GATEWAY_BASE_URL when configured", () => {
-    vi.stubEnv("NEXT_PUBLIC_GATEWAY_BASE_URL", "https://gateway.synapse.local///");
+    vi.stubEnv(
+      "NEXT_PUBLIC_GATEWAY_BASE_URL",
+      "https://gateway.synapse.local///"
+    );
 
     expect(getGatewayBaseUrl()).toBe("https://gateway.synapse.local");
   });

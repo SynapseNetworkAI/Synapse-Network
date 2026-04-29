@@ -3,15 +3,22 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { useAccount, useSignMessage } from "wagmi";
+import {
+  SettingToggle,
+  SettingsRow,
+} from "@/components/dashboard-workspace/AccountSettingsControls";
+import EmailVerificationCodeModal from "@/components/dashboard-workspace/EmailVerificationCodeModal";
 import { XInput } from "@/components/xui/XInput";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { useAuth } from "@/components/WalletAuthGuard";
 import { getStoredAuthSession } from "@/utils/authSession";
 import {
   getOwnerProfile,
+  resendOwnerEmailCode,
   requestOwnerProfileChallenge,
   type OwnerProfile,
   updateOwnerProfile,
+  verifyOwnerEmailCode,
 } from "@/utils/accountProfileApi";
 import {
   isWalletUnstableError,
@@ -77,67 +84,6 @@ function formsEqual(a: AccountSettingsForm, b: AccountSettingsForm): boolean {
   );
 }
 
-function SettingToggle({
-  title,
-  description,
-  checked,
-  onChange,
-  disabled,
-}: Readonly<{
-  title: string;
-  description: string;
-  checked: boolean;
-  onChange: (next: boolean) => void;
-  disabled?: boolean;
-}>) {
-  return (
-    <label className="inline-flex items-center justify-end">
-      <span className="sr-only">{title}. {description}</span>
-      <span className="relative inline-flex shrink-0">
-        <input
-          type="checkbox"
-          className="peer sr-only"
-          checked={checked}
-          onChange={(event) => onChange(event.target.checked)}
-          disabled={disabled}
-        />
-        <span className="h-6 w-10 rounded-full border border-white/12 bg-white/[0.08] transition peer-checked:border-[#7ff7be]/30 peer-checked:bg-[#7ff7be]/20 peer-disabled:opacity-40" />
-        <span className="absolute left-[3px] top-[3px] h-[18px] w-[18px] rounded-full bg-white shadow-[0_2px_12px_rgba(0,0,0,0.28)] transition peer-checked:translate-x-4" />
-      </span>
-    </label>
-  );
-}
-
-function SettingsRow({
-  title,
-  description,
-  control,
-  noBorder = false,
-}: Readonly<{
-  title: string;
-  description?: string;
-  control: React.ReactNode;
-  noBorder?: boolean;
-}>) {
-  return (
-    <section className={noBorder ? "py-3.5" : "border-b border-[#1e1e1e] py-3.5"}>
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between md:gap-6">
-        <div className="max-w-[474px] min-w-0">
-          <h3 className="text-[14px] font-semibold leading-5 tracking-[-0.01em] text-white">
-            {title}
-          </h3>
-          {description ? (
-            <p className="mt-0.5 text-[12px] leading-4 text-[#6b7280]">
-              {description}
-            </p>
-          ) : null}
-        </div>
-        <div className="w-full max-w-[264px] shrink-0">{control}</div>
-      </div>
-    </section>
-  );
-}
-
 const INPUT_CLASSES =
   "h-9 rounded-[10px] border border-[#2f3336] bg-transparent px-3 py-0 text-[13px] leading-5 text-white placeholder:text-[#71767b] focus-visible:border-[#536471]";
 
@@ -151,12 +97,21 @@ export default function AccountSettingsPage() {
   const { signMessageAsync } = useSignMessage();
   const [profile, setProfile] = useState<OwnerProfile | null>(null);
   const [form, setForm] = useState<AccountSettingsForm>(EMPTY_FORM);
-  const [baselineForm, setBaselineForm] = useState<AccountSettingsForm>(EMPTY_FORM);
+  const [baselineForm, setBaselineForm] =
+    useState<AccountSettingsForm>(EMPTY_FORM);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [verificationEmail, setVerificationEmail] = useState<string | null>(
+    null
+  );
+  const [isVerificationOpen, setIsVerificationOpen] = useState(false);
+  const [isChangingEmail, setIsChangingEmail] = useState(false);
 
-  const sessionWallet = useMemo(() => getStoredAuthSession()?.wallet ?? null, []);
+  const sessionWallet = useMemo(
+    () => getStoredAuthSession()?.wallet ?? null,
+    []
+  );
   const boundWallet = address?.toLowerCase() ?? sessionWallet;
   const hasLiveWallet = Boolean(address && isConnected);
   const hasStoredSession = Boolean(sessionWallet);
@@ -186,9 +141,12 @@ export default function AccountSettingsPage() {
       setProfile(nextProfile);
       setForm(nextForm);
       setBaselineForm(nextForm);
+      setIsChangingEmail(false);
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : t("accountSettingsPage.loadFailed");
+        error instanceof Error
+          ? error.message
+          : t("accountSettingsPage.loadFailed");
       setLoadError(message);
     } finally {
       setIsLoading(false);
@@ -200,7 +158,10 @@ export default function AccountSettingsPage() {
   }, [loadProfile]);
 
   const updateField = useCallback(
-    <K extends keyof AccountSettingsForm>(key: K, value: AccountSettingsForm[K]) => {
+    <K extends keyof AccountSettingsForm>(
+      key: K,
+      value: AccountSettingsForm[K]
+    ) => {
       setForm((current) => ({
         ...current,
         [key]: value,
@@ -211,13 +172,16 @@ export default function AccountSettingsPage() {
 
   const emailError = useMemo(() => {
     if (!form.email.trim()) {
+      if (isChangingEmail) {
+        return t("accountSettingsPage.invalidEmail");
+      }
       return null;
     }
     if (isValidEmail(form.email.trim())) {
       return null;
     }
     return t("accountSettingsPage.invalidEmail");
-  }, [form.email, t]);
+  }, [form.email, isChangingEmail, t]);
 
   const hasChanges = useMemo(
     () => !formsEqual(form, baselineForm),
@@ -256,8 +220,15 @@ export default function AccountSettingsPage() {
       }
 
       const payload = toPayload(form);
-      const challenge = await requestOwnerProfileChallenge(boundWallet, payload);
-      const signature = await signWalletMessage(challenge, address, signMessageAsync);
+      const challenge = await requestOwnerProfileChallenge(
+        boundWallet,
+        payload
+      );
+      const signature = await signWalletMessage(
+        challenge,
+        address,
+        signMessageAsync
+      );
       const savedProfile = await updateOwnerProfile(boundWallet, {
         ...payload,
         message: challenge,
@@ -268,10 +239,20 @@ export default function AccountSettingsPage() {
       setForm(nextForm);
       setBaselineForm(nextForm);
       setLoadError(null);
-      toast.success(t("accountSettingsPage.saveSuccess"));
+      if (savedProfile.pendingEmail) {
+        setVerificationEmail(savedProfile.pendingEmail);
+        setIsVerificationOpen(true);
+        setIsChangingEmail(false);
+        toast.success(t("accountSettingsPage.emailVerificationSent"));
+      } else {
+        setIsChangingEmail(false);
+        toast.success(t("accountSettingsPage.saveSuccess"));
+      }
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : t("accountSettingsPage.saveFailed");
+        error instanceof Error
+          ? error.message
+          : t("accountSettingsPage.saveFailed");
       if (
         isWalletUnstableError(message) ||
         message.includes("Connector not connected")
@@ -295,14 +276,181 @@ export default function AccountSettingsPage() {
     t,
   ]);
 
-  const emailStatusText = emailError
-    ? emailError
-    : profile?.emailVerified
+  const onVerifyEmailCode = useCallback(
+    async (code: string) => {
+      if (!boundWallet || !verificationEmail) {
+        throw new Error(t("accountSettingsPage.walletRequired"));
+      }
+      const verifiedProfile = await verifyOwnerEmailCode(boundWallet, {
+        email: verificationEmail,
+        code,
+      });
+      const nextForm = profileToForm(verifiedProfile);
+      setProfile(verifiedProfile);
+      setForm(nextForm);
+      setBaselineForm(nextForm);
+      setVerificationEmail(null);
+      setIsVerificationOpen(false);
+      toast.success(t("accountSettingsPage.emailVerificationSuccess"));
+    },
+    [boundWallet, t, verificationEmail]
+  );
+
+  const onResendEmailCode = useCallback(async () => {
+    if (!boundWallet || !verificationEmail) {
+      throw new Error(t("accountSettingsPage.walletRequired"));
+    }
+    const nextProfile = await resendOwnerEmailCode(
+      boundWallet,
+      verificationEmail
+    );
+    setProfile(nextProfile);
+    setForm(profileToForm(nextProfile));
+    setBaselineForm(profileToForm(nextProfile));
+  }, [boundWallet, t, verificationEmail]);
+
+  const submitSignedProfile = useCallback(
+    async (nextForm: AccountSettingsForm) => {
+      if (!boundWallet || !address) {
+        throw new Error(t("accountSettingsPage.walletRequired"));
+      }
+      if (!isSessionAuthenticated) {
+        const ok = await authorize();
+        if (!ok) {
+          throw new Error(t("accountSettingsPage.authorizeFirst"));
+        }
+      }
+      const payload = toPayload(nextForm);
+      const challenge = await requestOwnerProfileChallenge(
+        boundWallet,
+        payload
+      );
+      const signature = await signWalletMessage(
+        challenge,
+        address,
+        signMessageAsync
+      );
+      return updateOwnerProfile(boundWallet, {
+        ...payload,
+        message: challenge,
+        signature,
+      });
+    },
+    [
+      address,
+      authorize,
+      boundWallet,
+      isSessionAuthenticated,
+      signMessageAsync,
+      t,
+    ]
+  );
+
+  const onCancelPendingEmail = useCallback(async () => {
+    if (!profile) {
+      return;
+    }
+    if (!hasLiveWallet || !address) {
+      toast.error(t("accountSettingsPage.connectWalletToSave"));
+      return;
+    }
+    setIsSaving(true);
+    try {
+      const nextProfile = await submitSignedProfile({
+        ...form,
+        email: profile.email ?? "",
+      });
+      const nextForm = profileToForm(nextProfile);
+      setProfile(nextProfile);
+      setForm(nextForm);
+      setBaselineForm(nextForm);
+      setVerificationEmail(null);
+      setIsVerificationOpen(false);
+      setIsChangingEmail(false);
+      toast.success(t("accountSettingsPage.emailChangeCancelled"));
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : t("accountSettingsPage.saveFailed")
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  }, [address, form, hasLiveWallet, profile, submitSignedProfile, t]);
+
+  const onRemoveEmail = useCallback(async () => {
+    if (!profile?.email) {
+      return;
+    }
+    if (!hasLiveWallet || !address) {
+      toast.error(t("accountSettingsPage.connectWalletToSave"));
+      return;
+    }
+    const confirmed = window.confirm(
+      t("accountSettingsPage.emailRemoveConfirm")
+    );
+    if (!confirmed) {
+      return;
+    }
+    setIsSaving(true);
+    try {
+      const nextProfile = await submitSignedProfile({
+        ...form,
+        email: "",
+      });
+      const nextForm = profileToForm(nextProfile);
+      setProfile(nextProfile);
+      setForm(nextForm);
+      setBaselineForm(nextForm);
+      setVerificationEmail(null);
+      setIsVerificationOpen(false);
+      setIsChangingEmail(false);
+      toast.success(t("accountSettingsPage.emailRemoved"));
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : t("accountSettingsPage.saveFailed")
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  }, [address, form, hasLiveWallet, profile, submitSignedProfile, t]);
+
+  const emailStatusText = useMemo(() => {
+    if (emailError) {
+      return emailError;
+    }
+    if (profile?.pendingEmail) {
+      if (profile.emailVerificationStatus === "locked") {
+        return t("accountSettingsPage.emailVerificationLocked");
+      }
+      if (profile.emailVerificationStatus === "expired") {
+        return t("accountSettingsPage.emailVerificationExpired");
+      }
+      return t("accountSettingsPage.emailPending").replace(
+        "{{email}}",
+        profile.pendingEmail
+      );
+    }
+    return profile?.emailVerified
       ? t("accountSettingsPage.emailVerified")
       : t("accountSettingsPage.emailHelp");
+  }, [emailError, profile, t]);
+
+  const showEmailInput = isChangingEmail || !profile?.email;
 
   return (
     <div className="mx-auto w-full max-w-[1024px] px-8 py-6">
+      <EmailVerificationCodeModal
+        open={isVerificationOpen}
+        email={verificationEmail}
+        sendsRemaining={profile?.emailVerificationSendsRemaining ?? 0}
+        onClose={() => setIsVerificationOpen(false)}
+        onVerify={onVerifyEmailCode}
+        onResend={onResendEmailCode}
+      />
       <div className="mx-auto w-full max-w-[768px]">
         <header className="border-b border-[#1e1e1e] pb-4 mb-0">
           <h1 className="text-[18px] font-semibold leading-7 text-white">
@@ -319,11 +467,15 @@ export default function AccountSettingsPage() {
             control={
               <div className="space-y-2">
                 <label className="block">
-                  <span className="sr-only">{t("accountSettingsPage.nameLabel")}</span>
+                  <span className="sr-only">
+                    {t("accountSettingsPage.nameLabel")}
+                  </span>
                   <XInput
                     id="account-settings-display-name"
                     value={form.displayName}
-                    onChange={(event) => updateField("displayName", event.target.value)}
+                    onChange={(event) =>
+                      updateField("displayName", event.target.value)
+                    }
                     placeholder={t("accountSettingsPage.namePlaceholder")}
                     maxLength={64}
                     className={INPUT_CLASSES}
@@ -337,21 +489,101 @@ export default function AccountSettingsPage() {
             title={t("accountSettingsPage.emailLabel")}
             control={
               <div className="space-y-2">
-                <label className="block">
-                  <span className="sr-only">{t("accountSettingsPage.emailLabel")}</span>
-                  <XInput
-                    id="account-settings-email"
-                    value={form.email}
-                    onChange={(event) => updateField("email", event.target.value)}
-                    placeholder={t("accountSettingsPage.emailPlaceholder")}
-                    inputMode="email"
-                    autoComplete="email"
-                    className={INPUT_CLASSES}
-                  />
-                </label>
-                <p className={`text-[12px] leading-4 ${emailError ? "text-[#ff8b8b]" : "text-[#71767b]"}`}>
+                {profile?.email && !isChangingEmail ? (
+                  <div className="rounded-[10px] border border-[#2f3336] bg-[#111418] px-3 py-2.5">
+                    <p className="text-[13px] font-medium leading-5 text-white">
+                      {profile.email}
+                      {profile.emailVerified ? (
+                        <span className="ml-2 rounded-full bg-[#0f3d2a] px-2 py-0.5 text-[11px] font-semibold text-[#7ff7be]">
+                          {t("accountSettingsPage.emailVerifiedBadge")}
+                        </span>
+                      ) : null}
+                    </p>
+                  </div>
+                ) : null}
+                {showEmailInput ? (
+                  <label className="block">
+                    <span className="sr-only">
+                      {t("accountSettingsPage.emailLabel")}
+                    </span>
+                    <XInput
+                      id="account-settings-email"
+                      value={form.email}
+                      onChange={(event) =>
+                        updateField("email", event.target.value)
+                      }
+                      placeholder={t("accountSettingsPage.emailPlaceholder")}
+                      inputMode="email"
+                      autoComplete="email"
+                      className={INPUT_CLASSES}
+                    />
+                  </label>
+                ) : null}
+                <p
+                  className={`text-[12px] leading-4 ${
+                    emailError ? "text-[#ff8b8b]" : "text-[#71767b]"
+                  }`}
+                >
                   {emailStatusText}
                 </p>
+                <div className="flex flex-wrap gap-3">
+                  {profile?.email && !isChangingEmail ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsChangingEmail(true);
+                          updateField("email", profile.email ?? "");
+                        }}
+                        className="text-[12px] font-semibold leading-4 text-[#7ff7be] hover:text-[#a8ffd4]"
+                      >
+                        {t("accountSettingsPage.emailChange")}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void onRemoveEmail()}
+                        disabled={isSaving}
+                        className="text-[12px] font-semibold leading-4 text-[#ff8b8b] hover:text-[#ffb1b1] disabled:opacity-45"
+                      >
+                        {t("accountSettingsPage.emailRemove")}
+                      </button>
+                    </>
+                  ) : null}
+                  {isChangingEmail && profile?.email ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setForm(profileToForm(profile));
+                        setIsChangingEmail(false);
+                      }}
+                      className="text-[12px] font-semibold leading-4 text-[#a7acb6] hover:text-white"
+                    >
+                      {t("accountSettingsPage.emailChangeCancelEdit")}
+                    </button>
+                  ) : null}
+                </div>
+                {profile?.pendingEmail ? (
+                  <div className="flex flex-wrap gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setVerificationEmail(profile.pendingEmail ?? null);
+                        setIsVerificationOpen(true);
+                      }}
+                      className="text-[12px] font-semibold leading-4 text-[#7ff7be] hover:text-[#a8ffd4]"
+                    >
+                      {t("accountSettingsPage.emailVerificationOpen")}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void onCancelPendingEmail()}
+                      disabled={isSaving}
+                      className="text-[12px] font-semibold leading-4 text-[#a7acb6] hover:text-white disabled:opacity-45"
+                    >
+                      {t("accountSettingsPage.emailPendingCancel")}
+                    </button>
+                  </div>
+                ) : null}
               </div>
             }
           />
@@ -363,7 +595,9 @@ export default function AccountSettingsPage() {
               <div className="flex h-9 items-center justify-end">
                 <SettingToggle
                   title={t("accountSettingsPage.notifyMarketingTitle")}
-                  description={t("accountSettingsPage.notifyMarketingDescription")}
+                  description={t(
+                    "accountSettingsPage.notifyMarketingDescription"
+                  )}
                   checked={form.notifyMarketing}
                   onChange={(next) => updateField("notifyMarketing", next)}
                   disabled={isSaving}
@@ -398,7 +632,9 @@ export default function AccountSettingsPage() {
             control={
               <div className="rounded-[10px] border border-[#2f3336] bg-transparent px-3 py-2.5">
                 <p className="text-[13px] font-medium leading-5 text-white">
-                  {boundWallet ? maskWallet(boundWallet) : t("accountSettingsPage.unset")}
+                  {boundWallet
+                    ? maskWallet(boundWallet)
+                    : t("accountSettingsPage.unset")}
                 </p>
                 <p className="mt-0.5 break-all text-[12px] leading-4 text-[#71767b]">
                   {boundWallet ?? t("accountSettingsPage.walletRequired")}

@@ -209,13 +209,13 @@ npx hardhat run scripts/fund_usdc.js --network localhost
 ### 3.3.4 MetaMask 常见坑
 
 1. 看不到本地链余额
-原因：MetaMask 还停在别的网络，或者导入了错误账户。
+   原因：MetaMask 还停在别的网络，或者导入了错误账户。
 
 2. 钱包已连上，但前端签名/充值失败
-原因：当前链不是 `31337`，或者前端合约地址还是旧部署结果。
+   原因：当前链不是 `31337`，或者前端合约地址还是旧部署结果。
 
 3. MetaMask 无法连接 `127.0.0.1:8545`
-原因：Anvil 没启动。先执行：
+   原因：Anvil 没启动。先执行：
 
 ```bash
 export PATH="$HOME/.foundry/bin:$PATH"

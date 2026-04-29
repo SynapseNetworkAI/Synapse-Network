@@ -18,7 +18,11 @@ const aboutPage: I18nMessages["aboutPage"] = {
   collateralDescription: "链上担保",
   auditLabel: "可审计凭证",
   auditChecks: ["防篡改日志", "可验证用量", "确定性清算"],
-  providerTypes: ["LLM Provider|模型推理", "Data Provider|实时 API", "Tool Provider|函数与工具"],
+  providerTypes: [
+    "LLM Provider|模型推理",
+    "Data Provider|实时 API",
+    "Tool Provider|函数与工具",
+  ],
   heroSignal: "Agent Commerce 正在进入机器速度。",
   heroSignalDetail: "支付系统也必须同样快速、可编程、可对账。",
   protocolLabel: "工作机制",

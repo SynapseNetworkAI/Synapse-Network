@@ -2,7 +2,8 @@ import type { I18nMessages } from "@/i18n/schema";
 
 const agentsPage: I18nMessages["agentsPage"] = {
   loadCredentialsFailed: "加载 Agent 凭据失败，请稍后重试。",
-  loadDiscoveryFailed: "加载服务发现示例失败。即使网关暂时不可用，下面的 sandbox 面板仍然可以保留操作入口。",
+  loadDiscoveryFailed:
+    "加载服务发现示例失败。即使网关暂时不可用，下面的 sandbox 面板仍然可以保留操作入口。",
   connectWalletBeforeCreate: "创建 Agent 之前请先连接钱包。",
   walletUnavailable: "当前无法读取钱包地址，请重新连接钱包后再试。",
   signInBeforeCreate: "创建 Agent 之前请先使用钱包完成登录。",
@@ -34,15 +35,18 @@ const agentsPage: I18nMessages["agentsPage"] = {
   walletSessionRequired: "需要钱包会话",
   dailyBudgetLabel: "每日预算 (USDC)",
   maxCallsLabel: "最大调用次数",
-  createAgentHint: "创建 Agent 时会签发一个绑定到当前 Owner 钱包会话的唯一凭据。后续你可以随时撤销访问权限或更新预算策略。",
+  createAgentHint:
+    "创建 Agent 时会签发一个绑定到当前 Owner 钱包会话的唯一凭据。后续你可以随时撤销访问权限或更新预算策略。",
   creating: "创建中...",
   issueCredential: "签发凭据",
   credentialIssuedTitle: "Agent 凭据已签发",
-  credentialIssuedDescription: "请立即复制这个 token。出于安全原因，之后不会再次展示。",
+  credentialIssuedDescription:
+    "请立即复制这个 token。出于安全原因，之后不会再次展示。",
   boundOwnerValueLabel: "绑定 Owner",
   savedTokenCta: "我已保存 Token",
   editAgentLimitsTitle: "编辑 Agent 限额",
-  editAgentLimitsDescription: "这个编辑流程会直接更新线上运行中的凭据限额。目前预算金额和 Owner 绑定仍在签发时固定。",
+  editAgentLimitsDescription:
+    "这个编辑流程会直接更新线上运行中的凭据限额。目前预算金额和 Owner 绑定仍在签发时固定。",
   rateLimitLabel: "速率限制 (RPM)",
   expirationLabel: "过期时间",
   cancel: "取消",
@@ -50,7 +54,8 @@ const agentsPage: I18nMessages["agentsPage"] = {
   activationStatusAria: "激活状态条",
   activationStatusEyebrow: "激活状态",
   activationStatusTitle: "Owner 是否已准备好完成首笔 Agent 付费调用",
-  activationStatusDescription: "只有当已签发的凭据真正完成一次付费调用时，Synapse 才算被激活。这条状态带会直接告诉你当前卡点和下一步动作。",
+  activationStatusDescription:
+    "只有当已签发的凭据真正完成一次付费调用时，Synapse 才算被激活。这条状态带会直接告诉你当前卡点和下一步动作。",
   walletMetricTitle: "钱包",
   connected: "已连接",
   disconnected: "未连接",
@@ -58,7 +63,8 @@ const agentsPage: I18nMessages["agentsPage"] = {
   authenticated: "已认证",
   missing: "缺失",
   ownerVaultBalanceMetricTitle: "Owner Vault 余额",
-  ownerVaultBalanceTooltip: "这是当前 Owner 在 Synapse Vault 中可供 Agent 运行时使用的可消费额度。",
+  ownerVaultBalanceTooltip:
+    "这是当前 Owner 在 Synapse Vault 中可供 Agent 运行时使用的可消费额度。",
   activeAgentsMetricTitle: "活跃 Agent 数",
   lastInvocationMetricTitle: "最近一次调用",
   noSuccessfulInvocationYet: "还没有成功调用",
@@ -66,46 +72,54 @@ const agentsPage: I18nMessages["agentsPage"] = {
   activationRunwayAria: "激活跑道",
   activationRunwayEyebrow: "激活跑道",
   activationRunwayTitle: "从 Owner 入金到首笔 Agent 付费调用",
-  activationRunwayDescription: "只有当带凭据的调用真正成功后，运行时才算真正 ready。这四个阶段会把卡点讲清楚，并把下一步动作留在当前页面。",
+  activationRunwayDescription:
+    "只有当带凭据的调用真正成功后，运行时才算真正 ready。这四个阶段会把卡点讲清楚，并把下一步动作留在当前页面。",
   firstPaidInvocationCompleted: "首笔付费调用已完成",
   runwayConnectWalletHint: "先连接钱包，再开始。",
   runwaySignInHint: "请使用钱包登录完成认证。",
   runwayCurrentBalanceHint: "当前余额：{{balance}} USDC。已经可以创建 Agent。",
-  runwayWalletBalanceHint: "钱包余额：{{balance}} USDC。先把资金转入 Vault，才能为 Agent 提供可消费额度。",
+  runwayWalletBalanceHint:
+    "钱包余额：{{balance}} USDC。先把资金转入 Vault，才能为 Agent 提供可消费额度。",
   runwayFundOwnerVaultTitle: "为 Owner Vault 注资",
   runwayDepositUsdc: "充值 USDC",
-  runwayDepositTooltip: "把 USDC 从钱包转入 Synapse Vault，这样你的运行时才有可用于付费 Agent 调用的消费额度。",
+  runwayDepositTooltip:
+    "把 USDC 从钱包转入 Synapse Vault，这样你的运行时才有可用于付费 Agent 调用的消费额度。",
   runwayCreateAgentRuntimeTitle: "创建 Agent Runtime",
   runwayAgentCreated: "Agent 已创建",
   runwayNoActiveAgent: "当前还没有活跃 Agent",
   runwayFundingReady: "资金已就绪，现在可以创建第一个 Agent Runtime。",
   runwayFundVaultFirst: "先为 Vault 注资，才能创建 Agent。",
   runwayCreateAgentAction: "创建 Agent",
-  runwayAgentTooltip: "创建真正持有预算、调用限额和服务发现能力的运行时身份，让自主 Agent 可以开始工作。",
+  runwayAgentTooltip:
+    "创建真正持有预算、调用限额和服务发现能力的运行时身份，让自主 Agent 可以开始工作。",
   runwayCaptureCredentialTitle: "获取凭据",
   runwayCredentialSummary: "Token: {{prefix}}...",
   runwayNoCredentialVisible: "当前还没有可见凭据",
   runwayCopySaveToken: "复制并把这个 token 保存到你的应用代码里。",
   runwayCreateAgentFirst: "先创建 Agent，才能生成凭据。",
   runwayCopyCredential: "复制凭据",
-  runwayCredentialTooltip: "生成 Agent 在付费调用时实际使用的一次性运行时凭据。请只复制一次，并安全保存。",
+  runwayCredentialTooltip:
+    "生成 Agent 在付费调用时实际使用的一次性运行时凭据。请只复制一次，并安全保存。",
   runwayRunInvocationTitle: "运行首笔付费调用",
   runwayInvocationCompleted: "首笔调用已完成",
   runwayScrollSandbox: "滚动到下方 sandbox，运行一个示例调用。",
   runwayCompletePreviousSteps: "请先完成前面的步骤。",
   runwayRunExample: "运行示例",
-  runwayInvokeTooltip: "使用凭据完成服务发现、支付结算与真实调用，证明这个运行时已经能完成第一笔自主付费调用。",
+  runwayInvokeTooltip:
+    "使用凭据完成服务发现、支付结算与真实调用，证明这个运行时已经能完成第一笔自主付费调用。",
   depositConfirmedToast: "充值已确认。现在可以创建第一个运行时了。",
   credentialCopiedToast: "凭据已复制到剪贴板。",
   signInToDepositFunds: "充值前请先完成登录。",
   currentSummaryLabel: "当前摘要",
   copied: "已复制",
   depositModalTitle: "为 Owner Vault 注资",
-  depositModalDescription: "把 USDC 从你的钱包转入 Synapse Vault。这会成为 Agent 运行时的可消费信用余额。",
+  depositModalDescription:
+    "把 USDC 从你的钱包转入 Synapse Vault。这会成为 Agent 运行时的可消费信用余额。",
   firstInvocationAria: "首笔调用面板",
   firstInvocationEyebrow: "首笔调用",
   firstInvocationTitle: "在一个面板里完成发现、询价和调用",
-  firstInvocationDescription: "这个面板会把 Agent 凭据变成真实调用路径。先选服务、看 SDK 片段，再用同一份 payload 在下面的付费 sandbox 里跑通。",
+  firstInvocationDescription:
+    "这个面板会把 Agent 凭据变成真实调用路径。先选服务、看 SDK 片段，再用同一份 payload 在下面的付费 sandbox 里跑通。",
   demoServiceLabel: "演示服务",
   noPublicServicesAvailable: "当前没有公开服务可用",
   discoveryResultLabel: "发现结果",
@@ -113,7 +127,8 @@ const agentsPage: I18nMessages["agentsPage"] = {
   discoverPublicServiceHint: "先发现一个公开服务，再继续询价和调用。",
   quotePreviewLabel: "报价预览",
   unknown: "未知",
-  quotePreviewDescription: "这里展示当前目录中的价格。真正的 SDK quote 步骤会在 invoke 前锁定最终支付条件。",
+  quotePreviewDescription:
+    "这里展示当前目录中的价格。真正的 SDK quote 步骤会在 invoke 前锁定最终支付条件。",
   gatewayEndpointLabel: "网关端点",
   noEndpointSelected: "未选择端点",
   browseMarketplace: "浏览 Marketplace",
@@ -121,7 +136,8 @@ const agentsPage: I18nMessages["agentsPage"] = {
   copy: "复制",
   sandboxInvocationEyebrow: "Sandbox 调用",
   sandboxInvocationTitle: "用真实凭据运行付费示例",
-  sandboxInvocationDescription: "粘贴一次性凭据，把它保存到当前服务，然后执行 payload。结果会把链上支付哈希和网关响应一起展示出来。",
+  sandboxInvocationDescription:
+    "粘贴一次性凭据，把它保存到当前服务，然后执行 payload。结果会把链上支付哈希和网关响应一起展示出来。",
   agentCredentialLabel: "Agent 凭据",
   agentCredentialPlaceholder: "在这里粘贴一次性凭据 token",
   saveForService: "保存到服务",
@@ -137,9 +153,11 @@ const agentsPage: I18nMessages["agentsPage"] = {
   resultTransactionHashLabel: "交易哈希",
   resultRequestIdLabel: "请求 ID",
   unavailableInGatewayResponse: "网关响应中未返回",
-  noInvocationYet: "这个面板还没有执行过调用。成功运行后，会在这里展示支付哈希、重试次数、扣费 USDC、请求 ID 和网关响应。",
+  noInvocationYet:
+    "这个面板还没有执行过调用。成功运行后，会在这里展示支付哈希、重试次数、扣费 USDC、请求 ID 和网关响应。",
   workspaceNoMatchingAgents: "没有匹配的 Agent",
-  workspaceNoMatchingAgentsDescription: "签发一个新的 Agent 凭据后，这个 workspace 就会出现内容。",
+  workspaceNoMatchingAgentsDescription:
+    "签发一个新的 Agent 凭据后，这个 workspace 就会出现内容。",
   workspaceCreateAgentCta: "创建 Agent",
   workspaceTableAgent: "Agent",
   workspaceTableBudget: "预算",
@@ -156,27 +174,35 @@ const agentsPage: I18nMessages["agentsPage"] = {
   workspaceEdit: "编辑",
   workspaceRevokeTitle: "撤销 Agent",
   workspaceSummaryTotalAgents: "Agent 总数",
-  workspaceSummaryActiveAgents: "当前有 {{count}} 个运行时 profile 处于活跃状态。",
+  workspaceSummaryActiveAgents:
+    "当前有 {{count}} 个运行时 profile 处于活跃状态。",
   workspaceSummaryBudgetEnvelope: "预算池",
-  workspaceSummaryBudgetEnvelopeDescription: "当前 Owner workspace 已签发出去的运行时总预算。",
+  workspaceSummaryBudgetEnvelopeDescription:
+    "当前 Owner workspace 已签发出去的运行时总预算。",
   workspaceSummaryNeedsAttention: "需要关注",
-  workspaceSummaryNeedsAttentionDescription: "接近限额或即将过期的 Agent 需要提前调整，避免自动化任务停摆。",
+  workspaceSummaryNeedsAttentionDescription:
+    "接近限额或即将过期的 Agent 需要提前调整，避免自动化任务停摆。",
   workspaceSummaryRemainingCalls: "剩余调用次数",
-  workspaceSummaryRemainingCallsDescription: "当前已签发凭据里剩余的总调用余量。",
+  workspaceSummaryRemainingCallsDescription:
+    "当前已签发凭据里剩余的总调用余量。",
   workspaceTitle: "Agent Workspace",
-  workspaceDescription: "这里是 Agent 运行时身份的独立工作台。上面的卡片负责快速看态势，真正的编辑、限额复核和撤销操作都应该在下面的 registry 列表里完成。",
+  workspaceDescription:
+    "这里是 Agent 运行时身份的独立工作台。上面的卡片负责快速看态势，真正的编辑、限额复核和撤销操作都应该在下面的 registry 列表里完成。",
   workspaceCreateNewAgent: "创建新 Agent",
   workspaceHighlightsEyebrow: "Workspace 高亮",
   workspaceHighlightsTitle: "卡片用于快速看态势",
-  workspaceHighlightsDescription: "先用卡片找到最值得关注的对象，再在右侧 registry 列表里完成真正的管理动作。",
+  workspaceHighlightsDescription:
+    "先用卡片找到最值得关注的对象，再在右侧 registry 列表里完成真正的管理动作。",
   workspaceToneRevoked: "已撤销",
   workspaceToneReview: "待检查",
   workspaceToneHealthy: "健康",
   workspaceRegistryEyebrow: "Workspace Registry",
   workspaceRegistryTitle: "列表视图才是主控制面",
-  workspaceRegistryDescription: "卡片适合看大盘态势，但对 Owner 规模化管理来说，列表能把状态、预算、使用情况和操作压在一行里，效率更高。",
+  workspaceRegistryDescription:
+    "卡片适合看大盘态势，但对 Owner 规模化管理来说，列表能把状态、预算、使用情况和操作压在一行里，效率更高。",
   workspaceYourAgentsTitle: "Your Agents",
-  workspaceYourAgentsDescription: "用更轻的双栏工作台管理运行时身份，并直接轮换凭据。",
+  workspaceYourAgentsDescription:
+    "用更轻的双栏工作台管理运行时身份，并直接轮换凭据。",
   workspaceManageAgents: "管理 Agents",
   workspaceDoneManaging: "完成",
   workspaceManaging: "处理中...",
@@ -184,18 +210,24 @@ const agentsPage: I18nMessages["agentsPage"] = {
   workspaceSimpleDescription: "Manage agents and agents Credential",
   workspaceCreateAgentCompact: "Create Agent +",
   workspaceAgentLimitHint: "已创建 {{count}} / {{limit}} 个 Agent",
-  workspaceAgentLimitReached: "最多只能创建 {{limit}} 个 Agent。请先删除一个再创建新的 Agent。",
-  workspaceAgentCardDescription: "这个 Agent 已创建，可直接用于调用 Synapse API。",
+  workspaceAgentLimitReached:
+    "最多只能创建 {{limit}} 个 Agent。请先删除一个再创建新的 Agent。",
+  workspaceAgentCardDescription:
+    "这个 Agent 已创建，可直接用于调用 Synapse API。",
   workspaceDetailEmptyTitle: "查看 Agent 详情",
-  workspaceDetailEmptyDescription: "点击左侧任意 Agent，查看它的运行时详情、限额和凭据控制面板。",
-  workspaceDetailDescription: "在这里管理这个运行时的 API key、限额和认证凭据。",
+  workspaceDetailEmptyDescription:
+    "点击左侧任意 Agent，查看它的运行时详情、限额和凭据控制面板。",
+  workspaceDetailDescription:
+    "在这里管理这个运行时的 API key、限额和认证凭据。",
   workspaceCloseDetail: "关闭 Agent 详情",
   workspaceCopyAgentId: "复制 Agent ID",
   workspaceCredentialPanelTitle: "Agent Credential",
-  workspaceCredentialPanelDescription: "需要时可以直接轮换运行时密钥。完整 token 只会在签发或重新生成后显示一次。",
+  workspaceCredentialPanelDescription:
+    "需要时可以直接轮换运行时密钥。完整 token 只会在签发或重新生成后显示一次。",
   workspaceCredentialPrefixLabel: "凭据前缀",
   workspaceQuotaPanelTitle: "运行时限额",
-  workspaceQuotaPanelDescription: "查看预算、使用情况和速率限制，并按需刷新这个运行时的消费边界。",
+  workspaceQuotaPanelDescription:
+    "查看预算、使用情况和速率限制，并按需刷新这个运行时的消费边界。",
   workspaceGenerateCredential: "Generate",
   workspaceGenerating: "生成中...",
   workspaceRegenerateCredential: "重新生成 Credential",
@@ -204,13 +236,16 @@ const agentsPage: I18nMessages["agentsPage"] = {
   workspaceRevokeShort: "撤销",
   workspaceDangerGenerateTitle: "生成 Agent Credential",
   workspaceDangerGenerateQuestion: "要为这个运行时生成新的 Credential 吗？",
-  workspaceDangerGenerateDescription: "Synapse 会为这个 Agent 签发一个新的运行时 secret。完整 token 只会在生成完成后展示一次。",
+  workspaceDangerGenerateDescription:
+    "Synapse 会为这个 Agent 签发一个新的运行时 secret。完整 token 只会在生成完成后展示一次。",
   workspaceDangerRegenerateTitle: "重新生成 Agent Credential",
   workspaceDangerRegenerateQuestion: "确定要重新生成这个凭据吗？",
-  workspaceDangerRegenerateDescription: "重新生成后，你需要把新的 secret 更新到 agent runtime 里。轮换完成后，当前 credential 会停止鉴权。",
+  workspaceDangerRegenerateDescription:
+    "重新生成后，你需要把新的 secret 更新到 agent runtime 里。轮换完成后，当前 credential 会停止鉴权。",
   workspaceDangerRevokeTitle: "撤销 Agent Credential",
   workspaceDangerRevokeQuestion: "确定要撤销这个凭据吗？",
-  workspaceDangerRevokeDescription: "撤销后，当前 runtime 会立刻失去付费调用鉴权能力，直到你重新签发新的 credential。",
+  workspaceDangerRevokeDescription:
+    "撤销后，当前 runtime 会立刻失去付费调用鉴权能力，直到你重新签发新的 credential。",
   workspaceDangerConfirmGenerate: "Generate",
   workspaceDangerConfirmRegenerate: "是，重新生成",
   workspaceDangerConfirmRevoke: "是，撤销",
@@ -220,11 +255,13 @@ const agentsPage: I18nMessages["agentsPage"] = {
   workspaceCredentialRegeneratedFailed: "重新生成 Agent 凭据失败。",
   workspaceDeleteAgentLabel: "删除 Agent",
   workspaceDeleteAgentTitle: "确认删除",
-  workspaceDeleteAgentDescription: "确定要删除 {{name}} 吗？这个操作会把这个运行时身份和对应凭据从当前 workspace 永久移除。",
+  workspaceDeleteAgentDescription:
+    "确定要删除 {{name}} 吗？这个操作会把这个运行时身份和对应凭据从当前 workspace 永久移除。",
   workspaceDeleteAgentConfirmInstruction: "请输入 {{name}} 完成确认：",
   workspaceDeleteAgentPlaceholder: "输入 {{name}} 以确认",
   workspaceDeleteAgentConfirm: "删除",
-  workspaceDeleteAgentTypingMismatch: "只有输入完全一致的 Agent 名称后，才允许删除。",
+  workspaceDeleteAgentTypingMismatch:
+    "只有输入完全一致的 Agent 名称后，才允许删除。",
   workspaceDeleteAgentDeletedToast: "Agent 已删除。",
   workspaceDeleteAgentDeletedFailed: "删除 Agent 失败。",
   workspaceBudgetTile: "预算",
@@ -236,15 +273,20 @@ const agentsPage: I18nMessages["agentsPage"] = {
   workspaceStatusTile: "状态",
   workspaceUpdatedTile: "更新时间",
   workspaceSecretVisibilityTitle: "密钥可见性",
-  workspaceSecretVisibilityDescription: "Synapse 只会在签发时展示完整凭据。如果你需要新的 secret，请直接重新生成。",
+  workspaceSecretVisibilityDescription:
+    "Synapse 只会在签发时展示完整凭据。如果你需要新的 secret，请直接重新生成。",
   workspaceFilterActive: "仅看活跃",
   workspaceFilterRevoked: "仅看已撤销",
-  workspaceHighlightRevokedDetail: "这个 Agent 已被撤销，不能再继续用于运行时鉴权调用。",
-  workspaceHighlightAttentionDetail: "当前调用使用率已达到 {{percent}}%，建议在自动化任务卡住之前先复核限额。",
-  workspaceHighlightHealthyDetail: "这个运行时 profile 当前状态健康，在本轮配额窗口里还剩 {{remaining}} 次调用余量。",
+  workspaceHighlightRevokedDetail:
+    "这个 Agent 已被撤销，不能再继续用于运行时鉴权调用。",
+  workspaceHighlightAttentionDetail:
+    "当前调用使用率已达到 {{percent}}%，建议在自动化任务卡住之前先复核限额。",
+  workspaceHighlightHealthyDetail:
+    "这个运行时 profile 当前状态健康，在本轮配额窗口里还剩 {{remaining}} 次调用余量。",
   workspaceRailEyebrow: "Workspace 激活路径",
   workspaceRailTitle: "先入金，再分配 Credits，再开始调用",
-  workspaceRailDescription: "Agent Workspace 不该只是身份列表，而要直接告诉用户下一步怎么把 runtime 真正跑起来。",
+  workspaceRailDescription:
+    "Agent Workspace 不该只是身份列表，而要直接告诉用户下一步怎么把 runtime 真正跑起来。",
   workspaceRailOpenTreasury: "打开 Treasury",
   workspaceRailOpenCredits: "打开 Credits",
   workspaceRailCreateAgent: "创建 Agent",
@@ -260,7 +302,8 @@ const agentsPage: I18nMessages["agentsPage"] = {
   workspaceRailStepAllocateSummaryReady: "运行时预算已经分配。",
   workspaceRailStepAllocateSummaryEmpty: "Credits 还没有分配。",
   workspaceRailStepCredentialTitle: "凭据就绪",
-  workspaceRailStepCredentialSummaryReady: "至少已有一个运行时凭据处于可用状态。",
+  workspaceRailStepCredentialSummaryReady:
+    "至少已有一个运行时凭据处于可用状态。",
   workspaceRailStepCredentialSummaryEmpty: "当前还没有可见凭据。",
   workspaceRailStepInvokeTitle: "运行调用",
   workspaceRailStepInvokeSummaryReady: "已经存在成功的付费调用。",
@@ -270,15 +313,20 @@ const agentsPage: I18nMessages["agentsPage"] = {
   workspaceRailStateLocked: "未解锁",
   workspaceRailStateBlocked: "被阻塞",
   workspaceRailStatePanelDoneTitle: "Workspace 已激活",
-  workspaceRailStatePanelDoneDescription: "Treasury、Credits、凭据和首次调用都已经跑通。后续重点是调预算、看消耗和继续扩 runtime。",
+  workspaceRailStatePanelDoneDescription:
+    "Treasury、Credits、凭据和首次调用都已经跑通。后续重点是调预算、看消耗和继续扩 runtime。",
   workspaceRailStatePanelDepositTitle: "先为 Treasury 注资",
-  workspaceRailStatePanelDepositDescription: "没有 Owner Treasury 余额，任何 Agent 都无法花钱。先去 Treasury 充值，再回来创建 runtime。",
+  workspaceRailStatePanelDepositDescription:
+    "没有 Owner Treasury 余额，任何 Agent 都无法花钱。先去 Treasury 充值，再回来创建 runtime。",
   workspaceRailStatePanelCreateTitle: "先创建第一个运行时身份",
-  workspaceRailStatePanelCreateDescription: "Owner 已有资金，但还没有 Agent。先创建 runtime，Synapse 才能给它挂预算和凭据。",
+  workspaceRailStatePanelCreateDescription:
+    "Owner 已有资金，但还没有 Agent。先创建 runtime，Synapse 才能给它挂预算和凭据。",
   workspaceRailStatePanelAllocateTitle: "先分配 Credits 再开始花钱",
-  workspaceRailStatePanelAllocateDescription: "Agent 已存在，但还没有运行时预算。先去 Credits 分配额度，再进行第一笔调用。",
+  workspaceRailStatePanelAllocateDescription:
+    "Agent 已存在，但还没有运行时预算。先去 Credits 分配额度，再进行第一笔调用。",
   workspaceRailStatePanelInvokeTitle: "现在该跑第一笔付费调用了",
-  workspaceRailStatePanelInvokeDescription: "运行时已经有钱也有凭据。下一步就是打开 Guide，把第一笔真实调用打穿。",
+  workspaceRailStatePanelInvokeDescription:
+    "运行时已经有钱也有凭据。下一步就是打开 Guide，把第一笔真实调用打穿。",
 };
 
 export default agentsPage;

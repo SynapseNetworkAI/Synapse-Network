@@ -247,7 +247,7 @@ export const ROUTE_GROUPS: RouteGroup[] = [
         path: "/api/v1/auth/me/profile",
         summary: "Update account profile",
         description:
-          "Submit wallet-signed proof to update account name, email, and notification preferences.",
+          "Submit wallet-signed proof to update account name, notification preferences, and email binding intent. New or changed email addresses are staged as pendingEmail until a verification code is confirmed. Submitting the current verified email cancels a pending change; submitting null removes the verified email.",
         auth: "jwt",
         bodyExample: {
           signature: "0x...",
@@ -259,7 +259,10 @@ export const ROUTE_GROUPS: RouteGroup[] = [
         responseExample: {
           wallet_address: "0x...",
           username: "new-alias",
-          email: "new@example.com",
+          email: "old@example.com",
+          pendingEmail: "new@example.com",
+          emailVerificationStatus: "pending",
+          emailVerificationSendsRemaining: 4,
         },
         agentMeta: {
           role: "owner",
@@ -268,6 +271,79 @@ export const ROUTE_GROUPS: RouteGroup[] = [
           requires:
             "Challenge from POST /auth/me/profile/challenge, signed by owner wallet",
         },
+      },
+      {
+        id: "post-email-verify-code",
+        method: "POST",
+        path: "/api/v1/auth/email/verify-code",
+        summary: "Verify pending email code",
+        description:
+          "Confirms the 6-digit code sent to a pending email address. Only after this succeeds does Gateway bind the email to the wallet account.",
+        auth: "jwt",
+        bodyExample: {
+          email: "new@example.com",
+          code: "123456",
+        },
+        responseExample: {
+          profile: {
+            walletAddress: "0x...",
+            email: "new@example.com",
+            emailVerified: true,
+            pendingEmail: null,
+          },
+        },
+        agentMeta: {
+          role: "owner",
+          phase: "manage",
+          note: "Step 3 of email binding. Submit the code from the verification email. Codes expire after 10 minutes and lock after 5 bad attempts.",
+          requires:
+            "PUT /auth/me/profile must have staged a pendingEmail first",
+        },
+        errors: [
+          {
+            status: 400,
+            code: "EMAIL_VERIFICATION_INVALID_CODE",
+            message: "The code is incorrect or malformed",
+          },
+          {
+            status: 400,
+            code: "EMAIL_VERIFICATION_EXPIRED",
+            message: "The code expired; request a new one",
+          },
+        ],
+      },
+      {
+        id: "post-email-resend-code",
+        method: "POST",
+        path: "/api/v1/auth/email/resend-code",
+        summary: "Resend pending email code",
+        description:
+          "Generates a fresh 6-digit verification code for the current pending email. Each wallet can send at most 5 verification emails per UTC day.",
+        auth: "jwt",
+        bodyExample: {
+          email: "new@example.com",
+        },
+        responseExample: {
+          profile: {
+            walletAddress: "0x...",
+            pendingEmail: "new@example.com",
+            emailVerificationStatus: "pending",
+            emailVerificationSendsRemaining: 3,
+          },
+        },
+        agentMeta: {
+          role: "owner",
+          phase: "manage",
+          note: "Use when a user did not receive the current code. Resending invalidates the old code.",
+          requires: "A matching pendingEmail on the authenticated wallet",
+        },
+        errors: [
+          {
+            status: 429,
+            code: "EMAIL_VERIFICATION_DAILY_LIMIT_REACHED",
+            message: "Daily email verification limit reached",
+          },
+        ],
       },
       {
         id: "post-logout",
@@ -1378,7 +1454,7 @@ export const ROUTE_GROUPS: RouteGroup[] = [
         path: "/api/v1/feedback",
         summary: "Submit contextual feedback",
         description:
-          "Creates a redacted feedback report from docs or dashboard surfaces. The server filters secrets before persisting context.",
+          "Creates a redacted feedback report from docs or dashboard surfaces. Actionable support categories also create an Admin Forum Support task.",
         auth: "none",
         bodyExample: {
           source: "docs",
@@ -1392,6 +1468,8 @@ export const ROUTE_GROUPS: RouteGroup[] = [
           status: "success",
           feedbackId: "fbk_abc123",
           redacted: true,
+          supportCaseCreated: true,
+          supportTaskId: "frt_abc123",
         },
         agentMeta: {
           role: "public",

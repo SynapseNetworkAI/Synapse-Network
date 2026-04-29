@@ -27,6 +27,20 @@ class OwnerProfileRecord(BaseModel):
     display_name: Optional[str] = Field(default=None, alias="displayName")
     email: Optional[str] = None
     email_verified: bool = Field(default=False, alias="emailVerified")
+    pending_email: Optional[str] = Field(default=None, alias="pendingEmail")
+    email_verification_expires_at: Optional[str] = Field(
+        default=None,
+        alias="emailVerificationExpiresAt",
+    )
+    email_verification_attempts: int = Field(default=0, alias="emailVerificationAttempts")
+    email_verification_send_count: int = Field(
+        default=0,
+        alias="emailVerificationSendCount",
+    )
+    email_verification_send_count_date: Optional[str] = Field(
+        default=None,
+        alias="emailVerificationSendCountDate",
+    )
     notify_marketing: bool = Field(default=True, alias="notifyMarketing")
     notify_alerts: bool = Field(default=True, alias="notifyAlerts")
     status: Literal["active", "suspended", "closed"] = "active"

@@ -310,20 +310,9 @@ async def _settle_hold(
                 routing_tax=settlement.routing_tax,
                 invocation=invocation,
                 usage_row=usage_row,
+                credential_id=credential_id,
             )
         )
-        try:
-            await forwarding_billing._increment_credential_usage_with_retry(storage, credential_id)
-        except Exception:
-            log.warning(
-                "llm_credential_usage_increment_failed",
-                extra={
-                    "credential_id": credential_id,
-                    "invocation_id": invocation.invocation_id,
-                    "request_id": request_id,
-                },
-                exc_info=True,
-            )
         return _q6(getattr(result, "consumer_available_balance_after", Decimal("0")))
 
     _release_hold(storage, owner_wallet, hold_usdc)

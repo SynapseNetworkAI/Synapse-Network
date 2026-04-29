@@ -468,6 +468,7 @@ class SettleConsumerHoldUsageCommand:
     provider_net: Decimal
     platform_fee_total: Decimal
     usage_row: UsageLogRow
+    credential_id: str
     request_id: str = ""
     unit_price: Decimal = Decimal("0")
     protocol_fee: Decimal = Decimal("0")

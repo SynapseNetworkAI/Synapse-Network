@@ -34,6 +34,9 @@ TRANSACTION_EMAIL_TEMPLATES = frozenset(
         "provider_withdrawal_completed",
         "provider_withdrawal_rejected",
         "email_verification",
+        "email_bound_success",
+        "email_changed_notice",
+        "email_removed_notice",
     }
 )
 
@@ -144,6 +147,80 @@ def enqueue_transaction_email(
         return False
     else:
         return True
+
+
+def enqueue_email_verification_code(
+    storage: BaseStorage,
+    *,
+    owner_wallet: str,
+    recipient_email: str,
+    code: str,
+    expires_in_minutes: int,
+) -> bool:
+    """Enqueue the one-time email binding code to the pending recipient."""
+
+    owner = normalize_wallet(owner_wallet)
+    intent = build_notification_intent_for_owner(
+        owner_wallet=owner,
+        recipient_email=recipient_email,
+        template_key="email_verification",
+        event_type="security.email_verification_code_requested",
+        resource_id=f"email-code:{owner}:{_email_safe_key(recipient_email)}",
+        payload={
+            "requestId": f"email-code:{owner}",
+            "status": "PENDING_VERIFICATION",
+            "verificationCode": code,
+            "expiresInMinutes": str(expires_in_minutes),
+            "emailMasked": mask_email(recipient_email),
+            "wallet": owner,
+        },
+    )
+    try:
+        storage.enqueue_notification_outbox(intent)
+    except Exception:
+        logger.exception(
+            "EMAIL_VERIFICATION_CODE_ENQUEUE_FAILED",
+            extra={"owner": owner, "email": mask_email(recipient_email)},
+        )
+        return False
+    return True
+
+
+def enqueue_account_email_notice(
+    storage: BaseStorage,
+    *,
+    owner_wallet: str,
+    recipient_email: str,
+    template_key: str,
+    event_type: str,
+    payload: dict[str, Any],
+) -> bool:
+    """Best-effort account email notice for verified email lifecycle changes."""
+
+    if template_key not in TRANSACTION_EMAIL_TEMPLATES:
+        logger.warning("ACCOUNT_EMAIL_NOTICE_TEMPLATE_SKIPPED template=%s", template_key)
+        return False
+    email = str(recipient_email or "").strip().lower()
+    if not email:
+        return False
+    intent = build_notification_intent_for_owner(
+        owner_wallet=owner_wallet,
+        recipient_email=email,
+        template_key=template_key,
+        event_type=event_type,
+        resource_id=f"{template_key}:{normalize_wallet(owner_wallet)}:{_email_safe_key(email)}",
+        payload=payload,
+        priority="transactional_high",
+    )
+    try:
+        storage.enqueue_notification_outbox(intent)
+    except Exception:
+        logger.exception(
+            "ACCOUNT_EMAIL_NOTICE_ENQUEUE_FAILED",
+            extra={"event_type": event_type, "template_key": template_key},
+        )
+        return False
+    return True
 
 
 def _sign_lark_request(secret: str, timestamp: int) -> str:

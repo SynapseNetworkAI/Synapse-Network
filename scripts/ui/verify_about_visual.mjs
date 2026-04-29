@@ -6,11 +6,18 @@ import { chromium } from "playwright";
 const __filename = fileURLToPath(import.meta.url);
 const ROOT = path.resolve(path.dirname(__filename), "../..");
 const BASE_URL = process.env.ABOUT_VISUAL_BASE_URL || "http://localhost:3000";
-const REFERENCE_PATH = process.env.ABOUT_VISUAL_REFERENCE || path.join(ROOT, "docs/design/reference/about-gpt-image2.png");
+const REFERENCE_PATH =
+  process.env.ABOUT_VISUAL_REFERENCE ||
+  path.join(ROOT, "docs/design/reference/about-gpt-image2.png");
 const VIEWPORT_WIDTH = Number(process.env.ABOUT_VISUAL_WIDTH || 1536);
 const VIEWPORT_HEIGHT = Number(process.env.ABOUT_VISUAL_HEIGHT || 1024);
-const RUN_ID = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
-const OUT_DIR = process.env.ABOUT_VISUAL_OUT_DIR || path.join(ROOT, "output/playwright/about-visual", RUN_ID);
+const RUN_ID = new Date()
+  .toISOString()
+  .replace(/[-:]/g, "")
+  .replace(/\.\d{3}Z$/, "Z");
+const OUT_DIR =
+  process.env.ABOUT_VISUAL_OUT_DIR ||
+  path.join(ROOT, "output/playwright/about-visual", RUN_ID);
 
 function ensureReference() {
   if (!fs.existsSync(REFERENCE_PATH)) {
@@ -21,9 +28,8 @@ function ensureReference() {
 function htmlForComparison({ actualPath, referencePath, mode }) {
   const actualUrl = `file://${actualPath}`;
   const referenceUrl = `file://${referencePath}`;
-  const actualStyle = mode === "diff"
-    ? "mix-blend-mode:difference;opacity:1;"
-    : "opacity:0.52;";
+  const actualStyle =
+    mode === "diff" ? "mix-blend-mode:difference;opacity:1;" : "opacity:0.52;";
   const label = mode === "diff" ? "difference blend" : "overlay";
 
   return `<!doctype html>
@@ -84,9 +90,21 @@ function htmlForComparison({ actualPath, referencePath, mode }) {
 </html>`;
 }
 
-async function screenshotComparison(browser, actualPath, referencePath, outPath, mode) {
-  const page = await browser.newPage({ viewport: { width: VIEWPORT_WIDTH, height: VIEWPORT_HEIGHT }, deviceScaleFactor: 1 });
-  await page.setContent(htmlForComparison({ actualPath, referencePath, mode }), { waitUntil: "load" });
+async function screenshotComparison(
+  browser,
+  actualPath,
+  referencePath,
+  outPath,
+  mode
+) {
+  const page = await browser.newPage({
+    viewport: { width: VIEWPORT_WIDTH, height: VIEWPORT_HEIGHT },
+    deviceScaleFactor: 1,
+  });
+  await page.setContent(
+    htmlForComparison({ actualPath, referencePath, mode }),
+    { waitUntil: "load" }
+  );
   await page.screenshot({ path: outPath, fullPage: false });
   await page.close();
 }
@@ -107,12 +125,27 @@ async function main() {
       viewport: { width: VIEWPORT_WIDTH, height: VIEWPORT_HEIGHT },
       deviceScaleFactor: 1,
     });
-    await page.goto(`${BASE_URL}/about`, { waitUntil: "networkidle", timeout: 30000 });
+    await page.goto(`${BASE_URL}/about`, {
+      waitUntil: "networkidle",
+      timeout: 30000,
+    });
     await page.screenshot({ path: actualOut, fullPage: false });
     await page.close();
 
-    await screenshotComparison(browser, actualOut, referenceOut, overlayOut, "overlay");
-    await screenshotComparison(browser, actualOut, referenceOut, diffOut, "diff");
+    await screenshotComparison(
+      browser,
+      actualOut,
+      referenceOut,
+      overlayOut,
+      "overlay"
+    );
+    await screenshotComparison(
+      browser,
+      actualOut,
+      referenceOut,
+      diffOut,
+      "diff"
+    );
   } finally {
     await browser.close();
   }
@@ -126,22 +159,30 @@ async function main() {
     overlay: path.relative(ROOT, overlayOut),
     diff: path.relative(ROOT, diffOut),
   };
-  fs.writeFileSync(path.join(OUT_DIR, "report.json"), `${JSON.stringify(report, null, 2)}\n`);
-  fs.writeFileSync(path.join(OUT_DIR, "report.md"), [
-    "# About Visual Alignment",
-    "",
-    `- Base URL: ${BASE_URL}`,
-    `- Viewport: ${VIEWPORT_WIDTH}x${VIEWPORT_HEIGHT}`,
-    `- Reference: ${report.reference}`,
-    `- Actual: ${report.actual}`,
-    `- Overlay: ${report.overlay}`,
-    `- Diff: ${report.diff}`,
-    "",
-    "Use overlay.png for alignment and diff.png for high-contrast mismatch hunting.",
-    "",
-  ].join("\n"));
+  fs.writeFileSync(
+    path.join(OUT_DIR, "report.json"),
+    `${JSON.stringify(report, null, 2)}\n`
+  );
+  fs.writeFileSync(
+    path.join(OUT_DIR, "report.md"),
+    [
+      "# About Visual Alignment",
+      "",
+      `- Base URL: ${BASE_URL}`,
+      `- Viewport: ${VIEWPORT_WIDTH}x${VIEWPORT_HEIGHT}`,
+      `- Reference: ${report.reference}`,
+      `- Actual: ${report.actual}`,
+      `- Overlay: ${report.overlay}`,
+      `- Diff: ${report.diff}`,
+      "",
+      "Use overlay.png for alignment and diff.png for high-contrast mismatch hunting.",
+      "",
+    ].join("\n")
+  );
 
-  console.log(`About visual evidence written to ${path.relative(ROOT, OUT_DIR)}`);
+  console.log(
+    `About visual evidence written to ${path.relative(ROOT, OUT_DIR)}`
+  );
 }
 
 main().catch((error) => {

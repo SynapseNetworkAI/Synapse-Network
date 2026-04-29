@@ -1,7 +1,4 @@
-import {
-  buildAuthedHeaders,
-  normalizeAuthApiError,
-} from "@/utils/authSession";
+import { buildAuthedHeaders, normalizeAuthApiError } from "@/utils/authSession";
 import { getGatewayBaseUrl } from "@/utils/gatewayApi";
 
 export type OwnerProfile = {
@@ -9,6 +6,10 @@ export type OwnerProfile = {
   displayName: string | null;
   email: string | null;
   emailVerified: boolean;
+  pendingEmail?: string | null;
+  emailVerificationStatus?: "none" | "pending" | "expired" | "locked";
+  emailVerificationExpiresAt?: string | null;
+  emailVerificationSendsRemaining?: number;
   notifyMarketing: boolean;
   notifyAlerts: boolean;
   createdAt: string;
@@ -20,6 +21,11 @@ export type OwnerProfilePayload = {
   email: string | null;
   notifyMarketing: boolean;
   notifyAlerts: boolean;
+};
+
+type EmailVerificationCodePayload = {
+  email: string;
+  code: string;
 };
 
 type OwnerProfileEnvelope = {
@@ -104,4 +110,40 @@ export async function updateOwnerProfile(
 
   const payload = (await response.json()) as OwnerProfileEnvelope;
   return payload.profile;
+}
+
+export async function verifyOwnerEmailCode(
+  ownerAddress: string,
+  payload: EmailVerificationCodePayload
+): Promise<OwnerProfile> {
+  const response = await fetch(`${AUTH_API_BASE}/email/verify-code`, {
+    method: "POST",
+    headers: buildAuthedHeaders(ownerAddress),
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw await parseResponseError(response);
+  }
+
+  const envelope = (await response.json()) as OwnerProfileEnvelope;
+  return envelope.profile;
+}
+
+export async function resendOwnerEmailCode(
+  ownerAddress: string,
+  email: string
+): Promise<OwnerProfile> {
+  const response = await fetch(`${AUTH_API_BASE}/email/resend-code`, {
+    method: "POST",
+    headers: buildAuthedHeaders(ownerAddress),
+    body: JSON.stringify({ email }),
+  });
+
+  if (!response.ok) {
+    throw await parseResponseError(response);
+  }
+
+  const envelope = (await response.json()) as OwnerProfileEnvelope;
+  return envelope.profile;
 }

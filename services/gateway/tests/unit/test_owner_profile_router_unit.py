@@ -9,7 +9,6 @@ from fastapi.testclient import TestClient
 from src import app as gateway_app
 from src.api.routers import auth as auth_router
 from src.domain.identity import OwnerProfileRecord
-from src.services.notifications.email_verification import create_email_verification_token
 from src.services.platform import credential_service
 
 
@@ -29,6 +28,7 @@ class FakeCredentialAuthRepo:
         self.update_calls: list[dict[str, object]] = []
         self.read_calls: list[tuple[str, bool]] = []
         self.raise_email_conflict = False
+        self.raise_daily_limit = False
 
     def read_owner_profile(
         self, wallet: str, *, ensure_exists: bool = True
@@ -56,12 +56,26 @@ class FakeCredentialAuthRepo:
                 "notify_alerts": notify_alerts,
             }
         )
+        old_email = self.profile.email
+        if email is None:
+            next_email = None
+            pending_email = None
+            email_verified = False
+        elif email == old_email:
+            next_email = old_email
+            pending_email = None
+            email_verified = self.profile.email_verified
+        else:
+            next_email = old_email
+            pending_email = email
+            email_verified = bool(old_email and self.profile.email_verified)
         self.profile = OwnerProfileRecord(
             ownerId="owner:0xabc",
             ownerWallet="0xabc",
             displayName=display_name,
-            email=email,
-            emailVerified=False,
+            email=next_email,
+            emailVerified=email_verified,
+            pendingEmail=pending_email,
             notifyMarketing=notify_marketing,
             notifyAlerts=notify_alerts,
             createdAt="2026-04-03 10:00:00",
@@ -69,15 +83,56 @@ class FakeCredentialAuthRepo:
         )
         return self.profile
 
-    def verify_owner_email(self, wallet: str, email: str) -> OwnerProfileRecord | None:
-        if wallet != self.profile.owner_wallet or email != self.profile.email:
-            return None
+    def prepare_owner_email_verification_code(
+        self,
+        wallet: str,
+        email: str,
+        *,
+        code_hash: str,
+        expires_at,
+        daily_limit: int,
+        send_date,
+    ) -> OwnerProfileRecord:
+        _ = code_hash, expires_at, daily_limit, send_date
+        if self.raise_daily_limit:
+            raise ValueError("EMAIL_VERIFICATION_DAILY_LIMIT_REACHED")
+        self.profile = self.profile.model_copy(update={"pending_email": email})
+        return self.profile
+
+    def mark_owner_email_verification_sent(
+        self,
+        wallet: str,
+        email: str,
+        *,
+        send_date,
+    ) -> OwnerProfileRecord | None:
+        _ = wallet, email
+        self.profile = self.profile.model_copy(
+            update={
+                "email_verification_send_count": self.profile.email_verification_send_count + 1,
+                "email_verification_send_count_date": str(send_date),
+            }
+        )
+        return self.profile
+
+    def verify_owner_email_code(
+        self,
+        wallet: str,
+        email: str,
+        *,
+        code_hash: str,
+        now,
+    ) -> OwnerProfileRecord:
+        _ = code_hash, now
+        if wallet != self.profile.owner_wallet or email != self.profile.pending_email:
+            raise ValueError("EMAIL_VERIFICATION_NOT_PENDING")
         self.profile = OwnerProfileRecord(
             ownerId=self.profile.owner_id,
             ownerWallet=self.profile.owner_wallet,
             displayName=self.profile.display_name,
-            email=self.profile.email,
+            email=email,
             emailVerified=True,
+            pendingEmail=None,
             notifyMarketing=self.profile.notify_marketing,
             notifyAlerts=self.profile.notify_alerts,
             createdAt=self.profile.created_at,
@@ -98,6 +153,7 @@ class FakeStorage:
     def __init__(self) -> None:
         self.credential_auth = FakeCredentialAuthRepo()
         self.audit = FakeAuditRepo()
+        self.outbox: list[object] = []
         self.data_manager = SimpleNamespace(
             system=SimpleNamespace(credential_auth=self.credential_auth),
             audit=SimpleNamespace(logs=self.audit),
@@ -105,6 +161,9 @@ class FakeStorage:
 
     def get_data_manager(self):
         return self.data_manager
+
+    def enqueue_notification_outbox(self, intent) -> None:
+        self.outbox.append(intent)
 
 
 async def _background_loop_until_stopped(stop_event, storage) -> None:
@@ -202,7 +261,13 @@ def test_profile_challenge_uses_owner_scoped_payload(monkeypatch) -> None:
     assert body["expiresInSec"] > 0
 
 
-def test_update_profile_persists_and_audits(monkeypatch) -> None:
+def test_update_profile_stages_new_email_and_sends_code(monkeypatch) -> None:
+    monkeypatch.setattr(
+        auth_router.settings,
+        "auth_secret",
+        "unit-test-auth-secret-with-enough-entropy",
+        raising=False,
+    )
     with _http_client(monkeypatch) as (client, storage):
         response = client.put(
             "/api/v1/auth/me/profile",
@@ -220,7 +285,10 @@ def test_update_profile_persists_and_audits(monkeypatch) -> None:
     assert response.status_code == 200
     body = response.json()
     assert body["profile"]["displayName"] == "Infra Desk"
-    assert body["profile"]["email"] == "infra@synapse.test"
+    assert body["profile"]["email"] == "ops@synapse.test"
+    assert body["profile"]["pendingEmail"] == "infra@synapse.test"
+    assert body["profile"]["emailVerificationStatus"] == "pending"
+    assert body["profile"]["emailVerificationSendsRemaining"] == 4
     assert storage.credential_auth.update_calls == [
         {
             "wallet": "0xabc",
@@ -231,9 +299,43 @@ def test_update_profile_persists_and_audits(monkeypatch) -> None:
         }
     ]
     assert len(storage.audit.rows) == 1
+    assert len(storage.outbox) == 1
+    assert storage.outbox[0].recipient_email == "infra@synapse.test"
+    assert storage.outbox[0].template_key == "email_verification"
     audit_detail = storage.audit.rows[0].details
-    assert audit_detail["emailMasked"] == "i***@synapse.test"
+    assert audit_detail["emailMasked"] == "o***@synapse.test"
+    assert audit_detail["pendingEmailMasked"] == "i***@synapse.test"
     assert audit_detail["notifyMarketing"] is False
+
+
+def test_update_profile_removes_verified_email_and_clears_pending(monkeypatch) -> None:
+    with _http_client(monkeypatch) as (client, storage):
+        storage.credential_auth.profile = storage.credential_auth.profile.model_copy(
+            update={
+                "email": "ops@synapse.test",
+                "email_verified": True,
+                "pending_email": "infra@synapse.test",
+            }
+        )
+        response = client.put(
+            "/api/v1/auth/me/profile",
+            json={
+                "displayName": "Synapse Ops",
+                "email": None,
+                "notifyMarketing": True,
+                "notifyAlerts": True,
+                "message": "Update Synapse account profile\nWallet: 0xabc\nPayload Hash: fake",
+                "signature": "0xsigned",
+            },
+            headers={"Authorization": "Bearer test", "X-User-Address": "0xabc"},
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["profile"]["email"] is None
+    assert body["profile"]["emailVerified"] is False
+    assert body["profile"]["pendingEmail"] is None
+    assert storage.outbox[-1].template_key == "email_removed_notice"
 
 
 def test_update_profile_maps_email_conflict(monkeypatch) -> None:
@@ -259,24 +361,53 @@ def test_update_profile_maps_email_conflict(monkeypatch) -> None:
     }
 
 
-def test_verify_email_token_marks_profile_verified_and_audits(monkeypatch) -> None:
-    monkeypatch.setattr(auth_router.settings, "auth_secret", "unit-test-auth-secret-with-enough-entropy", raising=False)
-    monkeypatch.setattr(auth_router.settings, "email_verification_ttl_sec", 60, raising=False)
-    token = create_email_verification_token(owner_wallet="0xabc", email="ops@synapse.test")
-
+def test_verify_email_code_marks_profile_verified_and_audits(monkeypatch) -> None:
     with _http_client(monkeypatch) as (client, storage):
-        response = client.get(f"/api/v1/auth/email/verify?v={token}")
+        storage.credential_auth.profile = storage.credential_auth.profile.model_copy(
+            update={"pending_email": "infra@synapse.test"}
+        )
+        response = client.post(
+            "/api/v1/auth/email/verify-code",
+            json={"email": "infra@synapse.test", "code": "123456"},
+            headers={"Authorization": "Bearer test", "X-User-Address": "0xAbC"},
+        )
 
     assert response.status_code == 200
     body = response.json()
+    assert body["profile"]["email"] == "infra@synapse.test"
     assert body["profile"]["emailVerified"] is True
+    assert body["profile"]["pendingEmail"] is None
     assert storage.credential_auth.profile.email_verified is True
     assert storage.audit.rows[-1].action == "OWNER_EMAIL_VERIFIED"
 
 
-def test_verify_email_token_rejects_bad_token(monkeypatch) -> None:
+def test_verify_email_code_rejects_non_pending_email(monkeypatch) -> None:
     with _http_client(monkeypatch) as (client, _storage):
-        response = client.get("/api/v1/auth/email/verify?v=bad-token")
+        response = client.post(
+            "/api/v1/auth/email/verify-code",
+            json={"email": "missing@synapse.test", "code": "123456"},
+            headers={"Authorization": "Bearer test", "X-User-Address": "0xAbC"},
+        )
 
     assert response.status_code == 400
-    assert response.json()["detail"]["code"] == "EMAIL_VERIFICATION_INVALID"
+    assert response.json()["detail"]["code"] == "EMAIL_VERIFICATION_NOT_PENDING"
+
+
+def test_update_profile_daily_email_limit_returns_429(monkeypatch) -> None:
+    with _http_client(monkeypatch) as (client, storage):
+        storage.credential_auth.raise_daily_limit = True
+        response = client.put(
+            "/api/v1/auth/me/profile",
+            json={
+                "displayName": "Infra Desk",
+                "email": "infra@synapse.test",
+                "notifyMarketing": False,
+                "notifyAlerts": True,
+                "message": "Update Synapse account profile\nWallet: 0xabc\nPayload Hash: fake",
+                "signature": "0xsigned",
+            },
+            headers={"Authorization": "Bearer test", "X-User-Address": "0xabc"},
+        )
+
+    assert response.status_code == 429
+    assert response.json()["detail"]["code"] == "EMAIL_VERIFICATION_DAILY_LIMIT_REACHED"

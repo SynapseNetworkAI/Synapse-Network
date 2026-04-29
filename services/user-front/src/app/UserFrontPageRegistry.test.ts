@@ -49,7 +49,9 @@ describe("user-front page registry", () => {
     const actualRoutes = new Set(walkFiles(APP_DIR).map(routeFromAppFile));
     const documentedRoutes = new Set(rows.map((row) => row.href));
 
-    expect(Array.from(actualRoutes).sort()).toEqual(Array.from(documentedRoutes).sort());
+    expect(Array.from(actualRoutes).sort()).toEqual(
+      Array.from(documentedRoutes).sort()
+    );
   });
 
   it("has unique ids and hrefs", () => {
@@ -63,18 +65,26 @@ describe("user-front page registry", () => {
 
     expect(redirects.length).toBeGreaterThan(0);
     for (const row of redirects) {
-      expect(row.redirectsTo, `${row.href} must document redirectsTo`).toBeTruthy();
+      expect(
+        row.redirectsTo,
+        `${row.href} must document redirectsTo`
+      ).toBeTruthy();
       if ((row.redirectsTo ?? "").startsWith("http")) {
         expect(row.redirectsTo).toMatch(/^https:\/\//);
       } else {
-        expect(documentedRoutes.has(row.redirectsTo ?? ""), `${row.href} target must exist`).toBe(true);
+        expect(
+          documentedRoutes.has(row.redirectsTo ?? ""),
+          `${row.href} target must exist`
+        ).toBe(true);
       }
       expect(row.dataVerification).toBe("none");
     }
   });
 
   it("does not treat thin or compatibility routes as missing implementation", () => {
-    const compatibilityRoutes = rows.filter((row) => row.maturity === "compatibility");
+    const compatibilityRoutes = rows.filter(
+      (row) => row.maturity === "compatibility"
+    );
     const thinRoutes = rows.filter((row) => row.maturity === "thin");
 
     expect(compatibilityRoutes.map((row) => row.href).sort()).toEqual([
@@ -90,20 +100,34 @@ describe("user-front page registry", () => {
   });
 
   it("requires data-backed pages to declare backend or chain sources", () => {
-    const dataBackedRows = rows.filter((row) => !["none", "static", "static-preview"].includes(row.dataVerification));
+    const dataBackedRows = rows.filter(
+      (row) =>
+        !["none", "static", "static-preview"].includes(row.dataVerification)
+    );
 
     expect(dataBackedRows.length).toBeGreaterThan(0);
     for (const row of dataBackedRows) {
-      expect(row.dataSources.length, `${row.href} should declare data sources`).toBeGreaterThan(0);
       expect(
-        row.dataSources.some((source) => source.includes("/api/") || source.includes("chain") || source.includes("wallet") || source.includes("localStorage")),
-        `${row.href} should name a concrete API, chain, wallet, or localStorage source`,
+        row.dataSources.length,
+        `${row.href} should declare data sources`
+      ).toBeGreaterThan(0);
+      expect(
+        row.dataSources.some(
+          (source) =>
+            source.includes("/api/") ||
+            source.includes("chain") ||
+            source.includes("wallet") ||
+            source.includes("localStorage")
+        ),
+        `${row.href} should name a concrete API, chain, wallet, or localStorage source`
       ).toBe(true);
     }
   });
 
   it("requires screenshot pages to declare stable screenshot names", () => {
-    const screenshotRows = rows.filter((row) => row.visualVerification === "screenshot-required");
+    const screenshotRows = rows.filter(
+      (row) => row.visualVerification === "screenshot-required"
+    );
 
     expect(screenshotRows.length).toBeGreaterThan(0);
     for (const row of screenshotRows) {
@@ -112,10 +136,20 @@ describe("user-front page registry", () => {
   });
 
   it("documents user-visible interactions for implemented pages", () => {
-    for (const row of rows.filter((item) => item.kind === "page" || item.kind === "dynamic-page")) {
-      expect(row.purpose.trim().length, `${row.href} purpose`).toBeGreaterThan(20);
-      expect(row.primaryInteractions.length, `${row.href} interactions`).toBeGreaterThan(0);
-      expect(row.expectedTexts.length, `${row.href} expected texts`).toBeGreaterThan(0);
+    for (const row of rows.filter(
+      (item) => item.kind === "page" || item.kind === "dynamic-page"
+    )) {
+      expect(row.purpose.trim().length, `${row.href} purpose`).toBeGreaterThan(
+        20
+      );
+      expect(
+        row.primaryInteractions.length,
+        `${row.href} interactions`
+      ).toBeGreaterThan(0);
+      expect(
+        row.expectedTexts.length,
+        `${row.href} expected texts`
+      ).toBeGreaterThan(0);
     }
   });
 });

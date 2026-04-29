@@ -90,17 +90,19 @@ GET /api/v1/credentials/agent/{credential_id}/status
 
 在原有 list 接口基础上，增加 `active_only` 查询参数。
 
-| 参数 | 类型 | 默认 | 说明 |
-|------|------|------|------|
+| 参数          | 类型 | 默认  | 说明                                            |
+| ------------- | ---- | ----- | ----------------------------------------------- |
 | `active_only` | bool | false | 为 true 时只返回 `status=active` 且未过期的凭据 |
 
 **过滤逻辑：**
+
 ```python
 status == "active"
 AND (expiresAt is None OR expiresAt > now_epoch_ms())
 ```
 
 **返回示例：**
+
 ```json
 {
   "status": "success",
@@ -127,6 +129,7 @@ AND (expiresAt is None OR expiresAt > now_epoch_ms())
 检查单个凭据是否有效可用。
 
 **返回示例：**
+
 ```json
 {
   "status": "success",
@@ -143,6 +146,7 @@ AND (expiresAt is None OR expiresAt > now_epoch_ms())
 ```
 
 `valid = false` 的条件：
+
 - `credentialStatus != "active"`（已撤销）
 - `isExpired = true`（`expiresAt <= now`）
 - `callsUsed >= maxCalls`（配额耗尽，maxCalls != null 时）
@@ -154,6 +158,7 @@ AND (expiresAt is None OR expiresAt > now_epoch_ms())
 合并修改凭据（覆盖原有 `/quota` 端点，原端点保留兼容）。
 
 **Request body（所有字段可选）：**
+
 ```json
 {
   "name": "renamed-agent",
@@ -194,12 +199,12 @@ Active agent limit:
 
 ## 三、不需要新增的接口
 
-| 需求 | 现有接口 | 说明 |
-|------|---------|------|
-| Agent 登录 | 无需登录 | credential token 即身份，直接 invoke |
-| 撤销凭据 | `POST /credentials/agent/{id}/revoke` | 已有 |
-| 轮换 token | `POST /credentials/agent/{id}/rotate` | 已有 |
-| 创建凭据 | `POST /credentials/agent/issue` | 已有 |
+| 需求       | 现有接口                              | 说明                                 |
+| ---------- | ------------------------------------- | ------------------------------------ |
+| Agent 登录 | 无需登录                              | credential token 即身份，直接 invoke |
+| 撤销凭据   | `POST /credentials/agent/{id}/revoke` | 已有                                 |
+| 轮换 token | `POST /credentials/agent/{id}/rotate` | 已有                                 |
+| 创建凭据   | `POST /credentials/agent/issue`       | 已有                                 |
 
 ---
 
@@ -232,6 +237,7 @@ result = client.invoke(
 ```
 
 `ensure_credential` 内部逻辑：
+
 1. 调用 `GET /credentials/agent/list?active_only=true`
 2. 找到名称匹配的 → 返回其 token
 3. 找不到 → 调用 `POST /credentials/agent/issue` → 返回新 token
@@ -240,13 +246,13 @@ result = client.invoke(
 
 ## 五、实施优先级
 
-| 优先级 | 接口 | 工作量 | 状态 |
-|--------|------|--------|------|
-| P0 | `list?active_only=true` | 30 min — 加过滤逻辑 | ✅ 已完成 |
-| P0 | `{id}/status` | 30 min — 读+计算 valid | ✅ 已完成 |
-| P1 | `PATCH {id}` (full update) | 1h — 扩展 quota patch + name | ✅ 已完成 |
-| P1 | SDK `ensure_credential()` helper | 2h — SDK 侧实现 | ✅ 已完成 |
-| P2 | 文档化 wallet-sig 自动化脚本示例 | 1h | ✅ 已完成（本文档） |
+| 优先级 | 接口                             | 工作量                       | 状态                |
+| ------ | -------------------------------- | ---------------------------- | ------------------- |
+| P0     | `list?active_only=true`          | 30 min — 加过滤逻辑          | ✅ 已完成           |
+| P0     | `{id}/status`                    | 30 min — 读+计算 valid       | ✅ 已完成           |
+| P1     | `PATCH {id}` (full update)       | 1h — 扩展 quota patch + name | ✅ 已完成           |
+| P1     | SDK `ensure_credential()` helper | 2h — SDK 侧实现              | ✅ 已完成           |
+| P2     | 文档化 wallet-sig 自动化脚本示例 | 1h                           | ✅ 已完成（本文档） |
 
 ---
 
@@ -254,24 +260,24 @@ result = client.invoke(
 
 ### Gateway — `Synapse-Network`
 
-| 文件 | 变更说明 |
-|------|----------|
-| `services/gateway/src/api/routers/agent_credentials.py` | `GET /list` 加 `active_only` query 参数；新增 `GET /{id}/status`；新增 `PATCH /{id}` |
-| `services/gateway/src/api/schemas/pydantic_models.py` | 新增 `CredentialUpdateRequest` (name + quota 合并 schema) |
-| `services/gateway/src/services/platform/credential_service.py` | 新增 `list_credentials_by_owner_active()`、`get_credential_status_for_owner()`；re-export `update_credential_for_owner` |
-| `services/gateway/src/services/platform/credential_lifecycle.py` | 新增 `update_credential_for_owner()` — 支持 name + 所有配额字段一次性 PATCH |
-| `services/gateway/tests/e2e/test_06_agent_credential.py` | 新增 4 个测试用例：`active_only`、`status`、`PATCH`、rename round-trip |
-| `services/user-front/src/app/docs/api-reference/page.tsx` | `FLOW_STEPS` 从 6 步更新为 5 步，去掉 POST /quotes，统一为 POST /api/v1/agent/invoke |
-| `services/user-front/src/i18n/resources/en/docsPage.ts` | Step 4 credential 描述更新为幂等模式；Step 5 invoke 端点更新为 /agent/invoke |
-| `services/user-front/src/i18n/resources/zh/docsPage.ts` | 同上（中文版） |
-| `services/user-front/src/app/docs/getting-started/consumer/page.tsx` | Step 4 代码示例：新增 active_only 检查 + 自动发放；Step 5 改为 POST /api/v1/agent/invoke |
-| `docs/reference/07_AutoOnboard_API_Design.md` | 本文档（设计 + 实施记录） |
+| 文件                                                                 | 变更说明                                                                                                                |
+| -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `services/gateway/src/api/routers/agent_credentials.py`              | `GET /list` 加 `active_only` query 参数；新增 `GET /{id}/status`；新增 `PATCH /{id}`                                    |
+| `services/gateway/src/api/schemas/pydantic_models.py`                | 新增 `CredentialUpdateRequest` (name + quota 合并 schema)                                                               |
+| `services/gateway/src/services/platform/credential_service.py`       | 新增 `list_credentials_by_owner_active()`、`get_credential_status_for_owner()`；re-export `update_credential_for_owner` |
+| `services/gateway/src/services/platform/credential_lifecycle.py`     | 新增 `update_credential_for_owner()` — 支持 name + 所有配额字段一次性 PATCH                                             |
+| `services/gateway/tests/e2e/test_06_agent_credential.py`             | 新增 4 个测试用例：`active_only`、`status`、`PATCH`、rename round-trip                                                  |
+| `services/user-front/src/app/docs/api-reference/page.tsx`            | `FLOW_STEPS` 从 6 步更新为 5 步，去掉 POST /quotes，统一为 POST /api/v1/agent/invoke                                    |
+| `services/user-front/src/i18n/resources/en/docsPage.ts`              | Step 4 credential 描述更新为幂等模式；Step 5 invoke 端点更新为 /agent/invoke                                            |
+| `services/user-front/src/i18n/resources/zh/docsPage.ts`              | 同上（中文版）                                                                                                          |
+| `services/user-front/src/app/docs/getting-started/consumer/page.tsx` | Step 4 代码示例：新增 active_only 检查 + 自动发放；Step 5 改为 POST /api/v1/agent/invoke                                |
+| `docs/reference/07_AutoOnboard_API_Design.md`                        | 本文档（设计 + 实施记录）                                                                                               |
 
 ### SDK — `Synapse-Network-Sdk`
 
-| 文件 | 变更说明 |
-|------|----------|
-| `python/synapse_client/models.py` | 新增 `CredentialStatusResult`、`UpdateCredentialResult` |
-| `python/synapse_client/auth.py` | 新增 `list_active_credentials()`、`get_credential_status()`、`update_credential()`、`ensure_credential()` |
-| `python/synapse_client/__init__.py` | 导出 `CredentialStatusResult`、`UpdateCredentialResult` |
-| `python/synapse_client/test/test_consumer_e2e.py` | 新增 `test_python_sdk_credential_management_e2e` — 7 个断言覆盖完整幂等生命周期 |
+| 文件                                              | 变更说明                                                                                                  |
+| ------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `python/synapse_client/models.py`                 | 新增 `CredentialStatusResult`、`UpdateCredentialResult`                                                   |
+| `python/synapse_client/auth.py`                   | 新增 `list_active_credentials()`、`get_credential_status()`、`update_credential()`、`ensure_credential()` |
+| `python/synapse_client/__init__.py`               | 导出 `CredentialStatusResult`、`UpdateCredentialResult`                                                   |
+| `python/synapse_client/test/test_consumer_e2e.py` | 新增 `test_python_sdk_credential_management_e2e` — 7 个断言覆盖完整幂等生命周期                           |

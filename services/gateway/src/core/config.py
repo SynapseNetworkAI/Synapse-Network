@@ -524,13 +524,23 @@ class Settings:
         .strip()
         .rstrip("/")
     )
-    email_verification_ttl_sec: int = max(300, _env_int("EMAIL_VERIFICATION_TTL_SEC", 86400))
+    email_verification_ttl_sec: int = max(300, _env_int("EMAIL_VERIFICATION_TTL_SEC", 600))
+    email_verification_daily_send_limit: int = max(
+        1,
+        _env_int("EMAIL_VERIFICATION_DAILY_SEND_LIMIT", 5),
+    )
 
     # ── Staging transaction notifications ───────────────────────
     transaction_lark_enabled: bool = _env_bool("TRANSACTION_LARK_ENABLED", False)
     transaction_lark_webhook_url: str = os.getenv("TRANSACTION_LARK_WEBHOOK_URL", "").strip()
     transaction_lark_secret: str = os.getenv("TRANSACTION_LARK_SECRET", "").strip()
     transaction_lark_timeout_sec: float = max(1.0, _env_float("TRANSACTION_LARK_TIMEOUT_SEC", 8.0))
+
+    # ── Support case triage notifications ───────────────────────
+    support_lark_enabled: bool = _env_bool("SUPPORT_LARK_ENABLED", False)
+    support_lark_webhook_url: str = os.getenv("SUPPORT_LARK_WEBHOOK_URL", "").strip()
+    support_lark_secret: str = os.getenv("SUPPORT_LARK_SECRET", "").strip()
+    support_lark_timeout_sec: float = max(1.0, _env_float("SUPPORT_LARK_TIMEOUT_SEC", 8.0))
 
     # ── In-App Notifications ────────────────────────────────────
     in_app_notification_cleanup_enabled: bool = _env_bool(

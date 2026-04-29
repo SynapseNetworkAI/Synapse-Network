@@ -1,6 +1,9 @@
 import type { I18nMessages } from "@/i18n/schema";
 
-const shared: Pick<I18nMessages, "language" | "loadingScreen" | "nav" | "sidebar" | "accountSettingsPage"> = {
+const shared: Pick<
+  I18nMessages,
+  "language" | "loadingScreen" | "nav" | "sidebar" | "accountSettingsPage"
+> = {
   language: {
     en: "英文",
     zh: "中文",
@@ -42,7 +45,8 @@ const shared: Pick<I18nMessages, "language" | "loadingScreen" | "nav" | "sidebar
     quickAccessPaymentsDescription: "查看账单记录和账户支付活动。",
     quickAccessAuditDescription: "监控告警、策略执行和审计日志。",
     quickAccessDeveloperDescription: "打开文档、运行时示例和接入指南。",
-    quickAccessAccountSettingsDescription: "调整账户身份展示、偏好设置和当前会话安全状态。",
+    quickAccessAccountSettingsDescription:
+      "调整账户身份展示、偏好设置和当前会话安全状态。",
     quickAccessProviderConsoleDescription: "管理 Provider 工作台健康度和性能。",
     quickAccessProviderCredentialsDescription: "签发 Provider 密钥和签名材料。",
     quickAccessServicesDescription: "创建、编辑并发布可变现 API 服务。",
@@ -102,13 +106,44 @@ const shared: Pick<I18nMessages, "language" | "loadingScreen" | "nav" | "sidebar
     emailPlaceholder: "ops@yourcompany.com",
     emailHelp: "可选。",
     emailVerified: "已绑定到当前钱包。",
+    emailVerifiedBadge: "已验证",
+    emailPending: "{{email}} 正在等待验证，验证码通过后才会正式绑定。",
+    emailChange: "更换邮箱",
+    emailChangeCancelEdit: "取消编辑",
+    emailPendingCancel: "取消换绑",
+    emailChangeCancelled: "已取消待验证邮箱换绑。",
+    emailRemove: "解绑邮箱",
+    emailRemoveConfirm:
+      "确定要从 Synapse 账户解绑此邮箱吗？在验证新邮箱前，你将无法通过邮件接收交易回执、客服回复和预算告警。",
+    emailRemoved: "邮箱已从当前钱包解绑。",
+    emailVerificationSent: "验证码已发送，请输入验证码完成邮箱绑定。",
+    emailVerificationSuccess: "邮箱已验证并绑定。",
+    emailVerificationOpen: "输入验证码",
+    emailVerificationTitle: "验证邮箱",
+    emailVerificationDescription:
+      "请输入发送到 {{email}} 的 6 位验证码。验证通过后才会绑定该邮箱。",
+    emailVerificationCodeLabel: "邮箱验证码",
+    emailVerificationCodeInvalid: "请输入 6 位验证码。",
+    emailVerificationFailed: "邮箱验证失败。",
+    emailVerificationClose: "关闭邮箱验证",
+    emailVerificationSubmit: "验证邮箱",
+    emailVerificationVerifying: "验证中...",
+    emailVerificationResend: "重新发送验证码",
+    emailVerificationResending: "发送中...",
+    emailVerificationResent: "验证码已重新发送。",
+    emailVerificationResendFailed: "重新发送验证码失败。",
+    emailVerificationSendsRemaining: "今天还可以发送 {{count}} 次验证码邮件。",
+    emailVerificationDailyLimit: "今天的邮箱验证码发送次数已用完，请明天再试。",
+    emailVerificationLocked: "验证码错误次数过多，请重新发送验证码后继续。",
+    emailVerificationExpired: "验证码已过期，请重新发送。",
     invalidEmail: "请输入有效的邮箱地址。",
     notifyMarketingTitle: "收益报告",
     notifyMarketingDescription: "通过邮箱接收收益汇总。",
     notifyAlertsTitle: "预算告警",
     notifyAlertsDescription: "接收支出和风控事件提醒。",
     securityTitle: "会话安全",
-    securityDescription: "JWT 只负责维持会话，真正的档案更新仍然必须由在线钱包签名。",
+    securityDescription:
+      "JWT 只负责维持会话，真正的档案更新仍然必须由在线钱包签名。",
     saveRowTitle: "保存",
     saveRowDescription: "",
     saveButton: "保存设置",

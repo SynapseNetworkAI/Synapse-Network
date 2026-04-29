@@ -7,6 +7,7 @@
 Synapse Network is an AI-native payment and settlement infrastructure for machine-to-machine API commerce.
 
 Core idea:
+
 - On-chain vault and deposit guarantee (USDC)
 - Off-chain speed gateway for real-time billing and routing
 - Credential-based API access for high-frequency AI-to-AI calls
@@ -14,6 +15,7 @@ Core idea:
 ## What This Repo Contains
 
 This repository includes:
+
 - Smart contracts and local-chain tooling (Hardhat)
 - Python provider gateway (FastAPI) and SDK
 - Frontend console (Next.js)
@@ -21,27 +23,27 @@ This repository includes:
 
 Synapse-Network/
 ├── apps/
-│   ├── gateway/               # 核心结算网关（FastAPI）
-│   │   ├── src/
-│   │   ├── tests/
-│   │   ├── main.py            # 原 provider_fastapi 入口
-│   │   ├── pyproject.toml
-│   │   └── .env.example
-│   └── frontend/              # Next.js 控制台
+│ ├── gateway/ # 核心结算网关（FastAPI）
+│ │ ├── src/
+│ │ ├── tests/
+│ │ ├── main.py # 原 provider_fastapi 入口
+│ │ ├── pyproject.toml
+│ │ └── .env.example
+│ └── frontend/ # Next.js 控制台
 ├── packages/
-│   ├── sdk-python/            # 第三方 Python SDK
-│   │   ├── synapse_client/
-│   │   ├── tests/
-│   │   └── pyproject.toml
-│   └── contracts/             # 纯 Solidity/Hardhat 工作区
-│       ├── src/               # solidity contracts（原 contracts/*.sol）
-│       ├── scripts/           # 部署脚本
-│       ├── test/
-│       ├── hardhat.config.js
-│       └── package.json
-├── docker-compose/            # canonical compose entry + postgres bootstrap SQL
-├── docs/                      # 原 doc/
-├── tools/                     # 运维/开发脚本（原 scripts/）
+│ ├── sdk-python/ # 第三方 Python SDK
+│ │ ├── synapse_client/
+│ │ ├── tests/
+│ │ └── pyproject.toml
+│ └── contracts/ # 纯 Solidity/Hardhat 工作区
+│ ├── src/ # solidity contracts（原 contracts/\*.sol）
+│ ├── scripts/ # 部署脚本
+│ ├── test/
+│ ├── hardhat.config.js
+│ └── package.json
+├── docker-compose/ # canonical compose entry + postgres bootstrap SQL
+├── docs/ # 原 doc/
+├── tools/ # 运维/开发脚本（原 scripts/）
 
 ## Quick Start (Local)
 
@@ -252,6 +254,7 @@ Storage and production-hardening work items are tracked here:
 - Product roadmap board: [docs/01_Product_Vision/ROADMAP.md](docs/01_Product_Vision/ROADMAP.md)
 
 This week focus:
+
 - P0 financial safety baseline: transaction atomicity, row-level locks, idempotency unique constraints
 - P0 backup and restore readiness: full + incremental backup and one restore drill
 - P1 logging partitioning baseline: monthly partitions and retention policy
@@ -290,26 +293,33 @@ Operational runbook:
 - [docs/ops/09_Staging_First_GCE_Rollout.md](docs/ops/09_Staging_First_GCE_Rollout.md)
 
 GitHub issue templates for direct assignment:
+
 - Board checklist: [.github/ISSUE_TEMPLATE/production-upgrade-checklist.md](.github/ISSUE_TEMPLATE/production-upgrade-checklist.md)
 - Single work item: [.github/ISSUE_TEMPLATE/production-upgrade-work-item.md](.github/ISSUE_TEMPLATE/production-upgrade-work-item.md)
 - Official docs entrypoint: [docs/README.md](docs/README.md)
 
 ### 1) Product and Frontend
+
 - [docs/01_Product_Frontend](docs/01_Product_Frontend)
 
 ### 2) System Architecture
+
 - [docs/02_System_Architecture](docs/02_System_Architecture)
 
 ### 3) Core Workflows
+
 - [docs/03_Core_Workflows](docs/03_Core_Workflows)
 
 ### 4) Database Design
+
 - [docs/04_Database_Design](docs/04_Database_Design)
 
 ### 5) DevOps and Deployment
+
 - [docs/05_DevOps_Deployment](docs/05_DevOps_Deployment)
 
 ### 6) Reference
+
 - [docs/06_Reference](docs/06_Reference)
 
 ## Main Project Structure

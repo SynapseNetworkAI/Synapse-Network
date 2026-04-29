@@ -31,7 +31,9 @@ function getLocalBrowserProxyBaseUrl(): string | null {
   }
 
   const { hostname, origin, port } = globalThis.window.location;
-  return isLocalDevBrowserHost(hostname, port) ? normalizeBaseUrl(origin) : null;
+  return isLocalDevBrowserHost(hostname, port)
+    ? normalizeBaseUrl(origin)
+    : null;
 }
 
 export function getGatewayBaseUrlCandidates(): string[] {

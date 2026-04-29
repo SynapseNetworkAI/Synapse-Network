@@ -10,7 +10,10 @@ import {
 const originalSupportEmail = process.env.NEXT_PUBLIC_SUPPORT_EMAIL;
 const originalSupportPortalUrl = process.env.NEXT_PUBLIC_SUPPORT_PORTAL_URL;
 
-function restoreEnv(key: "NEXT_PUBLIC_SUPPORT_EMAIL" | "NEXT_PUBLIC_SUPPORT_PORTAL_URL", value: string | undefined) {
+function restoreEnv(
+  key: "NEXT_PUBLIC_SUPPORT_EMAIL" | "NEXT_PUBLIC_SUPPORT_PORTAL_URL",
+  value: string | undefined
+) {
   if (value === undefined) {
     delete process.env[key];
     return;
@@ -41,7 +44,8 @@ describe("supportContact", () => {
   });
 
   it("returns the configured support portal when email is not configured", () => {
-    process.env.NEXT_PUBLIC_SUPPORT_PORTAL_URL = " https://support.synapse.test ";
+    process.env.NEXT_PUBLIC_SUPPORT_PORTAL_URL =
+      " https://support.synapse.test ";
 
     expect(getSupportEmail()).toBeNull();
     expect(getSupportPortalUrl()).toBe("https://support.synapse.test");

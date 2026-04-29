@@ -181,6 +181,35 @@ class FakeStorage:
         return self.data_manager
 
 
+class AtomicLlmFakeStorage(FakeStorage):
+    def __init__(self, service: ServiceDefinitionRecord, credential_row) -> None:
+        super().__init__(service, credential_row)
+        self.settle_commands = []
+
+    def settle_consumer_llm_hold_atomic(self, command):
+        self.settle_commands.append(command)
+        ledger = self.balance.read_balance_ledger()
+        consumer = ledger.ensure_consumer_wallet(command.owner_wallet)
+        provider = ledger.ensure_provider_wallet(command.provider_wallet)
+        hold = Decimal(str(command.hold_usdc)).quantize(Decimal("0.000001"))
+        charge = Decimal(str(command.total_charge)).quantize(Decimal("0.000001"))
+        provider_net = Decimal(str(command.provider_net)).quantize(Decimal("0.000001"))
+        platform_fee = Decimal(str(command.platform_fee_total)).quantize(Decimal("0.000001"))
+        consumer.frozen_balance = (Decimal(str(consumer.frozen_balance)) - hold).quantize(Decimal("0.000001"))
+        consumer.available_balance = (Decimal(str(consumer.available_balance)) + hold - charge).quantize(
+            Decimal("0.000001")
+        )
+        provider.available_balance = (Decimal(str(provider.available_balance)) + provider_net).quantize(
+            Decimal("0.000001")
+        )
+        ledger.platform.fee_accrued = (Decimal(str(ledger.platform.fee_accrued)) + platform_fee).quantize(
+            Decimal("0.000001")
+        )
+        self.balance.write_balance_ledger(ledger)
+        self.gateway_state.usage_rows.append(command.usage_row)
+        return SimpleNamespace(consumer_available_balance_after=consumer.available_balance)
+
+
 class FakeResponse:
     def __init__(self, payload, headers: Optional[dict[str, str]] = None):
         self._payload = payload
@@ -789,6 +818,49 @@ def test_invoke_v1_llm_auto_preauth_settles_usage_and_releases_hold(monkeypatch)
     assert storage.balance.ledger.platform.fee_accrued == Decimal("0.000028")
 
 
+def test_invoke_v1_llm_atomic_settle_does_not_increment_usage_outside_transaction(monkeypatch) -> None:
+    raw_token = "agt_1234567890abcdef12345678"
+    credential = _runtime_credential(raw_token)
+    storage = AtomicLlmFakeStorage(_llm_service_definition(), credential)
+    storage.balance.ledger.ensure_consumer_wallet("0xabc").available_balance = Decimal("10.000000")
+
+    async def fail_if_called(*_args, **_kwargs):
+        raise AssertionError("LLM atomic settlement must own credential usage accounting")
+
+    monkeypatch.setattr(forwarding_budget, "_get_redis_client", _async_none)
+    monkeypatch.setattr(forwarding_upstream.httpx, "AsyncClient", FakeLlmAsyncClient)
+    monkeypatch.setattr(forwarding_billing, "_increment_credential_usage_with_retry", fail_if_called)
+    monkeypatch.setattr(
+        forwarding_upstream.service_health_service,
+        "get_healthy_target_urls",
+        lambda service, **_: [service.invoke.targets[0].url],
+    )
+
+    response = asyncio.run(
+        forwarding_service.invoke_v1(
+            storage,
+            AgentInvokeRequest(
+                serviceId="svc.llm.deepseek",
+                idempotencyKey="llm-atomic-usage-001",
+                costUsdc=Decimal("0"),
+                payload=RuntimePayloadRecord(
+                    body={
+                        "model": "deepseek-chat",
+                        "messages": [{"role": "user", "content": "a" * 3000}],
+                        "max_tokens": 500,
+                    }
+                ),
+            ),
+            raw_token,
+            "req-llm-atomic-usage-001",
+        )
+    )
+
+    assert response.status == "SUCCEEDED"
+    assert len(storage.settle_commands) == 1
+    assert storage.settle_commands[0].credential_id == credential.credential.credential_id
+
+
 def test_invoke_v1_llm_rejects_streaming_before_upstream(monkeypatch) -> None:
     raw_token = "agt_1234567890abcdef12345678"
     storage = FakeStorage(_llm_service_definition(), _runtime_credential(raw_token))
@@ -1315,6 +1387,7 @@ def test_agent_quote_and_invocation_flow_persists_typed_execution_rows(monkeypat
 
 
 def test_owner_billing_cycle_limit_blocks_invoke(monkeypatch) -> None:
+    forwarding_budget._memory_window_counters.clear()
     raw_token = "agt_1234567890abcdef12345678"
     storage = FakeStorage(_service_definition(), _runtime_credential(raw_token))
     storage.balance.ledger.ensure_consumer_wallet("0xabc").available_balance = 10.0
@@ -1664,14 +1737,13 @@ def test_gateway_signature_tolerates_secret_manager_newline(monkeypatch) -> None
 
 
 def test_generate_response_v2_supports_structured_payloads(monkeypatch) -> None:
+    forwarding_budget._memory_window_counters.clear()
     raw_token = "agt_1234567890abcdef12345678"
     storage = FakeStorage(_structured_service_definition(), _runtime_credential(raw_token))
     storage.balance.ledger.ensure_consumer_wallet("0xabc").available_balance = 10.0
 
     monkeypatch.setattr(forwarding_budget, "_get_redis_client", _async_none)
-    monkeypatch.setattr(
-        forwarding_upstream.httpx, "AsyncClient", FakeStructuredAsyncClient
-    )
+    monkeypatch.setattr(forwarding_upstream.httpx, "AsyncClient", FakeStructuredAsyncClient)
     monkeypatch.setattr(
         forwarding_upstream.service_health_service,
         "get_healthy_target_urls",

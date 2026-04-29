@@ -6,12 +6,17 @@ import logging
 from typing import Any
 from uuid import uuid4
 
+import psycopg
+from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
 from src.domain import ForumResponseTask, ForumTopicContext
+from src.storage.forum_support.support_notifications import enqueue_support_reply_notifications
 from src.storage.forum_support.topic_repository import PostgresForumTopicRepositoryMixin
 
 logger = logging.getLogger(__name__)
+EXPECTED_FORUM_TOPIC_LIFECYCLE_COLUMNS = 3
+TOPIC_LOCKED_ERROR = "Topic is locked"
 FORUM_RESPONSE_TASKS_SCHEMA_ERROR = (
     "Forum support schema is missing. Apply infra/postgres/init/gateway/001_synapse_schema.sql "
     "or the equivalent migration before using /api/admin/v1/forum support endpoints."
@@ -19,9 +24,6 @@ FORUM_RESPONSE_TASKS_SCHEMA_ERROR = (
 
 
 def _connect(dsn: str):
-    import psycopg
-    from psycopg.rows import dict_row
-
     return psycopg.connect(dsn, row_factory=dict_row, connect_timeout=5)
 
 
@@ -103,7 +105,7 @@ class PostgresForumSupportRepository(PostgresForumTopicRepositoryMixin):
                   AND column_name IN ('closed_reason', 'closed_by_admin_id', 'closed_at')
                 """
             )
-            forum_ticket_columns_exist = int(cur.fetchone()["present_columns"] or 0) == 3
+            forum_ticket_columns_exist = int(cur.fetchone()["present_columns"] or 0) == EXPECTED_FORUM_TOPIC_LIFECYCLE_COLUMNS
             if response_tasks_exists and events_exists and forum_ticket_columns_exist:
                 return
             logger.error("forum support schema missing or stale: response_tasks=%s topic_events=%s ticket_columns=%s", response_tasks_exists, events_exists, forum_ticket_columns_exist)
@@ -170,18 +172,18 @@ class PostgresForumSupportRepository(PostgresForumTopicRepositoryMixin):
         where_sql = " AND ".join(clauses)
         offset = (page - 1) * page_size
         with _connect(self._dsn) as conn, conn.cursor() as cur:
-            cur.execute(
-                f"""
+            count_sql = f"""
                 SELECT COUNT(*) AS total
                 FROM synapse_forum_response_tasks task
                 JOIN synapse_forum_topics topic ON topic.topic_id = task.topic_id
                 WHERE {where_sql}
-                """,
+                """  # noqa: S608 - where_sql is assembled from fixed clauses plus parameter placeholders.
+            cur.execute(
+                count_sql,
                 params,
             )
             total = int(cur.fetchone()["total"] or 0)
-            cur.execute(
-                f"""
+            tasks_sql = f"""
                 SELECT
                     task.*,
                     topic.title, topic.body, topic.excerpt, topic.category,
@@ -211,7 +213,9 @@ class PostgresForumSupportRepository(PostgresForumTopicRepositoryMixin):
                     END,
                     task.updated_at DESC
                 LIMIT %s OFFSET %s
-                """,
+                """  # noqa: S608 - where_sql is assembled from fixed clauses plus parameter placeholders.
+            cur.execute(
+                tasks_sql,
                 [*params, page_size, offset],
             )
             rows = cur.fetchall()
@@ -342,7 +346,7 @@ class PostgresForumSupportRepository(PostgresForumTopicRepositoryMixin):
         with _connect(self._dsn) as conn, conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT task.topic_id, topic.locked
+                SELECT task.topic_id, task.metadata_json, topic.locked, topic.author_address, topic.title
                 FROM synapse_forum_response_tasks task
                 JOIN synapse_forum_topics topic ON topic.topic_id = task.topic_id
                 WHERE task.response_task_id = %s
@@ -355,8 +359,11 @@ class PostgresForumSupportRepository(PostgresForumTopicRepositoryMixin):
             if not row:
                 return None
             if bool(row["locked"]):
-                raise ValueError("Topic is locked")
+                raise ValueError(TOPIC_LOCKED_ERROR)
             topic_id = row["topic_id"]
+            metadata = dict(row.get("metadata_json") or {})
+            author_address = str(row.get("author_address") or "")
+            topic_title = str(row.get("title") or "")
             cur.execute(
                 """
                 INSERT INTO synapse_forum_replies (
@@ -407,6 +414,16 @@ class PostgresForumSupportRepository(PostgresForumTopicRepositoryMixin):
                     Jsonb({"lastReplyBodyPreview": body[:240]}),
                     task_id,
                 ),
+            )
+            enqueue_support_reply_notifications(
+                cur,
+                topic_id=topic_id,
+                reply_id=reply_id,
+                task_id=task_id,
+                author_address=author_address,
+                topic_title=topic_title,
+                body=body,
+                metadata=metadata,
             )
         return self.get_task(task_id)
 

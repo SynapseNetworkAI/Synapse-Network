@@ -1,7 +1,13 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  type FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { AlertCircle, Bot } from "lucide-react";
 import toast from "react-hot-toast";
@@ -22,19 +28,28 @@ import {
   type AgentCredentialIssueResponse,
   type AgentCredentialRecord,
 } from "@/utils/agentCredentialApi";
-import { clearAuthSession, WALLET_SESSION_MISSING_MESSAGE } from "@/utils/authSession";
+import {
+  clearAuthSession,
+  WALLET_SESSION_MISSING_MESSAGE,
+} from "@/utils/authSession";
 
 const AgentsWorkspaceDialogs = dynamic(
-  () => import("@/components/dashboard-workspace/agents/AgentsWorkspaceDialogs"),
+  () =>
+    import("@/components/dashboard-workspace/agents/AgentsWorkspaceDialogs"),
   { ssr: false }
 );
 
 const LazyAgentsWorkspaceDetailPane = dynamic(
-  () => import("@/components/dashboard-workspace/agents/AgentsWorkspaceDetailPane"),
+  () =>
+    import("@/components/dashboard-workspace/agents/AgentsWorkspaceDetailPane"),
   {
     ssr: false,
     loading: () => (
-      <XPanel as="article" variant="flat" className="min-w-0 rounded-[24px] xl:h-[560px] xl:w-[720px] animate-pulse" />
+      <XPanel
+        as="article"
+        variant="flat"
+        className="min-w-0 rounded-[24px] xl:h-[560px] xl:w-[720px] animate-pulse"
+      />
     ),
   }
 );
@@ -52,21 +67,27 @@ export default function DashboardAgentsWorkspacePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [newCredential, setNewCredential] = useState<AgentCredentialIssueResponse | null>(null);
+  const [newCredential, setNewCredential] =
+    useState<AgentCredentialIssueResponse | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [selectedCredentialId, setSelectedCredentialId] = useState<string | null>(null);
+  const [selectedCredentialId, setSelectedCredentialId] = useState<
+    string | null
+  >(null);
   const [quotaMaxCalls, setQuotaMaxCalls] = useState("1000");
   const [quotaRpm, setQuotaRpm] = useState("600");
   const [quotaDailyBudget, setQuotaDailyBudget] = useState("10.00");
   const [quotaExpiresAtLocal, setQuotaExpiresAtLocal] = useState("");
-  const [isRegeneratingCredential, setIsRegeneratingCredential] = useState(false);
+  const [isRegeneratingCredential, setIsRegeneratingCredential] =
+    useState(false);
   const [isRevokingCredential, setIsRevokingCredential] = useState(false);
   const [isDeletingAgent, setIsDeletingAgent] = useState(false);
   const [isManageMode, setIsManageMode] = useState(false);
-  const [pendingDangerAction, setPendingDangerAction] = useState<PendingDangerAction | null>(null);
-  const [pendingDeleteAgent, setPendingDeleteAgent] = useState<AgentCredentialRecord | null>(null);
+  const [pendingDangerAction, setPendingDangerAction] =
+    useState<PendingDangerAction | null>(null);
+  const [pendingDeleteAgent, setPendingDeleteAgent] =
+    useState<AgentCredentialRecord | null>(null);
   const [deleteConfirmationName, setDeleteConfirmationName] = useState("");
   const [agentName, setAgentName] = useState("");
   const [dailyBudget, setDailyBudget] = useState("10.00");
@@ -74,11 +95,11 @@ export default function DashboardAgentsWorkspacePage() {
 
   const ownerAddress = userAddress?.toLowerCase() ?? "";
   const isAnyModalOpen = Boolean(
-    isCreateModalOpen
-      || pendingDangerAction
-      || pendingDeleteAgent
-      || newCredential
-      || isEditModalOpen,
+    isCreateModalOpen ||
+      pendingDangerAction ||
+      pendingDeleteAgent ||
+      newCredential ||
+      isEditModalOpen
   );
   const hasReachedAgentLimit = credentials.length >= MAX_AGENT_CREDENTIALS;
 
@@ -108,7 +129,10 @@ export default function DashboardAgentsWorkspacePage() {
       setCredentials(data);
     } catch (fetchError) {
       console.error("Failed to fetch credentials:", fetchError);
-      const message = fetchError instanceof Error ? fetchError.message : t("agentsPage.loadCredentialsFailed");
+      const message =
+        fetchError instanceof Error
+          ? fetchError.message
+          : t("agentsPage.loadCredentialsFailed");
       if (message === WALLET_SESSION_MISSING_MESSAGE) {
         clearAuthSession();
       }
@@ -138,7 +162,8 @@ export default function DashboardAgentsWorkspacePage() {
     const previousBodyOverflow = document.body.style.overflow;
     const previousBodyPaddingRight = document.body.style.paddingRight;
     const previousHtmlOverflow = document.documentElement.style.overflow;
-    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+    const scrollbarWidth =
+      window.innerWidth - document.documentElement.clientWidth;
 
     document.body.style.overflow = "hidden";
     document.documentElement.style.overflow = "hidden";
@@ -174,7 +199,14 @@ export default function DashboardAgentsWorkspacePage() {
     }
 
     return userAddress.toLowerCase();
-  }, [authorize, isConnected, isSessionAuthenticated, openConnectModal, t, userAddress]);
+  }, [
+    authorize,
+    isConnected,
+    isSessionAuthenticated,
+    openConnectModal,
+    t,
+    userAddress,
+  ]);
 
   const handleOpenCreateModal = useCallback(async () => {
     setError(null);
@@ -213,7 +245,11 @@ export default function DashboardAgentsWorkspacePage() {
       setAgentName("");
       setDailyBudget("10.00");
       setMaxCalls("1000");
-      toast.success(t("agentsPage.agentCreatedToast", { owner: `${boundOwner.slice(0, 6)}...${boundOwner.slice(-4)}` }));
+      toast.success(
+        t("agentsPage.agentCreatedToast", {
+          owner: `${boundOwner.slice(0, 6)}...${boundOwner.slice(-4)}`,
+        })
+      );
       await fetchCredentials();
     } catch (createError) {
       console.error("Failed to create credential:", createError);
@@ -223,45 +259,59 @@ export default function DashboardAgentsWorkspacePage() {
     }
   };
 
-  const handleRevoke = useCallback(async (id: string) => {
-    if (!userAddress) {
-      return;
-    }
-
-    try {
-      setIsRevokingCredential(true);
-      await revokeAgentCredential(userAddress, id);
-      await fetchCredentials();
-    } catch (revokeError) {
-      console.error("Failed to revoke credential:", revokeError);
-      toast.error(revokeError instanceof Error ? revokeError.message : t("agentsPage.revokeFailed"));
-    } finally {
-      setIsRevokingCredential(false);
-    }
-  }, [fetchCredentials, t, userAddress]);
-
-  const handleDeleteAgent = useCallback(async (agent: AgentCredentialRecord) => {
-    if (!userAddress) {
-      return;
-    }
-
-    try {
-      setIsDeletingAgent(true);
-      await deleteAgentCredential(userAddress, agent.id);
-      if (selectedAgentId === agent.id) {
-        setSelectedAgentId(null);
+  const handleRevoke = useCallback(
+    async (id: string) => {
+      if (!userAddress) {
+        return;
       }
-      setPendingDeleteAgent(null);
-      setDeleteConfirmationName("");
-      toast.success(t("agentsPage.workspaceDeleteAgentDeletedToast"));
-      await fetchCredentials();
-    } catch (deleteError) {
-      console.error("Failed to delete agent:", deleteError);
-      toast.error(deleteError instanceof Error ? deleteError.message : t("agentsPage.workspaceDeleteAgentDeletedFailed"));
-    } finally {
-      setIsDeletingAgent(false);
-    }
-  }, [fetchCredentials, selectedAgentId, t, userAddress]);
+
+      try {
+        setIsRevokingCredential(true);
+        await revokeAgentCredential(userAddress, id);
+        await fetchCredentials();
+      } catch (revokeError) {
+        console.error("Failed to revoke credential:", revokeError);
+        toast.error(
+          revokeError instanceof Error
+            ? revokeError.message
+            : t("agentsPage.revokeFailed")
+        );
+      } finally {
+        setIsRevokingCredential(false);
+      }
+    },
+    [fetchCredentials, t, userAddress]
+  );
+
+  const handleDeleteAgent = useCallback(
+    async (agent: AgentCredentialRecord) => {
+      if (!userAddress) {
+        return;
+      }
+
+      try {
+        setIsDeletingAgent(true);
+        await deleteAgentCredential(userAddress, agent.id);
+        if (selectedAgentId === agent.id) {
+          setSelectedAgentId(null);
+        }
+        setPendingDeleteAgent(null);
+        setDeleteConfirmationName("");
+        toast.success(t("agentsPage.workspaceDeleteAgentDeletedToast"));
+        await fetchCredentials();
+      } catch (deleteError) {
+        console.error("Failed to delete agent:", deleteError);
+        toast.error(
+          deleteError instanceof Error
+            ? deleteError.message
+            : t("agentsPage.workspaceDeleteAgentDeletedFailed")
+        );
+      } finally {
+        setIsDeletingAgent(false);
+      }
+    },
+    [fetchCredentials, selectedAgentId, t, userAddress]
+  );
 
   const copyToClipboard = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
@@ -275,7 +325,9 @@ export default function DashboardAgentsWorkspacePage() {
     setQuotaRpm(String(agent.rpm || 0));
     setQuotaDailyBudget(String(agent.creditLimit ?? 0));
     if (agent.expiresAt) {
-      setQuotaExpiresAtLocal(new Date(agent.expiresAt * 1000).toISOString().slice(0, 16));
+      setQuotaExpiresAtLocal(
+        new Date(agent.expiresAt * 1000).toISOString().slice(0, 16)
+      );
     } else {
       setQuotaExpiresAtLocal("");
     }
@@ -298,7 +350,10 @@ export default function DashboardAgentsWorkspacePage() {
       await updateAgentCredentialQuota(userAddress, selectedCredentialId, {
         maxCalls: parsedMaxCalls,
         rpm: parsedRpm,
-        creditLimit: Number.isFinite(parsedCreditLimit) && parsedCreditLimit > 0 ? parsedCreditLimit : undefined,
+        creditLimit:
+          Number.isFinite(parsedCreditLimit) && parsedCreditLimit > 0
+            ? parsedCreditLimit
+            : undefined,
         expiresAt: Number.isFinite(parsedExpiresAt) ? parsedExpiresAt : 0,
       });
       toast.success(t("agentsPage.agentLimitsUpdated"));
@@ -306,7 +361,11 @@ export default function DashboardAgentsWorkspacePage() {
       await fetchCredentials();
     } catch (quotaError) {
       console.error("Failed to update agent quota:", quotaError);
-      toast.error(quotaError instanceof Error ? quotaError.message : t("agentsPage.updateAgentLimitsFailed"));
+      toast.error(
+        quotaError instanceof Error
+          ? quotaError.message
+          : t("agentsPage.updateAgentLimitsFailed")
+      );
     }
   };
 
@@ -315,7 +374,9 @@ export default function DashboardAgentsWorkspacePage() {
     if (!selectedAgentId || visibleCredentials.length === 0) {
       return null;
     }
-    return visibleCredentials.find((agent) => agent.id === selectedAgentId) ?? null;
+    return (
+      visibleCredentials.find((agent) => agent.id === selectedAgentId) ?? null
+    );
   }, [selectedAgentId, visibleCredentials]);
 
   useEffect(() => {
@@ -326,59 +387,78 @@ export default function DashboardAgentsWorkspacePage() {
       return;
     }
 
-    if (selectedAgentId && !visibleCredentials.some((agent) => agent.id === selectedAgentId)) {
+    if (
+      selectedAgentId &&
+      !visibleCredentials.some((agent) => agent.id === selectedAgentId)
+    ) {
       setSelectedAgentId(null);
     }
   }, [selectedAgentId, visibleCredentials]);
 
-  const handleRegenerateCredential = useCallback(async (agent: AgentCredentialRecord) => {
-    const boundOwner = await ensureOwnerReady();
-    if (!boundOwner) {
-      return;
-    }
+  const handleRegenerateCredential = useCallback(
+    async (agent: AgentCredentialRecord) => {
+      const boundOwner = await ensureOwnerReady();
+      if (!boundOwner) {
+        return;
+      }
 
-    try {
-      setIsRegeneratingCredential(true);
-      setError(null);
-      const result = await rotateAgentCredential(boundOwner, agent.id);
-      setNewCredential(result);
-      setSelectedAgentId(agent.id);
-      toast.success(t("agentsPage.workspaceCredentialRegeneratedToast"));
-      await fetchCredentials();
-    } catch (regenerateError) {
-      console.error("Failed to regenerate credential:", regenerateError);
-      toast.error(regenerateError instanceof Error ? regenerateError.message : t("agentsPage.workspaceCredentialRegeneratedFailed"));
-    } finally {
-      setIsRegeneratingCredential(false);
-    }
-  }, [ensureOwnerReady, fetchCredentials, t]);
+      try {
+        setIsRegeneratingCredential(true);
+        setError(null);
+        const result = await rotateAgentCredential(boundOwner, agent.id);
+        setNewCredential(result);
+        setSelectedAgentId(agent.id);
+        toast.success(t("agentsPage.workspaceCredentialRegeneratedToast"));
+        await fetchCredentials();
+      } catch (regenerateError) {
+        console.error("Failed to regenerate credential:", regenerateError);
+        toast.error(
+          regenerateError instanceof Error
+            ? regenerateError.message
+            : t("agentsPage.workspaceCredentialRegeneratedFailed")
+        );
+      } finally {
+        setIsRegeneratingCredential(false);
+      }
+    },
+    [ensureOwnerReady, fetchCredentials, t]
+  );
 
-  const handleGenerateCredential = useCallback(async (agent: AgentCredentialRecord) => {
-    if (guardAgentLimit()) {
-      return;
-    }
-    const boundOwner = await ensureOwnerReady();
-    if (!boundOwner) {
-      return;
-    }
+  const handleGenerateCredential = useCallback(
+    async (agent: AgentCredentialRecord) => {
+      if (guardAgentLimit()) {
+        return;
+      }
+      const boundOwner = await ensureOwnerReady();
+      if (!boundOwner) {
+        return;
+      }
 
-    try {
-      setIsRegeneratingCredential(true);
-      setError(null);
-      const result = await rotateAgentCredential(boundOwner, agent.id);
-      setNewCredential(result);
-      setSelectedAgentId(agent.id);
-      toast.success(t("agentsPage.workspaceCredentialGeneratedToast"));
-      await fetchCredentials();
-    } catch (generateError) {
-      console.error("Failed to generate credential:", generateError);
-      toast.error(generateError instanceof Error ? generateError.message : t("agentsPage.workspaceCredentialGeneratedFailed"));
-    } finally {
-      setIsRegeneratingCredential(false);
-    }
-  }, [ensureOwnerReady, fetchCredentials, guardAgentLimit, t]);
+      try {
+        setIsRegeneratingCredential(true);
+        setError(null);
+        const result = await rotateAgentCredential(boundOwner, agent.id);
+        setNewCredential(result);
+        setSelectedAgentId(agent.id);
+        toast.success(t("agentsPage.workspaceCredentialGeneratedToast"));
+        await fetchCredentials();
+      } catch (generateError) {
+        console.error("Failed to generate credential:", generateError);
+        toast.error(
+          generateError instanceof Error
+            ? generateError.message
+            : t("agentsPage.workspaceCredentialGeneratedFailed")
+        );
+      } finally {
+        setIsRegeneratingCredential(false);
+      }
+    },
+    [ensureOwnerReady, fetchCredentials, guardAgentLimit, t]
+  );
 
-  const selectedAgentUsagePercent = selectedAgent ? getAgentUsagePercent(selectedAgent) : 0;
+  const selectedAgentUsagePercent = selectedAgent
+    ? getAgentUsagePercent(selectedAgent)
+    : 0;
   const selectedAgentRemainingCalls = selectedAgent
     ? Math.max(0, (selectedAgent.maxCalls || 0) - selectedAgent.callsUsed)
     : 0;
@@ -398,7 +478,12 @@ export default function DashboardAgentsWorkspacePage() {
       return;
     }
     await handleRevoke(action.agent.id);
-  }, [handleGenerateCredential, handleRegenerateCredential, handleRevoke, pendingDangerAction]);
+  }, [
+    handleGenerateCredential,
+    handleRegenerateCredential,
+    handleRevoke,
+    pendingDangerAction,
+  ]);
 
   const handleCloseDeleteAgent = useCallback(() => {
     setPendingDeleteAgent(null);
@@ -415,7 +500,10 @@ export default function DashboardAgentsWorkspacePage() {
   return (
     <main className="x-workspace-shell mx-auto w-full max-w-[1288px] space-y-8 px-6 py-8 transition duration-200 lg:px-8 xl:px-0">
       {error && (
-        <aside role="alert" className="flex items-center gap-3 rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-400">
+        <aside
+          role="alert"
+          className="flex items-center gap-3 rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-400"
+        >
           <AlertCircle className="h-5 w-5" />
           {error}
         </aside>
@@ -427,11 +515,15 @@ export default function DashboardAgentsWorkspacePage() {
             <Bot className="h-6 w-6 text-blue-400" />
             {t("agentsPage.workspaceSimpleTitle")}
           </h1>
-          <p className="x-page-subtitle mt-3 max-w-3xl">{t("agentsPage.workspaceSimpleDescription")}</p>
+          <p className="x-page-subtitle mt-3 max-w-3xl">
+            {t("agentsPage.workspaceSimpleDescription")}
+          </p>
         </section>
       </header>
 
-      <section className={`grid ${workspaceFrameClass} grid-cols-1 items-start gap-5 xl:grid-cols-[536px_minmax(0,720px)] xl:gap-8`}>
+      <section
+        className={`grid ${workspaceFrameClass} grid-cols-1 items-start gap-5 xl:grid-cols-[536px_minmax(0,720px)] xl:gap-8`}
+      >
         <AgentsWorkspaceListPane
           credentials={visibleCredentials}
           agentLimit={MAX_AGENT_CREDENTIALS}
@@ -461,18 +553,33 @@ export default function DashboardAgentsWorkspacePage() {
             selectedAgentRemainingCalls={selectedAgentRemainingCalls}
             selectedAgentUsagePercent={selectedAgentUsagePercent}
             onClose={() => setSelectedAgentId(null)}
-            onCopyAgentId={() => copyToClipboard(selectedAgent.id, `agent-id-${selectedAgent.id}`)}
+            onCopyAgentId={() =>
+              copyToClipboard(selectedAgent.id, `agent-id-${selectedAgent.id}`)
+            }
             onOpenEdit={openEditModal}
-            onRequestDangerAction={(type, agent) => setPendingDangerAction({ type, agent })}
+            onRequestDangerAction={(type, agent) =>
+              setPendingDangerAction({ type, agent })
+            }
           />
         ) : (
-          <XPanel as="article" variant="flat" className="min-w-0 rounded-[24px] xl:h-[560px] xl:w-[720px]">
+          <XPanel
+            as="article"
+            variant="flat"
+            className="min-w-0 rounded-[24px] xl:h-[560px] xl:w-[720px]"
+          >
             <section className="flex h-full min-h-[560px] flex-col items-center justify-center px-8 py-20 text-center">
-              <span className="x-icon-chip rounded-[22px] p-5" aria-hidden="true">
+              <span
+                className="x-icon-chip rounded-[22px] p-5"
+                aria-hidden="true"
+              >
                 <Bot className="h-10 w-10 text-blue-300" />
               </span>
-              <h2 className="x-section-title mt-6 text-white">{t("agentsPage.workspaceDetailEmptyTitle")}</h2>
-              <p className="x-body-copy mt-4 max-w-md">{t("agentsPage.workspaceDetailEmptyDescription")}</p>
+              <h2 className="x-section-title mt-6 text-white">
+                {t("agentsPage.workspaceDetailEmptyTitle")}
+              </h2>
+              <p className="x-body-copy mt-4 max-w-md">
+                {t("agentsPage.workspaceDetailEmptyDescription")}
+              </p>
             </section>
           </XPanel>
         )}
@@ -502,7 +609,9 @@ export default function DashboardAgentsWorkspacePage() {
           onConfirmDeleteAgent={handleConfirmDeleteAgent}
           newCredential={newCredential}
           copiedId={copiedId}
-          onCopyNewToken={() => copyToClipboard(newCredential?.token ?? "", "new-token")}
+          onCopyNewToken={() =>
+            copyToClipboard(newCredential?.token ?? "", "new-token")
+          }
           onCloseIssuedCredential={() => setNewCredential(null)}
           isEditModalOpen={isEditModalOpen}
           quotaMaxCalls={quotaMaxCalls}

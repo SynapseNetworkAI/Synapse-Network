@@ -12,14 +12,14 @@
  *   analytics.capture('cta_clicked', { cta_id: 'hero_signup', cta_text: 'Get Started' });
  */
 
-import { getGatewayBaseUrl } from '@/utils/gatewayApi';
+import { getGatewayBaseUrl } from "@/utils/gatewayApi";
 
 export interface AnalyticsEvent {
   event_id: string;
   event_name: string;
   timestamp: string;
   distinct_id: string;
-  source: 'frontend';
+  source: "frontend";
   properties: Record<string, unknown>;
 }
 
@@ -27,7 +27,7 @@ export interface AnalyticsConfig {
   /** Gateway events endpoint. Defaults to the configured gateway /api/v1/events */
   endpoint: string;
   /** Current environment */
-  env: 'local' | 'staging' | 'prod';
+  env: "local" | "staging" | "prod";
   /** Max events before auto-flush */
   batchSize: number;
   /** Max ms between flushes */
@@ -42,15 +42,21 @@ function resolveDefaultAnalyticsEndpoint(): string {
     return configuredEndpoint;
   }
 
+  const configuredGatewayBase =
+    process.env.NEXT_PUBLIC_GATEWAY_BASE_URL?.trim();
+  if (configuredGatewayBase) {
+    return `${configuredGatewayBase.replace(/\/+$/, "")}/api/v1/events`;
+  }
+
   return `${getGatewayBaseUrl()}/api/v1/events`;
 }
 
 const DEFAULT_CONFIG: AnalyticsConfig = {
   endpoint: resolveDefaultAnalyticsEndpoint(),
-  env: (process.env.NEXT_PUBLIC_ENV as AnalyticsConfig['env']) || 'local',
+  env: (process.env.NEXT_PUBLIC_ENV as AnalyticsConfig["env"]) || "local",
   batchSize: 10,
   flushIntervalMs: 5_000,
-  debug: process.env.NODE_ENV === 'development',
+  debug: process.env.NODE_ENV === "development",
 };
 
 // ---------------------------------------------------------------------------
@@ -58,15 +64,15 @@ const DEFAULT_CONFIG: AnalyticsConfig = {
 // ---------------------------------------------------------------------------
 
 const UTM_KEYS = [
-  'utm_source',
-  'utm_medium',
-  'utm_campaign',
-  'utm_content',
-  'utm_term',
+  "utm_source",
+  "utm_medium",
+  "utm_campaign",
+  "utm_content",
+  "utm_term",
 ] as const;
 
 function getSessionId(): string {
-  const KEY = 'synapse_session_id';
+  const KEY = "synapse_session_id";
   let id = sessionStorage.getItem(KEY);
   if (!id) {
     id = crypto.randomUUID();
@@ -76,7 +82,7 @@ function getSessionId(): string {
 }
 
 function getAnonymousId(): string {
-  const KEY = 'synapse_anonymous_id';
+  const KEY = "synapse_anonymous_id";
   let id = localStorage.getItem(KEY);
   if (!id) {
     id = crypto.randomUUID();
@@ -86,7 +92,7 @@ function getAnonymousId(): string {
 }
 
 function parseUtmParams(): Record<string, string> {
-  const STORAGE_KEY = 'synapse_utm';
+  const STORAGE_KEY = "synapse_utm";
 
   // Try to read fresh UTM params from the URL
   const params = new URLSearchParams(window.location.search);
@@ -116,27 +122,35 @@ function parseUtmParams(): Record<string, string> {
 
 async function hashWallet(address: string): Promise<string> {
   const encoded = new TextEncoder().encode(address.toLowerCase());
-  const hashBuffer = await crypto.subtle.digest('SHA-256', encoded);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", encoded);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 // ---------------------------------------------------------------------------
 // Surface detection
 // ---------------------------------------------------------------------------
 
-type Surface =
-  | 'provider_console'
-  | 'console'
-  | 'docs'
-  | 'landing';
+type Surface = "provider_console" | "console" | "docs" | "landing";
+
+interface AnalyticsCommonProperties {
+  role: string | null;
+  surface: Surface;
+  env: AnalyticsConfig["env"];
+  chain_id: number | undefined;
+  wallet_provider: string | null;
+  session_id: string;
+  page_path: string;
+  [key: string]: unknown;
+}
 
 function detectSurface(): Surface {
-  const path = typeof window !== 'undefined' ? window.location.pathname : '';
-  if (path.startsWith('/provider')) return 'provider_console';
-  if (path.startsWith('/owner') || path.startsWith('/consumer')) return 'console';
-  if (path.startsWith('/docs')) return 'docs';
-  return 'landing';
+  const path = typeof window !== "undefined" ? window.location.pathname : "";
+  if (path.startsWith("/provider")) return "provider_console";
+  if (path.startsWith("/owner") || path.startsWith("/consumer"))
+    return "console";
+  if (path.startsWith("/docs")) return "docs";
+  return "landing";
 }
 
 // ---------------------------------------------------------------------------
@@ -153,7 +167,7 @@ export class SynapseAnalytics {
   private config: AnalyticsConfig;
   private queue: AnalyticsEvent[] = [];
   private flushTimer: ReturnType<typeof setInterval> | null = null;
-  private distinctId: string = '';
+  private distinctId: string = "";
   private identifiedWalletHash: string | null = null;
   private role: string | null = null;
   private walletProvider: string | null = null;
@@ -171,25 +185,28 @@ export class SynapseAnalytics {
   init(): void {
     this.distinctId = getAnonymousId();
 
-    this.flushTimer = setInterval(() => this.flush(), this.config.flushIntervalMs);
+    this.flushTimer = setInterval(
+      () => this.flush(),
+      this.config.flushIntervalMs
+    );
 
-    if (typeof window !== 'undefined') {
-      window.addEventListener('beforeunload', () => this.flush());
-      document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'hidden') this.flush();
+    if (typeof window !== "undefined") {
+      window.addEventListener("beforeunload", () => this.flush());
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "hidden") this.flush();
       });
     }
 
     if (this.config.debug) {
       // eslint-disable-next-line no-console
-      console.log('[SynapseAnalytics] initialised', this.config);
+      console.log("[SynapseAnalytics] initialised", this.config);
     }
   }
 
   /** Identify a wallet connection. Hashes the address before storing. */
   async identify(
     walletAddress: string,
-    opts?: { walletProvider?: string; chainId?: number; role?: string },
+    opts?: { walletProvider?: string; chainId?: number; role?: string }
   ): Promise<void> {
     const walletHash = await hashWallet(walletAddress);
     const previousId = this.distinctId;
@@ -200,7 +217,7 @@ export class SynapseAnalytics {
     this.chainId = opts?.chainId;
     this.role = opts?.role ?? null;
 
-    this.capture('$identify', {
+    this.capture("$identify", {
       anonymous_id: previousId,
       wallet_hash: walletHash,
     });
@@ -235,7 +252,7 @@ export class SynapseAnalytics {
       event_name: eventName,
       timestamp: new Date().toISOString(),
       distinct_id: this.distinctId,
-      source: 'frontend',
+      source: "frontend",
       properties: {
         ...this.commonProperties(),
         ...properties,
@@ -246,7 +263,7 @@ export class SynapseAnalytics {
 
     if (this.config.debug) {
       // eslint-disable-next-line no-console
-      console.log('[SynapseAnalytics] captured', event);
+      console.log("[SynapseAnalytics] captured", event);
     }
 
     if (this.queue.length >= this.config.batchSize) {
@@ -256,10 +273,12 @@ export class SynapseAnalytics {
 
   /** Track a page view. Automatically called by AnalyticsProvider on route changes. */
   page(pagePath?: string): void {
-    this.capture('page_viewed', {
-      page_path: pagePath ?? (typeof window !== 'undefined' ? window.location.pathname : ''),
-      page_title: typeof document !== 'undefined' ? document.title : '',
-      referrer: typeof document !== 'undefined' ? document.referrer : '',
+    this.capture("page_viewed", {
+      page_path:
+        pagePath ??
+        (typeof window !== "undefined" ? window.location.pathname : ""),
+      page_title: typeof document !== "undefined" ? document.title : "",
+      referrer: typeof document !== "undefined" ? document.referrer : "",
     });
   }
 
@@ -267,7 +286,7 @@ export class SynapseAnalytics {
   // Internals
   // -----------------------------------------------------------------------
 
-  private commonProperties(): Record<string, unknown> {
+  private commonProperties(): AnalyticsCommonProperties {
     const utm = parseUtmParams();
     return {
       role: this.role,
@@ -276,7 +295,7 @@ export class SynapseAnalytics {
       chain_id: this.chainId,
       wallet_provider: this.walletProvider,
       session_id: getSessionId(),
-      page_path: typeof window !== 'undefined' ? window.location.pathname : '',
+      page_path: typeof window !== "undefined" ? window.location.pathname : "",
       ...utm,
     };
   }
@@ -293,11 +312,11 @@ export class SynapseAnalytics {
 
       // Try sendBeacon first (works during unload), fall back to fetch
       const beaconSent =
-        typeof navigator !== 'undefined' &&
-        typeof navigator.sendBeacon === 'function' &&
+        typeof navigator !== "undefined" &&
+        typeof navigator.sendBeacon === "function" &&
         navigator.sendBeacon(
           this.config.endpoint,
-          new Blob([payload], { type: 'application/json' }),
+          new Blob([payload], { type: "application/json" })
         );
 
       if (!beaconSent) {
@@ -314,8 +333,8 @@ export class SynapseAnalytics {
 
   private async fetchSend(payload: string): Promise<void> {
     const res = await fetch(this.config.endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: payload,
       keepalive: true,
     });

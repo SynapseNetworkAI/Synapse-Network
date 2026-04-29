@@ -261,7 +261,9 @@ function signJwt(payload, secret) {
 }
 
 function serviceSafeRunId() {
-  return RUN_ID.toLowerCase().replace(/[^a-z0-9_]+/g, "_").slice(0, 32);
+  return RUN_ID.toLowerCase()
+    .replace(/[^a-z0-9_]+/g, "_")
+    .slice(0, 32);
 }
 
 function ceilDiv(numerator, denominator) {
@@ -309,11 +311,15 @@ async function timedJsonFetch(url, options = {}) {
 }
 
 function psqlText(sql) {
-  return execFileSync("psql", [config.postgresDsn, "-v", "ON_ERROR_STOP=1", "-tAc", sql], {
-    encoding: "utf8",
-    env: { ...process.env, PGPASSWORD: process.env.PGPASSWORD || "" },
-    input: "",
-  }).trim();
+  return execFileSync(
+    "psql",
+    [config.postgresDsn, "-v", "ON_ERROR_STOP=1", "-tAc", sql],
+    {
+      encoding: "utf8",
+      env: { ...process.env, PGPASSWORD: process.env.PGPASSWORD || "" },
+      input: "",
+    }
+  ).trim();
 }
 
 function sqlLiteral(value) {
@@ -350,7 +356,9 @@ function consumerBalanceSnapshot(ownerWallet) {
       'pendingUsdc', COALESCE(ab.pending_balance, 0)::text,
       'frozenUsdc', COALESCE(ab.frozen_balance, 0)::text
     )::text
-    FROM (SELECT CONCAT('consumer_wallet::', LOWER(${sqlLiteral(ownerWallet)})) AS account_id) acc
+    FROM (SELECT CONCAT('consumer_wallet::', LOWER(${sqlLiteral(
+      ownerWallet
+    )})) AS account_id) acc
     LEFT JOIN synapse_account_balances ab ON ab.account_id = acc.account_id
   `);
 }
@@ -746,7 +754,10 @@ function writeOutputs({
     path.join(OUT_DIR, "db-evidence.json"),
     JSON.stringify(sanitize(dbEvidence || { skipped: true }), null, 2) + "\n"
   );
-  fs.writeFileSync(path.join(OUT_DIR, "bugfix-log.md"), renderBugfixLog(bugRows));
+  fs.writeFileSync(
+    path.join(OUT_DIR, "bugfix-log.md"),
+    renderBugfixLog(bugRows)
+  );
   fs.writeFileSync(path.join(OUT_DIR, "report.md"), renderReport(report));
 }
 
@@ -795,11 +806,14 @@ async function main() {
         );
       } else {
         localHappyFixture = await startLocalLlmFixtureServer();
-        config.serviceId = await registerLocalLlmService(localFixtureContext(), {
-          scenario: "happy_path",
-          targetUrl: `${localHappyFixture.baseUrl}/llm/slow-success`,
-          timeoutMs: 3000,
-        });
+        config.serviceId = await registerLocalLlmService(
+          localFixtureContext(),
+          {
+            scenario: "happy_path",
+            targetUrl: `${localHappyFixture.baseUrl}/llm/slow-success`,
+            timeoutMs: 3000,
+          }
+        );
       }
     }
 

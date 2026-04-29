@@ -37,6 +37,13 @@ CREATE TABLE IF NOT EXISTS synapse_owner_accounts (
     display_name TEXT,
     email TEXT,
     email_verified BOOLEAN NOT NULL DEFAULT FALSE,
+    pending_email TEXT,
+    email_verification_code_hash TEXT,
+    email_verification_expires_at TIMESTAMPTZ,
+    email_verification_attempts INTEGER NOT NULL DEFAULT 0,
+    email_verification_requested_at TIMESTAMPTZ,
+    email_verification_send_count INTEGER NOT NULL DEFAULT 0,
+    email_verification_send_count_date DATE,
     notify_marketing BOOLEAN NOT NULL DEFAULT TRUE,
     notify_alerts BOOLEAN NOT NULL DEFAULT TRUE,
     status TEXT NOT NULL DEFAULT 'active',
@@ -45,6 +52,24 @@ CREATE TABLE IF NOT EXISTS synapse_owner_accounts (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CHECK (status IN ('active', 'suspended', 'closed'))
 );
+
+ALTER TABLE synapse_owner_accounts
+    ADD COLUMN IF NOT EXISTS pending_email TEXT,
+    ADD COLUMN IF NOT EXISTS email_verification_code_hash TEXT,
+    ADD COLUMN IF NOT EXISTS email_verification_expires_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS email_verification_attempts INTEGER NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS email_verification_requested_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS email_verification_send_count INTEGER NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS email_verification_send_count_date DATE;
+
+UPDATE synapse_owner_accounts
+SET pending_email = email,
+    email = NULL,
+    email_verification_requested_at = COALESCE(email_verification_requested_at, NOW()),
+    updated_at = NOW()
+WHERE email IS NOT NULL
+  AND email_verified = FALSE
+  AND pending_email IS NULL;
 
 CREATE TABLE IF NOT EXISTS synapse_provider_profiles (
     id BIGINT GENERATED ALWAYS AS IDENTITY UNIQUE,

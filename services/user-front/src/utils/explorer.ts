@@ -20,12 +20,16 @@ function appEnvironment(): AppEnvironment {
 }
 
 export function getTransactionExplorerBaseUrl(): string | null {
-  const configured = normalizeExplorerBase(process.env.NEXT_PUBLIC_TX_EXPLORER_BASE_URL);
+  const configured = normalizeExplorerBase(
+    process.env.NEXT_PUBLIC_TX_EXPLORER_BASE_URL
+  );
   if (configured) return configured;
   return DEFAULT_EXPLORERS[appEnvironment()];
 }
 
-export function getTransactionExplorerUrl(txHash: string | null | undefined): string | null {
+export function getTransactionExplorerUrl(
+  txHash: string | null | undefined
+): string | null {
   const hash = txHash?.trim();
   if (!hash) return null;
   const baseUrl = getTransactionExplorerBaseUrl();
