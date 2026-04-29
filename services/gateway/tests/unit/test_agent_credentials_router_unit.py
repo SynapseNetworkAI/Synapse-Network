@@ -43,7 +43,9 @@ def test_agent_delete_routes_support_delete_and_legacy_post(monkeypatch) -> None
     async def _stub_delete(storage, owner_wallet, credential_id):
         await asyncio.sleep(0)
         calls.append((storage, owner_wallet, credential_id))
-        return {"status": "success", "credential": {"id": credential_id}}
+        return credential_service.CredentialServiceResponse(
+            {"status": "success", "credential": {"id": credential_id}}
+        )
 
     monkeypatch.setattr(
         credential_service,
