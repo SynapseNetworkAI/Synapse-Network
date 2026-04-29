@@ -14,6 +14,10 @@ UserAddressHeader = Annotated[Optional[str], Header(alias="X-User-Address")]
 StorageDep = Annotated[BaseStorage, Depends(get_storage)]
 
 
+def _service_response(payload: credential_service.CredentialServiceResponse):
+    return payload.to_response_dict()
+
+
 @router.get("/v1/secrets/provider/list")
 async def list_provider_secrets(
     storage: StorageDep,
@@ -37,8 +41,10 @@ async def issue_provider_secret(
     x_user_address: UserAddressHeader = None,
 ):
     owner = credential_service.require_owner_wallet(authorization, x_user_address)
-    return await provider_secret_service.issue_provider_secret_for_owner(
-        storage, owner, req
+    return _service_response(
+        await provider_secret_service.issue_provider_secret_for_owner(
+            storage, owner, req
+        )
     )
 
 
@@ -50,6 +56,8 @@ async def revoke_provider_secret(
     x_user_address: UserAddressHeader = None,
 ):
     owner = credential_service.require_owner_wallet(authorization, x_user_address)
-    return await provider_secret_service.revoke_provider_secret_for_owner(
-        storage, owner, secret_id
+    return _service_response(
+        await provider_secret_service.revoke_provider_secret_for_owner(
+            storage, owner, secret_id
+        )
     )

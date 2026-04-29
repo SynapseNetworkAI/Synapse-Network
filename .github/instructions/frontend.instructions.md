@@ -64,6 +64,7 @@ name: "Synapse Frontend Rules"
 
 - Prefer TypeScript-first contracts and explicit types over loose untyped objects.
 - Keep client-side API adapters thin and predictable.
+- Public/exported frontend API adapters must return explicit interfaces/types, not `Record<string, unknown>` or `Promise<Record<string, unknown>>`. Raw maps are only acceptable for request bodies, patch payloads, schema fields, and private parser helpers.
 - When a backend field or response shape changes, update the adapter, UI, tests, and docs together.
 
 ## Domain Status Typing

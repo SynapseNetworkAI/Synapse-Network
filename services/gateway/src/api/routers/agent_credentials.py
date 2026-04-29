@@ -19,6 +19,10 @@ AuditLimitQuery = Annotated[int, Query(ge=1, le=500)]
 ActiveOnlyQuery = Annotated[bool, Query(alias="active_only")]
 
 
+def _service_response(payload: credential_service.CredentialServiceResponse):
+    return payload.to_response_dict()
+
+
 @router.post("/v1/credentials/agent/issue")
 async def issue_agent_credential(
     req: CredentialIssueRequest,
@@ -27,7 +31,7 @@ async def issue_agent_credential(
     x_user_address: UserAddressHeader = None,
 ):
     owner = credential_service.require_owner_wallet(authorization, x_user_address)
-    return await credential_service.issue_credential_for_owner(storage, owner, req)
+    return _service_response(await credential_service.issue_credential_for_owner(storage, owner, req))
 
 
 @router.get("/v1/credentials/agent/list")
@@ -56,8 +60,10 @@ async def revoke_agent_credential(
     x_user_address: UserAddressHeader = None,
 ):
     owner = credential_service.require_owner_wallet(authorization, x_user_address)
-    return await credential_service.revoke_credential_for_owner(
-        storage, owner, credential_id, "CREDENTIAL_NOT_FOUND"
+    return _service_response(
+        await credential_service.revoke_credential_for_owner(
+            storage, owner, credential_id, "CREDENTIAL_NOT_FOUND"
+        )
     )
 
 
@@ -69,8 +75,10 @@ async def rotate_agent_credential(
     x_user_address: UserAddressHeader = None,
 ):
     owner = credential_service.require_owner_wallet(authorization, x_user_address)
-    return await credential_service.rotate_credential_for_owner(
-        storage, owner, credential_id
+    return _service_response(
+        await credential_service.rotate_credential_for_owner(
+            storage, owner, credential_id
+        )
     )
 
 
@@ -81,8 +89,10 @@ async def _delete_agent_credential_for_owner(
     x_user_address: UserAddressHeader = None,
 ):
     owner = credential_service.require_owner_wallet(authorization, x_user_address)
-    return await credential_service.delete_credential_for_owner(
-        storage, owner, credential_id
+    return _service_response(
+        await credential_service.delete_credential_for_owner(
+            storage, owner, credential_id
+        )
     )
 
 
@@ -125,8 +135,10 @@ async def update_agent_credential_quota(
     x_user_address: UserAddressHeader = None,
 ):
     owner = credential_service.require_owner_wallet(authorization, x_user_address)
-    return await credential_service.update_credential_quota_for_owner(
-        storage, owner, credential_id, req
+    return _service_response(
+        await credential_service.update_credential_quota_for_owner(
+            storage, owner, credential_id, req
+        )
     )
 
 
@@ -152,7 +164,9 @@ async def get_agent_credential_status(
     x_user_address: UserAddressHeader = None,
 ):
     owner = credential_service.require_owner_wallet(authorization, x_user_address)
-    return credential_service.get_credential_status_for_owner(storage, owner, credential_id)
+    return _service_response(
+        credential_service.get_credential_status_for_owner(storage, owner, credential_id)
+    )
 
 
 @router.patch("/v1/credentials/agent/{credential_id}")
@@ -164,4 +178,6 @@ async def update_agent_credential(
     x_user_address: UserAddressHeader = None,
 ):
     owner = credential_service.require_owner_wallet(authorization, x_user_address)
-    return await credential_service.update_credential_for_owner(storage, owner, credential_id, req)
+    return _service_response(
+        await credential_service.update_credential_for_owner(storage, owner, credential_id, req)
+    )

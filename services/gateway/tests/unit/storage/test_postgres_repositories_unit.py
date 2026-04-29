@@ -845,68 +845,66 @@ def test_credential_auth_repository_read_write_and_roles() -> None:
     assert isinstance(session, AuthSessionState)
     assert session.last_login == 200
 
-    repo.write_credential_rows(
-        "provider",
-        [
-            RuntimeCredentialRecord.model_validate(
-                {
-                    "owner": {
-                        "ownerId": "owner:0xdef",
-                        "ownerWallet": "0xdef",
-                        "createdAt": "2026-03-15 14:25:00",
-                        "updatedAt": "2026-03-15 14:25:01",
-                    },
-                    "agent": {
-                        "agentId": "agent:provider:0xdef",
-                        "ownerId": "owner:0xdef",
-                        "name": "provider-runtime",
-                        "purpose": "provider runtime credential holder",
-                        "runtimeLabel": "provider",
-                        "createdAt": "2026-03-15 14:25:00",
-                        "updatedAt": "2026-03-15 14:25:01",
-                    },
-                    "credential": {
-                        "credentialId": "cred-2",
-                        "agentId": "agent:provider:0xdef",
-                        "secretHash": "hash-2",
-                        "secretPrefix": "sk_test",
-                        "status": "active",
-                        "issuedAt": "2026-03-15 14:25:00",
-                        "lastUsedAt": "2026-03-15 14:25:01",
-                    },
-                    "policy": {
-                        "policyId": "policy:cred-2",
-                        "credentialId": "cred-2",
-                        "lifetimeCapUsdc": "1.250000",
-                        "dailyCapUsdc": "1.250000",
-                        "perInvocationCapUsdc": "1.250000",
-                        "rpmLimit": 12,
-                        "qpsLimit": 12,
-                        "createdAt": "2026-03-15 14:25:00",
-                        "updatedAt": "2026-03-15 14:25:01",
-                    },
-                    "metadata": {
-                        "credentialType": "provider",
-                        "ownerAddress": "0xdef",
-                        "name": "cred-two",
-                        "maxCalls": 100,
-                        "callsUsed": 0,
-                        "resetInterval": "daily",
-                        "createdAt": "2026-03-15 14:25:00",
-                        "updatedAt": "2026-03-15 14:25:01",
-                    },
-                }
-            )
-        ],
+    repo.create_runtime_credential(
+        RuntimeCredentialRecord.model_validate(
+            {
+                "owner": {
+                    "ownerId": "owner:0xdef",
+                    "ownerWallet": "0xdef",
+                    "createdAt": "2026-03-15 14:25:00",
+                    "updatedAt": "2026-03-15 14:25:01",
+                },
+                "agent": {
+                    "agentId": "agent:provider:0xdef",
+                    "ownerId": "owner:0xdef",
+                    "name": "provider-runtime",
+                    "purpose": "provider runtime credential holder",
+                    "runtimeLabel": "provider",
+                    "createdAt": "2026-03-15 14:25:00",
+                    "updatedAt": "2026-03-15 14:25:01",
+                },
+                "credential": {
+                    "credentialId": "cred-2",
+                    "agentId": "agent:provider:0xdef",
+                    "secretHash": "hash-2",
+                    "secretPrefix": "sk_test",
+                    "status": "active",
+                    "issuedAt": "2026-03-15 14:25:00",
+                    "lastUsedAt": "2026-03-15 14:25:01",
+                },
+                "policy": {
+                    "policyId": "policy:cred-2",
+                    "credentialId": "cred-2",
+                    "lifetimeCapUsdc": "1.250000",
+                    "dailyCapUsdc": "1.250000",
+                    "perInvocationCapUsdc": "1.250000",
+                    "rpmLimit": 12,
+                    "qpsLimit": 12,
+                    "createdAt": "2026-03-15 14:25:00",
+                    "updatedAt": "2026-03-15 14:25:01",
+                },
+                "metadata": {
+                    "credentialType": "provider",
+                    "ownerAddress": "0xdef",
+                    "name": "cred-two",
+                    "maxCalls": 100,
+                    "callsUsed": 0,
+                    "resetInterval": "daily",
+                    "createdAt": "2026-03-15 14:25:00",
+                    "updatedAt": "2026-03-15 14:25:01",
+                },
+            }
+        )
     )
     repo.upsert_auth_session("0xABC", 100, 200, "active")
 
     tx_sql = "\n".join(sql for cur in db.tx_cursors for sql, _ in cur.executed)
-    assert "DELETE FROM synapse_runtime_state WHERE state_key LIKE %s AND state_key NOT IN" in tx_sql
-    assert "DELETE FROM synapse_budget_policies AS bp" in tx_sql
-    assert "DELETE FROM synapse_agent_credentials AS ac" in tx_sql
-    assert "ac.credential_id NOT IN" in tx_sql
-    assert "DELETE FROM synapse_agent_profiles AS ap" in tx_sql
+    assert "INSERT INTO synapse_agent_credentials" in tx_sql
+    assert "INSERT INTO synapse_budget_policies" in tx_sql
+    assert "DELETE FROM synapse_runtime_state" not in tx_sql
+    assert "DELETE FROM synapse_budget_policies AS bp" not in tx_sql
+    assert "DELETE FROM synapse_agent_credentials AS ac" not in tx_sql
+    assert "DELETE FROM synapse_agent_profiles AS ap" not in tx_sql
 
 
 def test_credential_auth_repository_normalizes_datetime_metadata_state() -> None:

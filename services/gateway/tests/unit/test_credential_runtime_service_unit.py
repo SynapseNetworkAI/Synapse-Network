@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 
 import pytest
+from fastapi import HTTPException
 
 from src.api.schemas.pydantic_models import (
     CredentialIssueRequest,
@@ -12,7 +13,7 @@ from src.api.schemas.pydantic_models import (
 )
 from src.core.common import normalize_wallet
 from src.domain.identity import RuntimeCredentialRecord
-from src.domain.runtime_state import AuthSessionState, WalletRoleState
+from src.domain.runtime_state import AuthSessionState
 from src.services.platform import credential_service
 from src.services.provider import secret_service
 from src.utils.datetime_utils import to_dt_str
@@ -26,8 +27,124 @@ class InMemoryCredentialAuthRepository:
     def read_credential_rows(self, credential_type: str):
         return list(self._credential_rows.get(credential_type, []))
 
-    def write_credential_rows(self, credential_type: str, rows):
-        self._credential_rows[credential_type] = list(rows)
+    @staticmethod
+    def _runtime_type(row):
+        if row.agent.runtime_label:
+            return str(row.agent.runtime_label)
+        if row.metadata and row.metadata.credential_type:
+            return str(row.metadata.credential_type)
+        return "agent"
+
+    @staticmethod
+    def _credential_owner(row):
+        return normalize_wallet(row.owner.owner_wallet)
+
+    def _replace_row(self, row):
+        credential_type = self._runtime_type(row)
+        rows = list(self._credential_rows.setdefault(credential_type, []))
+        credential_id = str(row.credential.credential_id)
+        index = next(
+            (
+                idx
+                for idx, existing in enumerate(rows)
+                if str(existing.credential.credential_id) == credential_id
+            ),
+            -1,
+        )
+        if index >= 0:
+            rows[index] = row
+        else:
+            rows.append(row)
+        self._credential_rows[credential_type] = rows
+        return row
+
+    def _find_row(self, credential_id: str):
+        for credential_type, rows in self._credential_rows.items():
+            for idx, row in enumerate(rows):
+                if str(row.credential.credential_id) == str(credential_id):
+                    return credential_type, idx, row
+        return None
+
+    def create_runtime_credential(self, record):
+        return self._replace_row(record)
+
+    def update_runtime_credential_policy(self, record):
+        return self._replace_row(record)
+
+    def update_runtime_credential_metadata(self, record):
+        return self._replace_row(record)
+
+    def rotate_runtime_credential(
+        self, credential_id, owner_wallet, secret_hash, secret_prefix, issued_at
+    ):
+        found = self._find_row(credential_id)
+        if found is None:
+            return False
+        credential_type, idx, row = found
+        if self._credential_owner(row) != normalize_wallet(owner_wallet):
+            return False
+        updated = credential_service.clone_runtime_credential(
+            row,
+            credential_service.CredentialPatch(
+                secret_hash=secret_hash,
+                secret_prefix=secret_prefix,
+                status="active",
+                issued_at=to_dt_str(issued_at),
+                updated_at=to_dt_str(issued_at),
+                clear_revoked_at=True,
+            ),
+        )
+        self._credential_rows[credential_type][idx] = updated
+        return True
+
+    def revoke_runtime_credential(self, credential_id, owner_wallet, revoked_at):
+        found = self._find_row(credential_id)
+        if found is None:
+            return False
+        credential_type, idx, row = found
+        if self._credential_owner(row) != normalize_wallet(owner_wallet):
+            return False
+        updated = credential_service.clone_runtime_credential(
+            row,
+            credential_service.CredentialPatch(
+                status="revoked",
+                updated_at=to_dt_str(revoked_at),
+                revoked_at=int(revoked_at),
+            ),
+        )
+        self._credential_rows[credential_type][idx] = updated
+        return True
+
+    def increment_credential_usage(self, credential_id, delta=1):
+        found = self._find_row(credential_id)
+        if found is None:
+            return None
+        credential_type, idx, row = found
+        updated = credential_service.clone_runtime_credential(
+            row,
+            credential_service.CredentialPatch(
+                calls_used=int(row.metadata.calls_used or 0) + abs(int(delta or 1))
+            ),
+        )
+        self._credential_rows[credential_type][idx] = updated
+        return updated
+
+    def decrement_credential_usage(self, credential_id, delta=1):
+        found = self._find_row(credential_id)
+        if found is None:
+            return None
+        credential_type, idx, row = found
+        updated = credential_service.clone_runtime_credential(
+            row,
+            credential_service.CredentialPatch(
+                calls_used=max(
+                    0,
+                    int(row.metadata.calls_used or 0) - abs(int(delta or 1)),
+                )
+            ),
+        )
+        self._credential_rows[credential_type][idx] = updated
+        return updated
 
     def read_auth_session(self, wallet: str):
         return self._auth_sessions.get(normalize_wallet(wallet))
@@ -237,7 +354,51 @@ def test_rotate_credential_for_owner_reactivates_revoked_record_in_place() -> No
     assert rows[0].credential.revoked_at is None
 
 
-def test_delete_credential_for_owner_removes_runtime_record() -> None:
+def test_issue_credential_for_owner_rejects_sixth_active_agent() -> None:
+    storage = FakeStorage()
+
+    for index in range(5):
+        issued = asyncio.run(
+            credential_service.issue_credential_for_owner(
+                storage,
+                "0xABC",
+                CredentialIssueRequest(name=f"Agent {index + 1}"),
+            )
+        )
+        assert issued["status"] == "success"
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(
+            credential_service.issue_credential_for_owner(
+                storage,
+                "0xabc",
+                CredentialIssueRequest(name="Agent 6"),
+            )
+        )
+
+    err = exc_info.value
+    assert getattr(err, "status_code", None) == 409
+    assert getattr(err, "detail", {}).get("code") == "AGENT_CREDENTIAL_LIMIT_REACHED"
+    assert len(credential_service.load_credential_rows(storage)) == 5
+
+    asyncio.run(
+        credential_service.delete_credential_for_owner(
+            storage,
+            "0xabc",
+            issued["credential"]["id"],
+        )
+    )
+    replacement = asyncio.run(
+        credential_service.issue_credential_for_owner(
+            storage,
+            "0xabc",
+            CredentialIssueRequest(name="Replacement Agent"),
+        )
+    )
+    assert replacement["status"] == "success"
+
+
+def test_delete_credential_for_owner_revokes_runtime_record() -> None:
     storage = FakeStorage()
 
     issued = asyncio.run(
@@ -258,10 +419,12 @@ def test_delete_credential_for_owner_removes_runtime_record() -> None:
         )
     )
 
-    rows = credential_service.load_credential_rows(storage)
     assert deleted["credential"]["id"] == credential_id
     assert deleted["credential"]["name"] == "Delete Me"
-    assert rows == []
+    assert deleted["credential"]["status"] == "revoked"
+    rows = credential_service.load_credential_rows(storage)
+    assert [row.credential.credential_id for row in rows] == [credential_id]
+    assert rows[0].credential.status == "revoked"
     assert storage.audit_logs.rows[-1].action == "CREDENTIAL_DELETED"
 
 

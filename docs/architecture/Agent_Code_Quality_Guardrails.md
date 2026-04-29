@@ -61,8 +61,23 @@ This gate runs:
 2. Radon for cyclomatic complexity and maintainability index.
 3. JSCPD for cross-language copy/paste detection.
 4. Repo-local finance shape scan for changed finance-sensitive Python functions.
+5. Repo-local source contract scan for newly introduced public raw-map returns.
 
 Phase 1 checks changed files plus finance-sensitive paths. This avoids turning historical debt into a full repository stop-the-world event while still blocking new debt. Radon/Ruff run through the same `uvx`-first runner.
+
+### No Raw Map Return
+
+Command: `python3 scripts/ci/source_quality_checks.py`
+
+Public production functions must return typed objects, not raw maps:
+
+1. Python public service/API/storage functions must not return `dict`, `dict[...]`, `Dict[...]`, `Mapping[str, Any]`, or similar raw map contracts.
+2. TypeScript public/exported API adapters must not return `Record<string, unknown>` or `Promise<Record<string, unknown>>`.
+3. Use dataclasses for internal service results and Pydantic models at HTTP boundaries.
+4. Use explicit TypeScript interfaces/types for client API results.
+5. Raw maps remain allowed for private helpers, request bodies, patch payloads, schema fields, and serializer functions such as `_serialize_*`, `*_payload`, `*_schema`, and `to_dict`.
+
+The gate is incremental by default. It blocks newly introduced raw-map return contracts in production source without turning historical serializer debt into a stop-the-world migration. Use `SOURCE_QUALITY_SCOPE=full` for a full audit.
 
 ### Quality Budget
 

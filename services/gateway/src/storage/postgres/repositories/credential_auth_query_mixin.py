@@ -2,9 +2,8 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
 from decimal import Decimal
-from typing import Any, Callable, Optional, TypeVar
+from typing import Any, Optional, TypeVar
 
 from pydantic import BaseModel
 
@@ -13,17 +12,13 @@ from src.domain.identity import (
     AgentProfileRecord,
     BudgetPolicyRecord,
     OwnerAccountRecord,
-    OwnerProfileRecord,
     RuntimeCredentialRecord,
 )
 from src.domain.runtime_state import (
     AuthSessionState,
     CredentialMetadataState,
-    WalletRoleState,
 )
 from src.utils.datetime_utils import now_dt_str, to_dt_str
-
-from ..database_manager import DatabaseManager
 
 StateModel = TypeVar("StateModel", bound=BaseModel)
 
@@ -31,31 +26,6 @@ StateModel = TypeVar("StateModel", bound=BaseModel)
 
 class CredentialAuthQueryMixin:
     """Credential row and auth session operations."""
-
-    def _delete_runtime_credentials(self, cur: Any, credential_type: str) -> None:
-        cur.execute(
-            "DELETE FROM synapse_runtime_state WHERE state_key LIKE %s",
-            (f"credential_meta::{credential_type}::%",),
-        )
-        cur.execute(
-            """
-            DELETE FROM synapse_budget_policies AS bp
-            USING synapse_agent_credentials AS ac, synapse_agent_profiles AS ap
-            WHERE bp.credential_id = ac.credential_id
-              AND ac.agent_id = ap.agent_id
-              AND ap.runtime_label = %s
-            """,
-            (credential_type,),
-        )
-        cur.execute(
-            """
-            DELETE FROM synapse_agent_credentials AS ac
-            USING synapse_agent_profiles AS ap
-            WHERE ac.agent_id = ap.agent_id
-              AND ap.runtime_label = %s
-            """,
-            (credential_type,),
-        )
 
     def _materialize_runtime_record(
         self, record: RuntimeCredentialRecord
@@ -346,56 +316,210 @@ class CredentialAuthQueryMixin:
             )
         return result
 
-    def write_credential_rows(
-        self, credential_type: str, rows: list[RuntimeCredentialRecord]
+    def _read_runtime_credential_by_id(
+        self, credential_type: str, credential_id: str
+    ) -> Optional[RuntimeCredentialRecord]:
+        for row in self.read_credential_rows(credential_type):
+            if str(row.credential.credential_id) == str(credential_id):
+                return row
+        return None
+
+    def create_runtime_credential(
+        self, record: RuntimeCredentialRecord
+    ) -> RuntimeCredentialRecord:
+        normalized = self._materialize_runtime_record(record)
+        with self._db.tx_cursor() as cur:
+            self._insert_credential_row(cur, normalized)
+        return normalized
+
+    def update_runtime_credential_policy(
+        self, record: RuntimeCredentialRecord
+    ) -> RuntimeCredentialRecord:
+        normalized = self._materialize_runtime_record(record)
+        with self._db.tx_cursor() as cur:
+            self._insert_credential_row(cur, normalized)
+        return normalized
+
+    def update_runtime_credential_metadata(
+        self, record: RuntimeCredentialRecord
+    ) -> RuntimeCredentialRecord:
+        normalized = self._materialize_runtime_record(record)
+        with self._db.tx_cursor() as cur:
+            self._insert_credential_row(cur, normalized)
+        return normalized
+
+    def _touch_credential_metadata(
+        self,
+        cur: Any,
+        runtime_label: str,
+        credential_id: str,
+        updated_at: str,
     ) -> None:
-        normalized_type = str(credential_type or "").lower()
-        normalized_rows = [
-            row.model_copy(
+        cur.execute(
+            """
+            UPDATE synapse_runtime_state
+               SET payload = jsonb_set(
+                       COALESCE(payload, '{}'::jsonb),
+                       '{updatedAt}',
+                       to_jsonb(%s::text),
+                       true
+                   ),
+                   updated_at = %s
+             WHERE state_key = %s
+            """,
+            (
+                updated_at,
+                updated_at,
+                self._credential_state_key(runtime_label, credential_id),
+            ),
+        )
+
+    def rotate_runtime_credential(
+        self,
+        credential_id: str,
+        owner_wallet: str,
+        secret_hash: str,
+        secret_prefix: str,
+        issued_at: int,
+    ) -> bool:
+        updated_at = to_dt_str(int(issued_at), now_dt_str())
+        with self._db.tx_cursor() as cur:
+            cur.execute(
+                """
+                UPDATE synapse_agent_credentials AS ac
+                   SET secret_hash = %s,
+                       secret_prefix = %s,
+                       status = 'active',
+                       issued_at = to_timestamp(%s),
+                       revoked_at = NULL,
+                       last_used_at = to_timestamp(%s)
+                  FROM synapse_agent_profiles AS ap
+                  JOIN synapse_owner_accounts AS oa ON oa.owner_id = ap.owner_id
+                 WHERE ac.agent_id = ap.agent_id
+                   AND ac.credential_id = %s
+                   AND lower(oa.owner_wallet) = lower(%s)
+                RETURNING ap.runtime_label
+                """,
+                (
+                    secret_hash,
+                    secret_prefix,
+                    int(issued_at),
+                    int(issued_at),
+                    credential_id,
+                    owner_wallet,
+                ),
+            )
+            row = cur.fetchone()
+            if row is None:
+                return False
+            runtime_label = row[0] if isinstance(row, (list, tuple)) else row
+            self._touch_credential_metadata(
+                cur, str(runtime_label or "").lower(), credential_id, updated_at
+            )
+        return True
+
+    def revoke_runtime_credential(
+        self,
+        credential_id: str,
+        owner_wallet: str,
+        revoked_at: int,
+    ) -> bool:
+        updated_at = to_dt_str(int(revoked_at), now_dt_str())
+        with self._db.tx_cursor() as cur:
+            cur.execute(
+                """
+                UPDATE synapse_agent_credentials AS ac
+                   SET status = 'revoked',
+                       revoked_at = COALESCE(revoked_at, to_timestamp(%s)),
+                       last_used_at = to_timestamp(%s)
+                  FROM synapse_agent_profiles AS ap
+                  JOIN synapse_owner_accounts AS oa ON oa.owner_id = ap.owner_id
+                 WHERE ac.agent_id = ap.agent_id
+                   AND ac.credential_id = %s
+                   AND lower(oa.owner_wallet) = lower(%s)
+                RETURNING ap.runtime_label
+                """,
+                (int(revoked_at), int(revoked_at), credential_id, owner_wallet),
+            )
+            row = cur.fetchone()
+            if row is None:
+                return False
+            runtime_label = row[0] if isinstance(row, (list, tuple)) else row
+            self._touch_credential_metadata(
+                cur, str(runtime_label or "").lower(), credential_id, updated_at
+            )
+        return True
+
+    def _change_credential_usage(
+        self, credential_id: str, delta: int
+    ) -> Optional[RuntimeCredentialRecord]:
+        with self._db.tx_cursor() as cur:
+            cur.execute(
+                """
+                SELECT ap.runtime_label, ac.issued_at, ac.last_used_at, rs.payload
+                  FROM synapse_agent_credentials AS ac
+                  JOIN synapse_agent_profiles AS ap ON ap.agent_id = ac.agent_id
+                  JOIN synapse_owner_accounts AS oa ON oa.owner_id = ap.owner_id
+                  LEFT JOIN synapse_runtime_state AS rs
+                    ON rs.state_key = CONCAT('credential_meta::', ap.runtime_label, '::', ac.credential_id)
+                 WHERE ac.credential_id = %s
+                 FOR UPDATE OF ac
+                """,
+                (credential_id,),
+            )
+            row = cur.fetchone()
+            if row is None:
+                return None
+            runtime_label, issued_at, last_used_at, payload = row
+            runtime_label = str(runtime_label or "").lower()
+            updated_at = now_dt_str()
+            metadata = self._parse_state_model(
+                payload,
+                CredentialMetadataState,
+                fallback={
+                    "credentialType": runtime_label,
+                    "ownerAddress": "",
+                    "createdAt": to_dt_str(issued_at),
+                    "updatedAt": to_dt_str(last_used_at, issued_at),
+                },
+            )
+            current = int(metadata.calls_used or 0) if metadata is not None else 0
+            updated = (metadata or CredentialMetadataState(
+                credentialType=runtime_label,
+                ownerAddress="",
+                createdAt=to_dt_str(issued_at),
+                updatedAt=updated_at,
+            )).model_copy(
                 update={
-                    "owner": row.owner.model_copy(
-                        update={
-                            "owner_id": str(
-                                row.owner.owner_id
-                                or self._owner_id(row.owner.owner_wallet)
-                            ),
-                            "owner_wallet": str(row.owner.owner_wallet or "").lower(),
-                        }
-                    ),
-                    "agent": row.agent.model_copy(
-                        update={
-                            "agent_id": str(
-                                row.agent.agent_id
-                                or self._agent_id(normalized_type, row.owner.owner_wallet)
-                            ),
-                            "owner_id": str(
-                                row.owner.owner_id
-                                or self._owner_id(row.owner.owner_wallet)
-                            ),
-                            "runtime_label": normalized_type,
-                        }
-                    ),
+                    "calls_used": max(0, current + int(delta)),
+                    "updated_at": updated_at,
                 }
             )
-            for row in rows
-        ]
-        credential_ids = [
-            str(row.credential.credential_id or "").strip()
-            for row in normalized_rows
-            if str(row.credential.credential_id or "").strip()
-        ]
-        with self._db.tx_cursor() as cur:
-            self._delete_obsolete_runtime_credential_state(
-                cur, normalized_type, credential_ids
+            self._upsert_runtime_state(
+                cur,
+                self._credential_state_key(runtime_label, credential_id),
+                updated,
+                updated_at,
             )
-            self._delete_obsolete_runtime_budget_policies(
-                cur, normalized_type, credential_ids
+            cur.execute(
+                """
+                UPDATE synapse_agent_credentials
+                   SET last_used_at = %s
+                 WHERE credential_id = %s
+                """,
+                (updated_at, credential_id),
             )
-            self._delete_obsolete_runtime_credentials(
-                cur, normalized_type, credential_ids
-            )
-            for row in normalized_rows:
-                self._insert_credential_row(cur, row)
+        return self._read_runtime_credential_by_id(runtime_label, credential_id)
+
+    def increment_credential_usage(
+        self, credential_id: str, delta: int = 1
+    ) -> Optional[RuntimeCredentialRecord]:
+        return self._change_credential_usage(credential_id, abs(int(delta or 1)))
+
+    def decrement_credential_usage(
+        self, credential_id: str, delta: int = 1
+    ) -> Optional[RuntimeCredentialRecord]:
+        return self._change_credential_usage(credential_id, -abs(int(delta or 1)))
 
     def upsert_auth_session(
         self, wallet: str, registered_at: int, last_login: int, status: str

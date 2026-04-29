@@ -40,6 +40,7 @@ Recommended split for backend services:
 - Use Pydantic models for request and response contracts.
 - Prefer explicit domain models over loose `dict[str, Any]` payloads for long-lived business data.
 - When a storage layer persists structured records, model those records as typed objects instead of passing ad-hoc JSON-shaped dictionaries through the service stack.
+- Public service/API/storage functions must return typed objects, not raw map contracts such as `dict`, `dict[str, Any]`, `Dict[str, Any]`, or `Mapping[str, Any]`. Use frozen dataclasses for internal service results and convert to Pydantic/JSON only at the router or serializer boundary.
 - Keep field names, aliases, and error semantics stable unless the contract change is intentional and documented.
 - **No bare `dict[str, Any]` in internal service function signatures or as mutation specs.** When a function requires more than 4 optional kwargs representing a logical update, define a typed Pydantic model as the patch/update object (e.g. `CredentialPatch`) and pass it as a single argument. See `src/domain/identity.py:CredentialPatch` for the established pattern.
 - **Use built-in generic types, not `typing` aliases.** Python 3.9+ allows `dict[str, ...]`, `list[...]`, `tuple[...]`, `set[...]` directly. Never import or use `typing.Dict`, `typing.List`, `typing.Tuple`, `typing.Set`. Use `from __future__ import annotations` at the top of the file to support this even in older forward-reference contexts.
