@@ -6,9 +6,14 @@ from typing import Any, Callable
 from ..database_manager import DatabaseManager
 from .credential_auth_core_mixin import CredentialAuthCoreMixin
 from .credential_auth_query_mixin import CredentialAuthQueryMixin
+from .credential_auth_runtime_mixin import CredentialAuthRuntimeMixin
 
 
-class CredentialAuthRepository(CredentialAuthCoreMixin, CredentialAuthQueryMixin):
+class CredentialAuthRepository(
+    CredentialAuthCoreMixin,
+    CredentialAuthRuntimeMixin,
+    CredentialAuthQueryMixin,
+):
     """Postgres-backed credential auth repository."""
 
     def __init__(self, db: DatabaseManager, quantize6: Callable[[Any], Any]):
