@@ -33,6 +33,7 @@ from src import app as gateway_app
 from src.services.owner import downstream_concurrency, forwarding_billing, forwarding_budget, forwarding_service, forwarding_upstream, forwarding_validation
 from src.services.platform import credential_service
 from src.services.provider.registry_service import RegistryService
+from tests.unit.credential_auth_test_helper import InMemoryCredentialAuthRepository
 
 
 class InMemoryBalanceRepo:
@@ -119,115 +120,6 @@ class InMemoryRegistryRepo:
         ]
 
 
-class InMemoryCredentialAuthRepo:
-    def __init__(self, credential_row) -> None:
-        self._rows = {"agent": [credential_row], "provider": []}
-
-    def read_credential_rows(self, credential_type: str):
-        return list(self._rows.get(credential_type, []))
-
-    def _find_row(self, credential_id: str):
-        for credential_type, rows in self._rows.items():
-            for idx, row in enumerate(rows):
-                if str(row.credential.credential_id) == str(credential_id):
-                    return credential_type, idx, row
-        return None
-
-    def create_runtime_credential(self, record):
-        credential_type = str(record.agent.runtime_label or "agent")
-        rows = list(self._rows.setdefault(credential_type, []))
-        credential_id = str(record.credential.credential_id)
-        index = next(
-            (
-                idx
-                for idx, existing in enumerate(rows)
-                if str(existing.credential.credential_id) == credential_id
-            ),
-            -1,
-        )
-        if index >= 0:
-            rows[index] = record
-        else:
-            rows.append(record)
-        self._rows[credential_type] = rows
-        return record
-
-    def update_runtime_credential_policy(self, record):
-        return self.create_runtime_credential(record)
-
-    def update_runtime_credential_metadata(self, record):
-        return self.create_runtime_credential(record)
-
-    def rotate_runtime_credential(
-        self, credential_id, owner_wallet, secret_hash, secret_prefix, issued_at
-    ):
-        _ = owner_wallet, issued_at
-        found = self._find_row(credential_id)
-        if found is None:
-            return False
-        credential_type, idx, row = found
-        self._rows[credential_type][idx] = credential_service.clone_runtime_credential(
-            row,
-            credential_service.CredentialPatch(
-                secret_hash=secret_hash,
-                secret_prefix=secret_prefix,
-                status="active",
-                clear_revoked_at=True,
-            ),
-        )
-        return True
-
-    def revoke_runtime_credential(self, credential_id, owner_wallet, revoked_at):
-        _ = owner_wallet
-        found = self._find_row(credential_id)
-        if found is None:
-            return False
-        credential_type, idx, row = found
-        self._rows[credential_type][idx] = credential_service.clone_runtime_credential(
-            row,
-            credential_service.CredentialPatch(
-                status="revoked",
-                revoked_at=int(revoked_at),
-            ),
-        )
-        return True
-
-    def increment_credential_usage(self, credential_id, delta=1):
-        found = self._find_row(credential_id)
-        if found is None:
-            return None
-        credential_type, idx, row = found
-        updated = credential_service.clone_runtime_credential(
-            row,
-            credential_service.CredentialPatch(
-                calls_used=int(row.metadata.calls_used or 0) + abs(int(delta or 1))
-            ),
-        )
-        self._rows[credential_type][idx] = updated
-        return updated
-
-    def decrement_credential_usage(self, credential_id, delta=1):
-        found = self._find_row(credential_id)
-        if found is None:
-            return None
-        credential_type, idx, row = found
-        updated = credential_service.clone_runtime_credential(
-            row,
-            credential_service.CredentialPatch(
-                calls_used=max(
-                    0,
-                    int(row.metadata.calls_used or 0) - abs(int(delta or 1)),
-                )
-            ),
-        )
-        self._rows[credential_type][idx] = updated
-        return updated
-
-    def read_auth_session(self, wallet: str):
-        _ = wallet
-        return None
-
-
 class InMemoryAuditRepo:
     def __init__(self) -> None:
         self.rows = []
@@ -271,7 +163,7 @@ class FakeStorage:
         self.fee_policy = InMemoryFeePolicyRepo()
         self.gateway_state = InMemoryGatewayStateRepo()
         self.registry = InMemoryRegistryRepo(service)
-        self.credential_auth = InMemoryCredentialAuthRepo(credential_row)
+        self.credential_auth = InMemoryCredentialAuthRepository(agent_rows=[credential_row])
         self.audit = InMemoryAuditRepo()
         self.execution = InMemoryExecutionRepo()
         self.data_manager = SimpleNamespace(
