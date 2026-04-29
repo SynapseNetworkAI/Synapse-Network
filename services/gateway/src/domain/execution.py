@@ -24,7 +24,7 @@ class ServiceQuoteRecord(BaseModel):
     credential_id: str = Field(alias="credentialId")
     agent_id: str = Field(alias="agentId")
     quoted_price_usdc: Decimal = Field(alias="quotedPriceUsdc")
-    price_model: Literal["fixed", "tiered", "quote"] = Field(alias="priceModel")
+    price_model: Literal["fixed", "tiered", "quote", "token_metered"] = Field(alias="priceModel")
     status: Literal["OPEN", "EXPIRED", "CONSUMED", "CANCELLED"] = "OPEN"
     request_fingerprint: str = Field(alias="requestFingerprint")
     response_mode: Literal["sync", "async", "stream"] = Field(default="sync", alias="responseMode")

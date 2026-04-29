@@ -25,6 +25,17 @@ QUOTE_PRICE_NON_NEGATIVE_CHECK_REQUIRED_FRAGMENTS = (
     ">=",
     "0",
 )
+ENDPOINT_TIMEOUT_PROFILE_CHECK_REQUIRED_FRAGMENTS = (
+    "timeout_ms",
+    ">=",
+    "300",
+    "<=",
+    "300000",
+)
+TOKEN_METERED_PRICE_MODEL_CHECK_REQUIRED_FRAGMENTS = (
+    "price_model",
+    "token_metered",
+)
 
 
 @dataclass(frozen=True)
@@ -108,6 +119,10 @@ POSTGRES_TABLE_SCHEMA_CONTRACTS: tuple[TableSchemaContract, ...] = (
         required_indexes=frozenset({"idx_synapse_service_manifests_status"}),
         required_constraints=(
             _constraint("primary key on service_id", PRIMARY_KEY_FRAGMENT, "service_id"),
+            _constraint(
+                "price_model supports token metered LLM services",
+                *TOKEN_METERED_PRICE_MODEL_CHECK_REQUIRED_FRAGMENTS,
+            ),
         ),
     ),
     TableSchemaContract(
@@ -115,6 +130,10 @@ POSTGRES_TABLE_SCHEMA_CONTRACTS: tuple[TableSchemaContract, ...] = (
         required_columns=frozenset({"id", "endpoint_id", "service_id", "endpoint_url", "auth_mode", "timeout_ms", "max_payload_bytes", "streaming_supported", "async_supported", "callback_supported", "region", "weight", "is_primary", "status", "created_at", "updated_at"}),
         required_constraints=(
             _constraint("primary key on endpoint_id", PRIMARY_KEY_FRAGMENT, "endpoint_id"),
+            _constraint(
+                "timeout_ms supports bounded LLM sync timeout",
+                *ENDPOINT_TIMEOUT_PROFILE_CHECK_REQUIRED_FRAGMENTS,
+            ),
         ),
     ),
     TableSchemaContract(
@@ -140,6 +159,10 @@ POSTGRES_TABLE_SCHEMA_CONTRACTS: tuple[TableSchemaContract, ...] = (
             _constraint(
                 "quoted price allows free services and rejects negative prices",
                 *QUOTE_PRICE_NON_NEGATIVE_CHECK_REQUIRED_FRAGMENTS,
+            ),
+            _constraint(
+                "quote price_model supports token metered LLM services",
+                *TOKEN_METERED_PRICE_MODEL_CHECK_REQUIRED_FRAGMENTS,
             ),
         ),
     ),

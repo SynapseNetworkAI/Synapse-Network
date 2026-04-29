@@ -37,6 +37,7 @@ from src.domain.finance import (
     ChargeConsumerUsageCommand,
     DepositAttemptRow,
     RefundIntentRow,
+    SettleConsumerHoldUsageCommand,
     UsageLogRow,
 )
 from src.domain.ledger import DepositIntentRow, WithdrawalIntentRow
@@ -524,6 +525,7 @@ def test_service_registry_repository_read_and_write() -> None:
                 True,
                 Decimal("0.005"),
                 "USDC",
+                "fixed",
                 3000,
                 ["quotes", "top3"],
                 "2026-03-15 14:24:00",
@@ -632,6 +634,52 @@ def test_service_registry_repository_read_and_write() -> None:
     assert "INSERT INTO synapse_service_search_index" in all_sql
     assert "INSERT INTO synapse_runtime_state" in all_sql
     assert "INSERT INTO synapse_provider_payout_accounts" in all_sql
+
+
+def test_service_health_history_write_serializes_and_deletes_only_obsolete_keys() -> None:
+    db = FakeDB()
+    repo = ServiceRegistryRepository(db)
+
+    repo.write_service_target_health_history_rows(
+        [
+            ServiceTargetHealthHistory(
+                serviceId="svc-b",
+                ownerAddress="0xDEF",
+                targetUrl="https://b",
+                checkedAt=3,
+            ),
+            ServiceTargetHealthHistory(
+                serviceId="svc-a",
+                ownerAddress="0xABC",
+                targetUrl="https://a",
+                checkedAt=4,
+            ),
+        ]
+    )
+
+    tx_ops = db.tx_cursors[-1].executed
+    assert tx_ops[0] == (
+        "SELECT pg_advisory_xact_lock(hashtext(%s))",
+        ("synapse_runtime_state:service_health_history",),
+    )
+    delete_sql, delete_params = tx_ops[1]
+    assert (
+        "DELETE FROM synapse_runtime_state WHERE state_key LIKE "
+        "'service_health_history::%%' AND state_key NOT IN"
+    ) in delete_sql
+    assert delete_params == (
+        "service_health_history::svc-a",
+        "service_health_history::svc-b",
+    )
+    upsert_keys = [
+        params[0]
+        for sql, params in tx_ops
+        if "INSERT INTO synapse_runtime_state" in sql
+    ]
+    assert upsert_keys == [
+        "service_health_history::svc-a",
+        "service_health_history::svc-b",
+    ]
 
 
 def test_service_registry_repository_normalizes_datetime_health_timestamps() -> None:
@@ -797,68 +845,66 @@ def test_credential_auth_repository_read_write_and_roles() -> None:
     assert isinstance(session, AuthSessionState)
     assert session.last_login == 200
 
-    repo.write_credential_rows(
-        "provider",
-        [
-            RuntimeCredentialRecord.model_validate(
-                {
-                    "owner": {
-                        "ownerId": "owner:0xdef",
-                        "ownerWallet": "0xdef",
-                        "createdAt": "2026-03-15 14:25:00",
-                        "updatedAt": "2026-03-15 14:25:01",
-                    },
-                    "agent": {
-                        "agentId": "agent:provider:0xdef",
-                        "ownerId": "owner:0xdef",
-                        "name": "provider-runtime",
-                        "purpose": "provider runtime credential holder",
-                        "runtimeLabel": "provider",
-                        "createdAt": "2026-03-15 14:25:00",
-                        "updatedAt": "2026-03-15 14:25:01",
-                    },
-                    "credential": {
-                        "credentialId": "cred-2",
-                        "agentId": "agent:provider:0xdef",
-                        "secretHash": "hash-2",
-                        "secretPrefix": "sk_test",
-                        "status": "active",
-                        "issuedAt": "2026-03-15 14:25:00",
-                        "lastUsedAt": "2026-03-15 14:25:01",
-                    },
-                    "policy": {
-                        "policyId": "policy:cred-2",
-                        "credentialId": "cred-2",
-                        "lifetimeCapUsdc": "1.250000",
-                        "dailyCapUsdc": "1.250000",
-                        "perInvocationCapUsdc": "1.250000",
-                        "rpmLimit": 12,
-                        "qpsLimit": 12,
-                        "createdAt": "2026-03-15 14:25:00",
-                        "updatedAt": "2026-03-15 14:25:01",
-                    },
-                    "metadata": {
-                        "credentialType": "provider",
-                        "ownerAddress": "0xdef",
-                        "name": "cred-two",
-                        "maxCalls": 100,
-                        "callsUsed": 0,
-                        "resetInterval": "daily",
-                        "createdAt": "2026-03-15 14:25:00",
-                        "updatedAt": "2026-03-15 14:25:01",
-                    },
-                }
-            )
-        ],
+    repo.create_runtime_credential(
+        RuntimeCredentialRecord.model_validate(
+            {
+                "owner": {
+                    "ownerId": "owner:0xdef",
+                    "ownerWallet": "0xdef",
+                    "createdAt": "2026-03-15 14:25:00",
+                    "updatedAt": "2026-03-15 14:25:01",
+                },
+                "agent": {
+                    "agentId": "agent:provider:0xdef",
+                    "ownerId": "owner:0xdef",
+                    "name": "provider-runtime",
+                    "purpose": "provider runtime credential holder",
+                    "runtimeLabel": "provider",
+                    "createdAt": "2026-03-15 14:25:00",
+                    "updatedAt": "2026-03-15 14:25:01",
+                },
+                "credential": {
+                    "credentialId": "cred-2",
+                    "agentId": "agent:provider:0xdef",
+                    "secretHash": "hash-2",
+                    "secretPrefix": "sk_test",
+                    "status": "active",
+                    "issuedAt": "2026-03-15 14:25:00",
+                    "lastUsedAt": "2026-03-15 14:25:01",
+                },
+                "policy": {
+                    "policyId": "policy:cred-2",
+                    "credentialId": "cred-2",
+                    "lifetimeCapUsdc": "1.250000",
+                    "dailyCapUsdc": "1.250000",
+                    "perInvocationCapUsdc": "1.250000",
+                    "rpmLimit": 12,
+                    "qpsLimit": 12,
+                    "createdAt": "2026-03-15 14:25:00",
+                    "updatedAt": "2026-03-15 14:25:01",
+                },
+                "metadata": {
+                    "credentialType": "provider",
+                    "ownerAddress": "0xdef",
+                    "name": "cred-two",
+                    "maxCalls": 100,
+                    "callsUsed": 0,
+                    "resetInterval": "daily",
+                    "createdAt": "2026-03-15 14:25:00",
+                    "updatedAt": "2026-03-15 14:25:01",
+                },
+            }
+        )
     )
     repo.upsert_auth_session("0xABC", 100, 200, "active")
 
     tx_sql = "\n".join(sql for cur in db.tx_cursors for sql, _ in cur.executed)
-    assert "DELETE FROM synapse_runtime_state WHERE state_key LIKE %s AND state_key NOT IN" in tx_sql
-    assert "DELETE FROM synapse_budget_policies AS bp" in tx_sql
-    assert "DELETE FROM synapse_agent_credentials AS ac" in tx_sql
-    assert "ac.credential_id NOT IN" in tx_sql
-    assert "DELETE FROM synapse_agent_profiles AS ap" in tx_sql
+    assert "INSERT INTO synapse_agent_credentials" in tx_sql
+    assert "INSERT INTO synapse_budget_policies" in tx_sql
+    assert "DELETE FROM synapse_runtime_state" not in tx_sql
+    assert "DELETE FROM synapse_budget_policies AS bp" not in tx_sql
+    assert "DELETE FROM synapse_agent_credentials AS ac" not in tx_sql
+    assert "DELETE FROM synapse_agent_profiles AS ap" not in tx_sql
 
 
 def test_credential_auth_repository_normalizes_datetime_metadata_state() -> None:
@@ -1698,6 +1744,119 @@ def test_finance_atomic_repository_processes_typed_charge_command() -> None:
     assert "INSERT INTO synapse_ledger_entries" in executed_sql
     assert "INSERT INTO synapse_runtime_state" in executed_sql
     assert "UPSERT" in executed_sql
+
+
+def test_finance_atomic_repository_settles_llm_hold_and_releases_unused_balance() -> None:
+    db = FakeDB()
+    db.connect_plan.append(
+        {
+            "fetchone": [
+                (Decimal("10"), Decimal("0"), Decimal("0")),
+                (Decimal("0"), Decimal("0"), Decimal("0")),
+                (Decimal("5"), Decimal("0"), Decimal("0.000019")),
+                (Decimal("1"), Decimal("0"), Decimal("0")),
+                (Decimal("0.5"), Decimal("0"), Decimal("0")),
+                (Decimal("1"), Decimal("0"), Decimal("0")),
+                (Decimal("0.5"), Decimal("0"), Decimal("0")),
+            ]
+        }
+    )
+    repo = FinanceAtomicRepository(
+        db,
+        _q6,
+        "UPSERT",
+        "BAL_FOR_UPDATE",
+        "AUDIT_INSERT",
+        ("restricted", "suspended", "blocked"),
+    )
+
+    result = repo.settle_consumer_llm_hold_atomic(
+        SettleConsumerHoldUsageCommand(
+            owner_wallet="0xowner",
+            provider_wallet="0xprovider",
+            hold_usdc=Decimal("0.000019"),
+            total_charge=Decimal("0.000008"),
+            provider_net=Decimal("0.000007"),
+            platform_fee_total=Decimal("0.000001"),
+            usage_row=UsageLogRow(
+                id="llm-usage-1",
+                ts=123,
+                serviceId="svc_deepseek_chat",
+                consumerAddress="0xowner",
+                providerAddress="0xprovider",
+                status="accepted",
+                totalCharge=Decimal("0.000008"),
+                businessType="charge",
+                riskLevel="green",
+            ),
+            request_id="req-llm-1",
+        )
+    )
+
+    assert result.consumer_available_balance_after == Decimal("5.000011")
+    assert db.connections[0].commits == 1
+    executed_sql = "\n".join(sql for sql, _ in db.connections[0].cursor_obj.executed)
+    assert "INSERT INTO synapse_ledger_entries" in executed_sql
+    assert "INSERT INTO synapse_runtime_state" in executed_sql
+    assert "INSERT INTO synapse_audit_events" in executed_sql
+
+
+def test_finance_atomic_repository_rejects_llm_charge_above_hold() -> None:
+    repo = FinanceAtomicRepository(
+        FakeDB(),
+        _q6,
+        "UPSERT",
+        "BAL_FOR_UPDATE",
+        "AUDIT_INSERT",
+        ("restricted", "suspended", "blocked"),
+    )
+
+    with pytest.raises(RuntimeError, match="LLM_BILLING_HOLD_EXCEEDED"):
+        repo.settle_consumer_llm_hold_atomic(
+            SettleConsumerHoldUsageCommand(
+                owner_wallet="0xowner",
+                provider_wallet="0xprovider",
+                hold_usdc=Decimal("0.000010"),
+                total_charge=Decimal("0.000011"),
+                provider_net=Decimal("0.000010"),
+                platform_fee_total=Decimal("0.000001"),
+                usage_row=UsageLogRow(id="llm-usage-over-hold", ts=123),
+            )
+        )
+
+
+def test_finance_atomic_repository_rejects_missing_llm_frozen_hold() -> None:
+    db = FakeDB()
+    db.connect_plan.append(
+        {
+            "fetchone": [
+                (Decimal("10"), Decimal("0"), Decimal("0")),
+                (Decimal("0"), Decimal("0"), Decimal("0")),
+                (Decimal("5"), Decimal("0"), Decimal("0.000001")),
+            ]
+        }
+    )
+    repo = FinanceAtomicRepository(
+        db,
+        _q6,
+        "UPSERT",
+        "BAL_FOR_UPDATE",
+        "AUDIT_INSERT",
+        ("restricted", "suspended", "blocked"),
+    )
+
+    with pytest.raises(RuntimeError, match="LLM_HOLD_FROZEN_BALANCE_INCONSISTENT"):
+        repo.settle_consumer_llm_hold_atomic(
+            SettleConsumerHoldUsageCommand(
+                owner_wallet="0xowner",
+                provider_wallet="0xprovider",
+                hold_usdc=Decimal("0.000019"),
+                total_charge=Decimal("0.000008"),
+                provider_net=Decimal("0.000007"),
+                platform_fee_total=Decimal("0.000001"),
+                usage_row=UsageLogRow(id="llm-usage-missing-hold", ts=123),
+            )
+        )
 
 
 def test_finance_atomic_repository_confirm_deposit_writes_canonical_audit_evidence() -> None:

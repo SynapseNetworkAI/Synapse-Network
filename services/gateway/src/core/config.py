@@ -288,14 +288,21 @@ class Settings:
     # Platform hard caps for provider-registered forwarding constraints.
     # These guardrails prevent a single service manifest from exhausting gateway resources.
     gateway_min_timeout_ms: int = _env_int("GATEWAY_MIN_TIMEOUT_MS", 300)
-    gateway_max_timeout_ms: int = _env_int("GATEWAY_MAX_TIMEOUT_MS", 15000)
+    gateway_max_timeout_ms: int = _env_int("GATEWAY_MAX_TIMEOUT_MS", 60000)
     gateway_min_request_bytes: int = _env_int("GATEWAY_MIN_REQUEST_BYTES", 256)
     gateway_max_request_bytes: int = _env_int("GATEWAY_MAX_REQUEST_BYTES", 262144)
     gateway_min_response_bytes: int = _env_int("GATEWAY_MIN_RESPONSE_BYTES", 256)
     gateway_max_response_bytes: int = _env_int("GATEWAY_MAX_RESPONSE_BYTES", 1048576)
     gateway_min_service_qps: int = _env_int("GATEWAY_MIN_SERVICE_QPS", 1)
     gateway_max_service_qps: int = _env_int("GATEWAY_MAX_SERVICE_QPS", 200)
-    gateway_default_timeout_ms: int = _env_int("GATEWAY_DEFAULT_TIMEOUT_MS", 3000)
+    gateway_default_timeout_ms: int = _env_int("GATEWAY_DEFAULT_TIMEOUT_MS", 15000)
+    # LLM endpoints need a longer synchronous window than ordinary APIs, but
+    # must still be bounded so holds, HTTP workers, and provider pools cannot
+    # be pinned forever.
+    gateway_llm_default_timeout_ms: int = _env_int(
+        "GATEWAY_LLM_DEFAULT_TIMEOUT_MS", 120000
+    )
+    gateway_llm_max_timeout_ms: int = _env_int("GATEWAY_LLM_MAX_TIMEOUT_MS", 300000)
     gateway_default_request_bytes: int = _env_int("GATEWAY_DEFAULT_REQUEST_BYTES", 4096)
     gateway_default_response_bytes: int = _env_int(
         "GATEWAY_DEFAULT_RESPONSE_BYTES", 2048

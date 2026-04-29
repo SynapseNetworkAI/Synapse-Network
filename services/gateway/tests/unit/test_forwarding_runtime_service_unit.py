@@ -33,6 +33,7 @@ from src import app as gateway_app
 from src.services.owner import downstream_concurrency, forwarding_billing, forwarding_budget, forwarding_service, forwarding_upstream, forwarding_validation
 from src.services.platform import credential_service
 from src.services.provider.registry_service import RegistryService
+from tests.unit.credential_auth_test_helper import InMemoryCredentialAuthRepository
 
 
 class InMemoryBalanceRepo:
@@ -119,21 +120,6 @@ class InMemoryRegistryRepo:
         ]
 
 
-class InMemoryCredentialAuthRepo:
-    def __init__(self, credential_row) -> None:
-        self._rows = {"agent": [credential_row], "provider": []}
-
-    def read_credential_rows(self, credential_type: str):
-        return list(self._rows.get(credential_type, []))
-
-    def write_credential_rows(self, credential_type: str, rows):
-        self._rows[credential_type] = list(rows)
-
-    def read_auth_session(self, wallet: str):
-        _ = wallet
-        return None
-
-
 class InMemoryAuditRepo:
     def __init__(self) -> None:
         self.rows = []
@@ -177,7 +163,7 @@ class FakeStorage:
         self.fee_policy = InMemoryFeePolicyRepo()
         self.gateway_state = InMemoryGatewayStateRepo()
         self.registry = InMemoryRegistryRepo(service)
-        self.credential_auth = InMemoryCredentialAuthRepo(credential_row)
+        self.credential_auth = InMemoryCredentialAuthRepository(agent_rows=[credential_row])
         self.audit = InMemoryAuditRepo()
         self.execution = InMemoryExecutionRepo()
         self.data_manager = SimpleNamespace(
@@ -747,7 +733,6 @@ def test_generate_response_v2_paid_invocation_uses_typed_execution_models(
     assert storage.execution.read_invocation(receipt.invocationId).status == "SUCCEEDED"
 
 
-@pytest.mark.skip(reason="token-metered LLM settlement is not enabled in the fixed-price invoke path yet")
 def test_invoke_v1_llm_auto_preauth_settles_usage_and_releases_hold(monkeypatch) -> None:
     raw_token = "agt_1234567890abcdef12345678"
     storage = FakeStorage(_llm_service_definition(), _runtime_credential(raw_token))
@@ -804,7 +789,6 @@ def test_invoke_v1_llm_auto_preauth_settles_usage_and_releases_hold(monkeypatch)
     assert storage.balance.ledger.platform.fee_accrued == Decimal("0.000028")
 
 
-@pytest.mark.skip(reason="token-metered LLM settlement is not enabled in the fixed-price invoke path yet")
 def test_invoke_v1_llm_rejects_streaming_before_upstream(monkeypatch) -> None:
     raw_token = "agt_1234567890abcdef12345678"
     storage = FakeStorage(_llm_service_definition(), _runtime_credential(raw_token))
@@ -835,7 +819,6 @@ def test_invoke_v1_llm_rejects_streaming_before_upstream(monkeypatch) -> None:
     assert storage.balance.ledger.consumer_available_balance("0xabc") == Decimal("10.000000")
 
 
-@pytest.mark.skip(reason="token-metered LLM settlement is not enabled in the fixed-price invoke path yet")
 def test_invoke_v1_llm_missing_usage_releases_hold(monkeypatch) -> None:
     raw_token = "agt_1234567890abcdef12345678"
     storage = FakeStorage(_llm_service_definition(), _runtime_credential(raw_token))
@@ -873,7 +856,6 @@ def test_invoke_v1_llm_missing_usage_releases_hold(monkeypatch) -> None:
     assert storage.balance.ledger.provider_receivable_balance("0xdef") == Decimal("0")
 
 
-@pytest.mark.skip(reason="token-metered LLM settlement is not enabled in the fixed-price invoke path yet")
 def test_invoke_v1_llm_explicit_max_cost_too_low(monkeypatch) -> None:
     raw_token = "agt_1234567890abcdef12345678"
     storage = FakeStorage(_llm_service_definition(), _runtime_credential(raw_token))

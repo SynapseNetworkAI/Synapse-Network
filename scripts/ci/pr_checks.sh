@@ -73,11 +73,20 @@ run_gate_command() {
     code_quality_architecture_scan)
       bash "$ROOT_DIR/scripts/ci/code_quality_architecture_scan.sh"
       ;;
+    quality_budget_check)
+      npm run ci:quality-budget
+      ;;
+    format_check)
+      npm run ci:format-check
+      ;;
     diff_coverage_gate)
       bash "$ROOT_DIR/scripts/ci/diff_coverage_gate.sh"
       ;;
     security_secret_scan)
       bash "$ROOT_DIR/scripts/ci/security_secret_scan.sh"
+      ;;
+    e2e_env_isolation_check)
+      node "$ROOT_DIR/scripts/ci/e2e_env_isolation_check.mjs"
       ;;
     gateway_stress_review_checks)
       bash "$ROOT_DIR/scripts/ci/gateway_stress_review_checks.sh"

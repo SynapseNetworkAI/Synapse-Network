@@ -166,10 +166,15 @@ class AgentInvokeRequest(BaseModel):
 
     serviceId: str = Field(..., min_length=1, max_length=128)
     idempotencyKey: str = Field(..., min_length=1, max_length=128)
-    costUsdc: Decimal = Field(
-        ...,
+    costUsdc: Optional[Decimal] = Field(
+        default=None,
         ge=Decimal("0"),
-        description="Service price the agent saw during discovery. Rejected with PRICE_MISMATCH if the live price differs.",
+        description="Fixed-price service price the agent saw during discovery. LLM token-metered calls may omit this and rely on maxCostUsdc/auto hold.",
+    )
+    maxCostUsdc: Optional[Decimal] = Field(
+        default=None,
+        ge=Decimal("0"),
+        description="Optional LLM token-metered pre-authorization cap. If omitted, Gateway estimates a bounded hold.",
     )
     payload: RuntimePayloadRecord = Field(default_factory=RuntimePayloadRecord)
     responseMode: Literal["sync", "async", "stream"] = "sync"

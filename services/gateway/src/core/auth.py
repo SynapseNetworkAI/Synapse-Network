@@ -5,6 +5,8 @@ import secrets
 import time
 from eth_account.messages import encode_defunct
 from typing import Any, Optional
+from web3 import Web3
+
 try:
     from cachetools import TTLCache
 except Exception:  # pragma: no cover - optional dependency fallback
@@ -60,11 +62,6 @@ import jwt
 logger = logging.getLogger(__name__)
 
 
-def _web3_class():
-    from web3 import Web3
-
-    return Web3
-
 # Cache for pending auth challenges - simple in-memory cache
 # Format: {wallet_address: challenge_string}
 pending_challenges = TTLCache(
@@ -97,16 +94,16 @@ def create_auth_challenge(wallet_address: str) -> Optional[str]:
         # Generate random challenge
         nonce = secrets.token_hex(16)
         timestamp = int(time.time())
-        challenge = f"Login to A2A Pay Network\nWallet: {wallet}\nNonce: {nonce}\nTimestamp: {timestamp}"
+        challenge = f"Login to SynapseNetwork\nWallet: {wallet}\nNonce: {nonce}\nTimestamp: {timestamp}"
 
         # Store challenge
         pending_challenges[wallet] = challenge
         logger.info(f"Created auth challenge for wallet {wallet}")
-
-        return challenge
-    except Exception as e:
-        logger.error(f"Challenge generation failed: {e}")
+    except Exception:
+        logger.exception("Challenge generation failed")
         return None
+    else:
+        return challenge
 
 
 def create_owner_profile_update_challenge(
@@ -129,10 +126,11 @@ def create_owner_profile_update_challenge(
             "payload_hash": payload_hash,
         }
         logger.info(f"Created owner profile update challenge for wallet {wallet}")
-        return challenge
-    except Exception as e:
-        logger.error(f"Owner profile challenge generation failed: {e}")
+    except Exception:
+        logger.exception("Owner profile challenge generation failed")
         return None
+    else:
+        return challenge
 
 
 def verify_auth_signature(
@@ -156,8 +154,7 @@ def verify_auth_signature(
         signable_message = encode_defunct(text=message)
 
         # 3. Recover signer address
-        web3_class = _web3_class()
-        w3 = web3_class()
+        w3 = Web3()
         recovered_address = w3.eth.account.recover_message(
             signable_message, signature=signature
         )
@@ -182,11 +179,11 @@ def verify_auth_signature(
         token = jwt.encode(token_data, settings.jwt_secret, algorithm="HS256")
         logger.info(f"Successfully authenticated wallet {wallet}")
 
-        return token
-
-    except Exception as e:
-        logger.error(f"Signature verification failed: {e}")
+    except Exception:
+        logger.exception("Signature verification failed")
         return None
+    else:
+        return token
 
 
 def verify_owner_profile_update_signature(
@@ -209,8 +206,7 @@ def verify_owner_profile_update_signature(
             return False
 
         signable_message = encode_defunct(text=message)
-        web3_class = _web3_class()
-        w3 = web3_class()
+        w3 = Web3()
         recovered_address = w3.eth.account.recover_message(
             signable_message, signature=signature
         )
@@ -223,7 +219,8 @@ def verify_owner_profile_update_signature(
             return False
 
         del pending_owner_profile_update_challenges[wallet]
-        return True
-    except Exception as e:
-        logger.error(f"Owner profile signature verification failed: {e}")
+    except Exception:
+        logger.exception("Owner profile signature verification failed")
         return False
+    else:
+        return True

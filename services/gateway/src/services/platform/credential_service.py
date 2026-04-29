@@ -4,21 +4,19 @@ import json
 import os
 import secrets
 import time
+from collections.abc import Iterator, Mapping
+from dataclasses import dataclass
 from typing import Any, List, Optional
 from uuid import uuid4
 
 import jwt  # type: ignore[import-untyped]
 from fastapi import HTTPException
 
-from src.api.schemas.pydantic_models import (
-    CredentialIssueRequest,
-    CredentialQuotaUpdateRequest,
-)
 from src.core.common import normalize_wallet
 from src.core.config import settings
 from src.domain.audit import AuditLogEntry
 from src.domain.identity import (
-    CredentialPatch,
+    CredentialPatch,  # noqa: F401 - re-exported for callers using credential_service.CredentialPatch
     RuntimeCredentialRecord,
 )
 from src.storage import BaseStorage
@@ -33,6 +31,27 @@ from src.services.platform.credential_builders import (  # noqa: F401
 
 write_lock = asyncio.Lock()
 
+
+@dataclass(frozen=True)
+class CredentialServiceResponse(Mapping[str, Any]):
+    """Typed service result that keeps dict serialization at the API boundary."""
+
+    payload: dict[str, Any]
+
+    def __getitem__(self, key: str) -> Any:
+        return self.payload[key]
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self.payload)
+
+    def __len__(self) -> int:
+        return len(self.payload)
+
+    def get(self, key: str, default: Any = None) -> Any:
+        return self.payload.get(key, default)
+
+    def to_response_dict(self) -> dict[str, Any]:
+        return dict(self.payload)
 
 
 def now_ts() -> int:
@@ -69,7 +88,7 @@ def require_owner_wallet(
     except Exception:
         raise HTTPException(
             status_code=401, detail={"code": "UNAUTHORIZED", "message": "Invalid token"}
-        )
+        ) from None
 
     sub = normalize_wallet(str(payload.get("sub") or ""))
     if not sub:
@@ -97,24 +116,78 @@ def load_runtime_credentials(
     )
 
 
-def save_runtime_credentials(
-    storage: BaseStorage,
-    credential_type: str,
-    rows: List[RuntimeCredentialRecord],
-) -> None:
-    storage.get_data_manager().system.credential_auth.write_credential_rows(
-        credential_type, rows
-    )
-
-
 def load_credential_rows(storage: BaseStorage) -> List[RuntimeCredentialRecord]:
     return load_runtime_credentials(storage, "agent")
 
 
-def save_credential_rows(
-    storage: BaseStorage, rows: List[RuntimeCredentialRecord]
-) -> None:
-    save_runtime_credentials(storage, "agent", rows)
+def create_runtime_credential(
+    storage: BaseStorage, record: RuntimeCredentialRecord
+) -> RuntimeCredentialRecord:
+    return storage.get_data_manager().system.credential_auth.create_runtime_credential(
+        record
+    )
+
+
+def rotate_runtime_credential(
+    storage: BaseStorage,
+    credential_id: str,
+    owner_wallet: str,
+    secret_hash: str,
+    secret_prefix: str,
+    issued_at: int,
+) -> bool:
+    return storage.get_data_manager().system.credential_auth.rotate_runtime_credential(
+        credential_id,
+        owner_wallet,
+        secret_hash,
+        secret_prefix,
+        issued_at,
+    )
+
+
+def revoke_runtime_credential(
+    storage: BaseStorage,
+    credential_id: str,
+    owner_wallet: str,
+    revoked_at: int,
+) -> bool:
+    return storage.get_data_manager().system.credential_auth.revoke_runtime_credential(
+        credential_id,
+        owner_wallet,
+        revoked_at,
+    )
+
+
+def update_runtime_credential_policy(
+    storage: BaseStorage, record: RuntimeCredentialRecord
+) -> RuntimeCredentialRecord:
+    return storage.get_data_manager().system.credential_auth.update_runtime_credential_policy(
+        record
+    )
+
+
+def update_runtime_credential_metadata(
+    storage: BaseStorage, record: RuntimeCredentialRecord
+) -> RuntimeCredentialRecord:
+    return storage.get_data_manager().system.credential_auth.update_runtime_credential_metadata(
+        record
+    )
+
+
+def increment_credential_usage(
+    storage: BaseStorage, credential_id: str, delta: int = 1
+) -> Optional[RuntimeCredentialRecord]:
+    return storage.get_data_manager().system.credential_auth.increment_credential_usage(
+        credential_id, delta
+    )
+
+
+def decrement_credential_usage(
+    storage: BaseStorage, credential_id: str, delta: int = 1
+) -> Optional[RuntimeCredentialRecord]:
+    return storage.get_data_manager().system.credential_auth.decrement_credential_usage(
+        credential_id, delta
+    )
 
 
 def credential_name(record: RuntimeCredentialRecord) -> str:
@@ -240,7 +313,7 @@ def read_audit_log(
         ]
         result.sort(key=lambda row: int(row.get("timestamp", 0)), reverse=True)
         return result[:limit]
-    except Exception:
+    except Exception:  # noqa: S110 - fallback to local JSON audit log for dev storage.
         pass
 
     directory = str(getattr(storage, "directory", "") or "")
@@ -260,7 +333,7 @@ def read_audit_log(
                 continue
             try:
                 row = json.loads(raw)
-            except Exception:
+            except Exception:  # noqa: S112 - skip malformed local audit lines.
                 continue
             if normalize_wallet(str(row.get("ownerAddress", ""))) == owner_wallet:
                 result.append(row)
@@ -426,7 +499,7 @@ def list_credentials_by_owner_active(
 
 def get_credential_status_for_owner(
     storage: BaseStorage, owner_wallet: str, credential_id: str
-) -> dict[str, Any]:
+) -> CredentialServiceResponse:
     """Return a validity status object for a single credential."""
     now = now_ts()
     rows = load_credential_rows(storage)
@@ -460,22 +533,24 @@ def get_credential_status_for_owner(
     calls_exhausted = bool(max_calls > 0 and calls_used >= max_calls)
     valid = cred_status == "active" and not is_expired and not calls_exhausted
 
-    return {
-        "status": "success",
-        "credentialId": credential_id,
-        "valid": valid,
-        "credentialStatus": cred_status,
-        "isExpired": is_expired,
-        "callsExhausted": calls_exhausted,
-        "expiresAt": expires_at,
-        "callsUsed": calls_used,
-        "maxCalls": max_calls or None,
-        "creditLimit": credit_limit,
-    }
+    return CredentialServiceResponse(
+        {
+            "status": "success",
+            "credentialId": credential_id,
+            "valid": valid,
+            "credentialStatus": cred_status,
+            "isExpired": is_expired,
+            "callsExhausted": calls_exhausted,
+            "expiresAt": expires_at,
+            "callsUsed": calls_used,
+            "maxCalls": max_calls or None,
+            "creditLimit": credit_limit,
+        }
+    )
 
 
 # Re-export lifecycle operations so existing callers via credential_service.xxx still work.
-from src.services.platform.credential_lifecycle import (  # noqa: F401
+from src.services.platform.credential_lifecycle import (  # noqa: E402,F401 - legacy import surface depends on these re-exports.
     issue_credential_for_owner,
     revoke_credential_for_owner,
     rotate_credential_for_owner,
@@ -483,4 +558,3 @@ from src.services.platform.credential_lifecycle import (  # noqa: F401
     update_credential_quota_for_owner,
     update_credential_for_owner,
 )
-

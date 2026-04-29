@@ -23,6 +23,8 @@ def get_usdc_decimals(w3: Web3, usdc_contract) -> int:
 
 def fee_fields(w3: Web3) -> dict:
     """Return gas fee fields compatible with local Anvil and EIP-1559 chains."""
+    if int(w3.eth.chain_id) in {31337, 31338}:
+        return {"gasPrice": int(w3.to_wei(1, "gwei"))}
     min_fee = int(w3.to_wei(0.1, "gwei"))
     latest = w3.eth.get_block("latest")
     base_fee = latest.get("baseFeePerGas") if isinstance(latest, dict) else None

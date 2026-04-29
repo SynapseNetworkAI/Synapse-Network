@@ -15,12 +15,12 @@ Arbitrum Sepolia contract deployment.
 
 All public URLs must include `https://`.
 
-| Service | Public URL | Purpose |
-| --- | --- | --- |
-| User-front | `https://staging.synapse-network.ai` | Consumer/provider web app. |
-| Gateway API | `https://api-staging.synapse-network.ai` | User-facing Gateway API. |
-| Admin-front | `https://admin-staging.synapse-network.ai` | Operations/admin web console. |
-| Gateway-admin API | `https://admin-api-staging.synapse-network.ai` | Admin/control-plane API. |
+| Service           | Public URL                                     | Purpose                       |
+| ----------------- | ---------------------------------------------- | ----------------------------- |
+| User-front        | `https://staging.synapse-network.ai`           | Consumer/provider web app.    |
+| Gateway API       | `https://api-staging.synapse-network.ai`       | User-facing Gateway API.      |
+| Admin-front       | `https://admin-staging.synapse-network.ai`     | Operations/admin web console. |
+| Gateway-admin API | `https://admin-api-staging.synapse-network.ai` | Admin/control-plane API.      |
 
 DNS and TLS are configured outside the repo through Google Cloud custom domains
 or a managed HTTPS load balancer. Do not point frontend code at bare hostnames
@@ -39,12 +39,12 @@ confusion.
 
 Current staging project bucket names:
 
-| Bucket | Purpose | Public access | Versioning | Lifecycle | Notes |
-| --- | --- | --- | --- | --- | --- |
-| `synapse-staging-static-assets-fabled-archive-494108-k5` | Optional public static assets bucket for future CDN-hosted website assets. | Private by default; can be made public/CDN-backed later. | Enabled | Noncurrent object versions are deleted after 90 days. | Not required for Cloud Run front-end deploys. |
-| `synapse-staging-backups-fabled-archive-494108-k5` | Staging backup and restore drill artifacts. | Public access prevention enabled. | Optional | Delete staging objects after 30 days. | Never store public website assets here. |
-| `synapse-staging-evidence-fabled-archive-494108-k5` | Release evidence, E2E reports, traces, and audit proof. | Public access prevention enabled. | Optional | Release evidence is retained up to 365 days; debug/failed/tmp prefixes are deleted after 30 days. | Contains private operational evidence; do not make public. |
-| `synapse-terraform-state-fabled-archive-494108-k5` | Terraform remote state. | Public access prevention enabled. | Enabled | Live state is retained; noncurrent state versions are deleted after 365 days. | Highest-sensitivity infra state bucket; runtime services should not access it. |
+| Bucket                                                   | Purpose                                                                    | Public access                                            | Versioning | Lifecycle                                                                                         | Notes                                                                          |
+| -------------------------------------------------------- | -------------------------------------------------------------------------- | -------------------------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `synapse-staging-static-assets-fabled-archive-494108-k5` | Optional public static assets bucket for future CDN-hosted website assets. | Private by default; can be made public/CDN-backed later. | Enabled    | Noncurrent object versions are deleted after 90 days.                                             | Not required for Cloud Run front-end deploys.                                  |
+| `synapse-staging-backups-fabled-archive-494108-k5`       | Staging backup and restore drill artifacts.                                | Public access prevention enabled.                        | Optional   | Delete staging objects after 30 days.                                                             | Never store public website assets here.                                        |
+| `synapse-staging-evidence-fabled-archive-494108-k5`      | Release evidence, E2E reports, traces, and audit proof.                    | Public access prevention enabled.                        | Optional   | Release evidence is retained up to 365 days; debug/failed/tmp prefixes are deleted after 30 days. | Contains private operational evidence; do not make public.                     |
+| `synapse-terraform-state-fabled-archive-494108-k5`       | Terraform remote state.                                                    | Public access prevention enabled.                        | Enabled    | Live state is retained; noncurrent state versions are deleted after 365 days.                     | Highest-sensitivity infra state bucket; runtime services should not access it. |
 
 Creation status:
 
@@ -72,12 +72,12 @@ Current storage cost posture:
 
 Artifact Registry cleanup policy for `synapse-staging`:
 
-| Policy | Action | Scope |
-| --- | --- | --- |
-| `delete-untagged-older-than-7d` | Delete | Untagged image versions older than 7 days. |
-| `delete-staging-tagged-older-than-45d` | Delete | Tags starting with `staging-` older than 45 days. |
-| `keep-promoted-release-tags` | Keep | Tags starting with `prod-`, `production-`, `promoted-`, or `release-`. |
-| `keep-recent-10-per-package` | Keep | The 10 newest versions per image package for rollback. |
+| Policy                                 | Action | Scope                                                                  |
+| -------------------------------------- | ------ | ---------------------------------------------------------------------- |
+| `delete-untagged-older-than-7d`        | Delete | Untagged image versions older than 7 days.                             |
+| `delete-staging-tagged-older-than-45d` | Delete | Tags starting with `staging-` older than 45 days.                      |
+| `keep-promoted-release-tags`           | Keep   | Tags starting with `prod-`, `production-`, `promoted-`, or `release-`. |
+| `keep-recent-10-per-package`           | Keep   | The 10 newest versions per image package for rollback.                 |
 
 Apply or refresh the live policy:
 
@@ -205,14 +205,14 @@ production or contract deployment before the substrate is stable.
    - `api-staging.synapse-network.ai`.
    - `admin-staging.synapse-network.ai`.
    - `admin-api-staging.synapse-network.ai`.
-8. Deploy Arbitrum Sepolia staging contracts.
+9. Deploy Arbitrum Sepolia staging contracts.
    - Run dry-run first.
    - Deploy owner-only `MockUSDC` and `SynapseCore`.
    - Produce contract deployment evidence.
-9. Inject deployed contract addresses into Gateway staging.
-   - `ROUTER_ADDRESS`.
-   - `USDC_TOKEN_ADDRESS`.
-10. Run smoke and release evidence.
+10. Inject deployed contract addresses into Gateway staging.
+    - `ROUTER_ADDRESS`.
+    - `USDC_TOKEN_ADDRESS`.
+11. Run smoke and release evidence.
     - Health checks.
     - Lark E2E.
     - One-ticket withdrawal evidence.
@@ -223,22 +223,22 @@ production or contract deployment before the substrate is stable.
 
 Local file: `infra/terraform/gcp-staging/terraform.tfvars`. Do not commit it.
 
-| Variable | Example | Purpose | Secret | Source | Location |
-| --- | --- | --- | --- | --- | --- |
-| `project_id` | `synapse-staging-123` | Google Cloud project id. | No | GCP project | Terraform tfvars |
-| `region` | `us-central1` | Cloud Run, Cloud SQL, Artifact Registry region. | No | Ops decision | Terraform tfvars |
-| `environment` | `staging` | Resource name/env label. | No | Fixed | Terraform tfvars |
-| `backup_bucket_name` | `synapse-staging-backups-<unique>` | GCS bucket for backup/evidence artifacts. | No | Ops-created globally unique name | Terraform tfvars |
-| `artifact_registry_repository` | `synapse-staging` | Docker image repository. | No | Fixed | Terraform tfvars |
-| `cloud_sql_tier` | `db-f1-micro` | Low-cost Cloud SQL starting tier. | No | Ops decision | Terraform tfvars |
-| `cloud_sql_edition` | `ENTERPRISE` | Required Cloud SQL edition for shared-core tiers such as `db-f1-micro`; do not use `ENTERPRISE_PLUS` for MVP staging. | No | Fixed | Terraform tfvars |
-| `cloud_sql_database_name` | `synapse_gateway_staging` | Gateway database name. | No | Fixed | Terraform tfvars |
-| `cloud_sql_backup_start_time` | `19:00` | UTC backup time; equals 03:00 Asia/Kuala_Lumpur. | No | Fixed | Terraform tfvars |
-| `cloud_sql_transaction_log_retention_days` | `1` | Staging PITR log retention. | No | Fixed | Terraform tfvars |
-| `gateway_image` | `us-central1-docker.pkg.dev/<project>/synapse-staging/gateway:<tag>` | Gateway Cloud Run image. | No | Artifact Registry | Terraform tfvars |
-| `gateway_admin_image` | `us-central1-docker.pkg.dev/<project>/synapse-staging/gateway-admin:<tag>` | Gateway-admin Cloud Run image. | No | Artifact Registry | Terraform tfvars |
-| `user_front_image` | `us-central1-docker.pkg.dev/<project>/synapse-staging/user-front:<tag>` | User-front Cloud Run image. | No | Artifact Registry | Terraform tfvars |
-| `admin_front_image` | `us-central1-docker.pkg.dev/<project>/synapse-staging/admin-front:<tag>` | Admin-front Cloud Run image. | No | Artifact Registry | Terraform tfvars |
+| Variable                                   | Example                                                                    | Purpose                                                                                                               | Secret | Source                           | Location         |
+| ------------------------------------------ | -------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ------ | -------------------------------- | ---------------- |
+| `project_id`                               | `synapse-staging-123`                                                      | Google Cloud project id.                                                                                              | No     | GCP project                      | Terraform tfvars |
+| `region`                                   | `us-central1`                                                              | Cloud Run, Cloud SQL, Artifact Registry region.                                                                       | No     | Ops decision                     | Terraform tfvars |
+| `environment`                              | `staging`                                                                  | Resource name/env label.                                                                                              | No     | Fixed                            | Terraform tfvars |
+| `backup_bucket_name`                       | `synapse-staging-backups-<unique>`                                         | GCS bucket for backup/evidence artifacts.                                                                             | No     | Ops-created globally unique name | Terraform tfvars |
+| `artifact_registry_repository`             | `synapse-staging`                                                          | Docker image repository.                                                                                              | No     | Fixed                            | Terraform tfvars |
+| `cloud_sql_tier`                           | `db-f1-micro`                                                              | Low-cost Cloud SQL starting tier.                                                                                     | No     | Ops decision                     | Terraform tfvars |
+| `cloud_sql_edition`                        | `ENTERPRISE`                                                               | Required Cloud SQL edition for shared-core tiers such as `db-f1-micro`; do not use `ENTERPRISE_PLUS` for MVP staging. | No     | Fixed                            | Terraform tfvars |
+| `cloud_sql_database_name`                  | `synapse_gateway_staging`                                                  | Gateway database name.                                                                                                | No     | Fixed                            | Terraform tfvars |
+| `cloud_sql_backup_start_time`              | `19:00`                                                                    | UTC backup time; equals 03:00 Asia/Kuala_Lumpur.                                                                      | No     | Fixed                            | Terraform tfvars |
+| `cloud_sql_transaction_log_retention_days` | `1`                                                                        | Staging PITR log retention.                                                                                           | No     | Fixed                            | Terraform tfvars |
+| `gateway_image`                            | `us-central1-docker.pkg.dev/<project>/synapse-staging/gateway:<tag>`       | Gateway Cloud Run image.                                                                                              | No     | Artifact Registry                | Terraform tfvars |
+| `gateway_admin_image`                      | `us-central1-docker.pkg.dev/<project>/synapse-staging/gateway-admin:<tag>` | Gateway-admin Cloud Run image.                                                                                        | No     | Artifact Registry                | Terraform tfvars |
+| `user_front_image`                         | `us-central1-docker.pkg.dev/<project>/synapse-staging/user-front:<tag>`    | User-front Cloud Run image.                                                                                           | No     | Artifact Registry                | Terraform tfvars |
+| `admin_front_image`                        | `us-central1-docker.pkg.dev/<project>/synapse-staging/admin-front:<tag>`   | Admin-front Cloud Run image.                                                                                          | No     | Artifact Registry                | Terraform tfvars |
 
 Leave image variables empty for the first substrate-only Terraform apply. Set
 them once images are pushed to Artifact Registry.
@@ -478,41 +478,41 @@ Production must use a separate project, helper, mailbox, wallet set, and secret
 id prefix. Never reuse staging Gmail, Lark, signer, deployer, or gas funder
 secrets for production.
 
-| Secret id | Purpose | Used by | Source | Required before |
-| --- | --- | --- | --- | --- |
-| `synapse-staging-postgres-password` | Cloud SQL Gateway app user password. | Gateway, Gateway jobs | Auto-generated by `gcp_staging_bootstrap.sh` | Gateway deploy |
-| `synapse-staging-postgres-dsn` | Gateway full Cloud SQL Unix-socket Postgres DSN. Prefer this on Cloud Run so psycopg connects through `/cloudsql/<project>:<region>:<instance>` without app-side URL reconstruction. | Gateway, Gateway jobs, staging E2E | Auto-generated by `gcp_staging_bootstrap.sh` from the Gateway app password | Gateway deploy / Gmail E2E |
-| `synapse-staging-postgres-migrator-password` | Cloud SQL Gateway migrator user password. | DB migration job / release deploy shell | Auto-generated by `gcp_staging_bootstrap.sh` | DB migration |
-| `synapse-staging-admin-postgres-password` | Gateway-admin control-plane DB password. | Gateway-admin | Auto-generated by `gcp_staging_bootstrap.sh` | Gateway-admin deploy |
-| `synapse-staging-admin-database-dsn` | Gateway-admin control-plane full Postgres DSN. | Gateway-admin | Auto-generated by `gcp_staging_bootstrap.sh` | Gateway-admin deploy |
-| `synapse-staging-admin-database-migration-dsn` | Gateway-admin migrator full Postgres DSN. | Admin migration job / deploy shell | Auto-generated by `gcp_staging_bootstrap.sh` | Gateway-admin migration |
-| `synapse-staging-gateway-readonly-dsn` | Gateway read-only full Postgres DSN for admin projections. | Gateway-admin | Auto-generated by `gcp_staging_bootstrap.sh` | Admin finance views |
-| `synapse-staging-gateway-forum-write-dsn` | Gateway app write DSN for forum/support write-through. | Gateway-admin | Auto-generated by `gcp_staging_bootstrap.sh` | Forum/support writes |
-| `synapse-staging-jwt-secret` | Signs/verifies user-facing Gateway JWTs. | Gateway | User-generated 32+ byte secret | Gateway deploy |
-| `synapse-staging-auth-secret` | Wallet challenge/session auth secret. | Gateway | User-generated 32+ byte secret | Gateway deploy |
-| `synapse-staging-private-key` | Gateway withdrawal ticket signer private key. | Gateway | Dedicated staging withdraw signer wallet | Withdrawal ticket tests |
-| `synapse-staging-gateway-internal-jwt-secret` | Gateway-admin to Gateway internal service-token secret. | Gateway, Gateway-admin | User-generated 32+ byte secret | Admin actions |
-| `synapse-staging-admin-csrf-secret` | Gateway-admin CSRF/session protection secret. | Gateway-admin | User-generated 32+ byte secret | Admin login |
-| `synapse-staging-gateway-admin-wallet` | Internal admin wallet subject/allow-list identity. | Gateway, Gateway-admin | Dedicated staging admin wallet address | Admin actions |
-| `synapse-staging-gmail-username` | Gmail/Workspace sender username. | Email worker | Google Workspace mailbox | Email E2E |
-| `synapse-staging-gmail-app-password` | Gmail app password or SMTP relay credential. | Email worker | Google Workspace | Email E2E |
-| `synapse-staging-lark-webhook-p0` | P0 Lark war-room webhook URL. | Lark E2E / alert relay | Lark bot | Lark E2E |
-| `synapse-staging-lark-webhook-prod-alerts` | Production-alert-hall style webhook used for staging route tests. | Lark E2E / alert relay | Lark bot | Lark E2E |
-| `synapse-staging-lark-webhook-staging-drill` | Drill-only Lark webhook URL. | Lark E2E / alert relay | Lark bot | Lark E2E |
-| `synapse-staging-lark-secret-p0` | Optional P0 Lark signing secret. | Lark relay | Lark bot config | Only if signing is enabled |
-| `synapse-staging-lark-secret-prod-alerts` | Optional prod-alerts Lark signing secret. | Lark relay | Lark bot config | Only if signing is enabled |
-| `synapse-staging-lark-secret-staging-drill` | Optional drill Lark signing secret. | Lark relay | Lark bot config | Only if signing is enabled |
-| `synapse-staging-gcp-alert-receiver-token` | Gateway-admin receiver token for GCP Monitoring webhook delivery. | Gateway-admin | User-generated token | GCP alert channel |
-| `synapse-staging-alert-drill-token` | Gateway controlled HTTP 500 drill token. | Gateway | User-generated token | Staging alert drill |
-| `synapse-staging-arbitrum-sepolia-rpc-url` | Arbitrum Sepolia RPC URL. | Gateway, Hardhat deploy/evidence | Alchemy/Infura/other RPC provider | Contract deploy |
-| `synapse-staging-arbiscan-api-key` | Etherscan API V2-compatible key used for Arbitrum Sepolia source verification. The old secret id is kept for compatibility. | Hardhat verify | Etherscan account | Contract deploy |
-| `synapse-staging-deployer-private-key` | Staging contract deployer private key. | Contract deploy only | Dedicated staging deployer wallet | Contract deploy |
-| `synapse-staging-gas-funder-private-key` | Optional operator-only gas funder private key used to top up deployer/consumer/provider wallets. | Local wallet utility only | Dedicated staging gas funder wallet | Optional wallet top-up |
-| `synapse-staging-e2e-consumer-private-key` | Dedicated consumer wallet private key for staging full-chain E2E only. | Local/release E2E runner | Dedicated staging E2E consumer wallet | Gateway full-chain staging E2E |
-| `synapse-staging-e2e-provider-private-key` | Dedicated provider wallet private key for staging full-chain E2E only. | Local/release E2E runner | Dedicated staging E2E provider wallet | Gateway full-chain staging E2E |
-| `synapse-staging-admin-e2e-password` | Dedicated staging admin dogfood password. | Admin-front dogfood runner | Test admin account setup | Admin-front staging dogfood |
-| `synapse-staging-admin-e2e-otp-secret` | Dedicated staging admin dogfood TOTP seed. | Admin-front dogfood runner | Test admin MFA enrollment | Admin-front staging dogfood |
-| `synapse-staging-metrics-bearer-token` | Internal `/metrics` scrape bearer token. | Gateway, Gateway-admin | User-generated token | Monitoring |
+| Secret id                                      | Purpose                                                                                                                                                                              | Used by                                 | Source                                                                     | Required before                |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------- | -------------------------------------------------------------------------- | ------------------------------ |
+| `synapse-staging-postgres-password`            | Cloud SQL Gateway app user password.                                                                                                                                                 | Gateway, Gateway jobs                   | Auto-generated by `gcp_staging_bootstrap.sh`                               | Gateway deploy                 |
+| `synapse-staging-postgres-dsn`                 | Gateway full Cloud SQL Unix-socket Postgres DSN. Prefer this on Cloud Run so psycopg connects through `/cloudsql/<project>:<region>:<instance>` without app-side URL reconstruction. | Gateway, Gateway jobs, staging E2E      | Auto-generated by `gcp_staging_bootstrap.sh` from the Gateway app password | Gateway deploy / Gmail E2E     |
+| `synapse-staging-postgres-migrator-password`   | Cloud SQL Gateway migrator user password.                                                                                                                                            | DB migration job / release deploy shell | Auto-generated by `gcp_staging_bootstrap.sh`                               | DB migration                   |
+| `synapse-staging-admin-postgres-password`      | Gateway-admin control-plane DB password.                                                                                                                                             | Gateway-admin                           | Auto-generated by `gcp_staging_bootstrap.sh`                               | Gateway-admin deploy           |
+| `synapse-staging-admin-database-dsn`           | Gateway-admin control-plane full Postgres DSN.                                                                                                                                       | Gateway-admin                           | Auto-generated by `gcp_staging_bootstrap.sh`                               | Gateway-admin deploy           |
+| `synapse-staging-admin-database-migration-dsn` | Gateway-admin migrator full Postgres DSN.                                                                                                                                            | Admin migration job / deploy shell      | Auto-generated by `gcp_staging_bootstrap.sh`                               | Gateway-admin migration        |
+| `synapse-staging-gateway-readonly-dsn`         | Gateway read-only full Postgres DSN for admin projections.                                                                                                                           | Gateway-admin                           | Auto-generated by `gcp_staging_bootstrap.sh`                               | Admin finance views            |
+| `synapse-staging-gateway-forum-write-dsn`      | Gateway app write DSN for forum/support write-through.                                                                                                                               | Gateway-admin                           | Auto-generated by `gcp_staging_bootstrap.sh`                               | Forum/support writes           |
+| `synapse-staging-jwt-secret`                   | Signs/verifies user-facing Gateway JWTs.                                                                                                                                             | Gateway                                 | User-generated 32+ byte secret                                             | Gateway deploy                 |
+| `synapse-staging-auth-secret`                  | Wallet challenge/session auth secret.                                                                                                                                                | Gateway                                 | User-generated 32+ byte secret                                             | Gateway deploy                 |
+| `synapse-staging-private-key`                  | Gateway withdrawal ticket signer private key.                                                                                                                                        | Gateway                                 | Dedicated staging withdraw signer wallet                                   | Withdrawal ticket tests        |
+| `synapse-staging-gateway-internal-jwt-secret`  | Gateway-admin to Gateway internal service-token secret.                                                                                                                              | Gateway, Gateway-admin                  | User-generated 32+ byte secret                                             | Admin actions                  |
+| `synapse-staging-admin-csrf-secret`            | Gateway-admin CSRF/session protection secret.                                                                                                                                        | Gateway-admin                           | User-generated 32+ byte secret                                             | Admin login                    |
+| `synapse-staging-gateway-admin-wallet`         | Internal admin wallet subject/allow-list identity.                                                                                                                                   | Gateway, Gateway-admin                  | Dedicated staging admin wallet address                                     | Admin actions                  |
+| `synapse-staging-gmail-username`               | Gmail/Workspace sender username.                                                                                                                                                     | Email worker                            | Google Workspace mailbox                                                   | Email E2E                      |
+| `synapse-staging-gmail-app-password`           | Gmail app password or SMTP relay credential.                                                                                                                                         | Email worker                            | Google Workspace                                                           | Email E2E                      |
+| `synapse-staging-lark-webhook-p0`              | P0 Lark war-room webhook URL.                                                                                                                                                        | Lark E2E / alert relay                  | Lark bot                                                                   | Lark E2E                       |
+| `synapse-staging-lark-webhook-prod-alerts`     | Production-alert-hall style webhook used for staging route tests.                                                                                                                    | Lark E2E / alert relay                  | Lark bot                                                                   | Lark E2E                       |
+| `synapse-staging-lark-webhook-staging-drill`   | Drill-only Lark webhook URL.                                                                                                                                                         | Lark E2E / alert relay                  | Lark bot                                                                   | Lark E2E                       |
+| `synapse-staging-lark-secret-p0`               | Optional P0 Lark signing secret.                                                                                                                                                     | Lark relay                              | Lark bot config                                                            | Only if signing is enabled     |
+| `synapse-staging-lark-secret-prod-alerts`      | Optional prod-alerts Lark signing secret.                                                                                                                                            | Lark relay                              | Lark bot config                                                            | Only if signing is enabled     |
+| `synapse-staging-lark-secret-staging-drill`    | Optional drill Lark signing secret.                                                                                                                                                  | Lark relay                              | Lark bot config                                                            | Only if signing is enabled     |
+| `synapse-staging-gcp-alert-receiver-token`     | Gateway-admin receiver token for GCP Monitoring webhook delivery.                                                                                                                    | Gateway-admin                           | User-generated token                                                       | GCP alert channel              |
+| `synapse-staging-alert-drill-token`            | Gateway controlled HTTP 500 drill token.                                                                                                                                             | Gateway                                 | User-generated token                                                       | Staging alert drill            |
+| `synapse-staging-arbitrum-sepolia-rpc-url`     | Arbitrum Sepolia RPC URL.                                                                                                                                                            | Gateway, Hardhat deploy/evidence        | Alchemy/Infura/other RPC provider                                          | Contract deploy                |
+| `synapse-staging-arbiscan-api-key`             | Etherscan API V2-compatible key used for Arbitrum Sepolia source verification. The old secret id is kept for compatibility.                                                          | Hardhat verify                          | Etherscan account                                                          | Contract deploy                |
+| `synapse-staging-deployer-private-key`         | Staging contract deployer private key.                                                                                                                                               | Contract deploy only                    | Dedicated staging deployer wallet                                          | Contract deploy                |
+| `synapse-staging-gas-funder-private-key`       | Optional operator-only gas funder private key used to top up deployer/consumer/provider wallets.                                                                                     | Local wallet utility only               | Dedicated staging gas funder wallet                                        | Optional wallet top-up         |
+| `synapse-staging-e2e-consumer-private-key`     | Dedicated consumer wallet private key for staging full-chain E2E only.                                                                                                               | Local/release E2E runner                | Dedicated staging E2E consumer wallet                                      | Gateway full-chain staging E2E |
+| `synapse-staging-e2e-provider-private-key`     | Dedicated provider wallet private key for staging full-chain E2E only.                                                                                                               | Local/release E2E runner                | Dedicated staging E2E provider wallet                                      | Gateway full-chain staging E2E |
+| `synapse-staging-admin-e2e-password`           | Dedicated staging admin dogfood password.                                                                                                                                            | Admin-front dogfood runner              | Test admin account setup                                                   | Admin-front staging dogfood    |
+| `synapse-staging-admin-e2e-otp-secret`         | Dedicated staging admin dogfood TOTP seed.                                                                                                                                           | Admin-front dogfood runner              | Test admin MFA enrollment                                                  | Admin-front staging dogfood    |
+| `synapse-staging-metrics-bearer-token`         | Internal `/metrics` scrape bearer token.                                                                                                                                             | Gateway, Gateway-admin                  | User-generated token                                                       | Monitoring                     |
 
 ### Secret Value Presence Check
 
@@ -653,6 +653,78 @@ npm run e2e:transaction-notifications:staging
 npm run ci:transaction-notifications-staging-evidence
 ```
 
+### Local vs Staging E2E Secret Isolation
+
+Local and staging E2E must never share a secret source.
+
+- Local E2E commands set `SYNAPSE_E2E_ENV=local` and
+  `ALLOW_GCP_SECRET_MANAGER=0`; they read only local env files such as
+  `services/gateway/.env.local`, `services/gateway/.env.local.private`, and
+  `services/gateway/.env.e2e.local`.
+- Staging E2E commands set `SYNAPSE_E2E_ENV=staging` and
+  `ALLOW_GCP_SECRET_MANAGER=1`; they may read only `synapse-staging-*` secrets
+  through the shared `readStagingSecret()` wrapper.
+- A local shell can still export `PROJECT_ID` for other work. Local E2E ignores
+  that context and fails if any script attempts to read Google Secret Manager.
+- Local HTTP endpoints must be `localhost` or `127.0.0.1`. Staging HTTP
+  endpoints must be `https://*.synapse-network.ai`; staging Postgres evidence
+  may use a localhost Cloud SQL Auth Proxy DSN.
+- Do not load `services/gateway/.env.staging` from dual-mode local/staging E2E
+  scripts. Staging `.env` files are operator convenience files, not local test
+  inputs.
+
+Use the dedicated local E2E override file when shell variables are too noisy:
+
+```bash
+cp services/gateway/.env.e2e.local.example services/gateway/.env.e2e.local
+```
+
+Run the isolation static gate after changing E2E, perf, drill, or npm script
+boundaries:
+
+```bash
+npm run ci:e2e-env-isolation
+```
+
+### LLM DeepSeek Chat Token-Metered E2E
+
+DeepSeek Chat is validated as a Provider-registered LLM service. This gate
+proves the full Gateway path is live: discovery, invoke, final usage parsing,
+pre-auth hold, exact token charge, hold release, and Provider/Platform split.
+
+Local:
+
+```bash
+export LLM_E2E_GATEWAY_BASE=http://127.0.0.1:8000
+export LLM_E2E_SERVICE_ID=svc_deepseek_chat
+export LLM_E2E_CREDENTIAL=<local-test-agent-credential>
+export LLM_E2E_INPUT_PRICE_PER_1M_USDC=0.140000
+export LLM_E2E_OUTPUT_PRICE_PER_1M_USDC=0.280000
+
+npm run e2e:llm-deepseek:local
+npm run ci:llm-deepseek-local-evidence
+```
+
+Staging, after deploying the Gateway image that contains the LLM billing path:
+
+```bash
+export LLM_DEEPSEEK_E2E_CONFIRM=I_UNDERSTAND_THIS_CALLS_LIVE_LLM_AND_CHARGES_STAGING
+export LLM_E2E_GATEWAY_BASE=https://api-staging.synapse-network.ai
+export LLM_E2E_SERVICE_ID=svc_deepseek_chat
+export LLM_E2E_CREDENTIAL=<staging-test-agent-credential>
+export LLM_E2E_INPUT_PRICE_PER_1M_USDC=0.140000
+export LLM_E2E_OUTPUT_PRICE_PER_1M_USDC=0.280000
+export LLM_E2E_POSTGRES_DSN=<optional-Cloud-SQL-Auth-Proxy-localhost-DSN>
+
+npm run e2e:llm-deepseek:staging
+npm run ci:llm-deepseek-staging-evidence
+```
+
+Do not run the staging command from PR CI. It calls the live Provider endpoint
+and mutates staging balances. If `LLM_E2E_POSTGRES_DSN` is set, the runner also
+records the `synapse_invocations` DB row as evidence; otherwise it still
+validates the Gateway response and exact token-metered billing formula.
+
 Terraform injects the Gmail username and app password into Gateway-backed
 services and jobs through `gateway_secret_env`. It also injects
 `POSTGRES_DSN`; do not rely on split `POSTGRES_HOST=/cloudsql/...` fields for
@@ -702,16 +774,16 @@ Staging uses one Cloud SQL instance and multiple databases/users. Do not create
 a second Cloud SQL instance for Gateway-admin unless a future scaling review
 explicitly approves it.
 
-| Object | Name | Created by | Purpose |
-| --- | --- | --- | --- |
-| Cloud SQL instance | `synapse-staging-postgres` | Terraform | Single staging Postgres instance. |
-| Gateway database | `synapse_gateway_staging` | Terraform | Gateway ledger, outbox, inbox, projections, and runtime data. |
-| Gateway-admin database | `synapse_gateway_admin_staging` | `gcp_staging_bootstrap.sh` | Admin login/session, approval, audit, and control-plane data. |
-| Gateway app user | `synapse_gateway_app` | `gcp_staging_bootstrap.sh` | Gateway runtime write user. |
-| Gateway migrator user | `synapse_gateway_migrator` | `gcp_staging_bootstrap.sh` | Gateway schema migration user. |
-| Gateway readonly user | `synapse_gateway_ro` | `gcp_staging_bootstrap.sh` | Gateway-admin readonly access to Gateway projections and finance views. |
-| Admin app user | `synapse_admin_app` | `gcp_staging_bootstrap.sh` | Gateway-admin runtime write user. |
-| Admin migrator user | `synapse_admin_migrator` | `gcp_staging_bootstrap.sh` | Gateway-admin schema migration user. |
+| Object                 | Name                            | Created by                 | Purpose                                                                 |
+| ---------------------- | ------------------------------- | -------------------------- | ----------------------------------------------------------------------- |
+| Cloud SQL instance     | `synapse-staging-postgres`      | Terraform                  | Single staging Postgres instance.                                       |
+| Gateway database       | `synapse_gateway_staging`       | Terraform                  | Gateway ledger, outbox, inbox, projections, and runtime data.           |
+| Gateway-admin database | `synapse_gateway_admin_staging` | `gcp_staging_bootstrap.sh` | Admin login/session, approval, audit, and control-plane data.           |
+| Gateway app user       | `synapse_gateway_app`           | `gcp_staging_bootstrap.sh` | Gateway runtime write user.                                             |
+| Gateway migrator user  | `synapse_gateway_migrator`      | `gcp_staging_bootstrap.sh` | Gateway schema migration user.                                          |
+| Gateway readonly user  | `synapse_gateway_ro`            | `gcp_staging_bootstrap.sh` | Gateway-admin readonly access to Gateway projections and finance views. |
+| Admin app user         | `synapse_admin_app`             | `gcp_staging_bootstrap.sh` | Gateway-admin runtime write user.                                       |
+| Admin migrator user    | `synapse_admin_migrator`        | `gcp_staging_bootstrap.sh` | Gateway-admin schema migration user.                                    |
 
 Run bootstrap after Terraform creates the Cloud SQL instance and Secret Manager
 placeholders:
@@ -731,10 +803,10 @@ unset and ensure E2E messages contain the configured keyword.
 
 Local-only optional variable for wallet top-up automation:
 
-| Variable | Purpose | Used by | Secret | Source | Location |
-| --- | --- | --- | --- | --- | --- |
-| `STAGING_GAS_FUNDER_PRIVATE_KEY` | Optional funded staging wallet used only by the wallet utility to top up deployer/consumer/provider gas before contract deployment. | `npm run staging:arb-sepolia:wallets:fund` | Yes | Dedicated local-only staging wallet private key | Local shell or local untracked env file only |
-| `STAGING_GAS_FUNDER_SECRET_ID` | Secret Manager id for the gas funder private key when you do not want to export the raw private key locally. | `npm run staging:arb-sepolia:wallets:fund` | No | Fixed secret id string | Local shell or local untracked env file only |
+| Variable                         | Purpose                                                                                                                             | Used by                                    | Secret | Source                                          | Location                                     |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ | ------ | ----------------------------------------------- | -------------------------------------------- |
+| `STAGING_GAS_FUNDER_PRIVATE_KEY` | Optional funded staging wallet used only by the wallet utility to top up deployer/consumer/provider gas before contract deployment. | `npm run staging:arb-sepolia:wallets:fund` | Yes    | Dedicated local-only staging wallet private key | Local shell or local untracked env file only |
+| `STAGING_GAS_FUNDER_SECRET_ID`   | Secret Manager id for the gas funder private key when you do not want to export the raw private key locally.                        | `npm run staging:arb-sepolia:wallets:fund` | No     | Fixed secret id string                          | Local shell or local untracked env file only |
 
 Do not inject `STAGING_GAS_FUNDER_PRIVATE_KEY` into Cloud Run runtime, Terraform
 variables, or Secret Manager placeholders used by runtime services. It exists
@@ -782,21 +854,21 @@ secrets that should be generated with strong randomness. Some must come from a
 third-party dashboard. EVM private keys are neither of those: they control
 dedicated staging wallets and must be created, funded, and backed up as wallets.
 
-| Secret id | What it controls | Value class | Can be randomly generated with `openssl rand` | Source |
-| --- | --- | --- | --- | --- |
-| `synapse-staging-jwt-secret` | User-facing Gateway JWT signing and verification. | Application secret | Yes | Local secure random generation |
-| `synapse-staging-auth-secret` | Wallet login challenge/session/auth signing. | Application secret | Yes | Local secure random generation |
-| `synapse-staging-gateway-internal-jwt-secret` | Gateway-admin to Gateway internal service-token signing. | Application secret | Yes | Local secure random generation |
-| `synapse-staging-metrics-bearer-token` | `/metrics` scrape authorization token. | Ops bearer token | Yes | Local secure random generation |
-| `synapse-staging-private-key` | Gateway EIP-712 withdrawal ticket signer. | EVM private key | No | Dedicated staging withdraw signer wallet |
-| `synapse-staging-deployer-private-key` | Contract deployer for MockUSDC/SynapseCore. | EVM private key | No | Dedicated staging deployer wallet |
-| `synapse-staging-gas-funder-private-key` | Optional wallet utility gas funder. | EVM private key | No | Dedicated staging gas funder wallet |
-| `synapse-staging-e2e-consumer-private-key` | Consumer-side full-chain E2E wallet. | EVM private key | No | Dedicated staging E2E consumer wallet |
-| `synapse-staging-e2e-provider-private-key` | Provider-side full-chain E2E wallet. | EVM private key | No | Dedicated staging E2E provider wallet |
-| `synapse-staging-admin-e2e-password` | Admin-front dogfood login password for the test admin account. | Test credential | No | Dedicated staging admin test account |
-| `synapse-staging-admin-e2e-otp-secret` | Admin-front dogfood TOTP seed for the test admin account. | Test credential | No | Dedicated staging admin MFA enrollment |
-| `synapse-staging-arbitrum-sepolia-rpc-url` | Arbitrum Sepolia RPC endpoint. | Third-party URL | No | Alchemy, Infura, QuickNode, or equivalent RPC provider |
-| `synapse-staging-arbiscan-api-key` | Etherscan API V2 source verification for Arbitrum Sepolia. | Third-party API key | No | Etherscan account |
+| Secret id                                     | What it controls                                               | Value class         | Can be randomly generated with `openssl rand` | Source                                                 |
+| --------------------------------------------- | -------------------------------------------------------------- | ------------------- | --------------------------------------------- | ------------------------------------------------------ |
+| `synapse-staging-jwt-secret`                  | User-facing Gateway JWT signing and verification.              | Application secret  | Yes                                           | Local secure random generation                         |
+| `synapse-staging-auth-secret`                 | Wallet login challenge/session/auth signing.                   | Application secret  | Yes                                           | Local secure random generation                         |
+| `synapse-staging-gateway-internal-jwt-secret` | Gateway-admin to Gateway internal service-token signing.       | Application secret  | Yes                                           | Local secure random generation                         |
+| `synapse-staging-metrics-bearer-token`        | `/metrics` scrape authorization token.                         | Ops bearer token    | Yes                                           | Local secure random generation                         |
+| `synapse-staging-private-key`                 | Gateway EIP-712 withdrawal ticket signer.                      | EVM private key     | No                                            | Dedicated staging withdraw signer wallet               |
+| `synapse-staging-deployer-private-key`        | Contract deployer for MockUSDC/SynapseCore.                    | EVM private key     | No                                            | Dedicated staging deployer wallet                      |
+| `synapse-staging-gas-funder-private-key`      | Optional wallet utility gas funder.                            | EVM private key     | No                                            | Dedicated staging gas funder wallet                    |
+| `synapse-staging-e2e-consumer-private-key`    | Consumer-side full-chain E2E wallet.                           | EVM private key     | No                                            | Dedicated staging E2E consumer wallet                  |
+| `synapse-staging-e2e-provider-private-key`    | Provider-side full-chain E2E wallet.                           | EVM private key     | No                                            | Dedicated staging E2E provider wallet                  |
+| `synapse-staging-admin-e2e-password`          | Admin-front dogfood login password for the test admin account. | Test credential     | No                                            | Dedicated staging admin test account                   |
+| `synapse-staging-admin-e2e-otp-secret`        | Admin-front dogfood TOTP seed for the test admin account.      | Test credential     | No                                            | Dedicated staging admin MFA enrollment                 |
+| `synapse-staging-arbitrum-sepolia-rpc-url`    | Arbitrum Sepolia RPC endpoint.                                 | Third-party URL     | No                                            | Alchemy, Infura, QuickNode, or equivalent RPC provider |
+| `synapse-staging-arbiscan-api-key`            | Etherscan API V2 source verification for Arbitrum Sepolia.     | Third-party API key | No                                            | Etherscan account                                      |
 
 Use an Etherscan API V2 key from `https://etherscan.io/myapikey` for
 `synapse-staging-arbiscan-api-key`. The secret id keeps the old Arbiscan name
@@ -947,25 +1019,25 @@ staging defaults. Rebuild and redeploy `synapse-staging-user-front` after
 changing any `NEXT_PUBLIC_*` value because Next.js bakes these values into the
 production bundle at build time.
 
-| Variable | Staging value | Purpose | Secret | Source |
-| --- | --- | --- | --- | --- |
-| `NEXT_PUBLIC_GATEWAY_BASE_URL` | `https://api-staging.synapse-network.ai` | Browser API base for all user-facing Gateway calls. | No | Fixed staging domain |
-| `NEXT_PUBLIC_APP_ENV` | `staging` | Public UI/runtime environment marker. | No | Fixed |
-| `NEXT_PUBLIC_SERVICE_LIST_CACHE_TTL_MS` | `20000` | Service discovery cache TTL. | No | Fixed default |
-| `NEXT_PUBLIC_SUPPORT_EMAIL` | `support@synapse-network.ai` | Public support email shown in UI. | No | Ops |
-| `NEXT_PUBLIC_SUPPORT_PORTAL_URL` | empty or support URL | Optional support portal deep link. | No | Ops |
-| `NEXT_PUBLIC_REOWN_PROJECT_ID` | empty or project id | Optional Reown wallet integration. | No | Reown dashboard |
-| `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` | empty or project id | Optional WalletConnect project id. | No | WalletConnect dashboard |
+| Variable                                | Staging value                            | Purpose                                             | Secret | Source                  |
+| --------------------------------------- | ---------------------------------------- | --------------------------------------------------- | ------ | ----------------------- |
+| `NEXT_PUBLIC_GATEWAY_BASE_URL`          | `https://api-staging.synapse-network.ai` | Browser API base for all user-facing Gateway calls. | No     | Fixed staging domain    |
+| `NEXT_PUBLIC_APP_ENV`                   | `staging`                                | Public UI/runtime environment marker.               | No     | Fixed                   |
+| `NEXT_PUBLIC_SERVICE_LIST_CACHE_TTL_MS` | `20000`                                  | Service discovery cache TTL.                        | No     | Fixed default           |
+| `NEXT_PUBLIC_SUPPORT_EMAIL`             | `support@synapse-network.ai`             | Public support email shown in UI.                   | No     | Ops                     |
+| `NEXT_PUBLIC_SUPPORT_PORTAL_URL`        | empty or support URL                     | Optional support portal deep link.                  | No     | Ops                     |
+| `NEXT_PUBLIC_REOWN_PROJECT_ID`          | empty or project id                      | Optional Reown wallet integration.                  | No     | Reown dashboard         |
+| `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID`  | empty or project id                      | Optional WalletConnect project id.                  | No     | WalletConnect dashboard |
 
 Do not introduce `NEXT_PUBLIC_API_BASE_URL` unless the frontend code is
 intentionally refactored. Current code uses `NEXT_PUBLIC_GATEWAY_BASE_URL`.
 
 Staging front-end contract config:
 
-| File | Purpose | Current staging values |
-| --- | --- | --- |
-| `services/user-front/src/contract-config.arbitrum-sepolia.example.json` | Canonical Arbitrum Sepolia contract config used to seed staging builds. | `SynapseCore=0x0bA1dcE1Cc8d877052ab1C3CE2362830459D8FF4`, `MockUSDC=0xfad31daE42B0046aFA106BCf56ED0dDaCA4463B9` |
-| `services/user-front/src/contract-config.json` | Runtime file imported by User-front wallet flows. For staging builds, copy the Arbitrum Sepolia config into this path before building the image. | Must match the current verified staging deployment. |
+| File                                                                    | Purpose                                                                                                                                          | Current staging values                                                                                          |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| `services/user-front/src/contract-config.arbitrum-sepolia.example.json` | Canonical Arbitrum Sepolia contract config used to seed staging builds.                                                                          | `SynapseCore=0x0bA1dcE1Cc8d877052ab1C3CE2362830459D8FF4`, `MockUSDC=0xfad31daE42B0046aFA106BCf56ED0dDaCA4463B9` |
+| `services/user-front/src/contract-config.json`                          | Runtime file imported by User-front wallet flows. For staging builds, copy the Arbitrum Sepolia config into this path before building the image. | Must match the current verified staging deployment.                                                             |
 
 Recommended staging build prep:
 
@@ -985,39 +1057,43 @@ Terraform, `gcloud run deploy`, and Secret Manager. Changing runtime env values
 on Cloud Run creates a new revision and does not require rebuilding the Gateway
 image unless the code changed.
 
-| Variable | Staging value | Purpose | Secret | Source |
-| --- | --- | --- | --- | --- |
-| `ENVIRONMENT` | `staging` | Gateway runtime environment. | No | Fixed |
-| `CORS_ALLOW_ORIGINS` | `https://staging.synapse-network.ai` | Browser origin allowed to call Gateway. | No | Fixed domain |
-| `STORAGE_BACKEND` | `postgres` | Use Postgres-backed storage. | No | Fixed |
-| `POSTGRES_HOST` | `/cloudsql/<project>:us-central1:synapse-staging-postgres` | Cloud SQL Unix socket path. | No | Terraform output |
-| `POSTGRES_DB` | `synapse_gateway_staging` | Gateway database name. | No | Terraform |
-| `POSTGRES_USER` | `synapse_gateway_app` | Gateway DB app user. | No | Bootstrap |
-| `POSTGRES_PASSWORD` | Secret Manager value | Gateway DB password fallback when `POSTGRES_DSN` is not injected. | Yes | `synapse-staging-postgres-password` |
-| `POSTGRES_DSN` | Secret Manager value | Full Gateway Cloud SQL Unix-socket DSN. Cloud Run staging should inject this rather than relying only on split host/user/db fields; staging E2E may also read it through Secret Manager or Cloud SQL Auth Proxy. | Yes | `synapse-staging-postgres-dsn` |
-| `POSTGRES_MIGRATOR_USER` | `synapse_gateway_migrator` | DB user used only by `synapse-staging-db-migrate`. | No | Bootstrap |
-| `POSTGRES_MIGRATOR_PASSWORD` | Secret Manager value | Migrator password; runtime API services must not receive this. | Yes | `synapse-staging-postgres-migrator-password` |
-| `POSTGRES_POOL_MAX` | `5` | Max reusable DB connections per instance. | No | Fixed staging safety limit |
-| `POSTGRES_CONNECT_TIMEOUT_SEC` | `5` | DB connect timeout. | No | Fixed |
-| `POSTGRES_AUTO_INIT` | `0` | Avoid implicit schema creation in staging. | No | Fixed |
-| `JWT_SECRET` | Secret Manager value | User-facing JWT signing secret. | Yes | `synapse-staging-jwt-secret` |
-| `AUTH_SECRET` | Secret Manager value | Wallet challenge/session secret. | Yes | `synapse-staging-auth-secret` |
-| `GATEWAY_INTERNAL_JWT_SECRET` | Secret Manager value | Validates Gateway-admin internal tokens. | Yes | `synapse-staging-gateway-internal-jwt-secret` |
-| `RPC_URL` | Secret Manager value | Runtime Arbitrum Sepolia RPC URL. | Yes | `synapse-staging-arbitrum-sepolia-rpc-url` |
-| `ROUTER_ADDRESS` | `0x0bA1dcE1Cc8d877052ab1C3CE2362830459D8FF4` | Deployed staging SynapseCore. | No | `20260424T062942120Z-deploy` contract manifest |
-| `USDC_TOKEN_ADDRESS` | `0xfad31daE42B0046aFA106BCf56ED0dDaCA4463B9` | Deployed owner-only staging MockUSDC. | No | `20260424T062942120Z-deploy` contract manifest |
-| `PRIVATE_KEY` | Secret Manager value | Withdraw ticket signer private key. | Yes | `synapse-staging-private-key` |
-| `METRICS_BEARER_TOKEN` | Secret Manager value | App-layer `/metrics` guard. | Yes | `synapse-staging-metrics-bearer-token` |
-| `V2_INDEXER_ENABLED` | `false` | Disable API-process indexer; use scheduled job. | No | Fixed Cloud Run staging |
-| `PROVIDER_WITHDRAW_EXPIRY_REAPER_ENABLED` | `false` | Disable API-process reaper; use scheduled job. | No | Fixed Cloud Run staging |
-| `CONSUMER_WITHDRAW_PROCESSOR_ENABLED` | `false` | Disable API-process consumer processor; use scheduled job. | No | Fixed Cloud Run staging |
-| `ANALYTICS_TRANSPORT` | `outbox` | Use Postgres outbox instead of Kafka. | No | MVP default |
-| `ANALYTICS_STRICT_KAFKA` | `false` | Do not require Kafka in MVP staging. | No | MVP default |
-| `REDIS_URL` | empty | Redis disabled for MVP staging. | No | MVP default |
-| `DOWNSTREAM_ADAPTIVE_REDIS_ENABLED` | `false` | Disable Redis-backed adaptive routing. | No | MVP default |
-| `EMAIL_OUTBOX_ENABLED` | `true` | Persist async email intents. | No | MVP default |
-| `GMAIL_SMTP_USERNAME` | Secret Manager value | SMTP sender username. | Yes | `synapse-staging-gmail-username` |
-| `GMAIL_SMTP_APP_PASSWORD` | Secret Manager value | SMTP app password/relay credential. | Yes | `synapse-staging-gmail-app-password` |
+| Variable                                  | Staging value                                              | Purpose                                                                                                                                                                                                          | Secret | Source                                         |
+| ----------------------------------------- | ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ | ---------------------------------------------- |
+| `ENVIRONMENT`                             | `staging`                                                  | Gateway runtime environment.                                                                                                                                                                                     | No     | Fixed                                          |
+| `CORS_ALLOW_ORIGINS`                      | `https://staging.synapse-network.ai`                       | Browser origin allowed to call Gateway.                                                                                                                                                                          | No     | Fixed domain                                   |
+| `STORAGE_BACKEND`                         | `postgres`                                                 | Use Postgres-backed storage.                                                                                                                                                                                     | No     | Fixed                                          |
+| `POSTGRES_HOST`                           | `/cloudsql/<project>:us-central1:synapse-staging-postgres` | Cloud SQL Unix socket path.                                                                                                                                                                                      | No     | Terraform output                               |
+| `POSTGRES_DB`                             | `synapse_gateway_staging`                                  | Gateway database name.                                                                                                                                                                                           | No     | Terraform                                      |
+| `POSTGRES_USER`                           | `synapse_gateway_app`                                      | Gateway DB app user.                                                                                                                                                                                             | No     | Bootstrap                                      |
+| `POSTGRES_PASSWORD`                       | Secret Manager value                                       | Gateway DB password fallback when `POSTGRES_DSN` is not injected.                                                                                                                                                | Yes    | `synapse-staging-postgres-password`            |
+| `POSTGRES_DSN`                            | Secret Manager value                                       | Full Gateway Cloud SQL Unix-socket DSN. Cloud Run staging should inject this rather than relying only on split host/user/db fields; staging E2E may also read it through Secret Manager or Cloud SQL Auth Proxy. | Yes    | `synapse-staging-postgres-dsn`                 |
+| `POSTGRES_MIGRATOR_USER`                  | `synapse_gateway_migrator`                                 | DB user used only by `synapse-staging-db-migrate`.                                                                                                                                                               | No     | Bootstrap                                      |
+| `POSTGRES_MIGRATOR_PASSWORD`              | Secret Manager value                                       | Migrator password; runtime API services must not receive this.                                                                                                                                                   | Yes    | `synapse-staging-postgres-migrator-password`   |
+| `POSTGRES_POOL_MAX`                       | `5`                                                        | Max reusable DB connections per instance.                                                                                                                                                                        | No     | Fixed staging safety limit                     |
+| `POSTGRES_CONNECT_TIMEOUT_SEC`            | `5`                                                        | DB connect timeout.                                                                                                                                                                                              | No     | Fixed                                          |
+| `POSTGRES_AUTO_INIT`                      | `0`                                                        | Avoid implicit schema creation in staging.                                                                                                                                                                       | No     | Fixed                                          |
+| `GATEWAY_DEFAULT_TIMEOUT_MS`              | `15000`                                                    | Default sync timeout for ordinary API services.                                                                                                                                                                  | No     | Runtime guardrail                              |
+| `GATEWAY_MAX_TIMEOUT_MS`                  | `60000`                                                    | Maximum sync timeout for ordinary API services.                                                                                                                                                                  | No     | Runtime guardrail                              |
+| `GATEWAY_LLM_DEFAULT_TIMEOUT_MS`          | `120000`                                                   | Default sync timeout for `serviceKind=llm` / `priceModel=token_metered`.                                                                                                                                         | No     | Runtime guardrail                              |
+| `GATEWAY_LLM_MAX_TIMEOUT_MS`              | `300000`                                                   | Maximum bounded sync timeout for LLM/token-metered services. Longer tasks must use async invocation.                                                                                                             | No     | Runtime guardrail                              |
+| `JWT_SECRET`                              | Secret Manager value                                       | User-facing JWT signing secret.                                                                                                                                                                                  | Yes    | `synapse-staging-jwt-secret`                   |
+| `AUTH_SECRET`                             | Secret Manager value                                       | Wallet challenge/session secret.                                                                                                                                                                                 | Yes    | `synapse-staging-auth-secret`                  |
+| `GATEWAY_INTERNAL_JWT_SECRET`             | Secret Manager value                                       | Validates Gateway-admin internal tokens.                                                                                                                                                                         | Yes    | `synapse-staging-gateway-internal-jwt-secret`  |
+| `RPC_URL`                                 | Secret Manager value                                       | Runtime Arbitrum Sepolia RPC URL.                                                                                                                                                                                | Yes    | `synapse-staging-arbitrum-sepolia-rpc-url`     |
+| `ROUTER_ADDRESS`                          | `0x0bA1dcE1Cc8d877052ab1C3CE2362830459D8FF4`               | Deployed staging SynapseCore.                                                                                                                                                                                    | No     | `20260424T062942120Z-deploy` contract manifest |
+| `USDC_TOKEN_ADDRESS`                      | `0xfad31daE42B0046aFA106BCf56ED0dDaCA4463B9`               | Deployed owner-only staging MockUSDC.                                                                                                                                                                            | No     | `20260424T062942120Z-deploy` contract manifest |
+| `PRIVATE_KEY`                             | Secret Manager value                                       | Withdraw ticket signer private key.                                                                                                                                                                              | Yes    | `synapse-staging-private-key`                  |
+| `METRICS_BEARER_TOKEN`                    | Secret Manager value                                       | App-layer `/metrics` guard.                                                                                                                                                                                      | Yes    | `synapse-staging-metrics-bearer-token`         |
+| `V2_INDEXER_ENABLED`                      | `false`                                                    | Disable API-process indexer; use scheduled job.                                                                                                                                                                  | No     | Fixed Cloud Run staging                        |
+| `PROVIDER_WITHDRAW_EXPIRY_REAPER_ENABLED` | `false`                                                    | Disable API-process reaper; use scheduled job.                                                                                                                                                                   | No     | Fixed Cloud Run staging                        |
+| `CONSUMER_WITHDRAW_PROCESSOR_ENABLED`     | `false`                                                    | Disable API-process consumer processor; use scheduled job.                                                                                                                                                       | No     | Fixed Cloud Run staging                        |
+| `ANALYTICS_TRANSPORT`                     | `outbox`                                                   | Use Postgres outbox instead of Kafka.                                                                                                                                                                            | No     | MVP default                                    |
+| `ANALYTICS_STRICT_KAFKA`                  | `false`                                                    | Do not require Kafka in MVP staging.                                                                                                                                                                             | No     | MVP default                                    |
+| `REDIS_URL`                               | empty                                                      | Redis disabled for MVP staging.                                                                                                                                                                                  | No     | MVP default                                    |
+| `DOWNSTREAM_ADAPTIVE_REDIS_ENABLED`       | `false`                                                    | Disable Redis-backed adaptive routing.                                                                                                                                                                           | No     | MVP default                                    |
+| `EMAIL_OUTBOX_ENABLED`                    | `true`                                                     | Persist async email intents.                                                                                                                                                                                     | No     | MVP default                                    |
+| `GMAIL_SMTP_USERNAME`                     | Secret Manager value                                       | SMTP sender username.                                                                                                                                                                                            | Yes    | `synapse-staging-gmail-username`               |
+| `GMAIL_SMTP_APP_PASSWORD`                 | Secret Manager value                                       | SMTP app password/relay credential.                                                                                                                                                                              | Yes    | `synapse-staging-gmail-app-password`           |
 
 ## Admin-front
 
@@ -1029,11 +1105,11 @@ Rebuild and redeploy `synapse-staging-admin-front` after changing
 `NEXT_PUBLIC_ADMIN_API_BASE_URL` because Next.js bakes public values into the
 production bundle at build time.
 
-| Variable | Staging value | Purpose | Secret | Source |
-| --- | --- | --- | --- | --- |
-| `NEXT_PUBLIC_ADMIN_API_BASE_URL` | `https://admin-api-staging.synapse-network.ai` | Browser API base for admin console calls. | No | Fixed staging domain |
-| `ADMIN_API_PROXY_TARGET` | `https://admin-api-staging.synapse-network.ai` | Next.js rewrite target for `/api/admin/*`. | No | Fixed staging domain |
-| `NEXT_PUBLIC_APP_ENV` | `staging` | Public UI/runtime environment marker. | No | Fixed |
+| Variable                         | Staging value                                  | Purpose                                    | Secret | Source               |
+| -------------------------------- | ---------------------------------------------- | ------------------------------------------ | ------ | -------------------- |
+| `NEXT_PUBLIC_ADMIN_API_BASE_URL` | `https://admin-api-staging.synapse-network.ai` | Browser API base for admin console calls.  | No     | Fixed staging domain |
+| `ADMIN_API_PROXY_TARGET`         | `https://admin-api-staging.synapse-network.ai` | Next.js rewrite target for `/api/admin/*`. | No     | Fixed staging domain |
+| `NEXT_PUBLIC_APP_ENV`            | `staging`                                      | Public UI/runtime environment marker.      | No     | Fixed                |
 
 ## Gateway-admin API
 
@@ -1044,29 +1120,29 @@ The local private file is ignored by Git. Cloud Run must receive the equivalent
 values through runtime env and Secret Manager. Changing Gateway-admin runtime
 env creates a new Cloud Run revision; rebuild only when code changes.
 
-| Variable | Staging value | Purpose | Secret | Source |
-| --- | --- | --- | --- | --- |
-| `ENVIRONMENT` | `staging` | Admin API environment marker. | No | Fixed |
-| `ADMIN_GATEWAY_PORT` | `8000` | Cloud Run container port for Gateway-admin. | No | Fixed |
-| `ADMIN_GATEWAY_ALLOWED_ORIGINS` | `https://admin-staging.synapse-network.ai` | Admin-front origin allowed by CORS. | No | Fixed staging domain |
-| `ADMIN_SESSION_COOKIE_SECURE` | `true` | Send admin session cookie only over HTTPS. | No | Fixed |
-| `ADMIN_SESSION_COOKIE_SAMESITE` | `lax` | Admin session CSRF boundary. | No | Fixed |
-| `ADMIN_SESSION_COOKIE_DOMAIN` | `.synapse-network.ai` | Admin session cookie domain. | No | Fixed parent domain |
-| `ADMIN_LOGIN_LOCK_THRESHOLD` | `5` | Lock an admin account after five consecutive password or OTP failures. Valid range is `3..10`; invalid values fail startup. | No | Fixed |
-| `ADMIN_LOGIN_LOCK_HOURS` | `24` | Temporary account lock duration in hours. Valid range is `1..168`; invalid values fail startup. | No | Fixed |
-| `ADMIN_CSRF_SECRET` | Secret Manager value | CSRF/session signing secret. | Yes | `synapse-staging-admin-csrf-secret` |
-| `ADMIN_DATABASE_DSN` | Secret Manager value | Admin control-plane database full DSN. | Yes | `synapse-staging-admin-database-dsn` |
-| `ADMIN_DATABASE_MIGRATION_DSN` | Secret Manager value | Admin schema migration full DSN. | Yes | `synapse-staging-admin-database-migration-dsn` |
-| `GATEWAY_READONLY_DSN` | Secret Manager value | Read Gateway projections without write access. | Yes | `synapse-staging-gateway-readonly-dsn` |
-| `GATEWAY_FORUM_WRITE_DSN` | Secret Manager value | Write forum/support records into Gateway DB where required. | Yes | `synapse-staging-gateway-forum-write-dsn` |
-| `GATEWAY_INTERNAL_BASE_URL` | `https://api-staging.synapse-network.ai` | Internal admin calls to Gateway. | No | Fixed staging domain |
-| `GATEWAY_INTERNAL_ADMIN_WALLET` | Secret Manager value or injected address | Internal admin wallet subject. | Yes/Address-sensitive | `synapse-staging-gateway-admin-wallet` |
-| `GATEWAY_INTERNAL_JWT_SECRET` | Secret Manager value | Signs Gateway-admin service tokens. | Yes | `synapse-staging-gateway-internal-jwt-secret` |
-| `GATEWAY_INTERNAL_TOKEN_ISSUER` | `gateway-admin` | Internal JWT issuer. | No | Fixed |
-| `GATEWAY_INTERNAL_TOKEN_AUDIENCE` | `gateway-internal` | Internal JWT audience. | No | Fixed |
-| `GATEWAY_INTERNAL_SERVICE_SUBJECT` | `service:gateway-admin` | Internal JWT subject. | No | Fixed |
-| `GATEWAY_INTERNAL_TIMEOUT_SEC` | `10` | Gateway internal call timeout. | No | Fixed |
-| `EXECUTION_WORKER_ENABLED` | `false` | Keep long-running admin worker loops out of the API-serving Cloud Run service for MVP staging. | No | Fixed |
+| Variable                           | Staging value                              | Purpose                                                                                                                     | Secret                | Source                                         |
+| ---------------------------------- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- | --------------------- | ---------------------------------------------- |
+| `ENVIRONMENT`                      | `staging`                                  | Admin API environment marker.                                                                                               | No                    | Fixed                                          |
+| `ADMIN_GATEWAY_PORT`               | `8000`                                     | Cloud Run container port for Gateway-admin.                                                                                 | No                    | Fixed                                          |
+| `ADMIN_GATEWAY_ALLOWED_ORIGINS`    | `https://admin-staging.synapse-network.ai` | Admin-front origin allowed by CORS.                                                                                         | No                    | Fixed staging domain                           |
+| `ADMIN_SESSION_COOKIE_SECURE`      | `true`                                     | Send admin session cookie only over HTTPS.                                                                                  | No                    | Fixed                                          |
+| `ADMIN_SESSION_COOKIE_SAMESITE`    | `lax`                                      | Admin session CSRF boundary.                                                                                                | No                    | Fixed                                          |
+| `ADMIN_SESSION_COOKIE_DOMAIN`      | `.synapse-network.ai`                      | Admin session cookie domain.                                                                                                | No                    | Fixed parent domain                            |
+| `ADMIN_LOGIN_LOCK_THRESHOLD`       | `5`                                        | Lock an admin account after five consecutive password or OTP failures. Valid range is `3..10`; invalid values fail startup. | No                    | Fixed                                          |
+| `ADMIN_LOGIN_LOCK_HOURS`           | `24`                                       | Temporary account lock duration in hours. Valid range is `1..168`; invalid values fail startup.                             | No                    | Fixed                                          |
+| `ADMIN_CSRF_SECRET`                | Secret Manager value                       | CSRF/session signing secret.                                                                                                | Yes                   | `synapse-staging-admin-csrf-secret`            |
+| `ADMIN_DATABASE_DSN`               | Secret Manager value                       | Admin control-plane database full DSN.                                                                                      | Yes                   | `synapse-staging-admin-database-dsn`           |
+| `ADMIN_DATABASE_MIGRATION_DSN`     | Secret Manager value                       | Admin schema migration full DSN.                                                                                            | Yes                   | `synapse-staging-admin-database-migration-dsn` |
+| `GATEWAY_READONLY_DSN`             | Secret Manager value                       | Read Gateway projections without write access.                                                                              | Yes                   | `synapse-staging-gateway-readonly-dsn`         |
+| `GATEWAY_FORUM_WRITE_DSN`          | Secret Manager value                       | Write forum/support records into Gateway DB where required.                                                                 | Yes                   | `synapse-staging-gateway-forum-write-dsn`      |
+| `GATEWAY_INTERNAL_BASE_URL`        | `https://api-staging.synapse-network.ai`   | Internal admin calls to Gateway.                                                                                            | No                    | Fixed staging domain                           |
+| `GATEWAY_INTERNAL_ADMIN_WALLET`    | Secret Manager value or injected address   | Internal admin wallet subject.                                                                                              | Yes/Address-sensitive | `synapse-staging-gateway-admin-wallet`         |
+| `GATEWAY_INTERNAL_JWT_SECRET`      | Secret Manager value                       | Signs Gateway-admin service tokens.                                                                                         | Yes                   | `synapse-staging-gateway-internal-jwt-secret`  |
+| `GATEWAY_INTERNAL_TOKEN_ISSUER`    | `gateway-admin`                            | Internal JWT issuer.                                                                                                        | No                    | Fixed                                          |
+| `GATEWAY_INTERNAL_TOKEN_AUDIENCE`  | `gateway-internal`                         | Internal JWT audience.                                                                                                      | No                    | Fixed                                          |
+| `GATEWAY_INTERNAL_SERVICE_SUBJECT` | `service:gateway-admin`                    | Internal JWT subject.                                                                                                       | No                    | Fixed                                          |
+| `GATEWAY_INTERNAL_TIMEOUT_SEC`     | `10`                                       | Gateway internal call timeout.                                                                                              | No                    | Fixed                                          |
+| `EXECUTION_WORKER_ENABLED`         | `false`                                    | Keep long-running admin worker loops out of the API-serving Cloud Run service for MVP staging.                              | No                    | Fixed                                          |
 
 Gateway-admin persistence needs an admin database/user. If V1 uses the same
 Cloud SQL instance, create a separate admin database and least-privilege user;
@@ -1076,17 +1152,17 @@ do not reuse the Gateway write user for admin control-plane writes.
 
 These variables are required for `npm run deploy:contracts:arbitrum-sepolia:*`.
 
-| Variable | Example | Purpose | Secret | Source | Secret Manager |
-| --- | --- | --- | --- | --- | --- |
-| `ARBITRUM_SEPOLIA_RPC_URL` | `https://arb-sepolia.g.alchemy.com/v2/...` | RPC for deployment, verification gate, and live bytecode reads. | Yes | Alchemy/Infura/other RPC provider | `synapse-staging-arbitrum-sepolia-rpc-url` |
-| `STAGING_DEPLOYER_PRIVATE_KEY` | `0x...` | Deploys contracts and pre-mints MockUSDC. | Yes | Dedicated staging deployer wallet | `synapse-staging-deployer-private-key` |
-| `STAGING_CONTRACT_OWNER_ADDRESS` | `0x...` | Final owner for MockUSDC/SynapseCore. | No | Dedicated owner wallet address | Not a secret |
-| `STAGING_WITHDRAW_SIGNER_ADDRESS` | `0x...` | Public address of Gateway withdraw signer. | No | Derived from `synapse-staging-private-key` | Not a secret |
-| `ARBISCAN_API_KEY` | `...` | Etherscan API V2 source verification for Arbitrum Sepolia. Legacy env name kept for script compatibility. | Yes | Etherscan account | `synapse-staging-arbiscan-api-key` |
-| `STAGING_TEST_CONSUMER_ADDRESS` | `0x...` | Dedicated consumer wallet for full-chain E2E. | No | Staging E2E wallet | Not a secret |
-| `STAGING_TEST_PROVIDER_ADDRESS` | `0x...` | Dedicated provider wallet for full-chain E2E. | No | Staging E2E wallet | Not a secret |
-| `STAGING_MIN_GAS_ETH` | `0.01` | Minimum ETH gas balance preflight. | No | Fixed default | Not a secret |
-| `STAGING_TEST_MOCK_USDC_PREMINT` | `100000` | MockUSDC amount pre-minted to E2E wallets. | No | Fixed default | Not a secret |
+| Variable                          | Example                                    | Purpose                                                                                                   | Secret | Source                                     | Secret Manager                             |
+| --------------------------------- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------- | ------ | ------------------------------------------ | ------------------------------------------ |
+| `ARBITRUM_SEPOLIA_RPC_URL`        | `https://arb-sepolia.g.alchemy.com/v2/...` | RPC for deployment, verification gate, and live bytecode reads.                                           | Yes    | Alchemy/Infura/other RPC provider          | `synapse-staging-arbitrum-sepolia-rpc-url` |
+| `STAGING_DEPLOYER_PRIVATE_KEY`    | `0x...`                                    | Deploys contracts and pre-mints MockUSDC.                                                                 | Yes    | Dedicated staging deployer wallet          | `synapse-staging-deployer-private-key`     |
+| `STAGING_CONTRACT_OWNER_ADDRESS`  | `0x...`                                    | Final owner for MockUSDC/SynapseCore.                                                                     | No     | Dedicated owner wallet address             | Not a secret                               |
+| `STAGING_WITHDRAW_SIGNER_ADDRESS` | `0x...`                                    | Public address of Gateway withdraw signer.                                                                | No     | Derived from `synapse-staging-private-key` | Not a secret                               |
+| `ARBISCAN_API_KEY`                | `...`                                      | Etherscan API V2 source verification for Arbitrum Sepolia. Legacy env name kept for script compatibility. | Yes    | Etherscan account                          | `synapse-staging-arbiscan-api-key`         |
+| `STAGING_TEST_CONSUMER_ADDRESS`   | `0x...`                                    | Dedicated consumer wallet for full-chain E2E.                                                             | No     | Staging E2E wallet                         | Not a secret                               |
+| `STAGING_TEST_PROVIDER_ADDRESS`   | `0x...`                                    | Dedicated provider wallet for full-chain E2E.                                                             | No     | Staging E2E wallet                         | Not a secret                               |
+| `STAGING_MIN_GAS_ETH`             | `0.01`                                     | Minimum ETH gas balance preflight.                                                                        | No     | Fixed default                              | Not a secret                               |
+| `STAGING_TEST_MOCK_USDC_PREMINT`  | `100000`                                   | MockUSDC amount pre-minted to E2E wallets.                                                                | No     | Fixed default                              | Not a secret                               |
 
 Required boundaries:
 
@@ -1100,32 +1176,32 @@ Required boundaries:
 
 ## Lark
 
-| Runtime variable | Secret id | Purpose | Required |
-| --- | --- | --- | --- |
-| `LARK_WEBHOOK_P0_WAR_ROOM` | `synapse-staging-lark-webhook-p0` | P0 war-room delivery. | Yes for Lark E2E |
-| `LARK_WEBHOOK_PROD_ALERTS` | `synapse-staging-lark-webhook-prod-alerts` | Prod-alerts style route delivery. | Yes for Lark E2E |
-| `LARK_WEBHOOK_STAGING_DRILL` | `synapse-staging-lark-webhook-staging-drill` | Drill-only delivery. | Yes for Lark E2E |
-| `LARK_SECRET_P0_WAR_ROOM` | `synapse-staging-lark-secret-p0` | Optional Lark signing secret. | Only if bot signing is enabled |
-| `LARK_SECRET_PROD_ALERTS` | `synapse-staging-lark-secret-prod-alerts` | Optional Lark signing secret. | Only if bot signing is enabled |
-| `LARK_SECRET_STAGING_DRILL` | `synapse-staging-lark-secret-staging-drill` | Optional Lark signing secret. | Only if bot signing is enabled |
-| `TRANSACTION_LARK_WEBHOOK_URL` | `synapse-staging-lark-webhook-staging-drill` | Gateway transaction watch cards for staging receipts and withdrawals. | Yes for staging transaction watch |
-| `TRANSACTION_LARK_SECRET` | `synapse-staging-lark-secret-staging-drill` | Optional Gateway transaction-watch signing secret. | Only if bot signing is enabled |
-| `TRANSACTION_LARK_ENABLED` | `true` in staging, `false` in prod by default | Enables Gateway transaction-watch cards. | Staging only |
-| `GCP_ALERT_RECEIVER_ENABLED` | `true` | Enables gateway-admin `/api/v1/ops/webhooks/gcp-alert-receiver`. | Yes for GCP alert webhook |
-| `GCP_ALERT_RECEIVER_TOKEN` | `synapse-staging-gcp-alert-receiver-token` | Shared token required from GCP Monitoring. | Yes |
-| `GCP_ALERT_RECEIVER_USERNAME` | `synapse-gcp-alert` | HTTP Basic username for the GCP webhook channel. | Yes |
-| `GCP_ALERT_DEFAULT_ROUTE` | `staging-drill` | Default route when the GCP payload has no Lark route label. | Yes |
+| Runtime variable               | Secret id                                     | Purpose                                                               | Required                          |
+| ------------------------------ | --------------------------------------------- | --------------------------------------------------------------------- | --------------------------------- |
+| `LARK_WEBHOOK_P0_WAR_ROOM`     | `synapse-staging-lark-webhook-p0`             | P0 war-room delivery.                                                 | Yes for Lark E2E                  |
+| `LARK_WEBHOOK_PROD_ALERTS`     | `synapse-staging-lark-webhook-prod-alerts`    | Prod-alerts style route delivery.                                     | Yes for Lark E2E                  |
+| `LARK_WEBHOOK_STAGING_DRILL`   | `synapse-staging-lark-webhook-staging-drill`  | Drill-only delivery.                                                  | Yes for Lark E2E                  |
+| `LARK_SECRET_P0_WAR_ROOM`      | `synapse-staging-lark-secret-p0`              | Optional Lark signing secret.                                         | Only if bot signing is enabled    |
+| `LARK_SECRET_PROD_ALERTS`      | `synapse-staging-lark-secret-prod-alerts`     | Optional Lark signing secret.                                         | Only if bot signing is enabled    |
+| `LARK_SECRET_STAGING_DRILL`    | `synapse-staging-lark-secret-staging-drill`   | Optional Lark signing secret.                                         | Only if bot signing is enabled    |
+| `TRANSACTION_LARK_WEBHOOK_URL` | `synapse-staging-lark-webhook-staging-drill`  | Gateway transaction watch cards for staging receipts and withdrawals. | Yes for staging transaction watch |
+| `TRANSACTION_LARK_SECRET`      | `synapse-staging-lark-secret-staging-drill`   | Optional Gateway transaction-watch signing secret.                    | Only if bot signing is enabled    |
+| `TRANSACTION_LARK_ENABLED`     | `true` in staging, `false` in prod by default | Enables Gateway transaction-watch cards.                              | Staging only                      |
+| `GCP_ALERT_RECEIVER_ENABLED`   | `true`                                        | Enables gateway-admin `/api/v1/ops/webhooks/gcp-alert-receiver`.      | Yes for GCP alert webhook         |
+| `GCP_ALERT_RECEIVER_TOKEN`     | `synapse-staging-gcp-alert-receiver-token`    | Shared token required from GCP Monitoring.                            | Yes                               |
+| `GCP_ALERT_RECEIVER_USERNAME`  | `synapse-gcp-alert`                           | HTTP Basic username for the GCP webhook channel.                      | Yes                               |
+| `GCP_ALERT_DEFAULT_ROUTE`      | `staging-drill`                               | Default route when the GCP payload has no Lark route label.           | Yes                               |
 
 If using keyword-only validation, configure the keyword in Lark and leave the
 `LARK_SECRET_*` variables unset.
 
 ## Gateway Alert Drills
 
-| Runtime variable | Secret id / value | Purpose | Required |
-| --- | --- | --- | --- |
-| `STAGING_ALERT_DRILL_ENABLED` | `true` | Enables the controlled Gateway 500 drill endpoint in staging. Production refuses this endpoint even if configured. | Yes for alert drill |
-| `STAGING_ALERT_DRILL_TOKEN` | `synapse-staging-alert-drill-token` | Header token for `GET /api/v1/ops/drills/http-500`. | Yes for alert drill |
-| `WITHDRAWAL_TIMEOUT_ALERT_AFTER_SEC` | `900` | Existing withdrawal workers log `WITHDRAWAL_TIMEOUT` when pending work exceeds this age. | Yes |
+| Runtime variable                     | Secret id / value                   | Purpose                                                                                                            | Required            |
+| ------------------------------------ | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ------------------- |
+| `STAGING_ALERT_DRILL_ENABLED`        | `true`                              | Enables the controlled Gateway 500 drill endpoint in staging. Production refuses this endpoint even if configured. | Yes for alert drill |
+| `STAGING_ALERT_DRILL_TOKEN`          | `synapse-staging-alert-drill-token` | Header token for `GET /api/v1/ops/drills/http-500`.                                                                | Yes for alert drill |
+| `WITHDRAWAL_TIMEOUT_ALERT_AFTER_SEC` | `900`                               | Existing withdrawal workers log `WITHDRAWAL_TIMEOUT` when pending work exceeds this age.                           | Yes                 |
 
 ## Cloud Run Jobs
 
@@ -1135,14 +1211,14 @@ the same Gateway Docker image as `synapse-staging-gateway`. The worker entrypoin
 is `python -m src.worker <job> --once`, so Gateway API and jobs share `src.core`,
 `src.storage`, domain models, money utilities, and settlement state-machine code.
 
-| Job | Command | Schedule | Lock key | Purpose |
-| --- | --- | --- | --- | --- |
-| DB migration | `bash scripts/deploy/migrate_db.sh staging` | Manual release step only | n/a | Apply shared schema/reference migrations before API image rollout. |
-| Deposit indexer | `python -m src.worker deposit-indexer --once` | Every minute | `deposit-indexer` | Credit confirmed deposits. |
-| Provider withdrawal reaper | `python -m src.worker provider-withdraw-reaper --once` | Every minute | `provider-withdraw-reaper` | Expire provider withdrawal tickets safely. |
-| Consumer withdrawal processor | `python -m src.worker consumer-withdraw-processor --once` | Every minute | `consumer-withdraw-processor` | Process consumer withdrawal lifecycle. |
-| Notification outbox drain | `python -m src.worker notification-outbox --once` | Every minute | `notification-outbox-drain` | Send async Gmail notifications. |
-| In-app notification cleanup | `python -m src.worker in-app-cleanup --once` | Daily | `in-app-notification-cleanup` | Delete expired/old inbox rows. |
+| Job                           | Command                                                   | Schedule                 | Lock key                      | Purpose                                                            |
+| ----------------------------- | --------------------------------------------------------- | ------------------------ | ----------------------------- | ------------------------------------------------------------------ |
+| DB migration                  | `bash scripts/deploy/migrate_db.sh staging`               | Manual release step only | n/a                           | Apply shared schema/reference migrations before API image rollout. |
+| Deposit indexer               | `python -m src.worker deposit-indexer --once`             | Every minute             | `deposit-indexer`             | Credit confirmed deposits.                                         |
+| Provider withdrawal reaper    | `python -m src.worker provider-withdraw-reaper --once`    | Every minute             | `provider-withdraw-reaper`    | Expire provider withdrawal tickets safely.                         |
+| Consumer withdrawal processor | `python -m src.worker consumer-withdraw-processor --once` | Every minute             | `consumer-withdraw-processor` | Process consumer withdrawal lifecycle.                             |
+| Notification outbox drain     | `python -m src.worker notification-outbox --once`         | Every minute             | `notification-outbox-drain`   | Send async Gmail notifications.                                    |
+| In-app notification cleanup   | `python -m src.worker in-app-cleanup --once`              | Daily                    | `in-app-notification-cleanup` | Delete expired/old inbox rows.                                     |
 
 Each money-sensitive job must use `task_count=1`, `parallelism=1`, and the
 Postgres advisory lock. A lock skip logs `JOB_SKIPPED_ALREADY_RUNNING` and exits
