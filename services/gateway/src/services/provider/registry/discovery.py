@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
 
@@ -24,6 +25,17 @@ from .usage_helpers import (
     sorted_console_discovery_services,
     usage_consumer,
 )
+
+
+@dataclass(frozen=True)
+class RegistryResponseView:
+    payload: dict[str, Any]
+
+    def __getitem__(self, key: str) -> Any:
+        return self.payload[key]
+
+    def to_response_dict(self) -> dict[str, Any]:
+        return dict(self.payload)
 
 
 async def discover_public_services(
@@ -70,7 +82,7 @@ async def discover_services(
     public_gateway_url: str | None = None,
     sort_by: str = "best_match",
     sort_order: str = "desc",
-) -> list[dict[str, Any]]:
+) -> list[RegistryResponseView]:
     usage_metrics = service_usage_metrics(
         context.storage.get_data_manager().system.gateway_state.read_invocation_billing_rows()
     )
@@ -81,13 +93,13 @@ async def discover_services(
         sort_by=sort_by,
         sort_order=sort_order,
     )
-    result: list[dict[str, Any]] = []
+    result: list[RegistryResponseView] = []
     for row in public_services:
         payload = row.model_dump(by_alias=True, exclude_none=True)
         metrics = usage_metrics.get(str(row.service_id or ""), {})
         payload["invocationCount"] = int(metrics.get("invocationCount") or 0)
         payload["totalRevenueUsdc"] = str(metrics.get("totalRevenueUsdc") or Decimal("0"))
-        result.append(payload)
+        result.append(RegistryResponseView(payload))
     return result
 
 
@@ -115,6 +127,10 @@ async def public_network_stats(context: RegistryContext) -> dict[str, Any]:
             if service_health_service.effective_runtime_status(service) == "stale"
         ]
     )
+    unavailable_count = max(
+        0,
+        len(registered_services) - discoverable_count - stale_count,
+    )
     raw_usage_rows = context.storage.get_data_manager().system.gateway_state.read_invocation_billing_rows()
     dedup_by_request_id, status_counts = settled_usage_metrics(raw_usage_rows)
     connected_agents = {
@@ -127,6 +143,7 @@ async def public_network_stats(context: RegistryContext) -> dict[str, Any]:
         "registeredServices": len(registered_services),
         "discoverableServices": discoverable_count,
         "staleServices": stale_count,
+        "unavailableServices": unavailable_count,
         "runtimeReadyServices": discoverable_count,
         "totalCalls": len(dedup_by_request_id),
         "connectedAgents": len(connected_agents),
@@ -178,10 +195,13 @@ async def count_agent_discovery_results(
     return len(scoped_services)
 
 
-async def list_owner_services(context: RegistryContext, owner_wallet: str) -> list[dict[str, Any]]:
+async def list_owner_services(
+    context: RegistryContext,
+    owner_wallet: str,
+) -> list[RegistryResponseView]:
     await asyncio.sleep(0)
     rows = context._load_service_registry_rows()
-    owner_rows: list[dict[str, Any]] = []
+    owner_rows: list[RegistryResponseView] = []
     for svc in rows:
         if svc.owner_address != owner_wallet or is_deleted_service(svc):
             continue
@@ -215,7 +235,7 @@ async def list_owner_services(context: RegistryContext, owner_wallet: str) -> li
         enriched["status"] = service_lifecycle_status(svc)
         enriched["health"] = service_health_service.public_health_summary(svc)
         enriched["runtimeAvailable"] = service_health_service.is_service_discoverable(svc)
-        owner_rows.append(enriched)
+        owner_rows.append(RegistryResponseView(enriched))
     return owner_rows
 
 
@@ -223,7 +243,7 @@ async def health_status(
     context: RegistryContext,
     intent: str | None = None,
     include_inactive: bool = False,
-) -> list[dict[str, Any]]:
+) -> list[RegistryResponseView]:
     await asyncio.sleep(0)
     rows = context._load_service_registry_rows()
     scoped = []
@@ -236,13 +256,15 @@ async def health_status(
         scoped = [svc for svc in scoped if service_matches_intent(svc, intent)]
 
     return [
-        {
+        RegistryResponseView(
+            {
             "serviceId": svc.service_id,
             "serviceName": svc.service_name,
             "isActive": bool(svc.is_active),
             "status": str(svc.status or "unknown"),
             "health": service_health_service.public_health_summary(svc),
             "runtimeAvailable": service_health_service.is_service_discoverable(svc),
-        }
+            }
+        )
         for svc in scoped
     ]

@@ -426,9 +426,14 @@ async def invoke_llm_v1(
     )
     invocation = build_invocation_record(service, credential, quote, request.idempotencyKey, invoke_payload)
     owner_wallet = credential_service.credential_owner_wallet(credential)
-    persist_quote(storage, quote_with_status(quote, "CONSUMED"))
-    persist_invocation(storage, invocation)
-    _reserve_hold(storage, owner_wallet, plan.hold_usdc)
+    upstream_plan = await forwarding_upstream.prepare_upstream_call(service, invoke_payload)
+    try:
+        persist_quote(storage, quote_with_status(quote, "CONSUMED"))
+        persist_invocation(storage, invocation)
+        _reserve_hold(storage, owner_wallet, plan.hold_usdc)
+    except Exception:
+        await upstream_plan.permit.release_without_outcome()
+        raise
 
     running = invocation.model_copy(
         update={"status": "RUNNING", "started_at": now_dt_str(), "updated_at": now_dt_str()}
@@ -436,7 +441,6 @@ async def invoke_llm_v1(
     persist_invocation(storage, running)
     settled = False
     try:
-        upstream_plan = await forwarding_upstream.prepare_upstream_call(service, invoke_payload)
         invocation_result = await forwarding_upstream.call_upstream(
             service, running, invoke_payload, call_plan=upstream_plan
         )

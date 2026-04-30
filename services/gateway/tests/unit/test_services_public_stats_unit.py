@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 from src import app as gateway_app
 from src.domain.finance import UsageLogRow
 from src.domain.registry import ServiceTargetHealth
-from src.domain.service_contract import ServiceDefinitionRecord
+from src.domain.service_contract import ServiceDefinitionRecord, ServiceRuntimeHealthRecord
 from src.services.platform import credential_service
 from src.services.platform import service_health_service
 from src.services.platform import service_health_utils
@@ -65,6 +65,31 @@ class InMemoryRegistryRepo:
                     )
                 )
         return rows
+
+    def write_service_target_health_rows(self, rows):
+        for service in self._rows:
+            matched_targets = [
+                row
+                for row in rows
+                if row.service_id == service.service_id
+            ]
+            if not matched_targets:
+                continue
+            service.runtime_health = ServiceRuntimeHealthRecord(
+                overallStatus="stale",
+                healthyTargets=0,
+                totalTargets=len(matched_targets),
+                targets=[
+                    {
+                        "targetUrl": row.target_url,
+                        "status": row.status,
+                        "weight": row.weight,
+                        "lastCheckedAt": row.last_checked_at,
+                        "lastHealthyAt": row.last_healthy_at,
+                    }
+                    for row in matched_targets
+                ],
+            )
 
 
 class FakeStorage:
@@ -239,9 +264,10 @@ def test_public_network_stats_returns_layered_public_aggregate_counts(monkeypatc
     payload = response.json()
     assert payload["status"] == "success"
     assert payload["registeredServices"] == 2
-    assert payload["discoverableServices"] == 1
-    assert payload["staleServices"] == 1
-    assert payload["runtimeReadyServices"] == 1
+    assert payload["discoverableServices"] == 0
+    assert payload["staleServices"] == 2
+    assert payload["unavailableServices"] == 0
+    assert payload["runtimeReadyServices"] == 0
     assert payload["totalCalls"] == 2
     assert payload["connectedAgents"] == 2
     assert payload["statusBreakdown"] == {

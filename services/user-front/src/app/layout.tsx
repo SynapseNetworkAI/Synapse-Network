@@ -19,8 +19,27 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Synapse Network",
-  description: "The API settlement gateway for AI agents: owner-funded USDC vaults, agent runtime payments, and millisecond settlement.",
+  metadataBase: new URL("https://synapse-network.ai"),
+  title: "SynapseNetwork | Settlement Layer for AI Agents",
+  description:
+    "USDC-native payment and settlement infrastructure for AI agents buying APIs, LLM calls, data services, tools, and MCP integrations.",
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    title: "SynapseNetwork | Settlement Layer for AI Agents",
+    description:
+      "USDC-native payment and settlement infrastructure for AI agents buying APIs, LLM calls, data services, tools, and MCP integrations.",
+    url: "https://synapse-network.ai",
+    siteName: "SynapseNetwork",
+    type: "website",
+  },
+  twitter: {
+    card: "summary",
+    title: "SynapseNetwork | Settlement Layer for AI Agents",
+    description:
+      "USDC-native payment and settlement infrastructure for AI agents buying APIs, LLM calls, data services, tools, and MCP integrations.",
+  },
   icons: {
     icon: "/brand/synapse-network-icon.svg",
     shortcut: "/brand/synapse-network-icon.svg",
@@ -40,22 +59,20 @@ export default function RootLayout({
       >
         <Providers>
           <AnalyticsProvider>
-          <LanguageProvider>
-            <Navbar />
-            <main className="flex-1">
-              {children}
-            </main>
-            <Toaster 
-              position="top-center" 
-              toastOptions={{
-                style: {
-                  background: '#111827',
-                  color: '#00FFA3',
-                  border: '1px solid #374151',
-                },
-              }} 
-            />
-          </LanguageProvider>
+            <LanguageProvider>
+              <Navbar />
+              <main className="flex-1">{children}</main>
+              <Toaster
+                position="top-center"
+                toastOptions={{
+                  style: {
+                    background: "#111827",
+                    color: "#00FFA3",
+                    border: "1px solid #374151",
+                  },
+                }}
+              />
+            </LanguageProvider>
           </AnalyticsProvider>
         </Providers>
       </body>

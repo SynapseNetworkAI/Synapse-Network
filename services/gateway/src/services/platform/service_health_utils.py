@@ -51,7 +51,7 @@ def _normalize_health_path(path: str) -> str:
 def build_probe_url(target_url: str, health_path: str) -> str:
     parsed = urlsplit(str(target_url or "").strip())
     if not parsed.scheme or not parsed.netloc:
-        raise ValueError("Invalid target URL")
+        raise ValueError
     return urlunsplit(
         (parsed.scheme, parsed.netloc, _normalize_health_path(health_path), "", "")
     )
@@ -99,7 +99,7 @@ def is_service_probeable(service: ServiceDefinitionRecord) -> bool:
 
 
 def public_health_summary(service: ServiceDefinitionRecord) -> dict[str, Any]:
-    from src.services.platform.service_health_tiers import service_probe_tier
+    from src.services.platform.service_health_tiers import service_probe_tier  # noqa: PLC0415 - avoid import cycle; tiers imports utility helpers.
 
     health = _runtime_health(service)
     raw_status = str(health.overall_status or "unknown")
@@ -144,26 +144,27 @@ def effective_runtime_status(
     stale_after_sec: Optional[int] = None,
 ) -> str:
     lifecycle_status = service_control_status(service)
+    status = lifecycle_status
     if lifecycle_status != "active":
-        return lifecycle_status
+        return status
     if not bool(service.is_active):
-        return "inactive"
-    if is_health_stale(service, now_ms=now_ms, stale_after_sec=stale_after_sec):
-        return "stale"
-
-    healthy_target_urls = get_healthy_target_urls(
-        service,
-        now_ms=now_ms,
-        stale_after_sec=stale_after_sec,
-    )
-    raw_status = str(_runtime_health(service).overall_status or "unknown").strip().lower()
-    if healthy_target_urls:
-        if raw_status in {"healthy", "degraded"}:
-            return raw_status
-        return "healthy"
-    if raw_status in {"degraded", "unhealthy", "unknown", "pending"}:
-        return raw_status
-    return "unknown"
+        status = "inactive"
+    elif is_health_stale(service, now_ms=now_ms, stale_after_sec=stale_after_sec):
+        status = "stale"
+    else:
+        healthy_target_urls = get_healthy_target_urls(
+            service,
+            now_ms=now_ms,
+            stale_after_sec=stale_after_sec,
+        )
+        raw_status = str(_runtime_health(service).overall_status or "unknown").strip().lower()
+        if healthy_target_urls:
+            status = raw_status if raw_status in {"healthy", "degraded"} else "healthy"
+        elif raw_status in {"degraded", "unhealthy", "unknown", "pending"}:
+            status = raw_status
+        else:
+            status = "unknown"
+    return status
 
 
 def get_healthy_target_urls(
@@ -388,3 +389,60 @@ def sync_service_target_health_table(
     repo = storage.get_data_manager().system.registry
     repo.write_service_target_health_rows(rows)
     return len(rows)
+
+
+def _startup_stale_health_row(
+    service: ServiceDefinitionRecord,
+    target: ServiceInvokeTargetRecord,
+) -> Optional[ServiceTargetHealth]:
+    if service_control_status(service) == "deleted":
+        return None
+    service_id = str(service.service_id or "").strip()
+    target_url = str(target.url or "").strip()
+    if not service_id or not target_url:
+        return None
+    constraint_timeout_ms = int(getattr(service.constraints, "timeout_ms", None) or 15000)
+    return ServiceTargetHealth(
+        serviceId=service_id,
+        ownerAddress=str(service.owner_address or "").strip(),
+        targetUrl=target_url,
+        weight=int(target.weight or 100),
+        region=target.region,
+        status="unknown",
+        overallStatus="stale",
+        consecutiveSuccesses=0,
+        consecutiveFailures=0,
+        timeoutMs=max(300, min(60000, constraint_timeout_ms)),
+        error="startup_rehydrate_pending",
+    )
+
+
+def mark_service_health_stale_on_startup(storage: BaseStorage) -> int:
+    if not hasattr(storage, "get_data_manager"):
+        return 0
+    data_manager = storage.get_data_manager()
+    system = getattr(data_manager, "system", None)
+    registry = getattr(system, "registry", None)
+    if registry is None or not hasattr(registry, "read_service_registry_rows"):
+        return 0
+    raw_rows = registry.read_service_registry_rows()
+    if not isinstance(raw_rows, list):
+        services: list[ServiceDefinitionRecord] = []
+    else:
+        services = [
+            row
+            for row in raw_rows
+            if isinstance(row, ServiceDefinitionRecord)
+        ]
+
+    stale_rows: list[ServiceTargetHealth] = []
+    for service in services:
+        for target in _service_targets(service):
+            row = _startup_stale_health_row(service, target)
+            if row is not None:
+                stale_rows.append(row)
+
+    if not hasattr(registry, "write_service_target_health_rows"):
+        return 0
+    registry.write_service_target_health_rows(stale_rows)
+    return len(stale_rows)

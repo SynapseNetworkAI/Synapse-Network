@@ -162,6 +162,15 @@ class Settings:
         fatal_code="DB-CONFIG-001",
         guidance="set POSTGRES_POOL_MAX between 1 and 10; staging default is 5.",
     )
+    postgres_pool_timeout_sec: float = max(
+        0.1, _env_float("POSTGRES_POOL_TIMEOUT_SEC", 5.0)
+    )
+    postgres_pool_max_lifetime_sec: float = max(
+        1.0, _env_float("POSTGRES_POOL_MAX_LIFETIME_SEC", 1800.0)
+    )
+    postgres_pool_max_idle_sec: float = max(
+        1.0, _env_float("POSTGRES_POOL_MAX_IDLE_SEC", 300.0)
+    )
     # Auto-create PostgreSQL tables/indexes on startup when using postgres backend.
     postgres_auto_init: bool = _env_bool("POSTGRES_AUTO_INIT", True)
     # JWT secret for auth token signing and verification.
@@ -356,7 +365,7 @@ class Settings:
         "SERVICE_HEALTH_MONITOR_ENABLED", True
     )
     service_health_probe_interval_sec: float = _env_float(
-        "SERVICE_HEALTH_PROBE_INTERVAL_SEC", 15.0
+        "SERVICE_HEALTH_PROBE_INTERVAL_SEC", 60.0
     )
     # Upper bound for one monitor tick as observed by the FastAPI event loop.
     service_health_monitor_step_timeout_sec: float = max(
@@ -366,7 +375,10 @@ class Settings:
         "SERVICE_HEALTH_PROBE_TIMEOUT_MS", 1500
     )
     service_health_max_concurrency: int = _env_int(
-        "SERVICE_HEALTH_MAX_CONCURRENCY", 32
+        "SERVICE_HEALTH_MAX_CONCURRENCY", 50
+    )
+    service_health_rehydrate_window_sec: float = _env_float(
+        "SERVICE_HEALTH_REHYDRATE_WINDOW_SEC", 120.0
     )
     service_health_jitter_enabled: bool = _env_bool(
         "SERVICE_HEALTH_JITTER_ENABLED", True
@@ -379,7 +391,7 @@ class Settings:
         or "stable"
     )
     service_health_stale_after_sec: int = _env_int(
-        "SERVICE_HEALTH_STALE_AFTER_SEC", 120
+        "SERVICE_HEALTH_STALE_AFTER_SEC", 90
     )
     service_health_outage_after_sec: int = _env_int(
         "SERVICE_HEALTH_OUTAGE_AFTER_SEC", 1800

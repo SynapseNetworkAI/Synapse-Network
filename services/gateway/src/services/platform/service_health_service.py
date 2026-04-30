@@ -24,6 +24,7 @@ from src.services.platform.service_health_utils import (  # noqa: F401
     seed_service_health_from_persisted_rows,
     service_control_status,
     is_service_probeable,
+    mark_service_health_stale_on_startup,
     sync_service_target_health_table,
 )
 from src.services.platform.service_health_history import (  # noqa: F401
