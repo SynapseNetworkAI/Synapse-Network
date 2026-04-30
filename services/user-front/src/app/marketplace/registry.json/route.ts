@@ -1,4 +1,8 @@
-import { discoverServices, type ServiceRegistryRecord } from "@/utils/serviceApi";
+import {
+  discoverServices,
+  type ServiceRegistryRecord,
+} from "@/utils/serviceApi";
+import { fetchPublicNetworkStats } from "@/utils/networkStatsApi";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +22,10 @@ function parsePositiveInteger(value: string | null, fallback: number): number {
 }
 
 function parsePageSize(value: string | null): number {
-  return Math.min(parsePositiveInteger(value, DEFAULT_PAGE_SIZE), MAX_PAGE_SIZE);
+  return Math.min(
+    parsePositiveInteger(value, DEFAULT_PAGE_SIZE),
+    MAX_PAGE_SIZE
+  );
 }
 
 function isCallableService(service: ServiceRegistryRecord): boolean {
@@ -46,7 +53,10 @@ function matchesQuery(service: ServiceRegistryRecord, query: string): boolean {
   return haystack.includes(query);
 }
 
-function filterServices(rows: ServiceRegistryRecord[], searchParams: URLSearchParams): ServiceRegistryRecord[] {
+function filterServices(
+  rows: ServiceRegistryRecord[],
+  searchParams: URLSearchParams
+): ServiceRegistryRecord[] {
   const tag = searchParams.get("tag")?.trim();
   const query = searchParams.get("q")?.trim().toLowerCase() || "";
 
@@ -66,9 +76,15 @@ export async function GET(request: Request): Promise<Response> {
     const url = new URL(request.url);
     const query = url.searchParams.get("q")?.trim() || "";
     const tag = url.searchParams.get("tag")?.trim() || "";
-    const rows = await discoverServices(query || tag || undefined);
+    const [rows, stats] = await Promise.all([
+      discoverServices(query || tag || undefined),
+      fetchPublicNetworkStats(),
+    ]);
     const services = filterServices(rows, url.searchParams);
-    const page = parsePositiveInteger(url.searchParams.get("page"), DEFAULT_PAGE);
+    const page = parsePositiveInteger(
+      url.searchParams.get("page"),
+      DEFAULT_PAGE
+    );
     const pageSize = parsePageSize(url.searchParams.get("pageSize"));
     const totalPages = Math.max(1, Math.ceil(services.length / pageSize));
     const currentPage = Math.min(page, totalPages);
@@ -94,16 +110,30 @@ export async function GET(request: Request): Promise<Response> {
           hasPreviousPage: currentPage > 1,
         },
         total: services.length,
+        diagnostics: {
+          registeredTotal: stats.registeredServices,
+          discoverableTotal: stats.discoverableServices,
+          staleTotal: stats.staleServices,
+          unavailableTotal:
+            stats.unavailableServices ??
+            Math.max(
+              0,
+              stats.registeredServices -
+                stats.discoverableServices -
+                stats.staleServices
+            ),
+        },
         services: pageServices,
       },
       {
         headers: {
           "Cache-Control": "no-store, max-age=0",
         },
-      },
+      }
     );
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Registry export failed";
+    const message =
+      error instanceof Error ? error.message : "Registry export failed";
     return Response.json(
       {
         status: "error",
@@ -114,7 +144,7 @@ export async function GET(request: Request): Promise<Response> {
         headers: {
           "Cache-Control": "no-store, max-age=0",
         },
-      },
+      }
     );
   }
 }

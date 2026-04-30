@@ -2,12 +2,25 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, ChevronLeft, ChevronRight, Search, ShieldCheck, WalletCards, Zap } from "lucide-react";
-import { discoverServices, type ServiceRegistryRecord } from "@/utils/serviceApi";
+import {
+  ArrowRight,
+  ChevronLeft,
+  ChevronRight,
+  Search,
+  ShieldCheck,
+  WalletCards,
+  Zap,
+} from "lucide-react";
+import type { ServiceRegistryRecord } from "@/utils/serviceApi";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
 import ServiceRegistryFeed from "@/components/ServiceRegistryFeed";
 
 const MARKETPLACE_PAGE_SIZE = 10;
+const MARKETPLACE_REGISTRY_PAGE_SIZE = 100;
+
+type MarketplaceRegistryResponse = {
+  services?: ServiceRegistryRecord[];
+};
 
 function parseServiceTimestamp(value?: string | number): number {
   if (typeof value === "number" && Number.isFinite(value)) {
@@ -23,7 +36,8 @@ function parseServiceTimestamp(value?: string | number): number {
 }
 
 function buildServiceFingerprint(service: ServiceRegistryRecord): string {
-  const overallStatus = service.health?.overallStatus || service.status || "unknown";
+  const overallStatus =
+    service.health?.overallStatus || service.status || "unknown";
   const healthyTargets = service.health?.healthyTargets ?? -1;
   const totalTargets = service.health?.totalTargets ?? -1;
 
@@ -42,20 +56,49 @@ function buildServiceFingerprint(service: ServiceRegistryRecord): string {
   });
 }
 
-function selectMostRecentService(rows: ServiceRegistryRecord[]): ServiceRegistryRecord | null {
+function selectMostRecentService(
+  rows: ServiceRegistryRecord[]
+): ServiceRegistryRecord | null {
   if (rows.length === 0) {
     return null;
   }
 
   return rows.reduce<ServiceRegistryRecord>((latest, current) => {
-    const latestTimestamp = Math.max(parseServiceTimestamp(latest.updatedAt), parseServiceTimestamp(latest.createdAt));
-    const currentTimestamp = Math.max(parseServiceTimestamp(current.updatedAt), parseServiceTimestamp(current.createdAt));
+    const latestTimestamp = Math.max(
+      parseServiceTimestamp(latest.updatedAt),
+      parseServiceTimestamp(latest.createdAt)
+    );
+    const currentTimestamp = Math.max(
+      parseServiceTimestamp(current.updatedAt),
+      parseServiceTimestamp(current.createdAt)
+    );
     return currentTimestamp > latestTimestamp ? current : latest;
   }, rows[0]);
 }
 
 function isCallableMarketplaceService(service: ServiceRegistryRecord): boolean {
   return service.isActive !== false && service.runtimeAvailable !== false;
+}
+
+async function fetchMarketplaceRegistryServices(): Promise<
+  ServiceRegistryRecord[]
+> {
+  const response = await fetch(
+    `/marketplace/registry.json?pageSize=${MARKETPLACE_REGISTRY_PAGE_SIZE}`,
+    {
+      cache: "no-store",
+      headers: {
+        Accept: "application/json",
+      },
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`Marketplace registry failed with HTTP ${response.status}`);
+  }
+
+  const payload = (await response.json()) as MarketplaceRegistryResponse;
+  return Array.isArray(payload.services) ? payload.services : [];
 }
 
 export default function MarketplacePage() {
@@ -66,44 +109,54 @@ export default function MarketplacePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTag, setSelectedTag] = useState<string>("all");
   const [page, setPage] = useState(1);
-  const [highlightedServiceId, setHighlightedServiceId] = useState<string | null>(null);
+  const [highlightedServiceId, setHighlightedServiceId] = useState<
+    string | null
+  >(null);
   const [highlightToken, setHighlightToken] = useState(0);
   const previousServicesRef = useRef<Map<string, string>>(new Map());
 
-  const processIncomingRows = useCallback((rows: ServiceRegistryRecord[], triggerHighlight: boolean) => {
-    const nextMap = new Map<string, string>();
-    let changedService: ServiceRegistryRecord | null = null;
-    let changedTimestamp = 0;
+  const processIncomingRows = useCallback(
+    (rows: ServiceRegistryRecord[], triggerHighlight: boolean) => {
+      const nextMap = new Map<string, string>();
+      let changedService: ServiceRegistryRecord | null = null;
+      let changedTimestamp = 0;
 
-    rows.forEach((service) => {
-      const fingerprint = buildServiceFingerprint(service);
-      nextMap.set(service.serviceId, fingerprint);
+      rows.forEach((service) => {
+        const fingerprint = buildServiceFingerprint(service);
+        nextMap.set(service.serviceId, fingerprint);
 
-      const previousFingerprint = previousServicesRef.current.get(service.serviceId);
-      if (!previousFingerprint || previousFingerprint !== fingerprint) {
-        const serviceTimestamp = Math.max(parseServiceTimestamp(service.updatedAt), parseServiceTimestamp(service.createdAt));
-        if (!changedService || serviceTimestamp >= changedTimestamp) {
-          changedService = service;
-          changedTimestamp = serviceTimestamp;
+        const previousFingerprint = previousServicesRef.current.get(
+          service.serviceId
+        );
+        if (!previousFingerprint || previousFingerprint !== fingerprint) {
+          const serviceTimestamp = Math.max(
+            parseServiceTimestamp(service.updatedAt),
+            parseServiceTimestamp(service.createdAt)
+          );
+          if (!changedService || serviceTimestamp >= changedTimestamp) {
+            changedService = service;
+            changedTimestamp = serviceTimestamp;
+          }
         }
+      });
+
+      previousServicesRef.current = nextMap;
+      setServices(rows);
+
+      if (!triggerHighlight) {
+        return;
       }
-    });
 
-    previousServicesRef.current = nextMap;
-    setServices(rows);
+      const candidate = changedService ?? selectMostRecentService(rows);
+      if (!candidate) {
+        return;
+      }
 
-    if (!triggerHighlight) {
-      return;
-    }
-
-    const candidate = changedService ?? selectMostRecentService(rows);
-    if (!candidate) {
-      return;
-    }
-
-    setHighlightedServiceId(candidate.serviceId);
-    setHighlightToken((current) => current + 1);
-  }, []);
+      setHighlightedServiceId(candidate.serviceId);
+      setHighlightToken((current) => current + 1);
+    },
+    []
+  );
 
   useEffect(() => {
     let mounted = true;
@@ -113,7 +166,9 @@ export default function MarketplacePage() {
         if (!silent) {
           setIsLoading(true);
         }
-        const rows = (await discoverServices()).filter(isCallableMarketplaceService);
+        const rows = (await fetchMarketplaceRegistryServices()).filter(
+          isCallableMarketplaceService
+        );
         if (!mounted) {
           return;
         }
@@ -152,8 +207,8 @@ export default function MarketplacePage() {
       services
         .flatMap((service) => service.tags || [])
         .map((tag) => tag.trim())
-        .filter(Boolean),
-    ),
+        .filter(Boolean)
+    )
   ).slice(0, 8);
 
   const normalizedQuery = searchQuery.trim().toLowerCase();
@@ -184,12 +239,21 @@ export default function MarketplacePage() {
 
   const activeCount = filteredServices.length;
   const runtimeReadyCount = services.length;
-  const totalPages = Math.max(1, Math.ceil(filteredServices.length / MARKETPLACE_PAGE_SIZE));
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredServices.length / MARKETPLACE_PAGE_SIZE)
+  );
   const currentPage = Math.min(page, totalPages);
   const startIndex = (currentPage - 1) * MARKETPLACE_PAGE_SIZE;
-  const pageServices = filteredServices.slice(startIndex, startIndex + MARKETPLACE_PAGE_SIZE);
+  const pageServices = filteredServices.slice(
+    startIndex,
+    startIndex + MARKETPLACE_PAGE_SIZE
+  );
   const pageStart = filteredServices.length === 0 ? 0 : startIndex + 1;
-  const pageEnd = Math.min(startIndex + pageServices.length, filteredServices.length);
+  const pageEnd = Math.min(
+    startIndex + pageServices.length,
+    filteredServices.length
+  );
   const canGoPrevious = currentPage > 1;
   const canGoNext = currentPage < totalPages;
 
@@ -263,16 +327,28 @@ export default function MarketplacePage() {
 
             <div className="mt-10 grid gap-4 sm:grid-cols-3">
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/36">{t("marketplacePage.totalServices")}</p>
-                <p className="mt-2 text-3xl font-[760] tracking-[-0.05em] text-white">{services.length}</p>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/36">
+                  {t("marketplacePage.totalServices")}
+                </p>
+                <p className="mt-2 text-3xl font-[760] tracking-[-0.05em] text-white">
+                  {services.length}
+                </p>
               </div>
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/36">{t("marketplacePage.activeServices")}</p>
-                <p className="mt-2 text-3xl font-[760] tracking-[-0.05em] text-white">{activeCount}</p>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/36">
+                  {t("marketplacePage.activeServices")}
+                </p>
+                <p className="mt-2 text-3xl font-[760] tracking-[-0.05em] text-white">
+                  {activeCount}
+                </p>
               </div>
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/36">{t("marketplacePage.runtimeReadyCount")}</p>
-                <p className="mt-2 text-3xl font-[760] tracking-[-0.05em] text-white">{runtimeReadyCount}</p>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/36">
+                  {t("marketplacePage.runtimeReadyCount")}
+                </p>
+                <p className="mt-2 text-3xl font-[760] tracking-[-0.05em] text-white">
+                  {runtimeReadyCount}
+                </p>
               </div>
             </div>
           </div>
@@ -283,7 +359,10 @@ export default function MarketplacePage() {
               {valueProps.map((item, index) => {
                 const Icon = item.icon;
                 return (
-                  <div key={item.title} className="grid grid-cols-[2.75rem_minmax(0,1fr)] gap-4">
+                  <div
+                    key={item.title}
+                    className="grid grid-cols-[2.75rem_minmax(0,1fr)] gap-4"
+                  >
                     <div className="relative">
                       <span className="flex h-11 w-11 items-center justify-center rounded-full border border-[#7ff7be]/18 bg-[#7ff7be]/[0.08] text-[#9af4c8]">
                         <Icon className="h-5 w-5" />
@@ -293,8 +372,12 @@ export default function MarketplacePage() {
                       ) : null}
                     </div>
                     <div className="pb-3">
-                      <h2 className="text-lg font-[720] tracking-[-0.03em] text-white">{item.title}</h2>
-                      <p className="mt-2 text-sm leading-6 text-[#9f9fa7]">{item.body}</p>
+                      <h2 className="text-lg font-[720] tracking-[-0.03em] text-white">
+                        {item.title}
+                      </h2>
+                      <p className="mt-2 text-sm leading-6 text-[#9f9fa7]">
+                        {item.body}
+                      </p>
                     </div>
                   </div>
                 );
@@ -303,7 +386,10 @@ export default function MarketplacePage() {
           </div>
         </section>
 
-        <section id="marketplace-services" className="mt-10 overflow-hidden rounded-[2.4rem] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.045),rgba(255,255,255,0.018))] shadow-[0_36px_120px_rgba(0,0,0,0.24)]">
+        <section
+          id="marketplace-services"
+          className="mt-10 overflow-hidden rounded-[2.4rem] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.045),rgba(255,255,255,0.018))] shadow-[0_36px_120px_rgba(0,0,0,0.24)]"
+        >
           <div className="border-b border-white/8 px-6 py-6 sm:px-8">
             <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
               <div className="max-w-3xl">
@@ -404,7 +490,9 @@ export default function MarketplacePage() {
                   <button
                     type="button"
                     disabled={!canGoNext}
-                    onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
+                    onClick={() =>
+                      setPage((value) => Math.min(totalPages, value + 1))
+                    }
                     className={[
                       "inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition",
                       canGoNext

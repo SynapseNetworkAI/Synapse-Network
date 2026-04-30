@@ -289,7 +289,7 @@ async def discover_services(
     log.info("discovery.complete", result_count=len(public_services))
     return {
         "status": "success",
-        "services": public_services,
+        "services": [row.to_response_dict() if hasattr(row, "to_response_dict") else row for row in public_services],
         "count": len(public_services),
     }
 
@@ -366,7 +366,7 @@ async def discover_health_status(
     service: RegistryService = Depends(get_registry_service),
 ):
     rows = await service.health_status(intent=intent, include_inactive=include_inactive)
-    return {"status": "success", "services": rows, "count": len(rows)}
+    return {"status": "success", "services": [row.to_response_dict() if hasattr(row, "to_response_dict") else row for row in rows], "count": len(rows)}
 
 
 @router.get("/v1/services/{service_record_id}/health/history")
@@ -414,7 +414,7 @@ async def list_services(
 ):
     owner = credential_service.require_owner_wallet(authorization, x_user_address)
     rows = await service.list_owner_services(owner)
-    return {"status": "success", "services": rows}
+    return {"status": "success", "services": [row.to_response_dict() if hasattr(row, "to_response_dict") else row for row in rows]}
 
 
 @router.get("/v1/services/registration-guide")

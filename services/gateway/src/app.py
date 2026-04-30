@@ -31,7 +31,10 @@ from src.services.platform.tasks.provider_withdraw_expiry_reaper import (
 from src.services.platform.tasks.consumer_withdraw_processor import (
     run_consumer_withdraw_processor,
 )
-from src.services.platform.service_health_service import run_service_health_monitor
+from src.services.platform.service_health_service import (
+    mark_service_health_stale_on_startup,
+    run_service_health_monitor,
+)
 from src.services.analytics.emitter import create_analytics_emitter
 from src.services.analytics import gateway_events as gw_analytics
 from src.services.notifications.in_app_cleanup import run_in_app_notification_cleanup
@@ -69,6 +72,14 @@ def _start_background_task(
         )
 
 
+def _mark_provider_health_stale_for_rehydrate(storage) -> None:
+    stale_target_count = mark_service_health_stale_on_startup(storage)
+    logger.info(
+        "Service health startup rehydrate: marked %s target(s) stale before monitor probe.",
+        stale_target_count,
+    )
+
+
 async def _cancel_background_task(
     app: FastAPI,
     *,
@@ -87,6 +98,77 @@ async def _cancel_background_task(
     with suppress(asyncio.CancelledError):
         await task
     logger.info("%s task cancelled during shutdown", label)
+
+
+def _start_gateway_background_workers(app: FastAPI) -> None:
+    _start_background_task(
+        app,
+        enabled=settings.v2_indexer_enabled,
+        stop_attr="v2_indexer_stop_event",
+        task_attr="v2_indexer_task",
+        runner=run_v2_deposit_indexer,
+    )
+    _start_background_task(
+        app,
+        enabled=settings.service_health_monitor_enabled,
+        stop_attr="service_health_stop_event",
+        task_attr="service_health_task",
+        runner=run_service_health_monitor,
+    )
+    _start_background_task(
+        app,
+        enabled=settings.provider_withdraw_expiry_reaper_enabled,
+        stop_attr="provider_withdraw_expiry_reaper_stop_event",
+        task_attr="provider_withdraw_expiry_reaper_task",
+        runner=run_provider_withdraw_expiry_reaper,
+    )
+    _start_background_task(
+        app,
+        enabled=settings.consumer_withdraw_processor_enabled,
+        stop_attr="consumer_withdraw_processor_stop_event",
+        task_attr="consumer_withdraw_processor_task",
+        runner=run_consumer_withdraw_processor,
+    )
+    _start_background_task(
+        app,
+        enabled=settings.in_app_notification_cleanup_enabled,
+        stop_attr="in_app_notification_cleanup_stop_event",
+        task_attr="in_app_notification_cleanup_task",
+        runner=run_in_app_notification_cleanup,
+    )
+
+
+async def _cancel_gateway_background_workers(app: FastAPI) -> None:
+    await _cancel_background_task(
+        app,
+        stop_attr="v2_indexer_stop_event",
+        task_attr="v2_indexer_task",
+        label="V2 indexer",
+    )
+    await _cancel_background_task(
+        app,
+        stop_attr="service_health_stop_event",
+        task_attr="service_health_task",
+        label="Service health",
+    )
+    await _cancel_background_task(
+        app,
+        stop_attr="provider_withdraw_expiry_reaper_stop_event",
+        task_attr="provider_withdraw_expiry_reaper_task",
+        label="Provider withdrawal expiry reaper",
+    )
+    await _cancel_background_task(
+        app,
+        stop_attr="consumer_withdraw_processor_stop_event",
+        task_attr="consumer_withdraw_processor_task",
+        label="Consumer withdrawal processor",
+    )
+    await _cancel_background_task(
+        app,
+        stop_attr="in_app_notification_cleanup_stop_event",
+        task_attr="in_app_notification_cleanup_task",
+        label="In-app notification cleanup",
+    )
 
 
 def _build_deposit_indexer_monitor(task: asyncio.Task | None) -> dict[str, object]:
@@ -198,7 +280,26 @@ def _readiness_snapshot(app: FastAPI) -> dict[str, object]:
         )
     )
 
-    return {"status": "ready" if ready else "degraded", "monitors": monitors}
+    postgres_pool = None
+    storage = getattr(state, "storage", None) if state is not None else None
+    get_database_manager = getattr(storage, "get_database_manager", None)
+    if callable(get_database_manager):
+        with suppress(Exception):
+            postgres_pool_stats = get_database_manager().stats()
+            to_response_dict = getattr(postgres_pool_stats, "to_response_dict", None)
+            postgres_pool = (
+                to_response_dict()
+                if callable(to_response_dict)
+                else postgres_pool_stats
+            )
+
+    snapshot: dict[str, object] = {
+        "status": "ready" if ready else "degraded",
+        "monitors": monitors,
+    }
+    if postgres_pool is not None:
+        snapshot["postgresPool"] = postgres_pool
+    return snapshot
 
 
 @asynccontextmanager
@@ -209,6 +310,7 @@ async def lifespan(app: FastAPI):
     logger.info(
         "Application starting up... Storage Connected (%s).", settings.storage_backend
     )
+    _mark_provider_health_stale_for_rehydrate(storage)
 
     # Initialize analytics emitter
     app.state.analytics = create_analytics_emitter(
@@ -222,82 +324,20 @@ async def lifespan(app: FastAPI):
     )
     gw_analytics.set_emitter(app.state.analytics)
 
-    # Background workers are created through one helper so adding a new worker
-    # does not turn lifespan into a branchy shutdown maze.
-    _start_background_task(
-        app,
-        enabled=settings.v2_indexer_enabled,
-        stop_attr="v2_indexer_stop_event",
-        task_attr="v2_indexer_task",
-        runner=run_v2_deposit_indexer,
-    )
-    _start_background_task(
-        app,
-        enabled=settings.service_health_monitor_enabled,
-        stop_attr="service_health_stop_event",
-        task_attr="service_health_task",
-        runner=run_service_health_monitor,
-    )
-    _start_background_task(
-        app,
-        enabled=settings.provider_withdraw_expiry_reaper_enabled,
-        stop_attr="provider_withdraw_expiry_reaper_stop_event",
-        task_attr="provider_withdraw_expiry_reaper_task",
-        runner=run_provider_withdraw_expiry_reaper,
-    )
-    _start_background_task(
-        app,
-        enabled=settings.consumer_withdraw_processor_enabled,
-        stop_attr="consumer_withdraw_processor_stop_event",
-        task_attr="consumer_withdraw_processor_task",
-        runner=run_consumer_withdraw_processor,
-    )
-    _start_background_task(
-        app,
-        enabled=settings.in_app_notification_cleanup_enabled,
-        stop_attr="in_app_notification_cleanup_stop_event",
-        task_attr="in_app_notification_cleanup_task",
-        runner=run_in_app_notification_cleanup,
-    )
+    _start_gateway_background_workers(app)
 
     yield
     # Cleanup on shutdown
     logger.info("Application shutting down...")
-    await _cancel_background_task(
-        app,
-        stop_attr="v2_indexer_stop_event",
-        task_attr="v2_indexer_task",
-        label="V2 indexer",
-    )
-    await _cancel_background_task(
-        app,
-        stop_attr="service_health_stop_event",
-        task_attr="service_health_task",
-        label="Service health",
-    )
-    await _cancel_background_task(
-        app,
-        stop_attr="provider_withdraw_expiry_reaper_stop_event",
-        task_attr="provider_withdraw_expiry_reaper_task",
-        label="Provider withdrawal expiry reaper",
-    )
-    await _cancel_background_task(
-        app,
-        stop_attr="consumer_withdraw_processor_stop_event",
-        task_attr="consumer_withdraw_processor_task",
-        label="Consumer withdrawal processor",
-    )
-    await _cancel_background_task(
-        app,
-        stop_attr="in_app_notification_cleanup_stop_event",
-        task_attr="in_app_notification_cleanup_task",
-        label="In-app notification cleanup",
-    )
+    await _cancel_gateway_background_workers(app)
 
     # Cleanup analytics
     if hasattr(app.state, "analytics"):
         await app.state.analytics._backend.close()
     await close_upstream_http_client()
+    storage_close = getattr(getattr(app.state, "storage", None), "close", None)
+    if callable(storage_close):
+        storage_close()
 
 
 def create_app() -> FastAPI:

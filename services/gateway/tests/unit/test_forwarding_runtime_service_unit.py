@@ -36,6 +36,13 @@ from src.services.provider.registry_service import RegistryService
 from tests.unit.credential_auth_test_helper import InMemoryCredentialAuthRepository
 
 
+@pytest.fixture(autouse=True)
+def clear_memory_rate_limit_counters():
+    forwarding_budget._memory_window_counters.clear()
+    yield
+    forwarding_budget._memory_window_counters.clear()
+
+
 class InMemoryBalanceRepo:
     def __init__(self) -> None:
         self.ledger = BalanceLedger()

@@ -7,19 +7,24 @@ from typing import cast
 import pytest
 
 from src.core.scheduling import compute_stable_offset_ms, is_due_with_stable_jitter
+from src.domain.registry import ServiceTargetHealth
 from src.domain.service_contract import (
     ServiceHealthTargetRecord,
     ServiceRuntimeHealthRecord,
 )
-from src.services.platform import service_health_service, service_health_probe
+from src.services.platform import (
+    service_health_service,
+    service_health_probe,
+    service_health_refresh_plan,
+)
 from src.storage.base import BaseStorage
 from tests.unit.registry_test_helper import service_definition
 
 
 class InMemoryRegistryRepo:
-    def __init__(self, services):
+    def __init__(self, services, persisted_health_rows=None):
         self._services = list(services)
-        self.persisted_health_rows = []
+        self.persisted_health_rows = list(persisted_health_rows or [])
 
     def read_service_registry_rows(self):
         return list(self._services)
@@ -35,8 +40,8 @@ class InMemoryRegistryRepo:
 
 
 class FakeStorage:
-    def __init__(self, services):
-        self.registry = InMemoryRegistryRepo(services)
+    def __init__(self, services, persisted_health_rows=None):
+        self.registry = InMemoryRegistryRepo(services, persisted_health_rows)
         self.data_manager = SimpleNamespace(
             system=SimpleNamespace(
                 registry=self.registry,
@@ -45,6 +50,98 @@ class FakeStorage:
 
     def get_data_manager(self):
         return self.data_manager
+
+
+def test_startup_marks_registered_targets_stale_without_rewriting_manifests() -> None:
+    service = service_definition(
+        "startup_stale_service",
+        runtime_health=ServiceRuntimeHealthRecord(
+            overallStatus="healthy",
+            healthyTargets=1,
+            totalTargets=1,
+            lastCheckedAt=1773982497000,
+            targets=[
+                ServiceHealthTargetRecord(
+                    targetUrl="https://startup_stale_service.test/invoke",
+                    status="healthy",
+                    lastCheckedAt=1773982497000,
+                    lastHealthyAt=1773982497000,
+                )
+            ],
+        ),
+    )
+    storage = FakeStorage([service])
+
+    count = service_health_service.mark_service_health_stale_on_startup(
+        cast(BaseStorage, storage)
+    )
+
+    assert count == 1
+    assert storage.registry.read_service_registry_rows()[0].service_id == "startup_stale_service"
+    assert storage.registry.persisted_health_rows[0].service_id == "startup_stale_service"
+    assert storage.registry.persisted_health_rows[0].status == "unknown"
+    assert storage.registry.persisted_health_rows[0].overall_status == "stale"
+    assert storage.registry.persisted_health_rows[0].last_checked_at is None
+    assert storage.registry.persisted_health_rows[0].last_healthy_at is None
+
+
+def test_seeded_startup_stale_snapshot_is_not_discoverable() -> None:
+    service = service_definition("startup_stale_service")
+    storage = FakeStorage(
+        [service],
+        persisted_health_rows=[
+            ServiceTargetHealth(
+                serviceId="startup_stale_service",
+                ownerAddress="0xprovider",
+                targetUrl="https://startup_stale_service.test/invoke",
+                status="unknown",
+                overallStatus="stale",
+            )
+        ],
+    )
+
+    seeded = service_health_service.seed_service_health_from_persisted_rows(
+        cast(BaseStorage, storage),
+        [service],
+    )[0]
+
+    assert service_health_service.effective_runtime_status(seeded) == "stale"
+    assert not service_health_service.is_service_discoverable(seeded)
+
+
+def test_probe_target_status_is_fail_closed_without_threshold_grace() -> None:
+    target = SimpleNamespace(url="https://provider.test/invoke", weight=100, region=None)
+    previous = ServiceHealthTargetRecord(
+        targetUrl="https://provider.test/invoke",
+        status="healthy",
+        consecutiveSuccesses=10,
+        consecutiveFailures=0,
+        lastHealthyAt=1773982497000,
+    )
+
+    failed = service_health_probe._merge_target_health(
+        previous,
+        target,
+        {"healthy": False, "httpStatus": 500, "latencyMs": 12, "error": None},
+        1773982500000,
+        2,
+        3,
+        "https://provider.test/health",
+    )
+    recovered = service_health_probe._merge_target_health(
+        failed,
+        target,
+        {"healthy": True, "httpStatus": 200, "latencyMs": 8, "error": None},
+        1773982510000,
+        2,
+        3,
+        "https://provider.test/health",
+    )
+
+    assert failed.status == "unhealthy"
+    assert failed.consecutive_failures == 1
+    assert recovered.status == "healthy"
+    assert recovered.consecutive_successes == 1
 
 
 @pytest.mark.asyncio
@@ -249,6 +346,9 @@ async def test_refresh_all_service_health_slow_lane_skips_until_interval_is_due(
 
     monkeypatch.setattr(service_health_probe, "probe_service_health", _probe)
     monkeypatch.setattr(service_health_probe, "_now_ms", lambda: last_checked_at + 120_000)
+    monkeypatch.setattr(
+        service_health_refresh_plan, "_now_ms", lambda: last_checked_at + 120_000
+    )
     monkeypatch.setattr(service_health_probe, "_should_prune_history", lambda now_ms: False)
     monkeypatch.setattr(service_health_service.settings, "service_health_history_enabled", False)
     monkeypatch.setattr(service_health_service.settings, "service_health_probe_interval_sec", 15)
@@ -326,6 +426,9 @@ async def test_refresh_all_service_health_slow_lane_probes_after_interval_is_due
 
     monkeypatch.setattr(service_health_probe, "probe_service_health", _healthy_probe)
     monkeypatch.setattr(service_health_probe, "_now_ms", lambda: last_checked_at + 301_000)
+    monkeypatch.setattr(
+        service_health_refresh_plan, "_now_ms", lambda: last_checked_at + 301_000
+    )
     monkeypatch.setattr(service_health_probe, "_should_prune_history", lambda now_ms: False)
     monkeypatch.setattr(service_health_service.settings, "service_health_history_enabled", False)
     monkeypatch.setattr(service_health_service.settings, "service_health_slow_lane_after_sec", 1800)
@@ -379,6 +482,9 @@ async def test_refresh_all_service_health_suspended_uses_slow_lane_interval(
 
     monkeypatch.setattr(service_health_probe, "probe_service_health", _probe)
     monkeypatch.setattr(service_health_probe, "_now_ms", lambda: last_checked_at + 120_000)
+    monkeypatch.setattr(
+        service_health_refresh_plan, "_now_ms", lambda: last_checked_at + 120_000
+    )
     monkeypatch.setattr(service_health_probe, "_should_prune_history", lambda now_ms: False)
     monkeypatch.setattr(service_health_service.settings, "service_health_history_enabled", False)
     monkeypatch.setattr(service_health_service.settings, "service_health_jitter_enabled", False)
@@ -545,6 +651,7 @@ async def test_refresh_all_service_health_skips_fresh_rows_before_probe_queue(
 
     monkeypatch.setattr(service_health_probe, "probe_service_health", _probe)
     monkeypatch.setattr(service_health_probe, "_now_ms", lambda: now_ms)
+    monkeypatch.setattr(service_health_refresh_plan, "_now_ms", lambda: now_ms)
     monkeypatch.setattr(service_health_probe, "_should_prune_history", lambda now_ms: False)
     monkeypatch.setattr(service_health_service.settings, "service_health_history_enabled", False)
     monkeypatch.setattr(service_health_service.settings, "service_health_jitter_enabled", False)
@@ -557,6 +664,50 @@ async def test_refresh_all_service_health_skips_fresh_rows_before_probe_queue(
     assert result["scheduled"] == 1
     assert result["jitterSkipped"] == 1
     assert probed == ["due_service"]
+
+
+@pytest.mark.asyncio
+async def test_refresh_all_service_health_spreads_startup_rehydrate_window(
+    monkeypatch,
+) -> None:
+    now_ms = 1773982500000
+    storage = FakeStorage([service_definition("rehydrate_service")])
+    probed: list[str] = []
+
+    async def _probe(service, client=None):
+        probed.append(str(service.service_id))
+        return service
+
+    monkeypatch.setattr(service_health_probe, "probe_service_health", _probe)
+    monkeypatch.setattr(service_health_probe, "_now_ms", lambda: now_ms)
+    monkeypatch.setattr(service_health_refresh_plan, "_now_ms", lambda: now_ms)
+    monkeypatch.setattr(
+        service_health_refresh_plan,
+        "compute_stable_offset_ms",
+        lambda key, window_ms: 10_000,
+    )
+    monkeypatch.setattr(service_health_probe, "_should_prune_history", lambda now_ms: False)
+    monkeypatch.setattr(service_health_service.settings, "service_health_history_enabled", False)
+    monkeypatch.setattr(service_health_service.settings, "service_health_jitter_enabled", False)
+    monkeypatch.setattr(service_health_service.settings, "service_health_rehydrate_window_sec", 120)
+
+    result = await service_health_service.refresh_all_service_health(
+        cast(BaseStorage, storage),
+        startup_started_at_ms=now_ms,
+    )
+
+    assert result["scheduled"] == 0
+    assert result["rehydrateSkipped"] == 1
+    assert probed == []
+
+    result = await service_health_service.refresh_all_service_health(
+        cast(BaseStorage, storage),
+        startup_started_at_ms=now_ms - 10_000,
+    )
+
+    assert result["scheduled"] == 1
+    assert result["rehydrateSkipped"] == 0
+    assert probed == ["rehydrate_service"]
 
 
 @pytest.mark.asyncio
@@ -619,6 +770,7 @@ async def test_refresh_all_service_health_prioritizes_recent_missing_health_unde
     monkeypatch.setenv("SERVICE_HEALTH_MAX_CANDIDATES_PER_TICK", "1")
     monkeypatch.setattr(service_health_probe, "probe_service_health", _probe)
     monkeypatch.setattr(service_health_probe, "_now_ms", lambda: now_ms)
+    monkeypatch.setattr(service_health_refresh_plan, "_now_ms", lambda: now_ms)
     monkeypatch.setattr(service_health_probe, "_should_prune_history", lambda now_ms: False)
     monkeypatch.setattr(service_health_service.settings, "service_health_history_enabled", False)
     monkeypatch.setattr(service_health_service.settings, "service_health_jitter_enabled", False)

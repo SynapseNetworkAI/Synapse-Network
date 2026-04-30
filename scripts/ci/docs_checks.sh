@@ -21,6 +21,7 @@ fi
 echo "[ci:docs] validating documentation constraints"
 
 node "$ROOT_DIR/scripts/ci/validate_docs.js"
+node "$ROOT_DIR/scripts/ci/seo_public_assets_check.mjs"
 
 echo "[ci:docs] checking public SDK docs stay staging-first"
 if grep -RInE \

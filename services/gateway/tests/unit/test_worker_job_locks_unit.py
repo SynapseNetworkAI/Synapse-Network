@@ -16,6 +16,14 @@ from src.services.platform.tasks import consumer_withdraw_processor
 from src.services.platform.tasks import provider_withdraw_expiry_reaper
 
 
+class _ClosableStorage:
+    def __init__(self) -> None:
+        self.closed = False
+
+    def close(self) -> None:
+        self.closed = True
+
+
 class _FakeCursor:
     def __init__(self, acquired: bool) -> None:
         self._acquired = acquired
@@ -266,6 +274,37 @@ async def test_worker_one_shot_job_skip_returns_success(monkeypatch, caplog) -> 
     assert "alert_trigger=GATEWAY_JOB_HEARTBEAT" in caplog.text
     assert "job_name=provider-withdraw-reaper" in caplog.text
     assert "status=skipped_already_running" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_worker_closes_storage_after_one_shot(monkeypatch) -> None:
+    storage = _ClosableStorage()
+
+    async def fake_drain(_storage):
+        return {"claimed": 0, "sent": 0, "failed": 0, "quotaDeferred": 0}
+
+    monkeypatch.setattr(gateway_worker, "create_storage", lambda settings: storage)
+    monkeypatch.setattr(gateway_worker, "drain_notification_outbox_once", fake_drain)
+
+    exit_code = await gateway_worker._run(
+        argparse.Namespace(command="notification-outbox", once=True, poll_interval_sec=1.0)
+    )
+
+    assert exit_code == 0
+    assert storage.closed is True
+
+
+@pytest.mark.asyncio
+async def test_worker_closes_storage_after_failure(monkeypatch) -> None:
+    storage = _ClosableStorage()
+    monkeypatch.setattr(gateway_worker, "create_storage", lambda settings: storage)
+
+    with pytest.raises(ValueError):
+        await gateway_worker._run(
+            argparse.Namespace(command="unknown", once=False, poll_interval_sec=1.0)
+        )
+
+    assert storage.closed is True
 
 
 @pytest.mark.asyncio

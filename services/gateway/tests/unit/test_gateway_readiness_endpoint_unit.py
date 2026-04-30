@@ -43,7 +43,20 @@ def _readiness_http_client(
     task_overrides: dict[str, object] | None = None,
     indexer_status_overrides: dict[str, object] | None = None,
 ):
-    fake_storage = SimpleNamespace()
+    fake_db = SimpleNamespace(
+        stats=lambda: {
+            "poolMax": 5,
+            "poolAvailable": 1,
+            "poolSize": 1,
+            "requestsWaiting": 0,
+            "closed": False,
+        }
+    )
+    fake_storage = SimpleNamespace(
+        closed=False,
+        close=lambda: setattr(fake_storage, "closed", True),
+        get_database_manager=lambda: fake_db,
+    )
     monkeypatch.setattr(gateway_app, "create_storage", lambda settings: fake_storage)
 
     patches = DEFAULT_TASK_PATCHES.copy()
@@ -78,16 +91,24 @@ def _readiness_http_client(
 
     app = gateway_app.create_app()
     with TestClient(app, base_url="https://gateway.test") as client:
-        yield client
+        yield client, fake_storage
 
 
 def test_readiness_reports_initialized_monitors(monkeypatch) -> None:
-    with _readiness_http_client(monkeypatch) as client:
+    with _readiness_http_client(monkeypatch) as (client, storage):
         response = client.get("/readiness")
 
+    assert storage.closed is True
     assert response.status_code == 200
     payload = response.json()
     assert payload["status"] == "ready"
+    assert payload["postgresPool"] == {
+        "poolMax": 5,
+        "poolAvailable": 1,
+        "poolSize": 1,
+        "requestsWaiting": 0,
+        "closed": False,
+    }
     monitors = payload["monitors"]
     assert monitors["deposit_indexer"]["enabled"] is True
     assert monitors["deposit_indexer"]["initialized"] is True
@@ -110,7 +131,7 @@ def test_readiness_marks_disabled_monitors(monkeypatch) -> None:
         "provider_withdraw_expiry_reaper_enabled": False,
         "consumer_withdraw_processor_enabled": False,
     }
-    with _readiness_http_client(monkeypatch, settings_overrides=overrides) as client:
+    with _readiness_http_client(monkeypatch, settings_overrides=overrides) as (client, _storage):
         response = client.get("/readiness")
 
     assert response.status_code == 200
@@ -142,7 +163,7 @@ def test_readiness_flags_degraded_when_enabled_task_missing(monkeypatch) -> None
     with _readiness_http_client(
         monkeypatch,
         task_overrides={"run_v2_deposit_indexer": _completed_immediately},
-    ) as client:
+    ) as (client, _storage):
         response = client.get("/readiness")
 
     assert response.status_code == 503
@@ -161,7 +182,7 @@ def test_readiness_flags_stale_deposit_indexer_heartbeat(monkeypatch) -> None:
             "heartbeatAt": int(time.time()) - 120,
             "staleAfterSec": 60,
         },
-    ) as client:
+    ) as (client, _storage):
         response = client.get("/readiness")
 
     assert response.status_code == 503
@@ -182,7 +203,7 @@ def test_readiness_flags_timed_out_deposit_indexer_step(monkeypatch) -> None:
             "lastError": "INDEXER_STEP_TIMEOUT",
             "consecutiveFailures": 1,
         },
-    ) as client:
+    ) as (client, _storage):
         response = client.get("/readiness")
 
     assert response.status_code == 503
@@ -200,7 +221,7 @@ def test_metrics_requires_configured_token(monkeypatch) -> None:
             "metrics_basic_username": "",
             "metrics_basic_password": "",
         },
-    ) as client:
+    ) as (client, _storage):
         response = client.get("/metrics")
 
     assert response.status_code == 503
@@ -215,7 +236,7 @@ def test_metrics_requires_internal_authorization(monkeypatch) -> None:
             "metrics_basic_username": "",
             "metrics_basic_password": "",
         },
-    ) as client:
+    ) as (client, _storage):
         forbidden = client.get("/metrics")
         allowed = client.get(
             "/metrics",

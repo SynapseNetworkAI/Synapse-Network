@@ -60,3 +60,7 @@ class BaseStorage(ABC):
     @abstractmethod
     def get_data_manager(self) -> SynapseDataManager:
         pass
+
+    def close(self) -> None:
+        """Release storage resources before process shutdown."""
+        return None

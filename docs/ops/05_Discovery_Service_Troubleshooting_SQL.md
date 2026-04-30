@@ -218,6 +218,7 @@ ORDER BY ep.is_primary DESC, ep.created_at ASC;
 
 1. 先确认 Provider 是否实现了 `/health`
 2. 确认该 `/health` 从 Gateway 进程所在环境可访问
+3. Gateway 重启后会把所有 target 先标记为 `stale`，必须等新一轮 `/health` 返回 200 后才重新进入 Discovery
 
 ### 5.4 Health Monitor 刷新被外键卡死，导致 Discovery 因 stale health 归零
 
@@ -238,14 +239,15 @@ ORDER BY ep.is_primary DESC, ep.created_at ASC;
 1. `health.overallStatus` 现在已经和 discovery 共享同一套有效状态语义
 2. 如果最近一次探活本身是健康的，但已经超出 stale window，会显示为 `probeStatus = healthy`、`overallStatus = stale`
 3. `runtimeAvailable` 是 Agent 真正能不能发现/调用到该 service 的最终开关
+4. Gateway 启动时会 fail closed：即使重启前 snapshot 是 healthy，也会先写成 `stale`，再通过限流 worker pool 平滑探活恢复
 
 建议动作：
 
 1. 先看 Gateway 日志里是否存在 manifest delete/update 被外键阻断的报错
 2. 确认健康刷新只更新 `synapse_service_health_snapshots` 与 runtime health 元数据，不要全表重写 manifest
 3. 修复后重新触发一次 health refresh，再验证 `/api/v1/services/discover` 是否恢复
-3. 如需自定义探测路径，在 service manifest 的 `healthCheck.path` 中显式配置
-4. 等待至少达到 healthy 阈值后，再重新访问 `/api/v1/services/discover`
+4. 如需自定义探测路径，在 service manifest 的 `healthCheck.path` 中显式配置
+5. 等待 `/health` 新探针返回 200 后，再重新访问 `/api/v1/services/discover`
 
 ## 6. 排查顺序
 
@@ -264,3 +266,5 @@ Discovery 页空，不等于数据库没有数据；更常见的是：
 **Service 已注册，但还没有通过“在线可发现”门禁。**
 
 在 Synapse 里，`registered` 和 `discoverable` 不是同一个状态。前者只代表配置落库，后者代表该服务在当前时刻真的可以被 Agent 安全发现并路由调用。
+
+Gateway 重启后的短暂空列表是安全设计：所有服务先 `stale`，然后按 `SERVICE_HEALTH_MAX_CONCURRENCY`、`SERVICE_HEALTH_REHYDRATE_WINDOW_SEC` 和 stable jitter 平滑探活。不要把 `marketplace.total=0` 直接解读为注册丢失；必须同时查看 `registeredServices / discoverableServices / staleServices / unavailableServices`。
