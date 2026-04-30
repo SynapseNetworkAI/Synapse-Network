@@ -12,11 +12,32 @@ Core idea:
 - Off-chain speed gateway for real-time billing and routing
 - Credential-based API access for high-frequency AI-to-AI calls
 
+## Public Developer Entry
+
+Current public preview integrations should start on staging:
+
+- App docs: `https://staging.synapse-network.ai/docs/sdk`
+- Gateway: `https://api-staging.synapse-network.ai`
+- Chain: Arbitrum Sepolia testnet
+- Asset: MockUSDC for integration testing, not production USDC
+- Agent runtime credential: `SYNAPSE_AGENT_KEY=agt_xxx`
+
+Recommended developer flow:
+
+1. Connect a wallet in the staging Gateway Dashboard.
+2. Generate or issue an Agent Key.
+3. Use the official SDK or MCP server with `SYNAPSE_AGENT_KEY`.
+4. Run a fixed-price API invoke with the discovered string price.
+5. Run a token-metered LLM invoke with optional `maxCostUsdc`.
+6. Read the invocation receipt and verify settlement metadata.
+
+Production examples remain reserved until production DNS, contracts, gateway health, and public docs deployment are verified.
+
 ## What This Repo Contains
 
 This repository includes:
 
-- Smart contracts and local-chain tooling (Hardhat)
+- Smart contracts and contributor chain tooling
 - Python provider gateway (FastAPI) and SDK
 - Frontend console (Next.js)
 - Structured architecture and product documentation
@@ -45,7 +66,7 @@ Synapse-Network/
 ├── docs/ # 原 doc/
 ├── tools/ # 运维/开发脚本（原 scripts/）
 
-## Quick Start (Local)
+## Contributor/Internal Local Development
 
 ### 1) One-command local environment
 

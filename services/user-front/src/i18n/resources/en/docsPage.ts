@@ -259,7 +259,7 @@ const docsPage: I18nMessages["docsPage"] = {
     "The minimum onboarding contract is only service name, endpoint URL, base price, and model-facing description. The SDK fills the current gateway defaults so you do not handcraft manifest internals.",
     "Registration success should be verified from the owner-scoped /api/v1/services list first. Public discovery can lag behind because health and indexing are separate concerns.",
     "Provider revenue lands in providerReceivable after settlement. Use the balance read to confirm that traffic is monetizing before you automate withdrawals.",
-    "Withdrawal is still a control-plane API flow today. Reuse the JWT from step 1 and create a provider withdrawal intent when the receivable balance is ready.",
+    "Withdrawal is an owner-scoped provider control-plane flow. Reuse the JWT from step 1 through the SDK provider withdrawal helper when the receivable balance is ready.",
   ],
   providerStepTips: [
     "The JWT remains valid for 24 hours and is reused across service registration, updates, and balance reads.",
@@ -267,7 +267,7 @@ const docsPage: I18nMessages["docsPage"] = {
     "The SDK auto-fills serviceId, minimal schemas, gateway_signed auth, /health probing, payout account, and governance acknowledgements.",
     "Treat owner-scoped list + getProviderServiceStatus as the source of truth. Do not use public discover visibility as your registration success check.",
     "providerReceivable is already net of platform fees. It is the number to watch if you want to know whether your service is actually printing.",
-    "The current SDK does not wrap provider withdrawals yet, so use the raw withdrawal intent API with the JWT until the helper lands.",
+    "The SDK wraps provider withdrawal capability, intent creation, and withdrawal listing with named result objects.",
   ],
   providerRegistrationInputsTitle: "Minimum fields you must supply",
   providerRegistrationInputs: [
@@ -420,7 +420,7 @@ const docsPage: I18nMessages["docsPage"] = {
     "Synapse ships Public Preview TypeScript and Python SDKs. Both cover owner onboarding, credential lifecycle, provider lifecycle, service discovery, price-asserted invoke, receipts, and core finance observability helpers.",
   sdkStagingDocsTitle: "Staging docs are live",
   sdkStagingDocsDescription:
-    "Use staging as the public preview runbook. The SDK README is the compact package entrypoint; these pages walk through owner wallet auth, JWT, agent credential issuance, runtime discovery, invoke, and receipt checks.",
+    "Use staging as the public preview runbook. Staging runs on Arbitrum Sepolia with MockUSDC test assets; these pages walk through owner wallet auth, Agent Key issuance, runtime discovery, invoke, and receipt checks.",
   sdkStagingDocsLinkLabels: [
     "SDK Hub",
     "Python staging runbook",
@@ -434,6 +434,7 @@ const docsPage: I18nMessages["docsPage"] = {
   sdkAgentQuickstartSteps: [
     "Gateway Dashboard -> Connect Wallet -> Generate Agent Key",
     "Use SynapseClient with the agt_xxx key",
+    "Keep SYNAPSE_ENV=staging and use MockUSDC for paid test calls",
     "Search free services first when balance is unknown",
     "Always pass the discovered price and an idempotency key",
   ],
@@ -664,7 +665,7 @@ const docsPage: I18nMessages["docsPage"] = {
   contractsEyebrow: "Smart Contracts",
   contractsTitle: "Smart Contracts",
   contractsDescription:
-    "Contracts are organized across Local, Staging, and Production environments. Local is for development, Staging maps to Arbitrum Sepolia, and Production targets Arbitrum One.",
+    "Public contract docs expose Staging and Production only. Staging maps to Arbitrum Sepolia with MockUSDC test assets, and Production targets Arbitrum One after launch.",
   contractsCurrentEnv: "Current runtime environment",
   contractsCurrentEnvTag: "Current environment",
   contractsCoreTitle: "SynapseCore",
@@ -672,7 +673,7 @@ const docsPage: I18nMessages["docsPage"] = {
     "The main settlement contract holds USDC deposits in escrow and processes withdrawals. The gateway keeps the offchain ledger and only touches the chain during deposit or withdraw operations.",
   contractsCoreVerified: "Verified source is available on the block explorer.",
   contractsLocalExplorerHint:
-    "Local network, no public block explorer available.",
+    "No public block explorer available.",
   contractsNotDeployed: "Not deployed yet — update this address before launch.",
   contractsSourceTip:
     "Contract source is tracked in GitHub. Once staging or production deployments are verified on Arbiscan, the explorer links will expose full Solidity source.",
@@ -703,16 +704,16 @@ const docsPage: I18nMessages["docsPage"] = {
   ],
   contractsMockTitle: "MockUSDC",
   contractsMockDescription:
-    "Test ERC-20 token for development flows. Any address can mint test funds. Production uses Circle USDC with 6 decimals.",
+    "Test ERC-20 token for staging integration flows. Production uses Circle USDC with 6 decimals.",
   contractsMockInfoTitles: ["Symbol", "Decimals", "Mint", "Burn"],
   contractsMockInfoValues: [
     "USDC (Mock)",
     "18 (testnet) / 6 (mainnet)",
-    "Public — any address can mint",
+    "Staging test asset",
     "Owner only",
   ],
   contractsMockWarning:
-    "MockUSDC is for development only. Switch to real USDC and 6 decimals before production rollout.",
+    "MockUSDC is for staging tests only. Switch to real USDC and 6 decimals before production rollout.",
   contractsAbiTitle: "Get ABI / inspect source",
   contractsAbiDescription:
     "ABI artifacts live under artifacts/contracts/ and can be imported directly. Once deployments are verified, use the block explorer links to inspect onchain source.",
