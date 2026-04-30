@@ -132,15 +132,20 @@ async def _run_long_lived_worker(args: argparse.Namespace, storage) -> bool:
 
 async def _run(args: argparse.Namespace) -> int:
     storage = create_storage(settings)
-    if args.once and args.command in _ONCE_COMMANDS:
-        log_name, handler = _ONCE_COMMANDS[args.command]
-        result = await handler(storage)
-        logger.info(log_name, extra=result)
-        print(result)
-        return 0
-    if await _run_long_lived_worker(args, storage):
-        return 0
-    raise ValueError
+    try:
+        if args.once and args.command in _ONCE_COMMANDS:
+            log_name, handler = _ONCE_COMMANDS[args.command]
+            result = await handler(storage)
+            logger.info(log_name, extra=result)
+            print(result)
+            return 0
+        if await _run_long_lived_worker(args, storage):
+            return 0
+        raise ValueError
+    finally:
+        close = getattr(storage, "close", None)
+        if callable(close):
+            close()
 
 
 def main() -> int:

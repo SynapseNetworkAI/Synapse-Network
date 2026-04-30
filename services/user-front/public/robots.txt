@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+
+Disallow: /dashboard/
+Disallow: /provider/
+Disallow: /api/
+Disallow: /_next/data/
+
+Sitemap: https://synapse-network.ai/sitemap.xml

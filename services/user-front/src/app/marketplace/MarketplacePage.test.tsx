@@ -1,7 +1,11 @@
 // @vitest-environment jsdom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createElement, type AnchorHTMLAttributes, type ReactNode } from "react";
+import {
+  createElement,
+  type AnchorHTMLAttributes,
+  type ReactNode,
+} from "react";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
@@ -10,31 +14,24 @@ import { LanguageProvider } from "@/components/i18n/LanguageProvider";
 import { I18N_STORAGE_KEY } from "@/i18n/config";
 import type { ServiceRegistryRecord } from "@/utils/serviceApi";
 
-const { discoverServicesMock } = vi.hoisted(() => ({
-  discoverServicesMock: vi.fn(),
-}));
-
 vi.mock("next/link", () => ({
   default: ({
     children,
     href,
     ...props
-  }: AnchorHTMLAttributes<HTMLAnchorElement> & { children: ReactNode; href: string }) => (
+  }: AnchorHTMLAttributes<HTMLAnchorElement> & {
+    children: ReactNode;
+    href: string;
+  }) => (
     <a href={href} {...props}>
       {children}
     </a>
   ),
 }));
 
-vi.mock("@/utils/serviceApi", async () => {
-  const actual = await vi.importActual<typeof import("@/utils/serviceApi")>("@/utils/serviceApi");
-  return {
-    ...actual,
-    discoverServices: discoverServicesMock,
-  };
-});
-
-function buildService(overrides: Partial<ServiceRegistryRecord> = {}): ServiceRegistryRecord {
+function buildService(
+  overrides: Partial<ServiceRegistryRecord> = {}
+): ServiceRegistryRecord {
   return {
     id: "svc-ocr",
     name: "Invoice OCR",
@@ -48,18 +45,35 @@ function buildService(overrides: Partial<ServiceRegistryRecord> = {}): ServiceRe
     isActive: true,
     status: "active",
     runtimeAvailable: true,
-    summary: "Extract line items and totals from invoices for autonomous finance workflows.",
+    summary:
+      "Extract line items and totals from invoices for autonomous finance workflows.",
     tags: ["finance", "ocr"],
-    metering: { billingUnit: "per_call", billOnError: false, billableStatusClasses: [2] },
+    metering: {
+      billingUnit: "per_call",
+      billOnError: false,
+      billableStatusClasses: [2],
+    },
     createdAt: "2026-03-21T00:00:00.000Z",
     updatedAt: "2026-03-22T00:00:00.000Z",
     ...overrides,
   };
 }
 
+function mockRegistryResponse(services: ServiceRegistryRecord[]): void {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ services }),
+    })
+  );
+}
+
 describe("MarketplacePage", () => {
   afterEach(() => {
     cleanup();
+    vi.unstubAllGlobals();
   });
 
   beforeEach(() => {
@@ -68,7 +82,7 @@ describe("MarketplacePage", () => {
   });
 
   it("renders a user-facing product marketplace without debug feed copy", async () => {
-    discoverServicesMock.mockResolvedValue([
+    mockRegistryResponse([
       buildService(),
       buildService({
         id: "svc-unavailable",
@@ -79,21 +93,32 @@ describe("MarketplacePage", () => {
       }),
     ]);
 
-    render(createElement(LanguageProvider, null, createElement(MarketplacePage)));
+    render(
+      createElement(LanguageProvider, null, createElement(MarketplacePage))
+    );
 
     expect(await screen.findByText("Invoice OCR")).toBeTruthy();
     expect(screen.getByText("Agent API Marketplace")).toBeTruthy();
     expect(screen.getByText("Ready to call")).toBeTruthy();
     expect(screen.getByText("0.08 USDC")).toBeTruthy();
-    expect(screen.getByRole("link", { name: /Use this service/i }).getAttribute("href")).toBe("/dashboard/discovery");
+    expect(
+      screen
+        .getByRole("link", { name: /Use this service/i })
+        .getAttribute("href")
+    ).toBe("/dashboard/discovery");
     expect(screen.queryByText("Paused OCR")).toBeNull();
 
     await waitFor(() => {
-      expect(discoverServicesMock).toHaveBeenCalledWith();
+      expect(fetch).toHaveBeenCalledWith(
+        "/marketplace/registry.json?pageSize=100",
+        expect.objectContaining({ cache: "no-store" })
+      );
     });
 
     const visibleCopy = document.body.textContent || "";
-    expect(visibleCopy).not.toMatch(/machine-readable|json feed|copy feed|copy endpoint|endpoint|serviceId|auth|method/i);
+    expect(visibleCopy).not.toMatch(
+      /machine-readable|json feed|copy feed|copy endpoint|endpoint|serviceId|auth|method/i
+    );
   });
 
   it("renders callable services as a paginated list and resets to page one after search", async () => {
@@ -108,7 +133,7 @@ describe("MarketplacePage", () => {
         tags: itemNumber === 12 ? ["settlement"] : ["finance"],
       });
     });
-    discoverServicesMock.mockResolvedValue([
+    mockRegistryResponse([
       ...rows,
       buildService({
         id: "svc-inactive",
@@ -126,7 +151,9 @@ describe("MarketplacePage", () => {
       }),
     ]);
 
-    render(createElement(LanguageProvider, null, createElement(MarketplacePage)));
+    render(
+      createElement(LanguageProvider, null, createElement(MarketplacePage))
+    );
 
     expect(await screen.findByText("Callable OCR 01")).toBeTruthy();
     expect(screen.getByText("Callable OCR 10")).toBeTruthy();
@@ -141,7 +168,10 @@ describe("MarketplacePage", () => {
     expect(screen.queryByText("Callable OCR 01")).toBeNull();
     expect(screen.getByText("Showing 11-12 of 12")).toBeTruthy();
 
-    await userEvent.type(screen.getByPlaceholderText("Search services, use cases, or tags..."), "12");
+    await userEvent.type(
+      screen.getByPlaceholderText("Search services, use cases, or tags..."),
+      "12"
+    );
     expect(await screen.findByText("Callable OCR 12")).toBeTruthy();
     expect(screen.getByText("Showing 1-1 of 1")).toBeTruthy();
   });

@@ -68,3 +68,46 @@ def test_invoke_v1_llm_upstream_timeout_releases_hold_and_marks_retryable(monkey
     assert invocations[0].status == "FAILED_RETRYABLE"
     assert invocations[0].error_code == "SERVICE_TIMEOUT"
     assert invocations[0].error_action == "retry"
+
+
+def test_invoke_v1_llm_unavailable_target_does_not_create_hold(monkeypatch) -> None:
+    raw_token = "agt_1234567890abcdef12345678"
+    storage = FakeStorage(_llm_service_definition(), _runtime_credential(raw_token))
+    storage.balance.ledger.ensure_consumer_wallet("0xabc").available_balance = Decimal("10.000000")
+
+    monkeypatch.setattr(forwarding_budget, "_get_redis_client", _async_none)
+    monkeypatch.setattr(
+        forwarding_upstream.service_health_service,
+        "get_healthy_target_urls",
+        lambda service, **_: [],
+    )
+    monkeypatch.setattr(
+        forwarding_upstream.settings,
+        "forwarding_require_healthy_targets",
+        True,
+        raising=False,
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(
+            forwarding_service.invoke_v1(
+                storage,
+                AgentInvokeRequest(
+                    serviceId="svc.llm.deepseek",
+                    idempotencyKey="llm-unavailable-001",
+                    costUsdc=Decimal("0"),
+                    payload=RuntimePayloadRecord(
+                        body={"messages": [{"role": "user", "content": "hi"}], "max_tokens": 10}
+                    ),
+                ),
+                raw_token,
+                "req-llm-unavailable-001",
+            )
+        )
+
+    assert exc_info.value.status_code == 503
+    assert exc_info.value.detail["code"] == "SERVICE_UNAVAILABLE"
+    assert storage.balance.ledger.consumer_available_balance("0xabc") == Decimal("10.000000")
+    assert storage.balance.ledger.consumer_frozen_balance("0xabc") == Decimal("0.000000")
+    assert storage.execution.quotes == {}
+    assert storage.execution.invocations == {}

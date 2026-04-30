@@ -31,6 +31,13 @@ def create_storage(settings: object) -> BaseStorage:
         ensure_schema=ensure_schema,
         connect_timeout_sec=connect_timeout_sec,
         pool_max=pool_max,
+        pool_timeout_sec=float(getattr(settings, "postgres_pool_timeout_sec", 5.0) or 5.0),
+        pool_max_lifetime_sec=float(
+            getattr(settings, "postgres_pool_max_lifetime_sec", 1800.0) or 1800.0
+        ),
+        pool_max_idle_sec=float(
+            getattr(settings, "postgres_pool_max_idle_sec", 300.0) or 300.0
+        ),
     )
 
 

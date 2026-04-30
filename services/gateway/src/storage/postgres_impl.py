@@ -100,6 +100,9 @@ class PostgresStorage(BaseStorage):
         ensure_schema: bool = True,
         connect_timeout_sec: int = 5,
         pool_max: int = 5,
+        pool_timeout_sec: float = 5.0,
+        pool_max_lifetime_sec: float = 1800.0,
+        pool_max_idle_sec: float = 300.0,
     ):
         if psycopg is None:
             raise RuntimeError(
@@ -112,7 +115,15 @@ class PostgresStorage(BaseStorage):
         self._connect_timeout_sec = max(1, int(connect_timeout_sec or 5))
         self._db = DatabaseManager(
             self._connect,
+            dsn=self.dsn,
             pool_max=normalize_pool_max(5 if pool_max in (None, "") else pool_max),
+            pool_timeout_sec=pool_timeout_sec,
+            pool_max_lifetime_sec=pool_max_lifetime_sec,
+            pool_max_idle_sec=pool_max_idle_sec,
+            connection_kwargs={
+                "connect_timeout": self._connect_timeout_sec,
+                "application_name": "synapse-gateway",
+            },
         )
         if ensure_schema:
             self._validate_schema_contract()
@@ -266,11 +277,16 @@ class PostgresStorage(BaseStorage):
         if psycopg is None:
             raise RuntimeError("psycopg is not installed")
         return psycopg.connect(
-            self.dsn, connect_timeout=self._connect_timeout_sec
+            self.dsn,
+            connect_timeout=self._connect_timeout_sec,
+            application_name="synapse-gateway",
         )
 
     def get_database_manager(self) -> DatabaseManager:
         return self._db
+
+    def close(self) -> None:
+        self._db.close()
 
     def get_data_manager(self) -> SynapseDataManager:
         return self._data_manager
