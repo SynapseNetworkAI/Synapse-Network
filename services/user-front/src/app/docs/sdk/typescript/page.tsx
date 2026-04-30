@@ -70,7 +70,7 @@ export default function TypeScriptSdkPage() {
           code={`import { SynapseClient } from "@synapse-network/sdk";
 
 const client = new SynapseClient({
-  credential: "agt_xxx",
+  credential: process.env.SYNAPSE_AGENT_KEY!,
   environment: "staging",
 });
 
@@ -81,7 +81,7 @@ const result = await client.invoke(
   service.serviceId ?? service.id!,
   { prompt: "hello" },
   {
-    costUsdc: Number(service.pricing?.amount ?? 0),
+    costUsdc: String(service.pricing?.amount ?? "0"),
     idempotencyKey: "agent-job-001",
   }
 );
@@ -206,7 +206,7 @@ if (!service) {
 }
 
 const serviceId = service.serviceId ?? service.id!;
-const priceUsdc = Number((service as any).priceUsdc ?? (service.pricing as any)?.amount ?? 0);
+const priceUsdc = String((service as any).priceUsdc ?? (service.pricing as any)?.amount ?? "0");
 
 try {
   // One call — costUsdc locks the price the agent saw from discovery
@@ -264,7 +264,7 @@ console.log(result.synapse?.chargedUsdc, result.synapse?.releasedUsdc);`}
         <CodeBlock
           lang="typescript"
           code={`const knownServiceId = process.env.SYNAPSE_SERVICE_ID!;
-const knownPrice = Number(process.env.SYNAPSE_SERVICE_PRICE_USDC!);
+const knownPrice = process.env.SYNAPSE_SERVICE_PRICE_USDC!;
 
 // Pass the price you saw in discovery — gateway rejects with PRICE_MISMATCH if it changed
 const result = await client.invoke(

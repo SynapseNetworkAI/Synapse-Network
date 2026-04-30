@@ -8,10 +8,10 @@ import { useDocsPageNav } from "../use-docs-page-nav";
 
 const PAGE_SECTIONS = ["contract-core", "contract-usdc", "contract-abi"];
 
-// ── Per-environment contract addresses ────────────────────────────────────────
+// ── Public contract addresses ────────────────────────────────────────────────
 // Prod addresses will be filled in after production deployment.
-// Set NEXT_PUBLIC_APP_ENV=local|staging|prod in each .env file.
-type AppEnv = "local" | "staging" | "prod";
+// Public docs intentionally expose staging first; internal local deployments stay in ops docs.
+type AppEnv = "staging" | "prod";
 
 interface EnvDef {
   label: string;
@@ -26,17 +26,6 @@ interface EnvDef {
 }
 
 const ENVS: Record<AppEnv, EnvDef> = {
-  local: {
-    label: "Local",
-    chainName: "Hardhat Localhost",
-    chainId: "31337",
-    color: "#7ff7be",
-    explorer: null,
-    contracts: {
-      SynapseCore: "0x0DCd1Bf9A1b36cE34237eEaFef220932846BCD82",
-      MockUSDC: "0xA51c1fc2f0D1a1b8494Ed1FE312d7C3a78Ed91C0",
-    },
-  },
   staging: {
     label: "Staging",
     chainName: "Arbitrum Sepolia",
@@ -150,9 +139,8 @@ export default function ContractsPage() {
   ]);
 
   const rawEnv = process.env.NEXT_PUBLIC_APP_ENV;
-  let currentEnv: AppEnv = "local";
-  if (rawEnv === "staging") currentEnv = "staging";
-  else if (rawEnv === "prod") currentEnv = "prod";
+  let currentEnv: AppEnv = "staging";
+  if (rawEnv === "prod") currentEnv = "prod";
 
   return (
     <div className="space-y-16">
@@ -193,7 +181,7 @@ export default function ContractsPage() {
           )}
         </p>
 
-        {/* Addresses for all 3 envs */}
+        {/* Public addresses */}
         <div className="space-y-3">
           {(Object.keys(ENVS) as AppEnv[]).map((env) => (
             <AddressRow

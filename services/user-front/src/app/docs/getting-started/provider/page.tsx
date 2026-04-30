@@ -188,7 +188,7 @@ intent = auth.create_provider_withdrawal_intent(
 )
 
 print(capability)
-print(intent["withdrawalId"], intent["status"])
+print(intent.intent_id, intent.status)
     `,
   },
 };
