@@ -57,9 +57,11 @@ export default function PythonSdkPage() {
         </p>
         <CodeBlock
           lang="python"
-          code={`from synapse_client import SynapseClient
+          code={`import os
 
-client = SynapseClient(api_key="agt_xxx", environment="staging")
+from synapse_client import SynapseClient
+
+client = SynapseClient(api_key=os.environ["SYNAPSE_AGENT_KEY"], environment="staging")
 
 services = client.search("free", limit=10)
 service = services[0]
@@ -67,7 +69,7 @@ service = services[0]
 result = client.invoke(
     service.service_id,
     {"prompt": "hello"},
-    cost_usdc=float(service.price_usdc),
+    cost_usdc=str(service.price_usdc),
     idempotency_key="agent-job-001",
 )
 
@@ -142,8 +144,7 @@ auth.confirm_deposit(
         </p>
         <CodeBlock
           lang="python"
-          code={`from decimal import Decimal
-from synapse_client import SynapseClient, PriceMismatchError
+          code={`from synapse_client import SynapseClient, PriceMismatchError
 
 issued = auth.issue_credential(
     name="consumer-agent-01",
@@ -160,7 +161,7 @@ client = SynapseClient(
 services = client.discover(limit=20)
 service = services[0]
 service_id = service.service_id
-price_usdc = Decimal(service.price_usdc)
+price_usdc = str(service.price_usdc)
 
 try:
     # One call — cost_usdc locks the price the agent saw
