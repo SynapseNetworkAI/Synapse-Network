@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import logging
 import time
 from copy import deepcopy
 from types import SimpleNamespace
@@ -12,6 +14,7 @@ from src.services.platform.tasks.deposit_indexer import shared
 from src.services.platform import service_health_probe
 from src import storage as storage_module
 from src.core import config_loaders
+from src.storage.postgres import database_manager
 from src.storage import postgres_impl
 
 
@@ -136,6 +139,7 @@ def test_postgres_storage_passes_connect_timeout_to_psycopg(monkeypatch) -> None
     assert captured == {
         "dsn": "postgresql://gateway.test/synapse",
         "connect_timeout": 7,
+        "application_name": "synapse-gateway",
     }
 
 
@@ -143,10 +147,8 @@ def test_postgres_storage_passes_pool_max_to_database_manager(monkeypatch) -> No
     captured: list[dict[str, object]] = []
 
     class _FakeDatabaseManager:
-        def __init__(self, connect_factory, *, pool_max=5):
-            captured.append(
-                {"connect_factory": connect_factory, "pool_max": pool_max}
-            )
+        def __init__(self, connect_factory, **kwargs):
+            captured.append({"connect_factory": connect_factory, **kwargs})
 
     monkeypatch.setattr(postgres_impl, "DatabaseManager", _FakeDatabaseManager)
 
@@ -157,6 +159,13 @@ def test_postgres_storage_passes_pool_max_to_database_manager(monkeypatch) -> No
     )
 
     assert captured[0]["pool_max"] == 2
+    assert captured[0]["pool_timeout_sec"] == 5.0
+    assert captured[0]["pool_max_lifetime_sec"] == 1800.0
+    assert captured[0]["pool_max_idle_sec"] == 300.0
+    assert captured[0]["connection_kwargs"] == {
+        "connect_timeout": 5,
+        "application_name": "synapse-gateway",
+    }
 
 
 @pytest.mark.parametrize("pool_max", [0, 11, "not-an-int"])
@@ -197,6 +206,9 @@ def test_create_storage_passes_default_and_custom_pool_max(monkeypatch) -> None:
     )
 
     assert captured[0]["pool_max"] == 5
+    assert captured[0]["pool_timeout_sec"] == 5.0
+    assert captured[0]["pool_max_lifetime_sec"] == 1800.0
+    assert captured[0]["pool_max_idle_sec"] == 300.0
     assert captured[1]["pool_max"] == 2
 
 
@@ -254,11 +266,103 @@ def test_postgres_pool_env_strict_range(monkeypatch) -> None:
             )
 
 
+def test_database_manager_uses_psycopg_pool_and_closes(monkeypatch) -> None:
+    events: list[tuple[str, object]] = []
+
+    class _FakeConnection:
+        autocommit = True
+
+        def __init__(self):
+            self.rollback_count = 0
+            self.commit_count = 0
+
+        def rollback(self):
+            self.rollback_count += 1
+
+        def commit(self):
+            self.commit_count += 1
+
+        def cursor(self):
+            return self
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    class _FakePool:
+        check_connection = staticmethod(lambda conn: None)
+
+        def __init__(self, **kwargs):
+            events.append(("init", kwargs))
+            self.conn = _FakeConnection()
+            self.closed = False
+
+        @contextlib.contextmanager
+        def connection(self, timeout=None):
+            events.append(("checkout", timeout))
+            yield self.conn
+
+        def close(self):
+            self.closed = True
+            events.append(("close", True))
+
+        def get_stats(self):
+            return {
+                "pool_size": 1,
+                "pool_available": 1,
+                "requests_waiting": 0,
+            }
+
+    monkeypatch.setattr(database_manager, "ConnectionPool", _FakePool)
+
+    manager = database_manager.DatabaseManager(
+        lambda: None,
+        dsn="postgresql://gateway.test/synapse",
+        pool_max=2,
+        pool_timeout_sec=3,
+        pool_max_lifetime_sec=30,
+        pool_max_idle_sec=10,
+        connection_kwargs={"connect_timeout": 7, "application_name": "synapse-gateway"},
+    )
+
+    with manager.connect() as conn:
+        assert isinstance(conn, _FakeConnection)
+
+    assert events[0][0] == "init"
+    init_kwargs = events[0][1]
+    assert init_kwargs["conninfo"] == "postgresql://gateway.test/synapse"
+    assert init_kwargs["min_size"] == 0
+    assert init_kwargs["max_size"] == 2
+    assert init_kwargs["timeout"] == 3
+    assert init_kwargs["max_lifetime"] == 30
+    assert init_kwargs["max_idle"] == 10
+    assert init_kwargs["kwargs"] == {
+        "connect_timeout": 7,
+        "application_name": "synapse-gateway",
+    }
+    assert manager.stats().to_response_dict() == {
+        "poolMax": 2,
+        "poolAvailable": 1,
+        "poolSize": 1,
+        "requestsWaiting": 0,
+        "closed": False,
+    }
+
+    manager.close()
+
+    assert manager.stats().closed is True
+    with pytest.raises(RuntimeError, match="POSTGRES_POOL_CLOSED"):
+        with manager.connect():
+            pass
+
+
 @pytest.mark.asyncio
-async def test_service_health_monitor_tick_does_not_block_event_loop(monkeypatch) -> None:
+async def test_service_health_monitor_tick_does_not_block_event_loop(monkeypatch, caplog) -> None:
     calls = 0
 
-    async def _blocked_refresh(_storage):
+    async def _blocked_refresh(_storage, **_kwargs):
         nonlocal calls
         calls += 1
         time.sleep(0.15)
@@ -279,6 +383,7 @@ async def test_service_health_monitor_tick_does_not_block_event_loop(monkeypatch
         "refresh_all_service_health",
         _blocked_refresh,
     )
+    caplog.set_level(logging.WARNING)
 
     stop_event = asyncio.Event()
     task = asyncio.create_task(
@@ -287,10 +392,11 @@ async def test_service_health_monitor_tick_does_not_block_event_loop(monkeypatch
     started = time.monotonic()
     await asyncio.sleep(0.01)
     elapsed = time.monotonic() - started
-    await asyncio.sleep(0.08)
+    await asyncio.sleep(0.12)
 
     assert elapsed < 0.1
     assert calls == 1
+    assert "keeping the active tick as the only in-flight DB writer" in caplog.text
 
     stop_event.set()
     await task

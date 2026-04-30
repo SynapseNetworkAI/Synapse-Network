@@ -1,0 +1,39 @@
+# SynapseNetwork
+
+SynapseNetwork is the settlement layer for the AI agent economy. It lets AI agents buy APIs, LLM calls, data services, tools, and MCP integrations with USDC collateral, instant off-chain charging, and audit-ready settlement receipts.
+
+## Core Facts
+
+- Category: AI agent payment and settlement infrastructure
+- Users: AI agent builders, API providers, LLM providers, data providers, tool providers, and MCP server builders
+- Settlement asset: USDC
+- Runtime model: on-chain collateral, off-chain usage charging, on-chain withdrawal settlement
+- LLM billing: token-metered services charge by final provider-reported input and output token usage
+- MCP support: Synapse exposes MCP server tooling so agents can discover and consume payable services through model-compatible tool interfaces
+- Streaming policy: LLM streaming is not supported in Synapse V1 because final usage is required for billing
+
+## Start Here
+
+- Homepage: https://synapse-network.ai/
+- About: https://synapse-network.ai/about
+- Marketplace: https://synapse-network.ai/marketplace
+- Documentation: https://synapse-network.ai/docs
+- API Reference: https://synapse-network.ai/docs/api-reference
+- Support: https://synapse-network.ai/docs/support
+- Forum: https://synapse-network.ai/forum
+
+## Developer Guides
+
+- Concepts: https://synapse-network.ai/docs/concepts
+- Getting Started: https://synapse-network.ai/docs/getting-started
+- Consumer Quickstart: https://synapse-network.ai/docs/getting-started/consumer
+- Provider Quickstart: https://synapse-network.ai/docs/getting-started/provider
+- Contracts: https://synapse-network.ai/docs/contracts
+- TypeScript SDK: https://synapse-network.ai/docs/sdk/typescript
+- Python SDK: https://synapse-network.ai/docs/sdk/python
+
+## Public Links
+
+- X: https://x.com/SynapseNetworkA
+- SDK GitHub: https://github.com/cliff-personal/Synapse-Network-Sdk
+- MCP Server GitHub: https://github.com/cliff-personal/Synapse-Network-MCP-Server

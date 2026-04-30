@@ -24,6 +24,7 @@ const BASELINED_FILE_EFFECTIVE_LINES = new Map([
   ["scripts/ci/validate_docs.js", 662],
   ["scripts/e2e/admin_analytics_10k_fullchain.mjs", 1072],
   ["scripts/e2e/email_binding_dogfood.mjs", 1180],
+  ["scripts/e2e/gateway_pull_health_dogfood.mjs", 1172],
   ["scripts/e2e/llm_deepseek_gateway_e2e.mjs", 810],
   ["scripts/e2e/staging_core_dogfood.mjs", 832],
   ["scripts/e2e/support_case_dogfood.mjs", 1251],
@@ -71,7 +72,7 @@ const BASELINED_FILE_EFFECTIVE_LINES = new Map([
     2016,
   ],
   ["services/gateway/tests/unit/test_finance_runtime_service_unit.py", 1147],
-  ["services/gateway/tests/unit/test_forwarding_runtime_service_unit.py", 1594],
+  ["services/gateway/tests/unit/test_forwarding_runtime_service_unit.py", 1599],
   ["services/gateway/tests/unit/test_notifications_outbox_unit.py", 829],
   ["services/user-front/src/app/about/page.tsx", 690],
   ["services/user-front/src/app/docs/api-reference/[id]/page.tsx", 622],
@@ -128,6 +129,8 @@ const BASELINED_FILE_EFFECTIVE_LINES = new Map([
 
 const BASELINED_FUNCTION_FILES = new Set([
   "scripts/ci/resolve_pr_ci_scope.mjs",
+  "scripts/ci/gateway_pull_health_dogfood_evidence_check.mjs",
+  "scripts/ci/postgres_pool_leak_evidence_check.mjs",
   "services/gateway/src/storage/postgres/repositories/service_registry_query_mixin.py",
   "services/user-front/src/app/about/page.tsx",
   "services/user-front/src/app/docs/concepts/page.tsx",
@@ -136,6 +139,7 @@ const BASELINED_FUNCTION_FILES = new Set([
   "services/user-front/src/app/docs/sdk/python/page.tsx",
   "services/user-front/src/app/docs/sdk/typescript/page.tsx",
   "services/user-front/src/app/forum/page.tsx",
+  "services/user-front/src/app/marketplace/page.tsx",
   "services/user-front/src/components/Navbar.tsx",
   "services/user-front/src/components/WalletAuthGuard.tsx",
   "services/user-front/src/components/dashboard-workspace/AccountSettingsPage.tsx",

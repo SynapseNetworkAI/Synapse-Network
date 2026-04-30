@@ -26,15 +26,15 @@ Provider 链路解决两个问题：
 
 ## 3. 核心表
 
-| 表 | 作用 |
-| --- | --- |
-| `synapse_provider_profiles` | Provider 业务主体 |
-| `synapse_provider_payout_accounts` | 收益打款地址和结算币种 |
-| `synapse_service_manifests` | 服务能力、价格、schema 主体 |
-| `synapse_service_endpoints` | 真实上游地址和运行约束 |
-| `synapse_service_health_snapshots` | 健康检查和 SLA 观测 |
-| `synapse_service_search_index` | 被 discover 消费的检索层 |
-| `synapse_audit_events` | 注册、修改、上线、下线等控制面审计 |
+| 表                                 | 作用                               |
+| ---------------------------------- | ---------------------------------- |
+| `synapse_provider_profiles`        | Provider 业务主体                  |
+| `synapse_provider_payout_accounts` | 收益打款地址和结算币种             |
+| `synapse_service_manifests`        | 服务能力、价格、schema 主体        |
+| `synapse_service_endpoints`        | 真实上游地址和运行约束             |
+| `synapse_service_health_snapshots` | 健康检查和 SLA 观测                |
+| `synapse_service_search_index`     | 被 discover 消费的检索层           |
+| `synapse_audit_events`             | 注册、修改、上线、下线等控制面审计 |
 
 ## 4. 注册主流程
 
@@ -214,11 +214,18 @@ Provider 注册后的服务状态分成两层：
 1. 控制面生命周期：`draft / active / inactive / suspended / deleted`
 2. 运行时健康：`unknown / probing / healthy / degraded / unhealthy / stale`
 
-Gateway runtime 的 `service_health_monitor` 是唯一探活和路由真相源。`gateway-admin` 只负责控制台管理，不另起第二套探活系统。monitor 使用 `SERVICE_HEALTH_MAX_CONCURRENCY` 控制全局 probe 并发，默认 32，避免 Gateway 或 Provider endpoint 被健康检查打出脉冲。
+Gateway runtime 的 `service_health_monitor` 是唯一探活和路由真相源。`gateway-admin` 只负责控制台管理，不另起第二套探活系统。Provider V1 只需要暴露 `GET /health`；Gateway 负责 Pull 探活。monitor 使用 `SERVICE_HEALTH_MAX_CONCURRENCY` 控制全局 probe 并发，默认 50，避免 Gateway 或 Provider endpoint 被健康检查打出脉冲。
+
+Gateway 重启时采用 fail closed 策略：
+
+1. 先从 Postgres 加载注册表。
+2. 立即把所有 target health snapshot 标记为 `stale / unknown`。
+3. Marketplace 和 discovery 不展示 stale service。
+4. 通过 `SERVICE_HEALTH_REHYDRATE_WINDOW_SEC` 和 stable jitter 平滑探测 `/health`，收到新 200 OK 后才恢复 discoverable。
 
 探活策略：
 
-1. `active`：正常频率探活。
+1. `active`：正常频率探活，默认每 60 秒 Pull 一次 `/health`。
 2. `active + unhealthy`：继续探活，但自动从 discovery / invoke 摘流；连续不健康超过 `SERVICE_HEALTH_SLOW_LANE_AFTER_SEC` 后进入 slow lane 降频探活。
 3. `inactive`：停止自动探活，只允许手动 force probe。
 4. `suspended`：默认按 slow lane 频率探活和留存健康历史，但永不进入 discovery / invoke。
@@ -239,7 +246,7 @@ slow lane 不是停止探活，而是资源保护策略：
 3. runtime health 未过期
 4. 至少一个 target 为 `healthy`
 
-健康失败不会把服务自动改成 `inactive`。如果所有 target 连续失败达到 `unhealthyThreshold`，Gateway 自动摘流并返回 `SERVICE_UNAVAILABLE`；后续正常探活或 slow lane 探活达到 `healthyThreshold` 后自动恢复可调用状态，不需要 Provider 人工重新上线。
+健康失败不会把服务自动改成 `inactive`。任一 target 探针失败或 timeout 会立即从 discovery / invoke 摘流并返回 `SERVICE_UNAVAILABLE`；后续正常探活或 slow lane 探活收到 `/health` 200 后自动恢复可调用状态，不需要 Provider 人工重新上线。`healthyThreshold` / `unhealthyThreshold` 只保留为兼容字段，不再用于延迟摘流。
 
 ### 9.3 下游动态并发保护
 

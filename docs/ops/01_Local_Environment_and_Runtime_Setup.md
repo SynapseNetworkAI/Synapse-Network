@@ -615,6 +615,7 @@ Gateway 至少要显式配置：
 8. `V2_RECONCILIATION_ALERT_DELTA_USDC`
 9. `POSTGRES_CONNECT_TIMEOUT_SEC`
 10. `SERVICE_HEALTH_MONITOR_STEP_TIMEOUT_SEC`
+11. `SERVICE_HEALTH_REHYDRATE_WINDOW_SEC`
 
 说明：
 
@@ -623,6 +624,7 @@ Gateway 至少要显式配置：
 3. `V2_INDEXER_STEP_TIMEOUT_SEC` 是 event loop 对单轮 worker 的等待上限；`RPC_REQUEST_TIMEOUT_SEC` 和 `POSTGRES_CONNECT_TIMEOUT_SEC` 是底层 I/O 硬超时，必须更短或足够保守。
 4. 如果上一轮 indexer worker 仍在运行，下一轮会跳过并标记 `INDEXER_STEP_STILL_RUNNING`，不会堆积多个 backfill 线程。
 5. 服务健康探测 monitor 也在专用 worker 中运行；`SERVICE_HEALTH_MONITOR_STEP_TIMEOUT_SEC` 用于避免 provider health 检查或健康表同步拖住 API event loop。
+6. Gateway 重启会先把 Provider health snapshot 标记为 `stale`，再按 `SERVICE_HEALTH_REHYDRATE_WINDOW_SEC` 平滑探活，避免启动时全量并发打爆 Provider。
 
 ## 5. 本地开发纪律
 

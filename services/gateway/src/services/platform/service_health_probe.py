@@ -11,10 +11,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 import time
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from typing import Any, List, Optional
 
 import httpx
@@ -43,10 +41,10 @@ from src.services.platform.service_health_history import (
     build_probe_history_rows,
     prune_health_history,
 )
-from src.services.platform.service_health_tiers import (
-    latest_service_health_checked_at,
-    service_probe_tier,
-    should_probe_service_now,
+from src.services.platform.service_health_refresh_plan import (
+    ServiceHealthRefreshResult,
+    _ProbeCandidate,
+    _build_probe_plan,
 )
 from src.services.analytics.gateway_events import (
     emit_provider_health_degraded,
@@ -61,66 +59,21 @@ _probe_limiter_loop_id = 0
 
 
 @dataclass(frozen=True)
-class _ProbeCandidate:
-    index: int
-    service: ServiceDefinitionRecord
-
-
-@dataclass(frozen=True)
 class _ProbeResult:
     index: int
     previous: ServiceDefinitionRecord
     current: ServiceDefinitionRecord
 
 
+@dataclass(frozen=True)
+class _ProbeApplyStats:
+    checked: int
+    updated: int
+    appended_history: int
+
+
 def _max_probe_concurrency() -> int:
     return max(1, int(settings.service_health_max_concurrency or 1))
-
-
-def _max_candidates_per_tick() -> int:
-    raw_value = str(os.getenv("SERVICE_HEALTH_MAX_CANDIDATES_PER_TICK") or "").strip()
-    if not raw_value:
-        if str(settings.environment or "").strip().lower() == "local":
-            return 25
-        return 0
-    try:
-        return max(0, int(raw_value))
-    except ValueError:
-        return 0
-
-
-def _record_timestamp_ms(raw_value: object) -> int:
-    value = str(raw_value or "").strip()
-    if not value:
-        return 0
-    try:
-        normalized = value.replace("Z", "+00:00")
-        parsed = datetime.fromisoformat(normalized)
-        if parsed.tzinfo is None:
-            parsed = parsed.replace(tzinfo=timezone.utc)
-        return int(parsed.timestamp() * 1000)
-    except ValueError:
-        return 0
-
-
-def _candidate_priority(candidate: _ProbeCandidate) -> tuple[int, int, int, int, str]:
-    service = candidate.service
-    checked_at = latest_service_health_checked_at(service)
-    updated_at = max(
-        _record_timestamp_ms(getattr(service, "updated_at", "")),
-        _record_timestamp_ms(getattr(service, "created_at", "")),
-    )
-    tier = service_probe_tier(service)
-    active_rank = 0 if str(getattr(service, "status", "") or "").lower() == "active" else 1
-    tier_rank = 1 if tier == "slow_lane" else 0
-    missing_health_rank = 0 if checked_at <= 0 else 1
-    return (
-        tier_rank,
-        active_rank,
-        missing_health_rank,
-        -updated_at,
-        str(service.service_id or ""),
-    )
 
 
 def _global_probe_limiter() -> asyncio.Semaphore:
@@ -171,8 +124,8 @@ def _merge_target_health(
     target: ServiceInvokeTargetRecord,
     probe: dict[str, Any],
     checked_at_ms: int,
-    healthy_threshold: int,
-    unhealthy_threshold: int,
+    _healthy_threshold: int,
+    _unhealthy_threshold: int,
     probe_url: str,
 ) -> ServiceHealthTargetRecord:
     prev_success = int(getattr(previous, "consecutive_successes", 0) or 0)
@@ -181,15 +134,12 @@ def _merge_target_health(
     if bool(probe.get("healthy")):
         success = prev_success + 1
         failure = 0
-        if success >= healthy_threshold:
-            status = "healthy"
-        else:
-            status = str(getattr(previous, "status", None) or "unknown")
+        status = "healthy"
         last_healthy_at = checked_at_ms
     else:
         success = 0
         failure = prev_failure + 1
-        status = "unhealthy" if failure >= unhealthy_threshold else "degraded"
+        status = "unhealthy"
         last_healthy_at = getattr(previous, "last_healthy_at", None)
 
     return ServiceHealthTargetRecord(
@@ -399,7 +349,52 @@ async def _emit_health_transition_events(
         )
 
 
-async def refresh_all_service_health(storage: BaseStorage) -> dict[str, int]:
+async def _run_probe_candidates(
+    candidates: list[_ProbeCandidate],
+) -> list[_ProbeResult]:
+    default_timeout_sec = max(0.1, float(settings.service_health_probe_timeout_ms) / 1000.0)
+    async with httpx.AsyncClient(timeout=httpx.Timeout(default_timeout_sec)) as client:
+        runner = BoundedTaskRunner(
+            _max_probe_concurrency(),
+            semaphore=_global_probe_limiter(),
+        )
+        return await runner.run(
+            candidates,
+            lambda candidate: _probe_candidate(candidate, client),
+        )
+
+
+async def _apply_probe_results(
+    storage: BaseStorage,
+    next_rows: list[ServiceDefinitionRecord | None],
+    probe_results: list[_ProbeResult],
+) -> _ProbeApplyStats:
+    checked = 0
+    updated = 0
+    appended_history = 0
+
+    for result in probe_results:
+        checked += 1
+        next_rows[result.index] = result.current
+        await _emit_health_transition_events(result.previous, result.current)
+        if result.current != result.previous:
+            updated += 1
+        if settings.service_health_history_enabled:
+            history_rows = build_probe_history_rows(result.current)
+            appended_history += append_health_history_rows(storage, history_rows)
+
+    return _ProbeApplyStats(
+        checked=checked,
+        updated=updated,
+        appended_history=appended_history,
+    )
+
+
+async def refresh_all_service_health(
+    storage: BaseStorage,
+    *,
+    startup_started_at_ms: int | None = None,
+) -> ServiceHealthRefreshResult:
     raw_rows = storage.get_data_manager().system.registry.read_service_registry_rows()
     if isinstance(raw_rows, list):
         rows = [
@@ -412,56 +407,16 @@ async def refresh_all_service_health(storage: BaseStorage) -> dict[str, int]:
 
     rows = _seed_service_health_from_persisted_rows(storage, rows)
 
-    checked = 0
-    updated = 0
-    appended_history = 0
-    jitter_skipped = 0
-    slow_lane_skipped = 0
-    next_rows: list[ServiceDefinitionRecord | None] = [None] * len(rows)
-    candidates: list[_ProbeCandidate] = []
+    now_ms = _now_ms()
+    plan = _build_probe_plan(
+        rows,
+        now_ms=now_ms,
+        startup_started_at_ms=startup_started_at_ms,
+    )
+    probe_results = await _run_probe_candidates(plan.candidates)
+    apply_stats = await _apply_probe_results(storage, plan.next_rows, probe_results)
 
-    for index, row in enumerate(rows):
-        now_ms = _now_ms()
-        tier = service_probe_tier(row, now_ms=now_ms)
-        if not should_probe_service_now(row, now_ms=now_ms):
-            if tier == "slow_lane":
-                slow_lane_skipped += 1
-            elif tier == "normal":
-                jitter_skipped += 1
-            next_rows[index] = row
-            continue
-        candidates.append(_ProbeCandidate(index=index, service=row))
-
-    candidates.sort(key=_candidate_priority)
-    scheduled_before_limit = len(candidates)
-    max_candidates = _max_candidates_per_tick()
-    if max_candidates > 0 and len(candidates) > max_candidates:
-        for candidate in candidates[max_candidates:]:
-            next_rows[candidate.index] = candidate.service
-        candidates = candidates[:max_candidates]
-
-    default_timeout_sec = max(0.1, float(settings.service_health_probe_timeout_ms) / 1000.0)
-    async with httpx.AsyncClient(timeout=httpx.Timeout(default_timeout_sec)) as client:
-        runner = BoundedTaskRunner(
-            _max_probe_concurrency(),
-            semaphore=_global_probe_limiter(),
-        )
-        probe_results = await runner.run(
-            candidates,
-            lambda candidate: _probe_candidate(candidate, client),
-        )
-
-    for result in probe_results:
-        checked += 1
-        next_rows[result.index] = result.current
-        await _emit_health_transition_events(result.previous, result.current)
-        if result.current != result.previous:
-            updated += 1
-        if settings.service_health_history_enabled:
-            history_rows = build_probe_history_rows(result.current)
-            appended_history += append_health_history_rows(storage, history_rows)
-
-    final_rows = [row for row in next_rows if row is not None]
+    final_rows = [row for row in plan.next_rows if row is not None]
 
     # Discovery hydrates runtime health from the health snapshot tables, so the
     # monitor only needs to sync health rows here. Rewriting manifests on every
@@ -472,25 +427,25 @@ async def refresh_all_service_health(storage: BaseStorage) -> dict[str, int]:
         for row in final_rows
         if str(row.service_id or "").strip()
     }
-    now_ms = _now_ms()
     if _should_prune_history(now_ms):
         prune_stats = prune_health_history(storage, valid_service_ids=valid_service_ids)
     else:
         prune_stats = {"before": 0, "after": 0, "removed": 0}
 
-    return {
-        "scheduled": len(candidates),
-        "scheduledBeforeLimit": scheduled_before_limit,
-        "checked": checked,
-        "updated": updated,
-        "syncedRows": synced_rows,
-        "historyAppended": appended_history,
-        "historyPruned": int(prune_stats.get("removed") or 0),
-        "jitterSkipped": jitter_skipped,
-        "slowLaneSkipped": slow_lane_skipped,
-        "maxConcurrency": _max_probe_concurrency(),
-        "maxCandidatesPerTick": max_candidates,
-    }
+    return ServiceHealthRefreshResult(
+        scheduled=len(plan.candidates),
+        scheduled_before_limit=plan.scheduled_before_limit,
+        checked=apply_stats.checked,
+        updated=apply_stats.updated,
+        synced_rows=synced_rows,
+        history_appended=apply_stats.appended_history,
+        history_pruned=int(prune_stats.get("removed") or 0),
+        jitter_skipped=plan.jitter_skipped,
+        rehydrate_skipped=plan.rehydrate_skipped,
+        slow_lane_skipped=plan.slow_lane_skipped,
+        max_concurrency=_max_probe_concurrency(),
+        max_candidates_per_tick=plan.max_candidates,
+    )
 
 
 # Backwards-compatible import surface for tests and older callers. The actual

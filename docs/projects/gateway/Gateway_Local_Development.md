@@ -77,6 +77,7 @@ cd /home/alex/Documents/cliff/Synapse-Network
 3. `RPC_REQUEST_TIMEOUT_SEC`: 默认 `15` 秒，限制 Web3 HTTP 请求，避免超时后残留幽灵线程。
 4. `POSTGRES_CONNECT_TIMEOUT_SEC`: 默认 `5` 秒，限制 Postgres 建连等待。
 5. `SERVICE_HEALTH_MONITOR_STEP_TIMEOUT_SEC`: 默认 `20` 秒，限制服务健康探测 monitor 单轮占用，避免 provider health 检查拖住 API。
+6. `SERVICE_HEALTH_REHYDRATE_WINDOW_SEC`: 默认 `120` 秒，Gateway 重启后把 Provider 服务从 `stale` 平滑探活恢复，避免启动惊群。
 
 ## 共享测试网 / 预发环境
 
