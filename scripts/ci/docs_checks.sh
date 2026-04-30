@@ -21,3 +21,15 @@ fi
 echo "[ci:docs] validating documentation constraints"
 
 node "$ROOT_DIR/scripts/ci/validate_docs.js"
+
+echo "[ci:docs] checking public SDK docs stay staging-first"
+if grep -RInE \
+  '(costUsdc: Number|Number\([^)]*(price|cost)|cost_usdc=float|float\([^)]*(price|cost|service\.price_usdc)|SYNAPSE_API_KEY|does not wrap provider withdrawals|还没封装 provider withdrawal)' \
+  "$ROOT_DIR/services/user-front/src/app/docs/sdk" \
+  "$ROOT_DIR/services/user-front/src/app/docs/getting-started/provider" \
+  "$ROOT_DIR/services/user-front/src/i18n/resources/sdkApiCheatsheet.ts" \
+  "$ROOT_DIR/services/user-front/src/i18n/resources/en/docsPage.ts" \
+  "$ROOT_DIR/services/user-front/src/i18n/resources/zh/docsPage.ts"; then
+  echo "[ci:docs] public SDK docs drifted from staging-first typed SDK contract" >&2
+  exit 1
+fi

@@ -225,7 +225,7 @@ const docsPage: I18nMessages["docsPage"] = {
     "最低成本接入只要求服务名、端点 URL、基础价格和给模型看的描述。SDK 会自动补上当前 gateway 需要的默认 contract，避免你手写 manifest 内脏。",
     "注册是否成功，先看 owner scope 下的 /api/v1/services 列表，再看状态读取。public discover 是否出现会更晚，因为健康检查和索引是另一层。",
     "结算完成后，Provider 收益会沉淀在 providerReceivable。先确认这个数在涨，再决定是否自动化提现。",
-    "提现当前仍然是控制面 API 流程。直接复用第 1 步拿到的 JWT，创建 provider withdrawal intent 即可。",
+    "提现是 owner scope 下的 provider 控制面流程。复用第 1 步拿到的 JWT，通过 SDK provider withdrawal helper 创建提现意图。",
   ],
   providerStepTips: [
     "JWT 当前有效期是 24 小时，可以在注册服务、更新服务和查询余额时复用。",
@@ -233,7 +233,7 @@ const docsPage: I18nMessages["docsPage"] = {
     "SDK 会自动补 serviceId、最小 schema、gateway_signed auth、/health 探活、payout account 和 governance 确认。",
     "判断注册成功时，以 owner 列表 + getProviderServiceStatus 为准，不要拿 public discover 可见性当唯一信号。",
     "providerReceivable 已经是扣完平台费后的净收益，最适合用来判断你的服务是不是开始印钞了。",
-    "当前 SDK 还没封装 provider withdrawal helper，所以先直接调用原始 withdrawal intent API。",
+    "SDK 已封装 provider withdrawal capability、intent 创建和 withdrawal 列表，并返回命名对象。",
   ],
   providerRegistrationInputsTitle: "你必须提供的最小字段",
   providerRegistrationInputs: [
@@ -383,7 +383,7 @@ const docsPage: I18nMessages["docsPage"] = {
     "Synapse 现在提供 Public Preview 版 TypeScript SDK 和 Python SDK。两套 SDK 覆盖 owner onboarding、credential 生命周期、provider 生命周期、服务发现、价格断言调用、receipt 和核心财务可观测 helper。",
   sdkStagingDocsTitle: "Staging 文档已上线",
   sdkStagingDocsDescription:
-    "Public Preview 接入以 staging runbook 为准。SDK README 是压缩版包入口；这些页面会完整走过 owner 钱包登录、JWT、agent credential 签发、runtime discovery、invoke 和 receipt 检查。",
+    "Public Preview 接入以 staging runbook 为准。Staging 使用 Arbitrum Sepolia 和 MockUSDC 测试资产；这些页面会完整走过 owner 钱包登录、Agent Key 签发、runtime discovery、invoke 和 receipt 检查。",
   sdkStagingDocsLinkLabels: [
     "SDK Hub",
     "Python staging runbook",
@@ -397,6 +397,7 @@ const docsPage: I18nMessages["docsPage"] = {
   sdkAgentQuickstartSteps: [
     "Gateway Dashboard -> Connect Wallet -> Generate Agent Key",
     "使用 agt_xxx 创建 SynapseClient",
+    "保持 SYNAPSE_ENV=staging，付费测试使用 MockUSDC",
     "余额未知时优先搜索免费服务",
     "调用时始终传入 discovery 得到的价格和 idempotency key",
   ],
@@ -621,14 +622,14 @@ const docsPage: I18nMessages["docsPage"] = {
   contractsEyebrow: "智能合约",
   contractsTitle: "Smart Contracts",
   contractsDescription:
-    "合约按 Local、Staging、Production 三个环境组织。Local 用于本地开发，Staging 对应 Arbitrum Sepolia，Production 面向 Arbitrum One。",
+    "公开合约文档只展示 Staging 和 Production。Staging 对应 Arbitrum Sepolia 和 MockUSDC 测试资产，Production 上线后面向 Arbitrum One。",
   contractsCurrentEnv: "当前运行环境",
   contractsCurrentEnvTag: "当前环境",
   contractsCoreTitle: "SynapseCore",
   contractsCoreDescription:
     "主结算合约负责托管 USDC 充值并处理提现。Gateway 维护链下账本，只在充值和提现时触链。",
   contractsCoreVerified: "已在区块浏览器验证源码。",
-  contractsLocalExplorerHint: "本地网络，没有公共区块浏览器。",
+  contractsLocalExplorerHint: "没有公共区块浏览器。",
   contractsNotDeployed: "尚未部署，上线前请更新此地址。",
   contractsSourceTip:
     "合约源码托管在 GitHub。等 Staging 或 Production 部署并在 Arbiscan 验证后，可直接在浏览器查看完整 Solidity 源码。",
@@ -659,16 +660,16 @@ const docsPage: I18nMessages["docsPage"] = {
   ],
   contractsMockTitle: "MockUSDC",
   contractsMockDescription:
-    "用于开发测试的 ERC-20 Token。任何地址都可以 mint 测试资金。生产环境使用 Circle 的 6 位 USDC。",
+    "用于 staging 接入测试的 ERC-20 Token。生产环境使用 Circle 的 6 位 USDC。",
   contractsMockInfoTitles: ["Symbol", "Decimals", "Mint", "Burn"],
   contractsMockInfoValues: [
     "USDC (Mock)",
     "18（测试网）/ 6（主网）",
-    "公开，任意地址可 mint",
+    "Staging 测试资产",
     "仅 Owner",
   ],
   contractsMockWarning:
-    "MockUSDC 仅供开发测试。进入生产前必须切换到真实 USDC 和 6 位 decimals。",
+    "MockUSDC 仅供 staging 测试。进入生产前必须切换到真实 USDC 和 6 位 decimals。",
   contractsAbiTitle: "获取 ABI / 查看源码",
   contractsAbiDescription:
     "ABI 构建产物位于 artifacts/contracts/，可以直接 import。部署并验证后，可通过区块浏览器查看链上源码。",
