@@ -445,31 +445,21 @@ const docsPage: I18nMessages["docsPage"] = {
     "The SDK README quickstart is the compressed Agent Key entrypoint. This staging page also documents the advanced owner flow for programmatic credential issuance.",
   sdkRunbookBridgePythonCta: "Open Python staging runbook",
   sdkRunbookBridgeTypeScriptCta: "Open TypeScript staging runbook",
-  sdkHubCardTitles: ["TypeScript SDK", "Python SDK"],
-  sdkHubCardDescriptions: [
-    "The reference SDK for browser and Node.js integrations. Best fit when your agent runtime already lives in TypeScript, Next.js, or a serverless edge stack.",
-    "The automation-ready SDK for Python services and backend agents. Best fit when you need wallet auth, credential issuance, and paid invocation inside Python 3.13+ systems.",
-  ],
-  sdkHubCardBullets: [
-    "Wallet auth, balances, credential lifecycle, provider lifecycle, discover, invoke, receipt polling, finance observability.",
-    "Wallet auth, JWT caching, credential lifecycle, provider lifecycle, invoke rediscovery helper, cold-start E2E.",
-  ],
-  sdkHubCapabilityLabel: "Core coverage",
-  sdkHubOpenCta: "Open integration guide",
-  sdkCompareTitle: "Capability comparison",
+  sdkReferenceTitle: "Reference SDKs",
+  sdkReferenceDescription:
+    "Complete SDKs for auth, Agent Keys, provider publishing, invoke, receipts, and finance.",
+  sdkWave1Title: "Preview SDKs",
+  sdkWave1Description:
+    "Go, Java/JVM, and .NET now cover the same public capability families.",
+  sdkOpenDocsCta: "Open Documentation",
+  sdkViewGithubCta: "View on GitHub",
+  sdkSnippetTitle: "Multi-Language Snippet",
+  sdkSnippetDescription:
+    "Minimal token-metered LLM call. Use GitHub guides for full setup.",
+  sdkCompareTitle: "Capability coverage",
   sdkCompareDescription:
-    "Choose the SDK that matches your runtime. Both are designed to drive the same settlement primitives, so the mental model stays stable across languages.",
-  sdkCompareCapability: "Capability",
-  sdkCompareRows: [
-    "Owner wallet login",
-    "Balance reads",
-    "Deposit intent / confirm",
-    "Credential issuance",
-    "Service discover / invoke",
-    "Provider lifecycle helpers",
-  ],
-  sdkCompareTypeScript: ["yes", "yes", "yes", "yes", "yes", "yes"],
-  sdkComparePython: ["yes", "yes", "yes", "yes", "yes", "yes"],
+    "All five SDKs expose the same public capability families.",
+  sdkCompareParityCta: "Open SDK parity matrix",
   sdkInstallTitle: "Install",
   sdkTsTitle: "TypeScript SDK",
   sdkTsDescription:
@@ -672,8 +662,7 @@ const docsPage: I18nMessages["docsPage"] = {
   contractsCoreDescription:
     "The main settlement contract holds USDC deposits in escrow and processes withdrawals. The gateway keeps the offchain ledger and only touches the chain during deposit or withdraw operations.",
   contractsCoreVerified: "Verified source is available on the block explorer.",
-  contractsLocalExplorerHint:
-    "No public block explorer available.",
+  contractsLocalExplorerHint: "No public block explorer available.",
   contractsNotDeployed: "Not deployed yet — update this address before launch.",
   contractsSourceTip:
     "Contract source is tracked in GitHub. Once staging or production deployments are verified on Arbiscan, the explorer links will expose full Solidity source.",
