@@ -35,5 +35,5 @@ SynapseNetwork is the settlement layer for the AI agent economy. It lets AI agen
 ## Public Links
 
 - X: https://x.com/SynapseNetworkA
-- SDK GitHub: https://github.com/cliff-personal/Synapse-Network-Sdk
-- MCP Server GitHub: https://github.com/cliff-personal/Synapse-Network-MCP-Server
+- SDK GitHub: https://github.com/SynapseNetworkAI/Synapse-Network-Sdk
+- MCP Server GitHub: https://github.com/SynapseNetworkAI/Synapse-Network-MCP-Server

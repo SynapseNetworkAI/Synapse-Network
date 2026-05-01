@@ -1462,7 +1462,7 @@ STAGING_EVIDENCE_BUCKET
 projects/<PROJECT_NUMBER>/locations/global/workloadIdentityPools/<POOL_ID>/providers/<PROVIDER_ID>
 ```
 
-The provider should trust only `cliff-personal/Synapse-Network` and the
+The provider should trust only `SynapseNetworkAI/Synapse-Network` and the
 workflow-dispatch ref used for deploy orchestration. The deploy service account
 is staging-only and may build images, push to the staging Artifact Registry,
 deploy whitelisted Cloud Run staging services, run staging migration jobs, and

@@ -108,7 +108,7 @@ if (assertFile(llmsPath, "llms.txt")) {
     "SynapseNetwork",
     "LLM billing",
     "MCP Server GitHub",
-    "https://github.com/cliff-personal/Synapse-Network-MCP-Server",
+    "https://github.com/SynapseNetworkAI/Synapse-Network-MCP-Server",
   ]) {
     if (!llms.includes(expected)) {
       fail(`llms.txt missing expected text: ${expected}`);
