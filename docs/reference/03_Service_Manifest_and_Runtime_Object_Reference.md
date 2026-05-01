@@ -114,11 +114,14 @@ Agent-facing discovery / invoke 的可调用条件必须同时满足：
 1. `normal`：按 `SERVICE_HEALTH_PROBE_INTERVAL_SEC` 正常探活。
 2. `slow_lane`：长期不健康或 suspended，按 slow lane 间隔降频探活。
 3. `manual_only`：`draft` / `inactive`，不进入自动探活，只能手动 force probe。
-4. `disabled`：`deleted`，不再探活。
+4. `offline`：Gateway 自动隔离的长期失败服务，不进入自动探活池。
+5. `disabled`：`deleted`，不再探活。
 
 slow lane 只节省探活资源，不改变生命周期。Provider 修复 endpoint 后，如果服务仍为 `active`，等待下一次 slow lane probe 或点击 `Force probe` 即可恢复；如果服务被 Pause 成 `inactive`，需要 Resume / 重新发布后才会重新进入自动探活。
 
-slow lane 使用指数退避，默认从 `SERVICE_HEALTH_SLOW_LANE_INTERVAL_SEC=300` 开始，按失败持续时间逐步退到 `SERVICE_HEALTH_MAX_BACKOFF_SEC=86400`（24 小时）封顶。这样长期死亡的 Provider 不会抢占当前 healthy / recently updated 服务的 probe 名额；新注册或刚更新的 active 服务永远优先于 slow-lane zombie 服务。
+长期死亡的 Provider 不再靠 slow lane 无限保留。默认连续失败达到 `SERVICE_HEALTH_OFFLINE_FAILURES=5`，且距离最近一次 healthy 或估算首次失败超过 `SERVICE_HEALTH_OFFLINE_AFTER_SEC=3600` 后，Gateway 将服务切到 `offline`，停止自动探活。Provider 恢复时必须重新 onboard/upsert 或由管理员 `Force probe` 重新激活。
+
+Gateway 重启不会无脑把所有服务写成 stale。它会读取 Postgres persisted health snapshot；`SERVICE_HEALTH_RESTART_TRUST_WINDOW_SEC` 内的新鲜 healthy/degraded snapshot 可以继续 discoverable。超过 trust window 的 snapshot 会自然 fail closed，直到下一次探活成功。
 
 健康历史只记录状态翻转，不记录无意义流水账。连续 `unhealthy -> unhealthy` 或 `healthy -> healthy` 只更新当前 health snapshot 的检查时间、失败计数和错误摘要，不追加历史 JSON；只有 `healthy -> unhealthy`、`unhealthy -> healthy`、`stale -> healthy` 等 transition 会进入 history，用于控制台、告警和恢复审计。
 

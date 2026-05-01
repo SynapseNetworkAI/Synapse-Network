@@ -393,8 +393,18 @@ class Settings:
     service_health_stale_after_sec: int = _env_int(
         "SERVICE_HEALTH_STALE_AFTER_SEC", 90
     )
+    service_health_restart_trust_window_sec: int = min(
+        service_health_stale_after_sec,
+        _env_int("SERVICE_HEALTH_RESTART_TRUST_WINDOW_SEC", 90),
+    )
     service_health_outage_after_sec: int = _env_int(
         "SERVICE_HEALTH_OUTAGE_AFTER_SEC", 1800
+    )
+    service_health_offline_failures: int = _env_int(
+        "SERVICE_HEALTH_OFFLINE_FAILURES", 5
+    )
+    service_health_offline_after_sec: int = _env_int(
+        "SERVICE_HEALTH_OFFLINE_AFTER_SEC", 3600
     )
     service_health_slow_lane_after_sec: int = _env_int(
         "SERVICE_HEALTH_SLOW_LANE_AFTER_SEC", 1800

@@ -24,7 +24,7 @@ curl -X POST "http://127.0.0.1:8000/api/v1/agent/discovery/search" \
 
 结论先说透：
 
-**Discovery 不是“endpoint 表里有一行就显示”，而是“Service Registry 聚合成功 + 服务状态 active + 至少一个 target 在健康窗口内 healthy” 才显示。**
+**Discovery 不是“endpoint 表里有一行就显示”，而是“Service Registry 聚合成功 + 服务状态 active + 至少一个 target 在健康窗口内 healthy” 才显示。** `registeredTotal > discoverableTotal` 不代表注册丢失；优先区分 `stale / unavailable / offline`。
 
 ## 2. Discovery 真实过滤链路
 
@@ -37,6 +37,8 @@ Discovery 列表依赖以下事实链：
 5. 健康快照未过期，且至少一个 endpoint 为 `healthy`
 
 如果只满足第 3 条，不满足第 4/5 条，Discovery 页面仍然不会显示该服务。
+
+Gateway 重启时会信任 90 秒内的新鲜 `healthy/degraded` persisted snapshot；超过窗口的 snapshot 会自然 fail closed。服务连续失败达到阈值且 1 小时未恢复后会进入 `offline`，不再自动探活，必须重新 onboard/upsert 或 Admin force-probe。
 
 ## 3. 最小排查 SQL
 
@@ -169,6 +171,7 @@ ORDER BY ep.is_primary DESC, ep.created_at ASC;
 3. `synapse_service_health_snapshots` 里没有记录
 4. 健康快照过期
 5. Gateway 探测 `endpoint_url` 失败
+6. manifest `status = offline`：长期失败后被 Gateway 自动隔离，需要重新 onboard/upsert 或 Admin force-probe
 
 ### 5.2 `127.0.0.1` endpoint 探测失败
 
@@ -267,4 +270,16 @@ Discovery 页空，不等于数据库没有数据；更常见的是：
 
 在 Synapse 里，`registered` 和 `discoverable` 不是同一个状态。前者只代表配置落库，后者代表该服务在当前时刻真的可以被 Agent 安全发现并路由调用。
 
-Gateway 重启后的短暂空列表是安全设计：所有服务先 `stale`，然后按 `SERVICE_HEALTH_MAX_CONCURRENCY`、`SERVICE_HEALTH_REHYDRATE_WINDOW_SEC` 和 stable jitter 平滑探活。不要把 `marketplace.total=0` 直接解读为注册丢失；必须同时查看 `registeredServices / discoverableServices / staleServices / unavailableServices`。
+Gateway 重启不会删除注册数据。90 秒内的新鲜 `healthy/degraded` persisted snapshot 会被继续信任，因此正常快速重启后 canonical Provider 服务不应从 Marketplace 消失；超过 trust window 的 snapshot 才会 fail closed 并等待下一轮探活。不要把 `marketplace.total=0` 直接解读为注册丢失；必须同时查看 `registeredServices / discoverableServices / staleServices / unavailableServices / offlineServices`。
+
+本地开发如果历史 E2E/test 服务太多，先用 local cleanup 清掉 registry pressure 和 health pressure：
+
+```bash
+LOCAL_DEV_CLEANUP_DRY_RUN=1 LOCAL_DEV_CLEANUP_OUTPUT=json \
+  bash scripts/local/cleanup_service_registry_dev.sh
+
+LOCAL_DEV_CLEANUP_CONFIRM=I_UNDERSTAND_THIS_MUTATES_LOCAL_DB \
+  bash scripts/local/cleanup_service_registry_dev.sh
+```
+
+该脚本只允许 local `synapse_gateway`，不会用于 staging/prod。staging/prod 只通过 `network-stats`、`health/status?includeInactive=true`、provider re-onboard/upsert 或 Admin force-probe 做诊断和恢复，不做自动 cleanup。

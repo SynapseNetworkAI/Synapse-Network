@@ -264,10 +264,10 @@ def test_public_network_stats_returns_layered_public_aggregate_counts(monkeypatc
     payload = response.json()
     assert payload["status"] == "success"
     assert payload["registeredServices"] == 2
-    assert payload["discoverableServices"] == 0
-    assert payload["staleServices"] == 2
+    assert payload["discoverableServices"] == 1
+    assert payload["staleServices"] == 1
     assert payload["unavailableServices"] == 0
-    assert payload["runtimeReadyServices"] == 0
+    assert payload["runtimeReadyServices"] == 1
     assert payload["totalCalls"] == 2
     assert payload["connectedAgents"] == 2
     assert payload["statusBreakdown"] == {

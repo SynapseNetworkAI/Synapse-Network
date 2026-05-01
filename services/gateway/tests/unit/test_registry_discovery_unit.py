@@ -144,6 +144,14 @@ async def test_list_owner_services_enriches_lifecycle_status_and_health(monkeypa
                     healthyTargets=1,
                     totalTargets=1,
                     lastCheckedAt=1710000000000,
+                    targets=[
+                        ServiceHealthTargetRecord(
+                            targetUrl="https://svc.owner-active.test/invoke",
+                            status="healthy",
+                            weight=100,
+                            lastCheckedAt=1710000000000,
+                        )
+                    ],
                 ),
             ),
             service_definition(
@@ -158,6 +166,10 @@ async def test_list_owner_services_enriches_lifecycle_status_and_health(monkeypa
     monkeypatch.setattr(
         "src.services.provider.registry.discovery.service_health_service.is_service_discoverable",
         lambda service: service.service_id == "svc.owner-active",
+    )
+    monkeypatch.setattr(
+        "src.services.platform.service_health_utils._now_ms",
+        lambda: 1710000000000,
     )
 
     rows = await list_owner_services(context, "0xprovider")
@@ -175,8 +187,8 @@ async def test_list_owner_services_enriches_lifecycle_status_and_health(monkeypa
         "maxAutoHoldUsdc": None,
     }
     assert rows[0]["status"] == "active"
-    assert rows[0]["health"]["probeStatus"] == "healthy"
-    assert "overallStatus" in rows[0]["health"]
+    assert rows[0]["health"].probe_status == "healthy"
+    assert rows[0]["health"].overall_status == "healthy"
     assert rows[0]["runtimeAvailable"] is True
 
 
@@ -399,7 +411,7 @@ async def test_suspended_service_keeps_control_status_but_is_not_discoverable() 
 
     assert discoverable == []
     assert health_rows[0]["status"] == "suspended"
-    assert health_rows[0]["health"]["overallStatus"] == "suspended"
+    assert health_rows[0]["health"].overall_status == "suspended"
     assert health_rows[0]["runtimeAvailable"] is False
 
 
@@ -436,8 +448,8 @@ async def test_health_status_uses_discovery_effective_runtime_state(monkeypatch)
 
     rows = await health_status(context, include_inactive=True)
 
-    assert rows[0]["health"]["probeStatus"] == "healthy"
-    assert rows[0]["health"]["overallStatus"] == "stale"
-    assert rows[0]["health"]["isStale"] is True
-    assert rows[0]["health"]["runtimeAvailable"] is False
+    assert rows[0]["health"].probe_status == "healthy"
+    assert rows[0]["health"].overall_status == "stale"
+    assert rows[0]["health"].is_stale is True
+    assert rows[0]["health"].runtime_available is False
     assert rows[0]["runtimeAvailable"] is False

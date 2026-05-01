@@ -14,6 +14,7 @@ from urllib.parse import urlsplit, urlunsplit
 
 from src.core.config import settings
 from src.domain.service_contract import (
+    PublicHealthSummaryRecord,
     ServiceDefinitionRecord,
     ServiceHealthTargetRecord,
     ServiceInvokeTargetRecord,
@@ -86,7 +87,7 @@ def service_control_status(service: ServiceDefinitionRecord) -> str:
         status = "active" if bool(service.is_active) else "inactive"
     if status == "active" and not bool(service.is_active):
         return "inactive"
-    if status not in {"draft", "active", "inactive", "suspended", "deleted"}:
+    if status not in {"draft", "active", "inactive", "offline", "suspended", "deleted"}:
         return "inactive"
     return status
 
@@ -95,27 +96,40 @@ def is_service_probeable(service: ServiceDefinitionRecord) -> bool:
     lifecycle_status = service_control_status(service)
     if lifecycle_status == "active":
         return bool(service.is_active)
+    if lifecycle_status == "offline":
+        return False
     return lifecycle_status == "suspended"
 
 
-def public_health_summary(service: ServiceDefinitionRecord) -> dict[str, Any]:
+def public_health_summary(
+    service: ServiceDefinitionRecord,
+) -> PublicHealthSummaryRecord:
     from src.services.platform.service_health_tiers import service_probe_tier  # noqa: PLC0415 - avoid import cycle; tiers imports utility helpers.
 
     health = _runtime_health(service)
+    runtime_status = effective_runtime_status(service)
     raw_status = str(health.overall_status or "unknown")
     stale = is_health_stale(service)
     runtime_available = is_service_discoverable(service)
     health = _runtime_health(service)
-    return {
-        "overallStatus": effective_runtime_status(service),
-        "probeStatus": raw_status,
-        "healthyTargets": int(health.healthy_targets or 0),
-        "totalTargets": int(health.total_targets or len(_service_targets(service))),
-        "lastCheckedAt": health.last_checked_at,
-        "isStale": stale,
-        "runtimeAvailable": runtime_available,
-        "probeTier": service_probe_tier(service),
-    }
+    return PublicHealthSummaryRecord(
+        overallStatus=runtime_status,
+        probeStatus=raw_status,
+        healthyTargets=int(health.healthy_targets or 0),
+        totalTargets=int(health.total_targets or len(_service_targets(service))),
+        lastCheckedAt=health.last_checked_at,
+        isStale=stale,
+        runtimeAvailable=runtime_available,
+        probeTier=service_probe_tier(service),
+        offlineReason=(
+            health.targets[0].error if runtime_status == "offline" and health.targets else None
+        ),
+        reactivationHint=(
+            "Re-register provider service or force-probe after recovery"
+            if runtime_status == "offline"
+            else None
+        ),
+    )
 
 
 def public_discover_status(service: ServiceDefinitionRecord) -> str:
@@ -303,6 +317,14 @@ def _merge_persisted_health_payload(
 
     bucket = index.setdefault(service_id, _empty_persisted_health_bucket())
     row_last_checked = int(row.last_checked_at or 0)
+    trust_window_sec = min(
+        int(settings.service_health_stale_after_sec),
+        int(settings.service_health_restart_trust_window_sec),
+    )
+    trust_window_ms = max(1000, trust_window_sec * 1000)
+    if row_last_checked <= 0 or _now_ms() - row_last_checked > trust_window_ms:
+        return
+
     bucket["targets"][target_url] = _target_health_payload(row.model_dump(by_alias=True))
     bucket["totalTargets"] = int(bucket.get("totalTargets") or 0) + 1
     if str(row.status or "").lower() == "healthy":
