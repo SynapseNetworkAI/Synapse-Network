@@ -26,6 +26,7 @@ class InMemoryRegistryRepo:
     def __init__(self, services, persisted_health_rows=None):
         self._services = list(services)
         self.persisted_health_rows = list(persisted_health_rows or [])
+        self.offline_mark_attempts: list[dict[str, object]] = []
         self.health_history_rows: list[ServiceTargetHealthHistory] = []
         self.health_history_write_count = 0
 
@@ -36,7 +37,7 @@ class InMemoryRegistryRepo:
         raise AssertionError("health refresh must not rewrite service manifests")
 
     def read_service_target_health_rows(self):
-        return []
+        return list(self.persisted_health_rows)
 
     def write_service_target_health_rows(self, rows):
         self.persisted_health_rows = list(rows)
@@ -47,6 +48,37 @@ class InMemoryRegistryRepo:
     def write_service_target_health_history_rows(self, rows):
         self.health_history_write_count += 1
         self.health_history_rows = list(rows)
+
+    def mark_service_offline_if_still_failed(
+        self,
+        service_id,
+        *,
+        probe_started_at_ms,
+        failure_threshold,
+        last_healthy_cutoff_ms,
+        probe_interval_ms,
+        reason,
+    ):
+        self.offline_mark_attempts.append(
+            {
+                "serviceId": service_id,
+                "probeStartedAtMs": probe_started_at_ms,
+                "failureThreshold": failure_threshold,
+                "lastHealthyCutoffMs": last_healthy_cutoff_ms,
+                "probeIntervalMs": probe_interval_ms,
+                "reason": reason,
+            }
+        )
+        for index, service in enumerate(self._services):
+            if service.service_id != service_id:
+                continue
+            if str(service.status or "").lower() != "active":
+                return False
+            self._services[index] = service.model_copy(
+                update={"status": "offline", "is_active": False}
+            )
+            return True
+        return False
 
 
 class FakeStorage:
@@ -419,6 +451,110 @@ async def test_refresh_all_service_health_skips_fresh_rows_before_probe_queue(
     assert result["scheduled"] == 1
     assert result["jitterSkipped"] == 1
     assert probed == ["due_service"]
+
+
+@pytest.mark.asyncio
+async def test_refresh_all_service_health_marks_long_failed_service_offline(
+    monkeypatch,
+) -> None:
+    now_ms = 1773982500000
+    last_healthy_at = now_ms - 3_700_000
+    storage = FakeStorage(
+        [
+            service_definition(
+                "dead_provider",
+                runtime_health=ServiceRuntimeHealthRecord(
+                    overallStatus="unhealthy",
+                    healthyTargets=0,
+                    totalTargets=1,
+                    lastCheckedAt=now_ms - 120_000,
+                    targets=[
+                        ServiceHealthTargetRecord(
+                            targetUrl="https://dead_provider.test/invoke",
+                            status="unhealthy",
+                            lastCheckedAt=now_ms - 120_000,
+                            lastHealthyAt=last_healthy_at,
+                            consecutiveFailures=4,
+                        )
+                    ],
+                ),
+            )
+        ]
+    )
+
+    async def _failed_probe(service, client=None):
+        return service.model_copy(
+            update={
+                "runtime_health": ServiceRuntimeHealthRecord(
+                    overallStatus="unhealthy",
+                    healthyTargets=0,
+                    totalTargets=1,
+                    lastCheckedAt=now_ms,
+                    targets=[
+                        ServiceHealthTargetRecord(
+                            targetUrl="https://dead_provider.test/invoke",
+                            status="unhealthy",
+                            lastCheckedAt=now_ms,
+                            lastHealthyAt=last_healthy_at,
+                            consecutiveFailures=5,
+                            error="timeout",
+                        )
+                    ],
+                )
+            }
+        )
+
+    monkeypatch.setattr(service_health_probe, "probe_service_health", _failed_probe)
+    monkeypatch.setattr(service_health_probe, "_now_ms", lambda: now_ms)
+    monkeypatch.setattr(service_health_refresh_plan, "_now_ms", lambda: now_ms)
+    monkeypatch.setattr(service_health_probe, "_should_prune_history", lambda now_ms: False)
+    monkeypatch.setattr(service_health_service.settings, "service_health_history_enabled", False)
+    monkeypatch.setattr(service_health_service.settings, "service_health_jitter_enabled", False)
+    monkeypatch.setattr(
+        service_health_service.settings,
+        "service_health_slow_lane_after_sec",
+        7200,
+    )
+    monkeypatch.setattr(service_health_service.settings, "service_health_offline_failures", 5)
+    monkeypatch.setattr(service_health_service.settings, "service_health_offline_after_sec", 3600)
+
+    result = await service_health_service.refresh_all_service_health(
+        cast(BaseStorage, storage)
+    )
+
+    assert result["checked"] == 1
+    assert storage.registry.read_service_registry_rows()[0].status == "offline"
+    assert storage.registry.offline_mark_attempts[0]["serviceId"] == "dead_provider"
+
+
+@pytest.mark.asyncio
+async def test_refresh_all_service_health_does_not_probe_offline_service(
+    monkeypatch,
+) -> None:
+    now_ms = 1773982500000
+    storage = FakeStorage([service_definition("offline_provider", status="offline")])
+    probed: list[str] = []
+
+    async def _probe(service, client=None):
+        probed.append(str(service.service_id))
+        return service
+
+    monkeypatch.setattr(service_health_probe, "probe_service_health", _probe)
+    monkeypatch.setattr(service_health_probe, "_now_ms", lambda: now_ms)
+    monkeypatch.setattr(service_health_refresh_plan, "_now_ms", lambda: now_ms)
+    monkeypatch.setattr(service_health_probe, "_should_prune_history", lambda now_ms: False)
+    monkeypatch.setattr(service_health_service.settings, "service_health_history_enabled", False)
+
+    result = await service_health_service.refresh_all_service_health(
+        cast(BaseStorage, storage)
+    )
+
+    assert result["scheduled"] == 0
+    assert service_health_service.service_probe_tier(
+        storage.registry.read_service_registry_rows()[0],
+        now_ms=now_ms,
+    ) == "offline"
+    assert probed == []
 
 
 @pytest.mark.asyncio

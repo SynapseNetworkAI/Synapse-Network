@@ -3,7 +3,6 @@
 import { execSync, spawnSync } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
-import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
@@ -14,6 +13,14 @@ import {
   requireStagingConfirmation,
   resolveE2eEnvironment,
 } from "../lib/e2e_env_guard.mjs";
+import {
+  startLocalProviderFixture,
+  serviceRegistrationBody,
+} from "./gateway_pull_health_local_provider_fixture.mjs";
+import { runLocalCleanupDryEvidence as collectLocalCleanupDryEvidence } from "./gateway_pull_health_cleanup_helper.mjs";
+import { ensureLocalAgentCredential as ensureLocalAgentCredentialToken } from "./gateway_pull_health_credential_helper.mjs";
+import { createGatewayPullHealthPostgresHelpers } from "./gateway_pull_health_postgres_helpers.mjs";
+import { createScreenshotCapture } from "./gateway_pull_health_screenshot_helper.mjs";
 import { assertSeedEnvironment } from "./seed_env_guard.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -101,15 +108,22 @@ const postgresDsn =
   process.env.POSTGRES_DSN ||
   gatewayLocalEnv.POSTGRES_DSN ||
   (isStaging ? "" : defaultLocalPostgresDsn);
+const localAdminPostgresDsn =
+  process.env.GATEWAY_PULL_HEALTH_ADMIN_POSTGRES_DSN ||
+  process.env.LOCAL_GATEWAY_ADMIN_POSTGRES_DSN ||
+  "";
+const localAdminPostgresDsnCandidates = [
+  localAdminPostgresDsn,
+  `postgresql://${encodeURIComponent(
+    process.env.USER || "cliff"
+  )}@127.0.0.1:5432/synapse_gateway`,
+  "postgresql://synapse_gateway_migrator:local-dev-gateway-migrator-password@127.0.0.1:5432/synapse_gateway",
+  "postgresql://synapse:local-dev-postgres-password@127.0.0.1:5432/synapse_gateway",
+].filter(Boolean);
 const localProviderWallet =
   process.env.GATEWAY_PULL_HEALTH_LOCAL_PROVIDER_WALLET ||
   "0x0000000000000000000000000000000000000e2e";
 const jwtSecret = gatewayLocalEnv.JWT_SECRET || "";
-const localServiceNames = {
-  svc_web3_sentiment_index: "Web3 Sentiment Index",
-  svc_protocol_fundamental_brief: "Protocol Fundamental Brief",
-  svc_oss_security_healthcheck: "OSS Security Healthcheck",
-};
 const localOwnerByServiceId = new Map();
 
 if (isStaging) {
@@ -143,6 +157,7 @@ const apiEvidence = {
   userFrontUrl,
   snapshots: {},
   restart: {},
+  cleanup: {},
 };
 const invokeEvidence = {
   environment,
@@ -270,114 +285,6 @@ function localProviderJwt(ownerWallet = localProviderWallet) {
   );
 }
 
-function startLocalProviderFixture() {
-  let healthy = true;
-  const server = http.createServer(async (req, res) => {
-    const url = new URL(req.url || "/", "http://127.0.0.1");
-    if (url.pathname === "/health") {
-      res.writeHead(healthy ? 200 : 500, {
-        "content-type": "application/json",
-      });
-      res.end(JSON.stringify({ status: healthy ? "ok" : "down" }));
-      return;
-    }
-    if (
-      url.pathname.startsWith("/provider-services/") &&
-      url.pathname.endsWith("/invoke")
-    ) {
-      res.writeHead(200, { "content-type": "application/json" });
-      res.end(
-        JSON.stringify({
-          status: "success",
-          fixture: true,
-          serviceId: url.pathname.split("/")[2],
-        })
-      );
-      return;
-    }
-    res.writeHead(404, { "content-type": "application/json" });
-    res.end(JSON.stringify({ error: "not_found" }));
-  });
-  return new Promise((resolve, reject) => {
-    server.once("error", reject);
-    server.listen(0, "127.0.0.1", () => {
-      const address = server.address();
-      resolve({
-        baseUrl: `http://127.0.0.1:${address.port}`,
-        setHealthy: (value) => {
-          healthy = Boolean(value);
-        },
-        close: () => new Promise((done) => server.close(done)),
-      });
-    });
-  });
-}
-
-function serviceRegistrationBody(
-  serviceId,
-  baseUrl,
-  ownerWallet = localProviderWallet
-) {
-  const serviceName = localServiceNames[serviceId] || serviceId;
-  return {
-    serviceId,
-    agentToolName: serviceId,
-    serviceName,
-    role: "Provider",
-    status: "active",
-    isActive: true,
-    pricing: { amount: "0.000000", currency: "USDC" },
-    priceModel: "fixed",
-    summary: `Local Gateway Pull Health fixture for ${serviceName}`,
-    tags: ["e2e", "gateway-pull-health"],
-    auth: { type: "gateway_signed" },
-    constraints: {
-      timeoutMs: 3000,
-      maxQps: 10,
-      maxRequestBytes: 65536,
-      maxResponseBytes: 65536,
-    },
-    forwarding: { requestIdHeader: "X-Synapse-Request-Id" },
-    invoke: {
-      method: "POST",
-      targets: [
-        {
-          url: `${baseUrl}/provider-services/${serviceId}/invoke`,
-          weight: 100,
-        },
-      ],
-      request: {
-        contentType: "application/json",
-        schema: { body: { type: "object" } },
-      },
-      response: {
-        contentType: "application/json",
-        schema: { body: { type: "object" } },
-      },
-    },
-    healthCheck: {
-      path: "/health",
-      method: "GET",
-      timeoutMs: 1000,
-      successCodes: [200],
-      healthyThreshold: 1,
-      unhealthyThreshold: 1,
-    },
-    payoutAccount: {
-      payoutAddress: ownerWallet,
-      chainId: 421614,
-      settlementCurrency: "USDC",
-      status: "active",
-    },
-    providerProfile: { displayName: "Gateway Pull Health E2E Provider" },
-    governance: {
-      termsAccepted: true,
-      riskAcknowledged: true,
-      note: "local Gateway Pull Health dogfood fixture",
-    },
-  };
-}
-
 async function jsonFetch(url, options = {}) {
   const started = Date.now();
   let response;
@@ -488,32 +395,15 @@ async function ensureLocalProviderFixture() {
 }
 
 async function ensureLocalAgentCredential() {
-  if (isStaging || credential) return;
-  const result = await authenticatedProviderJson(
-    "/v1/credentials/agent/issue",
-    {
-      method: "POST",
-      ownerWallet: localProviderWallet,
-      body: {
-        name: `gateway-pull-health-${runId.slice(-8)}`,
-        maxCalls: 20,
-        rpm: 60,
-        creditLimit: "1.000000",
-        resetInterval: "daily",
-      },
-    }
-  );
-  credential = result.json?.credential?.token || "";
-  invokeEvidence.credentialIssuedByRunner = Boolean(credential);
-  addCheck(
-    "local_agent_credential_available",
-    result.ok && Boolean(credential),
-    {
-      status: result.status,
-      tokenPrefix: result.json?.credential?.tokenPrefix,
-    },
-    "Local no-hold invoke requires a valid agent credential."
-  );
+  credential = await ensureLocalAgentCredentialToken({
+    isStaging,
+    credential,
+    authenticatedProviderJson,
+    localProviderWallet,
+    runId,
+    invokeEvidence,
+    addCheck,
+  });
 }
 
 function gatewayApi(pathname) {
@@ -606,86 +496,44 @@ function expectedIdsWithStatus(snapshot, statuses) {
   });
 }
 
-async function capturePage({
-  page,
-  url,
-  fileName,
-  expectedText = [],
-  forbiddenText = [],
-  apiCheckpoint = {},
-}) {
-  const response = await page.goto(url, { waitUntil: "domcontentloaded" });
-  await page
-    .waitForLoadState("networkidle", { timeout: 10_000 })
-    .catch(() => {});
-  if (expectedText.length > 0) {
-    const expected = Array.isArray(expectedText)
-      ? expectedText
-      : [expectedText];
-    await page
-      .waitForFunction(
-        (texts) => {
-          const body = document.body?.innerText || "";
-          const title = document.title || "";
-          return texts.every(
-            (text) => body.includes(text) || title.includes(text)
-          );
-        },
-        expected,
-        {
-          timeout: Number(process.env.GATEWAY_PULL_HEALTH_UI_WAIT_MS || 15_000),
-        }
-      )
-      .catch(() => {});
-  }
-  const bodyText = await page
-    .locator("body")
-    .innerText({ timeout: 10_000 })
-    .catch(() => "");
-  const title = await page.title().catch(() => "");
-  const expected = Array.isArray(expectedText) ? expectedText : [expectedText];
-  const forbidden = [
-    "Application error",
-    "Internal Server Error",
-    "This page could not be found",
-    "Connect Wallet",
-    "Please connect your wallet",
-    "Wallet not connected",
-    ...forbiddenText,
-  ].filter(Boolean);
-  const expectedMissing = expected.filter(
-    (text) => text && !bodyText.includes(text) && !title.includes(text)
-  );
-  const forbiddenPresent = forbidden.filter(
-    (text) => text && bodyText.includes(text)
-  );
-  const filePath = path.join(screenshotsDir, fileName);
-  await page.screenshot({ path: filePath, fullPage: true });
-  const evidence = sanitize({
-    file: path.relative(evidenceDir, filePath),
-    url,
-    httpStatus: response?.status() || 0,
-    title,
-    expectedText: expected,
-    expectedVisible: expectedMissing.length === 0,
-    expectedMissing,
-    forbiddenText: forbidden,
-    forbiddenTextAbsent: forbiddenPresent.length === 0,
-    forbiddenPresent,
-    apiCheckpoint,
-    capturedAt: new Date().toISOString(),
+function runLocalCleanupDryEvidence() {
+  collectLocalCleanupDryEvidence({
+    root: ROOT,
+    isStaging,
+    postgresDsn,
+    apiEvidence,
+    addCheck,
+    sanitize,
+    redact,
   });
-  screenshotEvidence.push(evidence);
-  addCheck(
-    `screenshot_${fileName}`,
-    (response?.status() || 0) >= 200 &&
-      (response?.status() || 0) < 300 &&
-      expectedMissing.length === 0 &&
-      forbiddenPresent.length === 0,
-    evidence,
-    "Screenshot DOM/API checkpoint failed."
-  );
 }
+
+const capturePage = createScreenshotCapture({
+  screenshotsDir,
+  evidenceDir,
+  screenshotEvidence,
+  addCheck,
+  sanitize,
+});
+
+const {
+  psqlJson,
+  expireExpectedHealthSnapshots,
+  ensureLocalOfflineLifecycleSchema,
+  makeLocalLlmUnavailableForNoHold,
+  markLocalServiceOffline,
+  idempotencySql,
+} = createGatewayPullHealthPostgresHelpers({
+  root: ROOT,
+  isStaging,
+  postgresDsn,
+  localAdminPostgresDsnCandidates,
+  expectedServiceIds,
+  llmServiceId,
+  addCheck,
+  traceEvent,
+  redact,
+});
 
 function restartGateway() {
   if (process.env.GATEWAY_PULL_HEALTH_SKIP_RESTART === "1") {
@@ -722,10 +570,12 @@ function restartGateway() {
     encoding: "utf8",
     env: {
       ...process.env,
+      SERVICE_HEALTH_MONITOR_ENABLED:
+        process.env.SERVICE_HEALTH_MONITOR_ENABLED || "false",
       SERVICE_HEALTH_PROBE_INTERVAL_SEC:
-        process.env.SERVICE_HEALTH_PROBE_INTERVAL_SEC || "5",
+        process.env.SERVICE_HEALTH_PROBE_INTERVAL_SEC || "60",
       SERVICE_HEALTH_REHYDRATE_WINDOW_SEC:
-        process.env.SERVICE_HEALTH_REHYDRATE_WINDOW_SEC || "5",
+        process.env.SERVICE_HEALTH_REHYDRATE_WINDOW_SEC || "120",
       SERVICE_HEALTH_PROBE_TIMEOUT_MS:
         process.env.SERVICE_HEALTH_PROBE_TIMEOUT_MS || "1000",
       SERVICE_HEALTH_MONITOR_STEP_TIMEOUT_SEC:
@@ -787,38 +637,6 @@ async function waitForRehydrate(
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function psqlJson(sql) {
-  if (!postgresDsn) return null;
-  const result = spawnSync(
-    "psql",
-    [postgresDsn, "-X", "-q", "-t", "-A", "-v", "ON_ERROR_STOP=1", "-c", sql],
-    { cwd: ROOT, encoding: "utf8" }
-  );
-  if (result.status !== 0) {
-    return {
-      error: redact(result.stderr || result.stdout || ""),
-    };
-  }
-  const line = result.stdout.trim().split(/\r?\n/).filter(Boolean).at(-1);
-  if (!line) return null;
-  try {
-    return JSON.parse(line);
-  } catch {
-    return { raw: redact(line) };
-  }
-}
-
-function idempotencySql(idempotencyKey) {
-  const safe = String(idempotencyKey).replace(/'/g, "''");
-  return `
-    SELECT json_build_object(
-      'quoteCount', (SELECT count(*) FROM synapse_service_quotes WHERE request_fingerprint LIKE '%${safe}%'),
-      'invocationCount', (SELECT count(*) FROM synapse_invocations WHERE idempotency_key = '${safe}'),
-      'invocations', COALESCE((SELECT json_agg(json_build_object('invocationId', invocation_id, 'status', status, 'chargedUsdc', charged_usdc, 'errorCode', error_code)) FROM synapse_invocations WHERE idempotency_key = '${safe}'), '[]'::json)
-    );
-  `;
 }
 
 async function verifyUnavailableLlmNoHold() {
@@ -988,6 +806,7 @@ async function main() {
     viewport: { width: 1440, height: 1000 },
   });
   try {
+    runLocalCleanupDryEvidence();
     await ensureLocalProviderFixture();
     await ensureLocalAgentCredential();
     const before = await collectApiSnapshot("before_restart");
@@ -1030,11 +849,6 @@ async function main() {
     await waitForGatewayHealth();
     const immediate = await collectApiSnapshot("immediate_after_restart");
     const immediateRegistry = expectedIdsInRegistry(immediate);
-    const staleExpected = expectedIdsWithStatus(immediate, [
-      "stale",
-      "unknown",
-      "unavailable",
-    ]);
     addCheck(
       "restart_registered_not_lost",
       expectedIdsPresentInHealth(immediate).length ===
@@ -1047,22 +861,20 @@ async function main() {
       "Gateway restart lost registered service rows."
     );
     addCheck(
-      "restart_fail_closed_expected_services",
-      immediateRegistry.length === 0,
+      "restart_fresh_snapshot_expected_services_visible",
+      immediateRegistry.length === expectedServiceIds.length,
       {
         expectedServiceIds,
-        stillVisible: immediateRegistry,
-        staleOrUnavailable: staleExpected,
+        visibleAfterRestart: immediateRegistry,
         diagnostics: immediate.registry?.diagnostics,
       },
-      "Expected services must not remain discoverable immediately after restart stale reset."
+      "Fresh health snapshots should keep registered Provider services discoverable across Gateway restart."
     );
     await capturePage({
       page,
       url: userFrontPath("/marketplace"),
-      fileName: "03-marketplace-immediate-after-restart-stale.png",
-      expectedText: ["Agent API Marketplace"],
-      forbiddenText: expectedServiceNames(before),
+      fileName: "03-marketplace-immediate-after-restart-fresh.png",
+      expectedText: expectedServiceNames(immediate),
       apiCheckpoint: {
         expectedVisibleServiceIds: immediateRegistry,
         diagnostics: immediate.registry?.diagnostics,
@@ -1071,16 +883,68 @@ async function main() {
     await capturePage({
       page,
       url: gatewayApi("/v1/services/health/status?includeInactive=true"),
-      fileName: "04-health-status-stale.png",
+      fileName: "04-health-status-after-restart.png",
       expectedText: expectedServiceIds,
       apiCheckpoint: {
-        staleOrUnavailableServiceIds: staleExpected,
         healthRows: immediate.health?.services?.filter((row) =>
           expectedServiceIds.includes(row.serviceId)
         ),
       },
     });
 
+    if (!isStaging) {
+      expireExpectedHealthSnapshots();
+      const expired = await collectApiSnapshot("expired_snapshots");
+      const expiredVisible = expectedIdsInRegistry(expired);
+      const expiredDiscover = expectedIdsInDiscover(expired);
+      addCheck(
+        "expired_snapshot_expected_services_fail_closed",
+        expiredVisible.length === 0 && expiredDiscover.length === 0,
+        {
+          visibleInRegistry: expiredVisible,
+          visibleInDiscover: expiredDiscover,
+          diagnostics: expired.registry?.diagnostics,
+        },
+        "Expired health snapshots must fail closed while registration rows remain."
+      );
+      const expiredHealthPresent = expectedIdsPresentInHealth(expired);
+      addCheck(
+        "expired_snapshot_registration_not_lost",
+        expiredHealthPresent.length === expectedServiceIds.length,
+        {
+          presentInHealth: expiredHealthPresent,
+          stats: expired.stats,
+        },
+        "Expiring health snapshots must not delete service registrations."
+      );
+      await capturePage({
+        page,
+        url: userFrontPath("/marketplace"),
+        fileName: "05-marketplace-expired-snapshot-fail-closed.png",
+        expectedText: ["Agent API Marketplace"],
+        forbiddenText: expectedServiceNames(before),
+        apiCheckpoint: {
+          expectedVisibleServiceIds: expiredVisible,
+          diagnostics: expired.registry?.diagnostics,
+        },
+      });
+
+      for (const serviceId of expectedServiceIds) {
+        const ownerWallet =
+          localOwnerByServiceId.get(serviceId) || localProviderWallet;
+        await authenticatedProviderJson(`/v1/services/${serviceId}/ping`, {
+          method: "POST",
+          ownerWallet,
+        }).catch((error) => {
+          traceEvent("expired_snapshot_force_probe_error", {
+            serviceId,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        });
+      }
+    }
+
+    makeLocalLlmUnavailableForNoHold();
     await verifyUnavailableLlmNoHold();
 
     const rehydrated = await waitForRehydrate();
@@ -1098,7 +962,7 @@ async function main() {
     await capturePage({
       page,
       url: userFrontPath("/marketplace"),
-      fileName: "05-marketplace-after-rehydrate.png",
+      fileName: "06-marketplace-after-rehydrate.png",
       expectedText: expectedServiceNames(rehydrated),
       apiCheckpoint: {
         expectedVisibleServiceIds: rehydratedRegistry,
@@ -1108,6 +972,94 @@ async function main() {
 
     if (!isStaging) {
       if (localProviderFixture) {
+        ensureLocalOfflineLifecycleSchema();
+        localProviderFixture.setHealthy(false);
+        const offlineServiceId = expectedServiceIds[0];
+        markLocalServiceOffline(offlineServiceId);
+        const offlineSnapshot = await collectApiSnapshot("offline_quarantine");
+        const offlineRows = healthRowsById(offlineSnapshot);
+        const offlineRow = offlineRows.get(offlineServiceId);
+        const offlineVisible = expectedIdsInRegistry(offlineSnapshot);
+        addCheck(
+          "offline_service_removed_from_registry",
+          !offlineVisible.includes(offlineServiceId) &&
+            String(offlineRow?.status || "").toLowerCase() === "offline",
+          {
+            serviceId: offlineServiceId,
+            registryVisibleIds: offlineVisible,
+            healthRow: offlineRow,
+            diagnostics: offlineSnapshot.registry?.diagnostics,
+          },
+          "Offline service must be removed from registry and visible as offline in health/status."
+        );
+        await capturePage({
+          page,
+          url: gatewayApi("/v1/services/health/status?includeInactive=true"),
+          fileName: "07-health-status-offline.png",
+          expectedText: [offlineServiceId, "offline"],
+          apiCheckpoint: {
+            serviceId: offlineServiceId,
+            healthRow: offlineRow,
+          },
+        });
+
+        localProviderFixture.setHealthy(true);
+        const ownerWallet =
+          localOwnerByServiceId.get(offlineServiceId) || localProviderWallet;
+        const upsertBody = serviceRegistrationBody(
+          offlineServiceId,
+          localProviderFixture.baseUrl,
+          ownerWallet
+        );
+        const upsert = await authenticatedProviderJson(
+          `/v1/services/${offlineServiceId}`,
+          {
+            method: "PUT",
+            body: upsertBody,
+            ownerWallet,
+          }
+        );
+        addCheck(
+          "offline_reonboard_upsert_succeeded",
+          upsert.ok,
+          { status: upsert.status, serviceId: offlineServiceId },
+          "Re-onboard/upsert should reactivate an offline service."
+        );
+        await authenticatedProviderJson(
+          `/v1/services/${offlineServiceId}/ping`,
+          {
+            method: "POST",
+            ownerWallet,
+          }
+        ).catch((error) => {
+          traceEvent("offline_reonboard_force_probe_error", {
+            serviceId: offlineServiceId,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        });
+        const reonboarded = await waitForRehydrate();
+        const reonboardedVisible = expectedIdsInRegistry(reonboarded);
+        addCheck(
+          "offline_reonboard_service_discoverable",
+          reonboardedVisible.includes(offlineServiceId),
+          {
+            serviceId: offlineServiceId,
+            visibleInRegistry: reonboardedVisible,
+            diagnostics: reonboarded.registry?.diagnostics,
+          },
+          "Re-onboarded offline service did not become discoverable after healthy probe."
+        );
+        await capturePage({
+          page,
+          url: userFrontPath("/marketplace"),
+          fileName: "08-marketplace-after-reonboard.png",
+          expectedText: expectedServiceNames(reonboarded),
+          apiCheckpoint: {
+            expectedVisibleServiceIds: reonboardedVisible,
+            diagnostics: reonboarded.registry?.diagnostics,
+          },
+        });
+
         localProviderFixture.setHealthy(false);
         for (const serviceId of expectedServiceIds) {
           const ownerWallet =
@@ -1139,7 +1091,7 @@ async function main() {
         await capturePage({
           page,
           url: userFrontPath("/marketplace"),
-          fileName: "06-provider-down-marketplace-removed.png",
+          fileName: "09-provider-down-marketplace-removed.png",
           expectedText: ["Agent API Marketplace"],
           forbiddenText: expectedServiceNames(rehydrated),
           apiCheckpoint: {
@@ -1172,7 +1124,7 @@ async function main() {
         await capturePage({
           page,
           url: userFrontPath("/marketplace"),
-          fileName: "06-provider-down-marketplace-removed.png",
+          fileName: "09-provider-down-marketplace-removed.png",
           expectedText: ["Agent API Marketplace"],
           forbiddenText: expectedServiceNames(rehydrated),
           apiCheckpoint: {

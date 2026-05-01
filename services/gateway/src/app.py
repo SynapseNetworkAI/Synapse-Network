@@ -32,7 +32,6 @@ from src.services.platform.tasks.consumer_withdraw_processor import (
     run_consumer_withdraw_processor,
 )
 from src.services.platform.service_health_service import (
-    mark_service_health_stale_on_startup,
     run_service_health_monitor,
 )
 from src.services.analytics.emitter import create_analytics_emitter
@@ -70,14 +69,6 @@ def _start_background_task(
             task_attr,
             asyncio.create_task(runner(stop_event, app.state.storage)),
         )
-
-
-def _mark_provider_health_stale_for_rehydrate(storage) -> None:
-    stale_target_count = mark_service_health_stale_on_startup(storage)
-    logger.info(
-        "Service health startup rehydrate: marked %s target(s) stale before monitor probe.",
-        stale_target_count,
-    )
 
 
 async def _cancel_background_task(
@@ -310,7 +301,9 @@ async def lifespan(app: FastAPI):
     logger.info(
         "Application starting up... Storage Connected (%s).", settings.storage_backend
     )
-    _mark_provider_health_stale_for_rehydrate(storage)
+    logger.info(
+        "Service health startup: trusting fresh persisted snapshots; expired snapshots fail closed."
+    )
 
     # Initialize analytics emitter
     app.state.analytics = create_analytics_emitter(

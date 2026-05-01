@@ -104,6 +104,20 @@ def find_active_service(storage: BaseStorage, service_id: str) -> ServiceDefinit
             status_code=404,
             detail={"code": "SERVICE_NOT_FOUND", "message": "Service not found"},
         )
+    target_status = str(target.status or "active").lower()
+    if target_status == "offline":
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "code": "PROVIDER_UNAVAILABLE",
+                "message": "Service is not currently available",
+            },
+        )
+    if target_status != "active":
+        raise HTTPException(
+            status_code=403,
+            detail={"code": "SERVICE_INACTIVE", "message": "Service is inactive"},
+        )
     if target.is_active is False:
         raise HTTPException(
             status_code=403,

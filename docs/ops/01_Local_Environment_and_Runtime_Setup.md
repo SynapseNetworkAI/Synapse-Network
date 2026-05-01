@@ -458,17 +458,24 @@ TARGET_WALLET=0x1111111111111111111111111111111111111111,0x222222222222222222222
 5. 如果需要初始化或升级本地数据库 schema，请使用 `scripts/local/setup_local_env.sh` 或手动执行迁移脚本
 6. 如果手滑用了 `sh scripts/local/*.sh`，脚本现在会自动重新切回 `bash`，避免 `pipefail` 兼容性错误。
 7. 启动前会检查本地 active E2E 服务膨胀；超过 `LOCAL_SERVICE_REGISTRY_TEST_ACTIVE_LIMIT`（默认 50）会拒绝启动，避免测试垃圾服务抢占 health monitor 探活名额。
+8. 启动前也会提示 `service_health_meta::*` / `service_health_history::*` 这类测试健康状态膨胀；它不会自动清理，但会给出 cleanup dry-run 命令，避免隐藏本地 DB 变更。
 
 `scripts/local/cleanup_service_registry_dev.sh`
 
 1. 用途：只在本地 Postgres 中 soft archive E2E/test 前缀服务，保留 quote、invocation、ledger、audit 历史，不做物理删除。
-2. 必须显式确认：
+2. 同时清理本地 health pressure：测试前缀服务的 `synapse_service_health_snapshots` 和 `service_health_meta::*` / `service_health_history::*` runtime state 会被清掉，避免已归档服务继续拖慢 health monitor。这里删除的是本地派生健康状态，不删除 manifest、endpoint、quote、invocation、ledger 或 audit 历史。
+3. 必须显式确认：
    ```bash
    LOCAL_DEV_CLEANUP_CONFIRM=I_UNDERSTAND_THIS_MUTATES_LOCAL_DB \
      bash scripts/local/cleanup_service_registry_dev.sh
    ```
-3. 脚本只允许 `localhost` / `127.0.0.1` 的 `synapse_gateway` 数据库，不能用于 staging/prod。
-4. 保留 canonical provider 服务：`svc_web3_sentiment_index`、`svc_protocol_fundamental_brief`、`svc_oss_security_healthcheck`、`svc_deepseek_chat`。
+4. 脚本只允许 `localhost` / `127.0.0.1` 的 `synapse_gateway` 数据库，不能用于 staging/prod。
+5. 保留 canonical provider 服务：`svc_web3_sentiment_index`、`svc_protocol_fundamental_brief`、`svc_oss_security_healthcheck`、`svc_deepseek_chat`。
+6. 非破坏性预览：
+   ```bash
+   LOCAL_DEV_CLEANUP_DRY_RUN=1 LOCAL_DEV_CLEANUP_OUTPUT=json \
+     bash scripts/local/cleanup_service_registry_dev.sh
+   ```
 
 #### D. 共享测试网 / 生产 profile 脚本
 

@@ -28,11 +28,16 @@ const requiredFiles = [
 const commonRequiredScreenshots = [
   "01-marketplace-before-restart.png",
   "02-registry-before-restart-json.png",
-  "03-marketplace-immediate-after-restart-stale.png",
-  "04-health-status-stale.png",
-  "05-marketplace-after-rehydrate.png",
+  "03-marketplace-immediate-after-restart-fresh.png",
+  "04-health-status-after-restart.png",
+  "06-marketplace-after-rehydrate.png",
 ];
-const localOnlyScreenshots = ["06-provider-down-marketplace-removed.png"];
+const localOnlyScreenshots = [
+  "05-marketplace-expired-snapshot-fail-closed.png",
+  "07-health-status-offline.png",
+  "08-marketplace-after-reonboard.png",
+  "09-provider-down-marketplace-removed.png",
+];
 const forbiddenScreenshotText = [
   "Connect Wallet",
   "Please connect your wallet",
@@ -167,6 +172,9 @@ function validateScreenshots(dir, screenshots) {
 function validateApiEvidence(api, expectedServiceIds) {
   const before = api.snapshots?.before_restart;
   const immediate = api.snapshots?.immediate_after_restart;
+  const expired = api.snapshots?.expired_snapshots;
+  const offline = api.snapshots?.offline_quarantine;
+  const reonboarded = api.snapshots?.rehydrate_poll;
   const rehydrated =
     api.snapshots?.rehydrate_poll || api.snapshots?.rehydrate_timeout;
   if (!before || !immediate || !rehydrated) {
@@ -177,6 +185,31 @@ function validateApiEvidence(api, expectedServiceIds) {
       "rerun dogfood; each screenshot needs matching registry, health, stats, and discover snapshots."
     );
     return;
+  }
+  for (const [label, snapshot] of Object.entries(api.snapshots || {})) {
+    const diagnostics = snapshot?.registry?.diagnostics;
+    const stats = snapshot?.stats;
+    if (!diagnostics || !stats) continue;
+    for (const [diagnosticKey, statsKey] of [
+      ["registeredTotal", "registeredServices"],
+      ["discoverableTotal", "discoverableServices"],
+      ["staleTotal", "staleServices"],
+      ["offlineTotal", "offlineServices"],
+      ["unavailableTotal", "unavailableServices"],
+    ]) {
+      if (
+        diagnostics[diagnosticKey] !== undefined &&
+        stats[statsKey] !== undefined &&
+        Number(diagnostics[diagnosticKey]) !== Number(stats[statsKey])
+      ) {
+        fatal(
+          "GATEWAY-PULL-HEALTH-STATS-MISMATCH",
+          "api-evidence.json",
+          `${label} mismatch: registry.diagnostics.${diagnosticKey}=${diagnostics[diagnosticKey]} but network-stats.${statsKey}=${stats[statsKey]}`,
+          "fix registry.json diagnostics or Gateway network-stats so all public status surfaces agree."
+        );
+      }
+    }
   }
   const beforeIds = new Set(
     (before.registry?.services || []).map((row) => row.serviceId)
@@ -199,12 +232,12 @@ function validateApiEvidence(api, expectedServiceIds) {
         "onboard the provider fixture before running the dogfood E2E."
       );
     }
-    if (immediateIds.has(serviceId)) {
+    if (!immediateIds.has(serviceId)) {
       fatal(
-        "GATEWAY-PULL-HEALTH-FAKE-GRACE",
+        "GATEWAY-PULL-HEALTH-FRESH-RESTART-MISSING",
         "api-evidence.json",
-        `expected service remained discoverable immediately after restart: ${serviceId}`,
-        "Gateway must fail closed after restart; remove stale/last-known-healthy marketplace grace."
+        `expected service disappeared immediately after fresh restart: ${serviceId}`,
+        "Gateway should trust fresh persisted health snapshots across restart; only expired snapshots should fail closed."
       );
     }
     if (!healthIds.has(serviceId)) {
@@ -221,6 +254,56 @@ function validateApiEvidence(api, expectedServiceIds) {
         "api-evidence.json",
         `expected service did not reappear after health monitor rehydrate: ${serviceId}`,
         "fix provider /health, monitor jitter/worker pool, or wait window."
+      );
+    }
+  }
+  if (environment === "local") {
+    if (!expired || !offline || !reonboarded) {
+      fatal(
+        "GATEWAY-PULL-HEALTH-LOCAL-SNAPSHOTS",
+        "api-evidence.json",
+        "local evidence must include expired_snapshots, offline_quarantine, and rehydrate/re-onboard snapshots.",
+        "rerun local dogfood after implementing expired/offline/re-onboard checkpoints."
+      );
+      return;
+    }
+    const expiredIds = new Set(
+      (expired.registry?.services || []).map((row) => row.serviceId)
+    );
+    for (const serviceId of expectedServiceIds) {
+      if (expiredIds.has(serviceId)) {
+        fatal(
+          "GATEWAY-PULL-HEALTH-EXPIRED-DISCOVERABLE",
+          "api-evidence.json",
+          `expired health snapshot stayed discoverable: ${serviceId}`,
+          "Expired health snapshots must fail closed while preserving registration rows."
+        );
+      }
+    }
+    const offlineRows = new Map(
+      (offline.health?.services || []).map((row) => [row.serviceId, row])
+    );
+    const offlineServiceId = expectedServiceIds[0];
+    const offlineRow = offlineRows.get(offlineServiceId);
+    if (String(offlineRow?.status || "").toLowerCase() !== "offline") {
+      fatal(
+        "GATEWAY-PULL-HEALTH-OFFLINE-MISSING",
+        "api-evidence.json",
+        `expected first canonical service to be offline; got ${
+          offlineRow?.status || "missing"
+        }`,
+        "offline quarantine evidence must show the service is non-discoverable and marked offline."
+      );
+    }
+    const reonboardedIds = new Set(
+      (reonboarded.registry?.services || []).map((row) => row.serviceId)
+    );
+    if (!reonboardedIds.has(offlineServiceId)) {
+      fatal(
+        "GATEWAY-PULL-HEALTH-REONBOARD-MISSING",
+        "api-evidence.json",
+        `re-onboarded service did not return to registry: ${offlineServiceId}`,
+        "upsert the same serviceId and force-probe successfully before capturing re-onboard evidence."
       );
     }
   }
@@ -342,13 +425,25 @@ for (const checkName of [
   "before_restart_expected_services_registered",
   "before_restart_expected_services_discoverable",
   "restart_registered_not_lost",
-  "restart_fail_closed_expected_services",
+  "restart_fresh_snapshot_expected_services_visible",
   "rehydrate_expected_services_discoverable",
   "llm_unavailable_no_hold",
 ]) {
   assertCheck(report, checkName);
 }
 if (environment === "local") {
+  for (const checkName of [
+    "local_cleanup_dry_evidence_available",
+    "local_llm_unavailable_fixture_applied",
+    "expired_snapshot_expected_services_fail_closed",
+    "expired_snapshot_registration_not_lost",
+    "local_offline_lifecycle_schema_available",
+    "offline_service_removed_from_registry",
+    "offline_reonboard_upsert_succeeded",
+    "offline_reonboard_service_discoverable",
+  ]) {
+    assertCheck(report, checkName);
+  }
   assertCheck(report, "provider_down_expected_services_removed");
 }
 

@@ -16,12 +16,12 @@ Production remains **NO-GO** if any required report below is missing.
 
 ## Test Tiers
 
-| Tier | Scope | Command | Launch Meaning |
-| --- | --- | --- | --- |
-| Local CI smoke | Deterministic unit-level reliability guards for bounded concurrency, slow lane, jitter, and recovery semantics. | `npm run ci:performance-reliability` | Required regression signal, not production capacity evidence. |
-| Staging load | Gateway, admin, and provider-facing flows under realistic traffic mix. | Environment-specific load runner. | Required production readiness evidence. |
-| Staging chaos | Provider outage, gateway restart, gateway-admin restart, RPC/DB/queue/analytics outage drills. | Environment-specific chaos runbook. | Required resilience evidence. |
-| Recovery drill | App rollback, config rollback, feature flag shutoff, provider drain, signer rollback, backup restore. | Environment-specific recovery runbook. | Required recovery evidence. |
+| Tier           | Scope                                                                                                           | Command                                | Launch Meaning                                                |
+| -------------- | --------------------------------------------------------------------------------------------------------------- | -------------------------------------- | ------------------------------------------------------------- |
+| Local CI smoke | Deterministic unit-level reliability guards for bounded concurrency, slow lane, jitter, and recovery semantics. | `npm run ci:performance-reliability`   | Required regression signal, not production capacity evidence. |
+| Staging load   | Gateway, admin, and provider-facing flows under realistic traffic mix.                                          | Environment-specific load runner.      | Required production readiness evidence.                       |
+| Staging chaos  | Provider outage, gateway restart, gateway-admin restart, RPC/DB/queue/analytics outage drills.                  | Environment-specific chaos runbook.    | Required resilience evidence.                                 |
+| Recovery drill | App rollback, config rollback, feature flag shutoff, provider drain, signer rollback, backup restore.           | Environment-specific recovery runbook. | Required recovery evidence.                                   |
 
 ## Local CI Smoke
 
@@ -30,8 +30,8 @@ Local CI smoke must stay fast, deterministic, and safe for developer laptops. It
 Required checks:
 
 1. Provider health probe burst respects `SERVICE_HEALTH_MAX_CONCURRENCY`.
-2. Long-unhealthy active services enter slow lane and avoid normal-frequency probing.
-3. Skipped slow-lane services remain visible as tracked health state and are not silently dropped.
+2. Long-unhealthy active services are eventually quarantined as `offline` and removed from automatic probing.
+3. Recently unhealthy or suspended services can still use slow-lane probing before quarantine without starving healthy/recently updated services.
 4. Gateway stress static review catches fake async, missing timeouts, wait-in-transaction, unbounded-read warnings, and missing hot-path indexes.
 5. Smoke output is part of `ci:pr`, so release-gate regressions cannot bypass PR review.
 
@@ -256,18 +256,18 @@ Minimum report fields:
 
 Default staging thresholds:
 
-| Area | P0 Threshold |
-| --- | --- |
-| Gateway invoke success rate | `>= 99.5%` excluding deliberate provider failures |
-| Gateway invoke p95 | `<= 1500ms` excluding provider compute time |
-| Discovery p95 | `<= 500ms` |
-| Balance p95 | `<= 500ms` |
-| Finance mutation error rate | `0 unexpected 5xx` |
-| Provider health monitor | No unbounded queue growth; checked/scheduled stats stay explainable by jitter and slow lane |
-| Ledger/vault reconciliation | `0` unexplained delta |
-| Analytics outbox | No unbounded backlog; successful rows deleted; oldest pending age explained |
-| Outbox worker concurrency | `0` duplicate event ids under 3-worker `FOR UPDATE SKIP LOCKED` drain |
-| HTTP client pool | Pool saturation returns `SERVICE_BUSY` before charge and is separately observable |
+| Area                        | P0 Threshold                                                                                |
+| --------------------------- | ------------------------------------------------------------------------------------------- |
+| Gateway invoke success rate | `>= 99.5%` excluding deliberate provider failures                                           |
+| Gateway invoke p95          | `<= 1500ms` excluding provider compute time                                                 |
+| Discovery p95               | `<= 500ms`                                                                                  |
+| Balance p95                 | `<= 500ms`                                                                                  |
+| Finance mutation error rate | `0 unexpected 5xx`                                                                          |
+| Provider health monitor     | No unbounded queue growth; checked/scheduled stats stay explainable by jitter and slow lane |
+| Ledger/vault reconciliation | `0` unexplained delta                                                                       |
+| Analytics outbox            | No unbounded backlog; successful rows deleted; oldest pending age explained                 |
+| Outbox worker concurrency   | `0` duplicate event ids under 3-worker `FOR UPDATE SKIP LOCKED` drain                       |
+| HTTP client pool            | Pool saturation returns `SERVICE_BUSY` before charge and is separately observable           |
 
 Gateway production performance implementation rules live in [Gateway_Production_Performance_Stability_Optimization.md](../projects/gateway/Gateway_Production_Performance_Stability_Optimization.md).
 

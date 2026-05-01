@@ -6,6 +6,7 @@ export type PublicNetworkStats = {
   registeredServices: number;
   discoverableServices: number;
   staleServices: number;
+  offlineServices?: number;
   unavailableServices?: number;
   connectedAgents: number;
   runtimeReadyServices: number;
@@ -16,6 +17,7 @@ const EMPTY_STATS: PublicNetworkStats = {
   registeredServices: 0,
   discoverableServices: 0,
   staleServices: 0,
+  offlineServices: 0,
   unavailableServices: 0,
   connectedAgents: 0,
   runtimeReadyServices: 0,
@@ -32,7 +34,8 @@ function unavailableServiceCount(payload: Partial<PublicNetworkStats>): number {
       numberOrZero(
         payload.discoverableServices || payload.runtimeReadyServices
       ) -
-      numberOrZero(payload.staleServices)
+      numberOrZero(payload.staleServices) -
+      numberOrZero(payload.offlineServices)
   );
 }
 
@@ -61,6 +64,7 @@ export async function fetchPublicNetworkStats(): Promise<PublicNetworkStats> {
         payload.discoverableServices || payload.runtimeReadyServices || 0
       ),
       staleServices: Number(payload.staleServices || 0),
+      offlineServices: Number(payload.offlineServices || 0),
       unavailableServices: unavailableServiceCount(payload),
       connectedAgents: Number(payload.connectedAgents || 0),
       runtimeReadyServices: Number(payload.runtimeReadyServices || 0),

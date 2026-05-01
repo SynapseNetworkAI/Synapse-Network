@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
 
+from pydantic import BaseModel
+
 from src.domain.service_contract import AgentDiscoveryQueryRecord, PublicServiceDiscoveryRecord
 from src.services.platform import service_health_service
 
@@ -35,7 +37,12 @@ class RegistryResponseView:
         return self.payload[key]
 
     def to_response_dict(self) -> dict[str, Any]:
-        return dict(self.payload)
+        return {
+            key: value.model_dump(by_alias=True, exclude_none=True)
+            if isinstance(value, BaseModel)
+            else value
+            for key, value in self.payload.items()
+        }
 
 
 async def discover_public_services(
@@ -113,6 +120,12 @@ async def public_network_stats(context: RegistryContext) -> dict[str, Any]:
         and bool(row.is_active)
         and str(row.status or "active").lower() == "active"
     ]
+    offline_services = [
+        row
+        for row in rows
+        if not is_deleted_service(row)
+        and str(row.status or "").lower() == "offline"
+    ]
     discoverable_count = len(
         [
             service
@@ -143,6 +156,7 @@ async def public_network_stats(context: RegistryContext) -> dict[str, Any]:
         "registeredServices": len(registered_services),
         "discoverableServices": discoverable_count,
         "staleServices": stale_count,
+        "offlineServices": len(offline_services),
         "unavailableServices": unavailable_count,
         "runtimeReadyServices": discoverable_count,
         "totalCalls": len(dedup_by_request_id),

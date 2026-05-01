@@ -30,7 +30,14 @@ from src.utils.datetime_utils import to_dt_str
 
 JSON_CONTENT_TYPE = "application/json"
 HttpMethod = Literal["POST", "GET", "PUT", "PATCH", "DELETE"]
-SERVICE_LIFECYCLE_STATUSES = {"draft", "active", "inactive", "suspended", "deleted"}
+SERVICE_LIFECYCLE_STATUSES = {
+    "draft",
+    "active",
+    "inactive",
+    "offline",
+    "suspended",
+    "deleted",
+}
 LEGACY_SERVICE_LIFECYCLE_STATUS = {
     "paused": "inactive",
     "archived": "deleted",
@@ -79,7 +86,7 @@ def normalized_service_lifecycle_status(raw_status: Any, is_active: bool = True)
         status = "active" if is_active else "inactive"
     if status not in SERVICE_LIFECYCLE_STATUSES:
         raise ValueError(
-            "service status must be one of draft, active, inactive, suspended, deleted"
+            "service status must be one of draft, active, inactive, offline, suspended, deleted"
         )
     if status == "active" and not is_active:
         return "inactive"
