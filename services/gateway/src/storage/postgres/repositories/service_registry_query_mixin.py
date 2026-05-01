@@ -248,7 +248,7 @@ class ServiceRegistryQueryMixin:
                     SELECT endpoint_id, endpoint_url, auth_mode, timeout_ms, status, max_payload_bytes
                     FROM synapse_service_endpoints
                     WHERE service_id = sm.service_id
-                    ORDER BY is_primary DESC, created_at ASC
+                    ORDER BY (status = 'active') DESC, is_primary DESC, updated_at DESC, created_at DESC
                     LIMIT 1
                 ) AS ep ON TRUE
                 LEFT JOIN synapse_service_search_index AS si ON si.service_id = sm.service_id

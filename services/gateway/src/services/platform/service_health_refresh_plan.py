@@ -107,12 +107,11 @@ def _candidate_priority(
     tier = service_probe_tier(service, now_ms=now_ms)
     active_rank = 0 if str(getattr(service, "status", "") or "").lower() == "active" else 1
     tier_rank = 1 if tier == "slow_lane" else 0
-    missing_health_rank = 0 if checked_at <= 0 else 1
     return (
         tier_rank,
         active_rank,
-        missing_health_rank,
         -updated_at,
+        0 if checked_at <= 0 else 1,
         str(service.service_id or ""),
     )
 

@@ -28,6 +28,14 @@
 1. gateway-admin backend
 2. admin-front
 
+本地 Docker 默认只启动 MVP 必需依赖：PostgreSQL、Redis、MinIO 和
+Otterscan。Kafka、Kafka UI、ClickHouse 已归入 `analytics` profile，默认不启动；
+只有调试 analytics pipeline 时才显式执行：
+
+```bash
+docker-compose -f infra/docker/local/docker-compose.yml --profile analytics up -d
+```
+
 ## 3. 推荐启动路径
 
 ### 3.1 一键本地环境
@@ -449,6 +457,18 @@ TARGET_WALLET=0x1111111111111111111111111111111111111111,0x222222222222222222222
 4. 该脚本只确保本地 Postgres 进程可用，不会执行 `infra/postgres/init/000_run_init_tree.sh`
 5. 如果需要初始化或升级本地数据库 schema，请使用 `scripts/local/setup_local_env.sh` 或手动执行迁移脚本
 6. 如果手滑用了 `sh scripts/local/*.sh`，脚本现在会自动重新切回 `bash`，避免 `pipefail` 兼容性错误。
+7. 启动前会检查本地 active E2E 服务膨胀；超过 `LOCAL_SERVICE_REGISTRY_TEST_ACTIVE_LIMIT`（默认 50）会拒绝启动，避免测试垃圾服务抢占 health monitor 探活名额。
+
+`scripts/local/cleanup_service_registry_dev.sh`
+
+1. 用途：只在本地 Postgres 中 soft archive E2E/test 前缀服务，保留 quote、invocation、ledger、audit 历史，不做物理删除。
+2. 必须显式确认：
+   ```bash
+   LOCAL_DEV_CLEANUP_CONFIRM=I_UNDERSTAND_THIS_MUTATES_LOCAL_DB \
+     bash scripts/local/cleanup_service_registry_dev.sh
+   ```
+3. 脚本只允许 `localhost` / `127.0.0.1` 的 `synapse_gateway` 数据库，不能用于 staging/prod。
+4. 保留 canonical provider 服务：`svc_web3_sentiment_index`、`svc_protocol_fundamental_brief`、`svc_oss_security_healthcheck`、`svc_deepseek_chat`。
 
 #### D. 共享测试网 / 生产 profile 脚本
 
