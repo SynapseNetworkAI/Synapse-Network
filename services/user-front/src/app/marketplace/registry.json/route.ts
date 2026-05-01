@@ -71,6 +71,39 @@ function filterServices(
   });
 }
 
+type MarketplaceRegistryDiagnostics = {
+  registeredTotal: number;
+  discoverableTotal: number;
+  staleTotal: number;
+  offlineTotal: number;
+  unavailableTotal: number;
+};
+
+function registryDiagnostics(stats: {
+  registeredServices: number;
+  discoverableServices: number;
+  staleServices: number;
+  offlineServices?: number;
+  unavailableServices?: number;
+}): MarketplaceRegistryDiagnostics {
+  const offlineTotal = stats.offlineServices ?? 0;
+  return {
+    registeredTotal: stats.registeredServices,
+    discoverableTotal: stats.discoverableServices,
+    staleTotal: stats.staleServices,
+    offlineTotal,
+    unavailableTotal:
+      stats.unavailableServices ??
+      Math.max(
+        0,
+        stats.registeredServices -
+          stats.discoverableServices -
+          stats.staleServices -
+          offlineTotal
+      ),
+  };
+}
+
 export async function GET(request: Request): Promise<Response> {
   try {
     const url = new URL(request.url);
@@ -110,19 +143,7 @@ export async function GET(request: Request): Promise<Response> {
           hasPreviousPage: currentPage > 1,
         },
         total: services.length,
-        diagnostics: {
-          registeredTotal: stats.registeredServices,
-          discoverableTotal: stats.discoverableServices,
-          staleTotal: stats.staleServices,
-          unavailableTotal:
-            stats.unavailableServices ??
-            Math.max(
-              0,
-              stats.registeredServices -
-                stats.discoverableServices -
-                stats.staleServices
-            ),
-        },
+        diagnostics: registryDiagnostics(stats),
         services: pageServices,
       },
       {

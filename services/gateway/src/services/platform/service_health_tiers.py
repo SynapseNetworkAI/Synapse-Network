@@ -81,22 +81,25 @@ def service_probe_tier(
 ) -> str:
     """Return the automatic probe tier for admin/runtime visibility."""
     lifecycle_status = service_control_status(service)
+    tier = "normal"
     if lifecycle_status == "deleted":
-        return "disabled"
-    if lifecycle_status in {"draft", "inactive"}:
-        return "manual_only"
-    if lifecycle_status == "suspended":
-        return "slow_lane"
-    if lifecycle_status == "active" and not bool(service.is_active):
-        return "manual_only"
-
-    slow_lane_after_ms = max(
-        1,
-        int(settings.service_health_slow_lane_after_sec),
-    ) * 1000
-    if _unhealthy_age_ms(service, now_ms=now_ms) >= slow_lane_after_ms:
-        return "slow_lane"
-    return "normal"
+        tier = "disabled"
+    elif lifecycle_status == "offline":
+        tier = "offline"
+    elif lifecycle_status in {"draft", "inactive"}:
+        tier = "manual_only"
+    elif lifecycle_status == "suspended":
+        tier = "slow_lane"
+    elif lifecycle_status == "active" and not bool(service.is_active):
+        tier = "manual_only"
+    else:
+        slow_lane_after_ms = max(
+            1,
+            int(settings.service_health_slow_lane_after_sec),
+        ) * 1000
+        if _unhealthy_age_ms(service, now_ms=now_ms) >= slow_lane_after_ms:
+            tier = "slow_lane"
+    return tier
 
 
 def _slow_lane_interval_sec(service: ServiceDefinitionRecord) -> int:
@@ -184,7 +187,7 @@ def should_probe_service_now(
     """Return whether the automatic monitor should probe this service this tick."""
     tier = service_probe_tier(service, now_ms=now_ms)
     if (
-        tier in {"disabled", "manual_only"}
+        tier in {"disabled", "manual_only", "offline"}
         or tier not in {"normal", "slow_lane"}
         or not is_service_probeable(service)
     ):

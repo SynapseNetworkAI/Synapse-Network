@@ -106,7 +106,7 @@ class ServiceRegistryCoreMixin:
             normalized = "active" if bool(is_active) else "inactive"
         if normalized == "active" and not bool(is_active):
             normalized = "inactive"
-        if normalized not in {"draft", "active", "inactive", "suspended", "deleted"}:
+        if normalized not in {"draft", "active", "inactive", "offline", "suspended", "deleted"}:
             return "inactive"
         return normalized
 
@@ -115,6 +115,8 @@ class ServiceRegistryCoreMixin:
         lifecycle = cls._public_lifecycle_status(row.status, row.is_active)
         if lifecycle == "active":
             return "active"
+        if lifecycle == "offline":
+            return "offline"
         if lifecycle == "deleted":
             return "archived"
         return "paused"
