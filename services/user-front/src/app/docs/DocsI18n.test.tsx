@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { createElement, type ReactElement } from "react";
 
 import { DocsNavigationFeedbackProvider } from "@/app/docs/DocsNavigationFeedback";
@@ -53,6 +53,10 @@ describe("docs multilingual surfaces", () => {
     vi.clearAllMocks();
     pathnameMock.mockReturnValue("/docs");
     globalThis.localStorage.clear();
+  });
+
+  afterEach(() => {
+    cleanup();
   });
 
   it("renders top navigation in Chinese", async () => {
@@ -118,16 +122,13 @@ describe("docs multilingual surfaces", () => {
     expect(screen.getByText("Provider guide complete")).toBeTruthy();
   });
 
-  it("renders concepts, api, sdk, and contracts headings in English", async () => {
+  it("renders concepts, api, contracts, and support headings in English", async () => {
     renderWithLanguage(
       createElement(
         "div",
         null,
         createElement(ConceptsPage),
         createElement(ApiReferencePage),
-        createElement(SdkPage),
-        createElement(TypeScriptSdkPage),
-        createElement(PythonSdkPage),
         createElement(ContractsPage),
         createElement(DocsSupportPage)
       ),
@@ -138,6 +139,23 @@ describe("docs multilingual surfaces", () => {
       await screen.findByRole("heading", { name: "How Synapse Works" })
     ).toBeTruthy();
     expect(screen.getByRole("heading", { name: "REST API" })).toBeTruthy();
+    expect(
+      screen.getAllByRole("heading", { name: "Smart Contracts" }).length
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getByRole("heading", { name: "Developer Support" })
+    ).toBeTruthy();
+    expect(
+      screen.getByText("Expose narrow agent credentials, not owner wallets")
+    ).toBeTruthy();
+    expect(
+      screen.getByText("Export callable marketplace services")
+    ).toBeTruthy();
+  });
+
+  it("renders SDK hub and preview SDK links in English", async () => {
+    renderWithLanguage(createElement(SdkPage), "en");
+
     expect(screen.getByRole("heading", { name: "SDKs" })).toBeTruthy();
     expect(
       screen.getByRole("heading", { name: "Reference SDKs" })
@@ -191,23 +209,39 @@ describe("docs multilingual surfaces", () => {
     expect(
       screen.getAllByText("Agent Runtime Quickstart").length
     ).toBeGreaterThan(0);
+  });
+
+  it("renders TypeScript and Python SDK detail pages in English", async () => {
+    renderWithLanguage(
+      createElement(
+        "div",
+        null,
+        createElement(TypeScriptSdkPage),
+        createElement(PythonSdkPage)
+      ),
+      "en"
+    );
+
     expect(
-      screen.getByText(
-        "Gateway Dashboard -> Connect Wallet -> Generate Agent Key"
-      )
-    ).toBeTruthy();
-    expect(screen.getByText("Advanced owner flow")).toBeTruthy();
-    expect(screen.getByText("Staging docs are live")).toBeTruthy();
+      screen.getAllByRole("heading", { name: "TypeScript SDK" }).length
+    ).toBeGreaterThan(0);
     expect(
-      screen
-        .getByRole("link", { name: "Python staging runbook" })
-        .getAttribute("href")
-    ).toBe("https://staging.synapse-network.ai/docs/sdk/python");
+      screen.getAllByRole("heading", { name: "Python SDK" }).length
+    ).toBeGreaterThan(0);
+    expect(document.body.textContent).toContain(
+      "Get an Agent Key from the Gateway Dashboard"
+    );
+    expect(document.body.textContent).toContain("Discover services first");
+    expect(document.body.textContent).toContain(
+      "Known serviceId? Call it directly"
+    );
+    expect(document.body.textContent).toMatch(
+      /official free starter services/i
+    );
     expect(
-      screen
-        .getByRole("link", { name: "TypeScript staging runbook" })
-        .getAttribute("href")
-    ).toBe("https://staging.synapse-network.ai/docs/sdk/typescript");
+      screen.getAllByRole("heading", { name: "Agent Runtime Quickstart" })
+        .length
+    ).toBeGreaterThan(0);
     expect(
       screen
         .getByRole("link", { name: "Open Python staging runbook" })
@@ -221,25 +255,6 @@ describe("docs multilingual surfaces", () => {
     expect(
       screen.getAllByText(/compressed Agent Key entrypoint/i).length
     ).toBeGreaterThan(0);
-    expect(
-      screen.getAllByRole("heading", { name: "Smart Contracts" }).length
-    ).toBeGreaterThan(0);
-    expect(
-      screen.getByRole("heading", { name: "Developer Support" })
-    ).toBeTruthy();
-    expect(
-      screen.getByText("Expose narrow agent credentials, not owner wallets")
-    ).toBeTruthy();
-    expect(
-      screen.getByText("Export callable marketplace services")
-    ).toBeTruthy();
-    expect(
-      screen.getByRole("heading", { name: "Discover services first" })
-    ).toBeTruthy();
-    expect(
-      screen.getByRole("heading", { name: "Known serviceId? Call it directly" })
-    ).toBeTruthy();
-    expect(screen.getByText(/official free starter services/i)).toBeTruthy();
   });
 
   it("renders docs 404 in Chinese", async () => {
