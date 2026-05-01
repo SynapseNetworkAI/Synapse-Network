@@ -49,7 +49,7 @@ const supportCards = [
     title: "GitHub",
     description:
       "Open SDK issues, inspect examples, or link code-level reproductions.",
-    href: "https://github.com/cliff-personal/Synapse-Network-Sdk",
+    href: "https://github.com/SynapseNetworkAI/Synapse-Network-Sdk",
     icon: Github,
     external: true,
   },

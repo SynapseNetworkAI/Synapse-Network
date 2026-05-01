@@ -259,7 +259,7 @@ export default function Navbar() {
 
             <div className="flex items-center gap-4">
               <a
-                href="https://github.com/cliff-personal/Synapse-Network-Sdk"
+                href="https://github.com/SynapseNetworkAI/Synapse-Network-Sdk"
                 target="_blank"
                 rel="noreferrer"
                 className="hidden h-10 w-10 items-center justify-center rounded-full border border-white/16 bg-black/28 text-white transition hover:border-[#7ff7be]/50 hover:text-[#7ff7be] sm:inline-flex"
