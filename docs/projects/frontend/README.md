@@ -1,13 +1,13 @@
 # frontend
 
 - Status: canonical
-- Code paths: `apps/frontend/`, `docs/03_Projects/frontend/`
+- Code paths: `services/user-front/`, `docs/projects/frontend/`
 - Verified with: `npm run ci:frontend`, `npm run ci:docs`
 - Last verified against code: 2026-03-25
 
 ## 1. 项目定位
 
-`apps/frontend/` 是 Synapse 面向 Owner / Developer 的主前端控制台。
+`services/user-front/` 是 Synapse 面向 Owner / Developer 的主前端控制台。
 
 它负责：
 
@@ -19,11 +19,11 @@
 
 ## 2. 代码位置
 
-- 项目目录：`apps/frontend/`
-- 页面入口：`apps/frontend/src/`
-- 配置文件：`apps/frontend/package.json`、`apps/frontend/next.config.mjs`
-- 本地说明：`apps/frontend/README.md`
-- 项目规则：`apps/frontend/AGENTS.md`
+- 项目目录：`services/user-front/`
+- 页面入口：`services/user-front/src/`
+- 配置文件：`services/user-front/package.json`、`services/user-front/next.config.mjs`
+- 本地说明：`services/user-front/README.md`
+- 项目规则：`services/user-front/AGENTS.md`
 
 ## 3. 当前运行约束
 
@@ -61,7 +61,7 @@
 
 ## 7. 项目内贴身文档
 
-根 `docs/03_Projects/frontend/` 当前集中维护：
+根 `docs/projects/frontend/` 当前集中维护：
 
 1. [Frontend_Local_Development.md](./Frontend_Local_Development.md)
 2. [Frontend_Agent_Rules.md](./Frontend_Agent_Rules.md)
@@ -73,10 +73,11 @@
 8. [User_Front_Page_Verification_Result_2026-04-18.md](./User_Front_Page_Verification_Result_2026-04-18.md)
 9. [User_Feedback_and_Forum_Design.md](./User_Feedback_and_Forum_Design.md)
 10. [Forum_Feedback_Dogfood_Verification.md](./Forum_Feedback_Dogfood_Verification.md)
+11. [SEO_Public_Assets_Runbook.md](./SEO_Public_Assets_Runbook.md)
 
 项目目录内只保留：
 
-1. `apps/frontend/README.md`
-2. `apps/frontend/AGENTS.md`
+1. `services/user-front/README.md`
+2. `services/user-front/AGENTS.md`
 
-其中 `apps/frontend/README.md` 现在只保留入口壳，`apps/frontend/AGENTS.md` 作为本地执行镜像保留；完整规则统一维护在 [Frontend_Agent_Rules.md](./Frontend_Agent_Rules.md)。
+其中 `services/user-front/README.md` 现在只保留入口壳，`services/user-front/AGENTS.md` 作为本地执行镜像保留；完整规则统一维护在 [Frontend_Agent_Rules.md](./Frontend_Agent_Rules.md)。

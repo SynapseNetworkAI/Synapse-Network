@@ -118,6 +118,12 @@ Agent-facing discovery / invoke 的可调用条件必须同时满足：
 
 slow lane 只节省探活资源，不改变生命周期。Provider 修复 endpoint 后，如果服务仍为 `active`，等待下一次 slow lane probe 或点击 `Force probe` 即可恢复；如果服务被 Pause 成 `inactive`，需要 Resume / 重新发布后才会重新进入自动探活。
 
+slow lane 使用指数退避，默认从 `SERVICE_HEALTH_SLOW_LANE_INTERVAL_SEC=300` 开始，按失败持续时间逐步退到 `SERVICE_HEALTH_MAX_BACKOFF_SEC=86400`（24 小时）封顶。这样长期死亡的 Provider 不会抢占当前 healthy / recently updated 服务的 probe 名额；新注册或刚更新的 active 服务永远优先于 slow-lane zombie 服务。
+
+健康历史只记录状态翻转，不记录无意义流水账。连续 `unhealthy -> unhealthy` 或 `healthy -> healthy` 只更新当前 health snapshot 的检查时间、失败计数和错误摘要，不追加历史 JSON；只有 `healthy -> unhealthy`、`unhealthy -> healthy`、`stale -> healthy` 等 transition 会进入 history，用于控制台、告警和恢复审计。
+
+公开 Marketplace / `registry.json` 展示的是 Gateway invoke URL（例如 `/api/v1/gateway/generate`），不是 Provider 原始 endpoint。Provider endpoint 只属于 Gateway 内部 routing / health-check 数据，不能对 Agent 公开，否则会绕过鉴权、冻结、扣费和审计。
+
 Invoke 转发还会使用动态并发保护：
 
 1. `constraints.maxConcurrency` 是 Provider 可选声明的 target 级并发上限。

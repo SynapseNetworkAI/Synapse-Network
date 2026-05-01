@@ -105,9 +105,25 @@ def _slow_lane_interval_sec(service: ServiceDefinitionRecord) -> int:
     return max(1, int(settings.service_health_slow_lane_interval_sec))
 
 
+def _slow_lane_backoff_interval_sec(
+    service: ServiceDefinitionRecord,
+    now_ms: int,
+) -> int:
+    base_interval = _slow_lane_interval_sec(service)
+    max_backoff = max(base_interval, int(settings.service_health_max_backoff_sec))
+    unhealthy_age_sec = _unhealthy_age_ms(service, now_ms=now_ms) // 1000
+    slow_after_sec = max(1, int(settings.service_health_slow_lane_after_sec))
+    if unhealthy_age_sec <= slow_after_sec:
+        return min(base_interval, max_backoff)
+
+    steps = max(0, int((unhealthy_age_sec - slow_after_sec) // base_interval))
+    exponent = min(steps, 16)
+    return min(max_backoff, base_interval * (2**exponent))
+
+
 def service_probe_interval_ms(service: ServiceDefinitionRecord, tier: str) -> int:
     if tier == "slow_lane":
-        return _slow_lane_interval_sec(service) * 1000
+        return _slow_lane_backoff_interval_sec(service, _now_ms()) * 1000
     return max(1, int(float(settings.service_health_probe_interval_sec) * 1000))
 
 
@@ -167,11 +183,11 @@ def should_probe_service_now(
 ) -> bool:
     """Return whether the automatic monitor should probe this service this tick."""
     tier = service_probe_tier(service, now_ms=now_ms)
-    if tier in {"disabled", "manual_only"}:
-        return False
-    if not is_service_probeable(service):
-        return False
-    if tier not in {"normal", "slow_lane"}:
+    if (
+        tier in {"disabled", "manual_only"}
+        or tier not in {"normal", "slow_lane"}
+        or not is_service_probeable(service)
+    ):
         return False
 
     last_checked_at = _latest_target_last_checked_at(service)
@@ -182,13 +198,11 @@ def should_probe_service_now(
     strategy = str(settings.service_health_jitter_strategy or "stable").strip().lower()
     jitter_enabled = bool(settings.service_health_jitter_enabled)
     if last_checked_at <= 0:
-        if jitter_enabled and strategy == "stable":
-            return _is_startup_probe_due(
-                service,
-                now_ms=now,
-                jitter_key=jitter_key,
-            )
-        return True
+        return not jitter_enabled or strategy != "stable" or _is_startup_probe_due(
+            service,
+            now_ms=now,
+            jitter_key=jitter_key,
+        )
     if not jitter_enabled or strategy != "stable":
         return now - last_checked_at >= interval_ms
     return is_due_with_stable_jitter(

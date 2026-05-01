@@ -20,7 +20,13 @@ import pytest
 from eth_account import Account
 from eth_account.messages import encode_defunct
 
-from tests.e2e.conftest import GATEWAY_BASE, OWNER_KEY, PROVIDER_KEY, RELEASE_E2E
+from tests.e2e.conftest import (
+    GATEWAY_BASE,
+    OWNER_KEY,
+    PROVIDER_KEY,
+    RELEASE_E2E,
+    track_test_service_id,
+)
 from tests.e2e.helpers.auth import authenticate_wallet
 from tests.e2e.helpers.db import seed_service_health
 
@@ -252,6 +258,7 @@ class TestServices:
         )
         if svc_id:
             STATE["test_service_id"] = svc_id
+            track_test_service_id(svc_id)
 
     def test_04_list_own_services(self):
         """GET /api/v1/services → 200 with list"""
@@ -521,6 +528,7 @@ class TestInvocations:
         if r.status_code not in (200, 201):
             return None
         created = r.json().get("serviceId") or r.json().get("id") or service_id
+        track_test_service_id(created)
         seed_service_health(created, invoke_url)
         STATE["fallback_price_usdc"] = "0.001"
         return created

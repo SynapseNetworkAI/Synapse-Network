@@ -68,10 +68,12 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
 
   # ── Analytics Pipeline ─────────────────────────────────────────────────────
 
   kafka:
+    profiles: ["analytics"]
     image: apache/kafka:3.7.1
     container_name: synapse-kafka
     ports:
@@ -96,7 +98,11 @@ services:
     volumes:
       - kafka-data:/var/lib/kafka/data
     healthcheck:
-      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list"]
+      test:
+        [
+          "CMD-SHELL",
+          "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list",
+        ]
       interval: 10s
       timeout: 10s
       retries: 10
@@ -104,6 +110,7 @@ services:
     restart: unless-stopped
 
   kafka-ui:
+    profiles: ["analytics"]
     image: provectuslabs/kafka-ui:latest
     container_name: synapse-kafka-ui
     ports:
@@ -117,11 +124,12 @@ services:
     restart: unless-stopped
 
   clickhouse:
+    profiles: ["analytics"]
     image: clickhouse/clickhouse-server:24.3
     container_name: synapse-clickhouse
     ports:
-      - "8123:8123"   # HTTP interface (queries, health)
-      - "9100:9000"   # Native TCP interface (avoid collision with minio)
+      - "8123:8123" # HTTP interface (queries, health)
+      - "9100:9000" # Native TCP interface (avoid collision with minio)
     environment:
       CLICKHOUSE_DB: synapse_analytics
       CLICKHOUSE_USER: default
