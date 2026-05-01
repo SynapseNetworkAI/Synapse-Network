@@ -96,3 +96,31 @@ def seed_service_health(service_id: str, target_url: str) -> None:
             )
 
         conn.commit()
+
+
+def archive_test_service(service_id: str) -> None:
+    """Soft-archive an E2E-created service without deleting audit history."""
+    normalized = str(service_id or "").strip()
+    if not normalized:
+        return
+    import psycopg
+
+    with psycopg.connect(DB_DSN) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE synapse_service_manifests
+                SET status = 'archived', updated_at = NOW()
+                WHERE service_id = %s
+                  AND status = 'active'
+                  AND (
+                    service_id LIKE 'api_ref_%%'
+                    OR service_id LIKE 'apiref_test_%%'
+                    OR service_id LIKE 'provider_onboard_%%'
+                    OR service_id LIKE 'llm_%%_llm_deepseek_%%'
+                    OR service_id LIKE 'gateway_pull_health_%%'
+                  )
+                """,
+                (normalized,),
+            )
+        conn.commit()

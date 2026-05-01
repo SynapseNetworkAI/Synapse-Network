@@ -1,5 +1,5 @@
 """Step 5b: Fresh provider onboarding registers a service and verifies success."""
-from tests.e2e.conftest import GATEWAY_BASE, SESSION_ID
+from tests.e2e.conftest import GATEWAY_BASE, SESSION_ID, track_test_service_id
 from tests.e2e.helpers.db import seed_service_health
 from tests.e2e.helpers.gateway import list_services, register_service
 
@@ -74,6 +74,7 @@ def test_fresh_provider_registers_service(
 
     session_state["fresh_provider_service_id"] = service_id
     session_state["fresh_provider_service_url"] = mock_service_url
+    track_test_service_id(service_id)
     seed_service_health(service_id, mock_service_url)
 
 

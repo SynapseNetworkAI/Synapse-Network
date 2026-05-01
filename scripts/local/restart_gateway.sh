@@ -97,6 +97,34 @@ probe_synapse_postgres() {
   return 1
 }
 
+check_local_service_registry_bloat() {
+  dsn="$1"
+  limit="${LOCAL_SERVICE_REGISTRY_TEST_ACTIVE_LIMIT:-50}"
+  case "$limit" in
+    ''|*[!0-9]*)
+      limit=50
+      ;;
+  esac
+  if [ "$limit" -le 0 ]; then
+    return 0
+  fi
+
+  active_test_count="$(psql "$dsn" -X -q -t -A -v ON_ERROR_STOP=1 \
+    -c "SELECT COUNT(*) FROM synapse_service_manifests WHERE status = 'active' AND (service_id LIKE 'api_ref_%' OR service_id LIKE 'apiref_test_%' OR service_id LIKE 'provider_onboard_%' OR service_id LIKE 'llm_%_llm_deepseek_%' OR service_id LIKE 'gateway_pull_health_%') AND service_id NOT IN ('svc_web3_sentiment_index','svc_protocol_fundamental_brief','svc_oss_security_healthcheck','svc_deepseek_chat')" 2>/dev/null || echo "0")"
+  active_test_count="$(printf '%s' "$active_test_count" | tail -n 1)"
+  if [ "${active_test_count:-0}" -le "$limit" ]; then
+    return 0
+  fi
+
+  echo "Error: local registry has ${active_test_count} active E2E/test services; limit is ${limit}."
+  echo "These stale services steal health-monitor probe slots and can make Marketplace flicker empty."
+  echo "Run:"
+  echo "  LOCAL_DEV_CLEANUP_CONFIRM=I_UNDERSTAND_THIS_MUTATES_LOCAL_DB \\"
+  echo "    bash scripts/local/cleanup_service_registry_dev.sh"
+  echo "Or set LOCAL_SERVICE_REGISTRY_TEST_ACTIVE_LIMIT=0 only for emergency debugging."
+  return 1
+}
+
 ensure_local_postgres() {
   existing_postgres_pid="$(find_pid_by_port 5432)"
   if [ -n "$existing_postgres_pid" ]; then
@@ -222,6 +250,7 @@ else
 fi
 LOCAL_POSTGRES_DSN="$(printf '%s' "$LOCAL_POSTGRES_DSN" | sed 's/@postgres:/@127.0.0.1:/')"
 probe_synapse_postgres "$LOCAL_POSTGRES_DSN"
+check_local_service_registry_bloat "$LOCAL_POSTGRES_DSN"
 
 cd "${ROOT_DIR}/services/gateway"
 
