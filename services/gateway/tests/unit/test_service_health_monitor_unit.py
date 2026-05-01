@@ -15,6 +15,7 @@ from src.services.platform import (
     service_health_service,
     service_health_probe,
     service_health_tiers,
+    service_health_utils,
 )
 from src.storage.base import BaseStorage
 from tests.unit.registry_test_helper import service_definition
@@ -34,7 +35,7 @@ class InMemoryRegistryRepo:
         raise AssertionError("health refresh must not rewrite service manifests")
 
     def read_service_target_health_rows(self):
-        return []
+        return list(self.persisted_health_rows)
 
     def write_service_target_health_rows(self, rows):
         self.persisted_health_rows = list(rows)
@@ -60,37 +61,39 @@ class FakeStorage:
         return self.data_manager
 
 
-def test_startup_marks_registered_targets_stale_without_rewriting_manifests() -> None:
+def test_startup_keeps_fresh_persisted_health_discoverable(monkeypatch) -> None:
+    now_ms = 1773982500000
+    checked_at = now_ms - 3_000
+    monkeypatch.setattr(service_health_utils, "_now_ms", lambda: now_ms)
     service = service_definition(
-        "startup_stale_service",
-        runtime_health=ServiceRuntimeHealthRecord(
-            overallStatus="healthy",
-            healthyTargets=1,
-            totalTargets=1,
-            lastCheckedAt=1773982497000,
-            targets=[
-                ServiceHealthTargetRecord(
-                    targetUrl="https://startup_stale_service.test/invoke",
-                    status="healthy",
-                    lastCheckedAt=1773982497000,
-                    lastHealthyAt=1773982497000,
-                )
-            ],
-        ),
+        "startup_fresh_service",
     )
-    storage = FakeStorage([service])
-
-    count = service_health_service.mark_service_health_stale_on_startup(
-        cast(BaseStorage, storage)
+    storage = FakeStorage(
+        [service],
+        persisted_health_rows=[
+            ServiceTargetHealth(
+                serviceId="startup_fresh_service",
+                ownerAddress="0xprovider",
+                targetUrl="https://startup_fresh_service.test/invoke",
+                status="healthy",
+                overallStatus="healthy",
+                consecutiveSuccesses=2,
+                lastCheckedAt=checked_at,
+                lastHealthyAt=checked_at,
+            )
+        ],
     )
 
-    assert count == 1
-    assert storage.registry.read_service_registry_rows()[0].service_id == "startup_stale_service"
-    assert storage.registry.persisted_health_rows[0].service_id == "startup_stale_service"
-    assert storage.registry.persisted_health_rows[0].status == "unknown"
-    assert storage.registry.persisted_health_rows[0].overall_status == "stale"
-    assert storage.registry.persisted_health_rows[0].last_checked_at is None
-    assert storage.registry.persisted_health_rows[0].last_healthy_at is None
+    seeded = service_health_service.seed_service_health_from_persisted_rows(
+        cast(BaseStorage, storage),
+        [service],
+    )[0]
+
+    assert service_health_service.effective_runtime_status(
+        seeded,
+        now_ms=now_ms,
+    ) == "healthy"
+    assert service_health_service.is_service_discoverable(seeded)
 
 
 def test_seeded_startup_stale_snapshot_is_not_discoverable() -> None:
@@ -115,6 +118,85 @@ def test_seeded_startup_stale_snapshot_is_not_discoverable() -> None:
 
     assert service_health_service.effective_runtime_status(seeded) == "stale"
     assert not service_health_service.is_service_discoverable(seeded)
+
+
+def test_startup_does_not_trust_expired_healthy_snapshot(monkeypatch) -> None:
+    now_ms = 1773982500000
+    monkeypatch.setattr(service_health_utils, "_now_ms", lambda: now_ms)
+    monkeypatch.setattr(
+        service_health_service.settings,
+        "service_health_restart_trust_window_sec",
+        90,
+    )
+    service = service_definition("startup_expired_healthy")
+    storage = FakeStorage(
+        [service],
+        persisted_health_rows=[
+            ServiceTargetHealth(
+                serviceId="startup_expired_healthy",
+                ownerAddress="0xprovider",
+                targetUrl="https://startup_expired_healthy.test/invoke",
+                status="healthy",
+                overallStatus="healthy",
+                consecutiveSuccesses=10,
+                lastCheckedAt=now_ms - 120_000,
+                lastHealthyAt=now_ms - 120_000,
+            )
+        ],
+    )
+
+    seeded = service_health_service.seed_service_health_from_persisted_rows(
+        cast(BaseStorage, storage),
+        [service],
+    )[0]
+
+    assert service_health_service.effective_runtime_status(
+        seeded,
+        now_ms=now_ms,
+    ) == "stale"
+    assert not service_health_service.is_service_discoverable(seeded)
+
+
+def test_offline_quarantine_waits_one_hour_for_never_healthy_service(monkeypatch) -> None:
+    now_ms = 1773982500000
+    monkeypatch.setattr(
+        service_health_service.settings,
+        "service_health_offline_failures",
+        5,
+    )
+    monkeypatch.setattr(
+        service_health_service.settings,
+        "service_health_offline_after_sec",
+        3600,
+    )
+    monkeypatch.setattr(
+        service_health_service.settings,
+        "service_health_probe_interval_sec",
+        60,
+    )
+    service = service_definition(
+        "never_healthy_recent_failure",
+        runtime_health=ServiceRuntimeHealthRecord(
+            overallStatus="unhealthy",
+            healthyTargets=0,
+            totalTargets=1,
+            lastCheckedAt=now_ms,
+            targets=[
+                ServiceHealthTargetRecord(
+                    targetUrl="https://never-healthy.test/invoke",
+                    status="unhealthy",
+                    lastCheckedAt=now_ms,
+                    lastHealthyAt=0,
+                    consecutiveFailures=5,
+                )
+            ],
+        ),
+    )
+
+    assert not service_health_service.should_quarantine_offline(
+        service,
+        now_ms=now_ms,
+    )
 
 
 def test_slow_lane_probe_interval_uses_exponential_backoff(monkeypatch) -> None:

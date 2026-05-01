@@ -400,10 +400,10 @@ Headers:
 要求：
 
 1. 只返回聚合后的公共计数，不返回 wallet、request 级明细。
-2. 至少包含 `registeredServices`、`discoverableServices`、`staleServices`、`unavailableServices`、`runtimeReadyServices`、`totalCalls`、`connectedAgents`。
+2. 至少包含 `registeredServices`、`discoverableServices`、`staleServices`、`unavailableServices`、`offlineServices`、`runtimeReadyServices`、`totalCalls`、`connectedAgents`。
 3. `totalCalls` 必须基于已接受/已成功的 charge 记录做 `requestId` 去重。
 4. `connectedAgents` 只统计至少完成过一次已接受/已成功调用的 consumer 去重数量。
-5. `registeredServices` 表示已注册且处于公开 active 生命周期的服务数；`discoverableServices` 表示当前处于健康窗口内、Agent 可发现的服务数；`staleServices` 表示仍处于 active 生命周期但健康快照已过期或启动重水合未完成的服务数；`unavailableServices` 表示 active 但当前无 healthy target 的服务数。
+5. `registeredServices` 表示已注册且处于公开 active 生命周期的服务数；`discoverableServices` 表示当前处于健康窗口内、Agent 可发现的服务数；`staleServices` 表示仍处于 active 生命周期但健康快照已过期或启动重水合未完成的服务数；`unavailableServices` 表示 active 但当前无 healthy target 的服务数；`offlineServices` 表示 Gateway 因长期健康失败自动隔离、需要重新 onboard/upsert 或 force probe 的服务数。
 6. `runtimeReadyServices` 为兼容旧前端保留，当前等同于 `discoverableServices`。
 7. 该接口服务首页的 live counters，不得扩张成泄露结算面的公开分析接口。
 

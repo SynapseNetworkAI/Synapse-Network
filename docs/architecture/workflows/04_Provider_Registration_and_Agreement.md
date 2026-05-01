@@ -216,28 +216,30 @@ Provider 注册后的服务状态分成两层：
 
 Gateway runtime 的 `service_health_monitor` 是唯一探活和路由真相源。`gateway-admin` 只负责控制台管理，不另起第二套探活系统。Provider V1 只需要暴露 `GET /health`；Gateway 负责 Pull 探活。monitor 使用 `SERVICE_HEALTH_MAX_CONCURRENCY` 控制全局 probe 并发，默认 50，避免 Gateway 或 Provider endpoint 被健康检查打出脉冲。
 
-Gateway 重启时采用 fail closed 策略：
+Gateway 重启时采用 fresh snapshot + fail closed 策略：
 
 1. 先从 Postgres 加载注册表。
-2. 立即把所有 target health snapshot 标记为 `stale / unknown`。
-3. Marketplace 和 discovery 不展示 stale service。
-4. 通过 `SERVICE_HEALTH_REHYDRATE_WINDOW_SEC` 和 stable jitter 平滑探测 `/health`，收到新 200 OK 后才恢复 discoverable。
+2. 如果 persisted health snapshot 在 `SERVICE_HEALTH_RESTART_TRUST_WINDOW_SEC`（默认 90 秒，且不超过 stale window）内仍为 `healthy / degraded`，继续信任该 snapshot，避免发版重启把 Marketplace 清空。
+3. 过期 snapshot 由 runtime stale 判断自然 fail closed；Marketplace 和 discovery 不展示 stale service。
+4. 如果发布、migration 或冷启动耗时超过 trust window，Gateway 上线后的短暂空窗是预期安全行为；monitor 后续通过 stable jitter 平滑探测 `/health`，收到新 200 OK 后恢复 discoverable。
 
 探活策略：
 
 1. `active`：正常频率探活，默认每 60 秒 Pull 一次 `/health`。
-2. `active + unhealthy`：继续探活，但自动从 discovery / invoke 摘流；连续不健康超过 `SERVICE_HEALTH_SLOW_LANE_AFTER_SEC` 后进入 slow lane 降频探活。
+2. `active + unhealthy`：继续探活，但自动从 discovery / invoke 摘流；连续失败达到 `SERVICE_HEALTH_OFFLINE_FAILURES=5` 且超过 `SERVICE_HEALTH_OFFLINE_AFTER_SEC=3600` 后自动切到 `offline` quarantine。
 3. `inactive`：停止自动探活，只允许手动 force probe。
-4. `suspended`：默认按 slow lane 频率探活和留存健康历史，但永不进入 discovery / invoke。
-5. `deleted`：不探活、不发现、不调用，只保留审计与历史数据。
+4. `offline`：自动隔离状态，不参与自动探活、不发现、不调用；Provider 重新 upsert/onboard 或管理员 force probe 后才能恢复 active。
+5. `suspended`：默认按 slow lane 频率探活和留存健康历史，但永不进入 discovery / invoke。
+6. `deleted`：不探活、不发现、不调用，只保留审计与历史数据。
 
-slow lane 不是停止探活，而是资源保护策略：
+slow lane 只用于 suspended 或尚未达到 offline quarantine 的近期失败服务；它不是长期僵尸服务的最终状态：
 
 1. 默认连续不健康 30 分钟后，从正常 `SERVICE_HEALTH_PROBE_INTERVAL_SEC` 降到 `SERVICE_HEALTH_SLOW_LANE_INTERVAL_SEC`。
 2. 判定优先使用 target 的 `lastHealthyAt`；从未 healthy 的服务用 `consecutiveFailures * SERVICE_HEALTH_PROBE_INTERVAL_SEC` 估算。
 3. 如果 `now - lastCheckedAt` 还没到 slow lane 间隔，本轮跳过 probe，但保留当前 health snapshot 和可追踪状态。
 4. 周期探活使用 stable jitter 分散到期时间，降低同一 tick 大量 endpoint 同时被访问的概率。
 5. `Force probe` 和 `Resume service` 会立即探活，绕过 slow lane 与 jitter 等待窗口，但仍受全局并发上限保护。
+6. 达到 offline 条件后，服务退出自动探活池，避免长期死亡 endpoint 持续消耗 Gateway 连接与 Provider 防火墙预算。
 
 可调用判断必须同时满足：
 
@@ -246,7 +248,7 @@ slow lane 不是停止探活，而是资源保护策略：
 3. runtime health 未过期
 4. 至少一个 target 为 `healthy`
 
-健康失败不会把服务自动改成 `inactive`。任一 target 探针失败或 timeout 会立即从 discovery / invoke 摘流并返回 `SERVICE_UNAVAILABLE`；后续正常探活或 slow lane 探活收到 `/health` 200 后自动恢复可调用状态，不需要 Provider 人工重新上线。`healthyThreshold` / `unhealthyThreshold` 只保留为兼容字段，不再用于延迟摘流。
+健康失败不会把服务自动改成 `inactive`。任一 target 探针失败或 timeout 会立即从 discovery / invoke 摘流并返回 `SERVICE_UNAVAILABLE`；在进入 `offline` 前，后续正常探活或 slow lane 探活收到 `/health` 200 后自动恢复可调用状态。进入 `offline` 后必须重新 upsert/onboard 或管理员 force probe。`healthyThreshold` / `unhealthyThreshold` 只保留为兼容字段，不再用于延迟摘流。
 
 ### 9.3 下游动态并发保护
 

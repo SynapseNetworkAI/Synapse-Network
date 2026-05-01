@@ -100,19 +100,37 @@ probe_synapse_postgres() {
 check_local_service_registry_bloat() {
   dsn="$1"
   limit="${LOCAL_SERVICE_REGISTRY_TEST_ACTIVE_LIMIT:-50}"
+  health_limit="${LOCAL_SERVICE_REGISTRY_TEST_HEALTH_STATE_LIMIT:-100}"
   case "$limit" in
     ''|*[!0-9]*)
       limit=50
       ;;
   esac
+  case "$health_limit" in
+    ''|*[!0-9]*)
+      health_limit=100
+      ;;
+  esac
   if [ "$limit" -le 0 ]; then
-    return 0
+    active_limit_disabled=1
+  else
+    active_limit_disabled=0
   fi
 
   active_test_count="$(psql "$dsn" -X -q -t -A -v ON_ERROR_STOP=1 \
     -c "SELECT COUNT(*) FROM synapse_service_manifests WHERE status = 'active' AND (service_id LIKE 'api_ref_%' OR service_id LIKE 'apiref_test_%' OR service_id LIKE 'provider_onboard_%' OR service_id LIKE 'llm_%_llm_deepseek_%' OR service_id LIKE 'gateway_pull_health_%') AND service_id NOT IN ('svc_web3_sentiment_index','svc_protocol_fundamental_brief','svc_oss_security_healthcheck','svc_deepseek_chat')" 2>/dev/null || echo "0")"
   active_test_count="$(printf '%s' "$active_test_count" | tail -n 1)"
-  if [ "${active_test_count:-0}" -le "$limit" ]; then
+  health_state_count="$(psql "$dsn" -X -q -t -A -v ON_ERROR_STOP=1 \
+    -c "SELECT COUNT(*) FROM synapse_runtime_state WHERE (state_key LIKE 'service_health_meta::api_ref_%' OR state_key LIKE 'service_health_meta::apiref_test_%' OR state_key LIKE 'service_health_meta::provider_onboard_%' OR state_key LIKE 'service_health_meta::llm_%_llm_deepseek_%' OR state_key LIKE 'service_health_meta::gateway_pull_health_%' OR state_key LIKE 'service_health_history::api_ref_%' OR state_key LIKE 'service_health_history::apiref_test_%' OR state_key LIKE 'service_health_history::provider_onboard_%' OR state_key LIKE 'service_health_history::llm_%_llm_deepseek_%' OR state_key LIKE 'service_health_history::gateway_pull_health_%') AND state_key NOT LIKE 'service_health_meta::svc_web3_sentiment_index::%' AND state_key NOT LIKE 'service_health_meta::svc_protocol_fundamental_brief::%' AND state_key NOT LIKE 'service_health_meta::svc_oss_security_healthcheck::%' AND state_key NOT LIKE 'service_health_meta::svc_deepseek_chat::%' AND state_key <> 'service_health_history::svc_web3_sentiment_index' AND state_key <> 'service_health_history::svc_protocol_fundamental_brief' AND state_key <> 'service_health_history::svc_oss_security_healthcheck' AND state_key <> 'service_health_history::svc_deepseek_chat'" 2>/dev/null || echo "0")"
+  health_state_count="$(printf '%s' "$health_state_count" | tail -n 1)"
+  if [ "${health_limit:-0}" -gt 0 ] && [ "${health_state_count:-0}" -gt "$health_limit" ]; then
+    echo "Warning: local registry has ${health_state_count} E2E/test service health runtime rows; warning threshold is ${health_limit}."
+    echo "These runtime health rows can still slow monitor ticks even after manifests are archived."
+    echo "Inspect without mutating:"
+    echo "  LOCAL_DEV_CLEANUP_DRY_RUN=1 LOCAL_DEV_CLEANUP_OUTPUT=json \\"
+    echo "    bash scripts/local/cleanup_service_registry_dev.sh"
+  fi
+  if [ "$active_limit_disabled" -eq 1 ] || [ "${active_test_count:-0}" -le "$limit" ]; then
     return 0
   fi
 

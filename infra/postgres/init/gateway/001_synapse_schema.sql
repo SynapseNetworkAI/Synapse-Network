@@ -168,7 +168,7 @@ CREATE TABLE IF NOT EXISTS synapse_service_manifests (
     settlement_currency TEXT NOT NULL DEFAULT 'USDC',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    CHECK (status IN ('draft', 'active', 'paused', 'archived')),
+    CHECK (status IN ('draft', 'active', 'paused', 'offline', 'archived')),
     CHECK (price_model IN ('fixed', 'tiered', 'quote', 'token_metered')),
     CHECK (base_price_usdc >= 0),
     CHECK (jsonb_typeof(capabilities_json) = 'array'),
@@ -255,6 +255,13 @@ DROP CONSTRAINT IF EXISTS synapse_service_manifests_price_model_check;
 ALTER TABLE synapse_service_manifests
 ADD CONSTRAINT synapse_service_manifests_price_model_check
 CHECK (price_model IN ('fixed', 'tiered', 'quote', 'token_metered'));
+
+ALTER TABLE synapse_service_manifests
+DROP CONSTRAINT IF EXISTS synapse_service_manifests_status_check;
+
+ALTER TABLE synapse_service_manifests
+ADD CONSTRAINT synapse_service_manifests_status_check
+CHECK (status IN ('draft', 'active', 'paused', 'offline', 'archived'));
 
 ALTER TABLE synapse_service_quotes
 DROP CONSTRAINT IF EXISTS synapse_service_quotes_price_model_check;

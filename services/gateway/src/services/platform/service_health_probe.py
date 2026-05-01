@@ -41,6 +41,11 @@ from src.services.platform.service_health_history import (
     build_probe_history_rows,
     prune_health_history,
 )
+from src.services.platform.service_health_offline import (
+    ServiceOfflineCandidate,
+    mark_offline_candidates,
+    should_quarantine_offline,
+)
 from src.services.platform.service_health_refresh_plan import (
     ServiceHealthRefreshResult,
     _ProbeCandidate,
@@ -63,6 +68,7 @@ class _ProbeResult:
     index: int
     previous: ServiceDefinitionRecord
     current: ServiceDefinitionRecord
+    probe_started_at_ms: int
 
 
 @dataclass(frozen=True)
@@ -278,11 +284,13 @@ async def _probe_candidate(
     candidate: _ProbeCandidate,
     client: httpx.AsyncClient,
 ) -> _ProbeResult:
+    probe_started_at_ms = _now_ms()
     next_service = await probe_service_health(candidate.service, client=client)
     return _ProbeResult(
         index=candidate.index,
         previous=candidate.service,
         current=next_service,
+        probe_started_at_ms=probe_started_at_ms,
     )
 
 
@@ -425,6 +433,16 @@ async def refresh_all_service_health(
     # monitor only needs to sync health rows here. Rewriting manifests on every
     # probe tick can break quote foreign keys and silently starve discovery.
     synced_rows = sync_service_target_health_table(storage, final_rows)
+    offline_candidates = [
+        ServiceOfflineCandidate(
+            service=result.current,
+            probe_started_at_ms=result.probe_started_at_ms,
+            reason="health_probe_unhealthy_threshold",
+        )
+        for result in probe_results
+        if should_quarantine_offline(result.current, now_ms=now_ms)
+    ]
+    mark_offline_candidates(storage, offline_candidates, now_ms=now_ms)
     valid_service_ids = {
         str(row.service_id or "").strip()
         for row in final_rows

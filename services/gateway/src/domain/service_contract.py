@@ -44,6 +44,12 @@ class PublicHealthSummaryRecord(BaseModel):
     last_checked_at: Optional[int] = Field(default=None, alias="lastCheckedAt")
     is_stale: bool = Field(default=True, alias="isStale")
     runtime_available: bool = Field(default=False, alias="runtimeAvailable")
+    probe_tier: str = Field(default="normal", alias="probeTier")
+    offline_reason: Optional[str] = Field(default=None, alias="offlineReason")
+    reactivation_hint: Optional[str] = Field(default=None, alias="reactivationHint")
+
+    def get(self, key: str, default: Any = None) -> Any:
+        return self.model_dump(by_alias=True, exclude_none=True).get(key, default)
 
 
 class QuoteInputPreviewRecord(BaseModel):
@@ -288,7 +294,7 @@ class ServiceManifestRecord(BaseModel):
     provider_id: str = Field(alias="providerId")
     service_name: str = Field(alias="serviceName")
     manifest_version: str = Field(alias="manifestVersion")
-    status: Literal["draft", "active", "paused", "archived"] = "draft"
+    status: Literal["draft", "active", "paused", "offline", "archived"] = "draft"
     description_for_model: str = Field(alias="descriptionForModel")
     task_category: Optional[str] = Field(default=None, alias="taskCategory")
     capabilities: list[ServiceCapability] = Field(default_factory=list)
