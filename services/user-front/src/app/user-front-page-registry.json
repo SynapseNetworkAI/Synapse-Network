@@ -245,9 +245,24 @@
     "kind": "page",
     "audience": "docs",
     "maturity": "production",
-    "expectedTexts": ["SDKs"],
-    "purpose": "SDK overview and language comparison.",
-    "primaryInteractions": ["Open TypeScript SDK", "Open Python SDK"],
+    "expectedTexts": [
+      "SDKs",
+      "Reference SDKs",
+      "Preview SDKs",
+      "Go SDK",
+      "Java/JVM SDK",
+      ".NET SDK",
+      "Capability coverage"
+    ],
+    "purpose": "SDK overview, language comparison, GitHub deep links, and multi-language runtime snippets.",
+    "primaryInteractions": [
+      "Open TypeScript SDK",
+      "Open Python SDK",
+      "Open Go SDK GitHub guide",
+      "Open Java/JVM SDK GitHub guide",
+      "Open .NET SDK GitHub guide",
+      "Switch multi-language snippet tabs"
+    ],
     "dataVerification": "static",
     "dataSources": [],
     "visualVerification": "component-smoke"

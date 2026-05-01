@@ -49,10 +49,21 @@ const PUBLIC_ROUTES = [
   "/forum",
 ];
 const FORBIDDEN_SITEMAP_URLS = [
+  "http://synapse-network.ai",
   "https://synapse-network.ai/dashboard",
   "https://synapse-network.ai/provider",
   "https://synapse-network.ai/api",
   "https://synapse-network.ai/marketplace/registry.json",
+  "https://synapse-network.ai/sitemap.website.xml",
+  "sitemap.website.xml",
+  "chrome-extension://",
+  "<script",
+];
+const FORBIDDEN_PUBLIC_ASSET_TEXT = [
+  "http://synapse-network.ai",
+  "sitemap.website.xml",
+  "chrome-extension://",
+  "<script",
 ];
 
 const checks = [];
@@ -386,11 +397,12 @@ async function main() {
         name: "llms_txt_no_private_routes",
         text: llms.text,
         values: [
+          ...FORBIDDEN_PUBLIC_ASSET_TEXT,
           "https://synapse-network.ai/dashboard",
           "https://synapse-network.ai/provider",
           "https://synapse-network.ai/api",
           "https://synapse-network.ai/marketplace/registry.json",
-          ".md",
+          "https://synapse-network.ai/docs.md",
         ],
       });
       await verifyInternalLinks(llms.text);
@@ -419,6 +431,11 @@ async function main() {
           "Sitemap: https://synapse-network.ai/sitemap.xml",
         ],
       });
+      assertExcludes({
+        name: "robots_txt_no_bad_sitemap_paths",
+        text: robots.text,
+        values: FORBIDDEN_PUBLIC_ASSET_TEXT,
+      });
     } else {
       fail("robots_txt_http_200", `Expected 200, got ${robots.status}`, {
         status: robots.status,
@@ -443,6 +460,11 @@ async function main() {
         name: "sitemap_xml_no_private_routes",
         text: sitemap.text,
         values: FORBIDDEN_SITEMAP_URLS,
+      });
+      assertExcludes({
+        name: "sitemap_xml_no_xml_pollution",
+        text: sitemap.text,
+        values: FORBIDDEN_PUBLIC_ASSET_TEXT,
       });
     } else {
       fail("sitemap_xml_http_200", `Expected 200, got ${sitemap.status}`, {

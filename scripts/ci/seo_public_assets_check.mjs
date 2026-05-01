@@ -37,6 +37,12 @@ const PRIVATE_PATTERNS = [
   "/api",
   "/marketplace/registry.json",
 ];
+const FORBIDDEN_SEO_TEXT = [
+  "http://synapse-network.ai",
+  "sitemap.website.xml",
+  "chrome-extension://",
+  "<script",
+];
 
 const failures = [];
 
@@ -100,9 +106,18 @@ function includesPrivateRouteLiteral(text, route) {
   );
 }
 
+function assertNoForbiddenSeoText(label, text) {
+  for (const forbidden of FORBIDDEN_SEO_TEXT) {
+    if (text.includes(forbidden)) {
+      fail(`${label} must not include forbidden SEO text: ${forbidden}`);
+    }
+  }
+}
+
 if (assertFile(llmsPath, "llms.txt")) {
   const llms = readText(llmsPath);
   const urls = extractMarkdownUrls(llms);
+  assertNoForbiddenSeoText("llms.txt", llms);
 
   for (const expected of [
     "SynapseNetwork",
@@ -113,10 +128,6 @@ if (assertFile(llmsPath, "llms.txt")) {
     if (!llms.includes(expected)) {
       fail(`llms.txt missing expected text: ${expected}`);
     }
-  }
-
-  if (/\.md\b/.test(llms)) {
-    fail("llms.txt must not include docs .md mirror links");
   }
 
   for (const privatePattern of PRIVATE_PATTERNS) {
@@ -143,6 +154,12 @@ if (assertFile(llmsPath, "llms.txt")) {
     }
 
     const routePath = normalizeInternalPath(rawUrl);
+    if (routePath.endsWith(".md")) {
+      fail(
+        `Internal llms.txt URL must not use docs .md mirror routes: ${rawUrl}`
+      );
+      continue;
+    }
     if (!routeExists(routePath)) {
       fail(`Internal llms.txt URL has no public Next page: ${rawUrl}`);
     }
@@ -151,6 +168,7 @@ if (assertFile(llmsPath, "llms.txt")) {
 
 if (assertFile(robotsPath, "robots.txt")) {
   const robots = readText(robotsPath);
+  assertNoForbiddenSeoText("robots.txt", robots);
   const requiredLines = [
     "User-agent: *",
     "Allow: /",
@@ -170,6 +188,10 @@ if (assertFile(robotsPath, "robots.txt")) {
 
 if (assertFile(sitemapPath, "sitemap.ts")) {
   const sitemap = readText(sitemapPath);
+  assertNoForbiddenSeoText("sitemap.ts", sitemap);
+  if (!sitemap.includes('const SITE_URL = "https://synapse-network.ai";')) {
+    fail("sitemap.ts must hard-code the canonical HTTPS site URL");
+  }
   for (const route of PUBLIC_ROUTES) {
     if (!includesRoute(sitemap, route)) {
       fail(`sitemap.ts missing public route: ${route}`);
@@ -184,6 +206,7 @@ if (assertFile(sitemapPath, "sitemap.ts")) {
 
 if (assertFile(layoutPath, "layout.tsx")) {
   const layout = readText(layoutPath);
+  assertNoForbiddenSeoText("layout.tsx", layout);
   for (const expected of [
     'metadataBase: new URL("https://synapse-network.ai")',
     "SynapseNetwork | Settlement Layer for AI Agents",
