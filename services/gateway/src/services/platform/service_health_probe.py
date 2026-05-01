@@ -371,7 +371,7 @@ async def _apply_probe_results(
 ) -> _ProbeApplyStats:
     checked = 0
     updated = 0
-    appended_history = 0
+    history_rows = []
 
     for result in probe_results:
         checked += 1
@@ -380,8 +380,11 @@ async def _apply_probe_results(
         if result.current != result.previous:
             updated += 1
         if settings.service_health_history_enabled:
-            history_rows = build_probe_history_rows(result.current)
-            appended_history += append_health_history_rows(storage, history_rows)
+            history_rows.extend(
+                build_probe_history_rows(result.current, result.previous)
+            )
+
+    appended_history = append_health_history_rows(storage, history_rows)
 
     return _ProbeApplyStats(
         checked=checked,
@@ -430,7 +433,7 @@ async def refresh_all_service_health(
     if _should_prune_history(now_ms):
         prune_stats = prune_health_history(storage, valid_service_ids=valid_service_ids)
     else:
-        prune_stats = {"before": 0, "after": 0, "removed": 0}
+        prune_stats = None
 
     return ServiceHealthRefreshResult(
         scheduled=len(plan.candidates),
@@ -439,7 +442,7 @@ async def refresh_all_service_health(
         updated=apply_stats.updated,
         synced_rows=synced_rows,
         history_appended=apply_stats.appended_history,
-        history_pruned=int(prune_stats.get("removed") or 0),
+        history_pruned=int(getattr(prune_stats, "removed", 0) or 0),
         jitter_skipped=plan.jitter_skipped,
         rehydrate_skipped=plan.rehydrate_skipped,
         slow_lane_skipped=plan.slow_lane_skipped,

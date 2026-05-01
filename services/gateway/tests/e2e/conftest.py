@@ -226,9 +226,35 @@ def mock_service_url() -> str:
 
 # Shared mutable state for cross-test data
 _session_state: dict = {}
+_created_test_service_ids: set[str] = set()
+
+
+def track_test_service_id(service_id: str | None) -> None:
+    normalized = str(service_id or "").strip()
+    if normalized:
+        _created_test_service_ids.add(normalized)
 
 
 @pytest.fixture(scope="session")
 def session_state() -> dict:
     """Mutable dict shared across all e2e tests in a session."""
     return _session_state
+
+
+@pytest.fixture(scope="session", autouse=True)
+def archive_created_test_services():
+    yield
+    if not _created_test_service_ids:
+        return
+    from tests.e2e.helpers.db import archive_test_service
+
+    failures = []
+    for service_id in sorted(_created_test_service_ids):
+        try:
+            archive_test_service(service_id)
+        except Exception as exc:  # pragma: no cover: teardown evidence path only runs after live E2E cleanup failures
+            failures.append(f"{service_id}: {exc}")
+    if failures:
+        pytest.fail(
+            "failed to soft-archive e2e service fixtures: " + "; ".join(failures)
+        )
