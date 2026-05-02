@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import asyncio
 import time
-from datetime import datetime, timezone
 from decimal import Decimal, ROUND_DOWN
 from typing import Any, List, Literal, Optional, cast
 
@@ -18,7 +17,15 @@ from src.core.config import settings
 from src.domain.finance import BalanceLedger, WithdrawCreateContext
 from src.domain.ledger import WithdrawalIntentRow
 from src.domain.operation_metadata import OperationContextMetadata, WithdrawalTicketMetadata
-from src.utils.datetime_utils import now_dt_str, to_dt_str
+from src.services.provider.withdraw_manual_review_expiry_mixin import (
+    ProviderWithdrawManualReviewExpiryMixin,
+)
+from src.services.provider.withdraw_signed_expiry_mixin import (
+    EXPIRED_WITHDRAW_RELEASE_MESSAGE as _EXPIRED_WITHDRAW_RELEASE_MESSAGE,
+    EXPIRED_WITHDRAW_RPC_BEHIND_MESSAGE as _EXPIRED_WITHDRAW_RPC_BEHIND_MESSAGE,
+    ProviderWithdrawSignedExpiryMixin,
+)
+from src.utils.datetime_utils import now_dt_str
 from src.utils.money import money_str, quantize_usdc
 
 ACTIVE_WITHDRAWAL_STATUSES = {
@@ -30,12 +37,11 @@ ACTIVE_WITHDRAWAL_STATUSES = {
 INSUFFICIENT_RECEIVABLE_MESSAGE = "amountUsdc exceeds provider receivable."
 MANUAL_REVIEW_REJECT_MESSAGE = "Withdrawal rejected during manual security review."
 MANUAL_REVIEW_APPROVED_MESSAGE = "Withdrawal approved. Signed ticket is ready for on-chain claim."
-EXPIRED_WITHDRAW_RELEASE_MESSAGE = "Withdrawal ticket expired. Locked receivable was released back to available balance."
-EXPIRED_WITHDRAW_RECONCILED_MESSAGE = "Withdrawal ticket expired. Locked receivable had already been reconciled before cleanup."
-EXPIRED_WITHDRAW_RPC_BEHIND_MESSAGE = "Withdrawal ticket is locally expired, but chain head has not crossed the finality margin yet."
 WITHDRAW_AMOUNT_PRECISION = Decimal("0.01")
 INSUFFICIENT_VAULT_LIQUIDITY_MESSAGE = "Vault liquidity is insufficient for this withdrawal right now. The platform treasury must refill on-chain USDC before you retry."
 WITHDRAW_VAULT_CHECK_UNAVAILABLE_MESSAGE = "Unable to verify vault liquidity right now. Retry after the gateway reconnects to chain RPC."
+EXPIRED_WITHDRAW_RELEASE_MESSAGE = _EXPIRED_WITHDRAW_RELEASE_MESSAGE
+EXPIRED_WITHDRAW_RPC_BEHIND_MESSAGE = _EXPIRED_WITHDRAW_RPC_BEHIND_MESSAGE
 WithdrawalRowStatus = Literal[
     "REQUESTED", "APPROVED_AUTO", "PENDING_MANUAL_REVIEW",
     "REJECTED", "COMPLETED", "CANCELLED", "FAILED_EXPIRED",
@@ -46,7 +52,10 @@ WITHDRAW_ROW_STATUSES: set[WithdrawalRowStatus] = {
 }
 
 
-class ProviderWithdrawHelpersMixin:
+class ProviderWithdrawHelpersMixin(
+    ProviderWithdrawManualReviewExpiryMixin,
+    ProviderWithdrawSignedExpiryMixin,
+):
     """Withdrawal I/O helpers, validators, and assertion methods."""
 
     def _provider_balance_repository(self) -> Any:
@@ -90,20 +99,6 @@ class ProviderWithdrawHelpersMixin:
     @staticmethod
     def _withdraw_owner(row: WithdrawalIntentRow) -> str:
         return normalize_wallet(str(row.owner_address or ""))
-
-    @staticmethod
-    def _withdraw_created_at(row: WithdrawalIntentRow) -> int:
-        normalized = to_dt_str(row.created_at, "") or ""
-        if not normalized:
-            return 0
-        try:
-            return int(
-                datetime.strptime(normalized, "%Y-%m-%d %H:%M:%S")
-                .replace(tzinfo=timezone.utc)
-                .timestamp()
-            )
-        except Exception:
-            return 0
 
     def _normalize_withdrawal_rows(self) -> List[WithdrawalIntentRow]:
         raw_rows = self.storage.get_data_manager().system.gateway_state.read_provider_withdrawal_rows()  # type: ignore[attr-defined]
@@ -191,69 +186,37 @@ class ProviderWithdrawHelpersMixin:
         now = int(time.time())
         now_text = now_dt_str()
         changed = False
+        batch_size = int(getattr(settings, "withdrawal_reaper_batch_size", 100) or 100)
+        remaining = max(1, min(1000, batch_size))
         for row in rows:
+            if remaining <= 0:
+                break
             row_owner = self._withdraw_owner(row)
             if owner is not None and row_owner != owner:
                 continue
-            if not self._is_expired_signed_withdrawal(row, now):
-                continue
-            deadline = int(row.deadline or 0)
-            ticket_hash = str(row.ticket.ticket_hash or "")
-            if not ticket_hash or not self._withdraw_rpc_head_past_deadline(deadline):
-                row.message = EXPIRED_WITHDRAW_RPC_BEHIND_MESSAGE
-                row.updated_at = now_text
-                changed = True
-                continue
-            consumed = self._withdraw_ticket_consumed_or_unknown(ticket_hash)
-            if consumed is None:
-                continue
-            if consumed:
-                amount_usdc = quantize_usdc(row.amount_usdc or Decimal("0"))
-                if amount_usdc > Decimal("0"):
-                    self._consume_locked_withdraw_amount(row_owner, amount_usdc)
-                row.status = "COMPLETED"
-                row.updated_at = now_text
-                row.completed_at = now
-                row.message = "Withdrawal ticket was consumed on-chain before expiry cleanup."
-                changed = True
-                self._append_financial_audit(  # type: ignore[attr-defined]
-                    "PROVIDER_WITHDRAW_COMPLETED_BY_REAPER",
-                    row_owner,
-                    {
-                        "withdrawalId": str(row.id or ""),
-                        "ticketHash": ticket_hash,
-                        "amountUsdc": money_str(amount_usdc),
-                        "reason": "CHAIN_TICKET_CONSUMED",
-                    },
-                )
-                continue
-            amount_usdc = quantize_usdc(row.amount_usdc or Decimal("0"))
-            released_amount_usdc = Decimal("0")
-            if amount_usdc > Decimal("0"):
-                released_amount_usdc = self._release_pending_withdraw_to_available(row_owner, amount_usdc)
-            release_shortfall_usdc = quantize_usdc(max(Decimal("0"), amount_usdc - released_amount_usdc))
-            row.status = "FAILED_EXPIRED"
-            row.updated_at = now_text
-            row.completed_at = now
-            row.message = (
-                EXPIRED_WITHDRAW_RELEASE_MESSAGE
-                if release_shortfall_usdc <= Decimal("0")
-                else EXPIRED_WITHDRAW_RECONCILED_MESSAGE
-            )
-            changed = True
-            self._append_financial_audit(  # type: ignore[attr-defined]
-                "PROVIDER_WITHDRAW_FAILED_EXPIRED",
+            handled_manual_review, expired_manual_review = self._expire_manual_review_withdrawal_if_due(
+                row,
                 row_owner,
-                {
-                    "withdrawalId": str(row.id or ""),
-                    "ticketHash": ticket_hash,
-                    "amountUsdc": money_str(amount_usdc),
-                    "releasedAmountUsdc": money_str(released_amount_usdc),
-                    "releaseShortfallUsdc": money_str(release_shortfall_usdc),
-                    "reason": "TICKET_EXPIRED",
-                    "deadline": int(row.deadline or 0),
-                },
+                now,
+                now_text,
             )
+            if handled_manual_review:
+                if expired_manual_review:
+                    changed = True
+                    remaining -= 1
+                continue
+            handled_signed, changed_signed, counted_signed = self._expire_signed_withdrawal_if_due(
+                row,
+                row_owner,
+                now,
+                now_text,
+            )
+            if handled_signed:
+                if changed_signed:
+                    changed = True
+                if counted_signed:
+                    remaining -= 1
+                continue
         if changed:
             self._save_withdrawal_rows(rows)
         return rows

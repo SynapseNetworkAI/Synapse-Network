@@ -24,13 +24,13 @@ Withdrawal 链路定义 Provider 如何把已经结算的离链收益提现到�
 
 ## 3. 核心表
 
-| 表 | 作用 |
-| --- | --- |
+| 表                          | 作用                                                    |
+| --------------------------- | ------------------------------------------------------- |
 | `synapse_vault_withdrawals` | 提现主记录，保存 kind、状态、nonce、deadline、signature |
-| `synapse_ledger_accounts` | 定义 provider wallet 账户 |
-| `synapse_account_balances` | 保存 provider 可提现余额和冻结余额 |
-| `synapse_ledger_entries` | 保存锁仓、出金、释放等资金分录 |
-| `synapse_audit_events` | 保存创建 intent、签名、广播、确认、失败等审计 |
+| `synapse_ledger_accounts`   | 定义 provider wallet 账户                               |
+| `synapse_account_balances`  | 保存 provider 可提现余额和冻结余额                      |
+| `synapse_ledger_entries`    | 保存锁仓、出金、释放等资金分录                          |
+| `synapse_audit_events`      | 保存创建 intent、签名、广播、确认、失败等审计           |
 
 ## 4. 状态机
 
@@ -199,6 +199,11 @@ Owner 在钱包中发起链上 withdraw 后，Platform 应推进：
    - `frozen_balance -= amount`
    - `available_balance += amount`
    - 状态推进到 `REJECTED`
+3. 24h 内未审核：
+   - `frozen_balance -= amount`
+   - `available_balance += amount`
+   - 状态推进到 `FAILED_EXPIRED`
+   - 用户通知必须明确说明冻结收益已安全退回可提现余额
 
 ## 11. 失败路径
 
@@ -207,6 +212,11 @@ Owner 在钱包中发起链上 withdraw 后，Platform 应推进：
 1. 审核拒绝：`PENDING_MANUAL_REVIEW -> REJECTED`
 2. 释放冻结金额回 `available`
 3. 写失败 / review audit
+4. 审核超过 `WITHDRAWAL_MANUAL_REVIEW_EXPIRY_SEC`（默认 24h）自动过期：
+   `PENDING_MANUAL_REVIEW -> FAILED_EXPIRED`，释放冻结金额回
+   `available`，并写 `PROVIDER_WITHDRAW_MANUAL_REVIEW_EXPIRED` audit。
+5. Reaper 每轮最多处理 `WITHDRAWAL_REAPER_BATCH_SIZE` 条（默认 100），
+   历史积压由多轮短事务消化，避免上线首轮长事务锁表。
 
 ### 11.2 链上失败或过期
 

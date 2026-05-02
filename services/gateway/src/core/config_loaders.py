@@ -39,6 +39,15 @@ def _canonical_environment_name(raw_environment: str | None) -> str:
     return aliases.get(normalized, normalized or "local")
 
 
+def _manual_review_expiry_min_sec() -> int:
+    if (
+        os.getenv("SYNAPSE_E2E_ENV", "").strip().lower() == "local"
+        or _env_bool("ALLOW_SHORT_WITHDRAWAL_REVIEW_EXPIRY_FOR_TESTS", False)
+    ):
+        return 1
+    return 60
+
+
 def _environment_file_candidates(raw_environment: str | None) -> list[str]:
     normalized = str(raw_environment or "local").strip().lower()
     alias_candidates = {

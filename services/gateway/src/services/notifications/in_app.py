@@ -175,6 +175,64 @@ def build_provider_withdrawal_created_intent(owner_wallet: str, withdrawal: Any)
     )
 
 
+def build_consumer_withdrawal_failed_expired_intent(owner_wallet: str, withdrawal: Any) -> InAppNotificationIntent:
+    withdrawal_id = _payload_value(withdrawal, "withdrawalId", "withdrawal_id", "id", fallback="unknown")
+    amount = _amount_label(withdrawal)
+    body = (
+        f"Withdrawal {withdrawal_id} timed out and was automatically cancelled"
+        f"{f' for {amount}' if amount else ''}. Frozen funds were safely returned to your available balance. "
+        "Please create a new withdrawal if you still want to cash out."
+    )
+    return _intent(
+        owner_wallet=owner_wallet,
+        event_type="consumer_withdrawal.failed_expired",
+        category="withdrawal",
+        severity="warning",
+        priority="transactional_high",
+        title="Withdrawal timed out; funds returned",
+        body=body,
+        action_url="/dashboard/billing/credits",
+        resource_type="consumer_withdrawal",
+        resource_id=withdrawal_id,
+        payload={
+            "withdrawalId": withdrawal_id,
+            "amount": _amount_value(withdrawal),
+            "currency": "USDC",
+            "status": "FAILED_EXPIRED",
+            "message": body,
+        },
+    )
+
+
+def build_provider_withdrawal_failed_expired_intent(owner_wallet: str, withdrawal: Any) -> InAppNotificationIntent:
+    withdrawal_id = _payload_value(withdrawal, "withdrawalId", "withdrawal_id", "id", fallback="unknown")
+    amount = _amount_label(withdrawal)
+    body = (
+        f"Provider withdrawal {withdrawal_id} timed out and was automatically cancelled"
+        f"{f' for {amount}' if amount else ''}. Frozen earnings were safely returned to your withdrawable balance. "
+        "Please create a new provider withdrawal if needed."
+    )
+    return _intent(
+        owner_wallet=owner_wallet,
+        event_type="provider_withdrawal.failed_expired",
+        category="withdrawal",
+        severity="warning",
+        priority="transactional_high",
+        title="Provider withdrawal timed out; funds returned",
+        body=body,
+        action_url="/provider/withdraw",
+        resource_type="provider_withdrawal",
+        resource_id=withdrawal_id,
+        payload={
+            "withdrawalId": withdrawal_id,
+            "amount": _amount_value(withdrawal),
+            "currency": "USDC",
+            "status": "FAILED_EXPIRED",
+            "message": body,
+        },
+    )
+
+
 def build_refund_completed_intent(owner_wallet: str, refund: Any) -> InAppNotificationIntent:
     refund_id = _payload_value(refund, "refundId", "refund_id", fallback="unknown")
     amount = _amount_label(refund)
