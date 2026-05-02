@@ -1,0 +1,10 @@
+{
+  "title": "Money Flows",
+  "pages": [
+    "index",
+    "deposit-usdc",
+    "consumer-withdrawals",
+    "provider-withdrawals",
+    "reconciliation"
+  ]
+}

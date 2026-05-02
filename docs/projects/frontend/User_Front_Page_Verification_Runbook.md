@@ -66,7 +66,7 @@ Pass criteria:
 - Home page CTAs navigate to `/dashboard/overview` and `/dashboard/developer`.
 - Global Quick Access search opens from the console navbar, clicking `Credits` navigates to `/dashboard/billing/credits`, and clicking `Discovery` navigates to `/dashboard/discovery`.
 - Redirect routes land on documented targets.
-- `/docs/concepts#idempotency` can click back to `#settlement`.
+- Main-site `/docs/*` URLs redirect to the dedicated docs origin.
 - Marketplace search and tag controls are visible.
 - Screenshot files are generated for core pages.
 - Quick Access screenshots are generated for the open dialog, filtered result, and post-navigation page.

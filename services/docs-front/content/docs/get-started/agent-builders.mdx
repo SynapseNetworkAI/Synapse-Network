@@ -1,0 +1,53 @@
+---
+title: For Agent Builders
+description: Give an AI agent a bounded USDC budget and let it buy APIs safely.
+---
+
+## Flow
+
+1. Authenticate the owner wallet.
+2. Deposit USDC into SynapseCore.
+3. Issue an agent credential with a credit limit.
+4. Discover callable services.
+5. Invoke a service through Gateway with the discovered live price.
+6. Store the receipt for audit and retry policy.
+
+```ts
+const service = await client.services.discover({ searchQuery: 'sentiment' });
+const credential = await client.credentials.issue({ creditLimitUsdc: '5.00' });
+const receipt = await client.agent.invoke({
+  credential: credential.token,
+  serviceId: service.services[0].serviceId,
+  input: { text: 'agents need wallets' },
+  costUsdc: service.services[0].pricing.amount,
+});
+```
+
+<AgentNote>
+  Never give the agent the owner JWT. The agent runtime should only receive a scoped credential and the service price it saw during discovery.
+</AgentNote>
+
+<QuickLinks
+  items={[
+    {
+      href: '/money-flows/deposit-usdc',
+      title: 'Deposit USDC',
+      description: 'Fund an owner account before issuing bounded agent credentials.',
+    },
+    {
+      href: '/mcp',
+      title: 'MCP runtime',
+      description: 'Use discover_services, invoke_and_pay, and get_receipt from MCP agents.',
+    },
+    {
+      href: '/pricing-and-fees',
+      title: 'Dynamic pricing',
+      description: 'Read live costUsdc and fee policy from Gateway. Do not hard-code examples.',
+    },
+    {
+      href: '/money-flows/consumer-withdrawals',
+      title: 'Consumer withdrawals',
+      description: 'Unused funds need T+1 maturity before owner withdrawal.',
+    },
+  ]}
+/>

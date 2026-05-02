@@ -1,0 +1,3380 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Synapse Gateway API",
+    "version": "2026-05-02",
+    "description": "Agent-first USDC settlement API for service discovery, paid invocation, budget isolation, provider onboarding, and withdrawal evidence."
+  },
+  "servers": [
+    {
+      "url": "https://api-staging.synapse-network.ai",
+      "description": "Staging / Arbitrum Sepolia"
+    },
+    {
+      "url": "https://api.synapse-network.ai",
+      "description": "Production"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Auth",
+      "description": "Wallet challenge, signature verification, and session lifecycle."
+    },
+    {
+      "name": "Balance",
+      "description": "Account balances, deposits, and spending-limit queries."
+    },
+    {
+      "name": "Services",
+      "description": "Service registration, discovery, listing, updates, and deletion."
+    },
+    {
+      "name": "Provider Operations",
+      "description": "Provider secrets, earnings, withdrawal tickets, and runtime health evidence."
+    },
+    {
+      "name": "Agent Invocations",
+      "description": "Paid invocations and invocation history."
+    },
+    {
+      "name": "Credentials",
+      "description": "Issue, list, and revoke agent credentials."
+    },
+    {
+      "name": "Community",
+      "description": "Feedback and forum APIs for docs issues, product bugs, questions, replies, and resolved discussions."
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      },
+      "agentCredential": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Synapse-Agent-Credential"
+      }
+    }
+  },
+  "paths": {
+    "/api/v1/auth/challenge": {
+      "get": {
+        "operationId": "get-challenge",
+        "tags": ["Auth"],
+        "summary": "Get EIP-191 sign challenge",
+        "description": "Returns a one-time nonce string for the given wallet address. Sign it with the owner private key and submit to /verify.\n\nAgent policy: Step 1 of owner auth. Call with the owner wallet address to receive a time-limited nonce. Sign it immediately with ECDSA (EIP-191) and pass to POST /auth/verify.",
+        "security": [],
+        "parameters": [
+          {
+            "name": "address",
+            "in": "query",
+            "required": true,
+            "description": "Owner wallet address (0x...)",
+            "schema": {
+              "type": "string",
+              "example": "0xYourWalletAddress"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Get EIP-191 sign challenge",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "example": {
+                    "challenge": "Synapse login nonce: abc123 | ts: 1711234567"
+                  }
+                },
+                "example": {
+                  "challenge": "Synapse login nonce: abc123 | ts: 1711234567"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MISSING_ADDRESS: address query param is required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "code": "MISSING_ADDRESS",
+                  "message": "address query param is required"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "INVALID_ADDRESS: Not a valid 0x wallet address",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "code": "INVALID_ADDRESS",
+                  "message": "Not a valid 0x wallet address"
+                }
+              }
+            }
+          }
+        },
+        "x-synapse-role": "owner",
+        "x-synapse-phase": "auth",
+        "x-synapse-idempotency": false,
+        "x-synapse-base": "gateway"
+      }
+    },
+    "/api/v1/auth/verify": {
+      "post": {
+        "operationId": "post-verify",
+        "tags": ["Auth"],
+        "summary": "Verify signature, return JWT",
+        "description": "Submit the EIP-191 signed challenge. Gateway verifies the signature and returns a 24-hour JWT.\n\nAgent policy: Step 2 of owner auth. Submit the signed challenge. On success the gateway returns a 24-hour JWT. Store it — all owner-side calls require it as the Bearer token.",
+        "security": [],
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Verify signature, return JWT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "example": {
+                    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                  }
+                },
+                "example": {
+                  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "VERIFICATION_FAILED: Signature does not match wallet address",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "code": "VERIFICATION_FAILED",
+                  "message": "Signature does not match wallet address"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "CHALLENGE_EXPIRED: Challenge expired — request a new one",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "code": "CHALLENGE_EXPIRED",
+                  "message": "Challenge expired — request a new one"
+                }
+              }
+            }
+          }
+        },
+        "x-synapse-role": "owner",
+        "x-synapse-phase": "auth",
+        "x-synapse-idempotency": false,
+        "x-synapse-base": "gateway",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "example": {
+                  "address": "0xYourWalletAddress",
+                  "message": "Synapse login nonce: abc123 | ts: 1711234567",
+                  "signature": "0x..."
+                }
+              },
+              "example": {
+                "address": "0xYourWalletAddress",
+                "message": "Synapse login nonce: abc123 | ts: 1711234567",
+                "signature": "0x..."
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/me": {
+      "get": {
+        "operationId": "get-me",
+        "tags": ["Auth"],
+        "summary": "Get current owner profile",
+        "description": "Returns the wallet-linked account profile: display name, email, and notification preferences.\n\nAgent policy: Confirm authenticated identity. Use after auth to verify the JWT is valid and which wallet it is bound to.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Get current owner profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "example": {
+                    "wallet_address": "0x...",
+                    "username": "owner-alias",
+                    "email": "owner@example.com"
+                  }
+                },
+                "example": {
+                  "wallet_address": "0x...",
+                  "username": "owner-alias",
+                  "email": "owner@example.com"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED: Missing or expired JWT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "code": "UNAUTHORIZED",
+                  "message": "Missing or expired JWT"
+                }
+              }
+            }
+          }
+        },
+        "x-synapse-role": "owner",
+        "x-synapse-phase": "auth",
+        "x-synapse-idempotency": false,
+        "x-synapse-base": "gateway"
+      }
+    },
+    "/api/v1/auth/me/profile/challenge": {
+      "post": {
+        "operationId": "post-profile-challenge",
+        "tags": ["Auth"],
+        "summary": "Get profile-update challenge",
+        "description": "Generates a one-time signing challenge for updating the account profile (name, email, preferences).\n\nAgent policy: Step 1 of a profile update. Generates a challenge that proves the owner wallet authorises the change. Required before PUT /auth/me/profile.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Get profile-update challenge",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "example": {
+                    "challenge": "Synapse profile update nonce: def456 | ts: 1711234600"
+                  }
+                },
+                "example": {
+                  "challenge": "Synapse profile update nonce: def456 | ts: 1711234600"
+                }
+              }
+            }
+          }
+        },
+        "x-synapse-role": "owner",
+        "x-synapse-phase": "manage",
+        "x-synapse-idempotency": false,
+        "x-synapse-base": "gateway"
+      }
+    },
+    "/api/v1/auth/me/profile": {
+      "put": {
+        "operationId": "put-me-profile",
+        "tags": ["Auth"],
+        "summary": "Update account profile",
+        "description": "Submit wallet-signed proof to update account name, notification preferences, and email binding intent. New or changed email addresses are staged as pendingEmail until a verification code is confirmed. Submitting the current verified email cancels a pending change; submitting null removes the verified email.\n\nAgent policy: Step 2 of profile update. Submits the signed challenge alongside new profile fields. Wallet signature prevents unauthorised profile changes.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Update account profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "example": {
+                    "wallet_address": "0x...",
+                    "username": "new-alias",
+                    "email": "old@example.com",
+                    "pendingEmail": "new@example.com",
+                    "emailVerificationStatus": "pending",
+                    "emailVerificationSendsRemaining": 4
+                  }
+                },
+                "example": {
+                  "wallet_address": "0x...",
+                  "username": "new-alias",
+                  "email": "old@example.com",
+                  "pendingEmail": "new@example.com",
+                  "emailVerificationStatus": "pending",
+                  "emailVerificationSendsRemaining": 4
+                }
+              }
+            }
+          }
+        },
+        "x-synapse-role": "owner",
+        "x-synapse-phase": "manage",
+        "x-synapse-idempotency": false,
+        "x-synapse-base": "gateway",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "example": {
+                  "signature": "0x...",
+                  "message": "Synapse profile update nonce: def456 | ts: 1711234600",
+                  "username": "new-alias",
+                  "email": "new@example.com",
+                  "notifications": true
+                }
+              },
+              "example": {
+                "signature": "0x...",
+                "message": "Synapse profile update nonce: def456 | ts: 1711234600",
+                "username": "new-alias",
+                "email": "new@example.com",
+                "notifications": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/email/verify-code": {
+      "post": {
+        "operationId": "post-email-verify-code",
+        "tags": ["Auth"],
+        "summary": "Verify pending email code",
+        "description": "Confirms the 6-digit code sent to a pending email address. Only after this succeeds does Gateway bind the email to the wallet account.\n\nAgent policy: Step 3 of email binding. Submit the code from the verification email. Codes expire after 10 minutes and lock after 5 bad attempts.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Verify pending email code",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "example": {
+                    "profile": {
+                      "walletAddress": "0x...",
+                      "email": "new@example.com",
+                      "emailVerified": true,
+                      "pendingEmail": null
+                    }
+                  }
+                },
+                "example": {
+                  "profile": {
+                    "walletAddress": "0x...",
+                    "email": "new@example.com",
+                    "emailVerified": true,
+                    "pendingEmail": null
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "EMAIL_VERIFICATION_EXPIRED: The code expired; request a new one",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "code": "EMAIL_VERIFICATION_EXPIRED",
+                  "message": "The code expired; request a new one"
+                }
+              }
+            }
+          }
+        },
+        "x-synapse-role": "owner",
+        "x-synapse-phase": "manage",
+        "x-synapse-idempotency": false,
+        "x-synapse-base": "gateway",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "example": {
+                  "email": "new@example.com",
+                  "code": "123456"
+                }
+              },
+              "example": {
+                "email": "new@example.com",
+                "code": "123456"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/email/resend-code": {
+      "post": {
+        "operationId": "post-email-resend-code",
+        "tags": ["Auth"],
+        "summary": "Resend pending email code",
+        "description": "Generates a fresh 6-digit verification code for the current pending email. Each wallet can send at most 5 verification emails per UTC day.\n\nAgent policy: Use when a user did not receive the current code. Resending invalidates the old code.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Resend pending email code",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "example": {
+                    "profile": {
+                      "walletAddress": "0x...",
+                      "pendingEmail": "new@example.com",
+                      "emailVerificationStatus": "pending",
+                      "emailVerificationSendsRemaining": 3
+                    }
+                  }
+                },
+                "example": {
+                  "profile": {
+                    "walletAddress": "0x...",
+                    "pendingEmail": "new@example.com",
+                    "emailVerificationStatus": "pending",
+                    "emailVerificationSendsRemaining": 3
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "EMAIL_VERIFICATION_DAILY_LIMIT_REACHED: Daily email verification limit reached",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "code": "EMAIL_VERIFICATION_DAILY_LIMIT_REACHED",
+                  "message": "Daily email verification limit reached"
+                }
+              }
+            }
+          }
+        },
+        "x-synapse-role": "owner",
+        "x-synapse-phase": "manage",
+        "x-synapse-idempotency": false,
+        "x-synapse-base": "gateway",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "example": {
+                  "email": "new@example.com"
+                }
+              },
+              "example": {
+                "email": "new@example.com"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "operationId": "post-logout",
+        "tags": ["Auth"],
+        "summary": "Revoke current JWT",
+        "description": "Invalidates the current session token server-side.\n\nAgent policy: Invalidate the JWT when the session ends. After this call the token cannot be used for any further requests.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Revoke current JWT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "example": {
+                    "message": "Logged out"
+                  }
+                },
+                "example": {
+                  "message": "Logged out"
+                }
+              }
+            }
+          }
+        },
+        "x-synapse-role": "owner",
+        "x-synapse-phase": "auth",
+        "x-synapse-idempotency": false,
+        "x-synapse-base": "gateway"
+      }
+    },
+    "/api/v1/balance": {
+      "get": {
+        "operationId": "get-balance",
+        "tags": ["Balance"],
+        "summary": "Get account balance summary",
+        "description": "Returns the complete balance breakdown: consumer available (spendable by agents), provider receivable (earned, unsettled), and protocol fee totals.\n\nAgent policy: Check spendable balance before issuing agent credentials. consumer_available_balance is the USDC an agent can spend. If zero the owner must deposit USDC first.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Get account balance summary",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "example": {
+                    "consumer_available_balance": "9.50",
+                    "provider_receivable_balance": "0.00",
+                    "protocol_fee_balance": "0.00"
+                  }
+                },
+                "example": {
+                  "consumer_available_balance": "9.50",
+                  "provider_receivable_balance": "0.00",
+                  "protocol_fee_balance": "0.00"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED: Missing or expired JWT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "code": "UNAUTHORIZED",
+                  "message": "Missing or expired JWT"
+                }
+              }
+            }
+          }
+        },
+        "x-synapse-role": "owner",
+        "x-synapse-phase": "deposit",
+        "x-synapse-idempotency": false,
+        "x-synapse-base": "gateway"
+      }
+    },
+    "/api/v1/balance/deposit/intent": {
+      "post": {
+        "operationId": "post-deposit-intent",
+        "tags": ["Balance"],
+        "summary": "Register deposit intent",
+        "description": "After completing the onchain SynapseCore.deposit() transaction, register the txHash to initiate balance indexing.\n\nAgent policy: Call after the onchain USDC deposit is confirmed. The gateway indexes the event and credits consumer_available_balance.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Register deposit intent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "example": {
+                    "intent": {
+                      "id": "di_abc123",
+                      "status": "pending",
+                      "tx_hash": "0x..."
+                    }
+                  }
+                },
+                "example": {
+                  "intent": {
+                    "id": "di_abc123",
+                    "status": "pending",
+                    "tx_hash": "0x..."
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "DUPLICATE_TX_HASH: This transaction hash has already been registered",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "code": "DUPLICATE_TX_HASH",
+                  "message": "This transaction hash has already been registered"
+                }
+              }
+            }
+          }
+        },
+        "x-synapse-role": "owner",
+        "x-synapse-phase": "deposit",
+        "x-synapse-idempotency": true,
+        "x-synapse-base": "gateway",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "example": {
+                  "tx_hash": "0xOnchainTransactionHash",
+                  "amount": 10
+                }
+              },
+              "example": {
+                "tx_hash": "0xOnchainTransactionHash",
+                "amount": 10
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/balance/spending-limit": {
+      "get": {
+        "operationId": "get-spending-limit",
+        "tags": ["Balance"],
+        "summary": "Get spending limit configuration",
+        "description": "Returns the current velocity-limit policy for the owner account (daily, per-call).\n\nAgent policy: Returns the configured spending velocity limits. Agent credential credit_limit must not exceed these limits.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Get spending limit configuration",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "example": {
+                    "daily_limit_usdc": "100.00",
+                    "per_call_limit_usdc": "1.00"
+                  }
+                },
+                "example": {
+                  "daily_limit_usdc": "100.00",
+                  "per_call_limit_usdc": "1.00"
+                }
+              }
+            }
+          }
+        },
+        "x-synapse-role": "owner",
+        "x-synapse-phase": "deposit",
+        "x-synapse-idempotency": false,
+        "x-synapse-base": "gateway"
+      }
+    },
+    "/api/v1/services/discover": {
+      "get": {
+        "operationId": "get-discover",
+        "tags": ["Services"],
+        "summary": "Discover available services",
+        "description": "Returns the marketplace of active, healthy services available for invocation. Supports text search and pagination.\n\nAgent policy: First step for a consumer agent: scan the marketplace for available APIs or LLM services. Fixed-price APIs return pricing.amount; LLM services return token-metered fields.",
+        "security": [],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum results",
+            "schema": {
+              "type": "integer",
+              "example": "20"
+            }
+          },
+          {
+            "name": "search_query",
+            "in": "query",
+            "required": false,
+            "description": "Free-text search over service names and descriptions",
+            "schema": {
+              "type": "string",
+              "example": "sentiment"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Discover available services",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "example": {
+                      "serviceId": "svc_xyz",
+                      "serviceName": "Sentiment Analysis",
+                      "serviceKind": "api",
+                      "priceModel": "fixed",
+                      "summary": "Analyze text sentiment",
+                      "pricing": {
+                        "amount": "0.010000",
+                        "currency": "USDC"
+                      }
+                    }
+                  },
+                  "example": [
+                    {
+                      "serviceId": "svc_xyz",
+                      "serviceName": "Sentiment Analysis",
+                      "serviceKind": "api",
+                      "priceModel": "fixed",
+                      "summary": "Analyze text sentiment",
+                      "pricing": {
+                        "amount": "0.010000",
+                        "currency": "USDC"
+                      }
+                    },
+                    {
+                      "serviceId": "svc_deepseek_chat",
+                      "serviceName": "DeepSeek Chat",
+                      "serviceKind": "llm",
+                      "priceModel": "token_metered",
+                      "inputPricePer1MTokensUsdc": "0.140000",
+                      "outputPricePer1MTokensUsdc": "0.280000",
+                      "defaultMaxOutputTokens": 2048,
+                      "maxAutoHoldUsdc": "0.050000"
+                    }
+                  ]
+                },
+                "example": [
+                  {
+                    "serviceId": "svc_xyz",
+                    "serviceName": "Sentiment Analysis",
+                    "serviceKind": "api",
+                    "priceModel": "fixed",
+                    "summary": "Analyze text sentiment",
+                    "pricing": {
+                      "amount": "0.010000",
+                      "currency": "USDC"
+                    }
+                  },
+                  {
+                    "serviceId": "svc_deepseek_chat",
+                    "serviceName": "DeepSeek Chat",
+                    "serviceKind": "llm",
+                    "priceModel": "token_metered",
+                    "inputPricePer1MTokensUsdc": "0.140000",
+                    "outputPricePer1MTokensUsdc": "0.280000",
+                    "defaultMaxOutputTokens": 2048,
+                    "maxAutoHoldUsdc": "0.050000"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "x-synapse-role": "consumer_agent",
+        "x-synapse-phase": "discover",
+        "x-synapse-idempotency": false,
+        "x-synapse-base": "gateway"
+      }
+    },
+    "/marketplace/registry.json": {
+      "get": {
+        "operationId": "get-marketplace-registry",
+        "tags": ["Services"],
+        "summary": "Export callable marketplace services",
+        "description": "Returns a paginated, machine-readable registry of services that are currently callable from the public marketplace. Use this when an agent needs to enumerate registered services before choosing a serviceId.\n\nAgent policy: Public machine-readable marketplace feed. It only returns callable services, so agents can page through the registry before selecting a serviceId and invoking through the gateway.",
+        "security": [],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "Page number, starting at 1",
+            "schema": {
+              "type": "integer",
+              "example": "1"
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "description": "Results per page. Defaults to 10 and is capped at 100.",
+            "schema": {
+              "type": "integer",
+              "example": "10"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "description": "Free-text search over service names, summaries, endpoints, roles, and tags",
+            "schema": {
+              "type": "string",
+              "example": "ocr"
+            }
+          },
+          {
+            "name": "tag",
+            "in": "query",
+            "required": false,
+            "description": "Filter by a service tag",
+            "schema": {
+              "type": "string",
+              "example": "finance"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Export callable marketplace services",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "example": {
+                    "status": "success",
+                    "query": {
+                      "q": "ocr",
+                      "tag": "finance",
+                      "page": 1,
+                      "pageSize": 10
+                    },
+                    "pagination": {
+                      "page": 1,
+                      "pageSize": 10,
+                      "total": 1,
+                      "totalPages": 1,
+                      "hasNextPage": false,
+                      "hasPreviousPage": false
+                    },
+                    "services": [
+                      {
+                        "serviceId": "invoice-ocr-v1",
+                        "serviceName": "Invoice OCR",
+                        "summary": "Extract line items and totals from invoices.",
+                        "pricing": {
+                          "currency": "USDC",
+                          "amount": "0.08"
+                        },
+                        "runtimeAvailable": true,
+                        "tags": ["finance", "ocr"]
+                      }
+                    ]
+                  }
+                },
+                "example": {
+                  "status": "success",
+                  "query": {
+                    "q": "ocr",
+                    "tag": "finance",
+                    "page": 1,
+                    "pageSize": 10
+                  },
+                  "pagination": {
+                    "page": 1,
+                    "pageSize": 10,
+                    "total": 1,
+                    "totalPages": 1,
+                    "hasNextPage": false,
+                    "hasPreviousPage": false
+                  },
+                  "services": [
+                    {
+                      "serviceId": "invoice-ocr-v1",
+                      "serviceName": "Invoice OCR",
+                      "summary": "Extract line items and totals from invoices.",
+                      "pricing": {
+                        "currency": "USDC",
+                        "amount": "0.08"
+                      },
+                      "runtimeAvailable": true,
+                      "tags": ["finance", "ocr"]
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "x-synapse-role": "public",
+        "x-synapse-phase": "discover",
+        "x-synapse-idempotency": false,
+        "x-synapse-base": "frontend"
+      }
+    },
+    "/api/v1/services": {
+      "post": {
+        "operationId": "post-service",
+        "tags": ["Services"],
+        "summary": "Register a new service",
+        "description": "Provider registers an API service on the Synapse marketplace. The gateway proxies incoming invocations to invoke.targets.\n\nAgent policy: Provider publishes their API as a paid service. The gateway proxies calls to invoke.targets and handles payment automatically.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Register a new service",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "example": {
+                    "serviceId": "svc_xyz",
+                    "status": "active"
+                  }
+                },
+                "example": {
+                  "serviceId": "svc_xyz",
+                  "status": "active"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "DUPLICATE_SERVICE_ID: agentToolName already exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "code": "DUPLICATE_SERVICE_ID",
+                  "message": "agentToolName already exists"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "INVALID_MANIFEST: Missing required fields: serviceName, invoke.targets",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "code": "INVALID_MANIFEST",
+                  "message": "Missing required fields: serviceName, invoke.targets"
+                }
+              }
+            }
+          }
+        },
+        "x-synapse-role": "provider",
+        "x-synapse-phase": "register",
+        "x-synapse-idempotency": false,
+        "x-synapse-base": "gateway",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "example": {
+                  "serviceName": "Sentiment Analysis",
+                  "agentToolName": "sentiment-analysis",
+                  "summary": "Analyze text sentiment via ML model",
+                  "pricing": {
+                    "currency": "USD",
+                    "amount": "0.01"
+                  },
+                  "invoke": {
+                    "method": "POST",
+                    "targets": [
+                      {
+                        "url": "https://your-api.example.com/analyze",
+                        "weight": 100
+                      }
+                    ],
+                    "request": {},
+                    "response": {}
+                  }
+                }
+              },
+              "example": {
+                "serviceName": "Sentiment Analysis",
+                "agentToolName": "sentiment-analysis",
+                "summary": "Analyze text sentiment via ML model",
+                "pricing": {
+                  "currency": "USD",
+                  "amount": "0.01"
+                },
+                "invoke": {
+                  "method": "POST",
+                  "targets": [
+                    {
+                      "url": "https://your-api.example.com/analyze",
+                      "weight": 100
+                    }
+                  ],
+                  "request": {},
+                  "response": {}
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "get-services",
+        "tags": ["Services"],
+        "summary": "List own registered services",
+        "description": "Returns all services registered by the authenticated provider wallet.\n\nAgent policy: List all services the authenticated provider has registered. Use to audit active services or get serviceIds for updates.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "List own registered services",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "example": {
+                      "serviceId": "svc_xyz",
+                      "serviceName": "Sentiment Analysis",
+                      "isActive": true
+                    }
+                  },
+                  "example": [
+                    {
+                      "serviceId": "svc_xyz",
+                      "serviceName": "Sentiment Analysis",
+                      "isActive": true
+                    }
+                  ]
+                },
+                "example": [
+                  {
+                    "serviceId": "svc_xyz",
+                    "serviceName": "Sentiment Analysis",
+                    "isActive": true
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "x-synapse-role": "provider",
+        "x-synapse-phase": "manage",
+        "x-synapse-idempotency": false,
+        "x-synapse-base": "gateway"
+      }
+    },
+    "/api/v1/services/{id}": {
+      "put": {
+        "operationId": "put-service",
+        "tags": ["Services"],
+        "summary": "Update service config",
+        "description": "Update any service field including isActive. To delete a service, first set isActive: false, then call DELETE.\n\nAgent policy: Update service config. Critical: to delete a service, first PUT {isActive: false} to deactivate it, then call DELETE. Deleting an active service returns 409.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Service ID",
+            "schema": {
+              "type": "string",
+              "example": "svc_xyz"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Update service config",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "example": {
+                    "service": {
+                      "serviceId": "svc_xyz",
+                      "isActive": false
+                    }
+                  }
+                },
+                "example": {
+                  "service": {
+                    "serviceId": "svc_xyz",
+                    "isActive": false
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SERVICE_NOT_FOUND: No service with this ID owned by caller",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "code": "SERVICE_NOT_FOUND",
+                  "message": "No service with this ID owned by caller"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "SERVICE_ALREADY_DELETED: Service is already deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "code": "SERVICE_ALREADY_DELETED",
+                  "message": "Service is already deleted"
+                }
+              }
+            }
+          }
+        },
+        "x-synapse-role": "provider",
+        "x-synapse-phase": "manage",
+        "x-synapse-idempotency": false,
+        "x-synapse-base": "gateway",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "example": {
+                  "isActive": false
+                }
+              },
+              "example": {
+                "isActive": false
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "delete-service",
+        "tags": ["Services"],
+        "summary": "Delete service",
+        "description": "Permanently archives a service. The service MUST be inactive (isActive: false) before deletion.\n\nAgent policy: Soft-archives a service. Guard: service MUST be deactivated (via PUT {isActive: false}) first, or this returns 409 SERVICE_DELETE_ACTIVE_CONFLICT.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Service ID",
+            "schema": {
+              "type": "string",
+              "example": "svc_xyz"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Delete service",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "example": {
+                    "status": "success",
+                    "message": "Service deleted"
+                  }
+                },
+                "example": {
+                  "status": "success",
+                  "message": "Service deleted"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SERVICE_NOT_FOUND: No service with this ID owned by caller",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "code": "SERVICE_NOT_FOUND",
+                  "message": "No service with this ID owned by caller"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "SERVICE_DELETE_ACTIVE_CONFLICT: Service is still active — deactivate with PUT {isActive: false} first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "code": "SERVICE_DELETE_ACTIVE_CONFLICT",
+                  "message": "Service is still active — deactivate with PUT {isActive: false} first"
+                }
+              }
+            }
+          }
+        },
+        "x-synapse-role": "provider",
+        "x-synapse-phase": "manage",
+        "x-synapse-idempotency": false,
+        "x-synapse-base": "gateway"
+      }
+    },
+    "/api/v1/services/{id}/health/history": {
+      "get": {
+        "operationId": "get-service-health-history",
+        "tags": ["Services"],
+        "summary": "Get service health history",
+        "description": "Returns recent provider health probe history for a service owned by the authenticated provider wallet.\n\nAgent policy: Provider-owned health drilldown. Use it to understand why a service is or is not currently callable.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Service ID",
+            "schema": {
+              "type": "string",
+              "example": "svc_xyz"
+            }
+          },
+          {
+            "name": "limitPerTarget",
+            "in": "query",
+            "required": false,
+            "description": "Recent probe records per target",
+            "schema": {
+              "type": "integer",
+              "example": "50"
+            }
+          },
+          {
+            "name": "hours",
+            "in": "query",
+            "required": false,
+            "description": "History window in hours",
+            "schema": {
+              "type": "integer",
+              "example": "24"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Get service health history",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "example": {
+                    "status": "success",
+                    "serviceId": "svc_xyz",
+                    "targets": [
+                      {
+                        "url": "https://api.example.com/invoke",
+                        "history": [
+                          {
+                            "status": "healthy",
+                            "latencyMs": 142,
+                            "checkedAt": "2026-04-18T12:00:00Z"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                },
+                "example": {
+                  "status": "success",
+                  "serviceId": "svc_xyz",
+                  "targets": [
+                    {
+                      "url": "https://api.example.com/invoke",
+                      "history": [
+                        {
+                          "status": "healthy",
+                          "latencyMs": 142,
+                          "checkedAt": "2026-04-18T12:00:00Z"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SERVICE_NOT_FOUND: Service not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "code": "SERVICE_NOT_FOUND",
+                  "message": "Service not found"
+                }
+              }
+            }
+          }
+        },
+        "x-synapse-role": "provider",
+        "x-synapse-phase": "manage",
+        "x-synapse-idempotency": false,
+        "x-synapse-base": "gateway"
+      }
+    },
+    "/api/v1/secrets/provider/list": {
+      "get": {
+        "operationId": "get-provider-secrets",
+        "tags": ["Provider Operations"],
+        "summary": "List provider secrets",
+        "description": "Returns active provider secret keys owned by the authenticated provider wallet. The raw secret is never returned after issuance.\n\nAgent policy: Provider control-plane inventory for provider secrets. Use owner/provider JWT, not a consumer agent credential.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "List provider secrets",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "example": {
+                    "status": "success",
+                    "secrets": [
+                      {
+                        "id": "sec_abc",
+                        "name": "provider-secret-prod",
+                        "maskedKey": "snk_...",
+                        "status": "active",
+                        "rpm": 60,
+                        "creditLimit": "0.00",
+                        "createdAt": "2026-04-18T12:00:00Z"
+                      }
+                    ]
+                  }
+                },
+                "example": {
+                  "status": "success",
+                  "secrets": [
+                    {
+                      "id": "sec_abc",
+                      "name": "provider-secret-prod",
+                      "maskedKey": "snk_...",
+                      "status": "active",
+                      "rpm": 60,
+                      "creditLimit": "0.00",
+                      "createdAt": "2026-04-18T12:00:00Z"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "x-synapse-role": "provider",
+        "x-synapse-phase": "manage",
+        "x-synapse-idempotency": false,
+        "x-synapse-base": "gateway"
+      }
+    },
+    "/api/v1/secrets/provider/issue": {
+      "post": {
+        "operationId": "post-provider-secret",
+        "tags": ["Provider Operations"],
+        "summary": "Issue provider secret",
+        "description": "Issues a provider secret for provider-side automation. The secretKey is returned exactly once and must be stored securely by the provider.\n\nAgent policy: Provider onboarding step for controlled provider-side automation. This is not a consumer agent spending credential.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Issue provider secret",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "example": {
+                    "status": "success",
+                    "secret": {
+                      "id": "sec_abc",
+                      "name": "provider-secret-prod",
+                      "secretKey": "snk_provider_...",
+                      "maskedKey": "snk_...",
+                      "status": "active"
+                    }
+                  }
+                },
+                "example": {
+                  "status": "success",
+                  "secret": {
+                    "id": "sec_abc",
+                    "name": "provider-secret-prod",
+                    "secretKey": "snk_provider_...",
+                    "maskedKey": "snk_...",
+                    "status": "active"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-synapse-role": "provider",
+        "x-synapse-phase": "manage",
+        "x-synapse-idempotency": false,
+        "x-synapse-base": "gateway",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "example": {
+                  "name": "provider-secret-prod",
+                  "rpm": 60,
+                  "creditLimit": "0.00",
+                  "resetInterval": "daily"
+                }
+              },
+              "example": {
+                "name": "provider-secret-prod",
+                "rpm": 60,
+                "creditLimit": "0.00",
+                "resetInterval": "daily"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/secrets/provider/{secretId}": {
+      "delete": {
+        "operationId": "delete-provider-secret",
+        "tags": ["Provider Operations"],
+        "summary": "Revoke provider secret",
+        "description": "Revokes a provider secret owned by the authenticated provider wallet.\n\nAgent policy: Emergency rotation path for provider automation secrets.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "secretId",
+            "in": "path",
+            "required": true,
+            "description": "Provider secret ID",
+            "schema": {
+              "type": "string",
+              "example": "sec_abc"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Revoke provider secret",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "example": {
+                    "status": "success",
+                    "message": "Deleted"
+                  }
+                },
+                "example": {
+                  "status": "success",
+                  "message": "Deleted"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN: Secret does not belong to current wallet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "code": "FORBIDDEN",
+                  "message": "Secret does not belong to current wallet"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SECRET_NOT_FOUND: Secret key not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "code": "SECRET_NOT_FOUND",
+                  "message": "Secret key not found"
+                }
+              }
+            }
+          }
+        },
+        "x-synapse-role": "provider",
+        "x-synapse-phase": "manage",
+        "x-synapse-idempotency": false,
+        "x-synapse-base": "gateway"
+      }
+    },
+    "/api/v1/providers/earnings/summary": {
+      "get": {
+        "operationId": "get-provider-earnings-summary",
+        "tags": ["Provider Operations"],
+        "summary": "Get provider earnings summary",
+        "description": "Returns provider earnings analytics and recent settlement context for the authenticated provider wallet.\n\nAgent policy: Provider revenue read model. Use it to confirm that paid traffic is producing receivables before withdrawal.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum rows to aggregate",
+            "schema": {
+              "type": "integer",
+              "example": "200"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Get provider earnings summary",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "example": {
+                    "status": "success",
+                    "summary": {
+                      "providerReceivable": "12.50",
+                      "paidInvocations": 42,
+                      "platformFeeUsdc": "1.25"
+                    }
+                  }
+                },
+                "example": {
+                  "status": "success",
+                  "summary": {
+                    "providerReceivable": "12.50",
+                    "paidInvocations": 42,
+                    "platformFeeUsdc": "1.25"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-synapse-role": "provider",
+        "x-synapse-phase": "manage",
+        "x-synapse-idempotency": false,
+        "x-synapse-base": "gateway"
+      }
+    },
+    "/api/v1/providers/withdrawals/capability": {
+      "get": {
+        "operationId": "get-provider-withdrawal-capability",
+        "tags": ["Provider Operations"],
+        "summary": "Get provider withdrawal capability",
+        "description": "Reports whether the gateway can currently issue EIP-712 provider withdrawal tickets.\n\nAgent policy: Call before enabling a provider withdrawal button. If ticket signing is unavailable, do not let the user start a withdrawal.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Get provider withdrawal capability",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "example": {
+                    "status": "success",
+                    "ownerAddress": "0xProviderWallet",
+                    "ticketSigningEnabled": true,
+                    "code": "READY",
+                    "message": "Gateway withdraw signer is ready."
+                  }
+                },
+                "example": {
+                  "status": "success",
+                  "ownerAddress": "0xProviderWallet",
+                  "ticketSigningEnabled": true,
+                  "code": "READY",
+                  "message": "Gateway withdraw signer is ready."
+                }
+              }
+            }
+          }
+        },
+        "x-synapse-role": "provider",
+        "x-synapse-phase": "manage",
+        "x-synapse-idempotency": false,
+        "x-synapse-base": "gateway"
+      }
+    },
+    "/api/v1/providers/withdrawals/intent": {
+      "post": {
+        "operationId": "post-provider-withdrawal-intent",
+        "tags": ["Provider Operations"],
+        "summary": "Create provider withdrawal intent",
+        "description": "Locks provider receivables and creates a provider withdrawal ticket or manual-review request. Amounts must be strings at the API boundary.\n\nAgent policy: Provider self-service withdrawal. It never spends consumer balances; it only reserves provider receivable funds.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Create provider withdrawal intent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "example": {
+                    "status": "success",
+                    "ownerAddress": "0xProviderWallet",
+                    "withdrawalId": "wd_abc",
+                    "statusLabel": "APPROVED_AUTO",
+                    "ticket": {
+                      "to": "0xProviderWallet",
+                      "amount": "12500000",
+                      "deadline": 1770000000
+                    }
+                  }
+                },
+                "example": {
+                  "status": "success",
+                  "ownerAddress": "0xProviderWallet",
+                  "withdrawalId": "wd_abc",
+                  "statusLabel": "APPROVED_AUTO",
+                  "ticket": {
+                    "to": "0xProviderWallet",
+                    "amount": "12500000",
+                    "deadline": 1770000000
+                  }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "INSUFFICIENT_PROVIDER_RECEIVABLE: Provider receivable balance is too low",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "code": "INSUFFICIENT_PROVIDER_RECEIVABLE",
+                  "message": "Provider receivable balance is too low"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "WITHDRAW_VAULT_LIQUIDITY_CHECK_UNAVAILABLE: Gateway cannot verify vault liquidity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "code": "WITHDRAW_VAULT_LIQUIDITY_CHECK_UNAVAILABLE",
+                  "message": "Gateway cannot verify vault liquidity"
+                }
+              }
+            }
+          }
+        },
+        "x-synapse-role": "provider",
+        "x-synapse-phase": "manage",
+        "x-synapse-idempotency": true,
+        "x-synapse-base": "gateway",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "example": {
+                  "amountUsdc": "12.50"
+                }
+              },
+              "example": {
+                "amountUsdc": "12.50"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/providers/withdrawals": {
+      "get": {
+        "operationId": "get-provider-withdrawals",
+        "tags": ["Provider Operations"],
+        "summary": "List provider withdrawals",
+        "description": "Returns provider withdrawal intents and their lifecycle statuses.\n\nAgent policy: Provider audit view for withdrawal intents. Stale active tickets may be lazily cancelled and released when this endpoint is read.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum rows",
+            "schema": {
+              "type": "integer",
+              "example": "100"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List provider withdrawals",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "example": {
+                    "status": "success",
+                    "ownerAddress": "0xProviderWallet",
+                    "withdrawals": [
+                      {
+                        "withdrawalId": "wd_abc",
+                        "amountUsdc": "12.50",
+                        "status": "APPROVED_AUTO"
+                      }
+                    ]
+                  }
+                },
+                "example": {
+                  "status": "success",
+                  "ownerAddress": "0xProviderWallet",
+                  "withdrawals": [
+                    {
+                      "withdrawalId": "wd_abc",
+                      "amountUsdc": "12.50",
+                      "status": "APPROVED_AUTO"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "x-synapse-role": "provider",
+        "x-synapse-phase": "manage",
+        "x-synapse-idempotency": false,
+        "x-synapse-base": "gateway"
+      }
+    },
+    "/api/v1/providers/withdrawals/{withdrawalId}/complete": {
+      "post": {
+        "operationId": "post-provider-withdrawal-complete",
+        "tags": ["Provider Operations"],
+        "summary": "Complete provider withdrawal",
+        "description": "Closes a provider withdrawal intent after the provider's onchain withdraw transaction succeeds.\n\nAgent policy: Finalizes the provider withdrawal after chain success. Replays are rejected or idempotently resolved by txHash binding.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "withdrawalId",
+            "in": "path",
+            "required": true,
+            "description": "Withdrawal intent ID",
+            "schema": {
+              "type": "string",
+              "example": "wd_abc"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Complete provider withdrawal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "example": {
+                    "status": "success",
+                    "ownerAddress": "0xProviderWallet",
+                    "withdrawalId": "wd_abc",
+                    "txHash": "0x..."
+                  }
+                },
+                "example": {
+                  "status": "success",
+                  "ownerAddress": "0xProviderWallet",
+                  "withdrawalId": "wd_abc",
+                  "txHash": "0x..."
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_TX_HASH: txHash must be a valid 32-byte hex string",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "code": "INVALID_TX_HASH",
+                  "message": "txHash must be a valid 32-byte hex string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "WITHDRAWAL_NOT_FOUND: Provider withdrawal intent not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "code": "WITHDRAWAL_NOT_FOUND",
+                  "message": "Provider withdrawal intent not found"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "TX_HASH_REPLAY: txHash is already bound to another withdrawal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "code": "TX_HASH_REPLAY",
+                  "message": "txHash is already bound to another withdrawal"
+                }
+              }
+            }
+          }
+        },
+        "x-synapse-role": "provider",
+        "x-synapse-phase": "manage",
+        "x-synapse-idempotency": false,
+        "x-synapse-base": "gateway",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "example": {
+                  "txHash": "0x0000000000000000000000000000000000000000000000000000000000000000"
+                }
+              },
+              "example": {
+                "txHash": "0x0000000000000000000000000000000000000000000000000000000000000000"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/agent/invoke": {
+      "post": {
+        "operationId": "post-agent-invoke",
+        "tags": ["Agent Invocations"],
+        "summary": "Invoke a service",
+        "description": "Invoke a service in one HTTP call. For fixed-price APIs, pass costUsdc — the price the agent saw in discovery. For serviceKind=llm / priceModel=token_metered, omit costUsdc and optionally pass maxCostUsdc; Gateway pre-authorizes, captures final Provider usage, and releases the rest.\n\nAgent policy: Preferred invoke path. Fixed APIs use costUsdc price assertion. LLM services use token-metered pre-authorization and final usage billing.",
+        "security": [
+          {
+            "agentCredential": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Invoke a service",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "example": {
+                    "invocationId": "inv_abc",
+                    "status": "SUCCEEDED",
+                    "chargedUsdc": "0.000253",
+                    "usage": {
+                      "inputTokens": 1200,
+                      "outputTokens": 300,
+                      "totalTokens": 1500
+                    },
+                    "synapse": {
+                      "priceModel": "token_metered",
+                      "holdUsdc": "0.001000",
+                      "chargedUsdc": "0.000253",
+                      "releasedUsdc": "0.000747",
+                      "preAuthMode": "explicit"
+                    },
+                    "result": {
+                      "answer": "..."
+                    }
+                  }
+                },
+                "example": {
+                  "invocationId": "inv_abc",
+                  "status": "SUCCEEDED",
+                  "chargedUsdc": "0.000253",
+                  "usage": {
+                    "inputTokens": 1200,
+                    "outputTokens": 300,
+                    "totalTokens": 1500
+                  },
+                  "synapse": {
+                    "priceModel": "token_metered",
+                    "holdUsdc": "0.001000",
+                    "chargedUsdc": "0.000253",
+                    "releasedUsdc": "0.000747",
+                    "preAuthMode": "explicit"
+                  },
+                  "result": {
+                    "answer": "..."
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "LLM_AUTO_HOLD_LIMIT_EXCEEDED: Automatic hold exceeds service cap; pass maxCostUsdc explicitly",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "code": "LLM_AUTO_HOLD_LIMIT_EXCEEDED",
+                  "message": "Automatic hold exceeds service cap; pass maxCostUsdc explicitly"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "BUDGET_EXHAUSTED: Credential budget does not allow this invocation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "code": "BUDGET_EXHAUSTED",
+                  "message": "Credential budget does not allow this invocation"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SERVICE_NOT_FOUND: Service is not active",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "code": "SERVICE_NOT_FOUND",
+                  "message": "Service is not active"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "IDEMPOTENCY_CONFLICT: Idempotency key reused with different payload",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "code": "IDEMPOTENCY_CONFLICT",
+                  "message": "Idempotency key reused with different payload"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "PRICE_MISMATCH: Service price changed since discovery — re-discover and retry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "code": "PRICE_MISMATCH",
+                  "message": "Service price changed since discovery — re-discover and retry"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "UPSTREAM_ERROR: Provider service returned an error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "code": "UPSTREAM_ERROR",
+                  "message": "Provider service returned an error"
+                }
+              }
+            }
+          }
+        },
+        "x-synapse-role": "consumer_agent",
+        "x-synapse-phase": "invoke",
+        "x-synapse-idempotency": true,
+        "x-synapse-base": "gateway",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "example": {
+                  "serviceId": "svc_deepseek_chat",
+                  "idempotencyKey": "job-001",
+                  "maxCostUsdc": "0.010000",
+                  "payload": {
+                    "body": {
+                      "model": "deepseek-chat",
+                      "messages": [
+                        {
+                          "role": "user",
+                          "content": "hello"
+                        }
+                      ],
+                      "max_tokens": 512
+                    }
+                  }
+                }
+              },
+              "example": {
+                "serviceId": "svc_deepseek_chat",
+                "idempotencyKey": "job-001",
+                "maxCostUsdc": "0.010000",
+                "payload": {
+                  "body": {
+                    "model": "deepseek-chat",
+                    "messages": [
+                      {
+                        "role": "user",
+                        "content": "hello"
+                      }
+                    ],
+                    "max_tokens": 512
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/agent/invocations/{invocationId}": {
+      "get": {
+        "operationId": "get-invocation",
+        "tags": ["Agent Invocations"],
+        "summary": "Get invocation receipt",
+        "description": "Fetch the settlement receipt for a specific invocation.\n\nAgent policy: Retrieve the settlement receipt for any past invocation. Use to verify completion, audit charges, or retrieve the result if the original response was lost.",
+        "security": [
+          {
+            "agentCredential": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "invocationId",
+            "in": "path",
+            "required": true,
+            "description": "Invocation ID",
+            "schema": {
+              "type": "string",
+              "example": "inv_xyz"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Get invocation receipt",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "example": {
+                    "invocation_id": "inv_xyz",
+                    "status": "completed",
+                    "charged_usdc": "0.01",
+                    "result": {}
+                  }
+                },
+                "example": {
+                  "invocation_id": "inv_xyz",
+                  "status": "completed",
+                  "charged_usdc": "0.01",
+                  "result": {}
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "INVOCATION_NOT_FOUND: No invocation found with this ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "code": "INVOCATION_NOT_FOUND",
+                  "message": "No invocation found with this ID"
+                }
+              }
+            }
+          }
+        },
+        "x-synapse-role": "consumer_agent",
+        "x-synapse-phase": "invoke",
+        "x-synapse-idempotency": false,
+        "x-synapse-base": "gateway"
+      }
+    },
+    "/api/v1/usage/logs": {
+      "get": {
+        "operationId": "get-invocations",
+        "tags": ["Agent Invocations"],
+        "summary": "List invocation history",
+        "description": "Owner-level audit log of all invocations under this wallet. Paginated.\n\nAgent policy: Owner-level audit view of all invocations under this wallet. Use to reconcile charges, monitor agent activity, and verify settlement amounts.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Max results",
+            "schema": {
+              "type": "integer",
+              "example": "20"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List invocation history",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "example": {
+                      "invocation_id": "inv_xyz",
+                      "status": "completed",
+                      "charged_usdc": "0.01"
+                    }
+                  },
+                  "example": [
+                    {
+                      "invocation_id": "inv_xyz",
+                      "status": "completed",
+                      "charged_usdc": "0.01"
+                    }
+                  ]
+                },
+                "example": [
+                  {
+                    "invocation_id": "inv_xyz",
+                    "status": "completed",
+                    "charged_usdc": "0.01"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "x-synapse-role": "owner",
+        "x-synapse-phase": "invoke",
+        "x-synapse-idempotency": false,
+        "x-synapse-base": "gateway"
+      }
+    },
+    "/api/v1/credentials/agent/issue": {
+      "post": {
+        "operationId": "post-credential",
+        "tags": ["Credentials"],
+        "summary": "Issue agent credential",
+        "description": "Mint a new spend-limited agent credential. The returned token is used by the agent runtime for all /agent/* calls.\n\nAgent policy: Owner mints a spend-limited token for an autonomous agent. maxCalls and creditLimit prevent runaway spending. Pass the token to the agent — never expose the owner JWT to the agent.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Issue agent credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "example": {
+                    "credential": {
+                      "token": "agt_xxx",
+                      "credential_id": "cred_abc",
+                      "name": "consumer-agent-01"
+                    }
+                  }
+                },
+                "example": {
+                  "credential": {
+                    "token": "agt_xxx",
+                    "credential_id": "cred_abc",
+                    "name": "consumer-agent-01"
+                  }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "INSUFFICIENT_BALANCE: Owner has no spendable balance — deposit USDC first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "code": "INSUFFICIENT_BALANCE",
+                  "message": "Owner has no spendable balance — deposit USDC first"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "LIMIT_EXCEEDED: credit_limit exceeds owner spending policy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "code": "LIMIT_EXCEEDED",
+                  "message": "credit_limit exceeds owner spending policy"
+                }
+              }
+            }
+          }
+        },
+        "x-synapse-role": "owner",
+        "x-synapse-phase": "manage",
+        "x-synapse-idempotency": false,
+        "x-synapse-base": "gateway",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "example": {
+                  "name": "consumer-agent-01",
+                  "maxCalls": 100,
+                  "creditLimit": 5,
+                  "rpm": 60
+                }
+              },
+              "example": {
+                "name": "consumer-agent-01",
+                "maxCalls": 100,
+                "creditLimit": 5,
+                "rpm": 60
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/credentials/agent/list": {
+      "get": {
+        "operationId": "get-credentials",
+        "tags": ["Credentials"],
+        "summary": "List all credentials",
+        "description": "Returns all active agent credentials issued by the authenticated owner.\n\nAgent policy: Audit which agent tokens are active and how many calls each has consumed. Identify credentials approaching limits.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "List all credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "example": {
+                      "credential_id": "cred_abc",
+                      "name": "consumer-agent-01",
+                      "status": "active",
+                      "calls_used": 3
+                    }
+                  },
+                  "example": [
+                    {
+                      "credential_id": "cred_abc",
+                      "name": "consumer-agent-01",
+                      "status": "active",
+                      "calls_used": 3
+                    }
+                  ]
+                },
+                "example": [
+                  {
+                    "credential_id": "cred_abc",
+                    "name": "consumer-agent-01",
+                    "status": "active",
+                    "calls_used": 3
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "x-synapse-role": "owner",
+        "x-synapse-phase": "manage",
+        "x-synapse-idempotency": false,
+        "x-synapse-base": "gateway"
+      }
+    },
+    "/api/v1/credentials/agent/{id}/revoke": {
+      "post": {
+        "operationId": "delete-credential",
+        "tags": ["Credentials"],
+        "summary": "Revoke credential",
+        "description": "Immediately invalidates an agent credential. Any subsequent call using this token is rejected.\n\nAgent policy: Emergency shutoff: revoke a compromised or over-limit agent token immediately. Takes effect server-side instantly.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Credential ID",
+            "schema": {
+              "type": "string",
+              "example": "cred_abc"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Revoke credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "example": {
+                    "message": "Credential revoked"
+                  }
+                },
+                "example": {
+                  "message": "Credential revoked"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "NOT_OWNER: Only the issuing owner can revoke this credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "code": "NOT_OWNER",
+                  "message": "Only the issuing owner can revoke this credential"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "CREDENTIAL_NOT_FOUND: No credential with this ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "code": "CREDENTIAL_NOT_FOUND",
+                  "message": "No credential with this ID"
+                }
+              }
+            }
+          }
+        },
+        "x-synapse-role": "owner",
+        "x-synapse-phase": "manage",
+        "x-synapse-idempotency": false,
+        "x-synapse-base": "gateway"
+      }
+    },
+    "/api/v1/feedback": {
+      "post": {
+        "operationId": "post-feedback",
+        "tags": ["Community"],
+        "summary": "Submit contextual feedback",
+        "description": "Creates a redacted feedback report from docs or dashboard surfaces. Actionable support categories also create an Admin Forum Support task.\n\nAgent policy: Use this for low-friction docs or product feedback. If a wallet JWT is present, the gateway binds the report to that wallet.",
+        "security": [],
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Submit contextual feedback",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "example": {
+                    "status": "success",
+                    "feedbackId": "fbk_abc123",
+                    "redacted": true,
+                    "supportCaseCreated": true,
+                    "supportTaskId": "frt_abc123"
+                  }
+                },
+                "example": {
+                  "status": "success",
+                  "feedbackId": "fbk_abc123",
+                  "redacted": true,
+                  "supportCaseCreated": true,
+                  "supportTaskId": "frt_abc123"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "INVALID_PAYLOAD: source, sentiment, or message is invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "code": "INVALID_PAYLOAD",
+                  "message": "source, sentiment, or message is invalid"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED: Too many feedback reports in this window",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "code": "RATE_LIMITED",
+                  "message": "Too many feedback reports in this window"
+                }
+              }
+            }
+          }
+        },
+        "x-synapse-role": "public",
+        "x-synapse-phase": "manage",
+        "x-synapse-idempotency": false,
+        "x-synapse-base": "gateway",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "example": {
+                  "source": "docs",
+                  "sentiment": "not_helpful",
+                  "category": "docs_issue",
+                  "route": "/concepts/agent-settlement",
+                  "message": "Settlement section is missing an example.",
+                  "context": {
+                    "pageTitle": "Agent Settlement"
+                  }
+                }
+              },
+              "example": {
+                "source": "docs",
+                "sentiment": "not_helpful",
+                "category": "docs_issue",
+                "route": "/concepts/agent-settlement",
+                "message": "Settlement section is missing an example.",
+                "context": {
+                  "pageTitle": "Agent Settlement"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/forum/topics": {
+      "get": {
+        "operationId": "get-forum-topics",
+        "tags": ["Community"],
+        "summary": "List forum topics",
+        "description": "Returns public forum topics with category, search, sort, and pagination filters.\n\nAgent policy: Public community search for known issues, provider service discussions, and SDK questions.",
+        "security": [],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "Page number",
+            "schema": {
+              "type": "integer",
+              "example": "1"
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "description": "Rows per page, max 50",
+            "schema": {
+              "type": "integer",
+              "example": "20"
+            }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "required": false,
+            "description": "Forum category",
+            "schema": {
+              "type": "string",
+              "example": "Provider Services"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "description": "Search text",
+            "schema": {
+              "type": "string",
+              "example": "health"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "description": "latest or top",
+            "schema": {
+              "type": "string",
+              "enum": ["latest", "top"],
+              "example": "latest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List forum topics",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "example": {
+                    "status": "success",
+                    "topics": [],
+                    "pagination": {
+                      "total": 0,
+                      "page": 1,
+                      "pageSize": 20
+                    }
+                  }
+                },
+                "example": {
+                  "status": "success",
+                  "topics": [],
+                  "pagination": {
+                    "total": 0,
+                    "page": 1,
+                    "pageSize": 20
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-synapse-role": "public",
+        "x-synapse-phase": "discover",
+        "x-synapse-idempotency": false,
+        "x-synapse-base": "gateway"
+      },
+      "post": {
+        "operationId": "post-forum-topic",
+        "tags": ["Community"],
+        "summary": "Create forum topic",
+        "description": "Creates a forum topic. Requires wallet JWT, filters secrets, and emits a forum_topic_created event.\n\nAgent policy: Use for logged-in community posts. Do not include JWTs, provider secrets, private keys, or authorization headers.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Create forum topic",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "example": {
+                    "status": "success",
+                    "topic": {
+                      "topicId": "topic_abc123",
+                      "title": "Provider service unhealthy"
+                    }
+                  }
+                },
+                "example": {
+                  "status": "success",
+                  "topic": {
+                    "topicId": "topic_abc123",
+                    "title": "Provider service unhealthy"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED: Missing wallet JWT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "code": "UNAUTHORIZED",
+                  "message": "Missing wallet JWT"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED: Too many topics in this window",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "code": "RATE_LIMITED",
+                  "message": "Too many topics in this window"
+                }
+              }
+            }
+          }
+        },
+        "x-synapse-role": "owner",
+        "x-synapse-phase": "manage",
+        "x-synapse-idempotency": false,
+        "x-synapse-base": "gateway",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "example": {
+                  "title": "Provider service unhealthy",
+                  "category": "Provider Services",
+                  "body": "My health endpoint returns 200 but discovery is empty."
+                }
+              },
+              "example": {
+                "title": "Provider service unhealthy",
+                "category": "Provider Services",
+                "body": "My health endpoint returns 200 but discovery is empty."
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/forum/topics/{topicId}": {
+      "get": {
+        "operationId": "get-forum-topic",
+        "tags": ["Community"],
+        "summary": "Get forum topic",
+        "description": "Returns a topic body and visible replies.\n\nAgent policy: Use to inspect a known issue or support discussion.",
+        "security": [],
+        "parameters": [
+          {
+            "name": "topicId",
+            "in": "path",
+            "required": true,
+            "description": "Forum topic id",
+            "schema": {
+              "type": "string",
+              "example": "topic_abc123"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Get forum topic",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "example": {
+                    "status": "success",
+                    "topic": {
+                      "topicId": "topic_abc123"
+                    },
+                    "replies": []
+                  }
+                },
+                "example": {
+                  "status": "success",
+                  "topic": {
+                    "topicId": "topic_abc123"
+                  },
+                  "replies": []
+                }
+              }
+            }
+          }
+        },
+        "x-synapse-role": "public",
+        "x-synapse-phase": "discover",
+        "x-synapse-idempotency": false,
+        "x-synapse-base": "gateway"
+      }
+    },
+    "/api/v1/forum/topics/{topicId}/replies": {
+      "post": {
+        "operationId": "post-forum-reply",
+        "tags": ["Community"],
+        "summary": "Reply to forum topic",
+        "description": "Adds a reply to an unlocked topic. Requires wallet JWT and redacts sensitive content.\n\nAgent policy: Use for follow-up, workarounds, and support references.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "topicId",
+            "in": "path",
+            "required": true,
+            "description": "Forum topic id",
+            "schema": {
+              "type": "string",
+              "example": "topic_abc123"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Reply to forum topic",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "example": {
+                    "status": "success",
+                    "reply": {
+                      "replyId": "reply_abc123"
+                    }
+                  }
+                },
+                "example": {
+                  "status": "success",
+                  "reply": {
+                    "replyId": "reply_abc123"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-synapse-role": "owner",
+        "x-synapse-phase": "manage",
+        "x-synapse-idempotency": false,
+        "x-synapse-base": "gateway",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "example": {
+                  "body": "I hit this too. The service target was stale until Force probe ran."
+                }
+              },
+              "example": {
+                "body": "I hit this too. The service target was stale until Force probe ran."
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/forum/topics/{topicId}/resolve": {
+      "post": {
+        "operationId": "post-forum-resolve",
+        "tags": ["Community"],
+        "summary": "Resolve forum topic",
+        "description": "Marks an authored topic as resolved.\n\nAgent policy: Topic authors can mark their own question or bug as resolved.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "topicId",
+            "in": "path",
+            "required": true,
+            "description": "Forum topic id",
+            "schema": {
+              "type": "string",
+              "example": "topic_abc123"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Resolve forum topic",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "example": {
+                    "status": "success",
+                    "topic": {
+                      "topicId": "topic_abc123",
+                      "resolved": true
+                    }
+                  }
+                },
+                "example": {
+                  "status": "success",
+                  "topic": {
+                    "topicId": "topic_abc123",
+                    "resolved": true
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN: Only the author can resolve this topic",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "code": "FORBIDDEN",
+                  "message": "Only the author can resolve this topic"
+                }
+              }
+            }
+          }
+        },
+        "x-synapse-role": "owner",
+        "x-synapse-phase": "manage",
+        "x-synapse-idempotency": false,
+        "x-synapse-base": "gateway"
+      }
+    }
+  }
+}

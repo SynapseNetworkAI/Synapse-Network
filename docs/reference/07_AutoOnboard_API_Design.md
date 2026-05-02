@@ -260,18 +260,17 @@ result = client.invoke(
 
 ### Gateway — `Synapse-Network`
 
-| 文件                                                                 | 变更说明                                                                                                                |
-| -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `services/gateway/src/api/routers/agent_credentials.py`              | `GET /list` 加 `active_only` query 参数；新增 `GET /{id}/status`；新增 `PATCH /{id}`                                    |
-| `services/gateway/src/api/schemas/pydantic_models.py`                | 新增 `CredentialUpdateRequest` (name + quota 合并 schema)                                                               |
-| `services/gateway/src/services/platform/credential_service.py`       | 新增 `list_credentials_by_owner_active()`、`get_credential_status_for_owner()`；re-export `update_credential_for_owner` |
-| `services/gateway/src/services/platform/credential_lifecycle.py`     | 新增 `update_credential_for_owner()` — 支持 name + 所有配额字段一次性 PATCH                                             |
-| `services/gateway/tests/e2e/test_06_agent_credential.py`             | 新增 4 个测试用例：`active_only`、`status`、`PATCH`、rename round-trip                                                  |
-| `services/user-front/src/app/docs/api-reference/page.tsx`            | `FLOW_STEPS` 从 6 步更新为 5 步，去掉 POST /quotes，统一为 POST /api/v1/agent/invoke                                    |
-| `services/user-front/src/i18n/resources/en/docsPage.ts`              | Step 4 credential 描述更新为幂等模式；Step 5 invoke 端点更新为 /agent/invoke                                            |
-| `services/user-front/src/i18n/resources/zh/docsPage.ts`              | 同上（中文版）                                                                                                          |
-| `services/user-front/src/app/docs/getting-started/consumer/page.tsx` | Step 4 代码示例：新增 active_only 检查 + 自动发放；Step 5 改为 POST /api/v1/agent/invoke                                |
-| `docs/reference/07_AutoOnboard_API_Design.md`                        | 本文档（设计 + 实施记录）                                                                                               |
+| 文件                                                              | 变更说明                                                                                                                |
+| ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `services/gateway/src/api/routers/agent_credentials.py`           | `GET /list` 加 `active_only` query 参数；新增 `GET /{id}/status`；新增 `PATCH /{id}`                                    |
+| `services/gateway/src/api/schemas/pydantic_models.py`             | 新增 `CredentialUpdateRequest` (name + quota 合并 schema)                                                               |
+| `services/gateway/src/services/platform/credential_service.py`    | 新增 `list_credentials_by_owner_active()`、`get_credential_status_for_owner()`；re-export `update_credential_for_owner` |
+| `services/gateway/src/services/platform/credential_lifecycle.py`  | 新增 `update_credential_for_owner()` — 支持 name + 所有配额字段一次性 PATCH                                             |
+| `services/gateway/tests/e2e/test_06_agent_credential.py`          | 新增 4 个测试用例：`active_only`、`status`、`PATCH`、rename round-trip                                                  |
+| `services/docs-front/content/docs/api-reference.mdx`              | Public API reference 迁入 dedicated docs-front；legacy user-front docs UI 已删除                                        |
+| `services/docs-front/src/data/endpoint-source.ts`                 | API endpoint source 迁入 docs-front，继续生成 OpenAPI/reference data                                                    |
+| `services/docs-front/content/docs/get-started/agent-builders.mdx` | Agent builder quickstart 承接原 consumer docs flow                                                                      |
+| `docs/reference/07_AutoOnboard_API_Design.md`                     | 本文档（设计 + 实施记录）                                                                                               |
 
 ### SDK — `Synapse-Network-Sdk`
 

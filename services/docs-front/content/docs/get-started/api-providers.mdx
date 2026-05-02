@@ -1,0 +1,54 @@
+---
+title: For API Providers
+description: Publish APIs as paid agent-callable services and earn USDC per invocation.
+---
+
+## Provider loop
+
+1. Authenticate the provider wallet.
+2. Issue a provider secret for Gateway-signed calls.
+3. Register a service manifest with pricing and invoke targets.
+4. Monitor health history and earnings.
+5. Create a withdrawal intent when receivables are T+7 matured and ready.
+
+```json
+{
+  "serviceName": "Invoice OCR",
+  "agentToolName": "invoice-ocr-v1",
+  "summary": "Extract line items and totals from invoices.",
+  "pricing": { "currency": "USDC", "amount": "0.080000" },
+  "invoke": {
+    "method": "POST",
+    "targets": [{ "url": "https://api.example.com/invoke", "weight": 100 }]
+  }
+}
+```
+
+<AgentNote title="Provider runtime contract">
+  Anonymous direct calls should fail. Provider invoke endpoints must verify Synapse Gateway signature headers before doing paid work.
+</AgentNote>
+
+<QuickLinks
+  items={[
+    {
+      href: '/pricing-and-fees',
+      title: 'Pricing & fees',
+      description: 'Understand example fee values, provider net revenue, and live Gateway fee truth.',
+    },
+    {
+      href: '/money-flows/provider-withdrawals',
+      title: 'Provider withdrawals',
+      description: 'Provider earnings are T+7 before they become withdrawable receivables.',
+    },
+    {
+      href: '/money-flows/reconciliation',
+      title: 'Reconciliation',
+      description: 'Match receipts, receivables, withdrawal tickets, and chain claims.',
+    },
+    {
+      href: '/api-reference',
+      title: 'Provider API',
+      description: 'Register services, rotate secrets, inspect health, and create settlement intents.',
+    },
+  ]}
+/>

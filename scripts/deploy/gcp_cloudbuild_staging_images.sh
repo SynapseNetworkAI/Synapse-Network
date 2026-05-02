@@ -5,7 +5,7 @@ PROJECT_ID="${1:-${PROJECT_ID:-${GOOGLE_CLOUD_PROJECT:-${CLOUDSDK_CORE_PROJECT:-
 REGION="${REGION:-us-central1}"
 REPOSITORY="${ARTIFACT_REGISTRY_REPOSITORY:-synapse-staging}"
 TAG="${TAG:-staging-$(date -u +%Y-%m-%d-%H%M%S)}"
-SERVICES="gateway,gateway-admin,user-front,admin-front"
+SERVICES="gateway,gateway-admin,user-front,admin-front,docs-front"
 JSON_OUTPUT=""
 BUILD_BACKEND="${STAGING_IMAGE_BUILD_BACKEND:-local-docker}"
 
@@ -58,6 +58,7 @@ gateway_image="${registry}/gateway:${TAG}"
 gateway_admin_image="${registry}/gateway-admin:${TAG}"
 user_front_image="${registry}/user-front:${TAG}"
 admin_front_image="${registry}/admin-front:${TAG}"
+docs_front_image="${registry}/docs-front:${TAG}"
 
 IFS=',' read -r -a requested_services <<<"${SERVICES}"
 normalized_services=()
@@ -65,11 +66,11 @@ for service in "${requested_services[@]}"; do
   service="$(echo "${service}" | xargs)"
   [[ -z "${service}" ]] && continue
   if [[ "${service}" == "all" ]]; then
-    normalized_services=(gateway gateway-admin user-front admin-front)
+    normalized_services=(gateway gateway-admin user-front admin-front docs-front)
     break
   fi
   case "${service}" in
-    gateway|gateway-admin|user-front|admin-front)
+    gateway|gateway-admin|user-front|admin-front|docs-front)
       normalized_services+=("${service}")
       ;;
     *)
@@ -141,9 +142,13 @@ if contains_service user-front; then
       - "--build-arg"
       - "NEXT_PUBLIC_GATEWAY_BASE_URL=${NEXT_PUBLIC_GATEWAY_BASE_URL:-https://api-staging.synapse-network.ai}"
       - "--build-arg"
+      - "NEXT_PUBLIC_ANALYTICS_ENDPOINT=${NEXT_PUBLIC_ANALYTICS_ENDPOINT:-https://api-staging.synapse-network.ai/api/v1/events}"
+      - "--build-arg"
       - "NEXT_PUBLIC_SERVICE_LIST_CACHE_TTL_MS=${NEXT_PUBLIC_SERVICE_LIST_CACHE_TTL_MS:-20000}"
       - "--build-arg"
       - "NEXT_PUBLIC_APP_ENV=${NEXT_PUBLIC_APP_ENV:-staging}"
+      - "--build-arg"
+      - "NEXT_PUBLIC_DOCS_BASE_URL=${NEXT_PUBLIC_DOCS_BASE_URL:-https://docs-staging.synapse-network.ai}"
       - "--build-arg"
       - "NEXT_PUBLIC_SUPPORT_EMAIL=${NEXT_PUBLIC_SUPPORT_EMAIL:-support@synapse-network.ai}"
       - "--build-arg"
@@ -162,6 +167,32 @@ if contains_service user-front; then
     args: ["push", "${user_front_image}"]
     waitFor: ["build-user-front"]
 
+EOF
+fi
+
+if contains_service docs-front; then
+  cat >>"${tmp_config}" <<EOF
+  - name: "gcr.io/cloud-builders/docker"
+    id: "build-docs-front"
+    args:
+      - "build"
+      - "--build-arg"
+      - "NEXT_PUBLIC_APP_ENV=${NEXT_PUBLIC_APP_ENV:-staging}"
+      - "--build-arg"
+      - "NEXT_PUBLIC_DOCS_BASE_URL=${NEXT_PUBLIC_DOCS_BASE_URL:-https://docs-staging.synapse-network.ai}"
+      - "--build-arg"
+      - "NEXT_PUBLIC_CONSOLE_BASE_URL=${NEXT_PUBLIC_CONSOLE_BASE_URL:-https://staging.synapse-network.ai/dashboard/overview}"
+      - "--build-arg"
+      - "NEXT_PUBLIC_GATEWAY_BASE_URL=${NEXT_PUBLIC_GATEWAY_BASE_URL:-https://api-staging.synapse-network.ai}"
+      - "-f"
+      - "services/docs-front/Dockerfile"
+      - "-t"
+      - "${docs_front_image}"
+      - "."
+  - name: "gcr.io/cloud-builders/docker"
+    id: "push-docs-front"
+    args: ["push", "${docs_front_image}"]
+    waitFor: ["build-docs-front"]
 EOF
 fi
 
@@ -212,8 +243,10 @@ docker_build_and_push() {
   if contains_service user-front; then
     docker build \
       --build-arg "NEXT_PUBLIC_GATEWAY_BASE_URL=${NEXT_PUBLIC_GATEWAY_BASE_URL:-https://api-staging.synapse-network.ai}" \
+      --build-arg "NEXT_PUBLIC_ANALYTICS_ENDPOINT=${NEXT_PUBLIC_ANALYTICS_ENDPOINT:-https://api-staging.synapse-network.ai/api/v1/events}" \
       --build-arg "NEXT_PUBLIC_SERVICE_LIST_CACHE_TTL_MS=${NEXT_PUBLIC_SERVICE_LIST_CACHE_TTL_MS:-20000}" \
       --build-arg "NEXT_PUBLIC_APP_ENV=${NEXT_PUBLIC_APP_ENV:-staging}" \
+      --build-arg "NEXT_PUBLIC_DOCS_BASE_URL=${NEXT_PUBLIC_DOCS_BASE_URL:-https://docs-staging.synapse-network.ai}" \
       --build-arg "NEXT_PUBLIC_SUPPORT_EMAIL=${NEXT_PUBLIC_SUPPORT_EMAIL:-support@synapse-network.ai}" \
       --build-arg "NEXT_PUBLIC_SUPPORT_PORTAL_URL=${NEXT_PUBLIC_SUPPORT_PORTAL_URL:-}" \
       --build-arg "NEXT_PUBLIC_REOWN_PROJECT_ID=${NEXT_PUBLIC_REOWN_PROJECT_ID:-}" \
@@ -232,6 +265,18 @@ docker_build_and_push() {
       -t "${admin_front_image}" \
       services/admin-front
     docker push "${admin_front_image}"
+  fi
+
+  if contains_service docs-front; then
+    docker build \
+      --build-arg "NEXT_PUBLIC_APP_ENV=${NEXT_PUBLIC_APP_ENV:-staging}" \
+      --build-arg "NEXT_PUBLIC_DOCS_BASE_URL=${NEXT_PUBLIC_DOCS_BASE_URL:-https://docs-staging.synapse-network.ai}" \
+      --build-arg "NEXT_PUBLIC_CONSOLE_BASE_URL=${NEXT_PUBLIC_CONSOLE_BASE_URL:-https://staging.synapse-network.ai/dashboard/overview}" \
+      --build-arg "NEXT_PUBLIC_GATEWAY_BASE_URL=${NEXT_PUBLIC_GATEWAY_BASE_URL:-https://api-staging.synapse-network.ai}" \
+      -f services/docs-front/Dockerfile \
+      -t "${docs_front_image}" \
+      .
+    docker push "${docs_front_image}"
   fi
 }
 
@@ -267,6 +312,7 @@ contains_service gateway && add_json_image gateway "${gateway_image}"
 contains_service gateway-admin && add_json_image gateway-admin "${gateway_admin_image}"
 contains_service user-front && add_json_image user-front "${user_front_image}"
 contains_service admin-front && add_json_image admin-front "${admin_front_image}"
+contains_service docs-front && add_json_image docs-front "${docs_front_image}"
 json_services+="}"
 
 if [[ -n "${JSON_OUTPUT}" ]]; then
@@ -285,5 +331,6 @@ contains_service gateway && echo "gateway_image       = \"${gateway_image}\""
 contains_service gateway-admin && echo "gateway_admin_image = \"${gateway_admin_image}\""
 contains_service user-front && echo "user_front_image    = \"${user_front_image}\""
 contains_service admin-front && echo "admin_front_image   = \"${admin_front_image}\""
+contains_service docs-front && echo "docs_front_image    = \"${docs_front_image}\""
 echo
 echo "For automated deploys, use the JSON output and deploy by immutable digest when available."

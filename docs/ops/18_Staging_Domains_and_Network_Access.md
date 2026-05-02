@@ -12,15 +12,16 @@ the Google Cloud staging environment.
 
 ## Summary
 
-Staging has five external HTTPS hostnames:
+Staging has six external HTTPS hostnames:
 
-| Hostname | Cloud Run service | Public access | Why |
-| --- | --- | --- | --- |
-| `staging.synapse-network.ai` | `synapse-staging-user-front` | Yes | Browser-facing user/provider app. |
-| `api-staging.synapse-network.ai` | `synapse-staging-gateway` | Yes | User-front calls Gateway API directly from the browser. |
-| `admin-staging.synapse-network.ai` | `synapse-staging-admin-front` | Yes | Browser-facing operations console. |
-| `admin-api-staging.synapse-network.ai` | `synapse-staging-gateway-admin` | Yes | Admin-front calls Gateway-admin API directly from the browser. |
-| `provider-staging.synapse-network.ai` | `synapse-staging-provider` | Limited | Gateway reaches Provider runtime through signed provider invoke calls. |
+| Hostname                               | Cloud Run service               | Public access | Why                                                                    |
+| -------------------------------------- | ------------------------------- | ------------- | ---------------------------------------------------------------------- |
+| `staging.synapse-network.ai`           | `synapse-staging-user-front`    | Yes           | Browser-facing user/provider app.                                      |
+| `docs-staging.synapse-network.ai`      | `synapse-staging-docs-front`    | Yes           | Dedicated developer docs.                                              |
+| `api-staging.synapse-network.ai`       | `synapse-staging-gateway`       | Yes           | User-front calls Gateway API directly from the browser.                |
+| `admin-staging.synapse-network.ai`     | `synapse-staging-admin-front`   | Yes           | Browser-facing operations console.                                     |
+| `admin-api-staging.synapse-network.ai` | `synapse-staging-gateway-admin` | Yes           | Admin-front calls Gateway-admin API directly from the browser.         |
+| `provider-staging.synapse-network.ai`  | `synapse-staging-provider`      | Limited       | Gateway reaches Provider runtime through signed provider invoke calls. |
 
 Public access here means the Cloud Run endpoint accepts unauthenticated HTTP
 requests at the Google ingress layer. It does **not** mean the business API is
@@ -34,13 +35,14 @@ MFA, internal service tokens, and role checks.
 These surfaces need browser access and therefore cannot rely on Google IAM
 identity tokens for normal users:
 
-| Surface | Required public setting |
-| --- | --- |
-| User-front | Disable Cloud Run invoker IAM check. |
-| Gateway API | Disable Cloud Run invoker IAM check if User-front calls it directly. |
-| Admin-front | Disable Cloud Run invoker IAM check so operators can open the web console. |
-| Gateway-admin API | Disable Cloud Run invoker IAM check if Admin-front calls it directly. |
-| Provider runtime | Disable Cloud Run invoker IAM check only for `/health`, `/ready`, and Gateway-signed invoke ingress. |
+| Surface           | Required public setting                                                                              |
+| ----------------- | ---------------------------------------------------------------------------------------------------- |
+| User-front        | Disable Cloud Run invoker IAM check.                                                                 |
+| Docs-front        | Disable Cloud Run invoker IAM check so developers and crawlers can open docs.                        |
+| Gateway API       | Disable Cloud Run invoker IAM check if User-front calls it directly.                                 |
+| Admin-front       | Disable Cloud Run invoker IAM check so operators can open the web console.                           |
+| Gateway-admin API | Disable Cloud Run invoker IAM check if Admin-front calls it directly.                                |
+| Provider runtime  | Disable Cloud Run invoker IAM check only for `/health`, `/ready`, and Gateway-signed invoke ingress. |
 
 Security controls for public API services:
 
@@ -60,17 +62,17 @@ Security controls for public API services:
 
 These surfaces must not be public:
 
-| Surface | Rule |
-| --- | --- |
-| Cloud SQL | No public exposure. Access only through Cloud SQL connector / Cloud Run attachment. |
-| Secret Manager | No public access. Runtime service account gets only required `secretAccessor`. |
-| Terraform state bucket | Private forever. No runtime service account access. |
-| Backup bucket | Private forever. |
-| Evidence bucket | Private by default; share explicitly only when needed. |
-| Cloud Run Jobs | No public domain mapping. Trigger through Scheduler/IAM or operator `gcloud`. |
-| Migration job | No public domain mapping. Trigger only during release. |
-| Backup/restore drill job | No public domain mapping. Trigger only during drill. |
-| Internal job endpoints | Prefer Cloud Run Jobs; if HTTP endpoints exist, require IAM or internal token. |
+| Surface                  | Rule                                                                                |
+| ------------------------ | ----------------------------------------------------------------------------------- |
+| Cloud SQL                | No public exposure. Access only through Cloud SQL connector / Cloud Run attachment. |
+| Secret Manager           | No public access. Runtime service account gets only required `secretAccessor`.      |
+| Terraform state bucket   | Private forever. No runtime service account access.                                 |
+| Backup bucket            | Private forever.                                                                    |
+| Evidence bucket          | Private by default; share explicitly only when needed.                              |
+| Cloud Run Jobs           | No public domain mapping. Trigger through Scheduler/IAM or operator `gcloud`.       |
+| Migration job            | No public domain mapping. Trigger only during release.                              |
+| Backup/restore drill job | No public domain mapping. Trigger only during drill.                                |
+| Internal job endpoints   | Prefer Cloud Run Jobs; if HTTP endpoints exist, require IAM or internal token.      |
 
 ## One-Time Domain Mapping
 
@@ -89,6 +91,7 @@ Expected services:
 
 ```text
 synapse-staging-user-front
+synapse-staging-docs-front
 synapse-staging-gateway
 synapse-staging-admin-front
 synapse-staging-gateway-admin
@@ -106,6 +109,12 @@ gcloud beta run domain-mappings create \
   --region "$REGION" \
   --service synapse-staging-user-front \
   --domain staging.synapse-network.ai
+
+gcloud beta run domain-mappings create \
+  --project "$PROJECT_ID" \
+  --region "$REGION" \
+  --service synapse-staging-docs-front \
+  --domain docs-staging.synapse-network.ai
 
 gcloud beta run domain-mappings create \
   --project "$PROJECT_ID" \
@@ -151,6 +160,7 @@ by the domain mapping output. For Cloud Run domain mappings this is commonly:
 
 ```text
 CNAME staging.synapse-network.ai -> ghs.googlehosted.com
+CNAME docs-staging.synapse-network.ai -> ghs.googlehosted.com
 CNAME api-staging.synapse-network.ai -> ghs.googlehosted.com
 CNAME admin-staging.synapse-network.ai -> ghs.googlehosted.com
 CNAME admin-api-staging.synapse-network.ai -> ghs.googlehosted.com
@@ -217,6 +227,11 @@ gcloud run services update synapse-staging-user-front \
   --region "$REGION" \
   --no-invoker-iam-check
 
+gcloud run services update synapse-staging-docs-front \
+  --project "$PROJECT_ID" \
+  --region "$REGION" \
+  --no-invoker-iam-check
+
 gcloud run services update synapse-staging-gateway \
   --project "$PROJECT_ID" \
   --region "$REGION" \
@@ -258,7 +273,17 @@ backup/restore drill jobs.
 
 ```bash
 NEXT_PUBLIC_GATEWAY_BASE_URL=https://api-staging.synapse-network.ai
+NEXT_PUBLIC_DOCS_BASE_URL=https://docs-staging.synapse-network.ai
 NEXT_PUBLIC_APP_ENV=staging
+```
+
+### Docs-front
+
+```bash
+NEXT_PUBLIC_APP_ENV=staging
+NEXT_PUBLIC_DOCS_BASE_URL=https://docs-staging.synapse-network.ai
+NEXT_PUBLIC_CONSOLE_BASE_URL=https://staging.synapse-network.ai/dashboard/overview
+NEXT_PUBLIC_GATEWAY_BASE_URL=https://api-staging.synapse-network.ai
 ```
 
 ### Gateway
@@ -295,6 +320,7 @@ ADMIN_SESSION_COOKIE_DOMAIN=.synapse-network.ai
 
 ```bash
 dig +short staging.synapse-network.ai
+dig +short docs-staging.synapse-network.ai
 dig +short api-staging.synapse-network.ai
 dig +short admin-staging.synapse-network.ai
 dig +short admin-api-staging.synapse-network.ai
@@ -320,6 +346,8 @@ gcloud run services describe synapse-staging-user-front \
 
 ```bash
 curl -I https://staging.synapse-network.ai/
+curl -I https://docs-staging.synapse-network.ai/
+curl -fsS https://docs-staging.synapse-network.ai/llms.txt | sed -n '1,20p'
 curl -I https://admin-staging.synapse-network.ai/
 curl -i https://api-staging.synapse-network.ai/health
 curl -i https://admin-api-staging.synapse-network.ai/health
@@ -431,20 +459,22 @@ curl -i -X OPTIONS https://admin-api-staging.synapse-network.ai/health \
 
 ## Troubleshooting
 
-| Symptom | Likely cause | Fix |
-| --- | --- | --- |
-| `.run.app` returns Google Frontend `403` without token, `200` with token | Cloud Run invoker IAM check still enabled. | Run `gcloud run services update <service> --no-invoker-iam-check`. |
-| Custom domain TLS handshake fails | Domain mapping or managed certificate not ready. | Check `gcloud beta run domain-mappings describe <host>` and wait for certificate readiness. |
-| Custom domain points to `ghs.googlehosted.com` but still fails | DNS exists but Cloud Run mapping/cert not complete. | Verify the mapping exists in `us-central1` and wait for Google-managed cert. |
-| Browser gets CORS error | API CORS origin does not match frontend domain. | Set Gateway/Gateway-admin CORS to the exact `https://...` frontend host. |
-| API returns application `401/403` | Network is open, app auth is denying request. | Debug JWT/session/CSRF/MFA, not Cloud Run IAM. |
-| `/metrics` is reachable without token | Security regression. | Require `METRICS_BEARER_TOKEN` and keep metrics off public dashboards. |
+| Symptom                                                                  | Likely cause                                        | Fix                                                                                         |
+| ------------------------------------------------------------------------ | --------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `.run.app` returns Google Frontend `403` without token, `200` with token | Cloud Run invoker IAM check still enabled.          | Run `gcloud run services update <service> --no-invoker-iam-check`.                          |
+| Custom domain TLS handshake fails                                        | Domain mapping or managed certificate not ready.    | Check `gcloud beta run domain-mappings describe <host>` and wait for certificate readiness. |
+| Custom domain points to `ghs.googlehosted.com` but still fails           | DNS exists but Cloud Run mapping/cert not complete. | Verify the mapping exists in `us-central1` and wait for Google-managed cert.                |
+| Browser gets CORS error                                                  | API CORS origin does not match frontend domain.     | Set Gateway/Gateway-admin CORS to the exact `https://...` frontend host.                    |
+| API returns application `401/403`                                        | Network is open, app auth is denying request.       | Debug JWT/session/CSRF/MFA, not Cloud Run IAM.                                              |
+| `/metrics` is reachable without token                                    | Security regression.                                | Require `METRICS_BEARER_TOKEN` and keep metrics off public dashboards.                      |
 
 ## Production Difference
 
 Production can use the same shape, but with stricter review:
 
 - Production Gateway may still be public because real users and agents call it.
+- Production Docs-front uses `https://docs.synapse-network.ai` and
+  `synapse-prod-docs-front`; it must not point at staging/testnet docs metadata.
 - Production Admin-front/Admin API may require extra controls such as IAP,
   allowlisted operator accounts, or VPN/zero-trust access.
 - Production must not reuse staging domains, secrets, Cloud SQL, contracts,

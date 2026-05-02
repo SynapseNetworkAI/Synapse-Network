@@ -1,0 +1,14 @@
+---
+title: On-chain Withdrawal
+description: How providers and owners turn off-chain balances into final USDC movement.
+---
+
+Withdrawal is intentionally slower and more controlled than invocation. Runtime calls are optimized for speed; withdrawals are optimized for correctness, auditability, and risk review.
+
+## Settlement boundary
+
+Gateway records receivables and prepares withdrawal evidence. Smart contracts remain the final boundary for USDC movement.
+
+<AgentNote>
+  Agents should not autonomously withdraw funds in V1. Treat withdrawal as an owner/provider operation requiring explicit wallet authority.
+</AgentNote>

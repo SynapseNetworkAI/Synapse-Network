@@ -28,7 +28,7 @@
     "ci:llms-links": "node scripts/ci/llms_links_check.mjs",
     "ci:seo-public-assets": "node scripts/ci/seo_public_assets_check.mjs",
     "ci:seo-public-assets-evidence": "node scripts/ci/seo_public_assets_evidence_check.mjs",
-    "ci:docs-pages": "cd services/user-front && yarn test:docs-pages",
+    "ci:docs-pages": "cd services/docs-front && yarn build",
     "ci:frontend": "bash scripts/ci/frontend_checks.sh",
     "ci:gateway": "bash scripts/ci/gateway_checks.sh",
     "ci:gateway-release-e2e-evidence": "node scripts/ci/gateway_release_e2e_evidence_check.mjs",

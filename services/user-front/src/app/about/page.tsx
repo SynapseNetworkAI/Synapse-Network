@@ -19,6 +19,7 @@ import {
   Zap,
 } from "lucide-react";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
+import { getDocsUrl } from "@/utils/docsUrl";
 
 const X_URL = "https://x.com/SynapseNetworkA";
 
@@ -37,6 +38,8 @@ export default function AboutPage() {
   const auditChecks = tList("aboutPage.auditChecks");
   const providerTypes = tList("aboutPage.providerTypes");
   const values = tList("aboutPage.values");
+  const docsUrl = getDocsUrl();
+  const apiReferenceUrl = getDocsUrl("/api-reference");
 
   return (
     <main className="min-h-[calc(100vh-60px)] overflow-hidden bg-[#020403] text-white">
@@ -100,13 +103,15 @@ export default function AboutPage() {
                 {t("aboutPage.primaryCta")}
                 <ArrowRight className="h-4 w-4" />
               </Link>
-              <Link
-                href="/docs"
+              <a
+                href={docsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-white/14 bg-black/24 px-5 text-sm font-semibold text-white/84 backdrop-blur transition hover:bg-white/[0.06] hover:text-white"
               >
                 <BookOpen className="h-4 w-4" />
                 {t("aboutPage.secondaryCta")}
-              </Link>
+              </a>
               <a
                 href={X_URL}
                 target="_blank"
@@ -231,15 +236,22 @@ export default function AboutPage() {
             </span>
           </div>
           <div className="flex flex-wrap items-center gap-6">
-            <Link href="/docs" className="transition hover:text-white">
+            <a
+              href={docsUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="transition hover:text-white"
+            >
               Docs
-            </Link>
-            <Link
-              href="/docs/api-reference"
+            </a>
+            <a
+              href={apiReferenceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
               className="transition hover:text-white"
             >
               API Reference
-            </Link>
+            </a>
             <a
               href="/forum"
               target="_blank"

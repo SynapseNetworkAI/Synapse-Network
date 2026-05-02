@@ -1,0 +1,68 @@
+@import 'tailwindcss';
+@import 'fumadocs-ui/css/neutral.css';
+@import 'fumadocs-ui/css/preset.css';
+@import 'fumadocs-openapi/css/preset.css';
+
+@font-face {
+  font-family: 'Geist';
+  src: url('/fonts/GeistVF.woff') format('woff');
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Geist Mono';
+  src: url('/fonts/GeistMonoVF.woff') format('woff');
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+:root {
+  --synapse-accent: #7ff7be;
+  --synapse-blue: #6eb6f6;
+  --synapse-yellow: #f9c74f;
+}
+
+html {
+  scrollbar-gutter: stable;
+  background: #030405;
+}
+
+html > body[data-scroll-locked] {
+  margin-right: 0px !important;
+  --removed-body-scroll-bar-size: 0px !important;
+}
+
+body {
+  letter-spacing: 0;
+}
+
+::selection {
+  background: rgba(127, 247, 190, 0.24);
+}
+
+.synapse-hero-grid {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+.synapse-callout {
+  border: 1px solid rgba(127, 247, 190, 0.18);
+  background:
+    linear-gradient(180deg, rgba(127, 247, 190, 0.08), rgba(127, 247, 190, 0.025)),
+    #050708;
+}
+
+.synapse-warning {
+  border: 1px solid rgba(249, 199, 79, 0.32);
+  background:
+    linear-gradient(180deg, rgba(249, 199, 79, 0.11), rgba(249, 199, 79, 0.025)),
+    #070604;
+}
+
+.synapse-code-panel {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #07090b;
+}

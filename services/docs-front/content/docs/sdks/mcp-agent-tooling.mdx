@@ -1,0 +1,14 @@
+---
+title: MCP / Agent Tooling
+description: Make payable services discoverable to model-compatible agent runtimes.
+---
+
+Synapse service manifests map naturally to tools: name, description, input schema, price, and invocation policy. MCP tooling should expose discovery first, then invoke only with a bounded credential.
+
+<WarningNote title="Canonical MCP guide moved to /mcp">
+  Use `/mcp` for the full MCP server setup, pricing rules, `discover_services -> invoke_and_pay -> get_receipt` workflow, and `PRICE_MISMATCH` handling.
+</WarningNote>
+
+<AgentNote>
+  Tool descriptions should include price model, max hold, retry policy, and whether the service is fixed-price or token-metered. The MCP server should not remember prices or hard-code docs example values.
+</AgentNote>
