@@ -227,12 +227,50 @@ def mock_service_url() -> str:
 # Shared mutable state for cross-test data
 _session_state: dict = {}
 _created_test_service_ids: set[str] = set()
+_E2E_CREDENTIAL_NAME_PREFIXES = (
+    "e2e-agent-",
+    "api-ref-test-",
+    "inv-test-",
+    "provider-gpp-e2e-local-",
+)
 
 
 def track_test_service_id(service_id: str | None) -> None:
     normalized = str(service_id or "").strip()
     if normalized:
         _created_test_service_ids.add(normalized)
+
+
+def revoke_stale_e2e_agent_credentials(headers: dict) -> int:
+    """Revoke old local E2E credentials so max-agent limits stay deterministic."""
+    response = httpx.get(
+        f"{GATEWAY_BASE}/api/v1/credentials/agent/list",
+        headers=headers,
+        params={"active_only": "true"},
+        timeout=15,
+    )
+    if response.status_code != 200:
+        return 0
+    revoked = 0
+    for credential in response.json().get("credentials", []):
+        name = str(credential.get("name") or "").strip()
+        if not name.startswith(_E2E_CREDENTIAL_NAME_PREFIXES):
+            continue
+        credential_id = (
+            credential.get("credentialId")
+            or credential.get("credential_id")
+            or credential.get("id")
+        )
+        if not credential_id:
+            continue
+        revoke_response = httpx.post(
+            f"{GATEWAY_BASE}/api/v1/credentials/agent/{credential_id}/revoke",
+            headers=headers,
+            timeout=15,
+        )
+        if revoke_response.status_code in (200, 204, 404):
+            revoked += 1
+    return revoked
 
 
 @pytest.fixture(scope="session")

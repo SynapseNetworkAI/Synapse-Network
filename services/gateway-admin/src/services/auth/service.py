@@ -43,6 +43,11 @@ SHORT_EMAIL_LOCAL_PART_MAX = 2
 logger = logging.getLogger(__name__)
 
 
+def _totp_secret_is_configured(secret: str) -> bool:
+    normalized = secret.strip()
+    return bool(normalized) and normalized != "__BOOTSTRAP_TOTP_SECRET__"
+
+
 @dataclass(frozen=True)
 class MfaEnrollmentBeginResult:
     factor_id: str
@@ -217,6 +222,8 @@ class AdminAuthService:
         if not (otp_code or "").strip():
             raise AuthenticationError(HIGH_RISK_GOOGLE_AUTHENTICATOR_CODE_REQUIRED)
         factor = self._get_active_totp_factor(user)
+        if not _totp_secret_is_configured(str(factor.payload.get("totpSecret") or "")):
+            raise AuthenticationError(ADMIN_GOOGLE_AUTHENTICATOR_NOT_CONFIGURED)
         if not verify_google_authenticator_code(factor, otp_code or ""):
             raise AuthenticationError(INVALID_GOOGLE_AUTHENTICATOR_CODE)
 
@@ -532,7 +539,7 @@ class AdminAuthService:
                 continue
             if factor.factor_type != MfaFactorType.TOTP:
                 continue
-            if str(factor.payload.get("totpSecret") or "").strip():
+            if _totp_secret_is_configured(str(factor.payload.get("totpSecret") or "")):
                 return True
         return False
 
@@ -578,7 +585,8 @@ class AdminAuthService:
             factor = self._find_reusable_enrollment_factor(user)
         factor_id = factor.factor_id if factor else uuid4().hex
         created_at = factor.created_at if factor else now
-        existing_secret = str(factor.payload.get("totpSecret") or "").strip() if factor else ""
+        candidate_secret = str(factor.payload.get("totpSecret") or "").strip() if factor else ""
+        existing_secret = candidate_secret if _totp_secret_is_configured(candidate_secret) else ""
         factor = self._store.identity.upsert_mfa_factor(
             AdminMfaFactor(
                 factor_id=factor_id,
@@ -622,7 +630,7 @@ class AdminAuthService:
                 return candidate
             if candidate.factor_label != "primary":
                 continue
-            if not str(candidate.payload.get("totpSecret") or "").strip():
+            if not _totp_secret_is_configured(str(candidate.payload.get("totpSecret") or "")):
                 primary_candidate = candidate
         return primary_candidate
 
@@ -653,6 +661,8 @@ class AdminAuthService:
         factor = self._get_active_totp_factor(user)
         if not (otp_code or "").strip():
             raise BadRequestError(LOGIN_TOTP_CODE_REQUIRED)
+        if not _totp_secret_is_configured(str(factor.payload.get("totpSecret") or "")):
+            raise AuthenticationError(ADMIN_GOOGLE_AUTHENTICATOR_NOT_CONFIGURED)
         if not verify_google_authenticator_code(factor, otp_code or ""):
             raise AuthenticationError(INVALID_GOOGLE_AUTHENTICATOR_CODE)
 
@@ -663,7 +673,7 @@ class AdminAuthService:
                 continue
             if factor.factor_type != MfaFactorType.TOTP:
                 continue
-            if str(factor.payload.get("totpSecret") or "").strip():
+            if _totp_secret_is_configured(str(factor.payload.get("totpSecret") or "")):
                 active_factors.append(factor)
         if not active_factors:
             raise AuthenticationError(ADMIN_GOOGLE_AUTHENTICATOR_NOT_CONFIGURED)

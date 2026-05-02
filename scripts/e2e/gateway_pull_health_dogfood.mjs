@@ -100,7 +100,7 @@ const gatewayLocalEnv = !isStaging
     }
   : process.env;
 const defaultLocalPostgresDsn =
-  "postgresql://synapse_gateway_app:local-dev-gateway-app-password@127.0.0.1:5432/synapse_gateway";
+  "postgresql://synapse_gateway_app:local-dev-gateway-app-password@127.0.0.1:15432/synapse_gateway";
 const postgresDsn =
   process.env.GATEWAY_PULL_HEALTH_POSTGRES_DSN ||
   process.env.LLM_E2E_POSTGRES_DSN ||
@@ -116,9 +116,9 @@ const localAdminPostgresDsnCandidates = [
   localAdminPostgresDsn,
   `postgresql://${encodeURIComponent(
     process.env.USER || "cliff"
-  )}@127.0.0.1:5432/synapse_gateway`,
-  "postgresql://synapse_gateway_migrator:local-dev-gateway-migrator-password@127.0.0.1:5432/synapse_gateway",
-  "postgresql://synapse:local-dev-postgres-password@127.0.0.1:5432/synapse_gateway",
+  )}@127.0.0.1:15432/synapse_gateway`,
+  "postgresql://synapse_gateway_migrator:local-dev-gateway-migrator-password@127.0.0.1:15432/synapse_gateway",
+  "postgresql://synapse:local-dev-postgres-password@127.0.0.1:15432/synapse_gateway",
 ].filter(Boolean);
 const localProviderWallet =
   process.env.GATEWAY_PULL_HEALTH_LOCAL_PROVIDER_WALLET ||

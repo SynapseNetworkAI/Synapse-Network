@@ -15,6 +15,7 @@ LOG_FILE="${ROOT_DIR}/services/gateway/logs/provider_api.log"
 CONFIG_FILE="${ROOT_DIR}/services/user-front/src/contract-config.json"
 HEALTH_URL="http://127.0.0.1:8000/health"
 STARTUP_TIMEOUT_SEC="${STARTUP_TIMEOUT_SEC:-20}"
+LOCAL_GATEWAY_POSTGRES_PORT="${SYNAPSE_POSTGRES_HOST_PORT:-15432}"
 
 find_pid_by_port() {
   port="$1"
@@ -57,7 +58,7 @@ wait_for_postgres_ready() {
   timeout_sec="${1:-30}"
   elapsed=0
   while [ "$elapsed" -lt "$timeout_sec" ]; do
-    if pg_isready -h 127.0.0.1 -p 5432 -U synapse >/dev/null 2>&1; then
+    if pg_isready -h 127.0.0.1 -p "$LOCAL_GATEWAY_POSTGRES_PORT" -U synapse >/dev/null 2>&1; then
       return 0
     fi
     sleep 1
@@ -82,18 +83,18 @@ probe_synapse_postgres() {
       ;;
   esac
 
-  echo "Error: 127.0.0.1:5432 is not a usable Synapse gateway Postgres instance."
+  echo "Error: configured local Gateway Postgres DSN is not a usable Synapse gateway database."
   echo "Probe expected current_user:database:public.synapse_owner_accounts; got '${probe_result:-empty}'."
   if [ -n "$probe_output" ]; then
     echo "psql output:"
     printf '%s\n' "$probe_output"
   fi
-  existing_postgres_pid="$(find_pid_by_port 5432)"
-  if [ -n "$existing_postgres_pid" ]; then
+  existing_postgres_pid="$(lsof -t -nP -iTCP:5432 -sTCP:LISTEN 2>/dev/null | head -n 1 || true)"
+  if [ -n "$existing_postgres_pid" ] && [ "$LOCAL_GATEWAY_POSTGRES_PORT" != "5432" ]; then
     echo "Current listener on 5432:"
     ps -p "$existing_postgres_pid" -o pid,ppid,command 2>/dev/null || true
   fi
-  echo "Tip: stop the conflicting Postgres process or set LOCAL_GATEWAY_POSTGRES_DSN to an explicit local Synapse gateway DSN."
+  echo "Tip: local Gateway defaults to Docker Postgres on 127.0.0.1:${LOCAL_GATEWAY_POSTGRES_PORT}; set LOCAL_GATEWAY_POSTGRES_DSN only for an intentional local override."
   return 1
 }
 
@@ -144,10 +145,9 @@ check_local_service_registry_bloat() {
 }
 
 ensure_local_postgres() {
-  existing_postgres_pid="$(find_pid_by_port 5432)"
-  if [ -n "$existing_postgres_pid" ]; then
-    echo "Port 5432 already in use by PID ${existing_postgres_pid}. Reusing existing local Postgres."
-    return 0
+  existing_postgres_pid="$(lsof -t -nP -iTCP:5432 -sTCP:LISTEN 2>/dev/null | head -n 1 || true)"
+  if [ -n "$existing_postgres_pid" ] && [ "$LOCAL_GATEWAY_POSTGRES_PORT" != "5432" ]; then
+    echo "Port 5432 is already in use by PID ${existing_postgres_pid}; local Gateway will use Docker Postgres on 127.0.0.1:${LOCAL_GATEWAY_POSTGRES_PORT}."
   fi
 
   if ! compose_cmd="$(resolve_compose_cmd)"; then
@@ -156,10 +156,10 @@ ensure_local_postgres() {
   fi
   ensure_docker_runtime "$compose_cmd"
 
-  echo "Starting local Postgres via ${compose_cmd}..."
-  ${compose_cmd} -f "${ROOT_DIR}/infra/docker/local/docker-compose.yml" up -d postgres >/dev/null
+  echo "Starting Docker local Postgres via ${compose_cmd} on 127.0.0.1:${LOCAL_GATEWAY_POSTGRES_PORT}..."
+  SYNAPSE_POSTGRES_HOST_PORT="$LOCAL_GATEWAY_POSTGRES_PORT" ${compose_cmd} -f "${ROOT_DIR}/infra/docker/local/docker-compose.yml" up -d postgres >/dev/null
   if ! wait_for_postgres_ready 45; then
-    echo "Error: local Postgres failed to become ready on 127.0.0.1:5432."
+    echo "Error: Docker local Postgres failed to become ready on 127.0.0.1:${LOCAL_GATEWAY_POSTGRES_PORT}."
     return 1
   fi
 }
@@ -253,16 +253,16 @@ fi
 
 ROUTER_ADDRESS="$(node -e "const c=require('${CONFIG_FILE}'); process.stdout.write(c.SynapseCore || c.A2APaySyncRouter || '')")"
 
-DEFAULT_LOCAL_POSTGRES_DSN="postgresql://synapse:local-dev-postgres-password@127.0.0.1:5432/synapse_gateway"
+DEFAULT_LOCAL_POSTGRES_DSN="postgresql://synapse:local-dev-postgres-password@127.0.0.1:${LOCAL_GATEWAY_POSTGRES_PORT}/synapse_gateway"
 _LOCAL_ENV_FILE="${ROOT_DIR}/services/gateway/.env.local"
 if [[ -n "${LOCAL_GATEWAY_POSTGRES_DSN:-}" ]]; then
   LOCAL_POSTGRES_DSN="${LOCAL_GATEWAY_POSTGRES_DSN}"
-elif [[ -f "$_LOCAL_ENV_FILE" ]]; then
-  _dotenv_dsn="$(grep -m1 '^POSTGRES_DSN=' "$_LOCAL_ENV_FILE" | cut -d= -f2-)"
-  LOCAL_POSTGRES_DSN="${_dotenv_dsn:-$DEFAULT_LOCAL_POSTGRES_DSN}"
 else
   if [[ -n "${POSTGRES_DSN:-}" ]]; then
     echo "[local-gateway] ignoring ambient POSTGRES_DSN for local restart; use LOCAL_GATEWAY_POSTGRES_DSN to override intentionally."
+  fi
+  if [[ -f "$_LOCAL_ENV_FILE" ]] && grep -q '^POSTGRES_DSN=' "$_LOCAL_ENV_FILE"; then
+    echo "[local-gateway] ignoring services/gateway/.env.local POSTGRES_DSN; local restart uses Docker Postgres by default."
   fi
   LOCAL_POSTGRES_DSN="$DEFAULT_LOCAL_POSTGRES_DSN"
 fi

@@ -64,10 +64,6 @@ choose_local_postgres_port() {
   if [[ -n "$POSTGRES_PORT" ]]; then
     return 0
   fi
-  if probe_postgres_server 5432; then
-    POSTGRES_PORT=5432
-    return 0
-  fi
   POSTGRES_PORT=15432
 }
 

@@ -176,14 +176,8 @@ choose_local_postgres_port() {
   if [[ -n "$POSTGRES_PORT" ]]; then
     return 0
   fi
-
-  if probe_postgres_server 5432 && probe_synapse_postgres 5432; then
-    POSTGRES_PORT=5432
-    return 0
-  fi
-
   POSTGRES_PORT=15432
-  echo "[gateway-release-e2e] 127.0.0.1:5432 is not a Synapse Postgres; using ${POSTGRES_PORT} for local release evidence"
+  echo "[gateway-release-e2e] using Docker Postgres on 127.0.0.1:${POSTGRES_PORT} for local release evidence"
 }
 
 start_provider_fixture() {
@@ -229,7 +223,7 @@ start_gateway_strict_kafka() {
   local config_file="${ROOT_DIR}/services/user-front/src/contract-config.json"
   local router_address
   router_address="$(node -e "const c=require('${config_file}'); process.stdout.write(c.SynapseCore || '')")"
-  local dsn="${POSTGRES_DSN:-postgresql://synapse:local-dev-postgres-password@127.0.0.1:${POSTGRES_PORT:-5432}/${POSTGRES_DB_NAME}}"
+  local dsn="${POSTGRES_DSN:-postgresql://synapse:local-dev-postgres-password@127.0.0.1:${POSTGRES_PORT:-15432}/${POSTGRES_DB_NAME}}"
   dsn="${dsn/@postgres:/@127.0.0.1:}"
 
   (
@@ -317,7 +311,7 @@ if [[ "$MODE" == "local" ]]; then
   export GATEWAY_E2E_GATEWAY_BASE="${GATEWAY_E2E_GATEWAY_BASE:-http://127.0.0.1:8000}"
   export GATEWAY_E2E_PROVIDER_BASE="${GATEWAY_E2E_PROVIDER_BASE:-http://127.0.0.1:8001}"
   export GATEWAY_E2E_RPC_URL="${GATEWAY_E2E_RPC_URL:-http://127.0.0.1:8545}"
-  export POSTGRES_DSN="${POSTGRES_DSN:-postgresql://synapse:local-dev-postgres-password@127.0.0.1:${POSTGRES_PORT:-5432}/${POSTGRES_DB_NAME}}"
+  export POSTGRES_DSN="${POSTGRES_DSN:-postgresql://synapse:local-dev-postgres-password@127.0.0.1:${POSTGRES_PORT:-15432}/${POSTGRES_DB_NAME}}"
 fi
 
 set +e
