@@ -18,6 +18,7 @@ from src.api.routers import (
 	execution,
 	forum_support,
 	ops_webhooks,
+	platform_fee_treasury,
 	provider_services,
 	provider_withdraw_review,
 )
@@ -238,6 +239,7 @@ def create_app() -> FastAPI:
 	app.include_router(execution.router)
 	app.include_router(forum_support.router)
 	app.include_router(ops_webhooks.router)
+	app.include_router(platform_fee_treasury.router)
 	app.include_router(provider_services.router)
 	app.include_router(provider_withdraw_review.router)
 

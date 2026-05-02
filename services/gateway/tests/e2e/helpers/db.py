@@ -11,8 +11,11 @@ import os
 import time
 
 DB_DSN = os.getenv(
-    "POSTGRES_DSN",
-    "postgresql://synapse_gateway_app:12345678@127.0.0.1:5432/synapse_gateway",
+    "LOCAL_GATEWAY_POSTGRES_DSN",
+    os.getenv(
+        "POSTGRES_DSN",
+        "postgresql://synapse_gateway_app:local-dev-gateway-app-password@127.0.0.1:15432/synapse_gateway",
+    ),
 )
 
 

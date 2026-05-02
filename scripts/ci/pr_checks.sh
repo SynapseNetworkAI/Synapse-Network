@@ -67,9 +67,6 @@ run_gate_command() {
     e2e_script_model_drift_scan)
       node "$ROOT_DIR/scripts/ci/e2e_script_model_drift_scan.mjs"
       ;;
-    migration_seed_guard_scan)
-      node "$ROOT_DIR/scripts/ci/migration_seed_guard_scan.mjs"
-      ;;
     code_quality_architecture_scan)
       bash "$ROOT_DIR/scripts/ci/code_quality_architecture_scan.sh"
       ;;

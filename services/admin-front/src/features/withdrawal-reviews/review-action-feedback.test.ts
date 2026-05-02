@@ -44,6 +44,15 @@ describe("review-action-feedback", () => {
     ).toContain("验证码错误或已过期");
     expect(
       getWithdrawReviewActionErrorMessage(
+        new AdminApiError("Admin Google Authenticator is not configured", {
+          status: 401,
+          code: "UNAUTHORIZED",
+        }),
+        "APPROVE"
+      )
+    ).toContain("还没有绑定可用的 Google Authenticator");
+    expect(
+      getWithdrawReviewActionErrorMessage(
         new AdminApiError(
           "Withdrawal status=CANCELLED is not awaiting manual review",
           { status: 400, code: "BAD_REQUEST" }

@@ -1,4 +1,8 @@
-import { clearAdminCsrfToken, readAdminCsrfTokenFromStorage, saveAdminCsrfToken } from "@/lib/admin-csrf-token";
+import {
+  clearAdminCsrfToken,
+  readAdminCsrfTokenFromStorage,
+  saveAdminCsrfToken,
+} from "@/lib/admin-csrf-token";
 import {
   assertApprovalStatus,
   assertExecutionJobStatus,
@@ -41,7 +45,7 @@ export class AdminApiError extends Error {
       code?: string | null;
       requestId?: string | null;
       data?: unknown;
-    },
+    }
   ) {
     super(message);
     this.name = "AdminApiError";
@@ -112,8 +116,16 @@ function readAdminCsrfToken(): string | null {
   return persistedToken;
 }
 
-function isExpiredAdminSession(status: number, code: string | null, message: string): boolean {
-  return status === 401 && code === "UNAUTHORIZED" && message.trim().toLowerCase() === "admin session expired";
+function isExpiredAdminSession(
+  status: number,
+  code: string | null,
+  message: string
+): boolean {
+  return (
+    status === 401 &&
+    code === "UNAUTHORIZED" &&
+    message.trim().toLowerCase() === "admin session expired"
+  );
 }
 
 function redirectToLoginOnExpiredSession(): void {
@@ -133,7 +145,9 @@ function redirectToLoginOnExpiredSession(): void {
 
 function isSafeMethod(method: string | undefined): boolean {
   const normalized = (method ?? "GET").toUpperCase();
-  return normalized === "GET" || normalized === "HEAD" || normalized === "OPTIONS";
+  return (
+    normalized === "GET" || normalized === "HEAD" || normalized === "OPTIONS"
+  );
 }
 
 export type DashboardOverview = {
@@ -426,10 +440,24 @@ export type ForumTopicEvent = {
 export type ForumResponseTask = {
   responseTaskId: string;
   topicId: string;
-  status: "awaiting_response" | "draft_ready" | "responded" | "ignored" | "closed" | string;
+  status:
+    | "awaiting_response"
+    | "draft_ready"
+    | "responded"
+    | "ignored"
+    | "closed"
+    | string;
   source: string;
   priority: "low" | "normal" | "high" | "critical" | string;
-  classification: "question" | "bug" | "feature_request" | "docs_issue" | "needs_more_info" | "spam" | string | null;
+  classification:
+    | "question"
+    | "bug"
+    | "feature_request"
+    | "docs_issue"
+    | "needs_more_info"
+    | "spam"
+    | string
+    | null;
   suggestedReply: string | null;
   suggestedReplySource: string | null;
   suggestedReplyUpdatedAt: string | null;
@@ -793,59 +821,127 @@ export type ExecutionRetryResult = {
   retryCount: number;
 };
 
-type RawReconciliationApprovalItem = Omit<ReconciliationApprovalItem, "status"> & { status: string };
+type RawReconciliationApprovalItem = Omit<
+  ReconciliationApprovalItem,
+  "status"
+> & { status: string };
 type RawApprovalItem = Omit<ApprovalItem, "status"> & { status: string };
-type RawProviderWithdrawReviewItem = Omit<ProviderWithdrawReviewItem, "status" | "riskLevel" | "withdrawalKind" | "reviewType" | "subjectAddress"> & {
+type RawProviderWithdrawReviewItem = Omit<
+  ProviderWithdrawReviewItem,
+  "status" | "riskLevel" | "withdrawalKind" | "reviewType" | "subjectAddress"
+> & {
   status: string;
   riskLevel: string | null;
   withdrawalKind?: ProviderWithdrawReviewItem["withdrawalKind"];
   reviewType?: ProviderWithdrawReviewItem["reviewType"];
   subjectAddress?: string | null;
 };
-type RawProviderWithdrawReviewDecisionResult = Omit<ProviderWithdrawReviewDecisionResult, "status" | "withdrawalKind" | "reviewType" | "subjectAddress"> & {
+type RawProviderWithdrawReviewDecisionResult = Omit<
+  ProviderWithdrawReviewDecisionResult,
+  "status" | "withdrawalKind" | "reviewType" | "subjectAddress"
+> & {
   status: string;
   withdrawalKind?: ProviderWithdrawReviewDecisionResult["withdrawalKind"];
   reviewType?: ProviderWithdrawReviewDecisionResult["reviewType"];
   subjectAddress?: string | null;
 };
-type RawProviderWithdrawReviewHistoryItem = Omit<ProviderWithdrawReviewHistoryItem, "currentStatus" | "riskLevel" | "withdrawalKind" | "reviewType" | "subjectAddress"> & {
+type RawProviderWithdrawReviewHistoryItem = Omit<
+  ProviderWithdrawReviewHistoryItem,
+  | "currentStatus"
+  | "riskLevel"
+  | "withdrawalKind"
+  | "reviewType"
+  | "subjectAddress"
+> & {
   currentStatus: string;
   riskLevel: string | null;
   withdrawalKind?: ProviderWithdrawReviewHistoryItem["withdrawalKind"];
   reviewType?: ProviderWithdrawReviewHistoryItem["reviewType"];
   subjectAddress?: string | null;
 };
-type RawProviderServiceItem = Omit<ProviderServiceItem, "controlStatus" | "status" | "runtimeStatus" | "targets"> & {
+type RawProviderServiceItem = Omit<
+  ProviderServiceItem,
+  "controlStatus" | "status" | "runtimeStatus" | "targets"
+> & {
   controlStatus: string;
   status: string;
   runtimeStatus: string;
-  targets: Array<Omit<ProviderServiceItem["targets"][number], "status"> & { status: string }>;
+  targets: Array<
+    Omit<ProviderServiceItem["targets"][number], "status"> & { status: string }
+  >;
 };
-type RawProviderServiceDeleteResponse = Omit<ProviderServiceDeleteResponse, "status"> & { status: string };
-type RawExecutionAttemptItem = Omit<ExecutionAttemptItem, "status"> & { status: string };
+type RawProviderServiceDeleteResponse = Omit<
+  ProviderServiceDeleteResponse,
+  "status"
+> & { status: string };
+type RawExecutionAttemptItem = Omit<ExecutionAttemptItem, "status"> & {
+  status: string;
+};
 type RawExecutionJobItem = Omit<ExecutionJobItem, "status" | "attempts"> & {
   status: string;
   attempts: RawExecutionAttemptItem[];
 };
-type RawExecutionRetryResult = Omit<ExecutionRetryResult, "status"> & { status: string };
-type RawReconciliationDetail = Omit<ReconciliationDetail, "priorityApprovals" | "depositRepairApprovals" | "pendingWithdrawalReviews"> & {
+type RawExecutionRetryResult = Omit<ExecutionRetryResult, "status"> & {
+  status: string;
+};
+type RawReconciliationDetail = Omit<
+  ReconciliationDetail,
+  "priorityApprovals" | "depositRepairApprovals" | "pendingWithdrawalReviews"
+> & {
   priorityApprovals: RawReconciliationApprovalItem[];
   depositRepairApprovals: RawReconciliationApprovalItem[];
   pendingWithdrawalReviews: RawProviderWithdrawReviewItem[];
 };
-type RawReconciliationDrilldownResult = Omit<ReconciliationDrilldownResult, "priorityApprovals" | "depositRepairApprovals" | "pendingWithdrawalReviews"> & {
+
+function numericOrZero(value: unknown): number {
+  return Number(value ?? 0);
+}
+
+function normalizeProviderServiceTargets(
+  item: RawProviderServiceItem
+): ProviderServiceItem["targets"] {
+  return item.targets.map((target) => ({
+    ...target,
+    status: assertProviderServiceStatus(target.status),
+  }));
+}
+
+function normalizeDownstreamTargets(
+  item: RawProviderServiceItem
+): ProviderServiceItem["downstreamTargets"] {
+  return Array.isArray(item.downstreamTargets) ? item.downstreamTargets : [];
+}
+type RawReconciliationDrilldownResult = Omit<
+  ReconciliationDrilldownResult,
+  "priorityApprovals" | "depositRepairApprovals" | "pendingWithdrawalReviews"
+> & {
   priorityApprovals: RawReconciliationApprovalItem[];
   depositRepairApprovals: RawReconciliationApprovalItem[];
   pendingWithdrawalReviews: RawProviderWithdrawReviewItem[];
 };
-type RawApprovalListResponse = { items: RawApprovalItem[]; nextCursor: string | null };
-type RawProviderWithdrawReviewListResponse = { items: RawProviderWithdrawReviewItem[]; nextCursor: string | null };
-type RawProviderWithdrawReviewHistoryListResponse = Omit<ProviderWithdrawReviewHistoryListResponse, "items"> & {
+type RawApprovalListResponse = {
+  items: RawApprovalItem[];
+  nextCursor: string | null;
+};
+type RawProviderWithdrawReviewListResponse = {
+  items: RawProviderWithdrawReviewItem[];
+  nextCursor: string | null;
+};
+type RawProviderWithdrawReviewHistoryListResponse = Omit<
+  ProviderWithdrawReviewHistoryListResponse,
+  "items"
+> & {
   items: RawProviderWithdrawReviewHistoryItem[];
 };
-type RawProviderServiceListResponse = Omit<ProviderServiceListResponse, "items"> & { items: RawProviderServiceItem[] };
+type RawProviderServiceListResponse = Omit<
+  ProviderServiceListResponse,
+  "items"
+> & { items: RawProviderServiceItem[] };
 type RawProviderServiceActionResponse = { service: RawProviderServiceItem };
-type RawExecutionJobListResponse = { items: RawExecutionJobItem[]; nextCursor: string | null };
+type RawExecutionJobListResponse = {
+  items: RawExecutionJobItem[];
+  nextCursor: string | null;
+};
 
 function normalizeApprovalItem(item: RawApprovalItem): ApprovalItem {
   return {
@@ -854,66 +950,83 @@ function normalizeApprovalItem(item: RawApprovalItem): ApprovalItem {
   };
 }
 
-function normalizeReconciliationApprovalItem(item: RawReconciliationApprovalItem): ReconciliationApprovalItem {
+function normalizeReconciliationApprovalItem(
+  item: RawReconciliationApprovalItem
+): ReconciliationApprovalItem {
   return {
     ...item,
     status: assertApprovalStatus(item.status),
   };
 }
 
-function normalizeProviderWithdrawReviewItem(item: RawProviderWithdrawReviewItem): ProviderWithdrawReviewItem {
+function normalizeProviderWithdrawReviewItem(
+  item: RawProviderWithdrawReviewItem
+): ProviderWithdrawReviewItem {
   const withdrawalKind = item.withdrawalKind ?? "provider_withdrawal";
   return {
     ...item,
     withdrawalKind,
-    reviewType: item.reviewType ?? (withdrawalKind === "consumer_refund" ? "consumer_withdraw_review" : "provider_withdraw_review"),
+    reviewType:
+      item.reviewType ??
+      (withdrawalKind === "consumer_refund"
+        ? "consumer_withdraw_review"
+        : "provider_withdraw_review"),
     subjectAddress: item.subjectAddress ?? item.ownerAddress,
     status: assertWithdrawalStatus(item.status),
     riskLevel: item.riskLevel === null ? null : assertRiskLevel(item.riskLevel),
   };
 }
 
-function normalizeProviderWithdrawReviewHistoryItem(item: RawProviderWithdrawReviewHistoryItem): ProviderWithdrawReviewHistoryItem {
+function normalizeProviderWithdrawReviewHistoryItem(
+  item: RawProviderWithdrawReviewHistoryItem
+): ProviderWithdrawReviewHistoryItem {
   const withdrawalKind = item.withdrawalKind ?? "provider_withdrawal";
   return {
     ...item,
     withdrawalKind,
-    reviewType: item.reviewType ?? (withdrawalKind === "consumer_refund" ? "consumer_withdraw_review" : "provider_withdraw_review"),
+    reviewType:
+      item.reviewType ??
+      (withdrawalKind === "consumer_refund"
+        ? "consumer_withdraw_review"
+        : "provider_withdraw_review"),
     subjectAddress: item.subjectAddress ?? item.ownerAddress,
     currentStatus: assertWithdrawalStatus(item.currentStatus),
     riskLevel: item.riskLevel === null ? null : assertRiskLevel(item.riskLevel),
   };
 }
 
-function normalizeProviderServiceItem(item: RawProviderServiceItem): ProviderServiceItem {
+function normalizeProviderServiceItem(
+  item: RawProviderServiceItem
+): ProviderServiceItem {
   return {
     ...item,
     controlStatus: assertProviderServiceStatus(item.controlStatus),
     status: assertProviderServiceStatus(item.status),
     runtimeStatus: assertProviderServiceStatus(item.runtimeStatus),
-    adaptiveConcurrencyLimit: Number(item.adaptiveConcurrencyLimit ?? 0),
-    inFlight: Number(item.inFlight ?? 0),
-    queueDepth: Number(item.queueDepth ?? 0),
-    latencyP95Ms: Number(item.latencyP95Ms ?? 0),
-    errorRate: Number(item.errorRate ?? 0),
+    adaptiveConcurrencyLimit: numericOrZero(item.adaptiveConcurrencyLimit),
+    inFlight: numericOrZero(item.inFlight),
+    queueDepth: numericOrZero(item.queueDepth),
+    latencyP95Ms: numericOrZero(item.latencyP95Ms),
+    errorRate: numericOrZero(item.errorRate),
     circuitState: String(item.circuitState ?? "closed"),
     lastConcurrencyAdjustmentAt: item.lastConcurrencyAdjustmentAt ?? null,
-    downstreamTargets: Array.isArray(item.downstreamTargets) ? item.downstreamTargets : [],
-    targets: item.targets.map((target) => ({
-      ...target,
-      status: assertProviderServiceStatus(target.status),
-    })),
+    downstreamTargets: normalizeDownstreamTargets(item),
+    targets: normalizeProviderServiceTargets(item),
   };
 }
 
-function normalizeExecutionAttemptItem(item: RawExecutionAttemptItem): ExecutionAttemptItem {
+function normalizeExecutionAttemptItem(
+  item: RawExecutionAttemptItem
+): ExecutionAttemptItem {
   return {
     ...item,
     status: assertExecutionJobStatus(item.status),
   };
 }
 
-function normalizeExecutionJobItem(item: RawExecutionJobItem): ExecutionJobItem {
+function normalizeExecutionJobItem(
+  item: RawExecutionJobItem
+): ExecutionJobItem {
   return {
     ...item,
     status: assertExecutionJobStatus(item.status),
@@ -1027,13 +1140,18 @@ export function resolveAdminApiBaseUrl(baseUrl: string | undefined): string {
   return normalized && normalized.length > 0 ? normalized : "";
 }
 
-const ADMIN_API_BASE_URL = resolveAdminApiBaseUrl(process.env.NEXT_PUBLIC_ADMIN_API_BASE_URL);
+const ADMIN_API_BASE_URL = resolveAdminApiBaseUrl(
+  process.env.NEXT_PUBLIC_ADMIN_API_BASE_URL
+);
 
 function buildRequestUrl(path: string): string {
   return ADMIN_API_BASE_URL ? `${ADMIN_API_BASE_URL}${path}` : path;
 }
 
-function buildPath(path: string, params?: Record<string, string | number | boolean | undefined>): string {
+function buildPath(
+  path: string,
+  params?: Record<string, string | number | boolean | undefined>
+): string {
   if (!params) {
     return path;
   }
@@ -1070,7 +1188,7 @@ function requiresAdminCsrf(path: string, method: string): boolean {
   return true;
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const method = init?.method?.toUpperCase() ?? "GET";
   const headers = new Headers(buildHeaders(init?.headers));
   if (requiresAdminCsrf(path, method)) {
@@ -1089,7 +1207,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   const body = (await response.json()) as ApiEnvelope<T> | ApiErrorEnvelope;
   if (!response.ok || !body.success) {
-    const message = "error" in body ? body.error.message : `Request failed: ${response.status}`;
+    const message =
+      "error" in body
+        ? body.error.message
+        : `Request failed: ${response.status}`;
     const code = "error" in body ? body.error.code : null;
     if (isExpiredAdminSession(response.status, code, message)) {
       redirectToLoginOnExpiredSession();
@@ -1117,11 +1238,16 @@ export async function loginAdmin(input: {
   return session;
 }
 
-export async function beginAdminMfaEnrollment(enrollmentToken: string): Promise<MfaEnrollBeginResponse> {
-  return request<MfaEnrollBeginResponse>("/api/admin/v1/auth/mfa/enroll/begin", {
-    method: "POST",
-    body: JSON.stringify({ enrollmentToken }),
-  });
+export async function beginAdminMfaEnrollment(
+  enrollmentToken: string
+): Promise<MfaEnrollBeginResponse> {
+  return request<MfaEnrollBeginResponse>(
+    "/api/admin/v1/auth/mfa/enroll/begin",
+    {
+      method: "POST",
+      body: JSON.stringify({ enrollmentToken }),
+    }
+  );
 }
 
 export async function verifyAdminMfaEnrollment(input: {
@@ -1129,10 +1255,13 @@ export async function verifyAdminMfaEnrollment(input: {
   factorId: string;
   otpCode: string;
 }): Promise<LoginResponse> {
-  const session = await request<LoginResponse>("/api/admin/v1/auth/mfa/enroll/verify", {
-    method: "POST",
-    body: JSON.stringify(input),
-  });
+  const session = await request<LoginResponse>(
+    "/api/admin/v1/auth/mfa/enroll/verify",
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    }
+  );
   setAdminCsrfToken(session.csrfToken);
   return session;
 }
@@ -1147,13 +1276,20 @@ export async function getCurrentAdmin(token: string): Promise<LoginResponse> {
   return session;
 }
 
-export async function logoutAdmin(token: string): Promise<{ adminId: string; loggedOut: boolean }> {
-  const result = await request<{ adminId: string; loggedOut: boolean }>("/api/admin/v1/auth/logout", { method: "POST" });
+export async function logoutAdmin(
+  token: string
+): Promise<{ adminId: string; loggedOut: boolean }> {
+  const result = await request<{ adminId: string; loggedOut: boolean }>(
+    "/api/admin/v1/auth/logout",
+    { method: "POST" }
+  );
   setAdminCsrfToken(null);
   return result;
 }
 
-export async function getDashboardOverview(token: string): Promise<DashboardOverview> {
+export async function getDashboardOverview(
+  token: string
+): Promise<DashboardOverview> {
   return request<DashboardOverview>("/api/admin/v1/dashboard/overview");
 }
 
@@ -1161,109 +1297,194 @@ export async function getSystemStatus(token: string): Promise<SystemStatus> {
   return request<SystemStatus>("/api/admin/v1/dashboard/system-status");
 }
 
-export async function getFinanceOverview(token: string): Promise<FinanceOverview> {
+export async function getFinanceOverview(
+  token: string
+): Promise<FinanceOverview> {
   return request<FinanceOverview>("/api/admin/v1/dashboard/finance-overview");
 }
 
-export async function getActivityTrends(token: string): Promise<ActivityTrendSeries> {
-  return request<ActivityTrendSeries>("/api/admin/v1/dashboard/activity-trends");
+export async function getActivityTrends(
+  token: string
+): Promise<ActivityTrendSeries> {
+  return request<ActivityTrendSeries>(
+    "/api/admin/v1/dashboard/activity-trends"
+  );
 }
 
-export async function getOperationsOverview(token: string): Promise<OperationsOverview> {
-  return request<OperationsOverview>("/api/admin/v1/dashboard/operations-overview");
+export async function getOperationsOverview(
+  token: string
+): Promise<OperationsOverview> {
+  return request<OperationsOverview>(
+    "/api/admin/v1/dashboard/operations-overview"
+  );
 }
 
-export async function getReconciliationDetail(token: string): Promise<ReconciliationDetail> {
-  const response = await request<RawReconciliationDetail>("/api/admin/v1/dashboard/reconciliation-detail");
+export async function getReconciliationDetail(
+  token: string
+): Promise<ReconciliationDetail> {
+  const response = await request<RawReconciliationDetail>(
+    "/api/admin/v1/dashboard/reconciliation-detail"
+  );
   return {
     ...response,
-    priorityApprovals: response.priorityApprovals.map(normalizeReconciliationApprovalItem),
-    depositRepairApprovals: response.depositRepairApprovals.map(normalizeReconciliationApprovalItem),
-    pendingWithdrawalReviews: response.pendingWithdrawalReviews.map(normalizeProviderWithdrawReviewItem),
+    priorityApprovals: response.priorityApprovals.map(
+      normalizeReconciliationApprovalItem
+    ),
+    depositRepairApprovals: response.depositRepairApprovals.map(
+      normalizeReconciliationApprovalItem
+    ),
+    pendingWithdrawalReviews: response.pendingWithdrawalReviews.map(
+      normalizeProviderWithdrawReviewItem
+    ),
   };
 }
 
 export async function getReconciliationDrilldown(
   token: string,
-  locator: { ownerAddress?: string; requestId?: string; txHash?: string },
+  locator: { ownerAddress?: string; requestId?: string; txHash?: string }
 ): Promise<ReconciliationDrilldownResult> {
-  const response = await request<RawReconciliationDrilldownResult>(buildPath("/api/admin/v1/dashboard/reconciliation-drilldown", locator));
+  const response = await request<RawReconciliationDrilldownResult>(
+    buildPath("/api/admin/v1/dashboard/reconciliation-drilldown", locator)
+  );
   return {
     ...response,
-    priorityApprovals: response.priorityApprovals.map(normalizeReconciliationApprovalItem),
-    depositRepairApprovals: response.depositRepairApprovals.map(normalizeReconciliationApprovalItem),
-    pendingWithdrawalReviews: response.pendingWithdrawalReviews.map(normalizeProviderWithdrawReviewItem),
+    priorityApprovals: response.priorityApprovals.map(
+      normalizeReconciliationApprovalItem
+    ),
+    depositRepairApprovals: response.depositRepairApprovals.map(
+      normalizeReconciliationApprovalItem
+    ),
+    pendingWithdrawalReviews: response.pendingWithdrawalReviews.map(
+      normalizeProviderWithdrawReviewItem
+    ),
   };
 }
 
-export async function getDashboardDiagnostics(token: string): Promise<DashboardDiagnostics> {
+export async function getDashboardDiagnostics(
+  token: string
+): Promise<DashboardDiagnostics> {
   return request<DashboardDiagnostics>("/api/admin/v1/dashboard/diagnostics");
 }
 
-export async function getAnalyticsOverview(token: string, window: AnalyticsWindow = "24h"): Promise<AnalyticsOverview> {
-  return request<AnalyticsOverview>(buildPath("/api/admin/v1/dashboard/analytics/overview", { window }));
+export async function getAnalyticsOverview(
+  token: string,
+  window: AnalyticsWindow = "24h"
+): Promise<AnalyticsOverview> {
+  return request<AnalyticsOverview>(
+    buildPath("/api/admin/v1/dashboard/analytics/overview", { window })
+  );
 }
 
-export async function getAnalyticsConsumerFunnel(token: string, window: AnalyticsWindow = "24h"): Promise<AnalyticsConsumerFunnel> {
-  return request<AnalyticsConsumerFunnel>(buildPath("/api/admin/v1/dashboard/analytics/consumer-funnel", { window }));
+export async function getAnalyticsConsumerFunnel(
+  token: string,
+  window: AnalyticsWindow = "24h"
+): Promise<AnalyticsConsumerFunnel> {
+  return request<AnalyticsConsumerFunnel>(
+    buildPath("/api/admin/v1/dashboard/analytics/consumer-funnel", { window })
+  );
 }
 
-export async function getAnalyticsInvocationRevenue(token: string, window: AnalyticsWindow = "24h"): Promise<AnalyticsInvocationRevenue> {
-  return request<AnalyticsInvocationRevenue>(buildPath("/api/admin/v1/dashboard/analytics/invocation-revenue", { window }));
+export async function getAnalyticsInvocationRevenue(
+  token: string,
+  window: AnalyticsWindow = "24h"
+): Promise<AnalyticsInvocationRevenue> {
+  return request<AnalyticsInvocationRevenue>(
+    buildPath("/api/admin/v1/dashboard/analytics/invocation-revenue", {
+      window,
+    })
+  );
 }
 
-export async function getAnalyticsProviderRevenue(token: string, window: AnalyticsWindow = "24h"): Promise<AnalyticsProviderRevenue> {
-  return request<AnalyticsProviderRevenue>(buildPath("/api/admin/v1/dashboard/analytics/provider-revenue", { window }));
+export async function getAnalyticsProviderRevenue(
+  token: string,
+  window: AnalyticsWindow = "24h"
+): Promise<AnalyticsProviderRevenue> {
+  return request<AnalyticsProviderRevenue>(
+    buildPath("/api/admin/v1/dashboard/analytics/provider-revenue", { window })
+  );
 }
 
-export async function getAnalyticsMoneyFlow(token: string, window: AnalyticsWindow = "24h"): Promise<AnalyticsMoneyFlow> {
-  return request<AnalyticsMoneyFlow>(buildPath("/api/admin/v1/dashboard/analytics/money-flow", { window }));
+export async function getAnalyticsMoneyFlow(
+  token: string,
+  window: AnalyticsWindow = "24h"
+): Promise<AnalyticsMoneyFlow> {
+  return request<AnalyticsMoneyFlow>(
+    buildPath("/api/admin/v1/dashboard/analytics/money-flow", { window })
+  );
 }
 
-export async function getAnalyticsRiskHealth(token: string, window: AnalyticsWindow = "24h"): Promise<AnalyticsRiskHealth> {
-  return request<AnalyticsRiskHealth>(buildPath("/api/admin/v1/dashboard/analytics/risk-health", { window }));
+export async function getAnalyticsRiskHealth(
+  token: string,
+  window: AnalyticsWindow = "24h"
+): Promise<AnalyticsRiskHealth> {
+  return request<AnalyticsRiskHealth>(
+    buildPath("/api/admin/v1/dashboard/analytics/risk-health", { window })
+  );
 }
 
-export async function getAnalyticsDataQuality(token: string, window: AnalyticsDataQualityWindow = "24h"): Promise<AnalyticsDataQuality> {
-  return request<AnalyticsDataQuality>(buildPath("/api/admin/v1/dashboard/analytics/data-quality", { window }));
+export async function getAnalyticsDataQuality(
+  token: string,
+  window: AnalyticsDataQualityWindow = "24h"
+): Promise<AnalyticsDataQuality> {
+  return request<AnalyticsDataQuality>(
+    buildPath("/api/admin/v1/dashboard/analytics/data-quality", { window })
+  );
 }
 
 export async function listForumResponseTasks(
   token: string,
-  params?: { status?: string; classification?: string; page?: number; pageSize?: number },
+  params?: {
+    status?: string;
+    classification?: string;
+    page?: number;
+    pageSize?: number;
+  }
 ): Promise<ForumResponseTaskListResponse> {
-  return request<ForumResponseTaskListResponse>(buildPath("/api/admin/v1/forum/response-tasks", {
-    status: params?.status,
-    classification: params?.classification,
-    page: params?.page,
-    page_size: params?.pageSize,
-  }));
+  return request<ForumResponseTaskListResponse>(
+    buildPath("/api/admin/v1/forum/response-tasks", {
+      status: params?.status,
+      classification: params?.classification,
+      page: params?.page,
+      page_size: params?.pageSize,
+    })
+  );
 }
 
-export async function getForumResponseTask(token: string, taskId: string): Promise<ForumResponseTask> {
-  return request<ForumResponseTask>(`/api/admin/v1/forum/response-tasks/${taskId}`);
+export async function getForumResponseTask(
+  token: string,
+  taskId: string
+): Promise<ForumResponseTask> {
+  return request<ForumResponseTask>(
+    `/api/admin/v1/forum/response-tasks/${taskId}`
+  );
 }
 
 export async function sendForumResponseReply(
   token: string,
   taskId: string,
-  input: { body: string; authorDisplay?: string; authorAddress?: string },
+  input: { body: string; authorDisplay?: string; authorAddress?: string }
 ): Promise<ForumResponseTask> {
-  return request<ForumResponseTask>(`/api/admin/v1/forum/response-tasks/${taskId}/send-reply`, {
-    method: "POST",
-    body: JSON.stringify(input),
-  });
+  return request<ForumResponseTask>(
+    `/api/admin/v1/forum/response-tasks/${taskId}/send-reply`,
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    }
+  );
 }
 
 export async function ignoreForumResponseTask(
   token: string,
   taskId: string,
-  input: { reason: string },
+  input: { reason: string }
 ): Promise<ForumResponseTask> {
-  return request<ForumResponseTask>(`/api/admin/v1/forum/response-tasks/${taskId}/ignore`, {
-    method: "POST",
-    body: JSON.stringify(input),
-  });
+  return request<ForumResponseTask>(
+    `/api/admin/v1/forum/response-tasks/${taskId}/ignore`,
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    }
+  );
 }
 
 export async function listForumTopics(
@@ -1275,52 +1496,86 @@ export async function listForumTopics(
     pinned?: boolean;
     page?: number;
     pageSize?: number;
-  },
+  }
 ): Promise<ForumTopicListResponse> {
-  return request<ForumTopicListResponse>(buildPath("/api/admin/v1/forum/topics", {
-    status: params?.status,
-    category: params?.category,
-    q: params?.q,
-    pinned: params?.pinned,
-    page: params?.page,
-    page_size: params?.pageSize,
-  }));
+  return request<ForumTopicListResponse>(
+    buildPath("/api/admin/v1/forum/topics", {
+      status: params?.status,
+      category: params?.category,
+      q: params?.q,
+      pinned: params?.pinned,
+      page: params?.page,
+      page_size: params?.pageSize,
+    })
+  );
 }
 
-export async function getForumTopic(token: string, topicId: string): Promise<ForumTopicDetailResponse> {
-  return request<ForumTopicDetailResponse>(`/api/admin/v1/forum/topics/${topicId}`);
+export async function getForumTopic(
+  token: string,
+  topicId: string
+): Promise<ForumTopicDetailResponse> {
+  return request<ForumTopicDetailResponse>(
+    `/api/admin/v1/forum/topics/${topicId}`
+  );
 }
 
-export async function closeForumTopic(token: string, topicId: string, input: { reason: string }): Promise<ForumTopicContext> {
-  return request<ForumTopicContext>(`/api/admin/v1/forum/topics/${topicId}/close`, {
-    method: "POST",
-    body: JSON.stringify(input),
-  });
+export async function closeForumTopic(
+  token: string,
+  topicId: string,
+  input: { reason: string }
+): Promise<ForumTopicContext> {
+  return request<ForumTopicContext>(
+    `/api/admin/v1/forum/topics/${topicId}/close`,
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    }
+  );
 }
 
-export async function reopenForumTopic(token: string, topicId: string): Promise<ForumTopicContext> {
-  return request<ForumTopicContext>(`/api/admin/v1/forum/topics/${topicId}/reopen`, {
-    method: "POST",
-  });
+export async function reopenForumTopic(
+  token: string,
+  topicId: string
+): Promise<ForumTopicContext> {
+  return request<ForumTopicContext>(
+    `/api/admin/v1/forum/topics/${topicId}/reopen`,
+    {
+      method: "POST",
+    }
+  );
 }
 
-export async function pinForumTopic(token: string, topicId: string): Promise<ForumTopicContext> {
-  return request<ForumTopicContext>(`/api/admin/v1/forum/topics/${topicId}/pin`, {
-    method: "POST",
-  });
+export async function pinForumTopic(
+  token: string,
+  topicId: string
+): Promise<ForumTopicContext> {
+  return request<ForumTopicContext>(
+    `/api/admin/v1/forum/topics/${topicId}/pin`,
+    {
+      method: "POST",
+    }
+  );
 }
 
-export async function unpinForumTopic(token: string, topicId: string): Promise<ForumTopicContext> {
-  return request<ForumTopicContext>(`/api/admin/v1/forum/topics/${topicId}/unpin`, {
-    method: "POST",
-  });
+export async function unpinForumTopic(
+  token: string,
+  topicId: string
+): Promise<ForumTopicContext> {
+  return request<ForumTopicContext>(
+    `/api/admin/v1/forum/topics/${topicId}/unpin`,
+    {
+      method: "POST",
+    }
+  );
 }
 
 export async function listApprovals(
   token: string,
-  params?: { status?: string; approvalType?: string; limit?: number },
+  params?: { status?: string; approvalType?: string; limit?: number }
 ): Promise<ApprovalListResponse> {
-  const response = await request<RawApprovalListResponse>(buildPath("/api/admin/v1/approvals", params));
+  const response = await request<RawApprovalListResponse>(
+    buildPath("/api/admin/v1/approvals", params)
+  );
   return {
     ...response,
     items: response.items.map(normalizeApprovalItem),
@@ -1329,9 +1584,11 @@ export async function listApprovals(
 
 export async function listProviderWithdrawReviews(
   token: string,
-  params?: { limit?: number },
+  params?: { limit?: number }
 ): Promise<ProviderWithdrawReviewListResponse> {
-  const response = await request<RawProviderWithdrawReviewListResponse>(buildPath("/api/admin/v1/withdrawal-reviews", params));
+  const response = await request<RawProviderWithdrawReviewListResponse>(
+    buildPath("/api/admin/v1/withdrawal-reviews", params)
+  );
   return {
     ...response,
     items: response.items.map(normalizeProviderWithdrawReviewItem),
@@ -1349,9 +1606,11 @@ export async function listProviderWithdrawReviewHistory(
     reviewDecision?: string;
     reviewedFrom?: string;
     reviewedTo?: string;
-  },
+  }
 ): Promise<ProviderWithdrawReviewHistoryListResponse> {
-  const response = await request<RawProviderWithdrawReviewHistoryListResponse>(buildPath("/api/admin/v1/withdrawal-reviews/history", params));
+  const response = await request<RawProviderWithdrawReviewHistoryListResponse>(
+    buildPath("/api/admin/v1/withdrawal-reviews/history", params)
+  );
   return {
     ...response,
     items: response.items.map(normalizeProviderWithdrawReviewHistoryItem),
@@ -1365,15 +1624,17 @@ export async function decideProviderWithdrawReview(
     decision: "APPROVE" | "REJECT";
     note?: string;
     otpCode?: string;
-  },
+  }
 ): Promise<ProviderWithdrawReviewDecisionResult> {
   const response = await request<RawProviderWithdrawReviewDecisionResult>(
     `/api/admin/v1/withdrawal-reviews/${withdrawalId}/decision`,
     {
       method: "POST",
-      headers: input.otpCode ? { "X-Admin-OTP-Code": input.otpCode } : undefined,
+      headers: input.otpCode
+        ? { "X-Admin-OTP-Code": input.otpCode }
+        : undefined,
       body: JSON.stringify({ decision: input.decision, note: input.note }),
-    },
+    }
   );
   return {
     ...response,
@@ -1392,9 +1653,11 @@ export async function listProviderServices(
     runtimeStatus?: string;
     page?: number;
     pageSize?: number;
-  },
+  }
 ): Promise<ProviderServiceListResponse> {
-  const response = await request<RawProviderServiceListResponse>(buildPath("/api/admin/v1/provider-services", params));
+  const response = await request<RawProviderServiceListResponse>(
+    buildPath("/api/admin/v1/provider-services", params)
+  );
   return {
     ...response,
     items: response.items.map(normalizeProviderServiceItem),
@@ -1403,35 +1666,44 @@ export async function listProviderServices(
 
 export async function forceProbeProviderService(
   token: string,
-  serviceId: string,
+  serviceId: string
 ): Promise<ProviderServiceActionResponse> {
-  const response = await request<RawProviderServiceActionResponse>(`/api/admin/v1/provider-services/${serviceId}/force-probe`, {
-    method: "POST",
-  });
+  const response = await request<RawProviderServiceActionResponse>(
+    `/api/admin/v1/provider-services/${serviceId}/force-probe`,
+    {
+      method: "POST",
+    }
+  );
   return { service: normalizeProviderServiceItem(response.service) };
 }
 
 export async function updateProviderServiceLifecycle(
   token: string,
   serviceId: string,
-  input: { action: "PAUSE" | "RESUME" | "SUSPEND"; note?: string },
+  input: { action: "PAUSE" | "RESUME" | "SUSPEND"; note?: string }
 ): Promise<ProviderServiceActionResponse> {
-  const response = await request<RawProviderServiceActionResponse>(`/api/admin/v1/provider-services/${serviceId}/lifecycle`, {
-    method: "POST",
-    body: JSON.stringify(input),
-  });
+  const response = await request<RawProviderServiceActionResponse>(
+    `/api/admin/v1/provider-services/${serviceId}/lifecycle`,
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    }
+  );
   return { service: normalizeProviderServiceItem(response.service) };
 }
 
 export async function deleteProviderService(
   token: string,
   serviceId: string,
-  note?: string,
+  note?: string
 ): Promise<ProviderServiceDeleteResponse> {
-  const response = await request<RawProviderServiceDeleteResponse>(`/api/admin/v1/provider-services/${serviceId}`, {
-    method: "DELETE",
-    body: JSON.stringify({ note }),
-  });
+  const response = await request<RawProviderServiceDeleteResponse>(
+    `/api/admin/v1/provider-services/${serviceId}`,
+    {
+      method: "DELETE",
+      body: JSON.stringify({ note }),
+    }
+  );
   return {
     ...response,
     status: assertProviderServiceStatus(response.status),
@@ -1440,16 +1712,30 @@ export async function deleteProviderService(
 
 export async function listAuditActions(
   token: string,
-  params?: { resultStatus?: string; actionType?: string; operatorId?: string; limit?: number },
+  params?: {
+    resultStatus?: string;
+    actionType?: string;
+    operatorId?: string;
+    limit?: number;
+  }
 ): Promise<AuditActionListResponse> {
-  return request<AuditActionListResponse>(buildPath("/api/admin/v1/audit/actions", params));
+  return request<AuditActionListResponse>(
+    buildPath("/api/admin/v1/audit/actions", params)
+  );
 }
 
 export async function listExecutionJobs(
   token: string,
-  params?: { status?: string; approvalId?: string; targetSystem?: string; limit?: number },
+  params?: {
+    status?: string;
+    approvalId?: string;
+    targetSystem?: string;
+    limit?: number;
+  }
 ): Promise<ExecutionJobListResponse> {
-  const response = await request<RawExecutionJobListResponse>(buildPath("/api/admin/v1/execution-jobs", params));
+  const response = await request<RawExecutionJobListResponse>(
+    buildPath("/api/admin/v1/execution-jobs", params)
+  );
   return {
     ...response,
     items: response.items.map(normalizeExecutionJobItem),
@@ -1459,12 +1745,15 @@ export async function listExecutionJobs(
 export async function retryExecutionJob(
   token: string,
   jobId: string,
-  otpCode?: string,
+  otpCode?: string
 ): Promise<ExecutionRetryResult> {
-  const response = await request<RawExecutionRetryResult>(`/api/admin/v1/execution-jobs/${jobId}/retry`, {
-    method: "POST",
-    headers: otpCode ? { "X-Admin-OTP-Code": otpCode } : undefined,
-  });
+  const response = await request<RawExecutionRetryResult>(
+    `/api/admin/v1/execution-jobs/${jobId}/retry`,
+    {
+      method: "POST",
+      headers: otpCode ? { "X-Admin-OTP-Code": otpCode } : undefined,
+    }
+  );
   return {
     ...response,
     status: assertExecutionJobStatus(response.status),
@@ -1473,17 +1762,30 @@ export async function retryExecutionJob(
 
 export async function listAdminUsers(
   token: string,
-  params?: { status?: string; search?: string; roleKey?: string; limit?: number },
+  params?: {
+    status?: string;
+    search?: string;
+    roleKey?: string;
+    limit?: number;
+  }
 ): Promise<AdminUserListResponse> {
-  return request<AdminUserListResponse>(buildPath("/api/admin/v1/users", params));
+  return request<AdminUserListResponse>(
+    buildPath("/api/admin/v1/users", params)
+  );
 }
 
-export async function listAdminRoles(token: string): Promise<AdminRoleCatalogResponse> {
+export async function listAdminRoles(
+  token: string
+): Promise<AdminRoleCatalogResponse> {
   return request<AdminRoleCatalogResponse>("/api/admin/v1/users/roles");
 }
 
-export async function listAdminPermissions(token: string): Promise<AdminPermissionCatalogResponse> {
-  return request<AdminPermissionCatalogResponse>("/api/admin/v1/users/permissions");
+export async function listAdminPermissions(
+  token: string
+): Promise<AdminPermissionCatalogResponse> {
+  return request<AdminPermissionCatalogResponse>(
+    "/api/admin/v1/users/permissions"
+  );
 }
 
 export async function createAdminUser(
@@ -1495,15 +1797,12 @@ export async function createAdminUser(
     password: string;
     requireMfa: boolean;
     status?: string;
-  },
+  }
 ): Promise<CreateAdminUserResponse> {
-  return request<CreateAdminUserResponse>(
-    "/api/admin/v1/users",
-    {
-      method: "POST",
-      body: JSON.stringify(input),
-    },
-  );
+  return request<CreateAdminUserResponse>("/api/admin/v1/users", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
 }
 
 export async function updateAdminUser(
@@ -1515,24 +1814,21 @@ export async function updateAdminUser(
     password?: string;
     requireMfa: boolean;
     status: string;
-  },
+  }
 ): Promise<UpdateAdminUserResponse> {
-  return request<UpdateAdminUserResponse>(
-    `/api/admin/v1/users/${adminId}`,
-    {
-      method: "PATCH",
-      body: JSON.stringify(input),
-    },
-  );
+  return request<UpdateAdminUserResponse>(`/api/admin/v1/users/${adminId}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
 }
 
-export async function deleteAdminUser(token: string, adminId: string): Promise<DeleteAdminUserResponse> {
-  return request<DeleteAdminUserResponse>(
-    `/api/admin/v1/users/${adminId}`,
-    {
-      method: "DELETE",
-    },
-  );
+export async function deleteAdminUser(
+  token: string,
+  adminId: string
+): Promise<DeleteAdminUserResponse> {
+  return request<DeleteAdminUserResponse>(`/api/admin/v1/users/${adminId}`, {
+    method: "DELETE",
+  });
 }
 
 export async function createAdminRole(
@@ -1543,15 +1839,12 @@ export async function createAdminRole(
     description?: string;
     status: string;
     permissions: string[];
-  },
+  }
 ): Promise<CreateAdminRoleResponse> {
-  return request<CreateAdminRoleResponse>(
-    "/api/admin/v1/users/roles",
-    {
-      method: "POST",
-      body: JSON.stringify(input),
-    },
-  );
+  return request<CreateAdminRoleResponse>("/api/admin/v1/users/roles", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
 }
 
 export async function updateAdminRole(
@@ -1562,35 +1855,44 @@ export async function updateAdminRole(
     description?: string;
     status: string;
     permissions: string[];
-  },
+  }
 ): Promise<UpdateAdminRoleResponse> {
   return request<UpdateAdminRoleResponse>(
     `/api/admin/v1/users/roles/${roleKey}`,
     {
       method: "PATCH",
       body: JSON.stringify(input),
-    },
+    }
   );
 }
 
-export async function deleteAdminRole(token: string, roleKey: string): Promise<DeleteAdminRoleResponse> {
+export async function deleteAdminRole(
+  token: string,
+  roleKey: string
+): Promise<DeleteAdminRoleResponse> {
   return request<DeleteAdminRoleResponse>(
     `/api/admin/v1/users/roles/${roleKey}`,
     {
       method: "DELETE",
-    },
+    }
   );
 }
 
 export async function getAdminMenuConfig(
   token: string,
-  params?: { stage?: "draft" | "published" },
+  params?: { stage?: "draft" | "published" }
 ): Promise<AdminMenuConfigResponse> {
-  return request<AdminMenuConfigResponse>(buildPath("/api/admin/v1/config/menu-items", params));
+  return request<AdminMenuConfigResponse>(
+    buildPath("/api/admin/v1/config/menu-items", params)
+  );
 }
 
-export async function getVisibleAdminMenuConfig(token: string): Promise<AdminMenuConfigResponse> {
-  return request<AdminMenuConfigResponse>("/api/admin/v1/config/menu-items/visible");
+export async function getVisibleAdminMenuConfig(
+  token: string
+): Promise<AdminMenuConfigResponse> {
+  return request<AdminMenuConfigResponse>(
+    "/api/admin/v1/config/menu-items/visible"
+  );
 }
 
 export async function createAdminMenuItem(
@@ -1610,15 +1912,12 @@ export async function createAdminMenuItem(
     requiredPermissions: string[];
     sortOrder?: number;
     keywords?: string[];
-  },
+  }
 ): Promise<AdminMenuConfigResponse> {
-  return request<AdminMenuConfigResponse>(
-    "/api/admin/v1/config/menu-items",
-    {
-      method: "POST",
-      body: JSON.stringify(input),
-    },
-  );
+  return request<AdminMenuConfigResponse>("/api/admin/v1/config/menu-items", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
 }
 
 export async function updateAdminMenuItem(
@@ -1638,29 +1937,38 @@ export async function updateAdminMenuItem(
     requiredPermissions: string[];
     sortOrder?: number;
     keywords?: string[];
-  },
+  }
 ): Promise<AdminMenuConfigResponse> {
   return request<AdminMenuConfigResponse>(
     `/api/admin/v1/config/menu-items/${itemId}`,
     {
       method: "PATCH",
       body: JSON.stringify(input),
-    },
+    }
   );
 }
 
-export async function deleteAdminMenuItem(token: string, itemId: string): Promise<AdminMenuConfigResponse> {
+export async function deleteAdminMenuItem(
+  token: string,
+  itemId: string
+): Promise<AdminMenuConfigResponse> {
   return request<AdminMenuConfigResponse>(
     `/api/admin/v1/config/menu-items/${itemId}`,
     {
       method: "DELETE",
-    },
+    }
   );
 }
 
-export async function publishAdminMenuConfig(token: string, otpCode?: string): Promise<AdminMenuConfigResponse> {
-  return request<AdminMenuConfigResponse>("/api/admin/v1/config/menu-items/publish", {
-    method: "POST",
-    headers: otpCode ? { "X-Admin-OTP-Code": otpCode } : undefined,
-  });
+export async function publishAdminMenuConfig(
+  token: string,
+  otpCode?: string
+): Promise<AdminMenuConfigResponse> {
+  return request<AdminMenuConfigResponse>(
+    "/api/admin/v1/config/menu-items/publish",
+    {
+      method: "POST",
+      headers: otpCode ? { "X-Admin-OTP-Code": otpCode } : undefined,
+    }
+  );
 }

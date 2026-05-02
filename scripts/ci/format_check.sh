@@ -22,7 +22,7 @@ fi
 
 FILES=()
 while IFS= read -r file; do
-  [[ -n "$file" ]] && FILES+=("$file")
+  [[ -n "$file" && -f "$ROOT_DIR/$file" ]] && FILES+=("$file")
 done < <(
   {
     git -C "$ROOT_DIR" diff --name-only "$BASE_REF...HEAD" -- \

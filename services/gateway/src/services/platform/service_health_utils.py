@@ -212,6 +212,8 @@ def _service_health_row(
     target: ServiceInvokeTargetRecord,
     target_health: dict[str, ServiceHealthTargetRecord],
 ) -> Optional[ServiceTargetHealth]:
+    if not is_service_probeable(service):
+        return None
     service_id = str(service.service_id or "").strip()
     if not service_id:
         return None
@@ -246,7 +248,7 @@ def _build_service_target_health_rows(
 ) -> List[ServiceTargetHealth]:
     rows: List[ServiceTargetHealth] = []
     for service in services:
-        if service_control_status(service) == "deleted":
+        if not is_service_probeable(service):
             continue
         target_health = _target_health_map(service)
         for target in _service_targets(service):
@@ -417,7 +419,7 @@ def _startup_stale_health_row(
     service: ServiceDefinitionRecord,
     target: ServiceInvokeTargetRecord,
 ) -> Optional[ServiceTargetHealth]:
-    if service_control_status(service) == "deleted":
+    if not is_service_probeable(service):
         return None
     service_id = str(service.service_id or "").strip()
     target_url = str(target.url or "").strip()

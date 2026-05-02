@@ -24,7 +24,7 @@ if ! command -v psql >/dev/null 2>&1; then
   exit 1
 fi
 
-DEFAULT_LOCAL_POSTGRES_DSN="postgresql://synapse:local-dev-postgres-password@127.0.0.1:5432/synapse_gateway"
+DEFAULT_LOCAL_POSTGRES_DSN="postgresql://synapse:local-dev-postgres-password@127.0.0.1:15432/synapse_gateway"
 ENV_FILE="${ROOT_DIR}/services/gateway/.env.local"
 if [[ -n "${LOCAL_GATEWAY_POSTGRES_DSN:-}" ]]; then
   POSTGRES_DSN="${LOCAL_GATEWAY_POSTGRES_DSN}"

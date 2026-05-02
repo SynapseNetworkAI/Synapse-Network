@@ -17,6 +17,7 @@ GATEWAY_ADMIN_LOG="${ROOT_DIR}/services/gateway-admin/logs/gateway-admin.log"
 ADMIN_FRONT_LOG="${ROOT_DIR}/services/admin-front/admin_front_dev.log"
 
 ACTION="${1:-start}"
+ADMIN_SCHEMA_MIGRATED=0
 
 find_pid_by_port() {
   local port="$1"
@@ -165,11 +166,11 @@ admin_database_dsn() {
       # shellcheck disable=SC1090
       source "${env_file}"
       set +a
-      printf '%s' "${ADMIN_DATABASE_DSN:-postgresql://synapse_admin_app:local-dev-admin-app-password@127.0.0.1:5432/synapse_gateway_admin}"
+      printf '%s' "${ADMIN_DATABASE_DSN:-postgresql://synapse_admin_app:local-dev-admin-app-password@127.0.0.1:15432/synapse_gateway_admin}"
     )
     return 0
   fi
-  printf '%s' "postgresql://synapse_admin_app:local-dev-admin-app-password@127.0.0.1:5432/synapse_gateway_admin"
+  printf '%s' "postgresql://synapse_admin_app:local-dev-admin-app-password@127.0.0.1:15432/synapse_gateway_admin"
 }
 
 admin_migration_dsn() {
@@ -185,11 +186,67 @@ admin_migration_dsn() {
       # shellcheck disable=SC1090
       source "${env_file}"
       set +a
-      printf '%s' "${ADMIN_DATABASE_MIGRATION_DSN:-postgresql://synapse_admin_migrator:local-dev-admin-migrator-password@127.0.0.1:5432/synapse_gateway_admin}"
+      printf '%s' "${ADMIN_DATABASE_MIGRATION_DSN:-postgresql://synapse_admin_migrator:local-dev-admin-migrator-password@127.0.0.1:15432/synapse_gateway_admin}"
     )
     return 0
   fi
-  printf '%s' "postgresql://synapse_admin_migrator:local-dev-admin-migrator-password@127.0.0.1:5432/synapse_gateway_admin"
+  printf '%s' "postgresql://synapse_admin_migrator:local-dev-admin-migrator-password@127.0.0.1:15432/synapse_gateway_admin"
+}
+
+admin_superuser_migration_dsn() {
+  printf '%s' "${ADMIN_DATABASE_LOCAL_SUPERUSER_DSN:-postgresql://synapse:local-dev-postgres-password@127.0.0.1:15432/synapse_gateway_admin}"
+}
+
+sanitize_admin_dsn_for_log() {
+  local dsn="$1"
+  python3 - "${dsn}" <<'PY'
+import sys
+from urllib.parse import urlsplit, urlunsplit
+
+dsn = sys.argv[1]
+try:
+    parts = urlsplit(dsn)
+except Exception:
+    print("<invalid-dsn>")
+    raise SystemExit(0)
+
+netloc = parts.hostname or ""
+if parts.username:
+    netloc = f"{parts.username}:***@{netloc}"
+if parts.port:
+    netloc = f"{netloc}:{parts.port}"
+print(urlunsplit((parts.scheme, netloc, parts.path, parts.query, parts.fragment)))
+PY
+}
+
+assert_local_admin_migration_dsn() {
+  local dsn="$1"
+  python3 - "${dsn}" <<'PY'
+import sys
+from urllib.parse import urlsplit
+
+dsn = sys.argv[1]
+parts = urlsplit(dsn)
+host = (parts.hostname or "").lower()
+dbname = parts.path.lstrip("/")
+port = parts.port
+
+allowed_hosts = {"127.0.0.1", "localhost", "::1"}
+if host not in allowed_hosts or dbname != "synapse_gateway_admin" or port != 15432:
+    print(
+        "[local-apps] Refusing to auto-migrate gateway-admin schema: "
+        "ADMIN_DATABASE_MIGRATION_DSN must point to Docker local synapse_gateway_admin."
+    )
+    print(
+        f"[local-apps] Parsed host={host or '<missing>'} "
+        f"port={port or '<missing>'} db={dbname or '<missing>'}"
+    )
+    print(
+        "[local-apps] Expected: "
+        "postgresql://synapse_admin_migrator:***@127.0.0.1:15432/synapse_gateway_admin"
+    )
+    raise SystemExit(1)
+PY
 }
 
 probe_admin_schema() {
@@ -202,27 +259,72 @@ probe_admin_schema() {
   local probe
   dsn="$(admin_database_dsn)"
   probe="$(psql "${dsn}" -X -q -t -A -v ON_ERROR_STOP=1 \
-    -c "SELECT COALESCE(to_regclass('public.admin_users')::text, '') || ':' || COALESCE(to_regclass('public.admin_action_audit')::text, '')" 2>/dev/null || true)"
+    -c "SELECT CASE WHEN to_regclass('public.admin_users') IS NOT NULL AND to_regclass('public.admin_action_audit') IS NOT NULL THEN 'ready' ELSE 'admin_users=' || COALESCE(to_regclass('public.admin_users')::text, '') || ' admin_action_audit=' || COALESCE(to_regclass('public.admin_action_audit')::text, '') END" 2>/dev/null || true)"
 
   case "${probe}" in
-    *admin_users*:admin_action_audit*|*public.admin_users*:public.admin_action_audit*)
+    ready)
       return 0
       ;;
   esac
 
   echo "[local-apps] gateway-admin schema is missing or stale."
-  echo "[local-apps] Run: npm run dev:migrate"
+  echo "[local-apps] Probe result: ${probe:-empty}"
+  echo "[local-apps] App DSN: $(sanitize_admin_dsn_for_log "$(admin_database_dsn)")"
   return 1
 }
 
 migrate_admin_db() {
   ensure_gateway_admin_runtime
+  local migration_dsn
+  local migration_output
+  local fallback_dsn
+  migration_dsn="$(admin_migration_dsn)"
+  assert_local_admin_migration_dsn "${migration_dsn}"
   echo "[local-apps] applying gateway-admin DB migrations"
-  ADMIN_DATABASE_MIGRATION_DSN="$(admin_migration_dsn)" \
+  echo "[local-apps] Migration DSN: $(sanitize_admin_dsn_for_log "${migration_dsn}")"
+  if migration_output="$(ADMIN_DATABASE_MIGRATION_DSN="${migration_dsn}" \
+      ADMIN_DATABASE_APP_USER="${ADMIN_DATABASE_APP_USER:-synapse_admin_app}" \
+      ADMIN_DATABASE_READONLY_USER="${ADMIN_DATABASE_READONLY_USER:-synapse_admin_ro}" \
+      "${ROOT_DIR}/services/gateway-admin/.venv/bin/python" \
+      "${ROOT_DIR}/services/gateway-admin/scripts/apply_migrations.py" 2>&1)"; then
+    printf '%s\n' "${migration_output}"
+    return 0
+  fi
+
+  printf '%s\n' "${migration_output}"
+  if ! grep -q "lacks CREATE privileges" <<<"${migration_output}"; then
+    return 1
+  fi
+
+  fallback_dsn="$(admin_superuser_migration_dsn)"
+  assert_local_admin_migration_dsn "${fallback_dsn}"
+  echo "[local-apps] migrator lacks DDL privileges; retrying with local Docker Postgres owner"
+  echo "[local-apps] Fallback DSN: $(sanitize_admin_dsn_for_log "${fallback_dsn}")"
+  ADMIN_DATABASE_MIGRATION_DSN="${fallback_dsn}" \
     ADMIN_DATABASE_APP_USER="${ADMIN_DATABASE_APP_USER:-synapse_admin_app}" \
     ADMIN_DATABASE_READONLY_USER="${ADMIN_DATABASE_READONLY_USER:-synapse_admin_ro}" \
     "${ROOT_DIR}/services/gateway-admin/.venv/bin/python" \
     "${ROOT_DIR}/services/gateway-admin/scripts/apply_migrations.py"
+}
+
+ensure_admin_schema() {
+  if probe_admin_schema; then
+    return 0
+  fi
+
+  echo "[local-apps] attempting local-only gateway-admin schema self-heal"
+  migrate_admin_db
+  ADMIN_SCHEMA_MIGRATED=1
+
+  if probe_admin_schema; then
+    echo "[local-apps] gateway-admin schema is ready after local migration"
+    return 0
+  fi
+
+  echo "[local-apps] gateway-admin schema is still missing or stale after migration."
+  echo "[local-apps] Manual fix command: npm run dev:migrate"
+  echo "[local-apps] If gateway-admin is already running, restart it after the migration."
+  return 1
 }
 
 start_gateway() {
@@ -277,13 +379,18 @@ start_user_front() {
 }
 
 start_gateway_admin() {
+  ensure_gateway_admin_runtime
+  ensure_admin_schema
+
   if [[ -n "$(find_pid_by_port 8300)" ]]; then
     echo "gateway-admin already running on port 8300: PID $(find_pid_by_port 8300)"
+    if [[ "${ADMIN_SCHEMA_MIGRATED}" == "1" ]]; then
+      echo "[local-apps] gateway-admin schema was migrated while the service was already running."
+      echo "[local-apps] Restart gateway-admin if login, review, or admin API errors persist."
+    fi
     return 0
   fi
 
-  ensure_gateway_admin_runtime
-  probe_admin_schema
   bash "${ROOT_DIR}/services/gateway-admin/scripts/ops/start-local.sh"
   wait_for_http "gateway-admin" "http://127.0.0.1:8300/health" 45
 }
@@ -358,7 +465,7 @@ status_apps() {
   print_status_line "admin-front" 4000 "http://127.0.0.1:4000/login"
   echo ""
   echo "Infra status:"
-  print_status_line "postgres" 5432 "postgresql://127.0.0.1:5432"
+  print_status_line "postgres" 15432 "postgresql://127.0.0.1:15432"
   print_status_line "anvil" 8545 "http://127.0.0.1:8545"
 }
 
