@@ -9,6 +9,7 @@ import NotificationCenter from "@/components/NotificationCenter";
 import QuickAccessDialog from "@/components/QuickAccessDialog";
 import LanguageSwitcher from "@/components/i18n/LanguageSwitcher";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
+import { getDocsUrl } from "@/utils/docsUrl";
 import { getGatewayBaseUrl } from "@/utils/gatewayApi";
 
 type TopNavHref = "/marketplace" | "/blog" | "/about" | "/docs";
@@ -26,6 +27,7 @@ export default function Navbar() {
       activePath === "/blog" ||
       activePath === "/about");
   const { t, lang } = useLanguage();
+  const docsUrl = getDocsUrl();
 
   const [gatewayStatus, setGatewayStatus] = useState<
     "online" | "offline" | "checking"
@@ -234,9 +236,14 @@ export default function Navbar() {
               >
                 {lang === "en" ? "Marketplace" : t("nav.apiMarketplace")}
               </Link>
-              <Link href="/docs" className="transition hover:text-[#7ff7be]">
+              <a
+                href={docsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="transition hover:text-[#7ff7be]"
+              >
                 {t("nav.docs")}
-              </Link>
+              </a>
               <a
                 href="/forum"
                 target="_blank"
@@ -379,11 +386,11 @@ export default function Navbar() {
                 >
                   {t("nav.about")}
                 </Link>
-                <Link
+                <a
                   ref={(node) => {
                     topNavItemRefs.current["/docs"] = node;
                   }}
-                  href="/docs"
+                  href={docsUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className={getTopNavLinkClasses("/docs")}
@@ -392,7 +399,7 @@ export default function Navbar() {
                   onBlur={() => setHoveredTopNavHref(null)}
                 >
                   {t("nav.docs")}
-                </Link>
+                </a>
               </nav>
               <div className="ml-1 border-l border-white/12 pl-2">
                 <LanguageSwitcher className="h-8 rounded-full border border-white/16 bg-white/[0.06] px-3 pr-3 text-xs font-semibold tracking-[0.06em] text-white/95 outline-none transition hover:border-white/28 hover:bg-white/[0.12] focus:border-white/45" />
@@ -442,14 +449,14 @@ export default function Navbar() {
                 <Search className="h-4 w-4" />
               </button>
               <div className="hidden items-center gap-[30px] xl:flex">
-                <Link
-                  href="/docs"
+                <a
+                  href={docsUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 text-[15px] font-normal text-[#e7e9ea] transition hover:text-white"
                 >
                   {t("nav.documentation")}
-                </Link>
+                </a>
                 <a
                   href="/forum"
                   target="_blank"

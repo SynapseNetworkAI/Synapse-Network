@@ -1,0 +1,14 @@
+---
+title: Budget Isolation
+description: Why agent credentials spend from bounded USDC budgets instead of unlimited account authority.
+---
+
+Budget isolation is the reason Synapse exists. An owner funds the account and issues credentials with explicit spending limits. The agent can invoke services, but it cannot deposit, withdraw, mutate provider services, or change its own limits.
+
+<StatLine>
+  Human owner controls funds. Agent credential controls a bounded task budget. Gateway enforces the limit before work happens.
+</StatLine>
+
+## Failure behavior
+
+When the budget is exhausted, Gateway denies new paid work. The agent should stop, ask for owner action, or choose a cheaper service.

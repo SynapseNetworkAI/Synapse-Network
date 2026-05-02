@@ -1,0 +1,22 @@
+---
+title: TypeScript SDK
+description: Build Node and web agents that discover and invoke paid services.
+---
+
+```bash
+npm install @synapse-network-ai/sdk
+```
+
+```ts
+import { SynapseClient } from '@synapse-network-ai/sdk';
+
+const client = new SynapseClient({
+  baseUrl: 'https://api-staging.synapse-network.ai',
+});
+
+const services = await client.services.discover({ searchQuery: 'ocr' });
+```
+
+<AgentNote>
+  Keep owner JWT handling server-side. Browser agents should receive scoped task credentials, not owner wallet authority.
+</AgentNote>

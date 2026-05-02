@@ -47,6 +47,7 @@ Synapse Network is an agent-first settlement layer for AI agents. The primary pr
 
 - docs/03_Projects/gateway/README.md
 - docs/03_Projects/frontend/README.md
+- services/docs-front/AGENTS.md
 - docs/03_Projects/gateway-admin/README.md
 - docs/03_Projects/admin-front/README.md
 - docs/03_Projects/provider-service/README.md
@@ -81,6 +82,7 @@ Synapse Network is an agent-first settlement layer for AI agents. The primary pr
 - admin-front is the admin control-plane UI
 - provider_service is a provider runtime sample, not a settlement service
 - frontend is the owner and developer facing product console
+- docs-front is the dedicated developer documentation project at docs.synapse-network.ai and owns public docs SEO/AI assets
 
 ## Finance-Sensitive Work
 

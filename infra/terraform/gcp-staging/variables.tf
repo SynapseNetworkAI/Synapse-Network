@@ -134,6 +134,12 @@ variable "admin_front_image" {
   default     = ""
 }
 
+variable "docs_front_image" {
+  description = "Optional Docs-front container image. Leave empty to provision substrate first."
+  type        = string
+  default     = ""
+}
+
 variable "provider_image" {
   description = "Optional Provider runtime container image. Leave empty to skip Provider Cloud Run resources."
   type        = string

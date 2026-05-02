@@ -25,11 +25,11 @@ while IFS= read -r file; do
   [[ -n "$file" ]] && FILES+=("$file")
 done < <(
   {
-    git -C "$ROOT_DIR" diff --name-only "$BASE_REF...HEAD" -- \
+    git -C "$ROOT_DIR" diff --name-only --diff-filter=ACMR "$BASE_REF...HEAD" -- \
       '*.ts' '*.tsx' '*.js' '*.jsx' '*.mjs' '*.cjs' '*.json' '*.yml' '*.yaml' '*.md'
-    git -C "$ROOT_DIR" diff --cached --name-only -- \
+    git -C "$ROOT_DIR" diff --cached --name-only --diff-filter=ACMR -- \
       '*.ts' '*.tsx' '*.js' '*.jsx' '*.mjs' '*.cjs' '*.json' '*.yml' '*.yaml' '*.md'
-    git -C "$ROOT_DIR" diff --name-only -- \
+    git -C "$ROOT_DIR" diff --name-only --diff-filter=ACMR -- \
       '*.ts' '*.tsx' '*.js' '*.jsx' '*.mjs' '*.cjs' '*.json' '*.yml' '*.yaml' '*.md'
   } | sort -u | grep -Ev '(^docs/evidence/|^node_modules/|/node_modules/|^services/.*/\.next/|^output/|^tmp/)'
 )

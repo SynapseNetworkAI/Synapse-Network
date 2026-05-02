@@ -84,7 +84,18 @@ Working directory: `apps/frontend/`
 2. `yarn test` for local frontend test validation
 3. `npm run ci:frontend` from repository root when repo-standard gating is needed
 
-### 3.2 services/admin-front
+### 3.2 services/docs-front
+
+Working directory: `services/docs-front/`
+
+1. `yarn dev` for active iteration on `http://localhost:3001`
+2. `yarn generate:openapi` after endpoint data changes
+3. `yarn lint`
+4. `yarn build` for MDX, OpenAPI, type, and static route validation
+5. `DOCS_BASE_URL=http://localhost:3001 node scripts/ui/verify_docs_pages.mjs` from repository root after starting the docs dev server
+6. `npm run ci:docs-pages` from repository root when repo-standard docs-page gating is needed
+
+### 3.3 services/admin-front
 
 Working directory: `services/admin-front/`
 
@@ -94,7 +105,7 @@ Working directory: `services/admin-front/`
 4. `yarn build` only when the task explicitly needs final build confirmation
 5. `npm run ci:admin-front` from repository root when repo-standard gating is needed; this runs lint, Vitest, and production build
 
-### 3.3 services/gateway-admin
+### 3.4 services/gateway-admin
 
 Working directory: `services/gateway-admin/`
 
@@ -108,14 +119,14 @@ Runtime ops anchors:
 3. `sh scripts/ops/restart.sh`
 4. `sh scripts/ops/status.sh`
 
-### 3.4 provider_service
+### 3.5 provider_service
 
 Working directory: `provider_service/`
 
 1. `./.venv/bin/python -m pytest tests -q`
 2. `npm run ci:provider-service` from repository root when repo-standard gating is needed
 
-### 3.5 gateway
+### 3.6 gateway
 
 Canonical gate:
 
@@ -127,7 +138,7 @@ Canonical gate:
 
 For local gateway workflows, follow the canonical project page under `docs/03_Projects/gateway/` and its linked development guide.
 
-### 3.6 contracts
+### 3.7 contracts
 
 Canonical gate:
 
@@ -136,7 +147,7 @@ Canonical gate:
 3. `npm run deploy:contracts:arbitrum-sepolia` to deploy Arbitrum Sepolia staging contracts
 4. `npm run ci:contract-deployment-evidence` after staging deployment to verify manifest, bytecode, Arbiscan verification, wallet gas, and MockUSDC pre-mint evidence
 
-### 3.7 sdk/python
+### 3.8 sdk/python
 
 Canonical gate:
 

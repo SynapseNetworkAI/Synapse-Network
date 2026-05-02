@@ -7,13 +7,24 @@ Synapse user-front publishes crawler-facing assets from `services/user-front`:
 - `src/app/sitemap.ts` -> `https://synapse-network.ai/sitemap.xml`
 - `src/app/layout.tsx` -> homepage metadata, OpenGraph, and Twitter metadata
 
+Synapse docs-front publishes crawler-facing developer docs assets from
+`services/docs-front`:
+
+- `src/app/llms.txt/route.ts` -> `https://docs.synapse-network.ai/llms.txt`
+- `src/app/llms-full.txt/route.ts` -> `https://docs.synapse-network.ai/llms-full.txt`
+- `src/app/robots.ts` -> `https://docs.synapse-network.ai/robots.txt`
+- `src/app/sitemap.ts` -> `https://docs.synapse-network.ai/sitemap.xml`
+- `src/app/layout.tsx` -> docs metadata and OpenGraph metadata
+
 ## Hard Rules
 
 - Use HTTPS only for the canonical production domain. `http://synapse-network.ai` must never appear in `llms.txt`, `robots.txt`, sitemap output, or metadata.
 - Keep the sitemap path singular and stable: `https://synapse-network.ai/sitemap.xml`.
+- Keep docs sitemap singular and stable: `https://docs.synapse-network.ai/sitemap.xml`.
 - Do not use or reference `sitemap.website.xml`.
-- Do not add docs `.md` mirror routes for crawlers.
+- Do not add docs `.md` mirror routes for crawlers; docs-front owns `llms.txt` and `llms-full.txt` instead.
 - Do not list private app surfaces in `llms.txt` or sitemap: `/dashboard`, `/provider`, `/api`, or `/marketplace/registry.json`.
+- Do not list main-site `/docs/*` routes in the user-front sitemap. They are redirects; canonical docs URLs live on `docs.synapse-network.ai`.
 - Do not hand-write JSON-LD in V1; title, description, OG, Twitter, sitemap, robots, and `llms.txt` are the SEO contract.
 
 ## XML Pollution Check

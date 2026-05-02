@@ -31,23 +31,7 @@ const SCREENSHOT_DIR = path.join(OUT_DIR, "screenshots");
 const EXPECTED_TITLE = "SynapseNetwork | Settlement Layer for AI Agents";
 const EXPECTED_DESCRIPTION =
   "USDC-native payment and settlement infrastructure for AI agents buying APIs, LLM calls, data services, tools, and MCP integrations.";
-const PUBLIC_ROUTES = [
-  "/",
-  "/about",
-  "/marketplace",
-  "/docs",
-  "/docs/concepts",
-  "/docs/getting-started",
-  "/docs/getting-started/consumer",
-  "/docs/getting-started/provider",
-  "/docs/api-reference",
-  "/docs/contracts",
-  "/docs/sdk",
-  "/docs/sdk/typescript",
-  "/docs/sdk/python",
-  "/docs/support",
-  "/forum",
-];
+const PUBLIC_ROUTES = ["/", "/about", "/marketplace", "/forum"];
 const FORBIDDEN_SITEMAP_URLS = [
   "http://synapse-network.ai",
   "https://synapse-network.ai/dashboard",
