@@ -64,6 +64,14 @@ Do not place pagination controls above the list body unless the workflow explici
 - Reuse shared filter forms, pagination bars, and table surfaces when possible.
 - If a page must diverge, the reason should be traceable to a documented workflow need.
 
+## Treasury and Hardware-Wallet Actions
+
+- Platform treasury, hardware-wallet, Safe, contract-owner, or custody-changing actions must be super-admin-only action surfaces.
+- Do not add these actions as primary sidebar navigation items. Launch them from the relevant operational page, such as Finance, using a modal or popup workflow.
+- The modal must show immutable backend-owned transaction facts: target contract, Safe address, signer/custody address, function selector, calldata hash, decoded amount, and execution checklist.
+- The admin frontend must never accept or construct arbitrary `to`, `data`, `functionName`, `recipient`, or chain broadcast intent for treasury actions. Backend-owned APIs must generate the draft.
+- The UI must explicitly state that final execution happens outside Admin-front in Safe UI with the hardware wallet. No direct broadcast button is allowed.
+
 ## Visual Tone
 
 - Admin UI should feel operational, calm, and high-signal.
@@ -73,15 +81,19 @@ Do not place pagination controls above the list body unless the workflow explici
 ## ⚠️ Gotchas — Known Admin Console Failure Patterns
 
 **Pagination total invention**
+
 - Computing `totalPages = Math.ceil(items.length / pageSize)` from the current page slice — this is always wrong. Total must come from the backend `total` field in the response envelope.
 - Showing "page X of Y" when Y is inferred from the current slice — causes flickering and overcounting when the user is not on the first page.
 
 **Status chip overload**
+
 - Adding a new status variant directly as a hardcoded color string in the component table, detached from the backend enum. Define variant mappings from the canonical backend status list.
 - Using status chips for non-state labels (e.g., feature flags, type categories) — chips are for lifecycle states only.
 
 **Filter reset bug**
+
 - A reset handler that clears form values but does not reset the page to 1, leaving the user on an empty page with stale pagination state.
 
 **Backend-owned wording drift**
+
 - Renaming a backend status or approval type in the UI display label without verifying the backend contract — the display map must stay synchronized with the backend enum definition.

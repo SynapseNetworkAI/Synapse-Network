@@ -231,15 +231,28 @@ GATEWAY_INTERNAL_SERVICE_SUBJECTS=service:gateway-admin
 
 ### 2.7 初始化 bootstrap 管理员密码
 
+Docker bootstrap 只创建管理员账号、角色绑定和占位 MFA 记录，不会初始化密码。`admin_users.password_hash` 为 `NULL` 时，登录会返回通用“邮箱或密码不正确”。
+
 ```bash
 cd /Users/cliff/workspace/agent/Synapse-Network/services/gateway-admin
 .venv/bin/python scripts/set_bootstrap_password.py \
-  --dsn 'postgresql://synapse_admin_app:12345678@localhost:5432/synapse_gateway_admin' \
+  --dsn 'postgresql://synapse_admin_app:local-dev-admin-app-password@127.0.0.1:15432/synapse_gateway_admin' \
   --email 'super@synapse.network' \
   --password 'ReplaceWithStrongInitPassword'
 ```
 
 这个脚本只负责给已存在的 bootstrap 管理员写入初始密码，不会创建账号或修改角色。
+
+本地快速重置可使用：
+
+```bash
+cd /Users/cliff/workspace/agent/Synapse-Network/services/gateway-admin
+.venv/bin/python scripts/reset_admin_password.py \
+  --email 'super@synapse.network' \
+  --password 'qwer@1234'
+```
+
+如果登录 MFA 开启，bootstrap 管理员默认没有可用 TOTP secret，需要先完成 MFA enrollment。Manual Setup Key 由 Gateway-admin 在 enrollment begin 时随机生成，Google Authenticator 只负责读取这个标准 TOTP secret，不会返回 secret 给我们。历史库里如果还存在 `__BOOTSTRAP_TOTP_SECRET__`，它只是不可用的 legacy 哨兵值，必须按未绑定 MFA 处理，不能展示给管理员、不能扫码使用。高危审核动作始终应保留 OTP step-up。
 
 ### 2.8 重置未绑定 MFA 的联调测试管理员
 
@@ -452,7 +465,9 @@ bash scripts/ops/start-local.sh
 bash scripts/ops/status.sh
 ```
 
-如果旧的 PostgreSQL volume 缺表，尤其是 `admin_execution_jobs`、`admin_execution_attempts` 这类 execution worker 依赖表，请手动执行：
+根目录 `npm run dev:all` / `npm run dev:restart` 会在 local 模式下自动探测并修复 `synapse_gateway_admin` schema。Docker 只会在空 Postgres volume 首次初始化时执行 bootstrap；已有 volume 缺表或 stale 时，依赖这个 local-only migration 自愈，而不是指望 Docker entrypoint 重跑。
+
+如果你单独运行 `services/gateway-admin/scripts/ops/start-local.sh`，或者需要手动修复旧的 PostgreSQL volume 缺表，尤其是 `admin_execution_jobs`、`admin_execution_attempts` 这类 execution worker 依赖表，请执行：
 
 ```bash
 cd /Users/cliff/workspace/agent/Synapse-Network/services/gateway-admin
@@ -460,6 +475,8 @@ ADMIN_DATABASE_MIGRATION_DSN='postgresql://<schema-owner>@<host>:5432/synapse_ga
 ./.venv/bin/python scripts/apply_migrations.py
 bash scripts/ops/restart.sh local
 ```
+
+本地自动 migration 只允许 Docker local `localhost/127.0.0.1:15432` 的 `synapse_gateway_admin`。如果旧 volume 里的 migrator 权限不足，本地脚本会 fallback 到 Docker Postgres owner；可用 `ADMIN_DATABASE_LOCAL_SUPERUSER_DSN` 覆盖。共享环境仍然必须走受控 migration job。
 
 ### 8.2 Staging / Prod 发布顺序
 

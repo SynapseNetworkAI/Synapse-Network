@@ -66,6 +66,13 @@ export function getWithdrawReviewActionErrorMessage(
       return "验证码错误或已过期，请使用最新 6 位码重试。";
     }
     if (
+      (error.message || "").includes(
+        "Admin Google Authenticator is not configured"
+      )
+    ) {
+      return "当前管理员还没有绑定可用的 Google Authenticator。请到登录 MFA 绑定流程重新绑定，或使用 local-admin-e2e@synapse.network 测试账号。";
+    }
+    if (
       (error.message || "").includes("Google Authenticator code is required")
     ) {
       return `完成验证码验证后，系统才会提交${getDecisionLabel(

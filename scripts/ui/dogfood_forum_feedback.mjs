@@ -8,21 +8,37 @@ import { chromium } from "playwright";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "../..");
-const FORUM_BASE_URL = (process.env.FORUM_BASE_URL || process.env.USER_FRONT_BASE_URL || "http://localhost:3000").replace(/\/+$/, "");
-const GATEWAY_BASE_URL = (process.env.GATEWAY_BASE_URL || process.env.USER_FRONT_GATEWAY_BASE_URL || "http://127.0.0.1:8000").replace(/\/+$/, "");
+const FORUM_BASE_URL = (
+  process.env.FORUM_BASE_URL ||
+  process.env.USER_FRONT_BASE_URL ||
+  "http://localhost:3000"
+).replace(/\/+$/, "");
+const GATEWAY_BASE_URL = (
+  process.env.GATEWAY_BASE_URL ||
+  process.env.USER_FRONT_GATEWAY_BASE_URL ||
+  "http://127.0.0.1:8000"
+).replace(/\/+$/, "");
 const GATEWAY_ENV_PATH = path.join(ROOT, "services/gateway/.env.local");
 function readGatewayEnvPostgresDsn() {
   if (!fs.existsSync(GATEWAY_ENV_PATH)) return "";
-  const line = fs.readFileSync(GATEWAY_ENV_PATH, "utf8")
+  const line = fs
+    .readFileSync(GATEWAY_ENV_PATH, "utf8")
     .split(/\r?\n/)
     .find((entry) => entry.startsWith("POSTGRES_DSN="));
   return line ? line.slice("POSTGRES_DSN=".length).trim() : "";
 }
-const POSTGRES_DSN = process.env.POSTGRES_DSN || readGatewayEnvPostgresDsn() || "postgresql://synapse:local-dev-postgres-password@127.0.0.1:5432/synapse_gateway";
+const POSTGRES_DSN =
+  process.env.LOCAL_GATEWAY_POSTGRES_DSN ||
+  process.env.POSTGRES_DSN ||
+  readGatewayEnvPostgresDsn() ||
+  "postgresql://synapse:local-dev-postgres-password@127.0.0.1:15432/synapse_gateway";
 const FIXTURE_PATH = process.env.FORUM_FEEDBACK_FIXTURE
   ? path.resolve(process.env.FORUM_FEEDBACK_FIXTURE)
   : path.join(ROOT, "tmp/forum-feedback-dogfood/fixture.json");
-const timestamp = new Date().toISOString().replace(/[:.]/g, "").replace("Z", "Z");
+const timestamp = new Date()
+  .toISOString()
+  .replace(/[:.]/g, "")
+  .replace("Z", "Z");
 const OUT_DIR = path.join(ROOT, "output/dogfood/forum-feedback", timestamp);
 const SCREENSHOT_DIR = path.join(OUT_DIR, "screenshots");
 
@@ -88,22 +104,18 @@ function sqlLiteral(value) {
 }
 
 function queryJson(sql) {
-  const result = spawnSync("psql", [
-    POSTGRES_DSN,
-    "-X",
-    "-q",
-    "-t",
-    "-A",
-    "-v",
-    "ON_ERROR_STOP=1",
-    "-c",
-    sql,
-  ], {
-    cwd: ROOT,
-    encoding: "utf8",
-  });
+  const result = spawnSync(
+    "psql",
+    [POSTGRES_DSN, "-X", "-q", "-t", "-A", "-v", "ON_ERROR_STOP=1", "-c", sql],
+    {
+      cwd: ROOT,
+      encoding: "utf8",
+    }
+  );
   if (result.status !== 0) {
-    throw new Error(`psql failed: ${(result.stderr || result.stdout || "").trim()}`);
+    throw new Error(
+      `psql failed: ${(result.stderr || result.stdout || "").trim()}`
+    );
   }
   const text = result.stdout.trim();
   return text ? JSON.parse(text) : null;
@@ -126,7 +138,11 @@ async function api(pathname, { method = "GET", body } = {}) {
     payload = JSON.parse(text);
   }
   if (!response.ok) {
-    throw new Error(`${method} ${pathname} failed: ${response.status} ${JSON.stringify(payload).slice(0, 600)}`);
+    throw new Error(
+      `${method} ${pathname} failed: ${response.status} ${JSON.stringify(
+        payload
+      ).slice(0, 600)}`
+    );
   }
   return payload;
 }
@@ -140,17 +156,25 @@ function buildAuthSession() {
 }
 
 async function createContext(browser, authenticated) {
-  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-  await context.addInitScript(({ authenticated: hasAuth, session }) => {
-    localStorage.setItem("synapse_lang", "en");
-    if (hasAuth) {
-      localStorage.setItem("a2a_auth_session", JSON.stringify(session));
-      localStorage.setItem("developer_session", JSON.stringify({ wallet: session.wallet }));
-    } else {
-      localStorage.removeItem("a2a_auth_session");
-      localStorage.removeItem("developer_session");
-    }
-  }, { authenticated, session: buildAuthSession() });
+  const context = await browser.newContext({
+    viewport: { width: 1440, height: 900 },
+  });
+  await context.addInitScript(
+    ({ authenticated: hasAuth, session }) => {
+      localStorage.setItem("synapse_lang", "en");
+      if (hasAuth) {
+        localStorage.setItem("a2a_auth_session", JSON.stringify(session));
+        localStorage.setItem(
+          "developer_session",
+          JSON.stringify({ wallet: session.wallet })
+        );
+      } else {
+        localStorage.removeItem("a2a_auth_session");
+        localStorage.removeItem("developer_session");
+      }
+    },
+    { authenticated, session: buildAuthSession() }
+  );
   return context;
 }
 
@@ -163,7 +187,11 @@ async function createPage(context, pageName) {
   page.on("console", (message) => {
     if (closed || message.type() !== "error") return;
     const text = message.text();
-    if (text.includes("Failed to fetch RSC payload") && text.includes("Falling back to browser navigation")) return;
+    if (
+      text.includes("Failed to fetch RSC payload") &&
+      text.includes("Falling back to browser navigation")
+    )
+      return;
     consoleErrors.push({ page: pageName, text });
   });
   page.on("pageerror", (error) => {
@@ -171,7 +199,10 @@ async function createPage(context, pageName) {
   });
   page.on("response", (response) => {
     const url = response.url();
-    if (url.includes("/api/v1/") || url.includes("/marketplace/registry.json")) {
+    if (
+      url.includes("/api/v1/") ||
+      url.includes("/marketplace/registry.json")
+    ) {
       apiResponses.push({
         page: pageName,
         method: response.request().method(),
@@ -185,7 +216,9 @@ async function createPage(context, pageName) {
 }
 
 async function extractFeedbackId(page) {
-  const text = await page.getByTestId("feedback-id").innerText({ timeout: 20000 });
+  const text = await page
+    .getByTestId("feedback-id")
+    .innerText({ timeout: 20000 });
   const match = text.match(/fbk_[a-f0-9]+/i);
   if (!match) {
     throw new Error(`feedback id was not visible in "${text}"`);
@@ -195,8 +228,10 @@ async function extractFeedbackId(page) {
 
 async function submitFeedbackDrawer(page, message) {
   await page.getByPlaceholder(/Tell us what broke|告诉我们/i).fill(message);
-  const responsePromise = page.waitForResponse((response) =>
-    response.url().includes("/api/v1/feedback") && response.request().method() === "POST"
+  const responsePromise = page.waitForResponse(
+    (response) =>
+      response.url().includes("/api/v1/feedback") &&
+      response.request().method() === "POST"
   );
   await page.getByRole("button", { name: /Submit feedback/i }).click();
   const response = await responsePromise;
@@ -206,7 +241,9 @@ async function submitFeedbackDrawer(page, message) {
   const payload = await response.json();
   const feedbackId = await extractFeedbackId(page);
   if (payload.feedbackId !== feedbackId) {
-    throw new Error(`feedback id mismatch: api=${payload.feedbackId}, ui=${feedbackId}`);
+    throw new Error(
+      `feedback id mismatch: api=${payload.feedbackId}, ui=${feedbackId}`
+    );
   }
   return feedbackId;
 }
@@ -228,14 +265,24 @@ async function verifyPublicForum(browser) {
     await goto(page, "/forum");
     await assertBodyContains(page, "Developer Forum", "forum title");
     await assertBodyContains(page, "All categories", "category filter");
-    await page.getByPlaceholder(/Search topics/i).waitFor({ state: "visible", timeout: 15000 });
+    await page
+      .getByPlaceholder(/Search topics/i)
+      .waitFor({ state: "visible", timeout: 15000 });
     await page.getByRole("button", { name: "Latest", exact: true }).click();
     await page.getByRole("button", { name: "Top", exact: true }).click();
     await screenshot(page, "forum-public.png");
     await page.getByRole("button", { name: /New topic/i }).click();
-    await page.getByRole("dialog", { name: /Start a discussion/i }).waitFor({ state: "visible", timeout: 15000 });
-    await assertBodyContains(page, "Connect wallet to post or reply.", "unauthenticated guard");
-    const disabled = await page.getByRole("button", { name: /Post topic/i }).isDisabled();
+    await page
+      .getByRole("dialog", { name: /Start a discussion/i })
+      .waitFor({ state: "visible", timeout: 15000 });
+    await assertBodyContains(
+      page,
+      "Connect wallet to post or reply.",
+      "unauthenticated guard"
+    );
+    const disabled = await page
+      .getByRole("button", { name: /Post topic/i })
+      .isDisabled();
     if (!disabled) {
       throw new Error("unauthenticated Post topic button should be disabled");
     }
@@ -257,11 +304,15 @@ async function createUiTopicAndReply(browser) {
     await dialog.waitFor({ state: "visible", timeout: 15000 });
     await dialog.getByPlaceholder(/^Title$/i).fill(expected.uiTopicTitle);
     await dialog.locator("select").selectOption({ label: "Bugs" });
-    await dialog.getByPlaceholder(/Describe the question/i).fill(expected.uiTopicBody);
+    await dialog
+      .getByPlaceholder(/Describe the question/i)
+      .fill(expected.uiTopicBody);
     await screenshot(page, "forum-create-topic-modal.png");
 
-    const topicResponsePromise = page.waitForResponse((response) =>
-      response.url().includes("/api/v1/forum/topics") && response.request().method() === "POST"
+    const topicResponsePromise = page.waitForResponse(
+      (response) =>
+        response.url().includes("/api/v1/forum/topics") &&
+        response.request().method() === "POST"
     );
     await dialog.getByRole("button", { name: /Post topic/i }).click();
     const topicResponse = await topicResponsePromise;
@@ -273,7 +324,11 @@ async function createUiTopicAndReply(browser) {
     if (!uiState.topicId) {
       throw new Error("topic POST did not return topicId");
     }
-    await assertBodyContains(page, expected.uiTopicTitle, "created topic list row");
+    await assertBodyContains(
+      page,
+      expected.uiTopicTitle,
+      "created topic list row"
+    );
     await screenshot(page, "forum-list.png");
 
     await page.locator(`a[href="/forum/${uiState.topicId}"]`).first().click();
@@ -281,9 +336,15 @@ async function createUiTopicAndReply(browser) {
     await assertBodyContains(page, expected.uiTopicBody, "created topic body");
     await screenshot(page, "forum-topic-detail.png");
 
-    await page.getByPlaceholder(/Add a helpful reply/i).fill(expected.uiReplyBody);
-    const replyResponsePromise = page.waitForResponse((response) =>
-      response.url().includes(`/api/v1/forum/topics/${uiState.topicId}/replies`) && response.request().method() === "POST"
+    await page
+      .getByPlaceholder(/Add a helpful reply/i)
+      .fill(expected.uiReplyBody);
+    const replyResponsePromise = page.waitForResponse(
+      (response) =>
+        response
+          .url()
+          .includes(`/api/v1/forum/topics/${uiState.topicId}/replies`) &&
+        response.request().method() === "POST"
     );
     await page.getByRole("button", { name: /Post reply/i }).click();
     const replyResponse = await replyResponsePromise;
@@ -297,8 +358,12 @@ async function createUiTopicAndReply(browser) {
     }
     await assertBodyContains(page, expected.uiReplyBody, "created reply body");
 
-    const resolveResponsePromise = page.waitForResponse((response) =>
-      response.url().includes(`/api/v1/forum/topics/${uiState.topicId}/resolve`) && response.request().method() === "POST"
+    const resolveResponsePromise = page.waitForResponse(
+      (response) =>
+        response
+          .url()
+          .includes(`/api/v1/forum/topics/${uiState.topicId}/resolve`) &&
+        response.request().method() === "POST"
     );
     await page.getByRole("button", { name: /Mark resolved/i }).click();
     const resolveResponse = await resolveResponsePromise;
@@ -321,9 +386,16 @@ async function verifyDocsSupport(browser) {
     await goto(page, "/docs/support");
     await assertBodyContains(page, "Developer Support", "docs support heading");
     await screenshot(page, "docs-support.png");
-    await page.getByRole("link", { name: /Developer Forum/i }).first().click();
+    await page
+      .getByRole("link", { name: /Developer Forum/i })
+      .first()
+      .click();
     await page.waitForURL("**/forum", { timeout: 20000 });
-    await assertBodyContains(page, "Developer Forum", "forum after docs support link");
+    await assertBodyContains(
+      page,
+      "Developer Forum",
+      "forum after docs support link"
+    );
     return "docs support forum link navigated";
   } finally {
     await page.close().catch(() => {});
@@ -338,8 +410,13 @@ async function submitDocsFeedback(browser) {
     await goto(page, "/docs");
     await page.getByTestId("docs-page-feedback").scrollIntoViewIfNeeded();
     await page.getByRole("button", { name: /Not helpful/i }).click();
-    await page.getByTestId("feedback-drawer").waitFor({ state: "visible", timeout: 10000 });
-    uiState.docsFeedbackId = await submitFeedbackDrawer(page, expected.uiDocsFeedbackMessage);
+    await page
+      .getByTestId("feedback-drawer")
+      .waitFor({ state: "visible", timeout: 10000 });
+    uiState.docsFeedbackId = await submitFeedbackDrawer(
+      page,
+      expected.uiDocsFeedbackMessage
+    );
     await screenshot(page, "docs-feedback-drawer.png");
     return `docs feedback=${uiState.docsFeedbackId}`;
   } finally {
@@ -353,9 +430,16 @@ async function submitDashboardFeedback(browser) {
   const page = await createPage(context, "dashboard-feedback");
   try {
     await goto(page, "/dashboard/discovery");
-    await page.getByTestId("feedback-floating-button").click({ timeout: 20000 });
-    await page.getByTestId("feedback-drawer").waitFor({ state: "visible", timeout: 10000 });
-    uiState.dashboardFeedbackId = await submitFeedbackDrawer(page, expected.uiDashboardFeedbackMessage);
+    await page
+      .getByTestId("feedback-floating-button")
+      .click({ timeout: 20000 });
+    await page
+      .getByTestId("feedback-drawer")
+      .waitFor({ state: "visible", timeout: 10000 });
+    uiState.dashboardFeedbackId = await submitFeedbackDrawer(
+      page,
+      expected.uiDashboardFeedbackMessage
+    );
     await screenshot(page, "dashboard-feedback-drawer.png");
     return `dashboard feedback=${uiState.dashboardFeedbackId}`;
   } finally {
@@ -393,7 +477,9 @@ function verifyDatabaseRows() {
     fixture.seed.dashboardFeedbackId,
     uiState.docsFeedbackId,
     uiState.dashboardFeedbackId,
-  ].map(sqlLiteral).join(", ");
+  ]
+    .map(sqlLiteral)
+    .join(", ");
   const feedbackRows = queryJson(`
     SELECT COALESCE(json_agg(row_to_json(t)), '[]'::json)::text
     FROM (
@@ -404,15 +490,49 @@ function verifyDatabaseRows() {
     ) t
   `);
   if (!Array.isArray(feedbackRows) || feedbackRows.length !== 4) {
-    throw new Error(`expected 4 feedback rows, found ${Array.isArray(feedbackRows) ? feedbackRows.length : "non-array"}`);
+    throw new Error(
+      `expected 4 feedback rows, found ${
+        Array.isArray(feedbackRows) ? feedbackRows.length : "non-array"
+      }`
+    );
   }
-  expectOne(feedbackRows, (row) => row.feedback_id === fixture.seed.docsFeedbackId && row.source === "docs" && row.route.includes("/docs"), "seed docs feedback");
-  expectOne(feedbackRows, (row) => row.feedback_id === fixture.seed.dashboardFeedbackId && row.source === "dashboard" && row.route.includes("/dashboard/discovery"), "seed dashboard feedback");
-  expectOne(feedbackRows, (row) => row.feedback_id === uiState.docsFeedbackId && row.source === "docs" && row.message.includes(runId), "ui docs feedback");
-  expectOne(feedbackRows, (row) => row.feedback_id === uiState.dashboardFeedbackId && row.source === "dashboard" && row.route.includes("/dashboard/discovery"), "ui dashboard feedback");
+  expectOne(
+    feedbackRows,
+    (row) =>
+      row.feedback_id === fixture.seed.docsFeedbackId &&
+      row.source === "docs" &&
+      row.route.includes("/docs"),
+    "seed docs feedback"
+  );
+  expectOne(
+    feedbackRows,
+    (row) =>
+      row.feedback_id === fixture.seed.dashboardFeedbackId &&
+      row.source === "dashboard" &&
+      row.route.includes("/dashboard/discovery"),
+    "seed dashboard feedback"
+  );
+  expectOne(
+    feedbackRows,
+    (row) =>
+      row.feedback_id === uiState.docsFeedbackId &&
+      row.source === "docs" &&
+      row.message.includes(runId),
+    "ui docs feedback"
+  );
+  expectOne(
+    feedbackRows,
+    (row) =>
+      row.feedback_id === uiState.dashboardFeedbackId &&
+      row.source === "dashboard" &&
+      row.route.includes("/dashboard/discovery"),
+    "ui dashboard feedback"
+  );
   assertNoSecrets(feedbackRows, "feedback rows");
 
-  const topicIds = [fixture.seed.topicId, uiState.topicId].map(sqlLiteral).join(", ");
+  const topicIds = [fixture.seed.topicId, uiState.topicId]
+    .map(sqlLiteral)
+    .join(", ");
   const topicRows = queryJson(`
     SELECT COALESCE(json_agg(row_to_json(t)), '[]'::json)::text
     FROM (
@@ -423,12 +543,33 @@ function verifyDatabaseRows() {
     ) t
   `);
   if (!Array.isArray(topicRows) || topicRows.length !== 2) {
-    throw new Error(`expected 2 topic rows, found ${Array.isArray(topicRows) ? topicRows.length : "non-array"}`);
+    throw new Error(
+      `expected 2 topic rows, found ${
+        Array.isArray(topicRows) ? topicRows.length : "non-array"
+      }`
+    );
   }
-  expectOne(topicRows, (row) => row.topic_id === fixture.seed.topicId && row.title === expected.seedTopicTitle && row.resolved === true, "seed resolved topic");
-  expectOne(topicRows, (row) => row.topic_id === uiState.topicId && row.title === expected.uiTopicTitle && row.category === "Bugs" && row.resolved === true, "ui resolved topic");
+  expectOne(
+    topicRows,
+    (row) =>
+      row.topic_id === fixture.seed.topicId &&
+      row.title === expected.seedTopicTitle &&
+      row.resolved === true,
+    "seed resolved topic"
+  );
+  expectOne(
+    topicRows,
+    (row) =>
+      row.topic_id === uiState.topicId &&
+      row.title === expected.uiTopicTitle &&
+      row.category === "Bugs" &&
+      row.resolved === true,
+    "ui resolved topic"
+  );
 
-  const replyIds = [fixture.seed.replyId, uiState.replyId].map(sqlLiteral).join(", ");
+  const replyIds = [fixture.seed.replyId, uiState.replyId]
+    .map(sqlLiteral)
+    .join(", ");
   const replyRows = queryJson(`
     SELECT COALESCE(json_agg(row_to_json(t)), '[]'::json)::text
     FROM (
@@ -439,10 +580,28 @@ function verifyDatabaseRows() {
     ) t
   `);
   if (!Array.isArray(replyRows) || replyRows.length !== 2) {
-    throw new Error(`expected 2 reply rows, found ${Array.isArray(replyRows) ? replyRows.length : "non-array"}`);
+    throw new Error(
+      `expected 2 reply rows, found ${
+        Array.isArray(replyRows) ? replyRows.length : "non-array"
+      }`
+    );
   }
-  expectOne(replyRows, (row) => row.reply_id === fixture.seed.replyId && row.topic_id === fixture.seed.topicId && row.body === expected.seedReplyBody, "seed reply");
-  expectOne(replyRows, (row) => row.reply_id === uiState.replyId && row.topic_id === uiState.topicId && row.body === expected.uiReplyBody, "ui reply");
+  expectOne(
+    replyRows,
+    (row) =>
+      row.reply_id === fixture.seed.replyId &&
+      row.topic_id === fixture.seed.topicId &&
+      row.body === expected.seedReplyBody,
+    "seed reply"
+  );
+  expectOne(
+    replyRows,
+    (row) =>
+      row.reply_id === uiState.replyId &&
+      row.topic_id === uiState.topicId &&
+      row.body === expected.uiReplyBody,
+    "ui reply"
+  );
 
   return {
     feedbackRows,
@@ -469,7 +628,10 @@ function writeReport(dbEvidence = null) {
     screenshots: screenshots.map((item) => path.relative(ROOT, item)),
     dbEvidence,
   };
-  fs.writeFileSync(path.join(OUT_DIR, "report.json"), JSON.stringify(report, null, 2));
+  fs.writeFileSync(
+    path.join(OUT_DIR, "report.json"),
+    JSON.stringify(report, null, 2)
+  );
 
   const lines = [
     "# Forum Feedback Dogfood Verification",
@@ -485,39 +647,53 @@ function writeReport(dbEvidence = null) {
     "",
     "## Passed",
     "",
-    ...(passed.length ? passed.map((item) => `- PASS ${item.name}${item.detail ? ` - ${item.detail}` : ""}`) : ["- None"]),
+    ...(passed.length
+      ? passed.map(
+          (item) =>
+            `- PASS ${item.name}${item.detail ? ` - ${item.detail}` : ""}`
+        )
+      : ["- None"]),
     "",
     "## Failed",
     "",
-    ...(failed.length ? failed.map((item) => `- FAIL ${item.name} - ${item.detail}`) : ["- None"]),
+    ...(failed.length
+      ? failed.map((item) => `- FAIL ${item.name} - ${item.detail}`)
+      : ["- None"]),
     "",
     "## Warnings",
     "",
-    ...(warnings.length ? warnings.map((item) => `- WARN ${item.name} - ${item.detail}`) : ["- None"]),
+    ...(warnings.length
+      ? warnings.map((item) => `- WARN ${item.name} - ${item.detail}`)
+      : ["- None"]),
     "",
     "## Screenshots",
     "",
-    ...(screenshots.length ? screenshots.map((item) => `- ${path.relative(ROOT, item)}`) : ["- None"]),
+    ...(screenshots.length
+      ? screenshots.map((item) => `- ${path.relative(ROOT, item)}`)
+      : ["- None"]),
     "",
     "## Database Evidence",
     "",
     dbEvidence
       ? `- Feedback rows: ${dbEvidence.feedbackRows.length}`
       : "- DB evidence unavailable because DB assertions did not complete.",
-    dbEvidence
-      ? `- Topic rows: ${dbEvidence.topicRows.length}`
-      : "",
-    dbEvidence
-      ? `- Reply rows: ${dbEvidence.replyRows.length}`
-      : "",
+    dbEvidence ? `- Topic rows: ${dbEvidence.topicRows.length}` : "",
+    dbEvidence ? `- Reply rows: ${dbEvidence.replyRows.length}` : "",
     "",
     "## API Responses",
     "",
-    ...(apiResponses.length ? apiResponses.map((item) => `- ${item.method} ${item.status} ${item.url} (page: ${item.page})`) : ["- None"]),
+    ...(apiResponses.length
+      ? apiResponses.map(
+          (item) =>
+            `- ${item.method} ${item.status} ${item.url} (page: ${item.page})`
+        )
+      : ["- None"]),
     "",
     "## Console Errors",
     "",
-    ...(consoleErrors.length ? consoleErrors.map((item) => `- ${item.page}: ${item.text}`) : ["- None"]),
+    ...(consoleErrors.length
+      ? consoleErrors.map((item) => `- ${item.page}: ${item.text}`)
+      : ["- None"]),
     "",
   ].filter((line) => line !== "");
   fs.writeFileSync(path.join(OUT_DIR, "report.md"), lines.join("\n"));
@@ -526,22 +702,33 @@ function writeReport(dbEvidence = null) {
 
 async function main() {
   await fetch(`${GATEWAY_BASE_URL}/health`).then((response) => {
-    if (!response.ok) throw new Error(`gateway health failed: ${response.status}`);
+    if (!response.ok)
+      throw new Error(`gateway health failed: ${response.status}`);
   });
 
   const browser = await chromium.launch({
     headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+    ],
   });
   let dbEvidence = null;
   try {
     await step("public:forum-browsing", () => verifyPublicForum(browser));
-    await step("authenticated:forum-create-reply-resolve", () => createUiTopicAndReply(browser));
+    await step("authenticated:forum-create-reply-resolve", () =>
+      createUiTopicAndReply(browser)
+    );
     await step("docs:support-link", () => verifyDocsSupport(browser));
     await step("feedback:docs-page", () => submitDocsFeedback(browser));
-    await step("feedback:dashboard-discovery", () => submitDashboardFeedback(browser));
+    await step("feedback:dashboard-discovery", () =>
+      submitDashboardFeedback(browser)
+    );
     await step("api:seeded-topic-readable", async () => {
-      const payload = await api(`/v1/forum/topics/${encodeURIComponent(fixture.seed.topicId)}`);
+      const payload = await api(
+        `/v1/forum/topics/${encodeURIComponent(fixture.seed.topicId)}`
+      );
       if (payload.topic?.topicId !== fixture.seed.topicId) {
         throw new Error("seeded topic API did not return expected topic");
       }
@@ -555,7 +742,10 @@ async function main() {
       return `feedback=${dbEvidence.feedbackRows.length}, topics=${dbEvidence.topicRows.length}, replies=${dbEvidence.replyRows.length}`;
     });
     if (consoleErrors.length > 0) {
-      fail("browser:console-errors", consoleErrors.map((item) => `${item.page}: ${item.text}`).join("\n"));
+      fail(
+        "browser:console-errors",
+        consoleErrors.map((item) => `${item.page}: ${item.text}`).join("\n")
+      );
     } else {
       pass("browser:console-errors", "no uncaught console errors");
     }
@@ -571,7 +761,10 @@ async function main() {
 }
 
 main().catch((error) => {
-  fail("dogfood:runner", error instanceof Error ? error.message : String(error));
+  fail(
+    "dogfood:runner",
+    error instanceof Error ? error.message : String(error)
+  );
   writeReport(null);
   console.error(error instanceof Error ? error.stack || error.message : error);
   process.exit(1);

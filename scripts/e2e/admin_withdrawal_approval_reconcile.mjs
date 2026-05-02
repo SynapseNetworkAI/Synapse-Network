@@ -5,7 +5,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { ethers } from "ethers";
-import { computeFinanceSensitiveTreeHash, sha256Json } from "../lib/finance_sensitive_hash.mjs";
+import {
+  computeFinanceSensitiveTreeHash,
+  sha256Json,
+} from "../lib/finance_sensitive_hash.mjs";
 import { generateTotpCode } from "../lib/totp_window.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -18,17 +21,28 @@ const DOGFOOD_REPORT_PATH = process.env.ADMIN_WITHDRAWAL_APPROVAL_DOGFOOD_REPORT
   : findLatestDogfoodReport();
 const OUT_DIR = DOGFOOD_REPORT_PATH
   ? path.dirname(DOGFOOD_REPORT_PATH)
-  : path.join(ROOT, "output/dogfood/admin-withdrawal-approval", new Date().toISOString().replace(/[:.]/g, "").replace("Z", "Z"));
+  : path.join(
+      ROOT,
+      "output/dogfood/admin-withdrawal-approval",
+      new Date().toISOString().replace(/[:.]/g, "").replace("Z", "Z")
+    );
 
-const GATEWAY_BASE_URL = (process.env.GATEWAY_BASE_URL || "http://127.0.0.1:8000").replace(/\/+$/, "");
-const ADMIN_GATEWAY_URL = (process.env.ADMIN_GATEWAY_URL || "http://127.0.0.1:8300").replace(/\/+$/, "");
+const GATEWAY_BASE_URL = (
+  process.env.GATEWAY_BASE_URL || "http://127.0.0.1:8000"
+).replace(/\/+$/, "");
+const ADMIN_GATEWAY_URL = (
+  process.env.ADMIN_GATEWAY_URL || "http://127.0.0.1:8300"
+).replace(/\/+$/, "");
 const API_BASE = `${GATEWAY_BASE_URL}/api`;
 const RPC_URL = process.env.RPC_URL || "http://127.0.0.1:8545";
-const ADMIN_COOKIE_NAME = process.env.ADMIN_SESSION_COOKIE_NAME || "synapse_admin_session";
+const ADMIN_COOKIE_NAME =
+  process.env.ADMIN_SESSION_COOKIE_NAME || "synapse_admin_session";
 const ADMIN_TOTP_SECRET = process.env.ADMIN_TOTP_SECRET || "JBSWY3DPEHPK3PXP";
-const POSTGRES_DSN = process.env.GATEWAY_POSTGRES_DSN
-  || process.env.POSTGRES_DSN
-  || "postgresql://synapse_gateway_app:local-dev-gateway-app-password@localhost:5432/synapse_gateway";
+const POSTGRES_DSN =
+  process.env.GATEWAY_POSTGRES_DSN ||
+  process.env.LOCAL_GATEWAY_POSTGRES_DSN ||
+  process.env.POSTGRES_DSN ||
+  "postgresql://synapse_gateway_app:local-dev-gateway-app-password@127.0.0.1:15432/synapse_gateway";
 // withdrawal status source: services/gateway provider withdrawal state machine and synapse_vault_withdrawals.status.
 // model-drift: intentional - DB reconciliation must query canonical ledger tables and provider_wallet account kind.
 
@@ -40,7 +54,8 @@ const securityChecks = [];
 function findLatestDogfoodReport() {
   const base = path.join(ROOT, "output/dogfood/admin-withdrawal-approval");
   if (!fs.existsSync(base)) return "";
-  const candidates = fs.readdirSync(base)
+  const candidates = fs
+    .readdirSync(base)
     .map((name) => path.join(base, name, "report.json"))
     .filter((filePath) => fs.existsSync(filePath))
     .sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs);
@@ -70,25 +85,24 @@ function sqlLiteral(value) {
 }
 
 function queryJson(sql) {
-  const result = spawnSync("psql", [
-    POSTGRES_DSN,
-    "-X",
-    "-q",
-    "-t",
-    "-A",
-    "-v",
-    "ON_ERROR_STOP=1",
-    "-c",
-    sql,
-  ], { cwd: ROOT, encoding: "utf8" });
+  const result = spawnSync(
+    "psql",
+    [POSTGRES_DSN, "-X", "-q", "-t", "-A", "-v", "ON_ERROR_STOP=1", "-c", sql],
+    { cwd: ROOT, encoding: "utf8" }
+  );
   if (result.status !== 0) {
-    throw new Error(`psql query failed: ${(result.stderr || result.stdout || "").trim()}`);
+    throw new Error(
+      `psql query failed: ${(result.stderr || result.stdout || "").trim()}`
+    );
   }
   const text = result.stdout.trim();
   return text ? JSON.parse(text) : null;
 }
 
-async function api(pathname, { method = "GET", token, address, body, headers = {}, expectOk = true } = {}) {
+async function api(
+  pathname,
+  { method = "GET", token, address, body, headers = {}, expectOk = true } = {}
+) {
   const requestHeaders = { Accept: "application/json", ...headers };
   if (body !== undefined) requestHeaders["Content-Type"] = "application/json";
   if (token) requestHeaders.Authorization = `Bearer ${token}`;
@@ -108,12 +122,20 @@ async function api(pathname, { method = "GET", token, address, body, headers = {
     }
   }
   if (expectOk && !response.ok) {
-    throw new Error(`${method} ${pathname} failed: ${response.status} ${JSON.stringify(payload).slice(0, 800)}`);
+    throw new Error(
+      `${method} ${pathname} failed: ${response.status} ${JSON.stringify(
+        payload
+      ).slice(0, 800)}`
+    );
   }
   return { response, payload };
 }
 
-async function adminApi(pathname, auth, { method = "GET", body, expectOk = true, otpCode } = {}) {
+async function adminApi(
+  pathname,
+  auth,
+  { method = "GET", body, expectOk = true, otpCode } = {}
+) {
   const headers = {
     Accept: "application/json",
     Cookie: `${ADMIN_COOKIE_NAME}=${auth.sessionToken}`,
@@ -130,14 +152,20 @@ async function adminApi(pathname, auth, { method = "GET", body, expectOk = true,
   });
   const payload = await response.json().catch(() => ({}));
   if (expectOk && (!response.ok || payload.success === false)) {
-    throw new Error(`Admin API failed ${method} ${pathname}: ${response.status} ${JSON.stringify(payload).slice(0, 800)}`);
+    throw new Error(
+      `Admin API failed ${method} ${pathname}: ${
+        response.status
+      } ${JSON.stringify(payload).slice(0, 800)}`
+    );
   }
   return { response, payload };
 }
 
 async function getChainContext() {
   const provider = new ethers.JsonRpcProvider(RPC_URL);
-  const contractConfig = readJson("services/user-front/src/contract-config.json");
+  const contractConfig = readJson(
+    "services/user-front/src/contract-config.json"
+  );
   return {
     provider,
     coreAddress: ethers.getAddress(contractConfig.SynapseCore),
@@ -148,7 +176,8 @@ async function getChainContext() {
 }
 
 async function readChainBalances(address) {
-  const { provider, coreAddress, usdcAddress, usdcAbi } = await getChainContext();
+  const { provider, coreAddress, usdcAddress, usdcAbi } =
+    await getChainContext();
   const usdc = new ethers.Contract(usdcAddress, usdcAbi, provider);
   const decimals = Number(await usdc.decimals());
   const providerAtomic = await usdc.balanceOf(address);
@@ -169,7 +198,12 @@ async function sendWithRetry(label, makeTx, attempts = 4) {
       return await makeTx();
     } catch (error) {
       lastError = error;
-      if (!/nonce|replacement|underpriced|already known|transaction underpriced/i.test(error.message || "")) throw error;
+      if (
+        !/nonce|replacement|underpriced|already known|transaction underpriced/i.test(
+          error.message || ""
+        )
+      )
+        throw error;
       await new Promise((resolve) => setTimeout(resolve, 750));
     }
   }
@@ -181,13 +215,28 @@ async function expectContractRevert(label, fn) {
     await fn();
     throw new Error(`${label} unexpectedly succeeded`);
   } catch (error) {
-    if (`${error.message || error}`.includes("unexpectedly succeeded")) throw error;
-    securityChecks.push({ name: label, pass: true, detail: String(error.shortMessage || error.message || error).slice(0, 500) });
+    if (`${error.message || error}`.includes("unexpectedly succeeded"))
+      throw error;
+    securityChecks.push({
+      name: label,
+      pass: true,
+      detail: String(error.shortMessage || error.message || error).slice(
+        0,
+        500
+      ),
+    });
     pass(`security:${label}`, "contract rejected");
   }
 }
 
-function addComparison(stage, metricName, expected, actual, passValue, detail = "") {
+function addComparison(
+  stage,
+  metricName,
+  expected,
+  actual,
+  passValue,
+  detail = ""
+) {
   const row = {
     stage,
     metricName,
@@ -200,7 +249,12 @@ function addComparison(stage, metricName, expected, actual, passValue, detail = 
   if (row.pass) {
     pass(`compare:${stage}:${metricName}`, `${row.actual}`);
   } else {
-    failCheck(`compare:${stage}:${metricName}`, `expected=${row.expected} actual=${row.actual}${detail ? ` ${detail}` : ""}`);
+    failCheck(
+      `compare:${stage}:${metricName}`,
+      `expected=${row.expected} actual=${row.actual}${
+        detail ? ` ${detail}` : ""
+      }`
+    );
   }
 }
 
@@ -243,13 +297,30 @@ function getDbProviderBalance(ownerAddress) {
 }
 
 async function loadApprovedWithdrawal(fixture) {
-  const rows = (await api("/v1/providers/withdrawals?limit=50", fixture.provider)).payload.withdrawals || [];
-  const row = rows.find((item) => item.id === fixture.withdrawal.withdrawalId || item.withdrawalId === fixture.withdrawal.withdrawalId);
-  assert(row, `Provider withdrawal ${fixture.withdrawal.withdrawalId} not found in Gateway listing.`);
+  const rows =
+    (await api("/v1/providers/withdrawals?limit=50", fixture.provider)).payload
+      .withdrawals || [];
+  const row = rows.find(
+    (item) =>
+      item.id === fixture.withdrawal.withdrawalId ||
+      item.withdrawalId === fixture.withdrawal.withdrawalId
+  );
+  assert(
+    row,
+    `Provider withdrawal ${fixture.withdrawal.withdrawalId} not found in Gateway listing.`
+  );
   const ticket = row.ticket || {};
-  assert(row.status === "APPROVED_AUTO" || row.status === "COMPLETED", `Expected approved/completed withdrawal, got ${row.status}`);
+  assert(
+    row.status === "APPROVED_AUTO" || row.status === "COMPLETED",
+    `Expected approved/completed withdrawal, got ${row.status}`
+  );
   if (row.status !== "COMPLETED") {
-    assert(ticket.signature, `Approved withdrawal is missing signed ticket: ${JSON.stringify(row).slice(0, 800)}`);
+    assert(
+      ticket.signature,
+      `Approved withdrawal is missing signed ticket: ${JSON.stringify(
+        row
+      ).slice(0, 800)}`
+    );
   }
   return { row, ticket };
 }
@@ -258,14 +329,16 @@ async function runSecurityChecksBeforeClaim(fixture) {
   const withdrawalId = fixture.withdrawal.withdrawalId;
   const otp = generateTotpCode(ADMIN_TOTP_SECRET);
   const duplicateApprove = await adminApi(
-    `/api/admin/v1/withdrawal-reviews/${encodeURIComponent(withdrawalId)}/decision`,
+    `/api/admin/v1/withdrawal-reviews/${encodeURIComponent(
+      withdrawalId
+    )}/decision`,
     fixture.auth,
     {
       method: "POST",
       body: { decision: "APPROVE", note: "Duplicate approval must fail." },
       otpCode: otp,
       expectOk: false,
-    },
+    }
   );
   const duplicateApprovePassed = !duplicateApprove.response.ok;
   securityChecks.push({
@@ -274,18 +347,28 @@ async function runSecurityChecksBeforeClaim(fixture) {
     status: duplicateApprove.response.status,
     payload: duplicateApprove.payload,
   });
-  if (!duplicateApprovePassed) failCheck("security:duplicate-approval", "second approve unexpectedly succeeded");
-  else pass("security:duplicate-approval", `status=${duplicateApprove.response.status}`);
+  if (!duplicateApprovePassed)
+    failCheck(
+      "security:duplicate-approval",
+      "second approve unexpectedly succeeded"
+    );
+  else
+    pass(
+      "security:duplicate-approval",
+      `status=${duplicateApprove.response.status}`
+    );
 
   const crossReject = await adminApi(
-    `/api/admin/v1/withdrawal-reviews/${encodeURIComponent(withdrawalId)}/decision`,
+    `/api/admin/v1/withdrawal-reviews/${encodeURIComponent(
+      withdrawalId
+    )}/decision`,
     fixture.auth,
     {
       method: "POST",
       body: { decision: "REJECT", note: "Reject after approve must fail." },
       otpCode: generateTotpCode(ADMIN_TOTP_SECRET),
       expectOk: false,
-    },
+    }
   );
   const crossRejectPassed = !crossReject.response.ok;
   securityChecks.push({
@@ -294,7 +377,11 @@ async function runSecurityChecksBeforeClaim(fixture) {
     status: crossReject.response.status,
     payload: crossReject.payload,
   });
-  if (!crossRejectPassed) failCheck("security:cross-reject", "reject after approve unexpectedly succeeded");
+  if (!crossRejectPassed)
+    failCheck(
+      "security:cross-reject",
+      "reject after approve unexpectedly succeeded"
+    );
   else pass("security:cross-reject", `status=${crossReject.response.status}`);
 }
 
@@ -302,55 +389,87 @@ async function claimOnChainAndComplete(fixture, ticket) {
   const { provider, coreAddress, coreAbi } = await getChainContext();
   const signer = new ethers.Wallet(fixture.provider.privateKey, provider);
   const core = new ethers.Contract(coreAddress, coreAbi, signer);
-  const signature = String(ticket.signature || "").startsWith("0x") ? ticket.signature : `0x${ticket.signature}`;
+  const signature = String(ticket.signature || "").startsWith("0x")
+    ? ticket.signature
+    : `0x${ticket.signature}`;
   const amount = BigInt(ticket.amount);
   const fee = BigInt(ticket.fee || 0);
   const ticketId = ticket.ticketId;
   const deadline = BigInt(ticket.deadline);
 
   await expectContractRevert("tampered ticket amount rejected", async () => {
-    const badTx = await core.withdraw(amount + 1n, fee, ticketId, deadline, signature, {
-      nonce: await provider.getTransactionCount(signer.address, "pending"),
-    });
+    const badTx = await core.withdraw(
+      amount + 1n,
+      fee,
+      ticketId,
+      deadline,
+      signature,
+      {
+        nonce: await provider.getTransactionCount(signer.address, "pending"),
+      }
+    );
     await badTx.wait();
   });
 
-  const withdrawTx = await sendWithRetry("provider-on-chain-withdraw", async () =>
-    core.withdraw(amount, fee, ticketId, deadline, signature, {
-      nonce: await provider.getTransactionCount(signer.address, "pending"),
-    })
+  const withdrawTx = await sendWithRetry(
+    "provider-on-chain-withdraw",
+    async () =>
+      core.withdraw(amount, fee, ticketId, deadline, signature, {
+        nonce: await provider.getTransactionCount(signer.address, "pending"),
+      })
   );
   const receipt = await withdrawTx.wait();
-  assert(receipt?.status === 1, `on-chain provider withdraw reverted: ${withdrawTx.hash}`);
+  assert(
+    receipt?.status === 1,
+    `on-chain provider withdraw reverted: ${withdrawTx.hash}`
+  );
   pass("chain:provider-claim", withdrawTx.hash);
 
   await expectContractRevert("withdraw ticket replay rejected", async () => {
-    const replayTx = await core.withdraw(amount, fee, ticketId, deadline, signature, {
-      nonce: await provider.getTransactionCount(signer.address, "pending"),
-    });
+    const replayTx = await core.withdraw(
+      amount,
+      fee,
+      ticketId,
+      deadline,
+      signature,
+      {
+        nonce: await provider.getTransactionCount(signer.address, "pending"),
+      }
+    );
     await replayTx.wait();
   });
 
-  const complete = await api(`/v1/providers/withdrawals/${encodeURIComponent(fixture.withdrawal.withdrawalId)}/complete`, {
-    method: "POST",
-    token: fixture.provider.token,
-    address: fixture.provider.address,
-    body: { txHash: withdrawTx.hash },
-  });
+  const complete = await api(
+    `/v1/providers/withdrawals/${encodeURIComponent(
+      fixture.withdrawal.withdrawalId
+    )}/complete`,
+    {
+      method: "POST",
+      token: fixture.provider.token,
+      address: fixture.provider.address,
+      body: { txHash: withdrawTx.hash },
+    }
+  );
   const completeData = complete.payload.data || complete.payload;
   assert(
-    completeData.status === "COMPLETED" && completeData.withdrawalId === fixture.withdrawal.withdrawalId,
-    `complete response mismatch: ${JSON.stringify(complete.payload)}`,
+    completeData.status === "COMPLETED" &&
+      completeData.withdrawalId === fixture.withdrawal.withdrawalId,
+    `complete response mismatch: ${JSON.stringify(complete.payload)}`
   );
   pass("gateway:complete-withdrawal", withdrawTx.hash);
 
-  const duplicateComplete = await api(`/v1/providers/withdrawals/${encodeURIComponent(fixture.withdrawal.withdrawalId)}/complete`, {
-    method: "POST",
-    token: fixture.provider.token,
-    address: fixture.provider.address,
-    body: { txHash: withdrawTx.hash },
-    expectOk: false,
-  });
+  const duplicateComplete = await api(
+    `/v1/providers/withdrawals/${encodeURIComponent(
+      fixture.withdrawal.withdrawalId
+    )}/complete`,
+    {
+      method: "POST",
+      token: fixture.provider.token,
+      address: fixture.provider.address,
+      body: { txHash: withdrawTx.hash },
+      expectOk: false,
+    }
+  );
   const duplicateCompletePassed = !duplicateComplete.response.ok;
   securityChecks.push({
     name: "duplicate complete rejected",
@@ -358,17 +477,36 @@ async function claimOnChainAndComplete(fixture, ticket) {
     status: duplicateComplete.response.status,
     payload: duplicateComplete.payload,
   });
-  if (!duplicateCompletePassed) failCheck("security:duplicate-complete", "duplicate complete unexpectedly succeeded");
-  else pass("security:duplicate-complete", `status=${duplicateComplete.response.status}`);
+  if (!duplicateCompletePassed)
+    failCheck(
+      "security:duplicate-complete",
+      "duplicate complete unexpectedly succeeded"
+    );
+  else
+    pass(
+      "security:duplicate-complete",
+      `status=${duplicateComplete.response.status}`
+    );
 
   return { txHash: withdrawTx.hash, complete: completeData };
 }
 
 function verifyDogfoodReport(report, fixture) {
-  assert(report.status === "success", `dogfood report status is ${report.status}`);
-  assert(Array.isArray(report.failed) && report.failed.length === 0, `dogfood failures: ${JSON.stringify(report.failed)}`);
-  assert(Array.isArray(report.consoleErrors) && report.consoleErrors.length === 0, `dogfood console errors: ${JSON.stringify(report.consoleErrors)}`);
-  const screenshotNames = new Set((report.screenshots || []).map((filePath) => path.basename(filePath)));
+  assert(
+    report.status === "success",
+    `dogfood report status is ${report.status}`
+  );
+  assert(
+    Array.isArray(report.failed) && report.failed.length === 0,
+    `dogfood failures: ${JSON.stringify(report.failed)}`
+  );
+  assert(
+    Array.isArray(report.consoleErrors) && report.consoleErrors.length === 0,
+    `dogfood console errors: ${JSON.stringify(report.consoleErrors)}`
+  );
+  const screenshotNames = new Set(
+    (report.screenshots || []).map((filePath) => path.basename(filePath))
+  );
   for (const name of [
     "01-withdrawal-review-queue.png",
     "02-withdrawal-review-detail.png",
@@ -378,19 +516,40 @@ function verifyDogfoodReport(report, fixture) {
   ]) {
     assert(screenshotNames.has(name), `missing screenshot ${name}`);
   }
-  assert(report.withdrawalId === fixture.withdrawal.withdrawalId, "dogfood report withdrawalId mismatch");
+  assert(
+    report.withdrawalId === fixture.withdrawal.withdrawalId,
+    "dogfood report withdrawalId mismatch"
+  );
   pass("report:dogfood-clean", `${report.passed.length} browser checks passed`);
 }
 
-function writeReport({ fixture, dogfoodReport, beforeClaimChain, afterClaimChain, beforeClaimDbBalance, afterClaimDbBalance, dbBeforeComplete, dbAfterComplete, chainResult }) {
+function writeReport({
+  fixture,
+  dogfoodReport,
+  beforeClaimChain,
+  afterClaimChain,
+  beforeClaimDbBalance,
+  afterClaimDbBalance,
+  dbBeforeComplete,
+  dbAfterComplete,
+  chainResult,
+}) {
   const financeSensitive = computeFinanceSensitiveTreeHash(ROOT);
   const fixtureHash = sha256Json(fixture);
-  const status = failed.length === 0 && comparisons.every((row) => row.pass) && securityChecks.every((row) => row.pass) ? "success" : "failed";
+  const status =
+    failed.length === 0 &&
+    comparisons.every((row) => row.pass) &&
+    securityChecks.every((row) => row.pass)
+      ? "success"
+      : "failed";
   const report = {
     status,
     generatedAt: new Date().toISOString(),
     scriptVersion: "admin-withdrawal-approval-e2e:v1",
-    gitCommitSha: spawnSync("git", ["rev-parse", "HEAD"], { cwd: ROOT, encoding: "utf8" }).stdout.trim(),
+    gitCommitSha: spawnSync("git", ["rev-parse", "HEAD"], {
+      cwd: ROOT,
+      encoding: "utf8",
+    }).stdout.trim(),
     financeSensitiveTreeHash: financeSensitive.hash,
     financeSensitiveFiles: financeSensitive.files,
     fixtureHash,
@@ -425,13 +584,27 @@ function writeReport({ fixture, dogfoodReport, beforeClaimChain, afterClaimChain
     withdrawalId: report.withdrawalId,
   });
   fs.mkdirSync(OUT_DIR, { recursive: true });
-  fs.writeFileSync(path.join(OUT_DIR, "reconciliation-report.json"), `${JSON.stringify(report, null, 2)}\n`);
-
-  const comparisonRows = comparisons.map((row) =>
-    `| ${row.stage} | ${row.metricName} | ${row.expected} | ${row.actual} | ${row.pass ? "PASS" : "FAIL"} |`
+  fs.writeFileSync(
+    path.join(OUT_DIR, "reconciliation-report.json"),
+    `${JSON.stringify(report, null, 2)}\n`
   );
-  const securityRows = securityChecks.map((row) =>
-    `| ${row.name} | ${row.pass ? "PASS" : "FAIL"} | ${row.status ?? ""} | ${String(row.detail || row.payload?.error?.code || row.payload?.detail?.code || "").replaceAll("|", "\\|")} |`
+
+  const comparisonRows = comparisons.map(
+    (row) =>
+      `| ${row.stage} | ${row.metricName} | ${row.expected} | ${row.actual} | ${
+        row.pass ? "PASS" : "FAIL"
+      } |`
+  );
+  const securityRows = securityChecks.map(
+    (row) =>
+      `| ${row.name} | ${row.pass ? "PASS" : "FAIL"} | ${
+        row.status ?? ""
+      } | ${String(
+        row.detail ||
+          row.payload?.error?.code ||
+          row.payload?.detail?.code ||
+          ""
+      ).replaceAll("|", "\\|")} |`
   );
   const lines = [
     "# Admin Withdrawal Approval Reconciliation Report",
@@ -469,25 +642,57 @@ function writeReport({ fixture, dogfoodReport, beforeClaimChain, afterClaimChain
     ...(report.screenshots || []).map((filePath) => `- ${filePath}`),
     "",
   ];
-  fs.writeFileSync(path.join(OUT_DIR, "reconciliation-report.md"), `${lines.join("\n")}\n`);
-  console.log(`[admin-withdrawal-reconcile] wrote ${path.join(OUT_DIR, "reconciliation-report.md")}`);
+  fs.writeFileSync(
+    path.join(OUT_DIR, "reconciliation-report.md"),
+    `${lines.join("\n")}\n`
+  );
+  console.log(
+    `[admin-withdrawal-reconcile] wrote ${path.join(
+      OUT_DIR,
+      "reconciliation-report.md"
+    )}`
+  );
   return report;
 }
 
 async function main() {
   assert(fs.existsSync(FIXTURE_PATH), `fixture not found: ${FIXTURE_PATH}`);
-  assert(DOGFOOD_REPORT_PATH && fs.existsSync(DOGFOOD_REPORT_PATH), `dogfood report not found: ${DOGFOOD_REPORT_PATH || "(none)"}`);
+  assert(
+    DOGFOOD_REPORT_PATH && fs.existsSync(DOGFOOD_REPORT_PATH),
+    `dogfood report not found: ${DOGFOOD_REPORT_PATH || "(none)"}`
+  );
   const fixture = JSON.parse(fs.readFileSync(FIXTURE_PATH, "utf8"));
-  const dogfoodReport = JSON.parse(fs.readFileSync(DOGFOOD_REPORT_PATH, "utf8"));
+  const dogfoodReport = JSON.parse(
+    fs.readFileSync(DOGFOOD_REPORT_PATH, "utf8")
+  );
   verifyDogfoodReport(dogfoodReport, fixture);
 
   const { row: approvedRow, ticket } = await loadApprovedWithdrawal(fixture);
   const dbBeforeComplete = getDbWithdrawal(fixture.withdrawal.withdrawalId);
   const beforeClaimDbBalance = getDbProviderBalance(fixture.provider.address);
-  addComparison("approve", "Gateway status", "APPROVED_AUTO", approvedRow.status, approvedRow.status === "APPROVED_AUTO" || approvedRow.status === "COMPLETED");
-  addComparison("approve", "DB status", "APPROVED_AUTO", dbBeforeComplete?.status, dbBeforeComplete?.status === "APPROVED_AUTO" || dbBeforeComplete?.status === "COMPLETED");
+  addComparison(
+    "approve",
+    "Gateway status",
+    "APPROVED_AUTO",
+    approvedRow.status,
+    approvedRow.status === "APPROVED_AUTO" || approvedRow.status === "COMPLETED"
+  );
+  addComparison(
+    "approve",
+    "DB status",
+    "APPROVED_AUTO",
+    dbBeforeComplete?.status,
+    dbBeforeComplete?.status === "APPROVED_AUTO" ||
+      dbBeforeComplete?.status === "COMPLETED"
+  );
   if (approvedRow.status !== "COMPLETED") {
-    addComparison("approve", "Ticket amount atomic", ticket.amount, dbBeforeComplete?.signature ? ticket.amount : ticket.amount, String(ticket.amount) === String(fixture.expected.amountAtomic));
+    addComparison(
+      "approve",
+      "Ticket amount atomic",
+      ticket.amount,
+      dbBeforeComplete?.signature ? ticket.amount : ticket.amount,
+      String(ticket.amount) === String(fixture.expected.amountAtomic)
+    );
   }
 
   await runSecurityChecksBeforeClaim(fixture);
@@ -495,7 +700,10 @@ async function main() {
   const beforeClaimChain = await readChainBalances(fixture.provider.address);
   let chainResult = null;
   if (approvedRow.status === "COMPLETED") {
-    pass("chain:claim-skipped", "withdrawal was already completed before reconciliation");
+    pass(
+      "chain:claim-skipped",
+      "withdrawal was already completed before reconciliation"
+    );
   } else {
     chainResult = await claimOnChainAndComplete(fixture, ticket);
   }
@@ -504,18 +712,76 @@ async function main() {
   const afterClaimDbBalance = getDbProviderBalance(fixture.provider.address);
 
   const expectedAtomic = BigInt(fixture.expected.amountAtomic);
-  const providerDelta = BigInt(afterClaimChain.providerUsdcAtomic) - BigInt(beforeClaimChain.providerUsdcAtomic);
-  const vaultDelta = BigInt(beforeClaimChain.vaultUsdcAtomic) - BigInt(afterClaimChain.vaultUsdcAtomic);
-  addComparison("chain", "Provider USDC delta atomic", expectedAtomic, providerDelta, providerDelta === expectedAtomic);
-  addComparison("chain", "Vault USDC delta atomic", expectedAtomic, vaultDelta, vaultDelta === expectedAtomic);
-  addComparison("complete", "DB status", "COMPLETED", dbAfterComplete?.status, dbAfterComplete?.status === "COMPLETED");
-  addComparison("complete", "DB txHash", chainResult?.txHash || "existing", dbAfterComplete?.txHash, Boolean(dbAfterComplete?.txHash));
-  addComparison("complete", "Provider pending balance", "0.000000", afterClaimDbBalance?.pendingBalance, String(afterClaimDbBalance?.pendingBalance || "") === "0.000000");
-  addComparison("complete", "Provider frozen balance", "0.000000", afterClaimDbBalance?.frozenBalance, String(afterClaimDbBalance?.frozenBalance || "") === "0.000000");
+  const providerDelta =
+    BigInt(afterClaimChain.providerUsdcAtomic) -
+    BigInt(beforeClaimChain.providerUsdcAtomic);
+  const vaultDelta =
+    BigInt(beforeClaimChain.vaultUsdcAtomic) -
+    BigInt(afterClaimChain.vaultUsdcAtomic);
+  addComparison(
+    "chain",
+    "Provider USDC delta atomic",
+    expectedAtomic,
+    providerDelta,
+    providerDelta === expectedAtomic
+  );
+  addComparison(
+    "chain",
+    "Vault USDC delta atomic",
+    expectedAtomic,
+    vaultDelta,
+    vaultDelta === expectedAtomic
+  );
+  addComparison(
+    "complete",
+    "DB status",
+    "COMPLETED",
+    dbAfterComplete?.status,
+    dbAfterComplete?.status === "COMPLETED"
+  );
+  addComparison(
+    "complete",
+    "DB txHash",
+    chainResult?.txHash || "existing",
+    dbAfterComplete?.txHash,
+    Boolean(dbAfterComplete?.txHash)
+  );
+  addComparison(
+    "complete",
+    "Provider pending balance",
+    "0.000000",
+    afterClaimDbBalance?.pendingBalance,
+    String(afterClaimDbBalance?.pendingBalance || "") === "0.000000"
+  );
+  addComparison(
+    "complete",
+    "Provider frozen balance",
+    "0.000000",
+    afterClaimDbBalance?.frozenBalance,
+    String(afterClaimDbBalance?.frozenBalance || "") === "0.000000"
+  );
 
-  const history = await adminApi(`/api/admin/v1/withdrawal-reviews/history?query=${encodeURIComponent(fixture.withdrawal.withdrawalId)}&limit=10`, fixture.auth);
-  const historyItems = history.payload.data?.items || history.payload.items || [];
-  addComparison("admin-history", "Review history contains withdrawal", "present", historyItems.some((item) => item.withdrawalId === fixture.withdrawal.withdrawalId) ? "present" : "missing", historyItems.some((item) => item.withdrawalId === fixture.withdrawal.withdrawalId));
+  const history = await adminApi(
+    `/api/admin/v1/withdrawal-reviews/history?query=${encodeURIComponent(
+      fixture.withdrawal.withdrawalId
+    )}&limit=10`,
+    fixture.auth
+  );
+  const historyItems =
+    history.payload.data?.items || history.payload.items || [];
+  addComparison(
+    "admin-history",
+    "Review history contains withdrawal",
+    "present",
+    historyItems.some(
+      (item) => item.withdrawalId === fixture.withdrawal.withdrawalId
+    )
+      ? "present"
+      : "missing",
+    historyItems.some(
+      (item) => item.withdrawalId === fixture.withdrawal.withdrawalId
+    )
+  );
 
   const report = writeReport({
     fixture,
@@ -532,6 +798,10 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error(`[admin-withdrawal-reconcile] fatal: ${error.stack || error.message || String(error)}`);
+  console.error(
+    `[admin-withdrawal-reconcile] fatal: ${
+      error.stack || error.message || String(error)
+    }`
+  );
   process.exit(1);
 });

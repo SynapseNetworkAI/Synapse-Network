@@ -101,7 +101,7 @@ anvil --version
 
 单独调试 Gateway 时，应保证以下依赖先可用：
 
-1. `services/gateway/.env.local` 里的 `POSTGRES_DSN`
+1. Docker local Postgres（默认 `127.0.0.1:15432`）
 2. `RPC_URL`
 3. `ROUTER_ADDRESS`
 4. `USDC_TOKEN_ADDRESS`
@@ -109,16 +109,28 @@ anvil --version
 
 然后再单独启动 Gateway 进程。
 
-`scripts/local/restart_gateway.sh` 默认只读取 `services/gateway/.env.local`
-里的本地 DSN，避免 shell 或 `.zshrc` 里残留的 staging `POSTGRES_DSN`
-污染本地启动。确实需要临时覆盖时，使用显式变量：
+`scripts/local/restart_gateway.sh` 默认启动并连接 Docker local Postgres
+`127.0.0.1:15432`，不会复用宿主机 `5432` 上的 PostgreSQL，也不会读取
+`services/gateway/.env.local` 里的 `POSTGRES_DSN`。确实需要临时覆盖时，使用显式变量：
 
 ```bash
 LOCAL_GATEWAY_POSTGRES_DSN=postgresql://... bash scripts/local/restart_gateway.sh
 ```
 
 不要用泛化的 `POSTGRES_DSN` 覆盖本地 restart 脚本；这是为了保证 local E2E
-不会误连 staging Cloud SQL 或另一个空库。
+不会误连 staging Cloud SQL、宿主机 PostgreSQL 或另一个空库。
+
+如果宿主机 `5432` 已被本机 PostgreSQL 或 SSH tunnel 占用，不需要脚本去停止或卸载它；
+local Gateway 默认仍会使用 Docker Postgres `15432`。如果要彻底重置 local
+Gateway 业务数据，只允许通过 Docker Compose 删除关联 volume：
+
+```bash
+LOCAL_GATEWAY_RESET_CONFIRM=I_UNDERSTAND_LOCAL_DATA_LOSS \
+  bash scripts/local/reset_gateway_docker_data.sh
+```
+
+该 reset 只适用于 local，会执行 `docker compose -f infra/docker/local/docker-compose.yml down -v`
+再启动 `postgres redis minio`，不会 `rm -rf` 宿主机 volume 目录。
 
 ### 3.3 本地链调试
 
@@ -454,11 +466,23 @@ TARGET_WALLET=0x1111111111111111111111111111111111111111,0x222222222222222222222
 1. 用途：只重启 `gateway/gateway_fastapi.py`，不重启前端和 Anvil
 2. 适合改了 Gateway 代码或 `.env.local` 之后快速重载
 3. 用法：`./scripts/local/restart_gateway.sh` 或 `bash scripts/local/restart_gateway.sh`
-4. 该脚本只确保本地 Postgres 进程可用，不会执行 `infra/postgres/init/000_run_init_tree.sh`
+4. 该脚本只确保 Docker local Postgres `127.0.0.1:15432` 可用，不复用宿主机 `5432`
 5. 如果需要初始化或升级本地数据库 schema，请使用 `scripts/local/setup_local_env.sh` 或手动执行迁移脚本
 6. 如果手滑用了 `sh scripts/local/*.sh`，脚本现在会自动重新切回 `bash`，避免 `pipefail` 兼容性错误。
 7. 启动前会检查本地 active E2E 服务膨胀；超过 `LOCAL_SERVICE_REGISTRY_TEST_ACTIVE_LIMIT`（默认 50）会拒绝启动，避免测试垃圾服务抢占 health monitor 探活名额。
 8. 启动前也会提示 `service_health_meta::*` / `service_health_history::*` 这类测试健康状态膨胀；它不会自动清理，但会给出 cleanup dry-run 命令，避免隐藏本地 DB 变更。
+
+`scripts/local/reset_gateway_docker_data.sh`
+
+1. 用途：物理清空 local Gateway Docker 数据卷，拿到一个全新的本地 DB
+2. 必须显式确认：
+   ```bash
+   LOCAL_GATEWAY_RESET_CONFIRM=I_UNDERSTAND_LOCAL_DATA_LOSS \
+     bash scripts/local/reset_gateway_docker_data.sh
+   ```
+3. 实现只调用 Docker Compose：`down -v` 后 `up -d postgres redis minio`
+4. 不访问、不删除宿主机 Docker volume 物理目录
+5. 不适用于 staging/prod
 
 `scripts/local/cleanup_service_registry_dev.sh`
 
@@ -651,7 +675,27 @@ Gateway 至少要显式配置：
 3. `V2_INDEXER_STEP_TIMEOUT_SEC` 是 event loop 对单轮 worker 的等待上限；`RPC_REQUEST_TIMEOUT_SEC` 和 `POSTGRES_CONNECT_TIMEOUT_SEC` 是底层 I/O 硬超时，必须更短或足够保守。
 4. 如果上一轮 indexer worker 仍在运行，下一轮会跳过并标记 `INDEXER_STEP_STILL_RUNNING`，不会堆积多个 backfill 线程。
 5. 服务健康探测 monitor 也在专用 worker 中运行；`SERVICE_HEALTH_MONITOR_STEP_TIMEOUT_SEC` 用于避免 provider health 检查或健康表同步拖住 API event loop。
-6. Gateway 重启会先把 Provider health snapshot 标记为 `stale`，再按 `SERVICE_HEALTH_REHYDRATE_WINDOW_SEC` 平滑探活，避免启动时全量并发打爆 Provider。
+6. Gateway 重启会信任新鲜 Provider health snapshot；超过信任窗口的 snapshot 会 fail closed，再由 health monitor 平滑探活恢复。
+
+### 4.8 Gateway-admin schema 自愈
+
+Docker Postgres 的 `/docker-entrypoint-initdb.d` 只在空 volume 首次初始化时执行。已经存在的本地 volume 如果缺少 `synapse_gateway_admin` 表，Docker 不会自动补跑 schema。
+
+本地推荐入口是：
+
+```bash
+npm run dev:all
+```
+
+该命令会在启动 gateway-admin 前探测 `admin_users` 和 `admin_action_audit` 等核心对象；如果 schema missing/stale，会使用 local-only `ADMIN_DATABASE_MIGRATION_DSN` 自动执行 gateway-admin migrations，然后重新探测。旧 volume 如果 migrator 没有 DDL 权限，会 fallback 到 Docker Postgres owner；可用 `ADMIN_DATABASE_LOCAL_SUPERUSER_DSN` 覆盖。这个自愈只允许 Docker local `localhost/127.0.0.1:15432` 的 `synapse_gateway_admin`，避免本地脚本误连 staging/prod 或宿主机 5432 上的旧库。
+
+如果单独启动 gateway-admin 或自动自愈失败，手动执行：
+
+```bash
+npm run dev:migrate
+```
+
+Staging/prod 禁止 runtime 自动建表，必须先执行对应 `gateway-admin-db-migrate` job。
 
 ## 5. 本地开发纪律
 

@@ -45,6 +45,7 @@ from src.storage.analytics import (
 from src.storage import InMemoryAdminStore
 
 PLACEHOLDER_PASSWORD = "phase1-" + "placeholder"
+BOOTSTRAP_TOTP_SECRET = "__BOOTSTRAP_TOTP_SECRET__"
 
 
 class FakeAnalyticsDashboardRepository:
@@ -934,6 +935,45 @@ def test_admin_auth_login_requires_mfa_enrollment_for_unbound_account() -> None:
     assert body["data"]["totpIssuer"] == "Synapse Gateway Admin"
 
 
+def test_admin_auth_login_requires_mfa_enrollment_for_bootstrap_placeholder_totp() -> None:
+    email = f"bootstrap-placeholder-{uuid4().hex[:8]}@synapse.network"
+    store = _test_store()
+    user = store.identity.create_user(
+        AdminUser(
+            admin_id=f"admin_{uuid4().hex[:12]}",
+            email=email,
+            display_name="Bootstrap Placeholder Admin",
+            status=AdminUserStatus.ACTIVE,
+            password_hash=hash_password(PLACEHOLDER_PASSWORD),
+            require_mfa=True,
+        )
+    )
+    store.identity.upsert_mfa_factor(
+        AdminMfaFactor(
+            factor_id=f"factor_{uuid4().hex[:12]}",
+            admin_id=user.admin_id,
+            factor_type=MfaFactorType.TOTP,
+            factor_label="primary",
+            status=MfaFactorStatus.ACTIVE,
+            payload={"totpSecret": BOOTSTRAP_TOTP_SECRET},
+        )
+    )
+    client.cookies.clear()
+
+    response = client.post(
+        "/api/admin/v1/auth/login",
+        json={
+            "email": email,
+            "password": PLACEHOLDER_PASSWORD,
+        },
+    )
+
+    assert response.status_code == 428
+    body = response.json()
+    assert body["error"]["code"] == "MFA_ENROLLMENT_REQUIRED"
+    assert body["data"]["enrollmentToken"]
+
+
 def test_admin_auth_mfa_enrollment_begin_and_verify_issue_session() -> None:
     _ensure_unenrolled_admin()
     client.cookies.clear()
@@ -978,6 +1018,68 @@ def test_admin_auth_mfa_enrollment_begin_and_verify_issue_session() -> None:
     factors = store.identity.list_mfa_factors(user.admin_id)
     active_factors = [factor for factor in factors if factor.status.value == "active"]
     assert len(active_factors) == 1
+
+
+def test_admin_auth_mfa_enrollment_begin_replaces_bootstrap_placeholder_secret() -> None:
+    email = f"bootstrap-enroll-{uuid4().hex[:8]}@synapse.network"
+    store = _test_store()
+    user = store.identity.create_user(
+        AdminUser(
+            admin_id=f"admin_{uuid4().hex[:12]}",
+            email=email,
+            display_name="Bootstrap Enrollment Admin",
+            status=AdminUserStatus.ACTIVE,
+            password_hash=hash_password(PLACEHOLDER_PASSWORD),
+            require_mfa=True,
+        )
+    )
+    existing_factor = store.identity.upsert_mfa_factor(
+        AdminMfaFactor(
+            factor_id=f"factor_{uuid4().hex[:12]}",
+            admin_id=user.admin_id,
+            factor_type=MfaFactorType.TOTP,
+            factor_label="primary",
+            status=MfaFactorStatus.ACTIVE,
+            payload={"totpSecret": BOOTSTRAP_TOTP_SECRET},
+        )
+    )
+    client.cookies.clear()
+
+    login_response = client.post(
+        "/api/admin/v1/auth/login",
+        json={
+            "email": email,
+            "password": PLACEHOLDER_PASSWORD,
+        },
+    )
+    assert login_response.status_code == 428
+    enrollment_token = login_response.json()["data"]["enrollmentToken"]
+
+    begin_response = client.post(
+        "/api/admin/v1/auth/mfa/enroll/begin",
+        json={"enrollmentToken": enrollment_token},
+    )
+
+    assert begin_response.status_code == 200
+    begin_body = begin_response.json()["data"]
+    assert begin_body["factorId"] == existing_factor.factor_id
+    assert begin_body["manualEntryKey"]
+    assert begin_body["manualEntryKey"] != BOOTSTRAP_TOTP_SECRET
+    assert BOOTSTRAP_TOTP_SECRET not in begin_body["otpauthUrl"]
+    factor = store.identity.get_mfa_factor_by_id(existing_factor.factor_id)
+    assert factor is not None
+    assert factor.status == MfaFactorStatus.PENDING
+    assert factor.payload["totpSecret"] == begin_body["manualEntryKey"]
+
+    verify_response = client.post(
+        "/api/admin/v1/auth/mfa/enroll/verify",
+        json={
+            "enrollmentToken": enrollment_token,
+            "factorId": begin_body["factorId"],
+            "otpCode": generate_totp_code(begin_body["manualEntryKey"]),
+        },
+    )
+    assert verify_response.status_code == 200
 
 
 def test_admin_auth_mfa_enrollment_begin_reuses_same_secret_for_same_token() -> None:
@@ -2364,6 +2466,65 @@ def test_provider_withdraw_review_decision_rejects_multiple_active_google_authen
                 created_at=factor.created_at,
                 updated_at=factor.updated_at,
                 revoked_at=factor.updated_at,
+            )
+        )
+
+
+def test_provider_withdraw_review_decision_rejects_placeholder_google_authenticator_secret() -> None:
+    csrf_headers = _login_as("finance-review@synapse.network")
+    store = _test_store()
+    user = store.identity.get_user_by_email("finance-review@synapse.network")
+    assert user is not None
+    factor = next(
+        factor
+        for factor in store.identity.list_mfa_factors(user.admin_id)
+        if factor.status == MfaFactorStatus.ACTIVE
+        and factor.factor_type == MfaFactorType.TOTP
+    )
+    original_payload = dict(factor.payload)
+    store.identity.upsert_mfa_factor(
+        AdminMfaFactor(
+            factor_id=factor.factor_id,
+            admin_id=factor.admin_id,
+            factor_type=factor.factor_type,
+            factor_label=factor.factor_label,
+            status=factor.status,
+            secret_ref=factor.secret_ref,
+            payload={**original_payload, "totpSecret": "__BOOTSTRAP_TOTP_SECRET__"},
+            last_verified_at=factor.last_verified_at,
+            created_at=factor.created_at,
+            updated_at=factor.updated_at,
+            revoked_at=factor.revoked_at,
+        )
+    )
+
+    try:
+        response = client.post(
+            "/api/admin/v1/withdrawal-reviews/wd-demo-review-001/decision",
+            headers={**csrf_headers, "X-Admin-OTP-Code": "123456"},
+            json={
+                "decision": "REJECT",
+                "note": "Placeholder TOTP secret must be rejected explicitly.",
+            },
+        )
+        assert response.status_code == 401
+        assert response.json()["error"]["message"] == (
+            "Admin Google Authenticator is not configured"
+        )
+    finally:
+        store.identity.upsert_mfa_factor(
+            AdminMfaFactor(
+                factor_id=factor.factor_id,
+                admin_id=factor.admin_id,
+                factor_type=factor.factor_type,
+                factor_label=factor.factor_label,
+                status=factor.status,
+                secret_ref=factor.secret_ref,
+                payload=original_payload,
+                last_verified_at=factor.last_verified_at,
+                created_at=factor.created_at,
+                updated_at=factor.updated_at,
+                revoked_at=factor.revoked_at,
             )
         )
 
