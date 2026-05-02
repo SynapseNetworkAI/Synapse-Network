@@ -73,9 +73,10 @@ const config = {
       process.env.STAGING_WITHDRAWAL_REVIEW_POSTGRES_DSN ||
       ""
     : process.env.LOCAL_POSTGRES_DSN ||
+      process.env.LOCAL_GATEWAY_POSTGRES_DSN ||
       process.env.POSTGRES_DSN ||
       process.env.GATEWAY_POSTGRES_DSN ||
-      "postgresql://synapse_gateway_app:local-dev-gateway-app-password@localhost:5432/synapse_gateway",
+      "postgresql://synapse_gateway_app:local-dev-gateway-app-password@127.0.0.1:15432/synapse_gateway",
   adminCookieName:
     process.env.ADMIN_SESSION_COOKIE_NAME || "synapse_admin_session",
   adminTotpSecret:
@@ -317,7 +318,7 @@ function resetLocalAdminE2eAccount() {
   const adminDsn =
     process.env.ADMIN_DATABASE_MIGRATION_DSN ||
     process.env.ADMIN_DATABASE_DSN ||
-    "postgresql://synapse_admin_app:12345678@localhost:5432/synapse_gateway_admin";
+    "postgresql://synapse_admin_app:local-dev-admin-app-password@127.0.0.1:15432/synapse_gateway_admin";
   runCommand(
     "reset-local-admin-e2e",
     pythonBin,

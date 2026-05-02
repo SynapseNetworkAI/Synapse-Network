@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Quick DB state inspector for consumer withdraw debugging."""
+import json
 import sys
 sys.path.insert(0, "/Users/cliff/workspace/agent/Synapse-Network/services/gateway")
 
 import psycopg
 
-DSN = "postgresql://synapse_gateway_app:12345678@127.0.0.1:5432/synapse_gateway"
+DSN = "postgresql://synapse_gateway_app:local-dev-gateway-app-password@127.0.0.1:15432/synapse_gateway"
 
 def main():
     conn = psycopg.connect(DSN)
@@ -35,7 +36,6 @@ def main():
     """)
     row = cur.fetchone()
     if row:
-        import json
         intents = json.loads(row[1]) if isinstance(row[1], str) else row[1]
         if isinstance(intents, list):
             consumer_withdrawals = [

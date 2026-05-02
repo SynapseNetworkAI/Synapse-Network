@@ -37,6 +37,9 @@ from src.storage.forum_support import PostgresForumSupportRepository
 AuthorizationHeader = Annotated[str | None, Header(alias="Authorization")]
 RequestIdHeader = Annotated[str | None, Header(alias="X-Request-Id")]
 AdminOtpHeader = Annotated[str | None, Header(alias="X-Admin-OTP-Code")]
+INVALID_AUTHORIZATION_HEADER = "Invalid Authorization header"
+MISSING_ADMIN_SESSION = "Missing admin session"
+SUPER_ADMIN_ROLE_REQUIRED = "Super admin role required"
 
 
 @lru_cache(maxsize=1)
@@ -191,12 +194,12 @@ def get_admin_token(request: Request, authorization: AuthorizationHeader = None)
     if authorization:
         scheme, _, raw_token = authorization.partition(" ")
         if scheme.lower() != "bearer" or not raw_token:
-            raise AuthenticationError("Invalid Authorization header")
+            raise AuthenticationError(INVALID_AUTHORIZATION_HEADER)
         return raw_token
     cookie_name = get_settings().admin_session_cookie_name
     token = request.cookies.get(cookie_name)
     if not token:
-        raise AuthenticationError("Missing admin session")
+        raise AuthenticationError(MISSING_ADMIN_SESSION)
     return token
 
 
@@ -214,7 +217,8 @@ def require_permission(permission: str):
         admin: Annotated[AdminIdentity, Depends(require_admin)],
     ) -> AdminIdentity:
         if permission not in admin.permissions:
-            raise AuthorizationError(f"Missing permission: {permission}")
+            message = f"Missing permission: {permission}"
+            raise AuthorizationError(message)
         return admin
 
     return dependency
@@ -226,6 +230,20 @@ def require_high_risk_permission(permission: str):
         admin: Annotated[AdminIdentity, Depends(require_permission(permission))] = None,
         auth_service: Annotated[AdminAuthService, Depends(get_auth_service)] = None,
     ) -> AdminIdentity:
+        auth_service.verify_high_risk_otp(admin.admin_id, otp_code)
+        return admin
+
+    return dependency
+
+
+def require_super_admin_high_risk_permission(permission: str):
+    def dependency(
+        otp_code: AdminOtpHeader = None,
+        admin: Annotated[AdminIdentity, Depends(require_permission(permission))] = None,
+        auth_service: Annotated[AdminAuthService, Depends(get_auth_service)] = None,
+    ) -> AdminIdentity:
+        if admin.role != "super_admin":
+            raise AuthorizationError(SUPER_ADMIN_ROLE_REQUIRED)
         auth_service.verify_high_risk_otp(admin.admin_id, otp_code)
         return admin
 

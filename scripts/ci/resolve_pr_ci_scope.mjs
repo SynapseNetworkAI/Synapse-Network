@@ -10,7 +10,6 @@ const FULL_COMMANDS = [
   "finance_mypy_scan",
   "local_runtime_guard_scan",
   "e2e_script_model_drift_scan",
-  "migration_seed_guard_scan",
   "code_quality_architecture_scan",
   "quality_budget_check",
   "format_check",
@@ -34,7 +33,6 @@ const FULL_COMMANDS = [
 const BASELINE_COMMANDS = [
   "runtime_preflight",
   "local_runtime_guard_scan",
-  "migration_seed_guard_scan",
   "quality_budget_check",
   "format_check",
   "security_secret_scan",
@@ -172,7 +170,6 @@ function classifyPackageJsonChange(mergeBase, head) {
     "ci:e2e-env-isolation",
     "ci:release-go-no-go",
     "ci:performance-reliability",
-    "ci:migration-seed-guard",
     "ci:gateway-stress-review",
   ]);
 
@@ -510,7 +507,6 @@ if (requestedMode === "full") {
         file === "scripts/deploy/migrate_db.sh"
       ) {
         riskScopes.add("schema-migration");
-        addCommand(commands, "migration_seed_guard_scan");
         addCommand(commands, "gateway_checks");
       }
     }

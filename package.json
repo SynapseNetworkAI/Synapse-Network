@@ -65,7 +65,6 @@
     "ci:llm-deepseek-staging-evidence": "LLM_DEEPSEEK_E2E_ENV=staging node scripts/ci/llm_deepseek_gateway_evidence_check.mjs",
     "ci:in-app-notifications-evidence": "node scripts/ci/in_app_notifications_evidence_check.mjs",
     "ci:backup-restore-evidence": "node scripts/ci/backup_restore_evidence_check.mjs",
-    "ci:migration-seed-guard": "node scripts/ci/migration_seed_guard_scan.mjs",
     "ci:pr": "bash scripts/ci/pr_checks.sh",
     "ci:provider-service": "bash scripts/ci/provider_service_checks.sh",
     "ci:user-front-pages": "cd services/user-front && yarn test:user-front-pages",

@@ -51,13 +51,14 @@ const evidenceDir = path.resolve(
 );
 const screenshotsDir = path.join(evidenceDir, "screenshots");
 const defaultLocalDsn =
-  "postgresql://synapse_gateway_app:local-dev-gateway-app-password@localhost:5432/synapse_gateway";
+  "postgresql://synapse_gateway_app:local-dev-gateway-app-password@127.0.0.1:15432/synapse_gateway";
 const localGatewayEnv = readDotenvFile(
   path.join(ROOT, "services/gateway/.env.local")
 );
 const postgresDsn =
   process.env.SUPPORT_CASE_POSTGRES_DSN ||
   process.env.STAGING_SUPPORT_CASE_POSTGRES_DSN ||
+  (!isStaging ? process.env.LOCAL_GATEWAY_POSTGRES_DSN : "") ||
   (isStaging ? process.env.POSTGRES_DSN : localGatewayEnv.POSTGRES_DSN) ||
   (!isStaging ? process.env.POSTGRES_DSN : "") ||
   defaultLocalDsn;
