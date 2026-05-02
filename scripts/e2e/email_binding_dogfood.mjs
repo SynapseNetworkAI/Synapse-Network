@@ -60,7 +60,7 @@ const evidenceDir = path.resolve(
 );
 const screenshotsDir = path.join(evidenceDir, "screenshots");
 const defaultLocalDsn =
-  "postgresql://synapse_gateway_app:local-dev-gateway-app-password@localhost:5432/synapse_gateway";
+  "postgresql://synapse_gateway_app:local-dev-gateway-app-password@127.0.0.1:15432/synapse_gateway";
 const postgresDsn =
   process.env.EMAIL_BINDING_POSTGRES_DSN ||
   process.env.LOCAL_GATEWAY_POSTGRES_DSN ||

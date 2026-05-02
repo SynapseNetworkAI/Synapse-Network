@@ -25,6 +25,7 @@ from tests.e2e.conftest import (
     OWNER_KEY,
     PROVIDER_KEY,
     RELEASE_E2E,
+    revoke_stale_e2e_agent_credentials,
     track_test_service_id,
 )
 from tests.e2e.helpers.auth import authenticate_wallet
@@ -314,6 +315,9 @@ class TestCredentials:
 
     def test_01_issue_credential(self):
         """POST /api/v1/credentials/agent/issue → 200 with token"""
+        revoke_stale_e2e_agent_credentials(
+            {"Authorization": f"Bearer {self._jwt()}"}
+        )
         r = httpx.post(
             f"{GATEWAY_BASE}/api/v1/credentials/agent/issue",
             headers={"Authorization": f"Bearer {self._jwt()}"},
@@ -390,6 +394,7 @@ class TestInvocations:
         if not STATE.get("agent_credential"):
             # Issue a fresh credential
             jwt, _ = authenticate_wallet(GATEWAY_BASE, OWNER_KEY)
+            revoke_stale_e2e_agent_credentials({"Authorization": f"Bearer {jwt}"})
             r = httpx.post(
                 f"{GATEWAY_BASE}/api/v1/credentials/agent/issue",
                 headers={"Authorization": f"Bearer {jwt}"},
