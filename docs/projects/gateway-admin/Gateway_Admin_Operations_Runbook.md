@@ -184,7 +184,7 @@ GATEWAY_INTERNAL_SERVICE_SUBJECTS=service:gateway-admin
 
 1. `Admin session expired`: 浏览器 session 失效。
 2. `Missing admin CSRF token`: 会话期 CSRF 未建立或未恢复。
-3. `Invalid Google Authenticator code`: OTP 过期或错误。
+3. `Invalid Google Authenticator code`: OTP 过期或错误。后端默认接受当前、前一、后一 TOTP 时间步长；如果仍失败，请让管理员刷新 Google Authenticator 6 位码，并确认手机时间自动同步已开启。
 4. `Invalid internal service token`: 两侧内部 JWT 配置未对齐。
 5. `Internal admin wallet is not allow-listed`: admin wallet 不在 gateway 白名单中。
 

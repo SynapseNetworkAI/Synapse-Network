@@ -340,12 +340,10 @@ async def test_consumer_withdraw_processor_once_counts_changed_and_failed(
         "fake-storage"
     )
 
-    assert result == {
-        "collected": 3,
-        "processed": 2,
-        "completedOrExpired": 1,
-        "failed": 1,
-    }
+    assert result.collected == 3
+    assert result.processed == 2
+    assert result.completedOrExpired == 1
+    assert result.failed == 1
 
 
 def test_collect_consumer_withdrawal_timeout_rows_filters_active_consumer_rows() -> None:

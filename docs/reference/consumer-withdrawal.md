@@ -15,12 +15,12 @@ The runtime model is:
 
 ## Endpoints
 
-| Method | Path | Description |
-| --- | --- | --- |
-| `POST` | `/api/v1/balance/consumer/withdraw` | Create or resume a consumer withdrawal intent |
-| `GET` | `/api/v1/balance/consumer/withdrawals` | List consumer withdrawals for the caller |
-| `POST` | `/api/v1/refunds/{refundId}/complete` | Mark a wallet-confirmed withdrawal `COMPLETED` |
-| `POST` | `/api/v1/refunds/{refundId}/fail` | Mark a failed wallet flow `FAILED` and release reserved balance |
+| Method | Path                                      | Description                                                     |
+| ------ | ----------------------------------------- | --------------------------------------------------------------- |
+| `POST` | `/api/v1/balance/consumer/withdraw`       | Create or resume a consumer withdrawal intent                   |
+| `GET`  | `/api/v1/balance/consumer/withdrawals`    | List consumer withdrawals for the caller                        |
+| `POST` | `/api/v1/refunds/{refundId}/complete`     | Mark a wallet-confirmed withdrawal `COMPLETED`                  |
+| `POST` | `/api/v1/refunds/{refundId}/fail`         | Mark a failed wallet flow `FAILED` and release reserved balance |
 | `POST` | `/api/v1/admin/refunds/{refundId}/review` | Approve or reject a `PENDING_MANUAL_REVIEW` consumer withdrawal |
 
 ## Statuses
@@ -37,29 +37,30 @@ PENDING_MANUAL_REVIEW
   -> FAILED
 ```
 
-| Status | Meaning |
-| --- | --- |
-| `REQUESTED` | Auto-approved. Balance already moved from available to pending. Ticket is ready for wallet execution. |
-| `PENDING_MANUAL_REVIEW` | Balance already moved from available to frozen. No wallet ticket is exposed yet. |
-| `COMPLETED` | On-chain `withdraw()` succeeded and pending balance has been consumed. |
-| `FAILED` | Wallet rejected, receipt failed, or the client explicitly reported failure. Reserved balance is released. |
-| `REJECTED` | Admin denied a manual-review withdrawal. Frozen balance is released. |
-| `CANCELLED` | Ticket expired before on-chain execution. Pending balance is released. |
+| Status                  | Meaning                                                                                                   |
+| ----------------------- | --------------------------------------------------------------------------------------------------------- |
+| `REQUESTED`             | Auto-approved. Balance already moved from available to pending. Ticket is ready for wallet execution.     |
+| `PENDING_MANUAL_REVIEW` | Balance already moved from available to frozen. No wallet ticket is exposed yet.                          |
+| `COMPLETED`             | On-chain `withdraw()` succeeded and pending balance has been consumed.                                    |
+| `FAILED`                | Wallet rejected, receipt failed, or the client explicitly reported failure. Reserved balance is released. |
+| `REJECTED`              | Admin denied a manual-review withdrawal. Frozen balance is released.                                      |
+| `FAILED_EXPIRED`        | Ticket expired or manual review exceeded 24h. Reserved balance is released.                               |
 
 ## Balance Transitions
 
 All amounts below refer to the gross requested amount from the consumer treasury.
 
-| Transition | available | pending | frozen |
-| --- | --- | --- | --- |
-| Create `REQUESTED` | `- amount` | `+ amount` | no change |
-| Create `PENDING_MANUAL_REVIEW` | `- amount` | no change | `+ amount` |
-| Review `APPROVE` | no change | `+ amount` | `- amount` |
-| Review `REJECT` | `+ amount` | no change | `- amount` |
-| `/complete` or watcher completion | no change | `- amount` | no change |
-| `/fail` from `REQUESTED` | `+ amount` | `- amount` | no change |
-| `/fail` from `PENDING_MANUAL_REVIEW` | `+ amount` | no change | `- amount` |
-| Ticket expiry -> `CANCELLED` | `+ amount` | `- amount` | no change |
+| Transition                               | available  | pending    | frozen     |
+| ---------------------------------------- | ---------- | ---------- | ---------- |
+| Create `REQUESTED`                       | `- amount` | `+ amount` | no change  |
+| Create `PENDING_MANUAL_REVIEW`           | `- amount` | no change  | `+ amount` |
+| Review `APPROVE`                         | no change  | `+ amount` | `- amount` |
+| Review `REJECT`                          | `+ amount` | no change  | `- amount` |
+| `/complete` or watcher completion        | no change  | `- amount` | no change  |
+| `/fail` from `REQUESTED`                 | `+ amount` | `- amount` | no change  |
+| `/fail` from `PENDING_MANUAL_REVIEW`     | `+ amount` | no change  | `- amount` |
+| Manual review expiry -> `FAILED_EXPIRED` | `+ amount` | no change  | `- amount` |
+| Ticket expiry -> `FAILED_EXPIRED`        | `+ amount` | `- amount` | no change  |
 
 ### Failure Semantics
 
@@ -94,6 +95,8 @@ If the owner sends another `POST /api/v1/balance/consumer/withdraw` while one of
 - The ticket signs the net transfer amount and the fee separately.
 - The wallet executes `SynapseCore.withdraw(net, fee, ticketId, deadline, signature)`.
 - Each withdrawal request has a single ticket lifecycle. If the ticket expires before the chain claim, Gateway closes the request as `FAILED_EXPIRED`, releases the funds, and the user must create a fresh withdrawal request.
+- Manual-review withdrawals have a 24h SLA (`WITHDRAWAL_MANUAL_REVIEW_EXPIRY_SEC=86400`). If review does not happen in time, the processor marks the row `FAILED_EXPIRED`, releases frozen funds back to available balance, and sends user notification copy that explicitly says the funds were safely returned.
+- Expiry processors are batch-limited (`WITHDRAWAL_REAPER_BATCH_SIZE=100` by default) so historical queues are drained over multiple short transactions instead of one lock-heavy sweep.
 
 The owner receives the net amount on-chain. The fee stays inside the vault as protocol revenue.
 
@@ -103,15 +106,14 @@ Consumer withdrawals appear in Payments as a single `Withdraw` row. We intention
 
 Status mapping:
 
-| Withdrawal Status | Payments Status |
-| --- | --- |
-| `REQUESTED` | `PENDING` |
-| `PENDING_MANUAL_REVIEW` | `PENDING` |
-| `COMPLETED` | `COMPLETED` |
-| `FAILED` | `FAILED` |
-| `REJECTED` | `FAILED` |
-| `FAILED_EXPIRED` | `FAILED` |
-| `CANCELLED` | `FAILED` |
+| Withdrawal Status       | Payments Status |
+| ----------------------- | --------------- |
+| `REQUESTED`             | `PENDING`       |
+| `PENDING_MANUAL_REVIEW` | `PENDING`       |
+| `COMPLETED`             | `COMPLETED`     |
+| `FAILED`                | `FAILED`        |
+| `REJECTED`              | `FAILED`        |
+| `FAILED_EXPIRED`        | `FAILED`        |
 
 Other display rules:
 
@@ -151,13 +153,13 @@ prove a failed chain receipt does not incorrectly roll the off-chain state back.
 
 ## Storage
 
-| Table | Role |
-| --- | --- |
-| `synapse_account_balances` | Source of truth for `available_balance`, `pending_balance`, and `frozen_balance` |
-| `synapse_vault_withdrawals` | Persistent withdrawal rows with `withdrawal_kind='consumer_refund'` |
-| `synapse_runtime_state` | Runtime metadata including risk and review context |
-| `vault_withdrawal_meta::{id}` | Ticket metadata mirror used to recover nonce, deadline, and signature |
-| `synapse_audit_events` | Audit trail for create, fail, approve, reject, cancel, and complete actions |
+| Table                         | Role                                                                             |
+| ----------------------------- | -------------------------------------------------------------------------------- |
+| `synapse_account_balances`    | Source of truth for `available_balance`, `pending_balance`, and `frozen_balance` |
+| `synapse_vault_withdrawals`   | Persistent withdrawal rows with `withdrawal_kind='consumer_refund'`              |
+| `synapse_runtime_state`       | Runtime metadata including risk and review context                               |
+| `vault_withdrawal_meta::{id}` | Ticket metadata mirror used to recover nonce, deadline, and signature            |
+| `synapse_audit_events`        | Audit trail for create, fail, approve, reject, cancel, and complete actions      |
 
 ## Core Guarantees
 

@@ -127,7 +127,7 @@ The heavy evidence gate is path-sensitive. README/docs-only edits do not invalid
 
 Local runtime scripts must verify the real Postgres role/schema, not only port `5432`. A port-only probe can reuse the wrong database and create false pass/fail dogfood results.
 
-Admin dogfood scripts must wait for a safe TOTP window before submitting step-up codes. Generating a code during the final seconds of a TOTP period creates flaky false failures.
+Admin dogfood scripts must wait for a safe TOTP window before submitting step-up codes. Generating a code during the final seconds of a TOTP period creates flaky false failures. Gateway-admin keeps `ADMIN_GOOGLE_AUTHENTICATOR_WINDOW=1` by default, so high-risk approval decisions accept the current, previous, or next 30-second Google Authenticator step while still rejecting codes outside that narrow drift window.
 
 E2E and reconcile scripts must document model-sensitive hardcoded status/table assumptions or import shared constants. Silent model drift can make a test pass or fail for the wrong reason.
 
