@@ -5,8 +5,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
-import { chromium } from "playwright";
 import { ethers } from "ethers";
+import { createAdminWithdrawalReviewFocusHelpers } from "./admin_withdrawal_review_focus_helpers.mjs";
 import {
   generateTotpCode,
   waitForSafeTotpWindow,
@@ -25,6 +25,7 @@ const MODE = (
   "local"
 ).toLowerCase();
 const IS_STAGING = MODE === "staging";
+const IS_ADMIN_REVIEW_FOCUSED = process.env.ADMIN_WITHDRAWAL_REVIEW_E2E === "1";
 const timestamp = new Date()
   .toISOString()
   .replace(/[:.]/g, "")
@@ -35,8 +36,14 @@ const OUT_DIR = process.env.WITHDRAWAL_REVIEW_DOGFOOD_OUT_DIR
       ROOT,
       IS_STAGING
         ? "docs/evidence/staging/withdrawal-review-dogfood"
+        : IS_ADMIN_REVIEW_FOCUSED
+        ? "output/dogfood/admin-withdrawal-review"
         : "output/dogfood/withdrawal-review",
-      `${timestamp}-${MODE}-withdrawal-review-dogfood`
+      `${timestamp}-${MODE}-${
+        IS_ADMIN_REVIEW_FOCUSED
+          ? "admin-withdrawal-review"
+          : "withdrawal-review-dogfood"
+      }`
     );
 const SCREENSHOT_DIR = path.join(OUT_DIR, "screenshots");
 
@@ -111,6 +118,7 @@ const evidence = {
   db: {},
   chain: {},
   screenshots: [],
+  screenshotEvidence: [],
   passed: [],
   failed: [],
   warnings: [],
@@ -186,6 +194,20 @@ function warn(name, detail = "") {
   evidence.warnings.push({ name, detail });
   console.warn(`WARN ${name}${detail ? ` - ${detail}` : ""}`);
 }
+
+const {
+  captureAdminApproveResult,
+  captureAdminLoginSuccess,
+  captureReviewScreenshots,
+  recordAdminAuthCheckpoint,
+} = createAdminWithdrawalReviewFocusHelpers({
+  config,
+  enabled: IS_ADMIN_REVIEW_FOCUSED,
+  evidence,
+  isStaging: IS_STAGING,
+  sanitize,
+  screenshotDir: SCREENSHOT_DIR,
+});
 
 function runId() {
   return process.env.WITHDRAWAL_REVIEW_DOGFOOD_RUN_ID || `wr-${timestamp}`;
@@ -415,6 +437,13 @@ async function loginAdmin() {
       : response.headers.get("set-cookie");
   const sessionToken = parseSessionCookie(setCookie);
   if (!response.ok || !body.success || !sessionToken) {
+    recordAdminAuthCheckpoint("login", {
+      httpStatus: response.status,
+      sessionCookiePresent: Boolean(sessionToken),
+      csrfTokenPresent: Boolean(body.data?.csrfToken),
+      errorCode: body.error?.code,
+      errorMessage: body.error?.message,
+    });
     throw new Error(
       `Admin login failed: ${response.status} ${JSON.stringify(body).slice(
         0,
@@ -438,6 +467,13 @@ async function loginAdmin() {
       adminRole: body.data?.admin?.role,
     },
     reconciliationStatus: "passed",
+  });
+  recordAdminAuthCheckpoint("login", {
+    httpStatus: response.status,
+    sessionCookiePresent: true,
+    csrfTokenPresent: Boolean(body.data?.csrfToken),
+    permissions: body.data?.admin?.permissions || [],
+    role: body.data?.admin?.role || "",
   });
   return { sessionToken, csrfToken: body.data?.csrfToken || "" };
 }
@@ -702,99 +738,18 @@ async function isTicketConsumed(ticketHash) {
   return Boolean(await core.isTicketConsumed(ticketHash));
 }
 
-async function screenshotAdmin(page, name) {
-  const filePath = path.join(SCREENSHOT_DIR, `${name}.png`);
-  await page.screenshot({ path: filePath, fullPage: true });
-  evidence.screenshots.push(filePath);
-  return filePath;
-}
-
-async function openAdminContext(adminAuth) {
-  const browser = await chromium.launch({
-    headless: process.env.HEADLESS !== "0",
-  });
-  const context = await browser.newContext({
-    viewport: { width: 1440, height: 1000 },
-  });
-  const adminCookie = {
-    name: config.adminCookieName,
-    value: adminAuth.sessionToken,
-    httpOnly: true,
-    sameSite: "Lax",
-  };
-  await context.addCookies([
-    IS_STAGING
-      ? {
-          ...adminCookie,
-          domain: ".synapse-network.ai",
-          path: "/",
-          secure: true,
-        }
-      : {
-          ...adminCookie,
-          url: config.adminFront,
-        },
-  ]);
-  if (adminAuth.csrfToken) {
-    await context.addInitScript((csrfToken) => {
-      window.sessionStorage.setItem("synapse.admin.csrfToken", csrfToken);
-    }, adminAuth.csrfToken);
-  }
-  const page = await context.newPage();
-  const consoleErrors = [];
-  page.on("console", (message) => {
-    if (
-      message.type() === "error" &&
-      !message.text().includes("Failed to fetch RSC payload")
-    ) {
-      consoleErrors.push(message.text());
-    }
-  });
-  page.on("pageerror", (error) => consoleErrors.push(error.message));
-  return { browser, page, consoleErrors };
-}
-
-async function captureReviewScreenshots(adminAuth, withdrawalId, prefix) {
-  const { browser, page, consoleErrors } = await openAdminContext(adminAuth);
-  try {
-    await page.goto(
-      `${config.adminFront}/withdrawal-reviews?q=${encodeURIComponent(
-        withdrawalId
-      )}`,
-      { waitUntil: "networkidle", timeout: 45_000 }
-    );
-    await page
-      .getByText(withdrawalId)
-      .first()
-      .waitFor({ state: "visible", timeout: 30_000 });
-    await screenshotAdmin(page, `${prefix}-review-queue`);
-    await page
-      .getByText(/Consumer withdrawal|Provider withdrawal/)
-      .first()
-      .waitFor({ state: "visible", timeout: 15_000 })
-      .catch(() => null);
-    const row = page.locator("tr", { hasText: withdrawalId }).first();
-    if (await row.count()) {
-      const detail = row.getByRole("button", { name: /详情|Detail/i }).first();
-      if (await detail.isVisible().catch(() => false)) await detail.click();
-    }
-    await page.waitForTimeout(500);
-    await screenshotAdmin(page, `${prefix}-review-detail`);
-    if (consoleErrors.length > 0)
-      throw new Error(
-        `Admin console errors: ${consoleErrors.join(" | ").slice(0, 800)}`
-      );
-  } finally {
-    await browser.close();
-  }
-}
-
 async function adminDecision(adminAuth, withdrawalId, decision, scenario) {
   await waitForSafeTotpWindow({
     guardSeconds: 8,
     sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
   });
-  return httpJson(
+  const otpCode = generateTotpCode(config.adminTotpSecret);
+  recordAdminAuthCheckpoint(`decision:${scenario}`, {
+    sessionCookiePresent: Boolean(adminAuth.sessionToken),
+    csrfTokenPresent: Boolean(adminAuth.csrfToken),
+    otpCodePresent: Boolean(otpCode),
+  });
+  const result = await httpJson(
     config.adminApi,
     `/api/admin/v1/withdrawal-reviews/${encodeURIComponent(
       withdrawalId
@@ -803,11 +758,29 @@ async function adminDecision(adminAuth, withdrawalId, decision, scenario) {
       method: "POST",
       session: adminAuth.sessionToken,
       csrfToken: adminAuth.csrfToken,
-      otpCode: generateTotpCode(config.adminTotpSecret),
+      otpCode,
       body: { decision, note: `${scenario} ${runId()}` },
       scenario,
+      expectOk: false,
     }
   );
+  recordAdminAuthCheckpoint(`decision:${scenario}:response`, {
+    sessionCookiePresent: Boolean(adminAuth.sessionToken),
+    csrfTokenPresent: Boolean(adminAuth.csrfToken),
+    otpCodePresent: Boolean(otpCode),
+    httpStatus: result.response.status,
+    requestId: result.payload?.requestId,
+    errorCode: result.payload?.error?.code,
+    errorMessage: result.payload?.error?.message,
+  });
+  if (!result.response.ok || result.payload?.success === false) {
+    throw new Error(
+      `POST withdrawal review decision failed: ${
+        result.response.status
+      } ${JSON.stringify(result.payload).slice(0, 900)}`
+    );
+  }
+  return result;
 }
 
 async function createConsumerWithdrawal(auth, amountUsdc, label) {
@@ -1035,6 +1008,7 @@ async function runConsumerApprove(auth, adminAuth) {
     "APPROVE",
     "consumer-approve"
   );
+  await captureAdminApproveResult(adminAuth, created.withdrawId);
   const result = decision.payload.data || decision.payload;
   const ticket = result.ticket || result.ticketMetadata || {};
   if (!ticket.signature)
@@ -1099,6 +1073,7 @@ async function runConsumerApprove(auth, adminAuth) {
     rowAfterApprove,
     rowAfterComplete,
   };
+  evidence.api.consumerApprove = sanitize(decision.payload);
   evidence.chain.consumerApprove = {
     claim,
     replay,
@@ -1232,6 +1207,15 @@ async function runMain() {
         csrfToken: fixture.auth.csrfToken || "",
       }
     : await loginAdmin();
+  if (fixture?.auth?.sessionToken) {
+    recordAdminAuthCheckpoint("fixture-admin-session", {
+      sessionCookiePresent: true,
+      csrfTokenPresent: Boolean(fixture.auth.csrfToken),
+      permissions: fixture.auth.admin?.permissions || [],
+      role: fixture.auth.admin?.role || "",
+    });
+  }
+  await captureAdminLoginSuccess(adminAuth);
   const consumerAuth =
     !IS_STAGING && fixture?.consumer?.token
       ? fixture.consumer
@@ -1283,6 +1267,7 @@ function writeEvidence() {
     failed: evidence.failed,
     warnings: evidence.warnings,
     screenshots: evidence.screenshots,
+    screenshotEvidence: evidence.screenshotEvidence,
     requiredScenarios: [
       "provider approve",
       "provider reject",
@@ -1294,6 +1279,9 @@ function writeEvidence() {
   writeJson("api-evidence.json", evidence.api);
   writeJson("db-evidence.json", evidence.db);
   writeJson("chain-evidence.json", evidence.chain);
+  if (IS_ADMIN_REVIEW_FOCUSED) {
+    writeJson("screenshot-evidence.json", evidence.screenshotEvidence);
+  }
   fs.writeFileSync(path.join(OUT_DIR, "trace.jsonl"), traceText);
   const bugfixLines = [
     "# Withdrawal Review Dogfood Bugfix Log",
