@@ -32,7 +32,8 @@ Current MVP audit policy: Synapse may use a founder/internal security audit with
   - protocol fee only accrues to `platformFeePool`.
   - platform fee withdrawal cannot consume customer principal.
 - Malicious and edge scenarios are tested: reentrancy, fake token, invalid signer, signer rotation, owner-only methods, zero amount, excessive amount, failed token transfer, and wrong network.
-- Production owner and signer authority use multisig or hardware-backed custody. A single hot wallet must not control production contract authority.
+- Production owner and signer authority use multisig or hardware-backed custody. V1 may use a `1-of-1` Safe Treasury whose sole signer is a Ledger hardware wallet; a single hot wallet must not control production contract authority.
+- Platform fee withdrawal is Safe-only: `SynapseCore.owner()` must equal `PLATFORM_TREASURY_SAFE_ADDRESS`, gateway-admin may only generate a Safe draft for `withdrawPlatformFees(uint256)`, and the transaction is executed manually in Safe UI with Ledger confirmation.
 - Staging contract deployment evidence records Arbitrum Sepolia chain id, owner-only MockUSDC address, Synapse contract address, deployer, owner, platform signer, ABI hash, bytecode hash, source verification link, deployment transactions, wallet gas preflight, and MockUSDC pre-mint balances.
 - Production contract release manifest records chain id, USDC address, Synapse contract address, deployer, owner, multisig, platform signer, ABI hash, bytecode hash, source verification link, and deployment transaction.
 - A small-value real-chain rehearsal is completed: deposit, gateway confirmation, paid invoke, consumer withdrawal, provider withdrawal, and platform fee withdrawal.

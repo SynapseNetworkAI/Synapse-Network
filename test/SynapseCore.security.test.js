@@ -5,7 +5,8 @@ const { time } = require("@nomicfoundation/hardhat-network-helpers");
 const TOKEN_UNIT = 10n ** 18n;
 
 async function deployFixture() {
-  const [owner, platformSigner, user, attacker, nextSigner] = await ethers.getSigners();
+  const [owner, platformSigner, user, attacker, nextSigner] =
+    await ethers.getSigners();
 
   const MockUSDC = await ethers.getContractFactory("MockUSDC");
   const usdc = await MockUSDC.deploy(owner.address);
@@ -14,11 +15,13 @@ async function deployFixture() {
   const core = await SynapseCore.deploy(
     await usdc.getAddress(),
     platformSigner.address,
-    owner.address,
+    owner.address
   );
 
   await usdc.mint(user.address, 1_000n * TOKEN_UNIT);
-  await usdc.connect(user).approve(await core.getAddress(), 1_000n * TOKEN_UNIT);
+  await usdc
+    .connect(user)
+    .approve(await core.getAddress(), 1_000n * TOKEN_UNIT);
 
   return { owner, platformSigner, user, attacker, nextSigner, usdc, core };
 }
@@ -51,7 +54,7 @@ async function ticketDigest(core, user, amount, fee, id, deadline) {
       fee,
       ticketId: id,
       deadline,
-    },
+    }
   );
 }
 
@@ -79,7 +82,7 @@ async function signWithdraw(core, signer, user, amount, fee, id, deadline) {
       fee,
       ticketId: id,
       deadline,
-    },
+    }
   );
 }
 
@@ -89,14 +92,18 @@ describe("SynapseCore security invariants", function () {
     const SynapseCore = await ethers.getContractFactory("SynapseCore");
 
     await expect(
-      SynapseCore.deploy(ethers.ZeroAddress, signer.address, owner.address),
+      SynapseCore.deploy(ethers.ZeroAddress, signer.address, owner.address)
     ).to.be.revertedWith("Invalid USDC");
 
     const MockUSDC = await ethers.getContractFactory("MockUSDC");
     const usdc = await MockUSDC.deploy(owner.address);
 
     await expect(
-      SynapseCore.deploy(await usdc.getAddress(), ethers.ZeroAddress, owner.address),
+      SynapseCore.deploy(
+        await usdc.getAddress(),
+        ethers.ZeroAddress,
+        owner.address
+      )
     ).to.be.revertedWith("Invalid Signer");
   });
 
@@ -116,11 +123,12 @@ describe("SynapseCore security invariants", function () {
     const beforeBalance = await usdc.balanceOf(user.address);
 
     await usdc.connect(owner).mint(user.address, 10n * TOKEN_UNIT);
-    expect(await usdc.balanceOf(user.address)).to.equal(beforeBalance + 10n * TOKEN_UNIT);
+    expect(await usdc.balanceOf(user.address)).to.equal(
+      beforeBalance + 10n * TOKEN_UNIT
+    );
 
-    await expect(
-      usdc.connect(attacker).mint(attacker.address, 1n * TOKEN_UNIT),
-    ).to.be.reverted;
+    await expect(usdc.connect(attacker).mint(attacker.address, 1n * TOKEN_UNIT))
+      .to.be.reverted;
   });
 
   it("executes a valid signed withdrawal once and accrues protocol fee", async function () {
@@ -140,22 +148,37 @@ describe("SynapseCore security invariants", function () {
       withdrawAmount,
       fee,
       id,
-      deadline,
+      deadline
     );
-    const hash = await ticketDigest(core, user, withdrawAmount, fee, id, deadline);
+    const hash = await ticketDigest(
+      core,
+      user,
+      withdrawAmount,
+      fee,
+      id,
+      deadline
+    );
+    const beforeOwnerBalance = await usdc.balanceOf(owner.address);
 
-    await expect(core.connect(user).withdraw(withdrawAmount, fee, id, deadline, signature))
+    await expect(
+      core.connect(user).withdraw(withdrawAmount, fee, id, deadline, signature)
+    )
       .to.emit(core, "WithdrawInfo")
       .withArgs(user.address, hash, withdrawAmount, fee);
 
     expect(await core.isTicketConsumed(hash)).to.equal(true);
     expect(await core.platformFeePool()).to.equal(fee);
-    expect(await usdc.balanceOf(user.address)).to.equal(beforeUserBalance + withdrawAmount);
+    expect(await usdc.balanceOf(user.address)).to.equal(
+      beforeUserBalance + withdrawAmount
+    );
 
     await expect(core.connect(owner).withdrawPlatformFees(fee))
       .to.emit(core, "PlatformFeeDrawn")
       .withArgs(owner.address, fee);
     expect(await core.platformFeePool()).to.equal(0n);
+    expect(await usdc.balanceOf(owner.address)).to.equal(
+      beforeOwnerBalance + fee
+    );
   });
 
   it("prevents replaying a consumed withdrawal ticket", async function () {
@@ -166,11 +189,19 @@ describe("SynapseCore security invariants", function () {
     const deadline = BigInt(await time.latest()) + 3600n;
 
     await core.connect(user).deposit(50n * TOKEN_UNIT);
-    const signature = await signWithdraw(core, platformSigner, user, amount, fee, id, deadline);
+    const signature = await signWithdraw(
+      core,
+      platformSigner,
+      user,
+      amount,
+      fee,
+      id,
+      deadline
+    );
 
     await core.connect(user).withdraw(amount, fee, id, deadline, signature);
     await expect(
-      core.connect(user).withdraw(amount, fee, id, deadline, signature),
+      core.connect(user).withdraw(amount, fee, id, deadline, signature)
     ).to.be.revertedWith("Ticket consumed");
   });
 
@@ -190,10 +221,18 @@ describe("SynapseCore security invariants", function () {
       amount,
       fee,
       ticketId("expired"),
-      expiredDeadline,
+      expiredDeadline
     );
     await expect(
-      core.connect(user).withdraw(amount, fee, ticketId("expired"), expiredDeadline, expiredSignature),
+      core
+        .connect(user)
+        .withdraw(
+          amount,
+          fee,
+          ticketId("expired"),
+          expiredDeadline,
+          expiredSignature
+        )
     ).to.be.revertedWith("Ticket expired");
 
     const wrongSignerSignature = await signWithdraw(
@@ -203,23 +242,45 @@ describe("SynapseCore security invariants", function () {
       amount,
       fee,
       ticketId("wrong-signer"),
-      validDeadline,
+      validDeadline
     );
     await expect(
-      core.connect(user).withdraw(amount, fee, ticketId("wrong-signer"), validDeadline, wrongSignerSignature),
+      core
+        .connect(user)
+        .withdraw(
+          amount,
+          fee,
+          ticketId("wrong-signer"),
+          validDeadline,
+          wrongSignerSignature
+        )
     ).to.be.revertedWith("Invalid Oracle Signature");
 
     await expect(
-      core.connect(user).withdraw(amount, fee, ethers.ZeroHash, validDeadline, "0x"),
+      core
+        .connect(user)
+        .withdraw(amount, fee, ethers.ZeroHash, validDeadline, "0x")
     ).to.be.revertedWith("Invalid ticket");
 
     const id = ticketId("tampered");
-    const signature = await signWithdraw(core, platformSigner, user, amount, fee, id, validDeadline);
+    const signature = await signWithdraw(
+      core,
+      platformSigner,
+      user,
+      amount,
+      fee,
+      id,
+      validDeadline
+    );
     await expect(
-      core.connect(user).withdraw(amount + 1n, fee, id, validDeadline, signature),
+      core
+        .connect(user)
+        .withdraw(amount + 1n, fee, id, validDeadline, signature)
     ).to.be.revertedWith("Invalid Oracle Signature");
     await expect(
-      core.connect(user).withdraw(amount, fee + 1n, id, validDeadline, signature),
+      core
+        .connect(user)
+        .withdraw(amount, fee + 1n, id, validDeadline, signature)
     ).to.be.revertedWith("Invalid Oracle Signature");
   });
 
@@ -230,28 +291,38 @@ describe("SynapseCore security invariants", function () {
     const deadline = BigInt(await time.latest()) + 3600n;
 
     await core.connect(user).deposit(100n * TOKEN_UNIT);
-    await expect(core.connect(owner).withdrawPlatformFees(1n)).to.be.revertedWith(
-      "Exceeds purely accrued fees",
-    );
+    await expect(
+      core.connect(owner).withdrawPlatformFees(1n)
+    ).to.be.revertedWith("Exceeds purely accrued fees");
 
     const id = ticketId("fee-withdrawal");
-    const signature = await signWithdraw(core, platformSigner, user, amount, fee, id, deadline);
+    const signature = await signWithdraw(
+      core,
+      platformSigner,
+      user,
+      amount,
+      fee,
+      id,
+      deadline
+    );
     await core.connect(user).withdraw(amount, fee, id, deadline, signature);
 
-    await expect(core.connect(owner).withdrawPlatformFees(fee + 1n)).to.be.revertedWith(
-      "Exceeds purely accrued fees",
-    );
+    await expect(
+      core.connect(owner).withdrawPlatformFees(fee + 1n)
+    ).to.be.revertedWith("Exceeds purely accrued fees");
     await core.connect(owner).withdrawPlatformFees(fee);
   });
 
   it("restricts signer rotation to the owner and rejects zero signer", async function () {
-    const { owner, attacker, platformSigner, nextSigner, core } = await deployFixture();
+    const { owner, attacker, platformSigner, nextSigner, core } =
+      await deployFixture();
 
-    await expect(core.connect(attacker).setSigner(nextSigner.address)).to.be.reverted;
+    await expect(core.connect(attacker).setSigner(nextSigner.address)).to.be
+      .reverted;
 
-    await expect(core.connect(owner).setSigner(ethers.ZeroAddress)).to.be.revertedWith(
-      "Invalid Signer",
-    );
+    await expect(
+      core.connect(owner).setSigner(ethers.ZeroAddress)
+    ).to.be.revertedWith("Invalid Signer");
 
     await expect(core.connect(owner).setSigner(nextSigner.address))
       .to.emit(core, "SignerUpdated")

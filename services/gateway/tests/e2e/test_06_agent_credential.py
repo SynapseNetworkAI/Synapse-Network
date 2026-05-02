@@ -1,13 +1,18 @@
 """Step 6: 创建 Agent Credential + 列表验证 + 新接口 (active_only / status / patch)"""
 import httpx
 import pytest
-from tests.e2e.conftest import GATEWAY_BASE, SESSION_ID
+from tests.e2e.conftest import (
+    GATEWAY_BASE,
+    SESSION_ID,
+    revoke_stale_e2e_agent_credentials,
+)
 
 
 CRED_NAME = f"e2e-agent-{SESSION_ID}"
 
 
 def test_issue_agent_credential(owner_headers, session_state):
+    revoke_stale_e2e_agent_credentials(owner_headers)
     r = httpx.post(
         f"{GATEWAY_BASE}/api/v1/credentials/agent/issue",
         headers=owner_headers,

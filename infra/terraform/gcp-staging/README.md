@@ -242,9 +242,9 @@ Runtime services should use `POSTGRES_AUTO_INIT=0`. Schema changes are applied
 only by the migration job or by `bash scripts/deploy/migrate_db.sh <env>` from a
 controlled release shell.
 
-Seed data is never part of Terraform. Local/dogfood seed scripts must pass
-`npm run ci:migration-seed-guard`; new seed scripts should use
-`scripts/e2e/seed_env_guard.mjs`. Production seed execution is forbidden.
+Seed data is never part of Terraform or Gateway runtime migrations. Local/dogfood
+seed scripts should use `scripts/e2e/seed_env_guard.mjs`. Production seed
+execution is forbidden.
 
 ## Automated Branch Deploys
 

@@ -68,7 +68,7 @@ const OUT_DIR = path.resolve(
 );
 
 const DEFAULT_LOCAL_DSN =
-  "postgresql://synapse_gateway_app:local-dev-gateway-app-password@localhost:5432/synapse_gateway";
+  "postgresql://synapse_gateway_app:local-dev-gateway-app-password@127.0.0.1:15432/synapse_gateway";
 const projectId = projectIdFromEnv();
 const region = process.env.REGION || "us-central1";
 const outboxJob =
