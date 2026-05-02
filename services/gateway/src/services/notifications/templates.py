@@ -12,10 +12,11 @@ from .sanitizer import redact_payload, redact_text
 _TEMPLATE_TITLES = {
     "consumer_withdrawal_ticket_ready": "Your withdrawal is ready to claim",
     "consumer_withdrawal_completed": "Your withdrawal is complete",
-    "consumer_withdrawal_failed_expired": "Your withdrawal expired and funds were returned",
+    "consumer_withdrawal_failed_expired": "Your withdrawal timed out and funds were returned",
     "provider_withdrawal_ticket_ready": "Your provider withdrawal is ready to claim",
     "provider_withdrawal_rejected": "Your provider withdrawal was rejected",
     "provider_withdrawal_completed": "Your provider withdrawal is complete",
+    "provider_withdrawal_failed_expired": "Your provider withdrawal timed out and funds were returned",
     "deposit_confirmed": "Your deposit is confirmed",
     "deposit_delayed": "Your deposit is taking longer than expected",
     "refund_completed": "Your refund is complete",
@@ -35,10 +36,11 @@ _MONEY_TEMPLATE_SUBJECTS = {
     "refund_completed": "Your refund is complete",
     "consumer_withdrawal_ticket_ready": "Your withdrawal is ready to claim",
     "consumer_withdrawal_completed": "Your withdrawal is complete",
-    "consumer_withdrawal_failed_expired": "Your withdrawal expired and funds were returned",
+    "consumer_withdrawal_failed_expired": "Your withdrawal timed out and funds were returned",
     "provider_withdrawal_ticket_ready": "Your provider withdrawal is ready to claim",
     "provider_withdrawal_completed": "Your provider withdrawal is complete",
     "provider_withdrawal_rejected": "Your provider withdrawal was rejected",
+    "provider_withdrawal_failed_expired": "Your provider withdrawal timed out and funds were returned",
 }
 SHORT_HASH_PLAIN_THRESHOLD = 18
 

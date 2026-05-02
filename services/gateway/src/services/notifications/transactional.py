@@ -33,6 +33,7 @@ TRANSACTION_EMAIL_TEMPLATES = frozenset(
         "provider_withdrawal_ticket_ready",
         "provider_withdrawal_completed",
         "provider_withdrawal_rejected",
+        "provider_withdrawal_failed_expired",
         "email_verification",
         "email_bound_success",
         "email_changed_notice",

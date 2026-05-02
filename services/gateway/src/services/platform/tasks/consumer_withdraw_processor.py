@@ -18,6 +18,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any, Optional
 
@@ -27,11 +28,23 @@ from src.services.owner.finance_constants import (
     CONSUMER_WITHDRAW_PROCESSOR_INTERVAL_SEC,
     CONSUMER_WITHDRAW_TYPE,
 )
+from src.services.platform.tasks.consumer_withdraw_manual_review_expiry import (
+    collect_expired_manual_review_consumer_withdrawals,
+    expire_manual_review_consumer_withdrawal,
+)
 from src.storage.base import BaseStorage
 from src.utils.datetime_utils import to_epoch_seconds
 from src.utils.money import parse_usdc
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class ConsumerWithdrawProcessorTick:
+    collected: int
+    processed: int
+    completedOrExpired: int
+    failed: int
 
 # Minimal ABIs — only what the event watcher needs.
 _TICKET_STATE_ABI = [
@@ -329,13 +342,34 @@ def _complete_consumer_withdraw(
 # ---------------------------------------------------------------------------
 
 
-async def run_consumer_withdraw_processor_once(storage: BaseStorage) -> dict[str, int]:
+async def run_consumer_withdraw_processor_once(storage: BaseStorage) -> ConsumerWithdrawProcessorTick:
     processed = 0
     completed_or_expired = 0
     failed = 0
     pending = await asyncio.to_thread(_collect_requested_consumer_withdrawals, storage)
+    manual_review_expired = await asyncio.to_thread(
+        collect_expired_manual_review_consumer_withdrawals,
+        storage,
+    )
     timeout_rows = await asyncio.to_thread(_collect_consumer_withdrawal_timeout_rows, storage)
     _emit_consumer_withdrawal_timeout_alert(timeout_rows)
+    for row in manual_review_expired:
+        try:
+            changed = await asyncio.to_thread(
+                expire_manual_review_consumer_withdrawal,
+                storage,
+                row,
+            )
+            processed += 1
+            if changed:
+                completed_or_expired += 1
+        except Exception as exc:
+            failed += 1
+            logger.warning(
+                "consumer_withdraw_processor: error expiring manual review %s: %s",
+                getattr(row, "id", "?"),
+                exc,
+            )
     for row in pending:
         try:
             changed = await asyncio.to_thread(_process_single_withdraw, storage, row)
@@ -349,12 +383,12 @@ async def run_consumer_withdraw_processor_once(storage: BaseStorage) -> dict[str
                 getattr(row, "id", "?"),
                 exc,
             )
-    return {
-        "collected": len(pending),
-        "processed": processed,
-        "completedOrExpired": completed_or_expired,
-        "failed": failed,
-    }
+    return ConsumerWithdrawProcessorTick(
+        collected=len(pending),
+        processed=processed,
+        completedOrExpired=completed_or_expired,
+        failed=failed,
+    )
 
 
 def _collect_requested_consumer_withdrawals(storage: BaseStorage) -> list:
