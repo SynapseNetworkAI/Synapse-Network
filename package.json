@@ -118,6 +118,8 @@
     "e2e:staging-core-dogfood": "SYNAPSE_E2E_ENV=staging ALLOW_GCP_SECRET_MANAGER=1 node scripts/e2e/staging_core_dogfood.mjs",
     "e2e:withdrawal-review-dogfood:local": "SYNAPSE_E2E_ENV=local ALLOW_GCP_SECRET_MANAGER=0 WITHDRAWAL_REVIEW_DOGFOOD_ENV=local node scripts/e2e/withdrawal_review_dogfood.mjs",
     "e2e:withdrawal-review-dogfood:staging": "SYNAPSE_E2E_ENV=staging ALLOW_GCP_SECRET_MANAGER=1 WITHDRAWAL_REVIEW_DOGFOOD_ENV=staging node scripts/e2e/withdrawal_review_dogfood.mjs",
+    "e2e:admin-withdrawal-review:local": "SYNAPSE_E2E_ENV=local ALLOW_GCP_SECRET_MANAGER=0 node scripts/e2e/admin_withdrawal_review_local.mjs",
+    "ci:admin-withdrawal-review-local-evidence": "node scripts/ci/admin_withdrawal_review_local_evidence_check.mjs",
     "ci:withdrawal-review-dogfood-local-evidence": "WITHDRAWAL_REVIEW_DOGFOOD_ENV=local node scripts/ci/withdrawal_review_dogfood_evidence_check.mjs",
     "ci:withdrawal-review-dogfood-staging-evidence": "WITHDRAWAL_REVIEW_DOGFOOD_ENV=staging node scripts/ci/withdrawal_review_dogfood_evidence_check.mjs",
     "e2e:gmail-notifications:staging": "SYNAPSE_E2E_ENV=staging ALLOW_GCP_SECRET_MANAGER=1 node scripts/e2e/gmail_notifications_staging_e2e.mjs",
