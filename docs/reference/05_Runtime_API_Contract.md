@@ -213,7 +213,7 @@ Headers:
 
 ```json
 {
-  "amountUsdc": 9.95,
+  "amountUsdc": 10,
   "reason": "optional freeform reason (max 256 chars)"
 }
 ```
@@ -241,7 +241,14 @@ Headers:
 1. `amountUsdc` 不得超过当前 `consumerAvailableBalance`，否则返回 `400 INSUFFICIENT_CONSUMER_BALANCE`
 2. 资金只能打回 owner 自己的钱包，不允许重定向到第三方地址
 3. 幂等键（`X-Idempotency-Key`）在有效期内重复提交返回相同结果，不重复扣减余额
-4. 最小提现金额：1.0 USDC
+4. 最小提现金额：10 USDC，低于该值返回 `400 MIN_WITHDRAWAL_AMOUNT_NOT_MET`
+5. Consumer 已确认充值资金 T+1 后才可提现；T+1 前仍可用于平台内 API 消费
+6. 成熟可提现额度采用聚合 FIFO 公式：`max(0, depositsConfirmedBefore24h - lifetimeConsumerSpend - lifetimeConsumerWithdrawnOrLocked)`
+7. 请求金额超过成熟可提现额度返回 `400 INSUFFICIENT_MATURE_CONSUMER_BALANCE`
+8. 24h 次数统计使用数据库时间戳滑动窗口 `created_at >= NOW() - INTERVAL '24 hours'`
+9. `REQUESTED` 只表示自动审核通过、资金已进入 pending、ticket 已签发；不表示链上提现成功
+10. ticket 签发必须发生在数据库原子锁仓成功之后，且每个 `ticketHash` 只能被合约消费一次
+11. 并发创建、幂等重放、人工审核决策和 complete 回调都必须保证余额只移动一次
 
 ### 3.2.3 `GET /api/v1/balance/consumer/withdrawals`
 
@@ -254,6 +261,18 @@ Headers:
 1. `status` — `"success"`
 2. `ownerAddress` — owner 钱包地址
 3. `withdrawals` — 提现记录数组，每条包含 `withdrawId`, `amountUsdc`, `status`, `riskLevel`, `riskReasonCode`, `createdAt`
+
+### 3.2.4 `POST /api/v1/refunds/{refundId}/complete`
+
+用途：Consumer 钱包完成链上 `SynapseCore.withdraw(...)` 后，把提现单推进到最终成功态。
+
+约束：
+
+1. 只有链上 claim 成功并提供 `txHash` 后才能调用。
+2. 成功推进后，`synapse_vault_withdrawals.status = COMPLETED`。
+3. Gateway 必须写入稳定 `tx_hash`，并只消费一次 `consumer_pending_balance`。
+4. 重复或并发 complete 不得重复扣减 pending，也不得覆盖已落库的最终 `tx_hash`。
+5. Billing 页最终态必须来自 `COMPLETED`，显示为 `Completed`；`REQUESTED` / `PENDING_MANUAL_REVIEW` 只能显示 pending 类状态。
 
 ### 3.3 `POST /api/v1/refund`
 
@@ -354,10 +373,16 @@ Headers:
 5. `red` 直接拒绝并审计
 6. 自动通过时，金额从 `provider_receivable` 进入 `provider_locked_balance`，并立即返回 EIP-712 ticket
 7. 人工审核时，金额先进入 `provider_frozen_balance`，等待 admin approve / reject
-8. `amountUsdc` 如果显式传入，必须大于 `0` 且最多支持小数点后 2 位；留空时表示提取当前全部可提现金额
-9. 如果已签发的 withdrawal ticket 过期，Gateway 只有在本地时间超过 `deadline + WITHDRAW_TICKET_EXPIRY_BUFFER_SEC`、RPC 链头时间超过 `deadline + WITHDRAW_RPC_FINALITY_MARGIN_SEC`、且合约确认 `isTicketConsumed(ticketHash)=false` 后，才会把该单据推进到 `FAILED_EXPIRED`，并把对应 `provider_locked_balance` 释放回 `provider_receivable`
-10. 如果 Gateway 当前无法连通链上 RPC 或无法校验金库 USDC 余额，接口必须返回 `503 WITHDRAW_VAULT_LIQUIDITY_CHECK_UNAVAILABLE`，不能把内部堆栈暴露成 500。
-11. 每笔 withdrawal 只会签发一次 `ticketId/ticketHash`；过期后不能刷新旧 ticket，用户必须重新创建新的提现申请。
+8. `amountUsdc` 如果显式传入，必须大于等于 `10` 且最多支持小数点后 2 位；低于 10 返回 `400 MIN_WITHDRAWAL_AMOUNT_NOT_MET`
+9. 留空时表示提取当前全部已成熟可提现收益；若成熟收益低于 10，返回 `400 MIN_WITHDRAWAL_AMOUNT_NOT_MET`
+10. Provider 收益 T+7 后才计入成熟可提现收益；未成熟收益提现返回 `400 PROVIDER_RECEIVABLE_NOT_MATURED`
+11. 如果已签发的 withdrawal ticket 过期，Gateway 只有在本地时间超过 `deadline + WITHDRAW_TICKET_EXPIRY_BUFFER_SEC`、RPC 链头时间超过 `deadline + WITHDRAW_RPC_FINALITY_MARGIN_SEC`、且合约确认 `isTicketConsumed(ticketHash)=false` 后，才会把该单据推进到 `FAILED_EXPIRED`，并把对应 `provider_locked_balance` 释放回 `provider_receivable`
+12. 如果 Gateway 当前无法连通链上 RPC 或无法校验金库 USDC 余额，接口必须返回 `503 WITHDRAW_VAULT_LIQUIDITY_CHECK_UNAVAILABLE`，不能把内部堆栈暴露成 500。
+13. 每笔 withdrawal 只会签发一次 `ticketId/ticketHash`；过期后不能刷新旧 ticket，用户必须重新创建新的提现申请。
+14. EIP-712 payload 继续包含 `user`, `amount`, `fee`, `ticketId`, `deadline`；合约以 `consumedTickets[ticketHash]` 防重放，不新增链上 nonce 字段。
+15. `APPROVED_AUTO` 只表示自动审核通过、provider 资金已锁入 pending/locked、ticket 已准备；不表示提现到账。
+16. 提现成功必须由 owner 钱包完成链上 `SynapseCore.withdraw(...)`，再由 Gateway complete 或 watcher 推进到 `COMPLETED`。
+17. 并发创建、人工审核决策、链上 replay 和 complete 回调都必须保证 provider 资金桶只移动一次。
 
 ### 3.6.1 `GET /api/v1/providers/withdrawals/capability`
 
@@ -380,6 +405,20 @@ Headers:
 3. `APPROVE` 时，系统把金额从 `provider_frozen_balance` 移到 `provider_locked_balance`，并生成 EIP-712 ticket，状态推进到 `APPROVED_AUTO`。
 4. `REJECT` 时，系统把金额从 `provider_frozen_balance` 释放回 `provider_receivable`，状态推进到 `REJECTED`。
 5. 审核动作必须记录 `reviewerAddress`、`reviewerNote` 与 owner-scoped audit event。
+6. 并发重复 `APPROVE` 只能签发一次 ticket，并且 `provider_frozen_balance -> provider_locked_balance` 只发生一次。
+7. 并发重复 `REJECT` 只能释放一次冻结收益。
+8. `APPROVE` / `REJECT` 交叉并发只能落到一个合法终态，不能同时出现可 claim ticket 和 rejected release。
+
+### 3.6.3 `POST /api/v1/providers/withdrawals/{withdrawalId}/complete`
+
+用途：Provider 钱包完成链上 `SynapseCore.withdraw(...)` 后，把提现单推进到最终成功态。
+
+约束：
+
+1. 只有链上 claim 成功并提供 `txHash` 后才能调用。
+2. 成功推进后，`synapse_vault_withdrawals.status = COMPLETED`。
+3. Gateway 必须写入稳定 `tx_hash`，并只消费一次 `provider_locked_balance` / pending 金额。
+4. 重复或并发 complete 不得重复消费 provider pending，也不得覆盖已落库的最终 `tx_hash`。
 
 ## 4. Runtime Invocation Semantics
 

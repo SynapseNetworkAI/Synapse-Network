@@ -1,0 +1,12 @@
+{
+  "environment": "local",
+  "runId": "wot-20260502143447",
+  "gatewayBaseUrl": "http://127.0.0.1:8000",
+  "rpcUrl": "http://127.0.0.1:8545",
+  "mockProvider": {
+    "url": "http://127.0.0.1:19992",
+    "reused": false
+  },
+  "localOnly": true,
+  "generatedAt": "2026-05-02T14:34:47.145Z"
+}

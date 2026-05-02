@@ -2,7 +2,8 @@ import type { I18nMessages } from "@/i18n/schema";
 
 const billingPage: I18nMessages["billingPage"] = {
   title: "Payments",
-  description: "View all billing transactions and payment history for your account",
+  description:
+    "View all billing transactions and payment history for your account",
   fromLabel: "FROM",
   toLabel: "TO",
   resetRange: "Reset to last 3 months",
@@ -13,7 +14,7 @@ const billingPage: I18nMessages["billingPage"] = {
   tableDate: "Date",
   tableInvoice: "Invoice",
   statusPending: "Pending",
-  statusSucceeded: "Succeeded",
+  statusSucceeded: "Completed",
   statusFailed: "Failed",
   loading: "Loading payments...",
   empty: "No payment activity found for the selected range.",

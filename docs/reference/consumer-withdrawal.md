@@ -73,6 +73,27 @@ When a withdrawal fails:
 
 This is the fix for the earlier bug where the UI could report a failed flow while the treasury balance remained stuck.
 
+## Maturity And Dust Rules
+
+Consumer withdrawals have two hard pre-checks before any row is created:
+
+- `amountUsdc < 10` returns `400 MIN_WITHDRAWAL_AMOUNT_NOT_MET`.
+- Recent deposits are spendable inside Synapse immediately, but withdrawable only after 24 hours.
+
+The mature amount uses an aggregate FIFO formula instead of per-deposit withdrawal labels:
+
+```text
+matureWithdrawable = max(0,
+  depositsConfirmedBefore24h
+  - lifetimeConsumerSpend
+  - lifetimeConsumerWithdrawnOrLocked
+)
+```
+
+If `amountUsdc` is greater than `matureWithdrawable`, Gateway returns `400 INSUFFICIENT_MATURE_CONSUMER_BALANCE`. Dust failures and immature-funds failures do not create withdrawal rows, do not sign tickets, and do not send Lark alerts.
+
+The 24h count risk gate is a database timestamp sliding window (`created_at >= NOW() - INTERVAL '24 hours'`), not a natural-day reset.
+
 ## Active-Withdrawal Rule
 
 Only one active consumer withdrawal is allowed per owner at a time.
@@ -88,6 +109,36 @@ If the owner sends another `POST /api/v1/balance/consumer/withdraw` while one of
 - no second balance deduction happens
 - the existing row is returned
 - if the row is `REQUESTED`, the response includes the already-issued signed ticket metadata
+
+## Idempotency And Concurrency Evidence
+
+Consumer withdrawal correctness is validated by separate E2E suites with narrow
+ownership:
+
+```bash
+npm run e2e:withdrawal-risk-policy
+npm run e2e:withdrawal-idempotency-concurrency
+npm run ci:withdrawal-idempotency-concurrency-evidence
+```
+
+`withdrawal-risk-policy` covers Dust, T+1 maturity, aggregate FIFO,
+24h sliding-window risk classification, and normal withdrawals through final
+`COMPLETED` status. It does not claim to cover every manual-review UI path.
+
+`withdrawal-idempotency-concurrency` proves the money invariants under
+parallel requests:
+
+- concurrent create requests reserve funds once
+- same idempotency key and same payload returns the same result
+- same idempotency key with a different payload returns `409 IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_PAYLOAD`
+- concurrent approve signs one ticket and moves frozen to pending once
+- concurrent reject releases frozen to available once
+- approve/reject races settle into one legal terminal branch
+- concurrent complete consumes pending once and preserves the first `txHash`
+- consumed `ticketHash` cannot be replayed on-chain
+
+Manual-review UI, admin permissions, screenshots, and approve/reject operations
+remain covered by `withdrawal-review-dogfood` and `admin-withdrawal-approval`.
 
 ## Ticket and Fee Model
 
@@ -120,6 +171,7 @@ Other display rules:
 - amount is shown as a negative outflow
 - `txHash` is shown once it exists
 - failed or cancelled withdrawals keep their failure state instead of disappearing
+- E2E screenshot and DOM checkpoints for a successful withdrawal must assert `Completed` after the complete callback, not merely `Pending` or ticket-ready state
 
 ## Watcher Role
 
@@ -153,18 +205,19 @@ prove a failed chain receipt does not incorrectly roll the off-chain state back.
 
 ## Storage
 
-| Table                         | Role                                                                             |
-| ----------------------------- | -------------------------------------------------------------------------------- |
-| `synapse_account_balances`    | Source of truth for `available_balance`, `pending_balance`, and `frozen_balance` |
-| `synapse_vault_withdrawals`   | Persistent withdrawal rows with `withdrawal_kind='consumer_refund'`              |
-| `synapse_runtime_state`       | Runtime metadata including risk and review context                               |
-| `vault_withdrawal_meta::{id}` | Ticket metadata mirror used to recover nonce, deadline, and signature            |
-| `synapse_audit_events`        | Audit trail for create, fail, approve, reject, cancel, and complete actions      |
+| Table                         | Role                                                                                 |
+| ----------------------------- | ------------------------------------------------------------------------------------ |
+| `synapse_account_balances`    | Source of truth for `available_balance`, `pending_balance`, and `frozen_balance`     |
+| `synapse_vault_withdrawals`   | Persistent withdrawal rows with `withdrawal_kind='consumer_refund'`                  |
+| `synapse_runtime_state`       | Runtime metadata including risk and review context                                   |
+| `vault_withdrawal_meta::{id}` | Ticket metadata mirror used to recover ticketId, ticketHash, deadline, and signature |
+| `synapse_audit_events`        | Audit trail for create, fail, approve, reject, cancel, and complete actions          |
 
 ## Core Guarantees
 
 - consumer withdrawals never spend provider funds
 - balance reservation happens before the row is exposed to the client
+- ticket signing happens only after successful balance reservation
 - repeated requests do not double-deduct the treasury
 - terminal failures release reserved balance
 - Payments shows one stable withdrawal record instead of duplicate refund rows
