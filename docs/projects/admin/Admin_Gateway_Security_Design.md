@@ -134,7 +134,7 @@ admin-front (browser)
 
 1. `/api/admin/v1/auth/login` 与 `/api/admin/v1/auth/me` 会返回 `security` 策略对象，明确当前环境是否启用登录 TOTP 和高风险 TOTP。
 2. 浏览器侧对普通写请求统一附带 `X-CSRF-Token`。
-3. 高风险写请求还必须携带 `X-Admin-OTP-Code`，由 `gateway-admin` 在服务端校验 Google Authenticator 6 位验证码。
+3. 高风险写请求还必须携带 `X-Admin-OTP-Code`，由 `gateway-admin` 在服务端校验 Google Authenticator 6 位验证码。默认 `ADMIN_GOOGLE_AUTHENTICATOR_WINDOW=1`，允许当前时间步长前后各 1 个 TOTP step（约 ±30 秒），减少合法管理员因手机 / 服务端轻微时间漂移被误伤。
 4. 当前高风险 step-up 已覆盖审批决策、Provider 提现审核决策、执行重试和菜单配置发布。
 
 因此浏览器面的剩余问题不再是“有没有 MFA”，而是：

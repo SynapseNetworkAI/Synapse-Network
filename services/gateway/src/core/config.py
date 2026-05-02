@@ -19,6 +19,7 @@ from src.core.config_loaders import (
     _load_environment_files,
     _load_router_address_from_contract_config,
     _load_usdc_address_from_contract_config,
+    _manual_review_expiry_min_sec,
     _normalize_redis_input_url,  # noqa: F401 - re-exported for config helper tests.
     _redis_auth_fragment,  # noqa: F401 - re-exported for config helper tests.
     _repo_root_dir,  # noqa: F401 - re-exported for config helper tests.
@@ -339,6 +340,12 @@ class Settings:
     withdrawal_timeout_alert_after_sec: int = max(
         60, _env_int("WITHDRAWAL_TIMEOUT_ALERT_AFTER_SEC", 900)
     )
+    withdrawal_manual_review_expiry_min_sec: int = _manual_review_expiry_min_sec()
+    withdrawal_manual_review_expiry_sec: int = max(
+        withdrawal_manual_review_expiry_min_sec,
+        _env_int("WITHDRAWAL_MANUAL_REVIEW_EXPIRY_SEC", 86400),
+    )
+    withdrawal_reaper_batch_size: int = min(1000, max(1, _env_int("WITHDRAWAL_REAPER_BATCH_SIZE", 100)))
 
     # Consumer withdrawal recovery watcher: reconciles owner-executed
     # ``SynapseCore.withdraw`` flows and cancels expired tickets.
