@@ -322,6 +322,8 @@ class Settings:
     provider_withdraw_deadline_sec: int = _env_int(
         "PROVIDER_WITHDRAW_DEADLINE_SEC", 1800
     )
+    provider_withdraw_min_usdc: float = max(0.0, _env_float("PROVIDER_WITHDRAW_MIN_USDC", 10.0))
+    provider_withdraw_maturity_seconds: int = max(0, _env_int("PROVIDER_WITHDRAW_MATURITY_SECONDS", 604800))
     # The reaper must wait past local ticket expiry before releasing locked funds.
     withdraw_ticket_expiry_buffer_sec: int = _env_int(
         "WITHDRAW_TICKET_EXPIRY_BUFFER_SEC", 900

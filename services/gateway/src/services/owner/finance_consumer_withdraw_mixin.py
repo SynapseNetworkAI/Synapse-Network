@@ -22,6 +22,7 @@ from src.core.common import normalize_wallet
 from src.services.owner.finance_constants import (
     CONSUMER_WITHDRAW_FEE_USDC,
     CONSUMER_WITHDRAW_MANUAL_REVIEW_THRESHOLD_USDC,
+    CONSUMER_WITHDRAW_MATURITY_SECONDS,
     CONSUMER_WITHDRAW_MAX_DAILY_COUNT,
     CONSUMER_WITHDRAW_MIN_USDC,
     CONSUMER_WITHDRAW_TYPE,
@@ -30,6 +31,10 @@ from src.services.owner.finance_constants import (
 from src.domain.finance import RefundIntentRow
 from src.utils.datetime_utils import now_dt_str
 from src.utils.money import money_str
+
+
+ConsumerWithdrawResponse = dict[str, Any]
+ConsumerWithdrawListResponse = list[ConsumerWithdrawResponse]
 
 
 class FinanceConsumerWithdrawMixin:
@@ -106,6 +111,34 @@ class FinanceConsumerWithdrawMixin:
                 count += 1
         return count
 
+    def _balance_repository(self) -> Any:
+        get_data_manager = getattr(self.storage, "get_data_manager", None)
+        if not callable(get_data_manager):
+            return None
+        return getattr(get_data_manager().finance, "balance", None)
+
+    def _read_consumer_mature_withdrawable(
+        self, owner: str, fallback_available: Decimal
+    ) -> Decimal:
+        balance_repo = self._balance_repository()
+        reader = getattr(balance_repo, "read_consumer_mature_withdrawable", None)
+        if callable(reader):
+            return self._q6d(reader(owner, CONSUMER_WITHDRAW_MATURITY_SECONDS))
+        return self._q6d(fallback_available)
+
+    def _consumer_withdrawal_window_stats(
+        self,
+        owner: str,
+        rows: List[RefundIntentRow],
+        now: int,
+    ) -> tuple[int, Decimal]:
+        balance_repo = self._balance_repository()
+        reader = getattr(balance_repo, "read_consumer_withdrawal_window_stats", None)
+        if callable(reader):
+            count, amount = reader(owner, 24 * 3600)
+            return int(count), self._q6d(amount)
+        return self._count_consumer_withdrawals_last_24h(owner, rows, now), Decimal("0.000000")
+
     def _classify_consumer_withdraw_risk(
         self, amount_usdc: Decimal | str | int, daily_count: int
     ) -> dict[str, str]:
@@ -137,13 +170,40 @@ class FinanceConsumerWithdrawMixin:
             "message": "",
         }
 
+    async def _finalize_consumer_withdraw_idempotency(
+        self,
+        *,
+        owner: str,
+        idempotency_key: str,
+        request_hash: str,
+        response: dict[str, Any],
+        redis_client: Optional[Any],
+        idem_rows: List[Any],
+    ) -> None:
+        if redis_client is None:
+            self._record_idempotent_response(  # type: ignore[attr-defined]  # reason: mixed in by BalanceRedisGuardMixin
+                rows=idem_rows,
+                scope="consumer_withdraw_intent",
+                owner_wallet=owner,
+                idempotency_key=idempotency_key,
+                request_hash=request_hash,
+                response=response,
+            )
+        await self._complete_idempotency_redis(  # type: ignore[attr-defined]  # reason: mixed in by BalanceRedisGuardMixin
+            scope="consumer_withdraw_intent",
+            owner_wallet=owner,
+            idempotency_key=idempotency_key,
+            request_hash=request_hash,
+            response=response,
+        )
+
     async def create_consumer_withdraw_intent(
         self,
         payload: dict[str, Any],
         owner_wallet: str,
         idempotency_key: str,
         request_meta: Optional[dict[str, Any]] = None,
-    ) -> dict[str, Any]:
+    ) -> ConsumerWithdrawResponse:
         owner = normalize_wallet(owner_wallet)
         async with self._mutation_lock.lock(f"{owner}:consumer_withdraw_intent"):  # type: ignore[attr-defined]
             idempotency_key = self._validate_idempotency_key(idempotency_key)  # type: ignore[attr-defined]
@@ -162,8 +222,8 @@ class FinanceConsumerWithdrawMixin:
                 raise HTTPException(
                     status_code=400,
                     detail={
-                        "code": "INVALID_AMOUNT",
-                        "message": f"amountUsdc must be >= {CONSUMER_WITHDRAW_MIN_USDC} USDC.",
+                        "code": "MIN_WITHDRAWAL_AMOUNT_NOT_MET",
+                        "message": f"Minimum consumer withdrawal amount is {CONSUMER_WITHDRAW_MIN_USDC:g} USDC.",
                     },
                 )
             if amount_usdc <= fee_usdc:
@@ -201,6 +261,18 @@ class FinanceConsumerWithdrawMixin:
             )
             if redis_hit is not None:
                 return redis_hit
+            idem_rows: List[Any] = []
+            if redis_client is None:
+                idem_rows = self._load_idempotency_rows()  # type: ignore[attr-defined]  # reason: mixed in by BalanceRedisGuardMixin
+                idem_hit = self._try_get_idempotent_response(  # type: ignore[attr-defined]  # reason: mixed in by BalanceRedisGuardMixin
+                    rows=idem_rows,
+                    scope="consumer_withdraw_intent",
+                    owner_wallet=owner,
+                    idempotency_key=idempotency_key,
+                    request_hash=request_hash,
+                )
+                if idem_hit is not None:
+                    return idem_hit
 
             rows = self._load_refund_rows(owner_wallet=owner)  # type: ignore[attr-defined]
             now = int(time.time())
@@ -246,10 +318,19 @@ class FinanceConsumerWithdrawMixin:
                     if changed:
                         row.updated_at = now_dt_str()
                         self._save_refund_rows(rows, now)  # type: ignore[attr-defined]
-                    return self._build_consumer_withdraw_response(
+                    response = self._build_consumer_withdraw_response(
                         row,
                         existing_withdrawal=True,
                     )
+                    await self._finalize_consumer_withdraw_idempotency(
+                        owner=owner,
+                        idempotency_key=idempotency_key,
+                        request_hash=request_hash,
+                        response=response,
+                        redis_client=redis_client,
+                        idem_rows=idem_rows,
+                    )
+                    return response
 
             ledger = self._load_balance_ledger()  # type: ignore[attr-defined]
             available = self._q6d(ledger.consumer_available_balance(owner))
@@ -265,7 +346,21 @@ class FinanceConsumerWithdrawMixin:
                     },
                 )
 
-            daily_count = self._count_consumer_withdrawals_last_24h(
+            mature_withdrawable = self._read_consumer_mature_withdrawable(owner, available)
+            if amount_usdc > mature_withdrawable:
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "code": "INSUFFICIENT_MATURE_CONSUMER_BALANCE",
+                        "message": (
+                            f"Requested {amount_usdc:.6f} USDC exceeds mature withdrawable balance "
+                            f"of {mature_withdrawable:.6f} USDC. Recent deposits must mature for "
+                            "24 hours before withdrawal."
+                        ),
+                    },
+                )
+
+            daily_count, rolling_amount = self._consumer_withdrawal_window_stats(
                 owner,
                 rows,
                 now,
@@ -347,13 +442,13 @@ class FinanceConsumerWithdrawMixin:
             self._save_refund_rows(rows, now)  # type: ignore[attr-defined]
 
             response = self._build_consumer_withdraw_response(row)
-            await self._finalize_refund_idempotency(  # type: ignore[attr-defined]
+            await self._finalize_consumer_withdraw_idempotency(
                 owner=owner,
                 idempotency_key=idempotency_key,
                 request_hash=request_hash,
                 response=response,
                 redis_client=redis_client,
-                idem_rows=[],
+                idem_rows=idem_rows,
             )
 
             self._append_financial_audit(  # type: ignore[attr-defined]
@@ -365,13 +460,17 @@ class FinanceConsumerWithdrawMixin:
                     "riskLevel": risk["riskLevel"],
                     "riskReasonCode": risk["riskReasonCode"],
                     "dailyCount": daily_count,
+                    "rolling24hAmountUsdc": money_str(rolling_amount),
+                    "matureWithdrawableUsdc": money_str(mature_withdrawable),
                     "idempotencyKey": idempotency_key,
                     "requestMeta": request_meta or {},
                 },
             )
             return response
 
-    async def list_consumer_withdrawals(self, owner_wallet: str) -> list[dict[str, Any]]:
+    async def list_consumer_withdrawals(
+        self, owner_wallet: str
+    ) -> ConsumerWithdrawListResponse:
         import asyncio
         await asyncio.sleep(0)
         owner = normalize_wallet(owner_wallet)

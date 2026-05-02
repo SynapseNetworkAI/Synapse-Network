@@ -14,31 +14,32 @@ From repository root:
 2. `npm run ci:finance-approval-safety`
 3. `npm run ci:finance-approval-e2e-evidence`
 4. `npm run ci:withdrawal-one-ticket-evidence`
-5. `npm run ci:financial-security`
-6. `npm run ci:architecture-quality`
-7. `npm run ci:quality-budget`
-8. `npm run ci:format-check`
-9. `npm run ci:diff-coverage`
-10. `npm run ci:agent-guardrails`
-11. `npm run ci:frontend`
-12. `npm run ci:admin-front`
-13. `npm run ci:admin-gateway`
-14. `npm run ci:gateway`
-15. `npm run ci:provider-service`
-16. `npm run ci:sdk-python`
-17. `npm run ci:contracts`
-18. `npm run ci:pr`
-19. `npm run perf:local-production-load-rehearsal`
-20. `npm run ci:local-production-load-evidence`
-21. `npm run ci:monitoring-alert-rules`
-22. `npm run e2e:lark-alerts`
-23. `npm run ci:lark-alert-e2e-evidence`
-24. `npm run e2e:in-app-notifications`
-25. `npm run ci:in-app-notifications-evidence`
-26. `npm run ci:backup-restore-evidence`
-27. `npm run deploy:contracts:arbitrum-sepolia:dry-run`
-28. `npm run ci:contract-deployment-evidence`
-29. `npm run ci:migration-seed-guard`
+5. `npm run ci:withdrawal-idempotency-concurrency-evidence`
+6. `npm run ci:financial-security`
+7. `npm run ci:architecture-quality`
+8. `npm run ci:quality-budget`
+9. `npm run ci:format-check`
+10. `npm run ci:diff-coverage`
+11. `npm run ci:agent-guardrails`
+12. `npm run ci:frontend`
+13. `npm run ci:admin-front`
+14. `npm run ci:admin-gateway`
+15. `npm run ci:gateway`
+16. `npm run ci:provider-service`
+17. `npm run ci:sdk-python`
+18. `npm run ci:contracts`
+19. `npm run ci:pr`
+20. `npm run perf:local-production-load-rehearsal`
+21. `npm run ci:local-production-load-evidence`
+22. `npm run ci:monitoring-alert-rules`
+23. `npm run e2e:lark-alerts`
+24. `npm run ci:lark-alert-e2e-evidence`
+25. `npm run e2e:in-app-notifications`
+26. `npm run ci:in-app-notifications-evidence`
+27. `npm run ci:backup-restore-evidence`
+28. `npm run deploy:contracts:arbitrum-sepolia:dry-run`
+29. `npm run ci:contract-deployment-evidence`
+30. `npm run ci:migration-seed-guard`
 
 Use these wrappers when final integration confidence is required.
 
@@ -185,32 +186,39 @@ Before finishing:
 7. run `npm run e2e:admin-withdrawal-review:local` and `npm run ci:admin-withdrawal-review-local-evidence` when changing Admin-front withdrawal review, Gateway-admin decision auth, CSRF/session handling, OTP step-up, or 401/403 error handling. This evidence must prove `synapse_admin_session`, `X-CSRF-Token`, `X-Admin-OTP-Code`, `approval:decide`, review screenshots, DB state, duplicate-decision rejection, and chain replay protection.
 8. run `npm run e2e:manual-review-expiry:local` and `npm run ci:manual-review-expiry-local-evidence` when changing manual-review expiry, consumer/provider withdrawal reapers, `WITHDRAWAL_MANUAL_REVIEW_EXPIRY_SEC`, expiry notification copy, or pending review queue filters. The local gate uses a 3-second expiry with `ALLOW_SHORT_WITHDRAWAL_REVIEW_EXPIRY_FOR_TESTS=1`; production default remains 24h.
 9. run `npm run e2e:withdrawal-one-ticket-evidence` and `npm run ci:withdrawal-one-ticket-evidence` before release approval when one-ticket withdrawal, reaper, watcher, ticket signing, or claim completion semantics changed
-10. run `npm run ci:diff-coverage` when changed code needs line-level coverage evidence; Python and Vitest coverage must be Cobertura XML
-11. run `npm run ci:agent-guardrails` when Agent-generated backend/admin code touches finance, approval, storage, or shared state-machine logic; install `uv` once if the runner reports a missing Python guardrail tool
-12. run `npm run release:evidence:gateway-fullchain:local` for a local rehearsal of the full live Gateway E2E evidence chain; run `GATEWAY_RELEASE_E2E_PROFILE=mvp-postgres npm run release:evidence:gateway-fullchain:staging` plus `GATEWAY_RELEASE_E2E_REQUIRED_ENV=staging npm run ci:gateway-release-e2e-evidence` for MVP Cloud Run + Cloud SQL staging release evidence. The bundle must include a non-empty `trace.jsonl` with a matching `report.json.traceDigest`
-13. run `npm run perf:local-production-load-rehearsal` and `npm run ci:local-production-load-evidence` before staging load when changing invoke, balance, deposit confirm, withdrawal, provider health, admin finance views, load-runner behavior, or wallet/signing isolation; this validates local runId isolation, temporary wallet pools, per-wallet chain serialization, bounded concurrency, drain hard cap, and no secret leakage
-14. run `npm run ci:monitoring-alert-rules` when changing metrics, readiness, dashboards, Alertmanager routes, Lark Relay behavior, alert rules, or monitoring runbooks
-15. run `npm run e2e:gcp-alerts:local` and `npm run ci:gcp-alerts-local-evidence` before deploying GCP Monitoring receiver/drill changes; then run `npm run e2e:gcp-alerts:staging` and `npm run ci:gcp-alerts-staging-evidence` after staging deploy. Set `GCP_ALERTS_REQUIRE_MONITORING_DELIVERY=true` once per release candidate to prove GCP policy callback delivery
-16. run `npm run e2e:lark-alerts` and `npm run ci:lark-alert-e2e-evidence` before release approval when changing Lark webhook routing, Relay delivery, Alertmanager-to-Lark contracts, or production alert notification behavior
-17. run `npm run e2e:staging-smoke` and `npm run ci:staging-smoke-evidence` after staging Cloud Run, DNS, CORS, RPC, or contract-address changes; this is the first-pass live staging gate before full-chain evidence
-18. run `npm run e2e:staging-ui-dogfood` after staging User-front/Admin-front deploys to capture screenshots and browser-origin API/CORS failures
-19. run `npm run e2e:staging-core-dogfood` and `npm run ci:staging-core-dogfood-evidence` for the first-phase staging money-path gate; it mutates Arbitrum Sepolia and Cloud SQL staging, requires `STAGING_CORE_DOGFOOD_CONFIRM=I_UNDERSTAND_THIS_MUTATES_STAGING`, and must stay out of PR CI
-20. run `npm run e2e:gmail-notifications:staging` and `npm run ci:gmail-notifications-staging-evidence` when validating live staging Gmail SMTP/outbox delivery; the runner requires `GMAIL_STAGING_E2E_CONFIRM=I_UNDERSTAND_THIS_SENDS_STAGING_EMAIL`
-21. run `npm run e2e:transaction-notifications:local` and `npm run ci:transaction-notifications-local-evidence` before deploying transaction notification changes; optionally run `npm run e2e:transaction-notifications:local-real` and `npm run ci:transaction-notifications-local-real-evidence` when you need to prove real local Gmail SMTP + Lark delivery before staging. `local-real` requires `TRANSACTION_NOTIFICATIONS_LOCAL_REAL_CONFIRM=I_UNDERSTAND_THIS_SENDS_REAL_LOCAL_EMAIL_AND_LARK` and private Gmail/Lark values from shell env or `services/gateway/.env.local.private`. After staging deploy run `npm run e2e:transaction-notifications:staging` and `npm run ci:transaction-notifications-staging-evidence`. The staging runner sends real staging Gmail and Lark cards and requires `TRANSACTION_NOTIFICATIONS_STAGING_CONFIRM=I_UNDERSTAND_THIS_SENDS_STAGING_EMAIL_AND_LARK`
-22. run `npm run e2e:support-case-dogfood:local` and `npm run ci:support-case-dogfood-local-evidence` before deploying support intake, forum-support, support Lark, or support reply notification changes. After staging deploy run `npm run e2e:support-case-dogfood:staging` and `npm run ci:support-case-dogfood-staging-evidence`; the staging runner creates staging-only support cases, sends support Lark cards, verifies Admin-front `/forum-support` screenshots, and requires `SUPPORT_CASE_DOGFOOD_STAGING_CONFIRM=I_UNDERSTAND_THIS_SENDS_STAGING_SUPPORT_ALERTS`
-23. run `npm run e2e:email-binding:local-real` and `npm run ci:email-binding-local-evidence` when changing email binding, change-email, remove-email, verification-code, or account settings screenshot evidence. The checker rejects screenshots without `screenshot-evidence.json`, expected DOM text/selector checkpoints, DB checkpoints, and `forbiddenTextAbsent=true`; AuthMask/Connect Wallet screenshots are invalid evidence.
-24. run `npm run e2e:llm-deepseek:local` and `npm run ci:llm-deepseek-local-evidence` before deploying LLM token-metered billing changes; local evidence defaults to a local OpenAI-compatible fake LLM happy path plus fake timeout, missing-usage, and slow-success fixtures proving no final usage means no charge. Set `LLM_E2E_USE_REGISTERED_DEEPSEEK=1` only when local Provider has a real DeepSeek API key. After staging deploy run `npm run e2e:llm-deepseek:staging` and `npm run ci:llm-deepseek-staging-evidence`. The staging runner calls live DeepSeek Chat through Gateway, mutates staging balance, requires `LLM_DEEPSEEK_E2E_CONFIRM=I_UNDERSTAND_THIS_CALLS_LIVE_LLM_AND_CHARGES_STAGING`, and validates usage, charge, hold release, and provider/platform split exactly.
-25. run `npm run ci:quality-budget` when changing production code, tests, E2E scripts, or CI guardrails; new production source files must stay under 500 effective lines, test-like files under 800 effective lines, and new disable comments must include a reason.
-26. run `npm run ci:format-check` when changing TypeScript, JavaScript, JSON, YAML, or Markdown; this is a read-only Prettier check and must not be closed by committing unreviewed formatter churn.
-27. run `npm run ci:e2e-env-isolation` whenever changing E2E, perf, drill, or root npm script environment boundaries; local E2E must never read Google Secret Manager, dual-mode scripts must not load `.env.staging`, and staging Secret Manager reads must go through the shared wrapper.
-28. run `npm run drill:backup-restore:staging` and `npm run ci:backup-restore-evidence` before release approval when changing backup, restore, reconciliation, database bootstrap, ClickHouse analytics storage, or production recovery runbooks
-29. run `cd services/gateway && python -m pytest tests/unit/test_notifications_outbox_unit.py` when changing Gmail email notifications; email sending must remain async outbox-driven and must not block Gateway request paths
-30. run `cd services/gateway && python -m pytest tests/unit/test_notifications_outbox_unit.py tests/unit/test_in_app_notifications_router_unit.py` and `cd services/user-front && yarn test src/components/NotificationCenter.test.tsx` when changing in-app notifications; inbox writes must remain best-effort and must not block funds state machines
-31. run `npm run ci:migration-seed-guard` when changing DB migrations, bootstrap SQL, Cloud Run migration jobs, or any `scripts/e2e/*seed*.mjs` / dogfood seed path; production seed execution must remain impossible
-32. run `npm run e2e:in-app-notifications` and `npm run ci:in-app-notifications-evidence` when closing in-app notification front-to-service E2E; it must produce screenshots, prove local Docker table readiness, and keep payload metadata-only
-33. run `npm run e2e:admin-login-lockout:dogfood` when closing admin login lockout UX, API, audit, or config behavior; it must create a disposable local admin, trigger the five-failure lockout through Admin-front, capture screenshots/video, assert DB audit state, write `bugfix-log.md`, and delete the test account
-34. run `terraform -chdir=infra/terraform/gcp-staging fmt -check` and `terraform -chdir=infra/terraform/gcp-staging validate` when changing Google Cloud staging infrastructure; `terraform validate` requires `terraform init` first
-35. run `npm run deploy:contracts:arbitrum-sepolia:dry-run` before Arbitrum Sepolia staging deployment, then `npm run deploy:contracts:arbitrum-sepolia` and `npm run ci:contract-deployment-evidence` to close staging contract evidence; this requires live Arbitrum Sepolia RPC and funded staging deployer/consumer/provider wallets
+10. run `npm run e2e:withdrawal-idempotency-concurrency` and `npm run ci:withdrawal-idempotency-concurrency-evidence` when changing withdrawal creation, idempotency keys, manual-review decisions, complete callbacks, ticket replay protection, or balance bucket transitions under concurrency
+11. run `npm run ci:diff-coverage` when changed code needs line-level coverage evidence; Python and Vitest coverage must be Cobertura XML
+12. run `npm run ci:agent-guardrails` when Agent-generated backend/admin code touches finance, approval, storage, or shared state-machine logic; install `uv` once if the runner reports a missing Python guardrail tool
+13. run `npm run release:evidence:gateway-fullchain:local` for a local rehearsal of the full live Gateway E2E evidence chain; run `GATEWAY_RELEASE_E2E_PROFILE=mvp-postgres npm run release:evidence:gateway-fullchain:staging` plus `GATEWAY_RELEASE_E2E_REQUIRED_ENV=staging npm run ci:gateway-release-e2e-evidence` for MVP Cloud Run + Cloud SQL staging release evidence. The bundle must include a non-empty `trace.jsonl` with a matching `report.json.traceDigest`
+14. run `npm run perf:local-production-load-rehearsal` and `npm run ci:local-production-load-evidence` before staging load when changing invoke, balance, deposit confirm, withdrawal, provider health, admin finance views, load-runner behavior, or wallet/signing isolation; this validates local runId isolation, temporary wallet pools, per-wallet chain serialization, bounded concurrency, drain hard cap, and no secret leakage
+15. run `npm run ci:monitoring-alert-rules` when changing metrics, readiness, dashboards, Alertmanager routes, Lark Relay behavior, alert rules, or monitoring runbooks
+16. run `npm run e2e:gcp-alerts:local` and `npm run ci:gcp-alerts-local-evidence` before deploying GCP Monitoring receiver/drill changes; then run `npm run e2e:gcp-alerts:staging` and `npm run ci:gcp-alerts-staging-evidence` after staging deploy. Set `GCP_ALERTS_REQUIRE_MONITORING_DELIVERY=true` once per release candidate to prove GCP policy callback delivery
+17. run `npm run e2e:lark-alerts` and `npm run ci:lark-alert-e2e-evidence` before release approval when changing Lark webhook routing, Relay delivery, Alertmanager-to-Lark contracts, or production alert notification behavior
+18. run `npm run e2e:staging-smoke` and `npm run ci:staging-smoke-evidence` after staging Cloud Run, DNS, CORS, RPC, or contract-address changes; this is the first-pass live staging gate before full-chain evidence
+19. run `npm run e2e:staging-ui-dogfood` after staging User-front/Admin-front deploys to capture screenshots and browser-origin API/CORS failures
+20. run `npm run e2e:staging-core-dogfood` and `npm run ci:staging-core-dogfood-evidence` for the first-phase staging money-path gate; it mutates Arbitrum Sepolia and Cloud SQL staging, requires `STAGING_CORE_DOGFOOD_CONFIRM=I_UNDERSTAND_THIS_MUTATES_STAGING`, and must stay out of PR CI
+21. run `npm run e2e:gmail-notifications:staging` and `npm run ci:gmail-notifications-staging-evidence` when validating live staging Gmail SMTP/outbox delivery; the runner requires `GMAIL_STAGING_E2E_CONFIRM=I_UNDERSTAND_THIS_SENDS_STAGING_EMAIL`
+22. run `npm run e2e:transaction-notifications:local` and `npm run ci:transaction-notifications-local-evidence` before deploying transaction notification changes; optionally run `npm run e2e:transaction-notifications:local-real` and `npm run ci:transaction-notifications-local-real-evidence` when you need to prove real local Gmail SMTP + Lark delivery before staging. `local-real` requires `TRANSACTION_NOTIFICATIONS_LOCAL_REAL_CONFIRM=I_UNDERSTAND_THIS_SENDS_REAL_LOCAL_EMAIL_AND_LARK` and private Gmail/Lark values from shell env or `services/gateway/.env.local.private`. After staging deploy run `npm run e2e:transaction-notifications:staging` and `npm run ci:transaction-notifications-staging-evidence`. The staging runner sends real staging Gmail and Lark cards and requires `TRANSACTION_NOTIFICATIONS_STAGING_CONFIRM=I_UNDERSTAND_THIS_SENDS_STAGING_EMAIL_AND_LARK`
+23. run `npm run e2e:support-case-dogfood:local` and `npm run ci:support-case-dogfood-local-evidence` before deploying support intake, forum-support, support Lark, or support reply notification changes. After staging deploy run `npm run e2e:support-case-dogfood:staging` and `npm run ci:support-case-dogfood-staging-evidence`; the staging runner creates staging-only support cases, sends support Lark cards, verifies Admin-front `/forum-support` screenshots, and requires `SUPPORT_CASE_DOGFOOD_STAGING_CONFIRM=I_UNDERSTAND_THIS_SENDS_STAGING_SUPPORT_ALERTS`
+24. run `npm run e2e:email-binding:local-real` and `npm run ci:email-binding-local-evidence` when changing email binding, change-email, remove-email, verification-code, or account settings screenshot evidence. The checker rejects screenshots without `screenshot-evidence.json`, expected DOM text/selector checkpoints, DB checkpoints, and `forbiddenTextAbsent=true`; AuthMask/Connect Wallet screenshots are invalid evidence.
+25. run `npm run e2e:llm-deepseek:local` and `npm run ci:llm-deepseek-local-evidence` before deploying LLM token-metered billing changes; local evidence defaults to a local OpenAI-compatible fake LLM happy path plus fake timeout, missing-usage, and slow-success fixtures proving no final usage means no charge. Set `LLM_E2E_USE_REGISTERED_DEEPSEEK=1` only when local Provider has a real DeepSeek API key. After staging deploy run `npm run e2e:llm-deepseek:staging` and `npm run ci:llm-deepseek-staging-evidence`. The staging runner calls live DeepSeek Chat through Gateway, mutates staging balance, requires `LLM_DEEPSEEK_E2E_CONFIRM=I_UNDERSTAND_THIS_CALLS_LIVE_LLM_AND_CHARGES_STAGING`, and validates usage, charge, hold release, and provider/platform split exactly.
+26. run `npm run ci:quality-budget` when changing production code, tests, E2E scripts, or CI guardrails; new production source files must stay under 500 effective lines, test-like files under 800 effective lines, and new disable comments must include a reason.
+27. run `npm run ci:format-check` when changing TypeScript, JavaScript, JSON, YAML, or Markdown; this is a read-only Prettier check and must not be closed by committing unreviewed formatter churn.
+28. run `npm run ci:e2e-env-isolation` whenever changing E2E, perf, drill, or root npm script environment boundaries; local E2E must never read Google Secret Manager, dual-mode scripts must not load `.env.staging`, and staging Secret Manager reads must go through the shared wrapper.
+29. run `npm run drill:backup-restore:staging` and `npm run ci:backup-restore-evidence` before release approval when changing backup, restore, reconciliation, database bootstrap, ClickHouse analytics storage, or production recovery runbooks
+30. run `cd services/gateway && python -m pytest tests/unit/test_notifications_outbox_unit.py` when changing Gmail email notifications; email sending must remain async outbox-driven and must not block Gateway request paths
+31. run `cd services/gateway && python -m pytest tests/unit/test_notifications_outbox_unit.py tests/unit/test_in_app_notifications_router_unit.py` and `cd services/user-front && yarn test src/components/NotificationCenter.test.tsx` when changing in-app notifications; inbox writes must remain best-effort and must not block funds state machines
+32. run `npm run ci:migration-seed-guard` when changing DB migrations, bootstrap SQL, Cloud Run migration jobs, or any `scripts/e2e/*seed*.mjs` / dogfood seed path; production seed execution must remain impossible
+33. run `npm run e2e:in-app-notifications` and `npm run ci:in-app-notifications-evidence` when closing in-app notification front-to-service E2E; it must produce screenshots, prove local Docker table readiness, and keep payload metadata-only
+34. run `npm run e2e:admin-login-lockout:dogfood` when closing admin login lockout UX, API, audit, or config behavior; it must create a disposable local admin, trigger the five-failure lockout through Admin-front, capture screenshots/video, assert DB audit state, write `bugfix-log.md`, and delete the test account
+35. run `terraform -chdir=infra/terraform/gcp-staging fmt -check` and `terraform -chdir=infra/terraform/gcp-staging validate` when changing Google Cloud staging infrastructure; `terraform validate` requires `terraform init` first
+36. run `npm run deploy:contracts:arbitrum-sepolia:dry-run` before Arbitrum Sepolia staging deployment, then `npm run deploy:contracts:arbitrum-sepolia` and `npm run ci:contract-deployment-evidence` to close staging contract evidence; this requires live Arbitrum Sepolia RPC and funded staging deployer/consumer/provider wallets
+
+Withdrawal evidence coverage is intentionally split:
+
+1. `npm run e2e:withdrawal-risk-policy` proves Dust, T+N maturity, aggregate FIFO, 24h sliding-window risk classification, and normal Consumer/Provider withdrawals through final `COMPLETED`.
+2. `npm run e2e:withdrawal-idempotency-concurrency` proves create, manual-review decision, complete, ticket replay, and balance-bucket invariants under concurrency.
+3. `npm run e2e:withdrawal-review-dogfood:local` and `npm run e2e:admin-withdrawal-approval` prove manual-review UI/API/DB, approve/reject operations, screenshots, and admin evidence. Their evidence gates require the matching E2E to run first; missing local evidence directories are not a docs-only failure by themselves.
 
 ### Screenshot Evidence Guardrail
 

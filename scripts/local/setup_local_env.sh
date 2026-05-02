@@ -52,9 +52,10 @@ ensure_docker_runtime() {
 
 wait_for_postgres_ready() {
 	local timeout_sec="${1:-30}"
+	local postgres_port="${PGPORT:-${SYNAPSE_POSTGRES_HOST_PORT:-5432}}"
 	local elapsed=0
 	while [[ "$elapsed" -lt "$timeout_sec" ]]; do
-		if pg_isready -h 127.0.0.1 -p 5432 -U synapse >/dev/null 2>&1; then
+		if pg_isready -h 127.0.0.1 -p "$postgres_port" -U synapse >/dev/null 2>&1; then
 			return 0
 		fi
 		sleep 1
@@ -81,7 +82,7 @@ ensure_local_postgres() {
 	echo "0) Starting local Postgres via ${compose_cmd}..."
 	${compose_cmd} -f "${ROOT_DIR}/infra/docker/local/docker-compose.yml" up -d postgres >/dev/null
 	if ! wait_for_postgres_ready 45; then
-		echo "Error: local Postgres failed to become ready on 127.0.0.1:5432."
+		echo "Error: local Postgres failed to become ready on 127.0.0.1:${PGPORT:-${SYNAPSE_POSTGRES_HOST_PORT:-5432}}."
 		return 1
 	fi
 }
@@ -299,7 +300,11 @@ else
 		yarn install
 	fi
 
-	nohup yarn dev > "${ROOT_DIR}/services/user-front/frontend_dev.log" 2>&1 < /dev/null &
+	NEXT_PUBLIC_APP_ENV="${NEXT_PUBLIC_APP_ENV:-local}" \
+	NEXT_PUBLIC_GATEWAY_BASE_URL="${NEXT_PUBLIC_GATEWAY_BASE_URL:-http://127.0.0.1:8000}" \
+	NEXT_PUBLIC_ANALYTICS_ENDPOINT="${NEXT_PUBLIC_ANALYTICS_ENDPOINT:-http://127.0.0.1:8000/api/v1/events}" \
+	NEXT_PUBLIC_SUPPORT_EMAIL="${NEXT_PUBLIC_SUPPORT_EMAIL:-support@synapse-network.ai}" \
+	nohup yarn dev --hostname 0.0.0.0 > "${ROOT_DIR}/services/user-front/frontend_dev.log" 2>&1 < /dev/null &
 	FRONTEND_PID=$!
 	FRONTEND_OWNED_BY_SCRIPT=1
 	sleep 5
