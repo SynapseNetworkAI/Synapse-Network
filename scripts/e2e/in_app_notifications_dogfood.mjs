@@ -5,6 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { ethers } from "ethers";
 import { chromium, request as playwrightRequest } from "playwright";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -37,16 +38,28 @@ const BOOTSTRAP_DSN =
   process.env.LOCAL_GATEWAY_POSTGRES_BOOTSTRAP_DSN ||
   process.env.POSTGRES_BOOTSTRAP_DSN ||
   "postgresql://synapse:local-dev-postgres-password@127.0.0.1:15432/synapse_gateway";
-const JWT_SECRET =
-  process.env.JWT_SECRET || "replace-this-with-a-32-byte-minimum-jwt-secret";
+const OWNER_PRIVATE_KEY =
+  process.env.INAPP_E2E_OWNER_PRIVATE_KEY ||
+  `0x${crypto.createHash("sha256").update(`${RUN_ID}:owner`).digest("hex")}`;
+const OTHER_OWNER_PRIVATE_KEY =
+  process.env.INAPP_E2E_OTHER_OWNER_PRIVATE_KEY ||
+  `0x${crypto
+    .createHash("sha256")
+    .update(`${RUN_ID}:other-owner`)
+    .digest("hex")}`;
+const OWNER_WALLET = new ethers.Wallet(OWNER_PRIVATE_KEY);
+const OTHER_OWNER_WALLET = new ethers.Wallet(OTHER_OWNER_PRIVATE_KEY);
 const OWNER_ADDRESS = (
-  process.env.INAPP_E2E_OWNER_ADDRESS ||
-  "0x1000000000000000000000000000000000000001"
+  process.env.INAPP_E2E_OWNER_ADDRESS || OWNER_WALLET.address
 ).toLowerCase();
 const OTHER_OWNER_ADDRESS = (
-  process.env.INAPP_E2E_OTHER_OWNER_ADDRESS ||
-  "0x2000000000000000000000000000000000000002"
+  process.env.INAPP_E2E_OTHER_OWNER_ADDRESS || OTHER_OWNER_WALLET.address
 ).toLowerCase();
+const AUTH_WALLETS = new Map([
+  [OWNER_ADDRESS, OWNER_WALLET],
+  [OTHER_OWNER_ADDRESS, OTHER_OWNER_WALLET],
+]);
+const AUTH_TOKENS = new Map();
 
 const passed = [];
 const failed = [];
@@ -169,24 +182,6 @@ function ensureSchema() {
     );
   }
   return "table bootstrapped";
-}
-
-function base64url(input) {
-  return Buffer.from(input).toString("base64url");
-}
-
-function signJwt(address) {
-  const header = base64url(JSON.stringify({ alg: "HS256", typ: "JWT" }));
-  const now = Math.floor(Date.now() / 1000);
-  const payload = base64url(
-    JSON.stringify({ sub: address.toLowerCase(), iat: now, exp: now + 86400 })
-  );
-  const data = `${header}.${payload}`;
-  const signature = crypto
-    .createHmac("sha256", JWT_SECRET)
-    .update(data)
-    .digest("base64url");
-  return `${data}.${signature}`;
 }
 
 function buildWagmiStore(address, chainId = 31337) {
@@ -353,16 +348,63 @@ function seedNotifications() {
   return rows;
 }
 
+async function gatewayJson(pathname, options = {}) {
+  const response = await fetch(`${GATEWAY_BASE_URL}/api${pathname}`, {
+    method: options.method || "GET",
+    headers: {
+      Accept: "application/json",
+      ...(options.body ? { "Content-Type": "application/json" } : {}),
+      ...(options.headers || {}),
+    },
+    body: options.body ? JSON.stringify(options.body) : undefined,
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(
+      `${options.method || "GET"} ${pathname} failed: ${
+        response.status
+      } ${JSON.stringify(payload).slice(0, 500)}`
+    );
+  }
+  return payload;
+}
+
+async function authTokenFor(owner) {
+  const normalized = String(owner).toLowerCase();
+  if (AUTH_TOKENS.has(normalized)) return AUTH_TOKENS.get(normalized);
+  const wallet = AUTH_WALLETS.get(normalized);
+  if (!wallet) {
+    throw new Error(`No local auth wallet configured for ${normalized}.`);
+  }
+  const challenge = await gatewayJson(
+    `/v1/auth/challenge?address=${encodeURIComponent(wallet.address)}`
+  );
+  const message = challenge.challenge || challenge.message;
+  if (!message)
+    throw new Error(`Auth challenge missing message for ${normalized}`);
+  const signature = await wallet.signMessage(message);
+  const verified = await gatewayJson("/v1/auth/verify", {
+    method: "POST",
+    body: { wallet_address: wallet.address, message, signature },
+  });
+  const token = verified.access_token || verified.token || verified.accessToken;
+  if (!token)
+    throw new Error(`Auth verify did not return token for ${normalized}`);
+  AUTH_TOKENS.set(normalized, token);
+  return token;
+}
+
 async function apiRequest(
   context,
   pathname,
   { method = "GET", owner = OWNER_ADDRESS } = {}
 ) {
+  const token = await authTokenFor(owner);
   const response = await context.fetch(`${GATEWAY_BASE_URL}/api${pathname}`, {
     method,
     headers: {
       Accept: "application/json",
-      Authorization: `Bearer ${signJwt(owner)}`,
+      Authorization: `Bearer ${token}`,
       "X-User-Address": owner,
     },
   });
@@ -419,8 +461,9 @@ async function screenshot(page, name) {
 }
 
 async function installAuth(context) {
+  const token = await authTokenFor(OWNER_ADDRESS);
   const session = {
-    token: signJwt(OWNER_ADDRESS),
+    token,
     wallet: OWNER_ADDRESS,
     expiresAt: Date.now() + 24 * 60 * 60 * 1000,
   };

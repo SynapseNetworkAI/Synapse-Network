@@ -87,9 +87,41 @@ ensure_local_postgres() {
 	fi
 }
 
+ensure_local_postgres_database() {
+	local postgres_port="${PGPORT:-${SYNAPSE_POSTGRES_HOST_PORT:-${LOCAL_GATEWAY_POSTGRES_PORT}}}"
+	local bootstrap_user="${LOCAL_POSTGRES_BOOTSTRAP_USER:-${POSTGRES_USER:-synapse}}"
+	local bootstrap_password="${LOCAL_POSTGRES_BOOTSTRAP_PASSWORD:-${POSTGRES_PASSWORD:-local-dev-postgres-password}}"
+	local db_name="${POSTGRES_DB:-${SYNAPSE_GATEWAY_DB:-synapse_gateway}}"
+
+	if [[ -z "$db_name" ]]; then
+		echo "Error: local Gateway database name is empty."
+		return 1
+	fi
+
+	PGPASSWORD="$bootstrap_password" psql \
+		-h 127.0.0.1 \
+		-p "$postgres_port" \
+		-U "$bootstrap_user" \
+		-d postgres \
+		-X \
+		-v ON_ERROR_STOP=1 \
+		--set=db_name="$db_name" <<'SQL' >/dev/null
+SELECT format('CREATE DATABASE %I', :'db_name')
+WHERE NOT EXISTS (
+	SELECT 1
+	FROM pg_database
+	WHERE datname = :'db_name'
+) \gexec
+SQL
+}
+
 bootstrap_local_postgres_schema() {
+	local target_db="${POSTGRES_DB:-${SYNAPSE_GATEWAY_DB:-synapse_gateway}}"
+	local migration_dsn="${MIGRATION_DSN:-postgresql://synapse:local-dev-postgres-password@127.0.0.1:${LOCAL_GATEWAY_POSTGRES_PORT}/${target_db}}"
+
+	ensure_local_postgres_database
 	echo "0.1) Applying local Gateway schema migration..."
-	MIGRATION_DSN="postgresql://synapse:local-dev-postgres-password@127.0.0.1:${LOCAL_GATEWAY_POSTGRES_PORT}/synapse_gateway" \
+	MIGRATION_DSN="$migration_dsn" \
 		bash "${ROOT_DIR}/services/gateway/scripts/deploy/migrate_db.sh" local
 }
 
@@ -238,7 +270,8 @@ if [[ -n "$EXISTING_PROVIDER_PID" ]]; then
 fi
 
 LOCAL_ENV_FILE="${ROOT_DIR}/services/gateway/.env.local"
-DEFAULT_LOCAL_POSTGRES_DSN="postgresql://synapse:local-dev-postgres-password@127.0.0.1:${LOCAL_GATEWAY_POSTGRES_PORT}/synapse_gateway"
+LOCAL_GATEWAY_DB_NAME="${POSTGRES_DB:-${SYNAPSE_GATEWAY_DB:-synapse_gateway}}"
+DEFAULT_LOCAL_POSTGRES_DSN="postgresql://synapse:local-dev-postgres-password@127.0.0.1:${LOCAL_GATEWAY_POSTGRES_PORT}/${LOCAL_GATEWAY_DB_NAME}"
 
 if [[ -n "${POSTGRES_DSN:-}" ]]; then
 	echo "[local-setup] ignoring ambient POSTGRES_DSN; local setup uses Docker Postgres by default."

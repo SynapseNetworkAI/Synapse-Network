@@ -67,8 +67,6 @@ const OUT_DIR = path.resolve(
         ))
 );
 
-const DEFAULT_LOCAL_DSN =
-  "postgresql://synapse_gateway_app:local-dev-gateway-app-password@127.0.0.1:15432/synapse_gateway";
 const projectId = projectIdFromEnv();
 const region = process.env.REGION || "us-central1";
 const outboxJob =
@@ -76,10 +74,11 @@ const outboxJob =
   "synapse-staging-notification-outbox-drain";
 const postgresDsn = IS_STAGING
   ? process.env.STAGING_TRANSACTION_POSTGRES_DSN || ""
-  : configValue("TRANSACTION_NOTIFICATIONS_POSTGRES_DSN") ||
-    configValue("LOCAL_POSTGRES_DSN") ||
-    configValue("POSTGRES_DSN") ||
-    DEFAULT_LOCAL_DSN;
+  : process.env.TRANSACTION_NOTIFICATIONS_POSTGRES_DSN ||
+    process.env.LOCAL_GATEWAY_POSTGRES_DSN ||
+    process.env.LOCAL_POSTGRES_DSN ||
+    process.env.POSTGRES_DSN ||
+    "postgresql://synapse_gateway_app:local-dev-gateway-app-password@127.0.0.1:15432/synapse_gateway";
 const testEmail = IS_STAGING
   ? process.env.STAGING_TRANSACTION_TEST_EMAIL || ""
   : configValue("TRANSACTION_NOTIFICATIONS_TEST_EMAIL") ||

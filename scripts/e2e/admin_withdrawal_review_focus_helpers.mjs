@@ -37,7 +37,7 @@ export function createAdminWithdrawalReviewFocusHelpers({
       "Admin Authentication",
       "Sign in to continue",
       "Unauthorized",
-      "401",
+      "Internal server error",
     ];
     const missingExpected = expectedText.filter((item) => {
       if (item instanceof RegExp) return !item.test(bodyText);
@@ -282,6 +282,11 @@ export function createAdminWithdrawalReviewFocusHelpers({
       await page.waitForTimeout(1_000);
       await screenshotAdmin(page, "06-review-history", {
         expectedText: [/审核记录|Review|History|处理结论/i],
+        forbiddenText: [
+          "Admin Authentication",
+          "Sign in to continue",
+          "Unauthorized",
+        ],
         domCheckpoint: "review history page loads after approval",
         apiCheckpoint: "review history expected to contain recent decision",
       });

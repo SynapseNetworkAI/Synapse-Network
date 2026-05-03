@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { ethers } from "ethers";
 import { createAdminWithdrawalReviewFocusHelpers } from "./admin_withdrawal_review_focus_helpers.mjs";
+import { createWithdrawalReviewMaturityHelpers } from "./withdrawal_review_maturity_helpers.mjs";
 import {
   generateTotpCode,
   waitForSafeTotpWindow,
@@ -108,7 +109,7 @@ const config = {
   consumerManualAmountUsdc:
     process.env.WITHDRAWAL_REVIEW_CONSUMER_AMOUNT_USDC || "500.000000",
   providerRejectAmountUsdc:
-    process.env.WITHDRAWAL_REVIEW_PROVIDER_REJECT_AMOUNT_USDC || "2.000000",
+    process.env.WITHDRAWAL_REVIEW_PROVIDER_REJECT_AMOUNT_USDC || "100.000000",
   topupDepositUsdc:
     process.env.WITHDRAWAL_REVIEW_TOPUP_DEPOSIT_USDC || "1200.000000",
 };
@@ -209,6 +210,13 @@ const {
   sanitize,
   screenshotDir: SCREENSHOT_DIR,
 });
+const { matureConsumerDeposits, matureProviderCharges, seedServiceHealth } =
+  createWithdrawalReviewMaturityHelpers({
+    evidence,
+    pass,
+    queryJson,
+    sqlLiteral,
+  });
 
 function runId() {
   return process.env.WITHDRAWAL_REVIEW_DOGFOOD_RUN_ID || `wr-${timestamp}`;
@@ -535,79 +543,6 @@ function sqlLiteral(value) {
   return `'${String(value ?? "").replace(/'/g, "''")}'`;
 }
 
-function serviceEndpointId(serviceId, targetUrl, index = 0) {
-  const suffix = crypto
-    .createHash("sha1")
-    .update(String(targetUrl))
-    .digest("hex")
-    .slice(0, 10);
-  return `${serviceId}:ep:${index}:${suffix}`;
-}
-
-function seedServiceHealth(serviceId, targetUrl) {
-  const nowMs = Date.now();
-  const endpointId = serviceEndpointId(serviceId, targetUrl);
-  const stateKey = `service_health_meta::${serviceId}::${targetUrl}`;
-  const healthPayload = JSON.stringify({
-    status: "healthy",
-    overallStatus: "healthy",
-    lastCheckedAt: nowMs,
-    lastHealthyAt: nowMs,
-    httpStatus: 200,
-    latencyMs: 50,
-    consecutiveSuccesses: 3,
-    consecutiveFailures: 0,
-    healthyTargets: 1,
-    totalTargets: 1,
-  });
-  queryJson(`
-    WITH endpoint_upsert AS (
-      INSERT INTO synapse_service_endpoints
-        (endpoint_id, service_id, endpoint_url, auth_mode, timeout_ms,
-         max_payload_bytes, streaming_supported, async_supported,
-         callback_supported, weight, is_primary, status,
-         created_at, updated_at)
-      VALUES (
-        ${sqlLiteral(endpointId)}, ${sqlLiteral(serviceId)}, ${sqlLiteral(
-    targetUrl
-  )}, 'gateway_signed', 30000,
-        1048576, FALSE, FALSE,
-        FALSE, 100, TRUE, 'active',
-        NOW(), NOW()
-      )
-      ON CONFLICT (endpoint_id) DO UPDATE SET updated_at = NOW()
-      RETURNING endpoint_id
-    ),
-    snapshot_upsert AS (
-      INSERT INTO synapse_service_health_snapshots
-        (service_id, endpoint_id, health_score, p95_latency_ms,
-         last_checked_at, updated_at)
-      VALUES (${sqlLiteral(serviceId)}, ${sqlLiteral(
-    endpointId
-  )}, 100, 50, NOW(), NOW())
-      ON CONFLICT (service_id, endpoint_id) DO UPDATE SET
-        health_score = 100,
-        p95_latency_ms = 50,
-        last_checked_at = NOW(),
-        updated_at = NOW()
-      RETURNING service_id
-    ),
-    state_upsert AS (
-      INSERT INTO synapse_runtime_state (state_key, payload, updated_at)
-      VALUES (${sqlLiteral(stateKey)}, ${sqlLiteral(
-    healthPayload
-  )}::jsonb, NOW())
-      ON CONFLICT (state_key) DO UPDATE SET
-        payload = ${sqlLiteral(healthPayload)}::jsonb,
-        updated_at = NOW()
-      RETURNING state_key
-    )
-    SELECT json_build_object('serviceId', ${sqlLiteral(
-      serviceId
-    )}, 'endpointId', ${sqlLiteral(endpointId)})
-  `);
-}
-
 function dbBalance(ownerAddress, kind) {
   const accountPredicate =
     kind === "provider"
@@ -902,7 +837,7 @@ async function runProviderApprovalBaseline() {
       ADMIN_WITHDRAWAL_APPROVAL_FIXTURE: fixturePath,
       ADMIN_WITHDRAWAL_APPROVAL_DEPOSIT_USDC: config.topupDepositUsdc,
       ADMIN_WITHDRAWAL_APPROVAL_AMOUNT_USDC:
-        process.env.ADMIN_WITHDRAWAL_APPROVAL_AMOUNT_USDC || "2.000000",
+        process.env.ADMIN_WITHDRAWAL_APPROVAL_AMOUNT_USDC || "100.000000",
       WITHDRAWAL_AUTO_SINGLE_LIMIT_USDC:
         process.env.WITHDRAWAL_AUTO_SINGLE_LIMIT_USDC || "1.000000",
       CONSUMER_KEY: localConsumerKey,
@@ -1100,6 +1035,9 @@ async function runProviderReject(fixture, providerAuth, adminAuth) {
   }
   await invokeFixtureService(fixture, "provider-reject-a");
   await invokeFixtureService(fixture, "provider-reject-b");
+  if (!IS_STAGING) {
+    matureProviderCharges(providerAuth.address);
+  }
   const before = dbBalance(providerAuth.address, "provider");
   const created = await createProviderWithdrawal(
     providerAuth,
@@ -1202,13 +1140,14 @@ async function runMain() {
   resetLocalAdminE2eAccount();
 
   const fixture = await runProviderApprovalBaseline();
-  const adminAuth = fixture?.auth?.sessionToken
-    ? {
-        sessionToken: fixture.auth.sessionToken,
-        csrfToken: fixture.auth.csrfToken || "",
-      }
-    : await loginAdmin();
-  if (fixture?.auth?.sessionToken) {
+  const adminAuth =
+    !IS_ADMIN_REVIEW_FOCUSED && fixture?.auth?.sessionToken
+      ? {
+          sessionToken: fixture.auth.sessionToken,
+          csrfToken: fixture.auth.csrfToken || "",
+        }
+      : await loginAdmin();
+  if (!IS_ADMIN_REVIEW_FOCUSED && fixture?.auth?.sessionToken) {
     recordAdminAuthCheckpoint("fixture-admin-session", {
       sessionCookiePresent: true,
       csrfTokenPresent: Boolean(fixture.auth.csrfToken),
@@ -1225,6 +1164,10 @@ async function runMain() {
     !IS_STAGING && fixture?.provider?.token
       ? fixture.provider
       : await authWallet(config.providerKey, "provider");
+
+  if (!IS_STAGING) {
+    matureConsumerDeposits(consumerAuth.address);
+  }
 
   await runConsumerReject(consumerAuth, adminAuth);
   await runConsumerApprove(consumerAuth, adminAuth);
