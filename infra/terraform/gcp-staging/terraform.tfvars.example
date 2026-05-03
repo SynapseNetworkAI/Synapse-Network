@@ -47,6 +47,7 @@ frontend_runtime_env = {
   NEXT_PUBLIC_GATEWAY_BASE_URL    = "https://api-staging.synapse-network.ai"
   NEXT_PUBLIC_ADMIN_API_BASE_URL  = "https://admin-api-staging.synapse-network.ai"
   NEXT_PUBLIC_DOCS_BASE_URL       = "https://docs-staging.synapse-network.ai"
+  NEXT_PUBLIC_TX_EXPLORER_BASE_URL = "https://sepolia.arbiscan.io"
   NEXT_PUBLIC_CONSOLE_BASE_URL    = "https://staging.synapse-network.ai/dashboard/overview"
   ADMIN_API_PROXY_TARGET          = "https://admin-api-staging.synapse-network.ai"
   NEXT_PUBLIC_APP_ENV             = "staging"

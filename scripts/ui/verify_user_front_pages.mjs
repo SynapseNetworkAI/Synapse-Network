@@ -8,6 +8,19 @@ import { fileURLToPath } from "url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "../..");
 const BASE_URL = process.env.USER_FRONT_BASE_URL || "http://localhost:3000";
+const APP_ENV = (process.env.NEXT_PUBLIC_APP_ENV || "local")
+  .trim()
+  .toLowerCase();
+const TX_EXPLORER_BASE_URL = (
+  process.env.NEXT_PUBLIC_TX_EXPLORER_BASE_URL ||
+  (APP_ENV === "prod" || APP_ENV === "production"
+    ? "https://arbiscan.io"
+    : APP_ENV === "staging" || APP_ENV === "stage"
+    ? "https://sepolia.arbiscan.io"
+    : "http://localhost:5100")
+).replace(/\/+$/, "");
+const VERIFY_TX_EXPLORER_CLICK =
+  process.env.USER_FRONT_VERIFY_TX_EXPLORER_CLICK === "1";
 const VERIFY_MODE =
   process.env.USER_FRONT_VERIFY_MODE ||
   (process.env.USER_FRONT_FULLCHAIN_FIXTURE ? "fullchain" : "smoke");
@@ -98,6 +111,12 @@ function canonicalAddress(value) {
   return String(value || "")
     .trim()
     .toLowerCase();
+}
+
+function expectedTransactionExplorerUrl(txHash) {
+  const hash = String(txHash || "").trim();
+  if (!hash) return "";
+  return `${TX_EXPLORER_BASE_URL}/tx/${hash}`;
 }
 
 function fixtureServices() {
@@ -943,14 +962,46 @@ async function verifyFullchainPageData(page, row) {
 
   if (row.href === "/dashboard/billing") {
     const depositAmount = String(fullchainFixture.deposit?.amountUsdc || "");
+    const depositTxHash = String(fullchainFixture.deposit?.txHash || "");
     const matched = await waitForBodyFragment(
       page,
-      [
-        ...formatMoneyCandidates(depositAmount),
-        fullchainFixture.deposit?.txHash?.slice(-6),
-      ],
+      [...formatMoneyCandidates(depositAmount), depositTxHash.slice(-6)],
       "/dashboard/billing seeded deposit"
     );
+    if (depositTxHash) {
+      const expectedHref = expectedTransactionExplorerUrl(depositTxHash);
+      const txLink = page.locator(`a[href="${expectedHref}"]`).first();
+      if ((await txLink.count()) === 0) {
+        const actualLinks = await page
+          .locator('a[href*="/tx/"]')
+          .evaluateAll((links) =>
+            links.map((link) => link.getAttribute("href")).filter(Boolean)
+          );
+        throw new Error(
+          `/dashboard/billing invoice link expected ${expectedHref}; got ${
+            actualLinks.join(", ") || "none"
+          }`
+        );
+      }
+      if (VERIFY_TX_EXPLORER_CLICK) {
+        const popupPromise = page.waitForEvent("popup", { timeout: 10000 });
+        await txLink.click();
+        const popup = await popupPromise;
+        try {
+          await popup
+            .waitForLoadState("commit", { timeout: 10000 })
+            .catch(() => {});
+          if (!popup.url().startsWith(expectedHref)) {
+            throw new Error(
+              `/dashboard/billing invoice click opened ${popup.url()}, expected ${expectedHref}`
+            );
+          }
+        } finally {
+          await popup.close().catch(() => {});
+        }
+      }
+      return `payments ledger verified seeded deposit ${depositAmount} USDC (UI matched ${matched}, invoice=${expectedHref})`;
+    }
     return `payments ledger verified seeded deposit ${depositAmount} USDC (UI matched ${matched})`;
   }
 
@@ -1483,6 +1534,8 @@ const report = {
   verifyRealBackend: VERIFY_REAL_BACKEND,
   effectiveRealBackend: EFFECTIVE_REAL_BACKEND,
   gatewayHealthUrl: GATEWAY_HEALTH_URL,
+  txExplorerBaseUrl: TX_EXPLORER_BASE_URL,
+  verifyTxExplorerClick: VERIFY_TX_EXPLORER_CLICK,
   fullchainFixture: fullchainFixture
     ? {
         path: path.relative(ROOT, FULLCHAIN_FIXTURE_PATH),

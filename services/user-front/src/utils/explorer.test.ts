@@ -10,11 +10,13 @@ describe("transaction explorer links", () => {
     vi.unstubAllEnvs();
   });
 
-  it("does not expose a public explorer link in local by default", () => {
+  it("uses local Otterscan explorer in local by default", () => {
     vi.stubEnv("NEXT_PUBLIC_APP_ENV", "local");
 
-    expect(getTransactionExplorerBaseUrl()).toBeNull();
-    expect(getTransactionExplorerUrl("0xabc")).toBeNull();
+    expect(getTransactionExplorerBaseUrl()).toBe("http://localhost:5100");
+    expect(getTransactionExplorerUrl("0xabc")).toBe(
+      "http://localhost:5100/tx/0xabc"
+    );
   });
 
   it("uses Arbitrum Sepolia explorer in staging", () => {

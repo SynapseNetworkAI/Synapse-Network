@@ -50,6 +50,8 @@ npm run ci:frontend
 NEXT_PUBLIC_GATEWAY_BASE_URL=http://127.0.0.1:8000
 NEXT_PUBLIC_ANALYTICS_ENDPOINT=http://127.0.0.1:8000/api/v1/events
 NEXT_PUBLIC_APP_ENV=local
+NEXT_PUBLIC_DOCS_BASE_URL=http://localhost:3100
+NEXT_PUBLIC_TX_EXPLORER_BASE_URL=http://localhost:5100
 NEXT_PUBLIC_SERVICE_LIST_CACHE_TTL_MS=20000
 NEXT_PUBLIC_SUPPORT_EMAIL=support@synapse-network.ai
 NEXT_PUBLIC_SUPPORT_PORTAL_URL=
@@ -72,10 +74,12 @@ cp services/user-front/src/contract-config.arbitrum-sepolia.example.json service
 1. `NEXT_PUBLIC_GATEWAY_BASE_URL`: 前端请求 gateway 的基地址。
 2. `NEXT_PUBLIC_ANALYTICS_ENDPOINT`: 浏览器事件上报地址，必须指向同环境 Gateway `/api/v1/events`。
 3. `NEXT_PUBLIC_APP_ENV`: 当前公开环境标识，允许 `local`、`staging`、`prod`。
-4. `NEXT_PUBLIC_SERVICE_LIST_CACHE_TTL_MS`: 服务列表缓存 TTL，推荐 15000-30000ms。
-5. `NEXT_PUBLIC_SUPPORT_EMAIL` / `NEXT_PUBLIC_SUPPORT_PORTAL_URL`: Credits、Dashboard、Feedback fallback 的用户支持入口，至少配置一个。缺失时启动/构建必须失败。
-6. `NEXT_PUBLIC_REOWN_PROJECT_ID` / `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID`: 钱包连接项目 ID，可选。
-7. `contract-config.json`: 填入目标测试网的 `MockUSDC / Treasury / SynapseCore` 地址。
+4. `NEXT_PUBLIC_DOCS_BASE_URL`: 本地必须指向独立 docs-front `http://localhost:3100`。
+5. `NEXT_PUBLIC_TX_EXPLORER_BASE_URL`: invoice / tx 跳转地址；local 默认使用 Docker Compose 里的 Otterscan `http://localhost:5100`，staging 使用 `https://sepolia.arbiscan.io`，prod 使用 `https://arbiscan.io`。
+6. `NEXT_PUBLIC_SERVICE_LIST_CACHE_TTL_MS`: 服务列表缓存 TTL，推荐 15000-30000ms。
+7. `NEXT_PUBLIC_SUPPORT_EMAIL` / `NEXT_PUBLIC_SUPPORT_PORTAL_URL`: Credits、Dashboard、Feedback fallback 的用户支持入口，至少配置一个。缺失时启动/构建必须失败。
+8. `NEXT_PUBLIC_REOWN_PROJECT_ID` / `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID`: 钱包连接项目 ID，可选。
+9. `contract-config.json`: 填入目标测试网的 `MockUSDC / Treasury / SynapseCore` 地址。
 
 共享测试网 / 预发环境建议直接使用：
 
