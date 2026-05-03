@@ -21,6 +21,7 @@
     "deploy:contracts:arbitrum-sepolia": "ENV_FILE=services/gateway/.env.staging npx hardhat run scripts/chain/deploy_arbitrum_sepolia.js --network arbitrumSepolia",
     "verify:contracts:arbitrum-sepolia:evidence": "ENV_FILE=services/gateway/.env.staging npx hardhat run scripts/chain/verify_arbitrum_sepolia_evidence.js --network arbitrumSepolia",
     "ci:contract-deployment-evidence": "node scripts/ci/contract_deployment_evidence_check.mjs",
+    "ci:agent-lessons": "node scripts/ci/agent_lessons_check.mjs && node --test scripts/ci/agent_lessons_check.test.mjs",
     "ci:admin-front": "bash scripts/ci/admin_front_checks.sh",
     "ci:admin-gateway": "bash scripts/ci/admin_gateway_checks.sh",
     "ci:contracts": "bash scripts/ci/contracts_checks.sh",

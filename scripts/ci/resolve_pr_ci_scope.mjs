@@ -2,6 +2,8 @@
 import { execFileSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 
+import { classifyPackageJsonChange } from "./resolve_pr_ci_scope_package.mjs";
+
 const FULL_COMMANDS = [
   "runtime_preflight",
   "security_money_scan",
@@ -81,149 +83,6 @@ function addCommand(set, command) {
 
 function matchesAny(file, patterns) {
   return patterns.some((pattern) => pattern.test(file));
-}
-
-function jsonAt(ref, path) {
-  const raw = tryGit(["show", `${ref}:${path}`]);
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
-}
-
-function stableJson(value) {
-  if (Array.isArray(value)) {
-    return `[${value.map((item) => stableJson(item)).join(",")}]`;
-  }
-  if (value && typeof value === "object") {
-    return `{${Object.keys(value)
-      .sort()
-      .map((key) => `${JSON.stringify(key)}:${stableJson(value[key])}`)
-      .join(",")}}`;
-  }
-  return JSON.stringify(value);
-}
-
-function deepEqual(left, right) {
-  return stableJson(left) === stableJson(right);
-}
-
-function changedScriptNames(beforeScripts, afterScripts) {
-  const names = unique([
-    ...Object.keys(beforeScripts || {}),
-    ...Object.keys(afterScripts || {}),
-  ]).sort();
-  return names.filter(
-    (name) => (beforeScripts || {})[name] !== (afterScripts || {})[name]
-  );
-}
-
-function classifyPackageJsonChange(mergeBase, head) {
-  const before = jsonAt(mergeBase, "package.json");
-  const after = jsonAt(head, "package.json");
-  if (!before || !after) {
-    return { fullReason: "package.json could not be parsed from both refs" };
-  }
-
-  const beforeWithoutScripts = { ...before };
-  const afterWithoutScripts = { ...after };
-  delete beforeWithoutScripts.scripts;
-  delete afterWithoutScripts.scripts;
-  if (!deepEqual(beforeWithoutScripts, afterWithoutScripts)) {
-    return {
-      fullReason: "package.json dependency or package metadata changed",
-    };
-  }
-
-  const scripts = changedScriptNames(before.scripts || {}, after.scripts || {});
-  if (scripts.length === 0) {
-    return {
-      commands: [],
-      riskScopes: [],
-      reason: "package.json changed without script/dependency changes",
-    };
-  }
-
-  const commands = new Set();
-  const riskScopes = new Set(["package-scripts"]);
-  let needsRootNpmDeps = false;
-
-  const guardrailScripts = new Set([
-    "ci:pr",
-    "ci:financial-security",
-    "ci:finance-approval-safety",
-    "ci:architecture-quality",
-    "ci:quality-budget",
-    "ci:format-check",
-    "ci:agent-guardrails",
-    "ci:diff-coverage",
-    "ci:gateway",
-    "ci:admin-gateway",
-    "ci:frontend",
-    "ci:admin-front",
-    "ci:contracts",
-    "ci:provider-service",
-    "ci:sdk-python",
-    "ci:docs",
-    "ci:e2e-env-isolation",
-    "ci:release-go-no-go",
-    "ci:performance-reliability",
-    "ci:gateway-stress-review",
-  ]);
-
-  for (const scriptName of scripts) {
-    const scriptValue = String((after.scripts || {})[scriptName] || "");
-    if (
-      guardrailScripts.has(scriptName) ||
-      /\bscripts\/ci\/(pr_checks|diff_coverage|finance_|security_|e2e_env_isolation|quality_budget|format_check|code_quality_|gateway_checks|admin_gateway_checks|frontend_checks|admin_front_checks)/.test(
-        scriptValue
-      )
-    ) {
-      return {
-        fullReason: `package.json guardrail script changed: ${scriptName}`,
-      };
-    }
-
-    if (
-      /gcp-alerts|lark-alert|monitoring-alert/i.test(scriptName) ||
-      /gcp_alerts|lark_alert|monitoring_alert/i.test(scriptValue)
-    ) {
-      commands.add("monitoring_alert_rules");
-      riskScopes.add("monitoring");
-      continue;
-    }
-
-    if (
-      /contract|arbitrum|hardhat|arb-sepolia/i.test(scriptName) ||
-      /\b(hardhat|scripts\/chain)\b/.test(scriptValue)
-    ) {
-      commands.add("contracts_checks");
-      riskScopes.add("chain-contracts");
-      needsRootNpmDeps = true;
-      continue;
-    }
-
-    if (/^e2e:/.test(scriptName) || /^ci:.*evidence$/.test(scriptName)) {
-      commands.add("e2e_script_model_drift_scan");
-      riskScopes.add("e2e-evidence");
-      continue;
-    }
-
-    return {
-      fullReason: `package.json script changed without a narrow CI mapping: ${scriptName}`,
-    };
-  }
-
-  return {
-    commands: [...commands],
-    riskScopes: [...riskScopes],
-    reason: `package.json script-only change mapped narrowly: ${scripts.join(
-      ", "
-    )}`,
-    needsRootNpmDeps,
-  };
 }
 
 const requestedMode = (
@@ -331,6 +190,9 @@ if (requestedMode === "full") {
     let forceFullReason = "";
 
     const docsPatterns = [/^docs\//, /^llms\.txt$/, /\.md$/];
+    const narrowCiToolPatterns = [
+      /^scripts\/ci\/agent_lessons_check(\.test)?\.mjs$/,
+    ];
     const fullTriggerPatterns = [
       /^\.github\/workflows\//,
       /^scripts\/ci\//,
@@ -376,7 +238,15 @@ if (requestedMode === "full") {
 
     for (const file of changedFiles) {
       const isDocsFile = matchesAny(file, docsPatterns);
+      const isNarrowCiToolFile = matchesAny(file, narrowCiToolPatterns);
       docsOnly &&= isDocsFile;
+
+      if (isNarrowCiToolFile) {
+        docsOnly = false;
+        riskScopes.add("agent-lessons");
+        reasons.push("agent lessons CI tool change mapped narrowly");
+        continue;
+      }
 
       if (matchesAny(file, fullTriggerPatterns)) {
         forceFullReason = `${file} changes CI/tooling/root dependency behavior`;
