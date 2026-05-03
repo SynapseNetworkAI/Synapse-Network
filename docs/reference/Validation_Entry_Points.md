@@ -36,10 +36,12 @@ From repository root:
 24. `npm run ci:lark-alert-e2e-evidence`
 25. `npm run e2e:in-app-notifications`
 26. `npm run ci:in-app-notifications-evidence`
-27. `npm run ci:backup-restore-evidence`
-28. `npm run deploy:contracts:arbitrum-sepolia:dry-run`
-29. `npm run ci:contract-deployment-evidence`
-30. `npm run ci:migration-seed-guard`
+27. `npm run e2e:admin-regression`
+28. `npm run ci:admin-regression-evidence`
+29. `npm run ci:backup-restore-evidence`
+30. `npm run deploy:contracts:arbitrum-sepolia:dry-run`
+31. `npm run ci:contract-deployment-evidence`
+32. `npm run ci:migration-seed-guard`
 
 Use these wrappers when final integration confidence is required.
 
@@ -213,6 +215,7 @@ Before finishing:
 34. run `npm run e2e:admin-login-lockout:dogfood` when closing admin login lockout UX, API, audit, or config behavior; it must create a disposable local admin, trigger the five-failure lockout through Admin-front, capture screenshots/video, assert DB audit state, write `bugfix-log.md`, and delete the test account
 35. run `terraform -chdir=infra/terraform/gcp-staging fmt -check` and `terraform -chdir=infra/terraform/gcp-staging validate` when changing Google Cloud staging infrastructure; `terraform validate` requires `terraform init` first
 36. run `npm run deploy:contracts:arbitrum-sepolia:dry-run` before Arbitrum Sepolia staging deployment, then `npm run deploy:contracts:arbitrum-sepolia` and `npm run ci:contract-deployment-evidence` to close staging contract evidence; this requires live Arbitrum Sepolia RPC and funded staging deployer/consumer/provider wallets
+37. run `npm run e2e:admin-regression` and `npm run ci:admin-regression-evidence` when closing Admin-wide regression, Admin Analytics Postgres source changes, admin notification evidence, withdrawal review orchestration, platform treasury Safe draft evidence, or screenshot/SQL evidence contracts. The evidence must include `expected_state.json`, `sql_evidence.json`, `screenshot_evidence.json`, final-state DOM checkpoints, and Postgres-only Analytics source proof.
 
 Withdrawal evidence coverage is intentionally split:
 
