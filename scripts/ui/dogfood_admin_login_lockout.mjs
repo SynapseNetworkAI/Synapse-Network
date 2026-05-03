@@ -22,7 +22,7 @@ const OUT_DIR = process.env.ADMIN_LOCKOUT_DOGFOOD_OUT_DIR
 const SCREENSHOT_DIR = path.join(OUT_DIR, "screenshots");
 const VIDEO_DIR = path.join(OUT_DIR, "videos");
 const ADMIN_FRONT_URL = (
-  process.env.ADMIN_FRONT_URL || "http://localhost:4000"
+  process.env.ADMIN_FRONT_URL || "http://localhost:3200"
 ).replace(/\/+$/, "");
 const ADMIN_GATEWAY_URL = (
   process.env.ADMIN_GATEWAY_URL || "http://localhost:8300"

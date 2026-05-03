@@ -8,7 +8,7 @@ function defaultDocsBaseUrl() {
   if (appEnv === "staging") {
     return "https://docs-staging.synapse-network.ai";
   }
-  return "http://localhost:3001";
+  return "http://localhost:3100";
 }
 
 export function getDocsBaseUrl() {

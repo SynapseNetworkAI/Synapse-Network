@@ -96,9 +96,9 @@ const checks = [
     key: "NEXT_PUBLIC_DOCS_BASE_URL",
     required: true,
     description:
-      "Dedicated developer docs origin. Local should be http://localhost:3001; staging/prod should use the docs subdomain.",
+      "Dedicated developer docs origin. Local should be http://localhost:3100; staging/prod should use the docs subdomain.",
     validate: (value) => isHttpUrl(value),
-    fix: "Set NEXT_PUBLIC_DOCS_BASE_URL to http://localhost:3001 locally, https://docs-staging.synapse-network.ai in staging, or https://docs.synapse-network.ai in prod.",
+    fix: "Set NEXT_PUBLIC_DOCS_BASE_URL to http://localhost:3100 locally, https://docs-staging.synapse-network.ai in staging, or https://docs.synapse-network.ai in prod.",
   },
   {
     key: "NEXT_PUBLIC_SERVICE_LIST_CACHE_TTL_MS",
