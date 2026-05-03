@@ -119,10 +119,14 @@ def archive_test_service(service_id: str) -> None:
                   AND (
                     service_id LIKE 'api_ref_%%'
                     OR service_id LIKE 'apiref_test_%%'
-                    OR service_id LIKE 'provider_onboard_%%'
-                    OR service_id LIKE 'llm_%%_llm_deepseek_%%'
-                    OR service_id LIKE 'gateway_pull_health_%%'
-                  )
+	                    OR service_id LIKE 'provider_onboard_%%'
+	                    OR service_id LIKE 'llm_%%_llm_deepseek_%%'
+	                    OR service_id LIKE 'gateway_pull_health_%%'
+	                    OR service_id LIKE 'svc_e2e_%%'
+	                    OR service_id LIKE 'svc_verify_%%'
+	                    OR service_id LIKE 'svc_buyer_%%'
+	                    OR service_id LIKE 'ufc_%%'
+	                  )
                 """,
                 (normalized,),
             )

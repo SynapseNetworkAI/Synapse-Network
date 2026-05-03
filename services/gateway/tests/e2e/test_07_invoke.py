@@ -6,8 +6,15 @@ from decimal import Decimal
 import httpx
 import pytest
 
-from tests.e2e.conftest import GATEWAY_BASE
+from tests.e2e.conftest import GATEWAY_BASE, RELEASE_E2E
 from tests.e2e.helpers.gateway import get_balance, get_balance_full
+from tests.e2e.helpers.service_fixtures import (
+    canonical_missing_message,
+    canonical_provider_required,
+    configured_e2e_service_id,
+    discover_service,
+    service_price_usdc,
+)
 
 CREDENTIAL_HEADER = "X-Credential"
 TIMEOUT = 60
@@ -17,10 +24,17 @@ def _cred_headers(token: str) -> dict:
     return {CREDENTIAL_HEADER: token, "Content-Type": "application/json"}
 
 
+def _select_service_id(session_state: dict) -> str:
+    configured = configured_e2e_service_id()
+    if canonical_provider_required():
+        return configured
+    return str(session_state.get("service_id") or configured).strip()
+
+
 def test_get_quote_for_service(session_state, provider_headers):
-    """Discover the service price via agent discovery search."""
+    """Discover the canonical service price via agent discovery search."""
     token = session_state.get("agent_token")
-    service_id = session_state.get("service_id")
+    service_id = _select_service_id(session_state)
     if not token or not service_id:
         pytest.skip("agent_token or service_id not set — previous steps may have failed")
 
@@ -35,42 +49,22 @@ def test_get_quote_for_service(session_state, provider_headers):
     results = body.get("results", [])
     match = next((s for s in results if s.get("serviceId") == service_id), None)
     if not match:
-        # Public discovery is relevance-ranked and can omit a freshly registered
-        # staging E2E service. The provider-owned list is the deterministic
-        # fallback that still proves the registered service price before invoke.
-        service_list = httpx.get(
-            f"{GATEWAY_BASE}/api/v1/services",
-            headers=provider_headers,
-            timeout=TIMEOUT,
-        )
-        assert service_list.status_code == 200, (
-            f"Provider service list failed ({service_list.status_code}): {service_list.text}"
-        )
-        services = service_list.json().get("services") or service_list.json().get("items") or []
-        match = next(
-            (
-                s
-                for s in services
-                if s.get("serviceId") == service_id
-                or s.get("id") == service_id
-                or s.get("agentToolName") == service_id
-            ),
-            None,
-        )
-    assert match, f"service_id {service_id!r} not found in discovery or provider list"
-    price_usdc = (
-        match.get("basePriceUsdc")
-        or match.get("priceUsdc")
-        or (match.get("pricing") or {}).get("amount")
-        or "0.001"
-    )
+        match = discover_service(GATEWAY_BASE, service_id, token=None, timeout=TIMEOUT)
+    if not match:
+        message = canonical_missing_message(service_id)
+        session_state["invoke_skipped_reason"] = message
+        if RELEASE_E2E:
+            pytest.fail(message)
+        pytest.skip(message)
+    price_usdc = service_price_usdc(match)
     session_state["service_price_usdc"] = str(price_usdc)
     session_state["quote_id"] = "price_confirmed"  # used as gate by downstream tests
+    session_state["invoke_service_id"] = service_id
 
 
 def test_invocation_deducts_balance(owner_headers, provider_headers, session_state):
     token = session_state.get("agent_token")
-    service_id = session_state.get("service_id")
+    service_id = session_state.get("invoke_service_id") or _select_service_id(session_state)
     if not token or not service_id:
         pytest.skip("agent_token or service_id not set")
 
@@ -121,10 +115,15 @@ def test_invocation_deducts_balance(owner_headers, provider_headers, session_sta
     provider_bal_after = get_balance_full(GATEWAY_BASE, provider_headers)
     provider_receivable_after = Decimal(str(provider_bal_after.get("providerReceivable", 0)))
 
-    # 1. Consumer balance must decrease
-    assert consumer_after < consumer_before, (
-        f"Consumer balance did not decrease: before={consumer_before}, after={consumer_after}"
-    )
+    # 1. Consumer balance must not increase; paid services must decrease it.
+    if charged > Decimal("0"):
+        assert consumer_after < consumer_before, (
+            f"Consumer balance did not decrease: before={consumer_before}, after={consumer_after}"
+        )
+    else:
+        assert consumer_after <= consumer_before, (
+            f"Zero-price invocation increased consumer balance: before={consumer_before}, after={consumer_after}"
+        )
     # 2. Provider receivable must increase (provider earned something)
     assert provider_receivable_after >= provider_receivable_before, (
         f"Provider receivable did not increase: before={provider_receivable_before}, after={provider_receivable_after}"
@@ -170,7 +169,7 @@ def test_invocation_receipt_reachable(session_state):
 def test_idempotent_invocation_same_id(session_state):
     """Same idempotencyKey with same payload must return the same invocationId (cached result)."""
     token = session_state.get("agent_token")
-    service_id = session_state.get("service_id")
+    service_id = session_state.get("invoke_service_id") or _select_service_id(session_state)
     idem_key = session_state.get("invocation_idem_key")
     quote_id = session_state.get("quote_id")
     if not all([token, service_id, idem_key, quote_id]):

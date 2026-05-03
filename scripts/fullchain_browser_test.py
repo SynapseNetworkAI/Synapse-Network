@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: S105, C901, PLR0915, S110 - legacy standalone browser E2E is tracked by quality-budget baseline
 """
 Synapse Network — Full-Chain Test Suite with Browser Screenshots
 =================================================================
@@ -20,6 +21,7 @@ Output:
 
 import asyncio
 import json
+import os
 import time
 import uuid
 from pathlib import Path
@@ -31,7 +33,7 @@ from eth_account.messages import encode_defunct
 from web3 import Web3
 
 # ── Playwright async ──────────────────────────────────────────────────────────
-from playwright.async_api import async_playwright, Page
+from playwright.async_api import async_playwright
 
 # ─── Config ───────────────────────────────────────────────────────────────────
 API_BASE      = "http://localhost:8000/api"
@@ -50,6 +52,12 @@ BUYER_ADDR    = "0x90F79bf6EB2c4f870365E785982E1f101E93b906"
 
 DEPOSIT_USDC  = "10.0"   # fund buyer with 10 USDC
 SERVICE_PRICE = "0.01"
+GATEWAY_E2E_SERVICE_ID = os.getenv(
+    "GATEWAY_E2E_SERVICE_ID", "svc_oss_security_healthcheck"
+).strip() or "svc_oss_security_healthcheck"
+GATEWAY_E2E_ALLOW_SERVICE_CREATION = os.getenv(
+    "GATEWAY_E2E_ALLOW_SERVICE_CREATION", ""
+).strip().lower() in {"1", "true", "yes", "on"}
 
 FRONT_DIR = Path(__file__).parent.parent / "services" / "user-front" / "src"
 CONTRACT_CFG  = FRONT_DIR / "contract-config.json"
@@ -85,7 +93,7 @@ def chk(ok, label, detail=""):
 def authenticate(key, label):
     account = Account.from_key(key)
     addr = account.address.lower()
-    r = requests.get(f"{API_BASE}/v1/auth/challenge", params={"address": addr})
+    r = requests.get(f"{API_BASE}/v1/auth/challenge", params={"address": addr}, timeout=30)
     assert r.status_code == 200, f"Challenge failed: {r.text}"
     challenge = r.json()["challenge"]
     signed = Account.sign_message(encode_defunct(text=challenge), private_key=key)
@@ -93,7 +101,7 @@ def authenticate(key, label):
         "wallet_address": addr,
         "signature": signed.signature.hex(),
         "message": challenge,
-    })
+    }, timeout=30)
     assert r2.status_code == 200, f"Verify failed: {r2.text}"
     token = r2.json().get("token") or r2.json().get("access_token")
     print(f"  {PASS} {label} authenticated — {addr}")
@@ -213,6 +221,15 @@ def register_service(token, addr):
               (d.get("service") or {}).get("service_id") or "")
     print(f"  {PASS} Service registered: {svc_id}")
     return svc_id
+
+def resolve_service(token, addr):
+    if GATEWAY_E2E_ALLOW_SERVICE_CREATION:
+        return register_service(token, addr)
+    print(
+        f"  {PASS} Using existing canonical provider service: "
+        f"{GATEWAY_E2E_SERVICE_ID}"
+    )
+    return GATEWAY_E2E_SERVICE_ID
 
 def invoke(credential, svc_id, n=1):
     results = []
@@ -357,13 +374,12 @@ def wallet_inject_script(private_key: str, address: str, chain_id: int) -> str:
 
 # ─── Playwright screenshots ───────────────────────────────────────────────────
 async def take_screenshots(buyer_key: str, buyer_addr: str, token: str):
-    account = Account.from_key(buyer_key)
     SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
 
     results = {}
 
     async with async_playwright() as p:
-        print(f"\n  Launching Chrome...")
+        print("\n  Launching Chrome...")
         browser = await p.chromium.launch(
             executable_path="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
             headless=False,
@@ -437,7 +453,7 @@ async def take_screenshots(buyer_key: str, buyer_addr: str, token: str):
                         break
                 await page.wait_for_timeout(500)
 
-        print(f"\n  Navigating pages and capturing screenshots...")
+        print("\n  Navigating pages and capturing screenshots...")
 
         pages_config = [
             ("/dashboard", "01-dashboard-overview", True),
@@ -465,7 +481,7 @@ async def take_screenshots(buyer_key: str, buyer_addr: str, token: str):
             await shot(name, wait_ms=2000)
 
         # ── Extra: test Discovery search ──────────────────────────────────
-        print(f"\n  → /dashboard/discovery (search test)")
+        print("\n  → /dashboard/discovery (search test)")
         await page.goto(FRONTEND_URL + "/dashboard/discovery")
         await page.wait_for_load_state("domcontentloaded")
         await page.wait_for_timeout(500)
@@ -483,7 +499,7 @@ async def take_screenshots(buyer_key: str, buyer_addr: str, token: str):
         await shot("12-discovery-search-buyer", wait_ms=1000)
 
         # ── Extra: test Invocations filter ────────────────────────────────
-        print(f"\n  → /dashboard/invocations (filter test)")
+        print("\n  → /dashboard/invocations (filter test)")
         await page.goto(FRONTEND_URL + "/dashboard/invocations")
         await page.wait_for_load_state("domcontentloaded")
         await page.wait_for_timeout(500)
@@ -615,9 +631,9 @@ def main():
         agent_tokens.append(raw)
         time.sleep(0.3)
 
-    # ── Phase 4: Register provider service ───────────────────────────────────
-    section("Phase 4: Register Provider Service")
-    svc_id = register_service(provider_token, provider_addr)
+    # ── Phase 4: Resolve provider service ────────────────────────────────────
+    section("Phase 4: Resolve Provider Service Fixture")
+    svc_id = resolve_service(provider_token, provider_addr)
     time.sleep(1)
 
     # ── Phase 5: Multiple invocations ────────────────────────────────────────

@@ -193,6 +193,11 @@ if (requestedMode === "full") {
     const narrowCiToolPatterns = [
       /^scripts\/ci\/agent_lessons_check(\.test)?\.mjs$/,
     ];
+    const rootE2eScriptPatterns = [
+      /^scripts\/e2e_fullflow_test\.py$/,
+      /^scripts\/fullchain_browser_test\.py$/,
+      /^scripts\/verify_chain\.py$/,
+    ];
     const fullTriggerPatterns = [
       /^\.github\/workflows\//,
       /^scripts\/ci\//,
@@ -214,6 +219,7 @@ if (requestedMode === "full") {
       /^scripts\/chain\//,
       /^scripts\/ops\/lark_alert_relay\.mjs$/,
       /^scripts\/e2e\//,
+      ...rootE2eScriptPatterns,
       /^scripts\/perf\//,
       /^scripts\/local\//,
       /^scripts\/staging\//,
@@ -275,6 +281,17 @@ if (requestedMode === "full") {
         if (packageJsonScope?.reason) {
           reasons.push(packageJsonScope.reason);
         }
+        continue;
+      }
+
+      if (matchesAny(file, rootE2eScriptPatterns)) {
+        docsOnly = false;
+        affectedProjects.add("gateway");
+        affectedProjects.add("user-front");
+        riskScopes.add("e2e-fixtures");
+        addCommand(commands, "e2e_script_model_drift_scan");
+        addCommand(commands, "code_quality_architecture_scan");
+        addCommand(commands, "diff_coverage_gate");
         continue;
       }
 

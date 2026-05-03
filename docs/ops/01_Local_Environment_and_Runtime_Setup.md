@@ -472,7 +472,7 @@ TARGET_WALLET=0x1111111111111111111111111111111111111111,0x222222222222222222222
 4. 该脚本只确保 Docker local Postgres `127.0.0.1:15432` 可用，不复用宿主机 `5432`
 5. 如果需要初始化或升级本地数据库 schema，请使用 `scripts/local/setup_local_env.sh` 或手动执行迁移脚本
 6. 如果手滑用了 `sh scripts/local/*.sh`，脚本现在会自动重新切回 `bash`，避免 `pipefail` 兼容性错误。
-7. 启动前会检查本地 active E2E 服务膨胀；超过 `LOCAL_SERVICE_REGISTRY_TEST_ACTIVE_LIMIT`（默认 50）会拒绝启动，避免测试垃圾服务抢占 health monitor 探活名额。
+7. 启动前会检查本地 active E2E 服务膨胀；超过 `LOCAL_SERVICE_REGISTRY_TEST_ACTIVE_LIMIT`（默认 50）会拒绝启动，避免测试垃圾服务抢占 health monitor 探活名额。统计前缀包括 `api_ref_%`、`apiref_test_%`、`provider_onboard_%`、`llm_%_llm_deepseek_%`、`gateway_pull_health_%`、`svc_e2e_%`、`svc_verify_%`、`svc_buyer_%`、`ufc_%`。
 8. 启动前也会提示 `service_health_meta::*` / `service_health_history::*` 这类测试健康状态膨胀；它不会自动清理，但会给出 cleanup dry-run 命令，避免隐藏本地 DB 变更。
 
 `scripts/local/reset_gateway_docker_data.sh`
@@ -499,7 +499,8 @@ TARGET_WALLET=0x1111111111111111111111111111111111111111,0x222222222222222222222
 4. 脚本只允许 `localhost` / `127.0.0.1` 的 `synapse_gateway` 数据库，不能用于 staging/prod。
 5. 默认连接 Docker local Postgres `127.0.0.1:${LOCAL_GATEWAY_POSTGRES_PORT:-15432}/synapse_gateway`，并刻意忽略环境里的 `POSTGRES_DSN` 和 `services/gateway/.env.local` 中的 `POSTGRES_DSN`；确实需要临时覆盖时，只使用 `LOCAL_GATEWAY_POSTGRES_DSN=...`。
 6. 保留 canonical provider 服务：`svc_web3_sentiment_index`、`svc_protocol_fundamental_brief`、`svc_oss_security_healthcheck`、`svc_deepseek_chat`。
-7. 非破坏性预览：
+7. 普通 E2E 默认复用 canonical provider 服务，不再随机创建服务。只有 provider registration / onboarding 测试或显式设置 `GATEWAY_E2E_ALLOW_SERVICE_CREATION=true` 的脚本可以创建临时服务。
+8. 非破坏性预览：
    ```bash
    LOCAL_DEV_CLEANUP_DRY_RUN=1 LOCAL_DEV_CLEANUP_OUTPUT=json \
      bash scripts/local/cleanup_service_registry_dev.sh

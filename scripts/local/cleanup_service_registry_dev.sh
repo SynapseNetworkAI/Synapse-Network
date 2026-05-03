@@ -78,6 +78,10 @@ test_service_clause="
     OR service_id LIKE 'provider_onboard_%'
     OR service_id LIKE 'llm_%_llm_deepseek_%'
     OR service_id LIKE 'gateway_pull_health_%'
+    OR service_id LIKE 'svc_e2e_%'
+    OR service_id LIKE 'svc_verify_%'
+    OR service_id LIKE 'svc_buyer_%'
+    OR service_id LIKE 'ufc_%'
   )
   AND service_id NOT IN (
     'svc_web3_sentiment_index',
@@ -95,11 +99,19 @@ runtime_health_clause="
     OR state_key LIKE 'service_health_meta::provider_onboard_%'
     OR state_key LIKE 'service_health_meta::llm_%_llm_deepseek_%'
     OR state_key LIKE 'service_health_meta::gateway_pull_health_%'
+    OR state_key LIKE 'service_health_meta::svc_e2e_%'
+    OR state_key LIKE 'service_health_meta::svc_verify_%'
+    OR state_key LIKE 'service_health_meta::svc_buyer_%'
+    OR state_key LIKE 'service_health_meta::ufc_%'
     OR state_key LIKE 'service_health_history::api_ref_%'
     OR state_key LIKE 'service_health_history::apiref_test_%'
     OR state_key LIKE 'service_health_history::provider_onboard_%'
     OR state_key LIKE 'service_health_history::llm_%_llm_deepseek_%'
     OR state_key LIKE 'service_health_history::gateway_pull_health_%'
+    OR state_key LIKE 'service_health_history::svc_e2e_%'
+    OR state_key LIKE 'service_health_history::svc_verify_%'
+    OR state_key LIKE 'service_health_history::svc_buyer_%'
+    OR state_key LIKE 'service_health_history::ufc_%'
   )
   AND state_key NOT LIKE 'service_health_meta::svc_web3_sentiment_index::%'
   AND state_key NOT LIKE 'service_health_meta::svc_protocol_fundamental_brief::%'

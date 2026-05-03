@@ -22,6 +22,8 @@ from eth_account import Account
 from eth_account.messages import encode_defunct
 from web3 import Web3
 
+from tests.e2e.helpers.service_fixtures import is_test_service_id
+
 # ── Directory layout ──────────────────────────────────────────────────────────
 ROOT = Path(__file__).parents[4]          # services/gateway/tests/e2e -> repo root
 FRONTEND_SRC = ROOT / "services" / "user-front" / "src"
@@ -73,6 +75,51 @@ def require_live_gateway() -> None:
         if RELEASE_E2E:
             pytest.fail(f"gateway release e2e requires live gateway at {GATEWAY_BASE}: {exc}")
         pytest.skip(f"gateway e2e services are not running locally: {exc}")
+
+
+@pytest.fixture(scope="session", autouse=True)
+def guard_local_service_registry_bloat(require_live_gateway) -> None:
+    """Fail early when stale local E2E services would pollute discovery.
+
+    This is read-only and local-only. Staging SQL evidence uses separate
+    runbook credentials and should not inherit the local cleanup guard.
+    """
+    if not GATEWAY_BASE.startswith(("http://127.0.0.1", "http://localhost")):
+        return
+    limit_raw = os.getenv(
+        "GATEWAY_E2E_TEST_ACTIVE_LIMIT",
+        os.getenv("LOCAL_SERVICE_REGISTRY_TEST_ACTIVE_LIMIT", "50"),
+    )
+    try:
+        limit = int(limit_raw)
+    except ValueError:
+        limit = 50
+    if limit <= 0:
+        return
+    try:
+        import psycopg
+        from tests.e2e.helpers.db import DB_DSN
+
+        with psycopg.connect(DB_DSN) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT service_id
+                    FROM synapse_service_manifests
+                    WHERE status = 'active'
+                    """
+                )
+                rows = [row[0] for row in cur.fetchall()]
+    except Exception:
+        return
+    active_test_count = sum(1 for service_id in rows if is_test_service_id(service_id))
+    if active_test_count > limit:
+        pytest.fail(
+            f"local registry has {active_test_count} active E2E/test services; "
+            f"limit is {limit}. Run "
+            "`LOCAL_DEV_CLEANUP_CONFIRM=I_UNDERSTAND_THIS_MUTATES_LOCAL_DB "
+            "bash scripts/local/cleanup_service_registry_dev.sh` before E2E."
+        )
 
 @pytest.fixture(scope="session")
 def contract_config() -> dict:
@@ -237,7 +284,7 @@ _E2E_CREDENTIAL_NAME_PREFIXES = (
 
 def track_test_service_id(service_id: str | None) -> None:
     normalized = str(service_id or "").strip()
-    if normalized:
+    if normalized and is_test_service_id(normalized):
         _created_test_service_ids.add(normalized)
 
 

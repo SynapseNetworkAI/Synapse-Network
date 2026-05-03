@@ -28,7 +28,40 @@ Production is not a destructive E2E target. Production regression is limited to
 read-only health, public asset, monitoring, and evidence review unless a separate
 production go/no-go plan explicitly authorizes a small-value rehearsal.
 
-## 2. SQL Evidence Rules
+## 2. Service Fixture Policy
+
+Ordinary invoke, billing, UI, withdrawal, and release E2E must reuse canonical
+provider services instead of creating random provider services. Default fixed
+price service: `GATEWAY_E2E_SERVICE_ID=svc_oss_security_healthcheck`.
+
+Canonical services:
+
+1. `svc_web3_sentiment_index`
+2. `svc_protocol_fundamental_brief`
+3. `svc_oss_security_healthcheck`
+4. `svc_deepseek_chat` for LLM/token-metered coverage only
+
+Provider registration and onboarding tests are the exception because they prove
+`POST /api/v1/services`. Any temporary service they create must use a tracked
+E2E prefix and be archived by teardown or local cleanup. Random service creation
+in standalone scripts requires `GATEWAY_E2E_ALLOW_SERVICE_CREATION=true`.
+
+Local canonical services can be seeded with
+`services/gateway/examples/register_provider_shelf_services.py` or the Gateway
+pull-health local fixture. Staging must use already-approved staging services and
+must not create fallback random services during ordinary regression.
+
+If local E2E reports too many active test services, inspect and clean with:
+
+```bash
+LOCAL_DEV_CLEANUP_DRY_RUN=1 LOCAL_DEV_CLEANUP_OUTPUT=json \
+  bash scripts/local/cleanup_service_registry_dev.sh
+
+LOCAL_DEV_CLEANUP_CONFIRM=I_UNDERSTAND_THIS_MUTATES_LOCAL_DB \
+  bash scripts/local/cleanup_service_registry_dev.sh
+```
+
+## 3. SQL Evidence Rules
 
 Each money-path E2E must record enough identifiers to run SQL evidence:
 
@@ -69,26 +102,26 @@ Every SQL evidence block must include:
 4. What failure means.
 5. The owner for triage.
 
-## 3. Local Regression Matrix
+## 4. Local Regression Matrix
 
 Run the narrowest relevant lane first. Escalate to the next lane when a change
 touches more surfaces or when release confidence is required.
 
-| Function point              | Local command                                                                                                                           | SQL evidence                                                                                | Pass criteria                                                                                 |
-| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| Environment preflight       | `npm run dev:restart:all`, then `npm run dev:status`                                                                                    | None unless a service fails readiness                                                       | Gateway, Gateway-admin, user-front, admin-front, Postgres, and local chain are reachable.     |
-| Provider registration       | Gateway provider E2E files under `services/gateway/tests/e2e/test_05_provider_*.py`                                                     | Provider profile, payout account, service manifest, endpoint, health snapshot, search index | Provider and service are active and discoverable.                                             |
-| Consumer login              | `services/gateway/tests/e2e/test_02_wallet_auth.py` plus user-front full-chain when UI changed                                          | Owner account, agent profile, credential, budget policy                                     | Owner is active, agent credential is active, budget policy exists.                            |
-| Consumer deposit            | `services/gateway/tests/e2e/test_03_fund_wallet.py` and `test_04_deposit.py`                                                            | Deposit, balance, ledger, audit                                                             | Deposit is `CONFIRMED`; consumer available balance increased; ledger and audit exist.         |
-| Provider service invocation | `services/gateway/tests/e2e/test_07_invoke.py` or `npm run release:evidence:gateway-fullchain:local`                                    | Quote, invocation, budget event, ledger, audit, account balances                            | Invocation is `SETTLED`; consumer debited; provider/platform credited.                        |
-| Analytics and admin views   | Gateway analytics E2E and `npm run e2e:admin-front`                                                                                     | Analytics outbox and admin-visible DB state                                                 | Admin pages show the same state as Gateway DB.                                                |
-| Consumer withdrawal         | `services/gateway/tests/e2e/test_09_consumer_withdraw.py` and `npm run e2e:withdrawal-risk-policy`                                      | Withdrawal row, balance buckets, tx dedup, audit                                            | T+1 matured funds are required; active withdrawal locks funds; completion writes `COMPLETED`. |
-| Provider withdrawal         | `npm run e2e:admin-withdrawal-approval`, `npm run e2e:withdrawal-one-ticket-evidence`, `npm run e2e:withdrawal-idempotency-concurrency` | Withdrawal row, provider account, tx dedup, audit, notifications                            | T+7 matured receivable is required; review and ticket semantics are one-ticket safe.          |
-| Notifications               | `npm run e2e:in-app-notifications`, transaction notification suites as needed                                                           | Notification outbox, delivery log, in-app notifications                                     | Transactional notifications are present or deliberately suppressed.                           |
-| Load and reliability        | `npm run perf:local-production-load-rehearsal` and `npm run ci:local-production-load-evidence`                                          | Reconciliation and no unexpected dead letters                                               | Load evidence is green with no unexplained ledger/vault delta.                                |
-| Contracts                   | `npm run ci:contracts`                                                                                                                  | Runtime state and config review only                                                        | Solidity tests pass; Gateway contract config still matches expected local chain.              |
+| Function point              | Local command                                                                                                                                                                                | SQL evidence                                                                                | Pass criteria                                                                                        |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Environment preflight       | `npm run dev:restart:all`, then `npm run dev:status`                                                                                                                                         | None unless a service fails readiness                                                       | Gateway, Gateway-admin, user-front, admin-front, Postgres, and local chain are reachable.            |
+| Provider registration       | Gateway provider E2E files under `services/gateway/tests/e2e/test_05_provider_*.py`                                                                                                          | Provider profile, payout account, service manifest, endpoint, health snapshot, search index | Provider and service are active and discoverable.                                                    |
+| Consumer login              | `services/gateway/tests/e2e/test_02_wallet_auth.py` plus user-front full-chain when UI changed                                                                                               | Owner account, agent profile, credential, budget policy                                     | Owner is active, agent credential is active, budget policy exists.                                   |
+| Consumer deposit            | `services/gateway/tests/e2e/test_03_fund_wallet.py` and `test_04_deposit.py`                                                                                                                 | Deposit, balance, ledger, audit                                                             | Deposit is `CONFIRMED`; consumer available balance increased; ledger and audit exist.                |
+| Provider service invocation | `cd services/gateway && GATEWAY_E2E_SERVICE_ID=svc_oss_security_healthcheck .venv/bin/python -m pytest tests/e2e/test_07_invoke.py -q` or `npm run release:evidence:gateway-fullchain:local` | Quote, invocation, budget event, ledger, audit, account balances                            | Invocation is `SETTLED`; consumer debited; provider/platform credited; no random service is created. |
+| Analytics and admin views   | Gateway analytics E2E and `npm run e2e:admin-front`                                                                                                                                          | Analytics outbox and admin-visible DB state                                                 | Admin pages show the same state as Gateway DB.                                                       |
+| Consumer withdrawal         | `services/gateway/tests/e2e/test_09_consumer_withdraw.py` and `npm run e2e:withdrawal-risk-policy`                                                                                           | Withdrawal row, balance buckets, tx dedup, audit                                            | T+1 matured funds are required; active withdrawal locks funds; completion writes `COMPLETED`.        |
+| Provider withdrawal         | `npm run e2e:admin-withdrawal-approval`, `npm run e2e:withdrawal-one-ticket-evidence`, `npm run e2e:withdrawal-idempotency-concurrency`                                                      | Withdrawal row, provider account, tx dedup, audit, notifications                            | T+7 matured receivable is required; review and ticket semantics are one-ticket safe.                 |
+| Notifications               | `npm run e2e:in-app-notifications`, transaction notification suites as needed                                                                                                                | Notification outbox, delivery log, in-app notifications                                     | Transactional notifications are present or deliberately suppressed.                                  |
+| Load and reliability        | `npm run perf:local-production-load-rehearsal` and `npm run ci:local-production-load-evidence`                                                                                               | Reconciliation and no unexpected dead letters                                               | Load evidence is green with no unexplained ledger/vault delta.                                       |
+| Contracts                   | `npm run ci:contracts`                                                                                                                                                                       | Runtime state and config review only                                                        | Solidity tests pass; Gateway contract config still matches expected local chain.                     |
 
-## 4. Staging Regression Matrix
+## 5. Staging Regression Matrix
 
 Staging commands mutate Arbitrum Sepolia and Cloud SQL staging. Use only the
 dedicated staging E2E wallets and confirmations documented in
@@ -104,12 +137,12 @@ dedicated staging E2E wallets and confirmations documented in
 | Load/recovery         | `npm run perf:staging-load-suite`, `npm run drill:backup-restore:staging`                           | Reconciliation evidence and restore report                        | No unexplained Postgres ledger/vault delta; restore status is successful.      |
 | Contracts             | `npm run deploy:contracts:arbitrum-sepolia:dry-run`, then release-approved deploy/evidence commands | Runtime state/config plus contract evidence manifest              | Chain id, contract addresses, owner, signer, bytecode, and Gateway env agree.  |
 
-## 5. SQL Evidence Templates
+## 6. SQL Evidence Templates
 
 Replace every `:placeholder` with identifiers from the E2E report. Do not guess
 IDs from unrelated rows.
 
-### 5.1 Owner, Agent, and Credential
+### 6.1 Owner, Agent, and Credential
 
 Run after consumer login, agent creation, or SDK/MCP credential flows.
 
@@ -144,7 +177,7 @@ Expected:
 Failure usually means auth, owner bootstrap, credential issuance, or budget
 bootstrap drift. Triage owner: Gateway runtime.
 
-### 5.2 Provider Registration and Service Discovery
+### 6.2 Provider Registration and Service Discovery
 
 Run after provider onboarding and service registration.
 
@@ -193,7 +226,7 @@ Failure usually means provider onboarding wrote only part of the service graph,
 or health/search indexing drifted. Triage owner: Gateway runtime and provider
 service.
 
-### 5.3 Consumer Deposit
+### 6.3 Consumer Deposit
 
 Run after on-chain deposit and Gateway deposit sync.
 
@@ -239,7 +272,7 @@ Expected:
 Failure usually means deposit indexing, idempotency, ledger write, or audit
 write drift. Triage owner: Gateway finance backend.
 
-### 5.4 Invoke Settlement
+### 6.4 Invoke Settlement
 
 Run after `discover_services -> invoke_and_pay -> get_receipt` or SDK invoke.
 
@@ -287,7 +320,7 @@ Expected:
 Failure usually means idempotency, budget hold, settlement, or receipt drift.
 Triage owner: Gateway runtime and finance backend.
 
-### 5.5 Provider Revenue Balance
+### 6.5 Provider Revenue Balance
 
 Run after a paid invocation that should credit the provider.
 
@@ -317,7 +350,7 @@ Expected:
 Failure usually means provider revenue split or ledger account routing drift.
 Triage owner: Gateway finance backend.
 
-### 5.6 Consumer Withdrawal
+### 6.6 Consumer Withdrawal
 
 Run after consumer withdrawal creation, manual review, or completion. Consumer
 withdrawals require T+1 matured funds. Available balance alone is not enough.
@@ -360,7 +393,7 @@ Failure usually means T+1 maturity, active withdrawal lock, ticket signing,
 completion callback, or balance bucket drift. Triage owner: Gateway finance
 backend and admin finance control plane.
 
-### 5.7 Provider Withdrawal and Admin Review
+### 6.7 Provider Withdrawal and Admin Review
 
 Run after provider withdrawal request, admin approve/reject, and chain claim.
 Provider earnings require T+7 matured receivables. Earned receivable is not
@@ -411,7 +444,7 @@ Failure usually means T+7 maturity, admin review, one-ticket, idempotency, or
 completion drift. Triage owner: Gateway finance backend, Gateway-admin, and
 admin-front.
 
-### 5.8 Notifications and Outboxes
+### 6.8 Notifications and Outboxes
 
 Run after deposit, invoke, withdrawal, support, Lark, Gmail, or in-app
 notification E2E.
@@ -451,7 +484,7 @@ Failure usually means after-commit notification write drift, outbox delivery
 failure, template drift, or unsafe blocking notification behavior. Triage owner:
 Gateway notifications and frontend.
 
-### 5.9 Analytics Outbox
+### 6.9 Analytics Outbox
 
 Run after analytics, admin dashboard, or release full-chain flows.
 
@@ -480,7 +513,7 @@ Expected:
 Failure usually means analytics outbox drift or ClickHouse transport drift.
 Triage owner: Gateway analytics and admin analytics.
 
-### 5.10 Contract Deployment and Runtime Config
+### 6.10 Contract Deployment and Runtime Config
 
 Run after contract deployment dry-run, staging deployment, or signer/ABI/address
 changes.
@@ -515,7 +548,7 @@ Expected:
 Failure usually means chain config drift, signer mismatch, ABI/address drift, or
 fee policy drift. Triage owner: contracts and Gateway deployment.
 
-## 6. Cross-Flow Invariant Queries
+## 7. Cross-Flow Invariant Queries
 
 Run these after any full money-path regression.
 
@@ -562,9 +595,9 @@ Expected: active and terminal status counts match the E2E run report. Unknown
 growth in `FAILED`, `FAILED_EXPIRED`, or `PENDING_MANUAL_REVIEW` requires
 triage.
 
-## 7. Contract Regression
+## 8. Contract Regression
 
-### 7.1 Local
+### 8.1 Local
 
 Run:
 
@@ -581,7 +614,7 @@ also mutates Postgres. The contract gate must prove:
 4. Platform fee withdrawal is bounded by accrued fees.
 5. ABI changes do not silently break Gateway or frontend assumptions.
 
-### 7.2 Staging Dry-Run and Deploy
+### 8.2 Staging Dry-Run and Deploy
 
 Dry-run before any staging contract change:
 
@@ -607,7 +640,7 @@ signer change, rerun:
 4. Provider withdrawal and admin review regression.
 5. Staging smoke and release evidence gates.
 
-### 7.3 Hardware Wallet Migration Readiness
+### 8.3 Hardware Wallet Migration Readiness
 
 Hardware wallet migration is a manual gated release path until the signer
 integration exists. The regression evidence must include:
@@ -621,7 +654,7 @@ integration exists. The regression evidence must include:
 Do not put hardware wallet seeds, private keys, screenshots with secrets, or
 raw signing material into the repository.
 
-## 8. Release Acceptance
+## 9. Release Acceptance
 
 A full regression is green only when:
 
@@ -637,7 +670,7 @@ A full regression is green only when:
 9. Contract evidence agrees with Gateway runtime configuration.
 10. Staging failures are triaged as product bugs, not repaired by ad hoc SQL.
 
-## 9. Validation for This Runbook
+## 10. Validation for This Runbook
 
 When changing this runbook:
 
