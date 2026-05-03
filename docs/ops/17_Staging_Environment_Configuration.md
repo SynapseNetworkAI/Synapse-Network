@@ -258,6 +258,11 @@ Docker memory pressure.
 bash scripts/deploy/gcp_cloudbuild_staging_images.sh fabled-archive-494108-k5
 ```
 
+This script defaults to `STAGING_IMAGE_BUILD_BACKEND=cloudbuild` and emits
+`--platform linux/amd64` in generated Docker build steps. Do not deploy
+locally-built Apple Silicon / arm64 images to Cloud Run; they fail at startup
+with `exec format error`.
+
 Fallback local Docker build:
 
 ```bash
@@ -300,9 +305,8 @@ docker build --platform linux/amd64 \
 docker push ${REGISTRY}/user-front:${TAG}
 
 docker build --platform linux/amd64 \
-  -f services/docs-front/Dockerfile \
   -t ${REGISTRY}/docs-front:${TAG} \
-  .
+  services/docs-front
 docker push ${REGISTRY}/docs-front:${TAG}
 
 docker build --platform linux/amd64 \
@@ -1550,7 +1554,7 @@ authority.
 The automated workflow supports:
 
 ```text
-deploy_scope=auto | gateway | gateway-admin | user-front | admin-front | all
+deploy_scope=auto | gateway | gateway-admin | user-front | admin-front | docs-front | all
 ```
 
 `auto` uses `scripts/deploy/resolve_deploy_scope.mjs` to infer affected services.

@@ -43,6 +43,10 @@ const config = {
     "STAGING_ADMIN_FRONT_URL",
     "https://admin-staging.synapse-network.ai"
   ),
+  docsFrontUrl: env(
+    "STAGING_DOCS_FRONT_URL",
+    "https://docs-staging.synapse-network.ai"
+  ),
   adminApiUrl: env(
     "STAGING_ADMIN_API_URL",
     "https://admin-api-staging.synapse-network.ai"
@@ -426,6 +430,7 @@ function writeEvidence() {
       userFrontUrl: config.userFrontUrl,
       gatewayUrl: config.gatewayUrl,
       adminFrontUrl: config.adminFrontUrl,
+      docsFrontUrl: config.docsFrontUrl,
       adminApiUrl: config.adminApiUrl,
       rpcUrl: redact(config.rpcUrl),
     },
@@ -495,6 +500,28 @@ async function main() {
   await checkHttp("admin_front_login", `${config.adminFrontUrl}/login`, {
     allowStatuses: [200, 301, 302, 307, 308],
   });
+  await checkHttp("docs_front_home", config.docsFrontUrl, {
+    allowStatuses: [200, 301, 302, 307, 308],
+  });
+  await checkHttp("docs_front_llms", `${config.docsFrontUrl}/llms.txt`);
+  await checkHttp(
+    "docs_front_llms_full",
+    `${config.docsFrontUrl}/llms-full.txt`
+  );
+  await checkHttp("docs_front_sitemap", `${config.docsFrontUrl}/sitemap.xml`);
+  await checkHttp("docs_front_openapi", `${config.docsFrontUrl}/openapi.json`, {
+    expectJson: true,
+  });
+  await checkHttp("docs_front_sdks", `${config.docsFrontUrl}/sdks`, {
+    allowStatuses: [200, 301, 302, 307, 308],
+  });
+  await checkHttp(
+    "docs_front_api_reference",
+    `${config.docsFrontUrl}/api-reference`,
+    {
+      allowStatuses: [200, 301, 302, 307, 308],
+    }
+  );
   await checkCors(
     "gateway_cors_user_front",
     `${config.gatewayUrl}/api/v1/services/discover`,

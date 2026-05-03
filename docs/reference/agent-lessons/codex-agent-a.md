@@ -106,3 +106,13 @@ Status: Active
 - Fix: Resolve branch names from `AGENT_LESSONS_BRANCH`, then `GITHUB_HEAD_REF`, then safe `GITHUB_REF_NAME`, and only then fall back to git.
 - Rule: CI gates that need branch-specific files must handle detached checkouts with provider environment variables before using git branch names.
 - Upgrade: agents-memory
+
+### Lesson: Cloud Run frontend images must be built as linux/amd64 with service-local contexts
+
+- Domain: deploy
+- Severity: warning
+- Trigger: Docs-front staging rollout first uploaded a 4GB root Docker context, then Cloud Run failed to start an Apple Silicon arm64 image with `exec format error`.
+- Root cause: Docs-front used repository root as Docker context, the repo lacked a root `.dockerignore`, and the staging build helper defaulted to local Docker without forcing `linux/amd64`.
+- Fix: Add root and docs-front `.dockerignore` files, build docs-front from `services/docs-front`, make the Cloud Build helper default to Cloud Build, and emit `--platform linux/amd64` for every staging image build.
+- Rule: Cloud Run frontend builds must use the smallest service-local Docker context where possible and must publish `linux/amd64` images; never deploy locally-built Apple Silicon images to Cloud Run.
+- Upgrade: agents-memory
