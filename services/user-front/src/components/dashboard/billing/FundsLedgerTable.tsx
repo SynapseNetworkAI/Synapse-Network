@@ -1,6 +1,14 @@
-import { Loader2, ArrowUpRight, ArrowDownRight, RefreshCcw, ExternalLink, AlertCircle } from "lucide-react";
+import {
+  Loader2,
+  ArrowUpRight,
+  ArrowDownRight,
+  RefreshCcw,
+  ExternalLink,
+  AlertCircle,
+} from "lucide-react";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
 import type { LedgerRecord } from "@/hooks/useFundsData";
+import { getTransactionExplorerUrl } from "@/utils/explorer";
 
 function getStatusDot(status: LedgerRecord["status"]) {
   if (status === "PENDING") {
@@ -13,10 +21,14 @@ function getStatusDot(status: LedgerRecord["status"]) {
   }
 
   if (status === "FAILED") {
-    return <span className="relative inline-flex w-2 h-2 bg-red-500 rounded-full shadow-[0_0_8px_rgba(239,68,68,0.8)]"></span>;
+    return (
+      <span className="relative inline-flex w-2 h-2 bg-red-500 rounded-full shadow-[0_0_8px_rgba(239,68,68,0.8)]"></span>
+    );
   }
 
-  return <span className="relative inline-flex w-2 h-2 bg-green-500 rounded-full shadow-[0_0_8px_rgba(34,197,94,0.8)]"></span>;
+  return (
+    <span className="relative inline-flex w-2 h-2 bg-green-500 rounded-full shadow-[0_0_8px_rgba(34,197,94,0.8)]"></span>
+  );
 }
 
 function getAmountTone(isFailed: boolean, isPositive: boolean): string {
@@ -58,18 +70,102 @@ function StatusCell({
       <span className="relative flex w-2 h-2">{getStatusDot(statusTone)}</span>
       {isFailed ? (
         <div className="flex items-center space-x-1 group relative">
-          <span className="text-xs tracking-wider text-red-500 font-bold">{label}</span>
+          <span className="text-xs tracking-wider text-red-500 font-bold">
+            {label}
+          </span>
           <AlertCircle className="w-3 h-3 text-red-400 opacity-60 flex-shrink-0 cursor-help" />
           <div className="absolute left-0 mt-5 w-48 hidden group-hover:block z-50 p-2 text-xs text-white bg-gray-900 border border-red-500/50 rounded-lg shadow-xl shadow-black/50 overflow-hidden whitespace-normal break-words">
             {failureReason || failedLabel}
           </div>
         </div>
       ) : (
-        <span className={`text-xs tracking-wider ${isPending ? "text-amber-400" : "text-green-500"}`}>
+        <span
+          className={`text-xs tracking-wider ${
+            isPending ? "text-amber-400" : "text-green-500"
+          }`}
+        >
           {label}
         </span>
       )}
     </div>
+  );
+}
+
+function LedgerRecordRow({
+  row,
+  actionLabel,
+  statusLabel,
+  failedLabel,
+  noTransactionLabel,
+  locale,
+}: Readonly<{
+  row: LedgerRecord;
+  actionLabel: string;
+  statusLabel: string;
+  failedLabel: string;
+  noTransactionLabel: string;
+  locale: string;
+}>) {
+  const isPositive = row.type === "Deposit" || row.type === "Refund";
+  const isPending = row.status === "PENDING";
+  const isFailed = row.status === "FAILED";
+  const amountTone = getAmountTone(isFailed, isPositive);
+  const amountPrefix = getAmountPrefix(isFailed, isPositive);
+  const txHash = row.txHash ?? "";
+  const transactionExplorerUrl = getTransactionExplorerUrl(txHash);
+
+  return (
+    <tr key={row.id} className="transition-colors hover:bg-gray-800/30">
+      <td className="px-6 py-4 text-gray-300">
+        {new Date(row.timestamp).toLocaleString(locale)}
+      </td>
+      <td className="px-6 py-4">
+        <span
+          className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-full ${
+            isPositive
+              ? "bg-green-500/10 text-green-400 border border-green-500/20"
+              : "bg-orange-500/10 text-orange-400 border border-orange-500/20"
+          }`}
+        >
+          {isPositive ? (
+            <ArrowDownRight className="w-3 h-3 mr-1" />
+          ) : (
+            <ArrowUpRight className="w-3 h-3 mr-1" />
+          )}
+          {actionLabel}
+        </span>
+      </td>
+      <td className="px-6 py-4">
+        <StatusCell
+          isFailed={isFailed}
+          isPending={isPending}
+          label={statusLabel}
+          failureReason={row.failureReason}
+          failedLabel={failedLabel}
+        />
+      </td>
+      <td className="px-6 py-4">
+        <span className={`font-mono ${amountTone}`}>
+          {amountPrefix}
+          {row.amount.toFixed(4)}
+        </span>
+      </td>
+      <td className="px-6 py-4 font-mono text-xs text-right">
+        {transactionExplorerUrl ? (
+          <a
+            href={transactionExplorerUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center text-blue-400 hover:text-blue-300"
+          >
+            {txHash.slice(0, 10)}...{txHash.slice(-8)}
+            <ExternalLink className="w-3 h-3 ml-1" />
+          </a>
+        ) : (
+          <span className="text-gray-600">{noTransactionLabel}</span>
+        )}
+      </td>
+    </tr>
   );
 }
 
@@ -81,6 +177,7 @@ export default function FundsLedgerTable({
   records: LedgerRecord[];
 }>) {
   const { t, lang } = useLanguage();
+  const locale = lang === "zh" ? "zh-CN" : "en-US";
 
   const actionLabelMap: Record<LedgerRecord["type"], string> = {
     Deposit: t("billingPage.actionDeposit"),
@@ -130,70 +227,23 @@ export default function FundsLedgerTable({
               <th className="px-6 py-4">{t("billingPage.tableActionType")}</th>
               <th className="px-6 py-4">{t("billingPage.tableStatus")}</th>
               <th className="px-6 py-4">{t("billingPage.tableAmount")}</th>
-              <th className="px-6 py-4 text-right">{t("billingPage.tableTransaction")}</th>
+              <th className="px-6 py-4 text-right">
+                {t("billingPage.tableTransaction")}
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-800">
-            {records.map((row) => {
-              const isPositive = row.type === "Deposit" || row.type === "Refund";
-              const isPending = row.status === "PENDING";
-              const isFailed = row.status === "FAILED";
-              const statusLabel = statusLabelMap[row.status];
-              const amountTone = getAmountTone(isFailed, isPositive);
-              const amountPrefix = getAmountPrefix(isFailed, isPositive);
-              return (
-                <tr key={row.id} className="transition-colors hover:bg-gray-800/30">
-                  <td className="px-6 py-4 text-gray-300">
-                    {new Date(row.timestamp).toLocaleString(lang === "zh" ? "zh-CN" : "en-US")}
-                  </td>
-                  <td className="px-6 py-4">
-                    <span
-                      className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-full ${
-                        isPositive
-                          ? "bg-green-500/10 text-green-400 border border-green-500/20"
-                          : "bg-orange-500/10 text-orange-400 border border-orange-500/20"
-                      }`}
-                    >
-                      {isPositive ? (
-                        <ArrowDownRight className="w-3 h-3 mr-1" />
-                      ) : (
-                        <ArrowUpRight className="w-3 h-3 mr-1" />
-                      )}
-                      {actionLabelMap[row.type]}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <StatusCell
-                      isFailed={isFailed}
-                      isPending={isPending}
-                      label={statusLabel}
-                      failureReason={row.failureReason}
-                      failedLabel={t("billingPage.transactionFailed")}
-                    />
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={`font-mono ${amountTone}`}>
-                      {amountPrefix}{row.amount.toFixed(4)}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 font-mono text-xs text-right">
-                    {row.txHash ? (
-                      <a
-                        href={`https://etherscan.io/tx/${row.txHash}`} // Mock explorer
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center text-blue-400 hover:text-blue-300"
-                      >
-                        {row.txHash.slice(0, 10)}...{row.txHash.slice(-8)}
-                        <ExternalLink className="w-3 h-3 ml-1" />
-                      </a>
-                    ) : (
-                      <span className="text-gray-600">{t("billingPage.noTransaction")}</span>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
+            {records.map((row) => (
+              <LedgerRecordRow
+                key={row.id}
+                row={row}
+                actionLabel={actionLabelMap[row.type]}
+                statusLabel={statusLabelMap[row.status]}
+                failedLabel={t("billingPage.transactionFailed")}
+                noTransactionLabel={t("billingPage.noTransaction")}
+                locale={locale}
+              />
+            ))}
           </tbody>
         </table>
       </div>

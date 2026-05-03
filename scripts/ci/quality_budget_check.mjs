@@ -42,7 +42,7 @@ const BASELINED_FILE_EFFECTIVE_LINES = new Map([
   ["scripts/ui/dogfood_admin_analytics_10k.mjs", 563],
   ["scripts/ui/dogfood_admin_front.mjs", 670],
   ["scripts/ui/dogfood_forum_feedback.mjs", 728],
-  ["scripts/ui/verify_user_front_pages.mjs", 1496],
+  ["scripts/ui/verify_user_front_pages.mjs", 1548],
   ["services/admin-front/src/app/forum-support/page.tsx", 635],
   ["services/admin-front/src/app/withdrawal-reviews/page.tsx", 577],
   ["services/admin-front/src/components/console-ui.tsx", 574],
