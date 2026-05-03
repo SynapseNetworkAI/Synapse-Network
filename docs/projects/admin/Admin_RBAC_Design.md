@@ -280,6 +280,10 @@
 - `refund:approve`
 - `withdrawal:read`
 - `withdrawal:approve`
+- `owner:read`
+- `owner:pii:read`
+- `finance:read`
+- `finance:export`
 - `balance:freeze_request`
 - `balance:unfreeze_request`
 - `balance:manual_adjust_request`
@@ -321,25 +325,29 @@
 - `E`：执行
 - `-`：无权限
 
-| 资源域 / 角色 | super_admin | platform_ops_admin | finance_admin | finance_reviewer | risk_admin | risk_reviewer | compliance_auditor | support_agent | readonly_analyst |
-|---|---|---|---|---|---|---|---|---|---|
-| 管理员账号与角色 | A/E | R | - | - | - | - | R | - | - |
-| 平台配置 | A/E | W | - | - | - | - | R | - | R |
-| 费率配置 | A/E | W | R | - | - | - | R | - | R |
-| 服务注册配置 | A/E | W | - | - | - | - | R | - | R |
-| 充值查询 | R | R | R | R | R | R | R | R | R |
-| 充值 replay / repair 发起 | A/E | - | W | A | - | - | R | - | - |
-| 手工补账执行 | A/E | - | W | A | - | - | R | - | - |
-| 提现审批 | A/E | - | W | A | - | - | R | - | - |
-| 退款审批 | A/E | - | W | A | - | - | R | - | - |
-| 冻结 / 解冻申请 | A/E | - | W | A | W | A | R | - | - |
-| 风险规则修改 | A/E | - | - | - | W | A | R | - | - |
-| 风险标签维护 | A/E | - | - | - | W | A | R | - | - |
-| 白名单变更 | A/E | - | - | - | W | A | R | - | - |
-| 审计日志查看 | R | R | R | R | R | R | R | 限制只读 | 汇总只读 |
-| 报表统计 | R | R | R | R | R | R | R | 限制只读 | R |
-| 系统状态查看 | R | R | R | R | R | R | R | 受限 | R |
-| 手工触发后台任务 | A/E | W | - | - | - | - | R | - | - |
+| 资源域 / 角色             | super_admin | platform_ops_admin | finance_admin | finance_reviewer | risk_admin | risk_reviewer | compliance_auditor | support_agent | readonly_analyst |
+| ------------------------- | ----------- | ------------------ | ------------- | ---------------- | ---------- | ------------- | ------------------ | ------------- | ---------------- |
+| 管理员账号与角色          | A/E         | R                  | -             | -                | -          | -             | R                  | -             | -                |
+| 平台配置                  | A/E         | W                  | -             | -                | -          | -             | R                  | -             | R                |
+| 费率配置                  | A/E         | W                  | R             | -                | -          | -             | R                  | -             | R                |
+| 服务注册配置              | A/E         | W                  | -             | -                | -          | -             | R                  | -             | R                |
+| 业务用户基础查询          | R           | R                  | R             | R                | R          | R             | R                  | 限制只读      | R                |
+| 业务用户 PII reveal       | A/E         | -                  | -             | -                | -          | -             | -                  | -             | -                |
+| 充值查询                  | R           | R                  | R             | R                | R          | R             | R                  | R             | R                |
+| Provider 提现流水查询     | R           | R                  | R             | R                | R          | R             | R                  | 限制只读      | R                |
+| Finance CSV/export        | A/E         | -                  | W             | -                | -          | -             | R                  | -             | -                |
+| 充值 replay / repair 发起 | A/E         | -                  | W             | A                | -          | -             | R                  | -             | -                |
+| 手工补账执行              | A/E         | -                  | W             | A                | -          | -             | R                  | -             | -                |
+| 提现审批                  | A/E         | -                  | W             | A                | -          | -             | R                  | -             | -                |
+| 退款审批                  | A/E         | -                  | W             | A                | -          | -             | R                  | -             | -                |
+| 冻结 / 解冻申请           | A/E         | -                  | W             | A                | W          | A             | R                  | -             | -                |
+| 风险规则修改              | A/E         | -                  | -             | -                | W          | A             | R                  | -             | -                |
+| 风险标签维护              | A/E         | -                  | -             | -                | W          | A             | R                  | -             | -                |
+| 白名单变更                | A/E         | -                  | -             | -                | W          | A             | R                  | -             | -                |
+| 审计日志查看              | R           | R                  | R             | R                | R          | R             | R                  | 限制只读      | 汇总只读         |
+| 报表统计                  | R           | R                  | R             | R                | R          | R             | R                  | 限制只读      | R                |
+| 系统状态查看              | R           | R                  | R             | R                | R          | R             | R                  | 受限          | R                |
+| 手工触发后台任务          | A/E         | W                  | -             | -                | -          | -             | R                  | -             | -                |
 
 ## 6. 高风险权限额外限制
 
@@ -442,7 +450,7 @@
 - `control-overview` 分类默认公开给所有后台角色，但它下面的 `dashboard / execution / system` 页面分别按 `dashboard:read`、`execution:read` 控制。
 - `dashboard` 节点本身只作为可展开导航菜单返回，不直接承载页面跳转；它下面的 `overview / runtime / health` 子页面继续沿用 `dashboard:read`，不额外扩张权限面，只做信息架构拆分。
 - `identity-access` 下的 `users / role-permissions / menu-config` 只给 `super_admin` 与 `platform_ops_admin`，避免财务和风控角色看到控制面治理入口。
-- `business-control` 作为审批与资金域根节点，是否出现由 `approvals / finance / risk / withdrawal-reviews` 这些子页面实际权限决定。
+- `business-control` 作为审批与资金域根节点，是否出现由 `approvals / owner-accounts / finance / risk / withdrawal-reviews` 这些子页面实际权限决定。
 - `panel` 只承担 IA 和搜索，不承载额外 SoD 决策；真正的命令权限仍然落在页面接口和按钮级权限上。
 
 ## 11. 最终建议

@@ -19,11 +19,17 @@ from src.storage.analytics.provider_withdraw_review import (
     ProviderWithdrawReviewItem,
     ProviderWithdrawReviewRepository,
 )
+from src.storage.analytics.admin_operations_repository import (
+    AdminOperationsRepository,
+    PostgresAdminOperationsRepository,
+)
 
 __all__ = [
     "AnalyticsDashboardRepository",
+    "AdminOperationsRepository",
     "ClickHouseAnalyticsDashboardRepository",
     "PostgresAnalyticsDashboardRepository",
+    "PostgresAdminOperationsRepository",
     "GatewayActivityTrendPoint",
     "GatewayFinanceSnapshot",
     "GatewayOperationsSnapshot",
