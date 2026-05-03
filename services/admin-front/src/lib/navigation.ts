@@ -32,24 +32,73 @@ const legacyPathByItemId: Record<string, string> = {
 
 const navLookupById: Record<string, NavLookupRecord> = {
   dashboard: { label: "控制台", description: "总览与业务运行态入口。" },
-  analytics: { label: "Analytics", description: "增长、收入、风控与埋点质量观测。" },
-  "dashboard-analytics": { label: "Analytics 总览", description: "North Star 指标、关键告警与专题入口。" },
-  "analytics-consumer-funnel": { label: "Consumer 激活漏斗", description: "从访问到首次调用的增长漏斗。" },
-  "analytics-invocation-revenue": { label: "调用与收入", description: "quote、invoke、GMV、失败归因与延迟。" },
-  "analytics-provider-revenue": { label: "Provider 收益", description: "Provider 收入、首次收益与结算 funnel。" },
-  "analytics-money-flow": { label: "资金流", description: "充值、提现、退款、确认延迟与 ledger context。" },
-  "analytics-risk-health": { label: "风控健康", description: "risk rules、budget blocked 与 provider degraded。" },
-  "analytics-data-quality": { label: "埋点质量", description: "事件量、source coverage、隐私检查与 schema issue。" },
-  execution: { label: "执行队列", description: "审批后的任务排队、重试与执行状态。" },
-  "provider-services": { label: "Provider 服务", description: "注册服务、探活状态与自动摘流管理。" },
-  "forum-support": { label: "社区回复", description: "未回复帖子、Agent 建议回复与人工发送。" },
+  analytics: {
+    label: "Analytics",
+    description: "增长、收入、风控与埋点质量观测。",
+  },
+  "dashboard-analytics": {
+    label: "Analytics 总览",
+    description: "North Star 指标、关键告警与专题入口。",
+  },
+  "analytics-consumer-funnel": {
+    label: "Consumer 激活漏斗",
+    description: "从访问到首次调用的增长漏斗。",
+  },
+  "analytics-invocation-revenue": {
+    label: "调用与收入",
+    description: "quote、invoke、GMV、失败归因与延迟。",
+  },
+  "analytics-provider-revenue": {
+    label: "Provider 收益",
+    description: "Provider 收入、首次收益与结算 funnel。",
+  },
+  "analytics-money-flow": {
+    label: "资金流",
+    description: "充值、提现、退款、确认延迟与 ledger context。",
+  },
+  "analytics-risk-health": {
+    label: "风控健康",
+    description: "risk rules、budget blocked 与 provider degraded。",
+  },
+  "analytics-data-quality": {
+    label: "埋点质量",
+    description: "事件量、source coverage、隐私检查与 schema issue。",
+  },
+  execution: {
+    label: "执行队列",
+    description: "审批后的任务排队、重试与执行状态。",
+  },
+  "provider-services": {
+    label: "Provider 服务",
+    description: "注册服务、探活状态与自动摘流管理。",
+  },
+  "forum-support": {
+    label: "社区回复",
+    description: "未回复帖子、Agent 建议回复与人工发送。",
+  },
   system: { label: "系统运维", description: "Gateway、Indexer 与对账运行态。" },
   users: { label: "后台用户", description: "管理员目录、状态与 MFA 要求。" },
-  "role-permissions": { label: "角色权限", description: "权限矩阵、模块边界与 reviewer 分工。" },
-  "menu-config": { label: "菜单配置", description: "后台已发布导航的拓扑与治理。" },
+  "role-permissions": {
+    label: "角色权限",
+    description: "权限矩阵、模块边界与 reviewer 分工。",
+  },
+  "menu-config": {
+    label: "菜单配置",
+    description: "后台已发布导航的拓扑与治理。",
+  },
   approvals: { label: "审批中心", description: "高风险动作审批与审核状态流。" },
-  "withdrawal-reviews": { label: "提现复核", description: "出金审核与风险复核台。" },
-  "review-history": { label: "审核历史", description: "已审批、已拒绝与已释放结果回看。" },
+  "withdrawal-reviews": {
+    label: "提现复核",
+    description: "出金审核与风险复核台。",
+  },
+  "review-history": {
+    label: "审核历史",
+    description: "已审批、已拒绝与已释放结果回看。",
+  },
+  "owner-accounts": {
+    label: "业务用户",
+    description: "Consumer / Provider owner、钱包和邮箱验证状态。",
+  },
   finance: { label: "财务控制", description: "充值、扣费、退款与责任敞口。" },
   risk: { label: "风险控制", description: "风险信号、策略与异常处置。" },
   audit: { label: "审计追踪", description: "操作留痕、追踪检索与审计检视。" },
@@ -77,7 +126,10 @@ function mergeLookup(item: NavItem): NavItem {
   };
 }
 
-function compareMenuItems(left: AdminMenuConfigItem, right: AdminMenuConfigItem): number {
+function compareMenuItems(
+  left: AdminMenuConfigItem,
+  right: AdminMenuConfigItem
+): number {
   const sortDifference = left.sortOrder - right.sortOrder;
   if (sortDifference !== 0) {
     return sortDifference;
@@ -86,7 +138,9 @@ function compareMenuItems(left: AdminMenuConfigItem, right: AdminMenuConfigItem)
   if (sectionDifference !== 0) {
     return sectionDifference;
   }
-  const parentDifference = (left.parentItemId ?? "").localeCompare(right.parentItemId ?? "");
+  const parentDifference = (left.parentItemId ?? "").localeCompare(
+    right.parentItemId ?? ""
+  );
   if (parentDifference !== 0) {
     return parentDifference;
   }
@@ -96,9 +150,10 @@ function compareMenuItems(left: AdminMenuConfigItem, right: AdminMenuConfigItem)
 function toNavItem(item: AdminMenuConfigItem): NavItem {
   const visual = getNavVisual(item.itemId);
   const legacyPath = legacyPathByItemId[item.itemId];
-  const path = item.nodeType === "page" || legacyPath
-    ? item.href ?? legacyPath
-    : undefined;
+  const path =
+    item.nodeType === "page" || legacyPath
+      ? item.href ?? legacyPath
+      : undefined;
   return mergeLookup({
     id: item.itemId,
     title: item.label,
@@ -106,12 +161,20 @@ function toNavItem(item: AdminMenuConfigItem): NavItem {
     path,
     description: item.description || item.sectionDescription || visual.kicker,
     nodeType: item.nodeType,
-    searchKeywords: [item.sectionLabel, item.sectionDescription, item.label, item.description, ...item.keywords].filter(Boolean),
+    searchKeywords: [
+      item.sectionLabel,
+      item.sectionDescription,
+      item.label,
+      item.description,
+      ...item.keywords,
+    ].filter(Boolean),
   });
 }
 
 function buildFallbackItems(items: AdminMenuConfigItem[]): NavItem[] {
-  const fallbackChildren = [...items].sort(compareMenuItems).map((item) => toNavItem(item));
+  const fallbackChildren = [...items]
+    .sort(compareMenuItems)
+    .map((item) => toNavItem(item));
 
   if (fallbackChildren.length === 0) {
     return [];
@@ -136,7 +199,9 @@ export function buildAdminNavigation(items: AdminMenuConfigItem[]): NavItem[] {
   const sortedItems = items
     .filter((item) => !hiddenNavigationItemIds.has(item.itemId))
     .sort(compareMenuItems);
-  const byId = new Map(sortedItems.map((item) => [item.itemId, toNavItem(item)]));
+  const byId = new Map(
+    sortedItems.map((item) => [item.itemId, toNavItem(item)])
+  );
   const roots: NavItem[] = [];
   const fallbackItems: AdminMenuConfigItem[] = [];
 
@@ -163,9 +228,14 @@ export function buildAdminNavigation(items: AdminMenuConfigItem[]): NavItem[] {
   return roots.concat(buildFallbackItems(fallbackItems));
 }
 
-export function findNavPathByPath(items: NavItem[], pathname: string): string[] {
+export function findNavPathByPath(
+  items: NavItem[],
+  pathname: string
+): string[] {
   for (const item of items) {
-    const childPath = item.children ? findNavPathByPath(item.children, pathname) : [];
+    const childPath = item.children
+      ? findNavPathByPath(item.children, pathname)
+      : [];
     if (childPath.length > 0) {
       return [item.id, ...childPath];
     }
@@ -178,7 +248,10 @@ export function findNavPathByPath(items: NavItem[], pathname: string): string[] 
   return [];
 }
 
-export function findNavItemByPath(items: NavItem[], pathname: string): NavItem | null {
+export function findNavItemByPath(
+  items: NavItem[],
+  pathname: string
+): NavItem | null {
   for (const item of items) {
     if (item.path === pathname) {
       return item;
@@ -195,7 +268,10 @@ export function findNavItemByPath(items: NavItem[], pathname: string): NavItem |
   return null;
 }
 
-export function filterNavigation(items: NavItem[], query: string): { filtered: NavItem[]; expandedIds: string[] } {
+export function filterNavigation(
+  items: NavItem[],
+  query: string
+): { filtered: NavItem[]; expandedIds: string[] } {
   const normalizedQuery = normalizeQuery(query);
 
   if (!normalizedQuery) {
@@ -205,7 +281,12 @@ export function filterNavigation(items: NavItem[], query: string): { filtered: N
   const expandedIds = new Set<string>();
 
   function visit(node: NavItem): NavItem | null {
-    const haystack = [node.title, node.description, node.path, ...(node.searchKeywords ?? [])]
+    const haystack = [
+      node.title,
+      node.description,
+      node.path,
+      ...(node.searchKeywords ?? []),
+    ]
       .filter(Boolean)
       .join(" ")
       .toLowerCase();
@@ -229,7 +310,9 @@ export function filterNavigation(items: NavItem[], query: string): { filtered: N
   }
 
   return {
-    filtered: items.map((item) => visit(item)).filter((item): item is NavItem => item !== null),
+    filtered: items
+      .map((item) => visit(item))
+      .filter((item): item is NavItem => item !== null),
     expandedIds: Array.from(expandedIds),
   };
 }
