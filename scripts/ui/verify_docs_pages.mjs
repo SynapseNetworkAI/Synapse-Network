@@ -124,9 +124,39 @@ const pages = [
     id: "typescript",
     href: "/sdks/typescript",
     heading: "TypeScript SDK",
-    texts: ["@synapse-network-ai/sdk"],
+    texts: [
+      "@synapse-network-ai/sdk",
+      "SynapseClient",
+      'environment: "staging"',
+    ],
   },
-  { id: "python", href: "/sdks/python", heading: "Python SDK" },
+  {
+    id: "python",
+    href: "/sdks/python",
+    heading: "Python SDK",
+    texts: ["synapse-client", "synapse_client", "invoke_llm"],
+  },
+  {
+    id: "go",
+    href: "/sdks/go",
+    heading: "Go SDK",
+    texts: [
+      "go get github.com/SynapseNetworkAI/Synapse-Network-Sdk/go",
+      "MaxCostUSDC",
+    ],
+  },
+  {
+    id: "java",
+    href: "/sdks/java",
+    heading: "Java/JVM SDK",
+    texts: ["ai.synapsenetwork", "synapse-network-sdk", "maxCostUsdc"],
+  },
+  {
+    id: "dotnet",
+    href: "/sdks/dotnet",
+    heading: ".NET SDK",
+    texts: ["SynapseNetwork.Sdk", "0.1.0-preview", "MaxCostUsdc"],
+  },
   {
     id: "mcp-agent-tooling",
     href: "/sdks/mcp-agent-tooling",
