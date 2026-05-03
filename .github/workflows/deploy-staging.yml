@@ -313,39 +313,12 @@ jobs:
       - name: Smoke affected services
         if: ${{ steps.scope.outputs.deploy == 'true' }}
         run: |
-          TOKEN="$(gcloud auth print-identity-token 2>/dev/null || true)"
-          node - <<'NODE' > smoke-services.sh
-          const fs = require('fs')
-          const images = JSON.parse(fs.readFileSync('image-digests.json', 'utf8'))
-          const names = {
-            gateway: 'synapse-staging-gateway',
-            'gateway-admin': 'synapse-staging-gateway-admin',
-            'user-front': 'synapse-staging-user-front',
-            'admin-front': 'synapse-staging-admin-front',
-            'docs-front': 'synapse-staging-docs-front',
-          }
-          for (const service of Object.keys(images)) {
-            console.log(`url=$(gcloud run services describe ${names[service]} --project "$PROJECT_ID" --region "$REGION" --format='value(status.url)')`)
-            if (service === 'gateway' || service === 'gateway-admin') {
-              console.log(`curl -fsS "$url/health" >/dev/null || { test -n "$TOKEN" && curl -fsS -H "Authorization: Bearer $TOKEN" "$url/health" >/dev/null; }`)
-              if (service === 'gateway') console.log(`curl -fsS "$url/readiness" >/dev/null || { test -n "$TOKEN" && curl -fsS -H "Authorization: Bearer $TOKEN" "$url/readiness" >/dev/null; }`)
-            } else {
-              console.log(`curl -fsS "$url/" >/dev/null || { test -n "$TOKEN" && curl -fsS -H "Authorization: Bearer $TOKEN" "$url/" >/dev/null; }`)
-            }
-            console.log(`echo '${service}=passed' >> smoke-status.txt`)
-          }
-          NODE
-          bash smoke-services.sh
-          node - <<'NODE'
-          const fs = require('fs')
-          const status = {}
-          for (const line of fs.readFileSync('smoke-status.txt', 'utf8').split('\n')) {
-            if (!line.trim()) continue
-            const [key, value] = line.split('=')
-            status[key] = value
-          }
-          fs.writeFileSync('smoke.json', JSON.stringify(status, null, 2))
-          NODE
+          bash scripts/deploy/gcp_smoke_staging_services.sh \
+            --project "${PROJECT_ID}" \
+            --region "${REGION}" \
+            --services "${{ steps.scope.outputs.services }}" \
+            --json-output smoke.json \
+            --details-output smoke-details.json
 
       - name: Run staging drift guard
         if: ${{ steps.scope.outputs.deploy == 'true' && contains(steps.scope.outputs.services, 'gateway') }}
@@ -404,6 +377,7 @@ jobs:
             --drift-guard drift-guard.json \
             --revisions revisions.json \
             --smoke smoke.json \
+            --smoke-details smoke-details.json \
             --generated-at-display "${{ steps.source.outputs.display_timestamp }}" \
             --timestamp-timezone UTC
           gcloud storage cp -r "output/deployments/staging/${RELEASE_ID}" "gs://${EVIDENCE_BUCKET}/deployments/"
@@ -440,6 +414,9 @@ jobs:
         run: |
           node - <<'NODE'
           const fs = require('fs')
+          const smokeDetails = fs.existsSync('smoke-details.json')
+            ? JSON.parse(fs.readFileSync('smoke-details.json', 'utf8'))
+            : []
           const payload = {
             status: 'failed',
             external_run_id: process.env.GITHUB_RUN_ID,
@@ -453,6 +430,7 @@ jobs:
               sourceRef: process.env.SOURCE_REF,
               resolvedCommitSha: process.env.RESOLVED_COMMIT_SHA || null,
               deployScope: process.env.DEPLOY_SCOPE,
+              smokeDetails,
             },
           }
           fs.writeFileSync('callback.json', JSON.stringify(payload))

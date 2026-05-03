@@ -74,6 +74,9 @@ for service in "${requested_services[@]}"; do
     gateway|gateway-admin|user-front|admin-front|docs-front)
       normalized_services+=("${service}")
       ;;
+    front-docs)
+      normalized_services+=("docs-front")
+      ;;
     *)
       echo "invalid service in --services: ${service}" >&2
       exit 2
