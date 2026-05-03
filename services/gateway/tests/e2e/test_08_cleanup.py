@@ -70,6 +70,8 @@ def test_chain_complete(session_state):
     assert session_state.get("deposit_tx_hash"), "deposit_tx_hash missing"
     assert session_state.get("service_id"), "service_id missing"
     assert session_state.get("agent_token"), "agent_token missing"
+    if session_state.get("invoke_skipped_reason"):
+        pytest.skip(session_state["invoke_skipped_reason"])
     assert session_state.get("invocation_id"), "invocation_id missing"
     assert session_state.get("credential_revoked"), "credential not revoked"
     print(

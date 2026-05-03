@@ -65,6 +65,7 @@ Synapse Network is an agent-first settlement layer for AI agents. The primary pr
 - docs/06_Reference/AI_Quick_Reference.md - compressed repository facts for agents
 - docs/reference/Validation_Entry_Points.md - current validation commands and workflow checks
 - docs/ops/19_E2E_Regression_Runbook.md - local/staging regression runbook; API/UI E2E is not complete until the SQL evidence layer proves Postgres state, balances, ledger, audit, outbox, and contract config are correct
+- E2E service fixtures default to canonical provider services (`svc_oss_security_healthcheck`, `svc_web3_sentiment_index`, `svc_protocol_fundamental_brief`); random service creation requires explicit opt-in and cleanup.
 - npm run ci:docs - lightweight docs governance gate for root growth, retired-path regressions, and canonical metadata minimums
 - npm run ci:performance-reliability - local performance/reliability smoke for provider health probe concurrency and slow lane guardrails
 - npm run perf:local-production-load-rehearsal && npm run ci:local-production-load-evidence - local MVP load rehearsal with temporary wallet isolation, bounded concurrency, graceful drain, and redacted evidence

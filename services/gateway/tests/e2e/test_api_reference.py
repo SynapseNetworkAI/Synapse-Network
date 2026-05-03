@@ -30,6 +30,13 @@ from tests.e2e.conftest import (
 )
 from tests.e2e.helpers.auth import authenticate_wallet
 from tests.e2e.helpers.db import seed_service_health
+from tests.e2e.helpers.service_fixtures import (
+    allow_service_creation,
+    canonical_missing_message,
+    configured_e2e_service_id,
+    discover_service,
+    service_price_usdc,
+)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Shared state across tests (populated by earlier tests)
@@ -439,44 +446,18 @@ class TestInvocations:
         return True
 
     def _discover_service_id(self, fallback_invoke_url: str | None = None) -> str | None:
-        if fallback_invoke_url:
+        configured = configured_e2e_service_id()
+        row = discover_service(GATEWAY_BASE, configured, token=None, timeout=15)
+        if row and self._is_sync_api_service(row):
+            STATE["fallback_price_usdc"] = service_price_usdc(row)
+            return configured
+
+        if fallback_invoke_url and allow_service_creation():
             provider_jwt, _ = authenticate_wallet(GATEWAY_BASE, PROVIDER_KEY)
             return self._create_release_reference_service(provider_jwt, fallback_invoke_url)
 
-        jwt, _ = authenticate_wallet(GATEWAY_BASE, OWNER_KEY)
-        r = httpx.get(
-            f"{GATEWAY_BASE}/api/v1/services/discover",
-            headers={"Authorization": f"Bearer {jwt}"},
-            params={"limit": 5},
-            timeout=15,
-        )
-        if r.status_code != 200:
-            return None
-        data = r.json()
-        services = data if isinstance(data, list) else data.get("services") or data.get("data") or []
-        services = [row for row in services if isinstance(row, dict) and self._is_sync_api_service(row)]
-        if not services:
-            provider_jwt, _ = authenticate_wallet(GATEWAY_BASE, PROVIDER_KEY)
-            owned = httpx.get(
-                f"{GATEWAY_BASE}/api/v1/services",
-                headers={"Authorization": f"Bearer {provider_jwt}"},
-                timeout=15,
-            )
-            if owned.status_code != 200:
-                return None
-            services = owned.json().get("services") or owned.json().get("items") or []
-            services = [row for row in services if isinstance(row, dict) and self._is_sync_api_service(row)]
-            if not services:
-                return self._create_release_reference_service(provider_jwt, fallback_invoke_url)
-        first = services[0]
-        pricing = first.get("pricing") if isinstance(first.get("pricing"), dict) else {}
-        STATE["fallback_price_usdc"] = str(
-            first.get("basePriceUsdc")
-            or first.get("priceUsdc")
-            or pricing.get("amount")
-            or "0.001"
-        )
-        return first.get("serviceId") or first.get("service_id") or first.get("id")
+        STATE["canonical_missing_message"] = canonical_missing_message(configured)
+        return None
 
     def _create_release_reference_service(
         self,
@@ -542,7 +523,7 @@ class TestInvocations:
         """POST /api/v1/agent/discovery/search → 200 with live service price."""
         svc_id = self._discover_service_id(mock_service_url)
         if not svc_id:
-            _skip_or_fail("No live services in discover, skipping quote test")
+            _skip_or_fail(STATE.get("canonical_missing_message") or "No live services in discover")
 
         r = httpx.post(
             f"{GATEWAY_BASE}/api/v1/agent/discovery/search",

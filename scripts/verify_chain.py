@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: S105, PLR0915 - legacy standalone chain verifier is tracked by quality-budget baseline
 """
 Synapse Network — Full Chain Verification
 ==========================================
@@ -13,6 +14,7 @@ Verifies the complete call chain from scratch:
   8. Report any discrepancies
 """
 import json
+import os
 import time
 import uuid
 from pathlib import Path
@@ -42,6 +44,12 @@ EXPECTED_PROVIDER_NET = 0.0091       # totalCharge - protocolFee = price + routi
 EXPECTED_PLATFORM_FEE_DELTA = 0.0011 # platformFeeAccrued = protocolFee + routingTax (gross fees collected)
 EXPECTED_PROTOCOL_FEE = 0.001
 EXPECTED_ROUTING_TAX  = 0.0001
+GATEWAY_E2E_SERVICE_ID = os.getenv(
+    "GATEWAY_E2E_SERVICE_ID", "svc_oss_security_healthcheck"
+).strip() or "svc_oss_security_healthcheck"
+GATEWAY_E2E_ALLOW_SERVICE_CREATION = os.getenv(
+    "GATEWAY_E2E_ALLOW_SERVICE_CREATION", ""
+).strip().lower() in {"1", "true", "yes", "on"}
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 PASS = "\033[92m✓\033[0m"
@@ -70,7 +78,7 @@ def nearly(a, b, tol=1e-5):
 def authenticate(key, label):
     account = Account.from_key(key)
     addr = account.address.lower()
-    r = requests.get(f"{API_BASE}/v1/auth/challenge", params={"address": addr})
+    r = requests.get(f"{API_BASE}/v1/auth/challenge", params={"address": addr}, timeout=30)
     assert r.status_code == 200, f"Challenge failed: {r.text}"
     challenge = r.json()["challenge"]
     signed = Account.sign_message(encode_defunct(text=challenge), private_key=key)
@@ -78,7 +86,7 @@ def authenticate(key, label):
         "wallet_address": addr,
         "signature": signed.signature.hex(),
         "message": challenge,
-    })
+    }, timeout=30)
     assert r2.status_code == 200, f"Verify failed: {r2.text}"
     token = r2.json().get("token") or r2.json().get("access_token")
     assert token, "No token"
@@ -135,10 +143,11 @@ def register_deposit(consumer_token, consumer_addr, tx_hash, amount_usdc):
     idem = f"verify-{uuid.uuid4().hex[:12]}"
     if not tx_hash.startswith("0x"):
         tx_hash = "0x" + tx_hash
-    r = api("post", "/v1/balance/deposit/intent",
-            token=consumer_token,
-            headers={"X-Idempotency-Key": idem, "X-User-Address": consumer_addr},
-            json={"txHash": tx_hash, "amountUsdc": float(amount_usdc)})
+    response = api("post", "/v1/balance/deposit/intent",
+                   token=consumer_token,
+                   headers={"X-Idempotency-Key": idem, "X-User-Address": consumer_addr},
+                   json={"txHash": tx_hash, "amountUsdc": float(amount_usdc)})
+    assert response.status_code in (200, 201), f"deposit intent failed: {response.text}"
     # Poll for confirmation
     for i in range(15):
         time.sleep(2)
@@ -194,6 +203,15 @@ def register_service(provider_token, provider_addr):
     assert svc_id, f"No service_id: {d}"
     print(f"  {PASS} Service registered: {svc_id}")
     return svc_id
+
+def resolve_service(provider_token, provider_addr):
+    if GATEWAY_E2E_ALLOW_SERVICE_CREATION:
+        return register_service(provider_token, provider_addr)
+    print(
+        f"  {PASS} Using existing canonical provider service: "
+        f"{GATEWAY_E2E_SERVICE_ID}"
+    )
+    return GATEWAY_E2E_SERVICE_ID
 
 # ── Step 6: Issue credential ───────────────────────────────────────────────────
 def issue_credential(consumer_token, consumer_addr):
@@ -271,7 +289,6 @@ def main():
     register_deposit(consumer_token, consumer_addr, tx_hash, "0.1")
     time.sleep(3)
     consumer_bal_after_deposit, _ = get_balance(consumer_token, consumer_addr)
-    expected_after = consumer_bal_before + 0.1
     delta = consumer_bal_after_deposit - consumer_bal_before
     all_passed &= check(
         nearly(delta, 0.1, tol=0.001),
@@ -285,9 +302,9 @@ def main():
     print(f"  {PASS} Provider net_earned before: {prov_net_before:.6f} USDC")
     print(f"  {PASS} Provider receivable before: {prov_recv_before:.6f} USDC")
 
-    # ── 5. Register service + credentials
-    section("5/8  Service Registration + Credential Issue")
-    svc_id = register_service(provider_token, provider_addr)
+    # ── 5. Resolve service + credentials
+    section("5/8  Service Fixture + Credential Issue")
+    svc_id = resolve_service(provider_token, provider_addr)
     time.sleep(1)
     credential_token = issue_credential(consumer_token, consumer_addr)
 
@@ -367,7 +384,7 @@ def main():
     # Find newest invocation
     if inv_after:
         newest = inv_after[0]  # sorted desc
-        print(f"\n  Newest invocation record:")
+        print("\n  Newest invocation record:")
         print(f"    id:             {newest.get('id') or newest.get('invocationId')}")
         print(f"    serviceId:      {newest.get('serviceId')}")
         print(f"    status:         {newest.get('status')}")
