@@ -1,0 +1,60 @@
+{
+  "name": "consumer-replay-attack",
+  "status": "passed",
+  "pass": true,
+  "runId": "wot-20260502143447",
+  "generatedAt": "2026-05-02T14:34:50.424Z",
+  "summary": "Replay of consumed consumer ticket reverts and Gateway remains COMPLETED",
+  "role": "consumer",
+  "withdrawalId": "313674ab-97c5-4c3b-9cef-9f88da6b9a2c",
+  "ticketHash": "0xb1be5d3edfa5d079f80c49ece43a31d4922ad6be8a698f72dd14c4a9786e296b",
+  "deadline": 1777732550,
+  "expected": {
+    "firstReceiptStatus": 1,
+    "replayReverted": true,
+    "gatewayStatusAfterReplay": "COMPLETED",
+    "noSecondWalletDelta": "0",
+    "ticketConsumed": true
+  },
+  "actual": {
+    "firstTxHash": "0x5a4793d76f182a22cd14f374dea52180fd1acaa71f129c1d15058a5d40fa154d",
+    "replay": {
+      "reverted": true,
+      "failureType": "CONTRACT_REVERT",
+      "message": "execution reverted: \"Ticket consumed\"",
+      "receipt": null
+    },
+    "statusAfterFirst": "COMPLETED",
+    "statusAfterReplay": "COMPLETED",
+    "walletDeltaFirstAtomic": "9500000000000000000",
+    "walletDeltaReplayAtomic": "0",
+    "vaultDeltaReplayAtomic": "0",
+    "ticketConsumed": true
+  },
+  "comparisons": [
+    {
+      "metric": "replayReverted",
+      "expected": "true",
+      "actual": "true",
+      "pass": true
+    },
+    {
+      "metric": "gatewayStatusAfterReplay",
+      "expected": "COMPLETED",
+      "actual": "COMPLETED",
+      "pass": true
+    },
+    {
+      "metric": "noSecondWalletDelta",
+      "expected": "0",
+      "actual": "0",
+      "pass": true
+    },
+    {
+      "metric": "ticketConsumed",
+      "expected": "true",
+      "actual": "true",
+      "pass": true
+    }
+  ]
+}

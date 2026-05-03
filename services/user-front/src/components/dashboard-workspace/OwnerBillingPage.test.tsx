@@ -42,13 +42,18 @@ describe("OwnerBillingPage", () => {
 
     expect(screen.getByRole("heading", { name: "Payments" })).toBeTruthy();
     expect(
-      screen.getByText("View all billing transactions and payment history for your account")
+      screen.getByText(
+        "View all billing transactions and payment history for your account"
+      )
     ).toBeTruthy();
     expect(screen.getByRole("button", { name: "FROM" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "TO" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Reset to last 3 months" })).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Reset to last 3 months" })
+    ).toBeTruthy();
     expect(screen.getByText("Voucher")).toBeTruthy();
     expect(screen.getByText("$5.00")).toBeTruthy();
+    expect(screen.getByText("Completed")).toBeTruthy();
   });
 
   it("renders payment timestamps in fixed YYYY-MM-DD HH:mm:ss format", () => {
