@@ -23,6 +23,7 @@ Synapse Network is an agent-first settlement layer for AI agents. The primary pr
 - docs/ops/17_Staging_Environment_Configuration.md - staging DNS, Cloud Run env, Secret Manager, Gmail, Lark, and Arbitrum Sepolia configuration checklist
 - docs/ops/17_In_App_Notifications.md - self-hosted Postgres inbox, after-commit notification writes, TTL cleanup, and User-front smart polling
 - docs/ops/18_Staging_Validation_Runbook.md - staging smoke, core money-path validation, notification evidence, and first-phase acceptance checklist
+- docs/ops/19_E2E_Regression_Runbook.md - canonical local/staging E2E regression matrix with read-only SQL evidence for owner, provider, deposit, invoke, withdrawal, notification, analytics, and contract state
 - docs/security/README.md - internal security evidence entrypoint, including SynapseCore internal audit, closure log, and risk acceptance
 
 ## Core Runtime Docs
@@ -63,6 +64,7 @@ Synapse Network is an agent-first settlement layer for AI agents. The primary pr
 - docs/reference/AI_Instruction_Entrypoints.md - agent-specific entrypoint map and bridge drift policy
 - docs/06_Reference/AI_Quick_Reference.md - compressed repository facts for agents
 - docs/reference/Validation_Entry_Points.md - current validation commands and workflow checks
+- docs/ops/19_E2E_Regression_Runbook.md - local/staging regression runbook; API/UI E2E is not complete until the SQL evidence layer proves Postgres state, balances, ledger, audit, outbox, and contract config are correct
 - npm run ci:docs - lightweight docs governance gate for root growth, retired-path regressions, and canonical metadata minimums
 - npm run ci:performance-reliability - local performance/reliability smoke for provider health probe concurrency and slow lane guardrails
 - npm run perf:local-production-load-rehearsal && npm run ci:local-production-load-evidence - local MVP load rehearsal with temporary wallet isolation, bounded concurrency, graceful drain, and redacted evidence
