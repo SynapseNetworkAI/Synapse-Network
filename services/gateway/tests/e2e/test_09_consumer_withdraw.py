@@ -84,9 +84,11 @@ def test_consumer_withdraw_decreases_available_balance(owner_headers, session_st
     frozen_before = Decimal(str(balance_before_full.get("consumerFrozenBalance") or 0))
 
     assert available_before >= MIN_CONSUMER_WITHDRAW_USDC, (
-        "No withdrawable balance above the 10 USDC minimum. Run test_04_deposit first."
+        "Insufficient available balance for the minimum consumer withdrawal. "
+        f"Need at least {MIN_CONSUMER_WITHDRAW_USDC} USDC; run test_04_deposit first."
     )
 
+    # Match the current product minimum so the e2e covers the real withdraw policy.
     withdraw_usdc = MIN_CONSUMER_WITHDRAW_USDC
     resp = _consumer_withdraw(GATEWAY_BASE, owner_headers, withdraw_usdc, reason="e2e test")
 
@@ -216,7 +218,7 @@ def test_consumer_withdraw_reduces_total_spendable_capacity(owner_headers, sessi
 
 
 def test_consumer_withdraw_invalid_amount_rejected(owner_headers):
-    """Amounts below minimum (10 USDC) are rejected with 400."""
+    """Amounts below the consumer withdrawal minimum are rejected with 400."""
     r = httpx.post(
         f"{GATEWAY_BASE}/api/v1/balance/consumer/withdraw",
         headers={**owner_headers, "X-Idempotency-Key": uuid.uuid4().hex},

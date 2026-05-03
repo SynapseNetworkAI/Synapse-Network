@@ -48,16 +48,16 @@ Secret Manager or Cloud Run, is maintained in
 
 The canonical Arbitrum Sepolia staging deployment is:
 
-| Item | Value |
-| --- | --- |
-| Evidence directory | `docs/evidence/release/contracts/arbitrum-sepolia/20260424T062942120Z-deploy/` |
-| Chain | Arbitrum Sepolia (`421614`) |
-| SynapseCore / `ROUTER_ADDRESS` | `0x0bA1dcE1Cc8d877052ab1C3CE2362830459D8FF4` |
-| MockUSDC / `USDC_TOKEN_ADDRESS` | `0xfad31daE42B0046aFA106BCf56ED0dDaCA4463B9` |
-| Contract owner | `0x1896285a84ED0aa7C654B2547b3dDF137B974cCE` |
-| Gateway withdraw signer | `0x1Eb2A684B8B7160D947940b644be6f939C783963` |
-| MockUSDC explorer | `https://sepolia.arbiscan.io/address/0xfad31daE42B0046aFA106BCf56ED0dDaCA4463B9#code` |
-| SynapseCore explorer | `https://sepolia.arbiscan.io/address/0x0bA1dcE1Cc8d877052ab1C3CE2362830459D8FF4#code` |
+| Item                            | Value                                                                                 |
+| ------------------------------- | ------------------------------------------------------------------------------------- |
+| Evidence directory              | `docs/evidence/release/contracts/arbitrum-sepolia/20260424T062942120Z-deploy/`        |
+| Chain                           | Arbitrum Sepolia (`421614`)                                                           |
+| SynapseCore / `ROUTER_ADDRESS`  | `0x0bA1dcE1Cc8d877052ab1C3CE2362830459D8FF4`                                          |
+| MockUSDC / `USDC_TOKEN_ADDRESS` | `0xfad31daE42B0046aFA106BCf56ED0dDaCA4463B9`                                          |
+| Contract owner                  | `0x1896285a84ED0aa7C654B2547b3dDF137B974cCE`                                          |
+| Gateway withdraw signer         | `0x1Eb2A684B8B7160D947940b644be6f939C783963`                                          |
+| MockUSDC explorer               | `https://sepolia.arbiscan.io/address/0xfad31daE42B0046aFA106BCf56ED0dDaCA4463B9#code` |
+| SynapseCore explorer            | `https://sepolia.arbiscan.io/address/0x0bA1dcE1Cc8d877052ab1C3CE2362830459D8FF4#code` |
 
 Staging uses owner-only `MockUSDC`. The deployment script pre-minted
 `100,000 MockUSDC` each to the dedicated staging consumer and provider E2E
@@ -76,7 +76,8 @@ Role separation is mandatory:
    transfers MockUSDC ownership.
 2. `STAGING_CONTRACT_OWNER_ADDRESS`: final owner for `MockUSDC` and
    `SynapseCore`.
-3. `STAGING_WITHDRAW_SIGNER_ADDRESS`: Gateway withdrawal signer address.
+3. `STAGING_WITHDRAW_SIGNER_ADDRESS`: Gateway withdrawal signer address derived
+   from the staging Cloud KMS public key.
 4. `STAGING_TEST_CONSUMER_ADDRESS`: dedicated staging E2E consumer wallet.
 5. `STAGING_TEST_PROVIDER_ADDRESS`: dedicated staging E2E provider wallet.
 
@@ -372,7 +373,9 @@ After evidence passes, set staging runtime env:
 RPC_URL="$ARBITRUM_SEPOLIA_RPC_URL"
 ROUTER_ADDRESS="<SynapseCore from contract-manifest.json>"
 USDC_TOKEN_ADDRESS="<MockUSDC from contract-manifest.json>"
-PRIVATE_KEY="<private key whose address is STAGING_WITHDRAW_SIGNER_ADDRESS>"
+WITHDRAW_SIGNER_MODE="gcp_kms"
+WITHDRAW_SIGNER_GCP_KMS_KEY_NAME="<staging kms key version resource>"
+WITHDRAW_SIGNER_ADDRESS="$STAGING_WITHDRAW_SIGNER_ADDRESS"
 ```
 
 User-front staging config should use the same manifest addresses:

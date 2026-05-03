@@ -37,10 +37,10 @@ yarn dev
 
 Expected defaults:
 
-| Service | URL |
-| --- | --- |
-| Admin-front | `http://localhost:4000` |
-| Gateway-admin | `http://localhost:8300` |
+| Service            | URL                                                                                                |
+| ------------------ | -------------------------------------------------------------------------------------------------- |
+| Admin-front        | `http://localhost:3200`                                                                            |
+| Gateway-admin      | `http://localhost:8300`                                                                            |
 | Admin Postgres DSN | `postgresql://synapse_admin_app:local-dev-admin-app-password@localhost:5432/synapse_gateway_admin` |
 
 If your local DSN differs, pass it with `ADMIN_LOCKOUT_DOGFOOD_DSN`.
@@ -55,7 +55,7 @@ npm run e2e:admin-login-lockout:dogfood
 Useful overrides:
 
 ```bash
-ADMIN_FRONT_URL=http://localhost:4000 \
+ADMIN_FRONT_URL=http://localhost:3200 \
 ADMIN_GATEWAY_URL=http://localhost:8300 \
 ADMIN_LOCKOUT_DOGFOOD_DSN='postgresql://synapse_admin_app:local-dev-admin-app-password@localhost:5432/synapse_gateway_admin' \
 ADMIN_LOCKOUT_DOGFOOD_HEADFUL=1 \

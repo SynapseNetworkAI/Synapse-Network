@@ -18,7 +18,7 @@
  *
  * Requirements:
  *   - npm install playwright  (or npx playwright install chromium)
- *   - Docs dev server running at http://localhost:3001
+ *   - Docs dev server running at http://localhost:3100
  *
  * i18n storage key: synapse_lang  (set via localStorage before page load)
  */
@@ -29,7 +29,7 @@ const { chromium } = require("playwright");
 const path = require("path");
 const fs = require("fs");
 
-const BASE_URL = process.env.DOCS_BASE_URL || "http://localhost:3001";
+const BASE_URL = process.env.DOCS_BASE_URL || "http://localhost:3100";
 const PAGE_PATH = process.argv[2] || "/get-started/agent-builders";
 const OUT_DIR = path.resolve(
   process.cwd(),

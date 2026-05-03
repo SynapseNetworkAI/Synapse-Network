@@ -73,7 +73,7 @@ def _configure_env(webhook: str) -> None:
     os.environ.update(
         {
             "ADMIN_GATEWAY_ENV_FILE": "",
-            "ADMIN_GATEWAY_ALLOWED_ORIGINS": "http://localhost:4000",
+            "ADMIN_GATEWAY_ALLOWED_ORIGINS": "http://localhost:3200",
             "EXECUTION_WORKER_ENABLED": "false",
             "GCP_ALERT_RECEIVER_ENABLED": "true",
             "GCP_ALERT_RECEIVER_TOKEN": LOCAL_RECEIVER_VALUE,

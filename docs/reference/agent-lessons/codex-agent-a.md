@@ -86,3 +86,13 @@ Status: Active
 - Fix: Prefer `$ROOT_DIR/node_modules/.bin/prettier` before global or npx fallback.
 - Rule: Pre-push gates should prefer already-installed local tool binaries and only use npx as a fallback.
 - Upgrade: agents-memory
+
+### Lesson: Conflict fixes must preserve both sides of policy drift repairs
+
+- Domain: ci
+- Severity: warning
+- Trigger: Merging `origin/main` into PR 47 conflicted in the consumer withdrawal E2E around minimum amount and matured-funds skip behavior.
+- Root cause: Both branches repaired the same stale withdrawal test from different angles: one preserved Decimal/string money boundaries, the other added clearer maturity prerequisite handling.
+- Fix: Keep the Decimal 10 USDC policy constant, send amount strings over HTTP, and retain the T+1 mature-funds skip path for dependent assertions.
+- Rule: When resolving finance-test conflicts, preserve policy constants, money serialization rules, and prerequisite skip semantics together.
+- Upgrade: agents-memory

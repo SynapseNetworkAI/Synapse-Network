@@ -38,15 +38,15 @@ Screenshots are visual evidence. Pass/fail is based on browser clicks, gateway-a
 
 ## Page Matrix
 
-| Page | Route | Gateway-admin API | Function | Primary event chain |
-| --- | --- | --- | --- | --- |
-| Analytics Overview | `/dashboard/analytics` | `/api/admin/v1/dashboard/analytics/overview` | Shows North Star metrics, Analytics Health, and actionable alerts before drilling into topic pages. | `invoke_completed`, `invoke_failed`, `provider_revenue_received`, `budget_blocked`, `risk_rule_triggered` |
-| Consumer Activation Funnel | `/dashboard/analytics/consumer-funnel` | `/api/admin/v1/dashboard/analytics/consumer-funnel` | Finds where Consumers drop between discovery, funding, and first paid invocation. | `page_viewed -> wallet_connected -> consumer_signup_completed -> quote_generated -> deposit_completed -> invoke_started -> invoke_completed` |
-| Invocation Revenue | `/dashboard/analytics/invocation-revenue` | `/api/admin/v1/dashboard/analytics/invocation-revenue` | Tracks quote/invoke volume, GMV, fees, latency, and failure causes. | `quote_generated -> invoke_started -> invoke_completed/provider_revenue_received`; failures use `invoke_failed` |
-| Provider Revenue | `/dashboard/analytics/provider-revenue` | `/api/admin/v1/dashboard/analytics/provider-revenue` | Shows whether Providers earned money and whether settlement is blocked. | `provider_revenue_received`, `provider_first_revenue_received`, `settlement_claim_requested`, `settlement_claim_completed`, `settlement_claim_failed` |
-| Money Flow | `/dashboard/analytics/money-flow` | `/api/admin/v1/dashboard/analytics/money-flow` | Observes deposits, withdrawals, refunds, confirmation latency, and failure samples. | `deposit_completed`, `deposit_failed`, `withdrawal_completed`, `withdrawal_failed`, `refund_completed` |
-| Risk Health | `/dashboard/analytics/risk-health` | `/api/admin/v1/dashboard/analytics/risk-health` | Tracks risk rules, budget blocks, provider health degradation, and refund reasons. | `risk_rule_triggered`, `budget_blocked`, `provider_health_degraded`, `refund_completed` |
-| Data Quality | `/dashboard/analytics/data-quality` | `/api/admin/v1/dashboard/analytics/data-quality` | Verifies that analytics itself is trustworthy. | all events, plus checks for duplicates, source coverage, critical freshness, privacy violations, missing properties, XOR violations, lag, and file fallback |
+| Page                       | Route                                     | Gateway-admin API                                      | Function                                                                                            | Primary event chain                                                                                                                                         |
+| -------------------------- | ----------------------------------------- | ------------------------------------------------------ | --------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Analytics Overview         | `/dashboard/analytics`                    | `/api/admin/v1/dashboard/analytics/overview`           | Shows North Star metrics, Analytics Health, and actionable alerts before drilling into topic pages. | `invoke_completed`, `invoke_failed`, `provider_revenue_received`, `budget_blocked`, `risk_rule_triggered`                                                   |
+| Consumer Activation Funnel | `/dashboard/analytics/consumer-funnel`    | `/api/admin/v1/dashboard/analytics/consumer-funnel`    | Finds where Consumers drop between discovery, funding, and first paid invocation.                   | `page_viewed -> wallet_connected -> consumer_signup_completed -> quote_generated -> deposit_completed -> invoke_started -> invoke_completed`                |
+| Invocation Revenue         | `/dashboard/analytics/invocation-revenue` | `/api/admin/v1/dashboard/analytics/invocation-revenue` | Tracks quote/invoke volume, GMV, fees, latency, and failure causes.                                 | `quote_generated -> invoke_started -> invoke_completed/provider_revenue_received`; failures use `invoke_failed`                                             |
+| Provider Revenue           | `/dashboard/analytics/provider-revenue`   | `/api/admin/v1/dashboard/analytics/provider-revenue`   | Shows whether Providers earned money and whether settlement is blocked.                             | `provider_revenue_received`, `provider_first_revenue_received`, `settlement_claim_requested`, `settlement_claim_completed`, `settlement_claim_failed`       |
+| Money Flow                 | `/dashboard/analytics/money-flow`         | `/api/admin/v1/dashboard/analytics/money-flow`         | Observes deposits, withdrawals, refunds, confirmation latency, and failure samples.                 | `deposit_completed`, `deposit_failed`, `withdrawal_completed`, `withdrawal_failed`, `refund_completed`                                                      |
+| Risk Health                | `/dashboard/analytics/risk-health`        | `/api/admin/v1/dashboard/analytics/risk-health`        | Tracks risk rules, budget blocks, provider health degradation, and refund reasons.                  | `risk_rule_triggered`, `budget_blocked`, `provider_health_degraded`, `refund_completed`                                                                     |
+| Data Quality               | `/dashboard/analytics/data-quality`       | `/api/admin/v1/dashboard/analytics/data-quality`       | Verifies that analytics itself is trustworthy.                                                      | all events, plus checks for duplicates, source coverage, critical freshness, privacy violations, missing properties, XOR violations, lag, and file fallback |
 
 ## Page Responsibilities
 
@@ -188,7 +188,7 @@ ADMIN_GATEWAY_URL=http://127.0.0.1:8300 \
 ANALYTICS_CLICKHOUSE_URL=http://127.0.0.1:8123 \
 /usr/bin/python3 scripts/admin_analytics_clickhouse_regression.py
 
-ADMIN_FRONT_URL=http://127.0.0.1:4000 \
+ADMIN_FRONT_URL=http://127.0.0.1:3200 \
 ADMIN_GATEWAY_URL=http://127.0.0.1:8300 \
 ADMIN_SESSION_TOKEN="<synapse_admin_session>" \
 node scripts/admin_analytics_fullchain_e2e.js
@@ -207,7 +207,7 @@ ADMIN_GATEWAY_URL=http://127.0.0.1:8300 \
 ANALYTICS_CLICKHOUSE_URL=http://127.0.0.1:8123 \
 npm run e2e:admin-analytics-10k:reconcile
 
-ADMIN_FRONT_URL=http://127.0.0.1:4000 \
+ADMIN_FRONT_URL=http://127.0.0.1:3200 \
 ADMIN_GATEWAY_URL=http://127.0.0.1:8300 \
 ADMIN_SESSION_TOKEN="<synapse_admin_session>" \
 npm run e2e:admin-analytics-10k:dogfood

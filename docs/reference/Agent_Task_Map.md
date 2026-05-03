@@ -27,7 +27,7 @@ Use it before broad repository search. It does not replace `AGENTS.md`, `.github
 | Domain                        | Use when the task mentions                                                                         |
 | ----------------------------- | -------------------------------------------------------------------------------------------------- |
 | `gateway_runtime`             | agent invoke, discovery, credentials, provider service calls, runtime API contracts                |
-| `docs_front`                  | `localhost:3001`, docs.synapse-network.ai, MDX docs pages, OpenAPI API reference, public docs copy |
+| `docs_front`                  | `localhost:3100`, docs.synapse-network.ai, MDX docs pages, OpenAPI API reference, public docs copy |
 | `user_front_docs`             | legacy `/docs/*` redirects and product links into the dedicated docs project                       |
 | `user_front_product`          | marketplace, owner console, public app pages, product-facing frontend                              |
 | `sdk_contract_alignment`      | SDK docs in product docs, SDK onboarding, public preview environment copy                          |

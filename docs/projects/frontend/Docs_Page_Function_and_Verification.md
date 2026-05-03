@@ -3,9 +3,9 @@
 - Status: canonical
 - Surface: `services/docs-front` dedicated docs site
 - Code paths: `services/docs-front/content/docs/`, `services/docs-front/src/app/`, `services/docs-front/scripts/generate-openapi.mjs`, `scripts/ui/verify_docs_pages.mjs`
-- Entry point: `http://localhost:3001/`
+- Entry point: `http://localhost:3100/`
 - Source of truth: MDX content plus generated `services/docs-front/src/data/api-reference.json`
-- Validation entry points: `npm run ci:docs-pages`, `DOCS_BASE_URL=http://localhost:3001 node scripts/ui/verify_docs_pages.mjs`
+- Validation entry points: `npm run ci:docs-pages`, `DOCS_BASE_URL=http://localhost:3100 node scripts/ui/verify_docs_pages.mjs`
 - Last verified against code: 2026-05-02
 
 ## Purpose

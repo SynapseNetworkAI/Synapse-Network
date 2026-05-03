@@ -130,7 +130,7 @@ class OwnerFinanceService(
 
         fee_usdc = Decimal(str(CONSUMER_WITHDRAW_FEE_USDC))
         net_usdc = quantize_usdc(gross_amount_usdc - fee_usdc)
-        private_key = self._require_withdraw_signer()
+        signer_config = self._require_withdraw_signer()
         chain_id = self._resolve_withdraw_chain()
         deadline = int(time.time()) + self._resolve_withdraw_deadline_sec()
         net_wei = usdc_decimal_to_atomic(net_usdc, decimals=USDC_DECIMALS)
@@ -145,7 +145,7 @@ class OwnerFinanceService(
             chain_id=chain_id,
             verifying_contract=normalize_wallet(settings.router_address),
         )
-        signature, ticket_hash = self._sign_withdraw_ticket(typed_data, private_key)
+        signature, ticket_hash = self._sign_withdraw_ticket(typed_data, signer_config)
         return WithdrawalTicketMetadata.model_validate(
             {
                 "ticketId": ticket_id,

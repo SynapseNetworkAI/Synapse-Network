@@ -173,8 +173,11 @@ LOCAL_GATEWAY_RESET_CONFIRM=I_UNDERSTAND_LOCAL_DATA_LOSS \
 
 ### 3.3.2 如何导入 Anvil 测试账户到 MetaMask
 
-默认本地部署脚本会使用 Anvil 第 1 个账号作为 Owner，第 2 个账号作为 backend signer。
-Anvil 的默认测试私钥可以直接导入 MetaMask 做本地联调。
+默认本地部署脚本会使用 Anvil 第 1 个账号作为 Owner，第 2 个账号作为
+backend signer。本地 Gateway 使用 `WITHDRAW_SIGNER_MODE=local_private_key`
+和 `PRIVATE_KEY` 签 withdrawal ticket；这个路径只允许 local
+联调，staging/prod 必须使用 KMS-backed signer。Anvil 的默认测试私钥可以
+直接导入 MetaMask 做本地联调。
 
 最常用的是第 1 个账号：
 
@@ -620,7 +623,7 @@ Gateway 至少要显式配置：
 推荐来源：
 
 1. 本地开发：使用 Anvil / Hardhat 启动后打印的测试账户私钥，或单独创建一个本地测试账户。
-2. 生产环境：使用独立签名账户，并通过 Secret Manager / KMS / HSM 或部署平台环境变量注入。
+2. Staging/production：使用独立 KMS / HSM signer；Gateway 只请求签名，不读取私钥。
 3. 严禁把真实生产私钥提交到仓库，或复用个人主钱包助记词。
 
 ### 4.2 金融与幂等参数
