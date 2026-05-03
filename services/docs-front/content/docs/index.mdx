@@ -1,0 +1,61 @@
+---
+title: Synapse Developer Platform
+description: Build agents that discover, invoke, and pay for APIs with USDC budget guardrails.
+---
+
+<div id="introduction" className="synapse-hero-grid -mx-6 -mt-6 mb-8 rounded-[12px] border border-white/[0.08] bg-[#050708] px-6 py-10 md:px-10">
+  <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#7ff7be]">Settlement layer for AI agents</p>
+  <h1 className="max-w-3xl text-4xl font-semibold tracking-[-0.03em] text-fd-foreground md:text-6xl">Let agents buy APIs without holding your credit card hostage.</h1>
+  <p className="mt-5 max-w-2xl text-base leading-8 text-fd-muted-foreground">Synapse combines wallet-funded USDC collateral, off-chain charging, agent credentials, and provider payouts into one machine-to-machine payment rail.</p>
+</div>
+
+<StatLine>
+  Owner deposits USDC -> agent receives limited credential -> agent discovers service -> gateway invokes provider -> receipt records settlement.
+</StatLine>
+
+<QuickLinks
+  items={[
+    {
+      href: '/get-started/first-paid-invocation',
+      title: 'First paid invocation',
+      description: 'Run the shortest path from wallet auth to a paid API call.',
+    },
+    {
+      href: '/api-reference',
+      title: 'API Reference',
+      description: 'Explore Gateway endpoints by resource: auth, balances, services, invocations, and credentials.',
+    },
+    {
+      href: '/mcp',
+      title: 'MCP / Agent Tooling',
+      description: 'Expose discovery, invocation, and receipts to MCP-compatible agent runtimes.',
+    },
+    {
+      href: '/money-flows',
+      title: 'Money flows',
+      description: 'Understand deposits, T+1/T+7 matured funds, withdrawals, and reconciliation.',
+    },
+    {
+      href: '/pricing-and-fees',
+      title: 'Pricing & fees',
+      description: 'Learn why agents must read live pricing and fee policy from Gateway.',
+    },
+  ]}
+/>
+
+## Agent-first architecture
+
+Synapse treats the runtime user as the agent, not the dashboard. Human UX exists to authorize, fund, observe, and recover. The hot path is still machine-to-machine: discover, invoke, charge, receipt.
+
+<AgentNote>
+  Use `llms.txt` for the page index and `llms-full.txt` when an agent needs the full docs context. Endpoint pages include auth scope, budget policy, idempotency, and retry notes.
+</AgentNote>
+
+## Core surfaces
+
+- **Gateway API** routes paid calls, verifies credentials, charges balances, and returns invocation receipts.
+- **Service registry** exposes provider services as callable machine resources.
+- **SDKs** package wallet auth, discovery, credential issuance, and invocation into agent-friendly methods.
+- **MCP runtime** exposes `discover_services`, `invoke_and_pay`, and `get_receipt` for model-compatible tools.
+- **Money flows** explain deposits, matured funds, withdrawal tickets, and reconciliation.
+- **Smart contracts** hold USDC collateral and settle withdrawals on-chain.

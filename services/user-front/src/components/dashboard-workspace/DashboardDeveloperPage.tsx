@@ -2,8 +2,20 @@
 
 import React from "react";
 import Link from "next/link";
-import { Terminal, BookOpen, ExternalLink, Copy, Check, Zap, Cpu, Layers, ArrowRight, ChevronDown } from "lucide-react";
+import {
+  Terminal,
+  BookOpen,
+  ExternalLink,
+  Copy,
+  Check,
+  Zap,
+  Cpu,
+  Layers,
+  ArrowRight,
+  ChevronDown,
+} from "lucide-react";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
+import { getDocsUrl } from "@/utils/docsUrl";
 
 // ── Real consumer quickstart codes ──────────────────────────────────────────
 
@@ -119,20 +131,35 @@ result = httpx.post(
 print("Result:", result["data"])
 print("Charged:", result["chargedUsdc"], "USDC")`.trim();
 
-const TS_INSTALL = "npm install @synapse-network/sdk";
+const TS_INSTALL = "npm install @synapse-network-ai/sdk";
 const PY_INSTALL = "pip install synapse-network-sdk";
 
-// ── Docs sidebar links — pointing to real /docs pages ───────────────────────
+// ── Docs sidebar links — pointing to the dedicated docs project ─────────────
 
 const DOC_LINKS = [
-  { label: "Consumer Quick Start",      href: "/docs/getting-started/consumer" },
-  { label: "Authentication & Auth",     href: "/docs/getting-started/consumer#step-auth" },
-  { label: "Discover Services",         href: "/docs/getting-started/consumer#step-discover" },
-  { label: "Agent Credentials",         href: "/docs/getting-started/consumer#step-credential" },
-  { label: "Invoke & Settle",           href: "/docs/getting-started/consumer#step-invoke" },
-  { label: "Quote & Settlement",        href: "/docs/concepts" },
-  { label: "API Reference",             href: "/docs/api-reference" },
-  { label: "TypeScript SDK",            href: "/docs/sdk" },
+  {
+    label: "Agent Builder Quick Start",
+    href: getDocsUrl("/get-started/agent-builders"),
+  },
+  {
+    label: "Authentication & Auth",
+    href: getDocsUrl("/api-reference#authentication"),
+  },
+  { label: "Discover Services", href: getDocsUrl("/api-reference#services") },
+  {
+    label: "Agent Credentials",
+    href: getDocsUrl("/concepts/budget-isolation"),
+  },
+  {
+    label: "Invoke & Settle",
+    href: getDocsUrl("/get-started/first-paid-invocation"),
+  },
+  {
+    label: "Quote & Settlement",
+    href: getDocsUrl("/concepts/agent-settlement"),
+  },
+  { label: "API Reference", href: getDocsUrl("/api-reference") },
+  { label: "TypeScript SDK", href: getDocsUrl("/sdks/typescript") },
 ];
 
 // ── Component ────────────────────────────────────────────────────────────────
@@ -161,7 +188,9 @@ export default function DeveloperPage() {
             <Terminal className="w-5 h-5 text-blue-400" />
             {t("developerPage.title")}
           </h1>
-          <p className="text-sm text-[#6b7280] mt-1">{t("developerPage.description")}</p>
+          <p className="text-sm text-[#6b7280] mt-1">
+            {t("developerPage.description")}
+          </p>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
@@ -178,7 +207,7 @@ export default function DeveloperPage() {
             {t("developerPage.ownerTreasury")}
           </Link>
           <a
-            href="/docs/getting-started/consumer"
+            href={getDocsUrl("/get-started/agent-builders")}
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-500 text-white rounded-lg text-xs font-semibold hover:bg-blue-400 transition-colors"
@@ -193,7 +222,6 @@ export default function DeveloperPage() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* ── Left: Quickstart ── */}
         <div className="lg:col-span-8 space-y-4">
-
           {/* Title + SDK tabs */}
           <div className="flex items-center justify-between">
             <h2 className="text-base font-bold text-white flex items-center gap-2">
@@ -204,7 +232,9 @@ export default function DeveloperPage() {
               <button
                 onClick={() => setSdk("ts")}
                 className={`px-3 py-1.5 rounded-md text-[11px] font-bold transition-colors ${
-                  sdk === "ts" ? "bg-white text-black" : "text-[#6b7280] hover:text-gray-300"
+                  sdk === "ts"
+                    ? "bg-white text-black"
+                    : "text-[#6b7280] hover:text-gray-300"
                 }`}
               >
                 TypeScript
@@ -212,7 +242,9 @@ export default function DeveloperPage() {
               <button
                 onClick={() => setSdk("py")}
                 className={`px-3 py-1.5 rounded-md text-[11px] font-bold transition-colors ${
-                  sdk === "py" ? "bg-white text-black" : "text-[#6b7280] hover:text-gray-300"
+                  sdk === "py"
+                    ? "bg-white text-black"
+                    : "text-[#6b7280] hover:text-gray-300"
                 }`}
               >
                 Python
@@ -233,7 +265,11 @@ export default function DeveloperPage() {
                   className="p-1.5 rounded-md text-[#71767b] hover:text-white hover:bg-white/[0.08] transition-colors"
                   aria-label="Copy code"
                 >
-                  {copied === "code" ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  {copied === "code" ? (
+                    <Check className="w-3.5 h-3.5 text-emerald-400" />
+                  ) : (
+                    <Copy className="w-3.5 h-3.5" />
+                  )}
                 </button>
               </div>
             </div>
@@ -241,7 +277,10 @@ export default function DeveloperPage() {
             {/* Code area with collapse */}
             <div
               className="relative transition-all duration-300 ease-in-out"
-              style={{ maxHeight: expanded ? "1200px" : "380px", overflow: "hidden" }}
+              style={{
+                maxHeight: expanded ? "1200px" : "380px",
+                overflow: "hidden",
+              }}
             >
               <pre className="p-5 font-mono text-[12.5px] leading-relaxed text-[#c9d1d9] whitespace-pre overflow-x-auto">
                 <code>{code}</code>
@@ -261,7 +300,9 @@ export default function DeveloperPage() {
               {expanded ? "Collapse" : "Expand full code"}
               <ChevronDown
                 className="w-3.5 h-3.5 transition-transform duration-200"
-                style={{ transform: expanded ? "rotate(180deg)" : "rotate(0deg)" }}
+                style={{
+                  transform: expanded ? "rotate(180deg)" : "rotate(0deg)",
+                }}
               />
             </button>
           </div>
@@ -272,16 +313,26 @@ export default function DeveloperPage() {
               <div className="p-2.5 rounded-xl bg-blue-500/10 border border-blue-500/20 w-fit mb-3">
                 <Cpu className="w-4 h-4 text-blue-400" />
               </div>
-              <h4 className="text-sm font-bold text-white mb-1">{t("developerPage.sdkInstallationTitle")}</h4>
-              <p className="text-xs text-[#6b7280] leading-relaxed mb-3">{t("developerPage.sdkInstallationDescription")}</p>
+              <h4 className="text-sm font-bold text-white mb-1">
+                {t("developerPage.sdkInstallationTitle")}
+              </h4>
+              <p className="text-xs text-[#6b7280] leading-relaxed mb-3">
+                {t("developerPage.sdkInstallationDescription")}
+              </p>
               <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-black border border-white/[0.06]">
-                <code className="text-[11px] font-mono text-[#9ca3af]">{installCmd}</code>
+                <code className="text-[11px] font-mono text-[#9ca3af]">
+                  {installCmd}
+                </code>
                 <button
                   onClick={() => copy(installCmd, "install")}
                   className="text-[#4b5563] hover:text-white transition-colors ml-2"
                   aria-label="Copy install command"
                 >
-                  {copied === "install" ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  {copied === "install" ? (
+                    <Check className="w-3.5 h-3.5 text-emerald-400" />
+                  ) : (
+                    <Copy className="w-3.5 h-3.5" />
+                  )}
                 </button>
               </div>
             </div>
@@ -290,10 +341,14 @@ export default function DeveloperPage() {
               <div className="p-2.5 rounded-xl bg-purple-500/10 border border-purple-500/20 w-fit mb-3">
                 <Layers className="w-4 h-4 text-purple-400" />
               </div>
-              <h4 className="text-sm font-bold text-white mb-1">{t("developerPage.mcpIntegrationTitle")}</h4>
-              <p className="text-xs text-[#6b7280] leading-relaxed mb-3">{t("developerPage.mcpIntegrationDescription")}</p>
+              <h4 className="text-sm font-bold text-white mb-1">
+                {t("developerPage.mcpIntegrationTitle")}
+              </h4>
+              <p className="text-xs text-[#6b7280] leading-relaxed mb-3">
+                {t("developerPage.mcpIntegrationDescription")}
+              </p>
               <a
-                href="/docs/sdk"
+                href={getDocsUrl("/sdks/mcp-agent-tooling")}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1.5 text-[11px] font-bold text-purple-400 hover:text-purple-300 transition-colors uppercase tracking-widest"
@@ -331,8 +386,12 @@ export default function DeveloperPage() {
           </div>
 
           <div className="p-5 rounded-2xl bg-gradient-to-br from-blue-500/8 to-transparent border border-blue-500/20">
-            <h3 className="text-sm font-bold text-white mb-1">{t("developerPage.needHelpTitle")}</h3>
-            <p className="text-xs text-[#6b7280] leading-relaxed mb-4">{t("developerPage.needHelpDescription")}</p>
+            <h3 className="text-sm font-bold text-white mb-1">
+              {t("developerPage.needHelpTitle")}
+            </h3>
+            <p className="text-xs text-[#6b7280] leading-relaxed mb-4">
+              {t("developerPage.needHelpDescription")}
+            </p>
             <button className="w-full py-2.5 bg-white text-black rounded-lg text-[11px] font-bold uppercase tracking-widest hover:bg-gray-200 transition-colors">
               {t("developerPage.joinDiscord")}
             </button>
@@ -342,4 +401,3 @@ export default function DeveloperPage() {
     </div>
   );
 }
-

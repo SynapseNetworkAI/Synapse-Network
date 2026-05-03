@@ -7,78 +7,168 @@ import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "../..");
-const BASE_URL = process.env.DOCS_BASE_URL || "http://localhost:3000";
-const timestamp = new Date().toISOString().replace(/[:.]/g, "").replace("T", "T").replace("Z", "Z");
-const OUT_DIR = path.join(ROOT, "output/playwright/docs-verification", timestamp);
-const ENDPOINT_DATA = path.join(ROOT, "services/user-front/src/app/docs/api-reference/endpoint-data.ts");
+const BASE_URL = process.env.DOCS_BASE_URL || "http://localhost:3001";
+const timestamp = new Date()
+  .toISOString()
+  .replace(/[:.]/g, "")
+  .replace("T", "T")
+  .replace("Z", "Z");
+const OUT_DIR = path.join(
+  ROOT,
+  "output/playwright/docs-verification",
+  timestamp
+);
+const ENDPOINT_DATA = path.join(
+  ROOT,
+  "services/docs-front/src/data/api-reference.json"
+);
 
 const pages = [
   {
-    id: "overview",
-    href: "/docs#introduction",
+    id: "home",
+    href: "/",
     heading: "Synapse Developer Platform",
-    anchors: ["introduction", "architecture"],
-    screenshot: "overview.png",
+    screenshot: "home.png",
+  },
+  { id: "get-started", href: "/get-started", heading: "Get Started" },
+  {
+    id: "agent-builders",
+    href: "/get-started/agent-builders",
+    heading: "For Agent Builders",
+    screenshot: "agent-builders.png",
   },
   {
-    id: "getting-started",
-    href: "/docs/getting-started",
-    heading: "Choose your role",
-    anchors: [],
+    id: "api-providers",
+    href: "/get-started/api-providers",
+    heading: "For API Providers",
   },
   {
-    id: "consumer",
-    href: "/docs/getting-started/consumer",
-    heading: "Consumer Quick Start",
-    anchors: ["step-auth", "step-deposit", "step-discover", "step-credential", "step-invoke", "step-verify", "step-withdraw"],
-    screenshot: "consumer.png",
+    id: "first-paid-invocation",
+    href: "/get-started/first-paid-invocation",
+    heading: "First Paid Invocation",
   },
   {
-    id: "provider",
-    href: "/docs/getting-started/provider",
-    heading: "Provider Quick Start",
-    anchors: ["step-auth", "step-secret", "step-register", "step-status", "step-earnings", "step-withdraw"],
-    screenshot: "provider.png",
+    id: "mcp",
+    href: "/mcp",
+    heading: "MCP / Agent Tooling",
+    texts: [
+      "discover_services -> invoke_and_pay -> get_receipt",
+      "npx -y @synapse-network-ai/mcp-server",
+    ],
+    screenshot: "mcp.png",
   },
   {
-    id: "concepts",
-    href: "/docs/concepts",
-    heading: "How Synapse Works",
-    anchors: ["settlement", "service-registry", "credentials", "idempotency"],
+    id: "money-flows",
+    href: "/money-flows",
+    heading: "Money Flows",
+    texts: ["Matured Funds", "T+1", "T+7"],
+    screenshot: "money-flows.png",
+  },
+  {
+    id: "deposit-usdc",
+    href: "/money-flows/deposit-usdc",
+    heading: "Deposit USDC",
+  },
+  {
+    id: "consumer-withdrawals",
+    href: "/money-flows/consumer-withdrawals",
+    heading: "Consumer Withdrawals",
+    texts: ["Consumer withdrawals are T+1"],
+  },
+  {
+    id: "provider-withdrawals",
+    href: "/money-flows/provider-withdrawals",
+    heading: "Provider Withdrawals",
+    texts: ["Provider earnings are T+7"],
+  },
+  {
+    id: "reconciliation",
+    href: "/money-flows/reconciliation",
+    heading: "Reconciliation",
+  },
+  {
+    id: "pricing-and-fees",
+    href: "/pricing-and-fees",
+    heading: "Pricing & Fees",
+    texts: ["Do not hard-code fees or prices", "dynamic pricing"],
+    screenshot: "pricing-and-fees.png",
+  },
+  {
+    id: "agent-settlement",
+    href: "/concepts/agent-settlement",
+    heading: "Agent Settlement",
+  },
+  {
+    id: "budget-isolation",
+    href: "/concepts/budget-isolation",
+    heading: "Budget Isolation",
+  },
+  {
+    id: "off-chain-charging",
+    href: "/concepts/off-chain-charging",
+    heading: "Off-chain Charging",
+  },
+  {
+    id: "on-chain-withdrawal",
+    href: "/concepts/on-chain-withdrawal",
+    heading: "On-chain Withdrawal",
   },
   {
     id: "api-reference",
-    href: "/docs/api-reference",
-    heading: "REST API",
-    anchors: ["api-auth", "api-balance", "api-services", "api-invocations", "api-credentials"],
+    href: "/api-reference",
+    heading: "API Reference",
     screenshot: "api-reference.png",
   },
+  { id: "sdks", href: "/sdks", heading: "SDKs", screenshot: "sdks.png" },
   {
-    id: "sdk",
-    href: "/docs/sdk",
-    heading: "SDKs",
-    anchors: ["sdk-overview", "sdk-compare"],
-    screenshot: "sdk.png",
-  },
-  {
-    id: "sdk-typescript",
-    href: "/docs/sdk/typescript",
+    id: "typescript",
+    href: "/sdks/typescript",
     heading: "TypeScript SDK",
-    anchors: ["sdk-ts-install", "sdk-ts-auth", "sdk-ts-deposit", "sdk-ts-discover", "sdk-ts-invoke", "sdk-ts-direct", "sdk-ts-starter", "sdk-ts-verify", "sdk-ts-cheatsheet"],
+    texts: [
+      "@synapse-network-ai/sdk",
+      "SynapseClient",
+      'environment: "staging"',
+    ],
   },
   {
-    id: "sdk-python",
-    href: "/docs/sdk/python",
+    id: "python",
+    href: "/sdks/python",
     heading: "Python SDK",
-    anchors: ["sdk-py"],
+    texts: ["synapse-client", "synapse_client", "invoke_llm"],
   },
   {
-    id: "contracts",
-    href: "/docs/contracts",
-    heading: "Smart Contracts",
-    anchors: ["contract-core", "contract-usdc", "contract-abi"],
-    screenshot: "contracts.png",
+    id: "go",
+    href: "/sdks/go",
+    heading: "Go SDK",
+    texts: [
+      "go get github.com/SynapseNetworkAI/Synapse-Network-Sdk/go",
+      "MaxCostUSDC",
+    ],
   },
+  {
+    id: "java",
+    href: "/sdks/java",
+    heading: "Java/JVM SDK",
+    texts: ["ai.synapsenetwork", "synapse-network-sdk", "maxCostUsdc"],
+  },
+  {
+    id: "dotnet",
+    href: "/sdks/dotnet",
+    heading: ".NET SDK",
+    texts: ["SynapseNetwork.Sdk", "0.1.0-preview", "MaxCostUsdc"],
+  },
+  {
+    id: "mcp-agent-tooling",
+    href: "/sdks/mcp-agent-tooling",
+    heading: "MCP / Agent Tooling",
+  },
+  {
+    id: "smart-contracts",
+    href: "/smart-contracts",
+    heading: "Smart Contracts",
+    screenshot: "smart-contracts.png",
+  },
+  { id: "support", href: "/support", heading: "Support" },
 ];
 
 fs.mkdirSync(OUT_DIR, { recursive: true });
@@ -112,7 +202,10 @@ function pageUrl(href) {
 }
 
 async function goto(page, href) {
-  await page.goto(pageUrl(href), { waitUntil: "domcontentloaded", timeout: 30000 });
+  await page.goto(pageUrl(href), {
+    waitUntil: "domcontentloaded",
+    timeout: 30000,
+  });
 }
 
 async function assertHeading(page, expected) {
@@ -120,13 +213,11 @@ async function assertHeading(page, expected) {
   await heading.waitFor({ state: "visible", timeout: 10000 });
 }
 
-async function assertAnchors(page, anchors) {
-  for (const anchor of anchors) {
-    const count = await page.locator(`#${anchor}`).count();
-    if (count === 0) {
-      throw new Error(`missing anchor #${anchor}`);
-    }
-  }
+async function assertText(page, expected) {
+  await page
+    .getByText(expected, { exact: false })
+    .first()
+    .waitFor({ state: "visible", timeout: 10000 });
 }
 
 async function screenshot(page, name) {
@@ -136,12 +227,8 @@ async function screenshot(page, name) {
 }
 
 function readEndpointIds() {
-  const source = fs.readFileSync(ENDPOINT_DATA, "utf8");
-  return Array.from(
-    new Set(
-      Array.from(source.matchAll(/^\s+id:\s+"((?:get|post|put|delete)-[^"]+)"/gm)).map((match) => match[1]),
-    ),
-  );
+  const source = JSON.parse(fs.readFileSync(ENDPOINT_DATA, "utf8"));
+  return source.routes.map((route) => route.id);
 }
 
 const browser = await chromium.launch({
@@ -150,29 +237,14 @@ const browser = await chromium.launch({
 });
 
 try {
-  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-  await context.addInitScript(() => {
-    localStorage.setItem("synapse_lang", "en");
-  });
-  await context.route("**/api/v1/services/discover**", async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({ status: "success", services: [] }),
-    });
-  });
-  await context.route("**/api/v1/events**", async (route) => {
-    await route.fulfill({ status: 204 });
+  const context = await browser.newContext({
+    viewport: { width: 1440, height: 900 },
   });
   const page = await context.newPage();
 
   page.on("console", (message) => {
     if (message.type() === "error") {
-      const text = message.text();
-      if (text.includes("Failed to fetch RSC payload") && text.includes("Falling back to browser navigation")) {
-        return;
-      }
-      consoleErrors.push(text);
+      consoleErrors.push(message.text());
     }
   });
   page.on("pageerror", (error) => {
@@ -183,100 +255,38 @@ try {
     await step(`page:${docsPage.id}`, async () => {
       await goto(page, docsPage.href);
       await assertHeading(page, docsPage.heading);
-      await assertAnchors(page, docsPage.anchors);
+      for (const expectedText of docsPage.texts || []) {
+        await assertText(page, expectedText);
+      }
       if (docsPage.screenshot) {
         await screenshot(page, docsPage.screenshot);
       }
     });
   }
 
-  await step("click:top-nav", async () => {
-    await goto(page, "/docs#introduction");
-    const topLinks = [
-      ["/docs/getting-started", "/docs/getting-started"],
-      ["/docs/concepts", "/docs/concepts"],
-      ["/docs/api-reference", "/docs/api-reference"],
-      ["/docs/sdk", "/docs/sdk"],
-      ["/docs/contracts", "/docs/contracts"],
-    ];
-    for (const [selectorHref, expectedPath] of topLinks) {
-      await page.locator(`a[href="${selectorHref}"]`).first().click();
-      await page.waitForURL(`**${expectedPath}`, { timeout: 10000 });
-    }
-  });
-
-  await step("click:overview-ctas", async () => {
-    await goto(page, "/docs#introduction");
-    await page.getByRole("button", { name: /Quick Start/i }).click();
-    await page.waitForURL("**/docs/getting-started", { timeout: 10000 });
-    await goto(page, "/docs#introduction");
-    await page.getByTestId("docs-hero").getByRole("button", { name: /API Reference/i }).click();
-    await page.waitForURL("**/docs/api-reference", { timeout: 10000 });
-  });
-
-  await step("click:sidebar-page-and-anchor", async () => {
-    await goto(page, "/docs#introduction");
-    await page.getByRole("button", { name: /^Consumer Guide$/i }).click();
-    await page.waitForURL("**/docs/getting-started/consumer", { timeout: 10000 });
-    await page.getByRole("button", { name: /Discover Services/i }).click();
-    await page.waitForURL("**/docs/getting-started/consumer#step-discover", { timeout: 10000 });
-
+  await step("legacy-redirects", async () => {
+    await goto(page, "/docs/getting-started/consumer");
+    await page.waitForURL("**/get-started/agent-builders", { timeout: 10000 });
     await goto(page, "/docs/getting-started/provider");
-    const sidebar = page.getByTestId("docs-sidebar");
-    await sidebar.getByRole("button", { name: /Provider Secret/i }).click();
-    await page.waitForURL("**/docs/getting-started/provider#step-secret", { timeout: 10000 });
-    await sidebar.getByRole("button", { name: /Runtime Status/i }).click();
-    await page.waitForURL("**/docs/getting-started/provider#step-status", { timeout: 10000 });
-  });
-
-  await step("click:concepts-idempotency-to-settlement", async () => {
-    await goto(page, "/docs/concepts#idempotency");
-    const sidebar = page.getByTestId("docs-sidebar");
-    await sidebar.getByRole("button", { name: /How Settlement Works/i }).click();
-    await page.waitForURL("**/docs/concepts#settlement", { timeout: 10000 });
-    if (await page.locator("#settlement").count() === 0) {
-      throw new Error("missing #settlement after clicking How Settlement Works");
-    }
-  });
-
-  await step("click:api-provider-role-filter", async () => {
-    await goto(page, "/docs/api-reference");
-    await page.getByRole("button", { name: /^Provider$/i }).click();
-    await page.locator("#api-provider").waitFor({ state: "visible", timeout: 10000 });
-    await page.getByRole("link", { name: /Issue provider secret/i }).waitFor({ state: "visible", timeout: 10000 });
-    await page.getByRole("link", { name: /Create provider withdrawal intent/i }).waitFor({ state: "visible", timeout: 10000 });
-
-    await goto(page, "/docs/api-reference#api-provider");
-    await page.locator("#api-provider").waitFor({ state: "visible", timeout: 10000 });
-    await page.getByRole("link", { name: /Get provider earnings summary/i }).waitFor({ state: "visible", timeout: 10000 });
-
-    await page.getByRole("button", { name: /^Consumer$/i }).click();
-    await page.waitForTimeout(100);
-    const providerLinks = await page.getByRole("link", { name: /Issue provider secret/i }).count();
-    if (providerLinks !== 0) {
-      throw new Error("consumer role should not show provider-only endpoint links");
-    }
-  });
-
-  await step("click:soon-status-page", async () => {
-    await goto(page, "/docs#introduction");
-    const before = page.url();
-    await page.getByRole("button", { name: /Status Page/i }).click();
-    await page.waitForTimeout(300);
-    if (page.url() !== before) {
-      throw new Error(`status page should not navigate, got ${page.url()}`);
-    }
+    await page.waitForURL("**/get-started/api-providers", { timeout: 10000 });
+    await goto(page, "/docs/sdk/typescript");
+    await page.waitForURL("**/sdks/typescript", { timeout: 10000 });
+    await goto(page, "/docs/contracts");
+    await page.waitForURL("**/smart-contracts", { timeout: 10000 });
   });
 
   const endpointIds = readEndpointIds();
   await step("api:endpoint-detail-pages", async () => {
     for (const id of endpointIds) {
-      await goto(page, `/docs/api-reference/${id}`);
-      const notFound = await page.getByText("Endpoint not found.").count();
-      if (notFound > 0) {
-        throw new Error(`endpoint ${id} rendered not-found`);
-      }
-      await page.locator("h1").first().waitFor({ state: "visible", timeout: 10000 });
+      await goto(page, `/api-reference/${id}`);
+      await page
+        .locator("h1")
+        .first()
+        .waitFor({ state: "visible", timeout: 10000 });
+      await page
+        .getByText("For AI agents")
+        .first()
+        .waitFor({ state: "visible", timeout: 10000 });
     }
     await screenshot(page, "api-endpoint-detail.png");
   });
@@ -299,7 +309,10 @@ const report = {
   consoleErrors,
 };
 
-fs.writeFileSync(path.join(OUT_DIR, "report.json"), JSON.stringify(report, null, 2));
+fs.writeFileSync(
+  path.join(OUT_DIR, "report.json"),
+  JSON.stringify(report, null, 2)
+);
 
 const reportLines = [
   "# Docs Pages Browser Verification",
@@ -311,11 +324,15 @@ const reportLines = [
   "",
   "## Passed",
   "",
-  ...passed.map((item) => `- PASS ${item.name}${item.detail ? ` - ${item.detail}` : ""}`),
+  ...passed.map(
+    (item) => `- PASS ${item.name}${item.detail ? ` - ${item.detail}` : ""}`
+  ),
   "",
   "## Failed",
   "",
-  ...(failed.length === 0 ? ["- None"] : failed.map((item) => `- FAIL ${item.name} - ${item.detail}`)),
+  ...(failed.length === 0
+    ? ["- None"]
+    : failed.map((item) => `- FAIL ${item.name} - ${item.detail}`)),
   "",
   "## Screenshots",
   "",

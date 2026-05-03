@@ -1,0 +1,36 @@
+---
+title: Pricing & Fees
+description: Understand Synapse pricing, fee examples, routing tax, and live Gateway fee truth.
+---
+
+<WarningNote title="Do not hard-code fees or prices">
+  Do not hard-code fees or prices. Documentation values are examples for reading the model. Real pricing, fee rates, token-metered parameters, provider revenue split, withdrawal fees, and routing policy must come from Gateway responses.
+</WarningNote>
+
+Synapse pricing is dynamic pricing. The public docs explain the shape of the system, but Gateway is the runtime source of truth.
+
+## Example values
+
+These values are examples, not contract constants for agents, SDKs, MCP servers, or provider integrations:
+
+- `PLATFORM_FEE_RATE=10%` - Example value for platform revenue share.
+- `CONSUMER_WITHDRAW_FEE_USDC=0.50 USDC` - Example value for consumer withdrawal tickets.
+- `GATEWAY_ROUTING_TAX=0.000100 USDC` - Example value for routing overhead on eligible fixed-price invocations.
+
+## Runtime truth sources
+
+- `discover_services` returns current service pricing, price model, schema, and budget expectations.
+- Invoke responses return observed `costUsdc`, charged amount, and settlement evidence.
+- Receipts return charge, provider receivable, platform fee, routing tax, and invocation IDs.
+- Withdrawal tickets return exact amount, fee, expiry, recipient, and claim payload.
+- Gateway fee policy can change by environment, provider, campaign, routing mode, or risk state.
+
+## Agent rules
+
+For fixed-price services, the agent must copy the `costUsdc` observed from discovery into invoke. For token-metered services, the agent must send `maxCostUsdc` as a budget ceiling and treat the receipt as final settlement evidence.
+
+If Gateway returns `PRICE_MISMATCH`, the agent must rediscover the service and retry with fresh pricing. It must not retry with a number copied from docs, examples, screenshots, cached model memory, or a prompt.
+
+<AgentNote>
+  Static docs teach the contract shape. Gateway responses carry the current money truth. Build agents to discover, invoke with price assertion, and reconcile against receipts.
+</AgentNote>

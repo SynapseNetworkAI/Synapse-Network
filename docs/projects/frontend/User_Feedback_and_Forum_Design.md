@@ -4,7 +4,7 @@
 
 Synapse needs a first-class signal loop for developers. v1 has three channels:
 
-- Docs feedback: page-level "Was this page helpful?" feedback and issue reporting.
+- Docs support: the dedicated docs site links users to forum, support, and issue-reporting channels.
 - Dev Console feedback: dashboard-context bug or product feedback with route/query context.
 - Developer Forum: public community discussions for questions, bugs, feature requests, provider services, SDKs, and showcases.
 
@@ -14,10 +14,9 @@ The design goal is low-friction reporting without leaking secrets. Feedback and 
 
 ### Docs
 
-- Top nav includes `Support`, which routes to `/docs/support`.
-- `/docs/support` links to Forum, Billing Support, Bug Report, Docs Issue, GitHub, and Status.
-- Every docs page renders a bottom feedback block with `Helpful`, `Not helpful`, and `Report issue`.
-- `Report issue` opens the shared feedback drawer and automatically includes route, hash, page title, language, and redacted context.
+- Docs live in `services/docs-front` on `docs.synapse-network.ai`.
+- Main-site `/docs/*` routes redirect to the dedicated docs origin.
+- `/support` on docs-front links to Forum, Billing Support, Bug Report, Docs Issue, GitHub, and Status.
 
 ### Dev Console
 
@@ -96,12 +95,11 @@ Required automated checks:
 - Frontend tests verify feedback drawer submission redacts sensitive context.
 - Frontend tests verify forum list rendering and authenticated topic creation.
 - Frontend tests verify pinned/status/views badges and closed-topic reply lock behavior.
-- Docs tests verify `/docs/support` renders and Docs top nav links to Support.
+- Docs-front browser checks verify `/support` renders and links users to the right support channels.
 
 Required browser checks:
 
-- Open `/docs`, click `Support`, verify URL `/docs/support`, capture screenshot.
-- Open any docs page, open `Report issue`, submit feedback, verify `feedbackId`.
+- Open docs-front `/support`, verify the support channel links, and capture screenshot.
 - Open `/dashboard/discovery`, click floating `Feedback`, verify drawer route context.
 - Open console top nav `Forum`, verify URL `/forum`.
 - Open `New topic`, verify the create-topic modal overlay, create forum topic, reply, mark resolved, and capture list/modal/detail screenshots.
