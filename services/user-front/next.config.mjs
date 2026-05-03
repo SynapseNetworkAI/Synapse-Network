@@ -22,7 +22,7 @@ function normalizeDocsBaseUrl(rawUrl) {
       ? "https://docs.synapse-network.ai"
       : appEnv === "staging"
       ? "https://docs-staging.synapse-network.ai"
-      : "http://localhost:3001";
+      : "http://localhost:3100";
   const value = (rawUrl || fallback).trim() || fallback;
 
   try {

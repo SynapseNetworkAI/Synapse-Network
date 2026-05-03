@@ -8,6 +8,8 @@ def test_resolve_cors_origins_defaults_to_local_frontend_hosts(monkeypatch):
     assert resolve_cors_origins() == [
         "http://localhost:3000",
         "http://127.0.0.1:3000",
+        "http://localhost:3100",
+        "http://127.0.0.1:3100",
     ]
 
 
@@ -17,7 +19,7 @@ def test_resolve_cors_origin_regex_defaults_for_local_env(monkeypatch):
 
     pattern = resolve_cors_origin_regex()
 
-    assert pattern == r"^https?://([a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*|localhost|127\.0\.0\.1|0\.0\.0\.0):(3000|3001)$"
+    assert pattern == r"^https?://([a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*|localhost|127\.0\.0\.1|0\.0\.0\.0):(3000|3100)$"
 
 
 def test_resolve_cors_origin_regex_respects_explicit_override(monkeypatch):

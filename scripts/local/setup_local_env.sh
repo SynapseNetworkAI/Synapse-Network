@@ -296,6 +296,8 @@ else
 	NEXT_PUBLIC_APP_ENV="${NEXT_PUBLIC_APP_ENV:-local}" \
 	NEXT_PUBLIC_GATEWAY_BASE_URL="${NEXT_PUBLIC_GATEWAY_BASE_URL:-http://127.0.0.1:8000}" \
 	NEXT_PUBLIC_ANALYTICS_ENDPOINT="${NEXT_PUBLIC_ANALYTICS_ENDPOINT:-http://127.0.0.1:8000/api/v1/events}" \
+	NEXT_PUBLIC_DOCS_BASE_URL="${NEXT_PUBLIC_DOCS_BASE_URL:-http://localhost:3100}" \
+	NEXT_PUBLIC_SERVICE_LIST_CACHE_TTL_MS="${NEXT_PUBLIC_SERVICE_LIST_CACHE_TTL_MS:-20000}" \
 	NEXT_PUBLIC_SUPPORT_EMAIL="${NEXT_PUBLIC_SUPPORT_EMAIL:-support@synapse-network.ai}" \
 	nohup yarn dev --hostname 0.0.0.0 > "${ROOT_DIR}/services/user-front/frontend_dev.log" 2>&1 < /dev/null &
 	FRONTEND_PID=$!
@@ -330,6 +332,8 @@ echo "USDC Token   : $USDC_TOKEN_ADDRESS"
 echo "Provider     : $PROVIDER_ADDRESS"
 echo "PID file     : $PID_FILE"
 echo "Frontend URL : http://127.0.0.1:3000"
+echo "Docs URL     : http://127.0.0.1:3100 (started by scripts/local/start_all_services.sh)"
+echo "Admin URL    : http://127.0.0.1:3200/login (started by scripts/local/start_all_services.sh)"
 echo ""
 echo "E2E test command:"
 echo "  cd ${ROOT_DIR}"

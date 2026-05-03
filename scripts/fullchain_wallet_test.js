@@ -13,72 +13,97 @@
  *   cd Synapse-Network && node scripts/fullchain_wallet_test.js
  *   node scripts/fullchain_wallet_test.js --screenshot-only  (skip backend, just screenshots)
  *
- * Prerequisites: gateway:8000, anvil:8545, frontend:3000 all running
+ * Prerequisites: gateway:8000, anvil:8545, user-front:3000 all running
  */
 
 "use strict";
 
 const { chromium } = require("playwright");
-const { ethers }   = require("ethers");
-const path         = require("path");
-const fs           = require("fs");
+const { ethers } = require("ethers");
+const path = require("path");
+const fs = require("fs");
 
 // ─── Config ────────────────────────────────────────────────────────────────────
-const FRONTEND_URL  = "http://localhost:3001";
-const GATEWAY_URL   = "http://localhost:8000/api";
-const RPC_URL       = "http://localhost:8545";
-const CHAIN_ID      = 31337;
+const FRONTEND_URL = "http://localhost:3000";
+const GATEWAY_URL = "http://localhost:8000/api";
+const RPC_URL = "http://localhost:8545";
+const CHAIN_ID = 31337;
 
 // Hardhat derivation accounts
-const DEPLOYER_KEY  = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
-const BUYER_KEY     = "0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6";
-const BUYER_ADDR    = "0x90F79bf6EB2c4f870365E785982E1f101E93b906";
-const PROVIDER_KEY  = "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a";
+const DEPLOYER_KEY =
+  "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
+const BUYER_KEY =
+  "0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6";
+const BUYER_ADDR = "0x90F79bf6EB2c4f870365E785982E1f101E93b906";
+const PROVIDER_KEY =
+  "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a";
 
 // Deposit: 10 USDC
-const DEPOSIT_USDC  = "10.0";
+const DEPOSIT_USDC = "10.0";
 
 // Repo root — handle scripts/ being a symlink to tools/scripts/
 const REPO_ROOT = (() => {
   // Walk up from __dirname until we find package.json at Synapse-Network root
   let d = __dirname;
   for (let i = 0; i < 5; i++) {
-    if (fs.existsSync(path.join(d, "package.json")) &&
-        fs.existsSync(path.join(d, "services"))) return d;
+    if (
+      fs.existsSync(path.join(d, "package.json")) &&
+      fs.existsSync(path.join(d, "services"))
+    )
+      return d;
     d = path.dirname(d);
   }
   return process.cwd();
 })();
 
 // Contracts
-const CONTRACT_CONFIG = path.join(REPO_ROOT, "services/user-front/src/contract-config.json");
-const SYNAPSECORE_ABI = path.join(REPO_ROOT, "services/user-front/src/SynapseCoreABI.json");
-const USDC_ABI_PATH   = path.join(REPO_ROOT, "services/user-front/src/MockUSDCABI.json");
+const CONTRACT_CONFIG = path.join(
+  REPO_ROOT,
+  "services/user-front/src/contract-config.json"
+);
+const SYNAPSECORE_ABI = path.join(
+  REPO_ROOT,
+  "services/user-front/src/SynapseCoreABI.json"
+);
+const USDC_ABI_PATH = path.join(
+  REPO_ROOT,
+  "services/user-front/src/MockUSDCABI.json"
+);
 
 // Agents to create
 const AGENT_NAMES = ["ResearchBot", "TradingAgent", "AnalysisBot"];
 
 // Screenshot output dir
-const SCREENSHOT_DIR = path.join(REPO_ROOT, "docs/reference/test/gateway/screenshots/wallet-connected");
+const SCREENSHOT_DIR = path.join(
+  REPO_ROOT,
+  "docs/reference/test/gateway/screenshots/wallet-connected"
+);
 
 // Checklist results dir
-const CHECKLIST_DIR  = path.join(REPO_ROOT, "docs/reference/test/gateway");
+const CHECKLIST_DIR = path.join(REPO_ROOT, "docs/reference/test/gateway");
 
 // ─── Logging helpers ───────────────────────────────────────────────────────────
-const BOLD  = "\x1b[1m";
+const BOLD = "\x1b[1m";
 const GREEN = "\x1b[32m";
-const RED   = "\x1b[31m";
-const YLW   = "\x1b[33m";
+const RED = "\x1b[31m";
+const YLW = "\x1b[33m";
 const RESET = "\x1b[0m";
-const ok    = (m) => console.log(`  ${GREEN}✓${RESET} ${m}`);
-const fail  = (m) => { console.log(`  ${RED}✗${RESET} ${m}`); };
-const warn  = (m) => console.log(`  ${YLW}⚠${RESET} ${m}`);
-const section = (t) => console.log(`\n${BOLD}${"─".repeat(60)}${RESET}\n  ${BOLD}${t}${RESET}\n${"─".repeat(60)}`);
+const ok = (m) => console.log(`  ${GREEN}✓${RESET} ${m}`);
+const fail = (m) => {
+  console.log(`  ${RED}✗${RESET} ${m}`);
+};
+const warn = (m) => console.log(`  ${YLW}⚠${RESET} ${m}`);
+const section = (t) =>
+  console.log(
+    `\n${BOLD}${"─".repeat(60)}${RESET}\n  ${BOLD}${t}${RESET}\n${"─".repeat(
+      60
+    )}`
+  );
 
 // ─── API helpers ───────────────────────────────────────────────────────────────
 async function apiGet(path_, token, address) {
   const headers = { "Content-Type": "application/json" };
-  if (token)   headers["Authorization"] = `Bearer ${token}`;
+  if (token) headers["Authorization"] = `Bearer ${token}`;
   if (address) headers["X-User-Address"] = address;
   const r = await fetch(`${GATEWAY_URL}${path_}`, { headers });
   if (!r.ok && r.status !== 404) warn(`GET ${path_} → ${r.status}`);
@@ -87,28 +112,34 @@ async function apiGet(path_, token, address) {
 
 async function apiPost(path_, body, token, address, idempotencyKey) {
   const headers = { "Content-Type": "application/json" };
-  if (token)          headers["Authorization"]    = `Bearer ${token}`;
-  if (address)        headers["X-User-Address"]   = address;
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  if (address) headers["X-User-Address"] = address;
   if (idempotencyKey) headers["X-Idempotency-Key"] = idempotencyKey;
   const r = await fetch(`${GATEWAY_URL}${path_}`, {
-    method: "POST", headers, body: JSON.stringify(body),
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
   });
   return r.json().catch(() => ({}));
 }
 
-function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
 
 // ─── Auth ──────────────────────────────────────────────────────────────────────
 async function authenticate(privateKey) {
   const wallet = new ethers.Wallet(privateKey);
-  const addr   = wallet.address.toLowerCase();
-  const r      = await fetch(`${GATEWAY_URL}/v1/auth/challenge?address=${addr}`);
+  const addr = wallet.address.toLowerCase();
+  const r = await fetch(`${GATEWAY_URL}/v1/auth/challenge?address=${addr}`);
   const { challenge } = await r.json();
-  const sig    = await wallet.signMessage(challenge);
-  const r2     = await apiPost("/v1/auth/verify", {
-    wallet_address: addr, signature: sig, message: challenge,
+  const sig = await wallet.signMessage(challenge);
+  const r2 = await apiPost("/v1/auth/verify", {
+    wallet_address: addr,
+    signature: sig,
+    message: challenge,
   });
-  const token  = r2.token || r2.access_token;
+  const token = r2.token || r2.access_token;
   if (!token) throw new Error(`Auth failed for ${addr}: ${JSON.stringify(r2)}`);
   ok(`Authenticated ${addr.slice(0, 20)}…`);
   return { token, addr };
@@ -116,24 +147,24 @@ async function authenticate(privateKey) {
 
 // ─── On-chain funding ──────────────────────────────────────────────────────────
 async function fundOnChain(buyerKey, deployerKey, amountUsdc) {
-  const provider  = new ethers.JsonRpcProvider(RPC_URL);
-  const deployer  = new ethers.Wallet(deployerKey, provider);
-  const buyer     = new ethers.Wallet(buyerKey,    provider);
+  const provider = new ethers.JsonRpcProvider(RPC_URL);
+  const deployer = new ethers.Wallet(deployerKey, provider);
+  const buyer = new ethers.Wallet(buyerKey, provider);
 
-  const config    = JSON.parse(fs.readFileSync(CONTRACT_CONFIG, "utf8"));
-  const coreAbi   = JSON.parse(fs.readFileSync(SYNAPSECORE_ABI, "utf8"));
-  const usdcAbi   = JSON.parse(fs.readFileSync(USDC_ABI_PATH,   "utf8"));
+  const config = JSON.parse(fs.readFileSync(CONTRACT_CONFIG, "utf8"));
+  const coreAbi = JSON.parse(fs.readFileSync(SYNAPSECORE_ABI, "utf8"));
+  const usdcAbi = JSON.parse(fs.readFileSync(USDC_ABI_PATH, "utf8"));
 
-  const usdcAddr  = ethers.getAddress(config.MockUSDC);
-  const coreAddr  = ethers.getAddress(config.SynapseCore);
-  const amount    = ethers.parseUnits(amountUsdc, 18);  // USDC uses 18 decimals locally
+  const usdcAddr = ethers.getAddress(config.MockUSDC);
+  const coreAddr = ethers.getAddress(config.SynapseCore);
+  const amount = ethers.parseUnits(amountUsdc, 18); // USDC uses 18 decimals locally
 
   const usdc = new ethers.Contract(usdcAddr, usdcAbi, deployer);
   // Build buyer core signer fresh each time to avoid stale nonce cache
   const buyerCore = new ethers.Wallet(buyerKey, provider);
   const buyerUsdc = new ethers.Wallet(buyerKey, provider);
 
-  // 1. Mint USDC to buyer  
+  // 1. Mint USDC to buyer
   const tx1 = await usdc.mint(buyer.address, amount);
   await tx1.wait();
   ok(`Minted ${amountUsdc} USDC to buyer (${tx1.hash.slice(0, 20)}…)`);
@@ -152,7 +183,7 @@ async function fundOnChain(buyerKey, deployerKey, amountUsdc) {
   ok(`Buyer approved SynapseCore (${tx2.hash.slice(0, 20)}…)`);
 
   // Small delay to let node state settle
-  await new Promise(r => setTimeout(r, 500));
+  await new Promise((r) => setTimeout(r, 500));
 
   // 3. Deposit — fresh nonce after approve is mined
   const n3 = await getLatestNonce(buyer.address);
@@ -167,26 +198,41 @@ async function fundOnChain(buyerKey, deployerKey, amountUsdc) {
 // ─── Register deposit with gateway ────────────────────────────────────────────
 async function registerDeposit(token, addr, txHash, amountUsdc) {
   const idem = `e2e-buyer-${Date.now()}`;
-  const r = await apiPost("/v1/balance/deposit/intent", { txHash, amountUsdc: parseFloat(amountUsdc) },
-    token, addr, idem);
+  const r = await apiPost(
+    "/v1/balance/deposit/intent",
+    { txHash, amountUsdc: parseFloat(amountUsdc) },
+    token,
+    addr,
+    idem
+  );
   ok(`Deposit intent: ${JSON.stringify(r).slice(0, 100)}`);
 
   // Wait for indexer (up to 40s)
   for (let i = 0; i < 20; i++) {
     await sleep(2000);
-    const sync = await apiGet(`/v1/balance/deposit/sync?txHash=${txHash}`, token, addr);
-    const confirmed = sync.confirmed || sync.status === "CONFIRMED" ||
+    const sync = await apiGet(
+      `/v1/balance/deposit/sync?txHash=${txHash}`,
+      token,
+      addr
+    );
+    const confirmed =
+      sync.confirmed ||
+      sync.status === "CONFIRMED" ||
       String(sync.status || "").toUpperCase() === "CONFIRMED";
     if (confirmed) {
       ok(`Deposit confirmed after ${(i + 1) * 2}s`);
       return true;
     }
-    if (i % 5 === 4) process.stdout.write(`  ⏳ waiting indexer (${(i + 1) * 2}s)…\n`);
+    if (i % 5 === 4)
+      process.stdout.write(`  ⏳ waiting indexer (${(i + 1) * 2}s)…\n`);
   }
   // Check balance as final fallback
   const bal = await apiGet("/v1/balance", token, addr);
   const avail = bal?.balance?.consumerAvailableBalance ?? 0;
-  if (avail > 0) { ok(`Balance updated: ${avail} USDC`); return true; }
+  if (avail > 0) {
+    ok(`Balance updated: ${avail} USDC`);
+    return true;
+  }
   warn("Deposit not confirmed after 40s — continuing anyway");
   return false;
 }
@@ -195,17 +241,26 @@ async function registerDeposit(token, addr, txHash, amountUsdc) {
 async function createAgents(token, addr, names) {
   const created = [];
   for (const name of names) {
-    const r = await apiPost("/v1/credentials/agent/issue",
+    const r = await apiPost(
+      "/v1/credentials/agent/issue",
       { name, maxCalls: 500, rpm: 60, resetInterval: "daily" },
-      token, addr);
+      token,
+      addr
+    );
     const cred = r.credential || r;
     const credId = cred.id || cred.credential_id;
     const rawToken = cred.token || cred.raw_token;
     if (credId) {
-      ok(`Agent "${name}" created — id=${credId}, token=${rawToken ? rawToken.slice(0, 20) + '…' : 'N/A'}`);
+      ok(
+        `Agent "${name}" created — id=${credId}, token=${
+          rawToken ? rawToken.slice(0, 20) + "…" : "N/A"
+        }`
+      );
       created.push({ name, id: credId, token: rawToken });
     } else {
-      warn(`Agent "${name}" creation response: ${JSON.stringify(r).slice(0, 200)}`);
+      warn(
+        `Agent "${name}" creation response: ${JSON.stringify(r).slice(0, 200)}`
+      );
     }
   }
   return created;
@@ -219,24 +274,30 @@ const PROVIDER_SERVICES_TO_REGISTER = [
   {
     agentToolName: "svc_e2e_provider_quotes",
     serviceName: "Provider Quotes Service",
-    summary: "E2E test: Famous quotes via DeepSeek — from Synapse-Network-Provider.",
+    summary:
+      "E2E test: Famous quotes via DeepSeek — from Synapse-Network-Provider.",
     tags: ["e2e", "quotes", "test"],
     invokeUrl: `${PROVIDER_BASE}/api/v1/quotes/famous`,
     invokeMethod: "POST",
-    invokeRequestSchema: { body: { type: "object", properties: { text: { type: "string" } } } },
+    invokeRequestSchema: {
+      body: { type: "object", properties: { text: { type: "string" } } },
+    },
     healthPath: "/health",
-    price: 0.010,
+    price: 0.01,
   },
   {
     agentToolName: "svc_e2e_provider_sentiment",
     serviceName: "Provider Web3 Sentiment Index",
-    summary: "E2E test: Web3 social sentiment analysis — from Synapse-Network-Provider.",
+    summary:
+      "E2E test: Web3 social sentiment analysis — from Synapse-Network-Provider.",
     tags: ["e2e", "sentiment", "web3", "test"],
     invokeUrl: `${PROVIDER_BASE}/provider-services/web3-sentiment-index/invoke`,
     invokeMethod: "POST",
-    invokeRequestSchema: { body: { type: "object", properties: { asset: { type: "string" } } } },
+    invokeRequestSchema: {
+      body: { type: "object", properties: { asset: { type: "string" } } },
+    },
     healthPath: "/health",
-    price: 0.020,
+    price: 0.02,
   },
 ];
 
@@ -248,12 +309,18 @@ async function registerProviderServices(providerToken, providerAddr) {
   const registeredIds = [];
 
   // Check existing services to avoid duplicates
-  const existingResp = await fetch(`${GATEWAY_URL}/v1/services?ownerAddress=${providerAddr}`, {
-    headers: { Authorization: `Bearer ${providerToken}`, "X-User-Address": providerAddr },
-  });
+  const existingResp = await fetch(
+    `${GATEWAY_URL}/v1/services?ownerAddress=${providerAddr}`,
+    {
+      headers: {
+        Authorization: `Bearer ${providerToken}`,
+        "X-User-Address": providerAddr,
+      },
+    }
+  );
   const existingData = await existingResp.json().catch(() => ({}));
   const existingSvcIds = new Set(
-    (existingData.services || []).map(s => s.serviceId || s.agentToolName)
+    (existingData.services || []).map((s) => s.serviceId || s.agentToolName)
   );
 
   for (const svc of PROVIDER_SERVICES_TO_REGISTER) {
@@ -261,7 +328,9 @@ async function registerProviderServices(providerToken, providerAddr) {
       ok(`Service "${svc.agentToolName}" already registered — skipping`);
       // Find its real serviceId
       const found = (existingData.services || []).find(
-        s => s.serviceId === svc.agentToolName || s.agentToolName === svc.agentToolName
+        (s) =>
+          s.serviceId === svc.agentToolName ||
+          s.agentToolName === svc.agentToolName
       );
       if (found) registeredIds.push(found.serviceId || svc.agentToolName);
       continue;
@@ -278,20 +347,36 @@ async function registerProviderServices(providerToken, providerAddr) {
       pricing: { amount: String(svc.price), currency: "USDC" },
       auth: { type: "gateway_signed" },
       providerProfile: { displayName: "E2E Provider" },
-      payoutAccount: { payoutAddress: providerAddr, chainId: 31337, settlementCurrency: "USDC" },
+      payoutAccount: {
+        payoutAddress: providerAddr,
+        chainId: 31337,
+        settlementCurrency: "USDC",
+      },
       governance: { termsAccepted: true, riskAcknowledged: true },
       healthCheck: {
-        path: svc.healthPath, method: "GET", timeoutMs: 3000,
-        successCodes: [200], healthyThreshold: 1, unhealthyThreshold: 3,
+        path: svc.healthPath,
+        method: "GET",
+        timeoutMs: 3000,
+        successCodes: [200],
+        healthyThreshold: 1,
+        unhealthyThreshold: 3,
       },
       invoke: {
         method: svc.invokeMethod,
         targets: [{ url: svc.invokeUrl, weight: 100 }],
         timeoutMs: 15000,
-        request: { contentType: "application/json", schema: svc.invokeRequestSchema },
+        request: {
+          contentType: "application/json",
+          schema: svc.invokeRequestSchema,
+        },
         response: { contentType: "application/json" },
       },
-      constraints: { timeoutMs: 15000, maxResponseBytes: 131072, maxRequestBytes: 65536, maxQps: 10 },
+      constraints: {
+        timeoutMs: 15000,
+        maxResponseBytes: 131072,
+        maxRequestBytes: 65536,
+        maxQps: 10,
+      },
     };
 
     const r = await fetch(`${GATEWAY_URL}/v1/services`, {
@@ -305,15 +390,28 @@ async function registerProviderServices(providerToken, providerAddr) {
     });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) {
-      warn(`Service "${svc.agentToolName}" registration failed (${r.status}): ${JSON.stringify(d).slice(0, 200)}`);
+      warn(
+        `Service "${svc.agentToolName}" registration failed (${
+          r.status
+        }): ${JSON.stringify(d).slice(0, 200)}`
+      );
       continue;
     }
-    const svcId = d.serviceId || d.service_id || d.service?.serviceId || d.service?.service_id || "";
+    const svcId =
+      d.serviceId ||
+      d.service_id ||
+      d.service?.serviceId ||
+      d.service?.service_id ||
+      "";
     if (svcId) {
       ok(`Service registered: ${svcId} (${svc.serviceName})`);
       registeredIds.push(svcId);
     } else {
-      warn(`Service "${svc.agentToolName}" response missing serviceId: ${JSON.stringify(d).slice(0, 150)}`);
+      warn(
+        `Service "${
+          svc.agentToolName
+        }" response missing serviceId: ${JSON.stringify(d).slice(0, 150)}`
+      );
     }
   }
 
@@ -326,7 +424,10 @@ async function registerProviderServices(providerToken, providerAddr) {
  */
 async function ensureProviderSecret(providerToken, providerAddr) {
   const listResp = await fetch(`${GATEWAY_URL}/v1/secrets/provider/list`, {
-    headers: { Authorization: `Bearer ${providerToken}`, "X-User-Address": providerAddr },
+    headers: {
+      Authorization: `Bearer ${providerToken}`,
+      "X-User-Address": providerAddr,
+    },
   });
   const listData = await listResp.json().catch(() => ({}));
   const secrets = listData.secrets || listData.items || [];
@@ -342,11 +443,19 @@ async function ensureProviderSecret(providerToken, providerAddr) {
       Authorization: `Bearer ${providerToken}`,
       "X-User-Address": providerAddr,
     },
-    body: JSON.stringify({ label: "E2E Provider Secret", description: "Auto-issued by E2E test" }),
+    body: JSON.stringify({
+      label: "E2E Provider Secret",
+      description: "Auto-issued by E2E test",
+    }),
   });
   const d = await r.json().catch(() => ({}));
   if (!r.ok) {
-    warn(`Provider secret issue failed (${r.status}): ${JSON.stringify(d).slice(0, 150)}`);
+    warn(
+      `Provider secret issue failed (${r.status}): ${JSON.stringify(d).slice(
+        0,
+        150
+      )}`
+    );
     return null;
   }
   const secretId = d.id || d.secretId || d.secret?.id;
@@ -359,9 +468,12 @@ async function invokeServices(token, addr, agents, count = 5) {
   // Get first available service
   const disc = await apiGet("/v1/services/discover", null, null);
   const svcs = disc?.services || disc || [];
-  if (!svcs.length) { warn("No services found for invocation"); return 0; }
-  const svcId    = svcs[0].serviceId;
-  const svcName  = svcs[0].serviceName;
+  if (!svcs.length) {
+    warn("No services found for invocation");
+    return 0;
+  }
+  const svcId = svcs[0].serviceId;
+  const svcName = svcs[0].serviceName;
   ok(`Using service: ${svcId} (${svcName})`);
 
   let successCount = 0;
@@ -386,7 +498,11 @@ async function invokeServices(token, addr, agents, count = 5) {
       ok(`Invocation #${i + 1} via "${agent.name}" → ${r.status}`);
       successCount++;
     } else {
-      warn(`Invocation #${i + 1} failed (${r.status}): ${JSON.stringify(resp).slice(0, 200)}`);
+      warn(
+        `Invocation #${i + 1} failed (${r.status}): ${JSON.stringify(
+          resp
+        ).slice(0, 200)}`
+      );
     }
     await sleep(400);
   }
@@ -399,13 +515,19 @@ async function runChecklist(token, addr) {
   const results = [];
   const check = (label, pass, detail = "") => {
     results.push({ label, pass, detail });
-    pass ? ok(label + (detail ? ` — ${detail}` : "")) : fail(label + (detail ? ` — ${detail}` : ""));
+    pass
+      ? ok(label + (detail ? ` — ${detail}` : ""))
+      : fail(label + (detail ? ` — ${detail}` : ""));
   };
 
   // 1. Auth
   const me = await apiGet("/v1/auth/me", token, addr);
   const meAddr = me?.profile?.ownerAddress || me?.wallet || me?.address || "";
-  check("Auth /me returns wallet address", meAddr.toLowerCase() === addr.toLowerCase(), meAddr);
+  check(
+    "Auth /me returns wallet address",
+    meAddr.toLowerCase() === addr.toLowerCase(),
+    meAddr
+  );
 
   // 2. Balance
   const bal = await apiGet("/v1/balance", token, addr);
@@ -415,40 +537,83 @@ async function runChecklist(token, addr) {
 
   // 3. Agents (credentials)
   const credResp = await apiGet("/v1/credentials/agent/list", token, addr);
-  const creds = credResp?.credentials || (Array.isArray(credResp) ? credResp : []);
+  const creds =
+    credResp?.credentials || (Array.isArray(credResp) ? credResp : []);
   check("Credentials list returns array", Array.isArray(creds));
-  check(`Buyer has ≥ ${AGENT_NAMES.length} agents`, creds.length >= AGENT_NAMES.length, `${creds.length} agents`);
-  check("Each agent has name and status", creds.every(c => c.name && c.status));
-  check("Agents have active status", creds.filter(c => c.status === "active").length > 0);
+  check(
+    `Buyer has ≥ ${AGENT_NAMES.length} agents`,
+    creds.length >= AGENT_NAMES.length,
+    `${creds.length} agents`
+  );
+  check(
+    "Each agent has name and status",
+    creds.every((c) => c.name && c.status)
+  );
+  check(
+    "Agents have active status",
+    creds.filter((c) => c.status === "active").length > 0
+  );
 
   // 4. Invocations / usage logs
   const logsResp = await apiGet("/v1/usage/logs", token, addr);
   const logs = logsResp?.logs || (Array.isArray(logsResp) ? logsResp : []);
   check("Usage logs endpoint responds", !!logsResp);
-  check("Usage logs has invocation records", logs.length > 0, `${logs.length} records`);
+  check(
+    "Usage logs has invocation records",
+    logs.length > 0,
+    `${logs.length} records`
+  );
   if (logs.length > 0) {
-    check("Log has status field", logs.every(l => l.status));
-    check("Log has totalCharge field", logs.some(l => l.totalCharge));
-    check("Invocations show succeeded status", logs.some(l => l.status === "succeeded"));
+    check(
+      "Log has status field",
+      logs.every((l) => l.status)
+    );
+    check(
+      "Log has totalCharge field",
+      logs.some((l) => l.totalCharge)
+    );
+    check(
+      "Invocations show succeeded status",
+      logs.some((l) => l.status === "succeeded")
+    );
   }
 
   // 5. Deposit / billing
   const depositResp = await apiGet("/v1/balance/deposit/intents", token, addr);
-  const deposits = depositResp?.intents || depositResp?.deposits || (Array.isArray(depositResp) ? depositResp : []);
+  const deposits =
+    depositResp?.intents ||
+    depositResp?.deposits ||
+    (Array.isArray(depositResp) ? depositResp : []);
   check("Deposit intents endpoint responds", !!depositResp);
-  check("Deposit records exist", deposits.length > 0, `${deposits.length} records`);
+  check(
+    "Deposit records exist",
+    deposits.length > 0,
+    `${deposits.length} records`
+  );
 
   // 6. Services discovery
   const svcResp = await apiGet("/v1/services/discover", null, null);
   const svcs = svcResp?.services || [];
-  check("Service discovery endpoint responds", svcs.length > 0, `${svcs.length} services`);
-  check("Services have status field", svcs.every(s => s.status || s.health));
+  check(
+    "Service discovery endpoint responds",
+    svcs.length > 0,
+    `${svcs.length} services`
+  );
+  check(
+    "Services have status field",
+    svcs.every((s) => s.status || s.health)
+  );
 
   // 7. Audit logs
   const auditResp = await apiGet("/v1/finance/audit-logs", token, addr);
-  const auditLogs = auditResp?.logs || (Array.isArray(auditResp) ? auditResp : []);
+  const auditLogs =
+    auditResp?.logs || (Array.isArray(auditResp) ? auditResp : []);
   check("Audit logs endpoint responds", !!auditResp);
-  check("Audit logs has entries", auditLogs.length > 0, `${auditLogs.length} entries`);
+  check(
+    "Audit logs has entries",
+    auditLogs.length > 0,
+    `${auditLogs.length} entries`
+  );
 
   // 8. Spending limit
   const limitResp = await apiGet("/v1/balance/spending-limit", token, addr);
@@ -459,18 +624,31 @@ async function runChecklist(token, addr) {
   check("Network stats endpoint responds", !!statsResp && !statsResp.detail);
 
   // 10. Agent credential audit logs
-  const credAudit = await apiGet("/v1/credentials/agent/audit-logs", token, addr);
+  const credAudit = await apiGet(
+    "/v1/credentials/agent/audit-logs",
+    token,
+    addr
+  );
   check("Credential audit logs respond", !!credAudit && !credAudit.detail);
 
-  const passed = results.filter(r => r.pass).length;
-  const total  = results.length;
-  console.log(`\n  ${passed === total ? GREEN : YLW}Checklist: ${passed}/${total} passed${RESET}`);
+  const passed = results.filter((r) => r.pass).length;
+  const total = results.length;
+  console.log(
+    `\n  ${
+      passed === total ? GREEN : YLW
+    }Checklist: ${passed}/${total} passed${RESET}`
+  );
 
   return results;
 }
 
 // ─── Browser screenshots ───────────────────────────────────────────────────────
-async function takeScreenshots(token, addr, providerToken = null, providerAddr = null) {
+async function takeScreenshots(
+  token,
+  addr,
+  providerToken = null,
+  providerAddr = null
+) {
   section("Browser Screenshots (Playwright)");
   fs.mkdirSync(SCREENSHOT_DIR, { recursive: true });
 
@@ -576,9 +754,14 @@ async function takeScreenshots(token, addr, providerToken = null, providerAddr =
 
   console.log("\n  Launching Chrome…");
   const browser = await chromium.launch({
-    executablePath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    executablePath:
+      "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
     headless: true,
-    args: ["--no-sandbox", "--disable-web-security", "--allow-running-insecure-content"],
+    args: [
+      "--no-sandbox",
+      "--disable-web-security",
+      "--allow-running-insecure-content",
+    ],
   });
 
   const context = await browser.newContext({
@@ -627,28 +810,38 @@ async function takeScreenshots(token, addr, providerToken = null, providerAddr =
   // The addInitScript already set wagmi.injected.connected=true and window.ethereum.
   // wagmi's reconnect action reads this flag, calls eth_accounts on our fake provider,
   // and sets isConnected=true. WalletAuthGuard then auto-authorizes via a2a_auth_session.
-  console.log("\n  Navigating to dashboard — waiting for wagmi auto-reconnect…");
-  await page.goto(FRONTEND_URL + "/dashboard/billing/credits", { waitUntil: "domcontentloaded" });
+  console.log(
+    "\n  Navigating to dashboard — waiting for wagmi auto-reconnect…"
+  );
+  await page.goto(FRONTEND_URL + "/dashboard/billing/credits", {
+    waitUntil: "domcontentloaded",
+  });
 
   // ── Step 2: Wait for wagmi isConnected + data to load ──────────────────────
   // Poll wagmi.store until status = connected (max 12 s)
-  const connected = await page.waitForFunction(
-    () => {
-      try {
-        const s = JSON.parse(localStorage.getItem("wagmi.store") || "{}");
-        return s?.state?.status === "connected";
-      } catch { return false; }
-    },
-    { timeout: 12000 }
-  ).catch(() => null);
+  const connected = await page
+    .waitForFunction(
+      () => {
+        try {
+          const s = JSON.parse(localStorage.getItem("wagmi.store") || "{}");
+          return s?.state?.status === "connected";
+        } catch {
+          return false;
+        }
+      },
+      { timeout: 12000 }
+    )
+    .catch(() => null);
 
   if (!connected) {
     // Alternative check: see if address shows up in sidebar (wallet badge)
-    const addressEl = await page.$('text=/0x[a-fA-F0-9]{4}/').catch(() => null);
+    const addressEl = await page.$("text=/0x[a-fA-F0-9]{4}/").catch(() => null);
     if (addressEl) {
       console.log("  Wallet connected (address visible in UI)");
     } else {
-      console.log("  Warning: wallet may not have connected — screenshots may still show placeholder data");
+      console.log(
+        "  Warning: wallet may not have connected — screenshots may still show placeholder data"
+      );
     }
   } else {
     console.log("  Wallet connected (wagmi.store status=connected)");
@@ -659,18 +852,22 @@ async function takeScreenshots(token, addr, providerToken = null, providerAddr =
 
   // Pages to screenshot
   const PAGES = [
-    { url: "/",                              name: "00-home",             wait: 2000 },
-    { url: "/dashboard/overview",            name: "01-overview",         wait: 4000 },
-    { url: "/dashboard/agents",              name: "02-agents",           wait: 4000 },
-    { url: "/dashboard/invocations",         name: "03-invocations",      wait: 4000 },
-    { url: "/dashboard/billing",             name: "04-billing",          wait: 4000 },
-    { url: "/dashboard/billing/credits",     name: "05-billing-credits",  wait: 4000 },
-    { url: "/dashboard/discovery",           name: "06-discovery",        wait: 3000 },
-    { url: "/dashboard/developer",           name: "07-developer",        wait: 3000 },
-    { url: "/dashboard/audit",               name: "08-audit",            wait: 3500 },
-    { url: "/dashboard/account/settings",    name: "09-settings",         wait: 3000 },
-    { url: "/provider/console",              name: "10-provider-console", wait: 3000 },
-    { url: "/provider/services",             name: "11-provider-services",wait: 3000 },
+    { url: "/", name: "00-home", wait: 2000 },
+    { url: "/dashboard/overview", name: "01-overview", wait: 4000 },
+    { url: "/dashboard/agents", name: "02-agents", wait: 4000 },
+    { url: "/dashboard/invocations", name: "03-invocations", wait: 4000 },
+    { url: "/dashboard/billing", name: "04-billing", wait: 4000 },
+    {
+      url: "/dashboard/billing/credits",
+      name: "05-billing-credits",
+      wait: 4000,
+    },
+    { url: "/dashboard/discovery", name: "06-discovery", wait: 3000 },
+    { url: "/dashboard/developer", name: "07-developer", wait: 3000 },
+    { url: "/dashboard/audit", name: "08-audit", wait: 3500 },
+    { url: "/dashboard/account/settings", name: "09-settings", wait: 3000 },
+    { url: "/provider/console", name: "10-provider-console", wait: 3000 },
+    { url: "/provider/services", name: "11-provider-services", wait: 3000 },
   ];
 
   const screenshots = [];
@@ -714,13 +911,27 @@ async function takeScreenshots(token, addr, providerToken = null, providerAddr =
       await pPage.waitForTimeout(3000);
 
       const PROVIDER_PAGES = [
-        { url: "/provider/console",     name: "10-provider-console-provider-wallet",    wait: 5000 },
-        { url: "/provider/services",    name: "11-provider-services-provider-wallet",    wait: 5000 },
-        { url: "/provider/credentials", name: "12-provider-credentials-provider-wallet", wait: 4000 },
+        {
+          url: "/provider/console",
+          name: "10-provider-console-provider-wallet",
+          wait: 5000,
+        },
+        {
+          url: "/provider/services",
+          name: "11-provider-services-provider-wallet",
+          wait: 5000,
+        },
+        {
+          url: "/provider/credentials",
+          name: "12-provider-credentials-provider-wallet",
+          wait: 4000,
+        },
       ];
 
       for (const p of PROVIDER_PAGES) {
-        await pPage.goto(FRONTEND_URL + p.url, { waitUntil: "domcontentloaded" });
+        await pPage.goto(FRONTEND_URL + p.url, {
+          waitUntil: "domcontentloaded",
+        });
         await pPage.waitForTimeout(p.wait);
         const fname = await shot(pPage, p.name);
         screenshots.push({ url: p.url, file: fname });
@@ -740,12 +951,14 @@ async function takeScreenshots(token, addr, providerToken = null, providerAddr =
 
 // ─── Write checklist markdown ──────────────────────────────────────────────────
 function writeChecklistMd(results, screenshots, balance, credCount, logCount) {
-  const passed = results.filter(r => r.pass).length;
+  const passed = results.filter((r) => r.pass).length;
   const now = new Date().toISOString().replace("T", " ").slice(0, 19);
-  const rows = results.map(r =>
-    `| ${r.pass ? "✅" : "❌"} | ${r.label} | ${r.detail || "—"} |`
-  ).join("\n");
-  const shots = screenshots.map(s => `| \`${s.file}\` | \`${s.url}\` |`).join("\n");
+  const rows = results
+    .map((r) => `| ${r.pass ? "✅" : "❌"} | ${r.label} | ${r.detail || "—"} |`)
+    .join("\n");
+  const shots = screenshots
+    .map((s) => `| \`${s.file}\` | \`${s.url}\` |`)
+    .join("\n");
 
   const md = `# Full-Chain E2E Test Report
 
@@ -796,9 +1009,17 @@ async function main() {
   console.log("  Synapse Network — Full-Chain Browser E2E Test");
   console.log("═".repeat(64));
   console.log(`  Buyer wallet: ${BUYER_ADDR}`);
-  console.log(`  Mode: ${screenshotOnly ? "screenshot-only" : "full test (backend + browser)"}`);
+  console.log(
+    `  Mode: ${
+      screenshotOnly ? "screenshot-only" : "full test (backend + browser)"
+    }`
+  );
 
-  let token, addr, credCount = 0, logCount = 0, balance = 0;
+  let token,
+    addr,
+    credCount = 0,
+    logCount = 0,
+    balance = 0;
 
   if (!screenshotOnly) {
     // ── Phase 1: Backend ────────────────────────────────────────────────────
@@ -825,10 +1046,14 @@ async function main() {
 
     // ── Phase 3: Create agents ─────────────────────────────────────────────
     section("Phase 3: Create Agent Credentials");
-    const existingCreds = await apiGet("/v1/credentials/agent/list", token, addr);
+    const existingCreds = await apiGet(
+      "/v1/credentials/agent/list",
+      token,
+      addr
+    );
     const existing = existingCreds?.credentials || [];
-    const existingNames = existing.map(c => c.name);
-    const toCreate = AGENT_NAMES.filter(n => !existingNames.includes(n));
+    const existingNames = existing.map((c) => c.name);
+    const toCreate = AGENT_NAMES.filter((n) => !existingNames.includes(n));
 
     if (toCreate.length > 0) {
       await createAgents(token, addr, toCreate);
@@ -845,20 +1070,31 @@ async function main() {
     let providerToken, providerAddr;
     let registeredServiceIds = [];
     try {
-      ({ token: providerToken, addr: providerAddr } = await authenticate(PROVIDER_KEY));
+      ({ token: providerToken, addr: providerAddr } = await authenticate(
+        PROVIDER_KEY
+      ));
       ok(`Provider wallet: ${providerAddr}`);
 
       // Ensure provider signing secret exists (shows in Provider Credentials page)
       await ensureProviderSecret(providerToken, providerAddr);
 
       // Register 2 services from Synapse-Network-Provider (quotes + sentiment)
-      registeredServiceIds = await registerProviderServices(providerToken, providerAddr);
+      registeredServiceIds = await registerProviderServices(
+        providerToken,
+        providerAddr
+      );
       ok(`Provider services registered: ${registeredServiceIds.length}`);
 
       // List provider services to confirm
-      const checkSvcs = await fetch(`${GATEWAY_URL}/v1/services?ownerAddress=${providerAddr}`, {
-        headers: { Authorization: `Bearer ${providerToken}`, "X-User-Address": providerAddr },
-      });
+      const checkSvcs = await fetch(
+        `${GATEWAY_URL}/v1/services?ownerAddress=${providerAddr}`,
+        {
+          headers: {
+            Authorization: `Bearer ${providerToken}`,
+            "X-User-Address": providerAddr,
+          },
+        }
+      );
       const checkData = await checkSvcs.json().catch(() => ({}));
       const total = (checkData.services || []).length;
       ok(`Total services under provider wallet: ${total}`);
@@ -869,21 +1105,42 @@ async function main() {
     // ── Phase 5: Invoke services ─────────────────────────────────────────────
     section("Phase 4: Invoke Services (5×)");
     // Issue a fresh invoke credential (raw token needed, list endpoint doesn't return it)
-    const invokeCred = await apiPost("/v1/credentials/agent/issue",
-      { name: `E2E-Invoke-${Date.now()}`, maxCalls: 100, rpm: 60, resetInterval: "daily" },
-      token, addr);
-    const invokeToken = invokeCred?.credential?.token || invokeCred?.token || "";
+    const invokeCred = await apiPost(
+      "/v1/credentials/agent/issue",
+      {
+        name: `E2E-Invoke-${Date.now()}`,
+        maxCalls: 100,
+        rpm: 60,
+        resetInterval: "daily",
+      },
+      token,
+      addr
+    );
+    const invokeToken =
+      invokeCred?.credential?.token || invokeCred?.token || "";
     if (!invokeToken) {
-      warn(`Could not issue invoke credential: ${JSON.stringify(invokeCred).slice(0, 150)}`);
+      warn(
+        `Could not issue invoke credential: ${JSON.stringify(invokeCred).slice(
+          0,
+          150
+        )}`
+      );
     } else {
       ok(`Invoke credential issued: ${invokeToken.slice(0, 20)}…`);
-      const invokeAgents = [{ name: "E2E-InvokeAgent", id: invokeCred?.credential?.id, token: invokeToken }];
+      const invokeAgents = [
+        {
+          name: "E2E-InvokeAgent",
+          id: invokeCred?.credential?.id,
+          token: invokeToken,
+        },
+      ];
       await invokeServices(token, addr, invokeAgents, 5);
       await sleep(1000);
     }
 
     const logsAfter = await apiGet("/v1/usage/logs", token, addr);
-    logCount = logsAfter?.count || logsAfter?.total || (logsAfter?.logs || []).length;
+    logCount =
+      logsAfter?.count || logsAfter?.total || (logsAfter?.logs || []).length;
     ok(`Total invocation logs: ${logCount}`);
 
     // ── Phase 6: Consumer Balance Withdrawal ────────────────────────────
@@ -899,52 +1156,82 @@ async function main() {
         headers: {
           "Content-Type": "application/json",
           "X-Wallet-Address": addr,
-          "Authorization": `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
           "X-Idempotency-Key": idemKey,
         },
-        body: JSON.stringify({ amountUsdc: withdrawAmount, reason: "E2E test: withdraw remaining balance" }),
+        body: JSON.stringify({
+          amountUsdc: withdrawAmount,
+          reason: "E2E test: withdraw remaining balance",
+        }),
       });
       const wdBody = await wdRes.json().catch(() => ({}));
       if (!wdRes.ok) {
-        warn(`Withdraw failed (${wdRes.status}): ${JSON.stringify(wdBody).slice(0, 200)}`);
+        warn(
+          `Withdraw failed (${wdRes.status}): ${JSON.stringify(wdBody).slice(
+            0,
+            200
+          )}`
+        );
       } else {
-        ok(`Withdraw requested: $${wdBody.amountUsdc} USDC → status=${wdBody.status}, riskLevel=${wdBody.riskLevel}`);
+        ok(
+          `Withdraw requested: $${wdBody.amountUsdc} USDC → status=${wdBody.status}, riskLevel=${wdBody.riskLevel}`
+        );
         // Idempotency: same key should return same result
-        const wdRes2 = await fetch(`${GATEWAY_URL}/v1/balance/consumer/withdraw`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-Wallet-Address": addr,
-            "Authorization": `Bearer ${token}`,
-            "X-Idempotency-Key": idemKey,
-          },
-          body: JSON.stringify({ amountUsdc: withdrawAmount, reason: "E2E test: duplicate idempotent" }),
-        });
+        const wdRes2 = await fetch(
+          `${GATEWAY_URL}/v1/balance/consumer/withdraw`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Wallet-Address": addr,
+              Authorization: `Bearer ${token}`,
+              "X-Idempotency-Key": idemKey,
+            },
+            body: JSON.stringify({
+              amountUsdc: withdrawAmount,
+              reason: "E2E test: duplicate idempotent",
+            }),
+          }
+        );
         const wdBody2 = await wdRes2.json().catch(() => ({}));
         if (wdRes2.ok && wdBody2.withdrawId === wdBody.withdrawId) {
           ok(`Idempotency confirmed: same withdrawId=${wdBody.withdrawId}`);
         } else {
-          warn(`Idempotency check unexpected response: ${JSON.stringify(wdBody2).slice(0, 150)}`);
+          warn(
+            `Idempotency check unexpected response: ${JSON.stringify(
+              wdBody2
+            ).slice(0, 150)}`
+          );
         }
         // List withdrawals
-        const wdList = await apiGet("/v1/balance/consumer/withdrawals", token, addr);
+        const wdList = await apiGet(
+          "/v1/balance/consumer/withdrawals",
+          token,
+          addr
+        );
         const count = (wdList?.withdrawals || []).length;
         ok(`Listed ${count} withdrawal record(s)`);
       }
     } else {
-      warn(`Balance too low to test withdraw (need ≥ 1.0, have ${availableBefore}).`);
+      warn(
+        `Balance too low to test withdraw (need ≥ 1.0, have ${availableBefore}).`
+      );
     }
 
     // ── Phase 7: API Checklist ─────────────────────────────────────────────
     const checkResults = await runChecklist(token, addr);
 
     // ── Phase 8: Browser screenshots ──────────────────────────────────────
-    const screenshots = await takeScreenshots(token, addr, providerToken, providerAddr);
+    const screenshots = await takeScreenshots(
+      token,
+      addr,
+      providerToken,
+      providerAddr
+    );
 
     // ── Phase 9: Write report ─────────────────────────────────────────────
     section("Phase 9: Write Test Report");
     writeChecklistMd(checkResults, screenshots, balance, credCount, logCount);
-
   } else {
     // Screenshot-only mode: need a token
     section("Screenshot-Only Mode");
@@ -953,13 +1240,21 @@ async function main() {
     balance = bal?.balance?.consumerAvailableBalance ?? 0;
     ok(`Balance: ${balance} USDC`);
     // Authenticate provider for screenshot-only mode
-    let soProviderToken = null, soProviderAddr = null;
+    let soProviderToken = null,
+      soProviderAddr = null;
     try {
-      ({ token: soProviderToken, addr: soProviderAddr } = await authenticate(PROVIDER_KEY));
+      ({ token: soProviderToken, addr: soProviderAddr } = await authenticate(
+        PROVIDER_KEY
+      ));
     } catch (e) {
       warn(`Could not auth provider for screenshots: ${e.message}`);
     }
-    const screenshots = await takeScreenshots(token, addr, soProviderToken, soProviderAddr);
+    const screenshots = await takeScreenshots(
+      token,
+      addr,
+      soProviderToken,
+      soProviderAddr
+    );
     console.log(`\n  ${screenshots.length} screenshots taken`);
   }
 
@@ -968,7 +1263,7 @@ async function main() {
   console.log("═".repeat(64) + "\n");
 }
 
-main().catch(e => {
+main().catch((e) => {
   console.error(`\n${RED}FATAL:${RESET}`, e.message);
   console.error(e.stack);
   process.exit(1);

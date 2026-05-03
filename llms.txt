@@ -58,6 +58,7 @@ Synapse Network is an agent-first settlement layer for AI agents. The primary pr
 - AGENTS.md - unified Codex, Cursor, Claude, Gemini, and Copilot instruction bridge for routing into the shared rule stack
 - docs/reference/Agent_Task_Map.md - human-readable agent task routing map
 - docs/reference/Agent_Task_Map.json - machine-readable agent task routing map
+- docs/reference/Service_Port_Map.md - canonical local, staging, and production service port/domain map
 - .github/instructions/README.md - routing manifest for Python, frontend, finance, docs-sync, admin-console, and safety instructions
 - docs/reference/AI_Instruction_Entrypoints.md - agent-specific entrypoint map and bridge drift policy
 - docs/06_Reference/AI_Quick_Reference.md - compressed repository facts for agents

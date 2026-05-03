@@ -8,6 +8,7 @@ Local execution mirror for `services/docs-front/`.
 2. `.github/instructions/frontend.instructions.md`
 3. `.github/instructions/docs-sync.instructions.md`
 4. `docs/Design.md`
+5. `docs/reference/Service_Port_Map.md`
 
 ## Role Boundary
 
@@ -20,14 +21,14 @@ Local execution mirror for `services/docs-front/`.
 
 - Package management stays on Yarn.
 - Fumadocs currently pins this project to Next 16 and React 19. Keep that version boundary local to docs-front.
-- Local docs run on port `3001`.
+- Local docs run on port `3100`.
 - Run `yarn generate:openapi` after API endpoint data changes.
 - Public playground execution must stay disabled for production docs unless an explicit staging-safe execution policy is implemented.
 
 ## Commands
 
 ```bash
-cd /Users/cliff/workspace/agent/Synapse-Network-agent-a/services/docs-front
+cd /Users/cliff/workspace/agent/Synapse-Network/services/docs-front
 yarn dev
 yarn build
 yarn lint
