@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
 import { createElement } from "react";
 
 import OwnerBillingPage from "@/components/dashboard-workspace/OwnerBillingPage";
@@ -17,8 +17,14 @@ vi.mock("@/hooks/useFundsData", () => ({
 }));
 
 describe("OwnerBillingPage", () => {
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllEnvs();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubEnv("NEXT_PUBLIC_APP_ENV", "staging");
     globalThis.localStorage.setItem(I18N_STORAGE_KEY, "en");
     useFundsDataMock.mockReturnValue({
       loading: false,
@@ -33,6 +39,20 @@ describe("OwnerBillingPage", () => {
         },
       ],
     });
+  });
+
+  it("uses the environment transaction explorer for invoice links", () => {
+    render(
+      createElement(LanguageProvider, null, createElement(OwnerBillingPage))
+    );
+
+    const invoiceLink = screen.getByRole("link", {
+      name: "Open transaction explorer",
+    });
+    expect(invoiceLink.getAttribute("href")).toBe(
+      "https://sepolia.arbiscan.io/tx/0xdeadbeef"
+    );
+    expect(invoiceLink.getAttribute("href")).not.toContain("etherscan.io");
   });
 
   it("renders the x-style payments ledger surface", () => {

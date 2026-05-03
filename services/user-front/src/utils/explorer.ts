@@ -1,7 +1,7 @@
 type AppEnvironment = "local" | "staging" | "prod";
 
 const DEFAULT_EXPLORERS: Record<AppEnvironment, string | null> = {
-  local: null,
+  local: "http://localhost:5100",
   staging: "https://sepolia.arbiscan.io",
   prod: "https://arbiscan.io",
 };
