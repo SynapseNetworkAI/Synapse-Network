@@ -81,7 +81,7 @@ const postgresDsn =
   localGatewayEnv.POSTGRES_DSN ||
   (isStaging
     ? ""
-    : "postgresql://synapse_gateway_app:local-dev-gateway-app-password@127.0.0.1:5432/synapse_gateway");
+    : "postgresql://synapse_gateway_app:local-dev-gateway-app-password@127.0.0.1:15432/synapse_gateway");
 const expectedPoolMax = Number(
   process.env.POSTGRES_POOL_MAX ||
     process.env.POSTGRES_POOL_LEAK_EXPECTED_POOL_MAX ||

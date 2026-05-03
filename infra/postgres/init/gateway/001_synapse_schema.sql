@@ -936,8 +936,17 @@ ON synapse_ledger_accounts (account_kind, owner_id, provider_id);
 CREATE INDEX IF NOT EXISTS idx_synapse_ledger_entries_reference
 ON synapse_ledger_entries (reference_type, reference_id, created_at DESC);
 
+CREATE INDEX IF NOT EXISTS idx_synapse_ledger_entries_debit_business_created
+ON synapse_ledger_entries (debit_account_id, business_type, status, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_ledger_entries_credit_business_created
+ON synapse_ledger_entries (credit_account_id, business_type, status, created_at DESC);
+
 CREATE INDEX IF NOT EXISTS idx_synapse_vault_deposits_owner_created
 ON synapse_vault_deposits (owner_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_vault_deposits_owner_status_updated
+ON synapse_vault_deposits (owner_id, status, updated_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_synapse_vault_withdrawals_kind_owner
 ON synapse_vault_withdrawals (withdrawal_kind, owner_id, created_at DESC);

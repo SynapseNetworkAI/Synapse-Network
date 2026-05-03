@@ -6,10 +6,11 @@ from typing import Any, Callable
 from src.domain.finance import BalanceLedger, ConsumerWalletRecord, ProviderWalletRecord
 from src.utils.datetime_utils import now_dt_str, to_dt_str
 
+from .balance_maturity_mixin import BalanceMaturityMixin
 from ..database_manager import DatabaseManager
 
 
-class BalanceRepository:
+class BalanceRepository(BalanceMaturityMixin):
     def __init__(
         self,
         db: DatabaseManager,
@@ -167,8 +168,7 @@ class BalanceRepository:
             updated_at,
         ) in rows:
             updated = to_dt_str(updated_at, "") or ""
-            if updated > max_updated:
-                max_updated = updated
+            max_updated = max(max_updated, updated)
             available_val = Decimal(str(self._q6(available_balance)))
             pending_val = Decimal(str(self._q6(pending_balance)))
             frozen_val = Decimal(str(self._q6(frozen_balance)))
@@ -198,13 +198,11 @@ class BalanceRepository:
         return ledger
 
     def reserve_consumer_balance_for_withdrawal(
-        self, owner: str, amount_usdc: float, updated_at: str
+        self, owner: str, amount_usdc: Decimal | str | int, updated_at: str
     ) -> None:
         """Atomically move *amount_usdc* from available → pending for a consumer withdrawal.
 
-        Uses a direct SQL delta so it is safe against concurrent full-ledger writes
-        by the deposit indexer.  Raises RuntimeError if the row does not exist or
-        available balance would go negative.
+        Uses a direct SQL delta safe against concurrent writes.
         """
         account_id, _ = self._account_identity(owner, "consumer")
         with self._db.tx_cursor() as cur:
@@ -241,7 +239,7 @@ class BalanceRepository:
                 raise RuntimeError("INSUFFICIENT_CONSUMER_BALANCE_ATOMIC")
 
     def reserve_consumer_balance_for_manual_review(
-        self, owner: str, amount_usdc: float, updated_at: str
+        self, owner: str, amount_usdc: Decimal | str | int, updated_at: str
     ) -> None:
         """Atomically move *amount_usdc* from available → frozen for manual review."""
         account_id, _ = self._account_identity(owner, "consumer")
@@ -278,7 +276,7 @@ class BalanceRepository:
                 raise RuntimeError("INSUFFICIENT_CONSUMER_BALANCE_ATOMIC")
 
     def consume_consumer_pending_for_withdrawal(
-        self, owner: str, amount_usdc: float, updated_at: str
+        self, owner: str, amount_usdc: Decimal | str | int, updated_at: str
     ) -> None:
         """Atomically reduce *pending_balance* after a consumer withdrawal completes.
 
@@ -307,7 +305,7 @@ class BalanceRepository:
                 raise RuntimeError("CONSUME_PENDING_BALANCE_INCONSISTENT")
 
     def move_consumer_frozen_to_pending(
-        self, owner: str, amount_usdc: float, updated_at: str
+        self, owner: str, amount_usdc: Decimal | str | int, updated_at: str
     ) -> None:
         """Atomically move *amount_usdc* from frozen → pending after manual approval."""
         account_id, _ = self._account_identity(owner, "consumer")
@@ -333,7 +331,7 @@ class BalanceRepository:
                 raise RuntimeError("MOVE_FROZEN_TO_PENDING_INCONSISTENT")
 
     def release_consumer_pending_to_available(
-        self, owner: str, amount_usdc: float, updated_at: str
+        self, owner: str, amount_usdc: Decimal | str | int, updated_at: str
     ) -> None:
         """Atomically move *amount_usdc* from pending → available on failure/cancel."""
         account_id, _ = self._account_identity(owner, "consumer")
@@ -359,7 +357,7 @@ class BalanceRepository:
                 raise RuntimeError("RELEASE_PENDING_TO_AVAILABLE_INCONSISTENT")
 
     def release_consumer_frozen_to_available(
-        self, owner: str, amount_usdc: float, updated_at: str
+        self, owner: str, amount_usdc: Decimal | str | int, updated_at: str
     ) -> None:
         """Atomically move *amount_usdc* from frozen → available on reject."""
         account_id, _ = self._account_identity(owner, "consumer")

@@ -1,7 +1,8 @@
-from typing import Any, List, Optional
 import asyncio
 import time
+from dataclasses import dataclass
 from decimal import Decimal
+from typing import Any, Optional
 from uuid import uuid4
 
 from fastapi import HTTPException
@@ -19,13 +20,32 @@ from src.services.balance_mixins import (
 from src.services.provider.withdraw_helpers_mixin import (
     ProviderWithdrawHelpersMixin,
 )
+from src.services.provider.withdraw_policy_mixin import ProviderWithdrawPolicyMixin
 from src.services.provider.withdraw_execution_mixin import ProviderWithdrawExecutionMixin
 from src.storage.base import BaseStorage
 from src.utils.datetime_utils import now_dt_str
 from src.utils.money import money_str, parse_usdc, usdc_decimal_to_atomic
 
 
+@dataclass
+class ProviderWithdrawLegacyContext:
+    owner: str
+    amount_usdc: Decimal
+    idempotency_key: str
+    request_hash: str
+    request_meta: Optional[dict[str, Any]]
+    redis_client: Any
+    idem_rows: Any
+    rows: list[Any]
+    ledger: Any
+
+
+ProviderWithdrawResponse = dict[str, Any]
+ProviderWithdrawListResponse = list[ProviderWithdrawResponse]
+
+
 class ProviderWithdrawService(
+    ProviderWithdrawPolicyMixin,
     ProviderWithdrawHelpersMixin,
     ProviderWithdrawExecutionMixin,
     BalanceAuditMixin,
@@ -108,13 +128,146 @@ class ProviderWithdrawService(
         if vault_balance_wei < amount_wei:
             raise RuntimeError("INSUFFICIENT_VAULT_LIQUIDITY")
 
+    def _resolve_provider_withdraw_amount_payload(
+        self,
+        *,
+        payload: dict[str, Any],
+        available_receivable: Decimal,
+        mature_receivable: Decimal,
+    ) -> tuple[Decimal, dict[str, Any]]:
+        min_amount = self._provider_withdraw_min_amount()
+        if payload.get("amountUsdc") is None:
+            if available_receivable <= Decimal("0"):
+                self._raise_withdraw_runtime_error("INSUFFICIENT_PROVIDER_RECEIVABLE")
+            if mature_receivable <= Decimal("0"):
+                self._raise_provider_receivable_not_matured(
+                    min_amount, mature_receivable
+                )
+            if mature_receivable < min_amount:
+                self._raise_min_provider_withdraw(min_amount)
+            return mature_receivable, {
+                **payload,
+                "amountUsdc": money_str(mature_receivable),
+            }
+
+        amount_usdc = parse_usdc(self._parse_requested_withdraw_amount_usdc(payload))
+        if amount_usdc < min_amount:
+            self._raise_min_provider_withdraw(min_amount)
+        if amount_usdc > mature_receivable:
+            self._raise_provider_receivable_not_matured(amount_usdc, mature_receivable)
+        return amount_usdc, payload
+
+    def _reserve_provider_withdraw_and_prepare_ticket(
+        self,
+        *,
+        owner: str,
+        withdrawal_id: str,
+        amount_usdc: Decimal,
+        ledger: Any,
+        requires_manual_review: bool,
+    ) -> Any:
+        if requires_manual_review:
+            ticket_payload = self._prepare_withdraw_ticket(
+                owner=owner,
+                withdrawal_id=withdrawal_id,
+                amount_usdc=amount_usdc,
+            )
+            self._reserve_withdraw_amount(
+                owner, amount_usdc, ledger, lock_to_frozen=True
+            )
+            return ticket_payload
+
+        self._reserve_withdraw_amount(owner, amount_usdc, ledger, lock_to_frozen=False)
+        try:
+            return self._prepare_withdraw_ticket(
+                owner=owner,
+                withdrawal_id=withdrawal_id,
+                amount_usdc=amount_usdc,
+            )
+        except Exception:
+            self._release_pending_withdraw_to_available(owner, amount_usdc)
+            raise
+
+    async def _persist_provider_withdraw_intent_legacy(
+        self,
+        *,
+        context: ProviderWithdrawLegacyContext,
+        ticket_payload: Any,
+        withdrawal_id: str,
+    ) -> dict[str, Any]:
+        row, response = self._build_withdraw_row_and_response(
+            owner=context.owner,
+            amount_usdc=context.amount_usdc,
+            idempotency_key=context.idempotency_key,
+            request_meta=context.request_meta,
+            ticket_payload=ticket_payload,
+            withdrawal_id=withdrawal_id,
+        )
+        context.rows.append(row)
+        self._save_withdrawal_rows(context.rows)
+        await self._finish_provider_withdraw_idempotency(
+            owner=context.owner,
+            idempotency_key=context.idempotency_key,
+            request_hash=context.request_hash,
+            response=response,
+            redis_client=context.redis_client,
+            idem_rows=context.idem_rows,
+        )
+        self._append_financial_audit(
+            "PROVIDER_WITHDRAW_INTENT_CREATED",
+            context.owner,
+            {
+                "withdrawalId": response["withdrawalId"],
+                "amountUsdc": money_str(context.amount_usdc),
+                "status": response["status"],
+                "ticketHash": row.ticket.ticket_hash,
+                "deadline": row.deadline,
+                "idempotencyKey": context.idempotency_key,
+                "requestMeta": context.request_meta or {},
+            },
+        )
+        from src.services.analytics.gateway_events import emit_settlement_claim_requested
+
+        await emit_settlement_claim_requested(
+            context.owner, claim_usdc=context.amount_usdc
+        )
+        return response
+
+    async def _create_provider_withdraw_intent_legacy(
+        self,
+        *,
+        context: ProviderWithdrawLegacyContext,
+    ) -> dict[str, Any]:
+        try:
+            self._assert_withdraw_vault_liquidity(context.amount_usdc)
+        except RuntimeError as exc:
+            self._raise_withdraw_runtime_error(str(exc))
+            raise
+
+        withdrawal_id = str(uuid4())
+        requires_manual_review = context.amount_usdc >= parse_usdc(
+            str(settings.withdrawal_auto_single_limit_usdc)
+        )
+        ticket_payload = self._reserve_provider_withdraw_and_prepare_ticket(
+            owner=context.owner,
+            withdrawal_id=withdrawal_id,
+            amount_usdc=context.amount_usdc,
+            ledger=context.ledger,
+            requires_manual_review=requires_manual_review,
+        )
+        return await self._persist_provider_withdraw_intent_legacy(
+            context=context,
+            ticket_payload=ticket_payload,
+            withdrawal_id=withdrawal_id,
+        )
+
     async def create_provider_withdraw_intent(
         self,
         payload: dict[str, Any],
         owner_wallet: str,
         idempotency_key: str,
         request_meta: Optional[dict[str, Any]] = None,
-    ) -> dict[str, Any]:
+    ) -> ProviderWithdrawResponse:
         owner = normalize_wallet(owner_wallet)
         async with self._mutation_lock.lock(f"{owner}:provider_withdraw_intent"):
             idempotency_key = self._validate_idempotency_key(idempotency_key)
@@ -125,7 +278,6 @@ class ProviderWithdrawService(
             rows = self._expire_stale_withdrawals(
                 self._normalize_withdrawal_rows(), owner
             )
-            amount_usdc = self._parse_requested_withdraw_amount_usdc(payload)
             request_hash = self._request_hash(
                 {"ownerAddress": owner, "amountUsdc": self._requested_withdraw_amount_for_hash(payload)}
             )
@@ -142,6 +294,19 @@ class ProviderWithdrawService(
             if existing_response is not None:
                 return existing_response
 
+            ledger = self._load_balance_ledger()
+            available_receivable = parse_usdc(
+                ledger.provider_receivable_balance(owner)
+            )
+            mature_receivable = self._read_provider_mature_receivable(
+                owner, available_receivable
+            )
+            amount_usdc, effective_payload = self._resolve_provider_withdraw_amount_payload(
+                payload=payload,
+                available_receivable=available_receivable,
+                mature_receivable=mature_receivable,
+            )
+
             pending_response = await self._resolve_pending_withdrawal_response(
                 rows=rows,
                 owner=owner,
@@ -154,11 +319,9 @@ class ProviderWithdrawService(
             if pending_response is not None:
                 return pending_response
 
-            ledger = self._load_balance_ledger()
-            available_receivable = ledger.provider_receivable_balance(owner)
             context = self._build_withdraw_create_context(
                 owner=owner,
-                payload=payload,
+                payload=effective_payload,
                 available_receivable=available_receivable,
             )
 
@@ -173,62 +336,23 @@ class ProviderWithdrawService(
                     idem_rows=idem_rows,
                 )
 
-            try:
-                self._assert_withdraw_vault_liquidity(context.amount_usdc)
-            except RuntimeError as exc:
-                self._raise_withdraw_runtime_error(str(exc))
-                raise
-
-            withdrawal_id = str(uuid4())
-            ticket_payload = self._prepare_withdraw_ticket(
-                owner=owner, withdrawal_id=withdrawal_id, amount_usdc=context.amount_usdc
+            return await self._create_provider_withdraw_intent_legacy(
+                context=ProviderWithdrawLegacyContext(
+                    owner=owner,
+                    amount_usdc=context.amount_usdc,
+                    idempotency_key=idempotency_key,
+                    request_hash=request_hash,
+                    request_meta=request_meta,
+                    redis_client=redis_client,
+                    idem_rows=idem_rows,
+                    rows=rows,
+                    ledger=ledger,
+                )
             )
-            self._reserve_withdraw_amount(
-                owner,
-                context.amount_usdc,
-                ledger,
-                lock_to_frozen=ticket_payload.requires_manual_review,
-            )
-            row, response = self._build_withdraw_row_and_response(
-                owner=owner,
-                amount_usdc=context.amount_usdc,
-                idempotency_key=idempotency_key,
-                request_meta=request_meta,
-                ticket_payload=ticket_payload,
-                withdrawal_id=withdrawal_id,
-            )
-            rows.append(row)
-            self._save_withdrawal_rows(rows)
-            await self._finish_provider_withdraw_idempotency(
-                owner=owner,
-                idempotency_key=idempotency_key,
-                request_hash=context.request_hash,
-                response=response,
-                redis_client=redis_client,
-                idem_rows=idem_rows,
-            )
-
-            self._append_financial_audit(
-                "PROVIDER_WITHDRAW_INTENT_CREATED",
-                owner,
-                {
-                    "withdrawalId": response["withdrawalId"],
-                    "amountUsdc": money_str(context.amount_usdc),
-                    "status": response["status"],
-                    "ticketHash": row.ticket.ticket_hash,
-                    "deadline": row.deadline,
-                    "idempotencyKey": idempotency_key,
-                    "requestMeta": request_meta or {},
-                },
-            )
-            # Analytics: settlement_claim_requested
-            from src.services.analytics.gateway_events import emit_settlement_claim_requested
-            await emit_settlement_claim_requested(owner, claim_usdc=context.amount_usdc)
-            return response
 
     async def list_provider_withdrawals(
         self, owner_wallet: str
-    ) -> List[dict[str, Any]]:
+    ) -> ProviderWithdrawListResponse:
         await asyncio.sleep(0)
         owner = normalize_wallet(owner_wallet)
         rows = self._expire_stale_withdrawals(
@@ -247,7 +371,7 @@ class ProviderWithdrawService(
         owner_wallet: str,
         withdrawal_id: str,
         request_meta: Optional[dict[str, Any]] = None,
-    ) -> dict[str, Any]:
+    ) -> ProviderWithdrawResponse:
         owner = normalize_wallet(owner_wallet)
         async with self._mutation_lock.lock(f"{owner}:provider_withdraw_review"):
             await self._enforce_owner_write_rate_limit(
@@ -322,7 +446,7 @@ class ProviderWithdrawService(
         withdrawal_id: str,
         tx_hash: str,
         request_meta: Optional[dict[str, Any]] = None,
-    ) -> dict[str, Any]:
+    ) -> ProviderWithdrawResponse:
         owner = normalize_wallet(owner_wallet)
         async with self._mutation_lock.lock(f"{owner}:provider_withdraw_complete"):
             await self._enforce_owner_write_rate_limit(

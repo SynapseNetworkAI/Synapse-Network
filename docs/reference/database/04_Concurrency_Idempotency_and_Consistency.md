@@ -46,15 +46,17 @@ SQL 通过 `synapse_idempotency_keys` 提供统一幂等设施。
 
 1. `synapse_vault_deposits.tx_hash UNIQUE`
 2. `synapse_vault_withdrawals.tx_hash UNIQUE`
-3. `synapse_invocations UNIQUE (credential_id, idempotency_key)`
-4. `synapse_ledger_entries UNIQUE (reference_type, reference_id, debit_account_id, credit_account_id)`
+3. `synapse_vault_withdrawals.ticket_hash` 业务唯一，且链上 `consumedTickets[ticketHash]` 单次消费
+4. `synapse_invocations UNIQUE (credential_id, idempotency_key)`
+5. `synapse_ledger_entries UNIQUE (reference_type, reference_id, debit_account_id, credit_account_id)`
 
-这四类约束共同解决：
+这些约束共同解决：
 
 1. 同一链上入金不重复入账
 2. 同一链上提现不重复核销
-3. 同一业务调用不重复执行和扣费
-4. 同一业务参考对象不重复生成账本分录
+3. 同一 withdrawal ticket 不重复 claim
+4. 同一业务调用不重复执行和扣费
+5. 同一业务参考对象不重复生成账本分录
 
 ## 3. 悲观锁与行锁
 
@@ -92,6 +94,11 @@ SQL 通过 `synapse_idempotency_keys` 提供统一幂等设施。
 2. 分别都认为“余额充足”
 3. 最终造成双提或超提
 
+提现创建必须用数据库原子锁仓或等价事务边界，不允许先把余额读到内存再计算。
+Consumer 自动通过路径只能执行一次 `available -> pending`，人工审核路径只能执行一次
+`available -> frozen`；Provider 路径同理，只能在 provider 资金桶内移动。
+如果并发请求导致条件更新影响行数为 0，必须拒绝本次创建，不得签 ticket。
+
 ## 4. 原子事务边界
 
 金融路径的写入必须是事务内闭环。
@@ -120,9 +127,13 @@ SQL 通过 `synapse_idempotency_keys` 提供统一幂等设施。
 必须同事务完成：
 
 1. insert `synapse_vault_withdrawals`
-2. update `synapse_account_balances.available/frozen`
+2. update `synapse_account_balances.available/pending/frozen`
 3. insert `synapse_ledger_entries`
 4. insert `synapse_audit_events`
+
+自动通过提现的 ticket 签发必须发生在余额原子锁仓成功之后。人工审核提现只有在
+`APPROVE` 成功完成 `frozen -> pending` 后才能签发 ticket。任何重复 approve、
+reject、complete 或 fail 回调都不得让同一笔余额重复释放或重复消费。
 
 ## 5. 状态机一致性
 
@@ -149,22 +160,29 @@ SQL 通过 `synapse_idempotency_keys` 提供统一幂等设施。
 
 ### 5.4 Withdrawal
 
-只允许：
+Consumer withdrawal 只允许：
 
-1. `REQUESTED -> APPROVED_AUTO`
-2. `REQUESTED -> PENDING_MANUAL_REVIEW`
+1. `REQUESTED -> COMPLETED`
+2. `REQUESTED -> FAILED`
+3. `REQUESTED -> FAILED_EXPIRED`
+4. `PENDING_MANUAL_REVIEW -> REQUESTED`
+5. `PENDING_MANUAL_REVIEW -> REJECTED`
+6. `PENDING_MANUAL_REVIEW -> FAILED_EXPIRED`
+
+Provider withdrawal 只允许：
+
+1. `APPROVED_AUTO -> COMPLETED`
+2. `APPROVED_AUTO -> CANCELLED` 或 `FAILED_EXPIRED`
 3. `PENDING_MANUAL_REVIEW -> APPROVED_AUTO`
 4. `PENDING_MANUAL_REVIEW -> REJECTED`
-5. `APPROVED_AUTO -> COMPLETED`
-6. `APPROVED_AUTO -> CANCELLED`
-7. `REQUESTED -> CANCELLED` 仅允许发生在历史兼容清理把旧 `PENDING` 归一后命中过期释放时
+5. `PENDING_MANUAL_REVIEW -> FAILED_EXPIRED`
 
 状态机单向推进的意义是：
 
 1. 审计可解释
 2. 回放和修复有边界
-3. 过期释放在 `CANCELLED` 落库成功后天然幂等，不会重复把同一笔 locked receivable 释放回 available
-3. 不会靠“修改历史状态”掩盖事故
+3. 过期释放在终态落库成功后天然幂等，不会重复把同一笔 pending/frozen/locked 余额释放回 available
+4. 不会靠“修改历史状态”掩盖事故
 
 ## 6. 对账一致性
 
@@ -218,9 +236,15 @@ SQL 通过 `synapse_idempotency_keys` 提供统一幂等设施。
 3. quote 过期后仍允许 capture
 4. failed invocation 未 release 预算
 5. provider withdrawal 未锁仓先签名
-6. refund 错动 provider bucket
-7. ledger entry 成功但 balance snapshot 未更新
-8. balance snapshot 更新了但没有 ledger / audit 证据
+6. consumer withdrawal 未过 T+1 成熟期却被提现
+7. provider withdrawal 未过 T+7 争议期却被提现
+8. 并发 create 造成多条有效 withdrawal 或多次锁仓
+9. 并发 approve/reject 同时落到两个终态
+10. 并发 complete 重复消费 pending/locked 余额
+11. 同一 `ticketHash` 链上 replay 成功
+12. refund 错动 provider bucket
+13. ledger entry 成功但 balance snapshot 未更新
+14. balance snapshot 更新了但没有 ledger / audit 证据
 
 ## 9. 文档结论
 
