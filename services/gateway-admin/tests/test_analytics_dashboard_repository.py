@@ -1,9 +1,51 @@
 from src.api import deps
 from src.core.config import get_settings
 from src.storage.analytics.analytics_dashboard import ClickHouseAnalyticsDashboardRepository
+from src.storage.analytics.postgres_analytics_dashboard import PostgresAnalyticsDashboardRepository
 
 
-def test_analytics_dependency_uses_clickhouse_repository(monkeypatch) -> None:
+def _postgres_event(
+    event_id: str,
+    event_name: str,
+    *,
+    distinct_id: str = "hashed-user",
+    timestamp: str = "2026-04-16T00:00:00+00:00",
+    source: str = "gateway",
+    properties: dict | None = None,
+) -> dict:
+    return {
+        "event_id": event_id,
+        "event_name": event_name,
+        "timestamp": timestamp,
+        "distinct_id": distinct_id,
+        "source": source,
+        "properties": properties or {},
+    }
+
+
+def _stub_postgres_events(monkeypatch, repository: PostgresAnalyticsDashboardRepository, events: list[dict], *, source_status: str = "healthy") -> None:
+    monkeypatch.setattr(
+        repository,
+        "_safe_events",
+        lambda _window: type("Result", (), {"rows": events, "source_status": source_status, "error": None})(),
+    )
+
+
+def test_analytics_dependency_uses_postgres_repository_by_default(monkeypatch) -> None:
+    monkeypatch.setenv("ANALYTICS_CLICKHOUSE_URL", "http://clickhouse.test:8123")
+    get_settings.cache_clear()
+    deps.get_analytics_dashboard_repository.cache_clear()
+
+    repository = deps.get_analytics_dashboard_repository()
+
+    assert isinstance(repository, PostgresAnalyticsDashboardRepository)
+
+    deps.get_analytics_dashboard_repository.cache_clear()
+    get_settings.cache_clear()
+
+
+def test_analytics_dependency_keeps_clickhouse_escape_hatch(monkeypatch) -> None:
+    monkeypatch.setenv("ADMIN_ANALYTICS_SOURCE", "clickhouse")
     monkeypatch.setenv("ANALYTICS_CLICKHOUSE_URL", "http://clickhouse.test:8123")
     get_settings.cache_clear()
     deps.get_analytics_dashboard_repository.cache_clear()
@@ -65,6 +107,209 @@ def test_clickhouse_data_quality_marks_raw_wallet_and_missing_critical_events_as
     assert payload["duplicateRate"] == 0.1
     assert payload["privacyViolations"] == 1
     assert any(item["eventName"] == "invoke_completed" and item["seen"] is False for item in payload["criticalEventsFreshness"])
+
+
+def test_postgres_overview_reads_outbox_payloads(monkeypatch) -> None:
+    repository = PostgresAnalyticsDashboardRepository("postgresql://example.invalid/db")
+    events = [
+        {
+            "event_id": "evt-1",
+            "event_name": "invoke_completed",
+            "timestamp": "2026-04-16T00:00:00+00:00",
+            "distinct_id": "hashed-consumer",
+            "source": "gateway",
+            "properties": {"price_usdc": "1.250000"},
+        },
+        {
+            "event_id": "evt-2",
+            "event_name": "provider_revenue_received",
+            "timestamp": "2026-04-16T00:00:01+00:00",
+            "distinct_id": "hashed-provider",
+            "source": "gateway",
+            "properties": {"platform_fee_usdc": "0.125000", "provider_net_usdc": "1.125000"},
+        },
+    ]
+    monkeypatch.setattr(
+        repository,
+        "_safe_events",
+        lambda _window: type("Result", (), {"rows": events, "source_status": "healthy", "error": None})(),
+    )
+
+    payload = repository.get_overview("24h")
+
+    assert payload["cards"][0]["key"] == "gmv_usdc"
+    assert payload["cards"][0]["value"] == "1.250000"
+    assert next(card for card in payload["cards"] if card["key"] == "analytics_health")["detail"] == "Postgres analytics outbox is queryable."
+
+
+def test_postgres_data_quality_does_not_treat_tx_hash_as_privacy_violation(monkeypatch) -> None:
+    repository = PostgresAnalyticsDashboardRepository("postgresql://example.invalid/db")
+    events = [
+        {
+            "event_id": "evt-1",
+            "event_name": "page_viewed",
+            "timestamp": "2026-04-16T00:00:00+00:00",
+            "distinct_id": "hashed-user",
+            "source": "gateway",
+            "properties": {},
+        },
+        {
+            "event_id": "evt-2",
+            "event_name": "wallet_connected",
+            "timestamp": "2026-04-16T00:00:00+00:00",
+            "distinct_id": "hashed-user",
+            "source": "gateway",
+            "properties": {},
+        },
+        {
+            "event_id": "evt-3",
+            "event_name": "invoke_completed",
+            "timestamp": "2026-04-16T00:00:00+00:00",
+            "distinct_id": "hashed-user",
+            "source": "gateway",
+            "properties": {
+                "service_id": "svc.echo",
+                "provider_id": "provider-1",
+                "price_usdc": "1.000000",
+                "tx_hash": "0x" + "a" * 64,
+            },
+        },
+        {
+            "event_id": "evt-4",
+            "event_name": "deposit_completed",
+            "timestamp": "2026-04-16T00:00:00+00:00",
+            "distinct_id": "hashed-user",
+            "source": "gateway",
+            "properties": {"amount_usdc": "10.000000", "time_to_confirm_ms": 100},
+        },
+    ]
+    monkeypatch.setattr(
+        repository,
+        "_safe_events",
+        lambda _window: type("Result", (), {"rows": events, "source_status": "healthy", "error": None})(),
+    )
+
+    payload = repository.get_data_quality("24h")
+
+    assert payload["overallStatus"] == "nominal"
+    assert payload["privacyViolations"] == 0
+    assert payload["missingRequiredProperties"] == 0
+
+
+def test_postgres_repository_projects_all_admin_analytics_views(monkeypatch) -> None:
+    repository = PostgresAnalyticsDashboardRepository("postgresql://example.invalid/db")
+    events = [
+        _postgres_event("evt-page", "page_viewed"),
+        _postgres_event("evt-wallet", "wallet_connected"),
+        _postgres_event("evt-signup", "consumer_signup_completed"),
+        _postgres_event("evt-quote", "quote_generated"),
+        _postgres_event("evt-deposit", "deposit_completed", properties={"amount_usdc": "25", "time_to_confirm_ms": 100}),
+        _postgres_event("evt-started", "invoke_started"),
+        _postgres_event(
+            "evt-completed-1",
+            "invoke_completed",
+            timestamp="2026-04-16T00:10:00+00:00",
+            properties={"service_id": "svc.echo", "provider_id": "provider-1", "price_usdc": "2.000000", "latency_ms": 100, "is_first_invoke": True, "request_id": "req-1"},
+        ),
+        _postgres_event(
+            "evt-completed-2",
+            "invoke_completed",
+            timestamp="2026-04-16T00:20:00+00:00",
+            properties={"service_id": "svc.echo", "provider_id": "provider-1", "price_usdc": "4.000000", "latency_ms": 300, "request_id": "req-2"},
+        ),
+        _postgres_event(
+            "evt-failed",
+            "invoke_failed",
+            timestamp="2026-04-16T00:30:00+00:00",
+            properties={"error_code": "UPSTREAM_TIMEOUT", "failure_stage": "provider", "surface": "gateway_api", "quote_id": "quote-failed"},
+        ),
+        _postgres_event(
+            "evt-provider-revenue",
+            "provider_revenue_received",
+            distinct_id="hashed-provider",
+            properties={"provider_id": "provider-1", "service_id": "svc.echo", "gross_usdc": "6.000000", "platform_fee_usdc": "0.600000", "provider_net_usdc": "5.400000"},
+        ),
+        _postgres_event(
+            "evt-first-provider-revenue",
+            "provider_first_revenue_received",
+            distinct_id="hashed-provider",
+            properties={"provider_id": "provider-1", "gross_usdc": "6.000000", "time_since_listing_ms": 1200},
+        ),
+        _postgres_event("evt-claim-requested", "settlement_claim_requested", properties={"claim_usdc": "5.400000"}),
+        _postgres_event("evt-claim-completed", "settlement_claim_completed", properties={"claim_usdc": "5.400000", "time_to_confirm_ms": 500}),
+        _postgres_event("evt-claim-failed", "settlement_claim_failed", properties={"claim_usdc": "1.000000"}),
+        _postgres_event("evt-deposit-failed", "deposit_failed", properties={"error_code": "INVALID_INTENT", "amount_usdc": "3", "env": "staging", "correlation_id": "dep-1", "tx_hash": "0xabc"}),
+        _postgres_event("evt-withdrawal-completed", "withdrawal_completed", properties={"amount_usdc": "2", "time_to_confirm_ms": 200}),
+        _postgres_event("evt-withdrawal-failed", "withdrawal_failed", properties={"amount_usdc": "1", "error_code": "CHAIN_REVERT"}),
+        _postgres_event("evt-refund", "refund_completed", properties={"amount_usdc": "1.5", "reason_code": "consumer_refund"}),
+        _postgres_event("evt-risk", "risk_rule_triggered", properties={"severity": "critical", "rule_code": "velocity_limit", "surface": "gateway_api"}),
+        _postgres_event(
+            "evt-budget",
+            "budget_blocked",
+            properties={"error_code": "OWNER_LIMIT", "service_id": "svc.echo", "surface": "gateway_api", "required_usdc": "10", "available_usdc": "7"},
+        ),
+        _postgres_event("evt-provider-health", "provider_health_degraded", properties={"provider_id": "provider-1", "service_id": "svc.echo", "reason": "probe_failed"}),
+        _postgres_event("evt-privacy", "page_viewed", distinct_id="hashed-privacy", properties={"wallet_address": "0x" + "1" * 40}),
+    ]
+    _stub_postgres_events(monkeypatch, repository, events)
+
+    overview = repository.get_overview("24h")
+    funnel = repository.get_consumer_funnel("24h")
+    invocation = repository.get_invocation_revenue("24h")
+    provider = repository.get_provider_revenue("24h")
+    money = repository.get_money_flow("24h")
+    risk = repository.get_risk_health("24h")
+    quality = repository.get_data_quality("24h")
+
+    assert overview["overallStatus"] == "degraded"
+    assert any(alert["title"] == "Critical risk events" for alert in overview["alerts"])
+    assert funnel["summary"]["firstInvokeUsers"] == 1
+    assert invocation["invokeCompletedCount"] == 2
+    assert invocation["gmvUsdc"] == "6.000000"
+    assert invocation["latencyMs"]["p95"] == 290.0
+    assert invocation["failureStages"][0]["key"] == "provider"
+    assert provider["revenueProviderCount"] == 1
+    assert provider["settlementCompletedUsdc"] == "5.400000"
+    assert provider["topProviders"][0]["providerNetUsdc"] == "5.400000"
+    assert money["depositFailedCount"] == 1
+    assert money["depositFailureSamples"][0]["correlationId"] == "dep-1"
+    assert risk["budgetGapUsdc"] == "3.000000"
+    assert risk["budgetBlocks"][0]["gapUsdc"] == "3.000000"
+    assert quality["overallStatus"] == "degraded"
+    assert quality["privacyViolations"] == 1
+    assert quality["sourceCoverage"]["gateway"] == len(events)
+
+
+def test_postgres_safe_events_reports_degraded_when_postgres_is_unavailable(monkeypatch) -> None:
+    repository = PostgresAnalyticsDashboardRepository("postgresql://example.invalid/db")
+
+    def raise_connect(*_args, **_kwargs):
+        raise RuntimeError("postgres unavailable")
+
+    monkeypatch.setattr("src.storage.analytics.postgres_analytics_dashboard.psycopg.connect", raise_connect)
+
+    result = repository._safe_events("24h")
+
+    assert result.rows == []
+    assert result.source_status == "degraded"
+    assert result.error == "postgres unavailable"
+
+
+def test_postgres_normalizes_json_payload_rows() -> None:
+    row = {
+        "event_id": "row-event-id",
+        "event_name": "row-event",
+        "event_key": "row-key",
+        "created_at": "2026-04-16T00:00:00+00:00",
+        "payload": '{"event_id":"payload-event-id","event_name":"payload-event","timestamp":"2026-04-16T00:01:00+00:00","distinct_id":"payload-user","source":"gateway","properties":{"price_usdc":"1.23"}}',
+    }
+
+    normalized = PostgresAnalyticsDashboardRepository._normalize_event(row)
+
+    assert normalized["event_id"] == "payload-event-id"
+    assert normalized["event_name"] == "payload-event"
+    assert normalized["distinct_id"] == "payload-user"
+    assert normalized["properties"]["price_usdc"] == "1.23"
 
 
 def test_clickhouse_data_quality_does_not_treat_tx_hash_as_privacy_violation(monkeypatch) -> None:
