@@ -66,6 +66,7 @@
     "ci:llm-deepseek-local-evidence": "LLM_DEEPSEEK_E2E_ENV=local node scripts/ci/llm_deepseek_gateway_evidence_check.mjs",
     "ci:llm-deepseek-staging-evidence": "LLM_DEEPSEEK_E2E_ENV=staging node scripts/ci/llm_deepseek_gateway_evidence_check.mjs",
     "ci:in-app-notifications-evidence": "node scripts/ci/in_app_notifications_evidence_check.mjs",
+    "ci:admin-regression-evidence": "node scripts/ci/admin_regression_evidence_check.mjs",
     "ci:backup-restore-evidence": "node scripts/ci/backup_restore_evidence_check.mjs",
     "ci:pr": "bash scripts/ci/pr_checks.sh",
     "ci:provider-service": "bash scripts/ci/provider_service_checks.sh",
@@ -148,6 +149,9 @@
     "e2e:admin-analytics-10k:reconcile": "node scripts/e2e/admin_analytics_10k_reconcile.mjs",
     "e2e:admin-analytics-10k:dogfood": "node scripts/ui/dogfood_admin_analytics_10k.mjs",
     "e2e:admin-analytics-10k": "npm run e2e:admin-analytics-10k:fullchain && npm run e2e:admin-analytics-10k:reconcile && npm run e2e:admin-analytics-10k:dogfood",
+    "e2e:admin-analytics-postgres": "ADMIN_ANALYTICS_SOURCE=postgres node scripts/e2e/admin_analytics_postgres_regression.mjs",
+    "e2e:admin-regression": "ADMIN_REGRESSION_ENV=local node scripts/e2e/admin_regression.mjs",
+    "e2e:admin-regression:staging": "ADMIN_REGRESSION_ENV=staging SYNAPSE_E2E_ENV=staging ALLOW_GCP_SECRET_MANAGER=1 node scripts/e2e/admin_regression.mjs --staging",
     "release:evidence:gateway-fullchain:local": "SYNAPSE_E2E_ENV=local ALLOW_GCP_SECRET_MANAGER=0 GATEWAY_RELEASE_E2E_ENV=local bash scripts/e2e/gateway_release_evidence_run.sh",
     "release:evidence:gateway-fullchain:staging": "SYNAPSE_E2E_ENV=staging ALLOW_GCP_SECRET_MANAGER=1 GATEWAY_RELEASE_E2E_ENV=staging bash scripts/e2e/gateway_release_evidence_run.sh",
     "ci:diff-coverage": "bash scripts/ci/diff_coverage_gate.sh"
