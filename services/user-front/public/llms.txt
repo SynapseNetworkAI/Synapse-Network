@@ -32,9 +32,9 @@ SynapseNetwork is the settlement layer for the AI agent economy. It lets AI agen
 - Contracts: https://docs.synapse-network.ai/smart-contracts
 - TypeScript SDK: https://docs.synapse-network.ai/sdks/typescript
 - Python SDK: https://docs.synapse-network.ai/sdks/python
-- Go SDK (Consumer Preview): https://github.com/cliff-personal/Synapse-Network-Sdk/blob/main/docs/sdk/go_integration.md
-- Java/JVM SDK (Consumer Preview): https://github.com/cliff-personal/Synapse-Network-Sdk/blob/main/docs/sdk/java_integration.md
-- .NET SDK (Consumer Preview): https://github.com/cliff-personal/Synapse-Network-Sdk/blob/main/docs/sdk/dotnet_integration.md
+- Go SDK: https://docs.synapse-network.ai/sdks/go
+- Java/JVM SDK: https://docs.synapse-network.ai/sdks/java
+- .NET SDK: https://docs.synapse-network.ai/sdks/dotnet
 
 ## Public Links
 

@@ -1,0 +1,61 @@
+---
+title: .NET SDK
+description: Use the Public Preview .NET SDK from .NET 8 services and worker agents.
+---
+
+The .NET SDK is in Public Preview and is intended for NuGet publication as `SynapseNetwork.Sdk`.
+
+```xml
+<PackageReference Include="SynapseNetwork.Sdk" Version="0.1.0-preview" />
+```
+
+```csharp
+using SynapseNetwork.Sdk;
+
+var client = new SynapseClient(new SynapseClientOptions
+{
+    Credential = Environment.GetEnvironmentVariable("SYNAPSE_AGENT_KEY")!,
+    Environment = "staging",
+});
+
+var services = await client.SearchAsync("svc_synapse_echo", new SearchOptions { Limit = 10 });
+var service = services[0];
+var price = service.Pricing?.GetProperty("amount").GetString() ?? "0";
+
+var result = await client.InvokeAsync(
+    service.ServiceId ?? service.Id!,
+    new Dictionary<string, object?>
+    {
+        ["message"] = "hello from Synapse SDK smoke",
+        ["metadata"] = new Dictionary<string, object?> { ["scenario"] = "quickstart" },
+    },
+    new InvokeOptions { CostUsdc = price });
+
+Console.WriteLine($"{result.InvocationId} {result.Status} {result.ChargedUsdc}");
+```
+
+## Token-metered LLM calls
+
+```csharp
+var result = await client.InvokeLlmAsync(
+    "svc_deepseek_chat",
+    new Dictionary<string, object?>
+    {
+        ["messages"] = new[]
+        {
+            new Dictionary<string, object?> { ["role"] = "user", ["content"] = "hello" },
+        },
+    },
+    new LlmInvokeOptions { MaxCostUsdc = "0.010000" });
+```
+
+<AgentNote>
+  .NET agents use `SYNAPSE_AGENT_KEY=agt_xxx` for runtime calls. Fixed-price
+  services must pass discovery `CostUsdc`; token-metered LLM services use
+  `MaxCostUsdc` as an optional budget cap.
+</AgentNote>
+
+<WarningNote>
+  Treat the package as Public Preview until the NuGet release and production
+  docs are formally promoted.
+</WarningNote>
