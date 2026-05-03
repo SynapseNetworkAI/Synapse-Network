@@ -3,7 +3,7 @@ id: admin-analytics-10k-load-dogfood-verification
 title: Admin Analytics 10k Load Dogfood Verification
 status: canonical
 created_at: 2026-04-20
-updated_at: 2026-04-20
+updated_at: 2026-05-03
 owner: admin-front
 verified_with:
   - node --check scripts/e2e/admin_analytics_10k_fullchain.mjs
@@ -13,13 +13,13 @@ verified_with:
 
 # Admin Analytics 10k Load Dogfood Verification
 
-This runbook verifies that Gateway paid invocation analytics survive a realistic local/staging load shape and remain consistent across ClickHouse, `gateway-admin`, and `admin-front`.
+This runbook verifies that Gateway paid invocation analytics survive a realistic local/staging load shape and remain consistent across the configured raw analytics source, `gateway-admin`, and `admin-front`.
 
 It is intentionally **not** part of `ci:pr`. It requires local or staging services, a local chain, Redis, Kafka, ClickHouse, an admin session, three live provider endpoints, and a real browser.
 
-This verification is strict by default: Gateway Analytics must write to Kafka, ClickHouse must consume the Kafka topic through its Kafka Engine table and materialized view, and no fallback-file import or direct ClickHouse fixture insert may be used to claim a pass.
+For Admin regression, this verification is Postgres-only: set `ADMIN_ANALYTICS_SOURCE=postgres`, write Gateway analytics through the Postgres outbox path, and compare Admin Analytics APIs against raw Postgres SQL. ClickHouse remains an explicit compatibility escape hatch only when `ADMIN_ANALYTICS_SOURCE=clickhouse`.
 
-Future production optimization may move money-critical analytics to Transactional Outbox. When that lands, this runbook's strict path becomes: ledger transaction -> analytics outbox -> gateway-worker -> Kafka -> ClickHouse -> gateway-admin -> admin-front. The no-mock rule remains unchanged: no fallback-file import and no direct ClickHouse fixture inserts.
+The no-mock rule remains unchanged: no fallback-file import and no direct analytics fixture inserts may be used to claim a pass. The Admin regression truth path is Gateway event -> `synapse_analytics_outbox` -> gateway-admin Postgres Analytics repository -> admin-front.
 
 ## Scenario
 
@@ -45,14 +45,14 @@ Platform fee and Provider net are not hardcoded in the verifier. They are read f
 
 ## Baseline + Delta Rule
 
-Do not clear ClickHouse before this test.
+Do not clear the analytics source before this test.
 
-The suite captures a 24h ClickHouse baseline before load. After the load, it verifies:
+The suite captures a 24h baseline before load. After the load, it verifies:
 
-1. Current absolute ClickHouse values match the seven `gateway-admin` Analytics APIs.
+1. Current absolute raw analytics values match the seven `gateway-admin` Analytics APIs.
 2. Current absolute UI values match the `gateway-admin` APIs.
-3. `post_run_clickhouse - baseline_clickhouse` contains at least the expected 10,000 paid invokes and the receipt total-charge GMV for the run.
-4. The run-specific ClickHouse rows identified by `runId/e2e_marker` and unique service ids contain the expected core events.
+3. `post_run_source - baseline_source` contains at least the expected 10,000 paid invokes and the receipt total-charge GMV for the run.
+4. The run-specific Postgres rows identified by `runId/e2e_marker` and unique service ids contain the expected core events when `ADMIN_ANALYTICS_SOURCE=postgres`.
 
 This makes the test safe to run in dirty local/staging environments where older analytics rows may still exist.
 
@@ -70,7 +70,17 @@ If a page requires a signal that cannot be produced by a stable public/runtime p
 
 ## Commands
 
-Prepare local strict dependencies. This starts Redis, Kafka, and ClickHouse from `infra/docker/local/docker-compose.yml`, restarts Gateway with `REDIS_URL`, `ANALYTICS_KAFKA_BOOTSTRAP_SERVERS`, and `ANALYTICS_STRICT_KAFKA=1`, then verifies `/health` and the strict Kafka startup log:
+For Admin regression, run the Postgres-only path:
+
+```bash
+ADMIN_ANALYTICS_SOURCE=postgres \
+ANALYTICS_TRANSPORT=outbox \
+ADMIN_ANALYTICS_STRICT_REAL_PIPELINE=0 \
+ADMIN_ANALYTICS_LOAD_TOTAL=10000 \
+npm run e2e:admin-analytics-10k
+```
+
+Legacy ClickHouse compatibility can still prepare local strict dependencies. This starts Redis, Kafka, and ClickHouse from `infra/docker/local/docker-compose.yml`, restarts Gateway with `REDIS_URL`, `ANALYTICS_KAFKA_BOOTSTRAP_SERVERS`, and `ANALYTICS_STRICT_KAFKA=1`, then verifies `/health` and the strict Kafka startup log:
 
 ```bash
 npm run e2e:admin-analytics-10k:prepare
@@ -98,11 +108,11 @@ npm run e2e:admin-analytics-10k:fullchain
 
 When this suite runs locally, it uses `ANALYTICS_STRICT_KAFKA=1` to override the normal local file backend. If Gateway starts in `Analytics: File-only mode`, if Kafka is unavailable, or if ClickHouse cannot query `synapse_analytics.events_kafka`, the run fails before any 10k result can be claimed.
 
-Reconcile ClickHouse and `gateway-admin`:
+Reconcile the configured analytics source and `gateway-admin`:
 
 ```bash
 ADMIN_GATEWAY_URL=http://127.0.0.1:8300 \
-ANALYTICS_CLICKHOUSE_URL=http://127.0.0.1:8123 \
+ADMIN_ANALYTICS_SOURCE=postgres \
 npm run e2e:admin-analytics-10k:reconcile
 ```
 
@@ -131,14 +141,14 @@ output/analytics-load/<runId>/
 
 Important files:
 
-| File                           | Purpose                                                                                        |
-| ------------------------------ | ---------------------------------------------------------------------------------------------- |
-| `fixture.json`                 | Wallet/session/service/deposit/credential/receipt/load fixture.                                |
-| `report.json`                  | ClickHouse + gateway-admin reconciliation checks.                                              |
-| `report.md`                    | Human-readable reconciliation summary with seven expected/ClickHouse/API/UI comparison tables. |
-| `admin-page-verification.json` | Browser click, DOM, console, screenshot checks, and `adminFrontActual` values.                 |
-| `admin-page-verification.md`   | Human-readable browser verification report and screenshot list.                                |
-| `screens/*.png`                | Seven Analytics pages plus interaction screenshots.                                            |
+| File                           | Purpose                                                                                    |
+| ------------------------------ | ------------------------------------------------------------------------------------------ |
+| `fixture.json`                 | Wallet/session/service/deposit/credential/receipt/load fixture.                            |
+| `report.json`                  | Raw analytics source + gateway-admin reconciliation checks.                                |
+| `report.md`                    | Human-readable reconciliation summary with seven expected/source/API/UI comparison tables. |
+| `admin-page-verification.json` | Browser click, DOM, console, screenshot checks, and `adminFrontActual` values.             |
+| `admin-page-verification.md`   | Human-readable browser verification report and screenshot list.                            |
+| `screens/*.png`                | Seven Analytics pages plus interaction screenshots.                                        |
 
 Do not commit `output/` evidence unless a release evidence bundle explicitly requests it.
 
@@ -155,32 +165,32 @@ Do not commit `output/` evidence unless a release evidence bundle explicitly req
 
 - `quote_generated`, `invoke_started`, and `invoke_completed` event counts increase by at least `+10000`.
 - User counts are distinct-user counts. They are expected to increase by one consumer, not by 10,000.
-- Conversion and dropoff values match raw ClickHouse aggregation.
+- Conversion and dropoff values match raw analytics aggregation.
 
 ### Invocation Revenue
 
-- Quote, started, completed, failed, success rate, GMV, and latency values match ClickHouse.
+- Quote, started, completed, failed, success rate, GMV, and latency values match the configured raw analytics source.
 - Failure-stage and error-code distributions are compared when real runtime failures exist; the strict suite does not insert fake failure rows.
 
 ### Provider Revenue
 
-- Provider gross, platform fee, and provider net match raw ClickHouse.
+- Provider gross, platform fee, and provider net match raw analytics rows.
 - Top provider includes the load-test provider.
 - `Available to withdraw` remains a finance projection and is not treated as window-local settlement pending.
 
 ### Money Flow
 
 - Deposit amount includes the test deposit delta.
-- Failed deposit, withdrawal, and refund samples are compared when produced by real runtime paths. Missing synthetic samples do not pass silently; the report must show the actual ClickHouse/API values.
+- Failed deposit, withdrawal, and refund samples are compared when produced by real runtime paths. Missing synthetic samples do not pass silently; the report must show the actual raw-source/API values.
 
 ### Risk Health
 
-- Budget blocks, risk rules, provider degraded, and refund reasons match raw ClickHouse. Only real Gateway/Kafka events count.
+- Budget blocks, risk rules, provider degraded, and refund reasons match raw analytics rows. Only real Gateway events count.
 - The overview Budget blocks alert must navigate to `/dashboard/analytics/risk-health?window=<window>&focus=budget_blocked`.
 
 ### Data Quality
 
-- Event count matches raw ClickHouse.
+- Event count matches raw analytics rows.
 - Duplicate rate is zero for the run-specific rows.
 - Raw wallet identifiers do not appear in `distinct_id`.
 - Critical freshness and source coverage are surfaced.
@@ -188,12 +198,12 @@ Do not commit `output/` evidence unless a release evidence bundle explicitly req
 ## Acceptance Criteria
 
 - `fixture.json` contains three service ids and 10,000 successful invocation receipts.
-- `fixture.json` records `strict_kafka_clickhouse`, `fallbackImport.imported = 0`, and `directClickHouseFixtureRows = 0`.
-- ClickHouse run rows include at least 10,000 `invoke_completed` and 10,000 `provider_revenue_received` events from Kafka.
-- After Transactional Outbox is enabled, strict evidence must also show outbox backlog drained, sent rows deleted, zero dead-letter rows for the run, and no duplicate `event_id` delivery under multi-worker consumption.
+- For Admin regression, `fixture.json` records `analyticsPipeline.source = postgres` and `analyticsPipeline.mode = postgres_outbox`.
+- Postgres run rows include at least 10,000 `invoke_completed` and 10,000 `provider_revenue_received` events.
+- Legacy ClickHouse compatibility evidence may still record `strict_kafka_clickhouse`, `fallbackImport.imported = 0`, and `directClickHouseFixtureRows = 0`, but that is not the Admin regression truth source.
 - `report.json.status === "success"`.
 - `admin-page-verification.json.status === "success"`.
-- All seven page comparison tables pass across expected fixture, ClickHouse, gateway-admin API, and admin-front DOM.
+- All seven page comparison tables pass across expected fixture, raw analytics source, gateway-admin API, and admin-front DOM.
 - Browser console has no uncaught errors.
 - Seven page screenshots and three interaction screenshots exist.
 - Any failure creates a bugfix record under `docs/reference/bugfix/admin-front/`, `docs/reference/bugfix/gateway-admin/`, or `docs/reference/bugfix/gateway/` before the suite is marked complete.

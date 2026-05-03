@@ -179,6 +179,14 @@ class Settings(BaseSettings):
         default=5.0,
         alias="ANALYTICS_CLICKHOUSE_TIMEOUT_SEC",
     )
+    analytics_source: str = Field(
+        default="postgres",
+        alias="ADMIN_ANALYTICS_SOURCE",
+    )
+    analytics_postgres_timeout_sec: float = Field(
+        default=5.0,
+        alias="ADMIN_ANALYTICS_POSTGRES_TIMEOUT_SEC",
+    )
     gateway_internal_base_url: str = Field(
         default="http://localhost:8000",
         alias="GATEWAY_INTERNAL_BASE_URL",

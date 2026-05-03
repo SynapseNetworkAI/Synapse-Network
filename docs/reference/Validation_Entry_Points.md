@@ -45,10 +45,12 @@ From repository root:
 25. `npm run ci:lark-alert-e2e-evidence`
 26. `npm run e2e:in-app-notifications`
 27. `npm run ci:in-app-notifications-evidence`
-28. `npm run ci:backup-restore-evidence`
-29. `npm run deploy:contracts:arbitrum-sepolia:dry-run`
-30. `npm run ci:contract-deployment-evidence`
-31. `npm run ci:migration-seed-guard`
+28. `npm run e2e:admin-regression`
+29. `npm run ci:admin-regression-evidence`
+30. `npm run ci:backup-restore-evidence`
+31. `npm run deploy:contracts:arbitrum-sepolia:dry-run`
+32. `npm run ci:contract-deployment-evidence`
+33. `npm run ci:migration-seed-guard`
 
 Use these wrappers when final integration confidence is required.
 
@@ -239,6 +241,7 @@ Before finishing:
 35. run `terraform -chdir=infra/terraform/gcp-staging fmt -check` and `terraform -chdir=infra/terraform/gcp-staging validate` when changing Google Cloud staging infrastructure; `terraform validate` requires `terraform init` first
 36. run `npm run deploy:contracts:arbitrum-sepolia:dry-run` before Arbitrum Sepolia staging deployment, then `npm run deploy:contracts:arbitrum-sepolia` and `npm run ci:contract-deployment-evidence` to close staging contract evidence; this requires live Arbitrum Sepolia RPC and funded staging deployer/consumer/provider wallets
 37. follow `docs/ops/19_E2E_Regression_Runbook.md` when doing full local or staging regression. Provider registration, consumer login, deposit, invoke, consumer withdrawal, provider withdrawal/admin review, notifications, analytics, and contract release checks must include the documented read-only SQL evidence. Staging SQL must use an approved read-only DSN or Cloud SQL Auth Proxy connection and must never repair state during regression.
+38. run `npm run e2e:admin-regression` and `npm run ci:admin-regression-evidence` when closing Admin-wide regression, Admin Analytics Postgres source changes, admin notification evidence, withdrawal review orchestration, platform treasury Safe draft evidence, or screenshot/SQL evidence contracts. The evidence must include `expected_state.json`, `sql_evidence.json`, `screenshot_evidence.json`, final-state DOM checkpoints, and Postgres-only Analytics source proof.
 
 Withdrawal evidence coverage is intentionally split:
 

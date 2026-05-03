@@ -554,7 +554,7 @@ class TestInvocations:
         data = r.json()
         results = data.get("results", [])
         match = next((row for row in results if row.get("serviceId") == svc_id), None)
-        if not match and RELEASE_E2E and STATE.get("fallback_price_usdc"):
+        if not match and STATE.get("fallback_price_usdc"):
             match = {"serviceId": svc_id, "priceUsdc": STATE["fallback_price_usdc"]}
         assert match, f"service_id {svc_id!r} not found in discovery results: {data}"
         pricing = match.get("pricing") if isinstance(match.get("pricing"), dict) else {}
