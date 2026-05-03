@@ -64,6 +64,19 @@ const fileEnv = ENV_FILES.reduce(
 );
 const env = { ...fileEnv, ...process.env };
 
+function defaultTxExplorerBaseUrlForEnv(value) {
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase();
+  if (normalized === "staging" || normalized === "stage") {
+    return "https://sepolia.arbiscan.io";
+  }
+  if (normalized === "prod" || normalized === "production") {
+    return "https://arbiscan.io";
+  }
+  return "http://localhost:5100";
+}
+
 const checks = [
   {
     key: "NEXT_PUBLIC_GATEWAY_BASE_URL",
@@ -101,6 +114,14 @@ const checks = [
     fix: "Set NEXT_PUBLIC_DOCS_BASE_URL to http://localhost:3100 locally, https://docs-staging.synapse-network.ai in staging, or https://docs.synapse-network.ai in prod.",
   },
   {
+    key: "NEXT_PUBLIC_TX_EXPLORER_BASE_URL",
+    required: false,
+    description:
+      "Public transaction explorer origin used by invoice/tx links. Local defaults to Otterscan; staging/prod must use the matching chain explorer.",
+    validate: (value) => !value || isHttpUrl(value),
+    fix: "Set NEXT_PUBLIC_TX_EXPLORER_BASE_URL to http://localhost:5100 locally, https://sepolia.arbiscan.io in staging, or https://arbiscan.io in prod.",
+  },
+  {
     key: "NEXT_PUBLIC_SERVICE_LIST_CACHE_TTL_MS",
     required: false,
     description:
@@ -114,6 +135,17 @@ function isHttpUrl(value) {
   try {
     const parsed = new URL(String(value || ""));
     return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function isLocalHttpUrl(value) {
+  try {
+    const parsed = new URL(String(value || ""));
+    return ["localhost", "127.0.0.1", "0.0.0.0", "::1"].includes(
+      parsed.hostname
+    );
   } catch {
     return false;
   }
@@ -177,6 +209,23 @@ for (const check of checks) {
 
 const supportEmail = valueOf("NEXT_PUBLIC_SUPPORT_EMAIL");
 const supportPortal = valueOf("NEXT_PUBLIC_SUPPORT_PORTAL_URL");
+const txExplorerBaseUrl =
+  valueOf("NEXT_PUBLIC_TX_EXPLORER_BASE_URL") ||
+  defaultTxExplorerBaseUrlForEnv(appEnv);
+if (
+  ["staging", "prod"].includes(normalizedAppEnv) &&
+  isLocalHttpUrl(txExplorerBaseUrl)
+) {
+  failures.push({
+    key: "NEXT_PUBLIC_TX_EXPLORER_BASE_URL",
+    reason: `invalid value for ${normalizedAppEnv}: ${JSON.stringify(
+      txExplorerBaseUrl
+    )}`,
+    description:
+      "Invoice and transaction links must point to the public chain explorer for staging/prod, not a local Otterscan instance.",
+    fix: "Use https://sepolia.arbiscan.io for staging or https://arbiscan.io for prod.",
+  });
+}
 if (!supportEmail && !supportPortal) {
   failures.push({
     key: "NEXT_PUBLIC_SUPPORT_EMAIL or NEXT_PUBLIC_SUPPORT_PORTAL_URL",

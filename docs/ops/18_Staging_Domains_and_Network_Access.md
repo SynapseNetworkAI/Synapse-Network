@@ -277,6 +277,7 @@ backup/restore drill jobs.
 ```bash
 NEXT_PUBLIC_GATEWAY_BASE_URL=https://api-staging.synapse-network.ai
 NEXT_PUBLIC_DOCS_BASE_URL=https://docs-staging.synapse-network.ai
+NEXT_PUBLIC_TX_EXPLORER_BASE_URL=https://sepolia.arbiscan.io
 NEXT_PUBLIC_APP_ENV=staging
 ```
 

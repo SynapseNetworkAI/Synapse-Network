@@ -1,11 +1,16 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import { ExternalLink } from "lucide-react";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { XDatePicker } from "@/components/xui/XDatePicker";
 import { useFundsData } from "@/hooks/useFundsData";
+import { getTransactionExplorerUrl } from "@/utils/explorer";
 import { nowDateTimeString } from "@/utils/time";
+
+type Translate = (key: string) => string;
+type BillingRecord = ReturnType<typeof useFundsData>["records"][number];
 
 function formatDateInput(date: Date): string {
   return date.toISOString().slice(0, 10);
@@ -24,12 +29,15 @@ function paymentMethodForRecord(type: string): string {
 
 function typeLabelForRecord(type: string): { label: string; cls: string } {
   if (type === "Withdraw") return { label: "Withdraw", cls: "text-orange-400" };
-  if (type === "Refund")   return { label: "Refund",   cls: "text-sky-400" };
-  if (type === "Claim")    return { label: "Claim",    cls: "text-purple-400" };
+  if (type === "Refund") return { label: "Refund", cls: "text-sky-400" };
+  if (type === "Claim") return { label: "Claim", cls: "text-purple-400" };
   return { label: "Deposit", cls: "text-green-400" };
 }
 
-function statusDisplay(status: string, t: (key: string) => string): {
+function statusDisplay(
+  status: string,
+  t: (key: string) => string
+): {
   className: string;
   label: string;
 } {
@@ -58,6 +66,103 @@ function transactionIdForRecord(id: string): string {
   return `${id.slice(0, 2)}...${id.slice(-4)}`;
 }
 
+function BillingTableMessage({
+  children,
+}: Readonly<{
+  children: ReactNode;
+}>) {
+  return (
+    <tr className="border-b border-[#232323]">
+      <td
+        colSpan={7}
+        className="px-4 py-8 text-center text-[15px] leading-6 text-[#9ca3af]"
+      >
+        {children}
+      </td>
+    </tr>
+  );
+}
+
+function BillingRecordRow({
+  row,
+  t,
+}: Readonly<{
+  row: BillingRecord;
+  t: Translate;
+}>) {
+  const status = statusDisplay(row.status, t);
+  const type = typeLabelForRecord(row.type);
+  const transactionExplorerUrl = getTransactionExplorerUrl(row.txHash);
+
+  return (
+    <tr key={row.id} className="border-b border-[#232323] last:border-b-0">
+      <td className="px-4 py-4 font-mono text-[16px] font-medium leading-6 text-white">
+        {transactionIdForRecord(row.id)}
+      </td>
+      <td className="px-4 py-4 text-[16px] leading-6">
+        <span className={status.className}>{status.label}</span>
+      </td>
+      <td className="px-4 py-4 text-[14px] leading-6">
+        <span className={`font-medium ${type.cls}`}>{type.label}</span>
+      </td>
+      <td className="hidden px-4 py-4 text-[16px] leading-6 text-[#71767b] sm:table-cell">
+        {paymentMethodForRecord(row.type)}
+      </td>
+      <td className="px-4 py-4 text-[16px] leading-6 text-white">
+        ${row.amount.toFixed(2)}
+      </td>
+      <td className="px-4 py-4 text-[16px] leading-6 text-[#71767b]">
+        {formatDateLabel(row.timestamp)}
+      </td>
+      <td className="px-4 py-4 text-right">
+        {transactionExplorerUrl ? (
+          <a
+            href={transactionExplorerUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center justify-end text-[#71767b] transition hover:text-white"
+            aria-label="Open transaction explorer"
+          >
+            <ExternalLink className="h-4 w-4" />
+          </a>
+        ) : (
+          <span className="text-[#5f6468]">--</span>
+        )}
+      </td>
+    </tr>
+  );
+}
+
+function BillingTableHeader({ t }: Readonly<{ t: Translate }>) {
+  return (
+    <thead>
+      <tr className="border-b border-[#373737]">
+        <th className="px-4 py-3 text-left text-[14px] font-medium leading-[20px] text-[#d1d5db]">
+          {t("billingPage.tableTransactionId")}
+        </th>
+        <th className="px-4 py-3 text-left text-[14px] font-medium leading-[20px] text-[#d1d5db]">
+          {t("billingPage.tableStatus")}
+        </th>
+        <th className="px-4 py-3 text-left text-[14px] font-medium leading-[20px] text-[#d1d5db]">
+          Type
+        </th>
+        <th className="hidden px-4 py-3 text-left text-[14px] font-medium leading-[20px] text-[#d1d5db] sm:table-cell">
+          {t("billingPage.tablePaymentMethod")}
+        </th>
+        <th className="px-4 py-3 text-left text-[14px] font-medium leading-[20px] text-[#d1d5db]">
+          {t("billingPage.tableAmount")}
+        </th>
+        <th className="px-4 py-3 text-left text-[14px] font-medium leading-[20px] text-[#d1d5db]">
+          {t("billingPage.tableDate")}
+        </th>
+        <th className="px-4 py-3 text-right text-[14px] font-medium leading-[20px] text-[#d1d5db]">
+          {t("billingPage.tableInvoice")}
+        </th>
+      </tr>
+    </thead>
+  );
+}
+
 export default function OwnerBillingPage() {
   const { t } = useLanguage();
   const { records, loading } = useFundsData();
@@ -68,80 +173,27 @@ export default function OwnerBillingPage() {
   const filteredRecords = useMemo(() => {
     const from = new Date(`${fromDate}T00:00:00`).getTime();
     const to = new Date(`${toDate}T23:59:59`).getTime();
-    return records.filter((row) => row.timestamp >= from && row.timestamp <= to);
+    return records.filter(
+      (row) => row.timestamp >= from && row.timestamp <= to
+    );
   }, [fromDate, records, toDate]);
 
   const tableRows = useMemo(() => {
     if (loading) {
       return (
-        <tr className="border-b border-[#232323]">
-          <td
-            colSpan={7}
-            className="px-4 py-8 text-center text-[15px] leading-6 text-[#9ca3af]"
-          >
-            {t("billingPage.loading")}
-          </td>
-        </tr>
+        <BillingTableMessage>{t("billingPage.loading")}</BillingTableMessage>
       );
     }
 
     if (filteredRecords.length === 0) {
       return (
-        <tr className="border-b border-[#232323]">
-          <td
-            colSpan={7}
-            className="px-4 py-8 text-center text-[15px] leading-6 text-[#9ca3af]"
-          >
-            {t("billingPage.empty")}
-          </td>
-        </tr>
+        <BillingTableMessage>{t("billingPage.empty")}</BillingTableMessage>
       );
     }
 
-    return filteredRecords.map((row) => {
-      const status = statusDisplay(row.status, t);
-      const type = typeLabelForRecord(row.type);
-
-      return (
-        <tr
-          key={row.id}
-          className="border-b border-[#232323] last:border-b-0"
-        >
-          <td className="px-4 py-4 font-mono text-[16px] font-medium leading-6 text-white">
-            {transactionIdForRecord(row.id)}
-          </td>
-          <td className="px-4 py-4 text-[16px] leading-6">
-            <span className={status.className}>{status.label}</span>
-          </td>
-          <td className="px-4 py-4 text-[14px] leading-6">
-            <span className={`font-medium ${type.cls}`}>{type.label}</span>
-          </td>
-          <td className="hidden px-4 py-4 text-[16px] leading-6 text-[#71767b] sm:table-cell">
-            {paymentMethodForRecord(row.type)}
-          </td>
-          <td className="px-4 py-4 text-[16px] leading-6 text-white">
-            ${row.amount.toFixed(2)}
-          </td>
-          <td className="px-4 py-4 text-[16px] leading-6 text-[#71767b]">
-            {formatDateLabel(row.timestamp)}
-          </td>
-          <td className="px-4 py-4 text-right">
-            {row.txHash ? (
-              <a
-                href={`https://etherscan.io/tx/${row.txHash}`}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center justify-end text-[#71767b] transition hover:text-white"
-              >
-                <ExternalLink className="h-4 w-4" />
-              </a>
-            ) : (
-              <span className="text-[#5f6468]">--</span>
-            )}
-          </td>
-        </tr>
-      );
-    });
+    return filteredRecords.map((row) => (
+      <BillingRecordRow key={row.id} row={row} t={t} />
+    ));
   }, [filteredRecords, loading, t]);
 
   const handleFromDateChange = (nextValue: string) => {
@@ -214,31 +266,7 @@ export default function OwnerBillingPage() {
 
             <div className="overflow-x-auto overflow-y-visible -mx-2 sm:mx-0">
               <table className="relative w-full min-w-[600px] sm:min-w-0">
-                <thead>
-                  <tr className="border-b border-[#373737]">
-                    <th className="px-4 py-3 text-left text-[14px] font-medium leading-[20px] text-[#d1d5db]">
-                      {t("billingPage.tableTransactionId")}
-                    </th>
-                    <th className="px-4 py-3 text-left text-[14px] font-medium leading-[20px] text-[#d1d5db]">
-                      {t("billingPage.tableStatus")}
-                    </th>
-                    <th className="px-4 py-3 text-left text-[14px] font-medium leading-[20px] text-[#d1d5db]">
-                      Type
-                    </th>
-                    <th className="hidden px-4 py-3 text-left text-[14px] font-medium leading-[20px] text-[#d1d5db] sm:table-cell">
-                      {t("billingPage.tablePaymentMethod")}
-                    </th>
-                    <th className="px-4 py-3 text-left text-[14px] font-medium leading-[20px] text-[#d1d5db]">
-                      {t("billingPage.tableAmount")}
-                    </th>
-                    <th className="px-4 py-3 text-left text-[14px] font-medium leading-[20px] text-[#d1d5db]">
-                      {t("billingPage.tableDate")}
-                    </th>
-                    <th className="px-4 py-3 text-right text-[14px] font-medium leading-[20px] text-[#d1d5db]">
-                      {t("billingPage.tableInvoice")}
-                    </th>
-                  </tr>
-                </thead>
+                <BillingTableHeader t={t} />
                 <tbody>{tableRows}</tbody>
               </table>
             </div>
