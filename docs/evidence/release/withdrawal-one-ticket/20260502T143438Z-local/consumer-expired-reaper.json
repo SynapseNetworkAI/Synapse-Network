@@ -1,0 +1,97 @@
+{
+  "name": "consumer-expired-reaper",
+  "status": "passed",
+  "pass": true,
+  "runId": "wot-20260502143447",
+  "generatedAt": "2026-05-02T14:35:57.639Z",
+  "summary": "consumer ticket expired and reaper released funds",
+  "role": "consumer",
+  "withdrawalId": "38b0cee3-293f-47b1-ab65-48fc241a76b2",
+  "ticketHash": "0xffa5bc1c7a92ac6a257fda9bc007348f859db399ed24f2880b1cb4d3f7031582",
+  "deadline": 1777732551,
+  "softRevoke": null,
+  "expected": {
+    "dbStatus": "FAILED_EXPIRED",
+    "ticketConsumed": false,
+    "localPastDeadlineBuffer": true,
+    "rpcPastDeadlineMargin": true
+  },
+  "actual": {
+    "dbStatus": "FAILED_EXPIRED",
+    "ticketConsumed": false,
+    "rpcBlockTimestamp": 1777732560,
+    "localNow": 1777732557,
+    "balanceBefore": {
+      "ownerAddress": "0x918e89c214a446c58f284392bd09c046e7e3270b",
+      "ownerBalance": "109.999900",
+      "consumerAvailableBalance": "109.999900",
+      "consumerPendingBalance": "10.000000",
+      "consumerFrozenBalance": "0.000000",
+      "providerReceivable": "0.000000",
+      "providerReceivableBalance": "0.000000",
+      "providerLockedBalance": "0.000000",
+      "platformFeeAccrued": "10.000100",
+      "updatedAt": "2026-05-02 14:34:51"
+    },
+    "row": {
+      "id": "38b0cee3-293f-47b1-ab65-48fc241a76b2",
+      "ownerAddress": "0x918e89c214a446c58f284392bd09c046e7e3270b",
+      "status": "FAILED_EXPIRED",
+      "requestId": "",
+      "consumerAddress": "0x918e89c214a446c58f284392bd09c046e7e3270b",
+      "amountUsdc": "10.000000",
+      "idempotencyKey": "wot:wot-20260502143447:consumer-expired-reaper:1777732491470",
+      "reason": "consumer-expired-reaper",
+      "signature": "[redacted]",
+      "gasPayer": "OWNER",
+      "gasModel": "OWNER_PAYS_ONCHAIN",
+      "refundType": "CONSUMER_BALANCE_WITHDRAW",
+      "destinationAddress": "0x918e89c214a446c58f284392bd09c046e7e3270b",
+      "riskLevel": "green",
+      "riskReasonCode": "",
+      "message": "Withdrawal ticket expired before on-chain execution. Funds were released back to available balance.",
+      "requestMeta": {
+        "requestId": "",
+        "clientIp": "127.0.0.1",
+        "userAgent": "node",
+        "review": {}
+      },
+      "completedAt": 1777732556,
+      "completeMeta": {
+        "review": {}
+      },
+      "ticket": {
+        "ticketId": "0x5e0dab0bc7a38c968b997c1399eff393a1b33f4fe695462b15f8f509b541566e",
+        "ticketHash": "0xffa5bc1c7a92ac6a257fda9bc007348f859db399ed24f2880b1cb4d3f7031582",
+        "amount": "9500000000000000000",
+        "fee": "500000000000000000",
+        "deadline": 1777732551,
+        "signature": "[redacted]",
+        "chainId": 31337,
+        "contractAddress": "0x3155755b79aa083bd953911c92705b7aa82a18f9"
+      },
+      "createdAt": "2026-05-02 14:34:51",
+      "updatedAt": "2026-05-02 14:35:56"
+    }
+  },
+  "comparisons": [
+    {
+      "metric": "dbStatus",
+      "expected": "FAILED_EXPIRED",
+      "actual": "FAILED_EXPIRED",
+      "pass": true
+    },
+    {
+      "metric": "ticketConsumed",
+      "expected": "false",
+      "actual": "false",
+      "pass": true
+    },
+    {
+      "metric": "rpcBlockTimestamp",
+      "expected": ">1777732554",
+      "actual": "1777732560",
+      "pass": true
+    }
+  ]
+}

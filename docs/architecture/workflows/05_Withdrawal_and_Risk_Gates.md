@@ -24,13 +24,13 @@ Withdrawal 链路定义 Provider 如何把已经结算的离链收益提现到�
 
 ## 3. 核心表
 
-| 表                          | 作用                                                    |
-| --------------------------- | ------------------------------------------------------- |
-| `synapse_vault_withdrawals` | 提现主记录，保存 kind、状态、nonce、deadline、signature |
-| `synapse_ledger_accounts`   | 定义 provider wallet 账户                               |
-| `synapse_account_balances`  | 保存 provider 可提现余额和冻结余额                      |
-| `synapse_ledger_entries`    | 保存锁仓、出金、释放等资金分录                          |
-| `synapse_audit_events`      | 保存创建 intent、签名、广播、确认、失败等审计           |
+| 表                          | 作用                                                                   |
+| --------------------------- | ---------------------------------------------------------------------- |
+| `synapse_vault_withdrawals` | 提现主记录，保存 kind、状态、ticketId、ticketHash、deadline、signature |
+| `synapse_ledger_accounts`   | 定义 provider wallet 账户                                              |
+| `synapse_account_balances`  | 保存 provider 可提现余额和冻结余额                                     |
+| `synapse_ledger_entries`    | 保存锁仓、出金、释放等资金分录                                         |
+| `synapse_audit_events`      | 保存创建 intent、签名、广播、确认、失败等审计                          |
 
 ## 4. 状态机
 
@@ -70,6 +70,10 @@ Provider 提现必须先过三道门，而不是先签名再说。
 2. 当前 Owner 是否已经建立 Provider role
 3. `provider_wallet` 账户是否存在并 active
 4. `available_balance` 是否足够
+5. 金额是否达到最低提现额：默认 `PROVIDER_WITHDRAW_MIN_USDC=10`
+6. 收益是否已过 T+7 争议沉淀期：只有 `earnedAt + 7 days` 之前入账的 provider charge 收益可提现
+
+如果显式 `amountUsdc` 超过成熟收益，Gateway 返回 `400 PROVIDER_RECEIVABLE_NOT_MATURED`，不创建 withdrawal、不签票、不锁仓。若 `amountUsdc` 低于最低额，或留空全额提现时成熟收益低于最低额，Gateway 返回 `400 MIN_WITHDRAWAL_AMOUNT_NOT_MET`。
 
 ### 5.2 第二段：资金锁仓阀门
 
@@ -81,6 +85,8 @@ Provider 提现必须先过三道门，而不是先签名再说。
 4. 写 `synapse_vault_withdrawals`
 
 没有锁仓，就不允许继续往下走。
+
+大额/高频风控只能让合法资金进入 `PENDING_MANUAL_REVIEW`；最低额、余额不足、成熟收益不足、资金桶不匹配属于硬失败。
 
 ### 5.3 第三段：签名与重放保护阀门
 
@@ -99,6 +105,8 @@ Provider 提现必须先过三道门，而不是先签名再说。
 2. 防止不同请求串用签名
 3. 让离链审批结果和链上执行绑定为一个可追溯对象
 
+链上接口不新增 nonce 字段。Gateway 继续签包含 `user`, `amount`, `fee`, `ticketId`, `deadline` 的 EIP-712 payload，合约以 `consumedTickets[ticketHash]` 防重放，以 `deadline` 拒绝过期票据。
+
 ## 6. 主流程
 
 ```mermaid
@@ -109,13 +117,13 @@ sequenceDiagram
     participant V as Vault Contract
 
     O->>G: Create provider withdrawal intent
-    G->>DB: Validate provider balance and account
+    G->>DB: Validate provider balance, T+7 mature receivable, min amount
    G->>DB: Freeze or lock funds
    G->>DB: Create synapse_vault_withdrawals(status=APPROVED_AUTO or PENDING_MANUAL_REVIEW)
    G->>DB: Write ledger entries + audit
    alt Auto-approved
-      G->>G: Generate EIP-712 signature immediately
       G->>DB: Move funds to pending / locked bucket
+      G->>G: Generate EIP-712 signature after lock
    else Manual review required
       G->>DB: Keep funds in frozen bucket
       Note over G,DB: Admin approve => frozen -> pending + issue ticket\nAdmin reject => frozen -> available
@@ -136,6 +144,8 @@ Gateway 收到提现请求后，至少要先做：
 2. 找到对应 `provider_id`
 3. 找到对应 `provider_wallet` 账户
 4. 检查可提现余额是否足够
+5. 检查 T+7 成熟收益是否足够
+6. 检查最低提现额是否满足
 
 只有全部通过，才能创建 `synapse_vault_withdrawals` 主记录。
 
@@ -153,13 +163,14 @@ Gateway 收到提现请求后，至少要先做：
 6. 锁仓金额与 withdrawal.amount 完全一致
 7. 对应 ledger entry / audit 证据可追溯
 8. Provider 自定义提现金额输入统一按 USDC 金额校验，最多允许小数点后 2 位；空值代表按当前可提现余额整额创建 intent
+9. 空值整额提现以成熟收益为上限，不包含未过 T+7 的新收益
 
 ## 9. Step C: 生成 EIP-712 提现票据
 
 Platform 在离链生成：
 
 1. `ticketId`：由 `withdrawalId:v2:claim:1` 派生，同一 withdrawal 只允许生成一次
-2. `ticketHash`：EIP-712 final digest，包含 chainId 和 contract address
+2. `ticketHash`：EIP-712 final digest，包含 user、amount、fee、ticketId、deadline、chainId 和 contract address
 3. `deadline`：默认 30 分钟
 4. `signature`
 
@@ -185,6 +196,12 @@ Owner 在钱包中发起链上 withdraw 后，Platform 应推进：
 2. 记录 `tx_hash`
 3. 消耗 `provider pending / locked` 金额
 4. 完成最终分录与审计闭环
+
+`APPROVED_AUTO` 只表示 ticket 已签发、资金已锁仓，并不等于提现成功。
+Provider 提现成功的唯一产品语义是：Owner 自己的钱包完成
+`SynapseCore.withdraw(...)`，Gateway 收到 complete 回调或 watcher 匹配到链上
+`WithdrawInfo` 事件，并把 `synapse_vault_withdrawals.status` 推进到
+`COMPLETED`。
 
 ### 10.1 人工审核子流程
 
@@ -253,6 +270,30 @@ npm run ci:withdrawal-one-ticket-evidence
 Out-of-Gas revert，然后在 deadline 前用同一 ticket 正常 gas retry 成功。
 这证明链上失败 receipt 不会让 Gateway 提前进入 `FAILED_EXPIRED` 或释放
 pending funds。
+
+### 11.2.2 幂等并发 evidence
+
+提现幂等和并发安全由单独的专项 E2E 验证，避免把所有风险压进
+`withdrawal-risk-policy` 一条脚本：
+
+```bash
+npm run e2e:withdrawal-idempotency-concurrency
+npm run ci:withdrawal-idempotency-concurrency-evidence
+```
+
+Provider 场景必须同时证明：
+
+1. 创建提现并发只能产生一次有效锁仓，`available -> pending/frozen` 只移动一次。
+2. 同一 `X-Idempotency-Key` + 同一 payload 返回同一业务结果；同 key 不同 payload 返回 `409 IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_PAYLOAD`。
+3. 同一人工审核单的并发 `APPROVE` 只能签发一次 ticket，`frozen -> pending` 只移动一次。
+4. 同一人工审核单的并发 `REJECT` 只能释放一次，最终 `available` 只恢复一次。
+5. `APPROVE` / `REJECT` 交叉并发只能落到一个合法终态，不能同时出现 ticket 和 rejected release。
+6. 链上 claim 成功后，并发 complete 只能推进一次 `COMPLETED`，`tx_hash` 保持稳定，`pending` 不重复消费。
+7. 同一 `ticketHash` 第一次链上 claim 成功后，合约 `consumedTickets[ticketHash] = true`，后续 replay 必须被合约拒绝。
+
+这套 evidence 只验证资金不变量和并发幂等；人工审核 UI、权限、OTP、截图、
+通过/拒绝运营链路仍由 `withdrawal-review-dogfood` 与
+`admin-withdrawal-approval` 负责。
 
 ### 11.3 严禁的行为
 

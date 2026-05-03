@@ -7,7 +7,7 @@ Consumer Withdrawal 链路定义 Owner（买家）如何把**未消费的预存 
 这条链路与 Provider Withdrawal（05 号文档）并行存在，但严格隔离：
 
 - 资金来源：`consumer_wallet` 账户，不得碰 `provider_wallet`
-- 出金依据：未被消耗的 `available_balance`（即充值进来扣减掉 API 消费费用后剩余部分）
+- 出金依据：未被消耗且已成熟的 consumer 充值资金
 - 风控规则：独立一套，阈值可配置
 
 ## 2. 参与者
@@ -57,21 +57,36 @@ PENDING_MANUAL_REVIEW
 
 ### 5.1 第一段：业务资格阀门
 
-| 检查项     | 条件                                                 |
-| ---------- | ---------------------------------------------------- |
-| 连接钱包   | `isConnected = true`                                 |
-| 已签名会话 | JWT / wallet session 有效                            |
-| 账户存在   | `consumer_wallet` 账户已建立                         |
-| 余额充足   | `consumer_available_balance >= amountUsdc`           |
-| 最小金额   | `amountUsdc >= CONSUMER_WITHDRAW_MIN_USDC` (默认 $1) |
+| 检查项     | 条件                                                  |
+| ---------- | ----------------------------------------------------- |
+| 连接钱包   | `isConnected = true`                                  |
+| 已签名会话 | JWT / wallet session 有效                             |
+| 账户存在   | `consumer_wallet` 账户已建立                          |
+| 余额充足   | `consumer_available_balance >= amountUsdc`            |
+| 最小金额   | `amountUsdc >= CONSUMER_WITHDRAW_MIN_USDC` (默认 $10) |
+| 资金成熟   | `amountUsdc <= matureWithdrawable`                    |
+
+Consumer 已确认充值资金 T+1 后才允许提现，但 T+1 前仍可用于平台内 API 消费。Gateway 不给每笔充值打提现 lot 标签，而是使用聚合 FIFO 口径：
+
+```text
+matureWithdrawable = max(0,
+  depositsConfirmedBefore24h
+  - lifetimeConsumerSpend
+  - lifetimeConsumerWithdrawnOrLocked
+)
+```
+
+这等价于默认消费和提现优先消耗最老充值资金。请求金额超过该值时直接返回 `400 INSUFFICIENT_MATURE_CONSUMER_BALANCE`，不创建提现单、不签 ticket、不发 Lark。
 
 ### 5.2 第二段：频率与幂等阀门
 
 | 检查项     | 规则                                                                           |
 | ---------- | ------------------------------------------------------------------------------ |
-| 24h 日限额 | 同一钱包 24 小时内最多 `CONSUMER_WITHDRAW_MAX_DAILY_COUNT` 笔（默认 3）        |
+| 24h 日限额 | 同一钱包过去 24 小时内最多 `CONSUMER_WITHDRAW_MAX_DAILY_COUNT` 笔（默认 3）    |
 | 幂等保护   | 相同 `X-Idempotency-Key` + `request_hash` → 返回缓存响应，不重复扣款           |
 | 活跃单保护 | 已有 REQUESTED / PENDING_MANUAL_REVIEW 状态的单 → 直接返回已有记录，不重复扣款 |
+
+24h 统计必须以数据库时间戳滑动窗口为准：`created_at >= NOW() - INTERVAL '24 hours'`。不得用自然日 0 点重置、Redis bucket 或内存数组作为最终风控依据。
 
 ### 5.3 第三段：金额阈值阀门（**可配置**）
 
@@ -127,13 +142,13 @@ sequenceDiagram
 
     U->>FE: Click "Withdraw"
     FE->>GW: POST /api/v1/balance/consumer/withdraw\n{amountUsdc, reason}
-    GW->>DB: Check consumer_available_balance
+    GW->>DB: Check consumer_available_balance and matureWithdrawable
     GW->>DB: Check active withdrawals (idempotency)
-    GW->>DB: Classify risk (auto / manual)
+    GW->>DB: Classify risk with DB 24h sliding window
     alt 自动通过
         GW->>DB: ATOMIC UPDATE: available -= amount, pending += amount
-        GW->>DB: INSERT synapse_vault_withdrawals (status=REQUESTED)
         GW->>GW: Sign EIP-712 Withdraw ticket\n(amount=net, fee=fee, ticketId, ticketHash, deadline)
+        GW->>DB: INSERT synapse_vault_withdrawals (status=REQUESTED)
         GW-->>FE: {status, ticket: {amount, fee, ticketId, ticketHash, deadline, signature, chainId, contractAddress}}
     else 人工审核
         GW->>DB: ATOMIC UPDATE: available -= amount, frozen += amount
@@ -247,11 +262,17 @@ Payments 的状态映射固定为：
 | `REJECTED`              | `FAILED`      |
 | `CANCELLED`             | `FAILED`      |
 
+`REQUESTED` / `PENDING_MANUAL_REVIEW` 只能在 Billing 中显示为 pending 类状态。
+Consumer 提现成功必须等链上 `SynapseCore.withdraw(...)` 成功，并且 Gateway
+`/api/v1/refunds/{withdrawId}/complete` 或 watcher 把数据库推进到
+`COMPLETED`。E2E 截图和 DOM checkpoint 必须在 complete 之后验证
+`Completed`，不能只验证页面存在或 ticket 已准备。
+
 ## 10. 配置参数速查
 
 | 参数                                             | 默认值 | 含义                                |
 | ------------------------------------------------ | ------ | ----------------------------------- |
-| `CONSUMER_WITHDRAW_MIN_USDC`                     | 1.0    | 最小提现金额 (USDC)                 |
+| `CONSUMER_WITHDRAW_MIN_USDC`                     | 10.0   | 最小提现金额 (USDC)                 |
 | `CONSUMER_WITHDRAW_FEE_USDC`                     | 0.50   | 平台手续费 (USDC)，从提现金额中扣除 |
 | `CONSUMER_WITHDRAW_MANUAL_REVIEW_THRESHOLD_USDC` | 500.0  | 超过此金额进人工审核                |
 | `CONSUMER_WITHDRAW_MAX_DAILY_COUNT`              | 3      | 24h 内最大提现次数                  |
@@ -274,6 +295,30 @@ Payments 的状态映射固定为：
 | 平台私钥泄露       | 二方协作：即使 signer key 泄露，攻击者仍需用户钱包私钥（msg.sender）才能执行            |
 | 链上失败 receipt   | 未过 deadline 且 ticket 未 consumed 时保持 active，不释放 pending                       |
 | Release regression | `npm run e2e:withdrawal-one-ticket-evidence` 覆盖 10 场景，包括 replay 和 low-gas retry |
+
+### 11.1 幂等并发专项验证
+
+Consumer 风险策略和最终成功态由 `withdrawal-risk-policy` 覆盖；资金节点的
+幂等并发安全由单独 E2E 覆盖：
+
+```bash
+npm run e2e:withdrawal-risk-policy
+npm run e2e:withdrawal-idempotency-concurrency
+npm run ci:withdrawal-idempotency-concurrency-evidence
+```
+
+`withdrawal-idempotency-concurrency` 必须同时断言 HTTP、DB、链上和资金桶：
+
+1. 10 个并发创建请求只能造成一次有效锁仓，`available -> pending/frozen` 只移动一次。
+2. 同一 `X-Idempotency-Key` + 同一 payload 返回同一结果；同 key 不同 payload 返回 `409 IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_PAYLOAD`。
+3. 人工审核 `APPROVE` 并发只能让 `frozen -> pending` 发生一次，ticket 只签发一次。
+4. 人工审核 `REJECT` 并发只能把 `frozen -> available` 释放一次。
+5. `APPROVE` / `REJECT` 交叉并发只能落到一个合法终态，不能同时签 ticket 又释放为 rejected。
+6. 链上 claim 成功后，并发 complete 只能消费一次 pending，最终 `status=COMPLETED` 且 `tx_hash` 稳定。
+7. 同一 `ticketHash` 首次 claim 后必须被合约标记 consumed，二次 replay 被拒绝。
+
+人工审核通过/拒绝的完整 UI、权限、截图和运营证据不在这条脚本里；它们由
+`withdrawal-review-dogfood` 与 `admin-withdrawal-approval` 覆盖。
 
 ## 12. 文档结论
 
