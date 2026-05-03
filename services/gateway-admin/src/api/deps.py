@@ -27,6 +27,7 @@ from src.storage.analytics import (
     ClickHouseAnalyticsDashboardRepository,
     GatewayDashboardProjectionRepository,
     PostgresGatewayDashboardProjectionRepository,
+    PostgresAnalyticsDashboardRepository,
     PostgresProviderWithdrawReviewRepository,
     ProviderWithdrawReviewRepository,
 )
@@ -81,9 +82,14 @@ def get_gateway_dashboard_projection_repository() -> GatewayDashboardProjectionR
 @lru_cache(maxsize=1)
 def get_analytics_dashboard_repository() -> AnalyticsDashboardRepository:
     settings = get_settings()
-    return ClickHouseAnalyticsDashboardRepository(
-        settings.analytics_clickhouse_url,
-        timeout_sec=settings.analytics_clickhouse_timeout_sec,
+    if str(settings.analytics_source or "").strip().lower() == "clickhouse":
+        return ClickHouseAnalyticsDashboardRepository(
+            settings.analytics_clickhouse_url,
+            timeout_sec=settings.analytics_clickhouse_timeout_sec,
+        )
+    return PostgresAnalyticsDashboardRepository(
+        settings.gateway_readonly_dsn,
+        timeout_sec=settings.analytics_postgres_timeout_sec,
     )
 
 

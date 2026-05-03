@@ -12,6 +12,7 @@ from src.storage.analytics.analytics_dashboard import (
     AnalyticsDashboardRepository,
     ClickHouseAnalyticsDashboardRepository,
 )
+from src.storage.analytics.postgres_analytics_dashboard import PostgresAnalyticsDashboardRepository
 from src.storage.analytics.provider_withdraw_review import (
     InMemoryProviderWithdrawReviewRepository,
     PostgresProviderWithdrawReviewRepository,
@@ -22,6 +23,7 @@ from src.storage.analytics.provider_withdraw_review import (
 __all__ = [
     "AnalyticsDashboardRepository",
     "ClickHouseAnalyticsDashboardRepository",
+    "PostgresAnalyticsDashboardRepository",
     "GatewayActivityTrendPoint",
     "GatewayFinanceSnapshot",
     "GatewayOperationsSnapshot",

@@ -20,11 +20,18 @@ The dogfood suite covers:
 5. Review, risk, and finance pages: `/approvals`, `/withdrawal-reviews`, `/review-history`, `/finance`, `/finance/reconciliation`, `/risk`, `/audit`.
 6. Data truth checks for Forum Support, Provider Services, Finance, and Analytics.
 
+For Admin-wide regression, use
+[Admin_Full_Regression_E2E.md](./Admin_Full_Regression_E2E.md). That umbrella
+suite runs the focused Admin E2Es and adds SQL evidence for admin auth/RBAC,
+approval/execution, finance projections, withdrawal/funds tables,
+notifications, Forum Support, Provider Services, and Postgres Analytics.
+
 Analytics has an additional full-chain contract in
 [Admin_Analytics_Page_Function_and_Verification.md](./Admin_Analytics_Page_Function_and_Verification.md).
-That contract verifies Gateway events reached ClickHouse, gateway-admin returns the same
-aggregates as raw ClickHouse SQL, and admin-front renders the same values on all seven
-Analytics pages.
+That contract verifies Gateway events reached the configured analytics source,
+gateway-admin returns the same aggregates as raw SQL, and admin-front renders the
+same values on all seven Analytics pages. For the Admin regression gate, the
+configured source is Postgres, not ClickHouse.
 
 For high-volume local/staging evidence, use
 [Admin_Analytics_10k_Load_Dogfood_Verification.md](./Admin_Analytics_10k_Load_Dogfood_Verification.md).
@@ -67,6 +74,13 @@ Run the full flow:
 
 ```bash
 npm run e2e:admin-front
+```
+
+Run the Admin-wide regression evidence bundle:
+
+```bash
+npm run e2e:admin-regression
+npm run ci:admin-regression-evidence
 ```
 
 Run the Analytics-specific full-chain flow:
@@ -128,9 +142,10 @@ The suite passes only when:
 6. `synapse_forum_response_tasks.status` becomes `responded` and `reply_id` is non-empty.
 7. Provider Services, Finance, and Analytics pages show data that came from `gateway-admin` APIs.
 8. The reconcile script confirms DB/API/UI evidence for the same run id.
-9. Analytics-specific verification confirms all seven Analytics APIs match raw ClickHouse aggregation.
+9. Analytics-specific verification confirms all seven Analytics APIs match the configured raw analytics SQL source. For `admin-regression`, this source must be Postgres.
 10. Analytics browser verification confirms window switchers, drilldown cards, budget-block alert drilldown, and seven screenshots.
-11. Optional 10k Analytics load verification confirms three registered Provider services, 10,000 paid invokes, `7900.000000 USDC` service-price GMV baseline, receipt total-charge GMV delta, ClickHouse ingestion, gateway-admin aggregation, and admin-front DOM values.
+11. Optional 10k Analytics load verification confirms three registered Provider services, 10,000 paid invokes, `7900.000000 USDC` service-price GMV baseline, receipt total-charge GMV delta, Postgres analytics evidence for the Admin regression gate, gateway-admin aggregation, and admin-front DOM values.
+12. Admin-wide regression evidence confirms screenshots are bound to DOM assertions and SQL probes; bare PNG existence is not accepted.
 
 ## Provider Withdrawal Approval Full-Chain Verification
 
@@ -188,6 +203,15 @@ The 10k Analytics load run writes:
 3. `output/analytics-load/<runId>/report.md`
 4. `output/analytics-load/<runId>/admin-page-verification.json`
 5. `output/analytics-load/<runId>/screens/*.png`
+
+The Admin-wide regression run writes:
+
+1. `output/dogfood/admin-regression/<runId>/expected_state.json`
+2. `output/dogfood/admin-regression/<runId>/sql_evidence.json`
+3. `output/dogfood/admin-regression/<runId>/screenshot_evidence.json`
+4. `output/dogfood/admin-regression/<runId>/report.json`
+5. `output/dogfood/admin-regression/<runId>/report.md`
+6. `output/dogfood/admin-regression/<runId>/bugfix-log.md`
 
 The seed fixture is written to:
 

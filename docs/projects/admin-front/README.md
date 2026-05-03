@@ -63,6 +63,7 @@
 5. [Admin_Analytics_10k_Load_Dogfood_Verification.md](./Admin_Analytics_10k_Load_Dogfood_Verification.md)
 6. [Admin_Withdrawal_Approval_E2E_Verification.md](./Admin_Withdrawal_Approval_E2E_Verification.md)
 7. [Admin_Front_Dogfood_E2E_Runbook.md](./Admin_Front_Dogfood_E2E_Runbook.md)
+8. [Admin_Full_Regression_E2E.md](./Admin_Full_Regression_E2E.md)
 
 项目目录内只保留：
 
