@@ -33,6 +33,7 @@ on:
           - gateway-admin
           - user-front
           - admin-front
+          - docs-front
           - all
       actor:
         required: true
@@ -301,6 +302,7 @@ jobs:
             'gateway-admin': 'synapse-staging-gateway-admin',
             'user-front': 'synapse-staging-user-front',
             'admin-front': 'synapse-staging-admin-front',
+            'docs-front': 'synapse-staging-docs-front',
           }
           for (const [service, image] of Object.entries(images)) {
             console.log(`gcloud run deploy ${names[service]} --project "$PROJECT_ID" --region "$REGION" --image '${image}' --quiet`)
@@ -320,6 +322,7 @@ jobs:
             'gateway-admin': 'synapse-staging-gateway-admin',
             'user-front': 'synapse-staging-user-front',
             'admin-front': 'synapse-staging-admin-front',
+            'docs-front': 'synapse-staging-docs-front',
           }
           for (const service of Object.keys(images)) {
             console.log(`url=$(gcloud run services describe ${names[service]} --project "$PROJECT_ID" --region "$REGION" --format='value(status.url)')`)
@@ -360,6 +363,7 @@ jobs:
             'gateway-admin': 'synapse-staging-gateway-admin',
             'user-front': 'synapse-staging-user-front',
             'admin-front': 'synapse-staging-admin-front',
+            'docs-front': 'synapse-staging-docs-front',
           }
           for (const service of Object.keys(images)) {
             console.log(`printf '${service}=' >> revisions.env`)

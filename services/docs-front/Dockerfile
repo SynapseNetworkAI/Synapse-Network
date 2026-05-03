@@ -2,7 +2,7 @@ FROM node:22-alpine AS deps
 
 WORKDIR /app
 
-COPY services/docs-front/package.json services/docs-front/yarn.lock services/docs-front/source.config.ts ./
+COPY package.json yarn.lock source.config.ts ./
 RUN yarn install --frozen-lockfile
 
 FROM node:22-alpine AS builder
@@ -21,7 +21,7 @@ ENV NEXT_PUBLIC_CONSOLE_BASE_URL=$NEXT_PUBLIC_CONSOLE_BASE_URL
 ENV NEXT_PUBLIC_GATEWAY_BASE_URL=$NEXT_PUBLIC_GATEWAY_BASE_URL
 
 COPY --from=deps /app/node_modules ./node_modules
-COPY services/docs-front .
+COPY . .
 
 RUN yarn build
 

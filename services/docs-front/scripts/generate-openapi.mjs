@@ -5,13 +5,24 @@ import path from "node:path";
 import vm from "node:vm";
 import ts from "typescript";
 
-const ROOT = path.resolve(process.cwd(), "../..");
-const endpointDataPath = path.join(
-  ROOT,
-  "services/docs-front/src/data/endpoint-source.ts"
-);
-const publicOpenApiPath = path.join(process.cwd(), "public/openapi.json");
-const dataPath = path.join(process.cwd(), "src/data/api-reference.json");
+const APP_ROOT = resolveAppRoot();
+const endpointDataPath = path.join(APP_ROOT, "src/data/endpoint-source.ts");
+const publicOpenApiPath = path.join(APP_ROOT, "public/openapi.json");
+const dataPath = path.join(APP_ROOT, "src/data/api-reference.json");
+const sourceLabel = "services/docs-front/src/data/endpoint-source.ts";
+
+function resolveAppRoot() {
+  const cwd = process.cwd();
+  const candidates = [cwd, path.join(cwd, "services/docs-front")];
+  for (const candidate of candidates) {
+    if (fs.existsSync(path.join(candidate, "src/data/endpoint-source.ts"))) {
+      return candidate;
+    }
+  }
+  throw new Error(
+    `Cannot locate docs-front endpoint source from ${cwd}. Expected src/data/endpoint-source.ts or services/docs-front/src/data/endpoint-source.ts.`
+  );
+}
 
 function loadRouteGroups() {
   const source = fs.readFileSync(endpointDataPath, "utf8");
@@ -213,7 +224,7 @@ function buildOpenApi(groups) {
 function buildReferenceData(groups) {
   return {
     generatedAt: new Date().toISOString(),
-    source: path.relative(ROOT, endpointDataPath),
+    source: sourceLabel,
     groups,
     routes: groups.flatMap((group) =>
       group.routes.map((route) => ({

@@ -7,7 +7,8 @@ REPOSITORY="${ARTIFACT_REGISTRY_REPOSITORY:-synapse-staging}"
 TAG="${TAG:-staging-$(date -u +%Y-%m-%d-%H%M%S)}"
 SERVICES="gateway,gateway-admin,user-front,admin-front,docs-front"
 JSON_OUTPUT=""
-BUILD_BACKEND="${STAGING_IMAGE_BUILD_BACKEND:-local-docker}"
+BUILD_BACKEND="${STAGING_IMAGE_BUILD_BACKEND:-cloudbuild}"
+DOCKER_PLATFORM="${DOCKER_PLATFORM:-linux/amd64}"
 
 shift_if_project=false
 if [[ $# -gt 0 && "${1:-}" != --* ]]; then
@@ -111,7 +112,7 @@ if contains_service gateway; then
   cat >>"${tmp_config}" <<EOF
   - name: "gcr.io/cloud-builders/docker"
     id: "build-gateway"
-    args: ["build", "-t", "${gateway_image}", "services/gateway"]
+    args: ["build", "--platform", "${DOCKER_PLATFORM}", "-t", "${gateway_image}", "services/gateway"]
   - name: "gcr.io/cloud-builders/docker"
     id: "push-gateway"
     args: ["push", "${gateway_image}"]
@@ -124,7 +125,7 @@ if contains_service gateway-admin; then
   cat >>"${tmp_config}" <<EOF
   - name: "gcr.io/cloud-builders/docker"
     id: "build-gateway-admin"
-    args: ["build", "-f", "services/gateway-admin/Dockerfile", "-t", "${gateway_admin_image}", "."]
+    args: ["build", "--platform", "${DOCKER_PLATFORM}", "-f", "services/gateway-admin/Dockerfile", "-t", "${gateway_admin_image}", "."]
   - name: "gcr.io/cloud-builders/docker"
     id: "push-gateway-admin"
     args: ["push", "${gateway_admin_image}"]
@@ -139,6 +140,8 @@ if contains_service user-front; then
     id: "build-user-front"
     args:
       - "build"
+      - "--platform"
+      - "${DOCKER_PLATFORM}"
       - "--build-arg"
       - "NEXT_PUBLIC_GATEWAY_BASE_URL=${NEXT_PUBLIC_GATEWAY_BASE_URL:-https://api-staging.synapse-network.ai}"
       - "--build-arg"
@@ -176,6 +179,8 @@ if contains_service docs-front; then
     id: "build-docs-front"
     args:
       - "build"
+      - "--platform"
+      - "${DOCKER_PLATFORM}"
       - "--build-arg"
       - "NEXT_PUBLIC_APP_ENV=${NEXT_PUBLIC_APP_ENV:-staging}"
       - "--build-arg"
@@ -184,11 +189,9 @@ if contains_service docs-front; then
       - "NEXT_PUBLIC_CONSOLE_BASE_URL=${NEXT_PUBLIC_CONSOLE_BASE_URL:-https://staging.synapse-network.ai/dashboard/overview}"
       - "--build-arg"
       - "NEXT_PUBLIC_GATEWAY_BASE_URL=${NEXT_PUBLIC_GATEWAY_BASE_URL:-https://api-staging.synapse-network.ai}"
-      - "-f"
-      - "services/docs-front/Dockerfile"
       - "-t"
       - "${docs_front_image}"
-      - "."
+      - "services/docs-front"
   - name: "gcr.io/cloud-builders/docker"
     id: "push-docs-front"
     args: ["push", "${docs_front_image}"]
@@ -202,6 +205,8 @@ if contains_service admin-front; then
     id: "build-admin-front"
     args:
       - "build"
+      - "--platform"
+      - "${DOCKER_PLATFORM}"
       - "--build-arg"
       - "NEXT_PUBLIC_ADMIN_API_BASE_URL=${NEXT_PUBLIC_ADMIN_API_BASE_URL:-https://admin-api-staging.synapse-network.ai}"
       - "--build-arg"
@@ -224,6 +229,7 @@ echo "[gcp-cloudbuild-images] repository=${REPOSITORY}"
 echo "[gcp-cloudbuild-images] tag=${TAG}"
 echo "[gcp-cloudbuild-images] services=${normalized_services[*]}"
 echo "[gcp-cloudbuild-images] build_backend=${BUILD_BACKEND}"
+echo "[gcp-cloudbuild-images] docker_platform=${DOCKER_PLATFORM}"
 
 docker_build_and_push() {
   require_cmd docker
@@ -231,17 +237,18 @@ docker_build_and_push() {
   gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
 
   if contains_service gateway; then
-    docker build -t "${gateway_image}" services/gateway
+    docker build --platform "${DOCKER_PLATFORM}" -t "${gateway_image}" services/gateway
     docker push "${gateway_image}"
   fi
 
   if contains_service gateway-admin; then
-    docker build -f services/gateway-admin/Dockerfile -t "${gateway_admin_image}" .
+    docker build --platform "${DOCKER_PLATFORM}" -f services/gateway-admin/Dockerfile -t "${gateway_admin_image}" .
     docker push "${gateway_admin_image}"
   fi
 
   if contains_service user-front; then
     docker build \
+      --platform "${DOCKER_PLATFORM}" \
       --build-arg "NEXT_PUBLIC_GATEWAY_BASE_URL=${NEXT_PUBLIC_GATEWAY_BASE_URL:-https://api-staging.synapse-network.ai}" \
       --build-arg "NEXT_PUBLIC_ANALYTICS_ENDPOINT=${NEXT_PUBLIC_ANALYTICS_ENDPOINT:-https://api-staging.synapse-network.ai/api/v1/events}" \
       --build-arg "NEXT_PUBLIC_SERVICE_LIST_CACHE_TTL_MS=${NEXT_PUBLIC_SERVICE_LIST_CACHE_TTL_MS:-20000}" \
@@ -259,6 +266,7 @@ docker_build_and_push() {
 
   if contains_service admin-front; then
     docker build \
+      --platform "${DOCKER_PLATFORM}" \
       --build-arg "NEXT_PUBLIC_ADMIN_API_BASE_URL=${NEXT_PUBLIC_ADMIN_API_BASE_URL:-https://admin-api-staging.synapse-network.ai}" \
       --build-arg "ADMIN_API_PROXY_TARGET=${ADMIN_API_PROXY_TARGET:-https://admin-api-staging.synapse-network.ai}" \
       --build-arg "NEXT_PUBLIC_APP_ENV=${NEXT_PUBLIC_APP_ENV:-staging}" \
@@ -269,13 +277,13 @@ docker_build_and_push() {
 
   if contains_service docs-front; then
     docker build \
+      --platform "${DOCKER_PLATFORM}" \
       --build-arg "NEXT_PUBLIC_APP_ENV=${NEXT_PUBLIC_APP_ENV:-staging}" \
       --build-arg "NEXT_PUBLIC_DOCS_BASE_URL=${NEXT_PUBLIC_DOCS_BASE_URL:-https://docs-staging.synapse-network.ai}" \
       --build-arg "NEXT_PUBLIC_CONSOLE_BASE_URL=${NEXT_PUBLIC_CONSOLE_BASE_URL:-https://staging.synapse-network.ai/dashboard/overview}" \
       --build-arg "NEXT_PUBLIC_GATEWAY_BASE_URL=${NEXT_PUBLIC_GATEWAY_BASE_URL:-https://api-staging.synapse-network.ai}" \
-      -f services/docs-front/Dockerfile \
       -t "${docs_front_image}" \
-      .
+      services/docs-front
     docker push "${docs_front_image}"
   fi
 }
