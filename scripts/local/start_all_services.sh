@@ -13,6 +13,7 @@ PID_FILE="${ROOT_DIR}/.local_all_services.pids"
 
 GATEWAY_LOG="${ROOT_DIR}/services/gateway/logs/provider_api.log"
 USER_FRONT_LOG="${ROOT_DIR}/services/user-front/frontend_dev.log"
+DOCS_FRONT_LOG="${ROOT_DIR}/services/docs-front/docs_front_dev.log"
 GATEWAY_ADMIN_LOG="${ROOT_DIR}/services/gateway-admin/logs/gateway-admin.log"
 ADMIN_FRONT_LOG="${ROOT_DIR}/services/admin-front/admin_front_dev.log"
 
@@ -355,11 +356,11 @@ start_user_front() {
   if command -v screen >/dev/null 2>&1; then
     screen -S synapse-user-front -X quit >/dev/null 2>&1 || true
     screen -dmS synapse-user-front bash -lc \
-      "cd '${ROOT_DIR}/services/user-front' && exec env NEXT_PUBLIC_GATEWAY_BASE_URL='${NEXT_PUBLIC_GATEWAY_BASE_URL:-http://127.0.0.1:8000}' NEXT_PUBLIC_ANALYTICS_ENDPOINT='${NEXT_PUBLIC_ANALYTICS_ENDPOINT:-http://127.0.0.1:8000/api/v1/events}' yarn dev --hostname 0.0.0.0 > '${USER_FRONT_LOG}' 2>&1"
+      "cd '${ROOT_DIR}/services/user-front' && exec env NEXT_PUBLIC_APP_ENV='${NEXT_PUBLIC_APP_ENV:-local}' NEXT_PUBLIC_GATEWAY_BASE_URL='${NEXT_PUBLIC_GATEWAY_BASE_URL:-http://127.0.0.1:8000}' NEXT_PUBLIC_ANALYTICS_ENDPOINT='${NEXT_PUBLIC_ANALYTICS_ENDPOINT:-http://127.0.0.1:8000/api/v1/events}' NEXT_PUBLIC_DOCS_BASE_URL='${NEXT_PUBLIC_DOCS_BASE_URL:-http://localhost:3100}' NEXT_PUBLIC_SERVICE_LIST_CACHE_TTL_MS='${NEXT_PUBLIC_SERVICE_LIST_CACHE_TTL_MS:-20000}' NEXT_PUBLIC_SUPPORT_EMAIL='${NEXT_PUBLIC_SUPPORT_EMAIL:-support@synapse-network.ai}' NEXT_PUBLIC_SUPPORT_PORTAL_URL='${NEXT_PUBLIC_SUPPORT_PORTAL_URL:-}' yarn dev --hostname 0.0.0.0 > '${USER_FRONT_LOG}' 2>&1"
   else
     (
       cd "${ROOT_DIR}/services/user-front"
-      nohup bash -lc 'trap "" HUP; exec env NEXT_PUBLIC_GATEWAY_BASE_URL="${NEXT_PUBLIC_GATEWAY_BASE_URL:-http://127.0.0.1:8000}" NEXT_PUBLIC_ANALYTICS_ENDPOINT="${NEXT_PUBLIC_ANALYTICS_ENDPOINT:-http://127.0.0.1:8000/api/v1/events}" yarn dev --hostname 0.0.0.0' \
+      nohup bash -lc 'trap "" HUP; exec env NEXT_PUBLIC_APP_ENV="${NEXT_PUBLIC_APP_ENV:-local}" NEXT_PUBLIC_GATEWAY_BASE_URL="${NEXT_PUBLIC_GATEWAY_BASE_URL:-http://127.0.0.1:8000}" NEXT_PUBLIC_ANALYTICS_ENDPOINT="${NEXT_PUBLIC_ANALYTICS_ENDPOINT:-http://127.0.0.1:8000/api/v1/events}" NEXT_PUBLIC_DOCS_BASE_URL="${NEXT_PUBLIC_DOCS_BASE_URL:-http://localhost:3100}" NEXT_PUBLIC_SERVICE_LIST_CACHE_TTL_MS="${NEXT_PUBLIC_SERVICE_LIST_CACHE_TTL_MS:-20000}" NEXT_PUBLIC_SUPPORT_EMAIL="${NEXT_PUBLIC_SUPPORT_EMAIL:-support@synapse-network.ai}" NEXT_PUBLIC_SUPPORT_PORTAL_URL="${NEXT_PUBLIC_SUPPORT_PORTAL_URL:-}" yarn dev --hostname 0.0.0.0' \
         > "${USER_FRONT_LOG}" 2>&1 < /dev/null &
       echo $!
     ) > /tmp/synapse-user-front.pid
@@ -376,6 +377,32 @@ start_user_front() {
     tail -n 80 "${USER_FRONT_LOG}" 2>/dev/null || true
     return 1
   fi
+}
+
+start_docs_front() {
+  if [[ -n "$(find_pid_by_port 3100)" ]]; then
+    echo "docs-front already running on port 3100: PID $(find_pid_by_port 3100)"
+    wait_for_http "docs-front" "http://127.0.0.1:3100" 120
+    return 0
+  fi
+
+  ensure_yarn_deps "${ROOT_DIR}/services/docs-front"
+  echo "[local-apps] starting docs-front on http://localhost:3100"
+  (
+    cd "${ROOT_DIR}/services/docs-front"
+    NEXT_PUBLIC_APP_ENV="${NEXT_PUBLIC_APP_ENV:-local}" \
+      NEXT_PUBLIC_DOCS_BASE_URL="${NEXT_PUBLIC_DOCS_BASE_URL:-http://localhost:3100}" \
+      NEXT_PUBLIC_CONSOLE_BASE_URL="${NEXT_PUBLIC_CONSOLE_BASE_URL:-http://localhost:3000/dashboard/overview}" \
+      NEXT_PUBLIC_GATEWAY_BASE_URL="${NEXT_PUBLIC_GATEWAY_BASE_URL:-http://127.0.0.1:8000}" \
+      nohup yarn dev --hostname 0.0.0.0 > "${DOCS_FRONT_LOG}" 2>&1 < /dev/null &
+    echo $!
+  ) > /tmp/synapse-docs-front.pid
+  rm -f /tmp/synapse-docs-front.pid
+  wait_for_http "docs-front" "http://127.0.0.1:3100" 120 || {
+    echo "[local-apps] docs-front failed to become healthy. Recent log:"
+    tail -n 80 "${DOCS_FRONT_LOG}" 2>/dev/null || true
+    return 1
+  }
 }
 
 start_gateway_admin() {
@@ -396,13 +423,13 @@ start_gateway_admin() {
 }
 
 start_admin_front() {
-  if [[ -n "$(find_pid_by_port 4000)" ]]; then
-    echo "admin-front already running on port 4000: PID $(find_pid_by_port 4000)"
+  if [[ -n "$(find_pid_by_port 3200)" ]]; then
+    echo "admin-front already running on port 3200: PID $(find_pid_by_port 3200)"
     return 0
   fi
 
   ensure_yarn_deps "${ROOT_DIR}/services/admin-front"
-  echo "[local-apps] starting admin-front on http://127.0.0.1:4000"
+  echo "[local-apps] starting admin-front on http://127.0.0.1:3200"
   (
     cd "${ROOT_DIR}/services/admin-front"
     NEXT_PUBLIC_ADMIN_API_BASE_URL="${NEXT_PUBLIC_ADMIN_API_BASE_URL:-http://localhost:8300}" \
@@ -411,15 +438,20 @@ start_admin_front() {
     echo $!
   ) > /tmp/synapse-admin-front.pid
   rm -f /tmp/synapse-admin-front.pid
-  wait_for_port "admin-front" 4000 60
+  wait_for_http "admin-front" "http://127.0.0.1:3200/login" 120 || {
+    echo "[local-apps] admin-front failed to become healthy. Recent log:"
+    tail -n 80 "${ADMIN_FRONT_LOG}" 2>/dev/null || true
+    return 1
+  }
 }
 
 write_pid_file() {
   cat > "${PID_FILE}" <<EOF
 GATEWAY_PID=$(find_pid_by_port 8000)
 USER_FRONT_PID=$(find_pid_by_port 3000)
+DOCS_FRONT_PID=$(find_pid_by_port 3100)
 GATEWAY_ADMIN_PID=$(find_pid_by_port 8300)
-ADMIN_FRONT_PID=$(find_pid_by_port 4000)
+ADMIN_FRONT_PID=$(find_pid_by_port 3200)
 EOF
 }
 
@@ -438,10 +470,11 @@ print_status_line() {
 
 start_apps() {
   echo "=== Starting Synapse local app services ==="
-  echo "[local-apps] This starts only the 4 app services. It does not create DBs or redeploy contracts."
+  echo "[local-apps] This starts only the 5 app services. It does not create DBs or redeploy contracts."
   start_gateway
   start_gateway_admin
   start_user_front
+  start_docs_front
   start_admin_front
   write_pid_file
   status_apps
@@ -449,7 +482,8 @@ start_apps() {
 
 stop_apps() {
   echo "=== Stopping Synapse local app services ==="
-  stop_port "admin-front" 4000
+  stop_port "admin-front" 3200
+  stop_port "docs-front" 3100
   stop_port "gateway-admin" 8300
   stop_port "user-front" 3000
   stop_port "gateway" 8000
@@ -462,7 +496,8 @@ status_apps() {
   print_status_line "gateway" 8000 "http://127.0.0.1:8000/health"
   print_status_line "gateway-admin" 8300 "http://127.0.0.1:8300/health"
   print_status_line "user-front" 3000 "http://localhost:3000"
-  print_status_line "admin-front" 4000 "http://127.0.0.1:4000/login"
+  print_status_line "docs-front" 3100 "http://localhost:3100"
+  print_status_line "admin-front" 3200 "http://127.0.0.1:3200/login"
   echo ""
   echo "Infra status:"
   print_status_line "postgres" 15432 "postgresql://127.0.0.1:15432"
@@ -473,8 +508,8 @@ tail_logs() {
   mkdir -p \
     "${ROOT_DIR}/services/gateway/logs" \
     "${ROOT_DIR}/services/gateway-admin/logs"
-  touch "${GATEWAY_LOG}" "${USER_FRONT_LOG}" "${GATEWAY_ADMIN_LOG}" "${ADMIN_FRONT_LOG}"
-  tail -f "${GATEWAY_LOG}" "${GATEWAY_ADMIN_LOG}" "${USER_FRONT_LOG}" "${ADMIN_FRONT_LOG}"
+  touch "${GATEWAY_LOG}" "${USER_FRONT_LOG}" "${DOCS_FRONT_LOG}" "${GATEWAY_ADMIN_LOG}" "${ADMIN_FRONT_LOG}"
+  tail -f "${GATEWAY_LOG}" "${GATEWAY_ADMIN_LOG}" "${USER_FRONT_LOG}" "${DOCS_FRONT_LOG}" "${ADMIN_FRONT_LOG}"
 }
 
 case "${ACTION}" in

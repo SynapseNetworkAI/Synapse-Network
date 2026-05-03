@@ -7,7 +7,7 @@ import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "../..");
-const BASE_URL = process.env.DOCS_BASE_URL || "http://localhost:3001";
+const BASE_URL = process.env.DOCS_BASE_URL || "http://localhost:3100";
 const timestamp = new Date()
   .toISOString()
   .replace(/[:.]/g, "")

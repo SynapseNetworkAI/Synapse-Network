@@ -26,7 +26,10 @@ const { chromium } = require("playwright");
 const REPO_ROOT = (() => {
   let current = __dirname;
   for (let i = 0; i < 5; i += 1) {
-    if (fs.existsSync(path.join(current, "package.json")) && fs.existsSync(path.join(current, "services"))) {
+    if (
+      fs.existsSync(path.join(current, "package.json")) &&
+      fs.existsSync(path.join(current, "services"))
+    ) {
       return current;
     }
     current = path.dirname(current);
@@ -34,16 +37,23 @@ const REPO_ROOT = (() => {
   return process.cwd();
 })();
 
-const ADMIN_FRONT_URL = (process.env.ADMIN_FRONT_URL || "http://127.0.0.1:4000").replace(/\/$/, "");
-const ADMIN_GATEWAY_URL = (process.env.ADMIN_GATEWAY_URL || "http://127.0.0.1:8300").replace(/\/$/, "");
-const ADMIN_COOKIE_NAME = process.env.ADMIN_SESSION_COOKIE_NAME || "synapse_admin_session";
+const ADMIN_FRONT_URL = (
+  process.env.ADMIN_FRONT_URL || "http://127.0.0.1:3200"
+).replace(/\/$/, "");
+const ADMIN_GATEWAY_URL = (
+  process.env.ADMIN_GATEWAY_URL || "http://127.0.0.1:8300"
+).replace(/\/$/, "");
+const ADMIN_COOKIE_NAME =
+  process.env.ADMIN_SESSION_COOKIE_NAME || "synapse_admin_session";
 const REPORT_PATH = path.resolve(
   REPO_ROOT,
-  process.env.ANALYTICS_FULLCHAIN_REPORT || "output/analytics-fullchain/report.json",
+  process.env.ANALYTICS_FULLCHAIN_REPORT ||
+    "output/analytics-fullchain/report.json"
 );
 const SCREENSHOT_DIR = path.resolve(
   REPO_ROOT,
-  process.env.ANALYTICS_FULLCHAIN_SCREENSHOT_DIR || "output/analytics-fullchain/screens",
+  process.env.ANALYTICS_FULLCHAIN_SCREENSHOT_DIR ||
+    "output/analytics-fullchain/screens"
 );
 
 let passed = 0;
@@ -80,7 +90,9 @@ function numberValue(value) {
 
 function parseSessionCookie(setCookieHeader) {
   if (!setCookieHeader) return "";
-  const parts = Array.isArray(setCookieHeader) ? setCookieHeader : String(setCookieHeader).split(/,(?=\s*[^;,]+=)/);
+  const parts = Array.isArray(setCookieHeader)
+    ? setCookieHeader
+    : String(setCookieHeader).split(/,(?=\s*[^;,]+=)/);
   const match = parts
     .map((item) => item.trim())
     .find((item) => item.startsWith(`${ADMIN_COOKIE_NAME}=`));
@@ -101,7 +113,7 @@ async function loginAdmin() {
   const otpCode = process.env.ADMIN_OTP_CODE;
   if (!email || !password) {
     throw new Error(
-      "Admin auth missing. Set ADMIN_SESSION_TOKEN or ADMIN_EMAIL/ADMIN_PASSWORD/ADMIN_OTP_CODE.",
+      "Admin auth missing. Set ADMIN_SESSION_TOKEN or ADMIN_EMAIL/ADMIN_PASSWORD/ADMIN_OTP_CODE."
     );
   }
 
@@ -111,12 +123,15 @@ async function loginAdmin() {
     body: JSON.stringify({ email, password, otpCode }),
   });
   const body = await response.json().catch(() => ({}));
-  const setCookie = typeof response.headers.getSetCookie === "function"
-    ? response.headers.getSetCookie()
-    : response.headers.get("set-cookie");
+  const setCookie =
+    typeof response.headers.getSetCookie === "function"
+      ? response.headers.getSetCookie()
+      : response.headers.get("set-cookie");
   const sessionToken = parseSessionCookie(setCookie);
   if (!response.ok || !body.success || !sessionToken) {
-    throw new Error(`Admin login failed: ${response.status} ${JSON.stringify(body)}`);
+    throw new Error(
+      `Admin login failed: ${response.status} ${JSON.stringify(body)}`
+    );
   }
   return {
     sessionToken,
@@ -133,7 +148,9 @@ async function adminApiGet(pathname, auth) {
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok || !body.success) {
-    throw new Error(`Admin API failed ${pathname}: ${response.status} ${JSON.stringify(body)}`);
+    throw new Error(
+      `Admin API failed ${pathname}: ${response.status} ${JSON.stringify(body)}`
+    );
   }
   return body.data;
 }
@@ -146,35 +163,48 @@ function assertAdminDataMatchesRaw(report, apiData) {
 
   check(
     "admin invocation quoteCount matches ClickHouse raw summary",
-    invocation.quoteCount === numberValue(raw.quoteCount),
+    invocation.quoteCount === numberValue(raw.quoteCount)
   );
   check(
     "admin invocation invokeStartedCount matches ClickHouse raw summary",
-    invocation.invokeStartedCount === numberValue(raw.invokeStartedCount),
+    invocation.invokeStartedCount === numberValue(raw.invokeStartedCount)
   );
   check(
     "admin invocation invokeCompletedCount matches ClickHouse raw summary",
-    invocation.invokeCompletedCount === numberValue(raw.invokeCompletedCount),
+    invocation.invokeCompletedCount === numberValue(raw.invokeCompletedCount)
   );
   check(
     "admin invocation gmvUsdc matches ClickHouse raw summary",
-    Math.abs(numberValue(invocation.gmvUsdc) - numberValue(raw.gmvUsdc)) < 0.000001,
+    Math.abs(numberValue(invocation.gmvUsdc) - numberValue(raw.gmvUsdc)) <
+      0.000001
   );
   check(
     "overview Paid Invokes card matches invocation drilldown",
-    (overview.cards || []).some((card) => card.key === "invoke_completed" && card.value === invocation.invokeCompletedCount),
+    (overview.cards || []).some(
+      (card) =>
+        card.key === "invoke_completed" &&
+        card.value === invocation.invokeCompletedCount
+    )
   );
   check(
     "consumer funnel includes invoke_completed users",
-    (consumerFunnel.steps || []).some((step) => step.eventName === "invoke_completed" && step.users >= 1),
+    (consumerFunnel.steps || []).some(
+      (step) => step.eventName === "invoke_completed" && step.users >= 1
+    )
   );
 }
 
 async function screenshotPage(page, route, name, expectedText) {
-  await page.goto(`${ADMIN_FRONT_URL}${route}`, { waitUntil: "networkidle", timeout: 45000 });
+  await page.goto(`${ADMIN_FRONT_URL}${route}`, {
+    waitUntil: "networkidle",
+    timeout: 45000,
+  });
   await page.waitForTimeout(1500);
   const bodyText = await page.textContent("body");
-  check(`${name} renders expected title`, String(bodyText || "").includes(expectedText));
+  check(
+    `${name} renders expected title`,
+    String(bodyText || "").includes(expectedText)
+  );
   const filePath = path.join(SCREENSHOT_DIR, `${name}.png`);
   await page.screenshot({ path: filePath, fullPage: true });
   ok(`screenshot saved: ${filePath}`);
@@ -182,25 +212,46 @@ async function screenshotPage(page, route, name, expectedText) {
 }
 
 async function assertBodyShowsAnyValue(page, values, label) {
-  const bodyText = String(await page.textContent("body") || "").replaceAll(",", "");
+  const bodyText = String((await page.textContent("body")) || "").replaceAll(
+    ",",
+    ""
+  );
   const normalizedValues = values
-    .map((value) => String(value ?? "").replaceAll(",", "").replace(/\.000000$/, ""))
+    .map((value) =>
+      String(value ?? "")
+        .replaceAll(",", "")
+        .replace(/\.000000$/, "")
+    )
     .filter((value) => value && value !== "0" && value !== "0.0");
   const matched = normalizedValues.find((value) => bodyText.includes(value));
-  check(`${label} displays at least one backend value`, Boolean(matched) || normalizedValues.length === 0);
+  check(
+    `${label} displays at least one backend value`,
+    Boolean(matched) || normalizedValues.length === 0
+  );
   return matched || "";
 }
 
 async function clickWindowSwitchers(page) {
-  await page.goto(`${ADMIN_FRONT_URL}/dashboard/analytics`, { waitUntil: "networkidle", timeout: 45000 });
+  await page.goto(`${ADMIN_FRONT_URL}/dashboard/analytics`, {
+    waitUntil: "networkidle",
+    timeout: 45000,
+  });
   for (const windowValue of ["7d", "30d", "24h"]) {
     await page.getByRole("button", { name: windowValue }).click();
     await page.waitForTimeout(350);
-    const bodyText = String(await page.textContent("body") || "");
-    check(`window switcher ${windowValue} keeps overview rendered`, bodyText.includes("Analytics 总览"));
+    const bodyText = String((await page.textContent("body")) || "");
+    check(
+      `window switcher ${windowValue} keeps overview rendered`,
+      bodyText.includes("Analytics 总览")
+    );
   }
-  await page.screenshot({ path: path.join(SCREENSHOT_DIR, "08-window-switchers.png"), fullPage: true });
-  ok(`screenshot saved: ${path.join(SCREENSHOT_DIR, "08-window-switchers.png")}`);
+  await page.screenshot({
+    path: path.join(SCREENSHOT_DIR, "08-window-switchers.png"),
+    fullPage: true,
+  });
+  ok(
+    `screenshot saved: ${path.join(SCREENSHOT_DIR, "08-window-switchers.png")}`
+  );
 }
 
 async function clickAnalyticsDrilldownCards(page) {
@@ -213,34 +264,85 @@ async function clickAnalyticsDrilldownCards(page) {
     ["/dashboard/analytics/data-quality", "埋点质量"],
   ];
   for (const [route, title] of cards) {
-    await page.goto(`${ADMIN_FRONT_URL}/dashboard/analytics`, { waitUntil: "networkidle", timeout: 45000 });
+    await page.goto(`${ADMIN_FRONT_URL}/dashboard/analytics`, {
+      waitUntil: "networkidle",
+      timeout: 45000,
+    });
     await page.locator(`a[href^="${route}"]`).first().click();
     await page.waitForURL((url) => url.pathname === route, { timeout: 30000 });
-    await page.waitForLoadState("networkidle", { timeout: 30000 }).catch(() => {});
-    await page.getByText(title, { exact: false }).first().waitFor({ timeout: 15000 }).catch(() => {});
-    const bodyText = String(await page.textContent("body") || "");
+    await page
+      .waitForLoadState("networkidle", { timeout: 30000 })
+      .catch(() => {});
+    await page
+      .getByText(title, { exact: false })
+      .first()
+      .waitFor({ timeout: 15000 })
+      .catch(() => {});
+    const bodyText = String((await page.textContent("body")) || "");
     check(`drilldown card navigates to ${route}`, bodyText.includes(title));
   }
-  await page.screenshot({ path: path.join(SCREENSHOT_DIR, "09-drilldown-card-clicks.png"), fullPage: true });
-  ok(`screenshot saved: ${path.join(SCREENSHOT_DIR, "09-drilldown-card-clicks.png")}`);
+  await page.screenshot({
+    path: path.join(SCREENSHOT_DIR, "09-drilldown-card-clicks.png"),
+    fullPage: true,
+  });
+  ok(
+    `screenshot saved: ${path.join(
+      SCREENSHOT_DIR,
+      "09-drilldown-card-clicks.png"
+    )}`
+  );
 }
 
 async function clickBudgetBlockAlert(page, overview) {
-  const hasBudgetAlert = (overview.alerts || []).some((alert) => String(alert.title).toLowerCase().includes("budget"));
+  const hasBudgetAlert = (overview.alerts || []).some((alert) =>
+    String(alert.title).toLowerCase().includes("budget")
+  );
   if (!hasBudgetAlert) {
-    ok("budget block alert drilldown skipped: no budget alert in current window");
+    ok(
+      "budget block alert drilldown skipped: no budget alert in current window"
+    );
     return;
   }
-  await page.goto(`${ADMIN_FRONT_URL}/dashboard/analytics`, { waitUntil: "networkidle", timeout: 45000 });
-  const link = page.locator('a[href*="/dashboard/analytics/risk-health"][href*="focus=budget_blocked"]').first();
+  await page.goto(`${ADMIN_FRONT_URL}/dashboard/analytics`, {
+    waitUntil: "networkidle",
+    timeout: 45000,
+  });
+  const link = page
+    .locator(
+      'a[href*="/dashboard/analytics/risk-health"][href*="focus=budget_blocked"]'
+    )
+    .first();
   await link.click();
-  await page.waitForURL((url) => url.pathname === "/dashboard/analytics/risk-health" && url.searchParams.get("focus") === "budget_blocked", { timeout: 30000 });
-  await page.waitForLoadState("networkidle", { timeout: 30000 }).catch(() => {});
-  await page.getByText("Budget blocked breakdown", { exact: false }).first().waitFor({ timeout: 15000 }).catch(() => {});
-  const bodyText = String(await page.textContent("body") || "");
-  check("budget block alert navigates to focused risk-health panel", bodyText.includes("Focused from alert") || bodyText.includes("Budget blocked breakdown"));
-  await page.screenshot({ path: path.join(SCREENSHOT_DIR, "10-budget-block-alert-drilldown.png"), fullPage: true });
-  ok(`screenshot saved: ${path.join(SCREENSHOT_DIR, "10-budget-block-alert-drilldown.png")}`);
+  await page.waitForURL(
+    (url) =>
+      url.pathname === "/dashboard/analytics/risk-health" &&
+      url.searchParams.get("focus") === "budget_blocked",
+    { timeout: 30000 }
+  );
+  await page
+    .waitForLoadState("networkidle", { timeout: 30000 })
+    .catch(() => {});
+  await page
+    .getByText("Budget blocked breakdown", { exact: false })
+    .first()
+    .waitFor({ timeout: 15000 })
+    .catch(() => {});
+  const bodyText = String((await page.textContent("body")) || "");
+  check(
+    "budget block alert navigates to focused risk-health panel",
+    bodyText.includes("Focused from alert") ||
+      bodyText.includes("Budget blocked breakdown")
+  );
+  await page.screenshot({
+    path: path.join(SCREENSHOT_DIR, "10-budget-block-alert-drilldown.png"),
+    fullPage: true,
+  });
+  ok(
+    `screenshot saved: ${path.join(
+      SCREENSHOT_DIR,
+      "10-budget-block-alert-drilldown.png"
+    )}`
+  );
 }
 
 async function verifyAnalyticsPageValues(page, apiData) {
@@ -253,36 +355,64 @@ async function verifyAnalyticsPageValues(page, apiData) {
     {
       route: "/dashboard/analytics/consumer-funnel",
       label: "consumer funnel",
-      values: (apiData.consumerFunnel.steps || []).flatMap((step) => [step.users, step.events]),
+      values: (apiData.consumerFunnel.steps || []).flatMap((step) => [
+        step.users,
+        step.events,
+      ]),
     },
     {
       route: "/dashboard/analytics/invocation-revenue",
       label: "invocation revenue",
-      values: [apiData.invocation.quoteCount, apiData.invocation.invokeStartedCount, apiData.invocation.invokeCompletedCount, apiData.invocation.gmvUsdc],
+      values: [
+        apiData.invocation.quoteCount,
+        apiData.invocation.invokeStartedCount,
+        apiData.invocation.invokeCompletedCount,
+        apiData.invocation.gmvUsdc,
+      ],
     },
     {
       route: "/dashboard/analytics/provider-revenue",
       label: "provider revenue",
-      values: [apiData.providerRevenue.revenueProviderCount, apiData.providerRevenue.providerGrossUsdc, apiData.providerRevenue.providerNetUsdc],
+      values: [
+        apiData.providerRevenue.revenueProviderCount,
+        apiData.providerRevenue.providerGrossUsdc,
+        apiData.providerRevenue.providerNetUsdc,
+      ],
     },
     {
       route: "/dashboard/analytics/money-flow",
       label: "money flow",
-      values: [apiData.moneyFlow.depositUsdc, apiData.moneyFlow.depositFailedCount, apiData.moneyFlow.withdrawalUsdc, apiData.moneyFlow.refundUsdc],
+      values: [
+        apiData.moneyFlow.depositUsdc,
+        apiData.moneyFlow.depositFailedCount,
+        apiData.moneyFlow.withdrawalUsdc,
+        apiData.moneyFlow.refundUsdc,
+      ],
     },
     {
       route: "/dashboard/analytics/risk-health",
       label: "risk health",
-      values: [apiData.riskHealth.criticalRiskEvents, apiData.riskHealth.providerHealthDegradedCount, apiData.riskHealth.budgetGapUsdc],
+      values: [
+        apiData.riskHealth.criticalRiskEvents,
+        apiData.riskHealth.providerHealthDegradedCount,
+        apiData.riskHealth.budgetGapUsdc,
+      ],
     },
     {
       route: "/dashboard/analytics/data-quality",
       label: "data quality",
-      values: [apiData.dataQuality.eventCount, apiData.dataQuality.privacyViolations, apiData.dataQuality.missingRequiredProperties],
+      values: [
+        apiData.dataQuality.eventCount,
+        apiData.dataQuality.privacyViolations,
+        apiData.dataQuality.missingRequiredProperties,
+      ],
     },
   ];
   for (const item of pages) {
-    await page.goto(`${ADMIN_FRONT_URL}${item.route}`, { waitUntil: "networkidle", timeout: 45000 });
+    await page.goto(`${ADMIN_FRONT_URL}${item.route}`, {
+      waitUntil: "networkidle",
+      timeout: 45000,
+    });
     await assertBodyShowsAnyValue(page, item.values, item.label);
   }
 }
@@ -311,30 +441,89 @@ async function verifyAdminPages(auth, report, apiData) {
 
     const page = await context.newPage();
     const screenshots = [];
-    screenshots.push(await screenshotPage(page, "/dashboard/analytics", "01-analytics-overview", "Analytics 总览"));
-    screenshots.push(await screenshotPage(page, "/dashboard/analytics/consumer-funnel", "02-consumer-funnel", "Consumer 激活漏斗"));
-    screenshots.push(await screenshotPage(page, "/dashboard/analytics/invocation-revenue", "03-invocation-revenue", "调用与收入"));
-    screenshots.push(await screenshotPage(page, "/dashboard/analytics/provider-revenue", "04-provider-revenue", "Provider 收益"));
-    screenshots.push(await screenshotPage(page, "/dashboard/analytics/money-flow", "05-money-flow", "资金流"));
-    screenshots.push(await screenshotPage(page, "/dashboard/analytics/risk-health", "06-risk-health", "风控健康"));
-    screenshots.push(await screenshotPage(page, "/dashboard/analytics/data-quality", "07-data-quality", "埋点质量"));
+    screenshots.push(
+      await screenshotPage(
+        page,
+        "/dashboard/analytics",
+        "01-analytics-overview",
+        "Analytics 总览"
+      )
+    );
+    screenshots.push(
+      await screenshotPage(
+        page,
+        "/dashboard/analytics/consumer-funnel",
+        "02-consumer-funnel",
+        "Consumer 激活漏斗"
+      )
+    );
+    screenshots.push(
+      await screenshotPage(
+        page,
+        "/dashboard/analytics/invocation-revenue",
+        "03-invocation-revenue",
+        "调用与收入"
+      )
+    );
+    screenshots.push(
+      await screenshotPage(
+        page,
+        "/dashboard/analytics/provider-revenue",
+        "04-provider-revenue",
+        "Provider 收益"
+      )
+    );
+    screenshots.push(
+      await screenshotPage(
+        page,
+        "/dashboard/analytics/money-flow",
+        "05-money-flow",
+        "资金流"
+      )
+    );
+    screenshots.push(
+      await screenshotPage(
+        page,
+        "/dashboard/analytics/risk-health",
+        "06-risk-health",
+        "风控健康"
+      )
+    );
+    screenshots.push(
+      await screenshotPage(
+        page,
+        "/dashboard/analytics/data-quality",
+        "07-data-quality",
+        "埋点质量"
+      )
+    );
 
-    await page.goto(`${ADMIN_FRONT_URL}/dashboard/analytics`, { waitUntil: "networkidle", timeout: 45000 });
-    const overviewText = String(await page.textContent("body") || "").replaceAll(",", "");
+    await page.goto(`${ADMIN_FRONT_URL}/dashboard/analytics`, {
+      waitUntil: "networkidle",
+      timeout: 45000,
+    });
+    const overviewText = String(
+      (await page.textContent("body")) || ""
+    ).replaceAll(",", "");
     check(
       "Analytics overview displays backend invoke count",
-      overviewText.includes(String(apiData.invocation.invokeCompletedCount)),
+      overviewText.includes(String(apiData.invocation.invokeCompletedCount))
     );
     check(
       "Analytics overview displays full-chain service event context",
-      (report.requiredEvents || []).includes("service_registered")
-        && (report.requiredEvents || []).includes("provider_revenue_received"),
+      (report.requiredEvents || []).includes("service_registered") &&
+        (report.requiredEvents || []).includes("provider_revenue_received")
     );
     check(
       "Analytics full-chain report includes supplemental drilldown coverage",
-      ["budget_blocked", "deposit_failed", "risk_rule_triggered", "settlement_claim_requested"].every((eventName) =>
+      [
+        "budget_blocked",
+        "deposit_failed",
+        "risk_rule_triggered",
+        "settlement_claim_requested",
+      ].every((eventName) =>
         (report.supplementalEvents || []).includes(eventName)
-      ),
+      )
     );
     await clickWindowSwitchers(page);
     await clickAnalyticsDrilldownCards(page);
@@ -358,20 +547,44 @@ async function main() {
   ok("admin authenticated");
 
   const apiData = {
-    overview: await adminApiGet("/api/admin/v1/dashboard/analytics/overview?window=24h", auth),
-    consumerFunnel: await adminApiGet("/api/admin/v1/dashboard/analytics/consumer-funnel?window=24h", auth),
-    invocation: await adminApiGet("/api/admin/v1/dashboard/analytics/invocation-revenue?window=24h", auth),
-    providerRevenue: await adminApiGet("/api/admin/v1/dashboard/analytics/provider-revenue?window=24h", auth),
-    moneyFlow: await adminApiGet("/api/admin/v1/dashboard/analytics/money-flow?window=24h", auth),
-    riskHealth: await adminApiGet("/api/admin/v1/dashboard/analytics/risk-health?window=24h", auth),
-    dataQuality: await adminApiGet("/api/admin/v1/dashboard/analytics/data-quality?window=24h", auth),
+    overview: await adminApiGet(
+      "/api/admin/v1/dashboard/analytics/overview?window=24h",
+      auth
+    ),
+    consumerFunnel: await adminApiGet(
+      "/api/admin/v1/dashboard/analytics/consumer-funnel?window=24h",
+      auth
+    ),
+    invocation: await adminApiGet(
+      "/api/admin/v1/dashboard/analytics/invocation-revenue?window=24h",
+      auth
+    ),
+    providerRevenue: await adminApiGet(
+      "/api/admin/v1/dashboard/analytics/provider-revenue?window=24h",
+      auth
+    ),
+    moneyFlow: await adminApiGet(
+      "/api/admin/v1/dashboard/analytics/money-flow?window=24h",
+      auth
+    ),
+    riskHealth: await adminApiGet(
+      "/api/admin/v1/dashboard/analytics/risk-health?window=24h",
+      auth
+    ),
+    dataQuality: await adminApiGet(
+      "/api/admin/v1/dashboard/analytics/data-quality?window=24h",
+      auth
+    ),
   };
   ok("admin analytics APIs loaded");
 
   assertAdminDataMatchesRaw(report, apiData);
   const screenshots = await verifyAdminPages(auth, report, apiData);
 
-  const verificationPath = path.join(path.dirname(REPORT_PATH), "admin-page-verification.json");
+  const verificationPath = path.join(
+    path.dirname(REPORT_PATH),
+    "admin-page-verification.json"
+  );
   fs.writeFileSync(
     verificationPath,
     JSON.stringify(
@@ -385,8 +598,8 @@ async function main() {
         adminOverview: apiData.overview,
       },
       null,
-      2,
-    ),
+      2
+    )
   );
   ok(`verification report saved: ${verificationPath}`);
 

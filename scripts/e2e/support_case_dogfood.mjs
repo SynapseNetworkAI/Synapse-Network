@@ -70,7 +70,7 @@ const userFrontUrl = (
 const adminFrontUrl = (
   process.env.STAGING_ADMIN_FRONT_URL ||
   process.env.ADMIN_FRONT_URL ||
-  "http://localhost:4000"
+  "http://localhost:3200"
 ).replace(/\/+$/, "");
 const gatewayBaseUrl = (
   process.env.GATEWAY_BASE_URL ||

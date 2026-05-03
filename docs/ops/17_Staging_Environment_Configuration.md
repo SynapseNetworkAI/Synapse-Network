@@ -1163,7 +1163,7 @@ intentionally refactored. Current code uses `NEXT_PUBLIC_GATEWAY_BASE_URL`.
 ## Docs-front
 
 Template and defaults live in `services/docs-front`. Local docs run on
-`http://localhost:3001`; staging deploys as `synapse-staging-docs-front` behind
+`http://localhost:3100`; staging deploys as `synapse-staging-docs-front` behind
 `https://docs-staging.synapse-network.ai`.
 
 Docs-front public env:

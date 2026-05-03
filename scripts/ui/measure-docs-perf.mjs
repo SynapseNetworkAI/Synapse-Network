@@ -19,7 +19,7 @@ import { fileURLToPath } from "url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "../..");
 const OUT = path.join(ROOT, "output", "playwright");
-const BASE = process.env.DOCS_BASE_URL || "http://localhost:3001";
+const BASE = process.env.DOCS_BASE_URL || "http://localhost:3100";
 const LABEL = process.argv.includes("--label")
   ? process.argv[process.argv.indexOf("--label") + 1]
   : "before";
