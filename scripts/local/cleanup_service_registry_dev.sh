@@ -24,10 +24,23 @@ if ! command -v psql >/dev/null 2>&1; then
   exit 1
 fi
 
-DEFAULT_LOCAL_POSTGRES_DSN="postgresql://synapse:local-dev-postgres-password@127.0.0.1:15432/synapse_gateway"
+LOCAL_GATEWAY_POSTGRES_PORT="${LOCAL_GATEWAY_POSTGRES_PORT:-15432}"
+DEFAULT_LOCAL_POSTGRES_DSN="postgresql://synapse:local-dev-postgres-password@127.0.0.1:${LOCAL_GATEWAY_POSTGRES_PORT}/synapse_gateway"
+ENV_FILE="${ROOT_DIR}/services/gateway/.env.local"
+
+mask_dsn() {
+  printf '%s' "$1" | sed -E 's#(://[^:/@]+:)[^@]+@#\1***@#'
+}
+
 if [[ -n "${LOCAL_GATEWAY_POSTGRES_DSN:-}" ]]; then
   POSTGRES_DSN="${LOCAL_GATEWAY_POSTGRES_DSN}"
 else
+  if [[ -n "${POSTGRES_DSN:-}" ]]; then
+    echo "[local-cleanup] ignoring ambient POSTGRES_DSN for local cleanup; use LOCAL_GATEWAY_POSTGRES_DSN to override intentionally."
+  fi
+  if [[ -f "${ENV_FILE}" ]] && grep -q '^POSTGRES_DSN=' "${ENV_FILE}"; then
+    echo "[local-cleanup] ignoring services/gateway/.env.local POSTGRES_DSN; local cleanup uses Docker Postgres by default."
+  fi
   POSTGRES_DSN="${DEFAULT_LOCAL_POSTGRES_DSN}"
 fi
 POSTGRES_DSN="$(printf '%s' "${POSTGRES_DSN}" | sed 's/@postgres:/@127.0.0.1:/')"
@@ -40,9 +53,21 @@ case "${POSTGRES_DSN}" in
     ;;
 esac
 
-db_name="$(psql "${POSTGRES_DSN}" -X -q -t -A -v ON_ERROR_STOP=1 -c "SELECT current_database()" 2>/dev/null || true)"
+probe_stderr="$(mktemp)"
+trap 'rm -f "${probe_stderr}"' EXIT
+
+if ! db_name="$(psql "${POSTGRES_DSN}" -X -q -t -A -v ON_ERROR_STOP=1 -c "SELECT current_database()" 2>"${probe_stderr}")"; then
+  echo "Error: unable to connect to local Gateway Postgres for cleanup."
+  echo "DSN: $(mask_dsn "${POSTGRES_DSN}")"
+  if [[ -s "${probe_stderr}" ]]; then
+    sed -n '1,3p' "${probe_stderr}" | sed 's/^/psql: /'
+  fi
+  exit 1
+fi
+db_name="$(printf '%s' "${db_name}" | tr -d '[:space:]')"
 if [[ "${db_name}" != "synapse_gateway" ]]; then
   echo "Error: cleanup only runs against local synapse_gateway; got '${db_name:-unknown}'."
+  echo "DSN: $(mask_dsn "${POSTGRES_DSN}")"
   exit 1
 fi
 

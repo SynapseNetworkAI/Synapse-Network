@@ -496,8 +496,8 @@ TARGET_WALLET=0x1111111111111111111111111111111111111111,0x222222222222222222222
    LOCAL_DEV_CLEANUP_CONFIRM=I_UNDERSTAND_THIS_MUTATES_LOCAL_DB \
      bash scripts/local/cleanup_service_registry_dev.sh
    ```
-4. 脚本默认连接 Docker local Postgres `127.0.0.1:15432/synapse_gateway`，和 `restart_gateway.sh` 一样不读取 `.env.local` 的 `POSTGRES_DSN`；如需覆盖，显式设置 `LOCAL_GATEWAY_POSTGRES_DSN`。
-5. 脚本只允许 `localhost` / `127.0.0.1` 的 `synapse_gateway` 数据库，不能用于 staging/prod。
+4. 脚本只允许 `localhost` / `127.0.0.1` 的 `synapse_gateway` 数据库，不能用于 staging/prod。
+5. 默认连接 Docker local Postgres `127.0.0.1:${LOCAL_GATEWAY_POSTGRES_PORT:-15432}/synapse_gateway`，并刻意忽略环境里的 `POSTGRES_DSN` 和 `services/gateway/.env.local` 中的 `POSTGRES_DSN`；确实需要临时覆盖时，只使用 `LOCAL_GATEWAY_POSTGRES_DSN=...`。
 6. 保留 canonical provider 服务：`svc_web3_sentiment_index`、`svc_protocol_fundamental_brief`、`svc_oss_security_healthcheck`、`svc_deepseek_chat`。
 7. 普通 E2E 默认复用 canonical provider 服务，不再随机创建服务。只有 provider registration / onboarding 测试或显式设置 `GATEWAY_E2E_ALLOW_SERVICE_CREATION=true` 的脚本可以创建临时服务。
 8. 非破坏性预览：
