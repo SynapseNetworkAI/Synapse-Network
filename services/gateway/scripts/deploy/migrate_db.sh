@@ -78,7 +78,7 @@ fi
 
 case "${ENVIRONMENT}" in
   local)
-    MIGRATION_CONNINFO="${MIGRATION_DSN:-${LOCAL_POSTGRES_MIGRATOR_DSN:-${POSTGRES_MIGRATOR_DSN:-${POSTGRES_DSN:-postgresql://synapse:local-dev-postgres-password@localhost:5432/synapse_gateway}}}}"
+    MIGRATION_CONNINFO="${MIGRATION_DSN:-${LOCAL_POSTGRES_MIGRATOR_DSN:-${POSTGRES_MIGRATOR_DSN:-${POSTGRES_DSN:-postgresql://synapse:local-dev-postgres-password@127.0.0.1:15432/synapse_gateway}}}}"
     if ! is_local_dsn "${MIGRATION_CONNINFO}"; then
       echo "refusing local migration against non-local DSN" >&2
       echo "Agent fix: local migrations must target localhost/127.0.0.1/0.0.0.0." >&2

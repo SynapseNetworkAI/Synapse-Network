@@ -495,7 +495,7 @@ def test_provider_withdraw_blocks_when_vault_liquidity_is_insufficient_before_lo
     with pytest.raises(HTTPException) as exc_info:
         asyncio.run(
             service.create_provider_withdraw_intent(
-                {"amountUsdc": "8.5"},
+                {"amountUsdc": "12.5"},
                 "0xdef",
                 "withdraw-intent-key-liquidity-1",
             )
@@ -543,11 +543,11 @@ def test_provider_withdraw_atomic_path_reads_vault_liquidity_from_contract_tuple
 
     def _process_withdrawal_request_atomic(command):
         assert command.pre_reserve_check is not None
-        command.pre_reserve_check(Decimal("8.5"))
+        command.pre_reserve_check(Decimal("12.5"))
         return SimpleNamespace(
             withdrawal_id="wd-1",
             status="APPROVED_AUTO",
-            amount_usdc=Decimal("8.5"),
+            amount_usdc=Decimal("12.5"),
             ticket={},
             message="ok",
             decision="green",
@@ -558,7 +558,7 @@ def test_provider_withdraw_atomic_path_reads_vault_liquidity_from_contract_tuple
 
     created = asyncio.run(
         service.create_provider_withdraw_intent(
-            {"amountUsdc": "8.5"},
+            {"amountUsdc": "12.5"},
             "0xdef",
             "withdraw-intent-key-atomic-liquidity-1",
         )
@@ -581,7 +581,7 @@ def test_provider_withdraw_maps_missing_vault_web3_provider_to_service_unavailab
 
     def _process_withdrawal_request_atomic(command):
         assert command.pre_reserve_check is not None
-        command.pre_reserve_check(Decimal("8.5"))
+        command.pre_reserve_check(Decimal("12.5"))
         raise AssertionError("pre_reserve_check should raise before atomic success")
 
     storage.process_withdrawal_request_atomic = _process_withdrawal_request_atomic  # type: ignore[attr-defined]
@@ -589,7 +589,7 @@ def test_provider_withdraw_maps_missing_vault_web3_provider_to_service_unavailab
     with pytest.raises(HTTPException) as exc_info:
         asyncio.run(
             service.create_provider_withdraw_intent(
-                {"amountUsdc": "8.5"},
+                {"amountUsdc": "12.5"},
                 "0xdef",
                 "withdraw-intent-key-atomic-liquidity-2",
             )

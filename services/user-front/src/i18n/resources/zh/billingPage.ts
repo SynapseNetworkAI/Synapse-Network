@@ -13,7 +13,7 @@ const billingPage: I18nMessages["billingPage"] = {
   tableDate: "Date",
   tableInvoice: "Invoice",
   statusPending: "处理中",
-  statusSucceeded: "Succeeded",
+  statusSucceeded: "已完成",
   statusFailed: "失败",
   loading: "正在加载 Payments...",
   empty: "当前筛选范围内没有支付记录。",

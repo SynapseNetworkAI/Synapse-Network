@@ -25,6 +25,7 @@ import {
   updateProviderServiceLifecycle,
   resolveAdminApiBaseUrl,
 } from "./admin-api";
+import { createPlatformFeeSafeDraft } from "./platform-fee-treasury-api";
 
 describe("admin session expiry handling", () => {
   const originalFetch = globalThis.fetch;
@@ -72,7 +73,10 @@ describe("admin session expiry handling", () => {
   });
 
   it("clears the csrf token and redirects to login when the admin session has expired", async () => {
-    globalThis.sessionStorage.setItem("synapse.admin.csrfToken", "persisted-token");
+    globalThis.sessionStorage.setItem(
+      "synapse.admin.csrfToken",
+      "persisted-token"
+    );
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: false,
       status: 401,
@@ -86,8 +90,12 @@ describe("admin session expiry handling", () => {
       }),
     }) as typeof fetch;
 
-    await expect(getCurrentAdmin("cookie-session")).rejects.toThrow("Admin session expired");
-    expect(globalThis.sessionStorage.getItem("synapse.admin.csrfToken")).toBeNull();
+    await expect(getCurrentAdmin("cookie-session")).rejects.toThrow(
+      "Admin session expired"
+    );
+    expect(
+      globalThis.sessionStorage.getItem("synapse.admin.csrfToken")
+    ).toBeNull();
     expect(replaceSpy).toHaveBeenCalledWith("/login");
   });
 });
@@ -99,7 +107,9 @@ describe("resolveAdminApiBaseUrl", () => {
   });
 
   it("strips a trailing slash from explicit API base URLs", () => {
-    expect(resolveAdminApiBaseUrl("http://localhost:8300/")).toBe("http://localhost:8300");
+    expect(resolveAdminApiBaseUrl("http://localhost:8300/")).toBe(
+      "http://localhost:8300"
+    );
   });
 
   it("preserves relative API prefixes when they are explicitly configured", () => {
@@ -135,7 +145,9 @@ describe("analytics API adapters", () => {
     await getAnalyticsRiskHealth("cookie-session", "7d");
     await getAnalyticsDataQuality("cookie-session", "1h");
 
-    const urls = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.map((call) => call[0]);
+    const urls = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.map(
+      (call) => call[0]
+    );
     expect(urls).toEqual([
       "/api/admin/v1/dashboard/analytics/overview?window=7d",
       "/api/admin/v1/dashboard/analytics/consumer-funnel?window=7d",
@@ -145,6 +157,102 @@ describe("analytics API adapters", () => {
       "/api/admin/v1/dashboard/analytics/risk-health?window=7d",
       "/api/admin/v1/dashboard/analytics/data-quality?window=1h",
     ]);
+  });
+});
+
+describe("platform fee treasury API adapter", () => {
+  const originalFetch = globalThis.fetch;
+  const storage = new Map<string, string>();
+  const originalWindow = globalThis.window;
+
+  beforeEach(() => {
+    storage.clear();
+    Object.defineProperty(globalThis, "window", {
+      configurable: true,
+      value: {
+        location: {
+          pathname: "/finance",
+          replace: vi.fn(),
+        },
+        sessionStorage: {
+          getItem: (key: string) => storage.get(key) ?? null,
+          setItem: (key: string, value: string) => {
+            storage.set(key, value);
+          },
+          removeItem: (key: string) => {
+            storage.delete(key);
+          },
+          clear: () => {
+            storage.clear();
+          },
+        },
+      },
+    });
+    Object.defineProperty(globalThis, "sessionStorage", {
+      configurable: true,
+      value: globalThis.window.sessionStorage,
+    });
+    globalThis.sessionStorage.setItem("synapse.admin.csrfToken", "csrf-token");
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    Object.defineProperty(globalThis, "window", {
+      configurable: true,
+      value: originalWindow,
+    });
+  });
+
+  it("creates a super-admin Safe draft with CSRF and OTP headers", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        success: true,
+        data: {
+          status: "ready_for_safe",
+          requestId: "platform-fee-test",
+          amountUsdc: "1.000000",
+          amountAtomic: "1000000000000000000",
+          safeAddress: "0x1111111111111111111111111111111111111111",
+          ledgerSignerAddress: "0x2222222222222222222222222222222222222222",
+          synapseCoreAddress: "0x3333333333333333333333333333333333333333",
+          selector: "0x6aa21416",
+          calldataHash: "0xhash",
+          platformFeePoolAtomic: "2000000000000000000",
+          safeTx: {
+            to: "0x3333333333333333333333333333333333333333",
+            value: "0",
+            data: "0x6aa21416",
+            operation: 0,
+          },
+        },
+        requestId: "req_platform_fee",
+      }),
+    }) as typeof fetch;
+
+    const draft = await createPlatformFeeSafeDraft({
+      amountUsdc: "1.000000",
+      reason: "Move platform fees to Safe.",
+      requestId: "platform-fee-test",
+      otpCode: "123456",
+    });
+
+    expect(draft.selector).toBe("0x6aa21416");
+    const [, requestInit] =
+      (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0] ?? [];
+    expect(requestInit?.method).toBe("POST");
+    expect((requestInit?.headers as Headers).get("X-CSRF-Token")).toBe(
+      "csrf-token"
+    );
+    expect((requestInit?.headers as Headers).get("X-Admin-OTP-Code")).toBe(
+      "123456"
+    );
+    expect(JSON.parse(String(requestInit?.body))).toEqual({
+      amountUsdc: "1.000000",
+      reason: "Move platform fees to Safe.",
+      requestId: "platform-fee-test",
+    });
   });
 });
 
@@ -177,7 +285,10 @@ describe("provider services API adapters", () => {
       configurable: true,
       value: globalThis.window.sessionStorage,
     });
-    globalThis.sessionStorage.setItem("synapse.admin.csrfToken", "csrf-provider-services");
+    globalThis.sessionStorage.setItem(
+      "synapse.admin.csrfToken",
+      "csrf-provider-services"
+    );
     const providerServicePayload = {
       serviceId: "svc_quotes",
       ownerAddress: "0xabc",
@@ -253,8 +364,11 @@ describe("provider services API adapters", () => {
       pageSize: 10,
     });
 
-    const url = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
-    expect(url).toBe("/api/admin/v1/provider-services?query=quote&status=active&runtimeStatus=healthy&page=2&pageSize=10");
+    const url = (globalThis.fetch as ReturnType<typeof vi.fn>).mock
+      .calls[0]?.[0];
+    expect(url).toBe(
+      "/api/admin/v1/provider-services?query=quote&status=active&runtimeStatus=healthy&page=2&pageSize=10"
+    );
     expect(response.items[0]?.adaptiveConcurrencyLimit).toBe(8);
     expect(response.items[0]?.inFlight).toBe(1);
     expect(response.items[0]?.latencyP95Ms).toBe(42);
@@ -268,9 +382,12 @@ describe("provider services API adapters", () => {
       note: "ops pause",
     });
 
-    const [, init] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0] ?? [];
+    const [, init] =
+      (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0] ?? [];
     expect(init?.method).toBe("POST");
-    expect(init?.body).toBe(JSON.stringify({ action: "PAUSE", note: "ops pause" }));
+    expect(init?.body).toBe(
+      JSON.stringify({ action: "PAUSE", note: "ops pause" })
+    );
   });
 });
 
@@ -303,7 +420,10 @@ describe("forum support API adapters", () => {
       configurable: true,
       value: globalThis.window.sessionStorage,
     });
-    globalThis.sessionStorage.setItem("synapse.admin.csrfToken", "csrf-forum-support");
+    globalThis.sessionStorage.setItem(
+      "synapse.admin.csrfToken",
+      "csrf-forum-support"
+    );
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -343,9 +463,10 @@ describe("forum support API adapters", () => {
       pageSize: 30,
     });
 
-    const url = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
+    const url = (globalThis.fetch as ReturnType<typeof vi.fn>).mock
+      .calls[0]?.[0];
     expect(url).toBe(
-      "/api/admin/v1/forum/response-tasks?status=awaiting_response%2Cdraft_ready&classification=bug&page=2&page_size=30",
+      "/api/admin/v1/forum/response-tasks?status=awaiting_response%2Cdraft_ready&classification=bug&page=2&page_size=30"
     );
   });
 
@@ -356,14 +477,17 @@ describe("forum support API adapters", () => {
       authorAddress: "synapse:ops",
     });
 
-    const [, init] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0] ?? [];
+    const [, init] =
+      (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0] ?? [];
     expect(init?.method).toBe("POST");
     expect(new Headers(init?.headers).get("X-CSRF-Token")).toBeTruthy();
-    expect(init?.body).toBe(JSON.stringify({
-      body: "Thanks, we are investigating this.",
-      authorDisplay: "Synapse Ops",
-      authorAddress: "synapse:ops",
-    }));
+    expect(init?.body).toBe(
+      JSON.stringify({
+        body: "Thanks, we are investigating this.",
+        authorDisplay: "Synapse Ops",
+        authorAddress: "synapse:ops",
+      })
+    );
   });
 
   it("posts ignore decisions with a required reason payload", async () => {
@@ -371,10 +495,13 @@ describe("forum support API adapters", () => {
       reason: "Duplicate of an already answered topic.",
     });
 
-    const [, init] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0] ?? [];
+    const [, init] =
+      (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0] ?? [];
     expect(init?.method).toBe("POST");
     expect(new Headers(init?.headers).get("X-CSRF-Token")).toBeTruthy();
-    expect(init?.body).toBe(JSON.stringify({ reason: "Duplicate of an already answered topic." }));
+    expect(init?.body).toBe(
+      JSON.stringify({ reason: "Duplicate of an already answered topic." })
+    );
   });
 
   it("maps forum topic list filters to backend pagination parameters", async () => {
@@ -386,15 +513,18 @@ describe("forum support API adapters", () => {
       pageSize: 40,
     });
 
-    const url = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
+    const url = (globalThis.fetch as ReturnType<typeof vi.fn>).mock
+      .calls[0]?.[0];
     expect(url).toBe(
-      "/api/admin/v1/forum/topics?status=open%2Cawaiting_admin&q=wallet&pinned=true&page=3&page_size=40",
+      "/api/admin/v1/forum/topics?status=open%2Cawaiting_admin&q=wallet&pinned=true&page=3&page_size=40"
     );
   });
 
   it("reads forum topic detail and posts moderation lifecycle actions", async () => {
     await getForumTopic("cookie-session", "topic_1");
-    await closeForumTopic("cookie-session", "topic_1", { reason: "Duplicate issue." });
+    await closeForumTopic("cookie-session", "topic_1", {
+      reason: "Duplicate issue.",
+    });
     await reopenForumTopic("cookie-session", "topic_1");
     await pinForumTopic("cookie-session", "topic_1");
     await unpinForumTopic("cookie-session", "topic_1");
@@ -403,7 +533,9 @@ describe("forum support API adapters", () => {
     expect(calls[0]?.[0]).toBe("/api/admin/v1/forum/topics/topic_1");
     expect(calls[1]?.[0]).toBe("/api/admin/v1/forum/topics/topic_1/close");
     expect(calls[1]?.[1]?.method).toBe("POST");
-    expect(calls[1]?.[1]?.body).toBe(JSON.stringify({ reason: "Duplicate issue." }));
+    expect(calls[1]?.[1]?.body).toBe(
+      JSON.stringify({ reason: "Duplicate issue." })
+    );
     expect(calls[2]?.[0]).toBe("/api/admin/v1/forum/topics/topic_1/reopen");
     expect(calls[3]?.[0]).toBe("/api/admin/v1/forum/topics/topic_1/pin");
     expect(calls[4]?.[0]).toBe("/api/admin/v1/forum/topics/topic_1/unpin");
@@ -546,6 +678,8 @@ describe("status normalization adapters", () => {
       }),
     }) as typeof fetch;
 
-    await expect(listApprovals("cookie-session")).rejects.toThrow("Unknown approval status: WAITING_FOR_MAGIC");
+    await expect(listApprovals("cookie-session")).rejects.toThrow(
+      "Unknown approval status: WAITING_FOR_MAGIC"
+    );
   });
 });

@@ -120,6 +120,20 @@ def test_seeded_startup_stale_snapshot_is_not_discoverable() -> None:
     assert not service_health_service.is_service_discoverable(seeded)
 
 
+def test_offline_service_does_not_build_probe_health_row() -> None:
+    service = service_definition("offline_probe_row", status="offline")
+    target = service.invoke.targets[0]
+
+    assert service_health_utils._service_health_row(service, target, {}) is None
+
+
+def test_offline_service_does_not_build_startup_stale_row() -> None:
+    service = service_definition("offline_startup_row", status="offline")
+    target = service.invoke.targets[0]
+
+    assert service_health_utils._startup_stale_health_row(service, target) is None
+
+
 def test_startup_does_not_trust_expired_healthy_snapshot(monkeypatch) -> None:
     now_ms = 1773982500000
     monkeypatch.setattr(service_health_utils, "_now_ms", lambda: now_ms)
@@ -592,12 +606,15 @@ async def test_refresh_all_service_health_keeps_active_unhealthy_services_probea
 
 
 @pytest.mark.asyncio
-async def test_refresh_all_service_health_skips_inactive_but_probes_suspended(
+async def test_refresh_all_service_health_skips_non_active_but_probes_suspended(
     monkeypatch,
 ) -> None:
     storage = FakeStorage(
         [
             service_definition("inactive_service", status="inactive", is_active=False),
+            service_definition("paused_service", status="paused", is_active=False),
+            service_definition("archived_service", status="archived", is_active=False),
+            service_definition("offline_service", status="offline", is_active=False),
             service_definition("suspended_service", status="suspended", is_active=False),
             service_definition("deleted_service", status="deleted", is_active=False),
         ]
@@ -638,7 +655,13 @@ async def test_refresh_all_service_health_skips_inactive_but_probes_suspended(
     assert result["checked"] == 1
     assert probed == ["suspended_service"]
     assert all(
-        row.service_id != "deleted_service"
+        row.service_id
+        not in {
+            "archived_service",
+            "deleted_service",
+            "offline_service",
+            "paused_service",
+        }
         for row in storage.registry.persisted_health_rows
     )
     suspended_row = next(
