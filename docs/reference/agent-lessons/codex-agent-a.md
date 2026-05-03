@@ -96,3 +96,13 @@ Status: Active
 - Fix: Keep the Decimal 10 USDC policy constant, send amount strings over HTTP, and retain the T+1 mature-funds skip path for dependent assertions.
 - Rule: When resolving finance-test conflicts, preserve policy constants, money serialization rules, and prerequisite skip semantics together.
 - Upgrade: agents-memory
+
+### Lesson: PR gates must resolve branch names from GitHub Actions env
+
+- Domain: ci
+- Severity: warning
+- Trigger: GitHub Actions ran PR checks from a detached `HEAD`, so the lessons gate looked for `docs/reference/agent-lessons/head.md`.
+- Root cause: Branch detection trusted `git rev-parse --abbrev-ref HEAD` before checking PR-specific environment variables.
+- Fix: Resolve branch names from `AGENT_LESSONS_BRANCH`, then `GITHUB_HEAD_REF`, then safe `GITHUB_REF_NAME`, and only then fall back to git.
+- Rule: CI gates that need branch-specific files must handle detached checkouts with provider environment variables before using git branch names.
+- Upgrade: agents-memory

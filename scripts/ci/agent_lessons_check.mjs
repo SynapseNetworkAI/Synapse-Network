@@ -100,6 +100,19 @@ export function shouldRequireLessons({
   return Number(nonMergeCommitCount) > 0 || Boolean(hasWorktreeChanges);
 }
 
+export function resolveBranchName({ env = process.env, gitBranch = "" } = {}) {
+  if (env.AGENT_LESSONS_BRANCH) return env.AGENT_LESSONS_BRANCH;
+  if (env.GITHUB_HEAD_REF) return env.GITHUB_HEAD_REF;
+  if (
+    env.GITHUB_REF_NAME &&
+    !/^(HEAD|merge|\d+\/merge)$/.test(env.GITHUB_REF_NAME)
+  ) {
+    return env.GITHUB_REF_NAME;
+  }
+  if (gitBranch && gitBranch !== "HEAD") return gitBranch;
+  return "detached-head";
+}
+
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -130,9 +143,9 @@ function tryGit(args) {
 }
 
 function currentBranch() {
-  const override = process.env.AGENT_LESSONS_BRANCH;
-  if (override) return override;
-  return tryGit(["rev-parse", "--abbrev-ref", "HEAD"]) || "detached-head";
+  return resolveBranchName({
+    gitBranch: tryGit(["rev-parse", "--abbrev-ref", "HEAD"]),
+  });
 }
 
 function comparisonBase() {
