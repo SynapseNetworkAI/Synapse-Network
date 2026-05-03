@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "../..");
 const ADMIN_FRONT_URL = (
-  process.env.ADMIN_FRONT_URL || "http://localhost:4000"
+  process.env.ADMIN_FRONT_URL || "http://localhost:3200"
 ).replace(/\/+$/, "");
 const ADMIN_GATEWAY_URL = (
   process.env.ADMIN_GATEWAY_URL || "http://localhost:8300"

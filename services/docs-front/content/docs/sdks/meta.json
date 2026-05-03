@@ -1,0 +1,12 @@
+{
+  "title": "SDKs",
+  "pages": [
+    "index",
+    "typescript",
+    "python",
+    "go",
+    "java",
+    "dotnet",
+    "mcp-agent-tooling"
+  ]
+}

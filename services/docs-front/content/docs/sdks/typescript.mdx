@@ -1,0 +1,74 @@
+---
+title: TypeScript SDK
+description: Build Node and web agents that discover and invoke paid services.
+---
+
+The TypeScript SDK is in Public Preview. Public examples target staging by default.
+
+```bash
+npm install @synapse-network-ai/sdk
+```
+
+```ts
+import { SynapseClient } from "@synapse-network-ai/sdk";
+
+const agentKey = process.env.SYNAPSE_AGENT_KEY;
+if (!agentKey) {
+  throw new Error("SYNAPSE_AGENT_KEY is required");
+}
+
+const client = new SynapseClient({
+  credential: agentKey,
+  environment: "staging",
+});
+
+const services = await client.search("svc_synapse_echo", {
+  limit: 10,
+});
+const service = services[0];
+
+const result = await client.invoke(
+  service.serviceId ?? service.id!,
+  {
+    message: "hello from Synapse SDK smoke",
+    metadata: { scenario: "quickstart" },
+  },
+  {
+    costUsdc: String(service.pricing?.amount ?? "0"),
+    idempotencyKey: "agent-job-001",
+  }
+);
+
+const receipt = await client.getInvocation(result.invocationId);
+console.log(receipt.invocationId, receipt.status, receipt.chargedUsdc);
+```
+
+## Token-metered LLM calls
+
+```ts
+const llmResult = await client.invokeLlm(
+  "svc_deepseek_chat",
+  {
+    messages: [{ role: "user", content: "Summarize this document." }],
+    max_tokens: 512,
+  },
+  {
+    maxCostUsdc: "0.010000",
+    idempotencyKey: "llm-job-001",
+  }
+);
+
+console.log(llmResult.usage, llmResult.synapse);
+```
+
+<AgentNote>
+  Use `SYNAPSE_AGENT_KEY=agt_xxx` for agent runtime. Fixed-price services must
+  copy the latest discovery `costUsdc`; token-metered LLM services use
+  `maxCostUsdc` as a budget cap instead of sending a fixed price.
+</AgentNote>
+
+<WarningNote>
+  Keep owner JWT and wallet authority server-side. Browser agents should receive
+  scoped agent credentials, not owner private keys or unrestricted owner
+  sessions.
+</WarningNote>

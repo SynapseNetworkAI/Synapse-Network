@@ -8,36 +8,43 @@
  *   node scripts/tools/screenshot_docs.js [page-path] [output-dir]
  *
  * Defaults:
- *   page-path  = /docs/getting-started/consumer
+ *   page-path  = /get-started/agent-builders
  *   output-dir = output/playwright/
  *
  * Examples:
  *   node scripts/tools/screenshot_docs.js
- *   node scripts/tools/screenshot_docs.js /docs/getting-started/provider output/playwright
- *   node scripts/tools/screenshot_docs.js /docs/api-reference output/playwright
+ *   node scripts/tools/screenshot_docs.js /get-started/api-providers output/playwright
+ *   node scripts/tools/screenshot_docs.js /api-reference output/playwright
  *
  * Requirements:
  *   - npm install playwright  (or npx playwright install chromium)
- *   - Next.js dev server running at http://localhost:3000
+ *   - Docs dev server running at http://localhost:3100
  *
  * i18n storage key: synapse_lang  (set via localStorage before page load)
  */
 
-'use strict';
+"use strict";
 
-const { chromium } = require('playwright');
-const path = require('path');
-const fs = require('fs');
+const { chromium } = require("playwright");
+const path = require("path");
+const fs = require("fs");
 
-const BASE_URL = process.env.DOCS_BASE_URL || 'http://localhost:3000';
-const PAGE_PATH = process.argv[2] || '/docs/getting-started/consumer';
-const OUT_DIR = path.resolve(process.cwd(), process.argv[3] || 'output/playwright');
+const BASE_URL = process.env.DOCS_BASE_URL || "http://localhost:3100";
+const PAGE_PATH = process.argv[2] || "/get-started/agent-builders";
+const OUT_DIR = path.resolve(
+  process.cwd(),
+  process.argv[3] || "output/playwright"
+);
 
-const LANGS = ['en', 'zh'];
+const LANGS = ["en", "zh"];
 
 async function screenshot(lang, pagePath, outDir) {
   const browser = await chromium.launch({
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+    ],
   });
 
   try {
@@ -45,13 +52,16 @@ async function screenshot(lang, pagePath, outDir) {
     await page.setViewportSize({ width: 1440, height: 900 });
 
     // Inject language before any React hydration
-    await page.addInitScript((l) => localStorage.setItem('synapse_lang', l), lang);
+    await page.addInitScript(
+      (l) => localStorage.setItem("synapse_lang", l),
+      lang
+    );
 
     const url = `${BASE_URL}${pagePath}`;
-    await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
+    await page.goto(url, { waitUntil: "networkidle", timeout: 30000 });
     await page.waitForTimeout(1500);
 
-    const slug = pagePath.replace(/\//g, '_').replace(/^_/, '');
+    const slug = pagePath.replace(/\//g, "_").replace(/^_/, "");
     const outFile = path.join(outDir, `${slug}_${lang}.png`);
     await page.screenshot({ path: outFile, fullPage: false });
     console.log(`[${lang.toUpperCase()}] Saved: ${outFile}`);
@@ -69,8 +79,8 @@ async function screenshot(lang, pagePath, outDir) {
   for (const lang of LANGS) {
     await screenshot(lang, PAGE_PATH, OUT_DIR);
   }
-  console.log('\nDone.');
+  console.log("\nDone.");
 })().catch((err) => {
-  console.error('Error:', err.message);
+  console.error("Error:", err.message);
   process.exit(1);
 });

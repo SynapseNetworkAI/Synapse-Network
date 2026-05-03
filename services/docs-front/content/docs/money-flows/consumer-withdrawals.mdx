@@ -1,0 +1,42 @@
+---
+title: Consumer Withdrawals
+description: Withdraw unused consumer funds after they pass the T+1 matured funds risk window.
+---
+
+Consumer withdrawals let an owner move unused USDC collateral back on-chain. The withdrawal flow is intentionally slower than agent spending because funds leaving the system need stronger finality.
+
+<WarningNote title="Matured Funds: Consumer withdrawals are T+1">
+  Consumer withdrawals are T+1. After a consumer deposit or money-moving balance change, funds must pass a T+1 risk holding period before they become matured withdrawable balance.
+</WarningNote>
+
+## Balance states
+
+- **Available balance**: indexed consumer balance that can fund authorized agent invocations.
+- **Matured withdrawable balance**: the subset of consumer balance that passed T+1 and can be used for a withdrawal intent.
+- **Pending/frozen withdrawal funds**: funds reserved by an active withdrawal ticket until it is claimed, failed, expired, or reviewed.
+
+## Flow
+
+1. Owner reviews available balance and matured withdrawable balance.
+2. Owner creates a withdrawal intent for an amount within matured withdrawable balance.
+3. Gateway freezes the withdrawal amount and calculates the example consumer withdrawal fee on the ticket.
+4. Owner claims the ticket on-chain before expiry.
+5. Gateway reconciles the claim and releases or closes the frozen state.
+
+<StatLine>
+  available balance -> T+1 matured withdrawable balance -> withdrawal intent -> frozen funds -> on-chain claim
+</StatLine>
+
+## Disabled button checklist
+
+If the withdrawal button is disabled, it is usually not just "insufficient balance." Check these states first:
+
+- Funds have not matured through T+1 yet.
+- Another active withdrawal intent is already freezing funds.
+- The account, withdrawal, or wallet entered manual review.
+- The requested amount exceeds matured withdrawable balance after fees.
+- The previous ticket expired, failed, or needs reconciliation before a new intent can be created.
+
+<AgentNote>
+  Agent runtime credentials cannot create consumer withdrawal intents. Agents can spend/invoke inside budget; owner-controlled surfaces handle deposits, maturity review, withdrawal intent creation, and on-chain claims.
+</AgentNote>

@@ -1,0 +1,77 @@
+---
+title: Go SDK
+description: Use the Public Preview Go SDK from backend agents, CLIs, and services.
+---
+
+The Go SDK is in Public Preview and defaults public examples to staging.
+
+```bash
+go get github.com/SynapseNetworkAI/Synapse-Network-Sdk/go
+```
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    "os"
+
+    synapse "github.com/SynapseNetworkAI/Synapse-Network-Sdk/go/synapse"
+)
+
+func main() {
+    client, err := synapse.NewClient(synapse.Options{
+        Credential:  os.Getenv("SYNAPSE_AGENT_KEY"),
+        Environment: "staging",
+    })
+    if err != nil {
+        panic(err)
+    }
+
+    services, err := client.Search(context.Background(), "svc_synapse_echo", synapse.SearchOptions{Limit: 10})
+    if err != nil {
+        panic(err)
+    }
+    service := services[0]
+
+    result, err := client.Invoke(
+        context.Background(),
+        service.ServiceID,
+        map[string]any{
+            "message": "hello from Synapse SDK smoke",
+            "metadata": map[string]any{"scenario": "quickstart"},
+        },
+        synapse.InvokeOptions{CostUSDC: fmt.Sprint(service.Pricing["amount"])},
+    )
+    if err != nil {
+        panic(err)
+    }
+
+    fmt.Println(result.InvocationID, result.Status, result.ChargedUSDC)
+}
+```
+
+## Token-metered LLM calls
+
+```go
+result, err := client.InvokeLLM(
+    context.Background(),
+    "svc_deepseek_chat",
+    map[string]any{
+        "messages": []map[string]string{{"role": "user", "content": "hello"}},
+    },
+    synapse.LLMInvokeOptions{MaxCostUSDC: "0.010000"},
+)
+```
+
+<AgentNote>
+  Go agents use `SYNAPSE_AGENT_KEY=agt_xxx` for runtime calls. Fixed-price
+  services must pass discovery `CostUSDC`; token-metered LLM services use
+  `MaxCostUSDC` as an optional budget cap.
+</AgentNote>
+
+<WarningNote>
+  Do not recompute USDC prices with floating-point math. Treat discovery price
+  strings and budget caps as values to pass through unchanged.
+</WarningNote>

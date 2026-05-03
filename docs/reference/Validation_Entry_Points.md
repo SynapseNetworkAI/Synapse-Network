@@ -6,42 +6,51 @@ This page lists the canonical validation anchors AI agents and maintainers shoul
 
 Rule: start with the narrowest relevant check, then escalate to repo-level CI only when the change crosses project or contract boundaries.
 
+Canonical local service ports live in `docs/reference/Service_Port_Map.md`.
+
+Canonical local and staging regression coverage lives in
+`docs/ops/19_E2E_Regression_Runbook.md`. API/UI E2E evidence is not complete
+for money-path work until the read-only SQL evidence layer proves the matching
+Postgres rows, balance buckets, ledger entries, audit events, outboxes, and
+contract config state.
+
 ## 2. Repository-Level Validation
 
 From repository root:
 
-1. `npm run ci:docs`
-2. `npm run ci:finance-approval-safety`
-3. `npm run ci:finance-approval-e2e-evidence`
-4. `npm run ci:withdrawal-one-ticket-evidence`
-5. `npm run ci:withdrawal-idempotency-concurrency-evidence`
-6. `npm run ci:financial-security`
-7. `npm run ci:architecture-quality`
-8. `npm run ci:quality-budget`
-9. `npm run ci:format-check`
-10. `npm run ci:diff-coverage`
-11. `npm run ci:agent-guardrails`
-12. `npm run ci:frontend`
-13. `npm run ci:admin-front`
-14. `npm run ci:admin-gateway`
-15. `npm run ci:gateway`
-16. `npm run ci:provider-service`
-17. `npm run ci:sdk-python`
-18. `npm run ci:contracts`
-19. `npm run ci:pr`
-20. `npm run perf:local-production-load-rehearsal`
-21. `npm run ci:local-production-load-evidence`
-22. `npm run ci:monitoring-alert-rules`
-23. `npm run e2e:lark-alerts`
-24. `npm run ci:lark-alert-e2e-evidence`
-25. `npm run e2e:in-app-notifications`
-26. `npm run ci:in-app-notifications-evidence`
-27. `npm run e2e:admin-regression`
-28. `npm run ci:admin-regression-evidence`
-29. `npm run ci:backup-restore-evidence`
-30. `npm run deploy:contracts:arbitrum-sepolia:dry-run`
-31. `npm run ci:contract-deployment-evidence`
-32. `npm run ci:migration-seed-guard`
+1. `npm run ci:agent-lessons`
+2. `npm run ci:docs`
+3. `npm run ci:finance-approval-safety`
+4. `npm run ci:finance-approval-e2e-evidence`
+5. `npm run ci:withdrawal-one-ticket-evidence`
+6. `npm run ci:withdrawal-idempotency-concurrency-evidence`
+7. `npm run ci:financial-security`
+8. `npm run ci:architecture-quality`
+9. `npm run ci:quality-budget`
+10. `npm run ci:format-check`
+11. `npm run ci:diff-coverage`
+12. `npm run ci:agent-guardrails`
+13. `npm run ci:frontend`
+14. `npm run ci:admin-front`
+15. `npm run ci:admin-gateway`
+16. `npm run ci:gateway`
+17. `npm run ci:provider-service`
+18. `npm run ci:sdk-python`
+19. `npm run ci:contracts`
+20. `npm run ci:pr`
+21. `npm run perf:local-production-load-rehearsal`
+22. `npm run ci:local-production-load-evidence`
+23. `npm run ci:monitoring-alert-rules`
+24. `npm run e2e:lark-alerts`
+25. `npm run ci:lark-alert-e2e-evidence`
+26. `npm run e2e:in-app-notifications`
+27. `npm run ci:in-app-notifications-evidence`
+28. `npm run e2e:admin-regression`
+29. `npm run ci:admin-regression-evidence`
+30. `npm run ci:backup-restore-evidence`
+31. `npm run deploy:contracts:arbitrum-sepolia:dry-run`
+32. `npm run ci:contract-deployment-evidence`
+33. `npm run ci:migration-seed-guard`
 
 Use these wrappers when final integration confidence is required.
 
@@ -55,6 +64,11 @@ Local hook bootstrap:
 1. `bash scripts/dev/install_git_hooks.sh`
 
 After installation, `git push` automatically runs `bash scripts/ci/pr_checks.sh`.
+That PR gate starts with `npm run ci:agent-lessons`, which requires
+`docs/reference/agent-lessons/<branch-slug>.md` for non-merge work unless the
+branch has no local changes. Use `No new lessons.` for a clean push review, or
+add a structured `Lesson:` block when the session exposed a reusable failure
+pattern.
 Emergency bypass remains `git push --no-verify`.
 
 `ci:pr` defaults to dynamic scope. `bash scripts/ci/pr_checks.sh` resolves changed
@@ -87,17 +101,28 @@ Working directory: `apps/frontend/`
 2. `yarn test` for local frontend test validation
 3. `npm run ci:frontend` from repository root when repo-standard gating is needed
 
-### 3.2 services/admin-front
+### 3.2 services/docs-front
+
+Working directory: `services/docs-front/`
+
+1. `yarn dev` for active iteration on `http://localhost:3100`
+2. `yarn generate:openapi` after endpoint data changes
+3. `yarn lint`
+4. `yarn build` for MDX, OpenAPI, type, and static route validation
+5. `DOCS_BASE_URL=http://localhost:3100 node scripts/ui/verify_docs_pages.mjs` from repository root after starting the docs dev server
+6. `npm run ci:docs-pages` from repository root when repo-standard docs-page gating is needed
+
+### 3.3 services/admin-front
 
 Working directory: `services/admin-front/`
 
-1. `yarn dev` for active iteration on `http://localhost:4000`
+1. `yarn dev` for active iteration on `http://localhost:3200`
 2. `yarn lint`
 3. `yarn test`
 4. `yarn build` only when the task explicitly needs final build confirmation
 5. `npm run ci:admin-front` from repository root when repo-standard gating is needed; this runs lint, Vitest, and production build
 
-### 3.3 services/gateway-admin
+### 3.4 services/gateway-admin
 
 Working directory: `services/gateway-admin/`
 
@@ -111,14 +136,14 @@ Runtime ops anchors:
 3. `sh scripts/ops/restart.sh`
 4. `sh scripts/ops/status.sh`
 
-### 3.4 provider_service
+### 3.5 provider_service
 
 Working directory: `provider_service/`
 
 1. `./.venv/bin/python -m pytest tests -q`
 2. `npm run ci:provider-service` from repository root when repo-standard gating is needed
 
-### 3.5 gateway
+### 3.6 gateway
 
 Canonical gate:
 
@@ -130,7 +155,7 @@ Canonical gate:
 
 For local gateway workflows, follow the canonical project page under `docs/03_Projects/gateway/` and its linked development guide.
 
-### 3.6 contracts
+### 3.7 contracts
 
 Canonical gate:
 
@@ -139,7 +164,7 @@ Canonical gate:
 3. `npm run deploy:contracts:arbitrum-sepolia` to deploy Arbitrum Sepolia staging contracts
 4. `npm run ci:contract-deployment-evidence` after staging deployment to verify manifest, bytecode, Arbiscan verification, wallet gas, and MockUSDC pre-mint evidence
 
-### 3.7 sdk/python
+### 3.8 sdk/python
 
 Canonical gate:
 
@@ -215,7 +240,8 @@ Before finishing:
 34. run `npm run e2e:admin-login-lockout:dogfood` when closing admin login lockout UX, API, audit, or config behavior; it must create a disposable local admin, trigger the five-failure lockout through Admin-front, capture screenshots/video, assert DB audit state, write `bugfix-log.md`, and delete the test account
 35. run `terraform -chdir=infra/terraform/gcp-staging fmt -check` and `terraform -chdir=infra/terraform/gcp-staging validate` when changing Google Cloud staging infrastructure; `terraform validate` requires `terraform init` first
 36. run `npm run deploy:contracts:arbitrum-sepolia:dry-run` before Arbitrum Sepolia staging deployment, then `npm run deploy:contracts:arbitrum-sepolia` and `npm run ci:contract-deployment-evidence` to close staging contract evidence; this requires live Arbitrum Sepolia RPC and funded staging deployer/consumer/provider wallets
-37. run `npm run e2e:admin-regression` and `npm run ci:admin-regression-evidence` when closing Admin-wide regression, Admin Analytics Postgres source changes, admin notification evidence, withdrawal review orchestration, platform treasury Safe draft evidence, or screenshot/SQL evidence contracts. The evidence must include `expected_state.json`, `sql_evidence.json`, `screenshot_evidence.json`, final-state DOM checkpoints, and Postgres-only Analytics source proof.
+37. follow `docs/ops/19_E2E_Regression_Runbook.md` when doing full local or staging regression. Provider registration, consumer login, deposit, invoke, consumer withdrawal, provider withdrawal/admin review, notifications, analytics, and contract release checks must include the documented read-only SQL evidence. Staging SQL must use an approved read-only DSN or Cloud SQL Auth Proxy connection and must never repair state during regression.
+38. run `npm run e2e:admin-regression` and `npm run ci:admin-regression-evidence` when closing Admin-wide regression, Admin Analytics Postgres source changes, admin notification evidence, withdrawal review orchestration, platform treasury Safe draft evidence, or screenshot/SQL evidence contracts. The evidence must include `expected_state.json`, `sql_evidence.json`, `screenshot_evidence.json`, final-state DOM checkpoints, and Postgres-only Analytics source proof.
 
 Withdrawal evidence coverage is intentionally split:
 

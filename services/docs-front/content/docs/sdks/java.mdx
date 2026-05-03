@@ -1,0 +1,60 @@
+---
+title: Java/JVM SDK
+description: Use the Public Preview Java SDK from Java 17, Kotlin, and JVM services.
+---
+
+The Java/JVM SDK is in Public Preview. Kotlin and other JVM languages can call the Java SDK directly.
+
+```xml
+<dependency>
+  <groupId>ai.synapsenetwork</groupId>
+  <artifactId>synapse-network-sdk</artifactId>
+  <version>0.1.0-SNAPSHOT</version>
+</dependency>
+```
+
+```java
+import ai.synapsenetwork.sdk.SynapseClient;
+import java.util.Map;
+
+SynapseClient client = new SynapseClient(
+    SynapseClient.options(System.getenv("SYNAPSE_AGENT_KEY")).environment("staging"));
+
+var services = client.search("svc_synapse_echo", new SynapseClient.SearchOptions());
+var service = services.get(0);
+
+SynapseClient.InvokeOptions options = new SynapseClient.InvokeOptions();
+options.costUsdc = service.pricing().path("amount").asText("0");
+
+var result = client.invoke(
+    service.serviceId(),
+    Map.of(
+        "message", "hello from Synapse SDK smoke",
+        "metadata", Map.of("scenario", "quickstart")),
+    options);
+
+System.out.println(result.invocationId() + " " + result.status() + " " + result.chargedUsdc());
+```
+
+## Token-metered LLM calls
+
+```java
+SynapseClient.LlmInvokeOptions options = new SynapseClient.LlmInvokeOptions();
+options.maxCostUsdc = "0.010000";
+
+var result = client.invokeLlm(
+    "svc_deepseek_chat",
+    Map.of("messages", java.util.List.of(Map.of("role", "user", "content", "hello"))),
+    options);
+```
+
+<AgentNote>
+  Java/JVM agents use `SYNAPSE_AGENT_KEY=agt_xxx` for runtime calls. Fixed-price
+  services must pass discovery `costUsdc`; token-metered LLM services use
+  `maxCostUsdc` as an optional budget cap.
+</AgentNote>
+
+<WarningNote>
+  Owner auth and provider operations belong in backend or operator tooling. Do
+  not put owner private keys in application clients or agent prompts.
+</WarningNote>

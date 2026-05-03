@@ -1,0 +1,56 @@
+---
+title: First Paid Invocation
+description: The shortest proof that Synapse is routing, charging, and producing receipts.
+---
+
+## Minimal path
+
+1. Get a wallet challenge from `GET /api/v1/auth/challenge`.
+2. Verify the signature with `POST /api/v1/auth/verify`.
+3. Confirm a positive balance with `GET /api/v1/balance`.
+4. Issue a credential with `POST /api/v1/credentials/agent/issue`.
+5. Discover a service with `GET /api/v1/services/discover`.
+6. Invoke with `POST /api/v1/agent/invoke` using the live price observed during discovery.
+
+<StatLine>
+  Success = charged balance + provider receivable + invocation receipt with a stable invocation ID.
+</StatLine>
+
+<WarningNote title="Price assertions must come from discovery">
+  For fixed-price services, copy the discovered `costUsdc` into invoke. For token-metered services, send `maxCostUsdc`. If Gateway returns `PRICE_MISMATCH`, rediscover before retrying.
+</WarningNote>
+
+<QuickLinks
+  items={[
+    {
+      href: '/api-reference/post-credential',
+      title: 'Issue credential',
+      description: 'Create the bounded token the agent can actually use.',
+    },
+    {
+      href: '/api-reference/get-discover',
+      title: 'Discover services',
+      description: 'Find callable services and their current pricing.',
+    },
+    {
+      href: '/api-reference/post-agent-invoke',
+      title: 'Invoke service',
+      description: 'Make the paid call and receive settlement evidence.',
+    },
+    {
+      href: '/api-reference/get-invocation',
+      title: 'Verify receipt',
+      description: 'Fetch the receipt for reconciliation and retry policy.',
+    },
+    {
+      href: '/pricing-and-fees',
+      title: 'Pricing & fees',
+      description: 'Understand live fee truth and why docs numbers are examples only.',
+    },
+    {
+      href: '/mcp',
+      title: 'MCP workflow',
+      description: 'Run discover_services -> invoke_and_pay -> get_receipt from agent tooling.',
+    },
+  ]}
+/>

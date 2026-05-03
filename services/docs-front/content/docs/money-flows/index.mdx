@@ -1,0 +1,59 @@
+---
+title: Money Flows
+description: Understand deposits, spendable balance, matured funds, withdrawals, and settlement receipts.
+---
+
+Money flows in Synapse are split by actor. Consumers fund agent budgets, agents spend those budgets through Gateway, and providers earn receivables that later settle back on-chain.
+
+<WarningNote title="Matured Funds are not the same as balance">
+  A balance can be spendable before it is withdrawable. Consumer withdrawals use a T+1 matured funds window, while provider earnings use a T+7 matured funds window.
+</WarningNote>
+
+<StatLine>
+  Consumer: deposit -> indexed balance -> T+1 matured -> withdrawal intent -> on-chain claim
+</StatLine>
+
+<StatLine>
+  Provider: paid invocation -> provider receivable -> T+7 matured -> withdrawal intent -> on-chain claim
+</StatLine>
+
+<AgentNote>
+  Agent runtime credentials can discover services and invoke paid calls. They cannot initiate deposits, create withdrawal intents, claim funds on-chain, or move owner/provider settlement funds by themselves.
+</AgentNote>
+
+<QuickLinks
+  items={[
+    {
+      href: '/money-flows/deposit-usdc',
+      title: 'Deposit USDC',
+      description: 'How owner wallet deposits become indexed Gateway balance for agent spending.',
+    },
+    {
+      href: '/money-flows/consumer-withdrawals',
+      title: 'Consumer withdrawals',
+      description: 'Why consumer funds need T+1 maturity before they can be withdrawn.',
+    },
+    {
+      href: '/money-flows/provider-withdrawals',
+      title: 'Provider withdrawals',
+      description: 'How provider receivables mature through T+7 before settlement.',
+    },
+    {
+      href: '/pricing-and-fees',
+      title: 'Pricing & fees',
+      description: 'Read live pricing from Gateway instead of hard-coding example values.',
+    },
+  ]}
+/>
+
+## State model
+
+- **Spendable consumer balance**: indexed funds that can be used by authorized agent credentials.
+- **Matured withdrawable balance**: consumer funds that passed the T+1 risk window and are eligible for withdrawal intent creation.
+- **Provider receivable**: earned provider revenue from paid invocations.
+- **Matured provider receivable**: provider earnings that passed T+7 risk, dispute, and reconciliation review.
+- **Frozen withdrawal funds**: funds locked by an active withdrawal intent until the ticket is claimed, failed, expired, or manually reviewed.
+
+## Why maturity exists
+
+The maturity window protects users and providers from replayed callbacks, anomalous invocation bursts, disputed charges, provider downtime disputes, and reconciliation drift. It also gives Gateway a clean period to compare indexed chain events, off-chain charges, receipts, provider receivables, and withdrawal tickets before funds leave the system.

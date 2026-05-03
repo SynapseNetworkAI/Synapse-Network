@@ -44,39 +44,39 @@ Gateway 作为收入与调用的 **source of truth**，必须覆盖以下埋点�
 
 ### 2.1 调用链路埋点
 
-| 事件名 | 触发时机 | 必须属性 |
-|--------|----------|----------|
-| `quote_generated` | 报价成功返回 | `service_id`, `quote_id`, `price_usdc` |
-| `invoke_started` | Gateway 接受调用请求 | `service_id`, `provider_id`, `quote_id`, `surface` |
-| `invoke_completed` | 调用成功 + 计费完成 | `service_id`, `provider_id`, `price_usdc`, `latency_ms`, `is_first_invoke` |
-| `invoke_failed` | 调用失败（任何阶段）| `service_id`, `provider_id`, `error_code`, `failure_stage` |
-| `budget_blocked` | 余额或预算不足被拦截 | `service_id`, `required_usdc`, `available_usdc`, `error_code` |
+| 事件名             | 触发时机             | 必须属性                                                                   |
+| ------------------ | -------------------- | -------------------------------------------------------------------------- |
+| `quote_generated`  | 报价成功返回         | `service_id`, `quote_id`, `price_usdc`                                     |
+| `invoke_started`   | Gateway 接受调用请求 | `service_id`, `provider_id`, `quote_id`, `surface`                         |
+| `invoke_completed` | 调用成功 + 计费完成  | `service_id`, `provider_id`, `price_usdc`, `latency_ms`, `is_first_invoke` |
+| `invoke_failed`    | 调用失败（任何阶段） | `service_id`, `provider_id`, `error_code`, `failure_stage`                 |
+| `budget_blocked`   | 余额或预算不足被拦截 | `service_id`, `required_usdc`, `available_usdc`, `error_code`              |
 
 ### 2.2 充提款埋点
 
-| 事件名 | 触发时机 | 必须属性 |
-|--------|----------|----------|
-| `deposit_completed` | 链上确认 + 入账 | `amount_usdc`, `token_symbol`, `tx_hash`, `time_to_confirm_ms` |
-| `deposit_failed` | 充值失败/回滚 | `amount_usdc`, `error_code` |
-| `withdrawal_completed` | 提现到账 | `amount_usdc`, `tx_hash`, `time_to_confirm_ms`, `role` |
-| `withdrawal_failed` | 提现失败 | `amount_usdc`, `error_code`, `role` |
+| 事件名                 | 触发时机        | 必须属性                                                       |
+| ---------------------- | --------------- | -------------------------------------------------------------- |
+| `deposit_completed`    | 链上确认 + 入账 | `amount_usdc`, `token_symbol`, `tx_hash`, `time_to_confirm_ms` |
+| `deposit_failed`       | 充值失败/回滚   | `amount_usdc`, `error_code`                                    |
+| `withdrawal_completed` | 提现到账        | `amount_usdc`, `tx_hash`, `time_to_confirm_ms`, `role`         |
+| `withdrawal_failed`    | 提现失败        | `amount_usdc`, `error_code`, `role`                            |
 
 ### 2.3 Provider 收入与结算埋点
 
-| 事件名 | 触发时机 | 必须属性 |
-|--------|----------|----------|
-| `provider_revenue_received` | 每次付费调用结算 | `provider_id`, `service_id`, `gross_usdc`, `platform_fee_usdc`, `provider_net_usdc` |
-| `provider_first_revenue_received` | 首次付费调用 | `provider_id`, `service_id`, `gross_usdc`, `time_since_listing_ms` |
-| `settlement_claim_requested` | Provider 发起提现 | `provider_id`, `claim_usdc` |
-| `settlement_claim_completed` | 提现到链上 | `provider_id`, `claim_usdc`, `tx_hash`, `time_to_confirm_ms` |
-| `settlement_claim_failed` | 提现失败 | `provider_id`, `claim_usdc`, `error_code` |
+| 事件名                            | 触发时机          | 必须属性                                                                            |
+| --------------------------------- | ----------------- | ----------------------------------------------------------------------------------- |
+| `provider_revenue_received`       | 每次付费调用结算  | `provider_id`, `service_id`, `gross_usdc`, `platform_fee_usdc`, `provider_net_usdc` |
+| `provider_first_revenue_received` | 首次付费调用      | `provider_id`, `service_id`, `gross_usdc`, `time_since_listing_ms`                  |
+| `settlement_claim_requested`      | Provider 发起提现 | `provider_id`, `claim_usdc`                                                         |
+| `settlement_claim_completed`      | 提现到链上        | `provider_id`, `claim_usdc`, `tx_hash`, `time_to_confirm_ms`                        |
+| `settlement_claim_failed`         | 提现失败          | `provider_id`, `claim_usdc`, `error_code`                                           |
 
 ### 2.4 风控与安全埋点
 
-| 事件名 | 触发时机 | 必须属性 |
-|--------|----------|----------|
-| `refund_completed` | 退款完成 | `amount_usdc`, `reason_code`, `service_id` |
-| `risk_rule_triggered` | 命中风控规则 | `rule_code`, `surface`, `severity` |
+| 事件名                     | 触发时机              | 必须属性                                               |
+| -------------------------- | --------------------- | ------------------------------------------------------ |
+| `refund_completed`         | 退款完成              | `amount_usdc`, `reason_code`, `service_id`             |
+| `risk_rule_triggered`      | 命中风控规则          | `rule_code`, `surface`, `severity`                     |
 | `provider_health_degraded` | Provider 健康检查失败 | `provider_id`, `service_id`, `failure_count`, `reason` |
 
 ---
@@ -123,11 +123,11 @@ distinct_id = sha256_hash(wallet_address)  # 返回 64 位 hex 字符串
 
 `ENVIRONMENT` 决定 backend 类型（`app.py` lifespan 中注入）：
 
-| ENVIRONMENT | Backend | 目标 |
-|-------------|---------|------|
-| `local` | `FileBackend` | `logs/analytics_events.jsonl` |
-| `staging` | `DualBackend` | Kafka + file fallback |
-| `prod` | `DualBackend` | Kafka + file fallback |
+| ENVIRONMENT | Backend       | 目标                          |
+| ----------- | ------------- | ----------------------------- |
+| `local`     | `FileBackend` | `logs/analytics_events.jsonl` |
+| `staging`   | `DualBackend` | Kafka + file fallback         |
+| `prod`      | `DualBackend` | Kafka + file fallback         |
 
 ---
 
@@ -241,7 +241,7 @@ PYTHONPATH=. pytest tests/e2e/test_01_infrastructure.py \
   tests/e2e/test_08_analytics_fullchain.py -q
 
 cd ../..
-ADMIN_FRONT_URL=http://127.0.0.1:4000 \
+ADMIN_FRONT_URL=http://127.0.0.1:3200 \
 ADMIN_GATEWAY_URL=http://127.0.0.1:8300 \
 ADMIN_SESSION_TOKEN='<synapse_admin_session cookie value>' \
 node scripts/admin_analytics_fullchain_e2e.js
@@ -349,6 +349,7 @@ python scripts/analytics_health_check.py --clickhouse-url http://localhost:8123
 ```
 
 输出示例：
+
 ```
 ============================================================
 Synapse Analytics Health Check
@@ -385,10 +386,10 @@ Results: 11 passed, 0 failed
 
 ### 5.2 隐私约束验证规则
 
-| 规则 | 验证方式 |
-|------|----------|
-| 不存储原始钱包地址 | `distinct_id` 不以 `0x` 开头且长度 ≠ 42 |
-| 不存储邮箱/手机号 | properties JSON 不包含 `@` 或电话格式 |
+| 规则                 | 验证方式                                                  |
+| -------------------- | --------------------------------------------------------- |
+| 不存储原始钱包地址   | `distinct_id` 不以 `0x` 开头且长度 ≠ 42                   |
+| 不存储邮箱/手机号    | properties JSON 不包含 `@` 或电话格式                     |
 | 金额字段限于业务必需 | 只有 `amount_usdc`, `price_usdc`, `gross_usdc` 等业务字段 |
 
 ---
@@ -411,18 +412,18 @@ Results: 11 passed, 0 failed
 
 ## 7. 相关文件索引
 
-| 文件 | 描述 |
-|------|------|
-| `services/gateway/src/services/analytics/emitter.py` | 事件序列化与 Backend 实现 |
-| `services/gateway/src/services/analytics/gateway_events.py` | 业务快捷方法（所有 Gateway 埋点入口）|
-| `services/gateway/src/services/analytics/privacy.py` | 钱包地址哈希 |
-| `services/gateway/src/api/routers/events.py` | 前端事件摄入 HTTP 端点 |
-| `services/gateway/scripts/analytics_health_check.py` | ClickHouse 数据质量健康检查 |
-| `services/gateway/tests/unit/` | Analytics 和 Gateway 业务埋点单元测试 |
-| `services/gateway/tests/integration/` | Analytics HTTP 和跨服务集成测试 |
-| `services/gateway/tests/e2e/test_analytics_e2e_pipeline.py` | Kafka→ClickHouse E2E 测试 |
+| 文件                                                        | 描述                                             |
+| ----------------------------------------------------------- | ------------------------------------------------ |
+| `services/gateway/src/services/analytics/emitter.py`        | 事件序列化与 Backend 实现                        |
+| `services/gateway/src/services/analytics/gateway_events.py` | 业务快捷方法（所有 Gateway 埋点入口）            |
+| `services/gateway/src/services/analytics/privacy.py`        | 钱包地址哈希                                     |
+| `services/gateway/src/api/routers/events.py`                | 前端事件摄入 HTTP 端点                           |
+| `services/gateway/scripts/analytics_health_check.py`        | ClickHouse 数据质量健康检查                      |
+| `services/gateway/tests/unit/`                              | Analytics 和 Gateway 业务埋点单元测试            |
+| `services/gateway/tests/integration/`                       | Analytics HTTP 和跨服务集成测试                  |
+| `services/gateway/tests/e2e/test_analytics_e2e_pipeline.py` | Kafka→ClickHouse E2E 测试                        |
 | `services/gateway/tests/e2e/test_08_analytics_fullchain.py` | 服务注册、充值、调用到 ClickHouse 事件连续性测试 |
-| `scripts/admin_analytics_fullchain_e2e.js` | Admin Analytics API 一致性和 7 页面截图验证 |
-| `docs/projects/frontend/Synapse_Analytics_Tracking_Plan.md` | 全栈埋点规划（含前端/SDK/链上）|
-| `docs/ops/08_Analytics_Pipeline_Operations.md` | 运维操作手册 |
-| `infra/docker/local/docker-compose.yml` | Kafka + ClickHouse 本地基础设施 |
+| `scripts/admin_analytics_fullchain_e2e.js`                  | Admin Analytics API 一致性和 7 页面截图验证      |
+| `docs/projects/frontend/Synapse_Analytics_Tracking_Plan.md` | 全栈埋点规划（含前端/SDK/链上）                  |
+| `docs/ops/08_Analytics_Pipeline_Operations.md`              | 运维操作手册                                     |
+| `infra/docker/local/docker-compose.yml`                     | Kafka + ClickHouse 本地基础设施                  |

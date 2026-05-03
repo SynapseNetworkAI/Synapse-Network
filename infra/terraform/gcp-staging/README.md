@@ -85,10 +85,24 @@ Create database users/passwords outside Terraform as well, so passwords do not
 land in Terraform state. Store the resulting password in Secret Manager and
 inject it into Cloud Run at deploy time.
 
-## Secret Manager Default Encryption
+## Secret Manager And Withdrawal Signer KMS
 
 Staging secrets live in Secret Manager with Google-managed default encryption at
-rest. MVP staging does not use Cloud KMS / CMEK.
+rest. MVP staging still does not use Cloud KMS / CMEK for Secret Manager
+envelope encryption.
+
+Gateway withdrawal ticket signing is a separate custody boundary. This module
+creates a dedicated asymmetric Cloud KMS signer:
+
+- key ring: `synapse-staging`
+- crypto key: `synapse-staging-withdraw-signer`
+- algorithm: `EC_SIGN_SECP256K1_SHA256`
+- purpose: `ASYMMETRIC_SIGN`
+- protection level: `SOFTWARE` for staging rehearsal
+
+Only the Gateway runtime service account receives
+`roles/cloudkms.signerVerifier` on that crypto key. The application never
+receives the raw withdrawal signer private key.
 
 Recommended flow:
 
@@ -105,6 +119,10 @@ Recommended flow:
    onboarding use separate service accounts with per-secret IAM bindings.
 6. Inject secrets into Cloud Run with Terraform `secret_env` or, for an
    emergency manual repair, `gcloud run ... --update-secrets`.
+7. Derive the KMS Ethereum signer address with
+   `node scripts/chain/gcp_kms_derive_eth_address.mjs <cryptoKeyVersion>` and
+   set Terraform variable `withdraw_signer_address` only after
+   `SynapseCore.platformSigner()` has been rotated to that address.
 
 Cloud Run resolves `secret:latest` while creating revisions/jobs. A Secret
 Manager placeholder without an enabled version is not deployable and will fail
@@ -137,8 +155,10 @@ Provider secrets are split by physical role:
 - The public Provider runtime must never receive Owner private keys, wallet
   seeds, admin JWTs, or onboarding credentials.
 
-The application should not receive KMS IAM roles. Cloud Run reads Secret Manager
-values directly; Secret Manager handles encryption at rest.
+The application should not receive broad KMS IAM roles. The only exception in
+staging is sign/verify access for the Gateway runtime service account on the
+dedicated withdrawal signer key above. Cloud Run reads all other secret values
+through Secret Manager; Secret Manager handles default encryption at rest.
 
 Cloud Run jobs in this staging module set `deletion_protection = false`.
 Jobs are replaceable orchestration shells; keeping deletion protection on can

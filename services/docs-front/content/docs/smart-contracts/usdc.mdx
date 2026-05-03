@@ -1,0 +1,10 @@
+---
+title: USDC
+description: The single settlement currency for Synapse.
+---
+
+USDC is the only settlement currency. Amounts cross API boundaries as strings, compute as decimal values, and settle on-chain through the configured token for each environment.
+
+<AgentNote>
+  Never represent money as floating point in agent code. Keep amounts as decimal strings unless the SDK gives you a safe money type.
+</AgentNote>

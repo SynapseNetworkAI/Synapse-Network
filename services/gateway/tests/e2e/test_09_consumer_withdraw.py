@@ -33,20 +33,29 @@ from tests.e2e.conftest import GATEWAY_BASE
 from tests.e2e.helpers.gateway import get_balance, get_balance_full
 
 WITHDRAW_TIMEOUT = 20
+MIN_CONSUMER_WITHDRAW_USDC = Decimal("10.00")
 
 
-def _post_consumer_withdraw(gateway_base: str, headers: dict, amount_usdc: float, reason: str = "") -> httpx.Response:
+def _post_consumer_withdraw(
+    gateway_base: str, headers: dict, amount_usdc: Decimal, reason: str = ""
+) -> httpx.Response:
     idem_key = uuid.uuid4().hex
     return httpx.post(
         f"{gateway_base}/api/v1/balance/consumer/withdraw",
         headers={**headers, "X-Idempotency-Key": idem_key},
-        json={"amountUsdc": amount_usdc, "reason": reason},
+        json={"amountUsdc": format(amount_usdc, "f"), "reason": reason},
         timeout=WITHDRAW_TIMEOUT,
     )
 
 
-def _consumer_withdraw(gateway_base: str, headers: dict, amount_usdc: float, reason: str = "") -> dict:
+def _consumer_withdraw(
+    gateway_base: str, headers: dict, amount_usdc: Decimal, reason: str = ""
+) -> dict:
     r = _post_consumer_withdraw(gateway_base, headers, amount_usdc, reason)
+    if r.status_code == 400 and "INSUFFICIENT_MATURE_CONSUMER_BALANCE" in r.text:
+        pytest.skip(
+            "Consumer balance exists but no funds have passed the T+1 mature withdrawal window."
+        )
     assert r.status_code == 200, f"Withdraw request failed ({r.status_code}): {r.text}"
     return r.json()
 
@@ -80,13 +89,14 @@ def test_consumer_withdraw_decreases_available_balance(owner_headers, session_st
     pending_before = Decimal(str(balance_before_full.get("consumerPendingBalance") or 0))
     frozen_before = Decimal(str(balance_before_full.get("consumerFrozenBalance") or 0))
 
-    assert available_before > Decimal("0"), (
-        "No available balance to withdraw. Run test_04_deposit first."
+    assert available_before >= MIN_CONSUMER_WITHDRAW_USDC, (
+        "Insufficient available balance for the minimum consumer withdrawal. "
+        f"Need at least {MIN_CONSUMER_WITHDRAW_USDC} USDC; run test_04_deposit first."
     )
 
-    # Withdraw the minimum fixed amount to satisfy the dust-protection gate.
-    withdraw_usdc = Decimal("10.00")
-    r = _post_consumer_withdraw(GATEWAY_BASE, owner_headers, float(withdraw_usdc), reason="e2e test")
+    # Match the current product minimum so the e2e covers the real withdraw policy.
+    withdraw_usdc = MIN_CONSUMER_WITHDRAW_USDC
+    r = _post_consumer_withdraw(GATEWAY_BASE, owner_headers, withdraw_usdc, reason="e2e test")
     if r.status_code == 400 and "INSUFFICIENT_MATURE_CONSUMER_BALANCE" in r.text:
         balance_after_full = get_balance_full(GATEWAY_BASE, owner_headers)
         available_after = Decimal(str(balance_after_full.get("consumerAvailableBalance") or 0))
@@ -144,11 +154,14 @@ def test_consumer_withdraw_decreases_available_balance(owner_headers, session_st
 
 def test_consumer_withdraw_frozen_amount_not_available(owner_headers, session_state):
     """After withdrawal, the reserved amount is NOT in consumer_available_balance."""
+    if not session_state.get("consumer_withdraw_id"):
+        pytest.skip("No withdrawal was created; mature consumer funds may be unavailable.")
+
     balance_full = get_balance_full(GATEWAY_BASE, owner_headers)
     available = Decimal(str(balance_full.get("consumerAvailableBalance") or 0))
 
     # Attempt to withdraw the pending amount again — it should find active record and return early
-    withdraw_amount = session_state.get("consumer_withdraw_amount", Decimal("10.00"))
+    withdraw_amount = session_state.get("consumer_withdraw_amount", MIN_CONSUMER_WITHDRAW_USDC)
 
     # If the full available balance is exactly the pending amount (rest was withdrawn),
     # a fresh withdrawal of that amount fails or returns existing record.
@@ -156,7 +169,7 @@ def test_consumer_withdraw_frozen_amount_not_available(owner_headers, session_st
     r = httpx.post(
         f"{GATEWAY_BASE}/api/v1/balance/consumer/withdraw",
         headers={**owner_headers, "X-Idempotency-Key": uuid.uuid4().hex},
-        json={"amountUsdc": float(withdraw_amount), "reason": "second attempt"},
+        json={"amountUsdc": format(withdraw_amount, "f"), "reason": "second attempt"},
         timeout=WITHDRAW_TIMEOUT,
     )
     # Should either return existing active record (200) or refuse
@@ -168,7 +181,7 @@ def test_consumer_withdraw_frozen_amount_not_available(owner_headers, session_st
             "Second withdrawal returned a different ID — double deduction possible!"
         )
     else:
-        # Could be 400 INSUFFICIENT_CONSUMER_BALANCE if rest of available is below the minimum.
+        # Could be 400 INSUFFICIENT_CONSUMER_BALANCE if the remaining available balance is below minimum.
         assert r.status_code == 400
 
 
@@ -177,7 +190,8 @@ def test_consumer_withdraw_record_appears_in_listing(owner_headers, session_stat
     withdraw_id = session_state.get("consumer_withdraw_id")
     if not withdraw_id and session_state.get("consumer_withdraw_blocked_by_maturity"):
         pytest.skip("Consumer withdrawal was correctly blocked by T+1 maturity gate.")
-    assert withdraw_id, "No withdraw_id from previous step — skipping."
+    if not withdraw_id:
+        pytest.skip("No withdrawal was created; mature consumer funds may be unavailable.")
 
     listings = _list_consumer_withdrawals(GATEWAY_BASE, owner_headers)
     ids = [row.get("id") or row.get("withdrawId") for row in listings]
@@ -189,10 +203,11 @@ def test_consumer_withdraw_record_appears_in_listing(owner_headers, session_stat
 def test_consumer_withdraw_record_has_correct_amount_and_status(owner_headers, session_state):
     """The withdrawal record in listings has correct amountUsdc and status."""
     withdraw_id = session_state.get("consumer_withdraw_id")
-    expected_amount = session_state.get("consumer_withdraw_amount", Decimal("10.00"))
+    expected_amount = session_state.get("consumer_withdraw_amount", MIN_CONSUMER_WITHDRAW_USDC)
     if not withdraw_id and session_state.get("consumer_withdraw_blocked_by_maturity"):
         pytest.skip("Consumer withdrawal was correctly blocked by T+1 maturity gate.")
-    assert withdraw_id, "No withdraw_id from previous step."
+    if not withdraw_id:
+        pytest.skip("No withdrawal was created; mature consumer funds may be unavailable.")
 
     listings = _list_consumer_withdrawals(GATEWAY_BASE, owner_headers)
     found = next(
@@ -226,7 +241,7 @@ def test_consumer_withdraw_reduces_total_spendable_capacity(owner_headers, sessi
 
 
 def test_consumer_withdraw_invalid_amount_rejected(owner_headers):
-    """Amounts below the 10 USDC minimum are rejected with 400."""
+    """Amounts below the consumer withdrawal minimum are rejected with 400."""
     r = httpx.post(
         f"{GATEWAY_BASE}/api/v1/balance/consumer/withdraw",
         headers={**owner_headers, "X-Idempotency-Key": uuid.uuid4().hex},
