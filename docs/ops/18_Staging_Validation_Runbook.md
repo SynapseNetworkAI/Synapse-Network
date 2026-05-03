@@ -108,10 +108,10 @@ consumer/provider wallets.
 
 | Layer                          | Purpose                                                                                                                | Command / Evidence                                                                                                                     |
 | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| L0 Infra smoke                 | DNS, TLS, Cloud Run health/readiness, CORS                                                                             | `npm run e2e:staging-smoke` and `npm run ci:staging-smoke-evidence`                                                                    |
+| L0 Infra smoke                 | DNS, TLS, Cloud Run health/readiness, CORS, docs-front public docs endpoints                                           | `npm run e2e:staging-smoke` and `npm run ci:staging-smoke-evidence`                                                                    |
 | L1 Chain smoke                 | Arbitrum Sepolia RPC, chain id, deployed bytecode, wallet gas                                                          | `npm run staging:arb-sepolia:wallets:status` and `npm run ci:contract-deployment-evidence`                                             |
 | L2 Business E2E                | Gateway full-chain deposit, invoke, withdraw, reconciliation                                                           | `GATEWAY_RELEASE_E2E_PROFILE=mvp-postgres npm run release:evidence:gateway-fullchain:staging`                                          |
-| L3 UI dogfood                  | User-front/Admin-front browser render, CORS, screenshots, console/network errors                                       | `npm run e2e:staging-ui-dogfood`                                                                                                       |
+| L3 UI dogfood                  | User-front/Admin-front/Docs-front browser render, CORS, screenshots, console/network errors                            | `npm run e2e:staging-ui-dogfood`                                                                                                       |
 | L3.5 Withdrawal review dogfood | Consumer large withdrawal and Provider withdrawal approve/reject review paths with screenshots, DB, and chain evidence | `npm run e2e:withdrawal-review-dogfood:staging`                                                                                        |
 | L4 Notifications               | Lark delivery, local/staging GCP Monitoring receiver, and Gmail outbox delivery                                        | `npm run e2e:lark-alerts`, `npm run e2e:gcp-alerts:local`, `npm run e2e:gcp-alerts:staging`, `npm run e2e:gmail-notifications:staging` |
 | L5 Recovery/load               | Cloud SQL restore, light load, DB connection pressure                                                                  | `npm run drill:backup-restore:staging`, `npm run perf:staging-load-suite`                                                              |
@@ -137,8 +137,13 @@ Success criteria:
 - `https://api-staging.synapse-network.ai/readiness` returns ready monitors.
 - `https://admin-api-staging.synapse-network.ai/health` returns JSON
   successfully.
-- `https://staging.synapse-network.ai` and
-  `https://admin-staging.synapse-network.ai/login` load over HTTPS.
+- `https://staging.synapse-network.ai`,
+  `https://docs-staging.synapse-network.ai`, and
+  `https://admin-staging.synapse-network.ai/login` return browser-renderable
+  pages.
+- `https://docs-staging.synapse-network.ai/llms.txt`,
+  `/llms-full.txt`, `/sitemap.xml`, `/openapi.json`, `/sdks`, and
+  `/api-reference` return successfully.
 - User-front origin can preflight Gateway, and Admin-front origin can preflight
   Gateway-admin.
 - RPC returns `chainId=421614`.

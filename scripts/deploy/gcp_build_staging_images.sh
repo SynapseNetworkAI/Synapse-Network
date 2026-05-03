@@ -74,9 +74,8 @@ docker build --platform linux/amd64 \
   --build-arg NEXT_PUBLIC_DOCS_BASE_URL="${NEXT_PUBLIC_DOCS_BASE_URL:-https://docs-staging.synapse-network.ai}" \
   --build-arg NEXT_PUBLIC_CONSOLE_BASE_URL="${NEXT_PUBLIC_CONSOLE_BASE_URL:-https://staging.synapse-network.ai/dashboard/overview}" \
   --build-arg NEXT_PUBLIC_GATEWAY_BASE_URL="${NEXT_PUBLIC_GATEWAY_BASE_URL:-https://api-staging.synapse-network.ai}" \
-  -f services/docs-front/Dockerfile \
   -t "${docs_front_image}" \
-  .
+  services/docs-front
 docker push "${docs_front_image}"
 
 cat <<EOF

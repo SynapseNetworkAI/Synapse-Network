@@ -28,6 +28,9 @@ requests at the Google ingress layer. It does **not** mean the business API is
 open. Gateway and Gateway-admin must still enforce JWT/session/auth, CORS, CSRF,
 MFA, internal service tokens, and role checks.
 
+GitHub staging deploy supports `deploy_scope=docs-front` for a docs-only
+rollout to `synapse-staging-docs-front`.
+
 ## Public vs Private Surfaces
 
 ### Must Be Public
