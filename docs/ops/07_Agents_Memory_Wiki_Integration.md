@@ -1,7 +1,7 @@
 ---
 title: "Agents-Memory Wiki 接入指南"
 project: synapse-network
-updated_at: 2026-04-07
+updated_at: 2026-05-03
 ---
 
 # Agents-Memory Wiki 接入指南
@@ -39,6 +39,7 @@ bash /Users/cliff/workspace/agent/Agents-Memory/scripts/install-models.sh
 ```
 
 要求已安装：
+
 - `nomic-embed-text`（embedding）
 - `qwen2.5:7b`（LLM 合成，也可换 `gemma4:e4b`）
 
@@ -195,6 +196,28 @@ memory_wiki_lint()
 2. **架构设计更新后**：`amem wiki-ingest <design.md> --topic synapse-architecture`
 3. **每周 wiki-compile**：`amem wiki-compile synapse-architecture --provider ollama`
 4. **CI 集成**：在 GitHub Actions 中运行 `python3.12 scripts/test-synapse-wiki.py --quick`
+
+---
+
+## PR Lessons -> Agents-Memory Promotion
+
+每次 push 前，先更新 `docs/reference/agent-lessons/<branch-slug>.md`，再运行：
+
+```bash
+npm run ci:agent-lessons
+```
+
+如果本次没有新的可复用教训，在 `## Push Review` 下写 `No new lessons.` 即可。
+
+如果本次暴露了流程坑、CI 坑、真实产品 bug、测试盲区或重复失败模式，新增 `### Lesson:` 块，并写清楚 `Domain`、`Severity`、`Trigger`、`Root cause`、`Fix`、`Rule`、`Upgrade`。
+
+升级规则：
+
+1. `severity=critical`、finance/security/money 相关、或同一规则第二次出现：同步到 Agents-Memory。
+2. 真实产品、测试、CI bug：创建或更新 `docs/reference/bugfix/<domain>/...md`，再按需 `amem ingest`。
+3. 普通一次性操作坑：保留在 PR lessons 文件即可，供 reviewer 和下次 push 前检查。
+
+这让 PR lessons 成为本地、可 review 的短期记忆；Agents-Memory 和 bugfix docs 负责长期沉淀。
 
 ---
 

@@ -9,6 +9,8 @@ SCOPE_FILE="${SYNAPSE_CI_SCOPE_FILE:-}"
 echo "[ci:pr] running pull request quality gates"
 echo "[ci:pr] requested scope: ${REQUESTED_SCOPE}"
 
+npm run ci:agent-lessons
+
 if [[ "$REQUESTED_SCOPE" != "auto" && "$REQUESTED_SCOPE" != "full" ]]; then
   echo "FATAL CI-SCOPE-001: SYNAPSE_CI_SCOPE must be auto or full" >&2
   exit 2

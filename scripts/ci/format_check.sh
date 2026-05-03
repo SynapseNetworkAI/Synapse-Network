@@ -7,7 +7,9 @@ BASE_REF="${QUALITY_BASE_REF:-origin/main}"
 
 bash "$ROOT_DIR/scripts/ci/ensure_diff_base.sh" "$BASE_REF"
 
-if command -v prettier >/dev/null 2>&1; then
+if [[ -x "$ROOT_DIR/node_modules/.bin/prettier" ]]; then
+  PRETTIER_CMD=("$ROOT_DIR/node_modules/.bin/prettier")
+elif command -v prettier >/dev/null 2>&1; then
   PRETTIER_CMD=(prettier)
 elif npx --no-install prettier --version >/dev/null 2>&1; then
   PRETTIER_CMD=(npx --no-install prettier)
