@@ -9,6 +9,7 @@ import {
   getAnalyticsProviderRevenue,
   getAnalyticsRiskHealth,
   getCurrentAdmin,
+  buildAdminRequestUrl,
   closeForumTopic,
   getForumTopic,
   ignoreForumResponseTask,
@@ -21,6 +22,7 @@ import {
   pinForumTopic,
   reopenForumTopic,
   sendForumResponseReply,
+  shouldUseSameOriginAdminProxy,
   unpinForumTopic,
   updateProviderServiceLifecycle,
   resolveAdminApiBaseUrl,
@@ -114,6 +116,73 @@ describe("resolveAdminApiBaseUrl", () => {
 
   it("preserves relative API prefixes when they are explicitly configured", () => {
     expect(resolveAdminApiBaseUrl("/gateway-admin/")).toBe("/gateway-admin");
+  });
+});
+
+describe("shouldUseSameOriginAdminProxy", () => {
+  it("routes local absolute admin API URLs through the same-origin proxy", () => {
+    expect(
+      shouldUseSameOriginAdminProxy("http://localhost:8300", {
+        protocol: "http:",
+        hostname: "127.0.0.1",
+        origin: "http://127.0.0.1:3200",
+      })
+    ).toBe(true);
+  });
+
+  it("preserves non-local absolute admin API URLs", () => {
+    expect(
+      shouldUseSameOriginAdminProxy(
+        "https://admin-api-staging.synapse-network.ai",
+        {
+          protocol: "https:",
+          hostname: "admin-staging.synapse-network.ai",
+          origin: "https://admin-staging.synapse-network.ai",
+        }
+      )
+    ).toBe(false);
+  });
+
+  it("does not rewrite relative API prefixes", () => {
+    expect(
+      shouldUseSameOriginAdminProxy("/gateway-admin", {
+        protocol: "http:",
+        hostname: "127.0.0.1",
+        origin: "http://127.0.0.1:3200",
+      })
+    ).toBe(false);
+  });
+});
+
+describe("buildAdminRequestUrl", () => {
+  it("keeps local browser requests on the Next.js same-origin proxy", () => {
+    expect(
+      buildAdminRequestUrl(
+        "/api/admin/v1/auth/login",
+        "http://localhost:8300",
+        {
+          protocol: "http:",
+          hostname: "127.0.0.1",
+          origin: "http://127.0.0.1:3200",
+        }
+      )
+    ).toBe("/api/admin/v1/auth/login");
+  });
+
+  it("uses explicit external admin API origins outside local browser dev", () => {
+    expect(
+      buildAdminRequestUrl(
+        "/api/admin/v1/auth/login",
+        "https://admin-api-staging.synapse-network.ai",
+        {
+          protocol: "https:",
+          hostname: "admin-staging.synapse-network.ai",
+          origin: "https://admin-staging.synapse-network.ai",
+        }
+      )
+    ).toBe(
+      "https://admin-api-staging.synapse-network.ai/api/admin/v1/auth/login"
+    );
   });
 });
 

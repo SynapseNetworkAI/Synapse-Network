@@ -36,7 +36,8 @@ npm run ci:admin-regression-evidence
 
 The local suite sets `ADMIN_ANALYTICS_SOURCE=postgres` and records
 `expected_state.json`, `sql_evidence.json`, `screenshot_evidence.json`,
-`report.json`, `report.md`, and `bugfix-log.md` under:
+`function_results.json`, `function_results.md`, `report.json`, `report.md`,
+and `bugfix-log.md` under:
 
 ```text
 output/dogfood/admin-regression/<runId>/
@@ -61,6 +62,17 @@ The umbrella gate covers:
 7. In-app notification outbox, Lark alert evidence, transaction notification evidence, and staging Gmail evidence.
 8. Platform fee treasury Safe draft readiness through the Finance surface and backend-owned Safe draft API.
 
+Each function area is also written to `function_results.json` and
+`function_results.md`. A function result is passing only when its applicable
+frontend route clicks, DOM assertions, API steps, SQL probes, and final-state
+screenshots are all present. This makes the report reviewable by feature, not
+just by script name.
+
+Dashboard API preflight is part of the Admin-front dogfood step:
+`/api/admin/v1/auth/me` plus all `/api/admin/v1/dashboard/*` endpoints must
+return successful JSON responses. A visible or hidden `Internal server error`
+fails the browser step.
+
 ## SQL Evidence Contract
 
 Every admin-regression run must include SQL probes for:
@@ -71,7 +83,7 @@ Every admin-regression run must include SQL probes for:
 2. Admin approval/execution tables: `admin_approvals`,
    `admin_approval_steps`, `admin_approval_events`, `admin_execution_jobs`,
    `admin_execution_attempts`.
-3. Admin finance projection views:
+3. Gateway dashboard projection views:
    `synapse_admin_dashboard_finance_projection`,
    `synapse_admin_dashboard_activity_trend_projection`,
    `synapse_admin_dashboard_operations_projection`,
@@ -124,8 +136,9 @@ The umbrella gate passes only when:
 3. `expected_state.json.analyticsSource === "postgres"`.
 4. Every SQL probe returns `ok: true`.
 5. Screenshot evidence is bound to DOM/page assertions and covers the required surfaces.
-6. Withdrawal success cases reach chain claim plus Gateway complete, with DB status `COMPLETED`.
-7. Notification evidence includes outbox and in-app rows locally; staging adds real delivery ids when configured.
+6. `function_results.json` contains every required Admin function and no failed check.
+7. Withdrawal success cases reach chain claim plus Gateway complete, with DB status `COMPLETED`.
+8. Notification evidence includes outbox and in-app rows locally; staging adds real delivery ids when configured.
 
 If any failure reveals a product bug, record it under
 `docs/reference/bugfix/admin/BUG-ADMIN-*.md`, fix it, rerun the failed case, and

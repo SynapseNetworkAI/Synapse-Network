@@ -432,8 +432,7 @@ start_admin_front() {
   echo "[local-apps] starting admin-front on http://127.0.0.1:3200"
   (
     cd "${ROOT_DIR}/services/admin-front"
-    NEXT_PUBLIC_ADMIN_API_BASE_URL="${NEXT_PUBLIC_ADMIN_API_BASE_URL:-http://localhost:8300}" \
-      ADMIN_API_PROXY_TARGET="${ADMIN_API_PROXY_TARGET:-http://localhost:8300}" \
+    ADMIN_API_PROXY_TARGET="${ADMIN_API_PROXY_TARGET:-http://localhost:8300}" \
       nohup yarn dev > "${ADMIN_FRONT_LOG}" 2>&1 < /dev/null &
     echo $!
   ) > /tmp/synapse-admin-front.pid

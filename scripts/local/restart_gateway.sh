@@ -252,6 +252,7 @@ if [ -n "$LISTENER_PID_AFTER_STOP" ] && [ "$LISTENER_PID_AFTER_STOP" != "$EXISTI
 fi
 
 ROUTER_ADDRESS="$(node -e "const c=require('${CONFIG_FILE}'); process.stdout.write(c.SynapseCore || c.A2APaySyncRouter || '')")"
+USDC_TOKEN_ADDRESS="$(node -e "const c=require('${CONFIG_FILE}'); process.stdout.write(c.MockUSDC || c.USDC || '')")"
 
 DEFAULT_LOCAL_POSTGRES_DSN="postgresql://synapse:local-dev-postgres-password@127.0.0.1:${LOCAL_GATEWAY_POSTGRES_PORT}/synapse_gateway"
 _LOCAL_ENV_FILE="${ROOT_DIR}/services/gateway/.env.local"
@@ -295,6 +296,7 @@ SUPPORT_LARK_TIMEOUT_SEC=$(shell_quote "${SUPPORT_LARK_TIMEOUT_SEC:-3}") \
 POSTGRES_DSN=$(shell_quote "$LOCAL_POSTGRES_DSN") \
 RPC_URL=http://127.0.0.1:8545 \
 ROUTER_ADDRESS=$(shell_quote "$ROUTER_ADDRESS") \
+USDC_TOKEN_ADDRESS=$(shell_quote "$USDC_TOKEN_ADDRESS") \
 $(shell_quote "$PYTHON_BIN") gateway_fastapi.py > $(shell_quote "$LOG_FILE") 2>&1"
   screen -dmS synapse-gateway bash -lc "$START_CMD"
   NEW_PROVIDER_PID=""
@@ -315,6 +317,7 @@ else
     POSTGRES_DSN="$LOCAL_POSTGRES_DSN" \
     RPC_URL="http://127.0.0.1:8545" \
     ROUTER_ADDRESS="$ROUTER_ADDRESS" \
+    USDC_TOKEN_ADDRESS="$USDC_TOKEN_ADDRESS" \
     "$PYTHON_BIN" gateway_fastapi.py > "$LOG_FILE" 2>&1 < /dev/null &
   NEW_PROVIDER_PID=$!
 fi

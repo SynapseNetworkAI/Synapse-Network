@@ -7,6 +7,7 @@ from decimal import Decimal
 import pytest
 from fastapi import HTTPException
 
+from src.domain.execution import PreparedWithdrawTicket
 from src.services.provider.withdraw_service import ProviderWithdrawService
 
 from tests.unit.test_finance_runtime_service_unit import (
@@ -63,6 +64,46 @@ def test_provider_withdraw_rejects_unmatured_receivable() -> None:
     assert exc_info.value.status_code == 400
     assert exc_info.value.detail["code"] == "PROVIDER_RECEIVABLE_NOT_MATURED"
     assert storage.gateway_state.withdraw_rows == []
+
+
+def test_provider_withdraw_same_key_replays_active_pending_after_lock() -> None:
+    storage = FakeStorage()
+    wallet = storage.balance.ledger.ensure_provider_wallet("0xdef")
+    wallet.available_balance = Decimal("150.000000")
+    service = ProviderWithdrawService(storage, DummyLockManager())
+    _configure_withdraw_service(service)
+    service._prepare_withdraw_ticket = lambda **kwargs: PreparedWithdrawTicket(
+        requires_manual_review=True,
+        amount_wei=120000000,
+        fee_wei=0,
+        nonce=0,
+        chain_id=0,
+        deadline=0,
+        signature="",
+        signer_address="",
+        ticket={},
+    )
+
+    first = asyncio.run(
+        service.create_provider_withdraw_intent(
+            {"amountUsdc": "120.000000"},
+            "0xdef",
+            "withdraw-intent-key-replay-pending",
+        )
+    )
+    second = asyncio.run(
+        service.create_provider_withdraw_intent(
+            {"amountUsdc": "120.000000"},
+            "0xdef",
+            "withdraw-intent-key-replay-pending",
+        )
+    )
+
+    assert second["withdrawalId"] == first["withdrawalId"]
+    assert len(storage.gateway_state.withdraw_rows) == 1
+    wallet_after = storage.balance.ledger.ensure_provider_wallet("0xdef")
+    assert _money_decimal(wallet_after.available_balance) == Decimal("30.000000")
+    assert _money_decimal(wallet_after.frozen_balance) == Decimal("120.000000")
 
 
 def test_provider_withdraw_uses_mature_amount_for_full_withdrawal() -> None:

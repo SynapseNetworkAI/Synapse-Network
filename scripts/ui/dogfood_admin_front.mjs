@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import crypto from "node:crypto";
 import { chromium } from "playwright";
+import { verifyBackendConsistency } from "./admin_front_backend_consistency.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "../..");
@@ -252,6 +253,16 @@ async function createPage(context, name) {
 
 async function assertText(page, candidates, label) {
   const bodyText = String((await page.textContent("body")) || "");
+  const forbiddenText = [
+    "Internal server error",
+    "Missing admin session",
+    "Unauthorized",
+    "Unhandled Runtime Error",
+  ];
+  const blocker = forbiddenText.find((text) => bodyText.includes(text));
+  if (blocker) {
+    throw new Error(`${label} rendered blocker text: ${blocker}`);
+  }
   if (!candidates.some((text) => bodyText.includes(text))) {
     throw new Error(
       `${label} missing expected text: ${candidates.join(" | ")}`
@@ -438,9 +449,24 @@ async function verifyNavigationClicks(page) {
       waitUntil: "networkidle",
       timeout: 60000,
     });
-    await page.getByText("社区回复", { exact: true }).first().click();
+    const link = page.locator('a[href="/forum-support"]').first();
+    if ((await link.count()) === 0) {
+      throw new Error("forum support sidebar link not found");
+    }
+    await link.click();
     await page.waitForURL("**/forum-support", { timeout: 30000 });
-    await assertText(page, ["社区回复"], "forum support after sidebar click");
+    await page.waitForFunction(
+      () =>
+        document.body.innerText.includes("Forum Support") ||
+        document.body.innerText.includes("社区回复") ||
+        document.body.innerText.includes("未回复队列"),
+      { timeout: 30000 }
+    );
+    await assertText(
+      page,
+      ["Forum Support", "社区回复", "未回复队列"],
+      "forum support after sidebar click"
+    );
     await screenshot(page, "click-sidebar-forum-support");
     return page.url();
   });
@@ -462,149 +488,6 @@ async function verifyNavigationClicks(page) {
     );
     await screenshot(page, "click-sidebar-provider-services");
     return page.url();
-  });
-}
-
-async function verifyBackendConsistency(page, auth) {
-  const forumTaskId = fixture?.forum?.responseTaskId;
-  if (!forumTaskId) {
-    warn(
-      "forum-support:seed",
-      "fixture has no forum response task id; skipping send-reply flow"
-    );
-    return;
-  }
-
-  await step("data:forum-support-api-visible", async () => {
-    const task = await adminApi(
-      `/api/admin/v1/forum/response-tasks/${encodeURIComponent(forumTaskId)}`,
-      auth
-    );
-    if (task.responseTaskId !== forumTaskId) {
-      throw new Error(`forum task id mismatch: ${task.responseTaskId}`);
-    }
-    if (!["awaiting_response", "draft_ready"].includes(task.status)) {
-      throw new Error(
-        `forum task must be active before dogfood send, got ${task.status}`
-      );
-    }
-    return task.status;
-  });
-
-  await step("flow:forum-support-send-reply", async () => {
-    await page.goto(pageUrl("/forum-support"), {
-      waitUntil: "networkidle",
-      timeout: 60000,
-    });
-    await assertText(page, [fixture.forum.topicTitle], "seeded forum topic");
-    await screenshot(page, "forum-support-before-send");
-    const replyBody = `Admin dogfood reviewed reply ${fixture.runId}`;
-    await page.locator("textarea").first().fill(replyBody);
-    const responsePromise = page.waitForResponse(
-      (response) =>
-        response
-          .url()
-          .includes(
-            `/api/admin/v1/forum/response-tasks/${forumTaskId}/send-reply`
-          ) && response.request().method() === "POST"
-    );
-    await page.getByRole("button", { name: "发送回复" }).click();
-    const response = await responsePromise;
-    if (!response.ok()) {
-      const text = await response.text().catch(() => "");
-      throw new Error(
-        `send reply failed: ${response.status()} ${text.slice(0, 400)}`
-      );
-    }
-    await assertText(page, ["回复已发送"], "send success notice");
-    await screenshot(page, "forum-support-after-send");
-    return forumTaskId;
-  });
-
-  await step("data:provider-services-api-page-consistency", async () => {
-    const data = await adminApi(
-      "/api/admin/v1/provider-services?page=1&pageSize=20",
-      auth
-    );
-    await page.goto(pageUrl("/provider-services"), {
-      waitUntil: "networkidle",
-      timeout: 60000,
-    });
-    const body = String((await page.textContent("body")) || "");
-    if (data.items?.[0]) {
-      const first = data.items[0].serviceName || data.items[0].serviceId;
-      if (!body.includes(first)) {
-        throw new Error(
-          `provider service API item not visible in UI: ${first}`
-        );
-      }
-      return first;
-    }
-    if (!body.includes("Provider 服务")) {
-      throw new Error(
-        "provider services page did not render while API returned empty list"
-      );
-    }
-    return "empty provider list rendered";
-  });
-
-  await step("data:finance-api-page-consistency", async () => {
-    const data = await adminApi(
-      "/api/admin/v1/dashboard/finance-overview",
-      auth
-    );
-    await page.goto(pageUrl("/finance"), {
-      waitUntil: "networkidle",
-      timeout: 60000,
-    });
-    const body = String((await page.textContent("body")) || "").replaceAll(
-      ",",
-      ""
-    );
-    const candidates = [
-      data.todayChargeUsdc,
-      data.ownerLiabilityUsdc,
-      data.providerPayableUsdc,
-      data.platformFeeBalanceUsdc,
-    ].filter(Boolean);
-    if (
-      !candidates.some(
-        (value) =>
-          body.includes(String(value).replace(/\.000000$/, "")) ||
-          body.includes(String(value))
-      )
-    ) {
-      throw new Error(
-        `finance page did not show any API money value: ${candidates.join(
-          ", "
-        )}`
-      );
-    }
-    return candidates[0];
-  });
-
-  await step("data:analytics-api-page-consistency", async () => {
-    const data = await adminApi(
-      "/api/admin/v1/dashboard/analytics/overview?window=24h",
-      auth
-    );
-    await page.goto(pageUrl("/dashboard/analytics"), {
-      waitUntil: "networkidle",
-      timeout: 60000,
-    });
-    const body = String((await page.textContent("body")) || "").replaceAll(
-      ",",
-      ""
-    );
-    const values = (data.cards || [])
-      .map((card) => String(card.value))
-      .filter(Boolean);
-    if (values.length > 0 && !values.some((value) => body.includes(value))) {
-      throw new Error(
-        `analytics overview did not show any card value: ${values.join(", ")}`
-      );
-    }
-    return `${values.length} card values checked`;
   });
 }
 
@@ -680,7 +563,17 @@ async function main() {
     const page = await createPage(context, "admin-front");
     await verifyPageMatrix(page, authenticatedPageMatrix);
     await verifyNavigationClicks(page);
-    await verifyBackendConsistency(page, auth);
+    await verifyBackendConsistency({
+      adminApi,
+      assertText,
+      auth,
+      fixture,
+      page,
+      pageUrl,
+      screenshot,
+      step,
+      warn,
+    });
     await step("browser:console-errors", async () => {
       if (consoleErrors.length > 0) {
         throw new Error(
