@@ -10,36 +10,37 @@ Rule: start with the narrowest relevant check, then escalate to repo-level CI on
 
 From repository root:
 
-1. `npm run ci:docs`
-2. `npm run ci:finance-approval-safety`
-3. `npm run ci:finance-approval-e2e-evidence`
-4. `npm run ci:withdrawal-one-ticket-evidence`
-5. `npm run ci:withdrawal-idempotency-concurrency-evidence`
-6. `npm run ci:financial-security`
-7. `npm run ci:architecture-quality`
-8. `npm run ci:quality-budget`
-9. `npm run ci:format-check`
-10. `npm run ci:diff-coverage`
-11. `npm run ci:agent-guardrails`
-12. `npm run ci:frontend`
-13. `npm run ci:admin-front`
-14. `npm run ci:admin-gateway`
-15. `npm run ci:gateway`
-16. `npm run ci:provider-service`
-17. `npm run ci:sdk-python`
-18. `npm run ci:contracts`
-19. `npm run ci:pr`
-20. `npm run perf:local-production-load-rehearsal`
-21. `npm run ci:local-production-load-evidence`
-22. `npm run ci:monitoring-alert-rules`
-23. `npm run e2e:lark-alerts`
-24. `npm run ci:lark-alert-e2e-evidence`
-25. `npm run e2e:in-app-notifications`
-26. `npm run ci:in-app-notifications-evidence`
-27. `npm run ci:backup-restore-evidence`
-28. `npm run deploy:contracts:arbitrum-sepolia:dry-run`
-29. `npm run ci:contract-deployment-evidence`
-30. `npm run ci:migration-seed-guard`
+1. `npm run ci:agent-lessons`
+2. `npm run ci:docs`
+3. `npm run ci:finance-approval-safety`
+4. `npm run ci:finance-approval-e2e-evidence`
+5. `npm run ci:withdrawal-one-ticket-evidence`
+6. `npm run ci:withdrawal-idempotency-concurrency-evidence`
+7. `npm run ci:financial-security`
+8. `npm run ci:architecture-quality`
+9. `npm run ci:quality-budget`
+10. `npm run ci:format-check`
+11. `npm run ci:diff-coverage`
+12. `npm run ci:agent-guardrails`
+13. `npm run ci:frontend`
+14. `npm run ci:admin-front`
+15. `npm run ci:admin-gateway`
+16. `npm run ci:gateway`
+17. `npm run ci:provider-service`
+18. `npm run ci:sdk-python`
+19. `npm run ci:contracts`
+20. `npm run ci:pr`
+21. `npm run perf:local-production-load-rehearsal`
+22. `npm run ci:local-production-load-evidence`
+23. `npm run ci:monitoring-alert-rules`
+24. `npm run e2e:lark-alerts`
+25. `npm run ci:lark-alert-e2e-evidence`
+26. `npm run e2e:in-app-notifications`
+27. `npm run ci:in-app-notifications-evidence`
+28. `npm run ci:backup-restore-evidence`
+29. `npm run deploy:contracts:arbitrum-sepolia:dry-run`
+30. `npm run ci:contract-deployment-evidence`
+31. `npm run ci:migration-seed-guard`
 
 Use these wrappers when final integration confidence is required.
 
@@ -53,6 +54,11 @@ Local hook bootstrap:
 1. `bash scripts/dev/install_git_hooks.sh`
 
 After installation, `git push` automatically runs `bash scripts/ci/pr_checks.sh`.
+That PR gate starts with `npm run ci:agent-lessons`, which requires
+`docs/reference/agent-lessons/<branch-slug>.md` for non-merge work unless the
+branch has no local changes. Use `No new lessons.` for a clean push review, or
+add a structured `Lesson:` block when the session exposed a reusable failure
+pattern.
 Emergency bypass remains `git push --no-verify`.
 
 `ci:pr` defaults to dynamic scope. `bash scripts/ci/pr_checks.sh` resolves changed
