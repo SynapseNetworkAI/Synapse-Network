@@ -89,7 +89,7 @@ ADMIN_GATEWAY_URL=http://127.0.0.1:8300 \
 ANALYTICS_CLICKHOUSE_URL=http://127.0.0.1:8123 \
 /usr/bin/python3 scripts/admin_analytics_clickhouse_regression.py
 
-ADMIN_FRONT_URL=http://127.0.0.1:4000 \
+ADMIN_FRONT_URL=http://127.0.0.1:3200 \
 ADMIN_GATEWAY_URL=http://127.0.0.1:8300 \
 ADMIN_SESSION_TOKEN="<synapse_admin_session>" \
 node scripts/admin_analytics_fullchain_e2e.js
@@ -107,7 +107,7 @@ ADMIN_SESSION_TOKEN="<synapse_admin_session>" npm run e2e:admin-analytics-10k:do
 
 Defaults are local-only:
 
-1. `ADMIN_FRONT_URL=http://localhost:4000`
+1. `ADMIN_FRONT_URL=http://localhost:3200`
 2. `ADMIN_GATEWAY_URL=http://localhost:8300`
 3. `GATEWAY_POSTGRES_DSN=postgresql://synapse_gateway_app:local-dev-gateway-app-password@localhost:5432/synapse_gateway`
 4. `ADMIN_EMAIL=super@synapse.network`

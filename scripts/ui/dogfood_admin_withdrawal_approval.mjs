@@ -4,19 +4,30 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
-import { generateTotpCode, waitForSafeTotpWindow } from "../lib/totp_window.mjs";
+import {
+  generateTotpCode,
+  waitForSafeTotpWindow,
+} from "../lib/totp_window.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "../..");
-const ADMIN_FRONT_URL = (process.env.ADMIN_FRONT_URL || "http://localhost:4000").replace(/\/+$/, "");
-const ADMIN_GATEWAY_URL = (process.env.ADMIN_GATEWAY_URL || "http://localhost:8300").replace(/\/+$/, "");
-const ADMIN_COOKIE_NAME = process.env.ADMIN_SESSION_COOKIE_NAME || "synapse_admin_session";
+const ADMIN_FRONT_URL = (
+  process.env.ADMIN_FRONT_URL || "http://localhost:3200"
+).replace(/\/+$/, "");
+const ADMIN_GATEWAY_URL = (
+  process.env.ADMIN_GATEWAY_URL || "http://localhost:8300"
+).replace(/\/+$/, "");
+const ADMIN_COOKIE_NAME =
+  process.env.ADMIN_SESSION_COOKIE_NAME || "synapse_admin_session";
 const ADMIN_TOTP_SECRET = process.env.ADMIN_TOTP_SECRET || "JBSWY3DPEHPK3PXP";
 // withdrawal status source: services/gateway provider withdrawal state machine and gateway-admin review projection.
 const FIXTURE_PATH = process.env.ADMIN_WITHDRAWAL_APPROVAL_FIXTURE
   ? path.resolve(process.env.ADMIN_WITHDRAWAL_APPROVAL_FIXTURE)
   : path.join(ROOT, "tmp/admin-withdrawal-approval/fixture.json");
-const timestamp = new Date().toISOString().replace(/[:.]/g, "").replace("Z", "Z");
+const timestamp = new Date()
+  .toISOString()
+  .replace(/[:.]/g, "")
+  .replace("Z", "Z");
 const OUT_DIR = process.env.ADMIN_WITHDRAWAL_APPROVAL_OUT_DIR
   ? path.resolve(process.env.ADMIN_WITHDRAWAL_APPROVAL_OUT_DIR)
   : path.join(ROOT, "output/dogfood/admin-withdrawal-approval", timestamp);
@@ -66,28 +77,36 @@ async function screenshot(page, name) {
 
 async function captureDiagnostics(page, name) {
   const filePath = await screenshot(page, name);
-  const bodyText = await page.locator("body").innerText({ timeout: 3000 }).catch(() => "");
+  const bodyText = await page
+    .locator("body")
+    .innerText({ timeout: 3000 })
+    .catch(() => "");
   const diagnosticPath = path.join(OUT_DIR, `${name}.txt`);
-  fs.writeFileSync(diagnosticPath, [
-    `url=${page.url()}`,
-    "",
-    bodyText.slice(0, 5000),
-  ].join("\n"));
+  fs.writeFileSync(
+    diagnosticPath,
+    [`url=${page.url()}`, "", bodyText.slice(0, 5000)].join("\n")
+  );
   return { filePath, diagnosticPath, bodyText };
 }
 
 function loadFixture() {
   if (!fs.existsSync(FIXTURE_PATH)) {
-    throw new Error(`Fixture not found: ${FIXTURE_PATH}. Run npm run e2e:admin-withdrawal-approval:seed first.`);
+    throw new Error(
+      `Fixture not found: ${FIXTURE_PATH}. Run npm run e2e:admin-withdrawal-approval:seed first.`
+    );
   }
   const fixture = JSON.parse(fs.readFileSync(FIXTURE_PATH, "utf8"));
-  if (!fixture.auth?.sessionToken) throw new Error("Fixture is missing admin session token.");
-  if (!fixture.withdrawal?.withdrawalId) throw new Error("Fixture is missing withdrawalId.");
+  if (!fixture.auth?.sessionToken)
+    throw new Error("Fixture is missing admin session token.");
+  if (!fixture.withdrawal?.withdrawalId)
+    throw new Error("Fixture is missing withdrawalId.");
   return fixture;
 }
 
 async function createContext(browser, fixture) {
-  const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+  const context = await browser.newContext({
+    viewport: { width: 1440, height: 1000 },
+  });
   await context.addCookies([
     {
       name: ADMIN_COOKIE_NAME,
@@ -110,8 +129,17 @@ async function createPage(context) {
   page.on("console", (message) => {
     if (message.type() === "error") {
       const text = message.text();
-      if (text.includes("Failed to fetch RSC payload") && text.includes("Falling back to browser navigation")) return;
-      if (text.includes("Failed to load resource: the server responded with a status of 404")) return;
+      if (
+        text.includes("Failed to fetch RSC payload") &&
+        text.includes("Falling back to browser navigation")
+      )
+        return;
+      if (
+        text.includes(
+          "Failed to load resource: the server responded with a status of 404"
+        )
+      )
+        return;
       consoleErrors.push({ page: "withdrawal-approval", text });
     }
   });
@@ -137,9 +165,16 @@ async function createPage(context) {
     };
     apiResponses.push(record);
     if (response.status() >= 500) {
-      consoleErrors.push({ page: "withdrawal-approval", text: `API ${record.method} ${record.status} ${record.url}` });
+      consoleErrors.push({
+        page: "withdrawal-approval",
+        text: `API ${record.method} ${record.status} ${record.url}`,
+      });
     }
-    if (url.includes("/withdrawal-reviews/") && url.includes("/decision") && response.request().method() === "POST") {
+    if (
+      url.includes("/withdrawal-reviews/") &&
+      url.includes("/decision") &&
+      response.request().method() === "POST"
+    ) {
       try {
         approvalResult = await response.json();
       } catch {
@@ -151,7 +186,9 @@ async function createPage(context) {
 }
 
 async function maybeSubmitStepUp(page) {
-  const stepUp = page.getByText(/Step-up Verification|Google Authenticator 验证码/).first();
+  const stepUp = page
+    .getByText(/Step-up Verification|Google Authenticator 验证码/)
+    .first();
   if (!(await stepUp.isVisible({ timeout: 2500 }).catch(() => false))) {
     return false;
   }
@@ -160,39 +197,81 @@ async function maybeSubmitStepUp(page) {
     guardSeconds: 10,
     sleep: (ms) => page.waitForTimeout(ms),
   });
-  await page.locator('input[placeholder="123456"]').fill(generateTotpCode(ADMIN_TOTP_SECRET));
-  const confirmButton = page.getByRole("button", { name: /确认放行|确认|Approve|Submit/ }).last();
+  await page
+    .locator('input[placeholder="123456"]')
+    .fill(generateTotpCode(ADMIN_TOTP_SECRET));
+  const confirmButton = page
+    .getByRole("button", { name: /确认放行|确认|Approve|Submit/ })
+    .last();
   await confirmButton.waitFor({ state: "visible", timeout: 10000 });
-  await page.waitForFunction(() => {
-    const buttons = Array.from(document.querySelectorAll("button"));
-    const target = buttons.reverse().find((button) => /确认放行|确认|Approve|Submit/.test(button.textContent || ""));
-    return Boolean(target && !target.disabled);
-  }, null, { timeout: 10000 });
+  await page.waitForFunction(
+    () => {
+      const buttons = Array.from(document.querySelectorAll("button"));
+      const target = buttons
+        .reverse()
+        .find((button) =>
+          /确认放行|确认|Approve|Submit/.test(button.textContent || "")
+        );
+      return Boolean(target && !target.disabled);
+    },
+    null,
+    { timeout: 10000 }
+  );
   await confirmButton.click();
   return true;
 }
 
 async function waitForWithdrawalReviewPage(page, withdrawalId) {
-  const titleLocator = page.getByText(/提现审核工作台|提现审核队列|Withdrawal/i).first();
-  await titleLocator.waitFor({ state: "visible", timeout: 30000 }).catch(async (error) => {
-    const diagnostics = await captureDiagnostics(page, "00-withdrawal-review-load-failed");
-    if (page.url().includes("/login")) {
-      throw new Error(`Admin session was not accepted; redirected to login. Diagnostics: ${diagnostics.diagnosticPath}`);
-    }
-    if (resourceErrors.length > 0) {
-      throw new Error(`Admin front static assets failed to load (${resourceErrors.length} resource errors). Restart admin-front and retry. Diagnostics: ${diagnostics.diagnosticPath}`);
-    }
-    throw new Error(`${error instanceof Error ? error.message : String(error)}. Diagnostics: ${diagnostics.diagnosticPath}`);
-  });
-  await page.getByText(withdrawalId).waitFor({ state: "visible", timeout: 30000 }).catch(async (error) => {
-    const diagnostics = await captureDiagnostics(page, "00-withdrawal-review-id-missing");
-    throw new Error(`Withdrawal ${withdrawalId} was not visible on the review page: ${error instanceof Error ? error.message : String(error)}. Diagnostics: ${diagnostics.diagnosticPath}`);
-  });
+  const titleLocator = page
+    .getByText(/提现审核工作台|提现审核队列|Withdrawal/i)
+    .first();
+  await titleLocator
+    .waitFor({ state: "visible", timeout: 30000 })
+    .catch(async (error) => {
+      const diagnostics = await captureDiagnostics(
+        page,
+        "00-withdrawal-review-load-failed"
+      );
+      if (page.url().includes("/login")) {
+        throw new Error(
+          `Admin session was not accepted; redirected to login. Diagnostics: ${diagnostics.diagnosticPath}`
+        );
+      }
+      if (resourceErrors.length > 0) {
+        throw new Error(
+          `Admin front static assets failed to load (${resourceErrors.length} resource errors). Restart admin-front and retry. Diagnostics: ${diagnostics.diagnosticPath}`
+        );
+      }
+      throw new Error(
+        `${
+          error instanceof Error ? error.message : String(error)
+        }. Diagnostics: ${diagnostics.diagnosticPath}`
+      );
+    });
+  await page
+    .getByText(withdrawalId)
+    .waitFor({ state: "visible", timeout: 30000 })
+    .catch(async (error) => {
+      const diagnostics = await captureDiagnostics(
+        page,
+        "00-withdrawal-review-id-missing"
+      );
+      throw new Error(
+        `Withdrawal ${withdrawalId} was not visible on the review page: ${
+          error instanceof Error ? error.message : String(error)
+        }. Diagnostics: ${diagnostics.diagnosticPath}`
+      );
+    });
 }
 
 async function verifyApprovalFlow(page, fixture) {
   const withdrawalId = fixture.withdrawal.withdrawalId;
-  await page.goto(`${ADMIN_FRONT_URL}/withdrawal-reviews?q=${encodeURIComponent(withdrawalId)}`, { waitUntil: "networkidle" });
+  await page.goto(
+    `${ADMIN_FRONT_URL}/withdrawal-reviews?q=${encodeURIComponent(
+      withdrawalId
+    )}`,
+    { waitUntil: "networkidle" }
+  );
   await waitForWithdrawalReviewPage(page, withdrawalId);
   await screenshot(page, "01-withdrawal-review-queue");
 
@@ -202,38 +281,70 @@ async function verifyApprovalFlow(page, fixture) {
   } else {
     await page.getByText(withdrawalId).click();
   }
-  await page.getByText("审核详情").waitFor({ state: "visible", timeout: 30000 }).catch(() => null);
+  await page
+    .getByText("审核详情")
+    .waitFor({ state: "visible", timeout: 30000 })
+    .catch(() => null);
   await screenshot(page, "02-withdrawal-review-detail");
 
   const note = `Admin withdrawal approval dogfood ${fixture.runId}`;
   await page.locator("textarea").last().fill(note);
-  const approvalPromise = page.waitForResponse((response) =>
-    response.url().includes(`/withdrawal-reviews/${encodeURIComponent(withdrawalId)}/decision`)
-      && response.request().method() === "POST",
-    { timeout: 60000 },
+  const approvalPromise = page.waitForResponse(
+    (response) =>
+      response
+        .url()
+        .includes(
+          `/withdrawal-reviews/${encodeURIComponent(withdrawalId)}/decision`
+        ) && response.request().method() === "POST",
+    { timeout: 60000 }
   );
-  await page.getByRole("button", { name: /Approve & Issue Ticket|确认放行|放行|批准/ }).last().click();
+  await page
+    .getByRole("button", { name: /Approve & Issue Ticket|确认放行|放行|批准/ })
+    .last()
+    .click();
   await maybeSubmitStepUp(page);
   const approvalResponse = await approvalPromise;
   const body = await approvalResponse.json().catch(() => ({}));
   approvalResult = body;
   if (!approvalResponse.ok()) {
-    throw new Error(`Approval request failed: ${approvalResponse.status()} ${JSON.stringify(body).slice(0, 800)}`);
+    throw new Error(
+      `Approval request failed: ${approvalResponse.status()} ${JSON.stringify(
+        body
+      ).slice(0, 800)}`
+    );
   }
   const data = body.data || body;
   if (data.status !== "APPROVED_AUTO" || data.reviewDecision !== "APPROVE") {
-    throw new Error(`Unexpected approval result: ${JSON.stringify(data).slice(0, 800)}`);
+    throw new Error(
+      `Unexpected approval result: ${JSON.stringify(data).slice(0, 800)}`
+    );
   }
-  await page.getByText(/放行|approved|签发|成功|ticket/i).first().waitFor({ state: "visible", timeout: 30000 }).catch(() => null);
+  await page
+    .getByText(/放行|approved|签发|成功|ticket/i)
+    .first()
+    .waitFor({ state: "visible", timeout: 30000 })
+    .catch(() => null);
   await screenshot(page, "04-after-approve");
 
-  await page.goto(`${ADMIN_FRONT_URL}/review-history`, { waitUntil: "networkidle" });
-  await page.getByText(/审核历史|review/i).first().waitFor({ state: "visible", timeout: 30000 });
-  await page.getByText(withdrawalId).waitFor({ state: "visible", timeout: 30000 });
+  await page.goto(`${ADMIN_FRONT_URL}/review-history`, {
+    waitUntil: "networkidle",
+  });
+  await page
+    .getByText(/审核历史|review/i)
+    .first()
+    .waitFor({ state: "visible", timeout: 30000 });
+  await page
+    .getByText(withdrawalId)
+    .waitFor({ state: "visible", timeout: 30000 });
   await screenshot(page, "05-review-history");
 
-  await page.goto(`${ADMIN_FRONT_URL}/finance/reconciliation`, { waitUntil: "networkidle" });
-  await page.getByText(/Reconciliation|对账/).first().waitFor({ state: "visible", timeout: 30000 });
+  await page.goto(`${ADMIN_FRONT_URL}/finance/reconciliation`, {
+    waitUntil: "networkidle",
+  });
+  await page
+    .getByText(/Reconciliation|对账/)
+    .first()
+    .waitFor({ state: "visible", timeout: 30000 });
   await screenshot(page, "06-finance-reconciliation");
 
   return `approved ${withdrawalId}`;
@@ -241,7 +352,8 @@ async function verifyApprovalFlow(page, fixture) {
 
 function writeReport(fixture) {
   const report = {
-    status: failed.length === 0 && consoleErrors.length === 0 ? "success" : "failed",
+    status:
+      failed.length === 0 && consoleErrors.length === 0 ? "success" : "failed",
     generatedAt: new Date().toISOString(),
     fixturePath: FIXTURE_PATH,
     runId: fixture.runId,
@@ -269,13 +381,19 @@ function writeReport(fixture) {
     `- Fixture: ${FIXTURE_PATH}`,
     "",
     "## Passed",
-    ...passed.map((item) => `- PASS ${item.name}${item.detail ? ` - ${item.detail}` : ""}`),
+    ...passed.map(
+      (item) => `- PASS ${item.name}${item.detail ? ` - ${item.detail}` : ""}`
+    ),
     "",
     "## Failed",
-    ...(failed.length ? failed.map((item) => `- FAIL ${item.name} - ${item.detail}`) : ["- None"]),
+    ...(failed.length
+      ? failed.map((item) => `- FAIL ${item.name} - ${item.detail}`)
+      : ["- None"]),
     "",
     "## Console / API Errors",
-    ...(consoleErrors.length ? consoleErrors.map((item) => `- ${item.page}: ${item.text}`) : ["- None"]),
+    ...(consoleErrors.length
+      ? consoleErrors.map((item) => `- ${item.page}: ${item.text}`)
+      : ["- None"]),
     "",
     "## Screenshots",
     ...screenshots.map((filePath) => `- ${filePath}`),
@@ -293,15 +411,25 @@ function writeReport(fixture) {
 
 async function main() {
   const fixture = loadFixture();
-  const browser = await chromium.launch({ headless: process.env.HEADLESS !== "0" });
+  const browser = await chromium.launch({
+    headless: process.env.HEADLESS !== "0",
+  });
   try {
     const context = await createContext(browser, fixture);
     const page = await createPage(context);
-    await step("browser:approve-provider-withdrawal", () => verifyApprovalFlow(page, fixture));
+    await step("browser:approve-provider-withdrawal", () =>
+      verifyApprovalFlow(page, fixture)
+    );
     if (consoleErrors.length) {
-      fail("browser:console-errors", `${consoleErrors.length} console/API errors`);
+      fail(
+        "browser:console-errors",
+        `${consoleErrors.length} console/API errors`
+      );
     } else {
-      pass("browser:console-errors", "no uncaught console errors or hidden 500s");
+      pass(
+        "browser:console-errors",
+        "no uncaught console errors or hidden 500s"
+      );
     }
     const report = writeReport(fixture);
     if (report.status !== "success") process.exitCode = 1;
@@ -311,6 +439,10 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error(`[admin-withdrawal-dogfood] fatal: ${error.stack || error.message || String(error)}`);
+  console.error(
+    `[admin-withdrawal-dogfood] fatal: ${
+      error.stack || error.message || String(error)
+    }`
+  );
   process.exit(1);
 });

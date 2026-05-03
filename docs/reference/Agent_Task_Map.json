@@ -53,7 +53,7 @@
       "id": "docs_front",
       "title": "Dedicated public developer docs",
       "use_when": [
-        "the task mentions http://localhost:3001",
+        "the task mentions http://localhost:3100",
         "the task mentions docs.synapse-network.ai or docs-staging.synapse-network.ai",
         "SDK docs page copy or examples need to change",
         "API reference UI, OpenAPI generation, or endpoint docs change",
@@ -80,7 +80,7 @@
       "validation_commands": [
         "npm run ci:docs",
         "cd services/docs-front && yarn build",
-        "DOCS_BASE_URL=http://localhost:3001 node scripts/ui/verify_docs_pages.mjs"
+        "DOCS_BASE_URL=http://localhost:3100 node scripts/ui/verify_docs_pages.mjs"
       ],
       "notes": [
         "Public docs must match current SDK README and gateway endpoints.",

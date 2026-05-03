@@ -44,7 +44,7 @@ yarn dev
 If Next chooses a different port, pass it explicitly:
 
 ```bash
-FORUM_BASE_URL=http://localhost:3001 node scripts/ui/dogfood_forum_feedback.mjs
+FORUM_BASE_URL=http://localhost:3100 node scripts/ui/dogfood_forum_feedback.mjs
 ```
 
 The gateway database must already contain:

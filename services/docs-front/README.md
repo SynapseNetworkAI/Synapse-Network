@@ -6,7 +6,7 @@ Dedicated developer documentation site for Synapse Network.
 
 | Environment | URL                                       |
 | ----------- | ----------------------------------------- |
-| Local       | `http://localhost:3001`                   |
+| Local       | `http://localhost:3100`                   |
 | Staging     | `https://docs-staging.synapse-network.ai` |
 | Production  | `https://docs.synapse-network.ai`         |
 
@@ -20,7 +20,7 @@ yarn lint
 yarn build
 ```
 
-The dev server runs on port `3001`.
+The dev server runs on port `3100`.
 
 ## Ownership
 

@@ -64,7 +64,7 @@ npm run perf:local-smoke
 Defaults:
 
 1. Gateway: `http://127.0.0.1:8000`
-2. Admin-front: `http://127.0.0.1:4000`
+2. Admin-front: `http://127.0.0.1:3200`
 3. Duration: `10s`
 4. Concurrency: `2`
 5. Request delay: `200ms` per worker
@@ -73,7 +73,7 @@ Override with local-only URLs:
 
 ```bash
 SYNAPSE_LOCAL_GATEWAY_BASE_URL=http://127.0.0.1:8000 \
-SYNAPSE_LOCAL_ADMIN_FRONT_BASE_URL=http://127.0.0.1:4000 \
+SYNAPSE_LOCAL_ADMIN_FRONT_BASE_URL=http://127.0.0.1:3200 \
 SYNAPSE_PERF_DURATION_SEC=30 \
 SYNAPSE_PERF_CONCURRENCY=16 \
 npm run perf:local-smoke
@@ -94,7 +94,7 @@ The local suite is safe for developer laptops. It verifies:
 3. shell syntax for performance, chaos, and recovery scripts.
 4. JSON validity for all performance scenarios.
 5. staging confirmation guards for load, chaos, and recovery scripts.
-6. local HTTP smoke when `127.0.0.1:8000` and `127.0.0.1:4000` are available.
+6. local HTTP smoke when `127.0.0.1:8000` and `127.0.0.1:3200` are available.
 
 The local HTTP smoke is optional by default because it depends on already-running local services. To make unavailable local services a hard failure:
 
