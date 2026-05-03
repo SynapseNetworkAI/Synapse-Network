@@ -9,7 +9,6 @@ CLOUD_RUN_SECRET_IDS=(
   synapse-staging-postgres-password
   synapse-staging-jwt-secret
   synapse-staging-auth-secret
-  synapse-staging-private-key
   synapse-staging-metrics-bearer-token
   synapse-staging-gateway-internal-jwt-secret
   synapse-staging-arbitrum-sepolia-rpc-url

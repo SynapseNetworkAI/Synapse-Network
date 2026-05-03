@@ -58,7 +58,7 @@ pip install -r requirements.txt
 ADMIN_GATEWAY_HOST=0.0.0.0
 ADMIN_GATEWAY_PORT=8300
 ADMIN_GATEWAY_DEBUG=false
-ADMIN_GATEWAY_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:4000
+ADMIN_GATEWAY_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:3200
 ADMIN_SESSION_TTL_SEC=3600
 ADMIN_SESSION_COOKIE_NAME=synapse_admin_session
 ADMIN_SESSION_COOKIE_SECURE=false
@@ -422,7 +422,7 @@ cat /Users/cliff/workspace/agent/Synapse-Network/services/gateway-admin/run/gate
 
 ```bash
 curl http://127.0.0.1:8300/health
-open http://localhost:4000/login
+open http://localhost:3200/login
 ```
 
 ## 6. 菜单配置中心发布说明

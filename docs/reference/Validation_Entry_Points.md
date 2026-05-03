@@ -6,6 +6,8 @@ This page lists the canonical validation anchors AI agents and maintainers shoul
 
 Rule: start with the narrowest relevant check, then escalate to repo-level CI only when the change crosses project or contract boundaries.
 
+Canonical local service ports live in `docs/reference/Service_Port_Map.md`.
+
 ## 2. Repository-Level Validation
 
 From repository root:
@@ -95,18 +97,18 @@ Working directory: `apps/frontend/`
 
 Working directory: `services/docs-front/`
 
-1. `yarn dev` for active iteration on `http://localhost:3001`
+1. `yarn dev` for active iteration on `http://localhost:3100`
 2. `yarn generate:openapi` after endpoint data changes
 3. `yarn lint`
 4. `yarn build` for MDX, OpenAPI, type, and static route validation
-5. `DOCS_BASE_URL=http://localhost:3001 node scripts/ui/verify_docs_pages.mjs` from repository root after starting the docs dev server
+5. `DOCS_BASE_URL=http://localhost:3100 node scripts/ui/verify_docs_pages.mjs` from repository root after starting the docs dev server
 6. `npm run ci:docs-pages` from repository root when repo-standard docs-page gating is needed
 
 ### 3.3 services/admin-front
 
 Working directory: `services/admin-front/`
 
-1. `yarn dev` for active iteration on `http://localhost:4000`
+1. `yarn dev` for active iteration on `http://localhost:3200`
 2. `yarn lint`
 3. `yarn test`
 4. `yarn build` only when the task explicitly needs final build confirmation

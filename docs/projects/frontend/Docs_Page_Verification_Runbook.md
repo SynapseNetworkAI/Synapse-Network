@@ -2,10 +2,10 @@
 
 - Status: canonical
 - Surface: `services/docs-front` dedicated docs site
-- Entry point: `http://localhost:3001/`
+- Entry point: `http://localhost:3100/`
 - Code paths: `services/docs-front/content/docs/`, `services/docs-front/src/app/`, `services/docs-front/src/data/endpoint-source.ts`, `scripts/ui/verify_docs_pages.mjs`
 - Fast gate: `npm run ci:docs-pages`
-- Browser evidence: `DOCS_BASE_URL=http://localhost:3001 node scripts/ui/verify_docs_pages.mjs`
+- Browser evidence: `DOCS_BASE_URL=http://localhost:3100 node scripts/ui/verify_docs_pages.mjs`
 - Last verified against code: 2026-05-02
 
 ## Current Model
@@ -19,7 +19,7 @@ Run:
 ```bash
 npm run ci:docs-pages
 npm run ci:docs
-DOCS_BASE_URL=http://localhost:3001 node scripts/ui/verify_docs_pages.mjs
+DOCS_BASE_URL=http://localhost:3100 node scripts/ui/verify_docs_pages.mjs
 ```
 
 Required result:

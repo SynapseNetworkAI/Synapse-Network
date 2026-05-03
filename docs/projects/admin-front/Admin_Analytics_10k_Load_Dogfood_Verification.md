@@ -25,11 +25,11 @@ Future production optimization may move money-critical analytics to Transactiona
 
 The fullchain script registers three callable provider services:
 
-| Service | Price | Calls |
-| --- | ---: | ---: |
+| Service       |           Price |  Calls |
+| ------------- | --------------: | -----: |
 | 10k Echo Lite | `0.100000 USDC` | `4000` |
 | 10k Echo Core | `1.000000 USDC` | `3000` |
-| 10k Echo Pro | `1.500000 USDC` | `3000` |
+| 10k Echo Pro  | `1.500000 USDC` | `3000` |
 
 Expected service-price GMV is:
 
@@ -109,7 +109,7 @@ npm run e2e:admin-analytics-10k:reconcile
 Verify `admin-front` with screenshots:
 
 ```bash
-ADMIN_FRONT_URL=http://localhost:4000 \
+ADMIN_FRONT_URL=http://localhost:3200 \
 ADMIN_GATEWAY_URL=http://127.0.0.1:8300 \
 ADMIN_SESSION_TOKEN="<synapse_admin_session>" \
 npm run e2e:admin-analytics-10k:dogfood
@@ -131,14 +131,14 @@ output/analytics-load/<runId>/
 
 Important files:
 
-| File | Purpose |
-| --- | --- |
-| `fixture.json` | Wallet/session/service/deposit/credential/receipt/load fixture. |
-| `report.json` | ClickHouse + gateway-admin reconciliation checks. |
-| `report.md` | Human-readable reconciliation summary with seven expected/ClickHouse/API/UI comparison tables. |
-| `admin-page-verification.json` | Browser click, DOM, console, screenshot checks, and `adminFrontActual` values. |
-| `admin-page-verification.md` | Human-readable browser verification report and screenshot list. |
-| `screens/*.png` | Seven Analytics pages plus interaction screenshots. |
+| File                           | Purpose                                                                                        |
+| ------------------------------ | ---------------------------------------------------------------------------------------------- |
+| `fixture.json`                 | Wallet/session/service/deposit/credential/receipt/load fixture.                                |
+| `report.json`                  | ClickHouse + gateway-admin reconciliation checks.                                              |
+| `report.md`                    | Human-readable reconciliation summary with seven expected/ClickHouse/API/UI comparison tables. |
+| `admin-page-verification.json` | Browser click, DOM, console, screenshot checks, and `adminFrontActual` values.                 |
+| `admin-page-verification.md`   | Human-readable browser verification report and screenshot list.                                |
+| `screens/*.png`                | Seven Analytics pages plus interaction screenshots.                                            |
 
 Do not commit `output/` evidence unless a release evidence bundle explicitly requests it.
 

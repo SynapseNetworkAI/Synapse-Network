@@ -62,7 +62,7 @@ const config = {
   adminFront: (
     process.env.STAGING_ADMIN_FRONT_URL ||
     process.env.ADMIN_FRONT_URL ||
-    "http://localhost:4000"
+    "http://localhost:3200"
   ).replace(/\/+$/, ""),
   rpcUrl:
     process.env.GATEWAY_E2E_RPC_URL ||

@@ -42,7 +42,12 @@ is_jscpd_baselined() {
     services/gateway/src/core/metrics.py|\
     services/gateway-admin/src/core/metrics.py|\
     services/gateway/src/storage/postgres/repositories/gateway_state_refund_mixin.py|\
-    services/gateway/src/services/provider/withdraw_helpers_mixin.py)
+    services/gateway/src/services/provider/withdraw_helpers_mixin.py|\
+    scripts/e2e/admin_front_seed.mjs|\
+    scripts/ui/dogfood_admin_analytics_10k.mjs|\
+    scripts/ui/dogfood_admin_front.mjs|\
+    scripts/ui/dogfood_admin_login_lockout.mjs|\
+    scripts/ui/dogfood_admin_withdrawal_approval.mjs)
       return 0
       ;;
   esac

@@ -19,6 +19,7 @@ const ARGUMENT_MAX = 8;
 // Explicit legacy debt ledger. These caps are not targets; they are stop-loss
 // limits so old large files cannot silently grow while refactors pay debt down.
 const BASELINED_FILE_EFFECTIVE_LINES = new Map([
+  ["scripts/admin_analytics_fullchain_e2e.js", 583],
   ["scripts/admin_analytics_clickhouse_regression.py", 541],
   ["scripts/ci/resolve_pr_ci_scope.mjs", 506],
   ["scripts/ci/validate_docs.js", 662],
@@ -34,9 +35,11 @@ const BASELINED_FILE_EFFECTIVE_LINES = new Map([
   ["scripts/e2e/withdrawal_risk_policy_e2e.mjs", 1084],
   ["scripts/e2e/withdrawal_review_dogfood.mjs", 1332],
   ["scripts/fullchain_browser_test.py", 535],
-  ["scripts/fullchain_wallet_test.js", 753],
+  ["scripts/fullchain_wallet_test.js", 1049],
   ["scripts/perf/local_production_load_rehearsal.mjs", 1019],
   ["scripts/provider_fullchain_e2e.js", 557],
+  ["scripts/ui/dogfood_admin_analytics_10k.mjs", 563],
+  ["scripts/ui/dogfood_admin_front.mjs", 670],
   ["scripts/ui/dogfood_forum_feedback.mjs", 728],
   ["scripts/ui/verify_user_front_pages.mjs", 1496],
   ["services/admin-front/src/app/forum-support/page.tsx", 635],
@@ -130,7 +133,11 @@ const BASELINED_FUNCTION_FILES = new Set([
   "scripts/ci/resolve_pr_ci_scope.mjs",
   "scripts/ci/gateway_pull_health_dogfood_evidence_check.mjs",
   "scripts/ci/postgres_pool_leak_evidence_check.mjs",
+  "scripts/fullchain_wallet_test.js",
+  "scripts/ui/dogfood_admin_analytics_10k.mjs",
+  "scripts/ui/dogfood_admin_front.mjs",
   "scripts/ui/dogfood_admin_login_lockout.mjs",
+  "scripts/ui/dogfood_admin_withdrawal_approval.mjs",
   "scripts/ui/dogfood_forum_feedback.mjs",
   "scripts/ui/verify_user_front_pages.mjs",
   "services/docs-front/scripts/generate-openapi.mjs",

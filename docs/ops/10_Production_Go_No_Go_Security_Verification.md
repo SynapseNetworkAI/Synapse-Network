@@ -32,10 +32,21 @@ Current MVP audit policy: Synapse may use a founder/internal security audit with
   - protocol fee only accrues to `platformFeePool`.
   - platform fee withdrawal cannot consume customer principal.
 - Malicious and edge scenarios are tested: reentrancy, fake token, invalid signer, signer rotation, owner-only methods, zero amount, excessive amount, failed token transfer, and wrong network.
-- Production owner and signer authority use multisig or hardware-backed custody. V1 may use a `1-of-1` Safe Treasury whose sole signer is a Ledger hardware wallet; a single hot wallet must not control production contract authority.
-- Platform fee withdrawal is Safe-only: `SynapseCore.owner()` must equal `PLATFORM_TREASURY_SAFE_ADDRESS`, gateway-admin may only generate a Safe draft for `withdrawPlatformFees(uint256)`, and the transaction is executed manually in Safe UI with Ledger confirmation.
+- Production custody uses two separate authorities: `SynapseCore.owner` is a Safe
+  treasury controlled by hardware-backed owner custody, and
+  `SynapseCore.platformSigner` is a KMS-derived Ethereum signer used only for
+  withdrawal tickets. V1 may use a `1-of-1` Safe Treasury whose sole signer is a
+  Ledger hardware wallet, but a single hot wallet must not control production
+  owner or signer authority.
+- Platform fee withdrawal is Safe-only: `SynapseCore.owner()` must equal
+  `PLATFORM_TREASURY_SAFE_ADDRESS`, gateway-admin may only generate a Safe draft
+  for `withdrawPlatformFees(uint256)`, and the transaction is executed manually
+  in Safe UI with Ledger confirmation.
 - Staging contract deployment evidence records Arbitrum Sepolia chain id, owner-only MockUSDC address, Synapse contract address, deployer, owner, platform signer, ABI hash, bytecode hash, source verification link, deployment transactions, wallet gas preflight, and MockUSDC pre-mint balances.
-- Production contract release manifest records chain id, USDC address, Synapse contract address, deployer, owner, multisig, platform signer, ABI hash, bytecode hash, source verification link, and deployment transaction.
+- Production contract release manifest records chain id, USDC address, Synapse
+  contract address, deployer, Safe treasury owner, Ledger signer address, KMS
+  signer key resource id, KMS-derived platform signer, ABI hash, bytecode hash,
+  source verification link, and deployment transaction.
 - A small-value real-chain rehearsal is completed: deposit, gateway confirmation, paid invoke, consumer withdrawal, provider withdrawal, and platform fee withdrawal.
 - If an independent third-party audit was not performed, MVP production must use explicit withdrawal caps, signer/owner custody controls, monitoring alerts, manual rollback procedures, and documented owner risk acceptance.
 
@@ -63,7 +74,13 @@ Current MVP audit policy: Synapse may use a founder/internal security audit with
   - Force probe and Resume can restore a recovered active service.
 - Gateway protections are verified: global probe concurrency limit, jitter scheduling, provider timeout, upstream timeout, body size limit, rate limit, CORS allowlist, sanitized error surface, and safe logging.
 - Security tests cover SQL injection, SSRF, path traversal, header injection, JWT tampering, credential replay, idempotency collision, oversized body, malicious provider response, stack trace leak, and secret leak.
-- Production secrets come only from approved secret storage or environment injection. Private keys, JWT secrets, internal tokens, TOTP secrets, and API keys must not appear in git, frontend bundles, logs, screenshots, or external errors.
+- Production secrets come only from approved secret storage or environment
+  injection. Private keys, JWT secrets, internal tokens, TOTP secrets, and API
+  keys must not appear in git, frontend bundles, logs, screenshots, or external
+  errors. Production withdrawal ticket signing must use
+  `WITHDRAW_SIGNER_MODE=gcp_kms` or `WITHDRAW_SIGNER_MODE=aws_kms`; raw
+  `PRIVATE_KEY` ticket signing is local-only after staging KMS migration and is
+  a production No-Go.
 
 ### 4. Admin Control Plane and Auditability
 
@@ -112,7 +129,12 @@ The release owner must attach evidence for every item below before requesting la
 8. Monitoring evidence: dashboard screenshots, alert screenshots, incident runbook links, on-call routing proof, and alert drill notes.
 9. Data recovery evidence: Postgres backup restore drill, RPO/RTO result, and operator notes. MVP v1 restore evidence must not require ClickHouse restore, Postgres-to-ClickHouse row-to-row equality, or RPC chain replay.
 10. Production configuration review: environment, contract addresses, RPC endpoints, CORS, JWT/TOTP/internal tokens, database TLS, least-privilege accounts, backup policy, and retention policy.
-11. Approval signatures from engineering, security, finance/ledger, and operations owners.
+11. Custody evidence: Safe treasury address, Ledger owner address,
+    KMS key resource id, KMS-derived signer address,
+    `SynapseCore.owner()`, `SynapseCore.platformSigner()`, signer rollback
+    drill, small-value consumer/provider withdrawal rehearsal, and small-value
+    platform fee Safe withdrawal rehearsal.
+12. Approval signatures from engineering, security, finance/ledger, and operations owners.
 
 Provider withdrawal approval evidence is mandatory for any release that includes funds approval or withdrawal-review changes:
 
@@ -138,7 +160,9 @@ ticketHash, DB status, and balance/vault deltas.
 Any item below is an automatic No-Go:
 
 - Critical or High contract security audit finding remains open.
-- Production owner/signer authority is controlled by a single hot wallet.
+- Production owner/signer authority is controlled by a single hot wallet, or
+  production Gateway uses `local_private_key` / raw `PRIVATE_KEY` withdrawal
+  ticket signing.
 - Any money business path uses `float` or JavaScript number arithmetic.
 - Any money mutation lacks transaction, idempotency, audit, or concurrency protection.
 - Vault and ledger reconciliation has unexplained drift.

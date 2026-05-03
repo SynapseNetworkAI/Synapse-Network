@@ -96,7 +96,7 @@ Important environment variables:
 
 1. `GATEWAY_BASE_URL`, default `http://127.0.0.1:8000`
 2. `ADMIN_GATEWAY_URL`, default `http://127.0.0.1:8300`
-3. `ADMIN_FRONT_URL`, default `http://localhost:4000`
+3. `ADMIN_FRONT_URL`, default `http://localhost:3200`
 4. `RPC_URL`, default `http://127.0.0.1:8545`
 5. `POSTGRES_DSN` or `GATEWAY_POSTGRES_DSN`
 6. `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ADMIN_OTP_CODE`, `ADMIN_TOTP_SECRET`
@@ -107,25 +107,25 @@ Default local private keys and default admin password are refused against non-lo
 
 The reconciliation report must include these comparisons:
 
-| Stage | Expected |
-| --- | --- |
-| Request created | `synapse_vault_withdrawals.status = PENDING_MANUAL_REVIEW` |
+| Stage           | Expected                                                                                  |
+| --------------- | ----------------------------------------------------------------------------------------- |
+| Request created | `synapse_vault_withdrawals.status = PENDING_MANUAL_REVIEW`                                |
 | Request created | Provider available receivable decreases and frozen balance increases by withdrawal amount |
-| Approval | Gateway and DB status become `APPROVED_AUTO` |
-| Approval | Ticket contains amount, fee, ticketId, ticketHash, deadline, signature |
-| Chain claim | Provider MockUSDC balance increases by ticket amount |
-| Chain claim | SynapseCore MockUSDC balance decreases by ticket amount |
-| Completion | Gateway/DB status becomes `COMPLETED` and txHash is persisted |
-| Completion | Provider pending and frozen balances return to `0.000000` for the completed withdrawal |
-| UI | `/withdrawal-reviews`, `/review-history`, and `/finance/reconciliation` screenshots exist |
+| Approval        | Gateway and DB status become `APPROVED_AUTO`                                              |
+| Approval        | Ticket contains amount, fee, ticketId, ticketHash, deadline, signature                    |
+| Chain claim     | Provider MockUSDC balance increases by ticket amount                                      |
+| Chain claim     | SynapseCore MockUSDC balance decreases by ticket amount                                   |
+| Completion      | Gateway/DB status becomes `COMPLETED` and txHash is persisted                             |
+| Completion      | Provider pending and frozen balances return to `0.000000` for the completed withdrawal    |
+| UI              | `/withdrawal-reviews`, `/review-history`, and `/finance/reconciliation` screenshots exist |
 
 The focused withdrawal-review dogfood additionally requires:
 
-| Scenario | Expected |
-| --- | --- |
-| Consumer reject | `consumer_refund` status is `REJECTED`; available/frozen balance tuple returns to the pre-request values. |
-| Consumer approve | ticket is present; on-chain claim succeeds; ticket replay fails; DB status becomes `COMPLETED`. |
-| Provider reject | `provider_withdrawal` status is `REJECTED`; available/frozen balance tuple returns to the pre-request values. |
+| Scenario          | Expected                                                                                                                                  |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Consumer reject   | `consumer_refund` status is `REJECTED`; available/frozen balance tuple returns to the pre-request values.                                 |
+| Consumer approve  | ticket is present; on-chain claim succeeds; ticket replay fails; DB status becomes `COMPLETED`.                                           |
+| Provider reject   | `provider_withdrawal` status is `REJECTED`; available/frozen balance tuple returns to the pre-request values.                             |
 | Unified review UI | `/withdrawal-reviews` screenshots show both `Consumer withdrawal` and `Provider withdrawal` item kinds when those items are under review. |
 
 ## Security Regression Checks

@@ -306,7 +306,7 @@ class BalanceService(
         self, owner_wallet: str
     ) -> dict[str, Any]:
         _ = owner_wallet
-        return self.provider_withdraw_capability()
+        return self.provider_withdraw_capability().to_response_dict()
 
     async def expire_stale_provider_withdrawals(self) -> int:
         return await self.provider_withdraw_service.expire_stale_provider_withdrawals()

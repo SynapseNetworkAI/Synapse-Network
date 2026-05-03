@@ -1,6 +1,6 @@
 ---
 created_at: 2026-04-21
-updated_at: 2026-04-21
+updated_at: 2026-05-02
 doc_status: active
 ---
 
@@ -20,6 +20,7 @@ single runtime service.
 2. [SynapseCore_Internal_Audit_Closure_Log.md](./SynapseCore_Internal_Audit_Closure_Log.md)
 3. [SynapseCore_Internal_Audit_Risk_Acceptance.md](./SynapseCore_Internal_Audit_Risk_Acceptance.md)
 4. [SynapseCore_Production_Audit_Verification_Report.md](./SynapseCore_Production_Audit_Verification_Report.md)
+5. [Synapse_Fund_Custody_Key_Governance.md](./Synapse_Fund_Custody_Key_Governance.md)
 
 ## Audit Policy
 

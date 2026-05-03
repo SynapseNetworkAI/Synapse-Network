@@ -5,7 +5,7 @@ export const siteUrl =
     ? "https://docs.synapse-network.ai"
     : process.env.NEXT_PUBLIC_APP_ENV === "staging"
     ? "https://docs-staging.synapse-network.ai"
-    : "http://localhost:3001");
+    : "http://localhost:3100");
 
 export const consoleUrl =
   process.env.NEXT_PUBLIC_CONSOLE_BASE_URL?.replace(/\/+$/, "") ||
