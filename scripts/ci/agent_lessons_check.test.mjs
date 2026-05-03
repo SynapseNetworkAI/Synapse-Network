@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   branchSlug,
   lessonPathForBranch,
+  resolveBranchName,
   shouldRequireLessons,
   validateLessonContent,
 } from "./agent_lessons_check.mjs";
@@ -12,6 +13,38 @@ test("branch slug maps slash branch names to stable lesson paths", () => {
   assert.equal(
     lessonPathForBranch("feature/SDK Docs + Polish"),
     "docs/reference/agent-lessons/feature-sdk-docs-polish.md"
+  );
+});
+
+test("branch resolution uses pull request head refs in detached GitHub Actions checkouts", () => {
+  assert.equal(
+    resolveBranchName({
+      env: { GITHUB_HEAD_REF: "codex/agent-a", GITHUB_REF_NAME: "47/merge" },
+      gitBranch: "HEAD",
+    }),
+    "codex/agent-a"
+  );
+  assert.equal(
+    lessonPathForBranch(
+      resolveBranchName({
+        env: { GITHUB_HEAD_REF: "codex/agent-a" },
+        gitBranch: "HEAD",
+      })
+    ),
+    "docs/reference/agent-lessons/codex-agent-a.md"
+  );
+});
+
+test("explicit branch override wins over GitHub environment and git branch", () => {
+  assert.equal(
+    resolveBranchName({
+      env: {
+        AGENT_LESSONS_BRANCH: "manual/override",
+        GITHUB_HEAD_REF: "codex/agent-a",
+      },
+      gitBranch: "main",
+    }),
+    "manual/override"
   );
 });
 
