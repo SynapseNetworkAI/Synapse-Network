@@ -33,6 +33,7 @@ Use it before broad repository search. It does not replace `AGENTS.md`, `.github
 | `sdk_contract_alignment`      | SDK docs in product docs, SDK onboarding, public preview environment copy                          |
 | `finance_sensitive_backend`   | balance, deposits, withdrawals, refunds, settlement, ledger, audit                                 |
 | `admin_finance_control_plane` | gateway-admin, admin-front, withdrawal review, refund approval                                     |
+| `e2e_regression`              | local/staging regression, full-chain E2E, SQL evidence, staging dogfood, release evidence          |
 | `contracts_and_deployments`   | Solidity contracts, Hardhat, staging/prod deployment evidence                                      |
 | `docs_governance`             | docs structure, canonical README metadata, retired paths, docs CI                                  |
 | `ci_and_quality_gates`        | CI scripts, validation entrypoints, PR gates, local check commands                                 |

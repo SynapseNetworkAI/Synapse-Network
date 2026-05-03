@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "repository": "Synapse-Network",
-  "updated_at": "2026-05-02",
+  "updated_at": "2026-05-03",
   "purpose": "Task-to-file routing map for AI agents. Use before broad repository search.",
   "global_entrypoints": [
     "llms.txt",
@@ -251,6 +251,41 @@
       ],
       "notes": [
         "Admin finance changes usually require evidence docs and careful operator workflow review."
+      ]
+    },
+    {
+      "id": "e2e_regression",
+      "title": "Local and staging E2E regression evidence",
+      "use_when": [
+        "the task mentions regression testing, full-chain E2E, or staging dogfood",
+        "the task asks what to run before release approval",
+        "the task needs SQL evidence for provider registration, deposit, invoke, withdrawal, notifications, analytics, or contract state"
+      ],
+      "instruction_files": [
+        ".github/instructions/docs-sync.instructions.md",
+        ".github/instructions/finance-backend.instructions.md",
+        ".github/instructions/safety-guard.instructions.md"
+      ],
+      "primary_files": [
+        "docs/ops/19_E2E_Regression_Runbook.md",
+        "docs/reference/Validation_Entry_Points.md",
+        "package.json",
+        "services/gateway/tests/e2e",
+        "services/gateway/migrations/postgres/001_synapse_schema.sql"
+      ],
+      "supporting_files": [
+        "docs/ops/18_Staging_Validation_Runbook.md",
+        "docs/ops/16_Arbitrum_Sepolia_Staging_Contracts.md",
+        "docs/ops/17_Staging_Environment_Configuration.md"
+      ],
+      "validation_commands": [
+        "npm run ci:docs",
+        "npm run ci:agent-lessons",
+        "npm run ci:format-check"
+      ],
+      "notes": [
+        "API and UI E2E are incomplete for money paths until read-only SQL evidence proves Postgres state.",
+        "Staging SQL validation must use approved read-only access and must not repair data during regression."
       ]
     },
     {

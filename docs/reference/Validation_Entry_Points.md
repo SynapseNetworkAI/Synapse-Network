@@ -8,6 +8,12 @@ Rule: start with the narrowest relevant check, then escalate to repo-level CI on
 
 Canonical local service ports live in `docs/reference/Service_Port_Map.md`.
 
+Canonical local and staging regression coverage lives in
+`docs/ops/19_E2E_Regression_Runbook.md`. API/UI E2E evidence is not complete
+for money-path work until the read-only SQL evidence layer proves the matching
+Postgres rows, balance buckets, ledger entries, audit events, outboxes, and
+contract config state.
+
 ## 2. Repository-Level Validation
 
 From repository root:
@@ -232,6 +238,7 @@ Before finishing:
 34. run `npm run e2e:admin-login-lockout:dogfood` when closing admin login lockout UX, API, audit, or config behavior; it must create a disposable local admin, trigger the five-failure lockout through Admin-front, capture screenshots/video, assert DB audit state, write `bugfix-log.md`, and delete the test account
 35. run `terraform -chdir=infra/terraform/gcp-staging fmt -check` and `terraform -chdir=infra/terraform/gcp-staging validate` when changing Google Cloud staging infrastructure; `terraform validate` requires `terraform init` first
 36. run `npm run deploy:contracts:arbitrum-sepolia:dry-run` before Arbitrum Sepolia staging deployment, then `npm run deploy:contracts:arbitrum-sepolia` and `npm run ci:contract-deployment-evidence` to close staging contract evidence; this requires live Arbitrum Sepolia RPC and funded staging deployer/consumer/provider wallets
+37. follow `docs/ops/19_E2E_Regression_Runbook.md` when doing full local or staging regression. Provider registration, consumer login, deposit, invoke, consumer withdrawal, provider withdrawal/admin review, notifications, analytics, and contract release checks must include the documented read-only SQL evidence. Staging SQL must use an approved read-only DSN or Cloud SQL Auth Proxy connection and must never repair state during regression.
 
 Withdrawal evidence coverage is intentionally split:
 
