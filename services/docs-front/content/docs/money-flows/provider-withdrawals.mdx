@@ -1,0 +1,40 @@
+---
+title: Provider Withdrawals
+description: Withdraw provider earnings after receivables pass the T+7 matured funds risk window.
+---
+
+Provider withdrawals settle earned receivables back to the provider wallet. A paid invocation creates provider receivable, but that receivable is not immediately withdrawable.
+
+<WarningNote title="Matured Funds: Provider earnings are T+7">
+  Provider earnings are T+7. Provider receivable must pass a T+7 risk, dispute, and reconciliation window before it becomes matured receivable that can be withdrawn.
+</WarningNote>
+
+## Receivable states
+
+- **Earned receivable**: provider revenue recorded from successful paid invocations.
+- **Matured receivable**: the subset of earned receivable that passed T+7 and is eligible for withdrawal.
+- **Locked/frozen withdrawal amount**: matured receivable reserved by an active provider withdrawal ticket.
+
+## Why T+7 exists
+
+The provider maturity window leaves room for dispute review, anomalous invocation detection, provider callback failures, manual risk review, and settlement reconciliation. It prevents a provider from immediately withdrawing revenue from traffic that later proves invalid or disputed.
+
+## Flow
+
+1. Gateway records provider receivable from paid invocations.
+2. Receivable ages through the T+7 maturity window.
+3. Provider creates a withdrawal intent against matured receivable.
+4. Gateway locks the requested amount while the ticket is active.
+5. Provider claims on-chain and Gateway reconciles the final state.
+
+<StatLine>
+  earned receivable -> T+7 matured receivable -> withdrawal intent -> locked amount -> on-chain claim
+</StatLine>
+
+## Settlement notes
+
+Platform fee and routing tax are applied during invocation settlement, not guessed by the provider. A provider withdrawal ticket should be treated as the source of truth for amount, recipient, expiry, and claim payload.
+
+<AgentNote>
+  Provider automation can monitor receipts and receivables, but withdrawal intents remain provider-controlled settlement actions. Do not expose provider withdrawal authority to a general-purpose agent runtime.
+</AgentNote>

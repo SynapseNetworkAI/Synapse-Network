@@ -18,6 +18,7 @@ All public URLs must include `https://`.
 | Service           | Public URL                                     | Purpose                       |
 | ----------------- | ---------------------------------------------- | ----------------------------- |
 | User-front        | `https://staging.synapse-network.ai`           | Consumer/provider web app.    |
+| Docs-front        | `https://docs-staging.synapse-network.ai`      | Dedicated developer docs.     |
 | Gateway API       | `https://api-staging.synapse-network.ai`       | User-facing Gateway API.      |
 | Admin-front       | `https://admin-staging.synapse-network.ai`     | Operations/admin web console. |
 | Gateway-admin API | `https://admin-api-staging.synapse-network.ai` | Admin/control-plane API.      |
@@ -168,8 +169,9 @@ production or contract deployment before the substrate is stable.
    - File: `infra/terraform/gcp-staging/terraform.tfvars`.
    - Required bucket value:
      `backup_bucket_name = "synapse-staging-backups-fabled-archive-494108-k5"`.
-   - Leave `gateway_image`, `gateway_admin_image`, `user_front_image`, and
-     `admin_front_image` empty for the first substrate-only apply.
+   - Leave `gateway_image`, `gateway_admin_image`, `user_front_image`,
+     `docs_front_image`, and `admin_front_image` empty for the first
+     substrate-only apply.
 3. Run Terraform for substrate resources.
    - Artifact Registry.
    - Cloud SQL.
@@ -192,7 +194,7 @@ production or contract deployment before the substrate is stable.
    - Do this before setting image variables or applying Cloud Run changes.
    - This prevents `secret:latest` revision failures from half-updating staging.
 7. Build and push container images to Artifact Registry.
-   - Then set the four `*_image` Terraform variables or deploy through
+   - Then set the five `*_image` Terraform variables or deploy through
      `gcloud run deploy` for the first smoke.
    - Recommended: use
      `bash scripts/deploy/gcp_cloudbuild_staging_images.sh fabled-archive-494108-k5`
@@ -202,6 +204,7 @@ production or contract deployment before the substrate is stable.
      only when local Docker has enough memory.
 8. Configure DNS and TLS.
    - `staging.synapse-network.ai`.
+   - `docs-staging.synapse-network.ai`.
    - `api-staging.synapse-network.ai`.
    - `admin-staging.synapse-network.ai`.
    - `admin-api-staging.synapse-network.ai`.
@@ -238,6 +241,7 @@ Local file: `infra/terraform/gcp-staging/terraform.tfvars`. Do not commit it.
 | `gateway_image`                            | `us-central1-docker.pkg.dev/<project>/synapse-staging/gateway:<tag>`       | Gateway Cloud Run image.                                                                                              | No     | Artifact Registry                | Terraform tfvars |
 | `gateway_admin_image`                      | `us-central1-docker.pkg.dev/<project>/synapse-staging/gateway-admin:<tag>` | Gateway-admin Cloud Run image.                                                                                        | No     | Artifact Registry                | Terraform tfvars |
 | `user_front_image`                         | `us-central1-docker.pkg.dev/<project>/synapse-staging/user-front:<tag>`    | User-front Cloud Run image.                                                                                           | No     | Artifact Registry                | Terraform tfvars |
+| `docs_front_image`                         | `us-central1-docker.pkg.dev/<project>/synapse-staging/docs-front:<tag>`    | Docs-front Cloud Run image.                                                                                           | No     | Artifact Registry                | Terraform tfvars |
 | `admin_front_image`                        | `us-central1-docker.pkg.dev/<project>/synapse-staging/admin-front:<tag>`   | Admin-front Cloud Run image.                                                                                          | No     | Artifact Registry                | Terraform tfvars |
 
 Leave image variables empty for the first substrate-only Terraform apply. Set
@@ -266,6 +270,7 @@ Both scripts print a ready-to-paste `terraform.tfvars` block:
 gateway_image       = "us-central1-docker.pkg.dev/fabled-archive-494108-k5/synapse-staging/gateway:<tag>"
 gateway_admin_image = "us-central1-docker.pkg.dev/fabled-archive-494108-k5/synapse-staging/gateway-admin:<tag>"
 user_front_image    = "us-central1-docker.pkg.dev/fabled-archive-494108-k5/synapse-staging/user-front:<tag>"
+docs_front_image    = "us-central1-docker.pkg.dev/fabled-archive-494108-k5/synapse-staging/docs-front:<tag>"
 admin_front_image   = "us-central1-docker.pkg.dev/fabled-archive-494108-k5/synapse-staging/admin-front:<tag>"
 ```
 
@@ -293,6 +298,12 @@ docker build --platform linux/amd64 \
   -t ${REGISTRY}/user-front:${TAG} \
   services/user-front
 docker push ${REGISTRY}/user-front:${TAG}
+
+docker build --platform linux/amd64 \
+  -f services/docs-front/Dockerfile \
+  -t ${REGISTRY}/docs-front:${TAG} \
+  .
+docker push ${REGISTRY}/docs-front:${TAG}
 
 docker build --platform linux/amd64 \
   --build-arg NEXT_PUBLIC_ADMIN_API_BASE_URL=https://admin-api-staging.synapse-network.ai \
@@ -1092,6 +1103,7 @@ production bundle at build time.
 | `NEXT_PUBLIC_GATEWAY_BASE_URL`          | `https://api-staging.synapse-network.ai`               | Browser API base for all user-facing Gateway calls.                                     | No     | Fixed staging domain    |
 | `NEXT_PUBLIC_ANALYTICS_ENDPOINT`        | `https://api-staging.synapse-network.ai/api/v1/events` | Browser analytics/event ingestion endpoint. Must point to the same environment Gateway. | No     | Fixed staging domain    |
 | `NEXT_PUBLIC_APP_ENV`                   | `staging`                                              | Public UI/runtime environment marker.                                                   | No     | Fixed                   |
+| `NEXT_PUBLIC_DOCS_BASE_URL`             | `https://docs-staging.synapse-network.ai`              | Dedicated docs origin used by main-site Docs links and `/docs/*` redirects.             | No     | Fixed staging domain    |
 | `NEXT_PUBLIC_SERVICE_LIST_CACHE_TTL_MS` | `20000`                                                | Service discovery cache TTL.                                                            | No     | Fixed default           |
 | `NEXT_PUBLIC_SUPPORT_EMAIL`             | `support@synapse-network.ai`                           | Public support email shown in UI.                                                       | No     | Ops                     |
 | `NEXT_PUBLIC_SUPPORT_PORTAL_URL`        | empty or support URL                                   | Optional support portal deep link.                                                      | No     | Ops                     |
@@ -1100,6 +1112,21 @@ production bundle at build time.
 
 Do not introduce `NEXT_PUBLIC_API_BASE_URL` unless the frontend code is
 intentionally refactored. Current code uses `NEXT_PUBLIC_GATEWAY_BASE_URL`.
+
+## Docs-front
+
+Template and defaults live in `services/docs-front`. Local docs run on
+`http://localhost:3001`; staging deploys as `synapse-staging-docs-front` behind
+`https://docs-staging.synapse-network.ai`.
+
+Docs-front public env:
+
+| Variable                       | Staging value                                           | Purpose                                                               | Secret |
+| ------------------------------ | ------------------------------------------------------- | --------------------------------------------------------------------- | ------ |
+| `NEXT_PUBLIC_APP_ENV`          | `staging`                                               | Public environment marker.                                            | No     |
+| `NEXT_PUBLIC_DOCS_BASE_URL`    | `https://docs-staging.synapse-network.ai`               | Canonical docs origin for metadata, sitemap, robots, and llms assets. | No     |
+| `NEXT_PUBLIC_CONSOLE_BASE_URL` | `https://staging.synapse-network.ai/dashboard/overview` | Console CTA target.                                                   | No     |
+| `NEXT_PUBLIC_GATEWAY_BASE_URL` | `https://api-staging.synapse-network.ai`                | Request examples and staging-safe API reference base URL.             | No     |
 
 `services/user-front` runs `node scripts/validate_env.mjs` before `yarn dev`
 and `yarn build`. Staging/prod builds must fail if any required public env is

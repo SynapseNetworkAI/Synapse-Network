@@ -49,21 +49,21 @@ locals {
     var.common_runtime_env,
   )
   gateway_secret_env = {
-    POSTGRES_DSN                = "synapse-staging-postgres-dsn"
-    POSTGRES_PASSWORD           = "synapse-staging-postgres-password"
-    JWT_SECRET                  = "synapse-staging-jwt-secret"
-    AUTH_SECRET                 = "synapse-staging-auth-secret"
-    PRIVATE_KEY                 = "synapse-staging-private-key"
-    METRICS_BEARER_TOKEN        = "synapse-staging-metrics-bearer-token"
-    GATEWAY_INTERNAL_JWT_SECRET = "synapse-staging-gateway-internal-jwt-secret"
-    RPC_URL                     = "synapse-staging-arbitrum-sepolia-rpc-url"
-    GMAIL_SMTP_USERNAME         = "synapse-staging-gmail-username"
-    GMAIL_SMTP_APP_PASSWORD     = "synapse-staging-gmail-app-password"
+    POSTGRES_DSN                 = "synapse-staging-postgres-dsn"
+    POSTGRES_PASSWORD            = "synapse-staging-postgres-password"
+    JWT_SECRET                   = "synapse-staging-jwt-secret"
+    AUTH_SECRET                  = "synapse-staging-auth-secret"
+    PRIVATE_KEY                  = "synapse-staging-private-key"
+    METRICS_BEARER_TOKEN         = "synapse-staging-metrics-bearer-token"
+    GATEWAY_INTERNAL_JWT_SECRET  = "synapse-staging-gateway-internal-jwt-secret"
+    RPC_URL                      = "synapse-staging-arbitrum-sepolia-rpc-url"
+    GMAIL_SMTP_USERNAME          = "synapse-staging-gmail-username"
+    GMAIL_SMTP_APP_PASSWORD      = "synapse-staging-gmail-app-password"
     TRANSACTION_LARK_WEBHOOK_URL = "synapse-staging-lark-webhook-staging-drill"
     TRANSACTION_LARK_SECRET      = "synapse-staging-lark-secret-staging-drill"
-    STAGING_ALERT_DRILL_TOKEN   = "synapse-staging-alert-drill-token"
-    PLATFORM_FEE_ADMIN_WALLETS  = "synapse-staging-gateway-admin-wallet"
-    INDEXER_ADMIN_WALLETS       = "synapse-staging-gateway-admin-wallet"
+    STAGING_ALERT_DRILL_TOKEN    = "synapse-staging-alert-drill-token"
+    PLATFORM_FEE_ADMIN_WALLETS   = "synapse-staging-gateway-admin-wallet"
+    INDEXER_ADMIN_WALLETS        = "synapse-staging-gateway-admin-wallet"
   }
   gateway_migration_secret_env = merge(
     local.gateway_secret_env,
@@ -191,6 +191,25 @@ locals {
       min_instances   = 0
       max_instances   = 1
       env             = var.frontend_runtime_env
+      secret_env      = {}
+      service_account = google_service_account.runtime.email
+    }
+    docs_front = {
+      name          = "${local.name_prefix}-docs-front"
+      image         = var.docs_front_image
+      port          = 3000
+      concurrency   = 40
+      min_instances = 0
+      max_instances = 2
+      env = merge(
+        var.frontend_runtime_env,
+        {
+          NEXT_PUBLIC_APP_ENV          = var.environment
+          NEXT_PUBLIC_DOCS_BASE_URL    = local.is_production ? "https://docs.synapse-network.ai" : "https://docs-staging.synapse-network.ai"
+          NEXT_PUBLIC_CONSOLE_BASE_URL = local.is_production ? "https://synapse-network.ai/dashboard/overview" : "https://staging.synapse-network.ai/dashboard/overview"
+          NEXT_PUBLIC_GATEWAY_BASE_URL = local.is_production ? "https://api.synapse-network.ai" : "https://api-staging.synapse-network.ai"
+        },
+      )
       secret_env      = {}
       service_account = google_service_account.runtime.email
     }

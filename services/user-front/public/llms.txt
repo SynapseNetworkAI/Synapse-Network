@@ -17,23 +17,24 @@ SynapseNetwork is the settlement layer for the AI agent economy. It lets AI agen
 - Homepage: https://synapse-network.ai/
 - About: https://synapse-network.ai/about
 - Marketplace: https://synapse-network.ai/marketplace
-- Documentation: https://synapse-network.ai/docs
-- API Reference: https://synapse-network.ai/docs/api-reference
-- Support: https://synapse-network.ai/docs/support
+- Documentation: https://docs.synapse-network.ai/
+- API Reference: https://docs.synapse-network.ai/api-reference
+- Support: https://docs.synapse-network.ai/support
 - Forum: https://synapse-network.ai/forum
 
 ## Developer Guides
 
-- Concepts: https://synapse-network.ai/docs/concepts
-- Getting Started: https://synapse-network.ai/docs/getting-started
-- Consumer Quickstart: https://synapse-network.ai/docs/getting-started/consumer
-- Provider Quickstart: https://synapse-network.ai/docs/getting-started/provider
-- Contracts: https://synapse-network.ai/docs/contracts
-- TypeScript SDK: https://synapse-network.ai/docs/sdk/typescript
-- Python SDK: https://synapse-network.ai/docs/sdk/python
-- Go SDK (Consumer Preview): https://github.com/cliff-personal/Synapse-Network-Sdk/blob/main/docs/sdk/go_integration.md
-- Java/JVM SDK (Consumer Preview): https://github.com/cliff-personal/Synapse-Network-Sdk/blob/main/docs/sdk/java_integration.md
-- .NET SDK (Consumer Preview): https://github.com/cliff-personal/Synapse-Network-Sdk/blob/main/docs/sdk/dotnet_integration.md
+- Concepts: https://docs.synapse-network.ai/concepts/agent-settlement
+- Getting Started: https://docs.synapse-network.ai/get-started
+- Agent Builder Quickstart: https://docs.synapse-network.ai/get-started/agent-builders
+- API Provider Quickstart: https://docs.synapse-network.ai/get-started/api-providers
+- First Paid Invocation: https://docs.synapse-network.ai/get-started/first-paid-invocation
+- Contracts: https://docs.synapse-network.ai/smart-contracts
+- TypeScript SDK: https://docs.synapse-network.ai/sdks/typescript
+- Python SDK: https://docs.synapse-network.ai/sdks/python
+- Go SDK: https://docs.synapse-network.ai/sdks/go
+- Java/JVM SDK: https://docs.synapse-network.ai/sdks/java
+- .NET SDK: https://docs.synapse-network.ai/sdks/dotnet
 
 ## Public Links
 

@@ -13,23 +13,7 @@ const layoutPath = path.join(userFrontRoot, "src", "app", "layout.tsx");
 const appRoot = path.join(userFrontRoot, "src", "app");
 const siteHostname = "synapse-network.ai";
 
-const PUBLIC_ROUTES = [
-  "/",
-  "/about",
-  "/marketplace",
-  "/docs",
-  "/docs/concepts",
-  "/docs/getting-started",
-  "/docs/getting-started/consumer",
-  "/docs/getting-started/provider",
-  "/docs/api-reference",
-  "/docs/contracts",
-  "/docs/sdk",
-  "/docs/sdk/typescript",
-  "/docs/sdk/python",
-  "/docs/support",
-  "/forum",
-];
+const PUBLIC_ROUTES = ["/", "/about", "/marketplace", "/forum"];
 
 const PRIVATE_PATTERNS = [
   "/dashboard",

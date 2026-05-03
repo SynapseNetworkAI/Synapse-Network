@@ -1,0 +1,14 @@
+---
+title: Off-chain Charging
+description: Why high-frequency agent calls charge through Gateway instead of one on-chain transfer per request.
+---
+
+Agents need millisecond-scale API access. On-chain transfers are too slow and too expensive for $0.01 service calls. Synapse keeps collateral on-chain but performs high-frequency charging off-chain through Gateway.
+
+## Price assertion
+
+For fixed-price services, the agent sends the price it saw during discovery. Gateway rejects stale prices instead of silently overcharging.
+
+<AgentNote>
+  On `PRICE_MISMATCH`, rediscover the service and retry only if the new price still fits the task budget.
+</AgentNote>

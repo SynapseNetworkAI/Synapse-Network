@@ -1,0 +1,25 @@
+---
+title: Reconciliation
+description: Match balances, receipts, receivables, and withdrawal tickets without inventing finance truth in clients.
+---
+
+Reconciliation is the process of comparing Gateway records with chain events and provider settlement state. Clients should display reconciliation evidence, but Gateway remains the authority for balances, receipts, fees, and withdrawal ticket status.
+
+## What to compare
+
+- Consumer indexed balance and spendable balance.
+- Invocation receipt charge, provider receivable, platform fee, and routing tax.
+- Provider earned receivable and matured receivable.
+- Active withdrawal ticket amount, fee, expiry, and frozen amount.
+- On-chain claim events against Gateway ticket state.
+
+## Rules
+
+- Treat money as decimal strings, not floats.
+- Use receipt and ticket IDs for support escalation.
+- Never infer maturity from local wall-clock time alone; read Gateway state.
+- Do not unlock frozen funds client-side because a claim looks complete in the browser.
+
+<AgentNote>
+  Agents should store receipt IDs and invocation IDs for audit and retry decisions. They should not calculate final balances, maturity, fee splits, or withdrawal eligibility locally.
+</AgentNote>

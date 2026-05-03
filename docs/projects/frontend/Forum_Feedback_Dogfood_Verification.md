@@ -22,14 +22,13 @@ Screenshots are evidence for visual review. The functional pass/fail decision co
 
 ## Page Function Matrix
 
-| Surface | Route | Required behavior | Evidence |
-| --- | --- | --- | --- |
-| Forum list | `/forum` | Shows categories, search, latest/top controls, pinned/status badges, views, topic list, and opens topic creation in a modal instead of inline-expanding the list | `forum-public.png`, browser assertions |
-| Create topic modal | `/forum` | `New topic` opens a modal overlay; unauthenticated users see the guard and authenticated users can submit the form | `forum-create-topic-modal-unauthenticated.png`, `forum-create-topic-modal.png` |
-| Topic detail | `/forum/{topicId}` | Shows topic body, replies, views, official-reply count, status badges, close reason, reply lock, and back link | `forum-topic-detail.png`, `forum-reply-resolved.png`, `forum-topic-closed.png` |
-| Docs support | `/docs/support` | Shows support hub and Developer Forum link; link navigates to `/forum` | `docs-support.png`, URL assertion |
-| Docs feedback | `/docs` footer | `Not helpful` opens feedback drawer and returns `feedbackId` | `docs-feedback-drawer.png`, API + DB assertion |
-| Dashboard feedback | `/dashboard/discovery` | Floating `Feedback` opens drawer and returns `feedbackId` with route context | `dashboard-feedback-drawer.png`, API + DB assertion |
+| Surface            | Route                  | Required behavior                                                                                                                                                | Evidence                                                                       |
+| ------------------ | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Forum list         | `/forum`               | Shows categories, search, latest/top controls, pinned/status badges, views, topic list, and opens topic creation in a modal instead of inline-expanding the list | `forum-public.png`, browser assertions                                         |
+| Create topic modal | `/forum`               | `New topic` opens a modal overlay; unauthenticated users see the guard and authenticated users can submit the form                                               | `forum-create-topic-modal-unauthenticated.png`, `forum-create-topic-modal.png` |
+| Topic detail       | `/forum/{topicId}`     | Shows topic body, replies, views, official-reply count, status badges, close reason, reply lock, and back link                                                   | `forum-topic-detail.png`, `forum-reply-resolved.png`, `forum-topic-closed.png` |
+| Docs support       | docs-front `/support`  | Shows support hub and Developer Forum link                                                                                                                       | `docs-support.png`, URL assertion                                              |
+| Dashboard feedback | `/dashboard/discovery` | Floating `Feedback` opens drawer and returns `feedbackId` with route context                                                                                     | `dashboard-feedback-drawer.png`, API + DB assertion                            |
 
 ## Local Setup
 
@@ -126,8 +125,7 @@ The fixture contains the run id, wallet JWT, seed feedback ids, seed topic id, s
 
 The dogfood script verifies the following:
 
-- `synapse_feedback_reports` contains the seed docs feedback, seed dashboard feedback, UI docs feedback, and UI dashboard feedback.
-- Docs feedback has `source='docs'` and a `/docs` route.
+- `synapse_feedback_reports` contains the seed dashboard feedback and UI dashboard feedback.
 - Dashboard feedback has `source='dashboard'` and a `/dashboard/discovery` route.
 - `context_json` and `message` do not leak JWTs, bearer tokens, private keys, provider secrets, or agent tokens.
 - `synapse_forum_topics` contains the seed topic and UI-created topic.
@@ -168,8 +166,8 @@ The verification passes only when:
 - Topic detail increments `views_count` on successful reads. If visitor-window dedupe is enabled later, the report must state whether it expects raw views or deduped views.
 - Closed topics remain publicly visible, show the close reason, and disable the reply form.
 - Pinned topics appear above ordinary topics in the public list.
-- `/docs/support` to `/forum` navigation works.
-- Docs and dashboard feedback drawers display a `feedbackId`.
+- Docs-front support links are covered by docs browser verification.
+- Dashboard feedback drawer displays a `feedbackId`.
 - All required screenshots exist.
 - Browser console has no uncaught error.
 

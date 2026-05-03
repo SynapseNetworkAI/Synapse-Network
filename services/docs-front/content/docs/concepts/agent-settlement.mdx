@@ -1,0 +1,14 @@
+---
+title: Agent Settlement
+description: How Synapse turns agent actions into auditable USDC settlement records.
+---
+
+Synapse separates fast runtime charging from slower on-chain settlement. The Gateway is the control point for discovery, credentials, charging, and receipts. Smart contracts hold collateral and settle withdrawals.
+
+<AgentNote>
+  Agent-facing runtime privileges stay narrow: discover, invoke, and verify receipts. Owner funding, credential issuance, provider administration, and withdrawals remain owner/provider controlled.
+</AgentNote>
+
+## Settlement invariant
+
+Every paid invocation should produce enough evidence to answer: who called, what service was called, what was charged, which balance changed, and whether the provider can later withdraw earnings.

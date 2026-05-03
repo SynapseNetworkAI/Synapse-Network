@@ -12,7 +12,7 @@ while IFS= read -r file; do
   [[ -n "$file" ]] && TEST_FILES+=("$file")
 done < <(
   {
-    git diff --name-only "$BASE_REF...HEAD" -- '*.py' '*.ts' '*.tsx' '*.js' '*.jsx'
+    git diff --name-only --diff-filter=ACMR "$BASE_REF...HEAD" -- '*.py' '*.ts' '*.tsx' '*.js' '*.jsx'
     git ls-files --others --exclude-standard -- '*.py' '*.ts' '*.tsx' '*.js' '*.jsx'
   } | awk '
     /(^|\/)tests\/.*\.py$/ ||

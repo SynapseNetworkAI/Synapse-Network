@@ -1,0 +1,30 @@
+---
+title: Deposit USDC
+description: Fund Synapse with USDC so bounded agent credentials can spend through Gateway.
+---
+
+Deposits are owner-controlled. The owner wallet moves USDC into SynapseCore, Gateway indexes the chain event, and the resulting balance becomes available for controlled agent spending.
+
+## Flow
+
+1. Owner wallet creates a deposit intent in Gateway.
+2. Owner signs and submits the USDC on-chain transaction.
+3. Gateway indexes the deposit event and reconciles it against the intent.
+4. Gateway exposes the indexed balance to owner dashboards and agent budget policy.
+5. Agent credentials spend against that balance through discovery and invocation.
+
+<StatLine>
+  deposit intent -> on-chain transfer -> indexed balance -> agent budget -> paid invocation
+</StatLine>
+
+<WarningNote title="Deposit balance does not mean immediate withdrawal">
+  Indexed deposits can become spendable for agent calls before they become matured withdrawable balance. Consumer withdrawals still require the T+1 matured funds window.
+</WarningNote>
+
+## Agent boundary
+
+Agents should never receive owner wallet credentials. They receive limited runtime credentials that can spend within policy, not sign chain transactions or withdraw funds.
+
+<AgentNote>
+  If an agent needs more budget, it should ask the owner policy layer for a new credential or limit increase. It should not attempt to deposit, withdraw, or reuse owner authentication.
+</AgentNote>

@@ -1,0 +1,66 @@
+---
+title: Python SDK
+description: Use Synapse from Python agents, workers, and provider tooling.
+---
+
+The Python SDK is in Public Preview. Public examples target staging by default.
+
+```bash
+pip install synapse-client
+```
+
+```python
+import os
+
+from synapse_client import SynapseClient
+
+agent_key = os.environ["SYNAPSE_AGENT_KEY"]
+
+client = SynapseClient(
+    api_key=agent_key,
+    environment="staging",
+)
+
+services = client.search("svc_synapse_echo", limit=10)
+service = services[0]
+
+result = client.invoke(
+    service.service_id,
+    {
+        "message": "hello from Synapse SDK smoke",
+        "metadata": {"scenario": "quickstart"},
+    },
+    cost_usdc=str(service.price_usdc),
+    idempotency_key="agent-job-001",
+)
+
+receipt = client.get_invocation(result.invocation_id)
+print(receipt.invocation_id, receipt.status, receipt.charged_usdc)
+```
+
+## Token-metered LLM calls
+
+```python
+llm_result = client.invoke_llm(
+    "svc_deepseek_chat",
+    {
+        "messages": [{"role": "user", "content": "Summarize this document."}],
+        "max_tokens": 512,
+    },
+    max_cost_usdc="0.010000",
+    idempotency_key="llm-job-001",
+)
+
+print(llm_result.usage, llm_result.synapse)
+```
+
+<AgentNote>
+  Python agents should treat invocation receipts as durable task evidence. Store
+  the `invocation_id` alongside model/tool traces.
+</AgentNote>
+
+<WarningNote>
+  Fixed-price services must pass the latest discovered `cost_usdc`.
+  Token-metered LLM services must not pass a fixed price; use `max_cost_usdc` as
+  the budget cap.
+</WarningNote>
