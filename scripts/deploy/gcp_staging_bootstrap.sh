@@ -46,7 +46,6 @@ REQUIRED_SECRET_IDS=(
   synapse-staging-gateway-forum-write-dsn
   synapse-staging-jwt-secret
   synapse-staging-auth-secret
-  synapse-staging-private-key
   synapse-staging-gateway-internal-jwt-secret
   synapse-staging-admin-csrf-secret
   synapse-staging-gateway-admin-wallet
@@ -69,7 +68,6 @@ REQUIRED_SECRET_IDS=(
 USER_PROVIDED_SECRET_IDS=(
   synapse-staging-jwt-secret
   synapse-staging-auth-secret
-  synapse-staging-private-key
   synapse-staging-gateway-internal-jwt-secret
   synapse-staging-admin-csrf-secret
   synapse-staging-gateway-admin-wallet
@@ -106,7 +104,9 @@ Environment overrides:
   ADMIN_MIGRATOR_DB_USER       default: synapse_admin_migrator
   ROTATE_POSTGRES_PASSWORD     default: false
 
-This script does not enable or use Cloud KMS / CMEK.
+This script does not enable Secret Manager CMEK. Staging withdrawal ticket
+signing uses the dedicated Cloud KMS key managed by Terraform, not a raw Gateway
+signer secret.
 EOF
 }
 

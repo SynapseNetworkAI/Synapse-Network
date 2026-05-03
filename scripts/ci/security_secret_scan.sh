@@ -25,3 +25,24 @@ if [[ -n "${MATCHES//$'\n'/}" ]]; then
 fi
 
 echo "[ci:security] secret scan passed"
+
+echo "[ci:security] scanning production withdrawal signer guardrails"
+
+PROD_SIGNER_TARGETS=()
+[[ -f "$ROOT_DIR/services/gateway/.env.prod.example" ]] && PROD_SIGNER_TARGETS+=("$ROOT_DIR/services/gateway/.env.prod.example")
+[[ -d "$ROOT_DIR/.github/workflows" ]] && PROD_SIGNER_TARGETS+=("$ROOT_DIR/.github/workflows")
+[[ -d "$ROOT_DIR/scripts/prod" ]] && PROD_SIGNER_TARGETS+=("$ROOT_DIR/scripts/prod")
+
+if (( ${#PROD_SIGNER_TARGETS[@]} > 0 )); then
+  PROD_SIGNER_MATCHES="$(rg -n \
+    'WITHDRAW_SIGNER_MODE[[:space:]]*=[[:space:]]*local_private_key|(^|[^A-Z0-9_])PRIVATE_KEY[[:space:]]*=' \
+    "${PROD_SIGNER_TARGETS[@]}" || true)"
+
+  if [[ -n "${PROD_SIGNER_MATCHES//$'\n'/}" ]]; then
+    echo "[ci:security] production withdrawal signer must use KMS/HSM, not raw private keys:" >&2
+    printf '%s\n' "$PROD_SIGNER_MATCHES" >&2
+    exit 1
+  fi
+fi
+
+echo "[ci:security] production withdrawal signer guardrails passed"

@@ -25,6 +25,9 @@ from src.domain.idempotency import IdempotencyRow
 from src.domain.ledger import WithdrawalIntentRow
 from src.domain.operation_metadata import OperationContextMetadata, WithdrawalTicketMetadata
 from src.services.balance_mixins import USDC_DECIMALS
+from src.services.balance_mixins.withdraw_ticket_signers import (
+    withdraw_signer_address_from_config,
+)
 from src.services.provider.withdraw_helpers_mixin import (
     INSUFFICIENT_RECEIVABLE_MESSAGE,
     MANUAL_REVIEW_REJECT_MESSAGE,
@@ -109,7 +112,7 @@ class ProviderWithdrawExecutionMixin:
                 ticket={},
             )
 
-        private_key = self._require_withdraw_signer()  # type: ignore[attr-defined]
+        signer_config = self._require_withdraw_signer()  # type: ignore[attr-defined]  # because mixin composes signer helpers at runtime
         chain_id = self._resolve_withdraw_chain()  # type: ignore[attr-defined]
         deadline = int(time.time()) + self._resolve_withdraw_deadline_sec()  # type: ignore[attr-defined]
         fee_wei = 0
@@ -123,14 +126,8 @@ class ProviderWithdrawExecutionMixin:
             chain_id=chain_id,
             verifying_contract=normalize_wallet(settings.router_address),
         )
-        signature, ticket_hash = self._sign_withdraw_ticket(typed_data, private_key)  # type: ignore[attr-defined]
-
-        try:
-            from eth_account import Account  # type: ignore[import-not-found]
-
-            signer_address = normalize_wallet(Account.from_key(private_key).address)
-        except Exception:
-            signer_address = ""
+        signature, ticket_hash = self._sign_withdraw_ticket(typed_data, signer_config)  # type: ignore[attr-defined]  # because mixin composes signer helpers at runtime
+        signer_address = withdraw_signer_address_from_config(signer_config)
 
         return PreparedWithdrawTicket(
             requires_manual_review=False,

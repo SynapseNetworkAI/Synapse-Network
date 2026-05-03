@@ -119,14 +119,13 @@ class Settings:
         os.getenv("V2_RECONCILIATION_ALERT_DELTA_USDC", "1.0").strip() or "1.0"
     )
     # Token contract used for onchain vault balance reconciliation.
-    usdc_token_address: str = (
-        os.getenv("USDC_TOKEN_ADDRESS", "").strip()
-        or _load_usdc_address_from_contract_config()
-        or ""
-    )
-    # Gateway withdraw signer used to issue EIP-712 provider withdrawal tickets.
-    # Provider settlements require this key to be configured in the runtime environment.
+    usdc_token_address: str = os.getenv("USDC_TOKEN_ADDRESS", "").strip() or _load_usdc_address_from_contract_config() or ""
+    # Legacy local fallback. Do not use for staging/prod runtime.
     private_key: str = os.getenv("PRIVATE_KEY", "")
+    withdraw_signer_mode: str = os.getenv("WITHDRAW_SIGNER_MODE", "local_private_key").strip().lower() or "local_private_key"
+    withdraw_signer_address: str = os.getenv("WITHDRAW_SIGNER_ADDRESS", "").strip()
+    withdraw_signer_gcp_kms_key_name: str = os.getenv("WITHDRAW_SIGNER_GCP_KMS_KEY_NAME", "").strip()
+    withdraw_signer_aws_kms_key_id: str = os.getenv("WITHDRAW_SIGNER_AWS_KMS_KEY_ID", "").strip()
 
     # Storage backend switch. Only "postgres" is supported.
     storage_backend: str = (
