@@ -2,10 +2,18 @@
 import { execFileSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 
-const SERVICES = ["gateway", "gateway-admin", "user-front", "admin-front"];
+const SERVICES = [
+  "gateway",
+  "gateway-admin",
+  "user-front",
+  "admin-front",
+  "docs-front",
+];
 
 function usage() {
-  console.error(`Usage: node scripts/deploy/resolve_deploy_scope.mjs --base <sha> --head <sha> [--scope auto|gateway|gateway-admin|user-front|admin-front|all] [--json <path>]`);
+  console.error(
+    `Usage: node scripts/deploy/resolve_deploy_scope.mjs --base <sha> --head <sha> [--scope auto|gateway|gateway-admin|user-front|admin-front|docs-front|all] [--json <path>]`
+  );
   process.exit(2);
 }
 
@@ -62,10 +70,16 @@ if (requestedScope !== "auto") {
   reasons.push(`manual deploy_scope=${requestedScope}`);
 } else {
   for (const file of changedFiles) {
-    if (file.startsWith("services/gateway/")) addService("gateway", "services/gateway changed");
-    if (file.startsWith("services/gateway-admin/")) addService("gateway-admin", "services/gateway-admin changed");
-    if (file.startsWith("services/user-front/")) addService("user-front", "services/user-front changed");
-    if (file.startsWith("services/admin-front/")) addService("admin-front", "services/admin-front changed");
+    if (file.startsWith("services/gateway/"))
+      addService("gateway", "services/gateway changed");
+    if (file.startsWith("services/gateway-admin/"))
+      addService("gateway-admin", "services/gateway-admin changed");
+    if (file.startsWith("services/user-front/"))
+      addService("user-front", "services/user-front changed");
+    if (file.startsWith("services/admin-front/"))
+      addService("admin-front", "services/admin-front changed");
+    if (file.startsWith("services/docs-front/"))
+      addService("docs-front", "services/docs-front changed");
 
     if (
       file.startsWith("infra/terraform/") ||
@@ -98,12 +112,15 @@ if (requestedScope !== "auto") {
 }
 
 services = unique(services);
-const docsOnly = changedFiles.length > 0 && changedFiles.every((file) =>
-  file.startsWith("docs/") ||
-  file.endsWith(".md") ||
-  file.startsWith("docs/evidence/") ||
-  file === "llms.txt"
-);
+const docsOnly =
+  changedFiles.length > 0 &&
+  changedFiles.every(
+    (file) =>
+      file.startsWith("docs/") ||
+      file.endsWith(".md") ||
+      file.startsWith("docs/evidence/") ||
+      file === "llms.txt"
+  );
 
 if (requestedScope === "auto" && docsOnly) {
   services = [];

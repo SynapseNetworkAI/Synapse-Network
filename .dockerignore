@@ -1,0 +1,91 @@
+# Keep root Docker build contexts small and deterministic.
+#
+# Most services build from their own service directory and use a service-local
+# .dockerignore. The only staging image that still uses the repository root as
+# Docker context is gateway-admin, because it needs its service code plus
+# infra/postgres/init/gateway-admin migrations.
+
+.git/
+.DS_Store
+
+# Root-context Docker builds should only see gateway-admin and its migrations.
+services/*
+!services/gateway-admin/
+!services/gateway-admin/**
+
+infra/*
+!infra/postgres/
+!infra/postgres/init/
+!infra/postgres/init/gateway-admin/
+!infra/postgres/init/gateway-admin/**
+
+# Root-level material not needed by gateway-admin image builds
+.agents/
+.agents-memory/
+.cursor/
+.github/
+.vscode/
+artifacts/
+cache/
+contracts/
+docs/
+output/
+scripts/
+semgrep/
+skills-lock.json
+test/
+tmp/
+
+# Local dependencies and virtualenvs
+node_modules/
+**/node_modules/
+.venv/
+**/.venv/
+venv/
+
+# Build/test outputs
+.next/
+**/.next/
+dist/
+**/dist/
+build/
+**/build/
+coverage/
+coverage.json
+coverage.xml
+.coverage
+.coverage.*
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+__pycache__/
+**/__pycache__/
+*.pyc
+
+# Contract/generated artifacts
+artifacts/
+cache/
+typechain/
+typechain-types/
+
+# Runtime/generated evidence and local scratch data
+output/
+logs/
+*.log
+tmp/
+docs/evidence/alerts/lark/*-lark-e2e/
+
+# Local secrets and Terraform local inputs
+.env
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+services/*/.env.local
+services/*/.env.staging
+services/*/.env.prod
+
+# Local browser automation state
+.agent-browser/
+
+# Local scratch image exports
+logo.png
