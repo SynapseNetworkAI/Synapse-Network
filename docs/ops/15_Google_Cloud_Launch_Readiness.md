@@ -194,25 +194,25 @@ Required APIs enabled by `scripts/deploy/gcp_preflight.sh`:
 
 Terraform-created billable resources:
 
-| Service | Terraform resource | What it is used for | Billing model | Staging default | Monthly estimate |
-| --- | --- | --- | --- | --- | --- |
-| Cloud SQL for PostgreSQL | `google_sql_database_instance.postgres`, `google_sql_database.gateway` | Source of truth for ledger, idempotency, outbox, inbox, admin projections, and jobs | Instance hours, storage, backups, network egress | `db-f1-micro`, `ENTERPRISE`, zonal, 20 GB SSD, PITR 1 day | `$12-$18` |
-| Cloud Run services | `google_cloud_run_v2_service.*` | Gateway, Gateway-admin, User-front, Admin-front | Request/instance time, vCPU, memory, requests, outbound egress, min instances if configured | Staging `min_instances=0`; services created only when image variables are non-empty | `$0-$10` for low traffic |
-| Cloud Run jobs | `google_cloud_run_v2_job.*` | Deposit indexer, withdrawal processors, notification drain, cleanup, DB migration | Job execution CPU/memory time, container startup time, outbound egress | Jobs created only when `gateway_image` is set; money jobs run every minute | `$0-$5` |
-| Cloud Scheduler | `google_cloud_scheduler_job.jobs` | Triggers periodic Cloud Run jobs | Per scheduler job per month; first 3 jobs are free per billing account | 5 scheduled jobs when `gateway_image` is set | `$0.20-$1` |
-| Artifact Registry | `google_artifact_registry_repository.docker` | Stores Docker images for Cloud Run deploys | Artifact storage over free tier, data transfer, optional vulnerability scanning | Regional repo `synapse-staging`; cleanup deletes untagged images after 7 days, staging tags after 45 days, and keeps the 10 newest versions per package | `$0.20-$3` depending on image history |
-| Cloud Storage buckets | `google_storage_bucket.backups` plus manually created static/evidence/state buckets | Cloud SQL backups/export artifacts, evidence archive, static assets, Terraform state | GB-month storage, operations, retrieval, egress | Four `us-central1` buckets with lifecycle policy; evidence release records 365 days, debug/failed evidence 30 days, Terraform noncurrent state 365 days | `$0-$5` for tens of GB |
-| Secret Manager | `google_secret_manager_secret.placeholders` | Runtime secrets, private keys, webhook URLs, SMTP credentials, RPC keys | Active secret versions and access operations | About 20 staging secret placeholders, values added out-of-band | `$1-$3` |
-| Cloud Logging / Cloud Monitoring | Google-managed service usage from Cloud Run, Cloud SQL, jobs, alerts | Logs, metrics, alerting, dashboards, uptime/monitoring features | Log ingestion/storage and chargeable custom metrics or checks beyond free allotments | Use low-volume structured logs and avoid noisy debug logs | `$0-$5` initially |
-| IAM / service accounts / Resource Manager | `google_service_account.*`, IAM bindings | Runtime identity and least-privilege access | No direct monthly charge for IAM bindings | Runtime and Scheduler service accounts | `$0` |
+| Service                                   | Terraform resource                                                                  | What it is used for                                                                  | Billing model                                                                               | Staging default                                                                                                                                         | Monthly estimate                      |
+| ----------------------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| Cloud SQL for PostgreSQL                  | `google_sql_database_instance.postgres`, `google_sql_database.gateway`              | Source of truth for ledger, idempotency, outbox, inbox, admin projections, and jobs  | Instance hours, storage, backups, network egress                                            | `db-f1-micro`, `ENTERPRISE`, zonal, 20 GB SSD, PITR 1 day                                                                                               | `$12-$18`                             |
+| Cloud Run services                        | `google_cloud_run_v2_service.*`                                                     | Gateway, Gateway-admin, User-front, Admin-front                                      | Request/instance time, vCPU, memory, requests, outbound egress, min instances if configured | Staging `min_instances=0`; services created only when image variables are non-empty                                                                     | `$0-$10` for low traffic              |
+| Cloud Run jobs                            | `google_cloud_run_v2_job.*`                                                         | Deposit indexer, withdrawal processors, notification drain, cleanup, DB migration    | Job execution CPU/memory time, container startup time, outbound egress                      | Jobs created only when `gateway_image` is set; money jobs run every minute                                                                              | `$0-$5`                               |
+| Cloud Scheduler                           | `google_cloud_scheduler_job.jobs`                                                   | Triggers periodic Cloud Run jobs                                                     | Per scheduler job per month; first 3 jobs are free per billing account                      | 5 scheduled jobs when `gateway_image` is set                                                                                                            | `$0.20-$1`                            |
+| Artifact Registry                         | `google_artifact_registry_repository.docker`                                        | Stores Docker images for Cloud Run deploys                                           | Artifact storage over free tier, data transfer, optional vulnerability scanning             | Regional repo `synapse-staging`; cleanup deletes untagged images after 7 days, staging tags after 45 days, and keeps the 10 newest versions per package | `$0.20-$3` depending on image history |
+| Cloud Storage buckets                     | `google_storage_bucket.backups` plus manually created static/evidence/state buckets | Cloud SQL backups/export artifacts, evidence archive, static assets, Terraform state | GB-month storage, operations, retrieval, egress                                             | Four `us-central1` buckets with lifecycle policy; evidence release records 365 days, debug/failed evidence 30 days, Terraform noncurrent state 365 days | `$0-$5` for tens of GB                |
+| Secret Manager                            | `google_secret_manager_secret.placeholders`                                         | Runtime secrets, private keys, webhook URLs, SMTP credentials, RPC keys              | Active secret versions and access operations                                                | About 20 staging secret placeholders, values added out-of-band                                                                                          | `$1-$3`                               |
+| Cloud Logging / Cloud Monitoring          | Google-managed service usage from Cloud Run, Cloud SQL, jobs, alerts                | Logs, metrics, alerting, dashboards, uptime/monitoring features                      | Log ingestion/storage and chargeable custom metrics or checks beyond free allotments        | Use low-volume structured logs and avoid noisy debug logs                                                                                               | `$0-$5` initially                     |
+| IAM / service accounts / Resource Manager | `google_service_account.*`, IAM bindings                                            | Runtime identity and least-privilege access                                          | No direct monthly charge for IAM bindings                                                   | Runtime and Scheduler service accounts                                                                                                                  | `$0`                                  |
 
 Current staging estimate:
 
-| Deployment phase | Expected monthly cost | Notes |
-| --- | ---: | --- |
-| Substrate only, before Cloud Run images are set | `$15-$25` | Cloud SQL, buckets, secrets, Artifact Registry, and low/no Scheduler usage dominate. |
-| MVP staging with Cloud Run services and scheduled jobs | `$25-$45` | Assumes low traffic, `min_instances=0`, small logs, small image retention, and `db-f1-micro`. |
-| Staging after Cloud SQL upgrade to `db-g1-small` | `$40-$70` | Use only if E2E/admin views show DB pressure, connection pressure, or latency instability. |
+| Deployment phase                                       | Expected monthly cost | Notes                                                                                         |
+| ------------------------------------------------------ | --------------------: | --------------------------------------------------------------------------------------------- |
+| Substrate only, before Cloud Run images are set        |             `$15-$25` | Cloud SQL, buckets, secrets, Artifact Registry, and low/no Scheduler usage dominate.          |
+| MVP staging with Cloud Run services and scheduled jobs |             `$25-$45` | Assumes low traffic, `min_instances=0`, small logs, small image retention, and `db-f1-micro`. |
+| Staging after Cloud SQL upgrade to `db-g1-small`       |             `$40-$70` | Use only if E2E/admin views show DB pressure, connection pressure, or latency instability.    |
 
 Cost guardrails:
 
@@ -410,33 +410,34 @@ updated.
 
 Required staging secrets:
 
-| Secret id | Meaning | Used by |
-| --- | --- | --- |
-| `synapse-staging-postgres-password` | Cloud SQL Gateway app user password | Gateway, Gateway jobs |
-| `synapse-staging-admin-postgres-password` | Gateway-admin control-plane DB password | Gateway-admin |
-| `synapse-staging-jwt-secret` | User-facing JWT signing/verification secret | Gateway |
-| `synapse-staging-auth-secret` | App auth/session secret material | Gateway/User auth |
-| `synapse-staging-private-key` | Staging withdraw signer private key | Gateway ticket signing only |
-| `synapse-staging-gateway-internal-jwt-secret` | Gateway-admin to Gateway internal auth | Gateway, Gateway-admin |
-| `synapse-staging-admin-csrf-secret` | Gateway-admin CSRF/session protection secret | Gateway-admin |
-| `synapse-staging-gateway-admin-wallet` | Internal admin wallet subject/allow-list identity | Gateway, Gateway-admin |
-| `synapse-staging-gmail-app-password` | Gmail app password or SMTP relay credential | Notification outbox worker |
-| `synapse-staging-lark-webhook-p0` | P0 Lark group robot webhook URL | Lark relay / alert jobs |
-| `synapse-staging-lark-webhook-prod-alerts` | Staging/prod alert hall webhook for non-P0 route tests | Lark relay / alert jobs |
-| `synapse-staging-lark-webhook-staging-drill` | Drill-only Lark webhook URL | Drill alerts |
-| `synapse-staging-lark-secret-p0` | Optional P0 Lark signing secret | Lark relay / alert jobs |
-| `synapse-staging-lark-secret-prod-alerts` | Optional prod-alerts Lark signing secret | Lark relay / alert jobs |
-| `synapse-staging-lark-secret-staging-drill` | Optional staging drill Lark signing secret | Lark relay / alert jobs |
+| Secret id                                     | Meaning                                                | Used by                                      |
+| --------------------------------------------- | ------------------------------------------------------ | -------------------------------------------- |
+| `synapse-staging-postgres-password`           | Cloud SQL Gateway app user password                    | Gateway, Gateway jobs                        |
+| `synapse-staging-admin-postgres-password`     | Gateway-admin control-plane DB password                | Gateway-admin                                |
+| `synapse-staging-jwt-secret`                  | User-facing JWT signing/verification secret            | Gateway                                      |
+| `synapse-staging-auth-secret`                 | App auth/session secret material                       | Gateway/User auth                            |
+| `synapse-staging-withdraw-signer`             | Dedicated staging Cloud KMS asymmetric signer          | Gateway withdrawal ticket signing only       |
+| `synapse-staging-private-key`                 | Legacy staging withdraw signer private key             | Cleanup only after KMS withdrawal E2E passes |
+| `synapse-staging-gateway-internal-jwt-secret` | Gateway-admin to Gateway internal auth                 | Gateway, Gateway-admin                       |
+| `synapse-staging-admin-csrf-secret`           | Gateway-admin CSRF/session protection secret           | Gateway-admin                                |
+| `synapse-staging-gateway-admin-wallet`        | Internal admin wallet subject/allow-list identity      | Gateway, Gateway-admin                       |
+| `synapse-staging-gmail-app-password`          | Gmail app password or SMTP relay credential            | Notification outbox worker                   |
+| `synapse-staging-lark-webhook-p0`             | P0 Lark group robot webhook URL                        | Lark relay / alert jobs                      |
+| `synapse-staging-lark-webhook-prod-alerts`    | Staging/prod alert hall webhook for non-P0 route tests | Lark relay / alert jobs                      |
+| `synapse-staging-lark-webhook-staging-drill`  | Drill-only Lark webhook URL                            | Drill alerts                                 |
+| `synapse-staging-lark-secret-p0`              | Optional P0 Lark signing secret                        | Lark relay / alert jobs                      |
+| `synapse-staging-lark-secret-prod-alerts`     | Optional prod-alerts Lark signing secret               | Lark relay / alert jobs                      |
+| `synapse-staging-lark-secret-staging-drill`   | Optional staging drill Lark signing secret             | Lark relay / alert jobs                      |
 
 Recommended additional secrets before release evidence:
 
-| Secret id | Meaning |
-| --- | --- |
-| `synapse-staging-arbitrum-sepolia-rpc-url` | Alchemy/Infura/other Arbitrum Sepolia RPC URL |
-| `synapse-staging-arbiscan-api-key` | Arbiscan verification API key |
-| `synapse-staging-deployer-private-key` | Staging contract deployer key, used only during deploy |
-| `synapse-staging-gmail-username` | Gmail/Workspace sender username |
-| `synapse-staging-metrics-bearer-token` | Optional metrics/readiness scrape token |
+| Secret id                                  | Meaning                                                |
+| ------------------------------------------ | ------------------------------------------------------ |
+| `synapse-staging-arbitrum-sepolia-rpc-url` | Alchemy/Infura/other Arbitrum Sepolia RPC URL          |
+| `synapse-staging-arbiscan-api-key`         | Arbiscan verification API key                          |
+| `synapse-staging-deployer-private-key`     | Staging contract deployer key, used only during deploy |
+| `synapse-staging-gmail-username`           | Gmail/Workspace sender username                        |
+| `synapse-staging-metrics-bearer-token`     | Optional metrics/readiness scrape token                |
 
 Use a newline-free write pattern:
 
@@ -569,7 +570,9 @@ After Arbitrum Sepolia deployment evidence passes, inject:
 RPC_URL="<from synapse-staging-arbitrum-sepolia-rpc-url>"
 ROUTER_ADDRESS="<SynapseCore from contract-manifest.json>"
 USDC_TOKEN_ADDRESS="<MockUSDC from contract-manifest.json>"
-PRIVATE_KEY="<from synapse-staging-private-key>"
+WITHDRAW_SIGNER_MODE="gcp_kms"
+WITHDRAW_SIGNER_GCP_KMS_KEY_NAME="projects/fabled-archive-494108-k5/locations/us-central1/keyRings/synapse-staging/cryptoKeys/synapse-staging-withdraw-signer/cryptoKeyVersions/1"
+WITHDRAW_SIGNER_ADDRESS="<kms-derived Ethereum address>"
 ```
 
 ### Arbitrum Sepolia Contract Deployment
@@ -657,19 +660,26 @@ npm run e2e:in-app-notifications
 npm run ci:in-app-notifications-evidence
 ```
 
-## Secret Manager Default Encryption
+## Secret Manager And KMS Boundary
 
 V1 uses Secret Manager as the application secret store with Google-managed
-default encryption at rest. Do **not** enable Cloud KMS / CMEK for MVP staging.
+default encryption at rest. Do **not** enable Cloud KMS / CMEK for MVP staging
+Secret Manager envelope encryption.
+
+Withdrawal-ticket signing is a separate custody boundary. Staging uses a
+dedicated Cloud KMS secp256k1 signer named `synapse-staging-withdraw-signer`;
+production must use its own separate KMS/HSM signer.
 
 This keeps the launch path simple:
 
 1. Terraform creates Secret Manager secret placeholders.
 2. `gcp_staging_bootstrap.sh` creates the Cloud SQL app user and writes the
    generated password to Secret Manager.
-3. `gcp_put_secret.sh` writes third-party credentials and wallet material from
-   stdin into Secret Manager.
-4. Cloud Run reads secrets through Secret Manager IAM.
+3. `gcp_put_secret.sh` writes third-party credentials and deployment-only wallet
+   material from stdin into Secret Manager.
+4. Cloud Run reads staging secrets through Secret Manager IAM.
+5. Gateway signs withdrawal tickets through Cloud KMS; it does not receive a raw
+   withdrawal signer `PRIVATE_KEY`.
 
 Why no CMEK in V1:
 
@@ -677,10 +687,46 @@ Why no CMEK in V1:
 2. CMEK adds key lifecycle and IAM complexity that can break all secrets if the
    key is disabled or misconfigured.
 3. CMEK is a future compliance option, not an MVP staging blocker.
-4. Gateway should not call KMS directly or receive KMS IAM roles.
+4. Staging no longer uses a runtime Secret Manager private key for
+   withdrawal-ticket signing after the KMS migration. The old
+   `synapse-staging-private-key` secret is cleanup-only and must not be injected
+   into Gateway services or jobs.
 
 Only revisit CMEK when enterprise customers, formal compliance, or explicit
 customer-managed-key ownership becomes a real requirement.
+
+Production withdrawal-ticket signing is a separate custody boundary:
+
+1. Staging and production must use `WITHDRAW_SIGNER_MODE=gcp_kms` or an
+   equivalent HSM-backed signer. Raw `PRIVATE_KEY` ticket signing is local-only
+   after staging KMS evidence is green.
+2. The Gateway runtime service account may receive sign-only access to one
+   configured KMS key resource for withdrawal-ticket signing.
+3. The Gateway must derive/recover the Ethereum signer address from every KMS
+   signature and fail closed if it does not match `SynapseCore.platformSigner()`.
+4. Gateway-admin, frontends, local laptops, and deploy jobs must not receive
+   default KMS sign access.
+5. Staging and production must not share the same KMS signer key. Prefer
+   separate GCP projects; otherwise use distinct key rings / crypto keys such as
+   `synapse-staging-withdraw-signer` and `synapse-prod-withdraw-signer`, with IAM
+   scoped so each Gateway service account can sign only its own environment key.
+
+Staging KMS migration evidence:
+
+```bash
+gcloud auth login
+gcloud config set project fabled-archive-494108-k5
+
+bash scripts/deploy/gcp_audit_staging_security_config.sh fabled-archive-494108-k5
+
+node scripts/chain/gcp_kms_derive_eth_address.mjs \
+  projects/fabled-archive-494108-k5/locations/us-central1/keyRings/synapse-staging/cryptoKeys/synapse-staging-withdraw-signer/cryptoKeyVersions/1
+```
+
+Only after Gateway runs with `WITHDRAW_SIGNER_MODE=gcp_kms`, on-chain
+`SynapseCore.platformSigner()` equals the derived address, and a small-value
+withdrawal E2E passes may the legacy `synapse-staging-private-key` secret be
+deleted with `scripts/deploy/gcp_cleanup_staging_security_config.sh`.
 
 ### Bootstrap Script
 
@@ -706,7 +752,8 @@ The bootstrap script:
 7. Prints the remaining secret ids that still need user-provided values.
 
 It does not print the generated password, write it to disk, put it in Terraform
-state, or call any KMS/CMEK command.
+state, or call any CMEK command. Production KMS signer setup is a separate
+custody task, not part of staging bootstrap.
 
 ### Secret Writer Script
 
@@ -748,8 +795,10 @@ gcloud run deploy synapse-staging-gateway \
 ```
 
 Cloud Run uses Secret Manager to resolve the secret. Secret Manager applies
-Google-managed default encryption at rest. The Gateway process never receives
-KMS credentials and never calls `cloudkms.googleapis.com`.
+Google-managed default encryption at rest. In staging, the Gateway process does
+not need Cloud KMS roles. In production, grant the Gateway runtime service
+account only the minimal KMS asymmetric-sign permission for the configured
+withdrawal signer key.
 
 ## Cloud SQL Connection Guard
 
@@ -858,7 +907,9 @@ CONSUMER_WITHDRAW_PROCESSOR_ENABLED=false
 RPC_URL=<arbitrum-rpc-url>
 ROUTER_ADDRESS=<SynapseCore>
 USDC_TOKEN_ADDRESS=<MockUSDC for staging or real USDC for production>
-PRIVATE_KEY=<withdraw signer private key>
+WITHDRAW_SIGNER_MODE=gcp_kms
+WITHDRAW_SIGNER_GCP_KMS_KEY_NAME=<staging kms key version resource>
+WITHDRAW_SIGNER_ADDRESS=<kms-derived Ethereum address>
 ```
 
 API requests must not wait on Gmail, analytics publishing, notification cleanup,
@@ -881,14 +932,14 @@ Every money-sensitive scheduled job uses two layers of overlap protection:
 
 Scheduled job defaults:
 
-| Job | Command | Schedule | Retry | Lock key |
-| --- | --- | --- | --- | --- |
-| DB migration | `bash scripts/deploy/migrate_db.sh staging\|prod` | manual release step only | 0 | n/a |
-| Deposit indexer | `python -m src.worker deposit-indexer --once` | every 1 minute | 0 | `deposit-indexer` |
-| Provider withdrawal reaper | `python -m src.worker provider-withdraw-reaper --once` | every 1 minute | 0 | `provider-withdraw-reaper` |
-| Consumer withdrawal processor | `python -m src.worker consumer-withdraw-processor --once` | every 1 minute | 0 | `consumer-withdraw-processor` |
-| Gmail outbox drain | `python -m src.worker notification-outbox --once` | every 1 minute | 1 | `notification-outbox-drain` |
-| In-app notification cleanup | `python -m src.worker in-app-cleanup --once` | daily | 0 | `in-app-notification-cleanup` |
+| Job                           | Command                                                   | Schedule                 | Retry | Lock key                      |
+| ----------------------------- | --------------------------------------------------------- | ------------------------ | ----- | ----------------------------- |
+| DB migration                  | `bash scripts/deploy/migrate_db.sh staging\|prod`         | manual release step only | 0     | n/a                           |
+| Deposit indexer               | `python -m src.worker deposit-indexer --once`             | every 1 minute           | 0     | `deposit-indexer`             |
+| Provider withdrawal reaper    | `python -m src.worker provider-withdraw-reaper --once`    | every 1 minute           | 0     | `provider-withdraw-reaper`    |
+| Consumer withdrawal processor | `python -m src.worker consumer-withdraw-processor --once` | every 1 minute           | 0     | `consumer-withdraw-processor` |
+| Gmail outbox drain            | `python -m src.worker notification-outbox --once`         | every 1 minute           | 1     | `notification-outbox-drain`   |
+| In-app notification cleanup   | `python -m src.worker in-app-cleanup --once`              | daily                    | 0     | `in-app-notification-cleanup` |
 
 ## Staging Chain Readiness
 
@@ -926,7 +977,9 @@ After the gate passes, inject the manifest addresses into Gateway staging:
 RPC_URL="$ARBITRUM_SEPOLIA_RPC_URL"
 ROUTER_ADDRESS="<SynapseCore from contract-manifest.json>"
 USDC_TOKEN_ADDRESS="<MockUSDC from contract-manifest.json>"
-PRIVATE_KEY="<staging withdraw signer private key>"
+WITHDRAW_SIGNER_MODE="gcp_kms"
+WITHDRAW_SIGNER_GCP_KMS_KEY_NAME="<staging kms key version resource>"
+WITHDRAW_SIGNER_ADDRESS="<kms-derived Ethereum address>"
 ```
 
 Details: `docs/ops/16_Arbitrum_Sepolia_Staging_Contracts.md`.
@@ -1006,8 +1059,8 @@ Production is still `NO-GO` until all items below have evidence:
 13. Run one-ticket withdrawal 10-scenario evidence.
 14. Run local and staging load/reconciliation evidence.
 15. Run backup/restore drill.
-15. Attach all evidence to production validation.
-16. Only then prepare production infrastructure and small-value rehearsal.
+16. Attach all evidence to production validation.
+17. Only then prepare production infrastructure and small-value rehearsal.
 
 ## Hard Rules
 

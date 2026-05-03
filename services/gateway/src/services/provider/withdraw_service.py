@@ -76,17 +76,17 @@ class ProviderWithdrawService(
             return self._signing_delegate._withdraw_contract()  # type: ignore[attr-defined]
         return super()._withdraw_contract()
 
-    def _require_withdraw_signer(self) -> str:
+    def _require_withdraw_signer(self) -> Any:
         if self._signing_delegate is not None:
-            return self._signing_delegate._require_withdraw_signer()  # type: ignore[attr-defined]
+            return self._signing_delegate._require_withdraw_signer()  # type: ignore[attr-defined]  # because delegate protocol is runtime-composed
         return super()._require_withdraw_signer()
 
     def _sign_withdraw_ticket(
-        self, typed_data: dict[str, Any], private_key: str
+        self, typed_data: dict[str, Any], signer_config: Any
     ) -> tuple[str, str]:
         if self._signing_delegate is not None:
-            return self._signing_delegate._sign_withdraw_ticket(typed_data, private_key)  # type: ignore[attr-defined]
-        return super()._sign_withdraw_ticket(typed_data, private_key)
+            return self._signing_delegate._sign_withdraw_ticket(typed_data, signer_config)  # type: ignore[attr-defined]
+        return super()._sign_withdraw_ticket(typed_data, signer_config)
 
     def _read_vault_liquidity_amount_wei(self) -> int:
         token_address = normalize_wallet(settings.usdc_token_address)

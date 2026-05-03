@@ -8,7 +8,6 @@ import buyPage from "@/i18n/resources/zh/buyPage";
 import creditsPage from "@/i18n/resources/zh/creditsPage";
 import developerPage from "@/i18n/resources/zh/developerPage";
 import discoveryPage from "@/i18n/resources/zh/discoveryPage";
-import docsPage from "@/i18n/resources/zh/docsPage";
 import feedback from "@/i18n/resources/zh/feedback";
 import forumPage from "@/i18n/resources/zh/forumPage";
 import home from "@/i18n/resources/zh/home";
@@ -32,7 +31,6 @@ const zh: I18nMessages = {
   home,
   marketplacePage,
   discoveryPage,
-  docsPage,
   feedback,
   forumPage,
   invocationsPage,

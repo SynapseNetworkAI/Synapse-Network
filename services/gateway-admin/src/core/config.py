@@ -12,11 +12,11 @@ DEFAULT_LOG_DIR = SERVICE_ROOT / "logs"
 
 DEVELOPMENT_CORS_ORIGINS = (
     "http://localhost:3000",
-    "http://localhost:3001",
-    "http://localhost:4000",
+    "http://localhost:3100",
+    "http://localhost:3200",
     "http://127.0.0.1:3000",
-    "http://127.0.0.1:3001",
-    "http://127.0.0.1:4000",
+    "http://127.0.0.1:3100",
+    "http://127.0.0.1:3200",
 )
 ADMIN_LOGIN_LOCK_THRESHOLD_MIN = 3
 ADMIN_LOGIN_LOCK_THRESHOLD_MAX = 10
@@ -102,7 +102,7 @@ class Settings(BaseSettings):
     port: int = Field(default=8300, alias="ADMIN_GATEWAY_PORT")
     debug: bool = Field(default=True, alias="ADMIN_GATEWAY_DEBUG")
     allowed_origins: str = Field(
-        default="http://localhost:3000,http://localhost:4000",
+        default="http://localhost:3000,http://localhost:3200",
         alias="ADMIN_GATEWAY_ALLOWED_ORIGINS",
     )
     token_prefix: str = Field(default="adm_demo_", alias="ADMIN_GATEWAY_TOKEN_PREFIX")

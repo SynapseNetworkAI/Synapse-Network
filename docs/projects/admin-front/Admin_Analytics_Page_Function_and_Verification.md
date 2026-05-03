@@ -187,7 +187,7 @@ ADMIN_GATEWAY_URL=http://127.0.0.1:8300 \
 ADMIN_ANALYTICS_SOURCE=postgres \
 npm run e2e:admin-analytics-10k:reconcile
 
-ADMIN_FRONT_URL=http://127.0.0.1:4000 \
+ADMIN_FRONT_URL=http://127.0.0.1:3200 \
 ADMIN_GATEWAY_URL=http://127.0.0.1:8300 \
 ADMIN_SESSION_TOKEN="<synapse_admin_session>" \
 node scripts/admin_analytics_fullchain_e2e.js
@@ -207,7 +207,7 @@ ADMIN_GATEWAY_URL=http://127.0.0.1:8300 \
 ADMIN_ANALYTICS_SOURCE=postgres \
 npm run e2e:admin-analytics-10k:reconcile
 
-ADMIN_FRONT_URL=http://127.0.0.1:4000 \
+ADMIN_FRONT_URL=http://127.0.0.1:3200 \
 ADMIN_GATEWAY_URL=http://127.0.0.1:8300 \
 ADMIN_SESSION_TOKEN="<synapse_admin_session>" \
 npm run e2e:admin-analytics-10k:dogfood

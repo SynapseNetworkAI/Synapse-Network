@@ -119,7 +119,7 @@ npm run e2e:admin-analytics-10k:reconcile
 Verify `admin-front` with screenshots:
 
 ```bash
-ADMIN_FRONT_URL=http://localhost:4000 \
+ADMIN_FRONT_URL=http://localhost:3200 \
 ADMIN_GATEWAY_URL=http://127.0.0.1:8300 \
 ADMIN_SESSION_TOKEN="<synapse_admin_session>" \
 npm run e2e:admin-analytics-10k:dogfood

@@ -1,0 +1,13 @@
+---
+title: SynapseCore
+description: The on-chain USDC collateral and settlement contract.
+---
+
+SynapseCore is deliberately boring. It should not contain service discovery, routing, pricing, budget velocity, provider health, or marketplace policy.
+
+## Contract role
+
+- Accept deposits.
+- Hold USDC collateral.
+- Support final withdrawal settlement.
+- Preserve a clean audit boundary between Gateway receipts and chain movement.

@@ -26,6 +26,7 @@ gateway_image="${registry}/gateway:${TAG}"
 gateway_admin_image="${registry}/gateway-admin:${TAG}"
 user_front_image="${registry}/user-front:${TAG}"
 admin_front_image="${registry}/admin-front:${TAG}"
+docs_front_image="${registry}/docs-front:${TAG}"
 
 echo "[gcp-build-images] project=${PROJECT_ID}"
 echo "[gcp-build-images] region=${REGION}"
@@ -45,8 +46,10 @@ docker push "${gateway_admin_image}"
 echo "[gcp-build-images] building user-front"
 docker build --platform linux/amd64 \
   --build-arg NEXT_PUBLIC_GATEWAY_BASE_URL="${NEXT_PUBLIC_GATEWAY_BASE_URL:-https://api-staging.synapse-network.ai}" \
+  --build-arg NEXT_PUBLIC_ANALYTICS_ENDPOINT="${NEXT_PUBLIC_ANALYTICS_ENDPOINT:-https://api-staging.synapse-network.ai/api/v1/events}" \
   --build-arg NEXT_PUBLIC_SERVICE_LIST_CACHE_TTL_MS="${NEXT_PUBLIC_SERVICE_LIST_CACHE_TTL_MS:-20000}" \
   --build-arg NEXT_PUBLIC_APP_ENV="${NEXT_PUBLIC_APP_ENV:-staging}" \
+  --build-arg NEXT_PUBLIC_DOCS_BASE_URL="${NEXT_PUBLIC_DOCS_BASE_URL:-https://docs-staging.synapse-network.ai}" \
   --build-arg NEXT_PUBLIC_SUPPORT_EMAIL="${NEXT_PUBLIC_SUPPORT_EMAIL:-support@synapse-network.ai}" \
   --build-arg NEXT_PUBLIC_SUPPORT_PORTAL_URL="${NEXT_PUBLIC_SUPPORT_PORTAL_URL:-}" \
   --build-arg NEXT_PUBLIC_REOWN_PROJECT_ID="${NEXT_PUBLIC_REOWN_PROJECT_ID:-}" \
@@ -65,6 +68,17 @@ docker build --platform linux/amd64 \
   services/admin-front
 docker push "${admin_front_image}"
 
+echo "[gcp-build-images] building docs-front"
+docker build --platform linux/amd64 \
+  --build-arg NEXT_PUBLIC_APP_ENV="${NEXT_PUBLIC_APP_ENV:-staging}" \
+  --build-arg NEXT_PUBLIC_DOCS_BASE_URL="${NEXT_PUBLIC_DOCS_BASE_URL:-https://docs-staging.synapse-network.ai}" \
+  --build-arg NEXT_PUBLIC_CONSOLE_BASE_URL="${NEXT_PUBLIC_CONSOLE_BASE_URL:-https://staging.synapse-network.ai/dashboard/overview}" \
+  --build-arg NEXT_PUBLIC_GATEWAY_BASE_URL="${NEXT_PUBLIC_GATEWAY_BASE_URL:-https://api-staging.synapse-network.ai}" \
+  -f services/docs-front/Dockerfile \
+  -t "${docs_front_image}" \
+  .
+docker push "${docs_front_image}"
+
 cat <<EOF
 
 [gcp-build-images] pushed images:
@@ -72,6 +86,7 @@ gateway_image       = "${gateway_image}"
 gateway_admin_image = "${gateway_admin_image}"
 user_front_image    = "${user_front_image}"
 admin_front_image   = "${admin_front_image}"
+docs_front_image    = "${docs_front_image}"
 
 Add the block above to infra/terraform/gcp-staging/terraform.tfvars.
 EOF

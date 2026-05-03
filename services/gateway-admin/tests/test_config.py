@@ -13,8 +13,9 @@ def test_cors_origins_include_common_local_ports_in_local_mode() -> None:
     )
 
     assert "http://localhost:3000" in settings.cors_origins()
-    assert "http://localhost:4000" in settings.cors_origins()
-    assert "http://127.0.0.1:4000" in settings.cors_origins()
+    assert "http://localhost:3100" in settings.cors_origins()
+    assert "http://localhost:3200" in settings.cors_origins()
+    assert "http://127.0.0.1:3200" in settings.cors_origins()
 
 
 def test_cors_origins_do_not_expand_in_prod() -> None:

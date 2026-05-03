@@ -24,17 +24,19 @@ Use it before broad repository search. It does not replace `AGENTS.md`, `.github
 
 ## Domain Summary
 
-| Domain | Use when the task mentions |
-| --- | --- |
-| `gateway_runtime` | agent invoke, discovery, credentials, provider service calls, runtime API contracts |
-| `user_front_docs` | `localhost:3000/docs`, SDK docs pages, API reference UI, public docs copy |
-| `user_front_product` | marketplace, owner console, public app pages, product-facing frontend |
-| `sdk_contract_alignment` | SDK docs in product docs, SDK onboarding, public preview environment copy |
-| `finance_sensitive_backend` | balance, deposits, withdrawals, refunds, settlement, ledger, audit |
-| `admin_finance_control_plane` | gateway-admin, admin-front, withdrawal review, refund approval |
-| `contracts_and_deployments` | Solidity contracts, Hardhat, staging/prod deployment evidence |
-| `docs_governance` | docs structure, canonical README metadata, retired paths, docs CI |
-| `ci_and_quality_gates` | CI scripts, validation entrypoints, PR gates, local check commands |
+| Domain                        | Use when the task mentions                                                                         |
+| ----------------------------- | -------------------------------------------------------------------------------------------------- |
+| `gateway_runtime`             | agent invoke, discovery, credentials, provider service calls, runtime API contracts                |
+| `docs_front`                  | `localhost:3100`, docs.synapse-network.ai, MDX docs pages, OpenAPI API reference, public docs copy |
+| `user_front_docs`             | legacy `/docs/*` redirects and product links into the dedicated docs project                       |
+| `user_front_product`          | marketplace, owner console, public app pages, product-facing frontend                              |
+| `sdk_contract_alignment`      | SDK docs in product docs, SDK onboarding, public preview environment copy                          |
+| `finance_sensitive_backend`   | balance, deposits, withdrawals, refunds, settlement, ledger, audit                                 |
+| `admin_finance_control_plane` | gateway-admin, admin-front, withdrawal review, refund approval                                     |
+| `e2e_regression`              | local/staging regression, full-chain E2E, SQL evidence, staging dogfood, release evidence          |
+| `contracts_and_deployments`   | Solidity contracts, Hardhat, staging/prod deployment evidence                                      |
+| `docs_governance`             | docs structure, canonical README metadata, retired paths, docs CI                                  |
+| `ci_and_quality_gates`        | CI scripts, validation entrypoints, PR gates, local check commands                                 |
 
 ## Update Rules
 

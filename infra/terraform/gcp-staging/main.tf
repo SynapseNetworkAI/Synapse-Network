@@ -44,26 +44,28 @@ locals {
       IN_APP_NOTIFICATION_CLEANUP_ENABLED     = "false"
       WITHDRAWAL_AUTO_SINGLE_LIMIT_USDC       = "1.000000"
       WITHDRAWAL_TIMEOUT_ALERT_AFTER_SEC      = "900"
+      WITHDRAW_SIGNER_MODE                    = "gcp_kms"
+      WITHDRAW_SIGNER_GCP_KMS_KEY_NAME        = "${google_kms_crypto_key.withdrawal_signer.id}/cryptoKeyVersions/${var.withdraw_signer_kms_key_version}"
+      WITHDRAW_SIGNER_ADDRESS                 = var.withdraw_signer_address
       STAGING_ALERT_DRILL_ENABLED             = local.is_production ? "false" : "true"
     },
     var.common_runtime_env,
   )
   gateway_secret_env = {
-    POSTGRES_DSN                = "synapse-staging-postgres-dsn"
-    POSTGRES_PASSWORD           = "synapse-staging-postgres-password"
-    JWT_SECRET                  = "synapse-staging-jwt-secret"
-    AUTH_SECRET                 = "synapse-staging-auth-secret"
-    PRIVATE_KEY                 = "synapse-staging-private-key"
-    METRICS_BEARER_TOKEN        = "synapse-staging-metrics-bearer-token"
-    GATEWAY_INTERNAL_JWT_SECRET = "synapse-staging-gateway-internal-jwt-secret"
-    RPC_URL                     = "synapse-staging-arbitrum-sepolia-rpc-url"
-    GMAIL_SMTP_USERNAME         = "synapse-staging-gmail-username"
-    GMAIL_SMTP_APP_PASSWORD     = "synapse-staging-gmail-app-password"
+    POSTGRES_DSN                 = "synapse-staging-postgres-dsn"
+    POSTGRES_PASSWORD            = "synapse-staging-postgres-password"
+    JWT_SECRET                   = "synapse-staging-jwt-secret"
+    AUTH_SECRET                  = "synapse-staging-auth-secret"
+    METRICS_BEARER_TOKEN         = "synapse-staging-metrics-bearer-token"
+    GATEWAY_INTERNAL_JWT_SECRET  = "synapse-staging-gateway-internal-jwt-secret"
+    RPC_URL                      = "synapse-staging-arbitrum-sepolia-rpc-url"
+    GMAIL_SMTP_USERNAME          = "synapse-staging-gmail-username"
+    GMAIL_SMTP_APP_PASSWORD      = "synapse-staging-gmail-app-password"
     TRANSACTION_LARK_WEBHOOK_URL = "synapse-staging-lark-webhook-staging-drill"
     TRANSACTION_LARK_SECRET      = "synapse-staging-lark-secret-staging-drill"
-    STAGING_ALERT_DRILL_TOKEN   = "synapse-staging-alert-drill-token"
-    PLATFORM_FEE_ADMIN_WALLETS  = "synapse-staging-gateway-admin-wallet"
-    INDEXER_ADMIN_WALLETS       = "synapse-staging-gateway-admin-wallet"
+    STAGING_ALERT_DRILL_TOKEN    = "synapse-staging-alert-drill-token"
+    PLATFORM_FEE_ADMIN_WALLETS   = "synapse-staging-gateway-admin-wallet"
+    INDEXER_ADMIN_WALLETS        = "synapse-staging-gateway-admin-wallet"
   }
   gateway_migration_secret_env = merge(
     local.gateway_secret_env,
@@ -191,6 +193,25 @@ locals {
       min_instances   = 0
       max_instances   = 1
       env             = var.frontend_runtime_env
+      secret_env      = {}
+      service_account = google_service_account.runtime.email
+    }
+    docs_front = {
+      name          = "${local.name_prefix}-docs-front"
+      image         = var.docs_front_image
+      port          = 3000
+      concurrency   = 40
+      min_instances = 0
+      max_instances = 2
+      env = merge(
+        var.frontend_runtime_env,
+        {
+          NEXT_PUBLIC_APP_ENV          = var.environment
+          NEXT_PUBLIC_DOCS_BASE_URL    = local.is_production ? "https://docs.synapse-network.ai" : "https://docs-staging.synapse-network.ai"
+          NEXT_PUBLIC_CONSOLE_BASE_URL = local.is_production ? "https://synapse-network.ai/dashboard/overview" : "https://staging.synapse-network.ai/dashboard/overview"
+          NEXT_PUBLIC_GATEWAY_BASE_URL = local.is_production ? "https://api.synapse-network.ai" : "https://api-staging.synapse-network.ai"
+        },
+      )
       secret_env      = {}
       service_account = google_service_account.runtime.email
     }
@@ -418,12 +439,35 @@ resource "google_storage_bucket" "backups" {
 }
 
 resource "google_secret_manager_secret" "placeholders" {
-  for_each  = var.secret_ids
+  for_each = setunion(
+    var.secret_ids,
+    var.legacy_withdraw_private_key_secret_enabled ? toset(["synapse-staging-private-key"]) : toset([]),
+  )
   secret_id = each.value
   labels    = local.labels
 
   replication {
     auto {}
+  }
+}
+
+resource "google_kms_key_ring" "withdrawal_signer" {
+  name     = local.name_prefix
+  location = var.region
+}
+
+resource "google_kms_crypto_key" "withdrawal_signer" {
+  name     = "${local.name_prefix}-withdraw-signer"
+  key_ring = google_kms_key_ring.withdrawal_signer.id
+  purpose  = "ASYMMETRIC_SIGN"
+
+  version_template {
+    algorithm        = "EC_SIGN_SECP256K1_SHA256"
+    protection_level = "SOFTWARE"
+  }
+
+  lifecycle {
+    prevent_destroy = true
   }
 }
 
@@ -469,6 +513,12 @@ resource "google_project_iam_member" "runtime_cloudsql_client" {
   project = var.project_id
   role    = "roles/cloudsql.client"
   member  = "serviceAccount:${google_service_account.runtime.email}"
+}
+
+resource "google_kms_crypto_key_iam_member" "runtime_withdrawal_signer" {
+  crypto_key_id = google_kms_crypto_key.withdrawal_signer.id
+  role          = "roles/cloudkms.signerVerifier"
+  member        = "serviceAccount:${google_service_account.runtime.email}"
 }
 
 resource "google_project_iam_member" "provider_runtime_logging_writer" {
@@ -634,6 +684,7 @@ resource "google_cloud_run_v2_service" "services" {
   }
 
   depends_on = [
+    google_kms_crypto_key_iam_member.runtime_withdrawal_signer,
     google_project_iam_member.runtime_cloudsql_client,
     google_project_iam_member.runtime_logging_writer,
     google_project_iam_member.runtime_monitoring_writer,
@@ -705,6 +756,7 @@ resource "google_cloud_run_v2_job" "jobs" {
   }
 
   depends_on = [
+    google_kms_crypto_key_iam_member.runtime_withdrawal_signer,
     google_project_iam_member.runtime_cloudsql_client,
     google_project_iam_member.runtime_logging_writer,
     google_project_iam_member.runtime_monitoring_writer,

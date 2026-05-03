@@ -7,7 +7,9 @@ BASE_REF="${QUALITY_BASE_REF:-origin/main}"
 
 bash "$ROOT_DIR/scripts/ci/ensure_diff_base.sh" "$BASE_REF"
 
-if command -v prettier >/dev/null 2>&1; then
+if [[ -x "$ROOT_DIR/node_modules/.bin/prettier" ]]; then
+  PRETTIER_CMD=("$ROOT_DIR/node_modules/.bin/prettier")
+elif command -v prettier >/dev/null 2>&1; then
   PRETTIER_CMD=(prettier)
 elif npx --no-install prettier --version >/dev/null 2>&1; then
   PRETTIER_CMD=(npx --no-install prettier)
@@ -25,11 +27,11 @@ while IFS= read -r file; do
   [[ -n "$file" && -f "$ROOT_DIR/$file" ]] && FILES+=("$file")
 done < <(
   {
-    git -C "$ROOT_DIR" diff --name-only "$BASE_REF...HEAD" -- \
+    git -C "$ROOT_DIR" diff --name-only --diff-filter=ACMR "$BASE_REF...HEAD" -- \
       '*.ts' '*.tsx' '*.js' '*.jsx' '*.mjs' '*.cjs' '*.json' '*.yml' '*.yaml' '*.md'
-    git -C "$ROOT_DIR" diff --cached --name-only -- \
+    git -C "$ROOT_DIR" diff --cached --name-only --diff-filter=ACMR -- \
       '*.ts' '*.tsx' '*.js' '*.jsx' '*.mjs' '*.cjs' '*.json' '*.yml' '*.yaml' '*.md'
-    git -C "$ROOT_DIR" diff --name-only -- \
+    git -C "$ROOT_DIR" diff --name-only --diff-filter=ACMR -- \
       '*.ts' '*.tsx' '*.js' '*.jsx' '*.mjs' '*.cjs' '*.json' '*.yml' '*.yaml' '*.md'
   } | sort -u | grep -Ev '(^docs/evidence/|^node_modules/|/node_modules/|^services/.*/\.next/|^output/|^tmp/)'
 )

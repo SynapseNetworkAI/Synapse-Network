@@ -34,7 +34,6 @@ the full validation. This command does not print secret values:
 PROJECT_ID=fabled-archive-494108-k5
 for s in \
   synapse-staging-postgres-dsn \
-  synapse-staging-private-key \
   synapse-staging-deployer-private-key \
   synapse-staging-gas-funder-private-key \
   synapse-staging-arbitrum-sepolia-rpc-url \
@@ -194,7 +193,9 @@ Small automatic path:
 
 1. Consumer starts a small withdrawal from User-front.
 2. Gateway risk check auto-approves.
-3. Gateway reads `synapse-staging-private-key` through Secret Manager.
+3. Gateway signs the ticket through Cloud KMS
+   `synapse-staging-withdraw-signer`; no raw signer `PRIVATE_KEY` is injected
+   into Gateway.
 4. Gateway returns an EIP-712 withdrawal ticket.
 5. Consumer claims against SynapseCore.
 6. Replaying the same ticket must fail.

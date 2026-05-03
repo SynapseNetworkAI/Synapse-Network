@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "repository": "Synapse-Network",
-  "updated_at": "2026-04-25",
+  "updated_at": "2026-05-03",
   "purpose": "Task-to-file routing map for AI agents. Use before broad repository search.",
   "global_entrypoints": [
     "llms.txt",
@@ -50,42 +50,78 @@
       ]
     },
     {
-      "id": "user_front_docs",
-      "title": "Public docs pages in user-front",
+      "id": "docs_front",
+      "title": "Dedicated public developer docs",
       "use_when": [
-        "the task mentions http://localhost:3000/docs",
+        "the task mentions http://localhost:3100",
+        "the task mentions docs.synapse-network.ai or docs-staging.synapse-network.ai",
         "SDK docs page copy or examples need to change",
-        "API reference UI or endpoint data changes",
-        "docs navigation or public documentation status labels change"
+        "API reference UI, OpenAPI generation, or endpoint docs change",
+        "docs navigation, llms.txt, sitemap, robots, or public documentation status labels change"
       ],
       "instruction_files": [
         ".github/instructions/frontend.instructions.md",
         ".github/instructions/docs-sync.instructions.md"
       ],
       "primary_files": [
-        "services/user-front/src/app/docs/page.tsx",
-        "services/user-front/src/app/docs/sdk/page.tsx",
-        "services/user-front/src/app/docs/sdk/typescript/page.tsx",
-        "services/user-front/src/app/docs/sdk/python/page.tsx",
-        "services/user-front/src/app/docs/api-reference/page.tsx",
-        "services/user-front/src/app/docs/api-reference/[id]/page.tsx",
-        "services/user-front/src/app/docs/api-reference/endpoint-data.ts",
-        "services/user-front/src/i18n/resources/en/docsPage.ts",
-        "services/user-front/src/i18n/resources/zh/docsPage.ts"
+        "services/docs-front/content/docs",
+        "services/docs-front/src/app",
+        "services/docs-front/src/components/docs",
+        "services/docs-front/scripts/generate-openapi.mjs",
+        "services/docs-front/public/openapi.json",
+        "services/docs-front/src/data/api-reference.json",
+        "services/docs-front/src/data/endpoint-source.ts"
       ],
       "supporting_files": [
         "docs/sdk/README.md",
-        "docs/README.md",
+        "services/docs-front/AGENTS.md",
         "docs/reference/Validation_Entry_Points.md"
       ],
       "validation_commands": [
         "npm run ci:docs",
-        "npm --prefix services/user-front run lint",
-        "npm --prefix services/user-front run test"
+        "cd services/docs-front && yarn build",
+        "DOCS_BASE_URL=http://localhost:3100 node scripts/ui/verify_docs_pages.mjs"
       ],
       "notes": [
         "Public docs must match current SDK README and gateway endpoints.",
+        "OpenAPI JSON is generated from docs-front endpoint source until Gateway schema generation becomes canonical.",
         "Do not use stale gateway domain examples."
+      ]
+    },
+    {
+      "id": "user_front_docs",
+      "title": "User-front docs links and legacy redirects",
+      "use_when": [
+        "the task mentions main-site Docs navigation",
+        "the task mentions /docs legacy redirects",
+        "NEXT_PUBLIC_DOCS_BASE_URL changes",
+        "product UI links need to open the dedicated docs origin"
+      ],
+      "instruction_files": [
+        ".github/instructions/frontend.instructions.md",
+        ".github/instructions/docs-sync.instructions.md"
+      ],
+      "primary_files": [
+        "services/user-front/next.config.mjs",
+        "services/user-front/src/utils/docsUrl.ts",
+        "services/user-front/src/components/Navbar.tsx",
+        "services/user-front/src/app/about/page.tsx",
+        "services/user-front/src/components/dashboard-workspace/DashboardDeveloperPage.tsx",
+        "services/user-front/public/llms.txt"
+      ],
+      "supporting_files": [
+        "services/docs-front/AGENTS.md",
+        "docs/projects/frontend/Docs_Page_Function_and_Verification.md",
+        "docs/ops/18_Staging_Domains_and_Network_Access.md"
+      ],
+      "validation_commands": [
+        "npm --prefix services/user-front run lint",
+        "npm --prefix services/user-front run test",
+        "npm --prefix services/user-front run build"
+      ],
+      "notes": [
+        "Main-site /docs/* must redirect to the environment-specific docs domain.",
+        "Browser code must use static NEXT_PUBLIC_DOCS_BASE_URL access so Next can inline public env values."
       ]
     },
     {
@@ -133,11 +169,9 @@
       ],
       "primary_files": [
         "docs/sdk/README.md",
-        "services/user-front/src/app/docs/sdk/page.tsx",
-        "services/user-front/src/app/docs/sdk/typescript/page.tsx",
-        "services/user-front/src/app/docs/sdk/python/page.tsx",
-        "services/user-front/src/i18n/resources/en/docsPage.ts",
-        "services/user-front/src/i18n/resources/zh/docsPage.ts"
+        "services/docs-front/content/docs/sdks",
+        "services/docs-front/content/docs/get-started",
+        "services/docs-front/content/docs/mcp.mdx"
       ],
       "supporting_files": [
         "../Synapse-Network-Sdk/README.md",
@@ -146,7 +180,7 @@
       ],
       "validation_commands": [
         "npm run ci:docs",
-        "npm --prefix services/user-front run test"
+        "cd services/docs-front && yarn build"
       ],
       "notes": [
         "This domain crosses repositories. Check the SDK repo before changing public SDK examples here."
@@ -220,6 +254,41 @@
       ]
     },
     {
+      "id": "e2e_regression",
+      "title": "Local and staging E2E regression evidence",
+      "use_when": [
+        "the task mentions regression testing, full-chain E2E, or staging dogfood",
+        "the task asks what to run before release approval",
+        "the task needs SQL evidence for provider registration, deposit, invoke, withdrawal, notifications, analytics, or contract state"
+      ],
+      "instruction_files": [
+        ".github/instructions/docs-sync.instructions.md",
+        ".github/instructions/finance-backend.instructions.md",
+        ".github/instructions/safety-guard.instructions.md"
+      ],
+      "primary_files": [
+        "docs/ops/19_E2E_Regression_Runbook.md",
+        "docs/reference/Validation_Entry_Points.md",
+        "package.json",
+        "services/gateway/tests/e2e",
+        "services/gateway/migrations/postgres/001_synapse_schema.sql"
+      ],
+      "supporting_files": [
+        "docs/ops/18_Staging_Validation_Runbook.md",
+        "docs/ops/16_Arbitrum_Sepolia_Staging_Contracts.md",
+        "docs/ops/17_Staging_Environment_Configuration.md"
+      ],
+      "validation_commands": [
+        "npm run ci:docs",
+        "npm run ci:agent-lessons",
+        "npm run ci:format-check"
+      ],
+      "notes": [
+        "API and UI E2E are incomplete for money paths until read-only SQL evidence proves Postgres state.",
+        "Staging SQL validation must use approved read-only access and must not repair data during regression."
+      ]
+    },
+    {
       "id": "contracts_and_deployments",
       "title": "Contracts and deployment evidence",
       "use_when": [
@@ -238,9 +307,7 @@
         "docs/security/README.md",
         "docs/ops/10_Production_Go_No_Go_Security_Verification.md"
       ],
-      "validation_commands": [
-        "npm run ci:docs"
-      ],
+      "validation_commands": ["npm run ci:docs"],
       "notes": [
         "Contract deployments are irreversible enough to require explicit operator intent before execution."
       ]
@@ -251,9 +318,7 @@
       "use_when": [
         "README metadata, retired paths, canonical docs, llms.txt, AGENTS, or docs checks change"
       ],
-      "instruction_files": [
-        ".github/instructions/docs-sync.instructions.md"
-      ],
+      "instruction_files": [".github/instructions/docs-sync.instructions.md"],
       "primary_files": [
         "llms.txt",
         "AGENTS.md",
@@ -297,12 +362,8 @@
         "docs/00_Governance/Documentation_Constraints.md",
         "docs/05_DevOps_Deployment/README.md"
       ],
-      "validation_commands": [
-        "npm run ci:docs"
-      ],
-      "notes": [
-        "Keep local scripts and GitHub Actions entrypoints aligned."
-      ]
+      "validation_commands": ["npm run ci:docs"],
+      "notes": ["Keep local scripts and GitHub Actions entrypoints aligned."]
     }
   ]
 }

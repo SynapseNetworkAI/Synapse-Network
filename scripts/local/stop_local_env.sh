@@ -20,15 +20,21 @@ find_pid_by_port() {
 ANVIL_PID=""
 PROVIDER_PID=""
 FRONTEND_PID=""
+DOCS_FRONT_PID=""
+ADMIN_FRONT_PID=""
 
 if [[ -f "$PID_FILE" ]]; then
   source "$PID_FILE"
+  DOCS_FRONT_PID="${DOCS_FRONT_PID:-$(find_pid_by_port 3100)}"
+  ADMIN_FRONT_PID="${ADMIN_FRONT_PID:-$(find_pid_by_port 3200)}"
 else
   echo "No PID file found at: $PID_FILE"
-  echo "Trying fallback by port scan (8545 / 8000 / 3000)..."
+  echo "Trying fallback by port scan (8545 / 8000 / 3000 / 3100 / 3200)..."
   ANVIL_PID="$(find_pid_by_port 8545)"
   PROVIDER_PID="$(find_pid_by_port 8000)"
   FRONTEND_PID="$(find_pid_by_port 3000)"
+  DOCS_FRONT_PID="$(find_pid_by_port 3100)"
+  ADMIN_FRONT_PID="$(find_pid_by_port 3200)"
 fi
 
 stop_pid() {
@@ -58,6 +64,8 @@ echo "=== Stopping Synapse local environment ==="
 stop_pid "Anvil" "${ANVIL_PID:-}"
 stop_pid "ProviderAPI" "${PROVIDER_PID:-}"
 stop_pid "Frontend" "${FRONTEND_PID:-}"
+stop_pid "DocsFront" "${DOCS_FRONT_PID:-}"
+stop_pid "AdminFront" "${ADMIN_FRONT_PID:-}"
 
 if [[ -f "$PID_FILE" ]]; then
   rm -f "$PID_FILE"

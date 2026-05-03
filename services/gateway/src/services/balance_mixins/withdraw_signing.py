@@ -6,6 +6,13 @@ from fastapi import HTTPException
 
 from src.core.common import normalize_wallet
 from src.core.config import settings
+from src.services.balance_mixins.withdraw_ticket_signers import (
+    WithdrawSignerCapability,
+    WithdrawSignerConfig,
+    require_withdraw_signer_config,
+    sign_withdraw_ticket,
+    withdraw_signer_capability,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +40,7 @@ except Exception:  # pragma: no cover
     encode_typed_data = None
 
 try:
-    from eth_account.messages import encode_structured_data as _encode_structured_data  # type: ignore[import-not-found]
+    from eth_account.messages import encode_structured_data as _encode_structured_data  # type: ignore[import-not-found]  # because older eth-account exposes legacy encoder here
     encode_structured_data = _encode_structured_data
 except Exception:  # pragma: no cover
     encode_structured_data = None
@@ -58,45 +65,35 @@ def _log_chain_rpc_unavailable(context: str, exc: Exception) -> None:
 
 
 class BalanceWithdrawSigningMixin:
-    def provider_withdraw_capability(self) -> dict[str, Any]:
+    def provider_withdraw_capability(self) -> WithdrawSignerCapability:
         web3_class = _web3_class()
         contract_address = normalize_wallet(settings.router_address)
 
         if web3_class is None or Account is None:
-            return {
-                "ticketSigningEnabled": False,
-                "code": "CHAIN_SDK_NOT_INSTALLED",
-                "message": "web3 and eth-account are required to issue withdrawal tickets.",
-                "contractAddress": contract_address or None,
-            }
+            return WithdrawSignerCapability(
+                ticket_signing_enabled=False,
+                code="CHAIN_SDK_NOT_INSTALLED",
+                message="web3 and eth-account are required to issue withdrawal tickets.",
+                signer_mode=getattr(settings, "withdraw_signer_mode", "local_private_key"),
+                contract_address=contract_address or None,
+            )
         if encode_typed_data is None and encode_structured_data is None:
-            return {
-                "ticketSigningEnabled": False,
-                "code": "CHAIN_SDK_NOT_INSTALLED",
-                "message": "eth-account typed-data encoder is unavailable.",
-                "contractAddress": contract_address or None,
-            }
+            return WithdrawSignerCapability(
+                ticket_signing_enabled=False,
+                code="CHAIN_SDK_NOT_INSTALLED",
+                message="eth-account typed-data encoder is unavailable.",
+                signer_mode=getattr(settings, "withdraw_signer_mode", "local_private_key"),
+                contract_address=contract_address or None,
+            )
         if not contract_address or contract_address == "0x0000000000000000000000000000000000000000":
-            return {
-                "ticketSigningEnabled": False,
-                "code": "WITHDRAW_CONTRACT_NOT_CONFIGURED",
-                "message": "ROUTER_ADDRESS/SynapseCore address is not configured.",
-                "contractAddress": None,
-            }
-        private_key = str(getattr(settings, "private_key", "") or "").strip()
-        if not private_key:
-            return {
-                "ticketSigningEnabled": False,
-                "code": "WITHDRAW_SIGNER_NOT_CONFIGURED",
-                "message": "Provider withdrawals are unavailable because the gateway withdraw signer is not configured.",
-                "contractAddress": contract_address,
-            }
-        return {
-            "ticketSigningEnabled": True,
-            "code": None,
-            "message": "Gateway withdraw signer is ready.",
-            "contractAddress": contract_address,
-        }
+            return WithdrawSignerCapability(
+                ticket_signing_enabled=False,
+                code="WITHDRAW_CONTRACT_NOT_CONFIGURED",
+                message="ROUTER_ADDRESS/SynapseCore address is not configured.",
+                signer_mode=getattr(settings, "withdraw_signer_mode", "local_private_key"),
+                contract_address=None,
+            )
+        return withdraw_signer_capability(settings).with_contract(contract_address)
 
     def _resolve_withdraw_deadline_sec(self) -> int:
         raw = getattr(
@@ -112,17 +109,8 @@ class BalanceWithdrawSigningMixin:
             return WITHDRAW_DEADLINE_SEC_MAX
         return parsed
 
-    def _require_withdraw_signer(self) -> str:
-        private_key = str(getattr(settings, "private_key", "") or "").strip()
-        if not private_key:
-            raise HTTPException(
-                status_code=500,
-                detail={
-                    "code": "WITHDRAW_SIGNER_NOT_CONFIGURED",
-                    "message": "PRIVATE_KEY is required to sign withdrawal tickets.",
-                },
-            )
-        return private_key
+    def _require_withdraw_signer(self) -> WithdrawSignerConfig:
+        return require_withdraw_signer_config(settings)
 
     def _withdraw_contract(self):
         web3_class = _web3_class()
@@ -242,7 +230,7 @@ class BalanceWithdrawSigningMixin:
         }
 
     def _sign_withdraw_ticket(
-        self, typed_data: dict[str, Any], private_key: str
+        self, typed_data: dict[str, Any], signer_config: WithdrawSignerConfig
     ) -> tuple[str, str]:
         if Account is None:
             raise HTTPException(
@@ -264,9 +252,11 @@ class BalanceWithdrawSigningMixin:
                     "message": "eth-account typed-data encoder is unavailable.",
                 },
             )
-        signed = Account.sign_message(signable, private_key=private_key)
-        ticket_hash = "0x" + bytes(signed.message_hash).hex()
-        return str(signed.signature.hex()), ticket_hash
+        signature, ticket_hash, _signer_address = sign_withdraw_ticket(
+            signable=signable,
+            config=signer_config,
+        )
+        return signature, ticket_hash
 
     def _resolve_withdraw_chain(self) -> int:
         provider, contract = self._withdraw_contract()

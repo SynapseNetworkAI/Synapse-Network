@@ -134,6 +134,12 @@ variable "admin_front_image" {
   default     = ""
 }
 
+variable "docs_front_image" {
+  description = "Optional Docs-front container image. Leave empty to provision substrate first."
+  type        = string
+  default     = ""
+}
+
 variable "provider_image" {
   description = "Optional Provider runtime container image. Leave empty to skip Provider Cloud Run resources."
   type        = string
@@ -158,6 +164,24 @@ variable "scheduler_time_zone" {
   default     = "Etc/UTC"
 }
 
+variable "withdraw_signer_address" {
+  description = "Ethereum address derived from the staging Cloud KMS withdrawal signer public key. Must match SynapseCore.platformSigner before Gateway KMS signing is enabled."
+  type        = string
+  default     = ""
+}
+
+variable "withdraw_signer_kms_key_version" {
+  description = "Cloud KMS cryptoKeyVersion number used by Gateway withdrawal ticket signing."
+  type        = string
+  default     = "1"
+}
+
+variable "legacy_withdraw_private_key_secret_enabled" {
+  description = "Keep the old synapse-staging-private-key placeholder managed while staging KMS signer migration evidence is pending. Set false only after KMS withdrawal E2E passes."
+  type        = bool
+  default     = true
+}
+
 variable "secret_ids" {
   description = "Secret Manager secret placeholders. Values must be added out-of-band, never via Terraform variables."
   type        = set(string)
@@ -172,7 +196,6 @@ variable "secret_ids" {
     "synapse-staging-gateway-forum-write-dsn",
     "synapse-staging-jwt-secret",
     "synapse-staging-auth-secret",
-    "synapse-staging-private-key",
     "synapse-staging-gateway-internal-jwt-secret",
     "synapse-staging-admin-csrf-secret",
     "synapse-staging-gateway-admin-wallet",

@@ -1,0 +1,15 @@
+{
+  "title": "Synapse Docs",
+  "pages": [
+    "index",
+    "get-started",
+    "mcp",
+    "money-flows",
+    "pricing-and-fees",
+    "concepts",
+    "api-reference",
+    "sdks",
+    "smart-contracts",
+    "support"
+  ]
+}

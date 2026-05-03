@@ -8,15 +8,16 @@ Local execution mirror for `services/admin-front/`.
 2. `.github/instructions/frontend.instructions.md`
 3. `.github/instructions/admin-console.instructions.md`
 4. `docs/03_Projects/admin-front/Admin_Front_Agent_Rules.md`
+5. `docs/reference/Service_Port_Map.md`
 
 ## Local Commands
 
-| Command | Purpose | When to Run |
-| --- | --- | --- |
-| `yarn dev` | Start Next.js dev server with HMR on port 4000. | During active coding and iteration. |
-| `yarn lint` | Run lint checks. | After meaningful modifications. |
-| `yarn test` | Execute the test suite. | After meaningful modifications. |
-| `yarn build` | Production build and type check. | Only when the task explicitly needs final build validation. |
+| Command                  | Purpose                                                             | When to Run                                                            |
+| ------------------------ | ------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `yarn dev`               | Start Next.js dev server with HMR on port 3200.                     | During active coding and iteration.                                    |
+| `yarn lint`              | Run lint checks.                                                    | After meaningful modifications.                                        |
+| `yarn test`              | Execute the test suite.                                             | After meaningful modifications.                                        |
+| `yarn build`             | Production build and type check.                                    | Only when the task explicitly needs final build validation.            |
 | `npm run ci:admin-front` | Repo-standard admin-front gate: lint, Vitest, and production build. | Before pushing admin-front changes or when final validation is needed. |
 
 Always use `yarn dev` while iterating. Do not keep the dev server running while executing `yarn build`.
@@ -78,13 +79,13 @@ The project follows a Cyber-Industrial / High-Fidelity Data aesthetic, blending 
 
 #### Color Palette (Neural & High-Contrast)
 
-| Element | Color Code | Description |
-| --- | --- | --- |
-| Void Black | `#05080A` | Primary background for auth and sidebars. |
-| Sentinel Cyan | `#00E5FF` | Primary accent, used for "Active" states and "Execute" buttons. |
-| Alert Red | `#FF3B30` | Critical warnings, "Degraded" status, or "3 Critical" alerts. |
-| Nominal Green | `#00FF41` | Success states and healthy system nodes. |
-| Neural Gray | `#1A1C1E` | Card backgrounds and secondary UI containers. |
+| Element       | Color Code | Description                                                     |
+| ------------- | ---------- | --------------------------------------------------------------- |
+| Void Black    | `#05080A`  | Primary background for auth and sidebars.                       |
+| Sentinel Cyan | `#00E5FF`  | Primary accent, used for "Active" states and "Execute" buttons. |
+| Alert Red     | `#FF3B30`  | Critical warnings, "Degraded" status, or "3 Critical" alerts.   |
+| Nominal Green | `#00FF41`  | Success states and healthy system nodes.                        |
+| Neural Gray   | `#1A1C1E`  | Card backgrounds and secondary UI containers.                   |
 
 #### Typography
 
