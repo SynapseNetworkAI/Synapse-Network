@@ -18,6 +18,7 @@ Requirements in gateway venv:
 """
 
 import json
+import os
 import sys
 import time
 import uuid
@@ -46,6 +47,12 @@ USDC_ABI_PATH = Path(__file__).parent.parent / "services/user-front/src/MockUSDC
 
 DEPOSIT_AMOUNT_USDC = "5.0"   # mint + deposit 5 USDC to consumer
 SERVICE_PRICE_USDC = "0.01"   # price per call
+GATEWAY_E2E_SERVICE_ID = os.getenv(
+    "GATEWAY_E2E_SERVICE_ID", "svc_oss_security_healthcheck"
+).strip() or "svc_oss_security_healthcheck"
+GATEWAY_E2E_ALLOW_SERVICE_CREATION = os.getenv(
+    "GATEWAY_E2E_ALLOW_SERVICE_CREATION", ""
+).strip().lower() in {"1", "true", "yes", "on"}
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -81,7 +88,7 @@ def authenticate(private_key: str, label: str) -> tuple[str, str]:
     account = Account.from_key(private_key)
     addr = account.address.lower()
 
-    r = api("get", f"/v1/auth/challenge", params={"address": addr})
+    r = api("get", "/v1/auth/challenge", params={"address": addr})
     assert r.status_code == 200, f"Challenge failed: {r.text}"
     challenge = r.json()["challenge"]
 
@@ -285,6 +292,18 @@ def register_provider_service(provider_token: str, provider_addr: str) -> str:
     return service_id
 
 
+def resolve_provider_service(provider_token: str, provider_addr: str) -> str:
+    """Use canonical provider services unless random service creation is explicit."""
+    if GATEWAY_E2E_ALLOW_SERVICE_CREATION:
+        return register_provider_service(provider_token, provider_addr)
+    ok(
+        "Using existing canonical provider service: "
+        f"{GATEWAY_E2E_SERVICE_ID} "
+        "(set GATEWAY_E2E_ALLOW_SERVICE_CREATION=true to register a new test service)"
+    )
+    return GATEWAY_E2E_SERVICE_ID
+
+
 # ─── Phase 4: Issue credential ────────────────────────────────────────────────
 
 def issue_credential(consumer_token: str, consumer_addr: str) -> str:
@@ -429,9 +448,9 @@ def main():
     )
     ok(f"Consumer balance after deposit: {balance_after_deposit:.4f} USDC")
 
-    # Phase 3: Provider registration
-    section("Phase 3: Provider Service Registration")
-    service_id = register_provider_service(provider_token, provider_addr)
+    # Phase 3: Provider service fixture
+    section("Phase 3: Provider Service Fixture")
+    service_id = resolve_provider_service(provider_token, provider_addr)
 
     # Verify discoverable
     time.sleep(1)
@@ -439,7 +458,7 @@ def main():
     services = r.json().get("services", []) if r.status_code == 200 else []
     matching = [s for s in services if s.get("serviceId") == service_id or s.get("service_id") == service_id]
     if matching:
-        ok(f"Service discoverable via discover API")
+        ok("Service discoverable via discover API")
     else:
         ok(f"Service registered (may not be discoverable yet — health check pending). Total discoverable: {len(services)}")
 

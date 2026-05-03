@@ -1,7 +1,7 @@
 """Step 5: Provider 注册服务 + 验证 Discovery 可见"""
 import httpx
 import pytest
-from tests.e2e.conftest import GATEWAY_BASE, PROVIDER_BASE
+from tests.e2e.conftest import GATEWAY_BASE, PROVIDER_BASE, track_test_service_id
 from tests.e2e.helpers.auth import authenticate_wallet
 from tests.e2e.helpers.db import seed_service_health
 from tests.e2e.conftest import PROVIDER_KEY
@@ -74,6 +74,7 @@ def test_provider_registers_service(
     assert body.get("status") == "success", f"Bad response: {body}"
     service_id = body.get("serviceId") or body.get("id")
     assert service_id, f"serviceId missing: {body}"
+    track_test_service_id(service_id)
     session_state["service_id"] = service_id
     session_state["service_tool_name"] = service_tool_name
     session_state["mock_service_url"] = mock_service_url
