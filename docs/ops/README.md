@@ -48,7 +48,9 @@
 15. `17_In_App_Notifications.md`
 16. `17_Staging_Environment_Configuration.md`
 17. `18_Staging_Domains_and_Network_Access.md`
-18. `../security/README.md`
+18. `18_Staging_Validation_Runbook.md`
+19. `19_E2E_Regression_Runbook.md`
+20. `../security/README.md`
 
 ## 模块边界
 
