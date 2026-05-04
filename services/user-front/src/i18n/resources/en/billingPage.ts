@@ -14,8 +14,11 @@ const billingPage: I18nMessages["billingPage"] = {
   tableDate: "Date",
   tableInvoice: "Invoice",
   statusPending: "Pending",
+  statusPendingSyncing: "Pending / Syncing",
   statusSucceeded: "Completed",
   statusFailed: "Failed",
+  depositStatusHint:
+    "Completed means Gateway credited spendable balance, not only chain confirmation.",
   loading: "Loading payments...",
   empty: "No payment activity found for the selected range.",
 };

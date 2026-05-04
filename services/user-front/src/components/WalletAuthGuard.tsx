@@ -12,6 +12,7 @@ import {
 import {
   useAccount,
   useAccountEffect,
+  useChainId,
   useDisconnect,
   useSignMessage,
 } from "wagmi";
@@ -75,6 +76,7 @@ export default function WalletAuthGuard({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   const { isConnected, address } = useAccount();
+  const chainId = useChainId();
   const { disconnect } = useDisconnect();
   const { signMessageAsync } = useSignMessage();
   const [localE2eWallet, setLocalE2eWallet] = useState<string | null>(null);
@@ -245,7 +247,7 @@ export default function WalletAuthGuard({
           return true;
         }
 
-        const challenge = await requestAuthChallenge(effectiveAddress);
+        const challenge = await requestAuthChallenge(effectiveAddress, chainId);
         const challengeMessage = challenge.challenge;
         if (!challengeMessage) {
           throw new Error("Auth challenge missing from server response");
@@ -285,6 +287,7 @@ export default function WalletAuthGuard({
   }, [
     effectiveAddress,
     effectiveIsConnected,
+    chainId,
     localE2eWallet,
     signChallengeMessage,
     handleAuthorizeFailure,
