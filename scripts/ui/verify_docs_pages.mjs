@@ -231,6 +231,151 @@ function readEndpointIds() {
   return source.routes.map((route) => route.id);
 }
 
+function relativeLuminance({ r, g, b }) {
+  const channel = (value) => {
+    const normalized = value / 255;
+    if (normalized <= 0.03928) {
+      return normalized / 12.92;
+    }
+    return ((normalized + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+}
+
+function contrastRatio(foreground, background) {
+  const fg = relativeLuminance(foreground);
+  const bg = relativeLuminance(background);
+  const lighter = Math.max(fg, bg);
+  const darker = Math.min(fg, bg);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+function parseRgbColor(label, value) {
+  const match = String(value).match(
+    /rgba?\(([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)(?:[,\s/]+([\d.]+))?\)/
+  );
+  if (!match) {
+    throw new Error(`${label} color could not be parsed: ${value}`);
+  }
+
+  return {
+    r: Number(match[1]),
+    g: Number(match[2]),
+    b: Number(match[3]),
+    a: match[4] === undefined ? 1 : Number(match[4]),
+    raw: value,
+  };
+}
+
+function assertContrast(label, foregroundRaw, backgroundRaw, minimum) {
+  const foreground = parseRgbColor(`${label} foreground`, foregroundRaw);
+  const background = parseRgbColor(`${label} background`, backgroundRaw);
+  const ratio = contrastRatio(foreground, background);
+  if (ratio < minimum) {
+    throw new Error(
+      `${label} contrast ${ratio.toFixed(2)} is below ${minimum.toFixed(1)}`
+    );
+  }
+}
+
+async function sampleDocsReadabilityStyles(page) {
+  return page.evaluate(() => {
+    const sample = (selector, pseudo) => {
+      const el = document.querySelector(selector);
+      if (el === null) {
+        return {
+          selector,
+          color: "",
+          backgroundColor: "",
+          text: "",
+        };
+      }
+      const computed = getComputedStyle(el, pseudo);
+      return {
+        selector,
+        color: computed.color,
+        backgroundColor: computed.backgroundColor,
+        text: (el.textContent || "").trim().slice(0, 80),
+      };
+    };
+    return {
+      body: sample("body"),
+      h1: sample("h1"),
+      h2: sample("h2"),
+      description: sample("p"),
+      listItem: sample("ol li"),
+      listMarker: sample("ol li", "::marker"),
+      sidebar: sample("#nd-sidebar, aside[class*='--fd-sidebar-width']"),
+      activeNav: sample(
+        'a[href="/get-started/agent-builders"][data-active="true"], a[href="/get-started/agent-builders"]'
+      ),
+      toc: sample('#nd-toc, [data-toc], nav[aria-label="Table of contents"]'),
+    };
+  });
+}
+
+function requiredStyle(styles, key) {
+  const style = styles[key];
+  if (!style?.color || !style?.backgroundColor) {
+    throw new Error(`${key} style could not be sampled`);
+  }
+  return style;
+}
+
+function assertSidebarDark(styles) {
+  const sidebar = requiredStyle(styles, "sidebar");
+  const sidebarColor = parseRgbColor(
+    "sidebar background",
+    sidebar.backgroundColor
+  );
+  const sidebarLuminance = relativeLuminance(sidebarColor);
+  if (sidebarLuminance <= 0.18) return;
+
+  throw new Error(`sidebar background is too light (${sidebarColor.raw})`);
+}
+
+function assertDocsDarkContrast(styles) {
+  const background = requiredStyle(styles, "body").backgroundColor;
+  const sidebarBackground = requiredStyle(styles, "sidebar").backgroundColor;
+  const activeNav = requiredStyle(styles, "activeNav");
+
+  assertContrast("h1", requiredStyle(styles, "h1").color, background, 4.5);
+  assertContrast("h2", requiredStyle(styles, "h2").color, background, 4.5);
+  assertContrast(
+    "description",
+    requiredStyle(styles, "description").color,
+    background,
+    3
+  );
+  assertContrast(
+    "ordered list item",
+    requiredStyle(styles, "listItem").color,
+    background,
+    4.5
+  );
+  assertContrast(
+    "ordered list marker",
+    requiredStyle(styles, "listMarker").color,
+    background,
+    4.5
+  );
+  assertContrast(
+    "active sidebar item",
+    activeNav.color,
+    sidebarBackground,
+    4.5
+  );
+  if (styles.toc?.color) {
+    assertContrast("table of contents", styles.toc.color, background, 3);
+  }
+}
+
+async function assertDocsDarkReadability(page) {
+  const styles = await sampleDocsReadabilityStyles(page);
+  assertSidebarDark(styles);
+  assertDocsDarkContrast(styles);
+}
+
 const browser = await chromium.launch({
   headless: true,
   args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
@@ -260,6 +405,9 @@ try {
       }
       if (docsPage.screenshot) {
         await screenshot(page, docsPage.screenshot);
+      }
+      if (docsPage.id === "agent-builders") {
+        await assertDocsDarkReadability(page);
       }
     });
   }
