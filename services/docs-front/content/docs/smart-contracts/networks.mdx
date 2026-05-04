@@ -3,9 +3,11 @@ title: Networks
 description: Staging and production network targets for contract integrations.
 ---
 
-| Environment | Chain | Asset |
-| --- | --- | --- |
-| Staging | Arbitrum Sepolia | MockUSDC |
-| Production | Arbitrum One | USDC |
+| Environment | Chain | Chain ID | Asset | SynapseCore | Token | Explorer |
+| --- | --- | --- | --- | --- | --- | --- |
+| Staging | Arbitrum Sepolia | 421614 | MockUSDC | `0x0bA1dcE1Cc8d877052ab1C3CE2362830459D8FF4` | `0xfad31daE42B0046aFA106BCf56ED0dDaCA4463B9` | [SynapseCore](https://sepolia.arbiscan.io/address/0x0bA1dcE1Cc8d877052ab1C3CE2362830459D8FF4) · [MockUSDC](https://sepolia.arbiscan.io/address/0xfad31daE42B0046aFA106BCf56ED0dDaCA4463B9) |
+| Production | Arbitrum One | Reserved until production deployment evidence is complete | USDC | Reserved until production deployment evidence is complete | Reserved until production deployment evidence is complete | Reserved until production deployment evidence is complete |
 
 Production contract addresses stay reserved until production DNS, health checks, and deployment evidence are complete.
+
+Staging uses owner-only `MockUSDC`, not production USDC. Production addresses must not be added until production deployment evidence, DNS, and health checks are complete.
