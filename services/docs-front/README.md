@@ -31,4 +31,9 @@ The dev server runs on port `3100`.
 - Generated API index: `src/data/api-reference.json`
 - Source endpoint data: `src/data/endpoint-source.ts`
 
+`public/openapi.json` and `src/data/api-reference.json` are tracked generated
+artifacts. After `yarn dev`, `yarn build`, or `yarn generate:openapi`, commit
+them in the same PR when the API reference changed. If they only changed during
+an unrelated task, restore them before switching branches or handing off work.
+
 `services/user-front` links to this app through `NEXT_PUBLIC_DOCS_BASE_URL` and keeps `/docs/*` redirects for old URLs.
