@@ -23,6 +23,12 @@ Local execution mirror for `services/docs-front/`.
 - Fumadocs currently pins this project to Next 16 and React 19. Keep that version boundary local to docs-front.
 - Local docs run on port `3100`.
 - Run `yarn generate:openapi` after API endpoint data changes.
+- `public/openapi.json` and `src/data/api-reference.json` are tracked generated
+  artifacts. If `yarn dev`, `yarn build`, or `yarn generate:openapi` changes
+  them, commit the generated files with the same PR or explicitly restore them
+  when no API reference change is intended.
+- Do not leave dirty generated API artifacts when switching branches or handing
+  off work; they block checkout and make unrelated docs PRs look unsafe.
 - Public playground execution must stay disabled for production docs unless an explicit staging-safe execution policy is implemented.
 
 ## Visual Constraints

@@ -116,6 +116,11 @@ Working directory: `services/docs-front/`
 7. `npm run e2e:staging-smoke` and `npm run ci:staging-smoke-evidence` after deploying docs-front to staging; the smoke runner checks `https://docs-staging.synapse-network.ai`, `llms.txt`, `llms-full.txt`, `sitemap.xml`, `openapi.json`, `/sdks`, and `/api-reference`
 8. `npm run e2e:staging-ui-dogfood` after staging docs-front UI changes to capture docs screenshots and browser console/network failures
 
+`services/docs-front/public/openapi.json` and
+`services/docs-front/src/data/api-reference.json` are tracked generated
+artifacts. Commit them with the API reference change, or restore them before
+switching branches when no API reference change is intended.
+
 ### 3.3 services/admin-front
 
 Working directory: `services/admin-front/`
