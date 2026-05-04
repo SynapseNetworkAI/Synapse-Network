@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import {
   BaseError,
@@ -41,7 +41,84 @@ const MIN_NATIVE_GAS_BALANCE = 0.001;
 type UseVaultDepositOptions = {
   initialAmount?: string;
   onDepositSynced?: () => void | Promise<void>;
+  copy?: Partial<VaultDepositCopy>;
 };
+
+type VaultDepositCopy = {
+  transactionFailed: string;
+  cancelled: string;
+  gasInsufficient: string;
+  usdcInsufficient: string;
+  vaultRejectedWithError: string;
+  vaultRejectedWithReason: string;
+  vaultRejectedCustomError: string;
+  vaultRejected: string;
+  nonceOutOfDate: string;
+  walletReconnect: string;
+  walletSingleAccount: string;
+  walletUnstable: string;
+  invalidAmount: string;
+  insufficientWalletUsdc: string;
+  nativeGasRequired: string;
+  gatewayBalanceSynced: string;
+  gatewayStillSyncing: string;
+  depositConfirmedSyncing: string;
+  connectWalletFirst: string;
+  cancelledToast: string;
+  insufficientFundsRetry: string;
+  topUpFailedPrefix: string;
+  unknownError: string;
+};
+
+const DEFAULT_VAULT_DEPOSIT_COPY: VaultDepositCopy = {
+  transactionFailed: "Deposit transaction failed",
+  cancelled: "Deposit was cancelled in wallet. No funds were charged.",
+  gasInsufficient:
+    "Deposit failed because the wallet does not have enough native token to pay gas.",
+  usdcInsufficient:
+    "Deposit failed because the wallet does not have enough USDC for this transfer.",
+  vaultRejectedWithError:
+    "Deposit was rejected by the vault contract ({{errorName}}). No funds were credited to the platform.",
+  vaultRejectedWithReason:
+    "Deposit was rejected by the vault contract: {{reason}}. No funds were credited to the platform.",
+  vaultRejectedCustomError:
+    "Deposit was rejected by the vault contract with a custom on-chain error. No funds were credited to the platform.",
+  vaultRejected:
+    "Deposit failed on-chain because the vault contract rejected this transaction. No funds were credited to the platform.",
+  nonceOutOfDate:
+    "Deposit failed because the wallet transaction nonce is out of date. Please retry from the wallet.",
+  walletReconnect:
+    "Wallet not fully connected yet. Please reconnect and retry.",
+  walletSingleAccount: "Please select only one wallet account, then reconnect.",
+  walletUnstable:
+    "Wallet connection unstable. Please reconnect wallet and retry.",
+  invalidAmount: "Enter a valid USDC amount.",
+  insufficientWalletUsdc:
+    "Insufficient wallet USDC. Need {{amount}} USDC, wallet has {{balance}} USDC.",
+  nativeGasRequired:
+    "Deposit requires native gas for the vault transaction. Keep at least {{minimum}} {{symbol}} in this wallet.",
+  gatewayBalanceSynced: "Gateway balance synced.",
+  gatewayStillSyncing:
+    "Deposit confirmed on-chain. Gateway is still syncing the balance.",
+  depositConfirmedSyncing:
+    "Deposit confirmed on-chain. Syncing gateway balance...",
+  connectWalletFirst: "Please connect your wallet first.",
+  cancelledToast: "Sign/Transaction cancelled by user",
+  insufficientFundsRetry:
+    "Wallet USDC or native gas is insufficient. Please check the balances and retry.",
+  topUpFailedPrefix: "Failed to top up: {{message}}",
+  unknownError: "Unknown Error",
+};
+
+function interpolateCopy(
+  template: string,
+  vars?: Record<string, string | number>
+): string {
+  if (!vars) return template;
+  return template.replace(/\{\{\s*(\w+)\s*\}\}/g, (_, token: string) =>
+    vars[token] === undefined ? "" : String(vars[token])
+  );
+}
 
 function createDepositAttemptId(): string {
   if (
@@ -61,12 +138,15 @@ function toSafeErrorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
-function buildDepositFailureMessage(error: unknown): string {
+function buildDepositFailureMessage(
+  error: unknown,
+  copy: VaultDepositCopy
+): string {
   const baseError = error instanceof BaseError ? error : undefined;
   const revertError = baseError?.walk(
     (walked) => walked instanceof ContractFunctionRevertedError
   ) as ContractFunctionRevertedError | undefined;
-  const rawMessage = toSafeErrorMessage(error, "Deposit transaction failed");
+  const rawMessage = toSafeErrorMessage(error, copy.transactionFailed);
   const messageParts = [
     revertError?.reason,
     revertError?.data?.errorName,
@@ -82,7 +162,7 @@ function buildDepositFailureMessage(error: unknown): string {
     normalizedMessage.includes("user rejected") ||
     normalizedMessage.includes("rejected")
   ) {
-    return "Deposit was cancelled in wallet. No funds were charged.";
+    return copy.cancelled;
   }
   if (
     normalizedMessage.includes("insufficient funds") ||
@@ -91,40 +171,47 @@ function buildDepositFailureMessage(error: unknown): string {
     normalizedMessage.includes("exceeds the balance of the account") ||
     normalizedMessage.includes("out of gas")
   ) {
-    return "Deposit failed because the wallet does not have enough native token to pay gas.";
+    return copy.gasInsufficient;
   }
   if (
     normalizedMessage.includes("insufficient balance") ||
     normalizedMessage.includes("erc20") ||
     normalizedMessage.includes("transfer amount exceeds")
   ) {
-    return "Deposit failed because the wallet does not have enough USDC for this transfer.";
+    return copy.usdcInsufficient;
   }
   if (revertError?.data?.errorName) {
-    return `Deposit was rejected by the vault contract (${revertError.data.errorName}). No funds were credited to the platform.`;
+    return interpolateCopy(copy.vaultRejectedWithError, {
+      errorName: revertError.data.errorName,
+    });
   }
   if (revertError?.reason) {
-    return `Deposit was rejected by the vault contract: ${revertError.reason}. No funds were credited to the platform.`;
+    return interpolateCopy(copy.vaultRejectedWithReason, {
+      reason: revertError.reason,
+    });
   }
   if (normalizedMessage.includes("custom error")) {
-    return "Deposit was rejected by the vault contract with a custom on-chain error. No funds were credited to the platform.";
+    return copy.vaultRejectedCustomError;
   }
   if (
     normalizedMessage.includes("reverted") ||
     normalizedMessage.includes("execution reverted")
   ) {
-    return "Deposit failed on-chain because the vault contract rejected this transaction. No funds were credited to the platform.";
+    return copy.vaultRejected;
   }
   if (
     normalizedMessage.includes("nonce too low") ||
     normalizedMessage.includes("replacement transaction underpriced")
   ) {
-    return "Deposit failed because the wallet transaction nonce is out of date. Please retry from the wallet.";
+    return copy.nonceOutOfDate;
   }
   return rawMessage;
 }
 
-function getWalletConnectionFailureMessage(error: unknown): string | null {
+function getWalletConnectionFailureMessage(
+  error: unknown,
+  copy: VaultDepositCopy
+): string | null {
   const normalizedMessage = toSafeErrorMessage(error, "").trim().toLowerCase();
 
   if (!normalizedMessage) {
@@ -143,11 +230,11 @@ function getWalletConnectionFailureMessage(error: unknown): string | null {
     normalizedMessage.includes("wallet provider unavailable") ||
     normalizedMessage.includes("unavailable while reconnecting")
   ) {
-    return "Wallet not fully connected yet. Please reconnect and retry.";
+    return copy.walletReconnect;
   }
 
   if (normalizedMessage.includes("multiple wallet accounts selected")) {
-    return "Please select only one wallet account, then reconnect.";
+    return copy.walletSingleAccount;
   }
 
   if (
@@ -155,7 +242,7 @@ function getWalletConnectionFailureMessage(error: unknown): string | null {
     normalizedMessage.includes("reading 'length'") ||
     normalizedMessage.includes("reading 'raw'")
   ) {
-    return "Wallet connection unstable. Please reconnect wallet and retry.";
+    return copy.walletUnstable;
   }
 
   return null;
@@ -179,27 +266,38 @@ function buildDepositPreflightError(
   amountUsdc: string,
   walletUsdcBalance: number,
   nativeGasBalance: number,
-  nativeGasSymbol: string
+  nativeGasSymbol: string,
+  copy: VaultDepositCopy = DEFAULT_VAULT_DEPOSIT_COPY
 ): string {
   const amount = Number(amountUsdc);
   if (!amountUsdc || !Number.isFinite(amount) || amount <= 0) {
-    return "Enter a valid USDC amount.";
+    return copy.invalidAmount;
   }
   if (walletUsdcBalance < amount) {
-    return `Insufficient wallet USDC. Need ${amountUsdc} USDC, wallet has ${walletUsdcBalance.toFixed(
-      2
-    )} USDC.`;
+    return interpolateCopy(copy.insufficientWalletUsdc, {
+      amount: amountUsdc,
+      balance: walletUsdcBalance.toFixed(2),
+    });
   }
   if (nativeGasBalance < MIN_NATIVE_GAS_BALANCE) {
-    return `Deposit requires native gas for the vault transaction. Keep at least ${MIN_NATIVE_GAS_BALANCE.toFixed(
-      3
-    )} ${nativeGasSymbol} in this wallet.`;
+    return interpolateCopy(copy.nativeGasRequired, {
+      minimum: MIN_NATIVE_GAS_BALANCE.toFixed(3),
+      symbol: nativeGasSymbol,
+    });
   }
   return "";
 }
 
 export function useVaultDeposit(options?: UseVaultDepositOptions) {
-  const { initialAmount = "10", onDepositSynced } = options ?? {};
+  const {
+    initialAmount = "10",
+    onDepositSynced,
+    copy: copyOverrides,
+  } = options ?? {};
+  const copy = useMemo(
+    () => ({ ...DEFAULT_VAULT_DEPOSIT_COPY, ...copyOverrides }),
+    [copyOverrides]
+  );
   const { address, isConnected } = useAccount();
   const { isSessionAuthenticated } = useAuth();
   const chainId = useChainId();
@@ -253,7 +351,8 @@ export function useVaultDeposit(options?: UseVaultDepositOptions) {
     normalizeMoneyString(depositAmount, ""),
     walletUsdcBalance,
     nativeGasBalance,
-    nativeGasSymbol
+    nativeGasSymbol,
+    copy
   );
 
   const { signTypedDataAsync } = useSignTypedData();
@@ -357,7 +456,7 @@ export function useVaultDeposit(options?: UseVaultDepositOptions) {
 
           if (sync.canRefreshBalance) {
             await notifyDepositSynced();
-            toast.success("Gateway balance synced.");
+            toast.success(copy.gatewayBalanceSynced);
             activeSyncHashRef.current = null;
             return;
           }
@@ -369,18 +468,17 @@ export function useVaultDeposit(options?: UseVaultDepositOptions) {
       }
 
       activeSyncHashRef.current = null;
-      toast(
-        "Deposit confirmed on-chain. Gateway is still syncing the balance.",
-        {
-          icon: "ℹ️",
-          duration: 5000,
-        }
-      );
+      toast(copy.gatewayStillSyncing, {
+        icon: "ℹ️",
+        duration: 5000,
+      });
     },
     [
       address,
       isSessionAuthenticated,
       notifyDepositSynced,
+      copy.gatewayBalanceSynced,
+      copy.gatewayStillSyncing,
       recordAttemptStage,
       wait,
     ]
@@ -409,7 +507,7 @@ export function useVaultDeposit(options?: UseVaultDepositOptions) {
       txHash: normalizedHash,
     });
 
-    toast.success("Deposit confirmed on-chain. Syncing gateway balance...");
+    toast.success(copy.depositConfirmedSyncing);
     setIsOpen(false);
     setDepositStep("input");
     currentDepositAttemptIdRef.current = null;
@@ -434,6 +532,7 @@ export function useVaultDeposit(options?: UseVaultDepositOptions) {
     depositAmount,
     hash,
     isConfirmed,
+    copy.depositConfirmedSyncing,
     recordAttemptStage,
     waitForDepositSync,
   ]);
@@ -446,7 +545,10 @@ export function useVaultDeposit(options?: UseVaultDepositOptions) {
     activeSyncHashRef.current = null;
     setDepositStep("input");
 
-    const failureMessage = buildDepositFailureMessage(depositReceiptError);
+    const failureMessage = buildDepositFailureMessage(
+      depositReceiptError,
+      copy
+    );
     setDepositError(failureMessage);
     void recordAttemptStage(
       "RECEIPT_FAILED",
@@ -460,6 +562,7 @@ export function useVaultDeposit(options?: UseVaultDepositOptions) {
     toast.error(failureMessage, { duration: 5000 });
     currentDepositAttemptIdRef.current = null;
   }, [
+    copy,
     depositAmount,
     depositReceiptError,
     hash,
@@ -469,7 +572,7 @@ export function useVaultDeposit(options?: UseVaultDepositOptions) {
 
   const handleDeposit = useCallback(async () => {
     if (!address) {
-      toast.error("Please connect your wallet first.");
+      toast.error(copy.connectWalletFirst);
       return;
     }
 
@@ -478,7 +581,8 @@ export function useVaultDeposit(options?: UseVaultDepositOptions) {
       amountUsdc,
       walletUsdcBalance,
       nativeGasBalance,
-      nativeGasSymbol
+      nativeGasSymbol,
+      copy
     );
     if (preflightError) {
       setDepositError(preflightError);
@@ -547,18 +651,19 @@ export function useVaultDeposit(options?: UseVaultDepositOptions) {
     } catch (error: unknown) {
       setDepositStep("input");
       const message = error instanceof Error ? error.message : String(error);
-      const walletConnectionMessage = getWalletConnectionFailureMessage(error);
+      const walletConnectionMessage = getWalletConnectionFailureMessage(
+        error,
+        copy
+      );
 
-      let failureReason = "Unknown Error";
+      let failureReason = copy.unknownError;
       if (
         message.includes("User rejected") ||
         message.toLowerCase().includes("rejected")
       ) {
         failureReason = "User rejected";
-        setDepositError(
-          "Deposit was cancelled in wallet. No funds were charged."
-        );
-        toast("Sign/Transaction cancelled by user", { icon: "ℹ️" });
+        setDepositError(copy.cancelled);
+        toast(copy.cancelledToast, { icon: "ℹ️" });
       } else if (walletConnectionMessage) {
         failureReason = walletConnectionMessage;
         setDepositError(walletConnectionMessage);
@@ -569,18 +674,15 @@ export function useVaultDeposit(options?: UseVaultDepositOptions) {
         message.includes("gas required exceeds allowance")
       ) {
         failureReason = "Insufficient Gas/Funds";
-        setDepositError(
-          "Wallet USDC or native gas is insufficient. Please check the balances and retry."
-        );
-        toast.error(
-          "Wallet USDC or native gas is insufficient. Please check the balances and retry.",
-          { duration: 5000 }
-        );
+        setDepositError(copy.insufficientFundsRetry);
+        toast.error(copy.insufficientFundsRetry, { duration: 5000 });
       } else {
         failureReason = message.substring(0, 100);
-        const failureMessage = buildDepositFailureMessage(error);
+        const failureMessage = buildDepositFailureMessage(error, copy);
         setDepositError(failureMessage);
-        toast.error(`Failed to top up: ${failureMessage}`);
+        toast.error(
+          interpolateCopy(copy.topUpFailedPrefix, { message: failureMessage })
+        );
       }
 
       await recordAttemptStage("SIGN_REQUESTED", amountUsdc, {
@@ -592,6 +694,7 @@ export function useVaultDeposit(options?: UseVaultDepositOptions) {
   }, [
     address,
     chainId,
+    copy,
     depositAmount,
     nativeGasBalance,
     nativeGasSymbol,

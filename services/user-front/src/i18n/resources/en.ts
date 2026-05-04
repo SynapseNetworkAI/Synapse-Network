@@ -1,4 +1,5 @@
 import type { I18nMessages } from "@/i18n/schema";
+import agentCredentialsPage from "@/i18n/resources/en/agentCredentialsPage";
 import aboutPage from "@/i18n/resources/en/aboutPage";
 import agentsPage from "@/i18n/resources/en/agentsPage";
 import auditPage from "@/i18n/resources/en/auditPage";
@@ -14,6 +15,7 @@ import home from "@/i18n/resources/en/home";
 import invocationsPage from "@/i18n/resources/en/invocationsPage";
 import marketplacePage from "@/i18n/resources/en/marketplacePage";
 import overviewPage from "@/i18n/resources/en/overviewPage";
+import paidInvokePanel from "@/i18n/resources/en/paidInvokePanel";
 import providerConsolePage from "@/i18n/resources/en/providerConsolePage";
 import providerServiceDeployPage from "@/i18n/resources/en/providerServiceDeployPage";
 import providerSecretsPage from "@/i18n/resources/en/providerSecretsPage";
@@ -28,6 +30,8 @@ const en: I18nMessages = {
   ...shared,
   overviewPage,
   agentsPage,
+  agentCredentialsPage,
+  paidInvokePanel,
   home,
   marketplacePage,
   discoveryPage,

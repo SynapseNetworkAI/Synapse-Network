@@ -13,6 +13,7 @@ echo "[ci:frontend] running next.js quality gate in $APP_DIR"
 cd "$APP_DIR"
 
 node "$ROOT_DIR/scripts/ci/user_front_external_links_check.mjs"
+node "$ROOT_DIR/scripts/ci/user_front_i18n_check.mjs"
 yarn lint
 yarn test
 

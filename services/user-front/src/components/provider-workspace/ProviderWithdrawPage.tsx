@@ -186,11 +186,22 @@ function resolveCreateWithdrawalIntentErrorMessage(
     if (error.code === "CHAIN_RPC_UNAVAILABLE") {
       return t("providerSettlements.chainRpcUnavailable");
     }
+    if (error.code === "PROVIDER_RECEIVABLE_NOT_MATURED") {
+      return t("providerSettlements.providerReceivableNotMatured");
+    }
+    if (error.code === "MIN_WITHDRAWAL_AMOUNT_NOT_MET") {
+      return t("providerSettlements.minWithdrawalAmountNotMet");
+    }
+    if (error.code === "INSUFFICIENT_PROVIDER_RECEIVABLE") {
+      return t("providerSettlements.insufficientProviderReceivable");
+    }
+    if (error.code === "PENDING_WITHDRAWAL_EXISTS") {
+      return t("providerSettlements.pendingWithdrawalExists");
+    }
+    return t("providerSettlements.withdrawalCreateFailed");
   }
 
-  return error instanceof Error
-    ? error.message
-    : t("providerSettlements.withdrawalCreateFailed");
+  return t("providerSettlements.withdrawalCreateFailed");
 }
 
 export default function ProviderWithdrawPage() {
@@ -479,10 +490,7 @@ export default function ProviderWithdrawPage() {
       return;
     }
     if (!withdrawCapability?.ticketSigningEnabled) {
-      toast.error(
-        withdrawCapability?.message ||
-          t("providerSettlements.ticketSigningUnavailable")
-      );
+      toast.error(t("providerSettlements.ticketSigningUnavailable"));
       return;
     }
 
@@ -764,7 +772,7 @@ export default function ProviderWithdrawPage() {
                   !loadingWithdrawCapability &&
                   withdrawCapability && (
                     <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 w-[220px] rounded-lg border border-[#2a2a2a] bg-[#1a1a1a] px-3 py-2 text-xs text-[#f59e0b] shadow-xl opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50">
-                      {withdrawCapability.message}
+                      {t("providerSettlements.ticketSigningUnavailable")}
                     </div>
                   )}
               </div>

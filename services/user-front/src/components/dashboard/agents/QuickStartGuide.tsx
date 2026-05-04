@@ -1,19 +1,36 @@
 "use client";
 
 import React, { useState, useCallback } from "react";
-import { useAccount, useChainId, useReadContract, useSignTypedData, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
+import {
+  useAccount,
+  useChainId,
+  useReadContract,
+  useSignTypedData,
+  useWaitForTransactionReceipt,
+  useWriteContract,
+} from "wagmi";
 import { parseAbi, parseUnits, type Hex } from "viem";
-import { ChevronRight, Zap, Lock, Rocket, CheckCircle2, RefreshCw, AlertCircle, X } from "lucide-react";
+import {
+  ChevronRight,
+  Zap,
+  Lock,
+  Rocket,
+  CheckCircle2,
+  RefreshCw,
+  AlertCircle,
+  X,
+} from "lucide-react";
 import contractConfig from "@/contract-config.json";
 import { createDepositIntent } from "@/utils/balanceApi";
 import { normalizeMoneyString } from "@/utils/money";
 import { resolvePermitDomainChainId } from "@/utils/permitChain";
+import { useLanguage } from "@/components/i18n/LanguageProvider";
 import toast from "react-hot-toast";
 
 const VAULT_ADDRESS = contractConfig.SynapseCore as `0x${string}`;
 
 const vaultABI = parseAbi([
-  "function depositWithPermit(uint256 amount, uint256 deadline, uint8 v, bytes32 r, bytes32 s) external"
+  "function depositWithPermit(uint256 amount, uint256 deadline, uint8 v, bytes32 r, bytes32 s) external",
 ]);
 
 interface QuickStartGuideProps {
@@ -23,22 +40,47 @@ interface QuickStartGuideProps {
 
 type QuickStartStep = "deposit" | "agent" | "service" | "complete";
 
-const STEPS: Array<{ step: QuickStartStep; label: string; icon: typeof Zap }> = [
-  { step: "deposit", label: "Deposit", icon: Zap },
-  { step: "agent", label: "Create Agent", icon: Lock },
-  { step: "service", label: "Discover Services", icon: Rocket },
-  { step: "complete", label: "Start Using", icon: CheckCircle2 }
-];
-
-export default function QuickStartGuide({ onDepositComplete, onAgentCreated }: Readonly<QuickStartGuideProps>) {
+export default function QuickStartGuide({
+  onDepositComplete,
+  onAgentCreated,
+}: Readonly<QuickStartGuideProps>) {
+  const { t } = useLanguage();
   const { address: userAddress, isConnected } = useAccount();
   const chainId = useChainId();
   const [currentStep, setCurrentStep] = useState<QuickStartStep>("deposit");
   const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
   const [depositAmount, setDepositAmount] = useState("10");
   const [depositError, setDepositError] = useState<string>("");
-  const [depositStep, setDepositStep] = useState<"input" | "signing" | "executing">("input");
+  const [depositStep, setDepositStep] = useState<
+    "input" | "signing" | "executing"
+  >("input");
   const handledConfirmedHashesRef = React.useRef<Set<string>>(new Set());
+  const steps: Array<{
+    step: QuickStartStep;
+    label: string;
+    icon: typeof Zap;
+  }> = [
+    {
+      step: "deposit",
+      label: t("agentsPage.quickStartDepositLabel"),
+      icon: Zap,
+    },
+    {
+      step: "agent",
+      label: t("agentsPage.quickStartCreateAgentLabel"),
+      icon: Lock,
+    },
+    {
+      step: "service",
+      label: t("agentsPage.quickStartDiscoverServicesLabel"),
+      icon: Rocket,
+    },
+    {
+      step: "complete",
+      label: t("agentsPage.quickStartStartUsingLabel"),
+      icon: CheckCircle2,
+    },
+  ];
 
   // Deposit flow state
   const { data: usdcNonce } = useReadContract({
@@ -46,24 +88,27 @@ export default function QuickStartGuide({ onDepositComplete, onAgentCreated }: R
     abi: parseAbi(["function nonces(address) view returns (uint256)"]),
     functionName: "nonces",
     args: userAddress ? [userAddress] : undefined,
-    query: { enabled: !!userAddress }
+    query: { enabled: !!userAddress },
   });
 
-  const { data: walletUsdcBalanceRaw, refetch: refetchWalletBalance } = useReadContract({
-    address: contractConfig.MockUSDC as `0x${string}`,
-    abi: parseAbi(["function balanceOf(address) view returns (uint256)"]),
-    functionName: "balanceOf",
-    args: userAddress ? [userAddress] : undefined,
-    query: { enabled: !!userAddress }
-  });
+  const { data: walletUsdcBalanceRaw, refetch: refetchWalletBalance } =
+    useReadContract({
+      address: contractConfig.MockUSDC as `0x${string}`,
+      abi: parseAbi(["function balanceOf(address) view returns (uint256)"]),
+      functionName: "balanceOf",
+      args: userAddress ? [userAddress] : undefined,
+      query: { enabled: !!userAddress },
+    });
 
-  const walletUsdcBalance = isConnected && userAddress && walletUsdcBalanceRaw !== undefined
-    ? Number(walletUsdcBalanceRaw) / 1e18
-    : 0;
+  const walletUsdcBalance =
+    isConnected && userAddress && walletUsdcBalanceRaw !== undefined
+      ? Number(walletUsdcBalanceRaw) / 1e18
+      : 0;
 
   const { signTypedDataAsync } = useSignTypedData();
   const { data: hash, writeContractAsync, isPending } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash });
+  const { isLoading: isConfirming, isSuccess: isConfirmed } =
+    useWaitForTransactionReceipt({ hash });
 
   const handleDeposit = useCallback(async () => {
     if (!userAddress || !signTypedDataAsync) return;
@@ -74,13 +119,13 @@ export default function QuickStartGuide({ onDepositComplete, onAgentCreated }: R
 
       const amountUsdc = Number(depositAmount);
       if (!Number.isFinite(amountUsdc) || amountUsdc <= 0) {
-        setDepositError("Please enter a valid deposit amount");
+        setDepositError(t("agentsPage.quickStartInvalidDepositAmount"));
         setDepositStep("input");
         return;
       }
 
       if (amountUsdc > walletUsdcBalance) {
-        setDepositError("Insufficient USDC balance in wallet");
+        setDepositError(t("agentsPage.quickStartInsufficientUsdc"));
         setDepositStep("input");
         return;
       }
@@ -91,7 +136,7 @@ export default function QuickStartGuide({ onDepositComplete, onAgentCreated }: R
       const permitChainId = resolvePermitDomainChainId(chainId);
 
       if (!permitChainId) {
-        setDepositError("Unable to determine wallet network. Please switch to the target testnet and retry.");
+        setDepositError(t("agentsPage.quickStartNetworkUnknown"));
         setDepositStep("input");
         return;
       }
@@ -142,14 +187,26 @@ export default function QuickStartGuide({ onDepositComplete, onAgentCreated }: R
         args: [amount, BigInt(deadline), v, r, s],
       });
 
-      toast.success("Deposit initiated! Waiting for confirmation...");
+      toast.success(t("agentsPage.quickStartDepositInitiated"));
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Deposit failed";
+      const message =
+        err instanceof Error
+          ? err.message
+          : t("agentsPage.quickStartDepositFailed");
       setDepositError(message);
       setDepositStep("input");
       toast.error(message);
     }
-  }, [chainId, userAddress, signTypedDataAsync, depositAmount, walletUsdcBalance, usdcNonce, writeContractAsync]);
+  }, [
+    chainId,
+    userAddress,
+    signTypedDataAsync,
+    depositAmount,
+    walletUsdcBalance,
+    usdcNonce,
+    writeContractAsync,
+    t,
+  ]);
 
   React.useEffect(() => {
     if (isConfirmed && hash) {
@@ -163,7 +220,7 @@ export default function QuickStartGuide({ onDepositComplete, onAgentCreated }: R
       setIsDepositModalOpen(false);
       setCurrentStep("agent");
       onDepositComplete?.();
-      toast.success("Deposit successful! Now create your first agent.");
+      toast.success(t("agentsPage.quickStartDepositSuccessful"));
       refetchWalletBalance();
 
       // Register deposit intent
@@ -174,16 +231,26 @@ export default function QuickStartGuide({ onDepositComplete, onAgentCreated }: R
         }).catch(console.error);
       }
     }
-  }, [isConfirmed, hash, userAddress, depositAmount, onDepositComplete, refetchWalletBalance]);
+  }, [
+    isConfirmed,
+    hash,
+    userAddress,
+    depositAmount,
+    onDepositComplete,
+    refetchWalletBalance,
+    t,
+  ]);
 
   return (
-    <section className="space-y-6" aria-label="Agent quick start">
+    <section className="space-y-6" aria-label={t("agentsPage.quickStartAria")}>
       {/* PROGRESS STEPPER */}
       <ol className="grid grid-cols-4 gap-4">
-        {STEPS.map((item, idx) => {
+        {steps.map((item, idx) => {
           const Icon = item.icon;
           const isActive = currentStep === item.step;
-          const isCompleted = ["deposit", "agent"].includes(item.step) && currentStep !== item.step;
+          const isCompleted =
+            ["deposit", "agent"].includes(item.step) &&
+            currentStep !== item.step;
           let buttonClassName = "border-white/10 bg-white/[0.02]";
           let iconClassName = "bg-white/5";
           let iconColorClassName = "text-gray-500";
@@ -208,7 +275,10 @@ export default function QuickStartGuide({ onDepositComplete, onAgentCreated }: R
                 aria-current={isActive ? "step" : undefined}
                 className={`w-full p-4 rounded-2xl border-2 transition-all flex flex-col items-center gap-2 ${buttonClassName}`}
               >
-                <span className={`p-2 rounded-lg ${iconClassName}`} aria-hidden="true">
+                <span
+                  className={`p-2 rounded-lg ${iconClassName}`}
+                  aria-hidden="true"
+                >
                   <Icon className={`w-5 h-5 ${iconColorClassName}`} />
                 </span>
                 <span className={`text-xs font-bold ${labelClassName}`}>
@@ -217,7 +287,10 @@ export default function QuickStartGuide({ onDepositComplete, onAgentCreated }: R
               </button>
 
               {idx < 3 && (
-                <span className="absolute top-1/2 -right-2 w-4 h-0.5 bg-white/10 -translate-y-1/2" aria-hidden="true" />
+                <span
+                  className="absolute top-1/2 -right-2 w-4 h-0.5 bg-white/10 -translate-y-1/2"
+                  aria-hidden="true"
+                />
               )}
             </li>
           );
@@ -225,22 +298,31 @@ export default function QuickStartGuide({ onDepositComplete, onAgentCreated }: R
       </ol>
 
       {/* STEP CONTENT */}
-      <section className="p-6 rounded-2xl bg-white/[0.02] border border-white/5 space-y-4" aria-live="polite">
+      <section
+        className="p-6 rounded-2xl bg-white/[0.02] border border-white/5 space-y-4"
+        aria-live="polite"
+      >
         {currentStep === "deposit" && (
           <>
             <header className="flex items-start gap-3">
               <Zap className="w-5 h-5 text-blue-400 mt-0.5" />
               <section>
-                <h3 className="font-bold text-white">Step 1: Deposit USDC</h3>
+                <h3 className="font-bold text-white">
+                  {t("agentsPage.quickStartStepDepositTitle")}
+                </h3>
                 <p className="text-sm text-gray-400 mt-1">
-                  Transfer USDC from your wallet to the Synapse Vault. This is your credit balance for agent operations.
+                  {t("agentsPage.quickStartStepDepositDescription")}
                 </p>
               </section>
             </header>
 
             <dl className="p-4 rounded-xl bg-blue-500/5 border border-blue-500/10 space-y-2">
-              <dt className="text-xs font-bold text-gray-400 uppercase">Current Wallet Balance</dt>
-              <dd className="text-lg font-bold text-white">{walletUsdcBalance.toFixed(2)} USDC</dd>
+              <dt className="text-xs font-bold text-gray-400 uppercase">
+                {t("agentsPage.quickStartWalletBalanceLabel")}
+              </dt>
+              <dd className="text-lg font-bold text-white">
+                {walletUsdcBalance.toFixed(2)} USDC
+              </dd>
             </dl>
 
             <button
@@ -248,7 +330,7 @@ export default function QuickStartGuide({ onDepositComplete, onAgentCreated }: R
               className="w-full py-3 bg-blue-500 text-white rounded-xl font-bold hover:bg-blue-400 transition-colors flex items-center justify-center gap-2"
             >
               <Zap className="w-4 h-4" />
-              Deposit USDC Now
+              {t("agentsPage.quickStartDepositNow")}
               <ChevronRight className="w-4 h-4" />
             </button>
           </>
@@ -259,24 +341,34 @@ export default function QuickStartGuide({ onDepositComplete, onAgentCreated }: R
             <header className="flex items-start gap-3">
               <Lock className="w-5 h-5 text-emerald-400 mt-0.5" />
               <section>
-                <h3 className="font-bold text-white">Step 2: Create Your First Agent</h3>
+                <h3 className="font-bold text-white">
+                  {t("agentsPage.quickStartStepAgentTitle")}
+                </h3>
                 <p className="text-sm text-gray-400 mt-1">
-                  An agent is a runtime identity that can discover and invoke services autonomously within your budget constraints.
+                  {t("agentsPage.quickStartStepAgentDescription")}
                 </p>
               </section>
             </header>
 
             <dl className="p-4 rounded-xl bg-emerald-500/5 border border-emerald-500/10 space-y-3">
               <div className="flex items-center justify-between">
-                <dt className="text-xs font-bold text-gray-400 uppercase">Agent Name</dt>
+                <dt className="text-xs font-bold text-gray-400 uppercase">
+                  {t("agentsPage.quickStartAgentNameLabel")}
+                </dt>
                 <dd className="text-sm text-gray-300">ResearchBot-01</dd>
               </div>
               <div className="flex items-center justify-between">
-                <dt className="text-xs font-bold text-gray-400 uppercase">Daily Budget</dt>
-                <dd className="text-sm text-emerald-400 font-bold">$10.00 USDC</dd>
+                <dt className="text-xs font-bold text-gray-400 uppercase">
+                  {t("agentsPage.quickStartDailyBudgetLabel")}
+                </dt>
+                <dd className="text-sm text-emerald-400 font-bold">
+                  $10.00 USDC
+                </dd>
               </div>
               <div className="flex items-center justify-between">
-                <dt className="text-xs font-bold text-gray-400 uppercase">Max Calls/Day</dt>
+                <dt className="text-xs font-bold text-gray-400 uppercase">
+                  {t("agentsPage.quickStartMaxCallsPerDayLabel")}
+                </dt>
                 <dd className="text-sm text-gray-300">1000</dd>
               </div>
             </dl>
@@ -289,7 +381,7 @@ export default function QuickStartGuide({ onDepositComplete, onAgentCreated }: R
               className="w-full py-3 bg-emerald-500 text-white rounded-xl font-bold hover:bg-emerald-400 transition-colors flex items-center justify-center gap-2"
             >
               <Lock className="w-4 h-4" />
-              Create Agent
+              {t("agentsPage.quickStartCreateAgentLabel")}
               <ChevronRight className="w-4 h-4" />
             </button>
           </>
@@ -300,25 +392,38 @@ export default function QuickStartGuide({ onDepositComplete, onAgentCreated }: R
             <header className="flex items-start gap-3">
               <Rocket className="w-5 h-5 text-amber-400 mt-0.5" />
               <section>
-                <h3 className="font-bold text-white">Step 3: Discover & Access Services</h3>
+                <h3 className="font-bold text-white">
+                  {t("agentsPage.quickStartStepServicesTitle")}
+                </h3>
                 <p className="text-sm text-gray-400 mt-1">
-                  Browse the service marketplace, get quotes, and invoke APIs. Your agent will handle payments automatically.
+                  {t("agentsPage.quickStartStepServicesDescription")}
                 </p>
               </section>
             </header>
 
-            <section className="space-y-3" aria-label="Example services">
+            <section
+              className="space-y-3"
+              aria-label={t("agentsPage.quickStartExampleServicesAria")}
+            >
               <article className="p-4 rounded-xl bg-white/[0.02] border border-white/5 flex items-center justify-between">
                 <header>
-                  <p className="font-bold text-white text-sm">Data Aggregation API</p>
-                  <p className="text-xs text-gray-500">$0.01 per call</p>
+                  <p className="font-bold text-white text-sm">
+                    {t("agentsPage.quickStartDataAggregationService")}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {t("agentsPage.quickStartDataAggregationPrice")}
+                  </p>
                 </header>
                 <ChevronRight className="w-4 h-4 text-gray-500" />
               </article>
               <article className="p-4 rounded-xl bg-white/[0.02] border border-white/5 flex items-center justify-between">
                 <header>
-                  <p className="font-bold text-white text-sm">ML Model Inference</p>
-                  <p className="text-xs text-gray-500">$0.05 per call</p>
+                  <p className="font-bold text-white text-sm">
+                    {t("agentsPage.quickStartMlInferenceService")}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {t("agentsPage.quickStartMlInferencePrice")}
+                  </p>
                 </header>
                 <ChevronRight className="w-4 h-4 text-gray-500" />
               </article>
@@ -329,7 +434,7 @@ export default function QuickStartGuide({ onDepositComplete, onAgentCreated }: R
               className="w-full py-3 bg-amber-500 text-white rounded-xl font-bold hover:bg-amber-400 transition-colors flex items-center justify-center gap-2"
             >
               <Rocket className="w-4 h-4" />
-              Browse Services
+              {t("agentsPage.quickStartBrowseServices")}
               <ChevronRight className="w-4 h-4" />
             </button>
           </>
@@ -338,23 +443,28 @@ export default function QuickStartGuide({ onDepositComplete, onAgentCreated }: R
         {currentStep === "complete" && (
           <>
             <section className="text-center space-y-4">
-              <span className="mx-auto w-16 h-16 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center" aria-hidden="true">
+              <span
+                className="mx-auto w-16 h-16 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center"
+                aria-hidden="true"
+              >
                 <CheckCircle2 className="w-8 h-8 text-emerald-400" />
               </span>
               <header>
-                <h3 className="font-bold text-white text-lg">You&apos;re All Set!</h3>
+                <h3 className="font-bold text-white text-lg">
+                  {t("agentsPage.quickStartCompleteTitle")}
+                </h3>
                 <p className="text-sm text-gray-400 mt-2">
-                  Your agent is ready to discover services and make autonomous API calls. Start exploring the marketplace.
+                  {t("agentsPage.quickStartCompleteDescription")}
                 </p>
               </header>
             </section>
 
             <menu className="grid grid-cols-2 gap-3">
               <button className="py-3 bg-white/5 border border-white/10 text-white rounded-xl font-bold hover:bg-white/10 transition-colors">
-                View Agents
+                {t("agentsPage.quickStartViewAgents")}
               </button>
               <button className="py-3 bg-blue-500 text-white rounded-xl font-bold hover:bg-blue-400 transition-colors">
-                Go to Marketplace
+                {t("agentsPage.quickStartGoToMarketplace")}
               </button>
             </menu>
           </>
@@ -363,10 +473,19 @@ export default function QuickStartGuide({ onDepositComplete, onAgentCreated }: R
 
       {/* DEPOSIT MODAL */}
       {isDepositModalOpen && (
-        <dialog open className="x-dialog-shell x-modal-overlay" aria-labelledby="deposit-modal-title">
+        <dialog
+          open
+          className="x-dialog-shell x-modal-overlay"
+          aria-labelledby="deposit-modal-title"
+        >
           <section className="x-modal-flat x-modal-surface max-w-md shadow-2xl">
             <header className="x-modal-header">
-              <h2 id="deposit-modal-title" className="text-lg font-bold text-white">Deposit USDC</h2>
+              <h2
+                id="deposit-modal-title"
+                className="text-lg font-bold text-white"
+              >
+                {t("agentsPage.quickStartDepositModalTitle")}
+              </h2>
               <button
                 onClick={() => setIsDepositModalOpen(false)}
                 className="x-modal-close"
@@ -377,7 +496,12 @@ export default function QuickStartGuide({ onDepositComplete, onAgentCreated }: R
 
             <section className="x-modal-body space-y-6">
               <p className="space-y-2 block">
-                <label htmlFor="deposit-amount" className="text-xs font-bold text-gray-500 uppercase">Amount (USDC)</label>
+                <label
+                  htmlFor="deposit-amount"
+                  className="text-xs font-bold text-gray-500 uppercase"
+                >
+                  {t("agentsPage.quickStartDepositModalAmount")}
+                </label>
                 <input
                   id="deposit-amount"
                   type="number"
@@ -389,12 +513,17 @@ export default function QuickStartGuide({ onDepositComplete, onAgentCreated }: R
                   disabled={depositStep !== "input"}
                 />
                 <p className="text-xs text-gray-500">
-                  Available: {walletUsdcBalance.toFixed(2)} USDC
+                  {t("agentsPage.quickStartDepositAvailable", {
+                    amount: walletUsdcBalance.toFixed(2),
+                  })}
                 </p>
               </p>
 
               {depositError && (
-                <aside className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center gap-3 text-red-400 text-sm" role="alert">
+                <aside
+                  className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center gap-3 text-red-400 text-sm"
+                  role="alert"
+                >
                   <AlertCircle className="w-5 h-5" />
                   {depositError}
                 </aside>
@@ -402,20 +531,55 @@ export default function QuickStartGuide({ onDepositComplete, onAgentCreated }: R
 
               {/* Progress Steps */}
               {depositStep !== "input" && (
-                <section className="space-y-3" aria-label="Deposit progress">
-                  <article className={`p-3 border rounded-xl flex items-center gap-3 ${depositStep === "signing" ? "border-blue-500/50 bg-blue-500/10 text-blue-400" : "border-emerald-500/50 bg-emerald-500/10 text-emerald-400"}`}>
-                    {depositStep === "signing" ? <RefreshCw className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
+                <section
+                  className="space-y-3"
+                  aria-label={t("agentsPage.quickStartDepositProgressAria")}
+                >
+                  <article
+                    className={`p-3 border rounded-xl flex items-center gap-3 ${
+                      depositStep === "signing"
+                        ? "border-blue-500/50 bg-blue-500/10 text-blue-400"
+                        : "border-emerald-500/50 bg-emerald-500/10 text-emerald-400"
+                    }`}
+                  >
+                    {depositStep === "signing" ? (
+                      <RefreshCw className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="w-5 h-5" />
+                    )}
                     <section className="text-sm">
-                      <p className="font-bold">Step 1: Sign Permit</p>
-                      <p className="text-xs opacity-80">{depositStep === "signing" ? "Waiting for wallet signature..." : "✅ Signed"}</p>
+                      <p className="font-bold">
+                        {t("agentsPage.quickStartPermitTitle")}
+                      </p>
+                      <p className="text-xs opacity-80">
+                        {depositStep === "signing"
+                          ? t("agentsPage.quickStartPermitWaiting")
+                          : t("agentsPage.quickStartPermitSigned")}
+                      </p>
                     </section>
                   </article>
 
-                  <article className={`p-3 border rounded-xl flex items-center gap-3 ${depositStep === "executing" ? "border-blue-500/50 bg-blue-500/10 text-blue-400" : "border-gray-800 bg-gray-800/30 text-gray-500"}`}>
-                    {depositStep === "executing" ? <RefreshCw className="w-5 h-5 animate-spin" /> : <AlertCircle className="w-5 h-5" />}
+                  <article
+                    className={`p-3 border rounded-xl flex items-center gap-3 ${
+                      depositStep === "executing"
+                        ? "border-blue-500/50 bg-blue-500/10 text-blue-400"
+                        : "border-gray-800 bg-gray-800/30 text-gray-500"
+                    }`}
+                  >
+                    {depositStep === "executing" ? (
+                      <RefreshCw className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <AlertCircle className="w-5 h-5" />
+                    )}
                     <section className="text-sm">
-                      <p className="font-bold">Step 2: Execute Deposit</p>
-                      <p className="text-xs opacity-80">{depositStep === "executing" ? "Confirming on-chain..." : "Waiting for step 1"}</p>
+                      <p className="font-bold">
+                        {t("agentsPage.quickStartExecuteTitle")}
+                      </p>
+                      <p className="text-xs opacity-80">
+                        {depositStep === "executing"
+                          ? t("agentsPage.quickStartExecuteConfirming")
+                          : t("agentsPage.quickStartExecuteWaiting")}
+                      </p>
                     </section>
                   </article>
                 </section>
@@ -427,15 +591,21 @@ export default function QuickStartGuide({ onDepositComplete, onAgentCreated }: R
                   disabled={depositStep !== "input"}
                   className="flex-1 py-3 bg-white/5 border border-white/10 text-white rounded-xl font-bold hover:bg-white/10 transition-colors disabled:opacity-50"
                 >
-                  Cancel
+                  {t("agentsPage.cancel")}
                 </button>
                 <button
                   onClick={handleDeposit}
-                  disabled={depositStep !== "input" || isPending || isConfirming}
+                  disabled={
+                    depositStep !== "input" || isPending || isConfirming
+                  }
                   className="flex-1 py-3 bg-blue-500 text-white rounded-xl font-bold hover:bg-blue-400 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                 >
-                  {(isPending || isConfirming) && <RefreshCw className="w-4 h-4 animate-spin" />}
-                  {depositStep !== "input" || isConfirming ? "Processing..." : "Deposit"}
+                  {(isPending || isConfirming) && (
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                  )}
+                  {depositStep !== "input" || isConfirming
+                    ? t("creditsPage.depositProcessing")
+                    : t("agentsPage.quickStartDepositAction")}
                 </button>
               </menu>
             </section>
