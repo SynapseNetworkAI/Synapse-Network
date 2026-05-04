@@ -118,6 +118,18 @@ Working directory: `apps/frontend/`
 2. `yarn test` for local frontend test validation
 3. `npm run ci:frontend` from repository root when repo-standard gating is needed
 
+### 3.1a services/user-front
+
+Working directory: `services/user-front/`
+
+1. `yarn dev` for active iteration on `http://localhost:3000`
+2. `npm run ci:user-front-i18n` from repository root for static user-facing copy drift detection
+3. `npm run ci:user-front-i18n-dom` from repository root for focused `en`/`zh` DOM regression on Credits, Withdraw, Credentials, QuickStart, Paid Invoke, RolePathCards, and Feedback surfaces
+4. `cd services/user-front && yarn test` for the full Vitest suite
+5. `USER_FRONT_BASE_URL=http://localhost:3000 node scripts/ui/verify_user_front_i18n.mjs` from repository root after starting user-front to verify real route DOM language switching and capture screenshots
+6. `USER_FRONT_BASE_URL=http://localhost:3000 node scripts/ui/verify_user_front_pages.mjs` from repository root for general browser route/navigation verification
+7. `npm run ci:frontend` from repository root when repo-standard frontend gating is needed
+
 ### 3.2 services/docs-front
 
 Working directory: `services/docs-front/`

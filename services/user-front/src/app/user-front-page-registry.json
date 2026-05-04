@@ -267,15 +267,15 @@
     "kind": "page",
     "audience": "consumer",
     "maturity": "production",
-    "expectedTexts": ["Invocations"],
-    "purpose": "Invocation history, charge audit, and refund request entry.",
+    "expectedTexts": ["Invocations", "Need a refund or billing review?"],
+    "purpose": "Invocation history, charge audit, and support-guided refund/dispute path.",
     "primaryInteractions": [
       "Search invocation logs",
-      "Open refund request",
-      "Inspect tx/correlation IDs"
+      "Open support contact for refund or billing review",
+      "Inspect invocation and service IDs"
     ],
     "dataVerification": "authenticated-gateway",
-    "dataSources": ["GET /api/v1/usage/logs", "POST /api/v1/refund"],
+    "dataSources": ["GET /api/v1/usage/logs", "support contact config"],
     "visualVerification": "screenshot-required",
     "screenshotName": "dashboard-invocations.png"
   },

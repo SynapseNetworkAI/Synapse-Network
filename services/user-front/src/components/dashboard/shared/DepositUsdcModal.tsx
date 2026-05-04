@@ -22,9 +22,11 @@ type DepositUsdcModalCopy = {
   stepDepositTitle: string;
   stepDepositActive: string;
   stepDepositWaiting: string;
+  progressAriaLabel: string;
   cancelLabel: string;
   processingLabel: string;
   confirmLabel: string;
+  closeDialogLabel: string;
 };
 
 type DepositUsdcModalProps = {
@@ -78,9 +80,11 @@ const DEFAULT_COPY: DepositUsdcModalCopy = {
   stepDepositActive:
     "Wallet prompt: submit the on-chain vault deposit and pay gas.",
   stepDepositWaiting: "Waiting for permit authorization.",
+  progressAriaLabel: "Deposit progress",
   cancelLabel: "Cancel",
   processingLabel: "Processing...",
   confirmLabel: "Confirm Deposit",
+  closeDialogLabel: "Close deposit dialog",
 };
 
 export default function DepositUsdcModal({
@@ -140,7 +144,7 @@ export default function DepositUsdcModal({
             type="button"
             onClick={onClose}
             className="x-modal-close"
-            aria-label="Close deposit dialog"
+            aria-label={labels.closeDialogLabel}
           >
             <X className="h-5 w-5" />
           </button>
@@ -264,7 +268,10 @@ export default function DepositUsdcModal({
           </div>
 
           {isBusy && (
-            <section className="mt-6 space-y-3" aria-label="Deposit progress">
+            <section
+              className="mt-6 space-y-3"
+              aria-label={labels.progressAriaLabel}
+            >
               <article
                 className={`flex items-center gap-3 rounded-xl border p-3 ${
                   step === "signing_permit"

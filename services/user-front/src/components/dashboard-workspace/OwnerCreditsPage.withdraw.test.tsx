@@ -142,12 +142,16 @@ function renderWithdrawModal(overrides: { availableBalance?: number } = {}) {
   const onClose = vi.fn();
   const onSuccess = vi.fn().mockResolvedValue(undefined);
   render(
-    createElement(WithdrawBalanceModal, {
-      availableBalance: overrides.availableBalance ?? 20,
-      userAddress: "0xabc",
-      onClose,
-      onSuccess,
-    })
+    createElement(
+      LanguageProvider,
+      null,
+      createElement(WithdrawBalanceModal, {
+        availableBalance: overrides.availableBalance ?? 20,
+        userAddress: "0xabc",
+        onClose,
+        onSuccess,
+      })
+    )
   );
   return { onClose, onSuccess };
 }
@@ -367,5 +371,27 @@ describe("OwnerCreditsPage — Withdraw", () => {
 
     expect(requestConsumerWithdrawMock).not.toHaveBeenCalled();
     expect(toastErrorMock).toHaveBeenCalledWith("Enter a valid amount.");
+  });
+
+  it("renders the withdrawal modal and validation toast in Chinese", async () => {
+    const user = userEvent.setup();
+    globalThis.localStorage.setItem(I18N_STORAGE_KEY, "zh");
+
+    renderWithdrawModal();
+
+    expect(screen.getByRole("heading", { name: "提现余额" })).toBeTruthy();
+    expect(screen.getByText(/可用余额：20\.00 USDC/)).toBeTruthy();
+    expect(screen.getByText("金额 (USDC)")).toBeTruthy();
+    expect(screen.getByText("原因（可选）")).toBeTruthy();
+    expect(screen.getByPlaceholderText("为什么要提现？")).toBeTruthy();
+    expect(screen.getByText(/每 24 小时最多 3 次提现/)).toBeTruthy();
+
+    const amountInput = screen.getByRole("spinbutton");
+    await user.clear(amountInput);
+    await user.type(amountInput, "0");
+    await user.click(screen.getAllByRole("button", { name: "提现" }).at(-1)!);
+
+    expect(requestConsumerWithdrawMock).not.toHaveBeenCalled();
+    expect(toastErrorMock).toHaveBeenCalledWith("请输入有效金额。");
   });
 });

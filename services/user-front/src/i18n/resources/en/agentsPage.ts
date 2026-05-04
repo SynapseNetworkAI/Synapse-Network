@@ -343,6 +343,55 @@ const agentsPage: I18nMessages["agentsPage"] = {
   workspaceRailStatePanelInvokeTitle: "Run the first paid invocation",
   workspaceRailStatePanelInvokeDescription:
     "The runtime is funded and credentialed. Open the guide to prove the first paid call end-to-end.",
+  quickStartAria: "Agent quick start",
+  quickStartDepositLabel: "Deposit",
+  quickStartCreateAgentLabel: "Create Agent",
+  quickStartDiscoverServicesLabel: "Discover Services",
+  quickStartStartUsingLabel: "Start Using",
+  quickStartInvalidDepositAmount: "Please enter a valid deposit amount.",
+  quickStartInsufficientUsdc: "Insufficient USDC balance in wallet.",
+  quickStartNetworkUnknown:
+    "Unable to determine wallet network. Please switch to the target testnet and retry.",
+  quickStartDepositInitiated: "Deposit initiated. Waiting for confirmation...",
+  quickStartDepositFailed: "Deposit failed",
+  quickStartDepositSuccessful:
+    "Deposit successful. Now create your first agent.",
+  quickStartStepDepositTitle: "Step 1: Deposit USDC",
+  quickStartStepDepositDescription:
+    "Transfer USDC from your wallet to the Synapse Vault. This is your credit balance for agent operations.",
+  quickStartWalletBalanceLabel: "Current Wallet Balance",
+  quickStartDepositNow: "Deposit USDC Now",
+  quickStartStepAgentTitle: "Step 2: Create Your First Agent",
+  quickStartStepAgentDescription:
+    "An agent is a runtime identity that can discover and invoke services autonomously within your budget constraints.",
+  quickStartAgentNameLabel: "Agent Name",
+  quickStartDailyBudgetLabel: "Daily Budget",
+  quickStartMaxCallsPerDayLabel: "Max Calls/Day",
+  quickStartStepServicesTitle: "Step 3: Discover & Access Services",
+  quickStartStepServicesDescription:
+    "Browse the service marketplace, get quotes, and invoke APIs. Your agent will handle payments automatically.",
+  quickStartExampleServicesAria: "Example services",
+  quickStartDataAggregationService: "Data Aggregation API",
+  quickStartDataAggregationPrice: "$0.01 per call",
+  quickStartMlInferenceService: "ML Model Inference",
+  quickStartMlInferencePrice: "$0.05 per call",
+  quickStartBrowseServices: "Browse Services",
+  quickStartCompleteTitle: "You're All Set!",
+  quickStartCompleteDescription:
+    "Your agent is ready to discover services and make autonomous API calls. Start exploring the marketplace.",
+  quickStartViewAgents: "View Agents",
+  quickStartGoToMarketplace: "Go to Marketplace",
+  quickStartDepositModalTitle: "Deposit USDC",
+  quickStartDepositModalAmount: "Amount (USDC)",
+  quickStartDepositAvailable: "Available: {{amount}} USDC",
+  quickStartDepositProgressAria: "Deposit progress",
+  quickStartPermitTitle: "Step 1: Sign Permit",
+  quickStartPermitWaiting: "Waiting for wallet signature...",
+  quickStartPermitSigned: "Signed",
+  quickStartExecuteTitle: "Step 2: Execute Deposit",
+  quickStartExecuteConfirming: "Confirming on-chain...",
+  quickStartExecuteWaiting: "Waiting for step 1",
+  quickStartDepositAction: "Deposit",
 };
 
 export default agentsPage;

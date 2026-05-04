@@ -6,6 +6,7 @@ import type { Address } from "viem";
 import { invokePaidService } from "@/utils/invokePaidService";
 import { payForServiceWithApproval } from "@/utils/payForService";
 import { getCredentialForService } from "@/utils/agentCredentialStore";
+import { useLanguage } from "@/components/i18n/LanguageProvider";
 
 type PaidInvokePanelProps = {
   providerAddress: string;
@@ -33,6 +34,7 @@ type ExpandedInvokeContentProps = {
   serviceId?: string;
   testPrompt: string;
   setTestPrompt: (value: string) => void;
+  copy: PaidInvokeCopy;
 };
 
 type PaidInvokeActionArgs = {
@@ -42,6 +44,23 @@ type PaidInvokeActionArgs = {
   providerAddress: string;
   serviceId?: string;
   testPrompt: string;
+  copy: PaidInvokeCopy;
+};
+
+type PaidInvokeCopy = {
+  missingConfig: string;
+  inactiveService: string;
+  completed: string;
+  failed: string;
+  txHash: string;
+  attempts: string;
+  testPrompt: string;
+  processing: string;
+  payAndInvoke: string;
+  unavailableHint: string;
+  collapse: string;
+  expand: string;
+  collapsedHint: string;
 };
 
 const EMPTY_RESULT: InvokeResultState = {
@@ -57,17 +76,18 @@ function usePaidInvokeAction({
   providerAddress,
   serviceId,
   testPrompt,
+  copy,
 }: Readonly<PaidInvokeActionArgs>) {
   const [isInvoking, setIsInvoking] = useState(false);
   const [lastResult, setLastResult] = useState<InvokeResultState>(EMPTY_RESULT);
 
   const handleTestPaidInvoke = async () => {
     if (!endpoint || !serviceId || !pricing) {
-      toast.error("Please complete endpoint, serviceId and pricing first.");
+      toast.error(copy.missingConfig);
       return;
     }
     if (!isActive) {
-      toast.error("Service is INACTIVE. Switch to ACTIVE before testing.");
+      toast.error(copy.inactiveService);
       return;
     }
 
@@ -99,9 +119,9 @@ function usePaidInvokeAction({
         attempts: result.attempts,
         response: JSON.stringify(result.response, null, 2),
       });
-      toast.success("Paid invoke completed.");
+      toast.success(copy.completed);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Invoke failed";
+      const message = error instanceof Error ? error.message : copy.failed;
       toast.error(message);
     } finally {
       setIsInvoking(false);
@@ -114,14 +134,15 @@ function usePaidInvokeAction({
 function InvokeResultDetails({
   attempts,
   txHash,
-}: Readonly<{ attempts: number; txHash: string }>) {
+  copy,
+}: Readonly<{ attempts: number; txHash: string; copy: PaidInvokeCopy }>) {
   if (!txHash) return null;
 
   return (
     <div className="p-3 text-xs border border-gray-800 rounded-lg bg-gray-950">
-      <div className="text-gray-500">Tx Hash</div>
+      <div className="text-gray-500">{copy.txHash}</div>
       <div className="font-mono text-green-300 break-all">{txHash}</div>
-      <div className="mt-2 text-gray-500">Attempts</div>
+      <div className="mt-2 text-gray-500">{copy.attempts}</div>
       <div className="font-mono text-green-300">{attempts}</div>
     </div>
   );
@@ -153,6 +174,7 @@ function ExpandedInvokeContent({
   serviceId,
   testPrompt,
   setTestPrompt,
+  copy,
 }: Readonly<ExpandedInvokeContentProps>) {
   return (
     <div className="space-y-3">
@@ -161,7 +183,7 @@ function ExpandedInvokeContent({
           htmlFor={`test-prompt-${serviceId || "service"}`}
           className="block mb-1 text-xs text-gray-500 uppercase"
         >
-          Test Prompt
+          {copy.testPrompt}
         </label>
         <input
           id={`test-prompt-${serviceId || "service"}`}
@@ -177,18 +199,17 @@ function ExpandedInvokeContent({
         disabled={isInvoking || !canInvoke}
         className="w-full py-2 text-sm font-bold text-black transition-colors bg-green-500 rounded-lg hover:bg-green-400 disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        {isInvoking ? "Processing..." : "Pay & Invoke Now"}
+        {isInvoking ? copy.processing : copy.payAndInvoke}
       </button>
 
       {!canInvoke && (
-        <p className="text-xs text-yellow-500">
-          Endpoint / Service ID / Pricing missing or service is inactive.
-        </p>
+        <p className="text-xs text-yellow-500">{copy.unavailableHint}</p>
       )}
 
       <InvokeResultDetails
         attempts={lastResult.attempts}
         txHash={lastResult.txHash}
+        copy={copy}
       />
       <InvokeResponsePreview compact={compact} response={lastResult.response} />
     </div>
@@ -201,11 +222,29 @@ export default function PaidInvokePanel({
   pricing,
   endpoint,
   isActive = true,
-  title = "Live Test (Pay + Invoke)",
+  title,
   compact = false,
   defaultCollapsed = false,
 }: Readonly<PaidInvokePanelProps>) {
-  const [testPrompt, setTestPrompt] = useState("hello from agent");
+  const { t } = useLanguage();
+  const copy: PaidInvokeCopy = {
+    missingConfig: t("paidInvokePanel.missingConfig"),
+    inactiveService: t("paidInvokePanel.inactiveService"),
+    completed: t("paidInvokePanel.completed"),
+    failed: t("paidInvokePanel.failed"),
+    txHash: t("paidInvokePanel.txHash"),
+    attempts: t("paidInvokePanel.attempts"),
+    testPrompt: t("paidInvokePanel.testPrompt"),
+    processing: t("paidInvokePanel.processing"),
+    payAndInvoke: t("paidInvokePanel.payAndInvoke"),
+    unavailableHint: t("paidInvokePanel.unavailableHint"),
+    collapse: t("paidInvokePanel.collapse"),
+    expand: t("paidInvokePanel.expand"),
+    collapsedHint: t("paidInvokePanel.collapsedHint"),
+  };
+  const [testPrompt, setTestPrompt] = useState(
+    t("paidInvokePanel.defaultPrompt")
+  );
   const [isExpanded, setIsExpanded] = useState(!defaultCollapsed);
   const canInvoke = Boolean(endpoint && serviceId && pricing && isActive);
   const { handleTestPaidInvoke, isInvoking, lastResult } = usePaidInvokeAction({
@@ -215,6 +254,7 @@ export default function PaidInvokePanel({
     providerAddress,
     serviceId,
     testPrompt,
+    copy,
   });
 
   return (
@@ -225,21 +265,19 @@ export default function PaidInvokePanel({
     >
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-bold tracking-widest text-white uppercase">
-          {title}
+          {title ?? t("paidInvokePanel.defaultTitle")}
         </h3>
         <button
           type="button"
           onClick={() => setIsExpanded((prev) => !prev)}
           className="text-xs text-gray-400 transition-colors hover:text-white"
         >
-          {isExpanded ? "Collapse" : "Expand"}
+          {isExpanded ? copy.collapse : copy.expand}
         </button>
       </div>
 
       {!isExpanded && (
-        <p className="text-xs text-gray-500">
-          Click Expand to run a paid service invocation test.
-        </p>
+        <p className="text-xs text-gray-500">{copy.collapsedHint}</p>
       )}
 
       {isExpanded && (
@@ -252,6 +290,7 @@ export default function PaidInvokePanel({
           serviceId={serviceId}
           setTestPrompt={setTestPrompt}
           testPrompt={testPrompt}
+          copy={copy}
         />
       )}
     </div>
