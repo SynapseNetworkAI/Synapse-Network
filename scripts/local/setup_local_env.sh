@@ -65,7 +65,7 @@ wait_for_postgres_ready() {
 	return 1
 }
 
-ensure_local_postgres() {
+ensure_local_docker_infra() {
 	local existing_postgres_pid
 	existing_postgres_pid="$(lsof -t -nP -iTCP:5432 -sTCP:LISTEN 2>/dev/null | head -n 1 || true)"
 	if [[ -n "$existing_postgres_pid" && "$LOCAL_GATEWAY_POSTGRES_PORT" != "5432" ]]; then
@@ -79,8 +79,9 @@ ensure_local_postgres() {
 	fi
 	ensure_docker_runtime "$compose_cmd"
 
-	echo "0) Starting Docker local Postgres via ${compose_cmd} on 127.0.0.1:${LOCAL_GATEWAY_POSTGRES_PORT}..."
-	SYNAPSE_POSTGRES_HOST_PORT="$LOCAL_GATEWAY_POSTGRES_PORT" ${compose_cmd} -f "${ROOT_DIR}/infra/docker/local/docker-compose.yml" up -d postgres >/dev/null
+	echo "0) Starting Docker local infra via ${compose_cmd}..."
+	echo "   postgres: 127.0.0.1:${LOCAL_GATEWAY_POSTGRES_PORT}, redis: 127.0.0.1:6379, minio: http://127.0.0.1:9001, otterscan: http://localhost:5100"
+	SYNAPSE_POSTGRES_HOST_PORT="$LOCAL_GATEWAY_POSTGRES_PORT" ${compose_cmd} -f "${ROOT_DIR}/infra/docker/local/docker-compose.yml" up -d postgres redis minio otterscan >/dev/null
 	if ! wait_for_postgres_ready 45; then
 		echo "Error: local Postgres failed to become ready on 127.0.0.1:${PGPORT:-${SYNAPSE_POSTGRES_HOST_PORT:-${LOCAL_GATEWAY_POSTGRES_PORT}}}."
 		return 1
@@ -204,7 +205,7 @@ echo "Using npm    : $(npm -v)"
 echo "Using yarn   : $(yarn --version)"
 
 ensure_hardhat_local
-ensure_local_postgres
+ensure_local_docker_infra
 bootstrap_local_postgres_schema
 
 echo "1) Starting Anvil node in background..."
