@@ -62,7 +62,9 @@ vi.mock("@/components/WalletAuthGuard", () => ({
 }));
 
 vi.mock("@/utils/serviceApi", async () => {
-  const actual = await vi.importActual<typeof import("@/utils/serviceApi")>("@/utils/serviceApi");
+  const actual = await vi.importActual<typeof import("@/utils/serviceApi")>(
+    "@/utils/serviceApi"
+  );
   return {
     ...actual,
     listApiSecrets: listApiSecretsMock,
@@ -108,11 +110,15 @@ describe("ProviderSecretsPage", () => {
   it("copies a secret and shows zh success toast", async () => {
     const user = userEvent.setup();
 
-    render(createElement(LanguageProvider, null, createElement(ProviderSecretsPage)));
+    render(
+      createElement(LanguageProvider, null, createElement(ProviderSecretsPage))
+    );
 
     await screen.findByText("Primary Secret");
 
-    const copyButton = screen.getAllByTitle("复制签名密钥")[0].closest("button");
+    const copyButton = screen
+      .getAllByTitle("复制签名密钥")[0]
+      .closest("button");
     expect(copyButton).toBeTruthy();
     await user.click(copyButton as HTMLButtonElement);
 
@@ -124,11 +130,15 @@ describe("ProviderSecretsPage", () => {
   it("creates a secret from the modal and shows zh success toast", async () => {
     const user = userEvent.setup();
 
-    render(createElement(LanguageProvider, null, createElement(ProviderSecretsPage)));
+    render(
+      createElement(LanguageProvider, null, createElement(ProviderSecretsPage))
+    );
 
     await screen.findByText("Primary Secret");
 
-    await user.click(screen.getAllByRole("button", { name: "签发签名密钥" })[0]);
+    await user.click(
+      screen.getAllByRole("button", { name: "签发签名密钥" })[0]
+    );
 
     await screen.findByRole("heading", { name: "签发 Provider 凭据" });
     await user.type(screen.getByLabelText("名称"), "新密钥");
@@ -145,12 +155,36 @@ describe("ProviderSecretsPage", () => {
         null,
         null,
         expect.any(Number),
-        75,
+        75
       );
     });
     await waitFor(() => {
       expect(toastSuccess).toHaveBeenCalledWith("签名密钥已创建");
     });
     expect(await screen.findByText("新密钥")).toBeTruthy();
+  });
+
+  it("revokes a secret through the custom confirmation dialog", async () => {
+    const user = userEvent.setup();
+    deleteApiSecretMock.mockResolvedValue(undefined);
+
+    render(
+      createElement(LanguageProvider, null, createElement(ProviderSecretsPage))
+    );
+
+    await screen.findByText("Primary Secret");
+    const revokeButton = screen.getByTitle("撤销签名密钥").closest("button");
+    expect(revokeButton).toBeTruthy();
+    await user.click(revokeButton as HTMLButtonElement);
+
+    expect(await screen.findByText(/确认撤销这把签名密钥吗/)).toBeTruthy();
+    await user.click(
+      screen.getAllByRole("button", { name: "撤销签名密钥" }).at(-1)!
+    );
+
+    await waitFor(() => {
+      expect(deleteApiSecretMock).toHaveBeenCalledWith("secret-1", "0xabc");
+    });
+    expect(toastSuccess).toHaveBeenCalledWith("签名密钥已删除");
   });
 });
