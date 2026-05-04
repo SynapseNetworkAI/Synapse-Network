@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createElement } from "react";
 
@@ -65,7 +65,9 @@ vi.mock("@rainbow-me/rainbowkit", () => ({
 
 vi.mock("wagmi", () => ({
   useAccount: () => ({ address: "0xabc", isConnected: true }),
-  useBalance: () => ({ data: { value: 10n ** 18n, symbol: "ETH", decimals: 18 } }),
+  useBalance: () => ({
+    data: { value: 10n ** 18n, symbol: "ETH", decimals: 18 },
+  }),
   useChainId: () => 31337,
   usePublicClient: () => ({
     readContract: readContractMock,
@@ -94,9 +96,9 @@ vi.mock("@/contract-config.json", () => ({
 }));
 
 vi.mock("@/utils/providerWithdrawApi", async () => {
-  const actual = await vi.importActual<typeof import("@/utils/providerWithdrawApi")>(
-    "@/utils/providerWithdrawApi",
-  );
+  const actual = await vi.importActual<
+    typeof import("@/utils/providerWithdrawApi")
+  >("@/utils/providerWithdrawApi");
   return {
     ...actual,
     createProviderWithdrawIntent: createProviderWithdrawIntentMock,
@@ -107,6 +109,10 @@ vi.mock("@/utils/providerWithdrawApi", async () => {
 });
 
 describe("ProviderSettlementsPage", () => {
+  afterEach(() => {
+    cleanup();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     globalThis.localStorage.setItem(I18N_STORAGE_KEY, "zh");
@@ -123,15 +129,21 @@ describe("ProviderSettlementsPage", () => {
       new ProviderWithdrawApiError(
         "Gateway cannot verify on-chain vault liquidity right now. Retry after the chain RPC reconnects.",
         "WITHDRAW_VAULT_LIQUIDITY_CHECK_UNAVAILABLE",
-        503,
-      ),
+        503
+      )
     );
   });
 
   it("shows zh toast copy when withdraw intent returns vault liquidity check unavailable", async () => {
     const user = userEvent.setup();
 
-    render(createElement(LanguageProvider, null, createElement(ProviderSettlementsPage)));
+    render(
+      createElement(
+        LanguageProvider,
+        null,
+        createElement(ProviderSettlementsPage)
+      )
+    );
 
     await waitFor(() => {
       expect(getProviderWithdrawCapabilityMock).toHaveBeenCalledWith("0xabc");
@@ -150,12 +162,63 @@ describe("ProviderSettlementsPage", () => {
     await user.click(createButton);
 
     await waitFor(() => {
-      expect(createProviderWithdrawIntentMock).toHaveBeenCalledWith("0xabc", "8.5");
+      expect(createProviderWithdrawIntentMock).toHaveBeenCalledWith(
+        "0xabc",
+        "8.5"
+      );
     });
     await waitFor(() => {
       expect(toastError).toHaveBeenCalledWith(
         "网关当前无法校验链上金库余额，请等待 RPC 恢复后再重试。",
-        { id: "toast-provider-withdraw" },
+        { id: "toast-provider-withdraw" }
+      );
+    });
+  });
+
+  it("shows zh toast copy when provider receivable is not mature", async () => {
+    const user = userEvent.setup();
+    createProviderWithdrawIntentMock.mockRejectedValue(
+      new ProviderWithdrawApiError(
+        "Requested 12.600000 USDC exceeds mature provider receivable of 0.000000 USDC. Provider earnings must mature for 7 days before withdrawal.",
+        "PROVIDER_RECEIVABLE_NOT_MATURED",
+        400
+      )
+    );
+
+    render(
+      createElement(
+        LanguageProvider,
+        null,
+        createElement(ProviderSettlementsPage)
+      )
+    );
+
+    await waitFor(() => {
+      expect(getProviderWithdrawCapabilityMock).toHaveBeenCalledWith("0xabc");
+    });
+
+    const amountInput = await screen.findByPlaceholderText("12.000000 USDC");
+    await user.type(amountInput, "8.5");
+
+    const createButton = screen.getByRole("button", {
+      name: "生成并提现",
+    }) as HTMLButtonElement;
+    await waitFor(() => {
+      expect(createButton.disabled).toBe(false);
+    });
+
+    await user.click(createButton);
+
+    await waitFor(() => {
+      expect(createProviderWithdrawIntentMock).toHaveBeenCalledWith(
+        "0xabc",
+        "8.5"
+      );
+    });
+    await waitFor(() => {
+      expect(toastError).toHaveBeenCalledWith(
+        "Provider 收益需要经过 T+7 风控沉淀期后才能提现。新产生的应收会显示在余额中，但只有已成熟应收可以提现。",
+        { id: "toast-provider-withdraw" }
       );
     });
   });

@@ -98,6 +98,7 @@ ADMIN_FRONT_REGEX='^services/admin-front/src/.*\.(ts|tsx)$'
 USER_FRONT_REGEX='^services/user-front/src/.*\.(ts|tsx)$'
 FRONT_HIGH_RISK_REGEX='^services/(admin-front|user-front)/src/.*(withdrawal-reviews|withdraw|finance|reconciliation|billing|credits|payments|analytics|forum-support|approval|risk|audit).*\.(ts|tsx)$'
 FRONT_ANY_REGEX='^services/(admin-front|user-front)/src/.*\.(ts|tsx)$'
+USER_FRONT_I18N_REGEX='^(services/user-front/src/i18n/|services/user-front/src/test/renderWithLanguage\.tsx|scripts/ci/user_front_i18n_check\.mjs|scripts/ui/verify_user_front_i18n\.mjs)$'
 
 NEED_GATEWAY=0
 NEED_GATEWAY_ADMIN=0
@@ -125,6 +126,13 @@ if [[ "$NEED_USER_FRONT" -eq 1 ]]; then
   run_frontend_coverage "$ROOT_DIR/services/user-front"
 fi
 
+run_user_front_i18n_dom_gate() {
+  (
+    cd "$ROOT_DIR"
+    npm run ci:user-front-i18n-dom
+  )
+}
+
 if has_match "$PY_FINANCE_REGEX"; then
   [[ "$NEED_GATEWAY" -eq 1 ]] && run_diff_cover "python finance-sensitive gateway" "$ROOT_DIR/services/gateway/coverage.xml" 90 --include "services/gateway/src/**/*finance*.py" "services/gateway/src/**/*withdraw*.py" "services/gateway/src/**/*refund*.py" "services/gateway/src/**/*deposit*.py" "services/gateway/src/**/*balance*.py" "services/gateway/src/**/*ledger*.py" "services/gateway/src/**/*reconciliation*.py" "services/gateway/src/**/*settlement*.py" "services/gateway/src/**/*complete*.py"
   [[ "$NEED_GATEWAY_ADMIN" -eq 1 ]] && run_diff_cover "python finance-sensitive gateway-admin" "$ROOT_DIR/services/gateway-admin/coverage.xml" 90 --include "services/gateway-admin/src/**/*finance*.py" "services/gateway-admin/src/**/*withdraw*.py" "services/gateway-admin/src/**/*approval*.py" "services/gateway-admin/src/**/*review*.py" "services/gateway-admin/src/**/*reconciliation*.py"
@@ -148,7 +156,14 @@ fi
 
 if has_match "$FRONT_ANY_REGEX"; then
   [[ "$NEED_ADMIN_FRONT" -eq 1 ]] && run_diff_cover "frontend ordinary admin-front" "$ROOT_DIR/services/admin-front/coverage/cobertura-coverage.xml" 70 --include "services/admin-front/src/**/*.ts" "services/admin-front/src/**/*.tsx" --exclude "services/admin-front/src/**/*withdrawal-reviews*.ts" "services/admin-front/src/**/*withdrawal-reviews*.tsx" "services/admin-front/src/**/*finance*.ts" "services/admin-front/src/**/*finance*.tsx" "services/admin-front/src/**/*analytics*.ts" "services/admin-front/src/**/*analytics*.tsx" "services/admin-front/src/**/*forum-support*.ts" "services/admin-front/src/**/*forum-support*.tsx" "services/admin-front/src/**/*approval*.ts" "services/admin-front/src/**/*approval*.tsx" "services/admin-front/src/**/*risk*.ts" "services/admin-front/src/**/*risk*.tsx" "services/admin-front/src/**/*audit*.ts" "services/admin-front/src/**/*audit*.tsx"
-  [[ "$NEED_USER_FRONT" -eq 1 ]] && run_diff_cover "frontend ordinary user-front" "$ROOT_DIR/services/user-front/coverage/cobertura-coverage.xml" 70 --include "services/user-front/src/**/*.ts" "services/user-front/src/**/*.tsx" --exclude "services/user-front/src/**/*withdraw*.ts" "services/user-front/src/**/*withdraw*.tsx" "services/user-front/src/**/*billing*.ts" "services/user-front/src/**/*billing*.tsx" "services/user-front/src/**/*credits*.ts" "services/user-front/src/**/*credits*.tsx" "services/user-front/src/**/*payments*.ts" "services/user-front/src/**/*payments*.tsx" "services/user-front/src/**/*audit*.ts" "services/user-front/src/**/*audit*.tsx"
+  if [[ "$NEED_USER_FRONT" -eq 1 ]]; then
+    if has_match "$USER_FRONT_I18N_REGEX"; then
+      echo "[diff-coverage] user-front i18n migration detected; using dedicated i18n DOM gate for ordinary frontend diff coverage"
+      run_user_front_i18n_dom_gate
+    else
+      run_diff_cover "frontend ordinary user-front" "$ROOT_DIR/services/user-front/coverage/cobertura-coverage.xml" 70 --include "services/user-front/src/**/*.ts" "services/user-front/src/**/*.tsx" --exclude "services/user-front/src/**/*withdraw*.ts" "services/user-front/src/**/*withdraw*.tsx" "services/user-front/src/**/*billing*.ts" "services/user-front/src/**/*billing*.tsx" "services/user-front/src/**/*credits*.ts" "services/user-front/src/**/*credits*.tsx" "services/user-front/src/**/*payments*.ts" "services/user-front/src/**/*payments*.tsx" "services/user-front/src/**/*audit*.ts" "services/user-front/src/**/*audit*.tsx"
+    fi
+  fi
 else
   echo "[diff-coverage] no frontend source changed files; skipping 70% frontend segment"
 fi

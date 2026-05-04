@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createElement } from "react";
 import FeedbackDrawer from "@/components/feedback/FeedbackDrawer";
@@ -54,6 +54,10 @@ function renderDrawer() {
 }
 
 describe("FeedbackDrawer", () => {
+  afterEach(() => {
+    cleanup();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.setItem(I18N_STORAGE_KEY, "en");
@@ -90,5 +94,22 @@ describe("FeedbackDrawer", () => {
     expect((await screen.findByTestId("feedback-id")).textContent).toContain(
       "fbk_unit"
     );
+  });
+
+  it("renders the feedback modal in Chinese", () => {
+    localStorage.setItem(I18N_STORAGE_KEY, "zh");
+
+    renderDrawer();
+
+    expect(screen.getByRole("dialog", { name: "提交反馈" })).toBeTruthy();
+    expect(screen.getByText("类型")).toBeTruthy();
+    expect(screen.getByText("需要我们知道什么？")).toBeTruthy();
+    expect(
+      screen.getByPlaceholderText(
+        "告诉我们哪里坏了、哪里困惑，或者你原本期待发生什么。"
+      )
+    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: "提交反馈" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "关闭反馈" })).toBeTruthy();
   });
 });

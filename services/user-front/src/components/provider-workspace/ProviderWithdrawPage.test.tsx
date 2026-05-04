@@ -28,6 +28,7 @@ const {
   completeProviderWithdrawalMock,
   reloadDashboardMock,
   readContractMock,
+  languageState,
 } = vi.hoisted(() => ({
   toastError: vi.fn(),
   toastLoading: vi.fn(() => "toast-provider-withdraw"),
@@ -38,6 +39,7 @@ const {
   completeProviderWithdrawalMock: vi.fn(),
   reloadDashboardMock: vi.fn(),
   readContractMock: vi.fn(),
+  languageState: { value: "en" },
 }));
 
 const TRANSLATIONS: Record<string, string> = {
@@ -81,6 +83,14 @@ const TRANSLATIONS: Record<string, string> = {
   "providerSettlements.vaultLiquidityCheckUnavailable":
     "Vault liquidity check unavailable",
   "providerSettlements.chainRpcUnavailable": "Chain RPC unavailable",
+  "providerSettlements.providerReceivableNotMatured":
+    "Provider earnings need T+7 maturity before withdrawal.",
+  "providerSettlements.minWithdrawalAmountNotMet":
+    "Minimum provider withdrawal amount is 10.00 USDC.",
+  "providerSettlements.insufficientProviderReceivable":
+    "Withdrawable provider receivable is insufficient.",
+  "providerSettlements.pendingWithdrawalExists":
+    "A provider withdrawal is already pending.",
   "providerSettlements.withdrawalCreateFailed": "Failed to create withdrawal",
   "providerSettlements.noPendingTicket": "No pending ticket",
   "providerSettlements.chainRequiredNetwork": "required network",
@@ -120,6 +130,31 @@ const TRANSLATIONS: Record<string, string> = {
     "Blank = full withdrawal. Minimum withdrawal: {{amount}} USDC. Max 2 decimals.",
 };
 
+const ZH_TRANSLATIONS: Record<string, string> = {
+  ...TRANSLATIONS,
+  "providerSettlements.withdrawPageTitle": "Provider 提现",
+  "providerSettlements.withdrawPageDescription": "EIP-712 链上自助提现。",
+  "providerSettlements.metricAvailable": "可用余额",
+  "providerSettlements.generateAndClaim": "生成并提现",
+  "providerSettlements.confirmWithdraw": "确认提现",
+  "providerSettlements.withdrawAmountPlaceholder": "金额（留空 = 全部提现）",
+  "providerSettlements.withdrawGasNote":
+    "链上交易 — 需要支付少量原生代币（如 ETH）作为 Gas 费。",
+  "providerSettlements.historyTitle": "提现历史",
+  "providerSettlements.historyFilterAll": "全部",
+  "providerSettlements.searchButton": "搜索",
+  "providerSettlements.viewInvocationRecords": "查看调用记录",
+  "providerSettlements.historyEmpty": "暂时还没有提现记录。",
+  "providerSettlements.providerReceivableNotMatured":
+    "Provider 收益需经过 T+7 风控沉淀期后才能提现。",
+  "providerSettlements.minWithdrawalAmountNotMet":
+    "Provider 最小提现金额为 10.00 USDC。",
+  "providerSettlements.insufficientProviderReceivable":
+    "可提现 Provider 应收余额不足。",
+  "providerSettlements.pendingWithdrawalExists":
+    "已经存在一笔待处理 Provider 提现。",
+};
+
 vi.mock("react-hot-toast", () => ({
   default: {
     error: toastError,
@@ -143,7 +178,8 @@ vi.mock("next/link", () => ({
 
 vi.mock("@/components/i18n/LanguageProvider", () => {
   const tFn = (key: string, vars?: Record<string, string | number>) => {
-    let text = TRANSLATIONS[key] ?? key;
+    const table = languageState.value === "zh" ? ZH_TRANSLATIONS : TRANSLATIONS;
+    let text = table[key] ?? key;
     if (vars) {
       for (const [k, v] of Object.entries(vars)) {
         text = text.replaceAll(`{{${k}}}`, String(v));
@@ -153,7 +189,7 @@ vi.mock("@/components/i18n/LanguageProvider", () => {
   };
   return {
     useLanguage: () => ({
-      lang: "en",
+      lang: languageState.value,
       t: tFn,
     }),
   };
@@ -260,6 +296,7 @@ describe("ProviderWithdrawPage", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    languageState.value = "en";
     walletBalance = 10n ** 18n;
     readContractMock.mockResolvedValue(20n * 10n ** 18n);
     getProviderWithdrawCapabilityMock.mockResolvedValue({
@@ -579,6 +616,76 @@ describe("ProviderWithdrawPage", () => {
     );
     await user.click(screen.getByRole("button", { name: /Confirm/i }));
     await waitFor(() => expect(toastError).toHaveBeenCalled());
+  });
+
+  it("localizes provider receivable maturity errors by code", async () => {
+    const user = userEvent.setup();
+    createProviderWithdrawIntentMock.mockRejectedValue(
+      new ProviderWithdrawApiError(
+        "Requested 12.600000 USDC exceeds mature provider receivable of 0.000000 USDC. Provider earnings must mature for 7 days before withdrawal.",
+        "PROVIDER_RECEIVABLE_NOT_MATURED",
+        400
+      )
+    );
+    renderPage();
+    await waitFor(() =>
+      expect(getProviderWithdrawCapabilityMock).toHaveBeenCalled()
+    );
+    const btn = screen.getByRole("button", {
+      name: /Generate & Claim/i,
+    }) as HTMLButtonElement;
+    await waitFor(() => expect(btn.disabled).toBe(false));
+    await user.click(btn);
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /Confirm/i })).toBeTruthy()
+    );
+    await user.click(screen.getByRole("button", { name: /Confirm/i }));
+
+    await waitFor(() => {
+      expect(toastError).toHaveBeenCalledWith(
+        "Provider earnings need T+7 maturity before withdrawal.",
+        { id: "toast-provider-withdraw" }
+      );
+    });
+  });
+
+  it("renders Chinese page copy and localizes provider withdrawal errors by code", async () => {
+    languageState.value = "zh";
+    const user = userEvent.setup();
+    createProviderWithdrawIntentMock.mockRejectedValue(
+      new ProviderWithdrawApiError(
+        "Requested 12.600000 USDC exceeds mature provider receivable of 0.000000 USDC. Provider earnings must mature for 7 days before withdrawal.",
+        "PROVIDER_RECEIVABLE_NOT_MATURED",
+        400
+      )
+    );
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("heading", { name: "Provider 提现" })
+      ).toBeTruthy();
+    });
+    expect(screen.getByText("可用余额")).toBeTruthy();
+    expect(screen.getByText("提现历史")).toBeTruthy();
+    const btn = screen.getByRole("button", {
+      name: /生成并提现/i,
+    }) as HTMLButtonElement;
+    await waitFor(() => expect(btn.disabled).toBe(false));
+    await user.click(btn);
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "确认提现" })).toBeTruthy()
+    );
+    await user.click(screen.getByRole("button", { name: "确认提现" }));
+
+    await waitFor(() => {
+      expect(toastError).toHaveBeenCalledWith(
+        "Provider 收益需经过 T+7 风控沉淀期后才能提现。",
+        { id: "toast-provider-withdraw" }
+      );
+    });
   });
 
   it("blocks on-chain claim when a new ticket is inside the critical expiry window", async () => {

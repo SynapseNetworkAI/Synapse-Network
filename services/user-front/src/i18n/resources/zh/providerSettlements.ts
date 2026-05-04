@@ -11,6 +11,13 @@ const providerSettlements: I18nMessages["providerSettlements"] = {
   vaultLiquidityCheckUnavailable:
     "网关当前无法校验链上金库余额，请等待 RPC 恢复后再重试。",
   chainRpcUnavailable: "网关当前无法连接链上 RPC，请等待 RPC 恢复后再重试。",
+  providerReceivableNotMatured:
+    "Provider 收益需要经过 T+7 风控沉淀期后才能提现。新产生的应收会显示在余额中，但只有已成熟应收可以提现。",
+  minWithdrawalAmountNotMet: "Provider 最小提现金额为 10.00 USDC。",
+  insufficientProviderReceivable:
+    "当前可提现 Provider 应收不足，无法创建这笔提现。",
+  pendingWithdrawalExists:
+    "当前已有一笔 Provider 提现待处理，请完成或等待审核后再创建新的提现。",
   vaultAddressMissing: "缺少金库合约地址",
   walletClientUnavailable: "当前网络客户端不可用。请重连钱包后再试。",
   connectWalletFirst: "请先连接钱包，再提交这笔提现。",

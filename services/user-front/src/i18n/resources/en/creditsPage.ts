@@ -43,9 +43,97 @@ const creditsPage: I18nMessages["creditsPage"] = {
   depositVaultStepActive:
     "Wallet prompt: submit the on-chain vault deposit and pay gas.",
   depositVaultStepWaiting: "Waiting for permit authorization.",
+  depositProgressAria: "Deposit progress",
   depositCancel: "Cancel",
   depositProcessing: "Processing...",
   depositConfirm: "Confirm Deposit",
+  depositTransactionFailed: "Deposit transaction failed",
+  depositCancelled: "Deposit was cancelled in wallet. No funds were charged.",
+  depositGasInsufficient:
+    "Deposit failed because the wallet does not have enough native token to pay gas.",
+  depositUsdcInsufficient:
+    "Deposit failed because the wallet does not have enough USDC for this transfer.",
+  depositVaultRejectedWithError:
+    "Deposit was rejected by the vault contract ({{errorName}}). No funds were credited to the platform.",
+  depositVaultRejectedWithReason:
+    "Deposit was rejected by the vault contract: {{reason}}. No funds were credited to the platform.",
+  depositVaultRejectedCustomError:
+    "Deposit was rejected by the vault contract with a custom on-chain error. No funds were credited to the platform.",
+  depositVaultRejected:
+    "Deposit failed on-chain because the vault contract rejected this transaction. No funds were credited to the platform.",
+  depositNonceOutOfDate:
+    "Deposit failed because the wallet transaction nonce is out of date. Please retry from the wallet.",
+  depositWalletReconnect:
+    "Wallet not fully connected yet. Please reconnect and retry.",
+  depositWalletSingleAccount:
+    "Please select only one wallet account, then reconnect.",
+  depositWalletUnstable:
+    "Wallet connection unstable. Please reconnect wallet and retry.",
+  depositInvalidAmount: "Enter a valid USDC amount.",
+  depositInsufficientWalletUsdc:
+    "Insufficient wallet USDC. Need {{amount}} USDC, wallet has {{balance}} USDC.",
+  depositNativeGasRequired:
+    "Deposit requires native gas for the vault transaction. Keep at least {{minimum}} {{symbol}} in this wallet.",
+  depositGatewayBalanceSynced: "Gateway balance synced.",
+  depositGatewayStillSyncing:
+    "Deposit confirmed on-chain. Gateway is still syncing the balance.",
+  depositConfirmedSyncing:
+    "Deposit confirmed on-chain. Syncing gateway balance...",
+  depositConnectWalletFirst: "Please connect your wallet first.",
+  depositCancelledToast: "Sign/transaction cancelled by user",
+  depositInsufficientFundsRetry:
+    "Wallet USDC or native gas is insufficient. Please check the balances and retry.",
+  depositTopUpFailedPrefix: "Failed to top up: {{message}}",
+  depositUnknownError: "Unknown error",
+  depositCloseDialog: "Close deposit dialog",
+  consumerWithdrawTitle: "Withdraw Balance",
+  consumerWithdrawDescription:
+    "Withdraw unused credits back to your wallet. Available: {{amount}} USDC",
+  consumerWithdrawAmountLabel: "Amount (USDC)",
+  consumerWithdrawReasonLabel: "Reason (optional)",
+  consumerWithdrawReasonPlaceholder: "Why are you withdrawing?",
+  consumerWithdrawManualReviewHint:
+    "Amounts >= $500 require manual review (12-24 h).",
+  consumerWithdrawFrequencyHint: "Max 3 withdrawals per 24 hours.",
+  consumerWithdrawGasHint:
+    "Your wallet will execute the on-chain transfer and pay gas.",
+  consumerWithdrawInvalidAmount: "Enter a valid amount.",
+  consumerWithdrawAmountExceeds:
+    "Amount exceeds available balance (${{amount}}).",
+  consumerWithdrawSubmitted: "Withdrawal of ${{amount}} USDC completed!",
+  consumerWithdrawBackendSyncFailed:
+    "On-chain transfer succeeded but backend update failed. The background processor will complete it automatically.",
+  consumerWithdrawReleaseFailed: "Failed to release the pending withdrawal.",
+  consumerWithdrawPendingExists:
+    "A pending withdrawal already exists. Finish or wait for the current request.",
+  consumerWithdrawResumingPending:
+    "Resuming your pending withdrawal in the wallet.",
+  consumerWithdrawUnderReview:
+    "Withdrawal submitted and is under review. Reason: {{reason}}",
+  consumerWithdrawTicketUnavailable:
+    "Withdrawal ticket is unavailable. Please retry after the gateway signs a fresh ticket.",
+  consumerWithdrawTicketExpiring:
+    "Withdrawal credential is about to expire. To avoid failed gas spend, create a new withdrawal request after this one expires.",
+  consumerWithdrawTxSubmitted:
+    "Transaction submitted — waiting for confirmation...",
+  consumerWithdrawTxRejected: "Transaction rejected by wallet.",
+  consumerWithdrawTxFailed:
+    "On-chain transaction failed. Your balance was restored.",
+  consumerWithdrawRequesting: "Requesting...",
+  consumerWithdrawConfirmWallet: "Confirm in Wallet...",
+  consumerWithdrawConfirmingChain: "Confirming on-chain...",
+  consumerWithdrawCompleting: "Completing...",
+  consumerWithdrawProgressSigning:
+    "Requesting withdrawal ticket from server...",
+  consumerWithdrawProgressOnchain:
+    "Please confirm the transaction in your wallet.",
+  consumerWithdrawProgressConfirming:
+    "Transaction submitted. Waiting for block confirmation...",
+  consumerWithdrawProgressCompleting: "On-chain confirmed. Updating records...",
+  consumerWithdrawMax: "Max",
+  consumerWithdrawAction: "Withdraw",
+  consumerWithdrawPendingTooltip:
+    "A withdrawal of {{amount}} is pending. Only one active withdrawal is allowed.",
   currentBillingCycle: "Current Billing Cycle",
   daysRemaining: "Days Remaining",
   manageSpendCapTitle: "Manage Spend Cap",

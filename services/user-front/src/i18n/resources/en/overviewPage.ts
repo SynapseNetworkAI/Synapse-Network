@@ -83,6 +83,22 @@ const overviewPage: I18nMessages["overviewPage"] = {
   providerWithdrawDescription:
     "Gas-less withdrawals of your revenue back to your main wallet.",
   providerWithdrawLink: "Open Settlements",
+  rolePathOwnerTitle: "Owner / Agent onboarding",
+  rolePathOwnerSteps: [
+    "Connect wallet and complete signature login",
+    "Deposit USDC into the vault",
+    "Issue an Agent Credential",
+    "Invoke services and review spend details",
+  ],
+  rolePathOwnerCta: "Open Agent Workspace",
+  rolePathProviderTitle: "Provider onboarding",
+  rolePathProviderSteps: [
+    "Enter Provider Workspace",
+    "Configure Provider Signing Secrets and health checks",
+    "Publish API services and receive gateway calls",
+    "Review earnings in Settlements / Revenue Analytics",
+  ],
+  rolePathProviderCta: "Open Provider Workspace",
   treasurySectionTitle: "Tier 1: Owner Treasury",
   treasuryMasterBalance: "Master USDC Balance",
   treasuryNotConnected: "Not Connected",

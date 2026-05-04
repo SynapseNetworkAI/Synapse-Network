@@ -1,12 +1,12 @@
 # User Front Page Function and Verification
 
 - Status: canonical
-- Code paths: `services/user-front/src/app/`, `services/user-front/src/components/`, `scripts/ui/verify_user_front_pages.mjs`
+- Code paths: `services/user-front/src/app/`, `services/user-front/src/components/`, `scripts/ui/verify_user_front_pages.mjs`, `scripts/ui/verify_user_front_i18n.mjs`
 - Scope: `services/user-front`
-- Last updated: 2026-04-19
-- Last verified against code: 2026-04-19
+- Last updated: 2026-05-04
+- Last verified against code: 2026-05-04
 - Verification registry: `services/user-front/src/app/user-front-page-registry.json`
-- Automated checks: `npm run ci:user-front-pages`, `USER_FRONT_BASE_URL=http://localhost:3000 node scripts/ui/verify_user_front_pages.mjs`
+- Automated checks: `npm run ci:user-front-pages`, `npm run ci:user-front-i18n`, `npm run ci:user-front-i18n-dom`, `USER_FRONT_BASE_URL=http://localhost:3000 node scripts/ui/verify_user_front_pages.mjs`, `USER_FRONT_BASE_URL=http://localhost:3000 node scripts/ui/verify_user_front_i18n.mjs`
 
 ## Purpose
 
@@ -21,6 +21,7 @@ Use three layers together:
 1. **Registry/Vitest verification** confirms every `page.tsx` and `route.ts` has a documented purpose, interactions, data source, visual verification mode, and redirect status.
 2. **Browser click verification** confirms real navigation, global Quick Access search, redirects, hash anchors, marketplace controls, console errors, screenshots, and basic layout guards.
 3. **Backend truth verification** confirms data-backed public pages call real gateway endpoints and render from those responses. Wallet/JWT pages require an authenticated fixture before their data truth can be marked fully passed.
+4. **i18n DOM verification** confirms user-visible copy, placeholders, aria labels, modal text, and action feedback render correctly in both `en` and `zh`.
 
 There are two browser modes:
 
@@ -31,42 +32,42 @@ Screenshots are evidence for visual review. They are not enough by themselves to
 
 ## Page Inventory
 
-| Page                          | Status                 | Main Function                                                                     | Data Source                                                           | Verification                                                                           |
-| ----------------------------- | ---------------------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| `/`                           | implemented            | Landing page, role selection, network counters                                    | `GET /api/v1/services/network-stats`, `GET /api/v1/services/discover` | Click CTAs, screenshot, real backend response                                          |
-| `/marketplace`                | implemented            | Callable service catalog with search, tags, list rows, pagination                 | `GET /api/v1/services/discover`                                       | Controls test, screenshot, real backend response                                       |
-| `/marketplace/registry.json`  | implemented API        | Agent-facing callable registry JSON                                               | `GET /api/v1/services/discover`                                       | JSON schema, pagination, available-only filtering                                      |
-| `/about`                      | thin page              | Minimal public description                                                        | Static                                                                | Render smoke                                                                           |
-| `/blog`                       | thin page              | Minimal blog shell                                                                | Static                                                                | Render smoke                                                                           |
-| `/docs` and docs children     | external redirects     | Legacy docs URLs redirect to `NEXT_PUBLIC_DOCS_BASE_URL`                          | None                                                                  | Redirect checks in docs-front browser verification                                     |
-| `/dashboard`                  | compatibility redirect | Role-aware dashboard entry                                                        | None                                                                  | Redirect test                                                                          |
-| `/dashboard/overview`         | implemented            | Consumer overview and high-level account state                                    | Gateway balance/indexer                                               | Authenticated smoke; full data requires wallet/JWT                                     |
-| `/dashboard/billing`          | implemented            | Payments ledger for deposits, usage, refunds, withdrawals                         | Gateway deposit intents + chain tx links                              | Authenticated smoke; deposit Completed means Gateway credited spendable balance        |
-| `/dashboard/billing/credits`  | implemented            | Spendable, pending/syncing, frozen credits; deposit, spend cap, voucher, withdraw | Gateway balance buckets + wallet USDC/gas + chain                     | Authenticated smoke; deposit confirm must preflight USDC/gas before wallet prompts     |
-| `/dashboard/buy`              | implemented            | Deposit/buy shortcut                                                              | Wallet + chain                                                        | Wallet fixture required                                                                |
-| `/dashboard/discovery`        | implemented            | Consumer service discovery                                                        | Gateway service discovery                                             | Browser/API smoke                                                                      |
-| `/dashboard/credentials`      | implemented            | Agent credentials, limits, revocation                                             | Gateway credential APIs                                               | Authenticated smoke; full data requires wallet/JWT                                     |
-| `/dashboard/invocations`      | implemented            | Invocation history and refund entry                                               | Gateway usage/refund APIs                                             | Authenticated smoke; full data requires wallet/JWT                                     |
-| `/dashboard/services`         | implemented            | Owner/provider-owned service registry view                                        | Authenticated service registry APIs                                   | Authenticated smoke                                                                    |
-| `/dashboard/agents`           | implemented            | Agent workspace and credential linking                                            | localStorage + gateway credentials                                    | Fullchain must show seeded credential and `callsUsed >= 100`; empty state is a failure |
-| `/dashboard/audit`            | implemented            | Consumer audit/risk view                                                          | Gateway usage/audit projections                                       | Authenticated smoke                                                                    |
-| `/dashboard/developer`        | implemented            | Developer resource hub                                                            | Static                                                                | Render smoke                                                                           |
-| `/dashboard/settlement`       | preview                | Reconciliation preview                                                            | Static preview                                                        | Render smoke; not a production reconciliation source                                   |
-| `/dashboard/account/settings` | implemented            | Profile and notification settings                                                 | Auth profile APIs                                                     | Authenticated smoke                                                                    |
-| `/dashboard/router`           | redirect               | Legacy billing route                                                              | None                                                                  | Redirects to `/dashboard/billing`                                                      |
-| `/dashboard/console`          | redirect               | Legacy provider console route                                                     | None                                                                  | Redirects to `/provider/console`                                                       |
-| `/dashboard/agents/workspace` | redirect               | Legacy agent workspace route                                                      | None                                                                  | Redirects to `/dashboard/agents`                                                       |
-| `/provider`                   | redirect               | Provider root                                                                     | None                                                                  | Redirects to `/provider/console`                                                       |
-| `/provider/console`           | implemented            | Provider business console                                                         | Provider earnings/services APIs                                       | Authenticated smoke; full data requires wallet/JWT                                     |
-| `/provider/services`          | implemented            | Provider service lifecycle management                                             | Provider services APIs                                                | Authenticated smoke                                                                    |
-| `/provider/services/deploy`   | implemented            | Manifest builder and publish form                                                 | `POST /api/v1/services`                                               | Form smoke; publish requires auth fixture                                              |
-| `/provider/health`            | implemented            | Provider health, probe history, slow lane                                         | Service health history APIs                                           | Authenticated smoke                                                                    |
-| `/provider/secrets`           | implemented            | Provider secret issuance and revocation                                           | Provider secret APIs                                                  | Authenticated smoke                                                                    |
-| `/provider/usage`             | implemented            | Provider usage analytics                                                          | Usage/earnings APIs                                                   | Authenticated smoke                                                                    |
-| `/provider/withdraw`          | implemented            | Provider receivable withdrawal                                                    | Gateway + wallet + chain                                              | Authenticated smoke; full data requires wallet/JWT                                     |
-| `/provider/withdraw/history`  | implemented            | Provider withdrawal/invocation history                                            | Withdrawals/usage APIs                                                | Authenticated smoke                                                                    |
-| `/provider/sell`              | redirect               | Legacy provider sell route                                                        | None                                                                  | Redirects to `/provider/console`                                                       |
-| `/provider/settlements`       | redirect               | Legacy settlements route                                                          | None                                                                  | Redirects to `/provider/withdraw`                                                      |
+| Page                          | Status                 | Main Function                                                                     | Data Source                                                           | Verification                                                                                             |
+| ----------------------------- | ---------------------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `/`                           | implemented            | Landing page, role selection, network counters                                    | `GET /api/v1/services/network-stats`, `GET /api/v1/services/discover` | Click CTAs, screenshot, real backend response                                                            |
+| `/marketplace`                | implemented            | Callable service catalog with search, tags, list rows, pagination                 | `GET /api/v1/services/discover`                                       | Controls test, screenshot, real backend response                                                         |
+| `/marketplace/registry.json`  | implemented API        | Agent-facing callable registry JSON                                               | `GET /api/v1/services/discover`                                       | JSON schema, pagination, available-only filtering                                                        |
+| `/about`                      | thin page              | Minimal public description                                                        | Static                                                                | Render smoke                                                                                             |
+| `/blog`                       | thin page              | Minimal blog shell                                                                | Static                                                                | Render smoke                                                                                             |
+| `/docs` and docs children     | external redirects     | Legacy docs URLs redirect to `NEXT_PUBLIC_DOCS_BASE_URL`                          | None                                                                  | Redirect checks in docs-front browser verification                                                       |
+| `/dashboard`                  | compatibility redirect | Role-aware dashboard entry                                                        | None                                                                  | Redirect test                                                                                            |
+| `/dashboard/overview`         | implemented            | Consumer overview and high-level account state                                    | Gateway balance/indexer                                               | Authenticated smoke; full data requires wallet/JWT                                                       |
+| `/dashboard/billing`          | implemented            | Payments ledger for deposits, usage, refunds, withdrawals                         | Gateway deposit intents + chain tx links                              | Authenticated smoke; deposit Completed means Gateway credited spendable balance                          |
+| `/dashboard/billing/credits`  | implemented            | Spendable, pending/syncing, frozen credits; deposit, spend cap, voucher, withdraw | Gateway balance buckets + wallet USDC/gas + chain                     | Authenticated smoke; deposit confirm must preflight USDC/gas before wallet prompts                       |
+| `/dashboard/buy`              | implemented            | Deposit/buy shortcut                                                              | Wallet + chain                                                        | Wallet fixture required                                                                                  |
+| `/dashboard/discovery`        | implemented            | Consumer service discovery                                                        | Gateway service discovery                                             | Browser/API smoke                                                                                        |
+| `/dashboard/credentials`      | implemented            | Agent credentials, limits, revocation                                             | Gateway credential APIs                                               | Authenticated smoke; full data requires wallet/JWT                                                       |
+| `/dashboard/invocations`      | implemented            | Invocation history and support-guided refund/dispute path                         | Gateway usage API + support contact config                            | Authenticated smoke; show only Invocation ID as the user-facing call identifier; no inline refund action |
+| `/dashboard/services`         | implemented            | Owner/provider-owned service registry view                                        | Authenticated service registry APIs                                   | Authenticated smoke                                                                                      |
+| `/dashboard/agents`           | implemented            | Agent workspace and credential linking                                            | localStorage + gateway credentials                                    | Fullchain must show seeded credential and `callsUsed >= 100`; empty state is a failure                   |
+| `/dashboard/audit`            | implemented            | Consumer audit/risk view                                                          | Gateway usage/audit projections                                       | Authenticated smoke                                                                                      |
+| `/dashboard/developer`        | implemented            | Developer resource hub                                                            | Static                                                                | Render smoke                                                                                             |
+| `/dashboard/settlement`       | preview                | Reconciliation preview                                                            | Static preview                                                        | Render smoke; not a production reconciliation source                                                     |
+| `/dashboard/account/settings` | implemented            | Profile and notification settings                                                 | Auth profile APIs                                                     | Authenticated smoke                                                                                      |
+| `/dashboard/router`           | redirect               | Legacy billing route                                                              | None                                                                  | Redirects to `/dashboard/billing`                                                                        |
+| `/dashboard/console`          | redirect               | Legacy provider console route                                                     | None                                                                  | Redirects to `/provider/console`                                                                         |
+| `/dashboard/agents/workspace` | redirect               | Legacy agent workspace route                                                      | None                                                                  | Redirects to `/dashboard/agents`                                                                         |
+| `/provider`                   | redirect               | Provider root                                                                     | None                                                                  | Redirects to `/provider/console`                                                                         |
+| `/provider/console`           | implemented            | Provider business console                                                         | Provider earnings/services APIs                                       | Authenticated smoke; full data requires wallet/JWT                                                       |
+| `/provider/services`          | implemented            | Provider service lifecycle management                                             | Provider services APIs                                                | Authenticated smoke                                                                                      |
+| `/provider/services/deploy`   | implemented            | Manifest builder and publish form                                                 | `POST /api/v1/services`                                               | Form smoke; publish requires auth fixture                                                                |
+| `/provider/health`            | implemented            | Provider health, probe history, slow lane                                         | Service health history APIs                                           | Authenticated smoke                                                                                      |
+| `/provider/secrets`           | implemented            | Provider secret issuance and revocation                                           | Provider secret APIs                                                  | Authenticated smoke                                                                                      |
+| `/provider/usage`             | implemented            | Provider usage analytics                                                          | Usage/earnings APIs                                                   | Authenticated smoke                                                                                      |
+| `/provider/withdraw`          | implemented            | Provider receivable withdrawal                                                    | Gateway + wallet + chain                                              | Authenticated smoke; full data requires wallet/JWT                                                       |
+| `/provider/withdraw/history`  | implemented            | Provider withdrawal/invocation history                                            | Withdrawals/usage APIs                                                | Authenticated smoke                                                                                      |
+| `/provider/sell`              | redirect               | Legacy provider sell route                                                        | None                                                                  | Redirects to `/provider/console`                                                                         |
+| `/provider/settlements`       | redirect               | Legacy settlements route                                                          | None                                                                  | Redirects to `/provider/withdraw`                                                                        |
 
 ## Not Implemented vs Redirect vs Thin
 
@@ -112,6 +113,25 @@ A page passes functional verification only when:
 - Browser console has no uncaught application errors.
 - Public data-backed pages call the real backend when `USER_FRONT_VERIFY_REAL_BACKEND=1`.
 - Authenticated data-backed pages are either verified with wallet/JWT fixtures or explicitly marked blocked.
+- User-facing copy, toast/confirm text, placeholders, aria labels, and visible errors are sourced from typed i18n resources and pass `npm run ci:user-front-i18n`.
+- User-facing copy changes must include DOM assertions in both `en` and `zh` for the affected component/page and pass `npm run ci:user-front-i18n-dom`.
+
+## i18n Regression Matrix
+
+Use this focused matrix whenever changing console copy, modals, placeholders, toast text, or page-level labels.
+
+| Surface                                | DOM assertions                                                                                                                                                  |
+| -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Credits / `/dashboard/billing/credits` | English and Chinese spendable/pending/frozen balances, voucher copy, purchase/withdraw labels, and no stale `X may give out free credits` text                  |
+| Consumer withdraw modal                | English and Chinese heading, amount/reason labels, hints, action button, and invalid amount toast                                                               |
+| Deposit modal                          | Caller-provided localized title, balance labels, transaction summary, permit/deposit progress labels, and close aria label                                      |
+| Provider withdraw                      | English and Chinese page title/history labels plus localized error-code toast for T+7 maturity, minimum amount, insufficient receivable, and pending withdrawal |
+| Agent credentials                      | English and Chinese page title, table headers, search placeholder, revoke confirmation modal, and revoke toast                                                  |
+| Agents workspace                       | English and Chinese list pane title, create CTA, manage CTA, and no stale English CTA copy in Chinese mode                                                      |
+| QuickStartGuide                        | English and Chinese stepper labels, deposit modal labels, and validation messages                                                                               |
+| PaidInvokePanel                        | English and Chinese panel labels, unavailable hints, success toast, and result labels                                                                           |
+| RolePathCards                          | English mode must not leak fixed Chinese onboarding text; Chinese mode must not leak English onboarding sentences                                               |
+| Feedback                               | English and Chinese title, category label, placeholder, submit button, and close aria label                                                                     |
 
 ## Visual and Component Coordination Criteria
 
@@ -148,10 +168,23 @@ Run registry checks:
 npm run ci:user-front-pages
 ```
 
+Run i18n static and DOM regression checks:
+
+```bash
+npm run ci:user-front-i18n
+npm run ci:user-front-i18n-dom
+```
+
 Run browser navigation and screenshot verification:
 
 ```bash
 USER_FRONT_BASE_URL=http://localhost:3000 node scripts/ui/verify_user_front_pages.mjs
+```
+
+Run browser i18n DOM verification after starting user-front:
+
+```bash
+USER_FRONT_BASE_URL=http://localhost:3000 node scripts/ui/verify_user_front_i18n.mjs
 ```
 
 Run real backend-enforced verification:
