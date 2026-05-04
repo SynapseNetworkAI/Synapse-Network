@@ -59,3 +59,4 @@ Reference 模块的职责，是把 Synapse 的关键外部契约压缩成可实�
 
 1. `AI_Quick_Reference.md` 用最小上下文压缩仓库核心事实、项目边界与优先阅读路径。
 2. `Validation_Entry_Points.md` 明确当前项目级与仓库级验证入口，降低 AI 和人类重复搜索命令的成本。
+3. `Codex_Token_Optimization.md` 约束高频 Codex 使用时的 memory、上下文路由、handoff、搜索和 reasoning 策略，降低 token 浪费但不降低能力。

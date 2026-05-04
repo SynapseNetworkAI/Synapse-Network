@@ -148,6 +148,17 @@ Working directory: `services/docs-front/`
 artifacts. Commit them with the API reference change, or restore them before
 switching branches when no API reference change is intended.
 
+### 3.2.1 Codex Token Optimization Guidance
+
+When changing high-frequency Codex usage policy, memory guidance, task routing,
+or handoff conventions:
+
+1. Update `docs/reference/Codex_Token_Optimization.md`.
+2. Update `llms.txt`, `docs/reference/AI_Instruction_Entrypoints.md`, and
+   `docs/reference/Agent_Task_Map.*` only when entrypoints or routing change.
+3. Run `npm run ci:docs`.
+4. Run `node -e "JSON.parse(require('fs').readFileSync('docs/reference/Agent_Task_Map.json', 'utf8'))"`.
+
 ### 3.3 services/admin-front
 
 Working directory: `services/admin-front/`

@@ -364,6 +364,37 @@
       ],
       "validation_commands": ["npm run ci:docs"],
       "notes": ["Keep local scripts and GitHub Actions entrypoints aligned."]
+    },
+    {
+      "id": "codex_token_optimization",
+      "title": "Codex token optimization and memory hygiene",
+      "use_when": [
+        "Codex memory settings or high-frequency usage policy changes",
+        "the task asks how to reduce token usage without reducing capability",
+        "AGENTS, llms.txt, task maps, handoff summaries, or context-routing guidance changes"
+      ],
+      "instruction_files": [".github/instructions/docs-sync.instructions.md"],
+      "primary_files": [
+        "docs/reference/Codex_Token_Optimization.md",
+        "llms.txt",
+        "docs/reference/AI_Instruction_Entrypoints.md",
+        "docs/reference/Agent_Task_Map.md",
+        "docs/reference/Agent_Task_Map.json"
+      ],
+      "supporting_files": [
+        "AGENTS.md",
+        "docs/AGENTS.md",
+        ".github/instructions/README.md",
+        "docs/reference/Validation_Entry_Points.md"
+      ],
+      "validation_commands": [
+        "npm run ci:docs",
+        "node -e \"JSON.parse(require('fs').readFileSync('docs/reference/Agent_Task_Map.json', 'utf8'))\""
+      ],
+      "notes": [
+        "Keep bridge files short; route to reference docs instead of copying long guidance into startup context.",
+        "Memory guidance must not encourage storing secrets, customer data, or temporary branch-specific findings."
+      ]
     }
   ]
 }
