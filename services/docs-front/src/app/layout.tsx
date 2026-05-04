@@ -52,11 +52,19 @@ export default function Layout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable}`}
+      className={`dark ${geistSans.variable} ${geistMono.variable}`}
       suppressHydrationWarning
     >
       <body className="flex min-h-screen flex-col bg-[#030405] font-sans text-fd-foreground">
-        <RootProvider>{children}</RootProvider>
+        <RootProvider
+          theme={{
+            defaultTheme: "dark",
+            forcedTheme: "dark",
+            enableSystem: false,
+          }}
+        >
+          {children}
+        </RootProvider>
       </body>
     </html>
   );
