@@ -17,6 +17,7 @@ import {
 import { setCredentialForService } from "@/utils/agentCredentialStore";
 import { clearAuthSession } from "@/utils/authSession";
 import XSelect from "@/components/xui/XSelect";
+import ConfirmActionDialog from "@/components/xui/ConfirmActionDialog";
  
  
 import { useAuth } from "@/components/WalletAuthGuard";
@@ -53,6 +54,8 @@ function CredentialsContent() {
   const [selectedCredentialId, setSelectedCredentialId] = useState("");
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [pendingRevokeCredential, setPendingRevokeCredential] = useState<AgentCredentialRecord | null>(null);
+  const [revokingCredentialId, setRevokingCredentialId] = useState<string | null>(null);
   const billingRows = useMemo<{timestamp?: number; owner?: string; unit_price?: number}[]>(() => [], []);
   const [copiedToken, setCopiedToken] = useState(false);
 
@@ -184,22 +187,37 @@ function CredentialsContent() {
     }
   };
 
-  const handleRevoke = async (id: string, currentStatus: string) => {
+  const executeRevoke = async (id: string) => {
     if (!userAddress) return;
-    if (currentStatus === "revoked") {
-      toast.error("Already revoked");
-      return;
-    }
-    if (!confirm("Are you sure you want to revoke this credential? Any API key secret derived from it will stop authenticating immediately.")) return;
 
     try {
+      setRevokingCredentialId(id);
       await revokeAgentCredential(userAddress, id);
       toast.success("Credential revoked");
       await loadAll();
     } catch (e) {
       console.error(e);
       toast.error("Failed to revoke");
+    } finally {
+      setRevokingCredentialId(null);
     }
+  };
+
+  const handleRevoke = (credential: AgentCredentialRecord) => {
+    if (credential.status === "revoked") {
+      toast.error("Already revoked");
+      return;
+    }
+    setPendingRevokeCredential(credential);
+  };
+
+  const confirmRevokeCredential = async () => {
+    const credential = pendingRevokeCredential;
+    if (!credential) {
+      return;
+    }
+    await executeRevoke(credential.id);
+    setPendingRevokeCredential(null);
   };
 
   const openEditQuotaModal = (cred: AgentCredentialRecord) => {
@@ -411,7 +429,8 @@ function CredentialsContent() {
                            </button>
                            {cred.status === "active" && (
                              <button
-                               onClick={() => handleRevoke(cred.id, cred.status)}
+                               onClick={() => handleRevoke(cred)}
+                               disabled={revokingCredentialId === cred.id}
                                className="text-xs font-medium text-red-500/80 hover:text-red-400 transition hover:underline"
                              >
                                Revoke
@@ -551,6 +570,17 @@ function CredentialsContent() {
           </div>
         </div>
       )}
+      <ConfirmActionDialog
+        open={pendingRevokeCredential !== null}
+        title="Revoke credential"
+        description="This will immediately stop the runtime credential and any API key secret derived from it from authenticating."
+        contextLabel={pendingRevokeCredential?.tokenPrefix || pendingRevokeCredential?.id}
+        confirmLabel="Revoke"
+        tone="danger"
+        loading={pendingRevokeCredential !== null && revokingCredentialId === pendingRevokeCredential.id}
+        onCancel={() => setPendingRevokeCredential(null)}
+        onConfirm={confirmRevokeCredential}
+      />
     </div>
   );
 }

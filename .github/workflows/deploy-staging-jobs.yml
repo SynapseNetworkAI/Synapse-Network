@@ -14,6 +14,15 @@ on:
           - gateway
           - gateway-admin
           - all
+      job_name:
+        required: false
+        type: string
+      environment:
+        required: false
+        type: choice
+        default: staging
+        options:
+          - staging
       source_ref_type:
         required: false
         type: choice
@@ -59,6 +68,8 @@ jobs:
       REGION: ${{ secrets.STAGING_GCP_REGION || 'us-central1' }}
       ARTIFACT_REGISTRY_REPOSITORY: ${{ secrets.STAGING_ARTIFACT_REGISTRY_REPOSITORY || 'synapse-staging' }}
       JOB_FAMILY: ${{ inputs.job_family || 'gateway' }}
+      JOB_NAME: ${{ inputs.job_name }}
+      DEPLOY_ENVIRONMENT: ${{ inputs.environment || 'staging' }}
       SOURCE_REF_TYPE: ${{ inputs.source_ref_type || 'branch' }}
       SOURCE_REF: ${{ inputs.source_ref || 'main' }}
       RUN_SMOKE_JOBS: ${{ inputs.run_smoke_jobs }}
@@ -131,6 +142,29 @@ jobs:
             echo "tag_timestamp=${tag_timestamp}"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Validate scheduled job target
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "${DEPLOY_ENVIRONMENT}" == "staging" ]] || { echo "only staging scheduled job deploys are supported" >&2; exit 2; }
+          if [[ -z "${JOB_NAME}" ]]; then
+            exit 0
+          fi
+          case "${JOB_FAMILY}:${JOB_NAME}" in
+            gateway:synapse-staging-db-migrate|\
+            gateway:synapse-staging-deposit-indexer|\
+            gateway:synapse-staging-provider-withdraw-reaper|\
+            gateway:synapse-staging-consumer-withdraw-processor|\
+            gateway:synapse-staging-notification-outbox-drain|\
+            gateway:synapse-staging-in-app-notification-cleanup|\
+            gateway-admin:synapse-staging-gateway-admin-db-migrate)
+              ;;
+            *)
+              echo "job_name ${JOB_NAME} is not valid for job_family ${JOB_FAMILY}" >&2
+              exit 2
+              ;;
+          esac
+
       - name: Resolve job family services
         id: family
         shell: bash
@@ -192,16 +226,20 @@ jobs:
           if [[ "${RUN_SMOKE_JOBS}" == "true" ]]; then
             smoke_flag+=(--run-smoke-jobs)
           fi
+          jobs_flag=()
+          if [[ -n "${JOB_NAME}" ]]; then
+            jobs_flag+=(--jobs "${JOB_NAME}")
+          fi
 
           gateway_image="$(node -e "const j=require('./image-digests.json'); console.log(j.gateway || '')")"
           gateway_admin_image="$(node -e "const j=require('./image-digests.json'); console.log(j['gateway-admin'] || '')")"
 
           case "${JOB_FAMILY}" in
             gateway)
-              bash scripts/deploy/gcp_sync_staging_jobs.sh --project "${PROJECT_ID}" --region "${REGION}" --service gateway --image "${gateway_image}" "${smoke_flag[@]}" --json-output jobs-gateway.json
+              bash scripts/deploy/gcp_sync_staging_jobs.sh --project "${PROJECT_ID}" --region "${REGION}" --service gateway --image "${gateway_image}" "${jobs_flag[@]}" "${smoke_flag[@]}" --json-output jobs-gateway.json
               ;;
             gateway-admin)
-              bash scripts/deploy/gcp_sync_staging_jobs.sh --project "${PROJECT_ID}" --region "${REGION}" --service gateway-admin --image "${gateway_admin_image}" --json-output jobs-gateway-admin.json
+              bash scripts/deploy/gcp_sync_staging_jobs.sh --project "${PROJECT_ID}" --region "${REGION}" --service gateway-admin --image "${gateway_admin_image}" "${jobs_flag[@]}" --json-output jobs-gateway-admin.json
               ;;
             all)
               bash scripts/deploy/gcp_sync_staging_jobs.sh --project "${PROJECT_ID}" --region "${REGION}" --service gateway --image "${gateway_image}" "${smoke_flag[@]}" --json-output jobs-gateway.json
@@ -224,11 +262,27 @@ jobs:
           fs.writeFileSync('migrations.json', `${JSON.stringify(data, null, 2)}\n`)
           NODE
           }
-          if [[ "${JOB_FAMILY}" == "gateway" || "${JOB_FAMILY}" == "all" ]]; then
+          run_gateway_migration=false
+          if [[ "${JOB_NAME}" == "synapse-staging-db-migrate" ]]; then
+            run_gateway_migration=true
+          elif [[ -z "${JOB_NAME}" ]]; then
+            if [[ "${JOB_FAMILY}" == "gateway" || "${JOB_FAMILY}" == "all" ]]; then
+              run_gateway_migration=true
+            fi
+          fi
+          if [[ "${run_gateway_migration}" == "true" ]]; then
             gcloud run jobs execute synapse-staging-db-migrate --project "${PROJECT_ID}" --region "${REGION}" --wait
             append_migration synapse-staging-db-migrate
           fi
-          if [[ "${JOB_FAMILY}" == "gateway-admin" || "${JOB_FAMILY}" == "all" ]]; then
+          run_gateway_admin_migration=false
+          if [[ "${JOB_NAME}" == "synapse-staging-gateway-admin-db-migrate" ]]; then
+            run_gateway_admin_migration=true
+          elif [[ -z "${JOB_NAME}" ]]; then
+            if [[ "${JOB_FAMILY}" == "gateway-admin" || "${JOB_FAMILY}" == "all" ]]; then
+              run_gateway_admin_migration=true
+            fi
+          fi
+          if [[ "${run_gateway_admin_migration}" == "true" ]]; then
             gcloud run jobs execute synapse-staging-gateway-admin-db-migrate --project "${PROJECT_ID}" --region "${REGION}" --wait
             append_migration synapse-staging-gateway-admin-db-migrate
           fi
@@ -246,6 +300,8 @@ jobs:
           const migrations = readJson('migrations.json', { migrationExecutions: [] })
           const manifest = {
             jobFamily: process.env.JOB_FAMILY,
+            jobName: process.env.JOB_NAME || null,
+            environment: process.env.DEPLOY_ENVIRONMENT || 'staging',
             updated: [...(gateway.updated || []), ...(gatewayAdmin.updated || [])],
             smokeExecutions: [...(gateway.smokeExecutions || []), ...(gatewayAdmin.smokeExecutions || [])],
             migrationExecutions: migrations.migrationExecutions || [],
@@ -293,6 +349,7 @@ jobs:
               sourceRef: process.env.SOURCE_REF,
               resolvedCommitSha: process.env.RESOLVED_COMMIT_SHA,
               jobFamily: process.env.JOB_FAMILY,
+              jobName: process.env.JOB_NAME || null,
               jobsManifest: jobs,
             },
           }
@@ -329,6 +386,7 @@ jobs:
               sourceRef: process.env.SOURCE_REF,
               resolvedCommitSha: process.env.RESOLVED_COMMIT_SHA || null,
               jobFamily: process.env.JOB_FAMILY,
+              jobName: process.env.JOB_NAME || null,
               jobsManifest: jobs,
             },
           }

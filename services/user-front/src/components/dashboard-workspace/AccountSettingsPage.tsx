@@ -9,6 +9,7 @@ import {
 } from "@/components/dashboard-workspace/AccountSettingsControls";
 import EmailVerificationCodeModal from "@/components/dashboard-workspace/EmailVerificationCodeModal";
 import { XInput } from "@/components/xui/XInput";
+import ConfirmActionDialog from "@/components/xui/ConfirmActionDialog";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { useAuth } from "@/components/WalletAuthGuard";
 import { getStoredAuthSession } from "@/utils/authSession";
@@ -107,6 +108,7 @@ export default function AccountSettingsPage() {
   );
   const [isVerificationOpen, setIsVerificationOpen] = useState(false);
   const [isChangingEmail, setIsChangingEmail] = useState(false);
+  const [isRemoveEmailConfirmOpen, setIsRemoveEmailConfirmOpen] = useState(false);
 
   const sessionWallet = useMemo(
     () => getStoredAuthSession()?.wallet ?? null,
@@ -379,18 +381,12 @@ export default function AccountSettingsPage() {
     }
   }, [address, form, hasLiveWallet, profile, submitSignedProfile, t]);
 
-  const onRemoveEmail = useCallback(async () => {
+  const executeRemoveEmail = useCallback(async () => {
     if (!profile?.email) {
       return;
     }
     if (!hasLiveWallet || !address) {
       toast.error(t("accountSettingsPage.connectWalletToSave"));
-      return;
-    }
-    const confirmed = window.confirm(
-      t("accountSettingsPage.emailRemoveConfirm")
-    );
-    if (!confirmed) {
       return;
     }
     setIsSaving(true);
@@ -417,6 +413,22 @@ export default function AccountSettingsPage() {
       setIsSaving(false);
     }
   }, [address, form, hasLiveWallet, profile, submitSignedProfile, t]);
+
+  const onRemoveEmail = useCallback(() => {
+    if (!profile?.email) {
+      return;
+    }
+    if (!hasLiveWallet || !address) {
+      toast.error(t("accountSettingsPage.connectWalletToSave"));
+      return;
+    }
+    setIsRemoveEmailConfirmOpen(true);
+  }, [address, hasLiveWallet, profile, t]);
+
+  const onConfirmRemoveEmail = useCallback(async () => {
+    await executeRemoveEmail();
+    setIsRemoveEmailConfirmOpen(false);
+  }, [executeRemoveEmail]);
 
   const emailStatusText = useMemo(() => {
     if (emailError) {
@@ -450,6 +462,17 @@ export default function AccountSettingsPage() {
         onClose={() => setIsVerificationOpen(false)}
         onVerify={onVerifyEmailCode}
         onResend={onResendEmailCode}
+      />
+      <ConfirmActionDialog
+        open={isRemoveEmailConfirmOpen}
+        title={t("accountSettingsPage.emailRemove")}
+        description={t("accountSettingsPage.emailRemoveConfirm")}
+        contextLabel={profile?.email}
+        confirmLabel={t("accountSettingsPage.emailRemove")}
+        tone="danger"
+        loading={isSaving}
+        onCancel={() => setIsRemoveEmailConfirmOpen(false)}
+        onConfirm={onConfirmRemoveEmail}
       />
       <div className="mx-auto w-full max-w-[768px]">
         <header className="border-b border-[#1e1e1e] pb-4 mb-0">

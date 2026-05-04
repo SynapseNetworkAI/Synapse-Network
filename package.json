@@ -15,6 +15,7 @@
     "dev:provider:onboard": "bash scripts/local/provider_services.sh onboard",
     "dev:provider:probe": "bash scripts/local/provider_services.sh probe",
     "dev:provider:status": "bash scripts/local/provider_services.sh status",
+    "dev:diagnose:pending-deposits": "bash scripts/local/diagnose_pending_deposits_dev.sh",
     "staging:arb-sepolia:wallets:status": "ENV_FILE=services/gateway/.env.staging node scripts/chain/staging_wallet_gas.js --status",
     "staging:arb-sepolia:wallets:fund": "ENV_FILE=services/gateway/.env.staging node scripts/chain/staging_wallet_gas.js --fund",
     "deploy:contracts:arbitrum-sepolia:dry-run": "ENV_FILE=services/gateway/.env.staging SYNAPSE_DEPLOY_DRY_RUN=1 npx hardhat run scripts/chain/deploy_arbitrum_sepolia.js --network arbitrumSepolia",

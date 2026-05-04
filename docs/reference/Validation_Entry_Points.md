@@ -56,6 +56,12 @@ From repository root:
 
 Use these wrappers when final integration confidence is required.
 
+Local pending-deposit diagnosis:
+
+1. `npm run dev:diagnose:pending-deposits` prints local read-only pending deposit intents and `consumer_pending` buckets.
+2. `npm run dev:diagnose:pending-deposits -- <wallet>` narrows the report to one wallet.
+3. This diagnostic is evidence only. Do not force-credit pending deposits unless current-chain `SynapseCore` deposit events, ledger entries, and audit evidence match the txHash.
+
 Infrastructure preflight:
 
 1. `bash scripts/deploy/gcp_preflight.sh <gcp-project-id>` before the first Google Cloud staging Terraform apply

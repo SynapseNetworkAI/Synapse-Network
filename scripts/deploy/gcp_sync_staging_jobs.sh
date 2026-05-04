@@ -11,6 +11,7 @@ PROVIDER_IMAGE=""
 DRY_RUN=false
 RUN_SMOKE_JOBS=false
 JSON_OUTPUT=""
+JOBS_CSV=""
 
 usage() {
   cat >&2 <<'USAGE'
@@ -30,6 +31,7 @@ Options:
   --provider-image <image>
   --dry-run                   Print planned updates only.
   --run-smoke-jobs            Execute safe smoke jobs after update.
+  --jobs <csv>                Limit updates to specific Cloud Run job name(s).
   --json-output <path>        Write update evidence JSON.
 USAGE
   exit 2
@@ -72,6 +74,10 @@ while [[ $# -gt 0 ]]; do
     --run-smoke-jobs)
       RUN_SMOKE_JOBS=true
       shift
+      ;;
+    --jobs)
+      JOBS_CSV="${2:-}"
+      shift 2
       ;;
     --json-output)
       JSON_OUTPUT="${2:-}"
@@ -118,6 +124,11 @@ provider_jobs=(
   synapse-staging-provider-gpp-e2e
 )
 
+requested_jobs=()
+if [[ -n "${JOBS_CSV}" ]]; then
+  IFS=',' read -r -a requested_jobs <<< "${JOBS_CSV}"
+fi
+
 tmp_json="$(mktemp -t synapse-staging-jobs.XXXXXX.json)"
 cleanup() {
   rm -f "${tmp_json}"
@@ -142,11 +153,42 @@ json_string() {
   node -e 'console.log(JSON.stringify(process.argv[1] || ""))' "$1"
 }
 
+job_requested() {
+  local job="$1"
+  if (( ${#requested_jobs[@]} == 0 )); then
+    return 0
+  fi
+  local requested
+  for requested in "${requested_jobs[@]}"; do
+    if [[ "${job}" == "${requested//[[:space:]]/}" ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
 update_job_set() {
   local family="$1"
   local image="$2"
   shift 2
-  local jobs=("$@")
+  local all_jobs=("$@")
+  local jobs=()
+
+  local candidate
+  for candidate in "${all_jobs[@]}"; do
+    if job_requested "${candidate}"; then
+      jobs+=("${candidate}")
+    fi
+  done
+
+  if (( ${#requested_jobs[@]} > 0 && ${#jobs[@]} == 0 )); then
+    if [[ "${SERVICE}" == "all" ]]; then
+      echo "no selected jobs for ${family}; skipping" >&2
+      return 0
+    fi
+    echo "none of --jobs (${JOBS_CSV}) belong to ${family}" >&2
+    exit 2
+  fi
 
   [[ -n "${image}" ]] || { echo "missing image for ${family}" >&2; exit 2; }
 
@@ -189,7 +231,11 @@ case "${SERVICE}" in
   gateway)
     update_job_set gateway "${IMAGE}" "${gateway_jobs[@]}"
     if [[ "${RUN_SMOKE_JOBS}" == "true" ]]; then
-      for job in "${gateway_smoke_jobs[@]}"; do run_smoke_job "${job}"; done
+      for job in "${gateway_smoke_jobs[@]}"; do
+        if job_requested "${job}"; then
+          run_smoke_job "${job}"
+        fi
+      done
     fi
     ;;
   gateway-admin)
@@ -204,7 +250,11 @@ case "${SERVICE}" in
     [[ -z "${GATEWAY_ADMIN_IMAGE}" ]] || update_job_set gateway-admin "${GATEWAY_ADMIN_IMAGE}" "${gateway_admin_jobs[@]}"
     [[ -z "${PROVIDER_IMAGE}" ]] || update_job_set provider "${PROVIDER_IMAGE}" "${provider_jobs[@]}"
     if [[ "${RUN_SMOKE_JOBS}" == "true" ]]; then
-      for job in "${gateway_smoke_jobs[@]}"; do run_smoke_job "${job}"; done
+      for job in "${gateway_smoke_jobs[@]}"; do
+        if job_requested "${job}"; then
+          run_smoke_job "${job}"
+        fi
+      done
     fi
     ;;
   *)

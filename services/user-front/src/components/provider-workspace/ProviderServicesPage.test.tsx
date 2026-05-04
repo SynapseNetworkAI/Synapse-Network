@@ -21,7 +21,6 @@ const {
   deleteServiceRegistryMock,
   invalidateServiceRegistryListCacheMock,
   upsertServiceRegistryListCacheMock,
-  confirmMock,
 } = vi.hoisted(() => ({
   toastError: vi.fn(),
   toastSuccess: vi.fn(),
@@ -33,7 +32,6 @@ const {
   deleteServiceRegistryMock: vi.fn(),
   invalidateServiceRegistryListCacheMock: vi.fn(),
   upsertServiceRegistryListCacheMock: vi.fn(),
-  confirmMock: vi.fn(() => true),
 }));
 
 vi.mock("react-hot-toast", () => ({
@@ -145,7 +143,6 @@ describe("ProviderServicesPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     globalThis.localStorage.setItem(I18N_STORAGE_KEY, "zh");
-    globalThis.confirm = confirmMock;
     authorizeMock.mockResolvedValue(true);
   });
 
@@ -177,9 +174,8 @@ describe("ProviderServicesPage", () => {
     await screen.findByText("Inactive Service");
     await user.click(screen.getByRole("button", { name: "激活" }));
 
-    expect(confirmMock).toHaveBeenCalledWith(
-      "确认激活服务 svc-inactive？只有当健康检查重新报告目标健康后，它才会再次进入 discovery。",
-    );
+    expect(screen.getByText("确认激活服务 svc-inactive？只有当健康检查重新报告目标健康后，它才会再次进入 discovery。")).toBeTruthy();
+    await user.click(screen.getAllByRole("button", { name: "激活" }).at(-1)!);
     await waitFor(() => {
       expect(updateServiceRegistryMock).toHaveBeenCalled();
     });

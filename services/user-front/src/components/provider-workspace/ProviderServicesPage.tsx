@@ -21,6 +21,7 @@ import {
 import { formatPricing } from "@/utils/pricing";
 import { useAuth } from "@/components/WalletAuthGuard";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
+import ConfirmActionDialog from "@/components/xui/ConfirmActionDialog";
 import XSelect from "@/components/xui/XSelect";
 import {
   DEFAULT_SERVICE_EDIT_DRAFT_CONFIG,
@@ -130,6 +131,11 @@ export default function ProviderServicesPage() { // NOSONAR
   const [saving, setSaving] = useState(false);
   const [statusUpdatingServiceId, setStatusUpdatingServiceId] = useState<string | null>(null);
   const [deletingServiceId, setDeletingServiceId] = useState<string | null>(null);
+  const [pendingAction, setPendingAction] = useState<
+    | { type: "status"; service: ServiceRegistryRecord; nextActive: boolean }
+    | { type: "delete"; service: ServiceRegistryRecord }
+    | null
+  >(null);
   const pageSize = 8;
 
   useEffect(() => {
@@ -317,20 +323,12 @@ export default function ProviderServicesPage() { // NOSONAR
   const buildServicePayload = (service: ServiceRegistryRecord, nextDraft: ServiceEditDraft): ServiceRegistryPayload =>
     buildServicePayloadFromEditDraft(service, nextDraft, DEFAULT_SERVICE_EDIT_DRAFT_CONFIG);
 
-  const updateServiceStatus = async (service: ServiceRegistryRecord, nextActive: boolean) => {
+  const executeServiceStatusUpdate = async (service: ServiceRegistryRecord, nextActive: boolean) => {
     if (!address || saving || statusUpdatingServiceId || deletingServiceId) {
       return;
     }
 
     const actionLabel = nextActive ? t("providerServicesPage.actionActivate") : t("providerServicesPage.actionInactive");
-    const confirmed = globalThis.confirm(
-      nextActive
-        ? t("providerServicesPage.confirmActivate", { serviceId: service.serviceId })
-        : t("providerServicesPage.confirmDeactivate", { serviceId: service.serviceId }),
-    );
-    if (!confirmed) {
-      return;
-    }
 
     try {
       const payload = buildServiceStatusUpdatePayload(service, nextActive);
@@ -356,13 +354,15 @@ export default function ProviderServicesPage() { // NOSONAR
     }
   };
 
-  const deleteService = async (service: ServiceRegistryRecord) => {
-    if (!address || saving || statusUpdatingServiceId || deletingServiceId || service.isActive) {
+  const updateServiceStatus = (service: ServiceRegistryRecord, nextActive: boolean) => {
+    if (!address || saving || statusUpdatingServiceId || deletingServiceId) {
       return;
     }
+    setPendingAction({ type: "status", service, nextActive });
+  };
 
-    const confirmed = globalThis.confirm(t("providerServicesPage.confirmDelete", { serviceId: service.serviceId }));
-    if (!confirmed) {
+  const executeDeleteService = async (service: ServiceRegistryRecord) => {
+    if (!address || saving || statusUpdatingServiceId || deletingServiceId || service.isActive) {
       return;
     }
 
@@ -383,6 +383,26 @@ export default function ProviderServicesPage() { // NOSONAR
     } finally {
       setDeletingServiceId(null);
     }
+  };
+
+  const deleteService = (service: ServiceRegistryRecord) => {
+    if (!address || saving || statusUpdatingServiceId || deletingServiceId || service.isActive) {
+      return;
+    }
+    setPendingAction({ type: "delete", service });
+  };
+
+  const handleConfirmPendingAction = async () => {
+    const action = pendingAction;
+    if (!action) {
+      return;
+    }
+    if (action.type === "status") {
+      await executeServiceStatusUpdate(action.service, action.nextActive);
+    } else {
+      await executeDeleteService(action.service);
+    }
+    setPendingAction(null);
   };
 
   const persistEdit = async () => {
@@ -860,14 +880,14 @@ export default function ProviderServicesPage() { // NOSONAR
                         {t("providerServicesPage.edit")}
                       </button>
                       <button
-                        onClick={() => void updateServiceStatus(svc, !svc.isActive)}
+                        onClick={() => updateServiceStatus(svc, !svc.isActive)}
                         disabled={saving || isStatusUpdating || isDeleting}
                         className={`inline-flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs font-bold transition-all disabled:cursor-not-allowed disabled:opacity-50 ${statusActionClassName}`}
                       >
                         {statusActionLabel}
                       </button>
                       <button
-                        onClick={() => void deleteService(svc)}
+                        onClick={() => deleteService(svc)}
                         disabled={saving || isStatusUpdating || isDeleting || svc.isActive}
                         className="inline-flex items-center gap-1 rounded-lg border border-[#ef4444]/40 px-3 py-1.5 text-xs font-bold text-[#fca5a5] transition-all hover:bg-[#ef4444] hover:text-black disabled:cursor-not-allowed disabled:opacity-50"
                       >
@@ -924,6 +944,41 @@ export default function ProviderServicesPage() { // NOSONAR
       </div>
 
       {editModal}
+      <ConfirmActionDialog
+        open={pendingAction !== null}
+        title={
+          pendingAction?.type === "delete"
+            ? t("providerServicesPage.delete")
+            : pendingAction?.nextActive
+              ? t("providerServicesPage.actionActivate")
+              : t("providerServicesPage.actionInactive")
+        }
+        description={
+          pendingAction?.type === "delete"
+            ? t("providerServicesPage.confirmDelete", { serviceId: pendingAction.service.serviceId })
+            : pendingAction?.nextActive
+              ? t("providerServicesPage.confirmActivate", { serviceId: pendingAction.service.serviceId })
+              : t("providerServicesPage.confirmDeactivate", { serviceId: pendingAction?.service.serviceId ?? "" })
+        }
+        contextLabel={pendingAction?.service.serviceId}
+        confirmLabel={
+          pendingAction?.type === "delete"
+            ? t("providerServicesPage.delete")
+            : pendingAction?.nextActive
+              ? t("providerServicesPage.actionActivate")
+              : t("providerServicesPage.actionInactive")
+        }
+        tone={pendingAction?.type === "delete" ? "danger" : "default"}
+        loading={
+          pendingAction?.type === "delete"
+            ? deletingServiceId === pendingAction.service.serviceId
+            : pendingAction?.type === "status"
+              ? statusUpdatingServiceId === pendingAction.service.serviceId
+              : false
+        }
+        onCancel={() => setPendingAction(null)}
+        onConfirm={handleConfirmPendingAction}
+      />
     </div>
   );
 }
