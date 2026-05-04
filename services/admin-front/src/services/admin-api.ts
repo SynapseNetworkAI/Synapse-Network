@@ -1148,7 +1148,7 @@ function buildRequestUrl(path: string): string {
   return ADMIN_API_BASE_URL ? `${ADMIN_API_BASE_URL}${path}` : path;
 }
 
-function buildPath(
+export function buildPath(
   path: string,
   params?: Record<string, string | number | boolean | undefined>
 ): string {

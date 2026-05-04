@@ -21,6 +21,8 @@
 - `approval`
 - `provider_services`
 - `forum_support`
+- `owner_accounts`
+- `finance_operations`
 
 统一前缀建议：
 
@@ -103,7 +105,95 @@
 
 ## 3. admin-front -> gateway-admin
 
-## 3.0 forum_support
+## 3.0 owner_accounts
+
+用途：给运营、support、risk 和 finance 提供业务用户只读查询入口。这里的“用户”指 `gateway` 里的 consumer/provider owner account，不是后台管理员账号；后台管理员仍由 `/users` 管理。
+
+页面入口：
+
+- `/owner-accounts`
+
+权限：
+
+1. `GET /api/admin/v1/owner-accounts`：`owner:read`
+2. `GET /api/admin/v1/owner-accounts/{ownerId}`：`owner:read`
+3. `includeEmail=true` 或完整邮箱 reveal：额外要求 `owner:pii:read`，并写 `owner_account.pii_reveal` audit
+
+列表筛选：
+
+- `q`
+- `wallet`
+- `email`
+- `status`
+- `includeEmail`
+- `sort`
+- `page`
+- `pageSize`
+
+响应约束：
+
+- 默认只返回 masked email。
+- `pendingEmail` 只用于说明待验证邮箱，不得用于交易通知投递。
+- 详情页可返回余额、agent credentials、provider services、support cases、deposit/withdraw/refund/invocation 摘要，但全部为只读投影。
+
+## 3.1 finance_operations
+
+用途：把 Finance 页面从概览补齐为可查账的运营入口。V1 只做只读查询，不提供补账、修账、重放或强制释放按钮。
+
+页面入口：
+
+- `/finance` tab: `Consumer Deposits`
+- `/finance` tab: `Provider Withdrawals`
+
+权限：
+
+1. `GET /api/admin/v1/finance/consumer-deposits`：`finance:read`
+2. `GET /api/admin/v1/finance/consumer-deposits/{depositId}`：`finance:read`
+3. `GET /api/admin/v1/finance/provider-withdrawals`：`finance:read`
+4. `GET /api/admin/v1/finance/provider-withdrawals/{withdrawalId}`：`finance:read`
+5. CSV/export 类动作如果后续开放，必须额外要求 `finance:export` 并写 audit。
+
+列表通用分页：
+
+- 默认 `pageSize=50`
+- 最大 `pageSize=200`
+- 支持 `status`、`wallet`、`txHash`、`dateFrom`、`dateTo`、`sort`
+
+Consumer deposit 字段：
+
+- `depositId`
+- `ownerWallet`
+- `ownerEmail` masked by default
+- `txHash`
+- `amountUsdc`
+- `network`
+- `status`
+- `confirmations`
+- `creditedAt`
+- `createdAt`
+
+Provider withdrawal 字段：
+
+- `withdrawalId`
+- `providerId`
+- `providerName`
+- `ownerWallet`
+- `ownerEmail` masked by default
+- `amountUsdc`
+- `feeUsdc`
+- `status`
+- `txHash`
+- `ticketId`
+- `reviewDecision`
+- `fundsState`
+
+详情页证据：
+
+- deposit detail 必须能展开 ledger entries、audit events、notification evidence。
+- provider withdrawal detail 必须能展开 ledger entries、audit events、notification evidence、review history。
+- 过期/失败 withdrawal 必须明确 `fundsState`，说明资金是否已退回 provider 可提现余额。
+
+## 3.2 forum_support
 
 用途：把公开论坛里的未回复帖子收口到后台社区回复队列。Gateway-admin 负责权限、任务状态、Growing 建议写入、公开回复发送和审计边界；admin-front 只负责运营工作台展示与人工编辑。
 
@@ -534,11 +624,7 @@ Set-Cookie: synapse_admin_session=<opaque-session-token>; HttpOnly; Path=/; Same
       "email": "ops@synapse.network",
       "displayName": "Finance Admin",
       "role": "finance_admin",
-      "permissions": [
-        "dashboard:read",
-        "approval:submit",
-        "approval:read"
-      ]
+      "permissions": ["dashboard:read", "approval:submit", "approval:read"]
     }
   },
   "requestId": "req_demo"
@@ -1144,7 +1230,15 @@ X-CSRF-Token: <csrfToken>
         "href": null,
         "iconKey": "AN",
         "requiredPermissions": ["dashboard:read"],
-        "keywords": ["analytics", "events", "clickhouse", "growth", "revenue", "risk", "quality"]
+        "keywords": [
+          "analytics",
+          "events",
+          "clickhouse",
+          "growth",
+          "revenue",
+          "risk",
+          "quality"
+        ]
       },
       {
         "itemId": "dashboard-analytics",
