@@ -78,7 +78,7 @@ const creditsPage: I18nMessages["creditsPage"] = {
   manageSpendCapModalSave: "Save Settings",
   freeCreditsVoucherTitle: "Free Credits Voucher",
   freeCreditsVoucherDescription:
-    "X may give out free credits to developers to build with the API. Enter a voucher code to add free credits to your account.",
+    "SynapseNetwork may give out free credits to developers to build with the API. Enter a voucher code to add free credits to your account.",
   redeemVoucher: "Redeem Voucher",
   redeemVoucherModalTitle: "Redeem Voucher Code",
   redeemVoucherModalDescription:

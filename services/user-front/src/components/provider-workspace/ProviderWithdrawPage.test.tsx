@@ -1,7 +1,13 @@
 // @vitest-environment jsdom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, configure, render, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  configure,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createElement, type ReactNode } from "react";
 
@@ -36,15 +42,18 @@ const {
 
 const TRANSLATIONS: Record<string, string> = {
   "providerSettlements.withdrawPageTitle": "Provider Withdraw",
-  "providerSettlements.withdrawPageDescription": "EIP-712 on-chain self-service withdrawal.",
+  "providerSettlements.withdrawPageDescription":
+    "EIP-712 on-chain self-service withdrawal.",
   "providerSettlements.metricAvailable": "Available",
   "providerSettlements.generateAndClaim": "Generate & Claim",
   "providerSettlements.signerUnavailable": "Signer Unavailable",
   "providerSettlements.creatingTicket": "Creating Ticket...",
   "providerSettlements.resumePending": "Resume Pending",
   "providerSettlements.withdrawAmountLabel": "Withdraw Amount",
-  "providerSettlements.withdrawGasNote": "On-chain transaction — a small gas fee in native token (e.g. ETH) applies.",
-  "providerSettlements.insufficientGasWarning": "Insufficient gas balance. Please top up native token.",
+  "providerSettlements.withdrawGasNote":
+    "On-chain transaction — a small gas fee in native token (e.g. ETH) applies.",
+  "providerSettlements.insufficientGasWarning":
+    "Insufficient gas balance. Please top up native token.",
   "providerSettlements.historyTitle": "Withdrawal History",
   "providerSettlements.historyFilterAll": "All",
   "providerSettlements.historyStatusRequested": "Requested",
@@ -61,19 +70,22 @@ const TRANSLATIONS: Record<string, string> = {
   "providerSettlements.historyTableCreated": "Created",
   "providerSettlements.historyTableTxHash": "Tx Hash",
   "providerSettlements.historyEmpty": "No withdrawal records yet.",
-  "providerSettlements.historyFilteredEmpty": "No records match the current filter.",
+  "providerSettlements.historyFilteredEmpty":
+    "No records match the current filter.",
   "providerSettlements.searchButton": "Search",
   "providerSettlements.loadingHistory": "Loading...",
   "providerSettlements.viewInvocationRecords": "View Invocation Records",
   "providerSettlements.loadHistoryFailed": "Failed to load withdrawal history",
   "providerSettlements.vaultAddressMissing": "Vault address missing",
   "providerSettlements.ticketSigningUnavailable": "Signer unavailable",
-  "providerSettlements.vaultLiquidityCheckUnavailable": "Vault liquidity check unavailable",
+  "providerSettlements.vaultLiquidityCheckUnavailable":
+    "Vault liquidity check unavailable",
   "providerSettlements.chainRpcUnavailable": "Chain RPC unavailable",
   "providerSettlements.withdrawalCreateFailed": "Failed to create withdrawal",
   "providerSettlements.noPendingTicket": "No pending ticket",
   "providerSettlements.chainRequiredNetwork": "required network",
-  "providerSettlements.vaultLiquidityInsufficient": "Vault liquidity insufficient",
+  "providerSettlements.vaultLiquidityInsufficient":
+    "Vault liquidity insufficient",
   "providerSettlements.walletClientUnavailable": "Wallet client unavailable",
   "providerSettlements.connectWalletFirst": "Connect wallet first",
   "providerSettlements.withdrawalContractMissing": "Contract missing",
@@ -84,13 +96,16 @@ const TRANSLATIONS: Record<string, string> = {
   "providerSettlements.staleTicket": "Stale ticket",
   "providerSettlements.invalidSignature": "Invalid signature",
   "providerSettlements.confirmWithdraw": "Confirm",
-  "providerSettlements.withdrawAmountPlaceholder": "Amount (blank = full withdrawal)",
-  "providerSettlements.pendingReviewExists": "A withdrawal is already pending review.",
+  "providerSettlements.withdrawAmountPlaceholder":
+    "Amount (blank = full withdrawal)",
+  "providerSettlements.pendingReviewExists":
+    "A withdrawal is already pending review.",
   "providerSettlements.generatingTicket": "Generating ticket...",
   "providerSettlements.settledCompleted": "Withdrawal settled",
   "providerSettlements.backendCompletionFailed": "Backend completion failed",
   "providerSettlements.pendingTicketExpiredBanner": "Pending ticket expired.",
-  "providerSettlements.pendingTicketExpiredReleased": "Expired ticket released.",
+  "providerSettlements.pendingTicketExpiredReleased":
+    "Expired ticket released.",
   "providerSettlements.expiredTicketReleasedRow": "Expired ticket released.",
   "providerSettlements.nativeTokenFallback": "native token",
   "providerSettlements.txSubmitted": "Tx submitted",
@@ -99,6 +114,10 @@ const TRANSLATIONS: Record<string, string> = {
   "providerSettlements.withdrawalIntentCreated": "Intent created",
   "providerSettlements.invalidAmountPrecision": "Invalid precision",
   "providerSettlements.invalidAmountValue": "Invalid amount",
+  "providerSettlements.amountBelowMinimum":
+    "Minimum withdrawal amount is {{amount}} USDC.",
+  "providerSettlements.withdrawAmountHint":
+    "Blank = full withdrawal. Minimum withdrawal: {{amount}} USDC. Max 2 decimals.",
 };
 
 vi.mock("react-hot-toast", () => ({
@@ -110,7 +129,14 @@ vi.mock("react-hot-toast", () => ({
 }));
 
 vi.mock("next/link", () => ({
-  default: ({ children, href, ...rest }: { children: ReactNode; href: string }) => {
+  default: ({
+    children,
+    href,
+    ...rest
+  }: {
+    children: ReactNode;
+    href: string;
+  }) => {
     return createElement("a", { href, ...rest }, children);
   },
 }));
@@ -166,7 +192,9 @@ vi.mock("wagmi", () => ({
     readContract: readContractMock,
     getBalance: vi.fn().mockResolvedValue(10n ** 18n),
     estimateContractGas: vi.fn().mockResolvedValue(21000n),
-    estimateFeesPerGas: vi.fn().mockResolvedValue({ maxFeePerGas: 1000000000n, gasPrice: 1000000000n }),
+    estimateFeesPerGas: vi
+      .fn()
+      .mockResolvedValue({ maxFeePerGas: 1000000000n, gasPrice: 1000000000n }),
   }),
   useWaitForTransactionReceipt: () => ({
     isLoading: false,
@@ -193,9 +221,9 @@ vi.mock("@/SynapseCoreABI.json", () => ({
 }));
 
 vi.mock("@/utils/providerWithdrawApi", async () => {
-  const actual = await vi.importActual<typeof import("@/utils/providerWithdrawApi")>(
-    "@/utils/providerWithdrawApi",
-  );
+  const actual = await vi.importActual<
+    typeof import("@/utils/providerWithdrawApi")
+  >("@/utils/providerWithdrawApi");
   return {
     ...actual,
     createProviderWithdrawIntent: createProviderWithdrawIntentMock,
@@ -250,13 +278,20 @@ describe("ProviderWithdrawPage", () => {
     await waitFor(() => {
       expect(screen.getByText("Available")).toBeTruthy();
     });
-    expect(screen.getByText(/12\.500000/)).toBeTruthy();
+    expect(screen.getByText("12.50 USDC")).toBeTruthy();
+    expect(
+      screen.getByText(
+        "Blank = full withdrawal. Minimum withdrawal: 10.00 USDC. Max 2 decimals."
+      )
+    ).toBeTruthy();
   });
 
   it("renders Generate & Claim button", async () => {
     renderPage();
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /Generate & Claim/i })).toBeTruthy();
+      expect(
+        screen.getByRole("button", { name: /Generate & Claim/i })
+      ).toBeTruthy();
     });
   });
 
@@ -266,9 +301,13 @@ describe("ProviderWithdrawPage", () => {
     const user = userEvent.setup();
     renderPage();
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /Generate & Claim/i })).toBeTruthy();
+      expect(
+        screen.getByRole("button", { name: /Generate & Claim/i })
+      ).toBeTruthy();
     });
-    const btn = screen.getByRole("button", { name: /Generate & Claim/i }) as HTMLButtonElement;
+    const btn = screen.getByRole("button", {
+      name: /Generate & Claim/i,
+    }) as HTMLButtonElement;
     await waitFor(() => expect(btn.disabled).toBe(false));
     await user.click(btn);
     await waitFor(() => {
@@ -290,7 +329,9 @@ describe("ProviderWithdrawPage", () => {
     walletBalance = 0n;
     renderPage();
     await waitFor(() => {
-      const btn = screen.getByRole("button", { name: /Generate & Claim/i }) as HTMLButtonElement;
+      const btn = screen.getByRole("button", {
+        name: /Generate & Claim/i,
+      }) as HTMLButtonElement;
       expect(btn.disabled).toBe(true);
     });
   });
@@ -301,9 +342,13 @@ describe("ProviderWithdrawPage", () => {
     const user = userEvent.setup();
     renderPage();
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /Generate & Claim/i })).toBeTruthy();
+      expect(
+        screen.getByRole("button", { name: /Generate & Claim/i })
+      ).toBeTruthy();
     });
-    const btn = screen.getByRole("button", { name: /Generate & Claim/i }) as HTMLButtonElement;
+    const btn = screen.getByRole("button", {
+      name: /Generate & Claim/i,
+    }) as HTMLButtonElement;
     await waitFor(() => expect(btn.disabled).toBe(false));
     await user.click(btn);
     await waitFor(() => {
@@ -315,9 +360,13 @@ describe("ProviderWithdrawPage", () => {
     const user = userEvent.setup();
     renderPage();
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /Generate & Claim/i })).toBeTruthy();
+      expect(
+        screen.getByRole("button", { name: /Generate & Claim/i })
+      ).toBeTruthy();
     });
-    const btn = screen.getByRole("button", { name: /Generate & Claim/i }) as HTMLButtonElement;
+    const btn = screen.getByRole("button", {
+      name: /Generate & Claim/i,
+    }) as HTMLButtonElement;
     await waitFor(() => expect(btn.disabled).toBe(false));
     await user.click(btn);
     await waitFor(() => {
@@ -326,6 +375,32 @@ describe("ProviderWithdrawPage", () => {
     await user.click(screen.getByRole("button", { name: /MAX/i }));
     const input = screen.getByPlaceholderText(/Amount/i) as HTMLInputElement;
     expect(input.value).toBe("12.50");
+  });
+
+  it("rejects custom withdrawal amounts below the platform minimum", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: /Generate & Claim/i })
+      ).toBeTruthy();
+    });
+    const btn = screen.getByRole("button", {
+      name: /Generate & Claim/i,
+    }) as HTMLButtonElement;
+    await waitFor(() => expect(btn.disabled).toBe(false));
+    await user.click(btn);
+
+    const input = screen.getByPlaceholderText(/Amount/i);
+    await user.type(input, "9.99");
+
+    expect(
+      screen.getByText("Minimum withdrawal amount is 10.00 USDC.")
+    ).toBeTruthy();
+    expect(
+      (screen.getByRole("button", { name: /Confirm/i }) as HTMLButtonElement)
+        .disabled
+    ).toBe(true);
   });
 
   /* ── Resume Pending ──────────────────────────────────────── */
@@ -348,7 +423,9 @@ describe("ProviderWithdrawPage", () => {
     ]);
     renderPage();
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /Resume Pending/i })).toBeTruthy();
+      expect(
+        screen.getByRole("button", { name: /Resume Pending/i })
+      ).toBeTruthy();
     });
   });
 
@@ -358,7 +435,9 @@ describe("ProviderWithdrawPage", () => {
     await waitFor(() => {
       expect(getProviderWithdrawCapabilityMock).toHaveBeenCalled();
     });
-    expect(screen.queryByRole("button", { name: /Resume Pending/i })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: /Resume Pending/i })
+    ).toBeNull();
   });
 
   /* ── Withdrawal History section ──────────────────────────── */
@@ -384,8 +463,18 @@ describe("ProviderWithdrawPage", () => {
   it("shows withdrawal history with data from API mock", async () => {
     const now = Math.floor(Date.now() / 1000);
     listProviderWithdrawalsMock.mockResolvedValue([
-      buildWithdrawal({ id: "wd-001", amountUsdc: 10.123456, status: "COMPLETED", createdAt: String(now - 100) }),
-      buildWithdrawal({ id: "wd-002", amountUsdc: 5.5, status: "REQUESTED", createdAt: String(now - 200) }),
+      buildWithdrawal({
+        id: "wd-001",
+        amountUsdc: 10.123456,
+        status: "COMPLETED",
+        createdAt: String(now - 100),
+      }),
+      buildWithdrawal({
+        id: "wd-002",
+        amountUsdc: 5.5,
+        status: "REQUESTED",
+        createdAt: String(now - 200),
+      }),
     ]);
     renderPage();
     await waitFor(() => {
@@ -428,8 +517,12 @@ describe("ProviderWithdrawPage", () => {
     renderPage();
     await waitFor(() => expect(screen.getByText("wd-old")).toBeTruthy());
 
-    const fromInput = document.querySelectorAll('input[type="date"]')[0] as HTMLInputElement;
-    const sevenDaysAgo = new Date(Date.now() - 86400 * 7 * 1000).toISOString().slice(0, 10);
+    const fromInput = document.querySelectorAll(
+      'input[type="date"]'
+    )[0] as HTMLInputElement;
+    const sevenDaysAgo = new Date(Date.now() - 86400 * 7 * 1000)
+      .toISOString()
+      .slice(0, 10);
     await user.clear(fromInput);
     await user.type(fromInput, sevenDaysAgo);
 
@@ -445,7 +538,9 @@ describe("ProviderWithdrawPage", () => {
     renderPage();
     await waitFor(() => {
       const link = screen.getByText(/View Invocation Records/i);
-      expect(link.closest("a")?.getAttribute("href")).toBe("/provider/withdraw/history");
+      expect(link.closest("a")?.getAttribute("href")).toBe(
+        "/provider/withdraw/history"
+      );
     });
   });
 
@@ -463,15 +558,25 @@ describe("ProviderWithdrawPage", () => {
   it("shows error toast when withdraw intent fails", async () => {
     const user = userEvent.setup();
     createProviderWithdrawIntentMock.mockRejectedValue(
-      new ProviderWithdrawApiError("vault liquidity", "WITHDRAW_VAULT_LIQUIDITY_CHECK_UNAVAILABLE", 503),
+      new ProviderWithdrawApiError(
+        "vault liquidity",
+        "WITHDRAW_VAULT_LIQUIDITY_CHECK_UNAVAILABLE",
+        503
+      )
     );
     renderPage();
-    await waitFor(() => expect(getProviderWithdrawCapabilityMock).toHaveBeenCalled());
-    const btn = screen.getByRole("button", { name: /Generate & Claim/i }) as HTMLButtonElement;
+    await waitFor(() =>
+      expect(getProviderWithdrawCapabilityMock).toHaveBeenCalled()
+    );
+    const btn = screen.getByRole("button", {
+      name: /Generate & Claim/i,
+    }) as HTMLButtonElement;
     await waitFor(() => expect(btn.disabled).toBe(false));
     await user.click(btn);
     // Panel opens; now click Confirm to trigger the intent
-    await waitFor(() => expect(screen.getByRole("button", { name: /Confirm/i })).toBeTruthy());
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /Confirm/i })).toBeTruthy()
+    );
     await user.click(screen.getByRole("button", { name: /Confirm/i }));
     await waitFor(() => expect(toastError).toHaveBeenCalled());
   });
@@ -494,12 +599,18 @@ describe("ProviderWithdrawPage", () => {
       },
     });
     renderPage();
-    await waitFor(() => expect(getProviderWithdrawCapabilityMock).toHaveBeenCalled());
-    const btn = screen.getByRole("button", { name: /Generate & Claim/i }) as HTMLButtonElement;
+    await waitFor(() =>
+      expect(getProviderWithdrawCapabilityMock).toHaveBeenCalled()
+    );
+    const btn = screen.getByRole("button", {
+      name: /Generate & Claim/i,
+    }) as HTMLButtonElement;
     await waitFor(() => expect(btn.disabled).toBe(false));
     await user.click(btn);
 
-    await waitFor(() => expect(screen.getByRole("button", { name: /Confirm/i })).toBeTruthy());
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /Confirm/i })).toBeTruthy()
+    );
     await user.click(screen.getByRole("button", { name: /Confirm/i }));
 
     await waitFor(() => {

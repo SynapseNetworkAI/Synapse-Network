@@ -6,7 +6,9 @@ const overviewPage: I18nMessages["overviewPage"] = {
   networkStatus: "网络状态",
   latency: "延迟",
   syncing: "同步中...",
-  refreshData: "刷新数据",
+  refreshData: "钱包",
+  connectWallet: "连接钱包",
+  connectedWallet: "已连接钱包",
   quickNavAgents: "Agents",
   quickNavDiscovery: "服务发现",
   quickNavInvocations: "调用记录",
@@ -16,17 +18,21 @@ const overviewPage: I18nMessages["overviewPage"] = {
   operationalWorkflows: "运营流程",
   platformIdentityModel: "平台身份模型",
   ownerTitle: "Owner",
-  ownerDescription: "Owner 是根账户和租户边界，负责控制资金、Agent 和服务注册。",
+  ownerDescription:
+    "Owner 是根账户和租户边界，负责控制资金、Agent 和服务注册。",
   agentTitle: "Agent",
   agentDescription: "Agent 是运行时执行主体，在预算边界内自主发现并调用服务。",
   providerTitle: "Provider",
-  providerDescription: "Provider 是供给侧业务角色，负责注册服务并从 Agent 调用中获得收入。",
+  providerDescription:
+    "Provider 是供给侧业务角色，负责注册服务并从 Agent 调用中获得收入。",
   platformTitle: "Platform",
-  platformDescription: "Platform 是系统运营与清算引擎，负责路由、审计与实时计费。",
+  platformDescription:
+    "Platform 是系统运营与清算引擎，负责路由、审计与实时计费。",
   financialInfrastructure: "金融基础设施",
   coreCapabilities: "核心能力",
   coreCapabilitiesDescription: "构成 Synapse M2M 经济的关键能力支柱。",
-  footerTagline: "我们不是在写代码，而是在为硅基生命铸造中央银行。一起把 M2M Economy 干出来。",
+  footerTagline:
+    "我们不是在写代码，而是在为硅基生命铸造中央银行。一起把 M2M Economy 干出来。",
   footerPrivacy: "隐私",
   footerTerms: "条款",
   footerSecurity: "安全",
@@ -35,7 +41,8 @@ const overviewPage: I18nMessages["overviewPage"] = {
   heroEyebrow: "Agent 经济时代",
   heroTitleLead: "Synapse Network:",
   heroTitleAccent: "自主智能体的金融层",
-  heroDescription: "面向 Agent 时代的首个 M2M 基础设施，让你的 Agent 可以自主发现、调用并完成实时结算支付。",
+  heroDescription:
+    "面向 Agent 时代的首个 M2M 基础设施，让你的 Agent 可以自主发现、调用并完成实时结算支付。",
   heroOpenAgentWorkspace: "打开 Agent Workspace",
   heroOpenProviderWorkspace: "打开 Provider Workspace",
   consumerPathTitle: "调用方路径",
@@ -43,19 +50,24 @@ const overviewPage: I18nMessages["overviewPage"] = {
   providerPathTitle: "供给方路径",
   providerPathDescription: "让你的 API 在 Agent 经济中持续变现。",
   consumerDepositTitle: "充值 USDC",
-  consumerDepositDescription: "向 Synapse 智能合约中的 Vault 充值，为 Agent 消费提供担保资金。",
+  consumerDepositDescription:
+    "向 Synapse 智能合约中的 Vault 充值，为 Agent 消费提供担保资金。",
   consumerDepositLink: "打开资金库",
   consumerCreateAgentTitle: "创建 Agent",
-  consumerCreateAgentDescription: "为你的自主 Agent 创建运行时身份，让它代表你执行调用。",
+  consumerCreateAgentDescription:
+    "为你的自主 Agent 创建运行时身份，让它代表你执行调用。",
   consumerCreateAgentLink: "管理 Agents",
   consumerDiscoveryTitle: "服务发现",
-  consumerDiscoveryDescription: "通过发现网络里的最佳 API 服务与服务定义，选择最合适的能力。",
+  consumerDiscoveryDescription:
+    "通过发现网络里的最佳 API 服务与服务定义，选择最合适的能力。",
   consumerDiscoveryLink: "浏览服务",
   consumerCredentialTitle: "绑定运行时凭据",
-  consumerCredentialDescription: "在发现、询价和付费调用前，为你的 Agent Runtime 签发真正使用的凭据。",
+  consumerCredentialDescription:
+    "在发现、询价和付费调用前，为你的 Agent Runtime 签发真正使用的凭据。",
   consumerCredentialLink: "打开 Agent Credentials",
   providerCreateServiceTitle: "创建服务",
-  providerCreateServiceDescription: "在 Provider Workspace 中定义 API 服务、服务描述、定价和运行时路由。",
+  providerCreateServiceDescription:
+    "在 Provider Workspace 中定义 API 服务、服务描述、定价和运行时路由。",
   providerCreateServiceLink: "发布 API 服务",
   providerServeAgentsTitle: "服务 Agents",
   providerServeAgentsDescription: "通过网关接收来自自主 Agent 的高频调用请求。",
@@ -70,7 +82,8 @@ const overviewPage: I18nMessages["overviewPage"] = {
   treasuryMasterBalance: "主资金库 USDC 余额",
   treasuryNotConnected: "未连接",
   treasuryControlsTitle: "资金库控制台",
-  treasuryControlsDescription: "在一个入口中查看金库余额、退款、提现以及 Owner 侧资金活动。",
+  treasuryControlsDescription:
+    "在一个入口中查看金库余额、退款、提现以及 Owner 侧资金活动。",
   treasuryOpenOwnerTreasury: "打开 Owner 资金库",
   analyticsSectionTitle: "第二层：服务分析",
   analyticsServiceWalletsTotal: "服务钱包总额",
@@ -80,15 +93,20 @@ const overviewPage: I18nMessages["overviewPage"] = {
   analyticsTotalPlatformFee: "平台手续费总额",
   analyticsProtocolFeeFromPaidLogs: "来自付费日志的协议费",
   analyticsPaidCalls24h: "24 小时付费调用",
-  analyticsProviderWorkspaceConnectedWallet: "Provider workspace = 当前连接钱包",
+  analyticsProviderWorkspaceConnectedWallet:
+    "Provider workspace = 当前连接钱包",
   capabilitySmartVaultsTitle: "智能金库",
-  capabilitySmartVaultsDescription: "链上 USDC 抵押会被转换为链下可消费余额，支撑高频 Agent 交互。",
+  capabilitySmartVaultsDescription:
+    "链上 USDC 抵押会被转换为链下可消费余额，支撑高频 Agent 交互。",
   capabilityAgentCredentialsTitle: "Agent 凭据",
-  capabilityAgentCredentialsDescription: "为自主 Agent 身份签发带细粒度预算策略与速率限制的安全凭据。",
+  capabilityAgentCredentialsDescription:
+    "为自主 Agent 身份签发带细粒度预算策略与速率限制的安全凭据。",
   capabilityAtomicSettlementTitle: "原子化结算",
-  capabilityAtomicSettlementDescription: "网关负责实时扣费与请求路由，并在失败时自动回滚。",
+  capabilityAtomicSettlementDescription:
+    "网关负责实时扣费与请求路由，并在失败时自动回滚。",
   capabilityUnifiedLedgerTitle: "统一账本",
-  capabilityUnifiedLedgerDescription: "为调用方和服务方同时提供透明审计与结算，并支持免 Gas 提现。",
+  capabilityUnifiedLedgerDescription:
+    "为调用方和服务方同时提供透明审计与结算，并支持免 Gas 提现。",
 };
 
 export default overviewPage;

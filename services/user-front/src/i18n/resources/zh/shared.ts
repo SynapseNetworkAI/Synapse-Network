@@ -69,7 +69,12 @@ const shared: Pick<
     payments: "Payments",
     account: "Account",
     settings: "Settings",
-    logout: "Logout",
+    logout: "退出登录",
+    logoutConfirmTitle: "确认退出登录？",
+    logoutConfirmDescription:
+      "这会断开当前钱包会话，并清除这个浏览器里的本地登录状态。",
+    logoutConfirmCancel: "取消",
+    logoutConfirmAction: "退出登录",
     login: "登录",
     discovery: "服务发现",
     invocations: "调用记录",

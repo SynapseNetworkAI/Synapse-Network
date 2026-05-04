@@ -21,7 +21,9 @@ vi.mock("wagmi", () => ({
 }));
 
 vi.mock("@/utils/communityApi", async () => {
-  const actual = await vi.importActual<typeof import("@/utils/communityApi")>("@/utils/communityApi");
+  const actual = await vi.importActual<typeof import("@/utils/communityApi")>(
+    "@/utils/communityApi"
+  );
   return {
     ...actual,
     submitFeedback: submitFeedbackMock,
@@ -46,8 +48,8 @@ function renderDrawer() {
             nested: { privateKey: "0x" + "a".repeat(64) },
           },
         },
-      }),
-    ),
+      })
+    )
   );
 }
 
@@ -67,7 +69,16 @@ describe("FeedbackDrawer", () => {
     const user = userEvent.setup();
     renderDrawer();
 
-    await user.type(screen.getByPlaceholderText(/Tell us what broke/i), "Discovery service card does not open.");
+    expect(
+      await screen.findByRole("dialog", { name: "Send feedback" })
+    ).toBeTruthy();
+    expect(screen.getByTestId("feedback-modal")).toBeTruthy();
+    expect(screen.queryByTestId("feedback-drawer")).toBeNull();
+
+    await user.type(
+      screen.getByPlaceholderText(/Tell us what broke/i),
+      "Discovery service card does not open."
+    );
     await user.click(screen.getByRole("button", { name: "Submit feedback" }));
 
     await waitFor(() => expect(submitFeedbackMock).toHaveBeenCalledTimes(1));
@@ -76,6 +87,8 @@ describe("FeedbackDrawer", () => {
     expect(payload.context.serviceId).toBe("svc-1");
     expect(payload.context.authorization).toBe("[REDACTED]");
     expect(payload.context.nested.privateKey).toBe("[REDACTED]");
-    expect((await screen.findByTestId("feedback-id")).textContent).toContain("fbk_unit");
+    expect((await screen.findByTestId("feedback-id")).textContent).toContain(
+      "fbk_unit"
+    );
   });
 });

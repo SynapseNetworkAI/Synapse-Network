@@ -64,6 +64,10 @@ export type I18nMessages = {
     account: string;
     settings: string;
     logout: string;
+    logoutConfirmTitle: string;
+    logoutConfirmDescription: string;
+    logoutConfirmCancel: string;
+    logoutConfirmAction: string;
     login: string;
     discovery: string;
     invocations: string;
@@ -219,6 +223,8 @@ export type I18nMessages = {
     latency: string;
     syncing: string;
     refreshData: string;
+    connectWallet: string;
+    connectedWallet: string;
     quickNavAgents: string;
     quickNavDiscovery: string;
     quickNavInvocations: string;
@@ -1138,6 +1144,7 @@ export type I18nMessages = {
     resumePending: string;
     invalidAmountPrecision: string;
     invalidAmountValue: string;
+    amountBelowMinimum: string;
     amountExceedsAvailable: string;
     withdrawAmountHint: string;
     loadingHistory: string;
