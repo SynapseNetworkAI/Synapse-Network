@@ -33,23 +33,40 @@ python synapse_client_quickstart.py
 
 ### 2. `agent_invoke_existing_service.py` — 已有 Credential 调用已有服务
 
-**作用**：UI 已创建 Agent Credential 后，直接调用本地或 staging 已注册 Provider 服务。脚本自动执行 discovery/search，读取 Gateway 实时价格，再调用标准 Agent invoke 并拉取 receipt。
+**作用**：UI 已创建 Agent Credential 后，直接调用本地或 staging 已注册 Provider 服务。脚本自动执行 discovery/search，读取 Gateway 实时价格，按 `SERVICE_ID` 生成 Provider SDK 兼容的测试 payload，再调用标准 Agent invoke 并拉取 receipt。
 
 **环境变量**：
 
-| 变量                  | 必填 | 说明                                    | 默认值                         |
-| --------------------- | ---- | --------------------------------------- | ------------------------------ |
-| `SYNAPSE_AGENT_KEY`   | ✅   | 完整 Agent 凭据令牌，格式 `agt_...`     | —                              |
-| `SERVICE_ID`          |      | 要调用的已有服务 ID                     | `svc_oss_security_healthcheck` |
-| `API_BASE`            |      | Gateway API 地址                        | `http://127.0.0.1:8000`        |
-| `INVOKE_PAYLOAD_JSON` |      | 非 canonical 服务的 `payload.body` JSON | —                              |
-| `MAX_COST_USDC`       |      | LLM/token-metered 服务预算上限          | —                              |
+| 变量                  | 必填 | 说明                                | 默认值                         |
+| --------------------- | ---- | ----------------------------------- | ------------------------------ |
+| `SYNAPSE_AGENT_KEY`   | ✅   | 完整 Agent 凭据令牌，格式 `agt_...` | —                              |
+| `SERVICE_ID`          |      | 要调用的已有服务 ID                 | `svc_oss_security_healthcheck` |
+| `API_BASE`            |      | Gateway API 地址                    | `http://127.0.0.1:8000`        |
+| `INVOKE_PAYLOAD_JSON` |      | 覆盖自动生成的 `payload.body` JSON  | —                              |
+| `MAX_COST_USDC`       |      | LLM/token-metered 服务预算上限      | —                              |
 
 **使用方式**：
 
 ```bash
 SYNAPSE_AGENT_KEY=agt_xxx \
 SERVICE_ID=svc_oss_security_healthcheck \
+API_BASE=http://127.0.0.1:8000 \
+python agent_invoke_existing_service.py
+```
+
+脚本的 payload 选择顺序：
+
+1. `INVOKE_PAYLOAD_JSON` / `--payload-json`
+2. 第一方服务内置 payload，例如 `svc_synapse_echo`、`svc_synapse_mock_cost_1usdc`
+3. discovery 返回的 `quoteTemplate.inputPreview.sample.body`
+4. discovery 返回的 input schema required fields
+5. 通用 smoke payload
+
+调用 1 USDC fixed-price mock 服务：
+
+```bash
+SYNAPSE_AGENT_KEY=agt_xxx \
+SERVICE_ID=svc_synapse_mock_cost_1usdc \
 API_BASE=http://127.0.0.1:8000 \
 python agent_invoke_existing_service.py
 ```
