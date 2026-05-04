@@ -7,12 +7,31 @@ import { useAccount } from "wagmi";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { submitFeedback, type FeedbackPayload } from "@/utils/communityApi";
 import SupportContactPanel from "@/components/shared/SupportContactPanel";
+import {
+  XDialog,
+  XDialogBody,
+  XDialogCloseButton,
+  XDialogFooter,
+  XDialogHeader,
+  XDialogHeaderCopy,
+  XDialogSurface,
+} from "@/components/xui/XDialog";
 
-const SENSITIVE_KEY_PARTS = ["authorization", "bearer", "jwt", "token", "private", "secret", "password", "signature"];
+const SENSITIVE_KEY_PARTS = [
+  "authorization",
+  "bearer",
+  "jwt",
+  "token",
+  "private",
+  "secret",
+  "password",
+  "signature",
+];
 
 function redactContext(value: unknown, depth = 0): unknown {
   if (depth > 5) return "[REDACTED_DEPTH]";
-  if (Array.isArray(value)) return value.slice(0, 30).map((item) => redactContext(item, depth + 1));
+  if (Array.isArray(value))
+    return value.slice(0, 30).map((item) => redactContext(item, depth + 1));
   if (value && typeof value === "object") {
     return Object.fromEntries(
       Object.entries(value as Record<string, unknown>).map(([key, nested]) => [
@@ -25,7 +44,10 @@ function redactContext(value: unknown, depth = 0): unknown {
   }
   if (typeof value === "string") {
     return value
-      .replace(/\beyJ[a-zA-Z0-9_-]{8,}\.[a-zA-Z0-9_-]{8,}\.[a-zA-Z0-9_-]{8,}\b/g, "[REDACTED_JWT]")
+      .replace(
+        /\beyJ[a-zA-Z0-9_-]{8,}\.[a-zA-Z0-9_-]{8,}\.[a-zA-Z0-9_-]{8,}\b/g,
+        "[REDACTED_JWT]"
+      )
       .replace(/\b0x[a-fA-F0-9]{64}\b/g, "[REDACTED_PRIVATE_KEY]")
       .slice(0, 2000);
   }
@@ -46,9 +68,13 @@ export default function FeedbackDrawer({ open, onClose, seed }: Props) {
   const pathname = usePathname();
   const { address } = useAccount();
   const { t, lang } = useLanguage();
-  const [category, setCategory] = useState(seed?.category ?? "product_feedback");
+  const [category, setCategory] = useState(
+    seed?.category ?? "product_feedback"
+  );
   const [message, setMessage] = useState(seed?.message ?? "");
-  const [sentiment, setSentiment] = useState<FeedbackPayload["sentiment"]>(seed?.sentiment ?? "report_issue");
+  const [sentiment, setSentiment] = useState<FeedbackPayload["sentiment"]>(
+    seed?.sentiment ?? "report_issue"
+  );
   const [feedbackId, setFeedbackId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -62,13 +88,20 @@ export default function FeedbackDrawer({ open, onClose, seed }: Props) {
     setError(null);
   }, [open, seed]);
 
-  const route = seed?.route || (typeof window !== "undefined" ? `${pathname ?? ""}${window.location.hash}` : pathname ?? "");
-  const pageTitle = seed?.pageTitle || (typeof document !== "undefined" ? document.title : "");
+  const route =
+    seed?.route ||
+    (typeof window !== "undefined"
+      ? `${pathname ?? ""}${window.location.hash}`
+      : pathname ?? "");
+  const pageTitle =
+    seed?.pageTitle || (typeof document !== "undefined" ? document.title : "");
   const context = useMemo(
     () =>
       redactContext({
         ...(seed?.context ?? {}),
-        walletAddress: address ? `${address.slice(0, 6)}...${address.slice(-4)}` : undefined,
+        walletAddress: address
+          ? `${address.slice(0, 6)}...${address.slice(-4)}`
+          : undefined,
         route,
       }) as Record<string, unknown>,
     [address, route, seed]
@@ -81,7 +114,8 @@ export default function FeedbackDrawer({ open, onClose, seed }: Props) {
     setError(null);
     try {
       const result = await submitFeedback({
-        source: seed?.source ?? (route.startsWith("/docs") ? "docs" : "dashboard"),
+        source:
+          seed?.source ?? (route.startsWith("/docs") ? "docs" : "dashboard"),
         sentiment,
         category,
         message,
@@ -92,36 +126,61 @@ export default function FeedbackDrawer({ open, onClose, seed }: Props) {
       });
       setFeedbackId(result.feedbackId);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to submit feedback");
+      setError(
+        err instanceof Error ? err.message : "Failed to submit feedback"
+      );
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-[90] flex justify-end bg-black/50 backdrop-blur-sm" data-testid="feedback-drawer">
-      <button type="button" className="absolute inset-0 cursor-default" aria-label="Close feedback" onClick={onClose} />
-      <aside className="relative flex h-full w-full max-w-[430px] flex-col border-l border-white/10 bg-[#090a0c] shadow-[-30px_0_80px_rgba(0,0,0,0.5)]">
-        <div className="flex items-start gap-3 border-b border-white/10 p-5">
+    <XDialog
+      open={open}
+      ariaLabelledby="feedback-modal-title"
+      onDismiss={onClose}
+      overlayClassName="z-[130]"
+    >
+      <XDialogSurface
+        className="max-h-[92dvh] max-w-[520px] border border-white/10"
+        data-testid="feedback-modal"
+      >
+        <XDialogHeader>
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-[#7ff7be]/25 bg-[#7ff7be]/10 text-[#7ff7be]">
             <MessageSquare className="h-5 w-5" />
           </div>
-          <div className="min-w-0 flex-1">
-            <h2 className="text-lg font-semibold tracking-[-0.02em] text-white">{t("feedback.drawerTitle")}</h2>
-            <p className="mt-1 text-sm leading-6 text-white/55">{t("feedback.drawerDescription")}</p>
-          </div>
-          <button type="button" onClick={onClose} className="rounded-full p-2 text-white/45 transition hover:bg-white/10 hover:text-white">
+          <XDialogHeaderCopy>
+            <h2
+              id="feedback-modal-title"
+              className="text-lg font-semibold tracking-[-0.02em] text-white"
+            >
+              {t("feedback.drawerTitle")}
+            </h2>
+            <p className="mt-1 text-sm leading-6 text-white/55">
+              {t("feedback.drawerDescription")}
+            </p>
+          </XDialogHeaderCopy>
+          <XDialogCloseButton onClick={onClose} aria-label="Close feedback">
             <X className="h-4 w-4" />
-          </button>
-        </div>
+          </XDialogCloseButton>
+        </XDialogHeader>
 
-        <div className="flex-1 space-y-4 overflow-y-auto p-5">
+        <XDialogBody className="max-h-[62dvh] space-y-4 overflow-y-auto">
           {feedbackId ? (
             <div className="rounded-3xl border border-[#7ff7be]/20 bg-[#7ff7be]/10 p-5 text-[#dfffee]">
-              <p className="text-base font-semibold">{t("feedback.submittedTitle")}</p>
-              <p className="mt-2 text-sm text-[#dfffee]/70">{t("feedback.submittedDescription")}</p>
-              <div className="mt-4 rounded-2xl border border-[#7ff7be]/20 bg-black/25 p-3 font-mono text-sm" data-testid="feedback-id">
-                <span className="text-[#7ff7be]/70">{t("feedback.feedbackIdLabel")}: </span>
+              <p className="text-base font-semibold">
+                {t("feedback.submittedTitle")}
+              </p>
+              <p className="mt-2 text-sm text-[#dfffee]/70">
+                {t("feedback.submittedDescription")}
+              </p>
+              <div
+                className="mt-4 rounded-2xl border border-[#7ff7be]/20 bg-black/25 p-3 font-mono text-sm"
+                data-testid="feedback-id"
+              >
+                <span className="text-[#7ff7be]/70">
+                  {t("feedback.feedbackIdLabel")}:{" "}
+                </span>
                 {feedbackId}
               </div>
             </div>
@@ -136,7 +195,9 @@ export default function FeedbackDrawer({ open, onClose, seed }: Props) {
                   <button
                     type="button"
                     key={value}
-                    onClick={() => setSentiment(value as FeedbackPayload["sentiment"])}
+                    onClick={() =>
+                      setSentiment(value as FeedbackPayload["sentiment"])
+                    }
                     className={[
                       "rounded-2xl border px-3 py-2 text-xs font-semibold transition",
                       sentiment === value
@@ -150,7 +211,9 @@ export default function FeedbackDrawer({ open, onClose, seed }: Props) {
               </div>
 
               <label className="block">
-                <span className="text-xs font-semibold uppercase tracking-[0.18em] text-white/45">{t("feedback.categoryLabel")}</span>
+                <span className="text-xs font-semibold uppercase tracking-[0.18em] text-white/45">
+                  {t("feedback.categoryLabel")}
+                </span>
                 <select
                   value={category}
                   onChange={(event) => setCategory(event.target.value)}
@@ -165,7 +228,9 @@ export default function FeedbackDrawer({ open, onClose, seed }: Props) {
               </label>
 
               <label className="block">
-                <span className="text-xs font-semibold uppercase tracking-[0.18em] text-white/45">{t("feedback.messageLabel")}</span>
+                <span className="text-xs font-semibold uppercase tracking-[0.18em] text-white/45">
+                  {t("feedback.messageLabel")}
+                </span>
                 <textarea
                   value={message}
                   onChange={(event) => setMessage(event.target.value)}
@@ -193,10 +258,10 @@ export default function FeedbackDrawer({ open, onClose, seed }: Props) {
               ) : null}
             </>
           )}
-        </div>
+        </XDialogBody>
 
         {!feedbackId ? (
-          <div className="border-t border-white/10 p-5">
+          <XDialogFooter>
             <button
               type="button"
               disabled={submitting}
@@ -205,9 +270,9 @@ export default function FeedbackDrawer({ open, onClose, seed }: Props) {
             >
               {submitting ? t("feedback.submitting") : t("feedback.submit")}
             </button>
-          </div>
+          </XDialogFooter>
         ) : null}
-      </aside>
-    </div>
+      </XDialogSurface>
+    </XDialog>
   );
 }

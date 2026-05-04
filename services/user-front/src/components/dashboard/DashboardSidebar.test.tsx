@@ -1,7 +1,13 @@
 // @vitest-environment jsdom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type React from "react";
 
@@ -56,6 +62,12 @@ const TRANSLATIONS: Record<string, string> = {
   "sidebar.account": "Account",
   "sidebar.settings": "Settings",
   "sidebar.logout": "Logout",
+  "sidebar.logoutConfirmTitle": "Log out?",
+  "sidebar.logoutConfirmDescription":
+    "This disconnects the current wallet session.",
+  "sidebar.logoutConfirmCancel": "Cancel",
+  "sidebar.logoutConfirmAction": "Logout",
+  "sidebar.login": "Sign In",
   "nav.walletDisconnected": "Wallet disconnected",
 };
 
@@ -150,6 +162,10 @@ describe("DashboardSidebar", () => {
     authState.isConnected = true;
     authState.isSessionAuthenticated = true;
     authorizeMock.mockResolvedValue(true);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ ok: true, status: 200 })) as unknown as typeof fetch
+    );
   });
 
   afterEach(() => {
@@ -188,7 +204,9 @@ describe("DashboardSidebar", () => {
   it("does not intercept modified clicks", async () => {
     render(<DashboardSidebar />);
 
-    fireEvent.click(screen.getAllByRole("link", { name: /Overview/i }).at(0)!, { metaKey: true });
+    fireEvent.click(screen.getAllByRole("link", { name: /Overview/i }).at(0)!, {
+      metaKey: true,
+    });
 
     expect(beginNavigationMock).not.toHaveBeenCalled();
     expect(pushMock).not.toHaveBeenCalled();
@@ -200,10 +218,14 @@ describe("DashboardSidebar", () => {
 
     render(<DashboardSidebar />);
 
-    const settlementButton = screen.getAllByRole("button", { name: /Settlement/i }).at(-1);
+    const settlementButton = screen
+      .getAllByRole("button", { name: /Settlement/i })
+      .at(-1);
     await user.click(settlementButton!);
 
-    const withdrawLink = screen.getAllByRole("link", { name: /^Withdraw$/i }).at(-1);
+    const withdrawLink = screen
+      .getAllByRole("link", { name: /^Withdraw$/i })
+      .at(-1);
     expect(withdrawLink).toBeTruthy();
     expect(withdrawLink!.getAttribute("data-prefetch")).toBe("false");
 
@@ -221,10 +243,14 @@ describe("DashboardSidebar", () => {
 
     render(<DashboardSidebar />);
 
-    const settlementButton = screen.getAllByRole("button", { name: /Settlement/i }).at(-1);
+    const settlementButton = screen
+      .getAllByRole("button", { name: /Settlement/i })
+      .at(-1);
     await user.click(settlementButton!);
 
-    const withdrawLink = screen.getAllByRole("link", { name: /^Withdraw$/i }).at(-1);
+    const withdrawLink = screen
+      .getAllByRole("link", { name: /^Withdraw$/i })
+      .at(-1);
     await user.click(withdrawLink!);
 
     expect(authorizeMock).toHaveBeenCalledTimes(1);
@@ -236,13 +262,19 @@ describe("DashboardSidebar", () => {
     const user = userEvent.setup();
     render(<DashboardSidebar />);
 
-    const settlementButton = screen.getAllByRole("button", { name: /Settlement/i }).at(-1);
+    const settlementButton = screen
+      .getAllByRole("button", { name: /Settlement/i })
+      .at(-1);
     expect(settlementButton).toBeTruthy();
 
     await user.click(settlementButton!);
 
-    const invocationRecordsLink = screen.getAllByRole("link", { name: /Invocation Records/i }).at(-1);
-    const accountButton = screen.getAllByRole("button", { name: /Account/i }).at(-1);
+    const invocationRecordsLink = screen
+      .getAllByRole("link", { name: /Invocation Records/i })
+      .at(-1);
+    const accountButton = screen
+      .getAllByRole("button", { name: /Account/i })
+      .at(-1);
 
     expect(invocationRecordsLink).toBeTruthy();
     expect(accountButton).toBeTruthy();
@@ -250,5 +282,31 @@ describe("DashboardSidebar", () => {
       invocationRecordsLink!.compareDocumentPosition(accountButton!) &
         Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy();
+  });
+
+  it("confirms logout before clearing the wallet session", async () => {
+    const user = userEvent.setup();
+    render(<DashboardSidebar />);
+
+    await user.click(screen.getByRole("button", { name: /Account/i }));
+    await user.click(screen.getByRole("button", { name: /^Logout$/i }));
+
+    expect(
+      await screen.findByRole("dialog", { name: "Log out?" })
+    ).toBeTruthy();
+    expect(disconnectMock).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "Log out?" })).toBeNull();
+    });
+    expect(disconnectMock).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: /^Logout$/i }));
+    await screen.findByRole("dialog", { name: "Log out?" });
+    await user.click(screen.getAllByRole("button", { name: "Logout" }).at(-1)!);
+
+    await waitFor(() => expect(disconnectMock).toHaveBeenCalledTimes(1));
+    expect(pushMock).toHaveBeenCalledWith("/");
   });
 });
