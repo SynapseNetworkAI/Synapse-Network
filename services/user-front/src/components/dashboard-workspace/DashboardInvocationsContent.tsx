@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  ArrowRightLeft,
   CheckCircle2,
   Clock,
   History,
@@ -21,7 +20,12 @@ import { listPaginatedUsageLogs, type UsageLogRecord } from "@/utils/usageApi";
 import { requestV2Refund } from "@/utils/balanceApi";
 import { moneyStringToNumber, normalizeMoneyString } from "@/utils/money";
 
-type InvocationStatusFilter = "all" | "accepted" | "succeeded" | "failed" | "refunded";
+type InvocationStatusFilter =
+  | "all"
+  | "accepted"
+  | "succeeded"
+  | "failed"
+  | "refunded";
 
 // ── Refund Modal ─────────────────────────────────────────────────────────────
 type RefundModalProps = {
@@ -31,7 +35,12 @@ type RefundModalProps = {
   onSuccess: () => void;
 };
 
-function RefundModal({ row, userAddress, onClose, onSuccess }: RefundModalProps) {
+function RefundModal({
+  row,
+  userAddress,
+  onClose,
+  onSuccess,
+}: RefundModalProps) {
   const charge = row.total_charge ?? row.unit_price ?? 0;
   const [amount, setAmount] = useState(String(charge > 0 ? charge : ""));
   const [reason, setReasonState] = useState("");
@@ -57,14 +66,22 @@ function RefundModal({ row, userAddress, onClose, onSuccess }: RefundModalProps)
         refundType: "MANUAL_APPEAL",
       });
       if (result.status === "PENDING_MANUAL_REVIEW") {
-        toast.success(`Refund submitted — under review (${result.riskReasonCode || "manual review"}).`);
+        toast.success(
+          `Refund submitted — under review (${
+            result.riskReasonCode || "manual review"
+          }).`
+        );
       } else {
-        toast.success(`Refund requested: $${result.amountRefunded} USDC (${result.status}).`);
+        toast.success(
+          `Refund requested: $${result.amountRefunded} USDC (${result.status}).`
+        );
       }
       onSuccess();
       onClose();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Refund request failed.");
+      toast.error(
+        err instanceof Error ? err.message : "Refund request failed."
+      );
     } finally {
       setSubmitting(false);
     }
@@ -79,10 +96,14 @@ function RefundModal({ row, userAddress, onClose, onSuccess }: RefundModalProps)
         className="w-full max-w-md rounded-2xl border border-[#2a2a2a] bg-[#111] p-6 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 className="mb-1 text-base font-semibold text-white">Request Refund</h3>
+        <h3 className="mb-1 text-base font-semibold text-white">
+          Request Refund
+        </h3>
         <p className="mb-4 text-sm text-[#86868b]">
           Dispute charge for invocation{" "}
-          <span className="font-mono text-[#c5c5c7]">{row.request_id?.slice(0, 16)}…</span>
+          <span className="font-mono text-[#c5c5c7]">
+            {row.request_id?.slice(0, 16)}…
+          </span>
         </p>
 
         <div className="space-y-4">
@@ -157,13 +178,20 @@ function formatCost(value?: number): string {
 
 function formatRelativeTime(
   timestamp: number | undefined,
-  t: (key: string, vars?: Record<string, string | number>, fallbackText?: string) => string,
+  t: (
+    key: string,
+    vars?: Record<string, string | number>,
+    fallbackText?: string
+  ) => string
 ): string {
   if (!timestamp || !Number.isFinite(timestamp)) {
     return "-";
   }
 
-  const deltaSec = Math.max(0, Math.floor(Date.now() / 1000) - Math.floor(timestamp));
+  const deltaSec = Math.max(
+    0,
+    Math.floor(Date.now() / 1000) - Math.floor(timestamp)
+  );
   if (deltaSec < 60) {
     return t("invocationsPage.relativeSecondsAgo", { count: deltaSec });
   }
@@ -179,7 +207,10 @@ function formatRelativeTime(
   return t("invocationsPage.relativeDaysAgo", { count: deltaDay });
 }
 
-function formatTimestamp(timestamp: number | undefined, locale: string): string {
+function formatTimestamp(
+  timestamp: number | undefined,
+  locale: string
+): string {
   if (!timestamp || !Number.isFinite(timestamp)) {
     return "-";
   }
@@ -197,25 +228,16 @@ function formatLatency(latencyMs?: number): string {
   return `${(value / 1000).toFixed(2)}s`;
 }
 
-function resolveCounterparty(row: UsageLogRecord, currentWallet?: string): string {
-  const current = String(currentWallet || "").trim().toLowerCase();
-  const owner = String(row.ownerAddress || "").trim().toLowerCase();
-  const provider = String(row.providerAddress || "").trim().toLowerCase();
-  if (current && owner === current) {
-    return row.providerAddress || "-";
-  }
-  if (current && provider === current) {
-    return row.ownerAddress || "-";
-  }
-  return row.providerAddress || row.ownerAddress || "-";
-}
-
 function StatusBadge({
   status,
   t,
 }: Readonly<{
   status: UsageLogRecord["status"];
-  t: (key: string, vars?: Record<string, string | number>, fallbackText?: string) => string;
+  t: (
+    key: string,
+    vars?: Record<string, string | number>,
+    fallbackText?: string
+  ) => string;
 }>) {
   const normalized = String(status || "").toLowerCase();
   const statusLabelMap: Record<string, string> = {
@@ -229,7 +251,9 @@ function StatusBadge({
     return (
       <div className="flex items-center gap-1.5 text-red-400">
         <XCircle className="h-3.5 w-3.5" />
-        <span className="text-[11px] font-bold uppercase tracking-wider">{t("invocationsPage.statusFailed")}</span>
+        <span className="text-[11px] font-bold uppercase tracking-wider">
+          {t("invocationsPage.statusFailed")}
+        </span>
       </div>
     );
   }
@@ -237,7 +261,9 @@ function StatusBadge({
   return (
     <div className="flex items-center gap-1.5 text-emerald-400">
       <CheckCircle2 className="h-3.5 w-3.5" />
-      <span className="text-[11px] font-bold uppercase tracking-wider">{statusLabelMap[normalized] || t("invocationsPage.statusSucceeded")}</span>
+      <span className="text-[11px] font-bold uppercase tracking-wider">
+        {statusLabelMap[normalized] || t("invocationsPage.statusSucceeded")}
+      </span>
     </div>
   );
 }
@@ -289,7 +315,9 @@ export default function DashboardInvocationsContent() {
           setRows([]);
           setTotal(0);
           setHasMore(false);
-          toast.error(err instanceof Error ? err.message : t("invocationsPage.loadFailed"));
+          toast.error(
+            err instanceof Error ? err.message : t("invocationsPage.loadFailed")
+          );
         }
       } finally {
         if (!cancelled) {
@@ -324,7 +352,9 @@ export default function DashboardInvocationsContent() {
   };
 
   const summary = useMemo(() => {
-    const succeeded = rows.filter((row) => row.status === "succeeded" || row.status === "accepted").length;
+    const succeeded = rows.filter(
+      (row) => row.status === "succeeded" || row.status === "accepted"
+    ).length;
     const failed = rows.filter((row) => row.status === "failed").length;
     return { succeeded, failed };
   }, [rows]);
@@ -333,7 +363,7 @@ export default function DashboardInvocationsContent() {
   if (loading) {
     tableBody = (
       <tr>
-        <td colSpan={10} className="px-6 py-12 text-center text-[#86868b]">
+        <td colSpan={9} className="px-6 py-12 text-center text-[#86868b]">
           <div className="inline-flex items-center gap-2">
             <RefreshCw className="h-4 w-4 animate-spin text-[#22c55e]" />
             {t("invocationsPage.loading")}
@@ -344,7 +374,7 @@ export default function DashboardInvocationsContent() {
   } else if (rows.length === 0) {
     tableBody = (
       <tr>
-        <td colSpan={10} className="px-6 py-12 text-center text-[#86868b]">
+        <td colSpan={9} className="px-6 py-12 text-center text-[#86868b]">
           {t("invocationsPage.empty")}
         </td>
       </tr>
@@ -353,35 +383,39 @@ export default function DashboardInvocationsContent() {
     tableBody = (
       <>
         {rows.map((row) => (
-          <tr key={row.id || `${row.request_id}-${row.created_at || 0}`} className="group transition-colors hover:bg-[#111111]">
+          <tr
+            key={row.id || `${row.request_id}-${row.created_at || 0}`}
+            className="group transition-colors hover:bg-[#111111]"
+          >
             <td className="px-6 py-4">
               <span className="font-mono text-xs text-[#c5c5c7] transition-colors group-hover:text-[#22c55e]">
                 {row.id || "-"}
               </span>
             </td>
             <td className="px-6 py-4">
-              <div className="space-y-1">
-                <div className="font-mono text-xs text-white">{row.request_id}</div>
-                <div className="text-[11px] text-[#86868b]">{t("invocationsPage.originLabel")}: {row.origin_request_id || "-"}</div>
+              <div className="font-mono text-xs text-white">
+                {row.request_id}
               </div>
             </td>
             <td className="px-6 py-4">
-              <span className="text-sm font-medium text-white">{row.service_id || t("invocationsPage.unknownService")}</span>
+              <span className="text-sm font-medium text-white">
+                {row.service_id || t("invocationsPage.unknownService")}
+              </span>
             </td>
             <td className="px-6 py-4">
-              <span className="font-mono text-xs text-[#c5c5c7]">{row.agent_id || "-"}</span>
+              <span className="font-mono text-xs text-[#c5c5c7]">
+                {row.agent_id || "-"}
+              </span>
             </td>
             <td className="px-6 py-4">
-              <div className="flex items-center gap-2 text-[#c5c5c7]">
-                <ArrowRightLeft className="h-3.5 w-3.5 text-[#86868b]" />
-                <span className="font-mono text-xs">{resolveCounterparty(row, address)}</span>
-              </div>
+              <span className="font-mono text-sm text-[#22c55e]">
+                {formatCost(row.total_charge ?? row.unit_price)}
+              </span>
             </td>
             <td className="px-6 py-4">
-              <span className="font-mono text-sm text-[#22c55e]">{formatCost(row.total_charge ?? row.unit_price)}</span>
-            </td>
-            <td className="px-6 py-4">
-              <span className="font-mono text-xs text-[#c5c5c7]">{formatLatency(row.latency_ms)}</span>
+              <span className="font-mono text-xs text-[#c5c5c7]">
+                {formatLatency(row.latency_ms)}
+              </span>
             </td>
             <td className="px-6 py-4">
               <StatusBadge status={row.status} t={t} />
@@ -390,22 +424,30 @@ export default function DashboardInvocationsContent() {
               <div className="flex items-center gap-1.5 text-[#86868b]">
                 <Clock className="h-3 w-3" />
                 <div className="space-y-1">
-                  <div className="font-mono text-xs">{formatRelativeTime(row.created_at, t)}</div>
-                  <div className="text-[11px]">{formatTimestamp(row.created_at, lang === "zh" ? "zh-CN" : "en-US")}</div>
+                  <div className="font-mono text-xs">
+                    {formatRelativeTime(row.created_at, t)}
+                  </div>
+                  <div className="text-[11px]">
+                    {formatTimestamp(
+                      row.created_at,
+                      lang === "zh" ? "zh-CN" : "en-US"
+                    )}
+                  </div>
                 </div>
               </div>
             </td>
             <td className="px-6 py-4">
-              {(row.status === "succeeded" || row.status === "accepted") && row.request_id && (
-                <button
-                  type="button"
-                  onClick={() => setRefundRow(row)}
-                  className="inline-flex items-center gap-1 rounded-lg border border-[#2f3336] px-2.5 py-1 text-xs text-[#9ca3af] transition hover:border-[#22c55e]/40 hover:text-[#22c55e]"
-                >
-                  <RotateCcw className="h-3 w-3" />
-                  Refund
-                </button>
-              )}
+              {(row.status === "succeeded" || row.status === "accepted") &&
+                row.request_id && (
+                  <button
+                    type="button"
+                    onClick={() => setRefundRow(row)}
+                    className="inline-flex items-center gap-1 rounded-lg border border-[#2f3336] px-2.5 py-1 text-xs text-[#9ca3af] transition hover:border-[#22c55e]/40 hover:text-[#22c55e]"
+                  >
+                    <RotateCcw className="h-3 w-3" />
+                    Refund
+                  </button>
+                )}
             </td>
           </tr>
         ))}
@@ -438,7 +480,10 @@ export default function DashboardInvocationsContent() {
             options={[
               { value: "all", label: t("invocationsPage.statusAll") },
               { value: "accepted", label: t("invocationsPage.statusAccepted") },
-              { value: "succeeded", label: t("invocationsPage.statusSucceeded") },
+              {
+                value: "succeeded",
+                label: t("invocationsPage.statusSucceeded"),
+              },
               { value: "failed", label: t("invocationsPage.statusFailed") },
               { value: "refunded", label: t("invocationsPage.statusRefunded") },
             ]}
@@ -467,36 +512,67 @@ export default function DashboardInvocationsContent() {
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <div className="rounded-2xl border border-[#222222] bg-[#0a0a0a] p-5">
-          <p className="mb-2 text-[10px] uppercase tracking-[0.2em] text-[#86868b]">{t("invocationsPage.summaryRowsInPage")}</p>
-          <p className="font-mono text-3xl font-bold text-white">{rows.length}</p>
+          <p className="mb-2 text-[10px] uppercase tracking-[0.2em] text-[#86868b]">
+            {t("invocationsPage.summaryRowsInPage")}
+          </p>
+          <p className="font-mono text-3xl font-bold text-white">
+            {rows.length}
+          </p>
         </div>
         <div className="rounded-2xl border border-[#222222] bg-[#0a0a0a] p-5">
-          <p className="mb-2 text-[10px] uppercase tracking-[0.2em] text-[#86868b]">{t("invocationsPage.summarySucceededOrAccepted")}</p>
-          <p className="font-mono text-3xl font-bold text-[#22c55e]">{summary.succeeded}</p>
+          <p className="mb-2 text-[10px] uppercase tracking-[0.2em] text-[#86868b]">
+            {t("invocationsPage.summarySucceededOrAccepted")}
+          </p>
+          <p className="font-mono text-3xl font-bold text-[#22c55e]">
+            {summary.succeeded}
+          </p>
         </div>
         <div className="rounded-2xl border border-[#222222] bg-[#0a0a0a] p-5">
-          <p className="mb-2 text-[10px] uppercase tracking-[0.2em] text-[#86868b]">{t("invocationsPage.summaryFailedInPage")}</p>
-          <p className="font-mono text-3xl font-bold text-[#ff5f57]">{summary.failed}</p>
+          <p className="mb-2 text-[10px] uppercase tracking-[0.2em] text-[#86868b]">
+            {t("invocationsPage.summaryFailedInPage")}
+          </p>
+          <p className="font-mono text-3xl font-bold text-[#ff5f57]">
+            {summary.failed}
+          </p>
         </div>
       </div>
 
       <div className="overflow-x-auto rounded-2xl border border-[#222222] bg-[#0a0a0a]">
-        <table className="min-w-[980px] w-full border-collapse whitespace-nowrap text-left">
+        <table className="min-w-[900px] w-full border-collapse whitespace-nowrap text-left">
           <thead>
             <tr className="border-b border-[#222222] bg-[#050505]">
-              <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-[#86868b]">{t("invocationsPage.tableInvocationId")}</th>
-              <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-[#86868b]">{t("invocationsPage.tableRequest")}</th>
-              <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-[#86868b]">{t("invocationsPage.tableService")}</th>
-              <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-[#86868b]">{t("invocationsPage.tableAgent")}</th>
-              <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-[#86868b]">{t("invocationsPage.tableCounterparty")}</th>
-              <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-[#86868b]">{t("invocationsPage.tableCostUsdc")}</th>
-              <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-[#86868b]">{t("invocationsPage.tableLatency")}</th>
-              <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-[#86868b]">{t("invocationsPage.tableStatus")}</th>
-              <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-[#86868b]">{t("invocationsPage.tableTimestamp")}</th>
-              <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-[#86868b]">Action</th>
+              <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-[#86868b]">
+                {t("invocationsPage.tableInvocationId")}
+              </th>
+              <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-[#86868b]">
+                {t("invocationsPage.tableRequest")}
+              </th>
+              <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-[#86868b]">
+                {t("invocationsPage.tableService")}
+              </th>
+              <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-[#86868b]">
+                {t("invocationsPage.tableAgent")}
+              </th>
+              <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-[#86868b]">
+                {t("invocationsPage.tableCostUsdc")}
+              </th>
+              <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-[#86868b]">
+                {t("invocationsPage.tableLatency")}
+              </th>
+              <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-[#86868b]">
+                {t("invocationsPage.tableStatus")}
+              </th>
+              <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-[#86868b]">
+                {t("invocationsPage.tableTimestamp")}
+              </th>
+              <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-[#86868b]">
+                Action
+              </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#151515] text-sm">{tableBody}</tbody>
+          <tbody className="divide-y divide-[#151515] text-sm">
+            {tableBody}
+          </tbody>
         </table>
       </div>
 
@@ -520,7 +596,9 @@ export default function DashboardInvocationsContent() {
             {safePage} / {pageCount}
           </span>
           <button
-            onClick={() => setPage((current) => Math.min(pageCount, current + 1))}
+            onClick={() =>
+              setPage((current) => Math.min(pageCount, current + 1))
+            }
             disabled={!hasMore || safePage >= pageCount || loading}
             className="rounded-lg border border-[#222222] bg-[#0a0a0a] px-3 py-1.5 disabled:opacity-40"
           >
@@ -531,9 +609,7 @@ export default function DashboardInvocationsContent() {
 
       <div className="flex items-center gap-2 rounded-xl border border-[#222222] bg-[#0a0a0a] p-4 text-xs text-[#86868b]">
         <History className="h-4 w-4 text-[#22c55e]" />
-        <span>
-          {t("invocationsPage.footer")}
-        </span>
+        <span>{t("invocationsPage.footer")}</span>
       </div>
 
       {refundRow && address && (

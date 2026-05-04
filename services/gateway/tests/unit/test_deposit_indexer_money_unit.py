@@ -11,6 +11,9 @@ from src.services.platform.tasks.deposit_indexer.chain import (
 from src.services.platform.tasks.deposit_indexer.reconciliation import (
     run_reconciliation_check_once,
 )
+from src.services.platform.tasks.deposit_indexer.processing import (
+    _resolve_deposit_receipt_state,
+)
 
 
 class _FakeBalanceRepository:
@@ -121,3 +124,57 @@ def test_reconciliation_persists_money_as_strings(monkeypatch) -> None:
     persisted = storage.gateway_state.runtime_state["deposit_reconciliation_state"]
     assert persisted["chainVaultUsdc"] == "10.250000"
     assert persisted["deltaUsdc"] == "0.250000"
+
+
+def test_deposit_receipt_failed_tx_does_not_credit(monkeypatch) -> None:
+    intent = {
+        "id": "dep_failed",
+        "ownerAddress": "0x1111111111111111111111111111111111111111",
+        "amountUsdc": "1.000000",
+        "status": "PENDING_CONFIRMATION",
+    }
+    monkeypatch.setattr(
+        "src.services.platform.tasks.deposit_indexer.processing._get_confirmed_receipt_or_none",
+        lambda _tx_hash: {"failed": True},
+    )
+
+    result = _resolve_deposit_receipt_state(
+        tx_hash="0xabc",
+        owner_wallet="0x1111111111111111111111111111111111111111",
+        min_amount_usdc=Decimal("1.000000"),
+        now=1711111111,
+        intent=intent,
+    )
+
+    assert result == {"result": "failed"}
+    assert intent["status"] == "FAILED"
+    assert intent["failureReason"] == "CHAIN_TX_FAILED"
+
+
+def test_deposit_receipt_without_matching_current_contract_event_does_not_credit(monkeypatch) -> None:
+    intent = {
+        "id": "dep_no_event",
+        "ownerAddress": "0x1111111111111111111111111111111111111111",
+        "amountUsdc": "1.000000",
+        "status": "PENDING_CONFIRMATION",
+    }
+    monkeypatch.setattr(
+        "src.services.platform.tasks.deposit_indexer.processing._get_confirmed_receipt_or_none",
+        lambda _tx_hash: {"receipt": {"transactionHash": "0xabc"}},
+    )
+    monkeypatch.setattr(
+        "src.services.platform.tasks.deposit_indexer.processing._resolve_matched_event",
+        lambda _receipt, _owner_wallet, _min_amount_usdc: None,
+    )
+
+    result = _resolve_deposit_receipt_state(
+        tx_hash="0xabc",
+        owner_wallet="0x1111111111111111111111111111111111111111",
+        min_amount_usdc=Decimal("1.000000"),
+        now=1711111111,
+        intent=intent,
+    )
+
+    assert result == {"result": "failed"}
+    assert intent["status"] == "FAILED"
+    assert intent["failureReason"] == "NO_MATCHING_DEPOSIT_EVENT"

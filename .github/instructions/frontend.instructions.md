@@ -54,12 +54,14 @@ name: "Synapse Frontend Rules"
 - For create/edit/feedback/confirmation workflows on scanning surfaces, default to an existing modal or popup component. Inline controls are only appropriate for lightweight filters, search, sorting, or single-field quick actions.
 - Do not use sidebars or right-side expanding panels for feedback, create, edit, logout, or finance confirmation flows. Sidebars are navigation only.
 - Keep action errors scoped to the surface that produced them: modal submission errors stay in the modal, while list-loading errors stay with the list.
+- Do not use browser-native `alert()` or `confirm()` in product code. Use the shared in-product confirmation dialog/modal so copy, styling, i18n, loading state, and screenshot evidence stay controlled. Test mocks may still stub native browser APIs.
 
 ## App-Specific Conventions
 
 - In `services/user-front`, keep user-facing copy and information architecture aligned with the central product docs and i18n resources.
 - In `services/admin-front`, keep UX semantics aligned with `docs/admin/` and the stitch prototypes for that surface.
 - Do not make the frontend invent backend truth for approvals, pagination, review states, or system status if the backend should own it.
+- Consumer-facing invocation lists must not expose internal runtime principals such as `agent:agent:*`, provider wallet addresses, or counterparty wallet fields. Keep those identifiers in API evidence/admin diagnostics, not in ordinary user tables.
 
 ## Types, Data, and Contracts
 

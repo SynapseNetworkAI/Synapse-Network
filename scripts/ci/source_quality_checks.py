@@ -36,6 +36,7 @@ TS_RAW_MAP_PATTERNS = (
     re.compile(r"\bPromise\s*<\s*Record\s*<\s*string\s*,\s*unknown\s*>\s*>"),
     re.compile(r"\bRecord\s*<\s*string\s*,\s*unknown\s*>"),
 )
+FRONTEND_NATIVE_DIALOG_PATTERN = re.compile(r"\b(?:window\.|globalThis\.)?(alert|confirm)\s*\(")
 
 ALLOWED_NAME_PREFIXES = (
     "_",
@@ -102,6 +103,14 @@ class Finding:
 
     def format(self) -> str:
         rel = self.path.relative_to(REPO_ROOT)
+        if self.code == "SOURCE-NATIVE-BROWSER-DIALOG-FRONTEND":
+            return (
+                f"FATAL {self.code}: {rel}:{self.line}\n"
+                f"Why dangerous: product UI calls native `{self.symbol}()`; browser dialogs cannot be styled, "
+                "localized, instrumented, or screenshot-verified.\n"
+                "Agent fix: use the shared in-product confirmation modal/dialog component instead. "
+                "Native browser dialogs are allowed only in tests/mocks."
+            )
         return (
             f"FATAL {self.code}: {rel}:{self.line}\n"
             f"Why dangerous: public `{self.symbol}` returns raw map type `{self.return_type}`; "
@@ -322,11 +331,53 @@ def scan_typescript_text(path: Path, text: str) -> list[Finding]:
     return findings
 
 
+def _is_test_path(path: Path) -> bool:
+    name = path.name
+    return (
+        ".test." in name
+        or ".spec." in name
+        or path.as_posix().endswith("__tests__")
+        or "/__tests__/" in path.as_posix()
+    )
+
+
+def scan_frontend_native_dialog_text(path: Path, text: str) -> list[Finding]:
+    if _is_test_path(path):
+        return []
+    path_text = path.as_posix()
+    if not (
+        path_text.startswith("services/user-front/src/")
+        or path_text.startswith("services/admin-front/src/")
+    ):
+        return []
+    findings: list[Finding] = []
+    for index, line in enumerate(text.splitlines(), start=1):
+        stripped = line.strip()
+        if stripped.startswith("//") or stripped.startswith("*"):
+            continue
+        for match in FRONTEND_NATIVE_DIALOG_PATTERN.finditer(line):
+            symbol = match.group(1)
+            findings.append(
+                Finding(
+                    "SOURCE-NATIVE-BROWSER-DIALOG-FRONTEND",
+                    REPO_ROOT / path,
+                    index,
+                    symbol,
+                    "native-browser-dialog",
+                    "typescript",
+                )
+            )
+    return findings
+
+
 def scan_text(path: Path, text: str) -> list[Finding]:
     if path.suffix == ".py":
         return scan_python_text(path, text)
     if path.suffix in {".ts", ".tsx"}:
-        return scan_typescript_text(path, text)
+        return [
+            *scan_typescript_text(path, text),
+            *scan_frontend_native_dialog_text(path, text),
+        ]
     return []
 
 

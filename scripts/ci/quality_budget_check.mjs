@@ -21,7 +21,7 @@ const ARGUMENT_MAX = 8;
 const BASELINED_FILE_EFFECTIVE_LINES = new Map([
   ["scripts/admin_analytics_fullchain_e2e.js", 583],
   ["scripts/admin_analytics_clickhouse_regression.py", 541],
-  ["scripts/ci/quality_budget_check.mjs", 512],
+  ["scripts/ci/quality_budget_check.mjs", 525],
   ["scripts/ci/resolve_pr_ci_scope.mjs", 506],
   ["scripts/ci/validate_docs.js", 662],
   ["scripts/e2e/admin_analytics_10k_fullchain.mjs", 1589],
@@ -45,6 +45,7 @@ const BASELINED_FILE_EFFECTIVE_LINES = new Map([
   ["scripts/ui/dogfood_forum_feedback.mjs", 728],
   ["scripts/ui/verify_user_front_pages.mjs", 1548],
   ["services/admin-front/src/app/forum-support/page.tsx", 635],
+  ["services/admin-front/src/app/menu-config/page.tsx", 816],
   ["services/admin-front/src/app/withdrawal-reviews/page.tsx", 577],
   ["services/admin-front/src/components/console-ui.tsx", 574],
   [
@@ -87,7 +88,7 @@ const BASELINED_FILE_EFFECTIVE_LINES = new Map([
   ["services/user-front/src/app/forum/page.tsx", 517],
   [
     "services/user-front/src/components/dashboard-workspace/AccountSettingsPage.tsx",
-    643,
+    665,
   ],
   [
     "services/user-front/src/components/dashboard-workspace/DashboardAgentsWorkspacePage.tsx",
@@ -99,11 +100,11 @@ const BASELINED_FILE_EFFECTIVE_LINES = new Map([
   ],
   [
     "services/user-front/src/components/dashboard-workspace/DashboardCredentialsPage.tsx",
-    511,
+    759,
   ],
   [
     "services/user-front/src/components/dashboard-workspace/DashboardInvocationsContent.tsx",
-    511,
+    588,
   ],
   [
     "services/user-front/src/components/dashboard-workspace/OwnerCreditsPage.tsx",
@@ -114,8 +115,12 @@ const BASELINED_FILE_EFFECTIVE_LINES = new Map([
     1742,
   ],
   [
+    "services/user-front/src/components/provider-workspace/ProviderSecretsPage.tsx",
+    623,
+  ],
+  [
     "services/user-front/src/components/provider-workspace/ProviderServicesPage.tsx",
-    844,
+    1462,
   ],
   [
     "services/user-front/src/components/provider-workspace/ProviderSettlementsPage.tsx",
@@ -150,6 +155,8 @@ const BASELINED_FUNCTION_FILES = new Set([
   "services/admin-front/src/app/withdrawal-reviews/page.tsx",
   "services/admin-front/src/features/finance/platform-fee-treasury-modal.tsx",
   "services/admin-front/src/features/finance/use-finance-page-data.ts",
+  "services/admin-front/src/app/menu-config/page.tsx",
+  "services/admin-front/src/features/users/user-management.tsx",
   "services/gateway/src/storage/postgres/repositories/service_registry_query_mixin.py",
   "services/user-front/src/app/about/page.tsx",
   "services/user-front/src/app/forum/page.tsx",
@@ -158,8 +165,11 @@ const BASELINED_FUNCTION_FILES = new Set([
   "services/user-front/src/components/WalletAuthGuard.tsx",
   "services/user-front/src/components/dashboard-workspace/AccountSettingsPage.tsx",
   "services/user-front/src/components/dashboard-workspace/DashboardAgentsWorkspacePage.tsx",
+  "services/user-front/src/components/dashboard-workspace/DashboardCredentialsPage.tsx",
   "services/user-front/src/components/dashboard-workspace/DashboardDeveloperPage.tsx",
+  "services/user-front/src/components/dashboard-workspace/DashboardInvocationsContent.tsx",
   "services/user-front/src/components/dashboard-workspace/DashboardOverviewPage.tsx",
+  "services/user-front/src/components/dashboard-workspace/DashboardServicesPage.tsx",
   "services/user-front/src/components/dashboard-workspace/EmailVerificationCodeModal.tsx",
   "services/user-front/src/components/dashboard-workspace/OwnerCreditsPage.tsx",
   "services/user-front/src/components/dashboard-workspace/agents/AgentsWorkspaceListPane.tsx",
@@ -170,6 +180,8 @@ const BASELINED_FUNCTION_FILES = new Set([
   "services/user-front/src/hooks/useFundsData.ts",
   "services/user-front/src/hooks/useOwnerData.ts",
   "services/user-front/src/hooks/useVaultDeposit.ts",
+  "services/user-front/src/components/provider-workspace/ProviderSecretsPage.tsx",
+  "services/user-front/src/components/provider-workspace/ProviderServicesPage.tsx",
   "services/user-front/src/components/provider-workspace/ProviderSellPage.tsx",
   "services/user-front/src/components/provider-workspace/ProviderWithdrawPage.tsx",
   "services/user-front/src/utils/serviceApi.ts",

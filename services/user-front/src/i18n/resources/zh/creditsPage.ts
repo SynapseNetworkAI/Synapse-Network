@@ -8,7 +8,7 @@ const creditsPage: I18nMessages["creditsPage"] = {
   pendingBalanceLabel: "同步中的 credits",
   frozenBalanceLabel: "冻结 / 审核中的 credits",
   pendingBalanceHint:
-    "链上已提交或确认，正在等待 Gateway 索引后转为 Agent 可消费余额。",
+    "Gateway 正在索引链上充值；如果长时间未到账，请带 txHash 联系支持。",
   frozenBalanceHint: "资金已因活跃提现、人工审核或风控规则被锁定。",
   purchaseCredits: "购买 credits",
   walletUnavailable: "钱包不可用，请重新连接后再试。",
