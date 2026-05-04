@@ -79,6 +79,15 @@ function readSecret(secretId) {
   );
 }
 
+function isSecretPayloadAccessDenied(error) {
+  const message = String(error?.message || error || "");
+  return (
+    message.includes("secretmanager.versions.access") ||
+    (message.includes("PERMISSION_DENIED") &&
+      message.includes("gcloud secrets versions access"))
+  );
+}
+
 function normalizeSecretRef(value) {
   return String(value || "")
     .replace(/^projects\/[^/]+\/secrets\//, "")
@@ -269,6 +278,16 @@ for (const secretId of REQUIRED_SECRET_LINT) {
       }
     );
   } catch (error) {
+    if (isSecretPayloadAccessDenied(error)) {
+      warnCheck(`secret-lint:${secretId}`, {
+        secretId,
+        skipped: true,
+        reason:
+          "Deploy identity cannot access Secret Manager payloads; this preserves least privilege. Run payload lint with a secret-auditor identity when rotating staging secrets.",
+        error: String(error.message || error),
+      });
+      continue;
+    }
     requireCheck(`secret-lint:${secretId}`, false, {
       secretId,
       error: String(error.message || error),
