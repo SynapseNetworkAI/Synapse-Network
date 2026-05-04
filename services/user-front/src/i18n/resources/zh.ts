@@ -25,10 +25,12 @@ import providerUsagePage from "@/i18n/resources/zh/providerUsagePage";
 import settlementPage from "@/i18n/resources/zh/settlementPage";
 import servicesPage from "@/i18n/resources/zh/servicesPage";
 import shared from "@/i18n/resources/zh/shared";
+import walletActions from "@/i18n/resources/zh/walletActions";
 
 const zh: I18nMessages = {
   ...shared,
   overviewPage,
+  walletActions,
   agentsPage,
   agentCredentialsPage,
   paidInvokePanel,

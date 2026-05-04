@@ -1,4 +1,12 @@
-import { BaseError, ContractFunctionRevertedError, decodeErrorResult, type Abi, type Hex } from "viem";
+import {
+  BaseError,
+  ContractFunctionRevertedError,
+  decodeErrorResult,
+  type Abi,
+  type Hex,
+} from "viem";
+import toast from "react-hot-toast";
+import { isWalletUserRejectedError } from "@/utils/walletActionErrors";
 
 const ERC20_ERROR_ABI = [
   {
@@ -42,26 +50,38 @@ export type WithdrawWalletErrorMessages = {
 
 const DEFAULT_WITHDRAW_WALLET_ERROR_MESSAGES: WithdrawWalletErrorMessages = {
   fallback: "Failed to submit withdrawal transaction.",
-  walletRejected: "Withdrawal was cancelled in wallet. No gas fee was spent and no funds were moved.",
-  insufficientNativeGas: "Withdrawal could not be submitted because the wallet does not have enough native token to pay gas.",
-  ticketExpired: "This withdrawal ticket has expired. Generate a new ticket before retrying.",
-  staleTicket: "This withdrawal ticket is stale. Refresh it from the gateway before retrying.",
-  invalidSignature: "This withdrawal ticket signature is no longer valid. Generate a new ticket before retrying.",
-  vaultLiquidityInsufficient: "Vault liquidity is insufficient for this withdrawal right now. The platform treasury must refill on-chain USDC before you retry.",
-  vaultAllowanceUnavailable: "Vault allowance is not ready for this withdrawal yet. Retry after the platform refreshes the vault configuration.",
-  contractRejectedWithName: (name: string) => `Withdrawal was rejected by the vault contract (${name}).`,
-  contractRejectedWithReason: (reason: string) => `Withdrawal was rejected by the vault contract: ${reason}.`,
+  walletRejected:
+    "Withdrawal was cancelled in wallet. No gas fee was spent and no funds were moved.",
+  insufficientNativeGas:
+    "Withdrawal could not be submitted because the wallet does not have enough native token to pay gas.",
+  ticketExpired:
+    "This withdrawal ticket has expired. Generate a new ticket before retrying.",
+  staleTicket:
+    "This withdrawal ticket is stale. Refresh it from the gateway before retrying.",
+  invalidSignature:
+    "This withdrawal ticket signature is no longer valid. Generate a new ticket before retrying.",
+  vaultLiquidityInsufficient:
+    "Vault liquidity is insufficient for this withdrawal right now. The platform treasury must refill on-chain USDC before you retry.",
+  vaultAllowanceUnavailable:
+    "Vault allowance is not ready for this withdrawal yet. Retry after the platform refreshes the vault configuration.",
+  contractRejectedWithName: (name: string) =>
+    `Withdrawal was rejected by the vault contract (${name}).`,
+  contractRejectedWithReason: (reason: string) =>
+    `Withdrawal was rejected by the vault contract: ${reason}.`,
 };
 
 function extractCustomErrorData(parts: string[]): Hex | undefined {
   for (const part of parts) {
-    const selectorAndPayload = /custom error\s*(0x[a-f0-9]{8})\s*:\s*([a-f0-9]+)/i.exec(part);
+    const selectorAndPayload =
+      /custom error\s*(0x[a-f0-9]{8})\s*:\s*([a-f0-9]+)/i.exec(part);
     if (selectorAndPayload) {
       return `${selectorAndPayload[1]}${selectorAndPayload[2]}` as Hex;
     }
 
     const hexMatches = part.match(/0x[a-f0-9]{10,}/gi) ?? [];
-    const longest = hexMatches.sort((left, right) => right.length - left.length)[0];
+    const longest = hexMatches.sort(
+      (left, right) => right.length - left.length
+    )[0];
     if (longest) {
       return longest as Hex;
     }
@@ -70,11 +90,17 @@ function extractCustomErrorData(parts: string[]): Hex | undefined {
   return undefined;
 }
 
-function decodeKnownWithdrawCustomError(error: unknown): { errorName: string } | null {
+function decodeKnownWithdrawCustomError(
+  error: unknown
+): { errorName: string } | null {
   const baseError = error instanceof BaseError ? error : undefined;
   const rawMessage = toSafeErrorMessage(error, "");
-  const messageParts = [baseError?.shortMessage, baseError?.details, rawMessage].filter(
-    (part): part is string => typeof part === "string" && part.trim().length > 0,
+  const messageParts = [
+    baseError?.shortMessage,
+    baseError?.details,
+    rawMessage,
+  ].filter(
+    (part): part is string => typeof part === "string" && part.trim().length > 0
   );
   const revertData = extractCustomErrorData(messageParts);
   if (!revertData) {
@@ -82,7 +108,10 @@ function decodeKnownWithdrawCustomError(error: unknown): { errorName: string } |
   }
 
   try {
-    const decoded = decodeErrorResult({ abi: ERC20_ERROR_ABI, data: revertData });
+    const decoded = decodeErrorResult({
+      abi: ERC20_ERROR_ABI,
+      data: revertData,
+    });
     return { errorName: decoded.errorName };
   } catch {
     if (revertData.toLowerCase().startsWith("0xe450d38c")) {
@@ -94,7 +123,7 @@ function decodeKnownWithdrawCustomError(error: unknown): { errorName: string } |
 
 export function normalizeWithdrawWalletError(
   error: unknown,
-  messages?: Partial<WithdrawWalletErrorMessages>,
+  messages?: Partial<WithdrawWalletErrorMessages>
 ): string {
   const resolved = {
     ...DEFAULT_WITHDRAW_WALLET_ERROR_MESSAGES,
@@ -102,7 +131,7 @@ export function normalizeWithdrawWalletError(
   } satisfies WithdrawWalletErrorMessages;
   const baseError = error instanceof BaseError ? error : undefined;
   const revertError = baseError?.walk(
-    (walked) => walked instanceof ContractFunctionRevertedError,
+    (walked) => walked instanceof ContractFunctionRevertedError
   ) as ContractFunctionRevertedError | undefined;
   const rawMessage = toSafeErrorMessage(error, resolved.fallback);
   const messageParts = [
@@ -111,31 +140,30 @@ export function normalizeWithdrawWalletError(
     baseError?.shortMessage,
     baseError?.details,
     rawMessage,
-  ].filter((part): part is string => typeof part === "string" && part.trim().length > 0);
+  ].filter(
+    (part): part is string => typeof part === "string" && part.trim().length > 0
+  );
   const normalizedMessage = messageParts.join(" | ").toLowerCase();
 
-  if (
-    normalizedMessage.includes("user rejected")
-    || normalizedMessage.includes("user denied")
-    || normalizedMessage.includes("rejected the request")
-    || normalizedMessage.includes("denied transaction signature")
-    || normalizedMessage.includes("4001")
-  ) {
+  if (isWalletUserRejectedError(error)) {
     return resolved.walletRejected;
   }
   if (
-    normalizedMessage.includes("insufficient funds")
-    || normalizedMessage.includes("intrinsic gas too low")
-    || normalizedMessage.includes("gas required exceeds allowance")
-    || normalizedMessage.includes("exceeds the balance of the account")
-    || normalizedMessage.includes("out of gas")
+    normalizedMessage.includes("insufficient funds") ||
+    normalizedMessage.includes("intrinsic gas too low") ||
+    normalizedMessage.includes("gas required exceeds allowance") ||
+    normalizedMessage.includes("exceeds the balance of the account") ||
+    normalizedMessage.includes("out of gas")
   ) {
     return resolved.insufficientNativeGas;
   }
   if (normalizedMessage.includes("ticket expired")) {
     return resolved.ticketExpired;
   }
-  if (normalizedMessage.includes("invalid nonce") || normalizedMessage.includes("ticket consumed")) {
+  if (
+    normalizedMessage.includes("invalid nonce") ||
+    normalizedMessage.includes("ticket consumed")
+  ) {
     return resolved.staleTicket;
   }
   if (normalizedMessage.includes("invalid oracle signature")) {
@@ -157,4 +185,21 @@ export function normalizeWithdrawWalletError(
     return resolved.contractRejectedWithReason(revertError.reason);
   }
   return rawMessage;
+}
+
+export function isWithdrawWalletRejected(error: unknown): boolean {
+  return isWalletUserRejectedError(error);
+}
+
+export function showWithdrawWalletErrorToast(
+  error: unknown,
+  messages?: Partial<WithdrawWalletErrorMessages>,
+  options?: { id?: string }
+): void {
+  const message = normalizeWithdrawWalletError(error, messages);
+  if (isWithdrawWalletRejected(error)) {
+    toast(message, { icon: "ℹ️", id: options?.id });
+  } else {
+    toast.error(message, options);
+  }
 }

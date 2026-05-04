@@ -6,7 +6,6 @@ const overviewPage: I18nMessages["overviewPage"] = {
   networkStatus: "Network Status",
   latency: "Latency",
   syncing: "SYNCING...",
-  refreshData: "Wallet",
   connectWallet: "Connect Wallet",
   connectedWallet: "Connected Wallet",
   quickNavAgents: "Agents",

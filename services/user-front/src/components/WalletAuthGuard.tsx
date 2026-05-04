@@ -34,6 +34,12 @@ import {
   showWalletStatusErrorToast,
   showWalletStatusToast,
 } from "@/utils/walletToast";
+import {
+  createWalletUserRejectedError,
+  isWalletUserRejectedError,
+} from "@/utils/walletActionErrors";
+import { useLanguage } from "@/components/i18n/LanguageProvider";
+import WalletActionIntentDialog from "@/components/wallet/WalletActionIntentDialog";
 
 interface AuthContextType {
   isConnected: boolean;
@@ -58,6 +64,12 @@ export const useAuth = () => useContext(AuthContext);
 const SESSION_EXPIRED_TOAST_COOLDOWN_MS = 2500;
 const E2E_WALLET_CONNECTED_STORAGE_KEY = "synapse_e2e_wallet_connected";
 
+type LoginIntentState = {
+  domain: string;
+  wallet: string;
+  chainId: number;
+};
+
 function readLocalE2eWalletAddress(): string | null {
   if (typeof window === "undefined") return null;
   const isLocalApp =
@@ -79,16 +91,21 @@ export default function WalletAuthGuard({
   const chainId = useChainId();
   const { disconnect } = useDisconnect();
   const { signMessageAsync } = useSignMessage();
+  const { t } = useLanguage();
   const [localE2eWallet, setLocalE2eWallet] = useState<string | null>(null);
   const [isAuthorizing, setIsAuthorizing] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [verifiedWallet, setVerifiedWallet] = useState<string | null>(null);
+  const [loginIntent, setLoginIntent] = useState<LoginIntentState | null>(null);
   const disconnectClearTimer = useRef<ReturnType<
     typeof globalThis.setTimeout
   > | null>(null);
   const pendingAutoAuthorizeWalletRef = useRef<string | null>(null);
   const autoAuthorizeTriedWalletRef = useRef<string | null>(null);
   const authorizePromiseRef = useRef<Promise<boolean> | null>(null);
+  const loginIntentResolverRef = useRef<((approved: boolean) => void) | null>(
+    null
+  );
   const lastSessionExpiredToastAtRef = useRef(0);
   const effectiveAddress = address || localE2eWallet || undefined;
   const effectiveIsConnected = isConnected || Boolean(localE2eWallet);
@@ -117,12 +134,9 @@ export default function WalletAuthGuard({
       SESSION_EXPIRED_TOAST_COOLDOWN_MS;
     if (!withinCooldown) {
       lastSessionExpiredToastAtRef.current = now;
-      showWalletStatusToast(
-        "Session expired. Please reconnect wallet to continue.",
-        {
-          icon: "🔁",
-        }
-      );
+      showWalletStatusToast(t("walletActions.sessionExpiredRetry"), {
+        icon: "🔁",
+      });
     }
 
     try {
@@ -132,7 +146,7 @@ export default function WalletAuthGuard({
     } catch {
       // no-op: best-effort disconnect for consumer workspace
     }
-  }, [disconnect, shouldForceReconnectForCurrentRole, isConnected]);
+  }, [disconnect, shouldForceReconnectForCurrentRole, isConnected, t]);
 
   // We no longer block access globally based on isPublicRoute.
   // The context provides auth state to downstream components that use <AuthMask />.
@@ -143,75 +157,79 @@ export default function WalletAuthGuard({
     [signMessageAsync]
   );
 
+  const waitForLoginIntentApproval = useCallback(
+    (intent: LoginIntentState): Promise<boolean> => {
+      setLoginIntent(intent);
+      return new Promise((resolve) => {
+        loginIntentResolverRef.current = resolve;
+      });
+    },
+    []
+  );
+
+  const resolveLoginIntent = useCallback((approved: boolean): void => {
+    loginIntentResolverRef.current?.(approved);
+    loginIntentResolverRef.current = null;
+    setLoginIntent(null);
+  }, []);
+
   const handleAuthorizeFailure = useCallback(
     (error: unknown): void => {
       clearAuthSession();
       setVerifiedWallet(null);
       setIsAuthorizing(false);
+      if (isWalletUserRejectedError(error)) {
+        setAuthError(null);
+        showWalletStatusToast(t("walletActions.requestCancelled"), {
+          icon: "ℹ️",
+        });
+        return;
+      }
       const errorMsg =
         error instanceof Error
           ? error.message
           : "Wallet signature authentication failed or was cancelled";
 
       if (errorMsg.includes("unavailable while reconnecting")) {
-        setAuthError(
-          "Wallet is still reconnecting. Please try again shortly or manually reconnect."
-        );
-        showWalletStatusToast("Wallet reconnecting, please wait a moment.", {
+        setAuthError(t("walletActions.walletReconnecting"));
+        showWalletStatusToast(t("walletActions.walletReconnecting"), {
           icon: "⏳",
         });
         return;
       }
 
       if (errorMsg.includes("Connector not connected")) {
-        setAuthError(
-          "Wallet connector is not ready. Please reconnect wallet and try authorize again."
-        );
-        showWalletStatusToast(
-          "Wallet not fully connected yet. Please reconnect and retry.",
-          { icon: "🔌" }
-        );
+        setAuthError(t("walletActions.walletConnectorNotReady"));
+        showWalletStatusToast(t("walletActions.walletConnectorNotReady"), {
+          icon: "🔌",
+        });
         return;
       }
 
       if (errorMsg.includes("Multiple wallet accounts selected")) {
-        setAuthError("Please select only one wallet account, then reconnect.");
-        showWalletStatusToast(
-          "Please select only one account in wallet, then reconnect.",
-          {
-            icon: "1️⃣",
-          }
-        );
+        setAuthError(t("walletActions.walletSingleAccount"));
+        showWalletStatusToast(t("walletActions.walletSingleAccount"), {
+          icon: "1️⃣",
+        });
         forceReconnectIfNeeded();
         return;
       }
 
       if (isWalletUnstableError(errorMsg)) {
-        setAuthError(
-          "Wallet connection is unstable. Please disconnect and reconnect your wallet, then try again."
-        );
-        showWalletStatusToast(
-          "Wallet connection unstable. Please reconnect wallet and retry.",
-          { icon: "⚠️" }
-        );
-        return;
-      }
-
-      setAuthError(errorMsg);
-      if (
-        errorMsg.includes("User rejected") ||
-        String(error).includes("4001") ||
-        String(error).includes("4100")
-      ) {
-        showWalletStatusToast("Signature request cancelled by user.", {
-          icon: "ℹ️",
+        setAuthError(t("walletActions.walletUnstable"));
+        showWalletStatusToast(t("walletActions.walletUnstable"), {
+          icon: "⚠️",
         });
         return;
       }
 
-      showWalletStatusErrorToast("Auth failed: " + errorMsg);
+      setAuthError(errorMsg);
+
+      showWalletStatusErrorToast(
+        t("walletActions.authFailedPrefix", { message: errorMsg })
+      );
     },
-    [forceReconnectIfNeeded]
+    [forceReconnectIfNeeded, t]
   );
 
   const authorize = useCallback(async (): Promise<boolean> => {
@@ -253,6 +271,15 @@ export default function WalletAuthGuard({
           throw new Error("Auth challenge missing from server response");
         }
 
+        const approved = await waitForLoginIntentApproval({
+          domain: challenge.domain || "synapse-network.ai",
+          wallet: effectiveAddress,
+          chainId,
+        });
+        if (!approved) {
+          throw createWalletUserRejectedError();
+        }
+
         const signature = await signChallengeMessage(
           challengeMessage,
           effectiveAddress
@@ -289,6 +316,7 @@ export default function WalletAuthGuard({
     effectiveIsConnected,
     chainId,
     localE2eWallet,
+    waitForLoginIntentApproval,
     signChallengeMessage,
     handleAuthorizeFailure,
   ]);
@@ -412,7 +440,7 @@ export default function WalletAuthGuard({
     const timer = globalThis.setTimeout(() => {
       clearAuthSession();
       setVerifiedWallet(null);
-      setAuthError("Session expired automatically. Please sign in again.");
+      setAuthError(t("walletActions.sessionExpiredRetry"));
       forceReconnectIfNeeded();
     }, timeoutMs + 50);
 
@@ -424,14 +452,13 @@ export default function WalletAuthGuard({
     effectiveIsConnected,
     verifiedWallet,
     forceReconnectIfNeeded,
+    t,
   ]);
 
   useEffect(() => {
     const onSessionExpired = () => {
       clearAuthSession();
-      setAuthError(
-        "Your authentication session has expired or is invalid. Please sign in again."
-      );
+      setAuthError(t("walletActions.sessionExpiredRetry"));
       setVerifiedWallet(null);
       setIsAuthorizing(false);
       forceReconnectIfNeeded();
@@ -447,7 +474,7 @@ export default function WalletAuthGuard({
         onSessionExpired as EventListener
       );
     };
-  }, [forceReconnectIfNeeded]);
+  }, [forceReconnectIfNeeded, t]);
 
   const authContextValue = useMemo(
     () => ({
@@ -471,6 +498,44 @@ export default function WalletAuthGuard({
   return (
     <AuthContext.Provider value={authContextValue}>
       {children}
+      <WalletActionIntentDialog
+        open={Boolean(loginIntent)}
+        title={t("walletActions.loginTitle")}
+        description={t("walletActions.loginDescription")}
+        rows={[
+          {
+            label: t("walletActions.loginPurposeLabel"),
+            value: t("walletActions.loginPurposeValue"),
+          },
+          {
+            label: t("walletActions.loginDomainLabel"),
+            value: loginIntent?.domain || "-",
+          },
+          {
+            label: t("walletActions.loginWalletLabel"),
+            value: loginIntent?.wallet || "-",
+          },
+          {
+            label: t("walletActions.loginNetworkLabel"),
+            value: loginIntent?.chainId ? String(loginIntent.chainId) : "-",
+          },
+          {
+            label: t("walletActions.loginNoFundsLabel"),
+            value: t("walletActions.loginNoFundsValue"),
+          },
+        ]}
+        checklistTitle={t("walletActions.loginChecklistTitle")}
+        checklist={[
+          t("walletActions.loginChecklistDomain"),
+          t("walletActions.loginChecklistNoFunds"),
+          t("walletActions.loginChecklistNonce"),
+        ]}
+        cancelLabel={t("walletActions.cancel")}
+        continueLabel={t("walletActions.continueToWallet")}
+        closeLabel={t("walletActions.close")}
+        onCancel={() => resolveLoginIntent(false)}
+        onContinue={() => resolveLoginIntent(true)}
+      />
     </AuthContext.Provider>
   );
 }

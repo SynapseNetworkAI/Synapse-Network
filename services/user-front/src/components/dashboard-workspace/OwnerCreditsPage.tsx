@@ -35,13 +35,18 @@ import {
   getBillingCycleWindow,
 } from "@/utils/creditsSpendCap";
 import {
+  formatPercent,
+  formatPlainAmount,
+  formatUsd,
+} from "@/utils/ownerCreditsFormat";
+import {
   compareMoneyStrings,
-  formatMoneyString,
   moneyStringToNumber,
   normalizeMoneyString,
   type MoneyString,
 } from "@/utils/money";
 import { isWithdrawTicketNearExpiry } from "@/utils/providerWithdrawApi";
+import { isWalletUserRejectedError } from "@/utils/walletActionErrors";
 import SynapseCoreABI from "@/SynapseCoreABI.json";
 
 const DepositUsdcModal = dynamic(
@@ -107,7 +112,8 @@ function WithdrawBalanceModal({
       reasonCode: string,
       fallbackMessage: string,
       maybeTxHash?: string,
-      activeResult?: ConsumerWithdrawIntent | null
+      activeResult?: ConsumerWithdrawIntent | null,
+      tone: "error" | "neutral" = "error"
     ) => {
       const target = activeResult ?? withdrawResult;
       if (!target?.withdrawId || failingRef.current) {
@@ -120,7 +126,11 @@ function WithdrawBalanceModal({
           message: fallbackMessage,
           txHash: maybeTxHash,
         });
-        toast.error(fallbackMessage);
+        if (tone === "neutral") {
+          toast(fallbackMessage, { icon: "ℹ️" });
+        } else {
+          toast.error(fallbackMessage);
+        }
         await onSuccess({ ...target, status: "FAILED" });
       } catch (error) {
         const msg =
@@ -152,7 +162,7 @@ function WithdrawBalanceModal({
         await completeV2Refund(userAddress, withdrawResult.withdrawId, txHash);
         toast.success(
           t("creditsPage.consumerWithdrawSubmitted", {
-            amount: formatMoneyString(withdrawResult.netUsdc, 2),
+            amount: formatPlainAmount(withdrawResult.netUsdc),
           })
         );
         setStep("done");
@@ -278,13 +288,17 @@ function WithdrawBalanceModal({
       setStep("confirming");
       toast.success(t("creditsPage.consumerWithdrawTxSubmitted"));
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Withdrawal failed.";
-      if (msg.includes("User rejected") || msg.includes("denied")) {
+      const msg =
+        err instanceof Error
+          ? err.message
+          : t("creditsPage.consumerWithdrawTxFailed");
+      if (isWalletUserRejectedError(err)) {
         await syncFailedWithdrawal(
           "WALLET_REJECTED",
-          t("creditsPage.consumerWithdrawTxRejected"),
+          t("walletActions.requestCancelled"),
           undefined,
-          createdResult
+          createdResult,
+          "neutral"
         );
       } else {
         if (createdResult?.withdrawId) {
@@ -416,26 +430,6 @@ function WithdrawBalanceModal({
   );
 }
 // ─────────────────────────────────────────────────────────────────────────────
-
-function formatUsd(value: number | string): string {
-  return `$${formatMoneyString(
-    typeof value === "number" ? normalizeMoneyString(value) : value,
-    2
-  )}`;
-}
-
-function formatPlainAmount(value: number | string): string {
-  return formatMoneyString(
-    typeof value === "number" ? normalizeMoneyString(value) : value,
-    2
-  );
-}
-
-function formatPercent(value: number): string {
-  return `${Math.max(0, Math.min(100, value))
-    .toFixed(1)
-    .replace(/\\.0$/, "")}%`;
-}
 
 function CreditBucketRow({
   label,
@@ -869,10 +863,7 @@ export default function OwnerCreditsPage() {
                   {pendingWithdrawal && (
                     <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 w-[220px] rounded-lg border border-[#2a2a2a] bg-[#1a1a1a] px-3 py-2 text-xs text-[#f59e0b] shadow-xl opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50">
                       A withdrawal of{" "}
-                      {formatMoneyString(
-                        pendingWithdrawal.amountUsdc ?? "0",
-                        2
-                      )}{" "}
+                      {formatPlainAmount(pendingWithdrawal.amountUsdc ?? "0")}{" "}
                       is pending. Only one active withdrawal is allowed.
                     </div>
                   )}
@@ -1081,14 +1072,14 @@ export default function OwnerCreditsPage() {
           toVaultLabel: t("creditsPage.depositToVault"),
           depositAmountLabel: t("creditsPage.depositAmountSummary"),
           permitAllowanceLabel: t("creditsPage.depositPermitAllowance"),
-          expectationTitle: t("creditsPage.depositExpectationTitle"),
-          expectationPermit: t("creditsPage.depositExpectationPermit"),
-          expectationGas: t("creditsPage.depositExpectationGas"),
+          expectationTitle: t("walletActions.depositChecklistTitle"),
+          expectationPermit: t("walletActions.depositChecklistAmount"),
+          expectationGas: t("walletActions.depositChecklistGas"),
           expectationSync: t("creditsPage.depositExpectationSync"),
-          stepPermitTitle: t("creditsPage.depositPermitStepTitle"),
+          stepPermitTitle: t("walletActions.depositPermitStepTitle"),
           stepPermitActive: t("creditsPage.depositPermitStepActive"),
           stepPermitDone: t("creditsPage.depositPermitStepDone"),
-          stepDepositTitle: t("creditsPage.depositVaultStepTitle"),
+          stepDepositTitle: t("walletActions.depositVaultStepTitle"),
           stepDepositActive: t("creditsPage.depositVaultStepActive"),
           stepDepositWaiting: t("creditsPage.depositVaultStepWaiting"),
           progressAriaLabel: t("creditsPage.depositProgressAria"),

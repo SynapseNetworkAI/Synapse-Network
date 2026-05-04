@@ -28,7 +28,12 @@ import {
   type DepositAttemptStage,
 } from "@/utils/balanceApi";
 import { normalizeMoneyString } from "@/utils/money";
+import { isWalletUserRejectedError } from "@/utils/walletActionErrors";
 import { showWalletStatusToast } from "@/utils/walletToast";
+import {
+  normalizeTokenDecimals,
+  shortAddress,
+} from "@/utils/vaultDepositDisplay";
 import { analytics } from "@/lib/analytics";
 
 const VAULT_ADDRESS = contractConfig.SynapseCore as `0x${string}`;
@@ -158,10 +163,7 @@ function buildDepositFailureMessage(
   );
   const normalizedMessage = messageParts.join(" | ").toLowerCase();
 
-  if (
-    normalizedMessage.includes("user rejected") ||
-    normalizedMessage.includes("rejected")
-  ) {
+  if (isWalletUserRejectedError(error)) {
     return copy.cancelled;
   }
   if (
@@ -248,20 +250,6 @@ function getWalletConnectionFailureMessage(
   return null;
 }
 
-function shortAddress(address?: string): string {
-  if (!address) return "-";
-  if (address.length <= 12) return address;
-  return `${address.slice(0, 6)}...${address.slice(-4)}`;
-}
-
-function normalizeTokenDecimals(value: unknown): number {
-  const parsed = typeof value === "bigint" ? Number(value) : Number(value);
-  if (!Number.isInteger(parsed) || parsed < 0 || parsed > 36) {
-    return 18;
-  }
-  return parsed;
-}
-
 function buildDepositPreflightError(
   amountUsdc: string,
   walletUsdcBalance: number,
@@ -328,6 +316,13 @@ export function useVaultDeposit(options?: UseVaultDepositOptions) {
     query: { enabled: !!address },
   });
 
+  const { data: usdcNameRaw } = useReadContract({
+    address: contractConfig.MockUSDC as `0x${string}`,
+    abi: parseAbi(["function name() view returns (string)"]),
+    functionName: "name",
+    query: { enabled: !!address },
+  });
+
   const { data: walletUsdcBalanceRaw, refetch: refetchWalletBalance } =
     useReadContract({
       address: contractConfig.MockUSDC as `0x${string}`,
@@ -347,6 +342,10 @@ export function useVaultDeposit(options?: UseVaultDepositOptions) {
     ? Number(formatUnits(ethBalanceData.value, ethBalanceData.decimals ?? 18))
     : 0;
   const nativeGasSymbol = ethBalanceData?.symbol || "ETH";
+  const usdcTokenName =
+    typeof usdcNameRaw === "string" && usdcNameRaw.trim()
+      ? usdcNameRaw.trim()
+      : "USDC";
   const depositPreflightError = buildDepositPreflightError(
     normalizeMoneyString(depositAmount, ""),
     walletUsdcBalance,
@@ -608,7 +607,7 @@ export function useVaultDeposit(options?: UseVaultDepositOptions) {
 
       const signature = await signTypedDataAsync({
         domain: {
-          name: "Mock USDC",
+          name: usdcTokenName,
           version: "1",
           chainId,
           verifyingContract: contractConfig.MockUSDC as `0x${string}`,
@@ -657,10 +656,7 @@ export function useVaultDeposit(options?: UseVaultDepositOptions) {
       );
 
       let failureReason = copy.unknownError;
-      if (
-        message.includes("User rejected") ||
-        message.toLowerCase().includes("rejected")
-      ) {
+      if (isWalletUserRejectedError(error)) {
         failureReason = "User rejected";
         setDepositError(copy.cancelled);
         toast(copy.cancelledToast, { icon: "ℹ️" });
@@ -701,6 +697,7 @@ export function useVaultDeposit(options?: UseVaultDepositOptions) {
     recordAttemptStage,
     signTypedDataAsync,
     usdcDecimals,
+    usdcTokenName,
     usdcNonce,
     walletUsdcBalance,
     writeContractAsync,
