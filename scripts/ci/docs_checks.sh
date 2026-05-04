@@ -21,6 +21,7 @@ fi
 echo "[ci:docs] validating documentation constraints"
 
 node "$ROOT_DIR/scripts/ci/validate_docs.js"
+node "$ROOT_DIR/scripts/ci/github_actions_node_runtime_check.mjs"
 node "$ROOT_DIR/scripts/ci/seo_public_assets_check.mjs"
 node "$ROOT_DIR/scripts/ci/legacy_gateway_generate_check.mjs"
 

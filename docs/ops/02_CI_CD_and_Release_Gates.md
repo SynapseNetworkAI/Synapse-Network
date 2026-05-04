@@ -96,6 +96,14 @@ GitHub PR CI 仍然保留单个 required check：`pr-checks`。动态 scope 只�
 
 如果 GitHub API 因私有仓库套餐限制无法读取 branch protection，人工在 GitHub Settings 中复核以上规则，并把截图或记录附到 release evidence。
 
+所有 GitHub Actions workflow 必须主动使用 Node 24 JavaScript action runtime：
+
+1. 每个 `.github/workflows/*.yml` / `.yaml` 文件都必须设置 top-level `env.FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"`。
+2. 禁止设置 `ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION`，它会让 workflow 继续依赖 deprecated Node 20 runtime。
+3. 核心 actions 不得低于 repo baseline：`actions/checkout@v6`、`actions/setup-node@v6`、`actions/setup-python@v6`、`actions/cache@v5`。
+4. `actions/upload-artifact@v4` 在强制 Node 24 runtime 下允许使用；等官方发布新的 stable major 后再统一升级。
+5. `npm run ci:github-actions-runtime` 和 `npm run ci:docs` 会扫描 workflow，阻止遗漏 Node 24 force flag、添加不安全 opt-out 或降级核心 action。
+
 `.github/workflows/pr-ci.yml` 还必须使用 `actions/cache@v5` 缓存依赖下载层，保持 GitHub Actions Node 24 runtime 兼容：
 
 1. `~/.npm`，key 绑定 root 和 user-front 的 npm lockfile。
@@ -179,7 +187,7 @@ Python guardrail 工具不使用业务 service venv；缺少 `uvx` 且 PATH 上�
 Diff-based gates require base branch history. GitHub Actions must avoid shallow checkout:
 
 ```yaml
-- uses: actions/checkout@v4
+- uses: actions/checkout@v6
   with:
     fetch-depth: 0
 ```

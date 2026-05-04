@@ -26,6 +26,7 @@
     "ci:admin-gateway": "bash scripts/ci/admin_gateway_checks.sh",
     "ci:contracts": "bash scripts/ci/contracts_checks.sh",
     "ci:docs": "bash scripts/ci/docs_checks.sh",
+    "ci:github-actions-runtime": "node scripts/ci/github_actions_node_runtime_check.mjs",
     "ci:llms-links": "node scripts/ci/llms_links_check.mjs",
     "ci:seo-public-assets": "node scripts/ci/seo_public_assets_check.mjs",
     "ci:seo-public-assets-evidence": "node scripts/ci/seo_public_assets_evidence_check.mjs",
