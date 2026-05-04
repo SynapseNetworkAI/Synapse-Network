@@ -8,11 +8,7 @@ import { fileURLToPath } from "url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "../..");
 const BASE_URL = process.env.DOCS_BASE_URL || "http://localhost:3100";
-const timestamp = new Date()
-  .toISOString()
-  .replace(/[:.]/g, "")
-  .replace("T", "T")
-  .replace("Z", "Z");
+const timestamp = new Date().toISOString().replace(/[:.]/g, "");
 const OUT_DIR = path.join(
   ROOT,
   "output/playwright/docs-verification",
@@ -35,12 +31,43 @@ const pages = [
     id: "agent-builders",
     href: "/get-started/agent-builders",
     heading: "For Agent Builders",
+    texts: ["Call a Provider Service"],
     screenshot: "agent-builders.png",
+  },
+  {
+    id: "call-provider-service",
+    href: "/get-started/call-provider-service",
+    heading: "Call a Provider Service",
+    texts: [
+      "Agent Key",
+      "Provider Secret",
+      "costUsdc",
+      "maxCostUsdc",
+      "fixed",
+      "token_metered",
+    ],
+    screenshot: "call-provider-service.png",
   },
   {
     id: "api-providers",
     href: "/get-started/api-providers",
     heading: "For API Providers",
+    texts: ["Register a Provider Service"],
+  },
+  {
+    id: "register-provider-service",
+    href: "/get-started/register-provider-service",
+    heading: "Register a Provider Service",
+    texts: [
+      "Provider Secret",
+      "Agent Key",
+      "service manifest",
+      "POST /api/v1/services",
+      "inputPricePer1MTokensUsdc",
+      "outputPricePer1MTokensUsdc",
+      "Test your service",
+    ],
+    screenshot: "register-provider-service.png",
   },
   {
     id: "first-paid-invocation",
@@ -167,6 +194,19 @@ const pages = [
     href: "/smart-contracts",
     heading: "Smart Contracts",
     screenshot: "smart-contracts.png",
+  },
+  {
+    id: "smart-contract-networks",
+    href: "/smart-contracts/networks",
+    heading: "Networks",
+    texts: [
+      "Arbitrum Sepolia",
+      "421614",
+      "0x0bA1dcE1Cc8d877052ab1C3CE2362830459D8FF4",
+      "0xfad31daE42B0046aFA106BCf56ED0dDaCA4463B9",
+      "Reserved until production deployment evidence is complete",
+    ],
+    screenshot: "smart-contract-networks.png",
   },
   { id: "support", href: "/support", heading: "Support" },
 ];
