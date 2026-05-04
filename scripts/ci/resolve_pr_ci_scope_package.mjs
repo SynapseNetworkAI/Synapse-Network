@@ -17,6 +17,7 @@ const GUARDRAIL_SCRIPTS = new Set([
   "ci:provider-service",
   "ci:sdk-python",
   "ci:docs",
+  "ci:github-actions-runtime",
   "ci:e2e-env-isolation",
   "ci:release-go-no-go",
   "ci:performance-reliability",
