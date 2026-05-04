@@ -1,0 +1,152 @@
+---
+title: Register a Provider Service
+description: Write a service manifest, choose fixed or token-metered billing, register with Gateway, and test the service loop.
+---
+
+Use this guide when you are the **Service Owner**: a Provider publishing an API or LLM service that agents can buy through Synapse.
+
+<WarningNote title="Use the provider key, not the consumer key">
+  Registering services, updating manifests, rotating provider credentials, and viewing Provider earnings require a provider control-plane credential: provider wallet JWT for endpoints marked `auth: jwt`, or **Provider Secret / Admin Key** where your environment enables provider automation. Do not use an Agent Key to register or modify services.
+</WarningNote>
+
+## Provider flow
+
+1. Authenticate the Provider wallet.
+2. Issue a Provider Secret for provider-side automation.
+3. Write a service manifest with invoke targets and one supported billing mode.
+4. Register the service with `POST /api/v1/services`.
+5. Confirm the service appears in discovery and health history.
+6. Use a Consumer Agent Key to run one real test invocation.
+7. Monitor earnings and withdraw after Provider receivables mature at T+7.
+
+## Write the service manifest
+
+The manifest tells Gateway how to expose your service to agents, where to send paid invocations, and how to charge Consumers. V1 public docs support two billing modes: `fixed` and `token_metered`.
+
+### Fixed-price API service
+
+Use `fixed` for ordinary APIs where each successful call has one known USDC price.
+
+```json
+{
+  "serviceName": "Invoice OCR",
+  "agentToolName": "invoice-ocr-v1",
+  "summary": "Extract line items and totals from invoices.",
+  "serviceKind": "api",
+  "priceModel": "fixed",
+  "pricing": {
+    "currency": "USDC",
+    "amount": "0.080000"
+  },
+  "invoke": {
+    "method": "POST",
+    "targets": [
+      { "url": "https://api.example.com/invoke", "weight": 100 }
+    ],
+    "request": {},
+    "response": {}
+  }
+}
+```
+
+Consumers discover this service and invoke it with `costUsdc` copied from discovery.
+
+### Token-metered LLM service
+
+Use `token_metered` for LLM-style services where the final charge depends on input and output tokens.
+
+```json
+{
+  "serviceName": "DeepSeek Chat",
+  "agentToolName": "deepseek-chat",
+  "summary": "Chat completions billed by final token usage.",
+  "serviceKind": "llm",
+  "priceModel": "token_metered",
+  "pricing": {
+    "currency": "USDC",
+    "amount": "0.000000",
+    "priceModel": "token_metered",
+    "inputPricePer1MTokensUsdc": "0.140000",
+    "outputPricePer1MTokensUsdc": "0.280000",
+    "defaultMaxOutputTokens": 2048,
+    "maxAutoHoldUsdc": "0.050000"
+  },
+  "invoke": {
+    "method": "POST",
+    "targets": [
+      { "url": "https://api.example.com/chat", "weight": 100 }
+    ],
+    "request": {},
+    "response": {}
+  }
+}
+```
+
+Do not use `pricePerToken`. Token-metered manifests must use the per-1M-token fields so Gateway can estimate holds, capture final usage, and release unused Consumer funds.
+
+## Register the service
+
+```bash
+curl -X POST "$GATEWAY_URL/api/v1/services" \
+  -H "Authorization: Bearer $PROVIDER_JWT" \
+  -H "Content-Type: application/json" \
+  -d @service-manifest.json
+```
+
+Save the returned `serviceId`. You will use it for updates, health checks, discovery verification, and test invocations.
+
+<AgentNote title="Provider runtime contract">
+  Anonymous direct calls should fail. Provider invoke endpoints must verify Synapse Gateway signature headers before doing paid work.
+</AgentNote>
+
+## Test your service
+
+After registration, close the loop before sending traffic to users.
+
+1. List your services or read the registration response to get `serviceId`.
+2. Call discovery and confirm the service is visible and runtime available.
+3. Use the Consumer calling guide to issue an Agent Key.
+4. Run one real invocation through Gateway.
+
+```bash
+curl -X POST "$GATEWAY_URL/api/v1/agent/invoke" \
+  -H "Authorization: Bearer $AGENT_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "serviceId": "invoice-ocr-v1",
+    "idempotencyKey": "provider-loopback-001",
+    "costUsdc": "0.080000",
+    "payload": {
+      "body": {
+        "fileUrl": "https://example.com/test-invoice.pdf"
+      }
+    }
+  }'
+```
+
+This real loopback validates Consumer balance deduction, Gateway forwarding, Provider signature verification, Provider earnings, and the invocation receipt in one shot.
+
+<QuickLinks
+  items={[
+    {
+      href: '/api-reference/post-provider-secret',
+      title: 'Issue Provider Secret',
+      description: 'Create the provider-side credential used for service registration automation.',
+    },
+    {
+      href: '/api-reference/post-service',
+      title: 'Register service API',
+      description: 'Submit the service manifest and receive the serviceId.',
+    },
+    {
+      href: '/api-reference/get-services',
+      title: 'List registered services',
+      description: 'Recover serviceIds and audit active Provider services.',
+    },
+    {
+      href: '/get-started/call-provider-service',
+      title: 'Consumer calling guide',
+      description: 'Use an Agent Key to perform the final test invocation.',
+    },
+  ]}
+/>

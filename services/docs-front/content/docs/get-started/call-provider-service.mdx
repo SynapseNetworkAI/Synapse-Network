@@ -1,0 +1,94 @@
+---
+title: Call a Provider Service
+description: Discover paid services, invoke them with an Agent Key, and keep fixed or token-metered spending bounded.
+---
+
+Use this guide when you are the **API caller**: an agent, app, or workflow that buys a Provider service through Synapse.
+
+<WarningNote title="Use the consumer key, not the provider key">
+  Calling Provider APIs requires an **Agent Key**. The Agent Key represents the Consumer identity, available budget, and charge account. Do not use a Provider Secret or Admin Key to invoke services.
+</WarningNote>
+
+## Caller flow
+
+1. Authenticate the owner wallet.
+2. Deposit USDC so the Consumer account has spendable balance.
+3. Issue an Agent Key with a bounded credit limit.
+4. Discover services and read the live `serviceId`, `priceModel`, and pricing fields.
+5. Invoke through Gateway using the pricing shape returned by discovery.
+6. Store the invocation receipt for reconciliation and retry policy.
+
+## Fixed-price API calls
+
+Fixed services are ordinary API calls with a known per-call price. Discovery returns the current price, and the caller copies that value into `costUsdc`.
+
+```bash
+curl -X POST "$GATEWAY_URL/api/v1/agent/invoke" \
+  -H "Authorization: Bearer $AGENT_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "serviceId": "invoice-ocr-v1",
+    "idempotencyKey": "invoice-job-001",
+    "costUsdc": "0.080000",
+    "payload": {
+      "body": {
+        "fileUrl": "https://example.com/invoice.pdf"
+      }
+    }
+  }'
+```
+
+If Gateway returns `PRICE_MISMATCH`, call discovery again and retry only if the new price still fits your task budget.
+
+## Token-metered LLM calls
+
+Token-metered services use `priceModel: "token_metered"` and charge by final usage. Do not send a fixed `costUsdc`. Send `maxCostUsdc` when the agent or user wants a hard ceiling for the call.
+
+```bash
+curl -X POST "$GATEWAY_URL/api/v1/agent/invoke" \
+  -H "Authorization: Bearer $AGENT_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "serviceId": "svc_deepseek_chat",
+    "idempotencyKey": "chat-job-001",
+    "maxCostUsdc": "0.010000",
+    "payload": {
+      "body": {
+        "model": "deepseek-chat",
+        "messages": [{ "role": "user", "content": "Summarize this receipt." }],
+        "max_tokens": 512
+      }
+    }
+  }'
+```
+
+Gateway pre-authorizes the maximum hold, captures the final token usage returned by the Provider, and releases the unused hold back to the Consumer balance.
+
+<AgentNote title="Consumer mental model">
+  The Agent Key can spend only from the Consumer budget it was issued against. It cannot register services, update manifests, rotate Provider Secrets, or claim Provider earnings.
+</AgentNote>
+
+<QuickLinks
+  items={[
+    {
+      href: '/api-reference/get-discover',
+      title: 'Discover services',
+      description: 'Read serviceId, priceModel, current pricing, and runtime availability before invoking.',
+    },
+    {
+      href: '/api-reference/post-agent-invoke',
+      title: 'Invoke a service',
+      description: 'Call fixed-price APIs with costUsdc or token-metered LLMs with maxCostUsdc.',
+    },
+    {
+      href: '/get-started/register-provider-service',
+      title: 'Providing instead?',
+      description: 'If you own the API, use the Provider registration guide and Provider Secret flow.',
+    },
+    {
+      href: '/pricing-and-fees',
+      title: 'Pricing & fees',
+      description: 'Treat Gateway discovery and receipts as the money truth, not static examples.',
+    },
+  ]}
+/>

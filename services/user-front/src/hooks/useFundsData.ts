@@ -11,6 +11,7 @@ import {
   listConsumerWithdrawals,
   listDepositIntents,
   type DepositIntentRecord,
+  type RefundIntentRecord,
 } from "@/utils/balanceApi";
 import {
   formatMoneyString,
@@ -35,8 +36,50 @@ type LedgerLog = {
   args: [unknown, bigint];
 };
 
-function depositStatusFromIntent(status?: string): LedgerRecord["status"] {
-  const normalized = String(status || "")
+type LedgerBlock = {
+  timestamp: number;
+};
+
+type LocalFailureDeposit = {
+  id: string;
+  address?: string;
+  amountUsdc?: unknown;
+  timestamp: number;
+  failureReason?: string;
+};
+
+function normalizeTxHash(value?: string | null): string {
+  return String(value || "")
+    .trim()
+    .toLowerCase();
+}
+
+function timestampFromIntent(intent?: DepositIntentRecord): number | null {
+  if (!intent) return null;
+  const raw = intent.updatedAt ?? intent.createdAt;
+  if (typeof raw === "number") {
+    return raw > 10_000_000_000 ? raw : raw * 1000;
+  }
+  if (typeof raw === "string" && raw.trim()) {
+    const parsed = new Date(raw).getTime();
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function moneyFromTokenUnits(value: bigint, decimals = 18): number {
+  const raw = ethers.formatUnits(value, decimals);
+  const [whole, fraction = ""] = raw.split(".");
+  return moneyStringToNumber(
+    normalizeMoneyString(`${whole}.${fraction.slice(0, 6)}`)
+  );
+}
+
+export function mapDepositStatusFromGatewayIntent(
+  intent?: DepositIntentRecord
+): LedgerRecord["status"] {
+  if (!intent) return "PENDING";
+  const normalized = String(intent.status || "")
     .trim()
     .toUpperCase();
   if (normalized === "CONFIRMED" || normalized === "COMPLETED") {
@@ -45,25 +88,195 @@ function depositStatusFromIntent(status?: string): LedgerRecord["status"] {
   if (
     normalized === "FAILED" ||
     normalized === "DUPLICATE" ||
-    normalized === "REJECTED"
+    normalized === "REJECTED" ||
+    normalized === "CANCELLED" ||
+    normalized === "CANCELED"
   ) {
     return "FAILED";
   }
   return "PENDING";
 }
 
-function depositTimestampFromIntent(intent?: DepositIntentRecord): number {
-  const raw = intent?.confirmedAt || intent?.updatedAt || intent?.createdAt;
-  if (typeof raw === "number" && raw > 0) {
-    return raw > 10_000_000_000 ? raw : raw * 1000;
-  }
-  if (typeof raw === "string") {
-    const parsed = new Date(raw).getTime();
-    if (Number.isFinite(parsed)) {
-      return parsed;
-    }
-  }
-  return Date.now();
+async function fetchLedgerInputs(userAddress: string) {
+  const provider = new ethers.JsonRpcProvider("http://127.0.0.1:8545");
+  const vault = new ethers.Contract(
+    contractConfig.SynapseCore,
+    SynapseCoreABI,
+    provider
+  );
+  const usdc = new ethers.Contract(
+    contractConfig.MockUSDC,
+    MockUSDCABI,
+    provider
+  );
+  const decimals =
+    typeof usdc.decimals === "function"
+      ? await usdc.decimals().catch(() => 18)
+      : 18;
+  const filterDeposit = vault.filters.DepositInfo(userAddress);
+  const filterWithdraw = vault.filters.WithdrawInfo(userAddress);
+
+  const [depositLogs, withdrawLogs, refunds, withdrawals, depositIntents] =
+    await Promise.all([
+      vault.queryFilter(filterDeposit, 0, "latest"),
+      vault.queryFilter(filterWithdraw, 0, "latest"),
+      fetchRefunds(userAddress),
+      listConsumerWithdrawals(userAddress),
+      listDepositIntents(userAddress, 100).catch(() => []),
+    ]);
+
+  return {
+    provider,
+    decimals,
+    depositEntries: depositLogs as unknown as LedgerLog[],
+    withdrawEntries: withdrawLogs as unknown as LedgerLog[],
+    refunds,
+    withdrawals,
+    depositIntents,
+  };
+}
+
+async function buildBlockMap(
+  provider: ethers.JsonRpcProvider,
+  logs: LedgerLog[]
+): Promise<Map<number, LedgerBlock>> {
+  const blockMap = new Map<number, LedgerBlock>();
+  const uniqueBlockNumbers = [...new Set(logs.map((log) => log.blockNumber))];
+  await Promise.all(
+    uniqueBlockNumbers.map(async (blockNum) => {
+      const block = await provider.getBlock(blockNum);
+      if (block) blockMap.set(blockNum, { timestamp: Number(block.timestamp) });
+    })
+  );
+  return blockMap;
+}
+
+function mapChainDepositRecords(
+  depositEntries: LedgerLog[],
+  depositIntents: DepositIntentRecord[],
+  blockMap: Map<number, LedgerBlock>,
+  decimals: number
+): LedgerRecord[] {
+  const depositIntentByTxHash = new Map(
+    depositIntents
+      .filter((intent) => normalizeTxHash(intent.txHash))
+      .map((intent) => [normalizeTxHash(intent.txHash), intent])
+  );
+
+  return depositEntries.map((log) => {
+    const intent = depositIntentByTxHash.get(
+      normalizeTxHash(log.transactionHash)
+    );
+    const block = blockMap.get(log.blockNumber);
+    return {
+      id: intent?.id || `${log.transactionHash}-${log.logIndex ?? 0}`,
+      type: "Deposit",
+      amount: moneyFromTokenUnits(log.args[1], decimals),
+      txHash: log.transactionHash,
+      timestamp:
+        timestampFromIntent(intent) ??
+        (block ? block.timestamp * 1000 : Date.now()),
+      status: mapDepositStatusFromGatewayIntent(intent),
+      failureReason: intent?.failureReason,
+    };
+  });
+}
+
+function mapGatewayOnlyDepositRecords(
+  depositIntents: DepositIntentRecord[],
+  depositEntries: LedgerLog[]
+): LedgerRecord[] {
+  const onchainDepositTxHashes = new Set(
+    depositEntries.map((log) => normalizeTxHash(log.transactionHash))
+  );
+  return depositIntents
+    .filter((intent) => {
+      const txHash = normalizeTxHash(intent.txHash);
+      return txHash && !onchainDepositTxHashes.has(txHash);
+    })
+    .map((intent) => {
+      const txHash = normalizeTxHash(intent.txHash);
+      return {
+        id: intent.id || txHash,
+        type: "Deposit",
+        amount: moneyStringToNumber(intent.amountUsdc ?? "0"),
+        txHash: intent.txHash,
+        timestamp: timestampFromIntent(intent) ?? Date.now(),
+        status: mapDepositStatusFromGatewayIntent(intent),
+        failureReason: intent.failureReason,
+      };
+    });
+}
+
+function mapChainWithdrawRecords(
+  withdrawEntries: LedgerLog[],
+  blockMap: Map<number, LedgerBlock>,
+  decimals: number
+): LedgerRecord[] {
+  return withdrawEntries.map((log) => {
+    const block = blockMap.get(log.blockNumber);
+    return {
+      id: `${log.transactionHash}-${log.logIndex ?? 0}`,
+      type: "Withdraw",
+      amount: moneyFromTokenUnits(log.args[1], decimals),
+      txHash: log.transactionHash,
+      timestamp: block ? block.timestamp * 1000 : Date.now(),
+      status: "COMPLETED",
+    };
+  });
+}
+
+function mapRefundRecords(refunds: RefundRecord[]): LedgerRecord[] {
+  return refunds.map((refund) => ({
+    id: refund.id || `refund-${Math.random()}`,
+    type: refund.type === "refund" ? "Refund" : "Claim",
+    amount: moneyStringToNumber(refund.amountUsdc),
+    txHash: refund.txHash,
+    timestamp: refund.timestamp * 1000,
+    status: refund.status,
+  }));
+}
+
+function mapConsumerWithdrawalRecords(
+  withdrawals: RefundIntentRecord[]
+): LedgerRecord[] {
+  const statusMap: Record<string, LedgerRecord["status"]> = {
+    REQUESTED: "PENDING",
+    PENDING_MANUAL_REVIEW: "PENDING",
+    COMPLETED: "COMPLETED",
+    FAILED: "FAILED",
+    REJECTED: "FAILED",
+    CANCELLED: "FAILED",
+  };
+  return withdrawals.map((withdrawal) => ({
+    id: withdrawal.id,
+    type: "Withdraw",
+    amount: moneyStringToNumber(withdrawal.amountUsdc ?? "0"),
+    txHash: withdrawal.txHash ?? null,
+    timestamp: withdrawal.createdAt
+      ? new Date(withdrawal.createdAt).getTime()
+      : Date.now(),
+    status: statusMap[withdrawal.status?.toUpperCase()] ?? "PENDING",
+  }));
+}
+
+function mapLocalFailureRecords(userAddress: string): LedgerRecord[] {
+  const failedStorage = localStorage.getItem("synapse_failed_deposits");
+  const parsed = failedStorage ? (JSON.parse(failedStorage) as unknown) : [];
+  const localFailures = Array.isArray(parsed)
+    ? (parsed as LocalFailureDeposit[])
+    : [];
+  return localFailures
+    .filter((failure) => failure.address === userAddress)
+    .map((failure) => ({
+      id: failure.id,
+      type: "Deposit",
+      amount: moneyStringToNumber(failure.amountUsdc ?? "0"),
+      txHash: null,
+      timestamp: failure.timestamp,
+      status: "FAILED",
+      failureReason: failure.failureReason,
+    }));
 }
 
 export function useFundsData() {
@@ -116,170 +329,31 @@ export function useFundsData() {
     }
     setLoading(true);
     try {
-      const provider = new ethers.JsonRpcProvider("http://127.0.0.1:8545");
-      const vault = new ethers.Contract(
-        contractConfig.SynapseCore,
-        SynapseCoreABI,
-        provider
-      );
-      const usdc = new ethers.Contract(
-        contractConfig.MockUSDC,
-        MockUSDCABI,
-        provider
-      );
-      const decimals =
-        typeof usdc.decimals === "function"
-          ? await usdc.decimals().catch(() => 18)
-          : 18;
-
-      // fetch on-chain deposit + withdraw + off-chain data in parallel
-      const filterDeposit = vault.filters.DepositInfo(userAddress);
-      const filterWithdraw = vault.filters.WithdrawInfo(userAddress);
-
-      const [depositLogs, withdrawLogs, refunds, withdrawals, depositIntents] =
-        await Promise.all([
-          vault.queryFilter(filterDeposit, 0, "latest"),
-          vault.queryFilter(filterWithdraw, 0, "latest"),
-          fetchRefunds(userAddress),
-          listConsumerWithdrawals(userAddress),
-          listDepositIntents(userAddress, 100).catch(() => []),
-        ]);
-
-      // Deduplicate block fetches — fetch each unique block number only once
-      const allLogs = [...depositLogs, ...withdrawLogs];
-      const uniqueBlockNumbers = [
-        ...new Set(allLogs.map((log) => log.blockNumber)),
-      ];
-      const blockMap = new Map<
-        number,
-        Awaited<ReturnType<typeof provider.getBlock>>
-      >();
-      await Promise.all(
-        uniqueBlockNumbers.map(async (blockNum: number) => {
-          const block = await provider.getBlock(blockNum);
-          if (block) blockMap.set(blockNum, block);
-        })
-      );
-
-      const onchainRecords: LedgerRecord[] = [];
-      const depositEntries = depositLogs as unknown as LedgerLog[];
-      const withdrawEntries = withdrawLogs as unknown as LedgerLog[];
-      const depositIntentByTx = new Map(
-        depositIntents
-          .filter((intent) => intent.txHash)
-          .map((intent) => [String(intent.txHash).trim().toLowerCase(), intent])
-      );
-      const renderedDepositTxs = new Set<string>();
-
-      for (const log of depositEntries) {
-        const block = blockMap.get(log.blockNumber);
-        const normalizedTx = log.transactionHash.toLowerCase();
-        const intent = depositIntentByTx.get(normalizedTx);
-        renderedDepositTxs.add(normalizedTx);
-        onchainRecords.push({
-          id: `${log.transactionHash}-${log.logIndex ?? 0}`,
-          type: "Deposit",
-          amount: moneyStringToNumber(
-            normalizeMoneyString(
-              intent?.amountUsdc ?? ethers.formatUnits(log.args[1], decimals)
-            )
-          ),
-          txHash: log.transactionHash,
-          timestamp: block ? Number(block.timestamp) * 1000 : Date.now(),
-          status: depositStatusFromIntent(intent?.status),
-          failureReason: intent?.failureReason,
-        });
-      }
-
-      for (const intent of depositIntents) {
-        const normalizedTx = String(intent.txHash || "")
-          .trim()
-          .toLowerCase();
-        if (!normalizedTx || renderedDepositTxs.has(normalizedTx)) {
-          continue;
-        }
-        onchainRecords.push({
-          id: intent.id || `${intent.txHash}-intent`,
-          type: "Deposit",
-          amount: moneyStringToNumber(
-            intent.amountUsdc ?? intent.creditedAmountUsdc ?? "0"
-          ),
-          txHash: intent.txHash,
-          timestamp: depositTimestampFromIntent(intent),
-          status: depositStatusFromIntent(intent.status),
-          failureReason: intent.failureReason,
-        });
-      }
-
-      for (const log of withdrawEntries) {
-        const block = blockMap.get(log.blockNumber);
-        onchainRecords.push({
-          id: `${log.transactionHash}-${log.logIndex ?? 0}`,
-          type: "Withdraw",
-          amount: moneyStringToNumber(
-            normalizeMoneyString(ethers.formatUnits(log.args[1], decimals))
-          ),
-          txHash: log.transactionHash,
-          timestamp: block ? Number(block.timestamp) * 1000 : Date.now(),
-          status: "COMPLETED",
-        });
-      }
-
-      // fetch off-chain refunds
-      const mappedRefunds: LedgerRecord[] = refunds.map((r: RefundRecord) => ({
-        id: r.id || `refund-${Math.random()}`,
-        type: r.type === "refund" ? "Refund" : "Claim",
-        amount: moneyStringToNumber(r.amountUsdc),
-        txHash: r.txHash,
-        timestamp: r.timestamp * 1000, // convert python ts to JS ts
-        status: r.status,
-      }));
-
-      // consumer withdrawals (off-chain balance refunds) — already fetched in parallel above
-      const mappedWithdrawals: LedgerRecord[] = withdrawals.map((w) => {
-        const tsMs = w.createdAt ? new Date(w.createdAt).getTime() : Date.now();
-        const statusMap: Record<string, LedgerRecord["status"]> = {
-          REQUESTED: "PENDING",
-          PENDING_MANUAL_REVIEW: "PENDING",
-          COMPLETED: "COMPLETED",
-          FAILED: "FAILED",
-          REJECTED: "FAILED",
-          CANCELLED: "FAILED",
-        };
-        return {
-          id: w.id,
-          type: "Withdraw" as const,
-          amount: moneyStringToNumber(w.amountUsdc ?? "0"),
-          txHash: w.txHash ?? null,
-          timestamp: tsMs,
-          status: statusMap[w.status?.toUpperCase()] ?? "PENDING",
-        };
-      });
-
-      const failedStorage = localStorage.getItem("synapse_failed_deposits");
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const localFailures: any[] = failedStorage
-        ? JSON.parse(failedStorage)
-        : [];
-      const mappedFailures: LedgerRecord[] = localFailures
-        .filter((f) => f.address === userAddress)
-        .map((f) => ({
-          id: f.id,
-          type: "Deposit",
-          amount: f.amountUsdc,
-          txHash: null,
-          timestamp: f.timestamp,
-          status: "FAILED",
-          failureReason: f.failureReason,
-        }));
-
+      const ledger = await fetchLedgerInputs(userAddress);
+      const blockMap = await buildBlockMap(ledger.provider, [
+        ...ledger.depositEntries,
+        ...ledger.withdrawEntries,
+      ]);
       const allRecords = [
-        ...onchainRecords,
-        ...mappedRefunds,
-        ...mappedWithdrawals,
-        ...mappedFailures,
+        ...mapChainDepositRecords(
+          ledger.depositEntries,
+          ledger.depositIntents,
+          blockMap,
+          ledger.decimals
+        ),
+        ...mapGatewayOnlyDepositRecords(
+          ledger.depositIntents,
+          ledger.depositEntries
+        ),
+        ...mapChainWithdrawRecords(
+          ledger.withdrawEntries,
+          blockMap,
+          ledger.decimals
+        ),
+        ...mapRefundRecords(ledger.refunds),
+        ...mapConsumerWithdrawalRecords(ledger.withdrawals),
+        ...mapLocalFailureRecords(userAddress),
       ];
-      // Sort by timestamp desc
       allRecords.sort((a, b) => b.timestamp - a.timestamp);
       setRecords(allRecords);
     } catch (error) {
