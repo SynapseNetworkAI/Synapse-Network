@@ -14,7 +14,7 @@ This runbook verifies that Synapse users have a working feedback loop:
 
 1. Public users can browse the Developer Forum.
 2. Authenticated wallet users can create a topic, reply, and mark the topic resolved.
-3. Docs and dashboard feedback drawers submit feedback and return a `feedbackId`.
+3. Docs and dashboard feedback modals submit feedback and return a `feedbackId`.
 4. Browser-created form data is actually persisted in Postgres.
 5. Screenshots and a machine-readable report are produced for regression evidence.
 
@@ -28,7 +28,7 @@ Screenshots are evidence for visual review. The functional pass/fail decision co
 | Create topic modal | `/forum`               | `New topic` opens a modal overlay; unauthenticated users see the guard and authenticated users can submit the form                                               | `forum-create-topic-modal-unauthenticated.png`, `forum-create-topic-modal.png` |
 | Topic detail       | `/forum/{topicId}`     | Shows topic body, replies, views, official-reply count, status badges, close reason, reply lock, and back link                                                   | `forum-topic-detail.png`, `forum-reply-resolved.png`, `forum-topic-closed.png` |
 | Docs support       | docs-front `/support`  | Shows support hub and Developer Forum link                                                                                                                       | `docs-support.png`, URL assertion                                              |
-| Dashboard feedback | `/dashboard/discovery` | Floating `Feedback` opens drawer and returns `feedbackId` with route context                                                                                     | `dashboard-feedback-drawer.png`, API + DB assertion                            |
+| Dashboard feedback | `/dashboard/discovery` | Floating `Feedback` opens a centered modal and returns `feedbackId` with route context                                                                           | `dashboard-feedback-modal.png`, API + DB assertion                             |
 
 ## Local Setup
 
@@ -110,8 +110,8 @@ Expected files:
 - `screenshots/forum-topic-detail.png`
 - `screenshots/forum-reply-resolved.png`
 - `screenshots/docs-support.png`
-- `screenshots/docs-feedback-drawer.png`
-- `screenshots/dashboard-feedback-drawer.png`
+- `screenshots/docs-feedback-modal.png`
+- `screenshots/dashboard-feedback-modal.png`
 
 Temporary fixture:
 
@@ -167,7 +167,7 @@ The verification passes only when:
 - Closed topics remain publicly visible, show the close reason, and disable the reply form.
 - Pinned topics appear above ordinary topics in the public list.
 - Docs-front support links are covered by docs browser verification.
-- Dashboard feedback drawer displays a `feedbackId`.
+- Dashboard feedback modal displays a `feedbackId`.
 - All required screenshots exist.
 - Browser console has no uncaught error.
 

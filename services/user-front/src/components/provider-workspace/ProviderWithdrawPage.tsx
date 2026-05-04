@@ -3,7 +3,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Wallet } from "lucide-react";
 import { formatEther, parseUnits } from "viem";
-import { useAccount, useBalance, useChainId, usePublicClient, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
+import {
+  useAccount,
+  useBalance,
+  useChainId,
+  usePublicClient,
+  useWaitForTransactionReceipt,
+  useWriteContract,
+} from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import toast from "react-hot-toast";
 import Link from "next/link";
@@ -28,10 +35,16 @@ import {
   normalizeMoneyString,
   type MoneyString,
 } from "@/utils/money";
-import { normalizeWithdrawWalletError, toSafeErrorMessage } from "@/utils/providerWithdrawWallet";
+import {
+  normalizeWithdrawWalletError,
+  toSafeErrorMessage,
+} from "@/utils/providerWithdrawWallet";
 
-const VAULT_ADDRESS = (contractConfig as { SynapseCore?: string }).SynapseCore as `0x${string}` | undefined;
-const USDC_TOKEN_ADDRESS = (contractConfig as { MockUSDC?: string }).MockUSDC as `0x${string}` | undefined;
+const VAULT_ADDRESS = (contractConfig as { SynapseCore?: string })
+  .SynapseCore as `0x${string}` | undefined;
+const USDC_TOKEN_ADDRESS = (contractConfig as { MockUSDC?: string })
+  .MockUSDC as `0x${string}` | undefined;
+const PROVIDER_WITHDRAW_MIN_USDC = "10.00";
 const WITHDRAW_AMOUNT_INPUT_PATTERN = /^\d*(?:\.\d{0,2})?$/;
 const ERC20_BALANCE_OF_ABI = [
   {
@@ -59,8 +72,13 @@ const WITHDRAWAL_HISTORY_STATUS_FILTERS = [
   "FAILED_EXPIRED",
 ] as const;
 
-type WithdrawalHistoryStatusFilter = (typeof WITHDRAWAL_HISTORY_STATUS_FILTERS)[number];
-type TranslateFn = (key: string, vars?: Record<string, string | number>, fallbackText?: string) => string;
+type WithdrawalHistoryStatusFilter =
+  (typeof WITHDRAWAL_HISTORY_STATUS_FILTERS)[number];
+type TranslateFn = (
+  key: string,
+  vars?: Record<string, string | number>,
+  fallbackText?: string
+) => string;
 
 function normalizeSignature(signature: string): `0x${string}` {
   const normalized = signature.startsWith("0x") ? signature : `0x${signature}`;
@@ -68,45 +86,67 @@ function normalizeSignature(signature: string): `0x${string}` {
 }
 
 function formatChainLabel(chainId: number | undefined, t: TranslateFn): string {
-  if (!chainId || !Number.isFinite(chainId)) return t("providerSettlements.chainRequiredNetwork");
+  if (!chainId || !Number.isFinite(chainId))
+    return t("providerSettlements.chainRequiredNetwork");
   return CHAIN_LABELS[chainId] || `chain ${chainId}`;
 }
 
 function formatTimestamp(seconds?: number | string, locale?: string): string {
   if (!seconds) return "-";
-  const numSeconds = typeof seconds === "string" ? Number.parseInt(seconds, 10) : seconds;
+  const numSeconds =
+    typeof seconds === "string" ? Number.parseInt(seconds, 10) : seconds;
   if (Number.isNaN(numSeconds)) return "-";
   return new Date(numSeconds * 1000).toLocaleString(locale);
 }
 
-function withdrawalStatusLabel(status: ProviderWithdrawRecord["status"], t: TranslateFn): string {
-  if (status === "APPROVED_AUTO") return t("providerSettlements.historyStatusApprovedAuto");
-  if (status === "PENDING_MANUAL_REVIEW") return t("providerSettlements.historyStatusPendingManualReview");
-  if (status === "CANCELLED") return t("providerSettlements.historyStatusCancelled");
-  if (status === "FAILED_EXPIRED") return t("providerSettlements.historyStatusFailedExpired", {}, "Expired");
-  if (status === "REQUESTED") return t("providerSettlements.historyStatusRequested");
-  if (status === "COMPLETED") return t("providerSettlements.historyStatusCompleted");
-  if (status === "REJECTED") return t("providerSettlements.historyStatusRejected");
+function withdrawalStatusLabel(
+  status: ProviderWithdrawRecord["status"],
+  t: TranslateFn
+): string {
+  if (status === "APPROVED_AUTO")
+    return t("providerSettlements.historyStatusApprovedAuto");
+  if (status === "PENDING_MANUAL_REVIEW")
+    return t("providerSettlements.historyStatusPendingManualReview");
+  if (status === "CANCELLED")
+    return t("providerSettlements.historyStatusCancelled");
+  if (status === "FAILED_EXPIRED")
+    return t("providerSettlements.historyStatusFailedExpired", {}, "Expired");
+  if (status === "REQUESTED")
+    return t("providerSettlements.historyStatusRequested");
+  if (status === "COMPLETED")
+    return t("providerSettlements.historyStatusCompleted");
+  if (status === "REJECTED")
+    return t("providerSettlements.historyStatusRejected");
   return status;
 }
 
-function withdrawalStatusBadgeClass(status: ProviderWithdrawRecord["status"]): string {
-  if (status === "COMPLETED") return "border-[#22c55e]/30 bg-[#22c55e]/10 text-[#86efac]";
-  if (status === "REJECTED") return "border-[#ef4444]/30 bg-[#ef4444]/10 text-[#fca5a5]";
-  if (status === "CANCELLED" || status === "FAILED_EXPIRED") return "border-[#94a3b8]/30 bg-[#94a3b8]/10 text-[#cbd5e1]";
-  if (status === "APPROVED_AUTO") return "border-[#22c55e]/30 bg-[#22c55e]/10 text-[#bbf7d0]";
+function withdrawalStatusBadgeClass(
+  status: ProviderWithdrawRecord["status"]
+): string {
+  if (status === "COMPLETED")
+    return "border-[#22c55e]/30 bg-[#22c55e]/10 text-[#86efac]";
+  if (status === "REJECTED")
+    return "border-[#ef4444]/30 bg-[#ef4444]/10 text-[#fca5a5]";
+  if (status === "CANCELLED" || status === "FAILED_EXPIRED")
+    return "border-[#94a3b8]/30 bg-[#94a3b8]/10 text-[#cbd5e1]";
+  if (status === "APPROVED_AUTO")
+    return "border-[#22c55e]/30 bg-[#22c55e]/10 text-[#bbf7d0]";
   return "border-[#ff9f0a]/30 bg-[#ff9f0a]/10 text-[#ffd7a1]";
 }
 
-function resolveTicketContractAddress(ticket: ProviderWithdrawTicket): `0x${string}` | undefined {
-  const contractAddress = String(ticket.contractAddress || VAULT_ADDRESS || "").trim();
+function resolveTicketContractAddress(
+  ticket: ProviderWithdrawTicket
+): `0x${string}` | undefined {
+  const contractAddress = String(
+    ticket.contractAddress || VAULT_ADDRESS || ""
+  ).trim();
   return contractAddress ? (contractAddress as `0x${string}`) : undefined;
 }
 
 function validateRequestedWithdrawAmount(
   requestedAmount: string,
   availableReceivable: MoneyString,
-  t: TranslateFn,
+  t: TranslateFn
 ): string | null {
   if (!requestedAmount) {
     return null;
@@ -120,9 +160,15 @@ function validateRequestedWithdrawAmount(
     return t("providerSettlements.invalidAmountValue");
   }
 
+  if (compareMoneyStrings(normalizedAmount, PROVIDER_WITHDRAW_MIN_USDC) < 0) {
+    return t("providerSettlements.amountBelowMinimum", {
+      amount: PROVIDER_WITHDRAW_MIN_USDC,
+    });
+  }
+
   if (compareMoneyStrings(normalizedAmount, availableReceivable) > 0) {
     return t("providerSettlements.amountExceedsAvailable", {
-      amount: formatMoneyString(availableReceivable, 6),
+      amount: formatMoneyString(availableReceivable, 2),
     });
   }
 
@@ -131,7 +177,7 @@ function validateRequestedWithdrawAmount(
 
 function resolveCreateWithdrawalIntentErrorMessage(
   error: unknown,
-  t: TranslateFn,
+  t: TranslateFn
 ): string {
   if (error instanceof ProviderWithdrawApiError) {
     if (error.code === "WITHDRAW_VAULT_LIQUIDITY_CHECK_UNAVAILABLE") {
@@ -142,7 +188,9 @@ function resolveCreateWithdrawalIntentErrorMessage(
     }
   }
 
-  return error instanceof Error ? error.message : t("providerSettlements.withdrawalCreateFailed");
+  return error instanceof Error
+    ? error.message
+    : t("providerSettlements.withdrawalCreateFailed");
 }
 
 export default function ProviderWithdrawPage() {
@@ -158,32 +206,52 @@ export default function ProviderWithdrawPage() {
   const [creatingIntent, setCreatingIntent] = useState(false);
   const [withdrawals, setWithdrawals] = useState<ProviderWithdrawRecord[]>([]);
   const [loadingWithdrawals, setLoadingWithdrawals] = useState(false);
-  const [withdrawalStatusFilter, setWithdrawalStatusFilter] = useState<WithdrawalHistoryStatusFilter>("ALL");
+  const [withdrawalStatusFilter, setWithdrawalStatusFilter] =
+    useState<WithdrawalHistoryStatusFilter>("ALL");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-  const [activeWithdrawalId, setActiveWithdrawalId] = useState<string | null>(null);
-  const [activeTxChainId, setActiveTxChainId] = useState<number | undefined>(undefined);
-  const [withdrawCapability, setWithdrawCapability] = useState<ProviderWithdrawCapability | null>(null);
-  const [loadingWithdrawCapability, setLoadingWithdrawCapability] = useState(false);
+  const [activeWithdrawalId, setActiveWithdrawalId] = useState<string | null>(
+    null
+  );
+  const [activeTxChainId, setActiveTxChainId] = useState<number | undefined>(
+    undefined
+  );
+  const [withdrawCapability, setWithdrawCapability] =
+    useState<ProviderWithdrawCapability | null>(null);
+  const [loadingWithdrawCapability, setLoadingWithdrawCapability] =
+    useState(false);
   const locale = lang === "zh" ? "zh-CN" : "en-US";
 
-  const withdrawWalletErrorMessages = useMemo(() => ({
-    fallback: t("providerSettlements.withdrawalCreateFailed"),
-    walletRejected: t("providerSettlements.walletRejected"),
-    insufficientNativeGas: t("providerSettlements.insufficientNativeGas"),
-    ticketExpired: t("providerSettlements.ticketExpired"),
-    staleTicket: t("providerSettlements.staleTicket"),
-    invalidSignature: t("providerSettlements.invalidSignature"),
-    vaultLiquidityInsufficient: t("providerSettlements.vaultLiquidityInsufficient"),
-    vaultAllowanceUnavailable: t("providerSettlements.vaultAllowanceUnavailable"),
-    contractRejectedWithName: (name: string) => t("providerSettlements.contractRejectedWithName", { name }),
-    contractRejectedWithReason: (reason: string) => t("providerSettlements.contractRejectedWithReason", { reason }),
-  }), [t]);
+  const withdrawWalletErrorMessages = useMemo(
+    () => ({
+      fallback: t("providerSettlements.withdrawalCreateFailed"),
+      walletRejected: t("providerSettlements.walletRejected"),
+      insufficientNativeGas: t("providerSettlements.insufficientNativeGas"),
+      ticketExpired: t("providerSettlements.ticketExpired"),
+      staleTicket: t("providerSettlements.staleTicket"),
+      invalidSignature: t("providerSettlements.invalidSignature"),
+      vaultLiquidityInsufficient: t(
+        "providerSettlements.vaultLiquidityInsufficient"
+      ),
+      vaultAllowanceUnavailable: t(
+        "providerSettlements.vaultAllowanceUnavailable"
+      ),
+      contractRejectedWithName: (name: string) =>
+        t("providerSettlements.contractRejectedWithName", { name }),
+      contractRejectedWithReason: (reason: string) =>
+        t("providerSettlements.contractRejectedWithReason", { reason }),
+    }),
+    [t]
+  );
 
   const availableReceivable = normalizeMoneyString(providerStats.receivable);
 
   const { data: nativeBalanceData } = useBalance({ address });
-  const { data: txHash, writeContractAsync, isPending: isWalletPrompting } = useWriteContract();
+  const {
+    data: txHash,
+    writeContractAsync,
+    isPending: isWalletPrompting,
+  } = useWriteContract();
   const {
     isLoading: isTxConfirming,
     isSuccess: isTxConfirmed,
@@ -194,7 +262,9 @@ export default function ProviderWithdrawPage() {
   const pendingWithdrawal = useMemo(
     () =>
       withdrawals.find((row) =>
-        ["REQUESTED", "APPROVED_AUTO", "PENDING_MANUAL_REVIEW"].includes(row.status)
+        ["REQUESTED", "APPROVED_AUTO", "PENDING_MANUAL_REVIEW"].includes(
+          row.status
+        )
       ) || null,
     [withdrawals]
   );
@@ -206,14 +276,20 @@ export default function ProviderWithdrawPage() {
     if (dateFrom) {
       const fromTs = new Date(dateFrom).getTime() / 1000;
       result = result.filter((row) => {
-        const ts = typeof row.createdAt === "string" ? Number(row.createdAt) : (row.createdAt || 0);
+        const ts =
+          typeof row.createdAt === "string"
+            ? Number(row.createdAt)
+            : row.createdAt || 0;
         return ts >= fromTs;
       });
     }
     if (dateTo) {
       const toTs = new Date(dateTo + "T23:59:59").getTime() / 1000;
       result = result.filter((row) => {
-        const ts = typeof row.createdAt === "string" ? Number(row.createdAt) : (row.createdAt || 0);
+        const ts =
+          typeof row.createdAt === "string"
+            ? Number(row.createdAt)
+            : row.createdAt || 0;
         return ts <= toTs;
       });
     }
@@ -228,9 +304,12 @@ export default function ProviderWithdrawPage() {
     });
   }, [t, withdrawalStatusFilter, withdrawals.length]);
   const pendingTicket = pendingWithdrawal?.ticket;
-  const pendingTicketChainMismatch = Boolean(pendingTicket?.chainId && chainId !== pendingTicket.chainId);
+  const pendingTicketChainMismatch = Boolean(
+    pendingTicket?.chainId && chainId !== pendingTicket.chainId
+  );
   const pendingTicketExpired = Boolean(
-    pendingTicket?.deadline && pendingTicket.deadline < Math.floor(Date.now() / 1000),
+    pendingTicket?.deadline &&
+      pendingTicket.deadline < Math.floor(Date.now() / 1000)
   );
   const hasEnoughGas = useMemo(() => {
     if (!isConnected || !nativeBalanceData) return true;
@@ -245,7 +324,9 @@ export default function ProviderWithdrawPage() {
       setWithdrawals(rows);
     } catch (error) {
       console.error("Failed to load provider withdrawals", error);
-      toast.error(toSafeErrorMessage(error, t("providerSettlements.loadHistoryFailed")));
+      toast.error(
+        toSafeErrorMessage(error, t("providerSettlements.loadHistoryFailed"))
+      );
     } finally {
       setLoadingWithdrawals(false);
     }
@@ -306,13 +387,25 @@ export default function ProviderWithdrawPage() {
 
   useEffect(() => {
     if (!isTxFailed || !txHash || !activeWithdrawalId) return;
-    toast.error(normalizeWithdrawWalletError(txReceiptError, withdrawWalletErrorMessages));
+    toast.error(
+      normalizeWithdrawWalletError(txReceiptError, withdrawWalletErrorMessages)
+    );
     setActiveWithdrawalId(null);
     setActiveTxChainId(undefined);
-  }, [activeWithdrawalId, isTxFailed, txHash, txReceiptError, withdrawWalletErrorMessages]);
+  }, [
+    activeWithdrawalId,
+    isTxFailed,
+    txHash,
+    txReceiptError,
+    withdrawWalletErrorMessages,
+  ]);
 
   const withdrawAmountValidationMessage = useMemo(() => {
-    return validateRequestedWithdrawAmount(withdrawAmountInput.trim(), availableReceivable, t);
+    return validateRequestedWithdrawAmount(
+      withdrawAmountInput.trim(),
+      availableReceivable,
+      t
+    );
   }, [availableReceivable, t, withdrawAmountInput]);
 
   const resolveRequestedWithdrawAmount = (): MoneyString | undefined => {
@@ -320,7 +413,9 @@ export default function ProviderWithdrawPage() {
     return requestedAmount ? normalizeMoneyString(requestedAmount) : undefined;
   };
 
-  const validateWithdrawIntentReadiness = async (amountUsdc: MoneyString): Promise<void> => {
+  const validateWithdrawIntentReadiness = async (
+    amountUsdc: MoneyString
+  ): Promise<void> => {
     if (!publicClient) {
       throw new Error(t("providerSettlements.walletClientUnavailable"));
     }
@@ -350,11 +445,19 @@ export default function ProviderWithdrawPage() {
       toast.error(t("providerSettlements.pendingTicketExpiredReleased"));
       return true;
     }
-    if (pendingWithdrawal.status === "APPROVED_AUTO" && pendingWithdrawal.ticket) {
+    if (
+      pendingWithdrawal.status === "APPROVED_AUTO" &&
+      pendingWithdrawal.ticket
+    ) {
       try {
-        await startWalletWithdraw(pendingWithdrawal.id, pendingWithdrawal.ticket);
+        await startWalletWithdraw(
+          pendingWithdrawal.id,
+          pendingWithdrawal.ticket
+        );
       } catch (error) {
-        toast.error(normalizeWithdrawWalletError(error, withdrawWalletErrorMessages));
+        toast.error(
+          normalizeWithdrawWalletError(error, withdrawWalletErrorMessages)
+        );
       }
       return true;
     }
@@ -378,13 +481,17 @@ export default function ProviderWithdrawPage() {
     if (!withdrawCapability?.ticketSigningEnabled) {
       toast.error(
         withdrawCapability?.message ||
-          t("providerSettlements.ticketSigningUnavailable"),
+          t("providerSettlements.ticketSigningUnavailable")
       );
       return;
     }
 
     const requestedAmount = withdrawAmountInput.trim();
-    const validationMessage = validateRequestedWithdrawAmount(requestedAmount, availableReceivable, t);
+    const validationMessage = validateRequestedWithdrawAmount(
+      requestedAmount,
+      availableReceivable,
+      t
+    );
     if (validationMessage) {
       toast.error(validationMessage);
       return;
@@ -395,11 +502,21 @@ export default function ProviderWithdrawPage() {
     }
 
     const amountUsdc = resolveRequestedWithdrawAmount() ?? availableReceivable;
+    if (compareMoneyStrings(amountUsdc, PROVIDER_WITHDRAW_MIN_USDC) < 0) {
+      toast.error(
+        t("providerSettlements.amountBelowMinimum", {
+          amount: PROVIDER_WITHDRAW_MIN_USDC,
+        })
+      );
+      return;
+    }
 
     try {
       await validateWithdrawIntentReadiness(amountUsdc);
     } catch (error) {
-      toast.error(normalizeWithdrawWalletError(error, withdrawWalletErrorMessages));
+      toast.error(
+        normalizeWithdrawWalletError(error, withdrawWalletErrorMessages)
+      );
       return;
     }
 
@@ -407,20 +524,34 @@ export default function ProviderWithdrawPage() {
     const toastId = toast.loading(t("providerSettlements.generatingTicket"));
     try {
       const intent = await createProviderWithdrawIntent(address, amountUsdc);
-      await Promise.all([refreshWithdrawals(), refreshWithdrawCapability(), reloadDashboard()]);
+      await Promise.all([
+        refreshWithdrawals(),
+        refreshWithdrawCapability(),
+        reloadDashboard(),
+      ]);
       setWithdrawAmountInput("");
 
       if (intent.status === "PENDING_MANUAL_REVIEW") {
-        toast.success(intent.message || t("providerSettlements.manualReviewQueued"), { id: toastId });
+        toast.success(
+          intent.message || t("providerSettlements.manualReviewQueued"),
+          { id: toastId }
+        );
       } else if (intent.ticket) {
         try {
           await startWalletWithdraw(intent.withdrawalId, intent.ticket);
-          toast.success(t("providerSettlements.ticketGenerated"), { id: toastId });
+          toast.success(t("providerSettlements.ticketGenerated"), {
+            id: toastId,
+          });
         } catch (error) {
-          toast.error(normalizeWithdrawWalletError(error, withdrawWalletErrorMessages), { id: toastId });
+          toast.error(
+            normalizeWithdrawWalletError(error, withdrawWalletErrorMessages),
+            { id: toastId }
+          );
         }
       } else {
-        toast.success(t("providerSettlements.withdrawalIntentCreated"), { id: toastId });
+        toast.success(t("providerSettlements.withdrawalIntentCreated"), {
+          id: toastId,
+        });
       }
     } catch (error) {
       const message = resolveCreateWithdrawalIntentErrorMessage(error, t);
@@ -430,7 +561,9 @@ export default function ProviderWithdrawPage() {
     }
   };
 
-  const validateWalletWithdrawReadiness = async (ticket: ProviderWithdrawTicket): Promise<{
+  const validateWalletWithdrawReadiness = async (
+    ticket: ProviderWithdrawTicket
+  ): Promise<{
     contractAddress: `0x${string}`;
     targetChainId?: number;
   }> => {
@@ -441,7 +574,9 @@ export default function ProviderWithdrawPage() {
 
     if (ticket.chainId && chainId !== ticket.chainId) {
       throw new Error(
-        t("providerSettlements.wrongNetwork", { chainLabel: formatChainLabel(ticket.chainId, t) }),
+        t("providerSettlements.wrongNetwork", {
+          chainLabel: formatChainLabel(ticket.chainId, t),
+        })
       );
     }
 
@@ -452,7 +587,8 @@ export default function ProviderWithdrawPage() {
       throw new Error(t("providerSettlements.ticketExpiringSoon"));
     }
 
-    const symbol = nativeBalanceData?.symbol || t("providerSettlements.nativeTokenFallback");
+    const symbol =
+      nativeBalanceData?.symbol || t("providerSettlements.nativeTokenFallback");
     if (!address) {
       throw new Error(t("providerSettlements.connectWalletFirst"));
     }
@@ -469,7 +605,7 @@ export default function ProviderWithdrawPage() {
         t("providerSettlements.walletNoGas", {
           symbol,
           chainLabel: formatChainLabel(chainId, t),
-        }),
+        })
       );
     }
 
@@ -506,7 +642,7 @@ export default function ProviderWithdrawPage() {
             estimateFee: formatEther(estimatedFeeWei),
             balance: formatEther(liveNativeBalance),
             symbol,
-          }),
+          })
         );
       }
     }
@@ -517,8 +653,12 @@ export default function ProviderWithdrawPage() {
     };
   };
 
-  const startWalletWithdraw = async (withdrawalId: string, ticket: ProviderWithdrawTicket) => {
-    const { contractAddress, targetChainId } = await validateWalletWithdrawReadiness(ticket);
+  const startWalletWithdraw = async (
+    withdrawalId: string,
+    ticket: ProviderWithdrawTicket
+  ) => {
+    const { contractAddress, targetChainId } =
+      await validateWalletWithdrawReadiness(ticket);
 
     const hash = await writeContractAsync({
       address: contractAddress,
@@ -536,7 +676,9 @@ export default function ProviderWithdrawPage() {
 
     setActiveWithdrawalId(withdrawalId);
     setActiveTxChainId(targetChainId);
-    toast.success(t("providerSettlements.txSubmitted", { hash: hash.slice(0, 10) }));
+    toast.success(
+      t("providerSettlements.txSubmitted", { hash: hash.slice(0, 10) })
+    );
   };
 
   const resumePendingWithdraw = async () => {
@@ -547,12 +689,16 @@ export default function ProviderWithdrawPage() {
     try {
       await startWalletWithdraw(pendingWithdrawal.id, pendingWithdrawal.ticket);
     } catch (error) {
-      toast.error(normalizeWithdrawWalletError(error, withdrawWalletErrorMessages));
+      toast.error(
+        normalizeWithdrawWalletError(error, withdrawWalletErrorMessages)
+      );
     }
   };
 
   const isAnyLoading = creatingIntent || isWalletPrompting || isTxConfirming;
-  const ticketSigningEnabled = Boolean(withdrawCapability?.ticketSigningEnabled);
+  const ticketSigningEnabled = Boolean(
+    withdrawCapability?.ticketSigningEnabled
+  );
   let generateClaimLabel = t("providerSettlements.signerUnavailable");
   if (ticketSigningEnabled) {
     generateClaimLabel = t("providerSettlements.generateAndClaim");
@@ -563,221 +709,324 @@ export default function ProviderWithdrawPage() {
 
   return (
     <div className="min-h-screen bg-[#000000]">
-    <div className="mx-auto w-full max-w-[768px] px-4 pb-24 pt-12 sm:px-6 lg:px-0 text-white space-y-6">
-      <div className="border-b border-[#222222] pb-5">
-        <h1 className="text-3xl md:text-4xl font-[800] tracking-tight text-white flex items-center gap-3">
-          <Wallet className="w-8 h-8 text-[#22c55e]" />
-          {t("providerSettlements.withdrawPageTitle")}
-        </h1>
-        <p className="mt-2 text-sm text-[#86868b]">
-          {t("providerSettlements.withdrawPageDescription")}
-        </p>
-      </div>
-
-      <div className="rounded-[16px] border border-[#2f3336] bg-[#16181c] p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.02)]">
-        <div className="flex flex-col gap-4 rounded-[12px] border border-[#232323] bg-[#1a1a1a] p-4 md:h-[116px] md:flex-row md:items-center md:justify-between md:gap-6">
-          <div>
-            <p className="mb-1 text-[14px] font-normal leading-[20px] text-[#9ca3af]">
-              {t("providerSettlements.metricAvailable")}
-            </p>
-            <div className="flex items-center gap-2">
-              <p className="text-[24px] font-bold leading-[32px] tracking-[-0.02em] text-white">
-                {formatMoneyString(availableReceivable, 6)} USDC
-              </p>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center self-start gap-2 md:self-auto">
-            <div className="relative group">
-              <button
-                type="button"
-                onClick={() => {
-                  if (!isConnected) { openConnectModal?.(); return; }
-                  setShowAmountInput((prev) => !prev);
-                }}
-                disabled={!isConnected || compareMoneyStrings(availableReceivable, "0") <= 0 || isAnyLoading || !ticketSigningEnabled || loadingWithdrawCapability || !hasEnoughGas}
-                className="inline-flex h-[36px] min-w-[143px] items-center justify-center whitespace-nowrap rounded-full border border-[#2f3336] bg-transparent px-4 py-2 text-[14px] font-normal leading-[20px] text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                {generateClaimLabel}
-              </button>
-              {!ticketSigningEnabled && !loadingWithdrawCapability && withdrawCapability && (
-                <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 w-[220px] rounded-lg border border-[#2a2a2a] bg-[#1a1a1a] px-3 py-2 text-xs text-[#f59e0b] shadow-xl opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50">
-                  {withdrawCapability.message}
-                </div>
-              )}
-            </div>
-            {pendingWithdrawal?.ticket && pendingWithdrawal?.status === "APPROVED_AUTO" && (
-              <button
-                type="button"
-                onClick={resumePendingWithdraw}
-                disabled={isAnyLoading || isWithdrawTicketNearExpiry(pendingWithdrawal.ticket)}
-                className="inline-flex h-[36px] min-w-[143px] items-center justify-center whitespace-nowrap rounded-full bg-[#eff3f4] px-4 py-2 text-[14px] font-normal leading-[20px] text-[#0f141a] transition hover:bg-[#e7eaeb] disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                {t("providerSettlements.resumePending")}
-              </button>
-            )}
-          </div>
+      <div className="mx-auto w-full max-w-[768px] px-4 pb-24 pt-12 sm:px-6 lg:px-0 text-white space-y-6">
+        <div className="border-b border-[#222222] pb-5">
+          <h1 className="text-3xl md:text-4xl font-[800] tracking-tight text-white flex items-center gap-3">
+            <Wallet className="w-8 h-8 text-[#22c55e]" />
+            {t("providerSettlements.withdrawPageTitle")}
+          </h1>
+          <p className="mt-2 text-sm text-[#86868b]">
+            {t("providerSettlements.withdrawPageDescription")}
+          </p>
         </div>
 
-        {/* ── Inline amount input (expands on Generate & Claim click) ── */}
-        {showAmountInput && (
-          <div className="mt-4 rounded-[8px] border border-[#323232] bg-[#1a1a1a] p-4 space-y-3">
-            <div className="flex items-center gap-3">
-              <div className={`flex flex-1 items-center rounded-full border bg-[#050505] transition-colors focus-within:border-[#2f3336] ${withdrawAmountValidationMessage ? "border-[#ef4444]" : "border-[#232323]"}`}>
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  value={withdrawAmountInput}
-                  onChange={(e) => {
-                    const nextValue = e.target.value;
-                    if (nextValue === "" || WITHDRAW_AMOUNT_INPUT_PATTERN.test(nextValue)) {
-                      setWithdrawAmountInput(nextValue);
-                    }
-                  }}
-                  placeholder={t("providerSettlements.withdrawAmountPlaceholder")}
-                  className="min-w-0 flex-1 bg-transparent px-4 py-2 text-[14px] text-white outline-none placeholder:text-[#555]"
-                  disabled={isAnyLoading}
-                />
+        <div className="rounded-[16px] border border-[#2f3336] bg-[#16181c] p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.02)]">
+          <div className="flex flex-col gap-4 rounded-[12px] border border-[#232323] bg-[#1a1a1a] p-4 md:h-[116px] md:flex-row md:items-center md:justify-between md:gap-6">
+            <div>
+              <p className="mb-1 text-[14px] font-normal leading-[20px] text-[#9ca3af]">
+                {t("providerSettlements.metricAvailable")}
+              </p>
+              <div className="flex items-center gap-2">
+                <p className="text-[24px] font-bold leading-[32px] tracking-[-0.02em] text-white">
+                  {formatMoneyString(availableReceivable, 2)} USDC
+                </p>
+              </div>
+              <p className="mt-1 text-[12px] leading-[18px] text-[#86868b]">
+                {t("providerSettlements.withdrawAmountHint", {
+                  amount: PROVIDER_WITHDRAW_MIN_USDC,
+                })}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center self-start gap-2 md:self-auto">
+              <div className="relative group">
                 <button
                   type="button"
                   onClick={() => {
-                    if (compareMoneyStrings(availableReceivable, "0") > 0) {
-                      setWithdrawAmountInput(formatMoneyString(availableReceivable, 2).replace(/,/g, ""));
+                    if (!isConnected) {
+                      openConnectModal?.();
+                      return;
                     }
+                    setShowAmountInput((prev) => !prev);
                   }}
-                  disabled={compareMoneyStrings(availableReceivable, "0") <= 0 || isAnyLoading}
-                  className="mr-3 text-[11px] font-bold uppercase tracking-[0.06em] text-[#22c55e] transition hover:text-[#86efac] disabled:opacity-30 disabled:cursor-not-allowed"
+                  disabled={
+                    !isConnected ||
+                    compareMoneyStrings(availableReceivable, "0") <= 0 ||
+                    isAnyLoading ||
+                    !ticketSigningEnabled ||
+                    loadingWithdrawCapability ||
+                    !hasEnoughGas
+                  }
+                  className="inline-flex h-[36px] min-w-[143px] items-center justify-center whitespace-nowrap rounded-full border border-[#2f3336] bg-transparent px-4 py-2 text-[14px] font-normal leading-[20px] text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  MAX
+                  {generateClaimLabel}
+                </button>
+                {!ticketSigningEnabled &&
+                  !loadingWithdrawCapability &&
+                  withdrawCapability && (
+                    <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 w-[220px] rounded-lg border border-[#2a2a2a] bg-[#1a1a1a] px-3 py-2 text-xs text-[#f59e0b] shadow-xl opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50">
+                      {withdrawCapability.message}
+                    </div>
+                  )}
+              </div>
+              {pendingWithdrawal?.ticket &&
+                pendingWithdrawal?.status === "APPROVED_AUTO" && (
+                  <button
+                    type="button"
+                    onClick={resumePendingWithdraw}
+                    disabled={
+                      isAnyLoading ||
+                      isWithdrawTicketNearExpiry(pendingWithdrawal.ticket)
+                    }
+                    className="inline-flex h-[36px] min-w-[143px] items-center justify-center whitespace-nowrap rounded-full bg-[#eff3f4] px-4 py-2 text-[14px] font-normal leading-[20px] text-[#0f141a] transition hover:bg-[#e7eaeb] disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {t("providerSettlements.resumePending")}
+                  </button>
+                )}
+            </div>
+          </div>
+
+          {/* ── Inline amount input (expands on Generate & Claim click) ── */}
+          {showAmountInput && (
+            <div className="mt-4 rounded-[8px] border border-[#323232] bg-[#1a1a1a] p-4 space-y-3">
+              <div className="flex items-center gap-3">
+                <div
+                  className={`flex flex-1 items-center rounded-full border bg-[#050505] transition-colors focus-within:border-[#2f3336] ${
+                    withdrawAmountValidationMessage
+                      ? "border-[#ef4444]"
+                      : "border-[#232323]"
+                  }`}
+                >
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={withdrawAmountInput}
+                    onChange={(e) => {
+                      const nextValue = e.target.value;
+                      if (
+                        nextValue === "" ||
+                        WITHDRAW_AMOUNT_INPUT_PATTERN.test(nextValue)
+                      ) {
+                        setWithdrawAmountInput(nextValue);
+                      }
+                    }}
+                    placeholder={t(
+                      "providerSettlements.withdrawAmountPlaceholder"
+                    )}
+                    className="min-w-0 flex-1 bg-transparent px-4 py-2 text-[14px] text-white outline-none placeholder:text-[#555]"
+                    disabled={isAnyLoading}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (compareMoneyStrings(availableReceivable, "0") > 0) {
+                        setWithdrawAmountInput(
+                          formatMoneyString(availableReceivable, 2).replace(
+                            /,/g,
+                            ""
+                          )
+                        );
+                      }
+                    }}
+                    disabled={
+                      compareMoneyStrings(availableReceivable, "0") <= 0 ||
+                      isAnyLoading
+                    }
+                    className="mr-3 text-[11px] font-bold uppercase tracking-[0.06em] text-[#22c55e] transition hover:text-[#86efac] disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    MAX
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCreateWithdrawalIntent}
+                  disabled={
+                    isAnyLoading || Boolean(withdrawAmountValidationMessage)
+                  }
+                  className="inline-flex h-[36px] min-w-[100px] items-center justify-center whitespace-nowrap rounded-full bg-[#eff3f4] px-4 py-2 text-[14px] font-normal leading-[20px] text-[#0f141a] transition hover:bg-[#e7eaeb] disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {t("providerSettlements.confirmWithdraw")}
                 </button>
               </div>
-              <button
-                type="button"
-                onClick={handleCreateWithdrawalIntent}
-                disabled={isAnyLoading || Boolean(withdrawAmountValidationMessage)}
-                className="inline-flex h-[36px] min-w-[100px] items-center justify-center whitespace-nowrap rounded-full bg-[#eff3f4] px-4 py-2 text-[14px] font-normal leading-[20px] text-[#0f141a] transition hover:bg-[#e7eaeb] disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                {t("providerSettlements.confirmWithdraw")}
-              </button>
+              {withdrawAmountValidationMessage && (
+                <p className="text-xs text-[#f87171]">
+                  {withdrawAmountValidationMessage}
+                </p>
+              )}
+              <p className="text-[12px] leading-[18px] text-[#555]">
+                {t("providerSettlements.withdrawGasNote", {
+                  amount: PROVIDER_WITHDRAW_MIN_USDC,
+                })}
+              </p>
             </div>
-            {withdrawAmountValidationMessage && (
-              <p className="text-xs text-[#f87171]">{withdrawAmountValidationMessage}</p>
-            )}
-            <p className="text-[12px] leading-[18px] text-[#555]">{t("providerSettlements.withdrawGasNote")}</p>
+          )}
+        </div>
+
+        {/* ── Warnings below card ────────────────────────────── */}
+        {pendingTicketChainMismatch && pendingTicket?.chainId && (
+          <div className="rounded-xl border border-[#ff9f0a]/30 bg-[#ff9f0a]/10 px-4 py-3 text-sm text-[#ffd7a1]">
+            {t("providerSettlements.pendingWrongNetwork", {
+              requiredChain: formatChainLabel(pendingTicket.chainId, t),
+              currentChain: formatChainLabel(chainId, t),
+            })}
           </div>
         )}
-      </div>
+        {pendingTicketExpired && (
+          <div className="rounded-xl border border-[#ef4444]/30 bg-[#ef4444]/10 px-4 py-3 text-sm text-[#fecaca]">
+            {t("providerSettlements.pendingTicketExpiredBanner")}
+          </div>
+        )}
+        {!hasEnoughGas && isConnected && (
+          <div className="rounded-xl border border-[#ff9f0a]/30 bg-[#ff9f0a]/10 px-4 py-3 text-sm text-[#ffd7a1]">
+            {t("providerSettlements.insufficientGasWarning")}
+          </div>
+        )}
 
-      {/* ── Warnings below card ────────────────────────────── */}
-      {pendingTicketChainMismatch && pendingTicket?.chainId && (
-        <div className="rounded-xl border border-[#ff9f0a]/30 bg-[#ff9f0a]/10 px-4 py-3 text-sm text-[#ffd7a1]">
-          {t("providerSettlements.pendingWrongNetwork", {
-            requiredChain: formatChainLabel(pendingTicket.chainId, t),
-            currentChain: formatChainLabel(chainId, t),
-          })}
-        </div>
-      )}
-      {pendingTicketExpired && (
-        <div className="rounded-xl border border-[#ef4444]/30 bg-[#ef4444]/10 px-4 py-3 text-sm text-[#fecaca]">
-          {t("providerSettlements.pendingTicketExpiredBanner")}
-        </div>
-      )}
-      {!hasEnoughGas && isConnected && (
-        <div className="rounded-xl border border-[#ff9f0a]/30 bg-[#ff9f0a]/10 px-4 py-3 text-sm text-[#ffd7a1]">
-          {t("providerSettlements.insufficientGasWarning")}
-        </div>
-      )}
-
-      <div className="text-right">
-        <Link
-          href="/provider/withdraw/history"
-          className="text-sm text-[#22c55e] hover:text-[#86efac] transition-colors"
-        >
-          {t("providerSettlements.viewInvocationRecords")} →
-        </Link>
-      </div>
-
-      <h2 className="text-xl font-semibold text-white">{t("providerSettlements.historyTitle")}</h2>
-
-      <div className="flex flex-col gap-2 rounded-2xl border border-[#222222] bg-[#0a0a0a] p-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex items-center gap-2">
-          <select
-            value={withdrawalStatusFilter}
-            onChange={(e) => setWithdrawalStatusFilter(e.target.value as WithdrawalHistoryStatusFilter)}
-            className="inline-flex min-h-10 items-center rounded-lg border border-[#222222] bg-[#050505] px-3 py-2 text-sm text-white outline-none cursor-pointer [color-scheme:dark]"
+        <div className="text-right">
+          <Link
+            href="/provider/withdraw/history"
+            className="text-sm text-[#22c55e] hover:text-[#86efac] transition-colors"
           >
-            {WITHDRAWAL_HISTORY_STATUS_FILTERS.map((status) => (
-              <option key={status} value={status}>
-                {status === "ALL" ? t("providerSettlements.historyFilterAll") : withdrawalStatusLabel(status, t)}
-              </option>
-            ))}
-          </select>
-          <input
-            type="date"
-            value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-            className="min-h-10 rounded-lg border border-[#222222] bg-[#050505] px-3 py-2 text-sm text-white outline-none [color-scheme:dark]"
-          />
-          <span className="text-sm text-[#86868b]">–</span>
-          <input
-            type="date"
-            value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
-            className="min-h-10 rounded-lg border border-[#222222] bg-[#050505] px-3 py-2 text-sm text-white outline-none [color-scheme:dark]"
-          />
+            {t("providerSettlements.viewInvocationRecords")} →
+          </Link>
         </div>
-        <div className="flex items-center gap-2 lg:justify-end">
-          <button
-            onClick={() => void refreshWithdrawals()}
-            className="rounded-lg border border-[#22c55e]/40 bg-[#22c55e]/10 px-4 py-2 text-sm font-semibold text-[#22c55e] transition-colors hover:bg-[#22c55e] hover:text-black"
-          >
-            {t("providerSettlements.searchButton")}
-          </button>
-        </div>
-      </div>
 
-      <div className="overflow-x-auto rounded-[1.5rem] border border-[#222222] bg-[#0a0a0a]">
-        <table className="w-full text-left border-collapse whitespace-nowrap">
-          <thead>
-            <tr className="border-b border-[#222222] text-[10px] text-[#86868b] uppercase tracking-[0.2em] font-semibold bg-[#050505]">
-              <th className="px-6 py-4">{t("providerSettlements.historyTableWithdrawalId")}</th>
-              <th className="px-6 py-4 text-right">{t("providerSettlements.historyTableAmount")}</th>
-              <th className="px-6 py-4">{t("providerSettlements.historyTableStatus")}</th>
-              <th className="px-6 py-4">{t("providerSettlements.historyTableReason")}</th>
-              <th className="px-6 py-4">{t("providerSettlements.historyTableNonce")}</th>
-              <th className="px-6 py-4">{t("providerSettlements.historyTableCreated")}</th>
-              <th className="px-6 py-4">{t("providerSettlements.historyTableTxHash")}</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-[#151515]">
-            {!loadingWithdrawals && filteredWithdrawals.length === 0 && (
-              <tr>
-                <td colSpan={7} className="py-10 text-center text-sm text-[#86868b]">{withdrawalHistoryEmptyMessage}</td>
+        <h2 className="text-xl font-semibold text-white">
+          {t("providerSettlements.historyTitle")}
+        </h2>
+
+        <div className="flex flex-col gap-2 rounded-2xl border border-[#222222] bg-[#0a0a0a] p-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-center gap-2">
+            <select
+              value={withdrawalStatusFilter}
+              onChange={(e) =>
+                setWithdrawalStatusFilter(
+                  e.target.value as WithdrawalHistoryStatusFilter
+                )
+              }
+              className="inline-flex min-h-10 items-center rounded-lg border border-[#222222] bg-[#050505] px-3 py-2 text-sm text-white outline-none cursor-pointer [color-scheme:dark]"
+            >
+              {WITHDRAWAL_HISTORY_STATUS_FILTERS.map((status) => (
+                <option key={status} value={status}>
+                  {status === "ALL"
+                    ? t("providerSettlements.historyFilterAll")
+                    : withdrawalStatusLabel(status, t)}
+                </option>
+              ))}
+            </select>
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="min-h-10 rounded-lg border border-[#222222] bg-[#050505] px-3 py-2 text-sm text-white outline-none [color-scheme:dark]"
+            />
+            <span className="text-sm text-[#86868b]">–</span>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="min-h-10 rounded-lg border border-[#222222] bg-[#050505] px-3 py-2 text-sm text-white outline-none [color-scheme:dark]"
+            />
+          </div>
+          <div className="flex items-center gap-2 lg:justify-end">
+            <button
+              onClick={() => void refreshWithdrawals()}
+              className="rounded-lg border border-[#22c55e]/40 bg-[#22c55e]/10 px-4 py-2 text-sm font-semibold text-[#22c55e] transition-colors hover:bg-[#22c55e] hover:text-black"
+            >
+              {t("providerSettlements.searchButton")}
+            </button>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto rounded-[1.5rem] border border-[#222222] bg-[#0a0a0a]">
+          <table className="w-full text-left border-collapse whitespace-nowrap">
+            <thead>
+              <tr className="border-b border-[#222222] text-[10px] text-[#86868b] uppercase tracking-[0.2em] font-semibold bg-[#050505]">
+                <th className="px-6 py-4">
+                  {t("providerSettlements.historyTableWithdrawalId")}
+                </th>
+                <th className="px-6 py-4 text-right">
+                  {t("providerSettlements.historyTableAmount")}
+                </th>
+                <th className="px-6 py-4">
+                  {t("providerSettlements.historyTableStatus")}
+                </th>
+                <th className="px-6 py-4">
+                  {t("providerSettlements.historyTableReason")}
+                </th>
+                <th className="px-6 py-4">
+                  {t("providerSettlements.historyTableNonce")}
+                </th>
+                <th className="px-6 py-4">
+                  {t("providerSettlements.historyTableCreated")}
+                </th>
+                <th className="px-6 py-4">
+                  {t("providerSettlements.historyTableTxHash")}
+                </th>
               </tr>
-            )}
-            {loadingWithdrawals && (
-              <tr>
-                <td colSpan={7} className="py-10 text-center text-sm text-[#86868b]">{t("providerSettlements.loadingHistory")}</td>
-              </tr>
-            )}
-            {filteredWithdrawals.map((row) => (
-              <tr key={row.id} className="hover:bg-[#111111] transition-colors">
-                <td className="py-4 px-6 text-xs font-mono text-[#86868b]">{row.id}</td>
-                <td className="px-6 py-4 font-mono text-sm text-right text-white">{formatMoneyString(row.amountUsdc, 6)} USDC</td>
-                <td className="px-6 py-4 text-xs">
-                  <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${withdrawalStatusBadgeClass(row.status)}`}>
-                    {withdrawalStatusLabel(row.status, t)}
-                  </span>
-                </td>
-                <td className="py-4 px-6 text-xs text-[#c5c5c7]">{row.message || (row.status === "CANCELLED" || row.status === "FAILED_EXPIRED" ? t("providerSettlements.expiredTicketReleasedRow") : "-")}</td>
-                <td className="py-4 px-6 text-xs font-mono text-[#c5c5c7]">{row.nonce}</td>
-                <td className="py-4 px-6 text-xs text-[#86868b]">{formatTimestamp(row.createdAt, locale)}</td>
-                <td className="py-4 px-6 text-xs font-mono text-[#86868b]">{row.txHash || "-"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-[#151515]">
+              {!loadingWithdrawals && filteredWithdrawals.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={7}
+                    className="py-10 text-center text-sm text-[#86868b]"
+                  >
+                    {withdrawalHistoryEmptyMessage}
+                  </td>
+                </tr>
+              )}
+              {loadingWithdrawals && (
+                <tr>
+                  <td
+                    colSpan={7}
+                    className="py-10 text-center text-sm text-[#86868b]"
+                  >
+                    {t("providerSettlements.loadingHistory")}
+                  </td>
+                </tr>
+              )}
+              {filteredWithdrawals.map((row) => (
+                <tr
+                  key={row.id}
+                  className="hover:bg-[#111111] transition-colors"
+                >
+                  <td className="py-4 px-6 text-xs font-mono text-[#86868b]">
+                    {row.id}
+                  </td>
+                  <td className="px-6 py-4 font-mono text-sm text-right text-white">
+                    {formatMoneyString(row.amountUsdc, 6)} USDC
+                  </td>
+                  <td className="px-6 py-4 text-xs">
+                    <span
+                      className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${withdrawalStatusBadgeClass(
+                        row.status
+                      )}`}
+                    >
+                      {withdrawalStatusLabel(row.status, t)}
+                    </span>
+                  </td>
+                  <td className="py-4 px-6 text-xs text-[#c5c5c7]">
+                    {row.message ||
+                      (row.status === "CANCELLED" ||
+                      row.status === "FAILED_EXPIRED"
+                        ? t("providerSettlements.expiredTicketReleasedRow")
+                        : "-")}
+                  </td>
+                  <td className="py-4 px-6 text-xs font-mono text-[#c5c5c7]">
+                    {row.nonce}
+                  </td>
+                  <td className="py-4 px-6 text-xs text-[#86868b]">
+                    {formatTimestamp(row.createdAt, locale)}
+                  </td>
+                  <td className="py-4 px-6 text-xs font-mono text-[#86868b]">
+                    {row.txHash || "-"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
-    </div>
     </div>
   );
 }

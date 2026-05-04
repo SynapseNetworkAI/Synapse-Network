@@ -22,6 +22,7 @@ The design goal is low-friction reporting without leaking secrets. Feedback and 
 
 - Top nav `Forum` routes to `/forum`, not `/blog`.
 - Dashboard pages render a low-disturbance `Feedback` floating button.
+- Feedback opens a centered modal overlay. Do not use a side drawer or sidebar expansion for product feedback.
 - Feedback from dashboard pages includes route, query params, surface, and a masked wallet address when available.
 - Successful submissions return a `feedbackId` that users can reference in support or forum posts.
 
@@ -92,7 +93,7 @@ Existing local databases need the gateway bootstrap schema reapplied or an equiv
 Required automated checks:
 
 - Gateway router tests verify feedback creation, forum auth requirements, topic creation, and redaction helpers.
-- Frontend tests verify feedback drawer submission redacts sensitive context.
+- Frontend tests verify feedback modal submission redacts sensitive context.
 - Frontend tests verify forum list rendering and authenticated topic creation.
 - Frontend tests verify pinned/status/views badges and closed-topic reply lock behavior.
 - Docs-front browser checks verify `/support` renders and links users to the right support channels.
@@ -100,7 +101,7 @@ Required automated checks:
 Required browser checks:
 
 - Open docs-front `/support`, verify the support channel links, and capture screenshot.
-- Open `/dashboard/discovery`, click floating `Feedback`, verify drawer route context.
+- Open `/dashboard/discovery`, click floating `Feedback`, verify modal route context.
 - Open console top nav `Forum`, verify URL `/forum`.
 - Open `New topic`, verify the create-topic modal overlay, create forum topic, reply, mark resolved, and capture list/modal/detail screenshots.
 - Visit a topic twice, verify `Views` increases from the gateway truth.

@@ -51,7 +51,8 @@ name: "Synapse Frontend Rules"
 ## Interaction Patterns
 
 - List, feed, marketplace, forum, table, and registry pages are scanning surfaces. They must not inline-expand heavy create/edit forms inside the list flow.
-- For create/edit workflows on scanning surfaces, default to an existing modal or drawer component. Inline controls are only appropriate for lightweight filters, search, sorting, or single-field quick actions.
+- For create/edit/feedback/confirmation workflows on scanning surfaces, default to an existing modal or popup component. Inline controls are only appropriate for lightweight filters, search, sorting, or single-field quick actions.
+- Do not use sidebars or right-side expanding panels for feedback, create, edit, logout, or finance confirmation flows. Sidebars are navigation only.
 - Keep action errors scoped to the surface that produced them: modal submission errors stay in the modal, while list-loading errors stay with the list.
 
 ## App-Specific Conventions
