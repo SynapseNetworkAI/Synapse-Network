@@ -3,7 +3,11 @@ title: Go SDK
 description: Use the Public Preview Go SDK from backend agents, CLIs, and services.
 ---
 
-The Go SDK is in Public Preview and defaults public examples to staging.
+The Go SDK is in Public Preview. Public examples target the current docs environment shown below.
+
+<EnvironmentConfigSummary />
+
+<GatewayEnvExport />
 
 ```bash
 go get github.com/SynapseNetworkAI/Synapse-Network-Sdk/go
@@ -21,9 +25,14 @@ import (
 )
 
 func main() {
+    environment := os.Getenv("SYNAPSE_ENV")
+    if environment == "" {
+        environment = "local"
+    }
+
     client, err := synapse.NewClient(synapse.Options{
         Credential:  os.Getenv("SYNAPSE_AGENT_KEY"),
-        Environment: "staging",
+        Environment: environment,
     })
     if err != nil {
         panic(err)

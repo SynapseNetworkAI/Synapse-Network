@@ -5,6 +5,10 @@ description: Use the Public Preview Java SDK from Java 17, Kotlin, and JVM servi
 
 The Java/JVM SDK is in Public Preview. Kotlin and other JVM languages can call the Java SDK directly.
 
+<EnvironmentConfigSummary />
+
+<GatewayEnvExport />
+
 ```xml
 <dependency>
   <groupId>ai.synapsenetwork</groupId>
@@ -18,7 +22,8 @@ import ai.synapsenetwork.sdk.SynapseClient;
 import java.util.Map;
 
 SynapseClient client = new SynapseClient(
-    SynapseClient.options(System.getenv("SYNAPSE_AGENT_KEY")).environment("staging"));
+    SynapseClient.options(System.getenv("SYNAPSE_AGENT_KEY"))
+        .environment(System.getenv().getOrDefault("SYNAPSE_ENV", "local")));
 
 var services = client.search("svc_synapse_echo", new SynapseClient.SearchOptions());
 var service = services.get(0);

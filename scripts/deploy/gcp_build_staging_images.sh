@@ -51,6 +51,7 @@ docker build --platform linux/amd64 \
   --build-arg NEXT_PUBLIC_APP_ENV="${NEXT_PUBLIC_APP_ENV:-staging}" \
   --build-arg NEXT_PUBLIC_DOCS_BASE_URL="${NEXT_PUBLIC_DOCS_BASE_URL:-https://docs-staging.synapse-network.ai}" \
   --build-arg NEXT_PUBLIC_TX_EXPLORER_BASE_URL="${NEXT_PUBLIC_TX_EXPLORER_BASE_URL:-https://sepolia.arbiscan.io}" \
+  --build-arg NEXT_PUBLIC_RPC_URL="${NEXT_PUBLIC_RPC_URL:-https://sepolia-rollup.arbitrum.io/rpc}" \
   --build-arg NEXT_PUBLIC_SUPPORT_EMAIL="${NEXT_PUBLIC_SUPPORT_EMAIL:-support@synapse-network.ai}" \
   --build-arg NEXT_PUBLIC_SUPPORT_PORTAL_URL="${NEXT_PUBLIC_SUPPORT_PORTAL_URL:-}" \
   --build-arg NEXT_PUBLIC_REOWN_PROJECT_ID="${NEXT_PUBLIC_REOWN_PROJECT_ID:-}" \

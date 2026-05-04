@@ -192,6 +192,10 @@ function buildOpenApi(groups) {
     },
     servers: [
       {
+        url: "http://127.0.0.1:8000",
+        description: "Local / Hardhat",
+      },
+      {
         url: "https://api-staging.synapse-network.ai",
         description: "Staging / Arbitrum Sepolia",
       },
