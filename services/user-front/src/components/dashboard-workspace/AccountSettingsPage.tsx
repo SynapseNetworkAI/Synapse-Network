@@ -468,7 +468,7 @@ export default function AccountSettingsPage() {
         open={isRemoveEmailConfirmOpen}
         title={t("accountSettingsPage.emailRemove")}
         description={t("accountSettingsPage.emailRemoveConfirm")}
-        contextLabel={profile?.email}
+        contextLabel={profile?.email ?? undefined}
         confirmLabel={t("accountSettingsPage.emailRemove")}
         tone="danger"
         loading={isSaving}
