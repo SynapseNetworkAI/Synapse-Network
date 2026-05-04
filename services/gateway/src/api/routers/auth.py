@@ -113,10 +113,10 @@ def _enqueue_account_email_notice(
         500: {"description": "Internal server error"},
     },
 )
-async def get_challenge(address: str):
+async def get_challenge(address: str, chainId: Optional[int] = None):
     """Get an authentication challenge for a wallet"""
     try:
-        challenge = create_auth_challenge(address)
+        challenge = create_auth_challenge(address, chain_id=chainId)
         if not challenge:
             raise HTTPException(status_code=400, detail="Failed to create challenge")
 
