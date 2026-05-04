@@ -9,6 +9,7 @@ import pytest
 from tests.e2e.conftest import GATEWAY_BASE, RELEASE_E2E
 from tests.e2e.helpers.gateway import get_balance, get_balance_full
 from tests.e2e.helpers.service_fixtures import (
+    canonical_invoke_payload,
     canonical_missing_message,
     canonical_provider_required,
     configured_e2e_service_id,
@@ -82,6 +83,7 @@ def test_invocation_deducts_balance(owner_headers, provider_headers, session_sta
     quote_id = session_state.get("quote_id")
     if not quote_id:
         pytest.skip("quote_id not set — test_get_quote_for_service may have failed")
+    invoke_payload = canonical_invoke_payload(service_id)
     r = httpx.post(
         f"{GATEWAY_BASE}/api/v1/agent/invoke",
         headers=_cred_headers(token),
@@ -89,7 +91,7 @@ def test_invocation_deducts_balance(owner_headers, provider_headers, session_sta
             "serviceId": service_id,
             "idempotencyKey": idem_key,
             "costUsdc": price_usdc,
-            "payload": {"prompt": "e2e automated test invocation"},
+            "payload": {"body": invoke_payload},
             "responseMode": "sync",
         },
         timeout=TIMEOUT,
@@ -177,6 +179,7 @@ def test_idempotent_invocation_same_id(session_state):
 
     # Resending an identical request (same idem_key, same payload)
     # must return the cached invocation record — not create a new one.
+    invoke_payload = canonical_invoke_payload(service_id)
     r = httpx.post(
         f"{GATEWAY_BASE}/api/v1/agent/invoke",
         headers=_cred_headers(token),
@@ -184,7 +187,7 @@ def test_idempotent_invocation_same_id(session_state):
             "serviceId": service_id,
             "idempotencyKey": idem_key,
             "costUsdc": session_state.get("service_price_usdc", "0.001"),
-            "payload": {"prompt": "e2e automated test invocation"},
+            "payload": {"body": invoke_payload},
             "responseMode": "sync",
         },
         timeout=TIMEOUT,
