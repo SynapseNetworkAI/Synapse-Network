@@ -80,7 +80,10 @@ function getDepositState(availability: RunwayAvailability): RunwayState {
   return availability.hasBalance ? "DONE" : "READY";
 }
 
-function getDepositHint(availability: RunwayAvailability, t: (key: string, vars?: Record<string, string | number>) => string): string {
+function getDepositHint(
+  availability: RunwayAvailability,
+  t: (key: string, vars?: Record<string, string | number>) => string
+): string {
   if (!availability.isConnected) {
     return t("agentsPage.runwayConnectWalletHint");
   }
@@ -88,9 +91,13 @@ function getDepositHint(availability: RunwayAvailability, t: (key: string, vars?
     return t("agentsPage.runwaySignInHint");
   }
   if (availability.hasBalance) {
-    return t("agentsPage.runwayCurrentBalanceHint", { balance: availability.ownerBalance });
+    return t("agentsPage.runwayCurrentBalanceHint", {
+      balance: availability.ownerBalance,
+    });
   }
-  return t("agentsPage.runwayWalletBalanceHint", { balance: availability.walletUsdcBalance.toFixed(2) });
+  return t("agentsPage.runwayWalletBalanceHint", {
+    balance: availability.walletUsdcBalance.toFixed(2),
+  });
 }
 
 function getAgentState(availability: RunwayAvailability): RunwayState {
@@ -125,7 +132,7 @@ function getInvokeState(availability: RunwayAvailability): RunwayState {
 
 function buildRunwayCards(
   availability: RunwayAvailability,
-  t: (key: string, vars?: Record<string, string | number>) => string,
+  t: (key: string, vars?: Record<string, string | number>) => string
 ): RunwayCard[] {
   const depositState = getDepositState(availability);
   const depositHint = getDepositHint(availability, t);
@@ -148,7 +155,9 @@ function buildRunwayCards(
       step: "agent",
       title: t("agentsPage.runwayCreateAgentRuntimeTitle"),
       state: agentState,
-      summary: availability.hasActiveAgent ? t("agentsPage.runwayAgentCreated") : t("agentsPage.runwayNoActiveAgent"),
+      summary: availability.hasActiveAgent
+        ? t("agentsPage.runwayAgentCreated")
+        : t("agentsPage.runwayNoActiveAgent"),
       hint: availability.hasBalance
         ? t("agentsPage.runwayFundingReady")
         : t("agentsPage.runwayFundVaultFirst"),
@@ -162,7 +171,9 @@ function buildRunwayCards(
       title: t("agentsPage.runwayCaptureCredentialTitle"),
       state: credentialState,
       summary: availability.hasCredential
-        ? t("agentsPage.runwayCredentialSummary", { prefix: availability.latestCredentialPrefix ?? "" })
+        ? t("agentsPage.runwayCredentialSummary", {
+            prefix: availability.latestCredentialPrefix ?? "",
+          })
         : t("agentsPage.runwayNoCredentialVisible"),
       hint: availability.hasCredential
         ? t("agentsPage.runwayCopySaveToken")
@@ -224,6 +235,11 @@ export default function ActivationRunway({
     isPending,
     isConfirming,
     walletUsdcBalance,
+    nativeGasBalance,
+    nativeGasSymbol,
+    depositPreflightError,
+    canSubmitDeposit,
+    networkLabel,
     vaultAddress,
     walletAddress,
     shortAddress,
@@ -254,7 +270,13 @@ export default function ActivationRunway({
       return;
     }
     setActiveStep("invoke");
-  }, [hasActiveAgent, hasSession, isConnected, latestCredentialPrefix, ownerBalance]);
+  }, [
+    hasActiveAgent,
+    hasSession,
+    isConnected,
+    latestCredentialPrefix,
+    ownerBalance,
+  ]);
 
   const handleCopyCredential = useCallback(() => {
     if (!latestIssuedToken) {
@@ -267,56 +289,80 @@ export default function ActivationRunway({
     setTimeout(() => setCopiedCredential(false), 2000);
   }, [latestIssuedToken, onCopyLatestCredential, t]);
 
-  const cards = buildRunwayCards({
-    isConnected,
-    hasSession,
-    hasBalance,
-    hasActiveAgent,
-    hasCredential,
-    hasSuccessfulInvocation,
-    ownerBalance,
-    walletUsdcBalance,
-    latestCredentialPrefix,
-    latestIssuedToken,
-  }, t);
+  const cards = buildRunwayCards(
+    {
+      isConnected,
+      hasSession,
+      hasBalance,
+      hasActiveAgent,
+      hasCredential,
+      hasSuccessfulInvocation,
+      ownerBalance,
+      walletUsdcBalance,
+      latestCredentialPrefix,
+      latestIssuedToken,
+    },
+    t
+  );
 
-  const handleCardAction = useCallback(async (card: RunwayCard) => {
-    if (card.step === "deposit") {
-      // Check authentication before opening deposit modal
-      if (!isConnected) {
-        openConnectModal?.();
-        return;
-      }
-      if (!isSessionAuthenticated) {
-        const ok = await authorize();
-        if (!ok) {
+  const handleCardAction = useCallback(
+    async (card: RunwayCard) => {
+      if (card.step === "deposit") {
+        // Check authentication before opening deposit modal
+        if (!isConnected) {
+          openConnectModal?.();
           return;
         }
+        if (!isSessionAuthenticated) {
+          const ok = await authorize();
+          if (!ok) {
+            return;
+          }
+        }
+        openDepositModal();
+        return;
       }
-      openDepositModal();
-      return;
-    }
-    if (card.step === "agent") {
-      onAgentCreated();
-      return;
-    }
-    if (card.step === "credential") {
-      if (latestIssuedToken) {
-        handleCopyCredential();
-      } else {
+      if (card.step === "agent") {
         onAgentCreated();
+        return;
       }
-      return;
-    }
-    onRunExample();
-  }, [handleCopyCredential, latestIssuedToken, onAgentCreated, onRunExample, isConnected, isSessionAuthenticated, authorize, openConnectModal, openDepositModal]);
+      if (card.step === "credential") {
+        if (latestIssuedToken) {
+          handleCopyCredential();
+        } else {
+          onAgentCreated();
+        }
+        return;
+      }
+      onRunExample();
+    },
+    [
+      handleCopyCredential,
+      latestIssuedToken,
+      onAgentCreated,
+      onRunExample,
+      isConnected,
+      isSessionAuthenticated,
+      authorize,
+      openConnectModal,
+      openDepositModal,
+    ]
+  );
 
   return (
-    <section id="activation-runway" className="space-y-6" aria-label={t("agentsPage.activationRunwayAria")}>
+    <section
+      id="activation-runway"
+      className="space-y-6"
+      aria-label={t("agentsPage.activationRunwayAria")}
+    >
       <header className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-cyan-300/80">{t("agentsPage.activationRunwayEyebrow")}</p>
-          <h2 className="mt-2 text-2xl font-semibold text-white">{t("agentsPage.activationRunwayTitle")}</h2>
+          <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-cyan-300/80">
+            {t("agentsPage.activationRunwayEyebrow")}
+          </p>
+          <h2 className="mt-2 text-2xl font-semibold text-white">
+            {t("agentsPage.activationRunwayTitle")}
+          </h2>
           <p className="mt-2 max-w-3xl text-sm text-gray-400">
             {t("agentsPage.activationRunwayDescription")}
           </p>
@@ -337,10 +383,15 @@ export default function ActivationRunway({
           return (
             <article
               key={card.step}
-              className={`rounded-[24px] border p-5 transition ${getStateTone(card.state)} ${isActive ? "ring-1 ring-blue-400/40" : ""}`}
+              className={`rounded-[24px] border p-5 transition ${getStateTone(
+                card.state
+              )} ${isActive ? "ring-1 ring-blue-400/40" : ""}`}
             >
               <div className="flex items-start justify-between gap-4">
-                <span className="rounded-2xl border border-current/15 bg-black/10 p-3" aria-hidden="true">
+                <span
+                  className="rounded-2xl border border-current/15 bg-black/10 p-3"
+                  aria-hidden="true"
+                >
                   <Icon className="h-5 w-5" />
                 </span>
                 <div className="flex items-center gap-2">
@@ -356,7 +407,9 @@ export default function ActivationRunway({
                       <button
                         type="button"
                         className="text-current/60 hover:text-current transition"
-                        aria-label={t("agentsPage.activationStatusHelpAria", { title: card.title })}
+                        aria-label={t("agentsPage.activationStatusHelpAria", {
+                          title: card.title,
+                        })}
                         aria-describedby={`${card.step}-tooltip`}
                       >
                         <HelpCircle className="h-4 w-4" />
@@ -374,12 +427,20 @@ export default function ActivationRunway({
               </div>
 
               <div className="mt-5 space-y-3">
-                <h3 className="text-lg font-semibold text-white">{card.title}</h3>
+                <h3 className="text-lg font-semibold text-white">
+                  {card.title}
+                </h3>
 
                 <dl className="rounded-2xl border border-white/8 bg-black/10 p-4">
-                  <dt className="text-[10px] font-bold uppercase tracking-[0.24em] text-gray-500">{t("agentsPage.currentSummaryLabel")}</dt>
-                  <dd className="mt-2 text-sm font-medium text-white">{card.summary}</dd>
-                  <dd className="mt-3 text-xs leading-5 text-gray-400">{card.hint}</dd>
+                  <dt className="text-[10px] font-bold uppercase tracking-[0.24em] text-gray-500">
+                    {t("agentsPage.currentSummaryLabel")}
+                  </dt>
+                  <dd className="mt-2 text-sm font-medium text-white">
+                    {card.summary}
+                  </dd>
+                  <dd className="mt-3 text-xs leading-5 text-gray-400">
+                    {card.hint}
+                  </dd>
                 </dl>
 
                 <button
@@ -388,8 +449,18 @@ export default function ActivationRunway({
                   disabled={card.disabled}
                   className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-white/10 bg-white px-4 py-3 text-xs font-bold uppercase tracking-[0.22em] text-slate-950 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/5 disabled:text-gray-500"
                 >
-                  {card.step === "credential" && latestIssuedToken && copiedCredential ? <Copy className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                  {card.step === "credential" && latestIssuedToken && copiedCredential ? t("agentsPage.copied") : card.actionLabel}
+                  {card.step === "credential" &&
+                  latestIssuedToken &&
+                  copiedCredential ? (
+                    <Copy className="h-4 w-4" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4" />
+                  )}
+                  {card.step === "credential" &&
+                  latestIssuedToken &&
+                  copiedCredential
+                    ? t("agentsPage.copied")
+                    : card.actionLabel}
                 </button>
               </div>
             </article>
@@ -411,7 +482,36 @@ export default function ActivationRunway({
         walletAddress={walletAddress}
         vaultAddress={vaultAddress}
         walletUsdcBalance={walletUsdcBalance}
+        nativeGasBalance={nativeGasBalance}
+        nativeGasSymbol={nativeGasSymbol}
+        networkLabel={networkLabel}
+        preflightError={depositPreflightError}
+        canSubmit={canSubmitDeposit}
         shortAddress={shortAddress}
+        copy={{
+          amountLabel: t("creditsPage.depositAmountLabel"),
+          walletUsdcLabel: t("creditsPage.depositWalletUsdcLabel"),
+          nativeGasLabel: t("creditsPage.depositNativeGasLabel"),
+          networkLabel: t("creditsPage.depositNetworkLabel"),
+          transactionSummaryLabel: t("creditsPage.depositTransactionSummary"),
+          fromWalletLabel: t("creditsPage.depositFromWallet"),
+          toVaultLabel: t("creditsPage.depositToVault"),
+          depositAmountLabel: t("creditsPage.depositAmountSummary"),
+          permitAllowanceLabel: t("creditsPage.depositPermitAllowance"),
+          expectationTitle: t("creditsPage.depositExpectationTitle"),
+          expectationPermit: t("creditsPage.depositExpectationPermit"),
+          expectationGas: t("creditsPage.depositExpectationGas"),
+          expectationSync: t("creditsPage.depositExpectationSync"),
+          stepPermitTitle: t("creditsPage.depositPermitStepTitle"),
+          stepPermitActive: t("creditsPage.depositPermitStepActive"),
+          stepPermitDone: t("creditsPage.depositPermitStepDone"),
+          stepDepositTitle: t("creditsPage.depositVaultStepTitle"),
+          stepDepositActive: t("creditsPage.depositVaultStepActive"),
+          stepDepositWaiting: t("creditsPage.depositVaultStepWaiting"),
+          cancelLabel: t("creditsPage.depositCancel"),
+          processingLabel: t("creditsPage.depositProcessing"),
+          confirmLabel: t("creditsPage.depositConfirm"),
+        }}
         onClose={closeDepositModal}
         onConfirm={handleDeposit}
       />

@@ -36,6 +36,10 @@ Otterscan。Kafka、Kafka UI、ClickHouse 已归入 `analytics` profile，默认
 docker-compose -f infra/docker/local/docker-compose.yml --profile analytics up -d
 ```
 
+Otterscan 的本地入口是 `http://localhost:5100`。一键脚本会随默认 Docker
+infra 一起启动 `otterscan`，并把浏览器侧 RPC 配置为
+`http://localhost:8545`，也就是本机 Anvil/Hardhat 节点。
+
 ## 3. 推荐启动路径
 
 ### 3.1 一键本地环境

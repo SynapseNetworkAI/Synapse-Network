@@ -55,7 +55,7 @@ function statusDisplay(
   }
   return {
     className: "font-medium text-[#f3b24d]",
-    label: t("billingPage.statusPending"),
+    label: t("billingPage.statusPendingSyncing"),
   };
 }
 
@@ -218,6 +218,9 @@ export default function OwnerBillingPage() {
         </h1>
         <p className="mt-2 text-[16px] leading-[24px] text-[#9ca3af]">
           {t("billingPage.description")}
+        </p>
+        <p className="mt-3 text-[13px] leading-5 text-[#71767b]">
+          {t("billingPage.depositStatusHint")}
         </p>
       </div>
 
