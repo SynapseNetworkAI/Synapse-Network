@@ -6,7 +6,9 @@ const overviewPage: I18nMessages["overviewPage"] = {
   networkStatus: "Network Status",
   latency: "Latency",
   syncing: "SYNCING...",
-  refreshData: "REFRESH DATA",
+  refreshData: "Wallet",
+  connectWallet: "Connect Wallet",
+  connectedWallet: "Connected Wallet",
   quickNavAgents: "Agents",
   quickNavDiscovery: "Discovery",
   quickNavInvocations: "Invocations",
@@ -16,17 +18,23 @@ const overviewPage: I18nMessages["overviewPage"] = {
   operationalWorkflows: "Operational Workflows",
   platformIdentityModel: "Platform Identity Model",
   ownerTitle: "Owner",
-  ownerDescription: "The root account and tenant boundary. Controls funds, agents, and service registrations.",
+  ownerDescription:
+    "The root account and tenant boundary. Controls funds, agents, and service registrations.",
   agentTitle: "Agent",
-  agentDescription: "The runtime execution principal. Discovers and invokes services autonomously within budget.",
+  agentDescription:
+    "The runtime execution principal. Discovers and invokes services autonomously within budget.",
   providerTitle: "Provider",
-  providerDescription: "The supply-side business role. Registers services and earns revenue from agent invocations.",
+  providerDescription:
+    "The supply-side business role. Registers services and earns revenue from agent invocations.",
   platformTitle: "Platform",
-  platformDescription: "The system operator and settlement engine. Handles routing, auditing, and real-time billing.",
+  platformDescription:
+    "The system operator and settlement engine. Handles routing, auditing, and real-time billing.",
   financialInfrastructure: "Financial Infrastructure",
   coreCapabilities: "Core Capabilities",
-  coreCapabilitiesDescription: "The architectural pillars of the Synapse M2M economy.",
-  footerTagline: "We are not just writing code; we are forging the central bank for silicon-based life. Let's build the M2M Economy!",
+  coreCapabilitiesDescription:
+    "The architectural pillars of the Synapse M2M economy.",
+  footerTagline:
+    "We are not just writing code; we are forging the central bank for silicon-based life. Let's build the M2M Economy!",
   footerPrivacy: "Privacy",
   footerTerms: "Terms",
   footerSecurity: "Security",
@@ -35,7 +43,8 @@ const overviewPage: I18nMessages["overviewPage"] = {
   heroEyebrow: "The Agentic Economy",
   heroTitleLead: "Synapse Network:",
   heroTitleAccent: "Financial Layer",
-  heroDescription: "The first M2M (Machine-to-Machine) infrastructure designed for the agentic era. Enable your agents to discover, invoke, and pay for services autonomously with real-time settlement.",
+  heroDescription:
+    "The first M2M (Machine-to-Machine) infrastructure designed for the agentic era. Enable your agents to discover, invoke, and pay for services autonomously with real-time settlement.",
   heroOpenAgentWorkspace: "Open Agent Workspace",
   heroOpenProviderWorkspace: "Open Provider Workspace",
   consumerPathTitle: "Consumer Path",
@@ -43,34 +52,43 @@ const overviewPage: I18nMessages["overviewPage"] = {
   providerPathTitle: "Provider Path",
   providerPathDescription: "Monetize your APIs for the agentic economy.",
   consumerDepositTitle: "Deposit USDC",
-  consumerDepositDescription: "Fund your vault on the Synapse smart contract to enable agent spending.",
+  consumerDepositDescription:
+    "Fund your vault on the Synapse smart contract to enable agent spending.",
   consumerDepositLink: "Open Treasury",
   consumerCreateAgentTitle: "Create Agent",
-  consumerCreateAgentDescription: "Provision a runtime identity for your autonomous agent to act on your behalf.",
+  consumerCreateAgentDescription:
+    "Provision a runtime identity for your autonomous agent to act on your behalf.",
   consumerCreateAgentLink: "Manage Agents",
   consumerDiscoveryTitle: "Service Discovery",
-  consumerDiscoveryDescription: "Find the best API services and service definitions in the network through discovery.",
+  consumerDiscoveryDescription:
+    "Find the best API services and service definitions in the network through discovery.",
   consumerDiscoveryLink: "Explore Services",
   consumerCredentialTitle: "Attach Runtime Credentials",
-  consumerCredentialDescription: "Issue the credential that your agent runtime will actually use before discovery, quote, and paid invocation.",
+  consumerCredentialDescription:
+    "Issue the credential that your agent runtime will actually use before discovery, quote, and paid invocation.",
   consumerCredentialLink: "Open Agent Credentials",
   providerCreateServiceTitle: "Create Service",
-  providerCreateServiceDescription: "Define your API service, service definition, pricing, and runtime routing in the Provider workspace.",
+  providerCreateServiceDescription:
+    "Define your API service, service definition, pricing, and runtime routing in the Provider workspace.",
   providerCreateServiceLink: "Publish API Service",
   providerServeAgentsTitle: "Serve Agents",
-  providerServeAgentsDescription: "Receive high-frequency calls from autonomous agents through the gateway.",
+  providerServeAgentsDescription:
+    "Receive high-frequency calls from autonomous agents through the gateway.",
   providerServeAgentsLink: "Monitor Health",
   providerEarnTitle: "Earn USDC",
-  providerEarnDescription: "Accumulate earnings in your provider wallet for every successful invocation.",
+  providerEarnDescription:
+    "Accumulate earnings in your provider wallet for every successful invocation.",
   providerEarnLink: "View Revenue",
   providerWithdrawTitle: "Withdraw",
-  providerWithdrawDescription: "Gas-less withdrawals of your revenue back to your main wallet.",
+  providerWithdrawDescription:
+    "Gas-less withdrawals of your revenue back to your main wallet.",
   providerWithdrawLink: "Open Settlements",
   treasurySectionTitle: "Tier 1: Owner Treasury",
   treasuryMasterBalance: "Master USDC Balance",
   treasuryNotConnected: "Not Connected",
   treasuryControlsTitle: "Treasury Controls",
-  treasuryControlsDescription: "Review vault balances, refunds, withdrawals, and owner-side treasury activity in one place.",
+  treasuryControlsDescription:
+    "Review vault balances, refunds, withdrawals, and owner-side treasury activity in one place.",
   treasuryOpenOwnerTreasury: "Open Owner Treasury",
   analyticsSectionTitle: "Tier 2: Service Analytics",
   analyticsServiceWalletsTotal: "Service Wallets Total",
@@ -80,15 +98,20 @@ const overviewPage: I18nMessages["overviewPage"] = {
   analyticsTotalPlatformFee: "Total Platform Fee",
   analyticsProtocolFeeFromPaidLogs: "Protocol fee from paid logs",
   analyticsPaidCalls24h: "Paid Calls (24h)",
-  analyticsProviderWorkspaceConnectedWallet: "Provider workspace = connected wallet",
+  analyticsProviderWorkspaceConnectedWallet:
+    "Provider workspace = connected wallet",
   capabilitySmartVaultsTitle: "Smart Vaults",
-  capabilitySmartVaultsDescription: "On-chain USDC deposits are converted into off-chain spendable balances for high-frequency agent interactions.",
+  capabilitySmartVaultsDescription:
+    "On-chain USDC deposits are converted into off-chain spendable balances for high-frequency agent interactions.",
   capabilityAgentCredentialsTitle: "Agent Credentials",
-  capabilityAgentCredentialsDescription: "Issue secure credentials with granular budget policies and rate limits for autonomous agent identities.",
+  capabilityAgentCredentialsDescription:
+    "Issue secure credentials with granular budget policies and rate limits for autonomous agent identities.",
   capabilityAtomicSettlementTitle: "Atomic Settlement",
-  capabilityAtomicSettlementDescription: "Our gateway handles real-time fee deduction and request routing with automatic rollback on failure.",
+  capabilityAtomicSettlementDescription:
+    "Our gateway handles real-time fee deduction and request routing with automatic rollback on failure.",
   capabilityUnifiedLedgerTitle: "Unified Ledger",
-  capabilityUnifiedLedgerDescription: "Transparent auditing and settlement for both consumers and providers with gas-less withdrawal options.",
+  capabilityUnifiedLedgerDescription:
+    "Transparent auditing and settlement for both consumers and providers with gas-less withdrawal options.",
 };
 
 export default overviewPage;

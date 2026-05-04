@@ -6,8 +6,10 @@ const providerSettlements: I18nMessages["providerSettlements"] = {
   walletPaysGasEstimate: " 预估 gas：{{estimate}}",
   nativeTokenFallback: "原生代币",
   walletNoGas: "当前钱包在 {{chainLabel}} 上没有可支付 gas 的 {{symbol}}。",
-  vaultLiquidityInsufficient: "当前金库链上 USDC 流动性不足，暂时无法完成这笔提现。请等待平台金库补充后再重试。",
-  vaultLiquidityCheckUnavailable: "网关当前无法校验链上金库余额，请等待 RPC 恢复后再重试。",
+  vaultLiquidityInsufficient:
+    "当前金库链上 USDC 流动性不足，暂时无法完成这笔提现。请等待平台金库补充后再重试。",
+  vaultLiquidityCheckUnavailable:
+    "网关当前无法校验链上金库余额，请等待 RPC 恢复后再重试。",
   chainRpcUnavailable: "网关当前无法连接链上 RPC，请等待 RPC 恢复后再重试。",
   vaultAddressMissing: "缺少金库合约地址",
   walletClientUnavailable: "当前网络客户端不可用。请重连钱包后再试。",
@@ -15,13 +17,16 @@ const providerSettlements: I18nMessages["providerSettlements"] = {
   withdrawalContractMissing: "签名提现票据里缺少提现合约地址。",
   wrongNetwork: "网络不正确。请先把钱包切换到 {{chainLabel}} 再继续提现。",
   ticketExpired: "这张提现票据已经过期，请重新生成后再试。",
-  ticketExpiringSoon: "这张提现凭证将在 2 分钟内过期。为避免链上交易失败和 gas 损失，请等待本笔申请过期后重新发起提现。",
-  gasEstimateInsufficient: "这笔提现需要钱包自己支付 gas。预估最大网络费约为 {{estimateFee}} {{symbol}}，但当前钱包 gas 余额只有 {{balance}} {{symbol}}。请先补充 gas 代币后再试。",
+  ticketExpiringSoon:
+    "这张提现凭证将在 2 分钟内过期。为避免链上交易失败和 gas 损失，请等待本笔申请过期后重新发起提现。",
+  gasEstimateInsufficient:
+    "这笔提现需要钱包自己支付 gas。预估最大网络费约为 {{estimateFee}} {{symbol}}，但当前钱包 gas 余额只有 {{balance}} {{symbol}}。请先补充 gas 代币后再试。",
   walletRejected: "钱包里已取消本次提现。没有消耗 gas，也没有发生资金移动。",
   insufficientNativeGas: "当前钱包原生币不足，无法支付这笔提现所需的 gas。",
   staleTicket: "这张提现票据已经失效，请重新发起提现后再试。",
   invalidSignature: "这张提现票据签名已失效，请重新生成后再试。",
-  vaultAllowanceUnavailable: "当前金库 allowance 尚未就绪，等待平台刷新金库配置后再试。",
+  vaultAllowanceUnavailable:
+    "当前金库 allowance 尚未就绪，等待平台刷新金库配置后再试。",
   contractRejectedWithName: "提现被金库合约拒绝（{{name}}）。",
   contractRejectedWithReason: "提现被金库合约拒绝：{{reason}}。",
   generateAndClaim: "生成并提现",
@@ -30,25 +35,32 @@ const providerSettlements: I18nMessages["providerSettlements"] = {
   txStateWalletPrompt: "钱包确认中",
   txStateConfirming: "链上确认中",
   txStateFailed: "失败",
-  pendingTicketExpiredReleased: "上一张提现票据已过期，锁定的应收金额已经释放回可用余额。",
-  pendingReviewExists: "当前已有一笔提现在人工审核中，请等待审核完成后再创建新的提现。",
+  pendingTicketExpiredReleased:
+    "上一张提现票据已过期，锁定的应收金额已经释放回可用余额。",
+  pendingReviewExists:
+    "当前已有一笔提现在人工审核中，请等待审核完成后再创建新的提现。",
   generatingTicket: "正在生成签名提现票据...",
   manualReviewQueued: "提现已进入人工安全审核队列。",
   ticketGenerated: "票据已生成，请在钱包中确认交易。",
   withdrawalIntentCreated: "提现意图已创建。",
   withdrawalCreateFailed: "创建 Provider 提现失败",
-  ticketSigningUnavailable: "当前 Provider 提现不可用，因为网关暂时无法签发提现票据。",
+  ticketSigningUnavailable:
+    "当前 Provider 提现不可用，因为网关暂时无法签发提现票据。",
   noPendingTicket: "当前没有待继续的提现票据",
   settledCompleted: "提现已在链上完成，并同步标记为完成",
-  backendCompletionFailed: "链上交易已成功，但后端完成确认失败。请稍后从历史记录重试。",
-  pendingWrongNetwork: "继续待处理提现前，钱包必须切换到 {{requiredChain}}。当前钱包网络为 {{currentChain}}。",
+  backendCompletionFailed:
+    "链上交易已成功，但后端完成确认失败。请稍后从历史记录重试。",
+  pendingWrongNetwork:
+    "继续待处理提现前，钱包必须切换到 {{requiredChain}}。当前钱包网络为 {{currentChain}}。",
   pendingTicketExpiredBanner: "当前待处理提现票据已经过期，请重新生成后再试。",
   amountPlaceholder: "提现金额（留空 = 全部 {{amount}} USDC）",
   resumePending: "继续待处理提现",
   invalidAmountPrecision: "提现金额最多支持 2 位小数。",
   invalidAmountValue: "请输入有效的提现金额。",
+  amountBelowMinimum: "最小提现金额为 {{amount}} USDC。",
   amountExceedsAvailable: "提现金额超过当前可用应收（{{amount}} USDC）。",
-  withdrawAmountHint: "留空=全额。签名票据 30 分钟后过期。最多 2 位小数。",
+  withdrawAmountHint:
+    "留空=全额。最小提现金额：{{amount}} USDC。最多 2 位小数。",
   loadingHistory: "正在加载提现历史...",
   expiredTicketReleasedRow: "过期票据已释放，对应金额已回到可用余额。",
   txSubmitted: "交易已提交：{{hash}}...",
@@ -56,7 +68,8 @@ const providerSettlements: I18nMessages["providerSettlements"] = {
   description: "Provider 对账 & 链上自助提现。",
   providerWithdrawalEyebrow: "Provider 提现（自行支付 Gas）",
   withdrawalTitle: "通过 EIP-712 票据把应收提现到钱包",
-  withdrawalDescription: "Gateway 签发 EIP-712 票据，Provider 链上 Claim 自付 gas。",
+  withdrawalDescription:
+    "Gateway 签发 EIP-712 票据，Provider 链上 Claim 自付 gas。",
   chainRequiredNetwork: "所需网络",
   metricAvailable: "可用余额",
   metricGasBalance: "Gas 余额",
@@ -67,7 +80,8 @@ const providerSettlements: I18nMessages["providerSettlements"] = {
   securityBulletOne: "同一 owner 仅保留一张待处理票据。",
   securityBulletTwo: "Intent 原子锁定应收至 providersLocked。",
   securityBulletThree: "完成时消费锁定，txHash 幂等 finalize。",
-  securityBulletFour: "EIP-712 ticketId+deadline，合约用一次性 ticketHash 防重放。",
+  securityBulletFour:
+    "EIP-712 ticketId+deadline，合约用一次性 ticketHash 防重放。",
   searchRequestPlaceholder: "搜索 Request ID",
   searchServicePlaceholder: "搜索服务（模糊匹配）",
   searchButton: "搜索",
@@ -108,19 +122,27 @@ const providerSettlements: I18nMessages["providerSettlements"] = {
   paginationPrev: "上一页",
   paginationNext: "下一页",
   dedupeNote: "按 request ID 去重后汇总。",
-  descriptionTip: "查看来自 gateway settlement logs 的 Provider 对账结果，并通过签名票据完成自助链上提现。",
-  withdrawalDescriptionTip: "Gateway 会签发提现票据，Provider 使用该票据发起链上 withdraw 并自行支付 gas。待处理票据会先锁定应收，避免账本层重复提现和重放。",
-  walletGasTip: "提现是链上交易。连接的钱包会签名 Claim，并自行支付原生币 gas。",
-  withdrawAmountHintTip: "提现金额留空时默认提取全部可用应收。存在活动票据时，金额会先从 Available 转入 Pending / Locked；如果链上提现没有成功，锁定金额会在默认约 6 分钟内自动释放回 Available。自定义金额最多支持 2 位小数。",
-  historyDescriptionTip: "包含已经过期并释放回可用余额的票据，它们会显式记录为取消历史。",
-  dedupeNoteTip: "在汇总统计前，请求会先按 request ID 去重，避免重试导致重复记账。",
+  descriptionTip:
+    "查看来自 gateway settlement logs 的 Provider 对账结果，并通过签名票据完成自助链上提现。",
+  withdrawalDescriptionTip:
+    "Gateway 会签发提现票据，Provider 使用该票据发起链上 withdraw 并自行支付 gas。待处理票据会先锁定应收，避免账本层重复提现和重放。",
+  walletGasTip:
+    "提现是链上交易。连接的钱包会签名 Claim，并自行支付原生币 gas。",
+  withdrawAmountHintTip:
+    "提现金额留空时默认提取全部可用应收。存在活动票据时，金额会先从 Available 转入 Pending / Locked；如果链上提现没有成功，锁定金额会在默认约 6 分钟内自动释放回 Available。自定义金额最多支持 2 位小数。",
+  historyDescriptionTip:
+    "包含已经过期并释放回可用余额的票据，它们会显式记录为取消历史。",
+  dedupeNoteTip:
+    "在汇总统计前，请求会先按 request ID 去重，避免重试导致重复记账。",
   withdrawPageTitle: "Provider 提现",
   withdrawPageDescription: "EIP-712 链上自助提现。",
   withdrawAmountLabel: "提现金额",
   confirmWithdraw: "确认提现",
   withdrawAmountPlaceholder: "金额（留空=全额提现）",
-  withdrawGasNote: "链上交易 — 需支付少量原生代币（如 ETH）作为 Gas 费。",
-  insufficientGasWarning: "Gas 余额不足，请先在钱包中充值原生代币（如 ETH）后再提现。",
+  withdrawGasNote:
+    "链上交易 — 需支付少量原生代币（如 ETH）作为 Gas 费。最小提现金额：{{amount}} USDC。",
+  insufficientGasWarning:
+    "Gas 余额不足，请先在钱包中充值原生代币（如 ETH）后再提现。",
   historyPageTitle: "提现记录",
   historyPageDescription: "结算事件与提现历史。",
   viewHistory: "查看提现记录",

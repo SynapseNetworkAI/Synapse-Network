@@ -84,6 +84,11 @@ const shared: Pick<
     account: "Account",
     settings: "Settings",
     logout: "Logout",
+    logoutConfirmTitle: "Log out?",
+    logoutConfirmDescription:
+      "This disconnects the current wallet session and clears the local sign-in state for this browser.",
+    logoutConfirmCancel: "Cancel",
+    logoutConfirmAction: "Logout",
     login: "Sign In",
     discovery: "Discovery",
     invocations: "Invocations",
