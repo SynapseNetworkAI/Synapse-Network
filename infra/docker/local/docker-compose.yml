@@ -52,7 +52,8 @@ services:
     ports:
       - "5100:80"
     environment:
-      # 指向本地运行的 Hardhat 节点：因为 Otterscan 是在本地浏览器运行的，所以这里使用 localhost:8545 即可访问宿主机的 Hardhat
+      # Browser-facing Otterscan config. The app runs in the local browser, so
+      # localhost:8545 resolves to the host Anvil/Hardhat RPC.
       - ERIGON_URL=http://localhost:8545
     restart: unless-stopped
 
