@@ -1,5 +1,10 @@
 import { buildAuthedHeaders, normalizeAuthApiError } from "@/utils/authSession";
-import { parseRiskLevel, parseWithdrawalStatus, type RiskLevel, type WithdrawalStatus } from "@/domain/status";
+import {
+  parseRiskLevel,
+  parseWithdrawalStatus,
+  type RiskLevel,
+  type WithdrawalStatus,
+} from "@/domain/status";
 import { getGatewayBaseUrl } from "@/utils/gatewayApi";
 import { normalizeMoneyString, type MoneyString } from "@/utils/money";
 
@@ -70,6 +75,8 @@ async function readErrorPayload(
 
 export type BalanceSummary = {
   ownerBalance: MoneyString;
+  consumerPendingBalance: MoneyString;
+  consumerFrozenBalance: MoneyString;
   providerReceivable: MoneyString;
   platformFeeAccrued: MoneyString;
 };
@@ -256,20 +263,33 @@ export async function getV2Balance(
     balance?: Partial<BalanceSummary> & {
       ownerBalance?: string | number;
       consumerAvailableBalance?: string | number;
+      consumerPendingBalance?: string | number;
+      consumerFrozenBalance?: string | number;
       providerReceivable?: string | number;
       providerReceivableBalance?: string | number;
       platform?: { feeAccrued?: string | number };
     };
   };
-  const feeFromMap = normalizeMoneyString(payload.balance?.platform?.feeAccrued);
+  const feeFromMap = normalizeMoneyString(
+    payload.balance?.platform?.feeAccrued
+  );
   return {
     ownerBalance: normalizeMoneyString(
       payload.balance?.ownerBalance ?? payload.balance?.consumerAvailableBalance
     ),
-    providerReceivable: normalizeMoneyString(
-      payload.balance?.providerReceivable ?? payload.balance?.providerReceivableBalance
+    consumerPendingBalance: normalizeMoneyString(
+      payload.balance?.consumerPendingBalance
     ),
-    platformFeeAccrued: normalizeMoneyString(payload.balance?.platformFeeAccrued ?? feeFromMap),
+    consumerFrozenBalance: normalizeMoneyString(
+      payload.balance?.consumerFrozenBalance
+    ),
+    providerReceivable: normalizeMoneyString(
+      payload.balance?.providerReceivable ??
+        payload.balance?.providerReceivableBalance
+    ),
+    platformFeeAccrued: normalizeMoneyString(
+      payload.balance?.platformFeeAccrued ?? feeFromMap
+    ),
   };
 }
 
@@ -385,25 +405,40 @@ export async function redeemCreditVoucher(
         payload.redemption?.campaignDisplayName || ""
       ),
       voucherCodeLast4: String(payload.redemption?.voucherCodeLast4 || ""),
-      grantedAmountUsdc: normalizeMoneyString(payload.redemption?.grantedAmountUsdc),
+      grantedAmountUsdc: normalizeMoneyString(
+        payload.redemption?.grantedAmountUsdc
+      ),
       ownerAddress: String(payload.redemption?.ownerAddress || userAddress),
       ledgerEntryId: String(payload.redemption?.ledgerEntryId || ""),
       targetAccountId: String(payload.redemption?.targetAccountId || ""),
       promoAccountId: String(payload.redemption?.promoAccountId || ""),
       status: String(payload.redemption?.status || "COMPLETED"),
-      beforeBalanceUsdc: normalizeMoneyString(payload.redemption?.beforeBalanceUsdc),
-      afterBalanceUsdc: normalizeMoneyString(payload.redemption?.afterBalanceUsdc),
+      beforeBalanceUsdc: normalizeMoneyString(
+        payload.redemption?.beforeBalanceUsdc
+      ),
+      afterBalanceUsdc: normalizeMoneyString(
+        payload.redemption?.afterBalanceUsdc
+      ),
       redeemedAt: String(payload.redemption?.redeemedAt || ""),
     },
     balance: {
       ownerBalance: normalizeMoneyString(
-        payload.balance?.ownerBalance ?? payload.balance?.consumerAvailableBalance
+        payload.balance?.ownerBalance ??
+          payload.balance?.consumerAvailableBalance
+      ),
+      consumerPendingBalance: normalizeMoneyString(
+        payload.balance?.consumerPendingBalance
+      ),
+      consumerFrozenBalance: normalizeMoneyString(
+        payload.balance?.consumerFrozenBalance
       ),
       providerReceivable: normalizeMoneyString(
-        payload.balance?.providerReceivable ?? payload.balance?.providerReceivableBalance
+        payload.balance?.providerReceivable ??
+          payload.balance?.providerReceivableBalance
       ),
       platformFeeAccrued: normalizeMoneyString(
-        payload.balance?.platformFeeAccrued ?? payload.balance?.platform?.feeAccrued
+        payload.balance?.platformFeeAccrued ??
+          payload.balance?.platform?.feeAccrued
       ),
     },
   };
@@ -490,7 +525,9 @@ export async function createDepositIntent(
           ? deposit.ownerAddress
           : userAddress,
       txHash: String(deposit.txHash || data.tx_hash || payload.txHash),
-      amountUsdc: normalizeMoneyString(deposit.amountUsdc ?? normalizedAmountUsdc),
+      amountUsdc: normalizeMoneyString(
+        deposit.amountUsdc ?? normalizedAmountUsdc
+      ),
       creditedAmountUsdc: normalizeMoneyString(deposit.creditedAmountUsdc),
       status: String(
         (deposit as { state?: string }).state || deposit.status || "pending"
@@ -586,7 +623,9 @@ export async function recordDepositAttempt(
         : undefined,
     txHash:
       typeof attempt.txHash === "string" ? attempt.txHash : payload.txHash,
-    amountUsdc: normalizeMoneyString(attempt.amountUsdc ?? normalizedAmountUsdc),
+    amountUsdc: normalizeMoneyString(
+      attempt.amountUsdc ?? normalizedAmountUsdc
+    ),
     stage: String(attempt.stage || payload.stage) as DepositAttemptStage,
     failureReason:
       typeof attempt.failureReason === "string"
@@ -693,7 +732,9 @@ export async function getDepositSyncStatus(
     ownerAddress:
       typeof sync.ownerAddress === "string" ? sync.ownerAddress : undefined,
     amountUsdc:
-      sync.amountUsdc !== undefined ? normalizeMoneyString(sync.amountUsdc) : undefined,
+      sync.amountUsdc !== undefined
+        ? normalizeMoneyString(sync.amountUsdc)
+        : undefined,
     creditedAmountUsdc:
       sync.creditedAmountUsdc !== undefined
         ? normalizeMoneyString(sync.creditedAmountUsdc)
@@ -753,11 +794,20 @@ export async function requestV2Refund(
     refundId,
     signature,
     amountRefunded: normalizeMoneyString(payload.amountRefunded),
-    status: typeof payload.status === "string" ? parseWithdrawalStatus(payload.status) ?? "PENDING" : "PENDING",
+    status:
+      typeof payload.status === "string"
+        ? parseWithdrawalStatus(payload.status) ?? "PENDING"
+        : "PENDING",
     gasPayer: "OWNER",
     gasModel: "OWNER_PAYS_ONCHAIN",
-    riskLevel: typeof payload.riskLevel === "string" ? parseRiskLevel(payload.riskLevel) ?? undefined : undefined,
-    riskReasonCode: typeof payload.riskReasonCode === "string" ? payload.riskReasonCode : undefined,
+    riskLevel:
+      typeof payload.riskLevel === "string"
+        ? parseRiskLevel(payload.riskLevel) ?? undefined
+        : undefined,
+    riskReasonCode:
+      typeof payload.riskReasonCode === "string"
+        ? payload.riskReasonCode
+        : undefined,
     message: typeof payload.message === "string" ? payload.message : undefined,
   };
 }
@@ -776,16 +826,30 @@ export async function listV2Refunds(
     const row = r as Record<string, unknown>;
     return {
       id: typeof row.id === "string" ? row.id : String(row.id ?? ""),
-      ownerAddress: typeof row.ownerAddress === "string" ? row.ownerAddress : undefined,
+      ownerAddress:
+        typeof row.ownerAddress === "string" ? row.ownerAddress : undefined,
       amountUsdc:
-        row.amountUsdc !== undefined ? normalizeMoneyString(row.amountUsdc) : undefined,
+        row.amountUsdc !== undefined
+          ? normalizeMoneyString(row.amountUsdc)
+          : undefined,
       reason: typeof row.reason === "string" ? row.reason : undefined,
-      status: typeof row.status === "string" ? parseWithdrawalStatus(row.status) ?? "PENDING" : "PENDING",
-      riskLevel: typeof row.riskLevel === "string" ? parseRiskLevel(row.riskLevel) ?? undefined : undefined,
-      riskReasonCode: typeof row.riskReasonCode === "string" ? row.riskReasonCode : undefined,
+      status:
+        typeof row.status === "string"
+          ? parseWithdrawalStatus(row.status) ?? "PENDING"
+          : "PENDING",
+      riskLevel:
+        typeof row.riskLevel === "string"
+          ? parseRiskLevel(row.riskLevel) ?? undefined
+          : undefined,
+      riskReasonCode:
+        typeof row.riskReasonCode === "string" ? row.riskReasonCode : undefined,
       message: typeof row.message === "string" ? row.message : undefined,
-      originRequestId: typeof row.originRequestId === "string" ? row.originRequestId : undefined,
-      originTxHash: typeof row.originTxHash === "string" ? row.originTxHash : undefined,
+      originRequestId:
+        typeof row.originRequestId === "string"
+          ? row.originRequestId
+          : undefined,
+      originTxHash:
+        typeof row.originTxHash === "string" ? row.originTxHash : undefined,
       txHash: typeof row.txHash === "string" ? row.txHash : undefined,
       createdAt: typeof row.createdAt === "string" ? row.createdAt : undefined,
       updatedAt: typeof row.updatedAt === "string" ? row.updatedAt : undefined,
@@ -811,17 +875,26 @@ function normalizeHex32(value: unknown): `0x${string}` {
   return normalized as `0x${string}`;
 }
 
-function normalizeConsumerWithdrawTicket(rawTicket: Record<string, unknown>): ConsumerWithdrawTicket {
+function normalizeConsumerWithdrawTicket(
+  rawTicket: Record<string, unknown>
+): ConsumerWithdrawTicket {
   return {
     ticketId: normalizeHex32(rawTicket.ticketId),
-    ticketHash: typeof rawTicket.ticketHash === "string" ? normalizeHex32(rawTicket.ticketHash) : undefined,
+    ticketHash:
+      typeof rawTicket.ticketHash === "string"
+        ? normalizeHex32(rawTicket.ticketHash)
+        : undefined,
     amount: normalizeMoneyString(rawTicket.amount),
     fee: normalizeMoneyString(rawTicket.fee),
     nonce: rawTicket.nonce == null ? undefined : Number(rawTicket.nonce || 0),
     deadline: Number(rawTicket.deadline || 0),
-    signature: typeof rawTicket.signature === "string" ? rawTicket.signature : "",
+    signature:
+      typeof rawTicket.signature === "string" ? rawTicket.signature : "",
     chainId: Number(rawTicket.chainId || 0),
-    contractAddress: typeof rawTicket.contractAddress === "string" ? rawTicket.contractAddress : "",
+    contractAddress:
+      typeof rawTicket.contractAddress === "string"
+        ? rawTicket.contractAddress
+        : "",
   };
 }
 
@@ -857,7 +930,9 @@ export async function requestConsumerWithdraw(
     }),
   });
   if (!response.ok) {
-    throw new Error(await readErrorMessage(response, "Withdraw request failed"));
+    throw new Error(
+      await readErrorMessage(response, "Withdraw request failed")
+    );
   }
   const payload = (await response.json()) as Record<string, unknown>;
   const rawTicket = payload.ticket as Record<string, unknown> | undefined;
@@ -865,16 +940,28 @@ export async function requestConsumerWithdraw(
     ? normalizeConsumerWithdrawTicket(rawTicket)
     : undefined;
   return {
-    withdrawId: typeof payload.withdrawId === "string" ? payload.withdrawId : "",
+    withdrawId:
+      typeof payload.withdrawId === "string" ? payload.withdrawId : "",
     amountUsdc: normalizeMoneyString(payload.amountUsdc),
     feeUsdc: normalizeMoneyString(payload.feeUsdc),
     netUsdc: normalizeMoneyString(payload.netUsdc),
-    status: typeof payload.status === "string" ? parseWithdrawalStatus(payload.status) ?? "PENDING" : "PENDING",
-    riskLevel: typeof payload.riskLevel === "string" ? parseRiskLevel(payload.riskLevel) ?? undefined : undefined,
-    riskReasonCode: typeof payload.riskReasonCode === "string" ? payload.riskReasonCode : undefined,
+    status:
+      typeof payload.status === "string"
+        ? parseWithdrawalStatus(payload.status) ?? "PENDING"
+        : "PENDING",
+    riskLevel:
+      typeof payload.riskLevel === "string"
+        ? parseRiskLevel(payload.riskLevel) ?? undefined
+        : undefined,
+    riskReasonCode:
+      typeof payload.riskReasonCode === "string"
+        ? payload.riskReasonCode
+        : undefined,
     message: typeof payload.message === "string" ? payload.message : undefined,
-    destination: typeof payload.destination === "string" ? payload.destination : undefined,
-    createdAt: typeof payload.createdAt === "string" ? payload.createdAt : undefined,
+    destination:
+      typeof payload.destination === "string" ? payload.destination : undefined,
+    createdAt:
+      typeof payload.createdAt === "string" ? payload.createdAt : undefined,
     existingWithdrawal: payload.existingWithdrawal === true,
     ticket,
   };
@@ -896,9 +983,16 @@ export async function listConsumerWithdrawals(
     return {
       id: typeof row.id === "string" ? row.id : String(row.id ?? ""),
       amountUsdc: normalizeMoneyString(row.amountUsdc),
-      status: typeof row.status === "string" ? parseWithdrawalStatus(row.status) ?? "PENDING" : "PENDING",
-      riskLevel: typeof row.riskLevel === "string" ? parseRiskLevel(row.riskLevel) ?? undefined : undefined,
-      riskReasonCode: typeof row.riskReasonCode === "string" ? row.riskReasonCode : undefined,
+      status:
+        typeof row.status === "string"
+          ? parseWithdrawalStatus(row.status) ?? "PENDING"
+          : "PENDING",
+      riskLevel:
+        typeof row.riskLevel === "string"
+          ? parseRiskLevel(row.riskLevel) ?? undefined
+          : undefined,
+      riskReasonCode:
+        typeof row.riskReasonCode === "string" ? row.riskReasonCode : undefined,
       message: typeof row.message === "string" ? row.message : undefined,
       txHash: typeof row.txHash === "string" ? row.txHash : undefined,
       createdAt: typeof row.createdAt === "string" ? row.createdAt : undefined,
@@ -906,7 +1000,8 @@ export async function listConsumerWithdrawals(
       ticket: rawTicket
         ? normalizeConsumerWithdrawTicket(rawTicket)
         : undefined,
-      ownerAddress: typeof row.ownerAddress === "string" ? row.ownerAddress : undefined,
+      ownerAddress:
+        typeof row.ownerAddress === "string" ? row.ownerAddress : undefined,
     };
   });
 }

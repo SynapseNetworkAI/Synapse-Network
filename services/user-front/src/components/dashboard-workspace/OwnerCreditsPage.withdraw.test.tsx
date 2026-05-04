@@ -5,7 +5,9 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createElement } from "react";
 
-import OwnerCreditsPage, { WithdrawBalanceModal } from "@/components/dashboard-workspace/OwnerCreditsPage";
+import OwnerCreditsPage, {
+  WithdrawBalanceModal,
+} from "@/components/dashboard-workspace/OwnerCreditsPage";
 import { LanguageProvider } from "@/components/i18n/LanguageProvider";
 import { I18N_STORAGE_KEY } from "@/i18n/config";
 
@@ -60,7 +62,11 @@ vi.mock("@/components/WalletAuthGuard", () => ({
 
 vi.mock("@/hooks/useOwnerData", () => ({
   useOwnerData: () => ({
-    stats: { ownerBalance: ownerBalanceState.value },
+    stats: {
+      ownerBalance: ownerBalanceState.value,
+      consumerPendingBalance: "0",
+      consumerFrozenBalance: "0",
+    },
     handleRefresh: handleRefreshMock,
     isBootstrapping: false,
   }),
@@ -141,7 +147,7 @@ function renderWithdrawModal(overrides: { availableBalance?: number } = {}) {
       userAddress: "0xabc",
       onClose,
       onSuccess,
-    }),
+    })
   );
   return { onClose, onSuccess };
 }
@@ -164,7 +170,7 @@ describe("OwnerCreditsPage — Withdraw", () => {
     renderPage();
 
     await screen.findByRole("button", { name: "Withdraw" });
-    expect(screen.getAllByText("Remaining balance:").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Spendable credits").length).toBeGreaterThan(0);
     expect(screen.getByText("$20.00")).toBeTruthy();
   });
 
@@ -243,7 +249,9 @@ describe("OwnerCreditsPage — Withdraw", () => {
     await user.click(screen.getByRole("button", { name: /^withdraw$/i }));
     await screen.findByRole("heading", { name: "Withdraw Balance" });
 
-    const withdrawButtons = screen.getAllByRole("button", { name: /^withdraw$/i });
+    const withdrawButtons = screen.getAllByRole("button", {
+      name: /^withdraw$/i,
+    });
     await user.click(withdrawButtons.at(-1)!);
 
     await waitFor(() => {
@@ -262,7 +270,9 @@ describe("OwnerCreditsPage — Withdraw", () => {
     });
 
     const { onClose, onSuccess } = renderWithdrawModal();
-    const withdrawButtons = screen.getAllByRole("button", { name: /^withdraw$/i });
+    const withdrawButtons = screen.getAllByRole("button", {
+      name: /^withdraw$/i,
+    });
     await user.click(withdrawButtons.at(-1)!);
 
     await waitFor(() => {
@@ -288,7 +298,9 @@ describe("OwnerCreditsPage — Withdraw", () => {
 
     renderWithdrawModal();
 
-    const withdrawButtons = screen.getAllByRole("button", { name: /^withdraw$/i });
+    const withdrawButtons = screen.getAllByRole("button", {
+      name: /^withdraw$/i,
+    });
     await user.click(withdrawButtons.at(-1)!);
 
     await waitFor(() => {
@@ -309,7 +321,9 @@ describe("OwnerCreditsPage — Withdraw", () => {
 
     renderWithdrawModal();
 
-    const withdrawButtons = screen.getAllByRole("button", { name: /^withdraw$/i });
+    const withdrawButtons = screen.getAllByRole("button", {
+      name: /^withdraw$/i,
+    });
     await user.click(withdrawButtons.at(-1)!);
 
     await waitFor(() => {
@@ -327,7 +341,9 @@ describe("OwnerCreditsPage — Withdraw", () => {
 
     renderWithdrawModal();
 
-    const withdrawButtons = screen.getAllByRole("button", { name: /^withdraw$/i });
+    const withdrawButtons = screen.getAllByRole("button", {
+      name: /^withdraw$/i,
+    });
     await user.click(withdrawButtons.at(-1)!);
 
     await waitFor(() => {
@@ -344,7 +360,9 @@ describe("OwnerCreditsPage — Withdraw", () => {
     await user.clear(amountInput);
     await user.type(amountInput, "0");
 
-    const withdrawButtons = screen.getAllByRole("button", { name: /^withdraw$/i });
+    const withdrawButtons = screen.getAllByRole("button", {
+      name: /^withdraw$/i,
+    });
     await user.click(withdrawButtons.at(-1)!);
 
     expect(requestConsumerWithdrawMock).not.toHaveBeenCalled();

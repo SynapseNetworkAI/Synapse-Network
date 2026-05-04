@@ -3,9 +3,14 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { fetchRefundsMock, listConsumerWithdrawalsMock } = vi.hoisted(() => ({
+const {
+  fetchRefundsMock,
+  listConsumerWithdrawalsMock,
+  listDepositIntentsMock,
+} = vi.hoisted(() => ({
   fetchRefundsMock: vi.fn(),
   listConsumerWithdrawalsMock: vi.fn(),
+  listDepositIntentsMock: vi.fn(),
 }));
 
 vi.mock("wagmi", () => ({
@@ -35,6 +40,7 @@ vi.mock("@/utils/refundApi", () => ({
 
 vi.mock("@/utils/balanceApi", () => ({
   listConsumerWithdrawals: listConsumerWithdrawalsMock,
+  listDepositIntents: listDepositIntentsMock,
 }));
 
 vi.mock("ethers", () => {
@@ -91,6 +97,7 @@ describe("useFundsData", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     fetchRefundsMock.mockResolvedValue([]);
+    listDepositIntentsMock.mockResolvedValue([]);
     listConsumerWithdrawalsMock.mockResolvedValue([
       {
         id: "wd-failed",
@@ -117,8 +124,8 @@ describe("useFundsData", () => {
       expect(result.current.records.length).toBeGreaterThan(0);
     });
 
-    const failedRows = result.current.records.filter((row) =>
-      row.id === "wd-failed" || row.id === "wd-cancelled"
+    const failedRows = result.current.records.filter(
+      (row) => row.id === "wd-failed" || row.id === "wd-cancelled"
     );
     expect(failedRows).toEqual(
       expect.arrayContaining([
@@ -134,7 +141,42 @@ describe("useFundsData", () => {
           status: "FAILED",
           txHash: null,
         }),
-      ]),
+      ])
+    );
+  });
+
+  it("uses Gateway deposit intent status for deposit ledger rows", async () => {
+    listDepositIntentsMock.mockResolvedValue([
+      {
+        id: "dep-1",
+        txHash:
+          "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        amountUsdc: "100.00",
+        status: "PENDING_CONFIRMATION",
+        createdAt: "2026-05-04T03:34:53Z",
+      },
+    ]);
+
+    const { result } = renderHook(() => useFundsData());
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+      expect(result.current.records.some((row) => row.id === "dep-1")).toBe(
+        true
+      );
+    });
+
+    expect(result.current.records).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "dep-1",
+          type: "Deposit",
+          amount: 100,
+          txHash:
+            "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          status: "PENDING",
+        }),
+      ])
     );
   });
 });
