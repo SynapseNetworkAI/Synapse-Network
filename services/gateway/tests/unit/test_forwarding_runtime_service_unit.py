@@ -16,7 +16,6 @@ from pydantic import BaseModel, Field
 from src.api.schemas.pydantic_models import (
     AgentDiscoverySearchRequest,
     AgentInvokeRequest,
-    InferenceRequest,
 )
 from src.domain.gateway import OwnerSpendLimitRow
 from src.domain.execution import InvocationRecord, ServiceQuoteRecord
@@ -705,7 +704,7 @@ def _llm_service_definition() -> ServiceDefinitionRecord:
     )
 
 
-def test_generate_response_v2_paid_invocation_uses_typed_execution_models(
+def test_invoke_v1_paid_invocation_uses_typed_execution_models(
     monkeypatch,
 ) -> None:
     raw_token = "agt_1234567890abcdef12345678"
@@ -724,25 +723,26 @@ def test_generate_response_v2_paid_invocation_uses_typed_execution_models(
     )
 
     response = asyncio.run(
-        forwarding_service.generate_response_v2(
+        forwarding_service.invoke_v1(
             storage,
-            InferenceRequest(prompt="hello typed world", serviceId="svc.echo"),
-            "svc.echo",
+            AgentInvokeRequest(
+                serviceId="svc.echo",
+                idempotencyKey="req-typed-001",
+                costUsdc=Decimal("1.2"),
+                payload=RuntimePayloadRecord(body={"text": "hello typed world"}),
+                responseMode="sync",
+            ),
             raw_token,
             "req-typed-001",
         )
     )
 
-    receipt = response.payload.receipt
-    assert receipt.requestId == "req-typed-001"
+    receipt = response.receipt
     assert receipt.quoteId.startswith("quote-")
     assert receipt.invocationId.startswith("inv-")
-    assert receipt.serviceId == "svc.echo"
-    assert Decimal(str(receipt.serviceUnitPrice)) == Decimal("1.2")
-    assert Decimal(str(receipt.totalCharge)) == Decimal("1.25")
-    assert Decimal(str(receipt.consumerAvailableBalanceAfter)) == Decimal("8.75")
+    assert Decimal(str(response.chargedUsdc)) == Decimal("1.25")
 
-    assert response.payload.data.result == {
+    assert response.result == {
         "answer": "pong",
         "echo": "hello typed world",
     }
@@ -1150,10 +1150,15 @@ async def test_invoke_busy_rejects_before_charge_or_success_billing(monkeypatch)
     monkeypatch.setattr(downstream_concurrency.settings, "downstream_adaptive_window_sec", 60)
 
     async def _invoke(request_id: str):
-        return await forwarding_service.generate_response_v2(
+        return await forwarding_service.invoke_v1(
             storage,
-            InferenceRequest(prompt=f"hello {request_id}", serviceId="svc.echo"),
-            "svc.echo",
+            AgentInvokeRequest(
+                serviceId="svc.echo",
+                idempotencyKey=request_id,
+                costUsdc=Decimal("1.2"),
+                payload=RuntimePayloadRecord(body={"text": f"hello {request_id}"}),
+                responseMode="sync",
+            ),
             raw_token,
             request_id,
         )
@@ -1197,10 +1202,15 @@ def test_upstream_http_pool_timeout_rolls_back_charge(monkeypatch) -> None:
 
     with pytest.raises(HTTPException) as exc_info:
         asyncio.run(
-            forwarding_service.generate_response_v2(
+            forwarding_service.invoke_v1(
                 storage,
-                InferenceRequest(prompt="hello pool", serviceId="svc.echo"),
-                "svc.echo",
+                AgentInvokeRequest(
+                    serviceId="svc.echo",
+                    idempotencyKey="req-pool-timeout-001",
+                    costUsdc=Decimal("1.2"),
+                    payload=RuntimePayloadRecord(body={"text": "hello pool"}),
+                    responseMode="sync",
+                ),
                 raw_token,
                 "req-pool-timeout-001",
             )
@@ -1472,13 +1482,13 @@ def test_agent_discovery_quote_and_invocation_flow_uses_typed_templates(monkeypa
     discovery_results = asyncio.run(
         registry_service.search_agent_discovery(
             AgentDiscoveryQueryRecord(query="echo", pageSize=5),
-            public_gateway_url="https://gateway.test/api/v1/gateway/generate",
+            public_gateway_url="https://gateway.test/api/v1/agent/invoke",
         )
     )
 
     assert len(discovery_results) == 1
     discovery_result = discovery_results[0]
-    assert discovery_result.invoke.targets[0].url == "https://gateway.test/api/v1/gateway/generate"
+    assert discovery_result.invoke.targets[0].url == "https://gateway.test/api/v1/agent/invoke"
     assert discovery_result.quote_template.service_id == "svc.echo"
 
     quote_response = asyncio.run(
@@ -1743,7 +1753,7 @@ def test_gateway_signature_tolerates_secret_manager_newline(monkeypatch) -> None
     assert with_newline == without_newline
 
 
-def test_generate_response_v2_supports_structured_payloads(monkeypatch) -> None:
+def test_invoke_v1_supports_structured_payloads(monkeypatch) -> None:
     forwarding_budget._memory_window_counters.clear()
     raw_token = "agt_1234567890abcdef12345678"
     storage = FakeStorage(_structured_service_definition(), _runtime_credential(raw_token))
@@ -1761,19 +1771,23 @@ def test_generate_response_v2_supports_structured_payloads(monkeypatch) -> None:
     )
 
     response = asyncio.run(
-        forwarding_service.generate_response_v2(
+        forwarding_service.invoke_v1(
             storage,
-            InferenceRequest(
+            AgentInvokeRequest(
                 serviceId="svc_web3_sentiment_index",
-                payload={"symbol": "ETH", "chain": "ethereum", "lookback_hours": 24},
+                idempotencyKey="req-sentiment-001",
+                costUsdc=Decimal("0.01"),
+                payload=RuntimePayloadRecord(
+                    body={"symbol": "ETH", "chain": "ethereum", "lookback_hours": 24}
+                ),
+                responseMode="sync",
             ),
-            "svc_web3_sentiment_index",
             raw_token,
             "req-sentiment-001",
         )
     )
 
-    assert response.payload.data.result["result"]["symbol"] == "ETH"
+    assert response.result["result"]["symbol"] == "ETH"
     assert FakeStructuredAsyncClient.last_request["url"] == (
         "https://provider.test/provider-services/web3-sentiment-index/invoke"
     )
@@ -1794,7 +1808,7 @@ def test_generate_response_v2_supports_structured_payloads(monkeypatch) -> None:
     assert FakeStructuredAsyncClient.last_request["timeout"] == 8.0
 
 
-def test_generate_response_v2_returns_required_field_error_for_structured_service(
+def test_invoke_v1_returns_required_field_error_for_structured_service(
     monkeypatch,
 ) -> None:
     raw_token = "agt_1234567890abcdef12345678"
@@ -1805,10 +1819,13 @@ def test_generate_response_v2_returns_required_field_error_for_structured_servic
 
     with pytest.raises(HTTPException) as exc_info:
         asyncio.run(
-            forwarding_service.generate_response_v2(
+            forwarding_service.invoke_v1(
                 storage,
-                InferenceRequest(serviceId="svc_web3_sentiment_index"),
-                "svc_web3_sentiment_index",
+                AgentInvokeRequest(
+                    serviceId="svc_web3_sentiment_index",
+                    idempotencyKey="req-sentiment-missing-001",
+                    costUsdc=Decimal("0.01"),
+                ),
                 raw_token,
                 "req-sentiment-missing-001",
             )

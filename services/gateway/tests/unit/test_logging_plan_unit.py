@@ -14,9 +14,10 @@ from fastapi import HTTPException
 import gateway_fastapi
 from src import app as gateway_app
 from src.api import deps as api_deps
-from src.api.schemas.pydantic_models import InferenceRequest
+from src.api.schemas.pydantic_models import AgentInvokeRequest
 from src.core.log_config import setup_logger
 from src.core.config import settings
+from src.domain.service_contract import RuntimePayloadRecord
 from src.services.owner import forwarding_service, forwarding_validation, forwarding_billing
 from src.services.platform import credential_service
 from src.services.platform.balance_service import BalanceService
@@ -131,14 +132,18 @@ def _patch_invocation_dependencies(monkeypatch):
     monkeypatch.setattr(
         forwarding_validation,
         "find_active_service",
-        lambda storage, service_id: SimpleNamespace(service_id=service_id),
+        lambda storage, service_id: SimpleNamespace(
+            service_id=service_id,
+            service_kind="api",
+            price_model="fixed",
+            metering=SimpleNamespace(billing_unit="per_call"),
+        ),
     )
     monkeypatch.setattr(
         forwarding_validation,
         "parse_service_price_usdc",
         lambda service: 0.25,
     )
-    monkeypatch.setattr(forwarding_service, "_request_payload", lambda req, svc: {"text": "hi"})
     monkeypatch.setattr(
         forwarding_validation,
         "validate_invoke_request_contract",
@@ -160,6 +165,7 @@ def _patch_invocation_dependencies(monkeypatch):
         invocation = SimpleNamespace(
             invocation_id="inv_1",
             status="RUNNING",
+            charged_usdc=Decimal("0.25"),
             result=SimpleNamespace(payload={"answer": "ok"}),
         )
         return invocation, 9.0, {"unit_price": 0.25, "total_charge": 0.5}
@@ -266,7 +272,7 @@ def test_discover_services_logs_workflow(monkeypatch):
     assert ("discovery", "discovery.complete") in messages
 
 
-def test_generate_response_logs_invocation(monkeypatch):
+def test_agent_invoke_logs_invocation(monkeypatch):
     fake_log = FakeWorkflowLog()
     monkeypatch.setattr(
         forwarding_service,
@@ -276,20 +282,24 @@ def test_generate_response_logs_invocation(monkeypatch):
     _patch_invocation_dependencies(monkeypatch)
     storage = SimpleNamespace()
     result = asyncio.run(
-        forwarding_service.generate_response_v2(
+        forwarding_service.invoke_v1(
             storage,
-            InferenceRequest(prompt="hello", serviceId="svc.echo"),
-            "svc.echo",
+            AgentInvokeRequest(
+                serviceId="svc.echo",
+                idempotencyKey="req-test",
+                costUsdc=Decimal("0.25"),
+                payload=RuntimePayloadRecord(body={"text": "hi"}),
+            ),
             "cred_token",
             "req-test",
         )
     )
-    assert result.payload.receipt["request_id"] == "req-test"
+    assert result.invocationId == "inv_1"
     assert any(call[1] == "invocation.start" for call in fake_log.calls)
     assert any(call[1] == "invocation.complete" for call in fake_log.calls)
 
 
-def test_generate_response_logs_failure(monkeypatch):
+def test_agent_invoke_logs_failure(monkeypatch):
     fake_log = FakeWorkflowLog()
     monkeypatch.setattr(
         forwarding_service,
@@ -305,10 +315,14 @@ def test_generate_response_logs_failure(monkeypatch):
     storage = SimpleNamespace()
     with pytest.raises(HTTPException):
         asyncio.run(
-            forwarding_service.generate_response_v2(
+            forwarding_service.invoke_v1(
                 storage,
-                InferenceRequest(prompt="hello", serviceId="svc.echo"),
-                "svc.echo",
+                AgentInvokeRequest(
+                    serviceId="svc.echo",
+                    idempotencyKey="req-fail",
+                    costUsdc=Decimal("0.25"),
+                    payload=RuntimePayloadRecord(body={"text": "hi"}),
+                ),
                 "cred_token",
                 None,
             )

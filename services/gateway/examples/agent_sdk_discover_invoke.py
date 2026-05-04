@@ -8,6 +8,7 @@
 """
 
 import json
+import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
@@ -75,13 +76,32 @@ def pick_service(services: List[Dict[str, Any]]) -> Tuple[str, Dict[str, Any]]:
     return service_id, target
 
 
-def call_gateway(api_base: str, service_id: str, credential_token: str, prompt: str) -> Dict[str, Any]:
+def _service_price_usdc(service_row: Dict[str, Any]) -> str:
+    pricing = service_row.get("pricing") if isinstance(service_row.get("pricing"), dict) else {}
+    value = (
+        service_row.get("basePriceUsdc")
+        or service_row.get("priceUsdc")
+        or service_row.get("unitPrice")
+        or pricing.get("amount")
+    )
+    if value is None:
+        raise RuntimeError(f"price missing in discovery row: {json.dumps(service_row, ensure_ascii=False)}")
+    return str(value)
+
+
+def call_gateway(
+    api_base: str,
+    service_id: str,
+    service_row: Dict[str, Any],
+    credential_token: str,
+    prompt: str,
+) -> Dict[str, Any]:
     """通过 Gateway 调用指定服务。
 
-    POST /api/v1/gateway/generate
+    POST /api/v1/agent/invoke
     请求头 X-Credential 携带 Agent 凭据令牌。
     """
-    url = f"{api_base.rstrip('/')}/api/v1/gateway/generate"
+    url = f"{api_base.rstrip('/')}/api/v1/agent/invoke"
     response = requests.post(
         url,
         headers={
@@ -89,8 +109,11 @@ def call_gateway(api_base: str, service_id: str, credential_token: str, prompt: 
             "X-Credential": credential_token,
         },
         json={
-            "prompt": prompt,
             "serviceId": service_id,
+            "idempotencyKey": f"agent-sdk-example-{uuid.uuid4().hex}",
+            "costUsdc": _service_price_usdc(service_row),
+            "payload": {"body": {"text": prompt}},
+            "responseMode": "sync",
         },
         timeout=60,
     )
@@ -130,8 +153,8 @@ def main() -> None:
     }, ensure_ascii=False, indent=2))
 
     print("\n=== 2) Invoke Through Platform Gateway ===")
-    print(f"request: POST {api_base}/api/v1/gateway/generate")
-    result = call_gateway(api_base, service_id, credential_token, prompt)
+    print(f"request: POST {api_base}/api/v1/agent/invoke")
+    result = call_gateway(api_base, service_id, service_row, credential_token, prompt)
 
     print("\n=== 3) Request Result ===")
     print(json.dumps(result, ensure_ascii=False, indent=2))

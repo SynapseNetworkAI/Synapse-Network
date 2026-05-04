@@ -125,7 +125,7 @@ Gateway 重启不会无脑把所有服务写成 stale。它会读取 Postgres pe
 
 健康历史只记录状态翻转，不记录无意义流水账。连续 `unhealthy -> unhealthy` 或 `healthy -> healthy` 只更新当前 health snapshot 的检查时间、失败计数和错误摘要，不追加历史 JSON；只有 `healthy -> unhealthy`、`unhealthy -> healthy`、`stale -> healthy` 等 transition 会进入 history，用于控制台、告警和恢复审计。
 
-公开 Marketplace / `registry.json` 展示的是 Gateway invoke URL（例如 `/api/v1/gateway/generate`），不是 Provider 原始 endpoint。Provider endpoint 只属于 Gateway 内部 routing / health-check 数据，不能对 Agent 公开，否则会绕过鉴权、冻结、扣费和审计。
+公开 Marketplace / `registry.json` 展示的是 Gateway invoke URL（例如 `/api/v1/agent/invoke`），不是 Provider 原始 endpoint。Provider endpoint 只属于 Gateway 内部 routing / health-check 数据，不能对 Agent 公开，否则会绕过鉴权、冻结、扣费和审计。
 
 Invoke 转发还会使用动态并发保护：
 

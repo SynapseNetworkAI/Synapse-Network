@@ -480,8 +480,15 @@ async function invokeServices(token, addr, agents, count = 5) {
   for (let i = 0; i < count; i++) {
     const agent = agents[i % agents.length];
 
-    // Use agent raw token in X-Credential header, call gateway/generate
-    const r = await fetch(`${GATEWAY_URL}/v1/gateway/generate`, {
+    // Use agent raw token in X-Credential header, call agent invoke.
+    const pricing =
+      typeof svcs[0].pricing === "object" && svcs[0].pricing
+        ? svcs[0].pricing
+        : {};
+    const costUsdc = String(
+      svcs[0].basePriceUsdc || svcs[0].priceUsdc || pricing.amount || "0.001"
+    );
+    const r = await fetch(`${GATEWAY_URL}/v1/agent/invoke`, {
       method: "POST",
       headers: {
         "X-Credential": agent.token || "",
@@ -489,7 +496,12 @@ async function invokeServices(token, addr, agents, count = 5) {
       },
       body: JSON.stringify({
         serviceId: svcId,
-        prompt: `E2E test call #${i + 1} from ${agent.name}`,
+        idempotencyKey: `wallet-${Date.now()}-${i}`,
+        costUsdc,
+        payload: {
+          body: { text: `E2E test call #${i + 1} from ${agent.name}` },
+        },
+        responseMode: "sync",
       }),
     });
     const resp = await r.json().catch(() => ({}));

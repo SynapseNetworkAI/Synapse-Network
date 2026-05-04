@@ -10,32 +10,78 @@ import { ethers } from "ethers";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "../..");
-const RUN_ID = process.env.ADMIN_ANALYTICS_LOAD_RUN_ID || `aal-${new Date().toISOString().replace(/[^0-9]/g, "").slice(0, 14)}`;
-const OUT_DIR = path.resolve(ROOT, process.env.ADMIN_ANALYTICS_LOAD_OUTPUT_DIR || `output/analytics-load/${RUN_ID}`);
-const FIXTURE_PATH = path.resolve(process.env.ADMIN_ANALYTICS_LOAD_FIXTURE || path.join(OUT_DIR, "fixture.json"));
+const RUN_ID =
+  process.env.ADMIN_ANALYTICS_LOAD_RUN_ID ||
+  `aal-${new Date()
+    .toISOString()
+    .replace(/[^0-9]/g, "")
+    .slice(0, 14)}`;
+const OUT_DIR = path.resolve(
+  ROOT,
+  process.env.ADMIN_ANALYTICS_LOAD_OUTPUT_DIR ||
+    `output/analytics-load/${RUN_ID}`
+);
+const FIXTURE_PATH = path.resolve(
+  process.env.ADMIN_ANALYTICS_LOAD_FIXTURE || path.join(OUT_DIR, "fixture.json")
+);
 
-const GATEWAY_BASE_URL = (process.env.GATEWAY_BASE_URL || "http://127.0.0.1:8000").replace(/\/+$/, "");
+const GATEWAY_BASE_URL = (
+  process.env.GATEWAY_BASE_URL || "http://127.0.0.1:8000"
+).replace(/\/+$/, "");
 const API_BASE = `${GATEWAY_BASE_URL}/api`;
 const RPC_URL = process.env.ADMIN_ANALYTICS_RPC_URL || "http://127.0.0.1:8545";
-const CLICKHOUSE_URL = (process.env.ANALYTICS_CLICKHOUSE_URL || "http://127.0.0.1:8123").replace(/\/+$/, "");
+const CLICKHOUSE_URL = (
+  process.env.ANALYTICS_CLICKHOUSE_URL || "http://127.0.0.1:8123"
+).replace(/\/+$/, "");
 const CHAIN_ID = Number.parseInt(process.env.CHAIN_ID || "31337", 10);
-const TOTAL_CALLS = Number.parseInt(process.env.ADMIN_ANALYTICS_LOAD_TOTAL || "10000", 10);
-const CONCURRENCY = Number.parseInt(process.env.ADMIN_ANALYTICS_LOAD_CONCURRENCY || "32", 10);
-const PER_SERVICE_CONCURRENCY = Number.parseInt(process.env.ADMIN_ANALYTICS_LOAD_PER_SERVICE_CONCURRENCY || "1", 10);
-const MOCK_PORT_BASE = Number.parseInt(process.env.ADMIN_ANALYTICS_LOAD_MOCK_PORT || "20876", 10);
-const DEPOSIT_USDC = process.env.ADMIN_ANALYTICS_LOAD_DEPOSIT_USDC || "10000.000000";
-const CONSUMER_ETH_TARGET = process.env.ADMIN_ANALYTICS_LOAD_CONSUMER_ETH || "10.0";
-const LOAD_TIMEOUT_MS = Number.parseInt(process.env.ADMIN_ANALYTICS_LOAD_TIMEOUT_MS || "30000", 10);
-const WAIT_CLICKHOUSE_TIMEOUT_SEC = Number.parseInt(process.env.ADMIN_ANALYTICS_LOAD_CH_TIMEOUT_SEC || "180", 10);
-const FORCE_PROBE_KEEPALIVE_SEC = Number.parseInt(process.env.ADMIN_ANALYTICS_LOAD_FORCE_PROBE_KEEPALIVE_SEC || "45", 10);
-const STRICT_REAL_PIPELINE = !["0", "false", "no"].includes(String(process.env.ADMIN_ANALYTICS_STRICT_REAL_PIPELINE || "1").toLowerCase());
-const PREPARE_LOCAL = !["0", "false", "no"].includes(String(process.env.ADMIN_ANALYTICS_LOAD_PREPARE_LOCAL || "1").toLowerCase());
-const KAFKA_BOOTSTRAP = process.env.ANALYTICS_KAFKA_BOOTSTRAP_SERVERS || "localhost:9092";
+const TOTAL_CALLS = Number.parseInt(
+  process.env.ADMIN_ANALYTICS_LOAD_TOTAL || "10000",
+  10
+);
+const CONCURRENCY = Number.parseInt(
+  process.env.ADMIN_ANALYTICS_LOAD_CONCURRENCY || "32",
+  10
+);
+const PER_SERVICE_CONCURRENCY = Number.parseInt(
+  process.env.ADMIN_ANALYTICS_LOAD_PER_SERVICE_CONCURRENCY || "1",
+  10
+);
+const MOCK_PORT_BASE = Number.parseInt(
+  process.env.ADMIN_ANALYTICS_LOAD_MOCK_PORT || "20876",
+  10
+);
+const DEPOSIT_USDC =
+  process.env.ADMIN_ANALYTICS_LOAD_DEPOSIT_USDC || "10000.000000";
+const CONSUMER_ETH_TARGET =
+  process.env.ADMIN_ANALYTICS_LOAD_CONSUMER_ETH || "10.0";
+const LOAD_TIMEOUT_MS = Number.parseInt(
+  process.env.ADMIN_ANALYTICS_LOAD_TIMEOUT_MS || "30000",
+  10
+);
+const WAIT_CLICKHOUSE_TIMEOUT_SEC = Number.parseInt(
+  process.env.ADMIN_ANALYTICS_LOAD_CH_TIMEOUT_SEC || "180",
+  10
+);
+const FORCE_PROBE_KEEPALIVE_SEC = Number.parseInt(
+  process.env.ADMIN_ANALYTICS_LOAD_FORCE_PROBE_KEEPALIVE_SEC || "45",
+  10
+);
+const STRICT_REAL_PIPELINE = !["0", "false", "no"].includes(
+  String(process.env.ADMIN_ANALYTICS_STRICT_REAL_PIPELINE || "1").toLowerCase()
+);
+const PREPARE_LOCAL = !["0", "false", "no"].includes(
+  String(process.env.ADMIN_ANALYTICS_LOAD_PREPARE_LOCAL || "1").toLowerCase()
+);
+const KAFKA_BOOTSTRAP =
+  process.env.ANALYTICS_KAFKA_BOOTSTRAP_SERVERS || "localhost:9092";
 
 const DEFAULT_KEYS = {
-  deployer: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
-  consumer: "0x7c852118294f1a460a80c7c33d7409ea91c8436518e91e202d1f5f9e3544eb07",
-  provider: "0x47e179ec197488bf6f785afa0fc15f4dee1a74f3f44fffedce27f84d349a926a",
+  deployer:
+    "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+  consumer:
+    "0x7c852118294f1a460a80c7c33d7409ea91c8436518e91e202d1f5f9e3544eb07",
+  provider:
+    "0x47e179ec197488bf6f785afa0fc15f4dee1a74f3f44fffedce27f84d349a926a",
 };
 
 const DEPLOYER_KEY = process.env.DEPLOYER_KEY || DEFAULT_KEYS.deployer;
@@ -43,9 +89,24 @@ const CONSUMER_KEY = process.env.CONSUMER_KEY || DEFAULT_KEYS.consumer;
 const PROVIDER_KEY = process.env.PROVIDER_KEY || DEFAULT_KEYS.provider;
 
 const SERVICE_SPECS = [
-  { slug: "tenk-echo-lite", label: "10k Echo Lite", priceUsdc: "0.100000", port: MOCK_PORT_BASE },
-  { slug: "tenk-echo-core", label: "10k Echo Core", priceUsdc: "1.000000", port: MOCK_PORT_BASE + 1 },
-  { slug: "tenk-echo-pro", label: "10k Echo Pro", priceUsdc: "1.500000", port: MOCK_PORT_BASE + 2 },
+  {
+    slug: "tenk-echo-lite",
+    label: "10k Echo Lite",
+    priceUsdc: "0.100000",
+    port: MOCK_PORT_BASE,
+  },
+  {
+    slug: "tenk-echo-core",
+    label: "10k Echo Core",
+    priceUsdc: "1.000000",
+    port: MOCK_PORT_BASE + 1,
+  },
+  {
+    slug: "tenk-echo-pro",
+    label: "10k Echo Pro",
+    priceUsdc: "1.500000",
+    port: MOCK_PORT_BASE + 2,
+  },
 ];
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -70,7 +131,13 @@ function readDotenv(filePath) {
         .filter((line) => line && !line.startsWith("#") && line.includes("="))
         .map((line) => {
           const index = line.indexOf("=");
-          return [line.slice(0, index).trim(), line.slice(index + 1).trim().replace(/^['"]|['"]$/g, "")];
+          return [
+            line.slice(0, index).trim(),
+            line
+              .slice(index + 1)
+              .trim()
+              .replace(/^['"]|['"]$/g, ""),
+          ];
         })
     );
   } catch {
@@ -85,11 +152,25 @@ function localGatewayEnv() {
 function internalGatewayConfig() {
   const localEnv = localGatewayEnv();
   return {
-    jwtSecret: process.env.GATEWAY_INTERNAL_JWT_SECRET || localEnv.GATEWAY_INTERNAL_JWT_SECRET || "",
-    issuer: process.env.GATEWAY_INTERNAL_TOKEN_ISSUER || localEnv.GATEWAY_INTERNAL_TOKEN_ISSUER || "gateway-admin",
-    audience: process.env.GATEWAY_INTERNAL_TOKEN_AUDIENCE || localEnv.GATEWAY_INTERNAL_TOKEN_AUDIENCE || "gateway-internal",
-    subject: process.env.GATEWAY_INTERNAL_SERVICE_SUBJECT || localEnv.GATEWAY_INTERNAL_SERVICE_SUBJECT || "service:gateway-admin",
-    adminWallet: process.env.GATEWAY_INTERNAL_ADMIN_WALLET || "0xA0f67a47D9eF18183Cd113eD85A654E2772c5901",
+    jwtSecret:
+      process.env.GATEWAY_INTERNAL_JWT_SECRET ||
+      localEnv.GATEWAY_INTERNAL_JWT_SECRET ||
+      "",
+    issuer:
+      process.env.GATEWAY_INTERNAL_TOKEN_ISSUER ||
+      localEnv.GATEWAY_INTERNAL_TOKEN_ISSUER ||
+      "gateway-admin",
+    audience:
+      process.env.GATEWAY_INTERNAL_TOKEN_AUDIENCE ||
+      localEnv.GATEWAY_INTERNAL_TOKEN_AUDIENCE ||
+      "gateway-internal",
+    subject:
+      process.env.GATEWAY_INTERNAL_SERVICE_SUBJECT ||
+      localEnv.GATEWAY_INTERNAL_SERVICE_SUBJECT ||
+      "service:gateway-admin",
+    adminWallet:
+      process.env.GATEWAY_INTERNAL_ADMIN_WALLET ||
+      "0xA0f67a47D9eF18183Cd113eD85A654E2772c5901",
   };
 }
 
@@ -97,21 +178,31 @@ function gatewayAnalyticsConfig() {
   const localEnv = localGatewayEnv();
   return {
     environment: process.env.ENVIRONMENT || localEnv.ENVIRONMENT || "local",
-    kafkaBootstrapServers: process.env.ANALYTICS_KAFKA_BOOTSTRAP_SERVERS || localEnv.ANALYTICS_KAFKA_BOOTSTRAP_SERVERS || (STRICT_REAL_PIPELINE ? KAFKA_BOOTSTRAP : ""),
+    kafkaBootstrapServers:
+      process.env.ANALYTICS_KAFKA_BOOTSTRAP_SERVERS ||
+      localEnv.ANALYTICS_KAFKA_BOOTSTRAP_SERVERS ||
+      (STRICT_REAL_PIPELINE ? KAFKA_BOOTSTRAP : ""),
     fallbackFile: path.resolve(
       ROOT,
-      process.env.ANALYTICS_FALLBACK_FILE
-        || localEnv.ANALYTICS_FALLBACK_FILE
-        || "services/gateway/logs/analytics_events.jsonl",
+      process.env.ANALYTICS_FALLBACK_FILE ||
+        localEnv.ANALYTICS_FALLBACK_FILE ||
+        "services/gateway/logs/analytics_events.jsonl"
     ),
   };
 }
 
 function runPrepareLocalStrictAnalytics() {
-  if (!STRICT_REAL_PIPELINE || !PREPARE_LOCAL || !isLocalUrl(GATEWAY_BASE_URL)) {
+  if (
+    !STRICT_REAL_PIPELINE ||
+    !PREPARE_LOCAL ||
+    !isLocalUrl(GATEWAY_BASE_URL)
+  ) {
     return;
   }
-  const script = path.join(ROOT, "scripts/e2e/admin_analytics_10k_prepare_local.mjs");
+  const script = path.join(
+    ROOT,
+    "scripts/e2e/admin_analytics_10k_prepare_local.mjs"
+  );
   log("preparing local Redis + Kafka + ClickHouse strict analytics pipeline");
   const result = spawnSync(process.execPath, [script], {
     cwd: ROOT,
@@ -125,7 +216,9 @@ function runPrepareLocalStrictAnalytics() {
     },
   });
   if (result.status !== 0) {
-    fail("local strict analytics prepare failed; refusing to continue 10k dogfood");
+    fail(
+      "local strict analytics prepare failed; refusing to continue 10k dogfood"
+    );
   }
 }
 
@@ -134,12 +227,18 @@ function assertGatewayStrictKafkaMode() {
     return;
   }
   const logPath = path.join(ROOT, "services/gateway/logs/provider_api.log");
-  const logText = fs.existsSync(logPath) ? fs.readFileSync(logPath, "utf8").slice(-20000) : "";
+  const logText = fs.existsSync(logPath)
+    ? fs.readFileSync(logPath, "utf8").slice(-20000)
+    : "";
   if (!logText.includes("Analytics: Strict Kafka")) {
-    fail("Gateway is not running in Analytics: Strict Kafka mode. Run admin_analytics_10k_prepare_local.mjs or set ANALYTICS_STRICT_KAFKA=1.");
+    fail(
+      "Gateway is not running in Analytics: Strict Kafka mode. Run admin_analytics_10k_prepare_local.mjs or set ANALYTICS_STRICT_KAFKA=1."
+    );
   }
   if (logText.includes("Analytics: File-only mode")) {
-    fail("Gateway strict analytics preflight saw File-only mode in the current gateway log. Refusing fallback/mock verification.");
+    fail(
+      "Gateway strict analytics preflight saw File-only mode in the current gateway log. Refusing fallback/mock verification."
+    );
   }
 }
 
@@ -172,8 +271,12 @@ function buildInternalGatewayToken({ scope, requestId, bodySha256 }) {
     exp: now + 120,
     jti: randomUUID().replace(/-/g, ""),
   };
-  const encoded = `${base64url(JSON.stringify(header))}.${base64url(JSON.stringify(payload))}`;
-  const signature = createHmac("sha256", config.jwtSecret).update(encoded).digest("base64url");
+  const encoded = `${base64url(JSON.stringify(header))}.${base64url(
+    JSON.stringify(payload)
+  )}`;
+  const signature = createHmac("sha256", config.jwtSecret)
+    .update(encoded)
+    .digest("base64url");
   return `${encoded}.${signature}`;
 }
 
@@ -191,14 +294,19 @@ function isLocalUrl(value) {
 }
 
 function assertLocalOnly() {
-  const usesDefaultKey = [DEPLOYER_KEY, CONSUMER_KEY, PROVIDER_KEY].some((key) =>
-    Object.values(DEFAULT_KEYS).includes(key),
+  const usesDefaultKey = [DEPLOYER_KEY, CONSUMER_KEY, PROVIDER_KEY].some(
+    (key) => Object.values(DEFAULT_KEYS).includes(key)
   );
   if (usesDefaultKey && CHAIN_ID !== 31337) {
     fail("Refusing to use default local test keys outside CHAIN_ID=31337.");
   }
-  if (usesDefaultKey && (!isLocalUrl(RPC_URL) || !isLocalUrl(GATEWAY_BASE_URL))) {
-    fail("Refusing to use default local test keys against non-localhost endpoints.");
+  if (
+    usesDefaultKey &&
+    (!isLocalUrl(RPC_URL) || !isLocalUrl(GATEWAY_BASE_URL))
+  ) {
+    fail(
+      "Refusing to use default local test keys against non-localhost endpoints."
+    );
   }
   if (!Number.isInteger(TOTAL_CALLS) || TOTAL_CALLS < 1) {
     fail("ADMIN_ANALYTICS_LOAD_TOTAL must be a positive integer.");
@@ -206,8 +314,14 @@ function assertLocalOnly() {
   if (!Number.isInteger(CONCURRENCY) || CONCURRENCY < 1 || CONCURRENCY > 256) {
     fail("ADMIN_ANALYTICS_LOAD_CONCURRENCY must be between 1 and 256.");
   }
-  if (!Number.isInteger(PER_SERVICE_CONCURRENCY) || PER_SERVICE_CONCURRENCY < 1 || PER_SERVICE_CONCURRENCY > 64) {
-    fail("ADMIN_ANALYTICS_LOAD_PER_SERVICE_CONCURRENCY must be between 1 and 64.");
+  if (
+    !Number.isInteger(PER_SERVICE_CONCURRENCY) ||
+    PER_SERVICE_CONCURRENCY < 1 ||
+    PER_SERVICE_CONCURRENCY > 64
+  ) {
+    fail(
+      "ADMIN_ANALYTICS_LOAD_PER_SERVICE_CONCURRENCY must be between 1 and 64."
+    );
   }
 }
 
@@ -215,11 +329,19 @@ async function assertReachable(name, url, options = {}) {
   let lastError = null;
   for (let attempt = 1; attempt <= (options.attempts || 3); attempt += 1) {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), options.timeoutMs || 15000);
+    const timer = setTimeout(
+      () => controller.abort(),
+      options.timeoutMs || 15000
+    );
     try {
-      const response = await fetch(url, { method: options.method || "GET", signal: controller.signal });
+      const response = await fetch(url, {
+        method: options.method || "GET",
+        signal: controller.signal,
+      });
       if (!response.ok && !options.allowNonOk) {
-        fail(`${name} not ready: ${response.status} ${response.statusText} at ${url}`);
+        fail(
+          `${name} not ready: ${response.status} ${response.statusText} at ${url}`
+        );
       }
       return response;
     } catch (error) {
@@ -232,10 +354,22 @@ async function assertReachable(name, url, options = {}) {
       clearTimeout(timer);
     }
   }
-  fail(`${name} not reachable at ${url}. ${lastError?.message || "unknown error"}`);
+  fail(
+    `${name} not reachable at ${url}. ${lastError?.message || "unknown error"}`
+  );
 }
 
-async function api(pathname, { method = "GET", token, address, body, headers = {}, timeoutMs = LOAD_TIMEOUT_MS } = {}) {
+async function api(
+  pathname,
+  {
+    method = "GET",
+    token,
+    address,
+    body,
+    headers = {},
+    timeoutMs = LOAD_TIMEOUT_MS,
+  } = {}
+) {
   const requestHeaders = { Accept: "application/json", ...headers };
   if (body !== undefined) {
     requestHeaders["Content-Type"] = "application/json";
@@ -265,7 +399,11 @@ async function api(pathname, { method = "GET", token, address, body, headers = {
       }
     }
     if (!response.ok) {
-      fail(`${method} ${pathname} failed: ${response.status} ${JSON.stringify(payload).slice(0, 1000)}`);
+      fail(
+        `${method} ${pathname} failed: ${response.status} ${JSON.stringify(
+          payload
+        ).slice(0, 1000)}`
+      );
     }
     return payload;
   } finally {
@@ -283,7 +421,10 @@ function decimalToAtomic(value, decimals = 6) {
     return 0n;
   }
   const [whole, fraction = ""] = normalized.split(".");
-  return BigInt(whole) * 10n ** BigInt(decimals) + BigInt(fraction.padEnd(decimals, "0").slice(0, decimals));
+  return (
+    BigInt(whole) * 10n ** BigInt(decimals) +
+    BigInt(fraction.padEnd(decimals, "0").slice(0, decimals))
+  );
 }
 
 function atomicToDecimal(value, decimals = 6) {
@@ -351,11 +492,16 @@ async function clickhouseQuery(sql) {
   if (!response.ok) {
     fail(`ClickHouse query failed: ${response.status} ${text.slice(0, 1000)}`);
   }
-  return text.split("\n").filter(Boolean).map((line) => JSON.parse(line));
+  return text
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => JSON.parse(line));
 }
 
 function sqlString(value) {
-  return String(value ?? "").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+  return String(value ?? "")
+    .replace(/\\/g, "\\\\")
+    .replace(/'/g, "\\'");
 }
 
 async function rawWindowSnapshot() {
@@ -402,7 +548,11 @@ async function rawRunSnapshot({ serviceIds, runId }) {
     WHERE timestamp >= now() - INTERVAL 24 HOUR
       AND (
         JSONExtractString(properties, 'e2e_marker') = '${runIdSql}'
-        ${serviceIds.length ? `OR JSONExtractString(properties, 'service_id') IN (${serviceIdList})` : ""}
+        ${
+          serviceIds.length
+            ? `OR JSONExtractString(properties, 'service_id') IN (${serviceIdList})`
+            : ""
+        }
       )
     GROUP BY event_name
     ORDER BY event_name ASC
@@ -417,7 +567,9 @@ async function getChainContext() {
   if (chainId !== CHAIN_ID) {
     fail(`RPC chainId mismatch. Expected ${CHAIN_ID}, got ${chainId}.`);
   }
-  const contractConfig = readJson("services/user-front/src/contract-config.json");
+  const contractConfig = readJson(
+    "services/user-front/src/contract-config.json"
+  );
   return {
     provider,
     chainId,
@@ -435,7 +587,11 @@ async function sendWithRetry(label, makeTx, attempts = 3) {
       return await makeTx();
     } catch (error) {
       lastError = error;
-      if (!/nonce|replacement|underpriced|already known/i.test(error.message || "")) {
+      if (
+        !/nonce|replacement|underpriced|already known/i.test(
+          error.message || ""
+        )
+      ) {
         throw error;
       }
       log(`${label} retry ${i + 1}/${attempts}: ${error.message}`);
@@ -448,7 +604,9 @@ async function sendWithRetry(label, makeTx, attempts = 3) {
 async function authenticate(privateKey, label) {
   const wallet = new ethers.Wallet(privateKey);
   const address = wallet.address;
-  const challenge = await api(`/v1/auth/challenge?address=${encodeURIComponent(address)}`);
+  const challenge = await api(
+    `/v1/auth/challenge?address=${encodeURIComponent(address)}`
+  );
   const message = challenge.challenge || challenge.message;
   if (!message) {
     fail(`${label} auth challenge missing message`);
@@ -467,7 +625,8 @@ async function authenticate(privateKey, label) {
 }
 
 async function fundAndDeposit({ consumerAddress }) {
-  const { provider, coreAbi, usdcAbi, usdcAddress, coreAddress } = await getChainContext();
+  const { provider, coreAbi, usdcAbi, usdcAddress, coreAddress } =
+    await getChainContext();
   const deployer = new ethers.Wallet(DEPLOYER_KEY, provider);
   const consumer = new ethers.Wallet(CONSUMER_KEY, provider);
   const usdcDeployer = new ethers.Contract(usdcAddress, usdcAbi, deployer);
@@ -480,25 +639,39 @@ async function fundAndDeposit({ consumerAddress }) {
   const targetEth = ethers.parseEther(CONSUMER_ETH_TARGET);
   if (ethBalance < targetEth) {
     const delta = targetEth - ethBalance;
-    const tx = await sendWithRetry("eth-topup", async () => deployer.sendTransaction({ to: consumerAddress, value: delta }));
+    const tx = await sendWithRetry("eth-topup", async () =>
+      deployer.sendTransaction({ to: consumerAddress, value: delta })
+    );
     await tx.wait();
     log(`consumer ETH top-up confirmed to target ${CONSUMER_ETH_TARGET} ETH`);
   }
 
-  const mintTx = await sendWithRetry("mint-usdc", async () => usdcDeployer.mint(consumerAddress, amountAtomic));
+  const mintTx = await sendWithRetry("mint-usdc", async () =>
+    usdcDeployer.mint(consumerAddress, amountAtomic)
+  );
   await mintTx.wait();
   log(`${DEPOSIT_USDC} MockUSDC minted for consumer`);
 
-  const approveTx = await sendWithRetry("approve-usdc", async () => usdcConsumer.approve(coreAddress, amountAtomic));
+  const approveTx = await sendWithRetry("approve-usdc", async () =>
+    usdcConsumer.approve(coreAddress, amountAtomic)
+  );
   await approveTx.wait();
 
-  const depositTx = await sendWithRetry("deposit", async () => coreConsumer.deposit(amountAtomic));
+  const depositTx = await sendWithRetry("deposit", async () =>
+    coreConsumer.deposit(amountAtomic)
+  );
   const receipt = await depositTx.wait();
   if (receipt?.status !== 1) {
     fail(`deposit transaction failed: ${depositTx.hash}`);
   }
   log(`chain deposit confirmed: ${depositTx.hash}`);
-  return { txHash: depositTx.hash, amountUsdc: DEPOSIT_USDC, decimals, coreAddress, usdcAddress };
+  return {
+    txHash: depositTx.hash,
+    amountUsdc: DEPOSIT_USDC,
+    decimals,
+    coreAddress,
+    usdcAddress,
+  };
 }
 
 async function registerDepositIntent({ token, address, txHash, amountUsdc }) {
@@ -506,23 +679,44 @@ async function registerDepositIntent({ token, address, txHash, amountUsdc }) {
     method: "POST",
     token,
     address,
-    headers: { "X-Idempotency-Key": `analytics-10k-deposit-${txHash.replace(/^0x/, "").slice(0, 80)}` },
+    headers: {
+      "X-Idempotency-Key": `analytics-10k-deposit-${txHash
+        .replace(/^0x/, "")
+        .slice(0, 80)}`,
+    },
     body: { txHash, amountUsdc },
   });
   return payload;
 }
 
-async function confirmLocalDepositIntent({ token, address, depositIntent, txHash }) {
+async function confirmLocalDepositIntent({
+  token,
+  address,
+  depositIntent,
+  txHash,
+}) {
   const depositIntentId = depositIntent.intent?.id || depositIntent.id;
   if (!depositIntentId) {
-    fail(`deposit intent response missing id: ${JSON.stringify(depositIntent).slice(0, 600)}`);
+    fail(
+      `deposit intent response missing id: ${JSON.stringify(
+        depositIntent
+      ).slice(0, 600)}`
+    );
   }
-  return api(`/v1/balance/deposit/intents/${encodeURIComponent(depositIntentId)}/confirm`, {
-    method: "POST",
-    token,
-    address,
-    body: { eventKey: `analytics-load:${String(txHash).toLowerCase()}`, confirmations: 1 },
-  });
+  return api(
+    `/v1/balance/deposit/intents/${encodeURIComponent(
+      depositIntentId
+    )}/confirm`,
+    {
+      method: "POST",
+      token,
+      address,
+      body: {
+        eventKey: `analytics-load:${String(txHash).toLowerCase()}`,
+        confirmations: 1,
+      },
+    }
+  );
 }
 
 async function waitForBalanceAtLeast({ token, address, expectedUsdc, txHash }) {
@@ -530,42 +724,78 @@ async function waitForBalanceAtLeast({ token, address, expectedUsdc, txHash }) {
   let lastBalance = "0";
   for (let i = 0; i < 60; i += 1) {
     if (txHash) {
-      await api(`/v1/balance/deposit/sync?txHash=${encodeURIComponent(String(txHash).toLowerCase())}`, {
-        token,
-        address,
-      }).catch((error) => log(`deposit sync poll failed: ${error.message}`));
+      await api(
+        `/v1/balance/deposit/sync?txHash=${encodeURIComponent(
+          String(txHash).toLowerCase()
+        )}`,
+        {
+          token,
+          address,
+        }
+      ).catch((error) => log(`deposit sync poll failed: ${error.message}`));
     }
     const payload = await api("/v1/balance", { token, address });
     const balance = payload.balance || {};
-    lastBalance = String(balance.consumerAvailableBalance ?? balance.ownerBalance ?? "0");
+    lastBalance = String(
+      balance.consumerAvailableBalance ?? balance.ownerBalance ?? "0"
+    );
     if (decimalToAtomic(lastBalance) >= expected) {
       log(`consumer gateway balance synced: ${lastBalance} USDC`);
       return payload;
     }
     await sleep(2000);
   }
-  fail(`consumer balance did not reach ${expectedUsdc} USDC; last=${lastBalance}`);
+  fail(
+    `consumer balance did not reach ${expectedUsdc} USDC; last=${lastBalance}`
+  );
 }
 
 async function ensureMockUpstream(spec) {
   const healthUrl = `http://127.0.0.1:${spec.port}/health`;
-  const existing = await fetch(healthUrl).then((res) => res.ok).catch(() => false);
+  const existing = await fetch(healthUrl)
+    .then((res) => res.ok)
+    .catch(() => false);
   if (existing) {
     log(`mock upstream ${spec.slug} already running on ${healthUrl}`);
-    return { url: `http://127.0.0.1:${spec.port}`, pid: null, reused: true, slug: spec.slug };
+    return {
+      url: `http://127.0.0.1:${spec.port}`,
+      pid: null,
+      reused: true,
+      slug: spec.slug,
+    };
   }
   fs.mkdirSync(OUT_DIR, { recursive: true });
   const logPath = path.join(OUT_DIR, `mock-upstream-${spec.slug}.log`);
-  const child = spawn(process.execPath, [fileURLToPath(import.meta.url), "--mock-upstream", String(spec.port), spec.slug], {
-    cwd: ROOT,
-    detached: true,
-    stdio: ["ignore", fs.openSync(logPath, "a"), fs.openSync(logPath, "a")],
-  });
+  const child = spawn(
+    process.execPath,
+    [
+      fileURLToPath(import.meta.url),
+      "--mock-upstream",
+      String(spec.port),
+      spec.slug,
+    ],
+    {
+      cwd: ROOT,
+      detached: true,
+      stdio: ["ignore", fs.openSync(logPath, "a"), fs.openSync(logPath, "a")],
+    }
+  );
   child.unref();
   for (let i = 0; i < 30; i += 1) {
-    if (await fetch(healthUrl).then((res) => res.ok).catch(() => false)) {
-      log(`mock upstream ${spec.slug} started on ${healthUrl} (pid ${child.pid})`);
-      return { url: `http://127.0.0.1:${spec.port}`, pid: child.pid, reused: false, slug: spec.slug };
+    if (
+      await fetch(healthUrl)
+        .then((res) => res.ok)
+        .catch(() => false)
+    ) {
+      log(
+        `mock upstream ${spec.slug} started on ${healthUrl} (pid ${child.pid})`
+      );
+      return {
+        url: `http://127.0.0.1:${spec.port}`,
+        pid: child.pid,
+        reused: false,
+        slug: spec.slug,
+      };
     }
     await sleep(500);
   }
@@ -580,7 +810,9 @@ function startMockUpstream(port, slug = "echo") {
       return;
     }
     let raw = "";
-    req.on("data", (chunk) => { raw += chunk; });
+    req.on("data", (chunk) => {
+      raw += chunk;
+    });
     req.on("end", () => {
       let parsed = {};
       try {
@@ -589,16 +821,29 @@ function startMockUpstream(port, slug = "echo") {
         parsed = { raw };
       }
       res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ status: "ok", runId: RUN_ID, service: `analytics-10k-${slug}`, echo: parsed, receivedAt: new Date().toISOString() }));
+      res.end(
+        JSON.stringify({
+          status: "ok",
+          runId: RUN_ID,
+          service: `analytics-10k-${slug}`,
+          echo: parsed,
+          receivedAt: new Date().toISOString(),
+        })
+      );
     });
   });
   server.listen(port, "127.0.0.1", () => {
-    console.log(`[analytics-10k-mock] ${slug} listening on http://127.0.0.1:${port}`);
+    console.log(
+      `[analytics-10k-mock] ${slug} listening on http://127.0.0.1:${port}`
+    );
   });
 }
 
 function serviceIdForSpec(spec) {
-  return `aal_${spec.slug.replace(/[^a-zA-Z0-9_]/g, "_")}_${RUN_ID.replace(/[^a-zA-Z0-9_]/g, "_")}`;
+  return `aal_${spec.slug.replace(/[^a-zA-Z0-9_]/g, "_")}_${RUN_ID.replace(
+    /[^a-zA-Z0-9_]/g,
+    "_"
+  )}`;
 }
 
 async function issueProviderSecret({ token, address }) {
@@ -614,7 +859,10 @@ async function issueProviderSecret({ token, address }) {
     },
   });
   const secret = payload.secret || payload.credential || payload;
-  return { id: secret.id || secret.credentialId || "", tokenPrefix: secret.tokenPrefix || secret.secretPrefix || "" };
+  return {
+    id: secret.id || secret.credentialId || "",
+    tokenPrefix: secret.tokenPrefix || secret.secretPrefix || "",
+  };
 }
 
 async function registerService({ token, address, spec, mockUrl }) {
@@ -628,37 +876,89 @@ async function registerService({ token, address, spec, mockUrl }) {
     summary: `Analytics 10k verification service ${spec.label}.`,
     tags: ["analytics-load", "verification", "echo", spec.slug],
     providerProfile: { displayName: "Analytics Load Provider" },
-    payoutAccount: { payoutAddress: address, chainId: CHAIN_ID, settlementCurrency: "USDC", status: "active" },
+    payoutAccount: {
+      payoutAddress: address,
+      chainId: CHAIN_ID,
+      settlementCurrency: "USDC",
+      status: "active",
+    },
     governance: { termsAccepted: true, riskAcknowledged: true, note: RUN_ID },
-    healthCheck: { path: "/health", method: "GET", intervalSec: 15, timeoutMs: 5000, successCodes: [200] },
-    constraints: { timeoutMs: 15000, maxResponseBytes: 500000, maxRequestBytes: 100000, maxQps: 200, maxConcurrency: 64 },
+    healthCheck: {
+      path: "/health",
+      method: "GET",
+      intervalSec: 15,
+      timeoutMs: 5000,
+      successCodes: [200],
+    },
+    constraints: {
+      timeoutMs: 15000,
+      maxResponseBytes: 500000,
+      maxRequestBytes: 100000,
+      maxQps: 200,
+      maxConcurrency: 64,
+    },
     forwarding: {
       requestIdHeader: "X-Synapse-Request-Id",
       passThroughHeaders: [],
       injectHeaders: {},
-      retryPolicy: { maxAttempts: 1, backoffMs: 200, retryOnStatus: [429, 500, 502, 503, 504] },
+      retryPolicy: {
+        maxAttempts: 1,
+        backoffMs: 200,
+        retryOnStatus: [429, 500, 502, 503, 504],
+      },
     },
-    metering: { billingUnit: "per_call", billOnError: false, billableStatusClasses: [2], requestIdRequired: true, responseSizeMetering: true },
+    metering: {
+      billingUnit: "per_call",
+      billOnError: false,
+      billableStatusClasses: [2],
+      requestIdRequired: true,
+      responseSizeMetering: true,
+    },
     invoke: {
       method: "POST",
       targets: [{ url: mockUrl, weight: 100, region: "local" }],
       timeoutMs: 15000,
       request: {
         contentType: "application/json",
-        schema: { type: "object", properties: { query: { type: "string" }, runId: { type: "string" }, callIndex: { type: "number" } }, required: ["query"] },
+        schema: {
+          type: "object",
+          properties: {
+            query: { type: "string" },
+            runId: { type: "string" },
+            callIndex: { type: "number" },
+          },
+          required: ["query"],
+        },
       },
-      response: { schema: { type: "object", properties: { status: { type: "string" }, echo: { type: "object" } } } },
+      response: {
+        schema: {
+          type: "object",
+          properties: { status: { type: "string" }, echo: { type: "object" } },
+        },
+      },
       headersTemplate: {},
       examples: [{ query: "analytics load", runId: RUN_ID, callIndex: 1 }],
     },
     isActive: true,
     status: "active",
   };
-  const response = await api("/v1/services", { method: "POST", token, address, body: payload });
+  const response = await api("/v1/services", {
+    method: "POST",
+    token,
+    address,
+    body: payload,
+  });
   const service = response.service || response;
   const createdServiceId = service.serviceId || response.serviceId || serviceId;
   log(`service registered: ${createdServiceId} (${spec.priceUsdc} USDC)`);
-  return { id: createdServiceId, name: service.serviceName || serviceName, slug: spec.slug, label: spec.label, priceUsdc: spec.priceUsdc, mockUrl };
+  return {
+    id: createdServiceId,
+    name: service.serviceName || serviceName,
+    slug: spec.slug,
+    label: spec.label,
+    priceUsdc: spec.priceUsdc,
+    mockUrl,
+  };
 }
 
 async function forceProbeService(serviceId, reason = "manual") {
@@ -685,22 +985,27 @@ async function forceProbeService(serviceId, reason = "manual") {
   if (!token) {
     return false;
   }
-  const task = api(`/v1/admin/provider-services/${encodeURIComponent(serviceId)}/force-probe`, {
-    method: "POST",
-    timeoutMs: 15000,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "X-Request-Id": requestId,
-    },
-    body: payload,
-  })
+  const task = api(
+    `/v1/admin/provider-services/${encodeURIComponent(serviceId)}/force-probe`,
+    {
+      method: "POST",
+      timeoutMs: 15000,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "X-Request-Id": requestId,
+      },
+      body: payload,
+    }
+  )
     .then(() => {
       forceProbeLastRunAt.set(serviceId, Date.now());
       log(`force-probed service health for ${serviceId} (${reason})`);
       return true;
     })
     .catch((error) => {
-      log(`force-probe skipped/failed for ${serviceId} (${reason}): ${error.message}`);
+      log(
+        `force-probe skipped/failed for ${serviceId} (${reason}): ${error.message}`
+      );
       return false;
     })
     .finally(() => {
@@ -712,11 +1017,16 @@ async function forceProbeService(serviceId, reason = "manual") {
 }
 
 async function forceProbeServices(services, reason) {
-  await Promise.all(services.map((service) => forceProbeService(service.id, reason)));
+  await Promise.all(
+    services.map((service) => forceProbeService(service.id, reason))
+  );
 }
 
 function startForceProbeKeepalive(services) {
-  if (!Number.isFinite(FORCE_PROBE_KEEPALIVE_SEC) || FORCE_PROBE_KEEPALIVE_SEC <= 0) {
+  if (
+    !Number.isFinite(FORCE_PROBE_KEEPALIVE_SEC) ||
+    FORCE_PROBE_KEEPALIVE_SEC <= 0
+  ) {
     return null;
   }
   let running = false;
@@ -737,9 +1047,15 @@ function startForceProbeKeepalive(services) {
 
 async function waitForServiceDiscoverable(serviceId) {
   for (let i = 0; i < 80; i += 1) {
-    const payload = await api(`/v1/services/discover?q=${encodeURIComponent(serviceId)}&pageSize=100`);
+    const payload = await api(
+      `/v1/services/discover?q=${encodeURIComponent(serviceId)}&pageSize=100`
+    );
     const services = Array.isArray(payload.services) ? payload.services : [];
-    const found = services.find((service) => [service.serviceId, service.service_id, service.agentToolName].includes(serviceId));
+    const found = services.find((service) =>
+      [service.serviceId, service.service_id, service.agentToolName].includes(
+        serviceId
+      )
+    );
     if (found && found.isActive !== false && found.runtimeAvailable !== false) {
       log(`service discoverable and callable: ${serviceId}`);
       return found;
@@ -749,7 +1065,9 @@ async function waitForServiceDiscoverable(serviceId) {
     }
     await sleep(3000);
   }
-  fail(`service was not discoverable/callable after health probes: ${serviceId}`);
+  fail(
+    `service was not discoverable/callable after health probes: ${serviceId}`
+  );
 }
 
 async function issueAgentCredential({ token, address }) {
@@ -766,40 +1084,78 @@ async function issueAgentCredential({ token, address }) {
     },
   });
   const credential = payload.credential || payload;
-  const credentialToken = credential.token || credential.secretKey || credential.agentToken;
+  const credentialToken =
+    credential.token || credential.secretKey || credential.agentToken;
   if (!credential?.id || !credentialToken) {
     fail("agent credential issue response missing id or token");
   }
   log(`agent credential issued: ${credential.id}`);
-  return { id: credential.id, token: credentialToken, tokenPrefix: credential.tokenPrefix || credential.secretPrefix || "", name: credential.name || `analytics-load-agent-${RUN_ID}` };
+  return {
+    id: credential.id,
+    token: credentialToken,
+    tokenPrefix: credential.tokenPrefix || credential.secretPrefix || "",
+    name: credential.name || `analytics-load-agent-${RUN_ID}`,
+  };
 }
 
 async function invokeService({ credentialToken, service, callIndex }) {
-  const requestId = `aal-invoke-${RUN_ID}-${service.slug}-${String(callIndex).padStart(6, "0")}`;
+  const requestId = `aal-invoke-${RUN_ID}-${service.slug}-${String(
+    callIndex
+  ).padStart(6, "0")}`;
   const started = Date.now();
   let response = null;
   let retryCount = 0;
-  const maxRetries = Number.parseInt(process.env.ADMIN_ANALYTICS_LOAD_BUSY_RETRIES || "80", 10);
+  const maxRetries = Number.parseInt(
+    process.env.ADMIN_ANALYTICS_LOAD_BUSY_RETRIES || "80",
+    10
+  );
   for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
     try {
-      response = await api("/v1/gateway/generate", {
+      response = await api("/v1/agent/invoke", {
         method: "POST",
         timeoutMs: LOAD_TIMEOUT_MS,
-        headers: { "X-Credential": credentialToken, "X-Service-Id": service.id, "X-Request-Id": requestId },
-        body: { prompt: "Admin Analytics 10k verification invoke", payload: { query: `verify ${RUN_ID}`, runId: RUN_ID, serviceSlug: service.slug, callIndex } },
+        headers: {
+          "X-Credential": credentialToken,
+          "X-Service-Id": service.id,
+          "X-Request-Id": requestId,
+        },
+        body: {
+          serviceId: service.id,
+          idempotencyKey: requestId,
+          costUsdc: service.priceUsdc,
+          payload: {
+            body: {
+              query: `verify ${RUN_ID}`,
+              runId: RUN_ID,
+              serviceSlug: service.slug,
+              callIndex,
+            },
+          },
+          responseMode: "sync",
+        },
       });
       break;
     } catch (error) {
       const message = error.message || "";
-      const retryable = error.name === "AbortError" || /SERVICE_BUSY|SERVICE_CIRCUIT_OPEN|SERVICE_UNAVAILABLE|429|503/.test(message);
+      const retryable =
+        error.name === "AbortError" ||
+        /SERVICE_BUSY|SERVICE_CIRCUIT_OPEN|SERVICE_UNAVAILABLE|429|503/.test(
+          message
+        );
       if (!retryable || attempt >= maxRetries) {
         throw error;
       }
-      if (error.name === "AbortError" || /SERVICE_UNAVAILABLE|503/.test(message)) {
+      if (
+        error.name === "AbortError" ||
+        /SERVICE_UNAVAILABLE|503/.test(message)
+      ) {
         await forceProbeService(service.id, "invoke-retry");
       }
       retryCount += 1;
-      const backoffMs = Math.min(2500, 100 + attempt * 50 + Math.floor(Math.random() * 100));
+      const backoffMs = Math.min(
+        2500,
+        100 + attempt * 50 + Math.floor(Math.random() * 100)
+      );
       await sleep(backoffMs);
     }
   }
@@ -808,7 +1164,12 @@ async function invokeService({ credentialToken, service, callIndex }) {
   }
   const receipt = response.payload?.receipt || response.receipt || {};
   if (!receipt.invocationId) {
-    fail(`invoke response missing invocationId: ${JSON.stringify(response).slice(0, 800)}`);
+    fail(
+      `invoke response missing invocationId: ${JSON.stringify(response).slice(
+        0,
+        800
+      )}`
+    );
   }
   return {
     requestId,
@@ -817,9 +1178,21 @@ async function invokeService({ credentialToken, service, callIndex }) {
     invocationId: receipt.invocationId,
     quoteId: receipt.quoteId,
     priceUsdc: service.priceUsdc,
-    totalChargeUsdc: moneyFromObject(receipt, ["totalCharge", "totalChargeUsdc", "chargedUsdc"], service.priceUsdc),
-    serviceUnitPrice: moneyFromObject(receipt, ["serviceUnitPrice", "unitPrice"], service.priceUsdc),
-    consumerAvailableBalanceAfter: moneyFromObject(receipt, ["consumerAvailableBalanceAfter"], "0"),
+    totalChargeUsdc: moneyFromObject(
+      receipt,
+      ["totalCharge", "totalChargeUsdc", "chargedUsdc"],
+      service.priceUsdc
+    ),
+    serviceUnitPrice: moneyFromObject(
+      receipt,
+      ["serviceUnitPrice", "unitPrice"],
+      service.priceUsdc
+    ),
+    consumerAvailableBalanceAfter: moneyFromObject(
+      receipt,
+      ["consumerAvailableBalanceAfter"],
+      "0"
+    ),
     latencyMs: Date.now() - started,
     retryCount,
   };
@@ -838,18 +1211,28 @@ async function runBounded(items, concurrency, worker) {
       completed += 1;
       if (completed % 100 === 0 || completed === items.length) {
         const elapsedSec = Math.max((Date.now() - startedAt) / 1000, 1);
-        log(`invoked ${completed}/${items.length} calls (${Math.round(completed / elapsedSec)} rps observed)`);
+        log(
+          `invoked ${completed}/${items.length} calls (${Math.round(
+            completed / elapsedSec
+          )} rps observed)`
+        );
       }
     }
   }
-  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, () => next()));
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, items.length) }, () => next())
+  );
   return results;
 }
 
 function buildInvocationPlan(services, distribution) {
   const plan = [];
   let callIndex = 0;
-  for (let serviceIndex = 0; serviceIndex < services.length; serviceIndex += 1) {
+  for (
+    let serviceIndex = 0;
+    serviceIndex < services.length;
+    serviceIndex += 1
+  ) {
     const service = services[serviceIndex];
     const count = distribution[serviceIndex] || 0;
     for (let i = 0; i < count; i += 1) {
@@ -864,7 +1247,9 @@ function buildInvocationGroups(services, distribution) {
   return services.map((service, serviceIndex) => {
     const count = distribution[serviceIndex] || 0;
     const items = [];
-    const priorCount = distribution.slice(0, serviceIndex).reduce((sum, value) => sum + value, 0);
+    const priorCount = distribution
+      .slice(0, serviceIndex)
+      .reduce((sum, value) => sum + value, 0);
     for (let i = 0; i < count; i += 1) {
       items.push({ service, callIndex: priorCount + i + 1 });
     }
@@ -872,22 +1257,40 @@ function buildInvocationGroups(services, distribution) {
   });
 }
 
-async function invokeServiceGroups({ credentialToken, services, distribution }) {
+async function invokeServiceGroups({
+  credentialToken,
+  services,
+  distribution,
+}) {
   const groups = buildInvocationGroups(services, distribution);
   let completed = 0;
   const startedAt = Date.now();
-  const results = await Promise.all(groups.map(async ({ service, items }) => {
-    const serviceResults = await runBounded(items, Math.min(PER_SERVICE_CONCURRENCY, CONCURRENCY), async (item) => {
-      const receipt = await invokeService({ credentialToken, service: item.service, callIndex: item.callIndex });
-      completed += 1;
-      if (completed % 100 === 0 || completed === TOTAL_CALLS) {
-        const elapsedSec = Math.max((Date.now() - startedAt) / 1000, 1);
-        log(`invoked ${completed}/${TOTAL_CALLS} calls (${Math.round(completed / elapsedSec)} rps observed)`);
-      }
-      return receipt;
-    });
-    return serviceResults;
-  }));
+  const results = await Promise.all(
+    groups.map(async ({ service, items }) => {
+      const serviceResults = await runBounded(
+        items,
+        Math.min(PER_SERVICE_CONCURRENCY, CONCURRENCY),
+        async (item) => {
+          const receipt = await invokeService({
+            credentialToken,
+            service: item.service,
+            callIndex: item.callIndex,
+          });
+          completed += 1;
+          if (completed % 100 === 0 || completed === TOTAL_CALLS) {
+            const elapsedSec = Math.max((Date.now() - startedAt) / 1000, 1);
+            log(
+              `invoked ${completed}/${TOTAL_CALLS} calls (${Math.round(
+                completed / elapsedSec
+              )} rps observed)`
+            );
+          }
+          return receipt;
+        }
+      );
+      return serviceResults;
+    })
+  );
   return results.flat();
 }
 
@@ -896,7 +1299,9 @@ function summarizeReceipts(receipts) {
   let totalChargeAtomic = 0n;
   let retryCount = 0;
   for (const receipt of receipts) {
-    const totalChargeAtomicForReceipt = decimalToAtomic(receipt.totalChargeUsdc || receipt.priceUsdc);
+    const totalChargeAtomicForReceipt = decimalToAtomic(
+      receipt.totalChargeUsdc || receipt.priceUsdc
+    );
     totalChargeAtomic += totalChargeAtomicForReceipt;
     retryCount += Number.parseInt(String(receipt.retryCount || "0"), 10) || 0;
     const bucket = perService[receipt.serviceId] || {
@@ -908,7 +1313,9 @@ function summarizeReceipts(receipts) {
       totalChargeUsdc: "0.000000",
     };
     bucket.callCount += 1;
-    bucket.totalChargeAtomic = (BigInt(bucket.totalChargeAtomic) + totalChargeAtomicForReceipt).toString();
+    bucket.totalChargeAtomic = (
+      BigInt(bucket.totalChargeAtomic) + totalChargeAtomicForReceipt
+    ).toString();
     bucket.totalChargeUsdc = atomicToDecimal(bucket.totalChargeAtomic);
     perService[receipt.serviceId] = bucket;
   }
@@ -942,18 +1349,34 @@ function frontendEvent(eventName, distinctId, properties = {}) {
 async function emitFrontendFunnelEvents({ consumerHash, providerHash }) {
   const events = [
     frontendEvent("page_viewed", consumerHash, { page_path: "/" }),
-    frontendEvent("wallet_connected", consumerHash, { wallet_type: "local_e2e" }),
-    frontendEvent("consumer_signup_completed", consumerHash, { signup_method: "wallet" }),
-    frontendEvent("provider_signup_completed", providerHash, { role: "provider", signup_method: "wallet" }),
+    frontendEvent("wallet_connected", consumerHash, {
+      wallet_type: "local_e2e",
+    }),
+    frontendEvent("consumer_signup_completed", consumerHash, {
+      signup_method: "wallet",
+    }),
+    frontendEvent("provider_signup_completed", providerHash, {
+      role: "provider",
+      signup_method: "wallet",
+    }),
   ];
   const response = await api("/v1/events", {
     method: "POST",
     body: { events },
   });
-  if (Number(response.accepted || 0) !== events.length || Number(response.rejected || 0) !== 0) {
-    fail(`frontend funnel events were not fully accepted by Gateway: ${JSON.stringify(response)}`);
+  if (
+    Number(response.accepted || 0) !== events.length ||
+    Number(response.rejected || 0) !== 0
+  ) {
+    fail(
+      `frontend funnel events were not fully accepted by Gateway: ${JSON.stringify(
+        response
+      )}`
+    );
   }
-  log(`emitted ${events.length} frontend funnel events through Gateway /events`);
+  log(
+    `emitted ${events.length} frontend funnel events through Gateway /events`
+  );
   return events.map((event) => event.event_name);
 }
 
@@ -971,7 +1394,8 @@ async function triggerBudgetBlockedEvent({ consumerAuth, service }) {
     },
   });
   const credential = lowBudgetCredential.credential || lowBudgetCredential;
-  const credentialToken = credential.token || credential.secretKey || credential.agentToken;
+  const credentialToken =
+    credential.token || credential.secretKey || credential.agentToken;
   if (!credentialToken) {
     fail("low-budget credential response missing token");
   }
@@ -982,10 +1406,16 @@ async function triggerBudgetBlockedEvent({ consumerAuth, service }) {
       callIndex: TOTAL_CALLS + 1,
     });
   } catch (error) {
-    log(`real budget block invoke rejected as expected: ${String(error.message || error).slice(0, 240)}`);
+    log(
+      `real budget block invoke rejected as expected: ${String(
+        error.message || error
+      ).slice(0, 240)}`
+    );
     return ["budget_blocked"];
   }
-  fail("low-budget credential invocation unexpectedly succeeded; expected budget_blocked event");
+  fail(
+    "low-budget credential invocation unexpectedly succeeded; expected budget_blocked event"
+  );
 }
 
 async function sha256Hex(value) {
@@ -997,11 +1427,22 @@ async function waitForCoreEvents({ serviceIds }) {
   let lastRows = [];
   while (Date.now() < deadline) {
     lastRows = await rawRunSnapshot({ serviceIds, runId: RUN_ID });
-    const byName = Object.fromEntries(lastRows.map((row) => [row.eventName, Number(row.count || 0)]));
-    if ((byName.invoke_completed || 0) >= TOTAL_CALLS && (byName.provider_revenue_received || 0) >= TOTAL_CALLS) {
+    const byName = Object.fromEntries(
+      lastRows.map((row) => [row.eventName, Number(row.count || 0)])
+    );
+    if (
+      (byName.invoke_completed || 0) >= TOTAL_CALLS &&
+      (byName.provider_revenue_received || 0) >= TOTAL_CALLS
+    ) {
       return lastRows;
     }
-    log(`waiting for ClickHouse core events: invoke_completed=${byName.invoke_completed || 0}/${TOTAL_CALLS}, provider_revenue_received=${byName.provider_revenue_received || 0}/${TOTAL_CALLS}`);
+    log(
+      `waiting for ClickHouse core events: invoke_completed=${
+        byName.invoke_completed || 0
+      }/${TOTAL_CALLS}, provider_revenue_received=${
+        byName.provider_revenue_received || 0
+      }/${TOTAL_CALLS}`
+    );
     await sleep(5000);
   }
   return lastRows;
@@ -1009,7 +1450,10 @@ async function waitForCoreEvents({ serviceIds }) {
 
 async function main() {
   if (process.argv[2] === "--mock-upstream") {
-    startMockUpstream(Number.parseInt(process.argv[3] || "20876", 10), process.argv[4] || "echo");
+    startMockUpstream(
+      Number.parseInt(process.argv[3] || "20876", 10),
+      process.argv[4] || "echo"
+    );
     return;
   }
 
@@ -1017,12 +1461,19 @@ async function main() {
   runPrepareLocalStrictAnalytics();
   await assertReachable("gateway health", `${GATEWAY_BASE_URL}/health`);
   await assertReachable("rpc", RPC_URL, { method: "POST", allowNonOk: true });
-  await assertReachable("clickhouse", `${CLICKHOUSE_URL}/`, { method: "POST", allowNonOk: true });
+  await assertReachable("clickhouse", `${CLICKHOUSE_URL}/`, {
+    method: "POST",
+    allowNonOk: true,
+  });
   assertGatewayStrictKafkaMode();
 
   fs.mkdirSync(OUT_DIR, { recursive: true });
   const baselineClickHouse24h = await rawWindowSnapshot();
-  log(`captured ClickHouse baseline with invoke_completed=${baselineClickHouse24h.invokeCompleted || 0}`);
+  log(
+    `captured ClickHouse baseline with invoke_completed=${
+      baselineClickHouse24h.invokeCompleted || 0
+    }`
+  );
 
   const mocks = [];
   for (const spec of SERVICE_SPECS) {
@@ -1036,26 +1487,53 @@ async function main() {
 
   const services = [];
   for (let i = 0; i < SERVICE_SPECS.length; i += 1) {
-    const service = await registerService({ ...providerAuth, spec: SERVICE_SPECS[i], mockUrl: mocks[i].url });
+    const service = await registerService({
+      ...providerAuth,
+      spec: SERVICE_SPECS[i],
+      mockUrl: mocks[i].url,
+    });
     await forceProbeService(service.id, "post-register");
     const discovered = await waitForServiceDiscoverable(service.id);
-    services.push({ ...service, discoveredRuntimeAvailable: discovered.runtimeAvailable ?? true });
+    services.push({
+      ...service,
+      discoveredRuntimeAvailable: discovered.runtimeAvailable ?? true,
+    });
   }
 
-  const deposit = await fundAndDeposit({ consumerAddress: consumerAuth.address });
-  const depositIntent = await registerDepositIntent({ ...consumerAuth, txHash: deposit.txHash, amountUsdc: deposit.amountUsdc });
-  const confirmedDeposit = await confirmLocalDepositIntent({ ...consumerAuth, depositIntent, txHash: deposit.txHash });
-  const balanceBeforeInvoke = await waitForBalanceAtLeast({ ...consumerAuth, expectedUsdc: DEPOSIT_USDC, txHash: deposit.txHash });
+  const deposit = await fundAndDeposit({
+    consumerAddress: consumerAuth.address,
+  });
+  const depositIntent = await registerDepositIntent({
+    ...consumerAuth,
+    txHash: deposit.txHash,
+    amountUsdc: deposit.amountUsdc,
+  });
+  const confirmedDeposit = await confirmLocalDepositIntent({
+    ...consumerAuth,
+    depositIntent,
+    txHash: deposit.txHash,
+  });
+  const balanceBeforeInvoke = await waitForBalanceAtLeast({
+    ...consumerAuth,
+    expectedUsdc: DEPOSIT_USDC,
+    txHash: deposit.txHash,
+  });
   const credential = await issueAgentCredential(consumerAuth);
 
   const distribution = invocationDistribution(TOTAL_CALLS);
   const expectedPlan = summarizePlan(services, distribution);
-  log(`starting ${expectedPlan.totalCalls} invokes with concurrency=${CONCURRENCY}, expected GMV=${expectedPlan.expectedGmvUsdc} USDC`);
+  log(
+    `starting ${expectedPlan.totalCalls} invokes with concurrency=${CONCURRENCY}, expected GMV=${expectedPlan.expectedGmvUsdc} USDC`
+  );
   const healthKeepalive = startForceProbeKeepalive(services);
   let invocations;
   try {
     await forceProbeServices(services, "pre-load");
-    invocations = await invokeServiceGroups({ credentialToken: credential.token, services, distribution });
+    invocations = await invokeServiceGroups({
+      credentialToken: credential.token,
+      services,
+      distribution,
+    });
   } finally {
     if (healthKeepalive) {
       clearInterval(healthKeepalive);
@@ -1065,12 +1543,20 @@ async function main() {
 
   const consumerHash = await sha256Hex(consumerAuth.address);
   const providerHash = await sha256Hex(providerAuth.address);
-  const frontendFunnelEvents = await emitFrontendFunnelEvents({ consumerHash, providerHash });
+  const frontendFunnelEvents = await emitFrontendFunnelEvents({
+    consumerHash,
+    providerHash,
+  });
   const realMonitoringEvents = [
     ...frontendFunnelEvents,
-    ...(await triggerBudgetBlockedEvent({ consumerAuth, service: services[0] })),
+    ...(await triggerBudgetBlockedEvent({
+      consumerAuth,
+      service: services[0],
+    })),
   ];
-  const rawRunRows = await waitForCoreEvents({ serviceIds: services.map((service) => service.id) });
+  const rawRunRows = await waitForCoreEvents({
+    serviceIds: services.map((service) => service.id),
+  });
   const balanceAfterInvoke = await api("/v1/balance", consumerAuth);
 
   const fixture = {
@@ -1100,7 +1586,12 @@ async function main() {
         fallbackImport: { mode: "disabled_strict_real_pipeline", imported: 0 },
         directClickHouseFixtureRows: 0,
       },
-      mockUpstreams: mocks.map((mock) => ({ slug: mock.slug, url: mock.url, pid: mock.pid, reused: mock.reused })),
+      mockUpstreams: mocks.map((mock) => ({
+        slug: mock.slug,
+        url: mock.url,
+        pid: mock.pid,
+        reused: mock.reused,
+      })),
     },
     chain: {
       chainId: chain.chainId,
@@ -1108,22 +1599,37 @@ async function main() {
       mockUSDC: chain.usdcAddress,
       depositTxHash: deposit.txHash,
     },
-    consumer: { address: consumerAuth.address, token: consumerAuth.token, expiresAt: consumerAuth.expiresAt },
-    provider: { address: providerAuth.address, token: providerAuth.token, expiresAt: providerAuth.expiresAt },
+    consumer: {
+      address: consumerAuth.address,
+      token: consumerAuth.token,
+      expiresAt: consumerAuth.expiresAt,
+    },
+    provider: {
+      address: providerAuth.address,
+      token: providerAuth.token,
+      expiresAt: providerAuth.expiresAt,
+    },
     providerSecret,
     services,
-    credential: { id: credential.id, name: credential.name, token: credential.token, tokenPrefix: credential.tokenPrefix },
+    credential: {
+      id: credential.id,
+      name: credential.name,
+      token: credential.token,
+      tokenPrefix: credential.tokenPrefix,
+    },
     deposit: {
       txHash: deposit.txHash,
       amountUsdc: deposit.amountUsdc,
       intentId: depositIntent.intent?.id || depositIntent.id || null,
-      confirmedIntentId: confirmedDeposit.intent?.id || confirmedDeposit.id || null,
+      confirmedIntentId:
+        confirmedDeposit.intent?.id || confirmedDeposit.id || null,
     },
     invocations: {
       total: invocations.length,
       sample: invocations.slice(0, 25),
       firstInvocationId: invocations[0]?.invocationId || null,
-      lastInvocationId: invocations[invocations.length - 1]?.invocationId || null,
+      lastInvocationId:
+        invocations[invocations.length - 1]?.invocationId || null,
     },
     receiptSummary,
     realMonitoringEvents,
@@ -1136,14 +1642,25 @@ async function main() {
   fs.writeFileSync(FIXTURE_PATH, JSON.stringify(fixture, null, 2));
   log(`fixture written: ${path.relative(ROOT, FIXTURE_PATH)}`);
 
-  const byName = Object.fromEntries(rawRunRows.map((row) => [row.eventName, Number(row.count || 0)]));
-  if ((byName.invoke_completed || 0) < TOTAL_CALLS || (byName.provider_revenue_received || 0) < TOTAL_CALLS) {
-    fail(`ClickHouse did not receive required core events for ${RUN_ID}: ${JSON.stringify(byName)}`);
+  const byName = Object.fromEntries(
+    rawRunRows.map((row) => [row.eventName, Number(row.count || 0)])
+  );
+  if (
+    (byName.invoke_completed || 0) < TOTAL_CALLS ||
+    (byName.provider_revenue_received || 0) < TOTAL_CALLS
+  ) {
+    fail(
+      `ClickHouse did not receive required core events for ${RUN_ID}: ${JSON.stringify(
+        byName
+      )}`
+    );
   }
   log("10k fullchain completed successfully");
 }
 
 main().catch((error) => {
-  console.error(`[analytics-10k] fatal: ${error.stack || error.message || String(error)}`);
+  console.error(
+    `[analytics-10k] fatal: ${error.stack || error.message || String(error)}`
+  );
   process.exit(1);
 });

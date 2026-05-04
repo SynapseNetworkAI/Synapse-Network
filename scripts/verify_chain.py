@@ -229,9 +229,15 @@ def issue_credential(consumer_token, consumer_addr):
 
 # ── Step 7: Invoke ────────────────────────────────────────────────────────────
 def invoke_service(credential, svc_id):
-    r = api("post", "/v1/gateway/generate",
+    r = api("post", "/v1/agent/invoke",
             headers={"X-Credential": credential, "Content-Type": "application/json"},
-            json={"serviceId": svc_id, "prompt": "ETH market analysis"})
+            json={
+                "serviceId": svc_id,
+                "idempotencyKey": f"verify-{uuid.uuid4().hex}",
+                "costUsdc": str(SERVICE_PRICE),
+                "payload": {"body": {"text": "ETH market analysis"}},
+                "responseMode": "sync",
+            })
     return r
 
 # ── Step 8: Check invocations list ────────────────────────────────────────────

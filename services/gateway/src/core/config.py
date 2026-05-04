@@ -221,7 +221,7 @@ class Settings:
     # Example: 0.10 means 10% platform fee and 90% provider net.
     platform_fee_rate: float = _env_rate("PLATFORM_FEE_RATE", 0.10)
     # Fixed per-request routing fee charged to the consumer, in USDC.
-    # Example: 0.0001 adds $0.0001 to every gateway generate call.
+    # Example: 0.0001 adds $0.0001 to every agent invoke call.
     gateway_routing_tax: float = max(0.0, _env_float("GATEWAY_ROUTING_TAX", 0.0001))
     # Optional admin wallet allow-list for fee-policy management endpoints.
     # Comma-separated lowercase/uppercase wallet addresses are accepted.
@@ -289,11 +289,6 @@ class Settings:
     service_rate_limit_per_min: int = _env_int("SERVICE_RATE_LIMIT_PER_MIN", 1200)
     # Sliding-window seconds used for rate-limit buckets.
     rate_limit_window_sec: int = _env_int("RATE_LIMIT_WINDOW_SEC", 60)
-    # Feature flag: require X-Credential on /generate paths.
-    require_agent_credential_for_generate: bool = _env_bool(
-        "REQUIRE_AGENT_CREDENTIAL_FOR_GENERATE", False
-    )
-
     # Platform hard caps for provider-registered forwarding constraints.
     # These guardrails prevent a single service manifest from exhausting gateway resources.
     gateway_min_timeout_ms: int = _env_int("GATEWAY_MIN_TIMEOUT_MS", 300)

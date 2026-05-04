@@ -334,14 +334,17 @@ def issue_credential(consumer_token: str, consumer_addr: str) -> str:
 
 def invoke_service(credential_token: str, service_id: str) -> Dict[str, Any]:
     """Calls the service through the gateway."""
-    r = api("post", "/v1/gateway/generate",
+    r = api("post", "/v1/agent/invoke",
             headers={
                 "X-Credential": credential_token,
                 "Content-Type": "application/json",
             },
             json={
                 "serviceId": service_id,
-                "prompt": "BTC market analysis",
+                "idempotencyKey": f"fullflow-{uuid.uuid4().hex}",
+                "costUsdc": SERVICE_PRICE_USDC,
+                "payload": {"body": {"text": "BTC market analysis"}},
+                "responseMode": "sync",
             })
     assert r.status_code == 200, f"Gateway invocation failed ({r.status_code}): {r.text[:400]}"
     data = r.json()

@@ -7,12 +7,12 @@ from typing import Any, Optional
 
 from fastapi import HTTPException
 
-from src.api.schemas.pydantic_models import AgentInvokeRequest, InferenceRequest
+from src.api.schemas.pydantic_models import AgentInvokeRequest
 from src.core.common import normalize_wallet
 from src.domain.execution import InvocationRecord, ServiceQuoteRecord
 from src.domain.finance import UsageLogRow
 from src.domain.identity import RuntimeCredentialRecord
-from src.domain.invocation_response import ConsumerSuccessResponse, InvocationStateResponse
+from src.domain.invocation_response import InvocationStateResponse
 from src.domain.service_contract import ServiceDefinitionRecord
 from src.services.analytics.gateway_events import (
     emit_budget_blocked,
@@ -111,20 +111,6 @@ def _charge_amount_from_unit_price(
         "provider_net": provider_net, "total_charge": total_charge,
     }
     return settlement, total_charge
-
-
-def _request_payload(request: InferenceRequest, service: ServiceDefinitionRecord) -> dict[str, Any]:
-    payload = dict(request.payload or {})
-    if payload:
-        return payload
-    prompt = str(request.prompt or "")
-    if prompt.strip():
-        return {"text": forwarding_validation.validate_prompt(prompt)}
-    schema = dict(service.invoke.request.schema_document.body or {})
-    required = schema.get("required") if isinstance(schema.get("required"), list) else []
-    if any(str(f) == "text" for f in required):
-        forwarding_validation.validate_prompt(prompt)
-    return {}
 
 
 def _log_upstream_failure(
@@ -345,65 +331,6 @@ async def _execute_invocation_pipeline(  # noqa: PLR0915 - invocation pipeline k
         "consumerAvailableBalanceAfter": consumer_after, "resultStatus": "success", "businessType": "charge",
     })
     return succeeded, consumer_after, settlement
-
-
-async def generate_response_v2(
-    storage: BaseStorage,
-    request: InferenceRequest,
-    x_service_id: Optional[str],
-    credential_token: Optional[str],
-    x_request_id: Optional[str],
-) -> ConsumerSuccessResponse:
-    """Orchestrate full generate pipeline: validate, rate-limit, charge, proxy, audit, respond."""
-    service_id = forwarding_validation.validate_service_id(x_service_id, request.serviceId)
-    token = forwarding_validation.validate_credential_token(credential_token)
-    request_id = forwarding_validation.resolve_request_id(x_request_id)
-
-    credential = credential_service.resolve_active_credential(storage, token)
-    service = forwarding_validation.find_active_service(storage, service_id)
-    unit_price = forwarding_validation.parse_service_price_usdc(service)
-    request_payload = _request_payload(request, service)
-    forwarding_validation.validate_invoke_request_contract(service, request_payload)
-
-    quote = build_service_quote(service, credential, request_payload, unit_price)
-    persist_quote(storage, quote)
-    await emit_quote_generated(
-        credential_service.credential_owner_wallet(credential),
-        service_id=service_id, quote_id=quote.quote_id,
-        price_usdc=float(unit_price), correlation_id=request_id,
-    )
-    log = _invocation_logger(request_id, service_id, credential, mode="generate")
-    log.info(
-        "invocation.start",
-        quote_id=quote.quote_id,
-        service_price_usdc=str(unit_price),
-    )
-    try:
-        succeeded, consumer_after, settlement = await _execute_invocation_pipeline(
-            storage,
-            credential,
-            service,
-            quote,
-            request_payload,
-            request_id,
-            request_id,
-        )
-    except Exception as exc:
-        _log_invocation_failure(log, exc)
-        raise
-    receipt = forwarding_billing.build_consumer_receipt(
-        request_id=request_id, quote_id=quote.quote_id,
-        invocation_id=succeeded.invocation_id, service_id=service_id,
-        unit_price=settlement["unit_price"], total_charge=settlement["total_charge"],
-        consumer_balance_after=consumer_after,
-    )
-    log.info(
-        "invocation.complete",
-        invocation_id=succeeded.invocation_id,
-        total_charge=settlement["total_charge"],
-        consumer_balance_after=consumer_after,
-    )
-    return forwarding_billing.build_consumer_success_response(receipt, succeeded.result.payload)
 
 
 def get_invocation_receipt_v1(
