@@ -10,33 +10,71 @@ import { ethers } from "ethers";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "../..");
 const SCRIPT_VERSION = "withdrawal-one-ticket-evidence:v1";
-const RUN_ID = process.env.WITHDRAWAL_ONE_TICKET_RUN_ID || `wot-${new Date().toISOString().replace(/[^0-9]/g, "").slice(0, 14)}`;
+const RUN_ID =
+  process.env.WITHDRAWAL_ONE_TICKET_RUN_ID ||
+  `wot-${new Date()
+    .toISOString()
+    .replace(/[^0-9]/g, "")
+    .slice(0, 14)}`;
 const ENVIRONMENT = process.env.WITHDRAWAL_ONE_TICKET_ENV || "local";
-const TIMESTAMP = process.env.WITHDRAWAL_ONE_TICKET_TIMESTAMP || new Date().toISOString().replace(/[:.]/g, "").replace("Z", "Z");
+const TIMESTAMP =
+  process.env.WITHDRAWAL_ONE_TICKET_TIMESTAMP ||
+  new Date().toISOString().replace(/[:.]/g, "").replace("Z", "Z");
 const OUT_DIR = process.env.WITHDRAWAL_ONE_TICKET_OUT_DIR
   ? path.resolve(process.env.WITHDRAWAL_ONE_TICKET_OUT_DIR)
-  : path.join(ROOT, "docs/evidence/release/withdrawal-one-ticket", `${TIMESTAMP}-${ENVIRONMENT}`);
+  : path.join(
+      ROOT,
+      "docs/evidence/release/withdrawal-one-ticket",
+      `${TIMESTAMP}-${ENVIRONMENT}`
+    );
 
-const GATEWAY_BASE_URL = (process.env.GATEWAY_BASE_URL || "http://127.0.0.1:8000").replace(/\/+$/, "");
+const GATEWAY_BASE_URL = (
+  process.env.GATEWAY_BASE_URL || "http://127.0.0.1:8000"
+).replace(/\/+$/, "");
 const API_BASE = `${GATEWAY_BASE_URL}/api`;
 const RPC_URL = process.env.RPC_URL || "http://127.0.0.1:8545";
 const CHAIN_ID = Number.parseInt(process.env.CHAIN_ID || "31337", 10);
-const MOCK_PORT = Number.parseInt(process.env.WITHDRAWAL_ONE_TICKET_MOCK_PORT || "19992", 10);
-const SERVICE_PRICE_USDC = process.env.WITHDRAWAL_ONE_TICKET_SERVICE_PRICE_USDC || "10.000000";
-const CONSUMER_DEPOSIT_USDC = process.env.WITHDRAWAL_ONE_TICKET_CONSUMER_DEPOSIT_USDC || "25.000000";
-const CONSUMER_WITHDRAW_USDC = process.env.WITHDRAWAL_ONE_TICKET_CONSUMER_WITHDRAW_USDC || "2.000000";
-const PROVIDER_WITHDRAW_USDC = process.env.WITHDRAWAL_ONE_TICKET_PROVIDER_WITHDRAW_USDC || "1.000000";
+const MOCK_PORT = Number.parseInt(
+  process.env.WITHDRAWAL_ONE_TICKET_MOCK_PORT || "19992",
+  10
+);
+const SERVICE_PRICE_USDC =
+  process.env.WITHDRAWAL_ONE_TICKET_SERVICE_PRICE_USDC || "10.000000";
+const CONSUMER_DEPOSIT_USDC =
+  process.env.WITHDRAWAL_ONE_TICKET_CONSUMER_DEPOSIT_USDC || "25.000000";
+const CONSUMER_WITHDRAW_USDC =
+  process.env.WITHDRAWAL_ONE_TICKET_CONSUMER_WITHDRAW_USDC || "2.000000";
+const PROVIDER_WITHDRAW_USDC =
+  process.env.WITHDRAWAL_ONE_TICKET_PROVIDER_WITHDRAW_USDC || "1.000000";
 
-const TICKET_TTL_SEC = Number.parseInt(process.env.PROVIDER_WITHDRAW_DEADLINE_SEC || "60", 10);
-const EXPIRY_BUFFER_SEC = Number.parseInt(process.env.WITHDRAW_TICKET_EXPIRY_BUFFER_SEC || "3", 10);
-const RPC_FINALITY_MARGIN_SEC = Number.parseInt(process.env.WITHDRAW_RPC_FINALITY_MARGIN_SEC || "3", 10);
-const FRONTEND_CLAIM_CUTOFF_SEC = Number.parseInt(process.env.WITHDRAW_FRONTEND_CLAIM_CUTOFF_SEC || "120", 10);
-const LOW_GAS_REVERT_GAS_LIMIT = Number.parseInt(process.env.WITHDRAW_LOW_GAS_REVERT_GAS_LIMIT || "30000", 10);
+const TICKET_TTL_SEC = Number.parseInt(
+  process.env.PROVIDER_WITHDRAW_DEADLINE_SEC || "60",
+  10
+);
+const EXPIRY_BUFFER_SEC = Number.parseInt(
+  process.env.WITHDRAW_TICKET_EXPIRY_BUFFER_SEC || "3",
+  10
+);
+const RPC_FINALITY_MARGIN_SEC = Number.parseInt(
+  process.env.WITHDRAW_RPC_FINALITY_MARGIN_SEC || "3",
+  10
+);
+const FRONTEND_CLAIM_CUTOFF_SEC = Number.parseInt(
+  process.env.WITHDRAW_FRONTEND_CLAIM_CUTOFF_SEC || "120",
+  10
+);
+const LOW_GAS_REVERT_GAS_LIMIT = Number.parseInt(
+  process.env.WITHDRAW_LOW_GAS_REVERT_GAS_LIMIT || "30000",
+  10
+);
 
 const DEFAULT_KEYS = {
-  deployer: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
-  consumer: "0x7c852118294f1a460a80c7c33d7409ea91c8436518e91e202d1f5f9e3544eb07",
-  provider: "0x47e179ec197488bf6f785afa0fc15f4dee1a74f3f44fffedce27f84d349a926a",
+  deployer:
+    "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+  consumer:
+    "0x7c852118294f1a460a80c7c33d7409ea91c8436518e91e202d1f5f9e3544eb07",
+  provider:
+    "0x47e179ec197488bf6f785afa0fc15f4dee1a74f3f44fffedce27f84d349a926a",
 };
 
 const DEPLOYER_KEY = process.env.DEPLOYER_KEY || DEFAULT_KEYS.deployer;
@@ -90,7 +128,11 @@ function writeJson(filePath, payload) {
 function stable(value) {
   if (Array.isArray(value)) return value.map(stable);
   if (value && typeof value === "object") {
-    return Object.fromEntries(Object.keys(value).sort().map((key) => [key, stable(value[key])]));
+    return Object.fromEntries(
+      Object.keys(value)
+        .sort()
+        .map((key) => [key, stable(value[key])])
+    );
   }
   return value;
 }
@@ -102,23 +144,32 @@ function redactWithdrawalRow(row) {
   if (redacted.ticket && typeof redacted.ticket === "object") {
     redacted.ticket = {
       ...redacted.ticket,
-      signature: redacted.ticket.signature ? "[redacted]" : redacted.ticket.signature,
+      signature: redacted.ticket.signature
+        ? "[redacted]"
+        : redacted.ticket.signature,
     };
   }
   return redacted;
 }
 
 function digestFor(report) {
-  return crypto.createHash("sha256").update(JSON.stringify(stable({
-    scriptVersion: report.scriptVersion,
-    environment: report.environment,
-    chain: report.chain,
-    scenarioFiles: report.scenarioFiles,
-    scenarioResults: report.scenarioResults,
-    negativeScenarios: report.negativeScenarios,
-    comparisons: report.comparisons,
-    failed: report.failed,
-  }))).digest("hex");
+  return crypto
+    .createHash("sha256")
+    .update(
+      JSON.stringify(
+        stable({
+          scriptVersion: report.scriptVersion,
+          environment: report.environment,
+          chain: report.chain,
+          scenarioFiles: report.scenarioFiles,
+          scenarioResults: report.scenarioResults,
+          negativeScenarios: report.negativeScenarios,
+          comparisons: report.comparisons,
+          failed: report.failed,
+        })
+      )
+    )
+    .digest("hex");
 }
 
 function isLocalUrl(value) {
@@ -131,18 +182,26 @@ function isLocalUrl(value) {
 }
 
 function assertLocalOnly() {
-  const usesDefaultKey = [DEPLOYER_KEY, CONSUMER_KEY, PROVIDER_KEY].some((key) =>
-    Object.values(DEFAULT_KEYS).includes(key)
+  const usesDefaultKey = [DEPLOYER_KEY, CONSUMER_KEY, PROVIDER_KEY].some(
+    (key) => Object.values(DEFAULT_KEYS).includes(key)
   );
   if (usesDefaultKey && CHAIN_ID !== 31337) {
     fail("Refusing to use default local test keys outside CHAIN_ID=31337.");
   }
-  if (usesDefaultKey && (!isLocalUrl(RPC_URL) || !isLocalUrl(GATEWAY_BASE_URL))) {
-    fail("Refusing to use default local test keys against non-local endpoints.");
+  if (
+    usesDefaultKey &&
+    (!isLocalUrl(RPC_URL) || !isLocalUrl(GATEWAY_BASE_URL))
+  ) {
+    fail(
+      "Refusing to use default local test keys against non-local endpoints."
+    );
   }
 }
 
-async function api(pathname, { method = "GET", token, address, body, headers = {}, expectOk = true } = {}) {
+async function api(
+  pathname,
+  { method = "GET", token, address, body, headers = {}, expectOk = true } = {}
+) {
   const requestHeaders = { Accept: "application/json", ...headers };
   if (body !== undefined) requestHeaders["Content-Type"] = "application/json";
   if (token) requestHeaders.Authorization = `Bearer ${token}`;
@@ -162,7 +221,11 @@ async function api(pathname, { method = "GET", token, address, body, headers = {
     }
   }
   if (expectOk && !response.ok) {
-    fail(`${method} ${pathname} failed: ${response.status} ${JSON.stringify(payload).slice(0, 800)}`);
+    fail(
+      `${method} ${pathname} failed: ${response.status} ${JSON.stringify(
+        payload
+      ).slice(0, 800)}`
+    );
   }
   return { response, payload };
 }
@@ -170,15 +233,21 @@ async function api(pathname, { method = "GET", token, address, body, headers = {
 async function authenticate(privateKey, label) {
   const wallet = new ethers.Wallet(privateKey);
   const address = wallet.address;
-  const challengeResponse = await api(`/v1/auth/challenge?address=${encodeURIComponent(address)}`);
-  const message = challengeResponse.payload.challenge || challengeResponse.payload.message;
+  const challengeResponse = await api(
+    `/v1/auth/challenge?address=${encodeURIComponent(address)}`
+  );
+  const message =
+    challengeResponse.payload.challenge || challengeResponse.payload.message;
   if (!message) fail(`${label} auth challenge missing message`);
   const signature = await wallet.signMessage(message);
   const verified = await api("/v1/auth/verify", {
     method: "POST",
     body: { wallet_address: address, message, signature },
   });
-  const token = verified.payload.access_token || verified.payload.token || verified.payload.accessToken;
+  const token =
+    verified.payload.access_token ||
+    verified.payload.token ||
+    verified.payload.accessToken;
   if (!token) fail(`${label} auth verification did not return a token`);
   return { address, token, privateKey };
 }
@@ -187,8 +256,11 @@ async function getChainContext() {
   const provider = new ethers.JsonRpcProvider(RPC_URL);
   const network = await provider.getNetwork();
   const chainId = Number(network.chainId);
-  if (chainId !== CHAIN_ID) fail(`RPC chainId mismatch. Expected ${CHAIN_ID}, got ${chainId}.`);
-  const contractConfig = readJson("services/user-front/src/contract-config.json");
+  if (chainId !== CHAIN_ID)
+    fail(`RPC chainId mismatch. Expected ${CHAIN_ID}, got ${chainId}.`);
+  const contractConfig = readJson(
+    "services/user-front/src/contract-config.json"
+  );
   return {
     provider,
     chainId,
@@ -206,7 +278,11 @@ async function sendWithRetry(label, makeTx, attempts = 4) {
       return await makeTx();
     } catch (error) {
       lastError = error;
-      if (!/nonce|replacement|underpriced|already known|transaction underpriced/i.test(error.message || "")) {
+      if (
+        !/nonce|replacement|underpriced|already known|transaction underpriced/i.test(
+          error.message || ""
+        )
+      ) {
         throw error;
       }
       log(`${label} retry ${i + 1}/${attempts}: ${error.message}`);
@@ -216,7 +292,13 @@ async function sendWithRetry(label, makeTx, attempts = 4) {
   throw lastError;
 }
 
-async function topUpEthIfNeeded({ targetAddress, targetEth, deployer, provider, label }) {
+async function topUpEthIfNeeded({
+  targetAddress,
+  targetEth,
+  deployer,
+  provider,
+  label,
+}) {
   const current = await provider.getBalance(targetAddress);
   const target = ethers.parseEther(targetEth);
   if (current >= target) return "";
@@ -228,7 +310,8 @@ async function topUpEthIfNeeded({ targetAddress, targetEth, deployer, provider, 
 }
 
 async function fundAndDeposit({ consumerAddress }) {
-  const { provider, coreAbi, usdcAbi, usdcAddress, coreAddress } = await getChainContext();
+  const { provider, coreAbi, usdcAbi, usdcAddress, coreAddress } =
+    await getChainContext();
   const deployer = new ethers.Wallet(DEPLOYER_KEY, provider);
   const consumer = new ethers.Wallet(CONSUMER_KEY, provider);
   const usdcDeployer = new ethers.Contract(usdcAddress, usdcAbi, deployer);
@@ -236,16 +319,40 @@ async function fundAndDeposit({ consumerAddress }) {
   const coreConsumer = new ethers.Contract(coreAddress, coreAbi, consumer);
   const decimals = Number(await usdcDeployer.decimals());
   const amountAtomic = ethers.parseUnits(CONSUMER_DEPOSIT_USDC, decimals);
-  const ethTopupTx = await topUpEthIfNeeded({ targetAddress: consumerAddress, targetEth: "3.0", deployer, provider, label: "consumer" });
-  await topUpEthIfNeeded({ targetAddress: new ethers.Wallet(PROVIDER_KEY).address, targetEth: "3.0", deployer, provider, label: "provider" });
-  const mintTx = await sendWithRetry("mint-consumer-usdc", async () => usdcDeployer.mint(consumerAddress, amountAtomic));
+  const ethTopupTx = await topUpEthIfNeeded({
+    targetAddress: consumerAddress,
+    targetEth: "3.0",
+    deployer,
+    provider,
+    label: "consumer",
+  });
+  await topUpEthIfNeeded({
+    targetAddress: new ethers.Wallet(PROVIDER_KEY).address,
+    targetEth: "3.0",
+    deployer,
+    provider,
+    label: "provider",
+  });
+  const mintTx = await sendWithRetry("mint-consumer-usdc", async () =>
+    usdcDeployer.mint(consumerAddress, amountAtomic)
+  );
   await mintTx.wait();
-  const approveTx = await sendWithRetry("approve-consumer-usdc", async () => usdcConsumer.approve(coreAddress, amountAtomic));
+  const approveTx = await sendWithRetry("approve-consumer-usdc", async () =>
+    usdcConsumer.approve(coreAddress, amountAtomic)
+  );
   await approveTx.wait();
-  const depositTx = await sendWithRetry("consumer-deposit", async () => coreConsumer.deposit(amountAtomic));
+  const depositTx = await sendWithRetry("consumer-deposit", async () =>
+    coreConsumer.deposit(amountAtomic)
+  );
   const receipt = await depositTx.wait();
-  if (receipt?.status !== 1) fail(`consumer deposit transaction failed: ${depositTx.hash}`);
-  return { txHash: depositTx.hash, amountUsdc: CONSUMER_DEPOSIT_USDC, decimals, ethTopupTx };
+  if (receipt?.status !== 1)
+    fail(`consumer deposit transaction failed: ${depositTx.hash}`);
+  return {
+    txHash: depositTx.hash,
+    amountUsdc: CONSUMER_DEPOSIT_USDC,
+    decimals,
+    ethTopupTx,
+  };
 }
 
 async function registerDepositIntent({ token, address, txHash, amountUsdc }) {
@@ -253,24 +360,45 @@ async function registerDepositIntent({ token, address, txHash, amountUsdc }) {
     method: "POST",
     token,
     address,
-    headers: { "X-Idempotency-Key": `wot-deposit-${txHash.replace(/^0x/, "").slice(0, 80)}` },
+    headers: {
+      "X-Idempotency-Key": `wot-deposit-${txHash
+        .replace(/^0x/, "")
+        .slice(0, 80)}`,
+    },
     body: { txHash, amountUsdc },
   });
   return result.payload;
 }
 
-async function confirmLocalDepositIntent({ token, address, depositIntent, txHash }) {
+async function confirmLocalDepositIntent({
+  token,
+  address,
+  depositIntent,
+  txHash,
+}) {
   const depositIntentId = depositIntent.intent?.id || depositIntent.id;
-  if (!depositIntentId) fail(`deposit intent response missing id: ${JSON.stringify(depositIntent).slice(0, 600)}`);
-  return (await api(`/v1/balance/deposit/intents/${encodeURIComponent(depositIntentId)}/confirm`, {
-    method: "POST",
-    token,
-    address,
-    body: {
-      eventKey: `withdrawal-one-ticket:${String(txHash).toLowerCase()}`,
-      confirmations: 1,
-    },
-  })).payload;
+  if (!depositIntentId)
+    fail(
+      `deposit intent response missing id: ${JSON.stringify(
+        depositIntent
+      ).slice(0, 600)}`
+    );
+  return (
+    await api(
+      `/v1/balance/deposit/intents/${encodeURIComponent(
+        depositIntentId
+      )}/confirm`,
+      {
+        method: "POST",
+        token,
+        address,
+        body: {
+          eventKey: `withdrawal-one-ticket:${String(txHash).toLowerCase()}`,
+          confirmations: 1,
+        },
+      }
+    )
+  ).payload;
 }
 
 async function waitForConsumerBalanceAtLeast(auth, expectedUsdc) {
@@ -291,7 +419,11 @@ async function readConsumerBalance(auth) {
 
 async function startMockUpstream() {
   const healthUrl = `http://127.0.0.1:${MOCK_PORT}/health`;
-  if (await fetch(healthUrl).then((res) => res.ok).catch(() => false)) {
+  if (
+    await fetch(healthUrl)
+      .then((res) => res.ok)
+      .catch(() => false)
+  ) {
     return { url: `http://127.0.0.1:${MOCK_PORT}`, reused: true };
   }
   mockServer = http.createServer((req, res) => {
@@ -301,13 +433,23 @@ async function startMockUpstream() {
       return;
     }
     let raw = "";
-    req.on("data", (chunk) => { raw += chunk; });
+    req.on("data", (chunk) => {
+      raw += chunk;
+    });
     req.on("end", () => {
       res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ status: "ok", runId: RUN_ID, echo: raw ? JSON.parse(raw) : {} }));
+      res.end(
+        JSON.stringify({
+          status: "ok",
+          runId: RUN_ID,
+          echo: raw ? JSON.parse(raw) : {},
+        })
+      );
     });
   });
-  await new Promise((resolve) => mockServer.listen(MOCK_PORT, "127.0.0.1", resolve));
+  await new Promise((resolve) =>
+    mockServer.listen(MOCK_PORT, "127.0.0.1", resolve)
+  );
   return { url: `http://127.0.0.1:${MOCK_PORT}`, reused: false };
 }
 
@@ -322,58 +464,120 @@ async function registerProviderService({ token, address, mockUrl }) {
     agentToolName: id,
     role: "Provider",
     pricing: { currency: "USDC", amount: SERVICE_PRICE_USDC },
-    summary: "Provider service used to generate one-ticket withdrawal evidence receivable.",
+    summary:
+      "Provider service used to generate one-ticket withdrawal evidence receivable.",
     tags: ["withdrawal-one-ticket", "verification"],
     providerProfile: { displayName: "Withdrawal One Ticket Provider" },
-    payoutAccount: { payoutAddress: address, chainId: CHAIN_ID, settlementCurrency: "USDC", status: "active" },
+    payoutAccount: {
+      payoutAddress: address,
+      chainId: CHAIN_ID,
+      settlementCurrency: "USDC",
+      status: "active",
+    },
     governance: { termsAccepted: true, riskAcknowledged: true, note: RUN_ID },
-    healthCheck: { path: "/health", method: "GET", intervalSec: 15, timeoutMs: 5000, successCodes: [200], healthyThreshold: 1, unhealthyThreshold: 1 },
-    constraints: { timeoutMs: 15000, maxResponseBytes: 500000, maxRequestBytes: 100000, maxQps: 50, maxConcurrency: 4 },
+    healthCheck: {
+      path: "/health",
+      method: "GET",
+      intervalSec: 15,
+      timeoutMs: 5000,
+      successCodes: [200],
+      healthyThreshold: 1,
+      unhealthyThreshold: 1,
+    },
+    constraints: {
+      timeoutMs: 15000,
+      maxResponseBytes: 500000,
+      maxRequestBytes: 100000,
+      maxQps: 50,
+      maxConcurrency: 4,
+    },
     forwarding: {
       requestIdHeader: "X-Synapse-Request-Id",
       passThroughHeaders: [],
       injectHeaders: {},
-      retryPolicy: { maxAttempts: 1, backoffMs: 200, retryOnStatus: [429, 500, 502, 503, 504] },
+      retryPolicy: {
+        maxAttempts: 1,
+        backoffMs: 200,
+        retryOnStatus: [429, 500, 502, 503, 504],
+      },
     },
-    metering: { billingUnit: "per_call", billOnError: false, billableStatusClasses: [2], requestIdRequired: true, responseSizeMetering: true },
+    metering: {
+      billingUnit: "per_call",
+      billOnError: false,
+      billableStatusClasses: [2],
+      requestIdRequired: true,
+      responseSizeMetering: true,
+    },
     invoke: {
       method: "POST",
       targets: [{ url: mockUrl, weight: 100, region: "local" }],
       timeoutMs: 15000,
-      request: { contentType: "application/json", schema: { type: "object", properties: { query: { type: "string" } }, required: ["query"] } },
-      response: { schema: { type: "object", properties: { status: { type: "string" } } } },
+      request: {
+        contentType: "application/json",
+        schema: {
+          type: "object",
+          properties: { query: { type: "string" } },
+          required: ["query"],
+        },
+      },
+      response: {
+        schema: { type: "object", properties: { status: { type: "string" } } },
+      },
       headersTemplate: {},
       examples: [{ query: "one ticket evidence" }],
     },
     isActive: true,
     status: "active",
   };
-  const response = (await api("/v1/services", { method: "POST", token, address, body: payload })).payload;
+  const response = (
+    await api("/v1/services", { method: "POST", token, address, body: payload })
+  ).payload;
   const service = response.service || response;
-  return { id: service.serviceId || response.serviceId || id, priceUsdc: SERVICE_PRICE_USDC, mockUrl };
+  return {
+    id: service.serviceId || response.serviceId || id,
+    priceUsdc: SERVICE_PRICE_USDC,
+    mockUrl,
+  };
 }
 
 async function waitForServiceDiscoverable(id) {
   for (let i = 0; i < 30; i += 1) {
-    const payload = (await api(`/v1/services/discover?q=${encodeURIComponent(id)}`)).payload;
+    const payload = (
+      await api(`/v1/services/discover?q=${encodeURIComponent(id)}`)
+    ).payload;
     const services = Array.isArray(payload.services) ? payload.services : [];
-    const found = services.find((service) => [service.serviceId, service.service_id, service.agentToolName].includes(id));
-    if (found && found.isActive !== false && found.runtimeAvailable !== false) return found;
+    const found = services.find((service) =>
+      [service.serviceId, service.service_id, service.agentToolName].includes(
+        id
+      )
+    );
+    if (found && found.isActive !== false && found.runtimeAvailable !== false)
+      return found;
     await sleep(2500);
   }
   fail(`service was not discoverable/callable after health probes: ${id}`);
 }
 
 async function issueAgentCredential({ token, address }) {
-  const payload = (await api("/v1/credentials/agent/issue", {
-    method: "POST",
-    token,
-    address,
-    body: { name: `wot-agent-${RUN_ID}`, rpm: 60, maxCalls: 20, creditLimit: "50", resetInterval: "daily" },
-  })).payload;
+  const payload = (
+    await api("/v1/credentials/agent/issue", {
+      method: "POST",
+      token,
+      address,
+      body: {
+        name: `wot-agent-${RUN_ID}`,
+        rpm: 60,
+        maxCalls: 20,
+        creditLimit: "50",
+        resetInterval: "daily",
+      },
+    })
+  ).payload;
   const credential = payload.credential || payload;
-  const credentialToken = credential.token || credential.secretKey || credential.agentToken;
-  if (!credential?.id || !credentialToken) fail("agent credential issue response missing id or token");
+  const credentialToken =
+    credential.token || credential.secretKey || credential.agentToken;
+  if (!credential?.id || !credentialToken)
+    fail("agent credential issue response missing id or token");
   return { id: credential.id, token: credentialToken };
 }
 
@@ -381,25 +585,47 @@ async function invokeService({ credentialToken, service }) {
   const requestId = `wot-invoke-${RUN_ID}`;
   let lastFailure = "";
   for (let attempt = 1; attempt <= 12; attempt += 1) {
-    const result = await api("/v1/gateway/generate", {
+    const result = await api("/v1/agent/invoke", {
       method: "POST",
-      headers: { "X-Credential": credentialToken, "X-Service-Id": service.id, "X-Request-Id": requestId },
-      body: { prompt: "Withdrawal one-ticket evidence invoke", payload: { query: RUN_ID } },
+      headers: {
+        "X-Credential": credentialToken,
+        "X-Service-Id": service.id,
+        "X-Request-Id": requestId,
+      },
+      body: {
+        serviceId: service.id,
+        idempotencyKey: requestId,
+        costUsdc: service.priceUsdc,
+        payload: { body: { query: RUN_ID } },
+        responseMode: "sync",
+      },
       expectOk: false,
     });
     if (result.response.ok) {
-      const receipt = result.payload.payload?.receipt || result.payload.receipt || {};
-      if (!receipt.invocationId) fail(`invoke response missing invocationId: ${JSON.stringify(result.payload).slice(0, 800)}`);
+      const receipt =
+        result.payload.payload?.receipt || result.payload.receipt || {};
+      if (!receipt.invocationId)
+        fail(
+          `invoke response missing invocationId: ${JSON.stringify(
+            result.payload
+          ).slice(0, 800)}`
+        );
       return receipt;
     }
     const code = result.payload?.detail?.code || result.payload?.code || "";
-    lastFailure = `${result.response.status} ${JSON.stringify(result.payload).slice(0, 400)}`;
-    if (!["SERVICE_UNAVAILABLE", "SERVICE_BUSY", "SERVICE_CIRCUIT_OPEN"].includes(code)) {
-      fail(`POST /v1/gateway/generate failed: ${lastFailure}`);
+    lastFailure = `${result.response.status} ${JSON.stringify(
+      result.payload
+    ).slice(0, 400)}`;
+    if (
+      !["SERVICE_UNAVAILABLE", "SERVICE_BUSY", "SERVICE_CIRCUIT_OPEN"].includes(
+        code
+      )
+    ) {
+      fail(`POST /v1/agent/invoke failed: ${lastFailure}`);
     }
     await sleep(2500);
   }
-  fail(`POST /v1/gateway/generate failed after retries: ${lastFailure}`);
+  fail(`POST /v1/agent/invoke failed after retries: ${lastFailure}`);
 }
 
 async function createConsumerWithdrawal(auth, scenarioName) {
@@ -407,12 +633,18 @@ async function createConsumerWithdrawal(auth, scenarioName) {
     method: "POST",
     token: auth.token,
     address: auth.address,
-    headers: { "X-Idempotency-Key": `wot:${RUN_ID}:${scenarioName}:${Date.now()}` },
+    headers: {
+      "X-Idempotency-Key": `wot:${RUN_ID}:${scenarioName}:${Date.now()}`,
+    },
     body: { amountUsdc: CONSUMER_WITHDRAW_USDC, reason: scenarioName },
   });
   const payload = result.payload;
   if (!payload.withdrawId || !payload.ticket?.signature) {
-    fail(`consumer withdrawal did not return signed ticket: ${JSON.stringify(payload).slice(0, 800)}`);
+    fail(
+      `consumer withdrawal did not return signed ticket: ${JSON.stringify(
+        payload
+      ).slice(0, 800)}`
+    );
   }
   return {
     role: "consumer",
@@ -430,12 +662,18 @@ async function createProviderWithdrawal(auth, scenarioName) {
     method: "POST",
     token: auth.token,
     address: auth.address,
-    headers: { "X-Idempotency-Key": `wot:${RUN_ID}:${scenarioName}:${Date.now()}` },
+    headers: {
+      "X-Idempotency-Key": `wot:${RUN_ID}:${scenarioName}:${Date.now()}`,
+    },
     body: { amountUsdc: PROVIDER_WITHDRAW_USDC },
   });
   const payload = result.payload;
   if (!payload.withdrawalId || !payload.ticket?.signature) {
-    fail(`provider withdrawal did not return signed ticket: ${JSON.stringify(payload).slice(0, 800)}`);
+    fail(
+      `provider withdrawal did not return signed ticket: ${JSON.stringify(
+        payload
+      ).slice(0, 800)}`
+    );
   }
   return {
     role: "provider",
@@ -455,7 +693,11 @@ async function waitForProviderReceivableAtLeast(auth, expectedUsdc) {
   let last = 0;
   for (let i = 0; i < 40; i += 1) {
     const payload = (await api("/v1/balance", auth)).payload;
-    last = Number(payload.balance?.providerReceivableBalance ?? payload.balance?.providerReceivable ?? 0);
+    last = Number(
+      payload.balance?.providerReceivableBalance ??
+        payload.balance?.providerReceivable ??
+        0
+    );
     if (last >= expected - 0.000001) return payload;
     await sleep(1000);
   }
@@ -463,31 +705,46 @@ async function waitForProviderReceivableAtLeast(auth, expectedUsdc) {
 }
 
 async function readConsumerWithdrawal(auth, id) {
-  const rows = (await api("/v1/balance/consumer/withdrawals?limit=200", auth)).payload.withdrawals || [];
-  return rows.find((row) => row.id === id || row.withdrawId === id || row.refundId === id) || null;
+  const rows =
+    (await api("/v1/balance/consumer/withdrawals?limit=200", auth)).payload
+      .withdrawals || [];
+  return (
+    rows.find(
+      (row) => row.id === id || row.withdrawId === id || row.refundId === id
+    ) || null
+  );
 }
 
 async function readProviderWithdrawal(auth, id) {
-  const rows = (await api("/v1/providers/withdrawals?limit=200", auth)).payload.withdrawals || [];
+  const rows =
+    (await api("/v1/providers/withdrawals?limit=200", auth)).payload
+      .withdrawals || [];
   return rows.find((row) => row.id === id || row.withdrawalId === id) || null;
 }
 
 async function completeWithdrawal(auth, withdrawal, txHash) {
   if (withdrawal.role === "consumer") {
-    const payload = (await api(`/v1/refunds/${encodeURIComponent(withdrawal.id)}/complete`, {
-      method: "POST",
-      token: auth.token,
-      address: auth.address,
-      body: { txHash },
-    })).payload;
+    const payload = (
+      await api(`/v1/refunds/${encodeURIComponent(withdrawal.id)}/complete`, {
+        method: "POST",
+        token: auth.token,
+        address: auth.address,
+        body: { txHash },
+      })
+    ).payload;
     return payload;
   }
-  const payload = (await api(`/v1/providers/withdrawals/${encodeURIComponent(withdrawal.id)}/complete`, {
-    method: "POST",
-    token: auth.token,
-    address: auth.address,
-    body: { txHash },
-  })).payload;
+  const payload = (
+    await api(
+      `/v1/providers/withdrawals/${encodeURIComponent(withdrawal.id)}/complete`,
+      {
+        method: "POST",
+        token: auth.token,
+        address: auth.address,
+        body: { txHash },
+      }
+    )
+  ).payload;
   return payload;
 }
 
@@ -495,17 +752,23 @@ async function waitForStatus(auth, withdrawal, expected, timeoutMs = 90000) {
   const deadline = Date.now() + timeoutMs;
   let last = null;
   while (Date.now() < deadline) {
-    last = withdrawal.role === "consumer"
-      ? await readConsumerWithdrawal(auth, withdrawal.id)
-      : await readProviderWithdrawal(auth, withdrawal.id);
+    last =
+      withdrawal.role === "consumer"
+        ? await readConsumerWithdrawal(auth, withdrawal.id)
+        : await readProviderWithdrawal(auth, withdrawal.id);
     if (String(last?.status || "").toUpperCase() === expected) return last;
     await sleep(1500);
   }
-  fail(`${withdrawal.role} withdrawal ${withdrawal.id} did not reach ${expected}; last=${JSON.stringify(last).slice(0, 800)}`);
+  fail(
+    `${withdrawal.role} withdrawal ${
+      withdrawal.id
+    } did not reach ${expected}; last=${JSON.stringify(last).slice(0, 800)}`
+  );
 }
 
 async function readChainBalances(address) {
-  const { provider, coreAddress, usdcAddress, usdcAbi } = await getChainContext();
+  const { provider, coreAddress, usdcAddress, usdcAbi } =
+    await getChainContext();
   const usdc = new ethers.Contract(usdcAddress, usdcAbi, provider);
   const decimals = Number(await usdc.decimals());
   const walletAtomic = await usdc.balanceOf(address);
@@ -529,7 +792,9 @@ async function claimOnChain(privateKey, ticket, { gasLimit } = {}) {
   const { provider, coreAbi, coreAddress } = await getChainContext();
   const signer = new ethers.Wallet(privateKey, provider);
   const core = new ethers.Contract(coreAddress, coreAbi, signer);
-  const signature = String(ticket.signature || "").startsWith("0x") ? ticket.signature : `0x${ticket.signature}`;
+  const signature = String(ticket.signature || "").startsWith("0x")
+    ? ticket.signature
+    : `0x${ticket.signature}`;
   const overrides = {};
   if (gasLimit) overrides.gasLimit = BigInt(gasLimit);
   const tx = await sendWithRetry("withdraw-claim", async () =>
@@ -539,7 +804,7 @@ async function claimOnChain(privateKey, ticket, { gasLimit } = {}) {
       ticket.ticketId,
       BigInt(ticket.deadline),
       signature,
-      overrides,
+      overrides
     )
   );
   const receipt = await tx.wait();
@@ -555,20 +820,33 @@ async function expectClaimRevert(privateKey, ticket, { gasLimit } = {}) {
   try {
     const result = await claimOnChain(privateKey, ticket, { gasLimit });
     if (result.receiptStatus === 0) {
-      return { reverted: true, failureType: "RECEIPT_STATUS_0", receipt: result };
+      return {
+        reverted: true,
+        failureType: "RECEIPT_STATUS_0",
+        receipt: result,
+      };
     }
-    return { reverted: false, failureType: "UNEXPECTED_SUCCESS", receipt: result };
+    return {
+      reverted: false,
+      failureType: "UNEXPECTED_SUCCESS",
+      receipt: result,
+    };
   } catch (error) {
     const receipt = error.receipt || error.info?.receipt || null;
     return {
       reverted: true,
       failureType: gasLimit ? "OUT_OF_GAS_REVERT" : "CONTRACT_REVERT",
-      message: String(error.shortMessage || error.message || error).slice(0, 600),
-      receipt: receipt ? {
-        status: Number(receipt.status ?? 0),
-        transactionHash: receipt.hash || receipt.transactionHash || "",
-        gasUsed: receipt.gasUsed?.toString?.() || "",
-      } : null,
+      message: String(error.shortMessage || error.message || error).slice(
+        0,
+        600
+      ),
+      receipt: receipt
+        ? {
+            status: Number(receipt.status ?? 0),
+            transactionHash: receipt.hash || receipt.transactionHash || "",
+            gasUsed: receipt.gasUsed?.toString?.() || "",
+          }
+        : null,
     };
   }
 }
@@ -586,27 +864,36 @@ async function rpcCall(method, params = []) {
     body: JSON.stringify({ jsonrpc: "2.0", id: Date.now(), method, params }),
   });
   const payload = await response.json().catch(() => ({}));
-  if (payload.error) throw new Error(`${method} failed: ${JSON.stringify(payload.error)}`);
+  if (payload.error)
+    throw new Error(`${method} failed: ${JSON.stringify(payload.error)}`);
   return payload.result;
 }
 
 async function minePastRpcDeadline(targetTimestamp) {
   const current = await latestBlockTimestamp();
   if (current <= targetTimestamp && isLocalUrl(RPC_URL)) {
-    await rpcCall("evm_setNextBlockTimestamp", [targetTimestamp + 1]).catch(async () => {
-      await rpcCall("evm_increaseTime", [Math.max(1, targetTimestamp + 1 - current)]);
-    });
+    await rpcCall("evm_setNextBlockTimestamp", [targetTimestamp + 1]).catch(
+      async () => {
+        await rpcCall("evm_increaseTime", [
+          Math.max(1, targetTimestamp + 1 - current),
+        ]);
+      }
+    );
     await rpcCall("evm_mine");
   }
 }
 
 async function waitForExpiryWindow(ticket) {
-  const target = Number(ticket.deadline) + EXPIRY_BUFFER_SEC + RPC_FINALITY_MARGIN_SEC + 2;
-  while (Math.floor(Date.now() / 1000) <= Number(ticket.deadline) + EXPIRY_BUFFER_SEC + 1) {
+  const target =
+    Number(ticket.deadline) + EXPIRY_BUFFER_SEC + RPC_FINALITY_MARGIN_SEC + 2;
+  while (
+    Math.floor(Date.now() / 1000) <=
+    Number(ticket.deadline) + EXPIRY_BUFFER_SEC + 1
+  ) {
     await sleep(1500);
   }
   await minePastRpcDeadline(target);
-  while (await latestBlockTimestamp() <= target) {
+  while ((await latestBlockTimestamp()) <= target) {
     await rpcCall("evm_mine").catch(() => null);
     await sleep(1500);
   }
@@ -629,16 +916,25 @@ async function writeScenario(name, payload) {
   return scenario;
 }
 
-async function runClaimScenario(name, role, auth, privateKey, { softRevoke = false } = {}) {
-  const withdrawal = role === "consumer"
-    ? await createConsumerWithdrawal(auth, name)
-    : await createProviderWithdrawal(auth, name);
+async function runClaimScenario(
+  name,
+  role,
+  auth,
+  privateKey,
+  { softRevoke = false } = {}
+) {
+  const withdrawal =
+    role === "consumer"
+      ? await createConsumerWithdrawal(auth, name)
+      : await createProviderWithdrawal(auth, name);
   const before = await readChainBalances(auth.address);
-  const softRevokeEvidence = softRevoke ? {
-    requestedAt: new Date().toISOString(),
-    mode: "SOFT_REVOKE_WAIT_EXPIRY_ONLY",
-    note: "No hard revoke/broadcaster; claim before deadline remains valid by design.",
-  } : null;
+  const softRevokeEvidence = softRevoke
+    ? {
+        requestedAt: new Date().toISOString(),
+        mode: "SOFT_REVOKE_WAIT_EXPIRY_ONLY",
+        note: "No hard revoke/broadcaster; claim before deadline remains valid by design.",
+      }
+    : null;
   const chain = await claimOnChain(privateKey, withdrawal.ticket);
   if (chain.receiptStatus !== 1) fail(`${name} claim reverted unexpectedly`);
   const complete = await completeWithdrawal(auth, withdrawal, chain.txHash);
@@ -656,28 +952,59 @@ async function runClaimScenario(name, role, auth, privateKey, { softRevoke = fal
       dbStatus: row.status,
       txHash: chain.txHash,
       receiptStatus: chain.receiptStatus,
-      completeStatus: complete.status || complete.withdrawalStatus || complete.refundStatus,
-      walletDeltaAtomic: (BigInt(after.walletAtomic) - BigInt(before.walletAtomic)).toString(),
-      vaultDeltaAtomic: (BigInt(after.vaultAtomic) - BigInt(before.vaultAtomic)).toString(),
+      completeStatus:
+        complete.status || complete.withdrawalStatus || complete.refundStatus,
+      walletDeltaAtomic: (
+        BigInt(after.walletAtomic) - BigInt(before.walletAtomic)
+      ).toString(),
+      vaultDeltaAtomic: (
+        BigInt(after.vaultAtomic) - BigInt(before.vaultAtomic)
+      ).toString(),
     },
     comparisons: [
-      { metric: "dbStatus", expected: "COMPLETED", actual: row.status, pass: String(row.status).toUpperCase() === "COMPLETED" },
-      { metric: "receiptStatus", expected: "1", actual: String(chain.receiptStatus), pass: chain.receiptStatus === 1 },
-      { metric: "ticketConsumed", expected: "true", actual: String(await isTicketConsumed(withdrawal.ticket.ticketHash)), pass: await isTicketConsumed(withdrawal.ticket.ticketHash) === true },
+      {
+        metric: "dbStatus",
+        expected: "COMPLETED",
+        actual: row.status,
+        pass: String(row.status).toUpperCase() === "COMPLETED",
+      },
+      {
+        metric: "receiptStatus",
+        expected: "1",
+        actual: String(chain.receiptStatus),
+        pass: chain.receiptStatus === 1,
+      },
+      {
+        metric: "ticketConsumed",
+        expected: "true",
+        actual: String(await isTicketConsumed(withdrawal.ticket.ticketHash)),
+        pass: (await isTicketConsumed(withdrawal.ticket.ticketHash)) === true,
+      },
     ],
   });
 }
 
-async function runExpiredScenario(name, role, auth, { softRevoke = false } = {}) {
-  const withdrawal = role === "consumer"
-    ? await createConsumerWithdrawal(auth, name)
-    : await createProviderWithdrawal(auth, name);
-  const balanceBefore = role === "consumer" ? await readConsumerBalance(auth) : await readProviderWithdrawal(auth, withdrawal.id);
-  const softRevokeEvidence = softRevoke ? {
-    requestedAt: new Date().toISOString(),
-    mode: "SOFT_REVOKE_WAIT_EXPIRY_ONLY",
-    note: "Operator blocks refresh/new ticket; one-ticket model waits for physical deadline before release.",
-  } : null;
+async function runExpiredScenario(
+  name,
+  role,
+  auth,
+  { softRevoke = false } = {}
+) {
+  const withdrawal =
+    role === "consumer"
+      ? await createConsumerWithdrawal(auth, name)
+      : await createProviderWithdrawal(auth, name);
+  const balanceBefore =
+    role === "consumer"
+      ? await readConsumerBalance(auth)
+      : await readProviderWithdrawal(auth, withdrawal.id);
+  const softRevokeEvidence = softRevoke
+    ? {
+        requestedAt: new Date().toISOString(),
+        mode: "SOFT_REVOKE_WAIT_EXPIRY_ONLY",
+        note: "Operator blocks refresh/new ticket; one-ticket model waits for physical deadline before release.",
+      }
+    : null;
   await waitForExpiryWindow(withdrawal.ticket);
   const row = await waitForStatus(auth, withdrawal, "FAILED_EXPIRED", 90000);
   const consumed = await isTicketConsumed(withdrawal.ticket.ticketHash);
@@ -704,9 +1031,28 @@ async function runExpiredScenario(name, role, auth, { softRevoke = false } = {})
       row: redactWithdrawalRow(row),
     },
     comparisons: [
-      { metric: "dbStatus", expected: "FAILED_EXPIRED", actual: row.status, pass: String(row.status).toUpperCase() === "FAILED_EXPIRED" },
-      { metric: "ticketConsumed", expected: "false", actual: String(consumed), pass: consumed === false },
-      { metric: "rpcBlockTimestamp", expected: `>${Number(withdrawal.ticket.deadline) + RPC_FINALITY_MARGIN_SEC}`, actual: String(rpcBlockTimestamp), pass: rpcBlockTimestamp > Number(withdrawal.ticket.deadline) + RPC_FINALITY_MARGIN_SEC },
+      {
+        metric: "dbStatus",
+        expected: "FAILED_EXPIRED",
+        actual: row.status,
+        pass: String(row.status).toUpperCase() === "FAILED_EXPIRED",
+      },
+      {
+        metric: "ticketConsumed",
+        expected: "false",
+        actual: String(consumed),
+        pass: consumed === false,
+      },
+      {
+        metric: "rpcBlockTimestamp",
+        expected: `>${
+          Number(withdrawal.ticket.deadline) + RPC_FINALITY_MARGIN_SEC
+        }`,
+        actual: String(rpcBlockTimestamp),
+        pass:
+          rpcBlockTimestamp >
+          Number(withdrawal.ticket.deadline) + RPC_FINALITY_MARGIN_SEC,
+      },
     ],
   });
 }
@@ -718,14 +1064,20 @@ async function runReplayScenario(auth, privateKey) {
   const first = await claimOnChain(privateKey, withdrawal.ticket);
   if (first.receiptStatus !== 1) fail("replay scenario first claim failed");
   await completeWithdrawal(auth, withdrawal, first.txHash);
-  const rowAfterFirst = await waitForStatus(auth, withdrawal, "COMPLETED", 30000);
+  const rowAfterFirst = await waitForStatus(
+    auth,
+    withdrawal,
+    "COMPLETED",
+    30000
+  );
   const afterFirst = await readChainBalances(auth.address);
   const replay = await expectClaimRevert(privateKey, withdrawal.ticket);
   const rowAfterReplay = await readConsumerWithdrawal(auth, withdrawal.id);
   const afterReplay = await readChainBalances(auth.address);
   const consumed = await isTicketConsumed(withdrawal.ticket.ticketHash);
   return writeScenario(name, {
-    summary: "Replay of consumed consumer ticket reverts and Gateway remains COMPLETED",
+    summary:
+      "Replay of consumed consumer ticket reverts and Gateway remains COMPLETED",
     role: "consumer",
     withdrawalId: withdrawal.id,
     ticketHash: withdrawal.ticket.ticketHash,
@@ -742,16 +1094,46 @@ async function runReplayScenario(auth, privateKey) {
       replay,
       statusAfterFirst: rowAfterFirst.status,
       statusAfterReplay: rowAfterReplay?.status,
-      walletDeltaFirstAtomic: (BigInt(afterFirst.walletAtomic) - BigInt(before.walletAtomic)).toString(),
-      walletDeltaReplayAtomic: (BigInt(afterReplay.walletAtomic) - BigInt(afterFirst.walletAtomic)).toString(),
-      vaultDeltaReplayAtomic: (BigInt(afterReplay.vaultAtomic) - BigInt(afterFirst.vaultAtomic)).toString(),
+      walletDeltaFirstAtomic: (
+        BigInt(afterFirst.walletAtomic) - BigInt(before.walletAtomic)
+      ).toString(),
+      walletDeltaReplayAtomic: (
+        BigInt(afterReplay.walletAtomic) - BigInt(afterFirst.walletAtomic)
+      ).toString(),
+      vaultDeltaReplayAtomic: (
+        BigInt(afterReplay.vaultAtomic) - BigInt(afterFirst.vaultAtomic)
+      ).toString(),
       ticketConsumed: consumed,
     },
     comparisons: [
-      { metric: "replayReverted", expected: "true", actual: String(replay.reverted), pass: replay.reverted === true },
-      { metric: "gatewayStatusAfterReplay", expected: "COMPLETED", actual: rowAfterReplay?.status || "", pass: String(rowAfterReplay?.status || "").toUpperCase() === "COMPLETED" },
-      { metric: "noSecondWalletDelta", expected: "0", actual: (BigInt(afterReplay.walletAtomic) - BigInt(afterFirst.walletAtomic)).toString(), pass: BigInt(afterReplay.walletAtomic) === BigInt(afterFirst.walletAtomic) },
-      { metric: "ticketConsumed", expected: "true", actual: String(consumed), pass: consumed === true },
+      {
+        metric: "replayReverted",
+        expected: "true",
+        actual: String(replay.reverted),
+        pass: replay.reverted === true,
+      },
+      {
+        metric: "gatewayStatusAfterReplay",
+        expected: "COMPLETED",
+        actual: rowAfterReplay?.status || "",
+        pass:
+          String(rowAfterReplay?.status || "").toUpperCase() === "COMPLETED",
+      },
+      {
+        metric: "noSecondWalletDelta",
+        expected: "0",
+        actual: (
+          BigInt(afterReplay.walletAtomic) - BigInt(afterFirst.walletAtomic)
+        ).toString(),
+        pass:
+          BigInt(afterReplay.walletAtomic) === BigInt(afterFirst.walletAtomic),
+      },
+      {
+        metric: "ticketConsumed",
+        expected: "true",
+        actual: String(consumed),
+        pass: consumed === true,
+      },
     ],
   });
 }
@@ -760,17 +1142,23 @@ async function runLowGasRetryScenario(auth, privateKey) {
   const name = "provider-onchain-revert-retry";
   const withdrawal = await createProviderWithdrawal(auth, name);
   const before = await readChainBalances(auth.address);
-  const lowGas = await expectClaimRevert(privateKey, withdrawal.ticket, { gasLimit: LOW_GAS_REVERT_GAS_LIMIT });
-  const consumedAfterLowGas = await isTicketConsumed(withdrawal.ticket.ticketHash);
+  const lowGas = await expectClaimRevert(privateKey, withdrawal.ticket, {
+    gasLimit: LOW_GAS_REVERT_GAS_LIMIT,
+  });
+  const consumedAfterLowGas = await isTicketConsumed(
+    withdrawal.ticket.ticketHash
+  );
   const rowAfterLowGas = await readProviderWithdrawal(auth, withdrawal.id);
   const afterLowGas = await readChainBalances(auth.address);
   const retry = await claimOnChain(privateKey, withdrawal.ticket);
-  if (retry.receiptStatus !== 1) fail("low-gas retry scenario normal-gas claim failed");
+  if (retry.receiptStatus !== 1)
+    fail("low-gas retry scenario normal-gas claim failed");
   await completeWithdrawal(auth, withdrawal, retry.txHash);
   const finalRow = await waitForStatus(auth, withdrawal, "COMPLETED", 30000);
   const afterRetry = await readChainBalances(auth.address);
   return writeScenario(name, {
-    summary: "Low-gas claim reverts without consuming ticket; same ticket retries successfully before deadline",
+    summary:
+      "Low-gas claim reverts without consuming ticket; same ticket retries successfully before deadline",
     role: "provider",
     withdrawalId: withdrawal.id,
     ticketHash: withdrawal.ticket.ticketHash,
@@ -786,19 +1174,52 @@ async function runLowGasRetryScenario(auth, privateKey) {
       lowGas,
       consumedAfterLowGas,
       gatewayStatusAfterLowGas: rowAfterLowGas?.status,
-      lowGasWalletDeltaAtomic: (BigInt(afterLowGas.walletAtomic) - BigInt(before.walletAtomic)).toString(),
+      lowGasWalletDeltaAtomic: (
+        BigInt(afterLowGas.walletAtomic) - BigInt(before.walletAtomic)
+      ).toString(),
       retryTxHash: retry.txHash,
       retryReceiptStatus: retry.receiptStatus,
       finalGatewayStatus: finalRow.status,
-      retryWalletDeltaAtomic: (BigInt(afterRetry.walletAtomic) - BigInt(afterLowGas.walletAtomic)).toString(),
-      retryVaultDeltaAtomic: (BigInt(afterRetry.vaultAtomic) - BigInt(afterLowGas.vaultAtomic)).toString(),
+      retryWalletDeltaAtomic: (
+        BigInt(afterRetry.walletAtomic) - BigInt(afterLowGas.walletAtomic)
+      ).toString(),
+      retryVaultDeltaAtomic: (
+        BigInt(afterRetry.vaultAtomic) - BigInt(afterLowGas.vaultAtomic)
+      ).toString(),
     },
     comparisons: [
-      { metric: "lowGasReverted", expected: "true", actual: String(lowGas.reverted), pass: lowGas.reverted === true },
-      { metric: "consumedAfterLowGas", expected: "false", actual: String(consumedAfterLowGas), pass: consumedAfterLowGas === false },
-      { metric: "gatewayNotFailedAfterLowGas", expected: "not FAILED/FAILED_EXPIRED", actual: rowAfterLowGas?.status || "", pass: !["FAILED", "FAILED_EXPIRED"].includes(String(rowAfterLowGas?.status || "").toUpperCase()) },
-      { metric: "retryReceiptStatus", expected: "1", actual: String(retry.receiptStatus), pass: retry.receiptStatus === 1 },
-      { metric: "finalGatewayStatus", expected: "COMPLETED", actual: finalRow.status, pass: String(finalRow.status).toUpperCase() === "COMPLETED" },
+      {
+        metric: "lowGasReverted",
+        expected: "true",
+        actual: String(lowGas.reverted),
+        pass: lowGas.reverted === true,
+      },
+      {
+        metric: "consumedAfterLowGas",
+        expected: "false",
+        actual: String(consumedAfterLowGas),
+        pass: consumedAfterLowGas === false,
+      },
+      {
+        metric: "gatewayNotFailedAfterLowGas",
+        expected: "not FAILED/FAILED_EXPIRED",
+        actual: rowAfterLowGas?.status || "",
+        pass: !["FAILED", "FAILED_EXPIRED"].includes(
+          String(rowAfterLowGas?.status || "").toUpperCase()
+        ),
+      },
+      {
+        metric: "retryReceiptStatus",
+        expected: "1",
+        actual: String(retry.receiptStatus),
+        pass: retry.receiptStatus === 1,
+      },
+      {
+        metric: "finalGatewayStatus",
+        expected: "COMPLETED",
+        actual: finalRow.status,
+        pass: String(finalRow.status).toUpperCase() === "COMPLETED",
+      },
     ],
   });
 }
@@ -833,16 +1254,22 @@ function writeMarkdown(report) {
     "",
     "| Scenario | Status | Ticket Hash | Key Result |",
     "| --- | --- | --- | --- |",
-    ...report.scenarioResults.map((scenario) =>
-      `| ${scenario.name} | ${scenario.status} | ${scenario.ticketHash || ""} | ${scenario.summary || ""} |`
+    ...report.scenarioResults.map(
+      (scenario) =>
+        `| ${scenario.name} | ${scenario.status} | ${
+          scenario.ticketHash || ""
+        } | ${scenario.summary || ""} |`
     ),
     "",
     "## Expected vs Actual",
     "",
     "| Scenario | Metric | Expected | Actual | Pass |",
     "| --- | --- | --- | --- | --- |",
-    ...report.comparisons.map((row) =>
-      `| ${row.scenario} | ${row.metric} | ${row.expected} | ${row.actual} | ${row.pass ? "PASS" : "FAIL"} |`
+    ...report.comparisons.map(
+      (row) =>
+        `| ${row.scenario} | ${row.metric} | ${row.expected} | ${
+          row.actual
+        } | ${row.pass ? "PASS" : "FAIL"} |`
     ),
     "",
     "## Negative Scenarios",
@@ -855,7 +1282,11 @@ function writeMarkdown(report) {
     report.failed.length ? JSON.stringify(report.failed, null, 2) : "None.",
     "",
   ];
-  fs.writeFileSync(path.join(OUT_DIR, "report.md"), `${lines.join("\n")}\n`, "utf8");
+  fs.writeFileSync(
+    path.join(OUT_DIR, "report.md"),
+    `${lines.join("\n")}\n`,
+    "utf8"
+  );
 }
 
 async function writeManifests(chain, mock) {
@@ -904,32 +1335,85 @@ async function main() {
   const consumerAuth = await authenticate(CONSUMER_KEY, "consumer");
   const providerAuth = await authenticate(PROVIDER_KEY, "provider");
 
-  const deposit = await fundAndDeposit({ consumerAddress: consumerAuth.address });
-  const depositIntent = await registerDepositIntent({ ...consumerAuth, txHash: deposit.txHash, amountUsdc: deposit.amountUsdc });
-  await confirmLocalDepositIntent({ ...consumerAuth, depositIntent, txHash: deposit.txHash });
+  const deposit = await fundAndDeposit({
+    consumerAddress: consumerAuth.address,
+  });
+  const depositIntent = await registerDepositIntent({
+    ...consumerAuth,
+    txHash: deposit.txHash,
+    amountUsdc: deposit.amountUsdc,
+  });
+  await confirmLocalDepositIntent({
+    ...consumerAuth,
+    depositIntent,
+    txHash: deposit.txHash,
+  });
   await waitForConsumerBalanceAtLeast(consumerAuth, "20.000000");
 
-  const service = await registerProviderService({ ...providerAuth, mockUrl: mock.url });
+  const service = await registerProviderService({
+    ...providerAuth,
+    mockUrl: mock.url,
+  });
   await waitForServiceDiscoverable(service.id);
   const credential = await issueAgentCredential(consumerAuth);
   await invokeService({ credentialToken: credential.token, service });
   await waitForProviderReceivableAtLeast(providerAuth, "5.000000");
 
-  await runClaimScenario("consumer-normal-claim", "consumer", consumerAuth, CONSUMER_KEY);
-  await runClaimScenario("consumer-soft-revoke-race-claim", "consumer", consumerAuth, CONSUMER_KEY, { softRevoke: true });
+  await runClaimScenario(
+    "consumer-normal-claim",
+    "consumer",
+    consumerAuth,
+    CONSUMER_KEY
+  );
+  await runClaimScenario(
+    "consumer-soft-revoke-race-claim",
+    "consumer",
+    consumerAuth,
+    CONSUMER_KEY,
+    { softRevoke: true }
+  );
   await runReplayScenario(consumerAuth, CONSUMER_KEY);
-  await runClaimScenario("provider-normal-claim", "provider", providerAuth, PROVIDER_KEY);
-  await runClaimScenario("provider-soft-revoke-race-claim", "provider", providerAuth, PROVIDER_KEY, { softRevoke: true });
+  await runClaimScenario(
+    "provider-normal-claim",
+    "provider",
+    providerAuth,
+    PROVIDER_KEY
+  );
+  await runClaimScenario(
+    "provider-soft-revoke-race-claim",
+    "provider",
+    providerAuth,
+    PROVIDER_KEY,
+    { softRevoke: true }
+  );
   await runLowGasRetryScenario(providerAuth, PROVIDER_KEY);
   await runExpiredScenario("consumer-expired-reaper", "consumer", consumerAuth);
-  await runExpiredScenario("consumer-soft-revoke-expire", "consumer", consumerAuth, { softRevoke: true });
+  await runExpiredScenario(
+    "consumer-soft-revoke-expire",
+    "consumer",
+    consumerAuth,
+    { softRevoke: true }
+  );
   await runExpiredScenario("provider-expired-reaper", "provider", providerAuth);
-  await runExpiredScenario("provider-soft-revoke-expire", "provider", providerAuth, { softRevoke: true });
+  await runExpiredScenario(
+    "provider-soft-revoke-expire",
+    "provider",
+    providerAuth,
+    { softRevoke: true }
+  );
 
   const comparisons = collectComparisons();
   for (const scenario of scenarios) {
-    if (scenario.pass !== true || (scenario.comparisons || []).some((comparison) => comparison.pass !== true)) {
-      failed.push({ name: scenario.name, detail: "scenario comparison failed" });
+    if (
+      scenario.pass !== true ||
+      (scenario.comparisons || []).some(
+        (comparison) => comparison.pass !== true
+      )
+    ) {
+      failed.push({
+        name: scenario.name,
+        detail: "scenario comparison failed",
+      });
     }
   }
   const scenarioFiles = SCENARIOS.map((name) => `${name}.json`);
@@ -966,8 +1450,13 @@ async function main() {
       summary: scenario.summary,
     })),
     negativeScenarios: {
-      "consumer-replay-attack": scenarios.find((scenario) => scenario.name === "consumer-replay-attack")?.actual || null,
-      "provider-onchain-revert-retry": scenarios.find((scenario) => scenario.name === "provider-onchain-revert-retry")?.actual || null,
+      "consumer-replay-attack":
+        scenarios.find((scenario) => scenario.name === "consumer-replay-attack")
+          ?.actual || null,
+      "provider-onchain-revert-retry":
+        scenarios.find(
+          (scenario) => scenario.name === "provider-onchain-revert-retry"
+        )?.actual || null,
     },
     comparisons,
     passed,
@@ -993,7 +1482,11 @@ main()
       generatedAt: new Date().toISOString(),
       status: "failed",
       failed,
-      scenarioResults: scenarios.map((scenario) => ({ name: scenario.name, status: scenario.status, pass: scenario.pass })),
+      scenarioResults: scenarios.map((scenario) => ({
+        name: scenario.name,
+        status: scenario.status,
+        pass: scenario.pass,
+      })),
       negativeScenarios: {},
       comparisons: collectComparisons(),
     };

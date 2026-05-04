@@ -9,7 +9,8 @@ const REGION = process.env.REGION || "us-central1";
 const GATEWAY_URL =
   process.env.STAGING_GATEWAY_URL || "https://api-staging.synapse-network.ai";
 const PROVIDER_URL =
-  process.env.STAGING_PROVIDER_URL || "https://provider-staging.synapse-network.ai";
+  process.env.STAGING_PROVIDER_URL ||
+  "https://provider-staging.synapse-network.ai";
 const EXPECTED_PROVIDER_PREFIX =
   process.env.STAGING_PROVIDER_ENDPOINT_PREFIX ||
   "https://provider-staging.synapse-network.ai/provider-services/";
@@ -34,7 +35,8 @@ const REQUIRED_SECRET_LINT = [
   "synapse-staging-gcp-alert-receiver-token",
   "synapse-staging-alert-drill-token",
 ];
-const PLACEHOLDER_RE = /^(replace-|your-|todo|changeme|placeholder|example|null|undefined)/i;
+const PLACEHOLDER_RE =
+  /^(replace-|your-|todo|changeme|placeholder|example|null|undefined)/i;
 
 function arg(name, fallback = "") {
   const index = process.argv.indexOf(name);
@@ -45,21 +47,35 @@ const out = arg("--out", "");
 
 function runGcloud(args, { json = false, allowFailure = false } = {}) {
   try {
-    const text = execFileSync("gcloud", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+    const text = execFileSync("gcloud", args, {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    }).trim();
     if (!json) return text;
     return text ? JSON.parse(text) : {};
   } catch (error) {
     if (allowFailure) return json ? null : "";
     const stderr = String(error.stderr || "").trim();
-    throw new Error(`gcloud ${args.join(" ")} failed${stderr ? `: ${stderr}` : ""}`);
+    throw new Error(
+      `gcloud ${args.join(" ")} failed${stderr ? `: ${stderr}` : ""}`
+    );
   }
 }
 
 function readSecret(secretId) {
   return execFileSync(
     "gcloud",
-    ["secrets", "versions", "access", "latest", "--secret", secretId, "--project", PROJECT_ID],
-    { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+    [
+      "secrets",
+      "versions",
+      "access",
+      "latest",
+      "--secret",
+      secretId,
+      "--project",
+      PROJECT_ID,
+    ],
+    { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }
   );
 }
 
@@ -71,15 +87,35 @@ function normalizeSecretRef(value) {
 
 function serviceJson(name) {
   return runGcloud(
-    ["run", "services", "describe", name, "--project", PROJECT_ID, "--region", REGION, "--format=json"],
-    { json: true },
+    [
+      "run",
+      "services",
+      "describe",
+      name,
+      "--project",
+      PROJECT_ID,
+      "--region",
+      REGION,
+      "--format=json",
+    ],
+    { json: true }
   );
 }
 
 function jobJson(name) {
   return runGcloud(
-    ["run", "jobs", "describe", name, "--project", PROJECT_ID, "--region", REGION, "--format=json"],
-    { json: true },
+    [
+      "run",
+      "jobs",
+      "describe",
+      name,
+      "--project",
+      PROJECT_ID,
+      "--region",
+      REGION,
+      "--format=json",
+    ],
+    { json: true }
   );
 }
 
@@ -126,7 +162,10 @@ function plainEnvMap(resource) {
 }
 
 function cloudSqlInstances(resource) {
-  const annotation = resource?.spec?.template?.metadata?.annotations?.["run.googleapis.com/cloudsql-instances"];
+  const annotation =
+    resource?.spec?.template?.metadata?.annotations?.[
+      "run.googleapis.com/cloudsql-instances"
+    ];
   const volumes =
     resource?.template?.volumes ||
     resource?.template?.template?.volumes ||
@@ -134,7 +173,12 @@ function cloudSqlInstances(resource) {
     resource?.spec?.template?.spec?.volumes ||
     [];
   return [
-    ...(annotation ? annotation.split(",").map((item) => item.trim()).filter(Boolean) : []),
+    ...(annotation
+      ? annotation
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean)
+      : []),
     ...volumes.flatMap((volume) => volume.cloudSqlInstance?.instances || []),
   ];
 }
@@ -145,15 +189,19 @@ function record(checks, name, status, details = {}) {
 
 function collectUrlEntries(value, path = [], urls = []) {
   if (typeof value === "string") {
-    if (/^https?:\/\//i.test(value)) urls.push({ path: path.join("."), url: value });
+    if (/^https?:\/\//i.test(value))
+      urls.push({ path: path.join("."), url: value });
     return urls;
   }
   if (Array.isArray(value)) {
-    value.forEach((item, index) => collectUrlEntries(item, [...path, String(index)], urls));
+    value.forEach((item, index) =>
+      collectUrlEntries(item, [...path, String(index)], urls)
+    );
     return urls;
   }
   if (value && typeof value === "object") {
-    for (const [key, item] of Object.entries(value)) collectUrlEntries(item, [...path, key], urls);
+    for (const [key, item] of Object.entries(value))
+      collectUrlEntries(item, [...path, key], urls);
   }
   return urls;
 }
@@ -188,14 +236,21 @@ for (const secretId of REQUIRED_SECRET_LINT) {
   try {
     const raw = readSecret(secretId);
     const trimmed = raw.trim();
-    requireCheck(`secret-lint:${secretId}`, Boolean(trimmed) && raw === trimmed && !PLACEHOLDER_RE.test(trimmed), {
-      secretId,
-      length: trimmed.length,
-      hasTrailingNewline: raw !== trimmed,
-      placeholderLike: PLACEHOLDER_RE.test(trimmed),
-    });
+    requireCheck(
+      `secret-lint:${secretId}`,
+      Boolean(trimmed) && raw === trimmed && !PLACEHOLDER_RE.test(trimmed),
+      {
+        secretId,
+        length: trimmed.length,
+        hasTrailingNewline: raw !== trimmed,
+        placeholderLike: PLACEHOLDER_RE.test(trimmed),
+      }
+    );
   } catch (error) {
-    requireCheck(`secret-lint:${secretId}`, false, { secretId, error: String(error.message || error) });
+    requireCheck(`secret-lint:${secretId}`, false, {
+      secretId,
+      error: String(error.message || error),
+    });
   }
 }
 
@@ -208,12 +263,15 @@ try {
   const providerSecrets = secretEnvMap(providerService);
   requireCheck(
     "provider-signature-secret-shared",
-    gatewaySecrets.GATEWAY_PROVIDER_SIGNATURE_SECRET === "synapse-staging-provider-signature-secret" &&
-      providerSecrets.GATEWAY_PROVIDER_SIGNATURE_SECRET === "synapse-staging-provider-signature-secret",
+    gatewaySecrets.GATEWAY_PROVIDER_SIGNATURE_SECRET ===
+      "synapse-staging-provider-signature-secret" &&
+      providerSecrets.GATEWAY_PROVIDER_SIGNATURE_SECRET ===
+        "synapse-staging-provider-signature-secret",
     {
       gatewaySecretId: gatewaySecrets.GATEWAY_PROVIDER_SIGNATURE_SECRET || null,
-      providerSecretId: providerSecrets.GATEWAY_PROVIDER_SIGNATURE_SECRET || null,
-    },
+      providerSecretId:
+        providerSecrets.GATEWAY_PROVIDER_SIGNATURE_SECRET || null,
+    }
   );
 
   const providerPlain = plainEnvMap(providerService);
@@ -221,14 +279,22 @@ try {
   const dsnSecret = providerSecrets.PROVIDER_SERVICE_POSTGRES_DSN || null;
   const providerUsesCloudSql =
     Boolean(dsnSecret) ||
-    String(providerPlain.PROVIDER_SERVICE_POSTGRES_DSN || "").includes("/cloudsql/");
-  requireCheck("provider-cloudsql-mounted", !providerUsesCloudSql || mounts.includes(EXPECTED_CLOUD_SQL), {
-    expectedCloudSqlInstance: EXPECTED_CLOUD_SQL,
-    mountedInstances: mounts,
-    dsnSecretId: dsnSecret,
-  });
+    String(providerPlain.PROVIDER_SERVICE_POSTGRES_DSN || "").includes(
+      "/cloudsql/"
+    );
+  requireCheck(
+    "provider-cloudsql-mounted",
+    !providerUsesCloudSql || mounts.includes(EXPECTED_CLOUD_SQL),
+    {
+      expectedCloudSqlInstance: EXPECTED_CLOUD_SQL,
+      mountedInstances: mounts,
+      dsnSecretId: dsnSecret,
+    }
+  );
 } catch (error) {
-  requireCheck("cloud-run-config-readable", false, { error: String(error.message || error) });
+  requireCheck("cloud-run-config-readable", false, {
+    error: String(error.message || error),
+  });
 }
 
 if (gatewayService) {
@@ -243,36 +309,65 @@ if (gatewayService) {
   }
   requireCheck(
     "gateway-jobs-image-drift",
-    Boolean(gatewayImage) && Object.values(jobImages).every((image) => image === gatewayImage),
-    { gatewayImage, jobImages },
+    Boolean(gatewayImage) &&
+      Object.values(jobImages).every((image) => image === gatewayImage),
+    { gatewayImage, jobImages }
   );
 }
 
 try {
-  const discovery = await fetchJson(`${GATEWAY_URL.replace(/\/$/, "")}/api/v1/services/discover?page=1&pageSize=100`);
-  const services = discovery.services || discovery.items || discovery.data?.services || [];
-  const expectedServices = services.filter((service) => PROVIDER_SERVICE_IDS.includes(service.id || service.serviceId));
-  requireCheck("provider-services-discoverable", expectedServices.length === PROVIDER_SERVICE_IDS.length, {
-    expectedServiceIds: PROVIDER_SERVICE_IDS,
-    discoveredServiceIds: expectedServices.map((service) => service.id || service.serviceId),
-  });
+  const discovery = await fetchJson(
+    `${GATEWAY_URL.replace(
+      /\/$/,
+      ""
+    )}/api/v1/services/discover?page=1&pageSize=100`
+  );
+  const services =
+    discovery.services || discovery.items || discovery.data?.services || [];
+  const expectedServices = services.filter((service) =>
+    PROVIDER_SERVICE_IDS.includes(service.id || service.serviceId)
+  );
+  requireCheck(
+    "provider-services-discoverable",
+    expectedServices.length === PROVIDER_SERVICE_IDS.length,
+    {
+      expectedServiceIds: PROVIDER_SERVICE_IDS,
+      discoveredServiceIds: expectedServices.map(
+        (service) => service.id || service.serviceId
+      ),
+    }
+  );
 
-  const urlEntries = expectedServices.flatMap((service) => collectUrlEntries(service));
+  const urlEntries = expectedServices.flatMap((service) =>
+    collectUrlEntries(service)
+  );
   const providerEndpointEntries = urlEntries.filter((entry) =>
-    /(^|\.)endpoint(_url|Url)?$|providerEndpoint|runtimeEndpoint/i.test(entry.path),
+    /(^|\.)endpoint(_url|Url)?$|providerEndpoint|runtimeEndpoint/i.test(
+      entry.path
+    )
   );
   const wrongGatewayUrls = providerEndpointEntries
     .map((entry) => entry.url)
-    .filter((url) => url.includes("api-staging.synapse-network.ai/api/v1/gateway/generate"));
-  const wrongProviderUrls = providerEndpointEntries.map((entry) => entry.url).filter(
-    (url) => url.includes("/provider-services/") && !url.startsWith(EXPECTED_PROVIDER_PREFIX),
+    .filter((url) =>
+      url.includes("api-staging.synapse-network.ai/api/v1/agent/invoke")
+    );
+  const wrongProviderUrls = providerEndpointEntries
+    .map((entry) => entry.url)
+    .filter(
+      (url) =>
+        url.includes("/provider-services/") &&
+        !url.startsWith(EXPECTED_PROVIDER_PREFIX)
+    );
+  requireCheck(
+    "provider-endpoint-prefix",
+    wrongGatewayUrls.length === 0 && wrongProviderUrls.length === 0,
+    {
+      expectedPrefix: EXPECTED_PROVIDER_PREFIX,
+      checkedUrlCount: providerEndpointEntries.length,
+      wrongGatewayUrls,
+      wrongProviderUrls,
+    }
   );
-  requireCheck("provider-endpoint-prefix", wrongGatewayUrls.length === 0 && wrongProviderUrls.length === 0, {
-    expectedPrefix: EXPECTED_PROVIDER_PREFIX,
-    checkedUrlCount: providerEndpointEntries.length,
-    wrongGatewayUrls,
-    wrongProviderUrls,
-  });
   if (providerEndpointEntries.length === 0) {
     warnCheck("provider-endpoint-prefix-visible", {
       reason:
@@ -288,24 +383,33 @@ try {
       service.base_price_usdc,
       service.pricing?.priceUsdc,
       service.pricing?.amount,
-    ].some(decimalZero),
+    ].some(decimalZero)
   );
   requireCheck("free-service-discoverable", hasFreeService, {
-    expected: "At least one staging provider service advertises price 0.000000.",
+    expected:
+      "At least one staging provider service advertises price 0.000000.",
   });
 } catch (error) {
-  requireCheck("gateway-discovery-readable", false, { error: String(error.message || error) });
+  requireCheck("gateway-discovery-readable", false, {
+    error: String(error.message || error),
+  });
 }
 
 try {
-  const providerHealth = await fetchJson(`${PROVIDER_URL.replace(/\/$/, "")}/health`);
-  const providerReady = await fetchJson(`${PROVIDER_URL.replace(/\/$/, "")}/ready`);
+  const providerHealth = await fetchJson(
+    `${PROVIDER_URL.replace(/\/$/, "")}/health`
+  );
+  const providerReady = await fetchJson(
+    `${PROVIDER_URL.replace(/\/$/, "")}/ready`
+  );
   requireCheck("provider-runtime-health", true, {
     healthStatus: providerHealth.status || "ok",
     readyStatus: providerReady.status || "ok",
   });
 } catch (error) {
-  requireCheck("provider-runtime-health", false, { error: String(error.message || error) });
+  requireCheck("provider-runtime-health", false, {
+    error: String(error.message || error),
+  });
 }
 
 const quoteConstraintFingerprint = createHash("sha256")

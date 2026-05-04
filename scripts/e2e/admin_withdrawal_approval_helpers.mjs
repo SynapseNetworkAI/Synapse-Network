@@ -202,7 +202,7 @@ export function createAdminWithdrawalApprovalHelpers({
     let response = null;
     let lastFailure = null;
     for (let attempt = 1; attempt <= 12; attempt += 1) {
-      const result = await api("/v1/gateway/generate", {
+      const result = await api("/v1/agent/invoke", {
         method: "POST",
         headers: {
           "X-Credential": credentialToken,
@@ -210,8 +210,11 @@ export function createAdminWithdrawalApprovalHelpers({
           "X-Request-Id": requestId,
         },
         body: {
-          prompt: "Admin withdrawal approval verification invoke",
-          payload: { query: `verify ${runId}` },
+          serviceId: service.id,
+          idempotencyKey: requestId,
+          costUsdc: service.priceUsdc,
+          payload: { body: { query: `verify ${runId}` } },
+          responseMode: "sync",
         },
         expectOk: false,
       });
@@ -230,13 +233,13 @@ export function createAdminWithdrawalApprovalHelpers({
           "SERVICE_CIRCUIT_OPEN",
         ].includes(code)
       ) {
-        fail(`POST /v1/gateway/generate failed: ${lastFailure}`);
+        fail(`POST /v1/agent/invoke failed: ${lastFailure}`);
       }
       log(`invoke retry ${attempt}/12: ${lastFailure}`);
       await sleep(2500);
     }
     if (!response)
-      fail(`POST /v1/gateway/generate failed after retries: ${lastFailure}`);
+      fail(`POST /v1/agent/invoke failed after retries: ${lastFailure}`);
     const receipt = response.payload?.receipt || response.receipt || {};
     if (!receipt.invocationId) {
       fail(

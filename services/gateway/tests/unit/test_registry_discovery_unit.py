@@ -73,13 +73,13 @@ async def test_discover_public_services_filters_and_sorts_by_usage(monkeypatch) 
     rows = await discover_public_services(
         context,
         intent="quote",
-        public_gateway_url="https://gateway.test/api/v1/agent/invocations",
+        public_gateway_url="https://gateway.test/api/v1/agent/invoke",
         sort_by="invocation_count",
         sort_order="desc",
     )
 
     assert [row.service_id for row in rows] == ["svc.beta", "svc.alpha"]
-    assert rows[0].invoke.targets[0].url == "https://gateway.test/api/v1/agent/invocations"
+    assert rows[0].invoke.targets[0].url == "https://gateway.test/api/v1/agent/invoke"
 
 
 @pytest.mark.asyncio
