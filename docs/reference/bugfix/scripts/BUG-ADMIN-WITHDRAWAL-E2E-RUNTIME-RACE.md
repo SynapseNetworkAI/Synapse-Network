@@ -9,7 +9,7 @@ The admin withdrawal seed could fail when a newly registered provider service wa
 1. Run `npm run e2e:admin-withdrawal-approval:seed`.
 2. Register a new provider service and wait for discovery.
 3. Immediately invoke the service.
-4. Before the fix, a transient `503 SERVICE_UNAVAILABLE` from `/api/v1/gateway/generate` failed the seed.
+4. Before the fix, a transient `503 SERVICE_UNAVAILABLE` from the legacy generate endpoint failed the seed.
 
 ## Root Cause
 

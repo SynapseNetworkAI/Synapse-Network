@@ -1515,9 +1515,8 @@ focused; it prevents the exact drift classes that previously broke staging:
 - Provider runtime must mount
   `fabled-archive-494108-k5:us-central1:synapse-staging-postgres` whenever it
   uses the Cloud SQL DSN secret.
-- Provider services must remain discoverable through Gateway and must not drift
-  back to old `api-staging.../api/v1/gateway/generate` style endpoints. The
-  expected staging prefix is
+- Provider services must remain discoverable through Gateway and must not expose
+  Gateway public invoke URLs as provider runtime endpoints. The expected staging prefix is
   `https://provider-staging.synapse-network.ai/provider-services/`.
 - Gateway service and Gateway jobs must share the same immutable image digest.
 

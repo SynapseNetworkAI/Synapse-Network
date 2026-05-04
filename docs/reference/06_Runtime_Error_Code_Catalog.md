@@ -47,15 +47,15 @@
 
 ## 4. 已落地错误码矩阵
 
-### 4.1 Generate Path
+### 4.1 Agent Invoke Path
 
-接口：`POST /api/v1/gateway/generate`
+接口：`POST /api/v1/agent/invoke`
 
 #### Request Layer
 
-1. `PROMPT_REQUIRED` (`422`)：`prompt` 为空或全空白。
-2. `PROMPT_TOO_LONG` (`422`)：`prompt` 超过平台最大长度，当前为 8000。
-3. `SERVICE_ID_REQUIRED` (`422`)：Header 与 Body 均未提供 `serviceId`。
+1. `COST_USDC_REQUIRED` (`422`)：fixed-price 服务缺少 discovery 返回的 `costUsdc`。
+2. `PRICE_MISMATCH` (`422`)：调用方传入的 `costUsdc` 与 Gateway 实时价格不一致。
+3. `SERVICE_ID_REQUIRED` (`422`)：请求体未提供 `serviceId`。
 4. `SERVICE_ID_MISMATCH` (`403`)：Header 与 Body 的 `serviceId` 不一致。
 5. `SERVICE_ID_INVALID_FORMAT` (`422`)：`serviceId` 不满足格式约束。
 6. `CREDENTIAL_REQUIRED` (`401`)：缺少 `X-Credential`。

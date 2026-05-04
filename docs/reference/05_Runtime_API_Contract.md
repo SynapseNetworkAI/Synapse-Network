@@ -52,7 +52,7 @@
 1. `GET /api/v1/services/discover`
 2. `GET /api/v1/services/network-stats`
 3. `POST /api/v1/services/quote`
-4. `POST /api/v1/gateway/generate`
+4. `POST /api/v1/agent/invoke`
 5. `GET /api/v1/indexer/status`
 
 ### 1.4 Runtime timeout profiles
@@ -463,16 +463,16 @@ Headers:
 2. 带有效期
 3. 作为后续 invoke 的价格锚点
 
-### 4.3 `POST /api/v1/gateway/generate`
+### 4.3 `POST /api/v1/agent/invoke`
 
-用途：执行同步 Gateway invoke。
+用途：执行 Agent runtime 标准调用。Agent 必须先 discovery，使用 Gateway 返回的实时价格作为 fixed-price `costUsdc`，再调用 invoke。
 
 调用前：
 
 1. 校验 owner scope
 2. 校验 agent credential
 3. 校验 budget policy
-4. 校验 quote 或 service pricing policy
+4. 校验 fixed-price `costUsdc` 或 token-metered `maxCostUsdc`
 5. 校验 rate limit
 6. 校验消费侧余额
 
@@ -482,7 +482,7 @@ Headers:
 2. 原子完成消费侧扣减、供给侧收益累积、平台费累积、ledger、audit
 3. 失败则 release 或 rollback
 
-### 4.4 `POST /api/v1/agent/invoke` for LLM token-metered services
+### 4.4 LLM token-metered invoke
 
 用途：让 Agent 调用 Provider 注册到平台的 LLM 服务，例如 DeepSeek Chat。
 

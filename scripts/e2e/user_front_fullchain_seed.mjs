@@ -738,7 +738,7 @@ async function invokeService({ credentialToken, service, callIndex }) {
   const requestId = `ufc-invoke-${RUN_ID}-${service.slug}-${String(
     callIndex
   ).padStart(3, "0")}`;
-  const response = await api("/v1/gateway/generate", {
+  const response = await api("/v1/agent/invoke", {
     method: "POST",
     headers: {
       "X-Credential": credentialToken,
@@ -746,12 +746,17 @@ async function invokeService({ credentialToken, service, callIndex }) {
       "X-Request-Id": requestId,
     },
     body: {
-      prompt: "Fullchain verification invoke",
+      serviceId: service.id,
+      idempotencyKey: requestId,
+      costUsdc: service.priceUsdc,
       payload: {
-        query: `verify ${RUN_ID}`,
-        serviceSlug: service.slug,
-        callIndex,
+        body: {
+          query: `verify ${RUN_ID}`,
+          serviceSlug: service.slug,
+          callIndex,
+        },
       },
+      responseMode: "sync",
     },
   });
   const receipt = response.payload?.receipt || response.receipt || {};
