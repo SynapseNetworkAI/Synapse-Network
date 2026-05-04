@@ -339,7 +339,6 @@ describe("AccountSettingsPage", () => {
 
   it("removes a verified email after wallet confirmation", async () => {
     const user = userEvent.setup();
-    vi.spyOn(window, "confirm").mockReturnValueOnce(true);
     updateOwnerProfileMock.mockResolvedValueOnce({
       ownerAddress: "0xabc",
       displayName: "Synapse Ops",
@@ -358,6 +357,12 @@ describe("AccountSettingsPage", () => {
 
     await user.click(
       await screen.findByRole("button", { name: "Remove email" })
+    );
+    expect(
+      await screen.findByText("Remove this email from your Synapse account?")
+    ).toBeTruthy();
+    await user.click(
+      screen.getAllByRole("button", { name: "Remove email" }).at(-1)!
     );
 
     await waitFor(() => {

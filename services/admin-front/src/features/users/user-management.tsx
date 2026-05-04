@@ -1,10 +1,24 @@
 "use client";
 
-import { FormEvent, useDeferredValue, useEffect, useState, useTransition } from "react";
+import {
+  FormEvent,
+  useDeferredValue,
+  useEffect,
+  useState,
+  useTransition,
+} from "react";
 
-import { CrudDrawer, CrudEmptyState, CrudField, CrudSection, CrudTable, CrudToolbar, CrudToolbarFilters } from "@/components/crud";
+import { ConfirmActionModal } from "@/components/confirm-action-modal";
+import {
+  CrudDrawer,
+  CrudEmptyState,
+  CrudField,
+  CrudSection,
+  CrudTable,
+  CrudToolbar,
+  CrudToolbarFilters,
+} from "@/components/crud";
 import type { AdminRoleCatalogItem, AdminUserItem } from "@/services/admin-api";
-
 
 type CreateUserInput = {
   email: string;
@@ -23,7 +37,6 @@ type UpdateUserInput = {
   status: string;
 };
 
-
 type UserManagementProps = {
   users: AdminUserItem[];
   roles: AdminRoleCatalogItem[];
@@ -34,8 +47,10 @@ type UserManagementProps = {
   onDelete: (adminId: string) => Promise<void>;
 };
 
-
-function getUserSubmitLabel(isPending: boolean, editingUser: AdminUserItem | null): string {
+function getUserSubmitLabel(
+  isPending: boolean,
+  editingUser: AdminUserItem | null
+): string {
   if (isPending) {
     return "提交中...";
   }
@@ -45,19 +60,31 @@ function getUserSubmitLabel(isPending: boolean, editingUser: AdminUserItem | nul
   return "创建管理员";
 }
 
-
-function buildFilteredUsers(users: AdminUserItem[], normalizedSearch: string, roleFilter: string): AdminUserItem[] {
+function buildFilteredUsers(
+  users: AdminUserItem[],
+  normalizedSearch: string,
+  roleFilter: string
+): AdminUserItem[] {
   return users.filter((user) => {
-    const matchesSearch = !normalizedSearch
-      || user.email.toLowerCase().includes(normalizedSearch)
-      || user.displayName.toLowerCase().includes(normalizedSearch);
-    const matchesRole = roleFilter === "all" || user.roleKeys.includes(roleFilter);
+    const matchesSearch =
+      !normalizedSearch ||
+      user.email.toLowerCase().includes(normalizedSearch) ||
+      user.displayName.toLowerCase().includes(normalizedSearch);
+    const matchesRole =
+      roleFilter === "all" || user.roleKeys.includes(roleFilter);
     return matchesSearch && matchesRole;
   });
 }
 
-
-export function UserManagement({ users, roles, canCreate, canManage, onCreate, onUpdate, onDelete }: Readonly<UserManagementProps>) {
+export function UserManagement({
+  users,
+  roles,
+  canCreate,
+  canManage,
+  onCreate,
+  onUpdate,
+  onDelete,
+}: Readonly<UserManagementProps>) {
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
   const [isDrawerOpen, setDrawerOpen] = useState(false);
@@ -69,6 +96,8 @@ export function UserManagement({ users, roles, canCreate, canManage, onCreate, o
   const [requireMfa, setRequireMfa] = useState(false);
   const [status, setStatus] = useState("active");
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [pendingDeleteUser, setPendingDeleteUser] =
+    useState<AdminUserItem | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -81,7 +110,11 @@ export function UserManagement({ users, roles, canCreate, canManage, onCreate, o
     }
   }, [roleKey, roles]);
 
-  const filteredUsers = buildFilteredUsers(users, deferredSearch.trim().toLowerCase(), roleFilter);
+  const filteredUsers = buildFilteredUsers(
+    users,
+    deferredSearch.trim().toLowerCase(),
+    roleFilter
+  );
 
   function resetForm() {
     setEditingUser(null);
@@ -146,17 +179,18 @@ export function UserManagement({ users, roles, canCreate, canManage, onCreate, o
         }
         globalThis.setTimeout(() => closeDrawer(), 160);
       } catch (submitError) {
-        setError(submitError instanceof Error ? submitError.message : "创建后台用户失败");
+        setError(
+          submitError instanceof Error
+            ? submitError.message
+            : "创建后台用户失败"
+        );
       }
     });
   }
 
-  async function handleDelete(user: AdminUserItem) {
-    if (!canManage) {
-      return;
-    }
-    const confirmed = globalThis.confirm(`确认禁用管理员 ${user.displayName} 吗？`);
-    if (!confirmed) {
+  async function confirmDeleteUser() {
+    const user = pendingDeleteUser;
+    if (!user || !canManage) {
       return;
     }
     setDeletingId(user.adminId);
@@ -165,11 +199,21 @@ export function UserManagement({ users, roles, canCreate, canManage, onCreate, o
     try {
       await onDelete(user.adminId);
       setMessage(`管理员 ${user.displayName} 已禁用。`);
+      setPendingDeleteUser(null);
     } catch (deleteError) {
-      setError(deleteError instanceof Error ? deleteError.message : "禁用后台用户失败");
+      setError(
+        deleteError instanceof Error ? deleteError.message : "禁用后台用户失败"
+      );
     } finally {
       setDeletingId(null);
     }
+  }
+
+  function handleDelete(user: AdminUserItem) {
+    if (!canManage) {
+      return;
+    }
+    setPendingDeleteUser(user);
   }
 
   return (
@@ -179,7 +223,7 @@ export function UserManagement({ users, roles, canCreate, canManage, onCreate, o
         title="后台用户与角色"
         description="把用户目录、筛选查询和编辑动作收口在一个标准 CRUD 工作台里，后续角色管理和菜单配置都按这套模板复用。"
         stamp={`${filteredUsers.length}/${users.length} admins`}
-        toolbar={(
+        toolbar={
           <CrudToolbar>
             <CrudToolbarFilters>
               <CrudField label="搜索">
@@ -190,23 +234,40 @@ export function UserManagement({ users, roles, canCreate, canManage, onCreate, o
                 />
               </CrudField>
               <CrudField label="角色筛选" compact>
-                <select value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)}>
+                <select
+                  value={roleFilter}
+                  onChange={(event) => setRoleFilter(event.target.value)}
+                >
                   <option value="all">全部角色</option>
                   {roles.map((role) => (
-                    <option key={role.roleKey} value={role.roleKey}>{role.roleName}</option>
+                    <option key={role.roleKey} value={role.roleKey}>
+                      {role.roleName}
+                    </option>
                   ))}
                 </select>
               </CrudField>
             </CrudToolbarFilters>
             {canCreate ? (
-              <button type="button" className="button button--primary crud-toolbar__create" onClick={openCreateDrawer}>
+              <button
+                type="button"
+                className="button button--primary crud-toolbar__create"
+                onClick={openCreateDrawer}
+              >
                 + 创建后台用户
               </button>
             ) : null}
           </CrudToolbar>
-        )}
-        message={message ? <p className="form-message form-message--success">{message}</p> : null}
-        error={error ? <p className="form-message form-message--error">{error}</p> : null}
+        }
+        message={
+          message ? (
+            <p className="form-message form-message--success">{message}</p>
+          ) : null
+        }
+        error={
+          error ? (
+            <p className="form-message form-message--error">{error}</p>
+          ) : null
+        }
       >
         <CrudTable>
           <table className="admin-table">
@@ -226,36 +287,72 @@ export function UserManagement({ users, roles, canCreate, canManage, onCreate, o
                 <tr key={user.adminId}>
                   <td>
                     <strong>{user.displayName}</strong>
-                    <div className="table-subtext table-subtext--mono">{user.email}</div>
+                    <div className="table-subtext table-subtext--mono">
+                      {user.email}
+                    </div>
                   </td>
                   <td>
                     <div className="pill-row">
                       {user.roleKeys.map((value) => (
-                        <span key={value} className="status-pill status-pill--healthy">{value}</span>
+                        <span
+                          key={value}
+                          className="status-pill status-pill--healthy"
+                        >
+                          {value}
+                        </span>
                       ))}
                     </div>
                   </td>
-                  <td><span className={`status-pill ${user.status === "active" ? "status-pill--healthy" : "status-pill--alert"}`}>{user.status}</span></td>
+                  <td>
+                    <span
+                      className={`status-pill ${
+                        user.status === "active"
+                          ? "status-pill--healthy"
+                          : "status-pill--alert"
+                      }`}
+                    >
+                      {user.status}
+                    </span>
+                  </td>
                   <td>
                     <div className="pill-row">
                       {user.permissions.slice(0, 4).map((value) => (
-                        <span key={value} className="permission-chip">{value}</span>
+                        <span key={value} className="permission-chip">
+                          {value}
+                        </span>
                       ))}
-                      {user.permissions.length > 4 ? <span className="permission-chip">+{user.permissions.length - 4}</span> : null}
+                      {user.permissions.length > 4 ? (
+                        <span className="permission-chip">
+                          +{user.permissions.length - 4}
+                        </span>
+                      ) : null}
                     </div>
                   </td>
                   <td>{user.requireMfa ? "Required" : "Optional"}</td>
-                  <td><span className="table-subtext table-subtext--mono">{user.lastLoginAt ?? "Never"}</span></td>
+                  <td>
+                    <span className="table-subtext table-subtext--mono">
+                      {user.lastLoginAt ?? "Never"}
+                    </span>
+                  </td>
                   <td>
                     <div className="table-actions">
-                      <button type="button" className="ghost-button" onClick={() => openEditDrawer(user)} disabled={!canManage}>
+                      <button
+                        type="button"
+                        className="ghost-button"
+                        onClick={() => openEditDrawer(user)}
+                        disabled={!canManage}
+                      >
                         编辑
                       </button>
                       <button
                         type="button"
                         className="ghost-button ghost-button--danger"
                         onClick={() => void handleDelete(user)}
-                        disabled={!canManage || deletingId === user.adminId || user.status === "disabled"}
+                        disabled={
+                          !canManage ||
+                          deletingId === user.adminId ||
+                          user.status === "disabled"
+                        }
                       >
                         {deletingId === user.adminId ? "处理中..." : "删除"}
                       </button>
@@ -266,7 +363,10 @@ export function UserManagement({ users, roles, canCreate, canManage, onCreate, o
               {filteredUsers.length === 0 ? (
                 <tr>
                   <td colSpan={7}>
-                    <CrudEmptyState title="未找到匹配的管理员记录" description="调整搜索词或角色筛选，或者直接创建一个新的后台用户。" />
+                    <CrudEmptyState
+                      title="未找到匹配的管理员记录"
+                      description="调整搜索词或角色筛选，或者直接创建一个新的后台用户。"
+                    />
                   </td>
                 </tr>
               ) : null}
@@ -283,7 +383,10 @@ export function UserManagement({ users, roles, canCreate, canManage, onCreate, o
         onClose={closeDrawer}
       >
         {canManage ? (
-          <form className="admin-form crud-drawer__form" onSubmit={handleSubmit}>
+          <form
+            className="admin-form crud-drawer__form"
+            onSubmit={handleSubmit}
+          >
             <label>
               <span>邮箱</span>
               <input
@@ -295,13 +398,22 @@ export function UserManagement({ users, roles, canCreate, canManage, onCreate, o
             </label>
             <label>
               <span>显示名</span>
-              <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="Ops Reviewer" />
+              <input
+                value={displayName}
+                onChange={(event) => setDisplayName(event.target.value)}
+                placeholder="Ops Reviewer"
+              />
             </label>
             <label>
               <span>角色模板</span>
-              <select value={roleKey} onChange={(event) => setRoleKey(event.target.value)}>
+              <select
+                value={roleKey}
+                onChange={(event) => setRoleKey(event.target.value)}
+              >
                 {roles.map((role) => (
-                  <option key={role.roleKey} value={role.roleKey}>{role.roleName}</option>
+                  <option key={role.roleKey} value={role.roleKey}>
+                    {role.roleName}
+                  </option>
                 ))}
               </select>
             </label>
@@ -311,12 +423,17 @@ export function UserManagement({ users, roles, canCreate, canManage, onCreate, o
                 type="password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
-                placeholder={editingUser ? "留空则不改密码" : "Init@StrongPassword"}
+                placeholder={
+                  editingUser ? "留空则不改密码" : "Init@StrongPassword"
+                }
               />
             </label>
             <label>
               <span>账号状态</span>
-              <select value={status} onChange={(event) => setStatus(event.target.value)}>
+              <select
+                value={status}
+                onChange={(event) => setStatus(event.target.value)}
+              >
                 <option value="active">active</option>
                 <option value="disabled">disabled</option>
                 <option value="locked">locked</option>
@@ -324,22 +441,59 @@ export function UserManagement({ users, roles, canCreate, canManage, onCreate, o
               </select>
             </label>
             <label className="checkbox-field">
-              <input type="checkbox" checked={requireMfa} onChange={(event) => setRequireMfa(event.target.checked)} />
+              <input
+                type="checkbox"
+                checked={requireMfa}
+                onChange={(event) => setRequireMfa(event.target.checked)}
+              />
               <span>要求 MFA</span>
             </label>
-            {message ? <p className="form-message form-message--success">{message}</p> : null}
-            {error ? <p className="form-message form-message--error">{error}</p> : null}
+            {message ? (
+              <p className="form-message form-message--success">{message}</p>
+            ) : null}
+            {error ? (
+              <p className="form-message form-message--error">{error}</p>
+            ) : null}
             <div className="crud-drawer__actions">
-              <button type="button" className="button button--secondary" onClick={closeDrawer}>取消</button>
-              <button type="submit" className="button button--primary" disabled={isPending}>
+              <button
+                type="button"
+                className="button button--secondary"
+                onClick={closeDrawer}
+              >
+                取消
+              </button>
+              <button
+                type="submit"
+                className="button button--primary"
+                disabled={isPending}
+              >
                 {submitLabel}
               </button>
             </div>
           </form>
         ) : (
-          <p className="panel__text">当前角色只有读取能力，不能执行创建或编辑动作。</p>
+          <p className="panel__text">
+            当前角色只有读取能力，不能执行创建或编辑动作。
+          </p>
         )}
       </CrudDrawer>
+      <ConfirmActionModal
+        open={pendingDeleteUser !== null}
+        title="禁用管理员"
+        description={
+          pendingDeleteUser
+            ? `确认禁用管理员 ${pendingDeleteUser.displayName} 吗？`
+            : ""
+        }
+        contextLabel={pendingDeleteUser?.email}
+        confirmLabel="确认禁用"
+        tone="danger"
+        loading={
+          pendingDeleteUser !== null && deletingId === pendingDeleteUser.adminId
+        }
+        onCancel={() => setPendingDeleteUser(null)}
+        onConfirm={confirmDeleteUser}
+      />
     </div>
   );
 }
