@@ -27,6 +27,17 @@ DEFAULT_API_BASE = "http://127.0.0.1:8000"
 DEFAULT_SERVICE_ID = "svc_oss_security_healthcheck"
 
 CANONICAL_PAYLOADS: dict[str, dict[str, Any]] = {
+    "svc_synapse_echo": {
+        "message": "hello from Synapse agent invoke smoke",
+        "metadata": {"scenario": "agent-invoke-existing-service"},
+    },
+    "svc_synapse_mock_cost_1usdc": {
+        "message": "hello from Synapse Provider paid-path smoke",
+        "metadata": {
+            "scenario": "agent-invoke-existing-service",
+            "expectedCostUsdc": "1.000000",
+        },
+    },
     "svc_oss_security_healthcheck": {
         "repoUrl": "https://github.com/SynapseNetworkAI/Synapse-Network",
         "packageList": ["next", "react", "fumadocs-ui"],
@@ -44,6 +55,24 @@ CANONICAL_PAYLOADS: dict[str, dict[str, Any]] = {
         "peer_set": ["aave", "curve"],
         "lookback_days": 30,
     },
+}
+
+SCHEMA_FIELD_SAMPLES: dict[str, Any] = {
+    "chain": "arbitrum",
+    "content": "Reply with a short SynapseNetwork smoke-test success message.",
+    "ecosystem": "npm",
+    "lookback_days": 30,
+    "lookback_hours": 24,
+    "message": "hello from Synapse agent invoke smoke",
+    "model": "deepseek-v4-pro",
+    "packageList": ["next", "react", "fumadocs-ui"],
+    "protocol": "uniswap",
+    "query": "SynapseNetwork provider smoke test",
+    "repoUrl": "https://github.com/SynapseNetworkAI/Synapse-Network",
+    "role": "user",
+    "stream": False,
+    "symbol": "ETH",
+    "text": "hello from Synapse agent invoke smoke",
 }
 
 
@@ -142,7 +171,18 @@ def find_service(rows: list[dict[str, Any]], service_id: str) -> dict[str, Any]:
 
 
 def price_model(row: dict[str, Any]) -> str:
-    return str(row.get("priceModel") or row.get("price_model") or "").strip().lower()
+    pricing = row.get("pricing") if isinstance(row.get("pricing"), dict) else {}
+    return (
+        str(
+            row.get("priceModel")
+            or row.get("price_model")
+            or pricing.get("priceModel")
+            or pricing.get("price_model")
+            or ""
+        )
+        .strip()
+        .lower()
+    )
 
 
 def live_price_usdc(row: dict[str, Any]) -> str:
@@ -168,7 +208,157 @@ def live_price_usdc(row: dict[str, Any]) -> str:
     raise RuntimeError(f"Discovery row does not include a usable price: {row}")
 
 
-def load_payload(service_id: str, payload_json: str | None) -> dict[str, Any]:
+def first_dict(*values: Any) -> dict[str, Any]:
+    for value in values:
+        if isinstance(value, dict):
+            return value
+    return {}
+
+
+def public_sample_payload(row: dict[str, Any]) -> dict[str, Any]:
+    quote_template = first_dict(row.get("quoteTemplate"), row.get("quote_template"))
+    input_preview = first_dict(
+        quote_template.get("inputPreview"),
+        quote_template.get("input_preview"),
+    )
+    sample = first_dict(input_preview.get("sample"))
+    body = first_dict(sample.get("body"))
+    if body:
+        return body
+
+    for example in row.get("examples") or []:
+        if not isinstance(example, dict):
+            continue
+        candidate = first_dict(
+            example.get("input"),
+            example.get("request"),
+            example.get("body"),
+        )
+        if candidate:
+            return candidate
+    return {}
+
+
+def public_payload_schema(row: dict[str, Any]) -> dict[str, Any]:
+    quote_template = first_dict(row.get("quoteTemplate"), row.get("quote_template"))
+    input_preview = first_dict(
+        quote_template.get("inputPreview"),
+        quote_template.get("input_preview"),
+    )
+    payload_schema = first_dict(
+        input_preview.get("payloadSchema"),
+        input_preview.get("payload_schema"),
+    )
+    schema_body = first_dict(payload_schema.get("body"))
+    if schema_body:
+        return schema_body
+
+    invoke = first_dict(row.get("invoke"))
+    request = first_dict(invoke.get("request"))
+    schema = first_dict(request.get("schema"))
+    schema_body = first_dict(schema.get("body"))
+    if schema_body:
+        return schema_body
+
+    return first_dict(
+        row.get("inputSchema"),
+        row.get("input_schema"),
+        row.get("payloadSchema"),
+        row.get("payload_schema"),
+    )
+
+
+def explicit_schema_sample(name: str, schema: dict[str, Any]) -> Any:
+    if "default" in schema:
+        return schema["default"]
+    if "const" in schema:
+        return schema["const"]
+    if "example" in schema:
+        return schema["example"]
+    examples = schema.get("examples")
+    if isinstance(examples, list) and examples:
+        return examples[0]
+    enum = schema.get("enum")
+    if isinstance(enum, list) and enum:
+        return enum[0]
+
+    if name in SCHEMA_FIELD_SAMPLES:
+        return SCHEMA_FIELD_SAMPLES[name]
+    return None
+
+
+def schema_type(schema: dict[str, Any]) -> str:
+    raw_type = schema.get("type") or "string"
+    return str(raw_type[0] if isinstance(raw_type, list) else raw_type)
+
+
+def array_schema_sample(name: str, schema: dict[str, Any]) -> list[Any]:
+    if name == "messages":
+        return [
+            {
+                "role": "user",
+                "content": "Reply with a short SynapseNetwork smoke-test success message.",
+            }
+        ]
+    items = schema.get("items") if isinstance(schema.get("items"), dict) else {}
+    return [schema_sample_value(name.rstrip("s") or "item", items)]
+
+
+def schema_sample_value(name: str, schema: dict[str, Any]) -> Any:
+    explicit = explicit_schema_sample(name, schema)
+    if explicit is not None:
+        return explicit
+
+    kind = schema_type(schema)
+    if kind == "boolean":
+        return True
+    if kind == "integer":
+        return 1
+    if kind == "number":
+        return 1
+    if kind == "array":
+        return array_schema_sample(name, schema)
+    if kind == "object":
+        return build_payload_from_schema(schema, f"{name}_nested")
+    if schema.get("format") in {"uri", "url"}:
+        return "https://github.com/SynapseNetworkAI/Synapse-Network"
+    return f"synapse-{name or 'value'}"
+
+
+def build_payload_from_schema(schema: dict[str, Any], service_id: str) -> dict[str, Any]:
+    properties = schema.get("properties")
+    required = schema.get("required") if isinstance(schema.get("required"), list) else []
+    payload: dict[str, Any] = {}
+
+    if isinstance(properties, dict):
+        field_names = [
+            str(field)
+            for field in required
+            if isinstance(field, str) and isinstance(properties.get(field), dict)
+        ]
+        if not field_names and service_id.startswith("svc_"):
+            field_names = [
+                str(field)
+                for field in ("message", "text", "query", "symbol")
+                if isinstance(properties.get(field), dict)
+            ][:1]
+        for field in field_names:
+            payload[field] = schema_sample_value(field, properties[field])
+
+    if payload:
+        return payload
+    return {
+        "message": "hello from Synapse agent invoke smoke",
+        "metadata": {
+            "scenario": "agent-invoke-existing-service",
+            "serviceId": service_id,
+        },
+    }
+
+
+def load_payload(
+    service_id: str, payload_json: str | None, service: dict[str, Any]
+) -> dict[str, Any]:
     if payload_json:
         payload = json.loads(payload_json)
         if not isinstance(payload, dict):
@@ -176,10 +366,22 @@ def load_payload(service_id: str, payload_json: str | None) -> dict[str, Any]:
         return payload
     if service_id in CANONICAL_PAYLOADS:
         return CANONICAL_PAYLOADS[service_id]
-    raise RuntimeError(
-        f"No built-in payload for service {service_id!r}. "
-        "Pass --payload-json or set INVOKE_PAYLOAD_JSON."
-    )
+
+    sample = public_sample_payload(service)
+    if sample:
+        return sample
+
+    schema = public_payload_schema(service)
+    if schema:
+        return build_payload_from_schema(schema, service_id)
+
+    return {
+        "message": "hello from Synapse agent invoke smoke",
+        "metadata": {
+            "scenario": "agent-invoke-existing-service",
+            "serviceId": service_id,
+        },
+    }
 
 
 def main() -> int:
@@ -196,7 +398,7 @@ def main() -> int:
         {"query": query, "pageSize": 10},
     )["payload"]
     service = find_service(discovery_results(discover), service_id)
-    payload_body = load_payload(service_id, args.payload_json)
+    payload_body = load_payload(service_id, args.payload_json, service)
 
     invoke_body: dict[str, Any] = {
         "serviceId": service_id,
