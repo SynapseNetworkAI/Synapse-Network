@@ -19,40 +19,41 @@ contract config state.
 From repository root:
 
 1. `npm run ci:agent-lessons`
-2. `npm run ci:docs`
-3. `npm run ci:finance-approval-safety`
-4. `npm run ci:finance-approval-e2e-evidence`
-5. `npm run ci:withdrawal-one-ticket-evidence`
-6. `npm run ci:withdrawal-idempotency-concurrency-evidence`
-7. `npm run ci:financial-security`
-8. `npm run ci:architecture-quality`
-9. `npm run ci:quality-budget`
-10. `npm run ci:format-check`
-11. `npm run ci:diff-coverage`
-12. `npm run ci:agent-guardrails`
-13. `npm run ci:frontend`
-14. `npm run ci:admin-front`
-15. `npm run ci:admin-gateway`
-16. `npm run ci:gateway`
-17. `npm run ci:provider-service`
-18. `npm run ci:sdk-python`
-19. `npm run ci:contracts`
-20. `npm run ci:pr`
-21. `npm run perf:local-production-load-rehearsal`
-22. `npm run ci:local-production-load-evidence`
-23. `npm run ci:monitoring-alert-rules`
-24. `npm run e2e:lark-alerts`
-25. `npm run ci:lark-alert-e2e-evidence`
-26. `npm run e2e:in-app-notifications`
-27. `npm run ci:in-app-notifications-evidence`
-28. `npm run e2e:user-front-deposit-balance`
-29. `npm run ci:user-front-deposit-balance-evidence`
-30. `npm run e2e:admin-regression`
-31. `npm run ci:admin-regression-evidence`
-32. `npm run ci:backup-restore-evidence`
-33. `npm run deploy:contracts:arbitrum-sepolia:dry-run`
-34. `npm run ci:contract-deployment-evidence`
-35. `npm run ci:migration-seed-guard`
+2. `npm run ci:github-actions-runtime`
+3. `npm run ci:docs`
+4. `npm run ci:finance-approval-safety`
+5. `npm run ci:finance-approval-e2e-evidence`
+6. `npm run ci:withdrawal-one-ticket-evidence`
+7. `npm run ci:withdrawal-idempotency-concurrency-evidence`
+8. `npm run ci:financial-security`
+9. `npm run ci:architecture-quality`
+10. `npm run ci:quality-budget`
+11. `npm run ci:format-check`
+12. `npm run ci:diff-coverage`
+13. `npm run ci:agent-guardrails`
+14. `npm run ci:frontend`
+15. `npm run ci:admin-front`
+16. `npm run ci:admin-gateway`
+17. `npm run ci:gateway`
+18. `npm run ci:provider-service`
+19. `npm run ci:sdk-python`
+20. `npm run ci:contracts`
+21. `npm run ci:pr`
+22. `npm run perf:local-production-load-rehearsal`
+23. `npm run ci:local-production-load-evidence`
+24. `npm run ci:monitoring-alert-rules`
+25. `npm run e2e:lark-alerts`
+26. `npm run ci:lark-alert-e2e-evidence`
+27. `npm run e2e:in-app-notifications`
+28. `npm run ci:in-app-notifications-evidence`
+29. `npm run e2e:user-front-deposit-balance`
+30. `npm run ci:user-front-deposit-balance-evidence`
+31. `npm run e2e:admin-regression`
+32. `npm run ci:admin-regression-evidence`
+33. `npm run ci:backup-restore-evidence`
+34. `npm run deploy:contracts:arbitrum-sepolia:dry-run`
+35. `npm run ci:contract-deployment-evidence`
+36. `npm run ci:migration-seed-guard`
 
 Use these wrappers when final integration confidence is required.
 
@@ -88,6 +89,14 @@ Root `package.json` script-only changes are mapped narrowly when they are
 ordinary evidence/E2E wrappers. Each selected gate prints `DONE` with a duration
 and the run ends with a gate duration summary. Use `SYNAPSE_CI_SCOPE=full bash
 scripts/ci/pr_checks.sh` when you need the old full aggregate gate explicitly.
+
+`npm run ci:github-actions-runtime` is the canonical GitHub Actions JavaScript
+runtime guard. It requires every workflow to force Node 24 with
+`FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true`, forbids the deprecated Node 20 opt-out
+`ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION`, and blocks downgrades below the repo
+baseline for `actions/checkout`, `actions/setup-node`, `actions/setup-python`,
+`actions/cache`, and `actions/upload-artifact`. `npm run ci:docs` runs this guard
+as part of lightweight documentation and workflow governance.
 
 `ci:pr` starts selected runs with `bash scripts/ci/runtime_preflight.sh`. This probe gives
 Node and each project Python virtualenv interpreter 8 seconds to print a version
