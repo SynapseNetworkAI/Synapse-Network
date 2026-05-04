@@ -152,7 +152,8 @@
     "expectedTexts": ["Overview"],
     "purpose": "Consumer control-plane overview with health reminders and high-level wallet state.",
     "primaryInteractions": [
-      "Refresh state",
+      "Connect wallet when disconnected",
+      "Show connected wallet short address",
       "Open billing/approval/action cards"
     ],
     "dataVerification": "authenticated-gateway",

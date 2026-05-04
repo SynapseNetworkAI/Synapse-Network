@@ -21,6 +21,7 @@ from src.api.schemas.pydantic_models import (
 from src.core.auth import (
     create_auth_challenge,
     create_owner_profile_update_challenge,
+    get_auth_challenge_domain_and_uri,
     verify_auth_signature,
     verify_owner_profile_update_signature,
 )
@@ -120,9 +121,8 @@ async def get_challenge(address: str, chainId: Optional[int] = None):
         if not challenge:
             raise HTTPException(status_code=400, detail="Failed to create challenge")
 
-        return ChallengeResponse(
-            success=True, challenge=challenge, domain="synapse-network"
-        )
+        domain, _ = get_auth_challenge_domain_and_uri()
+        return ChallengeResponse(success=True, challenge=challenge, domain=domain)
     except Exception as e:
         logger.error(f"Challenge generation failed: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")

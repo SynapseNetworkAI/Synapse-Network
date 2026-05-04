@@ -544,7 +544,7 @@ class Settings:
         os.getenv(
             "PUBLIC_APP_BASE_URL",
             {
-                "local": "http://127.0.0.1:3000",
+                "local": "http://localhost:3000",
                 "staging": "https://staging.synapse-network.ai",
                 "production": "https://synapse-network.ai",
             }.get(environment, "https://synapse-network.ai"),
