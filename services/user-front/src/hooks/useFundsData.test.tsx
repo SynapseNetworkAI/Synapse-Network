@@ -4,58 +4,67 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
-  fetchRefundsMock,
-  listConsumerWithdrawalsMock,
-  listDepositIntentsMock,
+  depositLogsMock,
+  withdrawLogsMock,
+  depositIntentsMock,
+  refundsMock,
+  withdrawalsMock,
+  coreAddress,
+  usdcAddress,
 } = vi.hoisted(() => ({
-  fetchRefundsMock: vi.fn(),
-  listConsumerWithdrawalsMock: vi.fn(),
-  listDepositIntentsMock: vi.fn(),
+  depositLogsMock: vi.fn(),
+  withdrawLogsMock: vi.fn(),
+  depositIntentsMock: vi.fn(),
+  refundsMock: vi.fn(),
+  withdrawalsMock: vi.fn(),
+  coreAddress: "0x00000000000000000000000000000000000000aa",
+  usdcAddress: "0x00000000000000000000000000000000000000bb",
 }));
 
 vi.mock("wagmi", () => ({
   useAccount: () => ({
-    address: "0xabc",
+    address: "0x123400000000000000000000000000000000abcd",
   }),
 }));
 
 vi.mock("@/contract-config.json", () => ({
   default: {
-    SynapseCore: "0x0000000000000000000000000000000000000001",
-    MockUSDC: "0x0000000000000000000000000000000000000002",
+    SynapseCore: coreAddress,
+    MockUSDC: usdcAddress,
   },
 }));
 
-vi.mock("@/SynapseCoreABI.json", () => ({
-  default: [],
-}));
-
-vi.mock("@/MockUSDCABI.json", () => ({
-  default: [],
-}));
+vi.mock("@/SynapseCoreABI.json", () => ({ default: [] }));
+vi.mock("@/MockUSDCABI.json", () => ({ default: [] }));
 
 vi.mock("@/utils/refundApi", () => ({
-  fetchRefunds: fetchRefundsMock,
+  fetchRefunds: refundsMock,
 }));
 
 vi.mock("@/utils/balanceApi", () => ({
-  listConsumerWithdrawals: listConsumerWithdrawalsMock,
-  listDepositIntents: listDepositIntentsMock,
+  listConsumerWithdrawals: withdrawalsMock,
+  listDepositIntents: depositIntentsMock,
 }));
 
 vi.mock("ethers", () => {
-  class JsonRpcProvider {
+  function formatUnits(value: bigint, decimals: number): string {
+    const scale = 10n ** BigInt(decimals);
+    const whole = value / scale;
+    const fraction = String(value % scale).padStart(decimals, "0");
+    return `${whole}.${fraction}`;
+  }
+
+  class MockProvider {
     async getBlock() {
-      return { timestamp: 1713139200 };
+      return { timestamp: 1_775_000_000 };
     }
   }
 
-  class Contract {
-    address: string;
-
-    filters = {
-      DepositInfo: () => ({ kind: "deposit" }),
-      WithdrawInfo: () => ({ kind: "withdraw" }),
+  class MockContract {
+    readonly address: string;
+    readonly filters = {
+      DepositInfo: () => "deposit",
+      WithdrawInfo: () => "withdraw",
     };
 
     constructor(address: string) {
@@ -66,117 +75,108 @@ vi.mock("ethers", () => {
       return 0n;
     }
 
-    async queryFilter(filter: { kind: string }) {
-      if (filter.kind === "withdraw") {
-        return [
-          {
-            transactionHash: "0xonchainwithdraw",
-            logIndex: 1,
-            blockNumber: 99,
-            args: [null, 5n * 10n ** 18n],
-          },
-        ];
+    async queryFilter(filter: string) {
+      if (filter === "deposit") {
+        return depositLogsMock();
       }
-      return [];
+      return withdrawLogsMock();
     }
   }
 
   return {
     ethers: {
-      JsonRpcProvider,
-      Contract,
-      toBigInt: (value: number) => BigInt(value),
-      formatUnits: (value: bigint) => (Number(value) / 10 ** 18).toString(),
+      JsonRpcProvider: MockProvider,
+      Contract: MockContract,
+      formatUnits,
+      toBigInt: BigInt,
     },
   };
 });
 
 import { useFundsData } from "@/hooks/useFundsData";
 
-describe("useFundsData", () => {
+const TX_HASH =
+  "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
+function depositLog(amountAtomic: bigint = 100n * 10n ** 18n) {
+  return {
+    blockNumber: 123,
+    transactionHash: TX_HASH,
+    logIndex: 0,
+    args: ["0x123400000000000000000000000000000000abcd", amountAtomic],
+  };
+}
+
+describe("useFundsData deposit status mapping", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    fetchRefundsMock.mockResolvedValue([]);
-    listDepositIntentsMock.mockResolvedValue([]);
-    listConsumerWithdrawalsMock.mockResolvedValue([
-      {
-        id: "wd-failed",
-        amountUsdc: 20,
-        status: "FAILED",
-        txHash: "0xfailed",
-        createdAt: "2026-04-14T10:00:00Z",
-      },
-      {
-        id: "wd-cancelled",
-        amountUsdc: 15,
-        status: "CANCELLED",
-        txHash: null,
-        createdAt: "2026-04-14T11:00:00Z",
-      },
-    ]);
+    depositLogsMock.mockReturnValue([depositLog()]);
+    withdrawLogsMock.mockReturnValue([]);
+    refundsMock.mockResolvedValue([]);
+    withdrawalsMock.mockResolvedValue([]);
+    depositIntentsMock.mockResolvedValue([]);
   });
 
-  it("maps failed and cancelled consumer withdrawals to failed payment records", async () => {
+  it("keeps an on-chain deposit pending when Gateway has no intent yet", async () => {
     const { result } = renderHook(() => useFundsData());
 
     await waitFor(() => {
-      expect(result.current.loading).toBe(false);
-      expect(result.current.records.length).toBeGreaterThan(0);
+      expect(result.current.records).toHaveLength(1);
     });
 
-    const failedRows = result.current.records.filter(
-      (row) => row.id === "wd-failed" || row.id === "wd-cancelled"
-    );
-    expect(failedRows).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          id: "wd-failed",
-          type: "Withdraw",
-          status: "FAILED",
-          txHash: "0xfailed",
-        }),
-        expect.objectContaining({
-          id: "wd-cancelled",
-          type: "Withdraw",
-          status: "FAILED",
-          txHash: null,
-        }),
-      ])
-    );
+    expect(result.current.records[0]).toMatchObject({
+      type: "Deposit",
+      txHash: TX_HASH,
+      status: "PENDING",
+      amount: 100,
+    });
   });
 
-  it("uses Gateway deposit intent status for deposit ledger rows", async () => {
-    listDepositIntentsMock.mockResolvedValue([
+  it("keeps an on-chain deposit pending while Gateway status is PENDING_CONFIRMATION", async () => {
+    depositIntentsMock.mockResolvedValue([
       {
-        id: "dep-1",
-        txHash:
-          "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-        amountUsdc: "100.00",
+        id: "deposit-1",
+        txHash: TX_HASH,
+        amountUsdc: "100.000000",
         status: "PENDING_CONFIRMATION",
-        createdAt: "2026-05-04T03:34:53Z",
+        updatedAt: "2026-05-04T04:14:20Z",
       },
     ]);
 
     const { result } = renderHook(() => useFundsData());
 
     await waitFor(() => {
-      expect(result.current.loading).toBe(false);
-      expect(result.current.records.some((row) => row.id === "dep-1")).toBe(
-        true
-      );
+      expect(result.current.records[0]?.id).toBe("deposit-1");
     });
 
-    expect(result.current.records).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          id: "dep-1",
-          type: "Deposit",
-          amount: 100,
-          txHash:
-            "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-          status: "PENDING",
-        }),
-      ])
-    );
+    expect(result.current.records[0]).toMatchObject({
+      type: "Deposit",
+      status: "PENDING",
+      amount: 100,
+    });
+  });
+
+  it("marks an on-chain deposit completed only after Gateway confirms the intent", async () => {
+    depositIntentsMock.mockResolvedValue([
+      {
+        id: "deposit-2",
+        txHash: TX_HASH,
+        amountUsdc: "100.000000",
+        status: "CONFIRMED",
+        updatedAt: "2026-05-04T04:20:00Z",
+      },
+    ]);
+
+    const { result } = renderHook(() => useFundsData());
+
+    await waitFor(() => {
+      expect(result.current.records[0]?.id).toBe("deposit-2");
+    });
+
+    expect(result.current.records[0]).toMatchObject({
+      type: "Deposit",
+      status: "COMPLETED",
+      amount: 100,
+    });
   });
 });
