@@ -8,6 +8,7 @@ from src.core.errors import AuthenticationError, AuthorizationError
 from src.services.approval.service import ApprovalService
 from src.services.admin_config.service import AdminConfigService
 from src.services.admin_user.service import AdminUserService
+from src.services.admin_operations import AdminOperationsService
 from src.services.adapters import (
     GatewayExecutionAdapter,
     HttpGatewayExecutionAdapter,
@@ -28,7 +29,9 @@ from src.storage.analytics import (
     GatewayDashboardProjectionRepository,
     PostgresGatewayDashboardProjectionRepository,
     PostgresAnalyticsDashboardRepository,
+    PostgresAdminOperationsRepository,
     PostgresProviderWithdrawReviewRepository,
+    AdminOperationsRepository,
     ProviderWithdrawReviewRepository,
 )
 from src.storage import PostgresAdminStore
@@ -107,6 +110,17 @@ def get_dashboard_service() -> DashboardService:
 def get_provider_withdraw_review_repository() -> ProviderWithdrawReviewRepository:
     settings = get_settings()
     return PostgresProviderWithdrawReviewRepository(settings.gateway_readonly_dsn)
+
+
+@lru_cache(maxsize=1)
+def get_admin_operations_repository() -> AdminOperationsRepository:
+    settings = get_settings()
+    return PostgresAdminOperationsRepository(settings.gateway_readonly_dsn)
+
+
+@lru_cache(maxsize=1)
+def get_admin_operations_service() -> AdminOperationsService:
+    return AdminOperationsService(get_admin_operations_repository(), get_store())
 
 
 @lru_cache(maxsize=1)

@@ -11,16 +11,16 @@ from src.api.schemas.admin_config import (
     UpdateAdminMenuConfigItemRequest,
 )
 from src.api.schemas.common import ApiResponse
-from src.services.admin_config.service import AdminConfigService
+from src.services.admin_config.service import AdminConfigService, AdminMenuConfigSerializedSnapshot
 from src.services.auth.service import AdminIdentity
 
 router = APIRouter(prefix="/api/admin/v1/config", tags=["admin-config"])
 
 
-def _build_response(payload: dict) -> AdminMenuConfigResponse:
+def _build_response(payload: AdminMenuConfigSerializedSnapshot) -> AdminMenuConfigResponse:
     return AdminMenuConfigResponse(
-        items=[AdminMenuConfigItemModel(**item) for item in payload["items"]],
-        meta=AdminMenuConfigMetaModel(**payload["meta"]),
+        items=[AdminMenuConfigItemModel(**item) for item in payload.items],
+        meta=AdminMenuConfigMetaModel(**payload.meta),
     )
 
 

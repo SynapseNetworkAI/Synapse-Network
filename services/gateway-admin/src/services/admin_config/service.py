@@ -1,4 +1,5 @@
-from dataclasses import replace
+# ruff: noqa: TRY003 -- admin config raises stable user-facing API errors from service boundaries.
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 
 from src.core.errors import AuthorizationError, BadRequestError, ResourceNotFoundError
@@ -6,10 +7,11 @@ from src.domain import AdminActionAudit
 from src.domain.admin_config import AdminMenuConfigItem, AdminMenuConfigSnapshot
 from src.domain.enums import AuditResultStatus
 from src.services.admin_config.menu_tree import (
-    DASHBOARD_READ_PERMISSION,
     MENU_NODE_CATEGORY,
     MENU_NODE_PANEL,
     MENU_NODE_PAGE,
+    OPS_CONTROLS_DESCRIPTION,
+    OPS_CONTROLS_LABEL,
     build_default_menu_items,
 )
 from src.services.auth.service import AdminIdentity
@@ -17,6 +19,7 @@ from src.storage.base import AdminStore
 
 
 MENU_CONFIG_KEY = "admin_menu_config"
+OWNER_READ_PERMISSION = "owner:read"
 DEFAULT_MENU_MIGRATION_ITEM_IDS = {
     "analytics",
     "dashboard-analytics",
@@ -27,6 +30,7 @@ DEFAULT_MENU_MIGRATION_ITEM_IDS = {
     "analytics-risk-health",
     "analytics-data-quality",
     "provider-services",
+    "owner-accounts",
     "review-history",
     "forum-support",
 }
@@ -34,19 +38,45 @@ DRAFT_READ_ROLES = {"super_admin", "platform_ops_admin"}
 WRITE_ROLES = {"super_admin"}
 
 
+@dataclass(frozen=True)
+class AdminMenuConfigSerializedSnapshot:
+    items: tuple[dict, ...]
+    meta: dict
+
+
 def _serialize_timestamp(value: datetime | None) -> str | None:
     return value.isoformat().replace("+00:00", "Z") if value else None
 
 
+def _owner_accounts_menu_item() -> AdminMenuConfigItem:
+    return AdminMenuConfigItem(
+        item_id="owner-accounts",
+        section_id="ops-controls",
+        section_label=OPS_CONTROLS_LABEL,
+        section_description=OPS_CONTROLS_DESCRIPTION,
+        label="业务用户",
+        href="/owner-accounts",
+        description="查询 consumer/provider owner、钱包、邮箱验证和运营关联摘要。",
+        parent_item_id="business-control",
+        node_type=MENU_NODE_PAGE,
+        icon_key="OA",
+        required_permissions=(OWNER_READ_PERMISSION,),
+        sort_order=228,
+        keywords=("owner", "accounts", "wallet", "email", "consumer", "provider"),
+    )
+
+
 def _default_menu_items() -> tuple[AdminMenuConfigItem, ...]:
-    return build_default_menu_items()
+    return (*build_default_menu_items(), _owner_accounts_menu_item())
 
 
 class AdminConfigService:
     def __init__(self, store: AdminStore) -> None:
         self._store = store
 
-    def list_menu_items(self, operator: AdminIdentity, stage: str = "draft") -> dict:
+    def list_menu_items(
+        self, operator: AdminIdentity, stage: str = "draft"
+    ) -> AdminMenuConfigSerializedSnapshot:
         normalized_stage = stage.strip().lower() if stage else "draft"
         if normalized_stage not in {"draft", "published"}:
             raise BadRequestError("Unsupported config stage")
@@ -55,11 +85,15 @@ class AdminConfigService:
         items = snapshot.draft_items if normalized_stage == "draft" else snapshot.published_items
         return self._serialize_snapshot(snapshot, items)
 
-    def list_visible_menu_items(self, operator: AdminIdentity) -> dict:
+    def list_visible_menu_items(
+        self, operator: AdminIdentity
+    ) -> AdminMenuConfigSerializedSnapshot:
         snapshot = self._get_or_create_snapshot(operator.admin_id)
         return self._serialize_snapshot(snapshot, self._filter_visible_items(snapshot.published_items, operator))
 
-    def create_menu_item(self, operator: AdminIdentity, payload: dict) -> dict:
+    def create_menu_item(
+        self, operator: AdminIdentity, payload: dict
+    ) -> AdminMenuConfigSerializedSnapshot:
         self._ensure_role(operator, WRITE_ROLES)
         snapshot = self._get_or_create_snapshot(operator.admin_id)
         item = self._build_item(payload, fallback_sort_order=len(snapshot.draft_items) + 1)
@@ -73,7 +107,9 @@ class AdminConfigService:
         self._append_audit(operator, "admin_menu_config.create_item", {}, self._serialize_item(item))
         return self._serialize_snapshot(saved, saved.draft_items)
 
-    def update_menu_item(self, operator: AdminIdentity, item_id: str, payload: dict) -> dict:
+    def update_menu_item(
+        self, operator: AdminIdentity, item_id: str, payload: dict
+    ) -> AdminMenuConfigSerializedSnapshot:
         self._ensure_role(operator, WRITE_ROLES)
         snapshot = self._get_or_create_snapshot(operator.admin_id)
         current = next((item for item in snapshot.draft_items if item.item_id == item_id), None)
@@ -90,7 +126,9 @@ class AdminConfigService:
         self._append_audit(operator, "admin_menu_config.update_item", self._serialize_item(current), self._serialize_item(next_item))
         return self._serialize_snapshot(saved, saved.draft_items)
 
-    def delete_menu_item(self, operator: AdminIdentity, item_id: str) -> dict:
+    def delete_menu_item(
+        self, operator: AdminIdentity, item_id: str
+    ) -> AdminMenuConfigSerializedSnapshot:
         self._ensure_role(operator, WRITE_ROLES)
         snapshot = self._get_or_create_snapshot(operator.admin_id)
         current = next((item for item in snapshot.draft_items if item.item_id == item_id), None)
@@ -102,7 +140,9 @@ class AdminConfigService:
         self._append_audit(operator, "admin_menu_config.delete_item", {"deletedItems": [self._serialize_item(item) for item in snapshot.draft_items if item.item_id in deleted_item_ids]}, {})
         return self._serialize_snapshot(saved, saved.draft_items)
 
-    def publish_menu_config(self, operator: AdminIdentity) -> dict:
+    def publish_menu_config(
+        self, operator: AdminIdentity
+    ) -> AdminMenuConfigSerializedSnapshot:
         self._ensure_role(operator, WRITE_ROLES)
         snapshot = self._get_or_create_snapshot(operator.admin_id)
         now = datetime.now(timezone.utc)
@@ -121,20 +161,18 @@ class AdminConfigService:
     def _save_snapshot(self, snapshot: AdminMenuConfigSnapshot) -> AdminMenuConfigSnapshot:
         return self._store.config.save_menu_config(snapshot)
 
-    def _merge_missing_default_items(self, snapshot: AdminMenuConfigSnapshot, operator_id: str | None) -> AdminMenuConfigSnapshot:
+    def _merge_missing_default_items(
+        self, snapshot: AdminMenuConfigSnapshot, operator_id: str | None
+    ) -> AdminMenuConfigSnapshot:
         default_items_by_id = {item.item_id: item for item in _default_menu_items()}
         draft_item_ids = {item.item_id for item in snapshot.draft_items}
         published_item_ids = {item.item_id for item in snapshot.published_items}
 
-        draft_additions = tuple(
-            default_items_by_id[item_id]
-            for item_id in DEFAULT_MENU_MIGRATION_ITEM_IDS
-            if item_id in default_items_by_id and item_id not in draft_item_ids
+        draft_additions = self._missing_default_items(
+            default_items_by_id, draft_item_ids
         )
-        published_additions = tuple(
-            default_items_by_id[item_id]
-            for item_id in DEFAULT_MENU_MIGRATION_ITEM_IDS
-            if item_id in default_items_by_id and item_id not in published_item_ids
+        published_additions = self._missing_default_items(
+            default_items_by_id, published_item_ids
         )
 
         if not draft_additions and not published_additions:
@@ -156,10 +194,25 @@ class AdminConfigService:
             )
         )
 
-    def _serialize_snapshot(self, snapshot: AdminMenuConfigSnapshot, items: tuple[AdminMenuConfigItem, ...]) -> dict:
-        return {
-            "items": [self._serialize_item(item) for item in items],
-            "meta": {
+    @staticmethod
+    def _missing_default_items(
+        default_items_by_id: dict[str, AdminMenuConfigItem],
+        existing_item_ids: set[str],
+    ) -> tuple[AdminMenuConfigItem, ...]:
+        return tuple(
+            default_items_by_id[item_id]
+            for item_id in DEFAULT_MENU_MIGRATION_ITEM_IDS
+            if item_id in default_items_by_id and item_id not in existing_item_ids
+        )
+
+    def _serialize_snapshot(
+        self,
+        snapshot: AdminMenuConfigSnapshot,
+        items: tuple[AdminMenuConfigItem, ...],
+    ) -> AdminMenuConfigSerializedSnapshot:
+        return AdminMenuConfigSerializedSnapshot(
+            items=tuple(self._serialize_item(item) for item in items),
+            meta={
                 "draftVersion": snapshot.draft_version,
                 "publishedVersion": snapshot.published_version,
                 "isDirty": snapshot.draft_version != snapshot.published_version,
@@ -168,7 +221,7 @@ class AdminConfigService:
                 "updatedBy": snapshot.updated_by,
                 "publishedBy": snapshot.published_by,
             },
-        }
+        )
 
     @staticmethod
     def _filter_visible_items(items: tuple[AdminMenuConfigItem, ...], operator: AdminIdentity) -> tuple[AdminMenuConfigItem, ...]:
@@ -235,9 +288,10 @@ class AdminConfigService:
     def _passes_gate(item: AdminMenuConfigItem, operator_role: str, permissions: set[str]) -> bool:
         if item.required_roles and operator_role not in item.required_roles:
             return False
-        if item.required_permissions and not all(permission in permissions for permission in item.required_permissions):
-            return False
-        return True
+        return not (
+            item.required_permissions
+            and not all(permission in permissions for permission in item.required_permissions)
+        )
 
     @staticmethod
     def _flatten_visible_branch(

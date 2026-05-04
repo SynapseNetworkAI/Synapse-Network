@@ -17,6 +17,9 @@
 - 提现审核
 - 退款审核
 - 风险升级与应急处置
+- Consumer 充值流水查询
+- Provider 提现流水查询
+- 业务用户 owner account 查询
 
 目标是把“后台怎么做”从口头经验变成标准 SOP。
 
@@ -53,11 +56,14 @@
 - 查看用户余额
 - 查看提现状态
 - 查看退款状态
+- 查看 owner wallet、masked email、email verified 状态
+- 查看 Consumer Deposits / Provider Withdrawals 列表与详情证据
 
 要求：
 
 - 只读权限
 - 自动审计访问行为
+- 完整邮箱 reveal 必须额外具备 `owner:pii:read` 并写 audit
 
 ### 2.2 `O2` 中风险申请操作
 
@@ -136,6 +142,45 @@
 - 充值时间区间
 - 充值金额
 - 相关工单号
+
+### 4.2.1 后台查询入口
+
+1. 打开 `Finance -> Consumer Deposits`。
+2. 优先用 `txHash` 精确搜索；没有 txHash 时用 wallet + date range 缩小范围。
+3. 确认列表里的 `status`、`confirmations`、`creditedAt`、`amountUsdc`。
+4. 进入详情时只读取 ledger/audit/notification evidence，不在该页面执行 repair。
+5. 若需要补账或重放，必须转入现有 reconciliation / approval flow，不能从充值查询页直接改账。
+
+## 4.5 Provider 提现流水查询 SOP
+
+适用场景：
+
+- Provider 反馈提现没到账。
+- 运营需要核对 provider withdrawal 历史状态。
+- 审核队列只显示 manual review，但需要查看 completed / failed / expired / rejected 全量记录。
+
+后台查询入口：
+
+1. 打开 `Finance -> Provider Withdrawals`。
+2. 用 provider wallet、txHash、status 或 date range 筛选。
+3. 对 `FAILED_EXPIRED` / `REJECTED` 记录，必须查看 `fundsState`，确认收益是否已退回可提现余额。
+4. 若该提现仍在人工审核，跳转 `/withdrawal-reviews` 执行 approve/reject；流水页保持只读。
+5. 若发现 ledger/audit evidence 不一致，转入 reconciliation，不在流水页做修复。
+
+## 4.6 Owner Account 查询 SOP
+
+适用场景：
+
+- Support 需要按钱包定位用户。
+- Finance 需要确认邮箱验证状态或关联流水。
+- Risk 需要查看 consumer/provider 角色与关联服务摘要。
+
+后台查询入口：
+
+1. 打开 `/owner-accounts`。
+2. 默认查看 wallet、account name、masked email、verified 状态、pending email、consumer/provider role 和关联数量。
+3. 只有确有 support/finance 调查需要时，才使用完整邮箱 reveal；该动作必须有 `owner:pii:read` 并写 audit。
+4. `pendingEmail` 不等于已绑定邮箱，不得用于交易 receipt、support reply 或资金通知。
 
 ### 4.3 必查数据
 

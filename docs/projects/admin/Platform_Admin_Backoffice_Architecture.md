@@ -273,12 +273,12 @@ Dashboard 卡片职责需要继续收敛，不再把 `/dashboard`、`/finance`�
 建议明确为：
 
 1. `/dashboard`
-  只放全局哨兵、今日流量、队列压力、漏斗摘要。
-  在前端路由上拆成 `/dashboard/overview`、`/dashboard/runtime` 两个显式子页；原 `/dashboard/health` 已并入 `/system`，侧边栏里的“控制台”自身改为只负责展开子菜单的导航节点，`/dashboard` 仅保留为重定向入口。
+   只放全局哨兵、今日流量、队列压力、漏斗摘要。
+   在前端路由上拆成 `/dashboard/overview`、`/dashboard/runtime` 两个显式子页；原 `/dashboard/health` 已并入 `/system`，侧边栏里的“控制台”自身改为只负责展开子菜单的导航节点，`/dashboard` 仅保留为重定向入口。
 2. `/finance`
-  只放 Treasury Core、Treasury Delta、Flow Volume、Flow Trend、Liability Pressure。
+   只放 Treasury Core、Treasury Delta、Flow Volume、Flow Trend、Liability Pressure。
 3. `/finance/reconciliation`
-  只放 Reconciliation Hero、Supporting Buckets、Deposit Evidence、Outflow Evidence、Action Queues。
+   只放 Reconciliation Hero、Supporting Buckets、Deposit Evidence、Outflow Evidence、Action Queues。
 
 #### `/dashboard` 推荐卡片
 
@@ -415,9 +415,11 @@ Dashboard 数据边界要求：
 - 左侧导航实际渲染优先读取 `gateway-admin` 已发布菜单配置，静态 `navigation.ts` 只作为 fallback 和默认种子
 - 菜单可见性基于当前管理员的 `role + permissions` 动态裁剪
 - `Toolbar + Table + Drawer` 已抽成前端共享 CRUD 基础组件，后续配置型页面不需要重复手写工作台骨架
-- 当前页面路由包括：`/dashboard`、`/dashboard/overview`、`/dashboard/runtime`、`/dashboard/analytics`、`/dashboard/analytics/consumer-funnel`、`/dashboard/analytics/invocation-revenue`、`/dashboard/analytics/provider-revenue`、`/dashboard/analytics/money-flow`、`/dashboard/analytics/risk-health`、`/dashboard/analytics/data-quality`、`/users`、`/role-permissions`、`/menu-config`、`/approvals`、`/withdrawal-reviews`、`/review-history`、`/finance`、`/risk`、`/system`、`/audit`、`/execution`；旧的 `/dashboard/health` 仅保留为兼容重定向入口，实际内容已并入 `/system`
+- 当前页面路由包括：`/dashboard`、`/dashboard/overview`、`/dashboard/runtime`、`/dashboard/analytics`、`/dashboard/analytics/consumer-funnel`、`/dashboard/analytics/invocation-revenue`、`/dashboard/analytics/provider-revenue`、`/dashboard/analytics/money-flow`、`/dashboard/analytics/risk-health`、`/dashboard/analytics/data-quality`、`/users`、`/role-permissions`、`/menu-config`、`/approvals`、`/withdrawal-reviews`、`/review-history`、`/owner-accounts`、`/finance`、`/risk`、`/system`、`/audit`、`/execution`；旧的 `/dashboard/health` 仅保留为兼容重定向入口，实际内容已并入 `/system`
 - `控制总览 > 控制台 > Analytics` 是只读观测菜单组：总览页展示 North Star 指标和关键告警，六个专题页分别承载 Consumer 激活漏斗、调用与收入、Provider 收益、资金流、风控健康和埋点质量；前端只消费 `gateway-admin` 聚合接口，不直接查询 ClickHouse
 - `业务控制` 分组现在同时提供 `提现审核` 与 `审核历史`：前者处理待审核申请，后者回看已审批、已拒绝和已释放结果，避免 reviewer 只能依赖审计页做状态回溯
+- `业务用户` 页面提供 owner account 运营查询：默认脱敏邮箱，完整邮箱 reveal 必须有 `owner:pii:read` 并写 audit。
+- `finance` 页面已经收口为 tabs：`Overview`、`Consumer Deposits`、`Provider Withdrawals`、`Reconciliation`、`Platform Fees`。充值与 Provider 提现流水为只读查账入口，不承载补账或修账动作。
 - `审核历史` 页面支持详情抽屉，下钻展示风险 evidence、reviewer 备注和状态流转，帮助业务直接完成复核与回放
 - `审核历史` 默认按服务端查询执行：支持 reviewer、处理时间范围、状态、处理结论和关键字搜索，并返回分页 cursor，避免前端一次性拉全量历史记录
 - 整体视觉已切换为与 Gateway Console 对齐的 dark mode control plane：黑色背景、深灰面板、细金属边框、绿色激活态、无玻璃阴影
