@@ -155,6 +155,11 @@ describe("OwnerCreditsPage", () => {
     expect(screen.getByText("Frozen / review credits")).toBeTruthy();
     expect(screen.getByText("$3.25")).toBeTruthy();
     expect(
+      screen.getByText(/SynapseNetwork may give out free credits/i)
+    ).toBeTruthy();
+    const oldVoucherCopy = ["X may", "give out free credits"].join(" ");
+    expect(screen.queryByText(new RegExp(oldVoucherCopy, "i"))).toBeNull();
+    expect(
       screen.getByRole("button", { name: "Purchase credits" })
     ).toBeTruthy();
 
