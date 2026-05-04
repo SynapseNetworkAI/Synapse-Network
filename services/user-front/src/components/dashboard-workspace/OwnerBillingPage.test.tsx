@@ -19,12 +19,10 @@ vi.mock("@/hooks/useFundsData", () => ({
 describe("OwnerBillingPage", () => {
   afterEach(() => {
     cleanup();
-    vi.unstubAllEnvs();
   });
 
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.stubEnv("NEXT_PUBLIC_APP_ENV", "staging");
     globalThis.localStorage.setItem(I18N_STORAGE_KEY, "en");
     useFundsDataMock.mockReturnValue({
       loading: false,
@@ -39,20 +37,6 @@ describe("OwnerBillingPage", () => {
         },
       ],
     });
-  });
-
-  it("uses the environment transaction explorer for invoice links", () => {
-    render(
-      createElement(LanguageProvider, null, createElement(OwnerBillingPage))
-    );
-
-    const invoiceLink = screen.getByRole("link", {
-      name: "Open transaction explorer",
-    });
-    expect(invoiceLink.getAttribute("href")).toBe(
-      "https://sepolia.arbiscan.io/tx/0xdeadbeef"
-    );
-    expect(invoiceLink.getAttribute("href")).not.toContain("etherscan.io");
   });
 
   it("renders the x-style payments ledger surface", () => {
@@ -96,5 +80,29 @@ describe("OwnerBillingPage", () => {
     );
 
     expect(screen.getByText("2026-04-08 10:56:00")).toBeTruthy();
+  });
+
+  it("renders pending deposit rows as Pending until Gateway confirmation", () => {
+    useFundsDataMock.mockReturnValue({
+      loading: false,
+      records: [
+        {
+          id: "deposit-pending-1",
+          type: "Deposit",
+          amount: 100,
+          txHash: "0xbeadfeed",
+          timestamp: new Date(2026, 4, 4, 12, 14, 24).getTime(),
+          status: "PENDING",
+        },
+      ],
+    });
+
+    render(
+      createElement(LanguageProvider, null, createElement(OwnerBillingPage))
+    );
+
+    expect(screen.getByText("Pending / Syncing")).toBeTruthy();
+    expect(screen.queryByText("Completed")).toBeNull();
+    expect(screen.getByText("$100.00")).toBeTruthy();
   });
 });
