@@ -2,7 +2,12 @@
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays, CircleAlert } from "lucide-react";
-import { useAccount, useChainId, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import {
+  useAccount,
+  useChainId,
+  useWriteContract,
+  useWaitForTransactionReceipt,
+} from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import toast from "react-hot-toast";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
@@ -29,7 +34,13 @@ import {
   calculateSpendRatio,
   getBillingCycleWindow,
 } from "@/utils/creditsSpendCap";
-import { compareMoneyStrings, formatMoneyString, moneyStringToNumber, normalizeMoneyString, type MoneyString } from "@/utils/money";
+import {
+  compareMoneyStrings,
+  formatMoneyString,
+  moneyStringToNumber,
+  normalizeMoneyString,
+  type MoneyString,
+} from "@/utils/money";
 import { isWithdrawTicketNearExpiry } from "@/utils/providerWithdrawApi";
 import SynapseCoreABI from "@/SynapseCoreABI.json";
 
@@ -59,13 +70,27 @@ function normalizeSignature(signature: string): `0x${string}` {
   return normalized as `0x${string}`;
 }
 
-type WithdrawStep = "form" | "signing" | "onchain" | "confirming" | "completing" | "done";
+type WithdrawStep =
+  | "form"
+  | "signing"
+  | "onchain"
+  | "confirming"
+  | "completing"
+  | "done";
 
-function WithdrawBalanceModal({ availableBalance, userAddress, onClose, onSuccess }: Readonly<WithdrawModalProps>) {
-  const [amount, setAmount] = useState(String(availableBalance > 0 ? availableBalance.toFixed(2) : ""));
+function WithdrawBalanceModal({
+  availableBalance,
+  userAddress,
+  onClose,
+  onSuccess,
+}: Readonly<WithdrawModalProps>) {
+  const [amount, setAmount] = useState(
+    String(availableBalance > 0 ? availableBalance.toFixed(2) : "")
+  );
   const [reason, setReason] = useState("");
   const [step, setStep] = useState<WithdrawStep>("form");
-  const [withdrawResult, setWithdrawResult] = useState<ConsumerWithdrawIntent | null>(null);
+  const [withdrawResult, setWithdrawResult] =
+    useState<ConsumerWithdrawIntent | null>(null);
   const chainId = useChainId();
   const { data: txHash, writeContractAsync } = useWriteContract();
   const {
@@ -112,18 +137,31 @@ function WithdrawBalanceModal({ availableBalance, userAddress, onClose, onSucces
 
   // Step: tx confirmed → call backend /complete
   useEffect(() => {
-    if (!isTxConfirmed || !txHash || !withdrawResult?.withdrawId || completingRef.current) return;
+    if (
+      !isTxConfirmed ||
+      !txHash ||
+      !withdrawResult?.withdrawId ||
+      completingRef.current
+    )
+      return;
     completingRef.current = true;
     setStep("completing");
     const complete = async () => {
       try {
         await completeV2Refund(userAddress, withdrawResult.withdrawId, txHash);
-        toast.success(`Withdrawal of $${formatMoneyString(withdrawResult.netUsdc, 2)} USDC completed!`);
+        toast.success(
+          `Withdrawal of $${formatMoneyString(
+            withdrawResult.netUsdc,
+            2
+          )} USDC completed!`
+        );
         setStep("done");
         await onSuccess({ ...withdrawResult, status: "COMPLETED" });
         onClose();
       } catch {
-        toast.error("On-chain transfer succeeded but backend update failed. The background processor will complete it automatically.");
+        toast.error(
+          "On-chain transfer succeeded but backend update failed. The background processor will complete it automatically."
+        );
         onClose();
       }
     };
@@ -135,10 +173,17 @@ function WithdrawBalanceModal({ availableBalance, userAddress, onClose, onSucces
     if (!isTxFailed || !withdrawResult || !txHash) return;
     void syncFailedWithdrawal(
       "TX_FAILED",
-      txReceiptError?.message || "On-chain transaction failed. Your balance was restored.",
+      txReceiptError?.message ||
+        "On-chain transaction failed. Your balance was restored.",
       txHash
     );
-  }, [isTxFailed, syncFailedWithdrawal, txHash, txReceiptError, withdrawResult]);
+  }, [
+    isTxFailed,
+    syncFailedWithdrawal,
+    txHash,
+    txReceiptError,
+    withdrawResult,
+  ]);
 
   const handleSubmit = async () => {
     const normalizedAmount = normalizeMoneyString(amount, "");
@@ -147,8 +192,15 @@ function WithdrawBalanceModal({ availableBalance, userAddress, onClose, onSucces
       toast.error("Enter a valid amount.");
       return;
     }
-    if (compareMoneyStrings(normalizedAmount, normalizeMoneyString(availableBalance)) > 0) {
-      toast.error(`Amount exceeds available balance ($${availableBalance.toFixed(2)}).`);
+    if (
+      compareMoneyStrings(
+        normalizedAmount,
+        normalizeMoneyString(availableBalance)
+      ) > 0
+    ) {
+      toast.error(
+        `Amount exceeds available balance ($${availableBalance.toFixed(2)}).`
+      );
       return;
     }
 
@@ -165,10 +217,13 @@ function WithdrawBalanceModal({ availableBalance, userAddress, onClose, onSucces
 
       if (result.existingWithdrawal) {
         if (!result.ticket || result.status === "PENDING_MANUAL_REVIEW") {
-          toast("A pending withdrawal already exists. Finish or wait for the current request.", {
-            icon: "⏳",
-            duration: 6000,
-          });
+          toast(
+            "A pending withdrawal already exists. Finish or wait for the current request.",
+            {
+              icon: "⏳",
+              duration: 6000,
+            }
+          );
           onClose();
           return;
         }
@@ -177,13 +232,19 @@ function WithdrawBalanceModal({ availableBalance, userAddress, onClose, onSucces
           duration: 6000,
         });
       } else if (result.status === "PENDING_MANUAL_REVIEW") {
-        toast.success(`Withdrawal submitted — under review. Reason: ${result.riskReasonCode || "manual review"}`);
+        toast.success(
+          `Withdrawal submitted — under review. Reason: ${
+            result.riskReasonCode || "manual review"
+          }`
+        );
         onClose();
         return;
       }
 
       if (!result.ticket) {
-        toast.error("Withdrawal ticket is unavailable. Please retry after the gateway signs a fresh ticket.");
+        toast.error(
+          "Withdrawal ticket is unavailable. Please retry after the gateway signs a fresh ticket."
+        );
         onClose();
         return;
       }
@@ -192,7 +253,9 @@ function WithdrawBalanceModal({ availableBalance, userAddress, onClose, onSucces
       const ticket = result.ticket;
       const contractAddress = (ticket.contractAddress || "") as `0x${string}`;
       if (isWithdrawTicketNearExpiry(ticket)) {
-        toast.error("Withdrawal credential is about to expire. To avoid failed gas spend, create a new withdrawal request after this one expires.");
+        toast.error(
+          "Withdrawal credential is about to expire. To avoid failed gas spend, create a new withdrawal request after this one expires."
+        );
         onClose();
         return;
       }
@@ -254,10 +317,14 @@ function WithdrawBalanceModal({ availableBalance, userAddress, onClose, onSucces
         className="w-full max-w-md rounded-2xl border border-[#2a2a2a] bg-[#111] p-6 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 className="mb-1 text-base font-semibold text-white">Withdraw Balance</h3>
+        <h3 className="mb-1 text-base font-semibold text-white">
+          Withdraw Balance
+        </h3>
         <p className="mb-4 text-sm text-[#86868b]">
           Withdraw unused credits back to your wallet. Available:{" "}
-          <span className="font-mono text-white">${availableBalance.toFixed(2)} USDC</span>
+          <span className="font-mono text-white">
+            ${availableBalance.toFixed(2)} USDC
+          </span>
         </p>
 
         <div className="space-y-4">
@@ -305,14 +372,19 @@ function WithdrawBalanceModal({ availableBalance, userAddress, onClose, onSucces
           <div className="rounded-xl border border-[#2a2a2a] bg-[#0d0d0d] px-3 py-2 text-xs text-[#86868b] space-y-1">
             <p>⚠ Amounts ≥ $500 require manual review (12–24 h).</p>
             <p>⚠ Max 3 withdrawals per 24 hours.</p>
-            <p>⚠ Your wallet will execute the on-chain transfer (you pay gas).</p>
+            <p>
+              ⚠ Your wallet will execute the on-chain transfer (you pay gas).
+            </p>
           </div>
 
           {step !== "form" && step !== "done" && (
             <div className="rounded-xl border border-[#22c55e]/30 bg-[#22c55e]/5 px-3 py-2 text-xs text-[#22c55e]">
-              {step === "signing" && "Requesting withdrawal ticket from server…"}
-              {step === "onchain" && "Please confirm the transaction in your wallet."}
-              {step === "confirming" && "Transaction submitted. Waiting for block confirmation…"}
+              {step === "signing" &&
+                "Requesting withdrawal ticket from server…"}
+              {step === "onchain" &&
+                "Please confirm the transaction in your wallet."}
+              {step === "confirming" &&
+                "Transaction submitted. Waiting for block confirmation…"}
               {step === "completing" && "On-chain confirmed. Updating records…"}
             </div>
           )}
@@ -341,17 +413,60 @@ function WithdrawBalanceModal({ availableBalance, userAddress, onClose, onSucces
 // ─────────────────────────────────────────────────────────────────────────────
 
 function formatUsd(value: number | string): string {
-  return `$${formatMoneyString(typeof value === "number" ? normalizeMoneyString(value) : value, 2)}`;
+  return `$${formatMoneyString(
+    typeof value === "number" ? normalizeMoneyString(value) : value,
+    2
+  )}`;
 }
 
 function formatPlainAmount(value: number | string): string {
-  return formatMoneyString(typeof value === "number" ? normalizeMoneyString(value) : value, 2);
+  return formatMoneyString(
+    typeof value === "number" ? normalizeMoneyString(value) : value,
+    2
+  );
 }
 
 function formatPercent(value: number): string {
   return `${Math.max(0, Math.min(100, value))
     .toFixed(1)
     .replace(/\\.0$/, "")}%`;
+}
+
+function CreditBucketRow({
+  label,
+  amount,
+  hint,
+  tone = "default",
+}: Readonly<{
+  label: string;
+  amount: number;
+  hint?: string;
+  tone?: "default" | "pending" | "frozen";
+}>) {
+  const amountTone =
+    tone === "pending"
+      ? "text-amber-200"
+      : tone === "frozen"
+      ? "text-sky-200"
+      : "text-white";
+
+  return (
+    <div className="flex flex-col gap-1 rounded-[10px] border border-white/[0.06] bg-black/20 px-4 py-3 sm:flex-row sm:items-start sm:justify-between">
+      <div>
+        <p className="text-[13px] leading-5 text-[#9ca3af]">{label}</p>
+        {hint ? (
+          <p className="mt-1 max-w-[420px] text-[12px] leading-5 text-[#71767b]">
+            {hint}
+          </p>
+        ) : null}
+      </div>
+      <p
+        className={`font-mono text-[15px] font-semibold leading-6 ${amountTone}`}
+      >
+        {formatUsd(amount)}
+      </p>
+    </div>
+  );
 }
 
 export default function OwnerCreditsPage() {
@@ -373,7 +488,8 @@ export default function OwnerCreditsPage() {
   const [isRedeemVoucherModalOpen, setIsRedeemVoucherModalOpen] =
     useState(false);
   const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
-  const [pendingWithdrawal, setPendingWithdrawal] = useState<RefundIntentRecord | null>(null);
+  const [pendingWithdrawal, setPendingWithdrawal] =
+    useState<RefundIntentRecord | null>(null);
   const [optimisticBalanceOverride, setOptimisticBalanceOverride] = useState<{
     withdrawId: string;
     amountUsdc: MoneyString;
@@ -396,7 +512,9 @@ export default function OwnerCreditsPage() {
           setOptimisticBalanceOverride(parsed);
         }
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }, [optimisticStorageKey]);
 
   const fetchPendingWithdrawal = useCallback(async () => {
@@ -406,10 +524,15 @@ export default function OwnerCreditsPage() {
     }
     try {
       const rows = await listConsumerWithdrawals(userAddress);
-      const active = rows.find((r) => {
-        const s = (r.status ?? "").toUpperCase();
-        return s === "REQUESTED" || s === "PENDING" || s === "PENDING_MANUAL_REVIEW";
-      }) ?? null;
+      const active =
+        rows.find((r) => {
+          const s = (r.status ?? "").toUpperCase();
+          return (
+            s === "REQUESTED" ||
+            s === "PENDING" ||
+            s === "PENDING_MANUAL_REVIEW"
+          );
+        }) ?? null;
       setPendingWithdrawal(active);
     } catch {
       setPendingWithdrawal(null);
@@ -461,7 +584,11 @@ export default function OwnerCreditsPage() {
 
   const creditSummary = useMemo(() => {
     const treasuryAvailable = moneyStringToNumber(stats.ownerBalance);
-    const currentSpend = moneyStringToNumber(spendingLimit?.currentCycleSpendUsdc ?? "0");
+    const pendingBalance = moneyStringToNumber(stats.consumerPendingBalance);
+    const frozenBalance = moneyStringToNumber(stats.consumerFrozenBalance);
+    const currentSpend = moneyStringToNumber(
+      spendingLimit?.currentCycleSpendUsdc ?? "0"
+    );
     const billingCycleCap =
       typeof spendingLimit?.spendingLimitUsdc === "string"
         ? moneyStringToNumber(spendingLimit.spendingLimitUsdc)
@@ -470,6 +597,8 @@ export default function OwnerCreditsPage() {
 
     return {
       remainingBalance: treasuryAvailable,
+      pendingBalance,
+      frozenBalance,
       currentSpend,
       billingCycleCap,
       spendRatio,
@@ -478,7 +607,12 @@ export default function OwnerCreditsPage() {
           ? moneyStringToNumber(spendingLimit.remainingSpendUsdc)
           : null,
     };
-  }, [spendingLimit, stats.ownerBalance]);
+  }, [
+    spendingLimit,
+    stats.consumerFrozenBalance,
+    stats.consumerPendingBalance,
+    stats.ownerBalance,
+  ]);
 
   const displayedRemainingBalance = useMemo(() => {
     if (!optimisticBalanceOverride) {
@@ -486,7 +620,12 @@ export default function OwnerCreditsPage() {
     }
 
     const serverBalance = creditSummary.remainingBalance;
-    if (compareMoneyStrings(normalizeMoneyString(serverBalance), optimisticBalanceOverride.targetBalance) <= 0) {
+    if (
+      compareMoneyStrings(
+        normalizeMoneyString(serverBalance),
+        optimisticBalanceOverride.targetBalance
+      ) <= 0
+    ) {
       return serverBalance;
     }
 
@@ -501,12 +640,19 @@ export default function OwnerCreditsPage() {
   useEffect(() => {
     if (
       optimisticBalanceOverride &&
-      compareMoneyStrings(normalizeMoneyString(creditSummary.remainingBalance), optimisticBalanceOverride.targetBalance) <= 0
+      compareMoneyStrings(
+        normalizeMoneyString(creditSummary.remainingBalance),
+        optimisticBalanceOverride.targetBalance
+      ) <= 0
     ) {
       setOptimisticBalanceOverride(null);
       if (optimisticStorageKey) sessionStorage.removeItem(optimisticStorageKey);
     }
-  }, [creditSummary.remainingBalance, optimisticBalanceOverride, optimisticStorageKey]);
+  }, [
+    creditSummary.remainingBalance,
+    optimisticBalanceOverride,
+    optimisticStorageKey,
+  ]);
 
   const {
     isOpen: isDepositModalOpen,
@@ -520,6 +666,11 @@ export default function OwnerCreditsPage() {
     isPending,
     isConfirming,
     walletUsdcBalance,
+    nativeGasBalance,
+    nativeGasSymbol,
+    depositPreflightError,
+    canSubmitDeposit,
+    networkLabel,
     vaultAddress,
     walletAddress,
     shortAddress,
@@ -644,52 +795,84 @@ export default function OwnerCreditsPage() {
 
         <section className="border-b border-[#232323] py-8 first:pt-0">
           <div className="rounded-[16px] border border-[#2f3336] bg-[#16181c] p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.02)]">
-            <div className="flex flex-col gap-4 rounded-[12px] border border-[#232323] bg-[#1a1a1a] p-4 md:h-[116px] md:flex-row md:items-center md:justify-between md:gap-6">
-                <div>
-                  <p className="mb-1 text-[14px] font-normal leading-[20px] text-[#9ca3af]">
-                    {t("creditsPage.remainingBalanceLabel")}
-                  </p>
-                  {showBalanceSkeleton ? (
-                    <div className="flex items-center gap-2 mt-2">
-                      <div className="h-[32px] w-[112px] animate-pulse rounded-full bg-white/[0.09]" />
-                      <div className="h-[14px] w-[14px] animate-pulse rounded-full bg-white/[0.08]" />
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <p className="text-[24px] font-bold leading-[32px] tracking-[-0.02em] text-white">
-                        {formatUsd(displayedRemainingBalance)}
-                      </p>
-                      <CircleAlert className="h-[14px] w-[14px] text-[#71767b]" />
-                    </div>
-                  )}
-                </div>
-                <div className="flex flex-wrap items-center self-start gap-2 md:self-auto">
-                  <div className="relative group">
-                    <button
-                      type="button"
-                      onClick={() => { void handleWithdraw(); }}
-                      disabled={displayedRemainingBalance <= 0 || pendingWithdrawal !== null}
-                      className="inline-flex h-[36px] min-w-[143px] items-center justify-center whitespace-nowrap rounded-full border border-[#2f3336] bg-transparent px-4 py-2 text-[14px] font-normal leading-[20px] text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      Withdraw
-                    </button>
-                    {pendingWithdrawal && (
-                      <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 w-[220px] rounded-lg border border-[#2a2a2a] bg-[#1a1a1a] px-3 py-2 text-xs text-[#f59e0b] shadow-xl opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50">
-                        A withdrawal of {formatMoneyString(pendingWithdrawal.amountUsdc ?? "0", 2)} is pending. Only one active withdrawal is allowed.
-                      </div>
-                    )}
+            <div className="flex flex-col gap-4 rounded-[12px] border border-[#232323] bg-[#1a1a1a] p-4 md:flex-row md:items-start md:justify-between md:gap-6">
+              <div>
+                <p className="mb-1 text-[14px] font-normal leading-[20px] text-[#9ca3af]">
+                  {t("creditsPage.spendableBalanceLabel")}
+                </p>
+                {showBalanceSkeleton ? (
+                  <div className="flex items-center gap-2 mt-2">
+                    <div className="h-[32px] w-[112px] animate-pulse rounded-full bg-white/[0.09]" />
+                    <div className="h-[14px] w-[14px] animate-pulse rounded-full bg-white/[0.08]" />
                   </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <p className="text-[24px] font-bold leading-[32px] tracking-[-0.02em] text-white">
+                      {formatUsd(displayedRemainingBalance)}
+                    </p>
+                    <CircleAlert className="h-[14px] w-[14px] text-[#71767b]" />
+                  </div>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center self-start gap-2 md:self-auto">
+                <div className="relative group">
                   <button
                     type="button"
                     onClick={() => {
-                      void handleOpenPurchaseCredits();
+                      void handleWithdraw();
                     }}
-                    className="inline-flex h-[36px] min-w-[143px] items-center justify-center whitespace-nowrap rounded-full bg-[#eff3f4] px-4 py-2 text-[14px] font-normal leading-[20px] text-[#0f141a] transition hover:bg-[#e7eaeb]"
+                    disabled={
+                      displayedRemainingBalance <= 0 ||
+                      pendingWithdrawal !== null
+                    }
+                    className="inline-flex h-[36px] min-w-[143px] items-center justify-center whitespace-nowrap rounded-full border border-[#2f3336] bg-transparent px-4 py-2 text-[14px] font-normal leading-[20px] text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
                   >
-                    {t("creditsPage.purchaseCredits")}
+                    Withdraw
                   </button>
+                  {pendingWithdrawal && (
+                    <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 w-[220px] rounded-lg border border-[#2a2a2a] bg-[#1a1a1a] px-3 py-2 text-xs text-[#f59e0b] shadow-xl opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50">
+                      A withdrawal of{" "}
+                      {formatMoneyString(
+                        pendingWithdrawal.amountUsdc ?? "0",
+                        2
+                      )}{" "}
+                      is pending. Only one active withdrawal is allowed.
+                    </div>
+                  )}
                 </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void handleOpenPurchaseCredits();
+                  }}
+                  className="inline-flex h-[36px] min-w-[143px] items-center justify-center whitespace-nowrap rounded-full bg-[#eff3f4] px-4 py-2 text-[14px] font-normal leading-[20px] text-[#0f141a] transition hover:bg-[#e7eaeb]"
+                >
+                  {t("creditsPage.purchaseCredits")}
+                </button>
+              </div>
             </div>
+            {!showBalanceSkeleton ? (
+              <div className="mt-3 space-y-2">
+                <CreditBucketRow
+                  label={t("creditsPage.pendingBalanceLabel")}
+                  amount={creditSummary.pendingBalance}
+                  hint={
+                    creditSummary.pendingBalance > 0
+                      ? t("creditsPage.pendingBalanceHint")
+                      : undefined
+                  }
+                  tone="pending"
+                />
+                {creditSummary.frozenBalance > 0 ? (
+                  <CreditBucketRow
+                    label={t("creditsPage.frozenBalanceLabel")}
+                    amount={creditSummary.frozenBalance}
+                    hint={t("creditsPage.frozenBalanceHint")}
+                    tone="frozen"
+                  />
+                ) : null}
+              </div>
+            ) : null}
           </div>
 
           <div className="mt-6 rounded-[8px] border border-[#323232] bg-[#1a1a1a] p-4">
@@ -845,7 +1028,36 @@ export default function OwnerCreditsPage() {
         walletAddress={walletAddress}
         vaultAddress={vaultAddress}
         walletUsdcBalance={walletUsdcBalance}
+        nativeGasBalance={nativeGasBalance}
+        nativeGasSymbol={nativeGasSymbol}
+        networkLabel={networkLabel}
+        preflightError={depositPreflightError}
+        canSubmit={canSubmitDeposit}
         shortAddress={shortAddress}
+        copy={{
+          amountLabel: t("creditsPage.depositAmountLabel"),
+          walletUsdcLabel: t("creditsPage.depositWalletUsdcLabel"),
+          nativeGasLabel: t("creditsPage.depositNativeGasLabel"),
+          networkLabel: t("creditsPage.depositNetworkLabel"),
+          transactionSummaryLabel: t("creditsPage.depositTransactionSummary"),
+          fromWalletLabel: t("creditsPage.depositFromWallet"),
+          toVaultLabel: t("creditsPage.depositToVault"),
+          depositAmountLabel: t("creditsPage.depositAmountSummary"),
+          permitAllowanceLabel: t("creditsPage.depositPermitAllowance"),
+          expectationTitle: t("creditsPage.depositExpectationTitle"),
+          expectationPermit: t("creditsPage.depositExpectationPermit"),
+          expectationGas: t("creditsPage.depositExpectationGas"),
+          expectationSync: t("creditsPage.depositExpectationSync"),
+          stepPermitTitle: t("creditsPage.depositPermitStepTitle"),
+          stepPermitActive: t("creditsPage.depositPermitStepActive"),
+          stepPermitDone: t("creditsPage.depositPermitStepDone"),
+          stepDepositTitle: t("creditsPage.depositVaultStepTitle"),
+          stepDepositActive: t("creditsPage.depositVaultStepActive"),
+          stepDepositWaiting: t("creditsPage.depositVaultStepWaiting"),
+          cancelLabel: t("creditsPage.depositCancel"),
+          processingLabel: t("creditsPage.depositProcessing"),
+          confirmLabel: t("creditsPage.depositConfirm"),
+        }}
         onClose={closeDepositModal}
         onConfirm={() => {
           void handleDeposit();
@@ -906,21 +1118,36 @@ export default function OwnerCreditsPage() {
                 withdrawId: result.withdrawId,
                 amountUsdc: result.amountUsdc,
                 targetBalance: normalizeMoneyString(
-                  Math.max(0, displayedRemainingBalance - moneyStringToNumber(result.amountUsdc))
+                  Math.max(
+                    0,
+                    displayedRemainingBalance -
+                      moneyStringToNumber(result.amountUsdc)
+                  )
                 ),
               };
               setOptimisticBalanceOverride((current) =>
-                current?.withdrawId === result.withdrawId ? current : newOverride
+                current?.withdrawId === result.withdrawId
+                  ? current
+                  : newOverride
               );
               if (optimisticStorageKey) {
                 try {
-                  sessionStorage.setItem(optimisticStorageKey, JSON.stringify(newOverride));
-                } catch { /* ignore */ }
+                  sessionStorage.setItem(
+                    optimisticStorageKey,
+                    JSON.stringify(newOverride)
+                  );
+                } catch {
+                  /* ignore */
+                }
               }
             }
 
             await new Promise((resolve) => setTimeout(resolve, 300));
-            await Promise.all([handleRefresh(), fetchSpendingLimit(), fetchPendingWithdrawal()]);
+            await Promise.all([
+              handleRefresh(),
+              fetchSpendingLimit(),
+              fetchPendingWithdrawal(),
+            ]);
           }}
         />
       )}

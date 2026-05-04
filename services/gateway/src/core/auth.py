@@ -3,6 +3,7 @@ import json
 import logging
 import secrets
 import time
+from datetime import datetime, timezone
 from eth_account.messages import encode_defunct
 from typing import Any, Optional
 from web3 import Web3
@@ -86,15 +87,25 @@ def _owner_profile_payload_hash(wallet_address: str, payload: dict[str, Any]) ->
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
-def create_auth_challenge(wallet_address: str) -> Optional[str]:
+def create_auth_challenge(wallet_address: str, chain_id: Optional[int] = None) -> Optional[str]:
     """Generate a challenge string for wallet authentication"""
     try:
         wallet = normalize_wallet(wallet_address)
 
         # Generate random challenge
         nonce = secrets.token_hex(16)
-        timestamp = int(time.time())
-        challenge = f"Login to SynapseNetwork\nWallet: {wallet}\nNonce: {nonce}\nTimestamp: {timestamp}"
+        issued_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+        app_uri = settings.public_app_base_url or "https://synapse-network.ai"
+        challenge = (
+            "synapse-network.ai wants you to sign in with your Ethereum account:\n"
+            f"{wallet}\n\n"
+            "Sign in to Synapse Network. This does not authorize a transaction or move funds.\n\n"
+            f"URI: {app_uri}\n"
+            "Version: 1\n"
+            f"Chain ID: {chain_id if chain_id is not None else 'unknown'}\n"
+            f"Nonce: {nonce}\n"
+            f"Issued At: {issued_at}"
+        )
 
         # Store challenge
         pending_challenges[wallet] = challenge

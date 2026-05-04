@@ -56,6 +56,8 @@ vi.mock("@/hooks/useOwnerData", () => ({
   useOwnerData: () => ({
     stats: {
       ownerBalance: "20",
+      consumerPendingBalance: "12.50",
+      consumerFrozenBalance: "3.25",
     },
     handleRefresh: handleRefreshMock,
   }),
@@ -146,8 +148,12 @@ describe("OwnerCreditsPage", () => {
       createElement(LanguageProvider, null, createElement(OwnerCreditsPage))
     );
 
-    expect(await screen.findByText("Remaining balance:")).toBeTruthy();
+    expect(await screen.findByText("Spendable credits")).toBeTruthy();
     expect(screen.getByText("$20.00")).toBeTruthy();
+    expect(screen.getByText("Pending / syncing credits")).toBeTruthy();
+    expect(screen.getByText("$12.50")).toBeTruthy();
+    expect(screen.getByText("Frozen / review credits")).toBeTruthy();
+    expect(screen.getByText("$3.25")).toBeTruthy();
     expect(
       screen.getByRole("button", { name: "Purchase credits" })
     ).toBeTruthy();
@@ -193,8 +199,12 @@ describe("OwnerCreditsPage", () => {
       createElement(LanguageProvider, null, createElement(OwnerCreditsPage))
     );
 
-    expect((await screen.findAllByText("Need help with deposit or billing?")).length).toBeGreaterThan(0);
+    expect(
+      (await screen.findAllByText("Need help with deposit or billing?")).length
+    ).toBeGreaterThan(0);
     const supportLink = screen.getByRole("link", { name: "Contact Support" });
-    expect(supportLink.getAttribute("href")).toContain("mailto:support@synapse.test");
+    expect(supportLink.getAttribute("href")).toContain(
+      "mailto:support@synapse.test"
+    );
   });
 });

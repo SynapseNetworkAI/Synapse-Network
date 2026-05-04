@@ -28,7 +28,8 @@ type AuthVerifyNormalizedResponse = {
 const AUTH_SESSION_STORAGE_KEY = "a2a_auth_session";
 const AUTH_API_BASE = `${getGatewayBaseUrl()}/api/v1/auth`;
 const AUTH_SESSION_TTL_SEC = 24 * 60 * 60;
-export const WALLET_SESSION_MISSING_MESSAGE = "Wallet auth session missing. Please sign in with wallet.";
+export const WALLET_SESSION_MISSING_MESSAGE =
+  "Wallet auth session missing. Please sign in with wallet.";
 export const AUTH_SESSION_EXPIRED_EVENT = "a2a:auth-session-expired";
 
 function normalizeAddress(address: string): string {
@@ -48,7 +49,9 @@ export function clearAuthSession(): void {
 export function notifyAuthSessionExpired(reason?: string): void {
   if (!isBrowser()) return;
   clearAuthSession();
-  globalThis.window.dispatchEvent(new CustomEvent(AUTH_SESSION_EXPIRED_EVENT, { detail: { reason } }));
+  globalThis.window.dispatchEvent(
+    new CustomEvent(AUTH_SESSION_EXPIRED_EVENT, { detail: { reason } })
+  );
 }
 
 export function getStoredAuthSession(): AuthSession | null {
@@ -80,10 +83,16 @@ export function getStoredAuthSession(): AuthSession | null {
   }
 }
 
-export function storeAuthSession(token: string, wallet: string, expiresInSec: number = AUTH_SESSION_TTL_SEC): void {
+export function storeAuthSession(
+  token: string,
+  wallet: string,
+  expiresInSec: number = AUTH_SESSION_TTL_SEC
+): void {
   if (!isBrowser()) return;
 
-  const normalizedTtl = Number.isFinite(expiresInSec) ? Math.max(60, Math.floor(expiresInSec)) : AUTH_SESSION_TTL_SEC;
+  const normalizedTtl = Number.isFinite(expiresInSec)
+    ? Math.max(60, Math.floor(expiresInSec))
+    : AUTH_SESSION_TTL_SEC;
   const expiresAt = Date.now() + normalizedTtl * 1000;
   const nextSession: AuthSession = {
     token,
@@ -103,14 +112,21 @@ export function getAccessToken(expectedWallet?: string): string {
 
   if (expectedWallet && session.wallet !== normalizeAddress(expectedWallet)) {
     notifyAuthSessionExpired("wallet_mismatch");
-    throw new Error("Wallet auth session wallet mismatch. Please sign in again.");
+    throw new Error(
+      "Wallet auth session wallet mismatch. Please sign in again."
+    );
   }
 
   return session.token;
 }
 
-export function normalizeAuthApiError(message: string, status?: number): string {
-  const normalized = String(message || "").trim().toLowerCase();
+export function normalizeAuthApiError(
+  message: string,
+  status?: number
+): string {
+  const normalized = String(message || "")
+    .trim()
+    .toLowerCase();
   const isExpiredOrInvalid =
     normalized.includes("token expired") ||
     normalized.includes("expired token") ||
@@ -119,7 +135,10 @@ export function normalizeAuthApiError(message: string, status?: number): string 
     normalized.includes("unauthorized") ||
     normalized.includes("signature expired");
 
-  if ((status === 401 && isExpiredOrInvalid) || normalized === "token expired") {
+  if (
+    (status === 401 && isExpiredOrInvalid) ||
+    normalized === "token expired"
+  ) {
     notifyAuthSessionExpired("token_expired_or_invalid");
     return WALLET_SESSION_MISSING_MESSAGE;
   }
@@ -127,7 +146,10 @@ export function normalizeAuthApiError(message: string, status?: number): string 
   return message;
 }
 
-export function buildAuthedHeaders(userAddress: string, withJson: boolean = true): HeadersInit {
+export function buildAuthedHeaders(
+  userAddress: string,
+  withJson: boolean = true
+): HeadersInit {
   return {
     ...(withJson ? { "Content-Type": "application/json" } : {}),
     Authorization: `Bearer ${getAccessToken(userAddress)}`,
@@ -135,10 +157,20 @@ export function buildAuthedHeaders(userAddress: string, withJson: boolean = true
   };
 }
 
-export async function requestAuthChallenge(address: string): Promise<AuthChallengeResponse> {
-  const response = await fetch(`${AUTH_API_BASE}/challenge?address=${encodeURIComponent(address)}`, {
-    method: "GET",
-  });
+export async function requestAuthChallenge(
+  address: string,
+  chainId?: number
+): Promise<AuthChallengeResponse> {
+  const params = new URLSearchParams({ address });
+  if (Number.isFinite(chainId)) {
+    params.set("chainId", String(chainId));
+  }
+  const response = await fetch(
+    `${AUTH_API_BASE}/challenge?${params.toString()}`,
+    {
+      method: "GET",
+    }
+  );
 
   if (!response.ok) {
     const text = await response.text();
@@ -148,7 +180,11 @@ export async function requestAuthChallenge(address: string): Promise<AuthChallen
   return (await response.json()) as AuthChallengeResponse;
 }
 
-export async function verifyAuthSignature(address: string, message: string, signature: string): Promise<AuthVerifyNormalizedResponse> {
+export async function verifyAuthSignature(
+  address: string,
+  message: string,
+  signature: string
+): Promise<AuthVerifyNormalizedResponse> {
   const response = await fetch(`${AUTH_API_BASE}/verify`, {
     method: "POST",
     headers: {
@@ -164,8 +200,13 @@ export async function verifyAuthSignature(address: string, message: string, sign
   if (!response.ok) {
     const text = await response.text();
     const normalized = String(text || "").toLowerCase();
-    if (normalized.includes("invalid signature") || normalized.includes("expired challenge")) {
-      throw new Error("Wallet signature invalid or challenge expired. Please request a new challenge and sign again.");
+    if (
+      normalized.includes("invalid signature") ||
+      normalized.includes("expired challenge")
+    ) {
+      throw new Error(
+        "Wallet signature invalid or challenge expired. Please request a new challenge and sign again."
+      );
     }
     throw new Error(text || "Failed to verify wallet signature");
   }
@@ -174,6 +215,9 @@ export async function verifyAuthSignature(address: string, message: string, sign
   return {
     token: payload.access_token,
     wallet: address,
-    expiresInSec: Number(payload.expires_in) > 0 ? Number(payload.expires_in) : AUTH_SESSION_TTL_SEC,
+    expiresInSec:
+      Number(payload.expires_in) > 0
+        ? Number(payload.expires_in)
+        : AUTH_SESSION_TTL_SEC,
   };
 }
