@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 import {
   BaseError,
   ContractFunctionRevertedError,
+  formatUnits,
   parseAbi,
   parseSignature,
   parseUnits,
@@ -35,6 +36,7 @@ const VAULT_ADDRESS = contractConfig.SynapseCore as `0x${string}`;
 const vaultABI = parseAbi([
   "function depositWithPermit(uint256 amount, uint256 deadline, uint8 v, bytes32 r, bytes32 s) external",
 ]);
+const MIN_NATIVE_GAS_BALANCE = 0.001;
 
 type UseVaultDepositOptions = {
   initialAmount?: string;
@@ -42,10 +44,15 @@ type UseVaultDepositOptions = {
 };
 
 function createDepositAttemptId(): string {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+  ) {
     return `dep_attempt_${crypto.randomUUID().replaceAll("-", "")}`;
   }
-  return `dep_attempt_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+  return `dep_attempt_${Date.now().toString(36)}_${Math.random()
+    .toString(36)
+    .slice(2, 10)}`;
 }
 
 function toSafeErrorMessage(error: unknown, fallback: string): string {
@@ -56,7 +63,9 @@ function toSafeErrorMessage(error: unknown, fallback: string): string {
 
 function buildDepositFailureMessage(error: unknown): string {
   const baseError = error instanceof BaseError ? error : undefined;
-  const revertError = baseError?.walk((walked) => walked instanceof ContractFunctionRevertedError) as ContractFunctionRevertedError | undefined;
+  const revertError = baseError?.walk(
+    (walked) => walked instanceof ContractFunctionRevertedError
+  ) as ContractFunctionRevertedError | undefined;
   const rawMessage = toSafeErrorMessage(error, "Deposit transaction failed");
   const messageParts = [
     revertError?.reason,
@@ -64,22 +73,31 @@ function buildDepositFailureMessage(error: unknown): string {
     baseError?.shortMessage,
     baseError?.details,
     rawMessage,
-  ].filter((part): part is string => typeof part === "string" && part.trim().length > 0);
+  ].filter(
+    (part): part is string => typeof part === "string" && part.trim().length > 0
+  );
   const normalizedMessage = messageParts.join(" | ").toLowerCase();
 
-  if (normalizedMessage.includes("user rejected") || normalizedMessage.includes("rejected")) {
+  if (
+    normalizedMessage.includes("user rejected") ||
+    normalizedMessage.includes("rejected")
+  ) {
     return "Deposit was cancelled in wallet. No funds were charged.";
   }
   if (
-    normalizedMessage.includes("insufficient funds")
-    || normalizedMessage.includes("intrinsic gas too low")
-    || normalizedMessage.includes("gas required exceeds allowance")
-    || normalizedMessage.includes("exceeds the balance of the account")
-    || normalizedMessage.includes("out of gas")
+    normalizedMessage.includes("insufficient funds") ||
+    normalizedMessage.includes("intrinsic gas too low") ||
+    normalizedMessage.includes("gas required exceeds allowance") ||
+    normalizedMessage.includes("exceeds the balance of the account") ||
+    normalizedMessage.includes("out of gas")
   ) {
     return "Deposit failed because the wallet does not have enough native token to pay gas.";
   }
-  if (normalizedMessage.includes("insufficient balance") || normalizedMessage.includes("erc20") || normalizedMessage.includes("transfer amount exceeds")) {
+  if (
+    normalizedMessage.includes("insufficient balance") ||
+    normalizedMessage.includes("erc20") ||
+    normalizedMessage.includes("transfer amount exceeds")
+  ) {
     return "Deposit failed because the wallet does not have enough USDC for this transfer.";
   }
   if (revertError?.data?.errorName) {
@@ -91,31 +109,39 @@ function buildDepositFailureMessage(error: unknown): string {
   if (normalizedMessage.includes("custom error")) {
     return "Deposit was rejected by the vault contract with a custom on-chain error. No funds were credited to the platform.";
   }
-  if (normalizedMessage.includes("reverted") || normalizedMessage.includes("execution reverted")) {
+  if (
+    normalizedMessage.includes("reverted") ||
+    normalizedMessage.includes("execution reverted")
+  ) {
     return "Deposit failed on-chain because the vault contract rejected this transaction. No funds were credited to the platform.";
   }
-  if (normalizedMessage.includes("nonce too low") || normalizedMessage.includes("replacement transaction underpriced")) {
+  if (
+    normalizedMessage.includes("nonce too low") ||
+    normalizedMessage.includes("replacement transaction underpriced")
+  ) {
     return "Deposit failed because the wallet transaction nonce is out of date. Please retry from the wallet.";
   }
   return rawMessage;
 }
 
 function getWalletConnectionFailureMessage(error: unknown): string | null {
-  const normalizedMessage = toSafeErrorMessage(error, "")
-    .trim()
-    .toLowerCase();
+  const normalizedMessage = toSafeErrorMessage(error, "").trim().toLowerCase();
 
   if (!normalizedMessage) {
     return null;
   }
 
   if (
-    normalizedMessage.includes("requested method and/or account has not been authorized")
-    || normalizedMessage.includes("requested account and/or method has not been authorized")
-    || normalizedMessage.includes("not been authorized by the user")
-    || normalizedMessage.includes("connector not connected")
-    || normalizedMessage.includes("wallet provider unavailable")
-    || normalizedMessage.includes("unavailable while reconnecting")
+    normalizedMessage.includes(
+      "requested method and/or account has not been authorized"
+    ) ||
+    normalizedMessage.includes(
+      "requested account and/or method has not been authorized"
+    ) ||
+    normalizedMessage.includes("not been authorized by the user") ||
+    normalizedMessage.includes("connector not connected") ||
+    normalizedMessage.includes("wallet provider unavailable") ||
+    normalizedMessage.includes("unavailable while reconnecting")
   ) {
     return "Wallet not fully connected yet. Please reconnect and retry.";
   }
@@ -125,9 +151,9 @@ function getWalletConnectionFailureMessage(error: unknown): string | null {
   }
 
   if (
-    normalizedMessage.includes("cannot read properties of undefined")
-    || normalizedMessage.includes("reading 'length'")
-    || normalizedMessage.includes("reading 'raw'")
+    normalizedMessage.includes("cannot read properties of undefined") ||
+    normalizedMessage.includes("reading 'length'") ||
+    normalizedMessage.includes("reading 'raw'")
   ) {
     return "Wallet connection unstable. Please reconnect wallet and retry.";
   }
@@ -139,6 +165,37 @@ function shortAddress(address?: string): string {
   if (!address) return "-";
   if (address.length <= 12) return address;
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
+}
+
+function normalizeTokenDecimals(value: unknown): number {
+  const parsed = typeof value === "bigint" ? Number(value) : Number(value);
+  if (!Number.isInteger(parsed) || parsed < 0 || parsed > 36) {
+    return 18;
+  }
+  return parsed;
+}
+
+function buildDepositPreflightError(
+  amountUsdc: string,
+  walletUsdcBalance: number,
+  nativeGasBalance: number,
+  nativeGasSymbol: string
+): string {
+  const amount = Number(amountUsdc);
+  if (!amountUsdc || !Number.isFinite(amount) || amount <= 0) {
+    return "Enter a valid USDC amount.";
+  }
+  if (walletUsdcBalance < amount) {
+    return `Insufficient wallet USDC. Need ${amountUsdc} USDC, wallet has ${walletUsdcBalance.toFixed(
+      2
+    )} USDC.`;
+  }
+  if (nativeGasBalance < MIN_NATIVE_GAS_BALANCE) {
+    return `Deposit requires native gas for the vault transaction. Keep at least ${MIN_NATIVE_GAS_BALANCE.toFixed(
+      3
+    )} ${nativeGasSymbol} in this wallet.`;
+  }
+  return "";
 }
 
 export function useVaultDeposit(options?: UseVaultDepositOptions) {
@@ -154,7 +211,9 @@ export function useVaultDeposit(options?: UseVaultDepositOptions) {
   const [isOpen, setIsOpen] = useState(false);
   const [depositAmount, setDepositAmount] = useState(initialAmount);
   const [depositError, setDepositError] = useState("");
-  const [depositStep, setDepositStep] = useState<"input" | "signing_permit" | "executing_tx">("input");
+  const [depositStep, setDepositStep] = useState<
+    "input" | "signing_permit" | "executing_tx"
+  >("input");
 
   const { data: usdcNonce } = useReadContract({
     address: contractConfig.MockUSDC as `0x${string}`,
@@ -164,17 +223,38 @@ export function useVaultDeposit(options?: UseVaultDepositOptions) {
     query: { enabled: !!address },
   });
 
-  const { data: walletUsdcBalanceRaw, refetch: refetchWalletBalance } = useReadContract({
+  const { data: usdcDecimalsRaw } = useReadContract({
     address: contractConfig.MockUSDC as `0x${string}`,
-    abi: parseAbi(["function balanceOf(address) view returns (uint256)"]),
-    functionName: "balanceOf",
-    args: address ? [address] : undefined,
+    abi: parseAbi(["function decimals() view returns (uint8)"]),
+    functionName: "decimals",
     query: { enabled: !!address },
   });
 
+  const { data: walletUsdcBalanceRaw, refetch: refetchWalletBalance } =
+    useReadContract({
+      address: contractConfig.MockUSDC as `0x${string}`,
+      abi: parseAbi(["function balanceOf(address) view returns (uint256)"]),
+      functionName: "balanceOf",
+      args: address ? [address] : undefined,
+      query: { enabled: !!address },
+    });
+
   const { data: ethBalanceData } = useBalance({ address });
-  const walletUsdcBalance = isConnected && address && walletUsdcBalanceRaw !== undefined ? Number(walletUsdcBalanceRaw) / 1e18 : 0;
-  const ethBalance = ethBalanceData ? Number(ethBalanceData.value) / 1e18 : 0;
+  const usdcDecimals = normalizeTokenDecimals(usdcDecimalsRaw);
+  const walletUsdcBalance =
+    isConnected && address && walletUsdcBalanceRaw !== undefined
+      ? Number(formatUnits(walletUsdcBalanceRaw, usdcDecimals))
+      : 0;
+  const nativeGasBalance = ethBalanceData
+    ? Number(formatUnits(ethBalanceData.value, ethBalanceData.decimals ?? 18))
+    : 0;
+  const nativeGasSymbol = ethBalanceData?.symbol || "ETH";
+  const depositPreflightError = buildDepositPreflightError(
+    normalizeMoneyString(depositAmount, ""),
+    walletUsdcBalance,
+    nativeGasBalance,
+    nativeGasSymbol
+  );
 
   const { signTypedDataAsync } = useSignTypedData();
   const { data: hash, writeContractAsync, isPending } = useWriteContract();
@@ -184,6 +264,11 @@ export function useVaultDeposit(options?: UseVaultDepositOptions) {
     isError: isDepositFailed,
     error: depositReceiptError,
   } = useWaitForTransactionReceipt({ hash });
+  const canSubmitDeposit =
+    depositStep === "input" &&
+    !isPending &&
+    !isConfirming &&
+    depositPreflightError === "";
 
   const resetUi = useCallback(() => {
     setDepositError("");
@@ -202,27 +287,31 @@ export function useVaultDeposit(options?: UseVaultDepositOptions) {
     setIsOpen(false);
   }, [isConfirming, isPending]);
 
-  const recordAttemptStage = useCallback(async (
-    stage: DepositAttemptStage,
-    amountUsdc: string,
-    request?: { attemptId?: string; txHash?: string; failureReason?: string },
-  ) => {
-    if (!address || !isSessionAuthenticated) return;
-    const attemptId = request?.attemptId || currentDepositAttemptIdRef.current;
-    if (!attemptId) return;
+  const recordAttemptStage = useCallback(
+    async (
+      stage: DepositAttemptStage,
+      amountUsdc: string,
+      request?: { attemptId?: string; txHash?: string; failureReason?: string }
+    ) => {
+      if (!address || !isSessionAuthenticated) return;
+      const attemptId =
+        request?.attemptId || currentDepositAttemptIdRef.current;
+      if (!attemptId) return;
 
-    try {
-      await recordDepositAttempt(address, {
-        attemptId,
-        amountUsdc,
-        stage,
-        txHash: request?.txHash,
-        failureReason: request?.failureReason,
-      });
-    } catch (error) {
-      console.error("Failed to record deposit attempt stage", stage, error);
-    }
-  }, [address, isSessionAuthenticated]);
+      try {
+        await recordDepositAttempt(address, {
+          attemptId,
+          amountUsdc,
+          stage,
+          txHash: request?.txHash,
+          failureReason: request?.failureReason,
+        });
+      } catch (error) {
+        console.error("Failed to record deposit attempt stage", stage, error);
+      }
+    },
+    [address, isSessionAuthenticated]
+  );
 
   const notifyDepositSynced = useCallback(async () => {
     await refetchWalletBalance();
@@ -241,48 +330,61 @@ export function useVaultDeposit(options?: UseVaultDepositOptions) {
     });
   }, []);
 
-  const waitForDepositSync = useCallback(async (
-    txHash: string,
-    amountUsdc: string,
-    attemptId?: string,
-  ) => {
-    if (!address || !isSessionAuthenticated) return;
-    const normalizedHash = String(txHash || "").trim().toLowerCase();
-    if (!/^0x[0-9a-f]{64}$/.test(normalizedHash)) return;
+  const waitForDepositSync = useCallback(
+    async (txHash: string, amountUsdc: string, attemptId?: string) => {
+      if (!address || !isSessionAuthenticated) return;
+      const normalizedHash = String(txHash || "")
+        .trim()
+        .toLowerCase();
+      if (!/^0x[0-9a-f]{64}$/.test(normalizedHash)) return;
 
-    activeSyncHashRef.current = normalizedHash;
+      activeSyncHashRef.current = normalizedHash;
 
-    for (let attempt = 0; attempt < 45; attempt += 1) {
-      try {
-        const sync = await getDepositSyncStatus(address, normalizedHash);
+      for (let attempt = 0; attempt < 45; attempt += 1) {
+        try {
+          const sync = await getDepositSyncStatus(address, normalizedHash);
 
-        if (sync.synced && !syncedIntentHashesRef.current.has(normalizedHash)) {
-          syncedIntentHashesRef.current.add(normalizedHash);
-          await recordAttemptStage("INTENT_REGISTERED", amountUsdc, {
-            attemptId,
-            txHash: normalizedHash,
-          });
+          if (
+            sync.synced &&
+            !syncedIntentHashesRef.current.has(normalizedHash)
+          ) {
+            syncedIntentHashesRef.current.add(normalizedHash);
+            await recordAttemptStage("INTENT_REGISTERED", amountUsdc, {
+              attemptId,
+              txHash: normalizedHash,
+            });
+          }
+
+          if (sync.canRefreshBalance) {
+            await notifyDepositSynced();
+            toast.success("Gateway balance synced.");
+            activeSyncHashRef.current = null;
+            return;
+          }
+        } catch (error) {
+          console.error("Failed to poll deposit sync status", error);
         }
 
-        if (sync.canRefreshBalance) {
-          await notifyDepositSynced();
-          toast.success("Gateway balance synced.");
-          activeSyncHashRef.current = null;
-          return;
-        }
-      } catch (error) {
-        console.error("Failed to poll deposit sync status", error);
+        await wait(2000);
       }
 
-      await wait(2000);
-    }
-
-    activeSyncHashRef.current = null;
-    toast("Deposit confirmed on-chain. Gateway is still syncing the balance.", {
-      icon: "ℹ️",
-      duration: 5000,
-    });
-  }, [address, isSessionAuthenticated, notifyDepositSynced, recordAttemptStage, wait]);
+      activeSyncHashRef.current = null;
+      toast(
+        "Deposit confirmed on-chain. Gateway is still syncing the balance.",
+        {
+          icon: "ℹ️",
+          duration: 5000,
+        }
+      );
+    },
+    [
+      address,
+      isSessionAuthenticated,
+      notifyDepositSynced,
+      recordAttemptStage,
+      wait,
+    ]
+  );
 
   useEffect(() => {
     if (!(isConfirmed && hash && address)) {
@@ -319,12 +421,22 @@ export function useVaultDeposit(options?: UseVaultDepositOptions) {
           amountUsdc,
         });
       } catch (error) {
-        console.error("Deposit intent registration failed; falling back to backend sync polling", error);
+        console.error(
+          "Deposit intent registration failed; falling back to backend sync polling",
+          error
+        );
       }
 
       await waitForDepositSync(normalizedHash, amountUsdc, attemptId);
     })();
-  }, [address, depositAmount, hash, isConfirmed, recordAttemptStage, waitForDepositSync]);
+  }, [
+    address,
+    depositAmount,
+    hash,
+    isConfirmed,
+    recordAttemptStage,
+    waitForDepositSync,
+  ]);
 
   useEffect(() => {
     if (!(isDepositFailed && hash)) {
@@ -336,14 +448,24 @@ export function useVaultDeposit(options?: UseVaultDepositOptions) {
 
     const failureMessage = buildDepositFailureMessage(depositReceiptError);
     setDepositError(failureMessage);
-    void recordAttemptStage("RECEIPT_FAILED", normalizeMoneyString(depositAmount, "0"), {
-      attemptId: currentDepositAttemptIdRef.current ?? undefined,
-      txHash: hash,
-      failureReason: failureMessage,
-    });
+    void recordAttemptStage(
+      "RECEIPT_FAILED",
+      normalizeMoneyString(depositAmount, "0"),
+      {
+        attemptId: currentDepositAttemptIdRef.current ?? undefined,
+        txHash: hash,
+        failureReason: failureMessage,
+      }
+    );
     toast.error(failureMessage, { duration: 5000 });
     currentDepositAttemptIdRef.current = null;
-  }, [depositAmount, depositReceiptError, hash, isDepositFailed, recordAttemptStage]);
+  }, [
+    depositAmount,
+    depositReceiptError,
+    hash,
+    isDepositFailed,
+    recordAttemptStage,
+  ]);
 
   const handleDeposit = useCallback(async () => {
     if (!address) {
@@ -352,8 +474,15 @@ export function useVaultDeposit(options?: UseVaultDepositOptions) {
     }
 
     const amountUsdc = normalizeMoneyString(depositAmount, "");
-    if (!amountUsdc || amountUsdc === "0") {
-      toast.error("Invalid amount");
+    const preflightError = buildDepositPreflightError(
+      amountUsdc,
+      walletUsdcBalance,
+      nativeGasBalance,
+      nativeGasSymbol
+    );
+    if (preflightError) {
+      setDepositError(preflightError);
+      toast.error(preflightError);
       return;
     }
 
@@ -362,19 +491,6 @@ export function useVaultDeposit(options?: UseVaultDepositOptions) {
     setDepositError("");
     await recordAttemptStage("SIGN_REQUESTED", amountUsdc, { attemptId });
 
-    if (walletUsdcBalance < Number(amountUsdc)) {
-      const failureMessage = `Insufficient wallet USDC. Need ${amountUsdc} USDC, wallet has ${walletUsdcBalance.toFixed(2)} USDC.`;
-      setDepositError(failureMessage);
-      toast.error(failureMessage);
-      return;
-    }
-
-    if (ethBalance < 0.001) {
-      const failureMessage = "Insufficient ETH for transaction gas (needs ~0.001 ETH). Please fund your wallet.";
-      setDepositError(failureMessage);
-      toast.error(failureMessage);
-    }
-
     setDepositStep("signing_permit");
     analytics.capture("deposit_started", {
       amount_usdc: amountUsdc,
@@ -382,7 +498,7 @@ export function useVaultDeposit(options?: UseVaultDepositOptions) {
       chain_id: chainId,
     });
     try {
-      const amountBigInt = parseUnits(amountUsdc, 18);
+      const amountBigInt = parseUnits(amountUsdc, usdcDecimals);
       const deadline = BigInt(Math.floor(Date.now() / 1000) + 3600);
       const nonce = usdcNonce ?? BigInt(0);
 
@@ -403,7 +519,13 @@ export function useVaultDeposit(options?: UseVaultDepositOptions) {
           ],
         },
         primaryType: "Permit",
-        message: { owner: address, spender: VAULT_ADDRESS, value: amountBigInt, nonce, deadline },
+        message: {
+          owner: address,
+          spender: VAULT_ADDRESS,
+          value: amountBigInt,
+          nonce,
+          deadline,
+        },
       });
 
       const { v, r, s } = parseSignature(signature);
@@ -428,18 +550,32 @@ export function useVaultDeposit(options?: UseVaultDepositOptions) {
       const walletConnectionMessage = getWalletConnectionFailureMessage(error);
 
       let failureReason = "Unknown Error";
-      if (message.includes("User rejected") || message.toLowerCase().includes("rejected")) {
+      if (
+        message.includes("User rejected") ||
+        message.toLowerCase().includes("rejected")
+      ) {
         failureReason = "User rejected";
-        setDepositError("Deposit was cancelled in wallet. No funds were charged.");
+        setDepositError(
+          "Deposit was cancelled in wallet. No funds were charged."
+        );
         toast("Sign/Transaction cancelled by user", { icon: "ℹ️" });
       } else if (walletConnectionMessage) {
         failureReason = walletConnectionMessage;
         setDepositError(walletConnectionMessage);
         showWalletStatusToast(walletConnectionMessage, { icon: "🔌" });
-      } else if (message.includes("Insufficient Balance") || message.includes("insufficient funds") || message.includes("gas required exceeds allowance")) {
+      } else if (
+        message.includes("Insufficient Balance") ||
+        message.includes("insufficient funds") ||
+        message.includes("gas required exceeds allowance")
+      ) {
         failureReason = "Insufficient Gas/Funds";
-        setDepositError("USDC or ETH 余额不足，请检查钱包");
-        toast.error("USDC or ETH 余额不足，请检查钱包", { duration: 5000 });
+        setDepositError(
+          "Wallet USDC or native gas is insufficient. Please check the balances and retry."
+        );
+        toast.error(
+          "Wallet USDC or native gas is insufficient. Please check the balances and retry.",
+          { duration: 5000 }
+        );
       } else {
         failureReason = message.substring(0, 100);
         const failureMessage = buildDepositFailureMessage(error);
@@ -453,7 +589,19 @@ export function useVaultDeposit(options?: UseVaultDepositOptions) {
       });
       currentDepositAttemptIdRef.current = null;
     }
-  }, [address, chainId, depositAmount, ethBalance, recordAttemptStage, signTypedDataAsync, usdcNonce, walletUsdcBalance, writeContractAsync]);
+  }, [
+    address,
+    chainId,
+    depositAmount,
+    nativeGasBalance,
+    nativeGasSymbol,
+    recordAttemptStage,
+    signTypedDataAsync,
+    usdcDecimals,
+    usdcNonce,
+    walletUsdcBalance,
+    writeContractAsync,
+  ]);
 
   return {
     isOpen,
@@ -467,6 +615,12 @@ export function useVaultDeposit(options?: UseVaultDepositOptions) {
     isPending,
     isConfirming,
     walletUsdcBalance,
+    nativeGasBalance,
+    nativeGasSymbol,
+    depositPreflightError,
+    canSubmitDeposit,
+    usdcDecimals,
+    networkLabel: `Chain ${chainId}`,
     vaultAddress: VAULT_ADDRESS,
     walletAddress: address,
     shortAddress,

@@ -7,24 +7,45 @@ Deposits are owner-controlled. The owner wallet moves USDC into SynapseCore, Gat
 
 ## Flow
 
-1. Owner wallet creates a deposit intent in Gateway.
-2. Owner signs and submits the USDC on-chain transaction.
-3. Gateway indexes the deposit event and reconciles it against the intent.
-4. Gateway exposes the indexed balance to owner dashboards and agent budget policy.
-5. Agent credentials spend against that balance through discovery and invocation.
+1. Owner wallet passes the app preflight: wallet USDC, native gas, network, and vault address are visible before any wallet prompt.
+2. Owner signs an exact-amount permit. This signature is gasless and does not move funds by itself.
+3. Owner submits the vault deposit transaction. This is on-chain and requires native gas.
+4. Gateway creates or finds the deposit intent and places funds in pending / syncing balance.
+5. Gateway indexes the deposit event and reconciles it against the intent.
+6. Confirmed funds move from pending / syncing into spendable credits.
+7. Agent credentials spend against spendable credits through discovery and invocation.
 
 <StatLine>
-  deposit intent -> on-chain transfer -> indexed balance -> agent budget -> paid invocation
+  wallet preflight -> permit signature -> vault transaction -> pending balance
+  -> spendable credits -> paid invocation
 </StatLine>
 
-<WarningNote title="Deposit balance does not mean immediate withdrawal">
-  Indexed deposits can become spendable for agent calls before they become matured withdrawable balance. Consumer withdrawals still require the T+1 matured funds window.
+<WarningNote title="Spendable balance is Gateway-confirmed balance">
+  A chain transaction or explorer receipt alone is not the spendable source of
+  truth. Billing rows stay Pending / Syncing until Gateway confirms the deposit
+  intent and moves the amount from pending balance into spendable credits.
 </WarningNote>
+
+<WarningNote title="Deposit balance does not mean immediate withdrawal">
+  Indexed deposits can become spendable for agent calls before they become
+  matured withdrawable balance. Consumer withdrawals still require the T+1
+  matured funds window.
+</WarningNote>
+
+## Balance buckets
+
+- **Spendable credits**: confirmed Gateway balance available to agent credentials.
+- **Pending / syncing credits**: submitted or indexed deposit amount waiting for Gateway confirmation.
+- **Frozen / review credits**: funds reserved by an active withdrawal, failed settlement review, or manual risk process.
+
+Deposit UI and Billing history must keep those buckets separate. `Completed` means Gateway credited spendable balance, not only that the transaction appeared on-chain.
 
 ## Agent boundary
 
 Agents should never receive owner wallet credentials. They receive limited runtime credentials that can spend within policy, not sign chain transactions or withdraw funds.
 
 <AgentNote>
-  If an agent needs more budget, it should ask the owner policy layer for a new credential or limit increase. It should not attempt to deposit, withdraw, or reuse owner authentication.
+  If an agent needs more budget, it should ask the owner policy layer for a new
+  credential or limit increase. It should not attempt to deposit, withdraw, or
+  reuse owner authentication.
 </AgentNote>

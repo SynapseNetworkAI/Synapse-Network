@@ -10,11 +10,41 @@ vi.mock("@/utils/gatewayApi", () => ({
 }));
 
 import {
+  getV2Balance,
   listConsumerWithdrawals,
   requestConsumerWithdraw,
 } from "@/utils/balanceApi";
 
 describe("consumer withdrawal ticket normalization", () => {
+  it("normalizes balance buckets from the Gateway balance response", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () =>
+      new Response(
+        JSON.stringify({
+          balance: {
+            consumerAvailableBalance: "7.500000",
+            consumerPendingBalance: "200.000000",
+            consumerFrozenBalance: "3.000000",
+            providerReceivableBalance: "9.000000",
+            platform: { feeAccrued: "1.250000" },
+          },
+        }),
+        { status: 200 }
+      );
+
+    try {
+      await expect(getV2Balance("0xabc")).resolves.toEqual({
+        ownerBalance: "7.5",
+        consumerPendingBalance: "200",
+        consumerFrozenBalance: "3",
+        providerReceivable: "9",
+        platformFeeAccrued: "1.25",
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it("normalizes ticket ids when creating a withdrawal", async () => {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = async () =>
@@ -36,7 +66,7 @@ describe("consumer withdrawal ticket normalization", () => {
             contractAddress: "0xcontract",
           },
         }),
-        { status: 200 },
+        { status: 200 }
       );
 
     try {
@@ -46,6 +76,22 @@ describe("consumer withdrawal ticket normalization", () => {
 
       expect(result.ticket?.ticketId).toBe("0xabc");
       expect(result.ticket?.ticketHash).toBe("0xdef");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("surfaces withdrawal request errors", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () =>
+      new Response(JSON.stringify({ detail: "no spendable credits" }), {
+        status: 400,
+      });
+
+    try {
+      await expect(
+        requestConsumerWithdraw("0xabc", { amountUsdc: "99" })
+      ).rejects.toThrow("no spendable credits");
     } finally {
       globalThis.fetch = originalFetch;
     }
@@ -74,7 +120,7 @@ describe("consumer withdrawal ticket normalization", () => {
             },
           ],
         }),
-        { status: 200 },
+        { status: 200 }
       );
 
     try {

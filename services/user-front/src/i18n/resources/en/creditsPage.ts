@@ -3,7 +3,14 @@ import type { I18nMessages } from "@/i18n/schema";
 const creditsPage: I18nMessages["creditsPage"] = {
   title: "Credits",
   description: "Manage your free and prepaid credits",
-  remainingBalanceLabel: "Remaining balance:",
+  remainingBalanceLabel: "Spendable credits:",
+  spendableBalanceLabel: "Spendable credits",
+  pendingBalanceLabel: "Pending / syncing credits",
+  frozenBalanceLabel: "Frozen / review credits",
+  pendingBalanceHint:
+    "On-chain confirmed or submitted, waiting for Gateway indexing before agent spend.",
+  frozenBalanceHint:
+    "Funds are locked for an active withdrawal, manual review, or risk control.",
   purchaseCredits: "Purchase credits",
   walletUnavailable: "Wallet unavailable. Please reconnect and try again.",
   signInBeforePurchase: "Please sign in with wallet before purchasing credits.",
@@ -12,6 +19,33 @@ const creditsPage: I18nMessages["creditsPage"] = {
     "Deposit USDC into your Synapse vault to top up prepaid credits for API usage.",
   depositConfirmationNotice:
     "Blockchain confirmation is in progress. Credits usually appear within 1-2 minutes. You can keep this page open or refresh later.",
+  depositAmountLabel: "Amount (USDC)",
+  depositWalletUsdcLabel: "Wallet USDC",
+  depositNativeGasLabel: "Native gas balance",
+  depositNetworkLabel: "Network",
+  depositTransactionSummary: "Transaction summary",
+  depositFromWallet: "From wallet",
+  depositToVault: "To vault contract",
+  depositAmountSummary: "Deposit amount",
+  depositPermitAllowance: "Permit allowance",
+  depositExpectationTitle: "Before you confirm",
+  depositExpectationPermit:
+    "The permit signature is gasless and authorizes only this USDC amount.",
+  depositExpectationGas:
+    "The vault deposit is an on-chain transaction and requires native gas.",
+  depositExpectationSync:
+    "Spendable credits appear after Gateway indexes and confirms the deposit.",
+  depositPermitStepTitle: "Step 1: Permit authorization",
+  depositPermitStepActive:
+    "Wallet prompt: sign a gasless permit for the exact amount.",
+  depositPermitStepDone: "Permit signature completed.",
+  depositVaultStepTitle: "Step 2: Vault deposit transaction",
+  depositVaultStepActive:
+    "Wallet prompt: submit the on-chain vault deposit and pay gas.",
+  depositVaultStepWaiting: "Waiting for permit authorization.",
+  depositCancel: "Cancel",
+  depositProcessing: "Processing...",
+  depositConfirm: "Confirm Deposit",
   currentBillingCycle: "Current Billing Cycle",
   daysRemaining: "Days Remaining",
   manageSpendCapTitle: "Manage Spend Cap",
@@ -55,7 +89,8 @@ const creditsPage: I18nMessages["creditsPage"] = {
   redeemVoucherModalUnavailable:
     "Voucher redemption backend is not wired in this environment yet. This modal currently reserves the UI contract only.",
   redeemVoucherModalRedeeming: "Redeeming Voucher...",
-  redeemVoucherModalSuccess: "Voucher redeemed. {{amount}} was added to your balance.",
+  redeemVoucherModalSuccess:
+    "Voucher redeemed. {{amount}} was added to your balance.",
   supportTitle: "Need help with deposit or billing?",
   supportDescription:
     "If credits do not arrive, a refund is stuck, or billing looks wrong, contact the operator directly before retrying the same payment flow.",

@@ -13,8 +13,11 @@ const billingPage: I18nMessages["billingPage"] = {
   tableDate: "Date",
   tableInvoice: "Invoice",
   statusPending: "处理中",
+  statusPendingSyncing: "同步中",
   statusSucceeded: "已完成",
   statusFailed: "失败",
+  depositStatusHint:
+    "Completed 表示 Gateway 已经入账为可消费余额，不只是链上交易确认。",
   loading: "正在加载 Payments...",
   empty: "当前筛选范围内没有支付记录。",
 };

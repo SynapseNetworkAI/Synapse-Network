@@ -157,6 +157,13 @@ Gateway 同步调用按 service profile 执行 bounded timeout：
 
 如果实现中仍保留历史字段名，应视为兼容层细节，不改变这里的业务语义。
 
+前端展示口径：
+
+1. `consumerAvailableBalance` 显示为 `Spendable credits`，是 agent credential 可以消费的唯一余额口径。
+2. `consumerPendingBalance` 显示为 `Pending / syncing credits`，通常来自已提交或已索引但尚未完成 Gateway confirmation 的 deposit intent。
+3. `consumerFrozenBalance` 显示为 `Frozen / review credits`，通常来自 active withdrawal、manual review 或风险冻结。
+4. Billing 里的 Deposit `Completed` 只能表示 Gateway 已确认并入账到 spendable balance；链上 log 或 explorer receipt 单独存在时仍应显示为 pending/syncing。
+
 ### 3.2 `POST /api/v1/balance/deposit/intent`
 
 用途：登记 Owner 向 Vault 的入金事实。
