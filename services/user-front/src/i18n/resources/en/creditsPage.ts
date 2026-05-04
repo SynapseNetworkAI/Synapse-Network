@@ -8,7 +8,7 @@ const creditsPage: I18nMessages["creditsPage"] = {
   pendingBalanceLabel: "Pending / syncing credits",
   frozenBalanceLabel: "Frozen / review credits",
   pendingBalanceHint:
-    "On-chain confirmed or submitted, waiting for Gateway indexing before agent spend.",
+    "Gateway is indexing the on-chain deposit. If it stays pending, contact support with the txHash.",
   frozenBalanceHint:
     "Funds are locked for an active withdrawal, manual review, or risk control.",
   purchaseCredits: "Purchase credits",

@@ -4,6 +4,7 @@ import { Box, Button, Flex, Grid, Input, Stack, Text } from "@chakra-ui/react";
 import { FormEvent, useDeferredValue, useEffect, useMemo, useState } from "react";
 
 import { AdminShell } from "@/components/admin-shell";
+import { ConfirmActionModal } from "@/components/confirm-action-modal";
 import { ControlPlaneLoadingScreen } from "@/components/control-plane-loading-screen";
 import { DataTable, FieldBlock, MessageBanner, MetricCard, OverlayPanel, SearchInput, SentinelStatusChip, SurfaceCard, TableBody, TableHeaderRow, Td, Th, nativeFieldStyle } from "@/components/console-ui";
 import { buildMenuGateCards, buildMenuMetrics, buildMenuSections, buildMenuVersionCards, filterMenuItems, sortMenuItemsByTopology } from "@/features/menu-config/menu-presenters";
@@ -78,6 +79,8 @@ export default function MenuConfigPage() {
   const [form, setForm] = useState<MenuFormState>(createEmptyMenuForm());
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [pendingDeleteRow, setPendingDeleteRow] = useState<AdminMenuConfigItem | null>(null);
+  const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
   const [bootstrapping, setBootstrapping] = useState(true);
   const deferredSearch = useDeferredValue(search);
 
@@ -208,24 +211,32 @@ export default function MenuConfigPage() {
     }
   }
 
-  async function handleDelete(row: AdminMenuConfigItem) {
-    if (!canManage || !token) {
-      return;
-    }
-    const confirmed = globalThis.confirm(`确认删除菜单项 ${row.label} 吗？`);
-    if (!confirmed) {
+  async function confirmDeleteRow() {
+    const row = pendingDeleteRow;
+    if (!row || !canManage || !token) {
       return;
     }
     setMessage(null);
     setError(null);
     try {
+      setDeletingItemId(row.itemId);
       const response = await deleteAdminMenuItem(token, row.itemId);
       setRows(response.items);
       setMeta(response.meta);
       setMessage(`菜单项 ${row.label} 已从草稿中删除。`);
+      setPendingDeleteRow(null);
     } catch (deleteError) {
       setError(deleteError instanceof Error ? deleteError.message : "删除菜单项失败");
+    } finally {
+      setDeletingItemId(null);
     }
+  }
+
+  function handleDelete(row: AdminMenuConfigItem) {
+    if (!canManage || !token) {
+      return;
+    }
+    setPendingDeleteRow(row);
   }
 
   async function handlePublish() {
@@ -420,6 +431,18 @@ export default function MenuConfigPage() {
           </Stack>
         </form>
       </OverlayPanel>
+
+      <ConfirmActionModal
+        open={pendingDeleteRow !== null}
+        title="删除菜单项"
+        description={pendingDeleteRow ? `确认删除菜单项 ${pendingDeleteRow.label} 吗？` : ""}
+        contextLabel={pendingDeleteRow?.itemId}
+        confirmLabel="确认删除"
+        tone="danger"
+        loading={pendingDeleteRow !== null && deletingItemId === pendingDeleteRow.itemId}
+        onCancel={() => setPendingDeleteRow(null)}
+        onConfirm={confirmDeleteRow}
+      />
 
       {stepUpModal}
     </AdminShell>

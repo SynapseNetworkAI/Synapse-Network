@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  ArrowRightLeft,
   CheckCircle2,
   Clock,
   History,
@@ -197,19 +196,6 @@ function formatLatency(latencyMs?: number): string {
   return `${(value / 1000).toFixed(2)}s`;
 }
 
-function resolveCounterparty(row: UsageLogRecord, currentWallet?: string): string {
-  const current = String(currentWallet || "").trim().toLowerCase();
-  const owner = String(row.ownerAddress || "").trim().toLowerCase();
-  const provider = String(row.providerAddress || "").trim().toLowerCase();
-  if (current && owner === current) {
-    return row.providerAddress || "-";
-  }
-  if (current && provider === current) {
-    return row.ownerAddress || "-";
-  }
-  return row.providerAddress || row.ownerAddress || "-";
-}
-
 function StatusBadge({
   status,
   t,
@@ -333,7 +319,7 @@ export default function DashboardInvocationsContent() {
   if (loading) {
     tableBody = (
       <tr>
-        <td colSpan={10} className="px-6 py-12 text-center text-[#86868b]">
+        <td colSpan={9} className="px-6 py-12 text-center text-[#86868b]">
           <div className="inline-flex items-center gap-2">
             <RefreshCw className="h-4 w-4 animate-spin text-[#22c55e]" />
             {t("invocationsPage.loading")}
@@ -344,7 +330,7 @@ export default function DashboardInvocationsContent() {
   } else if (rows.length === 0) {
     tableBody = (
       <tr>
-        <td colSpan={10} className="px-6 py-12 text-center text-[#86868b]">
+        <td colSpan={9} className="px-6 py-12 text-center text-[#86868b]">
           {t("invocationsPage.empty")}
         </td>
       </tr>
@@ -360,22 +346,13 @@ export default function DashboardInvocationsContent() {
               </span>
             </td>
             <td className="px-6 py-4">
-              <div className="space-y-1">
-                <div className="font-mono text-xs text-white">{row.request_id}</div>
-                <div className="text-[11px] text-[#86868b]">{t("invocationsPage.originLabel")}: {row.origin_request_id || "-"}</div>
-              </div>
+              <div className="font-mono text-xs text-white">{row.request_id}</div>
             </td>
             <td className="px-6 py-4">
               <span className="text-sm font-medium text-white">{row.service_id || t("invocationsPage.unknownService")}</span>
             </td>
             <td className="px-6 py-4">
               <span className="font-mono text-xs text-[#c5c5c7]">{row.agent_id || "-"}</span>
-            </td>
-            <td className="px-6 py-4">
-              <div className="flex items-center gap-2 text-[#c5c5c7]">
-                <ArrowRightLeft className="h-3.5 w-3.5 text-[#86868b]" />
-                <span className="font-mono text-xs">{resolveCounterparty(row, address)}</span>
-              </div>
             </td>
             <td className="px-6 py-4">
               <span className="font-mono text-sm text-[#22c55e]">{formatCost(row.total_charge ?? row.unit_price)}</span>
@@ -481,14 +458,13 @@ export default function DashboardInvocationsContent() {
       </div>
 
       <div className="overflow-x-auto rounded-2xl border border-[#222222] bg-[#0a0a0a]">
-        <table className="min-w-[980px] w-full border-collapse whitespace-nowrap text-left">
+        <table className="min-w-[900px] w-full border-collapse whitespace-nowrap text-left">
           <thead>
             <tr className="border-b border-[#222222] bg-[#050505]">
               <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-[#86868b]">{t("invocationsPage.tableInvocationId")}</th>
               <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-[#86868b]">{t("invocationsPage.tableRequest")}</th>
               <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-[#86868b]">{t("invocationsPage.tableService")}</th>
               <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-[#86868b]">{t("invocationsPage.tableAgent")}</th>
-              <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-[#86868b]">{t("invocationsPage.tableCounterparty")}</th>
               <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-[#86868b]">{t("invocationsPage.tableCostUsdc")}</th>
               <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-[#86868b]">{t("invocationsPage.tableLatency")}</th>
               <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-[#86868b]">{t("invocationsPage.tableStatus")}</th>

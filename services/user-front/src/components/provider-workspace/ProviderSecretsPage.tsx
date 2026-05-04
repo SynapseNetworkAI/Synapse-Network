@@ -7,6 +7,7 @@ import toast from "react-hot-toast";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { useAuth } from "@/components/WalletAuthGuard";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
+import ConfirmActionDialog from "@/components/xui/ConfirmActionDialog";
 import XSelect from "@/components/xui/XSelect";
 
 import { listApiSecrets, createApiSecret, deleteApiSecret, ProviderSecret } from "@/utils/serviceApi";
@@ -127,6 +128,8 @@ export default function SecretsPage() {
   const [newSecretName, setNewSecretName] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [pendingDeleteSecretId, setPendingDeleteSecretId] = useState<string | null>(null);
+  const [deletingSecretId, setDeletingSecretId] = useState<string | null>(null);
   const [qpsLimit, setQpsLimit] = useState<string>("");
   const [expiration, setExpiration] = useState("never");
 
@@ -206,20 +209,39 @@ export default function SecretsPage() {
     }
   };
 
-  const handleDeleteSecret = async (id: string) => {
+  const executeDeleteSecret = async (id: string) => {
     if (!address || !isSessionAuthenticated) {
       toast(t("providerSecretsPage.signInFirst"), { icon: "🔐" });
       return;
     }
-    if (!confirm(t("providerSecretsPage.confirmRevoke"))) return;
     try {
+      setDeletingSecretId(id);
       await deleteApiSecret(id, address as string);
       setSecrets(secrets.filter((secret) => secret.id !== id));
       toast.success(t("providerSecretsPage.deletedSuccess"));
     } catch (error: unknown) {
       console.error("ERROR Loading secrets:", error);
       toast.error(t("providerSecretsPage.deleteFailed"));
+    } finally {
+      setDeletingSecretId(null);
     }
+  };
+
+  const handleDeleteSecret = (id: string) => {
+    if (!address || !isSessionAuthenticated) {
+      toast(t("providerSecretsPage.signInFirst"), { icon: "🔐" });
+      return;
+    }
+    setPendingDeleteSecretId(id);
+  };
+
+  const confirmDeleteSecret = async () => {
+    const id = pendingDeleteSecretId;
+    if (!id) {
+      return;
+    }
+    await executeDeleteSecret(id);
+    setPendingDeleteSecretId(null);
   };
 
   const copyToClipboard = (text: string, id: string) => {
@@ -295,6 +317,7 @@ export default function SecretsPage() {
 
               <button
                 onClick={() => handleDeleteSecret(sec.id)}
+                disabled={deletingSecretId === sec.id}
                 className="rounded border border-transparent p-2 text-gray-500 transition-colors hover:border-red-900/50 hover:bg-red-900/20 hover:text-red-400"
                 title={t("providerSecretsPage.revokeSecret")}
               >
@@ -402,6 +425,18 @@ export default function SecretsPage() {
           </div>
         </div>
       )}
+
+      <ConfirmActionDialog
+        open={pendingDeleteSecretId !== null}
+        title={t("providerSecretsPage.revokeSecret")}
+        description={t("providerSecretsPage.confirmRevoke")}
+        contextLabel={secrets.find((secret) => secret.id === pendingDeleteSecretId)?.name ?? pendingDeleteSecretId ?? undefined}
+        confirmLabel={t("providerSecretsPage.revokeSecret")}
+        tone="danger"
+        loading={pendingDeleteSecretId !== null && deletingSecretId === pendingDeleteSecretId}
+        onCancel={() => setPendingDeleteSecretId(null)}
+        onConfirm={confirmDeleteSecret}
+      />
 
       <div className="mx-auto max-w-7xl space-y-8 p-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
         <div className="flex items-start justify-between border-b border-gray-800 pb-4">

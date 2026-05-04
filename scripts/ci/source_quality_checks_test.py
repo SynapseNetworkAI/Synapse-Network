@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from source_quality_checks import scan_python_text, scan_typescript_text
+from source_quality_checks import scan_python_text, scan_text, scan_typescript_text
 
 
 def test_python_dict_any_return_fails() -> None:
@@ -115,6 +115,30 @@ interface ExampleResponse {
 export async function fetchExample(body: Record<string, unknown>): Promise<ExampleResponse> {
   return { ok: Boolean(body) };
 }
+""",
+    )
+    assert findings == []
+
+
+def test_frontend_native_confirm_fails() -> None:
+    findings = scan_text(
+        Path("services/user-front/src/components/example.tsx"),
+        """
+export function Example() {
+  return <button onClick={() => window.confirm("danger")}>Delete</button>;
+}
+""",
+    )
+    assert len(findings) == 1
+    assert findings[0].code == "SOURCE-NATIVE-BROWSER-DIALOG-FRONTEND"
+    assert findings[0].symbol == "confirm"
+
+
+def test_frontend_native_confirm_in_test_file_passes() -> None:
+    findings = scan_text(
+        Path("services/user-front/src/components/example.test.tsx"),
+        """
+globalThis.confirm = vi.fn();
 """,
     )
     assert findings == []

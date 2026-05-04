@@ -19,6 +19,7 @@ import {
 import { formatPricing } from "@/utils/pricing";
 import { useAuth } from "@/components/WalletAuthGuard";
 import { buildOptimisticServiceRecord, buildServiceStatusUpdatePayload } from "@/utils/serviceStatus";
+import ConfirmActionDialog from "@/components/xui/ConfirmActionDialog";
 
 function normalizedServiceStatus(svc: ServiceRegistryRecord): "active" | "inactive" | "archived" | "deleted" {
   const raw = String(svc.status || "").toLowerCase();
@@ -38,18 +39,14 @@ export default function ServicesPage() {
   const [loading, setLoading] = useState(true);
   const [statusUpdatingServiceId, setStatusUpdatingServiceId] = useState<string | null>(null);
   const [deletingServiceId, setDeletingServiceId] = useState<string | null>(null);
+  const [pendingAction, setPendingAction] = useState<
+    | { type: "status"; service: ServiceRegistryRecord; nextActive: boolean }
+    | { type: "delete"; service: ServiceRegistryRecord }
+    | null
+  >(null);
 
-  const updateServiceStatus = async (svc: ServiceRegistryRecord, nextActive: boolean) => {
+  const executeServiceStatusUpdate = async (svc: ServiceRegistryRecord, nextActive: boolean) => {
     if (!address || statusUpdatingServiceId || deletingServiceId) {
-      return;
-    }
-
-    const confirmed = globalThis.confirm(
-      nextActive
-        ? t("servicesPage.confirmActivate", { serviceId: svc.serviceId })
-        : t("servicesPage.confirmDeactivate", { serviceId: svc.serviceId })
-    );
-    if (!confirmed) {
       return;
     }
 
@@ -77,15 +74,15 @@ export default function ServicesPage() {
     }
   };
 
-  const deleteService = async (svc: ServiceRegistryRecord) => {
-    if (!address || statusUpdatingServiceId || deletingServiceId || svc.isActive) {
+  const updateServiceStatus = (svc: ServiceRegistryRecord, nextActive: boolean) => {
+    if (!address || statusUpdatingServiceId || deletingServiceId) {
       return;
     }
+    setPendingAction({ type: "status", service: svc, nextActive });
+  };
 
-    const confirmed = globalThis.confirm(
-      t("servicesPage.confirmDelete", { serviceId: svc.serviceId })
-    );
-    if (!confirmed) {
+  const executeDeleteService = async (svc: ServiceRegistryRecord) => {
+    if (!address || statusUpdatingServiceId || deletingServiceId || svc.isActive) {
       return;
     }
 
@@ -103,6 +100,26 @@ export default function ServicesPage() {
     } finally {
       setDeletingServiceId(null);
     }
+  };
+
+  const deleteService = (svc: ServiceRegistryRecord) => {
+    if (!address || statusUpdatingServiceId || deletingServiceId || svc.isActive) {
+      return;
+    }
+    setPendingAction({ type: "delete", service: svc });
+  };
+
+  const handleConfirmPendingAction = async () => {
+    const action = pendingAction;
+    if (!action) {
+      return;
+    }
+    if (action.type === "status") {
+      await executeServiceStatusUpdate(action.service, action.nextActive);
+    } else {
+      await executeDeleteService(action.service);
+    }
+    setPendingAction(null);
   };
   
   const loadServices = async () => {
@@ -242,7 +259,7 @@ export default function ServicesPage() {
                 {t("servicesPage.editService")}
               </button>
               <button
-                onClick={() => void updateServiceStatus(svc, !svc.isActive)}
+                onClick={() => updateServiceStatus(svc, !svc.isActive)}
                 disabled={isStatusUpdating || isDeleting}
                 className={`flex-1 px-4 py-2 text-sm font-bold transition border rounded disabled:cursor-not-allowed disabled:opacity-50 ${svc.isActive
                   ? "text-amber-300 border-amber-500/30 hover:bg-amber-500/10"
@@ -252,7 +269,7 @@ export default function ServicesPage() {
                 {statusActionLabel}
               </button>
               <button
-                onClick={() => void deleteService(svc)}
+                onClick={() => deleteService(svc)}
                 disabled={svc.isActive || isDeleting || isStatusUpdating}
                 className="flex-1 px-4 py-2 text-sm font-bold transition border rounded disabled:cursor-not-allowed disabled:opacity-50 text-red-300 border-red-500/30 hover:bg-red-500/10"
               >
@@ -305,6 +322,42 @@ export default function ServicesPage() {
       <div className="rounded-xl border border-gray-800 bg-black/30 p-4 text-xs text-gray-400">
         {t("servicesPage.footerNote")}
       </div>
+
+      <ConfirmActionDialog
+        open={pendingAction !== null}
+        title={
+          pendingAction?.type === "delete"
+            ? t("servicesPage.delete")
+            : pendingAction?.nextActive
+              ? t("servicesPage.actionActivate")
+              : t("servicesPage.actionInactive")
+        }
+        description={
+          pendingAction?.type === "delete"
+            ? t("servicesPage.confirmDelete", { serviceId: pendingAction.service.serviceId })
+            : pendingAction?.nextActive
+              ? t("servicesPage.confirmActivate", { serviceId: pendingAction.service.serviceId })
+              : t("servicesPage.confirmDeactivate", { serviceId: pendingAction?.service.serviceId ?? "" })
+        }
+        contextLabel={pendingAction?.service.serviceId}
+        confirmLabel={
+          pendingAction?.type === "delete"
+            ? t("servicesPage.delete")
+            : pendingAction?.nextActive
+              ? t("servicesPage.actionActivate")
+              : t("servicesPage.actionInactive")
+        }
+        tone={pendingAction?.type === "delete" ? "danger" : "default"}
+        loading={
+          pendingAction?.type === "delete"
+            ? deletingServiceId === pendingAction.service.serviceId
+            : pendingAction?.type === "status"
+              ? statusUpdatingServiceId === pendingAction.service.serviceId
+              : false
+        }
+        onCancel={() => setPendingAction(null)}
+        onConfirm={handleConfirmPendingAction}
+      />
 
     </div>
   );

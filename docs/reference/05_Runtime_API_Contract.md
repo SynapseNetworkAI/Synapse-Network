@@ -163,6 +163,8 @@ Gateway 同步调用按 service profile 执行 bounded timeout：
 2. `consumerPendingBalance` 显示为 `Pending / syncing credits`，通常来自已提交或已索引但尚未完成 Gateway confirmation 的 deposit intent。
 3. `consumerFrozenBalance` 显示为 `Frozen / review credits`，通常来自 active withdrawal、manual review 或风险冻结。
 4. Billing 里的 Deposit `Completed` 只能表示 Gateway 已确认并入账到 spendable balance；链上 log 或 explorer receipt 单独存在时仍应显示为 pending/syncing。
+5. `consumerPendingBalance` 不能靠前端猜测或人工强行入账。长时间 pending 时必须用 `txHash + 当前 SynapseCore/USDC 合约事件 + ledger/audit evidence` 做只读诊断。若 txHash 属于本地旧链或旧合约，只能走 local-only cleanup 标记为脏数据，不能把 pending 余额伪装成 spendable。
+6. Gateway indexer 必须 restart-safe：已确认且匹配当前合约 deposit event 的 intent，在 Gateway/indexer 重启后仍会补处理为 `CONFIRMED`，并且同一 intent/event key 只能把 `consumer_pending -> consumer_available` 移动一次。
 
 ### 3.2 `POST /api/v1/balance/deposit/intent`
 

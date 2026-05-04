@@ -767,14 +767,12 @@ export type I18nMessages = {
     tableRequest: string;
     tableService: string;
     tableAgent: string;
-    tableCounterparty: string;
     tableCostUsdc: string;
     tableLatency: string;
     tableStatus: string;
     tableTimestamp: string;
     loading: string;
     empty: string;
-    originLabel: string;
     unknownService: string;
     showingRange: string;
     prev: string;

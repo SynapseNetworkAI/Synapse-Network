@@ -2,6 +2,7 @@
 
 import { FormEvent, useDeferredValue, useEffect, useState, useTransition } from "react";
 
+import { ConfirmActionModal } from "@/components/confirm-action-modal";
 import { CrudDrawer, CrudEmptyState, CrudField, CrudSection, CrudTable, CrudToolbar, CrudToolbarFilters } from "@/components/crud";
 import type { AdminRoleCatalogItem, AdminUserItem } from "@/services/admin-api";
 
@@ -69,6 +70,7 @@ export function UserManagement({ users, roles, canCreate, canManage, onCreate, o
   const [requireMfa, setRequireMfa] = useState(false);
   const [status, setStatus] = useState("active");
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [pendingDeleteUser, setPendingDeleteUser] = useState<AdminUserItem | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -151,12 +153,9 @@ export function UserManagement({ users, roles, canCreate, canManage, onCreate, o
     });
   }
 
-  async function handleDelete(user: AdminUserItem) {
-    if (!canManage) {
-      return;
-    }
-    const confirmed = globalThis.confirm(`确认禁用管理员 ${user.displayName} 吗？`);
-    if (!confirmed) {
+  async function confirmDeleteUser() {
+    const user = pendingDeleteUser;
+    if (!user || !canManage) {
       return;
     }
     setDeletingId(user.adminId);
@@ -165,11 +164,19 @@ export function UserManagement({ users, roles, canCreate, canManage, onCreate, o
     try {
       await onDelete(user.adminId);
       setMessage(`管理员 ${user.displayName} 已禁用。`);
+      setPendingDeleteUser(null);
     } catch (deleteError) {
       setError(deleteError instanceof Error ? deleteError.message : "禁用后台用户失败");
     } finally {
       setDeletingId(null);
     }
+  }
+
+  function handleDelete(user: AdminUserItem) {
+    if (!canManage) {
+      return;
+    }
+    setPendingDeleteUser(user);
   }
 
   return (
@@ -340,6 +347,17 @@ export function UserManagement({ users, roles, canCreate, canManage, onCreate, o
           <p className="panel__text">当前角色只有读取能力，不能执行创建或编辑动作。</p>
         )}
       </CrudDrawer>
+      <ConfirmActionModal
+        open={pendingDeleteUser !== null}
+        title="禁用管理员"
+        description={pendingDeleteUser ? `确认禁用管理员 ${pendingDeleteUser.displayName} 吗？` : ""}
+        contextLabel={pendingDeleteUser?.email}
+        confirmLabel="确认禁用"
+        tone="danger"
+        loading={pendingDeleteUser !== null && deletingId === pendingDeleteUser.adminId}
+        onCancel={() => setPendingDeleteUser(null)}
+        onConfirm={confirmDeleteUser}
+      />
     </div>
   );
 }
