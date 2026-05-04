@@ -96,10 +96,11 @@ describe("DashboardInvocationsContent", () => {
       )
     );
 
-    await screen.findByText("req-public-1");
+    await screen.findByText("inv-1");
 
     expect(screen.queryByText("来源")).toBeNull();
     expect(screen.queryByText("对手方")).toBeNull();
+    expect(screen.queryByText("req-public-1")).toBeNull();
     expect(screen.queryByText(/agent:agent:/)).toBeNull();
     expect(
       screen.queryByText(/0xprovider000000000000000000000000000000000001/i)

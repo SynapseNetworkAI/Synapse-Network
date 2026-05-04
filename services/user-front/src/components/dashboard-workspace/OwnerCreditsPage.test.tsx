@@ -1,13 +1,14 @@
 // @vitest-environment jsdom
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createElement } from "react";
 
 import OwnerCreditsPage from "@/components/dashboard-workspace/OwnerCreditsPage";
 import { LanguageProvider } from "@/components/i18n/LanguageProvider";
 import { I18N_STORAGE_KEY } from "@/i18n/config";
+import { renderWithLanguage } from "@/test/renderWithLanguage";
 
 const {
   authorizeMock,
@@ -100,6 +101,10 @@ vi.mock("@/utils/balanceApi", async () => {
 });
 
 describe("OwnerCreditsPage", () => {
+  afterEach(() => {
+    cleanup();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     vi.unstubAllEnvs();
@@ -149,7 +154,7 @@ describe("OwnerCreditsPage", () => {
     );
 
     expect(await screen.findByText("Spendable credits")).toBeTruthy();
-    expect(screen.getByText("$20.00")).toBeTruthy();
+    expect(screen.getAllByText("$20.00").length).toBeGreaterThan(0);
     expect(screen.getByText("Pending / syncing credits")).toBeTruthy();
     expect(screen.getByText("$12.50")).toBeTruthy();
     expect(screen.getByText("Frozen / review credits")).toBeTruthy();
@@ -211,5 +216,19 @@ describe("OwnerCreditsPage", () => {
     expect(supportLink.getAttribute("href")).toContain(
       "mailto:support@synapse.test"
     );
+  });
+
+  it("renders the credits surface in Chinese without stale platform copy", async () => {
+    renderWithLanguage(createElement(OwnerCreditsPage), "zh");
+
+    expect(await screen.findByText("可消费 credits")).toBeTruthy();
+    expect(screen.getByText("$20.00")).toBeTruthy();
+    expect(screen.getByText("同步中的 credits")).toBeTruthy();
+    expect(screen.getByText("$12.50")).toBeTruthy();
+    expect(screen.getByText("冻结 / 审核中的 credits")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "购买 credits" })).toBeTruthy();
+    expect(screen.getByText("免费 Credits Voucher")).toBeTruthy();
+    expect(screen.getByText(/平台可能会向开发者发放免费 credits/)).toBeTruthy();
+    expect(screen.queryByText(/X may give out free credits/)).toBeNull();
   });
 });

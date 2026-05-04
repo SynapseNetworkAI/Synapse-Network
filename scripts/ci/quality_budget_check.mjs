@@ -21,7 +21,7 @@ const ARGUMENT_MAX = 8;
 const BASELINED_FILE_EFFECTIVE_LINES = new Map([
   ["scripts/admin_analytics_fullchain_e2e.js", 583],
   ["scripts/admin_analytics_clickhouse_regression.py", 541],
-  ["scripts/ci/quality_budget_check.mjs", 525],
+  ["scripts/ci/quality_budget_check.mjs", 531],
   ["scripts/ci/resolve_pr_ci_scope.mjs", 506],
   ["scripts/ci/validate_docs.js", 662],
   ["scripts/e2e/admin_analytics_10k_fullchain.mjs", 1589],
@@ -100,7 +100,7 @@ const BASELINED_FILE_EFFECTIVE_LINES = new Map([
   ],
   [
     "services/user-front/src/components/dashboard-workspace/DashboardCredentialsPage.tsx",
-    759,
+    798,
   ],
   [
     "services/user-front/src/components/dashboard-workspace/DashboardInvocationsContent.tsx",
@@ -108,7 +108,11 @@ const BASELINED_FILE_EFFECTIVE_LINES = new Map([
   ],
   [
     "services/user-front/src/components/dashboard-workspace/OwnerCreditsPage.tsx",
-    1080,
+    1118,
+  ],
+  [
+    "services/user-front/src/components/dashboard/agents/QuickStartGuide.tsx",
+    567,
   ],
   [
     "services/user-front/src/components/provider-workspace/ProviderServiceDeployPage.tsx",
@@ -124,14 +128,14 @@ const BASELINED_FILE_EFFECTIVE_LINES = new Map([
   ],
   [
     "services/user-front/src/components/provider-workspace/ProviderSettlementsPage.tsx",
-    866,
+    1163,
   ],
   [
     "services/user-front/src/components/provider-workspace/ProviderWithdrawPage.tsx",
-    969,
+    977,
   ],
   ["services/user-front/src/i18n/schema.ts", 1876],
-  ["services/user-front/src/hooks/useVaultDeposit.ts", 570],
+  ["services/user-front/src/hooks/useVaultDeposit.ts", 670],
   ["services/user-front/src/utils/balanceApi.ts", 1017],
   ["services/user-front/src/utils/serviceApi.ts", 701],
   ["services/user-front/src/utils/serviceStatus.ts", 863],
@@ -175,12 +179,14 @@ const BASELINED_FUNCTION_FILES = new Set([
   "services/user-front/src/components/dashboard-workspace/agents/AgentsWorkspaceListPane.tsx",
   "services/user-front/src/components/dashboard/DashboardSidebar.tsx",
   "services/user-front/src/components/dashboard/agents/ActivationRunway.tsx",
+  "services/user-front/src/components/dashboard/agents/QuickStartGuide.tsx",
   "services/user-front/src/components/dashboard/shared/DepositUsdcModal.tsx",
   "services/user-front/src/components/feedback/FeedbackDrawer.tsx",
   "services/user-front/src/hooks/useFundsData.ts",
   "services/user-front/src/hooks/useOwnerData.ts",
   "services/user-front/src/hooks/useVaultDeposit.ts",
   "services/user-front/src/components/provider-workspace/ProviderSecretsPage.tsx",
+  "services/user-front/src/components/provider-workspace/ProviderSettlementsPage.tsx",
   "services/user-front/src/components/provider-workspace/ProviderServicesPage.tsx",
   "services/user-front/src/components/provider-workspace/ProviderSellPage.tsx",
   "services/user-front/src/components/provider-workspace/ProviderWithdrawPage.tsx",

@@ -126,9 +126,7 @@ export default function FeedbackDrawer({ open, onClose, seed }: Props) {
       });
       setFeedbackId(result.feedbackId);
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to submit feedback"
-      );
+      setError(err instanceof Error ? err.message : t("feedback.submitFailed"));
     } finally {
       setSubmitting(false);
     }
@@ -160,7 +158,10 @@ export default function FeedbackDrawer({ open, onClose, seed }: Props) {
               {t("feedback.drawerDescription")}
             </p>
           </XDialogHeaderCopy>
-          <XDialogCloseButton onClick={onClose} aria-label="Close feedback">
+          <XDialogCloseButton
+            onClick={onClose}
+            aria-label={t("feedback.close")}
+          >
             <X className="h-4 w-4" />
           </XDialogCloseButton>
         </XDialogHeader>
@@ -219,11 +220,21 @@ export default function FeedbackDrawer({ open, onClose, seed }: Props) {
                   onChange={(event) => setCategory(event.target.value)}
                   className="mt-2 h-11 w-full rounded-2xl border border-white/10 bg-black/30 px-3 text-sm text-white outline-none transition focus:border-[#7ff7be]/45"
                 >
-                  <option value="product_feedback">Product feedback</option>
-                  <option value="bug_report">Bug report</option>
-                  <option value="docs_issue">Docs issue</option>
-                  <option value="billing_support">Billing support</option>
-                  <option value="provider_services">Provider services</option>
+                  <option value="product_feedback">
+                    {t("feedback.categoryProductFeedback")}
+                  </option>
+                  <option value="bug_report">
+                    {t("feedback.categoryBugReport")}
+                  </option>
+                  <option value="docs_issue">
+                    {t("feedback.categoryDocsIssue")}
+                  </option>
+                  <option value="billing_support">
+                    {t("feedback.categoryBillingSupport")}
+                  </option>
+                  <option value="provider_services">
+                    {t("feedback.categoryProviderServices")}
+                  </option>
                 </select>
               </label>
 
@@ -240,8 +251,10 @@ export default function FeedbackDrawer({ open, onClose, seed }: Props) {
               </label>
 
               <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-xs leading-5 text-white/45">
-                <div>route: {route || "-"}</div>
-                <div>context: redacted before submit</div>
+                <div>
+                  {t("feedback.routeLabel")}: {route || "-"}
+                </div>
+                <div>{t("feedback.contextRedacted")}</div>
               </div>
 
               {error ? (
@@ -252,7 +265,7 @@ export default function FeedbackDrawer({ open, onClose, seed }: Props) {
                     className="mt-3 border-red-500/20 bg-black/20"
                     title={t("feedback.fallbackTitle")}
                     description={t("feedback.fallbackDescription")}
-                    actionLabel="Contact support"
+                    actionLabel={t("feedback.contactSupport")}
                   />
                 </div>
               ) : null}

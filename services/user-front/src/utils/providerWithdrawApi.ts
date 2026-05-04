@@ -21,16 +21,35 @@ export class ProviderWithdrawApiError extends Error {
   }
 }
 
+const PROVIDER_WITHDRAW_ERROR_MESSAGES_BY_CODE: Record<string, string> = {
+  WITHDRAW_VAULT_LIQUIDITY_CHECK_UNAVAILABLE:
+    "Gateway cannot verify on-chain vault liquidity right now. Retry after the chain RPC reconnects.",
+  CHAIN_RPC_UNAVAILABLE:
+    "Gateway cannot reach chain RPC right now. Retry after the RPC reconnects.",
+  PROVIDER_RECEIVABLE_NOT_MATURED:
+    "Provider earnings are not mature yet. Provider receivables must mature for 7 days before withdrawal.",
+  MIN_WITHDRAWAL_AMOUNT_NOT_MET:
+    "Minimum provider withdrawal amount is 10.00 USDC.",
+  INSUFFICIENT_PROVIDER_RECEIVABLE:
+    "Withdrawable provider receivable is insufficient for this withdrawal.",
+  PENDING_WITHDRAWAL_EXISTS:
+    "A provider withdrawal is already pending. Complete or wait for it before creating a new one.",
+};
+
 function buildIdempotencyKey(prefix: string): string {
   const now = Date.now().toString(36);
   const random =
     typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
       ? crypto.randomUUID().replaceAll("-", "")
-      : Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+      : Math.random().toString(36).slice(2) +
+        Math.random().toString(36).slice(2);
   return `${prefix}_${now}_${random}`.slice(0, 120);
 }
 
-async function readErrorMessage(response: Response, fallback: string): Promise<string> {
+async function readErrorMessage(
+  response: Response,
+  fallback: string
+): Promise<string> {
   try {
     const text = await response.text();
     if (!text) return fallback;
@@ -40,8 +59,13 @@ async function readErrorMessage(response: Response, fallback: string): Promise<s
         code?: string;
         message?: string;
       };
-      if (typeof parsed.detail === "string") return normalizeAuthApiError(parsed.detail, response.status);
-      if (parsed.detail && typeof parsed.detail === "object" && parsed.detail.message) {
+      if (typeof parsed.detail === "string")
+        return normalizeAuthApiError(parsed.detail, response.status);
+      if (
+        parsed.detail &&
+        typeof parsed.detail === "object" &&
+        parsed.detail.message
+      ) {
         return resolveProviderWithdrawApiErrorMessage({
           code: parsed.detail.code,
           message: parsed.detail.message,
@@ -77,12 +101,8 @@ export function resolveProviderWithdrawApiErrorMessage({
   status?: number;
   fallback: string;
 }): string {
-  if (code === "WITHDRAW_VAULT_LIQUIDITY_CHECK_UNAVAILABLE") {
-    return "Gateway cannot verify on-chain vault liquidity right now. Retry after the chain RPC reconnects.";
-  }
-
-  if (code === "CHAIN_RPC_UNAVAILABLE") {
-    return "Gateway cannot reach chain RPC right now. Retry after the RPC reconnects.";
+  if (code && PROVIDER_WITHDRAW_ERROR_MESSAGES_BY_CODE[code]) {
+    return PROVIDER_WITHDRAW_ERROR_MESSAGES_BY_CODE[code];
   }
 
   return normalizeAuthApiError(message || fallback, status);
@@ -102,7 +122,10 @@ export type ProviderWithdrawTicket = {
 
 export const WITHDRAW_TICKET_CRITICAL_SECONDS = 120;
 
-export function isWithdrawTicketNearExpiry(ticket: { deadline?: number }, nowSec = Math.floor(Date.now() / 1000)): boolean {
+export function isWithdrawTicketNearExpiry(
+  ticket: { deadline?: number },
+  nowSec = Math.floor(Date.now() / 1000)
+): boolean {
   const deadline = Number(ticket.deadline || 0);
   return deadline > 0 && deadline - nowSec <= WITHDRAW_TICKET_CRITICAL_SECONDS;
 }
@@ -113,17 +136,26 @@ function normalizeHex32(value: unknown): `0x${string}` {
   return normalized as `0x${string}`;
 }
 
-function normalizeProviderWithdrawTicket(rawTicket: Record<string, unknown>): ProviderWithdrawTicket {
+function normalizeProviderWithdrawTicket(
+  rawTicket: Record<string, unknown>
+): ProviderWithdrawTicket {
   return {
     ticketId: normalizeHex32(rawTicket.ticketId),
-    ticketHash: typeof rawTicket.ticketHash === "string" ? normalizeHex32(rawTicket.ticketHash) : undefined,
+    ticketHash:
+      typeof rawTicket.ticketHash === "string"
+        ? normalizeHex32(rawTicket.ticketHash)
+        : undefined,
     amount: normalizeMoneyString(rawTicket.amount),
     fee: normalizeMoneyString(rawTicket.fee),
     nonce: rawTicket.nonce == null ? undefined : Number(rawTicket.nonce || 0),
     deadline: Number(rawTicket.deadline || 0),
-    signature: typeof rawTicket.signature === "string" ? rawTicket.signature : "",
+    signature:
+      typeof rawTicket.signature === "string" ? rawTicket.signature : "",
     chainId: Number(rawTicket.chainId || 0),
-    contractAddress: typeof rawTicket.contractAddress === "string" ? rawTicket.contractAddress : "",
+    contractAddress:
+      typeof rawTicket.contractAddress === "string"
+        ? rawTicket.contractAddress
+        : "",
   };
 }
 
@@ -156,7 +188,7 @@ export type ProviderWithdrawCapability = {
 };
 
 export async function getProviderWithdrawCapability(
-  userAddress: string,
+  userAddress: string
 ): Promise<ProviderWithdrawCapability> {
   const response = await fetch(`${API_BASE}/capability`, {
     method: "GET",
@@ -166,7 +198,10 @@ export async function getProviderWithdrawCapability(
 
   if (!response.ok) {
     throw new Error(
-      await readErrorMessage(response, "Failed to fetch provider withdrawal capability"),
+      await readErrorMessage(
+        response,
+        "Failed to fetch provider withdrawal capability"
+      )
     );
   }
 
@@ -184,7 +219,10 @@ export async function getProviderWithdrawCapability(
   };
 }
 
-export async function createProviderWithdrawIntent(userAddress: string, amountUsdc?: MoneyString): Promise<{
+export async function createProviderWithdrawIntent(
+  userAddress: string,
+  amountUsdc?: MoneyString
+): Promise<{
   withdrawalId: string;
   status: "REQUESTED" | "APPROVED_AUTO" | "PENDING_MANUAL_REVIEW";
   amountUsdc: MoneyString;
@@ -255,7 +293,9 @@ export async function createProviderWithdrawIntent(userAddress: string, amountUs
   };
 }
 
-export async function listProviderWithdrawals(userAddress: string): Promise<ProviderWithdrawRecord[]> {
+export async function listProviderWithdrawals(
+  userAddress: string
+): Promise<ProviderWithdrawRecord[]> {
   const response = await fetch(API_BASE, {
     method: "GET",
     headers: buildAuthedHeaders(userAddress, false),
@@ -263,10 +303,14 @@ export async function listProviderWithdrawals(userAddress: string): Promise<Prov
   });
 
   if (!response.ok) {
-    throw new Error(await readErrorMessage(response, "Failed to fetch provider withdrawals"));
+    throw new Error(
+      await readErrorMessage(response, "Failed to fetch provider withdrawals")
+    );
   }
 
-  const payload = (await response.json()) as { withdrawals?: Array<Record<string, unknown>> };
+  const payload = (await response.json()) as {
+    withdrawals?: Array<Record<string, unknown>>;
+  };
   const rows = Array.isArray(payload.withdrawals) ? payload.withdrawals : [];
   const validStatuses = new Set([
     "REQUESTED",
@@ -282,9 +326,13 @@ export async function listProviderWithdrawals(userAddress: string): Promise<Prov
     id: typeof row.id === "string" ? row.id : "",
     amountUsdc: normalizeMoneyString(row.amountUsdc),
     status: (() => {
-      const normalized = (typeof row.status === "string" ? row.status : "").toUpperCase();
+      const normalized = (
+        typeof row.status === "string" ? row.status : ""
+      ).toUpperCase();
       if (!validStatuses.has(normalized)) return "REQUESTED";
-      return normalized === "PENDING" ? "REQUESTED" : (normalized as ProviderWithdrawRecord["status"]);
+      return normalized === "PENDING"
+        ? "REQUESTED"
+        : (normalized as ProviderWithdrawRecord["status"]);
     })(),
     nonce: Number(row.nonce || 0),
     deadline: Number(row.deadline || 0),
@@ -293,23 +341,39 @@ export async function listProviderWithdrawals(userAddress: string): Promise<Prov
     message: typeof row.message === "string" ? row.message : undefined,
     createdAt: (row.createdAt as string | number | undefined) ?? undefined,
     completedAt: (row.completedAt as string | number | undefined) ?? undefined,
-    ticket: row.ticket && typeof row.ticket === "object" ? normalizeProviderWithdrawTicket(row.ticket as Record<string, unknown>) : undefined,
+    ticket:
+      row.ticket && typeof row.ticket === "object"
+        ? normalizeProviderWithdrawTicket(row.ticket as Record<string, unknown>)
+        : undefined,
   }));
 }
 
-export async function completeProviderWithdrawal(userAddress: string, withdrawalId: string, txHash: string): Promise<void> {
-  const normalizedTx = String(txHash || "").trim().toLowerCase();
+export async function completeProviderWithdrawal(
+  userAddress: string,
+  withdrawalId: string,
+  txHash: string
+): Promise<void> {
+  const normalizedTx = String(txHash || "")
+    .trim()
+    .toLowerCase();
   if (!/^0x[0-9a-f]{64}$/.test(normalizedTx)) {
-    throw new Error("Invalid txHash format. Expected 66-char 0x-prefixed hash.");
+    throw new Error(
+      "Invalid txHash format. Expected 66-char 0x-prefixed hash."
+    );
   }
 
-  const response = await fetch(`${API_BASE}/${encodeURIComponent(withdrawalId)}/complete`, {
-    method: "POST",
-    headers: buildAuthedHeaders(userAddress),
-    body: JSON.stringify({ txHash: normalizedTx }),
-  });
+  const response = await fetch(
+    `${API_BASE}/${encodeURIComponent(withdrawalId)}/complete`,
+    {
+      method: "POST",
+      headers: buildAuthedHeaders(userAddress),
+      body: JSON.stringify({ txHash: normalizedTx }),
+    }
+  );
 
   if (!response.ok) {
-    throw new Error(await readErrorMessage(response, "Failed to complete provider withdrawal"));
+    throw new Error(
+      await readErrorMessage(response, "Failed to complete provider withdrawal")
+    );
   }
 }

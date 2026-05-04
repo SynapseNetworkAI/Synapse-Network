@@ -28,22 +28,23 @@ import {
 import { setCredentialForService } from "@/utils/agentCredentialStore";
 import { clearAuthSession } from "@/utils/authSession";
 import XSelect from "@/components/xui/XSelect";
-import ConfirmActionDialog from "@/components/xui/ConfirmActionDialog";
 
 import { useAuth } from "@/components/WalletAuthGuard";
 import AuthMask from "@/components/AuthMask";
+import { useLanguage } from "@/components/i18n/LanguageProvider";
 
 const WALLET_SESSION_MISSING_MESSAGE =
   "Wallet auth session missing. Please sign in with wallet.";
 
-function getDurationLabel(seconds: string): string {
-  if (seconds === "0") return "Never";
-  if (seconds === "3600") return "1 Hr";
-  if (seconds === "86400") return "1 Day";
-  return "30 Days";
+function getDurationLabel(seconds: string, t: (key: string) => string): string {
+  if (seconds === "0") return t("agentCredentialsPage.never");
+  if (seconds === "3600") return t("agentCredentialsPage.durationOneHour");
+  if (seconds === "86400") return t("agentCredentialsPage.durationOneDay");
+  return t("agentCredentialsPage.durationThirtyDays");
 }
 
 function CredentialsContent() {
+  const { t } = useLanguage();
   const { address: userAddress } = useAccount();
   const { isSessionAuthenticated } = useAuth();
   const [serviceFilter, setServiceFilter] = useState("");
@@ -68,11 +69,10 @@ function CredentialsContent() {
   const [selectedCredentialId, setSelectedCredentialId] = useState("");
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [pendingRevokeCredential, setPendingRevokeCredential] =
-    useState<AgentCredentialRecord | null>(null);
-  const [revokingCredentialId, setRevokingCredentialId] = useState<
-    string | null
-  >(null);
+  const [revokeCandidate, setRevokeCandidate] = useState<{
+    id: string;
+    status: string;
+  } | null>(null);
   const billingRows = useMemo<
     { timestamp?: number; owner?: string; unit_price?: number }[]
   >(() => [], []);
@@ -104,7 +104,7 @@ function CredentialsContent() {
       const message =
         error instanceof Error
           ? error.message
-          : "Failed to load credential data";
+          : t("agentCredentialsPage.loadFailed");
       if (message === WALLET_SESSION_MISSING_MESSAGE) {
         clearAuthSession();
         setServices([]);
@@ -113,7 +113,7 @@ function CredentialsContent() {
       }
       throw error;
     }
-  }, [userAddress, isSessionAuthenticated]);
+  }, [t, userAddress, isSessionAuthenticated]);
 
   useEffect(() => {
     void loadAll();
@@ -177,12 +177,12 @@ function CredentialsContent() {
 
   const handleIssue = async () => {
     if (!userAddress) {
-      toast.error("Not connected");
+      toast.error(t("agentCredentialsPage.notConnected"));
       return;
     }
     try {
       if (effectiveExpiresInSec <= 0) {
-        toast.error("Duration must be > 0 or a valid future date");
+        toast.error(t("agentCredentialsPage.invalidDuration"));
         return;
       }
       const cMax = Number.parseInt(maxCalls, 10) || 0;
@@ -199,47 +199,36 @@ function CredentialsContent() {
 
       setCredentialForService("OWNER_SHARED", res.token);
 
-      toast.success("Credential issued");
+      toast.success(t("agentCredentialsPage.credentialIssued"));
       await loadAll();
     } catch (e) {
       console.error(e);
       toast.error(
-        e instanceof Error ? e.message : "Failed to issue credential"
+        e instanceof Error ? e.message : t("agentCredentialsPage.issueFailed")
       );
     }
   };
 
-  const executeRevoke = async (id: string) => {
+  const handleRevoke = async (id: string, currentStatus: string) => {
     if (!userAddress) return;
+    if (currentStatus === "revoked") {
+      toast.error(t("agentCredentialsPage.alreadyRevoked"));
+      return;
+    }
+    setRevokeCandidate({ id, status: currentStatus });
+  };
 
+  const confirmRevoke = async () => {
+    if (!userAddress || !revokeCandidate) return;
     try {
-      setRevokingCredentialId(id);
-      await revokeAgentCredential(userAddress, id);
-      toast.success("Credential revoked");
+      await revokeAgentCredential(userAddress, revokeCandidate.id);
+      toast.success(t("agentCredentialsPage.credentialRevoked"));
+      setRevokeCandidate(null);
       await loadAll();
     } catch (e) {
       console.error(e);
-      toast.error("Failed to revoke");
-    } finally {
-      setRevokingCredentialId(null);
+      toast.error(t("agentCredentialsPage.revokeFailed"));
     }
-  };
-
-  const handleRevoke = (credential: AgentCredentialRecord) => {
-    if (credential.status === "revoked") {
-      toast.error("Already revoked");
-      return;
-    }
-    setPendingRevokeCredential(credential);
-  };
-
-  const confirmRevokeCredential = async () => {
-    const credential = pendingRevokeCredential;
-    if (!credential) {
-      return;
-    }
-    await executeRevoke(credential.id);
-    setPendingRevokeCredential(null);
   };
 
   const openEditQuotaModal = (cred: AgentCredentialRecord) => {
@@ -286,12 +275,12 @@ function CredentialsContent() {
         expiresAt: pExp,
       });
 
-      toast.success("API Key quota updated");
+      toast.success(t("agentCredentialsPage.quotaUpdated"));
       setIsEditModalOpen(false);
       await loadAll();
     } catch (e) {
       console.error(e);
-      toast.error("Failed to update API Key");
+      toast.error(t("agentCredentialsPage.quotaUpdateFailed"));
     }
   };
 
@@ -306,12 +295,10 @@ function CredentialsContent() {
           <div>
             <h1 className="text-2xl font-black tracking-tight text-white mb-1.5 flex items-center gap-2">
               <KeyRound className="w-6 h-6 text-green-400" />
-              Agent Credentials
+              {t("agentCredentialsPage.title")}
             </h1>
             <p className="text-sm text-gray-400 max-w-2xl">
-              Issue runtime credentials for autonomous agents. Each credential
-              is delivered once as a secret API key and stays inside
-              owner-scoped spending controls.
+              {t("agentCredentialsPage.description")}
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -320,7 +307,7 @@ function CredentialsContent() {
               className="x-button-primary inline-flex items-center rounded-full px-4 py-2.5 text-sm font-bold"
             >
               <Plus className="w-4 h-4 mr-2" />
-              Issue Credential
+              {t("agentCredentialsPage.issueCredential")}
             </button>
           </div>
         </div>
@@ -337,7 +324,7 @@ function CredentialsContent() {
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
-                    Active Credentials
+                    {t("agentCredentialsPage.activeCredentials")}
                   </p>
                   <p className="text-2xl font-mono text-white">
                     {activeCredentialsCount}
@@ -351,7 +338,7 @@ function CredentialsContent() {
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
-                    Today Calls
+                    {t("agentCredentialsPage.todayCalls")}
                   </p>
                   <p className="text-2xl font-mono text-indigo-400">
                     {todayCallCount}
@@ -365,7 +352,7 @@ function CredentialsContent() {
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
-                    Today Spend (USDC)
+                    {t("agentCredentialsPage.todaySpend")}
                   </p>
                   <p className="text-2xl font-mono text-yellow-400">
                     {todaySpend.toFixed(3)}
@@ -380,7 +367,7 @@ function CredentialsContent() {
                 <Search className="absolute w-4 h-4 text-gray-500 -translate-y-1/2 left-3 top-1/2" />
                 <input
                   type="text"
-                  placeholder="Search credential ID..."
+                  placeholder={t("agentCredentialsPage.searchPlaceholder")}
                   className="x-input-flat w-full rounded-lg py-2 pl-9 pr-4 text-sm text-white"
                 />
               </div>
@@ -390,10 +377,15 @@ function CredentialsContent() {
                   value={serviceFilter}
                   onChange={(next) => setServiceFilter(next)}
                   options={[
-                    { value: "", label: "All Services (Universal)" },
+                    {
+                      value: "",
+                      label: t("agentCredentialsPage.allServicesUniversal"),
+                    },
                     ...services.map((srv) => ({
                       value: srv.serviceId,
-                      label: `${srv.name} (Dedicated)`,
+                      label: t("agentCredentialsPage.dedicatedServiceLabel", {
+                        name: srv.name,
+                      }),
                     })),
                   ]}
                   triggerClassName="inline-flex min-h-8 items-center justify-between gap-2 bg-transparent pr-1 text-sm text-gray-300"
@@ -408,17 +400,25 @@ function CredentialsContent() {
                   <thead className="x-divider border-b bg-black/20 text-xs uppercase text-gray-400">
                     <tr>
                       <th className="px-4 py-3 font-semibold">
-                        Credential Prefix
+                        {t("agentCredentialsPage.tableCredentialPrefix")}
                       </th>
-                      <th className="px-4 py-3 font-semibold">Scope</th>
                       <th className="px-4 py-3 font-semibold">
-                        Calls (Used / Max)
+                        {t("agentCredentialsPage.tableScope")}
                       </th>
-                      <th className="px-4 py-3 font-semibold">Rate Limit</th>
-                      <th className="px-4 py-3 font-semibold">Status</th>
-                      <th className="px-4 py-3 font-semibold">Expires</th>
+                      <th className="px-4 py-3 font-semibold">
+                        {t("agentCredentialsPage.tableCalls")}
+                      </th>
+                      <th className="px-4 py-3 font-semibold">
+                        {t("agentCredentialsPage.tableRateLimit")}
+                      </th>
+                      <th className="px-4 py-3 font-semibold">
+                        {t("agentCredentialsPage.tableStatus")}
+                      </th>
+                      <th className="px-4 py-3 font-semibold">
+                        {t("agentCredentialsPage.tableExpires")}
+                      </th>
                       <th className="px-4 py-3 font-semibold text-right">
-                        Actions
+                        {t("agentCredentialsPage.tableActions")}
                       </th>
                     </tr>
                   </thead>
@@ -429,8 +429,7 @@ function CredentialsContent() {
                           colSpan={7}
                           className="px-4 py-8 text-center text-gray-500"
                         >
-                          No credentials found. Click &quot;Issue
-                          Credential&quot; to create one.
+                          {t("agentCredentialsPage.empty")}
                         </td>
                       </tr>
                     ) : (
@@ -444,7 +443,7 @@ function CredentialsContent() {
                           </td>
                           <td className="px-4 py-3">
                             <span className="text-xs text-gray-400">
-                              Universal Key
+                              {t("agentCredentialsPage.universalKey")}
                             </span>
                           </td>
                           <td className="px-4 py-3">
@@ -458,12 +457,14 @@ function CredentialsContent() {
                             {cred.maxCalls > 0 &&
                               cred.callsUsed >= cred.maxCalls && (
                                 <span className="ml-2 text-xs text-red-400">
-                                  (Depleted)
+                                  ({t("agentCredentialsPage.depleted")})
                                 </span>
                               )}
                           </td>
                           <td className="px-4 py-3 text-gray-400 font-mono">
-                            {cred.rpm > 0 ? `${cred.rpm}/min` : "No Limit"}
+                            {cred.rpm > 0
+                              ? `${cred.rpm}/min`
+                              : t("agentCredentialsPage.noLimit")}
                           </td>
                           <td className="px-4 py-3">
                             <span
@@ -490,7 +491,7 @@ function CredentialsContent() {
                                 ).toLocaleString()}
                               </span>
                             ) : (
-                              "Never"
+                              t("agentCredentialsPage.never")
                             )}
                           </td>
                           <td className="px-4 py-3 text-right">
@@ -500,15 +501,16 @@ function CredentialsContent() {
                                 className="text-xs font-medium text-blue-400 hover:text-blue-300 transition hover:underline"
                                 disabled={cred.status === "revoked"}
                               >
-                                Adjust Quota
+                                {t("agentCredentialsPage.adjustQuota")}
                               </button>
                               {cred.status === "active" && (
                                 <button
-                                  onClick={() => handleRevoke(cred)}
-                                  disabled={revokingCredentialId === cred.id}
+                                  onClick={() =>
+                                    handleRevoke(cred.id, cred.status)
+                                  }
                                   className="text-xs font-medium text-red-500/80 hover:text-red-400 transition hover:underline"
                                 >
-                                  Revoke
+                                  {t("agentCredentialsPage.revoke")}
                                 </button>
                               )}
                             </div>
@@ -530,7 +532,8 @@ function CredentialsContent() {
           <div className="x-modal-flat x-modal-surface max-w-lg shadow-2xl">
             <div className="x-modal-header mb-0">
               <h3 className="text-xl flex items-center gap-2 font-bold text-white">
-                <KeyRound className="w-5 h-5 text-green-400" /> Issue Credential
+                <KeyRound className="w-5 h-5 text-green-400" />{" "}
+                {t("agentCredentialsPage.issueCredential")}
               </h3>
               <button
                 onClick={() => {
@@ -552,7 +555,7 @@ function CredentialsContent() {
                         htmlFor="create-max-calls"
                         className="block mb-1.5 text-xs font-bold text-gray-500 uppercase"
                       >
-                        Max Calls
+                        {t("agentCredentialsPage.maxCalls")}
                       </label>
                       <input
                         id="create-max-calls"
@@ -568,7 +571,7 @@ function CredentialsContent() {
                         htmlFor="create-rpm"
                         className="block mb-1.5 text-xs font-bold text-gray-500 uppercase"
                       >
-                        Rate Limit (RPM)
+                        {t("agentCredentialsPage.rateLimitRpm")}
                       </label>
                       <input
                         id="create-rpm"
@@ -585,7 +588,7 @@ function CredentialsContent() {
                       htmlFor="create-duration-preset"
                       className="block mb-1.5 text-xs font-bold text-gray-500 uppercase"
                     >
-                      Duration (Seconds)
+                      {t("agentCredentialsPage.durationSeconds")}
                     </label>
                     <div id="create-duration-preset" className="flex gap-2">
                       {["3600", "86400", "2592000", "0"].map((sec) => (
@@ -601,7 +604,7 @@ function CredentialsContent() {
                               : "x-button-ghost text-gray-400"
                           }`}
                         >
-                          {getDurationLabel(sec)}
+                          {getDurationLabel(sec, t)}
                         </button>
                       ))}
                     </div>
@@ -613,13 +616,13 @@ function CredentialsContent() {
                     onClick={() => setIsCreateModalOpen(false)}
                     className="x-button-ghost x-modal-action x-modal-action-secondary text-sm font-medium"
                   >
-                    Cancel
+                    {t("agentCredentialsPage.cancel")}
                   </button>
                   <button
                     onClick={handleIssue}
                     className="x-button-primary x-modal-action x-modal-action-primary text-sm font-bold"
                   >
-                    Issue Credential
+                    {t("agentCredentialsPage.issueCredential")}
                   </button>
                 </div>
               </div>
@@ -628,10 +631,10 @@ function CredentialsContent() {
                 <div className="p-4 bg-green-500/10 border border-green-500/30 rounded-lg text-center">
                   <Check className="w-8 h-8 text-green-400 mx-auto mb-2" />
                   <h4 className="text-green-400 font-bold mb-1">
-                    Credential Issued
+                    {t("agentCredentialsPage.credentialIssuedTitle")}
                   </h4>
                   <p className="text-xs text-gray-300">
-                    Copy the secret API key now. It will not be shown again.
+                    {t("agentCredentialsPage.credentialIssuedDescription")}
                   </p>
                 </div>
 
@@ -640,7 +643,7 @@ function CredentialsContent() {
                     htmlFor="issued-secret-token"
                     className="block mb-2 text-xs font-bold text-gray-500 uppercase"
                   >
-                    Secret API Key
+                    {t("agentCredentialsPage.secretApiKey")}
                   </label>
                   <div className="flex items-center gap-2">
                     <input
@@ -656,6 +659,7 @@ function CredentialsContent() {
                         setTimeout(() => setCopiedToken(false), 2000);
                       }}
                       className="x-icon-button rounded-lg p-2.5 text-gray-300"
+                      aria-label={t("agentCredentialsPage.copySecretApiKey")}
                     >
                       {copiedToken ? (
                         <Check className="w-4 h-4 text-green-400" />
@@ -673,7 +677,7 @@ function CredentialsContent() {
                   }}
                   className="x-button-ghost w-full rounded-full py-2.5 text-sm font-medium"
                 >
-                  Done
+                  {t("agentCredentialsPage.done")}
                 </button>
               </div>
             )}
@@ -687,7 +691,8 @@ function CredentialsContent() {
           <div className="x-modal-flat x-modal-surface max-w-sm shadow-2xl">
             <div className="x-modal-header mb-0">
               <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                <Clock className="w-5 h-5 text-blue-400" /> Override Quota
+                <Clock className="w-5 h-5 text-blue-400" />{" "}
+                {t("agentCredentialsPage.overrideQuota")}
               </h3>
               <button
                 onClick={() => setIsEditModalOpen(false)}
@@ -703,7 +708,7 @@ function CredentialsContent() {
                   htmlFor="quota-max-calls"
                   className="block mb-1.5 text-xs font-bold text-gray-500 uppercase"
                 >
-                  Max Calls (-1 for infinite)
+                  {t("agentCredentialsPage.maxCallsInfiniteHint")}
                 </label>
                 <input
                   id="quota-max-calls"
@@ -718,7 +723,7 @@ function CredentialsContent() {
                   htmlFor="quota-rpm"
                   className="block mb-1.5 text-xs font-bold text-gray-500 uppercase"
                 >
-                  Rate Limit (RPM)
+                  {t("agentCredentialsPage.rateLimitRpm")}
                 </label>
                 <input
                   id="quota-rpm"
@@ -733,7 +738,7 @@ function CredentialsContent() {
                   htmlFor="quota-daily-budget"
                   className="block mb-1.5 text-xs font-bold text-gray-500 uppercase"
                 >
-                  Daily Budget (USDC)
+                  {t("agentCredentialsPage.dailyBudgetUsdc")}
                 </label>
                 <input
                   id="quota-daily-budget"
@@ -750,7 +755,7 @@ function CredentialsContent() {
                   htmlFor="quota-expiration-local"
                   className="block mb-1.5 text-xs font-bold text-gray-500 uppercase"
                 >
-                  Expiration (Local Time)
+                  {t("agentCredentialsPage.expirationLocalTime")}
                 </label>
                 <input
                   id="quota-expiration-local"
@@ -760,7 +765,7 @@ function CredentialsContent() {
                   className="x-input-flat w-full rounded-lg px-3 py-2 text-sm text-white"
                 />
                 <span className="text-[10px] text-gray-600 mt-1 block">
-                  Leave empty or clear to use raw timestamp.
+                  {t("agentCredentialsPage.expirationLocalTimeHint")}
                 </span>
               </div>
             </div>
@@ -770,41 +775,74 @@ function CredentialsContent() {
                 onClick={() => setIsEditModalOpen(false)}
                 className="x-button-ghost x-modal-action x-modal-action-secondary text-sm font-medium"
               >
-                Cancel
+                {t("agentCredentialsPage.cancel")}
               </button>
               <button
                 onClick={handleUpdateQuota}
                 className="x-button-primary x-modal-action x-modal-action-primary text-sm font-bold"
               >
-                Save
+                {t("agentCredentialsPage.save")}
               </button>
             </div>
           </div>
         </div>
       )}
-      <ConfirmActionDialog
-        open={pendingRevokeCredential !== null}
-        title="Revoke credential"
-        description="This will immediately stop the runtime credential and any API key secret derived from it from authenticating."
-        contextLabel={
-          pendingRevokeCredential?.tokenPrefix || pendingRevokeCredential?.id
-        }
-        confirmLabel="Revoke"
-        tone="danger"
-        loading={
-          pendingRevokeCredential !== null &&
-          revokingCredentialId === pendingRevokeCredential.id
-        }
-        onCancel={() => setPendingRevokeCredential(null)}
-        onConfirm={confirmRevokeCredential}
-      />
+
+      {revokeCandidate && (
+        <div className="x-dialog-shell x-modal-overlay">
+          <div className="x-modal-flat x-modal-surface max-w-sm shadow-2xl">
+            <div className="x-modal-header mb-0">
+              <h3 className="text-lg font-bold text-white">
+                {t("agentCredentialsPage.revokeConfirmTitle")}
+              </h3>
+              <button
+                onClick={() => setRevokeCandidate(null)}
+                className="x-modal-close"
+                type="button"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="x-modal-body">
+              <p className="text-sm leading-6 text-gray-300">
+                {t("agentCredentialsPage.revokeConfirmDescription")}
+              </p>
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                type="button"
+                onClick={() => setRevokeCandidate(null)}
+                className="x-button-ghost x-modal-action x-modal-action-secondary text-sm font-medium"
+              >
+                {t("agentCredentialsPage.cancel")}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  void confirmRevoke();
+                }}
+                className="x-button-danger x-modal-action text-sm font-bold"
+              >
+                {t("agentCredentialsPage.revokeConfirmAction")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 export default function CredentialsPage() {
+  const { t } = useLanguage();
   return (
-    <Suspense fallback={<div className="p-8 text-gray-500">Loading UI...</div>}>
+    <Suspense
+      fallback={
+        <div className="p-8 text-gray-500">
+          {t("agentCredentialsPage.loadingUi")}
+        </div>
+      }
+    >
       <CredentialsContent />
     </Suspense>
   );

@@ -13,6 +13,14 @@ const providerSettlements: I18nMessages["providerSettlements"] = {
     "Gateway cannot verify on-chain vault liquidity right now. Retry after the chain RPC reconnects.",
   chainRpcUnavailable:
     "Gateway cannot reach chain RPC right now. Retry after the RPC reconnects.",
+  providerReceivableNotMatured:
+    "Provider earnings need T+7 maturity before withdrawal. Newly earned receivables are visible in balance, but only matured receivables can be withdrawn.",
+  minWithdrawalAmountNotMet:
+    "Minimum provider withdrawal amount is 10.00 USDC.",
+  insufficientProviderReceivable:
+    "Withdrawable provider receivable is insufficient for this withdrawal.",
+  pendingWithdrawalExists:
+    "A provider withdrawal is already pending. Complete it or wait for review before creating a new one.",
   vaultAddressMissing: "Vault contract address missing",
   walletClientUnavailable:
     "Network client unavailable. Reconnect wallet and retry the withdrawal.",

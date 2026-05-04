@@ -111,3 +111,5 @@ name: "Synapse Frontend Rules"
 **i18n drift**
 
 - Adding new user-facing copy directly as a string literal instead of through the i18n resource file — breaks localization silently.
+- For `services/user-front`, all page copy, button labels, toast/confirm text, placeholders, aria labels, and user-facing errors must be routed through typed i18n resources. Run `npm run ci:user-front-i18n` before pushing frontend copy changes.
+- User-facing copy changes must include or update at least one DOM assertion for the affected page/component in both `en` and `zh`; run `npm run ci:user-front-i18n-dom` for the focused regression set.

@@ -84,6 +84,7 @@ function WithdrawBalanceModal({
   onClose,
   onSuccess,
 }: Readonly<WithdrawModalProps>) {
+  const { t } = useLanguage();
   const [amount, setAmount] = useState(
     String(availableBalance > 0 ? availableBalance.toFixed(2) : "")
   );
@@ -125,14 +126,14 @@ function WithdrawBalanceModal({
         const msg =
           error instanceof Error
             ? error.message
-            : "Failed to release the pending withdrawal.";
+            : t("creditsPage.consumerWithdrawReleaseFailed");
         toast.error(msg);
       } finally {
         setStep("form");
         onClose();
       }
     },
-    [onClose, onSuccess, userAddress, withdrawResult]
+    [onClose, onSuccess, t, userAddress, withdrawResult]
   );
 
   // Step: tx confirmed → call backend /complete
@@ -150,36 +151,41 @@ function WithdrawBalanceModal({
       try {
         await completeV2Refund(userAddress, withdrawResult.withdrawId, txHash);
         toast.success(
-          `Withdrawal of $${formatMoneyString(
-            withdrawResult.netUsdc,
-            2
-          )} USDC completed!`
+          t("creditsPage.consumerWithdrawSubmitted", {
+            amount: formatMoneyString(withdrawResult.netUsdc, 2),
+          })
         );
         setStep("done");
         await onSuccess({ ...withdrawResult, status: "COMPLETED" });
         onClose();
       } catch {
-        toast.error(
-          "On-chain transfer succeeded but backend update failed. The background processor will complete it automatically."
-        );
+        toast.error(t("creditsPage.consumerWithdrawBackendSyncFailed"));
         onClose();
       }
     };
     void complete();
-  }, [isTxConfirmed, txHash, withdrawResult, userAddress, onSuccess, onClose]);
+  }, [
+    isTxConfirmed,
+    txHash,
+    withdrawResult,
+    userAddress,
+    onSuccess,
+    onClose,
+    t,
+  ]);
 
   // Step: tx failed
   useEffect(() => {
     if (!isTxFailed || !withdrawResult || !txHash) return;
     void syncFailedWithdrawal(
       "TX_FAILED",
-      txReceiptError?.message ||
-        "On-chain transaction failed. Your balance was restored.",
+      txReceiptError?.message || t("creditsPage.consumerWithdrawTxFailed"),
       txHash
     );
   }, [
     isTxFailed,
     syncFailedWithdrawal,
+    t,
     txHash,
     txReceiptError,
     withdrawResult,
@@ -189,7 +195,7 @@ function WithdrawBalanceModal({
     const normalizedAmount = normalizeMoneyString(amount, "");
     const num = moneyStringToNumber(normalizedAmount);
     if (!normalizedAmount || !Number.isFinite(num) || num <= 0) {
-      toast.error("Enter a valid amount.");
+      toast.error(t("creditsPage.consumerWithdrawInvalidAmount"));
       return;
     }
     if (
@@ -199,7 +205,9 @@ function WithdrawBalanceModal({
       ) > 0
     ) {
       toast.error(
-        `Amount exceeds available balance ($${availableBalance.toFixed(2)}).`
+        t("creditsPage.consumerWithdrawAmountExceeds", {
+          amount: availableBalance.toFixed(2),
+        })
       );
       return;
     }
@@ -217,34 +225,29 @@ function WithdrawBalanceModal({
 
       if (result.existingWithdrawal) {
         if (!result.ticket || result.status === "PENDING_MANUAL_REVIEW") {
-          toast(
-            "A pending withdrawal already exists. Finish or wait for the current request.",
-            {
-              icon: "⏳",
-              duration: 6000,
-            }
-          );
+          toast(t("creditsPage.consumerWithdrawPendingExists"), {
+            icon: "⏳",
+            duration: 6000,
+          });
           onClose();
           return;
         }
-        toast("Resuming your pending withdrawal in the wallet.", {
+        toast(t("creditsPage.consumerWithdrawResumingPending"), {
           icon: "⏳",
           duration: 6000,
         });
       } else if (result.status === "PENDING_MANUAL_REVIEW") {
         toast.success(
-          `Withdrawal submitted — under review. Reason: ${
-            result.riskReasonCode || "manual review"
-          }`
+          t("creditsPage.consumerWithdrawUnderReview", {
+            reason: result.riskReasonCode || "manual review",
+          })
         );
         onClose();
         return;
       }
 
       if (!result.ticket) {
-        toast.error(
-          "Withdrawal ticket is unavailable. Please retry after the gateway signs a fresh ticket."
-        );
+        toast.error(t("creditsPage.consumerWithdrawTicketUnavailable"));
         onClose();
         return;
       }
@@ -253,9 +256,7 @@ function WithdrawBalanceModal({
       const ticket = result.ticket;
       const contractAddress = (ticket.contractAddress || "") as `0x${string}`;
       if (isWithdrawTicketNearExpiry(ticket)) {
-        toast.error(
-          "Withdrawal credential is about to expire. To avoid failed gas spend, create a new withdrawal request after this one expires."
-        );
+        toast.error(t("creditsPage.consumerWithdrawTicketExpiring"));
         onClose();
         return;
       }
@@ -275,13 +276,13 @@ function WithdrawBalanceModal({
       });
 
       setStep("confirming");
-      toast.success("Transaction submitted — waiting for confirmation…");
+      toast.success(t("creditsPage.consumerWithdrawTxSubmitted"));
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Withdrawal failed.";
       if (msg.includes("User rejected") || msg.includes("denied")) {
         await syncFailedWithdrawal(
           "WALLET_REJECTED",
-          "Transaction rejected by wallet.",
+          t("creditsPage.consumerWithdrawTxRejected"),
           undefined,
           createdResult
         );
@@ -302,11 +303,15 @@ function WithdrawBalanceModal({
   };
 
   const submitting = step !== "form";
-  let buttonLabel = "Withdraw";
-  if (step === "signing") buttonLabel = "Requesting…";
-  else if (step === "onchain") buttonLabel = "Confirm in Wallet…";
-  else if (step === "confirming") buttonLabel = "Confirming on-chain…";
-  else if (step === "completing") buttonLabel = "Completing…";
+  let buttonLabel = t("creditsPage.consumerWithdrawAction");
+  if (step === "signing")
+    buttonLabel = t("creditsPage.consumerWithdrawRequesting");
+  else if (step === "onchain")
+    buttonLabel = t("creditsPage.consumerWithdrawConfirmWallet");
+  else if (step === "confirming")
+    buttonLabel = t("creditsPage.consumerWithdrawConfirmingChain");
+  else if (step === "completing")
+    buttonLabel = t("creditsPage.consumerWithdrawCompleting");
 
   return (
     <div
@@ -318,19 +323,18 @@ function WithdrawBalanceModal({
         onClick={(e) => e.stopPropagation()}
       >
         <h3 className="mb-1 text-base font-semibold text-white">
-          Withdraw Balance
+          {t("creditsPage.consumerWithdrawTitle")}
         </h3>
         <p className="mb-4 text-sm text-[#86868b]">
-          Withdraw unused credits back to your wallet. Available:{" "}
-          <span className="font-mono text-white">
-            ${availableBalance.toFixed(2)} USDC
-          </span>
+          {t("creditsPage.consumerWithdrawDescription", {
+            amount: availableBalance.toFixed(2),
+          })}
         </p>
 
         <div className="space-y-4">
           <div>
             <label className="mb-1 block text-xs font-medium uppercase tracking-wider text-[#86868b]">
-              Amount (USDC)
+              {t("creditsPage.consumerWithdrawAmountLabel")}
             </label>
             <div className="flex gap-2">
               <input
@@ -349,14 +353,14 @@ function WithdrawBalanceModal({
                 disabled={submitting}
                 className="rounded-xl border border-[#2a2a2a] bg-[#1a1a1a] px-3 py-2 text-xs text-[#9ca3af] hover:text-white disabled:opacity-40"
               >
-                Max
+                {t("creditsPage.consumerWithdrawMax")}
               </button>
             </div>
           </div>
 
           <div>
             <label className="mb-1 block text-xs font-medium uppercase tracking-wider text-[#86868b]">
-              Reason (optional)
+              {t("creditsPage.consumerWithdrawReasonLabel")}
             </label>
             <textarea
               rows={2}
@@ -364,28 +368,27 @@ function WithdrawBalanceModal({
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               disabled={submitting}
-              placeholder="Why are you withdrawing?"
+              placeholder={t("creditsPage.consumerWithdrawReasonPlaceholder")}
               className="w-full rounded-xl border border-[#2a2a2a] bg-[#0a0a0a] px-3 py-2 text-sm text-white placeholder:text-[#555] focus:border-[#22c55e]/50 focus:outline-none disabled:opacity-40"
             />
           </div>
 
           <div className="rounded-xl border border-[#2a2a2a] bg-[#0d0d0d] px-3 py-2 text-xs text-[#86868b] space-y-1">
-            <p>⚠ Amounts ≥ $500 require manual review (12–24 h).</p>
-            <p>⚠ Max 3 withdrawals per 24 hours.</p>
-            <p>
-              ⚠ Your wallet will execute the on-chain transfer (you pay gas).
-            </p>
+            <p>{t("creditsPage.consumerWithdrawManualReviewHint")}</p>
+            <p>{t("creditsPage.consumerWithdrawFrequencyHint")}</p>
+            <p>{t("creditsPage.consumerWithdrawGasHint")}</p>
           </div>
 
           {step !== "form" && step !== "done" && (
             <div className="rounded-xl border border-[#22c55e]/30 bg-[#22c55e]/5 px-3 py-2 text-xs text-[#22c55e]">
               {step === "signing" &&
-                "Requesting withdrawal ticket from server…"}
+                t("creditsPage.consumerWithdrawProgressSigning")}
               {step === "onchain" &&
-                "Please confirm the transaction in your wallet."}
+                t("creditsPage.consumerWithdrawProgressOnchain")}
               {step === "confirming" &&
-                "Transaction submitted. Waiting for block confirmation…"}
-              {step === "completing" && "On-chain confirmed. Updating records…"}
+                t("creditsPage.consumerWithdrawProgressConfirming")}
+              {step === "completing" &&
+                t("creditsPage.consumerWithdrawProgressCompleting")}
             </div>
           )}
 
@@ -395,14 +398,16 @@ function WithdrawBalanceModal({
               disabled={submitting}
               className="flex-1 rounded-xl border border-[#2a2a2a] bg-[#0a0a0a] py-2 text-sm text-[#9ca3af] hover:bg-[#151515] disabled:opacity-40"
             >
-              Cancel
+              {t("creditsPage.depositCancel")}
             </button>
             <button
               onClick={handleSubmit}
               disabled={submitting || availableBalance <= 0}
               className="flex-1 rounded-xl bg-[#22c55e] py-2 text-sm font-semibold text-black hover:bg-[#16a34a] disabled:opacity-40"
             >
-              {submitting ? buttonLabel : "Withdraw"}
+              {submitting
+                ? buttonLabel
+                : t("creditsPage.consumerWithdrawAction")}
             </button>
           </div>
         </div>
@@ -637,6 +642,37 @@ export default function OwnerCreditsPage() {
     if (optimisticStorageKey) sessionStorage.removeItem(optimisticStorageKey);
   }, [optimisticStorageKey]);
 
+  const depositHookCopy = useMemo(
+    () => ({
+      transactionFailed: t("creditsPage.depositTransactionFailed"),
+      cancelled: t("creditsPage.depositCancelled"),
+      gasInsufficient: t("creditsPage.depositGasInsufficient"),
+      usdcInsufficient: t("creditsPage.depositUsdcInsufficient"),
+      vaultRejectedWithError: t("creditsPage.depositVaultRejectedWithError"),
+      vaultRejectedWithReason: t("creditsPage.depositVaultRejectedWithReason"),
+      vaultRejectedCustomError: t(
+        "creditsPage.depositVaultRejectedCustomError"
+      ),
+      vaultRejected: t("creditsPage.depositVaultRejected"),
+      nonceOutOfDate: t("creditsPage.depositNonceOutOfDate"),
+      walletReconnect: t("creditsPage.depositWalletReconnect"),
+      walletSingleAccount: t("creditsPage.depositWalletSingleAccount"),
+      walletUnstable: t("creditsPage.depositWalletUnstable"),
+      invalidAmount: t("creditsPage.depositInvalidAmount"),
+      insufficientWalletUsdc: t("creditsPage.depositInsufficientWalletUsdc"),
+      nativeGasRequired: t("creditsPage.depositNativeGasRequired"),
+      gatewayBalanceSynced: t("creditsPage.depositGatewayBalanceSynced"),
+      gatewayStillSyncing: t("creditsPage.depositGatewayStillSyncing"),
+      depositConfirmedSyncing: t("creditsPage.depositConfirmedSyncing"),
+      connectWalletFirst: t("creditsPage.depositConnectWalletFirst"),
+      cancelledToast: t("creditsPage.depositCancelledToast"),
+      insufficientFundsRetry: t("creditsPage.depositInsufficientFundsRetry"),
+      topUpFailedPrefix: t("creditsPage.depositTopUpFailedPrefix"),
+      unknownError: t("creditsPage.depositUnknownError"),
+    }),
+    [t]
+  );
+
   useEffect(() => {
     if (
       optimisticBalanceOverride &&
@@ -676,6 +712,7 @@ export default function OwnerCreditsPage() {
     shortAddress,
   } = useVaultDeposit({
     initialAmount: "20",
+    copy: depositHookCopy,
     onDepositSynced: async () => {
       clearOptimisticOverride();
       await Promise.all([handleRefresh(), fetchSpendingLimit()]);
@@ -1054,9 +1091,11 @@ export default function OwnerCreditsPage() {
           stepDepositTitle: t("creditsPage.depositVaultStepTitle"),
           stepDepositActive: t("creditsPage.depositVaultStepActive"),
           stepDepositWaiting: t("creditsPage.depositVaultStepWaiting"),
+          progressAriaLabel: t("creditsPage.depositProgressAria"),
           cancelLabel: t("creditsPage.depositCancel"),
           processingLabel: t("creditsPage.depositProcessing"),
           confirmLabel: t("creditsPage.depositConfirm"),
+          closeDialogLabel: t("creditsPage.depositCloseDialog"),
         }}
         onClose={closeDepositModal}
         onConfirm={() => {
