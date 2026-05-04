@@ -8,7 +8,8 @@ const invocationsPage: I18nMessages["invocationsPage"] = {
   statusRefunded: "Refunded",
   statusAll: "All status",
   title: "Invocations",
-  description: "Owner-scoped invocation ledger backed by the real gateway billing stream.",
+  description:
+    "Owner-scoped invocation ledger backed by the real gateway billing stream.",
   searchPlaceholder: "Search invocation, request, service, or wallet",
   apply: "Apply",
   reset: "Reset",
@@ -29,7 +30,8 @@ const invocationsPage: I18nMessages["invocationsPage"] = {
   showingRange: "Showing {{start}}-{{end}} of {{total}}",
   prev: "Prev",
   next: "Next",
-  footer: "This page is paginated against the real owner-scoped gateway usage stream, ordered by newest billing events first.",
+  footer:
+    "This page is paginated against the real owner-scoped gateway usage stream, ordered by newest billing events first.",
   relativeSecondsAgo: "{{count}}s ago",
   relativeMinutesAgo: "{{count}}m ago",
   relativeHoursAgo: "{{count}}h ago",

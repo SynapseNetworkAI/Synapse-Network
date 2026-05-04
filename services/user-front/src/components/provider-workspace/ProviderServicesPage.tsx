@@ -5,7 +5,16 @@ import type { MouseEvent } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createPortal } from "react-dom";
-import { Server, Shield, Gauge, Link2, Search, X, Activity, Plus } from "lucide-react";
+import {
+  Server,
+  Shield,
+  Gauge,
+  Link2,
+  Search,
+  X,
+  Activity,
+  Plus,
+} from "lucide-react";
 import { useAccount } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import toast from "react-hot-toast";
@@ -35,13 +44,20 @@ import {
 } from "@/utils/serviceStatus";
 
 type ServiceStatusFilter = "all" | "online" | "offline";
-type TranslateFn = (key: string, vars?: Record<string, string | number>, fallbackText?: string) => string;
+type TranslateFn = (
+  key: string,
+  vars?: Record<string, string | number>,
+  fallbackText?: string
+) => string;
 
 function isServiceRuntimeOnline(svc: ServiceRegistryRecord): boolean {
   if (!svc.isActive) {
     return false;
   }
-  if (typeof (svc as { runtimeAvailable?: unknown }).runtimeAvailable === "boolean") {
+  if (
+    typeof (svc as { runtimeAvailable?: unknown }).runtimeAvailable ===
+    "boolean"
+  ) {
     return Boolean((svc as { runtimeAvailable?: boolean }).runtimeAvailable);
   }
   const health = svc.health;
@@ -49,10 +65,15 @@ function isServiceRuntimeOnline(svc: ServiceRegistryRecord): boolean {
     return true;
   }
   const healthyTargets = Number(health.healthyTargets || 0);
-  return healthyTargets > 0 && String(health.overallStatus || "").toLowerCase() !== "unhealthy";
+  return (
+    healthyTargets > 0 &&
+    String(health.overallStatus || "").toLowerCase() !== "unhealthy"
+  );
 }
 
-function normalizedServiceStatus(svc: ServiceRegistryRecord): "active" | "inactive" | "archived" | "deleted" {
+function normalizedServiceStatus(
+  svc: ServiceRegistryRecord
+): "active" | "inactive" | "archived" | "deleted" {
   const raw = String(svc.status || "").toLowerCase();
   if (raw === "inactive" || raw === "archived" || raw === "deleted") {
     return raw;
@@ -60,7 +81,10 @@ function normalizedServiceStatus(svc: ServiceRegistryRecord): "active" | "inacti
   return svc.isActive ? "active" : "inactive";
 }
 
-function serviceStatusLabel(status: ReturnType<typeof normalizedServiceStatus>, t: TranslateFn): string {
+function serviceStatusLabel(
+  status: ReturnType<typeof normalizedServiceStatus>,
+  t: TranslateFn
+): string {
   if (status === "active") return t("providerServicesPage.statusActive");
   if (status === "inactive") return t("providerServicesPage.statusInactive");
   if (status === "deleted") return t("providerServicesPage.statusDeleted");
@@ -79,40 +103,76 @@ function localizeValidationMessage(message: string, t: TranslateFn): string {
     return t("providerServicesPage.validationFixBeforeSave");
   }
   if (normalized === "Service name is required.") {
-    return withField("providerServicesPage.validationFieldRequired", t("providerServicesPage.fieldServiceName"));
+    return withField(
+      "providerServicesPage.validationFieldRequired",
+      t("providerServicesPage.fieldServiceName")
+    );
   }
   if (normalized === "Unit price must be a non-negative number.") {
-    return withField("providerServicesPage.validationNonNegativeNumber", t("providerServicesPage.fieldUnitPrice"));
+    return withField(
+      "providerServicesPage.validationNonNegativeNumber",
+      t("providerServicesPage.fieldUnitPrice")
+    );
   }
   if (normalized === "Health path is required.") {
-    return withField("providerServicesPage.validationFieldRequired", t("providerServicesPage.fieldHealthPath"));
+    return withField(
+      "providerServicesPage.validationFieldRequired",
+      t("providerServicesPage.fieldHealthPath")
+    );
   }
   if (normalized === "Health path must start with /.") {
-    return withField("providerServicesPage.validationMustStartWithSlash", t("providerServicesPage.fieldHealthPath"));
+    return withField(
+      "providerServicesPage.validationMustStartWithSlash",
+      t("providerServicesPage.fieldHealthPath")
+    );
   }
-  if (normalized === "Invoke URL is required." || normalized === "Invoke URL is required") {
-    return withField("providerServicesPage.validationFieldRequired", t("providerServicesPage.fieldInvokeUrl"));
+  if (
+    normalized === "Invoke URL is required." ||
+    normalized === "Invoke URL is required"
+  ) {
+    return withField(
+      "providerServicesPage.validationFieldRequired",
+      t("providerServicesPage.fieldInvokeUrl")
+    );
   }
   if (normalized === "Invalid invoke targets JSON.") {
-    return withField("providerServicesPage.validationInvalidJson", t("providerServicesPage.fieldInvokeTargets"));
+    return withField(
+      "providerServicesPage.validationInvalidJson",
+      t("providerServicesPage.fieldInvokeTargets")
+    );
   }
   if (normalized === "Targets must be a JSON array") {
-    return withField("providerServicesPage.validationMustBeJsonArray", t("providerServicesPage.fieldInvokeTargets"));
+    return withField(
+      "providerServicesPage.validationMustBeJsonArray",
+      t("providerServicesPage.fieldInvokeTargets")
+    );
   }
-  if (normalized === "At least one invoke target with a valid url is required") {
-    return withField("providerServicesPage.validationOneValidTargetRequired", t("providerServicesPage.fieldInvokeTargets"));
+  if (
+    normalized === "At least one invoke target with a valid url is required"
+  ) {
+    return withField(
+      "providerServicesPage.validationOneValidTargetRequired",
+      t("providerServicesPage.fieldInvokeTargets")
+    );
   }
   if (normalized === "Request schema must be a valid JSON object.") {
-    return withField("providerServicesPage.validationMustBeValidJsonObject", t("providerServicesPage.fieldRequestSchema"));
+    return withField(
+      "providerServicesPage.validationMustBeValidJsonObject",
+      t("providerServicesPage.fieldRequestSchema")
+    );
   }
   if (normalized === "Response schema must be a valid JSON object.") {
-    return withField("providerServicesPage.validationMustBeValidJsonObject", t("providerServicesPage.fieldResponseSchema"));
+    return withField(
+      "providerServicesPage.validationMustBeValidJsonObject",
+      t("providerServicesPage.fieldResponseSchema")
+    );
   }
 
   return normalized;
 }
 
-export default function ProviderServicesPage() { // NOSONAR
+export default function ProviderServicesPage() {
+  // NOSONAR
   const router = useRouter();
   const { address, isConnected } = useAccount();
   const { isSessionAuthenticated, authorize } = useAuth();
@@ -129,8 +189,12 @@ export default function ProviderServicesPage() { // NOSONAR
   const [editing, setEditing] = useState<ServiceRegistryRecord | null>(null);
   const [draft, setDraft] = useState<ServiceEditDraft | null>(null);
   const [saving, setSaving] = useState(false);
-  const [statusUpdatingServiceId, setStatusUpdatingServiceId] = useState<string | null>(null);
-  const [deletingServiceId, setDeletingServiceId] = useState<string | null>(null);
+  const [statusUpdatingServiceId, setStatusUpdatingServiceId] = useState<
+    string | null
+  >(null);
+  const [deletingServiceId, setDeletingServiceId] = useState<string | null>(
+    null
+  );
   const [pendingAction, setPendingAction] = useState<
     | { type: "status"; service: ServiceRegistryRecord; nextActive: boolean }
     | { type: "delete"; service: ServiceRegistryRecord }
@@ -156,7 +220,11 @@ export default function ProviderServicesPage() { // NOSONAR
       } catch (err) {
         if (!cancelled) {
           setServices([]);
-          toast.error(err instanceof Error ? err.message : t("providerServicesPage.loadFailed"));
+          toast.error(
+            err instanceof Error
+              ? err.message
+              : t("providerServicesPage.loadFailed")
+          );
         }
       } finally {
         if (!cancelled) {
@@ -179,7 +247,9 @@ export default function ProviderServicesPage() { // NOSONAR
     const matched = services.find((svc) => svc.serviceId === editServiceId);
     if (matched) {
       setEditing(matched);
-      setDraft(buildEditDraftFromService(matched, DEFAULT_SERVICE_EDIT_DRAFT_CONFIG));
+      setDraft(
+        buildEditDraftFromService(matched, DEFAULT_SERVICE_EDIT_DRAFT_CONFIG)
+      );
     }
   }, [searchParams, services]);
 
@@ -237,7 +307,14 @@ export default function ProviderServicesPage() { // NOSONAR
   };
 
   const handleOpenNewService = async (event: MouseEvent<HTMLAnchorElement>) => {
-    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+    if (
+      event.defaultPrevented ||
+      event.button !== 0 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey
+    ) {
       return;
     }
 
@@ -262,13 +339,15 @@ export default function ProviderServicesPage() { // NOSONAR
     const q = query.trim().toLowerCase();
     return services.filter((svc) => {
       const byServiceId = (svc.serviceId || "").toLowerCase().includes(q);
-      const byName = (svc.name || svc.serviceName || "").toLowerCase().includes(q);
+      const byName = (svc.name || svc.serviceName || "")
+        .toLowerCase()
+        .includes(q);
       const matchesText = !q || byServiceId || byName;
       const runtimeOnline = isServiceRuntimeOnline(svc);
       const matchesStatus =
-        status === "all"
-        || (status === "online" && runtimeOnline)
-        || (status === "offline" && !runtimeOnline);
+        status === "all" ||
+        (status === "online" && runtimeOnline) ||
+        (status === "offline" && !runtimeOnline);
       return matchesText && matchesStatus;
     });
   }, [query, services, status]);
@@ -280,16 +359,24 @@ export default function ProviderServicesPage() { // NOSONAR
     return filtered.slice(start, start + pageSize);
   }, [filtered, safePage]);
 
-  const rawEditValidation = useMemo(() => validateServiceEditDraft(draft, SERVICE_CONSTRAINT_LIMITS), [draft]);
+  const rawEditValidation = useMemo(
+    () => validateServiceEditDraft(draft, SERVICE_CONSTRAINT_LIMITS),
+    [draft]
+  );
   const editValidation = useMemo(() => {
     const localizedErrors = Object.fromEntries(
-      Object.entries(rawEditValidation.errors).map(([field, message]) => [field, localizeValidationMessage(message, t)]),
+      Object.entries(rawEditValidation.errors).map(([field, message]) => [
+        field,
+        localizeValidationMessage(message, t),
+      ])
     );
 
     return {
       ...rawEditValidation,
       errors: localizedErrors,
-      firstError: rawEditValidation.firstError ? localizeValidationMessage(rawEditValidation.firstError, t) : null,
+      firstError: rawEditValidation.firstError
+        ? localizeValidationMessage(rawEditValidation.firstError, t)
+        : null,
     };
   }, [rawEditValidation, t]);
 
@@ -304,31 +391,48 @@ export default function ProviderServicesPage() { // NOSONAR
       toast.error(
         serviceStatus === "active"
           ? t("providerServicesPage.activeEditBlocked")
-          : t("providerServicesPage.inactiveOnlyEditBlocked"),
+          : t("providerServicesPage.inactiveOnlyEditBlocked")
       );
       return;
     }
 
     setEditing(svc);
-    const nextDraft = buildEditDraftFromService(svc, DEFAULT_SERVICE_EDIT_DRAFT_CONFIG);
+    const nextDraft = buildEditDraftFromService(
+      svc,
+      DEFAULT_SERVICE_EDIT_DRAFT_CONFIG
+    );
     if (!nextDraft.invokeUrl.trim()) {
       nextDraft.invokeUrl =
-        svc.endpoint
-        || svc.invoke?.url
-        || (Array.isArray(svc.invoke?.targets) ? (svc.invoke?.targets[0]?.url || "") : "");
+        svc.endpoint ||
+        svc.invoke?.url ||
+        (Array.isArray(svc.invoke?.targets)
+          ? svc.invoke?.targets[0]?.url || ""
+          : "");
     }
     setDraft(nextDraft);
   };
 
-  const buildServicePayload = (service: ServiceRegistryRecord, nextDraft: ServiceEditDraft): ServiceRegistryPayload =>
-    buildServicePayloadFromEditDraft(service, nextDraft, DEFAULT_SERVICE_EDIT_DRAFT_CONFIG);
+  const buildServicePayload = (
+    service: ServiceRegistryRecord,
+    nextDraft: ServiceEditDraft
+  ): ServiceRegistryPayload =>
+    buildServicePayloadFromEditDraft(
+      service,
+      nextDraft,
+      DEFAULT_SERVICE_EDIT_DRAFT_CONFIG
+    );
 
-  const executeServiceStatusUpdate = async (service: ServiceRegistryRecord, nextActive: boolean) => {
+  const executeServiceStatusUpdate = async (
+    service: ServiceRegistryRecord,
+    nextActive: boolean
+  ) => {
     if (!address || saving || statusUpdatingServiceId || deletingServiceId) {
       return;
     }
 
-    const actionLabel = nextActive ? t("providerServicesPage.actionActivate") : t("providerServicesPage.actionInactive");
+    const actionLabel = nextActive
+      ? t("providerServicesPage.actionActivate")
+      : t("providerServicesPage.actionInactive");
 
     try {
       const payload = buildServiceStatusUpdatePayload(service, nextActive);
@@ -336,25 +440,48 @@ export default function ProviderServicesPage() { // NOSONAR
 
       const prevServices = services;
       setStatusUpdatingServiceId(service.serviceId);
-      setServices((prev) => prev.map((svc) => (svc.serviceId === service.serviceId ? optimisticService : svc)));
+      setServices((prev) =>
+        prev.map((svc) =>
+          svc.serviceId === service.serviceId ? optimisticService : svc
+        )
+      );
       upsertServiceRegistryListCache(optimisticService);
 
       try {
         await updateServiceRegistry(payload, address);
-        toast.success(nextActive ? t("providerServicesPage.serviceActivated") : t("providerServicesPage.serviceSetInactive"));
+        toast.success(
+          nextActive
+            ? t("providerServicesPage.serviceActivated")
+            : t("providerServicesPage.serviceSetInactive")
+        );
       } catch (err) {
         setServices(prevServices);
         invalidateServiceRegistryListCache(address);
-        toast.error(err instanceof Error ? err.message : t("providerServicesPage.updateStatusFailed", { action: actionLabel }));
+        toast.error(
+          err instanceof Error
+            ? err.message
+            : t("providerServicesPage.updateStatusFailed", {
+                action: actionLabel,
+              })
+        );
       } finally {
         setStatusUpdatingServiceId(null);
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t("providerServicesPage.updateStatusFailed", { action: actionLabel }));
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : t("providerServicesPage.updateStatusFailed", {
+              action: actionLabel,
+            })
+      );
     }
   };
 
-  const updateServiceStatus = (service: ServiceRegistryRecord, nextActive: boolean) => {
+  const updateServiceStatus = (
+    service: ServiceRegistryRecord,
+    nextActive: boolean
+  ) => {
     if (!address || saving || statusUpdatingServiceId || deletingServiceId) {
       return;
     }
@@ -362,13 +489,21 @@ export default function ProviderServicesPage() { // NOSONAR
   };
 
   const executeDeleteService = async (service: ServiceRegistryRecord) => {
-    if (!address || saving || statusUpdatingServiceId || deletingServiceId || service.isActive) {
+    if (
+      !address ||
+      saving ||
+      statusUpdatingServiceId ||
+      deletingServiceId ||
+      service.isActive
+    ) {
       return;
     }
 
     const prevServices = services;
     setDeletingServiceId(service.serviceId);
-    setServices((prev) => prev.filter((svc) => svc.serviceId !== service.serviceId));
+    setServices((prev) =>
+      prev.filter((svc) => svc.serviceId !== service.serviceId)
+    );
     if (editing?.serviceId === service.serviceId) {
       closeModal();
     }
@@ -379,14 +514,24 @@ export default function ProviderServicesPage() { // NOSONAR
     } catch (err) {
       setServices(prevServices);
       invalidateServiceRegistryListCache(address);
-      toast.error(err instanceof Error ? err.message : t("providerServicesPage.deleteFailed"));
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : t("providerServicesPage.deleteFailed")
+      );
     } finally {
       setDeletingServiceId(null);
     }
   };
 
   const deleteService = (service: ServiceRegistryRecord) => {
-    if (!address || saving || statusUpdatingServiceId || deletingServiceId || service.isActive) {
+    if (
+      !address ||
+      saving ||
+      statusUpdatingServiceId ||
+      deletingServiceId ||
+      service.isActive
+    ) {
       return;
     }
     setPendingAction({ type: "delete", service });
@@ -416,7 +561,10 @@ export default function ProviderServicesPage() { // NOSONAR
     }
 
     if (!editValidation.isValid) {
-      toast.error(editValidation.firstError || t("providerServicesPage.validationFixBeforeSave"));
+      toast.error(
+        editValidation.firstError ||
+          t("providerServicesPage.validationFixBeforeSave")
+      );
       return;
     }
 
@@ -425,7 +573,11 @@ export default function ProviderServicesPage() { // NOSONAR
       const optimisticService = buildOptimisticServiceRecord(editing, payload);
 
       const prevServices = services;
-      setServices((prev) => prev.map((svc) => (svc.serviceId === editing.serviceId ? optimisticService : svc)));
+      setServices((prev) =>
+        prev.map((svc) =>
+          svc.serviceId === editing.serviceId ? optimisticService : svc
+        )
+      );
       upsertServiceRegistryListCache(optimisticService);
 
       setSaving(true);
@@ -436,304 +588,648 @@ export default function ProviderServicesPage() { // NOSONAR
       } catch (err) {
         setServices(prevServices);
         invalidateServiceRegistryListCache(address);
-        toast.error(err instanceof Error ? err.message : t("providerServicesPage.updateFailed"));
+        toast.error(
+          err instanceof Error
+            ? err.message
+            : t("providerServicesPage.updateFailed")
+        );
       } finally {
         setSaving(false);
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t("providerServicesPage.invalidJsonFields"));
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : t("providerServicesPage.invalidJsonFields")
+      );
     }
   };
 
-  const editModal = editing && draft && typeof document !== "undefined"
-    ? createPortal(
-      <div className="x-dialog-shell x-modal-overlay z-[120]">
-          <div className="x-modal-flat x-modal-surface max-w-6xl border border-[#2a2a2a] shadow-2xl">
-            <div className="x-modal-header border-b border-[#1d1d1d]">
-              <div className="x-modal-header-copy">
-                <h2 className="text-xl font-bold text-white">{t("providerServicesPage.modalTitle")}</h2>
-                <p className="mt-1 font-mono text-xs text-[#86868b]">{editing.serviceId}</p>
-                <p className="mt-2 text-xs text-[#86868b]">{t("providerServicesPage.modalDescription")}</p>
+  const editModal =
+    editing && draft && typeof document !== "undefined"
+      ? createPortal(
+          <div className="x-dialog-shell x-modal-overlay z-[120]">
+            <div className="x-modal-flat x-modal-surface max-w-6xl border border-[#2a2a2a] shadow-2xl">
+              <div className="x-modal-header border-b border-[#1d1d1d]">
+                <div className="x-modal-header-copy">
+                  <h2 className="text-xl font-bold text-white">
+                    {t("providerServicesPage.modalTitle")}
+                  </h2>
+                  <p className="mt-1 font-mono text-xs text-[#86868b]">
+                    {editing.serviceId}
+                  </p>
+                  <p className="mt-2 text-xs text-[#86868b]">
+                    {t("providerServicesPage.modalDescription")}
+                  </p>
+                </div>
+                <button onClick={closeModal} className="x-modal-close">
+                  <X className="h-4 w-4" />
+                </button>
               </div>
-              <button
-                onClick={closeModal}
-                className="x-modal-close"
-              >
-                <X className="h-4 w-4" />
-              </button>
+
+              <div className="x-modal-body space-y-6">
+                {!editValidation.isValid && (
+                  <div className="rounded-lg border border-[#7f1d1d] bg-[#2a0f12] px-4 py-3 text-sm text-[#fca5a5]">
+                    {t("providerServicesPage.validationBanner")}
+                  </div>
+                )}
+
+                <section className="rounded-xl border border-[#1d1d1d] bg-[#050505] p-4">
+                  <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-[#9ba0a5]">
+                    {t("providerServicesPage.sectionBasicProfile")}
+                  </h3>
+                  <div className="mt-4 grid gap-4 md:grid-cols-2">
+                    <label className="space-y-2 text-sm">
+                      <span className="text-[#c6c6c9]">
+                        {t("providerServicesPage.fieldServiceName")}
+                      </span>
+                      <input
+                        value={draft.serviceName}
+                        onChange={(event) =>
+                          setDraft((prev) =>
+                            prev
+                              ? { ...prev, serviceName: event.target.value }
+                              : prev
+                          )
+                        }
+                        className={`w-full rounded-lg border bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70 ${
+                          editValidation.errors.serviceName
+                            ? "border-[#ef4444]"
+                            : "border-[#2a2a2a]"
+                        }`}
+                      />
+                      {editValidation.errors.serviceName && (
+                        <p className="text-xs text-[#f87171]">
+                          {editValidation.errors.serviceName}
+                        </p>
+                      )}
+                    </label>
+
+                    <label className="space-y-2 text-sm">
+                      <span className="text-[#c6c6c9]">
+                        {t("providerServicesPage.fieldUnitPrice")}
+                      </span>
+                      <input
+                        value={draft.pricingAmount}
+                        onChange={(event) =>
+                          setDraft((prev) =>
+                            prev
+                              ? { ...prev, pricingAmount: event.target.value }
+                              : prev
+                          )
+                        }
+                        className={`w-full rounded-lg border bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70 ${
+                          editValidation.errors.pricingAmount
+                            ? "border-[#ef4444]"
+                            : "border-[#2a2a2a]"
+                        }`}
+                      />
+                      {editValidation.errors.pricingAmount && (
+                        <p className="text-xs text-[#f87171]">
+                          {editValidation.errors.pricingAmount}
+                        </p>
+                      )}
+                    </label>
+
+                    <label className="space-y-2 text-sm md:col-span-2">
+                      <span className="text-[#c6c6c9]">
+                        {t("providerServicesPage.fieldSummary")}
+                      </span>
+                      <textarea
+                        rows={2}
+                        value={draft.summary}
+                        onChange={(event) =>
+                          setDraft((prev) =>
+                            prev
+                              ? { ...prev, summary: event.target.value }
+                              : prev
+                          )
+                        }
+                        className="w-full rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70"
+                      />
+                    </label>
+
+                    <label className="space-y-2 text-sm md:col-span-2">
+                      <span className="text-[#c6c6c9]">
+                        {t("providerServicesPage.fieldTags")}
+                      </span>
+                      <input
+                        value={draft.tagsText}
+                        onChange={(event) =>
+                          setDraft((prev) =>
+                            prev
+                              ? { ...prev, tagsText: event.target.value }
+                              : prev
+                          )
+                        }
+                        className="w-full rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70"
+                      />
+                    </label>
+
+                    <label className="flex items-center gap-3 rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-sm text-[#c6c6c9]">
+                      <input
+                        type="checkbox"
+                        checked={draft.isActive}
+                        onChange={(event) =>
+                          setDraft((prev) =>
+                            prev
+                              ? { ...prev, isActive: event.target.checked }
+                              : prev
+                          )
+                        }
+                        className="h-4 w-4 rounded border-[#333333] bg-[#111111] text-[#22c55e]"
+                      />
+                      <span>
+                        {t("providerServicesPage.fieldServiceActive")}
+                      </span>
+                    </label>
+                  </div>
+                </section>
+
+                <section className="rounded-xl border border-[#1d1d1d] bg-[#050505] p-4">
+                  <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-[#9ba0a5]">
+                    {t("providerServicesPage.sectionHealthConstraints")}
+                  </h3>
+                  <div className="mt-4 grid gap-4 md:grid-cols-3">
+                    <label className="space-y-2 text-sm md:col-span-2">
+                      <span className="text-[#c6c6c9]">
+                        {t("providerServicesPage.fieldHealthPath")}
+                      </span>
+                      <input
+                        value={draft.healthPath}
+                        onChange={(event) =>
+                          setDraft((prev) =>
+                            prev
+                              ? { ...prev, healthPath: event.target.value }
+                              : prev
+                          )
+                        }
+                        className={`w-full rounded-lg border bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70 ${
+                          editValidation.errors.healthPath
+                            ? "border-[#ef4444]"
+                            : "border-[#2a2a2a]"
+                        }`}
+                      />
+                      {editValidation.errors.healthPath && (
+                        <p className="text-xs text-[#f87171]">
+                          {editValidation.errors.healthPath}
+                        </p>
+                      )}
+                    </label>
+
+                    <label className="space-y-2 text-sm">
+                      <span className="text-[#c6c6c9]">
+                        {t("providerServicesPage.fieldHealthMethod")}
+                      </span>
+                      <XSelect
+                        value={draft.healthMethod}
+                        onChange={(next) =>
+                          setDraft((prev) =>
+                            prev
+                              ? {
+                                  ...prev,
+                                  healthMethod: next as "GET" | "HEAD" | "POST",
+                                }
+                              : prev
+                          )
+                        }
+                        options={[
+                          { value: "GET", label: "GET" },
+                          { value: "HEAD", label: "HEAD" },
+                          { value: "POST", label: "POST" },
+                        ]}
+                        triggerClassName="inline-flex min-h-10 w-full items-center justify-between gap-3 rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-white focus:border-[#22c55e]/70"
+                      />
+                    </label>
+
+                    <label className="space-y-2 text-sm">
+                      <span className="text-[#c6c6c9]">
+                        {t("providerServicesPage.fieldHealthIntervalSec")}
+                      </span>
+                      <input
+                        value={draft.healthIntervalSec}
+                        onChange={(event) =>
+                          setDraft((prev) =>
+                            prev
+                              ? {
+                                  ...prev,
+                                  healthIntervalSec: event.target.value,
+                                }
+                              : prev
+                          )
+                        }
+                        className="w-full rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70"
+                      />
+                    </label>
+
+                    <label className="space-y-2 text-sm">
+                      <span className="text-[#c6c6c9]">
+                        {t("providerServicesPage.fieldHealthTimeoutMs")}
+                      </span>
+                      <input
+                        value={draft.healthTimeoutMs}
+                        onChange={(event) =>
+                          setDraft((prev) =>
+                            prev
+                              ? { ...prev, healthTimeoutMs: event.target.value }
+                              : prev
+                          )
+                        }
+                        className="w-full rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70"
+                      />
+                    </label>
+
+                    <label className="space-y-2 text-sm md:col-span-2">
+                      <span className="text-[#c6c6c9]">
+                        {t("providerServicesPage.fieldHealthSuccessCodes")}
+                      </span>
+                      <input
+                        value={draft.healthSuccessCodesText}
+                        onChange={(event) =>
+                          setDraft((prev) =>
+                            prev
+                              ? {
+                                  ...prev,
+                                  healthSuccessCodesText: event.target.value,
+                                }
+                              : prev
+                          )
+                        }
+                        className="w-full rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70"
+                      />
+                    </label>
+
+                    <label className="space-y-2 text-sm">
+                      <span className="text-[#c6c6c9]">
+                        {t("providerServicesPage.fieldHealthyThreshold")}
+                      </span>
+                      <input
+                        value={draft.healthyThreshold}
+                        onChange={(event) =>
+                          setDraft((prev) =>
+                            prev
+                              ? {
+                                  ...prev,
+                                  healthyThreshold: event.target.value,
+                                }
+                              : prev
+                          )
+                        }
+                        className="w-full rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70"
+                      />
+                    </label>
+
+                    <label className="space-y-2 text-sm">
+                      <span className="text-[#c6c6c9]">
+                        {t("providerServicesPage.fieldUnhealthyThreshold")}
+                      </span>
+                      <input
+                        value={draft.unhealthyThreshold}
+                        onChange={(event) =>
+                          setDraft((prev) =>
+                            prev
+                              ? {
+                                  ...prev,
+                                  unhealthyThreshold: event.target.value,
+                                }
+                              : prev
+                          )
+                        }
+                        className="w-full rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70"
+                      />
+                    </label>
+
+                    <label className="space-y-2 text-sm">
+                      <span className="text-[#c6c6c9]">
+                        {t("providerServicesPage.fieldConstraintTimeoutMs")}
+                      </span>
+                      <input
+                        value={draft.constraintsTimeoutMs}
+                        onChange={(event) =>
+                          setDraft((prev) =>
+                            prev
+                              ? {
+                                  ...prev,
+                                  constraintsTimeoutMs: event.target.value,
+                                }
+                              : prev
+                          )
+                        }
+                        className={`w-full rounded-lg border bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70 ${
+                          editValidation.errors.constraintsTimeoutMs
+                            ? "border-[#ef4444]"
+                            : "border-[#2a2a2a]"
+                        }`}
+                      />
+                      <p className="text-[11px] text-[#86868b]">
+                        {t("providerServicesPage.platformHardLimit", {
+                          min: SERVICE_CONSTRAINT_LIMITS.timeoutMs.min,
+                          max: SERVICE_CONSTRAINT_LIMITS.timeoutMs.max,
+                        })}
+                      </p>
+                      {editValidation.errors.constraintsTimeoutMs && (
+                        <p className="text-xs text-[#f87171]">
+                          {editValidation.errors.constraintsTimeoutMs}
+                        </p>
+                      )}
+                    </label>
+
+                    <label className="space-y-2 text-sm">
+                      <span className="text-[#c6c6c9]">
+                        {t("providerServicesPage.fieldMaxRequestBytes")}
+                      </span>
+                      <input
+                        value={draft.constraintsMaxRequestBytes}
+                        onChange={(event) =>
+                          setDraft((prev) =>
+                            prev
+                              ? {
+                                  ...prev,
+                                  constraintsMaxRequestBytes:
+                                    event.target.value,
+                                }
+                              : prev
+                          )
+                        }
+                        className={`w-full rounded-lg border bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70 ${
+                          editValidation.errors.constraintsMaxRequestBytes
+                            ? "border-[#ef4444]"
+                            : "border-[#2a2a2a]"
+                        }`}
+                      />
+                      <p className="text-[11px] text-[#86868b]">
+                        {t("providerServicesPage.platformHardLimit", {
+                          min: SERVICE_CONSTRAINT_LIMITS.maxRequestBytes.min,
+                          max: SERVICE_CONSTRAINT_LIMITS.maxRequestBytes.max,
+                        })}
+                      </p>
+                      {editValidation.errors.constraintsMaxRequestBytes && (
+                        <p className="text-xs text-[#f87171]">
+                          {editValidation.errors.constraintsMaxRequestBytes}
+                        </p>
+                      )}
+                    </label>
+
+                    <label className="space-y-2 text-sm">
+                      <span className="text-[#c6c6c9]">
+                        {t("providerServicesPage.fieldMaxResponseBytes")}
+                      </span>
+                      <input
+                        value={draft.constraintsMaxResponseBytes}
+                        onChange={(event) =>
+                          setDraft((prev) =>
+                            prev
+                              ? {
+                                  ...prev,
+                                  constraintsMaxResponseBytes:
+                                    event.target.value,
+                                }
+                              : prev
+                          )
+                        }
+                        className={`w-full rounded-lg border bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70 ${
+                          editValidation.errors.constraintsMaxResponseBytes
+                            ? "border-[#ef4444]"
+                            : "border-[#2a2a2a]"
+                        }`}
+                      />
+                      <p className="text-[11px] text-[#86868b]">
+                        {t("providerServicesPage.platformHardLimit", {
+                          min: SERVICE_CONSTRAINT_LIMITS.maxResponseBytes.min,
+                          max: SERVICE_CONSTRAINT_LIMITS.maxResponseBytes.max,
+                        })}
+                      </p>
+                      {editValidation.errors.constraintsMaxResponseBytes && (
+                        <p className="text-xs text-[#f87171]">
+                          {editValidation.errors.constraintsMaxResponseBytes}
+                        </p>
+                      )}
+                    </label>
+
+                    <label className="space-y-2 text-sm">
+                      <span className="text-[#c6c6c9]">
+                        {t("providerServicesPage.fieldMaxQps")}
+                      </span>
+                      <input
+                        value={draft.constraintsMaxQps}
+                        onChange={(event) =>
+                          setDraft((prev) =>
+                            prev
+                              ? {
+                                  ...prev,
+                                  constraintsMaxQps: event.target.value,
+                                }
+                              : prev
+                          )
+                        }
+                        className={`w-full rounded-lg border bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70 ${
+                          editValidation.errors.constraintsMaxQps
+                            ? "border-[#ef4444]"
+                            : "border-[#2a2a2a]"
+                        }`}
+                      />
+                      <p className="text-[11px] text-[#86868b]">
+                        {t("providerServicesPage.platformHardLimit", {
+                          min: SERVICE_CONSTRAINT_LIMITS.maxQps.min,
+                          max: SERVICE_CONSTRAINT_LIMITS.maxQps.max,
+                        })}
+                      </p>
+                      {editValidation.errors.constraintsMaxQps && (
+                        <p className="text-xs text-[#f87171]">
+                          {editValidation.errors.constraintsMaxQps}
+                        </p>
+                      )}
+                    </label>
+                  </div>
+                </section>
+
+                <section className="rounded-xl border border-[#1d1d1d] bg-[#050505] p-4">
+                  <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-[#9ba0a5]">
+                    {t("providerServicesPage.sectionServiceDefinition")}
+                  </h3>
+                  <div className="mt-4 grid gap-4 md:grid-cols-3">
+                    <label className="space-y-2 text-sm">
+                      <span className="text-[#c6c6c9]">
+                        {t("providerServicesPage.fieldInvokeMethod")}
+                      </span>
+                      <input
+                        value={draft.invokeMethod}
+                        onChange={(event) =>
+                          setDraft((prev) =>
+                            prev
+                              ? { ...prev, invokeMethod: event.target.value }
+                              : prev
+                          )
+                        }
+                        className="w-full rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70"
+                      />
+                    </label>
+
+                    <label className="space-y-2 text-sm md:col-span-2">
+                      <span className="text-[#c6c6c9]">
+                        {t("providerServicesPage.fieldInvokeUrl")}
+                      </span>
+                      <input
+                        value={
+                          draft.invokeUrl ||
+                          editing.endpoint ||
+                          editing.invoke?.url ||
+                          (Array.isArray(editing.invoke?.targets)
+                            ? editing.invoke?.targets[0]?.url || ""
+                            : "")
+                        }
+                        onChange={(event) =>
+                          setDraft((prev) =>
+                            prev
+                              ? { ...prev, invokeUrl: event.target.value }
+                              : prev
+                          )
+                        }
+                        className={`w-full rounded-lg border bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70 ${
+                          editValidation.errors.invokeUrl
+                            ? "border-[#ef4444]"
+                            : "border-[#2a2a2a]"
+                        }`}
+                      />
+                      {editValidation.errors.invokeUrl && (
+                        <p className="text-xs text-[#f87171]">
+                          {editValidation.errors.invokeUrl}
+                        </p>
+                      )}
+                    </label>
+
+                    <label className="space-y-2 text-sm">
+                      <span className="text-[#c6c6c9]">
+                        {t("providerServicesPage.fieldInvokeTimeoutMs")}
+                      </span>
+                      <input
+                        value={draft.invokeTimeoutMs}
+                        onChange={(event) =>
+                          setDraft((prev) =>
+                            prev
+                              ? { ...prev, invokeTimeoutMs: event.target.value }
+                              : prev
+                          )
+                        }
+                        className="w-full rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70"
+                      />
+                    </label>
+
+                    <label className="space-y-2 text-sm md:col-span-3">
+                      <span className="text-[#c6c6c9]">
+                        {t("providerServicesPage.fieldInvokeTargets")}
+                      </span>
+                      <textarea
+                        rows={6}
+                        value={draft.invokeTargetsJson}
+                        onChange={(event) =>
+                          setDraft((prev) =>
+                            prev
+                              ? {
+                                  ...prev,
+                                  invokeTargetsJson: event.target.value,
+                                }
+                              : prev
+                          )
+                        }
+                        className={`w-full rounded-lg border bg-[#050505] px-3 py-2 font-mono text-xs text-white outline-none focus:border-[#22c55e]/70 ${
+                          editValidation.errors.invokeTargetsJson
+                            ? "border-[#ef4444]"
+                            : "border-[#2a2a2a]"
+                        }`}
+                      />
+                      {editValidation.errors.invokeTargetsJson && (
+                        <p className="text-xs text-[#f87171]">
+                          {editValidation.errors.invokeTargetsJson}
+                        </p>
+                      )}
+                    </label>
+
+                    <label className="space-y-2 text-sm md:col-span-3">
+                      <span className="text-[#c6c6c9]">
+                        {t("providerServicesPage.fieldRequestSchema")}
+                      </span>
+                      <textarea
+                        rows={6}
+                        value={draft.requestSchemaJson}
+                        onChange={(event) =>
+                          setDraft((prev) =>
+                            prev
+                              ? {
+                                  ...prev,
+                                  requestSchemaJson: event.target.value,
+                                }
+                              : prev
+                          )
+                        }
+                        className={`w-full rounded-lg border bg-[#050505] px-3 py-2 font-mono text-xs text-white outline-none focus:border-[#22c55e]/70 ${
+                          editValidation.errors.requestSchemaJson
+                            ? "border-[#ef4444]"
+                            : "border-[#2a2a2a]"
+                        }`}
+                      />
+                      {editValidation.errors.requestSchemaJson && (
+                        <p className="text-xs text-[#f87171]">
+                          {editValidation.errors.requestSchemaJson}
+                        </p>
+                      )}
+                    </label>
+
+                    <label className="space-y-2 text-sm md:col-span-3">
+                      <span className="text-[#c6c6c9]">
+                        {t("providerServicesPage.fieldResponseSchema")}
+                      </span>
+                      <textarea
+                        rows={6}
+                        value={draft.responseSchemaJson}
+                        onChange={(event) =>
+                          setDraft((prev) =>
+                            prev
+                              ? {
+                                  ...prev,
+                                  responseSchemaJson: event.target.value,
+                                }
+                              : prev
+                          )
+                        }
+                        className={`w-full rounded-lg border bg-[#050505] px-3 py-2 font-mono text-xs text-white outline-none focus:border-[#22c55e]/70 ${
+                          editValidation.errors.responseSchemaJson
+                            ? "border-[#ef4444]"
+                            : "border-[#2a2a2a]"
+                        }`}
+                      />
+                      {editValidation.errors.responseSchemaJson && (
+                        <p className="text-xs text-[#f87171]">
+                          {editValidation.errors.responseSchemaJson}
+                        </p>
+                      )}
+                    </label>
+                  </div>
+                </section>
+              </div>
+
+              <div className="x-modal-footer">
+                <button
+                  onClick={closeModal}
+                  className="rounded-lg border border-[#333333] px-4 py-2 text-sm text-[#c6c6c9] hover:border-white hover:text-white"
+                >
+                  {t("providerServicesPage.cancel")}
+                </button>
+                <button
+                  onClick={() => void persistEdit()}
+                  disabled={saving || !editValidation.isValid}
+                  className="rounded-lg border border-[#22c55e]/40 bg-[#22c55e]/15 px-4 py-2 text-sm font-semibold text-[#22c55e] hover:bg-[#22c55e] hover:text-black disabled:opacity-50"
+                >
+                  {saving
+                    ? t("providerServicesPage.saving")
+                    : t("providerServicesPage.saveChanges")}
+                </button>
+              </div>
             </div>
-
-            <div className="x-modal-body space-y-6">
-              {!editValidation.isValid && (
-                <div className="rounded-lg border border-[#7f1d1d] bg-[#2a0f12] px-4 py-3 text-sm text-[#fca5a5]">
-                  {t("providerServicesPage.validationBanner")}
-                </div>
-              )}
-
-              <section className="rounded-xl border border-[#1d1d1d] bg-[#050505] p-4">
-                <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-[#9ba0a5]">{t("providerServicesPage.sectionBasicProfile")}</h3>
-                <div className="mt-4 grid gap-4 md:grid-cols-2">
-                  <label className="space-y-2 text-sm">
-                    <span className="text-[#c6c6c9]">{t("providerServicesPage.fieldServiceName")}</span>
-                    <input
-                      value={draft.serviceName}
-                      onChange={(event) => setDraft((prev) => (prev ? { ...prev, serviceName: event.target.value } : prev))}
-                      className={`w-full rounded-lg border bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70 ${editValidation.errors.serviceName ? "border-[#ef4444]" : "border-[#2a2a2a]"}`}
-                    />
-                    {editValidation.errors.serviceName && <p className="text-xs text-[#f87171]">{editValidation.errors.serviceName}</p>}
-                  </label>
-
-                  <label className="space-y-2 text-sm">
-                    <span className="text-[#c6c6c9]">{t("providerServicesPage.fieldUnitPrice")}</span>
-                    <input
-                      value={draft.pricingAmount}
-                      onChange={(event) => setDraft((prev) => (prev ? { ...prev, pricingAmount: event.target.value } : prev))}
-                      className={`w-full rounded-lg border bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70 ${editValidation.errors.pricingAmount ? "border-[#ef4444]" : "border-[#2a2a2a]"}`}
-                    />
-                    {editValidation.errors.pricingAmount && <p className="text-xs text-[#f87171]">{editValidation.errors.pricingAmount}</p>}
-                  </label>
-
-                  <label className="space-y-2 text-sm md:col-span-2">
-                    <span className="text-[#c6c6c9]">{t("providerServicesPage.fieldSummary")}</span>
-                    <textarea
-                      rows={2}
-                      value={draft.summary}
-                      onChange={(event) => setDraft((prev) => (prev ? { ...prev, summary: event.target.value } : prev))}
-                      className="w-full rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70"
-                    />
-                  </label>
-
-                  <label className="space-y-2 text-sm md:col-span-2">
-                    <span className="text-[#c6c6c9]">{t("providerServicesPage.fieldTags")}</span>
-                    <input
-                      value={draft.tagsText}
-                      onChange={(event) => setDraft((prev) => (prev ? { ...prev, tagsText: event.target.value } : prev))}
-                      className="w-full rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70"
-                    />
-                  </label>
-
-                  <label className="flex items-center gap-3 rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-sm text-[#c6c6c9]">
-                    <input
-                      type="checkbox"
-                      checked={draft.isActive}
-                      onChange={(event) => setDraft((prev) => (prev ? { ...prev, isActive: event.target.checked } : prev))}
-                      className="h-4 w-4 rounded border-[#333333] bg-[#111111] text-[#22c55e]"
-                    />
-                    <span>{t("providerServicesPage.fieldServiceActive")}</span>
-                  </label>
-                </div>
-              </section>
-
-              <section className="rounded-xl border border-[#1d1d1d] bg-[#050505] p-4">
-                <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-[#9ba0a5]">{t("providerServicesPage.sectionHealthConstraints")}</h3>
-                <div className="mt-4 grid gap-4 md:grid-cols-3">
-                  <label className="space-y-2 text-sm md:col-span-2">
-                    <span className="text-[#c6c6c9]">{t("providerServicesPage.fieldHealthPath")}</span>
-                    <input
-                      value={draft.healthPath}
-                      onChange={(event) => setDraft((prev) => (prev ? { ...prev, healthPath: event.target.value } : prev))}
-                      className={`w-full rounded-lg border bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70 ${editValidation.errors.healthPath ? "border-[#ef4444]" : "border-[#2a2a2a]"}`}
-                    />
-                    {editValidation.errors.healthPath && <p className="text-xs text-[#f87171]">{editValidation.errors.healthPath}</p>}
-                  </label>
-
-                  <label className="space-y-2 text-sm">
-                    <span className="text-[#c6c6c9]">{t("providerServicesPage.fieldHealthMethod")}</span>
-                    <XSelect
-                      value={draft.healthMethod}
-                      onChange={(next) => setDraft((prev) => (prev ? { ...prev, healthMethod: next as "GET" | "HEAD" | "POST" } : prev))}
-                      options={[
-                        { value: "GET", label: "GET" },
-                        { value: "HEAD", label: "HEAD" },
-                        { value: "POST", label: "POST" },
-                      ]}
-                      triggerClassName="inline-flex min-h-10 w-full items-center justify-between gap-3 rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-white focus:border-[#22c55e]/70"
-                    />
-                  </label>
-
-                  <label className="space-y-2 text-sm">
-                    <span className="text-[#c6c6c9]">{t("providerServicesPage.fieldHealthIntervalSec")}</span>
-                    <input
-                      value={draft.healthIntervalSec}
-                      onChange={(event) => setDraft((prev) => (prev ? { ...prev, healthIntervalSec: event.target.value } : prev))}
-                      className="w-full rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70"
-                    />
-                  </label>
-
-                  <label className="space-y-2 text-sm">
-                    <span className="text-[#c6c6c9]">{t("providerServicesPage.fieldHealthTimeoutMs")}</span>
-                    <input
-                      value={draft.healthTimeoutMs}
-                      onChange={(event) => setDraft((prev) => (prev ? { ...prev, healthTimeoutMs: event.target.value } : prev))}
-                      className="w-full rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70"
-                    />
-                  </label>
-
-                  <label className="space-y-2 text-sm md:col-span-2">
-                    <span className="text-[#c6c6c9]">{t("providerServicesPage.fieldHealthSuccessCodes")}</span>
-                    <input
-                      value={draft.healthSuccessCodesText}
-                      onChange={(event) => setDraft((prev) => (prev ? { ...prev, healthSuccessCodesText: event.target.value } : prev))}
-                      className="w-full rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70"
-                    />
-                  </label>
-
-                  <label className="space-y-2 text-sm">
-                    <span className="text-[#c6c6c9]">{t("providerServicesPage.fieldHealthyThreshold")}</span>
-                    <input
-                      value={draft.healthyThreshold}
-                      onChange={(event) => setDraft((prev) => (prev ? { ...prev, healthyThreshold: event.target.value } : prev))}
-                      className="w-full rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70"
-                    />
-                  </label>
-
-                  <label className="space-y-2 text-sm">
-                    <span className="text-[#c6c6c9]">{t("providerServicesPage.fieldUnhealthyThreshold")}</span>
-                    <input
-                      value={draft.unhealthyThreshold}
-                      onChange={(event) => setDraft((prev) => (prev ? { ...prev, unhealthyThreshold: event.target.value } : prev))}
-                      className="w-full rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70"
-                    />
-                  </label>
-
-                  <label className="space-y-2 text-sm">
-                    <span className="text-[#c6c6c9]">{t("providerServicesPage.fieldConstraintTimeoutMs")}</span>
-                    <input
-                      value={draft.constraintsTimeoutMs}
-                      onChange={(event) => setDraft((prev) => (prev ? { ...prev, constraintsTimeoutMs: event.target.value } : prev))}
-                      className={`w-full rounded-lg border bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70 ${editValidation.errors.constraintsTimeoutMs ? "border-[#ef4444]" : "border-[#2a2a2a]"}`}
-                    />
-                    <p className="text-[11px] text-[#86868b]">{t("providerServicesPage.platformHardLimit", { min: SERVICE_CONSTRAINT_LIMITS.timeoutMs.min, max: SERVICE_CONSTRAINT_LIMITS.timeoutMs.max })}</p>
-                    {editValidation.errors.constraintsTimeoutMs && <p className="text-xs text-[#f87171]">{editValidation.errors.constraintsTimeoutMs}</p>}
-                  </label>
-
-                  <label className="space-y-2 text-sm">
-                    <span className="text-[#c6c6c9]">{t("providerServicesPage.fieldMaxRequestBytes")}</span>
-                    <input
-                      value={draft.constraintsMaxRequestBytes}
-                      onChange={(event) => setDraft((prev) => (prev ? { ...prev, constraintsMaxRequestBytes: event.target.value } : prev))}
-                      className={`w-full rounded-lg border bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70 ${editValidation.errors.constraintsMaxRequestBytes ? "border-[#ef4444]" : "border-[#2a2a2a]"}`}
-                    />
-                    <p className="text-[11px] text-[#86868b]">{t("providerServicesPage.platformHardLimit", { min: SERVICE_CONSTRAINT_LIMITS.maxRequestBytes.min, max: SERVICE_CONSTRAINT_LIMITS.maxRequestBytes.max })}</p>
-                    {editValidation.errors.constraintsMaxRequestBytes && <p className="text-xs text-[#f87171]">{editValidation.errors.constraintsMaxRequestBytes}</p>}
-                  </label>
-
-                  <label className="space-y-2 text-sm">
-                    <span className="text-[#c6c6c9]">{t("providerServicesPage.fieldMaxResponseBytes")}</span>
-                    <input
-                      value={draft.constraintsMaxResponseBytes}
-                      onChange={(event) => setDraft((prev) => (prev ? { ...prev, constraintsMaxResponseBytes: event.target.value } : prev))}
-                      className={`w-full rounded-lg border bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70 ${editValidation.errors.constraintsMaxResponseBytes ? "border-[#ef4444]" : "border-[#2a2a2a]"}`}
-                    />
-                    <p className="text-[11px] text-[#86868b]">{t("providerServicesPage.platformHardLimit", { min: SERVICE_CONSTRAINT_LIMITS.maxResponseBytes.min, max: SERVICE_CONSTRAINT_LIMITS.maxResponseBytes.max })}</p>
-                    {editValidation.errors.constraintsMaxResponseBytes && <p className="text-xs text-[#f87171]">{editValidation.errors.constraintsMaxResponseBytes}</p>}
-                  </label>
-
-                  <label className="space-y-2 text-sm">
-                    <span className="text-[#c6c6c9]">{t("providerServicesPage.fieldMaxQps")}</span>
-                    <input
-                      value={draft.constraintsMaxQps}
-                      onChange={(event) => setDraft((prev) => (prev ? { ...prev, constraintsMaxQps: event.target.value } : prev))}
-                      className={`w-full rounded-lg border bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70 ${editValidation.errors.constraintsMaxQps ? "border-[#ef4444]" : "border-[#2a2a2a]"}`}
-                    />
-                    <p className="text-[11px] text-[#86868b]">{t("providerServicesPage.platformHardLimit", { min: SERVICE_CONSTRAINT_LIMITS.maxQps.min, max: SERVICE_CONSTRAINT_LIMITS.maxQps.max })}</p>
-                    {editValidation.errors.constraintsMaxQps && <p className="text-xs text-[#f87171]">{editValidation.errors.constraintsMaxQps}</p>}
-                  </label>
-                </div>
-              </section>
-
-              <section className="rounded-xl border border-[#1d1d1d] bg-[#050505] p-4">
-                <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-[#9ba0a5]">{t("providerServicesPage.sectionServiceDefinition")}</h3>
-                <div className="mt-4 grid gap-4 md:grid-cols-3">
-                  <label className="space-y-2 text-sm">
-                    <span className="text-[#c6c6c9]">{t("providerServicesPage.fieldInvokeMethod")}</span>
-                    <input
-                      value={draft.invokeMethod}
-                      onChange={(event) => setDraft((prev) => (prev ? { ...prev, invokeMethod: event.target.value } : prev))}
-                      className="w-full rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70"
-                    />
-                  </label>
-
-                  <label className="space-y-2 text-sm md:col-span-2">
-                    <span className="text-[#c6c6c9]">{t("providerServicesPage.fieldInvokeUrl")}</span>
-                    <input
-                      value={
-                        draft.invokeUrl
-                        || editing.endpoint
-                        || editing.invoke?.url
-                        || (Array.isArray(editing.invoke?.targets) ? (editing.invoke?.targets[0]?.url || "") : "")
-                      }
-                      onChange={(event) => setDraft((prev) => (prev ? { ...prev, invokeUrl: event.target.value } : prev))}
-                      className={`w-full rounded-lg border bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70 ${editValidation.errors.invokeUrl ? "border-[#ef4444]" : "border-[#2a2a2a]"}`}
-                    />
-                    {editValidation.errors.invokeUrl && <p className="text-xs text-[#f87171]">{editValidation.errors.invokeUrl}</p>}
-                  </label>
-
-                  <label className="space-y-2 text-sm">
-                    <span className="text-[#c6c6c9]">{t("providerServicesPage.fieldInvokeTimeoutMs")}</span>
-                    <input
-                      value={draft.invokeTimeoutMs}
-                      onChange={(event) => setDraft((prev) => (prev ? { ...prev, invokeTimeoutMs: event.target.value } : prev))}
-                      className="w-full rounded-lg border border-[#2a2a2a] bg-[#050505] px-3 py-2 text-white outline-none focus:border-[#22c55e]/70"
-                    />
-                  </label>
-
-                  <label className="space-y-2 text-sm md:col-span-3">
-                    <span className="text-[#c6c6c9]">{t("providerServicesPage.fieldInvokeTargets")}</span>
-                    <textarea
-                      rows={6}
-                      value={draft.invokeTargetsJson}
-                      onChange={(event) => setDraft((prev) => (prev ? { ...prev, invokeTargetsJson: event.target.value } : prev))}
-                      className={`w-full rounded-lg border bg-[#050505] px-3 py-2 font-mono text-xs text-white outline-none focus:border-[#22c55e]/70 ${editValidation.errors.invokeTargetsJson ? "border-[#ef4444]" : "border-[#2a2a2a]"}`}
-                    />
-                    {editValidation.errors.invokeTargetsJson && <p className="text-xs text-[#f87171]">{editValidation.errors.invokeTargetsJson}</p>}
-                  </label>
-
-                  <label className="space-y-2 text-sm md:col-span-3">
-                    <span className="text-[#c6c6c9]">{t("providerServicesPage.fieldRequestSchema")}</span>
-                    <textarea
-                      rows={6}
-                      value={draft.requestSchemaJson}
-                      onChange={(event) => setDraft((prev) => (prev ? { ...prev, requestSchemaJson: event.target.value } : prev))}
-                      className={`w-full rounded-lg border bg-[#050505] px-3 py-2 font-mono text-xs text-white outline-none focus:border-[#22c55e]/70 ${editValidation.errors.requestSchemaJson ? "border-[#ef4444]" : "border-[#2a2a2a]"}`}
-                    />
-                    {editValidation.errors.requestSchemaJson && <p className="text-xs text-[#f87171]">{editValidation.errors.requestSchemaJson}</p>}
-                  </label>
-
-                  <label className="space-y-2 text-sm md:col-span-3">
-                    <span className="text-[#c6c6c9]">{t("providerServicesPage.fieldResponseSchema")}</span>
-                    <textarea
-                      rows={6}
-                      value={draft.responseSchemaJson}
-                      onChange={(event) => setDraft((prev) => (prev ? { ...prev, responseSchemaJson: event.target.value } : prev))}
-                      className={`w-full rounded-lg border bg-[#050505] px-3 py-2 font-mono text-xs text-white outline-none focus:border-[#22c55e]/70 ${editValidation.errors.responseSchemaJson ? "border-[#ef4444]" : "border-[#2a2a2a]"}`}
-                    />
-                    {editValidation.errors.responseSchemaJson && <p className="text-xs text-[#f87171]">{editValidation.errors.responseSchemaJson}</p>}
-                  </label>
-                </div>
-              </section>
-            </div>
-
-            <div className="x-modal-footer">
-              <button
-                onClick={closeModal}
-                className="rounded-lg border border-[#333333] px-4 py-2 text-sm text-[#c6c6c9] hover:border-white hover:text-white"
-              >
-                {t("providerServicesPage.cancel")}
-              </button>
-              <button
-                onClick={() => void persistEdit()}
-                disabled={saving || !editValidation.isValid}
-                className="rounded-lg border border-[#22c55e]/40 bg-[#22c55e]/15 px-4 py-2 text-sm font-semibold text-[#22c55e] hover:bg-[#22c55e] hover:text-black disabled:opacity-50"
-              >
-                {saving ? t("providerServicesPage.saving") : t("providerServicesPage.saveChanges")}
-              </button>
-            </div>
-          </div>
-      </div>,
-      document.body,
-    )
-    : null;
+          </div>,
+          document.body
+        )
+      : null;
 
   return (
     <div className="mx-auto min-h-screen max-w-7xl space-y-6 bg-[#000000] p-6 text-white md:p-10">
@@ -767,9 +1263,18 @@ export default function ProviderServicesPage() { // NOSONAR
             value={statusInput}
             onChange={(next) => setStatusInput(next)}
             options={[
-              { value: "all", label: t("providerServicesPage.filterAllStatus") },
-              { value: "online", label: t("providerServicesPage.filterOnline") },
-              { value: "offline", label: t("providerServicesPage.filterOffline") },
+              {
+                value: "all",
+                label: t("providerServicesPage.filterAllStatus"),
+              },
+              {
+                value: "online",
+                label: t("providerServicesPage.filterOnline"),
+              },
+              {
+                value: "offline",
+                label: t("providerServicesPage.filterOffline"),
+              },
             ]}
             triggerClassName="inline-flex min-h-10 min-w-[130px] items-center justify-between gap-3 rounded-lg border border-[#222222] bg-[#050505] px-3 py-2 text-left text-sm text-white"
           />
@@ -798,24 +1303,42 @@ export default function ProviderServicesPage() { // NOSONAR
         <table className="w-full border-collapse whitespace-nowrap text-left">
           <thead>
             <tr className="border-b border-[#222222] bg-[#050505] text-[10px] font-semibold uppercase tracking-[0.2em] text-[#86868b]">
-              <th className="px-6 py-5">{t("providerServicesPage.tableService")}</th>
-              <th className="px-6 py-5">{t("providerServicesPage.tableServiceId")}</th>
-              <th className="px-6 py-5">{t("providerServicesPage.tablePricing")}</th>
-              <th className="px-6 py-5 text-center">{t("providerServicesPage.tableStatus")}</th>
-              <th className="px-6 py-5 text-center">{t("providerServicesPage.tableCallable")}</th>
-              <th className="px-6 py-5 text-right">{t("providerServicesPage.tableAction")}</th>
+              <th className="px-6 py-5">
+                {t("providerServicesPage.tableService")}
+              </th>
+              <th className="px-6 py-5">
+                {t("providerServicesPage.tableServiceId")}
+              </th>
+              <th className="px-6 py-5">
+                {t("providerServicesPage.tablePricing")}
+              </th>
+              <th className="px-6 py-5 text-center">
+                {t("providerServicesPage.tableStatus")}
+              </th>
+              <th className="px-6 py-5 text-center">
+                {t("providerServicesPage.tableCallable")}
+              </th>
+              <th className="px-6 py-5 text-right">
+                {t("providerServicesPage.tableAction")}
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[#151515]">
             {pageRows.length === 0 && (
               <tr>
-                <td colSpan={6} className="py-14 text-center text-sm text-[#86868b]">
-                  {loading ? t("providerServicesPage.loading") : t("providerServicesPage.empty")}
+                <td
+                  colSpan={6}
+                  className="py-14 text-center text-sm text-[#86868b]"
+                >
+                  {loading
+                    ? t("providerServicesPage.loading")
+                    : t("providerServicesPage.empty")}
                 </td>
               </tr>
             )}
             {pageRows.map((svc) => {
-              const isStatusUpdating = statusUpdatingServiceId === svc.serviceId;
+              const isStatusUpdating =
+                statusUpdatingServiceId === svc.serviceId;
               const isDeleting = deletingServiceId === svc.serviceId;
               const serviceStatus = normalizedServiceStatus(svc);
               const canEditService = serviceStatus === "inactive";
@@ -831,26 +1354,43 @@ export default function ProviderServicesPage() { // NOSONAR
                 ? "border-[#f59e0b]/40 text-[#f59e0b] hover:bg-[#f59e0b] hover:text-black"
                 : "border-[#22c55e]/40 text-[#22c55e] hover:bg-[#22c55e] hover:text-black";
               const serviceStatusText = serviceStatusLabel(serviceStatus, t);
-              let statusToneClassName = "border-[#ef4444]/30 bg-[#ef4444]/10 text-[#ef4444]";
+              let statusToneClassName =
+                "border-[#ef4444]/30 bg-[#ef4444]/10 text-[#ef4444]";
               if (serviceStatus === "active") {
-                statusToneClassName = "border-[#22c55e]/30 bg-[#22c55e]/10 text-[#22c55e]";
+                statusToneClassName =
+                  "border-[#22c55e]/30 bg-[#22c55e]/10 text-[#22c55e]";
               } else if (serviceStatus === "inactive") {
-                statusToneClassName = "border-[#f59e0b]/30 bg-[#f59e0b]/10 text-[#f59e0b]";
+                statusToneClassName =
+                  "border-[#f59e0b]/30 bg-[#f59e0b]/10 text-[#f59e0b]";
               }
 
               return (
-                <tr key={svc.id} className="transition-colors hover:bg-[#111111]">
+                <tr
+                  key={svc.id}
+                  className="transition-colors hover:bg-[#111111]"
+                >
                   <td className="px-6 py-5">
-                    <div className="font-semibold text-white">{svc.name || svc.serviceName || t("providerServicesPage.unnamedService")}</div>
+                    <div className="font-semibold text-white">
+                      {svc.name ||
+                        svc.serviceName ||
+                        t("providerServicesPage.unnamedService")}
+                    </div>
                     <div className="mt-1 flex items-center gap-1 text-xs text-[#86868b]">
                       <Link2 className="h-3.5 w-3.5" />
                       {svc.endpoint || "-"}
                     </div>
                   </td>
-                  <td className="px-6 py-5 font-mono text-sm text-[#e5e5ea]">{svc.serviceId}</td>
-                  <td className="px-6 py-5 font-mono text-sm text-[#e5e5ea]">{formatPricing(svc.pricing)} {t("providerServicesPage.perCall")}</td>
+                  <td className="px-6 py-5 font-mono text-sm text-[#e5e5ea]">
+                    {svc.serviceId}
+                  </td>
+                  <td className="px-6 py-5 font-mono text-sm text-[#e5e5ea]">
+                    {formatPricing(svc.pricing)}{" "}
+                    {t("providerServicesPage.perCall")}
+                  </td>
                   <td className="px-6 py-5 text-center">
-                    <span className={`inline-flex items-center rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-widest ${statusToneClassName}`}>
+                    <span
+                      className={`inline-flex items-center rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-widest ${statusToneClassName}`}
+                    >
                       {serviceStatusText}
                     </span>
                   </td>
@@ -871,10 +1411,15 @@ export default function ProviderServicesPage() { // NOSONAR
                       <button
                         onClick={() => openEditModal(svc)}
                         disabled={saving || isStatusUpdating || isDeleting}
-                        title={canEditService ? t("providerServicesPage.editInactiveService") : t("providerServicesPage.setInactiveBeforeEditing")}
-                        className={`inline-flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs font-bold transition-all disabled:cursor-not-allowed disabled:opacity-50 ${canEditService
-                          ? "border-[#333333] text-white hover:border-[#ffffff] hover:bg-white hover:text-black"
-                          : "border-[#f59e0b]/35 text-[#f5d08a] hover:border-[#f59e0b] hover:text-[#f59e0b]"
+                        title={
+                          canEditService
+                            ? t("providerServicesPage.editInactiveService")
+                            : t("providerServicesPage.setInactiveBeforeEditing")
+                        }
+                        className={`inline-flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs font-bold transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
+                          canEditService
+                            ? "border-[#333333] text-white hover:border-[#ffffff] hover:bg-white hover:text-black"
+                            : "border-[#f59e0b]/35 text-[#f5d08a] hover:border-[#f59e0b] hover:text-[#f59e0b]"
                         }`}
                       >
                         {t("providerServicesPage.edit")}
@@ -888,14 +1433,25 @@ export default function ProviderServicesPage() { // NOSONAR
                       </button>
                       <button
                         onClick={() => deleteService(svc)}
-                        disabled={saving || isStatusUpdating || isDeleting || svc.isActive}
+                        disabled={
+                          saving ||
+                          isStatusUpdating ||
+                          isDeleting ||
+                          svc.isActive
+                        }
                         className="inline-flex items-center gap-1 rounded-lg border border-[#ef4444]/40 px-3 py-1.5 text-xs font-bold text-[#fca5a5] transition-all hover:bg-[#ef4444] hover:text-black disabled:cursor-not-allowed disabled:opacity-50"
                       >
-                        {isDeleting ? t("providerServicesPage.deleting") : t("providerServicesPage.delete")}
+                        {isDeleting
+                          ? t("providerServicesPage.deleting")
+                          : t("providerServicesPage.delete")}
                       </button>
                       <Link
-                        href={`/provider/health?serviceId=${encodeURIComponent(svc.serviceId)}`}
-                        className={`inline-flex items-center gap-1 rounded-lg border border-[#22c55e]/40 px-3 py-1.5 text-xs font-bold text-[#22c55e] transition-all hover:bg-[#22c55e] hover:text-black ${isDeleting ? "pointer-events-none opacity-50" : ""}`}
+                        href={`/provider/health?serviceId=${encodeURIComponent(
+                          svc.serviceId
+                        )}`}
+                        className={`inline-flex items-center gap-1 rounded-lg border border-[#22c55e]/40 px-3 py-1.5 text-xs font-bold text-[#22c55e] transition-all hover:bg-[#22c55e] hover:text-black ${
+                          isDeleting ? "pointer-events-none opacity-50" : ""
+                        }`}
                       >
                         <Activity className="h-3.5 w-3.5" />
                         {t("providerServicesPage.health")}
@@ -919,7 +1475,9 @@ export default function ProviderServicesPage() { // NOSONAR
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setPage((currentPage) => Math.max(1, currentPage - 1))}
+            onClick={() =>
+              setPage((currentPage) => Math.max(1, currentPage - 1))
+            }
             disabled={safePage <= 1}
             className="rounded-lg border border-[#222222] bg-[#0a0a0a] px-3 py-1.5 disabled:opacity-40"
           >
@@ -929,7 +1487,9 @@ export default function ProviderServicesPage() { // NOSONAR
             {safePage} / {pageCount}
           </span>
           <button
-            onClick={() => setPage((currentPage) => Math.min(pageCount, currentPage + 1))}
+            onClick={() =>
+              setPage((currentPage) => Math.min(pageCount, currentPage + 1))
+            }
             disabled={safePage >= pageCount}
             className="rounded-lg border border-[#222222] bg-[#0a0a0a] px-3 py-1.5 disabled:opacity-40"
           >
@@ -950,31 +1510,37 @@ export default function ProviderServicesPage() { // NOSONAR
           pendingAction?.type === "delete"
             ? t("providerServicesPage.delete")
             : pendingAction?.nextActive
-              ? t("providerServicesPage.actionActivate")
-              : t("providerServicesPage.actionInactive")
+            ? t("providerServicesPage.actionActivate")
+            : t("providerServicesPage.actionInactive")
         }
         description={
           pendingAction?.type === "delete"
-            ? t("providerServicesPage.confirmDelete", { serviceId: pendingAction.service.serviceId })
+            ? t("providerServicesPage.confirmDelete", {
+                serviceId: pendingAction.service.serviceId,
+              })
             : pendingAction?.nextActive
-              ? t("providerServicesPage.confirmActivate", { serviceId: pendingAction.service.serviceId })
-              : t("providerServicesPage.confirmDeactivate", { serviceId: pendingAction?.service.serviceId ?? "" })
+            ? t("providerServicesPage.confirmActivate", {
+                serviceId: pendingAction.service.serviceId,
+              })
+            : t("providerServicesPage.confirmDeactivate", {
+                serviceId: pendingAction?.service.serviceId ?? "",
+              })
         }
         contextLabel={pendingAction?.service.serviceId}
         confirmLabel={
           pendingAction?.type === "delete"
             ? t("providerServicesPage.delete")
             : pendingAction?.nextActive
-              ? t("providerServicesPage.actionActivate")
-              : t("providerServicesPage.actionInactive")
+            ? t("providerServicesPage.actionActivate")
+            : t("providerServicesPage.actionInactive")
         }
         tone={pendingAction?.type === "delete" ? "danger" : "default"}
         loading={
           pendingAction?.type === "delete"
             ? deletingServiceId === pendingAction.service.serviceId
             : pendingAction?.type === "status"
-              ? statusUpdatingServiceId === pendingAction.service.serviceId
-              : false
+            ? statusUpdatingServiceId === pendingAction.service.serviceId
+            : false
         }
         onCancel={() => setPendingAction(null)}
         onConfirm={handleConfirmPendingAction}

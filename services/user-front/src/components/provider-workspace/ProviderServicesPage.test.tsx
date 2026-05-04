@@ -64,13 +64,21 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("next/link", () => ({
-  default: ({ children, href, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) => (
-    <a href={href} {...props}>{children}</a>
+  default: ({
+    children,
+    href,
+    ...props
+  }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) => (
+    <a href={href} {...props}>
+      {children}
+    </a>
   ),
 }));
 
 vi.mock("@/utils/serviceApi", async () => {
-  const actual = await vi.importActual<typeof import("@/utils/serviceApi")>("@/utils/serviceApi");
+  const actual = await vi.importActual<typeof import("@/utils/serviceApi")>(
+    "@/utils/serviceApi"
+  );
   return {
     ...actual,
     listServiceRegistry: listServiceRegistryMock,
@@ -81,7 +89,9 @@ vi.mock("@/utils/serviceApi", async () => {
   };
 });
 
-function buildService(overrides: Partial<ServiceRegistryRecord>): ServiceRegistryRecord {
+function buildService(
+  overrides: Partial<ServiceRegistryRecord>
+): ServiceRegistryRecord {
   return {
     id: "svc-1",
     name: "Service One",
@@ -116,7 +126,11 @@ function buildService(overrides: Partial<ServiceRegistryRecord>): ServiceRegistr
       requestIdHeader: "X-Synapse-Request-Id",
       passThroughHeaders: [],
       injectHeaders: {},
-      retryPolicy: { maxAttempts: 2, backoffMs: 200, retryOnStatus: [429, 500] },
+      retryPolicy: {
+        maxAttempts: 2,
+        backoffMs: 200,
+        retryOnStatus: [429, 500],
+      },
     },
     metering: {
       billingUnit: "per_call",
@@ -130,7 +144,10 @@ function buildService(overrides: Partial<ServiceRegistryRecord>): ServiceRegistr
       url: "https://example.com/invoke",
       targets: [{ url: "https://example.com/invoke", weight: 100 }],
       timeoutMs: 3000,
-      request: { contentType: "application/json", schema: { type: "object", properties: {} } },
+      request: {
+        contentType: "application/json",
+        schema: { type: "object", properties: {} },
+      },
       response: { schema: { type: "object", properties: {} } },
     },
     createdAt: "2026-03-21T00:00:00.000Z",
@@ -150,31 +167,54 @@ describe("ProviderServicesPage", () => {
     const user = userEvent.setup();
 
     listServiceRegistryMock.mockResolvedValue([
-      buildService({ id: "svc-active", serviceId: "svc-active", name: "Active Service", isActive: true, status: "active", runtimeAvailable: true }),
+      buildService({
+        id: "svc-active",
+        serviceId: "svc-active",
+        name: "Active Service",
+        isActive: true,
+        status: "active",
+        runtimeAvailable: true,
+      }),
     ]);
 
-    render(createElement(LanguageProvider, null, createElement(ProviderServicesPage)));
+    render(
+      createElement(LanguageProvider, null, createElement(ProviderServicesPage))
+    );
 
     await screen.findByText("Active Service");
     await user.click(screen.getByRole("button", { name: "编辑" }));
 
-    expect(toastError).toHaveBeenCalledWith("活跃服务不可编辑。请先把服务切换为 Inactive。");
+    expect(toastError).toHaveBeenCalledWith(
+      "活跃服务不可编辑。请先把服务切换为 Inactive。"
+    );
   });
 
   it("activates an inactive service and shows zh success toast", async () => {
     const user = userEvent.setup();
 
     listServiceRegistryMock.mockResolvedValue([
-      buildService({ id: "svc-inactive", serviceId: "svc-inactive", name: "Inactive Service", isActive: false, status: "inactive" }),
+      buildService({
+        id: "svc-inactive",
+        serviceId: "svc-inactive",
+        name: "Inactive Service",
+        isActive: false,
+        status: "inactive",
+      }),
     ]);
     updateServiceRegistryMock.mockResolvedValue(undefined);
 
-    render(createElement(LanguageProvider, null, createElement(ProviderServicesPage)));
+    render(
+      createElement(LanguageProvider, null, createElement(ProviderServicesPage))
+    );
 
     await screen.findByText("Inactive Service");
     await user.click(screen.getByRole("button", { name: "激活" }));
 
-    expect(screen.getByText("确认激活服务 svc-inactive？只有当健康检查重新报告目标健康后，它才会再次进入 discovery。")).toBeTruthy();
+    expect(
+      screen.getByText(
+        "确认激活服务 svc-inactive？只有当健康检查重新报告目标健康后，它才会再次进入 discovery。"
+      )
+    ).toBeTruthy();
     await user.click(screen.getAllByRole("button", { name: "激活" }).at(-1)!);
     await waitFor(() => {
       expect(updateServiceRegistryMock).toHaveBeenCalled();

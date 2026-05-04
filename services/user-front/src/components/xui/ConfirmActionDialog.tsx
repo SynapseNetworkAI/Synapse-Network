@@ -41,12 +41,18 @@ export default function ConfirmActionDialog({
   onConfirm,
 }: Readonly<ConfirmActionDialogProps>) {
   return (
-    <XDialog open={open} ariaLabelledby="confirm-action-title" onDismiss={loading ? undefined : onCancel}>
+    <XDialog
+      open={open}
+      ariaLabelledby="confirm-action-title"
+      onDismiss={loading ? undefined : onCancel}
+    >
       <XDialogSurface className="max-w-[520px]">
         <XDialogHeader>
           <XDialogHeaderCopy>
             <p className="x-data-label mb-2 text-gray-500">
-              {tone === "danger" ? "Destructive confirmation" : "Action confirmation"}
+              {tone === "danger"
+                ? "Destructive confirmation"
+                : "Action confirmation"}
             </p>
             <h2 id="confirm-action-title" className="x-modal-title text-white">
               {title}
@@ -58,15 +64,32 @@ export default function ConfirmActionDialog({
 
         {contextLabel ? (
           <XDialogBody>
-            <XPanel as="article" variant="muted" className="flex items-center gap-3 rounded-[20px] p-4">
-              <AlertTriangle className={tone === "danger" ? "h-5 w-5 text-red-400" : "h-5 w-5 text-amber-300"} />
-              <span className="font-mono text-sm text-gray-200">{contextLabel}</span>
+            <XPanel
+              as="article"
+              variant="muted"
+              className="flex items-center gap-3 rounded-[20px] p-4"
+            >
+              <AlertTriangle
+                className={
+                  tone === "danger"
+                    ? "h-5 w-5 text-red-400"
+                    : "h-5 w-5 text-amber-300"
+                }
+              />
+              <span className="font-mono text-sm text-gray-200">
+                {contextLabel}
+              </span>
             </XPanel>
           </XDialogBody>
         ) : null}
 
         <XDialogFooter className="justify-center border-t-0 pt-0">
-          <XButton variant="ghost" size="modal" onClick={onCancel} disabled={loading}>
+          <XButton
+            variant="ghost"
+            size="modal"
+            onClick={onCancel}
+            disabled={loading}
+          >
             {cancelLabel}
           </XButton>
           <XButton

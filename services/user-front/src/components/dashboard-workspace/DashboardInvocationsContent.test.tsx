@@ -21,7 +21,10 @@ vi.mock("react-hot-toast", () => ({
 }));
 
 vi.mock("wagmi", () => ({
-  useAccount: () => ({ address: "0x82f1c188327bfc265357a85e8a6b4a34d562d6f8", isConnected: true }),
+  useAccount: () => ({
+    address: "0x82f1c188327bfc265357a85e8a6b4a34d562d6f8",
+    isConnected: true,
+  }),
 }));
 
 vi.mock("@rainbow-me/rainbowkit", () => ({
@@ -37,7 +40,9 @@ vi.mock("@/components/WalletAuthGuard", () => ({
 }));
 
 vi.mock("@/utils/usageApi", async () => {
-  const actual = await vi.importActual<typeof import("@/utils/usageApi")>("@/utils/usageApi");
+  const actual = await vi.importActual<typeof import("@/utils/usageApi")>(
+    "@/utils/usageApi"
+  );
   return {
     ...actual,
     listPaginatedUsageLogs: listPaginatedUsageLogsMock,
@@ -45,7 +50,9 @@ vi.mock("@/utils/usageApi", async () => {
 });
 
 vi.mock("@/utils/balanceApi", async () => {
-  const actual = await vi.importActual<typeof import("@/utils/balanceApi")>("@/utils/balanceApi");
+  const actual = await vi.importActual<typeof import("@/utils/balanceApi")>(
+    "@/utils/balanceApi"
+  );
   return {
     ...actual,
     requestV2Refund: vi.fn(),
@@ -61,7 +68,8 @@ describe("DashboardInvocationsContent", () => {
         {
           id: "inv-1",
           request_id: "req-public-1",
-          origin_request_id: "agent:agent:0x82f1c188327bfc265357a85e8a6b4a34d562d6f8",
+          origin_request_id:
+            "agent:agent:0x82f1c188327bfc265357a85e8a6b4a34d562d6f8",
           ownerAddress: "0x82f1c188327bfc265357a85e8a6b4a34d562d6f8",
           providerAddress: "0xprovider000000000000000000000000000000000001",
           agent_id: "agt_public",
@@ -80,14 +88,22 @@ describe("DashboardInvocationsContent", () => {
   });
 
   it("does not expose origin principals or counterparty wallets in the consumer invocation table", async () => {
-    render(createElement(LanguageProvider, null, createElement(DashboardInvocationsContent)));
+    render(
+      createElement(
+        LanguageProvider,
+        null,
+        createElement(DashboardInvocationsContent)
+      )
+    );
 
     await screen.findByText("req-public-1");
 
     expect(screen.queryByText("来源")).toBeNull();
     expect(screen.queryByText("对手方")).toBeNull();
     expect(screen.queryByText(/agent:agent:/)).toBeNull();
-    expect(screen.queryByText(/0xprovider000000000000000000000000000000000001/i)).toBeNull();
+    expect(
+      screen.queryByText(/0xprovider000000000000000000000000000000000001/i)
+    ).toBeNull();
     expect(screen.getByText("svc_oss_security_healthcheck")).toBeTruthy();
     expect(screen.getByText("agt_public")).toBeTruthy();
   });

@@ -29,7 +29,8 @@ const invocationsPage: I18nMessages["invocationsPage"] = {
   showingRange: "显示第 {{start}}-{{end}} 条，共 {{total}} 条",
   prev: "上一页",
   next: "下一页",
-  footer: "这个页面直接基于真实的 Owner 级 gateway usage stream 分页展示，按最新计费事件优先排序。",
+  footer:
+    "这个页面直接基于真实的 Owner 级 gateway usage stream 分页展示，按最新计费事件优先排序。",
   relativeSecondsAgo: "{{count}} 秒前",
   relativeMinutesAgo: "{{count}} 分钟前",
   relativeHoursAgo: "{{count}} 小时前",
