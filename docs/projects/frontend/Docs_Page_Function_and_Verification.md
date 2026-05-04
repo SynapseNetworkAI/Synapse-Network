@@ -72,3 +72,4 @@ A docs page is considered verified only when:
 4. Every expected anchor exists on the rendered page.
 5. User navigation is verified by simulated click or browser click, not by screenshot alone.
 6. Screenshots exist for representative visual states when running the Playwright evidence script.
+7. Docs-front visual theme stays fixed dark: `/get-started/agent-builders` must prove readable headings, paragraph text, ordered-list numbers/content, active sidebar item, and right-side TOC against the Synapse dark background.

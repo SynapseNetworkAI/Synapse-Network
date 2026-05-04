@@ -125,3 +125,29 @@ def service_price_usdc(row: dict, default: str = "0.001") -> str:
         or pricing.get("amount")
         or default
     )
+
+
+def canonical_invoke_payload(service_id: str | None) -> dict:
+    """Return a schema-valid payload for canonical provider services."""
+    normalized = str(service_id or "").strip()
+    if normalized == "svc_oss_security_healthcheck":
+        return {
+            "repoUrl": "https://github.com/SynapseNetworkAI/Synapse-Network",
+            "packageList": ["next", "react", "fumadocs-ui"],
+            "ecosystem": "npm",
+        }
+    if normalized == "svc_web3_sentiment_index":
+        return {
+            "symbol": "ETH",
+            "chain": "arbitrum",
+            "lookback_hours": 24,
+            "include_narrative": True,
+        }
+    if normalized == "svc_protocol_fundamental_brief":
+        return {
+            "protocol": "uniswap",
+            "chain": "arbitrum",
+            "peer_set": ["aave", "curve"],
+            "lookback_days": 30,
+        }
+    return {"prompt": "e2e automated test invocation"}
