@@ -1,12 +1,20 @@
 "use client";
 
 import * as React from "react";
-import { RainbowKitProvider, getDefaultConfig, darkTheme } from "@rainbow-me/rainbowkit";
+import {
+  RainbowKitProvider,
+  getDefaultConfig,
+  darkTheme,
+} from "@rainbow-me/rainbowkit";
 import { WagmiProvider, createConfig, http } from "wagmi";
 import { injected } from "wagmi/connectors";
 import { hardhat, sepolia, baseSepolia, arbitrumSepolia } from "wagmi/chains";
 import { QueryClientProvider, QueryClient } from "@tanstack/react-query";
-import { isIgnorableWalletExtensionError, toWalletExtensionErrorDetails } from "@/utils/walletExtensionErrors";
+import {
+  isIgnorableWalletExtensionError,
+  toWalletExtensionErrorDetails,
+} from "@/utils/walletExtensionErrors";
+import { getRpcUrlForChain } from "@/utils/runtimeEnv";
 import "@rainbow-me/rainbowkit/styles.css";
 
 const chains = [hardhat, sepolia, baseSepolia, arbitrumSepolia] as const;
@@ -25,42 +33,62 @@ const config = walletConnectProjectId
   : createConfig({
       chains,
       ssr: false,
-      connectors: [injected({ shimDisconnect: true, unstable_shimAsyncInject: 2_000 })],
+      connectors: [
+        injected({ shimDisconnect: true, unstable_shimAsyncInject: 2_000 }),
+      ],
       transports: {
-        [hardhat.id]: http(),
+        [hardhat.id]: http(getRpcUrlForChain(hardhat.id)),
         [sepolia.id]: http(),
         [baseSepolia.id]: http(),
-        [arbitrumSepolia.id]: http(),
+        [arbitrumSepolia.id]: http(getRpcUrlForChain(arbitrumSepolia.id)),
       },
     });
 
 const queryClient = new QueryClient();
 
+type WalletPolyfillGlobal = {
+  indexedDB?: {
+    open: () => {
+      onupgradeneeded: null;
+      onsuccess: null;
+      onerror: null;
+      addEventListener: () => void;
+      removeEventListener: () => void;
+    };
+  };
+  IDBKeyRange?: {
+    bound: () => object;
+    lowerBound: () => object;
+    upperBound: () => object;
+    only: () => object;
+  };
+  DOMException?: new (message?: string) => Error;
+};
+
 // 核心修复：防止 WalletConnect 的底层依赖(idb-keyval) 在 Next.js 服务端预渲染时因找不到浏览器环境的 indexedDB 报错崩溃
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-if (globalThis.window === undefined && (globalThis as any).indexedDB === undefined) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (globalThis as any).indexedDB = {
+const serverGlobal = globalThis as unknown as WalletPolyfillGlobal;
+if (globalThis.window === undefined && serverGlobal.indexedDB === undefined) {
+  serverGlobal.indexedDB = {
     open: () => ({
       onupgradeneeded: null,
       onsuccess: null,
       onerror: null,
       addEventListener: () => {},
-      removeEventListener: () => {}
-    })
+      removeEventListener: () => {},
+    }),
   };
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (globalThis as any).IDBKeyRange = {
+  serverGlobal.IDBKeyRange = {
     bound: () => ({}),
     lowerBound: () => ({}),
     upperBound: () => ({}),
-    only: () => ({})
+    only: () => ({}),
   };
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (globalThis as any).DOMException = class DOMException extends Error {};
+  serverGlobal.DOMException = class DOMException extends Error {};
 }
 
-export function Providers({ children }: Readonly<{ children: React.ReactNode }>) {
+export function Providers({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
   const [mounted, setMounted] = React.useState(false);
 
   React.useEffect(() => {
@@ -78,16 +106,21 @@ export function Providers({ children }: Readonly<{ children: React.ReactNode }>)
         return;
       }
 
-      console.warn("Ignored browser wallet extension rejection.", details.message);
+      console.warn(
+        "Ignored browser wallet extension rejection.",
+        details.message
+      );
       event.preventDefault();
     };
 
     const handleWindowError = (event: ErrorEvent) => {
-      if (!isIgnorableWalletExtensionError({
-        message: event.message,
-        filename: event.filename,
-        stack: event.error instanceof Error ? event.error.stack : null,
-      })) {
+      if (
+        !isIgnorableWalletExtensionError({
+          message: event.message,
+          filename: event.filename,
+          stack: event.error instanceof Error ? event.error.stack : null,
+        })
+      ) {
         return;
       }
 
@@ -95,12 +128,24 @@ export function Providers({ children }: Readonly<{ children: React.ReactNode }>)
       event.preventDefault();
     };
 
-    globalThis.window.addEventListener("unhandledrejection", handleUnhandledRejection, { capture: true });
-    globalThis.window.addEventListener("error", handleWindowError, { capture: true });
+    globalThis.window.addEventListener(
+      "unhandledrejection",
+      handleUnhandledRejection,
+      { capture: true }
+    );
+    globalThis.window.addEventListener("error", handleWindowError, {
+      capture: true,
+    });
 
     return () => {
-      globalThis.window.removeEventListener("unhandledrejection", handleUnhandledRejection, { capture: true });
-      globalThis.window.removeEventListener("error", handleWindowError, { capture: true });
+      globalThis.window.removeEventListener(
+        "unhandledrejection",
+        handleUnhandledRejection,
+        { capture: true }
+      );
+      globalThis.window.removeEventListener("error", handleWindowError, {
+        capture: true,
+      });
     };
   }, []);
 
@@ -111,11 +156,13 @@ export function Providers({ children }: Readonly<{ children: React.ReactNode }>)
   return (
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
-        <RainbowKitProvider theme={darkTheme({
-          accentColor: "#7b3fe4",
-          accentColorForeground: "white",
-          borderRadius: "medium",
-        })}>
+        <RainbowKitProvider
+          theme={darkTheme({
+            accentColor: "#7b3fe4",
+            accentColorForeground: "white",
+            borderRadius: "medium",
+          })}
+        >
           {children}
         </RainbowKitProvider>
       </QueryClientProvider>
