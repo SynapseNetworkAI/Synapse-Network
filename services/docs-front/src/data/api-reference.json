@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-04T06:51:05.637Z",
+  "generatedAt": "2026-05-04T06:55:08.593Z",
   "source": "services/docs-front/src/data/endpoint-source.ts",
   "groups": [
     {
@@ -178,10 +178,7 @@
           "summary": "Verify pending email code",
           "description": "Confirms the 6-digit code sent to a pending email address. Only after this succeeds does Gateway bind the email to the wallet account.",
           "auth": "jwt",
-          "bodyExample": {
-            "email": "new@example.com",
-            "code": "123456"
-          },
+          "bodyExample": { "email": "new@example.com", "code": "123456" },
           "responseExample": {
             "profile": {
               "walletAddress": "0x...",
@@ -216,9 +213,7 @@
           "summary": "Resend pending email code",
           "description": "Generates a fresh 6-digit verification code for the current pending email. Each wallet can send at most 5 verification emails per UTC day.",
           "auth": "jwt",
-          "bodyExample": {
-            "email": "new@example.com"
-          },
+          "bodyExample": { "email": "new@example.com" },
           "responseExample": {
             "profile": {
               "walletAddress": "0x...",
@@ -248,9 +243,7 @@
           "summary": "Revoke current JWT",
           "description": "Invalidates the current session token server-side.",
           "auth": "jwt",
-          "responseExample": {
-            "message": "Logged out"
-          },
+          "responseExample": { "message": "Logged out" },
           "agentMeta": {
             "role": "owner",
             "phase": "auth",
@@ -394,10 +387,7 @@
               "serviceKind": "api",
               "priceModel": "fixed",
               "summary": "Analyze text sentiment",
-              "pricing": {
-                "amount": "0.010000",
-                "currency": "USDC"
-              }
+              "pricing": { "amount": "0.010000", "currency": "USDC" }
             },
             {
               "serviceId": "svc_deepseek_chat",
@@ -490,10 +480,7 @@
                 "serviceId": "invoice-ocr-v1",
                 "serviceName": "Invoice OCR",
                 "summary": "Extract line items and totals from invoices.",
-                "pricing": {
-                  "currency": "USDC",
-                  "amount": "0.08"
-                },
+                "pricing": { "currency": "USDC", "amount": "0.08" },
                 "runtimeAvailable": true,
                 "tags": ["finance", "ocr"]
               }
@@ -527,26 +514,17 @@
             "serviceName": "Sentiment Analysis",
             "agentToolName": "sentiment-analysis",
             "summary": "Analyze text sentiment via ML model",
-            "pricing": {
-              "currency": "USD",
-              "amount": "0.01"
-            },
+            "pricing": { "currency": "USD", "amount": "0.01" },
             "invoke": {
               "method": "POST",
               "targets": [
-                {
-                  "url": "https://your-api.example.com/analyze",
-                  "weight": 100
-                }
+                { "url": "https://your-api.example.com/analyze", "weight": 100 }
               ],
               "request": {},
               "response": {}
             }
           },
-          "responseExample": {
-            "serviceId": "svc_xyz",
-            "status": "active"
-          },
+          "responseExample": { "serviceId": "svc_xyz", "status": "active" },
           "agentMeta": {
             "role": "provider",
             "phase": "register",
@@ -610,14 +588,9 @@
               "example": "svc_xyz"
             }
           ],
-          "bodyExample": {
-            "isActive": false
-          },
+          "bodyExample": { "isActive": false },
           "responseExample": {
-            "service": {
-              "serviceId": "svc_xyz",
-              "isActive": false
-            }
+            "service": { "serviceId": "svc_xyz", "isActive": false }
           },
           "agentMeta": {
             "role": "provider",
@@ -830,10 +803,7 @@
               "example": "sec_abc"
             }
           ],
-          "responseExample": {
-            "status": "success",
-            "message": "Deleted"
-          },
+          "responseExample": { "status": "success", "message": "Deleted" },
           "agentMeta": {
             "role": "provider",
             "phase": "manage",
@@ -914,9 +884,7 @@
           "description": "Locks provider receivables and creates a provider withdrawal ticket or manual-review request. Amounts must be strings at the API boundary.",
           "auth": "jwt",
           "idempotency": true,
-          "bodyExample": {
-            "amountUsdc": "12.50"
-          },
+          "bodyExample": { "amountUsdc": "12.50" },
           "responseExample": {
             "status": "success",
             "ownerAddress": "0xProviderWallet",
@@ -1060,12 +1028,7 @@
             "payload": {
               "body": {
                 "model": "deepseek-chat",
-                "messages": [
-                  {
-                    "role": "user",
-                    "content": "hello"
-                  }
-                ],
+                "messages": [{ "role": "user", "content": "hello" }],
                 "max_tokens": 512
               }
             }
@@ -1086,9 +1049,7 @@
               "releasedUsdc": "0.000747",
               "preAuthMode": "explicit"
             },
-            "result": {
-              "answer": "..."
-            }
+            "result": { "answer": "..." }
           },
           "agentMeta": {
             "role": "consumer_agent",
@@ -1096,10 +1057,7 @@
             "note": "Preferred invoke path. Fixed APIs use costUsdc price assertion. LLM services use token-metered pre-authorization and final usage billing.",
             "requires": "Agent credential + serviceId from discovery",
             "outputs": [
-              {
-                "key": "invocationId",
-                "desc": "Settlement receipt ID"
-              },
+              { "key": "invocationId", "desc": "Settlement receipt ID" },
               {
                 "key": "chargedUsdc",
                 "desc": "Actual USDC deducted. For LLM, this is computed from final usage."
@@ -1112,10 +1070,7 @@
                 "key": "synapse",
                 "desc": "Hold, captured charge, released amount, provider revenue, and platform fee metadata"
               },
-              {
-                "key": "result",
-                "desc": "Proxied provider API response"
-              }
+              { "key": "result", "desc": "Proxied provider API response" }
             ],
             "next": "On PRICE_MISMATCH (fixed APIs): re-call discover() and retry. On LLM usage/streaming errors, do not retry as a charged call until the Provider returns final usage."
           },
@@ -1341,9 +1296,7 @@
               "example": "cred_abc"
             }
           ],
-          "responseExample": {
-            "message": "Credential revoked"
-          },
+          "responseExample": { "message": "Credential revoked" },
           "agentMeta": {
             "role": "owner",
             "phase": "manage",
@@ -1383,9 +1336,7 @@
             "category": "docs_issue",
             "route": "/concepts/agent-settlement",
             "message": "Settlement section is missing an example.",
-            "context": {
-              "pageTitle": "Agent Settlement"
-            }
+            "context": { "pageTitle": "Agent Settlement" }
           },
           "responseExample": {
             "status": "success",
@@ -1465,11 +1416,7 @@
           "responseExample": {
             "status": "success",
             "topics": [],
-            "pagination": {
-              "total": 0,
-              "page": 1,
-              "pageSize": 20
-            }
+            "pagination": { "total": 0, "page": 1, "pageSize": 20 }
           },
           "agentMeta": {
             "role": "public",
@@ -1534,9 +1481,7 @@
           ],
           "responseExample": {
             "status": "success",
-            "topic": {
-              "topicId": "topic_abc123"
-            },
+            "topic": { "topicId": "topic_abc123" },
             "replies": []
           },
           "agentMeta": {
@@ -1567,9 +1512,7 @@
           },
           "responseExample": {
             "status": "success",
-            "reply": {
-              "replyId": "reply_abc123"
-            }
+            "reply": { "replyId": "reply_abc123" }
           },
           "agentMeta": {
             "role": "owner",
@@ -1597,10 +1540,7 @@
           ],
           "responseExample": {
             "status": "success",
-            "topic": {
-              "topicId": "topic_abc123",
-              "resolved": true
-            }
+            "topic": { "topicId": "topic_abc123", "resolved": true }
           },
           "agentMeta": {
             "role": "owner",
@@ -1680,9 +1620,7 @@
         "message": "Synapse login nonce: abc123 | ts: 1711234567",
         "signature": "0x..."
       },
-      "responseExample": {
-        "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-      },
+      "responseExample": { "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." },
       "agentMeta": {
         "role": "owner",
         "phase": "auth",
@@ -1806,10 +1744,7 @@
       "summary": "Verify pending email code",
       "description": "Confirms the 6-digit code sent to a pending email address. Only after this succeeds does Gateway bind the email to the wallet account.",
       "auth": "jwt",
-      "bodyExample": {
-        "email": "new@example.com",
-        "code": "123456"
-      },
+      "bodyExample": { "email": "new@example.com", "code": "123456" },
       "responseExample": {
         "profile": {
           "walletAddress": "0x...",
@@ -1847,9 +1782,7 @@
       "summary": "Resend pending email code",
       "description": "Generates a fresh 6-digit verification code for the current pending email. Each wallet can send at most 5 verification emails per UTC day.",
       "auth": "jwt",
-      "bodyExample": {
-        "email": "new@example.com"
-      },
+      "bodyExample": { "email": "new@example.com" },
       "responseExample": {
         "profile": {
           "walletAddress": "0x...",
@@ -1882,9 +1815,7 @@
       "summary": "Revoke current JWT",
       "description": "Invalidates the current session token server-side.",
       "auth": "jwt",
-      "responseExample": {
-        "message": "Logged out"
-      },
+      "responseExample": { "message": "Logged out" },
       "agentMeta": {
         "role": "owner",
         "phase": "auth",
@@ -1938,16 +1869,9 @@
       "description": "After completing the onchain SynapseCore.deposit() transaction, register the txHash to initiate balance indexing.",
       "auth": "jwt",
       "idempotency": true,
-      "bodyExample": {
-        "tx_hash": "0xOnchainTransactionHash",
-        "amount": 10
-      },
+      "bodyExample": { "tx_hash": "0xOnchainTransactionHash", "amount": 10 },
       "responseExample": {
-        "intent": {
-          "id": "di_abc123",
-          "status": "pending",
-          "tx_hash": "0x..."
-        }
+        "intent": { "id": "di_abc123", "status": "pending", "tx_hash": "0x..." }
       },
       "agentMeta": {
         "role": "owner",
@@ -2026,10 +1950,7 @@
           "serviceKind": "api",
           "priceModel": "fixed",
           "summary": "Analyze text sentiment",
-          "pricing": {
-            "amount": "0.010000",
-            "currency": "USDC"
-          }
+          "pricing": { "amount": "0.010000", "currency": "USDC" }
         },
         {
           "serviceId": "svc_deepseek_chat",
@@ -2106,12 +2027,7 @@
       ],
       "responseExample": {
         "status": "success",
-        "query": {
-          "q": "ocr",
-          "tag": "finance",
-          "page": 1,
-          "pageSize": 10
-        },
+        "query": { "q": "ocr", "tag": "finance", "page": 1, "pageSize": 10 },
         "pagination": {
           "page": 1,
           "pageSize": 10,
@@ -2125,10 +2041,7 @@
             "serviceId": "invoice-ocr-v1",
             "serviceName": "Invoice OCR",
             "summary": "Extract line items and totals from invoices.",
-            "pricing": {
-              "currency": "USDC",
-              "amount": "0.08"
-            },
+            "pricing": { "currency": "USDC", "amount": "0.08" },
             "runtimeAvailable": true,
             "tags": ["finance", "ocr"]
           }
@@ -2165,26 +2078,17 @@
         "serviceName": "Sentiment Analysis",
         "agentToolName": "sentiment-analysis",
         "summary": "Analyze text sentiment via ML model",
-        "pricing": {
-          "currency": "USD",
-          "amount": "0.01"
-        },
+        "pricing": { "currency": "USD", "amount": "0.01" },
         "invoke": {
           "method": "POST",
           "targets": [
-            {
-              "url": "https://your-api.example.com/analyze",
-              "weight": 100
-            }
+            { "url": "https://your-api.example.com/analyze", "weight": 100 }
           ],
           "request": {},
           "response": {}
         }
       },
-      "responseExample": {
-        "serviceId": "svc_xyz",
-        "status": "active"
-      },
+      "responseExample": { "serviceId": "svc_xyz", "status": "active" },
       "agentMeta": {
         "role": "provider",
         "phase": "register",
@@ -2254,14 +2158,9 @@
           "example": "svc_xyz"
         }
       ],
-      "bodyExample": {
-        "isActive": false
-      },
+      "bodyExample": { "isActive": false },
       "responseExample": {
-        "service": {
-          "serviceId": "svc_xyz",
-          "isActive": false
-        }
+        "service": { "serviceId": "svc_xyz", "isActive": false }
       },
       "agentMeta": {
         "role": "provider",
@@ -2303,10 +2202,7 @@
           "example": "svc_xyz"
         }
       ],
-      "responseExample": {
-        "status": "success",
-        "message": "Service deleted"
-      },
+      "responseExample": { "status": "success", "message": "Service deleted" },
       "agentMeta": {
         "role": "provider",
         "phase": "manage",
@@ -2482,10 +2378,7 @@
           "example": "sec_abc"
         }
       ],
-      "responseExample": {
-        "status": "success",
-        "message": "Deleted"
-      },
+      "responseExample": { "status": "success", "message": "Deleted" },
       "agentMeta": {
         "role": "provider",
         "phase": "manage",
@@ -2575,9 +2468,7 @@
       "description": "Locks provider receivables and creates a provider withdrawal ticket or manual-review request. Amounts must be strings at the API boundary.",
       "auth": "jwt",
       "idempotency": true,
-      "bodyExample": {
-        "amountUsdc": "12.50"
-      },
+      "bodyExample": { "amountUsdc": "12.50" },
       "responseExample": {
         "status": "success",
         "ownerAddress": "0xProviderWallet",
@@ -2723,12 +2614,7 @@
         "payload": {
           "body": {
             "model": "deepseek-chat",
-            "messages": [
-              {
-                "role": "user",
-                "content": "hello"
-              }
-            ],
+            "messages": [{ "role": "user", "content": "hello" }],
             "max_tokens": 512
           }
         }
@@ -2749,9 +2635,7 @@
           "releasedUsdc": "0.000747",
           "preAuthMode": "explicit"
         },
-        "result": {
-          "answer": "..."
-        }
+        "result": { "answer": "..." }
       },
       "agentMeta": {
         "role": "consumer_agent",
@@ -2759,10 +2643,7 @@
         "note": "Preferred invoke path. Fixed APIs use costUsdc price assertion. LLM services use token-metered pre-authorization and final usage billing.",
         "requires": "Agent credential + serviceId from discovery",
         "outputs": [
-          {
-            "key": "invocationId",
-            "desc": "Settlement receipt ID"
-          },
+          { "key": "invocationId", "desc": "Settlement receipt ID" },
           {
             "key": "chargedUsdc",
             "desc": "Actual USDC deducted. For LLM, this is computed from final usage."
@@ -2775,10 +2656,7 @@
             "key": "synapse",
             "desc": "Hold, captured charge, released amount, provider revenue, and platform fee metadata"
           },
-          {
-            "key": "result",
-            "desc": "Proxied provider API response"
-          }
+          { "key": "result", "desc": "Proxied provider API response" }
         ],
         "next": "On PRICE_MISMATCH (fixed APIs): re-call discover() and retry. On LLM usage/streaming errors, do not retry as a charged call until the Provider returns final usage."
       },
@@ -3012,9 +2890,7 @@
           "example": "cred_abc"
         }
       ],
-      "responseExample": {
-        "message": "Credential revoked"
-      },
+      "responseExample": { "message": "Credential revoked" },
       "agentMeta": {
         "role": "owner",
         "phase": "manage",
@@ -3050,9 +2926,7 @@
         "category": "docs_issue",
         "route": "/concepts/agent-settlement",
         "message": "Settlement section is missing an example.",
-        "context": {
-          "pageTitle": "Agent Settlement"
-        }
+        "context": { "pageTitle": "Agent Settlement" }
       },
       "responseExample": {
         "status": "success",
@@ -3135,11 +3009,7 @@
       "responseExample": {
         "status": "success",
         "topics": [],
-        "pagination": {
-          "total": 0,
-          "page": 1,
-          "pageSize": 20
-        }
+        "pagination": { "total": 0, "page": 1, "pageSize": 20 }
       },
       "agentMeta": {
         "role": "public",
@@ -3210,9 +3080,7 @@
       ],
       "responseExample": {
         "status": "success",
-        "topic": {
-          "topicId": "topic_abc123"
-        },
+        "topic": { "topicId": "topic_abc123" },
         "replies": []
       },
       "agentMeta": {
@@ -3246,9 +3114,7 @@
       },
       "responseExample": {
         "status": "success",
-        "reply": {
-          "replyId": "reply_abc123"
-        }
+        "reply": { "replyId": "reply_abc123" }
       },
       "agentMeta": {
         "role": "owner",
@@ -3279,10 +3145,7 @@
       ],
       "responseExample": {
         "status": "success",
-        "topic": {
-          "topicId": "topic_abc123",
-          "resolved": true
-        }
+        "topic": { "topicId": "topic_abc123", "resolved": true }
       },
       "agentMeta": {
         "role": "owner",

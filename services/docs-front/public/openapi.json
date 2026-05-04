@@ -6,18 +6,12 @@
     "description": "Agent-first USDC settlement API for service discovery, paid invocation, budget isolation, provider onboarding, and withdrawal evidence."
   },
   "servers": [
-    {
-      "url": "http://127.0.0.1:8000",
-      "description": "Local / Hardhat"
-    },
+    { "url": "http://127.0.0.1:8000", "description": "Local / Hardhat" },
     {
       "url": "https://api-staging.synapse-network.ai",
       "description": "Staging / Arbitrum Sepolia"
     },
-    {
-      "url": "https://api.synapse-network.ai",
-      "description": "Production"
-    }
+    { "url": "https://api.synapse-network.ai", "description": "Production" }
   ],
   "tags": [
     {
@@ -77,10 +71,7 @@
             "in": "query",
             "required": true,
             "description": "Owner wallet address (0x...)",
-            "schema": {
-              "type": "string",
-              "example": "0xYourWalletAddress"
-            }
+            "schema": { "type": "string", "example": "0xYourWalletAddress" }
           }
         ],
         "responses": {
@@ -108,12 +99,8 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "code": {
-                      "type": "string"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
+                    "code": { "type": "string" },
+                    "message": { "type": "string" }
                   }
                 },
                 "example": {
@@ -130,12 +117,8 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "code": {
-                      "type": "string"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
+                    "code": { "type": "string" },
+                    "message": { "type": "string" }
                   }
                 },
                 "example": {
@@ -185,12 +168,8 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "code": {
-                      "type": "string"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
+                    "code": { "type": "string" },
+                    "message": { "type": "string" }
                   }
                 },
                 "example": {
@@ -207,12 +186,8 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "code": {
-                      "type": "string"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
+                    "code": { "type": "string" },
+                    "message": { "type": "string" }
                   }
                 },
                 "example": {
@@ -256,11 +231,7 @@
         "tags": ["Auth"],
         "summary": "Get current owner profile",
         "description": "Returns the wallet-linked account profile: display name, email, and notification preferences.\n\nAgent policy: Confirm authenticated identity. Use after auth to verify the JWT is valid and which wallet it is bound to.",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
+        "security": [{ "bearerAuth": [] }],
         "parameters": [],
         "responses": {
           "200": {
@@ -291,12 +262,8 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "code": {
-                      "type": "string"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
+                    "code": { "type": "string" },
+                    "message": { "type": "string" }
                   }
                 },
                 "example": {
@@ -319,11 +286,7 @@
         "tags": ["Auth"],
         "summary": "Get profile-update challenge",
         "description": "Generates a one-time signing challenge for updating the account profile (name, email, preferences).\n\nAgent policy: Step 1 of a profile update. Generates a challenge that proves the owner wallet authorises the change. Required before PUT /auth/me/profile.",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
+        "security": [{ "bearerAuth": [] }],
         "parameters": [],
         "responses": {
           "201": {
@@ -356,11 +319,7 @@
         "tags": ["Auth"],
         "summary": "Update account profile",
         "description": "Submit wallet-signed proof to update account name, notification preferences, and email binding intent. New or changed email addresses are staged as pendingEmail until a verification code is confirmed. Submitting the current verified email cancels a pending change; submitting null removes the verified email.\n\nAgent policy: Step 2 of profile update. Submits the signed challenge alongside new profile fields. Wallet signature prevents unauthorised profile changes.",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
+        "security": [{ "bearerAuth": [] }],
         "parameters": [],
         "responses": {
           "200": {
@@ -428,11 +387,7 @@
         "tags": ["Auth"],
         "summary": "Verify pending email code",
         "description": "Confirms the 6-digit code sent to a pending email address. Only after this succeeds does Gateway bind the email to the wallet account.\n\nAgent policy: Step 3 of email binding. Submit the code from the verification email. Codes expire after 10 minutes and lock after 5 bad attempts.",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
+        "security": [{ "bearerAuth": [] }],
         "parameters": [],
         "responses": {
           "201": {
@@ -469,12 +424,8 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "code": {
-                      "type": "string"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
+                    "code": { "type": "string" },
+                    "message": { "type": "string" }
                   }
                 },
                 "example": {
@@ -496,15 +447,9 @@
               "schema": {
                 "type": "object",
                 "additionalProperties": true,
-                "example": {
-                  "email": "new@example.com",
-                  "code": "123456"
-                }
+                "example": { "email": "new@example.com", "code": "123456" }
               },
-              "example": {
-                "email": "new@example.com",
-                "code": "123456"
-              }
+              "example": { "email": "new@example.com", "code": "123456" }
             }
           }
         }
@@ -516,11 +461,7 @@
         "tags": ["Auth"],
         "summary": "Resend pending email code",
         "description": "Generates a fresh 6-digit verification code for the current pending email. Each wallet can send at most 5 verification emails per UTC day.\n\nAgent policy: Use when a user did not receive the current code. Resending invalidates the old code.",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
+        "security": [{ "bearerAuth": [] }],
         "parameters": [],
         "responses": {
           "201": {
@@ -557,12 +498,8 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "code": {
-                      "type": "string"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
+                    "code": { "type": "string" },
+                    "message": { "type": "string" }
                   }
                 },
                 "example": {
@@ -584,13 +521,9 @@
               "schema": {
                 "type": "object",
                 "additionalProperties": true,
-                "example": {
-                  "email": "new@example.com"
-                }
+                "example": { "email": "new@example.com" }
               },
-              "example": {
-                "email": "new@example.com"
-              }
+              "example": { "email": "new@example.com" }
             }
           }
         }
@@ -602,11 +535,7 @@
         "tags": ["Auth"],
         "summary": "Revoke current JWT",
         "description": "Invalidates the current session token server-side.\n\nAgent policy: Invalidate the JWT when the session ends. After this call the token cannot be used for any further requests.",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
+        "security": [{ "bearerAuth": [] }],
         "parameters": [],
         "responses": {
           "201": {
@@ -616,13 +545,9 @@
                 "schema": {
                   "type": "object",
                   "additionalProperties": true,
-                  "example": {
-                    "message": "Logged out"
-                  }
+                  "example": { "message": "Logged out" }
                 },
-                "example": {
-                  "message": "Logged out"
-                }
+                "example": { "message": "Logged out" }
               }
             }
           }
@@ -639,11 +564,7 @@
         "tags": ["Balance"],
         "summary": "Get account balance summary",
         "description": "Returns the complete balance breakdown: consumer available (spendable by agents), provider receivable (earned, unsettled), and protocol fee totals.\n\nAgent policy: Check spendable balance before issuing agent credentials. consumer_available_balance is the USDC an agent can spend. If zero the owner must deposit USDC first.",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
+        "security": [{ "bearerAuth": [] }],
         "parameters": [],
         "responses": {
           "200": {
@@ -674,12 +595,8 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "code": {
-                      "type": "string"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
+                    "code": { "type": "string" },
+                    "message": { "type": "string" }
                   }
                 },
                 "example": {
@@ -702,11 +619,7 @@
         "tags": ["Balance"],
         "summary": "Register deposit intent",
         "description": "After completing the onchain SynapseCore.deposit() transaction, register the txHash to initiate balance indexing.\n\nAgent policy: Call after the onchain USDC deposit is confirmed. The gateway indexes the event and credits consumer_available_balance.",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
+        "security": [{ "bearerAuth": [] }],
         "parameters": [],
         "responses": {
           "201": {
@@ -741,12 +654,8 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "code": {
-                      "type": "string"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
+                    "code": { "type": "string" },
+                    "message": { "type": "string" }
                   }
                 },
                 "example": {
@@ -773,10 +682,7 @@
                   "amount": 10
                 }
               },
-              "example": {
-                "tx_hash": "0xOnchainTransactionHash",
-                "amount": 10
-              }
+              "example": { "tx_hash": "0xOnchainTransactionHash", "amount": 10 }
             }
           }
         }
@@ -788,11 +694,7 @@
         "tags": ["Balance"],
         "summary": "Get spending limit configuration",
         "description": "Returns the current velocity-limit policy for the owner account (daily, per-call).\n\nAgent policy: Returns the configured spending velocity limits. Agent credential credit_limit must not exceed these limits.",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
+        "security": [{ "bearerAuth": [] }],
         "parameters": [],
         "responses": {
           "200": {
@@ -834,20 +736,14 @@
             "in": "query",
             "required": false,
             "description": "Maximum results",
-            "schema": {
-              "type": "integer",
-              "example": "20"
-            }
+            "schema": { "type": "integer", "example": "20" }
           },
           {
             "name": "search_query",
             "in": "query",
             "required": false,
             "description": "Free-text search over service names and descriptions",
-            "schema": {
-              "type": "string",
-              "example": "sentiment"
-            }
+            "schema": { "type": "string", "example": "sentiment" }
           }
         ],
         "responses": {
@@ -866,10 +762,7 @@
                       "serviceKind": "api",
                       "priceModel": "fixed",
                       "summary": "Analyze text sentiment",
-                      "pricing": {
-                        "amount": "0.010000",
-                        "currency": "USDC"
-                      }
+                      "pricing": { "amount": "0.010000", "currency": "USDC" }
                     }
                   },
                   "example": [
@@ -879,10 +772,7 @@
                       "serviceKind": "api",
                       "priceModel": "fixed",
                       "summary": "Analyze text sentiment",
-                      "pricing": {
-                        "amount": "0.010000",
-                        "currency": "USDC"
-                      }
+                      "pricing": { "amount": "0.010000", "currency": "USDC" }
                     },
                     {
                       "serviceId": "svc_deepseek_chat",
@@ -903,10 +793,7 @@
                     "serviceKind": "api",
                     "priceModel": "fixed",
                     "summary": "Analyze text sentiment",
-                    "pricing": {
-                      "amount": "0.010000",
-                      "currency": "USDC"
-                    }
+                    "pricing": { "amount": "0.010000", "currency": "USDC" }
                   },
                   {
                     "serviceId": "svc_deepseek_chat",
@@ -942,40 +829,28 @@
             "in": "query",
             "required": false,
             "description": "Page number, starting at 1",
-            "schema": {
-              "type": "integer",
-              "example": "1"
-            }
+            "schema": { "type": "integer", "example": "1" }
           },
           {
             "name": "pageSize",
             "in": "query",
             "required": false,
             "description": "Results per page. Defaults to 10 and is capped at 100.",
-            "schema": {
-              "type": "integer",
-              "example": "10"
-            }
+            "schema": { "type": "integer", "example": "10" }
           },
           {
             "name": "q",
             "in": "query",
             "required": false,
             "description": "Free-text search over service names, summaries, endpoints, roles, and tags",
-            "schema": {
-              "type": "string",
-              "example": "ocr"
-            }
+            "schema": { "type": "string", "example": "ocr" }
           },
           {
             "name": "tag",
             "in": "query",
             "required": false,
             "description": "Filter by a service tag",
-            "schema": {
-              "type": "string",
-              "example": "finance"
-            }
+            "schema": { "type": "string", "example": "finance" }
           }
         ],
         "responses": {
@@ -1007,10 +882,7 @@
                         "serviceId": "invoice-ocr-v1",
                         "serviceName": "Invoice OCR",
                         "summary": "Extract line items and totals from invoices.",
-                        "pricing": {
-                          "currency": "USDC",
-                          "amount": "0.08"
-                        },
+                        "pricing": { "currency": "USDC", "amount": "0.08" },
                         "runtimeAvailable": true,
                         "tags": ["finance", "ocr"]
                       }
@@ -1038,10 +910,7 @@
                       "serviceId": "invoice-ocr-v1",
                       "serviceName": "Invoice OCR",
                       "summary": "Extract line items and totals from invoices.",
-                      "pricing": {
-                        "currency": "USDC",
-                        "amount": "0.08"
-                      },
+                      "pricing": { "currency": "USDC", "amount": "0.08" },
                       "runtimeAvailable": true,
                       "tags": ["finance", "ocr"]
                     }
@@ -1063,11 +932,7 @@
         "tags": ["Services"],
         "summary": "Register a new service",
         "description": "Provider registers an API service on the Synapse marketplace. The gateway proxies incoming invocations to invoke.targets.\n\nAgent policy: Provider publishes their API as a paid service. The gateway proxies calls to invoke.targets and handles payment automatically.",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
+        "security": [{ "bearerAuth": [] }],
         "parameters": [],
         "responses": {
           "201": {
@@ -1077,15 +942,9 @@
                 "schema": {
                   "type": "object",
                   "additionalProperties": true,
-                  "example": {
-                    "serviceId": "svc_xyz",
-                    "status": "active"
-                  }
+                  "example": { "serviceId": "svc_xyz", "status": "active" }
                 },
-                "example": {
-                  "serviceId": "svc_xyz",
-                  "status": "active"
-                }
+                "example": { "serviceId": "svc_xyz", "status": "active" }
               }
             }
           },
@@ -1096,12 +955,8 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "code": {
-                      "type": "string"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
+                    "code": { "type": "string" },
+                    "message": { "type": "string" }
                   }
                 },
                 "example": {
@@ -1118,12 +973,8 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "code": {
-                      "type": "string"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
+                    "code": { "type": "string" },
+                    "message": { "type": "string" }
                   }
                 },
                 "example": {
@@ -1149,10 +1000,7 @@
                   "serviceName": "Sentiment Analysis",
                   "agentToolName": "sentiment-analysis",
                   "summary": "Analyze text sentiment via ML model",
-                  "pricing": {
-                    "currency": "USD",
-                    "amount": "0.01"
-                  },
+                  "pricing": { "currency": "USD", "amount": "0.01" },
                   "invoke": {
                     "method": "POST",
                     "targets": [
@@ -1170,10 +1018,7 @@
                 "serviceName": "Sentiment Analysis",
                 "agentToolName": "sentiment-analysis",
                 "summary": "Analyze text sentiment via ML model",
-                "pricing": {
-                  "currency": "USD",
-                  "amount": "0.01"
-                },
+                "pricing": { "currency": "USD", "amount": "0.01" },
                 "invoke": {
                   "method": "POST",
                   "targets": [
@@ -1195,11 +1040,7 @@
         "tags": ["Services"],
         "summary": "List own registered services",
         "description": "Returns all services registered by the authenticated provider wallet.\n\nAgent policy: List all services the authenticated provider has registered. Use to audit active services or get serviceIds for updates.",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
+        "security": [{ "bearerAuth": [] }],
         "parameters": [],
         "responses": {
           "200": {
@@ -1248,21 +1089,14 @@
         "tags": ["Services"],
         "summary": "Update service config",
         "description": "Update any service field including isActive. To delete a service, first set isActive: false, then call DELETE.\n\nAgent policy: Update service config. Critical: to delete a service, first PUT {isActive: false} to deactivate it, then call DELETE. Deleting an active service returns 409.",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
+        "security": [{ "bearerAuth": [] }],
         "parameters": [
           {
             "name": "id",
             "in": "path",
             "required": true,
             "description": "Service ID",
-            "schema": {
-              "type": "string",
-              "example": "svc_xyz"
-            }
+            "schema": { "type": "string", "example": "svc_xyz" }
           }
         ],
         "responses": {
@@ -1274,17 +1108,11 @@
                   "type": "object",
                   "additionalProperties": true,
                   "example": {
-                    "service": {
-                      "serviceId": "svc_xyz",
-                      "isActive": false
-                    }
+                    "service": { "serviceId": "svc_xyz", "isActive": false }
                   }
                 },
                 "example": {
-                  "service": {
-                    "serviceId": "svc_xyz",
-                    "isActive": false
-                  }
+                  "service": { "serviceId": "svc_xyz", "isActive": false }
                 }
               }
             }
@@ -1296,12 +1124,8 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "code": {
-                      "type": "string"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
+                    "code": { "type": "string" },
+                    "message": { "type": "string" }
                   }
                 },
                 "example": {
@@ -1318,12 +1142,8 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "code": {
-                      "type": "string"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
+                    "code": { "type": "string" },
+                    "message": { "type": "string" }
                   }
                 },
                 "example": {
@@ -1345,13 +1165,9 @@
               "schema": {
                 "type": "object",
                 "additionalProperties": true,
-                "example": {
-                  "isActive": false
-                }
+                "example": { "isActive": false }
               },
-              "example": {
-                "isActive": false
-              }
+              "example": { "isActive": false }
             }
           }
         }
@@ -1361,21 +1177,14 @@
         "tags": ["Services"],
         "summary": "Delete service",
         "description": "Permanently archives a service. The service MUST be inactive (isActive: false) before deletion.\n\nAgent policy: Soft-archives a service. Guard: service MUST be deactivated (via PUT {isActive: false}) first, or this returns 409 SERVICE_DELETE_ACTIVE_CONFLICT.",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
+        "security": [{ "bearerAuth": [] }],
         "parameters": [
           {
             "name": "id",
             "in": "path",
             "required": true,
             "description": "Service ID",
-            "schema": {
-              "type": "string",
-              "example": "svc_xyz"
-            }
+            "schema": { "type": "string", "example": "svc_xyz" }
           }
         ],
         "responses": {
@@ -1391,10 +1200,7 @@
                     "message": "Service deleted"
                   }
                 },
-                "example": {
-                  "status": "success",
-                  "message": "Service deleted"
-                }
+                "example": { "status": "success", "message": "Service deleted" }
               }
             }
           },
@@ -1405,12 +1211,8 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "code": {
-                      "type": "string"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
+                    "code": { "type": "string" },
+                    "message": { "type": "string" }
                   }
                 },
                 "example": {
@@ -1427,12 +1229,8 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "code": {
-                      "type": "string"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
+                    "code": { "type": "string" },
+                    "message": { "type": "string" }
                   }
                 },
                 "example": {
@@ -1455,41 +1253,28 @@
         "tags": ["Services"],
         "summary": "Get service health history",
         "description": "Returns recent provider health probe history for a service owned by the authenticated provider wallet.\n\nAgent policy: Provider-owned health drilldown. Use it to understand why a service is or is not currently callable.",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
+        "security": [{ "bearerAuth": [] }],
         "parameters": [
           {
             "name": "id",
             "in": "path",
             "required": true,
             "description": "Service ID",
-            "schema": {
-              "type": "string",
-              "example": "svc_xyz"
-            }
+            "schema": { "type": "string", "example": "svc_xyz" }
           },
           {
             "name": "limitPerTarget",
             "in": "query",
             "required": false,
             "description": "Recent probe records per target",
-            "schema": {
-              "type": "integer",
-              "example": "50"
-            }
+            "schema": { "type": "integer", "example": "50" }
           },
           {
             "name": "hours",
             "in": "query",
             "required": false,
             "description": "History window in hours",
-            "schema": {
-              "type": "integer",
-              "example": "24"
-            }
+            "schema": { "type": "integer", "example": "24" }
           }
         ],
         "responses": {
@@ -1543,12 +1328,8 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "code": {
-                      "type": "string"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
+                    "code": { "type": "string" },
+                    "message": { "type": "string" }
                   }
                 },
                 "example": {
@@ -1571,11 +1352,7 @@
         "tags": ["Provider Operations"],
         "summary": "List provider secrets",
         "description": "Returns active provider secret keys owned by the authenticated provider wallet. The raw secret is never returned after issuance.\n\nAgent policy: Provider control-plane inventory for provider secrets. Use owner/provider JWT, not a consumer agent credential.",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
+        "security": [{ "bearerAuth": [] }],
         "parameters": [],
         "responses": {
           "200": {
@@ -1630,11 +1407,7 @@
         "tags": ["Provider Operations"],
         "summary": "Issue provider secret",
         "description": "Issues a provider secret for provider-side automation. The secretKey is returned exactly once and must be stored securely by the provider.\n\nAgent policy: Provider onboarding step for controlled provider-side automation. This is not a consumer agent spending credential.",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
+        "security": [{ "bearerAuth": [] }],
         "parameters": [],
         "responses": {
           "201": {
@@ -1704,21 +1477,14 @@
         "tags": ["Provider Operations"],
         "summary": "Revoke provider secret",
         "description": "Revokes a provider secret owned by the authenticated provider wallet.\n\nAgent policy: Emergency rotation path for provider automation secrets.",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
+        "security": [{ "bearerAuth": [] }],
         "parameters": [
           {
             "name": "secretId",
             "in": "path",
             "required": true,
             "description": "Provider secret ID",
-            "schema": {
-              "type": "string",
-              "example": "sec_abc"
-            }
+            "schema": { "type": "string", "example": "sec_abc" }
           }
         ],
         "responses": {
@@ -1729,15 +1495,9 @@
                 "schema": {
                   "type": "object",
                   "additionalProperties": true,
-                  "example": {
-                    "status": "success",
-                    "message": "Deleted"
-                  }
+                  "example": { "status": "success", "message": "Deleted" }
                 },
-                "example": {
-                  "status": "success",
-                  "message": "Deleted"
-                }
+                "example": { "status": "success", "message": "Deleted" }
               }
             }
           },
@@ -1748,12 +1508,8 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "code": {
-                      "type": "string"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
+                    "code": { "type": "string" },
+                    "message": { "type": "string" }
                   }
                 },
                 "example": {
@@ -1770,12 +1526,8 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "code": {
-                      "type": "string"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
+                    "code": { "type": "string" },
+                    "message": { "type": "string" }
                   }
                 },
                 "example": {
@@ -1798,21 +1550,14 @@
         "tags": ["Provider Operations"],
         "summary": "Get provider earnings summary",
         "description": "Returns provider earnings analytics and recent settlement context for the authenticated provider wallet.\n\nAgent policy: Provider revenue read model. Use it to confirm that paid traffic is producing receivables before withdrawal.",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
+        "security": [{ "bearerAuth": [] }],
         "parameters": [
           {
             "name": "limit",
             "in": "query",
             "required": false,
             "description": "Maximum rows to aggregate",
-            "schema": {
-              "type": "integer",
-              "example": "200"
-            }
+            "schema": { "type": "integer", "example": "200" }
           }
         ],
         "responses": {
@@ -1856,11 +1601,7 @@
         "tags": ["Provider Operations"],
         "summary": "Get provider withdrawal capability",
         "description": "Reports whether the gateway can currently issue EIP-712 provider withdrawal tickets.\n\nAgent policy: Call before enabling a provider withdrawal button. If ticket signing is unavailable, do not let the user start a withdrawal.",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
+        "security": [{ "bearerAuth": [] }],
         "parameters": [],
         "responses": {
           "200": {
@@ -1901,11 +1642,7 @@
         "tags": ["Provider Operations"],
         "summary": "Create provider withdrawal intent",
         "description": "Locks provider receivables and creates a provider withdrawal ticket or manual-review request. Amounts must be strings at the API boundary.\n\nAgent policy: Provider self-service withdrawal. It never spends consumer balances; it only reserves provider receivable funds.",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
+        "security": [{ "bearerAuth": [] }],
         "parameters": [],
         "responses": {
           "201": {
@@ -1948,12 +1685,8 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "code": {
-                      "type": "string"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
+                    "code": { "type": "string" },
+                    "message": { "type": "string" }
                   }
                 },
                 "example": {
@@ -1970,12 +1703,8 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "code": {
-                      "type": "string"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
+                    "code": { "type": "string" },
+                    "message": { "type": "string" }
                   }
                 },
                 "example": {
@@ -1997,13 +1726,9 @@
               "schema": {
                 "type": "object",
                 "additionalProperties": true,
-                "example": {
-                  "amountUsdc": "12.50"
-                }
+                "example": { "amountUsdc": "12.50" }
               },
-              "example": {
-                "amountUsdc": "12.50"
-              }
+              "example": { "amountUsdc": "12.50" }
             }
           }
         }
@@ -2015,21 +1740,14 @@
         "tags": ["Provider Operations"],
         "summary": "List provider withdrawals",
         "description": "Returns provider withdrawal intents and their lifecycle statuses.\n\nAgent policy: Provider audit view for withdrawal intents. Stale active tickets may be lazily cancelled and released when this endpoint is read.",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
+        "security": [{ "bearerAuth": [] }],
         "parameters": [
           {
             "name": "limit",
             "in": "query",
             "required": false,
             "description": "Maximum rows",
-            "schema": {
-              "type": "integer",
-              "example": "100"
-            }
+            "schema": { "type": "integer", "example": "100" }
           }
         ],
         "responses": {
@@ -2079,21 +1797,14 @@
         "tags": ["Provider Operations"],
         "summary": "Complete provider withdrawal",
         "description": "Closes a provider withdrawal intent after the provider's onchain withdraw transaction succeeds.\n\nAgent policy: Finalizes the provider withdrawal after chain success. Replays are rejected or idempotently resolved by txHash binding.",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
+        "security": [{ "bearerAuth": [] }],
         "parameters": [
           {
             "name": "withdrawalId",
             "in": "path",
             "required": true,
             "description": "Withdrawal intent ID",
-            "schema": {
-              "type": "string",
-              "example": "wd_abc"
-            }
+            "schema": { "type": "string", "example": "wd_abc" }
           }
         ],
         "responses": {
@@ -2127,12 +1838,8 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "code": {
-                      "type": "string"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
+                    "code": { "type": "string" },
+                    "message": { "type": "string" }
                   }
                 },
                 "example": {
@@ -2149,12 +1856,8 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "code": {
-                      "type": "string"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
+                    "code": { "type": "string" },
+                    "message": { "type": "string" }
                   }
                 },
                 "example": {
@@ -2171,12 +1874,8 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "code": {
-                      "type": "string"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
+                    "code": { "type": "string" },
+                    "message": { "type": "string" }
                   }
                 },
                 "example": {
@@ -2216,11 +1915,7 @@
         "tags": ["Agent Invocations"],
         "summary": "Invoke a service",
         "description": "Invoke a service in one HTTP call. For fixed-price APIs, pass costUsdc — the price the agent saw in discovery. For serviceKind=llm / priceModel=token_metered, omit costUsdc and optionally pass maxCostUsdc; Gateway pre-authorizes, captures final Provider usage, and releases the rest.\n\nAgent policy: Preferred invoke path. Fixed APIs use costUsdc price assertion. LLM services use token-metered pre-authorization and final usage billing.",
-        "security": [
-          {
-            "agentCredential": []
-          }
-        ],
+        "security": [{ "agentCredential": [] }],
         "parameters": [],
         "responses": {
           "201": {
@@ -2246,9 +1941,7 @@
                       "releasedUsdc": "0.000747",
                       "preAuthMode": "explicit"
                     },
-                    "result": {
-                      "answer": "..."
-                    }
+                    "result": { "answer": "..." }
                   }
                 },
                 "example": {
@@ -2267,9 +1960,7 @@
                     "releasedUsdc": "0.000747",
                     "preAuthMode": "explicit"
                   },
-                  "result": {
-                    "answer": "..."
-                  }
+                  "result": { "answer": "..." }
                 }
               }
             }
@@ -2281,12 +1972,8 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "code": {
-                      "type": "string"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
+                    "code": { "type": "string" },
+                    "message": { "type": "string" }
                   }
                 },
                 "example": {
@@ -2303,12 +1990,8 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "code": {
-                      "type": "string"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
+                    "code": { "type": "string" },
+                    "message": { "type": "string" }
                   }
                 },
                 "example": {
@@ -2325,12 +2008,8 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "code": {
-                      "type": "string"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
+                    "code": { "type": "string" },
+                    "message": { "type": "string" }
                   }
                 },
                 "example": {
@@ -2347,12 +2026,8 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "code": {
-                      "type": "string"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
+                    "code": { "type": "string" },
+                    "message": { "type": "string" }
                   }
                 },
                 "example": {
@@ -2369,12 +2044,8 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "code": {
-                      "type": "string"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
+                    "code": { "type": "string" },
+                    "message": { "type": "string" }
                   }
                 },
                 "example": {
@@ -2391,12 +2062,8 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "code": {
-                      "type": "string"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
+                    "code": { "type": "string" },
+                    "message": { "type": "string" }
                   }
                 },
                 "example": {
@@ -2425,12 +2092,7 @@
                   "payload": {
                     "body": {
                       "model": "deepseek-chat",
-                      "messages": [
-                        {
-                          "role": "user",
-                          "content": "hello"
-                        }
-                      ],
+                      "messages": [{ "role": "user", "content": "hello" }],
                       "max_tokens": 512
                     }
                   }
@@ -2443,12 +2105,7 @@
                 "payload": {
                   "body": {
                     "model": "deepseek-chat",
-                    "messages": [
-                      {
-                        "role": "user",
-                        "content": "hello"
-                      }
-                    ],
+                    "messages": [{ "role": "user", "content": "hello" }],
                     "max_tokens": 512
                   }
                 }
@@ -2464,21 +2121,14 @@
         "tags": ["Agent Invocations"],
         "summary": "Get invocation receipt",
         "description": "Fetch the settlement receipt for a specific invocation.\n\nAgent policy: Retrieve the settlement receipt for any past invocation. Use to verify completion, audit charges, or retrieve the result if the original response was lost.",
-        "security": [
-          {
-            "agentCredential": []
-          }
-        ],
+        "security": [{ "agentCredential": [] }],
         "parameters": [
           {
             "name": "invocationId",
             "in": "path",
             "required": true,
             "description": "Invocation ID",
-            "schema": {
-              "type": "string",
-              "example": "inv_xyz"
-            }
+            "schema": { "type": "string", "example": "inv_xyz" }
           }
         ],
         "responses": {
@@ -2512,12 +2162,8 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "code": {
-                      "type": "string"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
+                    "code": { "type": "string" },
+                    "message": { "type": "string" }
                   }
                 },
                 "example": {
@@ -2540,21 +2186,14 @@
         "tags": ["Agent Invocations"],
         "summary": "List invocation history",
         "description": "Owner-level audit log of all invocations under this wallet. Paginated.\n\nAgent policy: Owner-level audit view of all invocations under this wallet. Use to reconcile charges, monitor agent activity, and verify settlement amounts.",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
+        "security": [{ "bearerAuth": [] }],
         "parameters": [
           {
             "name": "limit",
             "in": "query",
             "required": false,
             "description": "Max results",
-            "schema": {
-              "type": "integer",
-              "example": "20"
-            }
+            "schema": { "type": "integer", "example": "20" }
           }
         ],
         "responses": {
@@ -2604,11 +2243,7 @@
         "tags": ["Credentials"],
         "summary": "Issue agent credential",
         "description": "Mint a new spend-limited agent credential. The returned token is used by the agent runtime for all /agent/* calls.\n\nAgent policy: Owner mints a spend-limited token for an autonomous agent. maxCalls and creditLimit prevent runaway spending. Pass the token to the agent — never expose the owner JWT to the agent.",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
+        "security": [{ "bearerAuth": [] }],
         "parameters": [],
         "responses": {
           "201": {
@@ -2643,12 +2278,8 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "code": {
-                      "type": "string"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
+                    "code": { "type": "string" },
+                    "message": { "type": "string" }
                   }
                 },
                 "example": {
@@ -2665,12 +2296,8 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "code": {
-                      "type": "string"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
+                    "code": { "type": "string" },
+                    "message": { "type": "string" }
                   }
                 },
                 "example": {
@@ -2716,11 +2343,7 @@
         "tags": ["Credentials"],
         "summary": "List all credentials",
         "description": "Returns all active agent credentials issued by the authenticated owner.\n\nAgent policy: Audit which agent tokens are active and how many calls each has consumed. Identify credentials approaching limits.",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
+        "security": [{ "bearerAuth": [] }],
         "parameters": [],
         "responses": {
           "200": {
@@ -2772,21 +2395,14 @@
         "tags": ["Credentials"],
         "summary": "Revoke credential",
         "description": "Immediately invalidates an agent credential. Any subsequent call using this token is rejected.\n\nAgent policy: Emergency shutoff: revoke a compromised or over-limit agent token immediately. Takes effect server-side instantly.",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
+        "security": [{ "bearerAuth": [] }],
         "parameters": [
           {
             "name": "id",
             "in": "path",
             "required": true,
             "description": "Credential ID",
-            "schema": {
-              "type": "string",
-              "example": "cred_abc"
-            }
+            "schema": { "type": "string", "example": "cred_abc" }
           }
         ],
         "responses": {
@@ -2797,13 +2413,9 @@
                 "schema": {
                   "type": "object",
                   "additionalProperties": true,
-                  "example": {
-                    "message": "Credential revoked"
-                  }
+                  "example": { "message": "Credential revoked" }
                 },
-                "example": {
-                  "message": "Credential revoked"
-                }
+                "example": { "message": "Credential revoked" }
               }
             }
           },
@@ -2814,12 +2426,8 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "code": {
-                      "type": "string"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
+                    "code": { "type": "string" },
+                    "message": { "type": "string" }
                   }
                 },
                 "example": {
@@ -2836,12 +2444,8 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "code": {
-                      "type": "string"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
+                    "code": { "type": "string" },
+                    "message": { "type": "string" }
                   }
                 },
                 "example": {
@@ -2899,12 +2503,8 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "code": {
-                      "type": "string"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
+                    "code": { "type": "string" },
+                    "message": { "type": "string" }
                   }
                 },
                 "example": {
@@ -2921,12 +2521,8 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "code": {
-                      "type": "string"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
+                    "code": { "type": "string" },
+                    "message": { "type": "string" }
                   }
                 },
                 "example": {
@@ -2954,9 +2550,7 @@
                   "category": "docs_issue",
                   "route": "/concepts/agent-settlement",
                   "message": "Settlement section is missing an example.",
-                  "context": {
-                    "pageTitle": "Agent Settlement"
-                  }
+                  "context": { "pageTitle": "Agent Settlement" }
                 }
               },
               "example": {
@@ -2965,9 +2559,7 @@
                 "category": "docs_issue",
                 "route": "/concepts/agent-settlement",
                 "message": "Settlement section is missing an example.",
-                "context": {
-                  "pageTitle": "Agent Settlement"
-                }
+                "context": { "pageTitle": "Agent Settlement" }
               }
             }
           }
@@ -2987,40 +2579,28 @@
             "in": "query",
             "required": false,
             "description": "Page number",
-            "schema": {
-              "type": "integer",
-              "example": "1"
-            }
+            "schema": { "type": "integer", "example": "1" }
           },
           {
             "name": "pageSize",
             "in": "query",
             "required": false,
             "description": "Rows per page, max 50",
-            "schema": {
-              "type": "integer",
-              "example": "20"
-            }
+            "schema": { "type": "integer", "example": "20" }
           },
           {
             "name": "category",
             "in": "query",
             "required": false,
             "description": "Forum category",
-            "schema": {
-              "type": "string",
-              "example": "Provider Services"
-            }
+            "schema": { "type": "string", "example": "Provider Services" }
           },
           {
             "name": "q",
             "in": "query",
             "required": false,
             "description": "Search text",
-            "schema": {
-              "type": "string",
-              "example": "health"
-            }
+            "schema": { "type": "string", "example": "health" }
           },
           {
             "name": "sort",
@@ -3045,21 +2625,13 @@
                   "example": {
                     "status": "success",
                     "topics": [],
-                    "pagination": {
-                      "total": 0,
-                      "page": 1,
-                      "pageSize": 20
-                    }
+                    "pagination": { "total": 0, "page": 1, "pageSize": 20 }
                   }
                 },
                 "example": {
                   "status": "success",
                   "topics": [],
-                  "pagination": {
-                    "total": 0,
-                    "page": 1,
-                    "pageSize": 20
-                  }
+                  "pagination": { "total": 0, "page": 1, "pageSize": 20 }
                 }
               }
             }
@@ -3075,11 +2647,7 @@
         "tags": ["Community"],
         "summary": "Create forum topic",
         "description": "Creates a forum topic. Requires wallet JWT, filters secrets, and emits a forum_topic_created event.\n\nAgent policy: Use for logged-in community posts. Do not include JWTs, provider secrets, private keys, or authorization headers.",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
+        "security": [{ "bearerAuth": [] }],
         "parameters": [],
         "responses": {
           "201": {
@@ -3114,12 +2682,8 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "code": {
-                      "type": "string"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
+                    "code": { "type": "string" },
+                    "message": { "type": "string" }
                   }
                 },
                 "example": {
@@ -3136,12 +2700,8 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "code": {
-                      "type": "string"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
+                    "code": { "type": "string" },
+                    "message": { "type": "string" }
                   }
                 },
                 "example": {
@@ -3192,10 +2752,7 @@
             "in": "path",
             "required": true,
             "description": "Forum topic id",
-            "schema": {
-              "type": "string",
-              "example": "topic_abc123"
-            }
+            "schema": { "type": "string", "example": "topic_abc123" }
           }
         ],
         "responses": {
@@ -3208,17 +2765,13 @@
                   "additionalProperties": true,
                   "example": {
                     "status": "success",
-                    "topic": {
-                      "topicId": "topic_abc123"
-                    },
+                    "topic": { "topicId": "topic_abc123" },
                     "replies": []
                   }
                 },
                 "example": {
                   "status": "success",
-                  "topic": {
-                    "topicId": "topic_abc123"
-                  },
+                  "topic": { "topicId": "topic_abc123" },
                   "replies": []
                 }
               }
@@ -3237,21 +2790,14 @@
         "tags": ["Community"],
         "summary": "Reply to forum topic",
         "description": "Adds a reply to an unlocked topic. Requires wallet JWT and redacts sensitive content.\n\nAgent policy: Use for follow-up, workarounds, and support references.",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
+        "security": [{ "bearerAuth": [] }],
         "parameters": [
           {
             "name": "topicId",
             "in": "path",
             "required": true,
             "description": "Forum topic id",
-            "schema": {
-              "type": "string",
-              "example": "topic_abc123"
-            }
+            "schema": { "type": "string", "example": "topic_abc123" }
           }
         ],
         "responses": {
@@ -3264,16 +2810,12 @@
                   "additionalProperties": true,
                   "example": {
                     "status": "success",
-                    "reply": {
-                      "replyId": "reply_abc123"
-                    }
+                    "reply": { "replyId": "reply_abc123" }
                   }
                 },
                 "example": {
                   "status": "success",
-                  "reply": {
-                    "replyId": "reply_abc123"
-                  }
+                  "reply": { "replyId": "reply_abc123" }
                 }
               }
             }
@@ -3308,21 +2850,14 @@
         "tags": ["Community"],
         "summary": "Resolve forum topic",
         "description": "Marks an authored topic as resolved.\n\nAgent policy: Topic authors can mark their own question or bug as resolved.",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
+        "security": [{ "bearerAuth": [] }],
         "parameters": [
           {
             "name": "topicId",
             "in": "path",
             "required": true,
             "description": "Forum topic id",
-            "schema": {
-              "type": "string",
-              "example": "topic_abc123"
-            }
+            "schema": { "type": "string", "example": "topic_abc123" }
           }
         ],
         "responses": {
@@ -3335,18 +2870,12 @@
                   "additionalProperties": true,
                   "example": {
                     "status": "success",
-                    "topic": {
-                      "topicId": "topic_abc123",
-                      "resolved": true
-                    }
+                    "topic": { "topicId": "topic_abc123", "resolved": true }
                   }
                 },
                 "example": {
                   "status": "success",
-                  "topic": {
-                    "topicId": "topic_abc123",
-                    "resolved": true
-                  }
+                  "topic": { "topicId": "topic_abc123", "resolved": true }
                 }
               }
             }
@@ -3358,12 +2887,8 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "code": {
-                      "type": "string"
-                    },
-                    "message": {
-                      "type": "string"
-                    }
+                    "code": { "type": "string" },
+                    "message": { "type": "string" }
                   }
                 },
                 "example": {
