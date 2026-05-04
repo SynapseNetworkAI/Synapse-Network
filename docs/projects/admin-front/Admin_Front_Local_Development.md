@@ -46,7 +46,7 @@ yarn build
 可选环境变量：
 
 1. `ADMIN_API_PROXY_TARGET`: 修改代理目标地址。
-2. `NEXT_PUBLIC_ADMIN_API_BASE_URL`: 让浏览器直接请求外部管理 API。
+2. `NEXT_PUBLIC_ADMIN_API_BASE_URL`: 仅在需要让浏览器直连外部管理 API 域名时使用；本地 `localhost` / `127.0.0.1` 联调默认不要设置它，避免 MFA 登录后的 session cookie 落到不同 host，导致 `/dashboard` 会话检查被踢回 `/login`。
 
 这样做是为了规避浏览器侧跨域、`localhost / 127.0.0.1 / LAN IP` 差异导致的登录与 MFA 失败。
 

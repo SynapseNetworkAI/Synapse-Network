@@ -5,6 +5,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { FUNCTION_MATRIX } from "./admin_regression_function_matrix.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "../..");
@@ -41,6 +42,10 @@ const REQUIRED_SCREENSHOT_KEYWORDS = [
 ];
 
 const LOCAL_STEPS = [
+  [
+    "local-gateway-health",
+    ["__shell", "bash", "scripts/local/restart_gateway.sh"],
+  ],
   ["admin-front", ["run", "e2e:admin-front"]],
   ["admin-login-lockout", ["run", "e2e:admin-login-lockout:dogfood"]],
   ["admin-withdrawal-approval", ["run", "e2e:admin-withdrawal-approval"]],
@@ -56,6 +61,14 @@ const LOCAL_STEPS = [
   [
     "withdrawal-idempotency-concurrency",
     ["run", "e2e:withdrawal-idempotency-concurrency"],
+  ],
+  [
+    "local-gateway-restore",
+    ["__shell", "bash", "scripts/local/restart_gateway.sh"],
+  ],
+  [
+    "local-front-restore",
+    ["__shell", "bash", "scripts/local/start_all_services.sh", "start"],
   ],
   ["in-app-notifications", ["run", "e2e:in-app-notifications"]],
   ["lark-alerts", ["run", "e2e:lark-alerts"]],
@@ -83,10 +96,60 @@ function mkdirp(dir) {
   fs.mkdirSync(dir, { recursive: true });
 }
 
+let cachedLocalAdminTotpSecret;
+
+function resolveLocalAdminTotpSecret() {
+  if (cachedLocalAdminTotpSecret !== undefined) {
+    return cachedLocalAdminTotpSecret;
+  }
+  cachedLocalAdminTotpSecret = "";
+  if (MODE !== "local" || process.env.ADMIN_TOTP_SECRET) {
+    return cachedLocalAdminTotpSecret;
+  }
+  const result = spawnSync(
+    "psql",
+    [
+      ADMIN_DSN,
+      "-X",
+      "-q",
+      "-t",
+      "-A",
+      "-v",
+      "ON_ERROR_STOP=1",
+      "-c",
+      `
+      SELECT to_json(payload_json->>'totpSecret')
+      FROM admin_mfa_factors mf
+      JOIN admin_users au ON au.admin_id = mf.admin_id
+      WHERE au.email = 'super@synapse.network'
+        AND mf.status = 'active'
+        AND payload_json ? 'totpSecret'
+      ORDER BY mf.updated_at DESC
+      LIMIT 1
+    `,
+    ],
+    { cwd: ROOT, encoding: "utf8" }
+  );
+  if (result.status !== 0) {
+    return cachedLocalAdminTotpSecret;
+  }
+  try {
+    const value = JSON.parse(result.stdout.trim() || "null");
+    cachedLocalAdminTotpSecret =
+      typeof value === "string" && value.trim() ? value.trim() : "";
+  } catch {
+    cachedLocalAdminTotpSecret = "";
+  }
+  return cachedLocalAdminTotpSecret;
+}
+
 function runStep(name, args) {
   const startedAt = new Date().toISOString();
   const logPath = path.join(OUT_DIR, `${name}.log`);
-  const result = spawnSync("npm", args, {
+  const localTotpSecret = resolveLocalAdminTotpSecret();
+  const executable = args[0] === "__shell" ? args[1] : "npm";
+  const executableArgs = args[0] === "__shell" ? args.slice(2) : args;
+  const result = spawnSync(executable, executableArgs, {
     cwd: ROOT,
     encoding: "utf8",
     env: {
@@ -97,12 +160,13 @@ function runStep(name, args) {
         process.env.ADMIN_ANALYTICS_STRICT_REAL_PIPELINE || "0",
       ADMIN_ANALYTICS_LOAD_PREPARE_LOCAL:
         process.env.ADMIN_ANALYTICS_LOAD_PREPARE_LOCAL || "0",
+      ...(localTotpSecret ? { ADMIN_TOTP_SECRET: localTotpSecret } : {}),
     },
   });
   fs.writeFileSync(logPath, `${result.stdout || ""}\n${result.stderr || ""}`);
   return {
     name,
-    command: `npm ${args.join(" ")}`,
+    command: `${executable} ${executableArgs.join(" ")}`,
     status: result.status === 0 ? "passed" : "failed",
     exitCode: result.status,
     startedAt,
@@ -182,9 +246,11 @@ function collectSqlEvidence() {
         )
       `
       ),
+    ],
+    gateway: [
       sqlProbe(
-        ADMIN_DSN,
-        "finance-projections",
+        GATEWAY_DSN,
+        "dashboard-projections",
         `
         SELECT json_build_object(
           'financeRows', (SELECT COUNT(*) FROM synapse_admin_dashboard_finance_projection),
@@ -195,8 +261,6 @@ function collectSqlEvidence() {
         )
       `
       ),
-    ],
-    gateway: [
       sqlProbe(
         GATEWAY_DSN,
         "withdrawal-funds-state",
@@ -302,15 +366,35 @@ function collectScreenshotEvidence() {
   const reports = findLatestReports();
   const screenshots = [];
   const pageAssertions = [];
+  const reportSummaries = [];
   for (const reportPath of reports) {
     const report = JSON.parse(fs.readFileSync(reportPath, "utf8"));
+    reportSummaries.push({
+      reportPath,
+      passed: (report.passed || []).length,
+      failed: (report.failed || []).length,
+      warnings: (report.warnings || []).length,
+      apiResponses: (report.apiResponses || []).length,
+      apiErrors: (report.apiResponses || []).filter(
+        (response) => response.ok === false || response.status >= 400
+      ).length,
+    });
     for (const screenshot of report.screenshots || []) {
-      screenshots.push({ reportPath, screenshot });
+      screenshots.push({
+        reportPath,
+        screenshot,
+        name: path.basename(
+          String(screenshot),
+          path.extname(String(screenshot))
+        ),
+      });
     }
     for (const summary of report.pageSummaries || []) {
       pageAssertions.push({
         reportPath,
         route: summary.route,
+        name: summary.name || "",
+        matched: summary.matched || "",
         title: summary.title || "",
         textSample: String(summary.textSample || summary.bodyText || "").slice(
           0,
@@ -323,6 +407,7 @@ function collectScreenshotEvidence() {
     reports,
     screenshots,
     pageAssertions,
+    reportSummaries,
     requiredKeywordCoverage: Object.fromEntries(
       REQUIRED_SCREENSHOT_KEYWORDS.map((keyword) => [
         keyword,
@@ -332,6 +417,111 @@ function collectScreenshotEvidence() {
       ])
     ),
   };
+}
+
+function checkStatus(ok, evidence, notApplicable = false) {
+  if (notApplicable) return { status: "not_applicable", evidence };
+  return { status: ok ? "passed" : "failed", evidence };
+}
+
+function buildFunctionResults(steps, sqlEvidence, screenshotEvidence) {
+  const stepMap = new Map(steps.map((step) => [step.name, step]));
+  const probes = [...(sqlEvidence.admin || []), ...(sqlEvidence.gateway || [])];
+  const probeMap = new Map(probes.map((probe) => [probe.name, probe]));
+  const pageRoutes = new Set(
+    (screenshotEvidence.pageAssertions || []).map((page) => page.route)
+  );
+  const screenshotNames = (screenshotEvidence.screenshots || []).map((item) =>
+    `${item.name || ""} ${item.screenshot || ""}`.toLowerCase()
+  );
+  const apiErrors = (screenshotEvidence.reportSummaries || []).reduce(
+    (total, report) => total + Number(report.apiErrors || 0),
+    0
+  );
+
+  return FUNCTION_MATRIX.map((item) => {
+    const routeEvidence = item.routes.map((route) => ({
+      route,
+      seen: pageRoutes.has(route),
+    }));
+    const stepEvidence = item.steps.map((name) => ({
+      name,
+      status: stepMap.get(name)?.status || "missing",
+      logPath: stepMap.get(name)?.logPath || null,
+    }));
+    const sqlEvidenceForItem = item.sql.map((name) => ({
+      name,
+      ok: probeMap.get(name)?.ok === true,
+      sqlSha256: probeMap.get(name)?.sqlSha256 || null,
+    }));
+    const screenshotEvidenceForItem = item.screenshots.map((keyword) => ({
+      keyword,
+      seen: screenshotNames.some((name) => name.includes(keyword)),
+    }));
+
+    const checks = {
+      frontendClick: checkStatus(
+        routeEvidence.every((route) => route.seen),
+        routeEvidence,
+        item.routes.length === 0
+      ),
+      domAssertion: checkStatus(
+        routeEvidence.every((route) => route.seen),
+        routeEvidence,
+        item.routes.length === 0
+      ),
+      api: checkStatus(
+        stepEvidence.every((step) => step.status === "passed"),
+        { steps: stepEvidence, apiErrors }
+      ),
+      sql: checkStatus(
+        sqlEvidenceForItem.every((probe) => probe.ok),
+        sqlEvidenceForItem
+      ),
+      screenshot: checkStatus(
+        screenshotEvidenceForItem.every((shot) => shot.seen),
+        screenshotEvidenceForItem,
+        item.screenshots.length === 0
+      ),
+    };
+    const failedChecks = Object.entries(checks)
+      .filter(([, check]) => check.status === "failed")
+      .map(([name]) => name);
+
+    return {
+      functionId: item.id,
+      label: item.label,
+      routes: item.routes,
+      status: failedChecks.length === 0 ? "passed" : "failed",
+      verified: failedChecks.length === 0,
+      failedChecks,
+      checks,
+      summary:
+        failedChecks.length === 0
+          ? "Frontend route/DOM, API step, SQL state, and screenshot evidence match the expected local regression state."
+          : `Failed checks: ${failedChecks.join(", ")}`,
+    };
+  });
+}
+
+function functionResultsMarkdown(results) {
+  const lines = [
+    "# Admin Regression Function Results",
+    "",
+    "| Result | Function | Routes | Verified evidence |",
+    "| --- | --- | --- | --- |",
+  ];
+  for (const result of results) {
+    const evidence = Object.entries(result.checks)
+      .map(([name, check]) => `${name}=${check.status}`)
+      .join(", ");
+    lines.push(
+      `| ${result.status === "passed" ? "PASS" : "FAIL"} | ${result.label} | ${
+        result.routes.join("<br>") || "N/A"
+      } | ${evidence} |`
+    );
+  }
+  return `${lines.join("\n")}\n`;
 }
 
 function writeJson(name, value) {
@@ -379,6 +569,17 @@ function reportMarkdown(report) {
         }\` |`
     ),
     "",
+    "## Function Results",
+    "",
+    "| Result | Function | Failed Checks |",
+    "| --- | --- | --- |",
+    ...report.functionResults.map(
+      (result) =>
+        `| ${result.status === "passed" ? "PASS" : "FAIL"} | ${
+          result.label
+        } | ${result.failedChecks.join(", ") || "-"} |`
+    ),
+    "",
     "## Evidence Gates",
     "",
     `- SQL probes: ${report.sqlProbePassCount}/${report.sqlProbeCount}`,
@@ -408,9 +609,24 @@ for (const [name, args] of requestedSteps) {
 const sqlEvidence = collectSqlEvidence();
 const screenshotEvidence = collectScreenshotEvidence();
 const expectedState = buildExpectedState();
+const functionResults = buildFunctionResults(
+  steps,
+  sqlEvidence,
+  screenshotEvidence
+);
 writeJson("expected_state.json", expectedState);
 writeJson("sql_evidence.json", sqlEvidence);
 writeJson("screenshot_evidence.json", screenshotEvidence);
+writeJson("function_results.json", {
+  generatedAt: new Date().toISOString(),
+  runId: RUN_ID,
+  mode: MODE,
+  results: functionResults,
+});
+fs.writeFileSync(
+  path.join(OUT_DIR, "function_results.md"),
+  functionResultsMarkdown(functionResults)
+);
 fs.writeFileSync(
   path.join(OUT_DIR, "bugfix-log.md"),
   "# Admin Regression Bugfix Log\n\n- No bugfixes recorded by this orchestrator run.\n"
@@ -419,12 +635,18 @@ fs.writeFileSync(
 const sqlProbes = [...sqlEvidence.admin, ...sqlEvidence.gateway];
 const failedSteps = steps.filter((step) => step.status !== "passed");
 const failedSql = sqlProbes.filter((probe) => !probe.ok);
+const failedFunctionResults = functionResults.filter(
+  (result) => result.status !== "passed"
+);
 const missingScreenshotCoverage = Object.entries(
   screenshotEvidence.requiredKeywordCoverage
 ).filter(([, ok]) => !ok);
 const report = {
   status:
-    failedSteps.length || failedSql.length || missingScreenshotCoverage.length
+    failedSteps.length ||
+    failedSql.length ||
+    failedFunctionResults.length ||
+    missingScreenshotCoverage.length
       ? "failed"
       : "success",
   generatedAt: new Date().toISOString(),
@@ -434,6 +656,8 @@ const report = {
   expectedState,
   steps,
   failedSteps,
+  functionResults,
+  failedFunctionResults,
   sqlProbeCount: sqlProbes.length,
   sqlProbePassCount: sqlProbes.filter((probe) => probe.ok).length,
   failedSqlProbes: failedSql,

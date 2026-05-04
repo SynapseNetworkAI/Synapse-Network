@@ -32,6 +32,8 @@ local payload = cjson.encode({
 redis.call('SET', KEYS[1], payload, 'EX', tonumber(ARGV[3]))
 return {1, ''}
 """
+IDEMPOTENCY_KEY_MIN_LEN = 16
+IDEMPOTENCY_KEY_MAX_LEN = 128
 
 
 class BalanceRedisIdempotencyMixin:
@@ -40,20 +42,19 @@ class BalanceRedisIdempotencyMixin:
             return 0
         if isinstance(value, (int, float)):
             return int(value)
+        return self._parse_created_at_text(str(value).strip())
 
-        text = str(value).strip()
+    def _parse_created_at_text(self, text: str) -> int:
         if not text:
             return 0
         if text.isdigit():
             return int(text)
-
         normalized = to_dt_str(text)
-        if not normalized:
-            return 0
+        return self._parse_datetime_epoch(normalized) if normalized else 0
+
+    def _parse_datetime_epoch(self, value: str) -> int:
         try:
-            dt = datetime.strptime(normalized, DATETIME_FORMAT).replace(
-                tzinfo=timezone.utc
-            )
+            dt = datetime.strptime(value, DATETIME_FORMAT).replace(tzinfo=timezone.utc)
             return int(dt.timestamp())
         except Exception:
             return int(time.time())
@@ -163,9 +164,7 @@ class BalanceRedisIdempotencyMixin:
             result = await redis_client.eval(
                 REDIS_IDEM_CLAIM_LUA, 1, key, request_hash, now, ttl_sec
             )
-            if isinstance(result, list) and result and int(result[0]) == 1:
-                return True
-            return False
+            return bool(isinstance(result, list) and result and int(result[0]) == 1)
         except Exception:
             payload = {
                 "requestHash": request_hash,
@@ -208,7 +207,7 @@ class BalanceRedisIdempotencyMixin:
 
     def _validate_idempotency_key(self, idempotency_key: str) -> str:
         key = str(idempotency_key or "").strip()
-        if len(key) < 16 or len(key) > 128:
+        if len(key) < IDEMPOTENCY_KEY_MIN_LEN or len(key) > IDEMPOTENCY_KEY_MAX_LEN:
             raise HTTPException(
                 status_code=400,
                 detail={
@@ -386,17 +385,16 @@ class BalanceRedisIdempotencyMixin:
                 return redis_retry, redis_client, []
 
         idem_rows: List[IdempotencyRow] = []
-        if redis_client is None:
-            idem_rows = self._load_idempotency_rows()
-            idem_hit = self._try_get_idempotent_response(
-                rows=idem_rows,
-                scope="provider_withdraw_intent",
-                owner_wallet=owner,
-                idempotency_key=idempotency_key,
-                request_hash=request_hash,
-            )
-            if idem_hit is not None:
-                return idem_hit, redis_client, idem_rows
+        idem_rows = self._load_idempotency_rows()
+        idem_hit = self._try_get_idempotent_response(
+            rows=idem_rows,
+            scope="provider_withdraw_intent",
+            owner_wallet=owner,
+            idempotency_key=idempotency_key,
+            request_hash=request_hash,
+        )
+        if idem_hit is not None:
+            return idem_hit, redis_client, idem_rows
 
         return None, redis_client, idem_rows
 
@@ -410,15 +408,15 @@ class BalanceRedisIdempotencyMixin:
         redis_client: Optional[Any],
         idem_rows: List[IdempotencyRow],
     ) -> None:
-        if redis_client is None:
-            self._record_idempotent_response(
-                rows=idem_rows,
-                scope="provider_withdraw_intent",
-                owner_wallet=owner,
-                idempotency_key=idempotency_key,
-                request_hash=request_hash,
-                response=response,
-            )
+        rows = idem_rows if idem_rows else self._load_idempotency_rows()
+        self._record_idempotent_response(
+            rows=rows,
+            scope="provider_withdraw_intent",
+            owner_wallet=owner,
+            idempotency_key=idempotency_key,
+            request_hash=request_hash,
+            response=response,
+        )
         await self._complete_idempotency_redis(
             scope="provider_withdraw_intent",
             owner_wallet=owner,
