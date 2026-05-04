@@ -14,7 +14,32 @@ const REQUIRED_FILES = [
   "expected_state.json",
   "sql_evidence.json",
   "screenshot_evidence.json",
+  "function_results.json",
+  "function_results.md",
   "bugfix-log.md",
+];
+
+const REQUIRED_FUNCTION_IDS = [
+  "auth-mfa-session",
+  "dashboard-overview",
+  "dashboard-runtime",
+  "dashboard-system-diagnostics",
+  "analytics-overview",
+  "analytics-consumer-funnel",
+  "analytics-invocation-revenue",
+  "analytics-provider-revenue",
+  "analytics-money-flow",
+  "analytics-risk-health",
+  "analytics-data-quality",
+  "finance-reconciliation",
+  "platform-safe-draft",
+  "approvals-withdrawal-review",
+  "execution-risk-audit",
+  "users-rbac-menu",
+  "provider-services",
+  "forum-support",
+  "notifications",
+  "withdrawal-finalization-concurrency",
 ];
 
 function fatal(code, message, fix) {
@@ -80,6 +105,10 @@ if (!process.exitCode) {
   const screenshotEvidence = readJson(
     path.join(dir, "screenshot_evidence.json")
   );
+  const functionResultsFile = readJson(path.join(dir, "function_results.json"));
+  const functionResults = Array.isArray(functionResultsFile)
+    ? functionResultsFile
+    : functionResultsFile.results || [];
 
   if (report.status !== "success") {
     fatal(
@@ -145,6 +174,31 @@ if (!process.exitCode) {
       "ADMIN-REGRESSION-009",
       "Screenshot evidence is not bound to page-level DOM assertions.",
       "Update the UI dogfood report to include pageSummaries/DOM assertions, then rerun."
+    );
+  }
+  const functionResultIds = new Set(
+    functionResults.map((result) => result.functionId)
+  );
+  const missingFunctionIds = REQUIRED_FUNCTION_IDS.filter(
+    (id) => !functionResultIds.has(id)
+  );
+  const failedFunctionResults = functionResults.filter(
+    (result) => result.status !== "passed" || result.verified !== true
+  );
+  if (
+    missingFunctionIds.length > 0 ||
+    failedFunctionResults.length > 0 ||
+    functionResults.length < REQUIRED_FUNCTION_IDS.length
+  ) {
+    fatal(
+      "ADMIN-REGRESSION-010",
+      `Function-level regression evidence incomplete. missing=${missingFunctionIds.join(
+        ","
+      )}; failed=${failedFunctionResults
+        .map((result) => `${result.functionId}:${result.failedChecks || []}`)
+        .join(",")
+        .slice(0, 1000)}`,
+      "Fix the failed function surface or its SQL/API/DOM/screenshot binding and rerun admin-regression."
     );
   }
   const combined = REQUIRED_FILES.map((fileName) =>

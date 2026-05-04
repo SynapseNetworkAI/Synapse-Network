@@ -294,6 +294,17 @@ class ProviderWithdrawService(
             if existing_response is not None:
                 return existing_response
 
+            explicit_amount = payload.get("amountUsdc") or payload.get("amount_usdc")
+            if explicit_amount is not None:
+                pending_response = await self._resolve_pending_withdrawal_response(
+                    rows=rows, owner=owner,
+                    amount_usdc=parse_usdc(str(explicit_amount)),
+                    idempotency_key=idempotency_key, request_hash=request_hash, redis_client=redis_client,
+                    idem_rows=idem_rows,
+                )
+                if pending_response is not None:
+                    return pending_response
+
             ledger = self._load_balance_ledger()
             available_receivable = parse_usdc(
                 ledger.provider_receivable_balance(owner)

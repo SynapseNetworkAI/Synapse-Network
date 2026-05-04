@@ -15,6 +15,15 @@ import {
   type RiskLevel,
   type WithdrawalStatus,
 } from "@/domain/status";
+import {
+  buildAdminRequestUrl as buildAdminRequestUrlFromBase,
+  shouldUseSameOriginAdminProxy,
+} from "./admin-api-url";
+import {
+  AdminApiError,
+  isAdminApiError,
+  isExpiredAdminSession,
+} from "./admin-api-errors";
 
 export type ApiEnvelope<T> = {
   success: boolean;
@@ -32,33 +41,7 @@ export type ApiErrorEnvelope = {
   data?: unknown;
 };
 
-export class AdminApiError extends Error {
-  status: number;
-  code: string | null;
-  requestId: string | null;
-  data: unknown;
-
-  constructor(
-    message: string,
-    options: {
-      status: number;
-      code?: string | null;
-      requestId?: string | null;
-      data?: unknown;
-    }
-  ) {
-    super(message);
-    this.name = "AdminApiError";
-    this.status = options.status;
-    this.code = options.code ?? null;
-    this.requestId = options.requestId ?? null;
-    this.data = options.data;
-  }
-}
-
-export function isAdminApiError(error: unknown): error is AdminApiError {
-  return error instanceof AdminApiError;
-}
+export { AdminApiError, isAdminApiError };
 
 export type AdminProfile = {
   adminId: string;
@@ -114,18 +97,6 @@ function readAdminCsrfToken(): string | null {
     adminCsrfToken = persistedToken;
   }
   return persistedToken;
-}
-
-function isExpiredAdminSession(
-  status: number,
-  code: string | null,
-  message: string
-): boolean {
-  return (
-    status === 401 &&
-    code === "UNAUTHORIZED" &&
-    message.trim().toLowerCase() === "admin session expired"
-  );
 }
 
 function redirectToLoginOnExpiredSession(): void {
@@ -1144,8 +1115,18 @@ const ADMIN_API_BASE_URL = resolveAdminApiBaseUrl(
   process.env.NEXT_PUBLIC_ADMIN_API_BASE_URL
 );
 
+export { shouldUseSameOriginAdminProxy };
+
+export function buildAdminRequestUrl(
+  path: string,
+  baseUrl = ADMIN_API_BASE_URL,
+  currentLocation?: Pick<Location, "hostname" | "origin" | "protocol">
+): string {
+  return buildAdminRequestUrlFromBase(path, baseUrl, currentLocation);
+}
+
 function buildRequestUrl(path: string): string {
-  return ADMIN_API_BASE_URL ? `${ADMIN_API_BASE_URL}${path}` : path;
+  return buildAdminRequestUrl(path);
 }
 
 export function buildPath(

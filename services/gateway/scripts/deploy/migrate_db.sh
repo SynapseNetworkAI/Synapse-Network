@@ -142,10 +142,15 @@ echo "[migrate-db] validating gateway schema contract"
   "${PYTHON_BIN}" - <<'PY'
 import os
 
+postgres_dsn = os.environ["POSTGRES_DSN"]
+
 from src.storage.postgres_impl import PostgresStorage
 
-storage = PostgresStorage(os.environ["POSTGRES_DSN"], ensure_schema=True)
-print("schema contract validation passed")
+storage = PostgresStorage(postgres_dsn, ensure_schema=True)
+try:
+    print("schema contract validation passed")
+finally:
+    storage.close()
 PY
 )
 
