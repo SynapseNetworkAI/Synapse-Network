@@ -1,13 +1,18 @@
 from __future__ import annotations
 
+import asyncio
 from decimal import Decimal
 from typing import Any, List, Optional
 from uuid import uuid4
 
 from src.core.common import normalize_wallet
-from src.domain.execution import DepositIntentConfirmCommand
+from src.domain.execution import DepositIntentConfirmCommand, DepositIntentRegisterCommand
 from src.domain.finance import BalanceLedger
 from src.domain.ledger import DepositIntentRow
+from src.services.analytics.gateway_events import (
+    emit_deposit_completed,
+    emit_deposit_failed,
+)
 from src.storage import BaseStorage
 from src.utils.datetime_utils import now_dt_str, to_dt_str
 from src.utils.money import MoneyCodec, money_str
@@ -35,9 +40,6 @@ def _mark_intent_failed(intent: dict[str, Any], reason: str, now: int) -> None:
     intent["failureReason"] = reason
     intent["updatedAt"] = to_dt_str(now, now_dt_str()) or now_dt_str()
 
-    # Analytics: deposit_failed (fire-and-forget via asyncio task)
-    import asyncio
-    from src.services.analytics.gateway_events import emit_deposit_failed
     owner = str(intent.get("ownerAddress") or "")
     amount = MoneyCodec.coerce_decimal(intent.get("amountUsdc") or Decimal("0"))
     if owner and amount > 0:
@@ -74,7 +76,7 @@ def _repair_confirmed_intent_if_needed(
         return {"result": "skip"}
 
     try:
-        confirmed = getattr(storage, "confirm_deposit_intent_atomic")(
+        confirmed = storage.confirm_deposit_intent_atomic(
             DepositIntentConfirmCommand(
                 owner_wallet=str(intent_fields["owner_wallet"]),
                 deposit_intent_id=str(intent.get("id") or ""),
@@ -173,7 +175,7 @@ def _apply_confirmed_balance_to_ledger(
     """应用余额变更，优先走数据库原子确认路径。"""
     if hasattr(storage, "confirm_deposit_intent_atomic"):
         try:
-            confirmed = getattr(storage, "confirm_deposit_intent_atomic")(
+            confirmed = storage.confirm_deposit_intent_atomic(
                 DepositIntentConfirmCommand(
                     owner_wallet=owner_wallet,
                     deposit_intent_id=str(intent.get("id") or ""),
@@ -269,17 +271,10 @@ def _apply_confirmed_deposit(
         },
     )
     logger.info(
-        "deposit credited owner=%s tx_hash=%s event_key=%s amount_usdc=%s balance_after=%s",
-        owner_wallet,
-        tx_hash,
-        event_key,
-        money_str(intent.get("creditedAmountUsdc") or amount_usdc),
-        money_str(next_balance),
+        "deposit credited deposit_id=%s status=confirmed",
+        str(intent.get("id") or ""),
     )
 
-    # Analytics: deposit_completed
-    import asyncio
-    from src.services.analytics.gateway_events import emit_deposit_completed
     try:
         loop = asyncio.get_running_loop()
         loop.create_task(emit_deposit_completed(
@@ -427,3 +422,28 @@ def _build_recovery_intent(
         "updatedAt": now_text,
         "source": "INDEXER_BACKFILL",
     }
+
+
+def _register_recovery_intent_if_atomic(
+    storage: BaseStorage,
+    intent: dict[str, Any],
+    owner_wallet: str,
+    tx_hash: str,
+) -> dict[str, Any]:
+    """Persist a backfilled recovery intent before atomic confirmation."""
+    if not hasattr(storage, "register_deposit_intent_atomic"):
+        return intent
+    row = DepositIntentRow.model_validate(intent)
+    registered = storage.register_deposit_intent_atomic(
+        DepositIntentRegisterCommand(
+            owner_wallet=owner_wallet,
+            tx_hash=tx_hash,
+            request_id=str(intent.get("idempotencyKey") or row.id),
+            intent_row=row,
+        )
+    )
+    if isinstance(registered, DepositIntentRow):
+        return registered.model_dump(by_alias=True, mode="json")
+    if isinstance(registered, dict):
+        return dict(registered)
+    raise RuntimeError("DEPOSIT_BACKFILL_REGISTER_RESULT_INVALID")

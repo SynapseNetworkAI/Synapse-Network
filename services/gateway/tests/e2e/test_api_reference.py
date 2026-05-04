@@ -570,6 +570,13 @@ class TestInvocations:
             },
             timeout=30,
         )
+        if r.status_code == 504:
+            detail = r.json().get("detail", {}) if r.content else {}
+            code = detail.get("code") if isinstance(detail, dict) else ""
+            if code == "SERVICE_TIMEOUT":
+                _skip_or_fail(
+                    "Live provider timed out during local API reference invoke"
+                )
         assert r.status_code in (200, 201, 202), f"Expected 2xx, got {r.status_code}: {r.text}"
         data = r.json()
         inv_id = data.get("invocationId") or data.get("invocation_id") or data.get("id")

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any, Optional
 
 from src.core.common import normalize_wallet
@@ -29,8 +30,17 @@ from .processing import (
     _find_intent_by_tx_owner,
     _persist_processing_changes,
     _process_single_intent,
+    _register_recovery_intent_if_atomic,
 )
 from .shared import _now, _set_status, lock, logger
+
+
+@dataclass(frozen=True)
+class BackfillScanResult:
+    enabled: bool
+    scanned: int = 0
+    recovered: int = 0
+    last_scanned_block: int | None = None
 
 
 def _resolve_initial_backfill_start_block(confirmed_head: int) -> int:
@@ -51,9 +61,12 @@ def _resolve_backfill_scan_range(
         return None
 
     last_scanned = int(state.get("lastScannedBlock") or 0)
+    configured_start = int(settings.v2_backfill_start_block)
     start_block = (
         last_scanned + 1
-        if last_scanned > 0
+        if last_scanned > 0 and last_scanned <= confirmed_head
+        else configured_start
+        if configured_start > 0
         else _resolve_initial_backfill_start_block(confirmed_head)
     )
     end_block = min(
@@ -99,6 +112,9 @@ def _process_backfill_event(
         target_intent = _build_recovery_intent(
             tx_hash, owner_wallet, amount_usdc, event_key, now
         )
+        target_intent = _register_recovery_intent_if_atomic(
+            storage, target_intent, owner_wallet, tx_hash
+        )
         intents.append(target_intent)
         changed_intent = True
     else:
@@ -110,22 +126,124 @@ def _process_backfill_event(
     return outcome
 
 
-def run_backfill_scan_once(storage: BaseStorage) -> dict[str, Any]:
+def _process_backfill_tx(
+    storage: BaseStorage,
+    *,
+    intents: list[dict[str, Any]],
+    processed_keys: set[str],
+    ledger: BalanceLedger,
+    tx_hash: str,
+    now: int,
+) -> dict[str, Any]:
+    """Process all deposit events in one candidate transaction."""
+    tx_state = _get_confirmed_receipt_or_none(tx_hash)
+    if tx_state is None or tx_state.get("failed") is True:
+        return {"changedIntents": False, "changedLedger": False, "changedProcessed": False, "recovered": 0}
+    receipt_obj = tx_state.get("receipt")
+    if receipt_obj is None:
+        return {"changedIntents": False, "changedLedger": False, "changedProcessed": False, "recovered": 0}
+
+    changed_intents = False
+    changed_ledger = False
+    changed_processed = False
+    recovered = 0
+    for event in _decode_deposit_events_from_receipt(receipt_obj):
+        outcome = _process_backfill_event(
+            storage,
+            intents=intents,
+            processed_keys=processed_keys,
+            ledger=ledger,
+            tx_hash=tx_hash,
+            event=event,
+            now=now,
+        )
+        changed_intents, changed_ledger, changed_processed = _apply_outcome_flags(
+            outcome,
+            changed_intents=changed_intents,
+            changed_ledger=changed_ledger,
+            changed_processed=changed_processed,
+        )
+        if str(outcome.get("result") or "") == "credited":
+            recovered += 1
+    return {
+        "changedIntents": changed_intents,
+        "changedLedger": changed_ledger,
+        "changedProcessed": changed_processed,
+        "recovered": recovered,
+    }
+
+
+def _process_backfill_range(
+    storage: BaseStorage, start_block: int, end_block: int, now: int
+) -> dict[str, int]:
+    """Scan a concrete block range and persist recovered deposit state."""
+    with lock:
+        intents = _load_deposit_intents(storage)
+        processed_keys = set(_load_processed_deposit_event_keys(storage))
+        ledger = _load_balance_ledger(storage)
+        changed_intents = False
+        changed_ledger = False
+        changed_processed = False
+        recovered = 0
+        tx_hashes = _collect_router_candidate_tx_hashes(start_block, end_block)
+        for tx_hash in tx_hashes:
+            outcome = _process_backfill_tx(
+                storage,
+                intents=intents,
+                processed_keys=processed_keys,
+                ledger=ledger,
+                tx_hash=tx_hash,
+                now=now,
+            )
+            changed_intents = changed_intents or bool(outcome["changedIntents"])
+            changed_ledger = changed_ledger or bool(outcome["changedLedger"])
+            changed_processed = changed_processed or bool(outcome["changedProcessed"])
+            recovered += int(outcome["recovered"])
+
+        _persist_processing_changes(
+            storage,
+            intents=intents,
+            processed_keys=processed_keys,
+            ledger=ledger,
+            changed_intents=changed_intents,
+            changed_ledger=changed_ledger,
+            changed_processed=changed_processed,
+        )
+    return {"candidateTxCount": len(tx_hashes), "recovered": recovered}
+
+
+def _persist_backfill_success(
+    storage: BaseStorage, *, end_block: int, recovered: int, now: int
+) -> None:
+    """Persist successful backfill cursor and runtime status."""
+    _save_backfill_state(storage, {"lastScannedBlock": end_block, "lastScanAt": now})
+    _set_status(
+        backfill={
+            "enabled": True,
+            "lastScannedBlock": end_block,
+            "lastScanAt": now,
+            "lastRecovered": recovered,
+            "lastError": None,
+        }
+    )
+    _persist_indexer_runtime_state(storage)
+
+
+def run_backfill_scan_once(storage: BaseStorage) -> BackfillScanResult:
     """按区块范围做补扫，把漏掉的链上充值补成 intent/入账结果。"""
     if not bool(settings.v2_backfill_enabled):
-        return {"enabled": False}
+        return BackfillScanResult(enabled=False)
 
     now = _now()
     state = _load_backfill_state(storage)
     confirmed_head = _confirmed_head_block()
     scan_range = _resolve_backfill_scan_range(state, confirmed_head)
     if scan_range is None:
-        return {
-            "enabled": True,
-            "scanned": 0,
-            "recovered": 0,
-            "lastScannedBlock": state.get("lastScannedBlock"),
-        }
+        last_block = state.get("lastScannedBlock")
+        return BackfillScanResult(
+            enabled=True,
+            last_scanned_block=int(last_block) if last_block is not None else None,
+        )
 
     last_scanned = int(scan_range["lastScannedBlock"])
     start_block = int(scan_range["startBlock"])
@@ -141,12 +259,7 @@ def run_backfill_scan_once(storage: BaseStorage) -> dict[str, Any]:
             }
         )
         _persist_indexer_runtime_state(storage)
-        return {
-            "enabled": True,
-            "scanned": 0,
-            "recovered": 0,
-            "lastScannedBlock": last_scanned,
-        }
+        return BackfillScanResult(enabled=True, last_scanned_block=last_scanned)
 
     logger.info(
         "deposit backfill start start_block=%s end_block=%s last_scanned_block=%s confirmed_head=%s",
@@ -156,71 +269,10 @@ def run_backfill_scan_once(storage: BaseStorage) -> dict[str, Any]:
         confirmed_head,
     )
 
-    candidate_tx_count = 0
-    with lock:
-        intents = _load_deposit_intents(storage)
-        processed_keys = set(_load_processed_deposit_event_keys(storage))
-        ledger = _load_balance_ledger(storage)
-
-        changed_intents = False
-        changed_ledger = False
-        changed_processed = False
-        recovered = 0
-
-        tx_hashes = _collect_router_candidate_tx_hashes(start_block, end_block)
-        candidate_tx_count = len(tx_hashes)
-        for tx_hash in tx_hashes:
-            tx_state = _get_confirmed_receipt_or_none(tx_hash)
-            if tx_state is None or tx_state.get("failed") is True:
-                continue
-            receipt_obj = tx_state.get("receipt")
-            if receipt_obj is None:
-                continue
-
-            for event in _decode_deposit_events_from_receipt(receipt_obj):
-                outcome = _process_backfill_event(
-                    storage,
-                    intents=intents,
-                    processed_keys=processed_keys,
-                    ledger=ledger,
-                    tx_hash=tx_hash,
-                    event=event,
-                    now=now,
-                )
-                changed_intents, changed_ledger, changed_processed = _apply_outcome_flags(
-                    outcome,
-                    changed_intents=changed_intents,
-                    changed_ledger=changed_ledger,
-                    changed_processed=changed_processed,
-                )
-                if str(outcome.get("result") or "") == "credited":
-                    recovered += 1
-
-        _persist_processing_changes(
-            storage,
-            intents=intents,
-            processed_keys=processed_keys,
-            ledger=ledger,
-            changed_intents=changed_intents,
-            changed_ledger=changed_ledger,
-            changed_processed=changed_processed,
-        )
-
-    next_state = {
-        "lastScannedBlock": end_block,
-        "lastScanAt": now,
-    }
-    _save_backfill_state(storage, next_state)
-    _set_status(
-        backfill={
-            "enabled": True,
-            "lastScannedBlock": end_block,
-            "lastScanAt": now,
-            "lastRecovered": recovered,
-            "lastError": None,
-        }
-    )
-    _persist_indexer_runtime_state(storage)
+    outcome = _process_backfill_range(storage, start_block, end_block, now)
+    recovered = int(outcome["recovered"])
+    candidate_tx_count = int(outcome["candidateTxCount"])
+    _persist_backfill_success(storage, end_block=end_block, recovered=recovered, now=now)
     logger.info(
         "deposit backfill done start_block=%s end_block=%s scanned=%s candidate_txs=%s recovered=%s",
         start_block,
@@ -229,9 +281,9 @@ def run_backfill_scan_once(storage: BaseStorage) -> dict[str, Any]:
         candidate_tx_count,
         recovered,
     )
-    return {
-        "enabled": True,
-        "scanned": max(0, end_block - start_block + 1),
-        "recovered": recovered,
-        "lastScannedBlock": end_block,
-    }
+    return BackfillScanResult(
+        enabled=True,
+        scanned=max(0, end_block - start_block + 1),
+        recovered=recovered,
+        last_scanned_block=end_block,
+    )

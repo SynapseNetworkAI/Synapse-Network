@@ -5,15 +5,29 @@ import os
 from decimal import Decimal
 from typing import Any, List, Optional
 
+from web3.exceptions import TransactionNotFound
+
 from src.core.common import normalize_wallet
 from src.core.config import settings
 from src.utils.money import MoneyCodec
 
-from .shared import TOKEN_DECIMALS_CACHE, get_transfer_topic, get_web3, get_web3_class
+from .shared import (
+    TOKEN_DECIMALS_CACHE,
+    get_transfer_topic,
+    get_web3,
+    get_web3_class,
+    logger,
+)
 
 
 class DepositIndexerRpcUnavailable(RuntimeError):
     """Raised when backfill cannot reach the configured RPC endpoint."""
+
+
+TX_HASH_HEX_LENGTH = 66
+ADDRESS_HEX_LENGTH = 42
+TRANSFER_TOPIC_COUNT = 3
+MAX_TOKEN_DECIMALS = 36
 
 
 def _legacy_deposit_sender_key() -> str:
@@ -23,7 +37,7 @@ def _legacy_deposit_sender_key() -> str:
 def _normalize_tx_hash(value: str) -> str:
     """校验并标准化 tx hash。"""
     tx_hash = str(value or "").strip().lower()
-    if tx_hash.startswith("0x") and len(tx_hash) == 66:
+    if tx_hash.startswith("0x") and len(tx_hash) == TX_HASH_HEX_LENGTH:
         return tx_hash
     return ""
 
@@ -32,7 +46,7 @@ def _topic_to_address(topic: Any) -> str:
     """把 event topic 末 20 字节解码为地址。"""
     web3_class = get_web3_class()
     topic_hex = web3_class.to_hex(topic).lower()
-    if len(topic_hex) < 42:
+    if len(topic_hex) < ADDRESS_HEX_LENGTH:
         return ""
     return web3_class.to_checksum_address("0x" + topic_hex[-40:]).lower()
 
@@ -153,7 +167,7 @@ def _decode_erc20_transfer_to_router(tx_receipt: Any) -> List[dict[str, Any]]:
 
     for log in tx_receipt.get("logs", []):
         topics = log.get("topics") or []
-        if len(topics) < 3:
+        if len(topics) < TRANSFER_TOPIC_COUNT:
             continue
         topic0 = web3_class.to_hex(topics[0]).lower()
         if topic0 != transfer_topic:
@@ -213,13 +227,14 @@ def _resolve_token_decimals(token_address: str) -> int:
         ]
         contract = w3.eth.contract(address=w3.to_checksum_address(token), abi=abi)
         value = int(contract.functions.decimals().call())
-        if value <= 0 or value > 36:
+        if value <= 0 or value > MAX_TOKEN_DECIMALS:
             value = 6
         TOKEN_DECIMALS_CACHE[token] = value
-        return value
     except Exception:
         TOKEN_DECIMALS_CACHE[token] = 6
         return 6
+    else:
+        return value
 
 
 def _pick_matching_event(
@@ -263,8 +278,6 @@ def _confirmations_for_receipt(tx_receipt: Any) -> int:
 def _get_confirmed_receipt_or_none(tx_hash: str) -> Optional[dict[str, Any]]:
     """读取 receipt；未确认返回 None，失败交易返回 failed 标记。"""
     try:
-        from web3.exceptions import TransactionNotFound
-
         w3 = get_web3()
         tx_receipt = w3.eth.get_transaction_receipt(tx_hash)
     except TransactionNotFound:
@@ -299,12 +312,7 @@ def _confirmed_head_block() -> int:
     """返回满足确认数门槛后的安全扫描上界。"""
     try:
         w3 = get_web3()
-        is_connected = getattr(w3, "is_connected", None)
-        if callable(is_connected) and not bool(is_connected()):
-            raise DepositIndexerRpcUnavailable("RPC_UNAVAILABLE")
-        legacy_is_connected = getattr(w3, "isConnected", None)
-        if callable(legacy_is_connected) and not bool(legacy_is_connected()):
-            raise DepositIndexerRpcUnavailable("RPC_UNAVAILABLE")
+        _ensure_rpc_connected(w3)
         latest = int(w3.eth.block_number or 0)
     except DepositIndexerRpcUnavailable:
         raise
@@ -314,17 +322,28 @@ def _confirmed_head_block() -> int:
     return max(0, latest - confirmations + 1)
 
 
+def _ensure_rpc_connected(w3: Any) -> None:
+    """Raise a domain error when the configured RPC endpoint is unavailable."""
+    is_connected = getattr(w3, "is_connected", None)
+    if callable(is_connected) and not bool(is_connected()):
+        raise DepositIndexerRpcUnavailable("RPC_UNAVAILABLE")
+    legacy_is_connected = getattr(w3, "isConnected", None)
+    if callable(legacy_is_connected) and not bool(legacy_is_connected()):
+        raise DepositIndexerRpcUnavailable("RPC_UNAVAILABLE")
+
+
 def _tx_hash_to_hex(value: Any) -> str:
     """兼容不同 web3 返回类型，统一提取 tx hash。"""
     if value is None:
         return ""
     if hasattr(value, "hex"):
         try:
-            return str(value.hex()).lower()
+            text = str(value.hex()).strip().lower()
+            return text if text.startswith("0x") else f"0x{text}"
         except Exception:
             return ""
     text = str(value).strip().lower()
-    if text.startswith("0x") and len(text) == 66:
+    if text.startswith("0x") and len(text) == TX_HASH_HEX_LENGTH:
         return text
     return ""
 
@@ -363,7 +382,12 @@ def _collect_router_candidate_tx_hashes(start_block: int, end_block: int) -> Lis
     for block_number in range(int(start_block), int(end_block) + 1):
         try:
             block = w3.eth.get_block(block_number, full_transactions=True)
-        except Exception:
+        except Exception as exc:
+            logger.warning(
+                "deposit backfill skipped block=%s error=%s",
+                block_number,
+                type(exc).__name__,
+            )
             continue
 
         for tx in _extract_block_transactions(block):
