@@ -382,27 +382,36 @@ start_user_front() {
 start_docs_front() {
   if [[ -n "$(find_pid_by_port 3100)" ]]; then
     echo "docs-front already running on port 3100: PID $(find_pid_by_port 3100)"
-    wait_for_http "docs-front" "http://127.0.0.1:3100" 120
+    wait_for_http "docs-front" "http://127.0.0.1:3100/smart-contracts" 120
     return 0
   fi
 
   ensure_yarn_deps "${ROOT_DIR}/services/docs-front"
   echo "[local-apps] starting docs-front on http://localhost:3100"
-  (
-    cd "${ROOT_DIR}/services/docs-front"
-    NEXT_PUBLIC_APP_ENV="${NEXT_PUBLIC_APP_ENV:-local}" \
-      NEXT_PUBLIC_DOCS_BASE_URL="${NEXT_PUBLIC_DOCS_BASE_URL:-http://localhost:3100}" \
-      NEXT_PUBLIC_CONSOLE_BASE_URL="${NEXT_PUBLIC_CONSOLE_BASE_URL:-http://localhost:3000/dashboard/overview}" \
-      NEXT_PUBLIC_GATEWAY_BASE_URL="${NEXT_PUBLIC_GATEWAY_BASE_URL:-http://127.0.0.1:8000}" \
-      nohup yarn dev --hostname 0.0.0.0 > "${DOCS_FRONT_LOG}" 2>&1 < /dev/null &
-    echo $!
-  ) > /tmp/synapse-docs-front.pid
-  rm -f /tmp/synapse-docs-front.pid
-  wait_for_http "docs-front" "http://127.0.0.1:3100" 120 || {
+  if command -v screen >/dev/null 2>&1; then
+    screen -S synapse-docs-front -X quit >/dev/null 2>&1 || true
+    screen -dmS synapse-docs-front bash -lc \
+      "cd '${ROOT_DIR}/services/docs-front' && exec env NEXT_PUBLIC_APP_ENV='${NEXT_PUBLIC_APP_ENV:-local}' NEXT_PUBLIC_DOCS_BASE_URL='${NEXT_PUBLIC_DOCS_BASE_URL:-http://localhost:3100}' NEXT_PUBLIC_CONSOLE_BASE_URL='${NEXT_PUBLIC_CONSOLE_BASE_URL:-http://localhost:3000/dashboard/overview}' NEXT_PUBLIC_GATEWAY_BASE_URL='${NEXT_PUBLIC_GATEWAY_BASE_URL:-http://127.0.0.1:8000}' yarn dev --hostname 0.0.0.0 > '${DOCS_FRONT_LOG}' 2>&1"
+  else
+    (
+      cd "${ROOT_DIR}/services/docs-front"
+      nohup bash -lc 'trap "" HUP; exec env NEXT_PUBLIC_APP_ENV="${NEXT_PUBLIC_APP_ENV:-local}" NEXT_PUBLIC_DOCS_BASE_URL="${NEXT_PUBLIC_DOCS_BASE_URL:-http://localhost:3100}" NEXT_PUBLIC_CONSOLE_BASE_URL="${NEXT_PUBLIC_CONSOLE_BASE_URL:-http://localhost:3000/dashboard/overview}" NEXT_PUBLIC_GATEWAY_BASE_URL="${NEXT_PUBLIC_GATEWAY_BASE_URL:-http://127.0.0.1:8000}" yarn dev --hostname 0.0.0.0' \
+        > "${DOCS_FRONT_LOG}" 2>&1 < /dev/null &
+      echo $!
+    ) > /tmp/synapse-docs-front.pid
+    rm -f /tmp/synapse-docs-front.pid
+  fi
+  wait_for_http "docs-front" "http://127.0.0.1:3100/smart-contracts" 120 || {
     echo "[local-apps] docs-front failed to become healthy. Recent log:"
     tail -n 80 "${DOCS_FRONT_LOG}" 2>/dev/null || true
     return 1
   }
+  sleep 3
+  if [[ -z "$(find_pid_by_port 3100)" ]]; then
+    echo "[local-apps] docs-front became healthy but exited immediately. Recent log:"
+    tail -n 80 "${DOCS_FRONT_LOG}" 2>/dev/null || true
+    return 1
+  fi
 }
 
 start_gateway_admin() {
@@ -495,11 +504,14 @@ status_apps() {
   print_status_line "gateway" 8000 "http://127.0.0.1:8000/health"
   print_status_line "gateway-admin" 8300 "http://127.0.0.1:8300/health"
   print_status_line "user-front" 3000 "http://localhost:3000"
-  print_status_line "docs-front" 3100 "http://localhost:3100"
+  print_status_line "docs-front" 3100 "http://localhost:3100/smart-contracts"
   print_status_line "admin-front" 3200 "http://127.0.0.1:3200/login"
   echo ""
   echo "Infra status:"
   print_status_line "postgres" 15432 "postgresql://127.0.0.1:15432"
+  print_status_line "redis" 6379 "redis://127.0.0.1:6379"
+  print_status_line "minio" 9001 "http://127.0.0.1:9001"
+  print_status_line "otterscan" 5100 "http://localhost:5100"
   print_status_line "anvil" 8545 "http://127.0.0.1:8545"
 }
 

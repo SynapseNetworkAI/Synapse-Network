@@ -15,6 +15,7 @@ Rule: local frontend projects use `3000 + n*100`. Backend and admin API ports st
 | `provider`      | `http://127.0.0.1:8100` | Local provider runtime                                               |
 | `gateway-admin` | `http://127.0.0.1:8300` | Admin API                                                            |
 | `postgres`      | `127.0.0.1:15432`       | Local Docker Postgres                                                |
+| `otterscan`     | `http://localhost:5100` | Local chain explorer for Anvil/Hardhat RPC                           |
 | `anvil`         | `127.0.0.1:8545`        | Local chain                                                          |
 
 ## Deployment Rule
