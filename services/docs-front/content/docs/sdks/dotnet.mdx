@@ -5,6 +5,10 @@ description: Use the Public Preview .NET SDK from .NET 8 services and worker age
 
 The .NET SDK is in Public Preview and is intended for NuGet publication as `SynapseNetwork.Sdk`.
 
+<EnvironmentConfigSummary />
+
+<GatewayEnvExport />
+
 ```xml
 <PackageReference Include="SynapseNetwork.Sdk" Version="0.1.0-preview" />
 ```
@@ -15,7 +19,7 @@ using SynapseNetwork.Sdk;
 var client = new SynapseClient(new SynapseClientOptions
 {
     Credential = Environment.GetEnvironmentVariable("SYNAPSE_AGENT_KEY")!,
-    Environment = "staging",
+    Environment = Environment.GetEnvironmentVariable("SYNAPSE_ENV") ?? "local",
 });
 
 var services = await client.SearchAsync("svc_synapse_echo", new SearchOptions { Limit = 10 });

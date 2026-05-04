@@ -18,6 +18,7 @@ import {
   moneyStringToNumber,
   normalizeMoneyString,
 } from "@/utils/money";
+import { getRpcUrl } from "@/utils/runtimeEnv";
 
 export type LedgerRecord = {
   id: string;
@@ -98,7 +99,7 @@ export function mapDepositStatusFromGatewayIntent(
 }
 
 async function fetchLedgerInputs(userAddress: string) {
-  const provider = new ethers.JsonRpcProvider("http://127.0.0.1:8545");
+  const provider = new ethers.JsonRpcProvider(getRpcUrl());
   const vault = new ethers.Contract(
     contractConfig.SynapseCore,
     SynapseCoreABI,
@@ -293,7 +294,7 @@ export function useFundsData() {
       return;
     }
     try {
-      const provider = new ethers.JsonRpcProvider("http://127.0.0.1:8545");
+      const provider = new ethers.JsonRpcProvider(getRpcUrl());
       const usdc = new ethers.Contract(
         contractConfig.MockUSDC,
         MockUSDCABI,
