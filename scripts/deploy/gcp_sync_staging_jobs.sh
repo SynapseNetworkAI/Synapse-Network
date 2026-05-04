@@ -153,6 +153,42 @@ json_string() {
   node -e 'console.log(JSON.stringify(process.argv[1] || ""))' "$1"
 }
 
+extract_cloud_run_image() {
+  node -e '
+let source = "";
+process.stdin.on("data", (chunk) => source += chunk);
+process.stdin.on("end", () => {
+  const resource = JSON.parse(source || "{}");
+  const seen = new Set();
+  function visit(value) {
+    if (!value || typeof value !== "object" || seen.has(value)) return "";
+    seen.add(value);
+    if (Array.isArray(value.containers)) {
+      for (const container of value.containers) {
+        if (container && typeof container.image === "string" && container.image) {
+          return container.image;
+        }
+      }
+    }
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        const found = visit(item);
+        if (found) return found;
+      }
+      return "";
+    }
+    for (const [key, item] of Object.entries(value)) {
+      if (key === "containers") continue;
+      const found = visit(item);
+      if (found) return found;
+    }
+    return "";
+  }
+  console.log(visit(resource));
+});
+'
+}
+
 job_requested() {
   local job="$1"
   if (( ${#requested_jobs[@]} == 0 )); then
@@ -208,7 +244,7 @@ update_job_set() {
       effective_image="$(gcloud run jobs describe "${job}" \
         --project "${PROJECT_ID}" \
         --region "${REGION}" \
-        --format=json | node -e 'let s="";process.stdin.on("data",d=>s+=d);process.stdin.on("end",()=>{const j=JSON.parse(s);console.log(j.template?.template?.containers?.[0]?.image || "")})')"
+        --format=json | extract_cloud_run_image)"
     fi
 
     append_json_array_item "updated" "{\"family\":$(json_string "${family}"),\"job\":$(json_string "${job}"),\"requestedImage\":$(json_string "${image}"),\"effectiveImage\":$(json_string "${effective_image}"),\"dryRun\":${DRY_RUN}}"
