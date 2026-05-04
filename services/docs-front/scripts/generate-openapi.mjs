@@ -3,6 +3,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
+import prettier from "prettier";
 import ts from "typescript";
 
 const APP_ROOT = resolveAppRoot();
@@ -237,14 +238,20 @@ function buildReferenceData(groups) {
   };
 }
 
+function formatJson(value) {
+  return prettier.format(JSON.stringify(value), {
+    parser: "json",
+  });
+}
+
 const groups = loadRouteGroups();
 const openapi = buildOpenApi(groups);
 const referenceData = buildReferenceData(groups);
 
 fs.mkdirSync(path.dirname(publicOpenApiPath), { recursive: true });
 fs.mkdirSync(path.dirname(dataPath), { recursive: true });
-fs.writeFileSync(publicOpenApiPath, `${JSON.stringify(openapi, null, 2)}\n`);
-fs.writeFileSync(dataPath, `${JSON.stringify(referenceData, null, 2)}\n`);
+fs.writeFileSync(publicOpenApiPath, formatJson(openapi));
+fs.writeFileSync(dataPath, formatJson(referenceData));
 
 console.log(
   `[docs-front] generated OpenAPI: ${groups.length} groups, ${referenceData.routes.length} routes`
