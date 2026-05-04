@@ -188,29 +188,37 @@ def mint_and_pay_for_service(
     return tx_hash
 
 
-def invoke_generate_with_polling(
+def invoke_agent_with_polling(
     api_base: str,
     service_id: str,
     credential_token: str,
     prompt: str,
     timeout_sec: int = 90,
 ) -> Dict[str, Any]:
-    """调用 Gateway generate 接口，支持 202 重试轮询。
+    """调用 Agent invoke 接口，支持 202 重试轮询。
 
     当 Gateway 返回 202 时表示付款尚未确认，等待 retryAfterSec 后重试，
     直到成功或超时。
     """
     started_at = time.time()
+    idempotency_key = f"credential-example-{int(started_at * 1000)}"
+    cost_usdc = os.getenv("PRICE_USDC", "1")
 
     while True:
         response = requests.post(
-            f"{api_base}/api/v1/gateway/generate",
+            f"{api_base}/api/v1/agent/invoke",
             headers={
                 "Content-Type": CONTENT_TYPE_JSON,
                 "X-Service-Id": service_id,
                 "X-Credential": credential_token,
             },
-            json={"prompt": prompt, "serviceId": service_id},
+            json={
+                "serviceId": service_id,
+                "idempotencyKey": idempotency_key,
+                "costUsdc": cost_usdc,
+                "payload": {"body": {"text": prompt}},
+                "responseMode": "sync",
+            },
             timeout=40,
         )
 
@@ -344,8 +352,8 @@ def main() -> None:
     print("[step] submit deposit intent and wait for confirmation ...")
     _submit_and_wait_deposit(api_base, token, owner_address, tx_hash, float(price_usdc))
 
-    print("[step] invoke /generate with credential ...")
-    generate_result = invoke_generate_with_polling(
+    print("[step] invoke /agent/invoke with credential ...")
+    generate_result = invoke_agent_with_polling(
         api_base=api_base,
         service_id=service_id,
         credential_token=credential_token,

@@ -25,6 +25,7 @@ import json
 import os
 import sys
 import time
+import uuid
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -281,16 +282,24 @@ def submit_and_wait_deposit_confirmation(
         time.sleep(2)
 
 
-def invoke_v2_generate(api_base: str, credential: str, service_id: str, prompt: str) -> requests.Response:
-    """调用 Gateway generate 接口（单次，不轮询）。"""
+def invoke_agent_service(
+    api_base: str, credential: str, service_id: str, prompt: str, unit_price: float
+) -> requests.Response:
+    """调用 Agent invoke 接口（单次，不轮询）。"""
     return requests.post(
-        f"{api_base}/api/v1/gateway/generate",
+        f"{api_base}/api/v1/agent/invoke",
         headers={
             "Content-Type": CONTENT_TYPE_JSON,
             "X-Credential": credential,
             "X-Service-Id": service_id,
         },
-        json={"prompt": prompt, "serviceId": service_id},
+        json={
+            "serviceId": service_id,
+            "idempotencyKey": f"daily-limit-{uuid.uuid4().hex}",
+            "costUsdc": str(unit_price),
+            "payload": {"body": {"text": prompt}},
+            "responseMode": "sync",
+        },
         timeout=30,
     )
 
@@ -360,12 +369,12 @@ def main() -> None:
     )
 
     print("[6/7] First call should succeed...")
-    first_resp = invoke_v2_generate(api_base, credential_token, service_id, prompt)
+    first_resp = invoke_agent_service(api_base, credential_token, service_id, prompt, unit_price)
     first_resp.raise_for_status()
     print(f"      first_status={first_resp.status_code}")
 
     print("[7/7] Second call should be blocked by daily limit...")
-    second_resp = invoke_v2_generate(api_base, credential_token, service_id, prompt)
+    second_resp = invoke_agent_service(api_base, credential_token, service_id, prompt, unit_price)
     if second_resp.status_code != 402:
         raise RuntimeError(f"Expected 402 for second call, got {second_resp.status_code}: {second_resp.text}")
 

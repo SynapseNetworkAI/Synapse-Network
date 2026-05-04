@@ -211,7 +211,7 @@ def validate_credential_token(credential_token: Optional[str]) -> str:
             status_code=401,
             detail={
                 "code": "CREDENTIAL_REQUIRED",
-                "message": "X-Credential is required for /api/v1/gateway/generate",
+                "message": "X-Credential is required for /api/v1/agent/invoke",
             },
         )
     if len(token) > _MAX_CREDENTIAL_LENGTH or not _CREDENTIAL_PATTERN.fullmatch(token):

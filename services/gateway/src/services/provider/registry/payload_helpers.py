@@ -53,7 +53,7 @@ def build_public_invoke(
 ) -> ServiceInvokeConfigRecord:
     gateway_url = str(public_gateway_url or "").strip()
     if not gateway_url:
-        gateway_url = "/api/v1/gateway/generate"
+        gateway_url = "/api/v1/agent/invoke"
 
     return ServiceInvokeConfigRecord(
         method=svc.invoke.method,

@@ -234,9 +234,15 @@ def resolve_service(token, addr):
 def invoke(credential, svc_id, n=1):
     results = []
     for i in range(n):
-        r = api("post", "/v1/gateway/generate",
+        r = api("post", "/v1/agent/invoke",
                 headers={"X-Credential": credential, "Content-Type": "application/json"},
-                json={"serviceId": svc_id, "prompt": f"market analysis #{i+1}"})
+                json={
+                    "serviceId": svc_id,
+                    "idempotencyKey": f"browser-{uuid.uuid4().hex}",
+                    "costUsdc": SERVICE_PRICE,
+                    "payload": {"body": {"text": f"market analysis #{i+1}"}},
+                    "responseMode": "sync",
+                })
         results.append(r.status_code)
         time.sleep(0.5)
     ok_count = sum(1 for c in results if c == 200)

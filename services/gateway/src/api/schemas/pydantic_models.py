@@ -1,6 +1,6 @@
 import re
 from decimal import Decimal
-from typing import Any, Literal, Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -175,12 +175,6 @@ class CredentialUpdateRequest(BaseModel):
     creditLimit: Optional[Decimal] = None
     resetInterval: Optional[str] = None
     expiration: Optional[int] = None
-
-
-class InferenceRequest(BaseModel):
-    prompt: Optional[str] = None
-    serviceId: Optional[str] = None
-    payload: dict[str, Any] = Field(default_factory=dict)
 
 
 class AgentDiscoverySearchRequest(BaseModel):

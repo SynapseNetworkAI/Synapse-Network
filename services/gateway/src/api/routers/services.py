@@ -275,7 +275,7 @@ async def discover_services(
         sort_order=sort_order,
     )
     log.info("discovery.start")
-    gateway_url = f"{str(request.base_url).rstrip('/')}/api/v1/gateway/generate"
+    gateway_url = f"{str(request.base_url).rstrip('/')}/api/v1/agent/invoke"
     try:
         public_services = await service.discover_services(
             intent,
@@ -311,7 +311,7 @@ async def search_agent_discovery(
     request: Request,
     service: RegistryService = Depends(get_registry_service),
 ):
-    gateway_url = f"{str(request.base_url).rstrip('/')}/api/v1/gateway/generate"
+    gateway_url = f"{str(request.base_url).rstrip('/')}/api/v1/agent/invoke"
     query = AgentDiscoveryQueryRecord.model_validate(payload.model_dump(by_alias=True))
     request_id = resolve_request_id(request.headers.get("X-Request-Id"), "disc")
     log = workflow_logger(

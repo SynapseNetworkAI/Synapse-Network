@@ -775,28 +775,28 @@ async function invokeFixtureService(fixture, suffix) {
   seedServiceHealth(fixture.service.id, fixture.service.mockUrl);
   const requestId = `withdrawal-review-${runId()}-${suffix}`;
   const started = Date.now();
-  const response = await fetch(
-    `${config.gatewayBase}/api/v1/gateway/generate`,
-    {
-      method: "POST",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-        "X-Credential": fixture.credential.token,
-        "X-Service-Id": fixture.service.id,
-        "X-Request-Id": requestId,
-      },
-      body: JSON.stringify({
-        prompt: "Withdrawal review dogfood provider receivable top-up",
-        payload: { query: `withdrawal review ${suffix}` },
-      }),
-    }
-  );
+  const response = await fetch(`${config.gatewayBase}/api/v1/agent/invoke`, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      "X-Credential": fixture.credential.token,
+      "X-Service-Id": fixture.service.id,
+      "X-Request-Id": requestId,
+    },
+    body: JSON.stringify({
+      serviceId: fixture.service.id,
+      idempotencyKey: requestId,
+      costUsdc: fixture.service.priceUsdc,
+      payload: { body: { query: `withdrawal review ${suffix}` } },
+      responseMode: "sync",
+    }),
+  });
   const payload = await response.json().catch(() => ({}));
   addTrace({
     scenario: `provider-invoke-${suffix}`,
     method: "POST",
-    path: "/api/v1/gateway/generate",
+    path: "/api/v1/agent/invoke",
     httpStatus: response.status,
     durationMs: Date.now() - started,
     sanitizedRequest: { serviceId: fixture.service.id, requestId },
