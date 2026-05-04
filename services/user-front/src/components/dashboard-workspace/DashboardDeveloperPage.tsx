@@ -16,17 +16,21 @@ import {
 } from "lucide-react";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { getDocsUrl } from "@/utils/docsUrl";
+import { getRuntimeEnvironmentConfig } from "@/utils/runtimeEnv";
 
 // ── Real consumer quickstart codes ──────────────────────────────────────────
 
-const TS_CODE = `// Step 1 — Auth: get challenge + sign → JWT
+function buildTsCode(baseUrl: string) {
+  return `// Step 1 — Auth: get challenge + sign → JWT
+const BASE = "${baseUrl}"
+
 const { challenge } = await fetch(
-  \`/api/v1/auth/challenge?address=\${walletAddress}\`
+  \`\${BASE}/api/v1/auth/challenge?address=\${walletAddress}\`
 ).then(r => r.json())
 
 const signature = await signer.signMessage(challenge)
 
-const { token } = await fetch('/api/v1/auth/verify', {
+const { token } = await fetch(\`\${BASE}/api/v1/auth/verify\`, {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({ wallet_address: walletAddress, message: challenge, signature }),
@@ -34,7 +38,7 @@ const { token } = await fetch('/api/v1/auth/verify', {
 
 // Step 2 — Discover: find a service
 const { services } = await fetch(
-  '/api/v1/services/discover?tag=llm&limit=20',
+  \`\${BASE}/api/v1/services/discover?tag=llm&limit=20\`,
   { headers: { 'Authorization': \`Bearer \${token}\` } }
 ).then(r => r.json())
 
@@ -42,7 +46,7 @@ const { serviceId } = services[0]
 
 // Step 3 — Issue Agent Credential (with spend limits)
 const { agentToken, credentialId } = await fetch(
-  '/api/v1/credentials/agent/issue',
+  \`\${BASE}/api/v1/credentials/agent/issue\`,
   {
     method: 'POST',
     headers: {
@@ -59,7 +63,7 @@ const { agentToken, credentialId } = await fetch(
 ).then(r => r.json())
 
 // Step 4 — Invoke service (agent pays, no manual auth needed)
-const result = await fetch('/api/v1/agent/invocations', {
+const result = await fetch(\`\${BASE}/api/v1/agent/invocations\`, {
   method: 'POST',
   headers: {
     'Authorization': \`Bearer \${agentToken}\`,   // ← use agentToken here
@@ -74,10 +78,12 @@ const result = await fetch('/api/v1/agent/invocations', {
 
 console.log('Result:', result.data)
 console.log('Charged:', result.chargedUsdc, 'USDC')`.trim();
+}
 
-const PY_CODE = `import httpx, uuid
+function buildPyCode(baseUrl: string) {
+  return `import httpx, uuid
 
-BASE = "http://your-gateway:8000"
+BASE = "${baseUrl}"
 
 # Step 1 — Auth: get challenge + sign → JWT
 r = httpx.get(f"{BASE}/api/v1/auth/challenge", params={"address": wallet_address})
@@ -130,6 +136,7 @@ result = httpx.post(
 
 print("Result:", result["data"])
 print("Charged:", result["chargedUsdc"], "USDC")`.trim();
+}
 
 const TS_INSTALL = "npm install @synapse-network-ai/sdk";
 const PY_INSTALL = "pip install synapse-network-sdk";
@@ -169,6 +176,7 @@ export default function DeveloperPage() {
   const [sdk, setSdk] = React.useState<"ts" | "py">("ts");
   const [copied, setCopied] = React.useState<string | null>(null);
   const [expanded, setExpanded] = React.useState(false);
+  const envConfig = getRuntimeEnvironmentConfig();
 
   const copy = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
@@ -176,7 +184,10 @@ export default function DeveloperPage() {
     setTimeout(() => setCopied(null), 2000);
   };
 
-  const code = sdk === "ts" ? TS_CODE : PY_CODE;
+  const code =
+    sdk === "ts"
+      ? buildTsCode(envConfig.gatewayBaseUrl)
+      : buildPyCode(envConfig.gatewayBaseUrl);
   const installCmd = sdk === "ts" ? TS_INSTALL : PY_INSTALL;
 
   return (
@@ -362,6 +373,32 @@ export default function DeveloperPage() {
 
         {/* ── Right: Documentation sidebar ── */}
         <div className="lg:col-span-4 space-y-6">
+          <div className="p-5 rounded-2xl bg-white/[0.02] border border-white/[0.06]">
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <h2 className="text-base font-bold text-white">
+                Runtime environment
+              </h2>
+              <span className="rounded-full border border-emerald-400/25 bg-emerald-400/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-300">
+                {envConfig.appEnv}
+              </span>
+            </div>
+            <dl className="space-y-3 text-xs">
+              {[
+                ["Gateway Base", envConfig.gatewayBaseUrl],
+                ["Docs Base", envConfig.docsBaseUrl],
+                ["Explorer Base", envConfig.txExplorerBaseUrl],
+                ["Chain", `${envConfig.chainName} (${envConfig.chainId})`],
+              ].map(([label, value]) => (
+                <div key={label} className="space-y-1">
+                  <dt className="text-[#6b7280]">{label}</dt>
+                  <dd className="break-all font-mono text-[#d1d5db]">
+                    {value}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+
           <div className="space-y-3">
             <h2 className="text-base font-bold text-white flex items-center gap-2">
               <BookOpen className="w-4 h-4 text-blue-400" />

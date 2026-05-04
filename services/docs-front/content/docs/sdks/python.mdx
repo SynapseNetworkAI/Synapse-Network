@@ -3,7 +3,11 @@ title: Python SDK
 description: Use Synapse from Python agents, workers, and provider tooling.
 ---
 
-The Python SDK is in Public Preview. Public examples target staging by default.
+The Python SDK is in Public Preview. Public examples target the current docs environment shown below.
+
+<EnvironmentConfigSummary />
+
+<GatewayEnvExport />
 
 ```bash
 pip install synapse-client
@@ -18,7 +22,7 @@ agent_key = os.environ["SYNAPSE_AGENT_KEY"]
 
 client = SynapseClient(
     api_key=agent_key,
-    environment="staging",
+    environment=os.environ.get("SYNAPSE_ENV", "local"),
 )
 
 services = client.search("svc_synapse_echo", limit=10)

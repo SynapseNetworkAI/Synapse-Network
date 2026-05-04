@@ -6,8 +6,14 @@ description: Write a service manifest, choose fixed or token-metered billing, re
 Use this guide when you are the **Service Owner**: a Provider publishing an API or LLM service that agents can buy through Synapse.
 
 <WarningNote title="Use the provider key, not the consumer key">
-  Registering services, updating manifests, rotating provider credentials, and viewing Provider earnings require a provider control-plane credential: provider wallet JWT for endpoints marked `auth: jwt`, or **Provider Secret / Admin Key** where your environment enables provider automation. Do not use an Agent Key to register or modify services.
+  Registering services, updating manifests, rotating provider credentials, and
+  viewing Provider earnings require a provider control-plane credential:
+  provider wallet JWT for endpoints marked `auth: jwt`, or **Provider Secret /
+  Admin Key** where your environment enables provider automation. Do not use an
+  Agent Key to register or modify services.
 </WarningNote>
+
+<EnvironmentConfigSummary />
 
 ## Provider flow
 
@@ -40,9 +46,7 @@ Use `fixed` for ordinary APIs where each successful call has one known USDC pric
   },
   "invoke": {
     "method": "POST",
-    "targets": [
-      { "url": "https://api.example.com/invoke", "weight": 100 }
-    ],
+    "targets": [{ "url": "https://api.example.com/invoke", "weight": 100 }],
     "request": {},
     "response": {}
   }
@@ -73,9 +77,7 @@ Use `token_metered` for LLM-style services where the final charge depends on inp
   },
   "invoke": {
     "method": "POST",
-    "targets": [
-      { "url": "https://api.example.com/chat", "weight": 100 }
-    ],
+    "targets": [{ "url": "https://api.example.com/chat", "weight": 100 }],
     "request": {},
     "response": {}
   }
@@ -85,6 +87,8 @@ Use `token_metered` for LLM-style services where the final charge depends on inp
 Do not use `pricePerToken`. Token-metered manifests must use the per-1M-token fields so Gateway can estimate holds, capture final usage, and release unused Consumer funds.
 
 ## Register the service
+
+<GatewayEnvExport />
 
 ```bash
 curl -X POST "$GATEWAY_URL/api/v1/services" \
@@ -96,7 +100,8 @@ curl -X POST "$GATEWAY_URL/api/v1/services" \
 Save the returned `serviceId`. You will use it for updates, health checks, discovery verification, and test invocations.
 
 <AgentNote title="Provider runtime contract">
-  Anonymous direct calls should fail. Provider invoke endpoints must verify Synapse Gateway signature headers before doing paid work.
+  Anonymous direct calls should fail. Provider invoke endpoints must verify
+  Synapse Gateway signature headers before doing paid work.
 </AgentNote>
 
 ## Test your service
@@ -129,24 +134,25 @@ This real loopback validates Consumer balance deduction, Gateway forwarding, Pro
 <QuickLinks
   items={[
     {
-      href: '/api-reference/post-provider-secret',
-      title: 'Issue Provider Secret',
-      description: 'Create the provider-side credential used for service registration automation.',
+      href: "/api-reference/post-provider-secret",
+      title: "Issue Provider Secret",
+      description:
+        "Create the provider-side credential used for service registration automation.",
     },
     {
-      href: '/api-reference/post-service',
-      title: 'Register service API',
-      description: 'Submit the service manifest and receive the serviceId.',
+      href: "/api-reference/post-service",
+      title: "Register service API",
+      description: "Submit the service manifest and receive the serviceId.",
     },
     {
-      href: '/api-reference/get-services',
-      title: 'List registered services',
-      description: 'Recover serviceIds and audit active Provider services.',
+      href: "/api-reference/get-services",
+      title: "List registered services",
+      description: "Recover serviceIds and audit active Provider services.",
     },
     {
-      href: '/get-started/call-provider-service',
-      title: 'Consumer calling guide',
-      description: 'Use an Agent Key to perform the final test invocation.',
+      href: "/get-started/call-provider-service",
+      title: "Consumer calling guide",
+      description: "Use an Agent Key to perform the final test invocation.",
     },
   ]}
 />

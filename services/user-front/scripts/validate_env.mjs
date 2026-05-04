@@ -51,7 +51,16 @@ function detectAppEnv() {
 }
 
 const appEnv = detectAppEnv();
-const normalizedAppEnv = appEnv === "production" ? "prod" : appEnv;
+function normalizeAppEnv(value) {
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase();
+  if (normalized === "staging" || normalized === "stage") return "staging";
+  if (normalized === "prod" || normalized === "production") return "prod";
+  return "local";
+}
+
+const normalizedAppEnv = normalizeAppEnv(appEnv);
 const ENV_FILES = existing([
   ".env",
   ...(normalizedAppEnv === "staging" ? [".env.staging"] : []),
@@ -65,13 +74,11 @@ const fileEnv = ENV_FILES.reduce(
 const env = { ...fileEnv, ...process.env };
 
 function defaultTxExplorerBaseUrlForEnv(value) {
-  const normalized = String(value || "")
-    .trim()
-    .toLowerCase();
-  if (normalized === "staging" || normalized === "stage") {
+  const normalized = normalizeAppEnv(value);
+  if (normalized === "staging") {
     return "https://sepolia.arbiscan.io";
   }
-  if (normalized === "prod" || normalized === "production") {
+  if (normalized === "prod") {
     return "https://arbiscan.io";
   }
   return "http://localhost:5100";
@@ -120,6 +127,14 @@ const checks = [
       "Public transaction explorer origin used by invoice/tx links. Local defaults to Otterscan; staging/prod must use the matching chain explorer.",
     validate: (value) => !value || isHttpUrl(value),
     fix: "Set NEXT_PUBLIC_TX_EXPLORER_BASE_URL to http://localhost:5100 locally, https://sepolia.arbiscan.io in staging, or https://arbiscan.io in prod.",
+  },
+  {
+    key: "NEXT_PUBLIC_RPC_URL",
+    required: false,
+    description:
+      "Public RPC endpoint used by read-only contract evidence surfaces. Local defaults to Hardhat; staging/prod default to public Arbitrum RPCs unless overridden.",
+    validate: (value) => !value || isHttpUrl(value),
+    fix: "Set NEXT_PUBLIC_RPC_URL to http://127.0.0.1:8545 locally, an Arbitrum Sepolia RPC for staging, or an Arbitrum One RPC for prod.",
   },
   {
     key: "NEXT_PUBLIC_SERVICE_LIST_CACHE_TTL_MS",
@@ -212,6 +227,13 @@ const supportPortal = valueOf("NEXT_PUBLIC_SUPPORT_PORTAL_URL");
 const txExplorerBaseUrl =
   valueOf("NEXT_PUBLIC_TX_EXPLORER_BASE_URL") ||
   defaultTxExplorerBaseUrlForEnv(appEnv);
+const rpcUrl =
+  valueOf("NEXT_PUBLIC_RPC_URL") ||
+  (normalizedAppEnv === "staging"
+    ? "https://sepolia-rollup.arbitrum.io/rpc"
+    : normalizedAppEnv === "prod"
+    ? "https://arb1.arbitrum.io/rpc"
+    : "http://127.0.0.1:8545");
 if (
   ["staging", "prod"].includes(normalizedAppEnv) &&
   isLocalHttpUrl(txExplorerBaseUrl)
@@ -224,6 +246,15 @@ if (
     description:
       "Invoice and transaction links must point to the public chain explorer for staging/prod, not a local Otterscan instance.",
     fix: "Use https://sepolia.arbiscan.io for staging or https://arbiscan.io for prod.",
+  });
+}
+if (["staging", "prod"].includes(normalizedAppEnv) && isLocalHttpUrl(rpcUrl)) {
+  failures.push({
+    key: "NEXT_PUBLIC_RPC_URL",
+    reason: `invalid value for ${normalizedAppEnv}: ${JSON.stringify(rpcUrl)}`,
+    description:
+      "Read-only contract surfaces must use the matching public chain RPC in staging/prod, not local Hardhat.",
+    fix: "Use an Arbitrum Sepolia RPC for staging or an Arbitrum One RPC for prod.",
   });
 }
 if (!supportEmail && !supportPortal) {

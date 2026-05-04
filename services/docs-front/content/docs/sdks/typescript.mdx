@@ -3,7 +3,11 @@ title: TypeScript SDK
 description: Build Node and web agents that discover and invoke paid services.
 ---
 
-The TypeScript SDK is in Public Preview. Public examples target staging by default.
+The TypeScript SDK is in Public Preview. Public examples target the current docs environment shown below.
+
+<EnvironmentConfigSummary />
+
+<GatewayEnvExport />
 
 ```bash
 npm install @synapse-network-ai/sdk
@@ -19,7 +23,7 @@ if (!agentKey) {
 
 const client = new SynapseClient({
   credential: agentKey,
-  environment: "staging",
+  environment: process.env.SYNAPSE_ENV ?? "local",
 });
 
 const services = await client.search("svc_synapse_echo", {
