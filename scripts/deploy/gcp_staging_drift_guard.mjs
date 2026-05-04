@@ -120,23 +120,45 @@ function jobJson(name) {
 }
 
 function envEntries(resource) {
-  const containers =
-    resource?.template?.containers ||
-    resource?.template?.template?.containers ||
-    resource?.spec?.template?.spec?.template?.spec?.containers ||
-    resource?.spec?.template?.spec?.containers ||
-    [];
+  const containers = containerEntries(resource);
   return containers[0]?.env || [];
 }
 
 function imageRef(resource) {
-  const containers =
-    resource?.template?.containers ||
-    resource?.template?.template?.containers ||
-    resource?.spec?.template?.spec?.template?.spec?.containers ||
-    resource?.spec?.template?.spec?.containers ||
-    [];
-  return containers[0]?.image || "";
+  const container = containerEntries(resource).find(
+    (item) => typeof item.image === "string" && item.image
+  );
+  return container?.image || "";
+}
+
+function containerEntries(resource) {
+  const containers = [];
+  const seen = new Set();
+
+  function visit(value) {
+    if (!value || typeof value !== "object" || seen.has(value)) return;
+    seen.add(value);
+
+    if (Array.isArray(value)) {
+      for (const item of value) visit(item);
+      return;
+    }
+
+    if (Array.isArray(value.containers)) {
+      for (const container of value.containers) {
+        if (container && typeof container === "object") {
+          containers.push(container);
+        }
+      }
+    }
+
+    for (const [key, item] of Object.entries(value)) {
+      if (key !== "containers") visit(item);
+    }
+  }
+
+  visit(resource);
+  return containers;
 }
 
 function secretEnvMap(resource) {
@@ -446,5 +468,7 @@ if (out) {
 }
 
 if (failures.length > 0) {
+  console.error("staging drift guard failed:");
+  console.error(JSON.stringify(failures, null, 2));
   process.exit(1);
 }
