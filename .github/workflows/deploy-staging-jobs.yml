@@ -1,0 +1,341 @@
+name: Deploy Staging Cloud Run Jobs
+
+on:
+  workflow_dispatch:
+    inputs:
+      record_id:
+        required: true
+        type: string
+      job_family:
+        required: true
+        type: choice
+        default: gateway
+        options:
+          - gateway
+          - gateway-admin
+          - all
+      source_ref_type:
+        required: false
+        type: choice
+        default: branch
+        options:
+          - branch
+          - tag
+          - commit
+      source_ref:
+        required: false
+        type: string
+        default: main
+      actor:
+        required: true
+        type: string
+      trigger_source:
+        required: false
+        type: string
+      run_smoke_jobs:
+        required: false
+        type: boolean
+        default: false
+      run_migrations:
+        required: false
+        type: boolean
+        default: false
+      callback_url:
+        required: false
+        type: string
+      callback_token:
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy-jobs:
+    runs-on: ubuntu-latest
+    env:
+      PROJECT_ID: ${{ secrets.STAGING_GCP_PROJECT_ID || 'fabled-archive-494108-k5' }}
+      REGION: ${{ secrets.STAGING_GCP_REGION || 'us-central1' }}
+      ARTIFACT_REGISTRY_REPOSITORY: ${{ secrets.STAGING_ARTIFACT_REGISTRY_REPOSITORY || 'synapse-staging' }}
+      JOB_FAMILY: ${{ inputs.job_family || 'gateway' }}
+      SOURCE_REF_TYPE: ${{ inputs.source_ref_type || 'branch' }}
+      SOURCE_REF: ${{ inputs.source_ref || 'main' }}
+      RUN_SMOKE_JOBS: ${{ inputs.run_smoke_jobs }}
+      RUN_MIGRATIONS: ${{ inputs.run_migrations }}
+      CALLBACK_URL: ${{ inputs.callback_url }}
+      CALLBACK_TOKEN: ${{ inputs.callback_token }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Validate staging Workload Identity configuration
+        shell: bash
+        env:
+          WIF_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          DEPLOY_SERVICE_ACCOUNT: ${{ secrets.GCP_DEPLOY_SERVICE_ACCOUNT }}
+        run: |
+          set -euo pipefail
+          missing=()
+          [[ -n "${WIF_PROVIDER}" ]] || missing+=("GCP_WORKLOAD_IDENTITY_PROVIDER")
+          [[ -n "${DEPLOY_SERVICE_ACCOUNT}" ]] || missing+=("GCP_DEPLOY_SERVICE_ACCOUNT")
+          if (( ${#missing[@]} > 0 )); then
+            printf 'Missing required GitHub Actions secret(s): %s\n' "${missing[*]}" >&2
+            exit 2
+          fi
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOY_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v3
+
+      - name: Resolve source ref
+        id: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --prune
+          source_ref_type="${SOURCE_REF_TYPE:-branch}"
+          source_ref="${SOURCE_REF:-main}"
+
+          if [[ "${source_ref_type}" == "commit" ]]; then
+            resolved="${source_ref}"
+            [[ -n "${resolved}" ]] || { echo "missing commit source_ref" >&2; exit 2; }
+            git fetch origin "${resolved}" --depth=1 || true
+          elif [[ "${source_ref_type}" == "tag" ]]; then
+            [[ -n "${source_ref}" ]] || { echo "missing tag source_ref" >&2; exit 2; }
+            git fetch origin "+refs/tags/${source_ref}:refs/tags/${source_ref}"
+            resolved="$(git rev-parse "refs/tags/${source_ref}^{commit}")"
+          else
+            git fetch origin "+refs/heads/${source_ref}:refs/remotes/origin/${source_ref}"
+            resolved="$(git rev-parse "refs/remotes/origin/${source_ref}^{commit}")"
+          fi
+
+          git checkout --detach "${resolved}"
+          short_sha="$(git rev-parse --short=12 HEAD)"
+          safe_ref="$(printf '%s' "${source_ref:-commit}" | tr '/[:upper:]' '-[:lower:]' | tr -cd 'a-z0-9._-' | cut -c1-40)"
+          tag_timestamp="$(date -u '+%Y-%m-%d-%H%M%S')"
+
+          {
+            echo "resolved_commit_sha=$(git rev-parse HEAD)"
+            echo "source_ref=${source_ref:-${resolved}}"
+            echo "source_ref_type=${source_ref_type}"
+            echo "short_sha=${short_sha}"
+            echo "safe_ref=${safe_ref}"
+            echo "tag_timestamp=${tag_timestamp}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Resolve job family services
+        id: family
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "${JOB_FAMILY}" in
+            gateway)
+              echo "services=gateway" >> "$GITHUB_OUTPUT"
+              ;;
+            gateway-admin)
+              echo "services=gateway-admin" >> "$GITHUB_OUTPUT"
+              ;;
+            all)
+              echo "services=gateway,gateway-admin" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "invalid job_family: ${JOB_FAMILY}" >&2
+              exit 2
+              ;;
+          esac
+
+      - name: Build job images
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="staging-jobs-${{ steps.source.outputs.safe_ref }}-${{ steps.source.outputs.short_sha }}-${{ steps.source.outputs.tag_timestamp }}"
+          bash scripts/deploy/gcp_cloudbuild_staging_images.sh "${PROJECT_ID}" \
+            --services "${{ steps.family.outputs.services }}" \
+            --tag "${TAG}" \
+            --json-output build-images.json
+
+      - name: Resolve immutable image refs
+        shell: bash
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const fs = require('node:fs')
+          const { execFileSync } = require('node:child_process')
+          const build = JSON.parse(fs.readFileSync('build-images.json', 'utf8'))
+          const digests = {}
+          for (const [service, image] of Object.entries(build.services || {})) {
+            let digest = ''
+            try {
+              digest = execFileSync('gcloud', ['artifacts', 'docker', 'images', 'describe', image, '--format=value(image_summary.digest)'], { encoding: 'utf8' }).trim()
+            } catch {
+              digest = ''
+            }
+            const imageName = image.includes(':') ? image.slice(0, image.lastIndexOf(':')) : image
+            digests[service] = digest ? `${imageName}@${digest}` : image
+          }
+          fs.writeFileSync('image-digests.json', `${JSON.stringify(digests, null, 2)}\n`)
+          NODE
+
+      - name: Sync Cloud Run Jobs
+        shell: bash
+        run: |
+          set -euo pipefail
+          smoke_flag=()
+          if [[ "${RUN_SMOKE_JOBS}" == "true" ]]; then
+            smoke_flag+=(--run-smoke-jobs)
+          fi
+
+          gateway_image="$(node -e "const j=require('./image-digests.json'); console.log(j.gateway || '')")"
+          gateway_admin_image="$(node -e "const j=require('./image-digests.json'); console.log(j['gateway-admin'] || '')")"
+
+          case "${JOB_FAMILY}" in
+            gateway)
+              bash scripts/deploy/gcp_sync_staging_jobs.sh --project "${PROJECT_ID}" --region "${REGION}" --service gateway --image "${gateway_image}" "${smoke_flag[@]}" --json-output jobs-gateway.json
+              ;;
+            gateway-admin)
+              bash scripts/deploy/gcp_sync_staging_jobs.sh --project "${PROJECT_ID}" --region "${REGION}" --service gateway-admin --image "${gateway_admin_image}" --json-output jobs-gateway-admin.json
+              ;;
+            all)
+              bash scripts/deploy/gcp_sync_staging_jobs.sh --project "${PROJECT_ID}" --region "${REGION}" --service gateway --image "${gateway_image}" "${smoke_flag[@]}" --json-output jobs-gateway.json
+              bash scripts/deploy/gcp_sync_staging_jobs.sh --project "${PROJECT_ID}" --region "${REGION}" --service gateway-admin --image "${gateway_admin_image}" --json-output jobs-gateway-admin.json
+              ;;
+          esac
+
+      - name: Optionally execute migration jobs
+        if: ${{ inputs.run_migrations == true }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '{"migrationExecutions":[]}\n' > migrations.json
+          append_migration() {
+            node - "$1" <<'NODE'
+          const fs = require('node:fs')
+          const job = process.argv[2]
+          const data = JSON.parse(fs.readFileSync('migrations.json', 'utf8'))
+          data.migrationExecutions.push({ job, status: 'passed' })
+          fs.writeFileSync('migrations.json', `${JSON.stringify(data, null, 2)}\n`)
+          NODE
+          }
+          if [[ "${JOB_FAMILY}" == "gateway" || "${JOB_FAMILY}" == "all" ]]; then
+            gcloud run jobs execute synapse-staging-db-migrate --project "${PROJECT_ID}" --region "${REGION}" --wait
+            append_migration synapse-staging-db-migrate
+          fi
+          if [[ "${JOB_FAMILY}" == "gateway-admin" || "${JOB_FAMILY}" == "all" ]]; then
+            gcloud run jobs execute synapse-staging-gateway-admin-db-migrate --project "${PROJECT_ID}" --region "${REGION}" --wait
+            append_migration synapse-staging-gateway-admin-db-migrate
+          fi
+
+      - name: Write jobs manifest
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const fs = require('node:fs')
+          const readJson = (path, fallback) => fs.existsSync(path) ? JSON.parse(fs.readFileSync(path, 'utf8')) : fallback
+          const gateway = readJson('jobs-gateway.json', { updated: [], smokeExecutions: [] })
+          const gatewayAdmin = readJson('jobs-gateway-admin.json', { updated: [], smokeExecutions: [] })
+          const migrations = readJson('migrations.json', { migrationExecutions: [] })
+          const manifest = {
+            jobFamily: process.env.JOB_FAMILY,
+            updated: [...(gateway.updated || []), ...(gatewayAdmin.updated || [])],
+            smokeExecutions: [...(gateway.smokeExecutions || []), ...(gatewayAdmin.smokeExecutions || [])],
+            migrationExecutions: migrations.migrationExecutions || [],
+            images: readJson('image-digests.json', {}),
+            runSmokeJobs: process.env.RUN_SMOKE_JOBS === 'true',
+            runMigrations: process.env.RUN_MIGRATIONS === 'true',
+          }
+          fs.writeFileSync('jobs.json', `${JSON.stringify(manifest, null, 2)}\n`)
+          NODE
+
+      - name: Upload job publish manifest
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: staging-jobs-manifest-${{ github.run_id }}
+          path: |
+            jobs.json
+            build-images.json
+            image-digests.json
+          if-no-files-found: ignore
+
+      - name: Report success
+        if: ${{ success() && env.CALLBACK_URL != '' }}
+        shell: bash
+        env:
+          RESOLVED_COMMIT_SHA: ${{ steps.source.outputs.resolved_commit_sha }}
+          SOURCE_REF: ${{ steps.source.outputs.source_ref }}
+          SOURCE_REF_TYPE: ${{ steps.source.outputs.source_ref_type }}
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const fs = require('node:fs')
+          const jobs = JSON.parse(fs.readFileSync('jobs.json', 'utf8'))
+          const payload = {
+            status: 'succeeded',
+            external_run_id: process.env.GITHUB_RUN_ID,
+            external_url: `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`,
+            branch_name: process.env.SOURCE_REF || null,
+            commit_sha: process.env.RESOLVED_COMMIT_SHA,
+            health_status: 'passed',
+            notes: 'staging scheduled jobs publish succeeded; GitHub Actions run passed.',
+            metadata: {
+              deploy_repo_full_name: process.env.GITHUB_REPOSITORY,
+              sourceRefType: process.env.SOURCE_REF_TYPE,
+              sourceRef: process.env.SOURCE_REF,
+              resolvedCommitSha: process.env.RESOLVED_COMMIT_SHA,
+              jobFamily: process.env.JOB_FAMILY,
+              jobsManifest: jobs,
+            },
+          }
+          fs.writeFileSync('callback.json', JSON.stringify(payload))
+          NODE
+          curl --fail --silent --show-error \
+            -X POST "${CALLBACK_URL}" \
+            -H "Content-Type: application/json" \
+            -H "X-Deploy-Token: ${CALLBACK_TOKEN}" \
+            -d @callback.json
+
+      - name: Report failure
+        if: ${{ failure() && env.CALLBACK_URL != '' }}
+        shell: bash
+        env:
+          RESOLVED_COMMIT_SHA: ${{ steps.source.outputs.resolved_commit_sha }}
+          SOURCE_REF: ${{ steps.source.outputs.source_ref }}
+          SOURCE_REF_TYPE: ${{ steps.source.outputs.source_ref_type }}
+        run: |
+          node - <<'NODE'
+          const fs = require('node:fs')
+          const jobs = fs.existsSync('jobs.json') ? JSON.parse(fs.readFileSync('jobs.json', 'utf8')) : {}
+          const payload = {
+            status: 'failed',
+            external_run_id: process.env.GITHUB_RUN_ID,
+            external_url: `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`,
+            branch_name: process.env.SOURCE_REF || null,
+            commit_sha: process.env.RESOLVED_COMMIT_SHA || null,
+            health_status: 'failed',
+            notes: 'staging scheduled jobs publish failed; inspect GitHub Actions logs.',
+            metadata: {
+              deploy_repo_full_name: process.env.GITHUB_REPOSITORY,
+              sourceRefType: process.env.SOURCE_REF_TYPE,
+              sourceRef: process.env.SOURCE_REF,
+              resolvedCommitSha: process.env.RESOLVED_COMMIT_SHA || null,
+              jobFamily: process.env.JOB_FAMILY,
+              jobsManifest: jobs,
+            },
+          }
+          fs.writeFileSync('callback-failure.json', JSON.stringify(payload))
+          NODE
+          curl --fail --silent --show-error \
+            -X POST "${CALLBACK_URL}" \
+            -H "Content-Type: application/json" \
+            -H "X-Deploy-Token: ${CALLBACK_TOKEN}" \
+            -d @callback-failure.json
