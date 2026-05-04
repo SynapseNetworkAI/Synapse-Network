@@ -32,6 +32,7 @@ from tests.e2e.helpers.auth import authenticate_wallet
 from tests.e2e.helpers.db import seed_service_health
 from tests.e2e.helpers.service_fixtures import (
     allow_service_creation,
+    canonical_invoke_payload,
     canonical_missing_message,
     configured_e2e_service_id,
     discover_service,
@@ -564,7 +565,7 @@ class TestInvocations:
                 "serviceId": STATE["quoted_service_id"],
                 "idempotencyKey": f"api-ref-test-{uuid.uuid4().hex}",
                 "costUsdc": STATE["quoted_price_usdc"],
-                "payload": {"prompt": "API reference E2E test"},
+                "payload": {"body": canonical_invoke_payload(STATE["quoted_service_id"])},
                 "responseMode": "sync",
             },
             timeout=30,

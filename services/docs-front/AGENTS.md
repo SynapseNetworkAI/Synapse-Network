@@ -25,6 +25,13 @@ Local execution mirror for `services/docs-front/`.
 - Run `yarn generate:openapi` after API endpoint data changes.
 - Public playground execution must stay disabled for production docs unless an explicit staging-safe execution policy is implemented.
 
+## Visual Constraints
+
+- Docs-front is a fixed dark Synapse developer documentation surface; do not let Fumadocs fall back to light/system theme.
+- Sidebar, search, active navigation, body content, and table-of-contents must use the same dark token system.
+- Headings, body copy, ordered-list markers, sidebar active/hover states, code, and callouts must stay readable on `#030405` / `#050708` backgrounds.
+- Any visual theme change must run the docs browser verifier so `/get-started/agent-builders` proves heading, paragraph, ordered list, sidebar, and TOC contrast.
+
 ## Commands
 
 ```bash
