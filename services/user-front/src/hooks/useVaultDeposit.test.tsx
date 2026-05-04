@@ -75,6 +75,9 @@ vi.mock("wagmi", () => ({
     if (functionName === "decimals") {
       return { data: tokenDecimalsState.value };
     }
+    if (functionName === "name") {
+      return { data: "Synapse Test USDC" };
+    }
     return {
       data: walletBalanceRawState.value,
       refetch: refetchWalletBalanceMock,
@@ -208,6 +211,9 @@ describe("useVaultDeposit", () => {
     await result.current.handleDeposit();
 
     expect(signTypedDataAsyncMock).toHaveBeenCalledTimes(1);
+    expect(signTypedDataAsyncMock.mock.calls[0][0].domain.name).toBe(
+      "Synapse Test USDC"
+    );
     expect(signTypedDataAsyncMock.mock.calls[0][0].message.value).toBe(
       100000000n
     );

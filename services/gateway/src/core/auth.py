@@ -3,9 +3,10 @@ import json
 import logging
 import secrets
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from eth_account.messages import encode_defunct
 from typing import Any, Optional
+from urllib.parse import urlparse
 from web3 import Web3
 
 try:
@@ -74,6 +75,18 @@ pending_owner_profile_update_challenges = TTLCache(
     ttl=max(30, int(settings.auth_challenge_ttl_sec)),
 )
 
+DEFAULT_SIWE_URI = "https://synapse-network.ai"
+
+
+def get_auth_challenge_domain_and_uri() -> tuple[str, str]:
+    """Return the SIWE domain/URI for the active user-front environment."""
+    app_uri = (settings.public_app_base_url or DEFAULT_SIWE_URI).strip().rstrip("/")
+    if not app_uri:
+        app_uri = DEFAULT_SIWE_URI
+    parsed = urlparse(app_uri)
+    domain = parsed.netloc or parsed.path or "synapse-network.ai"
+    return domain, app_uri
+
 
 def _owner_profile_payload_hash(wallet_address: str, payload: dict[str, Any]) -> str:
     normalized_payload = {
@@ -94,17 +107,23 @@ def create_auth_challenge(wallet_address: str, chain_id: Optional[int] = None) -
 
         # Generate random challenge
         nonce = secrets.token_hex(16)
-        issued_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-        app_uri = settings.public_app_base_url or "https://synapse-network.ai"
+        issued_dt = datetime.now(timezone.utc).replace(microsecond=0)
+        expires_dt = issued_dt + timedelta(
+            seconds=max(30, int(settings.auth_challenge_ttl_sec))
+        )
+        issued_at = issued_dt.isoformat().replace("+00:00", "Z")
+        expires_at = expires_dt.isoformat().replace("+00:00", "Z")
+        domain, app_uri = get_auth_challenge_domain_and_uri()
         challenge = (
-            "synapse-network.ai wants you to sign in with your Ethereum account:\n"
+            f"{domain} wants you to sign in with your Ethereum account:\n"
             f"{wallet}\n\n"
             "Sign in to Synapse Network. This does not authorize a transaction or move funds.\n\n"
             f"URI: {app_uri}\n"
             "Version: 1\n"
             f"Chain ID: {chain_id if chain_id is not None else 'unknown'}\n"
             f"Nonce: {nonce}\n"
-            f"Issued At: {issued_at}"
+            f"Issued At: {issued_at}\n"
+            f"Expiration Time: {expires_at}"
         )
 
         # Store challenge

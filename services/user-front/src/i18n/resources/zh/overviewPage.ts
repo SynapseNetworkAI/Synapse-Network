@@ -6,7 +6,6 @@ const overviewPage: I18nMessages["overviewPage"] = {
   networkStatus: "网络状态",
   latency: "延迟",
   syncing: "同步中...",
-  refreshData: "钱包",
   connectWallet: "连接钱包",
   connectedWallet: "已连接钱包",
   quickNavAgents: "Agents",

@@ -107,6 +107,9 @@ name: "Synapse Frontend Rules"
 
 - Showing a loading state indefinitely when a wallet extension is not installed — add a detection guard and a fallback message.
 - Blocking all UI interaction during an on-chain op without giving the user a cancel or dismiss path.
+- Treat wallet rejection as a neutral cancellation, not a product error. Catch `code === 4001`, `ACTION_REJECTED`, `User rejected`, and `User denied`; clear loading state and show localized neutral copy instead of a red error toast.
+- Never cache a cancelled, expired, or failed SIWE challenge. Every login intent, retry, or reconnect must request a fresh `/api/v1/auth/challenge` nonce before opening the wallet signature prompt.
+- Wallet signature, deposit, and withdrawal flows must show a Synapse-controlled intent preview before the wallet opens: domain/network, wallet, amount or purpose, vault/spender, gas expectation, and whether funds can move.
 
 **i18n drift**
 

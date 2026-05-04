@@ -36,7 +36,7 @@ import {
   type MoneyString,
 } from "@/utils/money";
 import {
-  normalizeWithdrawWalletError,
+  showWithdrawWalletErrorToast,
   toSafeErrorMessage,
 } from "@/utils/providerWithdrawWallet";
 
@@ -398,9 +398,7 @@ export default function ProviderWithdrawPage() {
 
   useEffect(() => {
     if (!isTxFailed || !txHash || !activeWithdrawalId) return;
-    toast.error(
-      normalizeWithdrawWalletError(txReceiptError, withdrawWalletErrorMessages)
-    );
+    showWithdrawWalletErrorToast(txReceiptError, withdrawWalletErrorMessages);
     setActiveWithdrawalId(null);
     setActiveTxChainId(undefined);
   }, [
@@ -466,9 +464,7 @@ export default function ProviderWithdrawPage() {
           pendingWithdrawal.ticket
         );
       } catch (error) {
-        toast.error(
-          normalizeWithdrawWalletError(error, withdrawWalletErrorMessages)
-        );
+        showWithdrawWalletErrorToast(error, withdrawWalletErrorMessages);
       }
       return true;
     }
@@ -522,9 +518,7 @@ export default function ProviderWithdrawPage() {
     try {
       await validateWithdrawIntentReadiness(amountUsdc);
     } catch (error) {
-      toast.error(
-        normalizeWithdrawWalletError(error, withdrawWalletErrorMessages)
-      );
+      showWithdrawWalletErrorToast(error, withdrawWalletErrorMessages);
       return;
     }
 
@@ -551,10 +545,9 @@ export default function ProviderWithdrawPage() {
             id: toastId,
           });
         } catch (error) {
-          toast.error(
-            normalizeWithdrawWalletError(error, withdrawWalletErrorMessages),
-            { id: toastId }
-          );
+          showWithdrawWalletErrorToast(error, withdrawWalletErrorMessages, {
+            id: toastId,
+          });
         }
       } else {
         toast.success(t("providerSettlements.withdrawalIntentCreated"), {
@@ -697,9 +690,7 @@ export default function ProviderWithdrawPage() {
     try {
       await startWalletWithdraw(pendingWithdrawal.id, pendingWithdrawal.ticket);
     } catch (error) {
-      toast.error(
-        normalizeWithdrawWalletError(error, withdrawWalletErrorMessages)
-      );
+      showWithdrawWalletErrorToast(error, withdrawWalletErrorMessages);
     }
   };
 
