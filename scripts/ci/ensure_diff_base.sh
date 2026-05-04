@@ -12,7 +12,7 @@ debt without the base branch history, so they could silently miss new risk or
 block unrelated work.
 Agent fix: fetch the base branch history before running the gate. In GitHub
 Actions use:
-  - uses: actions/checkout@v4
+  - uses: actions/checkout@v6
     with:
       fetch-depth: 0
 For local runs, try: git fetch origin main --depth=200
