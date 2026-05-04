@@ -358,8 +358,12 @@ describe("AccountSettingsPage", () => {
     await user.click(
       await screen.findByRole("button", { name: "Remove email" })
     );
-    expect(await screen.findByText("Remove this email from your Synapse account?")).toBeTruthy();
-    await user.click(screen.getAllByRole("button", { name: "Remove email" }).at(-1)!);
+    expect(
+      await screen.findByText("Remove this email from your Synapse account?")
+    ).toBeTruthy();
+    await user.click(
+      screen.getAllByRole("button", { name: "Remove email" }).at(-1)!
+    );
 
     await waitFor(() => {
       expect(updateOwnerProfileMock).toHaveBeenCalledWith("0xabc", {

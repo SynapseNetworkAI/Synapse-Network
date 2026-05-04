@@ -108,7 +108,8 @@ export default function AccountSettingsPage() {
   );
   const [isVerificationOpen, setIsVerificationOpen] = useState(false);
   const [isChangingEmail, setIsChangingEmail] = useState(false);
-  const [isRemoveEmailConfirmOpen, setIsRemoveEmailConfirmOpen] = useState(false);
+  const [isRemoveEmailConfirmOpen, setIsRemoveEmailConfirmOpen] =
+    useState(false);
 
   const sessionWallet = useMemo(
     () => getStoredAuthSession()?.wallet ?? null,
