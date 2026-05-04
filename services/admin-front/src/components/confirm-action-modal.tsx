@@ -86,14 +86,14 @@ export function ConfirmActionModal({
               gap="10px"
               justify="flex-end"
             >
-              <Button variant="outline" onClick={onCancel} isDisabled={loading}>
+              <Button variant="outline" onClick={onCancel} disabled={loading}>
                 {cancelLabel}
               </Button>
               <Button
                 bg={isDanger ? "#ba1a1a" : "brand.500"}
                 color="white"
                 _hover={{ bg: isDanger ? "#8f1d1d" : "brand.600" }}
-                isLoading={loading}
+                loading={loading}
                 onClick={() => void onConfirm()}
               >
                 {confirmLabel}
