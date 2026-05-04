@@ -1,4 +1,11 @@
 {
   "title": "Get Started",
-  "pages": ["index", "agent-builders", "api-providers", "first-paid-invocation"]
+  "pages": [
+    "index",
+    "agent-builders",
+    "call-provider-service",
+    "api-providers",
+    "register-provider-service",
+    "first-paid-invocation"
+  ]
 }
