@@ -1,7 +1,13 @@
 // @vitest-environment jsdom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { createElement } from "react";
 
 import OwnerBillingPage from "@/components/dashboard-workspace/OwnerBillingPage";
@@ -84,7 +90,9 @@ describe("OwnerBillingPage", () => {
 
     expect(screen.getByText("ab...6789")).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: "Copy Transaction ID" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Copy Transaction ID" })
+    );
 
     await waitFor(() => {
       expect(clipboardWriteTextMock).toHaveBeenCalledWith("abc123456789");

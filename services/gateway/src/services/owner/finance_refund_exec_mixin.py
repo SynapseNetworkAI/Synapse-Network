@@ -169,6 +169,11 @@ class FinanceRefundExecMixin:
         review: RefundReviewContext,
         request_meta: Optional[dict[str, Any]],
     ) -> dict[str, Any]:
+        try:
+            self._assert_withdraw_vault_liquidity(amount_usdc)  # type: ignore[attr-defined]  # reason: mixed in by BalanceWithdrawSigningMixin
+        except RuntimeError as exc:
+            self._raise_consumer_withdraw_runtime_error(str(exc))  # type: ignore[attr-defined]  # reason: mixed in by FinanceConsumerWithdrawMixin
+
         ticket = self._build_consumer_withdraw_ticket(  # type: ignore[attr-defined]
             owner=owner,
             gross_amount_usdc=amount_usdc,

@@ -1007,8 +1007,12 @@ export type I18nMessages = {
     remainingBalanceLabel: string;
     spendableBalanceLabel: string;
     pendingBalanceLabel: string;
+    pendingDepositBalanceLabel: string;
+    pendingWithdrawalBalanceLabel: string;
     frozenBalanceLabel: string;
     pendingBalanceHint: string;
+    pendingDepositBalanceHint: string;
+    pendingWithdrawalBalanceHint: string;
     frozenBalanceHint: string;
     purchaseCredits: string;
     walletUnavailable: string;

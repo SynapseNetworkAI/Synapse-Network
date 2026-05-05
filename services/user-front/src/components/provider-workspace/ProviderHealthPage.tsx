@@ -16,17 +16,20 @@ import { useAuth } from "@/components/WalletAuthGuard";
 import CopyableValue from "@/components/xui/CopyableValue";
 import XSelect from "@/components/xui/XSelect";
 
-const HealthChartsPanel = dynamic(() => import("@/components/provider/HealthChartsPanel"), {
-  loading: () => (
-    <div className="space-y-5">
-      <div className="rounded-2xl border border-[#222222] bg-[#0a0a0a] p-5">
-        <div className="h-5 w-56 animate-pulse rounded bg-[#1a1a1a]" />
-        <div className="mt-5 h-64 animate-pulse rounded-xl bg-[#080808]" />
+const HealthChartsPanel = dynamic(
+  () => import("@/components/provider/HealthChartsPanel"),
+  {
+    loading: () => (
+      <div className="space-y-5">
+        <div className="rounded-2xl border border-[#222222] bg-[#0a0a0a] p-5">
+          <div className="h-5 w-56 animate-pulse rounded bg-[#1a1a1a]" />
+          <div className="mt-5 h-64 animate-pulse rounded-xl bg-[#080808]" />
+        </div>
       </div>
-    </div>
-  ),
-  ssr: false,
-});
+    ),
+    ssr: false,
+  }
+);
 
 export default function ProviderHealthPage() {
   const { address } = useAccount();
@@ -34,11 +37,15 @@ export default function ProviderHealthPage() {
   const searchParams = useSearchParams();
   const queryServiceId = searchParams?.get("serviceId") || "";
 
-  const [services, setServices] = useState<Array<{ serviceId: string; name: string }>>([]);
+  const [services, setServices] = useState<
+    Array<{ serviceId: string; name: string }>
+  >([]);
   const [selectedServiceId, setSelectedServiceId] = useState<string>("");
   const [loadingServices, setLoadingServices] = useState(true);
   const [loadingHistory, setLoadingHistory] = useState(false);
-  const [history, setHistory] = useState<ServiceHealthHistoryResponse | null>(null);
+  const [history, setHistory] = useState<ServiceHealthHistoryResponse | null>(
+    null
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -63,11 +70,16 @@ export default function ProviderHealthPage() {
         }));
         setServices(mapped);
 
-        const picked = mapped.find((svc) => svc.serviceId === queryServiceId)?.serviceId || mapped[0]?.serviceId || "";
+        const picked =
+          mapped.find((svc) => svc.serviceId === queryServiceId)?.serviceId ||
+          mapped[0]?.serviceId ||
+          "";
         setSelectedServiceId(picked);
       } catch (err) {
         if (!cancelled) {
-          toast.error(err instanceof Error ? err.message : "Failed to load service list");
+          toast.error(
+            err instanceof Error ? err.message : "Failed to load service list"
+          );
           setServices([]);
           setSelectedServiceId("");
         }
@@ -84,26 +96,31 @@ export default function ProviderHealthPage() {
     };
   }, [address, isSessionAuthenticated, queryServiceId]);
 
-  const fetchHistory = useCallback(async (serviceId: string) => {
-    if (!address || !serviceId || !isSessionAuthenticated) {
-      setHistory(null);
-      return;
-    }
+  const fetchHistory = useCallback(
+    async (serviceId: string) => {
+      if (!address || !serviceId || !isSessionAuthenticated) {
+        setHistory(null);
+        return;
+      }
 
-    setLoadingHistory(true);
-    try {
-      const payload = await getServiceHealthHistory(serviceId, address, {
-        hours: 24,
-        limitPerTarget: 2000,
-      });
-      setHistory(payload);
-    } catch (err) {
-      setHistory(null);
-      toast.error(err instanceof Error ? err.message : "Failed to load health history");
-    } finally {
-      setLoadingHistory(false);
-    }
-  }, [address, isSessionAuthenticated]);
+      setLoadingHistory(true);
+      try {
+        const payload = await getServiceHealthHistory(serviceId, address, {
+          hours: 24,
+          limitPerTarget: 2000,
+        });
+        setHistory(payload);
+      } catch (err) {
+        setHistory(null);
+        toast.error(
+          err instanceof Error ? err.message : "Failed to load health history"
+        );
+      } finally {
+        setLoadingHistory(false);
+      }
+    },
+    [address, isSessionAuthenticated]
+  );
 
   useEffect(() => {
     if (!selectedServiceId) {
@@ -134,9 +151,7 @@ export default function ProviderHealthPage() {
       </div>
     );
   } else {
-    bodyContent = (
-      <HealthChartsPanel targets={history.targets} />
-    );
+    bodyContent = <HealthChartsPanel targets={history.targets} />;
   }
 
   return (
@@ -148,7 +163,8 @@ export default function ProviderHealthPage() {
             API Service Health
           </h1>
           <p className="mt-2 text-sm text-[#86868b]">
-            24h runtime health curve and latency jitter distribution for targets behind each API service.
+            24h runtime health curve and latency jitter distribution for targets
+            behind each API service.
           </p>
         </div>
         <Link
@@ -161,7 +177,12 @@ export default function ProviderHealthPage() {
       </div>
 
       <div className="rounded-2xl border border-[#222222] bg-[#0a0a0a] p-4 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
-        <label htmlFor="health-service-select" className="text-xs tracking-wide text-[#86868b] uppercase">API Service</label>
+        <label
+          htmlFor="health-service-select"
+          className="text-xs tracking-wide text-[#86868b] uppercase"
+        >
+          API Service
+        </label>
         <XSelect
           id="health-service-select"
           value={selectedServiceId}
@@ -188,14 +209,17 @@ export default function ProviderHealthPage() {
           }}
           className="inline-flex items-center justify-center gap-2 rounded-lg border border-[#22c55e]/40 bg-[#22c55e]/10 px-4 py-2 text-sm font-semibold text-[#22c55e] hover:bg-[#22c55e] hover:text-black"
         >
-          <RefreshCw className={`h-4 w-4 ${loadingHistory ? "animate-spin" : ""}`} />
+          <RefreshCw
+            className={`h-4 w-4 ${loadingHistory ? "animate-spin" : ""}`}
+          />
           Refresh
         </button>
       </div>
 
       {history && (
         <div className="rounded-xl border border-[#214228] bg-[#09130b] p-4 text-sm text-[#8de1a5]">
-          Requested 24h window, current retention is {history.retentionHours}h. Data shown is clipped to the retained window.
+          Requested 24h window, current retention is {history.retentionHours}h.
+          Data shown is clipped to the retained window.
         </div>
       )}
 

@@ -45,7 +45,8 @@ const fixture = {
   invocationId: "inv-copyable-dom-000000000000000000000001",
   serviceId: "svc_oss_security_healthcheck",
   agentId: "cred-copyable-agent-000000000000000000000001",
-  internalAgentPrincipal: "agent:agent:0x82f1c188327bfc265357a85e8a6b4a34d562d6f8",
+  internalAgentPrincipal:
+    "agent:agent:0x82f1c188327bfc265357a85e8a6b4a34d562d6f8",
   issuedToken: "agt_copyable_fixture_full_secret_token_000001",
   endpointUrl:
     "http://127.0.0.1:8100/provider-services/oss-security-healthcheck/invoke",
@@ -85,7 +86,8 @@ function redact(value) {
   return String(value ?? "")
     .replace(/\bBearer\s+[A-Za-z0-9._~+/-]+=*/gi, "Bearer [REDACTED]")
     .replace(/0x[a-fA-F0-9]{64,}/g, (match) =>
-      match === fixture.billingTxHash || match === fixture.providerWithdrawalTxHash
+      match === fixture.billingTxHash ||
+      match === fixture.providerWithdrawalTxHash
         ? match
         : "0x[REDACTED]"
     )
@@ -277,7 +279,8 @@ async function fulfillGateway(route) {
     method: route.request().method(),
     pathname,
   });
-  if (pathname === "/api/logs") return route.fulfill(jsonResponse({ ok: true }));
+  if (pathname === "/api/logs")
+    return route.fulfill(jsonResponse({ ok: true }));
   if (pathname === "/api/v1/auth/me") {
     return route.fulfill(
       jsonResponse({
@@ -344,7 +347,8 @@ async function fulfillGateway(route) {
       })
     );
   }
-  if (pathname === "/api/v1/refunds") return route.fulfill(jsonResponse({ refunds: [] }));
+  if (pathname === "/api/v1/refunds")
+    return route.fulfill(jsonResponse({ refunds: [] }));
   if (pathname === "/api/v1/balance/consumer/withdrawals") {
     return route.fulfill(jsonResponse({ withdrawals: [] }));
   }
@@ -468,7 +472,10 @@ async function installFixtureAuth(context) {
       localStorage.setItem("synapse_lang", "en");
       localStorage.setItem("synapse_e2e_wallet_connected", "1");
       localStorage.setItem("a2a_selected_role", "CONSUMER");
-      localStorage.setItem(`a2a_role_${ownerAddress.toLowerCase()}`, "CONSUMER");
+      localStorage.setItem(
+        `a2a_role_${ownerAddress.toLowerCase()}`,
+        "CONSUMER"
+      );
       localStorage.setItem(
         "a2a_auth_session",
         JSON.stringify({
@@ -506,7 +513,10 @@ async function installFixtureAuth(context) {
           version: 2,
         })
       );
-      localStorage.setItem("wagmi.recentConnectorId", JSON.stringify("injected"));
+      localStorage.setItem(
+        "wagmi.recentConnectorId",
+        JSON.stringify("injected")
+      );
       localStorage.setItem("wagmi.injected.connected", JSON.stringify(true));
       window.ethereum = {
         isMetaMask: true,
@@ -529,7 +539,10 @@ async function installFixtureAuth(context) {
 }
 
 async function bodyText(page) {
-  return page.locator("body").innerText({ timeout: 10_000 }).catch(() => "");
+  return page
+    .locator("body")
+    .innerText({ timeout: 10_000 })
+    .catch(() => "");
 }
 
 async function waitForText(page, text, pageName) {
@@ -541,7 +554,10 @@ async function waitForText(page, text, pageName) {
   }
   const body = await bodyText(page);
   throw new Error(
-    `${pageName} missing text: ${expected.join(", ")}; body=${body.slice(0, 800)}`
+    `${pageName} missing text: ${expected.join(", ")}; body=${body.slice(
+      0,
+      800
+    )}`
   );
 }
 
@@ -572,7 +588,9 @@ async function assertNoForbidden(page, pageName) {
     bodyExcerpt: body.slice(0, 1200),
   });
   if (!ok) {
-    throw new Error(`${pageName} contains forbidden text: ${forbidden.join(", ")}`);
+    throw new Error(
+      `${pageName} contains forbidden text: ${forbidden.join(", ")}`
+    );
   }
 }
 
@@ -599,7 +617,9 @@ async function clickCopyAndAssert(
   options = {}
 ) {
   const button = page.getByRole("button", { name: `Copy ${label}` }).first();
-  const count = await page.getByRole("button", { name: `Copy ${label}` }).count();
+  const count = await page
+    .getByRole("button", { name: `Copy ${label}` })
+    .count();
   if (count < 1) {
     throw new Error(`${pageName} missing copy button for ${label}`);
   }
@@ -633,7 +653,9 @@ async function clickCopyAndAssert(
   if (options.requireToast !== false && !toastSeen) {
     const body = await bodyText(page);
     throw new Error(
-      `${pageName} copied ${label}, but copied toast was not visible; body=${body.slice(-500)}`
+      `${pageName} copied ${label}, but copied toast was not visible; body=${body.slice(
+        -500
+      )}`
     );
   }
 }
@@ -693,7 +715,12 @@ async function run() {
 
     await visit(page, "/dashboard/billing", ["Payments", "Transaction ID"]);
     await waitForText(page, "de...0001", "billing short id");
-    await clickCopyAndAssert(page, "billing", "Transaction ID", fixture.billingId);
+    await clickCopyAndAssert(
+      page,
+      "billing",
+      "Transaction ID",
+      fixture.billingId
+    );
     await clickCopyAndAssert(
       page,
       "billing",
@@ -707,16 +734,22 @@ async function run() {
       "Invocations",
       "svc_os...heck",
     ]);
-    await clickCopyAndAssert(page, "invocations", "Invocation ID", fixture.invocationId);
+    await clickCopyAndAssert(
+      page,
+      "invocations",
+      "Invocation ID",
+      fixture.invocationId
+    );
     await clickCopyAndAssert(page, "invocations", "Service", fixture.serviceId);
     await clickCopyAndAssert(page, "invocations", "Agent", fixture.agentId);
-    addCheck("invocations:copy-and-privacy", true, "safe ids copy; internals hidden");
+    addCheck(
+      "invocations:copy-and-privacy",
+      true,
+      "safe ids copy; internals hidden"
+    );
     await capture(page, "invocations-copyable-identifiers", "Invocations");
 
-    await visit(page, "/dashboard/account/settings", [
-      "Settings",
-      "Wallet",
-    ]);
+    await visit(page, "/dashboard/account/settings", ["Settings", "Wallet"]);
     await clickCopyAndAssert(
       page,
       "account-settings",
@@ -730,7 +763,10 @@ async function run() {
       "Agent Credentials",
       "Universal Key",
     ]);
-    await page.getByRole("button", { name: "Issue Credential" }).first().click();
+    await page
+      .getByRole("button", { name: "Issue Credential" })
+      .first()
+      .click();
     await page.getByRole("button", { name: "Issue Credential" }).last().click();
     await waitForText(page, "Credential Issued", "credentials issue modal");
     await clickCopyAndAssert(
@@ -743,19 +779,12 @@ async function run() {
     await capture(page, "credentials-copyable-token", "Credential Issued");
     await page.waitForTimeout(4_200);
 
-    await visit(page, "/dashboard/agents", [
-      "Agents",
-      "Copyable QA Agent",
-    ]);
+    await visit(page, "/dashboard/agents", ["Agents", "Copyable QA Agent"]);
     await page.getByText("Copyable QA Agent").first().click();
     await waitForText(page, "Agent Credential", "agents detail");
-    await clickCopyAndAssert(
-      page,
-      "agents",
-      "Agent ID",
-      fixture.agentId,
-      { requireToast: false }
-    );
+    await clickCopyAndAssert(page, "agents", "Agent ID", fixture.agentId, {
+      requireToast: false,
+    });
     addCheck("agents:agent-id-copy", true, "agent id copies");
     await capture(page, "agents-copyable-agent-id", "Copyable QA Agent");
 
@@ -776,25 +805,48 @@ async function run() {
       fixture.serviceId
     );
     addCheck("provider-services:copy", true, "service id and endpoint copy");
-    await capture(page, "provider-services-copyable-identifiers", "API Services");
+    await capture(
+      page,
+      "provider-services-copyable-identifiers",
+      "API Services"
+    );
 
     await visit(page, "/provider/health", [
       "API Service Health",
       fixture.serviceId,
     ]);
-    await clickCopyAndAssert(page, "provider-health", "Service ID", fixture.serviceId, {
-      requireToast: false,
-    });
+    await clickCopyAndAssert(
+      page,
+      "provider-health",
+      "Service ID",
+      fixture.serviceId,
+      {
+        requireToast: false,
+      }
+    );
     addCheck("provider-health:copy", true, "selected service id copies");
-    await capture(page, "provider-health-copyable-service-id", "API Service Health");
+    await capture(
+      page,
+      "provider-health-copyable-service-id",
+      "API Service Health"
+    );
 
     await visit(page, "/provider/usage", [
       "Usage Analytics",
       fixture.serviceId,
     ]);
-    await clickCopyAndAssert(page, "provider-usage", "Service ID", fixture.serviceId);
+    await clickCopyAndAssert(
+      page,
+      "provider-usage",
+      "Service ID",
+      fixture.serviceId
+    );
     addCheck("provider-usage:copy", true, "usage service id copies");
-    await capture(page, "provider-usage-copyable-service-id", "Usage Analytics");
+    await capture(
+      page,
+      "provider-usage-copyable-service-id",
+      "Usage Analytics"
+    );
 
     await visit(page, "/provider/settlements", [
       "Provider Withdraw",
@@ -824,7 +876,11 @@ async function run() {
       true,
       "settlements alias redirects to withdraw history copy controls"
     );
-    await capture(page, "provider-settlements-copyable-identifiers", "Provider Withdraw");
+    await capture(
+      page,
+      "provider-settlements-copyable-identifiers",
+      "Provider Withdraw"
+    );
 
     await visit(page, "/provider/withdraw", [
       "Provider Withdraw",
@@ -848,15 +904,24 @@ async function run() {
       "Tx Hash",
       fixture.providerWithdrawalTxHash
     );
-    addCheck("provider-withdraw:copy", true, "withdrawal id, nonce, tx hash copy");
-    await capture(page, "provider-withdraw-copyable-identifiers", "Provider Withdraw");
+    addCheck(
+      "provider-withdraw:copy",
+      true,
+      "withdrawal id, nonce, tx hash copy"
+    );
+    await capture(
+      page,
+      "provider-withdraw-copyable-identifiers",
+      "Provider Withdraw"
+    );
   } finally {
     await browser.close();
   }
 }
 
 function writeEvidence(status) {
-  const traceText = evidence.trace.map((row) => JSON.stringify(row)).join("\n") + "\n";
+  const traceText =
+    evidence.trace.map((row) => JSON.stringify(row)).join("\n") + "\n";
   const report = {
     status,
     environment: evidence.environment,
@@ -868,8 +933,14 @@ function writeEvidence(status) {
     traceDigest: crypto.createHash("sha256").update(traceText).digest("hex"),
   };
   fs.writeFileSync(path.join(outDir, "trace.jsonl"), traceText);
-  fs.writeFileSync(path.join(outDir, "report.json"), JSON.stringify(report, null, 2));
-  fs.writeFileSync(path.join(outDir, "dom-evidence.json"), JSON.stringify(evidence.dom, null, 2));
+  fs.writeFileSync(
+    path.join(outDir, "report.json"),
+    JSON.stringify(report, null, 2)
+  );
+  fs.writeFileSync(
+    path.join(outDir, "dom-evidence.json"),
+    JSON.stringify(evidence.dom, null, 2)
+  );
   fs.writeFileSync(
     path.join(outDir, "clipboard-evidence.json"),
     JSON.stringify(evidence.clipboard, null, 2)
@@ -881,7 +952,9 @@ function writeEvidence(status) {
   fs.writeFileSync(
     path.join(outDir, "bugfix-log.md"),
     evidence.failed.length
-      ? evidence.failed.map((row) => `- OPEN ${row.name}: ${row.detail}`).join("\n") + "\n"
+      ? evidence.failed
+          .map((row) => `- OPEN ${row.name}: ${row.detail}`)
+          .join("\n") + "\n"
       : "# Bugfix Log\n\nNo open bugs.\n"
   );
   fs.writeFileSync(
@@ -893,7 +966,9 @@ function writeEvidence(status) {
       `Generated: ${evidence.generatedAt}`,
       "",
       "## Checks",
-      ...evidence.checks.map((row) => `- ${row.ok ? "PASS" : "FAIL"} ${row.name}`),
+      ...evidence.checks.map(
+        (row) => `- ${row.ok ? "PASS" : "FAIL"} ${row.name}`
+      ),
       "",
     ].join("\n")
   );
@@ -905,7 +980,11 @@ run()
     if (evidence.failed.length) process.exitCode = 1;
   })
   .catch((error) => {
-    addCheck("runner:fatal", false, error instanceof Error ? error.message : String(error));
+    addCheck(
+      "runner:fatal",
+      false,
+      error instanceof Error ? error.message : String(error)
+    );
     writeEvidence("failed");
     process.exitCode = 1;
   });
