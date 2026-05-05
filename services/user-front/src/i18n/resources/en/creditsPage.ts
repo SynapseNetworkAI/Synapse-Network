@@ -6,9 +6,15 @@ const creditsPage: I18nMessages["creditsPage"] = {
   remainingBalanceLabel: "Spendable credits:",
   spendableBalanceLabel: "Spendable credits",
   pendingBalanceLabel: "Pending / syncing credits",
+  pendingDepositBalanceLabel: "Pending deposit credits",
+  pendingWithdrawalBalanceLabel: "Withdrawal processing credits",
   frozenBalanceLabel: "Frozen / review credits",
   pendingBalanceHint:
     "Gateway is indexing the on-chain deposit. If it stays pending, contact support with the txHash.",
+  pendingDepositBalanceHint:
+    "Gateway is indexing the on-chain deposit. If it stays pending, contact support with the txHash.",
+  pendingWithdrawalBalanceHint:
+    "This withdrawal is locked and waiting for on-chain completion. It will be deducted from pending after completion.",
   frozenBalanceHint:
     "Funds are locked for an active withdrawal, manual review, or risk control.",
   purchaseCredits: "Purchase credits",

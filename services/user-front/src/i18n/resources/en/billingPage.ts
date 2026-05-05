@@ -13,8 +13,11 @@ const billingPage: I18nMessages["billingPage"] = {
   tableAmount: "Amount",
   tableDate: "Date",
   tableInvoice: "Invoice",
+  transactionHashLabel: "Transaction hash",
+  openTransactionExplorer: "Open transaction explorer",
   statusPending: "Pending",
   statusPendingSyncing: "Pending / Syncing",
+  statusWithdrawPending: "Withdrawal processing",
   statusSucceeded: "Completed",
   statusFailed: "Failed",
   depositStatusHint:

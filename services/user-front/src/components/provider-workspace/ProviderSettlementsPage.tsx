@@ -21,6 +21,7 @@ import {
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import toast from "react-hot-toast";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
+import CopyableValue from "@/components/xui/CopyableValue";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import SynapseCoreABI from "@/SynapseCoreABI.json";
 import contractConfig from "@/contract-config.json";
@@ -1036,10 +1037,23 @@ export default function ProviderSettlementsPage() {
                 className="hover:bg-[#111111] transition-colors"
               >
                 <td className="py-4 px-6 text-xs font-mono text-[#86868b]">
-                  {event.txHash}
+                  <CopyableValue
+                    value={event.txHash}
+                    label={t("providerSettlements.eventsTableRequestId")}
+                    valueClassName="font-mono text-xs text-[#86868b]"
+                    startChars={10}
+                    endChars={8}
+                  />
                 </td>
                 <td className="py-4 px-6 text-sm font-semibold text-white">
-                  {event.serviceId || t("providerSettlements.unknownService")}
+                  <CopyableValue
+                    value={event.serviceId}
+                    label={t("providerSettlements.eventsTableService")}
+                    valueClassName="text-sm font-semibold text-white"
+                    emptyValue={t("providerSettlements.unknownService")}
+                    startChars={18}
+                    endChars={8}
+                  />
                 </td>
                 <td className="py-4 px-6 text-sm text-right font-mono text-white">
                   {event.amount.toFixed(4)}
@@ -1150,7 +1164,13 @@ export default function ProviderSettlementsPage() {
             {filteredWithdrawals.map((row) => (
               <tr key={row.id} className="hover:bg-[#111111] transition-colors">
                 <td className="py-4 px-6 text-xs font-mono text-[#86868b]">
-                  {row.id}
+                  <CopyableValue
+                    value={row.id}
+                    label={t("providerSettlements.historyTableWithdrawalId")}
+                    valueClassName="font-mono text-xs text-[#86868b]"
+                    startChars={14}
+                    endChars={8}
+                  />
                 </td>
                 <td className="py-4 px-6 text-sm text-right font-mono text-white">
                   {formatMoneyString(row.amountUsdc, 6)} USDC
@@ -1172,13 +1192,23 @@ export default function ProviderSettlementsPage() {
                       : "-")}
                 </td>
                 <td className="py-4 px-6 text-xs font-mono text-[#c5c5c7]">
-                  {row.nonce}
+                  <CopyableValue
+                    value={row.nonce ? String(row.nonce) : ""}
+                    label={t("providerSettlements.historyTableNonce")}
+                    valueClassName="font-mono text-xs text-[#c5c5c7]"
+                  />
                 </td>
                 <td className="py-4 px-6 text-xs text-[#86868b]">
                   {formatTimestamp(row.createdAt, locale)}
                 </td>
                 <td className="py-4 px-6 text-xs font-mono text-[#86868b]">
-                  {row.txHash || "-"}
+                  <CopyableValue
+                    value={row.txHash}
+                    label={t("providerSettlements.historyTableTxHash")}
+                    valueClassName="font-mono text-xs text-[#86868b]"
+                    startChars={10}
+                    endChars={8}
+                  />
                 </td>
               </tr>
             ))}

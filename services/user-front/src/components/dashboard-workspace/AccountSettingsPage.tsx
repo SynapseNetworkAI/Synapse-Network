@@ -8,6 +8,7 @@ import {
   SettingsRow,
 } from "@/components/dashboard-workspace/AccountSettingsControls";
 import EmailVerificationCodeModal from "@/components/dashboard-workspace/EmailVerificationCodeModal";
+import CopyableValue from "@/components/xui/CopyableValue";
 import { XInput } from "@/components/xui/XInput";
 import ConfirmActionDialog from "@/components/xui/ConfirmActionDialog";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
@@ -653,11 +654,13 @@ export default function AccountSettingsPage() {
             }
             control={
               <div className="rounded-[10px] border border-[#2f3336] bg-transparent px-3 py-2.5">
-                <p className="text-[13px] font-medium leading-5 text-white">
-                  {boundWallet
-                    ? maskWallet(boundWallet)
-                    : t("accountSettingsPage.unset")}
-                </p>
+                <CopyableValue
+                  value={boundWallet}
+                  displayValue={boundWallet ? maskWallet(boundWallet) : null}
+                  label={t("accountSettingsPage.connectedWallet")}
+                  valueClassName="text-[13px] font-medium leading-5 text-white"
+                  emptyValue={t("accountSettingsPage.unset")}
+                />
                 <p className="mt-0.5 break-all text-[12px] leading-4 text-[#71767b]">
                   {boundWallet ?? t("accountSettingsPage.walletRequired")}
                 </p>

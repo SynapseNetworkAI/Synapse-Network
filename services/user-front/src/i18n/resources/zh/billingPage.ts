@@ -12,8 +12,11 @@ const billingPage: I18nMessages["billingPage"] = {
   tableAmount: "Amount",
   tableDate: "Date",
   tableInvoice: "Invoice",
+  transactionHashLabel: "交易哈希",
+  openTransactionExplorer: "打开链上浏览器",
   statusPending: "处理中",
   statusPendingSyncing: "同步中",
+  statusWithdrawPending: "提现处理中",
   statusSucceeded: "已完成",
   statusFailed: "失败",
   depositStatusHint:
