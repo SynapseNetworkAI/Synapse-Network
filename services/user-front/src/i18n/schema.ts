@@ -8,6 +8,11 @@ export type I18nMessages = {
     title: string;
     status: string;
   };
+  copyable: {
+    copyValue: string;
+    copiedValue: string;
+    copyFailed: string;
+  };
   nav: {
     apiMarketplace: string;
     blog: string;
@@ -560,8 +565,10 @@ export type I18nMessages = {
     workspaceDetailDescription: string;
     workspaceCloseDetail: string;
     workspaceCopyAgentId: string;
+    workspaceAgentIdLabel: string;
     workspaceCredentialPanelTitle: string;
     workspaceCredentialPanelDescription: string;
+    workspaceCredentialValueLabel: string;
     workspaceCredentialPrefixLabel: string;
     workspaceQuotaPanelTitle: string;
     workspaceQuotaPanelDescription: string;
@@ -983,8 +990,11 @@ export type I18nMessages = {
     tableAmount: string;
     tableDate: string;
     tableInvoice: string;
+    transactionHashLabel: string;
+    openTransactionExplorer: string;
     statusPending: string;
     statusPendingSyncing: string;
+    statusWithdrawPending: string;
     statusSucceeded: string;
     statusFailed: string;
     depositStatusHint: string;

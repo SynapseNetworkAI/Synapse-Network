@@ -13,6 +13,7 @@ import {
   type ServiceHealthHistoryResponse,
 } from "@/utils/serviceApi";
 import { useAuth } from "@/components/WalletAuthGuard";
+import CopyableValue from "@/components/xui/CopyableValue";
 import XSelect from "@/components/xui/XSelect";
 
 const HealthChartsPanel = dynamic(() => import("@/components/provider/HealthChartsPanel"), {
@@ -171,6 +172,13 @@ export default function ProviderHealthPage() {
           }))}
           triggerClassName="inline-flex min-h-10 w-full items-center justify-between gap-3 rounded-lg border border-[#222222] bg-[#050505] px-3 py-2 text-sm text-white lg:w-[360px]"
           disabled={loadingServices || services.length === 0}
+        />
+        <CopyableValue
+          value={selectedServiceId}
+          label="Service ID"
+          valueClassName="font-mono text-xs text-[#86868b]"
+          startChars={18}
+          endChars={8}
         />
         <button
           onClick={() => {

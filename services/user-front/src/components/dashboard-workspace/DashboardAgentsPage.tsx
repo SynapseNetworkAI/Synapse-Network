@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
-import { AlertCircle, Bot, Check, Copy, MinusCircle, PencilLine, Plus, ShieldCheck } from "lucide-react";
+import { AlertCircle, Bot, Check, MinusCircle, PencilLine, Plus, ShieldCheck } from "lucide-react";
 import toast from "react-hot-toast";
 import { useAccount } from "wagmi";
 import { useAuth } from "@/components/WalletAuthGuard";
@@ -26,6 +26,7 @@ import { invokePaidService } from "@/utils/invokePaidService";
 import { payForServiceWithApproval } from "@/utils/payForService";
 import { discoverServices, type ServiceRegistryRecord } from "@/utils/serviceApi";
 import { XButton } from "@/components/xui/XButton";
+import CopyableValue from "@/components/xui/CopyableValue";
 import {
   XDialog,
   XDialogBody,
@@ -128,7 +129,6 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [newCredential, setNewCredential] = useState<AgentCredentialIssueResponse | null>(null);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedCredentialId, setSelectedCredentialId] = useState<string | null>(null);
@@ -362,12 +362,6 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
       setIsDeletingAgent(false);
     }
   }, [fetchCredentials, selectedAgentId, t, userAddress]);
-
-  const copyToClipboard = (text: string, id: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2000);
-  };
 
   const openEditModal = (agent: AgentCredentialRecord) => {
     setSelectedCredentialId(agent.id);
@@ -834,15 +828,13 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
                 <div>
                   <div className="flex items-center gap-3">
                     <h2 className="x-detail-title text-white">{selectedAgent.name || t("agentsPage.unnamedAgent")}</h2>
-                    <XButton
-                      variant="icon"
-                      size="icon"
-                      onClick={() => copyToClipboard(selectedAgent.id, `agent-id-${selectedAgent.id}`)}
-                      className="rounded-lg"
-                      title={t("agentsPage.workspaceCopyAgentId")}
-                    >
-                      {copiedId === `agent-id-${selectedAgent.id}` ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
-                    </XButton>
+                    <CopyableValue
+                      value={selectedAgent.id}
+                      displayValue=""
+                      label={t("agentsPage.workspaceAgentIdLabel")}
+                      className="gap-0"
+                      valueClassName="sr-only"
+                    />
                   </div>
                   <p className="x-body-copy mt-4 max-w-2xl">{t("agentsPage.workspaceDetailDescription")}</p>
                 </div>
@@ -1217,14 +1209,14 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
                 <code className="x-panel-muted block break-all rounded-[24px] p-4 pr-12 text-left font-mono text-sm text-emerald-400">
                   {issuedCredential.token}
                 </code>
-                <XButton
-                  variant="icon"
-                  size="icon"
-                  onClick={() => copyToClipboard(issuedCredential.token, "new-token")}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-xl p-2.5 text-gray-400"
-                >
-                  {copiedId === "new-token" ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
-                </XButton>
+                <CopyableValue
+                  value={issuedCredential.token}
+                  displayValue=""
+                  label={t("agentsPage.workspaceCredentialValueLabel")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 gap-0"
+                  valueClassName="sr-only"
+                  buttonClassName="rounded-xl p-2.5 text-gray-400"
+                />
               </section>
 
               <dl className="grid grid-cols-2 gap-4 text-left">
@@ -1240,7 +1232,15 @@ export default function DashboardAgentsPage({ mode = "guide" }: Readonly<Dashboa
 
               <dl className="x-panel-muted rounded-[22px] p-4 text-left">
                 <dt className="x-overline-label mb-1 block font-bold uppercase tracking-widest text-gray-500">{t("agentsPage.boundOwnerValueLabel")}</dt>
-                <dd className="break-all font-mono text-sm text-blue-300">{issuedCredential.ownerAddress}</dd>
+                <dd className="break-all font-mono text-sm text-blue-300">
+                  <CopyableValue
+                    value={issuedCredential.ownerAddress}
+                    label={t("agentsPage.boundOwnerValueLabel")}
+                    valueClassName="break-all font-mono text-sm text-blue-300"
+                    startChars={10}
+                    endChars={8}
+                  />
+                </dd>
               </dl>
 
               <XButton

@@ -5,6 +5,7 @@ import { BarChart3, LineChart, TrendingUp } from "lucide-react";
 import { useAccount } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
+import CopyableValue from "@/components/xui/CopyableValue";
 import { useDashboardData } from "@/hooks/useDashboardData";
 
 export default function UsageAnalyticsPage() {
@@ -167,7 +168,15 @@ export default function UsageAnalyticsPage() {
               {topServices.length > 0 ? (
                 topServices.map((row) => (
                   <tr key={row.serviceId} className="hover:bg-[#111111] transition-colors">
-                    <td className="py-4 px-6 font-mono text-white">{row.serviceId}</td>
+                    <td className="py-4 px-6 font-mono text-white">
+                      <CopyableValue
+                        value={row.serviceId}
+                        label={t("providerUsagePage.tableServiceId")}
+                        valueClassName="font-mono text-white"
+                        startChars={18}
+                        endChars={8}
+                      />
+                    </td>
                     <td className="py-4 px-6 font-medium text-white">{row.calls}</td>
                     <td className="py-4 px-6 font-mono text-right text-white">{row.gross.toFixed(4)}</td>
                     <td className="py-4 px-6 font-mono text-right text-[#ff9f0a]">{row.fee.toFixed(4)}</td>

@@ -31,6 +31,7 @@ import { formatPricing } from "@/utils/pricing";
 import { useAuth } from "@/components/WalletAuthGuard";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
 import ConfirmActionDialog from "@/components/xui/ConfirmActionDialog";
+import CopyableValue from "@/components/xui/CopyableValue";
 import XSelect from "@/components/xui/XSelect";
 import {
   DEFAULT_SERVICE_EDIT_DRAFT_CONFIG,
@@ -1377,11 +1378,23 @@ export default function ProviderServicesPage() {
                     </div>
                     <div className="mt-1 flex items-center gap-1 text-xs text-[#86868b]">
                       <Link2 className="h-3.5 w-3.5" />
-                      {svc.endpoint || "-"}
+                      <CopyableValue
+                        value={svc.endpoint}
+                        label={t("providerServicesPage.fieldInvokeUrl")}
+                        valueClassName="max-w-[22rem] font-mono text-xs text-[#86868b]"
+                        startChars={24}
+                        endChars={12}
+                      />
                     </div>
                   </td>
                   <td className="px-6 py-5 font-mono text-sm text-[#e5e5ea]">
-                    {svc.serviceId}
+                    <CopyableValue
+                      value={svc.serviceId}
+                      label={t("providerServicesPage.tableServiceId")}
+                      valueClassName="font-mono text-sm text-[#e5e5ea]"
+                      startChars={18}
+                      endChars={8}
+                    />
                   </td>
                   <td className="px-6 py-5 font-mono text-sm text-[#e5e5ea]">
                     {formatPricing(svc.pricing)}{" "}
