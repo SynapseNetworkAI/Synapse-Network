@@ -14,7 +14,7 @@ const providerSettlements: I18nMessages["providerSettlements"] = {
   chainRpcUnavailable:
     "Gateway cannot reach chain RPC right now. Retry after the RPC reconnects.",
   providerReceivableNotMatured:
-    "Provider earnings need T+7 maturity before withdrawal. Newly earned receivables are visible in balance, but only matured receivables can be withdrawn.",
+    "Provider earnings are still in the T+7 maturity window. Only matured receivables can be withdrawn; newly earned receivables still appear in balance.",
   minWithdrawalAmountNotMet:
     "Minimum provider withdrawal amount is 10.00 USDC.",
   insufficientProviderReceivable:
@@ -74,15 +74,19 @@ const providerSettlements: I18nMessages["providerSettlements"] = {
     "Resume Pending requires the wallet to be on {{requiredChain}}. Current wallet network is {{currentChain}}.",
   pendingTicketExpiredBanner:
     "The pending withdrawal ticket has expired. Generate a new ticket before retrying.",
-  amountPlaceholder: "Amount (blank = full {{amount}} USDC)",
   resumePending: "Resume Pending",
   invalidAmountPrecision: "Use up to 2 decimal places for withdrawal amount.",
   invalidAmountValue: "Enter a valid withdrawal amount.",
   amountBelowMinimum: "Minimum withdrawal amount is {{amount}} USDC.",
   amountExceedsAvailable:
     "Amount exceeds available receivable ({{amount}} USDC).",
-  withdrawAmountHint:
-    "Blank = full withdrawal. Minimum withdrawal: {{amount}} USDC. Max 2 decimals.",
+  withdrawAmountHint: "Minimum withdrawal: {{amount}} USDC",
+  withdrawableReceivable: "Withdrawable receivable",
+  receivableBalance: "Receivable balance",
+  immatureReceivableNotice:
+    "Newly earned receivables appear in balance first, then enter withdrawable receivable after T+7.",
+  matureReceivableBelowMinimumTitle:
+    "Matured withdrawable amount is below the 10.00 USDC minimum",
   loadingHistory: "Loading withdrawal history...",
   expiredTicketReleasedRow:
     "Expired ticket released back to available balance.",
@@ -99,13 +103,6 @@ const providerSettlements: I18nMessages["providerSettlements"] = {
   metricPendingLocked: "Pending / Locked",
   metricPendingTicket: "Pending Ticket",
   metricTxState: "Tx State",
-  securityContractTitle: "Security Contract",
-  securityBulletOne: "One pending ticket per owner.",
-  securityBulletTwo: "Intent atomically locks receivable into providersLocked.",
-  securityBulletThree:
-    "Completion consumes lock once; txHash-bound idempotent finalize.",
-  securityBulletFour:
-    "EIP-712 ticketId+deadline; contract enforces one-time ticketHash replay protection.",
   searchRequestPlaceholder: "Search Request ID",
   searchServicePlaceholder: "Search Service (fuzzy)",
   searchButton: "Search",
@@ -153,7 +150,7 @@ const providerSettlements: I18nMessages["providerSettlements"] = {
   walletGasTip:
     "Withdrawals are on-chain transactions. The connected wallet signs the claim and pays native gas.",
   withdrawAmountHintTip:
-    "Leave amount blank to withdraw the full available receivable. Any active ticket moves funds from Available into Pending / Locked; if the on-chain claim never succeeds, the locked amount is automatically released back to Available in about 6 minutes by default. Custom amount supports up to 2 decimal places.",
+    "Any active ticket moves funds from Available into Pending / Locked; if the on-chain claim never succeeds, the locked amount is automatically released back to Available in about 6 minutes by default.",
   historyDescriptionTip:
     "Includes expired tickets released back to available balance as explicit cancelled history rows.",
   dedupeNoteTip:
@@ -162,7 +159,7 @@ const providerSettlements: I18nMessages["providerSettlements"] = {
   withdrawPageDescription: "EIP-712 on-chain self-service withdrawal.",
   withdrawAmountLabel: "Withdraw Amount",
   confirmWithdraw: "Confirm",
-  withdrawAmountPlaceholder: "Amount (blank = full withdrawal)",
+  withdrawAmountPlaceholder: "Amount",
   withdrawGasNote:
     "On-chain transaction — a small gas fee in native token (e.g. ETH) applies. Minimum withdrawal: {{amount}} USDC.",
   insufficientGasWarning:

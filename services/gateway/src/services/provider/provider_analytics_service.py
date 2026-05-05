@@ -1,8 +1,35 @@
-from typing import Any, List
+from decimal import Decimal
+from typing import List, TypedDict
 
 from src.core.common import normalize_wallet
+from src.core.config import settings
 from src.domain.finance import UsageLogRow
 from src.storage.base import BaseStorage
+
+
+class ProviderRecentCall(TypedDict):
+    requestId: str
+    serviceId: str
+    status: str
+    unitPrice: float
+    protocolFee: float
+    routingTax: float
+    providerNet: float
+    createdAt: int
+
+
+class ProviderEarningsSummary(TypedDict):
+    ownerAddress: str
+    totalApiCalls: int
+    totalEarned: float
+    totalProtocolFee: float
+    totalRoutingTax: float
+    providerNetEarned: float
+    providerReceivable: Decimal
+    providerMatureReceivable: Decimal
+    duplicateRowsDropped: int
+    idempotencyKey: str
+    recentCalls: list[ProviderRecentCall]
 
 
 class ProviderAnalyticsService:
@@ -25,9 +52,16 @@ class ProviderAnalyticsService:
                 rows.append(UsageLogRow.model_validate(row))
         return rows
 
-    def _load_provider_receivable(self, owner_wallet: str) -> float:
+    def _load_provider_receivable(self, owner_wallet: str) -> Decimal:
         ledger = self.storage.get_data_manager().finance.balance.read_balance_ledger()
         return ledger.provider_receivable_balance(owner_wallet)
+
+    def _load_provider_mature_receivable(self, owner_wallet: str) -> Decimal:
+        balance_repo = self.storage.get_data_manager().finance.balance
+        reader = getattr(balance_repo, "read_provider_mature_withdrawable", None)
+        if callable(reader):
+            return reader(owner_wallet, int(settings.provider_withdraw_maturity_seconds))
+        return self._load_provider_receivable(owner_wallet)
 
     def _provider_rows(self, owner_wallet: str) -> List[UsageLogRow]:
         rows = self._load_invocation_billings()
@@ -88,7 +122,7 @@ class ProviderAnalyticsService:
 
     def _to_recent_calls(
         self, settled: List[UsageLogRow], limit: int
-    ) -> List[dict[str, Any]]:
+    ) -> list[ProviderRecentCall]:
         return [
             {
                 "requestId": self._row_request_id(row),
@@ -108,7 +142,7 @@ class ProviderAnalyticsService:
 
     def get_provider_earnings_summary(
         self, owner_wallet: str, limit: int = 200
-    ) -> dict[str, Any]:
+    ) -> ProviderEarningsSummary:
         """Build idempotent provider summary using request_id deduplication for succeeded provider calls."""
         owner = normalize_wallet(owner_wallet)
         provider_rows = self._provider_rows(owner)
@@ -126,6 +160,7 @@ class ProviderAnalyticsService:
             6,
         )
         provider_receivable = self._load_provider_receivable(owner)
+        provider_mature_receivable = self._load_provider_mature_receivable(owner)
         recent_calls = self._to_recent_calls(settled, limit)
 
         return {
@@ -136,6 +171,7 @@ class ProviderAnalyticsService:
             "totalRoutingTax": total_routing_tax,
             "providerNetEarned": provider_net_total,
             "providerReceivable": provider_receivable,
+            "providerMatureReceivable": provider_mature_receivable,
             "duplicateRowsDropped": duplicate_dropped,
             "idempotencyKey": "request_id",
             "recentCalls": recent_calls,

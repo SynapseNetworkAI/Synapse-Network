@@ -16,6 +16,7 @@ node "$ROOT_DIR/scripts/ci/user_front_external_links_check.mjs"
 node "$ROOT_DIR/scripts/ci/user_front_i18n_check.mjs"
 node "$ROOT_DIR/scripts/ci/user_front_user_error_check.mjs"
 (cd "$ROOT_DIR" && npm run ci:user-front-error-dom)
+(cd "$ROOT_DIR" && npm run ci:provider-withdraw-mature-dom)
 yarn lint
 yarn test
 

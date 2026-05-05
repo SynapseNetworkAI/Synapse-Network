@@ -133,11 +133,13 @@ Working directory: `services/user-front/`
 3. `npm run ci:user-front-user-errors` from repository root to block raw backend/RPC/wallet error messages from high-risk user-facing toasts
 4. `npm run ci:user-front-error-dom` from repository root for focused DOM regression on localized, user-readable error toasts for Credits withdraw, Provider withdraw, provider services and health, service deploy, paid invoke, spend cap, and credential actions
 5. `npm run ci:user-front-i18n-dom` from repository root for focused `en`/`zh` DOM regression on Credits, Withdraw, Credentials, QuickStart, Paid Invoke, RolePathCards, and Feedback surfaces
-6. `cd services/user-front && yarn test` for the full Vitest suite
-7. `USER_FRONT_BASE_URL=http://localhost:3000 npm run ci:user-front-error-browser` from repository root after starting user-front to verify EN/ZH error toast DOM text and capture screenshots under `output/playwright/user-front-error-toasts/`
-8. `USER_FRONT_BASE_URL=http://localhost:3000 node scripts/ui/verify_user_front_i18n.mjs` from repository root after starting user-front to verify real route DOM language switching and capture screenshots
-9. `USER_FRONT_BASE_URL=http://localhost:3000 node scripts/ui/verify_user_front_pages.mjs` from repository root for general browser route/navigation verification
-10. `npm run ci:frontend` from repository root when repo-standard frontend gating is needed
+6. `npm run ci:provider-withdraw-mature-dom` from repository root for focused DOM regression on Provider withdrawable receivable, receivable balance, T+7 notice, below-minimum disabled CTA, MAX-filled amount, and empty-submit prevention
+7. `cd services/user-front && yarn test` for the full Vitest suite
+8. `USER_FRONT_BASE_URL=http://localhost:3000 npm run ci:user-front-error-browser` from repository root after starting user-front to verify EN/ZH error toast DOM text and capture screenshots under `output/playwright/user-front-error-toasts/`
+9. `USER_FRONT_BASE_URL=http://localhost:3000 npm run ci:provider-withdraw-mature-browser` from repository root after starting user-front to verify Provider withdraw mature receivable DOM state and screenshots under `output/playwright/provider-withdraw-mature/`
+10. `USER_FRONT_BASE_URL=http://localhost:3000 node scripts/ui/verify_user_front_i18n.mjs` from repository root after starting user-front to verify real route DOM language switching and capture screenshots
+11. `USER_FRONT_BASE_URL=http://localhost:3000 node scripts/ui/verify_user_front_pages.mjs` from repository root for general browser route/navigation verification
+12. `npm run ci:frontend` from repository root when repo-standard frontend gating is needed
 
 ### 3.2 services/docs-front
 
@@ -308,6 +310,7 @@ Withdrawal evidence coverage is intentionally split:
 1. `npm run e2e:withdrawal-risk-policy` proves Dust, T+N maturity, aggregate FIFO, 24h sliding-window risk classification, and normal Consumer/Provider withdrawals through final `COMPLETED`.
 2. `npm run e2e:withdrawal-idempotency-concurrency` proves create, manual-review decision, complete, ticket replay, and balance-bucket invariants under concurrency.
 3. `npm run e2e:withdrawal-review-dogfood:local` and `npm run e2e:admin-withdrawal-approval` prove manual-review UI/API/DB, approve/reject operations, screenshots, and admin evidence. Their evidence gates require the matching E2E to run first; missing local evidence directories are not a docs-only failure by themselves.
+4. `npm run e2e:provider-withdraw-mature:local` proves Provider withdraw summary, UI-facing receivable buckets, T+7 mature formula, latest withdrawal rows, and audit rows match read-only SQL evidence. Staging requires `SYNAPSE_E2E_ENV=staging PROVIDER_WITHDRAW_MATURE_CONFIRM=I_UNDERSTAND_THIS_MUTATES_STAGING npm run e2e:provider-withdraw-mature:staging` plus a read-only staging DSN/Auth Proxy.
 
 ### Screenshot Evidence Guardrail
 
