@@ -2414,7 +2414,7 @@ def test_menu_config_snapshot_auto_adds_new_seed_menu_items() -> None:
 
 
 def test_menu_config_snapshot_auto_patches_seed_panel_hrefs() -> None:
-    _login_as("super@synapse.network")
+    _login_as("cliff@synapse-network.ai")
     store = _test_store()
     snapshot = store.config.get_menu_config("admin_menu_config")
     assert snapshot is not None
