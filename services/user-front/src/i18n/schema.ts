@@ -986,10 +986,17 @@ export type I18nMessages = {
     resetRange: string;
     tableTransactionId: string;
     tableStatus: string;
+    tableType: string;
     tablePaymentMethod: string;
     tableAmount: string;
     tableDate: string;
     tableInvoice: string;
+    actionDeposit: string;
+    actionWithdraw: string;
+    actionRefund: string;
+    actionClaim: string;
+    paymentMethodWallet: string;
+    paymentMethodVoucher: string;
     transactionHashLabel: string;
     openTransactionExplorer: string;
     statusPending: string;
@@ -998,6 +1005,12 @@ export type I18nMessages = {
     statusSucceeded: string;
     statusFailed: string;
     depositStatusHint: string;
+    networkFeeHint: string;
+    historyLimitHint: string;
+    datePickerLocale: string;
+    datePickerPreviousMonth: string;
+    datePickerNextMonth: string;
+    datePickerToday: string;
     loading: string;
     empty: string;
   };
@@ -1849,6 +1862,16 @@ export type I18nMessages = {
     paginationPrev: string;
     paginationNext: string;
     footerNote: string;
+    healthPageTitle: string;
+    healthPageDescription: string;
+    healthBackToServices: string;
+    healthServiceSelectorLabel: string;
+    healthServiceIdLabel: string;
+    healthRefresh: string;
+    healthLoadingHistory: string;
+    healthSelectService: string;
+    healthNoHistory: string;
+    healthRetentionNotice: string;
   };
   blogPage: {
     title: string;

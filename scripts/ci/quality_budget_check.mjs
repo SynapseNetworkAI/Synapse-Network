@@ -145,9 +145,9 @@ const BASELINED_FILE_EFFECTIVE_LINES = new Map([
     "services/user-front/src/components/provider-workspace/ProviderWithdrawPage.tsx",
     985,
   ],
-  ["services/user-front/src/i18n/schema.ts", 1894],
+  ["services/user-front/src/i18n/schema.ts", 1917],
   ["services/user-front/src/hooks/useVaultDeposit.ts", 670],
-  ["services/user-front/src/utils/balanceApi.ts", 1042],
+  ["services/user-front/src/utils/balanceApi.ts", 1048],
   ["services/user-front/src/utils/serviceApi.ts", 701],
   ["services/user-front/src/utils/serviceStatus.ts", 863],
 ]);

@@ -12,6 +12,7 @@ import { useConnectModal } from "@rainbow-me/rainbowkit";
 import toast from "react-hot-toast";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { useAuth } from "@/components/WalletAuthGuard";
+import ConsumerWithdrawPendingTooltip from "@/components/dashboard-workspace/ConsumerWithdrawPendingTooltip";
 import SupportContactPanel from "@/components/shared/SupportContactPanel";
 import { useOwnerData } from "@/hooks/useOwnerData";
 import { useVaultDeposit } from "@/hooks/useVaultDeposit";
@@ -944,14 +945,12 @@ export default function OwnerCreditsPage() {
                     }
                     className="inline-flex h-[36px] min-w-[143px] items-center justify-center whitespace-nowrap rounded-full border border-[#2f3336] bg-transparent px-4 py-2 text-[14px] font-normal leading-[20px] text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
                   >
-                    Withdraw
+                    {t("creditsPage.consumerWithdrawAction")}
                   </button>
                   {pendingWithdrawal && (
-                    <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 w-[220px] rounded-lg border border-[#2a2a2a] bg-[#1a1a1a] px-3 py-2 text-xs text-[#f59e0b] shadow-xl opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50">
-                      A withdrawal of{" "}
-                      {formatPlainAmount(pendingWithdrawal.amountUsdc ?? "0")}{" "}
-                      is pending. Only one active withdrawal is allowed.
-                    </div>
+                    <ConsumerWithdrawPendingTooltip
+                      amountUsdc={pendingWithdrawal.amountUsdc}
+                    />
                   )}
                 </div>
                 <button

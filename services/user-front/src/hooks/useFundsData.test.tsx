@@ -98,26 +98,27 @@ import { useFundsData } from "@/hooks/useFundsData";
 const TX_HASH =
   "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
-function depositLog(amountAtomic: bigint = 100n * 10n ** 18n) {
-  return {
-    blockNumber: 123,
-    transactionHash: TX_HASH,
-    logIndex: 0,
-    args: ["0x123400000000000000000000000000000000abcd", amountAtomic],
-  };
-}
-
 describe("useFundsData deposit status mapping", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    depositLogsMock.mockReturnValue([depositLog()]);
+    depositLogsMock.mockReturnValue([]);
     withdrawLogsMock.mockReturnValue([]);
     refundsMock.mockResolvedValue([]);
     withdrawalsMock.mockResolvedValue([]);
     depositIntentsMock.mockResolvedValue([]);
   });
 
-  it("keeps an on-chain deposit pending when Gateway has no intent yet", async () => {
+  it("keeps a Gateway deposit intent pending without reading chain logs", async () => {
+    depositIntentsMock.mockResolvedValue([
+      {
+        id: "deposit-1",
+        txHash: TX_HASH,
+        amountUsdc: "100.000000",
+        status: "PENDING_CONFIRMATION",
+        updatedAt: "2026-05-04T04:14:20Z",
+      },
+    ]);
+
     const { result } = renderHook(() => useFundsData());
 
     await waitFor(() => {
@@ -125,14 +126,29 @@ describe("useFundsData deposit status mapping", () => {
     });
 
     expect(result.current.records[0]).toMatchObject({
+      id: "deposit-1",
       type: "Deposit",
       txHash: TX_HASH,
       status: "PENDING",
       amount: 100,
     });
+    expect(depositLogsMock).not.toHaveBeenCalled();
+    expect(withdrawLogsMock).not.toHaveBeenCalled();
+    expect(depositIntentsMock).toHaveBeenCalledWith(
+      "0x123400000000000000000000000000000000abcd",
+      100
+    );
+    expect(withdrawalsMock).toHaveBeenCalledWith(
+      "0x123400000000000000000000000000000000abcd",
+      100
+    );
+    expect(refundsMock).toHaveBeenCalledWith(
+      "0x123400000000000000000000000000000000abcd",
+      100
+    );
   });
 
-  it("keeps an on-chain deposit pending while Gateway status is PENDING_CONFIRMATION", async () => {
+  it("keeps a Gateway deposit row pending while status is PENDING_CONFIRMATION", async () => {
     depositIntentsMock.mockResolvedValue([
       {
         id: "deposit-1",
@@ -156,7 +172,7 @@ describe("useFundsData deposit status mapping", () => {
     });
   });
 
-  it("marks an on-chain deposit completed only after Gateway confirms the intent", async () => {
+  it("marks a deposit completed only after Gateway confirms the intent", async () => {
     depositIntentsMock.mockResolvedValue([
       {
         id: "deposit-2",
@@ -178,5 +194,70 @@ describe("useFundsData deposit status mapping", () => {
       status: "COMPLETED",
       amount: 100,
     });
+  });
+
+  it("combines Gateway deposits, withdrawals, and refunds by timestamp descending", async () => {
+    depositIntentsMock.mockResolvedValue([
+      {
+        id: "deposit-old",
+        txHash: TX_HASH,
+        amountUsdc: "100.000000",
+        status: "CONFIRMED",
+        updatedAt: "2026-05-01T00:00:00Z",
+      },
+    ]);
+    refundsMock.mockResolvedValue([
+      {
+        id: "refund-middle",
+        amountUsdc: "5.000000",
+        txHash: "0xrefund",
+        timestamp: Math.floor(
+          new Date("2026-05-02T00:00:00Z").getTime() / 1000
+        ),
+        type: "refund",
+        status: "COMPLETED",
+      },
+    ]);
+    withdrawalsMock.mockResolvedValue([
+      {
+        id: "withdraw-new",
+        amountUsdc: "10.000000",
+        status: "COMPLETED",
+        txHash: "0xwithdraw",
+        updatedAt: "2026-05-03T00:00:00Z",
+      },
+    ]);
+
+    const { result } = renderHook(() => useFundsData());
+
+    await waitFor(() => {
+      expect(result.current.records).toHaveLength(3);
+    });
+
+    expect(result.current.records.map((row) => row.id)).toEqual([
+      "withdraw-new",
+      "refund-middle",
+      "deposit-old",
+    ]);
+  });
+
+  it("flags possible payment history truncation when a source reaches the fetch limit", async () => {
+    depositIntentsMock.mockResolvedValue(
+      Array.from({ length: 100 }, (_, index) => ({
+        id: `deposit-${index}`,
+        txHash: `0x${String(index).padStart(64, "0")}`,
+        amountUsdc: "1.000000",
+        status: "CONFIRMED",
+        updatedAt: `2026-05-01T00:${String(index % 60).padStart(2, "0")}:00Z`,
+      }))
+    );
+
+    const { result } = renderHook(() => useFundsData());
+
+    await waitFor(() => {
+      expect(result.current.records).toHaveLength(100);
+    });
+
+    expect(result.current.paymentHistoryMayBeTruncated).toBe(true);
   });
 });
