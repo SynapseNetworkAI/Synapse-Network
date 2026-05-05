@@ -13,8 +13,12 @@ const WALLET_SESSION_MISSING_MESSAGE =
 
 export type OwnerStats = {
   ownerBalance: string;
+  consumerAvailableBalance: string;
+  consumerWithdrawableBalance: string;
   consumerPendingBalance: string;
   consumerFrozenBalance: string;
+  consumerWithdrawMinUsdc: string;
+  consumerWithdrawMaturitySeconds: number;
   todaySpend: string;
   todayCalls: number;
   blockedCalls: number;
@@ -28,8 +32,12 @@ export function useOwnerData() {
 
   const [stats, setStats] = useState<OwnerStats>({
     ownerBalance: "0.00",
+    consumerAvailableBalance: "0.00",
+    consumerWithdrawableBalance: "0.00",
     consumerPendingBalance: "0.00",
     consumerFrozenBalance: "0.00",
+    consumerWithdrawMinUsdc: "10.00",
+    consumerWithdrawMaturitySeconds: 604800,
     todaySpend: "0.00",
     todayCalls: 0,
     blockedCalls: 0,
@@ -70,6 +78,14 @@ export function useOwnerData() {
 
       setStats({
         ownerBalance: formatMoneyString(balanceSummary.ownerBalance, 2),
+        consumerAvailableBalance: formatMoneyString(
+          balanceSummary.consumerAvailableBalance,
+          2
+        ),
+        consumerWithdrawableBalance: formatMoneyString(
+          balanceSummary.consumerWithdrawableBalance,
+          2
+        ),
         consumerPendingBalance: formatMoneyString(
           balanceSummary.consumerPendingBalance,
           2
@@ -78,6 +94,12 @@ export function useOwnerData() {
           balanceSummary.consumerFrozenBalance,
           2
         ),
+        consumerWithdrawMinUsdc: formatMoneyString(
+          balanceSummary.consumerWithdrawMinUsdc,
+          2
+        ),
+        consumerWithdrawMaturitySeconds:
+          balanceSummary.consumerWithdrawMaturitySeconds,
         todaySpend: "0.00",
         todayCalls,
         blockedCalls,
@@ -116,8 +138,12 @@ export function useOwnerData() {
       setIsBootstrapping(false);
       setStats({
         ownerBalance: "0.00",
+        consumerAvailableBalance: "0.00",
+        consumerWithdrawableBalance: "0.00",
         consumerPendingBalance: "0.00",
         consumerFrozenBalance: "0.00",
+        consumerWithdrawMinUsdc: "10.00",
+        consumerWithdrawMaturitySeconds: 604800,
         todaySpend: "0.00",
         todayCalls: 0,
         blockedCalls: 0,

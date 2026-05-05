@@ -1019,6 +1019,8 @@ export type I18nMessages = {
     description: string;
     remainingBalanceLabel: string;
     spendableBalanceLabel: string;
+    withdrawableBalanceLabel: string;
+    withdrawableBalanceTooltip: string;
     pendingBalanceLabel: string;
     pendingDepositBalanceLabel: string;
     pendingWithdrawalBalanceLabel: string;
@@ -1046,6 +1048,7 @@ export type I18nMessages = {
     depositExpectationPermit: string;
     depositExpectationGas: string;
     depositExpectationSync: string;
+    depositMinimumWithdrawNotice: string;
     depositPermitStepTitle: string;
     depositPermitStepActive: string;
     depositPermitStepDone: string;
@@ -1069,6 +1072,7 @@ export type I18nMessages = {
     depositWalletSingleAccount: string;
     depositWalletUnstable: string;
     depositInvalidAmount: string;
+    depositMinAmountNotMet: string;
     depositInsufficientWalletUsdc: string;
     depositNativeGasRequired: string;
     depositGatewayBalanceSynced: string;
@@ -1119,6 +1123,8 @@ export type I18nMessages = {
     consumerWithdrawMax: string;
     consumerWithdrawAction: string;
     consumerWithdrawPendingTooltip: string;
+    consumerWithdrawMaturityWarning: string;
+    consumerWithdrawMinimumRule: string;
     currentBillingCycle: string;
     daysRemaining: string;
     manageSpendCapTitle: string;

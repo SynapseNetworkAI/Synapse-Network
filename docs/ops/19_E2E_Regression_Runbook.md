@@ -414,7 +414,7 @@ Triage owner: Gateway finance backend.
 ### 6.6 Consumer Withdrawal
 
 Run after consumer withdrawal creation, manual review, or completion. Consumer
-withdrawals require T+1 matured funds. Available balance alone is not enough.
+withdrawals require T+7 matured funds. Available balance alone is not enough.
 
 ```sql
 SELECT withdrawal_id, owner_id, provider_id, source_account_id,
@@ -450,7 +450,7 @@ Expected:
 4. `synapse_withdraw_tx_dedup` has exactly one row for the completion tx.
 5. Audit events describe the withdrawal transition.
 
-Failure usually means T+1 maturity, active withdrawal lock, ticket signing,
+Failure usually means T+7 maturity, active withdrawal lock, ticket signing,
 completion callback, or balance bucket drift. Triage owner: Gateway finance
 backend and admin finance control plane.
 
@@ -888,7 +888,7 @@ A full regression is green only when:
 5. Invocations have quote, invocation, budget, ledger, and audit evidence.
 6. Withdrawals have one active/ticket lifecycle, terminal status, tx dedup, and
    audit evidence.
-7. Provider earnings and consumer funds respect T+7 and T+1 maturity windows.
+7. Provider earnings and consumer funds respect T+7 maturity windows.
 8. Notification and analytics outboxes have no unexplained dead letters.
 9. Contract evidence agrees with Gateway runtime configuration.
 10. Staging failures are triaged as product bugs, not repaired by ad hoc SQL.

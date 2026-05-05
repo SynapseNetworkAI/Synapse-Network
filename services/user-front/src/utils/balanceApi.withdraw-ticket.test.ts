@@ -26,8 +26,11 @@ describe("consumer withdrawal ticket normalization", () => {
         JSON.stringify({
           balance: {
             consumerAvailableBalance: "7.500000",
+            consumerWithdrawableBalance: "5.500000",
             consumerPendingBalance: "200.000000",
             consumerFrozenBalance: "3.000000",
+            consumerWithdrawMinUsdc: "10.000000",
+            consumerWithdrawMaturitySeconds: 604800,
             providerReceivableBalance: "9.000000",
             platform: { feeAccrued: "1.250000" },
           },
@@ -38,8 +41,12 @@ describe("consumer withdrawal ticket normalization", () => {
     try {
       await expect(getV2Balance("0xabc")).resolves.toEqual({
         ownerBalance: "7.5",
+        consumerAvailableBalance: "7.5",
+        consumerWithdrawableBalance: "5.5",
         consumerPendingBalance: "200",
         consumerFrozenBalance: "3",
+        consumerWithdrawMinUsdc: "10",
+        consumerWithdrawMaturitySeconds: 604800,
         providerReceivable: "9",
         platformFeeAccrued: "1.25",
       });
