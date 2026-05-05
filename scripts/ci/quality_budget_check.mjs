@@ -35,7 +35,7 @@ const BASELINED_FILE_EFFECTIVE_LINES = new Map([
   ["scripts/e2e/staging_full_regression.mjs", 959],
   ["scripts/e2e/support_case_dogfood.mjs", 1252],
   ["scripts/e2e/transaction_notifications_e2e.mjs", 897],
-  ["scripts/e2e/user_front_copyable_identifiers_e2e.mjs", 947],
+  ["scripts/e2e/user_front_copyable_identifiers_e2e.mjs", 953],
   ["scripts/e2e/user_front_fullchain_seed.mjs", 1083],
   ["scripts/e2e/withdrawal_idempotency_concurrency_e2e.mjs", 1005],
   ["scripts/e2e/withdrawal_one_ticket_evidence.mjs", 1432],
@@ -119,7 +119,7 @@ const BASELINED_FILE_EFFECTIVE_LINES = new Map([
   ],
   [
     "services/user-front/src/components/dashboard-workspace/OwnerCreditsPage.tsx",
-    1190,
+    1197,
   ],
   [
     "services/user-front/src/components/dashboard/agents/QuickStartGuide.tsx",
@@ -210,8 +210,8 @@ const BASELINED_FUNCTION_FILES = new Set([
   "services/user-front/src/components/provider-workspace/ProviderServiceDeployPage.tsx",
   "services/user-front/src/components/provider-workspace/ProviderSettlementsPage.tsx",
   "services/user-front/src/components/provider-workspace/ProviderServicesPage.tsx",
-  "services/user-front/src/components/provider-workspace/ProviderUsagePage.tsx",
   "services/user-front/src/components/provider-workspace/ProviderSellPage.tsx",
+  "services/user-front/src/components/provider-workspace/ProviderUsagePage.tsx",
   "services/user-front/src/components/provider-workspace/ProviderWithdrawPage.tsx",
   "services/user-front/src/utils/serviceApi.ts",
   "services/user-front/src/utils/pricing.ts",

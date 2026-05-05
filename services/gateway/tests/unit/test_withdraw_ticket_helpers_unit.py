@@ -135,6 +135,107 @@ def test_resolve_withdraw_chain_logs_chain_id_query_failure(caplog):
     assert "context=resolve_withdraw_chain" in caplog.text
 
 
+def test_withdraw_vault_liquidity_requires_token_and_router_config(monkeypatch):
+    mixin = BalanceWithdrawSigningMixin()
+    monkeypatch.setattr(withdraw_signing.settings, "usdc_token_address", "")
+    monkeypatch.setattr(withdraw_signing.settings, "router_address", OWNER)
+
+    with pytest.raises(RuntimeError, match="WITHDRAW_VAULT_LIQUIDITY_CHECK_UNAVAILABLE"):
+        mixin._read_vault_liquidity_amount_wei()
+
+    monkeypatch.setattr(withdraw_signing.settings, "usdc_token_address", OWNER)
+    monkeypatch.setattr(withdraw_signing.settings, "router_address", "")
+
+    with pytest.raises(RuntimeError, match="WITHDRAW_VAULT_LIQUIDITY_CHECK_UNAVAILABLE"):
+        mixin._read_vault_liquidity_amount_wei()
+
+
+def test_withdraw_vault_liquidity_requires_contract_web3(monkeypatch):
+    mixin = BalanceWithdrawSigningMixin()
+    monkeypatch.setattr(withdraw_signing.settings, "usdc_token_address", OWNER)
+    monkeypatch.setattr(withdraw_signing.settings, "router_address", OWNER)
+    mixin._withdraw_contract = lambda: (  # type: ignore[method-assign]  # reason: test injects a minimal contract harness
+        object(),
+        SimpleNamespace(w3=None),
+    )
+
+    with pytest.raises(RuntimeError, match="WITHDRAW_VAULT_LIQUIDITY_CHECK_UNAVAILABLE"):
+        mixin._read_vault_liquidity_amount_wei()
+
+
+def test_withdraw_vault_liquidity_reads_token_balance_and_asserts(monkeypatch):
+    class _TokenContract:
+        def __init__(self, value: int) -> None:
+            self.value = value
+            self.functions = self
+
+        def balanceOf(self, account: str):
+            assert account == OWNER
+            return _Call(value=self.value)
+
+    class _Eth:
+        def __init__(self, value: int) -> None:
+            self.value = value
+
+        def contract(self, *, address: str, abi: list[dict[str, object]]):
+            assert address == OWNER
+            assert abi
+            return _TokenContract(self.value)
+
+    class _Web3:
+        def __init__(self, value: int) -> None:
+            self.eth = _Eth(value)
+
+        @staticmethod
+        def to_checksum_address(address: str) -> str:
+            return address
+
+    mixin = BalanceWithdrawSigningMixin()
+    monkeypatch.setattr(withdraw_signing.settings, "usdc_token_address", OWNER)
+    monkeypatch.setattr(withdraw_signing.settings, "router_address", OWNER)
+    mixin._withdraw_contract = lambda: (  # type: ignore[method-assign]  # reason: test injects a minimal contract harness
+        object(),
+        SimpleNamespace(w3=_Web3(3_000_000_000_000_000_000)),
+    )
+
+    assert mixin._read_vault_liquidity_amount_wei() == 3_000_000_000_000_000_000
+    mixin._assert_withdraw_vault_liquidity(Decimal("2"))
+
+    with pytest.raises(RuntimeError, match="INSUFFICIENT_VAULT_LIQUIDITY"):
+        mixin._assert_withdraw_vault_liquidity(Decimal("4"))
+
+
+def test_withdraw_vault_liquidity_maps_contract_errors(monkeypatch, caplog):
+    class _FailingEth:
+        def contract(self, **kwargs):
+            raise ValueError("rpc")
+
+    class _Web3:
+        eth = _FailingEth()
+
+        @staticmethod
+        def to_checksum_address(address: str) -> str:
+            return address
+
+    mixin = BalanceWithdrawSigningMixin()
+    monkeypatch.setattr(withdraw_signing.settings, "usdc_token_address", OWNER)
+    monkeypatch.setattr(withdraw_signing.settings, "router_address", OWNER)
+    mixin._withdraw_contract = lambda: (  # type: ignore[method-assign]  # reason: test injects a minimal contract harness
+        object(),
+        SimpleNamespace(w3=_Web3()),
+    )
+    caplog.set_level(
+        logging.ERROR,
+        logger="src.services.balance_mixins.withdraw_signing",
+    )
+
+    with pytest.raises(RuntimeError, match="WITHDRAW_VAULT_LIQUIDITY_CHECK_UNAVAILABLE"):
+        mixin._read_vault_liquidity_amount_wei()
+
+    assert "alert_trigger=CHAIN_RPC_UNAVAILABLE" in caplog.text
+    assert "context=withdraw_vault_liquidity" in caplog.text
+
+
 class _ProviderExpiryHarness(ProviderWithdrawHelpersMixin):
     def __init__(self, *, consumed: bool | None, rpc_timestamp: int | None) -> None:
         self.consumed = consumed

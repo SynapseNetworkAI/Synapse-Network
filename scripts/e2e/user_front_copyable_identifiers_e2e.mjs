@@ -674,6 +674,12 @@ async function visit(page, href, expectedText) {
       throw error;
     }
   }
+  if (href === "/provider/settlements") {
+    await page.waitForURL(/\/provider\/withdraw(?:$|\?)/, {
+      timeout: 15_000,
+    });
+    await page.waitForLoadState("domcontentloaded").catch(() => {});
+  }
   await waitForText(page, expectedText, href);
   await assertNoForbidden(page, href);
   addTrace("dom", { href, status: response?.status() || 0 });
