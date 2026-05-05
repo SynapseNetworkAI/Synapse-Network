@@ -38,21 +38,21 @@ class ServiceRegistryLifecycleMixin:
                   AND sm.updated_at <= %s::timestamptz
                   AND EXISTS (
                       SELECT 1
-                      FROM synapse_runtime_state AS rs
-                      WHERE rs.state_key LIKE CONCAT('service_health_meta::', sm.service_id, '::%%')
-                        AND COALESCE((rs.payload->>'consecutiveFailures')::int, 0) >= %s
+                      FROM synapse_service_health_runtime AS hr
+                      WHERE hr.service_id = sm.service_id
+                        AND COALESCE(hr.consecutive_failures, 0) >= %s
                         AND (
                             (
-                                COALESCE((rs.payload->>'lastHealthyAt')::bigint, 0) > 0
-                                AND COALESCE((rs.payload->>'lastHealthyAt')::bigint, 0) <= %s
+                                hr.last_healthy_at IS NOT NULL
+                                AND hr.last_healthy_at <= %s::timestamptz
                             )
                             OR (
-                                COALESCE((rs.payload->>'lastHealthyAt')::bigint, 0) <= 0
+                                hr.last_healthy_at IS NULL
                                 AND (
-                                    COALESCE((rs.payload->>'lastCheckedAt')::bigint, 0)
+                                    EXTRACT(EPOCH FROM hr.last_checked_at) * 1000
                                     - (
                                         GREATEST(
-                                            COALESCE((rs.payload->>'consecutiveFailures')::int, 0),
+                                            COALESCE(hr.consecutive_failures, 0),
                                             1
                                         ) - 1
                                     ) * %s
@@ -66,7 +66,7 @@ class ServiceRegistryLifecycleMixin:
                     normalized_service_id,
                     probe_started_at,
                     int(failure_threshold),
-                    int(last_healthy_cutoff_ms),
+                    to_dt_str(last_healthy_cutoff_ms, now_text),
                     int(probe_interval_ms),
                     int(last_healthy_cutoff_ms),
                 ),
@@ -75,6 +75,23 @@ class ServiceRegistryLifecycleMixin:
             if not updated:
                 return False
 
+            cur.execute(
+                """
+                UPDATE synapse_service_health_runtime
+                SET status = 'unhealthy',
+                    overall_status = 'offline',
+                    offline_reason = %s,
+                    error_code = COALESCE(error_code, %s),
+                    updated_at = %s
+                WHERE service_id = %s
+                """,
+                (
+                    offline_reason,
+                    offline_reason,
+                    now_text,
+                    normalized_service_id,
+                ),
+            )
             cur.execute(
                 """
                 UPDATE synapse_runtime_state

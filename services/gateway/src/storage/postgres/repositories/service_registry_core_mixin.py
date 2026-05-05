@@ -88,14 +88,6 @@ class ServiceRegistryCoreMixin:
         return f"service_meta::{service_id}"
 
     @staticmethod
-    def _health_meta_state_key(service_id: str, endpoint_url: str) -> str:
-        return f"service_health_meta::{service_id}::{endpoint_url}"
-
-    @staticmethod
-    def _history_state_key(service_id: str) -> str:
-        return f"service_health_history::{service_id}"
-
-    @staticmethod
     def _public_lifecycle_status(status: object, is_active: object = True) -> str:
         normalized = str(status or "").strip().lower()
         if normalized == "paused":

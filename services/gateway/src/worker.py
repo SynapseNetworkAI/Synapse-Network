@@ -23,6 +23,9 @@ from src.services.platform.tasks.deposit_indexer.runner import run_indexer_block
 from src.services.platform.tasks.provider_withdraw_expiry_reaper import (
     run_provider_withdraw_expiry_reaper_once,
 )
+from src.services.platform.service_health_event_cleanup import (
+    run_service_health_event_cleanup_once,
+)
 from src.storage import create_storage
 
 logger = logging.getLogger(__name__)
@@ -94,6 +97,14 @@ async def _in_app_cleanup_once(storage):
     )
 
 
+async def _service_health_events_cleanup_once(storage):
+    return await _run_with_job_lock(
+        storage,
+        "service-health-events-cleanup",
+        lambda: run_service_health_event_cleanup_once(storage),
+    )
+
+
 _ONCE_COMMANDS = {
     "analytics-outbox": ("analytics_outbox.once", _analytics_outbox_once),
     "notification-outbox": ("notification_outbox.once", _notification_outbox_once),
@@ -107,6 +118,10 @@ _ONCE_COMMANDS = {
         _consumer_withdraw_processor_once,
     ),
     "in-app-cleanup": ("in_app_notification_cleanup.once", _in_app_cleanup_once),
+    "service-health-events-cleanup": (
+        "service_health_events_cleanup.once",
+        _service_health_events_cleanup_once,
+    ),
 }
 
 
@@ -208,6 +223,12 @@ def main() -> int:
         help="Delete expired in-app notifications once.",
     )
     in_app_cleanup.add_argument("--once", action="store_true", required=True)
+
+    service_health_events_cleanup = subparsers.add_parser(
+        "service-health-events-cleanup",
+        help="Delete expired service health transition events once.",
+    )
+    service_health_events_cleanup.add_argument("--once", action="store_true", required=True)
 
     return asyncio.run(_run(parser.parse_args()))
 

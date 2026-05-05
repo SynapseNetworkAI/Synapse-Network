@@ -13,6 +13,7 @@ def reset_gateway_settings():
         "provider_withdraw_expiry_reaper_enabled": gateway_app.settings.provider_withdraw_expiry_reaper_enabled,
         "consumer_withdraw_processor_enabled": gateway_app.settings.consumer_withdraw_processor_enabled,
         "in_app_notification_cleanup_enabled": gateway_app.settings.in_app_notification_cleanup_enabled,
+        "service_health_event_cleanup_enabled": gateway_app.settings.service_health_event_cleanup_enabled,
         "environment": gateway_app.settings.environment,
         "staging_alert_drill_enabled": gateway_app.settings.staging_alert_drill_enabled,
         "staging_alert_drill_token": gateway_app.settings.staging_alert_drill_token,

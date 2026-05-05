@@ -14,7 +14,7 @@ from src.services.platform.service_health_utils import (
     _target_health_map,
 )
 
-_health_history_prune_state = {"last_ms": 0}
+_health_history_cleanup_state = {"last_ms": 0}
 
 
 @dataclass(frozen=True)
@@ -28,13 +28,17 @@ def _history_row_from_target(
     service: ServiceDefinitionRecord,
     target_url: str,
     target_status: ServiceHealthTargetRecord,
+    previous_status: str | None,
 ) -> dict[str, Any]:
     checked_at = int(target_status.last_checked_at or _now_ms())
+    current_status = str(target_status.status or "unknown").lower()
     return {
         "serviceId": str(service.service_id or "").strip(),
         "ownerAddress": str(service.owner_address or "").strip(),
         "targetUrl": target_url,
-        "status": str(target_status.status or "unknown"),
+        "status": current_status,
+        "fromStatus": previous_status or None,
+        "toStatus": current_status,
         "httpStatus": target_status.http_status,
         "latencyMs": target_status.latency_ms,
         "probeUrl": target_status.probe_url or None,
@@ -74,7 +78,12 @@ def build_probe_history_rows(
             continue
         rows.append(
             ServiceTargetHealthHistory.model_validate(
-                _history_row_from_target(service, target_url, status_row)
+                _history_row_from_target(
+                    service,
+                    target_url,
+                    status_row,
+                    previous_status or None,
+                )
             )
         )
     return rows
@@ -85,12 +94,8 @@ def append_health_history_rows(
 ) -> int:
     if not rows:
         return 0
-    existing: list[ServiceTargetHealthHistory] = list(
-        storage.get_data_manager().system.registry.read_service_target_health_history_rows()
-    )
-    existing.extend(rows)
     repo = storage.get_data_manager().system.registry
-    repo.write_service_target_health_history_rows(existing)
+    repo.write_service_target_health_history_rows(rows)
     return len(rows)
 
 
@@ -130,35 +135,28 @@ def _should_prune_history(now_ms: int) -> bool:
     interval_ms = (
         max(30, int(settings.service_health_history_prune_interval_sec)) * 1000
     )
-    if now_ms - int(_health_history_prune_state.get("last_ms") or 0) < interval_ms:
+    if now_ms - int(_health_history_cleanup_state.get("last_ms") or 0) < interval_ms:
         return False
-    _health_history_prune_state["last_ms"] = now_ms
+    _health_history_cleanup_state["last_ms"] = now_ms
     return True
 
 
 def prune_health_history(
     storage: BaseStorage, valid_service_ids: Optional[set[str]] = None
 ) -> HealthHistoryPruneStats:
-    existing: list[ServiceTargetHealthHistory] = list(
-        storage.get_data_manager().system.registry.read_service_target_health_history_rows()
+    del valid_service_ids
+    repo = storage.get_data_manager().system.registry
+    removed = int(
+        repo.prune_service_target_health_events(
+            max(1, int(settings.service_health_event_retention_days))
+        )
     )
-
-    cutoff_ms = _history_cutoff_ms()
-    valid_ids = (
-        valid_service_ids
-        if valid_service_ids is not None
-        else _current_valid_service_ids(storage)
-    )
-
-    before = len(existing)
-    filtered = [row for row in existing if _history_row_kept(row, valid_ids, cutoff_ms)]
-
-    after = len(filtered)
-    if after != before:
-        repo = storage.get_data_manager().system.registry
-        repo.write_service_target_health_history_rows(filtered)
     return HealthHistoryPruneStats(
-        before=before,
-        after=after,
-        removed=max(0, before - after),
+        before=removed,
+        after=0,
+        removed=max(0, removed),
     )
+
+
+def cleanup_service_health_events_once(storage: BaseStorage) -> HealthHistoryPruneStats:
+    return prune_health_history(storage)

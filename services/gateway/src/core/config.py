@@ -459,12 +459,11 @@ class Settings:
     downstream_adaptive_circuit_failure_threshold: int = _env_int(
         "DOWNSTREAM_ADAPTIVE_CIRCUIT_FAILURE_THRESHOLD", 5
     )
-    service_health_history_enabled: bool = _env_bool(
-        "SERVICE_HEALTH_HISTORY_ENABLED", True
-    )
-    service_health_history_retention_hours: int = (
-        _service_health_history_retention_hours_default
-    )
+    service_health_history_enabled: bool = _env_bool("SERVICE_HEALTH_HISTORY_ENABLED", True)
+    service_health_event_retention_days: int = max(1, _env_int("SERVICE_HEALTH_EVENT_RETENTION_DAYS", 7))
+    service_health_event_cleanup_enabled: bool = _env_bool("SERVICE_HEALTH_EVENT_CLEANUP_ENABLED", True)
+    service_health_event_cleanup_interval_sec: int = max(3600, _env_int("SERVICE_HEALTH_EVENT_CLEANUP_INTERVAL_SEC", 21600))
+    service_health_history_retention_hours: int = _service_health_history_retention_hours_default
     service_health_history_prune_interval_sec: int = _env_int(
         "SERVICE_HEALTH_HISTORY_PRUNE_INTERVAL_SEC", 300
     )

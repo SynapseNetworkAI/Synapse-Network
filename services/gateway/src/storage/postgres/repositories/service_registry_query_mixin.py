@@ -1,9 +1,8 @@
-"""Service registry repository — provider payout, persist, query, and health mixin."""
+"""Service registry repository — provider payout, persist, and query mixin."""
 # ruff: noqa: S608  # reason: dynamic registry filters use controlled fragments with parameterized values
 from __future__ import annotations
 
 import json
-from collections import defaultdict
 from typing import Any, List
 
 from src.domain.service_contract import (
@@ -13,15 +12,12 @@ from src.domain.service_contract import (
     ServiceHealthCheckRecord,
     ServiceMeteringRecord,
 )
-from src.domain.registry import ServiceTargetHealth, ServiceTargetHealthHistory
-from src.utils.datetime_utils import now_dt_str, to_dt_str
 
 SERVICE_DEFINITION_ROW_COLUMNS = 19
-HEALTHY_SCORE_THRESHOLD = 80
 
 
 class ServiceRegistryQueryMixin:
-    """Provider payout, search index, service definition, and health row operations."""
+    """Provider payout, search index, and service definition row operations."""
 
     def _upsert_provider_payout_account(
         self,
@@ -124,7 +120,9 @@ class ServiceRegistryQueryMixin:
             updated_at,
         )
 
-    def _build_service_definition(self, row: tuple[object, ...]) -> ServiceDefinitionRecord | None:
+    def _build_service_definition(
+        self, row: tuple[object, ...]
+    ) -> ServiceDefinitionRecord | None:
         if len(row) != SERVICE_DEFINITION_ROW_COLUMNS:
             return None
 
@@ -158,7 +156,9 @@ class ServiceRegistryQueryMixin:
         auth_payload = self._normalize_json_object(metadata.get("auth"))
         if not auth_payload and str(endpoint_auth_mode or "").strip():
             auth_payload = {"type": str(endpoint_auth_mode).strip()}
-        created_at_text, updated_at_text = self._created_updated_text(metadata, created_at, updated_at)
+        created_at_text, updated_at_text = self._created_updated_text(
+            metadata, created_at, updated_at
+        )
         primary_endpoint = self._primary_endpoint_record(
             service_id,
             endpoint,
@@ -199,12 +199,22 @@ class ServiceRegistryQueryMixin:
             address=str(metadata.get("address") or "") or None,
             tags=self._normalize_json_list(tags_json),
             auth=ServiceAuthRecord.model_validate(auth_payload),
-            providerProfile=self._normalize_json_object(metadata.get("providerProfile")) or None,
-            payoutAccount=self._normalize_json_object(metadata.get("payoutAccount")) or None,
+            providerProfile=self._normalize_json_object(
+                metadata.get("providerProfile")
+            )
+            or None,
+            payoutAccount=self._normalize_json_object(metadata.get("payoutAccount"))
+            or None,
             governance=self._normalize_json_object(metadata.get("governance")) or None,
-            healthCheck=ServiceHealthCheckRecord.model_validate(self._normalize_json_object(metadata.get("healthCheck"))),
-            forwarding=ServiceForwardingRecord.model_validate(self._normalize_json_object(metadata.get("forwarding"))),
-            metering=ServiceMeteringRecord.model_validate(self._normalize_json_object(metadata.get("metering"))),
+            healthCheck=ServiceHealthCheckRecord.model_validate(
+                self._normalize_json_object(metadata.get("healthCheck"))
+            ),
+            forwarding=ServiceForwardingRecord.model_validate(
+                self._normalize_json_object(metadata.get("forwarding"))
+            ),
+            metering=ServiceMeteringRecord.model_validate(
+                self._normalize_json_object(metadata.get("metering"))
+            ),
             invoke=invoke,
             createdAt=created_at_text,
             updatedAt=updated_at_text,
@@ -270,262 +280,3 @@ class ServiceRegistryQueryMixin:
         with self._db.tx_cursor() as cur:
             for row in rows:
                 self._persist_service_row(cur, row)
-
-    @staticmethod
-    def _composite_not_in_clause(row_count: int) -> str:
-        return ", ".join(["(%s, %s)"] * max(1, row_count))
-
-    @staticmethod
-    def _scalar_not_in_clause(value_count: int) -> str:
-        return ", ".join(["%s"] * max(1, value_count))
-
-    def _delete_obsolete_service_health_snapshots(
-        self, cur: Any, rows: List[ServiceTargetHealth]
-    ) -> None:
-        valid_rows = [
-            row
-            for row in rows
-            if str(row.service_id or "").strip() and str(row.target_url or "").strip()
-        ]
-        if not valid_rows:
-            cur.execute("DELETE FROM synapse_service_health_snapshots")
-            return
-
-        params: list[Any] = []
-        for row in valid_rows:
-            params.extend(
-                [
-                    str(row.service_id or "").strip(),
-                    self._endpoint_id(str(row.service_id or "").strip(), str(row.target_url or "").strip(), 0),
-                ]
-            )
-        placeholders = self._composite_not_in_clause(len(valid_rows))
-        cur.execute(
-            f"DELETE FROM synapse_service_health_snapshots WHERE (service_id, endpoint_id) NOT IN ({placeholders})",
-            tuple(params),
-        )
-
-    def _delete_obsolete_service_health_meta(
-        self, cur: Any, rows: List[ServiceTargetHealth]
-    ) -> None:
-        valid_rows = [
-            row
-            for row in rows
-            if str(row.service_id or "").strip() and str(row.target_url or "").strip()
-        ]
-        if not valid_rows:
-            cur.execute("DELETE FROM synapse_runtime_state WHERE state_key LIKE 'service_health_meta::%%'")
-            return
-
-        state_keys = [
-            self._health_meta_state_key(
-                str(row.service_id or "").strip(),
-                str(row.target_url or "").strip(),
-            )
-            for row in valid_rows
-        ]
-        placeholders = self._scalar_not_in_clause(len(state_keys))
-        cur.execute(
-            f"DELETE FROM synapse_runtime_state WHERE state_key LIKE 'service_health_meta::%%' AND state_key NOT IN ({placeholders})",
-            tuple(state_keys),
-        )
-
-    def read_service_target_health_rows(self) -> List[ServiceTargetHealth]:
-        with self._db.readonly_cursor() as cur:
-            cur.execute(
-                """
-                SELECT
-                    sh.service_id,
-                    oa.owner_wallet,
-                    ep.endpoint_url,
-                    rs.payload,
-                    sh.health_score,
-                    sh.p95_latency_ms,
-                    sh.success_rate_24h,
-                    sh.last_checked_at,
-                    sh.error_code
-                FROM synapse_service_health_snapshots AS sh
-                INNER JOIN synapse_service_manifests AS sm ON sm.service_id = sh.service_id
-                INNER JOIN synapse_owner_accounts AS oa ON oa.owner_id = sm.owner_id
-                INNER JOIN synapse_service_endpoints AS ep ON ep.endpoint_id = sh.endpoint_id
-                LEFT JOIN synapse_runtime_state AS rs
-                    ON rs.state_key = CONCAT('service_health_meta::', sh.service_id, '::', ep.endpoint_url)
-                ORDER BY sh.service_id, ep.endpoint_url
-                """
-            )
-            rows = cur.fetchall()
-        result: List[ServiceTargetHealth] = []
-        for service_id, owner, target_url, payload_raw, health_score, latency_ms, _, last_checked_at, error_code in rows:
-            payload = self._payload_dict(payload_raw)
-            normalized_last_checked_at = self._epoch_ms(payload.get("lastCheckedAt")) or self._epoch_ms(last_checked_at)
-            normalized_last_healthy_at = self._epoch_ms(payload.get("lastHealthyAt")) or self._epoch_ms(last_checked_at)
-            result.append(
-                ServiceTargetHealth(
-                    serviceId=service_id,
-                    ownerAddress=owner,
-                    targetUrl=target_url,
-                    weight=payload.get("weight"),
-                    region=payload.get("region"),
-                    status=str(
-                        payload.get("status")
-                        or (
-                            "healthy"
-                            if int(health_score or 0) >= HEALTHY_SCORE_THRESHOLD
-                            else "unhealthy"
-                        )
-                    ),
-                    overallStatus=payload.get("overallStatus"),
-                    httpStatus=payload.get("httpStatus"),
-                    latencyMs=latency_ms,
-                    consecutiveSuccesses=int(payload.get("consecutiveSuccesses") or 0),
-                    consecutiveFailures=int(payload.get("consecutiveFailures") or 0),
-                    probeUrl=payload.get("probeUrl"),
-                    lastCheckedAt=normalized_last_checked_at,
-                    lastHealthyAt=normalized_last_healthy_at,
-                    error=payload.get("error") or error_code,
-                )
-            )
-        return result
-
-    def write_service_target_health_rows(self, rows: List[ServiceTargetHealth]) -> None:
-        with self._db.tx_cursor() as cur:
-            self._delete_obsolete_service_health_snapshots(cur, rows)
-            self._delete_obsolete_service_health_meta(cur, rows)
-            for row in rows:
-                if not row.service_id or not row.target_url:
-                    continue
-                endpoint_id = self._endpoint_id(row.service_id, row.target_url, 0)
-                cur.execute(
-                    """
-                    INSERT INTO synapse_service_endpoints (
-                        endpoint_id, service_id, endpoint_url, auth_mode, timeout_ms,
-                        max_payload_bytes, streaming_supported, async_supported,
-                        callback_supported, region, weight, is_primary, status,
-                        created_at, updated_at
-                    ) VALUES (
-                        %s, %s, %s, 'gateway_forward', %s,
-                        4194304, FALSE, FALSE,
-                        FALSE, %s, %s, FALSE, 'active',
-                        %s, %s
-                    )
-                    ON CONFLICT (endpoint_id)
-                    DO UPDATE SET
-                        endpoint_url = EXCLUDED.endpoint_url,
-                        timeout_ms = EXCLUDED.timeout_ms,
-                        region = EXCLUDED.region,
-                        weight = EXCLUDED.weight,
-                        updated_at = EXCLUDED.updated_at
-                    """,
-                    (
-                        endpoint_id,
-                        row.service_id,
-                        row.target_url,
-                        int(row.timeout_ms or 15000),
-                        row.region,
-                        int(row.weight or 100),
-                        now_dt_str(),
-                        now_dt_str(),
-                    ),
-                )
-                cur.execute(
-                    """
-                    INSERT INTO synapse_service_health_snapshots (
-                        service_id, endpoint_id, health_score, p95_latency_ms,
-                        success_rate_24h, last_checked_at, error_code, updated_at
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                    ON CONFLICT (service_id, endpoint_id)
-                    DO UPDATE SET
-                        health_score = EXCLUDED.health_score,
-                        p95_latency_ms = EXCLUDED.p95_latency_ms,
-                        success_rate_24h = EXCLUDED.success_rate_24h,
-                        last_checked_at = EXCLUDED.last_checked_at,
-                        error_code = EXCLUDED.error_code,
-                        updated_at = EXCLUDED.updated_at
-                    """,
-                    (
-                        row.service_id,
-                        endpoint_id,
-                        self._health_score(str(row.status or "unknown")),
-                        row.latency_ms,
-                        self._success_rate(row.consecutive_successes, row.consecutive_failures),
-                        to_dt_str(row.last_checked_at),
-                        row.error,
-                        now_dt_str(),
-                    ),
-                )
-                self._upsert_runtime_state(
-                    cur,
-                    self._health_meta_state_key(row.service_id, row.target_url),
-                    {
-                        "ownerAddress": (row.owner_address or "").lower() or None,
-                        "weight": row.weight,
-                        "region": row.region,
-                        "status": row.status,
-                        "overallStatus": row.overall_status,
-                        "httpStatus": row.http_status,
-                        "consecutiveSuccesses": row.consecutive_successes,
-                        "consecutiveFailures": row.consecutive_failures,
-                        "probeUrl": row.probe_url,
-                        "lastCheckedAt": row.last_checked_at,
-                        "lastHealthyAt": row.last_healthy_at,
-                        "error": row.error,
-                    },
-                )
-
-    def read_service_target_health_history_rows(self) -> List[ServiceTargetHealthHistory]:
-        with self._db.readonly_cursor() as cur:
-            cur.execute(
-                "SELECT state_key, payload FROM synapse_runtime_state WHERE state_key LIKE 'service_health_history::%%' ORDER BY state_key ASC"
-            )
-            rows = cur.fetchall()
-        result: List[ServiceTargetHealthHistory] = []
-        for _, payload_raw in rows:
-            payload = self._payload_dict(payload_raw)
-            history_rows = payload.get("rows") if isinstance(payload.get("rows"), list) else []
-            for row in history_rows:
-                if not isinstance(row, dict):
-                    continue
-                result.append(ServiceTargetHealthHistory.model_validate(row))
-        return result
-
-    def write_service_target_health_history_rows(self, rows: List[ServiceTargetHealthHistory]) -> None:
-        grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
-        for row in rows:
-            payload = row.model_dump(by_alias=True, mode="json")
-            service_id = str(payload.get("serviceId") or "").strip()
-            if not service_id:
-                continue
-            grouped[service_id].append(payload)
-
-        with self._db.tx_cursor() as cur:
-            # Health history is maintained by multiple Cloud Run instances/jobs.
-            # Serialize rewrites to avoid DELETE/UPSERT deadlocks on runtime_state.
-            cur.execute(
-                "SELECT pg_advisory_xact_lock(hashtext(%s))",
-                ("synapse_runtime_state:service_health_history",),
-            )
-            if not grouped:
-                cur.execute(
-                    "DELETE FROM synapse_runtime_state "
-                    "WHERE state_key LIKE 'service_health_history::%%'"
-                )
-                return
-
-            state_keys = [
-                self._history_state_key(service_id)
-                for service_id in sorted(grouped)
-            ]
-            placeholders = self._scalar_not_in_clause(len(state_keys))
-            cur.execute(
-                "DELETE FROM synapse_runtime_state "
-                "WHERE state_key LIKE 'service_health_history::%%' "
-                f"AND state_key NOT IN ({placeholders})",
-                tuple(state_keys),
-            )
-            for service_id in sorted(grouped):
-                payload_rows = grouped[service_id]
-                self._upsert_runtime_state(
-                    cur,
-                    self._history_state_key(service_id),
-                    {"rows": payload_rows},
-                )
