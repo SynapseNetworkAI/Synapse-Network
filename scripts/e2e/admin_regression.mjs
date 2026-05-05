@@ -257,7 +257,26 @@ function collectSqlEvidence() {
           'activityRows', (SELECT COUNT(*) FROM synapse_admin_dashboard_activity_trend_projection),
           'operationsRows', (SELECT COUNT(*) FROM synapse_admin_dashboard_operations_projection),
           'dashboardRows', (SELECT COUNT(*) FROM synapse_admin_dashboard_projection),
-          'finance', (SELECT row_to_json(t) FROM (SELECT * FROM synapse_admin_dashboard_finance_projection LIMIT 1) t)
+          'finance', (
+            SELECT json_build_object(
+              'todayChargeUsdc', today_charge_usdc::text,
+              'todayDepositUsdc', today_deposit_usdc::text,
+              'todayRefundUsdc', today_consumer_refund_usdc::text,
+              'todayWithdrawalUsdc', today_provider_withdrawal_usdc::text,
+              'todayInvocationCount', today_invocation_count,
+              'todayPlatformFeeEarnedUsdc', today_platform_fee_earned_usdc::text,
+              'todayProviderEarnedUsdc', today_provider_earned_usdc::text,
+              'ownerLiabilityUsdc', consumer_liability_usdc::text,
+              'providerPayableUsdc', provider_payable_usdc::text,
+              'platformFeeBalanceUsdc', platform_fee_balance_usdc::text,
+              'vaultLedgerDeltaUsdc', vault_ledger_delta_usdc::text,
+              'pendingDepositCount', pending_deposit_count,
+              'pendingWithdrawalCount', pending_provider_withdrawal_count,
+              'projectedAt', projected_at
+            )
+            FROM synapse_admin_dashboard_finance_projection
+            LIMIT 1
+          )
         )
       `
       ),
