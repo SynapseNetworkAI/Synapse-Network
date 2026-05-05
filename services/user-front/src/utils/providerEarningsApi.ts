@@ -24,23 +24,32 @@ export type ProviderEarningsSummary = {
   totalRoutingTax: number;
   providerNetEarned: number;
   providerReceivable: number;
+  providerMatureReceivable: number;
   duplicateRowsDropped: number;
   idempotencyKey: string;
   recentCalls: ProviderRecentCall[];
 };
 
-export async function getProviderEarningsSummary(userAddress: string, limit: number = 200): Promise<ProviderEarningsSummary> {
-  const response = await fetch(providerEarningsUrl(`/summary?limit=${encodeURIComponent(String(limit))}`), {
-    method: "GET",
-    headers: buildAuthedHeaders(userAddress, false),
-  });
+export async function getProviderEarningsSummary(
+  userAddress: string,
+  limit: number = 200
+): Promise<ProviderEarningsSummary> {
+  const response = await fetch(
+    providerEarningsUrl(`/summary?limit=${encodeURIComponent(String(limit))}`),
+    {
+      method: "GET",
+      headers: buildAuthedHeaders(userAddress, false),
+    }
+  );
 
   if (!response.ok) {
     const text = await response.text();
     throw new Error(text || "Failed to load provider earnings summary");
   }
 
-  const payload = (await response.json()) as { summary?: ProviderEarningsSummary };
+  const payload = (await response.json()) as {
+    summary?: ProviderEarningsSummary;
+  };
   if (!payload.summary) {
     throw new Error("Provider earnings summary payload missing");
   }

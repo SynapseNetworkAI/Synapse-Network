@@ -115,6 +115,36 @@ def guard_local_service_registry_bloat(require_live_gateway) -> None:
             "bash scripts/local/cleanup_service_registry_dev.sh` before E2E."
         )
 
+
+@pytest.fixture(scope="session", autouse=True)
+def archive_new_local_test_services(require_live_gateway):
+    """Archive test services created during a local E2E session.
+
+    Provider registration/onboarding flows may still exercise the write path,
+    but they must not leave active manifests or health runtime rows behind.
+    """
+    if not GATEWAY_BASE.startswith(("http://127.0.0.1", "http://localhost")):
+        yield
+        return
+
+    try:
+        from tests.e2e.helpers.db import active_test_service_ids, archive_test_service
+
+        before = active_test_service_ids()
+    except Exception:
+        yield
+        return
+
+    yield
+
+    try:
+        after = active_test_service_ids()
+        for service_id in sorted(after - before):
+            archive_test_service(service_id)
+    except Exception:
+        return
+
+
 @pytest.fixture(scope="session")
 def contract_config() -> dict:
     assert CONTRACT_CONFIG_PATH.exists(), (

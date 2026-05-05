@@ -12,7 +12,7 @@ const providerSettlements: I18nMessages["providerSettlements"] = {
     "网关当前无法校验链上金库余额，请等待 RPC 恢复后再重试。",
   chainRpcUnavailable: "网关当前无法连接链上 RPC，请等待 RPC 恢复后再重试。",
   providerReceivableNotMatured:
-    "Provider 收益需要经过 T+7 风控沉淀期后才能提现。新产生的应收会显示在余额中，但只有已成熟应收可以提现。",
+    "当前收益尚未达到 T+7 成熟期。只有已成熟应收可以提现；新产生的应收仍会显示在余额中。",
   minWithdrawalAmountNotMet: "Provider 最小提现金额为 10.00 USDC。",
   insufficientProviderReceivable:
     "当前可提现 Provider 应收不足，无法创建这笔提现。",
@@ -60,14 +60,18 @@ const providerSettlements: I18nMessages["providerSettlements"] = {
   pendingWrongNetwork:
     "继续待处理提现前，钱包必须切换到 {{requiredChain}}。当前钱包网络为 {{currentChain}}。",
   pendingTicketExpiredBanner: "当前待处理提现票据已经过期，请重新生成后再试。",
-  amountPlaceholder: "提现金额（留空 = 全部 {{amount}} USDC）",
   resumePending: "继续待处理提现",
   invalidAmountPrecision: "提现金额最多支持 2 位小数。",
   invalidAmountValue: "请输入有效的提现金额。",
   amountBelowMinimum: "最小提现金额为 {{amount}} USDC。",
   amountExceedsAvailable: "提现金额超过当前可用应收（{{amount}} USDC）。",
-  withdrawAmountHint:
-    "留空=全额。最小提现金额：{{amount}} USDC。最多 2 位小数。",
+  withdrawAmountHint: "最小提现金额：{{amount}} USDC",
+  withdrawableReceivable: "可提现额度",
+  receivableBalance: "应收余额",
+  immatureReceivableNotice:
+    "新产生的应收会先显示在余额中，T+7 后才进入可提现额度。",
+  matureReceivableBelowMinimumTitle:
+    "已成熟可提现额度低于最小提现金额 10.00 USDC",
   loadingHistory: "正在加载提现历史...",
   expiredTicketReleasedRow: "过期票据已释放，对应金额已回到可用余额。",
   txSubmitted: "交易已提交：{{hash}}...",
@@ -83,12 +87,6 @@ const providerSettlements: I18nMessages["providerSettlements"] = {
   metricPendingLocked: "待处理 / 已锁定",
   metricPendingTicket: "待处理票据",
   metricTxState: "交易状态",
-  securityContractTitle: "安全约束",
-  securityBulletOne: "同一 owner 仅保留一张待处理票据。",
-  securityBulletTwo: "Intent 原子锁定应收至 providersLocked。",
-  securityBulletThree: "完成时消费锁定，txHash 幂等 finalize。",
-  securityBulletFour:
-    "EIP-712 ticketId+deadline，合约用一次性 ticketHash 防重放。",
   searchRequestPlaceholder: "搜索 Request ID",
   searchServicePlaceholder: "搜索服务（模糊匹配）",
   searchButton: "搜索",
@@ -136,7 +134,7 @@ const providerSettlements: I18nMessages["providerSettlements"] = {
   walletGasTip:
     "提现是链上交易。连接的钱包会签名 Claim，并自行支付原生币 gas。",
   withdrawAmountHintTip:
-    "提现金额留空时默认提取全部可用应收。存在活动票据时，金额会先从 Available 转入 Pending / Locked；如果链上提现没有成功，锁定金额会在默认约 6 分钟内自动释放回 Available。自定义金额最多支持 2 位小数。",
+    "存在活动票据时，金额会先从 Available 转入 Pending / Locked；如果链上提现没有成功，锁定金额会在默认约 6 分钟内自动释放回 Available。",
   historyDescriptionTip:
     "包含已经过期并释放回可用余额的票据，它们会显式记录为取消历史。",
   dedupeNoteTip:
@@ -145,7 +143,7 @@ const providerSettlements: I18nMessages["providerSettlements"] = {
   withdrawPageDescription: "EIP-712 链上自助提现。",
   withdrawAmountLabel: "提现金额",
   confirmWithdraw: "确认提现",
-  withdrawAmountPlaceholder: "金额（留空=全额提现）",
+  withdrawAmountPlaceholder: "金额",
   withdrawGasNote:
     "链上交易 — 需支付少量原生代币（如 ETH）作为 Gas 费。最小提现金额：{{amount}} USDC。",
   insufficientGasWarning:

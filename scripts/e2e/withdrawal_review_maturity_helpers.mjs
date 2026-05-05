@@ -25,7 +25,7 @@ export function createWithdrawalReviewMaturityHelpers({
     evidence.db.consumerDepositMaturity = result;
     pass(
       "consumer:deposit-matured",
-      `${result.updated} confirmed deposit(s) aged past T+1`
+      `${result.updated} confirmed deposit(s) aged past T+7`
     );
   }
 
