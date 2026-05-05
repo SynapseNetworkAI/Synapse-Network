@@ -126,7 +126,8 @@ export default function FeedbackDrawer({ open, onClose, seed }: Props) {
       });
       setFeedbackId(result.feedbackId);
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("feedback.submitFailed"));
+      console.error("Feedback submission failed:", err);
+      setError(t("feedback.submitFailed"));
     } finally {
       setSubmitting(false);
     }
