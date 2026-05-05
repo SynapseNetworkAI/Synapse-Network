@@ -1,5 +1,6 @@
 import hashlib
 import logging
+from decimal import Decimal
 from typing import Any
 
 from fastapi import HTTPException
@@ -13,6 +14,7 @@ from src.services.balance_mixins.withdraw_ticket_signers import (
     sign_withdraw_ticket,
     withdraw_signer_capability,
 )
+from src.utils.money import usdc_decimal_to_atomic
 
 logger = logging.getLogger(__name__)
 
@@ -286,6 +288,47 @@ class BalanceWithdrawSigningMixin:
                     "message": "Unable to query withdrawal ticket state.",
                 },
             )
+
+    def _read_vault_liquidity_amount_wei(self) -> int:
+        token_address = normalize_wallet(settings.usdc_token_address)
+        router_address = normalize_wallet(settings.router_address)
+        if not token_address or not router_address:
+            raise RuntimeError("WITHDRAW_VAULT_LIQUIDITY_CHECK_UNAVAILABLE")
+
+        try:
+            _provider, contract = self._withdraw_contract()
+            web3 = getattr(contract, "w3", None)
+            if web3 is None:
+                raise RuntimeError("WITHDRAW_VAULT_LIQUIDITY_CHECK_UNAVAILABLE")
+            token_contract = web3.eth.contract(
+                address=web3.to_checksum_address(token_address),
+                abi=[
+                    {
+                        "constant": True,
+                        "inputs": [{"name": "account", "type": "address"}],
+                        "name": "balanceOf",
+                        "outputs": [{"name": "", "type": "uint256"}],
+                        "stateMutability": "view",
+                        "type": "function",
+                    }
+                ],
+            )
+            return int(
+                token_contract.functions.balanceOf(
+                    web3.to_checksum_address(router_address)
+                ).call()
+            )
+        except RuntimeError:
+            raise
+        except Exception as exc:
+            _log_chain_rpc_unavailable("withdraw_vault_liquidity", exc)
+            raise RuntimeError("WITHDRAW_VAULT_LIQUIDITY_CHECK_UNAVAILABLE") from exc
+
+    def _assert_withdraw_vault_liquidity(self, amount_usdc: Decimal) -> None:
+        amount_wei = usdc_decimal_to_atomic(amount_usdc, decimals=USDC_DECIMALS)
+        vault_balance_wei = self._read_vault_liquidity_amount_wei()
+        if vault_balance_wei < amount_wei:
+            raise RuntimeError("INSUFFICIENT_VAULT_LIQUIDITY")
 
     def _latest_withdraw_rpc_block_timestamp(self) -> int:
         provider, _contract = self._withdraw_contract()

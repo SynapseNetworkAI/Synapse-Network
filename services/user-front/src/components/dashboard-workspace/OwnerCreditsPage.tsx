@@ -47,6 +47,7 @@ import {
   type MoneyString,
 } from "@/utils/money";
 import { isWithdrawTicketNearExpiry } from "@/utils/providerWithdrawApi";
+import { normalizeWithdrawWalletError } from "@/utils/providerWithdrawWallet";
 import { isWalletUserRejectedError } from "@/utils/walletActionErrors";
 import SynapseCoreABI from "@/SynapseCoreABI.json";
 
@@ -114,6 +115,37 @@ function resolveConsumerWithdrawErrorMessage(
   }
 
   return t("creditsPage.consumerWithdrawRequestFailed");
+}
+
+const ACTIVE_WITHDRAWAL_STATUSES = new Set([
+  "REQUESTED",
+  "SIGNED",
+  "BROADCASTED",
+  "PENDING",
+  "PENDING_MANUAL_REVIEW",
+  "APPROVED_AUTO",
+  "APPROVED_MANUAL",
+  "TICKET_READY",
+]);
+
+const WITHDRAWAL_PENDING_BALANCE_STATUSES = new Set([
+  "REQUESTED",
+  "SIGNED",
+  "BROADCASTED",
+  "PENDING",
+  "APPROVED_AUTO",
+  "APPROVED_MANUAL",
+  "TICKET_READY",
+]);
+
+function isActiveWithdrawalStatus(status?: string | null): boolean {
+  return ACTIVE_WITHDRAWAL_STATUSES.has(String(status || "").toUpperCase());
+}
+
+function isWithdrawalPendingBalanceStatus(status?: string | null): boolean {
+  return WITHDRAWAL_PENDING_BALANCE_STATUSES.has(
+    String(status || "").toUpperCase()
+  );
 }
 
 function WithdrawBalanceModal({
@@ -222,7 +254,9 @@ function WithdrawBalanceModal({
     if (!isTxFailed || !withdrawResult || !txHash) return;
     void syncFailedWithdrawal(
       "TX_FAILED",
-      txReceiptError?.message || t("creditsPage.consumerWithdrawTxFailed"),
+      normalizeWithdrawWalletError(txReceiptError, {
+        fallback: t("creditsPage.consumerWithdrawTxFailed"),
+      }),
       txHash
     );
   }, [
@@ -321,7 +355,12 @@ function WithdrawBalanceModal({
       setStep("confirming");
       toast.success(t("creditsPage.consumerWithdrawTxSubmitted"));
     } catch (err) {
-      const msg = resolveConsumerWithdrawErrorMessage(err, t);
+      const msg =
+        err instanceof ConsumerWithdrawApiError || !createdResult
+          ? resolveConsumerWithdrawErrorMessage(err, t)
+          : normalizeWithdrawWalletError(err, {
+              fallback: t("creditsPage.consumerWithdrawTxFailed"),
+            });
       if (isWalletUserRejectedError(err)) {
         await syncFailedWithdrawal(
           "WALLET_REJECTED",
@@ -554,14 +593,7 @@ export default function OwnerCreditsPage() {
     try {
       const rows = await listConsumerWithdrawals(userAddress);
       const active =
-        rows.find((r) => {
-          const s = (r.status ?? "").toUpperCase();
-          return (
-            s === "REQUESTED" ||
-            s === "PENDING" ||
-            s === "PENDING_MANUAL_REVIEW"
-          );
-        }) ?? null;
+        rows.find((r) => isActiveWithdrawalStatus(r.status)) ?? null;
       setPendingWithdrawal(active);
     } catch {
       setPendingWithdrawal(null);
@@ -614,7 +646,21 @@ export default function OwnerCreditsPage() {
 
   const creditSummary = useMemo(() => {
     const treasuryAvailable = moneyStringToNumber(stats.ownerBalance);
-    const pendingBalance = moneyStringToNumber(stats.consumerPendingBalance);
+    const totalPendingBalance = moneyStringToNumber(
+      stats.consumerPendingBalance
+    );
+    const withdrawalPendingBalance =
+      pendingWithdrawal &&
+      isWithdrawalPendingBalanceStatus(pendingWithdrawal.status)
+        ? Math.min(
+            totalPendingBalance,
+            moneyStringToNumber(pendingWithdrawal.amountUsdc ?? "0")
+          )
+        : 0;
+    const depositPendingBalance = Math.max(
+      0,
+      totalPendingBalance - withdrawalPendingBalance
+    );
     const frozenBalance = moneyStringToNumber(stats.consumerFrozenBalance);
     const currentSpend = moneyStringToNumber(
       spendingLimit?.currentCycleSpendUsdc ?? "0"
@@ -627,7 +673,8 @@ export default function OwnerCreditsPage() {
 
     return {
       remainingBalance: treasuryAvailable,
-      pendingBalance,
+      depositPendingBalance,
+      withdrawalPendingBalance,
       frozenBalance,
       currentSpend,
       billingCycleCap,
@@ -638,6 +685,7 @@ export default function OwnerCreditsPage() {
           : null,
     };
   }, [
+    pendingWithdrawal,
     spendingLimit,
     stats.consumerFrozenBalance,
     stats.consumerPendingBalance,
@@ -912,16 +960,22 @@ export default function OwnerCreditsPage() {
             </div>
             {!showBalanceSkeleton ? (
               <div className="mt-3 space-y-2">
-                <CreditBucketRow
-                  label={t("creditsPage.pendingBalanceLabel")}
-                  amount={creditSummary.pendingBalance}
-                  hint={
-                    creditSummary.pendingBalance > 0
-                      ? t("creditsPage.pendingBalanceHint")
-                      : undefined
-                  }
-                  tone="pending"
-                />
+                {creditSummary.depositPendingBalance > 0 ? (
+                  <CreditBucketRow
+                    label={t("creditsPage.pendingDepositBalanceLabel")}
+                    amount={creditSummary.depositPendingBalance}
+                    hint={t("creditsPage.pendingDepositBalanceHint")}
+                    tone="pending"
+                  />
+                ) : null}
+                {creditSummary.withdrawalPendingBalance > 0 ? (
+                  <CreditBucketRow
+                    label={t("creditsPage.pendingWithdrawalBalanceLabel")}
+                    amount={creditSummary.withdrawalPendingBalance}
+                    hint={t("creditsPage.pendingWithdrawalBalanceHint")}
+                    tone="pending"
+                  />
+                ) : null}
                 {creditSummary.frozenBalance > 0 ? (
                   <CreditBucketRow
                     label={t("creditsPage.frozenBalanceLabel")}
@@ -1150,8 +1204,7 @@ export default function OwnerCreditsPage() {
           onSuccess={async (result) => {
             const normalizedStatus = (result.status || "").toUpperCase();
             const isActiveWithdrawal =
-              normalizedStatus === "REQUESTED" ||
-              normalizedStatus === "PENDING_MANUAL_REVIEW";
+              isActiveWithdrawalStatus(normalizedStatus);
 
             if (!isActiveWithdrawal) {
               setPendingWithdrawal(null);

@@ -220,6 +220,7 @@ def _make_service(storage: FakeStorage) -> OwnerFinanceService:
     svc._check_idempotency_redis = _async_none
     svc._finalize_refund_idempotency = _async_none
     svc._enforce_owner_write_rate_limit = _async_none
+    svc._assert_withdraw_vault_liquidity = lambda amount_usdc: None
     svc._build_consumer_withdraw_ticket = (  # type: ignore[method-assign]
         lambda *, owner, gross_amount_usdc, withdrawal_id: _fake_withdraw_ticket(
             withdrawal_id=withdrawal_id
