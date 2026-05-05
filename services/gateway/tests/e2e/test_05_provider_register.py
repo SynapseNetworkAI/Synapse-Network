@@ -1,121 +1,85 @@
-"""Step 5: Provider 注册服务 + 验证 Discovery 可见"""
+"""Step 5: verify Synapse-Network-Provider catalog services are ready.
+
+Gateway local/staging E2E must not register temporary provider services. The
+Provider repo owns onboarding, and these tests only assert that the already
+registered catalog is discoverable and owned by the configured provider.
+"""
 import httpx
-import pytest
-from tests.e2e.conftest import GATEWAY_BASE, PROVIDER_BASE, track_test_service_id
-from tests.e2e.helpers.auth import authenticate_wallet
-from tests.e2e.helpers.db import seed_service_health
-from tests.e2e.conftest import PROVIDER_KEY
+from decimal import Decimal
+
+from tests.e2e.conftest import GATEWAY_BASE
+from tests.e2e.helpers.gateway import list_services
+from tests.e2e.helpers.service_fixtures import (
+    CANONICAL_FREE_SERVICE_ID,
+    CANONICAL_PAID_SERVICE_ID,
+    CANONICAL_PROVIDER_SERVICE_IDS,
+    canonical_missing_message,
+    discover_service,
+    service_price_usdc,
+)
 
 
-def test_provider_registers_service(
-    provider_headers, provider_account, service_tool_name, session_state, mock_service_url, w3
-):
-    r = httpx.post(
-        f"{GATEWAY_BASE}/api/v1/services",
-        headers=provider_headers,
-        json={
-            "agentToolName": service_tool_name,
-            "serviceName": f"E2E Test Service {service_tool_name}",
-            "role": "Provider",
-            "status": "active",
-            "isActive": True,
-            "pricing": {"amount": "0.001", "currency": "USD"},
-            "summary": "Automated e2e integration test service",
-            "tags": ["e2e", "test"],
-            "auth": {"type": "gateway_signed"},
-            "invoke": {
-                "method": "POST",
-                "targets": [{"url": mock_service_url}],
-                "request": {
-                    "body": {
-                        "type": "object",
-                        "properties": {
-                            "prompt": {"type": "string"}
-                        }
-                    }
-                },
-                "response": {
-                    "body": {
-                        "type": "object",
-                        "properties": {
-                            "result": {"type": "string"}
-                        }
-                    }
-                },
-            },
-            "healthCheck": {
-                "path": "/health",
-                "method": "GET",
-                "timeoutMs": 3000,
-                "successCodes": [200],
-                "healthyThreshold": 1,
-                "unhealthyThreshold": 3,
-            },
-            "payoutAccount": {
-                "payoutAddress": provider_account.address.lower(),
-                "chainId": w3.eth.chain_id,
-                "settlementCurrency": "USDC",
-            },
-            "providerProfile": {
-                "displayName": f"E2E Provider {service_tool_name}",
-            },
-            "governance": {
-                "termsAccepted": True,
-                "riskAcknowledged": True,
-                "note": "e2e automated test",
-            },
-        },
-        timeout=20,
-    )
-    assert r.status_code in (200, 201), (
-        f"Service registration failed ({r.status_code}): {r.text}"
-    )
-    body = r.json()
-    assert body.get("status") == "success", f"Bad response: {body}"
-    service_id = body.get("serviceId") or body.get("id")
-    assert service_id, f"serviceId missing: {body}"
-    track_test_service_id(service_id)
-    session_state["service_id"] = service_id
-    session_state["service_tool_name"] = service_tool_name
-    session_state["mock_service_url"] = mock_service_url
-
-    # Seed a healthy health record so the gateway's health-gate passes for invocations.
-    # The health poller normally creates this on its own schedule (60+ seconds);
-    # we skip that wait by writing directly to the DB.
-    seed_service_health(service_id, mock_service_url)
+def _service_ids(rows: list[dict]) -> set[str]:
+    ids: set[str] = set()
+    for row in rows:
+        ids.update(
+            str(value)
+            for value in (
+                row.get("serviceId"),
+                row.get("service_id"),
+                row.get("id"),
+                row.get("agentToolName"),
+            )
+            if value
+        )
+    return ids
 
 
-def test_service_appears_in_list(provider_headers, service_tool_name):
-    r = httpx.get(
-        f"{GATEWAY_BASE}/api/v1/services",
-        headers=provider_headers,
-        timeout=15,
-    )
-    assert r.status_code == 200
-    services = r.json().get("services") or r.json().get("items") or []
-    tool_names = [s.get("agentToolName") or s.get("serviceId") for s in services]
-    assert service_tool_name in tool_names, (
-        f"service {service_tool_name} not found in list: {tool_names[:10]}"
+def test_provider_catalog_services_are_discoverable(session_state):
+    missing: list[str] = []
+    for service_id in CANONICAL_PROVIDER_SERVICE_IDS:
+        row = discover_service(GATEWAY_BASE, service_id, timeout=15)
+        if not row:
+            missing.append(service_id)
+            continue
+        assert str(row).lower().find("archived") == -1, (
+            f"canonical service {service_id} appears archived: {row}"
+        )
+
+    assert not missing, canonical_missing_message(", ".join(missing))
+    session_state["service_id"] = CANONICAL_PAID_SERVICE_ID
+    session_state["free_smoke_service_id"] = CANONICAL_FREE_SERVICE_ID
+    session_state["catalog_service_ids"] = list(CANONICAL_PROVIDER_SERVICE_IDS)
+
+
+def test_paid_mock_cost_service_has_one_usdc_price():
+    row = discover_service(GATEWAY_BASE, CANONICAL_PAID_SERVICE_ID, timeout=15)
+    assert row, canonical_missing_message(CANONICAL_PAID_SERVICE_ID)
+    assert Decimal(service_price_usdc(row, default="0")) == Decimal("1"), (
+        f"unexpected mock-cost price: {row}"
     )
 
 
-def test_service_discoverable_by_intent(provider_headers, service_tool_name, session_state):
-    """BUG-004: Public discovery requires health-check records that new services lack.
-    Assert service is visible in the provider's own /services list instead."""
-    r = httpx.get(
-        f"{GATEWAY_BASE}/api/v1/services",
-        headers=provider_headers,
-        timeout=15,
+def test_free_echo_service_is_available_for_smoke_invokes():
+    row = discover_service(GATEWAY_BASE, CANONICAL_FREE_SERVICE_ID, timeout=15)
+    assert row, canonical_missing_message(CANONICAL_FREE_SERVICE_ID)
+    assert Decimal(service_price_usdc(row, default="0")) == Decimal("0"), (
+        f"unexpected echo price: {row}"
     )
-    assert r.status_code == 200
-    services = r.json().get("services") or r.json().get("items") or []
-    service_id = session_state.get("service_id", service_tool_name)
-    found = [
-        s for s in services
-        if s.get("serviceId") == service_id
-        or s.get("agentToolName") == service_tool_name
-    ]
-    assert found, (
-        f"Service {service_tool_name} ({service_id}) not found in provider list. "
-        f"Total: {len(services)}"
+
+
+def test_provider_catalog_visible_in_provider_owner_list(provider_headers):
+    services = list_services(GATEWAY_BASE, provider_headers)
+    actual_ids = _service_ids(services)
+    missing = sorted(set(CANONICAL_PROVIDER_SERVICE_IDS) - actual_ids)
+    assert not missing, (
+        "Synapse-Network-Provider catalog services are missing from the "
+        f"configured provider owner list: {missing}. Run Provider onboarding "
+        "`ensure` for the same local/staging environment."
     )
+
+
+def test_service_registration_endpoint_is_not_exercised_by_e2e(provider_headers):
+    """Read-only smoke check replacing the historical registration E2E."""
+    r = httpx.get(f"{GATEWAY_BASE}/api/v1/services", headers=provider_headers, timeout=15)
+    assert r.status_code == 200, f"provider service list failed: {r.status_code} {r.text}"

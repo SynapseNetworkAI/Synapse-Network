@@ -1,8 +1,6 @@
 #!/usr/bin/env node
 
-import { spawn } from "node:child_process";
 import fs from "node:fs";
-import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { ethers } from "ethers";
@@ -21,10 +19,6 @@ const GATEWAY_BASE_URL = (
 ).replace(/\/+$/, "");
 const API_BASE = `${GATEWAY_BASE_URL}/api`;
 const RPC_URL = process.env.USER_FRONT_RPC_URL || "http://127.0.0.1:8545";
-const MOCK_PORT_BASE = Number.parseInt(
-  process.env.USER_FRONT_FULLCHAIN_MOCK_PORT || "19876",
-  10
-);
 const CHAIN_ID = Number.parseInt(process.env.CHAIN_ID || "31337", 10);
 const DEPOSIT_USDC = process.env.USER_FRONT_FULLCHAIN_DEPOSIT_USDC || "1000.00";
 const CONSUMER_ETH_TARGET =
@@ -37,45 +31,13 @@ const RUN_ID =
     .replace(/[^0-9]/g, "")
     .slice(0, 14)}`;
 
-const SERVICE_SPECS = [
-  {
-    slug: "echo-basic",
-    label: "Echo Basic",
-    priceUsdc: "0.10",
-    port: MOCK_PORT_BASE,
-  },
-  {
-    slug: "echo-plus",
-    label: "Echo Plus",
-    priceUsdc: "0.25",
-    port: MOCK_PORT_BASE + 1,
-  },
-  {
-    slug: "echo-pro",
-    label: "Echo Pro",
-    priceUsdc: "0.50",
-    port: MOCK_PORT_BASE + 2,
-  },
-];
 const CANONICAL_SERVICE_IDS = (
   process.env.USER_FRONT_FULLCHAIN_SERVICE_IDS ||
-  "svc_web3_sentiment_index,svc_protocol_fundamental_brief,svc_oss_security_healthcheck"
+  "svc_synapse_mock_cost_1usdc,svc_web3_sentiment_index,svc_protocol_fundamental_brief"
 )
   .split(",")
   .map((item) => item.trim())
   .filter(Boolean);
-const USER_FRONT_FULLCHAIN_ALLOW_SERVICE_CREATION = [
-  "1",
-  "true",
-  "yes",
-  "on",
-].includes(
-  String(
-    process.env.USER_FRONT_FULLCHAIN_ALLOW_SERVICE_CREATION ||
-      process.env.GATEWAY_E2E_ALLOW_SERVICE_CREATION ||
-      ""
-  ).toLowerCase()
-);
 
 const DEFAULT_KEYS = {
   deployer:
@@ -444,97 +406,6 @@ async function confirmLocalDepositIntent({
   return confirmed;
 }
 
-async function ensureMockUpstream(spec) {
-  const healthUrl = `http://127.0.0.1:${spec.port}/health`;
-  const existing = await fetch(healthUrl)
-    .then((res) => res.ok)
-    .catch(() => false);
-  if (existing) {
-    log(`mock upstream ${spec.slug} already running on ${healthUrl}`);
-    return {
-      url: `http://127.0.0.1:${spec.port}`,
-      pid: null,
-      reused: true,
-      slug: spec.slug,
-    };
-  }
-
-  fs.mkdirSync(OUT_DIR, { recursive: true });
-  const logPath = path.join(OUT_DIR, `mock-upstream-${spec.slug}.log`);
-  const child = spawn(
-    process.execPath,
-    [
-      fileURLToPath(import.meta.url),
-      "--mock-upstream",
-      String(spec.port),
-      spec.slug,
-    ],
-    {
-      cwd: ROOT,
-      detached: true,
-      stdio: ["ignore", fs.openSync(logPath, "a"), fs.openSync(logPath, "a")],
-    }
-  );
-  child.unref();
-
-  for (let i = 0; i < 30; i += 1) {
-    if (
-      await fetch(healthUrl)
-        .then((res) => res.ok)
-        .catch(() => false)
-    ) {
-      log(
-        `mock upstream ${spec.slug} started on ${healthUrl} (pid ${child.pid})`
-      );
-      return {
-        url: `http://127.0.0.1:${spec.port}`,
-        pid: child.pid,
-        reused: false,
-        slug: spec.slug,
-      };
-    }
-    await sleep(500);
-  }
-  fail(`mock upstream ${spec.slug} did not start; see ${logPath}`);
-}
-
-function startMockUpstream(port, slug = "echo") {
-  const server = http.createServer((req, res) => {
-    if (req.url === "/health" && req.method === "GET") {
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ status: "healthy", runId: RUN_ID, slug }));
-      return;
-    }
-    let raw = "";
-    req.on("data", (chunk) => {
-      raw += chunk;
-    });
-    req.on("end", () => {
-      let parsed = {};
-      try {
-        parsed = raw ? JSON.parse(raw) : {};
-      } catch {
-        parsed = { raw };
-      }
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(
-        JSON.stringify({
-          status: "ok",
-          runId: RUN_ID,
-          service: `user-front-fullchain-${slug}`,
-          echo: parsed,
-          receivedAt: new Date().toISOString(),
-        })
-      );
-    });
-  });
-  server.listen(port, "127.0.0.1", () => {
-    console.log(
-      `[fullchain-mock] ${slug} listening on http://127.0.0.1:${port}`
-    );
-  });
-}
-
 async function issueProviderSecret({ token, address }) {
   const payload = await api("/v1/secrets/provider/issue", {
     method: "POST",
@@ -554,110 +425,6 @@ async function issueProviderSecret({ token, address }) {
   return {
     id: secret.id || secret.credentialId || "",
     tokenPrefix: secret.tokenPrefix || secret.secretPrefix || "",
-  };
-}
-
-function serviceIdForSpec(spec) {
-  return `ufc_${spec.slug.replace(/[^a-zA-Z0-9_]/g, "_")}_${RUN_ID.replace(
-    /[^a-zA-Z0-9_]/g,
-    "_"
-  )}`;
-}
-
-async function registerService({ token, address, spec, mockUrl }) {
-  const serviceId = serviceIdForSpec(spec);
-  const serviceName = `UFC ${spec.label} ${RUN_ID}`;
-  const payload = {
-    serviceName,
-    agentToolName: serviceId,
-    role: "Provider",
-    pricing: { currency: "USDC", amount: spec.priceUsdc },
-    summary: `Fullchain verification ${spec.label} service for user-front real-data browser tests.`,
-    tags: ["fullchain", "verification", "echo", spec.slug],
-    providerProfile: { displayName: "Fullchain Provider" },
-    payoutAccount: {
-      payoutAddress: address,
-      chainId: CHAIN_ID,
-      settlementCurrency: "USDC",
-      status: "active",
-    },
-    governance: { termsAccepted: true, riskAcknowledged: true, note: RUN_ID },
-    healthCheck: {
-      path: "/health",
-      method: "GET",
-      intervalSec: 15,
-      timeoutMs: 5000,
-      successCodes: [200],
-    },
-    constraints: {
-      timeoutMs: 15000,
-      maxResponseBytes: 500000,
-      maxRequestBytes: 100000,
-      maxQps: 100,
-      maxConcurrency: 8,
-    },
-    forwarding: {
-      requestIdHeader: "X-Synapse-Request-Id",
-      passThroughHeaders: [],
-      injectHeaders: {},
-      retryPolicy: {
-        maxAttempts: 1,
-        backoffMs: 200,
-        retryOnStatus: [429, 500, 502, 503, 504],
-      },
-    },
-    metering: {
-      billingUnit: "per_call",
-      billOnError: false,
-      billableStatusClasses: [2],
-      requestIdRequired: true,
-      responseSizeMetering: true,
-    },
-    invoke: {
-      method: "POST",
-      targets: [{ url: mockUrl, weight: 100, region: "local" }],
-      timeoutMs: 15000,
-      request: {
-        contentType: "application/json",
-        schema: {
-          type: "object",
-          properties: {
-            query: { type: "string" },
-            serviceSlug: { type: "string" },
-            callIndex: { type: "number" },
-          },
-          required: ["query"],
-        },
-      },
-      response: {
-        schema: {
-          type: "object",
-          properties: { status: { type: "string" }, echo: { type: "object" } },
-        },
-      },
-      headersTemplate: {},
-      examples: [{ query: "hello", serviceSlug: spec.slug, callIndex: 1 }],
-    },
-    isActive: true,
-    status: "active",
-  };
-
-  const response = await api("/v1/services", {
-    method: "POST",
-    token,
-    address,
-    body: payload,
-  });
-  const service = response.service || response;
-  const createdServiceId = service.serviceId || response.serviceId || serviceId;
-  log(`service registered: ${createdServiceId} (${spec.priceUsdc} USDC)`);
-  return {
-    id: createdServiceId,
-    name: service.serviceName || serviceName,
-    slug: spec.slug,
-    label: spec.label,
-    priceUsdc: spec.priceUsdc,
-    mockUrl,
   };
 }
 
@@ -945,14 +712,6 @@ async function writeFixture(fixture) {
 }
 
 async function main() {
-  if (process.argv[2] === "--mock-upstream") {
-    startMockUpstream(
-      Number.parseInt(process.argv[3] || "19876", 10),
-      process.argv[4] || "echo"
-    );
-    return;
-  }
-
   assertLocalOnly();
   await assertReachable("user-front", FRONTEND_URL, { allowNonOk: true });
   await assertReachable("gateway health", `${GATEWAY_BASE_URL}/health`);
@@ -961,42 +720,19 @@ async function main() {
     allowNonOk: true,
   });
 
-  const mocks = [];
-  if (USER_FRONT_FULLCHAIN_ALLOW_SERVICE_CREATION) {
-    for (const spec of SERVICE_SPECS) {
-      mocks.push(await ensureMockUpstream(spec));
-    }
-  }
-
   const providerAuth = await authenticate(PROVIDER_KEY, "provider");
   const consumerAuth = await authenticate(CONSUMER_KEY, "consumer");
   const chain = await getChainContext();
   const providerSecret = await issueProviderSecret(providerAuth);
 
   const services = [];
-  if (USER_FRONT_FULLCHAIN_ALLOW_SERVICE_CREATION) {
-    for (let i = 0; i < SERVICE_SPECS.length; i += 1) {
-      const service = await registerService({
-        ...providerAuth,
-        spec: SERVICE_SPECS[i],
-        mockUrl: mocks[i].url,
-      });
-      const discovered = await waitForServiceDiscoverable(service.id);
-      services.push({
-        ...service,
-        discoveredRuntimeAvailable: discovered.runtimeAvailable ?? true,
-      });
-    }
-  } else {
-    log(
-      `using canonical provider services: ${CANONICAL_SERVICE_IDS.join(
-        ", "
-      )} ` +
-        "(set USER_FRONT_FULLCHAIN_ALLOW_SERVICE_CREATION=true to create run-scoped services)"
-    );
-    for (const serviceId of CANONICAL_SERVICE_IDS) {
-      services.push(await resolveExistingService(serviceId));
-    }
+  log(
+    `using Synapse-Network-Provider catalog services: ${CANONICAL_SERVICE_IDS.join(
+      ", "
+    )}`
+  );
+  for (const serviceId of CANONICAL_SERVICE_IDS) {
+    services.push(await resolveExistingService(serviceId));
   }
 
   const deposit = await fundAndDeposit({

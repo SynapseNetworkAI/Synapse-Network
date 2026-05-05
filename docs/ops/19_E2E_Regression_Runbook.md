@@ -30,26 +30,30 @@ production go/no-go plan explicitly authorizes a small-value rehearsal.
 
 ## 2. Service Fixture Policy
 
-Ordinary invoke, billing, UI, withdrawal, and release E2E must reuse canonical
-provider services instead of creating random provider services. Default fixed
-price service: `GATEWAY_E2E_SERVICE_ID=svc_oss_security_healthcheck`.
+Local/staging invoke, billing, UI, withdrawal, and release E2E must reuse the
+Synapse-Network-Provider catalog instead of creating random provider services or
+starting a script-owned mock HTTP service as the business provider. Default paid
+settlement service: `GATEWAY_E2E_SERVICE_ID=svc_synapse_mock_cost_1usdc`.
 
 Canonical services:
 
-1. `svc_web3_sentiment_index`
-2. `svc_protocol_fundamental_brief`
-3. `svc_oss_security_healthcheck`
-4. `svc_deepseek_chat` for LLM/token-metered coverage only
+1. `svc_synapse_echo` for free smoke.
+2. `svc_synapse_mock_cost_1usdc` for paid settlement and balance evidence.
+3. `svc_web3_sentiment_index`.
+4. `svc_protocol_fundamental_brief`.
+5. `svc_oss_security_healthcheck`.
+6. `svc_deepseek_chat` for LLM/token-metered coverage only.
 
-Provider registration and onboarding tests are the exception because they prove
-`POST /api/v1/services`. Any temporary service they create must use a tracked
-E2E prefix and be archived by teardown or local cleanup. Random service creation
-in standalone scripts requires `GATEWAY_E2E_ALLOW_SERVICE_CREATION=true`.
+Gateway local/staging E2E does not cover service registration by mutating the
+environment. `POST /api/v1/services` validation stays in backend unit, router,
+and service tests. Synapse-Network-Provider onboarding owns registration or
+update of the catalog services, and Gateway E2E fails closed when the catalog is
+missing.
 
-Local canonical services can be seeded with
-`services/gateway/examples/register_provider_shelf_services.py` or the Gateway
-pull-health local fixture. Staging must use already-approved staging services and
-must not create fallback random services during ordinary regression.
+Before local/staging Gateway E2E, run Synapse-Network-Provider onboarding
+`check`/`ensure` against the target Gateway so the catalog exists. Staging must
+use already-approved staging catalog services and must not create fallback random
+services during ordinary regression.
 
 If local E2E reports too many active test services, inspect and clean with:
 
