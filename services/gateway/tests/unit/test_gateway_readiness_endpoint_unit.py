@@ -32,6 +32,7 @@ DEFAULT_TASK_PATCHES = {
     "run_service_health_monitor": _background_loop_until_stopped,
     "run_provider_withdraw_expiry_reaper": _background_loop_until_stopped,
     "run_consumer_withdraw_processor": _background_loop_until_stopped,
+    "run_service_health_event_cleanup": _background_loop_until_stopped,
 }
 
 

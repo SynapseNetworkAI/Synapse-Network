@@ -6,9 +6,7 @@ would normally create (but takes 60+ seconds to run).
 from __future__ import annotations
 
 import hashlib
-import json
 import os
-import time
 
 DB_DSN = os.getenv(
     "LOCAL_GATEWAY_POSTGRES_DSN",
@@ -33,23 +31,7 @@ def seed_service_health(service_id: str, target_url: str) -> None:
     """
     import psycopg  # optional import; psycopg2/psycopg3 — already in gateway dep
 
-    now_ms = int(time.time() * 1000)
     ep_id = _endpoint_id(service_id, target_url)
-    state_key = f"service_health_meta::{service_id}::{target_url}"
-    health_payload = json.dumps(
-        {
-            "status": "healthy",
-            "overallStatus": "healthy",
-            "lastCheckedAt": now_ms,
-            "lastHealthyAt": now_ms,
-            "httpStatus": 200,
-            "latencyMs": 50,
-            "consecutiveSuccesses": 3,
-            "consecutiveFailures": 0,
-            "healthyTargets": 1,
-            "totalTargets": 1,
-        }
-    )
 
     with psycopg.connect(DB_DSN) as conn:
         with conn.cursor() as cur:
@@ -86,16 +68,35 @@ def seed_service_health(service_id: str, target_url: str) -> None:
                 (service_id, ep_id),
             )
 
-            # Upsert runtime-state health-meta (provides lastCheckedAt to is_health_stale)
+            # Upsert typed runtime health (provides lastCheckedAt to is_health_stale)
             cur.execute(
                 """
-                INSERT INTO synapse_runtime_state (state_key, payload, updated_at)
-                VALUES (%s, %s::jsonb, NOW())
-                ON CONFLICT (state_key) DO UPDATE SET
-                    payload = %s::jsonb,
+                INSERT INTO synapse_service_health_runtime (
+                    service_id, target_url, status, overall_status, http_status,
+                    latency_ms, consecutive_successes, consecutive_failures,
+                    probe_url, last_checked_at, last_healthy_at, timeout_ms,
+                    created_at, updated_at
+                ) VALUES (
+                    %s, %s, 'healthy', 'healthy', 200,
+                    50, 3, 0,
+                    %s, NOW(), NOW(), 30000,
+                    NOW(), NOW()
+                )
+                ON CONFLICT (service_id, target_url)
+                DO UPDATE SET
+                    status = EXCLUDED.status,
+                    overall_status = EXCLUDED.overall_status,
+                    http_status = EXCLUDED.http_status,
+                    latency_ms = EXCLUDED.latency_ms,
+                    consecutive_successes = EXCLUDED.consecutive_successes,
+                    consecutive_failures = EXCLUDED.consecutive_failures,
+                    probe_url = EXCLUDED.probe_url,
+                    last_checked_at = EXCLUDED.last_checked_at,
+                    last_healthy_at = EXCLUDED.last_healthy_at,
+                    timeout_ms = EXCLUDED.timeout_ms,
                     updated_at = NOW()
                 """,
-                (state_key, health_payload, health_payload),
+                (service_id, target_url, target_url.replace("/invoke", "/health")),
             )
 
         conn.commit()

@@ -20,22 +20,9 @@ WITHDRAWAL_STATUS_CHECK_REQUIRED_FRAGMENTS = (
     "'COMPLETED'::text",
     "'CANCELLED'::text",
 )
-QUOTE_PRICE_NON_NEGATIVE_CHECK_REQUIRED_FRAGMENTS = (
-    "quoted_price_usdc",
-    ">=",
-    "0",
-)
-ENDPOINT_TIMEOUT_PROFILE_CHECK_REQUIRED_FRAGMENTS = (
-    "timeout_ms",
-    ">=",
-    "300",
-    "<=",
-    "300000",
-)
-TOKEN_METERED_PRICE_MODEL_CHECK_REQUIRED_FRAGMENTS = (
-    "price_model",
-    "token_metered",
-)
+QUOTE_PRICE_NON_NEGATIVE_CHECK_REQUIRED_FRAGMENTS = ("quoted_price_usdc", ">=", "0")
+ENDPOINT_TIMEOUT_PROFILE_CHECK_REQUIRED_FRAGMENTS = ("timeout_ms", ">=", "300", "<=", "300000")
+TOKEN_METERED_PRICE_MODEL_CHECK_REQUIRED_FRAGMENTS = ("price_model", "token_metered")
 
 
 @dataclass(frozen=True)
@@ -149,6 +136,19 @@ POSTGRES_TABLE_SCHEMA_CONTRACTS: tuple[TableSchemaContract, ...] = (
         required_constraints=(
             _constraint("primary key on service_id endpoint_id", PRIMARY_KEY_FRAGMENT, "service_id", "endpoint_id"),
         ),
+    ),
+    TableSchemaContract(
+        table_name="synapse_service_health_runtime",
+        required_columns=frozenset({"id", "service_id", "target_url", "owner_address", "status", "overall_status", "http_status", "latency_ms", "consecutive_successes", "consecutive_failures", "probe_url", "last_checked_at", "last_healthy_at", "timeout_ms", "error_code", "offline_reason", "created_at", "updated_at"}),
+        required_indexes=frozenset({"idx_synapse_service_health_runtime_status"}),
+        required_constraints=(
+            _constraint("unique service health runtime target", "unique", "service_id", "target_url"),
+        ),
+    ),
+    TableSchemaContract(
+        table_name="synapse_service_health_events",
+        required_columns=frozenset({"id", "service_id", "target_url", "owner_address", "from_status", "to_status", "http_status", "latency_ms", "probe_url", "consecutive_successes", "consecutive_failures", "checked_at", "last_healthy_at", "error_code", "reason", "created_at"}),
+        required_indexes=frozenset({"idx_synapse_service_health_events_service_created", "idx_synapse_service_health_events_created"}),
     ),
     TableSchemaContract(
         table_name="synapse_service_search_index",

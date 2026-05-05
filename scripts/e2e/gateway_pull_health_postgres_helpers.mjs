@@ -83,20 +83,16 @@ export function createGatewayPullHealthPostgresHelpers({
     const ids = expectedServiceIds
       .map((serviceId) => `'${sqlString(serviceId)}'`)
       .join(",");
-    const metaKeys = expectedServiceIds
-      .map(
-        (serviceId) =>
-          `state_key LIKE 'service_health_meta::${sqlString(serviceId)}::%'`
-      )
-      .join(" OR ");
     const result = psqlExec(`
     UPDATE synapse_service_health_snapshots
     SET last_checked_at = NOW() - INTERVAL '10 minutes',
         updated_at = NOW() - INTERVAL '10 minutes'
     WHERE service_id IN (${ids});
 
-    DELETE FROM synapse_runtime_state
-    WHERE ${metaKeys};
+    UPDATE synapse_service_health_runtime
+    SET last_checked_at = NOW() - INTERVAL '10 minutes',
+        updated_at = NOW() - INTERVAL '10 minutes'
+    WHERE service_id IN (${ids});
   `);
     addCheck(
       "local_expired_snapshot_fixture_applied",
@@ -145,8 +141,13 @@ export function createGatewayPullHealthPostgresHelpers({
         error_code = 'DOGFOOD_LLM_UNAVAILABLE'
     WHERE service_id = '${safe}';
 
-    DELETE FROM synapse_runtime_state
-    WHERE state_key LIKE 'service_health_meta::${safe}::%';
+    UPDATE synapse_service_health_runtime
+    SET status = 'unhealthy',
+        overall_status = 'unhealthy',
+        last_checked_at = NOW() - INTERVAL '10 minutes',
+        updated_at = NOW() - INTERVAL '10 minutes',
+        error_code = 'DOGFOOD_LLM_UNAVAILABLE'
+    WHERE service_id = '${safe}';
   `);
     addCheck(
       "local_llm_unavailable_fixture_applied",
@@ -168,6 +169,14 @@ export function createGatewayPullHealthPostgresHelpers({
         success_rate_24h = 0,
         error_code = 'DOGFOOD_OFFLINE',
         last_checked_at = NOW(),
+        updated_at = NOW()
+    WHERE service_id = '${safe}';
+
+    UPDATE synapse_service_health_runtime
+    SET status = 'unhealthy',
+        overall_status = 'offline',
+        error_code = 'DOGFOOD_OFFLINE',
+        offline_reason = 'dogfood_offline_quarantine',
         updated_at = NOW()
     WHERE service_id = '${safe}';
 
