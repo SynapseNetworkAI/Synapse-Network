@@ -162,6 +162,23 @@ EOF
   exit 1
 fi
 
+if git -C "$ROOT_DIR" grep -n -E "filters\\.(DepositInfo|WithdrawInfo)|queryFilter\\([^)]*(DepositInfo|WithdrawInfo)" -- \
+  services/user-front/src \
+  ':!services/user-front/src/**/*.test.ts' \
+  ':!services/user-front/src/**/*.test.tsx' \
+  >/tmp/synapse-user-front-chain-payments-scan.txt; then
+  cat >&2 <<'EOF'
+FATAL ARCH-FRONT-PAYMENTS-001: Forbidden user-front chain event scan found for Payments/funds history.
+Why dangerous: consumer-facing balances, Payments rows, and withdrawal state must come
+from Gateway DB/API truth. Frontend chain logs are allowed only for transient wallet
+feedback, not persistent ledger rows.
+Agent fix: read Gateway deposit intents, withdrawal rows, and refund rows, then do
+display-only concat/sort in the client.
+EOF
+  cat >&2 /tmp/synapse-user-front-chain-payments-scan.txt
+  exit 1
+fi
+
 if git -C "$ROOT_DIR" grep -n -i -E "synapse_runtime_state.*LIKE|state_key[[:space:]]+LIKE" -- \
   services/gateway/src services/gateway-admin/src \
   >/tmp/synapse-runtime-state-like-warning.txt; then
