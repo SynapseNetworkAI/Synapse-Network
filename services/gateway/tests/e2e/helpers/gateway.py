@@ -1,4 +1,4 @@
-"""Gateway API helpers: balance, provider secret, deposit and service registry."""
+"""Gateway API helpers: balance, provider secret, deposit and read-only service list."""
 from __future__ import annotations
 
 import uuid
@@ -106,19 +106,6 @@ def list_provider_secrets(gateway_base: str, headers: dict) -> list[dict]:
     )
     payload = r.json()
     return payload.get("secrets", [])
-
-
-def register_service(gateway_base: str, headers: dict, payload: dict) -> dict:
-    r = httpx.post(
-        f"{gateway_base}/api/v1/services",
-        headers=headers,
-        json=payload,
-        timeout=TIMEOUT,
-    )
-    assert r.status_code in (200, 201), (
-        f"service registration failed ({r.status_code}): {r.text}"
-    )
-    return r.json()
 
 
 def list_services(gateway_base: str, headers: dict) -> list[dict]:

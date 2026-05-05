@@ -5,7 +5,7 @@ Synapse Network — E2E Full-Flow Test Script
 Phases:
   1. Consumer wallet authentication → JWT
   2. On-chain USDC mint + approve + deposit → gateway credit
-  3. Provider wallet authentication + service registration
+  3. Provider wallet authentication + Provider catalog service verification
   4. Consumer issues agent credential
   5. Invoke provider service via gateway
   6. Billing verification (consumer debit, provider earnings, audit logs)
@@ -46,13 +46,10 @@ SYNAPSECORE_ABI_PATH = Path(__file__).parent.parent / "services/user-front/src/S
 USDC_ABI_PATH = Path(__file__).parent.parent / "services/user-front/src/MockUSDCABI.json"
 
 DEPOSIT_AMOUNT_USDC = "5.0"   # mint + deposit 5 USDC to consumer
-SERVICE_PRICE_USDC = "0.01"   # price per call
+SERVICE_PRICE_USDC = "1.000000"   # price per call
 GATEWAY_E2E_SERVICE_ID = os.getenv(
-    "GATEWAY_E2E_SERVICE_ID", "svc_oss_security_healthcheck"
-).strip() or "svc_oss_security_healthcheck"
-GATEWAY_E2E_ALLOW_SERVICE_CREATION = os.getenv(
-    "GATEWAY_E2E_ALLOW_SERVICE_CREATION", ""
-).strip().lower() in {"1", "true", "yes", "on"}
+    "GATEWAY_E2E_SERVICE_ID", "svc_synapse_mock_cost_1usdc"
+).strip() or "svc_synapse_mock_cost_1usdc"
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -215,91 +212,31 @@ def register_deposit_with_gateway(consumer_token: str, consumer_addr: str, tx_ha
     
 
 
-# ─── Phase 3: Provider service registration ───────────────────────────────────
-
-def register_provider_service(provider_token: str, provider_addr: str) -> str:
-    """Register a service on the gateway. Returns service_record_id."""
-    r = api("post", "/v1/services",
-            token=provider_token,
-            headers={"X-User-Address": provider_addr},
-            json={
-                "agentToolName": f"svc_e2e_quotes_{uuid.uuid4().hex[:6]}",
-                "serviceName": "E2E Test Quotes Service",
-                "role": "Provider",
-                "status": "active",
-                "isActive": True,
-                "summary": "End-to-end test service returning famous quotes.",
-                "tags": ["e2e", "test", "quotes"],
-                "pricing": {"amount": SERVICE_PRICE_USDC, "currency": "USDC"},
-                "auth": {"type": "gateway_signed"},
-                "providerProfile": {"displayName": "E2E Test Provider"},
-                "payoutAccount": {
-                    "payoutAddress": provider_addr,
-                    "chainId": 31337,
-                    "settlementCurrency": "USDC",
-                },
-                "governance": {
-                    "termsAccepted": True,
-                    "riskAcknowledged": True,
-                },
-                "healthCheck": {
-                    "path": "/health",
-                    "method": "GET",
-                    "timeoutMs": 3000,
-                    "successCodes": [200],
-                    "healthyThreshold": 1,
-                    "unhealthyThreshold": 3,
-                },
-                "invoke": {
-                    "method": "POST",
-                    "targets": [
-                        {
-                            "url": f"{PROVIDER_BASE}/api/v1/quotes/famous",
-                            "weight": 100,
-                        }
-                    ],
-                    "timeoutMs": 10000,
-                    "request": {
-                        "contentType": "application/json",
-                        "schema": {
-                            "body": {
-                                "type": "object",
-                                "properties": {"text": {"type": "string"}},
-                            }
-                        },
-                    },
-                    "response": {"contentType": "application/json"},
-                },
-                "constraints": {
-                    "timeoutMs": 10000,
-                    "maxResponseBytes": 131072,
-                    "maxRequestBytes": 65536,
-                    "maxQps": 10,
-                },
-            })
-
-    assert r.status_code in (200, 201), f"Service registration failed ({r.status_code}): {r.text}"
-    data = r.json()
-    service_id = (
-        data.get("service_id")
-        or data.get("serviceId")
-        or data.get("service", {}).get("serviceId")
-        or data.get("service", {}).get("service_id")
-        or ""
-    )
-    assert service_id, f"No service_id in response: {data}"
-    ok(f"Service registered: {service_id}")
-    return service_id
+# ─── Phase 3: Provider catalog service verification ──────────────────────────
 
 
 def resolve_provider_service(provider_token: str, provider_addr: str) -> str:
-    """Use canonical provider services unless random service creation is explicit."""
-    if GATEWAY_E2E_ALLOW_SERVICE_CREATION:
-        return register_provider_service(provider_token, provider_addr)
+    """Use the already registered Synapse-Network-Provider catalog service."""
+    r = api("get", "/v1/services/discover",
+            token=provider_token,
+            headers={"X-User-Address": provider_addr},
+            params={"q": GATEWAY_E2E_SERVICE_ID, "limit": 10})
+    services = r.json().get("services", []) if r.status_code == 200 else []
+    found = any(
+        s.get("serviceId") == GATEWAY_E2E_SERVICE_ID
+        or s.get("service_id") == GATEWAY_E2E_SERVICE_ID
+        or s.get("agentToolName") == GATEWAY_E2E_SERVICE_ID
+        for s in services
+    )
+    if not found:
+        fail(
+            "Canonical Provider catalog service is missing. Run "
+            "Synapse-Network-Provider onboarding `ensure` for local/staging "
+            f"before this script: {GATEWAY_E2E_SERVICE_ID}"
+        )
     ok(
         "Using existing canonical provider service: "
-        f"{GATEWAY_E2E_SERVICE_ID} "
-        "(set GATEWAY_E2E_ALLOW_SERVICE_CREATION=true to register a new test service)"
+        f"{GATEWAY_E2E_SERVICE_ID}"
     )
     return GATEWAY_E2E_SERVICE_ID
 
@@ -343,7 +280,12 @@ def invoke_service(credential_token: str, service_id: str) -> Dict[str, Any]:
                 "serviceId": service_id,
                 "idempotencyKey": f"fullflow-{uuid.uuid4().hex}",
                 "costUsdc": SERVICE_PRICE_USDC,
-                "payload": {"body": {"text": "BTC market analysis"}},
+                "payload": {
+                    "body": {
+                        "message": "fullflow paid settlement",
+                        "source": "e2e-fullflow",
+                    }
+                },
                 "responseMode": "sync",
             })
     assert r.status_code == 200, f"Gateway invocation failed ({r.status_code}): {r.text[:400]}"

@@ -1,8 +1,8 @@
 """E2E service fixture policy.
 
-Ordinary E2E paths should reuse canonical provider services. Tests that verify
-provider registration may still create temporary services, but those IDs must
-match the prefixes below so local cleanup can archive them.
+Local/staging Gateway E2E must consume the Synapse-Network-Provider catalog.
+They must not create fallback providers, register temporary services, or start
+an in-process mock provider as the business service under test.
 """
 from __future__ import annotations
 
@@ -10,13 +10,19 @@ import os
 
 import httpx
 
+CANONICAL_FREE_SERVICE_ID = "svc_synapse_echo"
+CANONICAL_PAID_SERVICE_ID = "svc_synapse_mock_cost_1usdc"
+
 CANONICAL_FIXED_SERVICE_IDS = (
+    CANONICAL_FREE_SERVICE_ID,
+    CANONICAL_PAID_SERVICE_ID,
     "svc_web3_sentiment_index",
     "svc_protocol_fundamental_brief",
     "svc_oss_security_healthcheck",
 )
 CANONICAL_LLM_SERVICE_ID = "svc_deepseek_chat"
-DEFAULT_E2E_SERVICE_ID = "svc_oss_security_healthcheck"
+CANONICAL_PROVIDER_SERVICE_IDS = (*CANONICAL_FIXED_SERVICE_IDS, CANONICAL_LLM_SERVICE_ID)
+DEFAULT_E2E_SERVICE_ID = CANONICAL_PAID_SERVICE_ID
 
 TEST_SERVICE_PREFIXES = (
     "api_ref_",
@@ -43,7 +49,8 @@ def configured_e2e_service_id() -> str:
 
 
 def allow_service_creation() -> bool:
-    return env_bool("GATEWAY_E2E_ALLOW_SERVICE_CREATION", default=False)
+    """Service creation fallback is disabled for local/staging E2E."""
+    return False
 
 
 def canonical_provider_required() -> bool:
@@ -54,7 +61,7 @@ def is_test_service_id(service_id: str | None) -> bool:
     normalized = str(service_id or "").strip()
     if not normalized:
         return False
-    if normalized in (*CANONICAL_FIXED_SERVICE_IDS, CANONICAL_LLM_SERVICE_ID):
+    if normalized in CANONICAL_PROVIDER_SERVICE_IDS:
         return False
     return normalized.startswith(TEST_SERVICE_PREFIXES)
 
@@ -63,11 +70,9 @@ def canonical_missing_message(service_id: str | None = None) -> str:
     wanted = str(service_id or configured_e2e_service_id()).strip()
     return (
         f"Canonical E2E provider service {wanted!r} is not discoverable. "
-        "Ordinary E2E no longer creates random provider services by default. "
-        "Seed local canonical provider services first with "
-        "`services/gateway/examples/register_provider_shelf_services.py` or run the "
-        "gateway pull-health local fixture. Set GATEWAY_E2E_ALLOW_SERVICE_CREATION=true "
-        "only for a registration-specific fallback."
+        "Gateway local/staging E2E does not create fallback services. "
+        "Run Synapse-Network-Provider onboarding `check`/`ensure` for local or "
+        "staging, then rerun the Gateway E2E."
     )
 
 
@@ -130,6 +135,16 @@ def service_price_usdc(row: dict, default: str = "0.001") -> str:
 def canonical_invoke_payload(service_id: str | None) -> dict:
     """Return a schema-valid payload for canonical provider services."""
     normalized = str(service_id or "").strip()
+    if normalized == CANONICAL_FREE_SERVICE_ID:
+        return {
+            "message": "synapse gateway e2e smoke",
+            "source": "gateway-e2e",
+        }
+    if normalized == CANONICAL_PAID_SERVICE_ID:
+        return {
+            "message": "synapse gateway paid settlement e2e",
+            "source": "gateway-e2e",
+        }
     if normalized == "svc_oss_security_healthcheck":
         return {
             "repoUrl": "https://github.com/SynapseNetworkAI/Synapse-Network",
@@ -149,5 +164,12 @@ def canonical_invoke_payload(service_id: str | None) -> dict:
             "chain": "arbitrum",
             "peer_set": ["aave", "curve"],
             "lookback_days": 30,
+        }
+    if normalized == CANONICAL_LLM_SERVICE_ID:
+        return {
+            "messages": [
+                {"role": "user", "content": "Reply with Synapse E2E ok."}
+            ],
+            "stream": False,
         }
     return {"prompt": "e2e automated test invocation"}

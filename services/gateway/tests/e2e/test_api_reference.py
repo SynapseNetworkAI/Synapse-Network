@@ -12,7 +12,6 @@
 from __future__ import annotations
 
 import uuid
-import os
 from decimal import Decimal
 
 import httpx
@@ -26,12 +25,9 @@ from tests.e2e.conftest import (
     PROVIDER_KEY,
     RELEASE_E2E,
     revoke_stale_e2e_agent_credentials,
-    track_test_service_id,
 )
 from tests.e2e.helpers.auth import authenticate_wallet
-from tests.e2e.helpers.db import seed_service_health
 from tests.e2e.helpers.service_fixtures import (
-    allow_service_creation,
     canonical_invoke_payload,
     canonical_missing_message,
     configured_e2e_service_id,
@@ -197,7 +193,7 @@ class TestBalance:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 class TestServices:
-    """GET /api/v1/services/discover  •  POST /api/v1/services  •  GET /api/v1/services"""
+    """GET /api/v1/services/discover  •  GET /api/v1/services"""
 
     def _owner_jwt(self) -> str:
         if not STATE.get("owner_jwt"):
@@ -235,39 +231,12 @@ class TestServices:
             f"Expected 200 or 4xx, got {r.status_code}: {r.text}"
         )
 
-    def test_03_register_service(self):
-        """POST /api/v1/services → 200/201 creates service"""
-        unique = uuid.uuid4().hex[:8]
-        r = httpx.post(
-            f"{GATEWAY_BASE}/api/v1/services",
-            headers={"Authorization": f"Bearer {self._provider_jwt()}"},
-            json={
-                "serviceName": f"APIRef Test {unique}",
-                "agentToolName": f"apiref_test_{unique}",
-                "summary": "API Reference E2E test service",
-                "pricing": {"currency": "USD", "amount": "0.01"},
-                "invoke": {
-                    "method": "POST",
-                    "targets": [{"url": f"http://127.0.0.1:9099/test-{unique}", "weight": 100}],
-                    "request": {},
-                    "response": {},
-                },
-            },
-            timeout=15,
-        )
-        assert r.status_code in (200, 201), f"Expected 200/201, got {r.status_code}: {r.text}"
-        data = r.json()
-        # Extract service_id — gateway may nest it under 'service' key
-        svc_id = (
-            data.get("service_id")
-            or data.get("serviceId")
-            or (data.get("service") or {}).get("service_id")
-            or (data.get("service") or {}).get("serviceId")
-            or data.get("id")
-        )
-        if svc_id:
-            STATE["test_service_id"] = svc_id
-            track_test_service_id(svc_id)
+    def test_03_existing_provider_catalog_service_visible(self):
+        """API reference smoke uses an existing Provider catalog service."""
+        service_id = configured_e2e_service_id()
+        row = discover_service(GATEWAY_BASE, service_id, token=self._owner_jwt())
+        assert row, canonical_missing_message(service_id)
+        STATE["test_service_id"] = service_id
 
     def test_04_list_own_services(self):
         """GET /api/v1/services → 200 with list"""
@@ -288,25 +257,28 @@ class TestServices:
         )
         assert r.status_code == 200, f"Expected 200, got {r.status_code}: {r.text}"
 
-    def test_06_delete_service(self):
-        """DELETE /api/v1/services/:id → 200/204 (must deactivate first)"""
-        svc_id = STATE.get("test_service_id")
-        if not svc_id:
-            pytest.skip("No service_id from test_03, skipping delete")
-        # Gateway requires inactive state before delete — set it inactive first
-        r_update = httpx.put(
-            f"{GATEWAY_BASE}/api/v1/services/{svc_id}",
-            headers={"Authorization": f"Bearer {self._provider_jwt()}"},
-            json={"isActive": False},
-            timeout=15,
-        )
-        # 200 or 422 (partial update) both OK; proceed to delete regardless
-        r = httpx.delete(
-            f"{GATEWAY_BASE}/api/v1/services/{svc_id}",
+    def test_06_provider_catalog_service_remains_visible(self):
+        """No DELETE in local/staging E2E; assert catalog service remains listed."""
+        service_id = configured_e2e_service_id()
+        r = httpx.get(
+            f"{GATEWAY_BASE}/api/v1/services",
             headers={"Authorization": f"Bearer {self._provider_jwt()}"},
             timeout=15,
         )
-        assert r.status_code in (200, 204), f"Expected 200/204, got {r.status_code}: {r.text}"
+        assert r.status_code == 200, f"Expected 200, got {r.status_code}: {r.text}"
+        services = r.json().get("services") or r.json().get("items") or []
+        ids = {
+            str(value)
+            for row in services
+            for value in (
+                row.get("serviceId"),
+                row.get("service_id"),
+                row.get("id"),
+                row.get("agentToolName"),
+            )
+            if value
+        }
+        assert service_id in ids, canonical_missing_message(service_id)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -392,7 +364,7 @@ class TestCredentials:
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # SECTION 5 — Agent Invocations (Quote + Invoke)
-# Requires a live service — uses existing e2e-registered service if available
+# Requires a live service from the Synapse-Network-Provider catalog.
 # ═══════════════════════════════════════════════════════════════════════════════
 
 class TestInvocations:
@@ -446,83 +418,19 @@ class TestInvocations:
             return False
         return True
 
-    def _discover_service_id(self, fallback_invoke_url: str | None = None) -> str | None:
+    def _discover_service_id(self) -> str | None:
         configured = configured_e2e_service_id()
         row = discover_service(GATEWAY_BASE, configured, token=None, timeout=15)
         if row and self._is_sync_api_service(row):
             STATE["fallback_price_usdc"] = service_price_usdc(row)
             return configured
 
-        if fallback_invoke_url and allow_service_creation():
-            provider_jwt, _ = authenticate_wallet(GATEWAY_BASE, PROVIDER_KEY)
-            return self._create_release_reference_service(provider_jwt, fallback_invoke_url)
-
         STATE["canonical_missing_message"] = canonical_missing_message(configured)
         return None
 
-    def _create_release_reference_service(
-        self,
-        provider_jwt: str,
-        fallback_invoke_url: str | None = None,
-    ) -> str | None:
-        service_id = f"api_ref_{uuid.uuid4().hex[:8]}"
-        invoke_url = (
-            fallback_invoke_url
-            or os.getenv("GATEWAY_E2E_PROVIDER_INVOKE_URL")
-            or "https://postman-echo.com/post"
-        )
-        r = httpx.post(
-            f"{GATEWAY_BASE}/api/v1/services",
-            headers={"Authorization": f"Bearer {provider_jwt}"},
-            json={
-                "agentToolName": service_id,
-                "serviceName": f"API Reference E2E {service_id}",
-                "role": "Provider",
-                "status": "active",
-                "isActive": True,
-                "pricing": {"amount": "0.001", "currency": "USD"},
-                "summary": "Release E2E API reference service",
-                "tags": ["e2e", "api-reference"],
-                "auth": {"type": "gateway_signed"},
-                "invoke": {
-                    "method": "POST",
-                    "targets": [{"url": invoke_url}],
-                    "request": {"body": {"type": "object", "properties": {"prompt": {"type": "string"}}}},
-                    "response": {"body": {"type": "object", "properties": {"result": {"type": "string"}}}},
-                },
-                "healthCheck": {
-                    "path": "/health",
-                    "method": "GET",
-                    "timeoutMs": 3000,
-                    "successCodes": [200],
-                    "healthyThreshold": 1,
-                    "unhealthyThreshold": 3,
-                },
-                "payoutAccount": {
-                    "payoutAddress": Account.from_key(PROVIDER_KEY).address.lower(),
-                    "chainId": 421614,
-                    "settlementCurrency": "USDC",
-                },
-                "providerProfile": {"displayName": f"API Reference E2E {service_id}"},
-                "governance": {
-                    "termsAccepted": True,
-                    "riskAcknowledged": True,
-                    "note": "release e2e automated test",
-                },
-            },
-            timeout=20,
-        )
-        if r.status_code not in (200, 201):
-            return None
-        created = r.json().get("serviceId") or r.json().get("id") or service_id
-        track_test_service_id(created)
-        seed_service_health(created, invoke_url)
-        STATE["fallback_price_usdc"] = "0.001"
-        return created
-
-    def test_01_quote_service(self, mock_service_url):
+    def test_01_quote_service(self):
         """POST /api/v1/agent/discovery/search → 200 with live service price."""
-        svc_id = self._discover_service_id(mock_service_url)
+        svc_id = self._discover_service_id()
         if not svc_id:
             _skip_or_fail(STATE.get("canonical_missing_message") or "No live services in discover")
 
