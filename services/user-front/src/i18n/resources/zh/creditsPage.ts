@@ -6,9 +6,15 @@ const creditsPage: I18nMessages["creditsPage"] = {
   remainingBalanceLabel: "可消费 credits：",
   spendableBalanceLabel: "可消费 credits",
   pendingBalanceLabel: "同步中的 credits",
+  pendingDepositBalanceLabel: "同步中的充值 credits",
+  pendingWithdrawalBalanceLabel: "提现处理中的 credits",
   frozenBalanceLabel: "冻结 / 审核中的 credits",
   pendingBalanceHint:
     "Gateway 正在索引链上充值；如果长时间未到账，请带 txHash 联系支持。",
+  pendingDepositBalanceHint:
+    "Gateway 正在索引链上充值；如果长时间未到账，请带 txHash 联系支持。",
+  pendingWithdrawalBalanceHint:
+    "提现已锁定并等待链上完成；完成后会从 pending 中扣除。",
   frozenBalanceHint: "资金已因活跃提现、人工审核或风控规则被锁定。",
   purchaseCredits: "购买 credits",
   walletUnavailable: "钱包不可用，请重新连接后再试。",

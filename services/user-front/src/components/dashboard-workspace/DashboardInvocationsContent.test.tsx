@@ -1,14 +1,24 @@
 // @vitest-environment jsdom
 
 import { createElement } from "react";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import DashboardInvocationsContent from "@/components/dashboard-workspace/DashboardInvocationsContent";
 import { LanguageProvider } from "@/components/i18n/LanguageProvider";
 import { I18N_STORAGE_KEY } from "@/i18n/config";
 
-const { listPaginatedUsageLogsMock, openConnectModalMock, clipboardWriteTextMock } = vi.hoisted(() => ({
+const {
+  listPaginatedUsageLogsMock,
+  openConnectModalMock,
+  clipboardWriteTextMock,
+} = vi.hoisted(() => ({
   listPaginatedUsageLogsMock: vi.fn(),
   openConnectModalMock: vi.fn(),
   clipboardWriteTextMock: vi.fn(),
@@ -143,8 +153,7 @@ describe("DashboardInvocationsContent", () => {
         {
           id: "inv-runtime-principal",
           request_id: "req-public-2",
-          agent_id:
-            "agent:agent:0x82f1c188327bfc265357a85e8a6b4a34d562d6f8",
+          agent_id: "agent:agent:0x82f1c188327bfc265357a85e8a6b4a34d562d6f8",
           service_id: "svc_oss_security_healthcheck",
           status: "succeeded",
           total_charge: 0.01,
