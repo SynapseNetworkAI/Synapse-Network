@@ -2,7 +2,12 @@ import type { I18nMessages } from "@/i18n/schema";
 
 const shared: Pick<
   I18nMessages,
-  "language" | "loadingScreen" | "nav" | "sidebar" | "accountSettingsPage"
+  | "language"
+  | "loadingScreen"
+  | "copyable"
+  | "nav"
+  | "sidebar"
+  | "accountSettingsPage"
 > = {
   language: {
     en: "英文",
@@ -12,6 +17,11 @@ const shared: Pick<
     eyebrow: "Synapse Network",
     title: "智能体时代的结算基础设施",
     status: "Loading...",
+  },
+  copyable: {
+    copyValue: "复制 {{label}}",
+    copiedValue: "{{label}} 已复制",
+    copyFailed: "复制失败，请重试。",
   },
   nav: {
     apiMarketplace: "API 市场",

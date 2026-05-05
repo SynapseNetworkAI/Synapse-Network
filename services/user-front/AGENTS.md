@@ -26,6 +26,8 @@ Local execution mirror for `services/user-front/`.
 - Local and release startup must prove HTTP health after the process opens a port. A listening port alone is not a successful frontend start.
 - Keep copy, IA, and user flows aligned with canonical product docs and i18n resources.
 - Wallet and payment-related UX should hide avoidable Web3 complexity rather than exposing raw protocol mechanics.
+- Use `CopyableValue` for user-visible IDs, hashes, and wallet/address fields that users may need for support or debugging. Display short or masked values, copy the full canonical value, and do not create ad hoc clipboard buttons.
+- Ordinary consumer pages must not expose or copy internal principals such as `agent:agent:*`, counterparty labels, provider wallet addresses, or undisplayed secrets/PII.
 
 ## Commands
 
@@ -36,4 +38,6 @@ yarn test
 
 cd /Users/cliff/workspace/Synapse-Network
 npm run ci:frontend
+npm run e2e:user-front-copyable-identifiers
+npm run ci:user-front-copyable-identifiers-evidence
 ```

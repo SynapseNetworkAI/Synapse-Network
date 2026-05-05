@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { createElement } from "react";
 
 import OwnerBillingPage from "@/components/dashboard-workspace/OwnerBillingPage";
@@ -12,8 +12,20 @@ const { useFundsDataMock } = vi.hoisted(() => ({
   useFundsDataMock: vi.fn(),
 }));
 
+const { toastSuccessMock, clipboardWriteTextMock } = vi.hoisted(() => ({
+  toastSuccessMock: vi.fn(),
+  clipboardWriteTextMock: vi.fn(),
+}));
+
 vi.mock("@/hooks/useFundsData", () => ({
   useFundsData: () => useFundsDataMock(),
+}));
+
+vi.mock("react-hot-toast", () => ({
+  default: {
+    success: toastSuccessMock,
+    error: vi.fn(),
+  },
 }));
 
 describe("OwnerBillingPage", () => {
@@ -23,6 +35,11 @@ describe("OwnerBillingPage", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    Object.defineProperty(globalThis.navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: clipboardWriteTextMock },
+    });
+    clipboardWriteTextMock.mockResolvedValue(undefined);
     globalThis.localStorage.setItem(I18N_STORAGE_KEY, "en");
     useFundsDataMock.mockReturnValue({
       loading: false,
@@ -58,6 +75,21 @@ describe("OwnerBillingPage", () => {
     expect(screen.getByText("Voucher")).toBeTruthy();
     expect(screen.getByText("$5.00")).toBeTruthy();
     expect(screen.getByText("Completed")).toBeTruthy();
+  });
+
+  it("copies the full transaction id while showing the short id", async () => {
+    render(
+      createElement(LanguageProvider, null, createElement(OwnerBillingPage))
+    );
+
+    expect(screen.getByText("ab...6789")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Copy Transaction ID" }));
+
+    await waitFor(() => {
+      expect(clipboardWriteTextMock).toHaveBeenCalledWith("abc123456789");
+    });
+    expect(toastSuccessMock).toHaveBeenCalledWith("Transaction ID copied");
   });
 
   it("renders payment timestamps in fixed YYYY-MM-DD HH:mm:ss format", () => {
@@ -104,5 +136,53 @@ describe("OwnerBillingPage", () => {
     expect(screen.getByText("Pending / Syncing")).toBeTruthy();
     expect(screen.queryByText("Completed")).toBeNull();
     expect(screen.getByText("$100.00")).toBeTruthy();
+  });
+
+  it("renders pending withdrawal rows as withdrawal processing, not deposit syncing", () => {
+    useFundsDataMock.mockReturnValue({
+      loading: false,
+      records: [
+        {
+          id: "withdraw-pending-1",
+          type: "Withdraw",
+          amount: 185.99,
+          txHash: null,
+          timestamp: new Date(2026, 4, 5, 8, 9, 59).getTime(),
+          status: "PENDING",
+        },
+      ],
+    });
+
+    render(
+      createElement(LanguageProvider, null, createElement(OwnerBillingPage))
+    );
+
+    expect(screen.getByText("Withdrawal processing")).toBeTruthy();
+    expect(screen.queryByText("Pending / Syncing")).toBeNull();
+    expect(screen.getByText("$185.99")).toBeTruthy();
+  });
+
+  it("renders pending withdrawal copy in Chinese", () => {
+    globalThis.localStorage.setItem(I18N_STORAGE_KEY, "zh");
+    useFundsDataMock.mockReturnValue({
+      loading: false,
+      records: [
+        {
+          id: "withdraw-pending-cn-1",
+          type: "Withdraw",
+          amount: 185.99,
+          txHash: null,
+          timestamp: new Date(2026, 4, 5, 8, 9, 59).getTime(),
+          status: "PENDING",
+        },
+      ],
+    });
+
+    render(
+      createElement(LanguageProvider, null, createElement(OwnerBillingPage))
+    );
+
+    expect(screen.getByText("提现处理中")).toBeTruthy();
+    expect(screen.queryByText("同步中")).toBeNull();
   });
 });
