@@ -147,6 +147,45 @@ EOF
   exit 1
 fi
 
+if git -C "$ROOT_DIR" grep -n -i -E "state_key[[:space:]]+LIKE.*service_health_" -- \
+  services/gateway/src \
+  ':!services/gateway/src/storage/postgres/repositories/service_registry_health_mixin.py' \
+  >/tmp/synapse-runtime-state-health-like.txt; then
+  cat >&2 <<'EOF'
+FATAL ARCH-RUNTIME-STATE-001: Forbidden service_health runtime_state prefix scan found.
+Why dangerous: service health is a high-frequency hot path and must use
+synapse_service_health_runtime / synapse_service_health_events typed tables.
+Agent fix: move the query to typed health tables. Only the controlled legacy
+cleanup helper may reference state_key LIKE 'service_health_%'.
+EOF
+  cat >&2 /tmp/synapse-runtime-state-health-like.txt
+  exit 1
+fi
+
+if git -C "$ROOT_DIR" grep -n -E "filters\\.(DepositInfo|WithdrawInfo)|queryFilter\\([^)]*(DepositInfo|WithdrawInfo)" -- \
+  services/user-front/src \
+  ':!services/user-front/src/**/*.test.ts' \
+  ':!services/user-front/src/**/*.test.tsx' \
+  >/tmp/synapse-user-front-chain-payments-scan.txt; then
+  cat >&2 <<'EOF'
+FATAL ARCH-FRONT-PAYMENTS-001: Forbidden user-front chain event scan found for Payments/funds history.
+Why dangerous: consumer-facing balances, Payments rows, and withdrawal state must come
+from Gateway DB/API truth. Frontend chain logs are allowed only for transient wallet
+feedback, not persistent ledger rows.
+Agent fix: read Gateway deposit intents, withdrawal rows, and refund rows, then do
+display-only concat/sort in the client.
+EOF
+  cat >&2 /tmp/synapse-user-front-chain-payments-scan.txt
+  exit 1
+fi
+
+if git -C "$ROOT_DIR" grep -n -i -E "synapse_runtime_state.*LIKE|state_key[[:space:]]+LIKE" -- \
+  services/gateway/src services/gateway-admin/src \
+  >/tmp/synapse-runtime-state-like-warning.txt; then
+  echo "[architecture-quality] WARNING: runtime_state LIKE usage found; allowed only for cleanup/compat paths." >&2
+  cat >&2 /tmp/synapse-runtime-state-like-warning.txt
+fi
+
 if [[ ${#QUALITY_FILES[@]} -gt 1 ]]; then
   echo "[architecture-quality] running JSCPD on ${#QUALITY_FILES[@]} changed code file(s)"
   "${JSCPD_CMD[@]}" --config "$ROOT_DIR/.jscpd.json" "${QUALITY_FILES[@]}" || {

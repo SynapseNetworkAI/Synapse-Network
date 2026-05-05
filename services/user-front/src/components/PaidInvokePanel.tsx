@@ -7,6 +7,7 @@ import { invokePaidService } from "@/utils/invokePaidService";
 import { payForServiceWithApproval } from "@/utils/payForService";
 import { getCredentialForService } from "@/utils/agentCredentialStore";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
+import CopyableValue from "@/components/xui/CopyableValue";
 
 type PaidInvokePanelProps = {
   providerAddress: string;
@@ -121,8 +122,8 @@ function usePaidInvokeAction({
       });
       toast.success(copy.completed);
     } catch (error) {
-      const message = error instanceof Error ? error.message : copy.failed;
-      toast.error(message);
+      console.error("Paid invoke failed:", error);
+      toast.error(copy.failed);
     } finally {
       setIsInvoking(false);
     }
@@ -141,7 +142,13 @@ function InvokeResultDetails({
   return (
     <div className="p-3 text-xs border border-gray-800 rounded-lg bg-gray-950">
       <div className="text-gray-500">{copy.txHash}</div>
-      <div className="font-mono text-green-300 break-all">{txHash}</div>
+      <CopyableValue
+        value={txHash}
+        label={copy.txHash}
+        valueClassName="break-all font-mono text-green-300"
+        startChars={10}
+        endChars={8}
+      />
       <div className="mt-2 text-gray-500">{copy.attempts}</div>
       <div className="font-mono text-green-300">{attempts}</div>
     </div>

@@ -221,9 +221,11 @@ const agentsPage: I18nMessages["agentsPage"] = {
     "在这里管理这个运行时的 API key、限额和认证凭据。",
   workspaceCloseDetail: "关闭 Agent 详情",
   workspaceCopyAgentId: "复制 Agent ID",
+  workspaceAgentIdLabel: "Agent ID",
   workspaceCredentialPanelTitle: "Agent 凭据",
   workspaceCredentialPanelDescription:
     "需要时可以直接轮换运行时密钥。完整 token 只会在签发或重新生成后显示一次。",
+  workspaceCredentialValueLabel: "凭据",
   workspaceCredentialPrefixLabel: "凭据前缀",
   workspaceQuotaPanelTitle: "运行时限额",
   workspaceQuotaPanelDescription:

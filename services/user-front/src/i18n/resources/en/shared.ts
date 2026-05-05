@@ -2,7 +2,12 @@ import type { I18nMessages } from "@/i18n/schema";
 
 const shared: Pick<
   I18nMessages,
-  "language" | "loadingScreen" | "nav" | "sidebar" | "accountSettingsPage"
+  | "language"
+  | "loadingScreen"
+  | "copyable"
+  | "nav"
+  | "sidebar"
+  | "accountSettingsPage"
 > = {
   language: {
     en: "English",
@@ -12,6 +17,11 @@ const shared: Pick<
     eyebrow: "Synapse Network",
     title: "Settlement Infrastructure for the Agentic Era.",
     status: "Loading...",
+  },
+  copyable: {
+    copyValue: "Copy {{label}}",
+    copiedValue: "{{label}} copied",
+    copyFailed: "Copy failed. Please try again.",
   },
   nav: {
     apiMarketplace: "API Marketplace",

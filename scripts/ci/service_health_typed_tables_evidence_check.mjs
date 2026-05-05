@@ -112,7 +112,7 @@ function measurementByName(sqlTiming) {
   );
 }
 
-function assertSqlMeasurementPassed(byName, name) {
+function requireSqlMeasurement(byName, name) {
   const item = byName.get(name);
   if (!item || Number(item.status) !== 0) {
     fatal(
@@ -122,9 +122,13 @@ function assertSqlMeasurementPassed(byName, name) {
       "rerun the E2E with a reachable Postgres DSN and valid typed health schema."
     );
   }
+  return item;
 }
 
-function assertTypedRuntimeRows(typed) {
+function validateTypedRuntimeTiming(legacy, typed) {
+  const legacyRows = Number(legacy.rowCount || 0);
+  const typedDuration = Number(typed.durationMs || 0);
+  const legacyDuration = Number(legacy.durationMs || 0);
   if (Number(typed.rowCount || 0) <= 0) {
     fatal(
       "SERVICE-HEALTH-TYPED-RUNTIME-EMPTY",
@@ -133,15 +137,8 @@ function assertTypedRuntimeRows(typed) {
       "run health refresh or fix typed runtime upsert before comparing performance."
     );
   }
-}
-
-function assertTypedRuntimePerformance({ legacy, typed }) {
-  const legacyRows = Number(legacy.rowCount || 0);
-  const typedDuration = Number(typed.durationMs || 0);
-  const legacyDuration = Number(legacy.durationMs || 0);
   const typedWithinBudget =
     typedDuration <= 100 || typedDuration <= legacyDuration * 0.5;
-
   if (legacyRows > 0 && !typedWithinBudget) {
     fatal(
       "SERVICE-HEALTH-TYPED-PERF-REGRESSION",
@@ -159,12 +156,12 @@ function validateSqlTiming(sqlTiming) {
     "typed_runtime",
     "typed_events_recent",
   ]) {
-    assertSqlMeasurementPassed(byName, name);
+    requireSqlMeasurement(byName, name);
   }
-  const legacy = byName.get("legacy_kv_baseline") || {};
-  const typed = byName.get("typed_runtime") || {};
-  assertTypedRuntimeRows(typed);
-  assertTypedRuntimePerformance({ legacy, typed });
+  validateTypedRuntimeTiming(
+    byName.get("legacy_kv_baseline"),
+    byName.get("typed_runtime")
+  );
 }
 
 function validateDbEvidence(db) {

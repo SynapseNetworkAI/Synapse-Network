@@ -4,6 +4,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { LanguageProvider } from "@/components/i18n/LanguageProvider";
 import DepositUsdcModal from "@/components/dashboard/shared/DepositUsdcModal";
 
 function renderModal(
@@ -13,26 +14,28 @@ function renderModal(
   const onClose = vi.fn();
   const onConfirm = vi.fn();
   render(
-    <DepositUsdcModal
-      isOpen
-      amount="20"
-      onAmountChange={onAmountChange}
-      error=""
-      step="input"
-      isPending={false}
-      isConfirming={false}
-      walletAddress="0x82f1c188327bfc265357a85e8a6b4a34d562d6f8"
-      vaultAddress="0xef7102f484b3b06854e2545457d39e7170510512"
-      walletUsdcBalance={800}
-      nativeGasBalance={0.25}
-      nativeGasSymbol="ETH"
-      networkLabel="Chain 421614"
-      canSubmit
-      shortAddress={(value?: string) => value?.slice(0, 6) ?? "-"}
-      onClose={onClose}
-      onConfirm={onConfirm}
-      {...overrides}
-    />
+    <LanguageProvider>
+      <DepositUsdcModal
+        isOpen
+        amount="20"
+        onAmountChange={onAmountChange}
+        error=""
+        step="input"
+        isPending={false}
+        isConfirming={false}
+        walletAddress="0x82f1c188327bfc265357a85e8a6b4a34d562d6f8"
+        vaultAddress="0xef7102f484b3b06854e2545457d39e7170510512"
+        walletUsdcBalance={800}
+        nativeGasBalance={0.25}
+        nativeGasSymbol="ETH"
+        networkLabel="Chain 421614"
+        canSubmit
+        shortAddress={(value?: string) => value?.slice(0, 6) ?? "-"}
+        onClose={onClose}
+        onConfirm={onConfirm}
+        {...overrides}
+      />
+    </LanguageProvider>
   );
   return { onAmountChange, onClose, onConfirm };
 }

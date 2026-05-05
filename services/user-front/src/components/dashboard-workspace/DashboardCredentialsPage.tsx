@@ -9,7 +9,6 @@ import {
   Search,
   Filter,
   KeyRound,
-  Copy,
   Check,
   Clock,
   Zap,
@@ -28,6 +27,7 @@ import {
 import { setCredentialForService } from "@/utils/agentCredentialStore";
 import { clearAuthSession } from "@/utils/authSession";
 import XSelect from "@/components/xui/XSelect";
+import CopyableValue from "@/components/xui/CopyableValue";
 
 import { useAuth } from "@/components/WalletAuthGuard";
 import AuthMask from "@/components/AuthMask";
@@ -76,7 +76,6 @@ function CredentialsContent() {
   const billingRows = useMemo<
     { timestamp?: number; owner?: string; unit_price?: number }[]
   >(() => [], []);
-  const [copiedToken, setCopiedToken] = useState(false);
 
   const loadAll = useCallback(async () => {
     if (!isSessionAuthenticated || !userAddress) {
@@ -101,11 +100,10 @@ function CredentialsContent() {
       );
       setCredentials(credentialRows);
     } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : t("agentCredentialsPage.loadFailed");
-      if (message === WALLET_SESSION_MISSING_MESSAGE) {
+      if (
+        error instanceof Error &&
+        error.message === WALLET_SESSION_MISSING_MESSAGE
+      ) {
         clearAuthSession();
         setServices([]);
         setCredentials([]);
@@ -113,7 +111,7 @@ function CredentialsContent() {
       }
       throw error;
     }
-  }, [t, userAddress, isSessionAuthenticated]);
+  }, [userAddress, isSessionAuthenticated]);
 
   useEffect(() => {
     void loadAll();
@@ -652,21 +650,14 @@ function CredentialsContent() {
                       value={latestIssued.token}
                       className="x-input-flat w-full rounded-lg px-3 py-2.5 text-sm font-mono text-gray-300 outline-none selection:bg-gray-800"
                     />
-                    <button
-                      onClick={() => {
-                        navigator.clipboard.writeText(latestIssued.token);
-                        setCopiedToken(true);
-                        setTimeout(() => setCopiedToken(false), 2000);
-                      }}
-                      className="x-icon-button rounded-lg p-2.5 text-gray-300"
-                      aria-label={t("agentCredentialsPage.copySecretApiKey")}
-                    >
-                      {copiedToken ? (
-                        <Check className="w-4 h-4 text-green-400" />
-                      ) : (
-                        <Copy className="w-4 h-4" />
-                      )}
-                    </button>
+                    <CopyableValue
+                      value={latestIssued.token}
+                      displayValue=""
+                      label={t("agentCredentialsPage.secretApiKey")}
+                      className="gap-0"
+                      valueClassName="sr-only"
+                      buttonClassName="x-icon-button rounded-lg p-2.5 text-gray-300"
+                    />
                   </div>
                 </div>
 

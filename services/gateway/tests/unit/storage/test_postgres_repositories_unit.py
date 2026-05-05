@@ -1096,6 +1096,9 @@ def test_gateway_state_repository_read_and_write() -> None:
     assert len(usage_rows) == 1 and usage_rows[0].id == "usage-1"
     assert usage_rows[0].agent_id == "agent-1"
     assert usage_rows[0].latency_ms == 2000
+    usage_sql = "\n".join(sql for sql, _ in db.readonly_cursors[-1].executed)
+    assert "LEFT JOIN synapse_invocation_billing billing" in usage_sql
+    assert "COALESCE(billing.payload, rs.payload)" in usage_sql
     assert repo.read_processed_deposit_event_keys() == ["ek-1"]
 
 
@@ -1267,6 +1270,7 @@ def test_gateway_state_repository_write_paths() -> None:
     assert "vault_withdrawal_meta::wd-2" in str([params for cur in db.tx_cursors for _, params in cur.executed if params is not None])
     assert "MANUAL_REVIEW" in str([params for cur in db.tx_cursors for _, params in cur.executed if params is not None])
     assert "sig-wd-2" in str([params for cur in db.tx_cursors for _, params in cur.executed if params is not None])
+    assert "INSERT INTO synapse_invocation_billing" in tx_sql
     assert "invocation_billing::usage-2" in str([params for cur in db.tx_cursors for _, params in cur.executed if params is not None])
     assert "agent-2" in str([params for cur in db.tx_cursors for _, params in cur.executed if params is not None])
     assert "875" in str([params for cur in db.tx_cursors for _, params in cur.executed if params is not None])
@@ -1734,6 +1738,7 @@ def test_finance_atomic_repository_processes_typed_charge_command() -> None:
     assert result.consumer_available_balance_after == Decimal("8.890000")
     executed_sql = "\n".join(sql for sql, _ in db.connections[0].cursor_obj.executed)
     assert "INSERT INTO synapse_ledger_entries" in executed_sql
+    assert "INSERT INTO synapse_invocation_billing" in executed_sql
     assert "INSERT INTO synapse_runtime_state" in executed_sql
     assert "UPSERT" in executed_sql
 
@@ -1791,6 +1796,7 @@ def test_finance_atomic_repository_settles_llm_hold_and_releases_unused_balance(
     assert db.connections[0].commits == 1
     executed_sql = "\n".join(sql for sql, _ in db.connections[0].cursor_obj.executed)
     assert "INSERT INTO synapse_ledger_entries" in executed_sql
+    assert "INSERT INTO synapse_invocation_billing" in executed_sql
     assert "INSERT INTO synapse_runtime_state" in executed_sql
     assert "INSERT INTO synapse_audit_events" in executed_sql
     assert "SAVEPOINT llm_credential_usage_increment" in executed_sql

@@ -13,14 +13,28 @@ import { renderWithLanguage } from "@/test/renderWithLanguage";
 const {
   authorizeMock,
   getOwnerSpendingLimitMock,
+  listConsumerWithdrawalsMock,
   redeemCreditVoucherMock,
+  ownerStatsState,
   handleRefreshMock,
   openConnectModalMock,
   toastSuccessMock,
 } = vi.hoisted(() => ({
   authorizeMock: vi.fn(async () => true),
   getOwnerSpendingLimitMock: vi.fn(),
+  listConsumerWithdrawalsMock: vi.fn(),
   redeemCreditVoucherMock: vi.fn(),
+  ownerStatsState: {
+    value: {
+      ownerBalance: "20",
+      consumerAvailableBalance: "20",
+      consumerWithdrawableBalance: "7.50",
+      consumerPendingBalance: "12.50",
+      consumerFrozenBalance: "3.25",
+      consumerWithdrawMinUsdc: "10.00",
+      consumerWithdrawMaturitySeconds: 604800,
+    },
+  },
   handleRefreshMock: vi.fn(),
   openConnectModalMock: vi.fn(),
   toastSuccessMock: vi.fn(),
@@ -55,16 +69,9 @@ vi.mock("@/components/WalletAuthGuard", () => ({
 
 vi.mock("@/hooks/useOwnerData", () => ({
   useOwnerData: () => ({
-    stats: {
-      ownerBalance: "20",
-      consumerAvailableBalance: "20",
-      consumerWithdrawableBalance: "7.50",
-      consumerPendingBalance: "12.50",
-      consumerFrozenBalance: "3.25",
-      consumerWithdrawMinUsdc: "10.00",
-      consumerWithdrawMaturitySeconds: 604800,
-    },
+    stats: ownerStatsState.value,
     handleRefresh: handleRefreshMock,
+    isBootstrapping: false,
   }),
 }));
 
@@ -100,6 +107,7 @@ vi.mock("@/utils/balanceApi", async () => {
   return {
     ...actual,
     getOwnerSpendingLimit: getOwnerSpendingLimitMock,
+    listConsumerWithdrawals: listConsumerWithdrawalsMock,
     redeemCreditVoucher: redeemCreditVoucherMock,
   };
 });
@@ -115,6 +123,16 @@ describe("OwnerCreditsPage", () => {
     delete process.env.NEXT_PUBLIC_SUPPORT_EMAIL;
     delete process.env.NEXT_PUBLIC_SUPPORT_PORTAL_URL;
     globalThis.localStorage.setItem(I18N_STORAGE_KEY, "en");
+    ownerStatsState.value = {
+      ownerBalance: "20",
+      consumerAvailableBalance: "20",
+      consumerWithdrawableBalance: "7.50",
+      consumerPendingBalance: "12.50",
+      consumerFrozenBalance: "3.25",
+      consumerWithdrawMinUsdc: "10.00",
+      consumerWithdrawMaturitySeconds: 604800,
+    };
+    listConsumerWithdrawalsMock.mockResolvedValue([]);
     getOwnerSpendingLimitMock.mockResolvedValue({
       ownerAddress: "0xabc",
       spendingLimitUsdc: null,
@@ -244,5 +262,81 @@ describe("OwnerCreditsPage", () => {
     expect(screen.getByText("免费 Credits Voucher")).toBeTruthy();
     expect(screen.getByText(/平台可能会向开发者发放免费 credits/)).toBeTruthy();
     expect(screen.queryByText(/X may give out free credits/)).toBeNull();
+  });
+
+  it("labels a pending withdrawal separately from a pending deposit", async () => {
+    ownerStatsState.value = {
+      ownerBalance: "0",
+      consumerPendingBalance: "185.99",
+      consumerFrozenBalance: "0",
+    };
+    listConsumerWithdrawalsMock.mockResolvedValue([
+      {
+        id: "cw-1",
+        amountUsdc: "185.99",
+        status: "REQUESTED",
+      },
+    ]);
+
+    render(
+      createElement(LanguageProvider, null, createElement(OwnerCreditsPage))
+    );
+
+    expect(
+      await screen.findByText("Withdrawal processing credits")
+    ).toBeTruthy();
+    expect(screen.getByText("$185.99")).toBeTruthy();
+    expect(screen.queryByText("Pending deposit credits")).toBeNull();
+    expect(
+      screen.queryByText(/Gateway is indexing the on-chain deposit/i)
+    ).toBeNull();
+  });
+
+  it("splits mixed pending balance between deposit sync and withdrawal processing", async () => {
+    ownerStatsState.value = {
+      ownerBalance: "2",
+      consumerPendingBalance: "20",
+      consumerFrozenBalance: "0",
+    };
+    listConsumerWithdrawalsMock.mockResolvedValue([
+      {
+        id: "cw-1",
+        amountUsdc: "8.50",
+        status: "TICKET_READY",
+      },
+    ]);
+
+    render(
+      createElement(LanguageProvider, null, createElement(OwnerCreditsPage))
+    );
+
+    expect(await screen.findByText("Pending deposit credits")).toBeTruthy();
+    expect(screen.getByText("$11.50")).toBeTruthy();
+    expect(screen.getByText("Withdrawal processing credits")).toBeTruthy();
+    expect(screen.getByText("$8.50")).toBeTruthy();
+  });
+
+  it("keeps manual review withdrawal funds in the frozen bucket", async () => {
+    ownerStatsState.value = {
+      ownerBalance: "2",
+      consumerPendingBalance: "0",
+      consumerFrozenBalance: "12.50",
+    };
+    listConsumerWithdrawalsMock.mockResolvedValue([
+      {
+        id: "cw-1",
+        amountUsdc: "12.50",
+        status: "PENDING_MANUAL_REVIEW",
+      },
+    ]);
+
+    render(
+      createElement(LanguageProvider, null, createElement(OwnerCreditsPage))
+    );
+
+    expect(await screen.findByText("Frozen / review credits")).toBeTruthy();
+    expect(screen.getByText("$12.50")).toBeTruthy();
+    expect(screen.queryByText("Withdrawal processing credits")).toBeNull();
+    expect(screen.queryByText("Pending deposit credits")).toBeNull();
   });
 });

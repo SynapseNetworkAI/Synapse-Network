@@ -48,7 +48,12 @@ export default function NotificationCenter() {
   const panelRef = useRef<HTMLDivElement | null>(null);
 
   const loadUnreadCount = useCallback(async () => {
-    if (!address || !isConnected || document.visibilityState !== "visible" || !navigator.onLine) {
+    if (
+      !address ||
+      !isConnected ||
+      document.visibilityState !== "visible" ||
+      !navigator.onLine
+    ) {
       return;
     }
     try {
@@ -56,7 +61,8 @@ export default function NotificationCenter() {
       setUnreadCount(nextCount);
       setError("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("nav.notificationLoadFailed"));
+      console.error("Failed to fetch unread notifications:", err);
+      setError(t("nav.notificationLoadFailed"));
     }
   }, [address, isConnected, t]);
 
@@ -68,10 +74,13 @@ export default function NotificationCenter() {
     try {
       const result = await fetchNotifications(address, { limit: 20 });
       setNotifications(result.notifications);
-      setUnreadCount(result.notifications.filter((item) => !item.readAt).length);
+      setUnreadCount(
+        result.notifications.filter((item) => !item.readAt).length
+      );
       setError("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("nav.notificationLoadFailed"));
+      console.error("Failed to fetch notifications:", err);
+      setError(t("nav.notificationLoadFailed"));
     } finally {
       setLoading(false);
     }
@@ -108,7 +117,10 @@ export default function NotificationCenter() {
   useEffect(() => {
     if (!open) return;
     const onPointerDown = (event: PointerEvent) => {
-      if (panelRef.current && !panelRef.current.contains(event.target as Node)) {
+      if (
+        panelRef.current &&
+        !panelRef.current.contains(event.target as Node)
+      ) {
         setOpen(false);
       }
     };
@@ -120,7 +132,10 @@ export default function NotificationCenter() {
     if (!address) return;
     await markAllNotificationsRead(address);
     setNotifications((current) =>
-      current.map((item) => ({ ...item, readAt: item.readAt || new Date().toISOString() })),
+      current.map((item) => ({
+        ...item,
+        readAt: item.readAt || new Date().toISOString(),
+      }))
     );
     setUnreadCount(0);
   };
@@ -132,8 +147,8 @@ export default function NotificationCenter() {
       current.map((item) =>
         item.notificationId === notification.notificationId
           ? { ...item, readAt: new Date().toISOString() }
-          : item,
-      ),
+          : item
+      )
     );
     setUnreadCount((count) => Math.max(0, count - 1));
   };
@@ -142,7 +157,9 @@ export default function NotificationCenter() {
     if (!address) return;
     await archiveNotification(address, notification.notificationId);
     setNotifications((current) =>
-      current.filter((item) => item.notificationId !== notification.notificationId),
+      current.filter(
+        (item) => item.notificationId !== notification.notificationId
+      )
     );
     if (!notification.readAt) {
       setUnreadCount((count) => Math.max(0, count - 1));
@@ -169,8 +186,12 @@ export default function NotificationCenter() {
         <div className="absolute right-0 top-9 z-[70] w-[min(92vw,380px)] overflow-hidden rounded-[22px] border border-[#2f3336] bg-[#050505] shadow-[0_28px_90px_rgba(0,0,0,0.56)]">
           <div className="flex items-center justify-between border-b border-[#1d1f22] px-4 py-3">
             <div>
-              <p className="text-sm font-semibold text-[#e7e9ea]">{t("nav.notifications")}</p>
-              <p className="text-xs text-[#71767b]">{t("nav.notificationSubtitle")}</p>
+              <p className="text-sm font-semibold text-[#e7e9ea]">
+                {t("nav.notifications")}
+              </p>
+              <p className="text-xs text-[#71767b]">
+                {t("nav.notificationSubtitle")}
+              </p>
             </div>
             <button
               type="button"
@@ -184,13 +205,17 @@ export default function NotificationCenter() {
 
           <div className="max-h-[420px] overflow-y-auto p-2">
             {loading ? (
-              <p className="px-3 py-8 text-center text-sm text-[#71767b]">{t("nav.notificationsLoading")}</p>
+              <p className="px-3 py-8 text-center text-sm text-[#71767b]">
+                {t("nav.notificationsLoading")}
+              </p>
             ) : error ? (
               <p className="rounded-2xl border border-red-500/20 bg-red-500/[0.06] px-3 py-3 text-sm text-red-100">
                 {error}
               </p>
             ) : notifications.length === 0 ? (
-              <p className="px-3 py-8 text-center text-sm text-[#71767b]">{t("nav.notificationsEmpty")}</p>
+              <p className="px-3 py-8 text-center text-sm text-[#71767b]">
+                {t("nav.notificationsEmpty")}
+              </p>
             ) : (
               <div className="space-y-2">
                 {notifications.map((notification) => (
@@ -199,12 +224,16 @@ export default function NotificationCenter() {
                     className={[
                       "rounded-[18px] border p-3",
                       severityClasses[notification.severity],
-                      notification.readAt ? "opacity-70" : "shadow-[0_0_0_1px_rgba(127,247,190,0.08)]",
+                      notification.readAt
+                        ? "opacity-70"
+                        : "shadow-[0_0_0_1px_rgba(127,247,190,0.08)]",
                     ].join(" ")}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold">{notification.title}</p>
+                        <p className="truncate text-sm font-semibold">
+                          {notification.title}
+                        </p>
                         <p className="mt-1 max-h-10 overflow-hidden text-xs leading-5 text-[#a5a8ad]">
                           {notification.body}
                         </p>

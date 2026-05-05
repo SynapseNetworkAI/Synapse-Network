@@ -15,6 +15,7 @@ import { useConnectModal } from "@rainbow-me/rainbowkit";
 import toast from "react-hot-toast";
 import Link from "next/link";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
+import CopyableValue from "@/components/xui/CopyableValue";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import SynapseCoreABI from "@/SynapseCoreABI.json";
 import contractConfig from "@/contract-config.json";
@@ -990,7 +991,13 @@ export default function ProviderWithdrawPage() {
                   className="hover:bg-[#111111] transition-colors"
                 >
                   <td className="py-4 px-6 text-xs font-mono text-[#86868b]">
-                    {row.id}
+                    <CopyableValue
+                      value={row.id}
+                      label={t("providerSettlements.historyTableWithdrawalId")}
+                      valueClassName="font-mono text-xs text-[#86868b]"
+                      startChars={14}
+                      endChars={8}
+                    />
                   </td>
                   <td className="px-6 py-4 font-mono text-sm text-right text-white">
                     {formatMoneyString(row.amountUsdc, 6)} USDC
@@ -1012,13 +1019,23 @@ export default function ProviderWithdrawPage() {
                         : "-")}
                   </td>
                   <td className="py-4 px-6 text-xs font-mono text-[#c5c5c7]">
-                    {row.nonce}
+                    <CopyableValue
+                      value={row.nonce ? String(row.nonce) : ""}
+                      label={t("providerSettlements.historyTableNonce")}
+                      valueClassName="font-mono text-xs text-[#c5c5c7]"
+                    />
                   </td>
                   <td className="py-4 px-6 text-xs text-[#86868b]">
                     {formatTimestamp(row.createdAt, locale)}
                   </td>
                   <td className="py-4 px-6 text-xs font-mono text-[#86868b]">
-                    {row.txHash || "-"}
+                    <CopyableValue
+                      value={row.txHash}
+                      label={t("providerSettlements.historyTableTxHash")}
+                      valueClassName="font-mono text-xs text-[#86868b]"
+                      startChars={10}
+                      endChars={8}
+                    />
                   </td>
                 </tr>
               ))}

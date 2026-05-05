@@ -137,11 +137,20 @@ function sanitize(value) {
   if (Array.isArray(value)) return value.map(sanitize);
   if (value && typeof value === "object") {
     return Object.fromEntries(
-      Object.entries(value).map(([key, next]) => [key, sanitize(next)])
+      Object.entries(value).map(([key, next]) => [
+        key,
+        isSensitiveKey(key) ? "[REDACTED]" : sanitize(next),
+      ])
     );
   }
   if (typeof value === "string") return redact(value);
   return value;
+}
+
+function isSensitiveKey(key) {
+  return /^(?:privateKey|rawSignature|jwt|adminToken|accessToken|apiKey|secret|password|token)$/i.test(
+    String(key || "")
+  );
 }
 
 function sha256File(filePath) {

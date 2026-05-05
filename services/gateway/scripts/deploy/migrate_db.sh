@@ -229,7 +229,14 @@ case "${ENVIRONMENT}" in
 esac
 
 require_cmd psql
-PYTHON_BIN="${GATEWAY_PYTHON:-python3}"
+DEFAULT_GATEWAY_PYTHON="${SERVICE_ROOT}/.venv/bin/python"
+if [[ -n "${GATEWAY_PYTHON:-}" ]]; then
+  PYTHON_BIN="${GATEWAY_PYTHON}"
+elif [[ -x "${DEFAULT_GATEWAY_PYTHON}" ]]; then
+  PYTHON_BIN="${DEFAULT_GATEWAY_PYTHON}"
+else
+  PYTHON_BIN="python3"
+fi
 require_cmd "${PYTHON_BIN}"
 
 echo "[migrate-db] environment=${ENVIRONMENT}"

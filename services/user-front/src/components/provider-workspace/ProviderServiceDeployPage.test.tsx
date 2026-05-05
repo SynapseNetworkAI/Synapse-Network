@@ -41,8 +41,14 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("next/link", () => ({
-  default: ({ children, href, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) => (
-    <a href={href} {...props}>{children}</a>
+  default: ({
+    children,
+    href,
+    ...props
+  }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) => (
+    <a href={href} {...props}>
+      {children}
+    </a>
   ),
 }));
 
@@ -62,16 +68,25 @@ vi.mock("@/components/xui/XSelect", () => ({
     options: Array<{ value: string; label: string }>;
     id?: string;
   }) => (
-    <select id={id} aria-label={id || "select"} value={value} onChange={(event) => onChange(event.target.value)}>
+    <select
+      id={id}
+      aria-label={id || "select"}
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+    >
       {options.map((option) => (
-        <option key={option.value} value={option.value}>{option.label}</option>
+        <option key={option.value} value={option.value}>
+          {option.label}
+        </option>
       ))}
     </select>
   ),
 }));
 
 vi.mock("@/utils/serviceApi", async () => {
-  const actual = await vi.importActual<typeof import("@/utils/serviceApi")>("@/utils/serviceApi");
+  const actual = await vi.importActual<typeof import("@/utils/serviceApi")>(
+    "@/utils/serviceApi"
+  );
   return {
     ...actual,
     createServiceRegistry: createServiceRegistryMock,
@@ -83,8 +98,24 @@ describe("ProviderServiceDeployPage", () => {
     render(
       <LanguageProvider>
         <ProviderServiceDeployPage />
-      </LanguageProvider>,
+      </LanguageProvider>
     );
+
+  const fillMinimumServiceDefinition = async (
+    user: ReturnType<typeof userEvent.setup>
+  ) => {
+    await user.type(screen.getByLabelText("Service Name"), "SEA Invoice OCR");
+    await user.type(
+      screen.getByLabelText("Primary Endpoint URL"),
+      "https://provider.example.com/invoke"
+    );
+    await user.clear(screen.getByLabelText("Base Price USDC"));
+    await user.type(screen.getByLabelText("Base Price USDC"), "0.008");
+    await user.type(
+      screen.getByLabelText("Description for Model"),
+      "Extract structured invoice fields from Southeast Asia invoice images."
+    );
+  };
 
   beforeEach(() => {
     cleanup();
@@ -115,10 +146,14 @@ describe("ProviderServiceDeployPage", () => {
     await user.type(screen.getByLabelText("Service Name"), "SEA Invoice OCR");
 
     await waitFor(() => {
-      expect((screen.getByLabelText("Service ID") as HTMLInputElement).value).toBe("sea_invoice_ocr");
+      expect(
+        (screen.getByLabelText("Service ID") as HTMLInputElement).value
+      ).toBe("sea_invoice_ocr");
     });
 
-    await user.click(screen.getByRole("button", { name: "Show Advanced Overrides" }));
+    await user.click(
+      screen.getByRole("button", { name: "Show Advanced Overrides" })
+    );
     expect(screen.getByLabelText("Auth Mode")).toBeTruthy();
   });
 
@@ -127,16 +162,11 @@ describe("ProviderServiceDeployPage", () => {
 
     renderPage();
 
-    await user.type(screen.getByLabelText("Service Name"), "SEA Invoice OCR");
-    await user.type(screen.getByLabelText("Primary Endpoint URL"), "https://provider.example.com/invoke");
-    await user.clear(screen.getByLabelText("Base Price USDC"));
-    await user.type(screen.getByLabelText("Base Price USDC"), "0.008");
-    await user.type(
-      screen.getByLabelText("Description for Model"),
-      "Extract structured invoice fields from Southeast Asia invoice images.",
-    );
+    await fillMinimumServiceDefinition(user);
 
-    const submitButton = screen.getByRole("button", { name: "CREATE API SERVICE" });
+    const submitButton = screen.getByRole("button", {
+      name: "CREATE API SERVICE",
+    });
     await waitFor(() => {
       expect((submitButton as HTMLButtonElement).disabled).toBe(false);
     });
@@ -177,10 +207,40 @@ describe("ProviderServiceDeployPage", () => {
           ],
         }),
       }),
-      "0xabc",
+      "0xabc"
     );
     expect(routerReplaceMock).toHaveBeenCalledWith("/provider/services");
     expect(toastSuccess).toHaveBeenCalledWith("API service submitted.");
+  });
+
+  it("shows localized fallback when service deploy returns raw backend errors", async () => {
+    const user = userEvent.setup();
+    createServiceRegistryMock.mockRejectedValue(
+      new Error(
+        "503: {'code': 'SERVICE_REGISTRATION_INVALID', 'message': 'HTTPException'}"
+      )
+    );
+
+    renderPage();
+
+    await fillMinimumServiceDefinition(user);
+    const submitButton = screen.getByRole("button", {
+      name: "CREATE API SERVICE",
+    });
+    await waitFor(() => {
+      expect((submitButton as HTMLButtonElement).disabled).toBe(false);
+    });
+    await user.click(submitButton);
+
+    await waitFor(() => {
+      expect(toastError).toHaveBeenCalledWith("Failed to create service.");
+    });
+    expect(toastError).not.toHaveBeenCalledWith(
+      expect.stringContaining("503:")
+    );
+    expect(toastError).not.toHaveBeenCalledWith(
+      expect.stringContaining("HTTPException")
+    );
   });
 
   it("renders localized Chinese copy when language is switched to zh", async () => {
@@ -202,6 +262,8 @@ describe("ProviderServiceDeployPage", () => {
 
     expect(screen.getByText("Need help publishing this service?")).toBeTruthy();
     const supportLink = screen.getByRole("link", { name: "Contact Support" });
-    expect(supportLink.getAttribute("href")).toContain("mailto:support@synapse.test");
+    expect(supportLink.getAttribute("href")).toContain(
+      "mailto:support@synapse.test"
+    );
   });
 });

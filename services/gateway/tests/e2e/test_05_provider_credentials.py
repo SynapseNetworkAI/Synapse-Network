@@ -1,4 +1,4 @@
-"""Step 5: Fresh provider wallet auth + provider credentials."""
+"""Step 5: Provider wallet auth + provider credentials."""
 from tests.e2e.conftest import GATEWAY_BASE, SESSION_ID
 from tests.e2e.helpers.gateway import issue_provider_secret, list_provider_secrets
 
@@ -6,12 +6,12 @@ from tests.e2e.helpers.gateway import issue_provider_secret, list_provider_secre
 PROVIDER_SECRET_NAME = f"e2e-provider-secret-{SESSION_ID}"
 
 
-def test_fresh_provider_wallet_can_issue_secret(
-    fresh_provider_headers, fresh_provider_account, session_state
+def test_provider_wallet_can_issue_secret(
+    provider_headers, provider_account, session_state
 ):
     body = issue_provider_secret(
         GATEWAY_BASE,
-        fresh_provider_headers,
+        provider_headers,
         name=PROVIDER_SECRET_NAME,
         rpm=180,
         credit_limit=25.0,
@@ -24,19 +24,19 @@ def test_fresh_provider_wallet_can_issue_secret(
     assert secret_key and secret_key.startswith("agt_"), (
         f"provider secret key missing or malformed: {body}"
     )
-    assert secret.get("ownerAddress") == fresh_provider_account.address.lower()
+    assert secret.get("ownerAddress") == provider_account.address.lower()
 
-    session_state["fresh_provider_secret_id"] = secret_id
-    session_state["fresh_provider_secret_key"] = secret_key
-    session_state["fresh_provider_address"] = fresh_provider_account.address.lower()
+    session_state["provider_secret_id"] = secret_id
+    session_state["provider_secret_key"] = secret_key
+    session_state["provider_address"] = provider_account.address.lower()
 
 
-def test_fresh_provider_secret_visible_in_list(
-    fresh_provider_headers, session_state
+def test_provider_secret_visible_in_list(
+    provider_headers, session_state
 ):
-    secrets = list_provider_secrets(GATEWAY_BASE, fresh_provider_headers)
-    secret_id = session_state.get("fresh_provider_secret_id")
-    assert secret_id, "fresh_provider_secret_id missing from previous step"
+    secrets = list_provider_secrets(GATEWAY_BASE, provider_headers)
+    secret_id = session_state.get("provider_secret_id")
+    assert secret_id, "provider_secret_id missing from previous step"
 
     matched = [row for row in secrets if row.get("id") == secret_id]
     assert matched, f"provider secret {secret_id} not found in list: {secrets}"

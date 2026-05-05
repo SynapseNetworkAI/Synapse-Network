@@ -30,26 +30,30 @@ production go/no-go plan explicitly authorizes a small-value rehearsal.
 
 ## 2. Service Fixture Policy
 
-Ordinary invoke, billing, UI, withdrawal, and release E2E must reuse canonical
-provider services instead of creating random provider services. Default fixed
-price service: `GATEWAY_E2E_SERVICE_ID=svc_oss_security_healthcheck`.
+Local/staging invoke, billing, UI, withdrawal, and release E2E must reuse the
+Synapse-Network-Provider catalog instead of creating random provider services or
+starting a script-owned mock HTTP service as the business provider. Default paid
+settlement service: `GATEWAY_E2E_SERVICE_ID=svc_synapse_mock_cost_1usdc`.
 
 Canonical services:
 
-1. `svc_web3_sentiment_index`
-2. `svc_protocol_fundamental_brief`
-3. `svc_oss_security_healthcheck`
-4. `svc_deepseek_chat` for LLM/token-metered coverage only
+1. `svc_synapse_echo` for free smoke.
+2. `svc_synapse_mock_cost_1usdc` for paid settlement and balance evidence.
+3. `svc_web3_sentiment_index`.
+4. `svc_protocol_fundamental_brief`.
+5. `svc_oss_security_healthcheck`.
+6. `svc_deepseek_chat` for LLM/token-metered coverage only.
 
-Provider registration and onboarding tests are the exception because they prove
-`POST /api/v1/services`. Any temporary service they create must use a tracked
-E2E prefix and be archived by teardown or local cleanup. Random service creation
-in standalone scripts requires `GATEWAY_E2E_ALLOW_SERVICE_CREATION=true`.
+Gateway local/staging E2E does not cover service registration by mutating the
+environment. `POST /api/v1/services` validation stays in backend unit, router,
+and service tests. Synapse-Network-Provider onboarding owns registration or
+update of the catalog services, and Gateway E2E fails closed when the catalog is
+missing.
 
-Local canonical services can be seeded with
-`services/gateway/examples/register_provider_shelf_services.py` or the Gateway
-pull-health local fixture. Staging must use already-approved staging services and
-must not create fallback random services during ordinary regression.
+Before local/staging Gateway E2E, run Synapse-Network-Provider onboarding
+`check`/`ensure` against the target Gateway so the catalog exists. Staging must
+use already-approved staging catalog services and must not create fallback random
+services during ordinary regression.
 
 If local E2E reports too many active test services, inspect and clean with:
 
@@ -107,19 +111,20 @@ Every SQL evidence block must include:
 Run the narrowest relevant lane first. Escalate to the next lane when a change
 touches more surfaces or when release confidence is required.
 
-| Function point              | Local command                                                                                                                                                                                                                                                                                                  | SQL evidence                                                                                | Pass criteria                                                                                                                      |
-| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| Environment preflight       | `npm run dev:restart:all`, then `npm run dev:status`                                                                                                                                                                                                                                                           | None unless a service fails readiness                                                       | Gateway, Gateway-admin, user-front, admin-front, Postgres, and local chain are reachable.                                          |
-| Provider registration       | Gateway provider E2E files under `services/gateway/tests/e2e/test_05_provider_*.py`                                                                                                                                                                                                                            | Provider profile, payout account, service manifest, endpoint, health snapshot, search index | Provider and service are active and discoverable.                                                                                  |
-| Consumer login              | `services/gateway/tests/e2e/test_02_wallet_auth.py` plus user-front full-chain when UI changed                                                                                                                                                                                                                 | Owner account, agent profile, credential, budget policy                                     | Owner is active, agent credential is active, budget policy exists.                                                                 |
-| Consumer deposit            | `services/gateway/tests/e2e/test_03_fund_wallet.py`, `test_04_deposit.py`, and `npm run e2e:user-front-deposit-balance`                                                                                                                                                                                        | Deposit, balance, ledger/audit, Billing/Credits screenshots                                 | Pending deposits render `Pending`; only Gateway `CONFIRMED` deposits render `Completed`; available balance increased exactly once. |
-| Provider service invocation | `SYNAPSE_AGENT_KEY=agt_xxx SERVICE_ID=svc_oss_security_healthcheck API_BASE=http://127.0.0.1:8000 python services/gateway/examples/agent_invoke_existing_service.py` or `cd services/gateway && GATEWAY_E2E_SERVICE_ID=svc_oss_security_healthcheck .venv/bin/python -m pytest tests/e2e/test_07_invoke.py -q` | Quote, invocation, budget event, ledger, audit, account balances                            | Invocation is `SETTLED`; consumer debited; provider/platform credited; no random service is created.                               |
-| Analytics and admin views   | Gateway analytics E2E and `npm run e2e:admin-front`                                                                                                                                                                                                                                                            | Analytics outbox and admin-visible DB state                                                 | Admin pages show the same state as Gateway DB.                                                                                     |
-| Consumer withdrawal         | `services/gateway/tests/e2e/test_09_consumer_withdraw.py` and `npm run e2e:withdrawal-risk-policy`                                                                                                                                                                                                             | Withdrawal row, balance buckets, tx dedup, audit                                            | T+7 matured funds are required; active withdrawal locks funds; completion writes `COMPLETED`.                                      |
-| Provider withdrawal         | `npm run e2e:admin-withdrawal-approval`, `npm run e2e:withdrawal-one-ticket-evidence`, `npm run e2e:withdrawal-idempotency-concurrency`                                                                                                                                                                        | Withdrawal row, provider account, tx dedup, audit, notifications                            | T+7 matured receivable is required; review and ticket semantics are one-ticket safe.                                               |
-| Notifications               | `npm run e2e:in-app-notifications`, transaction notification suites as needed                                                                                                                                                                                                                                  | Notification outbox, delivery log, in-app notifications                                     | Transactional notifications are present or deliberately suppressed.                                                                |
-| Load and reliability        | `npm run perf:local-production-load-rehearsal` and `npm run ci:local-production-load-evidence`                                                                                                                                                                                                                 | Reconciliation and no unexpected dead letters                                               | Load evidence is green with no unexplained ledger/vault delta.                                                                     |
-| Contracts                   | `npm run ci:contracts`                                                                                                                                                                                                                                                                                         | Runtime state and config review only                                                        | Solidity tests pass; Gateway contract config still matches expected local chain.                                                   |
+| Function point               | Local command                                                                                                                                                                                                                                                                                                  | SQL evidence                                                                                     | Pass criteria                                                                                                                      |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Environment preflight        | `npm run dev:restart:all`, then `npm run dev:status`                                                                                                                                                                                                                                                           | None unless a service fails readiness                                                            | Gateway, Gateway-admin, user-front, admin-front, Postgres, and local chain are reachable.                                          |
+| Provider registration        | Gateway provider E2E files under `services/gateway/tests/e2e/test_05_provider_*.py`                                                                                                                                                                                                                            | Provider profile, payout account, service manifest, endpoint, health snapshot, search index      | Provider and service are active and discoverable.                                                                                  |
+| Consumer login               | `services/gateway/tests/e2e/test_02_wallet_auth.py` plus user-front full-chain when UI changed                                                                                                                                                                                                                 | Owner account, agent profile, credential, budget policy                                          | Owner is active, agent credential is active, budget policy exists.                                                                 |
+| Consumer deposit             | `services/gateway/tests/e2e/test_03_fund_wallet.py`, `test_04_deposit.py`, and `npm run e2e:user-front-deposit-balance`                                                                                                                                                                                        | Deposit, balance, ledger/audit, Billing/Credits screenshots                                      | Pending deposits render `Pending`; only Gateway `CONFIRMED` deposits render `Completed`; available balance increased exactly once. |
+| Provider service invocation  | `SYNAPSE_AGENT_KEY=agt_xxx SERVICE_ID=svc_oss_security_healthcheck API_BASE=http://127.0.0.1:8000 python services/gateway/examples/agent_invoke_existing_service.py` or `cd services/gateway && GATEWAY_E2E_SERVICE_ID=svc_oss_security_healthcheck .venv/bin/python -m pytest tests/e2e/test_07_invoke.py -q` | Quote, invocation, budget event, ledger, audit, account balances                                 | Invocation is `SETTLED`; consumer debited; provider/platform credited; no random service is created.                               |
+| Invocation billing migration | `npm run e2e:invocation-billing-migration:local` and `npm run ci:invocation-billing-migration-local-evidence`                                                                                                                                                                                                  | Legacy `invocation_billing::%` KV, `synapse_invocation_billing`, ledger, audit, admin projection | Legacy billing rows migrate without aggregate drift; new invokes dual-write typed and legacy billing during migration.             |
+| Analytics and admin views    | Gateway analytics E2E and `npm run e2e:admin-front`                                                                                                                                                                                                                                                            | Analytics outbox and admin-visible DB state                                                      | Admin pages show the same state as Gateway DB.                                                                                     |
+| Consumer withdrawal          | `services/gateway/tests/e2e/test_09_consumer_withdraw.py` and `npm run e2e:withdrawal-risk-policy`                                                                                                                                                                                                             | Withdrawal row, balance buckets, tx dedup, audit                                                 | T+7 matured funds are required; active withdrawal locks funds; completion writes `COMPLETED`.                                      |
+| Provider withdrawal          | `npm run e2e:admin-withdrawal-approval`, `npm run e2e:withdrawal-one-ticket-evidence`, `npm run e2e:withdrawal-idempotency-concurrency`                                                                                                                                                                        | Withdrawal row, provider account, tx dedup, audit, notifications                                 | T+7 matured receivable is required; review and ticket semantics are one-ticket safe.                                               |
+| Notifications                | `npm run e2e:in-app-notifications`, transaction notification suites as needed                                                                                                                                                                                                                                  | Notification outbox, delivery log, in-app notifications                                          | Transactional notifications are present or deliberately suppressed.                                                                |
+| Load and reliability         | `npm run perf:local-production-load-rehearsal` and `npm run ci:local-production-load-evidence`                                                                                                                                                                                                                 | Reconciliation and no unexpected dead letters                                                    | Load evidence is green with no unexplained ledger/vault delta.                                                                     |
+| Contracts                    | `npm run ci:contracts`                                                                                                                                                                                                                                                                                         | Runtime state and config review only                                                             | Solidity tests pass; Gateway contract config still matches expected local chain.                                                   |
 
 ## 5. Staging Regression Matrix
 
@@ -127,15 +132,25 @@ Staging commands mutate Arbitrum Sepolia and Cloud SQL staging. Use only the
 dedicated staging E2E wallets and confirmations documented in
 `docs/ops/17_Staging_Environment_Configuration.md`.
 
-| Function point        | Staging command                                                                                     | SQL evidence                                                      | Pass criteria                                                                  |
-| --------------------- | --------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| Infra smoke           | `npm run e2e:staging-smoke` and `npm run ci:staging-smoke-evidence`                                 | Optional health snapshot review                                   | Public domains, Gateway, Gateway-admin, CORS, RPC, and contract bytecode pass. |
-| Core money path       | `npm run e2e:staging-core-dogfood` and `npm run ci:staging-core-dogfood-evidence`                   | Owner, provider, service, deposit, invocation, ledger, audit      | Deposit, invoke, and balance state are correct in Cloud SQL.                   |
-| Gateway release chain | `GATEWAY_RELEASE_E2E_PROFILE=mvp-postgres npm run release:evidence:gateway-fullchain:staging`       | Full SQL evidence for deposit, invoke, withdrawal, reconciliation | Trace and report are non-empty and match Cloud SQL state.                      |
-| Withdrawal review     | `npm run e2e:withdrawal-review-dogfood:staging`                                                     | Withdrawal rows, audit, admin notifications, tx dedup             | Consumer and provider review states are visible, actionable, and finalizable.  |
-| Notifications         | Staging Gmail, transaction, Lark, and GCP alert E2E suites as relevant                              | Outbox, delivery log, in-app notifications                        | Real staging notifications are delivered and evidence is sanitized.            |
-| Load/recovery         | `npm run perf:staging-load-suite`, `npm run drill:backup-restore:staging`                           | Reconciliation evidence and restore report                        | No unexplained Postgres ledger/vault delta; restore status is successful.      |
-| Contracts             | `npm run deploy:contracts:arbitrum-sepolia:dry-run`, then release-approved deploy/evidence commands | Runtime state/config plus contract evidence manifest              | Chain id, contract addresses, owner, signer, bytecode, and Gateway env agree.  |
+The full-regression gate is the broad staging release smoke for the already
+deployed app. It starts from
+`https://staging.synapse-network.ai/dashboard/overview`, reuses the canonical
+registered provider services, and refuses provider service creation. Every
+screenshot must be captured after DOM/API/SQL checkpoints pass; screenshots
+showing wallet gates, loading states, 401 overlays, or error pages are invalid
+evidence.
+
+| Function point               | Staging command                                                                                                   | SQL evidence                                                                                                          | Pass criteria                                                                                                                                                      |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Infra smoke                  | `npm run e2e:staging-smoke` and `npm run ci:staging-smoke-evidence`                                               | Optional health snapshot review                                                                                       | Public domains, Gateway, Gateway-admin, CORS, RPC, and contract bytecode pass.                                                                                     |
+| Full regression              | `npm run e2e:staging-full-regression` and `npm run ci:staging-full-regression-evidence`                           | User-front DOM, Gateway API, Cloud SQL, chain config, invocation ledger                                               | Dashboard, billing, discovery, fixed invoke, LLM invoke, provider console, and admin read-only pages match staging DB evidence without creating provider services. |
+| Invocation billing migration | `npm run e2e:invocation-billing-migration:staging` and `npm run ci:invocation-billing-migration-staging-evidence` | Legacy `invocation_billing::%` KV, `synapse_invocation_billing`, Admin finance/activity projection, invocation ledger | Staging billing projection migrates without total drift; fixed and LLM invokes dual-write typed + legacy billing and reconcile to zero.                            |
+| Core money path              | `npm run e2e:staging-core-dogfood` and `npm run ci:staging-core-dogfood-evidence`                                 | Owner, provider, service, deposit, invocation, ledger, audit                                                          | Deposit, invoke, and balance state are correct in Cloud SQL.                                                                                                       |
+| Gateway release chain        | `GATEWAY_RELEASE_E2E_PROFILE=mvp-postgres npm run release:evidence:gateway-fullchain:staging`                     | Full SQL evidence for deposit, invoke, withdrawal, reconciliation                                                     | Trace and report are non-empty and match Cloud SQL state.                                                                                                          |
+| Withdrawal review            | `npm run e2e:withdrawal-review-dogfood:staging`                                                                   | Withdrawal rows, audit, admin notifications, tx dedup                                                                 | Consumer and provider review states are visible, actionable, and finalizable.                                                                                      |
+| Notifications                | Staging Gmail, transaction, Lark, and GCP alert E2E suites as relevant                                            | Outbox, delivery log, in-app notifications                                                                            | Real staging notifications are delivered and evidence is sanitized.                                                                                                |
+| Load/recovery                | `npm run perf:staging-load-suite`, `npm run drill:backup-restore:staging`                                         | Reconciliation evidence and restore report                                                                            | No unexplained Postgres ledger/vault delta; restore status is successful.                                                                                          |
+| Contracts                    | `npm run deploy:contracts:arbitrum-sepolia:dry-run`, then release-approved deploy/evidence commands               | Runtime state/config plus contract evidence manifest                                                                  | Chain id, contract addresses, owner, signer, bytecode, and Gateway env agree.                                                                                      |
 
 ## 6. SQL Evidence Templates
 
@@ -237,6 +252,39 @@ For User-front deposit/balance regressions, run
 `billing-deposit-completed.png`, and `credits-after-confirm.png`; each
 screenshot is bound to DOM text plus SQL rows in `screenshot-evidence.json`.
 Gateway `PENDING_CONFIRMATION` must display as `Pending`, not `Completed`.
+
+### Copyable identifiers DOM regression
+
+For User-front identifier-copy regressions, run
+`USER_FRONT_BASE_URL=http://127.0.0.1:3000 npm run e2e:user-front-copyable-identifiers`
+followed by `npm run ci:user-front-copyable-identifiers-evidence`. This
+local-only gate uses deterministic Playwright route fixtures, does not create
+provider services, and does not write Gateway DB state. It proves visible short
+IDs, hashes, addresses, withdrawal IDs, nonce/ticket fields, and endpoint URLs
+copy the full canonical value. It also fails if ordinary user-facing
+invocation pages expose `agent:agent:*`, counterparty labels, provider wallet
+addresses, auth blockers, loading pages, or unbound screenshots.
+
+This gate is a DOM/clipboard/privacy regression. It does not replace
+money-path SQL, ledger, audit, or chain evidence gates such as deposit balance,
+invocation billing, or staging full regression.
+
+### Payments Gateway-truth DOM/API/SQL regression
+
+For User-front Billing / Payments history regressions, run
+`USER_FRONT_BASE_URL=http://127.0.0.1:3000 npm run e2e:user-front-payments-gateway-truth:local`
+followed by `npm run ci:user-front-payments-gateway-truth-local-evidence`.
+This local-only gate seeds a dedicated local wallet, reads real Gateway deposit
+intent, consumer withdrawal, and refund APIs with `limit=100`, queries
+Postgres for the same owner, and verifies `/dashboard/billing` renders the
+merged top 50 records after DOM/API/SQL checkpoints pass.
+
+The gate exists to lock the hybrid Web3 boundary: Payments rows are Gateway
+DB/API truth. Frontend chain logs such as `DepositInfo` and `WithdrawInfo` may
+only support transient wallet feedback and must not create persistent Billing
+rows or completed money states. It also fails if the historical
+`WithdrawInfo.ticketHash`-as-amount regression reappears as a huge scientific
+notation amount.
 
 ```sql
 SELECT deposit_id, owner_id, owner_address, target_account_id, tx_hash,

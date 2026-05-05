@@ -98,7 +98,7 @@ ADMIN_FRONT_REGEX='^services/admin-front/src/.*\.(ts|tsx)$'
 USER_FRONT_REGEX='^services/user-front/src/.*\.(ts|tsx)$'
 FRONT_HIGH_RISK_REGEX='^services/(admin-front|user-front)/src/.*(withdrawal-reviews|withdraw|finance|reconciliation|billing|credits|payments|analytics|forum-support|approval|risk|audit).*\.(ts|tsx)$'
 FRONT_ANY_REGEX='^services/(admin-front|user-front)/src/.*\.(ts|tsx)$'
-USER_FRONT_I18N_REGEX='^(services/user-front/src/i18n/|services/user-front/src/test/renderWithLanguage\.tsx|scripts/ci/user_front_i18n_check\.mjs|scripts/ui/verify_user_front_i18n\.mjs)$'
+USER_FRONT_I18N_REGEX='^(services/user-front/src/i18n/.*|services/user-front/src/test/renderWithLanguage\.tsx|scripts/ci/user_front_i18n_check\.mjs|scripts/ui/verify_user_front_i18n\.mjs)$'
 
 NEED_GATEWAY=0
 NEED_GATEWAY_ADMIN=0

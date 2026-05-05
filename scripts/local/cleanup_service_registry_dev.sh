@@ -84,6 +84,8 @@ test_service_clause="
     OR service_id LIKE 'ufc_%'
   )
   AND service_id NOT IN (
+    'svc_synapse_echo',
+    'svc_synapse_mock_cost_1usdc',
     'svc_web3_sentiment_index',
     'svc_protocol_fundamental_brief',
     'svc_oss_security_healthcheck',
@@ -113,10 +115,14 @@ runtime_health_clause="
     OR state_key LIKE 'service_health_history::svc_buyer_%'
     OR state_key LIKE 'service_health_history::ufc_%'
   )
+  AND state_key NOT LIKE 'service_health_meta::svc_synapse_echo::%'
+  AND state_key NOT LIKE 'service_health_meta::svc_synapse_mock_cost_1usdc::%'
   AND state_key NOT LIKE 'service_health_meta::svc_web3_sentiment_index::%'
   AND state_key NOT LIKE 'service_health_meta::svc_protocol_fundamental_brief::%'
   AND state_key NOT LIKE 'service_health_meta::svc_oss_security_healthcheck::%'
   AND state_key NOT LIKE 'service_health_meta::svc_deepseek_chat::%'
+  AND state_key <> 'service_health_history::svc_synapse_echo'
+  AND state_key <> 'service_health_history::svc_synapse_mock_cost_1usdc'
   AND state_key <> 'service_health_history::svc_web3_sentiment_index'
   AND state_key <> 'service_health_history::svc_protocol_fundamental_brief'
   AND state_key <> 'service_health_history::svc_oss_security_healthcheck'
@@ -128,7 +134,7 @@ count_sql() {
 }
 
 before_active_test="$(count_sql "SELECT COUNT(*) FROM synapse_service_manifests WHERE ${active_test_clause}")"
-before_canonical_active="$(count_sql "SELECT COUNT(*) FROM synapse_service_manifests WHERE status = 'active' AND service_id IN ('svc_web3_sentiment_index','svc_protocol_fundamental_brief','svc_oss_security_healthcheck','svc_deepseek_chat')")"
+before_canonical_active="$(count_sql "SELECT COUNT(*) FROM synapse_service_manifests WHERE status = 'active' AND service_id IN ('svc_synapse_echo','svc_synapse_mock_cost_1usdc','svc_web3_sentiment_index','svc_protocol_fundamental_brief','svc_oss_security_healthcheck','svc_deepseek_chat')")"
 before_health_snapshots="$(count_sql "SELECT COUNT(*) FROM synapse_service_health_snapshots WHERE service_id IN (SELECT service_id FROM synapse_service_manifests WHERE ${test_service_clause})")"
 before_health_runtime="$(count_sql "SELECT COUNT(*) FROM synapse_service_health_runtime WHERE service_id IN (SELECT service_id FROM synapse_service_manifests WHERE ${test_service_clause})")"
 before_health_events="$(count_sql "SELECT COUNT(*) FROM synapse_service_health_events WHERE service_id IN (SELECT service_id FROM synapse_service_manifests WHERE ${test_service_clause})")"
@@ -161,7 +167,7 @@ SQL
 fi
 
 after_active_test="$(count_sql "SELECT COUNT(*) FROM synapse_service_manifests WHERE ${active_test_clause}")"
-after_canonical_active="$(count_sql "SELECT COUNT(*) FROM synapse_service_manifests WHERE status = 'active' AND service_id IN ('svc_web3_sentiment_index','svc_protocol_fundamental_brief','svc_oss_security_healthcheck','svc_deepseek_chat')")"
+after_canonical_active="$(count_sql "SELECT COUNT(*) FROM synapse_service_manifests WHERE status = 'active' AND service_id IN ('svc_synapse_echo','svc_synapse_mock_cost_1usdc','svc_web3_sentiment_index','svc_protocol_fundamental_brief','svc_oss_security_healthcheck','svc_deepseek_chat')")"
 after_health_snapshots="$(count_sql "SELECT COUNT(*) FROM synapse_service_health_snapshots WHERE service_id IN (SELECT service_id FROM synapse_service_manifests WHERE ${test_service_clause})")"
 after_health_runtime="$(count_sql "SELECT COUNT(*) FROM synapse_service_health_runtime WHERE service_id IN (SELECT service_id FROM synapse_service_manifests WHERE ${test_service_clause})")"
 after_health_events="$(count_sql "SELECT COUNT(*) FROM synapse_service_health_events WHERE service_id IN (SELECT service_id FROM synapse_service_manifests WHERE ${test_service_clause})")"

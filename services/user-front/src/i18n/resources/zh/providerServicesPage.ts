@@ -2,17 +2,21 @@ import type { I18nMessages } from "@/i18n/schema";
 
 const providerServicesPage: I18nMessages["providerServicesPage"] = {
   loadFailed: "加载服务失败",
+  healthHistoryLoadFailed: "加载服务健康历史失败。请等待 Gateway 恢复后重试。",
   activeEditBlocked: "活跃服务不可编辑。请先把服务切换为 Inactive。",
   inactiveOnlyEditBlocked: "只有 Inactive 服务允许编辑。",
-  confirmActivate: "确认激活服务 {{serviceId}}？只有当健康检查重新报告目标健康后，它才会再次进入 discovery。",
-  confirmDeactivate: "确认将服务 {{serviceId}} 设为 Inactive？更新生效后，新的 discovery 和 gateway 直连转发都会停止。",
+  confirmActivate:
+    "确认激活服务 {{serviceId}}？只有当健康检查重新报告目标健康后，它才会再次进入 discovery。",
+  confirmDeactivate:
+    "确认将服务 {{serviceId}} 设为 Inactive？更新生效后，新的 discovery 和 gateway 直连转发都会停止。",
   actionActivate: "激活",
   actionInactive: "设为 Inactive",
   actionUpdating: "更新中...",
   serviceActivated: "服务已激活",
   serviceSetInactive: "服务已设为 Inactive",
   updateStatusFailed: "更新服务失败：{{action}}",
-  confirmDelete: "确认删除服务 {{serviceId}}？这是逻辑删除，会保留审计轨迹，同时把服务从当前 Provider 活跃列表中移除。",
+  confirmDelete:
+    "确认删除服务 {{serviceId}}？这是逻辑删除，会保留审计轨迹，同时把服务从当前 Provider 活跃列表中移除。",
   serviceDeleted: "服务已删除",
   deleteFailed: "删除服务失败",
   validationFixBeforeSave: "保存前请先修复表单校验错误。",
@@ -28,7 +32,8 @@ const providerServicesPage: I18nMessages["providerServicesPage"] = {
   invalidJsonFields: "服务定义表单中的 JSON 字段无效",
   modalTitle: "编辑服务",
   modalDescription: "审查这个 API 服务的服务定义和运行时映射。",
-  validationBanner: "校验失败。请修复高亮字段，避免触发 422 SERVICE_REGISTRATION_INVALID。",
+  validationBanner:
+    "校验失败。请修复高亮字段，避免触发 422 SERVICE_REGISTRATION_INVALID。",
   sectionBasicProfile: "基础资料",
   sectionHealthConstraints: "健康检查与约束",
   sectionServiceDefinition: "服务定义 / Invoke 契约",
@@ -91,7 +96,20 @@ const providerServicesPage: I18nMessages["providerServicesPage"] = {
   paginationShowing: "显示 {{start}}-{{end}} / 共 {{total}} 条",
   paginationPrev: "上一页",
   paginationNext: "下一页",
-  footerNote: "活跃服务代表运行时已对外提供流量。修改契约或路由字段前，请先切换为 Inactive。按 Esc 可关闭编辑面板。",
+  footerNote:
+    "活跃服务代表运行时已对外提供流量。修改契约或路由字段前，请先切换为 Inactive。按 Esc 可关闭编辑面板。",
+  healthPageTitle: "API 服务健康",
+  healthPageDescription:
+    "查看每个 API 服务背后运行目标的 24 小时健康曲线和延迟抖动分布。",
+  healthBackToServices: "返回 API 服务",
+  healthServiceSelectorLabel: "API 服务",
+  healthServiceIdLabel: "服务 ID",
+  healthRefresh: "刷新",
+  healthLoadingHistory: "正在加载健康历史...",
+  healthSelectService: "请选择一个 API 服务查看运行目标健康趋势。",
+  healthNoHistory: "当前窗口内没有保留该服务的健康历史。",
+  healthRetentionNotice:
+    "请求 24 小时窗口，当前保留 {{hours}} 小时。展示数据会按保留窗口截断。",
 };
 
 export default providerServicesPage;
