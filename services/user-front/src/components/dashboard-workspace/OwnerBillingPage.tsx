@@ -6,7 +6,7 @@ import { ExternalLink } from "lucide-react";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
 import CopyableValue from "@/components/xui/CopyableValue";
 import { XDatePicker } from "@/components/xui/XDatePicker";
-import { useFundsData } from "@/hooks/useFundsData";
+import { PAYMENTS_RENDER_LIMIT, useFundsData } from "@/hooks/useFundsData";
 import { getTransactionExplorerUrl } from "@/utils/explorer";
 import { nowDateTimeString } from "@/utils/time";
 
@@ -21,18 +21,34 @@ function formatDateLabel(timestamp: number): string {
   return nowDateTimeString(new Date(timestamp));
 }
 
-function paymentMethodForRecord(type: string): string {
+function paymentMethodForRecord(type: string, t: Translate): string {
   if (type === "Refund" || type === "Claim") {
-    return "Voucher";
+    return t("billingPage.paymentMethodVoucher");
   }
-  return "Wallet";
+  return t("billingPage.paymentMethodWallet");
 }
 
-function typeLabelForRecord(type: string): { label: string; cls: string } {
-  if (type === "Withdraw") return { label: "Withdraw", cls: "text-orange-400" };
-  if (type === "Refund") return { label: "Refund", cls: "text-sky-400" };
-  if (type === "Claim") return { label: "Claim", cls: "text-purple-400" };
-  return { label: "Deposit", cls: "text-green-400" };
+function typeLabelForRecord(
+  type: string,
+  t: Translate
+): { label: string; cls: string } {
+  if (type === "Withdraw") {
+    return { label: t("billingPage.actionWithdraw"), cls: "text-orange-400" };
+  }
+  if (type === "Refund") {
+    return { label: t("billingPage.actionRefund"), cls: "text-sky-400" };
+  }
+  if (type === "Claim") {
+    return { label: t("billingPage.actionClaim"), cls: "text-purple-400" };
+  }
+  return { label: t("billingPage.actionDeposit"), cls: "text-green-400" };
+}
+
+function formatBillingAmount(amount: number): string {
+  if (!Number.isFinite(amount) || amount < 0) {
+    return "$0.00";
+  }
+  return `$${amount.toFixed(2)}`;
 }
 
 function statusDisplay(
@@ -98,7 +114,7 @@ function BillingRecordRow({
   t: Translate;
 }>) {
   const status = statusDisplay(row, t);
-  const type = typeLabelForRecord(row.type);
+  const type = typeLabelForRecord(row.type, t);
   const transactionExplorerUrl = getTransactionExplorerUrl(row.txHash);
 
   return (
@@ -120,10 +136,10 @@ function BillingRecordRow({
         <span className={`font-medium ${type.cls}`}>{type.label}</span>
       </td>
       <td className="hidden px-4 py-4 text-[16px] leading-6 text-[#71767b] sm:table-cell">
-        {paymentMethodForRecord(row.type)}
+        {paymentMethodForRecord(row.type, t)}
       </td>
       <td className="px-4 py-4 text-[16px] leading-6 text-white">
-        ${row.amount.toFixed(2)}
+        {formatBillingAmount(row.amount)}
       </td>
       <td className="px-4 py-4 text-[16px] leading-6 text-[#71767b]">
         {formatDateLabel(row.timestamp)}
@@ -170,7 +186,7 @@ function BillingTableHeader({ t }: Readonly<{ t: Translate }>) {
           {t("billingPage.tableStatus")}
         </th>
         <th className="px-4 py-3 text-left text-[14px] font-medium leading-[20px] text-[#d1d5db]">
-          Type
+          {t("billingPage.tableType")}
         </th>
         <th className="hidden px-4 py-3 text-left text-[14px] font-medium leading-[20px] text-[#d1d5db] sm:table-cell">
           {t("billingPage.tablePaymentMethod")}
@@ -189,9 +205,94 @@ function BillingTableHeader({ t }: Readonly<{ t: Translate }>) {
   );
 }
 
+function BillingIntro({ t }: Readonly<{ t: Translate }>) {
+  return (
+    <div className="border-b border-[#2f3336] pb-8">
+      <h1 className="text-[24px] font-normal leading-[32px] tracking-[-0.01em] text-white">
+        {t("billingPage.title")}
+      </h1>
+      <p className="mt-2 text-[16px] leading-[24px] text-[#9ca3af]">
+        {t("billingPage.description")}
+      </p>
+      <p className="mt-3 text-[13px] leading-5 text-[#71767b]">
+        {t("billingPage.depositStatusHint")}
+      </p>
+      <p className="mt-1 text-[13px] leading-5 text-[#71767b]">
+        {t("billingPage.networkFeeHint")}
+      </p>
+    </div>
+  );
+}
+
+function BillingDateFilters({
+  fromDate,
+  toDate,
+  today,
+  onFromDateChange,
+  onToDateChange,
+  onReset,
+  t,
+}: Readonly<{
+  fromDate: string;
+  toDate: string;
+  today: string;
+  onFromDateChange: (nextValue: string) => void;
+  onToDateChange: (nextValue: string) => void;
+  onReset: () => void;
+  t: Translate;
+}>) {
+  const datePickerCopy = {
+    previousMonthLabel: t("billingPage.datePickerPreviousMonth"),
+    nextMonthLabel: t("billingPage.datePickerNextMonth"),
+    todayLabel: t("billingPage.datePickerToday"),
+    locale: t("billingPage.datePickerLocale"),
+  };
+
+  return (
+    <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end">
+      <div className="flex w-full flex-col gap-2 sm:max-w-xs">
+        <p className="text-[12px] font-medium uppercase leading-[16px] tracking-[0.08em] text-[#a3a3a3]">
+          {t("billingPage.fromLabel")}
+        </p>
+        <XDatePicker
+          value={fromDate}
+          onChange={onFromDateChange}
+          max={today}
+          ariaLabel={t("billingPage.fromLabel")}
+          triggerVariant="payments"
+          {...datePickerCopy}
+        />
+      </div>
+
+      <div className="flex w-full flex-col gap-2 sm:max-w-xs">
+        <p className="text-[12px] font-medium uppercase leading-[16px] tracking-[0.08em] text-[#a3a3a3]">
+          {t("billingPage.toLabel")}
+        </p>
+        <XDatePicker
+          value={toDate}
+          onChange={onToDateChange}
+          min={fromDate}
+          max={today}
+          ariaLabel={t("billingPage.toLabel")}
+          triggerVariant="payments"
+          {...datePickerCopy}
+        />
+      </div>
+
+      <button
+        type="button"
+        onClick={onReset}
+        className="mt-2 h-8 w-full rounded-[6px] px-3 text-[14px] font-normal leading-[20px] text-[#6b7280] transition hover:bg-white/10 hover:text-[#9ca3af] sm:ml-auto sm:mt-0 sm:w-auto"
+      >
+        {t("billingPage.resetRange")}
+      </button>
+    </div>
+  );
+}
+
 export default function OwnerBillingPage() {
   const { t } = useLanguage();
-  const { records, loading } = useFundsData();
+  const { records, loading, paymentHistoryMayBeTruncated } = useFundsData();
   const today = useMemo(() => formatDateInput(new Date()), []);
   const [fromDate, setFromDate] = useState("2026-01-01");
   const [toDate, setToDate] = useState(today);
@@ -203,6 +304,13 @@ export default function OwnerBillingPage() {
       (row) => row.timestamp >= from && row.timestamp <= to
     );
   }, [fromDate, records, toDate]);
+  const visibleRecords = useMemo(
+    () => filteredRecords.slice(0, PAYMENTS_RENDER_LIMIT),
+    [filteredRecords]
+  );
+  const showHistoryLimitHint =
+    paymentHistoryMayBeTruncated ||
+    filteredRecords.length > PAYMENTS_RENDER_LIMIT;
 
   const tableRows = useMemo(() => {
     if (loading) {
@@ -211,16 +319,16 @@ export default function OwnerBillingPage() {
       );
     }
 
-    if (filteredRecords.length === 0) {
+    if (visibleRecords.length === 0) {
       return (
         <BillingTableMessage>{t("billingPage.empty")}</BillingTableMessage>
       );
     }
 
-    return filteredRecords.map((row) => (
+    return visibleRecords.map((row) => (
       <BillingRecordRow key={row.id} row={row} t={t} />
     ));
-  }, [filteredRecords, loading, t]);
+  }, [loading, t, visibleRecords]);
 
   const handleFromDateChange = (nextValue: string) => {
     setFromDate(nextValue);
@@ -236,62 +344,27 @@ export default function OwnerBillingPage() {
     }
   };
 
+  const handleResetRange = () => {
+    setFromDate("2026-01-01");
+    setToDate(today);
+  };
+
   return (
     <div className="mx-auto w-full max-w-[1024px] px-4 pb-24 pt-12 sm:px-6 lg:px-0">
-      <div className="border-b border-[#2f3336] pb-8">
-        <h1 className="text-[24px] font-normal leading-[32px] tracking-[-0.01em] text-white">
-          {t("billingPage.title")}
-        </h1>
-        <p className="mt-2 text-[16px] leading-[24px] text-[#9ca3af]">
-          {t("billingPage.description")}
-        </p>
-        <p className="mt-3 text-[13px] leading-5 text-[#71767b]">
-          {t("billingPage.depositStatusHint")}
-        </p>
-      </div>
+      <BillingIntro t={t} />
 
       <section className="py-8">
         <div className="rounded-[12px] border border-[#232323] bg-[#0d0d0d] p-4">
           <div className="rounded-[8px] border border-[#323232] bg-[#1a1a1a] p-6">
-            <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end">
-              <div className="flex w-full flex-col gap-2 sm:max-w-xs">
-                <p className="text-[12px] font-medium uppercase leading-[16px] tracking-[0.08em] text-[#a3a3a3]">
-                  {t("billingPage.fromLabel")}
-                </p>
-                <XDatePicker
-                  value={fromDate}
-                  onChange={handleFromDateChange}
-                  max={today}
-                  ariaLabel={t("billingPage.fromLabel")}
-                  triggerVariant="payments"
-                />
-              </div>
-
-              <div className="flex w-full flex-col gap-2 sm:max-w-xs">
-                <p className="text-[12px] font-medium uppercase leading-[16px] tracking-[0.08em] text-[#a3a3a3]">
-                  {t("billingPage.toLabel")}
-                </p>
-                <XDatePicker
-                  value={toDate}
-                  onChange={handleToDateChange}
-                  min={fromDate}
-                  max={today}
-                  ariaLabel={t("billingPage.toLabel")}
-                  triggerVariant="payments"
-                />
-              </div>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setFromDate("2026-01-01");
-                  setToDate(today);
-                }}
-                className="mt-2 h-8 w-full rounded-[6px] px-3 text-[14px] font-normal leading-[20px] text-[#6b7280] transition hover:bg-white/10 hover:text-[#9ca3af] sm:ml-auto sm:mt-0 sm:w-auto"
-              >
-                {t("billingPage.resetRange")}
-              </button>
-            </div>
+            <BillingDateFilters
+              fromDate={fromDate}
+              toDate={toDate}
+              today={today}
+              onFromDateChange={handleFromDateChange}
+              onToDateChange={handleToDateChange}
+              onReset={handleResetRange}
+              t={t}
+            />
 
             <div className="overflow-x-auto overflow-y-visible -mx-2 sm:mx-0">
               <table className="relative w-full min-w-[600px] sm:min-w-0">
@@ -299,6 +372,13 @@ export default function OwnerBillingPage() {
                 <tbody>{tableRows}</tbody>
               </table>
             </div>
+            {showHistoryLimitHint ? (
+              <p className="mt-4 text-[13px] leading-5 text-[#71767b]">
+                {t("billingPage.historyLimitHint", {
+                  count: PAYMENTS_RENDER_LIMIT,
+                })}
+              </p>
+            ) : null}
           </div>
         </div>
       </section>

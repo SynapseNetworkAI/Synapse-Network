@@ -269,6 +269,23 @@ This gate is a DOM/clipboard/privacy regression. It does not replace
 money-path SQL, ledger, audit, or chain evidence gates such as deposit balance,
 invocation billing, or staging full regression.
 
+### Payments Gateway-truth DOM/API/SQL regression
+
+For User-front Billing / Payments history regressions, run
+`USER_FRONT_BASE_URL=http://127.0.0.1:3000 npm run e2e:user-front-payments-gateway-truth:local`
+followed by `npm run ci:user-front-payments-gateway-truth-local-evidence`.
+This local-only gate seeds a dedicated local wallet, reads real Gateway deposit
+intent, consumer withdrawal, and refund APIs with `limit=100`, queries
+Postgres for the same owner, and verifies `/dashboard/billing` renders the
+merged top 50 records after DOM/API/SQL checkpoints pass.
+
+The gate exists to lock the hybrid Web3 boundary: Payments rows are Gateway
+DB/API truth. Frontend chain logs such as `DepositInfo` and `WithdrawInfo` may
+only support transient wallet feedback and must not create persistent Billing
+rows or completed money states. It also fails if the historical
+`WithdrawInfo.ticketHash`-as-amount regression reappears as a huge scientific
+notation amount.
+
 ```sql
 SELECT deposit_id, owner_id, owner_address, target_account_id, tx_hash,
        amount_usdc, status, block_number, request_id, updated_at

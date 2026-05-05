@@ -155,33 +155,40 @@ describe("consumer withdrawal ticket normalization", () => {
 
   it("normalizes ticket ids in withdrawal history rows", async () => {
     const originalFetch = globalThis.fetch;
-    globalThis.fetch = async () =>
-      new Response(
-        JSON.stringify({
-          withdrawals: [
-            {
-              id: "cw-1",
-              amountUsdc: "2",
-              status: "REQUESTED",
-              ticket: {
-                ticketId: "abc",
-                ticketHash: "def",
-                amount: "200",
-                fee: "50",
-                deadline: 123,
-                signature: "0xsig",
-                chainId: 31337,
-                contractAddress: "0xcontract",
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            withdrawals: [
+              {
+                id: "cw-1",
+                amountUsdc: "2",
+                status: "REQUESTED",
+                ticket: {
+                  ticketId: "abc",
+                  ticketHash: "def",
+                  amount: "200",
+                  fee: "50",
+                  deadline: 123,
+                  signature: "0xsig",
+                  chainId: 31337,
+                  contractAddress: "0xcontract",
+                },
               },
-            },
-          ],
-        }),
-        { status: 200 }
-      );
+            ],
+          }),
+          { status: 200 }
+        )
+    );
+    globalThis.fetch = fetchMock;
 
     try {
-      const rows = await listConsumerWithdrawals("0xabc");
+      const rows = await listConsumerWithdrawals("0xabc", 100);
 
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining("/balance/consumer/withdrawals?limit=100"),
+        expect.any(Object)
+      );
       expect(rows[0].ticket?.ticketId).toBe("0xabc");
       expect(rows[0].ticket?.ticketHash).toBe("0xdef");
     } finally {

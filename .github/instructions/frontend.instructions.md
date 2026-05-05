@@ -110,6 +110,9 @@ name: "Synapse Frontend Rules"
 - Treat wallet rejection as a neutral cancellation, not a product error. Catch `code === 4001`, `ACTION_REJECTED`, `User rejected`, and `User denied`; clear loading state and show localized neutral copy instead of a red error toast.
 - Never cache a cancelled, expired, or failed SIWE challenge. Every login intent, retry, or reconnect must request a fresh `/api/v1/auth/challenge` nonce before opening the wallet signature prompt.
 - Wallet signature, deposit, and withdrawal flows must show a Synapse-controlled intent preview before the wallet opens: domain/network, wallet, amount or purpose, vault/spender, gas expectation, and whether funds can move.
+- Consumer-facing balances, Payments rows, withdrawal lists, and pending/frozen state must come from Gateway DB/API truth, not frontend chain-log scans. `DepositInfo` / `WithdrawInfo` parsing is allowed only for transient wallet feedback after a user-submitted transaction; it must not create persistent ledger rows or mark money-path state completed.
+- Deposit and withdrawal money actions must create a durable Gateway intent before opening the wallet. If intent creation fails, do not prompt the wallet. This prevents page refreshes from hiding a submitted or pending money action.
+- When a page must merge several Gateway history endpoints for display, each source must use an explicit sufficiently large fetch limit or a backend-owned unified feed. Do not merge small default pages such as three separate `limit=10` results into one apparent timeline.
 
 **i18n drift**
 

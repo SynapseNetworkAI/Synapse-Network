@@ -155,6 +155,8 @@ The owner receives the net amount on-chain. The fee stays inside the vault as pr
 
 Consumer withdrawals appear in Payments as a single `Withdraw` row. We intentionally filter the same rows out of generic refund history to avoid duplicates.
 
+Payments is a Gateway-backed display surface, not a frontend chain watcher. The page reads persisted Gateway rows for deposit intents, consumer withdrawals, and refunds, then performs display-only `concat + sort` in the browser with a large per-source limit. It must not scan `WithdrawInfo` or `DepositInfo` logs to create ledger rows or mark a payment completed.
+
 Status mapping:
 
 | Withdrawal Status       | Payments Status |
@@ -171,6 +173,7 @@ Other display rules:
 - amount is shown as a negative outflow
 - `txHash` is shown once it exists
 - failed or cancelled withdrawals keep their failure state instead of disappearing
+- page refreshes recover pending rows from Gateway state, not from local optimistic UI
 - E2E screenshot and DOM checkpoints for a successful withdrawal must assert `Completed` after the complete callback, not merely `Pending` or ticket-ready state
 
 ## Watcher Role
