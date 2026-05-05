@@ -42,8 +42,8 @@ import {
   discoverServices,
   type ServiceRegistryRecord,
 } from "@/utils/serviceApi";
-import { XButton } from "@/components/xui/XButton";
 import CopyableValue from "@/components/xui/CopyableValue";
+import { XButton } from "@/components/xui/XButton";
 import {
   XDialog,
   XDialogBody,
@@ -1003,6 +1003,7 @@ export default function DashboardAgentsPage({
                       label={t("agentsPage.workspaceAgentIdLabel")}
                       className="gap-0"
                       valueClassName="sr-only"
+                      buttonClassName="rounded-lg"
                     />
                   </div>
                   <p className="x-body-copy mt-4 max-w-2xl">
@@ -1563,7 +1564,7 @@ export default function DashboardAgentsPage({
                 <dt className="x-overline-label mb-1 block font-bold uppercase tracking-widest text-gray-500">
                   {t("agentsPage.boundOwnerValueLabel")}
                 </dt>
-                <dd className="break-all font-mono text-sm text-blue-300">
+                <dd>
                   <CopyableValue
                     value={issuedCredential.ownerAddress}
                     label={t("agentsPage.boundOwnerValueLabel")}

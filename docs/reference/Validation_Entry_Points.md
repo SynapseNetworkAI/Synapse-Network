@@ -134,7 +134,7 @@ Working directory: `services/user-front/`
 4. `npm run ci:user-front-error-dom` from repository root for focused DOM regression on localized, user-readable error toasts for Credits withdraw, Provider withdraw, provider services and health, service deploy, paid invoke, spend cap, and credential actions
 5. `npm run ci:user-front-i18n-dom` from repository root for focused `en`/`zh` DOM regression on Credits, Withdraw, Credentials, QuickStart, Paid Invoke, RolePathCards, and Feedback surfaces
 6. `cd services/user-front && yarn test` for the full Vitest suite
-7. `USER_FRONT_BASE_URL=http://localhost:3000 npm run ci:user-front-error-browser` from repository root after starting user-front to verify EN/ZH error toast DOM text and capture screenshots under `output/playwright/user-front-error-toasts/`
+7. `USER_FRONT_BASE_URL=http://localhost:3000 npm run ci:user-front-error-browser` from repository root after starting user-front to verify product toasts replace raw RPC/API errors
 8. `USER_FRONT_BASE_URL=http://localhost:3000 node scripts/ui/verify_user_front_i18n.mjs` from repository root after starting user-front to verify real route DOM language switching and capture screenshots
 9. `USER_FRONT_BASE_URL=http://localhost:3000 node scripts/ui/verify_user_front_pages.mjs` from repository root for general browser route/navigation verification
 10. `USER_FRONT_BASE_URL=http://127.0.0.1:3000 npm run e2e:user-front-copyable-identifiers` and `npm run ci:user-front-copyable-identifiers-evidence` when changing copyable IDs, hashes, addresses, invocation privacy, or provider identifier tables. This local DOM/clipboard gate proves short display values copy the full canonical value and ordinary user pages do not expose `agent:agent:*`, counterparty, or provider wallet internals.
@@ -264,7 +264,7 @@ Before finishing:
 1. update docs if behavior changed
 2. update tests if behavior changed
 3. prefer the narrow project-local test plus the matching repo `ci:*` gate when risk is high
-4. run `npm run ci:finance-approval-safety` for approval, withdraw, refund, complete, ledger, balance, gateway-admin finance, or admin-front withdrawal-review changes; this includes Semgrep, finance-only mypy, local runtime guard, and E2E model-drift checks. The local runtime guard also blocks disabled local Gateway monitors, missing withdrawal reapers/processors, missing analytics/notification outbox workers, and setup/restart default drift.
+4. run `npm run ci:finance-approval-safety` for approval, withdraw, refund, complete, ledger, balance, gateway-admin finance, or admin-front withdrawal-review changes; this includes Semgrep, finance-only mypy, local runtime guard, and E2E model-drift checks
 5. run `npm run ci:pr` before push for admin-front or gateway-admin changes so security, complexity, duplication, assertion-quality, coverage-escape, secret, and incremental diff-coverage gates all run against changed files
 6. run `npm run e2e:admin-withdrawal-approval` and `npm run ci:finance-approval-e2e-evidence` before release approval when funds approval behavior or evidence-sensitive paths changed
 7. run `npm run e2e:admin-withdrawal-review:local` and `npm run ci:admin-withdrawal-review-local-evidence` when changing Admin-front withdrawal review, Gateway-admin decision auth, CSRF/session handling, OTP step-up, or 401/403 error handling. This evidence must prove `synapse_admin_session`, `X-CSRF-Token`, `X-Admin-OTP-Code`, `approval:decide`, review screenshots, DB state, duplicate-decision rejection, and chain replay protection.

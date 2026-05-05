@@ -85,6 +85,46 @@ type WithdrawStep =
   | "completing"
   | "done";
 
+const ACTIVE_WITHDRAWAL_STATUSES = new Set([
+  "REQUESTED",
+  "SIGNED",
+  "BROADCASTED",
+  "PENDING",
+  "PENDING_MANUAL_REVIEW",
+  "APPROVED_AUTO",
+  "APPROVED_MANUAL",
+  "PROCESSING",
+  "TICKET_READY",
+]);
+
+const WITHDRAWAL_PENDING_BALANCE_STATUSES = new Set([
+  "REQUESTED",
+  "SIGNED",
+  "BROADCASTED",
+  "PENDING",
+  "PENDING_MANUAL_REVIEW",
+  "APPROVED_AUTO",
+  "APPROVED_MANUAL",
+  "PROCESSING",
+  "TICKET_READY",
+]);
+
+function normalizeWithdrawalStatus(status?: string | null): string {
+  return String(status || "")
+    .trim()
+    .toUpperCase();
+}
+
+function isActiveWithdrawalStatus(status?: string | null): boolean {
+  return ACTIVE_WITHDRAWAL_STATUSES.has(normalizeWithdrawalStatus(status));
+}
+
+function isWithdrawalPendingBalanceStatus(status?: string | null): boolean {
+  return WITHDRAWAL_PENDING_BALANCE_STATUSES.has(
+    normalizeWithdrawalStatus(status)
+  );
+}
+
 function resolveConsumerWithdrawErrorMessage(
   error: unknown,
   t: ReturnType<typeof useLanguage>["t"]
@@ -115,37 +155,6 @@ function resolveConsumerWithdrawErrorMessage(
   }
 
   return t("creditsPage.consumerWithdrawRequestFailed");
-}
-
-const ACTIVE_WITHDRAWAL_STATUSES = new Set([
-  "REQUESTED",
-  "SIGNED",
-  "BROADCASTED",
-  "PENDING",
-  "PENDING_MANUAL_REVIEW",
-  "APPROVED_AUTO",
-  "APPROVED_MANUAL",
-  "TICKET_READY",
-]);
-
-const WITHDRAWAL_PENDING_BALANCE_STATUSES = new Set([
-  "REQUESTED",
-  "SIGNED",
-  "BROADCASTED",
-  "PENDING",
-  "APPROVED_AUTO",
-  "APPROVED_MANUAL",
-  "TICKET_READY",
-]);
-
-function isActiveWithdrawalStatus(status?: string | null): boolean {
-  return ACTIVE_WITHDRAWAL_STATUSES.has(String(status || "").toUpperCase());
-}
-
-function isWithdrawalPendingBalanceStatus(status?: string | null): boolean {
-  return WITHDRAWAL_PENDING_BALANCE_STATUSES.has(
-    String(status || "").toUpperCase()
-  );
 }
 
 function WithdrawBalanceModal({
@@ -355,12 +364,10 @@ function WithdrawBalanceModal({
       setStep("confirming");
       toast.success(t("creditsPage.consumerWithdrawTxSubmitted"));
     } catch (err) {
-      const msg =
-        err instanceof ConsumerWithdrawApiError || !createdResult
-          ? resolveConsumerWithdrawErrorMessage(err, t)
-          : normalizeWithdrawWalletError(err, {
-              fallback: t("creditsPage.consumerWithdrawTxFailed"),
-            });
+      const requestMessage = resolveConsumerWithdrawErrorMessage(err, t);
+      const walletMessage = normalizeWithdrawWalletError(err, {
+        fallback: requestMessage,
+      });
       if (isWalletUserRejectedError(err)) {
         await syncFailedWithdrawal(
           "WALLET_REJECTED",
@@ -373,12 +380,12 @@ function WithdrawBalanceModal({
         if (createdResult?.withdrawId) {
           await syncFailedWithdrawal(
             "WITHDRAW_SUBMISSION_FAILED",
-            msg,
+            walletMessage,
             undefined,
             createdResult
           );
         } else {
-          toast.error(msg);
+          toast.error(requestMessage);
         }
       }
       setStep("form");
@@ -593,7 +600,7 @@ export default function OwnerCreditsPage() {
     try {
       const rows = await listConsumerWithdrawals(userAddress);
       const active =
-        rows.find((r) => isActiveWithdrawalStatus(r.status)) ?? null;
+        rows.find((row) => isActiveWithdrawalStatus(row.status)) ?? null;
       setPendingWithdrawal(active);
     } catch {
       setPendingWithdrawal(null);
@@ -1204,7 +1211,8 @@ export default function OwnerCreditsPage() {
           onSuccess={async (result) => {
             const normalizedStatus = (result.status || "").toUpperCase();
             const isActiveWithdrawal =
-              isActiveWithdrawalStatus(normalizedStatus);
+              normalizedStatus === "REQUESTED" ||
+              normalizedStatus === "PENDING_MANUAL_REVIEW";
 
             if (!isActiveWithdrawal) {
               setPendingWithdrawal(null);
