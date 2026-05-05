@@ -1,12 +1,12 @@
 # User Front Page Function and Verification
 
 - Status: canonical
-- Code paths: `services/user-front/src/app/`, `services/user-front/src/components/`, `scripts/ui/verify_user_front_pages.mjs`, `scripts/ui/verify_user_front_i18n.mjs`
+- Code paths: `services/user-front/src/app/`, `services/user-front/src/components/`, `scripts/ui/verify_user_front_pages.mjs`, `scripts/ui/verify_user_front_i18n.mjs`, `scripts/ui/verify_provider_withdraw_mature_receivable.mjs`
 - Scope: `services/user-front`
 - Last updated: 2026-05-05
 - Last verified against code: 2026-05-05
 - Verification registry: `services/user-front/src/app/user-front-page-registry.json`
-- Automated checks: `npm run ci:user-front-pages`, `npm run ci:user-front-i18n`, `npm run ci:user-front-i18n-dom`, `USER_FRONT_BASE_URL=http://localhost:3000 node scripts/ui/verify_user_front_pages.mjs`, `USER_FRONT_BASE_URL=http://localhost:3000 node scripts/ui/verify_user_front_i18n.mjs`
+- Automated checks: `npm run ci:user-front-pages`, `npm run ci:user-front-i18n`, `npm run ci:user-front-i18n-dom`, `npm run ci:provider-withdraw-mature-dom`, `USER_FRONT_BASE_URL=http://localhost:3000 node scripts/ui/verify_user_front_pages.mjs`, `USER_FRONT_BASE_URL=http://localhost:3000 node scripts/ui/verify_user_front_i18n.mjs`, `USER_FRONT_BASE_URL=http://localhost:3000 npm run ci:provider-withdraw-mature-browser`
 
 ## Purpose
 
@@ -122,20 +122,20 @@ A page passes functional verification only when:
 
 Use this focused matrix whenever changing console copy, modals, placeholders, toast text, or page-level labels.
 
-| Surface                                | DOM assertions                                                                                                                                                  |
-| -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Credits / `/dashboard/billing/credits` | English and Chinese spendable/pending/frozen balances, voucher copy, purchase/withdraw labels, and no stale `X may give out free credits` text                  |
-| Consumer withdraw modal                | English and Chinese heading, amount/reason labels, hints, action button, and invalid amount toast                                                               |
-| Deposit modal                          | Caller-provided localized title, balance labels, transaction summary, permit/deposit progress labels, and close aria label                                      |
-| Provider withdraw                      | English and Chinese page title/history labels plus localized error-code toast for T+7 maturity, minimum amount, insufficient receivable, and pending withdrawal |
-| Agent credentials                      | English and Chinese page title, table headers, search placeholder, revoke confirmation modal, and revoke toast                                                  |
-| Agents workspace                       | English and Chinese list pane title, create CTA, manage CTA, and no stale English CTA copy in Chinese mode                                                      |
-| QuickStartGuide                        | English and Chinese stepper labels, deposit modal labels, and validation messages                                                                               |
-| PaidInvokePanel                        | English and Chinese panel labels, unavailable hints, success toast, and result labels                                                                           |
-| RolePathCards                          | English mode must not leak fixed Chinese onboarding text; Chinese mode must not leak English onboarding sentences                                               |
-| Feedback                               | English and Chinese title, category label, placeholder, submit button, and close aria label                                                                     |
-| Wallet login intent                    | English and Chinese purpose/domain/wallet/network/no-funds copy, fresh nonce retry behavior, and neutral user-cancel toast                                      |
-| Wallet rejection                       | `4001` / `ACTION_REJECTED` from login, deposit, and withdrawal flows clears loading and does not show raw wallet/backend error text                             |
+| Surface                                | DOM assertions                                                                                                                                                                                                                                                         |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Credits / `/dashboard/billing/credits` | English and Chinese spendable/pending/frozen balances, voucher copy, purchase/withdraw labels, and no stale `X may give out free credits` text                                                                                                                         |
+| Consumer withdraw modal                | English and Chinese heading, amount/reason labels, hints, action button, and invalid amount toast                                                                                                                                                                      |
+| Deposit modal                          | Caller-provided localized title, balance labels, transaction summary, permit/deposit progress labels, and close aria label                                                                                                                                             |
+| Provider withdraw                      | English and Chinese page title/history labels, withdrawable receivable vs receivable balance, disabled below-minimum CTA, explicit MAX-filled amount, and localized error-code toast for T+7 maturity, minimum amount, insufficient receivable, and pending withdrawal |
+| Agent credentials                      | English and Chinese page title, table headers, search placeholder, revoke confirmation modal, and revoke toast                                                                                                                                                         |
+| Agents workspace                       | English and Chinese list pane title, create CTA, manage CTA, and no stale English CTA copy in Chinese mode                                                                                                                                                             |
+| QuickStartGuide                        | English and Chinese stepper labels, deposit modal labels, and validation messages                                                                                                                                                                                      |
+| PaidInvokePanel                        | English and Chinese panel labels, unavailable hints, success toast, and result labels                                                                                                                                                                                  |
+| RolePathCards                          | English mode must not leak fixed Chinese onboarding text; Chinese mode must not leak English onboarding sentences                                                                                                                                                      |
+| Feedback                               | English and Chinese title, category label, placeholder, submit button, and close aria label                                                                                                                                                                            |
+| Wallet login intent                    | English and Chinese purpose/domain/wallet/network/no-funds copy, fresh nonce retry behavior, and neutral user-cancel toast                                                                                                                                             |
+| Wallet rejection                       | `4001` / `ACTION_REJECTED` from login, deposit, and withdrawal flows clears loading and does not show raw wallet/backend error text                                                                                                                                    |
 
 ## Wallet Trust UX
 
@@ -145,6 +145,7 @@ All wallet actions must use a Synapse-owned explanation layer before opening the
 - Each login attempt or retry requests a fresh `/api/v1/auth/challenge`; cancelled, expired, or failed challenges are never reused.
 - Deposit shows Permit authorization first, then Vault deposit transaction. Permit is gasless; the vault transaction needs native gas.
 - Consumer and provider withdrawals explain matured funds, Gateway-issued tickets, deadline, vault contract, amount, and native gas before the wallet claim.
+- Provider withdraw UI must use `providerMatureReceivable` for the main withdrawable amount, MAX button, and CTA enablement. It may show `providerReceivable` only as secondary receivable balance. If the matured amount is below `10.00 USDC`, the primary withdrawal CTA is disabled with a localized title, and empty amount submission is never allowed in the browser.
 - Deposit and withdrawal flows create a durable Gateway intent before opening the wallet. If the user refreshes immediately after a wallet transaction, the page must recover pending state from Gateway rows rather than local optimistic UI.
 - Wallet rejection is a neutral user cancellation. UI must reset loading state and show localized cancellation copy, not a red error toast.
 
@@ -188,6 +189,7 @@ Run i18n static and DOM regression checks:
 ```bash
 npm run ci:user-front-i18n
 npm run ci:user-front-i18n-dom
+npm run ci:provider-withdraw-mature-dom
 ```
 
 Run browser navigation and screenshot verification:
@@ -200,6 +202,12 @@ Run browser i18n DOM verification after starting user-front:
 
 ```bash
 USER_FRONT_BASE_URL=http://localhost:3000 node scripts/ui/verify_user_front_i18n.mjs
+```
+
+Run Provider mature receivable browser evidence after starting user-front:
+
+```bash
+USER_FRONT_BASE_URL=http://localhost:3000 npm run ci:provider-withdraw-mature-browser
 ```
 
 Run real backend-enforced verification:

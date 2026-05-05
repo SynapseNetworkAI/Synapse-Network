@@ -162,8 +162,9 @@ Gateway 收到提现请求后，至少要先做：
 5. 审核拒绝后，金额从 `frozen_balance -> available_balance`
 6. 锁仓金额与 withdrawal.amount 完全一致
 7. 对应 ledger entry / audit 证据可追溯
-8. Provider 自定义提现金额输入统一按 USDC 金额校验，最多允许小数点后 2 位；空值代表按当前可提现余额整额创建 intent
-9. 空值整额提现以成熟收益为上限，不包含未过 T+7 的新收益
+8. Provider 自定义提现金额输入统一按 USDC 金额校验，最多允许小数点后 2 位；Gateway 仍保留空值按当前成熟可提现余额整额创建 intent 的兼容兜底
+9. 前端 UI 不允许空金额提交：`MAX` 必须把成熟可提现金额反填到输入框，用户必须看到明确金额后才能创建 intent
+10. 前端主金额、MAX 和按钮可用性都必须基于 `providerMatureReceivable`；`providerReceivable` 只能作为次级“应收余额”展示。若成熟可提现金额低于 `PROVIDER_WITHDRAW_MIN_USDC`，提现按钮直接置灰
 
 ## 9. Step C: 生成 EIP-712 提现票据
 

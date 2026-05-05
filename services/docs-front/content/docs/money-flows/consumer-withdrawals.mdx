@@ -1,18 +1,18 @@
 ---
 title: Consumer Withdrawals
-description: Withdraw unused consumer funds after they pass the T+1 matured funds risk window.
+description: Withdraw unused consumer funds after they pass the T+7 matured funds risk window.
 ---
 
 Consumer withdrawals let an owner move unused USDC collateral back on-chain. The withdrawal flow is intentionally slower than agent spending because funds leaving the system need stronger finality.
 
-<WarningNote title="Matured Funds: Consumer withdrawals are T+1">
-  Consumer withdrawals are T+1. After a consumer deposit or money-moving balance change, funds must pass a T+1 risk holding period before they become matured withdrawable balance.
+<WarningNote title="Matured Funds: Consumer withdrawals are T+7">
+  Consumer withdrawals are T+7. After a consumer deposit or money-moving balance change, funds must pass a T+7 risk holding period before they become matured withdrawable balance.
 </WarningNote>
 
 ## Balance states
 
 - **Available balance**: indexed consumer balance that can fund authorized agent invocations.
-- **Matured withdrawable balance**: the subset of consumer balance that passed T+1 and can be used for a withdrawal intent.
+- **Matured withdrawable balance**: the subset of consumer balance that passed T+7 and can be used for a withdrawal intent.
 - **Pending/frozen withdrawal funds**: funds reserved by an active withdrawal ticket until it is claimed, failed, expired, or reviewed.
 
 ## Flow
@@ -24,14 +24,14 @@ Consumer withdrawals let an owner move unused USDC collateral back on-chain. The
 5. Gateway reconciles the claim and releases or closes the frozen state.
 
 <StatLine>
-  available balance -> T+1 matured withdrawable balance -> withdrawal intent -> frozen funds -> on-chain claim
+  available balance -> T+7 matured withdrawable balance -> withdrawal intent -> frozen funds -> on-chain claim
 </StatLine>
 
 ## Disabled button checklist
 
 If the withdrawal button is disabled, it is usually not just "insufficient balance." Check these states first:
 
-- Funds have not matured through T+1 yet.
+- Funds have not matured through T+7 yet.
 - Another active withdrawal intent is already freezing funds.
 - The account, withdrawal, or wallet entered manual review.
 - The requested amount exceeds matured withdrawable balance after fees.

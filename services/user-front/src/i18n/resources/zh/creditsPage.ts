@@ -103,7 +103,7 @@ const creditsPage: I18nMessages["creditsPage"] = {
   consumerWithdrawAmountTooLowForFee: "提现金额必须大于平台手续费。",
   consumerWithdrawInsufficientBalance: "可用 credits 不足，无法发起本次提现。",
   consumerWithdrawMatureBalanceRequired:
-    "这笔资金尚未成熟。Consumer 提现需要经过 T+1 资金成熟期。",
+    "这笔资金尚未成熟。Consumer 提现需要经过 T+7 资金成熟期。",
   consumerWithdrawSubmitted: "已完成 ${{amount}} USDC 提现！",
   consumerWithdrawBackendSyncFailed:
     "链上转账已成功，但后端状态更新失败。后台处理器会自动完成记录。",

@@ -15,6 +15,8 @@ import { useConnectModal } from "@rainbow-me/rainbowkit";
 import toast from "react-hot-toast";
 import Link from "next/link";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
+import { ProviderWithdrawAmountPanel } from "@/components/provider-workspace/ProviderWithdrawAmountPanel";
+import { ProviderWithdrawBalanceSummary } from "@/components/provider-workspace/ProviderWithdrawBalanceSummary";
 import CopyableValue from "@/components/xui/CopyableValue";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import SynapseCoreABI from "@/SynapseCoreABI.json";
@@ -46,7 +48,6 @@ const VAULT_ADDRESS = (contractConfig as { SynapseCore?: string })
 const USDC_TOKEN_ADDRESS = (contractConfig as { MockUSDC?: string })
   .MockUSDC as `0x${string}` | undefined;
 const PROVIDER_WITHDRAW_MIN_USDC = "10.00";
-const WITHDRAW_AMOUNT_INPUT_PATTERN = /^\d*(?:\.\d{0,2})?$/;
 const ERC20_BALANCE_OF_ABI = [
   {
     type: "function",
@@ -152,7 +153,7 @@ function validateRequestedWithdrawAmount(
   if (!requestedAmount) {
     return null;
   }
-  if (!WITHDRAW_AMOUNT_INPUT_PATTERN.test(requestedAmount)) {
+  if (!/^\d*(?:\.\d{0,2})?$/.test(requestedAmount)) {
     return t("providerSettlements.invalidAmountPrecision");
   }
 
@@ -256,7 +257,14 @@ export default function ProviderWithdrawPage() {
     [t]
   );
 
-  const availableReceivable = normalizeMoneyString(providerStats.receivable);
+  const receivableBalance = normalizeMoneyString(providerStats.receivable);
+  const availableReceivable = normalizeMoneyString(
+    providerStats.matureReceivable ?? providerStats.receivable
+  );
+  const hasImmatureReceivable =
+    compareMoneyStrings(receivableBalance, availableReceivable) > 0;
+  const matureReceivableBelowMinimum =
+    compareMoneyStrings(availableReceivable, PROVIDER_WITHDRAW_MIN_USDC) < 0;
 
   const { data: nativeBalanceData } = useBalance({ address });
   const {
@@ -492,6 +500,10 @@ export default function ProviderWithdrawPage() {
     }
 
     const requestedAmount = withdrawAmountInput.trim();
+    if (!requestedAmount) {
+      toast.error(t("providerSettlements.invalidAmountValue"));
+      return;
+    }
     const validationMessage = validateRequestedWithdrawAmount(
       requestedAmount,
       availableReceivable,
@@ -506,7 +518,11 @@ export default function ProviderWithdrawPage() {
       return;
     }
 
-    const amountUsdc = resolveRequestedWithdrawAmount() ?? availableReceivable;
+    const amountUsdc = resolveRequestedWithdrawAmount();
+    if (!amountUsdc) {
+      toast.error(t("providerSettlements.invalidAmountValue"));
+      return;
+    }
     if (compareMoneyStrings(amountUsdc, PROVIDER_WITHDRAW_MIN_USDC) < 0) {
       toast.error(
         t("providerSettlements.amountBelowMinimum", {
@@ -721,22 +737,20 @@ export default function ProviderWithdrawPage() {
         </div>
 
         <div className="rounded-[16px] border border-[#2f3336] bg-[#16181c] p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.02)]">
-          <div className="flex flex-col gap-4 rounded-[12px] border border-[#232323] bg-[#1a1a1a] p-4 md:h-[116px] md:flex-row md:items-center md:justify-between md:gap-6">
-            <div>
-              <p className="mb-1 text-[14px] font-normal leading-[20px] text-[#9ca3af]">
-                {t("providerSettlements.metricAvailable")}
-              </p>
-              <div className="flex items-center gap-2">
-                <p className="text-[24px] font-bold leading-[32px] tracking-[-0.02em] text-white">
-                  {formatMoneyString(availableReceivable, 2)} USDC
-                </p>
-              </div>
-              <p className="mt-1 text-[12px] leading-[18px] text-[#86868b]">
-                {t("providerSettlements.withdrawAmountHint", {
-                  amount: PROVIDER_WITHDRAW_MIN_USDC,
-                })}
-              </p>
-            </div>
+          <div className="flex flex-col gap-4 rounded-[12px] border border-[#232323] bg-[#1a1a1a] p-4 md:min-h-[116px] md:flex-row md:items-center md:justify-between md:gap-6">
+            <ProviderWithdrawBalanceSummary
+              withdrawableLabel={t(
+                "providerSettlements.withdrawableReceivable"
+              )}
+              receivableLabel={t("providerSettlements.receivableBalance")}
+              immatureNotice={t("providerSettlements.immatureReceivableNotice")}
+              minimumHint={t("providerSettlements.withdrawAmountHint", {
+                amount: PROVIDER_WITHDRAW_MIN_USDC,
+              })}
+              availableReceivable={availableReceivable}
+              receivableBalance={receivableBalance}
+              hasImmatureReceivable={hasImmatureReceivable}
+            />
             <div className="flex flex-wrap items-center self-start gap-2 md:self-auto">
               <div className="relative group">
                 <button
@@ -751,10 +765,18 @@ export default function ProviderWithdrawPage() {
                   disabled={
                     !isConnected ||
                     compareMoneyStrings(availableReceivable, "0") <= 0 ||
+                    matureReceivableBelowMinimum ||
                     isAnyLoading ||
                     !ticketSigningEnabled ||
                     loadingWithdrawCapability ||
                     !hasEnoughGas
+                  }
+                  title={
+                    matureReceivableBelowMinimum
+                      ? t(
+                          "providerSettlements.matureReceivableBelowMinimumTitle"
+                        )
+                      : undefined
                   }
                   className="inline-flex h-[36px] min-w-[143px] items-center justify-center whitespace-nowrap rounded-full border border-[#2f3336] bg-transparent px-4 py-2 text-[14px] font-normal leading-[20px] text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
                 >
@@ -787,77 +809,19 @@ export default function ProviderWithdrawPage() {
 
           {/* ── Inline amount input (expands on Generate & Claim click) ── */}
           {showAmountInput && (
-            <div className="mt-4 rounded-[8px] border border-[#323232] bg-[#1a1a1a] p-4 space-y-3">
-              <div className="flex items-center gap-3">
-                <div
-                  className={`flex flex-1 items-center rounded-full border bg-[#050505] transition-colors focus-within:border-[#2f3336] ${
-                    withdrawAmountValidationMessage
-                      ? "border-[#ef4444]"
-                      : "border-[#232323]"
-                  }`}
-                >
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    value={withdrawAmountInput}
-                    onChange={(e) => {
-                      const nextValue = e.target.value;
-                      if (
-                        nextValue === "" ||
-                        WITHDRAW_AMOUNT_INPUT_PATTERN.test(nextValue)
-                      ) {
-                        setWithdrawAmountInput(nextValue);
-                      }
-                    }}
-                    placeholder={t(
-                      "providerSettlements.withdrawAmountPlaceholder"
-                    )}
-                    className="min-w-0 flex-1 bg-transparent px-4 py-2 text-[14px] text-white outline-none placeholder:text-[#555]"
-                    disabled={isAnyLoading}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (compareMoneyStrings(availableReceivable, "0") > 0) {
-                        setWithdrawAmountInput(
-                          formatMoneyString(availableReceivable, 2).replace(
-                            /,/g,
-                            ""
-                          )
-                        );
-                      }
-                    }}
-                    disabled={
-                      compareMoneyStrings(availableReceivable, "0") <= 0 ||
-                      isAnyLoading
-                    }
-                    className="mr-3 text-[11px] font-bold uppercase tracking-[0.06em] text-[#22c55e] transition hover:text-[#86efac] disabled:opacity-30 disabled:cursor-not-allowed"
-                  >
-                    MAX
-                  </button>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleCreateWithdrawalIntent}
-                  disabled={
-                    isAnyLoading || Boolean(withdrawAmountValidationMessage)
-                  }
-                  className="inline-flex h-[36px] min-w-[100px] items-center justify-center whitespace-nowrap rounded-full bg-[#eff3f4] px-4 py-2 text-[14px] font-normal leading-[20px] text-[#0f141a] transition hover:bg-[#e7eaeb] disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  {t("providerSettlements.confirmWithdraw")}
-                </button>
-              </div>
-              {withdrawAmountValidationMessage && (
-                <p className="text-xs text-[#f87171]">
-                  {withdrawAmountValidationMessage}
-                </p>
-              )}
-              <p className="text-[12px] leading-[18px] text-[#555]">
-                {t("providerSettlements.withdrawGasNote", {
-                  amount: PROVIDER_WITHDRAW_MIN_USDC,
-                })}
-              </p>
-            </div>
+            <ProviderWithdrawAmountPanel
+              value={withdrawAmountInput}
+              availableReceivable={availableReceivable}
+              isLoading={isAnyLoading}
+              placeholder={t("providerSettlements.withdrawAmountPlaceholder")}
+              confirmLabel={t("providerSettlements.confirmWithdraw")}
+              gasNote={t("providerSettlements.withdrawGasNote", {
+                amount: PROVIDER_WITHDRAW_MIN_USDC,
+              })}
+              validationMessage={withdrawAmountValidationMessage}
+              onChange={setWithdrawAmountInput}
+              onConfirm={handleCreateWithdrawalIntent}
+            />
           )}
         </div>
 

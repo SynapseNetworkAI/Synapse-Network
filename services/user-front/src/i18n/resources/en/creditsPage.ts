@@ -125,7 +125,7 @@ const creditsPage: I18nMessages["creditsPage"] = {
   consumerWithdrawInsufficientBalance:
     "Spendable credits are insufficient for this withdrawal.",
   consumerWithdrawMatureBalanceRequired:
-    "These funds are not mature yet. Consumer withdrawals require the T+1 matured funds window.",
+    "These funds are not mature yet. Consumer withdrawals require the T+7 matured funds window.",
   consumerWithdrawSubmitted: "Withdrawal of ${{amount}} USDC completed!",
   consumerWithdrawBackendSyncFailed:
     "On-chain transfer succeeded but backend update failed. The background processor will complete it automatically.",

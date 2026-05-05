@@ -217,7 +217,7 @@ describe("ProviderSettlementsPage", () => {
     });
     await waitFor(() => {
       expect(toastError).toHaveBeenCalledWith(
-        "Provider 收益需要经过 T+7 风控沉淀期后才能提现。新产生的应收会显示在余额中，但只有已成熟应收可以提现。",
+        "当前收益尚未达到 T+7 成熟期。只有已成熟应收可以提现；新产生的应收仍会显示在余额中。",
         { id: "toast-provider-withdraw" }
       );
     });
