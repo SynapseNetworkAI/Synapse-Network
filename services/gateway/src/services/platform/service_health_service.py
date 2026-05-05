@@ -30,6 +30,7 @@ from src.services.platform.service_health_history import (  # noqa: F401  # reas
     _should_prune_history,
     append_health_history_rows,
     build_probe_history_rows,
+    cleanup_service_health_events_once,
     prune_health_history,
 )
 from src.services.platform.service_health_tiers import (  # noqa: F401  # reason: compatibility re-export module

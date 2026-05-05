@@ -130,6 +130,8 @@ count_sql() {
 before_active_test="$(count_sql "SELECT COUNT(*) FROM synapse_service_manifests WHERE ${active_test_clause}")"
 before_canonical_active="$(count_sql "SELECT COUNT(*) FROM synapse_service_manifests WHERE status = 'active' AND service_id IN ('svc_web3_sentiment_index','svc_protocol_fundamental_brief','svc_oss_security_healthcheck','svc_deepseek_chat')")"
 before_health_snapshots="$(count_sql "SELECT COUNT(*) FROM synapse_service_health_snapshots WHERE service_id IN (SELECT service_id FROM synapse_service_manifests WHERE ${test_service_clause})")"
+before_health_runtime="$(count_sql "SELECT COUNT(*) FROM synapse_service_health_runtime WHERE service_id IN (SELECT service_id FROM synapse_service_manifests WHERE ${test_service_clause})")"
+before_health_events="$(count_sql "SELECT COUNT(*) FROM synapse_service_health_events WHERE service_id IN (SELECT service_id FROM synapse_service_manifests WHERE ${test_service_clause})")"
 before_runtime_health_state="$(count_sql "SELECT COUNT(*) FROM synapse_runtime_state WHERE ${runtime_health_clause}")"
 
 if [[ "${DRY_RUN}" != "1" ]]; then
@@ -143,6 +145,16 @@ WHERE service_id IN (
   SELECT service_id FROM synapse_service_manifests WHERE ${test_service_clause}
 );
 
+DELETE FROM synapse_service_health_runtime
+WHERE service_id IN (
+  SELECT service_id FROM synapse_service_manifests WHERE ${test_service_clause}
+);
+
+DELETE FROM synapse_service_health_events
+WHERE service_id IN (
+  SELECT service_id FROM synapse_service_manifests WHERE ${test_service_clause}
+);
+
 DELETE FROM synapse_runtime_state
 WHERE ${runtime_health_clause};
 SQL
@@ -151,6 +163,8 @@ fi
 after_active_test="$(count_sql "SELECT COUNT(*) FROM synapse_service_manifests WHERE ${active_test_clause}")"
 after_canonical_active="$(count_sql "SELECT COUNT(*) FROM synapse_service_manifests WHERE status = 'active' AND service_id IN ('svc_web3_sentiment_index','svc_protocol_fundamental_brief','svc_oss_security_healthcheck','svc_deepseek_chat')")"
 after_health_snapshots="$(count_sql "SELECT COUNT(*) FROM synapse_service_health_snapshots WHERE service_id IN (SELECT service_id FROM synapse_service_manifests WHERE ${test_service_clause})")"
+after_health_runtime="$(count_sql "SELECT COUNT(*) FROM synapse_service_health_runtime WHERE service_id IN (SELECT service_id FROM synapse_service_manifests WHERE ${test_service_clause})")"
+after_health_events="$(count_sql "SELECT COUNT(*) FROM synapse_service_health_events WHERE service_id IN (SELECT service_id FROM synapse_service_manifests WHERE ${test_service_clause})")"
 after_runtime_health_state="$(count_sql "SELECT COUNT(*) FROM synapse_runtime_state WHERE ${runtime_health_clause}")"
 
 if [[ "${OUTPUT_FORMAT}" == "json" ]]; then
@@ -163,6 +177,10 @@ if [[ "${OUTPUT_FORMAT}" == "json" ]]; then
   "canonicalActiveServicesAfter": ${after_canonical_active},
   "healthSnapshotsBefore": ${before_health_snapshots},
   "healthSnapshotsAfter": ${after_health_snapshots},
+  "healthRuntimeBefore": ${before_health_runtime},
+  "healthRuntimeAfter": ${after_health_runtime},
+  "healthEventsBefore": ${before_health_events},
+  "healthEventsAfter": ${after_health_events},
   "runtimeHealthStateBefore": ${before_runtime_health_state},
   "runtimeHealthStateAfter": ${after_runtime_health_state}
 }
@@ -177,6 +195,10 @@ else
   echo "Canonical active services after : ${after_canonical_active}"
   echo "Health snapshots before        : ${before_health_snapshots}"
   echo "Health snapshots after         : ${after_health_snapshots}"
+  echo "Health runtime before          : ${before_health_runtime}"
+  echo "Health runtime after           : ${after_health_runtime}"
+  echo "Health events before           : ${before_health_events}"
+  echo "Health events after            : ${after_health_events}"
   echo "Runtime health state before    : ${before_runtime_health_state}"
   echo "Runtime health state after     : ${after_runtime_health_state}"
 fi
