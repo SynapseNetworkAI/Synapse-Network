@@ -198,6 +198,12 @@ def test_postgres_advisory_job_lock_rejects_unknown_job() -> None:
             "run_in_app_notification_cleanup_once",
             {"deleted": 0},
         ),
+        (
+            "service-health-events-cleanup",
+            "service-health-events-cleanup",
+            "run_service_health_event_cleanup_once",
+            {"removed": 0},
+        ),
     ],
 )
 async def test_worker_one_shot_jobs_use_advisory_lock(

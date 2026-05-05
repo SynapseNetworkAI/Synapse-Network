@@ -44,6 +44,8 @@ class ServiceTargetHealthHistory(BaseModel):
     owner_address: Optional[str] = Field(default=None, alias="ownerAddress")
     target_url: str = Field(default="", alias="targetUrl")
     status: Optional[str] = None
+    from_status: Optional[str] = Field(default=None, alias="fromStatus")
+    to_status: Optional[str] = Field(default=None, alias="toStatus")
     http_status: Optional[int] = Field(default=None, alias="httpStatus")
     latency_ms: Optional[int] = Field(default=None, alias="latencyMs")
     probe_url: Optional[str] = Field(default=None, alias="probeUrl")

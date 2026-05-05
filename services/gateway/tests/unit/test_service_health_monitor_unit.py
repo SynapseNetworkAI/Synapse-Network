@@ -47,6 +47,12 @@ class InMemoryRegistryRepo:
         self.health_history_write_count += 1
         self.health_history_rows = list(rows)
 
+    def prune_service_target_health_events(self, retention_days):
+        self.pruned_retention_days = retention_days
+        removed = len(self.health_history_rows)
+        self.health_history_rows = []
+        return removed
+
 
 class FakeStorage:
     def __init__(self, services, persisted_health_rows=None):
@@ -548,6 +554,8 @@ async def test_refresh_all_service_health_records_recovery_transition(
     assert result["historyAppended"] == 1
     assert storage.registry.health_history_write_count == 1
     assert storage.registry.health_history_rows[0].status == "healthy"
+    assert storage.registry.health_history_rows[0].from_status == "unhealthy"
+    assert storage.registry.health_history_rows[0].to_status == "healthy"
 
 
 @pytest.mark.asyncio

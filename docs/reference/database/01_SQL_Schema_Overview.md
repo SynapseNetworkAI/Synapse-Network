@@ -175,9 +175,11 @@ SQL 明确把资金层拆成：
 1. `synapse_service_manifests`
 2. `synapse_service_endpoints`
 3. `synapse_service_health_snapshots`
-4. `synapse_service_search_index`
+4. `synapse_service_health_runtime`
+5. `synapse_service_health_events`
+6. `synapse_service_search_index`
 
-作用：定义可发现服务、真实 endpoint 和健康信号。
+作用：定义可发现服务、真实 endpoint、当前健康状态和 7 天诊断窗口内的健康翻转事件。
 
 ### 4.4 Commerce Layer
 
