@@ -100,20 +100,37 @@ const checks = [];
 const failed = [];
 const trace = [];
 const sqlTimingEvidence = { environment, runId, measurements: [] };
-const apiEvidence = { environment, gatewayBaseUrl, userFrontUrl, snapshots: {} };
+const apiEvidence = {
+  environment,
+  gatewayBaseUrl,
+  userFrontUrl,
+  snapshots: {},
+};
 const dbEvidence = { environment, expectedServiceIds, snapshots: {} };
 const businessEvidence = {
   environment,
   fixedInvoke: { attempted: false },
-  llmInvoke: { attempted: false, skippedWithReason: "not part of this focused gate" },
-  noHold: { attempted: false, skippedWithReason: "covered by gateway-pull-health dogfood" },
-  depositIndexerSmoke: { attempted: false, skippedWithReason: "read-only balance/deposit consistency only" },
+  llmInvoke: {
+    attempted: false,
+    skippedWithReason: "not part of this focused gate",
+  },
+  noHold: {
+    attempted: false,
+    skippedWithReason: "covered by gateway-pull-health dogfood",
+  },
+  depositIndexerSmoke: {
+    attempted: false,
+    skippedWithReason: "read-only balance/deposit consistency only",
+  },
 };
 
 fs.mkdirSync(evidenceDir, { recursive: true });
 
 function formatTimestamp(date) {
-  return date.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+  return date
+    .toISOString()
+    .replace(/[-:]/g, "")
+    .replace(/\.\d{3}Z$/, "Z");
 }
 
 function trimSlash(value) {
@@ -178,11 +195,15 @@ function traceEvent(event, details = {}) {
 }
 
 function psql(args, { input = "" } = {}) {
-  return spawnSync("psql", [postgresDsn, "-X", "-q", "-v", "ON_ERROR_STOP=1", ...args], {
-    cwd: ROOT,
-    encoding: "utf8",
-    input,
-  });
+  return spawnSync(
+    "psql",
+    [postgresDsn, "-X", "-q", "-v", "ON_ERROR_STOP=1", ...args],
+    {
+      cwd: ROOT,
+      encoding: "utf8",
+      input,
+    }
+  );
 }
 
 function psqlScalar(sql) {
@@ -214,7 +235,12 @@ function serviceIdsSql() {
 
 function measureSql({ name, sql, countSql, compareTo = "" }) {
   const started = Date.now();
-  const result = psql(["-t", "-A", "-c", `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${sql}`]);
+  const result = psql([
+    "-t",
+    "-A",
+    "-c",
+    `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${sql}`,
+  ]);
   const durationMs = Date.now() - started;
   let explain = null;
   let planningMs = null;
@@ -288,14 +314,18 @@ async function timedJsonFetch(url, options = {}) {
 }
 
 function gatewayApi(pathname) {
-  return `${gatewayBaseUrl}/api${pathname.startsWith("/") ? pathname : `/${pathname}`}`;
+  return `${gatewayBaseUrl}/api${
+    pathname.startsWith("/") ? pathname : `/${pathname}`
+  }`;
 }
 
 async function captureApiSnapshot(label) {
   const [discover, stats, health, registry] = await Promise.all([
     timedJsonFetch(gatewayApi("/v1/services/discover")),
     timedJsonFetch(gatewayApi("/v1/services/network-stats")),
-    timedJsonFetch(gatewayApi("/v1/services/health/status?includeInactive=true")),
+    timedJsonFetch(
+      gatewayApi("/v1/services/health/status?includeInactive=true")
+    ),
     timedJsonFetch(`${userFrontUrl}/marketplace/registry.json`),
   ]);
   const snapshot = sanitize({
@@ -308,7 +338,9 @@ async function captureApiSnapshot(label) {
   apiEvidence.snapshots[label] = snapshot;
   addCheck(
     `api_snapshot_${label}`,
-    [discover, stats, health, registry].every((item) => item.status >= 200 && item.status < 300),
+    [discover, stats, health, registry].every(
+      (item) => item.status >= 200 && item.status < 300
+    ),
     {
       discover: discover.status,
       stats: stats.status,
@@ -356,7 +388,8 @@ function captureDbSnapshot(label) {
   dbEvidence.snapshots[label] = sanitize(snapshot);
   addCheck(
     `db_snapshot_${label}`,
-    !snapshot?.error && Number(snapshot?.expectedManifests || 0) === expectedServiceIds.length,
+    !snapshot?.error &&
+      Number(snapshot?.expectedManifests || 0) === expectedServiceIds.length,
     snapshot || {},
     "Expected canonical services must be registered in DB."
   );
@@ -364,7 +397,9 @@ function captureDbSnapshot(label) {
 }
 
 function maxUpdatedAtMs(snapshot) {
-  const rows = Array.isArray(snapshot?.expectedRuntime) ? snapshot.expectedRuntime : [];
+  const rows = Array.isArray(snapshot?.expectedRuntime)
+    ? snapshot.expectedRuntime
+    : [];
   return Math.max(
     0,
     ...rows.map((row) => {
@@ -402,14 +437,16 @@ asyncio.run(main())
     encoding: "utf8",
     env: {
       ...process.env,
-      ENV_FILE: process.env.ENV_FILE || "/tmp/synapse-service-health-e2e-no-env-file",
+      ENV_FILE:
+        process.env.ENV_FILE || "/tmp/synapse-service-health-e2e-no-env-file",
       POSTGRES_DSN: postgresDsn,
       STORAGE_BACKEND: "postgres",
       SERVICE_HEALTH_MAX_CANDIDATES_PER_TICK:
         process.env.SERVICE_HEALTH_MAX_CANDIDATES_PER_TICK || "25",
     },
   });
-  const payloadText = result.stdout.trim().split(/\r?\n/).filter(Boolean).at(-1) || "{}";
+  const payloadText =
+    result.stdout.trim().split(/\r?\n/).filter(Boolean).at(-1) || "{}";
   let payload = {};
   try {
     payload = JSON.parse(payloadText.replace(/'/g, '"'));
@@ -436,7 +473,11 @@ asyncio.run(main())
 
 function runLocalEventCleanupOnce() {
   if (isStaging) return { skipped: true, reason: "staging_read_only" };
-  const before = Number(psqlScalar("SELECT count(*) FROM synapse_service_health_events WHERE created_at < NOW() - INTERVAL '7 days';") || 0);
+  const before = Number(
+    psqlScalar(
+      "SELECT count(*) FROM synapse_service_health_events WHERE created_at < NOW() - INTERVAL '7 days';"
+    ) || 0
+  );
   const result = spawnSync(
     path.join(ROOT, "services/gateway/.venv/bin/python"),
     ["-m", "src.worker", "service-health-events-cleanup", "--once"],
@@ -445,13 +486,18 @@ function runLocalEventCleanupOnce() {
       encoding: "utf8",
       env: {
         ...process.env,
-        ENV_FILE: process.env.ENV_FILE || "/tmp/synapse-service-health-e2e-no-env-file",
+        ENV_FILE:
+          process.env.ENV_FILE || "/tmp/synapse-service-health-e2e-no-env-file",
         POSTGRES_DSN: postgresDsn,
         STORAGE_BACKEND: "postgres",
       },
     }
   );
-  const after = Number(psqlScalar("SELECT count(*) FROM synapse_service_health_events WHERE created_at < NOW() - INTERVAL '7 days';") || 0);
+  const after = Number(
+    psqlScalar(
+      "SELECT count(*) FROM synapse_service_health_events WHERE created_at < NOW() - INTERVAL '7 days';"
+    ) || 0
+  );
   const evidence = sanitize({
     beforeExpiredEvents: before,
     afterExpiredEvents: after,
@@ -470,11 +516,26 @@ function runLocalEventCleanupOnce() {
 
 function cleanupLocalLegacyKv() {
   if (isStaging) return { skipped: true, reason: "staging_read_only" };
-  const beforeRegistered = Number(psqlScalar("SELECT count(*) FROM synapse_service_manifests;") || 0);
-  const beforeLegacy = Number(psqlScalar("SELECT count(*) FROM synapse_runtime_state WHERE state_key LIKE 'service_health_%';") || 0);
-  const result = psql(["-c", "DELETE FROM synapse_runtime_state WHERE state_key LIKE 'service_health_%';"]);
-  const afterLegacy = Number(psqlScalar("SELECT count(*) FROM synapse_runtime_state WHERE state_key LIKE 'service_health_%';") || 0);
-  const afterRegistered = Number(psqlScalar("SELECT count(*) FROM synapse_service_manifests;") || 0);
+  const beforeRegistered = Number(
+    psqlScalar("SELECT count(*) FROM synapse_service_manifests;") || 0
+  );
+  const beforeLegacy = Number(
+    psqlScalar(
+      "SELECT count(*) FROM synapse_runtime_state WHERE state_key LIKE 'service_health_%';"
+    ) || 0
+  );
+  const result = psql([
+    "-c",
+    "DELETE FROM synapse_runtime_state WHERE state_key LIKE 'service_health_%';",
+  ]);
+  const afterLegacy = Number(
+    psqlScalar(
+      "SELECT count(*) FROM synapse_runtime_state WHERE state_key LIKE 'service_health_%';"
+    ) || 0
+  );
+  const afterRegistered = Number(
+    psqlScalar("SELECT count(*) FROM synapse_service_manifests;") || 0
+  );
   const evidence = sanitize({
     beforeLegacy,
     afterLegacy,
@@ -484,7 +545,9 @@ function cleanupLocalLegacyKv() {
   });
   addCheck(
     "local_legacy_health_kv_cleanup_registration_safe",
-    result.status === 0 && afterLegacy === 0 && beforeRegistered === afterRegistered,
+    result.status === 0 &&
+      afterLegacy === 0 &&
+      beforeRegistered === afterRegistered,
     evidence,
     "Legacy service_health_% cleanup must not delete service registrations."
   );
@@ -506,7 +569,9 @@ function sourceHotPathScan() {
   const allowed = output
     .split(/\r?\n/)
     .filter(Boolean)
-    .filter((line) => !line.includes("cleanup_legacy_service_health_runtime_state"));
+    .filter(
+      (line) => !line.includes("cleanup_legacy_service_health_runtime_state")
+    );
   const evidence = sanitize({ status: result.status, matches: allowed });
   addCheck(
     "health_hot_path_legacy_kv_absent",
@@ -521,11 +586,19 @@ async function runFixedInvoke() {
   if (!credential) {
     businessEvidence.fixedInvoke.skippedWithReason =
       "STAGING_E2E_AGENT_CREDENTIAL or SERVICE_HEALTH_TYPED_TABLES_E2E_CREDENTIAL is not configured.";
-    addCheck("fixed_price_invoke_skipped_with_reason", true, businessEvidence.fixedInvoke);
+    addCheck(
+      "fixed_price_invoke_skipped_with_reason",
+      true,
+      businessEvidence.fixedInvoke
+    );
     return;
   }
   const idempotencyKey = `${runId}-fixed-invoke`;
-  businessEvidence.fixedInvoke = { attempted: true, serviceId: "svc_oss_security_healthcheck", idempotencyKey };
+  businessEvidence.fixedInvoke = {
+    attempted: true,
+    serviceId: "svc_oss_security_healthcheck",
+    idempotencyKey,
+  };
   const result = await timedJsonFetch(gatewayApi("/v1/agent/invoke"), {
     method: "POST",
     headers: {
@@ -536,19 +609,28 @@ async function runFixedInvoke() {
     body: JSON.stringify({
       serviceId: "svc_oss_security_healthcheck",
       idempotencyKey,
-      payload: { body: { target: "typed-health-regression", checks: ["health"] } },
+      payload: {
+        body: { target: "typed-health-regression", checks: ["health"] },
+      },
     }),
   });
-  const invocationId = result.json?.invocationId || result.json?.invocation_id || "";
+  const invocationId =
+    result.json?.invocationId || result.json?.invocation_id || "";
   const db = invocationId
     ? psqlJson(`
       SELECT json_build_object(
         'invocation', (
           SELECT json_build_object('invocationId', invocation_id, 'serviceId', service_id, 'status', status, 'chargedUsdc', charged_usdc::text)
-          FROM synapse_invocations WHERE invocation_id = ${sqlLiteral(invocationId)}
+          FROM synapse_invocations WHERE invocation_id = ${sqlLiteral(
+            invocationId
+          )}
         ),
-        'ledgerCount', (SELECT count(*) FROM synapse_ledger_entries WHERE reference_id = ${sqlLiteral(invocationId)}),
-        'auditCount', (SELECT count(*) FROM synapse_audit_events WHERE invocation_id = ${sqlLiteral(invocationId)})
+        'ledgerCount', (SELECT count(*) FROM synapse_ledger_entries WHERE reference_id = ${sqlLiteral(
+          invocationId
+        )}),
+        'auditCount', (SELECT count(*) FROM synapse_audit_events WHERE invocation_id = ${sqlLiteral(
+          invocationId
+        )})
       );
     `)
     : null;
@@ -560,16 +642,21 @@ async function runFixedInvoke() {
   });
   addCheck(
     "fixed_price_invoke_regression",
-    result.ok && String(result.json?.status || "").toUpperCase() === "SUCCEEDED",
+    result.ok &&
+      String(result.json?.status || "").toUpperCase() === "SUCCEEDED",
     businessEvidence.fixedInvoke,
     "Fixed-price canonical invoke must still succeed after health typed-table migration."
   );
 }
 
 function writeEvidence() {
-  const traceText = trace.map((row) => JSON.stringify(sanitize(row))).join("\n") + "\n";
+  const traceText =
+    trace.map((row) => JSON.stringify(sanitize(row))).join("\n") + "\n";
   fs.writeFileSync(path.join(evidenceDir, "trace.jsonl"), traceText);
-  const traceDigest = crypto.createHash("sha256").update(traceText).digest("hex");
+  const traceDigest = crypto
+    .createHash("sha256")
+    .update(traceText)
+    .digest("hex");
   const report = sanitize({
     status: failed.length ? "failed" : "success",
     environment,
@@ -586,15 +673,32 @@ function writeEvidence() {
       business: "business-regression-evidence.json",
     },
   });
-  fs.writeFileSync(path.join(evidenceDir, "report.json"), `${JSON.stringify(report, null, 2)}\n`);
-  fs.writeFileSync(path.join(evidenceDir, "sql-timing-evidence.json"), `${JSON.stringify(sanitize(sqlTimingEvidence), null, 2)}\n`);
-  fs.writeFileSync(path.join(evidenceDir, "api-evidence.json"), `${JSON.stringify(sanitize(apiEvidence), null, 2)}\n`);
-  fs.writeFileSync(path.join(evidenceDir, "db-evidence.json"), `${JSON.stringify(sanitize(dbEvidence), null, 2)}\n`);
-  fs.writeFileSync(path.join(evidenceDir, "business-regression-evidence.json"), `${JSON.stringify(sanitize(businessEvidence), null, 2)}\n`);
+  fs.writeFileSync(
+    path.join(evidenceDir, "report.json"),
+    `${JSON.stringify(report, null, 2)}\n`
+  );
+  fs.writeFileSync(
+    path.join(evidenceDir, "sql-timing-evidence.json"),
+    `${JSON.stringify(sanitize(sqlTimingEvidence), null, 2)}\n`
+  );
+  fs.writeFileSync(
+    path.join(evidenceDir, "api-evidence.json"),
+    `${JSON.stringify(sanitize(apiEvidence), null, 2)}\n`
+  );
+  fs.writeFileSync(
+    path.join(evidenceDir, "db-evidence.json"),
+    `${JSON.stringify(sanitize(dbEvidence), null, 2)}\n`
+  );
+  fs.writeFileSync(
+    path.join(evidenceDir, "business-regression-evidence.json"),
+    `${JSON.stringify(sanitize(businessEvidence), null, 2)}\n`
+  );
   fs.writeFileSync(
     path.join(evidenceDir, "bugfix-log.md"),
     failed.length
-      ? `# Bugfix Log\n\n${failed.map((item) => `- OPEN: ${item.name} - ${item.error}`).join("\n")}\n`
+      ? `# Bugfix Log\n\n${failed
+          .map((item) => `- OPEN: ${item.name} - ${item.error}`)
+          .join("\n")}\n`
       : "# Bugfix Log\n\nNo open bugs.\n"
   );
   fs.writeFileSync(
@@ -621,7 +725,8 @@ async function main() {
   measureSql({
     name: "legacy_kv_baseline",
     sql: "SELECT state_key, payload FROM synapse_runtime_state WHERE state_key LIKE 'service_health_%' ORDER BY state_key ASC",
-    countSql: "SELECT count(*) FROM synapse_runtime_state WHERE state_key LIKE 'service_health_%'",
+    countSql:
+      "SELECT count(*) FROM synapse_runtime_state WHERE state_key LIKE 'service_health_%'",
   });
   measureSql({
     name: "typed_runtime",
@@ -632,7 +737,8 @@ async function main() {
   measureSql({
     name: "typed_events_recent",
     sql: "SELECT service_id, target_url, from_status, to_status, created_at FROM synapse_service_health_events WHERE created_at >= NOW() - INTERVAL '7 days' ORDER BY created_at DESC LIMIT 200",
-    countSql: "SELECT count(*) FROM synapse_service_health_events WHERE created_at >= NOW() - INTERVAL '7 days'",
+    countSql:
+      "SELECT count(*) FROM synapse_service_health_events WHERE created_at >= NOW() - INTERVAL '7 days'",
   });
 
   const before = dbEvidence.snapshots.before;
@@ -644,16 +750,23 @@ async function main() {
   const afterRefresh = captureDbSnapshot("after_refresh");
   await captureApiSnapshot("after_refresh");
   addCheck(
-    isStaging ? "typed_runtime_present_staging" : "typed_runtime_updated_after_health_refresh",
+    isStaging
+      ? "typed_runtime_present_staging"
+      : "typed_runtime_updated_after_health_refresh",
     isStaging
       ? Number(afterRefresh?.typedRuntimeRows || 0) >= expectedServiceIds.length
       : maxUpdatedAtMs(afterRefresh) >= beforeUpdatedAt,
-    { beforeUpdatedAt, afterUpdatedAt: maxUpdatedAtMs(afterRefresh), afterRefresh },
+    {
+      beforeUpdatedAt,
+      afterUpdatedAt: maxUpdatedAtMs(afterRefresh),
+      afterRefresh,
+    },
     "Typed runtime rows must exist and local refresh must update runtime timestamps."
   );
   addCheck(
     "same_status_probe_does_not_append_events",
-    Number(afterRefresh?.typedEventRows || 0) <= beforeEvents + expectedServiceIds.length,
+    Number(afterRefresh?.typedEventRows || 0) <=
+      beforeEvents + expectedServiceIds.length,
     { beforeEvents, afterEvents: afterRefresh?.typedEventRows },
     "Continuous same-status probes should not behave like old append-everything history."
   );
@@ -673,16 +786,25 @@ async function main() {
 
   if (failed.length) {
     console.error(
-      `[service-health-typed-tables] failed: ${failed.map((item) => item.name).join(", ")}`
+      `[service-health-typed-tables] failed: ${failed
+        .map((item) => item.name)
+        .join(", ")}`
     );
     console.error(`[service-health-typed-tables] evidence: ${evidenceDir}`);
     process.exit(1);
   }
-  console.log(`[service-health-typed-tables] evidence written to ${evidenceDir}`);
+  console.log(
+    `[service-health-typed-tables] evidence written to ${evidenceDir}`
+  );
 }
 
 main().catch((error) => {
-  addCheck("runner_uncaught_error", false, {}, error?.stack || error?.message || String(error));
+  addCheck(
+    "runner_uncaught_error",
+    false,
+    {},
+    error?.stack || error?.message || String(error)
+  );
   writeEvidence();
   console.error(error);
   process.exit(1);

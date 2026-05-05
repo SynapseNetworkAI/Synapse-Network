@@ -107,27 +107,24 @@ function assertCheck(report, name) {
 }
 
 function measurementByName(sqlTiming) {
-  return new Map((sqlTiming.measurements || []).map((item) => [item.name, item]));
+  return new Map(
+    (sqlTiming.measurements || []).map((item) => [item.name, item])
+  );
 }
 
-function validateSqlTiming(sqlTiming) {
-  const byName = measurementByName(sqlTiming);
-  for (const name of ["legacy_kv_baseline", "typed_runtime", "typed_events_recent"]) {
-    const item = byName.get(name);
-    if (!item || Number(item.status) !== 0) {
-      fatal(
-        "SERVICE-HEALTH-TYPED-SQL-TIMING",
-        "sql-timing-evidence.json",
-        `missing or failed SQL timing measurement: ${name}`,
-        "rerun the E2E with a reachable Postgres DSN and valid typed health schema."
-      );
-    }
+function assertSqlMeasurementPassed(byName, name) {
+  const item = byName.get(name);
+  if (!item || Number(item.status) !== 0) {
+    fatal(
+      "SERVICE-HEALTH-TYPED-SQL-TIMING",
+      "sql-timing-evidence.json",
+      `missing or failed SQL timing measurement: ${name}`,
+      "rerun the E2E with a reachable Postgres DSN and valid typed health schema."
+    );
   }
-  const legacy = byName.get("legacy_kv_baseline") || {};
-  const typed = byName.get("typed_runtime") || {};
-  const legacyRows = Number(legacy.rowCount || 0);
-  const typedDuration = Number(typed.durationMs || 0);
-  const legacyDuration = Number(legacy.durationMs || 0);
+}
+
+function assertTypedRuntimeRows(typed) {
   if (Number(typed.rowCount || 0) <= 0) {
     fatal(
       "SERVICE-HEALTH-TYPED-RUNTIME-EMPTY",
@@ -136,10 +133,16 @@ function validateSqlTiming(sqlTiming) {
       "run health refresh or fix typed runtime upsert before comparing performance."
     );
   }
-  if (
-    legacyRows > 0 &&
-    !(typedDuration <= 100 || typedDuration <= legacyDuration * 0.5)
-  ) {
+}
+
+function assertTypedRuntimePerformance({ legacy, typed }) {
+  const legacyRows = Number(legacy.rowCount || 0);
+  const typedDuration = Number(typed.durationMs || 0);
+  const legacyDuration = Number(legacy.durationMs || 0);
+  const typedWithinBudget =
+    typedDuration <= 100 || typedDuration <= legacyDuration * 0.5;
+
+  if (legacyRows > 0 && !typedWithinBudget) {
     fatal(
       "SERVICE-HEALTH-TYPED-PERF-REGRESSION",
       "sql-timing-evidence.json",
@@ -147,6 +150,21 @@ function validateSqlTiming(sqlTiming) {
       "inspect query plan, typed table indexes, and runtime table row count."
     );
   }
+}
+
+function validateSqlTiming(sqlTiming) {
+  const byName = measurementByName(sqlTiming);
+  for (const name of [
+    "legacy_kv_baseline",
+    "typed_runtime",
+    "typed_events_recent",
+  ]) {
+    assertSqlMeasurementPassed(byName, name);
+  }
+  const legacy = byName.get("legacy_kv_baseline") || {};
+  const typed = byName.get("typed_runtime") || {};
+  assertTypedRuntimeRows(typed);
+  assertTypedRuntimePerformance({ legacy, typed });
 }
 
 function validateDbEvidence(db) {
@@ -183,11 +201,16 @@ function validateDbEvidence(db) {
 
 function validateBusinessEvidence(business) {
   const fixed = business.fixedInvoke || {};
-  if (fixed.attempted && String(fixed.response?.status || "").toUpperCase() !== "SUCCEEDED") {
+  if (
+    fixed.attempted &&
+    String(fixed.response?.status || "").toUpperCase() !== "SUCCEEDED"
+  ) {
     fatal(
       "SERVICE-HEALTH-TYPED-FIXED-INVOKE",
       "business-regression-evidence.json",
-      `fixed invoke was attempted but did not succeed: ${JSON.stringify(fixed.response || {}).slice(0, 300)}`,
+      `fixed invoke was attempted but did not succeed: ${JSON.stringify(
+        fixed.response || {}
+      ).slice(0, 300)}`,
       "fix provider health/discovery/invoke billing regression and rerun the gate."
     );
   }
@@ -239,7 +262,8 @@ checkRequiredFiles(dir);
 const report = readJson(path.join(dir, "report.json")) || {};
 const sqlTiming = readJson(path.join(dir, "sql-timing-evidence.json")) || {};
 const db = readJson(path.join(dir, "db-evidence.json")) || {};
-const business = readJson(path.join(dir, "business-regression-evidence.json")) || {};
+const business =
+  readJson(path.join(dir, "business-regression-evidence.json")) || {};
 const traceDigest = sha256File(path.join(dir, "trace.jsonl"));
 const bugfixLog = fs.readFileSync(path.join(dir, "bugfix-log.md"), "utf8");
 
@@ -255,7 +279,9 @@ if ((report.failed || []).length > 0 || report.status !== "success") {
   fatal(
     "SERVICE-HEALTH-TYPED-FAILED",
     "report.json",
-    `runner reported failed checks: ${(report.failed || []).map((item) => item.name).join(", ")}`,
+    `runner reported failed checks: ${(report.failed || [])
+      .map((item) => item.name)
+      .join(", ")}`,
     "fix failing checks and regenerate evidence."
   );
 }

@@ -358,4 +358,4 @@ Provider health 不再放在这里。高频探活状态属于 `synapse_service_h
 4. 余额快照和账本分录分离
 5. 入金/出金和 Runtime commerce 分离
 
-这正是金融级 Runtime 平台应有的数据库骨架。 
+这正是金融级 Runtime 平台应有的数据库骨架。

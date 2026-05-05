@@ -112,7 +112,9 @@ export function createWithdrawalReviewMaturityHelpers({
           last_checked_at, last_healthy_at, timeout_ms, created_at, updated_at
         )
         VALUES (
-          ${sqlLiteral(serviceId)}, ${sqlLiteral(targetUrl)}, 'healthy', 'healthy', 200, 50,
+          ${sqlLiteral(serviceId)}, ${sqlLiteral(
+      targetUrl
+    )}, 'healthy', 'healthy', 200, 50,
           3, 0, ${sqlLiteral(targetUrl.replace(/\/invoke$/, "/health"))},
           NOW(), NOW(), 30000, NOW(), NOW()
         )
