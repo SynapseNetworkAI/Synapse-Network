@@ -73,7 +73,7 @@ export const pages = [
     id: "money-flows",
     href: "/money-flows",
     heading: "Money Flows",
-    texts: ["Matured Funds", "T+1", "T+7"],
+    texts: ["Matured Funds", "T+7"],
     screenshot: "money-flows.png",
   },
   {
@@ -85,7 +85,7 @@ export const pages = [
     id: "consumer-withdrawals",
     href: "/money-flows/consumer-withdrawals",
     heading: "Consumer Withdrawals",
-    texts: ["Consumer withdrawals are T+1"],
+    texts: ["Consumer withdrawals are T+7"],
   },
   {
     id: "provider-withdrawals",
