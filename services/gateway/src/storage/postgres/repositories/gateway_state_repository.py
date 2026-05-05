@@ -4,6 +4,7 @@ from __future__ import annotations
 from typing import Any, Callable
 
 from ..database_manager import DatabaseManager
+from .gateway_state_billing_mixin import GatewayStateBillingMixin
 from .gateway_state_core_mixin import GatewayStateCoreMixin
 from .gateway_state_manual_review_expiry_mixin import GatewayStateManualReviewExpiryMixin
 from .gateway_state_refund_mixin import GatewayStateRefundMixin
@@ -12,6 +13,7 @@ from .gateway_state_withdrawal_mixin import GatewayStateWithdrawalMixin
 
 class GatewayStateRepository(
     GatewayStateCoreMixin,
+    GatewayStateBillingMixin,
     GatewayStateRefundMixin,
     GatewayStateManualReviewExpiryMixin,
     GatewayStateWithdrawalMixin,

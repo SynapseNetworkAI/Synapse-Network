@@ -1,6 +1,7 @@
 "use client";
 
 import { AlertCircle, CheckCircle2, RefreshCw, X } from "lucide-react";
+import CopyableValue from "@/components/xui/CopyableValue";
 
 type DepositUsdcModalCopy = {
   amountLabel: string;
@@ -230,15 +231,21 @@ export default function DepositUsdcModal({
             <div className="mt-3 space-y-2 text-sm">
               <div className="flex items-start justify-between gap-3">
                 <span className="text-gray-400">{labels.fromWalletLabel}</span>
-                <span className="font-mono text-gray-200">
-                  {shortAddress(walletAddress)}
-                </span>
+                <CopyableValue
+                  value={walletAddress}
+                  displayValue={shortAddress(walletAddress)}
+                  label={labels.fromWalletLabel}
+                  valueClassName="font-mono text-gray-200"
+                />
               </div>
               <div className="flex items-start justify-between gap-3">
                 <span className="text-gray-400">{labels.toVaultLabel}</span>
-                <span className="font-mono text-cyan-300" title={vaultAddress}>
-                  {shortAddress(vaultAddress)}
-                </span>
+                <CopyableValue
+                  value={vaultAddress}
+                  displayValue={shortAddress(vaultAddress)}
+                  label={labels.toVaultLabel}
+                  valueClassName="font-mono text-cyan-300"
+                />
               </div>
               <div className="flex items-start justify-between gap-3">
                 <span className="text-gray-400">

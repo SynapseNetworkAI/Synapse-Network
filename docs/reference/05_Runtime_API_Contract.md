@@ -260,9 +260,11 @@ Headers:
 6. 成熟可提现额度采用聚合 FIFO 公式：`max(0, depositsConfirmedBefore7d - lifetimeConsumerSpend - lifetimeConsumerWithdrawnOrLocked)`
 7. 请求金额超过成熟可提现额度返回 `400 INSUFFICIENT_MATURE_CONSUMER_BALANCE`
 8. 24h 次数统计使用数据库时间戳滑动窗口 `created_at >= NOW() - INTERVAL '24 hours'`
-9. `REQUESTED` 只表示自动审核通过、资金已进入 pending、ticket 已签发；不表示链上提现成功
-10. ticket 签发必须发生在数据库原子锁仓成功之后，且每个 `ticketHash` 只能被合约消费一次
-11. 并发创建、幂等重放、人工审核决策和 complete 回调都必须保证余额只移动一次
+9. Gateway 在创建提现或人工审核通过前必须读取链上 `USDC.balanceOf(SynapseCore)`；如果金库 USDC 不足，返回 `400 VAULT_LIQUIDITY_INSUFFICIENT`，不得创建新提现单、签发 ticket 或锁仓
+10. 如果 Gateway 当前无法连通链上 RPC 或无法校验金库 USDC 余额，返回 `503 WITHDRAW_VAULT_LIQUIDITY_CHECK_UNAVAILABLE`
+11. `REQUESTED` 只表示自动审核通过、资金已进入 pending、ticket 已签发；不表示链上提现成功
+12. ticket 签发必须发生在数据库原子锁仓成功之后，且每个 `ticketHash` 只能被合约消费一次
+13. 并发创建、幂等重放、人工审核决策和 complete 回调都必须保证余额只移动一次
 
 ### 3.2.3 `GET /api/v1/balance/consumer/withdrawals`
 
@@ -391,12 +393,13 @@ Headers:
 9. 留空时表示提取当前全部已成熟可提现收益；若成熟收益低于 10，返回 `400 MIN_WITHDRAWAL_AMOUNT_NOT_MET`
 10. Provider 收益 T+7 后才计入成熟可提现收益；未成熟收益提现返回 `400 PROVIDER_RECEIVABLE_NOT_MATURED`
 11. 如果已签发的 withdrawal ticket 过期，Gateway 只有在本地时间超过 `deadline + WITHDRAW_TICKET_EXPIRY_BUFFER_SEC`、RPC 链头时间超过 `deadline + WITHDRAW_RPC_FINALITY_MARGIN_SEC`、且合约确认 `isTicketConsumed(ticketHash)=false` 后，才会把该单据推进到 `FAILED_EXPIRED`，并把对应 `provider_locked_balance` 释放回 `provider_receivable`
-12. 如果 Gateway 当前无法连通链上 RPC 或无法校验金库 USDC 余额，接口必须返回 `503 WITHDRAW_VAULT_LIQUIDITY_CHECK_UNAVAILABLE`，不能把内部堆栈暴露成 500。
-13. 每笔 withdrawal 只会签发一次 `ticketId/ticketHash`；过期后不能刷新旧 ticket，用户必须重新创建新的提现申请。
-14. EIP-712 payload 继续包含 `user`, `amount`, `fee`, `ticketId`, `deadline`；合约以 `consumedTickets[ticketHash]` 防重放，不新增链上 nonce 字段。
-15. `APPROVED_AUTO` 只表示自动审核通过、provider 资金已锁入 pending/locked、ticket 已准备；不表示提现到账。
-16. 提现成功必须由 owner 钱包完成链上 `SynapseCore.withdraw(...)`，再由 Gateway complete 或 watcher 推进到 `COMPLETED`。
-17. 并发创建、人工审核决策、链上 replay 和 complete 回调都必须保证 provider 资金桶只移动一次。
+12. Gateway 在创建提现或人工审核通过前必须读取链上 `USDC.balanceOf(SynapseCore)`；如果金库 USDC 不足，返回 `400 INSUFFICIENT_VAULT_LIQUIDITY`，不得创建新提现单、签发 ticket 或锁仓
+13. 如果 Gateway 当前无法连通链上 RPC 或无法校验金库 USDC 余额，接口必须返回 `503 WITHDRAW_VAULT_LIQUIDITY_CHECK_UNAVAILABLE`，不能把内部堆栈暴露成 500。
+14. 每笔 withdrawal 只会签发一次 `ticketId/ticketHash`；过期后不能刷新旧 ticket，用户必须重新创建新的提现申请。
+15. EIP-712 payload 继续包含 `user`, `amount`, `fee`, `ticketId`, `deadline`；合约以 `consumedTickets[ticketHash]` 防重放，不新增链上 nonce 字段。
+16. `APPROVED_AUTO` 只表示自动审核通过、provider 资金已锁入 pending/locked、ticket 已准备；不表示提现到账。
+17. 提现成功必须由 owner 钱包完成链上 `SynapseCore.withdraw(...)`，再由 Gateway complete 或 watcher 推进到 `COMPLETED`。
+18. 并发创建、人工审核决策、链上 replay 和 complete 回调都必须保证 provider 资金桶只移动一次。
 
 ### 3.6.1 `GET /api/v1/providers/withdrawals/capability`
 

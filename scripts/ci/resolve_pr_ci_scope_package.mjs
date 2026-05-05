@@ -80,14 +80,17 @@ function changedScriptNames(beforeScripts, afterScripts) {
   );
 }
 
-function classifyScriptChange(scriptName, scriptValue) {
+function classifyAgentLessonScript(scriptName, scriptValue) {
   if (
     scriptName === "ci:agent-lessons" &&
     /\bscripts\/ci\/agent_lessons_check\.mjs\b/.test(scriptValue)
   ) {
     return { riskScopes: ["agent-lessons"] };
   }
+  return null;
+}
 
+function classifyGuardrailScript(scriptName, scriptValue) {
   if (
     GUARDRAIL_SCRIPTS.has(scriptName) ||
     /\bscripts\/ci\/(pr_checks|diff_coverage|finance_|security_|e2e_env_isolation|quality_budget|format_check|code_quality_|gateway_checks|admin_gateway_checks|frontend_checks|admin_front_checks)/.test(
@@ -98,14 +101,20 @@ function classifyScriptChange(scriptName, scriptValue) {
       fullReason: `package.json guardrail script changed: ${scriptName}`,
     };
   }
+  return null;
+}
 
+function classifyMonitoringScript(scriptName, scriptValue) {
   if (
     /gcp-alerts|lark-alert|monitoring-alert/i.test(scriptName) ||
     /gcp_alerts|lark_alert|monitoring_alert/i.test(scriptValue)
   ) {
     return { commands: ["monitoring_alert_rules"], riskScopes: ["monitoring"] };
   }
+  return null;
+}
 
+function classifyContractScript(scriptName, scriptValue) {
   if (
     /contract|arbitrum|hardhat|arb-sepolia/i.test(scriptName) ||
     /\b(hardhat|scripts\/chain)\b/.test(scriptValue)
@@ -116,14 +125,43 @@ function classifyScriptChange(scriptName, scriptValue) {
       needsRootNpmDeps: true,
     };
   }
+  return null;
+}
 
+function classifyE2eScript(scriptName) {
   if (/^e2e:/.test(scriptName) || /^ci:.*evidence$/.test(scriptName)) {
     return {
       commands: ["e2e_script_model_drift_scan"],
       riskScopes: ["e2e-evidence"],
     };
   }
+  return null;
+}
 
+function classifyLocalDevScript(scriptName) {
+  if (/^dev:/.test(scriptName) || /^local:/.test(scriptName)) {
+    return {
+      commands: ["local_runtime_guard_scan"],
+      riskScopes: ["local-dev"],
+    };
+  }
+  return null;
+}
+
+const SCRIPT_CLASSIFIERS = [
+  classifyAgentLessonScript,
+  classifyGuardrailScript,
+  classifyMonitoringScript,
+  classifyContractScript,
+  classifyE2eScript,
+  classifyLocalDevScript,
+];
+
+function classifyScriptChange(scriptName, scriptValue) {
+  for (const classifier of SCRIPT_CLASSIFIERS) {
+    const result = classifier(scriptName, scriptValue);
+    if (result) return result;
+  }
   return {
     fullReason: `package.json script changed without a narrow CI mapping: ${scriptName}`,
   };

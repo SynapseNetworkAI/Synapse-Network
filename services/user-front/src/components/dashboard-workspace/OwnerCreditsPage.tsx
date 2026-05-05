@@ -12,6 +12,7 @@ import { useConnectModal } from "@rainbow-me/rainbowkit";
 import toast from "react-hot-toast";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { useAuth } from "@/components/WalletAuthGuard";
+import ConsumerWithdrawPendingTooltip from "@/components/dashboard-workspace/ConsumerWithdrawPendingTooltip";
 import SupportContactPanel from "@/components/shared/SupportContactPanel";
 import { useOwnerData } from "@/hooks/useOwnerData";
 import { useVaultDeposit } from "@/hooks/useVaultDeposit";
@@ -26,6 +27,7 @@ import {
   listConsumerWithdrawals,
   redeemCreditVoucher,
   requestConsumerWithdraw,
+  ConsumerWithdrawApiError,
   type ConsumerWithdrawIntent,
   type OwnerSpendingLimit,
   type RefundIntentRecord,
@@ -46,6 +48,7 @@ import {
   type MoneyString,
 } from "@/utils/money";
 import { isWithdrawTicketNearExpiry } from "@/utils/providerWithdrawApi";
+import { normalizeWithdrawWalletError } from "@/utils/providerWithdrawWallet";
 import { isWalletUserRejectedError } from "@/utils/walletActionErrors";
 import SynapseCoreABI from "@/SynapseCoreABI.json";
 
@@ -84,6 +87,77 @@ type WithdrawStep =
   | "confirming"
   | "completing"
   | "done";
+
+const ACTIVE_WITHDRAWAL_STATUSES = new Set([
+  "REQUESTED",
+  "SIGNED",
+  "BROADCASTED",
+  "PENDING",
+  "PENDING_MANUAL_REVIEW",
+  "APPROVED_AUTO",
+  "APPROVED_MANUAL",
+  "PROCESSING",
+  "TICKET_READY",
+]);
+
+const WITHDRAWAL_PENDING_BALANCE_STATUSES = new Set([
+  "REQUESTED",
+  "SIGNED",
+  "BROADCASTED",
+  "PENDING",
+  "APPROVED_AUTO",
+  "APPROVED_MANUAL",
+  "PROCESSING",
+  "TICKET_READY",
+]);
+
+function normalizeWithdrawalStatus(status?: string | null): string {
+  return String(status || "")
+    .trim()
+    .toUpperCase();
+}
+
+function isActiveWithdrawalStatus(status?: string | null): boolean {
+  return ACTIVE_WITHDRAWAL_STATUSES.has(normalizeWithdrawalStatus(status));
+}
+
+function isWithdrawalPendingBalanceStatus(status?: string | null): boolean {
+  return WITHDRAWAL_PENDING_BALANCE_STATUSES.has(
+    normalizeWithdrawalStatus(status)
+  );
+}
+
+function resolveConsumerWithdrawErrorMessage(
+  error: unknown,
+  t: ReturnType<typeof useLanguage>["t"]
+): string {
+  if (error instanceof ConsumerWithdrawApiError) {
+    if (
+      error.code === "CHAIN_RPC_UNAVAILABLE" ||
+      error.code === "WITHDRAW_TICKET_SIGNING_FAILED"
+    ) {
+      return t("creditsPage.consumerWithdrawChainRpcUnavailable");
+    }
+    if (error.code === "WITHDRAW_CONTRACT_NOT_CONFIGURED") {
+      return t("creditsPage.consumerWithdrawContractNotConfigured");
+    }
+    if (error.code === "MIN_WITHDRAWAL_AMOUNT_NOT_MET") {
+      return t("creditsPage.consumerWithdrawMinAmountNotMet");
+    }
+    if (error.code === "AMOUNT_TOO_LOW_FOR_FEE") {
+      return t("creditsPage.consumerWithdrawAmountTooLowForFee");
+    }
+    if (error.code === "INSUFFICIENT_CONSUMER_BALANCE") {
+      return t("creditsPage.consumerWithdrawInsufficientBalance");
+    }
+    if (error.code === "INSUFFICIENT_MATURE_CONSUMER_BALANCE") {
+      return t("creditsPage.consumerWithdrawMatureBalanceRequired");
+    }
+    return t("creditsPage.consumerWithdrawRequestFailed");
+  }
+
+  return t("creditsPage.consumerWithdrawRequestFailed");
+}
 
 function WithdrawBalanceModal({
   availableBalance,
@@ -137,11 +211,11 @@ function WithdrawBalanceModal({
         }
         await onSuccess({ ...target, status: "FAILED" });
       } catch (error) {
-        const msg =
-          error instanceof Error
-            ? error.message
-            : t("creditsPage.consumerWithdrawReleaseFailed");
-        toast.error(msg);
+        console.error(
+          "Failed to release consumer withdrawal after wallet rejection:",
+          error
+        );
+        toast.error(t("creditsPage.consumerWithdrawReleaseFailed"));
       } finally {
         setStep("form");
         onClose();
@@ -193,7 +267,9 @@ function WithdrawBalanceModal({
     if (!isTxFailed || !withdrawResult || !txHash) return;
     void syncFailedWithdrawal(
       "TX_FAILED",
-      txReceiptError?.message || t("creditsPage.consumerWithdrawTxFailed"),
+      normalizeWithdrawWalletError(txReceiptError, {
+        fallback: t("creditsPage.consumerWithdrawTxFailed"),
+      }),
       txHash
     );
   }, [
@@ -305,10 +381,10 @@ function WithdrawBalanceModal({
       setStep("confirming");
       toast.success(t("creditsPage.consumerWithdrawTxSubmitted"));
     } catch (err) {
-      const msg =
-        err instanceof Error
-          ? err.message
-          : t("creditsPage.consumerWithdrawTxFailed");
+      const requestMessage = resolveConsumerWithdrawErrorMessage(err, t);
+      const walletMessage = normalizeWithdrawWalletError(err, {
+        fallback: requestMessage,
+      });
       if (isWalletUserRejectedError(err)) {
         await syncFailedWithdrawal(
           "WALLET_REJECTED",
@@ -321,12 +397,12 @@ function WithdrawBalanceModal({
         if (createdResult?.withdrawId) {
           await syncFailedWithdrawal(
             "WITHDRAW_SUBMISSION_FAILED",
-            msg,
+            walletMessage,
             undefined,
             createdResult
           );
         } else {
-          toast.error(msg);
+          toast.error(requestMessage);
         }
       }
       setStep("form");
@@ -566,16 +642,7 @@ export default function OwnerCreditsPage() {
     try {
       const rows = await listConsumerWithdrawals(userAddress);
       const active =
-        rows.find((r) => {
-          const s = (r.status ?? "").toUpperCase();
-          return (
-            s === "REQUESTED" ||
-            s === "PENDING" ||
-            s === "APPROVED_AUTO" ||
-            s === "TICKET_READY" ||
-            s === "PENDING_MANUAL_REVIEW"
-          );
-        }) ?? null;
+        rows.find((row) => isActiveWithdrawalStatus(row.status)) ?? null;
       setPendingWithdrawal(active);
     } catch {
       setPendingWithdrawal(null);
@@ -601,11 +668,12 @@ export default function OwnerCreditsPage() {
       setSpendingLimit(nextLimit);
       setIsSpendCapAvailable(true);
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Failed to load credits page";
-      if (message === WALLET_SESSION_MISSING_MESSAGE) {
+      if (
+        err instanceof Error &&
+        err.message === WALLET_SESSION_MISSING_MESSAGE
+      ) {
         clearAuthSession();
-        setError(message);
+        setError(t("creditsPage.signInBeforePurchase"));
         return;
       }
       console.warn(
@@ -617,7 +685,7 @@ export default function OwnerCreditsPage() {
     } finally {
       setIsSpendCapLoading(false);
     }
-  }, [isConnected, isSessionAuthenticated, userAddress]);
+  }, [isConnected, isSessionAuthenticated, t, userAddress]);
 
   useEffect(() => {
     void fetchSpendingLimit();
@@ -635,18 +703,21 @@ export default function OwnerCreditsPage() {
     const minWithdrawAmount = moneyStringToNumber(
       stats.consumerWithdrawMinUsdc ?? "10"
     );
-    const pendingBalance = moneyStringToNumber(stats.consumerPendingBalance);
-    const pendingWithdrawalStatus = (
-      pendingWithdrawal?.status ?? ""
-    ).toUpperCase();
-    const withdrawalPending =
-      pendingWithdrawal && pendingWithdrawalStatus !== "PENDING_MANUAL_REVIEW"
+    const totalPendingBalance = moneyStringToNumber(
+      stats.consumerPendingBalance
+    );
+    const withdrawalPendingBalance =
+      pendingWithdrawal &&
+      isWithdrawalPendingBalanceStatus(pendingWithdrawal.status)
         ? Math.min(
-            pendingBalance,
+            totalPendingBalance,
             moneyStringToNumber(pendingWithdrawal.amountUsdc ?? "0")
           )
         : 0;
-    const depositPending = Math.max(0, pendingBalance - withdrawalPending);
+    const depositPendingBalance = Math.max(
+      0,
+      totalPendingBalance - withdrawalPendingBalance
+    );
     const frozenBalance = moneyStringToNumber(stats.consumerFrozenBalance);
     const currentSpend = moneyStringToNumber(
       spendingLimit?.currentCycleSpendUsdc ?? "0"
@@ -661,9 +732,8 @@ export default function OwnerCreditsPage() {
       remainingBalance: treasuryAvailable,
       withdrawableBalance,
       minWithdrawAmount,
-      pendingBalance,
-      depositPending,
-      withdrawalPending,
+      depositPendingBalance,
+      withdrawalPendingBalance,
       frozenBalance,
       currentSpend,
       billingCycleCap,
@@ -947,14 +1017,12 @@ export default function OwnerCreditsPage() {
                     disabled={pendingWithdrawal !== null}
                     className="inline-flex h-[36px] min-w-[143px] items-center justify-center whitespace-nowrap rounded-full border border-[#2f3336] bg-transparent px-4 py-2 text-[14px] font-normal leading-[20px] text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
                   >
-                    Withdraw
+                    {t("creditsPage.consumerWithdrawAction")}
                   </button>
                   {pendingWithdrawal && (
-                    <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 w-[220px] rounded-lg border border-[#2a2a2a] bg-[#1a1a1a] px-3 py-2 text-xs text-[#f59e0b] shadow-xl opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50">
-                      A withdrawal of{" "}
-                      {formatPlainAmount(pendingWithdrawal.amountUsdc ?? "0")}{" "}
-                      is pending. Only one active withdrawal is allowed.
-                    </div>
+                    <ConsumerWithdrawPendingTooltip
+                      amountUsdc={pendingWithdrawal.amountUsdc}
+                    />
                   )}
                 </div>
                 <button
@@ -970,18 +1038,18 @@ export default function OwnerCreditsPage() {
             </div>
             {!showBalanceSkeleton ? (
               <div className="mt-3 space-y-2">
-                {creditSummary.depositPending > 0 ? (
+                {creditSummary.depositPendingBalance > 0 ? (
                   <CreditBucketRow
                     label={t("creditsPage.pendingDepositBalanceLabel")}
-                    amount={creditSummary.depositPending}
+                    amount={creditSummary.depositPendingBalance}
                     hint={t("creditsPage.pendingDepositBalanceHint")}
                     tone="pending"
                   />
                 ) : null}
-                {creditSummary.withdrawalPending > 0 ? (
+                {creditSummary.withdrawalPendingBalance > 0 ? (
                   <CreditBucketRow
                     label={t("creditsPage.pendingWithdrawalBalanceLabel")}
-                    amount={creditSummary.withdrawalPending}
+                    amount={creditSummary.withdrawalPendingBalance}
                     hint={t("creditsPage.pendingWithdrawalBalanceHint")}
                     tone="pending"
                   />

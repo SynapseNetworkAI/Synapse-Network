@@ -219,8 +219,10 @@ async def test_get_balance_wraps_storage_errors_for_safe_client_response() -> No
         await balance_deposit.get_balance("0xAbC", _BrokenBalanceService())
 
     assert exc_info.value.status_code == 500
-    assert "Database IO blocked" in str(exc_info.value.detail)
-    assert "database pool exhausted" in str(exc_info.value.detail)
+    assert exc_info.value.detail == {
+        "code": "BALANCE_QUERY_FAILED",
+        "message": "Unable to load balance right now.",
+    }
 
 
 @pytest.mark.asyncio

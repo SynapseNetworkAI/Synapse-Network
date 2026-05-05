@@ -220,6 +220,7 @@ def _make_service(storage: FakeStorage) -> OwnerFinanceService:
     svc._check_idempotency_redis = _async_none
     svc._finalize_refund_idempotency = _async_none
     svc._enforce_owner_write_rate_limit = _async_none
+    svc._assert_withdraw_vault_liquidity = lambda amount_usdc: None
     svc._build_consumer_withdraw_ticket = (  # type: ignore[method-assign]
         lambda *, owner, gross_amount_usdc, withdrawal_id: _fake_withdraw_ticket(
             withdrawal_id=withdrawal_id
@@ -789,6 +790,61 @@ class TestConsumerWithdrawFailureAndReview(unittest.TestCase):
         row = storage.gateway_state.refund_rows[0]
         assert row.status == "PENDING_MANUAL_REVIEW"
         assert row.review_decision is None
+
+    def test_create_preserves_chain_rpc_error_code_and_releases_pending(self):
+        storage = FakeStorage()
+        storage.balance_repo.seed_balance(OWNER, available=20.0)
+        svc = _make_service(storage)
+
+        chain_error = HTTPException(
+            status_code=503,
+            detail={
+                "code": "CHAIN_RPC_UNAVAILABLE",
+                "message": "Unable to reach chain RPC for withdrawal ticket signing.",
+            },
+        )
+        with patch.object(svc, "_build_consumer_withdraw_ticket", side_effect=chain_error):
+            with pytest.raises(HTTPException) as exc:
+                run(svc.create_consumer_withdraw_intent(
+                    payload={"amountUsdc": 20.0, "reason": "rpc down"},
+                    owner_wallet=OWNER,
+                    idempotency_key=IDEM_KEY,
+                ))
+
+        assert exc.value.status_code == 503
+        assert exc.value.detail["code"] == "CHAIN_RPC_UNAVAILABLE"
+        ledger = storage.balance_repo.read_balance_ledger()
+        assert ledger.consumer_available_balance(OWNER) == Decimal("20.000000")
+        assert ledger.consumer_pending_balance(OWNER) == Decimal("0.000000")
+
+    def test_create_generic_signing_failure_returns_safe_error_and_releases_pending(self):
+        storage = FakeStorage()
+        storage.balance_repo.seed_balance(OWNER, available=20.0)
+        svc = _make_service(storage)
+
+        with patch.object(
+            svc,
+            "_build_consumer_withdraw_ticket",
+            side_effect=RuntimeError("kms socket exploded"),
+        ):
+            with pytest.raises(HTTPException) as exc:
+                run(svc.create_consumer_withdraw_intent(
+                    payload={"amountUsdc": 20.0, "reason": "signer down"},
+                    owner_wallet=OWNER,
+                    idempotency_key=IDEM_KEY,
+                ))
+
+        assert exc.value.status_code == 503
+        assert exc.value.detail == {
+            "code": "WITHDRAW_TICKET_SIGNING_FAILED",
+            "message": (
+                "Unable to prepare a withdrawal ticket right now. "
+                "Please retry after the gateway reconnects."
+            ),
+        }
+        ledger = storage.balance_repo.read_balance_ledger()
+        assert ledger.consumer_available_balance(OWNER) == Decimal("20.000000")
+        assert ledger.consumer_pending_balance(OWNER) == Decimal("0.000000")
 
 
 class TestConsumerWithdrawProcessor(unittest.TestCase):

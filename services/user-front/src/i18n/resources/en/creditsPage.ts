@@ -10,14 +10,14 @@ const creditsPage: I18nMessages["creditsPage"] = {
     "To protect the network and reduce AML risk, newly deposited funds must remain in Synapse for 7 days before withdrawal. Your credits remain available for API usage during this period.",
   pendingBalanceLabel: "Pending / syncing credits",
   pendingDepositBalanceLabel: "Pending deposit credits",
-  pendingWithdrawalBalanceLabel: "Pending withdrawal credits",
+  pendingWithdrawalBalanceLabel: "Withdrawal processing credits",
   frozenBalanceLabel: "Frozen / review credits",
   pendingBalanceHint:
     "Gateway is indexing the on-chain deposit. If it stays pending, contact support with the txHash.",
   pendingDepositBalanceHint:
     "Gateway is indexing the on-chain deposit. If it stays pending, contact support with the txHash.",
   pendingWithdrawalBalanceHint:
-    "Withdrawal funds are locked and waiting for the on-chain claim to complete. They will be removed from pending after completion.",
+    "This withdrawal is locked and waiting for on-chain completion. It will be deducted from pending after completion.",
   frozenBalanceHint:
     "Funds are locked for an active withdrawal, manual review, or risk control.",
   purchaseCredits: "Purchase credits",
@@ -112,6 +112,20 @@ const creditsPage: I18nMessages["creditsPage"] = {
   consumerWithdrawInvalidAmount: "Enter a valid amount.",
   consumerWithdrawAmountExceeds:
     "Amount exceeds available balance (${{amount}}).",
+  consumerWithdrawRequestFailed:
+    "Unable to prepare the withdrawal right now. Please retry in a moment.",
+  consumerWithdrawChainRpcUnavailable:
+    "Gateway cannot reach the chain RPC right now. In local development, make sure the local chain is running, then retry.",
+  consumerWithdrawContractNotConfigured:
+    "Withdrawal contract is not configured for this environment.",
+  consumerWithdrawMinAmountNotMet:
+    "Minimum consumer withdrawal amount is 10.00 USDC.",
+  consumerWithdrawAmountTooLowForFee:
+    "Withdrawal amount must be greater than the platform fee.",
+  consumerWithdrawInsufficientBalance:
+    "Spendable credits are insufficient for this withdrawal.",
+  consumerWithdrawMatureBalanceRequired:
+    "These funds are not mature yet. Consumer withdrawals require the T+1 matured funds window.",
   consumerWithdrawSubmitted: "Withdrawal of ${{amount}} USDC completed!",
   consumerWithdrawBackendSyncFailed:
     "On-chain transfer succeeded but backend update failed. The background processor will complete it automatically.",
