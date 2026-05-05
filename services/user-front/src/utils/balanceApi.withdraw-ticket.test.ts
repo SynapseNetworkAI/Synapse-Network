@@ -11,8 +11,10 @@ vi.mock("@/utils/gatewayApi", () => ({
 
 import {
   ConsumerWithdrawApiError,
+  failV2Refund,
   getV2Balance,
   listConsumerWithdrawals,
+  normalizeRefundFailureMessage,
   requestConsumerWithdraw,
 } from "@/utils/balanceApi";
 
@@ -119,6 +121,35 @@ describe("consumer withdrawal ticket normalization", () => {
         code: "CHAIN_RPC_UNAVAILABLE",
         status: 503,
       } satisfies Partial<ConsumerWithdrawApiError>);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("caps refund failure messages before sending them to the Gateway", async () => {
+    const originalFetch = globalThis.fetch;
+    const calls: unknown[] = [];
+    globalThis.fetch = async (_url, init) => {
+      calls.push(JSON.parse(String(init?.body || "{}")));
+      return new Response(JSON.stringify({ status: "success" }), {
+        status: 200,
+      });
+    };
+
+    try {
+      await failV2Refund("0xabc", "refund-1", {
+        reasonCode: "TX_FAILED",
+        message: "Execution reverted. " + "raw-call ".repeat(200),
+      });
+
+      expect(calls).toHaveLength(1);
+      const body = calls[0] as { message: string };
+      expect(body.message).toHaveLength(512);
+      expect(body.message).toBe(
+        normalizeRefundFailureMessage(
+          "Execution reverted. " + "raw-call ".repeat(200)
+        )
+      );
     } finally {
       globalThis.fetch = originalFetch;
     }
