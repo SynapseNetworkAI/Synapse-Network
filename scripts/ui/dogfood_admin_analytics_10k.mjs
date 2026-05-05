@@ -104,7 +104,7 @@ async function loginAdmin() {
       csrfToken: process.env.ADMIN_CSRF_TOKEN || "",
     };
   }
-  const email = process.env.ADMIN_EMAIL || "super@synapse.network";
+  const email = process.env.ADMIN_EMAIL || "cliff@synapse-network.ai";
   const password = process.env.ADMIN_PASSWORD || "qwer@1234";
   const otpCode = process.env.ADMIN_OTP_CODE;
   const response = await fetch(`${ADMIN_GATEWAY_URL}/api/admin/v1/auth/login`, {

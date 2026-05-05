@@ -88,7 +88,7 @@ const config = {
     process.env.ADMIN_EMAIL ||
     (IS_STAGING
       ? "staging-admin-e2e@synapse-network.ai"
-      : "local-admin-e2e@synapse.network"),
+      : "local-admin-e2e@synapse-network.ai"),
   adminPassword:
     process.env.STAGING_ADMIN_E2E_PASSWORD ||
     process.env.ADMIN_PASSWORD ||

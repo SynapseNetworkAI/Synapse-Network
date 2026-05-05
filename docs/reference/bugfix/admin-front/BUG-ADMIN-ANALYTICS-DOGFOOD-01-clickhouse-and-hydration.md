@@ -49,7 +49,7 @@ cd services/admin-front && yarn test src/features/dashboard/analytics-presenters
 cd services/gateway-admin && .venv/bin/python -m pytest tests -k analytics -q
 cd services/gateway && ANALYTICS_FULLCHAIN_E2E=true ANALYTICS_CLICKHOUSE_URL=http://localhost:8123 PYTHONPATH=. .venv/bin/python -m pytest tests/e2e/test_01_infrastructure.py tests/e2e/test_02_wallet_auth.py tests/e2e/test_03_fund_wallet.py tests/e2e/test_04_deposit.py tests/e2e/test_05_provider_register.py tests/e2e/test_06_agent_credential.py tests/e2e/test_07_invoke.py tests/e2e/test_08_analytics_fullchain.py -q
 ADMIN_GATEWAY_URL=http://127.0.0.1:8300 ANALYTICS_CLICKHOUSE_URL=http://127.0.0.1:8123 /usr/bin/python3 scripts/admin_analytics_clickhouse_regression.py
-ADMIN_FRONT_URL=http://127.0.0.1:4000 ADMIN_GATEWAY_URL=http://127.0.0.1:8300 ADMIN_EMAIL=super@synapse.network ADMIN_PASSWORD='qwer@1234' ADMIN_OTP_CODE=<local-current-code> node scripts/admin_analytics_fullchain_e2e.js
+ADMIN_FRONT_URL=http://127.0.0.1:4000 ADMIN_GATEWAY_URL=http://127.0.0.1:8300 ADMIN_EMAIL=cliff@synapse-network.ai ADMIN_PASSWORD='qwer@1234' ADMIN_OTP_CODE=<local-current-code> node scripts/admin_analytics_fullchain_e2e.js
 ```
 
 Results:

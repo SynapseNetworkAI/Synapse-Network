@@ -69,7 +69,7 @@ async function loginAdmin() {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      email: process.env.ADMIN_EMAIL || "super@synapse.network",
+      email: process.env.ADMIN_EMAIL || "cliff@synapse-network.ai",
       password: process.env.ADMIN_PASSWORD || "qwer@1234",
       otpCode: process.env.ADMIN_OTP_CODE,
     }),

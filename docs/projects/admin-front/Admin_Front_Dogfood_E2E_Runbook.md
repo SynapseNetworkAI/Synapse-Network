@@ -124,7 +124,7 @@ Defaults are local-only:
 1. `ADMIN_FRONT_URL=http://localhost:3200`
 2. `ADMIN_GATEWAY_URL=http://localhost:8300`
 3. `GATEWAY_POSTGRES_DSN=postgresql://synapse_gateway_app:local-dev-gateway-app-password@localhost:5432/synapse_gateway`
-4. `ADMIN_EMAIL=super@synapse.network`
+4. `ADMIN_EMAIL=cliff@synapse-network.ai`
 5. `ADMIN_PASSWORD=qwer@1234`
 6. `ADMIN_OTP_CODE` is optional when the local TOTP flow is disabled; otherwise provide a current code.
 

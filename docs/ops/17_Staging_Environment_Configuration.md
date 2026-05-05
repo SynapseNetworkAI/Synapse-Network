@@ -398,6 +398,39 @@ account instead of guessing or reusing a real operator account:
 bash scripts/deploy/gcp_reset_staging_admin_e2e.sh fabled-archive-494108-k5
 ```
 
+To reset an existing staging admin account by login email, use the same script
+with an explicit confirmation. Custom account resets do not write to the shared
+E2E Secret Manager entries by default, so print the generated password and
+Google Authenticator manual key once in the operator terminal:
+
+```bash
+STAGING_ADMIN_RESET_CONFIRM=I_UNDERSTAND_THIS_RESETS_A_STAGING_ADMIN_ACCOUNT \
+PRINT_SECRETS_ONCE=true \
+bash scripts/deploy/gcp_reset_staging_admin_e2e.sh fabled-archive-494108-k5 \
+  --email operator@example.com
+```
+
+Only run the custom-account mode for staging. It revokes the target admin's
+existing sessions and active TOTP factors.
+
+If the script says the admin DB DSN uses `/cloudsql/...`, start Cloud SQL Auth
+Proxy locally first:
+
+```bash
+cloud-sql-proxy --address 127.0.0.1 --port 5433 \
+  fabled-archive-494108-k5:us-central1:synapse-staging-postgres
+```
+
+Then rerun the reset with the proxy port:
+
+```bash
+STAGING_ADMIN_RESET_CONFIRM=I_UNDERSTAND_THIS_RESETS_A_STAGING_ADMIN_ACCOUNT \
+STAGING_ADMIN_CLOUD_SQL_PROXY_PORT=5433 \
+PRINT_SECRETS_ONCE=true \
+bash scripts/deploy/gcp_reset_staging_admin_e2e.sh fabled-archive-494108-k5 \
+  --email operator@example.com
+```
+
 ### Staging Withdrawal Signer KMS
 
 Terraform creates the staging withdrawal signer key:
@@ -444,8 +477,16 @@ The reset script:
 - generates a new Google Authenticator-compatible TOTP seed unless
   `STAGING_ADMIN_E2E_OTP_SECRET` is set;
 - writes both values to Secret Manager;
-- resets `staging-admin-e2e@synapse-network.ai` in the Gateway-admin staging DB;
+- resets `staging-admin-e2e@synapse-network.ai` in the Gateway-admin staging DB
+  by default;
 - revokes old sessions and old active TOTP factors for that test account.
+
+It can also reset an existing staging admin account by login email when
+`STAGING_ADMIN_RESET_CONFIRM=I_UNDERSTAND_THIS_RESETS_A_STAGING_ADMIN_ACCOUNT`
+is set and `--email <admin-login-email>` is provided. This custom-account mode
+does not overwrite `synapse-staging-admin-e2e-password` or
+`synapse-staging-admin-e2e-otp-secret` unless custom secret ids are explicitly
+provided.
 
 The TOTP secret is not a Google login link and does not expire like a magic
 link. It is the manual key that Google Authenticator stores. The six-digit OTP
@@ -913,6 +954,19 @@ explicitly approves it.
 | Admin app user         | `synapse_admin_app`             | `gcp_staging_bootstrap.sh` | Gateway-admin runtime write user.                                       |
 | Admin migrator user    | `synapse_admin_migrator`        | `gcp_staging_bootstrap.sh` | Gateway-admin schema migration user.                                    |
 
+Cloud SQL V1 access uses Auth Proxy / connector isolation, not VPC private IP.
+The instance intentionally keeps public IPv4 for low-ops local diagnostics, but
+Terraform must keep `connector_enforcement = "REQUIRED"` and no authorized
+networks. Standard public TCP clients must not be able to connect; Cloud Run
+uses the Cloud SQL connector mount, and operators use Cloud SQL Auth Proxy plus
+IAM database authentication.
+
+Human database access is read-only by default. Grant personal
+`CLOUD_IAM_USER` accounts only `CONNECT`, `USAGE`, and `SELECT` privileges for
+diagnostics. Any write access is breakglass: time-box it, record the exact SQL
+and reason, and revoke it after the incident. Routine schema updates must go
+through the migration job, not Cloud SQL Studio.
+
 Run bootstrap after Terraform creates the Cloud SQL instance and Secret Manager
 placeholders:
 
@@ -1374,14 +1428,14 @@ the same Gateway Docker image as `synapse-staging-gateway`. The worker entrypoin
 is `python -m src.worker <job> --once`, so Gateway API and jobs share `src.core`,
 `src.storage`, domain models, money utilities, and settlement state-machine code.
 
-| Job                           | Command                                                   | Schedule                 | Lock key                      | Purpose                                                            |
-| ----------------------------- | --------------------------------------------------------- | ------------------------ | ----------------------------- | ------------------------------------------------------------------ |
-| DB migration                  | `bash scripts/deploy/migrate_db.sh staging`               | Manual release step only | n/a                           | Apply shared schema/reference migrations before API image rollout. |
-| Deposit indexer               | `python -m src.worker deposit-indexer --once`             | Every minute             | `deposit-indexer`             | Credit confirmed deposits.                                         |
-| Provider withdrawal reaper    | `python -m src.worker provider-withdraw-reaper --once`    | Every minute             | `provider-withdraw-reaper`    | Expire provider withdrawal tickets safely.                         |
-| Consumer withdrawal processor | `python -m src.worker consumer-withdraw-processor --once` | Every minute             | `consumer-withdraw-processor` | Process consumer withdrawal lifecycle.                             |
-| Notification outbox drain     | `python -m src.worker notification-outbox --once`         | Every minute             | `notification-outbox-drain`   | Send async Gmail notifications.                                    |
-| In-app notification cleanup   | `python -m src.worker in-app-cleanup --once`              | Daily                    | `in-app-notification-cleanup` | Delete expired/old inbox rows.                                     |
+| Job                           | Command                                                   | Schedule             | Lock key                      | Purpose                                                                                                                             |
+| ----------------------------- | --------------------------------------------------------- | -------------------- | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| DB migration                  | `bash scripts/deploy/migrate_db.sh staging`               | Release schema guard | n/a                           | Apply shared schema/reference migrations and fail if staging schema is empty, owned by the runtime user, or missing runtime grants. |
+| Deposit indexer               | `python -m src.worker deposit-indexer --once`             | Every minute         | `deposit-indexer`             | Credit confirmed deposits.                                                                                                          |
+| Provider withdrawal reaper    | `python -m src.worker provider-withdraw-reaper --once`    | Every minute         | `provider-withdraw-reaper`    | Expire provider withdrawal tickets safely.                                                                                          |
+| Consumer withdrawal processor | `python -m src.worker consumer-withdraw-processor --once` | Every minute         | `consumer-withdraw-processor` | Process consumer withdrawal lifecycle.                                                                                              |
+| Notification outbox drain     | `python -m src.worker notification-outbox --once`         | Every minute         | `notification-outbox-drain`   | Send async Gmail notifications.                                                                                                     |
+| In-app notification cleanup   | `python -m src.worker in-app-cleanup --once`              | Daily                | `in-app-notification-cleanup` | Delete expired/old inbox rows.                                                                                                      |
 
 Each money-sensitive job must use `task_count=1`, `parallelism=1`, and the
 Postgres advisory lock. A lock skip logs `JOB_SKIPPED_ALREADY_RUNNING` and exits
@@ -1393,6 +1447,13 @@ digest. Updating a job image does not execute the job; Cloud Scheduler still
 controls execution. This prevents the dangerous split-brain state where the API
 writes new ledger/storage shapes while old indexer, processor, or outbox code
 continues to run.
+
+When deploy scope includes any Gateway-dependent service (`gateway`,
+`gateway-admin`, `user-front`, or `admin-front`), the workflow executes the
+Gateway DB migration job before rollout. If the Gateway image is not in scope,
+the workflow still runs the currently deployed migration job as a schema guard.
+This catches half-initialized staging states where Terraform and Secret Manager
+exist but the real Cloud SQL schema is empty or permission-drifted.
 
 Manual drift repair uses the same job list as the workflow:
 
@@ -1470,18 +1531,52 @@ sequence is:
 1. Resolve the selected branch/tag/commit into an immutable commit SHA.
 2. Resolve deploy scope (`auto`, one service, or `all`).
 3. Build only affected service images in Cloud Build.
-4. Run the Gateway DB migration job before every Gateway API rollout. This is
-   intentional even when no migration file changed: the migration job also runs
-   schema contract validation against the real staging Cloud SQL database and
-   catches drifted constraints.
-5. If Gateway is affected, update all Gateway jobs to the same Gateway image digest.
-6. Deploy affected Cloud Run services by immutable image digest when available.
-7. Run HTTP smoke tests only for affected services. For User-front, do not
+4. Run the Gateway DB migration job before every Gateway-dependent rollout.
+   This is intentional even when no migration file changed: the migration job
+   also checks the real staging Cloud SQL database for table count, required
+   tables, migrator ownership, and runtime grants.
+5. Run the Gateway-admin DB migration job before every Gateway-admin-dependent
+   rollout (`gateway-admin` or `admin-front`), even when only the Admin frontend
+   image changed.
+6. If Gateway is affected, update all Gateway jobs to the same Gateway image digest.
+7. Deploy affected Cloud Run services by immutable image digest when available.
+8. Run HTTP smoke tests only for affected services. For User-front, do not
    treat a listening port or Cloud Run `Ready=True` as sufficient; verify a real
    page such as `/dashboard/account/settings` or `/` responds successfully.
-8. If Gateway is affected, run the staging drift guard against live Cloud Run,
-   Secret Manager, Provider discovery, and Gateway job digests.
-9. Write `release-manifest.json` and upload it to the staging evidence bucket.
+9. If Gateway is affected, run the staging drift guard against live Cloud Run,
+   Secret Manager, Cloud SQL Auth Proxy enforcement, Provider discovery, and
+   Gateway job digests.
+10. Write `release-manifest.json` and upload it to the staging evidence bucket.
+
+Manual schema guard through Cloud SQL Auth Proxy:
+
+```bash
+cloud-sql-proxy fabled-archive-494108-k5:us-central1:synapse-staging-postgres \
+  --port 15543
+
+bash scripts/deploy/gcp_staging_schema_guard.sh \
+  --project fabled-archive-494108-k5 \
+  --port 15543
+```
+
+The guard checks:
+
+- `synapse_gateway_staging` and `synapse_gateway_admin_staging` exist.
+- Gateway DSN and password secrets are consistent.
+- Gateway has the required `synapse_*` tables.
+- Gateway schema objects are owned by `synapse_gateway_migrator`, not the runtime app user.
+- `synapse_gateway_app` has runtime table privileges.
+- Gateway-admin has required `admin_*` tables owned by `synapse_admin_migrator`.
+
+The staging drift guard also checks the instance-level database security
+posture:
+
+- public IPv4 is kept for Auth Proxy ergonomics.
+- authorized networks are empty.
+- Cloud SQL connector enforcement is `REQUIRED`.
+- IAM database authentication is enabled.
+- backup and point-in-time recovery are enabled.
+- built-in user password policy is enabled.
 
 Branch-based staging deploy is allowed, but the workflow freezes the branch HEAD
 at dispatch time. Release evidence must record `sourceRefType`, `sourceRef`,

@@ -237,7 +237,7 @@ Docker bootstrap 只创建管理员账号、角色绑定和占位 MFA 记录，�
 cd /Users/cliff/workspace/agent/Synapse-Network/services/gateway-admin
 .venv/bin/python scripts/set_bootstrap_password.py \
   --dsn 'postgresql://synapse_admin_app:local-dev-admin-app-password@127.0.0.1:15432/synapse_gateway_admin' \
-  --email 'super@synapse.network' \
+  --email 'cliff@synapse-network.ai' \
   --password 'ReplaceWithStrongInitPassword'
 ```
 
@@ -248,7 +248,7 @@ cd /Users/cliff/workspace/agent/Synapse-Network/services/gateway-admin
 ```bash
 cd /Users/cliff/workspace/agent/Synapse-Network/services/gateway-admin
 .venv/bin/python scripts/reset_admin_password.py \
-  --email 'super@synapse.network' \
+  --email 'cliff@synapse-network.ai' \
   --password 'qwer@1234'
 ```
 
@@ -264,7 +264,7 @@ cd /Users/cliff/workspace/agent/Synapse-Network/services/gateway-admin
 
 默认测试账号：
 
-1. email: `mfa-enroll-test@synapse.network`
+1. email: `mfa-enroll-test@synapse-network.ai`
 2. password: `EnrollUser#2026!`
 3. expected result: `428 MFA_ENROLLMENT_REQUIRED`
 

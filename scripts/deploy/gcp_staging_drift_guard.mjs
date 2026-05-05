@@ -128,6 +128,21 @@ function jobJson(name) {
   );
 }
 
+function cloudSqlInstanceJson(name) {
+  return runGcloud(
+    [
+      "sql",
+      "instances",
+      "describe",
+      name,
+      "--project",
+      PROJECT_ID,
+      "--format=json",
+    ],
+    { json: true }
+  );
+}
+
 function envEntries(resource) {
   const containers = containerEntries(resource);
   return containers[0]?.env || [];
@@ -293,6 +308,80 @@ for (const secretId of REQUIRED_SECRET_LINT) {
       error: String(error.message || error),
     });
   }
+}
+
+try {
+  const instanceName = EXPECTED_CLOUD_SQL.split(":").pop();
+  const sqlInstance = cloudSqlInstanceJson(instanceName);
+  const settings = sqlInstance.settings || {};
+  const ipConfiguration = settings.ipConfiguration || {};
+  const authorizedNetworks = ipConfiguration.authorizedNetworks || [];
+  const databaseFlags = Object.fromEntries(
+    (settings.databaseFlags || []).map((flag) => [flag.name, flag.value])
+  );
+  const passwordPolicy = settings.passwordValidationPolicy || {};
+
+  requireCheck(
+    "cloudsql-public-ip-kept",
+    ipConfiguration.ipv4Enabled === true,
+    {
+      instance: instanceName,
+      ipv4Enabled: ipConfiguration.ipv4Enabled ?? null,
+    }
+  );
+  requireCheck(
+    "cloudsql-authorized-networks-empty",
+    authorizedNetworks.length === 0,
+    {
+      instance: instanceName,
+      authorizedNetworks,
+    }
+  );
+  requireCheck(
+    "cloudsql-connector-enforcement-required",
+    settings.connectorEnforcement === "REQUIRED",
+    {
+      instance: instanceName,
+      connectorEnforcement: settings.connectorEnforcement || null,
+    }
+  );
+  requireCheck(
+    "cloudsql-iam-db-auth-enabled",
+    databaseFlags["cloudsql.iam_authentication"] === "on",
+    {
+      instance: instanceName,
+      value: databaseFlags["cloudsql.iam_authentication"] || null,
+    }
+  );
+  requireCheck(
+    "cloudsql-backup-and-pitr-enabled",
+    settings.backupConfiguration?.enabled === true &&
+      settings.backupConfiguration?.pointInTimeRecoveryEnabled === true,
+    {
+      instance: instanceName,
+      backupEnabled: settings.backupConfiguration?.enabled ?? null,
+      pointInTimeRecoveryEnabled:
+        settings.backupConfiguration?.pointInTimeRecoveryEnabled ?? null,
+    }
+  );
+  requireCheck(
+    "cloudsql-password-policy-enabled",
+    passwordPolicy.enablePasswordPolicy === true,
+    {
+      instance: instanceName,
+      enablePasswordPolicy: passwordPolicy.enablePasswordPolicy ?? null,
+      minLength: passwordPolicy.minLength ?? null,
+      complexity: passwordPolicy.complexity || null,
+      reuseInterval: passwordPolicy.reuseInterval ?? null,
+      disallowUsernameSubstring:
+        passwordPolicy.disallowUsernameSubstring ?? null,
+    }
+  );
+} catch (error) {
+  requireCheck("cloudsql-security-config-readable", false, {
+    expectedCloudSqlInstance: EXPECTED_CLOUD_SQL,
+    error: String(error.message || error),
+  });
 }
 
 let gatewayService = null;

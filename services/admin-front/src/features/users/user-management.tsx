@@ -392,7 +392,7 @@ export function UserManagement({
               <input
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
-                placeholder="ops-02@synapse.network"
+                placeholder="ops-02@synapse-network.ai"
                 disabled={Boolean(editingUser)}
               />
             </label>

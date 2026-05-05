@@ -53,7 +53,7 @@ const POSTGRES_DSN =
 
 const ADMIN_COOKIE_NAME =
   process.env.ADMIN_SESSION_COOKIE_NAME || "synapse_admin_session";
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "super@synapse.network";
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "cliff@synapse-network.ai";
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "qwer@1234";
 const ADMIN_TOTP_SECRET = process.env.ADMIN_TOTP_SECRET || "JBSWY3DPEHPK3PXP";
 

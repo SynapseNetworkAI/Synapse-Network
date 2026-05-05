@@ -84,7 +84,7 @@ const adminApiUrl = (
 ).replace(/\/+$/, "");
 const adminCookieName =
   process.env.ADMIN_SESSION_COOKIE_NAME || "synapse_admin_session";
-const adminEmail = process.env.ADMIN_EMAIL || "super@synapse.network";
+const adminEmail = process.env.ADMIN_EMAIL || "cliff@synapse-network.ai";
 const adminPassword =
   process.env.STAGING_ADMIN_E2E_PASSWORD ||
   process.env.ADMIN_PASSWORD ||

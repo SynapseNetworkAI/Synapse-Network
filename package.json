@@ -82,6 +82,7 @@
     "ci:user-front-pages": "cd services/user-front && yarn test:user-front-pages",
     "ci:release-go-no-go": "bash scripts/ci/release_go_no_go_checks.sh",
     "ci:staging-drift-guard": "node scripts/deploy/gcp_staging_drift_guard.mjs",
+    "ci:staging-schema-guard": "bash scripts/deploy/gcp_staging_schema_guard.sh",
     "ci:sdk-python": "bash scripts/ci/sdk_python_checks.sh",
     "perf:local-reliability-suite": "bash scripts/perf/local_reliability_suite.sh",
     "perf:local-production-load-rehearsal": "bash scripts/perf/local_production_load_rehearsal.sh",

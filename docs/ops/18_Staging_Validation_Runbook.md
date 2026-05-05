@@ -87,6 +87,32 @@ Gateway-admin DB, revokes old sessions, and revokes old active TOTP factors.
 The TOTP seed itself does not expire; the six-digit OTP code generated from it
 expires every 30 seconds.
 
+For an existing staging admin account, reset by login email with an explicit
+confirmation. This does not overwrite the shared E2E Secret Manager entries by
+default:
+
+```bash
+STAGING_ADMIN_RESET_CONFIRM=I_UNDERSTAND_THIS_RESETS_A_STAGING_ADMIN_ACCOUNT \
+PRINT_SECRETS_ONCE=true \
+bash scripts/deploy/gcp_reset_staging_admin_e2e.sh fabled-archive-494108-k5 \
+  --email operator@example.com
+```
+
+When running from a laptop, the staging admin DB secret may contain a Cloud Run
+Unix socket DSN like `host=/cloudsql/...`. Start Cloud SQL Auth Proxy first,
+then pass the proxy port to the reset script:
+
+```bash
+cloud-sql-proxy --address 127.0.0.1 --port 5433 \
+  fabled-archive-494108-k5:us-central1:synapse-staging-postgres
+
+STAGING_ADMIN_RESET_CONFIRM=I_UNDERSTAND_THIS_RESETS_A_STAGING_ADMIN_ACCOUNT \
+STAGING_ADMIN_CLOUD_SQL_PROXY_PORT=5433 \
+PRINT_SECRETS_ONCE=true \
+bash scripts/deploy/gcp_reset_staging_admin_e2e.sh fabled-archive-494108-k5 \
+  --email operator@example.com
+```
+
 ## Contract Baseline
 
 Current verified staging deployment:
@@ -696,6 +722,10 @@ is unknown, run:
 ```bash
 bash scripts/deploy/gcp_reset_staging_admin_e2e.sh fabled-archive-494108-k5
 ```
+
+If a staging operator account itself must be reset, use the custom email mode
+from the credentials section above and do not use that operator account for
+dogfood automation.
 
 ## Core Dogfood E2E
 

@@ -266,7 +266,25 @@ Production Cloud SQL minimum:
 ```hcl
 tier                = "db-g1-small"
 deletion_protection = true
+connector_enforcement = "REQUIRED"
+
+ip_configuration {
+  ipv4_enabled = true
+}
+
+database_flags {
+  name  = "cloudsql.iam_authentication"
+  value = "on"
+}
 ```
+
+V1 production uses the pragmatic Cloud SQL Auth Proxy posture: public IPv4 can
+remain enabled for low-ops diagnostics, but authorized networks must be empty
+and connector enforcement must be `REQUIRED`. Cloud Run uses the Cloud SQL
+connector; operators use Cloud SQL Auth Proxy plus IAM database authentication.
+Do not add office, home, or `0.0.0.0/0` authorized networks. Routine SQL
+changes must go through migration jobs; Cloud SQL Studio is read-only by
+default and write SQL is breakglass only.
 
 Production backup policy:
 

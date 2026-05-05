@@ -17,7 +17,7 @@ from src.core.security import hash_password
 from src.storage import PostgresAdminStore
 
 
-DEFAULT_EMAIL = "super@synapse.network"
+DEFAULT_EMAIL = "cliff@synapse-network.ai"
 DEFAULT_PASSWORD = "qwer@1234"
 DEFAULT_LOCAL_DSN = "postgresql://synapse_admin_app:local-dev-admin-app-password@127.0.0.1:15432/synapse_gateway_admin"
 LOCAL_HOSTS = {"", "localhost", "127.0.0.1", "::1"}
