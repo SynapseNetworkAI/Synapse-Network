@@ -244,71 +244,17 @@ USDC_TOKEN_ADDRESS=$(node -e "const c=require('${CONFIG_FILE}'); process.stdout.
 PROVIDER_ADDRESS=$(node -e "const c=require('${CONFIG_FILE}'); process.stdout.write(c.Treasury)")
 
 echo "3) Starting gateway/gateway_fastapi.py in background (local profile)..."
-cd "${ROOT_DIR}/services/gateway"
+bash "${ROOT_DIR}/scripts/local/restart_gateway.sh"
 
-if [[ -x "${ROOT_DIR}/services/gateway/.venv/bin/python" ]]; then
-	PYTHON_BIN="${ROOT_DIR}/services/gateway/.venv/bin/python"
-elif [[ -x "${ROOT_DIR}/services/gateway/venv/bin/python" ]]; then
-	PYTHON_BIN="${ROOT_DIR}/services/gateway/venv/bin/python"
-else
-	PYTHON_BIN="$(bash "$PYTHON_RESOLVER")"
+PROVIDER_PID=""
+ANALYTICS_OUTBOX_PID=""
+NOTIFICATION_OUTBOX_PID=""
+if [[ -f "$PID_FILE" ]]; then
+	source "$PID_FILE"
 fi
 
-echo "Using Python interpreter: ${PYTHON_BIN}"
-if ! "$PYTHON_BIN" -c "import uvicorn, fastapi, web3" >/dev/null 2>&1; then
-	echo "Python dependencies missing. Installing from gateway/requirements.txt ..."
-	"$PYTHON_BIN" -m pip install -r "${ROOT_DIR}/services/gateway/requirements.txt"
-fi
-
-EXISTING_PROVIDER_PID="$(find_pid_by_port 8000)"
-if [[ -n "$EXISTING_PROVIDER_PID" ]]; then
-	echo "Port 8000 already in use by PID ${EXISTING_PROVIDER_PID}. Stopping stale API process..."
-	kill "$EXISTING_PROVIDER_PID" >/dev/null 2>&1 || true
-	sleep 1
-	if kill -0 "$EXISTING_PROVIDER_PID" >/dev/null 2>&1; then
-		kill -9 "$EXISTING_PROVIDER_PID" >/dev/null 2>&1 || true
-	fi
-fi
-
-LOCAL_ENV_FILE="${ROOT_DIR}/services/gateway/.env.local"
-LOCAL_GATEWAY_DB_NAME="${POSTGRES_DB:-${SYNAPSE_GATEWAY_DB:-synapse_gateway}}"
-DEFAULT_LOCAL_POSTGRES_DSN="postgresql://synapse:local-dev-postgres-password@127.0.0.1:${LOCAL_GATEWAY_POSTGRES_PORT}/${LOCAL_GATEWAY_DB_NAME}"
-
-if [[ -n "${POSTGRES_DSN:-}" ]]; then
-	echo "[local-setup] ignoring ambient POSTGRES_DSN; local setup uses Docker Postgres by default."
-fi
-if [[ -f "$LOCAL_ENV_FILE" ]] && grep -q '^POSTGRES_DSN=' "$LOCAL_ENV_FILE"; then
-	echo "[local-setup] ignoring services/gateway/.env.local POSTGRES_DSN; local setup uses Docker Postgres by default."
-fi
-LOCAL_POSTGRES_DSN="$DEFAULT_LOCAL_POSTGRES_DSN"
-# Normalize docker-network hostname for host-run local mode.
-LOCAL_POSTGRES_DSN="${LOCAL_POSTGRES_DSN/@postgres:/@127.0.0.1:}"
-
-if [[ -f "$LOCAL_ENV_FILE" ]]; then
-	ENVIRONMENT=local \
-	ENV_FILE=.env.local \
-	GATEWAY_RELOAD=false \
-	V2_INDEXER_ENABLED="${V2_INDEXER_ENABLED:-true}" \
-	POSTGRES_DSN="$LOCAL_POSTGRES_DSN" \
-	RPC_URL="http://127.0.0.1:8545" \
-	ROUTER_ADDRESS="$ROUTER_ADDRESS" \
-	USDC_TOKEN_ADDRESS="$USDC_TOKEN_ADDRESS" \
-	nohup "$PYTHON_BIN" gateway_fastapi.py > "${ROOT_DIR}/services/gateway/logs/provider_api.log" 2>&1 < /dev/null &
-else
-	ENVIRONMENT=local \
-	GATEWAY_RELOAD=false \
-	V2_INDEXER_ENABLED="${V2_INDEXER_ENABLED:-true}" \
-	POSTGRES_DSN="$LOCAL_POSTGRES_DSN" \
-	RPC_URL="http://127.0.0.1:8545" \
-	ROUTER_ADDRESS="$ROUTER_ADDRESS" \
-	USDC_TOKEN_ADDRESS="$USDC_TOKEN_ADDRESS" \
-	nohup "$PYTHON_BIN" gateway_fastapi.py > "${ROOT_DIR}/services/gateway/logs/provider_api.log" 2>&1 < /dev/null &
-fi
-PROVIDER_PID=$!
-sleep 3
-
-if ! kill -0 "$PROVIDER_PID" >/dev/null 2>&1; then
-	echo "Error: Provider API failed to start. Check gateway/logs/provider_api.log"
+if [[ -z "${PROVIDER_PID:-}" ]]; then
+	echo "Error: Gateway restart did not record PROVIDER_PID in ${PID_FILE}."
 	if [[ "$ANVIL_OWNED_BY_SCRIPT" -eq 1 ]]; then
 		kill "$ANVIL_PID" >/dev/null 2>&1 || true
 	fi
@@ -356,6 +302,8 @@ cat > "$PID_FILE" <<EOF
 ANVIL_PID=$ANVIL_PID
 ANVIL_OWNED_BY_SCRIPT=$ANVIL_OWNED_BY_SCRIPT
 PROVIDER_PID=$PROVIDER_PID
+ANALYTICS_OUTBOX_PID=${ANALYTICS_OUTBOX_PID:-}
+NOTIFICATION_OUTBOX_PID=${NOTIFICATION_OUTBOX_PID:-}
 FRONTEND_PID=$FRONTEND_PID
 FRONTEND_OWNED_BY_SCRIPT=$FRONTEND_OWNED_BY_SCRIPT
 EOF
@@ -364,6 +312,8 @@ echo ""
 echo "=== Local system running ==="
 echo "Anvil PID    : $ANVIL_PID"
 echo "Provider PID : $PROVIDER_PID"
+echo "Analytics outbox worker PID  : ${ANALYTICS_OUTBOX_PID:-screen:synapse-gateway-analytics-outbox}"
+echo "Notification outbox worker PID: ${NOTIFICATION_OUTBOX_PID:-screen:synapse-gateway-notification-outbox}"
 echo "Frontend PID : $FRONTEND_PID"
 echo "Router       : $ROUTER_ADDRESS"
 echo "USDC Token   : $USDC_TOKEN_ADDRESS"
