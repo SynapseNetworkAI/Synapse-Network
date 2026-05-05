@@ -37,6 +37,7 @@ from src.services.platform.service_health_service import (
 from src.services.analytics.emitter import create_analytics_emitter
 from src.services.analytics import gateway_events as gw_analytics
 from src.services.notifications.in_app_cleanup import run_in_app_notification_cleanup
+from src.services.platform.service_health_event_cleanup import run_service_health_event_cleanup
 from src.services.owner.forwarding_upstream import close_upstream_http_client
 from src.api.routers.events import router as events_router
 
@@ -127,6 +128,13 @@ def _start_gateway_background_workers(app: FastAPI) -> None:
         task_attr="in_app_notification_cleanup_task",
         runner=run_in_app_notification_cleanup,
     )
+    _start_background_task(
+        app,
+        enabled=settings.service_health_event_cleanup_enabled,
+        stop_attr="service_health_event_cleanup_stop_event",
+        task_attr="service_health_event_cleanup_task",
+        runner=run_service_health_event_cleanup,
+    )
 
 
 async def _cancel_gateway_background_workers(app: FastAPI) -> None:
@@ -159,6 +167,12 @@ async def _cancel_gateway_background_workers(app: FastAPI) -> None:
         stop_attr="in_app_notification_cleanup_stop_event",
         task_attr="in_app_notification_cleanup_task",
         label="In-app notification cleanup",
+    )
+    await _cancel_background_task(
+        app,
+        stop_attr="service_health_event_cleanup_stop_event",
+        task_attr="service_health_event_cleanup_task",
+        label="Service health event cleanup",
     )
 
 
@@ -259,6 +273,10 @@ def _readiness_snapshot(app: FastAPI) -> dict[str, object]:
         "in_app_notification_cleanup": _build_monitor_state(
             enabled=settings.in_app_notification_cleanup_enabled,
             task=_state_task("in_app_notification_cleanup_task"),
+        ),
+        "service_health_event_cleanup": _build_monitor_state(
+            enabled=settings.service_health_event_cleanup_enabled,
+            task=_state_task("service_health_event_cleanup_task"),
         ),
     }
 

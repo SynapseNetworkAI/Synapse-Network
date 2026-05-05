@@ -554,12 +554,12 @@ def test_service_registry_repository_read_and_write() -> None:
     )
     db.readonly_plan.append(
         {
-            "fetchall": [[("svc-1", "0xabc", "https://a", {"weight": 100, "region": "ap", "status": "up", "overallStatus": "green", "httpStatus": 200, "consecutiveSuccesses": 3, "consecutiveFailures": 1, "probeUrl": "https://a/health", "lastCheckedAt": 10, "lastHealthyAt": 9}, 95, 12, 0.99, 10, None)]],
+            "fetchall": [[("svc-1", "0xabc", "https://a", "0xabc", "up", "green", 200, 12, 3, 1, "https://a/health", 10, 9, None, 95, 12, 0.99, 10, None)]],
         }
     )
     db.readonly_plan.append(
         {
-            "fetchall": [[("service_health_history::svc-1", {"rows": [{"serviceId": "svc-1", "ownerAddress": "0xabc", "targetUrl": "https://a", "status": "up", "httpStatus": 200, "latencyMs": 12, "probeUrl": "https://a/health", "consecutiveSuccesses": 3, "consecutiveFailures": 1, "checkedAt": 11, "lastHealthyAt": 9}]})]],
+            "fetchall": [[("svc-1", "0xabc", "https://a", "down", "up", 200, 12, "https://a/health", 3, 1, 11, 9, None)]],
         }
     )
     repo = ServiceRegistryRepository(db)
@@ -577,7 +577,7 @@ def test_service_registry_repository_read_and_write() -> None:
     assert target_rows[0].consecutive_successes == 3
 
     history_rows = repo.read_service_target_health_history_rows()
-    assert history_rows[0].checked_at == 11
+    assert history_rows[0].checked_at == 11000
 
     repo.write_service_registry_rows([
         ServiceDefinitionRecord.model_validate(
@@ -631,56 +631,12 @@ def test_service_registry_repository_read_and_write() -> None:
     assert "UPDATE synapse_service_endpoints" in all_sql
     assert "ON CONFLICT (service_id, endpoint_id)" in all_sql
     assert "DELETE FROM synapse_service_health_snapshots WHERE (service_id, endpoint_id) NOT IN" in all_sql
-    assert "DELETE FROM synapse_runtime_state WHERE state_key LIKE 'service_health_meta::%%' AND state_key NOT IN" in all_sql
+    assert "DELETE FROM synapse_service_health_runtime WHERE (service_id, target_url) NOT IN" in all_sql
+    assert "ON CONFLICT (service_id, target_url)" in all_sql
+    assert "INSERT INTO synapse_service_health_events" in all_sql
     assert "INSERT INTO synapse_service_search_index" in all_sql
     assert "INSERT INTO synapse_runtime_state" in all_sql
     assert "INSERT INTO synapse_provider_payout_accounts" in all_sql
-
-
-def test_service_health_history_write_serializes_and_deletes_only_obsolete_keys() -> None:
-    db = FakeDB()
-    repo = ServiceRegistryRepository(db)
-
-    repo.write_service_target_health_history_rows(
-        [
-            ServiceTargetHealthHistory(
-                serviceId="svc-b",
-                ownerAddress="0xDEF",
-                targetUrl="https://b",
-                checkedAt=3,
-            ),
-            ServiceTargetHealthHistory(
-                serviceId="svc-a",
-                ownerAddress="0xABC",
-                targetUrl="https://a",
-                checkedAt=4,
-            ),
-        ]
-    )
-
-    tx_ops = db.tx_cursors[-1].executed
-    assert tx_ops[0] == (
-        "SELECT pg_advisory_xact_lock(hashtext(%s))",
-        ("synapse_runtime_state:service_health_history",),
-    )
-    delete_sql, delete_params = tx_ops[1]
-    assert (
-        "DELETE FROM synapse_runtime_state WHERE state_key LIKE "
-        "'service_health_history::%%' AND state_key NOT IN"
-    ) in delete_sql
-    assert delete_params == (
-        "service_health_history::svc-a",
-        "service_health_history::svc-b",
-    )
-    upsert_keys = [
-        params[0]
-        for sql, params in tx_ops
-        if "INSERT INTO synapse_runtime_state" in sql
-    ]
-    assert upsert_keys == [
-        "service_health_history::svc-a",
-        "service_health_history::svc-b",
-    ]
 
 
 def test_service_registry_repository_normalizes_datetime_health_timestamps() -> None:
@@ -693,17 +649,17 @@ def test_service_registry_repository_normalizes_datetime_health_timestamps() -> 
                 "svc-1",
                 "0xabc",
                 "https://a",
-                {
-                    "weight": 100,
-                    "region": "ap",
-                    "status": "healthy",
-                    "overallStatus": "healthy",
-                    "httpStatus": 200,
-                    "consecutiveSuccesses": 3,
-                    "consecutiveFailures": 0,
-                    "probeUrl": "https://a/health",
-                    "lastHealthyAt": last_healthy_at,
-                },
+                "0xabc",
+                "healthy",
+                "healthy",
+                200,
+                12,
+                3,
+                0,
+                "https://a/health",
+                last_checked_at,
+                last_healthy_at,
+                None,
                 95,
                 12,
                 0.99,

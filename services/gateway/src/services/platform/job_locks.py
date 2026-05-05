@@ -15,6 +15,7 @@ JOB_LOCK_KEYS = {
     "consumer-withdraw-processor",
     "notification-outbox-drain",
     "in-app-notification-cleanup",
+    "service-health-events-cleanup",
 }
 
 

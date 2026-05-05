@@ -27,10 +27,14 @@ def test_mark_service_offline_uses_race_safe_conditions() -> None:
     assert "SET status = 'offline'" in offline_sql
     assert "sm.status = 'active'" in offline_sql
     assert "sm.updated_at <= %s::timestamptz" in offline_sql
-    assert "consecutiveFailures" in offline_sql
-    assert "lastCheckedAt" in offline_sql
+    assert "synapse_service_health_runtime" in offline_sql
+    assert "consecutive_failures" in offline_sql
+    assert "last_checked_at" in offline_sql
     assert offline_params[1] == "svc-dead"
-    meta_sql, meta_params = tx_ops[1]
+    runtime_sql, runtime_params = tx_ops[1]
+    assert "UPDATE synapse_service_health_runtime" in runtime_sql
+    assert runtime_params[3] == "svc-dead"
+    meta_sql, meta_params = tx_ops[2]
     assert "UPDATE synapse_runtime_state" in meta_sql
     assert meta_params[2] == "service_meta::svc-dead"
 

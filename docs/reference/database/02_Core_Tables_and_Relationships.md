@@ -162,7 +162,21 @@ Manifest 和真实 endpoint 解耦。
 
 说明平台把“服务健康度”建模成 service-endpoint 粒度，而不是仅看 service 粒度平均值。
 
-### 5.4 `synapse_service_search_index`
+### 5.4 `synapse_service_health_runtime`
+
+唯一约束是：
+
+1. `UNIQUE (service_id, target_url)`
+
+这是 Gateway 探活的当前状态表。每次 probe 都通过 `ON CONFLICT (service_id, target_url) DO UPDATE` 刷新 `status`、`last_checked_at`、`latency_ms`、失败计数和 `updated_at`，避免旧 KV 缓存让前端看到“健康但时间卡死”的状态。
+
+### 5.5 `synapse_service_health_events`
+
+这是 7 天诊断窗口内的 append-only 状态翻转事件表。
+
+连续同状态 probe 不写事件；`healthy -> unavailable`、`unavailable -> healthy` 这类翻转才写入。TTL 清理由独立低频 job 执行，不进入 60 秒探活主循环。
+
+### 5.6 `synapse_service_search_index`
 
 这是 Discovery 的读优化层，不是 Service Contract 主表。
 
@@ -326,6 +340,8 @@ Withdrawal 绑定：
 3. cursor / checkpoint
 4. 其他不适合进入主表但又必须持久化的结构化状态
 
+Provider health 不再放在这里。高频探活状态属于 `synapse_service_health_runtime`，状态翻转历史属于 `synapse_service_health_events`。
+
 它的价值是：
 
 1. 减少主表膨胀
@@ -342,4 +358,4 @@ Withdrawal 绑定：
 4. 余额快照和账本分录分离
 5. 入金/出金和 Runtime commerce 分离
 
-这正是金融级 Runtime 平台应有的数据库骨架。 
+这正是金融级 Runtime 平台应有的数据库骨架。

@@ -215,6 +215,51 @@ CREATE TABLE IF NOT EXISTS synapse_service_health_snapshots (
     CHECK (health_score BETWEEN 0 AND 100)
 );
 
+CREATE TABLE IF NOT EXISTS synapse_service_health_runtime (
+    id BIGINT GENERATED ALWAYS AS IDENTITY UNIQUE,
+    service_id TEXT NOT NULL REFERENCES synapse_service_manifests (service_id) ON DELETE CASCADE,
+    target_url TEXT NOT NULL,
+    owner_address TEXT,
+    status TEXT NOT NULL DEFAULT 'unknown',
+    overall_status TEXT,
+    http_status INTEGER,
+    latency_ms INTEGER,
+    consecutive_successes INTEGER NOT NULL DEFAULT 0,
+    consecutive_failures INTEGER NOT NULL DEFAULT 0,
+    probe_url TEXT,
+    last_checked_at TIMESTAMPTZ,
+    last_healthy_at TIMESTAMPTZ,
+    timeout_ms INTEGER,
+    error_code TEXT,
+    offline_reason TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (service_id, target_url),
+    CHECK (consecutive_successes >= 0),
+    CHECK (consecutive_failures >= 0)
+);
+
+CREATE TABLE IF NOT EXISTS synapse_service_health_events (
+    id BIGINT GENERATED ALWAYS AS IDENTITY UNIQUE,
+    service_id TEXT NOT NULL REFERENCES synapse_service_manifests (service_id) ON DELETE CASCADE,
+    target_url TEXT NOT NULL,
+    owner_address TEXT,
+    from_status TEXT,
+    to_status TEXT NOT NULL DEFAULT 'unknown',
+    http_status INTEGER,
+    latency_ms INTEGER,
+    probe_url TEXT,
+    consecutive_successes INTEGER NOT NULL DEFAULT 0,
+    consecutive_failures INTEGER NOT NULL DEFAULT 0,
+    checked_at TIMESTAMPTZ NOT NULL,
+    last_healthy_at TIMESTAMPTZ,
+    error_code TEXT,
+    reason TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (consecutive_successes >= 0),
+    CHECK (consecutive_failures >= 0)
+);
+
 CREATE TABLE IF NOT EXISTS synapse_service_search_index (
     id BIGINT GENERATED ALWAYS AS IDENTITY UNIQUE,
     service_id TEXT PRIMARY KEY REFERENCES synapse_service_manifests (service_id) ON DELETE CASCADE,
@@ -923,6 +968,15 @@ ON synapse_service_search_index USING GIN (tags_json);
 
 CREATE INDEX IF NOT EXISTS idx_synapse_service_quotes_lookup
 ON synapse_service_quotes (credential_id, status, expires_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_service_health_runtime_status
+ON synapse_service_health_runtime (status, last_checked_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_service_health_events_service_created
+ON synapse_service_health_events (service_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_service_health_events_created
+ON synapse_service_health_events (created_at);
 
 CREATE INDEX IF NOT EXISTS idx_synapse_invocations_service_created
 ON synapse_invocations (service_id, created_at DESC);

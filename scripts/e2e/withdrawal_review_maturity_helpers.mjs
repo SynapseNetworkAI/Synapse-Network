@@ -72,21 +72,7 @@ export function createWithdrawalReviewMaturityHelpers({
   }
 
   function seedServiceHealth(serviceId, targetUrl) {
-    const nowMs = Date.now();
     const endpointId = serviceEndpointId(serviceId, targetUrl);
-    const stateKey = `service_health_meta::${serviceId}::${targetUrl}`;
-    const healthPayload = JSON.stringify({
-      status: "healthy",
-      overallStatus: "healthy",
-      lastCheckedAt: nowMs,
-      lastHealthyAt: nowMs,
-      httpStatus: 200,
-      latencyMs: 50,
-      consecutiveSuccesses: 3,
-      consecutiveFailures: 0,
-      healthyTargets: 1,
-      totalTargets: 1,
-    });
     queryJson(`
       WITH endpoint_upsert AS (
         INSERT INTO synapse_service_endpoints
@@ -119,15 +105,32 @@ export function createWithdrawalReviewMaturityHelpers({
           updated_at = NOW()
         RETURNING service_id
       ),
-      state_upsert AS (
-        INSERT INTO synapse_runtime_state (state_key, payload, updated_at)
-        VALUES (${sqlLiteral(stateKey)}, ${sqlLiteral(
-      healthPayload
-    )}::jsonb, NOW())
-        ON CONFLICT (state_key) DO UPDATE SET
-          payload = ${sqlLiteral(healthPayload)}::jsonb,
+      runtime_upsert AS (
+        INSERT INTO synapse_service_health_runtime (
+          service_id, target_url, status, overall_status, http_status, latency_ms,
+          consecutive_successes, consecutive_failures, probe_url,
+          last_checked_at, last_healthy_at, timeout_ms, created_at, updated_at
+        )
+        VALUES (
+          ${sqlLiteral(serviceId)}, ${sqlLiteral(
+      targetUrl
+    )}, 'healthy', 'healthy', 200, 50,
+          3, 0, ${sqlLiteral(targetUrl.replace(/\/invoke$/, "/health"))},
+          NOW(), NOW(), 30000, NOW(), NOW()
+        )
+        ON CONFLICT (service_id, target_url) DO UPDATE SET
+          status = EXCLUDED.status,
+          overall_status = EXCLUDED.overall_status,
+          http_status = EXCLUDED.http_status,
+          latency_ms = EXCLUDED.latency_ms,
+          consecutive_successes = EXCLUDED.consecutive_successes,
+          consecutive_failures = EXCLUDED.consecutive_failures,
+          probe_url = EXCLUDED.probe_url,
+          last_checked_at = EXCLUDED.last_checked_at,
+          last_healthy_at = EXCLUDED.last_healthy_at,
+          timeout_ms = EXCLUDED.timeout_ms,
           updated_at = NOW()
-        RETURNING state_key
+        RETURNING service_id
       )
       SELECT json_build_object('serviceId', ${sqlLiteral(
         serviceId

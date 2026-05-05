@@ -175,9 +175,11 @@ SQL 明确把资金层拆成：
 1. `synapse_service_manifests`
 2. `synapse_service_endpoints`
 3. `synapse_service_health_snapshots`
-4. `synapse_service_search_index`
+4. `synapse_service_health_runtime`
+5. `synapse_service_health_events`
+6. `synapse_service_search_index`
 
-作用：定义可发现服务、真实 endpoint 和健康信号。
+作用：定义可发现服务、真实 endpoint、当前健康状态和 7 天诊断窗口内的健康翻转事件。
 
 ### 4.4 Commerce Layer
 
@@ -237,4 +239,4 @@ SQL 的命名规律非常明确：
 
 这套 schema 的价值不只是“表更多了”，而是它把系统从旧时代的页面驱动存储，切成了 Runtime 驱动真相层。
 
-Phase 2 的剩余文档，都会在这个总图上继续展开。 
+Phase 2 的剩余文档，都会在这个总图上继续展开。
