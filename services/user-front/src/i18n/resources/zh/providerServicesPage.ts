@@ -98,6 +98,18 @@ const providerServicesPage: I18nMessages["providerServicesPage"] = {
   paginationNext: "下一页",
   footerNote:
     "活跃服务代表运行时已对外提供流量。修改契约或路由字段前，请先切换为 Inactive。按 Esc 可关闭编辑面板。",
+  healthPageTitle: "API 服务健康",
+  healthPageDescription:
+    "查看每个 API 服务背后运行目标的 24 小时健康曲线和延迟抖动分布。",
+  healthBackToServices: "返回 API 服务",
+  healthServiceSelectorLabel: "API 服务",
+  healthServiceIdLabel: "服务 ID",
+  healthRefresh: "刷新",
+  healthLoadingHistory: "正在加载健康历史...",
+  healthSelectService: "请选择一个 API 服务查看运行目标健康趋势。",
+  healthNoHistory: "当前窗口内没有保留该服务的健康历史。",
+  healthRetentionNotice:
+    "请求 24 小时窗口，当前保留 {{hours}} 小时。展示数据会按保留窗口截断。",
 };
 
 export default providerServicesPage;

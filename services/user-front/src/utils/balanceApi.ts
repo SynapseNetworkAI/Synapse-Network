@@ -989,12 +989,18 @@ export async function requestConsumerWithdraw(
 }
 
 export async function listConsumerWithdrawals(
-  userAddress: string
+  userAddress: string,
+  limit: number = 50
 ): Promise<RefundIntentRecord[]> {
-  const response = await fetch(`${API_BASE}/balance/consumer/withdrawals`, {
-    method: "GET",
-    headers: buildAuthedHeaders(userAddress),
-  });
+  const response = await fetch(
+    `${API_BASE}/balance/consumer/withdrawals?limit=${encodeURIComponent(
+      String(limit)
+    )}`,
+    {
+      method: "GET",
+      headers: buildAuthedHeaders(userAddress),
+    }
+  );
   if (!response.ok) return [];
   const payload = (await response.json()) as { withdrawals?: unknown[] };
   const raw = Array.isArray(payload.withdrawals) ? payload.withdrawals : [];
