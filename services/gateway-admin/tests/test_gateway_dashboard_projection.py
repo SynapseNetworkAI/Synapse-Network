@@ -54,6 +54,23 @@ def test_resolve_projection_expr_defaults_when_column_is_missing() -> None:
     assert resolved == "0::bigint"
 
 
+def test_get_snapshot_returns_empty_when_projection_is_missing(monkeypatch) -> None:
+    repository = gateway_dashboard.PostgresGatewayDashboardProjectionRepository("postgresql://example")
+
+    monkeypatch.setattr(
+        repository,
+        "_get_projection_columns",
+        lambda table_name: frozenset(),
+    )
+
+    snapshot = repository.get_snapshot()
+
+    assert snapshot.gateway_status == "unknown"
+    assert snapshot.deposit_exceptions == 0
+    assert snapshot.vault_ledger_delta == gateway_dashboard.Decimal("0")
+    assert snapshot.last_reconciliation_at is None
+
+
 class _FakeCursor:
     def __init__(self, rows: list[dict[str, object]] | dict[str, object] | None = None) -> None:
         if isinstance(rows, list):
@@ -153,7 +170,23 @@ def test_get_finance_snapshot_defaults_new_metrics_for_legacy_projection(monkeyp
     assert finance.today_invocation_count == 0
     assert finance.today_platform_fee_earned_usdc == gateway_dashboard.Decimal("0")
     assert finance.today_provider_earned_usdc == gateway_dashboard.Decimal("0")
-    assert "0::bigint AS today_invocation_count" in cursor.executed_sql[0]
+    assert "row_to_json" in cursor.executed_sql[0]
+
+
+def test_get_finance_snapshot_returns_empty_when_projection_is_missing(monkeypatch) -> None:
+    repository = gateway_dashboard.PostgresGatewayDashboardProjectionRepository("postgresql://example")
+
+    monkeypatch.setattr(
+        repository,
+        "_get_projection_columns",
+        lambda table_name: frozenset(),
+    )
+
+    finance = repository.get_finance_snapshot()
+
+    assert finance.today_charge_usdc == gateway_dashboard.Decimal("0")
+    assert finance.pending_deposit_count == 0
+    assert finance.projected_at is None
 
 
 def test_list_activity_trends_defaults_new_metrics_for_legacy_projection(monkeypatch) -> None:
@@ -196,7 +229,59 @@ def test_list_activity_trends_defaults_new_metrics_for_legacy_projection(monkeyp
     assert trends[0].invocation_count == 0
     assert trends[0].platform_fee_earned_usdc == gateway_dashboard.Decimal("0")
     assert trends[0].provider_earned_usdc == gateway_dashboard.Decimal("0")
-    assert "0::bigint AS invocation_count" in cursor.executed_sql[0]
+    assert "row_to_json" in cursor.executed_sql[0]
+
+
+def test_list_activity_trends_defaults_missing_refund_and_withdrawal_columns(monkeypatch) -> None:
+    repository = gateway_dashboard.PostgresGatewayDashboardProjectionRepository("postgresql://example")
+    cursor = _FakeCursor(
+        [
+            {
+                "bucket_date": gateway_dashboard.date(2026, 3, 22),
+                "deposit_usdc": "14.00",
+                "charge_usdc": "12.50",
+                "consumer_refund_usdc": "0",
+                "provider_withdrawal_usdc": "0",
+                "net_flow_usdc": "11.00",
+                "invocation_count": 0,
+                "platform_fee_earned_usdc": "0",
+                "provider_earned_usdc": "0",
+            }
+        ]
+    )
+
+    monkeypatch.setattr(
+        repository,
+        "_get_projection_columns",
+        lambda table_name: frozenset(
+            {
+                "bucket_date",
+                "deposit_usdc",
+                "charge_usdc",
+                "net_flow_usdc",
+            }
+        ),
+    )
+    monkeypatch.setattr(gateway_dashboard, "_connect", lambda dsn: _FakeConnection(cursor))
+
+    trends = repository.list_activity_trends()
+
+    assert len(trends) == 1
+    assert trends[0].consumer_refund_usdc == gateway_dashboard.Decimal("0")
+    assert trends[0].provider_withdrawal_usdc == gateway_dashboard.Decimal("0")
+    assert "row_to_json" in cursor.executed_sql[0]
+
+
+def test_list_activity_trends_returns_empty_when_projection_is_missing(monkeypatch) -> None:
+    repository = gateway_dashboard.PostgresGatewayDashboardProjectionRepository("postgresql://example")
+
+    monkeypatch.setattr(
+        repository,
+        "_get_projection_columns",
+        lambda table_name: frozenset(),
+    )
+
+    assert repository.list_activity_trends() == []
 
 
 def test_get_operations_snapshot_defaults_new_task_fields_for_legacy_projection(monkeypatch) -> None:
@@ -255,7 +340,24 @@ def test_get_operations_snapshot_defaults_new_task_fields_for_legacy_projection(
     assert snapshot.backfill_enabled is False
     assert snapshot.backfill_last_recovered == 0
     assert snapshot.reconciliation_enabled is False
-    assert "FALSE::boolean AS indexer_running" in cursor.executed_sql[0]
+    assert "row_to_json" in cursor.executed_sql[0]
+
+
+def test_get_operations_snapshot_returns_empty_when_projection_is_missing(monkeypatch) -> None:
+    repository = gateway_dashboard.PostgresGatewayDashboardProjectionRepository("postgresql://example")
+
+    monkeypatch.setattr(
+        repository,
+        "_get_projection_columns",
+        lambda table_name: frozenset(),
+    )
+
+    operations = repository.get_operations_snapshot()
+
+    assert operations.gateway_status == "unknown"
+    assert operations.indexer_running is False
+    assert operations.reconciliation_delta_usdc == gateway_dashboard.Decimal("0")
+    assert operations.projected_at is None
 
 
 def test_seed_demo_exposes_funds_observability_metrics() -> None:

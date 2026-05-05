@@ -15,7 +15,8 @@ from src.domain.audit import AuditLogRow
 from src.domain.execution import PreparedWithdrawTicket
 from src.domain.finance import ChargeConsumerUsageCommand, UsageLogRow
 from src.domain.runtime_state import InvocationBillingState
-from src.utils.datetime_utils import now_dt_str, to_dt_str
+
+from .invocation_billing_sql import upsert_invocation_billing
 
 try:
     import psycopg  # type: ignore[import-not-found]
@@ -42,6 +43,20 @@ class VaultWithdrawalUpsertSpec:
     risk_reason_code: Optional[str] = None
     message: Optional[str] = None
     request_meta: Optional[dict[str, Any]] = None
+
+
+@dataclass(frozen=True)
+class LedgerEntrySpec:
+    entry_id: str
+    reference_type: str
+    reference_id: str
+    business_type: str
+    debit_account_id: str
+    credit_account_id: str
+    amount_usdc: Decimal
+    request_id: Optional[str]
+    trace_id: Optional[str] = None
+    status: str = "posted"
 
 
 class FinanceAtomicCoreMixin:
@@ -216,19 +231,12 @@ class FinanceAtomicCoreMixin:
     def _append_ledger_entry(
         self,
         cur: Any,
-        *,
-        entry_id: str,
-        reference_type: str,
-        reference_id: str,
-        business_type: str,
-        debit_account_id: str,
-        credit_account_id: str,
-        amount_usdc: Decimal,
-        request_id: Optional[str],
-        trace_id: Optional[str] = None,
-        status: str = "posted",
+        spec: LedgerEntrySpec | None = None,
+        **legacy_fields: Any,
     ) -> None:
-        if self._q6(amount_usdc) <= Decimal("0"):  # type: ignore[attr-defined]
+        if spec is None:
+            spec = LedgerEntrySpec(**legacy_fields)
+        if self._q6(spec.amount_usdc) <= Decimal("0"):  # type: ignore[attr-defined]  # reason: composed repository injects quantizer
             return
         cur.execute(
             """
@@ -245,16 +253,16 @@ class FinanceAtomicCoreMixin:
                 trace_id = EXCLUDED.trace_id
             """,
             (
-                entry_id,
-                reference_type,
-                reference_id,
-                business_type,
-                debit_account_id,
-                credit_account_id,
-                str(self._q6(amount_usdc)),  # type: ignore[attr-defined]
-                status,
-                request_id,
-                trace_id,
+                spec.entry_id,
+                spec.reference_type,
+                spec.reference_id,
+                spec.business_type,
+                spec.debit_account_id,
+                spec.credit_account_id,
+                str(self._q6(spec.amount_usdc)),  # type: ignore[attr-defined]  # reason: composed repository injects quantizer
+                spec.status,
+                spec.request_id,
+                spec.trace_id,
             ),
         )
 
@@ -399,45 +407,57 @@ class FinanceAtomicCoreMixin:
                     command.invocation.invocation_id,
                 ),
             )
+        billing_state = InvocationBillingState(
+            ownerAddress=row.consumer_address or owner,
+            providerAddress=row.provider_address or provider,
+            agentId=(command.invocation.agent_id if command.invocation is not None else row.agent_id),
+            requestId=row.request_id,
+            originRequestId=row.origin_request_id,
+            originTxHash=row.origin_tx_hash,
+            unitPrice=row.unit_price or Decimal("0"),
+            protocolFee=row.protocol_fee or Decimal("0"),
+            routingTax=row.routing_tax or Decimal("0"),
+            totalCharge=row.total_charge or Decimal("0"),
+            latencyMs=row.latency_ms,
+            businessType=row.business_type,
+            riskLevel=row.risk_level,
+        )
+        upsert_invocation_billing(
+            cur,
+            self._q6,
+            row.id,
+            billing_state,
+            now_text,
+        )
         self._upsert_runtime_state(
             cur,
             self._invocation_billing_state_key(row.id),
-            InvocationBillingState(
-                ownerAddress=row.consumer_address or owner,
-                providerAddress=row.provider_address or provider,
-                agentId=(command.invocation.agent_id if command.invocation is not None else row.agent_id),
-                requestId=row.request_id,
-                originRequestId=row.origin_request_id,
-                originTxHash=row.origin_tx_hash,
-                unitPrice=row.unit_price or Decimal("0"),
-                protocolFee=row.protocol_fee or Decimal("0"),
-                routingTax=row.routing_tax or Decimal("0"),
-                totalCharge=row.total_charge or Decimal("0"),
-                latencyMs=row.latency_ms,
-                businessType=row.business_type,
-                riskLevel=row.risk_level,
-            ).model_dump(by_alias=True, mode="json"),
+            billing_state.model_dump(by_alias=True, mode="json"),
             now_text,
         )
         self._append_ledger_entry(
             cur,
-            entry_id=f"ledger-charge-provider::{row.id}",
-            reference_type="invocation",
-            reference_id=row.id,
-            business_type="charge",
-            debit_account_id=consumer_account_id,
-            credit_account_id=provider_account_id,
-            amount_usdc=self._q6(command.provider_net),  # type: ignore[attr-defined]
-            request_id=row.request_id,
+            LedgerEntrySpec(
+                entry_id=f"ledger-charge-provider::{row.id}",
+                reference_type="invocation",
+                reference_id=row.id,
+                business_type="charge",
+                debit_account_id=consumer_account_id,
+                credit_account_id=provider_account_id,
+                amount_usdc=self._q6(command.provider_net),  # type: ignore[attr-defined]  # reason: composed repository injects quantizer
+                request_id=row.request_id,
+            ),
         )
         self._append_ledger_entry(
             cur,
-            entry_id=f"ledger-charge-platform::{row.id}",
-            reference_type="invocation",
-            reference_id=row.id,
-            business_type="charge",
-            debit_account_id=consumer_account_id,
-            credit_account_id=platform_account_id,
-            amount_usdc=self._q6(command.platform_fee_total),  # type: ignore[attr-defined]
-            request_id=row.request_id,
+            LedgerEntrySpec(
+                entry_id=f"ledger-charge-platform::{row.id}",
+                reference_type="invocation",
+                reference_id=row.id,
+                business_type="charge",
+                debit_account_id=consumer_account_id,
+                credit_account_id=platform_account_id,
+                amount_usdc=self._q6(command.platform_fee_total),  # type: ignore[attr-defined]  # reason: composed repository injects quantizer
+                request_id=row.request_id,
+            ),
         )

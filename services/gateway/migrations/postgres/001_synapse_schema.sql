@@ -356,6 +356,25 @@ CREATE TABLE IF NOT EXISTS synapse_invocations (
     CHECK (charged_usdc >= 0)
 );
 
+CREATE TABLE IF NOT EXISTS synapse_invocation_billing (
+    id BIGINT GENERATED ALWAYS AS IDENTITY UNIQUE,
+    invocation_id TEXT PRIMARY KEY REFERENCES synapse_invocations (invocation_id) ON DELETE CASCADE,
+    business_type TEXT NOT NULL DEFAULT 'charge',
+    charged_usdc NUMERIC(36, 6) NOT NULL DEFAULT 0,
+    unit_price_usdc NUMERIC(36, 6) NOT NULL DEFAULT 0,
+    protocol_fee_usdc NUMERIC(36, 6) NOT NULL DEFAULT 0,
+    routing_tax_usdc NUMERIC(36, 6) NOT NULL DEFAULT 0,
+    provider_earned_usdc NUMERIC(36, 6) NOT NULL DEFAULT 0,
+    payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (charged_usdc >= 0),
+    CHECK (unit_price_usdc >= 0),
+    CHECK (protocol_fee_usdc >= 0),
+    CHECK (routing_tax_usdc >= 0),
+    CHECK (provider_earned_usdc >= 0)
+);
+
 CREATE TABLE IF NOT EXISTS synapse_budget_events (
     id BIGINT GENERATED ALWAYS AS IDENTITY UNIQUE,
     event_id TEXT PRIMARY KEY,
@@ -980,6 +999,12 @@ ON synapse_service_health_events (created_at);
 
 CREATE INDEX IF NOT EXISTS idx_synapse_invocations_service_created
 ON synapse_invocations (service_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_invocation_billing_business_updated
+ON synapse_invocation_billing (business_type, updated_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_invocation_billing_updated
+ON synapse_invocation_billing (updated_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_synapse_budget_events_credential_created
 ON synapse_budget_events (credential_id, created_at DESC);
