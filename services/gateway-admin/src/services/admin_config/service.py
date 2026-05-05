@@ -34,6 +34,11 @@ DEFAULT_MENU_MIGRATION_ITEM_IDS = {
     "review-history",
     "forum-support",
 }
+DEFAULT_MENU_FIELD_MIGRATION_ITEM_IDS = {
+    "permissions-matrix",
+    "module-boundaries",
+    "reviewer-split",
+}
 DRAFT_READ_ROLES = {"super_admin", "platform_ops_admin"}
 WRITE_ROLES = {"super_admin"}
 
@@ -174,23 +179,48 @@ class AdminConfigService:
         published_additions = self._missing_default_items(
             default_items_by_id, published_item_ids
         )
+        draft_items, draft_patched = self._patch_default_item_fields(
+            (*snapshot.draft_items, *draft_additions), default_items_by_id
+        )
+        published_items, published_patched = self._patch_default_item_fields(
+            (*snapshot.published_items, *published_additions), default_items_by_id
+        )
 
-        if not draft_additions and not published_additions:
+        if (
+            not draft_additions
+            and not published_additions
+            and not draft_patched
+            and not published_patched
+        ):
             return snapshot
 
         now = datetime.now(timezone.utc)
-        actor_id = operator_id or snapshot.updated_by or snapshot.published_by or "system_seed"
+        actor_id = (
+            operator_id or snapshot.updated_by or snapshot.published_by or "system_seed"
+        )
+        draft_version_delta = 1 if draft_additions or draft_patched else 0
+        published_version_delta = (
+            1 if published_additions or published_patched else 0
+        )
         return self._save_snapshot(
             replace(
                 snapshot,
-                draft_items=self._sort_items((*snapshot.draft_items, *draft_additions)),
-                published_items=self._sort_items((*snapshot.published_items, *published_additions)),
-                draft_version=snapshot.draft_version + (1 if draft_additions else 0),
-                published_version=snapshot.published_version + (1 if published_additions else 0),
+                draft_items=self._sort_items(draft_items),
+                published_items=self._sort_items(published_items),
+                draft_version=snapshot.draft_version + draft_version_delta,
+                published_version=snapshot.published_version + published_version_delta,
                 updated_at=now,
                 updated_by=actor_id,
-                published_at=now if published_additions else snapshot.published_at,
-                published_by=actor_id if published_additions else snapshot.published_by,
+                published_at=(
+                    now
+                    if published_additions or published_patched
+                    else snapshot.published_at
+                ),
+                published_by=(
+                    actor_id
+                    if published_additions or published_patched
+                    else snapshot.published_by
+                ),
             )
         )
 
@@ -204,6 +234,35 @@ class AdminConfigService:
             for item_id in DEFAULT_MENU_MIGRATION_ITEM_IDS
             if item_id in default_items_by_id and item_id not in existing_item_ids
         )
+
+    @staticmethod
+    def _patch_default_item_fields(
+        items: tuple[AdminMenuConfigItem, ...],
+        default_items_by_id: dict[str, AdminMenuConfigItem],
+    ) -> tuple[tuple[AdminMenuConfigItem, ...], bool]:
+        changed = False
+        patched_items: list[AdminMenuConfigItem] = []
+        for item in items:
+            default_item = default_items_by_id.get(item.item_id)
+            if (
+                item.item_id in DEFAULT_MENU_FIELD_MIGRATION_ITEM_IDS
+                and default_item is not None
+                and (
+                    item.href != default_item.href
+                    or item.node_type != default_item.node_type
+                )
+            ):
+                patched_items.append(
+                    replace(
+                        item,
+                        href=default_item.href,
+                        node_type=default_item.node_type,
+                    )
+                )
+                changed = True
+            else:
+                patched_items.append(item)
+        return tuple(patched_items), changed
 
     def _serialize_snapshot(
         self,

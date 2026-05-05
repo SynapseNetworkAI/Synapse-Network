@@ -151,7 +151,7 @@ function toNavItem(item: AdminMenuConfigItem): NavItem {
   const visual = getNavVisual(item.itemId);
   const legacyPath = legacyPathByItemId[item.itemId];
   const path =
-    item.nodeType === "page" || legacyPath
+    item.nodeType === "page" || item.nodeType === "panel" || legacyPath
       ? item.href ?? legacyPath
       : undefined;
   return mergeLookup({
@@ -327,7 +327,7 @@ export function resolveExpandedNavigationIds({
   const expandedIds = new Set<string>([
     ...defaultExpandedNavigationIds,
     ...manualExpandedIds,
-    ...activePath.slice(0, -1),
+    ...activePath,
     ...filteredExpandedIds,
   ]);
 
