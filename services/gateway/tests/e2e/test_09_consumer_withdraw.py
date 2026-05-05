@@ -54,7 +54,7 @@ def _consumer_withdraw(
     r = _post_consumer_withdraw(gateway_base, headers, amount_usdc, reason)
     if r.status_code == 400 and "INSUFFICIENT_MATURE_CONSUMER_BALANCE" in r.text:
         pytest.skip(
-            "Consumer balance exists but no funds have passed the T+1 mature withdrawal window."
+            "Consumer balance exists but no funds have passed the T+7 mature withdrawal window."
         )
     assert r.status_code == 200, f"Withdraw request failed ({r.status_code}): {r.text}"
     return r.json()
@@ -189,7 +189,7 @@ def test_consumer_withdraw_record_appears_in_listing(owner_headers, session_stat
     """GET /withdrawals → the withdrawal from the previous test appears."""
     withdraw_id = session_state.get("consumer_withdraw_id")
     if not withdraw_id and session_state.get("consumer_withdraw_blocked_by_maturity"):
-        pytest.skip("Consumer withdrawal was correctly blocked by T+1 maturity gate.")
+        pytest.skip("Consumer withdrawal was correctly blocked by T+7 maturity gate.")
     if not withdraw_id:
         pytest.skip("No withdrawal was created; mature consumer funds may be unavailable.")
 
@@ -205,7 +205,7 @@ def test_consumer_withdraw_record_has_correct_amount_and_status(owner_headers, s
     withdraw_id = session_state.get("consumer_withdraw_id")
     expected_amount = session_state.get("consumer_withdraw_amount", MIN_CONSUMER_WITHDRAW_USDC)
     if not withdraw_id and session_state.get("consumer_withdraw_blocked_by_maturity"):
-        pytest.skip("Consumer withdrawal was correctly blocked by T+1 maturity gate.")
+        pytest.skip("Consumer withdrawal was correctly blocked by T+7 maturity gate.")
     if not withdraw_id:
         pytest.skip("No withdrawal was created; mature consumer funds may be unavailable.")
 

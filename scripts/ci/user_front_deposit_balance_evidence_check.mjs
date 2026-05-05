@@ -26,12 +26,20 @@ const REQUIRED_SCREENSHOTS = [
   "screenshots/credits-before-confirm.png",
   "screenshots/billing-deposit-completed.png",
   "screenshots/credits-after-confirm.png",
+  "screenshots/credits-after-confirm-withdrawable-zero.png",
+  "screenshots/withdraw-modal-t7-disabled.png",
+  "screenshots/credits-after-mature-withdrawable.png",
 ];
 const REQUIRED_STEPS = [
   "preflight:local-api-db-chain-ui",
   "chain:deposit",
   "db:pending-deposit",
   "db:confirmed-deposit-and-replay-safe",
+  "api:confirmed-balance-not-mature",
+  "ui:credits-withdrawable-zero",
+  "ui:withdraw-modal-t7-disabled",
+  "api:immature-withdraw-blocked-no-row",
+  "db:mature-deposit-withdrawable",
   "ui:screenshots-dom-sql-bound",
 ];
 
@@ -188,12 +196,59 @@ if (
     "bind every screenshot to the matching SQL status and DOM assertion."
   );
 }
+const zeroWithdrawableShot = screenshotMap.get(
+  "screenshots/credits-after-confirm-withdrawable-zero.png"
+);
+if (
+  !zeroWithdrawableShot ||
+  decimalToAtomic(zeroWithdrawableShot.apiWithdrawableBalance) !== 0n ||
+  decimalToAtomic(zeroWithdrawableShot.expectedWithdrawableBalance) !== 0n ||
+  !String(zeroWithdrawableShot.tooltip || "").includes("AML") ||
+  !String(zeroWithdrawableShot.tooltip || "").includes("7 days")
+) {
+  fatal(
+    "USER-FRONT-DEPOSIT-BALANCE-T7-ZERO-SHOT",
+    path.join(dir, "screenshot-evidence.json"),
+    "Confirmed-but-not-mature screenshot is not bound to API withdrawable=0 and AML/T+7 tooltip.",
+    "bind the Credits screenshot to Gateway balance API, SQL balance, and tooltip DOM evidence."
+  );
+}
+const t7ModalShot = screenshotMap.get(
+  "screenshots/withdraw-modal-t7-disabled.png"
+);
+if (
+  !t7ModalShot ||
+  t7ModalShot.submitDisabled !== true ||
+  !String(t7ModalShot.expectedWarning || "").includes("T+7") ||
+  !String(t7ModalShot.expectedRule || "").includes("10.00 USDC")
+) {
+  fatal(
+    "USER-FRONT-DEPOSIT-BALANCE-T7-MODAL-SHOT",
+    path.join(dir, "screenshot-evidence.json"),
+    "Withdraw modal screenshot is not bound to disabled submit plus T+7/min-withdraw DOM assertions.",
+    "capture the modal after opening it and assert the disabled action, warning, and minimum rule."
+  );
+}
+const matureShot = screenshotMap.get(
+  "screenshots/credits-after-mature-withdrawable.png"
+);
+if (!matureShot || decimalToAtomic(matureShot.apiWithdrawableBalance) === 0n) {
+  fatal(
+    "USER-FRONT-DEPOSIT-BALANCE-MATURE-SHOT",
+    path.join(dir, "screenshot-evidence.json"),
+    "Matured Credits screenshot is not bound to non-zero API withdrawable evidence.",
+    "age the confirmed deposit in SQL and capture Credits after Gateway reports mature withdrawable funds."
+  );
+}
 
 const amount = String(report.depositUsdc || "");
 const before = db.beforeBalance || {};
 const pending = db.pending?.balance || {};
 const final = db.final?.balance || {};
 const replay = db.replay?.balance || {};
+const confirmedButNotMature = db.confirmedButNotMature?.apiBalance || {};
+const blocked = db.immatureWithdrawBlocked || {};
+const mature = db.matureWithdrawable?.apiBalance || {};
 const pendingDeposit = db.pending?.deposits?.[0] || {};
 const finalDeposit = db.final?.deposits?.[0] || {};
 
@@ -268,6 +323,61 @@ if (
     path.join(dir, "db-evidence.json"),
     "Replay changed balance buckets after final confirmation.",
     "fix duplicate intent/confirm idempotency and rerun."
+  );
+}
+if (
+  decimalToAtomic(confirmedButNotMature.consumerAvailableBalance) !==
+    decimalToAtomic(final.available_balance) ||
+  decimalToAtomic(confirmedButNotMature.consumerWithdrawableBalance) !== 0n ||
+  Number(confirmedButNotMature.consumerWithdrawMaturitySeconds) !== 604800
+) {
+  fatal(
+    "USER-FRONT-DEPOSIT-BALANCE-CONFIRMED-NOT-MATURE",
+    path.join(dir, "db-evidence.json"),
+    "Confirmed deposit evidence does not prove spendable funds remain withdrawable=0 before T+7.",
+    "assert GET /api/v1/balance after confirm and persist the API balance payload."
+  );
+}
+if (
+  blocked.httpStatus !== 400 ||
+  blocked.errorCode !== "INSUFFICIENT_MATURE_CONSUMER_BALANCE" ||
+  !Array.isArray(blocked.withdrawalsAfter) ||
+  blocked.withdrawalsAfter.length !==
+    (Array.isArray(blocked.withdrawalsBefore)
+      ? blocked.withdrawalsBefore.length
+      : -1)
+) {
+  fatal(
+    "USER-FRONT-DEPOSIT-BALANCE-IMMATURE-WITHDRAW",
+    path.join(dir, "db-evidence.json"),
+    "Immature direct withdrawal did not prove HTTP 400 and no new withdrawal row.",
+    "call the consumer withdraw API directly after confirm and assert no active withdrawal was inserted."
+  );
+}
+if (
+  decimalToAtomic(blocked.balanceAfterBlocked?.available_balance) !==
+    decimalToAtomic(final.available_balance) ||
+  decimalToAtomic(blocked.balanceAfterBlocked?.pending_balance) !==
+    decimalToAtomic(final.pending_balance) ||
+  decimalToAtomic(blocked.balanceAfterBlocked?.frozen_balance) !==
+    decimalToAtomic(final.frozen_balance)
+) {
+  fatal(
+    "USER-FRONT-DEPOSIT-BALANCE-IMMATURE-BUCKETS",
+    path.join(dir, "db-evidence.json"),
+    "Immature withdrawal changed available/pending/frozen buckets.",
+    "the hard-fail path must not lock, freeze, or release funds."
+  );
+}
+if (
+  decimalToAtomic(mature.consumerWithdrawableBalance) !==
+  decimalToAtomic(amount)
+) {
+  fatal(
+    "USER-FRONT-DEPOSIT-BALANCE-MATURE-WITHDRAWABLE",
+    path.join(dir, "db-evidence.json"),
+    "SQL-aged deposit did not become fully withdrawable in the Gateway balance API.",
+    "verify the T+7 maturity query uses confirmed deposits updated before the maturity cutoff."
   );
 }
 

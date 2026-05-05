@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from decimal import Decimal, ROUND_HALF_UP
 from datetime import datetime, timezone
 import hashlib
@@ -14,12 +15,30 @@ from src.domain.gateway import OwnerSpendLimitRow
 from src.domain.voucher import VoucherRedeemCommand, VoucherRedemptionResult
 from src.services.balance_mixins import BalanceAuditMixin, BalanceRedisGuardMixin
 from src.services.owner.finance_constants import (
+    CONSUMER_WITHDRAW_MATURITY_SECONDS,
+    CONSUMER_WITHDRAW_MIN_USDC,
     CONSUMER_WITHDRAW_TYPE,
     REFUND_ACTIVE_STATUSES,
 )
 from src.storage.base import BaseStorage
 from src.utils.datetime_utils import now_dt_str
-from src.utils.money import money_str, parse_usdc, quantize_usdc
+from src.utils.money import money_str, quantize_usdc
+
+
+VOUCHER_CODE_LENGTH = 12
+
+
+@dataclass(frozen=True)
+class VoucherRedeemContext:
+    owner: str
+    voucher_code: str
+    normalized_code: str
+    idempotency_key: str
+    request_hash: str
+    request_id: Optional[str]
+    client_ip: Optional[str]
+    user_agent: Optional[str]
+    request_meta: Optional[dict[str, Any]]
 
 
 class PlatformFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
@@ -56,7 +75,7 @@ class PlatformFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
     @staticmethod
     def _normalize_voucher_code(value: str) -> str:
         compact = "".join(ch for ch in str(value or "").strip().upper() if ch.isalnum())
-        if len(compact) != 12 or not compact.isalnum():
+        if len(compact) != VOUCHER_CODE_LENGTH or not compact.isalnum():
             raise HTTPException(
                 status_code=400,
                 detail={
@@ -143,11 +162,7 @@ class PlatformFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
             None,
         )
 
-    def _repair_consumer_withdraw_reservation_gap(self, owner_wallet: str) -> None:
-        owner = normalize_wallet(owner_wallet)
-        if not owner:
-            return
-
+    def _active_consumer_withdraw_totals(self, owner: str) -> tuple[Decimal, Decimal]:
         gateway_state = self.storage.get_data_manager().system.gateway_state
         refund_rows = gateway_state.read_consumer_refund_rows(owner_wallet=owner)
         requested_total = Decimal("0")
@@ -165,33 +180,43 @@ class PlatformFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
                 requested_total += amount
             elif status == "PENDING_MANUAL_REVIEW":
                 manual_review_total += amount
+        return requested_total, manual_review_total
 
-        if requested_total <= Decimal("0") and manual_review_total <= Decimal("0"):
-            return
-
-        balance_repo = self.storage.get_data_manager().finance.balance
-        ledger = balance_repo.read_balance_ledger()
-        available_balance = self._q6(ledger.consumer_available_balance(owner))
-        pending_balance = self._q6(ledger.consumer_pending_balance(owner))
-        frozen_balance = self._q6(ledger.consumer_frozen_balance(owner))
-
+    def _reserve_missing_consumer_pending(
+        self,
+        *,
+        owner: str,
+        balance_repo: Any,
+        requested_total: Decimal,
+        pending_balance: Decimal,
+        available_balance: Decimal,
+    ) -> Decimal:
         pending_shortfall = self._q6(requested_total - pending_balance)
-        if pending_shortfall > Decimal("0") and available_balance > Decimal("0"):
-            reserve_amount = self._q6(min(pending_shortfall, available_balance))
-            try:
-                balance_repo.reserve_consumer_balance_for_withdrawal(
-                    owner=owner,
-                    amount_usdc=reserve_amount,
-                    updated_at=now_dt_str(),
-                )
-            except RuntimeError:
-                return
-            available_balance = self._q6(available_balance - reserve_amount)
+        if pending_shortfall <= Decimal("0") or available_balance <= Decimal("0"):
+            return available_balance
+        reserve_amount = self._q6(min(pending_shortfall, available_balance))
+        try:
+            balance_repo.reserve_consumer_balance_for_withdrawal(
+                owner=owner,
+                amount_usdc=reserve_amount,
+                updated_at=now_dt_str(),
+            )
+        except RuntimeError:
+            return available_balance
+        return self._q6(available_balance - reserve_amount)
 
+    def _reserve_missing_consumer_frozen(
+        self,
+        *,
+        owner: str,
+        balance_repo: Any,
+        manual_review_total: Decimal,
+        frozen_balance: Decimal,
+        available_balance: Decimal,
+    ) -> None:
         frozen_shortfall = self._q6(manual_review_total - frozen_balance)
         if frozen_shortfall <= Decimal("0") or available_balance <= Decimal("0"):
             return
-
         reserve_amount = self._q6(min(frozen_shortfall, available_balance))
         try:
             balance_repo.reserve_consumer_balance_for_manual_review(
@@ -202,6 +227,37 @@ class PlatformFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         except RuntimeError:
             return
 
+    def _repair_consumer_withdraw_reservation_gap(self, owner_wallet: str) -> None:
+        owner = normalize_wallet(owner_wallet)
+        if not owner:
+            return
+
+        requested_total, manual_review_total = self._active_consumer_withdraw_totals(owner)
+
+        if requested_total <= Decimal("0") and manual_review_total <= Decimal("0"):
+            return
+
+        balance_repo = self.storage.get_data_manager().finance.balance
+        ledger = balance_repo.read_balance_ledger()
+        available_balance = self._q6(ledger.consumer_available_balance(owner))
+        pending_balance = self._q6(ledger.consumer_pending_balance(owner))
+        frozen_balance = self._q6(ledger.consumer_frozen_balance(owner))
+
+        available_balance = self._reserve_missing_consumer_pending(
+            owner=owner,
+            balance_repo=balance_repo,
+            requested_total=requested_total,
+            pending_balance=pending_balance,
+            available_balance=available_balance,
+        )
+        self._reserve_missing_consumer_frozen(
+            owner=owner,
+            balance_repo=balance_repo,
+            manual_review_total=manual_review_total,
+            frozen_balance=frozen_balance,
+            available_balance=available_balance,
+        )
+
     async def get_balance(self, owner_wallet: str) -> dict[str, Any]:
         """Only return current authenticated owner's balance summary."""
         normalized_owner = normalize_wallet(owner_wallet)
@@ -211,13 +267,25 @@ class PlatformFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         balance_data = await asyncio.to_thread(
             self.storage.get_data_manager().finance.balance.read_balance_ledger
         )
+        balance_repo = self.storage.get_data_manager().finance.balance
+        mature_reader = getattr(balance_repo, "read_consumer_mature_withdrawable", None)
+        consumer_withdrawable = Decimal("0")
+        if callable(mature_reader):
+            consumer_withdrawable = await asyncio.to_thread(
+                mature_reader,
+                normalized_owner,
+                CONSUMER_WITHDRAW_MATURITY_SECONDS,
+            )
 
         return {
             "ownerAddress": normalized_owner,
             "ownerBalance": money_str(balance_data.consumer_available_balance(normalized_owner)),
             "consumerAvailableBalance": money_str(balance_data.consumer_available_balance(normalized_owner)),
+            "consumerWithdrawableBalance": money_str(consumer_withdrawable),
             "consumerPendingBalance": money_str(balance_data.consumer_pending_balance(normalized_owner)),
             "consumerFrozenBalance": money_str(balance_data.consumer_frozen_balance(normalized_owner)),
+            "consumerWithdrawMinUsdc": money_str(str(CONSUMER_WITHDRAW_MIN_USDC)),
+            "consumerWithdrawMaturitySeconds": CONSUMER_WITHDRAW_MATURITY_SECONDS,
             "providerReceivable": money_str(balance_data.provider_receivable_balance(normalized_owner)),
             "providerReceivableBalance": money_str(balance_data.provider_receivable_balance(normalized_owner)),
             "providerLockedBalance": money_str(balance_data.provider_locked_balance(normalized_owner)),
@@ -328,6 +396,101 @@ class PlatformFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
             )
             return await self.get_owner_spending_limit(owner)
 
+    async def _begin_voucher_redeem_idempotency(
+        self,
+        *,
+        owner: str,
+        validated_idempotency_key: str,
+        request_hash: str,
+    ) -> tuple[Optional[dict[str, Any]], Optional[Any]]:
+        redis_client = await self._get_redis_client()
+        if redis_client is None:
+            return None, None
+
+        retry = await self._check_idempotency_redis(
+            scope="voucher_redeem",
+            owner_wallet=owner,
+            idempotency_key=validated_idempotency_key,
+            request_hash=request_hash,
+        )
+        if retry is not None:
+            return retry, redis_client
+
+        claimed = await self._start_idempotency_redis(
+            scope="voucher_redeem",
+            owner_wallet=owner,
+            idempotency_key=validated_idempotency_key,
+            request_hash=request_hash,
+        )
+        if claimed:
+            return None, redis_client
+
+        retry = await self._check_idempotency_redis(
+            scope="voucher_redeem",
+            owner_wallet=owner,
+            idempotency_key=validated_idempotency_key,
+            request_hash=request_hash,
+        )
+        if retry is not None:
+            return retry, redis_client
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "IDEMPOTENCY_REQUEST_IN_PROGRESS",
+                "message": "A request with this idempotency key is already processing.",
+            },
+        )
+
+    def _redeem_credit_voucher_atomic_or_raise(
+        self, ctx: VoucherRedeemContext
+    ) -> VoucherRedemptionResult:
+        if not hasattr(self.storage, "redeem_credit_voucher_atomic"):
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "code": "VOUCHER_REDEEM_STORAGE_UNAVAILABLE",
+                    "message": "Voucher redemption requires PostgreSQL storage support.",
+                },
+            )
+
+        try:
+            redemption = self.storage.redeem_credit_voucher_atomic(  # type: ignore[attr-defined]  # quality-budget-disable-reason: Postgres storage exposes atomic voucher redemption.
+                VoucherRedeemCommand(
+                    ownerAddress=ctx.owner,
+                    voucherCode=ctx.voucher_code,
+                    normalizedCode=ctx.normalized_code,
+                    codeHash=self._hash_voucher_code(ctx.normalized_code),
+                    idempotencyKey=ctx.idempotency_key,
+                    requestHash=ctx.request_hash,
+                    requestId=ctx.request_id,
+                    clientIp=ctx.client_ip,
+                    userAgent=ctx.user_agent,
+                )
+            )
+        except RuntimeError as exc:
+            code = str(exc)
+            status_code, message = self._voucher_error(code)
+            self._append_financial_audit(
+                "VOUCHER_REDEEM_FAILED",
+                ctx.owner,
+                {
+                    "businessType": "deposit",
+                    "code": code,
+                    "message": message,
+                    "requestId": ctx.request_id,
+                    "voucherCodeLast4": ctx.normalized_code[-4:],
+                    "requestMeta": ctx.request_meta or {},
+                },
+            )
+            raise HTTPException(
+                status_code=status_code,
+                detail={"code": code, "message": message},
+            ) from exc
+
+        if not isinstance(redemption, VoucherRedemptionResult):
+            raise TypeError("VOUCHER_REDEEM_RESULT_INVALID")
+        return redemption
+
     async def redeem_credit_voucher(
         self,
         *,
@@ -348,89 +511,30 @@ class PlatformFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
                 "voucherCode": normalized_code,
             }
         )
+        redeem_context = VoucherRedeemContext(
+            owner=owner,
+            voucher_code=voucher_code,
+            normalized_code=normalized_code,
+            idempotency_key=validated_idempotency_key,
+            request_hash=request_hash,
+            request_id=request_id,
+            client_ip=client_ip,
+            user_agent=user_agent,
+            request_meta=request_meta,
+        )
 
-        redis_client = await self._get_redis_client()
-        if redis_client is not None:
-            retry = await self._check_idempotency_redis(
-                scope="voucher_redeem",
-                owner_wallet=owner,
-                idempotency_key=validated_idempotency_key,
-                request_hash=request_hash,
-            )
-            if retry is not None:
-                return retry
-            claimed = await self._start_idempotency_redis(
-                scope="voucher_redeem",
-                owner_wallet=owner,
-                idempotency_key=validated_idempotency_key,
-                request_hash=request_hash,
-            )
-            if not claimed:
-                retry = await self._check_idempotency_redis(
-                    scope="voucher_redeem",
-                    owner_wallet=owner,
-                    idempotency_key=validated_idempotency_key,
-                    request_hash=request_hash,
-                )
-                if retry is not None:
-                    return retry
-                raise HTTPException(
-                    status_code=409,
-                    detail={
-                        "code": "IDEMPOTENCY_REQUEST_IN_PROGRESS",
-                        "message": "A request with this idempotency key is already processing.",
-                    },
-                )
+        retry, redis_client = await self._begin_voucher_redeem_idempotency(
+            owner=owner,
+            validated_idempotency_key=validated_idempotency_key,
+            request_hash=request_hash,
+        )
+        if retry is not None:
+            return retry
 
         async with self._mutation_lock.lock(f"{owner}:voucher_redeem"):
             await self._enforce_owner_write_rate_limit(owner, "voucher_redeem")
 
-            if not hasattr(self.storage, "redeem_credit_voucher_atomic"):
-                raise HTTPException(
-                    status_code=503,
-                    detail={
-                        "code": "VOUCHER_REDEEM_STORAGE_UNAVAILABLE",
-                        "message": "Voucher redemption requires PostgreSQL storage support.",
-                    },
-                )
-
-            try:
-                redemption = getattr(self.storage, "redeem_credit_voucher_atomic")(
-                    VoucherRedeemCommand(
-                        ownerAddress=owner,
-                        voucherCode=voucher_code,
-                        normalizedCode=normalized_code,
-                        codeHash=self._hash_voucher_code(normalized_code),
-                        idempotencyKey=validated_idempotency_key,
-                        requestHash=request_hash,
-                        requestId=request_id,
-                        clientIp=client_ip,
-                        userAgent=user_agent,
-                    )
-                )
-            except RuntimeError as exc:
-                code = str(exc)
-                status_code, message = self._voucher_error(code)
-                self._append_financial_audit(
-                    "VOUCHER_REDEEM_FAILED",
-                    owner,
-                    {
-                        "businessType": "deposit",
-                        "code": code,
-                        "message": message,
-                        "requestId": request_id,
-                        "voucherCodeLast4": normalized_code[-4:],
-                        "requestMeta": request_meta or {},
-                    },
-                )
-                raise HTTPException(
-                    status_code=status_code,
-                    detail={"code": code, "message": message},
-                ) from exc
-
-            if not isinstance(redemption, VoucherRedemptionResult):
-                raise RuntimeError("VOUCHER_REDEEM_RESULT_INVALID")
-
+            redemption = self._redeem_credit_voucher_atomic_or_raise(redeem_context)
             balance = await self.get_balance(owner)
             response = {
                 "redemption": redemption.model_dump(by_alias=True, mode="json"),

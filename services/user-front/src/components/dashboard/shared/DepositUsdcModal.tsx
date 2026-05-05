@@ -16,6 +16,7 @@ type DepositUsdcModalCopy = {
   expectationPermit: string;
   expectationGas: string;
   expectationSync: string;
+  minimumWithdrawNotice: string;
   stepPermitTitle: string;
   stepPermitActive: string;
   stepPermitDone: string;
@@ -72,6 +73,8 @@ const DEFAULT_COPY: DepositUsdcModalCopy = {
     "The vault deposit is an on-chain transaction and requires native gas.",
   expectationSync:
     "Spendable credits appear after Gateway indexes and confirms the deposit.",
+  minimumWithdrawNotice:
+    "Credits withdrawals require a minimum balance of 10 USDC. Please fund based on your expected API usage.",
   stepPermitTitle: "Step 1: Permit authorization",
   stepPermitActive:
     "Wallet prompt: sign a gasless permit for the exact amount.",
@@ -264,6 +267,7 @@ export default function DepositUsdcModal({
               <li>{labels.expectationPermit}</li>
               <li>{labels.expectationGas}</li>
               <li>{labels.expectationSync}</li>
+              <li className="text-gray-500">{labels.minimumWithdrawNotice}</li>
             </ul>
           </div>
 

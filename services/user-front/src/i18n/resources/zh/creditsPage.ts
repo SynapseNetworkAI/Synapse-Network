@@ -5,10 +5,19 @@ const creditsPage: I18nMessages["creditsPage"] = {
   description: "管理你的免费 credits 和预充值 credits",
   remainingBalanceLabel: "可消费 credits：",
   spendableBalanceLabel: "可消费 credits",
+  withdrawableBalanceLabel: "可取现 credits",
+  withdrawableBalanceTooltip:
+    "为保障平台网络安全与防范洗钱风险 (AML)，所有新充值资金需在平台沉淀 7 天后方可提取。您的资金随时可用于 API 消费。",
   pendingBalanceLabel: "同步中的 credits",
+  pendingDepositBalanceLabel: "同步中的充值 credits",
+  pendingWithdrawalBalanceLabel: "提现处理中的 credits",
   frozenBalanceLabel: "冻结 / 审核中的 credits",
   pendingBalanceHint:
     "Gateway 正在索引链上充值；如果长时间未到账，请带 txHash 联系支持。",
+  pendingDepositBalanceHint:
+    "Gateway 正在索引链上充值；如果长时间未到账，请带 txHash 联系支持。",
+  pendingWithdrawalBalanceHint:
+    "提现资金已锁定并等待链上领取完成；完成后会从 pending 中扣除。",
   frozenBalanceHint: "资金已因活跃提现、人工审核或风控规则被锁定。",
   purchaseCredits: "购买 credits",
   walletUnavailable: "钱包不可用，请重新连接后再试。",
@@ -32,6 +41,8 @@ const creditsPage: I18nMessages["creditsPage"] = {
   depositExpectationGas: "Vault 充值是链上交易，需要使用原生代币支付 gas。",
   depositExpectationSync:
     "Gateway 索引并确认充值后，资金才会转为可消费 credits。",
+  depositMinimumWithdrawNotice:
+    "Credits 余额最低提现门槛为 10 USDC，请根据实际 API 消耗需求进行充值。",
   depositPermitStepTitle: "Step 1: Permit 授权",
   depositPermitStepActive: "钱包弹窗：为精确金额签署免 gas 授权。",
   depositPermitStepDone: "Permit 签名已完成。",
@@ -58,6 +69,7 @@ const creditsPage: I18nMessages["creditsPage"] = {
   depositWalletSingleAccount: "请只选择一个钱包账户，然后重新连接。",
   depositWalletUnstable: "钱包连接不稳定，请重新连接钱包后再试。",
   depositInvalidAmount: "请输入有效的 USDC 金额。",
+  depositMinAmountNotMet: "最低充值金额为 {{amount}} USDC。",
   depositInsufficientWalletUsdc:
     "钱包 USDC 不足。需要 {{amount}} USDC，当前钱包有 {{balance}} USDC。",
   depositNativeGasRequired:
@@ -74,7 +86,7 @@ const creditsPage: I18nMessages["creditsPage"] = {
   depositCloseDialog: "关闭充值弹窗",
   consumerWithdrawTitle: "提现余额",
   consumerWithdrawDescription:
-    "把未使用的 credits 提回钱包。可用余额：{{amount}} USDC",
+    "把已成熟 credits 提回钱包。可取现金额：{{amount}} USDC",
   consumerWithdrawAmountLabel: "金额 (USDC)",
   consumerWithdrawReasonLabel: "原因（可选）",
   consumerWithdrawReasonPlaceholder: "为什么要提现？",
@@ -109,6 +121,9 @@ const creditsPage: I18nMessages["creditsPage"] = {
   consumerWithdrawAction: "提现",
   consumerWithdrawPendingTooltip:
     "有一笔 {{amount}} 的提现正在处理中。同一时间只允许一笔活跃提现。",
+  consumerWithdrawMaturityWarning:
+    "近期充值可用于 API 消费，但需 T+7 后才可提现。",
+  consumerWithdrawMinimumRule: "最低提现金额：{{amount}} USDC",
   currentBillingCycle: "当前 Billing 周期",
   daysRemaining: "剩余天数",
   manageSpendCapTitle: "管理消费上限",

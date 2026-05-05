@@ -37,6 +37,7 @@ import {
 import { analytics } from "@/lib/analytics";
 
 const VAULT_ADDRESS = contractConfig.SynapseCore as `0x${string}`;
+const CONSUMER_DEPOSIT_MIN_USDC = 10;
 
 const vaultABI = parseAbi([
   "function depositWithPermit(uint256 amount, uint256 deadline, uint8 v, bytes32 r, bytes32 s) external",
@@ -63,6 +64,7 @@ type VaultDepositCopy = {
   walletSingleAccount: string;
   walletUnstable: string;
   invalidAmount: string;
+  minDepositAmountNotMet: string;
   insufficientWalletUsdc: string;
   nativeGasRequired: string;
   gatewayBalanceSynced: string;
@@ -98,6 +100,7 @@ const DEFAULT_VAULT_DEPOSIT_COPY: VaultDepositCopy = {
   walletUnstable:
     "Wallet connection unstable. Please reconnect wallet and retry.",
   invalidAmount: "Enter a valid USDC amount.",
+  minDepositAmountNotMet: "Minimum deposit amount is {{amount}} USDC.",
   insufficientWalletUsdc:
     "Insufficient wallet USDC. Need {{amount}} USDC, wallet has {{balance}} USDC.",
   nativeGasRequired:
@@ -260,6 +263,11 @@ function buildDepositPreflightError(
   const amount = Number(amountUsdc);
   if (!amountUsdc || !Number.isFinite(amount) || amount <= 0) {
     return copy.invalidAmount;
+  }
+  if (amount < CONSUMER_DEPOSIT_MIN_USDC) {
+    return interpolateCopy(copy.minDepositAmountNotMet, {
+      amount: CONSUMER_DEPOSIT_MIN_USDC.toFixed(2),
+    });
   }
   if (walletUsdcBalance < amount) {
     return interpolateCopy(copy.insufficientWalletUsdc, {

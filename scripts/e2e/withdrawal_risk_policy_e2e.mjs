@@ -31,6 +31,7 @@ const RPC_URL = process.env.RPC_URL || "http://127.0.0.1:8545";
 const RUN_ID =
   process.env.WITHDRAWAL_RISK_POLICY_RUN_ID ||
   `wrp-${crypto.randomUUID().slice(0, 8)}`;
+const CONSUMER_MATURE_AGE_SECONDS = 8 * 86400;
 
 const passed = [];
 const failed = [];
@@ -639,7 +640,12 @@ async function main() {
     "consumer dust 9.99 hard-fails without withdrawal row",
     async () => {
       ensureAccount(users.consumerDust.address, "consumer", "100");
-      insertDeposit(users.consumerDust.address, "100", 90000, "consumer-dust");
+      insertDeposit(
+        users.consumerDust.address,
+        "100",
+        CONSUMER_MATURE_AGE_SECONDS,
+        "consumer-dust"
+      );
       const before = countWithdrawals(
         users.consumerDust.address.toLowerCase(),
         "consumer_refund"
@@ -661,7 +667,7 @@ async function main() {
   );
 
   await step(
-    "consumer recent deposit T+1 blocks withdrawal without row",
+    "consumer recent deposit T+7 blocks withdrawal without row",
     async () => {
       ensureAccount(users.consumerImmature.address, "consumer", "100");
       insertDeposit(
@@ -695,7 +701,7 @@ async function main() {
       insertDeposit(
         users.consumerFifo.address,
         "100",
-        90000,
+        CONSUMER_MATURE_AGE_SECONDS,
         "consumer-fifo-old"
       );
       insertDeposit(
@@ -737,7 +743,7 @@ async function main() {
       insertDeposit(
         users.consumerNormal.address,
         "100",
-        90000,
+        CONSUMER_MATURE_AGE_SECONDS,
         "consumer-normal-old"
       );
       insertConsumerSpend(
@@ -771,7 +777,7 @@ async function main() {
       insertDeposit(
         users.consumerIdem.address,
         "100",
-        90000,
+        CONSUMER_MATURE_AGE_SECONDS,
         "consumer-idem-old"
       );
       const key = `${RUN_ID}:consumer-idem`;
@@ -814,7 +820,7 @@ async function main() {
       insertDeposit(
         users.consumerWindow.address,
         "240",
-        90000,
+        CONSUMER_MATURE_AGE_SECONDS,
         "consumer-window-old"
       );
       insertWithdrawal(
@@ -861,7 +867,7 @@ async function main() {
       insertDeposit(
         users.consumerConcurrent.address,
         "80",
-        90000,
+        CONSUMER_MATURE_AGE_SECONDS,
         "consumer-concurrent-old"
       );
       const requests = Array.from({ length: 10 }, (_, index) =>
@@ -1043,7 +1049,7 @@ async function main() {
         user: users.consumerNormal,
         role: "CONSUMER",
         href: "/dashboard/billing",
-        name: "consumer-billing-completed",
+        name: "billing-withdraw-completed",
         expectedFragments: ["Completed"],
       });
     }

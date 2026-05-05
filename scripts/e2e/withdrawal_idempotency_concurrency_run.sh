@@ -108,6 +108,7 @@ fi
 
 echo "[withdrawal-idempotency-concurrency] bootstrapping contracts and gateway"
 POSTGRES_DSN="postgresql://synapse:local-dev-postgres-password@127.0.0.1:${POSTGRES_PORT}/${POSTGRES_DB_NAME}" \
+LOCAL_GATEWAY_POSTGRES_DSN="postgresql://synapse:local-dev-postgres-password@127.0.0.1:${POSTGRES_PORT}/${POSTGRES_DB_NAME}" \
 MIGRATION_DSN="postgresql://synapse:local-dev-postgres-password@127.0.0.1:${POSTGRES_PORT}/${POSTGRES_DB_NAME}" \
 LOCAL_POSTGRES_MIGRATOR_DSN="postgresql://synapse:local-dev-postgres-password@127.0.0.1:${POSTGRES_PORT}/${POSTGRES_DB_NAME}" \
 LOCAL_POSTGRES_BOOTSTRAP_USER=synapse \

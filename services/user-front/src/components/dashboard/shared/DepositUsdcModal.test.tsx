@@ -51,6 +51,11 @@ describe("DepositUsdcModal", () => {
     expect(screen.getByText("Native gas balance")).toBeTruthy();
     expect(screen.getByText("0.2500 ETH")).toBeTruthy();
     expect(screen.getByText("Chain 421614")).toBeTruthy();
+    expect(
+      screen.getByText(
+        "Credits withdrawals require a minimum balance of 10 USDC. Please fund based on your expected API usage."
+      )
+    ).toBeTruthy();
 
     await user.click(screen.getByRole("button", { name: "$100.00" }));
     expect(onAmountChange).toHaveBeenCalledWith("100");
@@ -104,6 +109,8 @@ describe("DepositUsdcModal", () => {
         expectationGas: "Vault 充值是链上交易，需要使用原生代币支付 gas。",
         expectationSync:
           "Gateway 索引并确认充值后，资金才会转为可消费 credits。",
+        minimumWithdrawNotice:
+          "Credits 余额最低提现门槛为 10 USDC，请根据实际 API 消耗需求进行充值。",
         stepPermitTitle: "Step 1: Permit 授权",
         stepPermitActive: "钱包弹窗：为精确金额签署免 gas 授权。",
         stepPermitDone: "Permit 签名已完成。",
@@ -121,6 +128,11 @@ describe("DepositUsdcModal", () => {
     expect(screen.getByRole("heading", { name: "购买 credits" })).toBeTruthy();
     expect(screen.getByText("交易摘要")).toBeTruthy();
     expect(screen.getByText("确认前请核对")).toBeTruthy();
+    expect(
+      screen.getByText(
+        "Credits 余额最低提现门槛为 10 USDC，请根据实际 API 消耗需求进行充值。"
+      )
+    ).toBeTruthy();
     expect(screen.getByText("Step 1: Permit 授权")).toBeTruthy();
     expect(screen.getByRole("button", { name: "关闭充值弹窗" })).toBeTruthy();
     expect(

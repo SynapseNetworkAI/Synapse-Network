@@ -5,10 +5,19 @@ const creditsPage: I18nMessages["creditsPage"] = {
   description: "Manage your free and prepaid credits",
   remainingBalanceLabel: "Spendable credits:",
   spendableBalanceLabel: "Spendable credits",
+  withdrawableBalanceLabel: "Withdrawable credits",
+  withdrawableBalanceTooltip:
+    "To protect the network and reduce AML risk, newly deposited funds must remain in Synapse for 7 days before withdrawal. Your credits remain available for API usage during this period.",
   pendingBalanceLabel: "Pending / syncing credits",
+  pendingDepositBalanceLabel: "Pending deposit credits",
+  pendingWithdrawalBalanceLabel: "Pending withdrawal credits",
   frozenBalanceLabel: "Frozen / review credits",
   pendingBalanceHint:
     "Gateway is indexing the on-chain deposit. If it stays pending, contact support with the txHash.",
+  pendingDepositBalanceHint:
+    "Gateway is indexing the on-chain deposit. If it stays pending, contact support with the txHash.",
+  pendingWithdrawalBalanceHint:
+    "Withdrawal funds are locked and waiting for the on-chain claim to complete. They will be removed from pending after completion.",
   frozenBalanceHint:
     "Funds are locked for an active withdrawal, manual review, or risk control.",
   purchaseCredits: "Purchase credits",
@@ -35,6 +44,8 @@ const creditsPage: I18nMessages["creditsPage"] = {
     "The vault deposit is an on-chain transaction and requires native gas.",
   depositExpectationSync:
     "Spendable credits appear after Gateway indexes and confirms the deposit.",
+  depositMinimumWithdrawNotice:
+    "Credits withdrawals require a minimum balance of 10 USDC. Please fund based on your expected API usage.",
   depositPermitStepTitle: "Step 1: Permit authorization",
   depositPermitStepActive:
     "Wallet prompt: sign a gasless permit for the exact amount.",
@@ -70,6 +81,7 @@ const creditsPage: I18nMessages["creditsPage"] = {
   depositWalletUnstable:
     "Wallet connection unstable. Please reconnect wallet and retry.",
   depositInvalidAmount: "Enter a valid USDC amount.",
+  depositMinAmountNotMet: "Minimum deposit amount is {{amount}} USDC.",
   depositInsufficientWalletUsdc:
     "Insufficient wallet USDC. Need {{amount}} USDC, wallet has {{balance}} USDC.",
   depositNativeGasRequired:
@@ -88,7 +100,7 @@ const creditsPage: I18nMessages["creditsPage"] = {
   depositCloseDialog: "Close deposit dialog",
   consumerWithdrawTitle: "Withdraw Balance",
   consumerWithdrawDescription:
-    "Withdraw unused credits back to your wallet. Available: {{amount}} USDC",
+    "Withdraw matured credits back to your wallet. Withdrawable: {{amount}} USDC",
   consumerWithdrawAmountLabel: "Amount (USDC)",
   consumerWithdrawReasonLabel: "Reason (optional)",
   consumerWithdrawReasonPlaceholder: "Why are you withdrawing?",
@@ -134,6 +146,9 @@ const creditsPage: I18nMessages["creditsPage"] = {
   consumerWithdrawAction: "Withdraw",
   consumerWithdrawPendingTooltip:
     "A withdrawal of {{amount}} is pending. Only one active withdrawal is allowed.",
+  consumerWithdrawMaturityWarning:
+    "Recent deposits are available for API usage, but require T+7 before withdrawal.",
+  consumerWithdrawMinimumRule: "Minimum withdrawal amount: {{amount}} USDC",
   currentBillingCycle: "Current Billing Cycle",
   daysRemaining: "Days Remaining",
   manageSpendCapTitle: "Manage Spend Cap",

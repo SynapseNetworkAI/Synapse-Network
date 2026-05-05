@@ -76,6 +76,16 @@ function moneyFromTokenUnits(value: bigint, decimals = 18): number {
   );
 }
 
+function moneyFromDepositIntent(intent: DepositIntentRecord): number {
+  const raw =
+    intent.amountUsdc ??
+    (intent as unknown as { amount_usdc?: unknown; amount?: unknown })
+      .amount_usdc ??
+    (intent as unknown as { amount?: unknown }).amount ??
+    "0";
+  return moneyStringToNumber(normalizeMoneyString(raw));
+}
+
 export function mapDepositStatusFromGatewayIntent(
   intent?: DepositIntentRecord
 ): LedgerRecord["status"] {
@@ -200,7 +210,7 @@ function mapGatewayOnlyDepositRecords(
       return {
         id: intent.id || txHash,
         type: "Deposit",
-        amount: moneyStringToNumber(intent.amountUsdc ?? "0"),
+        amount: moneyFromDepositIntent(intent),
         txHash: intent.txHash,
         timestamp: timestampFromIntent(intent) ?? Date.now(),
         status: mapDepositStatusFromGatewayIntent(intent),

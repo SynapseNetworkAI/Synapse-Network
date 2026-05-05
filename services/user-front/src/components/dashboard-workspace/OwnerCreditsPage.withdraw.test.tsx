@@ -16,6 +16,7 @@ const {
   getOwnerSpendingLimitMock,
   listConsumerWithdrawalsMock,
   ownerBalanceState,
+  withdrawableBalanceState,
   requestConsumerWithdrawMock,
   handleRefreshMock,
   toastSuccessMock,
@@ -27,6 +28,7 @@ const {
   getOwnerSpendingLimitMock: vi.fn(),
   listConsumerWithdrawalsMock: vi.fn(),
   ownerBalanceState: { value: "20" },
+  withdrawableBalanceState: { value: "20" },
   requestConsumerWithdrawMock: vi.fn(),
   handleRefreshMock: vi.fn(),
   toastSuccessMock: vi.fn(),
@@ -64,8 +66,12 @@ vi.mock("@/hooks/useOwnerData", () => ({
   useOwnerData: () => ({
     stats: {
       ownerBalance: ownerBalanceState.value,
+      consumerAvailableBalance: ownerBalanceState.value,
+      consumerWithdrawableBalance: withdrawableBalanceState.value,
       consumerPendingBalance: "0",
       consumerFrozenBalance: "0",
+      consumerWithdrawMinUsdc: "10.00",
+      consumerWithdrawMaturitySeconds: 604800,
     },
     handleRefresh: handleRefreshMock,
     isBootstrapping: false,
@@ -138,7 +144,13 @@ function renderPage() {
   );
 }
 
-function renderWithdrawModal(overrides: { availableBalance?: number } = {}) {
+function renderWithdrawModal(
+  overrides: {
+    availableBalance?: number;
+    withdrawableBalance?: number;
+    minWithdrawAmount?: number;
+  } = {}
+) {
   const onClose = vi.fn();
   const onSuccess = vi.fn().mockResolvedValue(undefined);
   render(
@@ -147,6 +159,9 @@ function renderWithdrawModal(overrides: { availableBalance?: number } = {}) {
       null,
       createElement(WithdrawBalanceModal, {
         availableBalance: overrides.availableBalance ?? 20,
+        withdrawableBalance:
+          overrides.withdrawableBalance ?? overrides.availableBalance ?? 20,
+        minWithdrawAmount: overrides.minWithdrawAmount ?? 10,
         userAddress: "0xabc",
         onClose,
         onSuccess,
@@ -164,6 +179,7 @@ describe("OwnerCreditsPage — Withdraw", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     ownerBalanceState.value = "20";
+    withdrawableBalanceState.value = "20";
     globalThis.localStorage.setItem(I18N_STORAGE_KEY, "en");
     globalThis.sessionStorage.clear();
     getOwnerSpendingLimitMock.mockResolvedValue(spendingLimitDefault);
@@ -175,7 +191,10 @@ describe("OwnerCreditsPage — Withdraw", () => {
 
     await screen.findByRole("button", { name: "Withdraw" });
     expect(screen.getAllByText("Spendable credits").length).toBeGreaterThan(0);
-    expect(screen.getByText("$20.00")).toBeTruthy();
+    expect(screen.getAllByText("Withdrawable credits").length).toBeGreaterThan(
+      0
+    );
+    expect(screen.getAllByText("$20.00").length).toBeGreaterThan(0);
   });
 
   it("opens withdraw modal when Withdraw button is clicked", async () => {
@@ -188,7 +207,89 @@ describe("OwnerCreditsPage — Withdraw", () => {
     expect(
       await screen.findByRole("heading", { name: "Withdraw Balance" })
     ).toBeTruthy();
-    expect(screen.getByText(/Available:/)).toBeTruthy();
+    expect(screen.getByText(/Withdrawable:/)).toBeTruthy();
+  });
+
+  it("disables withdrawal and explains maturity gap when withdrawable is below minimum", async () => {
+    renderWithdrawModal({ availableBalance: 15, withdrawableBalance: 5 });
+
+    expect(
+      screen.getByText(
+        "Recent deposits are available for API usage, but require T+7 before withdrawal."
+      )
+    ).toBeTruthy();
+    expect(
+      screen.getByText("Minimum withdrawal amount: 10.00 USDC")
+    ).toBeTruthy();
+    const withdrawButtons = screen.getAllByRole("button", {
+      name: /^withdraw$/i,
+    });
+    expect(withdrawButtons.at(-1)!).toHaveProperty("disabled", true);
+  });
+
+  it("disables withdrawal without maturity warning when both balances are below minimum", async () => {
+    renderWithdrawModal({ availableBalance: 5, withdrawableBalance: 5 });
+
+    expect(
+      screen.queryByText(
+        "Recent deposits are available for API usage, but require T+7 before withdrawal."
+      )
+    ).toBeNull();
+    expect(
+      screen.getByText("Minimum withdrawal amount: 10.00 USDC")
+    ).toBeTruthy();
+    const withdrawButtons = screen.getAllByRole("button", {
+      name: /^withdraw$/i,
+    });
+    expect(withdrawButtons.at(-1)!).toHaveProperty("disabled", true);
+  });
+
+  it("uses withdrawable balance as max and allows submit when mature funds exceed minimum", async () => {
+    renderWithdrawModal({ availableBalance: 20, withdrawableBalance: 15 });
+
+    expect(
+      screen.getByText(
+        "Recent deposits are available for API usage, but require T+7 before withdrawal."
+      )
+    ).toBeTruthy();
+    const amountInput = screen.getByRole("spinbutton") as HTMLInputElement;
+    expect(amountInput.value).toBe("15.00");
+    expect(amountInput.getAttribute("max")).toBe("15");
+    const withdrawButtons = screen.getAllByRole("button", {
+      name: /^withdraw$/i,
+    });
+    expect(withdrawButtons.at(-1)!).toHaveProperty("disabled", false);
+  });
+
+  it("hides maturity warning when spendable and withdrawable balances match", async () => {
+    renderWithdrawModal({ availableBalance: 20, withdrawableBalance: 20 });
+
+    expect(
+      screen.queryByText(
+        "Recent deposits are available for API usage, but require T+7 before withdrawal."
+      )
+    ).toBeNull();
+    const amountInput = screen.getByRole("spinbutton") as HTMLInputElement;
+    expect(amountInput.value).toBe("20.00");
+    const withdrawButtons = screen.getAllByRole("button", {
+      name: /^withdraw$/i,
+    });
+    expect(withdrawButtons.at(-1)!).toHaveProperty("disabled", false);
+  });
+
+  it("still opens the withdraw modal when spendable credits exceed withdrawable credits", async () => {
+    const user = userEvent.setup();
+    ownerBalanceState.value = "15";
+    withdrawableBalanceState.value = "5";
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Withdraw" }));
+
+    expect(
+      await screen.findByText(
+        "Recent deposits are available for API usage, but require T+7 before withdrawal."
+      )
+    ).toBeTruthy();
   });
 
   it("pre-fills the amount field with the full available balance", async () => {
@@ -380,7 +481,7 @@ describe("OwnerCreditsPage — Withdraw", () => {
     renderWithdrawModal();
 
     expect(screen.getByRole("heading", { name: "提现余额" })).toBeTruthy();
-    expect(screen.getByText(/可用余额：20\.00 USDC/)).toBeTruthy();
+    expect(screen.getByText(/可取现金额：20\.00 USDC/)).toBeTruthy();
     expect(screen.getByText("金额 (USDC)")).toBeTruthy();
     expect(screen.getByText("原因（可选）")).toBeTruthy();
     expect(screen.getByPlaceholderText("为什么要提现？")).toBeTruthy();
