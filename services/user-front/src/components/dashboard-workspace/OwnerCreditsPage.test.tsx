@@ -27,8 +27,12 @@ const {
   ownerStatsState: {
     value: {
       ownerBalance: "20",
+      consumerAvailableBalance: "20",
+      consumerWithdrawableBalance: "7.50",
       consumerPendingBalance: "12.50",
       consumerFrozenBalance: "3.25",
+      consumerWithdrawMinUsdc: "10.00",
+      consumerWithdrawMaturitySeconds: 604800,
     },
   },
   handleRefreshMock: vi.fn(),
@@ -121,8 +125,12 @@ describe("OwnerCreditsPage", () => {
     globalThis.localStorage.setItem(I18N_STORAGE_KEY, "en");
     ownerStatsState.value = {
       ownerBalance: "20",
+      consumerAvailableBalance: "20",
+      consumerWithdrawableBalance: "7.50",
       consumerPendingBalance: "12.50",
       consumerFrozenBalance: "3.25",
+      consumerWithdrawMinUsdc: "10.00",
+      consumerWithdrawMaturitySeconds: 604800,
     };
     listConsumerWithdrawalsMock.mockResolvedValue([]);
     getOwnerSpendingLimitMock.mockResolvedValue({
@@ -155,6 +163,12 @@ describe("OwnerCreditsPage", () => {
       balance: {
         ownerBalance: 35,
         providerReceivable: 0,
+        consumerAvailableBalance: 35,
+        consumerWithdrawableBalance: 35,
+        consumerPendingBalance: 0,
+        consumerFrozenBalance: 0,
+        consumerWithdrawMinUsdc: 10,
+        consumerWithdrawMaturitySeconds: 604800,
         platformFeeAccrued: 0,
       },
     });
@@ -169,6 +183,8 @@ describe("OwnerCreditsPage", () => {
 
     expect(await screen.findByText("Spendable credits")).toBeTruthy();
     expect(screen.getAllByText("$20.00").length).toBeGreaterThan(0);
+    expect(screen.getByText("Withdrawable credits")).toBeTruthy();
+    expect(screen.getByText("$7.50")).toBeTruthy();
     expect(screen.getByText("Pending deposit credits")).toBeTruthy();
     expect(screen.getByText("$12.50")).toBeTruthy();
     expect(screen.getByText("Frozen / review credits")).toBeTruthy();
@@ -237,6 +253,8 @@ describe("OwnerCreditsPage", () => {
 
     expect(await screen.findByText("可消费 credits")).toBeTruthy();
     expect(screen.getByText("$20.00")).toBeTruthy();
+    expect(screen.getByText("可取现 credits")).toBeTruthy();
+    expect(screen.getByText("$7.50")).toBeTruthy();
     expect(screen.getByText("同步中的充值 credits")).toBeTruthy();
     expect(screen.getByText("$12.50")).toBeTruthy();
     expect(screen.getByText("冻结 / 审核中的 credits")).toBeTruthy();

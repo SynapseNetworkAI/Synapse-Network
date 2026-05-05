@@ -236,7 +236,7 @@ Provider withdrawal 只允许：
 3. quote 过期后仍允许 capture
 4. failed invocation 未 release 预算
 5. provider withdrawal 未锁仓先签名
-6. consumer withdrawal 未过 T+1 成熟期却被提现
+6. consumer withdrawal 未过 T+7 成熟期却被提现
 7. provider withdrawal 未过 T+7 争议期却被提现
 8. 并发 create 造成多条有效 withdrawal 或多次锁仓
 9. 并发 approve/reject 同时落到两个终态

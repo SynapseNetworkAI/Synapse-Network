@@ -1,7 +1,7 @@
 "use client";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CalendarDays, CircleAlert } from "lucide-react";
+import { CalendarDays, CircleAlert, Info } from "lucide-react";
 import {
   useAccount,
   useChainId,
@@ -68,6 +68,8 @@ const RedeemVoucherModal = dynamic(
 // ── Withdraw Balance Modal ───────────────────────────────────────────────────
 type WithdrawModalProps = {
   availableBalance: number;
+  withdrawableBalance: number;
+  minWithdrawAmount: number;
   userAddress: string;
   onClose: () => void;
   onSuccess: (result: ConsumerWithdrawIntent) => Promise<void>;
@@ -103,7 +105,6 @@ const WITHDRAWAL_PENDING_BALANCE_STATUSES = new Set([
   "SIGNED",
   "BROADCASTED",
   "PENDING",
-  "PENDING_MANUAL_REVIEW",
   "APPROVED_AUTO",
   "APPROVED_MANUAL",
   "PROCESSING",
@@ -160,13 +161,15 @@ function resolveConsumerWithdrawErrorMessage(
 
 function WithdrawBalanceModal({
   availableBalance,
+  withdrawableBalance,
+  minWithdrawAmount,
   userAddress,
   onClose,
   onSuccess,
 }: Readonly<WithdrawModalProps>) {
   const { t } = useLanguage();
   const [amount, setAmount] = useState(
-    String(availableBalance > 0 ? availableBalance.toFixed(2) : "")
+    String(withdrawableBalance > 0 ? withdrawableBalance.toFixed(2) : "")
   );
   const [reason, setReason] = useState("");
   const [step, setStep] = useState<WithdrawStep>("form");
@@ -298,6 +301,19 @@ function WithdrawBalanceModal({
       );
       return;
     }
+    if (
+      compareMoneyStrings(
+        normalizedAmount,
+        normalizeMoneyString(withdrawableBalance)
+      ) > 0
+    ) {
+      toast.error(
+        t("creditsPage.consumerWithdrawAmountExceeds", {
+          amount: withdrawableBalance.toFixed(2),
+        })
+      );
+      return;
+    }
 
     setStep("signing");
     let createdResult: ConsumerWithdrawIntent | null = null;
@@ -394,6 +410,9 @@ function WithdrawBalanceModal({
   };
 
   const submitting = step !== "form";
+  const withdrawDisabled =
+    submitting || withdrawableBalance < minWithdrawAmount;
+  const showMaturityGapWarning = availableBalance > withdrawableBalance;
   let buttonLabel = t("creditsPage.consumerWithdrawAction");
   if (step === "signing")
     buttonLabel = t("creditsPage.consumerWithdrawRequesting");
@@ -418,11 +437,16 @@ function WithdrawBalanceModal({
         </h3>
         <p className="mb-4 text-sm text-[#86868b]">
           {t("creditsPage.consumerWithdrawDescription", {
-            amount: availableBalance.toFixed(2),
+            amount: withdrawableBalance.toFixed(2),
           })}
         </p>
 
         <div className="space-y-4">
+          {showMaturityGapWarning ? (
+            <div className="rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs leading-5 text-amber-100">
+              {t("creditsPage.consumerWithdrawMaturityWarning")}
+            </div>
+          ) : null}
           <div>
             <label className="mb-1 block text-xs font-medium uppercase tracking-wider text-[#86868b]">
               {t("creditsPage.consumerWithdrawAmountLabel")}
@@ -432,7 +456,7 @@ function WithdrawBalanceModal({
                 type="number"
                 min="1"
                 step="0.01"
-                max={availableBalance}
+                max={withdrawableBalance}
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 disabled={submitting}
@@ -440,13 +464,18 @@ function WithdrawBalanceModal({
               />
               <button
                 type="button"
-                onClick={() => setAmount(availableBalance.toFixed(2))}
+                onClick={() => setAmount(withdrawableBalance.toFixed(2))}
                 disabled={submitting}
                 className="rounded-xl border border-[#2a2a2a] bg-[#1a1a1a] px-3 py-2 text-xs text-[#9ca3af] hover:text-white disabled:opacity-40"
               >
                 {t("creditsPage.consumerWithdrawMax")}
               </button>
             </div>
+            <p className="mt-2 text-xs leading-5 text-[#71767b]">
+              {t("creditsPage.consumerWithdrawMinimumRule", {
+                amount: minWithdrawAmount.toFixed(2),
+              })}
+            </p>
           </div>
 
           <div>
@@ -493,7 +522,7 @@ function WithdrawBalanceModal({
             </button>
             <button
               onClick={handleSubmit}
-              disabled={submitting || availableBalance <= 0}
+              disabled={withdrawDisabled}
               className="flex-1 rounded-xl bg-[#22c55e] py-2 text-sm font-semibold text-black hover:bg-[#16a34a] disabled:opacity-40"
             >
               {submitting
@@ -512,11 +541,13 @@ function CreditBucketRow({
   label,
   amount,
   hint,
+  info,
   tone = "default",
 }: Readonly<{
   label: string;
   amount: number;
   hint?: string;
+  info?: string;
   tone?: "default" | "pending" | "frozen";
 }>) {
   const amountTone =
@@ -529,7 +560,17 @@ function CreditBucketRow({
   return (
     <div className="flex flex-col gap-1 rounded-[10px] border border-white/[0.06] bg-black/20 px-4 py-3 sm:flex-row sm:items-start sm:justify-between">
       <div>
-        <p className="text-[13px] leading-5 text-[#9ca3af]">{label}</p>
+        <div className="flex items-center gap-1.5">
+          <p className="text-[13px] leading-5 text-[#9ca3af]">{label}</p>
+          {info ? (
+            <Info
+              className="h-[13px] w-[13px] text-[#71767b]"
+              aria-label={info}
+            >
+              <title>{info}</title>
+            </Info>
+          ) : null}
+        </div>
         {hint ? (
           <p className="mt-1 max-w-[420px] text-[12px] leading-5 text-[#71767b]">
             {hint}
@@ -653,7 +694,15 @@ export default function OwnerCreditsPage() {
   const billingCycle = useMemo(() => getBillingCycleWindow(), []);
 
   const creditSummary = useMemo(() => {
-    const treasuryAvailable = moneyStringToNumber(stats.ownerBalance);
+    const treasuryAvailable = moneyStringToNumber(
+      stats.consumerAvailableBalance ?? stats.ownerBalance
+    );
+    const withdrawableBalance = moneyStringToNumber(
+      stats.consumerWithdrawableBalance ?? "0"
+    );
+    const minWithdrawAmount = moneyStringToNumber(
+      stats.consumerWithdrawMinUsdc ?? "10"
+    );
     const totalPendingBalance = moneyStringToNumber(
       stats.consumerPendingBalance
     );
@@ -681,6 +730,8 @@ export default function OwnerCreditsPage() {
 
     return {
       remainingBalance: treasuryAvailable,
+      withdrawableBalance,
+      minWithdrawAmount,
       depositPendingBalance,
       withdrawalPendingBalance,
       frozenBalance,
@@ -693,10 +744,13 @@ export default function OwnerCreditsPage() {
           : null,
     };
   }, [
-    pendingWithdrawal,
     spendingLimit,
+    pendingWithdrawal,
+    stats.consumerAvailableBalance,
     stats.consumerFrozenBalance,
     stats.consumerPendingBalance,
+    stats.consumerWithdrawableBalance,
+    stats.consumerWithdrawMinUsdc,
     stats.ownerBalance,
   ]);
 
@@ -740,6 +794,7 @@ export default function OwnerCreditsPage() {
       walletSingleAccount: t("creditsPage.depositWalletSingleAccount"),
       walletUnstable: t("creditsPage.depositWalletUnstable"),
       invalidAmount: t("creditsPage.depositInvalidAmount"),
+      minDepositAmountNotMet: t("creditsPage.depositMinAmountNotMet"),
       insufficientWalletUsdc: t("creditsPage.depositInsufficientWalletUsdc"),
       nativeGasRequired: t("creditsPage.depositNativeGasRequired"),
       gatewayBalanceSynced: t("creditsPage.depositGatewayBalanceSynced"),
@@ -932,6 +987,26 @@ export default function OwnerCreditsPage() {
                   </div>
                 )}
               </div>
+              <div>
+                <div className="mb-1 flex items-center gap-1.5">
+                  <p className="text-[14px] font-normal leading-[20px] text-[#9ca3af]">
+                    {t("creditsPage.withdrawableBalanceLabel")}
+                  </p>
+                  <Info
+                    className="h-[14px] w-[14px] text-[#71767b]"
+                    aria-label={t("creditsPage.withdrawableBalanceTooltip")}
+                  >
+                    <title>{t("creditsPage.withdrawableBalanceTooltip")}</title>
+                  </Info>
+                </div>
+                {showBalanceSkeleton ? (
+                  <div className="mt-2 h-[32px] w-[112px] animate-pulse rounded-full bg-white/[0.09]" />
+                ) : (
+                  <p className="text-[24px] font-bold leading-[32px] tracking-[-0.02em] text-white">
+                    {formatUsd(creditSummary.withdrawableBalance)}
+                  </p>
+                )}
+              </div>
               <div className="flex flex-wrap items-center self-start gap-2 md:self-auto">
                 <div className="relative group">
                   <button
@@ -939,10 +1014,7 @@ export default function OwnerCreditsPage() {
                     onClick={() => {
                       void handleWithdraw();
                     }}
-                    disabled={
-                      displayedRemainingBalance <= 0 ||
-                      pendingWithdrawal !== null
-                    }
+                    disabled={pendingWithdrawal !== null}
                     className="inline-flex h-[36px] min-w-[143px] items-center justify-center whitespace-nowrap rounded-full border border-[#2f3336] bg-transparent px-4 py-2 text-[14px] font-normal leading-[20px] text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     {t("creditsPage.consumerWithdrawAction")}
@@ -1167,6 +1239,7 @@ export default function OwnerCreditsPage() {
           expectationPermit: t("walletActions.depositChecklistAmount"),
           expectationGas: t("walletActions.depositChecklistGas"),
           expectationSync: t("creditsPage.depositExpectationSync"),
+          minimumWithdrawNotice: t("creditsPage.depositMinimumWithdrawNotice"),
           stepPermitTitle: t("walletActions.depositPermitStepTitle"),
           stepPermitActive: t("creditsPage.depositPermitStepActive"),
           stepPermitDone: t("creditsPage.depositPermitStepDone"),
@@ -1205,12 +1278,17 @@ export default function OwnerCreditsPage() {
       {isWithdrawModalOpen && userAddress && (
         <WithdrawBalanceModal
           availableBalance={displayedRemainingBalance}
+          withdrawableBalance={creditSummary.withdrawableBalance}
+          minWithdrawAmount={creditSummary.minWithdrawAmount}
           userAddress={userAddress}
           onClose={() => setIsWithdrawModalOpen(false)}
           onSuccess={async (result) => {
             const normalizedStatus = (result.status || "").toUpperCase();
             const isActiveWithdrawal =
               normalizedStatus === "REQUESTED" ||
+              normalizedStatus === "PENDING" ||
+              normalizedStatus === "APPROVED_AUTO" ||
+              normalizedStatus === "TICKET_READY" ||
               normalizedStatus === "PENDING_MANUAL_REVIEW";
 
             if (!isActiveWithdrawal) {
