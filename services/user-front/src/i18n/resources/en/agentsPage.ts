@@ -232,9 +232,11 @@ const agentsPage: I18nMessages["agentsPage"] = {
     "Manage API keys, limits, and authentication credentials for this runtime.",
   workspaceCloseDetail: "Close agent detail",
   workspaceCopyAgentId: "Copy agent id",
+  workspaceAgentIdLabel: "Agent ID",
   workspaceCredentialPanelTitle: "Agent Credential",
   workspaceCredentialPanelDescription:
     "Rotate the runtime secret when needed. The full token is only shown once after issue or regenerate.",
+  workspaceCredentialValueLabel: "Credential",
   workspaceCredentialPrefixLabel: "Credential Prefix",
   workspaceQuotaPanelTitle: "Runtime Limits",
   workspaceQuotaPanelDescription:

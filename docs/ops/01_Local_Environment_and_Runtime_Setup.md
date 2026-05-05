@@ -124,6 +124,36 @@ LOCAL_GATEWAY_POSTGRES_DSN=postgresql://... bash scripts/local/restart_gateway.s
 不要用泛化的 `POSTGRES_DSN` 覆盖本地 restart 脚本；这是为了保证 local E2E
 不会误连 staging Cloud SQL、宿主机 PostgreSQL 或另一个空库。
 
+Local Gateway 默认是完整链路开发环境。`restart_gateway.sh` 会默认开启并校验
+Gateway 进程内的定时任务：
+
+1. `V2_INDEXER_ENABLED=true`
+2. `V2_BACKFILL_ENABLED=true`
+3. `V2_RECONCILIATION_ENABLED=true`
+4. `SERVICE_HEALTH_MONITOR_ENABLED=true`
+5. `PROVIDER_WITHDRAW_EXPIRY_REAPER_ENABLED=true`
+6. `CONSUMER_WITHDRAW_PROCESSOR_ENABLED=true`
+7. `IN_APP_NOTIFICATION_CLEANUP_ENABLED=true`
+8. `SERVICE_HEALTH_EVENT_CLEANUP_ENABLED=true`
+
+脚本启动后会检查 `/readiness`，确认这些 monitor 已启用并初始化。`/health`
+只能证明 API 存活；local money-path 调试必须看 `/readiness`，否则过期提现、
+充值 backfill、服务健康探测或清理任务可能静默不跑。
+
+Local 还会默认启动两个独立 worker：
+
+1. `python -m src.worker analytics-outbox --poll-interval-sec 1`
+2. `python -m src.worker notification-outbox --poll-interval-sec 1`
+
+它们分别写入：
+
+1. `services/gateway/logs/analytics_outbox_worker.log`
+2. `services/gateway/logs/notification_outbox_worker.log`
+
+注意：notification outbox worker 在 local 默认开启，会按 `.env.local` 中的
+Gmail SMTP / Lark 配置发送真实外部通知。如果不希望本地发送外部邮件或消息，请先清空
+对应凭证或显式关闭相关通知配置。
+
 如果宿主机 `5432` 已被本机 PostgreSQL 或 SSH tunnel 占用，不需要脚本去停止或卸载它；
 local Gateway 默认仍会使用 Docker Postgres `15432`。如果要彻底重置 local
 Gateway 业务数据，只允许通过 Docker Compose 删除关联 volume：
@@ -456,10 +486,13 @@ TARGET_WALLET=0x1111111111111111111111111111111111111111,0x222222222222222222222
 
 1. 用途：一键启动本地链、部署合约、补 ETH/USDC、启动 gateway 与前端
 2. 用法：`./scripts/local/setup_local_env.sh` 或 `bash scripts/local/setup_local_env.sh`
+3. Gateway 启动会复用 `scripts/local/restart_gateway.sh`，因此完整 setup 与单独
+   restart 使用同一套定时任务和 outbox worker 默认值。
 
 `scripts/local/stop_local_env.sh`
 
 1. 用途：基于 `.local_env.pids` 或端口扫描，停止本地 Anvil、gateway、frontend
+   以及 local analytics / notification outbox worker
 2. 用法：`./scripts/local/stop_local_env.sh` 或 `bash scripts/local/stop_local_env.sh`
 
 `scripts/local/restart_local_env.sh`
@@ -478,6 +511,8 @@ TARGET_WALLET=0x1111111111111111111111111111111111111111,0x222222222222222222222
 6. 如果手滑用了 `sh scripts/local/*.sh`，脚本现在会自动重新切回 `bash`，避免 `pipefail` 兼容性错误。
 7. 启动前会检查本地 active E2E 服务膨胀；超过 `LOCAL_SERVICE_REGISTRY_TEST_ACTIVE_LIMIT`（默认 50）会拒绝启动，避免测试垃圾服务抢占 health monitor 探活名额。统计前缀包括 `api_ref_%`、`apiref_test_%`、`provider_onboard_%`、`llm_%_llm_deepseek_%`、`gateway_pull_health_%`、`svc_e2e_%`、`svc_verify_%`、`svc_buyer_%`、`ufc_%`。
 8. 启动前也会提示旧 `service_health_%` KV 缓存和新 `synapse_service_health_runtime/events` 测试健康状态膨胀；它不会自动清理，但会给出 cleanup dry-run 命令，避免隐藏本地 DB 变更。
+9. 启动后会校验 `/readiness` 中的 local background monitors，并启动
+   analytics / notification outbox worker；任一必需 worker 没启动会直接失败。
 
 `scripts/local/reset_gateway_docker_data.sh`
 
@@ -660,6 +695,10 @@ Gateway 至少要显式配置：
 3. `PROVIDER_WITHDRAW_EXPIRY_REAPER_INTERVAL_SEC` 控制定时扫描间隔；当前默认值是 `30` 秒，默认是短周期守护，而不是依赖用户刷新页面后才释放 locked 金额。
 4. `WITHDRAW_TICKET_EXPIRY_BUFFER_SEC` 默认 `900` 秒；`WITHDRAW_RPC_FINALITY_MARGIN_SEC` 默认 `300` 秒。Reaper 必须同时满足本地时间和 RPC 最新区块时间安全窗口，且合约 `isTicketConsumed(ticketHash)=false`，才允许释放资金。
 5. 因此在默认配置下，Provider 侧看到的 `Pending / Locked` 自动释放时间通常约为 30 分钟票据有效期加 15 分钟本地安全缓冲，再加下一轮扫描延迟。
+6. Consumer 侧过期提现释放依赖 `CONSUMER_WITHDRAW_PROCESSOR_ENABLED=true`。
+   默认配置下，ticket 过 `deadline + WITHDRAW_TICKET_EXPIRY_BUFFER_SEC`
+   且 RPC 区块时间也越过 finality margin 后，processor 会把未领取 ticket 标记为
+   `FAILED_EXPIRED` 并把 pending 释放回 available。
 
 ### 4.4 索引器与对账参数
 

@@ -103,6 +103,20 @@ const providerServicesPage: I18nMessages["providerServicesPage"] = {
   paginationNext: "Next",
   footerNote:
     "Active services are runtime-live. Switch a service to Inactive before editing its contract or routing fields. Press Esc to close the edit panel.",
+  healthPageTitle: "API Service Health",
+  healthPageDescription:
+    "24h runtime health curve and latency jitter distribution for targets behind each API service.",
+  healthBackToServices: "Back to API Services",
+  healthServiceSelectorLabel: "API Service",
+  healthServiceIdLabel: "Service ID",
+  healthRefresh: "Refresh",
+  healthLoadingHistory: "Loading health history...",
+  healthSelectService:
+    "Select an API service to inspect runtime target health trends.",
+  healthNoHistory:
+    "No retained history for this service in the current window.",
+  healthRetentionNotice:
+    "Requested 24h window, current retention is {{hours}}h. Data shown is clipped to the retained window.",
 };
 
 export default providerServicesPage;

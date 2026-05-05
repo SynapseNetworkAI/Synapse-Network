@@ -11,8 +11,10 @@ vi.mock("@/utils/gatewayApi", () => ({
 
 import {
   ConsumerWithdrawApiError,
+  failV2Refund,
   getV2Balance,
   listConsumerWithdrawals,
+  normalizeRefundFailureMessage,
   requestConsumerWithdraw,
 } from "@/utils/balanceApi";
 
@@ -124,35 +126,69 @@ describe("consumer withdrawal ticket normalization", () => {
     }
   });
 
-  it("normalizes ticket ids in withdrawal history rows", async () => {
+  it("caps refund failure messages before sending them to the Gateway", async () => {
     const originalFetch = globalThis.fetch;
-    globalThis.fetch = async () =>
-      new Response(
-        JSON.stringify({
-          withdrawals: [
-            {
-              id: "cw-1",
-              amountUsdc: "2",
-              status: "REQUESTED",
-              ticket: {
-                ticketId: "abc",
-                ticketHash: "def",
-                amount: "200",
-                fee: "50",
-                deadline: 123,
-                signature: "0xsig",
-                chainId: 31337,
-                contractAddress: "0xcontract",
-              },
-            },
-          ],
-        }),
-        { status: 200 }
-      );
+    let body: Record<string, unknown> | null = null;
+    globalThis.fetch = async (_input, init) => {
+      body =
+        typeof init?.body === "string"
+          ? (JSON.parse(init.body) as Record<string, unknown>)
+          : null;
+      return new Response(JSON.stringify({ status: "success" }), {
+        status: 200,
+      });
+    };
 
     try {
-      const rows = await listConsumerWithdrawals("0xabc");
+      const oversized = "x".repeat(900);
+      await failV2Refund("0xabc", "refund-1", {
+        reasonCode: "WITHDRAW_SUBMISSION_FAILED",
+        message: oversized,
+      });
 
+      expect(body?.message).toBe(normalizeRefundFailureMessage(oversized));
+      expect(String(body?.message ?? "").length).toBe(512);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("normalizes ticket ids in withdrawal history rows", async () => {
+    const originalFetch = globalThis.fetch;
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            withdrawals: [
+              {
+                id: "cw-1",
+                amountUsdc: "2",
+                status: "REQUESTED",
+                ticket: {
+                  ticketId: "abc",
+                  ticketHash: "def",
+                  amount: "200",
+                  fee: "50",
+                  deadline: 123,
+                  signature: "0xsig",
+                  chainId: 31337,
+                  contractAddress: "0xcontract",
+                },
+              },
+            ],
+          }),
+          { status: 200 }
+        )
+    );
+    globalThis.fetch = fetchMock;
+
+    try {
+      const rows = await listConsumerWithdrawals("0xabc", 100);
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining("/balance/consumer/withdrawals?limit=100"),
+        expect.any(Object)
+      );
       expect(rows[0].ticket?.ticketId).toBe("0xabc");
       expect(rows[0].ticket?.ticketHash).toBe("0xdef");
     } finally {

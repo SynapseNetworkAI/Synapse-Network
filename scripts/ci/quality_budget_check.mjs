@@ -21,7 +21,7 @@ const ARGUMENT_MAX = 8;
 const BASELINED_FILE_EFFECTIVE_LINES = new Map([
   ["scripts/admin_analytics_fullchain_e2e.js", 583],
   ["scripts/admin_analytics_clickhouse_regression.py", 541],
-  ["scripts/ci/quality_budget_check.mjs", 548],
+  ["scripts/ci/quality_budget_check.mjs", 554],
   ["scripts/ci/resolve_pr_ci_scope.mjs", 506],
   ["scripts/ci/validate_docs.js", 662],
   ["scripts/deploy/gcp_staging_drift_guard.mjs", 539],
@@ -35,6 +35,7 @@ const BASELINED_FILE_EFFECTIVE_LINES = new Map([
   ["scripts/e2e/staging_full_regression.mjs", 959],
   ["scripts/e2e/support_case_dogfood.mjs", 1252],
   ["scripts/e2e/transaction_notifications_e2e.mjs", 897],
+  ["scripts/e2e/user_front_copyable_identifiers_e2e.mjs", 953],
   ["scripts/e2e/user_front_fullchain_seed.mjs", 1083],
   ["scripts/e2e/withdrawal_idempotency_concurrency_e2e.mjs", 1005],
   ["scripts/e2e/withdrawal_one_ticket_evidence.mjs", 1432],
@@ -67,7 +68,11 @@ const BASELINED_FILE_EFFECTIVE_LINES = new Map([
   ["services/gateway-admin/tests/test_app.py", 2753],
   ["services/gateway/src/api/routers/services.py", 614],
   ["services/gateway/src/services/analytics/gateway_events.py", 588],
-  ["services/gateway/src/services/owner/finance_refund_exec_mixin.py", 755],
+  [
+    "services/gateway/src/services/owner/finance_consumer_withdraw_mixin.py",
+    520,
+  ],
+  ["services/gateway/src/services/owner/finance_refund_exec_mixin.py", 759],
   [
     "services/gateway/src/storage/postgres/repositories/balance_repository.py",
     530,
@@ -85,16 +90,16 @@ const BASELINED_FILE_EFFECTIVE_LINES = new Map([
     "services/gateway/tests/unit/storage/test_postgres_repositories_unit.py",
     2016,
   ],
-  ["services/gateway/tests/unit/test_consumer_withdraw_unit.py", 843],
   ["services/gateway/tests/unit/test_finance_runtime_service_unit.py", 1147],
   ["services/gateway/tests/unit/test_forwarding_runtime_service_unit.py", 1616],
+  ["services/gateway/tests/unit/test_consumer_withdraw_unit.py", 844],
   ["services/gateway/tests/unit/test_notifications_outbox_unit.py", 829],
   ["services/docs-front/src/data/endpoint-source.ts", 1719],
   ["services/user-front/src/app/about/page.tsx", 702],
   ["services/user-front/src/app/forum/page.tsx", 517],
   [
     "services/user-front/src/components/dashboard-workspace/AccountSettingsPage.tsx",
-    665,
+    668,
   ],
   [
     "services/user-front/src/components/dashboard-workspace/DashboardAgentsWorkspacePage.tsx",
@@ -102,7 +107,7 @@ const BASELINED_FILE_EFFECTIVE_LINES = new Map([
   ],
   [
     "services/user-front/src/components/dashboard-workspace/DashboardAgentsPage.tsx",
-    1612,
+    1616,
   ],
   [
     "services/user-front/src/components/dashboard-workspace/DashboardCredentialsPage.tsx",
@@ -114,7 +119,7 @@ const BASELINED_FILE_EFFECTIVE_LINES = new Map([
   ],
   [
     "services/user-front/src/components/dashboard-workspace/OwnerCreditsPage.tsx",
-    1141,
+    1197,
   ],
   [
     "services/user-front/src/components/dashboard/agents/QuickStartGuide.tsx",
@@ -130,19 +135,19 @@ const BASELINED_FILE_EFFECTIVE_LINES = new Map([
   ],
   [
     "services/user-front/src/components/provider-workspace/ProviderServicesPage.tsx",
-    1462,
+    1475,
   ],
   [
     "services/user-front/src/components/provider-workspace/ProviderSettlementsPage.tsx",
-    1163,
+    1193,
   ],
   [
     "services/user-front/src/components/provider-workspace/ProviderWithdrawPage.tsx",
-    977,
+    985,
   ],
-  ["services/user-front/src/i18n/schema.ts", 1880],
+  ["services/user-front/src/i18n/schema.ts", 1917],
   ["services/user-front/src/hooks/useVaultDeposit.ts", 670],
-  ["services/user-front/src/utils/balanceApi.ts", 1036],
+  ["services/user-front/src/utils/balanceApi.ts", 1048],
   ["services/user-front/src/utils/serviceApi.ts", 701],
   ["services/user-front/src/utils/serviceStatus.ts", 863],
 ]);
@@ -206,6 +211,7 @@ const BASELINED_FUNCTION_FILES = new Set([
   "services/user-front/src/components/provider-workspace/ProviderSettlementsPage.tsx",
   "services/user-front/src/components/provider-workspace/ProviderServicesPage.tsx",
   "services/user-front/src/components/provider-workspace/ProviderSellPage.tsx",
+  "services/user-front/src/components/provider-workspace/ProviderUsagePage.tsx",
   "services/user-front/src/components/provider-workspace/ProviderWithdrawPage.tsx",
   "services/user-front/src/utils/serviceApi.ts",
   "services/user-front/src/utils/pricing.ts",

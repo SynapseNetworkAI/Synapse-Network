@@ -44,6 +44,32 @@ class FinanceConsumerWithdrawMixin:
     """Consumer balance withdraw: reserve, create intent, and list."""
 
     @staticmethod
+    def _raise_consumer_withdraw_runtime_error(code: str) -> None:
+        if code == "INSUFFICIENT_VAULT_LIQUIDITY":
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": "VAULT_LIQUIDITY_INSUFFICIENT",
+                    "message": (
+                        "Vault liquidity is insufficient for this withdrawal right now. "
+                        "The platform treasury must refill on-chain USDC before you retry."
+                    ),
+                },
+            )
+        if code == "WITHDRAW_VAULT_LIQUIDITY_CHECK_UNAVAILABLE":
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "code": "WITHDRAW_VAULT_LIQUIDITY_CHECK_UNAVAILABLE",
+                    "message": (
+                        "Unable to verify vault liquidity right now. Retry after the "
+                        "gateway reconnects to chain RPC."
+                    ),
+                },
+            )
+        raise RuntimeError(code)
+
+    @staticmethod
     def _q6d(value: Any) -> Decimal:
         return Decimal(str(value or "0")).quantize(
             Decimal("0.000001"), rounding=ROUND_HALF_UP
@@ -294,23 +320,35 @@ class FinanceConsumerWithdrawMixin:
                     pend_check = self._q6d(ledger_check.consumer_pending_balance(owner))
                     frozen_check = self._q6d(ledger_check.consumer_frozen_balance(owner))
                     changed = False
-                    if row_status == "REQUESTED" and avail_check >= row_amount and pend_check < row_amount:
+                    needs_pending_reserve = (
+                        row_status == "REQUESTED"
+                        and avail_check >= row_amount
+                        and pend_check < row_amount
+                    )
+                    needs_manual_review_reserve = (
+                        row_status == "PENDING_MANUAL_REVIEW"
+                        and avail_check >= row_amount
+                        and frozen_check < row_amount
+                    )
+                    needs_ticket = row_status == "REQUESTED" and not row.ticket.signature
+                    if needs_pending_reserve or needs_manual_review_reserve or needs_ticket:
+                        try:
+                            self._assert_withdraw_vault_liquidity(row_amount)  # type: ignore[attr-defined]
+                        except RuntimeError as exc:
+                            self._raise_consumer_withdraw_runtime_error(str(exc))
+                    if needs_pending_reserve:
                         try:
                             self._reserve_consumer_balance(owner, row_amount)  # type: ignore[attr-defined]
                             changed = True
                         except RuntimeError:
                             pass
-                    if (
-                        row_status == "PENDING_MANUAL_REVIEW"
-                        and avail_check >= row_amount
-                        and frozen_check < row_amount
-                    ):
+                    if needs_manual_review_reserve:
                         try:
                             self._reserve_consumer_balance_for_manual_review(owner, row_amount)  # type: ignore[attr-defined]
                             changed = True
                         except RuntimeError:
                             pass
-                    if row_status == "REQUESTED" and not row.ticket.signature:
+                    if needs_ticket:
                         row.ticket = self._build_consumer_withdraw_ticket(
                             owner=owner,
                             gross_amount_usdc=row_amount,
@@ -362,6 +400,11 @@ class FinanceConsumerWithdrawMixin:
                         ),
                     },
                 )
+
+            try:
+                self._assert_withdraw_vault_liquidity(amount_usdc)  # type: ignore[attr-defined]
+            except RuntimeError as exc:
+                self._raise_consumer_withdraw_runtime_error(str(exc))
 
             daily_count, rolling_amount = self._consumer_withdrawal_window_stats(
                 owner,
