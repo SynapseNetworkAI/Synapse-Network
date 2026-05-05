@@ -126,31 +126,37 @@ invocation_billing_window AS (
         COUNT(*) FILTER (
             WHERE inv.created_at >= (SELECT day_start FROM day_window)
                 AND inv.status IN ('SUCCEEDED', 'SETTLED')
-                AND lower(COALESCE(NULLIF(billing.payload->>'businessType', ''), 'charge')) = 'charge'
+                AND lower(COALESCE(NULLIF(billing.business_type, ''), NULLIF(legacy_billing.payload->>'businessType', ''), 'charge')) = 'charge'
         )::bigint AS today_invocation_count,
         COALESCE(SUM(
-            COALESCE(NULLIF(billing.payload->>'protocolFee', '')::numeric, 0)
-            + COALESCE(NULLIF(billing.payload->>'routingTax', '')::numeric, 0)
+            COALESCE(billing.protocol_fee_usdc, NULLIF(legacy_billing.payload->>'protocolFee', '')::numeric, 0)
+            + COALESCE(billing.routing_tax_usdc, NULLIF(legacy_billing.payload->>'routingTax', '')::numeric, 0)
         ) FILTER (
             WHERE inv.created_at >= (SELECT day_start FROM day_window)
                 AND inv.status IN ('SUCCEEDED', 'SETTLED')
-                AND lower(COALESCE(NULLIF(billing.payload->>'businessType', ''), 'charge')) = 'charge'
+                AND lower(COALESCE(NULLIF(billing.business_type, ''), NULLIF(legacy_billing.payload->>'businessType', ''), 'charge')) = 'charge'
         ), 0) AS today_platform_fee_earned_usdc,
         COALESCE(SUM(
-            GREATEST(
-                COALESCE(NULLIF(billing.payload->>'unitPrice', '')::numeric, 0)
-                - COALESCE(NULLIF(billing.payload->>'protocolFee', '')::numeric, 0),
+            COALESCE(
+                billing.provider_earned_usdc,
+                GREATEST(
+                    COALESCE(NULLIF(legacy_billing.payload->>'unitPrice', '')::numeric, 0)
+                    - COALESCE(NULLIF(legacy_billing.payload->>'protocolFee', '')::numeric, 0),
+                    0
+                ),
                 0
             )
         ) FILTER (
             WHERE inv.created_at >= (SELECT day_start FROM day_window)
                 AND inv.status IN ('SUCCEEDED', 'SETTLED')
-                AND lower(COALESCE(NULLIF(billing.payload->>'businessType', ''), 'charge')) = 'charge'
+                AND lower(COALESCE(NULLIF(billing.business_type, ''), NULLIF(legacy_billing.payload->>'businessType', ''), 'charge')) = 'charge'
         ), 0) AS today_provider_earned_usdc,
-        MAX(GREATEST(inv.updated_at, COALESCE(billing.updated_at, inv.updated_at))) AS invocation_billing_updated_at
+        MAX(GREATEST(inv.updated_at, COALESCE(billing.updated_at, legacy_billing.updated_at, inv.updated_at))) AS invocation_billing_updated_at
     FROM synapse_invocations AS inv
-    LEFT JOIN synapse_runtime_state AS billing
-        ON billing.state_key = 'invocation_billing::' || inv.invocation_id
+    LEFT JOIN synapse_invocation_billing AS billing
+        ON billing.invocation_id = inv.invocation_id
+    LEFT JOIN synapse_runtime_state AS legacy_billing
+        ON legacy_billing.state_key = 'invocation_billing::' || inv.invocation_id
 )
 SELECT
     charge_window.today_charge_usdc::numeric(36, 6) AS today_charge_usdc,
@@ -226,26 +232,32 @@ invocation_billing_daily AS (
     SELECT
         inv.created_at::date AS bucket_date,
         COUNT(*) FILTER (
-            WHERE lower(COALESCE(NULLIF(billing.payload->>'businessType', ''), 'charge')) = 'charge'
+            WHERE lower(COALESCE(NULLIF(billing.business_type, ''), NULLIF(legacy_billing.payload->>'businessType', ''), 'charge')) = 'charge'
         )::bigint AS invocation_count,
         COALESCE(SUM(
-            COALESCE(NULLIF(billing.payload->>'protocolFee', '')::numeric, 0)
-            + COALESCE(NULLIF(billing.payload->>'routingTax', '')::numeric, 0)
+            COALESCE(billing.protocol_fee_usdc, NULLIF(legacy_billing.payload->>'protocolFee', '')::numeric, 0)
+            + COALESCE(billing.routing_tax_usdc, NULLIF(legacy_billing.payload->>'routingTax', '')::numeric, 0)
         ) FILTER (
-            WHERE lower(COALESCE(NULLIF(billing.payload->>'businessType', ''), 'charge')) = 'charge'
+            WHERE lower(COALESCE(NULLIF(billing.business_type, ''), NULLIF(legacy_billing.payload->>'businessType', ''), 'charge')) = 'charge'
         ), 0) AS platform_fee_earned_usdc,
         COALESCE(SUM(
-            GREATEST(
-                COALESCE(NULLIF(billing.payload->>'unitPrice', '')::numeric, 0)
-                - COALESCE(NULLIF(billing.payload->>'protocolFee', '')::numeric, 0),
+            COALESCE(
+                billing.provider_earned_usdc,
+                GREATEST(
+                    COALESCE(NULLIF(legacy_billing.payload->>'unitPrice', '')::numeric, 0)
+                    - COALESCE(NULLIF(legacy_billing.payload->>'protocolFee', '')::numeric, 0),
+                    0
+                ),
                 0
             )
         ) FILTER (
-            WHERE lower(COALESCE(NULLIF(billing.payload->>'businessType', ''), 'charge')) = 'charge'
+            WHERE lower(COALESCE(NULLIF(billing.business_type, ''), NULLIF(legacy_billing.payload->>'businessType', ''), 'charge')) = 'charge'
         ), 0) AS provider_earned_usdc
     FROM synapse_invocations AS inv
-    LEFT JOIN synapse_runtime_state AS billing
-        ON billing.state_key = 'invocation_billing::' || inv.invocation_id
+    LEFT JOIN synapse_invocation_billing AS billing
+        ON billing.invocation_id = inv.invocation_id
+    LEFT JOIN synapse_runtime_state AS legacy_billing
+        ON legacy_billing.state_key = 'invocation_billing::' || inv.invocation_id
     WHERE inv.status IN ('SUCCEEDED', 'SETTLED')
     GROUP BY inv.created_at::date
 ),

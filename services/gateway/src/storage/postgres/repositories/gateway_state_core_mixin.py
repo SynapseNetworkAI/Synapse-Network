@@ -3,24 +3,22 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 import json
-from typing import Any, Callable, List
+from typing import Any, List
 
-from src.domain.gateway import OwnerSpendLimitRow
-from src.domain.ledger import DepositIntentRow, WithdrawalIntentRow
+from src.domain.ledger import DepositIntentRow
 from src.domain.finance import (
-    RefundIntentRow,
     UsageLogRow,
 )
 from src.domain.runtime_state import (
     DepositMetadataState,
     InvocationBillingState,
-    VaultWithdrawalMetadataState,
 )
-from src.domain.system import ProcessedDepositEventRow, RuntimeStateRow
 from src.utils.datetime_utils import now_dt_str, to_dt_str
 
-from ..database_manager import DatabaseManager
+from .invocation_billing_sql import upsert_invocation_billing
 
+
+_TX_HASH_HEX_LENGTH = 66
 
 
 class GatewayStateCoreMixin:
@@ -71,6 +69,15 @@ class GatewayStateCoreMixin:
             (state_key, json.dumps(payload), updated_at),
         )
 
+    def _upsert_invocation_billing(
+        self,
+        cur: Any,
+        invocation_id: str,
+        state: InvocationBillingState,
+        updated_at: str,
+    ) -> None:
+        upsert_invocation_billing(cur, self._q6, invocation_id, state, updated_at)
+
     def _read_runtime_state_payload(self, state_key: str) -> dict[str, Any]:
         with self._db.readonly_cursor() as cur:
             cur.execute(
@@ -106,9 +113,11 @@ class GatewayStateCoreMixin:
     def _latency_ms(started_at: Any, finished_at: Any, fallback: Any) -> int | None:
         if fallback is not None:
             try:
-                return int(fallback)
-            except Exception:
-                pass
+                fallback_ms = int(fallback)
+            except (TypeError, ValueError):
+                fallback_ms = None
+            if fallback_ms is not None:
+                return fallback_ms
         started = GatewayStateCoreMixin._epoch_seconds(started_at)
         finished = GatewayStateCoreMixin._epoch_seconds(finished_at)
         if started <= 0 or finished <= 0 or finished < started:
@@ -315,7 +324,7 @@ class GatewayStateCoreMixin:
         tx_hash = str(entity.tx_hash or "").strip().lower()
         if not row_id or not owner:
             return None
-        if not (tx_hash.startswith("0x") and len(tx_hash) == 66):
+        if not (tx_hash.startswith("0x") and len(tx_hash) == _TX_HASH_HEX_LENGTH):
             return None
         return entity
 
@@ -385,4 +394,3 @@ class GatewayStateCoreMixin:
                     ).model_dump(by_alias=True, mode="json"),
                     updated_at,
                 )
-
