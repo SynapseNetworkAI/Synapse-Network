@@ -381,7 +381,7 @@ class TestInvocations:
                 json={
                     "name": f"inv-test-{uuid.uuid4().hex[:6]}",
                     "maxCalls": 20,
-                    "creditLimit": 1,
+                    "creditLimit": 5,
                     "rpm": 10,
                 },
                 timeout=15,

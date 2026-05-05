@@ -62,7 +62,9 @@ function fatal(code, file, why, fix) {
 
 function latestEvidenceDir() {
   if (process.env.USER_FRONT_COPYABLE_IDENTIFIERS_EVIDENCE_DIR) {
-    return path.resolve(process.env.USER_FRONT_COPYABLE_IDENTIFIERS_EVIDENCE_DIR);
+    return path.resolve(
+      process.env.USER_FRONT_COPYABLE_IDENTIFIERS_EVIDENCE_DIR
+    );
   }
   if (!fs.existsSync(EVIDENCE_ROOT)) return "";
   return (
@@ -139,7 +141,9 @@ if (/^\s*-\s*OPEN\b/im.test(bugfixLog)) {
   );
 }
 
-if (crypto.createHash("sha256").update(trace).digest("hex") !== report.traceDigest) {
+if (
+  crypto.createHash("sha256").update(trace).digest("hex") !== report.traceDigest
+) {
   fatal(
     "USER-FRONT-COPYABLE-DIGEST",
     path.join(dir, "trace.jsonl"),
@@ -188,7 +192,9 @@ for (const row of dom) {
     fatal(
       "USER-FRONT-COPYABLE-PRIVACY",
       path.join(dir, "dom-evidence.json"),
-      `Forbidden text appeared on ${row.page}: ${JSON.stringify(row.forbidden)}`,
+      `Forbidden text appeared on ${row.page}: ${JSON.stringify(
+        row.forbidden
+      )}`,
       "keep internal principals, counterparty labels, provider wallet addresses, and auth blockers out of user pages."
     );
   }

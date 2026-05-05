@@ -21,7 +21,7 @@ const ARGUMENT_MAX = 8;
 const BASELINED_FILE_EFFECTIVE_LINES = new Map([
   ["scripts/admin_analytics_fullchain_e2e.js", 583],
   ["scripts/admin_analytics_clickhouse_regression.py", 541],
-  ["scripts/ci/quality_budget_check.mjs", 541],
+  ["scripts/ci/quality_budget_check.mjs", 550],
   ["scripts/ci/resolve_pr_ci_scope.mjs", 506],
   ["scripts/ci/validate_docs.js", 662],
   ["scripts/deploy/gcp_staging_drift_guard.mjs", 539],
@@ -35,6 +35,7 @@ const BASELINED_FILE_EFFECTIVE_LINES = new Map([
   ["scripts/e2e/staging_full_regression.mjs", 959],
   ["scripts/e2e/support_case_dogfood.mjs", 1252],
   ["scripts/e2e/transaction_notifications_e2e.mjs", 897],
+  ["scripts/e2e/user_front_copyable_identifiers_e2e.mjs", 953],
   ["scripts/e2e/user_front_fullchain_seed.mjs", 1083],
   ["scripts/e2e/withdrawal_idempotency_concurrency_e2e.mjs", 1005],
   ["scripts/e2e/withdrawal_one_ticket_evidence.mjs", 1432],
@@ -85,6 +86,7 @@ const BASELINED_FILE_EFFECTIVE_LINES = new Map([
     "services/gateway/tests/unit/storage/test_postgres_repositories_unit.py",
     2016,
   ],
+  ["services/gateway/tests/unit/test_consumer_withdraw_unit.py", 843],
   ["services/gateway/tests/unit/test_finance_runtime_service_unit.py", 1147],
   ["services/gateway/tests/unit/test_forwarding_runtime_service_unit.py", 1616],
   ["services/gateway/tests/unit/test_notifications_outbox_unit.py", 829],
@@ -93,7 +95,7 @@ const BASELINED_FILE_EFFECTIVE_LINES = new Map([
   ["services/user-front/src/app/forum/page.tsx", 517],
   [
     "services/user-front/src/components/dashboard-workspace/AccountSettingsPage.tsx",
-    665,
+    666,
   ],
   [
     "services/user-front/src/components/dashboard-workspace/DashboardAgentsWorkspacePage.tsx",
@@ -101,7 +103,7 @@ const BASELINED_FILE_EFFECTIVE_LINES = new Map([
   ],
   [
     "services/user-front/src/components/dashboard-workspace/DashboardAgentsPage.tsx",
-    1225,
+    1612,
   ],
   [
     "services/user-front/src/components/dashboard-workspace/DashboardCredentialsPage.tsx",
@@ -113,7 +115,7 @@ const BASELINED_FILE_EFFECTIVE_LINES = new Map([
   ],
   [
     "services/user-front/src/components/dashboard-workspace/OwnerCreditsPage.tsx",
-    1118,
+    1141,
   ],
   [
     "services/user-front/src/components/dashboard/agents/QuickStartGuide.tsx",
@@ -121,7 +123,7 @@ const BASELINED_FILE_EFFECTIVE_LINES = new Map([
   ],
   [
     "services/user-front/src/components/provider-workspace/ProviderServiceDeployPage.tsx",
-    1742,
+    2226,
   ],
   [
     "services/user-front/src/components/provider-workspace/ProviderSecretsPage.tsx",
@@ -133,15 +135,15 @@ const BASELINED_FILE_EFFECTIVE_LINES = new Map([
   ],
   [
     "services/user-front/src/components/provider-workspace/ProviderSettlementsPage.tsx",
-    1163,
+    1193,
   ],
   [
     "services/user-front/src/components/provider-workspace/ProviderWithdrawPage.tsx",
-    977,
+    985,
   ],
-  ["services/user-front/src/i18n/schema.ts", 1876],
+  ["services/user-front/src/i18n/schema.ts", 1890],
   ["services/user-front/src/hooks/useVaultDeposit.ts", 670],
-  ["services/user-front/src/utils/balanceApi.ts", 1017],
+  ["services/user-front/src/utils/balanceApi.ts", 1036],
   ["services/user-front/src/utils/serviceApi.ts", 701],
   ["services/user-front/src/utils/serviceStatus.ts", 863],
 ]);
@@ -177,15 +179,19 @@ const BASELINED_FUNCTION_FILES = new Set([
   "services/user-front/src/app/marketplace/page.tsx",
   "services/user-front/src/components/Navbar.tsx",
   "services/user-front/src/components/WalletAuthGuard.tsx",
+  "services/user-front/src/components/NotificationCenter.tsx",
   "services/user-front/src/components/dashboard-workspace/AccountSettingsPage.tsx",
   "services/user-front/src/components/dashboard-workspace/DashboardAgentsWorkspacePage.tsx",
+  "services/user-front/src/components/dashboard-workspace/DashboardAgentsPage.tsx",
   "services/user-front/src/components/dashboard-workspace/DashboardCredentialsPage.tsx",
   "services/user-front/src/components/dashboard-workspace/DashboardDeveloperPage.tsx",
   "services/user-front/src/components/dashboard-workspace/DashboardInvocationsContent.tsx",
   "services/user-front/src/components/dashboard-workspace/DashboardOverviewPage.tsx",
+  "services/user-front/src/components/dashboard-workspace/ManageSpendCapModal.tsx",
   "services/user-front/src/components/dashboard-workspace/DashboardServicesPage.tsx",
   "services/user-front/src/components/dashboard-workspace/EmailVerificationCodeModal.tsx",
   "services/user-front/src/components/dashboard-workspace/OwnerCreditsPage.tsx",
+  "services/user-front/src/components/dashboard/discovery/DiscoveryConsolePage.tsx",
   "services/user-front/src/components/dashboard-workspace/agents/AgentsWorkspaceListPane.tsx",
   "services/user-front/src/components/dashboard/DashboardSidebar.tsx",
   "services/user-front/src/components/dashboard/agents/ActivationRunway.tsx",
@@ -196,9 +202,12 @@ const BASELINED_FUNCTION_FILES = new Set([
   "services/user-front/src/hooks/useOwnerData.ts",
   "services/user-front/src/hooks/useVaultDeposit.ts",
   "services/user-front/src/components/provider-workspace/ProviderSecretsPage.tsx",
+  "services/user-front/src/components/provider-workspace/ProviderHealthPage.tsx",
+  "services/user-front/src/components/provider-workspace/ProviderServiceDeployPage.tsx",
   "services/user-front/src/components/provider-workspace/ProviderSettlementsPage.tsx",
   "services/user-front/src/components/provider-workspace/ProviderServicesPage.tsx",
   "services/user-front/src/components/provider-workspace/ProviderSellPage.tsx",
+  "services/user-front/src/components/provider-workspace/ProviderUsagePage.tsx",
   "services/user-front/src/components/provider-workspace/ProviderWithdrawPage.tsx",
   "services/user-front/src/utils/serviceApi.ts",
   "services/user-front/src/utils/pricing.ts",

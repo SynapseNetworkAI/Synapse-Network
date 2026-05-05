@@ -2,17 +2,23 @@ import type { I18nMessages } from "@/i18n/schema";
 
 const providerServicesPage: I18nMessages["providerServicesPage"] = {
   loadFailed: "Failed to load services",
-  activeEditBlocked: "Active services can't be edited. Set the service to Inactive first.",
+  healthHistoryLoadFailed:
+    "Failed to load service health history. Please retry after the gateway reconnects.",
+  activeEditBlocked:
+    "Active services can't be edited. Set the service to Inactive first.",
   inactiveOnlyEditBlocked: "Only inactive services can be edited.",
-  confirmActivate: "Activate service {{serviceId}}? It will be eligible for discovery again after health checks report healthy targets.",
-  confirmDeactivate: "Set service {{serviceId}} to inactive? New discovery and direct gateway forwarding will stop once this update is applied.",
+  confirmActivate:
+    "Activate service {{serviceId}}? It will be eligible for discovery again after health checks report healthy targets.",
+  confirmDeactivate:
+    "Set service {{serviceId}} to inactive? New discovery and direct gateway forwarding will stop once this update is applied.",
   actionActivate: "Activate",
   actionInactive: "Inactive",
   actionUpdating: "Updating...",
   serviceActivated: "Service activated",
   serviceSetInactive: "Service set to inactive",
   updateStatusFailed: "Failed to {{action}} service",
-  confirmDelete: "Delete service {{serviceId}}? This is a logical delete and keeps the audit trail while removing the service from the active provider service list.",
+  confirmDelete:
+    "Delete service {{serviceId}}? This is a logical delete and keeps the audit trail while removing the service from the active provider service list.",
   serviceDeleted: "Service deleted",
   deleteFailed: "Failed to delete service",
   validationFixBeforeSave: "Please fix validation errors before saving.",
@@ -21,14 +27,17 @@ const providerServicesPage: I18nMessages["providerServicesPage"] = {
   validationMustStartWithSlash: "{{field}} must start with /.",
   validationInvalidJson: "{{field}} is invalid JSON.",
   validationMustBeJsonArray: "{{field}} must be a JSON array.",
-  validationOneValidTargetRequired: "At least one valid target is required in {{field}}.",
+  validationOneValidTargetRequired:
+    "At least one valid target is required in {{field}}.",
   validationMustBeValidJsonObject: "{{field}} must be a valid JSON object.",
   serviceUpdated: "Service updated",
   updateFailed: "Failed to update service",
   invalidJsonFields: "Invalid JSON fields in service definition form",
   modalTitle: "Edit Service",
-  modalDescription: "Review the service definition and runtime mapping for this API service.",
-  validationBanner: "Validation failed. Fix highlighted fields to avoid 422 SERVICE_REGISTRATION_INVALID.",
+  modalDescription:
+    "Review the service definition and runtime mapping for this API service.",
+  validationBanner:
+    "Validation failed. Fix highlighted fields to avoid 422 SERVICE_REGISTRATION_INVALID.",
   sectionBasicProfile: "Basic Profile",
   sectionHealthConstraints: "Health And Constraints",
   sectionServiceDefinition: "Service Definition / Invoke Contract",
@@ -59,7 +68,8 @@ const providerServicesPage: I18nMessages["providerServicesPage"] = {
   saving: "Saving...",
   saveChanges: "Save Changes",
   title: "API Services",
-  description: "Manage API services, service definitions, runtime status, pricing, and routing readiness.",
+  description:
+    "Manage API services, service definitions, runtime status, pricing, and routing readiness.",
   searchPlaceholder: "Search Service ID or name",
   filterAllStatus: "All Status",
   filterOnline: "Online",
@@ -91,7 +101,8 @@ const providerServicesPage: I18nMessages["providerServicesPage"] = {
   paginationShowing: "Showing {{start}}-{{end}} of {{total}}",
   paginationPrev: "Prev",
   paginationNext: "Next",
-  footerNote: "Active services are runtime-live. Switch a service to Inactive before editing its contract or routing fields. Press Esc to close the edit panel.",
+  footerNote:
+    "Active services are runtime-live. Switch a service to Inactive before editing its contract or routing fields. Press Esc to close the edit panel.",
 };
 
 export default providerServicesPage;

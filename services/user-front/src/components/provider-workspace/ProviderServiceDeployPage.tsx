@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -142,7 +148,7 @@ type FieldGuideItem = {
 type TranslateFn = (
   key: string,
   vars?: Record<string, string | number>,
-  fallbackText?: string,
+  fallbackText?: string
 ) => string;
 
 const createDraftId = (): string =>
@@ -174,20 +180,30 @@ const createDefaultDraft = (): ManifestDraft => ({
     examplesText: "[]",
   },
   ioSchema: {
-    inputSchemaText: JSON.stringify({ type: "object", properties: {}, required: [] }, null, 2),
-    outputSchemaText: JSON.stringify({ type: "object", properties: {} }, null, 2),
+    inputSchemaText: JSON.stringify(
+      { type: "object", properties: {}, required: [] },
+      null,
+      2
+    ),
+    outputSchemaText: JSON.stringify(
+      { type: "object", properties: {} },
+      null,
+      2
+    ),
   },
   billing: {
     priceModel: DEFAULT_PROVIDER_SERVICE_DEPLOY_PRESET.priceModel,
     basePriceUsdc: DEFAULT_SERVICE_PRICING_AMOUNT,
-    settlementCurrency: DEFAULT_PROVIDER_SERVICE_DEPLOY_PRESET.settlementCurrency,
+    settlementCurrency:
+      DEFAULT_PROVIDER_SERVICE_DEPLOY_PRESET.settlementCurrency,
   },
   runtime: {
     endpointUrl: "",
     authMode: DEFAULT_SERVICE_AUTH_MODE,
     timeoutMs: DEFAULT_SERVICE_DEPLOY_DRAFT_CONFIG.defaultTimeoutMs,
     maxRequestBytes: DEFAULT_SERVICE_DEPLOY_DRAFT_CONFIG.defaultMaxRequestBytes,
-    maxResponseBytes: DEFAULT_SERVICE_DEPLOY_DRAFT_CONFIG.defaultMaxResponseBytes,
+    maxResponseBytes:
+      DEFAULT_SERVICE_DEPLOY_DRAFT_CONFIG.defaultMaxResponseBytes,
   },
   quality: {
     availabilitySlo: "0.995",
@@ -243,7 +259,9 @@ const isValidCurlCommand = (raw: string): boolean => {
   if (!normalized || !/^curl(\s|$)/i.test(normalized)) {
     return false;
   }
-  return /(https?:\/\/[^\s'"\\]+)|(['"]https?:\/\/[^'"\\]+['"])/i.test(normalized);
+  return /(https?:\/\/[^\s'"\\]+)|(['"]https?:\/\/[^'"\\]+['"])/i.test(
+    normalized
+  );
 };
 
 const uniqueList = (values: string[]): string[] => {
@@ -264,7 +282,9 @@ const uniqueList = (values: string[]): string[] => {
   return normalized;
 };
 
-const parseJsonObject = (text: string): { valid: boolean; value: Record<string, unknown> } => {
+const parseJsonObject = (
+  text: string
+): { valid: boolean; value: Record<string, unknown> } => {
   try {
     const parsed = JSON.parse(text);
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
@@ -313,7 +333,9 @@ const isHttpUrl = (value: string): boolean => {
   }
 };
 
-const firstValidationError = (errors: Record<string, string>): string | null => {
+const firstValidationError = (
+  errors: Record<string, string>
+): string | null => {
   const [first] = Object.values(errors);
   return first ?? null;
 };
@@ -360,7 +382,7 @@ const normalizeSupportedLanguages = (values: string[]): string[] => {
   const normalized = values
     .map((value) => value.trim().toLowerCase())
     .filter((value): value is (typeof SUPPORTED_LANGUAGE_OPTIONS)[number] =>
-      (SUPPORTED_LANGUAGE_OPTIONS as readonly string[]).includes(value),
+      (SUPPORTED_LANGUAGE_OPTIONS as readonly string[]).includes(value)
     );
 
   if (normalized.length === 0) {
@@ -370,8 +392,16 @@ const normalizeSupportedLanguages = (values: string[]): string[] => {
   return [normalized[0]];
 };
 
-const applyIdentityOverrides = (draft: ManifestDraft, raw: Record<string, unknown>): void => {
-  const serviceId = readString(raw.service_id, raw.serviceId, raw.agent_tool_name, raw.agentToolName);
+const applyIdentityOverrides = (
+  draft: ManifestDraft,
+  raw: Record<string, unknown>
+): void => {
+  const serviceId = readString(
+    raw.service_id,
+    raw.serviceId,
+    raw.agent_tool_name,
+    raw.agentToolName
+  );
   const serviceName = readString(raw.service_name, raw.serviceName);
   const serviceSlug = readString(raw.service_slug, raw.serviceSlug);
   const manifestVersion = readString(raw.manifest_version, raw.manifestVersion);
@@ -383,7 +413,10 @@ const applyIdentityOverrides = (draft: ManifestDraft, raw: Record<string, unknow
   draft.identity.status = DEFAULT_PROVIDER_SERVICE_DEPLOY_PRESET.status;
 };
 
-const applyModelUsageOverrides = (draft: ManifestDraft, raw: Record<string, unknown>): void => {
+const applyModelUsageOverrides = (
+  draft: ManifestDraft,
+  raw: Record<string, unknown>
+): void => {
   const description = readString(raw.description);
   const taskCategory = readString(raw.task_category);
   const modelUsage = asRecord(raw.model_usage);
@@ -399,41 +432,69 @@ const applyModelUsageOverrides = (draft: ManifestDraft, raw: Record<string, unkn
 
   const descriptionForModel = readString(modelUsage.description_for_model);
   const category = readString(modelUsage.task_category);
-  if (descriptionForModel) draft.modelUsage.descriptionForModel = descriptionForModel;
+  if (descriptionForModel)
+    draft.modelUsage.descriptionForModel = descriptionForModel;
   if (category) draft.modelUsage.taskCategory = category;
 
-  draft.modelUsage.capabilities = readStringArray(modelUsage.capabilities).length
+  draft.modelUsage.capabilities = readStringArray(modelUsage.capabilities)
+    .length
     ? readStringArray(modelUsage.capabilities)
     : draft.modelUsage.capabilities;
   draft.modelUsage.limitations = readStringArray(modelUsage.limitations).length
     ? readStringArray(modelUsage.limitations)
     : draft.modelUsage.limitations;
-  draft.modelUsage.supportedLanguages = readStringArray(modelUsage.supported_languages).length
-    ? normalizeSupportedLanguages(readStringArray(modelUsage.supported_languages))
+  draft.modelUsage.supportedLanguages = readStringArray(
+    modelUsage.supported_languages
+  ).length
+    ? normalizeSupportedLanguages(
+        readStringArray(modelUsage.supported_languages)
+      )
     : draft.modelUsage.supportedLanguages;
 
   if (Array.isArray(modelUsage.examples)) {
-    draft.modelUsage.examplesText = JSON.stringify(modelUsage.examples, null, 2);
+    draft.modelUsage.examplesText = JSON.stringify(
+      modelUsage.examples,
+      null,
+      2
+    );
   }
 };
 
-const applyIoSchemaOverrides = (draft: ManifestDraft, raw: Record<string, unknown>): void => {
+const applyIoSchemaOverrides = (
+  draft: ManifestDraft,
+  raw: Record<string, unknown>
+): void => {
   const ioSchema = asRecord(raw.io_schema);
   if (ioSchema?.input_schema) {
-    draft.ioSchema.inputSchemaText = JSON.stringify(ioSchema.input_schema, null, 2);
+    draft.ioSchema.inputSchemaText = JSON.stringify(
+      ioSchema.input_schema,
+      null,
+      2
+    );
   }
   if (ioSchema?.output_schema) {
-    draft.ioSchema.outputSchemaText = JSON.stringify(ioSchema.output_schema, null, 2);
+    draft.ioSchema.outputSchemaText = JSON.stringify(
+      ioSchema.output_schema,
+      null,
+      2
+    );
   }
   if (asRecord(raw.input_schema)) {
     draft.ioSchema.inputSchemaText = JSON.stringify(raw.input_schema, null, 2);
   }
   if (asRecord(raw.output_schema)) {
-    draft.ioSchema.outputSchemaText = JSON.stringify(raw.output_schema, null, 2);
+    draft.ioSchema.outputSchemaText = JSON.stringify(
+      raw.output_schema,
+      null,
+      2
+    );
   }
 };
 
-const applyBillingOverrides = (draft: ManifestDraft, raw: Record<string, unknown>): void => {
+const applyBillingOverrides = (
+  draft: ManifestDraft,
+  raw: Record<string, unknown>
+): void => {
   const billing = asRecord(raw.billing);
   const pricing = asRecord(raw.pricing);
 
@@ -441,9 +502,11 @@ const applyBillingOverrides = (draft: ManifestDraft, raw: Record<string, unknown
     const basePriceUsdc = readString(billing.base_price_usdc);
     const settlementCurrency = readString(billing.settlement_currency);
 
-    draft.billing.priceModel = DEFAULT_PROVIDER_SERVICE_DEPLOY_PRESET.priceModel;
+    draft.billing.priceModel =
+      DEFAULT_PROVIDER_SERVICE_DEPLOY_PRESET.priceModel;
     if (basePriceUsdc) draft.billing.basePriceUsdc = basePriceUsdc;
-    if (settlementCurrency) draft.billing.settlementCurrency = settlementCurrency;
+    if (settlementCurrency)
+      draft.billing.settlementCurrency = settlementCurrency;
   }
 
   if (!pricing) {
@@ -457,7 +520,10 @@ const applyBillingOverrides = (draft: ManifestDraft, raw: Record<string, unknown
   draft.billing.priceModel = DEFAULT_PROVIDER_SERVICE_DEPLOY_PRESET.priceModel;
 };
 
-const applyRuntimeRecord = (draft: ManifestDraft, runtime: Record<string, unknown>): void => {
+const applyRuntimeRecord = (
+  draft: ManifestDraft,
+  runtime: Record<string, unknown>
+): void => {
   const endpointUrl = readString(runtime.endpoint_url);
   const authMode = readString(runtime.auth_mode);
   const timeoutMs = readNumber(runtime.timeout_ms);
@@ -469,12 +535,24 @@ const applyRuntimeRecord = (draft: ManifestDraft, runtime: Record<string, unknow
   if (authMode) draft.runtime.authMode = authMode;
   if (timeoutMs !== null) draft.runtime.timeoutMs = timeoutMs;
   if (maxRequestBytes !== null) draft.runtime.maxRequestBytes = maxRequestBytes;
-  else if (maxPayloadBytes !== null) draft.runtime.maxRequestBytes = Math.min(maxPayloadBytes, SERVICE_CONSTRAINT_LIMITS.maxRequestBytes.max);
-  if (maxResponseBytes !== null) draft.runtime.maxResponseBytes = maxResponseBytes;
-  else if (maxPayloadBytes !== null) draft.runtime.maxResponseBytes = Math.min(maxPayloadBytes, SERVICE_CONSTRAINT_LIMITS.maxResponseBytes.max);
+  else if (maxPayloadBytes !== null)
+    draft.runtime.maxRequestBytes = Math.min(
+      maxPayloadBytes,
+      SERVICE_CONSTRAINT_LIMITS.maxRequestBytes.max
+    );
+  if (maxResponseBytes !== null)
+    draft.runtime.maxResponseBytes = maxResponseBytes;
+  else if (maxPayloadBytes !== null)
+    draft.runtime.maxResponseBytes = Math.min(
+      maxPayloadBytes,
+      SERVICE_CONSTRAINT_LIMITS.maxResponseBytes.max
+    );
 };
 
-const applyConstraintRecord = (draft: ManifestDraft, constraints: Record<string, unknown>): void => {
+const applyConstraintRecord = (
+  draft: ManifestDraft,
+  constraints: Record<string, unknown>
+): void => {
   const timeoutMs = readNumber(constraints.timeout_ms);
   const maxQps = readNumber(constraints.max_qps);
   const maxRequestBytes = readNumber(constraints.max_request_bytes);
@@ -483,10 +561,14 @@ const applyConstraintRecord = (draft: ManifestDraft, constraints: Record<string,
   if (timeoutMs !== null) draft.runtime.timeoutMs = timeoutMs;
   if (maxQps !== null) draft.gatewayExtensions.rateLimitPolicy.maxQps = maxQps;
   if (maxRequestBytes !== null) draft.runtime.maxRequestBytes = maxRequestBytes;
-  if (maxResponseBytes !== null) draft.runtime.maxResponseBytes = maxResponseBytes;
+  if (maxResponseBytes !== null)
+    draft.runtime.maxResponseBytes = maxResponseBytes;
 };
 
-const applyRuntimeOverrides = (draft: ManifestDraft, raw: Record<string, unknown>): void => {
+const applyRuntimeOverrides = (
+  draft: ManifestDraft,
+  raw: Record<string, unknown>
+): void => {
   const runtime = asRecord(raw.runtime);
   const constraints = asRecord(raw.constraints);
   const endpoint = readString(raw.endpoint);
@@ -500,18 +582,28 @@ const applyRuntimeOverrides = (draft: ManifestDraft, raw: Record<string, unknown
   }
 };
 
-const applyHealthCheckRecord = (draft: ManifestDraft, healthCheck: Record<string, unknown>): void => {
+const applyHealthCheckRecord = (
+  draft: ManifestDraft,
+  healthCheck: Record<string, unknown>
+): void => {
   const path = readString(healthCheck.path);
   const timeoutMs = readNumber(healthCheck.timeout_ms);
 
-  if (path) draft.gatewayExtensions.healthCheck.path = normalizeHealthPath(path);
+  if (path)
+    draft.gatewayExtensions.healthCheck.path = normalizeHealthPath(path);
   draft.gatewayExtensions.healthCheck.method = DEFAULT_SERVICE_HEALTH_METHOD;
-  draft.gatewayExtensions.healthCheck.intervalSec = DEFAULT_SERVICE_HEALTH_INTERVAL_SEC;
-  if (timeoutMs !== null) draft.gatewayExtensions.healthCheck.timeoutMs = timeoutMs;
-  draft.gatewayExtensions.healthCheck.successCodesText = DEFAULT_SERVICE_HEALTH_SUCCESS_CODES_TEXT;
+  draft.gatewayExtensions.healthCheck.intervalSec =
+    DEFAULT_SERVICE_HEALTH_INTERVAL_SEC;
+  if (timeoutMs !== null)
+    draft.gatewayExtensions.healthCheck.timeoutMs = timeoutMs;
+  draft.gatewayExtensions.healthCheck.successCodesText =
+    DEFAULT_SERVICE_HEALTH_SUCCESS_CODES_TEXT;
 };
 
-const applyRoutingTargetsRecord = (draft: ManifestDraft, routingTargets: unknown[]): void => {
+const applyRoutingTargetsRecord = (
+  draft: ManifestDraft,
+  routingTargets: unknown[]
+): void => {
   if (routingTargets.length === 0) {
     return;
   }
@@ -528,14 +620,19 @@ const applyRoutingTargetsRecord = (draft: ManifestDraft, routingTargets: unknown
 };
 
 const applyForwardingPolicyRecord = (draft: ManifestDraft): void => {
-  draft.gatewayExtensions.forwardingPolicy.requestIdHeader = DEFAULT_SERVICE_REQUEST_ID_HEADER;
+  draft.gatewayExtensions.forwardingPolicy.requestIdHeader =
+    DEFAULT_SERVICE_REQUEST_ID_HEADER;
 };
 
-const applyGatewayOverrides = (draft: ManifestDraft, raw: Record<string, unknown>): void => {
+const applyGatewayOverrides = (
+  draft: ManifestDraft,
+  raw: Record<string, unknown>
+): void => {
   const gatewayExtensions = asRecord(raw.gateway_extensions);
   const healthCheckPath = readString(raw.health_check);
   if (healthCheckPath) {
-    draft.gatewayExtensions.healthCheck.path = normalizeHealthPath(healthCheckPath);
+    draft.gatewayExtensions.healthCheck.path =
+      normalizeHealthPath(healthCheckPath);
   }
   if (!gatewayExtensions) {
     return;
@@ -550,13 +647,12 @@ const applyGatewayOverrides = (draft: ManifestDraft, raw: Record<string, unknown
 
   const forwardingPolicy = asRecord(gatewayExtensions.forwarding_policy);
   if (forwardingPolicy) applyForwardingPolicyRecord(draft);
-
 };
 
 const collectIdentityErrors = (
   draft: ManifestDraft,
   errors: Record<string, string>,
-  t: TranslateFn,
+  t: TranslateFn
 ): void => {
   const serviceId = draft.identity.serviceId.trim();
   const serviceName = draft.identity.serviceName.trim();
@@ -564,28 +660,50 @@ const collectIdentityErrors = (
   const descriptionForModel = draft.modelUsage.descriptionForModel.trim();
 
   if (!serviceId) {
-    errors.serviceId = t("providerServiceDeployPage.validationServiceIdRequired");
+    errors.serviceId = t(
+      "providerServiceDeployPage.validationServiceIdRequired"
+    );
   } else if (!SERVICE_ID_REGEX.test(serviceId)) {
-    errors.serviceId = t("providerServiceDeployPage.validationServiceIdPattern");
+    errors.serviceId = t(
+      "providerServiceDeployPage.validationServiceIdPattern"
+    );
   }
   if (!serviceName) {
-    errors.serviceName = t("providerServiceDeployPage.validationServiceNameRequired");
-  } else if (serviceName.length < SERVICE_NAME_MIN || serviceName.length > SERVICE_NAME_MAX) {
-    errors.serviceName = t("providerServiceDeployPage.validationServiceNameLength", {
-      min: SERVICE_NAME_MIN,
-      max: SERVICE_NAME_MAX,
-    });
+    errors.serviceName = t(
+      "providerServiceDeployPage.validationServiceNameRequired"
+    );
+  } else if (
+    serviceName.length < SERVICE_NAME_MIN ||
+    serviceName.length > SERVICE_NAME_MAX
+  ) {
+    errors.serviceName = t(
+      "providerServiceDeployPage.validationServiceNameLength",
+      {
+        min: SERVICE_NAME_MIN,
+        max: SERVICE_NAME_MAX,
+      }
+    );
   }
   if (!manifestVersion || !/^\d+\.\d+\.\d+$/.test(manifestVersion)) {
-    errors.manifestVersion = t("providerServiceDeployPage.validationManifestVersion");
+    errors.manifestVersion = t(
+      "providerServiceDeployPage.validationManifestVersion"
+    );
   }
   if (!descriptionForModel) {
-    errors.descriptionForModel = t("providerServiceDeployPage.validationDescriptionRequired");
-  } else if (descriptionForModel.length < DESCRIPTION_MIN || descriptionForModel.length > DESCRIPTION_MAX) {
-    errors.descriptionForModel = t("providerServiceDeployPage.validationDescriptionLength", {
-      min: DESCRIPTION_MIN,
-      max: DESCRIPTION_MAX,
-    });
+    errors.descriptionForModel = t(
+      "providerServiceDeployPage.validationDescriptionRequired"
+    );
+  } else if (
+    descriptionForModel.length < DESCRIPTION_MIN ||
+    descriptionForModel.length > DESCRIPTION_MAX
+  ) {
+    errors.descriptionForModel = t(
+      "providerServiceDeployPage.validationDescriptionLength",
+      {
+        min: DESCRIPTION_MIN,
+        max: DESCRIPTION_MAX,
+      }
+    );
   }
 };
 
@@ -594,18 +712,21 @@ const collectSchemaErrors = (
   outputSchemaValid: boolean,
   examplesValid: boolean,
   errors: Record<string, string>,
-  t: TranslateFn,
+  t: TranslateFn
 ): void => {
-  if (!inputSchemaValid) errors.inputSchema = t("providerServiceDeployPage.validationInputSchema");
-  if (!outputSchemaValid) errors.outputSchema = t("providerServiceDeployPage.validationOutputSchema");
-  if (!examplesValid) errors.examples = t("providerServiceDeployPage.validationExamples");
+  if (!inputSchemaValid)
+    errors.inputSchema = t("providerServiceDeployPage.validationInputSchema");
+  if (!outputSchemaValid)
+    errors.outputSchema = t("providerServiceDeployPage.validationOutputSchema");
+  if (!examplesValid)
+    errors.examples = t("providerServiceDeployPage.validationExamples");
 };
 
 const collectRuntimeErrors = (
   draft: ManifestDraft,
   normalizedTargets: Array<{ url: string; region?: string; weight: number }>,
   errors: Record<string, string>,
-  t: TranslateFn,
+  t: TranslateFn
 ): void => {
   const basePriceUsdc = Number(draft.billing.basePriceUsdc);
 
@@ -615,37 +736,76 @@ const collectRuntimeErrors = (
   if (!isHttpUrl(draft.runtime.endpointUrl.trim())) {
     errors.endpointUrl = t("providerServiceDeployPage.validationEndpointUrl");
   }
-  if (draft.runtime.timeoutMs < SERVICE_CONSTRAINT_LIMITS.timeoutMs.min || draft.runtime.timeoutMs > SERVICE_CONSTRAINT_LIMITS.timeoutMs.max) {
+  if (
+    draft.runtime.timeoutMs < SERVICE_CONSTRAINT_LIMITS.timeoutMs.min ||
+    draft.runtime.timeoutMs > SERVICE_CONSTRAINT_LIMITS.timeoutMs.max
+  ) {
     errors.timeoutMs = t("providerServiceDeployPage.validationTimeoutRange", {
       min: SERVICE_CONSTRAINT_LIMITS.timeoutMs.min,
       max: SERVICE_CONSTRAINT_LIMITS.timeoutMs.max,
     });
   }
-  if (draft.runtime.maxRequestBytes < SERVICE_CONSTRAINT_LIMITS.maxRequestBytes.min || draft.runtime.maxRequestBytes > SERVICE_CONSTRAINT_LIMITS.maxRequestBytes.max) {
-    errors.maxRequestBytes = t("providerServiceDeployPage.validationMaxRequestBytesRange", {
-      min: SERVICE_CONSTRAINT_LIMITS.maxRequestBytes.min,
-      max: SERVICE_CONSTRAINT_LIMITS.maxRequestBytes.max,
-    });
+  if (
+    draft.runtime.maxRequestBytes <
+      SERVICE_CONSTRAINT_LIMITS.maxRequestBytes.min ||
+    draft.runtime.maxRequestBytes >
+      SERVICE_CONSTRAINT_LIMITS.maxRequestBytes.max
+  ) {
+    errors.maxRequestBytes = t(
+      "providerServiceDeployPage.validationMaxRequestBytesRange",
+      {
+        min: SERVICE_CONSTRAINT_LIMITS.maxRequestBytes.min,
+        max: SERVICE_CONSTRAINT_LIMITS.maxRequestBytes.max,
+      }
+    );
   }
-  if (draft.runtime.maxResponseBytes < SERVICE_CONSTRAINT_LIMITS.maxResponseBytes.min || draft.runtime.maxResponseBytes > SERVICE_CONSTRAINT_LIMITS.maxResponseBytes.max) {
-    errors.maxResponseBytes = t("providerServiceDeployPage.validationMaxResponseBytesRange", {
-      min: SERVICE_CONSTRAINT_LIMITS.maxResponseBytes.min,
-      max: SERVICE_CONSTRAINT_LIMITS.maxResponseBytes.max,
-    });
+  if (
+    draft.runtime.maxResponseBytes <
+      SERVICE_CONSTRAINT_LIMITS.maxResponseBytes.min ||
+    draft.runtime.maxResponseBytes >
+      SERVICE_CONSTRAINT_LIMITS.maxResponseBytes.max
+  ) {
+    errors.maxResponseBytes = t(
+      "providerServiceDeployPage.validationMaxResponseBytesRange",
+      {
+        min: SERVICE_CONSTRAINT_LIMITS.maxResponseBytes.min,
+        max: SERVICE_CONSTRAINT_LIMITS.maxResponseBytes.max,
+      }
+    );
   }
-  if (!normalizeHealthPath(draft.gatewayExtensions.healthCheck.path).startsWith("/")) {
+  if (
+    !normalizeHealthPath(draft.gatewayExtensions.healthCheck.path).startsWith(
+      "/"
+    )
+  ) {
     errors.healthPath = t("providerServiceDeployPage.validationHealthPath");
   }
   if (normalizedTargets.length === 0) {
-    errors.routingTargets = t("providerServiceDeployPage.validationRoutingTargets");
+    errors.routingTargets = t(
+      "providerServiceDeployPage.validationRoutingTargets"
+    );
   }
-  if (draft.gatewayExtensions.routingTargets.some((target) => target.url.trim() && (target.weight < WEIGHT_MIN || target.weight > WEIGHT_MAX))) {
-    errors.routingTargets = t("providerServiceDeployPage.validationTargetWeight", {
-      min: WEIGHT_MIN,
-      max: WEIGHT_MAX,
-    });
+  if (
+    draft.gatewayExtensions.routingTargets.some(
+      (target) =>
+        target.url.trim() &&
+        (target.weight < WEIGHT_MIN || target.weight > WEIGHT_MAX)
+    )
+  ) {
+    errors.routingTargets = t(
+      "providerServiceDeployPage.validationTargetWeight",
+      {
+        min: WEIGHT_MIN,
+        max: WEIGHT_MAX,
+      }
+    );
   }
-  if (draft.gatewayExtensions.rateLimitPolicy.maxQps < SERVICE_CONSTRAINT_LIMITS.maxQps.min || draft.gatewayExtensions.rateLimitPolicy.maxQps > SERVICE_CONSTRAINT_LIMITS.maxQps.max) {
+  if (
+    draft.gatewayExtensions.rateLimitPolicy.maxQps <
+      SERVICE_CONSTRAINT_LIMITS.maxQps.min ||
+    draft.gatewayExtensions.rateLimitPolicy.maxQps >
+      SERVICE_CONSTRAINT_LIMITS.maxQps.max
+  ) {
     errors.maxQps = t("providerServiceDeployPage.validationMaxQpsRange", {
       min: SERVICE_CONSTRAINT_LIMITS.maxQps.min,
       max: SERVICE_CONSTRAINT_LIMITS.maxQps.max,
@@ -659,11 +819,17 @@ const validateDraft = (
   outputSchemaValid: boolean,
   examplesValid: boolean,
   normalizedTargets: Array<{ url: string; region?: string; weight: number }>,
-  t: TranslateFn,
+  t: TranslateFn
 ): Record<string, string> => {
   const errors: Record<string, string> = {};
   collectIdentityErrors(draft, errors, t);
-  collectSchemaErrors(inputSchemaValid, outputSchemaValid, examplesValid, errors, t);
+  collectSchemaErrors(
+    inputSchemaValid,
+    outputSchemaValid,
+    examplesValid,
+    errors,
+    t
+  );
   collectRuntimeErrors(draft, normalizedTargets, errors, t);
 
   return errors;
@@ -684,9 +850,20 @@ function FieldGuideHint({ item }: Readonly<{ item?: FieldGuideItem }>) {
       <div className="absolute z-30 mt-2 w-72 rounded-xl border border-gray-700 bg-[#0b0d12] p-3 text-[11px] shadow-2xl">
         <p className="font-semibold text-white">{item.title}</p>
         <p className="mt-2 text-gray-300">{item.purpose}</p>
-        <p className="mt-2 text-gray-400">{t("providerServiceDeployPage.fieldGuideConfigureLabel")}: {item.howToConfigure}</p>
-        <p className="mt-1 text-gray-400">{t("providerServiceDeployPage.fieldGuidePlatformLabel")}: {item.platformUse}</p>
-        {item.example ? <p className="mt-1 text-green-300">{t("providerServiceDeployPage.fieldGuideExampleLabel")}: {item.example}</p> : null}
+        <p className="mt-2 text-gray-400">
+          {t("providerServiceDeployPage.fieldGuideConfigureLabel")}:{" "}
+          {item.howToConfigure}
+        </p>
+        <p className="mt-1 text-gray-400">
+          {t("providerServiceDeployPage.fieldGuidePlatformLabel")}:{" "}
+          {item.platformUse}
+        </p>
+        {item.example ? (
+          <p className="mt-1 text-green-300">
+            {t("providerServiceDeployPage.fieldGuideExampleLabel")}:{" "}
+            {item.example}
+          </p>
+        ) : null}
       </div>
     </details>
   );
@@ -713,7 +890,9 @@ function SectionCard({
             {icon}
           </div>
           <div>
-            <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">{index}</p>
+            <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">
+              {index}
+            </p>
             <h2 className="mt-1 text-lg font-semibold text-white">{title}</h2>
           </div>
         </div>
@@ -724,8 +903,15 @@ function SectionCard({
   );
 }
 
-function FieldNote({ error, hint }: Readonly<{ error?: string; hint: string }>) {
-  return error ? <p className="mt-2 text-xs text-amber-300">{error}</p> : <p className="mt-2 text-xs text-zinc-500">{hint}</p>;
+function FieldNote({
+  error,
+  hint,
+}: Readonly<{ error?: string; hint: string }>) {
+  return error ? (
+    <p className="mt-2 text-xs text-amber-300">{error}</p>
+  ) : (
+    <p className="mt-2 text-xs text-zinc-500">{hint}</p>
+  );
 }
 
 function TextField({
@@ -756,7 +942,9 @@ function TextField({
       <input
         type="text"
         aria-label={label}
-        className={`w-full rounded-2xl border border-white/10 bg-black px-4 py-3 text-sm text-white outline-none transition focus:border-green-500 ${mono ? "font-mono" : ""}`}
+        className={`w-full rounded-2xl border border-white/10 bg-black px-4 py-3 text-sm text-white outline-none transition focus:border-green-500 ${
+          mono ? "font-mono" : ""
+        }`}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
@@ -781,13 +969,17 @@ function NumberField({
 }>) {
   return (
     <div>
-      <label className="mb-1.5 block text-sm font-medium text-zinc-200">{label}</label>
+      <label className="mb-1.5 block text-sm font-medium text-zinc-200">
+        {label}
+      </label>
       <input
         type="number"
         aria-label={label}
         className="w-full rounded-2xl border border-white/10 bg-black px-4 py-3 font-mono text-sm text-white outline-none transition focus:border-green-500"
         value={value}
-        onChange={(event) => onChange(Number.parseInt(event.target.value, 10) || 0)}
+        onChange={(event) =>
+          onChange(Number.parseInt(event.target.value, 10) || 0)
+        }
       />
       <FieldNote error={error} hint={hint} />
     </div>
@@ -820,7 +1012,9 @@ function TagEditor({
 
   return (
     <div>
-      <label className="mb-1.5 block text-sm font-medium text-zinc-200">{label}</label>
+      <label className="mb-1.5 block text-sm font-medium text-zinc-200">
+        {label}
+      </label>
       <div className="flex gap-2">
         <input
           type="text"
@@ -836,16 +1030,27 @@ function TagEditor({
           }}
           placeholder={placeholder}
         />
-        <button type="button" onClick={addValue} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-white transition hover:bg-white/10">
+        <button
+          type="button"
+          onClick={addValue}
+          className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-white transition hover:bg-white/10"
+        >
           {t("providerServiceDeployPage.tagAddButton")}
         </button>
       </div>
       <p className="mt-2 text-xs text-zinc-500">{hint}</p>
       <div className="mt-3 flex flex-wrap gap-2">
         {values.map((value) => (
-          <span key={value} className="inline-flex items-center gap-2 rounded-full border border-green-500/20 bg-green-500/10 px-3 py-1 text-xs text-green-200">
+          <span
+            key={value}
+            className="inline-flex items-center gap-2 rounded-full border border-green-500/20 bg-green-500/10 px-3 py-1 text-xs text-green-200"
+          >
             {value}
-            <button type="button" onClick={() => onChange(values.filter((item) => item !== value))} className="text-green-400 transition hover:text-white">
+            <button
+              type="button"
+              onClick={() => onChange(values.filter((item) => item !== value))}
+              className="text-green-400 transition hover:text-white"
+            >
               <X className="h-3.5 w-3.5" />
             </button>
           </span>
@@ -870,7 +1075,9 @@ function JsonEditor({
 }>) {
   return (
     <div>
-      <label className="mb-1.5 block text-sm font-medium text-zinc-200">{label}</label>
+      <label className="mb-1.5 block text-sm font-medium text-zinc-200">
+        {label}
+      </label>
       <textarea
         aria-label={label}
         className="h-48 w-full rounded-2xl border border-white/10 bg-black px-4 py-3 font-mono text-xs text-zinc-200 outline-none transition focus:border-green-500"
@@ -890,7 +1097,11 @@ function RoutingTargetsEditor({
   onChange: (next: RoutingTarget[]) => void;
 }>) {
   const { t } = useLanguage();
-  const updateTarget = (index: number, key: keyof RoutingTarget, value: string | number) => {
+  const updateTarget = (
+    index: number,
+    key: keyof RoutingTarget,
+    value: string | number
+  ) => {
     const next = targets.map((target, targetIndex) => {
       if (targetIndex !== index) {
         return target;
@@ -903,12 +1114,17 @@ function RoutingTargetsEditor({
   return (
     <div className="space-y-3">
       {targets.map((target, index) => (
-        <div key={target.id} className="grid gap-3 rounded-2xl border border-white/8 bg-black/60 p-4 md:grid-cols-[1.6fr_1fr_120px_44px]">
+        <div
+          key={target.id}
+          className="grid gap-3 rounded-2xl border border-white/8 bg-black/60 p-4 md:grid-cols-[1.6fr_1fr_120px_44px]"
+        >
           <input
             type="text"
             aria-label={t("providerServiceDeployPage.routingTargetUrlAria")}
             className="rounded-2xl border border-white/10 bg-black px-4 py-3 font-mono text-sm text-white outline-none transition focus:border-green-500"
-            placeholder={t("providerServiceDeployPage.routingTargetUrlPlaceholder")}
+            placeholder={t(
+              "providerServiceDeployPage.routingTargetUrlPlaceholder"
+            )}
             value={target.url}
             onChange={(event) => updateTarget(index, "url", event.target.value)}
           />
@@ -916,21 +1132,37 @@ function RoutingTargetsEditor({
             type="text"
             aria-label={t("providerServiceDeployPage.routingTargetRegionAria")}
             className="rounded-2xl border border-white/10 bg-black px-4 py-3 text-sm text-white outline-none transition focus:border-green-500"
-            placeholder={t("providerServiceDeployPage.routingTargetRegionPlaceholder")}
+            placeholder={t(
+              "providerServiceDeployPage.routingTargetRegionPlaceholder"
+            )}
             value={target.region}
-            onChange={(event) => updateTarget(index, "region", event.target.value)}
+            onChange={(event) =>
+              updateTarget(index, "region", event.target.value)
+            }
           />
           <input
             type="number"
             aria-label={t("providerServiceDeployPage.routingTargetWeightAria")}
             className="rounded-2xl border border-white/10 bg-black px-4 py-3 font-mono text-sm text-white outline-none transition focus:border-green-500"
             value={target.weight}
-            onChange={(event) => updateTarget(index, "weight", Number.parseInt(event.target.value, 10) || 0)}
+            onChange={(event) =>
+              updateTarget(
+                index,
+                "weight",
+                Number.parseInt(event.target.value, 10) || 0
+              )
+            }
           />
           <button
             type="button"
             aria-label={t("providerServiceDeployPage.routingTargetRemoveAria")}
-            onClick={() => onChange(targets.length === 1 ? [emptyRoutingTarget()] : targets.filter((_, targetIndex) => targetIndex !== index))}
+            onClick={() =>
+              onChange(
+                targets.length === 1
+                  ? [emptyRoutingTarget()]
+                  : targets.filter((_, targetIndex) => targetIndex !== index)
+              )
+            }
             className="flex items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-zinc-400 transition hover:bg-white/10 hover:text-white"
           >
             <X className="h-4 w-4" />
@@ -949,7 +1181,10 @@ function RoutingTargetsEditor({
   );
 }
 
-const normalizeParsedManifest = (current: ManifestDraft, raw: Record<string, unknown>): ManifestDraft => {
+const normalizeParsedManifest = (
+  current: ManifestDraft,
+  raw: Record<string, unknown>
+): ManifestDraft => {
   const next = structuredClone(current);
   applyIdentityOverrides(next, raw);
   applyModelUsageOverrides(next, raw);
@@ -1000,12 +1235,19 @@ export default function DeployManifestPage() {
     try {
       const parsed = JSON.parse(saved) as ManifestDraft;
       parsed.identity.status = DEFAULT_PROVIDER_SERVICE_DEPLOY_PRESET.status;
-      parsed.modelUsage.supportedLanguages = normalizeSupportedLanguages(parsed.modelUsage.supportedLanguages ?? []);
-      parsed.billing.priceModel = DEFAULT_PROVIDER_SERVICE_DEPLOY_PRESET.priceModel;
-      parsed.gatewayExtensions.healthCheck.method = DEFAULT_SERVICE_HEALTH_METHOD;
-      parsed.gatewayExtensions.healthCheck.intervalSec = DEFAULT_SERVICE_HEALTH_INTERVAL_SEC;
-      parsed.gatewayExtensions.healthCheck.successCodesText = DEFAULT_SERVICE_HEALTH_SUCCESS_CODES_TEXT;
-      parsed.gatewayExtensions.forwardingPolicy.requestIdHeader = DEFAULT_SERVICE_REQUEST_ID_HEADER;
+      parsed.modelUsage.supportedLanguages = normalizeSupportedLanguages(
+        parsed.modelUsage.supportedLanguages ?? []
+      );
+      parsed.billing.priceModel =
+        DEFAULT_PROVIDER_SERVICE_DEPLOY_PRESET.priceModel;
+      parsed.gatewayExtensions.healthCheck.method =
+        DEFAULT_SERVICE_HEALTH_METHOD;
+      parsed.gatewayExtensions.healthCheck.intervalSec =
+        DEFAULT_SERVICE_HEALTH_INTERVAL_SEC;
+      parsed.gatewayExtensions.healthCheck.successCodesText =
+        DEFAULT_SERVICE_HEALTH_SUCCESS_CODES_TEXT;
+      parsed.gatewayExtensions.forwardingPolicy.requestIdHeader =
+        DEFAULT_SERVICE_REQUEST_ID_HEADER;
       setDraft(parsed);
       setServiceIdTouched(Boolean(parsed.identity.serviceId.trim()));
       setServiceSlugTouched(Boolean(parsed.identity.serviceSlug.trim()));
@@ -1016,7 +1258,10 @@ export default function DeployManifestPage() {
     }
   };
 
-  const updateIdentity = <K extends keyof ManifestDraft["identity"]>(key: K, value: ManifestDraft["identity"][K]) => {
+  const updateIdentity = <K extends keyof ManifestDraft["identity"]>(
+    key: K,
+    value: ManifestDraft["identity"][K]
+  ) => {
     setDraft((current) => ({
       ...current,
       identity: {
@@ -1035,8 +1280,12 @@ export default function DeployManifestPage() {
         identity: {
           ...current.identity,
           serviceName: value,
-          serviceId: serviceIdTouched ? current.identity.serviceId : derivedServiceId,
-          serviceSlug: serviceSlugTouched ? current.identity.serviceSlug : derivedSlug,
+          serviceId: serviceIdTouched
+            ? current.identity.serviceId
+            : derivedServiceId,
+          serviceSlug: serviceSlugTouched
+            ? current.identity.serviceSlug
+            : derivedSlug,
         },
       };
     });
@@ -1065,7 +1314,10 @@ export default function DeployManifestPage() {
     }));
   };
 
-  const updateModelUsage = <K extends keyof ManifestDraft["modelUsage"]>(key: K, value: ManifestDraft["modelUsage"][K]) => {
+  const updateModelUsage = <K extends keyof ManifestDraft["modelUsage"]>(
+    key: K,
+    value: ManifestDraft["modelUsage"][K]
+  ) => {
     setDraft((current) => ({
       ...current,
       modelUsage: {
@@ -1075,7 +1327,10 @@ export default function DeployManifestPage() {
     }));
   };
 
-  const updateIoSchema = <K extends keyof ManifestDraft["ioSchema"]>(key: K, value: ManifestDraft["ioSchema"][K]) => {
+  const updateIoSchema = <K extends keyof ManifestDraft["ioSchema"]>(
+    key: K,
+    value: ManifestDraft["ioSchema"][K]
+  ) => {
     setDraft((current) => ({
       ...current,
       ioSchema: {
@@ -1085,7 +1340,10 @@ export default function DeployManifestPage() {
     }));
   };
 
-  const updateBilling = <K extends keyof ManifestDraft["billing"]>(key: K, value: ManifestDraft["billing"][K]) => {
+  const updateBilling = <K extends keyof ManifestDraft["billing"]>(
+    key: K,
+    value: ManifestDraft["billing"][K]
+  ) => {
     setDraft((current) => ({
       ...current,
       billing: {
@@ -1095,7 +1353,10 @@ export default function DeployManifestPage() {
     }));
   };
 
-  const updateRuntime = <K extends keyof ManifestDraft["runtime"]>(key: K, value: ManifestDraft["runtime"][K]) => {
+  const updateRuntime = <K extends keyof ManifestDraft["runtime"]>(
+    key: K,
+    value: ManifestDraft["runtime"][K]
+  ) => {
     setDraft((current) => ({
       ...current,
       runtime: {
@@ -1105,9 +1366,11 @@ export default function DeployManifestPage() {
     }));
   };
 
-  const updateHealthCheck = <K extends keyof ManifestDraft["gatewayExtensions"]["healthCheck"]>(
+  const updateHealthCheck = <
+    K extends keyof ManifestDraft["gatewayExtensions"]["healthCheck"]
+  >(
     key: K,
-    value: ManifestDraft["gatewayExtensions"]["healthCheck"][K],
+    value: ManifestDraft["gatewayExtensions"]["healthCheck"][K]
   ) => {
     setDraft((current) => ({
       ...current,
@@ -1133,10 +1396,22 @@ export default function DeployManifestPage() {
     }));
   };
 
-  const inputSchema = useMemo(() => parseJsonObject(draft.ioSchema.inputSchemaText), [draft.ioSchema.inputSchemaText]);
-  const outputSchema = useMemo(() => parseJsonObject(draft.ioSchema.outputSchemaText), [draft.ioSchema.outputSchemaText]);
-  const examples = useMemo(() => parseJsonArray(draft.modelUsage.examplesText), [draft.modelUsage.examplesText]);
-  const successCodes = useMemo(() => parseNumberList(draft.gatewayExtensions.healthCheck.successCodesText), [draft.gatewayExtensions.healthCheck.successCodesText]);
+  const inputSchema = useMemo(
+    () => parseJsonObject(draft.ioSchema.inputSchemaText),
+    [draft.ioSchema.inputSchemaText]
+  );
+  const outputSchema = useMemo(
+    () => parseJsonObject(draft.ioSchema.outputSchemaText),
+    [draft.ioSchema.outputSchemaText]
+  );
+  const examples = useMemo(
+    () => parseJsonArray(draft.modelUsage.examplesText),
+    [draft.modelUsage.examplesText]
+  );
+  const successCodes = useMemo(
+    () => parseNumberList(draft.gatewayExtensions.healthCheck.successCodesText),
+    [draft.gatewayExtensions.healthCheck.successCodesText]
+  );
   const fieldGuides = useMemo<Record<string, FieldGuideItem>>(
     () => ({
       serviceId: {
@@ -1150,20 +1425,28 @@ export default function DeployManifestPage() {
         title: t("providerServiceDeployPage.fieldGuideServiceNameTitle"),
         purpose: t("providerServiceDeployPage.fieldGuideServiceNamePurpose"),
         howToConfigure: t("providerServiceDeployPage.fieldGuideServiceNameHow"),
-        platformUse: t("providerServiceDeployPage.fieldGuideServiceNamePlatform"),
+        platformUse: t(
+          "providerServiceDeployPage.fieldGuideServiceNamePlatform"
+        ),
         example: t("providerServiceDeployPage.fieldGuideServiceNameExample"),
       },
       descriptionForModel: {
         title: t("providerServiceDeployPage.fieldGuideDescriptionTitle"),
         purpose: t("providerServiceDeployPage.fieldGuideDescriptionPurpose"),
         howToConfigure: t("providerServiceDeployPage.fieldGuideDescriptionHow"),
-        platformUse: t("providerServiceDeployPage.fieldGuideDescriptionPlatform"),
+        platformUse: t(
+          "providerServiceDeployPage.fieldGuideDescriptionPlatform"
+        ),
       },
       taskCategory: {
         title: t("providerServiceDeployPage.fieldGuideTaskCategoryTitle"),
         purpose: t("providerServiceDeployPage.fieldGuideTaskCategoryPurpose"),
-        howToConfigure: t("providerServiceDeployPage.fieldGuideTaskCategoryHow"),
-        platformUse: t("providerServiceDeployPage.fieldGuideTaskCategoryPlatform"),
+        howToConfigure: t(
+          "providerServiceDeployPage.fieldGuideTaskCategoryHow"
+        ),
+        platformUse: t(
+          "providerServiceDeployPage.fieldGuideTaskCategoryPlatform"
+        ),
       },
       runtime: {
         title: t("providerServiceDeployPage.fieldGuideRuntimeTitle"),
@@ -1180,8 +1463,12 @@ export default function DeployManifestPage() {
       routingTargets: {
         title: t("providerServiceDeployPage.fieldGuideRoutingTargetsTitle"),
         purpose: t("providerServiceDeployPage.fieldGuideRoutingTargetsPurpose"),
-        howToConfigure: t("providerServiceDeployPage.fieldGuideRoutingTargetsHow"),
-        platformUse: t("providerServiceDeployPage.fieldGuideRoutingTargetsPlatform"),
+        howToConfigure: t(
+          "providerServiceDeployPage.fieldGuideRoutingTargetsHow"
+        ),
+        platformUse: t(
+          "providerServiceDeployPage.fieldGuideRoutingTargetsPlatform"
+        ),
       },
       ioSchema: {
         title: t("providerServiceDeployPage.fieldGuideIoSchemaTitle"),
@@ -1190,11 +1477,13 @@ export default function DeployManifestPage() {
         platformUse: t("providerServiceDeployPage.fieldGuideIoSchemaPlatform"),
       },
     }),
-    [t],
+    [t]
   );
 
   const normalizedTargets = useMemo(() => {
-    const validTargets = draft.gatewayExtensions.routingTargets.filter((target) => isHttpUrl(target.url.trim()));
+    const validTargets = draft.gatewayExtensions.routingTargets.filter(
+      (target) => isHttpUrl(target.url.trim())
+    );
     if (validTargets.length > 0) {
       return validTargets.map((target, index) => ({
         url: target.url.trim(),
@@ -1215,33 +1504,65 @@ export default function DeployManifestPage() {
   }, [draft.gatewayExtensions.routingTargets, draft.runtime.endpointUrl]);
 
   const fieldErrors = useMemo(
-    () => validateDraft(draft, inputSchema.valid, outputSchema.valid, examples.valid, normalizedTargets, t),
-    [draft, inputSchema.valid, outputSchema.valid, examples.valid, normalizedTargets, t],
+    () =>
+      validateDraft(
+        draft,
+        inputSchema.valid,
+        outputSchema.valid,
+        examples.valid,
+        normalizedTargets,
+        t
+      ),
+    [
+      draft,
+      inputSchema.valid,
+      outputSchema.valid,
+      examples.valid,
+      normalizedTargets,
+      t,
+    ]
   );
 
   const standardManifest = useMemo(
-    () => buildProviderDeployStandardManifest({
+    () =>
+      buildProviderDeployStandardManifest({
+        draft,
+        inputSchema: inputSchema.value,
+        outputSchema: outputSchema.value,
+        examples: examples.value,
+        successCodes,
+        normalizedTargets,
+      }),
+    [
       draft,
-      inputSchema: inputSchema.value,
-      outputSchema: outputSchema.value,
-      examples: examples.value,
+      examples.value,
+      inputSchema.value,
+      outputSchema.value,
       successCodes,
       normalizedTargets,
-    }),
-    [draft, examples.value, inputSchema.value, outputSchema.value, successCodes, normalizedTargets],
+    ]
   );
 
   const gatewayPayloadPreview = useMemo(
-    () => buildProviderDeployGatewayPayloadPreview({
+    () =>
+      buildProviderDeployGatewayPayloadPreview({
+        draft,
+        address,
+        inputSchema: inputSchema.value,
+        outputSchema: outputSchema.value,
+        examples: examples.value,
+        successCodes,
+        normalizedTargets,
+      }),
+    [
       draft,
       address,
-      inputSchema: inputSchema.value,
-      outputSchema: outputSchema.value,
-      examples: examples.value,
-      successCodes,
       normalizedTargets,
-    }),
-    [draft, address, normalizedTargets, inputSchema.value, outputSchema.value, successCodes, examples.value],
+      inputSchema.value,
+      outputSchema.value,
+      successCodes,
+      examples.value,
+    ]
   );
 
   const aiCurlLooksValid = useMemo(() => isValidCurlCommand(aiCurl), [aiCurl]);
@@ -1317,7 +1638,12 @@ export default function DeployManifestPage() {
 
       if (!response.ok) {
         const raw = await response.text();
-        throw new Error(normalizeAuthApiError(raw || t("providerServiceDeployPage.parserFailed"), response.status));
+        throw new Error(
+          normalizeAuthApiError(
+            raw || t("providerServiceDeployPage.parserFailed"),
+            response.status
+          )
+        );
       }
 
       const payload = (await response.json()) as {
@@ -1330,10 +1656,13 @@ export default function DeployManifestPage() {
       };
 
       if (payload.status !== "success") {
-        throw new Error(payload.detail || t("providerServiceDeployPage.parserUnknownError"));
+        throw new Error(
+          payload.detail || t("providerServiceDeployPage.parserUnknownError")
+        );
       }
 
-      const parsed = payload.data ?? payload.parsed ?? payload.manifest ?? payload.result;
+      const parsed =
+        payload.data ?? payload.parsed ?? payload.manifest ?? payload.result;
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
         throw new Error(t("providerServiceDeployPage.parserInvalidResponse"));
       }
@@ -1341,8 +1670,8 @@ export default function DeployManifestPage() {
       setAIResponse(JSON.stringify(parsed, null, 2));
       toast.success(t("providerServiceDeployPage.parserGeneratedToast"));
     } catch (error) {
-      const message = error instanceof Error ? error.message : t("providerServiceDeployPage.parserFailed");
-      toast.error(message);
+      console.error("Provider service parser failed:", error);
+      toast.error(t("providerServiceDeployPage.parserFailed"));
     } finally {
       setIsAiGenerating(false);
     }
@@ -1382,8 +1711,8 @@ export default function DeployManifestPage() {
       toast.success(t("providerServiceDeployPage.submitSuccess"));
       router.replace("/provider/services");
     } catch (error) {
-      const message = error instanceof Error ? error.message : t("providerServiceDeployPage.submitFailed");
-      toast.error(message);
+      console.error("Provider service deploy failed:", error);
+      toast.error(t("providerServiceDeployPage.submitFailed"));
     } finally {
       setIsDeploying(false);
     }
@@ -1393,7 +1722,9 @@ export default function DeployManifestPage() {
   if (isDeploying) {
     deploymentLabel = t("providerServiceDeployPage.deploymentLabelCreating");
   } else if (isAiGenerating) {
-    deploymentLabel = t("providerServiceDeployPage.deploymentLabelWaitingForAssets");
+    deploymentLabel = t(
+      "providerServiceDeployPage.deploymentLabelWaitingForAssets"
+    );
   } else if (nextBlockingIssue) {
     deploymentLabel = t("providerServiceDeployPage.deploymentLabelFix");
   }
@@ -1415,7 +1746,10 @@ export default function DeployManifestPage() {
             <div className="rounded-[28px] border border-white/8 bg-[radial-gradient(circle_at_top_right,rgba(34,197,94,0.12),transparent_28%),linear-gradient(180deg,#0c0f14,#07090d)] p-7">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                  <Link href="/provider/services" className="inline-flex items-center gap-2 text-sm text-zinc-500 transition hover:text-green-300">
+                  <Link
+                    href="/provider/services"
+                    className="inline-flex items-center gap-2 text-sm text-zinc-500 transition hover:text-green-300"
+                  >
                     <ArrowLeft className="h-4 w-4" />
                     {t("providerServiceDeployPage.backToApiServices")}
                   </Link>
@@ -1424,8 +1758,12 @@ export default function DeployManifestPage() {
                       <Server className="h-6 w-6" />
                     </div>
                     <div>
-                      <p className="text-[11px] uppercase tracking-[0.28em] text-zinc-500">{t("providerServiceDeployPage.eyebrow")}</p>
-                      <h1 className="mt-1 text-3xl font-semibold tracking-tight text-white">{t("providerServiceDeployPage.title")}</h1>
+                      <p className="text-[11px] uppercase tracking-[0.28em] text-zinc-500">
+                        {t("providerServiceDeployPage.eyebrow")}
+                      </p>
+                      <h1 className="mt-1 text-3xl font-semibold tracking-tight text-white">
+                        {t("providerServiceDeployPage.title")}
+                      </h1>
                     </div>
                   </div>
                   <p className="mt-4 max-w-3xl text-sm leading-6 text-zinc-400">
@@ -1466,14 +1804,18 @@ export default function DeployManifestPage() {
               index="01"
               icon={<Server className="h-5 w-5" />}
               title={t("providerServiceDeployPage.sectionQuickPublishTitle")}
-              summary={t("providerServiceDeployPage.sectionQuickPublishSummary")}
+              summary={t(
+                "providerServiceDeployPage.sectionQuickPublishSummary"
+              )}
             >
               <div className="grid gap-4 md:grid-cols-2">
                 <TextField
                   label={t("providerServiceDeployPage.serviceNameLabel")}
                   value={draft.identity.serviceName}
                   onChange={updateServiceName}
-                  placeholder={t("providerServiceDeployPage.serviceNamePlaceholder")}
+                  placeholder={t(
+                    "providerServiceDeployPage.serviceNamePlaceholder"
+                  )}
                   error={fieldErrors.serviceName}
                   hint={t("providerServiceDeployPage.serviceNameHint")}
                   guide={fieldGuides.serviceName}
@@ -1481,7 +1823,9 @@ export default function DeployManifestPage() {
                 <div>
                   <div className="mb-1.5 flex items-center justify-between gap-3">
                     <label className="flex items-center gap-2 text-sm font-medium text-zinc-200">
-                      <span>{t("providerServiceDeployPage.serviceIdLabel")}</span>
+                      <span>
+                        {t("providerServiceDeployPage.serviceIdLabel")}
+                      </span>
                       <FieldGuideHint item={fieldGuides.serviceId} />
                     </label>
                     <button
@@ -1498,20 +1842,26 @@ export default function DeployManifestPage() {
                     className="w-full rounded-2xl border border-white/10 bg-black px-4 py-3 font-mono text-sm text-white outline-none transition focus:border-green-500"
                     value={draft.identity.serviceId}
                     onChange={(event) => updateServiceId(event.target.value)}
-                    placeholder={t("providerServiceDeployPage.serviceIdPlaceholder")}
+                    placeholder={t(
+                      "providerServiceDeployPage.serviceIdPlaceholder"
+                    )}
                   />
                   <FieldNote
                     error={fieldErrors.serviceId}
-                    hint={serviceIdTouched
-                      ? t("providerServiceDeployPage.serviceIdManualHint")
-                      : t("providerServiceDeployPage.serviceIdResyncHint")}
+                    hint={
+                      serviceIdTouched
+                        ? t("providerServiceDeployPage.serviceIdManualHint")
+                        : t("providerServiceDeployPage.serviceIdResyncHint")
+                    }
                   />
                 </div>
                 <TextField
                   label={t("providerServiceDeployPage.endpointLabel")}
                   value={draft.runtime.endpointUrl}
                   onChange={(value) => updateRuntime("endpointUrl", value)}
-                  placeholder={t("providerServiceDeployPage.endpointPlaceholder")}
+                  placeholder={t(
+                    "providerServiceDeployPage.endpointPlaceholder"
+                  )}
                   error={fieldErrors.endpointUrl}
                   hint={t("providerServiceDeployPage.endpointHint")}
                   guide={fieldGuides.runtime}
@@ -1532,8 +1882,12 @@ export default function DeployManifestPage() {
               <TextField
                 label={t("providerServiceDeployPage.descriptionLabel")}
                 value={draft.modelUsage.descriptionForModel}
-                onChange={(value) => updateModelUsage("descriptionForModel", value)}
-                placeholder={t("providerServiceDeployPage.descriptionPlaceholder")}
+                onChange={(value) =>
+                  updateModelUsage("descriptionForModel", value)
+                }
+                placeholder={t(
+                  "providerServiceDeployPage.descriptionPlaceholder"
+                )}
                 error={fieldErrors.descriptionForModel}
                 hint={t("providerServiceDeployPage.descriptionHint")}
                 guide={fieldGuides.descriptionForModel}
@@ -1550,7 +1904,9 @@ export default function DeployManifestPage() {
                 <JsonEditor
                   label={t("providerServiceDeployPage.outputSchemaLabel")}
                   value={draft.ioSchema.outputSchemaText}
-                  onChange={(value) => updateIoSchema("outputSchemaText", value)}
+                  onChange={(value) =>
+                    updateIoSchema("outputSchemaText", value)
+                  }
                   error={fieldErrors.outputSchema}
                   hint={t("providerServiceDeployPage.outputSchemaHint")}
                 />
@@ -1567,25 +1923,44 @@ export default function DeployManifestPage() {
                   <TextField
                     label={t("providerServiceDeployPage.taskCategoryLabel")}
                     value={draft.modelUsage.taskCategory}
-                    onChange={(value) => updateModelUsage("taskCategory", value)}
-                    placeholder={t("providerServiceDeployPage.taskCategoryPlaceholder")}
+                    onChange={(value) =>
+                      updateModelUsage("taskCategory", value)
+                    }
+                    placeholder={t(
+                      "providerServiceDeployPage.taskCategoryPlaceholder"
+                    )}
                     hint={t("providerServiceDeployPage.taskCategoryHint")}
                     guide={fieldGuides.taskCategory}
                     mono
                   />
                   <div>
-                    <label htmlFor="supported-languages" className="mb-1.5 block text-sm font-medium text-zinc-200">{t("providerServiceDeployPage.supportedLanguagesLabel")}</label>
+                    <label
+                      htmlFor="supported-languages"
+                      className="mb-1.5 block text-sm font-medium text-zinc-200"
+                    >
+                      {t("providerServiceDeployPage.supportedLanguagesLabel")}
+                    </label>
                     <XSelect
                       id="supported-languages"
-                      value={normalizeSupportedLanguages(draft.modelUsage.supportedLanguages)[0]}
-                      onChange={(next) => updateModelUsage("supportedLanguages", [next])}
+                      value={
+                        normalizeSupportedLanguages(
+                          draft.modelUsage.supportedLanguages
+                        )[0]
+                      }
+                      onChange={(next) =>
+                        updateModelUsage("supportedLanguages", [next])
+                      }
                       options={[
                         { value: "en", label: t("language.en") },
                         { value: "cn", label: t("language.zh") },
                       ]}
                       triggerClassName="inline-flex min-h-[50px] w-full items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black px-4 py-3 text-sm text-white transition focus:border-green-500"
                     />
-                    <FieldNote hint={t("providerServiceDeployPage.supportedLanguagesHint")} />
+                    <FieldNote
+                      hint={t(
+                        "providerServiceDeployPage.supportedLanguagesHint"
+                      )}
+                    />
                   </div>
                 </div>
                 <div className="mt-4 grid gap-5 xl:grid-cols-2">
@@ -1593,14 +1968,18 @@ export default function DeployManifestPage() {
                     label={t("providerServiceDeployPage.capabilitiesLabel")}
                     values={draft.modelUsage.capabilities}
                     onChange={(next) => updateModelUsage("capabilities", next)}
-                    placeholder={t("providerServiceDeployPage.capabilitiesPlaceholder")}
+                    placeholder={t(
+                      "providerServiceDeployPage.capabilitiesPlaceholder"
+                    )}
                     hint={t("providerServiceDeployPage.capabilitiesHint")}
                   />
                   <TagEditor
                     label={t("providerServiceDeployPage.limitationsLabel")}
                     values={draft.modelUsage.limitations}
                     onChange={(next) => updateModelUsage("limitations", next)}
-                    placeholder={t("providerServiceDeployPage.limitationsPlaceholder")}
+                    placeholder={t(
+                      "providerServiceDeployPage.limitationsPlaceholder"
+                    )}
                     hint={t("providerServiceDeployPage.limitationsHint")}
                   />
                 </div>
@@ -1608,7 +1987,9 @@ export default function DeployManifestPage() {
                   <JsonEditor
                     label={t("providerServiceDeployPage.examplesLabel")}
                     value={draft.modelUsage.examplesText}
-                    onChange={(value) => updateModelUsage("examplesText", value)}
+                    onChange={(value) =>
+                      updateModelUsage("examplesText", value)
+                    }
                     error={fieldErrors.examples}
                     hint={t("providerServiceDeployPage.examplesHint")}
                   />
@@ -1619,8 +2000,12 @@ export default function DeployManifestPage() {
             <section className="rounded-3xl border border-white/8 bg-[#0b0d12] p-6 shadow-[0_20px_60px_rgba(0,0,0,0.28)]">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                  <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">{t("providerServiceDeployPage.advancedEyebrow")}</p>
-                  <h2 className="mt-2 text-lg font-semibold text-white">{t("providerServiceDeployPage.advancedTitle")}</h2>
+                  <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">
+                    {t("providerServiceDeployPage.advancedEyebrow")}
+                  </p>
+                  <h2 className="mt-2 text-lg font-semibold text-white">
+                    {t("providerServiceDeployPage.advancedTitle")}
+                  </h2>
                   <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-500">
                     {t("providerServiceDeployPage.advancedDescription")}
                   </p>
@@ -1630,7 +2015,9 @@ export default function DeployManifestPage() {
                   onClick={() => setShowAdvanced((current) => !current)}
                   className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-white transition hover:bg-white/10"
                 >
-                  {showAdvanced ? t("providerServiceDeployPage.advancedHide") : t("providerServiceDeployPage.advancedShow")}
+                  {showAdvanced
+                    ? t("providerServiceDeployPage.advancedHide")
+                    : t("providerServiceDeployPage.advancedShow")}
                 </button>
               </div>
 
@@ -1640,8 +2027,12 @@ export default function DeployManifestPage() {
                     <TextField
                       label={t("providerServiceDeployPage.versionLabel")}
                       value={draft.identity.manifestVersion}
-                      onChange={(value) => updateIdentity("manifestVersion", value)}
-                      placeholder={t("providerServiceDeployPage.versionPlaceholder")}
+                      onChange={(value) =>
+                        updateIdentity("manifestVersion", value)
+                      }
+                      placeholder={t(
+                        "providerServiceDeployPage.versionPlaceholder"
+                      )}
                       error={fieldErrors.manifestVersion}
                       hint={t("providerServiceDeployPage.versionHint")}
                       mono
@@ -1650,18 +2041,32 @@ export default function DeployManifestPage() {
                       label={t("providerServiceDeployPage.slugLabel")}
                       value={draft.identity.serviceSlug}
                       onChange={updateServiceSlug}
-                      placeholder={t("providerServiceDeployPage.slugPlaceholder")}
-                      hint={serviceSlugTouched
-                        ? t("providerServiceDeployPage.slugHintManual")
-                        : t("providerServiceDeployPage.slugHintAuto")}
+                      placeholder={t(
+                        "providerServiceDeployPage.slugPlaceholder"
+                      )}
+                      hint={
+                        serviceSlugTouched
+                          ? t("providerServiceDeployPage.slugHintManual")
+                          : t("providerServiceDeployPage.slugHintAuto")
+                      }
                       mono
                     />
                     <TextField
-                      label={t("providerServiceDeployPage.settlementCurrencyLabel")}
+                      label={t(
+                        "providerServiceDeployPage.settlementCurrencyLabel"
+                      )}
                       value={draft.billing.settlementCurrency}
-                      onChange={(value) => updateBilling("settlementCurrency", value.toUpperCase())}
-                      placeholder={t("providerServiceDeployPage.settlementCurrencyPlaceholder", undefined, DEFAULT_SERVICE_SETTLEMENT_CURRENCY)}
-                      hint={t("providerServiceDeployPage.settlementCurrencyHint")}
+                      onChange={(value) =>
+                        updateBilling("settlementCurrency", value.toUpperCase())
+                      }
+                      placeholder={t(
+                        "providerServiceDeployPage.settlementCurrencyPlaceholder",
+                        undefined,
+                        DEFAULT_SERVICE_SETTLEMENT_CURRENCY
+                      )}
+                      hint={t(
+                        "providerServiceDeployPage.settlementCurrencyHint"
+                      )}
                       mono
                     />
                   </div>
@@ -1671,7 +2076,11 @@ export default function DeployManifestPage() {
                       label={t("providerServiceDeployPage.authModeLabel")}
                       value={draft.runtime.authMode}
                       onChange={(value) => updateRuntime("authMode", value)}
-                      placeholder={t("providerServiceDeployPage.authModePlaceholder", undefined, DEFAULT_SERVICE_AUTH_MODE)}
+                      placeholder={t(
+                        "providerServiceDeployPage.authModePlaceholder",
+                        undefined,
+                        DEFAULT_SERVICE_AUTH_MODE
+                      )}
                       hint={t("providerServiceDeployPage.authModeHint")}
                       mono
                     />
@@ -1699,9 +2108,13 @@ export default function DeployManifestPage() {
 
                   <div className="grid gap-4 md:grid-cols-2">
                     <NumberField
-                      label={t("providerServiceDeployPage.maxRequestBytesLabel")}
+                      label={t(
+                        "providerServiceDeployPage.maxRequestBytesLabel"
+                      )}
                       value={draft.runtime.maxRequestBytes}
-                      onChange={(value) => updateRuntime("maxRequestBytes", value)}
+                      onChange={(value) =>
+                        updateRuntime("maxRequestBytes", value)
+                      }
                       error={fieldErrors.maxRequestBytes}
                       hint={t("providerServiceDeployPage.maxRequestBytesHint", {
                         min: SERVICE_CONSTRAINT_LIMITS.maxRequestBytes.min,
@@ -1709,14 +2122,21 @@ export default function DeployManifestPage() {
                       })}
                     />
                     <NumberField
-                      label={t("providerServiceDeployPage.maxResponseBytesLabel")}
+                      label={t(
+                        "providerServiceDeployPage.maxResponseBytesLabel"
+                      )}
                       value={draft.runtime.maxResponseBytes}
-                      onChange={(value) => updateRuntime("maxResponseBytes", value)}
+                      onChange={(value) =>
+                        updateRuntime("maxResponseBytes", value)
+                      }
                       error={fieldErrors.maxResponseBytes}
-                      hint={t("providerServiceDeployPage.maxResponseBytesHint", {
-                        min: SERVICE_CONSTRAINT_LIMITS.maxResponseBytes.min,
-                        max: SERVICE_CONSTRAINT_LIMITS.maxResponseBytes.max,
-                      })}
+                      hint={t(
+                        "providerServiceDeployPage.maxResponseBytesHint",
+                        {
+                          min: SERVICE_CONSTRAINT_LIMITS.maxResponseBytes.min,
+                          max: SERVICE_CONSTRAINT_LIMITS.maxResponseBytes.max,
+                        }
+                      )}
                     />
                   </div>
 
@@ -1725,21 +2145,27 @@ export default function DeployManifestPage() {
                       label={t("providerServiceDeployPage.healthPathLabel")}
                       value={draft.gatewayExtensions.healthCheck.path}
                       onChange={(value) => updateHealthCheck("path", value)}
-                      placeholder={t("providerServiceDeployPage.healthPathPlaceholder")}
+                      placeholder={t(
+                        "providerServiceDeployPage.healthPathPlaceholder"
+                      )}
                       error={fieldErrors.healthPath}
                       hint={t("providerServiceDeployPage.healthPathHint")}
                     />
                     <NumberField
                       label={t("providerServiceDeployPage.healthTimeoutLabel")}
                       value={draft.gatewayExtensions.healthCheck.timeoutMs}
-                      onChange={(value) => updateHealthCheck("timeoutMs", value)}
+                      onChange={(value) =>
+                        updateHealthCheck("timeoutMs", value)
+                      }
                       hint={t("providerServiceDeployPage.healthTimeoutHint")}
                     />
                   </div>
 
                   <div className="rounded-2xl border border-white/8 bg-black/45 p-4">
                     <label className="mb-1.5 flex items-center gap-2 text-sm font-medium text-zinc-200">
-                      <span>{t("providerServiceDeployPage.routingTargetsLabel")}</span>
+                      <span>
+                        {t("providerServiceDeployPage.routingTargetsLabel")}
+                      </span>
                       <FieldGuideHint item={fieldGuides.routingTargets} />
                     </label>
                     <RoutingTargetsEditor
@@ -1754,21 +2180,31 @@ export default function DeployManifestPage() {
                         }))
                       }
                     />
-                    <FieldNote error={fieldErrors.routingTargets} hint={t("providerServiceDeployPage.routingTargetsHint")} />
+                    <FieldNote
+                      error={fieldErrors.routingTargets}
+                      hint={t("providerServiceDeployPage.routingTargetsHint")}
+                    />
                   </div>
 
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="rounded-2xl border border-white/8 bg-black/60 p-4 text-sm text-zinc-400">
-                      <p className="font-medium text-white">{t("providerServiceDeployPage.defaultsCardTitle")}</p>
+                      <p className="font-medium text-white">
+                        {t("providerServiceDeployPage.defaultsCardTitle")}
+                      </p>
                       <p className="mt-2 leading-6">
-                        {t("providerServiceDeployPage.defaultsCardDescription", {
-                          method: DEFAULT_SERVICE_HEALTH_METHOD,
-                          codes: DEFAULT_SERVICE_HEALTH_SUCCESS_CODES_TEXT,
-                        })}
+                        {t(
+                          "providerServiceDeployPage.defaultsCardDescription",
+                          {
+                            method: DEFAULT_SERVICE_HEALTH_METHOD,
+                            codes: DEFAULT_SERVICE_HEALTH_SUCCESS_CODES_TEXT,
+                          }
+                        )}
                       </p>
                     </div>
                     <div className="rounded-2xl border border-white/8 bg-black/60 p-4 text-sm text-zinc-400">
-                      <p className="font-medium text-white">{t("providerServiceDeployPage.meteringCardTitle")}</p>
+                      <p className="font-medium text-white">
+                        {t("providerServiceDeployPage.meteringCardTitle")}
+                      </p>
                       <p className="mt-2 leading-6">
                         {t("providerServiceDeployPage.meteringCardDescription")}
                       </p>
@@ -1781,16 +2217,29 @@ export default function DeployManifestPage() {
             <section className="rounded-3xl border border-white/8 bg-[#0b0d12] p-6 shadow-[0_20px_60px_rgba(0,0,0,0.28)]">
               <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <div>
-                  <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">{t("providerServiceDeployPage.deployEyebrow")}</p>
-                  <h2 className="mt-2 text-lg font-semibold text-white">{t("providerServiceDeployPage.deployTitle")}</h2>
-                  <p className={`mt-2 text-sm ${deploymentBlockingText ? "text-amber-300" : "text-zinc-500"}`}>
-                    {deploymentBlockingText || t("providerServiceDeployPage.deploymentReadyText")}
+                  <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">
+                    {t("providerServiceDeployPage.deployEyebrow")}
+                  </p>
+                  <h2 className="mt-2 text-lg font-semibold text-white">
+                    {t("providerServiceDeployPage.deployTitle")}
+                  </h2>
+                  <p
+                    className={`mt-2 text-sm ${
+                      deploymentBlockingText
+                        ? "text-amber-300"
+                        : "text-zinc-500"
+                    }`}
+                  >
+                    {deploymentBlockingText ||
+                      t("providerServiceDeployPage.deploymentReadyText")}
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={submitDeploy}
-                  disabled={isDeploying || isAiGenerating || Boolean(nextBlockingIssue)}
+                  disabled={
+                    isDeploying || isAiGenerating || Boolean(nextBlockingIssue)
+                  }
                   className="inline-flex min-w-[280px] items-center justify-center rounded-2xl bg-green-500 px-5 py-4 text-sm font-semibold text-black transition hover:bg-green-400 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {deploymentLabel}
@@ -1816,16 +2265,29 @@ export default function DeployManifestPage() {
                 <div className="x-modal-flat x-modal-surface relative z-10 flex max-h-[92vh] max-w-6xl flex-col border border-green-900/40 shadow-[0_0_50px_rgba(34,197,94,0.12)]">
                   <div className="x-modal-header border-b border-white/8">
                     <div className="x-modal-header-copy">
-                      <h3 className="text-xl font-semibold text-white">{t("providerServiceDeployPage.parserTitle")}</h3>
-                      <p className="mt-1 text-sm text-zinc-500">{t("providerServiceDeployPage.parserDescription")}</p>
+                      <h3 className="text-xl font-semibold text-white">
+                        {t("providerServiceDeployPage.parserTitle")}
+                      </h3>
+                      <p className="mt-1 text-sm text-zinc-500">
+                        {t("providerServiceDeployPage.parserDescription")}
+                      </p>
                     </div>
-                    <button type="button" onClick={closeParser} className="x-modal-close">
+                    <button
+                      type="button"
+                      onClick={closeParser}
+                      className="x-modal-close"
+                    >
                       <X className="h-5 w-5" />
                     </button>
                   </div>
                   <div className="x-modal-body grid gap-5 overflow-y-auto xl:grid-cols-2">
                     <div>
-                      <label htmlFor="ai-curl-command" className="mb-1.5 block text-sm font-medium text-zinc-200">{t("providerServiceDeployPage.parserCurlLabel")}</label>
+                      <label
+                        htmlFor="ai-curl-command"
+                        className="mb-1.5 block text-sm font-medium text-zinc-200"
+                      >
+                        {t("providerServiceDeployPage.parserCurlLabel")}
+                      </label>
                       <textarea
                         id="ai-curl-command"
                         className="h-[420px] w-full rounded-2xl border border-white/10 bg-black px-4 py-3 font-mono text-xs text-green-300 outline-none transition focus:border-green-500"
@@ -1834,21 +2296,40 @@ export default function DeployManifestPage() {
                         placeholder={DEFAULT_AI_PARSER_SAMPLE}
                       />
                       {aiCurl.trim() && !aiCurlLooksValid ? (
-                        <p className="mt-2 text-xs text-amber-300">{t("providerServiceDeployPage.parserCurlInvalid")}</p>
+                        <p className="mt-2 text-xs text-amber-300">
+                          {t("providerServiceDeployPage.parserCurlInvalid")}
+                        </p>
                       ) : (
-                        <p className="mt-2 text-xs text-zinc-500">{t("providerServiceDeployPage.parserCurlHint")}</p>
+                        <p className="mt-2 text-xs text-zinc-500">
+                          {t("providerServiceDeployPage.parserCurlHint")}
+                        </p>
                       )}
                     </div>
                     <div>
-                      <label htmlFor="ai-response-json" className="mb-1.5 block text-sm font-medium text-zinc-200">{t("providerServiceDeployPage.parserJsonLabel")}</label>
+                      <label
+                        htmlFor="ai-response-json"
+                        className="mb-1.5 block text-sm font-medium text-zinc-200"
+                      >
+                        {t("providerServiceDeployPage.parserJsonLabel")}
+                      </label>
                       <textarea
                         id="ai-response-json"
                         className="h-[420px] w-full rounded-2xl border border-white/10 bg-[#06080c] px-4 py-3 font-mono text-xs text-blue-300 outline-none transition focus:border-green-500"
                         value={aiResponse}
                         onChange={(event) => setAIResponse(event.target.value)}
-                        placeholder={t("providerServiceDeployPage.parserJsonPlaceholder")}
+                        placeholder={t(
+                          "providerServiceDeployPage.parserJsonPlaceholder"
+                        )}
                       />
-                      {aiResponse.trim() && !parsedAiResponse ? <p className="mt-2 text-xs text-amber-300">{t("providerServiceDeployPage.parserJsonInvalid")}</p> : <p className="mt-2 text-xs text-zinc-500">{t("providerServiceDeployPage.parserJsonHint")}</p>}
+                      {aiResponse.trim() && !parsedAiResponse ? (
+                        <p className="mt-2 text-xs text-amber-300">
+                          {t("providerServiceDeployPage.parserJsonInvalid")}
+                        </p>
+                      ) : (
+                        <p className="mt-2 text-xs text-zinc-500">
+                          {t("providerServiceDeployPage.parserJsonHint")}
+                        </p>
+                      )}
                     </div>
                   </div>
                   <div className="x-modal-footer border-t border-white/8">
@@ -1858,7 +2339,9 @@ export default function DeployManifestPage() {
                       disabled={isAiGenerating || !aiCurlLooksValid}
                       className="rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-medium text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      {isAiGenerating ? t("providerServiceDeployPage.parserGenerating") : t("providerServiceDeployPage.parserGenerate")}
+                      {isAiGenerating
+                        ? t("providerServiceDeployPage.parserGenerating")
+                        : t("providerServiceDeployPage.parserGenerate")}
                     </button>
                     <button
                       type="button"

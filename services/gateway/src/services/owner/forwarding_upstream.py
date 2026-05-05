@@ -430,7 +430,10 @@ async def call_upstream(
         error_code = "UPSTREAM_ERROR"
         raise HTTPException(
             status_code=502,
-            detail={"code": error_code, "message": f"Upstream provider failed: {exc}"},
+            detail={
+                "code": error_code,
+                "message": "Provider service is temporarily unavailable.",
+            },
         ) from exc
     finally:
         latency_ms = int((time.perf_counter() - started) * 1000)
