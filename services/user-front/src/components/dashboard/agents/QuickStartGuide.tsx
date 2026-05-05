@@ -189,10 +189,8 @@ export default function QuickStartGuide({
 
       toast.success(t("agentsPage.quickStartDepositInitiated"));
     } catch (err) {
-      const message =
-        err instanceof Error
-          ? err.message
-          : t("agentsPage.quickStartDepositFailed");
+      console.error("Quick start deposit failed:", err);
+      const message = t("agentsPage.quickStartDepositFailed");
       setDepositError(message);
       setDepositStep("input");
       toast.error(message);

@@ -101,11 +101,10 @@ function CredentialsContent() {
       );
       setCredentials(credentialRows);
     } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : t("agentCredentialsPage.loadFailed");
-      if (message === WALLET_SESSION_MISSING_MESSAGE) {
+      if (
+        error instanceof Error &&
+        error.message === WALLET_SESSION_MISSING_MESSAGE
+      ) {
         clearAuthSession();
         setServices([]);
         setCredentials([]);
@@ -113,7 +112,7 @@ function CredentialsContent() {
       }
       throw error;
     }
-  }, [t, userAddress, isSessionAuthenticated]);
+  }, [userAddress, isSessionAuthenticated]);
 
   useEffect(() => {
     void loadAll();

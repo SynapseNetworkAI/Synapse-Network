@@ -10,6 +10,7 @@ import OwnerCreditsPage, {
 } from "@/components/dashboard-workspace/OwnerCreditsPage";
 import { LanguageProvider } from "@/components/i18n/LanguageProvider";
 import { I18N_STORAGE_KEY } from "@/i18n/config";
+import { ConsumerWithdrawApiError } from "@/utils/balanceApi";
 
 const {
   authorizeMock,
@@ -351,9 +352,112 @@ describe("OwnerCreditsPage — Withdraw", () => {
     await user.click(withdrawButtons.at(-1)!);
 
     await waitFor(() => {
-      expect(toastErrorMock).toHaveBeenCalledWith("Insufficient balance");
+      expect(toastErrorMock).toHaveBeenCalledWith(
+        "Unable to prepare the withdrawal right now. Please retry in a moment."
+      );
     });
   });
+
+  const consumerWithdrawErrorCases = [
+    {
+      code: "CHAIN_RPC_UNAVAILABLE",
+      en: "Gateway cannot reach the chain RPC right now. In local development, make sure the local chain is running, then retry.",
+      zh: "Gateway 当前无法连接链 RPC。本地开发时请确认本地链已启动，然后重试。",
+    },
+    {
+      code: "WITHDRAW_CONTRACT_NOT_CONFIGURED",
+      en: "Withdrawal contract is not configured for this environment.",
+      zh: "当前环境尚未配置提现合约。",
+    },
+    {
+      code: "MIN_WITHDRAWAL_AMOUNT_NOT_MET",
+      en: "Minimum consumer withdrawal amount is 10.00 USDC.",
+      zh: "Consumer 最小提现金额为 10.00 USDC。",
+    },
+    {
+      code: "AMOUNT_TOO_LOW_FOR_FEE",
+      en: "Withdrawal amount must be greater than the platform fee.",
+      zh: "提现金额必须大于平台手续费。",
+    },
+    {
+      code: "INSUFFICIENT_CONSUMER_BALANCE",
+      en: "Spendable credits are insufficient for this withdrawal.",
+      zh: "可用 credits 不足，无法发起本次提现。",
+    },
+    {
+      code: "INSUFFICIENT_MATURE_CONSUMER_BALANCE",
+      en: "These funds are not mature yet. Consumer withdrawals require the T+1 matured funds window.",
+      zh: "这笔资金尚未成熟。Consumer 提现需要经过 T+1 资金成熟期。",
+    },
+    {
+      code: "UNKNOWN_RAW_BACKEND_ERROR",
+      en: "Unable to prepare the withdrawal right now. Please retry in a moment.",
+      zh: "暂时无法准备提现，请稍后重试。",
+    },
+  ];
+
+  it.each(consumerWithdrawErrorCases)(
+    "maps consumer withdrawal error code $code to English copy",
+    async ({ code, en }) => {
+      const user = userEvent.setup();
+      requestConsumerWithdrawMock.mockRejectedValue(
+        new ConsumerWithdrawApiError(
+          "503: {'code': 'CHAIN_RPC_UNAVAILABLE', 'message': 'HTTPException'}",
+          code,
+          503
+        )
+      );
+
+      renderWithdrawModal();
+
+      const withdrawButtons = screen.getAllByRole("button", {
+        name: /^withdraw$/i,
+      });
+      await user.click(withdrawButtons.at(-1)!);
+
+      await waitFor(() => {
+        expect(toastErrorMock).toHaveBeenCalledWith(en);
+      });
+      expect(toastErrorMock).not.toHaveBeenCalledWith(
+        expect.stringContaining("503:")
+      );
+      expect(toastErrorMock).not.toHaveBeenCalledWith(
+        expect.stringContaining("HTTPException")
+      );
+    }
+  );
+
+  it.each(consumerWithdrawErrorCases)(
+    "maps consumer withdrawal error code $code to Chinese copy",
+    async ({ code, zh }) => {
+      const user = userEvent.setup();
+      globalThis.localStorage.setItem(I18N_STORAGE_KEY, "zh");
+      requestConsumerWithdrawMock.mockRejectedValue(
+        new ConsumerWithdrawApiError(
+          "503: {'code': 'CHAIN_RPC_UNAVAILABLE', 'message': 'HTTPException'}",
+          code,
+          503
+        )
+      );
+
+      renderWithdrawModal();
+
+      const withdrawButtons = screen.getAllByRole("button", {
+        name: "提现",
+      });
+      await user.click(withdrawButtons.at(-1)!);
+
+      await waitFor(() => {
+        expect(toastErrorMock).toHaveBeenCalledWith(zh);
+      });
+      expect(toastErrorMock).not.toHaveBeenCalledWith(
+        expect.stringContaining("503:")
+      );
+      expect(toastErrorMock).not.toHaveBeenCalledWith(
+        expect.stringContaining("HTTPException")
+      );
+    }
+  );
 
   it("does not call requestConsumerWithdraw when amount is zero", async () => {
     const user = userEvent.setup();

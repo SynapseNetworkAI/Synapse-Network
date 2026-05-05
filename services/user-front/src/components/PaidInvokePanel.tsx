@@ -121,8 +121,8 @@ function usePaidInvokeAction({
       });
       toast.success(copy.completed);
     } catch (error) {
-      const message = error instanceof Error ? error.message : copy.failed;
-      toast.error(message);
+      console.error("Paid invoke failed:", error);
+      toast.error(copy.failed);
     } finally {
       setIsInvoking(false);
     }

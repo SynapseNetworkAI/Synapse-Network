@@ -130,11 +130,14 @@ Working directory: `services/user-front/`
 
 1. `yarn dev` for active iteration on `http://localhost:3000`
 2. `npm run ci:user-front-i18n` from repository root for static user-facing copy drift detection
-3. `npm run ci:user-front-i18n-dom` from repository root for focused `en`/`zh` DOM regression on Credits, Withdraw, Credentials, QuickStart, Paid Invoke, RolePathCards, and Feedback surfaces
-4. `cd services/user-front && yarn test` for the full Vitest suite
-5. `USER_FRONT_BASE_URL=http://localhost:3000 node scripts/ui/verify_user_front_i18n.mjs` from repository root after starting user-front to verify real route DOM language switching and capture screenshots
-6. `USER_FRONT_BASE_URL=http://localhost:3000 node scripts/ui/verify_user_front_pages.mjs` from repository root for general browser route/navigation verification
-7. `npm run ci:frontend` from repository root when repo-standard frontend gating is needed
+3. `npm run ci:user-front-user-errors` from repository root to block raw backend/RPC/wallet error messages from high-risk user-facing toasts
+4. `npm run ci:user-front-error-dom` from repository root for focused DOM regression on localized, user-readable error toasts for Credits withdraw, Provider withdraw, provider services and health, service deploy, paid invoke, spend cap, and credential actions
+5. `npm run ci:user-front-i18n-dom` from repository root for focused `en`/`zh` DOM regression on Credits, Withdraw, Credentials, QuickStart, Paid Invoke, RolePathCards, and Feedback surfaces
+6. `cd services/user-front && yarn test` for the full Vitest suite
+7. `USER_FRONT_BASE_URL=http://localhost:3000 npm run ci:user-front-error-browser` from repository root after starting user-front to verify EN/ZH error toast DOM text and capture screenshots under `output/playwright/user-front-error-toasts/`
+8. `USER_FRONT_BASE_URL=http://localhost:3000 node scripts/ui/verify_user_front_i18n.mjs` from repository root after starting user-front to verify real route DOM language switching and capture screenshots
+9. `USER_FRONT_BASE_URL=http://localhost:3000 node scripts/ui/verify_user_front_pages.mjs` from repository root for general browser route/navigation verification
+10. `npm run ci:frontend` from repository root when repo-standard frontend gating is needed
 
 ### 3.2 services/docs-front
 

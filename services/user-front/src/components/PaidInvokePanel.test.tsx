@@ -119,4 +119,31 @@ describe("PaidInvokePanel i18n", () => {
     expect(screen.getByText("交易哈希")).toBeTruthy();
     expect(screen.getByText("重试次数")).toBeTruthy();
   });
+
+  it("shows localized fallback when paid invoke returns raw provider errors", async () => {
+    const user = userEvent.setup();
+    invokePaidServiceMock.mockRejectedValue(
+      new Error(
+        "502: {'code': 'UPSTREAM_ERROR', 'message': 'Provider upstream failed'}"
+      )
+    );
+    renderWithLanguage(
+      createElement(PaidInvokePanel, {
+        providerAddress: "0x0000000000000000000000000000000000000001",
+        endpoint: "http://127.0.0.1:9000/invoke",
+        serviceId: "svc-test",
+        pricing: "0.01",
+      }),
+      "zh"
+    );
+
+    await user.click(screen.getByRole("button", { name: "支付并调用" }));
+
+    await waitFor(() => {
+      expect(toastErrorMock).toHaveBeenCalledWith("调用失败");
+    });
+    expect(toastErrorMock).not.toHaveBeenCalledWith(
+      expect.stringContaining("Provider upstream failed")
+    );
+  });
 });

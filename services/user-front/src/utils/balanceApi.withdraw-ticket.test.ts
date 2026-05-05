@@ -10,6 +10,7 @@ vi.mock("@/utils/gatewayApi", () => ({
 }));
 
 import {
+  ConsumerWithdrawApiError,
   getV2Balance,
   listConsumerWithdrawals,
   requestConsumerWithdraw,
@@ -92,6 +93,32 @@ describe("consumer withdrawal ticket normalization", () => {
       await expect(
         requestConsumerWithdraw("0xabc", { amountUsdc: "99" })
       ).rejects.toThrow("no spendable credits");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("preserves structured consumer withdrawal error codes", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () =>
+      new Response(
+        JSON.stringify({
+          detail: {
+            code: "CHAIN_RPC_UNAVAILABLE",
+            message: "Unable to reach chain RPC for withdrawal ticket signing.",
+          },
+        }),
+        { status: 503 }
+      );
+
+    try {
+      await expect(
+        requestConsumerWithdraw("0xabc", { amountUsdc: "99" })
+      ).rejects.toMatchObject({
+        name: "ConsumerWithdrawApiError",
+        code: "CHAIN_RPC_UNAVAILABLE",
+        status: 503,
+      } satisfies Partial<ConsumerWithdrawApiError>);
     } finally {
       globalThis.fetch = originalFetch;
     }

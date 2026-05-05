@@ -1,21 +1,27 @@
 import type { I18nMessages } from "@/i18n/schema";
 
 const servicesPage: I18nMessages["servicesPage"] = {
-  confirmActivate: "确认激活服务 {{serviceId}}？只有当健康检查报告目标健康后，它才会重新出现在 discovery 中。",
-  confirmDeactivate: "确认将服务 {{serviceId}} 设为 inactive？更新完成后，新的 discovery 和直连 gateway 转发请求都会被阻断。",
+  confirmActivate:
+    "确认激活服务 {{serviceId}}？只有当健康检查报告目标健康后，它才会重新出现在 discovery 中。",
+  confirmDeactivate:
+    "确认将服务 {{serviceId}} 设为 inactive？更新完成后，新的 discovery 和直连 gateway 转发请求都会被阻断。",
   serviceActivated: "服务已激活",
   serviceSetInactive: "服务已设为 inactive",
   updateStatusFailed: "更新服务状态失败",
-  confirmDelete: "确认删除服务 {{serviceId}}？这是逻辑删除。服务会从你的活跃服务列表里移除，但会保留审计历史。",
+  confirmDelete:
+    "确认删除服务 {{serviceId}}？这是逻辑删除。服务会从你的活跃服务列表里移除，但会保留审计历史。",
   serviceDeleted: "服务已删除",
   deleteFailed: "删除服务失败",
   loadFailed: "加载服务失败",
+  healthHistoryLoadFailed: "加载服务健康历史失败。请等待 Gateway 恢复后重试。",
   activeEditBlocked: "活跃服务不可编辑。请先将服务设为 Inactive。",
   inactiveOnlyEditBlocked: "只有 inactive 服务才允许编辑。",
   walletNotConnected: "钱包未连接。",
-  walletNotConnectedDescription: "请连接并完成签名登录后，再管理你的 API 服务和服务定义。",
+  walletNotConnectedDescription:
+    "请连接并完成签名登录后，再管理你的 API 服务和服务定义。",
   sessionNotAuthenticated: "当前会话还未认证。",
-  sessionNotAuthenticatedDescription: "请先使用钱包登录，再查看和管理你的私有服务定义。",
+  sessionNotAuthenticatedDescription:
+    "请先使用钱包登录，再查看和管理你的私有服务定义。",
   loading: "正在加载 Synapses...",
   emptyTitle: "还没有服务",
   emptyDescription: "你还没有创建任何服务定义。",
@@ -37,7 +43,8 @@ const servicesPage: I18nMessages["servicesPage"] = {
   description: "管理 API 服务、服务定义和端点健康状态。",
   backToDashboard: "返回控制台",
   newService: "新建服务",
-  footerNote: "活跃服务就是运行时在线服务。修改服务契约或路由字段前，请先切换为 Inactive。",
+  footerNote:
+    "活跃服务就是运行时在线服务。修改服务契约或路由字段前，请先切换为 Inactive。",
 };
 
 export default servicesPage;

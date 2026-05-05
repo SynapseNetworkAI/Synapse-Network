@@ -11,6 +11,7 @@ No originRequestId is required. The destination address is always the owner.
 """
 from __future__ import annotations
 
+import logging
 import time
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Any, List, Optional
@@ -35,6 +36,8 @@ from src.utils.money import money_str
 
 ConsumerWithdrawResponse = dict[str, Any]
 ConsumerWithdrawListResponse = list[ConsumerWithdrawResponse]
+
+logger = logging.getLogger(__name__)
 
 
 class FinanceConsumerWithdrawMixin:
@@ -394,7 +397,21 @@ class FinanceConsumerWithdrawMixin:
                         gross_amount_usdc=amount_usdc,
                         withdrawal_id=withdraw_id,
                     )  # type: ignore[attr-defined]
+                except HTTPException:
+                    self._release_consumer_pending_to_available(
+                        owner,
+                        amount_usdc,
+                    )  # type: ignore[attr-defined]
+                    raise
                 except Exception as exc:
+                    logger.exception(
+                        "Consumer withdrawal ticket signing failed",
+                        extra={
+                            "owner": owner,
+                            "withdrawal_id": withdraw_id,
+                            "amount_usdc": amount_usdc,
+                        },
+                    )
                     self._release_consumer_pending_to_available(
                         owner,
                         amount_usdc,
@@ -403,9 +420,12 @@ class FinanceConsumerWithdrawMixin:
                         status_code=503,
                         detail={
                             "code": "WITHDRAW_TICKET_SIGNING_FAILED",
-                            "message": f"Unable to prepare a withdrawal ticket right now: {exc}",
+                            "message": (
+                                "Unable to prepare a withdrawal ticket right now. "
+                                "Please retry after the gateway reconnects."
+                            ),
                         },
-                    )
+                    ) from exc
 
             row = RefundIntentRow(
                 id=withdraw_id,
