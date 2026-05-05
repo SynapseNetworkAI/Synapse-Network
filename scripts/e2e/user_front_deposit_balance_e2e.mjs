@@ -173,6 +173,17 @@ function psqlJson(sql) {
   return text ? JSON.parse(text) : null;
 }
 
+function psqlExec(sql) {
+  const result = spawnSync(
+    "psql",
+    [config.postgresDsn, "-X", "-q", "-v", "ON_ERROR_STOP=1", "-c", sql],
+    { cwd: ROOT, encoding: "utf8" }
+  );
+  if (result.status !== 0) {
+    fail(`psql exec failed: ${(result.stderr || result.stdout || "").trim()}`);
+  }
+}
+
 function selectJson(sql) {
   return psqlJson(
     `SELECT COALESCE(json_agg(row_to_json(t)), '[]'::json) FROM (${sql}) AS t;`
@@ -339,9 +350,8 @@ async function chainDeposit(consumerAddress) {
   const deployer = new ethers.NonceManager(
     new ethers.Wallet(config.deployerKey, provider)
   );
-  const consumer = new ethers.NonceManager(
-    new ethers.Wallet(config.consumerKey, provider)
-  );
+  const consumerWallet = new ethers.Wallet(config.consumerKey, provider);
+  const consumer = new ethers.NonceManager(consumerWallet);
   const usdcDeployer = new ethers.Contract(usdcAddress, usdcAbi, deployer);
   const usdcConsumer = new ethers.Contract(usdcAddress, usdcAbi, consumer);
   const coreConsumer = new ethers.Contract(coreAddress, coreAbi, consumer);
@@ -364,9 +374,15 @@ async function chainDeposit(consumerAddress) {
   await sendTx("approve-usdc", () =>
     usdcConsumer.approve(coreAddress, amountAtomic)
   );
-  const txHash = await sendTx("deposit", () =>
-    coreConsumer.deposit(amountAtomic)
+  const txRequest = await coreConsumer.deposit.populateTransaction(
+    amountAtomic
   );
+  const populatedTx = await consumer.populateTransaction({
+    ...txRequest,
+    chainId: config.chainId,
+  });
+  const signedDepositTx = await consumerWallet.signTransaction(populatedTx);
+  const txHash = ethers.keccak256(signedDepositTx);
 
   return {
     txHash: String(txHash).toLowerCase(),
@@ -374,6 +390,14 @@ async function chainDeposit(consumerAddress) {
     coreAddress,
     usdcAddress,
     decimals,
+    broadcastDeposit: async () => {
+      const tx = await provider.broadcastTransaction(signedDepositTx);
+      const receipt = await tx.wait();
+      if (receipt?.status !== 1) {
+        fail(`deposit transaction failed: ${tx.hash}`);
+      }
+      return String(tx.hash).toLowerCase();
+    },
   };
 }
 
@@ -407,6 +431,20 @@ function readBalanceRow(accountId) {
   );
 }
 
+function readConsumerWithdrawalRows(ownerAddress) {
+  const ownerId = `owner:${String(ownerAddress || "").toLowerCase()}`;
+  return selectJson(`
+    SELECT withdrawal_id, owner_id, source_account_id, withdrawal_kind,
+           amount_usdc::text AS amount_usdc, status, tx_hash, ticket_id,
+           ticket_hash, deadline, request_id,
+           created_at::text AS created_at, updated_at::text AS updated_at
+    FROM synapse_vault_withdrawals
+    WHERE owner_id = ${sqlLiteral(ownerId)}
+      AND withdrawal_kind = 'consumer_refund'
+    ORDER BY created_at DESC
+  `);
+}
+
 function readAuditRows(ownerId) {
   return selectJson(`
     SELECT event_type, business_type, owner_id, amount_delta::text AS amount_delta,
@@ -427,6 +465,16 @@ function assertMoneyEqual(name, actual, expected) {
 
 function assertRow(name, condition, detail) {
   if (!condition) fail(`${name}: ${detail}`);
+}
+
+function errorCodeFromPayload(payload) {
+  return (
+    payload?.detail?.code ||
+    payload?.code ||
+    payload?.error?.code ||
+    payload?.detail?.[0]?.type ||
+    ""
+  );
 }
 
 function buildWagmiStore(address, chainId) {
@@ -547,21 +595,145 @@ async function waitForAnyText(page, candidates, label, timeout = 30000) {
   );
 }
 
-async function assertBillingRowStatus(page, txHash, expectedStatus) {
+async function readBodyText(page) {
+  return page
+    .locator("body")
+    .innerText({ timeout: 10000 })
+    .catch(() => "");
+}
+
+async function assertCreditsSpendableWithdrawable(
+  page,
+  { spendable, withdrawable }
+) {
+  await page.goto(`${config.frontendUrl}/dashboard/billing/credits`, {
+    waitUntil: "domcontentloaded",
+    timeout: 60000,
+  });
+  const spendableMatched = await waitForAnyText(
+    page,
+    moneyCandidates(spendable),
+    "credits spendable balance"
+  );
+  const bodyText = await readBodyText(page);
+  assertRow(
+    "credits spendable label",
+    bodyText.includes("Spendable credits"),
+    bodyText.slice(0, 1000)
+  );
+  assertRow(
+    "credits withdrawable label",
+    bodyText.includes("Withdrawable credits"),
+    bodyText.slice(0, 1000)
+  );
+  const withdrawableMatch = moneyCandidates(withdrawable).find((candidate) =>
+    bodyText.includes(candidate)
+  );
+  assertRow(
+    "credits withdrawable amount",
+    Boolean(withdrawableMatch),
+    `expected one of ${moneyCandidates(withdrawable).join(
+      ", "
+    )} in ${bodyText.slice(0, 1000)}`
+  );
+  const tooltip =
+    (await page
+      .locator('[aria-label*="AML"]')
+      .first()
+      .getAttribute("aria-label")
+      .catch(() => "")) || "";
+  assertRow(
+    "credits withdrawable tooltip AML",
+    tooltip.includes("AML") && tooltip.includes("7 days"),
+    tooltip || "missing aria-label tooltip"
+  );
+  return {
+    spendableMatched,
+    withdrawableMatched: withdrawableMatch,
+    tooltip,
+    bodyText: bodyText.slice(0, 1600),
+  };
+}
+
+async function assertWithdrawModalT7Disabled(page) {
+  await page
+    .getByRole("button", { name: /^Withdraw$/ })
+    .first()
+    .click();
+  await page
+    .getByRole("heading", { name: "Withdraw Balance" })
+    .waitFor({ state: "visible", timeout: 30000 });
+  const bodyText = await readBodyText(page);
+  const expectedWarning =
+    "Recent deposits are available for API usage, but require T+7 before withdrawal.";
+  const expectedRule = "Minimum withdrawal amount: 10.00 USDC";
+  assertRow(
+    "withdraw modal T+7 warning",
+    bodyText.includes(expectedWarning),
+    bodyText
+  );
+  assertRow(
+    "withdraw modal min rule",
+    bodyText.includes(expectedRule),
+    bodyText
+  );
+  const submit = page.getByRole("button", { name: /^Withdraw$/ }).last();
+  const submitDisabled = await submit.isDisabled();
+  assertRow("withdraw modal submit disabled", submitDisabled, bodyText);
+  return {
+    expectedWarning,
+    expectedRule,
+    submitDisabled,
+    bodyText: bodyText.slice(0, 1600),
+  };
+}
+
+async function assertBillingRowStatus(
+  page,
+  txHash,
+  expectedStatus,
+  amountUsdc
+) {
   await page.goto(`${config.frontendUrl}/dashboard/billing`, {
     waitUntil: "domcontentloaded",
     timeout: 60000,
   });
-  const row = page
-    .locator(`a[href*="${txHash}"]`)
-    .locator("xpath=ancestor::tr")
-    .first();
-  await row.waitFor({ state: "visible", timeout: 30000 });
-  const text = await row.innerText();
-  if (!text.includes(expectedStatus)) {
-    fail(`billing row for ${txHash} expected ${expectedStatus}; row=${text}`);
+  const amountCandidates = moneyCandidates(amountUsdc || config.depositUsdc);
+  const deadline = Date.now() + 30000;
+  let lastBody = "";
+  while (Date.now() < deadline) {
+    const row = page
+      .locator("tr")
+      .filter({ hasText: expectedStatus })
+      .filter({ hasText: "Deposit" })
+      .first();
+    if (await row.isVisible().catch(() => false)) {
+      const text = await row.innerText();
+      if (amountCandidates.some((candidate) => text.includes(candidate))) {
+        return text;
+      }
+    }
+    const linkRow = page
+      .locator(`a[href*="${txHash}"]`)
+      .locator("xpath=ancestor::tr")
+      .first();
+    if (await linkRow.isVisible().catch(() => false)) {
+      const text = await linkRow.innerText();
+      if (
+        text.includes(expectedStatus) &&
+        amountCandidates.some((candidate) => text.includes(candidate))
+      ) {
+        return text;
+      }
+    }
+    lastBody = await readBodyText(page);
+    await page.waitForTimeout(500);
   }
-  return text;
+  fail(
+    `billing row for ${txHash} expected ${expectedStatus}/Deposit/${amountCandidates.join(
+      " or "
+    )}; body=${lastBody.slice(0, 1200)}`
+  );
 }
 
 async function main() {
@@ -581,9 +753,6 @@ async function main() {
 
   const chain = await chainDeposit(auth.address);
   evidence.chain = { ...chain, ownerAddress: auth.address, accountId };
-  addStep("chain:deposit", true, chain.txHash, {
-    amountUsdc: chain.amountUsdc,
-  });
 
   const intentResponse = await api("/v1/balance/deposit/intent", {
     method: "POST",
@@ -648,7 +817,8 @@ async function main() {
   const pendingRowText = await assertBillingRowStatus(
     page,
     chain.txHash,
-    "Pending"
+    "Pending",
+    chain.amountUsdc
   );
   if (pendingRowText.includes("Completed"))
     fail(`pending billing row leaked Completed: ${pendingRowText}`);
@@ -676,6 +846,17 @@ async function main() {
     actualDom: beforeMatched,
     sqlAvailableBalance: pendingBalance.available_balance,
     depositId,
+  });
+
+  const minedDepositTxHash = await chain.broadcastDeposit();
+  assertRow(
+    "broadcast deposit tx hash",
+    minedDepositTxHash === chain.txHash,
+    `${minedDepositTxHash} !== ${chain.txHash}`
+  );
+  evidence.chain.depositBroadcastTxHash = minedDepositTxHash;
+  addStep("chain:deposit", true, chain.txHash, {
+    amountUsdc: chain.amountUsdc,
   });
 
   const confirmedResponse = await api(
@@ -784,10 +965,43 @@ async function main() {
   };
   addStep("db:confirmed-deposit-and-replay-safe", true);
 
+  const balanceResponse = await api("/v1/balance", {
+    token: auth.token,
+    address: auth.address,
+  });
+  const balancePayload =
+    balanceResponse.payload.balance || balanceResponse.payload;
+  assertMoneyEqual(
+    "api consumer available after confirm",
+    balancePayload.consumerAvailableBalance,
+    finalBalance.available_balance
+  );
+  assertMoneyEqual(
+    "api consumer withdrawable before T+7",
+    balancePayload.consumerWithdrawableBalance,
+    "0.000000"
+  );
+  assertRow(
+    "api consumer maturity seconds",
+    Number(balancePayload.consumerWithdrawMaturitySeconds) === 604800,
+    JSON.stringify(balancePayload)
+  );
+  evidence.db.confirmedButNotMature = {
+    balance: finalBalance,
+    apiBalance: redactedObject(balancePayload),
+  };
+  addStep("api:confirmed-balance-not-mature", true, "", {
+    consumerAvailableBalance: balancePayload.consumerAvailableBalance,
+    consumerWithdrawableBalance: balancePayload.consumerWithdrawableBalance,
+    consumerWithdrawMaturitySeconds:
+      balancePayload.consumerWithdrawMaturitySeconds,
+  });
+
   const completedRowText = await assertBillingRowStatus(
     page,
     chain.txHash,
-    "Completed"
+    "Completed",
+    chain.amountUsdc
   );
   evidence.dom.billingCompleted = completedRowText;
   await screenshot(page, "billing-deposit-completed.png", {
@@ -813,6 +1027,135 @@ async function main() {
     actualDom: afterMatched,
     sqlAvailableBalance: finalBalance.available_balance,
     depositId,
+  });
+  const notMatureDom = await assertCreditsSpendableWithdrawable(page, {
+    spendable: finalBalance.available_balance,
+    withdrawable: "0.000000",
+  });
+  evidence.dom.creditsConfirmedButNotMature = notMatureDom;
+  await screenshot(page, "credits-after-confirm-withdrawable-zero.png", {
+    expectedSpendableBalance: finalBalance.available_balance,
+    expectedWithdrawableBalance: "0.000000",
+    actualDom: notMatureDom.bodyText,
+    tooltip: notMatureDom.tooltip,
+    apiBalance: redactedObject(balancePayload),
+    apiWithdrawableBalance: balancePayload.consumerWithdrawableBalance,
+    sqlAvailableBalance: finalBalance.available_balance,
+    sqlPendingBalance: finalBalance.pending_balance,
+    depositId,
+  });
+  addStep("ui:credits-withdrawable-zero", true);
+
+  const withdrawModalDom = await assertWithdrawModalT7Disabled(page);
+  evidence.dom.withdrawModalT7Disabled = withdrawModalDom;
+  await screenshot(page, "withdraw-modal-t7-disabled.png", {
+    expectedWarning: withdrawModalDom.expectedWarning,
+    expectedRule: withdrawModalDom.expectedRule,
+    actualDom: withdrawModalDom.bodyText,
+    submitDisabled: withdrawModalDom.submitDisabled,
+    apiBalance: redactedObject(balancePayload),
+    sqlBalance: finalBalance,
+    depositId,
+  });
+  addStep("ui:withdraw-modal-t7-disabled", true);
+
+  const withdrawalsBefore = readConsumerWithdrawalRows(auth.address);
+  const immatureWithdrawResponse = await api("/v1/balance/consumer/withdraw", {
+    method: "POST",
+    token: auth.token,
+    address: auth.address,
+    headers: { "X-Idempotency-Key": `ufd-immature-withdraw-${RUN_ID}` },
+    body: {
+      amountUsdc: chain.amountUsdc,
+      reason: `user-front-deposit-balance immature withdraw ${RUN_ID}`,
+    },
+    expectOk: false,
+  });
+  const immatureCode = errorCodeFromPayload(immatureWithdrawResponse.payload);
+  assertRow(
+    "immature withdraw status",
+    immatureWithdrawResponse.response.status === 400,
+    `${immatureWithdrawResponse.response.status} ${JSON.stringify(
+      immatureWithdrawResponse.payload
+    ).slice(0, 600)}`
+  );
+  assertRow(
+    "immature withdraw error code",
+    immatureCode === "INSUFFICIENT_MATURE_CONSUMER_BALANCE",
+    JSON.stringify(immatureWithdrawResponse.payload)
+  );
+  const withdrawalsAfter = readConsumerWithdrawalRows(auth.address);
+  const blockedBalance = readBalanceRow(accountId);
+  assertRow(
+    "immature withdraw created no row",
+    withdrawalsAfter.length === withdrawalsBefore.length,
+    JSON.stringify({ withdrawalsBefore, withdrawalsAfter })
+  );
+  assertMoneyEqual(
+    "immature withdraw available unchanged",
+    blockedBalance.available_balance,
+    finalBalance.available_balance
+  );
+  assertMoneyEqual(
+    "immature withdraw pending unchanged",
+    blockedBalance.pending_balance,
+    finalBalance.pending_balance
+  );
+  assertMoneyEqual(
+    "immature withdraw frozen unchanged",
+    blockedBalance.frozen_balance,
+    finalBalance.frozen_balance
+  );
+  evidence.db.immatureWithdrawBlocked = {
+    httpStatus: immatureWithdrawResponse.response.status,
+    errorCode: immatureCode,
+    withdrawalsBefore,
+    withdrawalsAfter,
+    balanceAfterBlocked: blockedBalance,
+  };
+  addStep("api:immature-withdraw-blocked-no-row", true, immatureCode);
+
+  psqlExec(`
+    UPDATE synapse_vault_deposits
+    SET updated_at = NOW() - INTERVAL '8 days'
+    WHERE deposit_id = ${sqlLiteral(depositId)}
+      AND tx_hash = ${sqlLiteral(chain.txHash)}
+      AND status = 'CONFIRMED';
+  `);
+  const matureBalanceResponse = await api("/v1/balance", {
+    token: auth.token,
+    address: auth.address,
+  });
+  const matureBalancePayload =
+    matureBalanceResponse.payload.balance || matureBalanceResponse.payload;
+  assertMoneyEqual(
+    "api mature withdrawable after SQL aging",
+    matureBalancePayload.consumerWithdrawableBalance,
+    chain.amountUsdc
+  );
+  const matureDom = await assertCreditsSpendableWithdrawable(page, {
+    spendable: finalBalance.available_balance,
+    withdrawable: chain.amountUsdc,
+  });
+  evidence.dom.creditsAfterMature = matureDom;
+  evidence.db.matureWithdrawable = {
+    deposit: readDepositRows(chain.txHash)[0],
+    balance: readBalanceRow(accountId),
+    apiBalance: redactedObject(matureBalancePayload),
+  };
+  await screenshot(page, "credits-after-mature-withdrawable.png", {
+    expectedSpendableBalance: finalBalance.available_balance,
+    expectedWithdrawableBalance: chain.amountUsdc,
+    actualDom: matureDom.bodyText,
+    tooltip: matureDom.tooltip,
+    apiBalance: redactedObject(matureBalancePayload),
+    apiWithdrawableBalance: matureBalancePayload.consumerWithdrawableBalance,
+    sqlAvailableBalance: finalBalance.available_balance,
+    depositId,
+  });
+  addStep("db:mature-deposit-withdrawable", true, "", {
+    consumerWithdrawableBalance:
+      matureBalancePayload.consumerWithdrawableBalance,
   });
   await activeBrowser.close();
   activeBrowser = null;

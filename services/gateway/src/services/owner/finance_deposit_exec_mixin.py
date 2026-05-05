@@ -13,6 +13,8 @@ from src.core.common import normalize_wallet
 from src.domain.execution import DepositIntentConfirmCommand, DepositIntentRegisterCommand
 from src.domain.finance import DepositBalanceMove, DepositIntentDraft
 from src.domain.ledger import DepositIntentRow
+from src.services.analytics import gateway_events
+from src.services.owner.finance_constants import CONSUMER_DEPOSIT_MIN_USDC
 from src.utils.datetime_utils import now_dt_str
 
 
@@ -91,8 +93,7 @@ class FinanceDepositExecMixin:
             updatedAt=now_dt_str(),
         )
         if hasattr(self.storage, "register_deposit_intent_atomic"):  # type: ignore[attr-defined]
-            register_atomic = getattr(self.storage, "register_deposit_intent_atomic")  # type: ignore[attr-defined]
-            saved = register_atomic(
+            saved = self.storage.register_deposit_intent_atomic(  # type: ignore[attr-defined]  # quality-budget-disable-reason: Postgres storage exposes atomic deposit persistence.
                 DepositIntentRegisterCommand(
                     owner_wallet=owner,
                     tx_hash=draft.tx_hash.lower(),
@@ -144,9 +145,7 @@ class FinanceDepositExecMixin:
         owner: str,
         confirmed_row: DepositIntentRow,
     ) -> None:
-        from src.services.analytics.gateway_events import emit_deposit_completed
-
-        await emit_deposit_completed(
+        await gateway_events.emit_deposit_completed(
             owner,
             amount_usdc=Decimal(str(confirmed_row.amount_usdc or "0")),
             tx_hash=str(confirmed_row.tx_hash or ""),
@@ -161,7 +160,7 @@ class FinanceDepositExecMixin:
         confirmations: int,
     ) -> DepositIntentRow:
         try:
-            result = getattr(self.storage, "confirm_deposit_intent_atomic")(  # type: ignore[attr-defined]
+            result = self.storage.confirm_deposit_intent_atomic(  # type: ignore[attr-defined]  # quality-budget-disable-reason: Postgres storage exposes atomic deposit confirmation.
                 DepositIntentConfirmCommand(
                     owner_wallet=owner,
                     deposit_intent_id=deposit_intent_id,
@@ -178,7 +177,7 @@ class FinanceDepositExecMixin:
                         "code": "DEPOSIT_INTENT_NOT_FOUND",
                         "message": "Deposit intent not found.",
                     },
-                )
+                ) from exc
             if code == "DEPOSIT_STATUS_INVALID":
                 raise HTTPException(
                     status_code=409,
@@ -186,7 +185,7 @@ class FinanceDepositExecMixin:
                         "code": "DEPOSIT_STATUS_INVALID",
                         "message": "Deposit intent cannot be confirmed from current status.",
                     },
-                )
+                ) from exc
             raise
         if isinstance(result, DepositIntentRow):
             return result
@@ -204,20 +203,31 @@ class FinanceDepositExecMixin:
             amount_usdc = Decimal(str(intent.get("amountUsdc") or "0")).quantize(
                 Decimal("0.000001"), rounding=ROUND_HALF_UP
             )
-        except Exception:
+        except Exception as exc:
             raise HTTPException(
                 status_code=400,
                 detail={
                     "code": "INVALID_AMOUNT",
                     "message": "amountUsdc must be a valid decimal number.",
                 },
-            )
+            ) from exc
         if amount_usdc <= Decimal("0"):
             raise HTTPException(
                 status_code=400,
                 detail={
                     "code": "INVALID_AMOUNT",
                     "message": "amountUsdc must be greater than 0.",
+                },
+            )
+        min_deposit = Decimal(str(CONSUMER_DEPOSIT_MIN_USDC)).quantize(
+            Decimal("0.000001"), rounding=ROUND_HALF_UP
+        )
+        if amount_usdc < min_deposit:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": "MIN_DEPOSIT_AMOUNT_NOT_MET",
+                    "message": f"Minimum deposit amount is {min_deposit} USDC.",
                 },
             )
 

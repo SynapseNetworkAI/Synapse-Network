@@ -12,7 +12,11 @@ import {
   type DepositIntentRecord,
   type RefundIntentRecord,
 } from "@/utils/balanceApi";
-import { formatMoneyString, moneyStringToNumber } from "@/utils/money";
+import {
+  formatMoneyString,
+  moneyStringToNumber,
+  normalizeMoneyString,
+} from "@/utils/money";
 import { getRpcUrl } from "@/utils/runtimeEnv";
 
 export const PAYMENTS_FETCH_LIMIT = 100;
@@ -51,6 +55,19 @@ function timestampFromDepositIntent(intent?: DepositIntentRecord): number {
   );
 }
 
+function moneyFromDepositIntent(intent: DepositIntentRecord): number {
+  const raw =
+    intent.creditedAmountUsdc ??
+    (intent as unknown as { credited_amount_usdc?: unknown })
+      .credited_amount_usdc ??
+    intent.amountUsdc ??
+    (intent as unknown as { amount_usdc?: unknown; amount?: unknown })
+      .amount_usdc ??
+    (intent as unknown as { amount?: unknown }).amount ??
+    "0";
+  return moneyStringToNumber(normalizeMoneyString(raw));
+}
+
 export function mapDepositStatusFromGatewayIntent(
   intent?: DepositIntentRecord
 ): LedgerRecord["status"] {
@@ -79,9 +96,7 @@ function mapDepositIntentRecords(
   return depositIntents.map((intent) => ({
     id: intent.id || intent.txHash,
     type: "Deposit",
-    amount: moneyStringToNumber(
-      intent.creditedAmountUsdc || intent.amountUsdc || "0"
-    ),
+    amount: moneyFromDepositIntent(intent),
     txHash: intent.txHash || null,
     timestamp: timestampFromDepositIntent(intent),
     status: mapDepositStatusFromGatewayIntent(intent),

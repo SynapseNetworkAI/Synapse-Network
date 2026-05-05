@@ -11,15 +11,15 @@
 
 The consumer withdrawal E2E test still attempted to withdraw `1.00` USDC after the runtime policy had moved to a `10.00` USDC minimum withdrawal amount. Full pre-push CI failed with `MIN_WITHDRAWAL_AMOUNT_NOT_MET`.
 
-After the amount was corrected, the same test also exposed the newer T+1 matured funds policy: a freshly seeded local deposit can have available balance while `mature withdrawable balance` is still `0.000000`.
+After the amount was corrected, the same test also exposed the newer T+7 matured funds policy: a freshly seeded local deposit can have available balance while `mature withdrawable balance` is still `0.000000`.
 
 ## Root Cause
 
-The test encoded an old minimum amount and sent the withdrawal amount as a JSON number. It also treated `consumerAvailableBalance` as immediately withdrawable, which is no longer true under the T+1 consumer withdrawal maturity window.
+The test encoded an old minimum amount and sent the withdrawal amount as a JSON number. It also treated `consumerAvailableBalance` as immediately withdrawable, which is no longer true under the T+7 consumer withdrawal maturity window.
 
 ## Fix
 
-The E2E now uses `MIN_CONSUMER_WITHDRAW_USDC = Decimal("10.00")`, asserts the seeded balance is above that minimum, and sends withdrawal amounts as decimal strings. If the gateway returns `INSUFFICIENT_MATURE_CONSUMER_BALANCE`, the withdrawal-chain assertions skip because the local seed has not crossed the T+1 maturity window.
+The E2E now uses `MIN_CONSUMER_WITHDRAW_USDC = Decimal("10.00")`, asserts the seeded balance is above that minimum, and sends withdrawal amounts as decimal strings. If the gateway returns `INSUFFICIENT_MATURE_CONSUMER_BALANCE`, the withdrawal-chain assertions skip because the local seed has not crossed the T+7 maturity window.
 
 ## Prevention Rule
 
