@@ -36,10 +36,9 @@ from src.services.platform.service_health_utils import (
     sync_service_target_health_table,
 )
 from src.services.platform.service_health_history import (
-    _should_prune_history,
+    _should_prune_history,  # noqa: F401 - kept for older tests that monkeypatch this probe-module symbol.
     append_health_history_rows,
     build_probe_history_rows,
-    prune_health_history,
 )
 from src.services.platform.service_health_offline import (
     ServiceOfflineCandidate,
@@ -443,16 +442,6 @@ async def refresh_all_service_health(
         if should_quarantine_offline(result.current, now_ms=now_ms)
     ]
     mark_offline_candidates(storage, offline_candidates, now_ms=now_ms)
-    valid_service_ids = {
-        str(row.service_id or "").strip()
-        for row in final_rows
-        if str(row.service_id or "").strip()
-    }
-    if _should_prune_history(now_ms):
-        prune_stats = prune_health_history(storage, valid_service_ids=valid_service_ids)
-    else:
-        prune_stats = None
-
     return ServiceHealthRefreshResult(
         scheduled=len(plan.candidates),
         scheduled_before_limit=plan.scheduled_before_limit,
@@ -460,7 +449,7 @@ async def refresh_all_service_health(
         updated=apply_stats.updated,
         synced_rows=synced_rows,
         history_appended=apply_stats.appended_history,
-        history_pruned=int(getattr(prune_stats, "removed", 0) or 0),
+        history_pruned=0,
         jitter_skipped=plan.jitter_skipped,
         rehydrate_skipped=plan.rehydrate_skipped,
         slow_lane_skipped=plan.slow_lane_skipped,

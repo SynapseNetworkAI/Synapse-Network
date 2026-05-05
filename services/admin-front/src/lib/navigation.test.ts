@@ -1,23 +1,32 @@
 import { describe, expect, it } from "vitest";
 
-import { buildAdminNavigation, filterNavigation, findNavItemByPath, findNavPathByPath, getNavVisual, resolveExpandedNavigationIds } from "./navigation";
+import {
+  buildAdminNavigation,
+  filterNavigation,
+  findNavItemByPath,
+  findNavPathByPath,
+  getNavVisual,
+  resolveExpandedNavigationIds,
+} from "./navigation";
 
-function createMenuItem(overrides: Partial<{
-  itemId: string;
-  sectionId: string;
-  sectionLabel: string;
-  sectionDescription: string;
-  label: string;
-  href: string | null;
-  description: string;
-  parentItemId: string | null;
-  nodeType: "category" | "page" | "panel";
-  iconKey: string;
-  requiredRoles: string[];
-  requiredPermissions: string[];
-  sortOrder: number;
-  keywords: string[];
-}> = {}) {
+function createMenuItem(
+  overrides: Partial<{
+    itemId: string;
+    sectionId: string;
+    sectionLabel: string;
+    sectionDescription: string;
+    label: string;
+    href: string | null;
+    description: string;
+    parentItemId: string | null;
+    nodeType: "category" | "page" | "panel";
+    iconKey: string;
+    requiredRoles: string[];
+    requiredPermissions: string[];
+    sortOrder: number;
+    keywords: string[];
+  }> = {}
+) {
   return {
     itemId: "dashboard",
     sectionId: "control-overview",
@@ -87,10 +96,17 @@ describe("buildAdminNavigation", () => {
       }),
     ]);
 
-    expect(navigation.map((section) => section.id)).toEqual(["control-overview", "business-control"]);
+    expect(navigation.map((section) => section.id)).toEqual([
+      "control-overview",
+      "business-control",
+    ]);
     expect(navigation[0]?.children?.[0]?.id).toBe("dashboard");
-    expect(navigation[0]?.children?.[0]?.children?.map((item) => item.id)).toEqual(["dashboard-runtime"]);
-    expect(navigation[0]?.children?.[0]?.children?.[0]?.path).toBe("/dashboard/runtime");
+    expect(
+      navigation[0]?.children?.[0]?.children?.map((item) => item.id)
+    ).toEqual(["dashboard-runtime"]);
+    expect(navigation[0]?.children?.[0]?.children?.[0]?.path).toBe(
+      "/dashboard/runtime"
+    );
     expect(navigation[1]?.children?.[0]?.id).toBe("finance");
   });
 
@@ -203,7 +219,15 @@ describe("buildAdminNavigation", () => {
         nodeType: "category",
         iconKey: "AN",
         sortOrder: 20,
-        keywords: ["analytics", "events", "clickhouse", "growth", "revenue", "risk", "quality"],
+        keywords: [
+          "analytics",
+          "events",
+          "clickhouse",
+          "growth",
+          "revenue",
+          "risk",
+          "quality",
+        ],
       }),
       createMenuItem({
         itemId: "dashboard-analytics",
@@ -244,18 +268,28 @@ describe("buildAdminNavigation", () => {
       "analytics-consumer-funnel",
       "analytics-invocation-revenue",
     ]);
-    expect(findNavItemByPath(navigation, "/dashboard/analytics/consumer-funnel")?.id).toBe("analytics-consumer-funnel");
-    expect(filterNavigation(navigation, "invocation").expandedIds).toContain("analytics");
+    expect(
+      findNavItemByPath(navigation, "/dashboard/analytics/consumer-funnel")?.id
+    ).toBe("analytics-consumer-funnel");
+    expect(filterNavigation(navigation, "invocation").expandedIds).toContain(
+      "analytics"
+    );
   });
 });
 
 describe("getNavVisual", () => {
   it("returns the Sentinel metadata for known items", () => {
-    expect(getNavVisual("dashboard")).toEqual({ icon: "DA", kicker: "总览与业务运行态入口。" });
+    expect(getNavVisual("dashboard")).toEqual({
+      icon: "DA",
+      kicker: "总览与业务运行态入口。",
+    });
   });
 
   it("returns a generic fallback for unknown items", () => {
-    expect(getNavVisual("unknown")).toEqual({ icon: "SN", kicker: "control module" });
+    expect(getNavVisual("unknown")).toEqual({
+      icon: "SN",
+      kicker: "control module",
+    });
   });
 });
 
@@ -323,26 +357,78 @@ describe("navigation tree helpers", () => {
       sortOrder: 20,
     }),
     createMenuItem({
+      itemId: "permissions-matrix",
+      sectionId: "identity-access",
+      sectionLabel: "身份与权限",
+      sectionDescription: "后台用户、角色策略与导航治理。",
+      label: "权限矩阵",
+      href: "/role-permissions#permissions-matrix",
+      description: "permission matrix",
+      parentItemId: "role-permissions",
+      nodeType: "panel",
+      iconKey: "PM",
+      sortOrder: 21,
+    }),
+    createMenuItem({
+      itemId: "module-boundaries",
+      sectionId: "identity-access",
+      sectionLabel: "身份与权限",
+      sectionDescription: "后台用户、角色策略与导航治理。",
+      label: "模块边界",
+      href: "/role-permissions#module-boundaries",
+      description: "module boundaries",
+      parentItemId: "role-permissions",
+      nodeType: "panel",
+      iconKey: "MB",
+      sortOrder: 22,
+    }),
+    createMenuItem({
       itemId: "reviewer-split",
       sectionId: "identity-access",
       sectionLabel: "身份与权限",
       sectionDescription: "后台用户、角色策略与导航治理。",
       label: "Reviewer 分工",
-      href: null,
+      href: "/role-permissions#reviewer-split",
       description: "reviewer responsibility",
       parentItemId: "role-permissions",
       nodeType: "panel",
       iconKey: "RV",
-      sortOrder: 21,
+      sortOrder: 23,
     }),
   ]);
 
   it("returns the active path chain for a page", () => {
-    expect(findNavPathByPath(navigation, "/role-permissions")).toEqual(["identity-access", "role-permissions"]);
+    expect(findNavPathByPath(navigation, "/role-permissions")).toEqual([
+      "identity-access",
+      "role-permissions",
+    ]);
+  });
+
+  it("maps role permission panel nodes to page anchors", () => {
+    const rolePermissions = findNavItemByPath(navigation, "/role-permissions");
+
+    expect(
+      rolePermissions?.children?.map((item) => [item.id, item.path])
+    ).toEqual([
+      ["permissions-matrix", "/role-permissions#permissions-matrix"],
+      ["module-boundaries", "/role-permissions#module-boundaries"],
+      ["reviewer-split", "/role-permissions#reviewer-split"],
+    ]);
+    expect(
+      findNavItemByPath(navigation, "/role-permissions#permissions-matrix")?.id
+    ).toBe("permissions-matrix");
+    expect(
+      findNavItemByPath(navigation, "/role-permissions#module-boundaries")?.id
+    ).toBe("module-boundaries");
+    expect(
+      findNavItemByPath(navigation, "/role-permissions#reviewer-split")?.id
+    ).toBe("reviewer-split");
   });
 
   it("finds the active leaf item for a dashboard child page", () => {
-    expect(findNavItemByPath(navigation, "/dashboard/overview")?.id).toBe("dashboard-overview");
+    expect(findNavItemByPath(navigation, "/dashboard/overview")?.id).toBe(
+      "dashboard-overview"
+    );
   });
 
   it("filters legacy health child items out of the dashboard navigation", () => {
@@ -428,12 +514,29 @@ describe("navigation tree helpers", () => {
     const expandedIds = resolveExpandedNavigationIds({
       manualExpandedIds: [],
       manualCollapsedIds: [],
-      activePath: ["control-overview", "dashboard", "analytics", "dashboard-analytics"],
+      activePath: [
+        "control-overview",
+        "dashboard",
+        "analytics",
+        "dashboard-analytics",
+      ],
       filteredExpandedIds: [],
       query: "",
     });
 
     expect(expandedIds).toContain("analytics");
+  });
+
+  it("expands active page nodes that own hash panel children", () => {
+    const expandedIds = resolveExpandedNavigationIds({
+      manualExpandedIds: [],
+      manualCollapsedIds: [],
+      activePath: ["identity-access", "role-permissions"],
+      filteredExpandedIds: [],
+      query: "",
+    });
+
+    expect(expandedIds).toContain("role-permissions");
   });
 
   it("keeps search-driven ancestors expanded even if they were manually collapsed", () => {

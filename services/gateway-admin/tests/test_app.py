@@ -1844,8 +1844,13 @@ def test_visible_menu_config_returns_full_tree_for_super_admin() -> None:
     assert published_response.status_code == 200
     assert visible_response.status_code == 200
     published_ids = {item["itemId"] for item in published_response.json()["data"]["items"]}
-    visible_ids = {item["itemId"] for item in visible_response.json()["data"]["items"]}
+    visible_items = visible_response.json()["data"]["items"]
+    visible_ids = {item["itemId"] for item in visible_items}
     assert visible_ids == published_ids
+    visible_by_id = {item["itemId"]: item for item in visible_items}
+    assert visible_by_id["permissions-matrix"]["href"] == "/role-permissions#permissions-matrix"
+    assert visible_by_id["module-boundaries"]["href"] == "/role-permissions#module-boundaries"
+    assert visible_by_id["reviewer-split"]["href"] == "/role-permissions#reviewer-split"
 
 
 def test_approvals_list_includes_projected_provider_withdraw_reviews() -> None:
@@ -2406,6 +2411,51 @@ def test_menu_config_snapshot_auto_adds_new_seed_menu_items() -> None:
     analytics_item = next(item for item in visible_response.json()["data"]["items"] if item["itemId"] == "analytics")
     assert analytics_item["parentItemId"] == "dashboard"
     assert analytics_item["nodeType"] == "category"
+
+
+def test_menu_config_snapshot_auto_patches_seed_panel_hrefs() -> None:
+    _login_as("super@synapse.network")
+    store = _test_store()
+    snapshot = store.config.get_menu_config("admin_menu_config")
+    assert snapshot is not None
+
+    patch_item_ids = {
+        "permissions-matrix",
+        "module-boundaries",
+        "reviewer-split",
+    }
+    stale_snapshot = replace(
+        snapshot,
+        draft_items=tuple(
+            replace(item, href=None)
+            if item.item_id in patch_item_ids
+            else item
+            for item in snapshot.draft_items
+        ),
+        published_items=tuple(
+            replace(item, href=None)
+            if item.item_id in patch_item_ids
+            else item
+            for item in snapshot.published_items
+        ),
+    )
+    store.config.save_menu_config(stale_snapshot)
+
+    visible_response = client.get("/api/admin/v1/config/menu-items/visible")
+
+    assert visible_response.status_code == 200
+    visible_by_id = {
+        item["itemId"]: item for item in visible_response.json()["data"]["items"]
+    }
+    assert (
+        visible_by_id["permissions-matrix"]["href"]
+        == "/role-permissions#permissions-matrix"
+    )
+    assert (
+        visible_by_id["module-boundaries"]["href"]
+        == "/role-permissions#module-boundaries"
+    )
+    assert visible_by_id["reviewer-split"]["href"] == "/role-permissions#reviewer-split"
 
 
 def test_provider_withdraw_review_decision_requires_permission() -> None:

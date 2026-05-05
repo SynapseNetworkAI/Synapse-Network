@@ -2,7 +2,7 @@
 
 ## Status
 
-Fixed locally.
+Fixed locally. Follow-up structural fix implemented: service health runtime and transition history moved out of `synapse_runtime_state` into typed tables.
 
 ## Impact
 
@@ -33,6 +33,12 @@ Multiple Cloud Run instances/jobs can append or prune service health history at 
 - Unit coverage verifies the advisory lock is acquired before mutation.
 - Unit coverage verifies the delete only removes obsolete history keys and does not clear the entire prefix during normal writes.
 
-## Follow-Up
+## Follow-Up Closure
 
-If this path becomes high-volume, move health history from JSON payload rows in `synapse_runtime_state` into a dedicated append-only table with time-based pruning. The current fix is the minimal safe MVP patch for Cloud Run concurrency.
+The high-volume path now uses:
+
+1. `synapse_service_health_runtime` for current target health, keyed by `(service_id, target_url)`
+2. `synapse_service_health_events` for append-only transition events
+3. `service-health-events-cleanup` for low-frequency 7-day TTL cleanup
+
+Gateway health probes no longer rewrite `service_health_history::*` JSON payloads in `synapse_runtime_state`.
