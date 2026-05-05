@@ -20,6 +20,7 @@ import { ProviderWithdrawApiError } from "@/utils/providerWithdrawApi";
 
 const {
   toastError,
+  toastInfo,
   toastLoading,
   toastSuccess,
   createProviderWithdrawIntentMock,
@@ -28,9 +29,11 @@ const {
   completeProviderWithdrawalMock,
   reloadDashboardMock,
   readContractMock,
+  writeContractAsyncMock,
   languageState,
 } = vi.hoisted(() => ({
   toastError: vi.fn(),
+  toastInfo: vi.fn(),
   toastLoading: vi.fn(() => "toast-provider-withdraw"),
   toastSuccess: vi.fn(),
   createProviderWithdrawIntentMock: vi.fn(),
@@ -39,6 +42,7 @@ const {
   completeProviderWithdrawalMock: vi.fn(),
   reloadDashboardMock: vi.fn(),
   readContractMock: vi.fn(),
+  writeContractAsyncMock: vi.fn(),
   languageState: { value: "en" },
 }));
 
@@ -156,11 +160,11 @@ const ZH_TRANSLATIONS: Record<string, string> = {
 };
 
 vi.mock("react-hot-toast", () => ({
-  default: {
+  default: Object.assign(toastInfo, {
     error: toastError,
     loading: toastLoading,
     success: toastSuccess,
-  },
+  }),
 }));
 
 vi.mock("next/link", () => ({
@@ -240,7 +244,7 @@ vi.mock("wagmi", () => ({
   }),
   useWriteContract: () => ({
     data: undefined,
-    writeContractAsync: vi.fn(),
+    writeContractAsync: writeContractAsyncMock,
     isPending: false,
   }),
 }));
@@ -287,6 +291,30 @@ function renderPage() {
   return render(<ProviderWithdrawPage />);
 }
 
+async function submitProviderWithdrawIntent(user = userEvent.setup()) {
+  renderPage();
+  await waitFor(() =>
+    expect(getProviderWithdrawCapabilityMock).toHaveBeenCalled()
+  );
+  const btn = screen.getByRole("button", {
+    name: languageState.value === "zh" ? /生成并提现/i : /Generate & Claim/i,
+  }) as HTMLButtonElement;
+  await waitFor(() => expect(btn.disabled).toBe(false));
+  await user.click(btn);
+  await waitFor(() =>
+    expect(
+      screen.getByRole("button", {
+        name: languageState.value === "zh" ? "确认提现" : /Confirm/i,
+      })
+    ).toBeTruthy()
+  );
+  await user.click(
+    screen.getByRole("button", {
+      name: languageState.value === "zh" ? "确认提现" : /Confirm/i,
+    })
+  );
+}
+
 /* ── tests ─────────────────────────────────────────────────── */
 
 describe("ProviderWithdrawPage", () => {
@@ -299,6 +327,7 @@ describe("ProviderWithdrawPage", () => {
     languageState.value = "en";
     walletBalance = 10n ** 18n;
     readContractMock.mockResolvedValue(20n * 10n ** 18n);
+    writeContractAsyncMock.mockResolvedValue("0xtx");
     getProviderWithdrawCapabilityMock.mockResolvedValue({
       ticketSigningEnabled: true,
       code: null,
@@ -592,31 +621,61 @@ describe("ProviderWithdrawPage", () => {
 
   /* ── Vault liquidity error ───────────────────────────────── */
 
-  it("shows error toast when withdraw intent fails", async () => {
-    const user = userEvent.setup();
-    createProviderWithdrawIntentMock.mockRejectedValue(
-      new ProviderWithdrawApiError(
-        "vault liquidity",
-        "WITHDRAW_VAULT_LIQUIDITY_CHECK_UNAVAILABLE",
-        503
-      )
-    );
-    renderPage();
-    await waitFor(() =>
-      expect(getProviderWithdrawCapabilityMock).toHaveBeenCalled()
-    );
-    const btn = screen.getByRole("button", {
-      name: /Generate & Claim/i,
-    }) as HTMLButtonElement;
-    await waitFor(() => expect(btn.disabled).toBe(false));
-    await user.click(btn);
-    // Panel opens; now click Confirm to trigger the intent
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: /Confirm/i })).toBeTruthy()
-    );
-    await user.click(screen.getByRole("button", { name: /Confirm/i }));
-    await waitFor(() => expect(toastError).toHaveBeenCalled());
-  });
+  const providerWithdrawErrorCases = [
+    {
+      code: "CHAIN_RPC_UNAVAILABLE",
+      message: "Chain RPC unavailable",
+    },
+    {
+      code: "WITHDRAW_VAULT_LIQUIDITY_CHECK_UNAVAILABLE",
+      message: "Vault liquidity check unavailable",
+    },
+    {
+      code: "PROVIDER_RECEIVABLE_NOT_MATURED",
+      message: "Provider earnings need T+7 maturity before withdrawal.",
+    },
+    {
+      code: "MIN_WITHDRAWAL_AMOUNT_NOT_MET",
+      message: "Minimum provider withdrawal amount is 10.00 USDC.",
+    },
+    {
+      code: "INSUFFICIENT_PROVIDER_RECEIVABLE",
+      message: "Withdrawable provider receivable is insufficient.",
+    },
+    {
+      code: "PENDING_WITHDRAWAL_EXISTS",
+      message: "A provider withdrawal is already pending.",
+    },
+  ];
+
+  it.each(providerWithdrawErrorCases)(
+    "localizes provider withdrawal $code errors by code",
+    async ({ code, message }) => {
+      createProviderWithdrawIntentMock.mockRejectedValue(
+        new ProviderWithdrawApiError(
+          "503: {'code': 'CHAIN_RPC_UNAVAILABLE', 'message': 'HTTPException'}",
+          code,
+          503
+        )
+      );
+
+      await submitProviderWithdrawIntent();
+
+      await waitFor(() => {
+        expect(toastError).toHaveBeenCalledWith(message, {
+          id: "toast-provider-withdraw",
+        });
+      });
+      expect(toastError).not.toHaveBeenCalledWith(
+        expect.stringContaining("503:"),
+        expect.anything()
+      );
+      expect(toastError).not.toHaveBeenCalledWith(
+        expect.stringContaining("HTTPException"),
+        expect.anything()
+      );
+    }
+  );
 
   it("localizes provider receivable maturity errors by code", async () => {
     const user = userEvent.setup();
@@ -627,20 +686,7 @@ describe("ProviderWithdrawPage", () => {
         400
       )
     );
-    renderPage();
-    await waitFor(() =>
-      expect(getProviderWithdrawCapabilityMock).toHaveBeenCalled()
-    );
-    const btn = screen.getByRole("button", {
-      name: /Generate & Claim/i,
-    }) as HTMLButtonElement;
-    await waitFor(() => expect(btn.disabled).toBe(false));
-    await user.click(btn);
-
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: /Confirm/i })).toBeTruthy()
-    );
-    await user.click(screen.getByRole("button", { name: /Confirm/i }));
+    await submitProviderWithdrawIntent(user);
 
     await waitFor(() => {
       expect(toastError).toHaveBeenCalledWith(
@@ -662,7 +708,6 @@ describe("ProviderWithdrawPage", () => {
     );
 
     renderPage();
-
     await waitFor(() => {
       expect(
         screen.getByRole("heading", { name: "Provider 提现" })
@@ -725,5 +770,42 @@ describe("ProviderWithdrawPage", () => {
         id: "toast-provider-withdraw",
       });
     });
+  });
+
+  it("treats wallet rejection as localized cancellation copy", async () => {
+    const user = userEvent.setup();
+    writeContractAsyncMock.mockRejectedValue(
+      Object.assign(new Error("User denied message signature"), {
+        code: 4001,
+      })
+    );
+    createProviderWithdrawIntentMock.mockResolvedValue({
+      withdrawalId: "wd-wallet-rejected",
+      status: "APPROVED_AUTO",
+      amountUsdc: "12.500000",
+      ticket: {
+        ticketId: "0xabc",
+        ticketHash: "0xdef",
+        amount: "12500000000000000000",
+        fee: "0",
+        deadline: Math.floor(Date.now() / 1000) + 600,
+        signature: "0xdeadbeef",
+        chainId: 31337,
+        contractAddress: "0x00000000000000000000000000000000000000aa",
+      },
+    });
+
+    await submitProviderWithdrawIntent(user);
+
+    await waitFor(() => {
+      expect(toastInfo).toHaveBeenCalledWith("Wallet rejected", {
+        id: "toast-provider-withdraw",
+        icon: "ℹ️",
+      });
+    });
+    expect(toastError).not.toHaveBeenCalledWith(
+      expect.stringContaining("User denied message signature"),
+      expect.anything()
+    );
   });
 });

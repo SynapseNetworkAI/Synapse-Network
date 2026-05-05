@@ -81,17 +81,17 @@ export default function ManageSpendCapModal({
     setSaveError(null);
     try {
       const saved = await updateOwnerSpendingLimit(userAddress, {
-        spendingLimitUsdc: allowUnlimited ? null : normalizeMoneyString(parsedLimit),
+        spendingLimitUsdc: allowUnlimited
+          ? null
+          : normalizeMoneyString(parsedLimit),
         allowUnlimited,
       });
       toast.success(t("creditsPage.manageSpendCapModalSaved"));
       await onSaved?.(saved);
       onClose();
     } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : t("creditsPage.manageSpendCapModalSaveFailed");
+      console.error("Failed to update spend cap:", error);
+      const message = t("creditsPage.manageSpendCapModalSaveFailed");
       setSaveError(message);
       toast.error(message);
     } finally {
