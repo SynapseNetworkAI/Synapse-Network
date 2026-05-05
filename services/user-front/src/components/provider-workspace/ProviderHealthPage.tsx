@@ -13,6 +13,7 @@ import {
   type ServiceHealthHistoryResponse,
 } from "@/utils/serviceApi";
 import { useAuth } from "@/components/WalletAuthGuard";
+import { useLanguage } from "@/components/i18n/LanguageProvider";
 import CopyableValue from "@/components/xui/CopyableValue";
 import XSelect from "@/components/xui/XSelect";
 
@@ -34,6 +35,7 @@ const HealthChartsPanel = dynamic(
 export default function ProviderHealthPage() {
   const { address } = useAccount();
   const { isSessionAuthenticated } = useAuth();
+  const { t } = useLanguage();
   const searchParams = useSearchParams();
   const queryServiceId = searchParams?.get("serviceId") || "";
 
@@ -76,10 +78,9 @@ export default function ProviderHealthPage() {
           "";
         setSelectedServiceId(picked);
       } catch (err) {
+        console.error("Failed to load provider services:", err);
         if (!cancelled) {
-          toast.error(
-            err instanceof Error ? err.message : "Failed to load service list"
-          );
+          toast.error(t("providerServicesPage.loadFailed"));
           setServices([]);
           setSelectedServiceId("");
         }
@@ -94,7 +95,7 @@ export default function ProviderHealthPage() {
     return () => {
       cancelled = true;
     };
-  }, [address, isSessionAuthenticated, queryServiceId]);
+  }, [address, isSessionAuthenticated, queryServiceId, t]);
 
   const fetchHistory = useCallback(
     async (serviceId: string) => {
@@ -111,15 +112,14 @@ export default function ProviderHealthPage() {
         });
         setHistory(payload);
       } catch (err) {
+        console.error("Failed to load provider health history:", err);
         setHistory(null);
-        toast.error(
-          err instanceof Error ? err.message : "Failed to load health history"
-        );
+        toast.error(t("providerServicesPage.healthHistoryLoadFailed"));
       } finally {
         setLoadingHistory(false);
       }
     },
-    [address, isSessionAuthenticated]
+    [address, isSessionAuthenticated, t]
   );
 
   useEffect(() => {
@@ -194,13 +194,16 @@ export default function ProviderHealthPage() {
           triggerClassName="inline-flex min-h-10 w-full items-center justify-between gap-3 rounded-lg border border-[#222222] bg-[#050505] px-3 py-2 text-sm text-white lg:w-[360px]"
           disabled={loadingServices || services.length === 0}
         />
-        <CopyableValue
-          value={selectedServiceId}
-          label="Service ID"
-          valueClassName="font-mono text-xs text-[#86868b]"
-          startChars={18}
-          endChars={8}
-        />
+        {selectedServiceId ? (
+          <CopyableValue
+            value={selectedServiceId}
+            label="Service ID"
+            className="w-full justify-start rounded-lg border border-[#222222] bg-[#050505] px-3 py-2 text-sm text-[#d1d1d4] lg:w-[260px]"
+            valueClassName="font-mono"
+            startChars={18}
+            endChars={10}
+          />
+        ) : null}
         <button
           onClick={() => {
             if (selectedServiceId) {

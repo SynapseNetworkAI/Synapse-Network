@@ -271,7 +271,13 @@ async def _execute_invocation_pipeline(  # noqa: PLR0915 - invocation pipeline k
             "quoteId": quote.quote_id, "invocationId": failed.invocation_id,
             "resultStatus": "failed", "errorCode": "UPSTREAM_ERROR", "businessType": "charge",
         })
-        raise HTTPException(status_code=502, detail={"code": "UPSTREAM_ERROR", "message": f"Upstream provider failed: {exc}"}) from exc
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "code": "UPSTREAM_ERROR",
+                "message": "Provider service is temporarily unavailable.",
+            },
+        ) from exc
 
     await record_credit_window_spend(credential, total_charge)
 

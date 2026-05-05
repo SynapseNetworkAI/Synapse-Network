@@ -106,6 +106,20 @@ const creditsPage: I18nMessages["creditsPage"] = {
   consumerWithdrawInvalidAmount: "Enter a valid amount.",
   consumerWithdrawAmountExceeds:
     "Amount exceeds available balance (${{amount}}).",
+  consumerWithdrawRequestFailed:
+    "Unable to prepare the withdrawal right now. Please retry in a moment.",
+  consumerWithdrawChainRpcUnavailable:
+    "Gateway cannot reach the chain RPC right now. In local development, make sure the local chain is running, then retry.",
+  consumerWithdrawContractNotConfigured:
+    "Withdrawal contract is not configured for this environment.",
+  consumerWithdrawMinAmountNotMet:
+    "Minimum consumer withdrawal amount is 10.00 USDC.",
+  consumerWithdrawAmountTooLowForFee:
+    "Withdrawal amount must be greater than the platform fee.",
+  consumerWithdrawInsufficientBalance:
+    "Spendable credits are insufficient for this withdrawal.",
+  consumerWithdrawMatureBalanceRequired:
+    "These funds are not mature yet. Consumer withdrawals require the T+1 matured funds window.",
   consumerWithdrawSubmitted: "Withdrawal of ${{amount}} USDC completed!",
   consumerWithdrawBackendSyncFailed:
     "On-chain transfer succeeded but backend update failed. The background processor will complete it automatically.",

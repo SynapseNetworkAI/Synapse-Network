@@ -253,17 +253,15 @@ export default function AccountSettingsPage() {
         toast.success(t("accountSettingsPage.saveSuccess"));
       }
     } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : t("accountSettingsPage.saveFailed");
+      console.error("Failed to save account settings:", error);
+      const message = error instanceof Error ? error.message : "";
       if (
         isWalletUnstableError(message) ||
         message.includes("Connector not connected")
       ) {
         toast.error(t("accountSettingsPage.walletReconnectRequired"));
       } else {
-        toast.error(message);
+        toast.error(t("accountSettingsPage.saveFailed"));
       }
     } finally {
       setIsSaving(false);

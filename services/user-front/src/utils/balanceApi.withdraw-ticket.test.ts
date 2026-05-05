@@ -10,6 +10,7 @@ vi.mock("@/utils/gatewayApi", () => ({
 }));
 
 import {
+  ConsumerWithdrawApiError,
   failV2Refund,
   getV2Balance,
   listConsumerWithdrawals,
@@ -99,30 +100,54 @@ describe("consumer withdrawal ticket normalization", () => {
     }
   });
 
+  it("preserves structured consumer withdrawal error codes", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () =>
+      new Response(
+        JSON.stringify({
+          detail: {
+            code: "CHAIN_RPC_UNAVAILABLE",
+            message: "Unable to reach chain RPC for withdrawal ticket signing.",
+          },
+        }),
+        { status: 503 }
+      );
+
+    try {
+      await expect(
+        requestConsumerWithdraw("0xabc", { amountUsdc: "99" })
+      ).rejects.toMatchObject({
+        name: "ConsumerWithdrawApiError",
+        code: "CHAIN_RPC_UNAVAILABLE",
+        status: 503,
+      } satisfies Partial<ConsumerWithdrawApiError>);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it("caps refund failure messages before sending them to the Gateway", async () => {
     const originalFetch = globalThis.fetch;
-    const calls: unknown[] = [];
-    globalThis.fetch = async (_url, init) => {
-      calls.push(JSON.parse(String(init?.body || "{}")));
+    let body: Record<string, unknown> | null = null;
+    globalThis.fetch = async (_input, init) => {
+      body =
+        typeof init?.body === "string"
+          ? (JSON.parse(init.body) as Record<string, unknown>)
+          : null;
       return new Response(JSON.stringify({ status: "success" }), {
         status: 200,
       });
     };
 
     try {
+      const oversized = "x".repeat(900);
       await failV2Refund("0xabc", "refund-1", {
-        reasonCode: "TX_FAILED",
-        message: "Execution reverted. " + "raw-call ".repeat(200),
+        reasonCode: "WITHDRAW_SUBMISSION_FAILED",
+        message: oversized,
       });
 
-      expect(calls).toHaveLength(1);
-      const body = calls[0] as { message: string };
-      expect(body.message).toHaveLength(512);
-      expect(body.message).toBe(
-        normalizeRefundFailureMessage(
-          "Execution reverted. " + "raw-call ".repeat(200)
-        )
-      );
+      expect(body?.message).toBe(normalizeRefundFailureMessage(oversized));
+      expect(String(body?.message ?? "").length).toBe(512);
     } finally {
       globalThis.fetch = originalFetch;
     }

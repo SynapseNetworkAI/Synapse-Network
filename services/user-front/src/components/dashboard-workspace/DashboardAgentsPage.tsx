@@ -42,8 +42,8 @@ import {
   discoverServices,
   type ServiceRegistryRecord,
 } from "@/utils/serviceApi";
-import { XButton } from "@/components/xui/XButton";
 import CopyableValue from "@/components/xui/CopyableValue";
+import { XButton } from "@/components/xui/XButton";
 import {
   XDialog,
   XDialogBody,
@@ -206,11 +206,10 @@ export default function DashboardAgentsPage({
       setCredentials(data);
     } catch (err) {
       console.error("Failed to fetch credentials:", err);
-      const message =
-        err instanceof Error
-          ? err.message
-          : t("agentsPage.loadCredentialsFailed");
-      if (message === WALLET_SESSION_MISSING_MESSAGE) {
+      if (
+        err instanceof Error &&
+        err.message === WALLET_SESSION_MISSING_MESSAGE
+      ) {
         clearAuthSession();
       }
       setCredentials([]);
@@ -218,7 +217,7 @@ export default function DashboardAgentsPage({
     } finally {
       setIsLoading(false);
     }
-  }, [isSessionAuthenticated, t, userAddress]);
+  }, [isSessionAuthenticated, userAddress]);
 
   const fetchServices = useCallback(async () => {
     try {
@@ -389,9 +388,7 @@ export default function DashboardAgentsPage({
       await fetchCredentials();
     } catch (err) {
       console.error("Failed to revoke credential:", err);
-      toast.error(
-        err instanceof Error ? err.message : t("agentsPage.revokeFailed")
-      );
+      toast.error(t("agentsPage.revokeFailed"));
     } finally {
       setIsRevokingCredential(false);
     }
@@ -415,11 +412,7 @@ export default function DashboardAgentsPage({
         await fetchCredentials();
       } catch (err) {
         console.error("Failed to delete agent:", err);
-        toast.error(
-          err instanceof Error
-            ? err.message
-            : t("agentsPage.workspaceDeleteAgentDeletedFailed")
-        );
+        toast.error(t("agentsPage.workspaceDeleteAgentDeletedFailed"));
       } finally {
         setIsDeletingAgent(false);
       }
@@ -469,11 +462,7 @@ export default function DashboardAgentsPage({
       await fetchCredentials();
     } catch (err) {
       console.error("Failed to update agent quota:", err);
-      toast.error(
-        err instanceof Error
-          ? err.message
-          : t("agentsPage.updateAgentLimitsFailed")
-      );
+      toast.error(t("agentsPage.updateAgentLimitsFailed"));
     }
   };
 
@@ -527,11 +516,7 @@ export default function DashboardAgentsPage({
         await fetchCredentials();
       } catch (err) {
         console.error("Failed to regenerate credential:", err);
-        toast.error(
-          err instanceof Error
-            ? err.message
-            : t("agentsPage.workspaceCredentialRegeneratedFailed")
-        );
+        toast.error(t("agentsPage.workspaceCredentialRegeneratedFailed"));
       } finally {
         setIsRegeneratingCredential(false);
       }
@@ -559,11 +544,7 @@ export default function DashboardAgentsPage({
         await fetchCredentials();
       } catch (err) {
         console.error("Failed to generate credential:", err);
-        toast.error(
-          err instanceof Error
-            ? err.message
-            : t("agentsPage.workspaceCredentialGeneratedFailed")
-        );
+        toast.error(t("agentsPage.workspaceCredentialGeneratedFailed"));
       } finally {
         setIsRegeneratingCredential(false);
       }
@@ -707,9 +688,7 @@ export default function DashboardAgentsPage({
         await Promise.allSettled([handleOwnerRefresh(), fetchCredentials()]);
       } catch (err) {
         console.error("Sandbox invoke failed:", err);
-        const message =
-          err instanceof Error ? err.message : t("agentsPage.invocationFailed");
-        setSandboxInvokeError(message);
+        setSandboxInvokeError(t("agentsPage.invocationFailed"));
       } finally {
         setIsSandboxInvoking(false);
       }
@@ -1024,6 +1003,7 @@ export default function DashboardAgentsPage({
                       label={t("agentsPage.workspaceAgentIdLabel")}
                       className="gap-0"
                       valueClassName="sr-only"
+                      buttonClassName="rounded-lg"
                     />
                   </div>
                   <p className="x-body-copy mt-4 max-w-2xl">
@@ -1584,7 +1564,7 @@ export default function DashboardAgentsPage({
                 <dt className="x-overline-label mb-1 block font-bold uppercase tracking-widest text-gray-500">
                   {t("agentsPage.boundOwnerValueLabel")}
                 </dt>
-                <dd className="break-all font-mono text-sm text-blue-300">
+                <dd>
                   <CopyableValue
                     value={issuedCredential.ownerAddress}
                     label={t("agentsPage.boundOwnerValueLabel")}

@@ -26,6 +26,7 @@ import {
   listConsumerWithdrawals,
   redeemCreditVoucher,
   requestConsumerWithdraw,
+  ConsumerWithdrawApiError,
   type ConsumerWithdrawIntent,
   type OwnerSpendingLimit,
   type RefundIntentRecord,
@@ -86,33 +87,66 @@ type WithdrawStep =
 
 const ACTIVE_WITHDRAWAL_STATUSES = new Set([
   "REQUESTED",
-  "SIGNED",
-  "BROADCASTED",
   "PENDING",
   "PENDING_MANUAL_REVIEW",
-  "APPROVED_AUTO",
-  "APPROVED_MANUAL",
+  "PROCESSING",
   "TICKET_READY",
 ]);
 
 const WITHDRAWAL_PENDING_BALANCE_STATUSES = new Set([
   "REQUESTED",
-  "SIGNED",
-  "BROADCASTED",
   "PENDING",
-  "APPROVED_AUTO",
-  "APPROVED_MANUAL",
+  "PENDING_MANUAL_REVIEW",
+  "PROCESSING",
   "TICKET_READY",
 ]);
 
+function normalizeWithdrawalStatus(status?: string | null): string {
+  return String(status || "")
+    .trim()
+    .toUpperCase();
+}
+
 function isActiveWithdrawalStatus(status?: string | null): boolean {
-  return ACTIVE_WITHDRAWAL_STATUSES.has(String(status || "").toUpperCase());
+  return ACTIVE_WITHDRAWAL_STATUSES.has(normalizeWithdrawalStatus(status));
 }
 
 function isWithdrawalPendingBalanceStatus(status?: string | null): boolean {
   return WITHDRAWAL_PENDING_BALANCE_STATUSES.has(
-    String(status || "").toUpperCase()
+    normalizeWithdrawalStatus(status)
   );
+}
+
+function resolveConsumerWithdrawErrorMessage(
+  error: unknown,
+  t: ReturnType<typeof useLanguage>["t"]
+): string {
+  if (error instanceof ConsumerWithdrawApiError) {
+    if (
+      error.code === "CHAIN_RPC_UNAVAILABLE" ||
+      error.code === "WITHDRAW_TICKET_SIGNING_FAILED"
+    ) {
+      return t("creditsPage.consumerWithdrawChainRpcUnavailable");
+    }
+    if (error.code === "WITHDRAW_CONTRACT_NOT_CONFIGURED") {
+      return t("creditsPage.consumerWithdrawContractNotConfigured");
+    }
+    if (error.code === "MIN_WITHDRAWAL_AMOUNT_NOT_MET") {
+      return t("creditsPage.consumerWithdrawMinAmountNotMet");
+    }
+    if (error.code === "AMOUNT_TOO_LOW_FOR_FEE") {
+      return t("creditsPage.consumerWithdrawAmountTooLowForFee");
+    }
+    if (error.code === "INSUFFICIENT_CONSUMER_BALANCE") {
+      return t("creditsPage.consumerWithdrawInsufficientBalance");
+    }
+    if (error.code === "INSUFFICIENT_MATURE_CONSUMER_BALANCE") {
+      return t("creditsPage.consumerWithdrawMatureBalanceRequired");
+    }
+    return t("creditsPage.consumerWithdrawRequestFailed");
+  }
+
+  return t("creditsPage.consumerWithdrawRequestFailed");
 }
 
 function WithdrawBalanceModal({
@@ -165,11 +199,11 @@ function WithdrawBalanceModal({
         }
         await onSuccess({ ...target, status: "FAILED" });
       } catch (error) {
-        const msg =
-          error instanceof Error
-            ? error.message
-            : t("creditsPage.consumerWithdrawReleaseFailed");
-        toast.error(msg);
+        console.error(
+          "Failed to release consumer withdrawal after wallet rejection:",
+          error
+        );
+        toast.error(t("creditsPage.consumerWithdrawReleaseFailed"));
       } finally {
         setStep("form");
         onClose();
@@ -322,8 +356,9 @@ function WithdrawBalanceModal({
       setStep("confirming");
       toast.success(t("creditsPage.consumerWithdrawTxSubmitted"));
     } catch (err) {
-      const msg = normalizeWithdrawWalletError(err, {
-        fallback: t("creditsPage.consumerWithdrawTxFailed"),
+      const requestMessage = resolveConsumerWithdrawErrorMessage(err, t);
+      const walletMessage = normalizeWithdrawWalletError(err, {
+        fallback: requestMessage,
       });
       if (isWalletUserRejectedError(err)) {
         await syncFailedWithdrawal(
@@ -337,12 +372,12 @@ function WithdrawBalanceModal({
         if (createdResult?.withdrawId) {
           await syncFailedWithdrawal(
             "WITHDRAW_SUBMISSION_FAILED",
-            msg,
+            walletMessage,
             undefined,
             createdResult
           );
         } else {
-          toast.error(msg);
+          toast.error(requestMessage);
         }
       }
       setStep("form");
@@ -557,7 +592,7 @@ export default function OwnerCreditsPage() {
     try {
       const rows = await listConsumerWithdrawals(userAddress);
       const active =
-        rows.find((r) => isActiveWithdrawalStatus(r.status)) ?? null;
+        rows.find((row) => isActiveWithdrawalStatus(row.status)) ?? null;
       setPendingWithdrawal(active);
     } catch {
       setPendingWithdrawal(null);
@@ -583,11 +618,12 @@ export default function OwnerCreditsPage() {
       setSpendingLimit(nextLimit);
       setIsSpendCapAvailable(true);
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Failed to load credits page";
-      if (message === WALLET_SESSION_MISSING_MESSAGE) {
+      if (
+        err instanceof Error &&
+        err.message === WALLET_SESSION_MISSING_MESSAGE
+      ) {
         clearAuthSession();
-        setError(message);
+        setError(t("creditsPage.signInBeforePurchase"));
         return;
       }
       console.warn(
@@ -599,7 +635,7 @@ export default function OwnerCreditsPage() {
     } finally {
       setIsSpendCapLoading(false);
     }
-  }, [isConnected, isSessionAuthenticated, userAddress]);
+  }, [isConnected, isSessionAuthenticated, t, userAddress]);
 
   useEffect(() => {
     void fetchSpendingLimit();
@@ -1167,7 +1203,8 @@ export default function OwnerCreditsPage() {
           onSuccess={async (result) => {
             const normalizedStatus = (result.status || "").toUpperCase();
             const isActiveWithdrawal =
-              isActiveWithdrawalStatus(normalizedStatus);
+              normalizedStatus === "REQUESTED" ||
+              normalizedStatus === "PENDING_MANUAL_REVIEW";
 
             if (!isActiveWithdrawal) {
               setPendingWithdrawal(null);

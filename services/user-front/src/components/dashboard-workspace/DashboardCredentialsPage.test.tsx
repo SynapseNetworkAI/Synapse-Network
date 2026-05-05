@@ -135,4 +135,28 @@ describe("DashboardCredentialsPage i18n", () => {
     });
     expect(toastSuccessMock).toHaveBeenCalledWith("凭据已撤销");
   });
+
+  it("shows localized fallback when revoke returns raw backend errors", async () => {
+    const user = userEvent.setup();
+    revokeAgentCredentialMock.mockRejectedValue(
+      new Error("503: {'code': 'HTTPException', 'message': 'Internal error'}")
+    );
+    renderWithLanguage(createElement(DashboardCredentialsPage), "zh");
+
+    expect(
+      await screen.findByRole("heading", { name: "Agent 凭据" })
+    ).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "撤销" }));
+    await user.click(screen.getAllByRole("button", { name: "撤销" }).at(-1)!);
+
+    await waitFor(() => {
+      expect(toastErrorMock).toHaveBeenCalledWith("撤销凭据失败");
+    });
+    expect(toastErrorMock).not.toHaveBeenCalledWith(
+      expect.stringContaining("503:")
+    );
+    expect(toastErrorMock).not.toHaveBeenCalledWith(
+      expect.stringContaining("HTTPException")
+    );
+  });
 });

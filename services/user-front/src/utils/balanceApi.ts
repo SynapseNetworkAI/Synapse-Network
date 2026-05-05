@@ -45,6 +45,7 @@ async function readErrorPayload(
     if (!text) return {};
     const parsed = JSON.parse(text) as {
       detail?: { code?: string; message?: string } | string;
+      code?: string;
       message?: string;
     };
     if (parsed.detail && typeof parsed.detail === "object") {
@@ -59,6 +60,7 @@ async function readErrorPayload(
             : undefined,
       };
     }
+    const code = typeof parsed.code === "string" ? parsed.code : undefined;
     let message: string | undefined;
     if (typeof parsed.message === "string") {
       message = parsed.message;
@@ -66,6 +68,7 @@ async function readErrorPayload(
       message = parsed.detail;
     }
     return {
+      code,
       message,
     };
   } catch {
@@ -913,6 +916,18 @@ export type ConsumerWithdrawIntent = {
   ticket?: ConsumerWithdrawTicket;
 };
 
+export class ConsumerWithdrawApiError extends Error {
+  code?: string;
+  status?: number;
+
+  constructor(message: string, code?: string, status?: number) {
+    super(message);
+    this.name = "ConsumerWithdrawApiError";
+    this.code = code;
+    this.status = status;
+  }
+}
+
 export async function requestConsumerWithdraw(
   userAddress: string,
   params: { amountUsdc: MoneyString; reason?: string }
@@ -930,8 +945,14 @@ export async function requestConsumerWithdraw(
     }),
   });
   if (!response.ok) {
-    throw new Error(
-      await readErrorMessage(response, "Withdraw request failed")
+    const payload = await readErrorPayload(response);
+    throw new ConsumerWithdrawApiError(
+      normalizeAuthApiError(
+        payload.message || "Withdraw request failed",
+        response.status
+      ),
+      payload.code,
+      response.status
     );
   }
   const payload = (await response.json()) as Record<string, unknown>;

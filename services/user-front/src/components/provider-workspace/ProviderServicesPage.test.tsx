@@ -195,6 +195,26 @@ describe("ProviderServicesPage", () => {
     );
   });
 
+  it("shows localized fallback when service list returns raw backend errors", async () => {
+    listServiceRegistryMock.mockRejectedValue(
+      new Error("503: {'code': 'UPSTREAM_ERROR', 'message': 'HTTPException'}")
+    );
+
+    render(
+      createElement(LanguageProvider, null, createElement(ProviderServicesPage))
+    );
+
+    await waitFor(() => {
+      expect(toastError).toHaveBeenCalledWith("加载服务失败");
+    });
+    expect(toastError).not.toHaveBeenCalledWith(
+      expect.stringContaining("503:")
+    );
+    expect(toastError).not.toHaveBeenCalledWith(
+      expect.stringContaining("HTTPException")
+    );
+  });
+
   it("activates an inactive service and shows zh success toast", async () => {
     const user = userEvent.setup();
 
@@ -226,6 +246,38 @@ describe("ProviderServicesPage", () => {
       expect(updateServiceRegistryMock).toHaveBeenCalled();
     });
     expect(toastSuccess).toHaveBeenCalledWith("服务已激活");
+  });
+
+  it("shows localized fallback when status update returns raw backend errors", async () => {
+    const user = userEvent.setup();
+
+    listServiceRegistryMock.mockResolvedValue([
+      buildService({
+        id: "svc-inactive",
+        serviceId: "svc-inactive",
+        name: "Inactive Service",
+        isActive: false,
+        status: "inactive",
+      }),
+    ]);
+    updateServiceRegistryMock.mockRejectedValue(
+      new Error("503: {'code': 'CHAIN_RPC_UNAVAILABLE'}")
+    );
+
+    render(
+      createElement(LanguageProvider, null, createElement(ProviderServicesPage))
+    );
+
+    await screen.findByText("Inactive Service");
+    await user.click(screen.getByRole("button", { name: "激活" }));
+    await user.click(screen.getAllByRole("button", { name: "激活" }).at(-1)!);
+
+    await waitFor(() => {
+      expect(toastError).toHaveBeenCalledWith("更新服务失败：激活");
+    });
+    expect(toastError).not.toHaveBeenCalledWith(
+      expect.stringContaining("503:")
+    );
   });
 
   it("edits an inactive service through the custom edit modal", async () => {
