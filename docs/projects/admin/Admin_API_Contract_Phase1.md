@@ -716,7 +716,7 @@ X-CSRF-Token: <csrfToken>
 - 该视图只允许由 gateway 真相表和持久化运行态派生，不允许拼接 admin 本地写模型
 - 视图 canonical 列已切换到 target-state 命名：`today_consumer_refund_usdc`、`today_provider_withdrawal_usdc`、`consumer_liability_usdc`
 - 第一批资金链路观测增强字段也由该 projection 提供：`today_invocation_count`、`today_platform_fee_earned_usdc`、`today_provider_earned_usdc`
-- `today_invocation_count`、`today_platform_fee_earned_usdc`、`today_provider_earned_usdc` 来源于 `synapse_invocations` 与 `synapse_runtime_state(invocation_billing::*)`
+- `today_invocation_count`、`today_platform_fee_earned_usdc`、`today_provider_earned_usdc` 来源于 `synapse_invocations` 与 `synapse_invocation_billing`；旧 `synapse_runtime_state(invocation_billing::*)` 仅作为迁移期 fallback
 - 为兼容旧版 `gateway-admin`，视图仍保留 `todayRefundUsdc` 对应的底层 alias 列：`today_refund_usdc`、`today_withdrawal_usdc`、`owner_liability_usdc`、`pending_withdrawal_count`
 
 响应：

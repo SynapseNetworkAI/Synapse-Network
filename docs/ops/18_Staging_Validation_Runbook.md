@@ -132,16 +132,17 @@ consumer/provider wallets.
 
 ## Validation Layers
 
-| Layer                          | Purpose                                                                                                                | Command / Evidence                                                                                                                     |
-| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| L0 Infra smoke                 | DNS, TLS, Cloud Run health/readiness, CORS, docs-front public docs endpoints                                           | `npm run e2e:staging-smoke` and `npm run ci:staging-smoke-evidence`                                                                    |
-| L1 Chain smoke                 | Arbitrum Sepolia RPC, chain id, deployed bytecode, wallet gas                                                          | `npm run staging:arb-sepolia:wallets:status` and `npm run ci:contract-deployment-evidence`                                             |
-| L2 Business E2E                | Gateway full-chain deposit, invoke, withdraw, reconciliation                                                           | `GATEWAY_RELEASE_E2E_PROFILE=mvp-postgres npm run release:evidence:gateway-fullchain:staging`                                          |
-| L3 UI dogfood                  | User-front/Admin-front/Docs-front browser render, CORS, screenshots, console/network errors                            | `npm run e2e:staging-ui-dogfood`                                                                                                       |
-| L3.5 Withdrawal review dogfood | Consumer large withdrawal and Provider withdrawal approve/reject review paths with screenshots, DB, and chain evidence | `npm run e2e:withdrawal-review-dogfood:staging`                                                                                        |
-| L4 Notifications               | Lark delivery, local/staging GCP Monitoring receiver, and Gmail outbox delivery                                        | `npm run e2e:lark-alerts`, `npm run e2e:gcp-alerts:local`, `npm run e2e:gcp-alerts:staging`, `npm run e2e:gmail-notifications:staging` |
-| L5 Recovery/load               | Cloud SQL restore, light load, DB connection pressure                                                                  | `npm run drill:backup-restore:staging`, `npm run perf:staging-load-suite`                                                              |
-| L6 Chaos                       | Intentional failure and rollback drills                                                                                | Run only after L0-L5 are green and manually approved                                                                                   |
+| Layer                          | Purpose                                                                                                                                                                                                | Command / Evidence                                                                                                                     |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
+| L0 Infra smoke                 | DNS, TLS, Cloud Run health/readiness, CORS, docs-front public docs endpoints                                                                                                                           | `npm run e2e:staging-smoke` and `npm run ci:staging-smoke-evidence`                                                                    |
+| L1 Chain smoke                 | Arbitrum Sepolia RPC, chain id, deployed bytecode, wallet gas                                                                                                                                          | `npm run staging:arb-sepolia:wallets:status` and `npm run ci:contract-deployment-evidence`                                             |
+| L2 Business E2E                | Gateway full-chain deposit, invoke, withdraw, reconciliation                                                                                                                                           | `GATEWAY_RELEASE_E2E_PROFILE=mvp-postgres npm run release:evidence:gateway-fullchain:staging`                                          |
+| L2.5 Full regression           | Deployed User-front dashboard, billing, discovery, canonical provider invoke, LLM invoke, provider console, and admin read-only state must match Cloud SQL evidence without creating provider services | `npm run e2e:staging-full-regression` and `npm run ci:staging-full-regression-evidence`                                                |
+| L3 UI dogfood                  | User-front/Admin-front/Docs-front browser render, CORS, screenshots, console/network errors                                                                                                            | `npm run e2e:staging-ui-dogfood`                                                                                                       |
+| L3.5 Withdrawal review dogfood | Consumer large withdrawal and Provider withdrawal approve/reject review paths with screenshots, DB, and chain evidence                                                                                 | `npm run e2e:withdrawal-review-dogfood:staging`                                                                                        |
+| L4 Notifications               | Lark delivery, local/staging GCP Monitoring receiver, and Gmail outbox delivery                                                                                                                        | `npm run e2e:lark-alerts`, `npm run e2e:gcp-alerts:local`, `npm run e2e:gcp-alerts:staging`, `npm run e2e:gmail-notifications:staging` |
+| L5 Recovery/load               | Cloud SQL restore, light load, DB connection pressure                                                                                                                                                  | `npm run drill:backup-restore:staging`, `npm run perf:staging-load-suite`                                                              |
+| L6 Chaos                       | Intentional failure and rollback drills                                                                                                                                                                | Run only after L0-L5 are green and manually approved                                                                                   |
 
 ## Step 0 - L0/L1 Preflight
 
@@ -695,11 +696,17 @@ Success criteria:
 Run browser-level staging verification after L0/L1 are green:
 
 ```bash
+npm run e2e:staging-full-regression
+npm run ci:staging-full-regression-evidence
+
 npm run e2e:staging-ui-dogfood
 ```
 
-The runner captures screenshots and fails on page load failures, browser
-console errors, failed network requests, and browser-origin API failures.
+The full-regression runner starts at
+`https://staging.synapse-network.ai/dashboard/overview`, reuses only the
+canonical staging provider services, and compares DOM/API/Cloud SQL/chain
+checkpoints before writing screenshots. The UI-only dogfood runner remains a
+lighter browser render sweep after the full regression passes.
 
 Screenshot evidence is not accepted as a raw page photo. Any dashboard,
 provider-console, or admin-console dogfood screenshot must be captured only

@@ -177,7 +177,8 @@ SELECT date_trunc('day', NOW()) AS day_start
 来源：
 
 - `synapse_invocations`
-- `synapse_runtime_state(state_key like 'invocation_billing::%')`
+- `synapse_invocation_billing`
+- legacy fallback: `synapse_runtime_state(state_key = 'invocation_billing::' || invocation_id)`
 
 作用：
 
@@ -259,7 +260,8 @@ canonical 字段：
 来源：
 
 - `synapse_invocations`
-- `synapse_runtime_state(state_key like 'invocation_billing::%')`
+- `synapse_invocation_billing`
+- legacy fallback: `synapse_runtime_state(state_key = 'invocation_billing::' || invocation_id)`
 
 字段：
 
