@@ -17,6 +17,58 @@ DB_DSN = os.getenv(
 )
 
 
+_TEST_SERVICE_SQL_CLAUSE = """
+(
+    service_id LIKE 'api_ref_%%'
+    OR service_id LIKE 'apiref_test_%%'
+    OR service_id LIKE 'provider_onboard_%%'
+    OR service_id LIKE 'llm_%%_llm_deepseek_%%'
+    OR service_id LIKE 'gateway_pull_health_%%'
+    OR service_id LIKE 'svc_e2e_%%'
+    OR service_id LIKE 'svc_verify_%%'
+    OR service_id LIKE 'svc_buyer_%%'
+    OR service_id LIKE 'ufc_%%'
+)
+AND service_id NOT IN (
+    'svc_synapse_echo',
+    'svc_synapse_mock_cost_1usdc',
+    'svc_web3_sentiment_index',
+    'svc_protocol_fundamental_brief',
+    'svc_oss_security_healthcheck',
+    'svc_deepseek_chat'
+)
+"""
+
+
+def _is_local_dsn() -> bool:
+    normalized = DB_DSN.replace("@postgres:", "@127.0.0.1:")
+    return "127.0.0.1" in normalized or "localhost" in normalized
+
+
+def active_test_service_ids() -> set[str]:
+    """Return active local E2E/test service ids.
+
+    This helper is intentionally local-only because it is used by E2E teardown
+    guardrails. Staging evidence must stay read-only unless a runbook explicitly
+    opts into a mutating cleanup.
+    """
+    if not _is_local_dsn():
+        return set()
+    import psycopg
+
+    with psycopg.connect(DB_DSN) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"""
+                SELECT service_id
+                FROM synapse_service_manifests
+                WHERE status = 'active'
+                  AND {_TEST_SERVICE_SQL_CLAUSE}
+                """
+            )
+            return {str(row[0]) for row in cur.fetchall()}
+
+
 def _endpoint_id(service_id: str, target_url: str, index: int = 0) -> str:
     """Mirror ServiceRegistryRepository._endpoint_id deterministic formula."""
     suffix = hashlib.sha1(target_url.encode("utf-8")).hexdigest()[:10]
@@ -103,32 +155,52 @@ def seed_service_health(service_id: str, target_url: str) -> None:
 
 
 def archive_test_service(service_id: str) -> None:
-    """Soft-archive an E2E-created service without deleting audit history."""
+    """Soft-archive an E2E-created service and clear health runtime rows.
+
+    Manifests stay in audit history as archived. Health snapshots/runtime/events
+    are deleted so the local health monitor does not keep probing stale test
+    services after an E2E run.
+    """
     normalized = str(service_id or "").strip()
     if not normalized:
+        return
+    if not _is_local_dsn():
         return
     import psycopg
 
     with psycopg.connect(DB_DSN) as conn:
         with conn.cursor() as cur:
             cur.execute(
-                """
+                f"""
                 UPDATE synapse_service_manifests
                 SET status = 'archived', updated_at = NOW()
                 WHERE service_id = %s
                   AND status = 'active'
-                  AND (
-                    service_id LIKE 'api_ref_%%'
-                    OR service_id LIKE 'apiref_test_%%'
-	                    OR service_id LIKE 'provider_onboard_%%'
-	                    OR service_id LIKE 'llm_%%_llm_deepseek_%%'
-	                    OR service_id LIKE 'gateway_pull_health_%%'
-	                    OR service_id LIKE 'svc_e2e_%%'
-	                    OR service_id LIKE 'svc_verify_%%'
-	                    OR service_id LIKE 'svc_buyer_%%'
-	                    OR service_id LIKE 'ufc_%%'
-	                  )
+                  AND {_TEST_SERVICE_SQL_CLAUSE}
                 """,
                 (normalized,),
+            )
+            cur.execute(
+                "DELETE FROM synapse_service_health_snapshots WHERE service_id = %s",
+                (normalized,),
+            )
+            cur.execute(
+                "DELETE FROM synapse_service_health_runtime WHERE service_id = %s",
+                (normalized,),
+            )
+            cur.execute(
+                "DELETE FROM synapse_service_health_events WHERE service_id = %s",
+                (normalized,),
+            )
+            cur.execute(
+                """
+                DELETE FROM synapse_runtime_state
+                WHERE state_key LIKE %s
+                   OR state_key = %s
+                """,
+                (
+                    f"service_health_meta::{normalized}::%",
+                    f"service_health_history::{normalized}",
+                ),
             )
         conn.commit()
