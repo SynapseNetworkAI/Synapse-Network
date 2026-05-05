@@ -989,12 +989,18 @@ export async function requestConsumerWithdraw(
 }
 
 export async function listConsumerWithdrawals(
-  userAddress: string
+  userAddress: string,
+  limit: number = 50
 ): Promise<RefundIntentRecord[]> {
-  const response = await fetch(`${API_BASE}/balance/consumer/withdrawals`, {
-    method: "GET",
-    headers: buildAuthedHeaders(userAddress),
-  });
+  const response = await fetch(
+    `${API_BASE}/balance/consumer/withdrawals?limit=${encodeURIComponent(
+      String(limit)
+    )}`,
+    {
+      method: "GET",
+      headers: buildAuthedHeaders(userAddress),
+    }
+  );
   if (!response.ok) return [];
   const payload = (await response.json()) as { withdrawals?: unknown[] };
   const raw = Array.isArray(payload.withdrawals) ? payload.withdrawals : [];
@@ -1053,6 +1059,7 @@ export async function failV2Refund(
   refundId: string,
   params: { reasonCode: string; message?: string; txHash?: string }
 ): Promise<void> {
+  const message = normalizeRefundFailureMessage(params.message);
   const response = await fetch(
     `${API_BASE}/refunds/${encodeURIComponent(refundId)}/fail`,
     {
@@ -1060,7 +1067,7 @@ export async function failV2Refund(
       headers: buildAuthedHeaders(userAddress),
       body: JSON.stringify({
         reasonCode: params.reasonCode,
-        message: params.message,
+        ...(message ? { message } : {}),
         txHash: params.txHash,
       }),
     }
@@ -1071,6 +1078,12 @@ export async function failV2Refund(
       await readErrorMessage(response, "Failed to mark refund as failed")
     );
   }
+}
+
+export function normalizeRefundFailureMessage(message?: string): string {
+  const normalized = String(message || "").trim();
+  if (normalized.length <= 512) return normalized;
+  return normalized.slice(0, 512);
 }
 
 export async function getV2IndexerStatus(

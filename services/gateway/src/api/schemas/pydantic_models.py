@@ -15,6 +15,7 @@ EMAIL_FORMAT_ERROR = "email must be a valid address"
 EMAIL_REGEX = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 EMAIL_VERIFICATION_CODE_DIGITS = 6
 EMAIL_VERIFICATION_CODE_FORMAT_ERROR = "EMAIL_VERIFICATION_CODE_INVALID"
+REFUND_FAIL_MESSAGE_MAX_LENGTH = 512
 AMOUNT_USDC_DECIMAL_PLACES_ERROR = "amountUsdc supports up to 2 decimal places"
 SPENDING_LIMIT_POSITIVE_ERROR = "spendingLimitUsdc must be positive"
 SPENDING_LIMIT_DECIMAL_PLACES_ERROR = "spendingLimitUsdc supports up to 6 decimal places"
@@ -329,8 +330,25 @@ class AdminRefundCompleteRequest(RefundCompleteRequest):
 
 class RefundFailRequest(BaseModel):
     reasonCode: str = Field(..., min_length=3, max_length=64)
-    message: Optional[str] = Field(default=None, max_length=512)
+    message: Optional[str] = Field(
+        default=None,
+        max_length=REFUND_FAIL_MESSAGE_MAX_LENGTH,
+    )
     txHash: Optional[str] = Field(default=None, min_length=66, max_length=66)
+
+    @field_validator("message", mode="before")
+    @classmethod
+    def normalize_message(cls, value: object) -> object:
+        if value is None:
+            return None
+        if not isinstance(value, str):
+            return value
+        normalized = value.strip()
+        if not normalized:
+            return None
+        if len(normalized) <= REFUND_FAIL_MESSAGE_MAX_LENGTH:
+            return normalized
+        return normalized[:REFUND_FAIL_MESSAGE_MAX_LENGTH]
 
     @field_validator("txHash")
     @classmethod

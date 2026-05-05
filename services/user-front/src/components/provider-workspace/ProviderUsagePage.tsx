@@ -5,11 +5,13 @@ import { BarChart3, LineChart, TrendingUp } from "lucide-react";
 import { useAccount } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
+import CopyableValue from "@/components/xui/CopyableValue";
 import { useDashboardData } from "@/hooks/useDashboardData";
 
 export default function UsageAnalyticsPage() {
   const { t } = useLanguage();
-  const { providerStats, paidEvents, handleRefresh, isRefreshing } = useDashboardData();
+  const { providerStats, paidEvents, handleRefresh, isRefreshing } =
+    useDashboardData();
   const { isConnected } = useAccount();
   const { openConnectModal } = useConnectModal();
 
@@ -54,7 +56,10 @@ export default function UsageAnalyticsPage() {
   const maxCalls = Math.max(1, ...trendRows.map((row) => row.calls));
 
   const topServices = useMemo(() => {
-    const map = new Map<string, { calls: number; gross: number; net: number; fee: number }>();
+    const map = new Map<
+      string,
+      { calls: number; gross: number; net: number; fee: number }
+    >();
     for (const event of paidEvents) {
       const key = event.serviceId || "unknown";
       const current = map.get(key) || { calls: 0, gross: 0, net: 0, fee: 0 };
@@ -69,7 +74,6 @@ export default function UsageAnalyticsPage() {
       .sort((a, b) => b.calls - a.calls)
       .slice(0, 10);
   }, [paidEvents]);
-
 
   return (
     <div className="p-6 md:p-10 mx-auto max-w-7xl text-white bg-[#000000] min-h-screen space-y-6">
@@ -87,26 +91,44 @@ export default function UsageAnalyticsPage() {
           onClick={() => void handleRefreshClick()}
           className="px-4 py-2 rounded-xl border border-[#22c55e]/40 bg-[#22c55e]/10 hover:bg-[#22c55e] hover:text-black text-sm font-semibold text-[#22c55e] transition-colors"
         >
-          {isRefreshing ? t("providerUsagePage.refreshing") : t("providerUsagePage.refreshData")}
+          {isRefreshing
+            ? t("providerUsagePage.refreshing")
+            : t("providerUsagePage.refreshData")}
         </button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="rounded-2xl p-5 border border-[#222222] bg-[#0a0a0a]">
-          <p className="text-[10px] uppercase tracking-[0.2em] text-[#86868b] mb-2">{t("providerUsagePage.metricNetEarnings")}</p>
-          <p className="text-3xl font-mono font-bold text-white">{providerStats.receivable.toFixed(4)} USDC</p>
+          <p className="text-[10px] uppercase tracking-[0.2em] text-[#86868b] mb-2">
+            {t("providerUsagePage.metricNetEarnings")}
+          </p>
+          <p className="text-3xl font-mono font-bold text-white">
+            {providerStats.receivable.toFixed(4)} USDC
+          </p>
         </div>
         <div className="rounded-2xl p-5 border border-[#222222] bg-[#0a0a0a]">
-          <p className="text-[10px] uppercase tracking-[0.2em] text-[#86868b] mb-2">{t("providerUsagePage.metricGrossEarnings")}</p>
-          <p className="text-3xl font-mono font-bold text-white">{providerStats.totalEarned.toFixed(4)} USDC</p>
+          <p className="text-[10px] uppercase tracking-[0.2em] text-[#86868b] mb-2">
+            {t("providerUsagePage.metricGrossEarnings")}
+          </p>
+          <p className="text-3xl font-mono font-bold text-white">
+            {providerStats.totalEarned.toFixed(4)} USDC
+          </p>
         </div>
         <div className="rounded-2xl p-5 border border-[#222222] bg-[#0a0a0a]">
-          <p className="text-[10px] uppercase tracking-[0.2em] text-[#86868b] mb-2">{t("providerUsagePage.metricProtocolFee")}</p>
-          <p className="text-3xl font-mono font-bold text-[#ff9f0a]">{providerStats.totalFees.toFixed(4)} USDC</p>
+          <p className="text-[10px] uppercase tracking-[0.2em] text-[#86868b] mb-2">
+            {t("providerUsagePage.metricProtocolFee")}
+          </p>
+          <p className="text-3xl font-mono font-bold text-[#ff9f0a]">
+            {providerStats.totalFees.toFixed(4)} USDC
+          </p>
         </div>
         <div className="rounded-2xl p-5 border border-[#222222] bg-[#0a0a0a]">
-          <p className="text-[10px] uppercase tracking-[0.2em] text-[#86868b] mb-2">{t("providerUsagePage.metricRoutingTax")}</p>
-          <p className="text-3xl font-mono font-bold text-[#22c55e]">{providerStats.totalRoutingTax.toFixed(4)} USDC</p>
+          <p className="text-[10px] uppercase tracking-[0.2em] text-[#86868b] mb-2">
+            {t("providerUsagePage.metricRoutingTax")}
+          </p>
+          <p className="text-3xl font-mono font-bold text-[#22c55e]">
+            {providerStats.totalRoutingTax.toFixed(4)} USDC
+          </p>
         </div>
       </div>
 
@@ -114,15 +136,25 @@ export default function UsageAnalyticsPage() {
         <div className="xl:col-span-3 rounded-2xl border border-[#222222] bg-[#0a0a0a] p-5">
           <div className="flex items-center gap-2 mb-4">
             <LineChart className="w-4 h-4 text-[#22c55e]" />
-            <h2 className="text-sm font-semibold tracking-wide text-white">{t("providerUsagePage.netEarningsTrend")}</h2>
+            <h2 className="text-sm font-semibold tracking-wide text-white">
+              {t("providerUsagePage.netEarningsTrend")}
+            </h2>
           </div>
           <div className="h-56 flex items-end gap-2">
             {trendRows.map((row) => {
               const h = (row.net / maxNet) * 100;
               return (
-                <div key={row.day} className="flex-1 min-w-0 flex flex-col items-center justify-end gap-2">
-                  <div className="w-full rounded-t-md bg-[#22c55e]" style={{ height: `${Math.max(6, h)}%` }} />
-                  <span className="text-[10px] text-[#86868b]">{row.label}</span>
+                <div
+                  key={row.day}
+                  className="flex-1 min-w-0 flex flex-col items-center justify-end gap-2"
+                >
+                  <div
+                    className="w-full rounded-t-md bg-[#22c55e]"
+                    style={{ height: `${Math.max(6, h)}%` }}
+                  />
+                  <span className="text-[10px] text-[#86868b]">
+                    {row.label}
+                  </span>
                 </div>
               );
             })}
@@ -132,15 +164,25 @@ export default function UsageAnalyticsPage() {
         <div className="xl:col-span-2 rounded-2xl border border-[#222222] bg-[#0a0a0a] p-5">
           <div className="flex items-center gap-2 mb-4">
             <TrendingUp className="w-4 h-4 text-[#86868b]" />
-            <h2 className="text-sm font-semibold tracking-wide text-white">{t("providerUsagePage.callVolumeTrend")}</h2>
+            <h2 className="text-sm font-semibold tracking-wide text-white">
+              {t("providerUsagePage.callVolumeTrend")}
+            </h2>
           </div>
           <div className="h-56 flex items-end gap-2">
             {trendRows.map((row) => {
               const h = (row.calls / maxCalls) * 100;
               return (
-                <div key={`${row.day}-calls`} className="flex-1 min-w-0 flex flex-col items-center justify-end gap-2">
-                  <div className="w-full rounded-t-md bg-[#3b82f6]" style={{ height: `${Math.max(6, h)}%` }} />
-                  <span className="text-[10px] text-[#86868b]">{row.label}</span>
+                <div
+                  key={`${row.day}-calls`}
+                  className="flex-1 min-w-0 flex flex-col items-center justify-end gap-2"
+                >
+                  <div
+                    className="w-full rounded-t-md bg-[#3b82f6]"
+                    style={{ height: `${Math.max(6, h)}%` }}
+                  />
+                  <span className="text-[10px] text-[#86868b]">
+                    {row.label}
+                  </span>
                 </div>
               );
             })}
@@ -150,28 +192,59 @@ export default function UsageAnalyticsPage() {
 
       <div className="rounded-2xl border border-[#222222] bg-[#0a0a0a] overflow-hidden">
         <div className="px-6 py-4 border-b border-[#222222] bg-[#050505]">
-          <h2 className="text-lg font-semibold text-white">{t("providerUsagePage.topServicesTitle")}</h2>
+          <h2 className="text-lg font-semibold text-white">
+            {t("providerUsagePage.topServicesTitle")}
+          </h2>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse whitespace-nowrap">
             <thead>
               <tr className="bg-[#050505] text-[#86868b] text-sm border-b border-[#222222]">
-                <th className="py-4 px-6 font-medium">{t("providerUsagePage.tableServiceId")}</th>
-                <th className="py-4 px-6 font-medium">{t("providerUsagePage.tableTotalCalls")}</th>
-                <th className="py-4 px-6 font-medium text-right">{t("providerUsagePage.tableGross")}</th>
-                <th className="py-4 px-6 font-medium text-right">{t("providerUsagePage.tableProtocolFee")}</th>
-                <th className="py-4 px-6 font-medium text-right">{t("providerUsagePage.tableNet")}</th>
+                <th className="py-4 px-6 font-medium">
+                  {t("providerUsagePage.tableServiceId")}
+                </th>
+                <th className="py-4 px-6 font-medium">
+                  {t("providerUsagePage.tableTotalCalls")}
+                </th>
+                <th className="py-4 px-6 font-medium text-right">
+                  {t("providerUsagePage.tableGross")}
+                </th>
+                <th className="py-4 px-6 font-medium text-right">
+                  {t("providerUsagePage.tableProtocolFee")}
+                </th>
+                <th className="py-4 px-6 font-medium text-right">
+                  {t("providerUsagePage.tableNet")}
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#151515] text-sm">
               {topServices.length > 0 ? (
                 topServices.map((row) => (
-                  <tr key={row.serviceId} className="hover:bg-[#111111] transition-colors">
-                    <td className="py-4 px-6 font-mono text-white">{row.serviceId}</td>
-                    <td className="py-4 px-6 font-medium text-white">{row.calls}</td>
-                    <td className="py-4 px-6 font-mono text-right text-white">{row.gross.toFixed(4)}</td>
-                    <td className="py-4 px-6 font-mono text-right text-[#ff9f0a]">{row.fee.toFixed(4)}</td>
-                    <td className="py-4 px-6 font-mono text-right text-[#22c55e]">{row.net.toFixed(4)}</td>
+                  <tr
+                    key={row.serviceId}
+                    className="hover:bg-[#111111] transition-colors"
+                  >
+                    <td className="py-4 px-6 font-mono text-white">
+                      <CopyableValue
+                        value={row.serviceId}
+                        label={t("providerUsagePage.tableServiceId")}
+                        valueClassName="font-mono text-white"
+                        startChars={18}
+                        endChars={8}
+                      />
+                    </td>
+                    <td className="py-4 px-6 font-medium text-white">
+                      {row.calls}
+                    </td>
+                    <td className="py-4 px-6 font-mono text-right text-white">
+                      {row.gross.toFixed(4)}
+                    </td>
+                    <td className="py-4 px-6 font-mono text-right text-[#ff9f0a]">
+                      {row.fee.toFixed(4)}
+                    </td>
+                    <td className="py-4 px-6 font-mono text-right text-[#22c55e]">
+                      {row.net.toFixed(4)}
+                    </td>
                   </tr>
                 ))
               ) : (

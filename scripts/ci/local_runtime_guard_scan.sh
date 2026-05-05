@@ -4,6 +4,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 GATEWAY_RESTART="$ROOT_DIR/scripts/local/restart_gateway.sh"
+LOCAL_SETUP="$ROOT_DIR/scripts/local/setup_local_env.sh"
 
 if [[ ! -f "$GATEWAY_RESTART" ]]; then
   echo "FATAL LOCAL-RUNTIME-001: restart_gateway.sh was not found at $GATEWAY_RESTART" >&2
@@ -40,4 +41,61 @@ EOF
   exit 1
 fi
 
+required_defaults=(
+  'V2_INDEXER_ENABLED.*:-true'
+  'V2_BACKFILL_ENABLED.*:-true'
+  'V2_RECONCILIATION_ENABLED.*:-true'
+  'SERVICE_HEALTH_MONITOR_ENABLED.*:-true'
+  'PROVIDER_WITHDRAW_EXPIRY_REAPER_ENABLED.*:-true'
+  'CONSUMER_WITHDRAW_PROCESSOR_ENABLED.*:-true'
+  'IN_APP_NOTIFICATION_CLEANUP_ENABLED.*:-true'
+  'SERVICE_HEALTH_EVENT_CLEANUP_ENABLED.*:-true'
+)
+
+for default_pattern in "${required_defaults[@]}"; do
+  if ! grep -Eq "$default_pattern" "$GATEWAY_RESTART"; then
+    cat >&2 <<EOF
+FATAL LOCAL-RUNTIME-004: local Gateway restart must default all in-process background monitors to enabled.
+Missing default pattern: ${default_pattern}
+Why dangerous: disabled local monitors leave deposits, withdrawals, health probes, or cleanup rows stuck until a manual worker is run.
+Agent fix: keep local restart defaults at true unless the operator explicitly overrides the env var.
+EOF
+    exit 1
+  fi
+done
+
+if ! grep -q 'start_gateway_worker "analytics-outbox"' "$GATEWAY_RESTART" \
+  || ! grep -q 'start_gateway_worker "notification-outbox"' "$GATEWAY_RESTART" \
+  || ! grep -q -- '-m src.worker' "$GATEWAY_RESTART" \
+  || ! grep -q -- '--poll-interval-sec 1' "$GATEWAY_RESTART"; then
+  cat >&2 <<'EOF'
+FATAL LOCAL-RUNTIME-005: local Gateway restart must start analytics and notification outbox workers.
+Why dangerous: local end-to-end notification and analytics evidence can pass API enqueue checks while no worker drains outbox rows.
+Agent fix: start `python -m src.worker analytics-outbox --poll-interval-sec 1` and
+`python -m src.worker notification-outbox --poll-interval-sec 1` from restart_gateway.sh.
+EOF
+  exit 1
+fi
+
+if ! grep -q '/readiness' "$GATEWAY_RESTART" \
+  || ! grep -q 'provider_withdraw_expiry_reaper' "$GATEWAY_RESTART" \
+  || ! grep -q 'consumer_withdraw_processor' "$GATEWAY_RESTART"; then
+  cat >&2 <<'EOF'
+FATAL LOCAL-RUNTIME-006: local Gateway restart must assert readiness monitors after startup.
+Why dangerous: /health can pass while required local background monitors are disabled or uninitialized.
+Agent fix: query /readiness and fail startup unless the required monitors are enabled and initialized.
+EOF
+  exit 1
+fi
+
+if [[ -f "$LOCAL_SETUP" ]] && ! grep -q 'scripts/local/restart_gateway.sh' "$LOCAL_SETUP"; then
+  cat >&2 <<'EOF'
+FATAL LOCAL-RUNTIME-007: setup_local_env.sh must reuse restart_gateway.sh for Gateway startup.
+Why dangerous: full local setup and Gateway-only restart drift into different worker/env defaults.
+Agent fix: call scripts/local/restart_gateway.sh from setup_local_env.sh after contracts are deployed.
+EOF
+  exit 1
+fi
+
 echo "[local-runtime-guard] Gateway restart script contains a DB role/schema probe"
+echo "[local-runtime-guard] local Gateway defaults enable required monitors and outbox workers"

@@ -22,6 +22,10 @@ PROVIDER_PID=""
 FRONTEND_PID=""
 DOCS_FRONT_PID=""
 ADMIN_FRONT_PID=""
+ANALYTICS_OUTBOX_PID=""
+NOTIFICATION_OUTBOX_PID=""
+ANALYTICS_OUTBOX_SCREEN_SESSION="synapse-gateway-analytics-outbox"
+NOTIFICATION_OUTBOX_SCREEN_SESSION="synapse-gateway-notification-outbox"
 
 if [[ -f "$PID_FILE" ]]; then
   source "$PID_FILE"
@@ -60,9 +64,30 @@ stop_pid() {
   fi
 }
 
+stop_screen_session() {
+  local name="$1"
+  local session_name="$2"
+
+  if ! command -v screen >/dev/null 2>&1; then
+    echo "${name}: screen unavailable, skip session ${session_name}"
+    return
+  fi
+
+  if screen -list 2>/dev/null | grep -q "[.]${session_name}[[:space:]]"; then
+    screen -S "$session_name" -X quit >/dev/null 2>&1 || true
+    echo "${name}: stopped screen session (${session_name})"
+  else
+    echo "${name}: screen session not running (${session_name})"
+  fi
+}
+
 echo "=== Stopping Synapse local environment ==="
 stop_pid "Anvil" "${ANVIL_PID:-}"
 stop_pid "ProviderAPI" "${PROVIDER_PID:-}"
+stop_pid "AnalyticsOutboxWorker" "${ANALYTICS_OUTBOX_PID:-}"
+stop_pid "NotificationOutboxWorker" "${NOTIFICATION_OUTBOX_PID:-}"
+stop_screen_session "AnalyticsOutboxWorker" "$ANALYTICS_OUTBOX_SCREEN_SESSION"
+stop_screen_session "NotificationOutboxWorker" "$NOTIFICATION_OUTBOX_SCREEN_SESSION"
 stop_pid "Frontend" "${FRONTEND_PID:-}"
 stop_pid "DocsFront" "${DOCS_FRONT_PID:-}"
 stop_pid "AdminFront" "${ADMIN_FRONT_PID:-}"
