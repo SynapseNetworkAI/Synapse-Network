@@ -1073,6 +1073,13 @@ export type I18nMessages = {
     consumerWithdrawGasHint: string;
     consumerWithdrawInvalidAmount: string;
     consumerWithdrawAmountExceeds: string;
+    consumerWithdrawRequestFailed: string;
+    consumerWithdrawChainRpcUnavailable: string;
+    consumerWithdrawContractNotConfigured: string;
+    consumerWithdrawMinAmountNotMet: string;
+    consumerWithdrawAmountTooLowForFee: string;
+    consumerWithdrawInsufficientBalance: string;
+    consumerWithdrawMatureBalanceRequired: string;
     consumerWithdrawSubmitted: string;
     consumerWithdrawBackendSyncFailed: string;
     consumerWithdrawReleaseFailed: string;
@@ -1229,6 +1236,7 @@ export type I18nMessages = {
     serviceDeleted: string;
     deleteFailed: string;
     loadFailed: string;
+    healthHistoryLoadFailed: string;
     activeEditBlocked: string;
     inactiveOnlyEditBlocked: string;
     walletNotConnected: string;
@@ -1746,6 +1754,7 @@ export type I18nMessages = {
   };
   providerServicesPage: {
     loadFailed: string;
+    healthHistoryLoadFailed: string;
     activeEditBlocked: string;
     inactiveOnlyEditBlocked: string;
     confirmActivate: string;

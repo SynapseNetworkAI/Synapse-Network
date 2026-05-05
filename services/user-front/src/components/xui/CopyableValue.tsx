@@ -77,7 +77,8 @@ export default function CopyableValue({
   const { t } = useLanguage();
   const [copied, setCopied] = useState(false);
   const normalized = String(value || "").trim();
-  const display = displayValue ?? shortenCopyValue(normalized, startChars, endChars);
+  const display =
+    displayValue ?? shortenCopyValue(normalized, startChars, endChars);
 
   if (!normalized) {
     return <span className={valueClassName}>{emptyValue}</span>;
@@ -96,7 +97,10 @@ export default function CopyableValue({
 
   return (
     <span className={cx("inline-flex min-w-0 items-center gap-1.5", className)}>
-      <span className={cx("min-w-0 truncate", valueClassName)} title={normalized}>
+      <span
+        className={cx("min-w-0 truncate", valueClassName)}
+        title={normalized}
+      >
         {display}
       </span>
       <button

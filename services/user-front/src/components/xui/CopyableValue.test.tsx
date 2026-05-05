@@ -1,8 +1,16 @@
 // @vitest-environment jsdom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import CopyableValue, { shortenCopyValue } from "@/components/xui/CopyableValue";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import CopyableValue, {
+  shortenCopyValue,
+} from "@/components/xui/CopyableValue";
 import { LanguageProvider } from "@/components/i18n/LanguageProvider";
 import { I18N_STORAGE_KEY } from "@/i18n/config";
 
@@ -49,7 +57,9 @@ describe("CopyableValue", () => {
   it("copies the full value and shows a success toast", async () => {
     renderCopyable("0x1234567890abcdef");
 
-    fireEvent.click(screen.getByRole("button", { name: "Copy Transaction ID" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Copy Transaction ID" })
+    );
 
     await waitFor(() => {
       expect(writeText).toHaveBeenCalledWith("0x1234567890abcdef");
@@ -68,7 +78,9 @@ describe("CopyableValue", () => {
     writeText.mockRejectedValueOnce(new Error("denied"));
     renderCopyable("tx_123");
 
-    fireEvent.click(screen.getByRole("button", { name: "Copy Transaction ID" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Copy Transaction ID" })
+    );
 
     await waitFor(() => {
       expect(toastError).toHaveBeenCalledWith("Copy failed. Please try again.");

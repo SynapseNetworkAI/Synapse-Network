@@ -12,10 +12,15 @@ SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 PID_FILE="${ROOT_DIR}/.local_env.pids"
 LOG_FILE="${ROOT_DIR}/services/gateway/logs/provider_api.log"
+ANALYTICS_OUTBOX_LOG_FILE="${ROOT_DIR}/services/gateway/logs/analytics_outbox_worker.log"
+NOTIFICATION_OUTBOX_LOG_FILE="${ROOT_DIR}/services/gateway/logs/notification_outbox_worker.log"
 CONFIG_FILE="${ROOT_DIR}/services/user-front/src/contract-config.json"
 HEALTH_URL="http://127.0.0.1:8000/health"
+READINESS_URL="http://127.0.0.1:8000/readiness"
 STARTUP_TIMEOUT_SEC="${STARTUP_TIMEOUT_SEC:-20}"
 LOCAL_GATEWAY_POSTGRES_PORT="${SYNAPSE_POSTGRES_HOST_PORT:-15432}"
+ANALYTICS_OUTBOX_SCREEN_SESSION="synapse-gateway-analytics-outbox"
+NOTIFICATION_OUTBOX_SCREEN_SESSION="synapse-gateway-notification-outbox"
 
 find_pid_by_port() {
   port="$1"
@@ -200,6 +205,121 @@ wait_for_gateway_health() {
   return 1
 }
 
+wait_for_gateway_readiness() {
+  readiness_url="$1"
+  timeout_sec="$2"
+  elapsed=0
+
+  while [ "$elapsed" -lt "$timeout_sec" ]; do
+    if "$PYTHON_BIN" - "$readiness_url" <<'PY' >/dev/null 2>&1
+import json
+import sys
+import urllib.request
+
+url = sys.argv[1]
+expected = {
+    "deposit_indexer",
+    "service_health_monitor",
+    "provider_withdraw_expiry_reaper",
+    "consumer_withdraw_processor",
+    "in_app_notification_cleanup",
+    "service_health_event_cleanup",
+}
+with urllib.request.urlopen(url, timeout=2) as response:
+    payload = json.load(response)
+monitors = payload.get("monitors") or {}
+for name in expected:
+    monitor = monitors.get(name) or {}
+    if monitor.get("enabled") is not True:
+        raise SystemExit(f"{name} is not enabled")
+    if name == "deposit_indexer":
+        if monitor.get("healthy") is not True:
+            raise SystemExit(f"{name} is not healthy")
+    elif monitor.get("initialized") is not True:
+        raise SystemExit(f"{name} is not initialized")
+PY
+    then
+      return 0
+    fi
+    sleep 1
+    elapsed=$((elapsed + 1))
+  done
+
+  return 1
+}
+
+stop_screen_session() {
+  session_name="$1"
+  if command -v screen >/dev/null 2>&1; then
+    screen -S "$session_name" -X quit >/dev/null 2>&1 || true
+  fi
+}
+
+start_gateway_worker() {
+  worker_name="$1"
+  screen_session="$2"
+  log_file="$3"
+  pid_var_name="$4"
+  local worker_pid=""
+
+  mkdir -p "$(dirname "$log_file")"
+  stop_screen_session "$screen_session"
+
+  if command -v screen >/dev/null 2>&1; then
+    local start_cmd
+    start_cmd="cd $(shell_quote "${ROOT_DIR}/services/gateway") && exec env \
+ENVIRONMENT=local \
+${ENV_FILE_ARG} \
+POSTGRES_DSN=$(shell_quote "$LOCAL_POSTGRES_DSN") \
+RPC_URL=http://127.0.0.1:8545 \
+ROUTER_ADDRESS=$(shell_quote "$ROUTER_ADDRESS") \
+USDC_TOKEN_ADDRESS=$(shell_quote "$USDC_TOKEN_ADDRESS") \
+$(shell_quote "$PYTHON_BIN") -m src.worker $(shell_quote "$worker_name") --poll-interval-sec 1 > $(shell_quote "$log_file") 2>&1"
+    screen -dmS "$screen_session" bash -lc "$start_cmd"
+  else
+    env \
+      ENVIRONMENT=local \
+      ${ENV_FILE_ARG} \
+      POSTGRES_DSN="$LOCAL_POSTGRES_DSN" \
+      RPC_URL="http://127.0.0.1:8545" \
+      ROUTER_ADDRESS="$ROUTER_ADDRESS" \
+      USDC_TOKEN_ADDRESS="$USDC_TOKEN_ADDRESS" \
+      "$PYTHON_BIN" -m src.worker "$worker_name" --poll-interval-sec 1 > "$log_file" 2>&1 < /dev/null &
+    worker_pid=$!
+  fi
+
+  printf -v "$pid_var_name" '%s' "$worker_pid"
+}
+
+wait_for_worker_process() {
+  worker_name="$1"
+  timeout_sec="$2"
+  elapsed=0
+
+  while [ "$elapsed" -lt "$timeout_sec" ]; do
+    if pgrep -f "python.*-m src.worker ${worker_name}" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 1
+    elapsed=$((elapsed + 1))
+  done
+
+  return 1
+}
+
+upsert_pid_file_value() {
+  key="$1"
+  value="$2"
+
+  if [ -f "$PID_FILE" ]; then
+    grep -v "^${key}=" "$PID_FILE" > "${PID_FILE}.tmp" || true
+    echo "${key}=${value}" >> "${PID_FILE}.tmp"
+    mv "${PID_FILE}.tmp" "$PID_FILE"
+  else
+    echo "${key}=${value}" > "$PID_FILE"
+  fi
+}
+
 if [[ ! -f "${ROOT_DIR}/scripts/python/resolve_python_313.sh" ]]; then
   echo "Error: Python resolver script not found at ${ROOT_DIR}/scripts/python/resolve_python_313.sh"
   exit 1
@@ -221,6 +341,7 @@ fi
 
 echo "=== Restarting gateway/gateway_fastapi.py only ==="
 echo "Using Python interpreter: ${PYTHON_BIN}"
+mkdir -p "${ROOT_DIR}/services/gateway/logs"
 
 if ! "$PYTHON_BIN" -c "import uvicorn, fastapi, web3" >/dev/null 2>&1; then
   echo "Python dependencies missing. Installing from gateway/requirements.txt ..."
@@ -230,9 +351,13 @@ fi
 ensure_local_postgres
 
 PROVIDER_PID_FROM_FILE=""
+ANALYTICS_OUTBOX_PID_FROM_FILE=""
+NOTIFICATION_OUTBOX_PID_FROM_FILE=""
 if [ -f "$PID_FILE" ]; then
   . "$PID_FILE" || true
   PROVIDER_PID_FROM_FILE="${PROVIDER_PID:-}"
+  ANALYTICS_OUTBOX_PID_FROM_FILE="${ANALYTICS_OUTBOX_PID:-}"
+  NOTIFICATION_OUTBOX_PID_FROM_FILE="${NOTIFICATION_OUTBOX_PID:-}"
 fi
 
 EXISTING_PROVIDER_PID="${PROVIDER_PID_FROM_FILE}"
@@ -244,6 +369,11 @@ if [ -n "$EXISTING_PROVIDER_PID" ]; then
   echo "Stopping existing gateway process on 8000: PID ${EXISTING_PROVIDER_PID}"
   stop_pid "ProviderAPI" "$EXISTING_PROVIDER_PID"
 fi
+
+stop_screen_session "$ANALYTICS_OUTBOX_SCREEN_SESSION"
+stop_screen_session "$NOTIFICATION_OUTBOX_SCREEN_SESSION"
+stop_pid "AnalyticsOutboxWorker" "$ANALYTICS_OUTBOX_PID_FROM_FILE"
+stop_pid "NotificationOutboxWorker" "$NOTIFICATION_OUTBOX_PID_FROM_FILE"
 
 LISTENER_PID_AFTER_STOP="$(find_pid_by_port 8000)"
 if [ -n "$LISTENER_PID_AFTER_STOP" ] && [ "$LISTENER_PID_AFTER_STOP" != "$EXISTING_PROVIDER_PID" ]; then
@@ -288,12 +418,15 @@ V2_INDEXER_ENABLED=$(shell_quote "${V2_INDEXER_ENABLED:-true}") \
 V2_INDEXER_POLL_INTERVAL_SEC=$(shell_quote "${V2_INDEXER_POLL_INTERVAL_SEC:-2}") \
 V2_INDEXER_STARTUP_DELAY_SEC=$(shell_quote "${V2_INDEXER_STARTUP_DELAY_SEC:-3}") \
 V2_DEPOSIT_CONFIRMATIONS=$(shell_quote "${V2_DEPOSIT_CONFIRMATIONS:-1}") \
-V2_BACKFILL_ENABLED=$(shell_quote "${V2_BACKFILL_ENABLED:-false}") \
+V2_BACKFILL_ENABLED=$(shell_quote "${V2_BACKFILL_ENABLED:-true}") \
 V2_BACKFILL_START_BLOCK=$(shell_quote "${V2_BACKFILL_START_BLOCK:-0}") \
 V2_BACKFILL_BLOCK_BATCH=$(shell_quote "${V2_BACKFILL_BLOCK_BATCH:-200}") \
-V2_RECONCILIATION_ENABLED=$(shell_quote "${V2_RECONCILIATION_ENABLED:-false}") \
-PROVIDER_WITHDRAW_EXPIRY_REAPER_ENABLED=$(shell_quote "${PROVIDER_WITHDRAW_EXPIRY_REAPER_ENABLED:-false}") \
-CONSUMER_WITHDRAW_PROCESSOR_ENABLED=$(shell_quote "${CONSUMER_WITHDRAW_PROCESSOR_ENABLED:-false}") \
+V2_RECONCILIATION_ENABLED=$(shell_quote "${V2_RECONCILIATION_ENABLED:-true}") \
+SERVICE_HEALTH_MONITOR_ENABLED=$(shell_quote "${SERVICE_HEALTH_MONITOR_ENABLED:-true}") \
+PROVIDER_WITHDRAW_EXPIRY_REAPER_ENABLED=$(shell_quote "${PROVIDER_WITHDRAW_EXPIRY_REAPER_ENABLED:-true}") \
+CONSUMER_WITHDRAW_PROCESSOR_ENABLED=$(shell_quote "${CONSUMER_WITHDRAW_PROCESSOR_ENABLED:-true}") \
+IN_APP_NOTIFICATION_CLEANUP_ENABLED=$(shell_quote "${IN_APP_NOTIFICATION_CLEANUP_ENABLED:-true}") \
+SERVICE_HEALTH_EVENT_CLEANUP_ENABLED=$(shell_quote "${SERVICE_HEALTH_EVENT_CLEANUP_ENABLED:-true}") \
 SUPPORT_LARK_ENABLED=$(shell_quote "${SUPPORT_LARK_ENABLED:-false}") \
 SUPPORT_LARK_WEBHOOK_URL=$(shell_quote "${SUPPORT_LARK_WEBHOOK_URL:-}") \
 SUPPORT_LARK_SECRET=$(shell_quote "${SUPPORT_LARK_SECRET:-}") \
@@ -314,12 +447,15 @@ else
     V2_INDEXER_POLL_INTERVAL_SEC="${V2_INDEXER_POLL_INTERVAL_SEC:-2}" \
     V2_INDEXER_STARTUP_DELAY_SEC="${V2_INDEXER_STARTUP_DELAY_SEC:-3}" \
     V2_DEPOSIT_CONFIRMATIONS="${V2_DEPOSIT_CONFIRMATIONS:-1}" \
-    V2_BACKFILL_ENABLED="${V2_BACKFILL_ENABLED:-false}" \
+    V2_BACKFILL_ENABLED="${V2_BACKFILL_ENABLED:-true}" \
     V2_BACKFILL_START_BLOCK="${V2_BACKFILL_START_BLOCK:-0}" \
     V2_BACKFILL_BLOCK_BATCH="${V2_BACKFILL_BLOCK_BATCH:-200}" \
-    V2_RECONCILIATION_ENABLED="${V2_RECONCILIATION_ENABLED:-false}" \
-    PROVIDER_WITHDRAW_EXPIRY_REAPER_ENABLED="${PROVIDER_WITHDRAW_EXPIRY_REAPER_ENABLED:-false}" \
-    CONSUMER_WITHDRAW_PROCESSOR_ENABLED="${CONSUMER_WITHDRAW_PROCESSOR_ENABLED:-false}" \
+    V2_RECONCILIATION_ENABLED="${V2_RECONCILIATION_ENABLED:-true}" \
+    SERVICE_HEALTH_MONITOR_ENABLED="${SERVICE_HEALTH_MONITOR_ENABLED:-true}" \
+    PROVIDER_WITHDRAW_EXPIRY_REAPER_ENABLED="${PROVIDER_WITHDRAW_EXPIRY_REAPER_ENABLED:-true}" \
+    CONSUMER_WITHDRAW_PROCESSOR_ENABLED="${CONSUMER_WITHDRAW_PROCESSOR_ENABLED:-true}" \
+    IN_APP_NOTIFICATION_CLEANUP_ENABLED="${IN_APP_NOTIFICATION_CLEANUP_ENABLED:-true}" \
+    SERVICE_HEALTH_EVENT_CLEANUP_ENABLED="${SERVICE_HEALTH_EVENT_CLEANUP_ENABLED:-true}" \
     SUPPORT_LARK_ENABLED="${SUPPORT_LARK_ENABLED:-false}" \
     SUPPORT_LARK_WEBHOOK_URL="${SUPPORT_LARK_WEBHOOK_URL:-}" \
     SUPPORT_LARK_SECRET="${SUPPORT_LARK_SECRET:-}" \
@@ -342,6 +478,15 @@ if ! wait_for_gateway_health "$HEALTH_URL" "$STARTUP_TIMEOUT_SEC"; then
   exit 1
 fi
 
+if ! wait_for_gateway_readiness "$READINESS_URL" "$STARTUP_TIMEOUT_SEC"; then
+  echo "Error: gateway readiness monitors did not initialize within ${STARTUP_TIMEOUT_SEC}s. Check ${LOG_FILE}"
+  curl -fsS "$READINESS_URL" || true
+  echo ""
+  stop_pid "ProviderAPI" "$NEW_PROVIDER_PID"
+  tail -n 80 "$LOG_FILE" || true
+  exit 1
+fi
+
 ACTIVE_PROVIDER_PID="$(find_pid_by_port 8000)"
 if [ -n "$ACTIVE_PROVIDER_PID" ]; then
   NEW_PROVIDER_PID="$ACTIVE_PROVIDER_PID"
@@ -354,18 +499,34 @@ if ! curl -fsS "$HEALTH_URL" >/dev/null 2>&1; then
   exit 1
 fi
 
-if [ -f "$PID_FILE" ]; then
-  grep -v '^PROVIDER_PID=' "$PID_FILE" > "${PID_FILE}.tmp" || true
-  echo "PROVIDER_PID=${NEW_PROVIDER_PID}" >> "${PID_FILE}.tmp"
-  mv "${PID_FILE}.tmp" "$PID_FILE"
-else
-  cat > "$PID_FILE" <<EOF
-PROVIDER_PID=${NEW_PROVIDER_PID}
-EOF
+ANALYTICS_OUTBOX_PID=""
+NOTIFICATION_OUTBOX_PID=""
+start_gateway_worker "analytics-outbox" "$ANALYTICS_OUTBOX_SCREEN_SESSION" "$ANALYTICS_OUTBOX_LOG_FILE" ANALYTICS_OUTBOX_PID
+start_gateway_worker "notification-outbox" "$NOTIFICATION_OUTBOX_SCREEN_SESSION" "$NOTIFICATION_OUTBOX_LOG_FILE" NOTIFICATION_OUTBOX_PID
+
+if ! wait_for_worker_process "analytics-outbox" "$STARTUP_TIMEOUT_SEC"; then
+  echo "Error: analytics outbox worker did not start within ${STARTUP_TIMEOUT_SEC}s. Check ${ANALYTICS_OUTBOX_LOG_FILE}"
+  tail -n 80 "$ANALYTICS_OUTBOX_LOG_FILE" || true
+  exit 1
 fi
 
+if ! wait_for_worker_process "notification-outbox" "$STARTUP_TIMEOUT_SEC"; then
+  echo "Error: notification outbox worker did not start within ${STARTUP_TIMEOUT_SEC}s. Check ${NOTIFICATION_OUTBOX_LOG_FILE}"
+  tail -n 80 "$NOTIFICATION_OUTBOX_LOG_FILE" || true
+  exit 1
+fi
+
+upsert_pid_file_value "PROVIDER_PID" "$NEW_PROVIDER_PID"
+upsert_pid_file_value "ANALYTICS_OUTBOX_PID" "$ANALYTICS_OUTBOX_PID"
+upsert_pid_file_value "NOTIFICATION_OUTBOX_PID" "$NOTIFICATION_OUTBOX_PID"
+
 echo "Gateway restarted successfully"
-echo "Gateway PID  : ${NEW_PROVIDER_PID}"
-echo "PID file     : ${PID_FILE}"
-echo "Health check : ${HEALTH_URL}"
-echo "Log file     : ${LOG_FILE}"
+echo "Gateway PID                  : ${NEW_PROVIDER_PID}"
+echo "Analytics outbox worker PID  : ${ANALYTICS_OUTBOX_PID:-screen:${ANALYTICS_OUTBOX_SCREEN_SESSION}}"
+echo "Notification outbox worker PID: ${NOTIFICATION_OUTBOX_PID:-screen:${NOTIFICATION_OUTBOX_SCREEN_SESSION}}"
+echo "PID file                     : ${PID_FILE}"
+echo "Health check                 : ${HEALTH_URL}"
+echo "Readiness check              : ${READINESS_URL}"
+echo "Gateway log                  : ${LOG_FILE}"
+echo "Analytics outbox log         : ${ANALYTICS_OUTBOX_LOG_FILE}"
+echo "Notification outbox log      : ${NOTIFICATION_OUTBOX_LOG_FILE}"
