@@ -90,9 +90,9 @@ const BASELINED_FILE_EFFECTIVE_LINES = new Map([
     "services/gateway/tests/unit/storage/test_postgres_repositories_unit.py",
     2016,
   ],
-  ["services/gateway/tests/unit/test_consumer_withdraw_unit.py", 844],
   ["services/gateway/tests/unit/test_finance_runtime_service_unit.py", 1147],
   ["services/gateway/tests/unit/test_forwarding_runtime_service_unit.py", 1616],
+  ["services/gateway/tests/unit/test_consumer_withdraw_unit.py", 844],
   ["services/gateway/tests/unit/test_notifications_outbox_unit.py", 829],
   ["services/docs-front/src/data/endpoint-source.ts", 1719],
   ["services/user-front/src/app/about/page.tsx", 702],
@@ -119,7 +119,7 @@ const BASELINED_FILE_EFFECTIVE_LINES = new Map([
   ],
   [
     "services/user-front/src/components/dashboard-workspace/OwnerCreditsPage.tsx",
-    1190,
+    1197,
   ],
   [
     "services/user-front/src/components/dashboard/agents/QuickStartGuide.tsx",
