@@ -158,7 +158,7 @@ def _admin_operations_permissions():
 
 
 def test_admin_operations_owner_accounts_mask_pii_by_default() -> None:
-    _login_as("finance@synapse.network")
+    _login_as("finance@synapse-network.ai")
 
     response = client.get("/api/admin/v1/owner-accounts")
 
@@ -171,11 +171,11 @@ def test_admin_operations_owner_accounts_mask_pii_by_default() -> None:
 
 
 def test_admin_operations_pii_reveal_requires_permission_and_audits() -> None:
-    _login_as("finance@synapse.network")
+    _login_as("finance@synapse-network.ai")
     denied = client.get("/api/admin/v1/owner-accounts?includeEmail=true")
     assert denied.status_code == 403
 
-    _login_as("super@synapse.network")
+    _login_as("cliff@synapse-network.ai")
     response = client.get("/api/admin/v1/owner-accounts?includeEmail=true")
 
     assert response.status_code == 200
@@ -187,7 +187,7 @@ def test_admin_operations_pii_reveal_requires_permission_and_audits() -> None:
 
 
 def test_admin_operations_finance_lists_include_deposits_and_provider_withdrawals() -> None:
-    _login_as("finance@synapse.network")
+    _login_as("finance@synapse-network.ai")
 
     deposits = client.get("/api/admin/v1/finance/consumer-deposits?txHash=0xdeposit")
     withdrawals = client.get("/api/admin/v1/finance/provider-withdrawals?status=COMPLETED")
@@ -201,7 +201,7 @@ def test_admin_operations_finance_lists_include_deposits_and_provider_withdrawal
 
 
 def test_admin_operations_detail_endpoints_mask_pii_and_return_evidence() -> None:
-    _login_as("finance@synapse.network")
+    _login_as("finance@synapse-network.ai")
 
     owner = client.get("/api/admin/v1/owner-accounts/own_demo")
     deposit = client.get("/api/admin/v1/finance/consumer-deposits/dep_demo")
@@ -217,7 +217,7 @@ def test_admin_operations_detail_endpoints_mask_pii_and_return_evidence() -> Non
 
 
 def test_admin_operations_detail_endpoints_return_not_found() -> None:
-    _login_as("finance@synapse.network")
+    _login_as("finance@synapse-network.ai")
 
     owner = client.get("/api/admin/v1/owner-accounts/missing")
     deposit = client.get("/api/admin/v1/finance/consumer-deposits/missing")

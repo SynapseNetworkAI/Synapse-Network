@@ -19,7 +19,7 @@ from src.domain.enums import AdminUserStatus, AuthSource, RoleBindingStatus, Rol
 from src.storage import PostgresAdminStore
 
 
-DEFAULT_EMAIL = "mfa-enroll-test@synapse.network"
+DEFAULT_EMAIL = "mfa-enroll-test@synapse-network.ai"
 DEFAULT_PASSWORD = "".join(("EnrollUser#", "2026!"))
 DEFAULT_DISPLAY_NAME = "MFA Enrollment Test"
 DEFAULT_ROLE_KEY = "platform_ops_admin"

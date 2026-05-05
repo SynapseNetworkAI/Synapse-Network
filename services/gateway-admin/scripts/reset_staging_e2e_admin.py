@@ -27,9 +27,10 @@ DEFAULT_ROLE_KEY = "finance_reviewer"
 LOCAL_HOSTS = {"", "localhost", "127.0.0.1", "::1"}
 MIN_PASSWORD_LENGTH = 16
 ERROR_MISSING_DSN = "missing admin database DSN"
-ERROR_NON_E2E_EMAIL = "refusing to reset a non-staging/non-e2e admin email"
+ERROR_NON_E2E_EMAIL = "refusing to reset a non-staging/non-e2e admin email without --allow-any-staging-admin"
 ERROR_CONFIRM_STAGING = "refusing non-local admin DB reset without --confirm-staging"
 ERROR_SHORT_PASSWORD = "staging admin E2E password must be at least 16 characters"  # noqa: S105
+ERROR_CREATE_NON_E2E = "refusing to create a non-staging/non-e2e admin user without --create-if-missing"
 
 
 @dataclass(frozen=True)
@@ -52,16 +53,30 @@ def fail(message: str) -> NoReturn:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Reset the dedicated staging admin E2E account password and active TOTP factor. "
+            "Reset a staging admin account password and active TOTP factor. "
             "Secrets are read from environment variables so they do not appear in shell history."
         )
     )
     parser.add_argument("--dsn", default=os.getenv("ADMIN_DATABASE_MIGRATION_DSN") or os.getenv("ADMIN_DATABASE_DSN"))
-    parser.add_argument("--email", default=os.getenv("STAGING_ADMIN_E2E_EMAIL", DEFAULT_EMAIL))
+    parser.add_argument("--email", "--username", dest="email", default=os.getenv("STAGING_ADMIN_E2E_EMAIL", DEFAULT_EMAIL))
     parser.add_argument("--display-name", default=os.getenv("STAGING_ADMIN_E2E_DISPLAY_NAME", DEFAULT_DISPLAY_NAME))
     parser.add_argument("--role-key", default=os.getenv("STAGING_ADMIN_E2E_ROLE_KEY", DEFAULT_ROLE_KEY))
     parser.add_argument("--password-env", default="STAGING_ADMIN_E2E_PASSWORD")
     parser.add_argument("--totp-secret-env", default="STAGING_ADMIN_E2E_OTP_SECRET")
+    parser.add_argument(
+        "--totp-secret-ref",
+        default=os.getenv("STAGING_ADMIN_E2E_OTP_SECRET_REF", "secret-manager://synapse-staging-admin-e2e-otp-secret"),
+    )
+    parser.add_argument(
+        "--allow-any-staging-admin",
+        action="store_true",
+        help="Allow resetting an existing staging admin whose email does not contain staging/e2e.",
+    )
+    parser.add_argument(
+        "--create-if-missing",
+        action="store_true",
+        help="Allow creating the target admin when it does not exist. Dedicated staging/e2e accounts are allowed by default.",
+    )
     parser.add_argument(
         "--confirm-staging",
         action="store_true",
@@ -82,11 +97,16 @@ def _dsn_info(dsn: str) -> tuple[str, str]:
     return str(info.get("host") or ""), str(info.get("dbname") or "")
 
 
-def _require_staging_target(*, dsn: str, email: str, confirmed: bool) -> tuple[str, str]:
+def _is_dedicated_staging_email(email: str) -> bool:
+    normalized_email = email.strip().lower()
+    return "e2e" in normalized_email or "staging" in normalized_email
+
+
+def _require_staging_target(*, dsn: str, email: str, confirmed: bool, allow_any_staging_admin: bool) -> tuple[str, str]:
     if not dsn:
         fail(ERROR_MISSING_DSN)
     normalized_email = email.strip().lower()
-    if "e2e" not in normalized_email and "staging" not in normalized_email:
+    if not _is_dedicated_staging_email(normalized_email) and not allow_any_staging_admin:
         fail(ERROR_NON_E2E_EMAIL)
     host, dbname = _dsn_info(dsn)
     is_local = host in LOCAL_HOSTS
@@ -114,15 +134,24 @@ def reset_staging_admin(
     role_key: str,
     password: str,
     totp_secret: str,
+    totp_secret_ref: str | None,
     confirmed_staging: bool,
+    allow_any_staging_admin: bool = False,
+    create_if_missing: bool = False,
 ) -> ResetStagingAdminSummary:
-    database_host, database_name = _require_staging_target(dsn=dsn, email=email, confirmed=confirmed_staging)
+    database_host, database_name = _require_staging_target(
+        dsn=dsn,
+        email=email,
+        confirmed=confirmed_staging,
+        allow_any_staging_admin=allow_any_staging_admin,
+    )
     if len(password) < MIN_PASSWORD_LENGTH:
         fail(ERROR_SHORT_PASSWORD)
     _validate_totp_secret(totp_secret)
 
     now = datetime.now(timezone.utc)
     normalized_email = email.strip().lower()
+    dedicated_staging_email = _is_dedicated_staging_email(normalized_email)
     admin_id = ""
     created_user = False
     revoked_sessions = 0
@@ -139,6 +168,8 @@ def reset_staging_admin(
             cur.execute("SELECT admin_id FROM admin_users WHERE lower(email) = lower(%s)", (normalized_email,))
             user_row = cur.fetchone()
             if user_row is None:
+                if not dedicated_staging_email and not create_if_missing:
+                    fail(f"admin user not found: {normalized_email}. {ERROR_CREATE_NON_E2E}")
                 admin_id = f"adm_e2e_{uuid4().hex[:16]}"
                 created_user = True
                 cur.execute(
@@ -221,7 +252,7 @@ def reset_staging_admin(
                     f"mfa_{uuid4().hex[:24]}",
                     admin_id,
                     factor_label,
-                    "secret-manager://synapse-staging-admin-e2e-otp-secret",
+                    totp_secret_ref.strip() if totp_secret_ref else None,
                     Jsonb({"totpSecret": totp_secret}),
                     now,
                     now,
@@ -252,7 +283,7 @@ def reset_staging_admin(
                     admin_id,
                     role_key,
                     "script.reset_staging_e2e_admin",
-                    "staging admin e2e credential reset",
+                    "staging admin credential reset",
                     now,
                     now,
                     now,
@@ -280,6 +311,7 @@ def reset_staging_admin(
                             "createdUser": created_user,
                             "revokedSessions": revoked_sessions,
                             "revokedTotpFactors": revoked_totp_factors,
+                            "dedicatedStagingEmail": dedicated_staging_email,
                         }
                     ),
                     now,
@@ -309,10 +341,13 @@ def main() -> None:
         role_key=args.role_key,
         password=_required_env(args.password_env),
         totp_secret=_required_env(args.totp_secret_env),
+        totp_secret_ref=args.totp_secret_ref,
         confirmed_staging=args.confirm_staging,
+        allow_any_staging_admin=args.allow_any_staging_admin,
+        create_if_missing=args.create_if_missing,
     )
     print(
-        "staging admin e2e credentials reset complete:",
+        "staging admin credentials reset complete:",
         {
             "adminId": summary.admin_id,
             "email": summary.email,

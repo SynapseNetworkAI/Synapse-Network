@@ -57,7 +57,7 @@ Docker bootstrap 会创建管理员账号、角色和占位 MFA 记录，但不�
 cd /Users/cliff/workspace/agent/Synapse-Network/services/gateway-admin
 .venv/bin/python scripts/set_bootstrap_password.py \
   --dsn 'postgresql://synapse_admin_app:local-dev-admin-app-password@127.0.0.1:15432/synapse_gateway_admin' \
-  --email 'super@synapse.network' \
+  --email 'cliff@synapse-network.ai' \
   --password 'ReplaceWithStrongInitPassword'
 ```
 
@@ -66,7 +66,7 @@ cd /Users/cliff/workspace/agent/Synapse-Network/services/gateway-admin
 ```bash
 cd /Users/cliff/workspace/agent/Synapse-Network/services/gateway-admin
 .venv/bin/python scripts/reset_admin_password.py \
-  --email 'super@synapse.network' \
+  --email 'cliff@synapse-network.ai' \
   --password 'qwer@1234'
 ```
 

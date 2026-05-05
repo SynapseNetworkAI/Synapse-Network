@@ -498,14 +498,14 @@ INSERT INTO admin_users (
     updated_at
 )
 VALUES
-    ('adm_super_admin', 'super@synapse.network', 'Super Admin', 'active', 'bootstrap', NULL, TRUE, NOW(), NOW()),
-    ('adm_platform_ops_admin', 'ops@synapse.network', 'Platform Ops Admin', 'active', 'bootstrap', NULL, TRUE, NOW(), NOW()),
-    ('adm_finance_admin', 'finance@synapse.network', 'Finance Admin', 'active', 'bootstrap', NULL, TRUE, NOW(), NOW()),
-    ('adm_finance_reviewer', 'finance-review@synapse.network', 'Finance Reviewer', 'active', 'bootstrap', NULL, TRUE, NOW(), NOW()),
-    ('adm_risk_admin', 'risk@synapse.network', 'Risk Admin', 'active', 'bootstrap', NULL, TRUE, NOW(), NOW()),
-    ('adm_risk_reviewer', 'risk-review@synapse.network', 'Risk Reviewer', 'active', 'bootstrap', NULL, TRUE, NOW(), NOW()),
-    ('adm_compliance_auditor', 'audit@synapse.network', 'Compliance Auditor', 'active', 'bootstrap', NULL, TRUE, NOW(), NOW()),
-    ('adm_readonly_analyst', 'readonly@synapse.network', 'Readonly Analyst', 'active', 'bootstrap', NULL, TRUE, NOW(), NOW())
+    ('adm_super_admin', 'cliff@synapse-network.ai', 'Super Admin', 'active', 'bootstrap', NULL, TRUE, NOW(), NOW()),
+    ('adm_platform_ops_admin', 'ops@synapse-network.ai', 'Platform Ops Admin', 'active', 'bootstrap', NULL, TRUE, NOW(), NOW()),
+    ('adm_finance_admin', 'finance@synapse-network.ai', 'Finance Admin', 'active', 'bootstrap', NULL, TRUE, NOW(), NOW()),
+    ('adm_finance_reviewer', 'finance-review@synapse-network.ai', 'Finance Reviewer', 'active', 'bootstrap', NULL, TRUE, NOW(), NOW()),
+    ('adm_risk_admin', 'risk@synapse-network.ai', 'Risk Admin', 'active', 'bootstrap', NULL, TRUE, NOW(), NOW()),
+    ('adm_risk_reviewer', 'risk-review@synapse-network.ai', 'Risk Reviewer', 'active', 'bootstrap', NULL, TRUE, NOW(), NOW()),
+    ('adm_compliance_auditor', 'audit@synapse-network.ai', 'Compliance Auditor', 'active', 'bootstrap', NULL, TRUE, NOW(), NOW()),
+    ('adm_readonly_analyst', 'readonly@synapse-network.ai', 'Readonly Analyst', 'active', 'bootstrap', NULL, TRUE, NOW(), NOW())
 ON CONFLICT (admin_id) DO UPDATE
 SET email = EXCLUDED.email,
     display_name = EXCLUDED.display_name,
