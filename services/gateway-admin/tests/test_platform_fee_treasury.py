@@ -49,7 +49,7 @@ def _platform_fee_settings() -> Settings:
 
 def _test_store() -> InMemoryAdminStore:
     store = InMemoryAdminStore.seed_demo()
-    for email in ("super@synapse.network", "finance-review@synapse.network"):
+    for email in ("cliff@synapse-network.ai", "finance-review@synapse-network.ai"):
         user = store.identity.get_user_by_email(email)
         assert user is not None
         store.identity.update_password_hash(user.admin_id, hash_password(PLACEHOLDER_PASSWORD))
@@ -83,7 +83,7 @@ def _create_client(
     return TestClient(app), store
 
 
-def _login(client: TestClient, store: InMemoryAdminStore, email: str = "super@synapse.network") -> dict[str, str]:
+def _login(client: TestClient, store: InMemoryAdminStore, email: str = "cliff@synapse-network.ai") -> dict[str, str]:
     response = client.post(
         "/api/admin/v1/auth/login",
         json={
@@ -101,7 +101,7 @@ def _login(client: TestClient, store: InMemoryAdminStore, email: str = "super@sy
 def _high_risk_headers(
     client: TestClient,
     store: InMemoryAdminStore,
-    email: str = "super@synapse.network",
+    email: str = "cliff@synapse-network.ai",
 ) -> dict[str, str]:
     return {
         **_login(client, store, email),
@@ -153,7 +153,7 @@ def test_platform_fee_safe_draft_requires_super_admin_role() -> None:
 
     response = client.post(
         "/api/admin/v1/platform-fee-withdrawals/safe-draft",
-        headers=_high_risk_headers(client, store, "finance-review@synapse.network"),
+        headers=_high_risk_headers(client, store, "finance-review@synapse-network.ai"),
         json={
             "requestId": f"platform-fee-test-{uuid4().hex}",
             "amountUsdc": "1.000000",

@@ -536,7 +536,7 @@ Query:
 
 ```json
 {
-  "email": "ops@synapse.network",
+  "email": "ops@synapse-network.ai",
   "password": "not-used-in-phase-1",
   "otpCode": "123456"
 }
@@ -563,7 +563,7 @@ Query:
     },
     "admin": {
       "adminId": "adm_finance_admin",
-      "email": "ops@synapse.network",
+      "email": "ops@synapse-network.ai",
       "displayName": "Finance Admin",
       "role": "finance_admin"
     }
@@ -621,7 +621,7 @@ Set-Cookie: synapse_admin_session=<opaque-session-token>; HttpOnly; Path=/; Same
     },
     "admin": {
       "adminId": "adm_finance_admin",
-      "email": "ops@synapse.network",
+      "email": "ops@synapse-network.ai",
       "displayName": "Finance Admin",
       "role": "finance_admin",
       "permissions": ["dashboard:read", "approval:submit", "approval:read"]

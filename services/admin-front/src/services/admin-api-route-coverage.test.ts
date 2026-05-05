@@ -97,7 +97,7 @@ describe("admin API adapter route coverage", () => {
   it("covers auth, dashboard, reconciliation, audit, execution, user, role, and menu routes", async () => {
     const session = {
       adminId: "adm_1",
-      email: "super@synapse.network",
+      email: "cliff@synapse-network.ai",
       displayName: "Super Admin",
       roleKey: "super_admin",
       permissions: ["super_admin"],
@@ -170,7 +170,7 @@ describe("admin API adapter route coverage", () => {
     await listAdminRoles("cookie-session");
     await listAdminPermissions("cookie-session");
     await createAdminUser("cookie-session", {
-      email: "new@synapse.network",
+      email: "new@synapse-network.ai",
       displayName: "New Admin",
       roleKey: "ops",
       password: "local-password",

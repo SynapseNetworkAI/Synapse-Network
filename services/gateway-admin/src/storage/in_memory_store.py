@@ -536,14 +536,14 @@ class InMemoryAdminStore:
             AdminRolePermission("readonly_analyst", DASHBOARD_READ),
         ]
         users = {
-            "adm_super_admin": AdminUser("adm_super_admin", "super@synapse.network", "Super Admin", status=AdminUserStatus.ACTIVE, created_at=now, updated_at=now),
-            "adm_platform_ops_admin": AdminUser("adm_platform_ops_admin", "ops@synapse.network", "Platform Ops Admin", status=AdminUserStatus.ACTIVE, created_at=now, updated_at=now),
-            "adm_finance_admin": AdminUser("adm_finance_admin", "finance@synapse.network", "Finance Admin", status=AdminUserStatus.ACTIVE, created_at=now, updated_at=now),
-            "adm_finance_reviewer": AdminUser("adm_finance_reviewer", "finance-review@synapse.network", "Finance Reviewer", status=AdminUserStatus.ACTIVE, created_at=now, updated_at=now),
-            "adm_risk_admin": AdminUser("adm_risk_admin", "risk@synapse.network", "Risk Admin", status=AdminUserStatus.ACTIVE, created_at=now, updated_at=now),
-            "adm_risk_reviewer": AdminUser("adm_risk_reviewer", "risk-review@synapse.network", "Risk Reviewer", status=AdminUserStatus.ACTIVE, created_at=now, updated_at=now),
-            "adm_compliance_auditor": AdminUser("adm_compliance_auditor", "audit@synapse.network", "Compliance Auditor", status=AdminUserStatus.ACTIVE, created_at=now, updated_at=now),
-            "adm_readonly_analyst": AdminUser("adm_readonly_analyst", "readonly@synapse.network", "Readonly Analyst", status=AdminUserStatus.ACTIVE, created_at=now, updated_at=now),
+            "adm_super_admin": AdminUser("adm_super_admin", "cliff@synapse-network.ai", "Super Admin", status=AdminUserStatus.ACTIVE, created_at=now, updated_at=now),
+            "adm_platform_ops_admin": AdminUser("adm_platform_ops_admin", "ops@synapse-network.ai", "Platform Ops Admin", status=AdminUserStatus.ACTIVE, created_at=now, updated_at=now),
+            "adm_finance_admin": AdminUser("adm_finance_admin", "finance@synapse-network.ai", "Finance Admin", status=AdminUserStatus.ACTIVE, created_at=now, updated_at=now),
+            "adm_finance_reviewer": AdminUser("adm_finance_reviewer", "finance-review@synapse-network.ai", "Finance Reviewer", status=AdminUserStatus.ACTIVE, created_at=now, updated_at=now),
+            "adm_risk_admin": AdminUser("adm_risk_admin", "risk@synapse-network.ai", "Risk Admin", status=AdminUserStatus.ACTIVE, created_at=now, updated_at=now),
+            "adm_risk_reviewer": AdminUser("adm_risk_reviewer", "risk-review@synapse-network.ai", "Risk Reviewer", status=AdminUserStatus.ACTIVE, created_at=now, updated_at=now),
+            "adm_compliance_auditor": AdminUser("adm_compliance_auditor", "audit@synapse-network.ai", "Compliance Auditor", status=AdminUserStatus.ACTIVE, created_at=now, updated_at=now),
+            "adm_readonly_analyst": AdminUser("adm_readonly_analyst", "readonly@synapse-network.ai", "Readonly Analyst", status=AdminUserStatus.ACTIVE, created_at=now, updated_at=now),
         }
         factors = [
             AdminMfaFactor(
@@ -705,7 +705,7 @@ class InMemoryAdminStore:
                 action_type="approval.submit",
                 result_status=AuditResultStatus.SUCCESS,
                 operator_id="adm_finance_admin",
-                operator_email="finance@synapse.network",
+                operator_email="finance@synapse-network.ai",
                 operator_role="finance_admin",
                 approval_id="APR-20260316-001",
                 resource_type="refund_intent",
@@ -716,7 +716,7 @@ class InMemoryAdminStore:
                 action_type="execution.job.failed",
                 result_status=AuditResultStatus.FAILURE,
                 operator_id="adm_finance_reviewer",
-                operator_email="finance-review@synapse.network",
+                operator_email="finance-review@synapse-network.ai",
                 operator_role="finance_reviewer",
                 approval_id="APR-20260316-003",
                 job_id="job_apr_3",

@@ -118,14 +118,14 @@ def test_worker_run_executes_pending_job_from_approval_pipeline() -> None:
 
     requester = AdminIdentity(
         admin_id="adm_finance_admin",
-        email="finance@synapse.network",
+        email="finance@synapse-network.ai",
         display_name="Finance Admin",
         role="finance_admin",
         permissions=("approval:submit", "approval:read"),
     )
     reviewer = AdminIdentity(
         admin_id="adm_finance_reviewer",
-        email="finance-review@synapse.network",
+        email="finance-review@synapse-network.ai",
         display_name="Finance Reviewer",
         role="finance_reviewer",
         permissions=("approval:decide", "execution:read", "execution:retry"),

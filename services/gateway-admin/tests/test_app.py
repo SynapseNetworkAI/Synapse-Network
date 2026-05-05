@@ -351,14 +351,14 @@ def _login_as(email: str) -> dict[str, str]:
 def _seed_test_passwords() -> None:
     store = _test_store()
     for email in (
-        "ops@synapse.network",
-        "audit@synapse.network",
-        "finance@synapse.network",
-        "finance-review@synapse.network",
-        "risk@synapse.network",
-        "risk-review@synapse.network",
-        "readonly@synapse.network",
-        "super@synapse.network",
+        "ops@synapse-network.ai",
+        "audit@synapse-network.ai",
+        "finance@synapse-network.ai",
+        "finance-review@synapse-network.ai",
+        "risk@synapse-network.ai",
+        "risk-review@synapse-network.ai",
+        "readonly@synapse-network.ai",
+        "cliff@synapse-network.ai",
     ):
         user = store.identity.get_user_by_email(email)
         if user is not None:
@@ -374,7 +374,7 @@ def _otp_code_for(email: str) -> str:
     return generate_totp_code(secret)
 
 
-def _ensure_unenrolled_admin(email: str = "unenrolled@synapse.network") -> None:
+def _ensure_unenrolled_admin(email: str = "unenrolled@synapse-network.ai") -> None:
     store = _test_store()
     existing = store.identity.get_user_by_email(email)
     if existing is None:
@@ -899,15 +899,15 @@ def test_admin_auth_login() -> None:
     response = client.post(
         "/api/admin/v1/auth/login",
         json={
-            "email": "ops@synapse.network",
+            "email": "ops@synapse-network.ai",
             "password": PLACEHOLDER_PASSWORD,
-            "otpCode": _otp_code_for("ops@synapse.network"),
+            "otpCode": _otp_code_for("ops@synapse-network.ai"),
         },
     )
     assert response.status_code == 200
     body = response.json()
     assert body["success"] is True
-    assert body["data"]["admin"]["email"] == "ops@synapse.network"
+    assert body["data"]["admin"]["email"] == "ops@synapse-network.ai"
     assert body["data"]["expiresIn"] == 3600
     assert body["data"]["csrfToken"]
     assert body["data"]["security"]["loginTotpRequired"] is True
@@ -922,7 +922,7 @@ def test_admin_auth_login_requires_mfa_enrollment_for_unbound_account() -> None:
     response = client.post(
         "/api/admin/v1/auth/login",
         json={
-            "email": "unenrolled@synapse.network",
+            "email": "unenrolled@synapse-network.ai",
             "password": PLACEHOLDER_PASSWORD,
         },
     )
@@ -936,7 +936,7 @@ def test_admin_auth_login_requires_mfa_enrollment_for_unbound_account() -> None:
 
 
 def test_admin_auth_login_requires_mfa_enrollment_for_bootstrap_placeholder_totp() -> None:
-    email = f"bootstrap-placeholder-{uuid4().hex[:8]}@synapse.network"
+    email = f"bootstrap-placeholder-{uuid4().hex[:8]}@synapse-network.ai"
     store = _test_store()
     user = store.identity.create_user(
         AdminUser(
@@ -981,7 +981,7 @@ def test_admin_auth_mfa_enrollment_begin_and_verify_issue_session() -> None:
     login_response = client.post(
         "/api/admin/v1/auth/login",
         json={
-            "email": "unenrolled@synapse.network",
+            "email": "unenrolled@synapse-network.ai",
             "password": PLACEHOLDER_PASSWORD,
         },
     )
@@ -1008,12 +1008,12 @@ def test_admin_auth_mfa_enrollment_begin_and_verify_issue_session() -> None:
     )
     assert verify_response.status_code == 200
     verify_body = verify_response.json()["data"]
-    assert verify_body["admin"]["email"] == "unenrolled@synapse.network"
+    assert verify_body["admin"]["email"] == "unenrolled@synapse-network.ai"
     assert verify_body["csrfToken"]
     assert "synapse_admin_session=" in verify_response.headers["set-cookie"]
 
     store = _test_store()
-    user = store.identity.get_user_by_email("unenrolled@synapse.network")
+    user = store.identity.get_user_by_email("unenrolled@synapse-network.ai")
     assert user is not None
     factors = store.identity.list_mfa_factors(user.admin_id)
     active_factors = [factor for factor in factors if factor.status.value == "active"]
@@ -1021,7 +1021,7 @@ def test_admin_auth_mfa_enrollment_begin_and_verify_issue_session() -> None:
 
 
 def test_admin_auth_mfa_enrollment_begin_replaces_bootstrap_placeholder_secret() -> None:
-    email = f"bootstrap-enroll-{uuid4().hex[:8]}@synapse.network"
+    email = f"bootstrap-enroll-{uuid4().hex[:8]}@synapse-network.ai"
     store = _test_store()
     user = store.identity.create_user(
         AdminUser(
@@ -1083,7 +1083,7 @@ def test_admin_auth_mfa_enrollment_begin_replaces_bootstrap_placeholder_secret()
 
 
 def test_admin_auth_mfa_enrollment_begin_reuses_same_secret_for_same_token() -> None:
-    email = f"repeat-begin-{uuid4().hex[:8]}@synapse.network"
+    email = f"repeat-begin-{uuid4().hex[:8]}@synapse-network.ai"
     store = _test_store()
     store.identity.create_user(
         AdminUser(
@@ -1135,7 +1135,7 @@ def test_admin_auth_mfa_enrollment_begin_reuses_same_secret_for_same_token() -> 
 
 
 def test_admin_auth_mfa_enrollment_begin_reuses_existing_primary_factor_identity() -> None:
-    email = f"broken-factor-{uuid4().hex[:8]}@synapse.network"
+    email = f"broken-factor-{uuid4().hex[:8]}@synapse-network.ai"
     store = _test_store()
     user = store.identity.create_user(
         AdminUser(
@@ -1189,7 +1189,7 @@ def test_admin_auth_mfa_enrollment_begin_reuses_existing_primary_factor_identity
 
 
 def test_admin_auth_mfa_enrollment_verify_revokes_other_totp_factors() -> None:
-    email = f"rebind-factor-{uuid4().hex[:8]}@synapse.network"
+    email = f"rebind-factor-{uuid4().hex[:8]}@synapse-network.ai"
     store = _test_store()
     user = store.identity.create_user(
         AdminUser(
@@ -1300,7 +1300,7 @@ def test_admin_auth_policy_disables_login_totp_when_switch_is_off(monkeypatch) -
 
 
 def test_admin_auth_login_skips_google_authenticator_when_login_switch_is_off(monkeypatch) -> None:
-    _ensure_unenrolled_admin("mfa-disabled@synapse.network")
+    _ensure_unenrolled_admin("mfa-disabled@synapse-network.ai")
     monkeypatch.setenv("ADMIN_GOOGLE_AUTHENTICATOR_LOGIN_ENABLED", "false")
     _refresh_auth_settings()
     client.cookies.clear()
@@ -1309,14 +1309,14 @@ def test_admin_auth_login_skips_google_authenticator_when_login_switch_is_off(mo
         response = client.post(
             "/api/admin/v1/auth/login",
             json={
-                "email": "mfa-disabled@synapse.network",
+                "email": "mfa-disabled@synapse-network.ai",
                 "password": PLACEHOLDER_PASSWORD,
             },
         )
 
         assert response.status_code == 200
         body = response.json()["data"]
-        assert body["admin"]["email"] == "mfa-disabled@synapse.network"
+        assert body["admin"]["email"] == "mfa-disabled@synapse-network.ai"
         assert body["security"]["loginTotpRequired"] is False
         assert "synapse_admin_session=" in response.headers["set-cookie"]
     finally:
@@ -1324,11 +1324,11 @@ def test_admin_auth_login_skips_google_authenticator_when_login_switch_is_off(mo
 
 
 def test_admin_auth_me_and_logout_use_cookie_session() -> None:
-    csrf_headers = _login_as("ops@synapse.network")
+    csrf_headers = _login_as("ops@synapse-network.ai")
 
     me_response = client.get("/api/admin/v1/auth/me")
     assert me_response.status_code == 200
-    assert me_response.json()["data"]["admin"]["email"] == "ops@synapse.network"
+    assert me_response.json()["data"]["admin"]["email"] == "ops@synapse-network.ai"
     assert me_response.json()["data"]["csrfToken"]
 
     logout_response = client.post("/api/admin/v1/auth/logout", headers=csrf_headers)
@@ -1341,7 +1341,7 @@ def test_admin_auth_me_and_logout_use_cookie_session() -> None:
 
 
 def test_admin_auth_login_rejects_wrong_password() -> None:
-    email = f"wrong-password-{uuid4().hex[:8]}@synapse.network"
+    email = f"wrong-password-{uuid4().hex[:8]}@synapse-network.ai"
     _create_enrolled_admin(email)
     response = client.post(
         "/api/admin/v1/auth/login",
@@ -1356,7 +1356,7 @@ def test_admin_auth_login_rejects_wrong_password() -> None:
 
 
 def test_admin_auth_login_locks_after_five_wrong_passwords() -> None:
-    email = f"lock-password-{uuid4().hex[:8]}@synapse.network"
+    email = f"lock-password-{uuid4().hex[:8]}@synapse-network.ai"
     user = _create_enrolled_admin(email)
     client.cookies.clear()
 
@@ -1390,7 +1390,7 @@ def test_admin_auth_login_locks_after_five_wrong_passwords() -> None:
 
 
 def test_admin_auth_login_blocks_locked_account_even_with_valid_credentials() -> None:
-    email = f"blocked-lock-{uuid4().hex[:8]}@synapse.network"
+    email = f"blocked-lock-{uuid4().hex[:8]}@synapse-network.ai"
     user = _create_enrolled_admin(email)
     store = _test_store()
     store.identity.lock_user_until(user.admin_id, datetime.now(timezone.utc) + timedelta(hours=24))
@@ -1411,7 +1411,7 @@ def test_admin_auth_login_blocks_locked_account_even_with_valid_credentials() ->
 
 
 def test_admin_auth_login_rejects_invalid_google_authenticator_code() -> None:
-    email = f"wrong-otp-{uuid4().hex[:8]}@synapse.network"
+    email = f"wrong-otp-{uuid4().hex[:8]}@synapse-network.ai"
     _create_enrolled_admin(email)
     response = client.post(
         "/api/admin/v1/auth/login",
@@ -1427,7 +1427,7 @@ def test_admin_auth_login_rejects_invalid_google_authenticator_code() -> None:
 
 
 def test_admin_auth_login_locks_after_five_invalid_google_authenticator_codes() -> None:
-    email = f"lock-otp-{uuid4().hex[:8]}@synapse.network"
+    email = f"lock-otp-{uuid4().hex[:8]}@synapse-network.ai"
     user = _create_enrolled_admin(email)
     client.cookies.clear()
 
@@ -1449,7 +1449,7 @@ def test_admin_auth_login_locks_after_five_invalid_google_authenticator_codes() 
 
 
 def test_admin_auth_login_success_clears_failure_state_after_lock_expires() -> None:
-    email = f"expired-lock-{uuid4().hex[:8]}@synapse.network"
+    email = f"expired-lock-{uuid4().hex[:8]}@synapse-network.ai"
     user = _create_enrolled_admin(email)
     store = _test_store()
     store.identity.update_user(
@@ -1476,7 +1476,7 @@ def test_admin_auth_login_success_clears_failure_state_after_lock_expires() -> N
 
 
 def test_admin_auth_login_unknown_email_does_not_create_or_reveal_account() -> None:
-    email = f"unknown-{uuid4().hex[:8]}@synapse.network"
+    email = f"unknown-{uuid4().hex[:8]}@synapse-network.ai"
     store = _test_store()
     before_failure_audits = len(store.audit.list_actions(action_type="admin.login.failure"))
     client.cookies.clear()
@@ -1494,7 +1494,7 @@ def test_admin_auth_login_unknown_email_does_not_create_or_reveal_account() -> N
 
 
 def test_admin_users_catalog_and_create_user() -> None:
-    csrf_headers = _login_as("super@synapse.network")
+    csrf_headers = _login_as("cliff@synapse-network.ai")
     store = _test_store()
 
     roles_response = client.get("/api/admin/v1/users/roles")
@@ -1506,7 +1506,7 @@ def test_admin_users_catalog_and_create_user() -> None:
         "/api/admin/v1/users",
         headers=csrf_headers,
         json={
-            "email": "new-ops@synapse.network",
+            "email": "new-ops@synapse-network.ai",
             "displayName": "New Ops",
             "roleKey": "platform_ops_admin",
             "password": PLACEHOLDER_PASSWORD,
@@ -1516,7 +1516,7 @@ def test_admin_users_catalog_and_create_user() -> None:
     )
     assert create_response.status_code == 200
     created_admin = create_response.json()["data"]["admin"]
-    assert created_admin["email"] == "new-ops@synapse.network"
+    assert created_admin["email"] == "new-ops@synapse-network.ai"
     assert created_admin["roleKeys"] == ["platform_ops_admin"]
     bindings = store.authorization.list_role_bindings(created_admin["adminId"])
     assert len(bindings) == 1
@@ -1525,17 +1525,17 @@ def test_admin_users_catalog_and_create_user() -> None:
     list_response = client.get("/api/admin/v1/users")
     assert list_response.status_code == 200
     emails = [item["email"] for item in list_response.json()["data"]["items"]]
-    assert "new-ops@synapse.network" in emails
+    assert "new-ops@synapse-network.ai" in emails
 
 
 def test_admin_users_update_and_disable_user() -> None:
-    csrf_headers = _login_as("super@synapse.network")
+    csrf_headers = _login_as("cliff@synapse-network.ai")
 
     create_response = client.post(
         "/api/admin/v1/users",
         headers=csrf_headers,
         json={
-            "email": "crud-user@synapse.network",
+            "email": "crud-user@synapse-network.ai",
             "displayName": "CRUD User",
             "roleKey": "platform_ops_admin",
             "password": PLACEHOLDER_PASSWORD,
@@ -1575,7 +1575,7 @@ def test_admin_users_update_and_disable_user() -> None:
 
 
 def test_admin_roles_crud_flow() -> None:
-    csrf_headers = _login_as("super@synapse.network")
+    csrf_headers = _login_as("cliff@synapse-network.ai")
 
     permissions_response = client.get("/api/admin/v1/users/permissions")
     assert permissions_response.status_code == 200
@@ -1619,7 +1619,7 @@ def test_admin_roles_crud_flow() -> None:
 
 
 def test_admin_menu_config_crud_and_publish_flow() -> None:
-    csrf_headers = _login_as("super@synapse.network")
+    csrf_headers = _login_as("cliff@synapse-network.ai")
 
     list_response = client.get("/api/admin/v1/config/menu-items")
     assert list_response.status_code == 200
@@ -1686,7 +1686,7 @@ def test_admin_menu_config_crud_and_publish_flow() -> None:
     assert updated_item["label"] == "运行副驾中心"
     assert updated_item["keywords"] == ["copilot", "shift"]
 
-    publish_headers = {**csrf_headers, "X-Admin-OTP-Code": _otp_code_for("super@synapse.network")}
+    publish_headers = {**csrf_headers, "X-Admin-OTP-Code": _otp_code_for("cliff@synapse-network.ai")}
     publish_response = client.post("/api/admin/v1/config/menu-items/publish", headers=publish_headers)
     assert publish_response.status_code == 200
     assert publish_response.json()["data"]["meta"]["isDirty"] is False
@@ -1701,7 +1701,7 @@ def test_admin_menu_config_crud_and_publish_flow() -> None:
 
 
 def test_visible_menu_config_is_filtered_by_backend_permissions() -> None:
-    _login_as("finance@synapse.network")
+    _login_as("finance@synapse-network.ai")
 
     response = client.get("/api/admin/v1/config/menu-items/visible")
     assert response.status_code == 200
@@ -1750,7 +1750,7 @@ def test_visible_menu_config_is_filtered_by_backend_permissions() -> None:
 
 
 def test_provider_services_management_routes_proxy_gateway_state() -> None:
-    csrf_headers = _login_as("super@synapse.network")
+    csrf_headers = _login_as("cliff@synapse-network.ai")
 
     list_response = client.get("/api/admin/v1/provider-services")
     assert list_response.status_code == 200
@@ -1783,7 +1783,7 @@ def test_provider_services_management_routes_proxy_gateway_state() -> None:
 
 
 def test_menu_config_delete_removes_descendants() -> None:
-    csrf_headers = _login_as("super@synapse.network")
+    csrf_headers = _login_as("cliff@synapse-network.ai")
 
     create_response = client.post(
         "/api/admin/v1/config/menu-items",
@@ -1836,7 +1836,7 @@ def test_menu_config_delete_removes_descendants() -> None:
 
 
 def test_visible_menu_config_returns_full_tree_for_super_admin() -> None:
-    _login_as("super@synapse.network")
+    _login_as("cliff@synapse-network.ai")
 
     published_response = client.get("/api/admin/v1/config/menu-items?stage=published")
     visible_response = client.get("/api/admin/v1/config/menu-items/visible")
@@ -1854,7 +1854,7 @@ def test_visible_menu_config_returns_full_tree_for_super_admin() -> None:
 
 
 def test_approvals_list_includes_projected_provider_withdraw_reviews() -> None:
-    _login_as("finance-review@synapse.network")
+    _login_as("finance-review@synapse-network.ai")
 
     response = client.get("/api/admin/v1/approvals?limit=20")
     assert response.status_code == 200
@@ -1866,7 +1866,7 @@ def test_approvals_list_includes_projected_provider_withdraw_reviews() -> None:
 
 
 def test_approvals_list_filter_can_select_only_projected_provider_reviews() -> None:
-    _login_as("finance-review@synapse.network")
+    _login_as("finance-review@synapse-network.ai")
 
     response = client.get("/api/admin/v1/approvals?approvalType=provider_withdraw_review&status=UNDER_REVIEW&limit=20")
     assert response.status_code == 200
@@ -1877,11 +1877,11 @@ def test_approvals_list_filter_can_select_only_projected_provider_reviews() -> N
 
 
 def test_approval_decision_can_route_to_projected_provider_withdraw_review() -> None:
-    csrf_headers = _login_as("finance-review@synapse.network")
+    csrf_headers = _login_as("finance-review@synapse-network.ai")
 
     response = client.post(
         "/api/admin/v1/approvals/PWR-wd-demo-review-002/decision",
-        headers={**csrf_headers, "X-Admin-OTP-Code": _otp_code_for("finance-review@synapse.network")},
+        headers={**csrf_headers, "X-Admin-OTP-Code": _otp_code_for("finance-review@synapse-network.ai")},
         json={
             "decision": "APPROVE",
             "comment": "Projected approval routed to provider manual review flow.",
@@ -1894,7 +1894,7 @@ def test_approval_decision_can_route_to_projected_provider_withdraw_review() -> 
 
 
 def test_provider_withdraw_review_list_and_decision() -> None:
-    csrf_headers = _login_as("finance-review@synapse.network")
+    csrf_headers = _login_as("finance-review@synapse-network.ai")
 
     list_response = client.get("/api/admin/v1/withdrawal-reviews?limit=10")
     assert list_response.status_code == 200
@@ -1905,7 +1905,7 @@ def test_provider_withdraw_review_list_and_decision() -> None:
 
     decision_response = client.post(
         f"/api/admin/v1/withdrawal-reviews/{first_item['withdrawalId']}/decision",
-        headers={**csrf_headers, "X-Admin-OTP-Code": _otp_code_for("finance-review@synapse.network")},
+        headers={**csrf_headers, "X-Admin-OTP-Code": _otp_code_for("finance-review@synapse-network.ai")},
         json={
             "decision": "APPROVE",
             "note": "Looks consistent with provider income.",
@@ -1923,7 +1923,7 @@ def test_provider_withdraw_review_list_and_decision() -> None:
 
 
 def test_withdraw_review_list_and_decision_supports_consumer_manual_withdrawal() -> None:
-    csrf_headers = _login_as("finance-review@synapse.network")
+    csrf_headers = _login_as("finance-review@synapse-network.ai")
     repository = _test_provider_withdraw_review_repository()
     consumer_review_id = f"wd-consumer-review-{uuid4().hex[:8]}"
     if isinstance(repository, InMemoryProviderWithdrawReviewRepository):
@@ -1956,7 +1956,7 @@ def test_withdraw_review_list_and_decision_supports_consumer_manual_withdrawal()
 
     decision_response = client.post(
         f"/api/admin/v1/withdrawal-reviews/{consumer_review_id}/decision",
-        headers={**csrf_headers, "X-Admin-OTP-Code": _otp_code_for("finance-review@synapse.network")},
+        headers={**csrf_headers, "X-Admin-OTP-Code": _otp_code_for("finance-review@synapse-network.ai")},
         json={
             "decision": "REJECT",
             "note": "Consumer withdrawal risk rejected; funds must return to available.",
@@ -1974,7 +1974,7 @@ def test_withdraw_review_list_and_decision_supports_consumer_manual_withdrawal()
 
 
 def test_provider_withdraw_review_decision_rejects_bad_inputs() -> None:
-    csrf_headers = _login_as("finance-review@synapse.network")
+    csrf_headers = _login_as("finance-review@synapse-network.ai")
     repository = _test_provider_withdraw_review_repository()
     non_pending_id = f"wd-reviewed-{uuid4().hex[:8]}"
     if isinstance(repository, InMemoryProviderWithdrawReviewRepository):
@@ -2000,21 +2000,21 @@ def test_provider_withdraw_review_decision_rejects_bad_inputs() -> None:
 
     invalid_decision = client.post(
         "/api/admin/v1/withdrawal-reviews/wd-demo-review-001/decision",
-        headers={**csrf_headers, "X-Admin-OTP-Code": _otp_code_for("finance-review@synapse.network")},
+        headers={**csrf_headers, "X-Admin-OTP-Code": _otp_code_for("finance-review@synapse-network.ai")},
         json={"decision": "HOLD", "note": "unsupported"},
     )
     assert invalid_decision.status_code == 400
 
     missing_item = client.post(
         "/api/admin/v1/withdrawal-reviews/wd-does-not-exist/decision",
-        headers={**csrf_headers, "X-Admin-OTP-Code": _otp_code_for("finance-review@synapse.network")},
+        headers={**csrf_headers, "X-Admin-OTP-Code": _otp_code_for("finance-review@synapse-network.ai")},
         json={"decision": "APPROVE", "note": "missing"},
     )
     assert missing_item.status_code == 404
 
     non_pending = client.post(
         f"/api/admin/v1/withdrawal-reviews/{non_pending_id}/decision",
-        headers={**csrf_headers, "X-Admin-OTP-Code": _otp_code_for("finance-review@synapse.network")},
+        headers={**csrf_headers, "X-Admin-OTP-Code": _otp_code_for("finance-review@synapse-network.ai")},
         json={"decision": "REJECT", "note": "already handled"},
     )
     assert non_pending.status_code == 400
@@ -2074,7 +2074,7 @@ def test_http_withdraw_review_adapter_routes_consumer_review_to_refund_endpoint(
         decision="REJECT",
         reviewer=AdminIdentity(
             admin_id="admin-1",
-            email="finance-review@synapse.network",
+            email="finance-review@synapse-network.ai",
             display_name="Finance Review",
             role="finance_reviewer",
             permissions=("approval:decide",),
@@ -2123,7 +2123,7 @@ def _provider_review_item() -> ProviderWithdrawReviewItem:
 def _reviewer_identity() -> AdminIdentity:
     return AdminIdentity(
         admin_id="admin-1",
-        email="finance-review@synapse.network",
+        email="finance-review@synapse-network.ai",
         display_name="Finance Review",
         role="finance_reviewer",
         permissions=("approval:decide",),
@@ -2194,7 +2194,7 @@ def test_http_withdraw_review_adapter_propagates_gateway_error_detail_dict(monke
 
 
 def test_provider_withdraw_review_history_returns_reviewed_items() -> None:
-    csrf_headers = _login_as("finance-review@synapse.network")
+    csrf_headers = _login_as("finance-review@synapse-network.ai")
     repository = _test_provider_withdraw_review_repository()
     review_item_id = f"wd-history-{uuid4().hex[:8]}"
     if isinstance(repository, InMemoryProviderWithdrawReviewRepository):
@@ -2220,7 +2220,7 @@ def test_provider_withdraw_review_history_returns_reviewed_items() -> None:
 
     decision_response = client.post(
         f"/api/admin/v1/withdrawal-reviews/{review_item_id}/decision",
-        headers={**csrf_headers, "X-Admin-OTP-Code": _otp_code_for("finance-review@synapse.network")},
+        headers={**csrf_headers, "X-Admin-OTP-Code": _otp_code_for("finance-review@synapse-network.ai")},
         json={
             "decision": "APPROVE",
             "note": "History page should show this reviewed item.",
@@ -2246,7 +2246,7 @@ def test_provider_withdraw_review_history_returns_reviewed_items() -> None:
 
 
 def test_provider_withdraw_review_history_supports_filters_and_pagination() -> None:
-    csrf_headers = _login_as("finance-review@synapse.network")
+    csrf_headers = _login_as("finance-review@synapse-network.ai")
     repository = _test_provider_withdraw_review_repository()
     review_ids = [f"wd-history-filter-{uuid4().hex[:6]}", f"wd-history-filter-{uuid4().hex[:6]}"]
     reviewed_on = datetime.now(timezone.utc).date().isoformat()
@@ -2293,7 +2293,7 @@ def test_provider_withdraw_review_history_supports_filters_and_pagination() -> N
     for withdrawal_id in review_ids:
         decision_response = client.post(
             f"/api/admin/v1/withdrawal-reviews/{withdrawal_id}/decision",
-            headers={**csrf_headers, "X-Admin-OTP-Code": _otp_code_for("finance-review@synapse.network")},
+            headers={**csrf_headers, "X-Admin-OTP-Code": _otp_code_for("finance-review@synapse-network.ai")},
             json={
                 "decision": "APPROVE",
                 "note": f"Reviewed item {withdrawal_id}",
@@ -2325,7 +2325,7 @@ def test_provider_withdraw_review_history_supports_filters_and_pagination() -> N
 
 
 def test_provider_withdraw_review_history_rejects_invalid_filters() -> None:
-    _login_as("finance-review@synapse.network")
+    _login_as("finance-review@synapse-network.ai")
 
     bad_date = client.get("/api/admin/v1/withdrawal-reviews/history?reviewedFrom=2026-99-99")
     assert bad_date.status_code == 400
@@ -2381,7 +2381,7 @@ def test_postgres_withdraw_review_item_defaults_and_consumer_kind() -> None:
 
 
 def test_menu_config_snapshot_auto_adds_new_seed_menu_items() -> None:
-    _login_as("super@synapse.network")
+    _login_as("cliff@synapse-network.ai")
     store = _test_store()
     snapshot = store.config.get_menu_config("admin_menu_config")
     assert snapshot is not None
@@ -2414,7 +2414,7 @@ def test_menu_config_snapshot_auto_adds_new_seed_menu_items() -> None:
 
 
 def test_menu_config_snapshot_auto_patches_seed_panel_hrefs() -> None:
-    _login_as("super@synapse.network")
+    _login_as("cliff@synapse-network.ai")
     store = _test_store()
     snapshot = store.config.get_menu_config("admin_menu_config")
     assert snapshot is not None
@@ -2459,11 +2459,11 @@ def test_menu_config_snapshot_auto_patches_seed_panel_hrefs() -> None:
 
 
 def test_provider_withdraw_review_decision_requires_permission() -> None:
-    csrf_headers = _login_as("finance@synapse.network")
+    csrf_headers = _login_as("finance@synapse-network.ai")
 
     response = client.post(
         "/api/admin/v1/withdrawal-reviews/wd-demo-review-001/decision",
-        headers={**csrf_headers, "X-Admin-OTP-Code": _otp_code_for("finance@synapse.network")},
+        headers={**csrf_headers, "X-Admin-OTP-Code": _otp_code_for("finance@synapse-network.ai")},
         json={
             "decision": "REJECT",
             "note": "Finance admin cannot decide directly.",
@@ -2474,9 +2474,9 @@ def test_provider_withdraw_review_decision_requires_permission() -> None:
 
 
 def test_provider_withdraw_review_decision_rejects_multiple_active_google_authenticator_factors() -> None:
-    csrf_headers = _login_as("finance-review@synapse.network")
+    csrf_headers = _login_as("finance-review@synapse-network.ai")
     store = _test_store()
-    user = store.identity.get_user_by_email("finance-review@synapse.network")
+    user = store.identity.get_user_by_email("finance-review@synapse-network.ai")
     assert user is not None
     duplicate_factor = store.identity.upsert_mfa_factor(
         AdminMfaFactor(
@@ -2492,7 +2492,7 @@ def test_provider_withdraw_review_decision_rejects_multiple_active_google_authen
     try:
         response = client.post(
             "/api/admin/v1/withdrawal-reviews/wd-demo-review-001/decision",
-            headers={**csrf_headers, "X-Admin-OTP-Code": _otp_code_for("finance-review@synapse.network")},
+            headers={**csrf_headers, "X-Admin-OTP-Code": _otp_code_for("finance-review@synapse-network.ai")},
             json={
                 "decision": "REJECT",
                 "note": "Duplicate active TOTP factors must be rejected.",
@@ -2521,9 +2521,9 @@ def test_provider_withdraw_review_decision_rejects_multiple_active_google_authen
 
 
 def test_provider_withdraw_review_decision_rejects_placeholder_google_authenticator_secret() -> None:
-    csrf_headers = _login_as("finance-review@synapse.network")
+    csrf_headers = _login_as("finance-review@synapse-network.ai")
     store = _test_store()
-    user = store.identity.get_user_by_email("finance-review@synapse.network")
+    user = store.identity.get_user_by_email("finance-review@synapse-network.ai")
     assert user is not None
     factor = next(
         factor
@@ -2580,7 +2580,7 @@ def test_provider_withdraw_review_decision_rejects_placeholder_google_authentica
 
 
 def test_draft_menu_config_requires_control_plane_role() -> None:
-    _login_as("finance@synapse.network")
+    _login_as("finance@synapse-network.ai")
 
     response = client.get("/api/admin/v1/config/menu-items")
 
@@ -2589,7 +2589,7 @@ def test_draft_menu_config_requires_control_plane_role() -> None:
 
 
 def test_raw_published_menu_config_requires_control_plane_role() -> None:
-    _login_as("finance@synapse.network")
+    _login_as("finance@synapse-network.ai")
 
     response = client.get("/api/admin/v1/config/menu-items?stage=published")
 
@@ -2606,7 +2606,7 @@ def test_dashboard_requires_auth() -> None:
 
 
 def test_approval_submit_forbidden_without_permission() -> None:
-    csrf_headers = _login_as("audit@synapse.network")
+    csrf_headers = _login_as("audit@synapse-network.ai")
 
     response = client.post(
         "/api/admin/v1/approvals",
@@ -2629,11 +2629,11 @@ def test_approval_submit_forbidden_without_permission() -> None:
 
 
 def test_approval_decision_requires_reviewer_role() -> None:
-    csrf_headers = _login_as("finance-review@synapse.network")
+    csrf_headers = _login_as("finance-review@synapse-network.ai")
 
     response = client.post(
         "/api/admin/v1/approvals/APR-20260316-001/decision",
-        headers={**csrf_headers, "X-Admin-OTP-Code": _otp_code_for("finance-review@synapse.network")},
+        headers={**csrf_headers, "X-Admin-OTP-Code": _otp_code_for("finance-review@synapse-network.ai")},
         json={"decision": "APPROVE", "comment": "approved"},
     )
 
@@ -2642,7 +2642,7 @@ def test_approval_decision_requires_reviewer_role() -> None:
 
 
 def test_dashboard_overview_uses_store_backed_metrics() -> None:
-    _login_as("ops@synapse.network")
+    _login_as("ops@synapse-network.ai")
 
     response = client.get("/api/admin/v1/dashboard/overview")
 
@@ -2655,7 +2655,7 @@ def test_dashboard_overview_uses_store_backed_metrics() -> None:
 
 
 def test_system_status_uses_gateway_projection_snapshot() -> None:
-    _login_as("ops@synapse.network")
+    _login_as("ops@synapse-network.ai")
 
     response = client.get("/api/admin/v1/dashboard/system-status")
 
@@ -2668,7 +2668,7 @@ def test_system_status_uses_gateway_projection_snapshot() -> None:
 
 
 def test_finance_overview_exposes_gateway_finance_projection() -> None:
-    _login_as("ops@synapse.network")
+    _login_as("ops@synapse-network.ai")
 
     response = client.get("/api/admin/v1/dashboard/finance-overview")
 
@@ -2688,7 +2688,7 @@ def test_finance_overview_exposes_gateway_finance_projection() -> None:
 
 
 def test_activity_trends_expose_seven_day_projection() -> None:
-    _login_as("ops@synapse.network")
+    _login_as("ops@synapse-network.ai")
 
     response = client.get("/api/admin/v1/dashboard/activity-trends")
 
@@ -2703,7 +2703,7 @@ def test_activity_trends_expose_seven_day_projection() -> None:
 
 
 def test_operations_overview_exposes_gateway_ops_projection() -> None:
-    _login_as("ops@synapse.network")
+    _login_as("ops@synapse-network.ai")
 
     response = client.get("/api/admin/v1/dashboard/operations-overview")
 
@@ -2865,7 +2865,7 @@ class FakeForumSupportService:
 def test_forum_support_lists_unreplied_tasks() -> None:
     fake = FakeForumSupportService()
     app.dependency_overrides[deps.get_forum_support_service] = lambda: fake
-    _login_as("ops@synapse.network")
+    _login_as("ops@synapse-network.ai")
 
     response = client.get("/api/admin/v1/forum/response-tasks")
 
@@ -2879,7 +2879,7 @@ def test_forum_support_lists_unreplied_tasks() -> None:
 def test_forum_support_gets_single_response_task_context() -> None:
     fake = FakeForumSupportService()
     app.dependency_overrides[deps.get_forum_support_service] = lambda: fake
-    _login_as("ops@synapse.network")
+    _login_as("ops@synapse-network.ai")
 
     response = client.get("/api/admin/v1/forum/response-tasks/frt-demo")
 
@@ -2894,7 +2894,7 @@ def test_forum_support_gets_single_response_task_context() -> None:
 def test_forum_support_send_reply_marks_task_responded() -> None:
     fake = FakeForumSupportService()
     app.dependency_overrides[deps.get_forum_support_service] = lambda: fake
-    csrf_headers = _login_as("ops@synapse.network")
+    csrf_headers = _login_as("ops@synapse-network.ai")
 
     response = client.post(
         "/api/admin/v1/forum/response-tasks/frt-demo/send-reply",
@@ -2911,7 +2911,7 @@ def test_forum_support_send_reply_marks_task_responded() -> None:
 def test_forum_support_ignore_requires_reason_and_closes_task() -> None:
     fake = FakeForumSupportService()
     app.dependency_overrides[deps.get_forum_support_service] = lambda: fake
-    csrf_headers = _login_as("ops@synapse.network")
+    csrf_headers = _login_as("ops@synapse-network.ai")
 
     response = client.post(
         "/api/admin/v1/forum/response-tasks/frt-demo/ignore",
@@ -2975,7 +2975,7 @@ def test_forum_support_growing_can_read_pending_queue() -> None:
 def test_forum_support_lists_all_topics_for_operations() -> None:
     fake = FakeForumSupportService()
     app.dependency_overrides[deps.get_forum_support_service] = lambda: fake
-    _login_as("ops@synapse.network")
+    _login_as("ops@synapse-network.ai")
 
     response = client.get("/api/admin/v1/forum/topics?status=awaiting_admin&page_size=10&pinned=true")
 
@@ -2991,7 +2991,7 @@ def test_forum_support_lists_all_topics_for_operations() -> None:
 def test_forum_support_gets_topic_detail_and_timeline() -> None:
     fake = FakeForumSupportService()
     app.dependency_overrides[deps.get_forum_support_service] = lambda: fake
-    _login_as("ops@synapse.network")
+    _login_as("ops@synapse-network.ai")
 
     response = client.get("/api/admin/v1/forum/topics/topic-demo")
 
@@ -3006,7 +3006,7 @@ def test_forum_support_gets_topic_detail_and_timeline() -> None:
 def test_forum_support_closes_reopens_and_pins_topic() -> None:
     fake = FakeForumSupportService()
     app.dependency_overrides[deps.get_forum_support_service] = lambda: fake
-    csrf_headers = _login_as("ops@synapse.network")
+    csrf_headers = _login_as("ops@synapse-network.ai")
 
     close_response = client.post(
         "/api/admin/v1/forum/topics/topic-demo/close",
@@ -3032,7 +3032,7 @@ def test_forum_support_closes_reopens_and_pins_topic() -> None:
 
 
 def test_reconciliation_detail_exposes_runtime_breakdown_and_related_backlog() -> None:
-    _login_as("ops@synapse.network")
+    _login_as("ops@synapse-network.ai")
 
     response = client.get("/api/admin/v1/dashboard/reconciliation-detail")
 
@@ -3065,7 +3065,7 @@ def test_reconciliation_detail_exposes_runtime_breakdown_and_related_backlog() -
 
 
 def test_reconciliation_drilldown_cross_locates_by_owner_and_tx_hash() -> None:
-    _login_as("ops@synapse.network")
+    _login_as("ops@synapse-network.ai")
 
     owner_response = client.get(
         "/api/admin/v1/dashboard/reconciliation-drilldown",
@@ -3092,7 +3092,7 @@ def test_reconciliation_drilldown_cross_locates_by_owner_and_tx_hash() -> None:
 
 
 def test_dashboard_diagnostics_expose_runtime_signals_and_actions() -> None:
-    _login_as("ops@synapse.network")
+    _login_as("ops@synapse-network.ai")
 
     response = client.get("/api/admin/v1/dashboard/diagnostics")
 
@@ -3108,7 +3108,7 @@ def test_dashboard_diagnostics_expose_runtime_signals_and_actions() -> None:
 
 
 def test_dashboard_analytics_overview_exposes_north_star_cards() -> None:
-    _login_as("ops@synapse.network")
+    _login_as("ops@synapse-network.ai")
 
     response = client.get("/api/admin/v1/dashboard/analytics/overview")
 
@@ -3121,7 +3121,7 @@ def test_dashboard_analytics_overview_exposes_north_star_cards() -> None:
 
 
 def test_dashboard_analytics_consumer_funnel_exposes_activation_steps() -> None:
-    _login_as("ops@synapse.network")
+    _login_as("ops@synapse-network.ai")
 
     response = client.get("/api/admin/v1/dashboard/analytics/consumer-funnel?window=7d")
 
@@ -3137,7 +3137,7 @@ def test_dashboard_analytics_consumer_funnel_exposes_activation_steps() -> None:
 
 
 def test_dashboard_analytics_money_flow_includes_projection_context() -> None:
-    _login_as("ops@synapse.network")
+    _login_as("ops@synapse-network.ai")
 
     response = client.get("/api/admin/v1/dashboard/analytics/money-flow")
 
@@ -3152,7 +3152,7 @@ def test_dashboard_analytics_money_flow_includes_projection_context() -> None:
 
 
 def test_dashboard_analytics_data_quality_flags_demo_fallback_events() -> None:
-    _login_as("ops@synapse.network")
+    _login_as("ops@synapse-network.ai")
 
     response = client.get("/api/admin/v1/dashboard/analytics/data-quality?window=1h")
 
@@ -3178,7 +3178,7 @@ def test_dashboard_service_pending_counts_include_projected_provider_reviews() -
 
 
 def test_audit_actions_list_is_available() -> None:
-    _login_as("audit@synapse.network")
+    _login_as("audit@synapse-network.ai")
 
     response = client.get("/api/admin/v1/audit/actions?resultStatus=failure")
 
@@ -3189,7 +3189,7 @@ def test_audit_actions_list_is_available() -> None:
 
 
 def test_execution_jobs_list_and_retry() -> None:
-    csrf_headers = _login_as("finance-review@synapse.network")
+    csrf_headers = _login_as("finance-review@synapse-network.ai")
 
     list_response = client.get("/api/admin/v1/execution-jobs?status=FAILED")
     assert list_response.status_code == 200
@@ -3199,7 +3199,7 @@ def test_execution_jobs_list_and_retry() -> None:
 
     retry_response = client.post(
         f"/api/admin/v1/execution-jobs/{job_id}/retry",
-        headers={**csrf_headers, "X-Admin-OTP-Code": _otp_code_for("finance-review@synapse.network")},
+        headers={**csrf_headers, "X-Admin-OTP-Code": _otp_code_for("finance-review@synapse-network.ai")},
     )
 
     assert retry_response.status_code == 200
@@ -3214,7 +3214,7 @@ def test_execution_jobs_list_and_retry() -> None:
 
 
 def test_high_risk_route_requires_google_authenticator_header() -> None:
-    csrf_headers = _login_as("finance-review@synapse.network")
+    csrf_headers = _login_as("finance-review@synapse-network.ai")
 
     response = client.post(
         "/api/admin/v1/approvals/APR-20260316-001/decision",
@@ -3227,12 +3227,12 @@ def test_high_risk_route_requires_google_authenticator_header() -> None:
 
 
 def test_cookie_authenticated_write_requires_csrf_token() -> None:
-    _login_as("super@synapse.network")
+    _login_as("cliff@synapse-network.ai")
 
     response = client.post(
         "/api/admin/v1/users",
         json={
-            "email": "csrf-missing@synapse.network",
+            "email": "csrf-missing@synapse-network.ai",
             "displayName": "Missing CSRF",
             "roleKey": "platform_ops_admin",
             "password": PLACEHOLDER_PASSWORD,

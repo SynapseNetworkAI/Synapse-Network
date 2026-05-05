@@ -50,6 +50,124 @@ require_non_empty_dsn() {
   fi
 }
 
+run_schema_owner_preflight() {
+  local app_user="${POSTGRES_APP_USER:-${POSTGRES_RUNTIME_USER:-${POSTGRES_USER:-}}}"
+  local migrator_user="${POSTGRES_MIGRATOR_USER:-}"
+  if [[ -z "${app_user}" || -z "${migrator_user}" || "${app_user}" == "${migrator_user}" ]]; then
+    return 0
+  fi
+
+  local mismatched_count
+  mismatched_count="$(
+    psql "${MIGRATION_CONNINFO}" -X -v ON_ERROR_STOP=1 -q -t -A \
+      --set=migrator_user="${migrator_user}" <<'SQL'
+SELECT COUNT(*)
+FROM pg_class c
+JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE n.nspname = 'public'
+  AND c.relkind IN ('r', 'p', 'v', 'm', 'S')
+  AND c.relname LIKE 'synapse_%'
+  AND pg_get_userbyid(c.relowner) <> :'migrator_user';
+SQL
+  )"
+  mismatched_count="$(printf '%s' "${mismatched_count}" | tr -d '[:space:]')"
+  if [[ "${mismatched_count}" != "0" ]]; then
+    echo "FATAL: ${mismatched_count} existing Synapse schema objects are not owned by migrator user ${migrator_user}." >&2
+    echo "Why dangerous: runtime-owned tables make future migrations fail or appear empty to least-privilege operators." >&2
+    echo "Agent fix: repair object ownership to ${migrator_user}, grant runtime privileges back to ${app_user}, then rerun this migration." >&2
+    exit 2
+  fi
+}
+
+validate_gateway_schema_guardrails() {
+  local app_user="${POSTGRES_APP_USER:-${POSTGRES_RUNTIME_USER:-${POSTGRES_USER:-}}}"
+  local migrator_user="${POSTGRES_MIGRATOR_USER:-}"
+  local table_count
+  local missing_required
+  local owner_mismatch_count
+
+  table_count="$(
+    psql "${MIGRATION_CONNINFO}" -X -v ON_ERROR_STOP=1 -q -t -A <<'SQL'
+SELECT COUNT(*)
+FROM information_schema.tables
+WHERE table_schema = 'public'
+  AND table_name LIKE 'synapse_%';
+SQL
+  )"
+  table_count="$(printf '%s' "${table_count}" | tr -d '[:space:]')"
+  if [[ -z "${table_count}" || "${table_count}" -lt 40 ]]; then
+    echo "FATAL: Gateway schema guard failed: expected at least 40 synapse_* tables, found ${table_count:-0}." >&2
+    exit 2
+  fi
+
+  missing_required="$(
+    psql "${MIGRATION_CONNINFO}" -X -v ON_ERROR_STOP=1 -q -t -A <<'SQL'
+SELECT COALESCE(string_agg(required_table, ', '), '')
+FROM (
+  VALUES
+    ('synapse_owner_accounts'),
+    ('synapse_agent_credentials'),
+    ('synapse_service_manifests'),
+    ('synapse_invocations'),
+    ('synapse_ledger_entries'),
+    ('synapse_vault_deposits'),
+    ('synapse_vault_withdrawals'),
+    ('synapse_audit_events')
+) AS required(required_table)
+WHERE to_regclass(format('public.%I', required_table)) IS NULL;
+SQL
+  )"
+  missing_required="$(printf '%s' "${missing_required}" | xargs)"
+  if [[ -n "${missing_required}" ]]; then
+    echo "FATAL: Gateway schema guard failed: missing required tables ${missing_required}." >&2
+    exit 2
+  fi
+
+  if [[ -n "${migrator_user}" ]]; then
+    owner_mismatch_count="$(
+      psql "${MIGRATION_CONNINFO}" -X -v ON_ERROR_STOP=1 -q -t -A \
+        --set=migrator_user="${migrator_user}" <<'SQL'
+SELECT COUNT(*)
+FROM pg_class c
+JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE n.nspname = 'public'
+  AND c.relkind IN ('r', 'p', 'v', 'm', 'S')
+  AND c.relname LIKE 'synapse_%'
+  AND pg_get_userbyid(c.relowner) <> :'migrator_user';
+SQL
+    )"
+    owner_mismatch_count="$(printf '%s' "${owner_mismatch_count}" | tr -d '[:space:]')"
+    if [[ "${owner_mismatch_count}" != "0" ]]; then
+      echo "FATAL: Gateway schema guard failed: ${owner_mismatch_count} synapse_* objects are not owned by migrator ${migrator_user}." >&2
+      exit 2
+    fi
+  fi
+
+  if [[ -n "${app_user}" ]]; then
+    local app_can_select
+    local app_can_insert
+    app_can_select="$(
+      psql "${MIGRATION_CONNINFO}" -X -v ON_ERROR_STOP=1 -q -t -A \
+        --set=app_user="${app_user}" <<'SQL'
+SELECT has_table_privilege(:'app_user', 'public.synapse_owner_accounts', 'SELECT');
+SQL
+    )"
+    app_can_insert="$(
+      psql "${MIGRATION_CONNINFO}" -X -v ON_ERROR_STOP=1 -q -t -A \
+        --set=app_user="${app_user}" <<'SQL'
+SELECT has_table_privilege(:'app_user', 'public.synapse_invocations', 'INSERT');
+SQL
+    )"
+    app_can_select="$(printf '%s' "${app_can_select}" | tr -d '[:space:]')"
+    app_can_insert="$(printf '%s' "${app_can_insert}" | tr -d '[:space:]')"
+    if [[ "${app_can_select}" != "t" || "${app_can_insert}" != "t" ]]; then
+      echo "FATAL: Gateway schema guard failed: runtime app user ${app_user} lacks required table privileges." >&2
+      echo "Details: synapse_owner_accounts SELECT=${app_can_select}; synapse_invocations INSERT=${app_can_insert}" >&2
+      exit 2
+    fi
+  fi
+}
+
 build_conninfo_from_split_fields() {
   local user_name="${POSTGRES_MIGRATOR_USER:-${POSTGRES_USER:-}}"
   local password="${POSTGRES_MIGRATOR_PASSWORD:-${POSTGRES_PASSWORD:-}}"
@@ -116,6 +234,8 @@ require_cmd "${PYTHON_BIN}"
 
 echo "[migrate-db] environment=${ENVIRONMENT}"
 echo "[migrate-db] schema=${SCHEMA_SQL}"
+echo "[migrate-db] checking existing schema ownership"
+run_schema_owner_preflight
 echo "[migrate-db] applying gateway target-state schema"
 psql "${MIGRATION_CONNINFO}" -X -v ON_ERROR_STOP=1 -f "${SCHEMA_SQL}" >/dev/null
 
@@ -153,5 +273,8 @@ finally:
     storage.close()
 PY
 )
+
+echo "[migrate-db] validating gateway schema guardrails"
+validate_gateway_schema_guardrails
 
 echo "[migrate-db] ok"

@@ -1,6 +1,17 @@
 import { describe, expect, it } from "vitest";
 
-import { buildReviewHistoryFlow, buildReviewHistoryMetrics, collectReviewHistoryReviewers, collectReviewHistoryStatuses, filterReviewHistoryItems, getReviewDecisionLabel, getReviewDecisionTone, getReviewHistoryStatusLabel, getReviewHistoryStatusTone, sortReviewHistoryItems } from "./review-history-presenters";
+import {
+  buildReviewHistoryFlow,
+  buildReviewHistoryMetrics,
+  collectReviewHistoryReviewers,
+  collectReviewHistoryStatuses,
+  filterReviewHistoryItems,
+  getReviewDecisionLabel,
+  getReviewDecisionTone,
+  getReviewHistoryStatusLabel,
+  getReviewHistoryStatusTone,
+  sortReviewHistoryItems,
+} from "./review-history-presenters";
 import type { ProviderWithdrawReviewHistoryItem } from "@/services/admin-api";
 
 const items: ProviderWithdrawReviewHistoryItem[] = [
@@ -15,7 +26,7 @@ const items: ProviderWithdrawReviewHistoryItem[] = [
     evidenceSummary: "Reviewer confirmed provider income is consistent.",
     reviewDecision: "APPROVE",
     currentStatus: "COMPLETED",
-    reviewerEmail: "finance-review@synapse.network",
+    reviewerEmail: "finance-review@synapse-network.ai",
     reviewerRole: "finance_reviewer",
     reviewerNote: "Looks good",
     message: null,
@@ -34,7 +45,7 @@ const items: ProviderWithdrawReviewHistoryItem[] = [
     evidenceSummary: "Aggregate amount exceeds threshold.",
     reviewDecision: "REJECT",
     currentStatus: "REJECTED",
-    reviewerEmail: "finance-review@synapse.network",
+    reviewerEmail: "finance-review@synapse-network.ai",
     reviewerRole: "finance_reviewer",
     reviewerNote: "Need more evidence",
     message: null,
@@ -53,7 +64,7 @@ const items: ProviderWithdrawReviewHistoryItem[] = [
     evidenceSummary: "Earlier decision later rolled back by ticket expiry.",
     reviewDecision: "APPROVE",
     currentStatus: "CANCELLED",
-    reviewerEmail: "finance-review@synapse.network",
+    reviewerEmail: "finance-review@synapse-network.ai",
     reviewerRole: "finance_reviewer",
     reviewerNote: "Approved earlier",
     message: "Expired ticket released",
@@ -75,20 +86,36 @@ describe("review history presenters", () => {
   });
 
   it("filters by search, status, and decision", () => {
-    expect(filterReviewHistoryItems(items, "wd-2", "all", "all").map((item) => item.withdrawalId)).toEqual(["wd-2"]);
-    expect(filterReviewHistoryItems(items, "", "CANCELLED", "APPROVE").map((item) => item.withdrawalId)).toEqual(["wd-3"]);
+    expect(
+      filterReviewHistoryItems(items, "wd-2", "all", "all").map(
+        (item) => item.withdrawalId
+      )
+    ).toEqual(["wd-2"]);
+    expect(
+      filterReviewHistoryItems(items, "", "CANCELLED", "APPROVE").map(
+        (item) => item.withdrawalId
+      )
+    ).toEqual(["wd-3"]);
   });
 
   it("sorts newest first", () => {
-    expect(sortReviewHistoryItems(items).map((item) => item.withdrawalId)).toEqual(["wd-1", "wd-2", "wd-3"]);
+    expect(
+      sortReviewHistoryItems(items).map((item) => item.withdrawalId)
+    ).toEqual(["wd-1", "wd-2", "wd-3"]);
   });
 
   it("collects current statuses", () => {
-    expect(collectReviewHistoryStatuses(items)).toEqual(["COMPLETED", "REJECTED", "CANCELLED"]);
+    expect(collectReviewHistoryStatuses(items)).toEqual([
+      "COMPLETED",
+      "REJECTED",
+      "CANCELLED",
+    ]);
   });
 
   it("collects reviewers", () => {
-    expect(collectReviewHistoryReviewers(items)).toEqual(["finance-review@synapse.network"]);
+    expect(collectReviewHistoryReviewers(items)).toEqual([
+      "finance-review@synapse-network.ai",
+    ]);
   });
 
   it("maps labels and tones", () => {
@@ -99,7 +126,14 @@ describe("review history presenters", () => {
   });
 
   it("builds status flow for drawer detail", () => {
-    expect(buildReviewHistoryFlow(items[0]).map((step) => step.label)).toEqual(["进入人工审核", "已放行", "已完成"]);
-    expect(buildReviewHistoryFlow(items[1]).map((step) => step.label)).toEqual(["进入人工审核", "已驳回"]);
+    expect(buildReviewHistoryFlow(items[0]).map((step) => step.label)).toEqual([
+      "进入人工审核",
+      "已放行",
+      "已完成",
+    ]);
+    expect(buildReviewHistoryFlow(items[1]).map((step) => step.label)).toEqual([
+      "进入人工审核",
+      "已驳回",
+    ]);
   });
 });

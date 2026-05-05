@@ -7,7 +7,7 @@ from src.storage import InMemoryAdminStore, PostgresAdminStore
 
 
 def test_domain_models_are_importable() -> None:
-    user = AdminUser(admin_id="adm_1", email="ops@synapse.network", display_name="Ops")
+    user = AdminUser(admin_id="adm_1", email="ops@synapse-network.ai", display_name="Ops")
     session = AdminSession(
         session_id="sess_1",
         admin_id=user.admin_id,
@@ -27,7 +27,7 @@ def test_domain_models_are_importable() -> None:
     )
     audit_export = AdminAuditExport(export_id="exp_1", export_scope="audit_admin")
 
-    assert user.email == "ops@synapse.network"
+    assert user.email == "ops@synapse-network.ai"
     assert session.token_jti == "jti_1"
     assert approval.amount_usdc == Decimal("100.00")
     assert audit_export.export_scope == "audit_admin"
@@ -45,7 +45,7 @@ def test_postgres_admin_store_wires_repository_skeletons() -> None:
 def test_inmemory_store_seeds_bootstrap_data() -> None:
     store = InMemoryAdminStore.seed_demo()
 
-    user = store.identity.get_user_by_email("ops@synapse.network")
+    user = store.identity.get_user_by_email("ops@synapse-network.ai")
     approvals = store.approval.list_approvals(limit=10)
 
     assert user is not None

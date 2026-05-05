@@ -65,17 +65,17 @@ Security controls for public API services:
 
 These surfaces must not be public:
 
-| Surface                  | Rule                                                                                |
-| ------------------------ | ----------------------------------------------------------------------------------- |
-| Cloud SQL                | No public exposure. Access only through Cloud SQL connector / Cloud Run attachment. |
-| Secret Manager           | No public access. Runtime service account gets only required `secretAccessor`.      |
-| Terraform state bucket   | Private forever. No runtime service account access.                                 |
-| Backup bucket            | Private forever.                                                                    |
-| Evidence bucket          | Private by default; share explicitly only when needed.                              |
-| Cloud Run Jobs           | No public domain mapping. Trigger through Scheduler/IAM or operator `gcloud`.       |
-| Migration job            | No public domain mapping. Trigger only during release.                              |
-| Backup/restore drill job | No public domain mapping. Trigger only during drill.                                |
-| Internal job endpoints   | Prefer Cloud Run Jobs; if HTTP endpoints exist, require IAM or internal token.      |
+| Surface                  | Rule                                                                                                                                                                        |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Cloud SQL                | Public IPv4 may exist, but connector enforcement must be `REQUIRED` and authorized networks must stay empty. Access only through Cloud SQL connector / Auth Proxy plus IAM. |
+| Secret Manager           | No public access. Runtime service account gets only required `secretAccessor`.                                                                                              |
+| Terraform state bucket   | Private forever. No runtime service account access.                                                                                                                         |
+| Backup bucket            | Private forever.                                                                                                                                                            |
+| Evidence bucket          | Private by default; share explicitly only when needed.                                                                                                                      |
+| Cloud Run Jobs           | No public domain mapping. Trigger through Scheduler/IAM or operator `gcloud`.                                                                                               |
+| Migration job            | No public domain mapping. Trigger only during release.                                                                                                                      |
+| Backup/restore drill job | No public domain mapping. Trigger only during drill.                                                                                                                        |
+| Internal job endpoints   | Prefer Cloud Run Jobs; if HTTP endpoints exist, require IAM or internal token.                                                                                              |
 
 ## One-Time Domain Mapping
 
