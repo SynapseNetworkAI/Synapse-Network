@@ -62,7 +62,7 @@ Status: Active
 - Domain: ci
 - Severity: warning
 - Trigger: Full pre-push CI failed because consumer withdrawal E2E still used a 1 USDC withdrawal after the runtime minimum moved to 10 USDC.
-- Root cause: The test kept a historical example amount instead of a named policy constant and treated available balance as immediately withdrawable despite the T+1 maturity window.
+- Root cause: The test kept a historical example amount instead of a named policy constant and treated available balance as immediately withdrawable despite the T+7 maturity window.
 - Fix: Update the E2E to use a Decimal 10 USDC minimum, send amount strings over HTTP, skip withdrawal-chain assertions when no funds are mature, and add a gateway bugfix note.
 - Rule: Finance E2E tests must use named policy constants for minimums, fees, and maturity windows; do not treat available balance as withdrawable balance.
 - Upgrade: bugfix-docs
@@ -93,7 +93,7 @@ Status: Active
 - Severity: warning
 - Trigger: Merging `origin/main` into PR 47 conflicted in the consumer withdrawal E2E around minimum amount and matured-funds skip behavior.
 - Root cause: Both branches repaired the same stale withdrawal test from different angles: one preserved Decimal/string money boundaries, the other added clearer maturity prerequisite handling.
-- Fix: Keep the Decimal 10 USDC policy constant, send amount strings over HTTP, and retain the T+1 mature-funds skip path for dependent assertions.
+- Fix: Keep the Decimal 10 USDC policy constant, send amount strings over HTTP, and retain the T+7 mature-funds skip path for dependent assertions.
 - Rule: When resolving finance-test conflicts, preserve policy constants, money serialization rules, and prerequisite skip semantics together.
 - Upgrade: agents-memory
 

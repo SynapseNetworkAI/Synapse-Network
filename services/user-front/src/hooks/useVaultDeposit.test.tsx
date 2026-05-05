@@ -182,6 +182,22 @@ describe("useVaultDeposit", () => {
     );
   });
 
+  it("blocks wallet prompts when deposit amount is below minimum", async () => {
+    receiptSuccessState.value = false;
+
+    const { result } = renderHook(() =>
+      useVaultDeposit({ initialAmount: "9.99" })
+    );
+
+    await result.current.handleDeposit();
+
+    expect(signTypedDataAsyncMock).not.toHaveBeenCalled();
+    expect(writeContractAsyncMock).not.toHaveBeenCalled();
+    expect(toastError).toHaveBeenCalledWith(
+      "Minimum deposit amount is 10.00 USDC."
+    );
+  });
+
   it("blocks wallet prompts when native gas is insufficient", async () => {
     receiptSuccessState.value = false;
     nativeBalanceRawState.value = 0n;
