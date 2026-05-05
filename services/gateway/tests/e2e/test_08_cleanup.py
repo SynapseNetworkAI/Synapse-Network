@@ -1,7 +1,8 @@
-"""Step 8: 清理 — 撤销凭据 + 删除测试服务 + 状态断言"""
+"""Step 8: 清理 — 撤销凭据 + 状态断言"""
 import httpx
 import pytest
 from tests.e2e.conftest import GATEWAY_BASE
+from tests.e2e.helpers.service_fixtures import canonical_invoke_payload
 
 
 def test_revoke_credential(owner_headers, session_state):
@@ -29,40 +30,18 @@ def test_revoked_credential_is_rejected(session_state):
     r = httpx.post(
         f"{GATEWAY_BASE}/api/v1/agent/invoke",
         headers={"X-Credential": token, "Content-Type": "application/json"},
-        json={"serviceId": service_id, "idempotencyKey": "revoke-test-key", "costUsdc": "0.001", "responseMode": "sync"},
+        json={
+            "serviceId": service_id,
+            "idempotencyKey": "revoke-test-key",
+            "costUsdc": "1.000000",
+            "payload": {"body": canonical_invoke_payload(service_id)},
+            "responseMode": "sync",
+        },
         timeout=15,
     )
     assert r.status_code in (401, 403), (
         f"Revoked credential should be rejected, got {r.status_code}: {r.text}"
     )
-
-
-def test_delete_test_service(provider_headers, session_state):
-    service_id = session_state.get("service_id")
-    if not service_id:
-        pytest.skip("service_id not set")
-
-    # Set to paused before deletion (gateway requires non-active status before delete)
-    r_update = httpx.put(
-        f"{GATEWAY_BASE}/api/v1/services/{service_id}",
-        headers=provider_headers,
-        json={"isActive": False, "status": "paused"},
-        timeout=15,
-    )
-    # 200 or 404 (already gone) are acceptable
-    if r_update.status_code not in (200, 404):
-        # log but don't fail — deletion might still work
-        print(f"[warn] set-inactive returned {r_update.status_code}: {r_update.text}")
-
-    r = httpx.delete(
-        f"{GATEWAY_BASE}/api/v1/services/{service_id}",
-        headers=provider_headers,
-        timeout=15,
-    )
-    assert r.status_code in (200, 204, 404), (
-        f"Delete service failed ({r.status_code}): {r.text}"
-    )
-    session_state["service_deleted"] = True
 
 
 def test_chain_complete(session_state):

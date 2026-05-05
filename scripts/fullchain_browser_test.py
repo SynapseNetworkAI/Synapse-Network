@@ -51,13 +51,10 @@ BUYER_KEY     = "0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b00
 BUYER_ADDR    = "0x90F79bf6EB2c4f870365E785982E1f101E93b906"
 
 DEPOSIT_USDC  = "10.0"   # fund buyer with 10 USDC
-SERVICE_PRICE = "0.01"
+SERVICE_PRICE = "1.000000"
 GATEWAY_E2E_SERVICE_ID = os.getenv(
-    "GATEWAY_E2E_SERVICE_ID", "svc_oss_security_healthcheck"
-).strip() or "svc_oss_security_healthcheck"
-GATEWAY_E2E_ALLOW_SERVICE_CREATION = os.getenv(
-    "GATEWAY_E2E_ALLOW_SERVICE_CREATION", ""
-).strip().lower() in {"1", "true", "yes", "on"}
+    "GATEWAY_E2E_SERVICE_ID", "svc_synapse_mock_cost_1usdc"
+).strip() or "svc_synapse_mock_cost_1usdc"
 
 FRONT_DIR = Path(__file__).parent.parent / "services" / "user-front" / "src"
 CONTRACT_CFG  = FRONT_DIR / "contract-config.json"
@@ -184,47 +181,25 @@ def create_agent(token, addr, name):
     print(f"  {PASS} Agent created: {name} → {agent_id or raw[:20]}...")
     return raw, agent_id
 
-def register_service(token, addr):
-    svc_name = f"svc_buyer_{uuid.uuid4().hex[:6]}"
-    r = api("post", "/v1/services", token=token,
-            headers={"X-User-Address": addr},
-            json={
-                "agentToolName": svc_name,
-                "serviceName": "Buyer Test Quotes Service",
-                "role": "Provider", "status": "active", "isActive": True,
-                "summary": "Buyer E2E test service.",
-                "tags": ["buyer", "e2e"],
-                "pricing": {"amount": SERVICE_PRICE, "currency": "USDC"},
-                "auth": {"type": "gateway_signed"},
-                "providerProfile": {"displayName": "Buyer Test Provider"},
-                "payoutAccount": {"payoutAddress": addr, "chainId": CHAIN_ID,
-                                  "settlementCurrency": "USDC"},
-                "governance": {"termsAccepted": True, "riskAcknowledged": True},
-                "healthCheck": {"path": "/health", "method": "GET", "timeoutMs": 3000,
-                                "successCodes": [200], "healthyThreshold": 1, "unhealthyThreshold": 3},
-                "invoke": {
-                    "method": "POST",
-                    "targets": [{"url": f"{PROVIDER_BASE}/api/v1/quotes/famous", "weight": 100}],
-                    "timeoutMs": 10000,
-                    "request": {"contentType": "application/json",
-                                "schema": {"body": {"type": "object",
-                                           "properties": {"text": {"type": "string"}}}}},
-                    "response": {"contentType": "application/json"},
-                },
-                "constraints": {"timeoutMs": 10000, "maxResponseBytes": 131072,
-                                 "maxRequestBytes": 65536, "maxQps": 10},
-            })
-    assert r.status_code in (200,201), f"Service reg failed: {r.text}"
-    d = r.json()
-    svc_id = (d.get("service_id") or d.get("serviceId") or
-              (d.get("service") or {}).get("serviceId") or
-              (d.get("service") or {}).get("service_id") or "")
-    print(f"  {PASS} Service registered: {svc_id}")
-    return svc_id
-
 def resolve_service(token, addr):
-    if GATEWAY_E2E_ALLOW_SERVICE_CREATION:
-        return register_service(token, addr)
+    r = api("get", "/v1/services/discover", token=token,
+            headers={"X-User-Address": addr},
+            params={"q": GATEWAY_E2E_SERVICE_ID, "limit": 10})
+    services = r.json().get("services", []) if r.status_code == 200 else []
+    found = any(
+        s.get("serviceId") == GATEWAY_E2E_SERVICE_ID
+        or s.get("service_id") == GATEWAY_E2E_SERVICE_ID
+        or s.get("agentToolName") == GATEWAY_E2E_SERVICE_ID
+        for s in services
+    )
+    if not found:
+        print(
+            f"  {FAIL} "
+            "Canonical Provider catalog service is missing. Run "
+            "Synapse-Network-Provider onboarding `ensure` for local/staging "
+            f"before this script: {GATEWAY_E2E_SERVICE_ID}"
+        )
+        raise SystemExit(1)
     print(
         f"  {PASS} Using existing canonical provider service: "
         f"{GATEWAY_E2E_SERVICE_ID}"
@@ -240,7 +215,12 @@ def invoke(credential, svc_id, n=1):
                     "serviceId": svc_id,
                     "idempotencyKey": f"browser-{uuid.uuid4().hex}",
                     "costUsdc": SERVICE_PRICE,
-                    "payload": {"body": {"text": f"market analysis #{i+1}"}},
+                    "payload": {
+                        "body": {
+                            "message": f"browser paid settlement #{i+1}",
+                            "source": "fullchain-browser",
+                        }
+                    },
                     "responseMode": "sync",
                 })
         results.append(r.status_code)
