@@ -49,7 +49,7 @@ ANALYTICS_CLICKHOUSE_URL=http://127.0.0.1:8123 \
 
 ADMIN_FRONT_URL=http://127.0.0.1:4000 \
 ADMIN_GATEWAY_URL=http://127.0.0.1:8300 \
-ADMIN_EMAIL=super@synapse.network \
+ADMIN_EMAIL=cliff@synapse-network.ai \
 ADMIN_PASSWORD='qwer@1234' \
 ADMIN_OTP_CODE=<local-current-code> \
 node scripts/admin_analytics_fullchain_e2e.js
@@ -57,15 +57,15 @@ node scripts/admin_analytics_fullchain_e2e.js
 
 ## Results
 
-| Check | Result |
-| --- | --- |
-| Docs gate | PASS |
-| Admin-front Analytics unit/API tests | 20 passed |
-| Gateway-admin Analytics tests | 12 passed, 97 deselected |
-| Gateway fullchain Analytics E2E | 34 passed, 1 skipped |
-| ClickHouse regression | 72 passed, 0 failed |
-| Browser dogfood | 47 passed, 0 failed |
-| Browser checks in JSON report | 34 passed, 0 failed |
+| Check                                | Result                   |
+| ------------------------------------ | ------------------------ |
+| Docs gate                            | PASS                     |
+| Admin-front Analytics unit/API tests | 20 passed                |
+| Gateway-admin Analytics tests        | 12 passed, 97 deselected |
+| Gateway fullchain Analytics E2E      | 34 passed, 1 skipped     |
+| ClickHouse regression                | 72 passed, 0 failed      |
+| Browser dogfood                      | 47 passed, 0 failed      |
+| Browser checks in JSON report        | 34 passed, 0 failed      |
 
 ## Evidence
 

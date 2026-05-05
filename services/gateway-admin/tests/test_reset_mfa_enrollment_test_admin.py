@@ -13,7 +13,7 @@ TEST_PASSWORD = "".join(("EnrollUser#", "2026!"))
 
 def test_ensure_safe_target_email_rejects_non_default_email() -> None:
     try:
-        reset_script._ensure_safe_target_email("super@synapse.network", False)
+        reset_script._ensure_safe_target_email("cliff@synapse-network.ai", False)
     except SystemExit as exc:
         assert "only allows the dedicated test email" in str(exc)
     else:
@@ -21,7 +21,7 @@ def test_ensure_safe_target_email_rejects_non_default_email() -> None:
 
 
 def test_ensure_safe_target_email_allows_override_flag() -> None:
-    reset_script._ensure_safe_target_email("super@synapse.network", True)
+    assert reset_script._ensure_safe_target_email("cliff@synapse-network.ai", True) is None
 
 
 class _FakeIdentityRepository:
@@ -70,7 +70,7 @@ def test_reset_test_admin_recreates_unenrolled_account(monkeypatch) -> None:
 
     summary = reset_script.reset_test_admin(
         dsn="postgresql://example",
-        email="MFA-ENROLL-TEST@SYNAPSE.NETWORK",
+        email="MFA-ENROLL-TEST@SYNAPSE-NETWORK.AI",
         password=TEST_PASSWORD,
         display_name="MFA Enrollment Test",
         role_key="platform_ops_admin",
@@ -79,11 +79,11 @@ def test_reset_test_admin_recreates_unenrolled_account(monkeypatch) -> None:
     )
 
     assert summary is not None
-    assert summary.email == "mfa-enroll-test@synapse.network"
+    assert summary.email == "mfa-enroll-test@synapse-network.ai"
     assert summary.require_mfa is True
     assert summary.deleted_sessions == 1
     assert fake_store.identity.created_user is not None
-    assert fake_store.identity.created_user.email == "mfa-enroll-test@synapse.network"
+    assert fake_store.identity.created_user.email == "mfa-enroll-test@synapse-network.ai"
     assert fake_store.identity.created_user.require_mfa is True
     assert fake_store.authorization.created_binding is not None
     assert fake_store.authorization.created_binding.role_key == "platform_ops_admin"
@@ -111,7 +111,7 @@ def test_reset_test_admin_cleanup_only_skips_recreate(monkeypatch, capsys) -> No
 
     summary = reset_script.reset_test_admin(
         dsn="postgresql://example",
-        email="mfa-enroll-test@synapse.network",
+        email="mfa-enroll-test@synapse-network.ai",
         password=TEST_PASSWORD,
         display_name="MFA Enrollment Test",
         role_key="platform_ops_admin",

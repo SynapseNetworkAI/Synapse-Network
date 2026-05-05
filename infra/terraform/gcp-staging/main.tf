@@ -586,13 +586,24 @@ resource "google_sql_database_instance" "postgres" {
   deletion_protection = var.cloud_sql_deletion_protection
 
   settings {
-    tier              = var.cloud_sql_tier
-    edition           = var.cloud_sql_edition
-    availability_type = var.cloud_sql_availability_type
-    disk_type         = var.cloud_sql_disk_type
-    disk_size         = var.cloud_sql_disk_size_gb
-    disk_autoresize   = var.cloud_sql_disk_autoresize
-    user_labels       = local.labels
+    tier                  = var.cloud_sql_tier
+    edition               = var.cloud_sql_edition
+    availability_type     = var.cloud_sql_availability_type
+    disk_type             = var.cloud_sql_disk_type
+    disk_size             = var.cloud_sql_disk_size_gb
+    disk_autoresize       = var.cloud_sql_disk_autoresize
+    connector_enforcement = "REQUIRED"
+    user_labels           = local.labels
+
+    database_flags {
+      name  = "cloudsql.iam_authentication"
+      value = "on"
+    }
+
+    ip_configuration {
+      ipv4_enabled = true
+      ssl_mode     = "ALLOW_UNENCRYPTED_AND_ENCRYPTED"
+    }
 
     backup_configuration {
       enabled                        = true
@@ -611,6 +622,14 @@ resource "google_sql_database_instance" "postgres" {
       query_string_length     = 1024
       record_application_tags = true
       record_client_address   = false
+    }
+
+    password_validation_policy {
+      min_length                  = 16
+      reuse_interval              = 4
+      complexity                  = "COMPLEXITY_DEFAULT"
+      disallow_username_substring = true
+      enable_password_policy      = true
     }
   }
 }

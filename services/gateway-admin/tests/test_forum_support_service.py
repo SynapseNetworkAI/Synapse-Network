@@ -62,7 +62,7 @@ def test_forum_support_service_rejects_locked_topic_replies() -> None:
     service = ForumSupportService(LockedTopicRepository())  # type: ignore[arg-type]
     admin = AdminIdentity(
         admin_id="adm_ops",
-        email="ops@synapse.network",
+        email="ops@synapse-network.ai",
         display_name="Ops",
         role="platform_ops_admin",
         permissions=("support:reply",),
@@ -84,7 +84,7 @@ def test_forum_support_send_reply_returns_current_task_when_already_closed() -> 
     service = ForumSupportService(AlreadyClosedRepository("responded"))  # type: ignore[arg-type]
     admin = AdminIdentity(
         admin_id="adm_ops",
-        email="ops@synapse.network",
+        email="ops@synapse-network.ai",
         display_name="Ops",
         role="platform_ops_admin",
         permissions=("support:reply",),
@@ -109,7 +109,7 @@ def test_forum_support_ignore_returns_current_task_when_already_closed() -> None
     service = ForumSupportService(AlreadyClosedRepository("ignored"))  # type: ignore[arg-type]
     admin = AdminIdentity(
         admin_id="adm_ops",
-        email="ops@synapse.network",
+        email="ops@synapse-network.ai",
         display_name="Ops",
         role="platform_ops_admin",
         permissions=("support:triage",),

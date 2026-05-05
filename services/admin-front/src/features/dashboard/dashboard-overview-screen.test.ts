@@ -7,11 +7,14 @@ import { DashboardOverviewScreen } from "./dashboard-overview-screen";
 const useDashboardSnapshotMock = vi.fn();
 
 vi.mock("@/features/dashboard/use-dashboard-snapshot", () => ({
-  useDashboardSnapshot: (...args: unknown[]) => useDashboardSnapshotMock(...args),
+  useDashboardSnapshot: (...args: unknown[]) =>
+    useDashboardSnapshotMock(...args),
 }));
 
 vi.mock("@/features/dashboard/dashboard-presenters", () => ({
-  buildSentinelMetrics: (overview: { metrics?: { pendingApprovals?: number } } | null) => [
+  buildSentinelMetrics: (
+    overview: { metrics?: { pendingApprovals?: number } } | null
+  ) => [
     {
       label: "当前值班结论",
       value: "运行正常",
@@ -37,58 +40,110 @@ vi.mock("@/features/dashboard/dashboard-presenters", () => ({
 }));
 
 vi.mock("@/components/admin-shell", () => ({
-  AdminShell: ({ children, title, description, actions }: { children: React.ReactNode; title: string; description: string; actions?: React.ReactNode }) => React.createElement(
-    "section",
-    null,
-    React.createElement("h1", null, title),
-    React.createElement("p", null, description),
-    React.createElement("div", { "data-testid": "admin-shell-actions" }, actions),
+  AdminShell: ({
     children,
-  ),
+    title,
+    description,
+    actions,
+  }: {
+    children: React.ReactNode;
+    title: string;
+    description: string;
+    actions?: React.ReactNode;
+  }) =>
+    React.createElement(
+      "section",
+      null,
+      React.createElement("h1", null, title),
+      React.createElement("p", null, description),
+      React.createElement(
+        "div",
+        { "data-testid": "admin-shell-actions" },
+        actions
+      ),
+      children
+    ),
 }));
 
 vi.mock("@/components/control-plane-loading-screen", () => ({
-  ControlPlaneLoadingScreen: ({ title, message }: { title: string; message: string }) => React.createElement("div", null, `${title}:${message}`),
+  ControlPlaneLoadingScreen: ({
+    title,
+    message,
+  }: {
+    title: string;
+    message: string;
+  }) => React.createElement("div", null, `${title}:${message}`),
 }));
 
 vi.mock("@/components/console-ui", () => ({
-  MessageBanner: ({ message }: { message: string }) => React.createElement("div", null, message),
+  MessageBanner: ({ message }: { message: string }) =>
+    React.createElement("div", null, message),
 }));
 
 vi.mock("@/features/dashboard/dashboard-surfaces", () => ({
-  DashboardSentinelMetricsGrid: ({ metrics }: { metrics: Array<{ label: string; value: string; meta: string; actionLabel?: string }> }) => React.createElement(
-    "div",
-    { "data-testid": "sentinel-metrics" },
-    metrics.map((metric) => React.createElement(
-      "article",
-      { key: metric.label },
-      React.createElement("span", null, metric.label),
-      React.createElement("span", null, metric.value),
-      React.createElement("span", null, metric.meta),
-      metric.actionLabel ? React.createElement("span", null, metric.actionLabel) : null,
-    )),
-  ),
-  DashboardDiagnosticsSurface: ({ diagnostics }: { diagnostics: { overallStatus?: string; actions?: Array<{ actionId: string; label: string }> } | null }) => React.createElement(
-    "div",
-    { "data-testid": "diagnostics-surface" },
-    React.createElement("span", null, diagnostics?.overallStatus ?? "n/a"),
-    ...(diagnostics?.actions ?? []).map((action) => React.createElement("span", { key: action.actionId }, action.label)),
-  ),
-  DashboardFlowSnapshotSurface: () => React.createElement("div", { "data-testid": "flow-surface" }, "flow"),
-  DashboardQueuePressureSurface: () => React.createElement("div", { "data-testid": "queue-surface" }, "queue"),
+  DashboardSentinelMetricsGrid: ({
+    metrics,
+  }: {
+    metrics: Array<{
+      label: string;
+      value: string;
+      meta: string;
+      actionLabel?: string;
+    }>;
+  }) =>
+    React.createElement(
+      "div",
+      { "data-testid": "sentinel-metrics" },
+      metrics.map((metric) =>
+        React.createElement(
+          "article",
+          { key: metric.label },
+          React.createElement("span", null, metric.label),
+          React.createElement("span", null, metric.value),
+          React.createElement("span", null, metric.meta),
+          metric.actionLabel
+            ? React.createElement("span", null, metric.actionLabel)
+            : null
+        )
+      )
+    ),
+  DashboardDiagnosticsSurface: ({
+    diagnostics,
+  }: {
+    diagnostics: {
+      overallStatus?: string;
+      actions?: Array<{ actionId: string; label: string }>;
+    } | null;
+  }) =>
+    React.createElement(
+      "div",
+      { "data-testid": "diagnostics-surface" },
+      React.createElement("span", null, diagnostics?.overallStatus ?? "n/a"),
+      ...(diagnostics?.actions ?? []).map((action) =>
+        React.createElement("span", { key: action.actionId }, action.label)
+      )
+    ),
+  DashboardFlowSnapshotSurface: () =>
+    React.createElement("div", { "data-testid": "flow-surface" }, "flow"),
+  DashboardQueuePressureSurface: () =>
+    React.createElement("div", { "data-testid": "queue-surface" }, "queue"),
 }));
 
 vi.mock("@/features/finance/capital-pulse-surface", () => ({
-  CapitalPulseSurface: () => React.createElement("div", { "data-testid": "capital-pulse" }, "capital"),
+  CapitalPulseSurface: () =>
+    React.createElement("div", { "data-testid": "capital-pulse" }, "capital"),
 }));
 
 vi.mock("@chakra-ui/react", () => ({
-  Button: ({ children }: { children: React.ReactNode }) => React.createElement("button", null, children),
-  Grid: ({ children }: { children: React.ReactNode }) => React.createElement("div", null, children),
+  Button: ({ children }: { children: React.ReactNode }) =>
+    React.createElement("button", null, children),
+  Grid: ({ children }: { children: React.ReactNode }) =>
+    React.createElement("div", null, children),
 }));
 
 vi.mock("next/link", () => ({
-  default: ({ children, href }: { children: React.ReactNode; href: string }) => React.createElement("a", { href }, children),
+  default: ({ children, href }: { children: React.ReactNode; href: string }) =>
+    React.createElement("a", { href }, children),
 }));
 
 describe("DashboardOverviewScreen", () => {
@@ -135,7 +190,8 @@ describe("DashboardOverviewScreen", () => {
             actionId: "system-center",
             label: "Open system center",
             href: "/system",
-            detail: "inspect gateway health, execution failures, and persisted task status for indexer, backfill, and reconciliation",
+            detail:
+              "inspect gateway health, execution failures, and persisted task status for indexer, backfill, and reconciliation",
             status: "degraded",
           },
           {
@@ -158,12 +214,12 @@ describe("DashboardOverviewScreen", () => {
       React.createElement(DashboardOverviewScreen, {
         admin: {
           adminId: "adm_super",
-          email: "super@synapse.network",
+          email: "cliff@synapse-network.ai",
           displayName: "Super Admin",
           role: "super_admin",
         },
         token: "token-demo",
-      }),
+      })
     );
 
     expect(html).toContain("待处理审批");

@@ -40,7 +40,7 @@ const USER_HELPER = path.join(
 );
 const EMAIL =
   process.env.ADMIN_LOCKOUT_DOGFOOD_EMAIL ||
-  `lockout-dogfood-${SAFE_RUN_ID}@synapse.network`;
+  `lockout-dogfood-${SAFE_RUN_ID}@synapse-network.ai`;
 const PASSWORD =
   process.env.ADMIN_LOCKOUT_DOGFOOD_PASSWORD || "LockoutDogfood#2026!";
 const WRONG_PASSWORD =

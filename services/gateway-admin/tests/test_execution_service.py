@@ -24,7 +24,7 @@ class FailingGatewayExecutionAdapter:
 def _operator() -> AdminIdentity:
     return AdminIdentity(
         admin_id="adm_finance_reviewer",
-        email="finance-review@synapse.network",
+        email="finance-review@synapse-network.ai",
         display_name="Finance Reviewer",
         role="finance_reviewer",
         permissions=("execution:retry", "execution:read"),

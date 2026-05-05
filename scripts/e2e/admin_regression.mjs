@@ -121,7 +121,7 @@ function resolveLocalAdminTotpSecret() {
       SELECT to_json(payload_json->>'totpSecret')
       FROM admin_mfa_factors mf
       JOIN admin_users au ON au.admin_id = mf.admin_id
-      WHERE au.email = 'super@synapse.network'
+      WHERE au.email = 'cliff@synapse-network.ai'
         AND mf.status = 'active'
         AND payload_json ? 'totpSecret'
       ORDER BY mf.updated_at DESC
