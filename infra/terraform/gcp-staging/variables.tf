@@ -225,6 +225,7 @@ variable "secret_ids" {
     "synapse-staging-provider-twitter-x-api-key",
     "synapse-staging-provider-twitter-x-api-secret",
     "synapse-staging-provider-twitter-x-bearer-token",
+    "synapse-staging-provider-deepseek-api-key",
     "synapse-staging-provider-minio-access-key",
     "synapse-staging-provider-minio-secret-key",
   ]

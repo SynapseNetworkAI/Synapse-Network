@@ -190,16 +190,19 @@
 推荐指标：
 
 1. `今日用户充值`
+
    - canonical: `today_consumer_deposit_usdc`
    - 兼容 alias: `todayDepositUsdc`
    - 定义：统计窗口内已确认进入平台账本的 Consumer 充值金额
 
 2. `今日用户消费`
+
    - canonical: `today_consumer_charge_usdc`
    - 兼容 alias: `todayChargeUsdc`
    - 定义：统计窗口内已计量确认的 Consumer usage 扣费金额
 
 3. `今日用户退款`
+
    - canonical: `today_consumer_refund_usdc`
    - 兼容 alias: `todayRefundUsdc`
    - 定义：统计窗口内已确认的 Consumer refund 金额
@@ -225,11 +228,13 @@
 推荐指标：
 
 1. `今日平台手续费收入`
+
    - canonical: `today_platform_fee_earned_usdc`
    - 定义：统计窗口内由 usage 结算新增记入平台收入池的手续费金额
    - 备注：当前后端缺失，需要新增 projection
 
 2. `平台手续费余额`
+
    - canonical: `platform_fee_balance_usdc`
    - 现有字段：`platformFeeBalanceUsdc`
    - 定义：当前平台收入池累计余额
@@ -254,16 +259,19 @@
 推荐指标：
 
 1. `今日 Provider 新增收入`
+
    - canonical: `today_provider_earned_usdc`
    - 定义：统计窗口内由 usage 结算新增记入 Provider payable 的金额
    - 备注：当前后端缺失，需要新增 projection
 
 2. `今日 Provider 提现金额`
+
    - canonical: `today_provider_withdrawal_usdc`
    - 兼容 alias: `todayWithdrawalUsdc`
    - 定义：统计窗口内已确认完成的 Provider withdrawal 金额
 
 3. `今日 Provider 提现手续费`
+
    - canonical: `today_provider_withdrawal_fee_usdc`
    - 定义：统计窗口内 Provider 提现产生并已确认入账的手续费金额
    - 备注：如果当前提现模型并不存在单独 fee，就不要硬上这张卡；不能拿“提现金额”冒充“提现手续费”
@@ -647,7 +655,7 @@
 实现方式：
 
 1. 继续保持“gateway 真相表 + persisted runtime state -> admin projection view”的架构，不新增前端拼装逻辑
-2. 通过 `synapse_invocations + synapse_runtime_state(invocation_billing::*)` 聚合调用次数、平台手续费、Provider 新增收入
+2. 通过 `synapse_invocations + synapse_invocation_billing` 聚合调用次数、平台手续费、Provider 新增收入；旧 `synapse_runtime_state(invocation_billing::*)` 仅作为迁移期 fallback，不作为最终真相源
 3. 保持 canonical 字段命名，不新增旧 alias，避免把新语义再做旧包袱
 
 #### Phase B：暂不落地的字段
@@ -730,7 +738,8 @@
 2. 更新 `GET /api/admin/v1/dashboard/activity-trends` 返回示例
 3. 写清楚这三个字段的来源：
    - `synapse_invocations`
-   - `synapse_runtime_state(invocation_billing::*)`
+   - `synapse_invocation_billing`
+   - legacy fallback: `synapse_runtime_state(invocation_billing::*)`
 
 ### 12.4 前端实现计划
 

@@ -5,19 +5,13 @@ from decimal import Decimal
 from functools import lru_cache
 from typing import Any, Protocol
 
+import psycopg
+from psycopg.rows import dict_row
 
-_ZERO_BIGINT_SQL = "0::bigint"
-_ZERO_NUMERIC_SQL = "0::numeric"
-_ZERO_INTEGER_SQL = "0::integer"
-_FALSE_BOOL_SQL = "FALSE::boolean"
-_NULL_TEXT_SQL = "NULL::text"
-_NULL_TIMESTAMPTZ_SQL = "NULL::timestamptz"
+from src.storage.analytics.gateway_dashboard_demo import build_seed_demo_repository
 
 
 def _connect(dsn: str) -> Any:
-    import psycopg
-    from psycopg.rows import dict_row
-
     return psycopg.connect(dsn, row_factory=dict_row)  # type: ignore[arg-type]
 
 
@@ -47,8 +41,7 @@ def _resolve_projection_column(
         return canonical_name
     if legacy_alias and legacy_alias in columns:
         return legacy_alias
-    candidates = tuple(candidate for candidate in (canonical_name, legacy_alias) if candidate)
-    raise KeyError(f"projection column not found, candidates={candidates}")
+    raise KeyError("projection column not found")  # noqa: TRY003 - stable test-facing projection error
 
 
 def _resolve_projection_expr(
@@ -65,6 +58,49 @@ def _resolve_projection_expr(
     return default_sql
 
 
+def _row_payload(row: dict[str, Any] | None) -> dict[str, Any] | None:
+    if row is None:
+        return None
+    payload = row.get("payload")
+    if isinstance(payload, dict):
+        return payload
+    return row
+
+
+def _projection_value(
+    row: dict[str, Any],
+    canonical_name: str,
+    legacy_alias: str | None = None,
+    *,
+    default: Any = None,
+) -> Any:
+    if canonical_name in row:
+        return row[canonical_name]
+    if legacy_alias and legacy_alias in row:
+        return row[legacy_alias]
+    return default
+
+
+def _projection_decimal(
+    row: dict[str, Any],
+    canonical_name: str,
+    legacy_alias: str | None = None,
+    *,
+    default: str = "0",
+) -> Decimal:
+    return Decimal(str(_projection_value(row, canonical_name, legacy_alias, default=default)))
+
+
+def _projection_int(
+    row: dict[str, Any],
+    canonical_name: str,
+    legacy_alias: str | None = None,
+    *,
+    default: int = 0,
+) -> int:
+    return int(_projection_value(row, canonical_name, legacy_alias, default=default) or 0)
+
+
 @dataclass(slots=True)
 class GatewayDashboardSnapshot:
     deposit_exceptions: int
@@ -72,6 +108,16 @@ class GatewayDashboardSnapshot:
     vault_ledger_delta: Decimal
     gateway_status: str
     last_reconciliation_at: datetime | None
+
+
+def _empty_dashboard_snapshot() -> GatewayDashboardSnapshot:
+    return GatewayDashboardSnapshot(
+        deposit_exceptions=0,
+        audit_alerts=0,
+        vault_ledger_delta=Decimal("0"),
+        gateway_status="unknown",
+        last_reconciliation_at=None,
+    )
 
 
 @dataclass(slots=True)
@@ -96,6 +142,31 @@ class GatewayFinanceSnapshot:
     deposit_p95_sync_delay_seconds: int
     recently_completed_outflows_usdc: Decimal
     projected_at: datetime | None
+
+
+def _empty_finance_snapshot() -> GatewayFinanceSnapshot:
+    return GatewayFinanceSnapshot(
+        today_charge_usdc=Decimal("0"),
+        today_deposit_usdc=Decimal("0"),
+        today_consumer_refund_usdc=Decimal("0"),
+        today_provider_withdrawal_usdc=Decimal("0"),
+        today_invocation_count=0,
+        today_platform_fee_earned_usdc=Decimal("0"),
+        today_provider_earned_usdc=Decimal("0"),
+        consumer_liability_usdc=Decimal("0"),
+        refundable_consumer_balance_usdc=Decimal("0"),
+        provider_payable_usdc=Decimal("0"),
+        provider_available_to_withdraw_usdc=Decimal("0"),
+        provider_locked_balance_usdc=Decimal("0"),
+        platform_fee_balance_usdc=Decimal("0"),
+        vault_ledger_delta_usdc=Decimal("0"),
+        pending_deposit_count=0,
+        pending_provider_withdrawal_count=0,
+        chain_confirmed_not_ledger_confirmed_count=0,
+        deposit_p95_sync_delay_seconds=0,
+        recently_completed_outflows_usdc=Decimal("0"),
+        projected_at=None,
+    )
 
 
 @dataclass(slots=True)
@@ -135,6 +206,56 @@ class GatewayOperationsSnapshot:
     projected_at: datetime | None
 
 
+def _empty_operations_snapshot() -> GatewayOperationsSnapshot:
+    return GatewayOperationsSnapshot(
+        gateway_status="unknown",
+        indexer_running=False,
+        indexer_last_processed_at=None,
+        indexer_last_heartbeat_at=None,
+        indexer_last_error=None,
+        indexer_poll_interval_sec=0,
+        backfill_enabled=False,
+        backfill_last_scan_at=None,
+        backfill_last_scanned_block=None,
+        backfill_last_recovered=0,
+        backfill_last_error=None,
+        recent_gateway_failures=0,
+        failed_deposit_count=0,
+        recent_audit_alerts=0,
+        reconciliation_enabled=False,
+        last_reconciliation_at=None,
+        reconciliation_alert=False,
+        reconciliation_delta_usdc=Decimal("0"),
+        reconciliation_last_error=None,
+        projected_at=None,
+    )
+
+
+def _operations_snapshot_from_row(row: dict[str, Any]) -> GatewayOperationsSnapshot:
+    return GatewayOperationsSnapshot(
+        gateway_status=str(row["gateway_status"]),
+        indexer_running=bool(row.get("indexer_running") or False),
+        indexer_last_processed_at=row.get("indexer_last_processed_at"),
+        indexer_last_heartbeat_at=row.get("indexer_last_heartbeat_at"),
+        indexer_last_error=row.get("indexer_last_error"),
+        indexer_poll_interval_sec=int(row.get("indexer_poll_interval_sec") or 0),
+        backfill_enabled=bool(row.get("backfill_enabled") or False),
+        backfill_last_scan_at=row.get("backfill_last_scan_at"),
+        backfill_last_scanned_block=row.get("backfill_last_scanned_block"),
+        backfill_last_recovered=int(row.get("backfill_last_recovered") or 0),
+        backfill_last_error=row.get("backfill_last_error"),
+        recent_gateway_failures=int(row["recent_gateway_failures"]),
+        failed_deposit_count=int(row["failed_deposit_count"]),
+        recent_audit_alerts=int(row["recent_audit_alerts"]),
+        reconciliation_enabled=bool(row.get("reconciliation_enabled") or False),
+        last_reconciliation_at=row.get("last_reconciliation_at"),
+        reconciliation_alert=bool(row["reconciliation_alert"]),
+        reconciliation_delta_usdc=Decimal(str(row["reconciliation_delta_usdc"])),
+        reconciliation_last_error=row.get("reconciliation_last_error"),
+        projected_at=row.get("projected_at"),
+    )
+
+
 @dataclass(slots=True)
 class GatewayReconciliationRuntimeState:
     last_check_at: datetime | None
@@ -170,145 +291,13 @@ class InMemoryGatewayDashboardProjectionRepository:
 
     @classmethod
     def seed_demo(cls) -> "InMemoryGatewayDashboardProjectionRepository":
-        return cls(
-            snapshot=GatewayDashboardSnapshot(
-                deposit_exceptions=2,
-                audit_alerts=1,
-                vault_ledger_delta=Decimal("0.50"),
-                gateway_status="degraded",
-                last_reconciliation_at=datetime(2026, 3, 16, 8, 0, tzinfo=timezone.utc),
-            ),
-            finance_snapshot=GatewayFinanceSnapshot(
-                today_charge_usdc=Decimal("1280.40"),
-                today_deposit_usdc=Decimal("1640.00"),
-                today_consumer_refund_usdc=Decimal("42.25"),
-                today_provider_withdrawal_usdc=Decimal("310.50"),
-                today_invocation_count=342,
-                today_platform_fee_earned_usdc=Decimal("196.40"),
-                today_provider_earned_usdc=Decimal("1084.00"),
-                consumer_liability_usdc=Decimal("8450.10"),
-                refundable_consumer_balance_usdc=Decimal("7320.35"),
-                provider_payable_usdc=Decimal("3920.45"),
-                provider_available_to_withdraw_usdc=Decimal("3510.20"),
-                provider_locked_balance_usdc=Decimal("410.25"),
-                platform_fee_balance_usdc=Decimal("128.75"),
-                vault_ledger_delta_usdc=Decimal("0.50"),
-                pending_deposit_count=2,
-                pending_provider_withdrawal_count=1,
-                chain_confirmed_not_ledger_confirmed_count=1,
-                deposit_p95_sync_delay_seconds=184,
-                recently_completed_outflows_usdc=Decimal("186.40"),
-                projected_at=datetime(2026, 3, 16, 8, 5, tzinfo=timezone.utc),
-            ),
-            activity_trends=[
-                GatewayActivityTrendPoint(
-                    bucket_date=date(2026, 3, 10),
-                    deposit_usdc=Decimal("920.00"),
-                    charge_usdc=Decimal("780.20"),
-                    invocation_count=218,
-                    platform_fee_earned_usdc=Decimal("118.20"),
-                    provider_earned_usdc=Decimal("662.00"),
-                    consumer_refund_usdc=Decimal("31.40"),
-                    provider_withdrawal_usdc=Decimal("240.00"),
-                    net_flow_usdc=Decimal("648.60"),
-                ),
-                GatewayActivityTrendPoint(
-                    bucket_date=date(2026, 3, 11),
-                    deposit_usdc=Decimal("1110.25"),
-                    charge_usdc=Decimal("830.00"),
-                    invocation_count=226,
-                    platform_fee_earned_usdc=Decimal("126.00"),
-                    provider_earned_usdc=Decimal("704.00"),
-                    consumer_refund_usdc=Decimal("25.15"),
-                    provider_withdrawal_usdc=Decimal("210.00"),
-                    net_flow_usdc=Decimal("875.10"),
-                ),
-                GatewayActivityTrendPoint(
-                    bucket_date=date(2026, 3, 12),
-                    deposit_usdc=Decimal("1185.50"),
-                    charge_usdc=Decimal("910.30"),
-                    invocation_count=244,
-                    platform_fee_earned_usdc=Decimal("141.30"),
-                    provider_earned_usdc=Decimal("769.00"),
-                    consumer_refund_usdc=Decimal("0.00"),
-                    provider_withdrawal_usdc=Decimal("320.00"),
-                    net_flow_usdc=Decimal("865.50"),
-                ),
-                GatewayActivityTrendPoint(
-                    bucket_date=date(2026, 3, 13),
-                    deposit_usdc=Decimal("980.00"),
-                    charge_usdc=Decimal("845.90"),
-                    invocation_count=231,
-                    platform_fee_earned_usdc=Decimal("129.90"),
-                    provider_earned_usdc=Decimal("716.00"),
-                    consumer_refund_usdc=Decimal("16.20"),
-                    provider_withdrawal_usdc=Decimal("180.00"),
-                    net_flow_usdc=Decimal("783.80"),
-                ),
-                GatewayActivityTrendPoint(
-                    bucket_date=date(2026, 3, 14),
-                    deposit_usdc=Decimal("1320.15"),
-                    charge_usdc=Decimal("990.10"),
-                    invocation_count=268,
-                    platform_fee_earned_usdc=Decimal("150.10"),
-                    provider_earned_usdc=Decimal("840.00"),
-                    consumer_refund_usdc=Decimal("45.00"),
-                    provider_withdrawal_usdc=Decimal("275.00"),
-                    net_flow_usdc=Decimal("1000.15"),
-                ),
-                GatewayActivityTrendPoint(
-                    bucket_date=date(2026, 3, 15),
-                    deposit_usdc=Decimal("1460.00"),
-                    charge_usdc=Decimal("1210.50"),
-                    invocation_count=316,
-                    platform_fee_earned_usdc=Decimal("186.50"),
-                    provider_earned_usdc=Decimal("1024.00"),
-                    consumer_refund_usdc=Decimal("38.75"),
-                    provider_withdrawal_usdc=Decimal("290.00"),
-                    net_flow_usdc=Decimal("1131.25"),
-                ),
-                GatewayActivityTrendPoint(
-                    bucket_date=date(2026, 3, 16),
-                    deposit_usdc=Decimal("1640.00"),
-                    charge_usdc=Decimal("1280.40"),
-                    invocation_count=342,
-                    platform_fee_earned_usdc=Decimal("196.40"),
-                    provider_earned_usdc=Decimal("1084.00"),
-                    consumer_refund_usdc=Decimal("42.25"),
-                    provider_withdrawal_usdc=Decimal("310.50"),
-                    net_flow_usdc=Decimal("1287.25"),
-                ),
-            ],
-            operations_snapshot=GatewayOperationsSnapshot(
-                gateway_status="degraded",
-                indexer_running=True,
-                indexer_last_processed_at=datetime(2026, 3, 16, 8, 3, tzinfo=timezone.utc),
-                indexer_last_heartbeat_at=datetime(2026, 3, 16, 8, 4, tzinfo=timezone.utc),
-                indexer_last_error=None,
-                indexer_poll_interval_sec=30,
-                backfill_enabled=True,
-                backfill_last_scan_at=datetime(2026, 3, 16, 7, 58, tzinfo=timezone.utc),
-                backfill_last_scanned_block=19450321,
-                backfill_last_recovered=3,
-                backfill_last_error=None,
-                recent_gateway_failures=1,
-                failed_deposit_count=2,
-                recent_audit_alerts=1,
-                reconciliation_enabled=True,
-                last_reconciliation_at=datetime(2026, 3, 16, 8, 0, tzinfo=timezone.utc),
-                reconciliation_alert=True,
-                reconciliation_delta_usdc=Decimal("0.50"),
-                reconciliation_last_error="vault_delta_detected",
-                projected_at=datetime(2026, 3, 16, 8, 5, tzinfo=timezone.utc),
-            ),
-            reconciliation_runtime_state=GatewayReconciliationRuntimeState(
-                last_check_at=datetime(2026, 3, 16, 8, 0, tzinfo=timezone.utc),
-                chain_vault_usdc=Decimal("8449.60"),
-                ledger_obligation_usdc=Decimal("8450.10"),
-                delta_usdc=Decimal("0.50"),
-                alert=True,
-                updated_at=datetime(2026, 3, 16, 8, 0, tzinfo=timezone.utc),
-            ),
+        return build_seed_demo_repository(
+            cls,
+            GatewayDashboardSnapshot,
+            GatewayFinanceSnapshot,
+            GatewayActivityTrendPoint,
+            GatewayOperationsSnapshot,
+            GatewayReconciliationRuntimeState,
         )
 
     def get_snapshot(self) -> GatewayDashboardSnapshot:
@@ -363,6 +352,9 @@ class PostgresGatewayDashboardProjectionRepository:
         return datetime.fromtimestamp(timestamp, tz=timezone.utc)
 
     def get_snapshot(self) -> GatewayDashboardSnapshot:
+        columns = self._get_projection_columns("synapse_admin_dashboard_projection")
+        if not columns:
+            return _empty_dashboard_snapshot()
         with _connect(self._dsn) as conn, conn.cursor() as cur:
             cur.execute(
                 """
@@ -378,13 +370,7 @@ class PostgresGatewayDashboardProjectionRepository:
             )
             row = cur.fetchone()
         if row is None:
-            return GatewayDashboardSnapshot(
-                deposit_exceptions=0,
-                audit_alerts=0,
-                vault_ledger_delta=Decimal("0"),
-                gateway_status="unknown",
-                last_reconciliation_at=None,
-            )
+            return _empty_dashboard_snapshot()
         return GatewayDashboardSnapshot(
             deposit_exceptions=int(row["deposit_exceptions"]),
             audit_alerts=int(row["audit_alerts"]),
@@ -395,272 +381,109 @@ class PostgresGatewayDashboardProjectionRepository:
 
     def get_finance_snapshot(self) -> GatewayFinanceSnapshot:
         columns = self._get_projection_columns("synapse_admin_dashboard_finance_projection")
-        refund_column = _resolve_projection_column(columns, "today_consumer_refund_usdc", "today_refund_usdc")
-        withdrawal_column = _resolve_projection_column(columns, "today_provider_withdrawal_usdc", "today_withdrawal_usdc")
-        liability_column = _resolve_projection_column(columns, "consumer_liability_usdc", "owner_liability_usdc")
-        today_invocation_count_column = _resolve_projection_expr(
-            columns,
-            "today_invocation_count",
-            default_sql=_ZERO_BIGINT_SQL,
-        )
-        today_platform_fee_earned_column = _resolve_projection_expr(
-            columns,
-            "today_platform_fee_earned_usdc",
-            default_sql=_ZERO_NUMERIC_SQL,
-        )
-        today_provider_earned_column = _resolve_projection_expr(
-            columns,
-            "today_provider_earned_usdc",
-            default_sql=_ZERO_NUMERIC_SQL,
-        )
-        pending_withdrawal_column = _resolve_projection_column(
-            columns,
-            "pending_provider_withdrawal_count",
-            "pending_withdrawal_count",
-        )
+        if not columns:
+            return _empty_finance_snapshot()
         with _connect(self._dsn) as conn, conn.cursor() as cur:
             cur.execute(
-                f"""
-                SELECT
-                    today_charge_usdc,
-                    today_deposit_usdc,
-                    {refund_column} AS today_consumer_refund_usdc,
-                    {withdrawal_column} AS today_provider_withdrawal_usdc,
-                    {today_invocation_count_column} AS today_invocation_count,
-                    {today_platform_fee_earned_column} AS today_platform_fee_earned_usdc,
-                    {today_provider_earned_column} AS today_provider_earned_usdc,
-                    {liability_column} AS consumer_liability_usdc,
-                    refundable_consumer_balance_usdc,
-                    provider_payable_usdc,
-                    provider_available_to_withdraw_usdc,
-                    provider_locked_balance_usdc,
-                    platform_fee_balance_usdc,
-                    vault_ledger_delta_usdc,
-                    pending_deposit_count,
-                    {pending_withdrawal_column} AS pending_provider_withdrawal_count,
-                    chain_confirmed_not_ledger_confirmed_count,
-                    deposit_p95_sync_delay_seconds,
-                    recently_completed_outflows_usdc,
-                    projected_at
-                FROM synapse_admin_dashboard_finance_projection
-                LIMIT 1
+                """
+                SELECT row_to_json(projection_row) AS payload
+                FROM (
+                    SELECT *
+                    FROM synapse_admin_dashboard_finance_projection
+                    LIMIT 1
+                ) AS projection_row
                 """
             )
             row = cur.fetchone()
-        if row is None:
-            return GatewayFinanceSnapshot(
-                today_charge_usdc=Decimal("0"),
-                today_deposit_usdc=Decimal("0"),
-                today_consumer_refund_usdc=Decimal("0"),
-                today_provider_withdrawal_usdc=Decimal("0"),
-                today_invocation_count=0,
-                today_platform_fee_earned_usdc=Decimal("0"),
-                today_provider_earned_usdc=Decimal("0"),
-                consumer_liability_usdc=Decimal("0"),
-                refundable_consumer_balance_usdc=Decimal("0"),
-                provider_payable_usdc=Decimal("0"),
-                provider_available_to_withdraw_usdc=Decimal("0"),
-                provider_locked_balance_usdc=Decimal("0"),
-                platform_fee_balance_usdc=Decimal("0"),
-                vault_ledger_delta_usdc=Decimal("0"),
-                pending_deposit_count=0,
-                pending_provider_withdrawal_count=0,
-                chain_confirmed_not_ledger_confirmed_count=0,
-                deposit_p95_sync_delay_seconds=0,
-                recently_completed_outflows_usdc=Decimal("0"),
-                projected_at=None,
-            )
+        payload = _row_payload(row)
+        if payload is None:
+            return _empty_finance_snapshot()
         return GatewayFinanceSnapshot(
-            today_charge_usdc=Decimal(str(row["today_charge_usdc"])),
-            today_deposit_usdc=Decimal(str(row["today_deposit_usdc"])),
-            today_consumer_refund_usdc=Decimal(str(row["today_consumer_refund_usdc"])),
-            today_provider_withdrawal_usdc=Decimal(str(row["today_provider_withdrawal_usdc"])),
-            today_invocation_count=int(row["today_invocation_count"]),
-            today_platform_fee_earned_usdc=Decimal(str(row["today_platform_fee_earned_usdc"])),
-            today_provider_earned_usdc=Decimal(str(row["today_provider_earned_usdc"])),
-            consumer_liability_usdc=Decimal(str(row["consumer_liability_usdc"])),
-            refundable_consumer_balance_usdc=Decimal(str(row["refundable_consumer_balance_usdc"])),
-            provider_payable_usdc=Decimal(str(row["provider_payable_usdc"])),
-            provider_available_to_withdraw_usdc=Decimal(str(row["provider_available_to_withdraw_usdc"])),
-            provider_locked_balance_usdc=Decimal(str(row["provider_locked_balance_usdc"])),
-            platform_fee_balance_usdc=Decimal(str(row["platform_fee_balance_usdc"])),
-            vault_ledger_delta_usdc=Decimal(str(row["vault_ledger_delta_usdc"])),
-            pending_deposit_count=int(row["pending_deposit_count"]),
-            pending_provider_withdrawal_count=int(row["pending_provider_withdrawal_count"]),
-            chain_confirmed_not_ledger_confirmed_count=int(row["chain_confirmed_not_ledger_confirmed_count"]),
-            deposit_p95_sync_delay_seconds=int(row["deposit_p95_sync_delay_seconds"]),
-            recently_completed_outflows_usdc=Decimal(str(row["recently_completed_outflows_usdc"])),
-            projected_at=row["projected_at"],
+            today_charge_usdc=_projection_decimal(payload, "today_charge_usdc"),
+            today_deposit_usdc=_projection_decimal(payload, "today_deposit_usdc"),
+            today_consumer_refund_usdc=_projection_decimal(payload, "today_consumer_refund_usdc", "today_refund_usdc"),
+            today_provider_withdrawal_usdc=_projection_decimal(
+                payload,
+                "today_provider_withdrawal_usdc",
+                "today_withdrawal_usdc",
+            ),
+            today_invocation_count=_projection_int(payload, "today_invocation_count"),
+            today_platform_fee_earned_usdc=_projection_decimal(payload, "today_platform_fee_earned_usdc"),
+            today_provider_earned_usdc=_projection_decimal(payload, "today_provider_earned_usdc"),
+            consumer_liability_usdc=_projection_decimal(payload, "consumer_liability_usdc", "owner_liability_usdc"),
+            refundable_consumer_balance_usdc=_projection_decimal(payload, "refundable_consumer_balance_usdc"),
+            provider_payable_usdc=_projection_decimal(payload, "provider_payable_usdc"),
+            provider_available_to_withdraw_usdc=_projection_decimal(payload, "provider_available_to_withdraw_usdc"),
+            provider_locked_balance_usdc=_projection_decimal(payload, "provider_locked_balance_usdc"),
+            platform_fee_balance_usdc=_projection_decimal(payload, "platform_fee_balance_usdc"),
+            vault_ledger_delta_usdc=_projection_decimal(payload, "vault_ledger_delta_usdc"),
+            pending_deposit_count=_projection_int(payload, "pending_deposit_count"),
+            pending_provider_withdrawal_count=_projection_int(
+                payload,
+                "pending_provider_withdrawal_count",
+                "pending_withdrawal_count",
+            ),
+            chain_confirmed_not_ledger_confirmed_count=_projection_int(
+                payload,
+                "chain_confirmed_not_ledger_confirmed_count",
+            ),
+            deposit_p95_sync_delay_seconds=_projection_int(payload, "deposit_p95_sync_delay_seconds"),
+            recently_completed_outflows_usdc=_projection_decimal(payload, "recently_completed_outflows_usdc"),
+            projected_at=payload.get("projected_at"),
         )
 
     def list_activity_trends(self) -> list[GatewayActivityTrendPoint]:
         columns = self._get_projection_columns("synapse_admin_dashboard_activity_trend_projection")
-        refund_column = _resolve_projection_column(columns, "consumer_refund_usdc", "refund_usdc")
-        withdrawal_column = _resolve_projection_column(columns, "provider_withdrawal_usdc", "withdrawal_usdc")
-        invocation_count_column = _resolve_projection_expr(
-            columns,
-            "invocation_count",
-            default_sql=_ZERO_BIGINT_SQL,
-        )
-        platform_fee_earned_column = _resolve_projection_expr(
-            columns,
-            "platform_fee_earned_usdc",
-            default_sql=_ZERO_NUMERIC_SQL,
-        )
-        provider_earned_column = _resolve_projection_expr(
-            columns,
-            "provider_earned_usdc",
-            default_sql=_ZERO_NUMERIC_SQL,
-        )
+        if not columns:
+            return []
         with _connect(self._dsn) as conn, conn.cursor() as cur:
             cur.execute(
-                f"""
-                SELECT
-                    bucket_date,
-                    deposit_usdc,
-                    charge_usdc,
-                    {invocation_count_column} AS invocation_count,
-                    {platform_fee_earned_column} AS platform_fee_earned_usdc,
-                    {provider_earned_column} AS provider_earned_usdc,
-                    {refund_column} AS consumer_refund_usdc,
-                    {withdrawal_column} AS provider_withdrawal_usdc,
-                    net_flow_usdc
-                FROM synapse_admin_dashboard_activity_trend_projection
-                ORDER BY bucket_date ASC
+                """
+                SELECT row_to_json(projection_row) AS payload
+                FROM (
+                    SELECT *
+                    FROM synapse_admin_dashboard_activity_trend_projection
+                    ORDER BY bucket_date ASC
+                ) AS projection_row
                 """
             )
             rows = cur.fetchall()
+        payloads = [payload for row in rows if (payload := _row_payload(row)) is not None]
         return [
             GatewayActivityTrendPoint(
-                bucket_date=row["bucket_date"],
-                deposit_usdc=Decimal(str(row["deposit_usdc"])),
-                charge_usdc=Decimal(str(row["charge_usdc"])),
-                invocation_count=int(row["invocation_count"]),
-                platform_fee_earned_usdc=Decimal(str(row["platform_fee_earned_usdc"])),
-                provider_earned_usdc=Decimal(str(row["provider_earned_usdc"])),
-                consumer_refund_usdc=Decimal(str(row["consumer_refund_usdc"])),
-                provider_withdrawal_usdc=Decimal(str(row["provider_withdrawal_usdc"])),
-                net_flow_usdc=Decimal(str(row["net_flow_usdc"])),
+                bucket_date=payload["bucket_date"],
+                deposit_usdc=_projection_decimal(payload, "deposit_usdc"),
+                charge_usdc=_projection_decimal(payload, "charge_usdc"),
+                invocation_count=_projection_int(payload, "invocation_count"),
+                platform_fee_earned_usdc=_projection_decimal(payload, "platform_fee_earned_usdc"),
+                provider_earned_usdc=_projection_decimal(payload, "provider_earned_usdc"),
+                consumer_refund_usdc=_projection_decimal(payload, "consumer_refund_usdc", "refund_usdc"),
+                provider_withdrawal_usdc=_projection_decimal(payload, "provider_withdrawal_usdc", "withdrawal_usdc"),
+                net_flow_usdc=_projection_decimal(payload, "net_flow_usdc"),
             )
-            for row in rows
+            for payload in payloads
         ]
 
     def get_operations_snapshot(self) -> GatewayOperationsSnapshot:
         columns = self._get_projection_columns("synapse_admin_dashboard_operations_projection")
-        indexer_running_column = _resolve_projection_expr(
-            columns,
-            "indexer_running",
-            default_sql=_FALSE_BOOL_SQL,
-        )
-        indexer_last_heartbeat_column = _resolve_projection_expr(
-            columns,
-            "indexer_last_heartbeat_at",
-            default_sql=_NULL_TIMESTAMPTZ_SQL,
-        )
-        indexer_last_error_column = _resolve_projection_expr(
-            columns,
-            "indexer_last_error",
-            default_sql=_NULL_TEXT_SQL,
-        )
-        indexer_poll_interval_column = _resolve_projection_expr(
-            columns,
-            "indexer_poll_interval_sec",
-            default_sql=_ZERO_INTEGER_SQL,
-        )
-        backfill_enabled_column = _resolve_projection_expr(
-            columns,
-            "backfill_enabled",
-            default_sql=_FALSE_BOOL_SQL,
-        )
-        backfill_last_recovered_column = _resolve_projection_expr(
-            columns,
-            "backfill_last_recovered",
-            default_sql=_ZERO_BIGINT_SQL,
-        )
-        backfill_last_error_column = _resolve_projection_expr(
-            columns,
-            "backfill_last_error",
-            default_sql=_NULL_TEXT_SQL,
-        )
-        reconciliation_enabled_column = _resolve_projection_expr(
-            columns,
-            "reconciliation_enabled",
-            default_sql=_FALSE_BOOL_SQL,
-        )
+        if not columns:
+            return _empty_operations_snapshot()
         with _connect(self._dsn) as conn, conn.cursor() as cur:
             cur.execute(
-                f"""
-                SELECT
-                    gateway_status,
-                    {indexer_running_column} AS indexer_running,
-                    indexer_last_processed_at,
-                    {indexer_last_heartbeat_column} AS indexer_last_heartbeat_at,
-                    {indexer_last_error_column} AS indexer_last_error,
-                    {indexer_poll_interval_column} AS indexer_poll_interval_sec,
-                    {backfill_enabled_column} AS backfill_enabled,
-                    backfill_last_scan_at,
-                    backfill_last_scanned_block,
-                    {backfill_last_recovered_column} AS backfill_last_recovered,
-                    {backfill_last_error_column} AS backfill_last_error,
-                    recent_gateway_failures,
-                    failed_deposit_count,
-                    recent_audit_alerts,
-                    {reconciliation_enabled_column} AS reconciliation_enabled,
-                    last_reconciliation_at,
-                    reconciliation_alert,
-                    reconciliation_delta_usdc,
-                    reconciliation_last_error,
-                    projected_at
-                FROM synapse_admin_dashboard_operations_projection
-                LIMIT 1
+                """
+                SELECT row_to_json(projection_row) AS payload
+                FROM (
+                    SELECT *
+                    FROM synapse_admin_dashboard_operations_projection
+                    LIMIT 1
+                ) AS projection_row
                 """
             )
             row = cur.fetchone()
-        if row is None:
-            return GatewayOperationsSnapshot(
-                gateway_status="unknown",
-                indexer_running=False,
-                indexer_last_processed_at=None,
-                indexer_last_heartbeat_at=None,
-                indexer_last_error=None,
-                indexer_poll_interval_sec=0,
-                backfill_enabled=False,
-                backfill_last_scan_at=None,
-                backfill_last_scanned_block=None,
-                backfill_last_recovered=0,
-                backfill_last_error=None,
-                recent_gateway_failures=0,
-                failed_deposit_count=0,
-                recent_audit_alerts=0,
-                reconciliation_enabled=False,
-                last_reconciliation_at=None,
-                reconciliation_alert=False,
-                reconciliation_delta_usdc=Decimal("0"),
-                reconciliation_last_error=None,
-                projected_at=None,
-            )
-        return GatewayOperationsSnapshot(
-            gateway_status=str(row["gateway_status"]),
-            indexer_running=bool(row["indexer_running"]),
-            indexer_last_processed_at=row["indexer_last_processed_at"],
-            indexer_last_heartbeat_at=row["indexer_last_heartbeat_at"],
-            indexer_last_error=row["indexer_last_error"],
-            indexer_poll_interval_sec=int(row["indexer_poll_interval_sec"]),
-            backfill_enabled=bool(row["backfill_enabled"]),
-            backfill_last_scan_at=row["backfill_last_scan_at"],
-            backfill_last_scanned_block=row["backfill_last_scanned_block"],
-            backfill_last_recovered=int(row["backfill_last_recovered"]),
-            backfill_last_error=row["backfill_last_error"],
-            recent_gateway_failures=int(row["recent_gateway_failures"]),
-            failed_deposit_count=int(row["failed_deposit_count"]),
-            recent_audit_alerts=int(row["recent_audit_alerts"]),
-            reconciliation_enabled=bool(row["reconciliation_enabled"]),
-            last_reconciliation_at=row["last_reconciliation_at"],
-            reconciliation_alert=bool(row["reconciliation_alert"]),
-            reconciliation_delta_usdc=Decimal(str(row["reconciliation_delta_usdc"])),
-            reconciliation_last_error=row["reconciliation_last_error"],
-            projected_at=row["projected_at"],
-        )
+        payload = _row_payload(row)
+        if payload is None:
+            return _empty_operations_snapshot()
+        return _operations_snapshot_from_row(payload)
 
     def get_reconciliation_runtime_state(self) -> GatewayReconciliationRuntimeState:
         with _connect(self._dsn) as conn, conn.cursor() as cur:
