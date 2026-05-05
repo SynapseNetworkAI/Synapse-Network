@@ -252,13 +252,24 @@ async function createPage(context, name) {
 }
 
 async function assertText(page, candidates, label) {
-  const bodyText = String((await page.textContent("body")) || "");
   const forbiddenText = [
     "Internal server error",
     "Missing admin session",
     "Unauthorized",
     "Unhandled Runtime Error",
   ];
+  await page.waitForFunction(
+    ({ candidates: expected, forbidden }) => {
+      const bodyText = document.body.innerText || "";
+      return (
+        expected.some((text) => bodyText.includes(text)) ||
+        forbidden.some((text) => bodyText.includes(text))
+      );
+    },
+    { candidates, forbidden: forbiddenText },
+    { timeout: 30000 }
+  );
+  const bodyText = String((await page.textContent("body")) || "");
   const blocker = forbiddenText.find((text) => bodyText.includes(text));
   if (blocker) {
     throw new Error(`${label} rendered blocker text: ${blocker}`);
@@ -279,6 +290,41 @@ async function expectUrlPath(page, expectedPath) {
   if (current.pathname !== expectedPath) {
     throw new Error(
       `expected URL path ${expectedPath}, got ${current.pathname}`
+    );
+  }
+}
+
+async function expectUrlPathAndHash(page, expectedPath, expectedHash) {
+  await page.waitForURL(
+    (url) => url.pathname === expectedPath && url.hash === expectedHash,
+    {
+      timeout: 30000,
+    }
+  );
+  const current = new URL(page.url());
+  if (current.pathname !== expectedPath || current.hash !== expectedHash) {
+    throw new Error(
+      `expected URL ${expectedPath}${expectedHash}, got ${current.pathname}${current.hash}`
+    );
+  }
+}
+
+async function assertVisibleSection(page, selector, expectedText) {
+  const section = page.locator(selector).first();
+  if ((await section.count()) === 0) {
+    throw new Error(`${selector} section not found`);
+  }
+  await section.scrollIntoViewIfNeeded();
+  if (!(await section.isVisible())) {
+    throw new Error(`${selector} section is not visible`);
+  }
+  const sectionText = String((await section.textContent()) || "");
+  if (!sectionText.includes(expectedText)) {
+    throw new Error(
+      `${selector} missing expected text ${expectedText}; got ${sectionText.slice(
+        0,
+        240
+      )}`
     );
   }
 }
@@ -489,6 +535,56 @@ async function verifyNavigationClicks(page) {
     await screenshot(page, "click-sidebar-provider-services");
     return page.url();
   });
+  await step("click:sidebar-role-permissions-parent-page", async () => {
+    await page.goto(pageUrl("/users"), {
+      waitUntil: "networkidle",
+      timeout: 60000,
+    });
+    const link = page.locator('a[data-nav-path="/role-permissions"]').first();
+    if ((await link.count()) === 0) {
+      throw new Error("role permissions sidebar link not found");
+    }
+    await link.click();
+    await expectUrlPath(page, "/role-permissions");
+    await assertText(page, ["角色权限管理"], "role permissions parent click");
+    await screenshot(page, "click-sidebar-role-permissions-parent-page");
+    return page.url();
+  });
+  const rbacPanelLinks = [
+    {
+      name: "permissions-matrix",
+      hash: "#permissions-matrix",
+      text: "权限矩阵",
+    },
+    {
+      name: "module-boundaries",
+      hash: "#module-boundaries",
+      text: "模块边界",
+    },
+    {
+      name: "reviewer-split",
+      hash: "#reviewer-split",
+      text: "Reviewer 分工",
+    },
+  ];
+  for (const panel of rbacPanelLinks) {
+    await step(`click:sidebar-role-permissions-${panel.name}`, async () => {
+      await page.goto(pageUrl("/role-permissions"), {
+        waitUntil: "networkidle",
+        timeout: 60000,
+      });
+      const navPath = `/role-permissions${panel.hash}`;
+      const link = page.locator(`a[data-nav-path="${navPath}"]`).first();
+      if ((await link.count()) === 0) {
+        throw new Error(`${panel.name} sidebar link not found`);
+      }
+      await link.click();
+      await expectUrlPathAndHash(page, "/role-permissions", panel.hash);
+      await assertVisibleSection(page, panel.hash, panel.text);
+      await screenshot(page, `click-sidebar-role-permissions-${panel.name}`);
+      return page.url();
+    });
+  }
 }
 
 function writeReport() {
