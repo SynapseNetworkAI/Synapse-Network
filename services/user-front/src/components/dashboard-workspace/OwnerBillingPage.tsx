@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { ExternalLink } from "lucide-react";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
+import CopyableValue from "@/components/xui/CopyableValue";
 import { XDatePicker } from "@/components/xui/XDatePicker";
 import { useFundsData } from "@/hooks/useFundsData";
 import { getTransactionExplorerUrl } from "@/utils/explorer";
@@ -35,22 +36,28 @@ function typeLabelForRecord(type: string): { label: string; cls: string } {
 }
 
 function statusDisplay(
-  status: string,
+  row: BillingRecord,
   t: (key: string) => string
 ): {
   className: string;
   label: string;
 } {
-  if (status === "COMPLETED") {
+  if (row.status === "COMPLETED") {
     return {
       className: "font-medium text-[#35d07f]",
       label: t("billingPage.statusSucceeded"),
     };
   }
-  if (status === "FAILED") {
+  if (row.status === "FAILED") {
     return {
       className: "font-medium text-[#ff6b6b]",
       label: t("billingPage.statusFailed"),
+    };
+  }
+  if (row.type === "Withdraw") {
+    return {
+      className: "font-medium text-[#f3b24d]",
+      label: t("billingPage.statusWithdrawPending"),
     };
   }
   return {
@@ -90,14 +97,21 @@ function BillingRecordRow({
   row: BillingRecord;
   t: Translate;
 }>) {
-  const status = statusDisplay(row.status, t);
+  const status = statusDisplay(row, t);
   const type = typeLabelForRecord(row.type);
   const transactionExplorerUrl = getTransactionExplorerUrl(row.txHash);
 
   return (
     <tr key={row.id} className="border-b border-[#232323] last:border-b-0">
       <td className="px-4 py-4 font-mono text-[16px] font-medium leading-6 text-white">
-        {transactionIdForRecord(row.id)}
+        <CopyableValue
+          value={row.id}
+          displayValue={transactionIdForRecord(row.id)}
+          label={t("billingPage.tableTransactionId")}
+          valueClassName="text-white"
+          startChars={2}
+          endChars={4}
+        />
       </td>
       <td className="px-4 py-4 text-[16px] leading-6">
         <span className={status.className}>{status.label}</span>
@@ -115,16 +129,28 @@ function BillingRecordRow({
         {formatDateLabel(row.timestamp)}
       </td>
       <td className="px-4 py-4 text-right">
-        {transactionExplorerUrl ? (
-          <a
-            href={transactionExplorerUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center justify-end text-[#71767b] transition hover:text-white"
-            aria-label="Open transaction explorer"
-          >
-            <ExternalLink className="h-4 w-4" />
-          </a>
+        {row.txHash ? (
+          <span className="inline-flex items-center justify-end gap-1">
+            <CopyableValue
+              value={row.txHash}
+              displayValue=""
+              label={t("billingPage.transactionHashLabel")}
+              className="gap-0"
+              valueClassName="sr-only"
+            />
+            {transactionExplorerUrl ? (
+              <a
+                href={transactionExplorerUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex h-6 w-6 items-center justify-center rounded-md text-[#71767b] transition hover:bg-white/10 hover:text-white"
+                aria-label={t("billingPage.openTransactionExplorer")}
+                title={t("billingPage.openTransactionExplorer")}
+              >
+                <ExternalLink className="h-4 w-4" />
+              </a>
+            ) : null}
+          </span>
         ) : (
           <span className="text-[#5f6468]">--</span>
         )}

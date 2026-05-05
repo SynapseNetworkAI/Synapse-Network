@@ -7,7 +7,6 @@ import {
   AlertCircle,
   Bot,
   Check,
-  Copy,
   MinusCircle,
   PencilLine,
   Plus,
@@ -44,6 +43,7 @@ import {
   type ServiceRegistryRecord,
 } from "@/utils/serviceApi";
 import { XButton } from "@/components/xui/XButton";
+import CopyableValue from "@/components/xui/CopyableValue";
 import {
   XDialog,
   XDialogBody,
@@ -159,7 +159,6 @@ export default function DashboardAgentsPage({
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [newCredential, setNewCredential] =
     useState<AgentCredentialIssueResponse | null>(null);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedCredentialId, setSelectedCredentialId] = useState<
@@ -420,12 +419,6 @@ export default function DashboardAgentsPage({
     },
     [fetchCredentials, selectedAgentId, t, userAddress]
   );
-
-  const copyToClipboard = (text: string, id: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2000);
-  };
 
   const openEditModal = (agent: AgentCredentialRecord) => {
     setSelectedCredentialId(agent.id);
@@ -1004,24 +997,13 @@ export default function DashboardAgentsPage({
                     <h2 className="x-detail-title text-white">
                       {selectedAgent.name || t("agentsPage.unnamedAgent")}
                     </h2>
-                    <XButton
-                      variant="icon"
-                      size="icon"
-                      onClick={() =>
-                        copyToClipboard(
-                          selectedAgent.id,
-                          `agent-id-${selectedAgent.id}`
-                        )
-                      }
-                      className="rounded-lg"
-                      title={t("agentsPage.workspaceCopyAgentId")}
-                    >
-                      {copiedId === `agent-id-${selectedAgent.id}` ? (
-                        <Check className="h-4 w-4 text-emerald-400" />
-                      ) : (
-                        <Copy className="h-4 w-4" />
-                      )}
-                    </XButton>
+                    <CopyableValue
+                      value={selectedAgent.id}
+                      displayValue=""
+                      label={t("agentsPage.workspaceAgentIdLabel")}
+                      className="gap-0"
+                      valueClassName="sr-only"
+                    />
                   </div>
                   <p className="x-body-copy mt-4 max-w-2xl">
                     {t("agentsPage.workspaceDetailDescription")}
@@ -1548,20 +1530,14 @@ export default function DashboardAgentsPage({
                 <code className="x-panel-muted block break-all rounded-[24px] p-4 pr-12 text-left font-mono text-sm text-emerald-400">
                   {issuedCredential.token}
                 </code>
-                <XButton
-                  variant="icon"
-                  size="icon"
-                  onClick={() =>
-                    copyToClipboard(issuedCredential.token, "new-token")
-                  }
-                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-xl p-2.5 text-gray-400"
-                >
-                  {copiedId === "new-token" ? (
-                    <Check className="h-4 w-4 text-emerald-400" />
-                  ) : (
-                    <Copy className="h-4 w-4" />
-                  )}
-                </XButton>
+                <CopyableValue
+                  value={issuedCredential.token}
+                  displayValue=""
+                  label={t("agentsPage.workspaceCredentialValueLabel")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 gap-0"
+                  valueClassName="sr-only"
+                  buttonClassName="rounded-xl p-2.5 text-gray-400"
+                />
               </section>
 
               <dl className="grid grid-cols-2 gap-4 text-left">
@@ -1588,7 +1564,13 @@ export default function DashboardAgentsPage({
                   {t("agentsPage.boundOwnerValueLabel")}
                 </dt>
                 <dd className="break-all font-mono text-sm text-blue-300">
-                  {issuedCredential.ownerAddress}
+                  <CopyableValue
+                    value={issuedCredential.ownerAddress}
+                    label={t("agentsPage.boundOwnerValueLabel")}
+                    valueClassName="break-all font-mono text-sm text-blue-300"
+                    startChars={10}
+                    endChars={8}
+                  />
                 </dd>
               </dl>
 

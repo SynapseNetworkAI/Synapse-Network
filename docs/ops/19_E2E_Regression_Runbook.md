@@ -253,6 +253,22 @@ For User-front deposit/balance regressions, run
 screenshot is bound to DOM text plus SQL rows in `screenshot-evidence.json`.
 Gateway `PENDING_CONFIRMATION` must display as `Pending`, not `Completed`.
 
+### Copyable identifiers DOM regression
+
+For User-front identifier-copy regressions, run
+`USER_FRONT_BASE_URL=http://127.0.0.1:3000 npm run e2e:user-front-copyable-identifiers`
+followed by `npm run ci:user-front-copyable-identifiers-evidence`. This
+local-only gate uses deterministic Playwright route fixtures, does not create
+provider services, and does not write Gateway DB state. It proves visible short
+IDs, hashes, addresses, withdrawal IDs, nonce/ticket fields, and endpoint URLs
+copy the full canonical value. It also fails if ordinary user-facing
+invocation pages expose `agent:agent:*`, counterparty labels, provider wallet
+addresses, auth blockers, loading pages, or unbound screenshots.
+
+This gate is a DOM/clipboard/privacy regression. It does not replace
+money-path SQL, ledger, audit, or chain evidence gates such as deposit balance,
+invocation billing, or staging full regression.
+
 ```sql
 SELECT deposit_id, owner_id, owner_address, target_account_id, tx_hash,
        amount_usdc, status, block_number, request_id, updated_at

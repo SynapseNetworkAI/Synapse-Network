@@ -15,6 +15,7 @@ import toast from "react-hot-toast";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { useAuth } from "@/components/WalletAuthGuard";
 import SupportContactPanel from "@/components/shared/SupportContactPanel";
+import CopyableValue from "@/components/xui/CopyableValue";
 import XSelect from "@/components/xui/XSelect";
 import { listPaginatedUsageLogs, type UsageLogRecord } from "@/utils/usageApi";
 
@@ -84,6 +85,14 @@ function formatLatency(latencyMs?: number): string {
     return `${value}ms`;
   }
   return `${(value / 1000).toFixed(2)}s`;
+}
+
+function visibleAgentId(value?: string): string {
+  const normalized = String(value || "").trim();
+  if (!normalized || normalized.toLowerCase().startsWith("agent:")) {
+    return "";
+  }
+  return normalized;
 }
 
 function StatusBadge({
@@ -244,19 +253,26 @@ export default function DashboardInvocationsContent() {
             className="group transition-colors hover:bg-[#111111]"
           >
             <td className="px-6 py-4">
-              <span className="font-mono text-xs text-[#c5c5c7] transition-colors group-hover:text-[#22c55e]">
-                {row.id || "-"}
-              </span>
+              <CopyableValue
+                value={row.id}
+                label={t("invocationsPage.tableInvocationId")}
+                valueClassName="font-mono text-xs text-[#c5c5c7] transition-colors group-hover:text-[#22c55e]"
+              />
             </td>
             <td className="px-6 py-4">
-              <span className="text-sm font-medium text-white">
-                {row.service_id || t("invocationsPage.unknownService")}
-              </span>
+              <CopyableValue
+                value={row.service_id}
+                label={t("invocationsPage.tableService")}
+                valueClassName="text-sm font-medium text-white"
+                emptyValue={t("invocationsPage.unknownService")}
+              />
             </td>
             <td className="px-6 py-4">
-              <span className="font-mono text-xs text-[#c5c5c7]">
-                {row.agent_id || "-"}
-              </span>
+              <CopyableValue
+                value={visibleAgentId(row.agent_id)}
+                label={t("invocationsPage.tableAgent")}
+                valueClassName="font-mono text-xs text-[#c5c5c7]"
+              />
             </td>
             <td className="px-6 py-4">
               <span className="font-mono text-sm text-[#22c55e]">
