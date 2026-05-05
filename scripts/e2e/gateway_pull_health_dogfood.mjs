@@ -13,10 +13,6 @@ import {
   requireStagingConfirmation,
   resolveE2eEnvironment,
 } from "../lib/e2e_env_guard.mjs";
-import {
-  startLocalProviderFixture,
-  serviceRegistrationBody,
-} from "./gateway_pull_health_local_provider_fixture.mjs";
 import { runLocalCleanupDryEvidence as collectLocalCleanupDryEvidence } from "./gateway_pull_health_cleanup_helper.mjs";
 import { ensureLocalAgentCredential as ensureLocalAgentCredentialToken } from "./gateway_pull_health_credential_helper.mjs";
 import { createGatewayPullHealthPostgresHelpers } from "./gateway_pull_health_postgres_helpers.mjs";
@@ -80,7 +76,7 @@ const userFrontUrl = trimSlash(
 );
 const expectedServiceIds = (
   process.env.GATEWAY_PULL_HEALTH_EXPECTED_SERVICE_IDS ||
-  "svc_web3_sentiment_index,svc_protocol_fundamental_brief,svc_oss_security_healthcheck"
+  "svc_synapse_echo,svc_synapse_mock_cost_1usdc,svc_web3_sentiment_index,svc_protocol_fundamental_brief,svc_oss_security_healthcheck,svc_deepseek_chat"
 )
   .split(",")
   .map((value) => value.trim())
@@ -166,7 +162,6 @@ const invokeEvidence = {
   holdCreated: false,
   frozenDelta: "0.000000",
 };
-let localProviderFixture = null;
 
 fs.mkdirSync(screenshotsDir, { recursive: true });
 
@@ -357,41 +352,27 @@ function resolveExistingLocalOwner(serviceId) {
   return match ? match[0] : "";
 }
 
-async function ensureLocalProviderFixture() {
-  if (isStaging) return;
-  localProviderFixture = await startLocalProviderFixture();
+async function ensureProviderCatalogPrerequisite() {
   for (const serviceId of expectedServiceIds) {
     const ownerWallet =
       resolveExistingLocalOwner(serviceId) || localProviderWallet;
     localOwnerByServiceId.set(serviceId, ownerWallet);
-    const body = serviceRegistrationBody(
-      serviceId,
-      localProviderFixture.baseUrl,
-      ownerWallet
-    );
-    let result = await authenticatedProviderJson("/v1/services", {
-      method: "POST",
-      body,
-      ownerWallet,
-    });
-    if (!result.ok && result.status === 422) {
-      result = await authenticatedProviderJson(`/v1/services/${serviceId}`, {
-        method: "PUT",
-        body,
-        ownerWallet,
-      });
-    }
-    addCheck(
-      `local_fixture_register_${serviceId}`,
-      result.ok,
-      {
-        status: result.status,
-        serviceId,
-        probeStatus: result.json?.service?.probeStatus,
-      },
-      `Could not register/update local provider fixture service ${serviceId}.`
-    );
   }
+  const snapshot = await collectApiSnapshot("provider_catalog_prerequisite");
+  const inRegistry = expectedIdsInRegistry(snapshot);
+  addCheck(
+    "provider_catalog_prerequisite_registered",
+    inRegistry.length === expectedServiceIds.length,
+    { expectedServiceIds, presentInRegistry: inRegistry },
+    "Expected Synapse-Network-Provider catalog services are missing. Run Provider onboarding `ensure` before this dogfood."
+  );
+  const inHealth = expectedIdsPresentInHealth(snapshot);
+  addCheck(
+    "provider_catalog_prerequisite_health_rows_present",
+    inHealth.length === expectedServiceIds.length,
+    { expectedServiceIds, presentInHealth: inHealth },
+    "Expected Provider catalog services are not present in health/status."
+  );
 }
 
 async function ensureLocalAgentCredential() {
@@ -807,7 +788,7 @@ async function main() {
   });
   try {
     runLocalCleanupDryEvidence();
-    await ensureLocalProviderFixture();
+    await ensureProviderCatalogPrerequisite();
     await ensureLocalAgentCredential();
     const before = await collectApiSnapshot("before_restart");
     const beforeRegistry = expectedIdsInRegistry(before);
@@ -971,135 +952,7 @@ async function main() {
     });
 
     if (!isStaging) {
-      if (localProviderFixture) {
-        ensureLocalOfflineLifecycleSchema();
-        localProviderFixture.setHealthy(false);
-        const offlineServiceId = expectedServiceIds[0];
-        markLocalServiceOffline(offlineServiceId);
-        const offlineSnapshot = await collectApiSnapshot("offline_quarantine");
-        const offlineRows = healthRowsById(offlineSnapshot);
-        const offlineRow = offlineRows.get(offlineServiceId);
-        const offlineVisible = expectedIdsInRegistry(offlineSnapshot);
-        addCheck(
-          "offline_service_removed_from_registry",
-          !offlineVisible.includes(offlineServiceId) &&
-            String(offlineRow?.status || "").toLowerCase() === "offline",
-          {
-            serviceId: offlineServiceId,
-            registryVisibleIds: offlineVisible,
-            healthRow: offlineRow,
-            diagnostics: offlineSnapshot.registry?.diagnostics,
-          },
-          "Offline service must be removed from registry and visible as offline in health/status."
-        );
-        await capturePage({
-          page,
-          url: gatewayApi("/v1/services/health/status?includeInactive=true"),
-          fileName: "07-health-status-offline.png",
-          expectedText: [offlineServiceId, "offline"],
-          apiCheckpoint: {
-            serviceId: offlineServiceId,
-            healthRow: offlineRow,
-          },
-        });
-
-        localProviderFixture.setHealthy(true);
-        const ownerWallet =
-          localOwnerByServiceId.get(offlineServiceId) || localProviderWallet;
-        const upsertBody = serviceRegistrationBody(
-          offlineServiceId,
-          localProviderFixture.baseUrl,
-          ownerWallet
-        );
-        const upsert = await authenticatedProviderJson(
-          `/v1/services/${offlineServiceId}`,
-          {
-            method: "PUT",
-            body: upsertBody,
-            ownerWallet,
-          }
-        );
-        addCheck(
-          "offline_reonboard_upsert_succeeded",
-          upsert.ok,
-          { status: upsert.status, serviceId: offlineServiceId },
-          "Re-onboard/upsert should reactivate an offline service."
-        );
-        await authenticatedProviderJson(
-          `/v1/services/${offlineServiceId}/ping`,
-          {
-            method: "POST",
-            ownerWallet,
-          }
-        ).catch((error) => {
-          traceEvent("offline_reonboard_force_probe_error", {
-            serviceId: offlineServiceId,
-            error: error instanceof Error ? error.message : String(error),
-          });
-        });
-        const reonboarded = await waitForRehydrate();
-        const reonboardedVisible = expectedIdsInRegistry(reonboarded);
-        addCheck(
-          "offline_reonboard_service_discoverable",
-          reonboardedVisible.includes(offlineServiceId),
-          {
-            serviceId: offlineServiceId,
-            visibleInRegistry: reonboardedVisible,
-            diagnostics: reonboarded.registry?.diagnostics,
-          },
-          "Re-onboarded offline service did not become discoverable after healthy probe."
-        );
-        await capturePage({
-          page,
-          url: userFrontPath("/marketplace"),
-          fileName: "08-marketplace-after-reonboard.png",
-          expectedText: expectedServiceNames(reonboarded),
-          apiCheckpoint: {
-            expectedVisibleServiceIds: reonboardedVisible,
-            diagnostics: reonboarded.registry?.diagnostics,
-          },
-        });
-
-        localProviderFixture.setHealthy(false);
-        for (const serviceId of expectedServiceIds) {
-          const ownerWallet =
-            localOwnerByServiceId.get(serviceId) || localProviderWallet;
-          await authenticatedProviderJson(`/v1/services/${serviceId}/ping`, {
-            method: "POST",
-            ownerWallet,
-          }).catch((error) => {
-            traceEvent("provider_down_force_probe_error", {
-              serviceId,
-              error: error instanceof Error ? error.message : String(error),
-            });
-          });
-        }
-        await sleep(
-          Number(process.env.GATEWAY_PULL_HEALTH_PROVIDER_DOWN_WAIT_MS || 1000)
-        );
-        const providerDown = await collectApiSnapshot("provider_down");
-        const downVisible = expectedIdsInRegistry(providerDown);
-        addCheck(
-          "provider_down_expected_services_removed",
-          downVisible.length === 0,
-          {
-            stillVisible: downVisible,
-            diagnostics: providerDown.registry?.diagnostics,
-          },
-          "Provider health failure did not remove expected services from Marketplace."
-        );
-        await capturePage({
-          page,
-          url: userFrontPath("/marketplace"),
-          fileName: "09-provider-down-marketplace-removed.png",
-          expectedText: ["Agent API Marketplace"],
-          forbiddenText: expectedServiceNames(rehydrated),
-          apiCheckpoint: {
-            expectedVisibleServiceIds: downVisible,
-            diagnostics: providerDown.registry?.diagnostics,
-          },
-        });
-      } else if (process.env.GATEWAY_PULL_HEALTH_PROVIDER_DOWN_COMMAND) {
+      if (process.env.GATEWAY_PULL_HEALTH_PROVIDER_DOWN_COMMAND) {
         execSync(process.env.GATEWAY_PULL_HEALTH_PROVIDER_DOWN_COMMAND, {
           cwd: ROOT,
           stdio: "pipe",
@@ -1146,9 +999,6 @@ async function main() {
     }
   } finally {
     await browser.close();
-    if (localProviderFixture) {
-      await localProviderFixture.close().catch(() => {});
-    }
     writeEvidence();
   }
 

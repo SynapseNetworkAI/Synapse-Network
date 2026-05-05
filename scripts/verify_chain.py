@@ -6,7 +6,7 @@ Synapse Network — Full Chain Verification
 Verifies the complete call chain from scratch:
   1. Auth for consumer + provider
   2. Record baseline balances/earnings
-  3. Register a fresh test service
+  3. Verify an existing Provider catalog service
   4. Issue a fresh credential
   5. Invoke via gateway
   6. Verify deduction, earnings, fee math
@@ -38,18 +38,15 @@ CONTRACT_CFG = FRONT_DIR / "contract-config.json"
 CORE_ABI     = FRONT_DIR / "SynapseCoreABI.json"
 USDC_ABI     = FRONT_DIR / "MockUSDCABI.json"
 
-SERVICE_PRICE = 0.010   # USDC per call
-EXPECTED_CONSUMER_DEDUCTED = 0.0101  # price + routingTax
-EXPECTED_PROVIDER_NET = 0.0091       # totalCharge - protocolFee = price + routingTax - protocolFee
-EXPECTED_PLATFORM_FEE_DELTA = 0.0011 # platformFeeAccrued = protocolFee + routingTax (gross fees collected)
-EXPECTED_PROTOCOL_FEE = 0.001
-EXPECTED_ROUTING_TAX  = 0.0001
+SERVICE_PRICE = 1.000000   # USDC per call
+EXPECTED_CONSUMER_DEDUCTED = 1.010000  # price + routingTax
+EXPECTED_PROVIDER_NET = 0.910000       # price + routingTax - protocolFee
+EXPECTED_PLATFORM_FEE_DELTA = 0.110000 # protocolFee + routingTax
+EXPECTED_PROTOCOL_FEE = 0.100000
+EXPECTED_ROUTING_TAX  = 0.010000
 GATEWAY_E2E_SERVICE_ID = os.getenv(
-    "GATEWAY_E2E_SERVICE_ID", "svc_oss_security_healthcheck"
-).strip() or "svc_oss_security_healthcheck"
-GATEWAY_E2E_ALLOW_SERVICE_CREATION = os.getenv(
-    "GATEWAY_E2E_ALLOW_SERVICE_CREATION", ""
-).strip().lower() in {"1", "true", "yes", "on"}
+    "GATEWAY_E2E_SERVICE_ID", "svc_synapse_mock_cost_1usdc"
+).strip() or "svc_synapse_mock_cost_1usdc"
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 PASS = "\033[92m✓\033[0m"
@@ -163,50 +160,25 @@ def register_deposit(consumer_token, consumer_addr, tx_hash, amount_usdc):
     print(f"  {WARN} Deposit indexer waiting — may appear asynchronously")
     return False
 
-# ── Step 5: Register test service ─────────────────────────────────────────────
-def register_service(provider_token, provider_addr):
-    svc_name = f"svc_verify_{uuid.uuid4().hex[:6]}"
-    r = api("post", "/v1/services", token=provider_token,
-            headers={"X-User-Address": provider_addr},
-            json={
-                "agentToolName": svc_name,
-                "serviceName": "Chain Verify Quotes Service",
-                "role": "Provider",
-                "status": "active",
-                "isActive": True,
-                "summary": "Full-chain verification test service.",
-                "tags": ["verify", "e2e"],
-                "pricing": {"amount": str(SERVICE_PRICE), "currency": "USDC"},
-                "auth": {"type": "gateway_signed"},
-                "providerProfile": {"displayName": "Chain Verify Provider"},
-                "payoutAccount": {"payoutAddress": provider_addr, "chainId": 31337,
-                                  "settlementCurrency": "USDC"},
-                "governance": {"termsAccepted": True, "riskAcknowledged": True},
-                "healthCheck": {"path": "/health", "method": "GET", "timeoutMs": 3000,
-                                "successCodes": [200], "healthyThreshold": 1, "unhealthyThreshold": 3},
-                "invoke": {
-                    "method": "POST",
-                    "targets": [{"url": f"{PROVIDER_BASE}/api/v1/quotes/famous", "weight": 100}],
-                    "timeoutMs": 10000,
-                    "request": {"contentType": "application/json",
-                                "schema": {"body": {"type": "object",
-                                           "properties": {"text": {"type": "string"}}}}},
-                    "response": {"contentType": "application/json"},
-                },
-                "constraints": {"timeoutMs": 10000, "maxResponseBytes": 131072,
-                                 "maxRequestBytes": 65536, "maxQps": 10},
-            })
-    assert r.status_code in (200, 201), f"Service reg failed ({r.status_code}): {r.text}"
-    d = r.json()
-    svc_id = (d.get("service_id") or d.get("serviceId") or
-              d.get("service", {}).get("serviceId") or d.get("service", {}).get("service_id") or "")
-    assert svc_id, f"No service_id: {d}"
-    print(f"  {PASS} Service registered: {svc_id}")
-    return svc_id
-
 def resolve_service(provider_token, provider_addr):
-    if GATEWAY_E2E_ALLOW_SERVICE_CREATION:
-        return register_service(provider_token, provider_addr)
+    r = api("get", "/v1/services/discover", token=provider_token,
+            headers={"X-User-Address": provider_addr},
+            params={"q": GATEWAY_E2E_SERVICE_ID, "limit": 10})
+    services = r.json().get("services", []) if r.status_code == 200 else []
+    found = any(
+        s.get("serviceId") == GATEWAY_E2E_SERVICE_ID
+        or s.get("service_id") == GATEWAY_E2E_SERVICE_ID
+        or s.get("agentToolName") == GATEWAY_E2E_SERVICE_ID
+        for s in services
+    )
+    if not found:
+        print(
+            f"  {FAIL} "
+            "Canonical Provider catalog service is missing. Run "
+            "Synapse-Network-Provider onboarding `ensure` for local/staging "
+            f"before this script: {GATEWAY_E2E_SERVICE_ID}"
+        )
+        raise SystemExit(1)
     print(
         f"  {PASS} Using existing canonical provider service: "
         f"{GATEWAY_E2E_SERVICE_ID}"
@@ -235,7 +207,12 @@ def invoke_service(credential, svc_id):
                 "serviceId": svc_id,
                 "idempotencyKey": f"verify-{uuid.uuid4().hex}",
                 "costUsdc": str(SERVICE_PRICE),
-                "payload": {"body": {"text": "ETH market analysis"}},
+                "payload": {
+                    "body": {
+                        "message": "chain verifier paid settlement",
+                        "source": "verify-chain",
+                    }
+                },
                 "responseMode": "sync",
             })
     return r
@@ -287,18 +264,18 @@ def main():
         print(f"  {PASS} All statuses are frontend-compatible")
 
     # ── 3. Deposit
-    section("3/8  On-Chain USDC Deposit (0.1 USDC)")
+    section("3/8  On-Chain USDC Deposit (2.0 USDC)")
     consumer_bal_before, platform_fee_before = get_balance(consumer_token, consumer_addr)
     print(f"  Balance before deposit: {consumer_bal_before:.6f} USDC")
-    tx_hash = on_chain_deposit(CONSUMER_KEY, DEPLOYER_KEY, "0.1")
+    tx_hash = on_chain_deposit(CONSUMER_KEY, DEPLOYER_KEY, "2.0")
     print(f"  {PASS} On-chain deposit tx: {tx_hash[:30]}...")
-    register_deposit(consumer_token, consumer_addr, tx_hash, "0.1")
+    register_deposit(consumer_token, consumer_addr, tx_hash, "2.0")
     time.sleep(3)
     consumer_bal_after_deposit, _ = get_balance(consumer_token, consumer_addr)
     delta = consumer_bal_after_deposit - consumer_bal_before
     all_passed &= check(
-        nearly(delta, 0.1, tol=0.001),
-        f"Balance credited: +{delta:.6f} USDC (expected +0.1)",
+        nearly(delta, 2.0, tol=0.001),
+        f"Balance credited: +{delta:.6f} USDC (expected +2.0)",
         f"before={consumer_bal_before:.4f} after={consumer_bal_after_deposit:.4f}"
     )
 
@@ -357,9 +334,9 @@ def main():
     )
 
     # Verify math: consumer_deducted = provider_net + protocol_fee + routing_tax
-    # price=0.01, protocol_fee=0.001, routing_tax=0.0001
-    # consumer_deducted = 0.01 + 0.0001 = 0.0101
-    # provider_net = 0.01 - 0.001 + 0.0001 = 0.0091
+    # price=1.0, protocol_fee=0.1, routing_tax=0.01
+    # consumer_deducted = 1.0 + 0.01 = 1.01
+    # provider_net = 1.0 - 0.1 + 0.01 = 0.91
     math_ok = nearly(EXPECTED_CONSUMER_DEDUCTED,
                      SERVICE_PRICE + EXPECTED_ROUTING_TAX, tol=1e-6)
     all_passed &= check(math_ok,
