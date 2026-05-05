@@ -219,13 +219,10 @@ export default function ProviderServicesPage() {
           setServices(rows);
         }
       } catch (err) {
+        console.error("Failed to load provider services:", err);
         if (!cancelled) {
           setServices([]);
-          toast.error(
-            err instanceof Error
-              ? err.message
-              : t("providerServicesPage.loadFailed")
-          );
+          toast.error(t("providerServicesPage.loadFailed"));
         }
       } finally {
         if (!cancelled) {
@@ -456,25 +453,23 @@ export default function ProviderServicesPage() {
             : t("providerServicesPage.serviceSetInactive")
         );
       } catch (err) {
+        console.error("Failed to update service status:", err);
         setServices(prevServices);
         invalidateServiceRegistryListCache(address);
         toast.error(
-          err instanceof Error
-            ? err.message
-            : t("providerServicesPage.updateStatusFailed", {
-                action: actionLabel,
-              })
+          t("providerServicesPage.updateStatusFailed", {
+            action: actionLabel,
+          })
         );
       } finally {
         setStatusUpdatingServiceId(null);
       }
     } catch (err) {
+      console.error("Failed to prepare service status update:", err);
       toast.error(
-        err instanceof Error
-          ? err.message
-          : t("providerServicesPage.updateStatusFailed", {
-              action: actionLabel,
-            })
+        t("providerServicesPage.updateStatusFailed", {
+          action: actionLabel,
+        })
       );
     }
   };
@@ -513,13 +508,10 @@ export default function ProviderServicesPage() {
       await deleteServiceRegistry(service.serviceId, address);
       toast.success(t("providerServicesPage.serviceDeleted"));
     } catch (err) {
+      console.error("Failed to delete provider service:", err);
       setServices(prevServices);
       invalidateServiceRegistryListCache(address);
-      toast.error(
-        err instanceof Error
-          ? err.message
-          : t("providerServicesPage.deleteFailed")
-      );
+      toast.error(t("providerServicesPage.deleteFailed"));
     } finally {
       setDeletingServiceId(null);
     }
@@ -587,22 +579,16 @@ export default function ProviderServicesPage() {
         toast.success(t("providerServicesPage.serviceUpdated"));
         closeModal();
       } catch (err) {
+        console.error("Failed to persist provider service edit:", err);
         setServices(prevServices);
         invalidateServiceRegistryListCache(address);
-        toast.error(
-          err instanceof Error
-            ? err.message
-            : t("providerServicesPage.updateFailed")
-        );
+        toast.error(t("providerServicesPage.updateFailed"));
       } finally {
         setSaving(false);
       }
     } catch (err) {
-      toast.error(
-        err instanceof Error
-          ? err.message
-          : t("providerServicesPage.invalidJsonFields")
-      );
+      console.error("Failed to build provider service payload:", err);
+      toast.error(t("providerServicesPage.invalidJsonFields"));
     }
   };
 

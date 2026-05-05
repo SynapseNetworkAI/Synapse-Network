@@ -1,4 +1,5 @@
 """Deposit, refund, and consumer withdrawal balance routes."""
+import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Header, Query, Request
@@ -33,6 +34,7 @@ from src.services.notifications.transactional import build_public_app_url, sched
 from src.storage import BaseStorage, get_storage
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 @router.get("/v1/balance", responses={500: {"description": "Database IO blocked"}})
@@ -44,9 +46,13 @@ async def get_balance(
     try:
         balance_data = await service.get_balance(owner_wallet)
     except Exception as exc:
+        logger.exception("Balance summary query failed", extra={"owner_wallet": owner_wallet})
         raise HTTPException(
             status_code=500,
-            detail=f"Database IO blocked: {exc}",
+            detail={
+                "code": "BALANCE_QUERY_FAILED",
+                "message": "Unable to load balance right now.",
+            },
         ) from exc
     else:
         return {"status": "success", "balance": balance_data}

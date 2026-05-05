@@ -89,6 +89,15 @@ const creditsPage: I18nMessages["creditsPage"] = {
   consumerWithdrawGasHint: "你的钱包会执行链上转账，并支付 gas。",
   consumerWithdrawInvalidAmount: "请输入有效金额。",
   consumerWithdrawAmountExceeds: "金额超过可用余额（${{amount}}）。",
+  consumerWithdrawRequestFailed: "暂时无法准备提现，请稍后重试。",
+  consumerWithdrawChainRpcUnavailable:
+    "Gateway 当前无法连接链 RPC。本地开发时请确认本地链已启动，然后重试。",
+  consumerWithdrawContractNotConfigured: "当前环境尚未配置提现合约。",
+  consumerWithdrawMinAmountNotMet: "Consumer 最小提现金额为 10.00 USDC。",
+  consumerWithdrawAmountTooLowForFee: "提现金额必须大于平台手续费。",
+  consumerWithdrawInsufficientBalance: "可用 credits 不足，无法发起本次提现。",
+  consumerWithdrawMatureBalanceRequired:
+    "这笔资金尚未成熟。Consumer 提现需要经过 T+1 资金成熟期。",
   consumerWithdrawSubmitted: "已完成 ${{amount}} USDC 提现！",
   consumerWithdrawBackendSyncFailed:
     "链上转账已成功，但后端状态更新失败。后台处理器会自动完成记录。",
