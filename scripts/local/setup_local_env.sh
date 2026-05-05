@@ -275,20 +275,28 @@ else
 		yarn install
 	fi
 
-	NEXT_PUBLIC_APP_ENV="${NEXT_PUBLIC_APP_ENV:-local}" \
-	NEXT_PUBLIC_GATEWAY_BASE_URL="${NEXT_PUBLIC_GATEWAY_BASE_URL:-http://127.0.0.1:8000}" \
-	NEXT_PUBLIC_ANALYTICS_ENDPOINT="${NEXT_PUBLIC_ANALYTICS_ENDPOINT:-http://127.0.0.1:8000/api/v1/events}" \
-	NEXT_PUBLIC_DOCS_BASE_URL="${NEXT_PUBLIC_DOCS_BASE_URL:-http://localhost:3100}" \
-	NEXT_PUBLIC_TX_EXPLORER_BASE_URL="${NEXT_PUBLIC_TX_EXPLORER_BASE_URL:-http://localhost:5100}" \
-	NEXT_PUBLIC_RPC_URL="${NEXT_PUBLIC_RPC_URL:-http://127.0.0.1:8545}" \
-	NEXT_PUBLIC_SERVICE_LIST_CACHE_TTL_MS="${NEXT_PUBLIC_SERVICE_LIST_CACHE_TTL_MS:-20000}" \
-	NEXT_PUBLIC_SUPPORT_EMAIL="${NEXT_PUBLIC_SUPPORT_EMAIL:-support@synapse-network.ai}" \
-	nohup yarn dev --hostname 0.0.0.0 > "${ROOT_DIR}/services/user-front/frontend_dev.log" 2>&1 < /dev/null &
-	FRONTEND_PID=$!
+	if command -v screen >/dev/null 2>&1; then
+		screen -S synapse-user-front -X quit >/dev/null 2>&1 || true
+		screen -dmS synapse-user-front bash -lc \
+			"cd '${ROOT_DIR}/services/user-front' && exec env NEXT_PUBLIC_APP_ENV='${NEXT_PUBLIC_APP_ENV:-local}' NEXT_PUBLIC_GATEWAY_BASE_URL='${NEXT_PUBLIC_GATEWAY_BASE_URL:-http://127.0.0.1:8000}' NEXT_PUBLIC_ANALYTICS_ENDPOINT='${NEXT_PUBLIC_ANALYTICS_ENDPOINT:-http://127.0.0.1:8000/api/v1/events}' NEXT_PUBLIC_DOCS_BASE_URL='${NEXT_PUBLIC_DOCS_BASE_URL:-http://localhost:3100}' NEXT_PUBLIC_TX_EXPLORER_BASE_URL='${NEXT_PUBLIC_TX_EXPLORER_BASE_URL:-http://localhost:5100}' NEXT_PUBLIC_RPC_URL='${NEXT_PUBLIC_RPC_URL:-http://127.0.0.1:8545}' NEXT_PUBLIC_SERVICE_LIST_CACHE_TTL_MS='${NEXT_PUBLIC_SERVICE_LIST_CACHE_TTL_MS:-20000}' NEXT_PUBLIC_SUPPORT_EMAIL='${NEXT_PUBLIC_SUPPORT_EMAIL:-support@synapse-network.ai}' yarn dev --hostname 0.0.0.0 > '${ROOT_DIR}/services/user-front/frontend_dev.log' 2>&1"
+		FRONTEND_PID=""
+	else
+		NEXT_PUBLIC_APP_ENV="${NEXT_PUBLIC_APP_ENV:-local}" \
+		NEXT_PUBLIC_GATEWAY_BASE_URL="${NEXT_PUBLIC_GATEWAY_BASE_URL:-http://127.0.0.1:8000}" \
+		NEXT_PUBLIC_ANALYTICS_ENDPOINT="${NEXT_PUBLIC_ANALYTICS_ENDPOINT:-http://127.0.0.1:8000/api/v1/events}" \
+		NEXT_PUBLIC_DOCS_BASE_URL="${NEXT_PUBLIC_DOCS_BASE_URL:-http://localhost:3100}" \
+		NEXT_PUBLIC_TX_EXPLORER_BASE_URL="${NEXT_PUBLIC_TX_EXPLORER_BASE_URL:-http://localhost:5100}" \
+		NEXT_PUBLIC_RPC_URL="${NEXT_PUBLIC_RPC_URL:-http://127.0.0.1:8545}" \
+		NEXT_PUBLIC_SERVICE_LIST_CACHE_TTL_MS="${NEXT_PUBLIC_SERVICE_LIST_CACHE_TTL_MS:-20000}" \
+		NEXT_PUBLIC_SUPPORT_EMAIL="${NEXT_PUBLIC_SUPPORT_EMAIL:-support@synapse-network.ai}" \
+		nohup yarn dev --hostname 0.0.0.0 > "${ROOT_DIR}/services/user-front/frontend_dev.log" 2>&1 < /dev/null &
+		FRONTEND_PID=$!
+	fi
 	FRONTEND_OWNED_BY_SCRIPT=1
 	sleep 5
+	FRONTEND_PID="${FRONTEND_PID:-$(find_pid_by_port 3000)}"
 
-	if ! kill -0 "$FRONTEND_PID" >/dev/null 2>&1; then
+	if [[ -z "$FRONTEND_PID" ]] || ! kill -0 "$FRONTEND_PID" >/dev/null 2>&1; then
 		echo "Error: Frontend failed to start. Check services/user-front/frontend_dev.log"
 		kill "$PROVIDER_PID" >/dev/null 2>&1 || true
 		if [[ "$ANVIL_OWNED_BY_SCRIPT" -eq 1 ]]; then

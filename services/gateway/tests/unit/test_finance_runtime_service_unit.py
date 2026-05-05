@@ -13,7 +13,7 @@ from src.domain.ledger import DepositIntentRow, WithdrawalIntentRow
 from src.domain.voucher import VoucherRedemptionResult
 from src.services.platform.balance_service import BalanceService
 from src.services.owner.finance_service import OwnerFinanceService
-from src.services.platform.finance_service import PlatformFinanceService
+from src.services.platform.finance_service import PlatformFinanceService, VoucherRedeemContext
 from src.services.platform import credential_service
 from src.services.provider.withdraw_service import ProviderWithdrawService
 
@@ -37,12 +37,17 @@ class DummyLockManager:
 class InMemoryBalanceRepo:
     def __init__(self):
         self.ledger = BalanceLedger()
+        self.consumer_mature_withdrawable = Decimal("0.000000")
 
     def read_balance_ledger(self):
         return self.ledger.model_copy(deep=True)
 
     def write_balance_ledger(self, ledger):
         self.ledger = ledger.model_copy(deep=True)
+
+    def read_consumer_mature_withdrawable(self, owner: str, maturity_seconds: int):
+        _ = (owner, maturity_seconds)
+        return self.consumer_mature_withdrawable
 
     def reserve_consumer_balance_for_withdrawal(self, owner: str, amount_usdc: MoneyInput, updated_at: str):
         _ = updated_at
@@ -189,6 +194,11 @@ async def _async_true(*args, **kwargs):
     return True
 
 
+async def _async_value(value):
+    await asyncio.sleep(0)
+    return value
+
+
 def _noop_assert_withdraw_vault_liquidity(amount_usdc) -> None:
     _ = amount_usdc
 
@@ -293,6 +303,25 @@ def test_consumer_finance_deposit_flow_uses_typed_rows(monkeypatch) -> None:
     ]
 
 
+def test_register_deposit_intent_rejects_dust_amount_without_persisting() -> None:
+    storage = FakeStorage()
+    service = OwnerFinanceService(storage, DummyLockManager())
+    _configure_owner_service(service)
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(
+            service.register_deposit_intent(
+                {"txHash": "0x" + "9" * 64, "amountUsdc": "9.99"},
+                "0xabc",
+                "deposit-intent-key-dust",
+            )
+        )
+
+    assert exc_info.value.status_code == 400
+    assert exc_info.value.detail["code"] == "MIN_DEPOSIT_AMOUNT_NOT_MET"
+    assert storage.gateway_state.deposit_rows == []
+
+
 def test_register_deposit_intent_replay_returns_existing_intent() -> None:
     storage = FakeStorage()
     service = OwnerFinanceService(storage, DummyLockManager())
@@ -318,6 +347,82 @@ def test_register_deposit_intent_replay_returns_existing_intent() -> None:
     assert len(storage.gateway_state.deposit_rows) == 1
     assert storage.audit.rows[-1].action == "DEPOSIT_REPLAY_RETURNED_EXISTING"
     assert storage.audit.rows[-1].details["depositIntentId"] == registered["id"]
+
+
+def test_register_deposit_intent_uses_atomic_storage_when_available() -> None:
+    storage = FakeStorage()
+    service = OwnerFinanceService(storage, DummyLockManager())
+    _configure_owner_service(service)
+    captured = []
+
+    def register_atomic(command):
+        captured.append(command)
+        return command.intent_row
+
+    storage.register_deposit_intent_atomic = register_atomic  # type: ignore[attr-defined]  # quality-budget-disable-reason: test injects optional atomic storage hook.
+
+    registered = asyncio.run(
+        service.register_deposit_intent(
+            {"txHash": "0x" + "7" * 64, "amountUsdc": "15"},
+            "0xabc",
+            "deposit-intent-key-atomic",
+        )
+    )
+
+    assert registered["txHash"] == "0x" + "7" * 64
+    assert captured[0].owner_wallet == "0xabc"
+    assert storage.gateway_state.deposit_rows == []
+
+
+def test_confirm_deposit_intent_uses_atomic_storage_when_available() -> None:
+    storage = FakeStorage()
+    service = OwnerFinanceService(storage, DummyLockManager())
+    _configure_owner_service(service)
+    row = DepositIntentRow(
+        id="dep-atomic-1",
+        ownerAddress="0xabc",
+        txHash="0x" + "8" * 64,
+        amountUsdc=Decimal("15"),
+        idempotencyKey="deposit-intent-key-confirm-atomic",
+        status="CONFIRMED",
+    )
+    captured = []
+
+    def confirm_atomic(command):
+        captured.append(command)
+        return row
+
+    storage.confirm_deposit_intent_atomic = confirm_atomic  # type: ignore[attr-defined]  # quality-budget-disable-reason: test injects optional atomic storage hook.
+
+    confirmed = asyncio.run(
+        service.confirm_deposit_intent(
+            owner_wallet="0xabc",
+            deposit_intent_id="dep-atomic-1",
+            event_key="evt-atomic",
+            confirmations=5,
+        )
+    )
+
+    assert confirmed["id"] == "dep-atomic-1"
+    assert captured[0].event_key == "evt-atomic"
+
+
+def test_register_deposit_intent_rejects_invalid_amount_text() -> None:
+    storage = FakeStorage()
+    service = OwnerFinanceService(storage, DummyLockManager())
+    _configure_owner_service(service)
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(
+            service.register_deposit_intent(
+                {"txHash": "0x" + "a" * 64, "amountUsdc": "not-usdc"},
+                "0xabc",
+                "deposit-intent-key-invalid-amount",
+            )
+        )
+
+    assert exc_info.value.status_code == 400
+    assert exc_info.value.detail["code"] == "INVALID_AMOUNT"
 
 
 def test_get_deposit_sync_status_returns_confirmed_intent_state() -> None:
@@ -1062,6 +1167,7 @@ def test_owner_balance_summary_uses_consumer_provider_fields() -> None:
     consumer_wallet.available_balance = Decimal("12.5")
     consumer_wallet.pending_balance = Decimal("1.25")
     consumer_wallet.frozen_balance = Decimal("0.75")
+    storage.balance.consumer_mature_withdrawable = Decimal("8.25")
     provider_wallet.available_balance = Decimal("9.5")
     provider_wallet.pending_balance = Decimal("2.0")
     storage.balance.ledger.platform.fee_accrued = Decimal("0.4")
@@ -1075,14 +1181,34 @@ def test_owner_balance_summary_uses_consumer_provider_fields() -> None:
         "ownerAddress": "0xabc",
         "ownerBalance": "12.500000",
         "consumerAvailableBalance": "12.500000",
+        "consumerWithdrawableBalance": "8.250000",
         "consumerPendingBalance": "1.250000",
         "consumerFrozenBalance": "0.750000",
+        "consumerWithdrawMinUsdc": "10.000000",
+        "consumerWithdrawMaturitySeconds": 604800,
         "providerReceivable": "9.500000",
         "providerReceivableBalance": "9.500000",
         "providerLockedBalance": "2.000000",
         "platformFeeAccrued": "0.400000",
         "updatedAt": "2026-03-17 12:00:00",
     }
+
+
+def test_owner_balance_summary_reports_spendable_but_not_yet_withdrawable() -> None:
+    storage = FakeStorage()
+    consumer_wallet = storage.balance.ledger.ensure_consumer_wallet("0xabc")
+    consumer_wallet.available_balance = Decimal("100")
+    consumer_wallet.pending_balance = Decimal("0")
+    consumer_wallet.frozen_balance = Decimal("0")
+    storage.balance.consumer_mature_withdrawable = Decimal("0")
+
+    service = PlatformFinanceService(storage, DummyLockManager())
+
+    balance = asyncio.run(service.get_balance("0xabc"))
+
+    assert balance["consumerAvailableBalance"] == "100.000000"
+    assert balance["consumerWithdrawableBalance"] == "0.000000"
+    assert balance["consumerWithdrawMaturitySeconds"] == 604800
 
 
 def test_owner_balance_summary_repairs_stale_active_consumer_withdraw_gap() -> None:
@@ -1182,6 +1308,45 @@ def test_owner_balance_summary_does_not_re_reserve_backed_manual_review_withdraw
     assert repaired.consumer_available_balance("0xabc") == Decimal("0.000000")
     assert repaired.consumer_pending_balance("0xabc") == Decimal("1.000000")
     assert repaired.consumer_frozen_balance("0xabc") == Decimal("20.000000")
+
+
+def test_owner_balance_summary_keeps_available_when_pending_repair_fails() -> None:
+    storage = FakeStorage()
+    consumer_wallet = storage.balance.ledger.ensure_consumer_wallet("0xabc")
+    consumer_wallet.available_balance = 20.0
+    consumer_wallet.pending_balance = 0.0
+    storage.gateway_state.refund_rows = [
+        RefundIntentRow(
+            id="wd-stale-fail-1",
+            ownerAddress="0xabc",
+            amountUsdc=Decimal("20.0"),
+            status="REQUESTED",
+            refundType="CONSUMER_BALANCE_WITHDRAW",
+            createdAt="2026-04-08 10:00:00",
+            updatedAt="2026-04-08 10:00:00",
+        )
+    ]
+
+    def fail_reserve(**kwargs):
+        _ = kwargs
+        raise RuntimeError("reserve failed")
+
+    storage.balance.reserve_consumer_balance_for_withdrawal = fail_reserve
+    service = PlatformFinanceService(storage, DummyLockManager())
+
+    balance = asyncio.run(service.get_balance("0xabc"))
+
+    assert balance["consumerAvailableBalance"] == "20.000000"
+    assert balance["consumerPendingBalance"] == "0.000000"
+
+
+def test_owner_balance_gap_repair_ignores_empty_owner() -> None:
+    storage = FakeStorage()
+    service = PlatformFinanceService(storage, DummyLockManager())
+
+    service._repair_consumer_withdraw_reservation_gap("")
+
+    assert storage.balance.read_balance_ledger().consumer_wallets == []
 
 
 def test_platform_finance_service_persists_owner_spending_limit() -> None:
@@ -1323,6 +1488,106 @@ def test_platform_finance_service_redeems_voucher_and_returns_balance() -> None:
     assert result["balance"]["ownerBalance"] == "35.000000"
     assert storage.voucher_commands[0].normalized_code == "ABCDEFGHIJKL"
     assert storage.voucher_commands[0].code_hash
+
+
+def test_platform_finance_service_returns_cached_voucher_idempotency_response() -> None:
+    storage = FakeStorage()
+    service = PlatformFinanceService(storage, DummyLockManager())
+    cached = {"cached": True}
+
+    async def fake_check(**kwargs):
+        _ = kwargs
+        return cached
+
+    async def fail_start(**kwargs):
+        _ = kwargs
+        raise AssertionError("cached idempotency should not start a new claim")
+
+    service._get_redis_client = lambda: _async_value(object())
+    service._check_idempotency_redis = fake_check
+    service._start_idempotency_redis = fail_start
+
+    result = asyncio.run(
+        service.redeem_credit_voucher(
+            owner_wallet="0xabc",
+            voucher_code="ABCD-EFGH-IJKL",
+            idempotency_key="voucher-redeem-key-cached",
+        )
+    )
+
+    assert result == cached
+    assert storage.voucher_commands == []
+
+
+def test_platform_finance_service_rejects_concurrent_voucher_idempotency_claim() -> None:
+    storage = FakeStorage()
+    service = PlatformFinanceService(storage, DummyLockManager())
+
+    async def fake_check(**kwargs):
+        _ = kwargs
+        return None
+
+    async def fake_start(**kwargs):
+        _ = kwargs
+        return False
+
+    service._get_redis_client = lambda: _async_value(object())
+    service._check_idempotency_redis = fake_check
+    service._start_idempotency_redis = fake_start
+
+    with pytest.raises(HTTPException) as excinfo:
+        asyncio.run(
+            service.redeem_credit_voucher(
+                owner_wallet="0xabc",
+                voucher_code="ABCD-EFGH-IJKL",
+                idempotency_key="voucher-redeem-key-concurrent",
+            )
+        )
+
+    assert excinfo.value.status_code == 409
+    assert excinfo.value.detail["code"] == "IDEMPOTENCY_REQUEST_IN_PROGRESS"
+
+
+def test_platform_finance_service_requires_atomic_voucher_storage() -> None:
+    storage = SimpleNamespace()
+    service = PlatformFinanceService(storage, DummyLockManager())
+    ctx = VoucherRedeemContext(
+        owner="0xabc",
+        voucher_code="ABCD-EFGH-IJKL",
+        normalized_code="ABCDEFGHIJKL",
+        idempotency_key="voucher-redeem-key-storage-missing",
+        request_hash="hash",
+        request_id=None,
+        client_ip=None,
+        user_agent=None,
+        request_meta=None,
+    )
+
+    with pytest.raises(HTTPException) as excinfo:
+        service._redeem_credit_voucher_atomic_or_raise(ctx)
+
+    assert excinfo.value.status_code == 503
+    assert excinfo.value.detail["code"] == "VOUCHER_REDEEM_STORAGE_UNAVAILABLE"
+
+
+def test_platform_finance_service_rejects_invalid_voucher_atomic_result() -> None:
+    storage = FakeStorage()
+    service = PlatformFinanceService(storage, DummyLockManager())
+    ctx = VoucherRedeemContext(
+        owner="0xabc",
+        voucher_code="ABCD-EFGH-IJKL",
+        normalized_code="ABCDEFGHIJKL",
+        idempotency_key="voucher-redeem-key-invalid-result",
+        request_hash="hash",
+        request_id=None,
+        client_ip=None,
+        user_agent=None,
+        request_meta=None,
+    )
+    storage.redeem_credit_voucher_atomic = lambda _command: {"bad": True}  # type: ignore[method-assign]  # quality-budget-disable-reason: test overrides storage result shape.
+
+    with pytest.raises(TypeError, match="VOUCHER_REDEEM_RESULT_INVALID"):
+        service._redeem_credit_voucher_atomic_or_raise(ctx)
 
 
 def test_platform_finance_service_maps_voucher_conflict_errors() -> None:

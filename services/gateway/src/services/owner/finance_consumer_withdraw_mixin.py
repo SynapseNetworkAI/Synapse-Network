@@ -355,7 +355,7 @@ class FinanceConsumerWithdrawMixin:
                         "message": (
                             f"Requested {amount_usdc:.6f} USDC exceeds mature withdrawable balance "
                             f"of {mature_withdrawable:.6f} USDC. Recent deposits must mature for "
-                            "24 hours before withdrawal."
+                            "7 days before withdrawal."
                         ),
                     },
                 )

@@ -149,22 +149,26 @@ Gateway 同步调用按 service profile 执行 bounded timeout：
 目标态语义：
 
 1. `consumerAvailableBalance`
-2. `consumerPendingBalance`
-3. `consumerFrozenBalance`
-4. `providerReceivableBalance`
-5. `providerLockedBalance`
-6. `platformFeeAccrued`
+2. `consumerWithdrawableBalance`
+3. `consumerPendingBalance`
+4. `consumerFrozenBalance`
+5. `consumerWithdrawMinUsdc`
+6. `consumerWithdrawMaturitySeconds`
+7. `providerReceivableBalance`
+8. `providerLockedBalance`
+9. `platformFeeAccrued`
 
 如果实现中仍保留历史字段名，应视为兼容层细节，不改变这里的业务语义。
 
 前端展示口径：
 
 1. `consumerAvailableBalance` 显示为 `Spendable credits`，是 agent credential 可以消费的唯一余额口径。
-2. `consumerPendingBalance` 显示为 `Pending / syncing credits`，通常来自已提交或已索引但尚未完成 Gateway confirmation 的 deposit intent。
-3. `consumerFrozenBalance` 显示为 `Frozen / review credits`，通常来自 active withdrawal、manual review 或风险冻结。
-4. Billing 里的 Deposit `Completed` 只能表示 Gateway 已确认并入账到 spendable balance；链上 log 或 explorer receipt 单独存在时仍应显示为 pending/syncing。
-5. `consumerPendingBalance` 不能靠前端猜测或人工强行入账。长时间 pending 时必须用 `txHash + 当前 SynapseCore/USDC 合约事件 + ledger/audit evidence` 做只读诊断。若 txHash 属于本地旧链或旧合约，只能走 local-only cleanup 标记为脏数据，不能把 pending 余额伪装成 spendable。
-6. Gateway indexer 必须 restart-safe：已确认且匹配当前合约 deposit event 的 intent，在 Gateway/indexer 重启后仍会补处理为 `CONFIRMED`，并且同一 intent/event key 只能把 `consumer_pending -> consumer_available` 移动一次。
+2. `consumerWithdrawableBalance` 显示为 `Withdrawable credits`，由 Gateway 按 T+7 聚合 FIFO 计算；前端不得自行从 available 推导。
+3. `consumerPendingBalance` 拆分显示为充值同步中与提现处理中。拆分只能基于 Gateway 返回的 active withdrawal 记录辅助展示，不改变 DB 账本语义。
+4. `consumerFrozenBalance` 显示为 `Frozen / review credits`，通常来自 manual review 或风险冻结。
+5. Billing 里的 Deposit `Completed` 只能表示 Gateway 已确认并入账到 spendable balance；链上 log 或 explorer receipt 单独存在时仍应显示为 pending/syncing。
+6. `consumerPendingBalance` 不能靠前端猜测或人工强行入账。长时间 pending 时必须用 `txHash + 当前 SynapseCore/USDC 合约事件 + ledger/audit evidence` 做只读诊断。若 txHash 属于本地旧链或旧合约，只能走 local-only cleanup 标记为脏数据，不能把 pending 余额伪装成 spendable。
+7. Gateway indexer 必须 restart-safe：已确认且匹配当前合约 deposit event 的 intent，在 Gateway/indexer 重启后仍会补处理为 `CONFIRMED`，并且同一 intent/event key 只能把 `consumer_pending -> consumer_available` 移动一次。
 
 ### 3.2 `POST /api/v1/balance/deposit/intent`
 
@@ -177,7 +181,8 @@ Gateway 同步调用按 service profile 执行 bounded timeout：
 3. 先进入 `PENDING_CONFIRMATION`
 4. 资金先进入 `consumer_pending`
 5. 确认后才转 `consumer_available`
-6. 同一 `txHash` 在 replay-protection window 内重复提交时，返回已存在的 intent，保持稳定业务结果
+6. 最小充值金额默认 10 USDC，低于该值返回 `400 MIN_DEPOSIT_AMOUNT_NOT_MET`，不创建有效 intent
+7. 同一 `txHash` 在 replay-protection window 内重复提交时，返回已存在的 intent，保持稳定业务结果
 
 ### 3.2.1 `GET /api/v1/balance/deposit/sync?txHash=...`
 
@@ -251,8 +256,8 @@ Headers:
 2. 资金只能打回 owner 自己的钱包，不允许重定向到第三方地址
 3. 幂等键（`X-Idempotency-Key`）在有效期内重复提交返回相同结果，不重复扣减余额
 4. 最小提现金额：10 USDC，低于该值返回 `400 MIN_WITHDRAWAL_AMOUNT_NOT_MET`
-5. Consumer 已确认充值资金 T+1 后才可提现；T+1 前仍可用于平台内 API 消费
-6. 成熟可提现额度采用聚合 FIFO 公式：`max(0, depositsConfirmedBefore24h - lifetimeConsumerSpend - lifetimeConsumerWithdrawnOrLocked)`
+5. Consumer 已确认充值资金 T+7 后才可提现；T+7 前仍可用于平台内 API 消费
+6. 成熟可提现额度采用聚合 FIFO 公式：`max(0, depositsConfirmedBefore7d - lifetimeConsumerSpend - lifetimeConsumerWithdrawnOrLocked)`
 7. 请求金额超过成熟可提现额度返回 `400 INSUFFICIENT_MATURE_CONSUMER_BALANCE`
 8. 24h 次数统计使用数据库时间戳滑动窗口 `created_at >= NOW() - INTERVAL '24 hours'`
 9. `REQUESTED` 只表示自动审核通过、资金已进入 pending、ticket 已签发；不表示链上提现成功

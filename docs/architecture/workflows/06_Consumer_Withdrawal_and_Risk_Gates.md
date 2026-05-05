@@ -66,11 +66,11 @@ PENDING_MANUAL_REVIEW
 | 最小金额   | `amountUsdc >= CONSUMER_WITHDRAW_MIN_USDC` (默认 $10) |
 | 资金成熟   | `amountUsdc <= matureWithdrawable`                    |
 
-Consumer 已确认充值资金 T+1 后才允许提现，但 T+1 前仍可用于平台内 API 消费。Gateway 不给每笔充值打提现 lot 标签，而是使用聚合 FIFO 口径：
+Consumer 已确认充值资金 T+7 后才允许提现，但 T+7 前仍可用于平台内 API 消费。Gateway 不给每笔充值打提现 lot 标签，而是使用聚合 FIFO 口径：
 
 ```text
 matureWithdrawable = max(0,
-  depositsConfirmedBefore24h
+  depositsConfirmedBefore7d
   - lifetimeConsumerSpend
   - lifetimeConsumerWithdrawnOrLocked
 )
@@ -272,7 +272,9 @@ Consumer 提现成功必须等链上 `SynapseCore.withdraw(...)` 成功，并且
 
 | 参数                                             | 默认值 | 含义                                |
 | ------------------------------------------------ | ------ | ----------------------------------- |
+| `CONSUMER_DEPOSIT_MIN_USDC`                      | 10.0   | 最小充值金额 (USDC)                 |
 | `CONSUMER_WITHDRAW_MIN_USDC`                     | 10.0   | 最小提现金额 (USDC)                 |
+| `CONSUMER_WITHDRAW_MATURITY_SECONDS`             | 604800 | 充值确认后 T+7 才进入可提现额度     |
 | `CONSUMER_WITHDRAW_FEE_USDC`                     | 0.50   | 平台手续费 (USDC)，从提现金额中扣除 |
 | `CONSUMER_WITHDRAW_MANUAL_REVIEW_THRESHOLD_USDC` | 500.0  | 超过此金额进人工审核                |
 | `CONSUMER_WITHDRAW_MAX_DAILY_COUNT`              | 3      | 24h 内最大提现次数                  |

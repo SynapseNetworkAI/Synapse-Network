@@ -132,6 +132,31 @@ describe("useFundsData deposit status mapping", () => {
     });
   });
 
+  it("renders gateway-only pending deposit amount from intent payload", async () => {
+    depositLogsMock.mockReturnValue([]);
+    depositIntentsMock.mockResolvedValue([
+      {
+        id: "deposit-gateway-only",
+        txHash: TX_HASH,
+        amount_usdc: "100.000000",
+        status: "PENDING_CONFIRMATION",
+        updatedAt: "2026-05-04T04:14:20Z",
+      },
+    ]);
+
+    const { result } = renderHook(() => useFundsData());
+
+    await waitFor(() => {
+      expect(result.current.records[0]?.id).toBe("deposit-gateway-only");
+    });
+
+    expect(result.current.records[0]).toMatchObject({
+      type: "Deposit",
+      status: "PENDING",
+      amount: 100,
+    });
+  });
+
   it("keeps an on-chain deposit pending while Gateway status is PENDING_CONFIRMATION", async () => {
     depositIntentsMock.mockResolvedValue([
       {

@@ -78,13 +78,13 @@ This is the fix for the earlier bug where the UI could report a failed flow whil
 Consumer withdrawals have two hard pre-checks before any row is created:
 
 - `amountUsdc < 10` returns `400 MIN_WITHDRAWAL_AMOUNT_NOT_MET`.
-- Recent deposits are spendable inside Synapse immediately, but withdrawable only after 24 hours.
+- Recent deposits are spendable inside Synapse immediately, but withdrawable only after 7 days.
 
 The mature amount uses an aggregate FIFO formula instead of per-deposit withdrawal labels:
 
 ```text
 matureWithdrawable = max(0,
-  depositsConfirmedBefore24h
+  depositsConfirmedBefore7d
   - lifetimeConsumerSpend
   - lifetimeConsumerWithdrawnOrLocked
 )
@@ -101,6 +101,9 @@ Only one active consumer withdrawal is allowed per owner at a time.
 Active statuses are:
 
 - `REQUESTED`
+- `PENDING`
+- `APPROVED_AUTO`
+- `TICKET_READY`
 - `PENDING_MANUAL_REVIEW`
 
 If the owner sends another `POST /api/v1/balance/consumer/withdraw` while one of those rows exists:
@@ -121,7 +124,7 @@ npm run e2e:withdrawal-idempotency-concurrency
 npm run ci:withdrawal-idempotency-concurrency-evidence
 ```
 
-`withdrawal-risk-policy` covers Dust, T+1 maturity, aggregate FIFO,
+`withdrawal-risk-policy` covers Dust, T+7 maturity, aggregate FIFO,
 24h sliding-window risk classification, and normal withdrawals through final
 `COMPLETED` status. It does not claim to cover every manual-review UI path.
 

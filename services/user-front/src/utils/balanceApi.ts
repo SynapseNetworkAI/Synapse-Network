@@ -75,8 +75,12 @@ async function readErrorPayload(
 
 export type BalanceSummary = {
   ownerBalance: MoneyString;
+  consumerAvailableBalance: MoneyString;
+  consumerWithdrawableBalance: MoneyString;
   consumerPendingBalance: MoneyString;
   consumerFrozenBalance: MoneyString;
+  consumerWithdrawMinUsdc: MoneyString;
+  consumerWithdrawMaturitySeconds: number;
   providerReceivable: MoneyString;
   platformFeeAccrued: MoneyString;
 };
@@ -263,8 +267,11 @@ export async function getV2Balance(
     balance?: Partial<BalanceSummary> & {
       ownerBalance?: string | number;
       consumerAvailableBalance?: string | number;
+      consumerWithdrawableBalance?: string | number;
       consumerPendingBalance?: string | number;
       consumerFrozenBalance?: string | number;
+      consumerWithdrawMinUsdc?: string | number;
+      consumerWithdrawMaturitySeconds?: string | number;
       providerReceivable?: string | number;
       providerReceivableBalance?: string | number;
       platform?: { feeAccrued?: string | number };
@@ -273,9 +280,16 @@ export async function getV2Balance(
   const feeFromMap = normalizeMoneyString(
     payload.balance?.platform?.feeAccrued
   );
+  const consumerAvailableBalance = normalizeMoneyString(
+    payload.balance?.consumerAvailableBalance ?? payload.balance?.ownerBalance
+  );
   return {
     ownerBalance: normalizeMoneyString(
-      payload.balance?.ownerBalance ?? payload.balance?.consumerAvailableBalance
+      payload.balance?.ownerBalance ?? consumerAvailableBalance
+    ),
+    consumerAvailableBalance,
+    consumerWithdrawableBalance: normalizeMoneyString(
+      payload.balance?.consumerWithdrawableBalance
     ),
     consumerPendingBalance: normalizeMoneyString(
       payload.balance?.consumerPendingBalance
@@ -283,6 +297,12 @@ export async function getV2Balance(
     consumerFrozenBalance: normalizeMoneyString(
       payload.balance?.consumerFrozenBalance
     ),
+    consumerWithdrawMinUsdc: normalizeMoneyString(
+      payload.balance?.consumerWithdrawMinUsdc ?? "10"
+    ),
+    consumerWithdrawMaturitySeconds:
+      Number(payload.balance?.consumerWithdrawMaturitySeconds ?? 604800) ||
+      604800,
     providerReceivable: normalizeMoneyString(
       payload.balance?.providerReceivable ??
         payload.balance?.providerReceivableBalance
@@ -389,6 +409,7 @@ export async function redeemCreditVoucher(
     balance?: Partial<BalanceSummary> & {
       ownerBalance?: string | number;
       consumerAvailableBalance?: string | number;
+      consumerWithdrawableBalance?: string | number;
       providerReceivable?: string | number;
       providerReceivableBalance?: string | number;
       platform?: { feeAccrued?: string | number };
@@ -426,12 +447,25 @@ export async function redeemCreditVoucher(
         payload.balance?.ownerBalance ??
           payload.balance?.consumerAvailableBalance
       ),
+      consumerAvailableBalance: normalizeMoneyString(
+        payload.balance?.consumerAvailableBalance ??
+          payload.balance?.ownerBalance
+      ),
+      consumerWithdrawableBalance: normalizeMoneyString(
+        payload.balance?.consumerWithdrawableBalance
+      ),
       consumerPendingBalance: normalizeMoneyString(
         payload.balance?.consumerPendingBalance
       ),
       consumerFrozenBalance: normalizeMoneyString(
         payload.balance?.consumerFrozenBalance
       ),
+      consumerWithdrawMinUsdc: normalizeMoneyString(
+        payload.balance?.consumerWithdrawMinUsdc ?? "10"
+      ),
+      consumerWithdrawMaturitySeconds:
+        Number(payload.balance?.consumerWithdrawMaturitySeconds ?? 604800) ||
+        604800,
       providerReceivable: normalizeMoneyString(
         payload.balance?.providerReceivable ??
           payload.balance?.providerReceivableBalance
@@ -671,16 +705,37 @@ export async function listDepositIntents(
   return rows.map((row) => ({
     id: typeof row.id === "string" ? row.id : undefined,
     ownerAddress:
-      typeof row.ownerAddress === "string" ? row.ownerAddress : undefined,
-    txHash: typeof row.txHash === "string" ? row.txHash : "",
-    amountUsdc: normalizeMoneyString(row.amountUsdc),
-    creditedAmountUsdc: normalizeMoneyString(row.creditedAmountUsdc),
+      typeof row.ownerAddress === "string"
+        ? row.ownerAddress
+        : typeof row.owner_address === "string"
+        ? row.owner_address
+        : undefined,
+    txHash:
+      typeof row.txHash === "string"
+        ? row.txHash
+        : typeof row.tx_hash === "string"
+        ? row.tx_hash
+        : "",
+    amountUsdc: normalizeMoneyString(row.amountUsdc ?? row.amount_usdc),
+    creditedAmountUsdc: normalizeMoneyString(
+      row.creditedAmountUsdc ?? row.credited_amount_usdc
+    ),
     status: typeof row.status === "string" ? row.status : "pending",
     failureReason:
-      typeof row.failureReason === "string" ? row.failureReason : undefined,
-    createdAt: (row.createdAt as string | number | undefined) ?? undefined,
-    updatedAt: (row.updatedAt as string | number | undefined) ?? undefined,
-    confirmedAt: Number(row.confirmedAt ?? 0) || undefined,
+      typeof row.failureReason === "string"
+        ? row.failureReason
+        : typeof row.failure_reason === "string"
+        ? row.failure_reason
+        : undefined,
+    createdAt:
+      (row.createdAt as string | number | undefined) ??
+      (row.created_at as string | number | undefined) ??
+      undefined,
+    updatedAt:
+      (row.updatedAt as string | number | undefined) ??
+      (row.updated_at as string | number | undefined) ??
+      undefined,
+    confirmedAt: Number(row.confirmedAt ?? row.confirmed_at ?? 0) || undefined,
   }));
 }
 
