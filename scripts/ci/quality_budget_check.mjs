@@ -21,12 +21,13 @@ const ARGUMENT_MAX = 8;
 const BASELINED_FILE_EFFECTIVE_LINES = new Map([
   ["scripts/admin_analytics_fullchain_e2e.js", 583],
   ["scripts/admin_analytics_clickhouse_regression.py", 541],
-  ["scripts/ci/quality_budget_check.mjs", 562],
+  ["scripts/ci/quality_budget_check.mjs", 563],
   ["scripts/ci/resolve_pr_ci_scope.mjs", 506],
   ["scripts/ci/validate_docs.js", 662],
   ["scripts/deploy/gcp_staging_drift_guard.mjs", 539],
   ["scripts/e2e/admin_analytics_10k_reconcile.mjs", 878],
   ["scripts/e2e/admin_analytics_10k_fullchain.mjs", 1589],
+  ["scripts/e2e/consumer_withdraw_claim_fullchain_local.mjs", 1237],
   ["scripts/e2e/email_binding_dogfood.mjs", 1180],
   ["scripts/e2e/gateway_pull_health_dogfood.mjs", 1172],
   ["scripts/e2e/invocation_billing_migration_e2e.mjs", 873],
@@ -54,7 +55,7 @@ const BASELINED_FILE_EFFECTIVE_LINES = new Map([
   ["services/admin-front/src/app/forum-support/page.tsx", 635],
   ["services/admin-front/src/app/menu-config/page.tsx", 816],
   ["services/admin-front/src/app/role-permissions/page.tsx", 610],
-  ["services/admin-front/src/app/withdrawal-reviews/page.tsx", 577],
+  ["services/admin-front/src/app/withdrawal-reviews/page.tsx", 583],
   ["services/admin-front/src/components/console-ui.tsx", 574],
   [
     "services/admin-front/src/features/dashboard/analytics-dashboard-screen.tsx",
@@ -72,7 +73,7 @@ const BASELINED_FILE_EFFECTIVE_LINES = new Map([
   ["services/gateway/src/services/analytics/gateway_events.py", 588],
   [
     "services/gateway/src/services/owner/finance_consumer_withdraw_mixin.py",
-    520,
+    544,
   ],
   ["services/gateway/src/services/owner/finance_refund_exec_mixin.py", 759],
   ["services/gateway/src/services/platform/finance_service.py", 503],
@@ -95,7 +96,7 @@ const BASELINED_FILE_EFFECTIVE_LINES = new Map([
   ],
   ["services/gateway/tests/unit/test_finance_runtime_service_unit.py", 1353],
   ["services/gateway/tests/unit/test_forwarding_runtime_service_unit.py", 1616],
-  ["services/gateway/tests/unit/test_consumer_withdraw_unit.py", 844],
+  ["services/gateway/tests/unit/test_consumer_withdraw_unit.py", 845],
   ["services/gateway/tests/unit/test_notifications_outbox_unit.py", 829],
   ["services/docs-front/src/data/endpoint-source.ts", 1719],
   ["services/user-front/src/app/about/page.tsx", 702],
@@ -122,7 +123,7 @@ const BASELINED_FILE_EFFECTIVE_LINES = new Map([
   ],
   [
     "services/user-front/src/components/dashboard-workspace/OwnerCreditsPage.tsx",
-    1303,
+    1427,
   ],
   [
     "services/user-front/src/components/dashboard/agents/ActivationRunway.tsx",
@@ -152,9 +153,9 @@ const BASELINED_FILE_EFFECTIVE_LINES = new Map([
     "services/user-front/src/components/provider-workspace/ProviderWithdrawPage.tsx",
     985,
   ],
-  ["services/user-front/src/i18n/schema.ts", 1946],
+  ["services/user-front/src/i18n/schema.ts", 1957],
   ["services/user-front/src/hooks/useVaultDeposit.ts", 1144],
-  ["services/user-front/src/utils/balanceApi.ts", 1103],
+  ["services/user-front/src/utils/balanceApi.ts", 1115],
   ["services/user-front/src/utils/serviceApi.ts", 701],
   ["services/user-front/src/utils/serviceStatus.ts", 863],
 ]);

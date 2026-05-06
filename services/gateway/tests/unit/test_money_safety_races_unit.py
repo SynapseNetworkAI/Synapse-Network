@@ -39,7 +39,7 @@ def _make_refund_service() -> tuple[FakeStorage, OwnerFinanceService, str]:
     ]
     service = OwnerFinanceService(storage, DummyLockManager())
     _configure_owner_service(service)
-    service._release_consumer_pending_to_available = (  # type: ignore[method-assign]
+    service._release_consumer_pending_to_available = (  # type: ignore[method-assign] - test patches an internal balance helper to isolate refund idempotency races.
         lambda owner, amount_usdc: (
             setattr(
                 wallet := storage.balance.ledger.ensure_consumer_wallet(owner),
@@ -53,7 +53,7 @@ def _make_refund_service() -> tuple[FakeStorage, OwnerFinanceService, str]:
             ),
         )
     )
-    service._release_consumer_frozen_to_available = (  # type: ignore[method-assign]
+    service._release_consumer_frozen_to_available = (  # type: ignore[method-assign] - test patches an internal balance helper to isolate refund idempotency races.
         lambda owner, amount_usdc: (
             setattr(
                 wallet := storage.balance.ledger.ensure_consumer_wallet(owner),
