@@ -58,7 +58,15 @@ class _Storage:
         return self.data_manager
 
 
-def test_provider_earnings_summary_exposes_total_and_mature_receivable() -> None:
+def test_provider_earnings_summary_exposes_total_and_mature_receivable(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        settings,
+        "provider_withdraw_maturity_enforcement_enabled",
+        True,
+        raising=False,
+    )
     storage = _Storage()
     service = ProviderAnalyticsService(cast(Any, storage))
 
@@ -67,7 +75,28 @@ def test_provider_earnings_summary_exposes_total_and_mature_receivable() -> None
     assert summary["ownerAddress"] == normalize_wallet("0xProvider")
     assert summary["providerReceivable"] == Decimal("50.000000")
     assert summary["providerMatureReceivable"] == Decimal("5.000000")
+    assert summary["providerWithdrawMaturityEnforced"] is True
     assert storage.data_manager.balance.mature_reader_args == (
         normalize_wallet("0xProvider"),
         int(settings.provider_withdraw_maturity_seconds),
     )
+
+
+def test_provider_earnings_summary_uses_receivable_when_maturity_disabled(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        settings,
+        "provider_withdraw_maturity_enforcement_enabled",
+        False,
+        raising=False,
+    )
+    storage = _Storage()
+    service = ProviderAnalyticsService(cast(Any, storage))
+
+    summary = service.get_provider_earnings_summary("0xProvider", 10)
+
+    assert summary["providerReceivable"] == Decimal("50.000000")
+    assert summary["providerMatureReceivable"] == Decimal("50.000000")
+    assert summary["providerWithdrawMaturityEnforced"] is False
+    assert storage.data_manager.balance.mature_reader_args is None

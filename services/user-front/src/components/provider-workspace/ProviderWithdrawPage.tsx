@@ -261,7 +261,10 @@ export default function ProviderWithdrawPage() {
   const availableReceivable = normalizeMoneyString(
     providerStats.matureReceivable ?? providerStats.receivable
   );
+  const withdrawMaturityEnforced =
+    providerStats.withdrawMaturityEnforced !== false;
   const hasImmatureReceivable =
+    withdrawMaturityEnforced &&
     compareMoneyStrings(receivableBalance, availableReceivable) > 0;
   const matureReceivableBelowMinimum =
     compareMoneyStrings(availableReceivable, PROVIDER_WITHDRAW_MIN_USDC) < 0;
