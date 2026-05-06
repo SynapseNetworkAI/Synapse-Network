@@ -37,6 +37,16 @@ function formatRelativeTime(value: string): string {
   return `${Math.floor(diffHours / 24)}d ago`;
 }
 
+function isWithdrawalNotification(notification: InAppNotification): boolean {
+  return (
+    notification.category === "withdrawal" ||
+    notification.eventType.toLowerCase().includes("withdrawal") ||
+    String(notification.resourceType || "")
+      .toLowerCase()
+      .includes("withdrawal")
+  );
+}
+
 export default function NotificationCenter() {
   const { address, isConnected } = useAccount();
   const { t } = useLanguage();
@@ -229,19 +239,31 @@ export default function NotificationCenter() {
                         : "shadow-[0_0_0_1px_rgba(127,247,190,0.08)]",
                     ].join(" ")}
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold">
-                          {notification.title}
-                        </p>
-                        <p className="mt-1 max-h-10 overflow-hidden text-xs leading-5 text-[#a5a8ad]">
-                          {notification.body}
-                        </p>
-                      </div>
-                      {!notification.readAt ? (
-                        <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-emerald-400" />
-                      ) : null}
-                    </div>
+                    {(() => {
+                      const safeTitle = isWithdrawalNotification(notification)
+                        ? t("nav.withdrawalNotificationTitle")
+                        : notification.title;
+                      const safeBody = isWithdrawalNotification(notification)
+                        ? t("nav.withdrawalNotificationBody")
+                        : notification.body;
+                      return (
+                        <>
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-semibold">
+                                {safeTitle}
+                              </p>
+                              <p className="mt-1 max-h-10 overflow-hidden text-xs leading-5 text-[#a5a8ad]">
+                                {safeBody}
+                              </p>
+                            </div>
+                            {!notification.readAt ? (
+                              <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-emerald-400" />
+                            ) : null}
+                          </div>
+                        </>
+                      );
+                    })()}
                     <div className="mt-3 flex items-center justify-between gap-2 text-[11px] text-[#71767b]">
                       <span>{formatRelativeTime(notification.createdAt)}</span>
                       <div className="flex items-center gap-2">

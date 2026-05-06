@@ -15,22 +15,17 @@ describe("resolveProviderWithdrawApiErrorMessage", () => {
     expect(
       resolveProviderWithdrawApiErrorMessage({
         code: "WITHDRAW_VAULT_LIQUIDITY_CHECK_UNAVAILABLE",
-        message:
-          "Unable to verify vault liquidity right now. Retry after the gateway reconnects to chain RPC.",
-        status: 503,
         fallback: "Failed to create provider withdrawal",
       })
     ).toBe(
-      "Gateway cannot verify on-chain vault liquidity right now. Retry after the chain RPC reconnects."
+      "We cannot verify withdrawal availability right now. Please retry in a moment."
     );
   });
 
-  it("falls back to the backend message for unrelated errors", () => {
+  it("maps unrelated known errors without surfacing backend text", () => {
     expect(
       resolveProviderWithdrawApiErrorMessage({
         code: "PENDING_WITHDRAWAL_EXISTS",
-        message: "A pending provider withdrawal already exists.",
-        status: 409,
         fallback: "Failed to create provider withdrawal",
       })
     ).toBe(
@@ -42,22 +37,15 @@ describe("resolveProviderWithdrawApiErrorMessage", () => {
     expect(
       resolveProviderWithdrawApiErrorMessage({
         code: "PROVIDER_RECEIVABLE_NOT_MATURED",
-        message:
-          "Requested 12.600000 USDC exceeds mature provider receivable of 0.000000 USDC. Provider earnings must mature for 7 days before withdrawal.",
-        status: 400,
         fallback: "Failed to create provider withdrawal",
       })
-    ).toBe(
-      "Provider earnings are not mature yet. Provider receivables must mature for 7 days before withdrawal."
-    );
+    ).toBe("Provider earnings are still in the T+7 maturity window.");
   });
 
   it("maps minimum amount and insufficient receivable policy errors", () => {
     expect(
       resolveProviderWithdrawApiErrorMessage({
         code: "MIN_WITHDRAWAL_AMOUNT_NOT_MET",
-        message: "Minimum provider withdrawal amount is 10.000000 USDC.",
-        status: 400,
         fallback: "Failed to create provider withdrawal",
       })
     ).toBe("Minimum provider withdrawal amount is 10.00 USDC.");
@@ -65,13 +53,21 @@ describe("resolveProviderWithdrawApiErrorMessage", () => {
     expect(
       resolveProviderWithdrawApiErrorMessage({
         code: "INSUFFICIENT_PROVIDER_RECEIVABLE",
-        message: "Insufficient provider receivable for withdrawal.",
-        status: 400,
         fallback: "Failed to create provider withdrawal",
       })
     ).toBe(
       "Withdrawable provider receivable is insufficient for this withdrawal."
     );
+  });
+
+  it("uses the safe fallback for unknown backend codes", () => {
+    expect(
+      resolveProviderWithdrawApiErrorMessage({
+        code: "HTTPException: PROVIDER_RECEIVABLE_NOT_MATURED 503 backend",
+        fallback:
+          "Unable to prepare this withdrawal. Please retry in a moment.",
+      })
+    ).toBe("Unable to prepare this withdrawal. Please retry in a moment.");
   });
 
   it("normalizes withdrawal ticket ids from list responses", async () => {

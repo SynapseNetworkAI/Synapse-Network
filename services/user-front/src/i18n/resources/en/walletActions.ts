@@ -42,10 +42,10 @@ const walletActions: I18nMessages["walletActions"] = {
   depositVaultStepTitle: "Step 2: Vault deposit transaction",
   withdrawIntentTitle: "Review withdrawal intent",
   withdrawIntentDescription:
-    "Review the ticket before opening your wallet. The on-chain claim requires native gas.",
+    "Review the withdrawal before opening your wallet. The on-chain claim requires native gas.",
   withdrawAmountLabel: "Amount",
   withdrawMaturedFundsLabel: "Matured funds",
-  withdrawTicketLabel: "Ticket",
+  withdrawTicketLabel: "Approval",
   withdrawDeadlineLabel: "Deadline",
   withdrawVaultLabel: "Vault contract",
   withdrawGasLabel: "Gas",
@@ -54,7 +54,7 @@ const walletActions: I18nMessages["walletActions"] = {
   withdrawChecklistMatured:
     "Only matured withdrawable funds can be claimed on-chain.",
   withdrawChecklistTicket:
-    "Use the latest Gateway-issued ticket; expired or reused tickets fail.",
+    "Use the latest withdrawal approval; expired or reused approvals fail.",
   withdrawChecklistAmount: "Amount and fee must match the wallet prompt.",
 };
 

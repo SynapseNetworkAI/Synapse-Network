@@ -44,8 +44,16 @@ describe("normalizeWithdrawWalletError", () => {
     );
 
     expect(normalizeWithdrawWalletError(rawError)).toBe(
-      "Vault liquidity is insufficient for this withdrawal right now. The platform treasury must refill on-chain USDC before you retry."
+      "The on-chain withdrawal reserve cannot cover this amount right now. Please retry later."
     );
+  });
+
+  it("does not surface unknown raw wallet or contract messages", () => {
+    expect(
+      normalizeWithdrawWalletError(
+        new Error("HTTPException 503 RPC Error WITHDRAW_TICKET backend ledger")
+      )
+    ).toBe("Failed to submit withdrawal transaction.");
   });
 
   it("shows neutral toast for user rejection and error toast for other failures", () => {
@@ -57,7 +65,7 @@ describe("normalizeWithdrawWalletError", () => {
 
     showWithdrawWalletErrorToast(new Error("ticket expired"));
     expect(toastErrorMock).toHaveBeenCalledWith(
-      "This withdrawal ticket has expired. Generate a new ticket before retrying.",
+      "This withdrawal approval has expired. Create a new withdrawal request before retrying.",
       undefined
     );
   });
