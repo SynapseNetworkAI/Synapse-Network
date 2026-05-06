@@ -28,3 +28,13 @@ Status: Active
 - Fix: Record the current baseline so the PR can publish the regression net, but keep the debt visible for a follow-up extraction.
 - Rule: New wallet UX work should extract state machines, copy builders, browser fixtures, or evidence helpers before adding more cases to files already over budget.
 - Upgrade: agents-memory
+
+### Lesson: Deposit history must not let zero credited amounts override requested amounts
+
+- Domain: frontend
+- Severity: warning
+- Trigger: A confirmed deposit row rendered `$0.00` even though the user had submitted a non-zero USDC deposit.
+- Root cause: The billing ledger mapper preferred `creditedAmountUsdc`, and the API adapter normalizes a missing credited amount to `0`, so the UI hid the original `amountUsdc`.
+- Fix: Choose the first positive requested deposit amount before using credited amount as a fallback, and add hook tests for zero credited amount plus credited-only fallback.
+- Rule: User-facing payment history should display the submitted transaction amount unless the requested amount is genuinely absent; normalized zero fallback values must not outrank source-of-truth request amounts.
+- Upgrade: agents-memory

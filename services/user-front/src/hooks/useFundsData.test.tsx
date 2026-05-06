@@ -221,6 +221,56 @@ describe("useFundsData deposit status mapping", () => {
     });
   });
 
+  it("shows the requested deposit amount when credited amount is missing or zero", async () => {
+    depositIntentsMock.mockResolvedValue([
+      {
+        id: "deposit-zero-credited",
+        txHash: TX_HASH,
+        amountUsdc: "250.000000",
+        creditedAmountUsdc: "0",
+        status: "CONFIRMED",
+        updatedAt: "2026-05-06T07:04:20Z",
+      },
+    ]);
+
+    const { result } = renderHook(() => useFundsData());
+
+    await waitFor(() => {
+      expect(result.current.records[0]?.id).toBe("deposit-zero-credited");
+    });
+
+    expect(result.current.records[0]).toMatchObject({
+      type: "Deposit",
+      status: "COMPLETED",
+      amount: 250,
+    });
+  });
+
+  it("falls back to credited amount only when the requested deposit amount is absent", async () => {
+    depositIntentsMock.mockResolvedValue([
+      {
+        id: "deposit-credited-only",
+        txHash: TX_HASH,
+        amountUsdc: "0",
+        creditedAmountUsdc: "75.000000",
+        status: "CONFIRMED",
+        updatedAt: "2026-05-06T07:05:20Z",
+      },
+    ]);
+
+    const { result } = renderHook(() => useFundsData());
+
+    await waitFor(() => {
+      expect(result.current.records[0]?.id).toBe("deposit-credited-only");
+    });
+
+    expect(result.current.records[0]).toMatchObject({
+      type: "Deposit",
+      status: "COMPLETED",
+      amount: 75,
+    });
+  });
+
   it("combines Gateway deposits, withdrawals, and refunds by timestamp descending", async () => {
     depositIntentsMock.mockResolvedValue([
       {
