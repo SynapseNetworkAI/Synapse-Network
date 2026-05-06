@@ -16,30 +16,15 @@
 - dashboard 需要的是“稳定读模型”，不是底层账本细节
 - SQL view 可以把多个真相表、运行态状态、审计聚合成一个稳定只读接口层
 
-### 1.2 为什么要保留兼容别名
+### 1.2 CQRS Read Model 读取约束
 
-target-state 表结构已经从旧的 owner/refund/withdrawal 语义，升级到更准确的 consumer/provider 语义：
+这些 projection view 是查询侧 Read Model，不是 JSON 文档接口。
 
-- `consumer_refund`
-- `provider_withdrawal`
-- `consumer_liability`
-
-但历史 `gateway-admin` 代码仍可能读取这些旧列名：
-
-- `today_refund_usdc`
-- `today_withdrawal_usdc`
-- `owner_liability_usdc`
-- `refund_usdc`
-- `withdrawal_usdc`
-- `pending_withdrawal_count`
-
-因此当前 SQL 的策略是：
-
-- canonical 列继续使用 target-state 新命名
-- 同一视图内追加旧别名列
-- 新代码优先读 canonical 列，旧代码靠 alias 不炸
-
-这不是双真相，而是单一计算、多名称暴露。
+- Python repository 必须显式查询 canonical 原生列。
+- Repository 必须把 psycopg 返回的 `NUMERIC` / `DATE` / `TIMESTAMPTZ` 原生值映射到 typed dataclass。
+- 禁止使用 `row_to_json`，否则 PostgreSQL 类型会在 SQL 边界被拍扁成字符串。
+- 禁止在 projection repository 中使用 `SELECT *`，避免新增/删除列时绕过 Data Mapper 审查。
+- HTTP API JSON 序列化只允许发生在 router/schema 边界，不允许发生在 DB read path。
 
 ## 2. 视图总览
 
@@ -434,16 +419,23 @@ canonical 字段：
 
 ## 7. 升级与兼容建议
 
-### 7.1 新代码约束
+### 7.1 gateway-admin 应用层约束
 
-新写的 gateway-admin 代码优先读取 canonical 列：
+gateway-admin repository 只能读取 canonical 列：
 
 - finance：`today_consumer_refund_usdc`、`today_provider_withdrawal_usdc`、`consumer_liability_usdc`
 - activity：`consumer_refund_usdc`、`provider_withdrawal_usdc`
 
-### 7.2 旧代码过渡
+读取方式必须是显式列查询 + Data Mapper：
 
-如果旧版本 admin 仍读取这些列，也不会炸：
+- 不使用 `row_to_json`
+- 不使用 projection `SELECT *`
+- 不在 Service 层修复 DB 类型
+- 缺 canonical 列时 fail-fast，由 migration/bootstrap 修 view
+
+### 7.2 DB alias 只作为部署缓冲
+
+SQL view 可以短期保留兼容 alias，降低“DB 先部署、旧 admin revision 尚未下线”的切换风险：
 
 - `today_refund_usdc`
 - `today_withdrawal_usdc`
@@ -452,6 +444,4 @@ canonical 字段：
 - `withdrawal_usdc`
 - `pending_withdrawal_count`
 
-### 7.3 为什么不直接删旧字段
-
-因为视图升级和控制面代码升级经常不是同一时刻完成。先在 SQL 层保留 alias，可以避免“库先升级，admin 直接白屏/500”。这是基础设施该有的降维打击，不是妥协。
+这些 alias 不是新代码的 fallback 来源。新 gateway-admin revision 上线后，应用层不再读取 alias；如果 canonical 字段不存在，启动后的 dashboard 查询应立即失败，提示 migration/view stale，而不是把兼容逻辑扩散到 Python service。
