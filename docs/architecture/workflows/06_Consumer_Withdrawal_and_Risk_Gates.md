@@ -270,15 +270,16 @@ Consumer 提现成功必须等链上 `SynapseCore.withdraw(...)` 成功，并且
 
 ## 10. 配置参数速查
 
-| 参数                                             | 默认值 | 含义                                |
-| ------------------------------------------------ | ------ | ----------------------------------- |
-| `CONSUMER_DEPOSIT_MIN_USDC`                      | 10.0   | 最小充值金额 (USDC)                 |
-| `CONSUMER_WITHDRAW_MIN_USDC`                     | 10.0   | 最小提现金额 (USDC)                 |
-| `CONSUMER_WITHDRAW_MATURITY_SECONDS`             | 604800 | 充值确认后 T+7 才进入可提现额度     |
-| `CONSUMER_WITHDRAW_FEE_USDC`                     | 0.50   | 平台手续费 (USDC)，从提现金额中扣除 |
-| `CONSUMER_WITHDRAW_MANUAL_REVIEW_THRESHOLD_USDC` | 500.0  | 超过此金额进人工审核                |
-| `CONSUMER_WITHDRAW_MAX_DAILY_COUNT`              | 3      | 24h 内最大提现次数                  |
-| `CONSUMER_WITHDRAW_PROCESSOR_INTERVAL_SEC`       | 10.0   | 后台事件监听器扫描间隔              |
+| 参数                                             | 默认值                         | 含义                                 |
+| ------------------------------------------------ | ------------------------------ | ------------------------------------ |
+| `CONSUMER_DEPOSIT_MIN_USDC`                      | 10.0                           | 最小充值金额 (USDC)                  |
+| `CONSUMER_WITHDRAW_MIN_USDC`                     | 10.0                           | 最小提现金额 (USDC)                  |
+| `CONSUMER_WITHDRAW_MATURITY_ENFORCEMENT_ENABLED` | local=false, staging/prod=true | 是否执行 T+7 成熟期；prod 禁止 false |
+| `CONSUMER_WITHDRAW_MATURITY_SECONDS`             | 604800                         | 充值确认后 T+7 才进入可提现额度      |
+| `CONSUMER_WITHDRAW_FEE_USDC`                     | 0.50                           | 平台手续费 (USDC)，从提现金额中扣除  |
+| `CONSUMER_WITHDRAW_MANUAL_REVIEW_THRESHOLD_USDC` | 500.0                          | 超过此金额进人工审核                 |
+| `CONSUMER_WITHDRAW_MAX_DAILY_COUNT`              | 3                              | 24h 内最大提现次数                   |
+| `CONSUMER_WITHDRAW_PROCESSOR_INTERVAL_SEC`       | 10.0                           | 后台事件监听器扫描间隔               |
 
 这些参数通过环境变量覆盖，无需代码变更。
 

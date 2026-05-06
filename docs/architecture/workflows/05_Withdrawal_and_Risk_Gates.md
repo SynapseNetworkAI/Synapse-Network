@@ -71,7 +71,7 @@ Provider 提现必须先过三道门，而不是先签名再说。
 3. `provider_wallet` 账户是否存在并 active
 4. `available_balance` 是否足够
 5. 金额是否达到最低提现额：默认 `PROVIDER_WITHDRAW_MIN_USDC=10`
-6. 收益是否已过 T+7 争议沉淀期：只有 `earnedAt + 7 days` 之前入账的 provider charge 收益可提现
+6. 收益是否已过 T+7 争议沉淀期：只有 `earnedAt + 7 days` 之前入账的 provider charge 收益可提现。Local 开发默认 `PROVIDER_WITHDRAW_MATURITY_ENFORCEMENT_ENABLED=false` 方便测试；staging/prod 默认 true，prod 禁止 false。
 
 如果显式 `amountUsdc` 超过成熟收益，Gateway 返回 `400 PROVIDER_RECEIVABLE_NOT_MATURED`，不创建 withdrawal、不签票、不锁仓。若 `amountUsdc` 低于最低额，或留空全额提现时成熟收益低于最低额，Gateway 返回 `400 MIN_WITHDRAWAL_AMOUNT_NOT_MET`。
 

@@ -10,12 +10,14 @@ from uuid import uuid4
 from fastapi import HTTPException
 
 from src.core.common import normalize_wallet
+from src.core.config import settings
 from src.core.redis_lock import RedisLockManager
 from src.domain.gateway import OwnerSpendLimitRow
 from src.domain.voucher import VoucherRedeemCommand, VoucherRedemptionResult
 from src.services.balance_mixins import BalanceAuditMixin, BalanceRedisGuardMixin
+from src.services.platform.finance_read_models import OwnerBalanceSummaryResponse, OwnerSpendingLimitResponse, VoucherRedeemResponse
+from src.services.platform.finance_withdrawal_policy import read_consumer_withdrawable_balance
 from src.services.owner.finance_constants import (
-    CONSUMER_WITHDRAW_MATURITY_SECONDS,
     CONSUMER_WITHDRAW_MIN_USDC,
     CONSUMER_WITHDRAW_TYPE,
     REFUND_ACTIVE_STATUSES,
@@ -258,7 +260,7 @@ class PlatformFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
             available_balance=available_balance,
         )
 
-    async def get_balance(self, owner_wallet: str) -> dict[str, Any]:
+    async def get_balance(self, owner_wallet: str) -> OwnerBalanceSummaryResponse:
         """Only return current authenticated owner's balance summary."""
         normalized_owner = normalize_wallet(owner_wallet)
         await asyncio.to_thread(
@@ -268,24 +270,19 @@ class PlatformFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
             self.storage.get_data_manager().finance.balance.read_balance_ledger
         )
         balance_repo = self.storage.get_data_manager().finance.balance
-        mature_reader = getattr(balance_repo, "read_consumer_mature_withdrawable", None)
-        consumer_withdrawable = Decimal("0")
-        if callable(mature_reader):
-            consumer_withdrawable = await asyncio.to_thread(
-                mature_reader,
-                normalized_owner,
-                CONSUMER_WITHDRAW_MATURITY_SECONDS,
-            )
+        consumer_available = balance_data.consumer_available_balance(normalized_owner)
+        consumer_withdrawable = await asyncio.to_thread(read_consumer_withdrawable_balance, balance_repo, normalized_owner, consumer_available)
 
         return {
             "ownerAddress": normalized_owner,
-            "ownerBalance": money_str(balance_data.consumer_available_balance(normalized_owner)),
-            "consumerAvailableBalance": money_str(balance_data.consumer_available_balance(normalized_owner)),
+            "ownerBalance": money_str(consumer_available),
+            "consumerAvailableBalance": money_str(consumer_available),
             "consumerWithdrawableBalance": money_str(consumer_withdrawable),
             "consumerPendingBalance": money_str(balance_data.consumer_pending_balance(normalized_owner)),
             "consumerFrozenBalance": money_str(balance_data.consumer_frozen_balance(normalized_owner)),
             "consumerWithdrawMinUsdc": money_str(str(CONSUMER_WITHDRAW_MIN_USDC)),
-            "consumerWithdrawMaturitySeconds": CONSUMER_WITHDRAW_MATURITY_SECONDS,
+            "consumerWithdrawMaturitySeconds": settings.consumer_withdraw_maturity_seconds,
+            "consumerWithdrawMaturityEnforced": settings.consumer_withdraw_maturity_enforcement_enabled,
             "providerReceivable": money_str(balance_data.provider_receivable_balance(normalized_owner)),
             "providerReceivableBalance": money_str(balance_data.provider_receivable_balance(normalized_owner)),
             "providerLockedBalance": money_str(balance_data.provider_locked_balance(normalized_owner)),
@@ -293,7 +290,7 @@ class PlatformFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
             "updatedAt": balance_data.updated_at,
         }
 
-    async def get_owner_spending_limit(self, owner_wallet: str) -> dict[str, Any]:
+    async def get_owner_spending_limit(self, owner_wallet: str) -> OwnerSpendingLimitResponse:
         owner = normalize_wallet(owner_wallet)
 
         def _sync_work():
@@ -330,7 +327,7 @@ class PlatformFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         spending_limit_usdc: Optional[Decimal],
         allow_unlimited: bool,
         request_meta: Optional[dict[str, Any]] = None,
-    ) -> dict[str, Any]:
+    ) -> OwnerSpendingLimitResponse:
         owner = normalize_wallet(owner_wallet)
         async with self._mutation_lock.lock(f"{owner}:owner_spend_limit"):
             await self._enforce_owner_write_rate_limit(owner, "owner_spend_limit")
@@ -498,7 +495,7 @@ class PlatformFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
         voucher_code: str,
         idempotency_key: str,
         request_meta: Optional[dict[str, Any]] = None,
-    ) -> dict[str, Any]:
+    ) -> VoucherRedeemResponse:
         owner = normalize_wallet(owner_wallet)
         normalized_code = self._normalize_voucher_code(voucher_code)
         request_id = str((request_meta or {}).get("requestId") or "").strip() or None
