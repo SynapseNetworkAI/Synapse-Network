@@ -1152,6 +1152,78 @@ ON synapse_forum_replies (topic_id, created_at ASC);
 CREATE INDEX IF NOT EXISTS idx_synapse_forum_response_tasks_status_updated
 ON synapse_forum_response_tasks (status, updated_at DESC);
 
+-- Default admin pagination paths order by created_at DESC. Keep a direct
+-- created_at index on every created_at-bearing table so new lists cannot fall
+-- back to sequential scans under load.
+CREATE INDEX IF NOT EXISTS idx_synapse_owner_accounts_created_at
+ON synapse_owner_accounts (created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_provider_profiles_created_at
+ON synapse_provider_profiles (created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_provider_payout_accounts_created_at
+ON synapse_provider_payout_accounts (created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_agent_profiles_created_at
+ON synapse_agent_profiles (created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_budget_policies_created_at
+ON synapse_budget_policies (created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_service_manifests_created_at
+ON synapse_service_manifests (created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_service_endpoints_created_at
+ON synapse_service_endpoints (created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_service_health_runtime_created_at
+ON synapse_service_health_runtime (created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_service_quotes_created_at
+ON synapse_service_quotes (created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_invocation_billing_created_at
+ON synapse_invocation_billing (created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_ledger_accounts_created_at
+ON synapse_ledger_accounts (created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_idempotency_keys_created_at
+ON synapse_idempotency_keys (created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_platform_fee_policy_owner_created_at
+ON synapse_platform_fee_policy_owner (created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_provider_risk_flags_created_at
+ON synapse_provider_risk_flags (created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_withdraw_tx_dedup_created_at
+ON synapse_withdraw_tx_dedup (created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_router_config_created_at
+ON synapse_router_config (created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_owner_spend_limits_created_at
+ON synapse_owner_spend_limits (created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_credit_voucher_campaigns_created_at
+ON synapse_credit_voucher_campaigns (created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_credit_voucher_codes_created_at
+ON synapse_credit_voucher_codes (created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_credit_voucher_owner_allowlist_created_at
+ON synapse_credit_voucher_owner_allowlist (created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_forum_topics_created_at
+ON synapse_forum_topics (created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_forum_reactions_created_at
+ON synapse_forum_reactions (created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_synapse_forum_response_tasks_created_at
+ON synapse_forum_response_tasks (created_at DESC);
+
 CREATE INDEX IF NOT EXISTS idx_synapse_forum_topic_events_topic_created
 ON synapse_forum_topic_events (topic_id, created_at DESC);
 

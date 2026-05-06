@@ -1,6 +1,17 @@
 import { describe, expect, it } from "vitest";
 
-import { buildWithdrawReasonClusters, buildWithdrawReviewMetrics, filterWithdrawReviews, getWithdrawalStatusLabel, getWithdrawalStatusTone, getWithdrawReviewKindLabel, getWithdrawReviewKindTone, getWithdrawRiskTone, listWithdrawRiskLevels, paginateWithdrawReviews, sortWithdrawReviewsByPriority } from "./review-presenters";
+import {
+  buildWithdrawReasonClusters,
+  buildWithdrawReviewMetrics,
+  filterWithdrawReviews,
+  getWithdrawalStatusLabel,
+  getWithdrawalStatusTone,
+  getWithdrawReviewKindLabel,
+  getWithdrawReviewKindTone,
+  getWithdrawRiskTone,
+  listWithdrawRiskLevels,
+  paginateWithdrawReviews,
+} from "./review-presenters";
 
 const reviews = [
   {
@@ -68,11 +79,17 @@ describe("review-presenters", () => {
   });
 
   it("filters by search and risk level", () => {
-    expect(filterWithdrawReviews(reviews, "wallet", "red").map((item) => item.withdrawalId)).toEqual(["wd-001"]);
+    expect(
+      filterWithdrawReviews(reviews, "wallet", "red").map(
+        (item) => item.withdrawalId
+      )
+    ).toEqual(["wd-001"]);
   });
 
-  it("sorts higher risk reviews first", () => {
-    expect(sortWithdrawReviewsByPriority(reviews).map((item) => item.withdrawalId)).toEqual(["wd-001", "wd-002", "wd-003"]);
+  it("preserves API created-at-desc order for the default list", () => {
+    expect(
+      filterWithdrawReviews(reviews, "", "all").map((item) => item.withdrawalId)
+    ).toEqual(["wd-002", "wd-001", "wd-003"]);
   });
 
   it("clusters risk reasons and exposes known risk levels", () => {
@@ -85,12 +102,18 @@ describe("review-presenters", () => {
     expect(getWithdrawRiskTone("yellow")).toBe("orange");
     expect(getWithdrawReviewKindLabel(reviews[1])).toBe("Consumer withdrawal");
     expect(getWithdrawReviewKindTone(reviews[1])).toBe("orange");
-    expect(getWithdrawalStatusLabel("PENDING_MANUAL_REVIEW")).toBe("待人工审核");
+    expect(getWithdrawalStatusLabel("PENDING_MANUAL_REVIEW")).toBe(
+      "待人工审核"
+    );
     expect(getWithdrawalStatusTone("PENDING_MANUAL_REVIEW")).toBe("orange");
   });
 
   it("returns only the reviews for the requested page", () => {
-    expect(paginateWithdrawReviews(sortWithdrawReviewsByPriority(reviews), 1, 2).map((item) => item.withdrawalId)).toEqual(["wd-001", "wd-002"]);
-    expect(paginateWithdrawReviews(sortWithdrawReviewsByPriority(reviews), 2, 2).map((item) => item.withdrawalId)).toEqual(["wd-003"]);
+    expect(
+      paginateWithdrawReviews(reviews, 1, 2).map((item) => item.withdrawalId)
+    ).toEqual(["wd-002", "wd-001"]);
+    expect(
+      paginateWithdrawReviews(reviews, 2, 2).map((item) => item.withdrawalId)
+    ).toEqual(["wd-003"]);
   });
 });

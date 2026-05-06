@@ -20,48 +20,51 @@ From repository root:
 
 1. `npm run ci:agent-lessons`
 2. `npm run ci:github-actions-runtime`
-3. `npm run ci:docs`
-4. `npm run ci:finance-approval-safety`
-5. `npm run ci:finance-approval-e2e-evidence`
-6. `npm run ci:withdrawal-one-ticket-evidence`
-7. `npm run ci:withdrawal-idempotency-concurrency-evidence`
-8. `npm run ci:financial-security`
-9. `npm run ci:architecture-quality`
-10. `npm run ci:quality-budget`
-11. `npm run ci:format-check`
-12. `npm run ci:diff-coverage`
-13. `npm run ci:agent-guardrails`
-14. `npm run ci:frontend`
-15. `npm run ci:admin-front`
-16. `npm run ci:admin-gateway`
-17. `npm run ci:gateway`
-18. `npm run ci:provider-service`
-19. `npm run ci:sdk-python`
-20. `npm run ci:contracts`
-21. `npm run ci:pr`
-22. `npm run perf:local-production-load-rehearsal`
-23. `npm run ci:local-production-load-evidence`
-24. `npm run ci:monitoring-alert-rules`
-25. `npm run e2e:lark-alerts`
-26. `npm run ci:lark-alert-e2e-evidence`
-27. `npm run e2e:in-app-notifications`
-28. `npm run ci:in-app-notifications-evidence`
-29. `npm run e2e:user-front-deposit-balance`
-30. `npm run ci:user-front-deposit-balance-evidence`
-31. `npm run e2e:user-front-payments-gateway-truth:local`
-32. `npm run ci:user-front-payments-gateway-truth-local-evidence`
-33. `npm run e2e:deposit-indexer-recovery:local`
-34. `npm run ci:deposit-indexer-recovery-local-evidence`
-35. `npm run e2e:invocation-billing-migration:local`
-36. `npm run ci:invocation-billing-migration-local-evidence`
-37. `npm run e2e:admin-dashboard-projection-readmodel:local`
-38. `npm run ci:admin-dashboard-projection-readmodel-local-evidence`
-39. `npm run e2e:admin-regression`
-40. `npm run ci:admin-regression-evidence`
-41. `npm run ci:backup-restore-evidence`
-42. `npm run deploy:contracts:arbitrum-sepolia:dry-run`
-43. `npm run ci:contract-deployment-evidence`
-44. `npm run ci:migration-seed-guard`
+3. `npm run ci:created-at-indexes`
+4. `npm run ci:docs`
+5. `npm run ci:finance-approval-safety`
+6. `npm run ci:finance-approval-e2e-evidence`
+7. `npm run ci:withdrawal-one-ticket-evidence`
+8. `npm run ci:withdrawal-idempotency-concurrency-evidence`
+9. `npm run ci:financial-security`
+10. `npm run ci:architecture-quality`
+11. `npm run ci:quality-budget`
+12. `npm run ci:format-check`
+13. `npm run ci:diff-coverage`
+14. `npm run ci:agent-guardrails`
+15. `npm run ci:frontend`
+16. `npm run ci:admin-front`
+17. `npm run ci:admin-gateway`
+18. `npm run ci:gateway`
+19. `npm run ci:provider-service`
+20. `npm run ci:sdk-python`
+21. `npm run ci:contracts`
+22. `npm run ci:pr`
+23. `npm run perf:local-production-load-rehearsal`
+24. `npm run ci:local-production-load-evidence`
+25. `npm run ci:monitoring-alert-rules`
+26. `npm run e2e:lark-alerts`
+27. `npm run ci:lark-alert-e2e-evidence`
+28. `npm run e2e:in-app-notifications`
+29. `npm run ci:in-app-notifications-evidence`
+30. `npm run e2e:user-front-deposit-balance`
+31. `npm run ci:user-front-deposit-balance-evidence`
+32. `npm run e2e:user-front-payments-gateway-truth:local`
+33. `npm run ci:user-front-payments-gateway-truth-local-evidence`
+34. `npm run e2e:deposit-indexer-recovery:local`
+35. `npm run ci:deposit-indexer-recovery-local-evidence`
+36. `npm run e2e:invocation-billing-migration:local`
+37. `npm run ci:invocation-billing-migration-local-evidence`
+38. `npm run e2e:admin-dashboard-projection-readmodel:local`
+39. `npm run ci:admin-dashboard-projection-readmodel-local-evidence`
+40. `npm run e2e:admin-regression`
+41. `npm run ci:admin-regression-evidence`
+42. `npm run e2e:admin-pagination-sorting`
+43. `npm run ci:admin-pagination-sorting-evidence`
+44. `npm run ci:backup-restore-evidence`
+45. `npm run deploy:contracts:arbitrum-sepolia:dry-run`
+46. `npm run ci:contract-deployment-evidence`
+47. `npm run ci:migration-seed-guard`
 
 Use these wrappers when final integration confidence is required.
 
@@ -107,6 +110,21 @@ runtime guard. It requires every workflow to force Node 24 with
 baseline for `actions/checkout`, `actions/setup-node`, `actions/setup-python`,
 `actions/cache`, and `actions/upload-artifact`. `npm run ci:docs` runs this guard
 as part of lightweight documentation and workflow governance.
+
+`npm run ci:created-at-indexes` is the canonical schema guard for Admin
+pagination defaults. Gateway runtime schema and Gateway-Admin schema tables that
+define `created_at` must also define a same-table index that includes
+`created_at`; this keeps default `created_at DESC` list pages from drifting into
+sequential scans. `npm run ci:docs` runs this guard as part of lightweight schema
+governance.
+
+`npm run e2e:admin-pagination-sorting` is the local Admin pagination evidence
+gate for default `createdAt DESC` semantics. It seeds deterministic local rows
+for withdrawal reviews, provider services, forum response tasks, and forum
+topics, then verifies API order, DOM first-screen order, screenshot metadata,
+SQL query order, and the created-at index guard. Run
+`npm run ci:admin-pagination-sorting-evidence` after the E2E to validate the
+fresh evidence bundle.
 
 `ci:pr` starts selected runs with `bash scripts/ci/runtime_preflight.sh`. This probe gives
 Node and each project Python virtualenv interpreter 8 seconds to print a version
