@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import math
-from typing import Any
+from typing import Any, TypedDict
 
 from src.domain.service_contract import ServiceDefinitionRecord
 from src.services.owner.downstream_concurrency import downstream_snapshot_for_service
@@ -14,6 +14,41 @@ from src.services.provider.registry.payload_helpers import (
 from src.utils.datetime_utils import now_dt_str
 
 from .interfaces import RegistryContext
+
+
+class AdminProviderServicePayload(TypedDict):
+    serviceId: str
+    ownerAddress: str
+    serviceName: str
+    summary: str
+    tags: list[str]
+    pricing: dict[str, str]
+    controlStatus: str
+    status: str
+    isActive: bool
+    runtimeStatus: str
+    runtimeAvailable: bool
+    probeTier: str
+    health: Any
+    targets: list[dict[str, Any]]
+    adaptiveConcurrencyLimit: int | None
+    inFlight: int
+    queueDepth: int
+    latencyP95Ms: int | None
+    errorRate: float | None
+    circuitState: str
+    lastConcurrencyAdjustmentAt: str | None
+    downstreamTargets: list[dict[str, Any]]
+    createdAt: str | None
+    updatedAt: str | None
+
+
+class AdminProviderServicePage(TypedDict):
+    items: list[AdminProviderServicePayload]
+    page: int
+    pageSize: int
+    totalCount: int
+    totalPages: int
 
 
 def _runtime_status(service: ServiceDefinitionRecord) -> str:
@@ -30,7 +65,7 @@ def _target_payloads(service: ServiceDefinitionRecord) -> list[dict[str, Any]]:
     ]
 
 
-def _admin_service_payload(service: ServiceDefinitionRecord) -> dict[str, Any]:
+def _admin_service_payload(service: ServiceDefinitionRecord) -> AdminProviderServicePayload:
     control_status = service_lifecycle_status(service)
     downstream = downstream_snapshot_for_service(service)
     return {
@@ -88,7 +123,7 @@ async def list_admin_provider_services(
     runtime_status: str | None,
     page: int,
     page_size: int,
-) -> dict[str, Any]:
+) -> AdminProviderServicePage:
     await asyncio.sleep(0)
     rows = context._load_service_registry_rows()
     normalized_status = str(status or "all").strip().lower()
@@ -107,7 +142,8 @@ async def list_admin_provider_services(
             or _runtime_status(row) == normalized_runtime_status
         )
     ]
-    filtered.sort(key=lambda row: str(row.updated_at or row.created_at or ""), reverse=True)
+    filtered.sort(key=lambda row: str(row.service_id or ""))
+    filtered.sort(key=lambda row: str(row.created_at or ""), reverse=True)
     safe_page = max(1, int(page or 1))
     safe_page_size = max(1, min(int(page_size or 20), 100))
     total = len(filtered)
@@ -125,7 +161,7 @@ async def list_admin_provider_services(
 async def get_admin_provider_service(
     context: RegistryContext,
     service_id: str,
-) -> dict[str, Any] | None:
+) -> AdminProviderServicePayload | None:
     await asyncio.sleep(0)
     for row in context._load_service_registry_rows():
         if str(row.service_id or "") == service_id and not is_deleted_service(row):
@@ -146,7 +182,7 @@ async def force_probe_admin_provider_service(
     service_id: str,
     actor_wallet: str,
     actor_admin_id: str,
-) -> dict[str, Any] | None:
+) -> AdminProviderServicePayload | None:
     async with context._registry_lock():
         rows = context._load_service_registry_rows()
         index = _find_service_index(rows, service_id)
@@ -181,7 +217,7 @@ async def update_admin_provider_service_lifecycle(
     actor_wallet: str,
     actor_admin_id: str,
     note: str | None = None,
-) -> dict[str, Any] | None:
+) -> AdminProviderServicePayload | None:
     async with context._registry_lock():
         rows = context._load_service_registry_rows()
         index = _find_service_index(rows, service_id)
