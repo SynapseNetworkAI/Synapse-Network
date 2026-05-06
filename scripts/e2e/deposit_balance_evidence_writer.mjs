@@ -51,6 +51,7 @@ export function writeDepositBalanceEvidence({
     accountId: evidence.chain.accountId,
     depositTxHash: evidence.chain.txHash,
     depositUsdc: evidence.chain.amountUsdc,
+    dom: evidence.dom,
   };
   fs.writeFileSync(
     path.join(outDir, "report.json"),

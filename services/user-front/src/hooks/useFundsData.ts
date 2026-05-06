@@ -56,15 +56,22 @@ function timestampFromDepositIntent(intent?: DepositIntentRecord): number {
 }
 
 function moneyFromDepositIntent(intent: DepositIntentRecord): number {
+  const legacyIntent = intent as unknown as {
+    amount_usdc?: unknown;
+    amount?: unknown;
+    credited_amount_usdc?: unknown;
+  };
+  const candidates = [
+    intent.amountUsdc,
+    legacyIntent.amount_usdc,
+    legacyIntent.amount,
+    intent.creditedAmountUsdc,
+    legacyIntent.credited_amount_usdc,
+  ];
   const raw =
-    intent.creditedAmountUsdc ??
-    (intent as unknown as { credited_amount_usdc?: unknown })
-      .credited_amount_usdc ??
-    intent.amountUsdc ??
-    (intent as unknown as { amount_usdc?: unknown; amount?: unknown })
-      .amount_usdc ??
-    (intent as unknown as { amount?: unknown }).amount ??
-    "0";
+    candidates.find(
+      (value) => moneyStringToNumber(normalizeMoneyString(value, "")) > 0
+    ) ?? "0";
   return moneyStringToNumber(normalizeMoneyString(raw));
 }
 

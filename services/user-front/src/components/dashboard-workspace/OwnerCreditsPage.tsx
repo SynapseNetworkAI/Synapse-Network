@@ -805,6 +805,13 @@ export default function OwnerCreditsPage() {
       insufficientFundsRetry: t("creditsPage.depositInsufficientFundsRetry"),
       topUpFailedPrefix: t("creditsPage.depositTopUpFailedPrefix"),
       unknownError: t("creditsPage.depositUnknownError"),
+      reviewUnavailable: t("creditsPage.depositReviewUnavailable"),
+      walletBalanceChanged: t("creditsPage.depositWalletBalanceChanged"),
+      networkSwitchPending: t("creditsPage.depositNetworkSwitchPending"),
+      networkSwitchFailed: t("creditsPage.depositNetworkSwitchFailed"),
+      permitTimedOut: t("creditsPage.depositPermitTimedOut"),
+      permitFallbackAvailable: t("creditsPage.depositPermitFallbackAvailable"),
+      approveTransactionFailed: t("creditsPage.depositApproveFailed"),
     }),
     [t]
   );
@@ -834,7 +841,11 @@ export default function OwnerCreditsPage() {
     setDepositAmount,
     depositError,
     depositStep,
+    depositFlowMode,
+    primaryAction,
+    isReviewingDeposit,
     handleDeposit,
+    handleUseApproveFallback,
     isPending,
     isConfirming,
     walletUsdcBalance,
@@ -845,6 +856,8 @@ export default function OwnerCreditsPage() {
     networkLabel,
     vaultAddress,
     walletAddress,
+    tokenName,
+    tokenSymbol,
     shortAddress,
   } = useVaultDeposit({
     initialAmount: "20",
@@ -1214,10 +1227,15 @@ export default function OwnerCreditsPage() {
         onAmountChange={setDepositAmount}
         error={depositError}
         step={depositStep}
+        flowMode={depositFlowMode}
+        primaryAction={primaryAction}
+        isReviewing={isReviewingDeposit}
         isPending={isPending}
         isConfirming={isConfirming}
         walletAddress={walletAddress}
         vaultAddress={vaultAddress}
+        tokenName={tokenName}
+        tokenSymbol={tokenSymbol}
         walletUsdcBalance={walletUsdcBalance}
         nativeGasBalance={nativeGasBalance}
         nativeGasSymbol={nativeGasSymbol}
@@ -1230,32 +1248,43 @@ export default function OwnerCreditsPage() {
           walletUsdcLabel: t("creditsPage.depositWalletUsdcLabel"),
           nativeGasLabel: t("creditsPage.depositNativeGasLabel"),
           networkLabel: t("creditsPage.depositNetworkLabel"),
-          transactionSummaryLabel: t("creditsPage.depositTransactionSummary"),
-          fromWalletLabel: t("creditsPage.depositFromWallet"),
-          toVaultLabel: t("creditsPage.depositToVault"),
-          depositAmountLabel: t("creditsPage.depositAmountSummary"),
-          permitAllowanceLabel: t("creditsPage.depositPermitAllowance"),
-          expectationTitle: t("walletActions.depositChecklistTitle"),
-          expectationPermit: t("walletActions.depositChecklistAmount"),
-          expectationGas: t("walletActions.depositChecklistGas"),
-          expectationSync: t("creditsPage.depositExpectationSync"),
-          minimumWithdrawNotice: t("creditsPage.depositMinimumWithdrawNotice"),
+          reviewDepositLabel: t("creditsPage.depositReviewDeposit"),
+          checkingWalletLabel: t("creditsPage.depositCheckingWallet"),
+          switchNetworkLabel: t("creditsPage.depositSwitchNetwork"),
+          insufficientUsdcLabel: t("creditsPage.depositInsufficientUsdcAction"),
+          insufficientGasLabel: t("creditsPage.depositInsufficientGasAction"),
+          continueToWalletLabel: t("creditsPage.depositContinueToWallet"),
+          fromYourWalletLabel: t("creditsPage.depositFromYourWallet"),
+          toSynapseVaultLabel: t("creditsPage.depositToSynapseVault"),
+          synapseVaultLabel: t("creditsPage.depositSynapseVault"),
+          expectedResult: t("creditsPage.depositExpectedResult"),
+          detailsLabel: t("creditsPage.depositDetails"),
+          vaultAddressLabel: t("creditsPage.depositVaultAddress"),
+          tokenLabel: t("creditsPage.depositToken"),
+          allowancePreapprovedLabel: t("creditsPage.depositPreapproved"),
           stepPermitTitle: t("walletActions.depositPermitStepTitle"),
           stepPermitActive: t("creditsPage.depositPermitStepActive"),
           stepPermitDone: t("creditsPage.depositPermitStepDone"),
+          stepApproveTitle: t("creditsPage.depositApproveStepTitle"),
+          stepApproveActive: t("creditsPage.depositApproveStepActive"),
+          stepApproveDone: t("creditsPage.depositApproveStepDone"),
           stepDepositTitle: t("walletActions.depositVaultStepTitle"),
           stepDepositActive: t("creditsPage.depositVaultStepActive"),
           stepDepositWaiting: t("creditsPage.depositVaultStepWaiting"),
+          hardwareWalletFallback: t(
+            "creditsPage.depositHardwareWalletFallback"
+          ),
+          permitTimedOut: t("creditsPage.depositPermitTimedOut"),
           progressAriaLabel: t("creditsPage.depositProgressAria"),
           cancelLabel: t("creditsPage.depositCancel"),
           processingLabel: t("creditsPage.depositProcessing"),
-          confirmLabel: t("creditsPage.depositConfirm"),
           closeDialogLabel: t("creditsPage.depositCloseDialog"),
         }}
         onClose={closeDepositModal}
         onConfirm={() => {
           void handleDeposit();
         }}
+        onUseApproveFallback={handleUseApproveFallback}
       />
 
       <ManageSpendCapModal
