@@ -1186,6 +1186,7 @@ def test_owner_balance_summary_uses_consumer_provider_fields() -> None:
         "consumerFrozenBalance": "0.750000",
         "consumerWithdrawMinUsdc": "10.000000",
         "consumerWithdrawMaturitySeconds": 604800,
+        "consumerWithdrawMaturityEnforced": True,
         "providerReceivable": "9.500000",
         "providerReceivableBalance": "9.500000",
         "providerLockedBalance": "2.000000",
@@ -1208,7 +1209,6 @@ def test_owner_balance_summary_reports_spendable_but_not_yet_withdrawable() -> N
 
     assert balance["consumerAvailableBalance"] == "100.000000"
     assert balance["consumerWithdrawableBalance"] == "0.000000"
-    assert balance["consumerWithdrawMaturitySeconds"] == 604800
 
 
 def test_owner_balance_summary_repairs_stale_active_consumer_withdraw_gap() -> None:

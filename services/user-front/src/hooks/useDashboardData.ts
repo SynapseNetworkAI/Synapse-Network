@@ -49,6 +49,7 @@ const EMPTY_PROVIDER_STATS = {
   netEarned: 0,
   receivable: 0,
   matureReceivable: 0,
+  withdrawMaturityEnforced: true,
   paidCount24h: 0,
   duplicateRowsDropped: 0,
 };
@@ -162,6 +163,8 @@ function useProviderStatsData() {
           receivable: summary.providerReceivable,
           matureReceivable:
             summary.providerMatureReceivable ?? summary.providerReceivable,
+          withdrawMaturityEnforced:
+            summary.providerWithdrawMaturityEnforced !== false,
           paidCount24h: countRecentPaidRows(safeRows),
           duplicateRowsDropped: summary.duplicateRowsDropped,
         });

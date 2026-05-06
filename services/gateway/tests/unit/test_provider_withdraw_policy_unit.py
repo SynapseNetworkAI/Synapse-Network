@@ -42,7 +42,17 @@ def test_provider_withdraw_rejects_dust_without_creating_row() -> None:
     assert _money_decimal(wallet_after.pending_balance) == Decimal("0.000000")
 
 
-def test_provider_withdraw_rejects_unmatured_receivable() -> None:
+def test_provider_withdraw_rejects_unmatured_receivable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.services.provider import withdraw_policy_mixin as mixin
+
+    monkeypatch.setattr(
+        mixin.settings,
+        "provider_withdraw_maturity_enforcement_enabled",
+        True,
+        raising=False,
+    )
     storage = FakeStorage()
     wallet = storage.balance.ledger.ensure_provider_wallet("0xdef")
     wallet.available_balance = Decimal("30.000000")
@@ -64,6 +74,38 @@ def test_provider_withdraw_rejects_unmatured_receivable() -> None:
     assert exc_info.value.status_code == 400
     assert exc_info.value.detail["code"] == "PROVIDER_RECEIVABLE_NOT_MATURED"
     assert storage.gateway_state.withdraw_rows == []
+
+
+def test_provider_withdraw_maturity_bypass_allows_local_receivable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.services.provider import withdraw_policy_mixin as mixin
+
+    monkeypatch.setattr(
+        mixin.settings,
+        "provider_withdraw_maturity_enforcement_enabled",
+        False,
+        raising=False,
+    )
+    storage = FakeStorage()
+    wallet = storage.balance.ledger.ensure_provider_wallet("0xdef")
+    wallet.available_balance = Decimal("30.000000")
+    storage.balance.read_provider_mature_withdrawable = (
+        lambda _owner, _seconds: Decimal("0.000000")
+    )
+    service = ProviderWithdrawService(storage, DummyLockManager())
+    _configure_withdraw_service(service)
+
+    created = asyncio.run(
+        service.create_provider_withdraw_intent(
+            {"amountUsdc": "30"},
+            "0xdef",
+            "withdraw-intent-key-maturity-bypass-1",
+        )
+    )
+
+    assert created["status"] == "APPROVED_AUTO"
+    assert created["amountUsdc"] == "30.000000"
 
 
 def test_provider_withdraw_same_key_replays_active_pending_after_lock() -> None:
@@ -106,7 +148,17 @@ def test_provider_withdraw_same_key_replays_active_pending_after_lock() -> None:
     assert _money_decimal(wallet_after.frozen_balance) == Decimal("120.000000")
 
 
-def test_provider_withdraw_uses_mature_amount_for_full_withdrawal() -> None:
+def test_provider_withdraw_uses_mature_amount_for_full_withdrawal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.services.provider import withdraw_policy_mixin as mixin
+
+    monkeypatch.setattr(
+        mixin.settings,
+        "provider_withdraw_maturity_enforcement_enabled",
+        True,
+        raising=False,
+    )
     storage = FakeStorage()
     wallet = storage.balance.ledger.ensure_provider_wallet("0xdef")
     wallet.available_balance = Decimal("50.000000")
@@ -128,7 +180,17 @@ def test_provider_withdraw_uses_mature_amount_for_full_withdrawal() -> None:
     assert created["amountUsdc"] == "30.000000"
 
 
-def test_provider_full_withdrawal_rejects_mature_dust() -> None:
+def test_provider_full_withdrawal_rejects_mature_dust(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.services.provider import withdraw_policy_mixin as mixin
+
+    monkeypatch.setattr(
+        mixin.settings,
+        "provider_withdraw_maturity_enforcement_enabled",
+        True,
+        raising=False,
+    )
     storage = FakeStorage()
     wallet = storage.balance.ledger.ensure_provider_wallet("0xdef")
     wallet.available_balance = Decimal("50.000000")

@@ -27,6 +27,7 @@ class ProviderEarningsSummary(TypedDict):
     providerNetEarned: float
     providerReceivable: Decimal
     providerMatureReceivable: Decimal
+    providerWithdrawMaturityEnforced: bool
     duplicateRowsDropped: int
     idempotencyKey: str
     recentCalls: list[ProviderRecentCall]
@@ -58,6 +59,8 @@ class ProviderAnalyticsService:
 
     def _load_provider_mature_receivable(self, owner_wallet: str) -> Decimal:
         balance_repo = self.storage.get_data_manager().finance.balance
+        if not settings.provider_withdraw_maturity_enforcement_enabled:
+            return self._load_provider_receivable(owner_wallet)
         reader = getattr(balance_repo, "read_provider_mature_withdrawable", None)
         if callable(reader):
             return reader(owner_wallet, int(settings.provider_withdraw_maturity_seconds))
@@ -172,6 +175,7 @@ class ProviderAnalyticsService:
             "providerNetEarned": provider_net_total,
             "providerReceivable": provider_receivable,
             "providerMatureReceivable": provider_mature_receivable,
+            "providerWithdrawMaturityEnforced": settings.provider_withdraw_maturity_enforcement_enabled,
             "duplicateRowsDropped": duplicate_dropped,
             "idempotencyKey": "request_id",
             "recentCalls": recent_calls,

@@ -78,7 +78,8 @@ This is the fix for the earlier bug where the UI could report a failed flow whil
 Consumer withdrawals have two hard pre-checks before any row is created:
 
 - `amountUsdc < 10` returns `400 MIN_WITHDRAWAL_AMOUNT_NOT_MET`.
-- Recent deposits are spendable inside Synapse immediately, but withdrawable only after 7 days.
+- When `CONSUMER_WITHDRAW_MATURITY_ENFORCEMENT_ENABLED=true`, recent deposits are spendable inside Synapse immediately, but withdrawable only after 7 days.
+- Local development defaults this enforcement to `false` so tests can withdraw newly seeded balances; staging/prod default to `true`, and prod startup refuses `false`.
 
 The mature amount uses an aggregate FIFO formula instead of per-deposit withdrawal labels:
 
@@ -91,6 +92,8 @@ matureWithdrawable = max(0,
 ```
 
 If `amountUsdc` is greater than `matureWithdrawable`, Gateway returns `400 INSUFFICIENT_MATURE_CONSUMER_BALANCE`. Dust failures and immature-funds failures do not create withdrawal rows, do not sign tickets, and do not send Lark alerts.
+
+When maturity enforcement is disabled, Gateway still applies minimum amount, available-balance, vault-liquidity, idempotency, risk, lock, ticket, and audit checks; only the T+7 mature-balance pre-check is bypassed.
 
 The 24h count risk gate is a database timestamp sliding window (`created_at >= NOW() - INTERVAL '24 hours'`), not a natural-day reset.
 
