@@ -90,6 +90,7 @@ class InMemoryProviderWithdrawReviewRepository:
 
     def list_pending_reviews(self, limit: int = 20) -> list[ProviderWithdrawReviewItem]:
         items = [item for item in self._items if item.status == "PENDING_MANUAL_REVIEW"]
+        items.sort(key=lambda item: item.created_at or "", reverse=True)
         return items[:limit]
 
     def count_pending_reviews(self) -> int:
