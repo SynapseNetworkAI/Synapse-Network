@@ -1,10 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createElement, type ReactElement } from "react";
+import { renderToString } from "react-dom/server";
 
 import type { ProviderWithdrawReviewItem } from "@/services/admin-api";
 
 import {
   applyOptimisticWithdrawReviewDecision,
+  getWithdrawReviewLoadErrorMessage,
+  loadProviderWithdrawReviewQueue,
   REVIEW_QUEUE_FETCH_LIMIT,
+  resolveNextActiveReviewId,
+  submitProviderWithdrawReviewDecision,
+  useProviderWithdrawReviews,
 } from "./use-provider-withdraw-reviews";
 
 function buildItem(
@@ -51,5 +58,164 @@ describe("applyOptimisticWithdrawReviewDecision", () => {
 
   it("keeps the queue fetch limit widened so URL search can see recent reviews", () => {
     expect(REVIEW_QUEUE_FETCH_LIMIT).toBe(100);
+  });
+});
+
+describe("provider withdraw review queue helpers", () => {
+  it("keeps the current active id when it still exists", () => {
+    expect(
+      resolveNextActiveReviewId("wd-2", [
+        buildItem(),
+        buildItem({ withdrawalId: "wd-2" }),
+      ])
+    ).toBe("wd-2");
+  });
+
+  it("falls back to the first queue item when the current id disappears", () => {
+    expect(
+      resolveNextActiveReviewId("wd-missing", [
+        buildItem({ withdrawalId: "wd-9" }),
+      ])
+    ).toBe("wd-9");
+    expect(resolveNextActiveReviewId(null, [])).toBeNull();
+  });
+
+  it("loads the review queue with the widened fetch limit", async () => {
+    const listReviews = vi.fn().mockResolvedValue({
+      items: [buildItem({ withdrawalId: "wd-7" })],
+    });
+
+    const result = await loadProviderWithdrawReviewQueue(
+      "cookie-session",
+      "wd-stale",
+      listReviews
+    );
+
+    expect(listReviews).toHaveBeenCalledWith("cookie-session", {
+      limit: REVIEW_QUEUE_FETCH_LIMIT,
+    });
+    expect(result.activeReviewId).toBe("wd-7");
+  });
+
+  it("normalizes load errors for queue fetch failures", () => {
+    expect(getWithdrawReviewLoadErrorMessage(new Error("boom"))).toBe("boom");
+    expect(getWithdrawReviewLoadErrorMessage("unknown")).toBe(
+      "加载提现审核队列失败"
+    );
+  });
+});
+
+describe("submitProviderWithdrawReviewDecision", () => {
+  it("submits approval, applies optimistic state, and refreshes reviews", async () => {
+    let currentItems = [buildItem()];
+    const setItems = vi.fn(
+      (
+        updater: (
+          items: ProviderWithdrawReviewItem[]
+        ) => ProviderWithdrawReviewItem[]
+      ) => {
+        currentItems = updater(currentItems);
+      }
+    );
+    const setMessage = vi.fn();
+    const setError = vi.fn();
+    const setDecisionNote = vi.fn();
+    const setActionPhase = vi.fn();
+    const setPendingDecision = vi.fn();
+    const requestStepUpCode = vi.fn().mockResolvedValue("123456");
+    const refreshReviews = vi.fn().mockResolvedValue(undefined);
+    const decideReview = vi.fn().mockResolvedValue({
+      status: "REQUESTED",
+      message: "submitted",
+    });
+
+    await submitProviderWithdrawReviewDecision({
+      token: "cookie-session",
+      activeReviewId: "wd-1",
+      decision: "APPROVE",
+      decisionNote: "  looks good  ",
+      requestStepUpCode,
+      refreshReviews,
+      setItems,
+      setMessage,
+      setError,
+      setDecisionNote,
+      setActionPhase,
+      setPendingDecision,
+      decideReview,
+    });
+
+    expect(requestStepUpCode).toHaveBeenCalledOnce();
+    expect(setActionPhase).toHaveBeenNthCalledWith(1, "submitting");
+    expect(decideReview).toHaveBeenCalledWith("cookie-session", "wd-1", {
+      decision: "APPROVE",
+      note: "looks good",
+      otpCode: "123456",
+    });
+    expect(setItems).toHaveBeenCalledOnce();
+    expect(currentItems[0]?.status).toBe("REQUESTED");
+    expect(setMessage).toHaveBeenCalledWith(
+      "已提交放行处理，当前状态：REQUESTED。submitted"
+    );
+    expect(setError).toHaveBeenCalledWith(null);
+    expect(setDecisionNote).toHaveBeenCalledWith("");
+    expect(refreshReviews).toHaveBeenCalledOnce();
+    expect(setActionPhase).toHaveBeenLastCalledWith("idle");
+    expect(setPendingDecision).toHaveBeenLastCalledWith(null);
+  });
+
+  it("maps submission failures to reviewer-facing errors", async () => {
+    const setItems = vi.fn();
+    const setMessage = vi.fn();
+    const setError = vi.fn();
+    const setDecisionNote = vi.fn();
+    const setActionPhase = vi.fn();
+    const setPendingDecision = vi.fn();
+    const requestStepUpCode = vi.fn().mockResolvedValue("123456");
+    const refreshReviews = vi.fn().mockResolvedValue(undefined);
+    const decideReview = vi
+      .fn()
+      .mockRejectedValue(new Error("approval backend unavailable"));
+
+    await submitProviderWithdrawReviewDecision({
+      token: "cookie-session",
+      activeReviewId: "wd-1",
+      decision: "REJECT",
+      decisionNote: "too risky",
+      requestStepUpCode,
+      refreshReviews,
+      setItems,
+      setMessage,
+      setError,
+      setDecisionNote,
+      setActionPhase,
+      setPendingDecision,
+      decideReview,
+    });
+
+    expect(setItems).not.toHaveBeenCalled();
+    expect(setMessage).not.toHaveBeenCalled();
+    expect(setError).toHaveBeenCalledWith("approval backend unavailable");
+    expect(setActionPhase).toHaveBeenLastCalledWith("idle");
+    expect(setPendingDecision).toHaveBeenLastCalledWith(null);
+  });
+});
+
+describe("useProviderWithdrawReviews", () => {
+  it("initializes hook state during server render without crashing", () => {
+    function HookProbe(): ReactElement {
+      const result = useProviderWithdrawReviews(
+        "cookie-session",
+        async () => undefined
+      );
+      expect(result.actionPhase).toBe("idle");
+      expect(result.pendingDecision).toBeNull();
+      expect(result.isPending).toBe(false);
+      return createElement("div", null, result.activeReviewId ?? "none");
+    }
+
+    const html = renderToString(createElement(HookProbe));
+
+    expect(html).toContain("none");
   });
 });
