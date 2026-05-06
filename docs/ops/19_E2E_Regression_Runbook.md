@@ -254,9 +254,23 @@ For User-front deposit/balance regressions, run
 `npm run e2e:user-front-deposit-balance` followed by
 `npm run ci:user-front-deposit-balance-evidence`. This gate captures
 `billing-deposit-pending.png`, `credits-before-confirm.png`,
-`billing-deposit-completed.png`, and `credits-after-confirm.png`; each
-screenshot is bound to DOM text plus SQL rows in `screenshot-evidence.json`.
-Gateway `PENDING_CONFIRMATION` must display as `Pending`, not `Completed`.
+`deposit-input-ready.png`, `deposit-review.png`,
+`deposit-review-preapproved.png`, `billing-deposit-completed.png`, and
+`credits-after-confirm.png`; each screenshot is bound to DOM text plus SQL rows
+in `screenshot-evidence.json`. Gateway `PENDING_CONFIRMATION` must display as
+`Pending`, not `Completed`.
+
+When changing the wallet transaction request UX, also run
+`USER_FRONT_BASE_URL=http://localhost:3000 npm run ci:user-front-deposit-request-browser`.
+This mock-wallet browser gate records screenshots under
+`output/playwright/user-front-deposit-request/<timestamp>/` and verifies EN/ZH
+copy, insufficient USDC/gas states, network switch/add-chain behavior,
+allowance-first preapproval, Approve fallback, 4001 user rejection, and the
+compact Review Deposit modal. Permit timeout is covered by the focused hook DOM
+test because browser-level timer acceleration can interfere with wallet
+connection fixtures. The review modal must show amount, wallet source, Synapse
+Vault target, and Gateway confirmation copy; it must not expose token addresses
+or long wallet/RPC internals by default.
 
 ### Copyable identifiers DOM regression
 

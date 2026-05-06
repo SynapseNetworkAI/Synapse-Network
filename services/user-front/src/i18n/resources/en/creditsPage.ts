@@ -32,6 +32,21 @@ const creditsPage: I18nMessages["creditsPage"] = {
   depositWalletUsdcLabel: "Wallet USDC",
   depositNativeGasLabel: "Native gas balance",
   depositNetworkLabel: "Network",
+  depositReviewDeposit: "Review Deposit",
+  depositCheckingWallet: "Checking wallet...",
+  depositSwitchNetwork: "Switch to GoChain Testnet",
+  depositInsufficientUsdcAction: "Insufficient USDC",
+  depositInsufficientGasAction: "Insufficient GO for gas",
+  depositContinueToWallet: "Continue to wallet",
+  depositFromYourWallet: "From your wallet",
+  depositToSynapseVault: "To",
+  depositSynapseVault: "Synapse Vault",
+  depositExpectedResult:
+    "{{amount}} {{symbol}} will be deposited into Synapse Vault and become spendable credits after Gateway confirmation.",
+  depositDetails: "Details",
+  depositVaultAddress: "Vault address",
+  depositToken: "Token",
+  depositPreapproved: "Existing allowance found. Authorization step skipped.",
   depositTransactionSummary: "Transaction summary",
   depositFromWallet: "From wallet",
   depositToVault: "To vault contract",
@@ -50,6 +65,10 @@ const creditsPage: I18nMessages["creditsPage"] = {
   depositPermitStepActive:
     "Wallet prompt: sign a gasless permit for the exact amount.",
   depositPermitStepDone: "Permit signature completed.",
+  depositApproveStepTitle: "Approve USDC",
+  depositApproveStepActive:
+    "Wallet prompt: approve this exact amount for Synapse Vault.",
+  depositApproveStepDone: "Approve transaction completed.",
   depositVaultStepTitle: "Step 2: Vault deposit transaction",
   depositVaultStepActive:
     "Wallet prompt: submit the on-chain vault deposit and pay gas.",
@@ -92,11 +111,26 @@ const creditsPage: I18nMessages["creditsPage"] = {
   depositConfirmedSyncing:
     "Deposit confirmed on-chain. Syncing gateway balance...",
   depositConnectWalletFirst: "Please connect your wallet first.",
-  depositCancelledToast: "Sign/transaction cancelled by user",
+  depositCancelledToast: "Request cancelled",
   depositInsufficientFundsRetry:
     "Wallet USDC or native gas is insufficient. Please check the balances and retry.",
   depositTopUpFailedPrefix: "Failed to top up: {{message}}",
   depositUnknownError: "Unknown error",
+  depositReviewUnavailable: "Wallet data is still loading. Please try again.",
+  depositWalletBalanceChanged:
+    "Wallet balance changed. Please review the amount again.",
+  depositNetworkSwitchPending:
+    "Open your wallet extension to finish the network switch.",
+  depositNetworkSwitchFailed:
+    "Unable to switch network from the app. Please switch in your wallet and retry.",
+  depositPermitTimedOut:
+    "Wallet did not respond. If you use a hardware wallet, try Approve transaction instead.",
+  depositPermitFallbackAvailable:
+    "Permit was not completed. You can use an Approve transaction instead.",
+  depositApproveFailed:
+    "Approve transaction failed. Please review your wallet and try again.",
+  depositHardwareWalletFallback:
+    "Using a hardware wallet? Use Approve transaction instead.",
   depositCloseDialog: "Close deposit dialog",
   consumerWithdrawTitle: "Withdraw Balance",
   consumerWithdrawDescription:
