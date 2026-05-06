@@ -48,6 +48,8 @@ const EMPTY_PROVIDER_STATS = {
   totalRoutingTax: 0,
   netEarned: 0,
   receivable: 0,
+  matureReceivable: 0,
+  withdrawMaturityEnforced: true,
   paidCount24h: 0,
   duplicateRowsDropped: 0,
 };
@@ -159,6 +161,10 @@ function useProviderStatsData() {
           totalRoutingTax: summary.totalRoutingTax,
           netEarned: summary.providerNetEarned,
           receivable: summary.providerReceivable,
+          matureReceivable:
+            summary.providerMatureReceivable ?? summary.providerReceivable,
+          withdrawMaturityEnforced:
+            summary.providerWithdrawMaturityEnforced !== false,
           paidCount24h: countRecentPaidRows(safeRows),
           duplicateRowsDropped: summary.duplicateRowsDropped,
         });

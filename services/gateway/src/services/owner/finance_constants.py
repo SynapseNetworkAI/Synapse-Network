@@ -1,6 +1,8 @@
 """Shared constants for the owner finance service."""
 import os
 
+from src.core.config import settings
+
 REFUND_MANUAL_REVIEW_THRESHOLD_USDC = 500.0
 REFUND_AUTO_TYPE = "SYSTEM_FAILURE"
 REFUND_MANUAL_TYPE = "MANUAL_APPEAL"
@@ -14,7 +16,7 @@ CONSUMER_WITHDRAW_MIN_USDC: float = float(
     os.getenv("CONSUMER_WITHDRAW_MIN_USDC", "10.0")
 )
 CONSUMER_WITHDRAW_MATURITY_SECONDS: int = int(
-    os.getenv("CONSUMER_WITHDRAW_MATURITY_SECONDS", "604800")
+    settings.consumer_withdraw_maturity_seconds
 )
 CONSUMER_DEPOSIT_MIN_USDC: float = float(
     os.getenv("CONSUMER_DEPOSIT_MIN_USDC", "10.0")
@@ -33,6 +35,19 @@ CONSUMER_WITHDRAW_FEE_USDC: float = float(
 CONSUMER_WITHDRAW_PROCESSOR_INTERVAL_SEC: float = float(
     os.getenv("CONSUMER_WITHDRAW_PROCESSOR_INTERVAL_SEC", "10.0")
 )
+
+
+def consumer_withdraw_maturity_reader(balance_repo):
+    if not settings.consumer_withdraw_maturity_enforcement_enabled:
+        return None
+    return getattr(balance_repo, "read_consumer_mature_withdrawable", None)
+
+
+def read_consumer_mature_withdrawable(balance_repo, owner: str, fallback_available):
+    reader = consumer_withdraw_maturity_reader(balance_repo)
+    if callable(reader):
+        return reader(owner, CONSUMER_WITHDRAW_MATURITY_SECONDS)
+    return fallback_available
 
 DEPOSIT_ATTEMPT_STAGES = {
     "SIGN_REQUESTED",

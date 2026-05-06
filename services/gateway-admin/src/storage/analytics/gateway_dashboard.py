@@ -32,73 +32,48 @@ def _get_table_columns(dsn: str, table_name: str) -> frozenset[str]:
     return frozenset(str(row["column_name"]) for row in rows)
 
 
-def _resolve_projection_column(
-    columns: frozenset[str],
-    canonical_name: str,
-    legacy_alias: str | None = None,
-) -> str:
-    if canonical_name in columns:
-        return canonical_name
-    if legacy_alias and legacy_alias in columns:
-        return legacy_alias
-    raise KeyError("projection column not found")  # noqa: TRY003 - stable test-facing projection error
+def _projection_decimal(row: dict[str, Any], column: str) -> Decimal:
+    return Decimal(str(row[column]))
 
 
-def _resolve_projection_expr(
-    columns: frozenset[str],
-    canonical_name: str,
-    legacy_alias: str | None = None,
-    *,
-    default_sql: str,
-) -> str:
-    if canonical_name in columns:
-        return canonical_name
-    if legacy_alias and legacy_alias in columns:
-        return legacy_alias
-    return default_sql
+def _projection_int(row: dict[str, Any], column: str) -> int:
+    return int(row[column] or 0)
 
 
-def _row_payload(row: dict[str, Any] | None) -> dict[str, Any] | None:
-    if row is None:
+def _projection_datetime(row: dict[str, Any], column: str) -> datetime | None:
+    value = row[column]
+    if value in (None, ""):
         return None
-    payload = row.get("payload")
-    if isinstance(payload, dict):
-        return payload
-    return row
+    if isinstance(value, datetime):
+        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+    raise TypeError(f"projection column {column} must be datetime")  # noqa: TRY003 - stable projection mapper error
 
 
-def _projection_value(
-    row: dict[str, Any],
-    canonical_name: str,
-    legacy_alias: str | None = None,
-    *,
-    default: Any = None,
-) -> Any:
-    if canonical_name in row:
-        return row[canonical_name]
-    if legacy_alias and legacy_alias in row:
-        return row[legacy_alias]
-    return default
+def _projection_date(row: dict[str, Any], column: str) -> date:
+    value = row[column]
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    raise TypeError(f"projection column {column} must be date")  # noqa: TRY003 - stable projection mapper error
 
 
-def _projection_decimal(
-    row: dict[str, Any],
-    canonical_name: str,
-    legacy_alias: str | None = None,
-    *,
-    default: str = "0",
-) -> Decimal:
-    return Decimal(str(_projection_value(row, canonical_name, legacy_alias, default=default)))
-
-
-def _projection_int(
-    row: dict[str, Any],
-    canonical_name: str,
-    legacy_alias: str | None = None,
-    *,
-    default: int = 0,
-) -> int:
-    return int(_projection_value(row, canonical_name, legacy_alias, default=default) or 0)
+def _runtime_timestamp(value: Any) -> datetime | None:
+    parsed: datetime | None = None
+    if value in (None, ""):
+        pass
+    elif isinstance(value, datetime):
+        parsed = value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+    elif isinstance(value, (int, float)):
+        parsed = datetime.fromtimestamp(value, tz=timezone.utc)
+    elif isinstance(value, str):
+        normalized = value.strip()
+        if normalized:
+            try:
+                parsed = datetime.fromtimestamp(float(normalized), tz=timezone.utc)
+            except ValueError:
+                parsed = None
+    return parsed
 
 
 @dataclass(slots=True)
@@ -235,12 +210,12 @@ def _operations_snapshot_from_row(row: dict[str, Any]) -> GatewayOperationsSnaps
     return GatewayOperationsSnapshot(
         gateway_status=str(row["gateway_status"]),
         indexer_running=bool(row.get("indexer_running") or False),
-        indexer_last_processed_at=row.get("indexer_last_processed_at"),
-        indexer_last_heartbeat_at=row.get("indexer_last_heartbeat_at"),
+        indexer_last_processed_at=_projection_datetime(row, "indexer_last_processed_at"),
+        indexer_last_heartbeat_at=_projection_datetime(row, "indexer_last_heartbeat_at"),
         indexer_last_error=row.get("indexer_last_error"),
         indexer_poll_interval_sec=int(row.get("indexer_poll_interval_sec") or 0),
         backfill_enabled=bool(row.get("backfill_enabled") or False),
-        backfill_last_scan_at=row.get("backfill_last_scan_at"),
+        backfill_last_scan_at=_projection_datetime(row, "backfill_last_scan_at"),
         backfill_last_scanned_block=row.get("backfill_last_scanned_block"),
         backfill_last_recovered=int(row.get("backfill_last_recovered") or 0),
         backfill_last_error=row.get("backfill_last_error"),
@@ -248,11 +223,11 @@ def _operations_snapshot_from_row(row: dict[str, Any]) -> GatewayOperationsSnaps
         failed_deposit_count=int(row["failed_deposit_count"]),
         recent_audit_alerts=int(row["recent_audit_alerts"]),
         reconciliation_enabled=bool(row.get("reconciliation_enabled") or False),
-        last_reconciliation_at=row.get("last_reconciliation_at"),
+        last_reconciliation_at=_projection_datetime(row, "last_reconciliation_at"),
         reconciliation_alert=bool(row["reconciliation_alert"]),
         reconciliation_delta_usdc=Decimal(str(row["reconciliation_delta_usdc"])),
         reconciliation_last_error=row.get("reconciliation_last_error"),
-        projected_at=row.get("projected_at"),
+        projected_at=_projection_datetime(row, "projected_at"),
     )
 
 
@@ -339,18 +314,6 @@ class PostgresGatewayDashboardProjectionRepository:
             return parsed if isinstance(parsed, dict) else {}
         return {}
 
-    @staticmethod
-    def _coerce_timestamp(value: Any) -> datetime | None:
-        if value in (None, ""):
-            return None
-        if isinstance(value, datetime):
-            return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
-        try:
-            timestamp = int(value)
-        except (TypeError, ValueError):
-            return None
-        return datetime.fromtimestamp(timestamp, tz=timezone.utc)
-
     def get_snapshot(self) -> GatewayDashboardSnapshot:
         columns = self._get_projection_columns("synapse_admin_dashboard_projection")
         if not columns:
@@ -376,7 +339,7 @@ class PostgresGatewayDashboardProjectionRepository:
             audit_alerts=int(row["audit_alerts"]),
             vault_ledger_delta=Decimal(str(row["vault_ledger_delta_usdc"])),
             gateway_status=str(row["gateway_status"]),
-            last_reconciliation_at=row["last_reconciliation_at"],
+            last_reconciliation_at=_projection_datetime(row, "last_reconciliation_at"),
         )
 
     def get_finance_snapshot(self) -> GatewayFinanceSnapshot:
@@ -386,50 +349,64 @@ class PostgresGatewayDashboardProjectionRepository:
         with _connect(self._dsn) as conn, conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT row_to_json(projection_row) AS payload
-                FROM (
-                    SELECT *
-                    FROM synapse_admin_dashboard_finance_projection
-                    LIMIT 1
-                ) AS projection_row
+                SELECT
+                    today_charge_usdc,
+                    today_deposit_usdc,
+                    today_consumer_refund_usdc,
+                    today_provider_withdrawal_usdc,
+                    today_invocation_count,
+                    today_platform_fee_earned_usdc,
+                    today_provider_earned_usdc,
+                    consumer_liability_usdc,
+                    refundable_consumer_balance_usdc,
+                    provider_payable_usdc,
+                    provider_available_to_withdraw_usdc,
+                    provider_locked_balance_usdc,
+                    platform_fee_balance_usdc,
+                    vault_ledger_delta_usdc,
+                    pending_deposit_count,
+                    pending_provider_withdrawal_count,
+                    chain_confirmed_not_ledger_confirmed_count,
+                    deposit_p95_sync_delay_seconds,
+                    recently_completed_outflows_usdc,
+                    projected_at
+                FROM synapse_admin_dashboard_finance_projection
+                LIMIT 1
                 """
             )
             row = cur.fetchone()
-        payload = _row_payload(row)
-        if payload is None:
+        if row is None:
             return _empty_finance_snapshot()
         return GatewayFinanceSnapshot(
-            today_charge_usdc=_projection_decimal(payload, "today_charge_usdc"),
-            today_deposit_usdc=_projection_decimal(payload, "today_deposit_usdc"),
-            today_consumer_refund_usdc=_projection_decimal(payload, "today_consumer_refund_usdc", "today_refund_usdc"),
+            today_charge_usdc=_projection_decimal(row, "today_charge_usdc"),
+            today_deposit_usdc=_projection_decimal(row, "today_deposit_usdc"),
+            today_consumer_refund_usdc=_projection_decimal(row, "today_consumer_refund_usdc"),
             today_provider_withdrawal_usdc=_projection_decimal(
-                payload,
+                row,
                 "today_provider_withdrawal_usdc",
-                "today_withdrawal_usdc",
             ),
-            today_invocation_count=_projection_int(payload, "today_invocation_count"),
-            today_platform_fee_earned_usdc=_projection_decimal(payload, "today_platform_fee_earned_usdc"),
-            today_provider_earned_usdc=_projection_decimal(payload, "today_provider_earned_usdc"),
-            consumer_liability_usdc=_projection_decimal(payload, "consumer_liability_usdc", "owner_liability_usdc"),
-            refundable_consumer_balance_usdc=_projection_decimal(payload, "refundable_consumer_balance_usdc"),
-            provider_payable_usdc=_projection_decimal(payload, "provider_payable_usdc"),
-            provider_available_to_withdraw_usdc=_projection_decimal(payload, "provider_available_to_withdraw_usdc"),
-            provider_locked_balance_usdc=_projection_decimal(payload, "provider_locked_balance_usdc"),
-            platform_fee_balance_usdc=_projection_decimal(payload, "platform_fee_balance_usdc"),
-            vault_ledger_delta_usdc=_projection_decimal(payload, "vault_ledger_delta_usdc"),
-            pending_deposit_count=_projection_int(payload, "pending_deposit_count"),
+            today_invocation_count=_projection_int(row, "today_invocation_count"),
+            today_platform_fee_earned_usdc=_projection_decimal(row, "today_platform_fee_earned_usdc"),
+            today_provider_earned_usdc=_projection_decimal(row, "today_provider_earned_usdc"),
+            consumer_liability_usdc=_projection_decimal(row, "consumer_liability_usdc"),
+            refundable_consumer_balance_usdc=_projection_decimal(row, "refundable_consumer_balance_usdc"),
+            provider_payable_usdc=_projection_decimal(row, "provider_payable_usdc"),
+            provider_available_to_withdraw_usdc=_projection_decimal(row, "provider_available_to_withdraw_usdc"),
+            provider_locked_balance_usdc=_projection_decimal(row, "provider_locked_balance_usdc"),
+            platform_fee_balance_usdc=_projection_decimal(row, "platform_fee_balance_usdc"),
+            vault_ledger_delta_usdc=_projection_decimal(row, "vault_ledger_delta_usdc"),
+            pending_deposit_count=_projection_int(row, "pending_deposit_count"),
             pending_provider_withdrawal_count=_projection_int(
-                payload,
+                row,
                 "pending_provider_withdrawal_count",
-                "pending_withdrawal_count",
             ),
             chain_confirmed_not_ledger_confirmed_count=_projection_int(
-                payload,
+                row,
                 "chain_confirmed_not_ledger_confirmed_count",
             ),
-            deposit_p95_sync_delay_seconds=_projection_int(payload, "deposit_p95_sync_delay_seconds"),
-            recently_completed_outflows_usdc=_projection_decimal(payload, "recently_completed_outflows_usdc"),
-            projected_at=payload.get("projected_at"),
+            deposit_p95_sync_delay_seconds=_projection_int(row, "deposit_p95_sync_delay_seconds"),
+            recently_completed_outflows_usdc=_projection_decimal(row, "recently_completed_outflows_usdc"),
+            projected_at=_projection_datetime(row, "projected_at"),
         )
 
     def list_activity_trends(self) -> list[GatewayActivityTrendPoint]:
@@ -439,29 +416,34 @@ class PostgresGatewayDashboardProjectionRepository:
         with _connect(self._dsn) as conn, conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT row_to_json(projection_row) AS payload
-                FROM (
-                    SELECT *
-                    FROM synapse_admin_dashboard_activity_trend_projection
-                    ORDER BY bucket_date ASC
-                ) AS projection_row
+                SELECT
+                    bucket_date,
+                    deposit_usdc,
+                    charge_usdc,
+                    invocation_count,
+                    platform_fee_earned_usdc,
+                    provider_earned_usdc,
+                    consumer_refund_usdc,
+                    provider_withdrawal_usdc,
+                    net_flow_usdc
+                FROM synapse_admin_dashboard_activity_trend_projection
+                ORDER BY bucket_date ASC
                 """
             )
             rows = cur.fetchall()
-        payloads = [payload for row in rows if (payload := _row_payload(row)) is not None]
         return [
             GatewayActivityTrendPoint(
-                bucket_date=payload["bucket_date"],
-                deposit_usdc=_projection_decimal(payload, "deposit_usdc"),
-                charge_usdc=_projection_decimal(payload, "charge_usdc"),
-                invocation_count=_projection_int(payload, "invocation_count"),
-                platform_fee_earned_usdc=_projection_decimal(payload, "platform_fee_earned_usdc"),
-                provider_earned_usdc=_projection_decimal(payload, "provider_earned_usdc"),
-                consumer_refund_usdc=_projection_decimal(payload, "consumer_refund_usdc", "refund_usdc"),
-                provider_withdrawal_usdc=_projection_decimal(payload, "provider_withdrawal_usdc", "withdrawal_usdc"),
-                net_flow_usdc=_projection_decimal(payload, "net_flow_usdc"),
+                bucket_date=_projection_date(row, "bucket_date"),
+                deposit_usdc=_projection_decimal(row, "deposit_usdc"),
+                charge_usdc=_projection_decimal(row, "charge_usdc"),
+                invocation_count=_projection_int(row, "invocation_count"),
+                platform_fee_earned_usdc=_projection_decimal(row, "platform_fee_earned_usdc"),
+                provider_earned_usdc=_projection_decimal(row, "provider_earned_usdc"),
+                consumer_refund_usdc=_projection_decimal(row, "consumer_refund_usdc"),
+                provider_withdrawal_usdc=_projection_decimal(row, "provider_withdrawal_usdc"),
+                net_flow_usdc=_projection_decimal(row, "net_flow_usdc"),
             )
-            for payload in payloads
+            for row in rows
         ]
 
     def get_operations_snapshot(self) -> GatewayOperationsSnapshot:
@@ -471,19 +453,35 @@ class PostgresGatewayDashboardProjectionRepository:
         with _connect(self._dsn) as conn, conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT row_to_json(projection_row) AS payload
-                FROM (
-                    SELECT *
-                    FROM synapse_admin_dashboard_operations_projection
-                    LIMIT 1
-                ) AS projection_row
+                SELECT
+                    gateway_status,
+                    indexer_running,
+                    indexer_last_processed_at,
+                    indexer_last_heartbeat_at,
+                    indexer_last_error,
+                    indexer_poll_interval_sec,
+                    backfill_enabled,
+                    backfill_last_scan_at,
+                    backfill_last_scanned_block,
+                    backfill_last_recovered,
+                    backfill_last_error,
+                    recent_gateway_failures,
+                    failed_deposit_count,
+                    recent_audit_alerts,
+                    reconciliation_enabled,
+                    last_reconciliation_at,
+                    reconciliation_alert,
+                    reconciliation_delta_usdc,
+                    reconciliation_last_error,
+                    projected_at
+                FROM synapse_admin_dashboard_operations_projection
+                LIMIT 1
                 """
             )
             row = cur.fetchone()
-        payload = _row_payload(row)
-        if payload is None:
+        if row is None:
             return _empty_operations_snapshot()
-        return _operations_snapshot_from_row(payload)
+        return _operations_snapshot_from_row(row)
 
     def get_reconciliation_runtime_state(self) -> GatewayReconciliationRuntimeState:
         with _connect(self._dsn) as conn, conn.cursor() as cur:
@@ -511,10 +509,10 @@ class PostgresGatewayDashboardProjectionRepository:
         ledger_obligation = payload.get("ledgerObligationUsdc")
         delta = payload.get("deltaUsdc")
         return GatewayReconciliationRuntimeState(
-            last_check_at=self._coerce_timestamp(payload.get("lastCheckAt")),
+            last_check_at=_runtime_timestamp(payload.get("lastCheckAt")),
             chain_vault_usdc=Decimal(str(chain_vault)) if chain_vault is not None else None,
             ledger_obligation_usdc=Decimal(str(ledger_obligation)) if ledger_obligation is not None else None,
             delta_usdc=Decimal(str(delta)) if delta is not None else None,
             alert=bool(payload.get("alert") or False),
-            updated_at=row.get("updated_at"),
+            updated_at=_projection_datetime(row, "updated_at"),
         )

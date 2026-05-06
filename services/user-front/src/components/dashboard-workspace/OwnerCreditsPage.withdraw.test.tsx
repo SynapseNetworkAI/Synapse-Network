@@ -487,8 +487,8 @@ describe("OwnerCreditsPage — Withdraw", () => {
     },
     {
       code: "INSUFFICIENT_MATURE_CONSUMER_BALANCE",
-      en: "These funds are not mature yet. Consumer withdrawals require the T+1 matured funds window.",
-      zh: "这笔资金尚未成熟。Consumer 提现需要经过 T+1 资金成熟期。",
+      en: "These funds are not mature yet. Consumer withdrawals require the T+7 matured funds window.",
+      zh: "这笔资金尚未成熟。Consumer 提现需要经过 T+7 资金成熟期。",
     },
     {
       code: "UNKNOWN_RAW_BACKEND_ERROR",

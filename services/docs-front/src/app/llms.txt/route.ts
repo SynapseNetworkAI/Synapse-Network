@@ -5,7 +5,7 @@ export const revalidate = false;
 
 const criticalNotes = `## Critical Runtime Notes
 
-- Matured Funds: Consumer withdrawals are T+1 before funds become withdrawable.
+- Matured Funds: Consumer withdrawals are T+7 before funds become withdrawable.
 - Matured Funds: Provider earnings are T+7 before receivables become withdrawable.
 - Dynamic pricing: do not hard-code fees or prices from docs.
 - Example values only: PLATFORM_FEE_RATE=10%, CONSUMER_WITHDRAW_FEE_USDC=0.50 USDC, GATEWAY_ROUTING_TAX=0.000100 USDC.

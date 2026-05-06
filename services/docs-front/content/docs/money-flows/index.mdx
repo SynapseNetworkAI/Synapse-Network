@@ -6,11 +6,11 @@ description: Understand deposits, spendable balance, matured funds, withdrawals,
 Money flows in Synapse are split by actor. Consumers fund agent budgets, agents spend those budgets through Gateway, and providers earn receivables that later settle back on-chain.
 
 <WarningNote title="Matured Funds are not the same as balance">
-  A balance can be spendable before it is withdrawable. Consumer withdrawals use a T+1 matured funds window, while provider earnings use a T+7 matured funds window.
+  A balance can be spendable before it is withdrawable. Consumer withdrawals and provider earnings both use a T+7 matured funds window.
 </WarningNote>
 
 <StatLine>
-  Consumer: deposit -> indexed balance -> T+1 matured -> withdrawal intent -> on-chain claim
+  Consumer: deposit -> indexed balance -> T+7 matured -> withdrawal intent -> on-chain claim
 </StatLine>
 
 <StatLine>
@@ -31,7 +31,7 @@ Money flows in Synapse are split by actor. Consumers fund agent budgets, agents 
     {
       href: '/money-flows/consumer-withdrawals',
       title: 'Consumer withdrawals',
-      description: 'Why consumer funds need T+1 maturity before they can be withdrawn.',
+      description: 'Why consumer funds need T+7 maturity before they can be withdrawn.',
     },
     {
       href: '/money-flows/provider-withdrawals',
@@ -49,7 +49,7 @@ Money flows in Synapse are split by actor. Consumers fund agent budgets, agents 
 ## State model
 
 - **Spendable consumer balance**: indexed funds that can be used by authorized agent credentials.
-- **Matured withdrawable balance**: consumer funds that passed the T+1 risk window and are eligible for withdrawal intent creation.
+- **Matured withdrawable balance**: consumer funds that passed the T+7 risk window and are eligible for withdrawal intent creation.
 - **Provider receivable**: earned provider revenue from paid invocations.
 - **Matured provider receivable**: provider earnings that passed T+7 risk, dispute, and reconciliation review.
 - **Frozen withdrawal funds**: funds locked by an active withdrawal intent until the ticket is claimed, failed, expired, or manually reviewed.

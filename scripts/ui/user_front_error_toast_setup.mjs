@@ -37,7 +37,8 @@ export const expectedCopy = {
     creditsUnknown: "Unable to prepare the withdrawal right now.",
     providerRpc:
       "Gateway cannot reach chain RPC right now. Retry after the RPC reconnects.",
-    providerMatured: "Provider earnings need T+7 maturity before withdrawal.",
+    providerMatured:
+      "Provider earnings are still in the T+7 maturity window. Only matured receivables can be withdrawn; newly earned receivables still appear in balance.",
     serviceList: "Failed to load services",
     serviceDeploy: "Failed to create service.",
     credentialRevoke: "Failed to revoke credential",
@@ -46,7 +47,8 @@ export const expectedCopy = {
     creditsRpc: "Gateway 当前无法连接链 RPC。",
     creditsUnknown: "暂时无法准备提现，请稍后重试。",
     providerRpc: "网关当前无法连接链上 RPC",
-    providerMatured: "Provider 收益需要经过 T+7 风控沉淀期后才能提现。",
+    providerMatured:
+      "当前收益尚未达到 T+7 成熟期。只有已成熟应收可以提现；新产生的应收仍会显示在余额中。",
     serviceList: "加载服务失败",
     serviceDeploy: "创建服务失败。",
     credentialRevoke: "撤销凭据失败",
@@ -83,6 +85,8 @@ function routeOptions(options = {}) {
   return {
     consumerWithdrawMode: "ok",
     providerWithdrawMode: "ok",
+    providerReceivable: 12.6,
+    providerMatureReceivable: 12.6,
     failServiceList: false,
     failServiceDeploy: false,
     failCredentialRevoke: false,
@@ -265,16 +269,17 @@ function providerWithdrawIntentResponse(config) {
   ];
 }
 
-function providerEarningsResponse() {
+function providerEarningsResponse(config) {
   return {
     summary: {
       ownerAddress: TEST_ADDRESS,
       totalApiCalls: 0,
-      totalEarned: 12.6,
+      totalEarned: config.providerReceivable,
       totalProtocolFee: 0,
       totalRoutingTax: 0,
-      providerNetEarned: 12.6,
-      providerReceivable: 12.6,
+      providerNetEarned: config.providerReceivable,
+      providerReceivable: config.providerReceivable,
+      providerMatureReceivable: config.providerMatureReceivable,
       duplicateRowsDropped: 0,
       idempotencyKey: "fixture",
       recentCalls: [],
@@ -355,7 +360,7 @@ function handleProviderRoute(route, config, pathKey, method) {
   if (pathKey === "/api/v1/providers/withdrawals/intent")
     return fulfillJson(route, ...providerWithdrawIntentResponse(config));
   if (pathKey === "/api/v1/providers/earnings/summary")
-    return fulfillJson(route, 200, providerEarningsResponse());
+    return fulfillJson(route, 200, providerEarningsResponse(config));
   return null;
 }
 

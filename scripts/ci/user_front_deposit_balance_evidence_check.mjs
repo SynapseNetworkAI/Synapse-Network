@@ -24,6 +24,9 @@ const REQUIRED_FILES = [
 const REQUIRED_SCREENSHOTS = [
   "screenshots/billing-deposit-pending.png",
   "screenshots/credits-before-confirm.png",
+  "screenshots/deposit-input-ready.png",
+  "screenshots/deposit-review.png",
+  "screenshots/deposit-review-preapproved.png",
   "screenshots/billing-deposit-completed.png",
   "screenshots/credits-after-confirm.png",
   "screenshots/credits-after-confirm-withdrawable-zero.png",
@@ -35,6 +38,7 @@ const REQUIRED_STEPS = [
   "chain:deposit",
   "db:pending-deposit",
   "db:confirmed-deposit-and-replay-safe",
+  "ui:deposit-request-review",
   "api:confirmed-balance-not-mature",
   "ui:credits-withdrawable-zero",
   "ui:withdraw-modal-t7-disabled",
@@ -174,6 +178,65 @@ for (const screenshot of REQUIRED_SCREENSHOTS) {
 const screenshotMap = new Map(
   (screenshots || []).map((row) => [row.path, row])
 );
+const depositInputReadyShot = screenshotMap.get(
+  "screenshots/deposit-input-ready.png"
+);
+if (
+  !depositInputReadyShot ||
+  depositInputReadyShot.expectedAction !== "Review Deposit"
+) {
+  fatal(
+    "USER-FRONT-DEPOSIT-BALANCE-REQUEST-INPUT-SHOT",
+    path.join(dir, "screenshot-evidence.json"),
+    "Deposit request input screenshot is not bound to the Review Deposit ready state.",
+    "capture Credits purchase input after wallet/network/gas checks pass and before opening the wallet review."
+  );
+}
+const depositReviewShot = screenshotMap.get("screenshots/deposit-review.png");
+if (
+  !depositReviewShot ||
+  !String(depositReviewShot.expectedAmount || "").endsWith("USDC") ||
+  !String(depositReviewShot.expectedResult || "").includes(
+    "Gateway confirmation"
+  )
+) {
+  fatal(
+    "USER-FRONT-DEPOSIT-BALANCE-REQUEST-REVIEW-SHOT",
+    path.join(dir, "screenshot-evidence.json"),
+    "Deposit request review screenshot is not bound to amount, Wallet -> Synapse Vault, and Gateway confirmation UX evidence.",
+    "capture the Review Deposit modal and persist amount/result metadata."
+  );
+}
+const depositPreapprovedShot = screenshotMap.get(
+  "screenshots/deposit-review-preapproved.png"
+);
+if (
+  !depositPreapprovedShot ||
+  !String(depositPreapprovedShot.expectedDom || "").includes(
+    "Existing allowance"
+  )
+) {
+  fatal(
+    "USER-FRONT-DEPOSIT-BALANCE-REQUEST-PREAPPROVED-SHOT",
+    path.join(dir, "screenshot-evidence.json"),
+    "Preapproved deposit review screenshot is missing allowance-first evidence.",
+    "local E2E pre-approves the Vault before the chain broadcast; capture the skipped authorization state."
+  );
+}
+if (
+  !report.dom?.depositRequestReview ||
+  !String(report.dom.depositRequestReview.expectedResult || "").includes(
+    "Gateway confirmation"
+  ) ||
+  report.dom.depositRequestReview.preapproved !== true
+) {
+  fatal(
+    "USER-FRONT-DEPOSIT-BALANCE-REQUEST-DOM",
+    path.join(dir, "report.json"),
+    "Report is missing deposit request review DOM evidence or preapproved allowance-first proof.",
+    "persist depositRequestReview in the E2E report before broadcasting the deposit transaction."
+  );
+}
 if (
   screenshotMap.get("screenshots/billing-deposit-pending.png")?.sqlStatus !==
   "PENDING_CONFIRMATION"

@@ -8,14 +8,12 @@ export function createAdminWithdrawalApprovalHelpers({
   adminTotpSecret,
   api,
   apiBase,
-  chainId,
   ethers,
   fail,
   getChainContext,
   log,
   moneyFromObject,
   runId,
-  servicePriceUsdc,
   sleep,
 }) {
   async function issueProviderSecret({ token, address }) {
@@ -39,135 +37,6 @@ export function createAdminWithdrawalApprovalHelpers({
     };
   }
 
-  function serviceId() {
-    return `awa_provider_withdraw_${runId.replace(/[^a-zA-Z0-9_]/g, "_")}`;
-  }
-
-  async function registerService({ token, address, mockUrl }) {
-    const id = serviceId();
-    const payload = buildServicePayload({ address, id, mockUrl });
-    const response = (
-      await api("/v1/services", {
-        method: "POST",
-        token,
-        address,
-        body: payload,
-      })
-    ).payload;
-    const service = response.service || response;
-    const createdServiceId = service.serviceId || response.serviceId || id;
-    log(`service registered: ${createdServiceId} (${servicePriceUsdc} USDC)`);
-    return {
-      id: createdServiceId,
-      name: service.serviceName || payload.serviceName,
-      priceUsdc: servicePriceUsdc,
-      mockUrl,
-    };
-  }
-
-  function buildServicePayload({ address, id, mockUrl }) {
-    return {
-      serviceName: `Admin Withdrawal Approval Provider ${runId}`,
-      agentToolName: id,
-      role: "Provider",
-      pricing: { currency: "USDC", amount: servicePriceUsdc },
-      summary:
-        "Provider service used to generate real receivable for admin withdrawal approval dogfood.",
-      tags: ["admin-withdrawal-approval", "verification"],
-      providerProfile: { displayName: "Admin Withdrawal Approval Provider" },
-      payoutAccount: {
-        payoutAddress: address,
-        chainId,
-        settlementCurrency: "USDC",
-        status: "active",
-      },
-      governance: { termsAccepted: true, riskAcknowledged: true, note: runId },
-      healthCheck: {
-        path: "/health",
-        method: "GET",
-        intervalSec: 15,
-        timeoutMs: 5000,
-        successCodes: [200],
-        healthyThreshold: 1,
-        unhealthyThreshold: 1,
-      },
-      constraints: {
-        timeoutMs: 15000,
-        maxResponseBytes: 500000,
-        maxRequestBytes: 100000,
-        maxQps: 50,
-        maxConcurrency: 4,
-      },
-      forwarding: {
-        requestIdHeader: "X-Synapse-Request-Id",
-        passThroughHeaders: [],
-        injectHeaders: {},
-        retryPolicy: {
-          maxAttempts: 1,
-          backoffMs: 200,
-          retryOnStatus: [429, 500, 502, 503, 504],
-        },
-      },
-      metering: {
-        billingUnit: "per_call",
-        billOnError: false,
-        billableStatusClasses: [2],
-        requestIdRequired: true,
-        responseSizeMetering: true,
-      },
-      invoke: {
-        method: "POST",
-        targets: [{ url: mockUrl, weight: 100, region: "local" }],
-        timeoutMs: 15000,
-        request: {
-          contentType: "application/json",
-          schema: {
-            type: "object",
-            properties: { query: { type: "string" } },
-            required: ["query"],
-          },
-        },
-        response: {
-          schema: {
-            type: "object",
-            properties: {
-              status: { type: "string" },
-              echo: { type: "object" },
-            },
-          },
-        },
-        headersTemplate: {},
-        examples: [{ query: "approval verification" }],
-      },
-      isActive: true,
-      status: "active",
-    };
-  }
-
-  async function waitForServiceDiscoverable(id) {
-    for (let i = 0; i < 30; i += 1) {
-      const payload = (
-        await api(`/v1/services/discover?q=${encodeURIComponent(id)}`)
-      ).payload;
-      const services = Array.isArray(payload.services) ? payload.services : [];
-      const found = services.find((service) =>
-        [service.serviceId, service.service_id, service.agentToolName].includes(
-          id
-        )
-      );
-      if (
-        found &&
-        found.isActive !== false &&
-        found.runtimeAvailable !== false
-      ) {
-        log(`service discoverable and callable: ${id}`);
-        return found;
-      }
-      await sleep(3000);
-    }
-    fail(`service was not discoverable/callable after health probes: ${id}`);
-  }
-
   async function issueAgentCredential({ token, address }) {
     const payload = (
       await api("/v1/credentials/agent/issue", {
@@ -177,7 +46,7 @@ export function createAdminWithdrawalApprovalHelpers({
         body: {
           name: `awa-agent-${runId}`,
           rpm: 60,
-          maxCalls: 10,
+          maxCalls: 50,
           creditLimit: "1000",
           resetInterval: "daily",
         },
@@ -197,8 +66,8 @@ export function createAdminWithdrawalApprovalHelpers({
     };
   }
 
-  async function invokeService({ credentialToken, service }) {
-    const requestId = `awa-invoke-${runId}`;
+  async function invokeService({ credentialToken, service, sequence = 1 }) {
+    const requestId = `awa-invoke-${runId}-${sequence}`;
     let response = null;
     let lastFailure = null;
     for (let attempt = 1; attempt <= 12; attempt += 1) {
@@ -213,7 +82,9 @@ export function createAdminWithdrawalApprovalHelpers({
           serviceId: service.id,
           idempotencyKey: requestId,
           costUsdc: service.priceUsdc,
-          payload: { body: { query: `verify ${runId}` } },
+          payload: {
+            body: service.invokePayload || { prompt: `verify ${runId}` },
+          },
           responseMode: "sync",
         },
         expectOk: false,
@@ -450,7 +321,5 @@ export function createAdminWithdrawalApprovalHelpers({
     issueProviderSecret,
     loginAdmin,
     readChainBalances,
-    registerService,
-    waitForServiceDiscoverable,
   };
 }

@@ -688,6 +688,112 @@ async function assertWithdrawModalT7Disabled(page) {
   };
 }
 
+async function assertDepositRequestUx(page, { amountUsdc, walletAddress }) {
+  const amountDisplay = Number(amountUsdc).toFixed(2);
+  await page.goto(`${config.frontendUrl}/dashboard/billing/credits`, {
+    waitUntil: "domcontentloaded",
+    timeout: 60000,
+  });
+  await page.getByRole("button", { name: "Purchase credits" }).click();
+  await page.getByRole("spinbutton").fill(amountDisplay);
+  await page
+    .getByRole("button", { name: "Review Deposit" })
+    .waitFor({ state: "visible", timeout: 30000 });
+  const inputBody = await readBodyText(page);
+  assertRow(
+    "deposit input ready button",
+    inputBody.includes("Review Deposit"),
+    inputBody.slice(0, 1600)
+  );
+  assertRow(
+    "deposit input wallet checks",
+    inputBody.includes("Wallet USDC") &&
+      inputBody.includes("Gas balance") &&
+      inputBody.includes("Network"),
+    inputBody.slice(0, 1600)
+  );
+  await screenshot(page, "deposit-input-ready.png", {
+    expectedAction: "Review Deposit",
+    amountUsdc,
+    walletAddress,
+  });
+
+  await page.getByRole("button", { name: "Review Deposit" }).click();
+  await page
+    .getByText(`${amountDisplay} USDC`, { exact: false })
+    .waitFor({ state: "visible", timeout: 30000 });
+  const reviewBody = await readBodyText(page);
+  const expectedResult = `${amountDisplay} USDC will be deposited into Synapse Vault and become spendable credits after Gateway confirmation.`;
+  assertRow(
+    "deposit review amount",
+    reviewBody.includes(`${amountDisplay} USDC`),
+    reviewBody.slice(0, 1600)
+  );
+  assertRow(
+    "deposit review route",
+    reviewBody.includes("From your wallet") &&
+      reviewBody.includes("Synapse Vault"),
+    reviewBody.slice(0, 1600)
+  );
+  assertRow(
+    "deposit review expected result",
+    reviewBody.includes(expectedResult),
+    reviewBody.slice(0, 1600)
+  );
+  assertRow(
+    "deposit review hides token address by default",
+    !reviewBody.includes("Token address"),
+    reviewBody.slice(0, 1600)
+  );
+  await screenshot(page, "deposit-review.png", {
+    expectedAmount: `${amountDisplay} USDC`,
+    expectedResult,
+    walletAddress,
+  });
+
+  const preapproved = reviewBody.includes(
+    "Existing allowance found. Authorization step skipped."
+  );
+  if (preapproved) {
+    assertRow(
+      "deposit review preapproved skips authorization",
+      !reviewBody.includes("Permit authorization") &&
+        !reviewBody.includes("Approve USDC"),
+      reviewBody.slice(0, 1600)
+    );
+    await screenshot(page, "deposit-review-preapproved.png", {
+      expectedDom: "Existing allowance found. Authorization step skipped.",
+      actualDom: reviewBody.slice(0, 1600),
+      walletAddress,
+    });
+  }
+
+  evidence.dom.depositRequestReview = {
+    amount: `${amountDisplay} USDC`,
+    expectedResult,
+    preapproved,
+    walletAddress,
+    bodyText: reviewBody.slice(0, 1600),
+  };
+  addStep("ui:deposit-request-review", true, "", {
+    amount: `${amountDisplay} USDC`,
+    preapproved,
+  });
+
+  await page
+    .getByRole("button", { name: "Close deposit dialog" })
+    .click()
+    .catch(async () => {
+      await page.keyboard.press("Escape").catch(() => {});
+    });
+  return {
+    amount: `${amountDisplay} USDC`,
+    expectedResult,
+    preapproved,
+    bodyText: reviewBody.slice(0, 1600),
+  };
+}
+
 async function assertBillingRowStatus(
   page,
   txHash,
@@ -846,6 +952,10 @@ async function main() {
     actualDom: beforeMatched,
     sqlAvailableBalance: pendingBalance.available_balance,
     depositId,
+  });
+  await assertDepositRequestUx(page, {
+    amountUsdc: chain.amountUsdc,
+    walletAddress: auth.address,
   });
 
   const minedDepositTxHash = await chain.broadcastDeposit();
