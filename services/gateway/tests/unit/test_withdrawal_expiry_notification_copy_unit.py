@@ -18,9 +18,9 @@ def test_withdrawal_expiry_notifications_explain_funds_returned() -> None:
         {"withdrawalId": "pw-1", "amount": "2.000000"},
     )
 
-    assert "Frozen funds were safely returned to your available balance" in consumer.body
+    assert "Funds were safely returned to your available balance" in consumer.body
     assert consumer.payload["status"] == "FAILED_EXPIRED"
-    assert "Frozen earnings were safely returned to your withdrawable balance" in provider.body
+    assert "Earnings were safely returned to your withdrawable balance" in provider.body
     assert provider.payload["status"] == "FAILED_EXPIRED"
 
 

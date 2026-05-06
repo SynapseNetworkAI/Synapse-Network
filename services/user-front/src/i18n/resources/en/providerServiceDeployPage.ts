@@ -1,12 +1,14 @@
 import type { I18nMessages } from "@/i18n/schema";
 
 const providerServiceDeployPage: I18nMessages["providerServiceDeployPage"] = {
-  sessionHelpText: "This page is session-only. Please complete wallet sign-in from My Services, then return to create a service.",
+  sessionHelpText:
+    "This page is session-only. Please complete wallet sign-in from My Services, then return to create a service.",
   sessionRecoveryLabel: "Go to API Services",
   closePageAria: "Close create API service page",
   restoreDraft: "Restore Draft",
   draftRestored: "Service definition draft restored.",
-  corruptedDraft: "Stored draft is corrupted. Start from a clean service definition.",
+  corruptedDraft:
+    "Stored draft is corrupted. Start from a clean service definition.",
   title: "Create API Service",
   backToApiServices: "Back to API Services",
   eyebrow: "Provider Control Plane",
@@ -31,29 +33,38 @@ const providerServiceDeployPage: I18nMessages["providerServiceDeployPage"] = {
     "Gateway auth mode, health method, probe interval, trace header and metering stay platform-managed.",
   ],
   serviceIdResync: "Re-sync from name",
-  serviceIdResyncHint: "Auto-generated from Service Name. Edit only if you need a custom machine key.",
-  serviceIdManualHint: "Manual override enabled. Service ID stays stable until you re-sync it.",
+  serviceIdResyncHint:
+    "Auto-generated from Service Name. Edit only if you need a custom machine key.",
+  serviceIdManualHint:
+    "Manual override enabled. Service ID stays stable until you re-sync it.",
   serviceNameLabel: "Service Name",
   serviceNamePlaceholder: "SEA Invoice OCR",
-  serviceNameHint: "Human-readable name shown in provider console and marketplace.",
+  serviceNameHint:
+    "Human-readable name shown in provider console and marketplace.",
   serviceIdLabel: "Service ID",
   serviceIdPlaceholder: "svc_invoice_ocr_apac",
   serviceIdHint: "Stable machine identity for discovery, quote and invoke.",
   endpointLabel: "Primary Endpoint URL",
   endpointPlaceholder: "https://provider.example.com/invoke",
-  endpointHint: "Canonical invoke URL. If you skip routing targets, Synapse will route to this endpoint.",
+  endpointHint:
+    "Canonical invoke URL. If you skip routing targets, Synapse will route to this endpoint.",
   priceLabel: "Base Price USDC",
   pricePlaceholder: "0.008",
   priceHint: "Fixed per-call price in USDC.",
   descriptionLabel: "Description for Model",
-  descriptionPlaceholder: "Extract structured invoice fields from Southeast Asia invoice images.",
-  descriptionHint: "Tell an autonomous agent when to call this service and what value it returns.",
+  descriptionPlaceholder:
+    "Extract structured invoice fields from Southeast Asia invoice images.",
+  descriptionHint:
+    "Tell an autonomous agent when to call this service and what value it returns.",
   inputSchemaLabel: "Input Schema",
-  inputSchemaHint: "Preloaded with a safe object template. Tighten it later when the contract stabilizes.",
+  inputSchemaHint:
+    "Preloaded with a safe object template. Tighten it later when the contract stabilizes.",
   outputSchemaLabel: "Output Schema",
-  outputSchemaHint: "Preloaded with a safe object template. Define stable keys the agent can trust.",
+  outputSchemaHint:
+    "Preloaded with a safe object template. Define stable keys the agent can trust.",
   optionalMetadataTitle: "Optional agent metadata",
-  optionalMetadataDescription: "These fields improve discovery quality, but they are not required to get a service live.",
+  optionalMetadataDescription:
+    "These fields improve discovery quality, but they are not required to get a service live.",
   taskCategoryLabel: "Task Category",
   taskCategoryPlaceholder: "ocr.invoice",
   taskCategoryHint: "Optional semantic bucket for discovery and ranking.",
@@ -66,7 +77,8 @@ const providerServiceDeployPage: I18nMessages["providerServiceDeployPage"] = {
   limitationsPlaceholder: "not_for_handwritten_receipts",
   limitationsHint: "Known boundaries that help agents avoid bad calls.",
   examplesLabel: "Examples JSON Array",
-  examplesHint: "Optional invoke examples. Good for SDK snippets and future ranking.",
+  examplesHint:
+    "Optional invoke examples. Good for SDK snippets and future ranking.",
   advancedEyebrow: "Advanced Overrides",
   advancedTitle: "Runtime and gateway controls",
   advancedDescription:
@@ -100,7 +112,8 @@ const providerServiceDeployPage: I18nMessages["providerServiceDeployPage"] = {
   healthTimeoutLabel: "Health Timeout (ms)",
   healthTimeoutHint: "Probe timeout, usually lower than invoke timeout.",
   routingTargetsLabel: "Routing Targets",
-  routingTargetsHint: "Leave the default single target if one endpoint is enough.",
+  routingTargetsHint:
+    "Leave the default single target if one endpoint is enough.",
   defaultsCardTitle: "Health and forwarding defaults",
   defaultsCardDescription:
     "Health method is fixed to {{method}}, success codes default to {{codes}}, and Synapse always injects the request ID header for tracing.",
@@ -129,7 +142,8 @@ const providerServiceDeployPage: I18nMessages["providerServiceDeployPage"] = {
   deploymentLabelCreating: "CREATING SERVICE...",
   deploymentLabelWaitingForAssets: "WAITING FOR GENERATED ASSETS...",
   deploymentLabelFix: "FIX CONTRACT VALIDATION",
-  deploymentReadyText: "Ready. Core gateway submission contract is consistent with the current backend.",
+  deploymentReadyText:
+    "Ready. Core gateway submission contract is consistent with the current service configuration.",
   supportTitle: "Need help publishing this service?",
   supportDescription:
     "If service registration fails, runtime onboarding is unclear, or you need a manual review before going live, contact the operator with the service name and endpoint URL.",
@@ -145,83 +159,113 @@ const providerServiceDeployPage: I18nMessages["providerServiceDeployPage"] = {
     "Paste a complete API example block: raw cURL command plus the returned JSON result. The parser will infer the current V1 service definition fields and fill the form.",
   parserCurlLabel: "Raw cURL Command + Result",
   parserCurlPlaceholder:
-    "curl -X POST \"http://127.0.0.1:8100/api/v1/quotes/famous/top3\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"text\":\"关于坚持\"}'\n{\"input_text\":\"关于坚持\",\"quotes\":[\"穷则独善其身，达则兼济天下。—— 孟子\"]}",
-  parserCurlHint: "Natural language notes are not accepted here. Paste the actual cURL request and, if available, the real JSON response right below it.",
+    'curl -X POST "http://127.0.0.1:8100/api/v1/quotes/famous/top3" \\\n  -H "Content-Type: application/json" \\\n  -d \'{"text":"关于坚持"}\'\n{"input_text":"关于坚持","quotes":["穷则独善其身，达则兼济天下。—— 孟子"]}',
+  parserCurlHint:
+    "Natural language notes are not accepted here. Paste the actual cURL request and, if available, the real JSON response right below it.",
   parserCurlInvalid:
     "Enter a valid example block that starts with curl, contains a full http(s) URL, and can optionally include the returned JSON result after the command.",
   parserJsonLabel: "Expected / Generated Service Definition JSON",
-  parserJsonPlaceholder: "{\"service_id\":\"svc_invoice_ocr_apac\"}",
-  parserJsonHint: "You can manually refine the service definition JSON before applying the override.",
-  parserJsonInvalid: "Generated service definition must be a valid JSON object.",
+  parserJsonPlaceholder: '{"service_id":"svc_invoice_ocr_apac"}',
+  parserJsonHint:
+    "You can manually refine the service definition JSON before applying the override.",
+  parserJsonInvalid:
+    "Generated service definition must be a valid JSON object.",
   parserGenerate: "Generate Definition JSON",
   parserGenerating: "Generating...",
   parserConfirm: "Confirm Override",
-  parserInvalidCurl: "Raw cURL Command must start with curl and include a valid http(s) URL.",
-  parserWalletMissing: "Wallet not connected. Please connect wallet and sign in first.",
+  parserInvalidCurl:
+    "Raw cURL Command must start with curl and include a valid http(s) URL.",
+  parserWalletMissing:
+    "Wallet not connected. Please connect wallet and sign in first.",
   parserUnknownError: "Unknown parser error.",
-  parserInvalidResponse: "Parser did not return a valid service definition object.",
-  parserGeneratedToast: "AI service definition draft generated. Review and confirm override.",
+  parserInvalidResponse:
+    "Parser did not return a valid service definition object.",
+  parserGeneratedToast:
+    "AI service definition draft generated. Review and confirm override.",
   parserFailed: "Failed to parse cURL.",
   parserInjectedToast: "Parsed service definition data injected into the form.",
-  parserExpectedJsonError: "Expected / Generated Service Definition JSON must be valid JSON object.",
-  submitWalletMissing: "Wallet not connected. Please connect wallet and sign in first.",
-  submitGeneratedAssetsPending: "Generated assets are still being prepared. Wait for generation to finish before submitting.",
+  parserExpectedJsonError:
+    "Expected / Generated Service Definition JSON must be valid JSON object.",
+  submitWalletMissing:
+    "Wallet not connected. Please connect wallet and sign in first.",
+  submitGeneratedAssetsPending:
+    "Generated assets are still being prepared. Wait for generation to finish before submitting.",
   submitSuccess: "API service submitted.",
   submitFailed: "Failed to create service.",
   validationServiceIdRequired: "Service ID is required.",
   validationServiceIdPattern: "Service ID must match ^[a-z0-9_-]{3,64}$.",
   validationServiceNameRequired: "Service Name is required.",
   validationServiceNameLength: "Service Name must be {{min}}-{{max}} chars.",
-  validationManifestVersion: "Service Version must use semver, for example 1.0.0.",
+  validationManifestVersion:
+    "Service Version must use semver, for example 1.0.0.",
   validationDescriptionRequired: "Description for Model is required.",
-  validationDescriptionLength: "Description for Model must be {{min}}-{{max}} chars.",
+  validationDescriptionLength:
+    "Description for Model must be {{min}}-{{max}} chars.",
   validationInputSchema: "Input Schema must be valid JSON object.",
   validationOutputSchema: "Output Schema must be valid JSON object.",
   validationExamples: "Examples must be valid JSON array.",
   validationBasePrice: "Base Price USDC must be a non-negative number.",
   validationEndpointUrl: "Endpoint URL must be a valid http(s) URL.",
   validationTimeoutRange: "Timeout must be in [{{min}}, {{max}}] ms.",
-  validationMaxRequestBytesRange: "Max Request Bytes must be in [{{min}}, {{max}}].",
-  validationMaxResponseBytesRange: "Max Response Bytes must be in [{{min}}, {{max}}].",
+  validationMaxRequestBytesRange:
+    "Max Request Bytes must be in [{{min}}, {{max}}].",
+  validationMaxResponseBytesRange:
+    "Max Response Bytes must be in [{{min}}, {{max}}].",
   validationHealthPath: "Health Check Path must start with /.",
   validationRoutingTargets: "At least one valid routing target is required.",
   validationTargetWeight: "Target weight must be in [{{min}}, {{max}}].",
   validationMaxQpsRange: "Max QPS must be in [{{min}}, {{max}}].",
   fieldGuideServiceIdTitle: "Service ID",
-  fieldGuideServiceIdPurpose: "Stable machine identity for discovery, quote and invoke.",
+  fieldGuideServiceIdPurpose:
+    "Stable machine identity for discovery, quote and invoke.",
   fieldGuideServiceIdHow:
     "Use lowercase letters, digits, underscore or hyphen. Underscore is supported and should be preserved when intentional.",
-  fieldGuideServiceIdPlatform: "Primary routing key and global uniqueness boundary.",
+  fieldGuideServiceIdPlatform:
+    "Primary routing key and global uniqueness boundary.",
   fieldGuideServiceIdExample: "svc_invoice_ocr_apac",
   fieldGuideServiceNameTitle: "Service Name",
-  fieldGuideServiceNamePurpose: "Human-readable label in marketplace and provider console.",
-  fieldGuideServiceNameHow: "Write it like a product name, not an internal class name.",
+  fieldGuideServiceNamePurpose:
+    "Human-readable label in marketplace and provider console.",
+  fieldGuideServiceNameHow:
+    "Write it like a product name, not an internal class name.",
   fieldGuideServiceNamePlatform: "Display and search ranking trust signal.",
   fieldGuideServiceNameExample: "SEA Invoice OCR",
   fieldGuideDescriptionTitle: "Description for Model",
-  fieldGuideDescriptionPurpose: "Tell autonomous agents when and why to call this service.",
+  fieldGuideDescriptionPurpose:
+    "Tell autonomous agents when and why to call this service.",
   fieldGuideDescriptionHow: "Describe trigger conditions, not marketing copy.",
-  fieldGuideDescriptionPlatform: "Discovery matching and runtime decision quality.",
+  fieldGuideDescriptionPlatform:
+    "Discovery matching and runtime decision quality.",
   fieldGuideTaskCategoryTitle: "Task Category",
-  fieldGuideTaskCategoryPurpose: "Coarse semantic bucket for routing and discovery.",
-  fieldGuideTaskCategoryHow: "Use dotted taxonomy such as ocr.invoice or search.web.",
-  fieldGuideTaskCategoryPlatform: "Improves search recall and future ranking strategies.",
+  fieldGuideTaskCategoryPurpose:
+    "Coarse semantic bucket for routing and discovery.",
+  fieldGuideTaskCategoryHow:
+    "Use dotted taxonomy such as ocr.invoice or search.web.",
+  fieldGuideTaskCategoryPlatform:
+    "Improves search recall and future ranking strategies.",
   fieldGuideRuntimeTitle: "Runtime Contract",
   fieldGuideRuntimePurpose: "Defines endpoint, timeout and payload boundaries.",
   fieldGuideRuntimeHow: "Mirror the real upstream SLA, not wishful numbers.",
-  fieldGuideRuntimePlatform: "Admission control, forwarding and health evaluation.",
+  fieldGuideRuntimePlatform:
+    "Admission control, forwarding and health evaluation.",
   fieldGuideBillingTitle: "Billing Contract",
   fieldGuideBillingPurpose: "Defines price model and settlement currency.",
-  fieldGuideBillingHow: "Use USDC-native numbers with one fixed per-call price.",
+  fieldGuideBillingHow:
+    "Use USDC-native numbers with one fixed per-call price.",
   fieldGuideBillingPlatform: "Settlement and charge ledger alignment.",
   fieldGuideRoutingTargetsTitle: "Routing Targets",
-  fieldGuideRoutingTargetsPurpose: "Active-active upstream targets behind the service contract.",
-  fieldGuideRoutingTargetsHow: "Add one or more invoke URLs with weights and optional regions.",
-  fieldGuideRoutingTargetsPlatform: "Weighted failover and health-based routing.",
+  fieldGuideRoutingTargetsPurpose:
+    "Active-active upstream targets behind the service contract.",
+  fieldGuideRoutingTargetsHow:
+    "Add one or more invoke URLs with weights and optional regions.",
+  fieldGuideRoutingTargetsPlatform:
+    "Weighted failover and health-based routing.",
   fieldGuideIoSchemaTitle: "IO Schema",
-  fieldGuideIoSchemaPurpose: "Defines the JSON contract agents will parse against.",
+  fieldGuideIoSchemaPurpose:
+    "Defines the JSON contract agents will parse against.",
   fieldGuideIoSchemaHow: "Use strict object schemas with stable keys.",
-  fieldGuideIoSchemaPlatform: "Caller understanding and response parsing reliability.",
+  fieldGuideIoSchemaPlatform:
+    "Caller understanding and response parsing reliability.",
   fieldGuideConfigureLabel: "Configure",
   fieldGuidePlatformLabel: "Platform",
   fieldGuideExampleLabel: "Example",

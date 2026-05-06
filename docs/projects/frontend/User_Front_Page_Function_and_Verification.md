@@ -147,6 +147,9 @@ All wallet actions must use a Synapse-owned explanation layer before opening the
 - Consumer and provider withdrawals explain matured funds, Gateway-issued tickets, deadline, vault contract, amount, and native gas before the wallet claim.
 - Provider withdraw UI must use `providerMatureReceivable` for the main withdrawable amount, MAX button, and CTA enablement. It may show `providerReceivable` only as secondary receivable balance. If the matured amount is below `10.00 USDC`, the primary withdrawal CTA is disabled with a localized title, and empty amount submission is never allowed in the browser.
 - Deposit and withdrawal flows create a durable Gateway intent before opening the wallet. If the user refreshes immediately after a wallet transaction, the page must recover pending state from Gateway rows rather than local optimistic UI.
+- Deposit Review is the source of truth for the wallet transaction intent. Before opening MetaMask or another wallet, the Review panel must clearly show the deposit amount, the source wallet, `Synapse Vault · <short address>`, and a localized notice that MetaMask may only show the contract interaction. Do not rely on local wallet popup method decoding to explain the amount or destination.
+- Deposit Review should not show the token contract address by default. The primary trust path is wallet address -> Synapse Vault short address, plus copy access for the full vault address.
+- User-front must expose PNG/ICO favicon fallbacks (`/favicon.ico`, `/icon.png`, `/apple-touch-icon.png`) in addition to SVG brand assets so browsers and wallet extensions have a stable Synapse icon to fetch.
 - Wallet rejection is a neutral user cancellation. UI must reset loading state and show localized cancellation copy, not a red error toast.
 
 ## Visual and Component Coordination Criteria

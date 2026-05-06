@@ -34,18 +34,17 @@ const walletActions: I18nMessages["walletActions"] = {
   depositVaultStepTitle: "第 2 步：Vault 充值交易",
   withdrawIntentTitle: "确认提现意图",
   withdrawIntentDescription:
-    "打开钱包前先核对提现票据。链上领取需要支付原生 Gas。",
+    "打开钱包前先核对提现信息。链上领取需要支付原生 Gas。",
   withdrawAmountLabel: "金额",
   withdrawMaturedFundsLabel: "已成熟资金",
-  withdrawTicketLabel: "票据",
+  withdrawTicketLabel: "授权",
   withdrawDeadlineLabel: "截止时间",
   withdrawVaultLabel: "Vault 合约",
   withdrawGasLabel: "Gas",
   withdrawGasValue: "链上领取需要原生 Gas。",
   withdrawChecklistTitle: "钱包确认前",
   withdrawChecklistMatured: "只有已成熟的可提现资金才能链上领取。",
-  withdrawChecklistTicket:
-    "使用 Gateway 最新签发的票据；过期或重复使用会失败。",
+  withdrawChecklistTicket: "使用最新提现授权；过期或重复使用会失败。",
   withdrawChecklistAmount: "金额和手续费必须与钱包弹窗一致。",
 };
 

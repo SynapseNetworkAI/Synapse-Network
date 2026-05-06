@@ -1,4 +1,4 @@
-import { buildAuthedHeaders, normalizeAuthApiError } from "@/utils/authSession";
+import { buildAuthedHeaders } from "@/utils/authSession";
 import { getGatewayBaseUrl } from "@/utils/gatewayApi";
 import { normalizeMoneyString, type MoneyString } from "@/utils/money";
 
@@ -23,11 +23,11 @@ export class ProviderWithdrawApiError extends Error {
 
 const PROVIDER_WITHDRAW_ERROR_MESSAGES_BY_CODE: Record<string, string> = {
   WITHDRAW_VAULT_LIQUIDITY_CHECK_UNAVAILABLE:
-    "Gateway cannot verify on-chain vault liquidity right now. Retry after the chain RPC reconnects.",
+    "We cannot verify withdrawal availability right now. Please retry in a moment.",
   CHAIN_RPC_UNAVAILABLE:
-    "Gateway cannot reach chain RPC right now. Retry after the RPC reconnects.",
+    "The withdrawal network is temporarily unavailable. Please retry in a moment.",
   PROVIDER_RECEIVABLE_NOT_MATURED:
-    "Provider earnings are not mature yet. Provider receivables must mature for 7 days before withdrawal.",
+    "Provider earnings are still in the T+7 maturity window.",
   MIN_WITHDRAWAL_AMOUNT_NOT_MET:
     "Minimum provider withdrawal amount is 10.00 USDC.",
   INSUFFICIENT_PROVIDER_RECEIVABLE:
@@ -59,8 +59,7 @@ async function readErrorMessage(
         code?: string;
         message?: string;
       };
-      if (typeof parsed.detail === "string")
-        return normalizeAuthApiError(parsed.detail, response.status);
+      if (typeof parsed.detail === "string") return fallback;
       if (
         parsed.detail &&
         typeof parsed.detail === "object" &&
@@ -68,22 +67,18 @@ async function readErrorMessage(
       ) {
         return resolveProviderWithdrawApiErrorMessage({
           code: parsed.detail.code,
-          message: parsed.detail.message,
-          status: response.status,
           fallback,
         });
       }
       if (parsed.message || parsed.code) {
         return resolveProviderWithdrawApiErrorMessage({
           code: parsed.code,
-          message: parsed.message,
-          status: response.status,
           fallback,
         });
       }
-      return normalizeAuthApiError(text, response.status);
+      return fallback;
     } catch {
-      return normalizeAuthApiError(text, response.status);
+      return fallback;
     }
   } catch {
     return fallback;
@@ -92,20 +87,16 @@ async function readErrorMessage(
 
 export function resolveProviderWithdrawApiErrorMessage({
   code,
-  message,
-  status,
   fallback,
 }: {
   code?: string;
-  message?: string;
-  status?: number;
   fallback: string;
 }): string {
   if (code && PROVIDER_WITHDRAW_ERROR_MESSAGES_BY_CODE[code]) {
     return PROVIDER_WITHDRAW_ERROR_MESSAGES_BY_CODE[code];
   }
 
-  return normalizeAuthApiError(message || fallback, status);
+  return fallback;
 }
 
 export type ProviderWithdrawTicket = {
@@ -214,7 +205,9 @@ export async function getProviderWithdrawCapability(
   return {
     ticketSigningEnabled: Boolean(payload.ticketSigningEnabled),
     code: payload.code ?? null,
-    message: payload.message || "Unknown provider withdrawal capability state.",
+    message: payload.code
+      ? "Provider withdrawal unavailable."
+      : "Provider withdrawal available.",
     contractAddress: payload.contractAddress ?? null,
   };
 }
@@ -227,7 +220,6 @@ export async function createProviderWithdrawIntent(
   status: "REQUESTED" | "APPROVED_AUTO" | "PENDING_MANUAL_REVIEW";
   amountUsdc: MoneyString;
   ticket?: ProviderWithdrawTicket;
-  message?: string;
 }> {
   const headers = {
     ...buildAuthedHeaders(userAddress),
@@ -244,7 +236,7 @@ export async function createProviderWithdrawIntent(
     const fallback = "Failed to create provider withdrawal intent";
     const text = await response.text();
     let code: string | undefined;
-    let message = normalizeAuthApiError(text || fallback, response.status);
+    let message = fallback;
 
     if (text) {
       try {
@@ -257,23 +249,19 @@ export async function createProviderWithdrawIntent(
           code = parsed.detail.code;
           message = resolveProviderWithdrawApiErrorMessage({
             code,
-            message: parsed.detail.message,
-            status: response.status,
             fallback,
           });
         } else if (typeof parsed.detail === "string") {
-          message = normalizeAuthApiError(parsed.detail, response.status);
+          message = fallback;
         } else {
           code = parsed.code;
           message = resolveProviderWithdrawApiErrorMessage({
             code,
-            message: parsed.message,
-            status: response.status,
             fallback,
           });
         }
       } catch {
-        message = normalizeAuthApiError(text, response.status);
+        message = fallback;
       }
     }
 
@@ -338,7 +326,6 @@ export async function listProviderWithdrawals(
     deadline: Number(row.deadline || 0),
     signature: typeof row.signature === "string" ? row.signature : undefined,
     txHash: typeof row.txHash === "string" ? row.txHash : undefined,
-    message: typeof row.message === "string" ? row.message : undefined,
     createdAt: (row.createdAt as string | number | undefined) ?? undefined,
     completedAt: (row.completedAt as string | number | undefined) ?? undefined,
     ticket:

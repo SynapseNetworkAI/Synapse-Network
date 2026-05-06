@@ -40,7 +40,7 @@ import { getRuntimeEnvironmentConfig } from "@/utils/runtimeEnv";
 
 const VAULT_ADDRESS = contractConfig.SynapseCore as `0x${string}`;
 const USDC_ADDRESS = contractConfig.MockUSDC as `0x${string}`;
-const CONSUMER_DEPOSIT_MIN_USDC = 10;
+const CONSUMER_DEPOSIT_MIN_USDC = 5;
 const PERMIT_TIMEOUT_MS = 60_000;
 
 const vaultABI = parseAbi([

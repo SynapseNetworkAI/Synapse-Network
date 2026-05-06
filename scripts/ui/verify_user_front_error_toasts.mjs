@@ -33,9 +33,13 @@ function warn(name, detail) {
 }
 
 async function assertCleanPage(page, caseName, expectedText) {
-  await page.locator("body").getByText(expectedText, { exact: false }).waitFor({
-    timeout: 15000,
-  });
+  await page
+    .locator("body")
+    .getByText(expectedText, { exact: false })
+    .first()
+    .waitFor({
+      timeout: 15000,
+    });
   const htmlLang = await page.evaluate(() => document.documentElement.lang);
   const expectedLang = caseName.endsWith(":zh") ? "zh" : "en";
   if (htmlLang !== expectedLang) {
