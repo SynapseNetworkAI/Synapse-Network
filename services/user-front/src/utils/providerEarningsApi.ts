@@ -25,6 +25,7 @@ export type ProviderEarningsSummary = {
   providerNetEarned: number;
   providerReceivable: number;
   providerMatureReceivable: number;
+  providerWithdrawMaturityEnforced?: boolean;
   duplicateRowsDropped: number;
   idempotencyKey: string;
   recentCalls: ProviderRecentCall[];

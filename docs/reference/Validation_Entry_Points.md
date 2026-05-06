@@ -316,10 +316,10 @@ Before finishing:
 
 Withdrawal evidence coverage is intentionally split:
 
-1. `npm run e2e:withdrawal-risk-policy` proves Dust, T+N maturity, aggregate FIFO, 24h sliding-window risk classification, and normal Consumer/Provider withdrawals through final `COMPLETED`.
+1. `npm run e2e:withdrawal-risk-policy` proves Dust, T+N maturity, aggregate FIFO, 24h sliding-window risk classification, and normal Consumer/Provider withdrawals through final `COMPLETED`. This runner explicitly enables consumer/provider maturity enforcement because local Gateway defaults it off for fast development withdrawals.
 2. `npm run e2e:withdrawal-idempotency-concurrency` proves create, manual-review decision, complete, ticket replay, and balance-bucket invariants under concurrency.
 3. `npm run e2e:withdrawal-review-dogfood:local` and `npm run e2e:admin-withdrawal-approval` prove manual-review UI/API/DB, approve/reject operations, screenshots, and admin evidence. Their evidence gates require the matching E2E to run first; missing local evidence directories are not a docs-only failure by themselves.
-4. `npm run e2e:provider-withdraw-mature:local` proves Provider withdraw summary, UI-facing receivable buckets, T+7 mature formula, latest withdrawal rows, and audit rows match read-only SQL evidence. Staging requires `SYNAPSE_E2E_ENV=staging PROVIDER_WITHDRAW_MATURE_CONFIRM=I_UNDERSTAND_THIS_MUTATES_STAGING npm run e2e:provider-withdraw-mature:staging` plus a read-only staging DSN/Auth Proxy.
+4. `npm run e2e:provider-withdraw-mature:local` proves Provider withdraw summary, UI-facing receivable buckets, T+7 mature formula, latest withdrawal rows, and audit rows match read-only SQL evidence. Restart local Gateway with `PROVIDER_WITHDRAW_MATURITY_ENFORCEMENT_ENABLED=true` for this focused maturity gate. Staging requires `SYNAPSE_E2E_ENV=staging PROVIDER_WITHDRAW_MATURE_CONFIRM=I_UNDERSTAND_THIS_MUTATES_STAGING npm run e2e:provider-withdraw-mature:staging` plus a read-only staging DSN/Auth Proxy.
 
 ### Screenshot Evidence Guardrail
 

@@ -18,6 +18,8 @@ class ProviderWithdrawPolicyMixin:
     def _read_provider_mature_receivable(
         self, owner: str, fallback_available: Decimal
     ) -> Decimal:
+        if not settings.provider_withdraw_maturity_enforcement_enabled:
+            return parse_usdc(fallback_available)
         balance_repo = self._provider_balance_repository()  # type: ignore[attr-defined]  # reason: mixed in by ProviderWithdrawHelpersMixin
         reader = getattr(balance_repo, "read_provider_mature_withdrawable", None)
         if callable(reader):

@@ -27,6 +27,7 @@ from src.core.config_loaders import (
     _resolve_postgres_dsn,
     _resolve_redis_url,
 )
+from src.core.config_withdrawal import _validate_withdraw_maturity_enforcement, _withdraw_maturity_settings
 
 # Load environment files once so all runtime entry points share the same config contract.
 _load_environment_files()
@@ -43,6 +44,10 @@ _service_health_history_retention_hours_default = max(
 class Settings:
     # Runtime mode flag used by the gateway for environment-specific behavior.
     environment: str = _canonical_environment_name(os.getenv("ENVIRONMENT", "local"))
+    consumer_withdraw_maturity_seconds, consumer_withdraw_maturity_enforcement_enabled, provider_withdraw_maturity_seconds, provider_withdraw_maturity_enforcement_enabled = _withdraw_maturity_settings(environment)
+
+    def __init__(self) -> None:
+        _validate_withdraw_maturity_enforcement(self.environment, self.consumer_withdraw_maturity_enforcement_enabled, self.provider_withdraw_maturity_enforcement_enabled)
     # Structured logging defaults (JSON file sink managed via stdlib handlers).
     log_directory: str = os.path.abspath(
         os.getenv(
@@ -317,7 +322,6 @@ class Settings:
         "PROVIDER_WITHDRAW_DEADLINE_SEC", 1800
     )
     provider_withdraw_min_usdc: float = max(0.0, _env_float("PROVIDER_WITHDRAW_MIN_USDC", 10.0))
-    provider_withdraw_maturity_seconds: int = max(0, _env_int("PROVIDER_WITHDRAW_MATURITY_SECONDS", 604800))
     # The reaper must wait past local ticket expiry before releasing locked funds.
     withdraw_ticket_expiry_buffer_sec: int = _env_int(
         "WITHDRAW_TICKET_EXPIRY_BUFFER_SEC", 900

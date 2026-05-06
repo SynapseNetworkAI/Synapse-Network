@@ -6,6 +6,7 @@ from decimal import Decimal
 import pytest
 from fastapi import HTTPException
 
+from src.services.owner import finance_constants
 from src.services.owner.finance_constants import CONSUMER_WITHDRAW_MAX_DAILY_COUNT
 
 from tests.unit.test_consumer_withdraw_unit import (
@@ -37,7 +38,15 @@ def test_consumer_dust_withdrawal_rejected_without_creating_row() -> None:
     assert ledger.consumer_pending_balance(OWNER) == Decimal("0.000000")
 
 
-def test_consumer_withdraw_more_than_mature_balance_raises_400() -> None:
+def test_consumer_withdraw_more_than_mature_balance_raises_400(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        finance_constants.settings,
+        "consumer_withdraw_maturity_enforcement_enabled",
+        True,
+        raising=False,
+    )
     storage = FakeStorage()
     storage.balance_repo.seed_balance(OWNER, available=200)
     storage.balance_repo.read_consumer_mature_withdrawable = (
@@ -59,7 +68,43 @@ def test_consumer_withdraw_more_than_mature_balance_raises_400() -> None:
     assert ledger.consumer_available_balance(OWNER) == Decimal("200.000000")
 
 
-def test_consumer_mature_balance_allows_fifo_aggregate_partial_withdrawal() -> None:
+def test_consumer_withdraw_maturity_bypass_allows_local_available_balance(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        finance_constants.settings,
+        "consumer_withdraw_maturity_enforcement_enabled",
+        False,
+        raising=False,
+    )
+    storage = FakeStorage()
+    storage.balance_repo.seed_balance(OWNER, available=200)
+    storage.balance_repo.read_consumer_mature_withdrawable = (
+        lambda _owner, _seconds: Decimal("0.000000")
+    )
+    svc = _make_service(storage)
+
+    result = run(svc.create_consumer_withdraw_intent(
+        payload={"amountUsdc": "120", "reason": ""},
+        owner_wallet=OWNER,
+        idempotency_key=IDEM_KEY,
+    ))
+
+    assert result["status"] == "REQUESTED"
+    ledger = storage.balance_repo.read_balance_ledger()
+    assert ledger.consumer_available_balance(OWNER) == Decimal("80.000000")
+    assert ledger.consumer_pending_balance(OWNER) == Decimal("120.000000")
+
+
+def test_consumer_mature_balance_allows_fifo_aggregate_partial_withdrawal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        finance_constants.settings,
+        "consumer_withdraw_maturity_enforcement_enabled",
+        True,
+        raising=False,
+    )
     storage = FakeStorage()
     storage.balance_repo.seed_balance(OWNER, available=150)
     storage.balance_repo.read_consumer_mature_withdrawable = (
