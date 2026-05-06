@@ -38,3 +38,13 @@ Status: Active
 - Fix: Choose the first positive requested deposit amount before using credited amount as a fallback, and add hook tests for zero credited amount plus credited-only fallback.
 - Rule: User-facing payment history should display the submitted transaction amount unless the requested amount is genuinely absent; normalized zero fallback values must not outrank source-of-truth request amounts.
 - Upgrade: agents-memory
+
+### Lesson: Finance audit timelines need shared amount normalization
+
+- Domain: frontend
+- Severity: warning
+- Trigger: `/dashboard/audit` showed `—` for withdrawal and provider-withdrawal amounts even though the audit rows carried amount fields.
+- Root cause: The page used a local extractor that only checked `details.deltaAmount`, `details.amountUsdc`, `details.amount_usdc`, and string-only before/after balance diffs; it missed top-level, snake_case, negative delta, and withdrawal-specific amount keys.
+- Fix: Normalize top-level and detail money fields, support numeric/string balance diffs, and add DOM tests for provider withdrawal, consumer withdrawal, release, top-level delta, and no-amount rows.
+- Rule: User-facing finance timelines must normalize amount fields at the adapter boundary; do not create page-local one-key extractors for audit/payment records.
+- Upgrade: agents-memory
