@@ -73,6 +73,7 @@ export function createAdminWithdrawalReviewFocusHelpers({
         capturedAt: new Date().toISOString(),
         domCheckpoint: checkpoint.domCheckpoint || name,
         apiCheckpoint: checkpoint.apiCheckpoint || "",
+        dbCheckpoint: checkpoint.dbCheckpoint || "",
       });
     }
     return filePath;
@@ -91,6 +92,7 @@ export function createAdminWithdrawalReviewFocusHelpers({
       capturedAt: new Date().toISOString(),
       domCheckpoint: checkpoint.domCheckpoint || aliasName,
       apiCheckpoint: checkpoint.apiCheckpoint || "",
+      dbCheckpoint: checkpoint.dbCheckpoint || "",
       sourceFile: sourcePath,
     });
     return targetPath;
@@ -188,6 +190,7 @@ export function createAdminWithdrawalReviewFocusHelpers({
         expectedText: [withdrawalId],
         domCheckpoint: `${prefix} review queue contains withdrawal id`,
         apiCheckpoint: "withdrawal review list",
+        dbCheckpoint: "db withdrawal row is PENDING_MANUAL_REVIEW",
       });
       if (enabled && prefix === "consumer-approve-before") {
         copyAdminScreenshotAlias(queueShot, "02-withdrawal-review-list", {
@@ -195,6 +198,7 @@ export function createAdminWithdrawalReviewFocusHelpers({
           expectedText: [withdrawalId],
           domCheckpoint: "approve candidate visible in withdrawal review list",
           apiCheckpoint: "consumer approve fixture pending manual review",
+          dbCheckpoint: "db withdrawal row is PENDING_MANUAL_REVIEW",
         });
       }
       await page
@@ -217,6 +221,7 @@ export function createAdminWithdrawalReviewFocusHelpers({
           expectedText: [withdrawalId],
           domCheckpoint: `${prefix} review detail contains withdrawal id`,
           apiCheckpoint: "withdrawal review detail",
+          dbCheckpoint: "db withdrawal row is PENDING_MANUAL_REVIEW",
         }
       );
       if (enabled && prefix === "consumer-approve-before") {
@@ -225,6 +230,7 @@ export function createAdminWithdrawalReviewFocusHelpers({
           expectedText: [withdrawalId],
           domCheckpoint: "approve candidate detail visible before decision",
           apiCheckpoint: "consumer approve fixture pending manual review",
+          dbCheckpoint: "db withdrawal row is PENDING_MANUAL_REVIEW",
         });
         const approveButton = page
           .getByRole("button", { name: /Approve & Issue Ticket|确认放行/i })
@@ -239,6 +245,7 @@ export function createAdminWithdrawalReviewFocusHelpers({
             expectedText: [/Google Authenticator 验证码|Step-up Verification/i],
             domCheckpoint: "high-risk approval opens OTP step-up modal",
             apiCheckpoint: "admin decision requires X-Admin-OTP-Code",
+            dbCheckpoint: "db withdrawal row is PENDING_MANUAL_REVIEW",
           });
           await page
             .getByRole("button", { name: /取消|Cancel/i })
@@ -274,6 +281,7 @@ export function createAdminWithdrawalReviewFocusHelpers({
         domCheckpoint:
           "approved withdrawal no longer blocks pending review workbench",
         apiCheckpoint: "consumerApprove decision returned 2xx",
+        dbCheckpoint: "db withdrawal row status REQUESTED",
       });
       await page.goto(`${config.adminFront}/review-history`, {
         waitUntil: "networkidle",
@@ -289,6 +297,7 @@ export function createAdminWithdrawalReviewFocusHelpers({
         ],
         domCheckpoint: "review history page loads after approval",
         apiCheckpoint: "review history expected to contain recent decision",
+        dbCheckpoint: "db audit trail contains approve decision",
       });
       if (consoleErrors.length > 0) {
         throw new Error(

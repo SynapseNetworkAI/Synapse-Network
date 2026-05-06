@@ -125,8 +125,9 @@ touches more surfaces or when release confidence is required.
 | Provider service invocation  | `SYNAPSE_AGENT_KEY=agt_xxx SERVICE_ID=svc_oss_security_healthcheck API_BASE=http://127.0.0.1:8000 python services/gateway/examples/agent_invoke_existing_service.py` or `cd services/gateway && GATEWAY_E2E_SERVICE_ID=svc_oss_security_healthcheck .venv/bin/python -m pytest tests/e2e/test_07_invoke.py -q` | Quote, invocation, budget event, ledger, audit, account balances                                  | Invocation is `SETTLED`; consumer debited; provider/platform credited; no random service is created.                                                      |
 | Invocation billing migration | `npm run e2e:invocation-billing-migration:local` and `npm run ci:invocation-billing-migration-local-evidence`                                                                                                                                                                                                  | Legacy `invocation_billing::%` KV, `synapse_invocation_billing`, ledger, audit, admin projection  | Legacy billing rows migrate without aggregate drift; new invokes dual-write typed and legacy billing during migration.                                    |
 | Analytics and admin views    | Gateway analytics E2E, `npm run e2e:admin-dashboard-projection-readmodel:local` plus `npm run ci:admin-dashboard-projection-readmodel-local-evidence`, and `npm run e2e:admin-front`                                                                                                                           | Analytics outbox, dashboard projection explicit-column SQL, Admin API, and admin-visible DB state | Admin pages show the same state as Gateway DB, without `row_to_json` or dashboard projection `SELECT *` query paths.                                      |
-| Consumer withdrawal          | `services/gateway/tests/e2e/test_09_consumer_withdraw.py` and `npm run e2e:withdrawal-risk-policy`                                                                                                                                                                                                             | Withdrawal row, balance buckets, tx dedup, audit                                                  | T+7 matured funds are required; active withdrawal locks funds; completion writes `COMPLETED`.                                                             |
+| Consumer withdrawal          | `services/gateway/tests/e2e/test_09_consumer_withdraw.py`, `npm run e2e:withdrawal-risk-policy`, and `npm run e2e:consumer-withdraw-claim-fullchain:local` with `npm run ci:consumer-withdraw-claim-fullchain-local-evidence` when manual review, claim-ready UI, or platform fee withdrawal evidence changed | Withdrawal row, balance buckets, tx dedup, audit, wallet/vault/platform-fee chain evidence        | T+7 matured funds are required; active withdrawal locks funds; manual review approves into `REQUESTED + claimable=true`; user self-claim completes and fee-pool deltas reconcile. |
 | Provider withdrawal          | `npm run dev:provider:onboard`, then `npm run e2e:admin-withdrawal-approval`, `npm run e2e:withdrawal-one-ticket-evidence`, `npm run e2e:withdrawal-idempotency-concurrency`, and `npm run e2e:provider-withdraw-mature:local`                                                                                 | Withdrawal row, provider account, tx dedup, audit, notifications, mature receivable formula       | T+7 matured receivable is required; review and ticket semantics are one-ticket safe; no `awa_provider_withdraw_*` or `wot_provider_*` service is created. |
+| Unified money safety         | `npm run e2e:money-safety-concurrency:local` with `npm run ci:money-safety-concurrency-local-evidence`                                                                                                                                                                                       | Aggregated deposit, consumer/provider withdraw, refund, invoke settlement, and platform fee evidence | All attack rows end in `blocked`, `idempotent-noop`, or `terminal-safe`; no duplicate ledger, no duplicate balance delta, no terminal rollback, and no unexplained vault drift. |
 | Notifications                | `npm run e2e:in-app-notifications`, transaction notification suites as needed                                                                                                                                                                                                                                  | Notification outbox, delivery log, in-app notifications                                           | Transactional notifications are present or deliberately suppressed.                                                                                       |
 | Load and reliability         | `npm run perf:local-production-load-rehearsal` and `npm run ci:local-production-load-evidence`                                                                                                                                                                                                                 | Reconciliation and no unexpected dead letters                                                     | Load evidence is green with no unexplained ledger/vault delta.                                                                                            |
 | Contracts                    | `npm run ci:contracts`                                                                                                                                                                                                                                                                                         | Runtime state and config review only                                                              | Solidity tests pass; Gateway contract config still matches expected local chain.                                                                          |
@@ -437,6 +438,24 @@ withdrawals require T+7 matured funds. Available balance alone is not enough.
 Local app startup disables maturity enforcement by default for development
 speed; run policy E2E with `CONSUMER_WITHDRAW_MATURITY_ENFORCEMENT_ENABLED=true`
 when validating this safety gate.
+
+For the full local self-claim story, run:
+
+```bash
+npm run e2e:consumer-withdraw-claim-fullchain:local
+npm run ci:consumer-withdraw-claim-fullchain-local-evidence
+```
+
+This lane proves the whole consumer path end to end:
+
+1. deposit enters Gateway balance
+2. withdrawal enters `PENDING_MANUAL_REVIEW`
+3. admin approval transitions the row to `REQUESTED + claimable=true`
+4. User-front changes from `审核中` to `待领取`
+5. the consumer wallet executes `SynapseCore.withdraw(...)`
+6. Gateway completes the row as `COMPLETED`
+7. `platformFeePool` increases by the signed fee
+8. local owner-only `withdrawPlatformFees(amount)` moves only the accrued fee to the platform wallet
 
 ```sql
 SELECT withdrawal_id, owner_id, provider_id, source_account_id,

@@ -61,7 +61,9 @@ From repository root:
 41. `npm run ci:backup-restore-evidence`
 42. `npm run deploy:contracts:arbitrum-sepolia:dry-run`
 43. `npm run ci:contract-deployment-evidence`
-44. `npm run ci:migration-seed-guard`
+44. `npm run e2e:consumer-withdraw-claim-fullchain:local`
+45. `npm run ci:consumer-withdraw-claim-fullchain-local-evidence`
+46. `npm run ci:migration-seed-guard`
 
 Use these wrappers when final integration confidence is required.
 
@@ -145,7 +147,9 @@ Working directory: `services/user-front/`
 11. `USER_FRONT_BASE_URL=http://localhost:3000 node scripts/ui/verify_user_front_pages.mjs` from repository root for general browser route/navigation verification
 12. `USER_FRONT_BASE_URL=http://127.0.0.1:3000 npm run e2e:user-front-copyable-identifiers` and `npm run ci:user-front-copyable-identifiers-evidence` when changing copyable IDs, hashes, addresses, invocation privacy, or provider identifier tables. This local DOM/clipboard gate proves short display values copy the full canonical value and ordinary user pages do not expose `agent:agent:*`, counterparty, or provider wallet internals.
 13. `USER_FRONT_BASE_URL=http://127.0.0.1:3000 npm run e2e:user-front-payments-gateway-truth:local` and `npm run ci:user-front-payments-gateway-truth-local-evidence` when changing Billing/Payments history, deposit intent display, consumer withdrawal rows, refund rows, or frontend money-history aggregation. This local DOM/API/SQL gate proves Payments rows come from Gateway DB/API, use `limit=100` per source, render the sorted top 50 records, and do not reintroduce frontend `DepositInfo` / `WithdrawInfo` chain-log ledger rows.
-14. `npm run ci:frontend` from repository root when repo-standard frontend gating is needed
+14. `npm run e2e:consumer-withdraw-claim-fullchain:local` and `npm run ci:consumer-withdraw-claim-fullchain-local-evidence` when changing consumer manual review, claim-ready Credits/Billing states, wallet claim CTA behavior, `/complete` handling, or platform fee withdrawal evidence. This local fullchain gate proves admin approval changes UI from `审核中` to `待领取`, then the real wallet claim and local owner fee withdrawal reconcile across DOM, API, SQL, and chain balances.
+15. `npm run ci:frontend` from repository root when repo-standard frontend gating is needed
+16. `npm run e2e:money-safety-concurrency:local` and `npm run ci:money-safety-concurrency-local-evidence` when changing deposit confirm/replay, consumer/provider withdrawal create-review-complete, refund complete/fail semantics, token-metered hold/capture/release, or platform fee withdrawal bounds. This unified local finance gate aggregates the narrow money-path suites and fails if any attack scenario ends in duplicate balance movement, duplicate ledger, terminal-state rollback, or fee-overdraw success.
 
 ### 3.2 services/docs-front
 
@@ -283,6 +287,7 @@ Before finishing:
 13. run `npm run e2e:user-front-copyable-identifiers` and `npm run ci:user-front-copyable-identifiers-evidence` when changing visible copy controls for transaction IDs, invocation IDs, service IDs, agent IDs, wallet addresses, tx hashes, withdrawal IDs, nonce/ticket fields, or privacy-sensitive invocation/provider tables. This is a local DOM/clipboard evidence gate, not a DB/ledger money-path gate.
 14. run `npm run e2e:user-front-payments-gateway-truth:local` and `npm run ci:user-front-payments-gateway-truth-local-evidence` when changing Billing/Payments history aggregation, deposit/withdraw/refund API adapters, or frontend money-history data sources. The evidence must prove Payments rows come from Gateway DB/API, each source uses `limit=100`, DOM renders the sorted top 50 rows, pending intents survive refresh, and frontend chain-log scans are not reintroduced.
 15. run `npm run e2e:deposit-indexer-recovery:local` and `npm run ci:deposit-indexer-recovery-local-evidence` when changing deposit indexer startup, backfill, replay protection, local Gateway indexer env, or pending-deposit reliability. The evidence must prove indexer-down UI stays pending, restart auto-confirms valid deposits, backfill recovers missed intents, invalid events do not credit, and replay does not double-credit.
+16. run `npm run e2e:money-safety-concurrency:local` and `npm run ci:money-safety-concurrency-local-evidence` before merging broad money-path changes that span deposit, withdraw, refund, invoke settlement, or platform fee withdrawal semantics. The unified evidence bundle must show every attack row ends as `blocked`, `idempotent-noop`, or `terminal-safe`, with no duplicate ledger entries or unexplained vault drift.
 16. run `npm run e2e:admin-dashboard-projection-readmodel:local` and `npm run ci:admin-dashboard-projection-readmodel-local-evidence` when changing Gateway-admin dashboard projection repositories, Admin-front dashboard/finance/runtime read-model rendering, or projection view SQL. The local gate proves Admin API, explicit Postgres projection column queries, DOM values, and screenshots agree without `row_to_json` or dashboard projection `SELECT *`.
 17. run `npm run ci:diff-coverage` when changed code needs line-level coverage evidence; Python and Vitest coverage must be Cobertura XML
 18. run `npm run ci:agent-guardrails` when Agent-generated backend/admin code touches finance, approval, storage, or shared state-machine logic; install `uv` once if the runner reports a missing Python guardrail tool

@@ -275,6 +275,17 @@ describe("OwnerCreditsPage", () => {
         id: "cw-1",
         amountUsdc: "185.99",
         status: "REQUESTED",
+        claimable: true,
+        ticket: {
+          ticketId:
+            "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          amount: "185990000000000000000",
+          fee: "1000000000000000000",
+          deadline: 1800000000,
+          signature: "0xsigned",
+          chainId: 31337,
+          contractAddress: "0x00000000000000000000000000000000000000aa",
+        },
       },
     ]);
 
@@ -283,7 +294,7 @@ describe("OwnerCreditsPage", () => {
     );
 
     expect(
-      await screen.findByText("Withdrawal processing credits")
+      await screen.findByText("Claimable withdrawal credits")
     ).toBeTruthy();
     expect(screen.getByText("$185.99")).toBeTruthy();
     expect(screen.queryByText("Pending deposit credits")).toBeNull();
@@ -303,6 +314,17 @@ describe("OwnerCreditsPage", () => {
         id: "cw-1",
         amountUsdc: "8.50",
         status: "TICKET_READY",
+        claimable: true,
+        ticket: {
+          ticketId:
+            "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          amount: "8500000000000000000",
+          fee: "1000000000000000000",
+          deadline: 1800000000,
+          signature: "0xsigned",
+          chainId: 31337,
+          contractAddress: "0x00000000000000000000000000000000000000aa",
+        },
       },
     ]);
 
@@ -312,7 +334,7 @@ describe("OwnerCreditsPage", () => {
 
     expect(await screen.findByText("Pending deposit credits")).toBeTruthy();
     expect(screen.getByText("$11.50")).toBeTruthy();
-    expect(screen.getByText("Withdrawal processing credits")).toBeTruthy();
+    expect(screen.getByText("Claimable withdrawal credits")).toBeTruthy();
     expect(screen.getByText("$8.50")).toBeTruthy();
   });
 
@@ -338,5 +360,38 @@ describe("OwnerCreditsPage", () => {
     expect(screen.getByText("$12.50")).toBeTruthy();
     expect(screen.queryByText("Withdrawal processing credits")).toBeNull();
     expect(screen.queryByText("Pending deposit credits")).toBeNull();
+  });
+
+  it("turns the withdraw button into a claim action after manual approval", async () => {
+    ownerStatsState.value = {
+      ownerBalance: "249",
+      consumerPendingBalance: "501",
+      consumerFrozenBalance: "0",
+    };
+    listConsumerWithdrawalsMock.mockResolvedValue([
+      {
+        id: "cw-claim-1",
+        amountUsdc: "501.00",
+        status: "REQUESTED",
+        claimable: true,
+        ticket: {
+          ticketId:
+            "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          amount: "501000000000000000000",
+          fee: "1000000000000000000",
+          deadline: 1800000000,
+          signature: "0xsigned",
+          chainId: 31337,
+          contractAddress: "0x00000000000000000000000000000000000000aa",
+        },
+      },
+    ]);
+
+    render(
+      createElement(LanguageProvider, null, createElement(OwnerCreditsPage))
+    );
+
+    expect(await screen.findByRole("button", { name: "Claim now" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Withdraw" })).toBeNull();
   });
 });

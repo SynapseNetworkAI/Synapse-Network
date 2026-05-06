@@ -16,6 +16,9 @@ const creditsPage: I18nMessages["creditsPage"] = {
     "Gateway is indexing the on-chain deposit. If it stays pending, contact support with the txHash.",
   pendingDepositBalanceHint:
     "Gateway is indexing the on-chain deposit. If it stays pending, contact support with the txHash.",
+  claimableWithdrawalBalanceLabel: "Claimable withdrawal credits",
+  claimableWithdrawalBalanceHint:
+    "Manual review passed and the withdrawal ticket is ready. Open your wallet to claim these funds on-chain.",
   pendingWithdrawalBalanceHint:
     "This withdrawal is locked and waiting for on-chain completion. It will be deducted from pending after completion.",
   frozenBalanceHint:
@@ -135,6 +138,13 @@ const creditsPage: I18nMessages["creditsPage"] = {
   consumerWithdrawTitle: "Withdraw Balance",
   consumerWithdrawDescription:
     "Withdraw matured credits back to your wallet. Withdrawable: {{amount}} USDC",
+  consumerWithdrawClaimTitle: "Claim Withdrawal",
+  consumerWithdrawClaimDescription:
+    "Your withdrawal was approved. Confirm in your wallet to claim {{amount}} USDC on-chain.",
+  consumerWithdrawClaimReadyLabel: "Ready to claim",
+  consumerWithdrawClaimAmount: "Claim amount: {{amount}} USDC",
+  consumerWithdrawClaimReviewPassedHint:
+    "Manual review already passed. The signed ticket is ready for your wallet claim.",
   consumerWithdrawAmountLabel: "Amount (USDC)",
   consumerWithdrawReasonLabel: "Reason (optional)",
   consumerWithdrawReasonPlaceholder: "Why are you withdrawing?",
@@ -192,8 +202,11 @@ const creditsPage: I18nMessages["creditsPage"] = {
   consumerWithdrawProgressCompleting: "On-chain confirmed. Updating records...",
   consumerWithdrawMax: "Max",
   consumerWithdrawAction: "Withdraw",
+  consumerWithdrawClaimAction: "Claim now",
   consumerWithdrawPendingTooltip:
     "A withdrawal of {{amount}} is pending. Only one active withdrawal is allowed.",
+  consumerWithdrawClaimReadyTooltip:
+    "A withdrawal of {{amount}} is approved and ready to claim in your wallet.",
   consumerWithdrawMaturityWarning:
     "Recent deposits are available for API usage, but require T+7 before withdrawal.",
   consumerWithdrawMinimumRule: "Minimum withdrawal amount: {{amount}} USDC",

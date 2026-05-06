@@ -1,0 +1,441 @@
+{
+  "scriptVersion": "withdrawal-one-ticket-evidence:v1",
+  "runId": "wot-20260506142232",
+  "generatedAt": "2026-05-06T14:27:04.263Z",
+  "status": "success",
+  "environment": {
+    "environment": "local",
+    "gatewayBaseUrl": "http://127.0.0.1:8000",
+    "rpcUrl": "http://127.0.0.1:8545"
+  },
+  "chain": {
+    "chainId": 31337,
+    "synapseCore": "0x3Aa5ebB10DC797CAC828524e59A333d0A371443c",
+    "mockUSDC": "0x68B1D87F95878fE05B998F19b66F4baba5De1aed"
+  },
+  "config": {
+    "ticketTtlSec": 60,
+    "expiryBufferSec": 3,
+    "rpcFinalityMarginSec": 3,
+    "frontendClaimCutoffSec": 120,
+    "lowGasRevertGasLimit": 30000
+  },
+  "scenarioFiles": [
+    "consumer-normal-claim.json",
+    "consumer-expired-reaper.json",
+    "consumer-soft-revoke-race-claim.json",
+    "consumer-soft-revoke-expire.json",
+    "provider-normal-claim.json",
+    "provider-expired-reaper.json",
+    "provider-soft-revoke-race-claim.json",
+    "provider-soft-revoke-expire.json",
+    "consumer-replay-attack.json",
+    "provider-onchain-revert-retry.json"
+  ],
+  "scenarioResults": [
+    {
+      "name": "consumer-normal-claim",
+      "status": "passed",
+      "pass": true,
+      "role": "consumer",
+      "withdrawalId": "79a812da-f130-42c0-8159-a319a4526ac2",
+      "ticketHash": "0x160fd8dda07558154b029607f6ea6f393fa1c879869537090659925f24cf53b0",
+      "summary": "consumer ticket claimed and completed"
+    },
+    {
+      "name": "consumer-soft-revoke-race-claim",
+      "status": "passed",
+      "pass": true,
+      "role": "consumer",
+      "withdrawalId": "814f5ae2-3c9b-43fe-8ac6-b3c867b986eb",
+      "ticketHash": "0x5729d3f1496ea6922e2b82993b0b1aa4cb7ee2bebbdf96387be68fc1fc616f4e",
+      "summary": "consumer ticket claimed and completed"
+    },
+    {
+      "name": "consumer-replay-attack",
+      "status": "passed",
+      "pass": true,
+      "role": "consumer",
+      "withdrawalId": "d2516e8d-3073-4d48-b31e-240effa58b63",
+      "ticketHash": "0x0b6c8041d46aa6c04fd9a1c768eb96d2520ce63af9a44b212d903989738ee85b",
+      "summary": "Replay of consumed consumer ticket reverts and Gateway remains COMPLETED"
+    },
+    {
+      "name": "provider-normal-claim",
+      "status": "passed",
+      "pass": true,
+      "role": "provider",
+      "withdrawalId": "wd-306e3e65347942508c5cc0a5802cb23d",
+      "ticketHash": "0x05537a3eee3b5317a9129e51009c1fcdf97b7b5fee796e07e56c6f459887fcfb",
+      "summary": "provider ticket claimed and completed"
+    },
+    {
+      "name": "provider-soft-revoke-race-claim",
+      "status": "passed",
+      "pass": true,
+      "role": "provider",
+      "withdrawalId": "wd-af67c12b6a814500a48afd340b874474",
+      "ticketHash": "0x99a7b6565b7d04aa4f66409d6a920935afbde454b1909f4a5156c4fd04585ba5",
+      "summary": "provider ticket claimed and completed"
+    },
+    {
+      "name": "provider-onchain-revert-retry",
+      "status": "passed",
+      "pass": true,
+      "role": "provider",
+      "withdrawalId": "wd-56e773f0f3d54237b8e1b03fb5668fcb",
+      "ticketHash": "0x2d79ff4090f6caf2f25b730d3f431daa7be066e3d9192b7b1d9f486c1858a881",
+      "summary": "Low-gas claim reverts without consuming ticket; same ticket retries successfully before deadline"
+    },
+    {
+      "name": "consumer-expired-reaper",
+      "status": "passed",
+      "pass": true,
+      "role": "consumer",
+      "withdrawalId": "5a8e1f27-fda7-46af-a663-ed02f1d217d0",
+      "ticketHash": "0x0ed3f959ba44c88e546fc21d9e52b14f1c51505d342050c105d87896f933fb81",
+      "summary": "consumer ticket expired and reaper released funds"
+    },
+    {
+      "name": "consumer-soft-revoke-expire",
+      "status": "passed",
+      "pass": true,
+      "role": "consumer",
+      "withdrawalId": "84a1b537-8aeb-4e7a-ab68-905a850b1045",
+      "ticketHash": "0x1fff3b5fcdec1719749942407964481f0576f381bd98c022584bf4901e20a8f0",
+      "summary": "consumer ticket expired and reaper released funds"
+    },
+    {
+      "name": "provider-expired-reaper",
+      "status": "passed",
+      "pass": true,
+      "role": "provider",
+      "withdrawalId": "wd-0c013454bf7243cba85973b8982474a9",
+      "ticketHash": "0x27961c74d948a0c22a01c15df530ca56832674b47c1bc6646175bc8f12c52365",
+      "summary": "provider ticket expired and reaper released funds"
+    },
+    {
+      "name": "provider-soft-revoke-expire",
+      "status": "passed",
+      "pass": true,
+      "role": "provider",
+      "withdrawalId": "wd-a1c99a6dd7a84f51a5d5865c1498c01d",
+      "ticketHash": "0x80529dd4f307097d01168e286d880975bc053b0a6b3c07e5d9b47e5b45d3664e",
+      "summary": "provider ticket expired and reaper released funds"
+    }
+  ],
+  "negativeScenarios": {
+    "consumer-replay-attack": {
+      "firstTxHash": "0x38b149fb97e18956610407bb5d4d5c0919ab74f869ad77251aca58d565814d29",
+      "replay": {
+        "reverted": true,
+        "failureType": "CONTRACT_REVERT",
+        "message": "execution reverted: \"Ticket consumed\"",
+        "receipt": null
+      },
+      "statusAfterFirst": "COMPLETED",
+      "statusAfterReplay": "COMPLETED",
+      "walletDeltaFirstAtomic": "9500000000000000000",
+      "walletDeltaReplayAtomic": "0",
+      "vaultDeltaReplayAtomic": "0",
+      "ticketConsumed": true
+    },
+    "provider-onchain-revert-retry": {
+      "lowGas": {
+        "reverted": true,
+        "failureType": "OUT_OF_GAS_REVERT",
+        "message": "transaction execution reverted",
+        "receipt": {
+          "status": 0,
+          "transactionHash": "0x3c040571b394a6d3d5c7d7bfa80a220ee981992a80d26fea781a1a2a647e2b26",
+          "gasUsed": "30000"
+        }
+      },
+      "consumedAfterLowGas": false,
+      "gatewayStatusAfterLowGas": "APPROVED_AUTO",
+      "lowGasWalletDeltaAtomic": "0",
+      "retryTxHash": "0xfb54a1a14b547daffd87ded2239ff22a8328cc0c27fc218a07e4f31fe0e688f3",
+      "retryReceiptStatus": 1,
+      "finalGatewayStatus": "COMPLETED",
+      "retryWalletDeltaAtomic": "10000000000000000000",
+      "retryVaultDeltaAtomic": "-10000000000000000000"
+    }
+  },
+  "comparisons": [
+    {
+      "scenario": "consumer-normal-claim",
+      "metric": "dbStatus",
+      "expected": "COMPLETED",
+      "actual": "COMPLETED",
+      "pass": true
+    },
+    {
+      "scenario": "consumer-normal-claim",
+      "metric": "receiptStatus",
+      "expected": "1",
+      "actual": "1",
+      "pass": true
+    },
+    {
+      "scenario": "consumer-normal-claim",
+      "metric": "ticketConsumed",
+      "expected": "true",
+      "actual": "true",
+      "pass": true
+    },
+    {
+      "scenario": "consumer-soft-revoke-race-claim",
+      "metric": "dbStatus",
+      "expected": "COMPLETED",
+      "actual": "COMPLETED",
+      "pass": true
+    },
+    {
+      "scenario": "consumer-soft-revoke-race-claim",
+      "metric": "receiptStatus",
+      "expected": "1",
+      "actual": "1",
+      "pass": true
+    },
+    {
+      "scenario": "consumer-soft-revoke-race-claim",
+      "metric": "ticketConsumed",
+      "expected": "true",
+      "actual": "true",
+      "pass": true
+    },
+    {
+      "scenario": "consumer-replay-attack",
+      "metric": "replayReverted",
+      "expected": "true",
+      "actual": "true",
+      "pass": true
+    },
+    {
+      "scenario": "consumer-replay-attack",
+      "metric": "gatewayStatusAfterReplay",
+      "expected": "COMPLETED",
+      "actual": "COMPLETED",
+      "pass": true
+    },
+    {
+      "scenario": "consumer-replay-attack",
+      "metric": "noSecondWalletDelta",
+      "expected": "0",
+      "actual": "0",
+      "pass": true
+    },
+    {
+      "scenario": "consumer-replay-attack",
+      "metric": "ticketConsumed",
+      "expected": "true",
+      "actual": "true",
+      "pass": true
+    },
+    {
+      "scenario": "provider-normal-claim",
+      "metric": "dbStatus",
+      "expected": "COMPLETED",
+      "actual": "COMPLETED",
+      "pass": true
+    },
+    {
+      "scenario": "provider-normal-claim",
+      "metric": "receiptStatus",
+      "expected": "1",
+      "actual": "1",
+      "pass": true
+    },
+    {
+      "scenario": "provider-normal-claim",
+      "metric": "ticketConsumed",
+      "expected": "true",
+      "actual": "true",
+      "pass": true
+    },
+    {
+      "scenario": "provider-soft-revoke-race-claim",
+      "metric": "dbStatus",
+      "expected": "COMPLETED",
+      "actual": "COMPLETED",
+      "pass": true
+    },
+    {
+      "scenario": "provider-soft-revoke-race-claim",
+      "metric": "receiptStatus",
+      "expected": "1",
+      "actual": "1",
+      "pass": true
+    },
+    {
+      "scenario": "provider-soft-revoke-race-claim",
+      "metric": "ticketConsumed",
+      "expected": "true",
+      "actual": "true",
+      "pass": true
+    },
+    {
+      "scenario": "provider-onchain-revert-retry",
+      "metric": "lowGasReverted",
+      "expected": "true",
+      "actual": "true",
+      "pass": true
+    },
+    {
+      "scenario": "provider-onchain-revert-retry",
+      "metric": "consumedAfterLowGas",
+      "expected": "false",
+      "actual": "false",
+      "pass": true
+    },
+    {
+      "scenario": "provider-onchain-revert-retry",
+      "metric": "gatewayNotFailedAfterLowGas",
+      "expected": "not FAILED/FAILED_EXPIRED",
+      "actual": "APPROVED_AUTO",
+      "pass": true
+    },
+    {
+      "scenario": "provider-onchain-revert-retry",
+      "metric": "retryReceiptStatus",
+      "expected": "1",
+      "actual": "1",
+      "pass": true
+    },
+    {
+      "scenario": "provider-onchain-revert-retry",
+      "metric": "finalGatewayStatus",
+      "expected": "COMPLETED",
+      "actual": "COMPLETED",
+      "pass": true
+    },
+    {
+      "scenario": "consumer-expired-reaper",
+      "metric": "dbStatus",
+      "expected": "FAILED_EXPIRED",
+      "actual": "FAILED_EXPIRED",
+      "pass": true
+    },
+    {
+      "scenario": "consumer-expired-reaper",
+      "metric": "ticketConsumed",
+      "expected": "false",
+      "actual": "false",
+      "pass": true
+    },
+    {
+      "scenario": "consumer-expired-reaper",
+      "metric": "rpcBlockTimestamp",
+      "expected": ">1778077422",
+      "actual": "1778077428",
+      "pass": true
+    },
+    {
+      "scenario": "consumer-soft-revoke-expire",
+      "metric": "dbStatus",
+      "expected": "FAILED_EXPIRED",
+      "actual": "FAILED_EXPIRED",
+      "pass": true
+    },
+    {
+      "scenario": "consumer-soft-revoke-expire",
+      "metric": "ticketConsumed",
+      "expected": "false",
+      "actual": "false",
+      "pass": true
+    },
+    {
+      "scenario": "consumer-soft-revoke-expire",
+      "metric": "rpcBlockTimestamp",
+      "expected": ">1778077489",
+      "actual": "1778077495",
+      "pass": true
+    },
+    {
+      "scenario": "provider-expired-reaper",
+      "metric": "dbStatus",
+      "expected": "FAILED_EXPIRED",
+      "actual": "FAILED_EXPIRED",
+      "pass": true
+    },
+    {
+      "scenario": "provider-expired-reaper",
+      "metric": "ticketConsumed",
+      "expected": "false",
+      "actual": "false",
+      "pass": true
+    },
+    {
+      "scenario": "provider-expired-reaper",
+      "metric": "rpcBlockTimestamp",
+      "expected": ">1778077556",
+      "actual": "1778077562",
+      "pass": true
+    },
+    {
+      "scenario": "provider-soft-revoke-expire",
+      "metric": "dbStatus",
+      "expected": "FAILED_EXPIRED",
+      "actual": "FAILED_EXPIRED",
+      "pass": true
+    },
+    {
+      "scenario": "provider-soft-revoke-expire",
+      "metric": "ticketConsumed",
+      "expected": "false",
+      "actual": "false",
+      "pass": true
+    },
+    {
+      "scenario": "provider-soft-revoke-expire",
+      "metric": "rpcBlockTimestamp",
+      "expected": ">1778077622",
+      "actual": "1778077628",
+      "pass": true
+    }
+  ],
+  "passed": [
+    {
+      "name": "scenario:consumer-normal-claim",
+      "detail": "consumer ticket claimed and completed"
+    },
+    {
+      "name": "scenario:consumer-soft-revoke-race-claim",
+      "detail": "consumer ticket claimed and completed"
+    },
+    {
+      "name": "scenario:consumer-replay-attack",
+      "detail": "Replay of consumed consumer ticket reverts and Gateway remains COMPLETED"
+    },
+    {
+      "name": "scenario:provider-normal-claim",
+      "detail": "provider ticket claimed and completed"
+    },
+    {
+      "name": "scenario:provider-soft-revoke-race-claim",
+      "detail": "provider ticket claimed and completed"
+    },
+    {
+      "name": "scenario:provider-onchain-revert-retry",
+      "detail": "Low-gas claim reverts without consuming ticket; same ticket retries successfully before deadline"
+    },
+    {
+      "name": "scenario:consumer-expired-reaper",
+      "detail": "consumer ticket expired and reaper released funds"
+    },
+    {
+      "name": "scenario:consumer-soft-revoke-expire",
+      "detail": "consumer ticket expired and reaper released funds"
+    },
+    {
+      "name": "scenario:provider-expired-reaper",
+      "detail": "provider ticket expired and reaper released funds"
+    },
+    {
+      "name": "scenario:provider-soft-revoke-expire",
+      "detail": "provider ticket expired and reaper released funds"
+    }
+  ],
+  "failed": [],
+  "evidenceDigest": "7b5be9978ff1da227d925012ac07dd930f56641b8c502779848b3c9a3d37ecfb"
+}

@@ -168,6 +168,8 @@ describe("OwnerBillingPage", () => {
           txHash: null,
           timestamp: new Date(2026, 4, 5, 8, 9, 59).getTime(),
           status: "PENDING",
+          withdrawalStatus: "REQUESTED",
+          claimable: true,
         },
       ],
     });
@@ -176,12 +178,12 @@ describe("OwnerBillingPage", () => {
       createElement(LanguageProvider, null, createElement(OwnerBillingPage))
     );
 
-    expect(screen.getByText("Withdrawal processing")).toBeTruthy();
+    expect(screen.getByText("Ready to claim")).toBeTruthy();
     expect(screen.queryByText("Pending / Syncing")).toBeNull();
     expect(screen.getByText("$185.99")).toBeTruthy();
   });
 
-  it("renders pending withdrawal copy in Chinese", () => {
+  it("renders claim-ready withdrawal copy in Chinese", () => {
     globalThis.localStorage.setItem(I18N_STORAGE_KEY, "zh");
     useFundsDataMock.mockReturnValue({
       loading: false,
@@ -194,6 +196,8 @@ describe("OwnerBillingPage", () => {
           txHash: null,
           timestamp: new Date(2026, 4, 5, 8, 9, 59).getTime(),
           status: "PENDING",
+          withdrawalStatus: "REQUESTED",
+          claimable: true,
         },
       ],
     });
@@ -202,8 +206,34 @@ describe("OwnerBillingPage", () => {
       createElement(LanguageProvider, null, createElement(OwnerBillingPage))
     );
 
-    expect(screen.getByText("提现处理中")).toBeTruthy();
+    expect(screen.getByText("待领取")).toBeTruthy();
     expect(screen.queryByText("同步中")).toBeNull();
+  });
+
+  it("renders manual-review withdrawals separately from claim-ready withdrawals", () => {
+    useFundsDataMock.mockReturnValue({
+      loading: false,
+      paymentHistoryMayBeTruncated: false,
+      records: [
+        {
+          id: "withdraw-review-1",
+          type: "Withdraw",
+          amount: 501,
+          txHash: null,
+          timestamp: new Date(2026, 4, 6, 8, 9, 59).getTime(),
+          status: "PENDING",
+          withdrawalStatus: "PENDING_MANUAL_REVIEW",
+          claimable: false,
+        },
+      ],
+    });
+
+    render(
+      createElement(LanguageProvider, null, createElement(OwnerBillingPage))
+    );
+
+    expect(screen.getByText("Under review")).toBeTruthy();
+    expect(screen.queryByText("Ready to claim")).toBeNull();
   });
 
   it("renders payment table labels, action types, and date picker controls in Chinese", () => {

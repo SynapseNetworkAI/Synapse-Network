@@ -14,6 +14,8 @@ import {
   type WithdrawReviewDecision,
 } from "@/features/withdrawal-reviews/review-action-feedback";
 
+export const REVIEW_QUEUE_FETCH_LIMIT = 100;
+
 type RequestStepUpCode = (input: {
   title: string;
   description: string;
@@ -38,6 +40,24 @@ type UseProviderWithdrawReviewsResult = {
   refreshReviews: () => Promise<void>;
 };
 
+export function applyOptimisticWithdrawReviewDecision(
+  items: ProviderWithdrawReviewItem[],
+  withdrawalId: string,
+  result: { status: ProviderWithdrawReviewItem["status"]; message?: string | null }
+): ProviderWithdrawReviewItem[] {
+  const updatedAt = new Date().toISOString();
+  return items.map((item) =>
+    item.withdrawalId === withdrawalId
+      ? {
+          ...item,
+          status: result.status,
+          message: result.message ?? item.message,
+          updatedAt,
+        }
+      : item
+  );
+}
+
 
 export function useProviderWithdrawReviews(
   token: string | null,
@@ -60,7 +80,9 @@ export function useProviderWithdrawReviews(
       setError(null);
       return;
     }
-    const reviewQueue = await listProviderWithdrawReviews(token, { limit: 20 });
+    const reviewQueue = await listProviderWithdrawReviews(token, {
+      limit: REVIEW_QUEUE_FETCH_LIMIT,
+    });
     setItems(reviewQueue.items);
     setActiveReviewId((current) => {
       if (current && reviewQueue.items.some((item) => item.withdrawalId === current)) {
@@ -82,7 +104,9 @@ export function useProviderWithdrawReviews(
 
     async function load() {
       try {
-        const reviewQueue = await listProviderWithdrawReviews(activeToken, { limit: 20 });
+        const reviewQueue = await listProviderWithdrawReviews(activeToken, {
+          limit: REVIEW_QUEUE_FETCH_LIMIT,
+        });
         if (cancelled) {
           return;
         }
@@ -118,19 +142,23 @@ export function useProviderWithdrawReviews(
     setActionPhase("awaitingOtp");
 
     void (async () => {
+      const reviewId = activeReviewId;
       try {
         const otpCode = await requestStepUpCode({
           title: `${decision === "APPROVE" ? "批准" : "拒绝"}提现单`,
-          description: `你正在处理 ${activeReviewId}，完成验证码验证后系统才会提交${decision === "APPROVE" ? "放行" : "驳回"}请求。`,
+          description: `你正在处理 ${reviewId}，完成验证码验证后系统才会提交${decision === "APPROVE" ? "放行" : "驳回"}请求。`,
           confirmLabel: decision === "APPROVE" ? "确认放行" : "确认驳回",
         });
 
         setActionPhase("submitting");
-        const result = await decideProviderWithdrawReview(token, activeReviewId, {
+        const result = await decideProviderWithdrawReview(token, reviewId, {
           decision,
           note,
           otpCode,
         });
+        setItems((current) =>
+          applyOptimisticWithdrawReviewDecision(current, reviewId, result)
+        );
         setMessage(getWithdrawReviewActionSuccessMessage({
           decision,
           status: result.status,

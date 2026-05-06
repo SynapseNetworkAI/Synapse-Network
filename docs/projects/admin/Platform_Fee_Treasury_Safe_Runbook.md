@@ -26,6 +26,7 @@ This is intentional for solo operation: Gateway/Admin code stays Safe-compatible
 
 - Do not let the frontend provide `to`, `data`, `functionName`, `recipient`, or `value`.
 - Do not expose platform fee withdrawal as primary sidebar navigation. It must stay as a Finance-page super-admin modal action.
+- Frontend runtime code must not broadcast `withdrawPlatformFees(...)` directly. Local automation may use an owner signer for evidence only; production and staging treasury execution remain Safe or owner controlled.
 - Do not allow finance reviewers or platform ops admins to create drafts even if they hold `approval:decide`.
 - The backend must hardcode selector `0x6aa21416`, which is `withdrawPlatformFees(uint256)`.
 - Draft creation fails if `amountAtomic > SynapseCore.platformFeePool()`.
@@ -57,3 +58,22 @@ Each withdrawal should preserve:
 - Safe tx hash and chain tx hash after manual execution
 - before/after `platformFeePool`
 - before/after Safe USDC balance
+
+## Local Automation Note
+
+Local money-path E2E is allowed to validate `withdrawPlatformFees(amount)` with
+the current local chain `owner()` signer instead of Safe + Ledger:
+
+```bash
+npm run e2e:consumer-withdraw-claim-fullchain:local
+npm run ci:consumer-withdraw-claim-fullchain-local-evidence
+```
+
+This is a local-only automation shortcut so the fullchain gate can prove:
+
+1. consumer claim increases `platformFeePool`
+2. `withdrawPlatformFees(amount)` cannot exceed the fee pool
+3. withdrawing the exact accrued fee increases only the platform wallet balance
+
+It does not change staging or production custody. Non-local environments remain
+Safe-controlled and require the real owner path described above.

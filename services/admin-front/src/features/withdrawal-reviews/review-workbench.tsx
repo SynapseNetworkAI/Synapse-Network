@@ -1,6 +1,7 @@
 "use client";
 
 import type { ProviderWithdrawReviewItem } from "@/services/admin-api";
+import { canSubmitWithdrawReviewDecision } from "@/features/withdrawal-reviews/review-action-feedback";
 
 
 type ReviewWorkbenchProps = {
@@ -37,6 +38,11 @@ export function ReviewWorkbench({
   onDecision,
 }: Readonly<ReviewWorkbenchProps>) {
   const activeReview = items.find((item) => item.withdrawalId === activeReviewId) ?? items[0] ?? null;
+  const canSubmitActiveDecision = canSubmitWithdrawReviewDecision({
+    canDecide,
+    isPending,
+    status: activeReview?.status,
+  });
 
   return (
     <section className="panel panel--split review-layout">
@@ -148,7 +154,7 @@ export function ReviewWorkbench({
                     <button
                       type="button"
                       className="button button--secondary"
-                      disabled={!canDecide || isPending}
+                      disabled={!canSubmitActiveDecision}
                       onClick={() => onDecision("REJECT")}
                     >
                       {isPending ? "处理中..." : "Reject & Release"}
@@ -156,7 +162,7 @@ export function ReviewWorkbench({
                     <button
                       type="button"
                       className="button button--primary"
-                      disabled={!canDecide || isPending}
+                      disabled={!canSubmitActiveDecision}
                       onClick={() => onDecision("APPROVE")}
                     >
                       {isPending ? "处理中..." : "Approve & Issue Ticket"}

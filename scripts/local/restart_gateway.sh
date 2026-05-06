@@ -209,34 +209,50 @@ wait_for_gateway_readiness() {
   readiness_url="$1"
   timeout_sec="$2"
   elapsed=0
+  deposit_indexer_enabled="${V2_INDEXER_ENABLED:-true}"
+  service_health_monitor_enabled="${SERVICE_HEALTH_MONITOR_ENABLED:-true}"
+  provider_withdraw_expiry_reaper_enabled="${PROVIDER_WITHDRAW_EXPIRY_REAPER_ENABLED:-true}"
+  consumer_withdraw_processor_enabled="${CONSUMER_WITHDRAW_PROCESSOR_ENABLED:-true}"
+  in_app_notification_cleanup_enabled="${IN_APP_NOTIFICATION_CLEANUP_ENABLED:-true}"
+  service_health_event_cleanup_enabled="${SERVICE_HEALTH_EVENT_CLEANUP_ENABLED:-true}"
 
   while [ "$elapsed" -lt "$timeout_sec" ]; do
-    if "$PYTHON_BIN" - "$readiness_url" <<'PY' >/dev/null 2>&1
+    if "$PYTHON_BIN" - \
+      "$readiness_url" \
+      "$deposit_indexer_enabled" \
+      "$service_health_monitor_enabled" \
+      "$provider_withdraw_expiry_reaper_enabled" \
+      "$consumer_withdraw_processor_enabled" \
+      "$in_app_notification_cleanup_enabled" \
+      "$service_health_event_cleanup_enabled" <<'PY' >/dev/null 2>&1
 import json
 import sys
 import urllib.request
 
 url = sys.argv[1]
 expected = {
-    "deposit_indexer",
-    "service_health_monitor",
-    "provider_withdraw_expiry_reaper",
-    "consumer_withdraw_processor",
-    "in_app_notification_cleanup",
-    "service_health_event_cleanup",
+    "deposit_indexer": sys.argv[2].lower() == "true",
+    "service_health_monitor": sys.argv[3].lower() == "true",
+    "provider_withdraw_expiry_reaper": sys.argv[4].lower() == "true",
+    "consumer_withdraw_processor": sys.argv[5].lower() == "true",
+    "in_app_notification_cleanup": sys.argv[6].lower() == "true",
+    "service_health_event_cleanup": sys.argv[7].lower() == "true",
 }
 with urllib.request.urlopen(url, timeout=2) as response:
     payload = json.load(response)
 monitors = payload.get("monitors") or {}
-for name in expected:
+for name, enabled in expected.items():
     monitor = monitors.get(name) or {}
-    if monitor.get("enabled") is not True:
-        raise SystemExit(f"{name} is not enabled")
-    if name == "deposit_indexer":
-        if monitor.get("healthy") is not True:
-            raise SystemExit(f"{name} is not healthy")
-    elif monitor.get("initialized") is not True:
-        raise SystemExit(f"{name} is not initialized")
+    if enabled:
+        if monitor.get("enabled") is not True:
+            raise SystemExit(f"{name} is not enabled")
+        if name == "deposit_indexer":
+            if monitor.get("healthy") is not True:
+                raise SystemExit(f"{name} is not healthy")
+        elif monitor.get("initialized") is not True:
+            raise SystemExit(f"{name} is not initialized")
+    elif monitor.get("enabled") is True:
+        raise SystemExit(f"{name} should be disabled for this restart")
 PY
     then
       return 0
