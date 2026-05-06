@@ -477,8 +477,7 @@ function WithdrawBalanceModal({
 
   const submitting = step !== "form";
   const withdrawDisabled =
-    submitting ||
-    (!isExistingClaim && withdrawableBalance < minWithdrawAmount);
+    submitting || (!isExistingClaim && withdrawableBalance < minWithdrawAmount);
   const showMaturityGapWarning = availableBalance > withdrawableBalance;
   let buttonLabel = t("creditsPage.consumerWithdrawAction");
   if (step === "signing")
@@ -507,7 +506,9 @@ function WithdrawBalanceModal({
         <p className="mb-4 text-sm text-[#86868b]">
           {isExistingClaim
             ? t("creditsPage.consumerWithdrawClaimDescription", {
-                amount: formatPlainAmount(existingWithdrawal?.amountUsdc ?? "0"),
+                amount: formatPlainAmount(
+                  existingWithdrawal?.amountUsdc ?? "0"
+                ),
               })
             : t("creditsPage.consumerWithdrawDescription", {
                 amount: withdrawableBalance.toFixed(2),
@@ -527,7 +528,9 @@ function WithdrawBalanceModal({
               </p>
               <p className="mt-2">
                 {t("creditsPage.consumerWithdrawClaimAmount", {
-                  amount: formatPlainAmount(existingWithdrawal?.amountUsdc ?? "0"),
+                  amount: formatPlainAmount(
+                    existingWithdrawal?.amountUsdc ?? "0"
+                  ),
                 })}
               </p>
               <p className="mt-2 text-xs leading-5 text-[#86868b]">
@@ -535,53 +538,53 @@ function WithdrawBalanceModal({
               </p>
             </div>
           ) : (
-          <div>
-            <label className="mb-1 block text-xs font-medium uppercase tracking-wider text-[#86868b]">
-              {t("creditsPage.consumerWithdrawAmountLabel")}
-            </label>
-            <div className="flex gap-2">
-              <input
-                type="number"
-                min="1"
-                step="0.01"
-                max={withdrawableBalance}
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                disabled={submitting}
-                className="flex-1 rounded-xl border border-[#2a2a2a] bg-[#0a0a0a] px-3 py-2 text-sm text-white focus:border-[#22c55e]/50 focus:outline-none disabled:opacity-40"
-              />
-              <button
-                type="button"
-                onClick={() => setAmount(withdrawableBalance.toFixed(2))}
-                disabled={submitting}
-                className="rounded-xl border border-[#2a2a2a] bg-[#1a1a1a] px-3 py-2 text-xs text-[#9ca3af] hover:text-white disabled:opacity-40"
-              >
-                {t("creditsPage.consumerWithdrawMax")}
-              </button>
+            <div>
+              <label className="mb-1 block text-xs font-medium uppercase tracking-wider text-[#86868b]">
+                {t("creditsPage.consumerWithdrawAmountLabel")}
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  min="1"
+                  step="0.01"
+                  max={withdrawableBalance}
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  disabled={submitting}
+                  className="flex-1 rounded-xl border border-[#2a2a2a] bg-[#0a0a0a] px-3 py-2 text-sm text-white focus:border-[#22c55e]/50 focus:outline-none disabled:opacity-40"
+                />
+                <button
+                  type="button"
+                  onClick={() => setAmount(withdrawableBalance.toFixed(2))}
+                  disabled={submitting}
+                  className="rounded-xl border border-[#2a2a2a] bg-[#1a1a1a] px-3 py-2 text-xs text-[#9ca3af] hover:text-white disabled:opacity-40"
+                >
+                  {t("creditsPage.consumerWithdrawMax")}
+                </button>
+              </div>
+              <p className="mt-2 text-xs leading-5 text-[#71767b]">
+                {t("creditsPage.consumerWithdrawMinimumRule", {
+                  amount: minWithdrawAmount.toFixed(2),
+                })}
+              </p>
             </div>
-            <p className="mt-2 text-xs leading-5 text-[#71767b]">
-              {t("creditsPage.consumerWithdrawMinimumRule", {
-                amount: minWithdrawAmount.toFixed(2),
-              })}
-            </p>
-          </div>
           )}
 
           {!isExistingClaim ? (
-          <div>
-            <label className="mb-1 block text-xs font-medium uppercase tracking-wider text-[#86868b]">
-              {t("creditsPage.consumerWithdrawReasonLabel")}
-            </label>
-            <textarea
-              rows={2}
-              maxLength={256}
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              disabled={submitting}
-              placeholder={t("creditsPage.consumerWithdrawReasonPlaceholder")}
-              className="w-full rounded-xl border border-[#2a2a2a] bg-[#0a0a0a] px-3 py-2 text-sm text-white placeholder:text-[#555] focus:border-[#22c55e]/50 focus:outline-none disabled:opacity-40"
-            />
-          </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium uppercase tracking-wider text-[#86868b]">
+                {t("creditsPage.consumerWithdrawReasonLabel")}
+              </label>
+              <textarea
+                rows={2}
+                maxLength={256}
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                disabled={submitting}
+                placeholder={t("creditsPage.consumerWithdrawReasonPlaceholder")}
+                className="w-full rounded-xl border border-[#2a2a2a] bg-[#0a0a0a] px-3 py-2 text-sm text-white placeholder:text-[#555] focus:border-[#22c55e]/50 focus:outline-none disabled:opacity-40"
+              />
+            </div>
           ) : null}
 
           <div className="rounded-xl border border-[#2a2a2a] bg-[#0d0d0d] px-3 py-2 text-xs text-[#86868b] space-y-1">

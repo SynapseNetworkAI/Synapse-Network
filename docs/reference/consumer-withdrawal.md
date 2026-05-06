@@ -209,14 +209,14 @@ Payments is a Gateway-backed display surface, not a frontend chain watcher. The 
 
 Status mapping:
 
-| Withdrawal Status       | Payments Status |
-| ----------------------- | --------------- |
+| Withdrawal Status       | Payments Status  |
+| ----------------------- | ---------------- |
 | `REQUESTED`             | `READY_TO_CLAIM` |
-| `PENDING_MANUAL_REVIEW` | `UNDER_REVIEW`  |
-| `COMPLETED`             | `COMPLETED`     |
-| `FAILED`                | `FAILED`        |
-| `REJECTED`              | `FAILED`        |
-| `FAILED_EXPIRED`        | `FAILED`        |
+| `PENDING_MANUAL_REVIEW` | `UNDER_REVIEW`   |
+| `COMPLETED`             | `COMPLETED`      |
+| `FAILED`                | `FAILED`         |
+| `REJECTED`              | `FAILED`         |
+| `FAILED_EXPIRED`        | `FAILED`         |
 
 Other display rules:
 

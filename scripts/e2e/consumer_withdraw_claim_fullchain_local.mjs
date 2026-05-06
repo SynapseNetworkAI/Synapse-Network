@@ -41,12 +41,14 @@ const config = {
   gatewayBase: (
     process.env.GATEWAY_BASE_URL || "http://127.0.0.1:8000"
   ).replace(/\/+$/, ""),
-  adminApi: (
-    process.env.ADMIN_GATEWAY_URL || "http://127.0.0.1:8300"
-  ).replace(/\/+$/, ""),
-  adminFront: (
-    process.env.ADMIN_FRONT_URL || "http://127.0.0.1:3200"
-  ).replace(/\/+$/, ""),
+  adminApi: (process.env.ADMIN_GATEWAY_URL || "http://127.0.0.1:8300").replace(
+    /\/+$/,
+    ""
+  ),
+  adminFront: (process.env.ADMIN_FRONT_URL || "http://127.0.0.1:3200").replace(
+    /\/+$/,
+    ""
+  ),
   frontendUrl: (
     process.env.USER_FRONT_BASE_URL || "http://127.0.0.1:3000"
   ).replace(/\/+$/, ""),
@@ -61,10 +63,8 @@ const config = {
   adminCookieName:
     process.env.ADMIN_SESSION_COOKIE_NAME || "synapse_admin_session",
   adminEmail: process.env.ADMIN_EMAIL || "local-admin-e2e@synapse-network.ai",
-  adminPassword:
-    process.env.ADMIN_PASSWORD || "WithdrawDogfood#2026!",
-  adminTotpSecret:
-    process.env.ADMIN_TOTP_SECRET || "JBSWY3DPEHPK3PXP",
+  adminPassword: process.env.ADMIN_PASSWORD || "WithdrawDogfood#2026!",
+  adminTotpSecret: process.env.ADMIN_TOTP_SECRET || "JBSWY3DPEHPK3PXP",
   deployerKey:
     process.env.DEPLOYER_KEY ||
     "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
@@ -75,7 +75,8 @@ const config = {
     process.env.PLATFORM_OWNER_KEY ||
     process.env.DEPLOYER_KEY ||
     "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
-  depositUsdc: process.env.CONSUMER_WITHDRAW_FULLCHAIN_DEPOSIT_USDC || "1200.000000",
+  depositUsdc:
+    process.env.CONSUMER_WITHDRAW_FULLCHAIN_DEPOSIT_USDC || "1200.000000",
   manualWithdrawUsdc:
     process.env.CONSUMER_WITHDRAW_FULLCHAIN_MANUAL_USDC || "500.000000",
   contractConfigPath: process.env.GATEWAY_E2E_CONTRACT_CONFIG_PATH
@@ -544,8 +545,13 @@ const toolkit = createWithdrawalE2eToolkit({
   },
 });
 
-const { claimOnChain, getChainContext, queryJson, readChainBalances, topUpEthIfNeeded } =
-  toolkit;
+const {
+  claimOnChain,
+  getChainContext,
+  queryJson,
+  readChainBalances,
+  topUpEthIfNeeded,
+} = toolkit;
 
 const {
   captureAdminApproveResult,
@@ -570,7 +576,10 @@ async function getChainState(address) {
     ...wallet,
     owner,
     platformFeePoolAtomic: platformFeePoolAtomic.toString(),
-    platformFeePoolUsdc: ethers.formatUnits(platformFeePoolAtomic, wallet.decimals),
+    platformFeePoolUsdc: ethers.formatUnits(
+      platformFeePoolAtomic,
+      wallet.decimals
+    ),
   };
 }
 
@@ -587,17 +596,23 @@ async function fundAndDeposit(auth, amountUsdc) {
     return usdcDeployer.mint(buyerAddress, amount);
   });
   await mintTx.wait();
-  const approveTx = await sendWithNonceRetry("approve-usdc-for-deposit", async () => {
-    const buyerSigner = new ethers.Wallet(auth.privateKey, provider);
-    const usdcBuyer = new ethers.Contract(usdcAddress, usdcAbi, buyerSigner);
-    return usdcBuyer.approve(coreAddress, amount);
-  });
+  const approveTx = await sendWithNonceRetry(
+    "approve-usdc-for-deposit",
+    async () => {
+      const buyerSigner = new ethers.Wallet(auth.privateKey, provider);
+      const usdcBuyer = new ethers.Contract(usdcAddress, usdcAbi, buyerSigner);
+      return usdcBuyer.approve(coreAddress, amount);
+    }
+  );
   await approveTx.wait();
-  const depositTx = await sendWithNonceRetry("deposit-usdc-into-core", async () => {
-    const buyerSigner = new ethers.Wallet(auth.privateKey, provider);
-    const coreBuyer = new ethers.Contract(coreAddress, coreAbi, buyerSigner);
-    return coreBuyer.deposit(amount);
-  });
+  const depositTx = await sendWithNonceRetry(
+    "deposit-usdc-into-core",
+    async () => {
+      const buyerSigner = new ethers.Wallet(auth.privateKey, provider);
+      const coreBuyer = new ethers.Contract(coreAddress, coreAbi, buyerSigner);
+      return coreBuyer.deposit(amount);
+    }
+  );
   await depositTx.wait();
 
   const intent = await httpJson(
@@ -687,7 +702,10 @@ async function createConsumerWithdrawal(auth, amountUsdc, label) {
   };
 }
 
-async function listConsumerWithdrawals(auth, scenario = "consumer-withdrawals") {
+async function listConsumerWithdrawals(
+  auth,
+  scenario = "consumer-withdrawals"
+) {
   const result = await httpJson(
     `${config.gatewayBase}/api`,
     "/v1/balance/consumer/withdrawals?limit=20",
@@ -744,7 +762,10 @@ async function adminDecision(adminAuth, withdrawalId, decision, scenario) {
   );
 }
 
-async function listAdminWithdrawReviews(adminAuth, scenario = "admin-withdraw-review-list") {
+async function listAdminWithdrawReviews(
+  adminAuth,
+  scenario = "admin-withdraw-review-list"
+) {
   const result = await httpJson(
     config.adminApi,
     "/api/admin/v1/withdrawal-reviews?limit=100",
@@ -801,7 +822,9 @@ function dbAudit(withdrawalId, ownerAddress) {
       SELECT event_type, business_type, owner_id, amount_delta::text,
              result_status, error_code, created_at::text
       FROM synapse_audit_events
-      WHERE lower(owner_id) = lower(${sqlLiteral(`owner:${String(ownerAddress).toLowerCase()}`)})
+      WHERE lower(owner_id) = lower(${sqlLiteral(
+        `owner:${String(ownerAddress).toLowerCase()}`
+      )})
         AND detail_json::text LIKE '%' || ${sqlLiteral(withdrawalId)} || '%'
       ORDER BY created_at ASC
     ) t
@@ -843,12 +866,7 @@ async function expectPlatformFeeOverdrawRevert(ownerKey, amountAtomic) {
 }
 
 function forbiddenTexts() {
-  return [
-    "Internal server error",
-    "Unauthorized",
-    "Loading",
-    "Connect Wallet",
-  ];
+  return ["Internal server error", "Unauthorized", "Loading", "Connect Wallet"];
 }
 
 async function captureUserScreenshot(page, fileName, checkpoint) {
@@ -959,7 +977,9 @@ function writeEvidence() {
           "",
           ...evidence.failed.map(
             (item, index) =>
-              `## BUG-${String(index + 1).padStart(3, "0")}: ${item.name}\n- Status: open\n- Detail: ${item.detail}\n`
+              `## BUG-${String(index + 1).padStart(3, "0")}: ${
+                item.name
+              }\n- Status: open\n- Detail: ${item.detail}\n`
           ),
         ].join("\n"),
     "utf8"
@@ -971,12 +991,13 @@ async function main() {
   assertLocalEnvironment();
   resetLocalAdminE2eAccount();
 
-  const [gatewayHealth, adminHealth, userFrontHealth, adminFrontHealth] = await Promise.all([
-    fetch(`${config.gatewayBase}/health`),
-    fetch(`${config.adminApi}/health`),
-    fetch(config.frontendUrl),
-    fetch(`${config.adminFront}/login`),
-  ]);
+  const [gatewayHealth, adminHealth, userFrontHealth, adminFrontHealth] =
+    await Promise.all([
+      fetch(`${config.gatewayBase}/health`),
+      fetch(`${config.adminApi}/health`),
+      fetch(config.frontendUrl),
+      fetch(`${config.adminFront}/login`),
+    ]);
   if (
     !gatewayHealth.ok ||
     !adminHealth.ok ||
@@ -1034,7 +1055,8 @@ async function main() {
     const afterCreateDbRow = await pollUntil(
       "db withdrawal row after create",
       async () => dbWithdrawal(withdrawId),
-      (row) => String(row?.status || "").toUpperCase() === "PENDING_MANUAL_REVIEW"
+      (row) =>
+        String(row?.status || "").toUpperCase() === "PENDING_MANUAL_REVIEW"
     );
     const afterCreateDbBalance = dbBalance(consumerAuth.address);
     evidence.api.createdWithdrawal = sanitize(created);
@@ -1071,7 +1093,11 @@ async function main() {
       1000
     );
     evidence.api.adminPendingQueue = sanitize(pendingAdminItems);
-    await captureReviewScreenshots(adminAuth, withdrawId, "consumer-approve-before");
+    await captureReviewScreenshots(
+      adminAuth,
+      withdrawId,
+      "consumer-approve-before"
+    );
 
     const decision = await adminDecision(
       adminAuth,
@@ -1089,11 +1115,16 @@ async function main() {
     const approvedBalance = dbBalance(consumerAuth.address);
     const approvedList = await pollUntil(
       "consumer withdrawals claimable",
-      async () => listConsumerWithdrawals(consumerAuth, "consumer-withdrawals-after-approve"),
+      async () =>
+        listConsumerWithdrawals(
+          consumerAuth,
+          "consumer-withdrawals-after-approve"
+        ),
       (rows) =>
         rows.some(
           (row) =>
-            (row.withdrawId || row.refundId || row.withdrawalId) === withdrawId &&
+            (row.withdrawId || row.refundId || row.withdrawalId) ===
+              withdrawId &&
             String(row.status || "").toUpperCase() === "REQUESTED" &&
             row.claimable === true &&
             row.ticket
@@ -1291,10 +1322,7 @@ async function main() {
     };
 
     pass("consumer-withdraw-fullchain", `${withdrawId} tx=${claim.txHash}`);
-    pass(
-      "platform-fee-withdraw-fullchain",
-      `tx=${platformWithdraw.txHash}`
-    );
+    pass("platform-fee-withdraw-fullchain", `tx=${platformWithdraw.txHash}`);
   } finally {
     await browser.close();
   }
@@ -1306,7 +1334,5 @@ main()
   })
   .finally(() => {
     writeEvidence();
-    console.log(
-      `[consumer-withdraw-claim-fullchain] evidence: ${OUT_DIR}`
-    );
+    console.log(`[consumer-withdraw-claim-fullchain] evidence: ${OUT_DIR}`);
   });

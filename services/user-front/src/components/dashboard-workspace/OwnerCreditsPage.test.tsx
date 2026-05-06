@@ -391,7 +391,9 @@ describe("OwnerCreditsPage", () => {
       createElement(LanguageProvider, null, createElement(OwnerCreditsPage))
     );
 
-    expect(await screen.findByRole("button", { name: "Claim now" })).toBeTruthy();
+    expect(
+      await screen.findByRole("button", { name: "Claim now" })
+    ).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Withdraw" })).toBeNull();
   });
 });

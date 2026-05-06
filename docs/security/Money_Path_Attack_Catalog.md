@@ -26,22 +26,22 @@ No attacker, retry storm, replay, race, stale callback, or operator mistake may:
 
 ## Attack Catalog
 
-| Attack | Target flow | Expected defense | Evidence source |
-| --- | --- | --- | --- |
-| Duplicate request double-spend | consumer/provider withdraw create | one active row, one balance reservation, same-key stable replay, mismatched payload `409` | `e2e:withdrawal-idempotency-concurrency` |
-| Deposit tx replay | deposit intent + confirm | same `txHash` never double-credits available balance | `e2e:deposit-indexer-recovery:local` |
-| Watcher/indexer restart replay | deposit backfill | restart/backfill can recover but not duplicate confirm | `e2e:deposit-indexer-recovery:local` |
-| Ticket replay | consumer/provider claim | second on-chain claim reverts, Gateway remains terminal once | `e2e:withdrawal-one-ticket-evidence`, `e2e:withdrawal-idempotency-concurrency` |
-| Approve/reject race | manual-review withdrawals | only one legal terminal branch survives | `e2e:withdrawal-idempotency-concurrency` |
-| Expiry/approve race | withdrawal expiry processors | approval and expiry cannot both release/settle funds | `e2e:withdrawal-risk-policy`, expiry unit tests |
-| Stale callback replay | refund / withdraw complete/fail callbacks | same callback is idempotent; conflicting callback is rejected | `test_money_safety_races_unit.py` |
-| Cross-account completion | refund / withdraw complete APIs | wrong owner/provider cannot complete another party's row | existing auth + finance unit/E2E coverage |
-| Hold capture duplication | LLM token-metered invoke | hold reserve once, capture once, release exact remainder | `e2e:llm-deepseek:local` |
-| Missing usage / timeout charge abuse | token-metered invoke | no final usage means no charge and no provider/platform credit | `e2e:llm-deepseek:local` |
-| Fee over-withdraw | platform fee withdrawal | contract revert when `amount > platformFeePool` | `e2e:consumer-withdraw-claim-fullchain:local` |
-| Principal theft via platform path | platform fee withdrawal | only accrued fee leaves vault; customer principal stays isolated | `e2e:consumer-withdraw-claim-fullchain:local` |
-| Chain domain / signer tamper | ticket claim | invalid signer, chainId, deadline, or ticket fields fail closed | contract tests + one-ticket evidence |
-| Low-gas revert retry abuse | provider withdrawal | failed low-gas receipt does not consume ticket; retry completes once | `e2e:withdrawal-one-ticket-evidence` |
+| Attack                               | Target flow                               | Expected defense                                                                          | Evidence source                                                                |
+| ------------------------------------ | ----------------------------------------- | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Duplicate request double-spend       | consumer/provider withdraw create         | one active row, one balance reservation, same-key stable replay, mismatched payload `409` | `e2e:withdrawal-idempotency-concurrency`                                       |
+| Deposit tx replay                    | deposit intent + confirm                  | same `txHash` never double-credits available balance                                      | `e2e:deposit-indexer-recovery:local`                                           |
+| Watcher/indexer restart replay       | deposit backfill                          | restart/backfill can recover but not duplicate confirm                                    | `e2e:deposit-indexer-recovery:local`                                           |
+| Ticket replay                        | consumer/provider claim                   | second on-chain claim reverts, Gateway remains terminal once                              | `e2e:withdrawal-one-ticket-evidence`, `e2e:withdrawal-idempotency-concurrency` |
+| Approve/reject race                  | manual-review withdrawals                 | only one legal terminal branch survives                                                   | `e2e:withdrawal-idempotency-concurrency`                                       |
+| Expiry/approve race                  | withdrawal expiry processors              | approval and expiry cannot both release/settle funds                                      | `e2e:withdrawal-risk-policy`, expiry unit tests                                |
+| Stale callback replay                | refund / withdraw complete/fail callbacks | same callback is idempotent; conflicting callback is rejected                             | `test_money_safety_races_unit.py`                                              |
+| Cross-account completion             | refund / withdraw complete APIs           | wrong owner/provider cannot complete another party's row                                  | existing auth + finance unit/E2E coverage                                      |
+| Hold capture duplication             | LLM token-metered invoke                  | hold reserve once, capture once, release exact remainder                                  | `e2e:llm-deepseek:local`                                                       |
+| Missing usage / timeout charge abuse | token-metered invoke                      | no final usage means no charge and no provider/platform credit                            | `e2e:llm-deepseek:local`                                                       |
+| Fee over-withdraw                    | platform fee withdrawal                   | contract revert when `amount > platformFeePool`                                           | `e2e:consumer-withdraw-claim-fullchain:local`                                  |
+| Principal theft via platform path    | platform fee withdrawal                   | only accrued fee leaves vault; customer principal stays isolated                          | `e2e:consumer-withdraw-claim-fullchain:local`                                  |
+| Chain domain / signer tamper         | ticket claim                              | invalid signer, chainId, deadline, or ticket fields fail closed                           | contract tests + one-ticket evidence                                           |
+| Low-gas revert retry abuse           | provider withdrawal                       | failed low-gas receipt does not consume ticket; retry completes once                      | `e2e:withdrawal-one-ticket-evidence`                                           |
 
 ## Required Evidence Contract
 
