@@ -21,6 +21,7 @@ This file is the local execution mirror for `services/gateway-admin/`.
 - Never couple directly to `gateway/src/domain` internals.
 - Prefer controlled adapters and read-only projections for cross-service access.
 - New admin control-plane semantics must come from backend-owned fields and endpoints, not frontend invention.
+- Dashboard projection views are CQRS read models. Query explicit native columns and map them to typed dataclasses; do not use `row_to_json` or projection `SELECT *`.
 - If behavior touches approvals, retries, withdrawals, refunds, deposit repair, or reconciliation, update tests and docs in the same change.
 - Use `finance-admin.instructions.md` as the narrow rule source for withdrawal review, refund approval, deposit repair, reconciliation drilldown, and finance review execution flows.
 

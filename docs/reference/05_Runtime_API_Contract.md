@@ -154,16 +154,17 @@ Gateway 同步调用按 service profile 执行 bounded timeout：
 4. `consumerFrozenBalance`
 5. `consumerWithdrawMinUsdc`
 6. `consumerWithdrawMaturitySeconds`
-7. `providerReceivableBalance`
-8. `providerLockedBalance`
-9. `platformFeeAccrued`
+7. `consumerWithdrawMaturityEnforced`
+8. `providerReceivableBalance`
+9. `providerLockedBalance`
+10. `platformFeeAccrued`
 
 如果实现中仍保留历史字段名，应视为兼容层细节，不改变这里的业务语义。
 
 前端展示口径：
 
 1. `consumerAvailableBalance` 显示为 `Spendable credits`，是 agent credential 可以消费的唯一余额口径。
-2. `consumerWithdrawableBalance` 显示为 `Withdrawable credits`，由 Gateway 按 T+7 聚合 FIFO 计算；前端不得自行从 available 推导。
+2. `consumerWithdrawableBalance` 显示为 `Withdrawable credits`，由 Gateway 计算。`consumerWithdrawMaturityEnforced=true` 时按 T+7 聚合 FIFO；本地关闭时等于 available，前端仍不得自行推导。
 3. `consumerPendingBalance` 拆分显示为充值同步中与提现处理中。拆分只能基于 Gateway 返回的 active withdrawal 记录辅助展示，不改变 DB 账本语义。
 4. `consumerFrozenBalance` 显示为 `Frozen / review credits`，通常来自 manual review 或风险冻结。
 5. Billing 里的 Deposit `Completed` 只能表示 Gateway 已确认并入账到 spendable balance；链上 log 或 explorer receipt 单独存在时仍应显示为 pending/syncing。
@@ -390,16 +391,17 @@ Headers:
 6. 自动通过时，金额从 `provider_receivable` 进入 `provider_locked_balance`，并立即返回 EIP-712 ticket
 7. 人工审核时，金额先进入 `provider_frozen_balance`，等待 admin approve / reject
 8. `amountUsdc` 如果显式传入，必须大于等于 `10` 且最多支持小数点后 2 位；低于 10 返回 `400 MIN_WITHDRAWAL_AMOUNT_NOT_MET`
-9. 留空时表示提取当前全部已成熟可提现收益；若成熟收益低于 10，返回 `400 MIN_WITHDRAWAL_AMOUNT_NOT_MET`
-10. Provider 收益 T+7 后才计入成熟可提现收益；未成熟收益提现返回 `400 PROVIDER_RECEIVABLE_NOT_MATURED`
-11. 如果已签发的 withdrawal ticket 过期，Gateway 只有在本地时间超过 `deadline + WITHDRAW_TICKET_EXPIRY_BUFFER_SEC`、RPC 链头时间超过 `deadline + WITHDRAW_RPC_FINALITY_MARGIN_SEC`、且合约确认 `isTicketConsumed(ticketHash)=false` 后，才会把该单据推进到 `FAILED_EXPIRED`，并把对应 `provider_locked_balance` 释放回 `provider_receivable`
-12. Gateway 在创建提现或人工审核通过前必须读取链上 `USDC.balanceOf(SynapseCore)`；如果金库 USDC 不足，返回 `400 INSUFFICIENT_VAULT_LIQUIDITY`，不得创建新提现单、签发 ticket 或锁仓
-13. 如果 Gateway 当前无法连通链上 RPC 或无法校验金库 USDC 余额，接口必须返回 `503 WITHDRAW_VAULT_LIQUIDITY_CHECK_UNAVAILABLE`，不能把内部堆栈暴露成 500。
-14. 每笔 withdrawal 只会签发一次 `ticketId/ticketHash`；过期后不能刷新旧 ticket，用户必须重新创建新的提现申请。
-15. EIP-712 payload 继续包含 `user`, `amount`, `fee`, `ticketId`, `deadline`；合约以 `consumedTickets[ticketHash]` 防重放，不新增链上 nonce 字段。
-16. `APPROVED_AUTO` 只表示自动审核通过、provider 资金已锁入 pending/locked、ticket 已准备；不表示提现到账。
-17. 提现成功必须由 owner 钱包完成链上 `SynapseCore.withdraw(...)`，再由 Gateway complete 或 watcher 推进到 `COMPLETED`。
-18. 并发创建、人工审核决策、链上 replay 和 complete 回调都必须保证 provider 资金桶只移动一次。
+9. Gateway 保留省略 `amountUsdc` 时按当前全部已成熟可提现收益创建 intent 的兼容兜底；前端产品 UI 不允许空金额提交，必须让用户看到明确金额后再发起提现
+10. Provider earnings summary 必须同时暴露总应收 `providerReceivable`、可提现应收 `providerMatureReceivable`、以及 `providerWithdrawMaturityEnforced`；提现入口、MAX 和按钮可用性必须以 `providerMatureReceivable` 为准
+11. `providerWithdrawMaturityEnforced=true` 时，Provider 收益 T+7 后才计入成熟可提现收益；未成熟收益提现返回 `400 PROVIDER_RECEIVABLE_NOT_MATURED`。Local 可关闭 enforcement 方便测试，此时 `providerMatureReceivable=providerReceivable`。
+12. 如果已签发的 withdrawal ticket 过期，Gateway 只有在本地时间超过 `deadline + WITHDRAW_TICKET_EXPIRY_BUFFER_SEC`、RPC 链头时间超过 `deadline + WITHDRAW_RPC_FINALITY_MARGIN_SEC`、且合约确认 `isTicketConsumed(ticketHash)=false` 后，才会把该单据推进到 `FAILED_EXPIRED`，并把对应 `provider_locked_balance` 释放回 `provider_receivable`
+13. Gateway 在创建提现或人工审核通过前必须读取链上 `USDC.balanceOf(SynapseCore)`；如果金库 USDC 不足，返回 `400 INSUFFICIENT_VAULT_LIQUIDITY`，不得创建新提现单、签发 ticket 或锁仓
+14. 如果 Gateway 当前无法连通链上 RPC 或无法校验金库 USDC 余额，接口必须返回 `503 WITHDRAW_VAULT_LIQUIDITY_CHECK_UNAVAILABLE`，不能把内部堆栈暴露成 500。
+15. 每笔 withdrawal 只会签发一次 `ticketId/ticketHash`；过期后不能刷新旧 ticket，用户必须重新创建新的提现申请。
+16. EIP-712 payload 继续包含 `user`, `amount`, `fee`, `ticketId`, `deadline`；合约以 `consumedTickets[ticketHash]` 防重放，不新增链上 nonce 字段。
+17. `APPROVED_AUTO` 只表示自动审核通过、provider 资金已锁入 pending/locked、ticket 已准备；不表示提现到账。
+18. 提现成功必须由 owner 钱包完成链上 `SynapseCore.withdraw(...)`，再由 Gateway complete 或 watcher 推进到 `COMPLETED`。
+19. 并发创建、人工审核决策、链上 replay 和 complete 回调都必须保证 provider 资金桶只移动一次。
 
 ### 3.6.1 `GET /api/v1/providers/withdrawals/capability`
 

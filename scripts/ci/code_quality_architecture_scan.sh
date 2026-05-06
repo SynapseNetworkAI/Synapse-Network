@@ -162,6 +162,31 @@ EOF
   exit 1
 fi
 
+if git -C "$ROOT_DIR" grep -n -i "row_to_json" -- services/gateway-admin/src >/tmp/synapse-admin-row-to-json.txt; then
+  cat >&2 <<'EOF'
+FATAL ARCH-ADMIN-PROJECTION-001: Forbidden SQL-side JSON projection found in gateway-admin.
+Why dangerous: row_to_json flattens Postgres NUMERIC/DATE/TIMESTAMPTZ values into
+strings before psycopg can map them to Decimal/date/datetime.
+Agent fix: query explicit native columns and map them into typed read models in
+the repository/data-mapper layer.
+EOF
+  cat >&2 /tmp/synapse-admin-row-to-json.txt
+  exit 1
+fi
+
+if git -C "$ROOT_DIR" grep -n -i -E "SELECT[[:space:]]+\\*" -- \
+  services/gateway-admin/src/storage/analytics \
+  >/tmp/synapse-admin-analytics-select-star.txt; then
+  cat >&2 <<'EOF'
+FATAL ARCH-ADMIN-PROJECTION-002: Forbidden SELECT * found in gateway-admin analytics projections.
+Why dangerous: dashboard projection read models are finance/ops contracts; wildcard
+queries hide drift and make column type regressions harder to review.
+Agent fix: select explicit projection columns and map them into typed read models.
+EOF
+  cat >&2 /tmp/synapse-admin-analytics-select-star.txt
+  exit 1
+fi
+
 if git -C "$ROOT_DIR" grep -n -E "filters\\.(DepositInfo|WithdrawInfo)|queryFilter\\([^)]*(DepositInfo|WithdrawInfo)" -- \
   services/user-front/src \
   ':!services/user-front/src/**/*.test.ts' \

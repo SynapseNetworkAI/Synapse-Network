@@ -1,12 +1,16 @@
 #!/usr/bin/env node
 
-import { spawn, spawnSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
-import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { ethers } from "ethers";
 import { createAdminWithdrawalApprovalHelpers } from "./admin_withdrawal_approval_helpers.mjs";
+import {
+  assertProviderOwnsCanonicalService,
+  configuredCanonicalServiceId,
+  discoverCanonicalProviderService,
+} from "./lib/canonical_provider_service.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "../..");
@@ -30,16 +34,14 @@ const RUN_ID =
     .toISOString()
     .replace(/[^0-9]/g, "")
     .slice(0, 14)}`;
-const MOCK_PORT = Number.parseInt(
-  process.env.ADMIN_WITHDRAWAL_APPROVAL_MOCK_PORT || "19991",
-  10
-);
-const SERVICE_PRICE_USDC =
-  process.env.ADMIN_WITHDRAWAL_APPROVAL_SERVICE_PRICE_USDC || "120.000000";
 const DEPOSIT_USDC =
   process.env.ADMIN_WITHDRAWAL_APPROVAL_DEPOSIT_USDC || "150.000000";
 const WITHDRAW_AMOUNT_USDC =
-  process.env.ADMIN_WITHDRAWAL_APPROVAL_AMOUNT_USDC || "100.000000";
+  process.env.ADMIN_WITHDRAWAL_APPROVAL_AMOUNT_USDC || "10.000000";
+const ACTIVE_DIFFERENT_AMOUNT_USDC =
+  process.env.ADMIN_WITHDRAWAL_APPROVAL_ACTIVE_DIFFERENT_AMOUNT_USDC ||
+  "11.000000";
+const CANONICAL_SERVICE_ID = configuredCanonicalServiceId();
 const CONSUMER_ETH_TARGET =
   process.env.ADMIN_WITHDRAWAL_APPROVAL_CONSUMER_ETH || "2.0";
 const PROVIDER_ETH_TARGET =
@@ -460,84 +462,6 @@ async function waitForBalanceAtLeast({ token, address, expectedUsdc, txHash }) {
   );
 }
 
-async function ensureMockUpstream() {
-  const healthUrl = `http://127.0.0.1:${MOCK_PORT}/health`;
-  const existing = await fetch(healthUrl)
-    .then((res) => res.ok)
-    .catch(() => false);
-  if (existing) {
-    log(`mock upstream already running on ${healthUrl}`);
-    return { url: `http://127.0.0.1:${MOCK_PORT}`, pid: null, reused: true };
-  }
-
-  fs.mkdirSync(OUT_DIR, { recursive: true });
-  const logPath = path.join(OUT_DIR, "mock-upstream.log");
-  const child = spawn(
-    process.execPath,
-    [fileURLToPath(import.meta.url), "--mock-upstream"],
-    {
-      cwd: ROOT,
-      detached: true,
-      stdio: ["ignore", fs.openSync(logPath, "a"), fs.openSync(logPath, "a")],
-    }
-  );
-  child.unref();
-
-  for (let i = 0; i < 30; i += 1) {
-    if (
-      await fetch(healthUrl)
-        .then((res) => res.ok)
-        .catch(() => false)
-    ) {
-      log(`mock upstream started on ${healthUrl} (pid ${child.pid})`);
-      return {
-        url: `http://127.0.0.1:${MOCK_PORT}`,
-        pid: child.pid,
-        reused: false,
-      };
-    }
-    await sleep(500);
-  }
-  fail(`mock upstream did not start; see ${logPath}`);
-}
-
-function startMockUpstream() {
-  const server = http.createServer((req, res) => {
-    if (req.url === "/health" && req.method === "GET") {
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ status: "healthy", runId: RUN_ID }));
-      return;
-    }
-    let raw = "";
-    req.on("data", (chunk) => {
-      raw += chunk;
-    });
-    req.on("end", () => {
-      let parsed = {};
-      try {
-        parsed = raw ? JSON.parse(raw) : {};
-      } catch {
-        parsed = { raw };
-      }
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(
-        JSON.stringify({
-          status: "ok",
-          runId: RUN_ID,
-          service: "admin-withdrawal-approval-provider",
-          echo: parsed,
-          receivedAt: new Date().toISOString(),
-        })
-      );
-    });
-  });
-  server.listen(MOCK_PORT, "127.0.0.1", () => {
-    console.log(
-      `[admin-withdrawal-mock] listening on http://127.0.0.1:${MOCK_PORT}`
-    );
-  });
-}
-
 function matureProviderChargeLedger({ providerAddress, invocationId }) {
   const updated = runPsql(`
     WITH target_provider AS (
@@ -596,6 +520,48 @@ async function createWithdrawal(
   });
 }
 
+async function generateMatureProviderReceivable({
+  credentialToken,
+  providerAuth,
+  service,
+  targetUsdc,
+}) {
+  const targetAtomic = decimalToAtomic(targetUsdc);
+  const invocations = [];
+  for (let index = 1; index <= 40; index += 1) {
+    const invocation = await invokeService({
+      credentialToken,
+      service,
+      sequence: index,
+    });
+    matureProviderChargeLedger({
+      providerAddress: providerAuth.address,
+      invocationId: invocation.invocationId,
+    });
+    invocations.push(invocation);
+
+    const capability = await readProviderCapability(providerAuth);
+    const matureReceivable = moneyFromObject(
+      capability,
+      [
+        "providerMatureReceivable",
+        "providerMatureWithdrawable",
+        "withdrawableReceivable",
+      ],
+      "0"
+    );
+    log(
+      `provider mature receivable after invoke ${index}: ${matureReceivable} USDC`
+    );
+    if (decimalToAtomic(matureReceivable) >= targetAtomic) {
+      return { invocations, capability };
+    }
+  }
+  fail(
+    `Canonical service ${service.id} did not generate ${targetUsdc} USDC matured provider receivable after ${invocations.length} invocations.`
+  );
+}
+
 const {
   adminApi,
   invalidInternalTokenReview,
@@ -604,8 +570,6 @@ const {
   issueProviderSecret,
   loginAdmin,
   readChainBalances,
-  registerService,
-  waitForServiceDiscoverable,
 } = createAdminWithdrawalApprovalHelpers({
   adminCookieName: ADMIN_COOKIE_NAME,
   adminEmail: ADMIN_EMAIL,
@@ -614,23 +578,16 @@ const {
   adminTotpSecret: ADMIN_TOTP_SECRET,
   api,
   apiBase: API_BASE,
-  chainId: CHAIN_ID,
   ethers,
   fail,
   getChainContext,
   log,
   moneyFromObject,
   runId: RUN_ID,
-  servicePriceUsdc: SERVICE_PRICE_USDC,
   sleep,
 });
 
 async function main() {
-  if (process.argv.includes("--mock-upstream")) {
-    startMockUpstream();
-    return;
-  }
-
   assertLocalOnly();
   await assertReachable("gateway health", `${GATEWAY_BASE_URL}/health`);
   await assertReachable("gateway-admin health", `${ADMIN_GATEWAY_URL}/health`);
@@ -638,14 +595,25 @@ async function main() {
 
   fs.mkdirSync(OUT_DIR, { recursive: true });
 
-  const mock = await ensureMockUpstream();
   const providerAuth = await authenticate(PROVIDER_KEY, "provider");
   const consumerAuth = await authenticate(CONSUMER_KEY, "consumer");
   const adminAuth = await loginAdmin();
   const chain = await getChainContext();
+  const service = await discoverCanonicalProviderService({
+    api,
+    serviceId: CANONICAL_SERVICE_ID,
+    fail,
+    log,
+    sleep,
+  });
+  assertProviderOwnsCanonicalService({
+    api,
+    auth: providerAuth,
+    serviceId: service.id,
+    fail,
+    log,
+  });
   const providerSecret = await issueProviderSecret(providerAuth);
-  const service = await registerService({ ...providerAuth, mockUrl: mock.url });
-  await waitForServiceDiscoverable(service.id);
 
   const deposit = await fundAndDeposit({
     consumerAddress: consumerAuth.address,
@@ -667,16 +635,14 @@ async function main() {
     txHash: deposit.txHash,
   });
   const credential = await issueAgentCredential(consumerAuth);
-  const invocation = await invokeService({
+  const receivableGeneration = await generateMatureProviderReceivable({
     credentialToken: credential.token,
+    providerAuth,
     service,
-  });
-  matureProviderChargeLedger({
-    providerAddress: providerAuth.address,
-    invocationId: invocation.invocationId,
+    targetUsdc: WITHDRAW_AMOUNT_USDC,
   });
 
-  const capabilityBeforeWithdraw = await readProviderCapability(providerAuth);
+  const capabilityBeforeWithdraw = receivableGeneration.capability;
   const chainBeforeWithdraw = await readChainBalances(providerAuth.address);
   const primaryKey = `admin-withdrawal-approval:${RUN_ID}:primary`;
   const withdrawalResult = await createWithdrawal(providerAuth, {
@@ -718,7 +684,7 @@ async function main() {
   }
 
   const duplicateActiveDifferentAmount = await createWithdrawal(providerAuth, {
-    amountUsdc: "101.000000",
+    amountUsdc: ACTIVE_DIFFERENT_AMOUNT_USDC,
     idempotencyKey: `admin-withdrawal-approval:${RUN_ID}:active-different-amount`,
     expectOk: false,
   });
@@ -752,7 +718,6 @@ async function main() {
       gateway: GATEWAY_BASE_URL,
       adminGateway: ADMIN_GATEWAY_URL,
       rpc: RPC_URL,
-      mockUpstream: { url: mock.url, pid: mock.pid, reused: mock.reused },
     },
     chain: {
       chainId: chain.chainId,
@@ -772,7 +737,8 @@ async function main() {
       confirmedIntentId:
         confirmedDeposit.intent?.id || confirmedDeposit.id || null,
     },
-    invocation,
+    invocation: receivableGeneration.invocations.at(-1),
+    invocations: receivableGeneration.invocations,
     withdrawal: {
       withdrawalId: withdrawal.withdrawalId,
       amountUsdc: WITHDRAW_AMOUNT_USDC,

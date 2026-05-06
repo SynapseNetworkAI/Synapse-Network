@@ -13,31 +13,40 @@ function renderModal(
   const onAmountChange = vi.fn();
   const onClose = vi.fn();
   const onConfirm = vi.fn();
+  const onUseApproveFallback = vi.fn();
   render(
     <LanguageProvider>
       <DepositUsdcModal
         isOpen
-        amount="20"
+        amount="250"
         onAmountChange={onAmountChange}
         error=""
         step="input"
+        flowMode="permit"
+        primaryAction="review"
+        isReviewing={false}
         isPending={false}
         isConfirming={false}
         walletAddress="0x82f1c188327bfc265357a85e8a6b4a34d562d6f8"
         vaultAddress="0xef7102f484b3b06854e2545457d39e7170510512"
+        tokenName="Synapse Test USDC"
+        tokenSymbol="USDC"
         walletUsdcBalance={800}
         nativeGasBalance={0.25}
-        nativeGasSymbol="ETH"
-        networkLabel="Chain 421614"
+        nativeGasSymbol="GO"
+        networkLabel="GoChain Testnet"
         canSubmit
-        shortAddress={(value?: string) => value?.slice(0, 6) ?? "-"}
+        shortAddress={(value?: string) =>
+          value ? `${value.slice(0, 6)}...${value.slice(-4)}` : "-"
+        }
         onClose={onClose}
         onConfirm={onConfirm}
+        onUseApproveFallback={onUseApproveFallback}
         {...overrides}
       />
     </LanguageProvider>
   );
-  return { onAmountChange, onClose, onConfirm };
+  return { onAmountChange, onClose, onConfirm, onUseApproveFallback };
 }
 
 describe("DepositUsdcModal", () => {
@@ -45,102 +54,141 @@ describe("DepositUsdcModal", () => {
     cleanup();
   });
 
-  it("renders wallet preflight balances and submits when valid", async () => {
+  it("renders the input stage with live wallet checks and review action", async () => {
     const user = userEvent.setup();
     const { onAmountChange, onConfirm } = renderModal();
 
     expect(screen.getByText("Wallet USDC")).toBeTruthy();
     expect(screen.getByText("800.00 USDC")).toBeTruthy();
-    expect(screen.getByText("Native gas balance")).toBeTruthy();
-    expect(screen.getByText("0.2500 ETH")).toBeTruthy();
-    expect(screen.getByText("Chain 421614")).toBeTruthy();
-    expect(
-      screen.getByText(
-        "Credits withdrawals require a minimum balance of 10 USDC. Please fund based on your expected API usage."
-      )
-    ).toBeTruthy();
+    expect(screen.getByText("Gas balance")).toBeTruthy();
+    expect(screen.getByText("0.2500 GO")).toBeTruthy();
+    expect(screen.getByText("GoChain Testnet")).toBeTruthy();
+    expect(screen.queryByText(/Credits withdrawals require/)).toBeNull();
 
     await user.click(screen.getByRole("button", { name: "$100.00" }));
     expect(onAmountChange).toHaveBeenCalledWith("100");
 
-    await user.type(screen.getByRole("spinbutton"), "5");
-    expect(onAmountChange).toHaveBeenCalled();
-
-    await user.click(
-      screen.getByRole("button", { name: /Confirm Deposit 20.00 USDC/ })
-    );
+    await user.click(screen.getByRole("button", { name: "Review Deposit" }));
     expect(onConfirm).toHaveBeenCalledTimes(1);
   });
 
-  it("shows preflight errors and disables confirmation", () => {
+  it("shows a simple review panel with amount, wallet, vault, and result", () => {
     renderModal({
-      amount: "abc",
-      preflightError: "Insufficient wallet USDC",
-      canSubmit: false,
+      isReviewing: true,
+      step: "review",
+      flowMode: "permit",
+      primaryAction: "walletAction",
     });
 
-    expect(screen.getByText("Insufficient wallet USDC")).toBeTruthy();
-    expect(screen.getAllByText("0.00 USDC").length).toBeGreaterThan(0);
+    expect(screen.getByText("250.00 USDC")).toBeTruthy();
+    expect(screen.getByText("From your wallet")).toBeTruthy();
+    expect(screen.getByText("Synapse Vault")).toBeTruthy();
     expect(
-      (
-        screen.getByRole("button", {
-          name: /Confirm Deposit 0.00 USDC/,
-        }) as HTMLButtonElement
-      ).disabled
-    ).toBe(true);
+      screen.getByText(
+        "250.00 USDC will be deposited into Synapse Vault and become spendable credits after Gateway confirmation."
+      )
+    ).toBeTruthy();
+    expect(screen.queryByText("Token address")).toBeNull();
+    expect(screen.getByText("Permit authorization")).toBeTruthy();
+    expect(
+      screen.getByText(
+        "Using a hardware wallet? Use Approve transaction instead."
+      )
+    ).toBeTruthy();
   });
 
-  it("renders caller-provided localized copy for labels, progress, and aria", () => {
+  it("skips authorization copy when allowance is already sufficient", () => {
+    renderModal({
+      isReviewing: true,
+      step: "review",
+      flowMode: "preapproved",
+      primaryAction: "walletAction",
+    });
+
+    expect(
+      screen.getByText("Existing allowance found. Authorization step skipped.")
+    ).toBeTruthy();
+    expect(screen.queryByText("Permit authorization")).toBeNull();
+    expect(screen.queryByText("Approve USDC")).toBeNull();
+    expect(screen.getByText("Deposit to Vault")).toBeTruthy();
+  });
+
+  it("shows approve fallback after hardware-wallet fallback is selected", async () => {
+    const user = userEvent.setup();
+    const { onUseApproveFallback } = renderModal({
+      isReviewing: true,
+      step: "permit_timed_out",
+      flowMode: "permit",
+      primaryAction: "walletAction",
+    });
+
+    expect(
+      screen.getByText(
+        "Wallet did not respond. If you use a hardware wallet, try Approve transaction instead."
+      )
+    ).toBeTruthy();
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "Using a hardware wallet? Use Approve transaction instead.",
+      })
+    );
+    expect(onUseApproveFallback).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders caller-provided localized copy", () => {
     renderModal({
       title: "购买 credits",
-      description: "把 USDC 充值到 Synapse vault 中。",
-      confirmationNotice: "区块链确认中。",
-      step: "signing_permit",
-      isPending: true,
+      description: "把 USDC 充值到 Synapse Vault。",
+      isReviewing: true,
+      step: "review",
+      primaryAction: "walletAction",
       copy: {
         amountLabel: "金额 (USDC)",
         walletUsdcLabel: "钱包 USDC",
         nativeGasLabel: "Gas 余额",
         networkLabel: "网络",
-        transactionSummaryLabel: "交易摘要",
-        fromWalletLabel: "来源钱包",
-        toVaultLabel: "目标 Vault 合约",
-        depositAmountLabel: "充值金额",
-        permitAllowanceLabel: "本次授权额度",
-        expectationTitle: "确认前请核对",
-        expectationPermit: "Permit 签名本身免 gas，并且只授权本次 USDC 金额。",
-        expectationGas: "Vault 充值是链上交易，需要使用原生代币支付 gas。",
-        expectationSync:
-          "Gateway 索引并确认充值后，资金才会转为可消费 credits。",
-        minimumWithdrawNotice:
-          "Credits 余额最低提现门槛为 10 USDC，请根据实际 API 消耗需求进行充值。",
-        stepPermitTitle: "Step 1: Permit 授权",
-        stepPermitActive: "钱包弹窗：为精确金额签署免 gas 授权。",
+        reviewDepositLabel: "确认充值信息",
+        checkingWalletLabel: "正在检查钱包...",
+        switchNetworkLabel: "切换到 GoChain Testnet",
+        insufficientUsdcLabel: "USDC 余额不足",
+        insufficientGasLabel: "GO gas 不足",
+        continueToWalletLabel: "继续到钱包",
+        fromYourWalletLabel: "从你的钱包",
+        toSynapseVaultLabel: "到",
+        synapseVaultLabel: "Synapse Vault",
+        expectedResult:
+          "{{amount}} {{symbol}} 将存入 Synapse Vault，Gateway 确认后转为可消费 credits。",
+        detailsLabel: "详情",
+        vaultAddressLabel: "Vault 地址",
+        tokenLabel: "Token",
+        allowancePreapprovedLabel: "已检测到足够授权，跳过授权步骤。",
+        stepPermitTitle: "Permit 授权",
+        stepPermitActive: "钱包弹窗：签署免 gas 授权。",
         stepPermitDone: "Permit 签名已完成。",
-        stepDepositTitle: "Step 2: Vault 充值交易",
-        stepDepositActive: "钱包弹窗：提交链上 Vault 充值交易并支付 gas。",
-        stepDepositWaiting: "等待 Permit 授权完成。",
+        stepApproveTitle: "Approve USDC",
+        stepApproveActive: "钱包弹窗：为 Vault 授权。",
+        stepApproveDone: "Approve 交易已完成。",
+        stepDepositTitle: "充值到 Vault",
+        stepDepositActive: "钱包弹窗：提交充值交易。",
+        stepDepositWaiting: "请先完成授权。",
+        hardwareWalletFallback: "使用硬件钱包？改用 Approve 交易。",
+        permitTimedOut: "钱包似乎没有响应。",
         progressAriaLabel: "充值进度",
         cancelLabel: "取消",
         processingLabel: "处理中...",
-        confirmLabel: "确认充值",
         closeDialogLabel: "关闭充值弹窗",
       },
     });
 
     expect(screen.getByRole("heading", { name: "购买 credits" })).toBeTruthy();
-    expect(screen.getByText("交易摘要")).toBeTruthy();
-    expect(screen.getByText("确认前请核对")).toBeTruthy();
+    expect(screen.getByText("从你的钱包")).toBeTruthy();
     expect(
       screen.getByText(
-        "Credits 余额最低提现门槛为 10 USDC，请根据实际 API 消耗需求进行充值。"
+        "250.00 USDC 将存入 Synapse Vault，Gateway 确认后转为可消费 credits。"
       )
     ).toBeTruthy();
-    expect(screen.getByText("Step 1: Permit 授权")).toBeTruthy();
     expect(screen.getByRole("button", { name: "关闭充值弹窗" })).toBeTruthy();
-    expect(
-      screen.getByLabelText("充值进度", { selector: "section" })
-    ).toBeTruthy();
-    expect(screen.getByText("处理中...")).toBeTruthy();
+    expect(screen.getByLabelText("充值进度")).toBeTruthy();
   });
 });

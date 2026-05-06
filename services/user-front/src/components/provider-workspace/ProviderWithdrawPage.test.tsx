@@ -31,6 +31,7 @@ const {
   readContractMock,
   writeContractAsyncMock,
   languageState,
+  providerStatsState,
 } = vi.hoisted(() => ({
   toastError: vi.fn(),
   toastInfo: vi.fn(),
@@ -44,6 +45,19 @@ const {
   readContractMock: vi.fn(),
   writeContractAsyncMock: vi.fn(),
   languageState: { value: "en" },
+  providerStatsState: {
+    value: {
+      totalApiCalls: 0,
+      totalEarned: 50.0,
+      totalFees: 5.0,
+      totalRoutingTax: 1.0,
+      netEarned: 44.0,
+      receivable: 12.5,
+      matureReceivable: 12.5,
+      paidCount24h: 0,
+      duplicateRowsDropped: 0,
+    },
+  },
 }));
 
 const TRANSLATIONS: Record<string, string> = {
@@ -51,6 +65,12 @@ const TRANSLATIONS: Record<string, string> = {
   "providerSettlements.withdrawPageDescription":
     "EIP-712 on-chain self-service withdrawal.",
   "providerSettlements.metricAvailable": "Available",
+  "providerSettlements.withdrawableReceivable": "Withdrawable receivable",
+  "providerSettlements.receivableBalance": "Receivable balance",
+  "providerSettlements.immatureReceivableNotice":
+    "Newly earned receivables appear in balance first, then enter withdrawable receivable after T+7.",
+  "providerSettlements.matureReceivableBelowMinimumTitle":
+    "Matured withdrawable amount is below the 10.00 USDC minimum",
   "providerSettlements.generateAndClaim": "Generate & Claim",
   "providerSettlements.signerUnavailable": "Signer Unavailable",
   "providerSettlements.creatingTicket": "Creating Ticket...",
@@ -88,7 +108,7 @@ const TRANSLATIONS: Record<string, string> = {
     "Vault liquidity check unavailable",
   "providerSettlements.chainRpcUnavailable": "Chain RPC unavailable",
   "providerSettlements.providerReceivableNotMatured":
-    "Provider earnings need T+7 maturity before withdrawal.",
+    "Provider earnings are still in the T+7 maturity window. Only matured receivables can be withdrawn; newly earned receivables still appear in balance.",
   "providerSettlements.minWithdrawalAmountNotMet":
     "Minimum provider withdrawal amount is 10.00 USDC.",
   "providerSettlements.insufficientProviderReceivable":
@@ -110,8 +130,7 @@ const TRANSLATIONS: Record<string, string> = {
   "providerSettlements.staleTicket": "Stale ticket",
   "providerSettlements.invalidSignature": "Invalid signature",
   "providerSettlements.confirmWithdraw": "Confirm",
-  "providerSettlements.withdrawAmountPlaceholder":
-    "Amount (blank = full withdrawal)",
+  "providerSettlements.withdrawAmountPlaceholder": "Amount",
   "providerSettlements.pendingReviewExists":
     "A withdrawal is already pending review.",
   "providerSettlements.generatingTicket": "Generating ticket...",
@@ -131,7 +150,7 @@ const TRANSLATIONS: Record<string, string> = {
   "providerSettlements.amountBelowMinimum":
     "Minimum withdrawal amount is {{amount}} USDC.",
   "providerSettlements.withdrawAmountHint":
-    "Blank = full withdrawal. Minimum withdrawal: {{amount}} USDC. Max 2 decimals.",
+    "Minimum withdrawal: {{amount}} USDC",
 };
 
 const ZH_TRANSLATIONS: Record<string, string> = {
@@ -139,9 +158,15 @@ const ZH_TRANSLATIONS: Record<string, string> = {
   "providerSettlements.withdrawPageTitle": "Provider 提现",
   "providerSettlements.withdrawPageDescription": "EIP-712 链上自助提现。",
   "providerSettlements.metricAvailable": "可用余额",
+  "providerSettlements.withdrawableReceivable": "可提现额度",
+  "providerSettlements.receivableBalance": "应收余额",
+  "providerSettlements.immatureReceivableNotice":
+    "新产生的应收会先显示在余额中，T+7 后才进入可提现额度。",
+  "providerSettlements.matureReceivableBelowMinimumTitle":
+    "已成熟可提现额度低于最小提现金额 10.00 USDC",
   "providerSettlements.generateAndClaim": "生成并提现",
   "providerSettlements.confirmWithdraw": "确认提现",
-  "providerSettlements.withdrawAmountPlaceholder": "金额（留空 = 全部提现）",
+  "providerSettlements.withdrawAmountPlaceholder": "金额",
   "providerSettlements.withdrawGasNote":
     "链上交易 — 需要支付少量原生代币（如 ETH）作为 Gas 费。",
   "providerSettlements.historyTitle": "提现历史",
@@ -150,7 +175,7 @@ const ZH_TRANSLATIONS: Record<string, string> = {
   "providerSettlements.viewInvocationRecords": "查看调用记录",
   "providerSettlements.historyEmpty": "暂时还没有提现记录。",
   "providerSettlements.providerReceivableNotMatured":
-    "Provider 收益需经过 T+7 风控沉淀期后才能提现。",
+    "当前收益尚未达到 T+7 成熟期。只有已成熟应收可以提现；新产生的应收仍会显示在余额中。",
   "providerSettlements.minWithdrawalAmountNotMet":
     "Provider 最小提现金额为 10.00 USDC。",
   "providerSettlements.insufficientProviderReceivable":
@@ -201,16 +226,7 @@ vi.mock("@/components/i18n/LanguageProvider", () => {
 
 vi.mock("@/hooks/useDashboardData", () => ({
   useDashboardData: () => ({
-    providerStats: {
-      totalApiCalls: 0,
-      totalEarned: 50.0,
-      totalFees: 5.0,
-      totalRoutingTax: 1.0,
-      netEarned: 44.0,
-      receivable: 12.5,
-      paidCount24h: 0,
-      duplicateRowsDropped: 0,
-    },
+    providerStats: providerStatsState.value,
     paidEvents: [],
     handleRefresh: reloadDashboardMock,
   }),
@@ -308,6 +324,7 @@ async function submitProviderWithdrawIntent(user = userEvent.setup()) {
       })
     ).toBeTruthy()
   );
+  await user.click(screen.getByRole("button", { name: /MAX/i }));
   await user.click(
     screen.getByRole("button", {
       name: languageState.value === "zh" ? "确认提现" : /Confirm/i,
@@ -325,6 +342,17 @@ describe("ProviderWithdrawPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     languageState.value = "en";
+    providerStatsState.value = {
+      totalApiCalls: 0,
+      totalEarned: 50.0,
+      totalFees: 5.0,
+      totalRoutingTax: 1.0,
+      netEarned: 44.0,
+      receivable: 12.5,
+      matureReceivable: 12.5,
+      paidCount24h: 0,
+      duplicateRowsDropped: 0,
+    };
     walletBalance = 10n ** 18n;
     readContractMock.mockResolvedValue(20n * 10n ** 18n);
     writeContractAsyncMock.mockResolvedValue("0xtx");
@@ -339,17 +367,16 @@ describe("ProviderWithdrawPage", () => {
 
   /* ── Balance card ────────────────────────────────────────── */
 
-  it("displays available balance in deposit-style card", async () => {
+  it("displays withdrawable and total receivable in deposit-style card", async () => {
     renderPage();
     await waitFor(() => {
-      expect(screen.getByText("Available")).toBeTruthy();
+      expect(screen.getByText("Withdrawable receivable")).toBeTruthy();
     });
     expect(screen.getByText("12.50 USDC")).toBeTruthy();
-    expect(
-      screen.getByText(
-        "Blank = full withdrawal. Minimum withdrawal: 10.00 USDC. Max 2 decimals."
-      )
-    ).toBeTruthy();
+    expect(screen.getByText("Receivable balance: 12.50 USDC")).toBeTruthy();
+    expect(screen.getByText("Minimum withdrawal: 10.00 USDC")).toBeTruthy();
+    expect(screen.queryByText(/Blank = full withdrawal/i)).toBeNull();
+    expect(screen.queryByText(/Max 2 decimals/i)).toBeNull();
   });
 
   it("renders Generate & Claim button", async () => {
@@ -359,6 +386,30 @@ describe("ProviderWithdrawPage", () => {
         screen.getByRole("button", { name: /Generate & Claim/i })
       ).toBeTruthy();
     });
+  });
+
+  it("disables Generate & Claim when matured receivable is below minimum", async () => {
+    providerStatsState.value = {
+      ...providerStatsState.value,
+      receivable: 50,
+      matureReceivable: 5,
+    };
+    renderPage();
+    const btn = (await screen.findByRole("button", {
+      name: /Generate & Claim/i,
+    })) as HTMLButtonElement;
+
+    expect(btn.disabled).toBe(true);
+    expect(btn.title).toBe(
+      "Matured withdrawable amount is below the 10.00 USDC minimum"
+    );
+    expect(screen.getByText("5.00 USDC")).toBeTruthy();
+    expect(screen.getByText("Receivable balance: 50.00 USDC")).toBeTruthy();
+    expect(
+      screen.getByText(
+        "Newly earned receivables appear in balance first, then enter withdrawable receivable after T+7."
+      )
+    ).toBeTruthy();
   });
 
   /* ── Gas fee note ────────────────────────────────────────── */
@@ -420,6 +471,10 @@ describe("ProviderWithdrawPage", () => {
     await waitFor(() => {
       expect(screen.getByPlaceholderText(/Amount/i)).toBeTruthy();
     });
+    expect(
+      (screen.getByRole("button", { name: /Confirm/i }) as HTMLButtonElement)
+        .disabled
+    ).toBe(true);
   });
 
   it("renders MAX button that fills available balance", async () => {
@@ -441,6 +496,10 @@ describe("ProviderWithdrawPage", () => {
     await user.click(screen.getByRole("button", { name: /MAX/i }));
     const input = screen.getByPlaceholderText(/Amount/i) as HTMLInputElement;
     expect(input.value).toBe("12.50");
+    expect(
+      (screen.getByRole("button", { name: /Confirm/i }) as HTMLButtonElement)
+        .disabled
+    ).toBe(false);
   });
 
   it("rejects custom withdrawal amounts below the platform minimum", async () => {
@@ -632,7 +691,8 @@ describe("ProviderWithdrawPage", () => {
     },
     {
       code: "PROVIDER_RECEIVABLE_NOT_MATURED",
-      message: "Provider earnings need T+7 maturity before withdrawal.",
+      message:
+        "Provider earnings are still in the T+7 maturity window. Only matured receivables can be withdrawn; newly earned receivables still appear in balance.",
     },
     {
       code: "MIN_WITHDRAWAL_AMOUNT_NOT_MET",
@@ -690,7 +750,7 @@ describe("ProviderWithdrawPage", () => {
 
     await waitFor(() => {
       expect(toastError).toHaveBeenCalledWith(
-        "Provider earnings need T+7 maturity before withdrawal.",
+        "Provider earnings are still in the T+7 maturity window. Only matured receivables can be withdrawn; newly earned receivables still appear in balance.",
         { id: "toast-provider-withdraw" }
       );
     });
@@ -713,7 +773,7 @@ describe("ProviderWithdrawPage", () => {
         screen.getByRole("heading", { name: "Provider 提现" })
       ).toBeTruthy();
     });
-    expect(screen.getByText("可用余额")).toBeTruthy();
+    expect(screen.getByText("可提现额度")).toBeTruthy();
     expect(screen.getByText("提现历史")).toBeTruthy();
     const btn = screen.getByRole("button", {
       name: /生成并提现/i,
@@ -723,11 +783,12 @@ describe("ProviderWithdrawPage", () => {
     await waitFor(() =>
       expect(screen.getByRole("button", { name: "确认提现" })).toBeTruthy()
     );
+    await user.click(screen.getByRole("button", { name: /MAX/i }));
     await user.click(screen.getByRole("button", { name: "确认提现" }));
 
     await waitFor(() => {
       expect(toastError).toHaveBeenCalledWith(
-        "Provider 收益需经过 T+7 风控沉淀期后才能提现。",
+        "当前收益尚未达到 T+7 成熟期。只有已成熟应收可以提现；新产生的应收仍会显示在余额中。",
         { id: "toast-provider-withdraw" }
       );
     });
@@ -763,6 +824,7 @@ describe("ProviderWithdrawPage", () => {
     await waitFor(() =>
       expect(screen.getByRole("button", { name: /Confirm/i })).toBeTruthy()
     );
+    await user.click(screen.getByRole("button", { name: /MAX/i }));
     await user.click(screen.getByRole("button", { name: /Confirm/i }));
 
     await waitFor(() => {

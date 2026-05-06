@@ -76,8 +76,12 @@ const routeCases = [
     name: "provider-withdraw",
     path: "/provider/withdraw",
     expected: {
-      en: ["Provider Withdraw", "Withdrawal History", "Available"],
-      zh: ["Provider 提现", "提现历史", "可用余额"],
+      en: [
+        "Provider Withdraw",
+        "Withdrawal History",
+        "Withdrawable receivable",
+      ],
+      zh: ["Provider 提现", "提现历史", "可提现额度"],
     },
     forbidden: {
       en: ["提现历史", "可用余额"],

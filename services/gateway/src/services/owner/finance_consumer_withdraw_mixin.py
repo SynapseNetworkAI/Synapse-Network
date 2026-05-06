@@ -23,11 +23,11 @@ from src.core.common import normalize_wallet
 from src.services.owner.finance_constants import (
     CONSUMER_WITHDRAW_FEE_USDC,
     CONSUMER_WITHDRAW_MANUAL_REVIEW_THRESHOLD_USDC,
-    CONSUMER_WITHDRAW_MATURITY_SECONDS,
     CONSUMER_WITHDRAW_MAX_DAILY_COUNT,
     CONSUMER_WITHDRAW_MIN_USDC,
     CONSUMER_WITHDRAW_TYPE,
     REFUND_ACTIVE_STATUSES,
+    read_consumer_mature_withdrawable,
 )
 from src.domain.finance import RefundIntentRow
 from src.utils.datetime_utils import now_dt_str
@@ -146,14 +146,8 @@ class FinanceConsumerWithdrawMixin:
             return None
         return getattr(get_data_manager().finance, "balance", None)
 
-    def _read_consumer_mature_withdrawable(
-        self, owner: str, fallback_available: Decimal
-    ) -> Decimal:
-        balance_repo = self._balance_repository()
-        reader = getattr(balance_repo, "read_consumer_mature_withdrawable", None)
-        if callable(reader):
-            return self._q6d(reader(owner, CONSUMER_WITHDRAW_MATURITY_SECONDS))
-        return self._q6d(fallback_available)
+    def _read_consumer_mature_withdrawable(self, owner: str, fallback_available: Decimal) -> Decimal:
+        return self._q6d(read_consumer_mature_withdrawable(self._balance_repository(), owner, fallback_available))
 
     def _consumer_withdrawal_window_stats(
         self,

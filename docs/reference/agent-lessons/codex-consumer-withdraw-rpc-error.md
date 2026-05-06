@@ -48,3 +48,33 @@ Status: Active
 - Fix: Add the matching schema/resource keys, run a production build, and update the explicit quality-budget baseline only for the known legacy schema file.
 - Rule: When adding i18n resource keys, verify the schema/resources together with `yarn build`; if a legacy baseline changes, keep the increase minimal and document why.
 - Upgrade: agents-memory
+
+### Lesson: E2E teardown must clear service health runtime rows
+
+- Domain: e2e
+- Severity: warning
+- Trigger: Provider onboarding regression passed, but a `provider_onboard_*` service and typed health runtime row stayed active in local Postgres.
+- Root cause: The E2E helper only archived manifests and did not clear snapshots/runtime/events, and there was no session teardown to archive newly created test services.
+- Fix: Add a local-only E2E session teardown that archives new test services and extend `archive_test_service()` to clear health snapshots, typed runtime/events, and legacy runtime state.
+- Rule: Tests that can create provider services must prove the registry is clean after the run, not only that assertions passed.
+- Upgrade: agents-memory
+
+### Lesson: Public service methods need explicit return contracts
+
+- Domain: backend
+- Severity: warning
+- Trigger: Pre-push rejected `ProviderAnalyticsService.get_provider_earnings_summary()` because it returned raw `dict[str, Any]`.
+- Root cause: A new API-facing summary field was added without converting the public service method to a typed summary contract.
+- Fix: Introduce explicit `ProviderEarningsSummary` and `ProviderRecentCall` TypedDict contracts for the public return shape.
+- Rule: Public backend service methods that feed API responses must return an explicit dataclass, Pydantic model, or TypedDict instead of raw maps.
+- Upgrade: agents-memory
+
+### Lesson: E2E service creation guards must match helper call shapes
+
+- Domain: e2e
+- Severity: warning
+- Trigger: Admin withdrawal approval and one-ticket evidence scripts could still register `awa_provider_withdraw_*` / `wot_provider_*` services even after ordinary E2E was moved to canonical provider fixtures.
+- Root cause: The guard blocked obvious direct route strings but missed the real helper shape, `api("/v1/services", { method: "POST" })`, used by finance evidence scripts.
+- Fix: Move those scripts to canonical service discovery/invoke and add guard tests for helper-based service creation calls and historical service prefixes.
+- Rule: Every banned E2E mutation pattern must have a unit test using the exact helper syntax found in scripts, not only raw HTTP examples.
+- Upgrade: agents-memory

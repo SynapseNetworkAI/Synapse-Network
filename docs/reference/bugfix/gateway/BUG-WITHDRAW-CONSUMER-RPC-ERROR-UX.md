@@ -27,7 +27,7 @@ Unable to prepare a withdrawal ticket right now: 503: {'code': 'CHAIN_RPC_UNAVAI
 - Gateway now releases the pending funds and re-raises structured `HTTPException` values unchanged.
 - User-front now throws `ConsumerWithdrawApiError` with `code` and `status` for consumer withdrawal creation failures.
 - `OwnerCreditsPage` maps known withdrawal error codes through i18n resources instead of showing raw backend text.
-- EN/ZH copy now covers chain RPC unavailable, missing withdraw contract config, minimum amount, fee floor, insufficient balance, and T+1 matured funds.
+- EN/ZH copy now covers chain RPC unavailable, missing withdraw contract config, minimum amount, fee floor, insufficient balance, and T+7 matured funds.
 
 ## Verification
 
