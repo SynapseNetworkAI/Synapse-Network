@@ -16,12 +16,17 @@ export const WITHDRAWAL_STATUS = {
 } as const;
 
 export type WithdrawalStatus =
-  typeof WITHDRAWAL_STATUS[keyof typeof WITHDRAWAL_STATUS];
+  (typeof WITHDRAWAL_STATUS)[keyof typeof WITHDRAWAL_STATUS];
 
-const WITHDRAWAL_STATUS_VALUES = Object.values(WITHDRAWAL_STATUS) as WithdrawalStatus[];
+const WITHDRAWAL_STATUS_VALUES = Object.values(
+  WITHDRAWAL_STATUS
+) as WithdrawalStatus[];
 
 export function isWithdrawalStatus(value: unknown): value is WithdrawalStatus {
-  return typeof value === "string" && WITHDRAWAL_STATUS_VALUES.includes(value as WithdrawalStatus);
+  return (
+    typeof value === "string" &&
+    WITHDRAWAL_STATUS_VALUES.includes(value as WithdrawalStatus)
+  );
 }
 
 export function parseWithdrawalStatus(value: string): WithdrawalStatus | null {

@@ -62,7 +62,9 @@ function hasSecretLeak(text) {
       /"(?:privateKey|private_key|signature|authorization|access_token|token|secret|password)"\s*:\s*"(?!\[REDACTED\])[^"]+"/i,
     ],
   ];
-  return patterns.filter(([, pattern]) => pattern.test(text)).map(([name]) => name);
+  return patterns
+    .filter(([, pattern]) => pattern.test(text))
+    .map(([name]) => name);
 }
 
 const dir = latestEvidenceDir();
@@ -95,13 +97,21 @@ const traceText = fs.readFileSync(path.join(dir, "trace.jsonl"), "utf8");
 const attackEvidence = readJson(path.join(dir, "attack-evidence.json"));
 const chainEvidence = readJson(path.join(dir, "chain-evidence.json"));
 const dbEvidence = readJson(path.join(dir, "db-evidence.json"));
-const allEvidenceText = REQUIRED_FILES.map((name) => fs.readFileSync(path.join(dir, name), "utf8")).join("\n");
+const allEvidenceText = REQUIRED_FILES.map((name) =>
+  fs.readFileSync(path.join(dir, name), "utf8")
+).join("\n");
 
-if (report.status !== "success" || !Array.isArray(report.failed) || report.failed.length > 0) {
+if (
+  report.status !== "success" ||
+  !Array.isArray(report.failed) ||
+  report.failed.length > 0
+) {
   fatal(
     "MONEY-SAFETY-CONCURRENCY-003",
     path.join(dir, "report.json"),
-    `report is not clean; status=${report.status}; failed=${JSON.stringify(report.failed || []).slice(0, 1000)}`,
+    `report is not clean; status=${report.status}; failed=${JSON.stringify(
+      report.failed || []
+    ).slice(0, 1000)}`,
     "Fix the underlying money-safety regression and rerun the full local gate."
   );
 }
@@ -126,7 +136,9 @@ if (/Status:\s*open/i.test(bugfixLog)) {
 }
 
 for (const scenarioName of REQUIRED_SCENARIOS) {
-  const scenario = (report.scenarioResults || []).find((row) => row.name === scenarioName);
+  const scenario = (report.scenarioResults || []).find(
+    (row) => row.name === scenarioName
+  );
   if (!scenario || scenario.pass !== true || scenario.status !== "passed") {
     fatal(
       "MONEY-SAFETY-CONCURRENCY-006",
@@ -138,7 +150,11 @@ for (const scenarioName of REQUIRED_SCENARIOS) {
 }
 
 for (const [attackName, attack] of Object.entries(attackEvidence)) {
-  if (!["blocked", "idempotent-noop", "terminal-safe"].includes(String(attack.finalResult || ""))) {
+  if (
+    !["blocked", "idempotent-noop", "terminal-safe"].includes(
+      String(attack.finalResult || "")
+    )
+  ) {
     fatal(
       "MONEY-SAFETY-CONCURRENCY-007",
       path.join(dir, "attack-evidence.json"),
@@ -149,7 +165,11 @@ for (const [attackName, attack] of Object.entries(attackEvidence)) {
 }
 
 const consumerClaim = chainEvidence.consumerClaim?.afterClaim;
-if (!consumerClaim || consumerClaim.netDeltaAtomic !== consumerClaim.vaultDeltaAtomic?.replace("-", "")) {
+if (
+  !consumerClaim ||
+  consumerClaim.netDeltaAtomic !==
+    consumerClaim.vaultDeltaAtomic?.replace("-", "")
+) {
   fatal(
     "MONEY-SAFETY-CONCURRENCY-008",
     path.join(dir, "chain-evidence.json"),
@@ -167,7 +187,11 @@ if (chainEvidence.consumerClaim?.platformFeeOverdraw?.rejected !== true) {
   );
 }
 
-if (!dbEvidence.deposit || !dbEvidence.withdrawalConcurrency || !dbEvidence.consumerClaim) {
+if (
+  !dbEvidence.deposit ||
+  !dbEvidence.withdrawalConcurrency ||
+  !dbEvidence.consumerClaim
+) {
   fatal(
     "MONEY-SAFETY-CONCURRENCY-010",
     path.join(dir, "db-evidence.json"),

@@ -298,7 +298,9 @@ export async function getV2Balance(
       payload.balance?.consumerWithdrawableBalance
     ),
     consumerWithdrawMaturityEnforced:
-      payload.balance?.consumerWithdrawMaturityEnforced === false ? false : true,
+      payload.balance?.consumerWithdrawMaturityEnforced === false
+        ? false
+        : true,
     consumerPendingBalance: normalizeMoneyString(
       payload.balance?.consumerPendingBalance
     ),
@@ -464,7 +466,9 @@ export async function redeemCreditVoucher(
         payload.balance?.consumerWithdrawableBalance
       ),
       consumerWithdrawMaturityEnforced:
-        payload.balance?.consumerWithdrawMaturityEnforced === false ? false : true,
+        payload.balance?.consumerWithdrawMaturityEnforced === false
+          ? false
+          : true,
       consumerPendingBalance: normalizeMoneyString(
         payload.balance?.consumerPendingBalance
       ),

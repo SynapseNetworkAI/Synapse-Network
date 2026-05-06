@@ -21,7 +21,9 @@ function fatal(code, file, why, fix) {
 
 function latestReportDir() {
   if (process.env.CONSUMER_WITHDRAW_CLAIM_FULLCHAIN_EVIDENCE_DIR) {
-    return path.resolve(process.env.CONSUMER_WITHDRAW_CLAIM_FULLCHAIN_EVIDENCE_DIR);
+    return path.resolve(
+      process.env.CONSUMER_WITHDRAW_CLAIM_FULLCHAIN_EVIDENCE_DIR
+    );
   }
   if (!fs.existsSync(BASE)) return "";
   return (
@@ -253,7 +255,11 @@ if (feePoolDelta !== ticketFee) {
 }
 
 const platformEvidence = chainEvidence.platformFeeWithdrawal;
-if (!platformEvidence?.before || !platformEvidence?.after || !platformEvidence?.tx) {
+if (
+  !platformEvidence?.before ||
+  !platformEvidence?.after ||
+  !platformEvidence?.tx
+) {
   fatal(
     "CONSUMER-WITHDRAW-FULLCHAIN-EVIDENCE-016",
     path.join(dir, "chain-evidence.json"),
@@ -343,7 +349,12 @@ for (const name of requiredScreenshots) {
 }
 
 const combinedScreenshots = JSON.stringify(screenshotEvidence);
-for (const forbidden of ["处理中", "Internal server error", "Unauthorized", "Loading"]) {
+for (const forbidden of [
+  "处理中",
+  "Internal server error",
+  "Unauthorized",
+  "Loading",
+]) {
   if (forbidden === "处理中") {
     const readyShot = screenshotEvidence.find((item) =>
       String(item.file || "").endsWith("04-payments-ready-to-claim.png")

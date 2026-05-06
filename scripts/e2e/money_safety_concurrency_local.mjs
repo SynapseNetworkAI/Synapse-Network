@@ -9,10 +9,16 @@ import { fileURLToPath } from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "../..");
 const GENERATED_AT = new Date();
-const TIMESTAMP = GENERATED_AT.toISOString().replace(/[:.]/g, "").replace("Z", "Z");
+const TIMESTAMP = GENERATED_AT.toISOString()
+  .replace(/[:.]/g, "")
+  .replace("Z", "Z");
 const OUT_DIR = path.resolve(
   process.env.MONEY_SAFETY_CONCURRENCY_EVIDENCE_DIR ||
-    path.join(ROOT, "output/dogfood/money-safety-concurrency", `${TIMESTAMP}-local`)
+    path.join(
+      ROOT,
+      "output/dogfood/money-safety-concurrency",
+      `${TIMESTAMP}-local`
+    )
 );
 
 const report = {
@@ -46,7 +52,10 @@ function sanitize(value) {
     return value
       .replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/gi, "Bearer [REDACTED]")
       .replace(/eyJ[A-Za-z0-9._~+/=-]{20,}/g, "[REDACTED_JWT]")
-      .replace(/\b(?:PRIVATE_KEY|JWT_SECRET|ADMIN_TOTP_SECRET|ADMIN_PASSWORD)\b/gi, "[REDACTED_ENV]")
+      .replace(
+        /\b(?:PRIVATE_KEY|JWT_SECRET|ADMIN_TOTP_SECRET|ADMIN_PASSWORD)\b/gi,
+        "[REDACTED_ENV]"
+      )
       .replace(/0x[a-fA-F0-9]{64}/g, "0x[REDACTED]");
   }
   if (Array.isArray(value)) return value.map((item) => sanitize(item));
@@ -76,7 +85,10 @@ function stable(value) {
 }
 
 function sha256Json(value) {
-  return crypto.createHash("sha256").update(JSON.stringify(stable(value))).digest("hex");
+  return crypto
+    .createHash("sha256")
+    .update(JSON.stringify(stable(value)))
+    .digest("hex");
 }
 
 function sha256Text(value) {
@@ -299,10 +311,13 @@ function recordExistingEvidence() {
   const depositDb = readJson(path.join(depositDir, "db-evidence.json"));
   apiEvidence.deposit = readJson(path.join(depositDir, "api-evidence.json"));
   dbEvidence.deposit = depositDb;
-  chainEvidence.deposit = readJson(path.join(depositDir, "chain-evidence.json"));
+  chainEvidence.deposit = readJson(
+    path.join(depositDir, "chain-evidence.json")
+  );
   addScenario(
     "deposit_duplicate_and_replay",
-    depositReport.status === "success" && (depositReport.failed || []).length === 0,
+    depositReport.status === "success" &&
+      (depositReport.failed || []).length === 0,
     "pending intent, restart auto-credit, replay-safe, and backfill recovery all passed",
     {
       evidenceDir: path.relative(ROOT, depositDir),
@@ -314,10 +329,12 @@ function recordExistingEvidence() {
     targetFlow: "deposit",
     precondition: "valid deposit tx exists or txHash is replayed to Gateway",
     exploitAttempt: "register or replay the same txHash multiple times",
-    expectedDefense: "Gateway returns stable intent state and never double-credits available balance",
+    expectedDefense:
+      "Gateway returns stable intent state and never double-credits available balance",
     evidenceSource: `${path.relative(ROOT, depositDir)}#replay_safe`,
     finalResult: "idempotent-noop",
-    detail: "deposit-indexer recovery report includes replay_safe and invalid_event_no_credit",
+    detail:
+      "deposit-indexer recovery report includes replay_safe and invalid_event_no_credit",
   });
   addAttack({
     attackName: "watcher/indexer restart replay",
@@ -330,7 +347,9 @@ function recordExistingEvidence() {
     detail: "backfill recovered missed intent without second credit",
   });
 
-  const withdrawReport = readJson(path.join(withdrawConcurrencyDir, "report.json"));
+  const withdrawReport = readJson(
+    path.join(withdrawConcurrencyDir, "report.json")
+  );
   dbEvidence.withdrawalConcurrency = readJson(
     path.join(withdrawConcurrencyDir, "db-evidence.json")
   );
@@ -354,10 +373,15 @@ function recordExistingEvidence() {
     targetFlow: "consumer_withdrawal",
     precondition: "same owner issues concurrent withdraw create requests",
     exploitAttempt: "parallel create requests and same-key retries",
-    expectedDefense: "one active withdrawal, one reserve, same-key stable response, mismatched payload 409",
-    evidenceSource: `${path.relative(ROOT, withdrawConcurrencyDir)}#consumer-create-concurrency`,
+    expectedDefense:
+      "one active withdrawal, one reserve, same-key stable response, mismatched payload 409",
+    evidenceSource: `${path.relative(
+      ROOT,
+      withdrawConcurrencyDir
+    )}#consumer-create-concurrency`,
     finalResult: "blocked",
-    detail: "withdrawal-idempotency-concurrency passed consumer create and idempotency scenarios",
+    detail:
+      "withdrawal-idempotency-concurrency passed consumer create and idempotency scenarios",
   });
   addAttack({
     attackName: "approve/reject race",
@@ -365,7 +389,10 @@ function recordExistingEvidence() {
     precondition: "manual review row exists",
     exploitAttempt: "approve and reject race against the same withdrawal",
     expectedDefense: "only one legal terminal branch survives",
-    evidenceSource: `${path.relative(ROOT, withdrawConcurrencyDir)}#consumer-cross-decision`,
+    evidenceSource: `${path.relative(
+      ROOT,
+      withdrawConcurrencyDir
+    )}#consumer-cross-decision`,
     finalResult: "terminal-safe",
     detail: "cross-decision scenario passed",
   });
@@ -375,15 +402,24 @@ function recordExistingEvidence() {
     precondition: "signed ticket already consumed on-chain",
     exploitAttempt: "second claim with the same ticketHash",
     expectedDefense: "replay reverts and Gateway state stays completed once",
-    evidenceSource: `${path.relative(ROOT, withdrawConcurrencyDir)}#provider-approve-complete-concurrency`,
+    evidenceSource: `${path.relative(
+      ROOT,
+      withdrawConcurrencyDir
+    )}#provider-approve-complete-concurrency`,
     finalResult: "blocked",
     detail: "provider replay evidence rejected after first consumption",
   });
 
   const consumerReport = readJson(path.join(consumerClaimDir, "report.json"));
-  apiEvidence.consumerClaim = readJson(path.join(consumerClaimDir, "api-evidence.json"));
-  dbEvidence.consumerClaim = readJson(path.join(consumerClaimDir, "db-evidence.json"));
-  chainEvidence.consumerClaim = readJson(path.join(consumerClaimDir, "chain-evidence.json"));
+  apiEvidence.consumerClaim = readJson(
+    path.join(consumerClaimDir, "api-evidence.json")
+  );
+  dbEvidence.consumerClaim = readJson(
+    path.join(consumerClaimDir, "db-evidence.json")
+  );
+  chainEvidence.consumerClaim = readJson(
+    path.join(consumerClaimDir, "chain-evidence.json")
+  );
   addScenario(
     "platform_fee_withdrawal_boundary_and_replay",
     consumerReport.status === "success",
@@ -396,19 +432,29 @@ function recordExistingEvidence() {
     precondition: "platform fee pool has accrued amount",
     exploitAttempt: "owner tries to withdraw more than platformFeePool",
     expectedDefense: "contract reverts and user principal stays in vault",
-    evidenceSource: `${path.relative(ROOT, consumerClaimDir)}#platformFeeOverdraw`,
+    evidenceSource: `${path.relative(
+      ROOT,
+      consumerClaimDir
+    )}#platformFeeOverdraw`,
     finalResult: "blocked",
     detail: "platformFeeOverdraw.rejected=true in chain evidence",
   });
   addAttack({
     attackName: "principal theft via platform path",
     targetFlow: "platform_fee_withdrawal",
-    precondition: "consumer withdrawal claim accrues fee while net remains user-owned",
-    exploitAttempt: "platform tries to withdraw net amount instead of accrued fee only",
-    expectedDefense: "only fee pool delta is withdrawable; user net and provider funds are isolated",
-    evidenceSource: `${path.relative(ROOT, consumerClaimDir)}#platformFeeWithdrawal`,
+    precondition:
+      "consumer withdrawal claim accrues fee while net remains user-owned",
+    exploitAttempt:
+      "platform tries to withdraw net amount instead of accrued fee only",
+    expectedDefense:
+      "only fee pool delta is withdrawable; user net and provider funds are isolated",
+    evidenceSource: `${path.relative(
+      ROOT,
+      consumerClaimDir
+    )}#platformFeeWithdrawal`,
     finalResult: "terminal-safe",
-    detail: "platform wallet delta equals fee delta only; vault delta matches fee amount",
+    detail:
+      "platform wallet delta equals fee delta only; vault delta matches fee amount",
   });
 
   const oneTicketReport = readJson(path.join(oneTicketDir, "report.json"));
@@ -417,9 +463,14 @@ function recordExistingEvidence() {
     attackName: "low-gas failed receipt retry abuse",
     targetFlow: "provider_withdrawal",
     precondition: "first provider claim reverts on-chain from low gas",
-    exploitAttempt: "retry normal gas after failed receipt to force double-consume or terminal fail",
-    expectedDefense: "first failed receipt does not consume ticket; retry can still complete exactly once",
-    evidenceSource: `${path.relative(ROOT, oneTicketDir)}#provider-onchain-revert-retry`,
+    exploitAttempt:
+      "retry normal gas after failed receipt to force double-consume or terminal fail",
+    expectedDefense:
+      "first failed receipt does not consume ticket; retry can still complete exactly once",
+    evidenceSource: `${path.relative(
+      ROOT,
+      oneTicketDir
+    )}#provider-onchain-revert-retry`,
     finalResult: "terminal-safe",
     detail: "one-ticket evidence negative scenario passed",
   });
@@ -429,7 +480,10 @@ function recordExistingEvidence() {
     precondition: "consumer ticket already claimed once",
     exploitAttempt: "second on-chain claim with same ticket",
     expectedDefense: "second claim reverts and Gateway remains completed",
-    evidenceSource: `${path.relative(ROOT, oneTicketDir)}#consumer-replay-attack`,
+    evidenceSource: `${path.relative(
+      ROOT,
+      oneTicketDir
+    )}#consumer-replay-attack`,
     finalResult: "blocked",
     detail: "one-ticket evidence consumer replay attack passed",
   });
@@ -444,13 +498,18 @@ function recordExistingEvidence() {
     expectedDefense: "one legal path wins and expired tickets cannot settle",
     evidenceSource: `${path.relative(ROOT, riskDir)}#withdrawal-risk-policy`,
     finalResult: "terminal-safe",
-    detail: "risk policy suite passed maturity, dust, FIFO, and normal completion boundaries",
+    detail:
+      "risk policy suite passed maturity, dust, FIFO, and normal completion boundaries",
   });
 
   if (llmDir) {
     const llmReport = readJson(path.join(llmDir, "report.json"));
-    apiEvidence.invokeSettlement = readJson(path.join(llmDir, "api-evidence.json"));
-    dbEvidence.invokeSettlement = readJson(path.join(llmDir, "db-evidence.json"));
+    apiEvidence.invokeSettlement = readJson(
+      path.join(llmDir, "api-evidence.json")
+    );
+    dbEvidence.invokeSettlement = readJson(
+      path.join(llmDir, "db-evidence.json")
+    );
     addScenario(
       "invoke_settlement_hold_capture_release_replay",
       llmReport.status === "passed",
@@ -461,11 +520,14 @@ function recordExistingEvidence() {
       attackName: "hold capture duplication",
       targetFlow: "invoke_settlement",
       precondition: "token-metered invoke reserves a hold",
-      exploitAttempt: "provider timeout, missing usage, or retry tries to capture more than once",
-      expectedDefense: "no final usage means no charge; successful path captures exactly once and releases the rest",
+      exploitAttempt:
+        "provider timeout, missing usage, or retry tries to capture more than once",
+      expectedDefense:
+        "no final usage means no charge; successful path captures exactly once and releases the rest",
       evidenceSource: `${path.relative(ROOT, llmDir)}#llm_hold_release_exact`,
       finalResult: "terminal-safe",
-      detail: "llm-deepseek evidence checker enforces hold >= charge and released = hold - charge",
+      detail:
+        "llm-deepseek evidence checker enforces hold >= charge and released = hold - charge",
     });
   } else {
     report.warnings.push({
@@ -483,20 +545,16 @@ function recordExistingEvidence() {
 }
 
 function runRefundAndInvocationUnitChecks() {
-  runCommand(
-    "unit-money-safety-races",
-    "bash",
+  runCommand("unit-money-safety-races", "bash", [
+    "-lc",
     [
-      "-lc",
-      [
-        "PYTHONPATH=services/gateway",
-        "services/gateway/.venv/bin/python -m pytest",
-        "services/gateway/tests/unit/test_money_safety_races_unit.py",
-        "services/gateway/tests/unit/test_forwarding_llm_failure_paths_unit.py",
-        "-q",
-      ].join(" "),
-    ]
-  );
+      "PYTHONPATH=services/gateway",
+      "services/gateway/.venv/bin/python -m pytest",
+      "services/gateway/tests/unit/test_money_safety_races_unit.py",
+      "services/gateway/tests/unit/test_forwarding_llm_failure_paths_unit.py",
+      "-q",
+    ].join(" "),
+  ]);
   addScenario(
     "refund_duplicate_complete_and_fail_race",
     true,
@@ -510,25 +568,50 @@ function runRefundAndInvocationUnitChecks() {
     attackName: "stale callback replay",
     targetFlow: "refund",
     precondition: "refund row already completed or failed",
-    exploitAttempt: "repeat complete or fail callback with same or different txHash",
-    expectedDefense: "same-tx replay is idempotent, different-tx replay is rejected, fail cannot override completed",
-    evidenceSource: "services/gateway/tests/unit/test_money_safety_races_unit.py",
+    exploitAttempt:
+      "repeat complete or fail callback with same or different txHash",
+    expectedDefense:
+      "same-tx replay is idempotent, different-tx replay is rejected, fail cannot override completed",
+    evidenceSource:
+      "services/gateway/tests/unit/test_money_safety_races_unit.py",
     finalResult: "blocked",
-    detail: "unit tests enforce stable same-tx completion and reject conflicting completion/fail mutations",
+    detail:
+      "unit tests enforce stable same-tx completion and reject conflicting completion/fail mutations",
   });
 }
 
 function writeArtifacts() {
   const tracePath = path.join(OUT_DIR, "trace.jsonl");
-  const traceText = traceRows.map((row) => JSON.stringify(sanitize(row))).join("\n") + "\n";
+  const traceText =
+    traceRows.map((row) => JSON.stringify(sanitize(row))).join("\n") + "\n";
   fs.writeFileSync(tracePath, traceText, "utf8");
   report.traceDigest = sha256Text(traceText);
-  fs.writeFileSync(path.join(OUT_DIR, "api-evidence.json"), `${JSON.stringify(sanitize(apiEvidence), null, 2)}\n`);
-  fs.writeFileSync(path.join(OUT_DIR, "db-evidence.json"), `${JSON.stringify(sanitize(dbEvidence), null, 2)}\n`);
-  fs.writeFileSync(path.join(OUT_DIR, "chain-evidence.json"), `${JSON.stringify(sanitize(chainEvidence), null, 2)}\n`);
-  fs.writeFileSync(path.join(OUT_DIR, "attack-evidence.json"), `${JSON.stringify(sanitize(attackEvidence), null, 2)}\n`);
-  fs.writeFileSync(path.join(OUT_DIR, "bugfix-log.md"), renderBugfixLog(bugRows), "utf8");
-  fs.writeFileSync(path.join(OUT_DIR, "report.json"), `${JSON.stringify(sanitize(report), null, 2)}\n`, "utf8");
+  fs.writeFileSync(
+    path.join(OUT_DIR, "api-evidence.json"),
+    `${JSON.stringify(sanitize(apiEvidence), null, 2)}\n`
+  );
+  fs.writeFileSync(
+    path.join(OUT_DIR, "db-evidence.json"),
+    `${JSON.stringify(sanitize(dbEvidence), null, 2)}\n`
+  );
+  fs.writeFileSync(
+    path.join(OUT_DIR, "chain-evidence.json"),
+    `${JSON.stringify(sanitize(chainEvidence), null, 2)}\n`
+  );
+  fs.writeFileSync(
+    path.join(OUT_DIR, "attack-evidence.json"),
+    `${JSON.stringify(sanitize(attackEvidence), null, 2)}\n`
+  );
+  fs.writeFileSync(
+    path.join(OUT_DIR, "bugfix-log.md"),
+    renderBugfixLog(bugRows),
+    "utf8"
+  );
+  fs.writeFileSync(
+    path.join(OUT_DIR, "report.json"),
+    `${JSON.stringify(sanitize(report), null, 2)}\n`,
+    "utf8"
+  );
   fs.writeFileSync(
     path.join(OUT_DIR, "report.md"),
     [
@@ -541,18 +624,22 @@ function writeArtifacts() {
       "",
       "## Scenarios",
       ...report.scenarioResults.map(
-        (row) => `- ${row.name}: ${row.status}${row.detail ? ` — ${row.detail}` : ""}`
+        (row) =>
+          `- ${row.name}: ${row.status}${row.detail ? ` — ${row.detail}` : ""}`
       ),
       "",
       "## Attacks",
       ...report.attackCatalog.map(
         (row) =>
-          `- ${row.attackName} [${row.targetFlow}] => ${row.finalResult}${row.detail ? ` — ${row.detail}` : ""}`
+          `- ${row.attackName} [${row.targetFlow}] => ${row.finalResult}${
+            row.detail ? ` — ${row.detail}` : ""
+          }`
       ),
       "",
       "## Commands",
       ...report.commandResults.map(
-        (row) => `- ${row.name}: exit=${row.exitCode} command=\`${row.command}\``
+        (row) =>
+          `- ${row.name}: exit=${row.exitCode} command=\`${row.command}\``
       ),
       "",
     ].join("\n"),
@@ -561,82 +648,98 @@ function writeArtifacts() {
 }
 
 function main() {
-  runCommand(
-    "quiesce-local-stack-initial",
-    "bash",
+  runCommand("quiesce-local-stack-initial", "bash", [
+    "-lc",
     [
-      "-lc",
-      [
-        "bash scripts/local/stop_local_env.sh",
-        "bash services/gateway-admin/scripts/ops/stop.sh || true",
-        "screen -S synapse-user-front -X quit >/dev/null 2>&1 || true",
-        "screen -S synapse-docs-front -X quit >/dev/null 2>&1 || true",
-        "screen -S synapse-admin-front -X quit >/dev/null 2>&1 || true",
-        "pkill -f 'gateway_fastapi.py' || true",
-        "pkill -f 'src.worker analytics-outbox' || true",
-        "pkill -f 'src.worker notification-outbox' || true",
-        "sleep 2",
-      ].join("; "),
-    ]
-  );
-  runCommand(
-    "reset-local-postgres-initial",
-    "bash",
+      "bash scripts/local/stop_local_env.sh",
+      "bash services/gateway-admin/scripts/ops/stop.sh || true",
+      "screen -S synapse-user-front -X quit >/dev/null 2>&1 || true",
+      "screen -S synapse-docs-front -X quit >/dev/null 2>&1 || true",
+      "screen -S synapse-admin-front -X quit >/dev/null 2>&1 || true",
+      "pkill -f 'gateway_fastapi.py' || true",
+      "pkill -f 'src.worker analytics-outbox' || true",
+      "pkill -f 'src.worker notification-outbox' || true",
+      "sleep 2",
+    ].join("; "),
+  ]);
+  runCommand("reset-local-postgres-initial", "bash", [
+    "-lc",
+    "docker restart synapse-postgres >/dev/null && until pg_isready -h 127.0.0.1 -p 15432 -U synapse >/dev/null 2>&1; do sleep 1; done",
+  ]);
+  runCommand("restore-local-base-env-initial", "bash", [
+    "scripts/local/restart_local_env.sh",
+  ]);
+  runCommand("deposit-indexer-recovery", "npm", [
+    "run",
+    "e2e:deposit-indexer-recovery:local",
+  ]);
+  runCommand("deposit-indexer-recovery-check", "npm", [
+    "run",
+    "ci:deposit-indexer-recovery-local-evidence",
+  ]);
+  runCommand("quiesce-local-stack-for-withdrawal-concurrency", "bash", [
+    "-lc",
     [
-      "-lc",
-      "docker restart synapse-postgres >/dev/null && until pg_isready -h 127.0.0.1 -p 15432 -U synapse >/dev/null 2>&1; do sleep 1; done",
-    ]
-  );
-  runCommand("restore-local-base-env-initial", "bash", ["scripts/local/restart_local_env.sh"]);
-  runCommand("deposit-indexer-recovery", "npm", ["run", "e2e:deposit-indexer-recovery:local"]);
-  runCommand("deposit-indexer-recovery-check", "npm", ["run", "ci:deposit-indexer-recovery-local-evidence"]);
-  runCommand(
-    "quiesce-local-stack-for-withdrawal-concurrency",
-    "bash",
-    [
-      "-lc",
-      [
-        "bash scripts/local/stop_local_env.sh",
-        "bash services/gateway-admin/scripts/ops/stop.sh || true",
-        "screen -S synapse-user-front -X quit >/dev/null 2>&1 || true",
-        "screen -S synapse-docs-front -X quit >/dev/null 2>&1 || true",
-        "screen -S synapse-admin-front -X quit >/dev/null 2>&1 || true",
-        "pkill -f 'gateway_fastapi.py' || true",
-        "pkill -f 'src.worker analytics-outbox' || true",
-        "pkill -f 'src.worker notification-outbox' || true",
-        "sleep 2",
-      ].join("; "),
-    ]
-  );
-  runCommand(
-    "reset-local-postgres-for-withdrawal-concurrency",
-    "bash",
-    [
-      "-lc",
-      "docker restart synapse-postgres >/dev/null && until pg_isready -h 127.0.0.1 -p 15432 -U synapse >/dev/null 2>&1; do sleep 1; done",
-    ]
-  );
-  runCommand("withdrawal-idempotency-concurrency", "npm", ["run", "e2e:withdrawal-idempotency-concurrency"]);
-  runCommand("withdrawal-idempotency-concurrency-check", "npm", ["run", "ci:withdrawal-idempotency-concurrency-evidence"]);
-  runCommand(
-    "reset-local-postgres-before-fullchain",
-    "bash",
-    [
-      "-lc",
-      "docker restart synapse-postgres >/dev/null && until pg_isready -h 127.0.0.1 -p 15432 -U synapse >/dev/null 2>&1; do sleep 1; done",
-    ]
-  );
-  runCommand("restore-local-app-stack", "bash", ["scripts/local/restart_all_services.sh"]);
-  runCommand("consumer-withdraw-claim-fullchain", "npm", ["run", "e2e:consumer-withdraw-claim-fullchain:local"]);
-  runCommand("consumer-withdraw-claim-fullchain-check", "npm", ["run", "ci:consumer-withdraw-claim-fullchain-local-evidence"]);
-  runCommand("withdrawal-one-ticket-evidence", "npm", ["run", "e2e:withdrawal-one-ticket-evidence"]);
-  runCommand("withdrawal-one-ticket-evidence-check", "npm", ["run", "ci:withdrawal-one-ticket-evidence"]);
-  runCommand("withdrawal-risk-policy", "npm", ["run", "e2e:withdrawal-risk-policy"]);
+      "bash scripts/local/stop_local_env.sh",
+      "bash services/gateway-admin/scripts/ops/stop.sh || true",
+      "screen -S synapse-user-front -X quit >/dev/null 2>&1 || true",
+      "screen -S synapse-docs-front -X quit >/dev/null 2>&1 || true",
+      "screen -S synapse-admin-front -X quit >/dev/null 2>&1 || true",
+      "pkill -f 'gateway_fastapi.py' || true",
+      "pkill -f 'src.worker analytics-outbox' || true",
+      "pkill -f 'src.worker notification-outbox' || true",
+      "sleep 2",
+    ].join("; "),
+  ]);
+  runCommand("reset-local-postgres-for-withdrawal-concurrency", "bash", [
+    "-lc",
+    "docker restart synapse-postgres >/dev/null && until pg_isready -h 127.0.0.1 -p 15432 -U synapse >/dev/null 2>&1; do sleep 1; done",
+  ]);
+  runCommand("withdrawal-idempotency-concurrency", "npm", [
+    "run",
+    "e2e:withdrawal-idempotency-concurrency",
+  ]);
+  runCommand("withdrawal-idempotency-concurrency-check", "npm", [
+    "run",
+    "ci:withdrawal-idempotency-concurrency-evidence",
+  ]);
+  runCommand("reset-local-postgres-before-fullchain", "bash", [
+    "-lc",
+    "docker restart synapse-postgres >/dev/null && until pg_isready -h 127.0.0.1 -p 15432 -U synapse >/dev/null 2>&1; do sleep 1; done",
+  ]);
+  runCommand("restore-local-app-stack", "bash", [
+    "scripts/local/restart_all_services.sh",
+  ]);
+  runCommand("consumer-withdraw-claim-fullchain", "npm", [
+    "run",
+    "e2e:consumer-withdraw-claim-fullchain:local",
+  ]);
+  runCommand("consumer-withdraw-claim-fullchain-check", "npm", [
+    "run",
+    "ci:consumer-withdraw-claim-fullchain-local-evidence",
+  ]);
+  runCommand("withdrawal-one-ticket-evidence", "npm", [
+    "run",
+    "e2e:withdrawal-one-ticket-evidence",
+  ]);
+  runCommand("withdrawal-one-ticket-evidence-check", "npm", [
+    "run",
+    "ci:withdrawal-one-ticket-evidence",
+  ]);
+  runCommand("withdrawal-risk-policy", "npm", [
+    "run",
+    "e2e:withdrawal-risk-policy",
+  ]);
   if (hasLocalLlmFixture()) {
     runCommand("llm-deepseek-local", "npm", ["run", "e2e:llm-deepseek:local"]);
-    runCommand("llm-deepseek-local-check", "npm", ["run", "ci:llm-deepseek-local-evidence"]);
+    runCommand("llm-deepseek-local-check", "npm", [
+      "run",
+      "ci:llm-deepseek-local-evidence",
+    ]);
   } else {
-    log("skipping llm-deepseek-local; no local LLM_E2E_CREDENTIAL fixture configured");
+    log(
+      "skipping llm-deepseek-local; no local LLM_E2E_CREDENTIAL fixture configured"
+    );
     traceRows.push({
       timestamp: new Date().toISOString(),
       type: "skip",
@@ -651,7 +754,8 @@ function main() {
 try {
   main();
 } catch (error) {
-  const detail = error instanceof Error ? error.stack || error.message : String(error);
+  const detail =
+    error instanceof Error ? error.stack || error.message : String(error);
   if (report.failed.length === 0) {
     report.failed.push({ name: "fatal", detail: sanitize(detail) });
   }

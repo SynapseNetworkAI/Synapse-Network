@@ -27,7 +27,7 @@ const BASELINED_FILE_EFFECTIVE_LINES = new Map([
   ["scripts/deploy/gcp_staging_drift_guard.mjs", 539],
   ["scripts/e2e/admin_analytics_10k_reconcile.mjs", 878],
   ["scripts/e2e/admin_analytics_10k_fullchain.mjs", 1589],
-  ["scripts/e2e/consumer_withdraw_claim_fullchain_local.mjs", 1237],
+  ["scripts/e2e/consumer_withdraw_claim_fullchain_local.mjs", 1263],
   ["scripts/e2e/email_binding_dogfood.mjs", 1180],
   ["scripts/e2e/gateway_pull_health_dogfood.mjs", 1172],
   ["scripts/e2e/invocation_billing_migration_e2e.mjs", 873],
@@ -123,7 +123,7 @@ const BASELINED_FILE_EFFECTIVE_LINES = new Map([
   ],
   [
     "services/user-front/src/components/dashboard-workspace/OwnerCreditsPage.tsx",
-    1427,
+    1430,
   ],
   [
     "services/user-front/src/components/dashboard/agents/ActivationRunway.tsx",
@@ -155,7 +155,7 @@ const BASELINED_FILE_EFFECTIVE_LINES = new Map([
   ],
   ["services/user-front/src/i18n/schema.ts", 1957],
   ["services/user-front/src/hooks/useVaultDeposit.ts", 1144],
-  ["services/user-front/src/utils/balanceApi.ts", 1115],
+  ["services/user-front/src/utils/balanceApi.ts", 1119],
   ["services/user-front/src/utils/serviceApi.ts", 701],
   ["services/user-front/src/utils/serviceStatus.ts", 863],
 ]);
