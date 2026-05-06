@@ -26,7 +26,17 @@ vi.mock("wagmi", () => ({
 }));
 
 vi.mock("next/link", () => ({
-  default: ({ href, children, onClick, className }: { href: string; children: ReactNode; onClick?: () => void; className?: string }) => (
+  default: ({
+    href,
+    children,
+    onClick,
+    className,
+  }: {
+    href: string;
+    children: ReactNode;
+    onClick?: () => void;
+    className?: string;
+  }) => (
     <a href={href} onClick={onClick} className={className}>
       {children}
     </a>
@@ -42,10 +52,13 @@ vi.mock("@/components/i18n/LanguageProvider", () => ({
         "nav.notificationsLoading": "Loading notifications...",
         "nav.notificationsEmpty": "No notifications yet.",
         "nav.notificationLoadFailed": "Failed to load notifications.",
+        "nav.withdrawalNotificationTitle": "Withdrawal security review",
+        "nav.withdrawalNotificationBody":
+          "Your withdrawal is under security review. We will update the status when review is complete.",
         "nav.markAllRead": "Mark all read",
         "nav.openNotification": "Open",
         "nav.archiveNotification": "Archive notification",
-      })[key] ?? key,
+      }[key] ?? key),
   }),
 }));
 
@@ -64,7 +77,7 @@ const notification = {
   severity: "warning",
   priority: "transactional_high",
   title: "Consumer withdrawal created",
-  body: "Withdrawal wd-1 is PENDING_MANUAL_REVIEW for 2.000000 USDC.",
+  body: "Withdrawal wd-1 is PENDING_MANUAL_REVIEW for 2.000000 USDC because backend ticket returned CHAIN_RPC_UNAVAILABLE 503.",
   actionUrl: "/dashboard/billing/credits",
   resourceType: "consumer_withdrawal",
   resourceId: "wd-1",
@@ -79,7 +92,10 @@ describe("NotificationCenter", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     fetchUnreadNotificationCountMock.mockResolvedValue(1);
-    fetchNotificationsMock.mockResolvedValue({ notifications: [notification], nextCursor: null });
+    fetchNotificationsMock.mockResolvedValue({
+      notifications: [notification],
+      nextCursor: null,
+    });
     markAllNotificationsReadMock.mockResolvedValue(1);
     markNotificationReadMock.mockResolvedValue(undefined);
     archiveNotificationMock.mockResolvedValue(undefined);
@@ -93,13 +109,22 @@ describe("NotificationCenter", () => {
     const user = userEvent.setup();
     render(<NotificationCenter />);
 
-    await waitFor(() => expect(fetchUnreadNotificationCountMock).toHaveBeenCalledWith("0xabc"));
+    await waitFor(() =>
+      expect(fetchUnreadNotificationCountMock).toHaveBeenCalledWith("0xabc")
+    );
     expect(await screen.findByText("1")).toBeTruthy();
 
     await user.click(screen.getByLabelText("Notifications"));
 
-    expect(await screen.findByText("Consumer withdrawal created")).toBeTruthy();
-    expect(screen.getByText(/PENDING_MANUAL_REVIEW/)).toBeTruthy();
+    expect(await screen.findByText("Withdrawal security review")).toBeTruthy();
+    expect(
+      screen.getByText(
+        "Your withdrawal is under security review. We will update the status when review is complete."
+      )
+    ).toBeTruthy();
+    expect(screen.queryByText(/PENDING_MANUAL_REVIEW/)).toBeNull();
+    expect(screen.queryByText(/CHAIN_RPC_UNAVAILABLE/)).toBeNull();
+    expect(screen.queryByText(/backend ticket/)).toBeNull();
   });
 
   it("pauses polling while the tab is hidden and refreshes when visible again", async () => {
@@ -112,7 +137,9 @@ describe("NotificationCenter", () => {
 
     visibilitySpy.mockReturnValue("visible");
     document.dispatchEvent(new Event("visibilitychange"));
-    await waitFor(() => expect(fetchUnreadNotificationCountMock).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(fetchUnreadNotificationCountMock).toHaveBeenCalledTimes(1)
+    );
     visibilitySpy.mockRestore();
   });
 
@@ -120,7 +147,7 @@ describe("NotificationCenter", () => {
     const user = userEvent.setup();
     render(<NotificationCenter />);
     await user.click(screen.getByLabelText("Notifications"));
-    await screen.findByText("Consumer withdrawal created");
+    await screen.findByText("Withdrawal security review");
 
     await user.click(screen.getByRole("button", { name: "Mark all read" }));
     expect(markAllNotificationsReadMock).toHaveBeenCalledWith("0xabc");

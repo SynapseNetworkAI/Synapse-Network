@@ -1,7 +1,8 @@
 import type { I18nMessages } from "@/i18n/schema";
 
 const providerServiceDeployPage: I18nMessages["providerServiceDeployPage"] = {
-  sessionHelpText: "这个页面只支持会话态访问。请先在 My Services 完成钱包登录，再回来创建服务。",
+  sessionHelpText:
+    "这个页面只支持会话态访问。请先在 My Services 完成钱包登录，再回来创建服务。",
   sessionRecoveryLabel: "前往 API 服务",
   closePageAria: "关闭创建 API 服务页面",
   restoreDraft: "恢复草稿",
@@ -14,7 +15,8 @@ const providerServiceDeployPage: I18nMessages["providerServiceDeployPage"] = {
     "在一个页面里完成 agent-facing 契约、endpoint、价格和运行时默认值配置。",
   aiAssist: "AI 定义助手",
   sectionQuickPublishTitle: "快速发布",
-  sectionQuickPublishSummary: "只填写最小可用契约，其余字段回落到平台默认值，后续需要时再覆盖。",
+  sectionQuickPublishSummary:
+    "只填写最小可用契约，其余字段回落到平台默认值，后续需要时再覆盖。",
   requiredFromYou: "你必须填写",
   autoAppliedDefaults: "平台自动补齐",
   minimalRequiredFields: [
@@ -30,8 +32,10 @@ const providerServiceDeployPage: I18nMessages["providerServiceDeployPage"] = {
     "Gateway auth mode、健康探针、探测频率、追踪 header 和计费策略都由平台托管。",
   ],
   serviceIdResync: "从名称重新同步",
-  serviceIdResyncHint: "默认从 Service Name 自动生成。只有你需要自定义机器键时才手改。",
-  serviceIdManualHint: "已启用手动覆盖，Service ID 会保持稳定，直到你重新同步。",
+  serviceIdResyncHint:
+    "默认从 Service Name 自动生成。只有你需要自定义机器键时才手改。",
+  serviceIdManualHint:
+    "已启用手动覆盖，Service ID 会保持稳定，直到你重新同步。",
   serviceNameLabel: "服务名称",
   serviceNamePlaceholder: "东南亚发票 OCR",
   serviceNameHint: "Provider 控制台和市场里展示给人的名字。",
@@ -40,19 +44,23 @@ const providerServiceDeployPage: I18nMessages["providerServiceDeployPage"] = {
   serviceIdHint: "用于 discovery、quote 和 invoke 的稳定机器身份。",
   endpointLabel: "主 Endpoint URL",
   endpointPlaceholder: "https://provider.example.com/invoke",
-  endpointHint: "标准调用入口。如果你不配置 routing targets，Synapse 会直接路由到这里。",
+  endpointHint:
+    "标准调用入口。如果你不配置 routing targets，Synapse 会直接路由到这里。",
   priceLabel: "基础价格 USDC",
   pricePlaceholder: "0.008",
   priceHint: "按次固定收费，单位 USDC。",
   descriptionLabel: "给模型看的描述",
   descriptionPlaceholder: "从东南亚发票图片里提取结构化字段。",
-  descriptionHint: "告诉 autonomous agent 什么时候该调用这个服务，以及它能返回什么价值。",
+  descriptionHint:
+    "告诉 autonomous agent 什么时候该调用这个服务，以及它能返回什么价值。",
   inputSchemaLabel: "输入 Schema",
   inputSchemaHint: "默认预填一个安全对象模板。等契约稳定后再继续收紧。",
   outputSchemaLabel: "输出 Schema",
-  outputSchemaHint: "默认预填一个安全对象模板。定义 agent 可以长期依赖的稳定字段。",
+  outputSchemaHint:
+    "默认预填一个安全对象模板。定义 agent 可以长期依赖的稳定字段。",
   optionalMetadataTitle: "可选 agent 元信息",
-  optionalMetadataDescription: "这些字段能提升 discovery 质量，但不是服务上线的硬门槛。",
+  optionalMetadataDescription:
+    "这些字段能提升 discovery 质量，但不是服务上线的硬门槛。",
   taskCategoryLabel: "任务分类",
   taskCategoryPlaceholder: "ocr.invoice",
   taskCategoryHint: "用于 discovery 和排序的可选语义桶。",
@@ -104,7 +112,8 @@ const providerServiceDeployPage: I18nMessages["providerServiceDeployPage"] = {
   defaultsCardDescription:
     "Health method 固定为 {{method}}，成功状态码默认 {{codes}}，并且 Synapse 会始终注入 request ID header 用于追踪。",
   meteringCardTitle: "平台托管计费",
-  meteringCardDescription: "Billing unit、billable status classes、request ID 强制要求和边缘计费在 V1 都由平台托管。",
+  meteringCardDescription:
+    "Billing unit、billable status classes、request ID 强制要求和边缘计费在 V1 都由平台托管。",
   readinessEyebrow: "最低成本接入",
   readinessTitle: "用最小契约完成上线",
   readinessAutoTitle: "Synapse 会替你补什么",
@@ -127,7 +136,7 @@ const providerServiceDeployPage: I18nMessages["providerServiceDeployPage"] = {
   deploymentLabelCreating: "正在创建服务...",
   deploymentLabelWaitingForAssets: "等待生成资产...",
   deploymentLabelFix: "先修复契约校验",
-  deploymentReadyText: "已就绪。核心 gateway 提交契约和当前后端保持一致。",
+  deploymentReadyText: "已就绪。核心 gateway 提交契约和当前服务配置保持一致。",
   supportTitle: "发布服务遇到问题？",
   supportDescription:
     "如果服务注册失败、运行时接入不清楚，或者上线前需要人工复核，请把服务名称和 Endpoint 一并发给运营支持。",
@@ -143,18 +152,20 @@ const providerServiceDeployPage: I18nMessages["providerServiceDeployPage"] = {
     "粘贴一整段 API 示例块：原始 cURL 命令加返回 JSON 结果。解析器会推导当前 V1 服务定义字段并自动填充表单。",
   parserCurlLabel: "原始 cURL 命令 + 返回结果",
   parserCurlPlaceholder:
-    "curl -X POST \"http://127.0.0.1:8100/api/v1/quotes/famous/top3\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"text\":\"关于坚持\"}'\n{\"input_text\":\"关于坚持\",\"quotes\":[\"穷则独善其身，达则兼济天下。—— 孟子\"]}",
-  parserCurlHint: "这里不接受自然语言备注。请直接粘贴真实 cURL 请求，如果有真实 JSON 响应，也一并贴在命令下方。",
+    'curl -X POST "http://127.0.0.1:8100/api/v1/quotes/famous/top3" \\\n  -H "Content-Type: application/json" \\\n  -d \'{"text":"关于坚持"}\'\n{"input_text":"关于坚持","quotes":["穷则独善其身，达则兼济天下。—— 孟子"]}',
+  parserCurlHint:
+    "这里不接受自然语言备注。请直接粘贴真实 cURL 请求，如果有真实 JSON 响应，也一并贴在命令下方。",
   parserCurlInvalid:
     "请输入一个有效示例块：必须以 curl 开头，包含完整的 http(s) URL，并且可以在命令下方附带真实 JSON 返回结果。",
   parserJsonLabel: "期望 / 生成的服务定义 JSON",
-  parserJsonPlaceholder: "{\"service_id\":\"svc_invoice_ocr_apac\"}",
+  parserJsonPlaceholder: '{"service_id":"svc_invoice_ocr_apac"}',
   parserJsonHint: "在应用覆盖前，你可以手动微调这份服务定义 JSON。",
   parserJsonInvalid: "生成的服务定义必须是合法 JSON 对象。",
   parserGenerate: "生成定义 JSON",
   parserGenerating: "生成中...",
   parserConfirm: "确认覆盖",
-  parserInvalidCurl: "Raw cURL Command 必须以 curl 开头，并且包含合法的 http(s) URL。",
+  parserInvalidCurl:
+    "Raw cURL Command 必须以 curl 开头，并且包含合法的 http(s) URL。",
   parserWalletMissing: "钱包未连接。请先连接钱包并完成登录。",
   parserUnknownError: "解析器返回了未知错误。",
   parserInvalidResponse: "解析器没有返回合法的服务定义对象。",
@@ -169,25 +180,31 @@ const providerServiceDeployPage: I18nMessages["providerServiceDeployPage"] = {
   validationServiceIdRequired: "Service ID 为必填项。",
   validationServiceIdPattern: "Service ID 必须匹配 ^[a-z0-9_-]{3,64}$。",
   validationServiceNameRequired: "服务名称为必填项。",
-  validationServiceNameLength: "服务名称长度必须在 {{min}}-{{max}} 个字符之间。",
+  validationServiceNameLength:
+    "服务名称长度必须在 {{min}}-{{max}} 个字符之间。",
   validationManifestVersion: "服务版本必须使用 semver，例如 1.0.0。",
   validationDescriptionRequired: "给模型看的描述为必填项。",
-  validationDescriptionLength: "给模型看的描述长度必须在 {{min}}-{{max}} 个字符之间。",
+  validationDescriptionLength:
+    "给模型看的描述长度必须在 {{min}}-{{max}} 个字符之间。",
   validationInputSchema: "输入 Schema 必须是合法 JSON 对象。",
   validationOutputSchema: "输出 Schema 必须是合法 JSON 对象。",
   validationExamples: "示例必须是合法 JSON 数组。",
   validationBasePrice: "基础价格 USDC 必须是非负数。",
   validationEndpointUrl: "Endpoint URL 必须是合法的 http(s) URL。",
   validationTimeoutRange: "Timeout 必须落在 [{{min}}, {{max}}] 毫秒之间。",
-  validationMaxRequestBytesRange: "最大请求字节数必须落在 [{{min}}, {{max}}] 之间。",
-  validationMaxResponseBytesRange: "最大响应字节数必须落在 [{{min}}, {{max}}] 之间。",
+  validationMaxRequestBytesRange:
+    "最大请求字节数必须落在 [{{min}}, {{max}}] 之间。",
+  validationMaxResponseBytesRange:
+    "最大响应字节数必须落在 [{{min}}, {{max}}] 之间。",
   validationHealthPath: "健康检查路径必须以 / 开头。",
   validationRoutingTargets: "至少需要一个合法的路由目标。",
   validationTargetWeight: "目标权重必须落在 [{{min}}, {{max}}] 之间。",
   validationMaxQpsRange: "最大 QPS 必须落在 [{{min}}, {{max}}] 之间。",
   fieldGuideServiceIdTitle: "服务 ID",
-  fieldGuideServiceIdPurpose: "用于 discovery、quote 和 invoke 的稳定机器身份。",
-  fieldGuideServiceIdHow: "使用小写字母、数字、下划线或连字符。若下划线是有意设计，应当保留。",
+  fieldGuideServiceIdPurpose:
+    "用于 discovery、quote 和 invoke 的稳定机器身份。",
+  fieldGuideServiceIdHow:
+    "使用小写字母、数字、下划线或连字符。若下划线是有意设计，应当保留。",
   fieldGuideServiceIdPlatform: "它是主要路由键，也是全局唯一性边界。",
   fieldGuideServiceIdExample: "svc_invoice_ocr_apac",
   fieldGuideServiceNameTitle: "服务名称",
@@ -196,12 +213,15 @@ const providerServiceDeployPage: I18nMessages["providerServiceDeployPage"] = {
   fieldGuideServiceNamePlatform: "它会影响展示和搜索排序的信任感。",
   fieldGuideServiceNameExample: "SEA Invoice OCR",
   fieldGuideDescriptionTitle: "给模型看的描述",
-  fieldGuideDescriptionPurpose: "告诉 autonomous agent 什么时候、为什么该调用这个服务。",
+  fieldGuideDescriptionPurpose:
+    "告诉 autonomous agent 什么时候、为什么该调用这个服务。",
   fieldGuideDescriptionHow: "写触发条件，不要写营销文案。",
-  fieldGuideDescriptionPlatform: "它会直接影响 discovery 匹配和运行时决策质量。",
+  fieldGuideDescriptionPlatform:
+    "它会直接影响 discovery 匹配和运行时决策质量。",
   fieldGuideTaskCategoryTitle: "任务分类",
   fieldGuideTaskCategoryPurpose: "用于路由和 discovery 的粗粒度语义桶。",
-  fieldGuideTaskCategoryHow: "使用类似 ocr.invoice 或 search.web 这样的点式分类。",
+  fieldGuideTaskCategoryHow:
+    "使用类似 ocr.invoice 或 search.web 这样的点式分类。",
   fieldGuideTaskCategoryPlatform: "它能提升搜索召回和后续排序策略。",
   fieldGuideRuntimeTitle: "运行时契约",
   fieldGuideRuntimePurpose: "定义 endpoint、timeout 和 payload 边界。",
@@ -213,7 +233,8 @@ const providerServiceDeployPage: I18nMessages["providerServiceDeployPage"] = {
   fieldGuideBillingPlatform: "它决定了结算和扣费账本是否能严丝合缝。",
   fieldGuideRoutingTargetsTitle: "路由目标",
   fieldGuideRoutingTargetsPurpose: "服务契约背后的 active-active 上游目标。",
-  fieldGuideRoutingTargetsHow: "添加一个或多个 invoke URL，并附带权重和可选 region。",
+  fieldGuideRoutingTargetsHow:
+    "添加一个或多个 invoke URL，并附带权重和可选 region。",
   fieldGuideRoutingTargetsPlatform: "它决定权重故障切换和基于健康状态的路由。",
   fieldGuideIoSchemaTitle: "IO Schema",
   fieldGuideIoSchemaPurpose: "定义 agent 要依赖的 JSON 契约。",

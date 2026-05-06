@@ -134,17 +134,20 @@ def build_consumer_withdrawal_created_intent(owner_wallet: str, withdrawal: Any)
     status = _payload_value(withdrawal, "status", "withdrawalStatus", fallback="REQUESTED")
     amount = _amount_label(withdrawal)
     severity = "warning" if status == "PENDING_MANUAL_REVIEW" else "info"
+    title = "Withdrawal under review" if status == "PENDING_MANUAL_REVIEW" else "Withdrawal request received"
+    body = (
+        "Your withdrawal is under security review. We will update the status when review is complete."
+        if status == "PENDING_MANUAL_REVIEW"
+        else f"Your withdrawal request has been received{f' for {amount}' if amount else ''}."
+    )
     return _intent(
         owner_wallet=owner_wallet,
         event_type="consumer_withdrawal.created",
         category="withdrawal",
         severity=severity,
         priority="transactional_high",
-        title="Consumer withdrawal created",
-        body=(
-            f"Withdrawal {withdrawal_id} is {status}"
-            f"{f' for {amount}' if amount else ''}."
-        ),
+        title=title,
+        body=body,
         action_url="/dashboard/billing/credits",
         resource_type="consumer_withdrawal",
         resource_id=withdrawal_id,
@@ -157,17 +160,20 @@ def build_provider_withdrawal_created_intent(owner_wallet: str, withdrawal: Any)
     status = _payload_value(withdrawal, "status", "withdrawalStatus", fallback="REQUESTED")
     amount = _amount_label(withdrawal)
     severity = "warning" if status == "PENDING_MANUAL_REVIEW" else "info"
+    title = "Provider withdrawal under review" if status == "PENDING_MANUAL_REVIEW" else "Provider withdrawal request received"
+    body = (
+        "Your provider withdrawal is under security review. We will update the status when review is complete."
+        if status == "PENDING_MANUAL_REVIEW"
+        else f"Your provider withdrawal request has been received{f' for {amount}' if amount else ''}."
+    )
     return _intent(
         owner_wallet=owner_wallet,
         event_type="provider_withdrawal.created",
         category="withdrawal",
         severity=severity,
         priority="transactional_high",
-        title="Provider withdrawal created",
-        body=(
-            f"Provider withdrawal {withdrawal_id} is {status}"
-            f"{f' for {amount}' if amount else ''}."
-        ),
+        title=title,
+        body=body,
         action_url="/provider/withdraw",
         resource_type="provider_withdrawal",
         resource_id=withdrawal_id,
@@ -179,8 +185,8 @@ def build_consumer_withdrawal_failed_expired_intent(owner_wallet: str, withdrawa
     withdrawal_id = _payload_value(withdrawal, "withdrawalId", "withdrawal_id", "id", fallback="unknown")
     amount = _amount_label(withdrawal)
     body = (
-        f"Withdrawal {withdrawal_id} timed out and was automatically cancelled"
-        f"{f' for {amount}' if amount else ''}. Frozen funds were safely returned to your available balance. "
+        f"Your withdrawal timed out and was automatically cancelled"
+        f"{f' for {amount}' if amount else ''}. Funds were safely returned to your available balance. "
         "Please create a new withdrawal if you still want to cash out."
     )
     return _intent(
@@ -208,8 +214,8 @@ def build_provider_withdrawal_failed_expired_intent(owner_wallet: str, withdrawa
     withdrawal_id = _payload_value(withdrawal, "withdrawalId", "withdrawal_id", "id", fallback="unknown")
     amount = _amount_label(withdrawal)
     body = (
-        f"Provider withdrawal {withdrawal_id} timed out and was automatically cancelled"
-        f"{f' for {amount}' if amount else ''}. Frozen earnings were safely returned to your withdrawable balance. "
+        f"Your provider withdrawal timed out and was automatically cancelled"
+        f"{f' for {amount}' if amount else ''}. Earnings were safely returned to your withdrawable balance. "
         "Please create a new provider withdrawal if needed."
     )
     return _intent(

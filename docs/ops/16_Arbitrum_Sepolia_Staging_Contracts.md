@@ -59,6 +59,16 @@ The canonical Arbitrum Sepolia staging deployment is:
 | MockUSDC explorer               | `https://sepolia.arbiscan.io/address/0xfad31daE42B0046aFA106BCf56ED0dDaCA4463B9#code` |
 | SynapseCore explorer            | `https://sepolia.arbiscan.io/address/0x0bA1dcE1Cc8d877052ab1C3CE2362830459D8FF4#code` |
 
+Vault/SynapseCore contract verification is part of the staging and production
+release posture. Once the contract source is verified on the relevant explorer,
+wallets and explorers have a better chance to decode the `deposit` method and
+its parameters. Local GoChain/Hardhat wallets may still show only a generic
+"transaction request" or "contract interaction"; that is not a local release
+blocker. In local environments, the user-facing source of truth is the Synapse
+Deposit Review panel, which must show the amount, source wallet, and Synapse
+Vault short address before the native wallet opens. Registering method
+signatures with 4byte is a professional follow-up, but it is not a V1 blocker.
+
 Staging uses owner-only `MockUSDC`. The deployment script pre-minted
 `100,000 MockUSDC` each to the dedicated staging consumer and provider E2E
 wallets.

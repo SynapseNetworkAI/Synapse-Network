@@ -15,6 +15,10 @@ configure({ reactStrictMode: false });
 
 import ProviderWithdrawPage from "@/components/provider-workspace/ProviderWithdrawPage";
 import { ProviderWithdrawApiError } from "@/utils/providerWithdrawApi";
+import {
+  TRANSLATIONS,
+  ZH_TRANSLATIONS,
+} from "./ProviderWithdrawPage.test.fixtures";
 
 /* ── hoisted mocks ─────────────────────────────────────────── */
 
@@ -59,130 +63,6 @@ const {
     },
   },
 }));
-
-const TRANSLATIONS: Record<string, string> = {
-  "providerSettlements.withdrawPageTitle": "Provider Withdraw",
-  "providerSettlements.withdrawPageDescription":
-    "EIP-712 on-chain self-service withdrawal.",
-  "providerSettlements.metricAvailable": "Available",
-  "providerSettlements.withdrawableReceivable": "Withdrawable receivable",
-  "providerSettlements.receivableBalance": "Receivable balance",
-  "providerSettlements.immatureReceivableNotice":
-    "Newly earned receivables appear in balance first, then enter withdrawable receivable after T+7.",
-  "providerSettlements.matureReceivableBelowMinimumTitle":
-    "Matured withdrawable amount is below the 10.00 USDC minimum",
-  "providerSettlements.generateAndClaim": "Generate & Claim",
-  "providerSettlements.signerUnavailable": "Signer Unavailable",
-  "providerSettlements.creatingTicket": "Creating Ticket...",
-  "providerSettlements.resumePending": "Resume Pending",
-  "providerSettlements.withdrawAmountLabel": "Withdraw Amount",
-  "providerSettlements.withdrawGasNote":
-    "On-chain transaction — a small gas fee in native token (e.g. ETH) applies.",
-  "providerSettlements.insufficientGasWarning":
-    "Insufficient gas balance. Please top up native token.",
-  "providerSettlements.historyTitle": "Withdrawal History",
-  "providerSettlements.historyFilterAll": "All",
-  "providerSettlements.historyStatusRequested": "Requested",
-  "providerSettlements.historyStatusApprovedAuto": "Ticket Ready",
-  "providerSettlements.historyStatusPendingManualReview": "Manual Review",
-  "providerSettlements.historyStatusCompleted": "Completed",
-  "providerSettlements.historyStatusRejected": "Rejected",
-  "providerSettlements.historyStatusCancelled": "Cancelled / Released",
-  "providerSettlements.historyTableWithdrawalId": "Withdrawal ID",
-  "providerSettlements.historyTableAmount": "Amount",
-  "providerSettlements.historyTableStatus": "Status",
-  "providerSettlements.historyTableReason": "Reason",
-  "providerSettlements.historyTableNonce": "Nonce",
-  "providerSettlements.historyTableCreated": "Created",
-  "providerSettlements.historyTableTxHash": "Tx Hash",
-  "providerSettlements.historyEmpty": "No withdrawal records yet.",
-  "providerSettlements.historyFilteredEmpty":
-    "No records match the current filter.",
-  "providerSettlements.searchButton": "Search",
-  "providerSettlements.loadingHistory": "Loading...",
-  "providerSettlements.viewInvocationRecords": "View Invocation Records",
-  "providerSettlements.loadHistoryFailed": "Failed to load withdrawal history",
-  "providerSettlements.vaultAddressMissing": "Vault address missing",
-  "providerSettlements.ticketSigningUnavailable": "Signer unavailable",
-  "providerSettlements.vaultLiquidityCheckUnavailable":
-    "Vault liquidity check unavailable",
-  "providerSettlements.chainRpcUnavailable": "Chain RPC unavailable",
-  "providerSettlements.providerReceivableNotMatured":
-    "Provider earnings are still in the T+7 maturity window. Only matured receivables can be withdrawn; newly earned receivables still appear in balance.",
-  "providerSettlements.minWithdrawalAmountNotMet":
-    "Minimum provider withdrawal amount is 10.00 USDC.",
-  "providerSettlements.insufficientProviderReceivable":
-    "Withdrawable provider receivable is insufficient.",
-  "providerSettlements.pendingWithdrawalExists":
-    "A provider withdrawal is already pending.",
-  "providerSettlements.withdrawalCreateFailed": "Failed to create withdrawal",
-  "providerSettlements.noPendingTicket": "No pending ticket",
-  "providerSettlements.chainRequiredNetwork": "required network",
-  "providerSettlements.vaultLiquidityInsufficient":
-    "Vault liquidity insufficient",
-  "providerSettlements.walletClientUnavailable": "Wallet client unavailable",
-  "providerSettlements.connectWalletFirst": "Connect wallet first",
-  "providerSettlements.withdrawalContractMissing": "Contract missing",
-  "providerSettlements.walletRejected": "Wallet rejected",
-  "providerSettlements.insufficientNativeGas": "Insufficient native gas",
-  "providerSettlements.ticketExpired": "Ticket expired",
-  "providerSettlements.ticketExpiringSoon": "Ticket expiring soon",
-  "providerSettlements.staleTicket": "Stale ticket",
-  "providerSettlements.invalidSignature": "Invalid signature",
-  "providerSettlements.confirmWithdraw": "Confirm",
-  "providerSettlements.withdrawAmountPlaceholder": "Amount",
-  "providerSettlements.pendingReviewExists":
-    "A withdrawal is already pending review.",
-  "providerSettlements.generatingTicket": "Generating ticket...",
-  "providerSettlements.settledCompleted": "Withdrawal settled",
-  "providerSettlements.backendCompletionFailed": "Backend completion failed",
-  "providerSettlements.pendingTicketExpiredBanner": "Pending ticket expired.",
-  "providerSettlements.pendingTicketExpiredReleased":
-    "Expired ticket released.",
-  "providerSettlements.expiredTicketReleasedRow": "Expired ticket released.",
-  "providerSettlements.nativeTokenFallback": "native token",
-  "providerSettlements.txSubmitted": "Tx submitted",
-  "providerSettlements.ticketGenerated": "Ticket generated",
-  "providerSettlements.manualReviewQueued": "Queued for review",
-  "providerSettlements.withdrawalIntentCreated": "Intent created",
-  "providerSettlements.invalidAmountPrecision": "Invalid precision",
-  "providerSettlements.invalidAmountValue": "Invalid amount",
-  "providerSettlements.amountBelowMinimum":
-    "Minimum withdrawal amount is {{amount}} USDC.",
-  "providerSettlements.withdrawAmountHint":
-    "Minimum withdrawal: {{amount}} USDC",
-};
-
-const ZH_TRANSLATIONS: Record<string, string> = {
-  ...TRANSLATIONS,
-  "providerSettlements.withdrawPageTitle": "Provider 提现",
-  "providerSettlements.withdrawPageDescription": "EIP-712 链上自助提现。",
-  "providerSettlements.metricAvailable": "可用余额",
-  "providerSettlements.withdrawableReceivable": "可提现额度",
-  "providerSettlements.receivableBalance": "应收余额",
-  "providerSettlements.immatureReceivableNotice":
-    "新产生的应收会先显示在余额中，T+7 后才进入可提现额度。",
-  "providerSettlements.matureReceivableBelowMinimumTitle":
-    "已成熟可提现额度低于最小提现金额 10.00 USDC",
-  "providerSettlements.generateAndClaim": "生成并提现",
-  "providerSettlements.confirmWithdraw": "确认提现",
-  "providerSettlements.withdrawAmountPlaceholder": "金额",
-  "providerSettlements.withdrawGasNote":
-    "链上交易 — 需要支付少量原生代币（如 ETH）作为 Gas 费。",
-  "providerSettlements.historyTitle": "提现历史",
-  "providerSettlements.historyFilterAll": "全部",
-  "providerSettlements.searchButton": "搜索",
-  "providerSettlements.viewInvocationRecords": "查看调用记录",
-  "providerSettlements.historyEmpty": "暂时还没有提现记录。",
-  "providerSettlements.providerReceivableNotMatured":
-    "当前收益尚未达到 T+7 成熟期。只有已成熟应收可以提现；新产生的应收仍会显示在余额中。",
-  "providerSettlements.minWithdrawalAmountNotMet":
-    "Provider 最小提现金额为 10.00 USDC。",
-  "providerSettlements.insufficientProviderReceivable":
-    "可提现 Provider 应收余额不足。",
-  "providerSettlements.pendingWithdrawalExists":
-    "已经存在一笔待处理 Provider 提现。",
-};
 
 vi.mock("react-hot-toast", () => ({
   default: Object.assign(toastInfo, {
@@ -683,7 +563,8 @@ describe("ProviderWithdrawPage", () => {
   const providerWithdrawErrorCases = [
     {
       code: "CHAIN_RPC_UNAVAILABLE",
-      message: "Chain RPC unavailable",
+      message:
+        "The withdrawal network is temporarily unavailable. Please retry in a moment.",
     },
     {
       code: "WITHDRAW_VAULT_LIQUIDITY_CHECK_UNAVAILABLE",
@@ -828,9 +709,10 @@ describe("ProviderWithdrawPage", () => {
     await user.click(screen.getByRole("button", { name: /Confirm/i }));
 
     await waitFor(() => {
-      expect(toastError).toHaveBeenCalledWith("Ticket expiring soon", {
-        id: "toast-provider-withdraw",
-      });
+      expect(toastError).toHaveBeenCalledWith(
+        "This withdrawal approval expires soon. Wait a moment, then create a new withdrawal request to avoid a failed transaction.",
+        { id: "toast-provider-withdraw" }
+      );
     });
   });
 

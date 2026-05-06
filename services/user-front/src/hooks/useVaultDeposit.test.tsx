@@ -205,7 +205,7 @@ describe("useVaultDeposit", () => {
     receiptSuccessState.value = false;
 
     const { result } = renderHook(() =>
-      useVaultDeposit({ initialAmount: "9.99" })
+      useVaultDeposit({ initialAmount: "4.99" })
     );
 
     await result.current.handleDeposit();
@@ -213,7 +213,7 @@ describe("useVaultDeposit", () => {
     expect(signTypedDataAsyncMock).not.toHaveBeenCalled();
     expect(writeContractAsyncMock).not.toHaveBeenCalled();
     expect(toastError).toHaveBeenCalledWith(
-      "Minimum deposit amount is 10.00 USDC."
+      "Minimum deposit amount is 5.00 USDC."
     );
   });
 
@@ -222,7 +222,7 @@ describe("useVaultDeposit", () => {
     nativeBalanceRawState.value = 0n;
 
     const { result } = renderHook(() =>
-      useVaultDeposit({ initialAmount: "10" })
+      useVaultDeposit({ initialAmount: "5" })
     );
 
     await result.current.handleDeposit();

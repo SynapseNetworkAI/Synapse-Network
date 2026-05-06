@@ -11,6 +11,13 @@ const robotsPath = path.join(userFrontRoot, "public", "robots.txt");
 const sitemapPath = path.join(userFrontRoot, "src", "app", "sitemap.ts");
 const layoutPath = path.join(userFrontRoot, "src", "app", "layout.tsx");
 const appRoot = path.join(userFrontRoot, "src", "app");
+const faviconPath = path.join(appRoot, "favicon.ico");
+const iconPngPath = path.join(userFrontRoot, "public", "icon.png");
+const appleTouchIconPath = path.join(
+  userFrontRoot,
+  "public",
+  "apple-touch-icon.png"
+);
 const siteHostname = "synapse-network.ai";
 
 const PUBLIC_ROUTES = ["/", "/about", "/marketplace", "/forum"];
@@ -197,12 +204,19 @@ if (assertFile(layoutPath, "layout.tsx")) {
     "USDC-native payment and settlement infrastructure",
     "openGraph",
     "twitter",
+    "/favicon.ico",
+    "/icon.png",
+    "/apple-touch-icon.png",
   ]) {
     if (!layout.includes(expected)) {
       fail(`layout metadata missing expected text: ${expected}`);
     }
   }
 }
+
+assertFile(faviconPath, "favicon.ico");
+assertFile(iconPngPath, "icon.png");
+assertFile(appleTouchIconPath, "apple-touch-icon.png");
 
 if (failures.length > 0) {
   console.error("[ci:seo-public-assets] failed");
