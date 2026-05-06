@@ -588,6 +588,38 @@ COMMENT ON TABLE admin_config_documents IS 'Stores draft/published admin control
 COMMENT ON COLUMN admin_config_documents.draft_payload_json IS 'JSONB config snapshot. admin_menu_config payload shape: {"items": [{itemId, sectionId, sectionLabel, sectionDescription, label, href, description, parentItemId, nodeType, iconKey, requiredRoles, requiredPermissions, sortOrder, keywords}]}.';
 COMMENT ON COLUMN admin_config_documents.published_payload_json IS 'Last published config snapshot consumed by the admin shell visible-menu endpoint.';
 
+-- Admin list endpoints default to created_at DESC unless callers explicitly
+-- request another sort. Keep every created_at-bearing table index-backed.
+CREATE INDEX IF NOT EXISTS idx_admin_users_created_at
+ON admin_users (created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_admin_mfa_factors_created_at
+ON admin_mfa_factors (created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_admin_sessions_created_at
+ON admin_sessions (created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_admin_mfa_enrollment_challenges_created_at
+ON admin_mfa_enrollment_challenges (created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_admin_roles_created_at
+ON admin_roles (created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_admin_permissions_created_at
+ON admin_permissions (created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_admin_role_permissions_created_at
+ON admin_role_permissions (created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_admin_user_role_bindings_created_at
+ON admin_user_role_bindings (created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_admin_approval_steps_created_at
+ON admin_approval_steps (created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_admin_config_documents_created_at
+ON admin_config_documents (created_at DESC);
+
 WITH menu_tree_seed AS (
         SELECT $$
         {

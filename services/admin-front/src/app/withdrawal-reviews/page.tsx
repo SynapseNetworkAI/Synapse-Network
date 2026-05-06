@@ -37,7 +37,6 @@ import {
   getWithdrawRiskTone,
   listWithdrawRiskLevels,
   paginateWithdrawReviews,
-  sortWithdrawReviewsByPriority,
 } from "@/features/withdrawal-reviews/review-presenters";
 import { formatDateTime, formatUsdc, inputText } from "@/lib/admin-console";
 import { useProviderWithdrawReviews } from "@/features/withdrawal-reviews/use-provider-withdraw-reviews";
@@ -99,12 +98,10 @@ export default function WithdrawalReviewsPage() {
   );
   const filteredItems = useMemo(
     () =>
-      sortWithdrawReviewsByPriority(
-        filterWithdrawReviews(
-          items,
-          appliedFilters.query,
-          appliedFilters.riskLevel
-        )
+      filterWithdrawReviews(
+        items,
+        appliedFilters.query,
+        appliedFilters.riskLevel
       ),
     [appliedFilters, items]
   );

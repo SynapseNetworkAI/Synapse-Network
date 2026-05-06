@@ -204,14 +204,7 @@ class PostgresForumSupportRepository(PostgresForumTopicRepositoryMixin):
                 FROM synapse_forum_response_tasks task
                 JOIN synapse_forum_topics topic ON topic.topic_id = task.topic_id
                 WHERE {where_sql}
-                ORDER BY
-                    CASE task.priority
-                        WHEN 'critical' THEN 0
-                        WHEN 'high' THEN 1
-                        WHEN 'normal' THEN 2
-                        ELSE 3
-                    END,
-                    task.updated_at DESC
+                ORDER BY task.created_at DESC, task.response_task_id ASC
                 LIMIT %s OFFSET %s
                 """  # noqa: S608 - where_sql is assembled from fixed clauses plus parameter placeholders.
             cur.execute(
