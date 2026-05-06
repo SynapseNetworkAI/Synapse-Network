@@ -2,10 +2,14 @@
 
 import crypto from "node:crypto";
 import fs from "node:fs";
-import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { ethers } from "ethers";
+import {
+  assertProviderOwnsCanonicalService,
+  configuredCanonicalServiceId,
+  discoverCanonicalProviderService,
+} from "./lib/canonical_provider_service.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "../..");
@@ -34,12 +38,7 @@ const GATEWAY_BASE_URL = (
 const API_BASE = `${GATEWAY_BASE_URL}/api`;
 const RPC_URL = process.env.RPC_URL || "http://127.0.0.1:8545";
 const CHAIN_ID = Number.parseInt(process.env.CHAIN_ID || "31337", 10);
-const MOCK_PORT = Number.parseInt(
-  process.env.WITHDRAWAL_ONE_TICKET_MOCK_PORT || "19992",
-  10
-);
-const SERVICE_PRICE_USDC =
-  process.env.WITHDRAWAL_ONE_TICKET_SERVICE_PRICE_USDC || "10.000000";
+const CANONICAL_SERVICE_ID = configuredCanonicalServiceId();
 const CONSUMER_DEPOSIT_USDC =
   process.env.WITHDRAWAL_ONE_TICKET_CONSUMER_DEPOSIT_USDC || "25.000000";
 const CONSUMER_WITHDRAW_USDC =
@@ -98,7 +97,6 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const passed = [];
 const failed = [];
 const scenarios = [];
-let mockServer = null;
 
 function log(message) {
   console.log(`[withdrawal-one-ticket] ${message}`);
@@ -417,147 +415,6 @@ async function readConsumerBalance(auth) {
   return (await api("/v1/balance", auth)).payload.balance || {};
 }
 
-async function startMockUpstream() {
-  const healthUrl = `http://127.0.0.1:${MOCK_PORT}/health`;
-  if (
-    await fetch(healthUrl)
-      .then((res) => res.ok)
-      .catch(() => false)
-  ) {
-    return { url: `http://127.0.0.1:${MOCK_PORT}`, reused: true };
-  }
-  mockServer = http.createServer((req, res) => {
-    if (req.url === "/health" && req.method === "GET") {
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ status: "healthy", runId: RUN_ID }));
-      return;
-    }
-    let raw = "";
-    req.on("data", (chunk) => {
-      raw += chunk;
-    });
-    req.on("end", () => {
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(
-        JSON.stringify({
-          status: "ok",
-          runId: RUN_ID,
-          echo: raw ? JSON.parse(raw) : {},
-        })
-      );
-    });
-  });
-  await new Promise((resolve) =>
-    mockServer.listen(MOCK_PORT, "127.0.0.1", resolve)
-  );
-  return { url: `http://127.0.0.1:${MOCK_PORT}`, reused: false };
-}
-
-function serviceId() {
-  return `wot_provider_${RUN_ID.replace(/[^a-zA-Z0-9_]/g, "_")}`;
-}
-
-async function registerProviderService({ token, address, mockUrl }) {
-  const id = serviceId();
-  const payload = {
-    serviceName: `Withdrawal One Ticket Provider ${RUN_ID}`,
-    agentToolName: id,
-    role: "Provider",
-    pricing: { currency: "USDC", amount: SERVICE_PRICE_USDC },
-    summary:
-      "Provider service used to generate one-ticket withdrawal evidence receivable.",
-    tags: ["withdrawal-one-ticket", "verification"],
-    providerProfile: { displayName: "Withdrawal One Ticket Provider" },
-    payoutAccount: {
-      payoutAddress: address,
-      chainId: CHAIN_ID,
-      settlementCurrency: "USDC",
-      status: "active",
-    },
-    governance: { termsAccepted: true, riskAcknowledged: true, note: RUN_ID },
-    healthCheck: {
-      path: "/health",
-      method: "GET",
-      intervalSec: 15,
-      timeoutMs: 5000,
-      successCodes: [200],
-      healthyThreshold: 1,
-      unhealthyThreshold: 1,
-    },
-    constraints: {
-      timeoutMs: 15000,
-      maxResponseBytes: 500000,
-      maxRequestBytes: 100000,
-      maxQps: 50,
-      maxConcurrency: 4,
-    },
-    forwarding: {
-      requestIdHeader: "X-Synapse-Request-Id",
-      passThroughHeaders: [],
-      injectHeaders: {},
-      retryPolicy: {
-        maxAttempts: 1,
-        backoffMs: 200,
-        retryOnStatus: [429, 500, 502, 503, 504],
-      },
-    },
-    metering: {
-      billingUnit: "per_call",
-      billOnError: false,
-      billableStatusClasses: [2],
-      requestIdRequired: true,
-      responseSizeMetering: true,
-    },
-    invoke: {
-      method: "POST",
-      targets: [{ url: mockUrl, weight: 100, region: "local" }],
-      timeoutMs: 15000,
-      request: {
-        contentType: "application/json",
-        schema: {
-          type: "object",
-          properties: { query: { type: "string" } },
-          required: ["query"],
-        },
-      },
-      response: {
-        schema: { type: "object", properties: { status: { type: "string" } } },
-      },
-      headersTemplate: {},
-      examples: [{ query: "one ticket evidence" }],
-    },
-    isActive: true,
-    status: "active",
-  };
-  const response = (
-    await api("/v1/services", { method: "POST", token, address, body: payload })
-  ).payload;
-  const service = response.service || response;
-  return {
-    id: service.serviceId || response.serviceId || id,
-    priceUsdc: SERVICE_PRICE_USDC,
-    mockUrl,
-  };
-}
-
-async function waitForServiceDiscoverable(id) {
-  for (let i = 0; i < 30; i += 1) {
-    const payload = (
-      await api(`/v1/services/discover?q=${encodeURIComponent(id)}`)
-    ).payload;
-    const services = Array.isArray(payload.services) ? payload.services : [];
-    const found = services.find((service) =>
-      [service.serviceId, service.service_id, service.agentToolName].includes(
-        id
-      )
-    );
-    if (found && found.isActive !== false && found.runtimeAvailable !== false)
-      return found;
-    await sleep(2500);
-  }
-  fail(`service was not discoverable/callable after health probes: ${id}`);
-}
-
 async function issueAgentCredential({ token, address }) {
   const payload = (
     await api("/v1/credentials/agent/issue", {
@@ -581,8 +438,8 @@ async function issueAgentCredential({ token, address }) {
   return { id: credential.id, token: credentialToken };
 }
 
-async function invokeService({ credentialToken, service }) {
-  const requestId = `wot-invoke-${RUN_ID}`;
+async function invokeService({ credentialToken, service, sequence = 1 }) {
+  const requestId = `wot-invoke-${RUN_ID}-${sequence}`;
   let lastFailure = "";
   for (let attempt = 1; attempt <= 12; attempt += 1) {
     const result = await api("/v1/agent/invoke", {
@@ -596,7 +453,7 @@ async function invokeService({ credentialToken, service }) {
         serviceId: service.id,
         idempotencyKey: requestId,
         costUsdc: service.priceUsdc,
-        payload: { body: { query: RUN_ID } },
+        payload: { body: service.invokePayload || { prompt: RUN_ID } },
         responseMode: "sync",
       },
       expectOk: false,
@@ -688,20 +545,59 @@ async function readProviderCapability(auth) {
   return (await api("/v1/providers/withdrawals/capability", auth)).payload;
 }
 
+function decimalToAtomic(value, decimals = 6) {
+  const normalized = String(value ?? "0").trim();
+  if (!/^\d+(\.\d+)?$/.test(normalized)) return 0n;
+  const [whole, fraction = ""] = normalized.split(".");
+  return (
+    BigInt(whole || "0") * 10n ** BigInt(decimals) +
+    BigInt(fraction.padEnd(decimals, "0").slice(0, decimals))
+  );
+}
+
 async function waitForProviderReceivableAtLeast(auth, expectedUsdc) {
-  const expected = Number(expectedUsdc);
-  let last = 0;
+  const expected = decimalToAtomic(expectedUsdc);
+  let last = "0";
   for (let i = 0; i < 40; i += 1) {
-    const payload = (await api("/v1/balance", auth)).payload;
-    last = Number(
-      payload.balance?.providerReceivableBalance ??
-        payload.balance?.providerReceivable ??
-        0
-    );
-    if (last >= expected - 0.000001) return payload;
+    const { payload, receivable } = await readProviderReceivable(auth);
+    last = receivable;
+    if (decimalToAtomic(last) >= expected) return payload;
     await sleep(1000);
   }
   fail(`provider receivable did not reach ${expectedUsdc}; last=${last}`);
+}
+
+async function readProviderReceivable(auth) {
+  const payload = (await api("/v1/balance", auth)).payload;
+  const receivable = String(
+    payload.balance?.providerReceivableBalance ??
+      payload.balance?.providerReceivable ??
+      0
+  );
+  return { payload, receivable };
+}
+
+async function generateProviderReceivable({
+  credentialToken,
+  providerAuth,
+  service,
+  targetUsdc,
+}) {
+  const targetAtomic = decimalToAtomic(targetUsdc);
+  const receipts = [];
+  for (let index = 1; index <= 40; index += 1) {
+    const receipt = await invokeService({
+      credentialToken,
+      service,
+      sequence: index,
+    });
+    receipts.push(receipt);
+    const { receivable } = await readProviderReceivable(providerAuth);
+    log(`provider receivable after invoke ${index}: ${receivable} USDC`);
+    if (decimalToAtomic(receivable) >= targetAtomic) return receipts;
+  }
+  await waitForProviderReceivableAtLeast(providerAuth, targetUsdc);
+  return receipts;
 }
 
 async function readConsumerWithdrawal(auth, id) {
@@ -1289,13 +1185,13 @@ function writeMarkdown(report) {
   );
 }
 
-async function writeManifests(chain, mock) {
+async function writeManifests(chain, service) {
   writeJson(path.join(OUT_DIR, "environment-manifest.json"), {
     environment: ENVIRONMENT,
     runId: RUN_ID,
     gatewayBaseUrl: GATEWAY_BASE_URL,
     rpcUrl: RPC_URL,
-    mockProvider: mock,
+    canonicalProviderService: service,
     localOnly: true,
     generatedAt: new Date().toISOString(),
   });
@@ -1310,30 +1206,29 @@ async function writeManifests(chain, mock) {
 }
 
 async function main() {
-  if (process.argv.includes("--mock-upstream")) {
-    const server = http.createServer((req, res) => {
-      if (req.url === "/health" && req.method === "GET") {
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ status: "healthy", runId: RUN_ID }));
-        return;
-      }
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ status: "ok", runId: RUN_ID }));
-    });
-    server.listen(MOCK_PORT, "127.0.0.1");
-    return;
-  }
-
   assertLocalOnly();
   fs.mkdirSync(OUT_DIR, { recursive: true });
   const health = await fetch(`${GATEWAY_BASE_URL}/health`).catch(() => null);
   if (!health?.ok) fail(`gateway unavailable at ${GATEWAY_BASE_URL}/health`);
   const chain = await getChainContext();
-  const mock = await startMockUpstream();
-  await writeManifests(chain, mock);
 
   const consumerAuth = await authenticate(CONSUMER_KEY, "consumer");
   const providerAuth = await authenticate(PROVIDER_KEY, "provider");
+  const service = await discoverCanonicalProviderService({
+    api,
+    serviceId: CANONICAL_SERVICE_ID,
+    fail,
+    log,
+    sleep,
+  });
+  await assertProviderOwnsCanonicalService({
+    api,
+    auth: providerAuth,
+    serviceId: service.id,
+    fail,
+    log,
+  });
+  await writeManifests(chain, service);
 
   const deposit = await fundAndDeposit({
     consumerAddress: consumerAuth.address,
@@ -1350,14 +1245,14 @@ async function main() {
   });
   await waitForConsumerBalanceAtLeast(consumerAuth, "20.000000");
 
-  const service = await registerProviderService({
-    ...providerAuth,
-    mockUrl: mock.url,
-  });
-  await waitForServiceDiscoverable(service.id);
   const credential = await issueAgentCredential(consumerAuth);
-  await invokeService({ credentialToken: credential.token, service });
-  await waitForProviderReceivableAtLeast(providerAuth, "5.000000");
+  await generateProviderReceivable({
+    credentialToken: credential.token,
+    providerAuth,
+    service,
+    targetUsdc: PROVIDER_WITHDRAW_USDC,
+  });
+  await waitForProviderReceivableAtLeast(providerAuth, PROVIDER_WITHDRAW_USDC);
 
   await runClaimScenario(
     "consumer-normal-claim",
@@ -1471,30 +1366,26 @@ async function main() {
   }
 }
 
-main()
-  .catch((error) => {
-    const detail = error.stack || error.message || String(error);
-    failed.push({ name: "fatal", detail });
-    fs.mkdirSync(OUT_DIR, { recursive: true });
-    const report = {
-      scriptVersion: SCRIPT_VERSION,
-      runId: RUN_ID,
-      generatedAt: new Date().toISOString(),
-      status: "failed",
-      failed,
-      scenarioResults: scenarios.map((scenario) => ({
-        name: scenario.name,
-        status: scenario.status,
-        pass: scenario.pass,
-      })),
-      negativeScenarios: {},
-      comparisons: collectComparisons(),
-    };
-    report.evidenceDigest = digestFor(report);
-    writeJson(path.join(OUT_DIR, "report.json"), report);
-    console.error(`[withdrawal-one-ticket] fatal: ${detail}`);
-    process.exitCode = 1;
-  })
-  .finally(() => {
-    if (mockServer) mockServer.close();
-  });
+main().catch((error) => {
+  const detail = error.stack || error.message || String(error);
+  failed.push({ name: "fatal", detail });
+  fs.mkdirSync(OUT_DIR, { recursive: true });
+  const report = {
+    scriptVersion: SCRIPT_VERSION,
+    runId: RUN_ID,
+    generatedAt: new Date().toISOString(),
+    status: "failed",
+    failed,
+    scenarioResults: scenarios.map((scenario) => ({
+      name: scenario.name,
+      status: scenario.status,
+      pass: scenario.pass,
+    })),
+    negativeScenarios: {},
+    comparisons: collectComparisons(),
+  };
+  report.evidenceDigest = digestFor(report);
+  writeJson(path.join(OUT_DIR, "report.json"), report);
+  console.error(`[withdrawal-one-ticket] fatal: ${detail}`);
+  process.exitCode = 1;
+});
