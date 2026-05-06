@@ -44,6 +44,7 @@ import { useProviderWithdrawReviews } from "@/features/withdrawal-reviews/use-pr
 import { useAdminStepUp } from "@/lib/use-admin-step-up";
 import { useAdminSession } from "@/lib/use-admin-session";
 import {
+  canSubmitWithdrawReviewDecision,
   getWithdrawReviewActionButtonLabel,
   getWithdrawReviewActionNotice,
 } from "@/features/withdrawal-reviews/review-action-feedback";
@@ -187,6 +188,11 @@ export default function WithdrawalReviewsPage() {
     actionPhase,
     pendingDecision
   );
+  const canSubmitActiveDecision = canSubmitWithdrawReviewDecision({
+    canDecide,
+    isPending,
+    status: activeReview?.status,
+  });
 
   function openReviewDetail(withdrawalId: string) {
     setActiveReviewId(withdrawalId);
@@ -552,7 +558,7 @@ export default function WithdrawalReviewsPage() {
                 borderRadius="18px"
                 h="52px"
                 onClick={() => handleDecision("APPROVE")}
-                disabled={!canDecide || isPending || !activeReview}
+                disabled={!canSubmitActiveDecision}
                 loading={
                   isPending &&
                   pendingDecision === "APPROVE" &&
@@ -572,7 +578,7 @@ export default function WithdrawalReviewsPage() {
                 borderRadius="18px"
                 h="52px"
                 onClick={() => handleDecision("REJECT")}
-                disabled={!canDecide || isPending || !activeReview}
+                disabled={!canSubmitActiveDecision}
                 loading={
                   isPending &&
                   pendingDecision === "REJECT" &&

@@ -290,7 +290,7 @@ class GatewayStateRefundMixin:
                     id=str(row_id),
                     ownerAddress=str(owner),
                     txHash=tx_hash,
-                    status=str(metadata.flow_status or status or "pending"),
+                    status=str(status or metadata.flow_status or "pending"),
                     requestId=str(request_id or metadata.request_id or ""),
                     consumerAddress=str(metadata.consumer_address or owner or ""),
                     amountUsdc=self._q6(amount_usdc),
