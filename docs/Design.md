@@ -15,9 +15,14 @@ Mirrored brand/favicon assets may exist for framework metadata or export compati
 ```text
 services/user-front/public/brand/synapse-network-icon.svg
 services/user-front/public/brand/synapse-network-logo.svg
+services/user-front/public/icon.png
+services/user-front/public/apple-touch-icon.png
+services/user-front/src/app/favicon.ico
 ```
 
 Do not introduce alternate About-only logos or generated logo marks. If the logo needs to change, update the canonical logo asset first and let every page inherit that one source of truth.
+
+Keep PNG/ICO fallbacks in sync with the canonical logo. Browser extensions and wallets do not always fetch SVG favicons reliably, so user-front must expose `/favicon.ico`, `/icon.png`, and `/apple-touch-icon.png` for wallet prompts and browser chrome.
 
 ## About Page Visual Reference
 

@@ -311,7 +311,7 @@ def test_register_deposit_intent_rejects_dust_amount_without_persisting() -> Non
     with pytest.raises(HTTPException) as exc_info:
         asyncio.run(
             service.register_deposit_intent(
-                {"txHash": "0x" + "9" * 64, "amountUsdc": "9.99"},
+                {"txHash": "0x" + "9" * 64, "amountUsdc": "4.99"},
                 "0xabc",
                 "deposit-intent-key-dust",
             )

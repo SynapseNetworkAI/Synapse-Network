@@ -35,6 +35,9 @@ const shared: Pick<
     notificationsLoading: "正在加载通知...",
     notificationsEmpty: "暂无通知。",
     notificationLoadFailed: "通知加载失败。",
+    withdrawalNotificationTitle: "提现安全审核",
+    withdrawalNotificationBody:
+      "提现已进入安全审核。审核完成后，我们会更新状态。",
     markAllRead: "全部已读",
     openNotification: "打开",
     archiveNotification: "归档通知",
