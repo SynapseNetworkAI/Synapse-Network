@@ -170,6 +170,8 @@ class ProviderWithdrawReviewService:
         item = self._repository.get_review_item(withdrawal_id)
         if item is None:
             raise ResourceNotFoundError(ERR_REVIEW_NOT_FOUND)
+        if self._has_successful_decision(withdrawal_id):
+            raise BadRequestError("当前提现申请已提交处理，请刷新页面查看最新状态。")
         if item.status != "PENDING_MANUAL_REVIEW":
             message = f"Withdrawal status={item.status} is not awaiting manual review"
             raise BadRequestError(message)
@@ -222,6 +224,14 @@ class ProviderWithdrawReviewService:
             "requestedBy": result.get("requestedBy"),
             "ticket": result.get("ticket") or {},
         }
+
+    def _has_successful_decision(self, withdrawal_id: str) -> bool:
+        actions = self._store.audit.list_actions(
+            action_type="withdrawal_review.decide",
+            result_status=AuditResultStatus.SUCCESS.value,
+            limit=200,
+        )
+        return any(action.resource_id == withdrawal_id for action in actions)
 
     def _append_audit(
         self,
@@ -407,34 +417,68 @@ class ProviderWithdrawReviewService:
             return None
 
         review_item = self._repository.get_review_item(withdrawal_id)
+        if review_item:
+            return self._build_history_item_from_review(withdrawal_id, review_item, audit)
+        return self._build_history_item_from_audit(withdrawal_id, audit)
+
+    def _build_history_item_from_review(
+        self,
+        withdrawal_id: str,
+        review_item,
+        audit: AdminActionAudit,
+    ) -> dict:
         return {
             "withdrawalId": withdrawal_id,
-            "withdrawalKind": (
-                review_item.withdrawal_kind
-                if review_item
-                else str(audit.detail.get("withdrawalKind") or audit.before.get("withdrawalKind") or "provider_withdrawal")
-            ),
-            "reviewType": (
-                review_item.review_type
-                if review_item
-                else str(audit.before.get("reviewType") or "provider_withdraw_review")
-            ),
-            "ownerAddress": review_item.owner_address if review_item else audit.before.get("ownerAddress"),
-            "subjectAddress": review_item.subject_address if review_item else audit.before.get("subjectAddress"),
+            "withdrawalKind": review_item.withdrawal_kind,
+            "reviewType": review_item.review_type,
+            "ownerAddress": review_item.owner_address,
+            "subjectAddress": review_item.subject_address,
             "amountUsdc": self._resolve_amount_usdc(review_item, audit.before),
-            "requestId": review_item.request_id if review_item else None,
-            "txHash": review_item.tx_hash if review_item else None,
-            "riskLevel": review_item.risk_level if review_item else None,
-            "riskReasonCode": review_item.risk_reason_code if review_item else None,
-            "evidenceSummary": review_item.evidence_summary if review_item else None,
+            "requestId": review_item.request_id,
+            "txHash": review_item.tx_hash,
+            "riskLevel": review_item.risk_level,
+            "riskReasonCode": review_item.risk_reason_code,
+            "evidenceSummary": review_item.evidence_summary,
             "reviewDecision": str(audit.detail.get("decision") or "UNKNOWN").strip().upper(),
             "currentStatus": self._resolve_history_status(review_item, audit),
             "reviewerEmail": audit.operator_email,
             "reviewerRole": audit.operator_role,
             "reviewerNote": str(audit.detail.get("reviewerNote") or "").strip() or None,
-            "message": review_item.message if review_item else None,
-            "createdAt": review_item.created_at if review_item else None,
-            "updatedAt": review_item.updated_at if review_item else None,
+            "message": review_item.message,
+            "createdAt": review_item.created_at,
+            "updatedAt": review_item.updated_at,
+            "reviewedAt": self._serialize_timestamp(audit.created_at),
+        }
+
+    def _build_history_item_from_audit(
+        self,
+        withdrawal_id: str,
+        audit: AdminActionAudit,
+    ) -> dict:
+        return {
+            "withdrawalId": withdrawal_id,
+            "withdrawalKind": str(
+                audit.detail.get("withdrawalKind")
+                or audit.before.get("withdrawalKind")
+                or "provider_withdrawal"
+            ),
+            "reviewType": str(audit.before.get("reviewType") or "provider_withdraw_review"),
+            "ownerAddress": audit.before.get("ownerAddress"),
+            "subjectAddress": audit.before.get("subjectAddress"),
+            "amountUsdc": self._resolve_amount_usdc(None, audit.before),
+            "requestId": None,
+            "txHash": None,
+            "riskLevel": None,
+            "riskReasonCode": None,
+            "evidenceSummary": None,
+            "reviewDecision": str(audit.detail.get("decision") or "UNKNOWN").strip().upper(),
+            "currentStatus": self._resolve_history_status(None, audit),
+            "reviewerEmail": audit.operator_email,
+            "reviewerRole": audit.operator_role,
+            "reviewerNote": str(audit.detail.get("reviewerNote") or "").strip() or None,
+            "message": None,
+            "createdAt": None,
+            "updatedAt": None,
             "reviewedAt": self._serialize_timestamp(audit.created_at),
         }
 
