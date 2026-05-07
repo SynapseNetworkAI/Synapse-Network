@@ -155,7 +155,7 @@ describe("submitProviderWithdrawReviewDecision", () => {
     expect(setItems).toHaveBeenCalledOnce();
     expect(currentItems[0]?.status).toBe("REQUESTED");
     expect(setMessage).toHaveBeenCalledWith(
-      "已提交放行处理，当前状态：REQUESTED。submitted"
+      "已提交放行处理，系统正在同步提现状态。"
     );
     expect(setError).toHaveBeenCalledWith(null);
     expect(setDecisionNote).toHaveBeenCalledWith("");
