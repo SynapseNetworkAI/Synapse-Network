@@ -137,7 +137,7 @@ function isClaimableConsumerWithdrawal(
   if (!withdrawal) {
     return false;
   }
-  if (withdrawal.txHash || !withdrawal.ticket) {
+  if (("txHash" in withdrawal && withdrawal.txHash) || !withdrawal.ticket) {
     return false;
   }
   if (withdrawal.claimable === true) {
