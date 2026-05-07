@@ -92,6 +92,7 @@ const SCENARIOS = [
   "consumer-replay-attack",
   "provider-onchain-revert-retry",
 ];
+const PROVIDER_WITHDRAW_SCENARIO_COUNT = 5n;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const passed = [];
@@ -424,8 +425,8 @@ async function issueAgentCredential({ token, address }) {
       body: {
         name: `wot-agent-${RUN_ID}`,
         rpm: 60,
-        maxCalls: 20,
-        creditLimit: "50",
+        maxCalls: 100,
+        creditLimit: "100",
         resetInterval: "daily",
       },
     })
@@ -585,7 +586,7 @@ async function generateProviderReceivable({
 }) {
   const targetAtomic = decimalToAtomic(targetUsdc);
   const receipts = [];
-  for (let index = 1; index <= 40; index += 1) {
+  for (let index = 1; index <= 80; index += 1) {
     const receipt = await invokeService({
       credentialToken,
       service,
@@ -1246,13 +1247,20 @@ async function main() {
   await waitForConsumerBalanceAtLeast(consumerAuth, "20.000000");
 
   const credential = await issueAgentCredential(consumerAuth);
+  const providerReceivableTargetUsdc = ethers.formatUnits(
+    decimalToAtomic(PROVIDER_WITHDRAW_USDC) * PROVIDER_WITHDRAW_SCENARIO_COUNT,
+    6
+  );
   await generateProviderReceivable({
     credentialToken: credential.token,
     providerAuth,
     service,
-    targetUsdc: PROVIDER_WITHDRAW_USDC,
+    targetUsdc: providerReceivableTargetUsdc,
   });
-  await waitForProviderReceivableAtLeast(providerAuth, PROVIDER_WITHDRAW_USDC);
+  await waitForProviderReceivableAtLeast(
+    providerAuth,
+    providerReceivableTargetUsdc
+  );
 
   await runClaimScenario(
     "consumer-normal-claim",

@@ -549,6 +549,7 @@ class TestConsumerWithdrawListings(unittest.TestCase):
         assert len(listings) == 1
         assert money(listings[0]["amountUsdc"]) == Decimal("20.000000")
         assert listings[0]["status"] == "REQUESTED"
+        assert listings[0]["claimable"] is True
 
     def test_list_excludes_other_owners(self):
         storage = FakeStorage()

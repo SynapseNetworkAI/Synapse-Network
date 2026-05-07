@@ -1003,6 +1003,8 @@ export type I18nMessages = {
     openTransactionExplorer: string;
     statusPending: string;
     statusPendingSyncing: string;
+    statusWithdrawReviewPending: string;
+    statusWithdrawReadyToClaim: string;
     statusWithdrawPending: string;
     statusSucceeded: string;
     statusFailed: string;
@@ -1029,6 +1031,8 @@ export type I18nMessages = {
     frozenBalanceLabel: string;
     pendingBalanceHint: string;
     pendingDepositBalanceHint: string;
+    claimableWithdrawalBalanceLabel: string;
+    claimableWithdrawalBalanceHint: string;
     pendingWithdrawalBalanceHint: string;
     frozenBalanceHint: string;
     purchaseCredits: string;
@@ -1104,6 +1108,11 @@ export type I18nMessages = {
     depositCloseDialog: string;
     consumerWithdrawTitle: string;
     consumerWithdrawDescription: string;
+    consumerWithdrawClaimTitle: string;
+    consumerWithdrawClaimDescription: string;
+    consumerWithdrawClaimReadyLabel: string;
+    consumerWithdrawClaimAmount: string;
+    consumerWithdrawClaimReviewPassedHint: string;
     consumerWithdrawAmountLabel: string;
     consumerWithdrawReasonLabel: string;
     consumerWithdrawReasonPlaceholder: string;
@@ -1140,7 +1149,9 @@ export type I18nMessages = {
     consumerWithdrawProgressCompleting: string;
     consumerWithdrawMax: string;
     consumerWithdrawAction: string;
+    consumerWithdrawClaimAction: string;
     consumerWithdrawPendingTooltip: string;
+    consumerWithdrawClaimReadyTooltip: string;
     consumerWithdrawMaturityWarning: string;
     consumerWithdrawMinimumRule: string;
     currentBillingCycle: string;

@@ -439,13 +439,19 @@ start_admin_front() {
 
   ensure_yarn_deps "${ROOT_DIR}/services/admin-front"
   echo "[local-apps] starting admin-front on http://127.0.0.1:3200"
-  (
-    cd "${ROOT_DIR}/services/admin-front"
-    ADMIN_API_PROXY_TARGET="${ADMIN_API_PROXY_TARGET:-http://localhost:8300}" \
-      nohup yarn dev > "${ADMIN_FRONT_LOG}" 2>&1 < /dev/null &
-    echo $!
-  ) > /tmp/synapse-admin-front.pid
-  rm -f /tmp/synapse-admin-front.pid
+  if command -v screen >/dev/null 2>&1; then
+    screen -S synapse-admin-front -X quit >/dev/null 2>&1 || true
+    screen -dmS synapse-admin-front bash -lc \
+      "cd '${ROOT_DIR}/services/admin-front' && exec env ADMIN_API_PROXY_TARGET='${ADMIN_API_PROXY_TARGET:-http://localhost:8300}' yarn dev > '${ADMIN_FRONT_LOG}' 2>&1"
+  else
+    (
+      cd "${ROOT_DIR}/services/admin-front"
+      ADMIN_API_PROXY_TARGET="${ADMIN_API_PROXY_TARGET:-http://localhost:8300}" \
+        nohup yarn dev > "${ADMIN_FRONT_LOG}" 2>&1 < /dev/null &
+      echo $!
+    ) > /tmp/synapse-admin-front.pid
+    rm -f /tmp/synapse-admin-front.pid
+  fi
   wait_for_http "admin-front" "http://127.0.0.1:3200/login" 120 || {
     echo "[local-apps] admin-front failed to become healthy. Recent log:"
     tail -n 80 "${ADMIN_FRONT_LOG}" 2>/dev/null || true

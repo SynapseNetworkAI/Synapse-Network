@@ -3,6 +3,8 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+PROVIDER_ROOT="${PROVIDER_ROOT:-${ROOT_DIR}/../Synapse-Network-Provider}"
+PROVIDER_ONBOARDING_ENV_FILE="${PROVIDER_ONBOARDING_ENV_FILE:-${PROVIDER_ROOT}/.env.onboarding.local}"
 TIMESTAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 MODE="${WITHDRAWAL_ONE_TICKET_ENV:-local}"
 OUT_DIR="${WITHDRAWAL_ONE_TICKET_OUT_DIR:-${ROOT_DIR}/docs/evidence/release/withdrawal-one-ticket/${TIMESTAMP}-${MODE}}"
@@ -82,6 +84,41 @@ wait_for_http() {
   return 1
 }
 
+hydrate_provider_owner_key() {
+  if [[ -n "${PROVIDER_KEY:-}" ]]; then
+    return 0
+  fi
+  if [[ -n "${SYNAPSE_PROVIDER_OWNER_PRIVATE_KEY:-}" ]]; then
+    export PROVIDER_KEY="${SYNAPSE_PROVIDER_OWNER_PRIVATE_KEY}"
+    echo "[withdrawal-one-ticket] using provider key from SYNAPSE_PROVIDER_OWNER_PRIVATE_KEY"
+    return 0
+  fi
+  if [[ -f "${PROVIDER_ONBOARDING_ENV_FILE}" ]]; then
+    local onboarding_key
+    onboarding_key="$(
+      python3 - <<'PY' "${PROVIDER_ONBOARDING_ENV_FILE}"
+import pathlib
+import sys
+
+env_path = pathlib.Path(sys.argv[1])
+for raw_line in env_path.read_text().splitlines():
+    line = raw_line.strip()
+    if not line or line.startswith("#"):
+        continue
+    if line.startswith("SYNAPSE_PROVIDER_OWNER_PRIVATE_KEY="):
+        value = line.split("=", 1)[1].strip().strip('"').strip("'")
+        print(value)
+        break
+PY
+    )"
+    if [[ -n "${onboarding_key:-}" ]]; then
+      export PROVIDER_KEY="${onboarding_key}"
+      export SYNAPSE_PROVIDER_OWNER_PRIVATE_KEY="${SYNAPSE_PROVIDER_OWNER_PRIVATE_KEY:-${onboarding_key}}"
+      echo "[withdrawal-one-ticket] using provider key from ${PROVIDER_ONBOARDING_ENV_FILE}"
+    fi
+  fi
+}
+
 if [[ "$MODE" != "local" ]]; then
   echo "FATAL: withdrawal one-ticket evidence runner currently supports local rehearsal only." >&2
   exit 1
@@ -91,6 +128,8 @@ if [[ ! -x "$PYTHON_BIN" ]]; then
   echo "FATAL: gateway virtualenv missing at ${PYTHON_BIN}" >&2
   exit 1
 fi
+
+hydrate_provider_owner_key
 
 compose_cmd="$(resolve_compose_cmd)"
 choose_local_postgres_port
@@ -121,9 +160,11 @@ CONSUMER_WITHDRAW_PROCESSOR_INTERVAL_SEC="${CONSUMER_WITHDRAW_PROCESSOR_INTERVAL
 CONSUMER_WITHDRAW_MAX_DAILY_COUNT="${CONSUMER_WITHDRAW_MAX_DAILY_COUNT:-100}" \
 CONSUMER_WITHDRAW_MIN_USDC="${CONSUMER_WITHDRAW_MIN_USDC:-10}" \
 CONSUMER_WITHDRAW_MATURITY_SECONDS="${CONSUMER_WITHDRAW_MATURITY_SECONDS:-0}" \
+CONSUMER_WITHDRAW_MATURITY_ENFORCEMENT_ENABLED="${CONSUMER_WITHDRAW_MATURITY_ENFORCEMENT_ENABLED:-false}" \
 CONSUMER_WITHDRAW_MANUAL_REVIEW_THRESHOLD_USDC="${CONSUMER_WITHDRAW_MANUAL_REVIEW_THRESHOLD_USDC:-1000000}" \
 PROVIDER_WITHDRAW_MIN_USDC="${PROVIDER_WITHDRAW_MIN_USDC:-10}" \
 PROVIDER_WITHDRAW_MATURITY_SECONDS="${PROVIDER_WITHDRAW_MATURITY_SECONDS:-0}" \
+PROVIDER_WITHDRAW_MATURITY_ENFORCEMENT_ENABLED="${PROVIDER_WITHDRAW_MATURITY_ENFORCEMENT_ENABLED:-false}" \
 WITHDRAWAL_AUTO_SINGLE_LIMIT_USDC="${WITHDRAWAL_AUTO_SINGLE_LIMIT_USDC:-1000000}" \
 bash "${ROOT_DIR}/scripts/local/setup_local_env.sh"
 

@@ -1102,6 +1102,41 @@ def test_gateway_state_repository_read_and_write() -> None:
     assert repo.read_processed_deposit_event_keys() == ["ek-1"]
 
 
+def test_gateway_state_repository_prefers_consumer_refund_db_status_over_stale_runtime_flow_status() -> None:
+    db = FakeDB()
+    db.readonly_plan.append(
+        {
+            "fetchall": [[(
+                "ref-completed-1",
+                "0xabc",
+                "0xtx-completed",
+                "COMPLETED",
+                "req-completed-1",
+                Decimal("0.5"),
+                "0x" + "1" * 64,
+                "0x" + "2" * 64,
+                "sig-r",
+                9,
+                999,
+                "2026-03-15 14:24:02",
+                "2026-03-15 14:24:03",
+                {
+                    "flowStatus": "REQUESTED",
+                    "consumerAddress": "0xabc",
+                    "idempotencyKey": "idem-2",
+                    "completeMeta": {"requestId": "req-complete-ref-1"},
+                },
+            )]]
+        }
+    )
+    repo = GatewayStateRepository(db, _q6)
+
+    refund_rows = repo.read_consumer_refund_rows()
+
+    assert len(refund_rows) == 1
+    assert refund_rows[0].status == "COMPLETED"
+
+
 def test_execution_repository_read_and_write() -> None:
     db = FakeDB()
     db.readonly_plan.append(

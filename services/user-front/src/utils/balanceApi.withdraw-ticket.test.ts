@@ -47,6 +47,7 @@ describe("consumer withdrawal ticket normalization", () => {
         consumerFrozenBalance: "3",
         consumerWithdrawMinUsdc: "10",
         consumerWithdrawMaturitySeconds: 604800,
+        consumerWithdrawMaturityEnforced: true,
         providerReceivable: "9",
         platformFeeAccrued: "1.25",
       });
@@ -171,6 +172,7 @@ describe("consumer withdrawal ticket normalization", () => {
                 id: "cw-1",
                 amountUsdc: "2",
                 status: "REQUESTED",
+                claimable: true,
                 ticket: {
                   ticketId: "abc",
                   ticketHash: "def",
@@ -196,6 +198,7 @@ describe("consumer withdrawal ticket normalization", () => {
         expect.stringContaining("/balance/consumer/withdrawals?limit=100"),
         expect.any(Object)
       );
+      expect(rows[0].claimable).toBe(true);
       expect(rows[0].ticket?.ticketId).toBe("0xabc");
       expect(rows[0].ticket?.ticketHash).toBe("0xdef");
     } finally {
