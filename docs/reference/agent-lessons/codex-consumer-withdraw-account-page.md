@@ -18,3 +18,13 @@ Status: Active
 - Fix: Add a lessons file for the new branch slug and keep the existing lesson record reviewable.
 - Rule: Whenever a PR is moved to a new branch, create or copy the branch-specific `docs/reference/agent-lessons/<branch-slug>.md` before pushing.
 - Upgrade: agents-memory
+
+### Lesson: User-facing status copy changes need matching DOM expectations
+
+- Domain: test
+- Severity: warning
+- Trigger: PR CI failed because an admin-front test still expected a reviewer message containing raw `REQUESTED` status after the UI copy was changed to a business-safe syncing message.
+- Root cause: The implementation removed raw status copy from the UI but missed the focused hook test that asserted the old exact string.
+- Fix: Update the test expectation to the same user-facing message produced by `review-action-feedback`.
+- Rule: When changing finance/admin status copy, search focused DOM and hook tests for the old exact string before pushing.
+- Upgrade: agents-memory
