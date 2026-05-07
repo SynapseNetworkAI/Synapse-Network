@@ -204,6 +204,26 @@ EOF
   exit 1
 fi
 
+if git -C "$ROOT_DIR" grep -n -E "\\.withdrawPlatformFees\\(|encodeFunctionData\\([^)]*withdrawPlatformFees" -- \
+  services/user-front/src services/admin-front/src \
+  ':!services/user-front/src/**/*.test.ts' \
+  ':!services/user-front/src/**/*.test.tsx' \
+  ':!services/admin-front/src/**/*.test.ts' \
+  ':!services/admin-front/src/**/*.test.tsx' \
+  ':!services/user-front/src/**/*ABI.json' \
+  >/tmp/synapse-front-platform-fee-direct-exec.txt; then
+  cat >&2 <<'EOF'
+FATAL ARCH-FRONT-TREASURY-001: Forbidden frontend platform fee withdrawal execution path found.
+Why dangerous: platform fee withdrawal must stay server-owned and Safe or owner controlled;
+frontend surfaces may display evidence or create drafts, but they must not broadcast
+withdrawPlatformFees directly.
+Agent fix: move the action behind a backend-owned Safe draft or controlled local E2E helper;
+do not execute treasury withdrawal from user-front or admin-front runtime code.
+EOF
+  cat >&2 /tmp/synapse-front-platform-fee-direct-exec.txt
+  exit 1
+fi
+
 if git -C "$ROOT_DIR" grep -n -i -E "synapse_runtime_state.*LIKE|state_key[[:space:]]+LIKE" -- \
   services/gateway/src services/gateway-admin/src \
   >/tmp/synapse-runtime-state-like-warning.txt; then

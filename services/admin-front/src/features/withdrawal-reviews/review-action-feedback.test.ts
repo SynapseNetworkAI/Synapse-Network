@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { AdminApiError } from "@/services/admin-api";
 
 import {
+  canSubmitWithdrawReviewDecision,
   getWithdrawReviewActionButtonLabel,
   getWithdrawReviewActionErrorMessage,
   getWithdrawReviewActionNotice,
@@ -112,5 +113,29 @@ describe("review-action-feedback", () => {
         message: "系统已记录本次处理备注。",
       })
     ).toBe("已提交放行处理，当前状态：APPROVED_AUTO。系统已记录本次处理备注。");
+  });
+
+  it("only allows decisions while a review is still pending manual review", () => {
+    expect(
+      canSubmitWithdrawReviewDecision({
+        canDecide: true,
+        isPending: false,
+        status: "PENDING_MANUAL_REVIEW",
+      })
+    ).toBe(true);
+    expect(
+      canSubmitWithdrawReviewDecision({
+        canDecide: true,
+        isPending: false,
+        status: "REQUESTED",
+      })
+    ).toBe(false);
+    expect(
+      canSubmitWithdrawReviewDecision({
+        canDecide: true,
+        isPending: true,
+        status: "PENDING_MANUAL_REVIEW",
+      })
+    ).toBe(false);
   });
 });

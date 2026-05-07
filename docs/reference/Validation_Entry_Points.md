@@ -64,7 +64,9 @@ From repository root:
 44. `npm run ci:backup-restore-evidence`
 45. `npm run deploy:contracts:arbitrum-sepolia:dry-run`
 46. `npm run ci:contract-deployment-evidence`
-47. `npm run ci:migration-seed-guard`
+47. `npm run e2e:consumer-withdraw-claim-fullchain:local`
+48. `npm run ci:consumer-withdraw-claim-fullchain-local-evidence`
+49. `npm run ci:migration-seed-guard`
 
 Use these wrappers when final integration confidence is required.
 

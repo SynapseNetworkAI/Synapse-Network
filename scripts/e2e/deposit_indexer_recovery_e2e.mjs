@@ -54,7 +54,7 @@ const config = {
     "postgresql://synapse_gateway_app:local-dev-gateway-app-password@127.0.0.1:15432/synapse_gateway",
   chainId: Number.parseInt(process.env.CHAIN_ID || "31337", 10),
   depositUsdc: process.env.DEPOSIT_INDEXER_RECOVERY_USDC || "100.000000",
-  invalidUsdc: process.env.DEPOSIT_INDEXER_INVALID_EVENT_USDC || "7.000000",
+  invalidUsdc: process.env.DEPOSIT_INDEXER_INVALID_EVENT_USDC || "11.000000",
   headless: process.env.DEPOSIT_INDEXER_RECOVERY_HEADLESS !== "0",
   deployerKey:
     process.env.DEPLOYER_KEY ||
