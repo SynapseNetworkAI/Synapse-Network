@@ -189,10 +189,9 @@
     "audience": "consumer",
     "maturity": "production",
     "expectedTexts": ["Credits"],
-    "purpose": "Consumer balance, deposit, spend cap, voucher redemption, and consumer withdrawal.",
+    "purpose": "Consumer credits balance, deposit, spend cap, and voucher redemption.",
     "primaryInteractions": [
       "Open deposit modal",
-      "Withdraw balance",
       "Manage spend cap",
       "Redeem voucher"
     ],
@@ -204,6 +203,28 @@
     ],
     "visualVerification": "screenshot-required",
     "screenshotName": "dashboard-credits.png"
+  },
+  {
+    "id": "dashboard-account-withdraw",
+    "href": "/dashboard/account/withdraw",
+    "kind": "page",
+    "audience": "consumer",
+    "maturity": "production",
+    "expectedTexts": ["Withdraw"],
+    "purpose": "Consumer withdrawal workspace for matured credits, active withdrawal status, wallet continuation, and withdrawal history.",
+    "primaryInteractions": [
+      "Submit consumer withdrawal",
+      "Continue approved withdrawal",
+      "Review withdrawal history"
+    ],
+    "dataVerification": "authenticated-gateway-and-chain",
+    "dataSources": [
+      "GET /api/v1/balance",
+      "GET /api/v1/balance/consumer/withdrawals",
+      "POST /api/v1/balance/consumer/withdrawals"
+    ],
+    "visualVerification": "screenshot-required",
+    "screenshotName": "dashboard-account-withdraw.png"
   },
   {
     "id": "dashboard-buy",

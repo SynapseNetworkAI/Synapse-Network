@@ -1,6 +1,6 @@
 # Agent Lessons: codex-withdraw-copy-e2e-verification
 
-Task: Add withdrawal user-facing error copy DOM and browser screenshot verification.
+Task: Add withdrawal user-facing error copy verification and split Consumer withdraw into Account.
 Status: Active
 
 ## Push Review

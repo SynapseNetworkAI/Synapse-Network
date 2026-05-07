@@ -264,7 +264,7 @@ describe("OwnerCreditsPage", () => {
     expect(screen.queryByText(/X may give out free credits/)).toBeNull();
   });
 
-  it("labels a pending withdrawal separately from a pending deposit", async () => {
+  it("keeps withdrawal processing out of the credits purchase page", async () => {
     ownerStatsState.value = {
       ownerBalance: "0",
       consumerPendingBalance: "185.99",
@@ -282,14 +282,56 @@ describe("OwnerCreditsPage", () => {
       createElement(LanguageProvider, null, createElement(OwnerCreditsPage))
     );
 
-    expect(
-      await screen.findByText("Withdrawal processing credits")
-    ).toBeTruthy();
-    expect(screen.getByText("$185.99")).toBeTruthy();
+    await screen.findByText("Spendable credits");
+    expect(screen.queryByText("Withdrawal processing credits")).toBeNull();
     expect(screen.queryByText("Pending deposit credits")).toBeNull();
     expect(
       screen.queryByText(/Gateway is indexing the on-chain deposit/i)
     ).toBeNull();
+    expect(
+      screen
+        .getByRole("link", {
+          name: "Need to withdraw? Go to Account Withdraw",
+        })
+        .getAttribute("href")
+    ).toBe("/dashboard/account/withdraw");
+  });
+
+  it("does not show the approved withdrawal continuation CTA on the credits page", async () => {
+    ownerStatsState.value = {
+      ownerBalance: "499",
+      consumerAvailableBalance: "499",
+      consumerWithdrawableBalance: "499",
+      consumerPendingBalance: "501",
+      consumerFrozenBalance: "0",
+      consumerWithdrawMinUsdc: "10.00",
+      consumerWithdrawMaturitySeconds: 604800,
+    };
+    listConsumerWithdrawalsMock.mockResolvedValue([
+      {
+        id: "cw-approved",
+        amountUsdc: "501.00",
+        status: "REQUESTED",
+        ticket: {
+          amount: "500500000000000000000",
+          fee: "500000000000000000",
+          deadline: 9999999999,
+          signature: "0xabc123",
+          chainId: 31337,
+          contractAddress: "0x0000000000000000000000000000000000000001",
+        },
+      },
+    ]);
+
+    render(
+      createElement(LanguageProvider, null, createElement(OwnerCreditsPage))
+    );
+
+    await screen.findByText("Spendable credits");
+    expect(
+      screen.queryByRole("button", { name: "Continue Withdrawal" })
+    ).toBeNull();
+    expect(screen.queryByText("Withdrawal processing credits")).toBeNull();
   });
 
   it("splits mixed pending balance between deposit sync and withdrawal processing", async () => {
@@ -312,8 +354,7 @@ describe("OwnerCreditsPage", () => {
 
     expect(await screen.findByText("Pending deposit credits")).toBeTruthy();
     expect(screen.getByText("$11.50")).toBeTruthy();
-    expect(screen.getByText("Withdrawal processing credits")).toBeTruthy();
-    expect(screen.getByText("$8.50")).toBeTruthy();
+    expect(screen.queryByText("Withdrawal processing credits")).toBeNull();
   });
 
   it("keeps manual review withdrawal funds in the frozen bucket", async () => {

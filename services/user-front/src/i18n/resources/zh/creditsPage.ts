@@ -145,11 +145,15 @@ const creditsPage: I18nMessages["creditsPage"] = {
   consumerWithdrawProgressCompleting: "已确认，正在同步提现状态...",
   consumerWithdrawMax: "最大",
   consumerWithdrawAction: "提现",
+  consumerWithdrawResumeAction: "继续提现",
   consumerWithdrawPendingTooltip:
     "有一笔 {{amount}} 的提现正在处理中。同一时间只允许一笔活跃提现。",
+  consumerWithdrawReadyTooltip:
+    "这笔 {{amount}} USDC 提现已审核通过。请继续在钱包中确认领取。",
   consumerWithdrawMaturityWarning:
     "近期充值可用于 API 消费，但需 T+7 后才可提现。",
   consumerWithdrawMinimumRule: "最低提现金额：{{amount}} USDC",
+  goToAccountWithdraw: "需要提现？前往 Account 提现",
   currentBillingCycle: "当前 Billing 周期",
   daysRemaining: "剩余天数",
   manageSpendCapTitle: "管理消费上限",
