@@ -23,6 +23,7 @@ const {
   toastErrorMock,
   completeV2RefundMock,
   failV2RefundMock,
+  writeContractAsyncMock,
 } = vi.hoisted(() => ({
   authorizeMock: vi.fn(async () => true),
   getOwnerSpendingLimitMock: vi.fn(),
@@ -35,6 +36,7 @@ const {
   toastErrorMock: vi.fn(),
   completeV2RefundMock: vi.fn(),
   failV2RefundMock: vi.fn(),
+  writeContractAsyncMock: vi.fn(),
 }));
 
 vi.mock("@rainbow-me/rainbowkit", () => ({
@@ -46,7 +48,7 @@ vi.mock("wagmi", () => ({
   useChainId: () => 11155111,
   useWriteContract: () => ({
     data: undefined,
-    writeContractAsync: vi.fn(),
+    writeContractAsync: writeContractAsyncMock,
   }),
   useWaitForTransactionReceipt: () => ({
     isSuccess: false,
@@ -151,7 +153,7 @@ function renderWithdrawModal(
     availableBalance?: number;
     withdrawableBalance?: number;
     minWithdrawAmount?: number;
-    resumeWithdrawal?: {
+    existingWithdrawal?: {
       id: string;
       amountUsdc: string;
       status: string;
@@ -171,7 +173,7 @@ function renderWithdrawModal(
           overrides.withdrawableBalance ?? overrides.availableBalance ?? 20,
         minWithdrawAmount: overrides.minWithdrawAmount ?? 10,
         userAddress: "0xabc",
-        resumeWithdrawal: overrides.resumeWithdrawal ?? null,
+        existingWithdrawal: overrides.existingWithdrawal ?? null,
         onClose,
         onSuccess,
       })
@@ -254,7 +256,7 @@ describe("OwnerCreditsPage — Withdraw", () => {
     expect(
       await screen.findByRole("button", { name: "Continue Withdrawal" })
     ).toBeTruthy();
-    expect(screen.getByDisplayValue("501.00")).toHaveProperty("disabled", true);
+    expect(screen.getByText("Claim amount: 501.00 USDC")).toBeTruthy();
   });
 
   it("disables withdrawal and explains maturity gap when withdrawable is below minimum", async () => {
@@ -387,7 +389,7 @@ describe("OwnerCreditsPage — Withdraw", () => {
     renderWithdrawModal({
       availableBalance: 499,
       withdrawableBalance: 499,
-      resumeWithdrawal: {
+      existingWithdrawal: {
         id: "wd-approved",
         amountUsdc: "501.00",
         status: "REQUESTED",
@@ -395,20 +397,20 @@ describe("OwnerCreditsPage — Withdraw", () => {
       },
     });
 
-    const amountInput = screen.getByRole("spinbutton") as HTMLInputElement;
-    expect(amountInput.value).toBe("501.00");
-    expect(amountInput.disabled).toBe(true);
+    expect(screen.getByText("Claim amount: 501.00 USDC")).toBeTruthy();
 
     await user.click(
       screen.getByRole("button", { name: "Continue Withdrawal" })
     );
 
     await waitFor(() => {
-      expect(requestConsumerWithdrawMock).toHaveBeenCalledWith("0xabc", {
-        amountUsdc: "501",
-        reason: undefined,
-      });
+      expect(writeContractAsyncMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          functionName: "withdraw",
+        })
+      );
     });
+    expect(requestConsumerWithdrawMock).not.toHaveBeenCalled();
   });
 
   it("calls handleRefresh after a successful withdrawal", async () => {

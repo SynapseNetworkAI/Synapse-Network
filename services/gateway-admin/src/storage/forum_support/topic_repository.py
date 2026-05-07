@@ -4,13 +4,13 @@ from collections.abc import Sequence
 from typing import Any
 from uuid import uuid4
 
+import psycopg
+from psycopg.rows import dict_row
+
 from src.domain import ForumTopicContext, ForumTopicEvent
 
 
 def _connect(dsn: str):
-    import psycopg
-    from psycopg.rows import dict_row
-
     return psycopg.connect(dsn, row_factory=dict_row, connect_timeout=5)
 
 
@@ -106,13 +106,14 @@ class PostgresForumTopicRepositoryMixin:
         where_sql = " AND ".join(clauses)
         offset = (page - 1) * page_size
         with _connect(self._dsn) as conn, conn.cursor() as cur:
-            cur.execute(f"SELECT COUNT(*) AS total FROM synapse_forum_topics topic WHERE {where_sql}", params)
+            count_sql = f"SELECT COUNT(*) AS total FROM synapse_forum_topics topic WHERE {where_sql}"  # noqa: S608 - where_sql is assembled from fixed clauses plus parameter placeholders.
+            cur.execute(count_sql, params)
             total = int(cur.fetchone()["total"] or 0)
             cur.execute(
                 f"""
                 {TOPIC_SELECT_SQL}
                 WHERE {where_sql}
-                ORDER BY topic.pinned DESC, topic.last_activity_at DESC
+                ORDER BY topic.created_at DESC, topic.topic_id ASC
                 LIMIT %s OFFSET %s
                 """,
                 [*params, page_size, offset],

@@ -9,6 +9,7 @@ LOG_DIR="${APP_DIR}/logs"
 RUN_DIR="${APP_DIR}/run"
 PID_FILE="${RUN_DIR}/gateway-admin.pid"
 LOG_FILE="${LOG_DIR}/gateway-admin.log"
+SCREEN_SESSION_NAME="synapse-gateway-admin"
 ENV_FILE_DEFAULT="${APP_DIR}/.env.local"
 STAGING_ENV_FILE_DEFAULT="${APP_DIR}/.env.staging"
 ENV_FILE_FALLBACK="${APP_DIR}/.env"
@@ -153,16 +154,33 @@ start_gateway_admin() {
     host="${ADMIN_GATEWAY_HOST:-$host}"
   fi
 
-  nohup "${uvicorn_bin}" "${APP_MODULE}" --host "${host}" --port "${port}" > "${LOG_FILE}" 2>&1 &
-  new_pid=$!
-  echo "${new_pid}" > "${PID_FILE}"
+  if command -v screen >/dev/null 2>&1; then
+    screen -S "${SCREEN_SESSION_NAME}" -X quit >/dev/null 2>&1 || true
+    screen -dmS "${SCREEN_SESSION_NAME}" bash -lc \
+      "cd '${APP_DIR}' && exec '${uvicorn_bin}' '${APP_MODULE}' --host '${host}' --port '${port}' > '${LOG_FILE}' 2>&1"
+    new_pid=""
+  else
+    nohup "${uvicorn_bin}" "${APP_MODULE}" --host "${host}" --port "${port}" > "${LOG_FILE}" 2>&1 &
+    new_pid=$!
+    echo "${new_pid}" > "${PID_FILE}"
+  fi
 
   sleep 2
 
-  if ! kill -0 "${new_pid}" >/dev/null 2>&1; then
-    echo "gateway-admin failed to start. Check ${LOG_FILE}"
-    rm -f "${PID_FILE}"
-    exit 1
+  if [[ -n "${new_pid}" ]]; then
+    if ! kill -0 "${new_pid}" >/dev/null 2>&1; then
+      echo "gateway-admin failed to start. Check ${LOG_FILE}"
+      rm -f "${PID_FILE}"
+      exit 1
+    fi
+  else
+    new_pid="$(find_pid_by_port "${port}")"
+    if [[ -z "${new_pid}" ]]; then
+      echo "gateway-admin failed to start. Check ${LOG_FILE}"
+      rm -f "${PID_FILE}"
+      exit 1
+    fi
+    echo "${new_pid}" > "${PID_FILE}"
   fi
 
   echo "gateway-admin started (${mode_label})"
@@ -192,5 +210,11 @@ stop_pid() {
   sleep 1
   if kill -0 "${pid}" >/dev/null 2>&1; then
     kill -9 "${pid}" >/dev/null 2>&1 || true
+  fi
+}
+
+stop_screen_session() {
+  if command -v screen >/dev/null 2>&1; then
+    screen -S "${SCREEN_SESSION_NAME}" -X quit >/dev/null 2>&1 || true
   fi
 }

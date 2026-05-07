@@ -13,9 +13,12 @@ const creditsPage: I18nMessages["creditsPage"] = {
   pendingWithdrawalBalanceLabel: "Withdrawal processing credits",
   frozenBalanceLabel: "Frozen / review credits",
   pendingBalanceHint:
-    "Gateway is indexing the on-chain deposit. If it stays pending, contact support with the txHash.",
+    "We are syncing the on-chain deposit. If it stays pending, contact support with the transaction hash.",
   pendingDepositBalanceHint:
-    "Gateway is indexing the on-chain deposit. If it stays pending, contact support with the txHash.",
+    "We are syncing the on-chain deposit. If it stays pending, contact support with the transaction hash.",
+  claimableWithdrawalBalanceLabel: "Claimable withdrawal credits",
+  claimableWithdrawalBalanceHint:
+    "Manual review passed. Open your wallet to complete the on-chain withdrawal.",
   pendingWithdrawalBalanceHint:
     "This withdrawal is locked and waiting for on-chain completion. It will be deducted from pending after completion.",
   frozenBalanceHint:
@@ -123,6 +126,13 @@ const creditsPage: I18nMessages["creditsPage"] = {
   consumerWithdrawTitle: "Withdraw Balance",
   consumerWithdrawDescription:
     "Withdraw matured credits back to your wallet. Withdrawable: {{amount}} USDC",
+  consumerWithdrawClaimTitle: "Claim Withdrawal",
+  consumerWithdrawClaimDescription:
+    "Your withdrawal was approved. Confirm in your wallet to claim {{amount}} USDC on-chain.",
+  consumerWithdrawClaimReadyLabel: "Ready to claim",
+  consumerWithdrawClaimAmount: "Claim amount: {{amount}} USDC",
+  consumerWithdrawClaimReviewPassedHint:
+    "Manual review already passed. Open your wallet to complete the withdrawal.",
   consumerWithdrawAmountLabel: "Amount (USDC)",
   consumerWithdrawReasonLabel: "Reason (optional)",
   consumerWithdrawReasonPlaceholder: "Why are you withdrawing?",
@@ -180,11 +190,11 @@ const creditsPage: I18nMessages["creditsPage"] = {
   consumerWithdrawProgressCompleting: "Confirmed. Syncing withdrawal status...",
   consumerWithdrawMax: "Max",
   consumerWithdrawAction: "Withdraw",
-  consumerWithdrawResumeAction: "Continue Withdrawal",
+  consumerWithdrawClaimAction: "Continue Withdrawal",
   consumerWithdrawPendingTooltip:
     "A withdrawal of {{amount}} is pending. Only one active withdrawal is allowed.",
-  consumerWithdrawReadyTooltip:
-    "Your {{amount}} USDC withdrawal was approved. Continue in your wallet to receive the funds.",
+  consumerWithdrawClaimReadyTooltip:
+    "A withdrawal of {{amount}} is approved and ready to claim in your wallet.",
   consumerWithdrawMaturityWarning:
     "Recent deposits are available for API usage, but require T+7 before withdrawal.",
   consumerWithdrawMinimumRule: "Minimum withdrawal amount: {{amount}} USDC",
