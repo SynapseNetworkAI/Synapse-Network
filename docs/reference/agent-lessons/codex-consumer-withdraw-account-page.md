@@ -28,3 +28,13 @@ Status: Active
 - Fix: Update the test expectation to the same user-facing message produced by `review-action-feedback`.
 - Rule: When changing finance/admin status copy, search focused DOM and hook tests for the old exact string before pushing.
 - Upgrade: agents-memory
+
+### Lesson: Forwarded input refs should use React Ref types through component boundaries
+
+- Domain: frontend
+- Severity: warning
+- Trigger: GitHub CI reached the user-front production build and failed on a `RefObject<HTMLInputElement | null>` passed through to a forwarded input component.
+- Root cause: The prop type was narrower than the `forwardRef` target expected by `XInput`, while local focused tests did not run Next production type checking.
+- Fix: Type the intermediary prop as `Ref<HTMLInputElement>` so it can safely carry the `useRef` value into the forwarded input.
+- Rule: For props that are only forwarded into a `forwardRef` component, use `Ref<T>` rather than hand-rolled nullable `RefObject<T | null>`.
+- Upgrade: agents-memory

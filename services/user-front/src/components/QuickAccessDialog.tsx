@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { Dispatch, KeyboardEvent, RefObject, SetStateAction } from "react";
+import type { Dispatch, KeyboardEvent, Ref, SetStateAction } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Search } from "lucide-react";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
@@ -23,7 +23,7 @@ type QuickAccessEntry = {
 type QuickAccessSurfaceProps = {
   activeIndex: number;
   filteredEntries: QuickAccessEntry[];
-  inputRef: RefObject<HTMLInputElement | null>;
+  inputRef: Ref<HTMLInputElement>;
   onActivateEntry: (entry: QuickAccessEntry) => void;
   onClose: () => void;
   onInputKeyDown: (event: KeyboardEvent<HTMLInputElement>) => void;

@@ -48,6 +48,7 @@ export type I18nMessages = {
     quickAccessAuditDescription: string;
     quickAccessDeveloperDescription: string;
     quickAccessAccountSettingsDescription: string;
+    quickAccessAccountWithdrawDescription: string;
     quickAccessProviderConsoleDescription: string;
     quickAccessProviderCredentialsDescription: string;
     quickAccessServicesDescription: string;
