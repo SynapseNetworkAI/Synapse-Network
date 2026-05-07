@@ -6,6 +6,7 @@ import auditPage from "@/i18n/resources/en/auditPage";
 import billingPage from "@/i18n/resources/en/billingPage";
 import blogPage from "@/i18n/resources/en/blogPage";
 import buyPage from "@/i18n/resources/en/buyPage";
+import consumerWithdrawPage from "@/i18n/resources/en/consumerWithdrawPage";
 import creditsPage from "@/i18n/resources/en/creditsPage";
 import developerPage from "@/i18n/resources/en/developerPage";
 import discoveryPage from "@/i18n/resources/en/discoveryPage";
@@ -42,6 +43,7 @@ const en: I18nMessages = {
   invocationsPage,
   billingPage,
   creditsPage,
+  consumerWithdrawPage,
   auditPage,
   developerPage,
   buyPage,

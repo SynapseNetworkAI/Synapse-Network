@@ -180,11 +180,15 @@ const creditsPage: I18nMessages["creditsPage"] = {
   consumerWithdrawProgressCompleting: "Confirmed. Syncing withdrawal status...",
   consumerWithdrawMax: "Max",
   consumerWithdrawAction: "Withdraw",
+  consumerWithdrawResumeAction: "Continue Withdrawal",
   consumerWithdrawPendingTooltip:
     "A withdrawal of {{amount}} is pending. Only one active withdrawal is allowed.",
+  consumerWithdrawReadyTooltip:
+    "Your {{amount}} USDC withdrawal was approved. Continue in your wallet to receive the funds.",
   consumerWithdrawMaturityWarning:
     "Recent deposits are available for API usage, but require T+7 before withdrawal.",
   consumerWithdrawMinimumRule: "Minimum withdrawal amount: {{amount}} USDC",
+  goToAccountWithdraw: "Need to withdraw? Go to Account Withdraw",
   currentBillingCycle: "Current Billing Cycle",
   daysRemaining: "Days Remaining",
   manageSpendCapTitle: "Manage Spend Cap",

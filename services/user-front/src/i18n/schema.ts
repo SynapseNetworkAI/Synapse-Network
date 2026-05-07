@@ -48,6 +48,7 @@ export type I18nMessages = {
     quickAccessAuditDescription: string;
     quickAccessDeveloperDescription: string;
     quickAccessAccountSettingsDescription: string;
+    quickAccessAccountWithdrawDescription: string;
     quickAccessProviderConsoleDescription: string;
     quickAccessProviderCredentialsDescription: string;
     quickAccessServicesDescription: string;
@@ -1140,9 +1141,12 @@ export type I18nMessages = {
     consumerWithdrawProgressCompleting: string;
     consumerWithdrawMax: string;
     consumerWithdrawAction: string;
+    consumerWithdrawResumeAction: string;
     consumerWithdrawPendingTooltip: string;
+    consumerWithdrawReadyTooltip: string;
     consumerWithdrawMaturityWarning: string;
     consumerWithdrawMinimumRule: string;
+    goToAccountWithdraw: string;
     currentBillingCycle: string;
     daysRemaining: string;
     manageSpendCapTitle: string;
@@ -1182,6 +1186,7 @@ export type I18nMessages = {
     supportDescription: string;
     supportAction: string;
   };
+  consumerWithdrawPage: Record<string, string>;
   auditPage: {
     title: string;
     description: string;

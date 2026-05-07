@@ -432,6 +432,13 @@ export default function DashboardSidebar() {
               {accountExpanded ? (
                 <div id="dashboard-account-subnav" className="pb-1">
                   <Link
+                    {...getRouteLinkProps("/dashboard/account/withdraw")}
+                    className={getSubLinkClasses("/dashboard/account/withdraw")}
+                  >
+                    <Wallet className="mr-3 h-4 w-4 text-white/46" />
+                    {t("sidebar.withdraw")}
+                  </Link>
+                  <Link
                     {...getRouteLinkProps("/dashboard/account/settings")}
                     className={getSubLinkClasses("/dashboard/account/settings")}
                   >
