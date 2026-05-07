@@ -60,6 +60,7 @@ const shared: Pick<
     quickAccessDeveloperDescription: "打开文档、运行时示例和接入指南。",
     quickAccessAccountSettingsDescription:
       "调整账户身份展示、偏好设置和当前会话安全状态。",
+    quickAccessAccountWithdrawDescription: "把已成熟 credits 提回钱包。",
     quickAccessProviderConsoleDescription: "管理 Provider 工作台健康度和性能。",
     quickAccessProviderCredentialsDescription: "签发 Provider 密钥和签名材料。",
     quickAccessServicesDescription: "创建、编辑并发布可变现 API 服务。",

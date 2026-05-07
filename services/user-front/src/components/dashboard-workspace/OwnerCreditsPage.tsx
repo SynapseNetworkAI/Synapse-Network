@@ -1,5 +1,6 @@
 "use client";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays, CircleAlert, Info } from "lucide-react";
 import {
@@ -12,7 +13,6 @@ import { useConnectModal } from "@rainbow-me/rainbowkit";
 import toast from "react-hot-toast";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { useAuth } from "@/components/WalletAuthGuard";
-import ConsumerWithdrawPendingTooltip from "@/components/dashboard-workspace/ConsumerWithdrawPendingTooltip";
 import CreditBucketRow from "@/components/dashboard-workspace/CreditBucketRow";
 import SupportContactPanel from "@/components/shared/SupportContactPanel";
 import { useOwnerData } from "@/hooks/useOwnerData";
@@ -46,7 +46,6 @@ import {
   compareMoneyStrings,
   moneyStringToNumber,
   normalizeMoneyString,
-  type MoneyString,
 } from "@/utils/money";
 import { isWithdrawTicketNearExpiry } from "@/utils/providerWithdrawApi";
 import { normalizeWithdrawWalletError } from "@/utils/providerWithdrawWallet";
@@ -73,6 +72,7 @@ type WithdrawModalProps = {
   minWithdrawAmount: number;
   userAddress: string;
   existingWithdrawal?: RefundIntentRecord | null;
+  variant?: "modal" | "panel";
   onClose: () => void;
   onSuccess: (result: ConsumerWithdrawIntent) => Promise<void>;
 };
@@ -119,11 +119,13 @@ function normalizeWithdrawalStatus(status?: string | null): string {
     .toUpperCase();
 }
 
-function isActiveWithdrawalStatus(status?: string | null): boolean {
+export function isActiveWithdrawalStatus(status?: string | null): boolean {
   return ACTIVE_WITHDRAWAL_STATUSES.has(normalizeWithdrawalStatus(status));
 }
 
-function isWithdrawalPendingBalanceStatus(status?: string | null): boolean {
+export function isWithdrawalPendingBalanceStatus(
+  status?: string | null
+): boolean {
   return WITHDRAWAL_PENDING_BALANCE_STATUSES.has(
     normalizeWithdrawalStatus(status)
   );
@@ -135,7 +137,23 @@ function isClaimableConsumerWithdrawal(
   if (!withdrawal) {
     return false;
   }
-  return withdrawal.claimable === true && Boolean(withdrawal.ticket);
+  if (("txHash" in withdrawal && withdrawal.txHash) || !withdrawal.ticket) {
+    return false;
+  }
+  if (withdrawal.claimable === true) {
+    return true;
+  }
+  const status = normalizeWithdrawalStatus(withdrawal.status);
+  return (
+    status !== "PENDING_MANUAL_REVIEW" &&
+    WITHDRAWAL_PENDING_BALANCE_STATUSES.has(status)
+  );
+}
+
+export function canResumeConsumerWithdrawal(
+  withdrawal?: RefundIntentRecord | ConsumerWithdrawIntent | null
+): boolean {
+  return isClaimableConsumerWithdrawal(withdrawal);
 }
 
 function resolveConsumerWithdrawErrorMessage(
@@ -170,12 +188,13 @@ function resolveConsumerWithdrawErrorMessage(
   return t("creditsPage.consumerWithdrawRequestFailed");
 }
 
-function WithdrawBalanceModal({
+export function WithdrawBalanceModal({
   availableBalance,
   withdrawableBalance,
   minWithdrawAmount,
   userAddress,
   existingWithdrawal = null,
+  variant = "modal",
   onClose,
   onSuccess,
 }: Readonly<WithdrawModalProps>) {
@@ -486,130 +505,127 @@ function WithdrawBalanceModal({
   else if (step === "completing")
     buttonLabel = t("creditsPage.consumerWithdrawCompleting");
 
-  return (
+  const surface = (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70"
-      onClick={submitting ? undefined : onClose}
+      className={`w-full rounded-2xl border border-[#2a2a2a] bg-[#111] p-6 ${
+        variant === "modal" ? "max-w-md shadow-2xl" : ""
+      }`}
+      onClick={(e) => e.stopPropagation()}
     >
-      <div
-        className="w-full max-w-md rounded-2xl border border-[#2a2a2a] bg-[#111] p-6 shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h3 className="mb-1 text-base font-semibold text-white">
-          {isExistingClaim
-            ? t("creditsPage.consumerWithdrawClaimTitle")
-            : t("creditsPage.consumerWithdrawTitle")}
-        </h3>
-        <p className="mb-4 text-sm text-[#86868b]">
-          {isExistingClaim
-            ? t("creditsPage.consumerWithdrawClaimDescription", {
+      <h3 className="mb-1 text-base font-semibold text-white">
+        {isExistingClaim
+          ? t("creditsPage.consumerWithdrawClaimTitle")
+          : t("creditsPage.consumerWithdrawTitle")}
+      </h3>
+      <p className="mb-4 text-sm text-[#86868b]">
+        {isExistingClaim
+          ? t("creditsPage.consumerWithdrawClaimDescription", {
+              amount: formatPlainAmount(existingWithdrawal?.amountUsdc ?? "0"),
+            })
+          : t("creditsPage.consumerWithdrawDescription", {
+              amount: withdrawableBalance.toFixed(2),
+            })}
+      </p>
+
+      <div className="space-y-4">
+        {showMaturityGapWarning && !isExistingClaim ? (
+          <div className="rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs leading-5 text-amber-100">
+            {t("creditsPage.consumerWithdrawMaturityWarning")}
+          </div>
+        ) : null}
+        {isExistingClaim ? (
+          <div className="rounded-xl border border-[#2a2a2a] bg-[#0d0d0d] px-3 py-3 text-sm text-[#d1d5db]">
+            <p className="font-medium text-white">
+              {t("creditsPage.consumerWithdrawClaimReadyLabel")}
+            </p>
+            <p className="mt-2">
+              {t("creditsPage.consumerWithdrawClaimAmount", {
                 amount: formatPlainAmount(
                   existingWithdrawal?.amountUsdc ?? "0"
                 ),
-              })
-            : t("creditsPage.consumerWithdrawDescription", {
-                amount: withdrawableBalance.toFixed(2),
               })}
-        </p>
-
-        <div className="space-y-4">
-          {showMaturityGapWarning && !isExistingClaim ? (
-            <div className="rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs leading-5 text-amber-100">
-              {t("creditsPage.consumerWithdrawMaturityWarning")}
-            </div>
-          ) : null}
-          {isExistingClaim ? (
-            <div className="rounded-xl border border-[#2a2a2a] bg-[#0d0d0d] px-3 py-3 text-sm text-[#d1d5db]">
-              <p className="font-medium text-white">
-                {t("creditsPage.consumerWithdrawClaimReadyLabel")}
-              </p>
-              <p className="mt-2">
-                {t("creditsPage.consumerWithdrawClaimAmount", {
-                  amount: formatPlainAmount(
-                    existingWithdrawal?.amountUsdc ?? "0"
-                  ),
-                })}
-              </p>
-              <p className="mt-2 text-xs leading-5 text-[#86868b]">
-                {t("creditsPage.consumerWithdrawGasHint")}
-              </p>
-            </div>
-          ) : (
-            <div>
-              <label className="mb-1 block text-xs font-medium uppercase tracking-wider text-[#86868b]">
-                {t("creditsPage.consumerWithdrawAmountLabel")}
-              </label>
-              <div className="flex gap-2">
-                <input
-                  type="number"
-                  min="1"
-                  step="0.01"
-                  max={withdrawableBalance}
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  disabled={submitting}
-                  className="flex-1 rounded-xl border border-[#2a2a2a] bg-[#0a0a0a] px-3 py-2 text-sm text-white focus:border-[#22c55e]/50 focus:outline-none disabled:opacity-40"
-                />
-                <button
-                  type="button"
-                  onClick={() => setAmount(withdrawableBalance.toFixed(2))}
-                  disabled={submitting}
-                  className="rounded-xl border border-[#2a2a2a] bg-[#1a1a1a] px-3 py-2 text-xs text-[#9ca3af] hover:text-white disabled:opacity-40"
-                >
-                  {t("creditsPage.consumerWithdrawMax")}
-                </button>
-              </div>
-              <p className="mt-2 text-xs leading-5 text-[#71767b]">
-                {t("creditsPage.consumerWithdrawMinimumRule", {
-                  amount: minWithdrawAmount.toFixed(2),
-                })}
-              </p>
-            </div>
-          )}
-
-          {!isExistingClaim ? (
-            <div>
-              <label className="mb-1 block text-xs font-medium uppercase tracking-wider text-[#86868b]">
-                {t("creditsPage.consumerWithdrawReasonLabel")}
-              </label>
-              <textarea
-                rows={2}
-                maxLength={256}
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-                disabled={submitting}
-                placeholder={t("creditsPage.consumerWithdrawReasonPlaceholder")}
-                className="w-full rounded-xl border border-[#2a2a2a] bg-[#0a0a0a] px-3 py-2 text-sm text-white placeholder:text-[#555] focus:border-[#22c55e]/50 focus:outline-none disabled:opacity-40"
-              />
-            </div>
-          ) : null}
-
-          <div className="rounded-xl border border-[#2a2a2a] bg-[#0d0d0d] px-3 py-2 text-xs text-[#86868b] space-y-1">
-            {!isExistingClaim ? (
-              <>
-                <p>{t("creditsPage.consumerWithdrawManualReviewHint")}</p>
-                <p>{t("creditsPage.consumerWithdrawFrequencyHint")}</p>
-              </>
-            ) : (
-              <p>{t("creditsPage.consumerWithdrawClaimReviewPassedHint")}</p>
-            )}
-            <p>{t("creditsPage.consumerWithdrawGasHint")}</p>
+            </p>
+            <p className="mt-2 text-xs leading-5 text-[#86868b]">
+              {t("creditsPage.consumerWithdrawGasHint")}
+            </p>
           </div>
-
-          {step !== "form" && step !== "done" && (
-            <div className="rounded-xl border border-[#22c55e]/30 bg-[#22c55e]/5 px-3 py-2 text-xs text-[#22c55e]">
-              {step === "signing" &&
-                t("creditsPage.consumerWithdrawProgressSigning")}
-              {step === "onchain" &&
-                t("creditsPage.consumerWithdrawProgressOnchain")}
-              {step === "confirming" &&
-                t("creditsPage.consumerWithdrawProgressConfirming")}
-              {step === "completing" &&
-                t("creditsPage.consumerWithdrawProgressCompleting")}
+        ) : (
+          <div>
+            <label className="mb-1 block text-xs font-medium uppercase tracking-wider text-[#86868b]">
+              {t("creditsPage.consumerWithdrawAmountLabel")}
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="number"
+                min="1"
+                step="0.01"
+                max={withdrawableBalance}
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                disabled={submitting}
+                className="flex-1 rounded-xl border border-[#2a2a2a] bg-[#0a0a0a] px-3 py-2 text-sm text-white focus:border-[#22c55e]/50 focus:outline-none disabled:opacity-40"
+              />
+              <button
+                type="button"
+                onClick={() => setAmount(withdrawableBalance.toFixed(2))}
+                disabled={submitting}
+                className="rounded-xl border border-[#2a2a2a] bg-[#1a1a1a] px-3 py-2 text-xs text-[#9ca3af] hover:text-white disabled:opacity-40"
+              >
+                {t("creditsPage.consumerWithdrawMax")}
+              </button>
             </div>
-          )}
+            <p className="mt-2 text-xs leading-5 text-[#71767b]">
+              {t("creditsPage.consumerWithdrawMinimumRule", {
+                amount: minWithdrawAmount.toFixed(2),
+              })}
+            </p>
+          </div>
+        )}
 
-          <div className="flex gap-3 pt-1">
+        {!isExistingClaim ? (
+          <div>
+            <label className="mb-1 block text-xs font-medium uppercase tracking-wider text-[#86868b]">
+              {t("creditsPage.consumerWithdrawReasonLabel")}
+            </label>
+            <textarea
+              rows={2}
+              maxLength={256}
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              disabled={submitting}
+              placeholder={t("creditsPage.consumerWithdrawReasonPlaceholder")}
+              className="w-full rounded-xl border border-[#2a2a2a] bg-[#0a0a0a] px-3 py-2 text-sm text-white placeholder:text-[#555] focus:border-[#22c55e]/50 focus:outline-none disabled:opacity-40"
+            />
+          </div>
+        ) : null}
+
+        <div className="rounded-xl border border-[#2a2a2a] bg-[#0d0d0d] px-3 py-2 text-xs text-[#86868b] space-y-1">
+          {!isExistingClaim ? (
+            <>
+              <p>{t("creditsPage.consumerWithdrawManualReviewHint")}</p>
+              <p>{t("creditsPage.consumerWithdrawFrequencyHint")}</p>
+            </>
+          ) : (
+            <p>{t("creditsPage.consumerWithdrawClaimReviewPassedHint")}</p>
+          )}
+          <p>{t("creditsPage.consumerWithdrawGasHint")}</p>
+        </div>
+
+        {step !== "form" && step !== "done" && (
+          <div className="rounded-xl border border-[#22c55e]/30 bg-[#22c55e]/5 px-3 py-2 text-xs text-[#22c55e]">
+            {step === "signing" &&
+              t("creditsPage.consumerWithdrawProgressSigning")}
+            {step === "onchain" &&
+              t("creditsPage.consumerWithdrawProgressOnchain")}
+            {step === "confirming" &&
+              t("creditsPage.consumerWithdrawProgressConfirming")}
+            {step === "completing" &&
+              t("creditsPage.consumerWithdrawProgressCompleting")}
+          </div>
+        )}
+
+        <div className="flex gap-3 pt-1">
+          {variant === "modal" ? (
             <button
               onClick={onClose}
               disabled={submitting}
@@ -617,20 +633,33 @@ function WithdrawBalanceModal({
             >
               {t("creditsPage.depositCancel")}
             </button>
-            <button
-              onClick={handleSubmit}
-              disabled={withdrawDisabled}
-              className="flex-1 rounded-xl bg-[#22c55e] py-2 text-sm font-semibold text-black hover:bg-[#16a34a] disabled:opacity-40"
-            >
-              {submitting
-                ? buttonLabel
-                : isExistingClaim
-                ? t("creditsPage.consumerWithdrawClaimAction")
-                : t("creditsPage.consumerWithdrawAction")}
-            </button>
-          </div>
+          ) : null}
+          <button
+            onClick={handleSubmit}
+            disabled={withdrawDisabled}
+            className="flex-1 rounded-xl bg-[#22c55e] py-2 text-sm font-semibold text-black hover:bg-[#16a34a] disabled:opacity-40"
+          >
+            {submitting
+              ? buttonLabel
+              : isExistingClaim
+              ? t("creditsPage.consumerWithdrawClaimAction")
+              : t("creditsPage.consumerWithdrawAction")}
+          </button>
         </div>
       </div>
+    </div>
+  );
+
+  if (variant === "panel") {
+    return surface;
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70"
+      onClick={submitting ? undefined : onClose}
+    >
+      {surface}
     </div>
   );
 }
@@ -654,35 +683,8 @@ export default function OwnerCreditsPage() {
   const [isSpendCapModalOpen, setIsSpendCapModalOpen] = useState(false);
   const [isRedeemVoucherModalOpen, setIsRedeemVoucherModalOpen] =
     useState(false);
-  const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
   const [pendingWithdrawal, setPendingWithdrawal] =
     useState<RefundIntentRecord | null>(null);
-  const [optimisticBalanceOverride, setOptimisticBalanceOverride] = useState<{
-    withdrawId: string;
-    amountUsdc: MoneyString;
-    targetBalance: MoneyString;
-  } | null>(null);
-
-  // Restore optimistic override from sessionStorage on mount / address change
-  // so that a page refresh still shows the pending-withdrawal balance.
-  useEffect(() => {
-    if (!optimisticStorageKey) return;
-    try {
-      const stored = sessionStorage.getItem(optimisticStorageKey);
-      if (stored) {
-        const parsed = JSON.parse(stored) as {
-          withdrawId: string;
-          amountUsdc: MoneyString;
-          targetBalance: MoneyString;
-        };
-        if (parsed.withdrawId && typeof parsed.targetBalance === "string") {
-          setOptimisticBalanceOverride(parsed);
-        }
-      }
-    } catch {
-      /* ignore */
-    }
-  }, [optimisticStorageKey]);
 
   const fetchPendingWithdrawal = useCallback(async () => {
     if (!isConnected || !userAddress || !isSessionAuthenticated) {
@@ -702,17 +704,6 @@ export default function OwnerCreditsPage() {
   useEffect(() => {
     void fetchPendingWithdrawal();
   }, [fetchPendingWithdrawal]);
-
-  const normalizedPendingWithdrawalStatus = normalizeWithdrawalStatus(
-    pendingWithdrawal?.status
-  );
-  const claimableWithdrawal = isClaimableConsumerWithdrawal(pendingWithdrawal)
-    ? pendingWithdrawal
-    : null;
-  const reviewPendingWithdrawal =
-    normalizedPendingWithdrawalStatus === "PENDING_MANUAL_REVIEW"
-      ? pendingWithdrawal
-      : null;
 
   const fetchSpendingLimit = useCallback(async () => {
     if (!isConnected || !userAddress || !isSessionAuthenticated) {
@@ -815,26 +806,9 @@ export default function OwnerCreditsPage() {
     stats.ownerBalance,
   ]);
 
-  const displayedRemainingBalance = useMemo(() => {
-    if (!optimisticBalanceOverride) {
-      return creditSummary.remainingBalance;
-    }
-
-    const serverBalance = creditSummary.remainingBalance;
-    if (
-      compareMoneyStrings(
-        normalizeMoneyString(serverBalance),
-        optimisticBalanceOverride.targetBalance
-      ) <= 0
-    ) {
-      return serverBalance;
-    }
-
-    return moneyStringToNumber(optimisticBalanceOverride.targetBalance);
-  }, [creditSummary.remainingBalance, optimisticBalanceOverride]);
+  const displayedRemainingBalance = creditSummary.remainingBalance;
 
   const clearOptimisticOverride = useCallback(() => {
-    setOptimisticBalanceOverride(null);
     if (optimisticStorageKey) sessionStorage.removeItem(optimisticStorageKey);
   }, [optimisticStorageKey]);
 
@@ -878,21 +852,8 @@ export default function OwnerCreditsPage() {
   );
 
   useEffect(() => {
-    if (
-      optimisticBalanceOverride &&
-      compareMoneyStrings(
-        normalizeMoneyString(creditSummary.remainingBalance),
-        optimisticBalanceOverride.targetBalance
-      ) <= 0
-    ) {
-      setOptimisticBalanceOverride(null);
-      if (optimisticStorageKey) sessionStorage.removeItem(optimisticStorageKey);
-    }
-  }, [
-    creditSummary.remainingBalance,
-    optimisticBalanceOverride,
-    optimisticStorageKey,
-  ]);
+    if (optimisticStorageKey) sessionStorage.removeItem(optimisticStorageKey);
+  }, [optimisticStorageKey]);
 
   const {
     isOpen: isDepositModalOpen,
@@ -1002,24 +963,6 @@ export default function OwnerCreditsPage() {
     [clearOptimisticOverride, fetchSpendingLimit, handleRefresh, t, userAddress]
   );
 
-  const handleWithdraw = useCallback(async () => {
-    const ready = await ensureBillingControlReady();
-    if (!ready) return;
-    setIsWithdrawModalOpen(true);
-  }, [ensureBillingControlReady]);
-
-  const withdrawButtonLabel = claimableWithdrawal
-    ? t("creditsPage.consumerWithdrawClaimAction")
-    : t("creditsPage.consumerWithdrawAction");
-  const withdrawButtonDisabled =
-    reviewPendingWithdrawal !== null && claimableWithdrawal === null;
-  const withdrawalPendingBucketLabel = claimableWithdrawal
-    ? t("creditsPage.claimableWithdrawalBalanceLabel")
-    : t("creditsPage.pendingWithdrawalBalanceLabel");
-  const withdrawalPendingBucketHint = claimableWithdrawal
-    ? t("creditsPage.claimableWithdrawalBalanceHint")
-    : t("creditsPage.pendingWithdrawalBalanceHint");
-
   const showBalanceSkeleton =
     isConnected && isSessionAuthenticated && isBootstrapping;
   const showSpendCapSkeleton =
@@ -1094,24 +1037,6 @@ export default function OwnerCreditsPage() {
                 )}
               </div>
               <div className="flex flex-wrap items-center self-start gap-2 md:self-auto">
-                <div className="relative group">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void handleWithdraw();
-                    }}
-                    disabled={withdrawButtonDisabled}
-                    className="inline-flex h-[36px] min-w-[143px] items-center justify-center whitespace-nowrap rounded-full border border-[#2f3336] bg-transparent px-4 py-2 text-[14px] font-normal leading-[20px] text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    {withdrawButtonLabel}
-                  </button>
-                  {pendingWithdrawal && (
-                    <ConsumerWithdrawPendingTooltip
-                      amountUsdc={pendingWithdrawal.amountUsdc}
-                      claimable={claimableWithdrawal !== null}
-                    />
-                  )}
-                </div>
                 <button
                   type="button"
                   onClick={() => {
@@ -1123,6 +1048,14 @@ export default function OwnerCreditsPage() {
                 </button>
               </div>
             </div>
+            <div className="mt-3 px-1 text-[13px] leading-5 text-[#9ca3af]">
+              <Link
+                href="/dashboard/account/withdraw"
+                className="text-[#7dd3fc] transition hover:text-[#bae6fd]"
+              >
+                {t("creditsPage.goToAccountWithdraw")}
+              </Link>
+            </div>
             {!showBalanceSkeleton ? (
               <div className="mt-3 space-y-2">
                 {creditSummary.depositPendingBalance > 0 ? (
@@ -1130,14 +1063,6 @@ export default function OwnerCreditsPage() {
                     label={t("creditsPage.pendingDepositBalanceLabel")}
                     amount={creditSummary.depositPendingBalance}
                     hint={t("creditsPage.pendingDepositBalanceHint")}
-                    tone="pending"
-                  />
-                ) : null}
-                {creditSummary.withdrawalPendingBalance > 0 ? (
-                  <CreditBucketRow
-                    label={withdrawalPendingBucketLabel}
-                    amount={creditSummary.withdrawalPendingBalance}
-                    hint={withdrawalPendingBucketHint}
                     tone="pending"
                   />
                 ) : null}
@@ -1378,89 +1303,6 @@ export default function OwnerCreditsPage() {
         onClose={() => setIsRedeemVoucherModalOpen(false)}
         onRedeem={handleRedeemVoucher}
       />
-
-      {isWithdrawModalOpen && userAddress && (
-        <WithdrawBalanceModal
-          availableBalance={displayedRemainingBalance}
-          withdrawableBalance={creditSummary.withdrawableBalance}
-          minWithdrawAmount={creditSummary.minWithdrawAmount}
-          userAddress={userAddress}
-          existingWithdrawal={claimableWithdrawal}
-          onClose={() => setIsWithdrawModalOpen(false)}
-          onSuccess={async (result) => {
-            const normalizedStatus = (result.status || "").toUpperCase();
-            const isActiveWithdrawal =
-              normalizedStatus === "REQUESTED" ||
-              normalizedStatus === "PENDING" ||
-              normalizedStatus === "APPROVED_AUTO" ||
-              normalizedStatus === "TICKET_READY" ||
-              normalizedStatus === "PENDING_MANUAL_REVIEW";
-
-            if (!isActiveWithdrawal) {
-              setPendingWithdrawal(null);
-              clearOptimisticOverride();
-            } else {
-              setPendingWithdrawal((current) => {
-                if (result.existingWithdrawal && current) {
-                  return current;
-                }
-                return {
-                  id: result.withdrawId,
-                  amountUsdc: result.amountUsdc,
-                  status: result.status,
-                  claimable:
-                    result.claimable === true ||
-                    (Boolean(result.ticket) &&
-                      normalizedStatus !== "PENDING_MANUAL_REVIEW"),
-                  message: result.message,
-                  riskReasonCode: result.riskReasonCode,
-                  createdAt: result.createdAt,
-                  txHash: undefined,
-                  ticket: result.ticket,
-                };
-              });
-            }
-
-            if (isActiveWithdrawal && !result.existingWithdrawal) {
-              const newOverride = {
-                withdrawId: result.withdrawId,
-                amountUsdc: result.amountUsdc,
-                targetBalance: normalizeMoneyString(
-                  Math.max(
-                    0,
-                    displayedRemainingBalance -
-                      moneyStringToNumber(result.amountUsdc)
-                  )
-                ),
-              };
-              setOptimisticBalanceOverride((current) =>
-                current?.withdrawId === result.withdrawId
-                  ? current
-                  : newOverride
-              );
-              if (optimisticStorageKey) {
-                try {
-                  sessionStorage.setItem(
-                    optimisticStorageKey,
-                    JSON.stringify(newOverride)
-                  );
-                } catch {
-                  /* ignore */
-                }
-              }
-            }
-
-            await new Promise((resolve) => setTimeout(resolve, 300));
-            await Promise.all([
-              handleRefresh(),
-              fetchSpendingLimit(),
-              fetchPendingWithdrawal(),
-            ]);
-          }}
-        />
-      )}
     </div>
   );
 }
-
-export { WithdrawBalanceModal };

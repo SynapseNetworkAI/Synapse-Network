@@ -264,7 +264,7 @@ describe("OwnerCreditsPage", () => {
     expect(screen.queryByText(/X may give out free credits/)).toBeNull();
   });
 
-  it("labels a pending withdrawal separately from a pending deposit", async () => {
+  it("does not render withdrawal processing as a credits-page bucket", async () => {
     ownerStatsState.value = {
       ownerBalance: "0",
       consumerPendingBalance: "185.99",
@@ -294,16 +294,17 @@ describe("OwnerCreditsPage", () => {
     );
 
     expect(
-      await screen.findByText("Claimable withdrawal credits")
+      await screen.findByText("Need to withdraw? Go to Account Withdraw")
     ).toBeTruthy();
-    expect(screen.getByText("$185.99")).toBeTruthy();
+    expect(screen.queryByText("Claimable withdrawal credits")).toBeNull();
+    expect(screen.queryByText("Withdrawal processing credits")).toBeNull();
     expect(screen.queryByText("Pending deposit credits")).toBeNull();
     expect(
       screen.queryByText(/Gateway is indexing the on-chain deposit/i)
     ).toBeNull();
   });
 
-  it("splits mixed pending balance between deposit sync and withdrawal processing", async () => {
+  it("keeps mixed pending display focused on deposit sync only", async () => {
     ownerStatsState.value = {
       ownerBalance: "2",
       consumerPendingBalance: "20",
@@ -334,8 +335,8 @@ describe("OwnerCreditsPage", () => {
 
     expect(await screen.findByText("Pending deposit credits")).toBeTruthy();
     expect(screen.getByText("$11.50")).toBeTruthy();
-    expect(screen.getByText("Claimable withdrawal credits")).toBeTruthy();
-    expect(screen.getByText("$8.50")).toBeTruthy();
+    expect(screen.queryByText("Claimable withdrawal credits")).toBeNull();
+    expect(screen.queryByText("Withdrawal processing credits")).toBeNull();
   });
 
   it("keeps manual review withdrawal funds in the frozen bucket", async () => {
@@ -362,7 +363,7 @@ describe("OwnerCreditsPage", () => {
     expect(screen.queryByText("Pending deposit credits")).toBeNull();
   });
 
-  it("turns the withdraw button into a claim action after manual approval", async () => {
+  it("keeps approved withdrawals out of the credits-page primary actions", async () => {
     ownerStatsState.value = {
       ownerBalance: "249",
       consumerPendingBalance: "501",
@@ -392,8 +393,9 @@ describe("OwnerCreditsPage", () => {
     );
 
     expect(
-      await screen.findByRole("button", { name: "Claim now" })
+      await screen.findByText("Need to withdraw? Go to Account Withdraw")
     ).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Claim now" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Withdraw" })).toBeNull();
   });
 });

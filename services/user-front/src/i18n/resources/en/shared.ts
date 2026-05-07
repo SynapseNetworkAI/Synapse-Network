@@ -69,6 +69,8 @@ const shared: Pick<
       "Open docs, runtime examples, and integration guides.",
     quickAccessAccountSettingsDescription:
       "Adjust account identity visibility, preferences, and session posture.",
+    quickAccessAccountWithdrawDescription:
+      "Withdraw matured credits back to your wallet.",
     quickAccessProviderConsoleDescription:
       "Manage provider workspace health and performance.",
     quickAccessProviderCredentialsDescription:
