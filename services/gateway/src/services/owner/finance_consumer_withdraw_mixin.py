@@ -339,7 +339,7 @@ class FinanceConsumerWithdrawMixin:
                 if row_status in REFUND_ACTIVE_STATUSES:
                     row_amount = self._q6d(row.amount_usdc)
                     if row_amount != amount_usdc:
-                        continue
+                        raise HTTPException(409, {"code": "PENDING_WITHDRAWAL_EXISTS"})
                     ledger_check = self._load_balance_ledger()  # type: ignore[attr-defined]
                     avail_check = self._q6d(ledger_check.consumer_available_balance(owner))
                     pend_check = self._q6d(ledger_check.consumer_pending_balance(owner))

@@ -5,9 +5,8 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createElement } from "react";
 
-import OwnerCreditsPage, {
-  WithdrawBalanceModal,
-} from "@/components/dashboard-workspace/OwnerCreditsPage";
+import ConsumerWithdrawPage from "@/components/dashboard-workspace/ConsumerWithdrawPage";
+import { WithdrawBalanceModal } from "@/components/dashboard-workspace/OwnerCreditsPage";
 import { LanguageProvider } from "@/components/i18n/LanguageProvider";
 import { I18N_STORAGE_KEY } from "@/i18n/config";
 import { ConsumerWithdrawApiError } from "@/utils/balanceApi";
@@ -24,6 +23,7 @@ const {
   toastErrorMock,
   completeV2RefundMock,
   failV2RefundMock,
+  writeContractAsyncMock,
 } = vi.hoisted(() => ({
   authorizeMock: vi.fn(async () => true),
   getOwnerSpendingLimitMock: vi.fn(),
@@ -36,6 +36,7 @@ const {
   toastErrorMock: vi.fn(),
   completeV2RefundMock: vi.fn(),
   failV2RefundMock: vi.fn(),
+  writeContractAsyncMock: vi.fn(),
 }));
 
 vi.mock("@rainbow-me/rainbowkit", () => ({
@@ -47,7 +48,7 @@ vi.mock("wagmi", () => ({
   useChainId: () => 11155111,
   useWriteContract: () => ({
     data: undefined,
-    writeContractAsync: vi.fn(),
+    writeContractAsync: writeContractAsyncMock,
   }),
   useWaitForTransactionReceipt: () => ({
     isSuccess: false,
@@ -120,6 +121,8 @@ vi.mock("@/utils/balanceApi", async () => {
 });
 
 const requestTicket = {
+  ticketId:
+    "0xabc0000000000000000000000000000000000000000000000000000000000000",
   amount: "42000000000000000000",
   fee: "500000000000000000",
   nonce: 1,
@@ -141,7 +144,7 @@ const spendingLimitDefault = {
 
 function renderPage() {
   return render(
-    createElement(LanguageProvider, null, createElement(OwnerCreditsPage))
+    createElement(LanguageProvider, null, createElement(ConsumerWithdrawPage))
   );
 }
 
@@ -150,6 +153,12 @@ function renderWithdrawModal(
     availableBalance?: number;
     withdrawableBalance?: number;
     minWithdrawAmount?: number;
+    existingWithdrawal?: {
+      id: string;
+      amountUsdc: string;
+      status: string;
+      ticket?: typeof requestTicket;
+    };
   } = {}
 ) {
   const onClose = vi.fn();
@@ -164,6 +173,7 @@ function renderWithdrawModal(
           overrides.withdrawableBalance ?? overrides.availableBalance ?? 20,
         minWithdrawAmount: overrides.minWithdrawAmount ?? 10,
         userAddress: "0xabc",
+        existingWithdrawal: overrides.existingWithdrawal ?? null,
         onClose,
         onSuccess,
       })
@@ -187,10 +197,10 @@ describe("OwnerCreditsPage — Withdraw", () => {
     listConsumerWithdrawalsMock.mockResolvedValue([]);
   });
 
-  it("shows the Withdraw button and the current balance", async () => {
+  it("shows the standalone withdraw page and current balances", async () => {
     renderPage();
 
-    await screen.findByRole("button", { name: "Withdraw" });
+    await screen.findByRole("heading", { name: "Withdraw" });
     expect(screen.getAllByText("Spendable credits").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Withdrawable credits").length).toBeGreaterThan(
       0
@@ -198,17 +208,55 @@ describe("OwnerCreditsPage — Withdraw", () => {
     expect(screen.getAllByText("$20.00").length).toBeGreaterThan(0);
   });
 
-  it("opens withdraw modal when Withdraw button is clicked", async () => {
-    const user = userEvent.setup();
+  it("renders the withdraw form inline on the standalone page", async () => {
     renderPage();
-
-    await screen.findByRole("button", { name: "Withdraw" });
-    await user.click(screen.getByRole("button", { name: /^withdraw$/i }));
 
     expect(
       await screen.findByRole("heading", { name: "Withdraw Balance" })
     ).toBeTruthy();
     expect(screen.getByText(/Withdrawable:/)).toBeTruthy();
+  });
+
+  it("shows manual review state instead of a new withdraw form", async () => {
+    listConsumerWithdrawalsMock.mockResolvedValue([
+      {
+        id: "cw-review",
+        amountUsdc: "500.00",
+        status: "PENDING_MANUAL_REVIEW",
+      },
+    ]);
+
+    renderPage();
+
+    expect(
+      await screen.findByRole("heading", { name: "Withdrawal in progress" })
+    ).toBeTruthy();
+    expect(
+      screen.getByText(
+        "This withdrawal is under security review. We will update the status when review is complete."
+      )
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole("heading", { name: "Withdraw Balance" })
+    ).toBeNull();
+  });
+
+  it("continues an approved withdrawal from the standalone page", async () => {
+    listConsumerWithdrawalsMock.mockResolvedValue([
+      {
+        id: "cw-approved",
+        amountUsdc: "501.00",
+        status: "REQUESTED",
+        ticket: requestTicket,
+      },
+    ]);
+
+    renderPage();
+
+    expect(
+      await screen.findByRole("button", { name: "Continue Withdrawal" })
+    ).toBeTruthy();
+    expect(screen.getByText("Claim amount: 501.00 USDC")).toBeTruthy();
   });
 
   it("disables withdrawal and explains maturity gap when withdrawable is below minimum", async () => {
@@ -278,13 +326,10 @@ describe("OwnerCreditsPage — Withdraw", () => {
     expect(withdrawButtons.at(-1)!).toHaveProperty("disabled", false);
   });
 
-  it("still opens the withdraw modal when spendable credits exceed withdrawable credits", async () => {
-    const user = userEvent.setup();
+  it("shows the maturity gap on the standalone withdraw page", async () => {
     ownerBalanceState.value = "15";
     withdrawableBalanceState.value = "5";
     renderPage();
-
-    await user.click(await screen.findByRole("button", { name: "Withdraw" }));
 
     expect(
       await screen.findByText(
@@ -294,11 +339,7 @@ describe("OwnerCreditsPage — Withdraw", () => {
   });
 
   it("pre-fills the amount field with the full available balance", async () => {
-    const user = userEvent.setup();
     renderPage();
-
-    await screen.findByRole("button", { name: "Withdraw" });
-    await user.click(screen.getByRole("button", { name: /^withdraw$/i }));
 
     await screen.findByRole("heading", { name: "Withdraw Balance" });
     const amountInput = screen.getByRole("spinbutton");
@@ -319,14 +360,11 @@ describe("OwnerCreditsPage — Withdraw", () => {
 
     renderPage();
 
-    await screen.findByRole("button", { name: "Withdraw" });
-    await user.click(screen.getByRole("button", { name: /^withdraw$/i }));
     await screen.findByRole("heading", { name: "Withdraw Balance" });
 
     const withdrawButtons = screen.getAllByRole("button", {
       name: /^withdraw$/i,
     });
-    // The last "Withdraw" button is inside the modal
     await user.click(withdrawButtons.at(-1)!);
 
     await waitFor(() => {
@@ -335,6 +373,44 @@ describe("OwnerCreditsPage — Withdraw", () => {
         reason: undefined,
       });
     });
+  });
+
+  it("continues an approved pending withdrawal using its locked amount", async () => {
+    const user = userEvent.setup();
+    requestConsumerWithdrawMock.mockResolvedValue({
+      withdrawId: "wd-approved",
+      status: "REQUESTED",
+      amountUsdc: "501",
+      netUsdc: "500.5",
+      existingWithdrawal: true,
+      ticket: requestTicket,
+    });
+
+    renderWithdrawModal({
+      availableBalance: 499,
+      withdrawableBalance: 499,
+      existingWithdrawal: {
+        id: "wd-approved",
+        amountUsdc: "501.00",
+        status: "REQUESTED",
+        ticket: requestTicket,
+      },
+    });
+
+    expect(screen.getByText("Claim amount: 501.00 USDC")).toBeTruthy();
+
+    await user.click(
+      screen.getByRole("button", { name: "Continue Withdrawal" })
+    );
+
+    await waitFor(() => {
+      expect(writeContractAsyncMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          functionName: "withdraw",
+        })
+      );
+    });
+    expect(requestConsumerWithdrawMock).not.toHaveBeenCalled();
   });
 
   it("calls handleRefresh after a successful withdrawal", async () => {
@@ -351,8 +427,6 @@ describe("OwnerCreditsPage — Withdraw", () => {
 
     renderPage();
 
-    await screen.findByRole("button", { name: "Withdraw" });
-    await user.click(screen.getByRole("button", { name: /^withdraw$/i }));
     await screen.findByRole("heading", { name: "Withdraw Balance" });
 
     const withdrawButtons = screen.getAllByRole("button", {
