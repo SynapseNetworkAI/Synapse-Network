@@ -24,6 +24,14 @@ window.buildEthereumFixture = function buildEthereumFixture(
       if (method === "eth_call") return "0x";
       if (method === "eth_estimateGas") return "0x5208";
       if (method === "eth_gasPrice") return "0x3b9aca00";
+      if (
+        method === "eth_sendTransaction" &&
+        localStorage.getItem("synapse_error_toast_wallet_reject") === "1"
+      ) {
+        const error = new Error("User denied message signature");
+        error.code = 4001;
+        throw error;
+      }
       if (method === "eth_sendTransaction")
         return "0x0000000000000000000000000000000000000000000000000000000000000abc";
       return null;

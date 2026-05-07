@@ -35,6 +35,9 @@ const shared: Pick<
     notificationsLoading: "Loading notifications...",
     notificationsEmpty: "No notifications yet.",
     notificationLoadFailed: "Failed to load notifications.",
+    withdrawalNotificationTitle: "Withdrawal security review",
+    withdrawalNotificationBody:
+      "Your withdrawal is under security review. We will update the status when review is complete.",
     markAllRead: "Mark all read",
     openNotification: "Open",
     archiveNotification: "Archive notification",

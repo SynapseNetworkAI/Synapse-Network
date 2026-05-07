@@ -18,6 +18,7 @@ from src.services.provider.registry.discovery import (
     list_owner_services,
     search_agent_discovery,
 )
+from src.services.provider.registry.admin import list_admin_provider_services
 from tests.unit.registry_test_helper import FakeRegistryContext, service_definition
 
 
@@ -453,3 +454,44 @@ async def test_health_status_uses_discovery_effective_runtime_state(monkeypatch)
     assert rows[0]["health"].is_stale is True
     assert rows[0]["health"].runtime_available is False
     assert rows[0]["runtimeAvailable"] is False
+
+
+@pytest.mark.asyncio
+async def test_admin_provider_services_default_order_is_created_desc_service_id_asc() -> None:
+    context = FakeRegistryContext(
+        [
+            service_definition(
+                "svc.new-b",
+                service_name="New B",
+                created_at="2026-05-06T12:00:00Z",
+                updated_at="2026-05-01T00:00:00Z",
+            ),
+            service_definition(
+                "svc.old-updated",
+                service_name="Old Updated",
+                created_at="2026-05-01T12:00:00Z",
+                updated_at="2026-05-07T00:00:00Z",
+            ),
+            service_definition(
+                "svc.new-a",
+                service_name="New A",
+                created_at="2026-05-06T12:00:00Z",
+                updated_at="2026-04-30T00:00:00Z",
+            ),
+        ]
+    )
+
+    result = await list_admin_provider_services(
+        context,
+        query=None,
+        status=None,
+        runtime_status=None,
+        page=1,
+        page_size=20,
+    )
+
+    assert [row["serviceId"] for row in result["items"]] == [
+        "svc.new-a",
+        "svc.new-b",
+        "svc.old-updated",
+    ]

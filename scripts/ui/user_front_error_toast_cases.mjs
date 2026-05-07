@@ -1,4 +1,4 @@
-import { expectedCopy } from "./user_front_error_toast_setup.mjs";
+import { expectedCopy } from "./user_front_error_toast_expectations.mjs";
 
 async function clickByJs(page, names, options = {}) {
   const target = await findButton(page, names, options);
@@ -93,7 +93,7 @@ async function fillProviderDeployForm(page, language) {
 }
 
 async function consumerWithdraw(page, language) {
-  await clickByJs(page, ["Withdraw"]);
+  await clickByJs(page, ["Withdraw", "提现"]);
   await page.getByRole("spinbutton").fill("10");
   await clickByJs(page, [language === "zh" ? "提现" : "Withdraw"], {
     last: true,
@@ -102,7 +102,11 @@ async function consumerWithdraw(page, language) {
 
 async function providerWithdraw(page) {
   await clickByJs(page, ["Generate & Claim", "生成并提现"]);
-  await page.locator('input[inputmode="decimal"]').fill("12.60");
+  const amountInput = page
+    .locator('input[placeholder="Amount"], input[placeholder="金额"]')
+    .first();
+  await amountInput.waitFor({ timeout: 15000 });
+  await amountInput.fill("12.60");
   await clickByJs(page, ["Confirm", "确认提现"]);
 }
 
@@ -111,84 +115,203 @@ async function revokeCredential(page) {
   await clickButton(page, ["Revoke", "撤销"], { last: true });
 }
 
+async function openNotifications(page, language) {
+  await clickButton(page, [language === "zh" ? "通知" : "Notifications"]);
+}
+
+const consumerWithdrawCases = [
+  {
+    name: "credits-consumer-withdraw-rpc",
+    path: "/dashboard/billing/credits",
+    role: "CONSUMER",
+    options: { consumerWithdrawMode: "rpc" },
+    expected: {
+      en: expectedCopy.en.creditsRpc,
+      zh: expectedCopy.zh.creditsRpc,
+    },
+    act: consumerWithdraw,
+  },
+  {
+    name: "credits-consumer-withdraw-contract",
+    path: "/dashboard/billing/credits",
+    role: "CONSUMER",
+    options: { consumerWithdrawMode: "contract" },
+    expected: {
+      en: expectedCopy.en.creditsContractMissing,
+      zh: expectedCopy.zh.creditsContractMissing,
+    },
+    act: consumerWithdraw,
+  },
+  {
+    name: "credits-consumer-withdraw-matured",
+    path: "/dashboard/billing/credits",
+    role: "CONSUMER",
+    options: { consumerWithdrawMode: "matured" },
+    expected: {
+      en: expectedCopy.en.creditsMatured,
+      zh: expectedCopy.zh.creditsMatured,
+    },
+    act: consumerWithdraw,
+  },
+  {
+    name: "credits-consumer-withdraw-unknown",
+    path: "/dashboard/billing/credits",
+    role: "CONSUMER",
+    options: { consumerWithdrawMode: "unknown" },
+    expected: {
+      en: expectedCopy.en.creditsUnknown,
+      zh: expectedCopy.zh.creditsUnknown,
+    },
+    act: consumerWithdraw,
+  },
+];
+
+const providerWithdrawCases = [
+  {
+    name: "provider-withdraw-rpc",
+    path: "/provider/withdraw",
+    role: "PROVIDER",
+    options: { providerWithdrawMode: "rpc" },
+    expected: {
+      en: expectedCopy.en.providerRpc,
+      zh: expectedCopy.zh.providerRpc,
+    },
+    act: providerWithdraw,
+  },
+  {
+    name: "provider-withdraw-matured",
+    path: "/provider/withdraw",
+    role: "PROVIDER",
+    options: { providerWithdrawMode: "matured" },
+    expected: {
+      en: expectedCopy.en.providerMatured,
+      zh: expectedCopy.zh.providerMatured,
+    },
+    act: providerWithdraw,
+  },
+  {
+    name: "provider-withdraw-minimum",
+    path: "/provider/withdraw",
+    role: "PROVIDER",
+    options: { providerWithdrawMode: "minimum" },
+    expected: {
+      en: expectedCopy.en.providerMinimum,
+      zh: expectedCopy.zh.providerMinimum,
+    },
+    act: providerWithdraw,
+  },
+  {
+    name: "provider-withdraw-pending",
+    path: "/provider/withdraw",
+    role: "PROVIDER",
+    options: { providerWithdrawMode: "pending" },
+    expected: {
+      en: expectedCopy.en.providerPending,
+      zh: expectedCopy.zh.providerPending,
+    },
+    act: providerWithdraw,
+  },
+  {
+    name: "provider-withdraw-rejected",
+    path: "/provider/withdraw",
+    role: "PROVIDER",
+    options: { providerWithdrawMode: "rejected" },
+    expected: {
+      en: expectedCopy.en.providerRejected,
+      zh: expectedCopy.zh.providerRejected,
+    },
+    act: providerWithdraw,
+  },
+  {
+    name: "provider-withdraw-unknown",
+    path: "/provider/withdraw",
+    role: "PROVIDER",
+    options: { providerWithdrawMode: "unknown" },
+    expected: {
+      en: expectedCopy.en.providerUnknown,
+      zh: expectedCopy.zh.providerUnknown,
+    },
+    act: providerWithdraw,
+  },
+];
+
+const passiveSurfaceCases = [
+  {
+    name: "provider-withdraw-history-raw-message",
+    path: "/provider/withdraw",
+    role: "PROVIDER",
+    options: { providerHistoryMode: "raw" },
+    expected: {
+      en: expectedCopy.en.providerHistoryReason,
+      zh: expectedCopy.zh.providerHistoryReason,
+    },
+    act: async () => {},
+  },
+  {
+    name: "provider-withdraw-history-page-raw-message",
+    path: "/provider/withdraw/history",
+    role: "PROVIDER",
+    options: { providerHistoryMode: "raw" },
+    expected: {
+      en: expectedCopy.en.providerHistoryPage,
+      zh: expectedCopy.zh.providerHistoryPage,
+    },
+    act: async () => {},
+  },
+  {
+    name: "withdrawal-notification-raw-message",
+    path: "/dashboard/overview",
+    role: "PROVIDER",
+    options: { notificationMode: "raw" },
+    expected: {
+      en: expectedCopy.en.notificationBody,
+      zh: expectedCopy.zh.notificationBody,
+    },
+    act: openNotifications,
+  },
+];
+
+const actionSurfaceCases = [
+  {
+    name: "provider-services-list",
+    path: "/provider/services",
+    role: "PROVIDER",
+    options: { failServiceList: true },
+    expected: {
+      en: expectedCopy.en.serviceList,
+      zh: expectedCopy.zh.serviceList,
+    },
+    act: async () => {},
+  },
+  {
+    name: "provider-service-deploy",
+    path: "/provider/services/deploy",
+    role: "PROVIDER",
+    options: { failServiceDeploy: true },
+    expected: {
+      en: expectedCopy.en.serviceDeploy,
+      zh: expectedCopy.zh.serviceDeploy,
+    },
+    act: fillProviderDeployForm,
+  },
+  {
+    name: "agent-credential-revoke",
+    path: "/dashboard/credentials",
+    role: "CONSUMER",
+    options: { failCredentialRevoke: true },
+    expected: {
+      en: expectedCopy.en.credentialRevoke,
+      zh: expectedCopy.zh.credentialRevoke,
+    },
+    act: revokeCredential,
+  },
+];
+
 export function errorToastCases() {
   return [
-    {
-      name: "credits-consumer-withdraw-rpc",
-      path: "/dashboard/billing/credits",
-      role: "CONSUMER",
-      options: { consumerWithdrawMode: "rpc" },
-      expected: {
-        en: expectedCopy.en.creditsRpc,
-        zh: expectedCopy.zh.creditsRpc,
-      },
-      act: consumerWithdraw,
-    },
-    {
-      name: "credits-consumer-withdraw-unknown",
-      path: "/dashboard/billing/credits",
-      role: "CONSUMER",
-      options: { consumerWithdrawMode: "unknown" },
-      expected: {
-        en: expectedCopy.en.creditsUnknown,
-        zh: expectedCopy.zh.creditsUnknown,
-      },
-      act: consumerWithdraw,
-    },
-    {
-      name: "provider-withdraw-rpc",
-      path: "/provider/withdraw",
-      role: "PROVIDER",
-      options: { providerWithdrawMode: "rpc" },
-      expected: {
-        en: expectedCopy.en.providerRpc,
-        zh: expectedCopy.zh.providerRpc,
-      },
-      act: providerWithdraw,
-    },
-    {
-      name: "provider-withdraw-matured",
-      path: "/provider/withdraw",
-      role: "PROVIDER",
-      options: { providerWithdrawMode: "matured" },
-      expected: {
-        en: expectedCopy.en.providerMatured,
-        zh: expectedCopy.zh.providerMatured,
-      },
-      act: providerWithdraw,
-    },
-    {
-      name: "provider-services-list",
-      path: "/provider/services",
-      role: "PROVIDER",
-      options: { failServiceList: true },
-      expected: {
-        en: expectedCopy.en.serviceList,
-        zh: expectedCopy.zh.serviceList,
-      },
-      act: async () => {},
-    },
-    {
-      name: "provider-service-deploy",
-      path: "/provider/services/deploy",
-      role: "PROVIDER",
-      options: { failServiceDeploy: true },
-      expected: {
-        en: expectedCopy.en.serviceDeploy,
-        zh: expectedCopy.zh.serviceDeploy,
-      },
-      act: fillProviderDeployForm,
-    },
-    {
-      name: "agent-credential-revoke",
-      path: "/dashboard/credentials",
-      role: "CONSUMER",
-      options: { failCredentialRevoke: true },
-      expected: {
-        en: expectedCopy.en.credentialRevoke,
-        zh: expectedCopy.zh.credentialRevoke,
-      },
-      act: revokeCredential,
-    },
+    ...consumerWithdrawCases,
+    ...providerWithdrawCases,
+    ...passiveSurfaceCases,
+    ...actionSurfaceCases,
   ];
 }

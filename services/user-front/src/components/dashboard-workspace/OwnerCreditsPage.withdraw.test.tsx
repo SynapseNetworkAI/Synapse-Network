@@ -434,7 +434,7 @@ describe("OwnerCreditsPage — Withdraw", () => {
 
     await waitFor(() => {
       expect(toastSuccessMock).toHaveBeenCalledWith(
-        expect.stringContaining("under review")
+        "Withdrawal submitted for security review. We will update the status when review is complete."
       );
     });
   });
@@ -462,13 +462,13 @@ describe("OwnerCreditsPage — Withdraw", () => {
   const consumerWithdrawErrorCases = [
     {
       code: "CHAIN_RPC_UNAVAILABLE",
-      en: "Gateway cannot reach the chain RPC right now. In local development, make sure the local chain is running, then retry.",
-      zh: "Gateway 当前无法连接链 RPC。本地开发时请确认本地链已启动，然后重试。",
+      en: "The withdrawal network is temporarily unavailable. Please retry in a moment.",
+      zh: "提现网络服务暂时不可用，请稍后重试。",
     },
     {
       code: "WITHDRAW_CONTRACT_NOT_CONFIGURED",
-      en: "Withdrawal contract is not configured for this environment.",
-      zh: "当前环境尚未配置提现合约。",
+      en: "Withdrawals are not available in this environment yet.",
+      zh: "当前环境暂不支持提现。",
     },
     {
       code: "MIN_WITHDRAWAL_AMOUNT_NOT_MET",

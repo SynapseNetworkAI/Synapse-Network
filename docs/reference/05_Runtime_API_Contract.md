@@ -182,7 +182,7 @@ Gateway 同步调用按 service profile 执行 bounded timeout：
 3. 先进入 `PENDING_CONFIRMATION`
 4. 资金先进入 `consumer_pending`
 5. 确认后才转 `consumer_available`
-6. 最小充值金额默认 10 USDC，低于该值返回 `400 MIN_DEPOSIT_AMOUNT_NOT_MET`，不创建有效 intent
+6. 最小充值金额默认 5 USDC，低于该值返回 `400 MIN_DEPOSIT_AMOUNT_NOT_MET`，不创建有效 intent
 7. 同一 `txHash` 在 replay-protection window 内重复提交时，返回已存在的 intent，保持稳定业务结果
 
 ### 3.2.1 `GET /api/v1/balance/deposit/sync?txHash=...`

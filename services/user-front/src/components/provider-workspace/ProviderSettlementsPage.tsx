@@ -46,6 +46,11 @@ import {
   normalizeWithdrawWalletError,
   toSafeErrorMessage,
 } from "@/utils/providerWithdrawWallet";
+import {
+  withdrawalHistoryReasonLabel,
+  withdrawalStatusBadgeClass,
+  withdrawalStatusLabel,
+} from "./providerWithdrawalDisplay";
 
 const VAULT_ADDRESS = (contractConfig as { SynapseCore?: string })
   .SynapseCore as `0x${string}` | undefined;
@@ -82,8 +87,7 @@ type WithdrawalHistoryStatusFilter =
   (typeof WITHDRAWAL_HISTORY_STATUS_FILTERS)[number];
 type TranslateFn = (
   key: string,
-  vars?: Record<string, string | number>,
-  fallbackText?: string
+  vars?: Record<string, string | number>
 ) => string;
 
 function formatTimestamp(seconds?: number | string, locale?: string): string {
@@ -97,41 +101,6 @@ function formatTimestamp(seconds?: number | string, locale?: string): string {
 function normalizeSignature(signature: string): `0x${string}` {
   const normalized = signature.startsWith("0x") ? signature : `0x${signature}`;
   return normalized as `0x${string}`;
-}
-
-function withdrawalStatusLabel(
-  status: ProviderWithdrawRecord["status"],
-  t: TranslateFn
-): string {
-  if (status === "APPROVED_AUTO")
-    return t("providerSettlements.historyStatusApprovedAuto");
-  if (status === "PENDING_MANUAL_REVIEW")
-    return t("providerSettlements.historyStatusPendingManualReview");
-  if (status === "CANCELLED")
-    return t("providerSettlements.historyStatusCancelled");
-  if (status === "FAILED_EXPIRED")
-    return t("providerSettlements.historyStatusFailedExpired", {}, "Expired");
-  if (status === "REQUESTED")
-    return t("providerSettlements.historyStatusRequested");
-  if (status === "COMPLETED")
-    return t("providerSettlements.historyStatusCompleted");
-  if (status === "REJECTED")
-    return t("providerSettlements.historyStatusRejected");
-  return status;
-}
-
-function withdrawalStatusBadgeClass(
-  status: ProviderWithdrawRecord["status"]
-): string {
-  if (status === "COMPLETED")
-    return "border-[#22c55e]/30 bg-[#22c55e]/10 text-[#86efac]";
-  if (status === "REJECTED")
-    return "border-[#ef4444]/30 bg-[#ef4444]/10 text-[#fca5a5]";
-  if (status === "CANCELLED" || status === "FAILED_EXPIRED")
-    return "border-[#94a3b8]/30 bg-[#94a3b8]/10 text-[#cbd5e1]";
-  if (status === "APPROVED_AUTO")
-    return "border-[#22c55e]/30 bg-[#22c55e]/10 text-[#bbf7d0]";
-  return "border-[#ff9f0a]/30 bg-[#ff9f0a]/10 text-[#ffd7a1]";
 }
 
 function formatChainLabel(chainId: number | undefined, t: TranslateFn): string {
@@ -198,6 +167,9 @@ function resolveCreateWithdrawalIntentErrorMessage(
     if (error.code === "PENDING_WITHDRAWAL_EXISTS") {
       return t("providerSettlements.pendingWithdrawalExists");
     }
+    if (error.code === "ACTION_REJECTED") {
+      return t("providerSettlements.walletRejected");
+    }
     return t("providerSettlements.withdrawalCreateFailed");
   }
 
@@ -248,6 +220,7 @@ export default function ProviderSettlementsPage() {
       walletRejected: t("providerSettlements.walletRejected"),
       insufficientNativeGas: t("providerSettlements.insufficientNativeGas"),
       ticketExpired: t("providerSettlements.ticketExpired"),
+      ticketExpiringSoon: t("providerSettlements.ticketExpiringSoon"),
       staleTicket: t("providerSettlements.staleTicket"),
       invalidSignature: t("providerSettlements.invalidSignature"),
       vaultLiquidityInsufficient: t(
@@ -582,10 +555,9 @@ export default function ProviderSettlementsPage() {
       setWithdrawAmountInput("");
 
       if (intent.status === "PENDING_MANUAL_REVIEW") {
-        toast.success(
-          intent.message || t("providerSettlements.manualReviewQueued"),
-          { id: toastId }
-        );
+        toast.success(t("providerSettlements.manualReviewQueued"), {
+          id: toastId,
+        });
       } else if (intent.ticket) {
         try {
           await startWalletWithdraw(intent.withdrawalId, intent.ticket);
@@ -1185,11 +1157,7 @@ export default function ProviderSettlementsPage() {
                   </span>
                 </td>
                 <td className="py-4 px-6 text-xs text-[#c5c5c7]">
-                  {row.message ||
-                    (row.status === "CANCELLED" ||
-                    row.status === "FAILED_EXPIRED"
-                      ? t("providerSettlements.expiredTicketReleasedRow")
-                      : "-")}
+                  {withdrawalHistoryReasonLabel(row.status, t)}
                 </td>
                 <td className="py-4 px-6 text-xs font-mono text-[#c5c5c7]">
                   <CopyableValue

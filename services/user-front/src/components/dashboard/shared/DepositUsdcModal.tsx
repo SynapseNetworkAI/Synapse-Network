@@ -32,6 +32,7 @@ type DepositUsdcModalCopy = {
   toSynapseVaultLabel: string;
   synapseVaultLabel: string;
   expectedResult: string;
+  walletPromptNotice: string;
   detailsLabel: string;
   vaultAddressLabel: string;
   tokenLabel: string;
@@ -101,6 +102,8 @@ const DEFAULT_COPY: DepositUsdcModalCopy = {
   synapseVaultLabel: "Synapse Vault",
   expectedResult:
     "{{amount}} {{symbol}} will be deposited into Synapse Vault and become spendable credits after Gateway confirmation.",
+  walletPromptNotice:
+    "MetaMask may only show the contract interaction. Please verify the {{amount}} {{symbol}} amount and Synapse Vault address on this panel.",
   detailsLabel: "Details",
   vaultAddressLabel: "Vault address",
   tokenLabel: "Token",
@@ -252,6 +255,9 @@ export default function DepositUsdcModal({
     flowMode === "preapproved"
       ? labels.stepDepositActive
       : labels.stepDepositWaiting;
+  const vaultDisplayValue = `${labels.synapseVaultLabel} · ${shortAddress(
+    vaultAddress
+  )}`;
 
   return (
     <dialog
@@ -359,9 +365,13 @@ export default function DepositUsdcModal({
                     valueClassName="font-mono text-white"
                   />
                   <ChevronRight className="h-4 w-4 text-gray-500" />
-                  <span className="font-semibold text-cyan-200">
-                    {labels.synapseVaultLabel}
-                  </span>
+                  <span>{labels.toSynapseVaultLabel}</span>
+                  <CopyableValue
+                    value={vaultAddress}
+                    displayValue={vaultDisplayValue}
+                    label={labels.vaultAddressLabel}
+                    valueClassName="font-semibold text-cyan-200"
+                  />
                 </div>
               </div>
 
@@ -466,6 +476,15 @@ export default function DepositUsdcModal({
             <div className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
               {visibleError}
             </div>
+          ) : null}
+
+          {isReviewing ? (
+            <p className="mt-5 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-xs leading-5 text-gray-300">
+              {interpolateCopy(labels.walletPromptNotice, {
+                amount: normalizedAmount,
+                symbol: tokenSymbol,
+              })}
+            </p>
           ) : null}
 
           <div className="mt-8 flex justify-end gap-3">
