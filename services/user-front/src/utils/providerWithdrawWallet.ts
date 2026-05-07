@@ -30,9 +30,13 @@ const ERC20_ERROR_ABI = [
 ] as const satisfies Abi;
 
 export function toSafeErrorMessage(error: unknown, fallback: string): string {
+  return fallback;
+}
+
+function toRawErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message.trim()) return error.message;
   if (typeof error === "string" && error.trim()) return error;
-  return fallback;
+  return "";
 }
 
 export type WithdrawWalletErrorMessages = {
@@ -40,6 +44,7 @@ export type WithdrawWalletErrorMessages = {
   walletRejected: string;
   insufficientNativeGas: string;
   ticketExpired: string;
+  ticketExpiringSoon: string;
   staleTicket: string;
   invalidSignature: string;
   vaultLiquidityInsufficient: string;
@@ -55,19 +60,21 @@ const DEFAULT_WITHDRAW_WALLET_ERROR_MESSAGES: WithdrawWalletErrorMessages = {
   insufficientNativeGas:
     "Withdrawal could not be submitted because the wallet does not have enough native token to pay gas.",
   ticketExpired:
-    "This withdrawal ticket has expired. Generate a new ticket before retrying.",
+    "This withdrawal approval has expired. Create a new withdrawal request before retrying.",
+  ticketExpiringSoon:
+    "This withdrawal approval expires soon. Wait a moment, then create a new withdrawal request to avoid a failed transaction.",
   staleTicket:
-    "This withdrawal ticket is stale. Refresh it from the gateway before retrying.",
+    "This withdrawal approval is no longer valid. Create a new withdrawal request before retrying.",
   invalidSignature:
-    "This withdrawal ticket signature is no longer valid. Generate a new ticket before retrying.",
+    "This withdrawal approval is no longer valid. Create a new withdrawal request before retrying.",
   vaultLiquidityInsufficient:
-    "Vault liquidity is insufficient for this withdrawal right now. The platform treasury must refill on-chain USDC before you retry.",
+    "The on-chain withdrawal reserve cannot cover this amount right now. Please retry later.",
   vaultAllowanceUnavailable:
-    "Vault allowance is not ready for this withdrawal yet. Retry after the platform refreshes the vault configuration.",
-  contractRejectedWithName: (name: string) =>
-    `Withdrawal was rejected by the vault contract (${name}).`,
-  contractRejectedWithReason: (reason: string) =>
-    `Withdrawal was rejected by the vault contract: ${reason}.`,
+    "Withdrawal authorization is not ready yet. Please retry in a moment.",
+  contractRejectedWithName: () =>
+    "The on-chain withdrawal was rejected. No funds were moved.",
+  contractRejectedWithReason: () =>
+    "The on-chain withdrawal was rejected. No funds were moved.",
 };
 
 function extractCustomErrorData(parts: string[]): Hex | undefined {
@@ -94,7 +101,7 @@ function decodeKnownWithdrawCustomError(
   error: unknown
 ): { errorName: string } | null {
   const baseError = error instanceof BaseError ? error : undefined;
-  const rawMessage = toSafeErrorMessage(error, "");
+  const rawMessage = toRawErrorMessage(error);
   const messageParts = [
     baseError?.shortMessage,
     baseError?.details,
@@ -133,7 +140,7 @@ export function normalizeWithdrawWalletError(
   const revertError = baseError?.walk(
     (walked) => walked instanceof ContractFunctionRevertedError
   ) as ContractFunctionRevertedError | undefined;
-  const rawMessage = toSafeErrorMessage(error, resolved.fallback);
+  const rawMessage = toRawErrorMessage(error);
   const messageParts = [
     revertError?.reason,
     revertError?.data?.errorName,
@@ -144,6 +151,12 @@ export function normalizeWithdrawWalletError(
     (part): part is string => typeof part === "string" && part.trim().length > 0
   );
   const normalizedMessage = messageParts.join(" | ").toLowerCase();
+  const knownUserFacingMessages = Object.values(resolved).filter(
+    (value): value is string => typeof value === "string" && value.length > 0
+  );
+  if (rawMessage && knownUserFacingMessages.includes(rawMessage)) {
+    return rawMessage;
+  }
 
   if (isWalletUserRejectedError(error)) {
     return resolved.walletRejected;
@@ -184,7 +197,7 @@ export function normalizeWithdrawWalletError(
   if (revertError?.reason) {
     return resolved.contractRejectedWithReason(revertError.reason);
   }
-  return rawMessage;
+  return resolved.fallback;
 }
 
 export function isWithdrawWalletRejected(error: unknown): boolean {

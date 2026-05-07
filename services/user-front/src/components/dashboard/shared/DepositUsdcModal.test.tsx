@@ -82,10 +82,15 @@ describe("DepositUsdcModal", () => {
 
     expect(screen.getByText("250.00 USDC")).toBeTruthy();
     expect(screen.getByText("From your wallet")).toBeTruthy();
-    expect(screen.getByText("Synapse Vault")).toBeTruthy();
+    expect(screen.getByText("Synapse Vault · 0xef71...0512")).toBeTruthy();
     expect(
       screen.getByText(
         "250.00 USDC will be deposited into Synapse Vault and become spendable credits after Gateway confirmation."
+      )
+    ).toBeTruthy();
+    expect(
+      screen.getByText(
+        "MetaMask may only show the contract interaction. Please verify the 250.00 USDC amount and Synapse Vault address on this panel."
       )
     ).toBeTruthy();
     expect(screen.queryByText("Token address")).toBeNull();
@@ -159,6 +164,8 @@ describe("DepositUsdcModal", () => {
         synapseVaultLabel: "Synapse Vault",
         expectedResult:
           "{{amount}} {{symbol}} 将存入 Synapse Vault，Gateway 确认后转为可消费 credits。",
+        walletPromptNotice:
+          "MetaMask 当前可能只显示合约交互。请以本面板的 {{amount}} {{symbol}} 金额和 Synapse Vault 地址为准。",
         detailsLabel: "详情",
         vaultAddressLabel: "Vault 地址",
         tokenLabel: "Token",
@@ -186,6 +193,11 @@ describe("DepositUsdcModal", () => {
     expect(
       screen.getByText(
         "250.00 USDC 将存入 Synapse Vault，Gateway 确认后转为可消费 credits。"
+      )
+    ).toBeTruthy();
+    expect(
+      screen.getByText(
+        "MetaMask 当前可能只显示合约交互。请以本面板的 250.00 USDC 金额和 Synapse Vault 地址为准。"
       )
     ).toBeTruthy();
     expect(screen.getByRole("button", { name: "关闭充值弹窗" })).toBeTruthy();

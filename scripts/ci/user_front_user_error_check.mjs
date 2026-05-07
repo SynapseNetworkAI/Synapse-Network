@@ -12,11 +12,23 @@ const HIGH_RISK_FILES = [
   "services/user-front/src/components/dashboard-workspace/ManageSpendCapModal.tsx",
   "services/user-front/src/components/dashboard/agents/QuickStartGuide.tsx",
   "services/user-front/src/components/PaidInvokePanel.tsx",
+  "services/user-front/src/components/NotificationCenter.tsx",
   "services/user-front/src/components/provider-workspace/ProviderHealthPage.tsx",
   "services/user-front/src/components/provider-workspace/ProviderServicesPage.tsx",
   "services/user-front/src/components/provider-workspace/ProviderServiceDeployPage.tsx",
   "services/user-front/src/components/provider-workspace/ProviderWithdrawPage.tsx",
   "services/user-front/src/components/provider-workspace/ProviderSettlementsPage.tsx",
+  "services/user-front/src/utils/providerWithdrawApi.ts",
+  "services/user-front/src/utils/providerWithdrawWallet.ts",
+];
+
+const WITHDRAWAL_COPY_FILES = [
+  "services/user-front/src/i18n/resources/en/creditsPage.ts",
+  "services/user-front/src/i18n/resources/zh/creditsPage.ts",
+  "services/user-front/src/i18n/resources/en/providerSettlements.ts",
+  "services/user-front/src/i18n/resources/zh/providerSettlements.ts",
+  "services/user-front/src/i18n/resources/en/walletActions.ts",
+  "services/user-front/src/i18n/resources/zh/walletActions.ts",
 ];
 
 const BLOCKED_PATTERNS = [
@@ -35,6 +47,26 @@ const BLOCKED_PATTERNS = [
     pattern:
       /Unable to prepare a withdrawal ticket right now:\s*\$\{|\bHTTPException\b|'\{\\?'code\\?':/g,
   },
+  {
+    name: "raw-provider-withdraw-message",
+    pattern: /\b(?:row|intent|payload)\.message\b/g,
+  },
+  {
+    name: "raw-error-message-return",
+    pattern: /return\s+(?:rawMessage|error\.message|err\.message)\b/g,
+  },
+  {
+    name: "raw-error-message-fallback",
+    pattern: /normalizeAuthApiError\(\s*(?:text|message|parsed\.detail)/g,
+  },
+];
+
+const WITHDRAWAL_COPY_BLOCKED_PATTERNS = [
+  {
+    name: "internal-withdraw-copy",
+    pattern:
+      /:\s*"[^"]*(?:ticket|backend|ledger|HTTPException|CHAIN_RPC|PROVIDER_|RPC)[^"]*"/gi,
+  },
 ];
 
 const findings = [];
@@ -47,6 +79,31 @@ for (const relPath of HIGH_RISK_FILES) {
 
   const text = fs.readFileSync(absPath, "utf8");
   for (const rule of BLOCKED_PATTERNS) {
+    if (
+      rule.name === "raw-error-message-return" &&
+      relPath.endsWith("providerWithdrawWallet.ts")
+    ) {
+      continue;
+    }
+    for (const match of text.matchAll(rule.pattern)) {
+      const line = text.slice(0, match.index).split("\n").length;
+      findings.push({
+        path: relPath,
+        line,
+        rule: rule.name,
+      });
+    }
+  }
+}
+
+for (const relPath of WITHDRAWAL_COPY_FILES) {
+  const absPath = path.join(ROOT, relPath);
+  if (!fs.existsSync(absPath)) {
+    continue;
+  }
+
+  const text = fs.readFileSync(absPath, "utf8");
+  for (const rule of WITHDRAWAL_COPY_BLOCKED_PATTERNS) {
     for (const match of text.matchAll(rule.pattern)) {
       const line = text.slice(0, match.index).split("\n").length;
       findings.push({
