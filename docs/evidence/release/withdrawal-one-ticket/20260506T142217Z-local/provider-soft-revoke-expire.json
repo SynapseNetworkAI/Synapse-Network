@@ -1,0 +1,181 @@
+{
+  "name": "provider-soft-revoke-expire",
+  "status": "passed",
+  "pass": true,
+  "runId": "wot-20260506142232",
+  "generatedAt": "2026-05-06T14:27:04.263Z",
+  "summary": "provider ticket expired and reaper released funds",
+  "role": "provider",
+  "withdrawalId": "wd-a1c99a6dd7a84f51a5d5865c1498c01d",
+  "ticketHash": "0x80529dd4f307097d01168e286d880975bc053b0a6b3c07e5d9b47e5b45d3664e",
+  "deadline": 1778077619,
+  "softRevoke": {
+    "requestedAt": "2026-05-06T14:25:59.565Z",
+    "mode": "SOFT_REVOKE_WAIT_EXPIRY_ONLY",
+    "note": "Operator blocks refresh/new ticket; one-ticket model waits for physical deadline before release."
+  },
+  "expected": {
+    "dbStatus": "FAILED_EXPIRED",
+    "ticketConsumed": false,
+    "localPastDeadlineBuffer": true,
+    "rpcPastDeadlineMargin": true
+  },
+  "actual": {
+    "dbStatus": "FAILED_EXPIRED",
+    "ticketConsumed": false,
+    "rpcBlockTimestamp": 1778077628,
+    "localNow": 1778077624,
+    "balanceBefore": {
+      "id": "wd-a1c99a6dd7a84f51a5d5865c1498c01d",
+      "ownerAddress": "0x82f1c188327bfc265357a85e8a6b4a34d562d6f8",
+      "txHash": null,
+      "status": "APPROVED_AUTO",
+      "requestId": "2ea3ec7e-c7c6-497b-b359-9f165d6ab26e",
+      "idempotencyKey": "wot:wot-20260506142232:provider-soft-revoke-expire:1778077559471",
+      "amountUsdc": "10.000000",
+      "amountWei": "10000000000000000000",
+      "feeWei": "0",
+      "nonce": 0,
+      "deadline": 1778077619,
+      "signature": "[redacted]",
+      "chainId": 31337,
+      "contractAddress": "0x3aa5ebb10dc797cac828524e59a333d0a371443c",
+      "signerAddress": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+      "businessType": "withdraw",
+      "evidenceSummary": null,
+      "riskLevel": "green",
+      "riskReasonCode": null,
+      "message": "",
+      "requestMeta": {
+        "requestId": "",
+        "traceId": null,
+        "clientIp": "127.0.0.1",
+        "userAgent": "node",
+        "actorAddress": null,
+        "note": null,
+        "review": {
+          "decision": null,
+          "reviewerAddress": null,
+          "reviewerNote": null
+        }
+      },
+      "reviewDecision": null,
+      "reviewerAddress": null,
+      "reviewerNote": null,
+      "reviewedAt": null,
+      "ticket": {
+        "ticketId": "0x8b2d8138fcf28f3c4eb89f9117d8aa5f25e902c2ab54fdb93e8a50b6576f2787",
+        "ticketHash": "0x80529dd4f307097d01168e286d880975bc053b0a6b3c07e5d9b47e5b45d3664e",
+        "amount": "10000000000000000000",
+        "fee": "0",
+        "nonce": 0,
+        "deadline": 1778077619,
+        "signature": "[redacted]",
+        "chainId": 31337,
+        "contractAddress": "0x3aa5ebb10dc797cac828524e59a333d0a371443c"
+      },
+      "completedAt": null,
+      "completeMeta": {
+        "requestId": null,
+        "traceId": null,
+        "clientIp": null,
+        "userAgent": null,
+        "actorAddress": null,
+        "note": null,
+        "review": {
+          "decision": null,
+          "reviewerAddress": null,
+          "reviewerNote": null
+        }
+      },
+      "createdAt": "2026-05-06 14:25:59",
+      "updatedAt": "2026-05-06 14:25:59"
+    },
+    "row": {
+      "id": "wd-a1c99a6dd7a84f51a5d5865c1498c01d",
+      "ownerAddress": "0x82f1c188327bfc265357a85e8a6b4a34d562d6f8",
+      "txHash": null,
+      "status": "FAILED_EXPIRED",
+      "requestId": "2ea3ec7e-c7c6-497b-b359-9f165d6ab26e",
+      "idempotencyKey": "wot:wot-20260506142232:provider-soft-revoke-expire:1778077559471",
+      "amountUsdc": "10.000000",
+      "amountWei": "10000000000000000000",
+      "feeWei": "0",
+      "nonce": 0,
+      "deadline": 1778077619,
+      "signature": "[redacted]",
+      "chainId": 31337,
+      "contractAddress": "0x3aa5ebb10dc797cac828524e59a333d0a371443c",
+      "signerAddress": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+      "businessType": "withdraw",
+      "evidenceSummary": null,
+      "riskLevel": "green",
+      "riskReasonCode": null,
+      "message": "Withdrawal ticket expired. Locked receivable was released back to available balance.",
+      "requestMeta": {
+        "requestId": "",
+        "traceId": null,
+        "clientIp": "127.0.0.1",
+        "userAgent": "node",
+        "actorAddress": null,
+        "note": null,
+        "review": {
+          "decision": null,
+          "reviewerAddress": null,
+          "reviewerNote": null
+        }
+      },
+      "reviewDecision": null,
+      "reviewerAddress": null,
+      "reviewerNote": null,
+      "reviewedAt": null,
+      "ticket": {
+        "ticketId": "0x8b2d8138fcf28f3c4eb89f9117d8aa5f25e902c2ab54fdb93e8a50b6576f2787",
+        "ticketHash": "0x80529dd4f307097d01168e286d880975bc053b0a6b3c07e5d9b47e5b45d3664e",
+        "amount": "10000000000000000000",
+        "fee": "0",
+        "nonce": 0,
+        "deadline": 1778077619,
+        "signature": "[redacted]",
+        "chainId": 31337,
+        "contractAddress": "0x3aa5ebb10dc797cac828524e59a333d0a371443c"
+      },
+      "completedAt": 1778077624,
+      "completeMeta": {
+        "requestId": null,
+        "traceId": null,
+        "clientIp": null,
+        "userAgent": null,
+        "actorAddress": null,
+        "note": null,
+        "review": {
+          "decision": null,
+          "reviewerAddress": null,
+          "reviewerNote": null
+        }
+      },
+      "createdAt": "2026-05-06 14:25:59",
+      "updatedAt": "2026-05-06 14:27:04"
+    }
+  },
+  "comparisons": [
+    {
+      "metric": "dbStatus",
+      "expected": "FAILED_EXPIRED",
+      "actual": "FAILED_EXPIRED",
+      "pass": true
+    },
+    {
+      "metric": "ticketConsumed",
+      "expected": "false",
+      "actual": "false",
+      "pass": true
+    },
+    {
+      "metric": "rpcBlockTimestamp",
+      "expected": ">1778077622",
+      "actual": "1778077628",
+      "pass": true
+    }
+  ]
+}

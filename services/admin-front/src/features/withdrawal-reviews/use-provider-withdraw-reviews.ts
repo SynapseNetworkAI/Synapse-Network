@@ -1,5 +1,6 @@
 "use client";
 
+import type { Dispatch, SetStateAction } from "react";
 import { useEffect, useState } from "react";
 
 import {
@@ -10,10 +11,11 @@ import {
 import {
   getWithdrawReviewActionErrorMessage,
   getWithdrawReviewActionSuccessMessage,
-  getWithdrawReviewSubmittedNotice,
   type WithdrawReviewActionPhase,
   type WithdrawReviewDecision,
 } from "@/features/withdrawal-reviews/review-action-feedback";
+
+export const REVIEW_QUEUE_FETCH_LIMIT = 100;
 
 type RequestStepUpCode = (input: {
   title: string;
@@ -30,7 +32,6 @@ type UseProviderWithdrawReviewsResult = {
   isPending: boolean;
   actionPhase: WithdrawReviewActionPhase;
   pendingDecision: WithdrawReviewDecision | null;
-  submittedDecisionByWithdrawalId: Record<string, WithdrawReviewDecision>;
   setActiveReviewId: (withdrawalId: string | null) => void;
   setDecisionNote: (value: string) => void;
   setMessage: (value: string | null) => void;
@@ -38,6 +39,143 @@ type UseProviderWithdrawReviewsResult = {
   handleDecision: (decision: "APPROVE" | "REJECT") => void;
   refreshReviews: () => Promise<void>;
 };
+
+type ReviewQueueResponse = {
+  items: ProviderWithdrawReviewItem[];
+};
+
+type ListReviewsFn = (
+  token: string,
+  input: { limit: number }
+) => Promise<ReviewQueueResponse>;
+
+type DecideReviewFn = typeof decideProviderWithdrawReview;
+
+export function applyOptimisticWithdrawReviewDecision(
+  items: ProviderWithdrawReviewItem[],
+  withdrawalId: string,
+  result: {
+    status: ProviderWithdrawReviewItem["status"];
+    message?: string | null;
+  }
+): ProviderWithdrawReviewItem[] {
+  const updatedAt = new Date().toISOString();
+  return items.map((item) =>
+    item.withdrawalId === withdrawalId
+      ? {
+          ...item,
+          status: result.status,
+          message: result.message ?? item.message,
+          updatedAt,
+        }
+      : item
+  );
+}
+
+export function resolveNextActiveReviewId(
+  current: string | null,
+  items: ProviderWithdrawReviewItem[]
+): string | null {
+  if (current && items.some((item) => item.withdrawalId === current)) {
+    return current;
+  }
+  return items[0]?.withdrawalId ?? null;
+}
+
+export function getWithdrawReviewLoadErrorMessage(loadError: unknown): string {
+  return loadError instanceof Error
+    ? loadError.message
+    : "加载提现审核队列失败";
+}
+
+export async function loadProviderWithdrawReviewQueue(
+  token: string,
+  currentActiveReviewId: string | null,
+  listReviews: ListReviewsFn = listProviderWithdrawReviews
+): Promise<{
+  items: ProviderWithdrawReviewItem[];
+  activeReviewId: string | null;
+}> {
+  const reviewQueue = await listReviews(token, {
+    limit: REVIEW_QUEUE_FETCH_LIMIT,
+  });
+  return {
+    items: reviewQueue.items,
+    activeReviewId: resolveNextActiveReviewId(
+      currentActiveReviewId,
+      reviewQueue.items
+    ),
+  };
+}
+
+type SubmitReviewDecisionInput = {
+  token: string;
+  activeReviewId: string;
+  decision: WithdrawReviewDecision;
+  decisionNote: string;
+  requestStepUpCode: RequestStepUpCode;
+  refreshReviews: () => Promise<void>;
+  setItems: Dispatch<SetStateAction<ProviderWithdrawReviewItem[]>>;
+  setMessage: (value: string | null) => void;
+  setError: (value: string | null) => void;
+  setDecisionNote: (value: string) => void;
+  setActionPhase: (value: WithdrawReviewActionPhase) => void;
+  setPendingDecision: (value: WithdrawReviewDecision | null) => void;
+  decideReview?: DecideReviewFn;
+};
+
+export async function submitProviderWithdrawReviewDecision({
+  token,
+  activeReviewId,
+  decision,
+  decisionNote,
+  requestStepUpCode,
+  refreshReviews,
+  setItems,
+  setMessage,
+  setError,
+  setDecisionNote,
+  setActionPhase,
+  setPendingDecision,
+  decideReview = decideProviderWithdrawReview,
+}: Readonly<SubmitReviewDecisionInput>): Promise<void> {
+  const note = decisionNote.trim();
+  const reviewId = activeReviewId;
+  try {
+    const otpCode = await requestStepUpCode({
+      title: `${decision === "APPROVE" ? "批准" : "拒绝"}提现单`,
+      description: `你正在处理 ${reviewId}，完成验证码验证后系统才会提交${
+        decision === "APPROVE" ? "放行" : "驳回"
+      }请求。`,
+      confirmLabel: decision === "APPROVE" ? "确认放行" : "确认驳回",
+    });
+
+    setActionPhase("submitting");
+    const result = await decideReview(token, reviewId, {
+      decision,
+      note,
+      otpCode,
+    });
+    setItems((current) =>
+      applyOptimisticWithdrawReviewDecision(current, reviewId, result)
+    );
+    setMessage(
+      getWithdrawReviewActionSuccessMessage({
+        decision,
+        status: result.status,
+        message: result.message,
+      })
+    );
+    setError(null);
+    setDecisionNote("");
+    await refreshReviews();
+  } catch (actionError) {
+    setError(getWithdrawReviewActionErrorMessage(actionError, decision));
+  } finally {
+    setActionPhase("idle");
+    setPendingDecision(null);
+  }
+}
 
 export function useProviderWithdrawReviews(
   token: string | null,
@@ -52,8 +190,6 @@ export function useProviderWithdrawReviews(
     useState<WithdrawReviewActionPhase>("idle");
   const [pendingDecision, setPendingDecision] =
     useState<WithdrawReviewDecision | null>(null);
-  const [submittedDecisionByWithdrawalId, setSubmittedDecisionByWithdrawalId] =
-    useState<Record<string, WithdrawReviewDecision>>({});
 
   const isPending = actionPhase !== "idle";
 
@@ -62,20 +198,14 @@ export function useProviderWithdrawReviews(
       setItems([]);
       setActiveReviewId(null);
       setError(null);
-      setSubmittedDecisionByWithdrawalId({});
       return;
     }
-    const reviewQueue = await listProviderWithdrawReviews(token, { limit: 20 });
+    const reviewQueue = await loadProviderWithdrawReviewQueue(
+      token,
+      activeReviewId
+    );
     setItems(reviewQueue.items);
-    setActiveReviewId((current) => {
-      if (
-        current &&
-        reviewQueue.items.some((item) => item.withdrawalId === current)
-      ) {
-        return current;
-      }
-      return reviewQueue.items[0]?.withdrawalId ?? null;
-    });
+    setActiveReviewId(reviewQueue.activeReviewId);
   }
 
   useEffect(() => {
@@ -83,7 +213,6 @@ export function useProviderWithdrawReviews(
       setItems([]);
       setActiveReviewId(null);
       setError(null);
-      setSubmittedDecisionByWithdrawalId({});
       return;
     }
     const activeToken = token;
@@ -91,24 +220,21 @@ export function useProviderWithdrawReviews(
 
     async function load() {
       try {
-        const reviewQueue = await listProviderWithdrawReviews(activeToken, {
-          limit: 20,
-        });
+        const reviewQueue = await loadProviderWithdrawReviewQueue(
+          activeToken,
+          null
+        );
         if (cancelled) {
           return;
         }
         setItems(reviewQueue.items);
-        setActiveReviewId(reviewQueue.items[0]?.withdrawalId ?? null);
+        setActiveReviewId(reviewQueue.activeReviewId);
         setError(null);
       } catch (loadError) {
         if (cancelled) {
           return;
         }
-        setError(
-          loadError instanceof Error
-            ? loadError.message
-            : "加载提现审核队列失败"
-        );
+        setError(getWithdrawReviewLoadErrorMessage(loadError));
       }
     }
 
@@ -122,13 +248,6 @@ export function useProviderWithdrawReviews(
     if (!token || !activeReviewId) {
       return;
     }
-    const targetWithdrawalId = activeReviewId;
-    const submittedDecision =
-      submittedDecisionByWithdrawalId[targetWithdrawalId];
-    if (submittedDecision) {
-      setMessage(getWithdrawReviewSubmittedNotice(submittedDecision));
-      return;
-    }
     const note = decisionNote.trim();
     if (decision === "REJECT" && !note) {
       setError("驳回前请填写处理备注，说明不通过的原因，方便后续跟进。");
@@ -140,45 +259,20 @@ export function useProviderWithdrawReviews(
     setActionPhase("awaitingOtp");
 
     void (async () => {
-      try {
-        const otpCode = await requestStepUpCode({
-          title: `${decision === "APPROVE" ? "批准" : "拒绝"}提现单`,
-          description: `你正在处理 ${targetWithdrawalId}，完成验证码验证后系统才会提交${
-            decision === "APPROVE" ? "放行" : "驳回"
-          }请求。`,
-          confirmLabel: decision === "APPROVE" ? "确认放行" : "确认驳回",
-        });
-
-        setActionPhase("submitting");
-        const result = await decideProviderWithdrawReview(
-          token,
-          targetWithdrawalId,
-          {
-            decision,
-            note,
-            otpCode,
-          }
-        );
-        setSubmittedDecisionByWithdrawalId((current) => ({
-          ...current,
-          [targetWithdrawalId]: decision,
-        }));
-        setMessage(
-          getWithdrawReviewActionSuccessMessage({
-            decision,
-            status: result.status,
-            message: result.message,
-          })
-        );
-        setError(null);
-        setDecisionNote("");
-        await refreshReviews();
-      } catch (actionError) {
-        setError(getWithdrawReviewActionErrorMessage(actionError, decision));
-      } finally {
-        setActionPhase("idle");
-        setPendingDecision(null);
-      }
+      await submitProviderWithdrawReviewDecision({
+        token,
+        activeReviewId,
+        decision,
+        decisionNote: note,
+        requestStepUpCode,
+        refreshReviews,
+        setItems,
+        setMessage,
+        setError,
+        setDecisionNote,
+        setActionPhase,
+        setPendingDecision,
+      });
     })();
   }
 
@@ -191,7 +285,6 @@ export function useProviderWithdrawReviews(
     isPending,
     actionPhase,
     pendingDecision,
-    submittedDecisionByWithdrawalId,
     setActiveReviewId,
     setDecisionNote,
     setMessage,

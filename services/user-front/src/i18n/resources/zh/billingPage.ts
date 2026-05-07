@@ -23,6 +23,8 @@ const billingPage: I18nMessages["billingPage"] = {
   openTransactionExplorer: "打开链上浏览器",
   statusPending: "处理中",
   statusPendingSyncing: "同步中",
+  statusWithdrawReviewPending: "审核中",
+  statusWithdrawReadyToClaim: "待领取",
   statusWithdrawPending: "提现处理中",
   statusSucceeded: "已完成",
   statusFailed: "失败",

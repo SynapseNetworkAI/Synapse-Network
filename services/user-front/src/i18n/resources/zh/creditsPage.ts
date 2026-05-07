@@ -13,9 +13,11 @@ const creditsPage: I18nMessages["creditsPage"] = {
   pendingWithdrawalBalanceLabel: "提现处理中的 credits",
   frozenBalanceLabel: "冻结 / 审核中的 credits",
   pendingBalanceHint:
-    "Gateway 正在索引链上充值；如果长时间未到账，请带 txHash 联系支持。",
+    "我们正在同步链上充值；如果长时间未到账，请带交易哈希联系支持。",
   pendingDepositBalanceHint:
-    "Gateway 正在索引链上充值；如果长时间未到账，请带 txHash 联系支持。",
+    "我们正在同步链上充值；如果长时间未到账，请带交易哈希联系支持。",
+  claimableWithdrawalBalanceLabel: "待领取的提现 credits",
+  claimableWithdrawalBalanceHint: "人工审核已通过。请打开钱包完成链上提现。",
   pendingWithdrawalBalanceHint:
     "提现已锁定并等待链上完成；完成后会从 pending 中扣除。",
   frozenBalanceHint: "资金已因活跃提现、人工审核或风控规则被锁定。",
@@ -105,6 +107,13 @@ const creditsPage: I18nMessages["creditsPage"] = {
   consumerWithdrawTitle: "提现余额",
   consumerWithdrawDescription:
     "把已成熟 credits 提回钱包。可取现金额：{{amount}} USDC",
+  consumerWithdrawClaimTitle: "领取提现",
+  consumerWithdrawClaimDescription:
+    "你的提现已放行。请在钱包中确认，链上领取 {{amount}} USDC。",
+  consumerWithdrawClaimReadyLabel: "已可领取",
+  consumerWithdrawClaimAmount: "领取金额：{{amount}} USDC",
+  consumerWithdrawClaimReviewPassedHint:
+    "人工审核已经通过。请打开钱包完成提现。",
   consumerWithdrawAmountLabel: "金额 (USDC)",
   consumerWithdrawReasonLabel: "原因（可选）",
   consumerWithdrawReasonPlaceholder: "为什么要提现？",
@@ -145,11 +154,11 @@ const creditsPage: I18nMessages["creditsPage"] = {
   consumerWithdrawProgressCompleting: "已确认，正在同步提现状态...",
   consumerWithdrawMax: "最大",
   consumerWithdrawAction: "提现",
-  consumerWithdrawResumeAction: "继续提现",
+  consumerWithdrawClaimAction: "继续提现",
   consumerWithdrawPendingTooltip:
     "有一笔 {{amount}} 的提现正在处理中。同一时间只允许一笔活跃提现。",
-  consumerWithdrawReadyTooltip:
-    "这笔 {{amount}} USDC 提现已审核通过。请继续在钱包中确认领取。",
+  consumerWithdrawClaimReadyTooltip:
+    "有一笔 {{amount}} 的提现已放行，请在钱包中确认领取。",
   consumerWithdrawMaturityWarning:
     "近期充值可用于 API 消费，但需 T+7 后才可提现。",
   consumerWithdrawMinimumRule: "最低提现金额：{{amount}} USDC",

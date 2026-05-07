@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-from src.storage.forum_support import postgres
+from src.storage.forum_support import postgres, topic_repository
 from src.storage.forum_support.support_notifications import enqueue_support_reply_notifications
 
 _DEFAULT_OWNER = object()
@@ -149,7 +149,31 @@ def test_forum_support_repository_lists_tasks_with_classification(monkeypatch: p
     assert tasks[0].response_task_id == "frt_1"
     assert tasks[0].topic is not None
     assert any("task.classification = %s" in query for query, _ in cursor.queries)
+    task_query = cursor.queries[-1][0]
+    assert "ORDER BY task.created_at DESC, task.response_task_id ASC" in task_query
+    assert "task.updated_at DESC" not in task_query
+    assert "CASE task.priority" not in task_query
     assert cursor.queries[-1][1] == [["awaiting_response"], "billing_support", 10, 10]
+
+
+def test_forum_support_repository_lists_topics_by_created_desc(monkeypatch: pytest.MonkeyPatch) -> None:
+    cursor = ScriptedCursor([{"total": 1}, [_task_row(topic_id="topic_1")]])
+    repo = postgres.PostgresForumSupportRepository("postgresql://example")
+    monkeypatch.setattr(repo, "ensure_schema", lambda: None)
+    monkeypatch.setattr(topic_repository, "_connect", lambda _dsn: FakeConnection(cursor))
+
+    topics, total = repo.list_topics(
+        statuses=("open",),
+        page=1,
+        page_size=10,
+    )
+
+    assert total == 1
+    assert topics[0].topic_id == "topic_1"
+    topic_query = cursor.queries[-1][0]
+    assert "ORDER BY topic.created_at DESC, topic.topic_id ASC" in topic_query
+    assert "topic.pinned DESC" not in topic_query
+    assert "topic.last_activity_at DESC" not in topic_query
 
 
 def test_forum_support_repository_send_reply_rejects_locked_topic(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -277,7 +277,13 @@ Headers:
 
 1. `status` — `"success"`
 2. `ownerAddress` — owner 钱包地址
-3. `withdrawals` — 提现记录数组，每条包含 `withdrawId`, `amountUsdc`, `status`, `riskLevel`, `riskReasonCode`, `createdAt`
+3. `withdrawals` — 提现记录数组，每条包含 `withdrawId`, `amountUsdc`, `status`, `claimable`, `ticket`, `txHash`, `riskLevel`, `riskReasonCode`, `createdAt`
+
+约束：
+
+1. `claimable=true` 只允许出现在 ticket 已签发、未完成、未失败、且钱包现在可以执行链上 claim 的记录上。
+2. `PENDING_MANUAL_REVIEW` 必须返回 `claimable=false`。
+3. User-front 必须把 `claimable=true` 的 consumer withdrawal 呈现为“可领取 / Ready to claim”，而不是继续显示为同一种笼统 pending。
 
 ### 3.2.4 `POST /api/v1/refunds/{refundId}/complete`
 
@@ -289,7 +295,7 @@ Headers:
 2. 成功推进后，`synapse_vault_withdrawals.status = COMPLETED`。
 3. Gateway 必须写入稳定 `tx_hash`，并只消费一次 `consumer_pending_balance`。
 4. 重复或并发 complete 不得重复扣减 pending，也不得覆盖已落库的最终 `tx_hash`。
-5. Billing 页最终态必须来自 `COMPLETED`，显示为 `Completed`；`REQUESTED` / `PENDING_MANUAL_REVIEW` 只能显示 pending 类状态。
+5. Billing 页最终态必须来自 `COMPLETED`，显示为 `Completed`；`REQUESTED` 只能表示 ticket ready / ready to claim，`PENDING_MANUAL_REVIEW` 只能表示 under review。
 
 ### 3.3 `POST /api/v1/refund`
 

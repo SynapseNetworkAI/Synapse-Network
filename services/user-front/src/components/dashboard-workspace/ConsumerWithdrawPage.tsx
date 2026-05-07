@@ -255,7 +255,7 @@ function ConsumerWithdrawActionPanel({
       withdrawableBalance={withdrawableBalance}
       minWithdrawAmount={minWithdrawAmount}
       userAddress={userAddress}
-      resumeWithdrawal={activeWithdrawal}
+      existingWithdrawal={activeWithdrawal}
       onClose={() => {}}
       onSuccess={handleWithdrawSuccess}
     />

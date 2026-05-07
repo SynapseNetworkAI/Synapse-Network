@@ -37,18 +37,16 @@ import {
   getWithdrawRiskTone,
   listWithdrawRiskLevels,
   paginateWithdrawReviews,
-  sortWithdrawReviewsByPriority,
 } from "@/features/withdrawal-reviews/review-presenters";
 import { formatDateTime, formatUsdc, inputText } from "@/lib/admin-console";
 import { useProviderWithdrawReviews } from "@/features/withdrawal-reviews/use-provider-withdraw-reviews";
 import { useAdminStepUp } from "@/lib/use-admin-step-up";
 import { useAdminSession } from "@/lib/use-admin-session";
 import {
+  canSubmitWithdrawReviewDecision,
+  getWithdrawReviewActionButtonLabel,
   getWithdrawReviewActionNotice,
-  getWithdrawReviewSubmittedNotice,
 } from "@/features/withdrawal-reviews/review-action-feedback";
-import { getWithdrawReviewActionLockState } from "@/features/withdrawal-reviews/review-action-lock";
-import { ReviewDecisionActions } from "@/features/withdrawal-reviews/review-decision-actions";
 
 const PAGE_SIZE = 6;
 
@@ -79,7 +77,6 @@ export default function WithdrawalReviewsPage() {
     isPending,
     actionPhase,
     pendingDecision,
-    submittedDecisionByWithdrawalId,
     setActiveReviewId,
     setDecisionNote,
     setMessage,
@@ -102,12 +99,10 @@ export default function WithdrawalReviewsPage() {
   );
   const filteredItems = useMemo(
     () =>
-      sortWithdrawReviewsByPriority(
-        filterWithdrawReviews(
-          items,
-          appliedFilters.query,
-          appliedFilters.riskLevel
-        )
+      filterWithdrawReviews(
+        items,
+        appliedFilters.query,
+        appliedFilters.riskLevel
       ),
     [appliedFilters, items]
   );
@@ -190,18 +185,11 @@ export default function WithdrawalReviewsPage() {
     actionPhase,
     pendingDecision
   );
-  const activeSubmittedDecision = activeReview
-    ? submittedDecisionByWithdrawalId[activeReview.withdrawalId]
-    : undefined;
-  const activeReviewLockState = getWithdrawReviewActionLockState({
-    item: activeReview,
+  const canSubmitActiveDecision = canSubmitWithdrawReviewDecision({
     canDecide,
-    submittedDecision: activeSubmittedDecision,
+    isPending,
+    status: activeReview?.status,
   });
-  const isActiveReviewLocked = activeReviewLockState.locked;
-  const activeReviewLockMessage = activeSubmittedDecision
-    ? getWithdrawReviewSubmittedNotice(activeSubmittedDecision)
-    : "当前申请已不处于可审核状态，请刷新页面查看最新状态。";
 
   function openReviewDetail(withdrawalId: string) {
     setActiveReviewId(withdrawalId);
@@ -556,21 +544,58 @@ export default function WithdrawalReviewsPage() {
                   value={decisionNote}
                   onChange={(event) => setDecisionNote(event.target.value)}
                   placeholder="填写核实结果、处理原因，或需要其他同事继续跟进的说明。"
-                  disabled={!canDecide || isPending || isActiveReviewLocked}
                   style={nativeTextAreaStyle}
                 />
               </Box>
             </Box>
-            <ReviewDecisionActions
-              canDecide={canDecide}
-              isLocked={isActiveReviewLocked}
-              lockMessage={activeReviewLockMessage}
-              isPending={isPending}
-              hasActiveReview={Boolean(activeReview)}
-              pendingDecision={pendingDecision}
-              actionPhase={actionPhase}
-              onDecision={handleDecision}
-            />
+            <Grid templateColumns={{ base: "1fr", md: "1fr 1fr" }} gap="10px">
+              <Button
+                bg="signal.500"
+                color="white"
+                borderRadius="18px"
+                h="52px"
+                onClick={() => handleDecision("APPROVE")}
+                disabled={!canSubmitActiveDecision}
+                loading={
+                  isPending &&
+                  pendingDecision === "APPROVE" &&
+                  actionPhase === "submitting"
+                }
+                loadingText="放行提交中"
+              >
+                {getWithdrawReviewActionButtonLabel(
+                  "APPROVE",
+                  actionPhase,
+                  pendingDecision
+                )}
+              </Button>
+              <Button
+                bg="#b83131"
+                color="white"
+                borderRadius="18px"
+                h="52px"
+                onClick={() => handleDecision("REJECT")}
+                disabled={!canSubmitActiveDecision}
+                loading={
+                  isPending &&
+                  pendingDecision === "REJECT" &&
+                  actionPhase === "submitting"
+                }
+                loadingText="驳回提交中"
+              >
+                {getWithdrawReviewActionButtonLabel(
+                  "REJECT",
+                  actionPhase,
+                  pendingDecision
+                )}
+              </Button>
+            </Grid>
+            {canDecide ? null : (
+              <MessageBanner
+                kind="error"
+                message="当前账号只有查看权限，不能提交处理结果。"
+              />
+            )}
           </Stack>
         ) : null}
       </OverlayPanel>

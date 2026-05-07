@@ -4,6 +4,18 @@ import { isAdminApiError } from "@/services/admin-api";
 export type WithdrawReviewDecision = "APPROVE" | "REJECT";
 export type WithdrawReviewActionPhase = "idle" | "awaitingOtp" | "submitting";
 
+export function canSubmitWithdrawReviewDecision(input: {
+  canDecide: boolean;
+  isPending: boolean;
+  status: WithdrawalStatus | null | undefined;
+}): boolean {
+  return (
+    input.canDecide &&
+    !input.isPending &&
+    input.status === "PENDING_MANUAL_REVIEW"
+  );
+}
+
 function getDecisionLabel(decision: WithdrawReviewDecision): string {
   return decision === "APPROVE" ? "放行" : "驳回";
 }

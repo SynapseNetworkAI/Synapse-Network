@@ -143,8 +143,42 @@ parallel requests:
 - concurrent complete consumes pending once and preserves the first `txHash`
 - consumed `ticketHash` cannot be replayed on-chain
 
+Broad money-path changes must also pass the unified local finance gate:
+
+```bash
+npm run e2e:money-safety-concurrency:local
+npm run ci:money-safety-concurrency-local-evidence
+```
+
+That gate aggregates deposit replay, consumer/provider withdrawal concurrency,
+refund callback replay, invoke hold/capture/release, and platform fee boundary
+evidence into one bundle.
+
 Manual-review UI, admin permissions, screenshots, and approve/reject operations
 remain covered by `withdrawal-review-dogfood` and `admin-withdrawal-approval`.
+
+The full local consumer self-claim path now has its own money-path evidence
+lane:
+
+```bash
+npm run e2e:consumer-withdraw-claim-fullchain:local
+npm run ci:consumer-withdraw-claim-fullchain-local-evidence
+```
+
+That gate proves one continuous story:
+
+1. deposit is credited to Gateway balance
+2. a risky withdrawal enters `PENDING_MANUAL_REVIEW`
+3. admin approval transitions the row to `REQUESTED + claimable=true`
+4. User-front changes from `审核中` to `待领取`
+5. the consumer wallet executes the real `SynapseCore.withdraw(...)` claim
+6. Gateway `/complete` or watcher closes the row as `COMPLETED`
+7. `platformFeePool` increases by the signed fee
+8. a local owner-only `withdrawPlatformFees(amount)` can withdraw only that accrued fee into the platform wallet
+
+This is intentionally local-only automation. Staging and production keep the
+same self-claim consumer path, but platform fee execution remains a controlled
+Safe or owner operation rather than a generic automated CI step.
 
 ## Ticket and Fee Model
 
@@ -157,6 +191,16 @@ remain covered by `withdrawal-review-dogfood` and `admin-withdrawal-approval`.
 
 The owner receives the net amount on-chain. The fee stays inside the vault as protocol revenue.
 
+Platform revenue is not transferred to the platform wallet at claim time.
+Instead:
+
+1. consumer claim sends only the signed net amount to the user wallet
+2. the signed fee remains inside `SynapseCore` as `platformFeePool`
+3. a separate owner-only `withdrawPlatformFees(amount)` call moves that accrued fee to the platform wallet
+
+This is the key custody boundary that prevents the platform from directly
+pulling user principal during ordinary withdrawal completion.
+
 ## Payments Page Behavior
 
 Consumer withdrawals appear in Payments as a single `Withdraw` row. We intentionally filter the same rows out of generic refund history to avoid duplicates.
@@ -165,17 +209,19 @@ Payments is a Gateway-backed display surface, not a frontend chain watcher. The 
 
 Status mapping:
 
-| Withdrawal Status       | Payments Status |
-| ----------------------- | --------------- |
-| `REQUESTED`             | `PENDING`       |
-| `PENDING_MANUAL_REVIEW` | `PENDING`       |
-| `COMPLETED`             | `COMPLETED`     |
-| `FAILED`                | `FAILED`        |
-| `REJECTED`              | `FAILED`        |
-| `FAILED_EXPIRED`        | `FAILED`        |
+| Withdrawal Status       | Payments Status  |
+| ----------------------- | ---------------- |
+| `REQUESTED`             | `READY_TO_CLAIM` |
+| `PENDING_MANUAL_REVIEW` | `UNDER_REVIEW`   |
+| `COMPLETED`             | `COMPLETED`      |
+| `FAILED`                | `FAILED`         |
+| `REJECTED`              | `FAILED`         |
+| `FAILED_EXPIRED`        | `FAILED`         |
 
 Other display rules:
 
+- `REQUESTED` must render as a wallet action surface, not a generic "processing" placeholder
+- `PENDING_MANUAL_REVIEW` means the ticket is not released yet and the wallet cannot claim
 - amount is shown as a negative outflow
 - `txHash` is shown once it exists
 - failed or cancelled withdrawals keep their failure state instead of disappearing
