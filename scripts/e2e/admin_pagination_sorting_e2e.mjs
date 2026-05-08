@@ -545,7 +545,9 @@ async function verifyApi(auth) {
     withdrawals.map((row) => row.id)
   );
   if (apiEvidence.withdrawals.some((row) => !row.reviewExpiresAt)) {
-    fail("withdrawal review API did not return reviewExpiresAt for all seeded rows");
+    fail(
+      "withdrawal review API did not return reviewExpiresAt for all seeded rows"
+    );
   }
 
   const serviceData = await adminApi(

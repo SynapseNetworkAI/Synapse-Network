@@ -988,7 +988,7 @@ Manual review checklist:
 4. Local and staging instructions do not share secrets or wallet keys.
 5. Any behavior change in money flow also updates the finance and database
    reference docs.
-Manual-review queue rules:
+   Manual-review queue rules:
 
 - `/withdrawal-reviews` must show a backend-owned `reviewExpiresAt` / 审批过期时间 column.
 - `reviewExpiresAt = created_at + WITHDRAWAL_MANUAL_REVIEW_EXPIRY_SEC`.
