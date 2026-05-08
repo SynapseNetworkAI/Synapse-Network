@@ -381,3 +381,59 @@ class GatewayStateRefundMixin:
                     consumer_wallet=consumer_wallet,
                     updated_at=row_updated_at,
                 )
+
+    def update_consumer_refund_row_atomic(
+        self,
+        row: RefundIntentRow,
+        *,
+        updated_at: str | int,
+    ) -> None:
+        row_updated_at = to_dt_str(row.updated_at or updated_at, now_dt_str())
+        consumer_wallet = str(
+            row.consumer_address or row.owner_address or ""
+        ).lower()
+        with self._db.tx_cursor() as cur:
+            source_account_id = self._ensure_ledger_account(
+                cur,
+                consumer_wallet,
+                "consumer_wallet",
+                row_updated_at,
+            )
+            cur.execute(
+                """
+                UPDATE synapse_vault_withdrawals
+                SET owner_id = %s,
+                    source_account_id = %s,
+                    request_id = %s,
+                    amount_usdc = %s,
+                    status = %s,
+                    tx_hash = %s,
+                    signature = %s,
+                    nonce = %s,
+                    deadline = %s,
+                    updated_at = %s
+                WHERE withdrawal_id = %s
+                  AND withdrawal_kind = 'consumer_refund'
+                """,
+                (
+                    self._owner_id(consumer_wallet),
+                    source_account_id,
+                    row.request_id,
+                    str(self._q6(row.amount_usdc)),
+                    row.status,
+                    row.tx_hash.lower() if row.tx_hash else None,
+                    row.signature or row.ticket.signature or None,
+                    row.ticket.nonce,
+                    row.ticket.deadline,
+                    row_updated_at,
+                    row.id,
+                ),
+            )
+            if cur.rowcount != 1:
+                raise RuntimeError("CONSUMER_WITHDRAW_UPDATE_STATE_INCONSISTENT")
+            self._upsert_consumer_refund_metadata(
+                cur,
+                row,
+                consumer_wallet=consumer_wallet,
+                updated_at=row_updated_at,
+            )

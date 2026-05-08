@@ -172,7 +172,7 @@ const creditsPage: I18nMessages["creditsPage"] = {
   consumerWithdrawTicketUnavailable:
     "Withdrawal approval is not ready yet. Please retry in a moment.",
   consumerWithdrawTicketExpiring:
-    "This withdrawal approval is about to expire. Please wait a moment, then create a new withdrawal request.",
+    "This withdrawal approval is about to expire. After the on-chain safety window passes, the funds will be released automatically. Please wait a moment, then create a new withdrawal request.",
   consumerWithdrawTxSubmitted:
     "Transaction submitted — waiting for confirmation...",
   consumerWithdrawTxRejected: "Transaction rejected by wallet.",

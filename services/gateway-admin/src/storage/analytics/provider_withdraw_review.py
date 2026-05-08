@@ -108,7 +108,7 @@ class InMemoryProviderWithdrawReviewRepository:
             and not _is_manual_review_expired(item.created_at, now=now)
         ]
         items.sort(
-            key=lambda item: (item.created_at or "", item.withdrawal_id),
+            key=lambda item: ((item.created_at or ""), (item.withdrawal_id or "")),
             reverse=True,
         )
         return items[:limit]
