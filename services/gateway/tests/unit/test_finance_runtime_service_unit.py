@@ -116,6 +116,20 @@ class InMemoryGatewayStateRepo:
         assert all(isinstance(row, RefundIntentRow) for row in rows)
         self.refund_rows = list(rows)
 
+    def update_consumer_refund_row_atomic(self, row: RefundIntentRow, *, updated_at):
+        _ = updated_at
+        replaced = False
+        next_rows: list[RefundIntentRow] = []
+        for existing in self.refund_rows:
+            if str(existing.id) == str(row.id):
+                next_rows.append(row.model_copy(deep=True))
+                replaced = True
+            else:
+                next_rows.append(existing)
+        if not replaced:
+            raise RuntimeError("CONSUMER_WITHDRAW_UPDATE_STATE_INCONSISTENT")
+        self.refund_rows = next_rows
+
     def read_provider_withdrawal_rows(self):
         return list(self.withdraw_rows)
 

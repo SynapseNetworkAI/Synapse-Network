@@ -1,8 +1,7 @@
 "use client";
 import dynamic from "next/dynamic";
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CalendarDays, CircleAlert, Info } from "lucide-react";
+import { CalendarDays, CircleAlert } from "lucide-react";
 import {
   useAccount,
   useChainId,
@@ -1016,26 +1015,6 @@ export default function OwnerCreditsPage() {
                   </div>
                 )}
               </div>
-              <div>
-                <div className="mb-1 flex items-center gap-1.5">
-                  <p className="text-[14px] font-normal leading-[20px] text-[#9ca3af]">
-                    {t("creditsPage.withdrawableBalanceLabel")}
-                  </p>
-                  <Info
-                    className="h-[14px] w-[14px] text-[#71767b]"
-                    aria-label={t("creditsPage.withdrawableBalanceTooltip")}
-                  >
-                    <title>{t("creditsPage.withdrawableBalanceTooltip")}</title>
-                  </Info>
-                </div>
-                {showBalanceSkeleton ? (
-                  <div className="mt-2 h-[32px] w-[112px] animate-pulse rounded-full bg-white/[0.09]" />
-                ) : (
-                  <p className="text-[24px] font-bold leading-[32px] tracking-[-0.02em] text-white">
-                    {formatUsd(creditSummary.withdrawableBalance)}
-                  </p>
-                )}
-              </div>
               <div className="flex flex-wrap items-center self-start gap-2 md:self-auto">
                 <button
                   type="button"
@@ -1047,14 +1026,6 @@ export default function OwnerCreditsPage() {
                   {t("creditsPage.purchaseCredits")}
                 </button>
               </div>
-            </div>
-            <div className="mt-3 px-1 text-[13px] leading-5 text-[#9ca3af]">
-              <Link
-                href="/dashboard/account/withdraw"
-                className="text-[#7dd3fc] transition hover:text-[#bae6fd]"
-              >
-                {t("creditsPage.goToAccountWithdraw")}
-              </Link>
             </div>
             {!showBalanceSkeleton ? (
               <div className="mt-3 space-y-2">

@@ -284,6 +284,87 @@ describe("DashboardSidebar", () => {
     ).toBeTruthy();
   });
 
+  it("shows consumer withdraw under billing instead of account", async () => {
+    const user = userEvent.setup();
+    render(<DashboardSidebar />);
+
+    await user.click(screen.getByRole("button", { name: /Billing/i }));
+
+    const billingWithdrawLink = screen.getByRole("link", {
+      name: /^Withdraw$/i,
+    });
+    expect(billingWithdrawLink.getAttribute("href")).toBe(
+      "/dashboard/account/withdraw"
+    );
+
+    await user.click(screen.getByRole("button", { name: /Account/i }));
+
+    const consumerWithdrawLinks = screen
+      .getAllByRole("link")
+      .filter(
+        (link) => link.getAttribute("href") === "/dashboard/account/withdraw"
+      );
+    expect(consumerWithdrawLinks).toHaveLength(1);
+    expect(screen.getByRole("link", { name: /Settings/i })).toBeTruthy();
+  });
+
+  it("treats the consumer withdraw route as a billing child", () => {
+    navigationState.pathname = "/dashboard/account/withdraw";
+
+    render(<DashboardSidebar />);
+
+    const billingWithdrawLink = screen.getByRole("link", {
+      name: /^Withdraw$/i,
+    });
+    expect(billingWithdrawLink.getAttribute("href")).toBe(
+      "/dashboard/account/withdraw"
+    );
+    expect(billingWithdrawLink.className).toContain("bg-white");
+    expect(screen.queryByRole("link", { name: /Settings/i })).toBeNull();
+  });
+
+  it("renders localized sidebar labels in Chinese", async () => {
+    const user = userEvent.setup();
+    const originalSidebarLabels = {
+      "sidebar.agents": TRANSLATIONS["sidebar.agents"],
+      "sidebar.billing": TRANSLATIONS["sidebar.billing"],
+      "sidebar.credits": TRANSLATIONS["sidebar.credits"],
+      "sidebar.payments": TRANSLATIONS["sidebar.payments"],
+      "sidebar.account": TRANSLATIONS["sidebar.account"],
+      "sidebar.providerRole": TRANSLATIONS["sidebar.providerRole"],
+      "sidebar.providerConsole": TRANSLATIONS["sidebar.providerConsole"],
+      "sidebar.providerCredentials":
+        TRANSLATIONS["sidebar.providerCredentials"],
+    };
+
+    Object.assign(TRANSLATIONS, {
+      "sidebar.agents": "智能体",
+      "sidebar.billing": "账务",
+      "sidebar.credits": "Credits",
+      "sidebar.payments": "支付记录",
+      "sidebar.account": "账户",
+      "sidebar.providerRole": "服务方角色",
+      "sidebar.providerConsole": "服务方控制台",
+      "sidebar.providerCredentials": "服务方凭据",
+    });
+
+    render(<DashboardSidebar />);
+
+    expect(screen.getByRole("link", { name: /智能体/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /账务/i })).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: /账务/i }));
+    expect(screen.getByRole("link", { name: /^Credits$/i })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /支付记录/i })).toBeTruthy();
+
+    expect(screen.getByRole("button", { name: /账户/i })).toBeTruthy();
+    expect(screen.getByText("服务方角色")).toBeTruthy();
+    expect(screen.getByRole("link", { name: /服务方控制台/i })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /服务方凭据/i })).toBeTruthy();
+
+    Object.assign(TRANSLATIONS, originalSidebarLabels);
+  });
+
   it("confirms logout before clearing the wallet session", async () => {
     const user = userEvent.setup();
     render(<DashboardSidebar />);
