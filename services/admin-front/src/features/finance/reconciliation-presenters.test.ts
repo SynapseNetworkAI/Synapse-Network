@@ -124,14 +124,38 @@ describe("reconciliation presenters", () => {
     const depositEvidence = buildReconciliationDepositEvidenceCards(detail);
     const outflowEvidence = buildReconciliationOutflowEvidenceCards(detail);
 
-    expect(depositEvidence[0]).toMatchObject({ key: "pending-deposits", value: "4" });
-    expect(depositEvidence[1]).toMatchObject({ key: "deposit-exceptions", value: "7" });
-    expect(depositEvidence[2]).toMatchObject({ key: "chain-confirmed-not-ledger-confirmed", value: "3" });
-    expect(depositEvidence[3]).toMatchObject({ key: "deposit-p95-sync-delay", value: "3m 04s" });
-    expect(outflowEvidence[0]).toMatchObject({ key: "today-refund", value: "12.30 USDC" });
-    expect(outflowEvidence[1]).toMatchObject({ key: "today-withdrawal", value: "44.10 USDC" });
-    expect(outflowEvidence[2]).toMatchObject({ key: "pending-withdrawals", value: "2" });
-    expect(outflowEvidence[3]).toMatchObject({ key: "recently-completed-outflows", value: "58.40 USDC" });
+    expect(depositEvidence[0]).toMatchObject({
+      key: "pending-deposits",
+      value: "4",
+    });
+    expect(depositEvidence[1]).toMatchObject({
+      key: "deposit-exceptions",
+      value: "7",
+    });
+    expect(depositEvidence[2]).toMatchObject({
+      key: "chain-confirmed-not-ledger-confirmed",
+      value: "3",
+    });
+    expect(depositEvidence[3]).toMatchObject({
+      key: "deposit-p95-sync-delay",
+      value: "3m 04s",
+    });
+    expect(outflowEvidence[0]).toMatchObject({
+      key: "today-refund",
+      value: "12.30 USDC",
+    });
+    expect(outflowEvidence[1]).toMatchObject({
+      key: "today-withdrawal",
+      value: "44.10 USDC",
+    });
+    expect(outflowEvidence[2]).toMatchObject({
+      key: "pending-withdrawals",
+      value: "2",
+    });
+    expect(outflowEvidence[3]).toMatchObject({
+      key: "recently-completed-outflows",
+      value: "58.40 USDC",
+    });
   });
 
   it("formats projection stamp via shared datetime helper", () => {
