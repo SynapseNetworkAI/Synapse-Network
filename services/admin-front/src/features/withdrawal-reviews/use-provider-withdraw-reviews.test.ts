@@ -33,6 +33,7 @@ function buildItem(
     message: null,
     createdAt: "2026-05-06T00:00:00Z",
     updatedAt: "2026-05-06T00:00:00Z",
+    reviewExpiresAt: "2026-05-07T00:00:00Z",
     ...overrides,
   };
 }

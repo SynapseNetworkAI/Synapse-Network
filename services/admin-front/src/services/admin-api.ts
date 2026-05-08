@@ -612,6 +612,7 @@ export type ProviderWithdrawReviewItem = {
   message: string | null;
   createdAt: string | null;
   updatedAt: string | null;
+  reviewExpiresAt: string | null;
 };
 
 export type ProviderWithdrawReviewListResponse = {
