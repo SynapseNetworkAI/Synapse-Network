@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   beginAdminMfaEnrollment,
+  archiveAdminNotification,
   createAdminMenuItem,
   createAdminRole,
   createAdminUser,
@@ -13,6 +14,7 @@ import {
   forceProbeProviderService,
   getActivityTrends,
   getAdminAuthPolicy,
+  getAdminNotificationUnreadCount,
   getAdminMenuConfig,
   getDashboardOverview,
   getFinanceOverview,
@@ -23,11 +25,14 @@ import {
   getSystemStatus,
   getVisibleAdminMenuConfig,
   listAdminPermissions,
+  listAdminNotifications,
   listAdminRoles,
   listAdminUsers,
   listAuditActions,
   listProviderWithdrawReviewHistory,
   logoutAdmin,
+  markAdminNotificationRead,
+  markAllAdminNotificationsRead,
   publishAdminMenuConfig,
   retryExecutionJob,
   updateAdminMenuItem,
@@ -286,5 +291,30 @@ describe("admin API adapter route coverage", () => {
     await deleteAdminMenuItem("cookie-session", "finance");
 
     expect(globalThis.fetch).toHaveBeenCalledTimes(3);
+  });
+
+  it("covers admin notification inbox routes", async () => {
+    queueResponses(
+      { unreadCount: 1 },
+      { notifications: [] },
+      { notificationId: "admin_inapp_1", read: true },
+      { markedCount: 1 },
+      { notificationId: "admin_inapp_1", archived: true }
+    );
+
+    await getAdminNotificationUnreadCount("cookie-session");
+    await listAdminNotifications("cookie-session", { limit: 20 });
+    await markAdminNotificationRead("cookie-session", "admin_inapp_1");
+    await markAllAdminNotificationsRead("cookie-session");
+    await archiveAdminNotification("cookie-session", "admin_inapp_1");
+
+    const urls = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.map(
+      (call) => call[0]
+    );
+    expect(urls).toContain("/api/admin/v1/notifications/unread-count");
+    expect(urls).toContain("/api/admin/v1/notifications?limit=20");
+    expect(urls).toContain("/api/admin/v1/notifications/admin_inapp_1/read");
+    expect(urls).toContain("/api/admin/v1/notifications/mark-all-read");
+    expect(urls).toContain("/api/admin/v1/notifications/admin_inapp_1/archive");
   });
 });

@@ -392,6 +392,75 @@ ON admin_audit_exports (operator_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_admin_audit_exports_status_created_at
 ON admin_audit_exports (status, created_at DESC);
 
+CREATE TABLE IF NOT EXISTS synapse_in_app_notifications (
+    row_id BIGINT GENERATED ALWAYS AS IDENTITY UNIQUE,
+    notification_id TEXT PRIMARY KEY,
+    dedupe_key TEXT NOT NULL UNIQUE,
+    recipient_type TEXT NOT NULL,
+    recipient_owner_id TEXT,
+    recipient_admin_id TEXT,
+    event_type TEXT NOT NULL,
+    category TEXT NOT NULL,
+    severity TEXT NOT NULL DEFAULT 'info',
+    priority TEXT NOT NULL DEFAULT 'transactional',
+    title TEXT NOT NULL,
+    body TEXT NOT NULL,
+    action_url TEXT,
+    resource_type TEXT,
+    resource_id TEXT,
+    payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+    read_at TIMESTAMPTZ,
+    archived_at TIMESTAMPTZ,
+    expires_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (recipient_type IN ('owner', 'provider', 'admin', 'ops')),
+    CHECK (category IN ('finance', 'withdrawal', 'deposit', 'refund', 'security', 'service', 'approval', 'system')),
+    CHECK (severity IN ('info', 'success', 'warning', 'critical')),
+    CHECK (priority IN ('security', 'transactional_high', 'transactional', 'ops', 'digest')),
+    CHECK (jsonb_typeof(payload) = 'object'),
+    CHECK (
+        (recipient_type IN ('owner', 'provider') AND recipient_owner_id IS NOT NULL)
+        OR (recipient_type = 'admin' AND recipient_admin_id IS NOT NULL)
+        OR (recipient_type = 'ops')
+    )
+);
+
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'synapse_in_app_notifications'
+          AND column_name = 'row_id'
+          AND is_identity = 'NO'
+          AND column_default IS NULL
+    ) THEN
+        CREATE SEQUENCE IF NOT EXISTS synapse_in_app_notifications_row_id_seq;
+        PERFORM setval(
+            'synapse_in_app_notifications_row_id_seq',
+            COALESCE((SELECT MAX(row_id) FROM synapse_in_app_notifications), 0) + 1,
+            false
+        );
+        ALTER TABLE synapse_in_app_notifications
+            ALTER COLUMN row_id SET DEFAULT nextval('synapse_in_app_notifications_row_id_seq');
+        ALTER SEQUENCE synapse_in_app_notifications_row_id_seq
+            OWNED BY synapse_in_app_notifications.row_id;
+    END IF;
+END
+$$;
+
+CREATE INDEX IF NOT EXISTS idx_synapse_in_app_notifications_admin_unread
+ON synapse_in_app_notifications (recipient_admin_id, read_at, created_at DESC)
+WHERE archived_at IS NULL;
+
+CREATE INDEX IF NOT EXISTS idx_synapse_in_app_notifications_admin_created
+ON synapse_in_app_notifications (recipient_admin_id, created_at DESC)
+WHERE archived_at IS NULL;
+
+CREATE INDEX IF NOT EXISTS idx_synapse_in_app_notifications_dedupe
+ON synapse_in_app_notifications (dedupe_key);
+
 INSERT INTO admin_roles (role_key, role_name, description, is_system, status)
 VALUES
     ('super_admin', 'Super Admin', 'Platform emergency super admin', TRUE, 'active'),

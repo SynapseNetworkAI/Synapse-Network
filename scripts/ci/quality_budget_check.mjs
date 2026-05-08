@@ -69,8 +69,8 @@ const BASELINED_FILE_EFFECTIVE_LINES = new Map([
   ["services/gateway-admin/src/storage/admin_approval/postgres.py", 567],
   ["services/gateway-admin/src/storage/analytics/analytics_dashboard.py", 695],
   ["services/gateway-admin/src/storage/analytics/gateway_dashboard.py", 655],
-  ["services/gateway-admin/src/storage/in_memory_store.py", 657],
-  ["services/gateway-admin/tests/test_app.py", 2779],
+  ["services/gateway-admin/src/storage/in_memory_store.py", 660],
+  ["services/gateway-admin/tests/test_app.py", 2783],
   ["services/gateway/src/api/routers/services.py", 614],
   ["services/gateway/src/services/analytics/gateway_events.py", 588],
   [

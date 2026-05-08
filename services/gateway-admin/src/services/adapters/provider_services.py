@@ -171,6 +171,7 @@ class HttpProviderServicesAdapter:
         if response.is_success:
             return body
         detail = body.get("detail") if isinstance(body, dict) else {}
+        detail = detail if isinstance(detail, dict) else {}
         raise ProviderServicesAdapterError(
             code=str(detail.get("code") or f"GATEWAY_HTTP_{response.status_code}"),
             message=str(detail.get("message") or response.text or "Gateway provider service request failed"),

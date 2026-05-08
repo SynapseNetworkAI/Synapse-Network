@@ -8,6 +8,7 @@ from src.core.errors import AuthenticationError, AuthorizationError
 from src.services.approval.service import ApprovalService
 from src.services.admin_config.service import AdminConfigService
 from src.services.admin_user.service import AdminUserService
+from src.services.admin_notifications import AdminNotificationService
 from src.services.admin_operations import AdminOperationsService
 from src.services.adapters import (
     GatewayExecutionAdapter,
@@ -65,6 +66,11 @@ def get_admin_user_service() -> AdminUserService:
 @lru_cache(maxsize=1)
 def get_admin_config_service() -> AdminConfigService:
     return AdminConfigService(get_store())
+
+
+@lru_cache(maxsize=1)
+def get_admin_notification_service() -> AdminNotificationService:
+    return AdminNotificationService(get_store())
 
 
 @lru_cache(maxsize=1)
