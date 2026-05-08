@@ -55,6 +55,7 @@ from tests.unit.test_finance_runtime_service_unit import (
 from tests.unit.test_provider_withdraw_manual_review_expiry_unit import (
     _manual_review_row,
 )
+from src.utils.datetime_utils import to_epoch_seconds
 
 settings.withdrawal_manual_review_expiry_min_sec = 1
 settings.withdrawal_manual_review_expiry_sec = 3
@@ -112,6 +113,7 @@ consumer_before = {
     "available": money(consumer_storage.balance_repo.read_balance_ledger().consumer_available_balance(consumer_owner)),
     "frozen": money(consumer_storage.balance_repo.read_balance_ledger().consumer_frozen_balance(consumer_owner)),
     "status": consumer_row.status,
+    "createdAt": consumer_row.created_at,
 }
 consumer_result = run(withdraw_processor.run_consumer_withdraw_processor_once(consumer_storage))
 consumer_after = {
@@ -132,6 +134,7 @@ provider_before = {
     "available": money(_money_decimal(provider_wallet.available_balance)),
     "frozen": money(_money_decimal(provider_wallet.frozen_balance)),
     "status": provider_row.status,
+    "createdAt": provider_row.created_at,
 }
 provider_service = ProviderWithdrawService(provider_storage, DummyLockManager())
 _configure_withdraw_service(provider_service)
@@ -149,6 +152,7 @@ payload = {
     "consumer": {
         "id": consumer_row.id,
         "owner": consumer_owner,
+        "reviewExpiresAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(to_epoch_seconds(consumer_row.created_at, default=0) + settings.withdrawal_manual_review_expiry_sec)),
         "processorResult": consumer_result.__dict__,
         "before": consumer_before,
         "after": consumer_after,
@@ -160,6 +164,7 @@ payload = {
     "provider": {
         "id": provider_row.id,
         "owner": provider_owner,
+        "reviewExpiresAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(to_epoch_seconds(provider_row.created_at, default=0) + settings.withdrawal_manual_review_expiry_sec)),
         "expiredCount": provider_expired_count,
         "before": provider_before,
         "after": provider_after,

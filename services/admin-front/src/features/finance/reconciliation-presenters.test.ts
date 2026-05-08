@@ -66,7 +66,10 @@ const drilldown = {
   pendingWithdrawalReviews: [
     {
       withdrawalId: "wd-1",
+      withdrawalKind: "consumer_refund",
+      reviewType: "consumer_withdraw_review",
       ownerAddress: "0xabc",
+      subjectAddress: "0xabc",
       amountUsdc: "88.00",
       status: "PENDING_MANUAL_REVIEW",
       requestId: "req-1",
@@ -77,6 +80,7 @@ const drilldown = {
       message: null,
       createdAt: "2026-03-21T10:00:00Z",
       updatedAt: "2026-03-21T10:00:00Z",
+      reviewExpiresAt: "2026-03-22T10:00:00Z",
     },
   ],
 };

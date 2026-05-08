@@ -87,6 +87,7 @@ class ProviderWithdrawReviewService:
                     "message": item.message,
                     "createdAt": item.created_at,
                     "updatedAt": item.updated_at,
+                    "reviewExpiresAt": item.review_expires_at,
                 }
                 for item in items
             ],

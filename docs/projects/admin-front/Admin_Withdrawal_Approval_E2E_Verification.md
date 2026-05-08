@@ -31,6 +31,12 @@ provider approve baseline; the focused gate adds provider reject plus consumer
 approve/reject coverage and verifies the consumer reject no-funds-blackhole
 invariant.
 
+The queue must also surface `reviewExpiresAt` / 审批过期时间. This value is
+backend-owned and equals `created_at + WITHDRAWAL_MANUAL_REVIEW_EXPIRY_SEC`.
+Rows that have passed that timestamp must not remain in the active
+`/withdrawal-reviews` queue, even if the expiry worker has not yet persisted
+`FAILED_EXPIRED`.
+
 ## Scenario
 
 The E2E flow creates real Provider receivable through a paid Gateway invocation, then withdraws `2.000000 USDC` through manual review.
@@ -118,6 +124,7 @@ The reconciliation report must include these comparisons:
 | Completion      | Gateway/DB status becomes `COMPLETED` and txHash is persisted                             |
 | Completion      | Provider pending and frozen balances return to `0.000000` for the completed withdrawal    |
 | UI              | `/withdrawal-reviews`, `/review-history`, and `/finance/reconciliation` screenshots exist |
+| UI              | `/withdrawal-reviews` shows 审批过期时间 / `Review Expires At` for each pending row        |
 
 The focused withdrawal-review dogfood additionally requires:
 
@@ -127,6 +134,7 @@ The focused withdrawal-review dogfood additionally requires:
 | Consumer approve  | ticket is present; on-chain claim succeeds; ticket replay fails; DB status becomes `COMPLETED`.                                           |
 | Provider reject   | `provider_withdrawal` status is `REJECTED`; available/frozen balance tuple returns to the pre-request values.                             |
 | Unified review UI | `/withdrawal-reviews` screenshots show both `Consumer withdrawal` and `Provider withdrawal` item kinds when those items are under review. |
+| Queue expiry      | Once a manual-review row passes `reviewExpiresAt`, it disappears from `/withdrawal-reviews`; backend later persists `FAILED_EXPIRED` and releases funds. |
 
 ## Security Regression Checks
 

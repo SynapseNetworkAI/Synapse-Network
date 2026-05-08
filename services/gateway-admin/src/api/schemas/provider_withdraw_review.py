@@ -21,6 +21,7 @@ class ProviderWithdrawReviewSummary(BaseModel):
     message: str | None = None
     created_at: str | None = Field(default=None, alias="createdAt")
     updated_at: str | None = Field(default=None, alias="updatedAt")
+    review_expires_at: str | None = Field(default=None, alias="reviewExpiresAt")
 
 
 class ProviderWithdrawReviewListResponse(BaseModel):

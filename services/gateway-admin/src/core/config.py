@@ -215,6 +215,10 @@ class Settings(BaseSettings):
         default=10.0,
         alias="GATEWAY_INTERNAL_TIMEOUT_SEC",
     )
+    withdrawal_manual_review_expiry_sec: int = Field(
+        default=86400,
+        alias="WITHDRAWAL_MANUAL_REVIEW_EXPIRY_SEC",
+    )
     chain_rpc_url: str = Field(default="http://127.0.0.1:8545", alias="RPC_URL")
     synapse_core_address: str = Field(default="", alias="SYNAPSE_CORE_ADDRESS")
     platform_treasury_safe_address: str = Field(

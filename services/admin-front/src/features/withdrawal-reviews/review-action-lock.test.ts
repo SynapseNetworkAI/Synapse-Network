@@ -23,6 +23,7 @@ const review: ProviderWithdrawReviewItem = {
   message: null,
   createdAt: "2026-03-21T12:00:00Z",
   updatedAt: "2026-03-21T12:10:00Z",
+  reviewExpiresAt: "2026-03-22T12:00:00Z",
 };
 
 describe("review-action-lock", () => {
