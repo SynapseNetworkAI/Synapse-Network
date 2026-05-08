@@ -52,7 +52,7 @@ name: "Synapse Frontend Rules"
 
 - List, feed, marketplace, forum, table, and registry pages are scanning surfaces. They must not inline-expand heavy create/edit forms inside the list flow.
 - For create/edit/feedback/confirmation workflows on scanning surfaces, default to an existing modal or popup component. Inline controls are only appropriate for lightweight filters, search, sorting, or single-field quick actions.
-- Do not use sidebars or right-side expanding panels for feedback, create, edit, logout, or finance confirmation flows. Sidebars are navigation only.
+- Do not use sidebars, right-side drawers, slide-out panels, or right-side expanding panels for feedback, create, edit, detail, review, logout, finance confirmation, or any clicked operation flow. Use the shared modal/popup primitives; sidebars are navigation only.
 - Keep action errors scoped to the surface that produced them: modal submission errors stay in the modal, while list-loading errors stay with the list.
 - Do not use browser-native `alert()` or `confirm()` in product code. Use the shared in-product confirmation dialog/modal so copy, styling, i18n, loading state, and screenshot evidence stay controlled. Test mocks may still stub native browser APIs.
 

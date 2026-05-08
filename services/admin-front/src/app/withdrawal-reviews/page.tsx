@@ -42,6 +42,7 @@ import { formatDateTime, formatUsdc, inputText } from "@/lib/admin-console";
 import { useProviderWithdrawReviews } from "@/features/withdrawal-reviews/use-provider-withdraw-reviews";
 import { useAdminStepUp } from "@/lib/use-admin-step-up";
 import { useAdminSession } from "@/lib/use-admin-session";
+import type { ProviderWithdrawReviewItem } from "@/services/admin-api";
 import {
   canSubmitWithdrawReviewDecision,
   getWithdrawReviewActionButtonLabel,
@@ -81,6 +82,7 @@ export default function WithdrawalReviewsPage() {
     setDecisionNote,
     setMessage,
     handleDecision,
+    resetActionState,
   } = useProviderWithdrawReviews(token, requestStepUpCode);
   const canDecide = admin?.permissions.includes("approval:decide") ?? false;
   const [draftFilters, setDraftFilters] =
@@ -90,6 +92,8 @@ export default function WithdrawalReviewsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(PAGE_SIZE);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [detailReviewSnapshot, setDetailReviewSnapshot] =
+    useState<ProviderWithdrawReviewItem | null>(null);
 
   const metrics = useMemo(() => buildWithdrawReviewMetrics(items), [items]);
   const riskLevels = useMemo(() => listWithdrawRiskLevels(items), [items]);
@@ -149,6 +153,10 @@ export default function WithdrawalReviewsPage() {
   }, []);
 
   useEffect(() => {
+    if (isDetailOpen && detailReviewSnapshot?.withdrawalId === activeReviewId) {
+      return;
+    }
+
     const nextActiveId = filteredItems.some(
       (item) => item.withdrawalId === activeReviewId
     )
@@ -158,7 +166,14 @@ export default function WithdrawalReviewsPage() {
       setActiveReviewId(nextActiveId);
       setDecisionNote("");
     }
-  }, [activeReviewId, filteredItems, setActiveReviewId, setDecisionNote]);
+  }, [
+    activeReviewId,
+    detailReviewSnapshot,
+    filteredItems,
+    isDetailOpen,
+    setActiveReviewId,
+    setDecisionNote,
+  ]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -170,17 +185,11 @@ export default function WithdrawalReviewsPage() {
     }
   }, [currentPage, totalPages]);
 
-  useEffect(() => {
-    if (
-      isDetailOpen &&
-      !filteredItems.some((item) => item.withdrawalId === activeReviewId)
-    ) {
-      setIsDetailOpen(false);
-    }
-  }, [activeReviewId, filteredItems, isDetailOpen]);
-
   const activeReview =
     filteredItems.find((item) => item.withdrawalId === activeReviewId) ?? null;
+  const detailReview = isDetailOpen
+    ? detailReviewSnapshot ?? activeReview
+    : activeReview;
   const actionNotice = getWithdrawReviewActionNotice(
     actionPhase,
     pendingDecision
@@ -188,13 +197,27 @@ export default function WithdrawalReviewsPage() {
   const canSubmitActiveDecision = canSubmitWithdrawReviewDecision({
     canDecide,
     isPending,
-    status: activeReview?.status,
+    status: detailReview?.status,
   });
 
-  function openReviewDetail(withdrawalId: string) {
-    setActiveReviewId(withdrawalId);
+  function openReviewDetail(review: ProviderWithdrawReviewItem) {
+    setActiveReviewId(review.withdrawalId);
+    setDetailReviewSnapshot(review);
+    resetActionState();
     setMessage(null);
     setIsDetailOpen(true);
+  }
+
+  function closeReviewDetail() {
+    setIsDetailOpen(false);
+    setDetailReviewSnapshot(null);
+    resetActionState();
+    if (
+      activeReviewId &&
+      !filteredItems.some((item) => item.withdrawalId === activeReviewId)
+    ) {
+      setActiveReviewId(filteredItems[0]?.withdrawalId ?? null);
+    }
   }
 
   function applySearch() {
@@ -348,7 +371,7 @@ export default function WithdrawalReviewsPage() {
                         size="sm"
                         borderRadius="full"
                         variant="ghost"
-                        onClick={() => openReviewDetail(item.withdrawalId)}
+                        onClick={() => openReviewDetail(item)}
                       >
                         详情
                       </Button>
@@ -449,12 +472,12 @@ export default function WithdrawalReviewsPage() {
       </Grid>
 
       <OverlayPanel
-        open={isDetailOpen && activeReview !== null}
-        title={activeReview?.withdrawalId ?? "申请详情"}
+        open={isDetailOpen && detailReview !== null}
+        title={detailReview?.withdrawalId ?? "申请详情"}
         description="查看这笔提现的关键资料、处理依据和备注，确认后再提交放行或驳回。"
-        onClose={() => setIsDetailOpen(false)}
+        onClose={closeReviewDetail}
       >
-        {activeReview ? (
+        {detailReview ? (
           <Stack gap="14px">
             {error ? <MessageBanner kind="error" message={error} /> : null}
             {message ? (
@@ -477,23 +500,23 @@ export default function WithdrawalReviewsPage() {
                 </Text>
                 <Stack direction="row" gap="8px">
                   <SentinelStatusChip
-                    label={getWithdrawReviewKindLabel(activeReview)}
-                    tone={getWithdrawReviewKindTone(activeReview)}
+                    label={getWithdrawReviewKindLabel(detailReview)}
+                    tone={getWithdrawReviewKindTone(detailReview)}
                   />
                   <SentinelStatusChip
-                    label={getWithdrawRiskLabel(activeReview.riskLevel)}
-                    tone={getWithdrawRiskTone(activeReview.riskLevel)}
+                    label={getWithdrawRiskLabel(detailReview.riskLevel)}
+                    tone={getWithdrawRiskTone(detailReview.riskLevel)}
                   />
                 </Stack>
               </Stack>
               <Heading mt="10px" size="sm">
                 {inputText(
-                  activeReview.evidenceSummary ?? activeReview.message
+                  detailReview.evidenceSummary ?? detailReview.message
                 )}
               </Heading>
               <Text mt="8px" color="ink.500">
-                原因标签 {inputText(activeReview.riskReasonCode)} · 流水号{" "}
-                {inputText(activeReview.txHash)}
+                原因标签 {inputText(detailReview.riskReasonCode)} · 流水号{" "}
+                {inputText(detailReview.txHash)}
               </Text>
             </Box>
             <Grid
@@ -501,11 +524,11 @@ export default function WithdrawalReviewsPage() {
               gap="10px"
             >
               {[
-                ["用户地址", activeReview.ownerAddress],
-                ["提现金额", `${formatUsdc(activeReview.amountUsdc)} USDC`],
-                ["申请时间", formatDateTime(activeReview.createdAt)],
-                ["审批过期时间", formatDateTime(activeReview.reviewExpiresAt)],
-                ["申请编号", inputText(activeReview.requestId)],
+                ["用户地址", detailReview.ownerAddress],
+                ["提现金额", `${formatUsdc(detailReview.amountUsdc)} USDC`],
+                ["申请时间", formatDateTime(detailReview.createdAt)],
+                ["审批过期时间", formatDateTime(detailReview.reviewExpiresAt)],
+                ["申请编号", inputText(detailReview.requestId)],
               ].map(([label, value]) => (
                 <Box
                   key={label}

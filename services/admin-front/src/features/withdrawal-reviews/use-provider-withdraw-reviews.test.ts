@@ -81,6 +81,16 @@ describe("provider withdraw review queue helpers", () => {
     expect(resolveNextActiveReviewId(null, [])).toBeNull();
   });
 
+  it("can keep the active id after a terminal decision removes it from the queue", () => {
+    expect(
+      resolveNextActiveReviewId(
+        "wd-submitted",
+        [buildItem({ withdrawalId: "wd-next" })],
+        { keepMissingActive: true }
+      )
+    ).toBe("wd-submitted");
+  });
+
   it("loads the review queue with the widened fetch limit", async () => {
     const listReviews = vi.fn().mockResolvedValue({
       items: [buildItem({ withdrawalId: "wd-7" })],
@@ -160,9 +170,9 @@ describe("submitProviderWithdrawReviewDecision", () => {
     );
     expect(setError).toHaveBeenCalledWith(null);
     expect(setDecisionNote).toHaveBeenCalledWith("");
-    expect(refreshReviews).toHaveBeenCalledOnce();
-    expect(setActionPhase).toHaveBeenLastCalledWith("idle");
-    expect(setPendingDecision).toHaveBeenLastCalledWith(null);
+    expect(refreshReviews).toHaveBeenCalledWith({ keepMissingActive: true });
+    expect(setActionPhase).toHaveBeenLastCalledWith("submitted");
+    expect(setPendingDecision).not.toHaveBeenCalled();
   });
 
   it("maps submission failures to reviewer-facing errors", async () => {

@@ -253,6 +253,14 @@ async def discover_services(
     intent: Optional[str] = Query(
         None, description="Search keyword for service discovery"
     ),
+    q: Optional[str] = Query(
+        None, description="Alias for intent used by legacy discovery clients"
+    ),
+    search_query: Optional[str] = Query(
+        None,
+        alias="search_query",
+        description="Alias for intent used by API reference smoke tests",
+    ),
     sort_by: str = Query(
         "best_match", alias="sortBy", description="Sort field for console discovery list"
     ),
@@ -266,11 +274,12 @@ async def discover_services(
     Returns only active services.
     """
     request_id = resolve_request_id(request.headers.get("X-Request-Id"), "disc")
+    effective_intent = intent or q or search_query
     log = workflow_logger(
         "discovery",
         request_id=request_id,
         path="/api/v1/services/discover",
-        intent=intent or "",
+        intent=effective_intent or "",
         sort_by=sort_by,
         sort_order=sort_order,
     )
@@ -278,7 +287,7 @@ async def discover_services(
     gateway_url = f"{str(request.base_url).rstrip('/')}/api/v1/agent/invoke"
     try:
         public_services = await service.discover_services(
-            intent,
+            effective_intent,
             public_gateway_url=gateway_url,
             sort_by=sort_by,
             sort_order=sort_order,

@@ -37,7 +37,8 @@ type UseProviderWithdrawReviewsResult = {
   setMessage: (value: string | null) => void;
   setError: (value: string | null) => void;
   handleDecision: (decision: "APPROVE" | "REJECT") => void;
-  refreshReviews: () => Promise<void>;
+  resetActionState: () => void;
+  refreshReviews: (options?: { keepMissingActive?: boolean }) => Promise<void>;
 };
 
 type ReviewQueueResponse = {
@@ -74,9 +75,13 @@ export function applyOptimisticWithdrawReviewDecision(
 
 export function resolveNextActiveReviewId(
   current: string | null,
-  items: ProviderWithdrawReviewItem[]
+  items: ProviderWithdrawReviewItem[],
+  options: { keepMissingActive?: boolean } = {}
 ): string | null {
   if (current && items.some((item) => item.withdrawalId === current)) {
+    return current;
+  }
+  if (options.keepMissingActive) {
     return current;
   }
   return items[0]?.withdrawalId ?? null;
@@ -91,7 +96,8 @@ export function getWithdrawReviewLoadErrorMessage(loadError: unknown): string {
 export async function loadProviderWithdrawReviewQueue(
   token: string,
   currentActiveReviewId: string | null,
-  listReviews: ListReviewsFn = listProviderWithdrawReviews
+  listReviews: ListReviewsFn = listProviderWithdrawReviews,
+  options: { keepMissingActive?: boolean } = {}
 ): Promise<{
   items: ProviderWithdrawReviewItem[];
   activeReviewId: string | null;
@@ -103,7 +109,8 @@ export async function loadProviderWithdrawReviewQueue(
     items: reviewQueue.items,
     activeReviewId: resolveNextActiveReviewId(
       currentActiveReviewId,
-      reviewQueue.items
+      reviewQueue.items,
+      options
     ),
   };
 }
@@ -114,7 +121,7 @@ type SubmitReviewDecisionInput = {
   decision: WithdrawReviewDecision;
   decisionNote: string;
   requestStepUpCode: RequestStepUpCode;
-  refreshReviews: () => Promise<void>;
+  refreshReviews: (options?: { keepMissingActive?: boolean }) => Promise<void>;
   setItems: Dispatch<SetStateAction<ProviderWithdrawReviewItem[]>>;
   setMessage: (value: string | null) => void;
   setError: (value: string | null) => void;
@@ -168,10 +175,10 @@ export async function submitProviderWithdrawReviewDecision({
     );
     setError(null);
     setDecisionNote("");
-    await refreshReviews();
+    setActionPhase("submitted");
+    await refreshReviews({ keepMissingActive: true });
   } catch (actionError) {
     setError(getWithdrawReviewActionErrorMessage(actionError, decision));
-  } finally {
     setActionPhase("idle");
     setPendingDecision(null);
   }
@@ -193,7 +200,7 @@ export function useProviderWithdrawReviews(
 
   const isPending = actionPhase !== "idle";
 
-  async function refreshReviews() {
+  async function refreshReviews(options?: { keepMissingActive?: boolean }) {
     if (!token) {
       setItems([]);
       setActiveReviewId(null);
@@ -202,7 +209,9 @@ export function useProviderWithdrawReviews(
     }
     const reviewQueue = await loadProviderWithdrawReviewQueue(
       token,
-      activeReviewId
+      activeReviewId,
+      listProviderWithdrawReviews,
+      options
     );
     setItems(reviewQueue.items);
     setActiveReviewId(reviewQueue.activeReviewId);
@@ -245,7 +254,7 @@ export function useProviderWithdrawReviews(
   }, [token]);
 
   function handleDecision(decision: "APPROVE" | "REJECT") {
-    if (!token || !activeReviewId) {
+    if (!token || !activeReviewId || actionPhase !== "idle") {
       return;
     }
     const note = decisionNote.trim();
@@ -276,6 +285,11 @@ export function useProviderWithdrawReviews(
     })();
   }
 
+  function resetActionState() {
+    setActionPhase("idle");
+    setPendingDecision(null);
+  }
+
   return {
     items,
     activeReviewId,
@@ -290,6 +304,7 @@ export function useProviderWithdrawReviews(
     setMessage,
     setError,
     handleDecision,
+    resetActionState,
     refreshReviews,
   };
 }

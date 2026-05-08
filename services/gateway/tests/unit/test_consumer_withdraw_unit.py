@@ -162,8 +162,8 @@ class InMemoryGatewayStateRepo:
         _ = updated_at
         self.refund_rows = list(rows)
 
-    def update_consumer_refund_row_atomic(self, row, *, updated_at):
-        _ = updated_at
+    def update_consumer_refund_row_atomic(self, row, *, updated_at, expected_status=None):
+        _ = updated_at, expected_status
         replaced = False
         next_rows: list[RefundIntentRow] = []
         for existing in self.refund_rows:

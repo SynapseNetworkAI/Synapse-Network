@@ -97,8 +97,11 @@ def test_refund_complete_same_tx_is_idempotent_and_balance_stable() -> None:
     after_complete_available = storage.balance.ledger.consumer_available_balance(OWNER)
     after_complete_pending = storage.balance.ledger.consumer_pending_balance(OWNER)
 
-    assert first == second
     assert first["status"] == "COMPLETED"
+    assert second["status"] == "COMPLETED"
+    assert second["idempotentReplay"] is True
+    assert first["refundId"] == second["refundId"]
+    assert first["txHash"] == second["txHash"]
     assert after_complete_available == before_complete_available
     assert after_complete_pending == before_complete_pending - Decimal("20.000000")
     assert len(

@@ -387,6 +387,7 @@ class GatewayStateRefundMixin:
         row: RefundIntentRow,
         *,
         updated_at: str | int,
+        expected_status: str | None = None,
     ) -> None:
         row_updated_at = to_dt_str(row.updated_at or updated_at, now_dt_str())
         consumer_wallet = str(
@@ -414,6 +415,7 @@ class GatewayStateRefundMixin:
                     updated_at = %s
                 WHERE withdrawal_id = %s
                   AND withdrawal_kind = 'consumer_refund'
+                  AND (%s IS NULL OR status = %s)
                 """,
                 (
                     self._owner_id(consumer_wallet),
@@ -427,6 +429,8 @@ class GatewayStateRefundMixin:
                     row.ticket.deadline,
                     row_updated_at,
                     row.id,
+                    expected_status,
+                    expected_status,
                 ),
             )
             if cur.rowcount != 1:

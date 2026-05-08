@@ -5,6 +5,8 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { waitForSafeTotpWindow } from "../lib/totp_window.mjs";
+import { createAdminPaginationSortingFixture } from "./admin_pagination_sorting_fixture.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "../..");
@@ -18,7 +20,13 @@ const ADMIN_COOKIE_NAME =
   process.env.ADMIN_SESSION_COOKIE_NAME || "synapse_admin_session";
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "cliff@synapse-network.ai";
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "qwer@1234";
-const ADMIN_TOTP_SECRET = process.env.ADMIN_TOTP_SECRET || "JBSWY3DPEHPK3PXP";
+const DEFAULT_ADMIN_TOTP_SECRET = "JBSWY3DPEHPK3PXP";
+const ADMIN_TOTP_SECRET =
+  process.env.ADMIN_TOTP_SECRET || DEFAULT_ADMIN_TOTP_SECRET;
+const ADMIN_DATABASE_DSN =
+  process.env.ADMIN_DATABASE_DSN ||
+  process.env.LOCAL_GATEWAY_ADMIN_POSTGRES_DSN ||
+  "postgresql://synapse_admin_app:local-dev-admin-app-password@127.0.0.1:15432/synapse_gateway_admin";
 const POSTGRES_DSN =
   process.env.GATEWAY_POSTGRES_DSN ||
   process.env.LOCAL_GATEWAY_POSTGRES_DSN ||
@@ -37,6 +45,11 @@ const RUN_ID =
 const SAFE_RUN_ID = RUN_ID.replace(/[^a-zA-Z0-9_]/g, "_");
 const TOPIC_ID = `topic_${SAFE_RUN_ID}`;
 const RESPONSE_TASK_ID = `frt_${SAFE_RUN_ID}`;
+const OPERATION_MODAL_PREFIX = `${SAFE_RUN_ID}_modal`;
+const operationModalFixture = createAdminPaginationSortingFixture({
+  prefix: OPERATION_MODAL_PREFIX,
+  runId: RUN_ID,
+});
 
 function isLocalUrl(value) {
   try {
@@ -102,6 +115,48 @@ function generateTotpCode(secret, nowMs = Date.now()) {
   return String(binary % 1_000_000).padStart(6, "0");
 }
 
+function queryAdminTotpSecretFromLocalDb() {
+  if (
+    process.env.ADMIN_TOTP_SECRET ||
+    !isLocalUrl(ADMIN_FRONT_URL) ||
+    !isLocalUrl(ADMIN_GATEWAY_URL)
+  ) {
+    return null;
+  }
+  const sql = `
+    SELECT f.payload_json ->> 'totpSecret'
+    FROM admin_users u
+    JOIN admin_mfa_factors f ON f.admin_id = u.admin_id
+    WHERE u.email = ${sqlLiteral(ADMIN_EMAIL)}
+      AND f.status = 'active'
+      AND f.payload_json ? 'totpSecret'
+    ORDER BY f.created_at DESC
+    LIMIT 1;
+  `;
+  const result = spawnSync(
+    "psql",
+    [
+      ADMIN_DATABASE_DSN,
+      "-X",
+      "-q",
+      "-t",
+      "-A",
+      "-v",
+      "ON_ERROR_STOP=1",
+      "-c",
+      sql,
+    ],
+    {
+      cwd: ROOT,
+      encoding: "utf8",
+    }
+  );
+  if (result.status !== 0) {
+    return null;
+  }
+  return result.stdout.trim() || null;
+}
+
 function parseSessionCookie(setCookieHeader) {
   const header = Array.isArray(setCookieHeader)
     ? setCookieHeader.join(",")
@@ -129,14 +184,15 @@ async function loginAdmin() {
     };
   }
 
+  const totpSecret = queryAdminTotpSecretFromLocalDb() || ADMIN_TOTP_SECRET;
+  await waitForSafeTotpWindow({ guardSeconds: 10 });
   const response = await fetch(`${ADMIN_GATEWAY_URL}/api/admin/v1/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       email: ADMIN_EMAIL,
       password: ADMIN_PASSWORD,
-      otpCode:
-        process.env.ADMIN_OTP_CODE || generateTotpCode(ADMIN_TOTP_SECRET),
+      otpCode: process.env.ADMIN_OTP_CODE || generateTotpCode(totpSecret),
     }),
   });
   const body = await response.json().catch(() => ({}));
@@ -176,6 +232,23 @@ function runPsql(sql) {
   if (result.status !== 0) {
     throw new Error(
       `psql failed: ${(result.stderr || result.stdout || "").trim()}`
+    );
+  }
+  return result.stdout;
+}
+
+function runAdminPsql(sql) {
+  const result = spawnSync(
+    "psql",
+    [ADMIN_DATABASE_DSN, "-X", "-q", "-v", "ON_ERROR_STOP=1", "-c", sql],
+    {
+      cwd: ROOT,
+      encoding: "utf8",
+    }
+  );
+  if (result.status !== 0) {
+    throw new Error(
+      `admin psql failed: ${(result.stderr || result.stdout || "").trim()}`
     );
   }
   return result.stdout;
@@ -243,9 +316,9 @@ function seedForumSupportRows() {
       0,
       0,
       0,
-      NOW(),
-      NOW(),
-      NOW()
+      NOW() + INTERVAL '20 years',
+      NOW() + INTERVAL '20 years',
+      NOW() + INTERVAL '20 years'
     )
     ON CONFLICT (topic_id) DO UPDATE SET
       title = EXCLUDED.title,
@@ -255,8 +328,8 @@ function seedForumSupportRows() {
       resolved = FALSE,
       locked = FALSE,
       replies_count = 0,
-      last_activity_at = NOW(),
-      updated_at = NOW();
+      last_activity_at = NOW() + INTERVAL '20 years',
+      updated_at = NOW() + INTERVAL '20 years';
 
     INSERT INTO synapse_forum_response_tasks (
       response_task_id, topic_id, status, source, priority, classification,
@@ -273,15 +346,15 @@ function seedForumSupportRows() {
       'bug',
       ${sqlLiteral(suggestedReply)},
       'growing',
-      NOW(),
+      NOW() + INTERVAL '20 years',
       ${sqlLiteral(`cand_${SAFE_RUN_ID}`)},
       ${sqlLiteral(`req_${SAFE_RUN_ID}`)},
       ${sqlLiteral(`wf_${SAFE_RUN_ID}`)},
       jsonb_build_object('runId', ${sqlLiteral(
         RUN_ID
       )}, 'seededBy', 'admin_front_seed'),
-      NOW(),
-      NOW()
+      NOW() + INTERVAL '20 years',
+      NOW() + INTERVAL '20 years'
     )
     ON CONFLICT (response_task_id) DO UPDATE SET
       status = 'draft_ready',
@@ -290,12 +363,53 @@ function seedForumSupportRows() {
       classification = 'bug',
       suggested_reply = EXCLUDED.suggested_reply,
       suggested_reply_source = 'growing',
-      suggested_reply_updated_at = NOW(),
+      suggested_reply_updated_at = NOW() + INTERVAL '20 years',
       reply_id = NULL,
       responded_at = NULL,
-      updated_at = NOW();
+      updated_at = NOW() + INTERVAL '20 years';
   `);
   return { topicTitle, topicBody, suggestedReply };
+}
+
+function seedOperationModalRows() {
+  operationModalFixture.seedData(runPsql);
+  const historyWithdrawal = operationModalFixture.withdrawals[0];
+  runAdminPsql(`
+    INSERT INTO admin_action_audit (
+      action_type, operator_id, operator_email, operator_role,
+      session_id, request_id, resource_type, resource_id,
+      result_status, before_json, after_json, detail_json, created_at
+    )
+    VALUES (
+      'withdrawal_review.decide',
+      'adm_super_admin',
+      ${sqlLiteral(ADMIN_EMAIL)},
+      'super_admin',
+      ${sqlLiteral(`admin-front-dogfood:${RUN_ID}`)},
+      ${sqlLiteral(`${historyWithdrawal.id}_audit_request`)},
+      'withdrawal',
+      ${sqlLiteral(historyWithdrawal.id)},
+      'success',
+      jsonb_build_object(
+        'withdrawalKind', 'consumer_withdrawal',
+        'reviewType', 'consumer_withdraw_review',
+        'amountUsdc', ${sqlLiteral(historyWithdrawal.amount)},
+        'ownerAddress', '0xadminfrontmodal000000000000000000000000000001'
+      ),
+      jsonb_build_object('status', 'APPROVED_AUTO'),
+      jsonb_build_object(
+        'decision', 'APPROVE',
+        'reviewerNote', ${sqlLiteral(
+          `Admin front modal history seed ${RUN_ID}`
+        )}
+      ),
+      NOW() + INTERVAL '10 years'
+    )
+  `);
+  return {
+    prefix: OPERATION_MODAL_PREFIX,
+    withdrawalId: historyWithdrawal.id,
+  };
 }
 
 async function main() {
@@ -304,6 +418,7 @@ async function main() {
   await assertReachable("gateway-admin", `${ADMIN_GATEWAY_URL}/health`);
   const auth = await loginAdmin();
   const expected = seedForumSupportRows();
+  const operationModalRows = seedOperationModalRows();
   const forumApi = await adminApi(
     `/api/admin/v1/forum/response-tasks/${encodeURIComponent(
       RESPONSE_TASK_ID
@@ -349,6 +464,7 @@ async function main() {
       responseTaskId: RESPONSE_TASK_ID,
       ...expected,
     },
+    operationModals: operationModalRows,
     snapshots: {
       forumApi,
       dbForum,

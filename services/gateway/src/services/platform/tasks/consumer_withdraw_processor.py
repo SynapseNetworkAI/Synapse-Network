@@ -235,6 +235,7 @@ def _process_single_withdraw(storage: BaseStorage, row: Any) -> bool:
                 "consumer_withdraw_processor: pending release failed for expired row id=%s",
                 row.id,
             )
+        expected_status = str(row.status or "")
         row.status = "FAILED_EXPIRED"
         row.completed_at = int(time.time())
         row.updated_at = now_dt_str()
@@ -245,6 +246,7 @@ def _process_single_withdraw(storage: BaseStorage, row: Any) -> bool:
         dm.system.gateway_state.update_consumer_refund_row_atomic(
             row,
             updated_at=row.updated_at,
+            expected_status=expected_status,
         )
         logger.info(
             "consumer_withdraw_processor: FAILED_EXPIRED id=%s reason=credential_expired",
@@ -282,6 +284,7 @@ def _complete_consumer_withdraw(
                 row.id,
             )
 
+        expected_status = str(row.status or "")
         row.status = "COMPLETED"
         if tx_hash:
             row.tx_hash = tx_hash
@@ -290,6 +293,7 @@ def _complete_consumer_withdraw(
         dm.system.gateway_state.update_consumer_refund_row_atomic(
             row,
             updated_at=row.updated_at,
+            expected_status=expected_status,
         )
 
         # Audit

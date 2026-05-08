@@ -79,6 +79,41 @@ export function createAdminWithdrawalReviewFocusHelpers({
     return filePath;
   }
 
+  async function assertAdminModal(page, expectedText, label) {
+    if (!enabled) return;
+    const dialog = page.locator('[role="dialog"][aria-modal="true"]').first();
+    await dialog.waitFor({ state: "visible", timeout: 30_000 });
+    const dialogText = String((await dialog.textContent()) || "");
+    const missing = expectedText.filter((item) => {
+      if (item instanceof RegExp) return !item.test(dialogText);
+      return !dialogText.includes(String(item));
+    });
+    if (missing.length > 0) {
+      throw new Error(
+        `ADMIN_MODAL_EXPECTED_TEXT_MISSING ${label}: ${missing
+          .map(String)
+          .join(", ")}`
+      );
+    }
+    const drawerCount = await page
+      .locator(".crud-drawer--open, aside.crud-drawer, aside[role='dialog']")
+      .count();
+    if (drawerCount > 0) {
+      throw new Error(`ADMIN_MODAL_RENDERED_AS_DRAWER ${label}`);
+    }
+    const box = await dialog.boundingBox();
+    const viewport = page.viewportSize();
+    if (box && viewport) {
+      const modalCenter = box.x + box.width / 2;
+      const viewportCenter = viewport.width / 2;
+      if (Math.abs(modalCenter - viewportCenter) > viewport.width * 0.18) {
+        throw new Error(
+          `ADMIN_MODAL_NOT_CENTERED ${label}: modalCenter=${modalCenter} viewportCenter=${viewportCenter}`
+        );
+      }
+    }
+  }
+
   function copyAdminScreenshotAlias(sourcePath, aliasName, checkpoint = {}) {
     if (!enabled || !sourcePath) return "";
     const targetPath = path.join(screenshotDir, `${aliasName}.png`);
@@ -214,6 +249,7 @@ export function createAdminWithdrawalReviewFocusHelpers({
         if (await detail.isVisible().catch(() => false)) await detail.click();
       }
       await page.waitForTimeout(500);
+      await assertAdminModal(page, [withdrawalId, /Action Modal/i], prefix);
       const detailShot = await screenshotAdmin(
         page,
         `${prefix}-review-detail`,
@@ -237,6 +273,16 @@ export function createAdminWithdrawalReviewFocusHelpers({
           .first();
         if (await approveButton.isVisible().catch(() => false)) {
           await approveButton.click();
+          await page
+            .getByRole("button", { name: /等待验证码/i })
+            .first()
+            .waitFor({ state: "visible", timeout: 10_000 });
+          const waitingButton = page
+            .getByRole("button", { name: /等待验证码/i })
+            .first();
+          if (!(await waitingButton.isDisabled().catch(() => false))) {
+            throw new Error("APPROVE_WAITING_BUTTON_NOT_DISABLED");
+          }
           await page
             .getByText(/Google Authenticator 验证码|Step-up Verification/i)
             .first()

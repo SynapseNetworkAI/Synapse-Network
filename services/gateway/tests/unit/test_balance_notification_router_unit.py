@@ -60,6 +60,7 @@ class _BalanceService:
             "depositId": "dep-intent-1",
             "amount": "12.000000",
             "status": "CONFIRMED",
+            "eventKey": "evt-1",
         }
 
     async def complete_refund_intent(
@@ -254,6 +255,47 @@ async def test_confirm_deposit_schedules_in_app_notification(monkeypatch) -> Non
         "currency": "USDC",
         "status": "CONFIRMED",
     }
+
+
+@pytest.mark.asyncio
+async def test_confirm_deposit_replay_does_not_reschedule_notification(monkeypatch) -> None:
+    class _ReplayBalanceService(_BalanceService):
+        async def confirm_deposit_intent(
+            self,
+            *,
+            owner_wallet: str,
+            deposit_intent_id: str,
+            event_key: str,
+            confirmations: int,
+            request_meta: dict[str, object],
+        ) -> dict[str, object]:
+            _ = owner_wallet, deposit_intent_id, event_key, confirmations, request_meta
+            return {
+                "depositId": "dep-intent-1",
+                "amount": "12.000000",
+                "status": "CONFIRMED",
+            }
+
+    calls: list[tuple[object, object]] = []
+    storage = _Storage()
+    monkeypatch.setattr(
+        balance_deposit,
+        "schedule_in_app_notification",
+        lambda storage_arg, intent: calls.append((storage_arg, intent)),
+    )
+
+    response = await balance_deposit.confirm_deposit_intent(
+        "dep-intent-1",
+        DepositConfirmRequest(eventKey="evt-1", confirmations=3),
+        _Request(),
+        "0xAbC",
+        _ReplayBalanceService(),
+        storage,
+    )
+
+    assert response["status"] == "success"
+    assert response["intent"]["status"] == "CONFIRMED"
+    assert calls == []
 
 
 @pytest.mark.asyncio

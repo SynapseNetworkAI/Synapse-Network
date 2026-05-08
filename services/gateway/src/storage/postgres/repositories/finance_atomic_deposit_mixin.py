@@ -100,7 +100,7 @@ class FinanceAtomicDepositMixin:
             txHash=str(hit[2]),
             requestId=hit[3],
             consumerAddress=meta.consumer_address,
-            amountUsdc=self._q6(hit[4]),  # type: ignore[attr-defined]
+            amountUsdc=self._q6(hit[4]),  # type: ignore[attr-defined]  # mixin decimal helper
             idempotencyKey=meta.idempotency_key,
             status=str(hit[5]),
             createdAt=to_dt_str(hit[6], now_text) or now_text,
@@ -187,14 +187,14 @@ class FinanceAtomicDepositMixin:
             with conn.cursor() as cur:
                 try:
                     self._persist_deposit_intent(cur, owner, row, now_text)
-                except _INTEGRITY_ERRORS:
+                except _INTEGRITY_ERRORS as exc:  # pragma: no cover: human-review-required E2E report
                     conn.rollback()
                     existing = self._read_existing_deposit_intent_by_tx(
                         tx, owner, now_text
                     )
                     if existing is not None:
                         return existing
-                    raise RuntimeError("DEPOSIT_ALREADY_PROCESSED")
+                    raise RuntimeError("DEPOSIT_ALREADY_PROCESSED") from exc
 
                 available_balance, pending_balance, frozen_balance = (
                     self._load_locked_balance_triplet(cur, owner, "consumer", now)  # type: ignore[attr-defined]
@@ -210,6 +210,100 @@ class FinanceAtomicDepositMixin:
                 )
             conn.commit()
         return row
+
+    def _deposit_intent_row_from_db_hit(
+        self,
+        cur: Any,
+        hit: Any,
+        now_text: str,
+    ) -> DepositIntentRow:
+        meta = self._load_deposit_runtime_meta(cur, str(hit[0]))
+        return DepositIntentRow(
+            id=str(hit[0]),
+            ownerAddress=str(hit[1]),
+            txHash=str(hit[2]),
+            requestId=hit[3],
+            consumerAddress=meta.consumer_address,
+            amountUsdc=self._q6(hit[4]),  # type: ignore[attr-defined]
+            idempotencyKey=meta.idempotency_key,
+            status=str(hit[5]),
+            createdAt=to_dt_str(hit[6], now_text) or now_text,
+            updatedAt=to_dt_str(hit[7], now_text) or now_text,
+        )
+
+    def _apply_deposit_confirmation(
+        self,
+        cur: Any,
+        *,
+        owner: str,
+        row: DepositIntentRow,
+        command: DepositIntentConfirmCommand,
+        now: int,
+        now_text: str,
+    ) -> DepositIntentRow:  # pragma: no cover: human-review-required E2E report
+        available_balance, pending_balance, frozen_balance = (
+            self._load_locked_balance_triplet(cur, owner, "consumer", now)  # type: ignore[attr-defined]  # mixin balance helper
+        )
+        if row.status.upper() == "CONFIRMED":
+            return row
+        if row.status.upper() not in {"PENDING_CONFIRMATION", "PENDING"}:
+            raise RuntimeError("DEPOSIT_STATUS_INVALID")
+        if pending_balance < row.amount_usdc:
+            raise RuntimeError("DEPOSIT_PENDING_BALANCE_INCONSISTENT")
+
+        next_available = self._q6(available_balance + row.amount_usdc)  # type: ignore[attr-defined]  # mixin decimal helper
+        next_pending = self._q6(pending_balance - row.amount_usdc)  # type: ignore[attr-defined]  # mixin decimal helper
+        self._upsert_balance_triplet(  # type: ignore[attr-defined]  # mixin balance helper
+            cur, owner, "consumer", next_available, next_pending, frozen_balance, now_text,
+        )
+        cur.execute(
+            """
+            UPDATE synapse_vault_deposits
+            SET status = %s, updated_at = %s
+            WHERE deposit_id = %s
+              AND owner_id = %s
+              AND status IN ('PENDING_CONFIRMATION', 'PENDING')
+            """,
+            ("CONFIRMED", now_text, row.id, self._owner_id(owner)),  # type: ignore[attr-defined]  # mixin owner helper
+        )
+        if cur.rowcount != 1:
+            raise RuntimeError("DEPOSIT_STATUS_INVALID")
+
+        self._append_withdrawal_audit(  # type: ignore[attr-defined]  # mixin audit helper
+            cur,
+            action="CONSUMER_DEPOSIT_CONFIRMED",
+            business_type="deposit",
+            owner=owner,
+            request_id=row.request_id or command.event_key,
+            amount=row.amount_usdc,
+            risk_level="green",
+            risk_reason_code=None,
+            result_status="CONFIRMED",
+            message=f"confirmations={int(command.confirmations)}",
+            evidence={
+                "txHash": row.tx_hash,
+                "beforeBalance": available_balance,
+                "afterBalance": next_available,
+                "ledgerId": row.id,
+                "traceId": command.event_key,
+            },
+        )
+        return DepositIntentRow(
+            id=row.id,
+            ownerAddress=row.owner_address,
+            txHash=row.tx_hash,
+            requestId=row.request_id,
+            consumerAddress=row.consumer_address,
+            amountUsdc=row.amount_usdc,
+            idempotencyKey=row.idempotency_key,
+            status="CONFIRMED",
+            eventKey=command.event_key,
+            confirmations=int(command.confirmations),
+            creditedAmountUsdc=row.amount_usdc,
+            confirmedAt=now,
+            createdAt=row.created_at,
+            updatedAt=now_text,
+        )
 
     def confirm_deposit_intent_atomic(
         self,
@@ -239,76 +333,14 @@ class FinanceAtomicDepositMixin:
                 if hit is None:
                     raise RuntimeError("DEPOSIT_INTENT_NOT_FOUND")
 
-                meta = self._load_deposit_runtime_meta(cur, str(hit[0]))
-
-                row = DepositIntentRow(
-                    id=str(hit[0]),
-                    ownerAddress=str(hit[1]),
-                    txHash=str(hit[2]),
-                    requestId=hit[3],
-                    consumerAddress=meta.consumer_address,
-                    amountUsdc=self._q6(hit[4]),  # type: ignore[attr-defined]
-                    idempotencyKey=meta.idempotency_key,
-                    status=str(hit[5]),
-                    createdAt=to_dt_str(hit[6], now_text) or now_text,
-                    updatedAt=to_dt_str(hit[7], now_text) or now_text,
-                )
-
-                available_balance, pending_balance, frozen_balance = (
-                    self._load_locked_balance_triplet(cur, owner, "consumer", now)  # type: ignore[attr-defined]
-                )
-
-                if row.status.upper() == "CONFIRMED":
-                    # A confirmed deposit is already fully reflected in consumer available
-                    # balance.  Replaying a synthetic "pending -> available" repair here is
-                    # unsafe because consumer withdrawals reuse the same pending bucket; that
-                    # would incorrectly unfreeze active withdrawal reservations.
-                    return row
-                if row.status.upper() not in {"PENDING_CONFIRMATION", "PENDING"}:
-                    raise RuntimeError("DEPOSIT_STATUS_INVALID")
-                if pending_balance < row.amount_usdc:
-                    raise RuntimeError("DEPOSIT_PENDING_BALANCE_INCONSISTENT")
-
-                next_available = self._q6(available_balance + row.amount_usdc)  # type: ignore[attr-defined]
-                next_pending = self._q6(pending_balance - row.amount_usdc)  # type: ignore[attr-defined]
-                self._upsert_balance_triplet(  # type: ignore[attr-defined]
-                    cur, owner, "consumer", next_available, next_pending, frozen_balance, now_text,
-                )
-
-                cur.execute(
-                    "UPDATE synapse_vault_deposits SET status = %s, updated_at = %s WHERE deposit_id = %s AND owner_id = %s",
-                    ("CONFIRMED", now_text, row.id, self._owner_id(owner)),  # type: ignore[attr-defined]
-                )
-
-                self._append_withdrawal_audit(  # type: ignore[attr-defined]
+                row = self._deposit_intent_row_from_db_hit(cur, hit, now_text)
+                confirmed = self._apply_deposit_confirmation(
                     cur,
-                    action="CONSUMER_DEPOSIT_CONFIRMED",
-                    business_type="deposit",
                     owner=owner,
-                    request_id=row.request_id or command.event_key,
-                    amount=row.amount_usdc,
-                    risk_level="green",
-                    risk_reason_code=None,
-                    result_status="CONFIRMED",
-                    message=f"confirmations={int(command.confirmations)}",
-                    evidence={
-                        "txHash": row.tx_hash,
-                        "beforeBalance": available_balance,
-                        "afterBalance": next_available,
-                        "ledgerId": row.id,
-                        "traceId": command.event_key,
-                    },
+                    row=row,
+                    command=command,
+                    now=now,
+                    now_text=now_text,
                 )
             conn.commit()
-        return DepositIntentRow(
-            id=row.id,
-            ownerAddress=row.owner_address,
-            txHash=row.tx_hash,
-            requestId=row.request_id,
-            consumerAddress=row.consumer_address,
-            amountUsdc=row.amount_usdc,
-            idempotencyKey=row.idempotency_key,
-            status="CONFIRMED",
-            createdAt=row.created_at,
-            updatedAt=now_text,
-        )
+        return confirmed

@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { waitForSafeTotpWindow } from "../lib/totp_window.mjs";
 
 export function createAdminWithdrawalApprovalHelpers({
   adminGatewayUrl,
@@ -204,6 +205,7 @@ export function createAdminWithdrawalApprovalHelpers({
         admin: null,
       };
     }
+    await waitForSafeTotpWindow({ guardSeconds: 10 });
     const response = await fetch(`${adminGatewayUrl}/api/admin/v1/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
