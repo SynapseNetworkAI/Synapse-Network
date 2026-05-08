@@ -28,6 +28,7 @@ from src.services.adapters import (
     ProviderWithdrawReviewError,
 )
 from src.services.admin_config.service import AdminConfigService
+from src.services.admin_notifications import AdminNotificationService
 from src.services.admin_user.service import AdminUserService
 from src.services.approval.service import ApprovalService
 from src.services.audit.service import AuditService
@@ -289,6 +290,10 @@ def _get_test_admin_config_service() -> AdminConfigService:
     return AdminConfigService(TEST_STORE)
 
 
+def _get_test_admin_notification_service() -> AdminNotificationService:
+    return AdminNotificationService(TEST_STORE)
+
+
 def _get_test_provider_withdraw_review_service() -> ProviderWithdrawReviewService:
     return ProviderWithdrawReviewService(TEST_STORE, TEST_PROVIDER_WITHDRAW_REVIEW_REPOSITORY, TEST_PROVIDER_WITHDRAW_REVIEW_ADAPTER)
 
@@ -318,6 +323,7 @@ app.dependency_overrides[deps.get_store] = _test_store
 app.dependency_overrides[deps.get_auth_service] = _get_test_auth_service
 app.dependency_overrides[deps.get_admin_user_service] = _get_test_admin_user_service
 app.dependency_overrides[deps.get_admin_config_service] = _get_test_admin_config_service
+app.dependency_overrides[deps.get_admin_notification_service] = _get_test_admin_notification_service
 app.dependency_overrides[deps.get_approval_service] = _get_test_approval_service
 app.dependency_overrides[deps.get_gateway_dashboard_projection_repository] = _test_gateway_projection_repository
 app.dependency_overrides[deps.get_analytics_dashboard_repository] = lambda: TEST_ANALYTICS_REPOSITORY

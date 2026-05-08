@@ -47,26 +47,28 @@ From repository root:
 27. `npm run ci:lark-alert-e2e-evidence`
 28. `npm run e2e:in-app-notifications`
 29. `npm run ci:in-app-notifications-evidence`
-30. `npm run e2e:user-front-deposit-balance`
-31. `npm run ci:user-front-deposit-balance-evidence`
-32. `npm run e2e:user-front-payments-gateway-truth:local`
-33. `npm run ci:user-front-payments-gateway-truth-local-evidence`
-34. `npm run e2e:deposit-indexer-recovery:local`
-35. `npm run ci:deposit-indexer-recovery-local-evidence`
-36. `npm run e2e:invocation-billing-migration:local`
-37. `npm run ci:invocation-billing-migration-local-evidence`
-38. `npm run e2e:admin-dashboard-projection-readmodel:local`
-39. `npm run ci:admin-dashboard-projection-readmodel-local-evidence`
-40. `npm run e2e:admin-regression`
-41. `npm run ci:admin-regression-evidence`
-42. `npm run e2e:admin-pagination-sorting`
-43. `npm run ci:admin-pagination-sorting-evidence`
-44. `npm run ci:backup-restore-evidence`
-45. `npm run deploy:contracts:arbitrum-sepolia:dry-run`
-46. `npm run ci:contract-deployment-evidence`
-47. `npm run e2e:consumer-withdraw-claim-fullchain:local`
-48. `npm run ci:consumer-withdraw-claim-fullchain-local-evidence`
-49. `npm run ci:migration-seed-guard`
+30. `npm run e2e:admin-inbox-provider-services`
+31. `npm run ci:admin-inbox-provider-services-evidence`
+32. `npm run e2e:user-front-deposit-balance`
+33. `npm run ci:user-front-deposit-balance-evidence`
+34. `npm run e2e:user-front-payments-gateway-truth:local`
+35. `npm run ci:user-front-payments-gateway-truth-local-evidence`
+36. `npm run e2e:deposit-indexer-recovery:local`
+37. `npm run ci:deposit-indexer-recovery-local-evidence`
+38. `npm run e2e:invocation-billing-migration:local`
+39. `npm run ci:invocation-billing-migration-local-evidence`
+40. `npm run e2e:admin-dashboard-projection-readmodel:local`
+41. `npm run ci:admin-dashboard-projection-readmodel-local-evidence`
+42. `npm run e2e:admin-regression`
+43. `npm run ci:admin-regression-evidence`
+44. `npm run e2e:admin-pagination-sorting`
+45. `npm run ci:admin-pagination-sorting-evidence`
+46. `npm run ci:backup-restore-evidence`
+47. `npm run deploy:contracts:arbitrum-sepolia:dry-run`
+48. `npm run ci:contract-deployment-evidence`
+49. `npm run e2e:consumer-withdraw-claim-fullchain:local`
+50. `npm run ci:consumer-withdraw-claim-fullchain-local-evidence`
+51. `npm run ci:migration-seed-guard`
 
 Use these wrappers when final integration confidence is required.
 
@@ -205,6 +207,8 @@ Working directory: `services/admin-front/`
 3. `yarn test`
 4. `yarn build` only when the task explicitly needs final build confirmation
 5. `npm run ci:admin-front` from repository root when repo-standard gating is needed; this runs lint, Vitest, and production build
+6. `cd services/admin-front && yarn test src/components/admin-notification-inbox.test.tsx src/services/admin-api-route-coverage.test.ts` when changing Admin Inbox, admin notification API clients, unread badges, read/archive actions, or provider-service notification rendering
+7. `npm run e2e:admin-inbox-provider-services && npm run ci:admin-inbox-provider-services-evidence` when closing local Admin Inbox provider-service notification behavior; this must produce screenshots and SQL evidence for unread, read, archive, and dedupe state
 
 ### 3.4 services/gateway-admin
 
@@ -212,6 +216,7 @@ Working directory: `services/gateway-admin/`
 
 1. `/Users/cliff/workspace/agent/Synapse-Network/services/gateway-admin/.venv/bin/python -m pytest tests -q`
 2. `npm run ci:admin-gateway` from repository root when repo-standard gating is needed; this runs the full gateway-admin pytest suite
+3. `cd services/gateway-admin && .venv/bin/python -m pytest tests/test_app.py tests/test_admin_notifications.py -q` when changing admin notification repositories, Admin Inbox API scoping, or Provider Services notification triggers
 
 Runtime ops anchors:
 
