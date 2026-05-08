@@ -183,8 +183,8 @@ describe("OwnerCreditsPage", () => {
 
     expect(await screen.findByText("Spendable credits")).toBeTruthy();
     expect(screen.getAllByText("$20.00").length).toBeGreaterThan(0);
-    expect(screen.getByText("Withdrawable credits")).toBeTruthy();
-    expect(screen.getByText("$7.50")).toBeTruthy();
+    expect(screen.queryByText("Withdrawable credits")).toBeNull();
+    expect(screen.queryByText("$7.50")).toBeNull();
     expect(screen.getByText("Pending deposit credits")).toBeTruthy();
     expect(screen.getByText("$12.50")).toBeTruthy();
     expect(screen.getByText("Frozen / review credits")).toBeTruthy();
@@ -253,8 +253,8 @@ describe("OwnerCreditsPage", () => {
 
     expect(await screen.findByText("可消费 credits")).toBeTruthy();
     expect(screen.getByText("$20.00")).toBeTruthy();
-    expect(screen.getByText("可取现 credits")).toBeTruthy();
-    expect(screen.getByText("$7.50")).toBeTruthy();
+    expect(screen.queryByText("可取现 credits")).toBeNull();
+    expect(screen.queryByText("$7.50")).toBeNull();
     expect(screen.getByText("同步中的充值 credits")).toBeTruthy();
     expect(screen.getByText("$12.50")).toBeTruthy();
     expect(screen.getByText("冻结 / 审核中的 credits")).toBeTruthy();
@@ -293,9 +293,10 @@ describe("OwnerCreditsPage", () => {
       createElement(LanguageProvider, null, createElement(OwnerCreditsPage))
     );
 
+    await screen.findByText("Spendable credits");
     expect(
-      await screen.findByText("Need to withdraw? Go to Account Withdraw")
-    ).toBeTruthy();
+      screen.queryByText("Need to withdraw? Go to Account Withdraw")
+    ).toBeNull();
     expect(screen.queryByText("Claimable withdrawal credits")).toBeNull();
     expect(screen.queryByText("Withdrawal processing credits")).toBeNull();
     expect(screen.queryByText("Pending deposit credits")).toBeNull();
@@ -392,9 +393,10 @@ describe("OwnerCreditsPage", () => {
       createElement(LanguageProvider, null, createElement(OwnerCreditsPage))
     );
 
+    await screen.findByText("Spendable credits");
     expect(
-      await screen.findByText("Need to withdraw? Go to Account Withdraw")
-    ).toBeTruthy();
+      screen.queryByText("Need to withdraw? Go to Account Withdraw")
+    ).toBeNull();
     expect(screen.queryByRole("button", { name: "Claim now" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Withdraw" })).toBeNull();
   });

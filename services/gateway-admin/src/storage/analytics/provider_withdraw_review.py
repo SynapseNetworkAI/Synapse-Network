@@ -90,7 +90,10 @@ class InMemoryProviderWithdrawReviewRepository:
 
     def list_pending_reviews(self, limit: int = 20) -> list[ProviderWithdrawReviewItem]:
         items = [item for item in self._items if item.status == "PENDING_MANUAL_REVIEW"]
-        items.sort(key=lambda item: item.created_at or "", reverse=True)
+        items.sort(
+            key=lambda item: ((item.created_at or ""), (item.withdrawal_id or "")),
+            reverse=True,
+        )
         return items[:limit]
 
     def count_pending_reviews(self) -> int:
@@ -158,7 +161,7 @@ class PostgresProviderWithdrawReviewRepository:
                   ON rs.state_key = CONCAT('vault_withdrawal_meta::', vw.withdrawal_id)
                 WHERE vw.withdrawal_kind IN ('provider_withdrawal', 'consumer_refund')
                   AND COALESCE(rs.payload->>'flowStatus', vw.status) = 'PENDING_MANUAL_REVIEW'
-                ORDER BY vw.created_at DESC
+                ORDER BY vw.created_at DESC, vw.withdrawal_id DESC
                 LIMIT %s
                 """,
                 (limit,),

@@ -189,7 +189,7 @@
     "audience": "consumer",
     "maturity": "production",
     "expectedTexts": ["Credits"],
-    "purpose": "Consumer credits balance, deposit, spend cap, and voucher redemption.",
+    "purpose": "Consumer credits balance, deposit, spend cap, and voucher redemption without consumer-withdraw primary actions.",
     "primaryInteractions": [
       "Open deposit modal",
       "Manage spend cap",
