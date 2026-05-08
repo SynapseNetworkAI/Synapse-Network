@@ -57,8 +57,12 @@ export default function DashboardSidebar() {
   const providerConsoleRoute = `${providerRoot}/console`;
   const providerWithdrawRoute = `${providerRoot}/withdraw`;
   const providerWithdrawHistoryRoute = `${providerRoot}/withdraw/history`;
-  const billingChildActive = activePath.startsWith("/dashboard/billing");
-  const accountChildActive = activePath.startsWith("/dashboard/account");
+  const billingChildActive =
+    activePath.startsWith("/dashboard/billing") ||
+    activePath.startsWith("/dashboard/account/withdraw");
+  const accountChildActive = activePath.startsWith(
+    "/dashboard/account/settings"
+  );
   const settlementChildActive = activePath.startsWith(
     `${providerRoot}/withdraw`
   );
@@ -305,6 +309,12 @@ export default function DashboardSidebar() {
                 >
                   {t("sidebar.payments")}
                 </Link>
+                <Link
+                  {...getRouteLinkProps("/dashboard/account/withdraw")}
+                  className={getSubLinkClasses("/dashboard/account/withdraw")}
+                >
+                  {t("sidebar.withdraw")}
+                </Link>
               </div>
             ) : null}
             <Link
@@ -431,13 +441,6 @@ export default function DashboardSidebar() {
               </button>
               {accountExpanded ? (
                 <div id="dashboard-account-subnav" className="pb-1">
-                  <Link
-                    {...getRouteLinkProps("/dashboard/account/withdraw")}
-                    className={getSubLinkClasses("/dashboard/account/withdraw")}
-                  >
-                    <Wallet className="mr-3 h-4 w-4 text-white/46" />
-                    {t("sidebar.withdraw")}
-                  </Link>
                   <Link
                     {...getRouteLinkProps("/dashboard/account/settings")}
                     className={getSubLinkClasses("/dashboard/account/settings")}

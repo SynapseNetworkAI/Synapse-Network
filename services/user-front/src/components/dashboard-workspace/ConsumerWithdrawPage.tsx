@@ -25,7 +25,8 @@ import {
   clearAuthSession,
 } from "@/utils/authSession";
 import { moneyStringToNumber } from "@/utils/money";
-import { formatUsd } from "@/utils/ownerCreditsFormat";
+import { formatPlainAmount, formatUsd } from "@/utils/ownerCreditsFormat";
+import { isWithdrawTicketNearExpiry } from "@/utils/providerWithdrawApi";
 
 type Translate = ReturnType<typeof useLanguage>["t"];
 type OwnerStats = ReturnType<typeof useOwnerData>["stats"];
@@ -206,6 +207,12 @@ function ConsumerWithdrawActionPanel({
   handleWithdrawSuccess,
   t,
 }: Readonly<ActionPanelProps>) {
+  const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
+  const expiringClaim =
+    canResume &&
+    Boolean(activeWithdrawal?.ticket) &&
+    isWithdrawTicketNearExpiry(activeWithdrawal?.ticket ?? {});
+
   if (!isConnected || !isSessionAuthenticated || !userAddress) {
     return (
       <div className="rounded-[16px] border border-[#2f3336] bg-[#111] p-6">
@@ -248,17 +255,94 @@ function ConsumerWithdrawActionPanel({
     );
   }
 
+  if (activeWithdrawal && expiringClaim) {
+    return (
+      <div className="rounded-[16px] border border-[#2f3336] bg-[#111] p-6">
+        <div className="flex items-start gap-3">
+          <CircleAlert className="mt-1 h-5 w-5 text-amber-300" />
+          <div>
+            <h2 className="text-[18px] font-semibold text-white">
+              {t("consumerWithdrawPage.expiringTitle")}
+            </h2>
+            <p className="mt-2 text-[14px] leading-6 text-[#9ca3af]">
+              {t("consumerWithdrawPage.expiringBody")}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <WithdrawBalanceModal
-      variant="panel"
-      availableBalance={spendableBalance}
-      withdrawableBalance={withdrawableBalance}
-      minWithdrawAmount={minWithdrawAmount}
-      userAddress={userAddress}
-      existingWithdrawal={activeWithdrawal}
-      onClose={() => {}}
-      onSuccess={handleWithdrawSuccess}
-    />
+    <>
+      <div className="rounded-[16px] border border-[#2f3336] bg-[#111] p-6">
+        <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+          <div className="max-w-[560px]">
+            <h2 className="text-[18px] font-semibold text-white">
+              {canResume
+                ? t("consumerWithdrawPage.claimReadyTitle")
+                : t("consumerWithdrawPage.actionTitle")}
+            </h2>
+            <p className="mt-2 text-[14px] leading-6 text-[#9ca3af]">
+              {canResume
+                ? t("consumerWithdrawPage.claimReadyDescription", {
+                    amount: formatPlainAmount(
+                      activeWithdrawal?.amountUsdc ?? "0"
+                    ),
+                  })
+                : t("consumerWithdrawPage.actionDescription", {
+                    amount: withdrawableBalance.toFixed(2),
+                  })}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsWithdrawModalOpen(true)}
+            className="inline-flex h-12 min-w-[180px] items-center justify-center rounded-full bg-[#22c55e] px-6 text-[15px] font-semibold text-black transition hover:bg-[#16a34a]"
+          >
+            {canResume
+              ? t("creditsPage.consumerWithdrawClaimAction")
+              : t("creditsPage.consumerWithdrawAction")}
+          </button>
+        </div>
+
+        <div className="mt-5 rounded-[14px] border border-[#2f3336] bg-[#16181c] p-4 text-[13px] leading-6 text-[#9ca3af]">
+          {canResume ? (
+            <>
+              <p className="font-medium text-white">
+                {t("creditsPage.consumerWithdrawClaimReadyLabel")}
+              </p>
+              <p className="mt-2">
+                {t("creditsPage.consumerWithdrawClaimAmount", {
+                  amount: formatPlainAmount(
+                    activeWithdrawal?.amountUsdc ?? "0"
+                  ),
+                })}
+              </p>
+            </>
+          ) : (
+            <>
+              <p>{t("creditsPage.consumerWithdrawManualReviewHint")}</p>
+              <p>{t("creditsPage.consumerWithdrawFrequencyHint")}</p>
+            </>
+          )}
+          <p className="mt-2">{t("creditsPage.consumerWithdrawGasHint")}</p>
+        </div>
+      </div>
+
+      {isWithdrawModalOpen ? (
+        <WithdrawBalanceModal
+          variant="modal"
+          availableBalance={spendableBalance}
+          withdrawableBalance={withdrawableBalance}
+          minWithdrawAmount={minWithdrawAmount}
+          userAddress={userAddress}
+          existingWithdrawal={activeWithdrawal}
+          onClose={() => setIsWithdrawModalOpen(false)}
+          onSuccess={handleWithdrawSuccess}
+        />
+      ) : null}
+    </>
   );
 }
 
@@ -359,6 +443,18 @@ function useConsumerWithdrawPageModel(): ConsumerWithdrawPageModel {
     setWithdrawals: withdrawalState.setWithdrawals,
   });
 
+  useEffect(() => {
+    if (!activeWithdrawal) {
+      return;
+    }
+    const timer = window.setInterval(() => {
+      void Promise.all([withdrawalState.fetchWithdrawals(), handleRefresh()]);
+    }, 5000);
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [activeWithdrawal?.id, handleRefresh, withdrawalState.fetchWithdrawals]);
+
   return {
     activeWithdrawal,
     canResume,
@@ -418,18 +514,14 @@ function ConsumerWithdrawPageView({
           </div>
         ) : null}
 
-        <div className="grid gap-3 md:grid-cols-3">
+        <div className="grid gap-3 md:grid-cols-2">
           <BalanceMetric
-            label={t("creditsPage.withdrawableBalanceLabel")}
+            label={t("consumerWithdrawPage.withdrawableBalanceLabel")}
             amount={isBootstrapping ? 0 : withdrawableBalance}
             hint={t("consumerWithdrawPage.maturityHint")}
           />
           <BalanceMetric
-            label={t("creditsPage.spendableBalanceLabel")}
-            amount={isBootstrapping ? 0 : spendableBalance}
-          />
-          <BalanceMetric
-            label={t("creditsPage.pendingWithdrawalBalanceLabel")}
+            label={t("consumerWithdrawPage.pendingWithdrawalBalanceLabel")}
             amount={pendingWithdrawalBalance}
             hint={
               activeWithdrawal
