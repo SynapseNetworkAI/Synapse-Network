@@ -5,6 +5,9 @@ from datetime import datetime, timedelta, timezone
 from src.storage.analytics.provider_withdraw_review import (
     InMemoryProviderWithdrawReviewRepository,
     ProviderWithdrawReviewItem,
+    _is_manual_review_expired,
+    _review_expires_at_from_created_at,
+    _review_expires_at_from_iso_string,
 )
 
 
@@ -50,3 +53,18 @@ def test_in_memory_withdraw_review_repository_hides_expired_pending_reviews() ->
 
     assert "wd-expired-review" not in [item.withdrawal_id for item in items]
     assert repository.count_pending_reviews() == len(items)
+
+
+def test_review_expires_at_helpers_handle_empty_and_invalid_inputs() -> None:
+    assert _review_expires_at_from_created_at(None) is None
+    assert _review_expires_at_from_iso_string(None) is None
+    assert _review_expires_at_from_iso_string("") is None
+    assert _review_expires_at_from_iso_string("not-a-timestamp") is None
+
+
+def test_manual_review_expired_helper_handles_empty_and_invalid_created_at() -> None:
+    now = datetime.now(timezone.utc)
+
+    assert _is_manual_review_expired(None, now=now) is False
+    assert _is_manual_review_expired("", now=now) is False
+    assert _is_manual_review_expired("bad-created-at", now=now) is False
