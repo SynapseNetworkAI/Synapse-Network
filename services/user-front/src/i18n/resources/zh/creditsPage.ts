@@ -140,7 +140,7 @@ const creditsPage: I18nMessages["creditsPage"] = {
     "提现已进入安全审核。审核完成后，我们会更新状态。",
   consumerWithdrawTicketUnavailable: "提现授权暂未准备好，请稍后重试。",
   consumerWithdrawTicketExpiring:
-    "本次提现授权即将过期。请稍后重新发起提现，避免链上交易失败。",
+    "本次提现授权即将过期。系统会在链上安全窗口通过后自动释放资金。请稍后重新发起提现，避免链上交易失败。",
   consumerWithdrawTxSubmitted: "交易已提交，等待确认...",
   consumerWithdrawTxRejected: "钱包已拒绝交易。",
   consumerWithdrawTxFailed: "链上交易失败，余额已恢复。",
