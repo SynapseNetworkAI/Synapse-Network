@@ -3199,7 +3199,7 @@ def test_dashboard_service_pending_counts_include_projected_provider_reviews() -
     )
 
     assert service.get_overview()["metrics"]["pendingApprovals"] == 5
-    assert service.get_system_status()["approvalQueueDepth"] == 5
+    assert service.get_system_status().approval_queue_depth == 5
     assert service.get_reconciliation_detail()["pendingApprovals"] == 5
 
 
