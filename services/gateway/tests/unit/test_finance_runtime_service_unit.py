@@ -116,6 +116,26 @@ class InMemoryGatewayStateRepo:
         assert all(isinstance(row, RefundIntentRow) for row in rows)
         self.refund_rows = list(rows)
 
+    def update_consumer_refund_row_atomic(
+        self,
+        row: RefundIntentRow,
+        *,
+        updated_at,
+        expected_status=None,
+    ):
+        _ = updated_at, expected_status
+        replaced = False
+        next_rows: list[RefundIntentRow] = []
+        for existing in self.refund_rows:
+            if str(existing.id) == str(row.id):
+                next_rows.append(row.model_copy(deep=True))
+                replaced = True
+            else:
+                next_rows.append(existing)
+        if not replaced:
+            raise RuntimeError("CONSUMER_WITHDRAW_UPDATE_STATE_INCONSISTENT")
+        self.refund_rows = next_rows
+
     def read_provider_withdrawal_rows(self):
         return list(self.withdraw_rows)
 
@@ -311,7 +331,7 @@ def test_register_deposit_intent_rejects_dust_amount_without_persisting() -> Non
     with pytest.raises(HTTPException) as exc_info:
         asyncio.run(
             service.register_deposit_intent(
-                {"txHash": "0x" + "9" * 64, "amountUsdc": "9.99"},
+                {"txHash": "0x" + "9" * 64, "amountUsdc": "4.99"},
                 "0xabc",
                 "deposit-intent-key-dust",
             )

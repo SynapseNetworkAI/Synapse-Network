@@ -13,9 +13,12 @@ const creditsPage: I18nMessages["creditsPage"] = {
   pendingWithdrawalBalanceLabel: "Withdrawal processing credits",
   frozenBalanceLabel: "Frozen / review credits",
   pendingBalanceHint:
-    "Gateway is indexing the on-chain deposit. If it stays pending, contact support with the txHash.",
+    "We are syncing the on-chain deposit. If it stays pending, contact support with the transaction hash.",
   pendingDepositBalanceHint:
-    "Gateway is indexing the on-chain deposit. If it stays pending, contact support with the txHash.",
+    "We are syncing the on-chain deposit. If it stays pending, contact support with the transaction hash.",
+  claimableWithdrawalBalanceLabel: "Claimable withdrawal credits",
+  claimableWithdrawalBalanceHint:
+    "Manual review passed. Open your wallet to complete the on-chain withdrawal.",
   pendingWithdrawalBalanceHint:
     "This withdrawal is locked and waiting for on-chain completion. It will be deducted from pending after completion.",
   frozenBalanceHint:
@@ -43,24 +46,12 @@ const creditsPage: I18nMessages["creditsPage"] = {
   depositSynapseVault: "Synapse Vault",
   depositExpectedResult:
     "{{amount}} {{symbol}} will be deposited into Synapse Vault and become spendable credits after Gateway confirmation.",
+  depositWalletPromptNotice:
+    "MetaMask may only show the contract interaction. Please verify the {{amount}} {{symbol}} amount and Synapse Vault address on this panel.",
   depositDetails: "Details",
   depositVaultAddress: "Vault address",
   depositToken: "Token",
   depositPreapproved: "Existing allowance found. Authorization step skipped.",
-  depositTransactionSummary: "Transaction summary",
-  depositFromWallet: "From wallet",
-  depositToVault: "To vault contract",
-  depositAmountSummary: "Deposit amount",
-  depositPermitAllowance: "Permit allowance",
-  depositExpectationTitle: "Before you confirm",
-  depositExpectationPermit:
-    "The permit signature is gasless and authorizes only this USDC amount.",
-  depositExpectationGas:
-    "The vault deposit is an on-chain transaction and requires native gas.",
-  depositExpectationSync:
-    "Spendable credits appear after Gateway indexes and confirms the deposit.",
-  depositMinimumWithdrawNotice:
-    "Credits withdrawals require a minimum balance of 10 USDC. Please fund based on your expected API usage.",
   depositPermitStepTitle: "Step 1: Permit authorization",
   depositPermitStepActive:
     "Wallet prompt: sign a gasless permit for the exact amount.",
@@ -135,6 +126,13 @@ const creditsPage: I18nMessages["creditsPage"] = {
   consumerWithdrawTitle: "Withdraw Balance",
   consumerWithdrawDescription:
     "Withdraw matured credits back to your wallet. Withdrawable: {{amount}} USDC",
+  consumerWithdrawClaimTitle: "Claim Withdrawal",
+  consumerWithdrawClaimDescription:
+    "Your withdrawal was approved. Confirm in your wallet to claim {{amount}} USDC on-chain.",
+  consumerWithdrawClaimReadyLabel: "Ready to claim",
+  consumerWithdrawClaimAmount: "Claim amount: {{amount}} USDC",
+  consumerWithdrawClaimReviewPassedHint:
+    "Manual review already passed. Open your wallet to complete the withdrawal.",
   consumerWithdrawAmountLabel: "Amount (USDC)",
   consumerWithdrawReasonLabel: "Reason (optional)",
   consumerWithdrawReasonPlaceholder: "Why are you withdrawing?",
@@ -149,9 +147,9 @@ const creditsPage: I18nMessages["creditsPage"] = {
   consumerWithdrawRequestFailed:
     "Unable to prepare the withdrawal right now. Please retry in a moment.",
   consumerWithdrawChainRpcUnavailable:
-    "Gateway cannot reach the chain RPC right now. In local development, make sure the local chain is running, then retry.",
+    "The withdrawal network is temporarily unavailable. Please retry in a moment.",
   consumerWithdrawContractNotConfigured:
-    "Withdrawal contract is not configured for this environment.",
+    "Withdrawals are not available in this environment yet.",
   consumerWithdrawMinAmountNotMet:
     "Minimum consumer withdrawal amount is 10.00 USDC.",
   consumerWithdrawAmountTooLowForFee:
@@ -162,18 +160,19 @@ const creditsPage: I18nMessages["creditsPage"] = {
     "These funds are not mature yet. Consumer withdrawals require the T+7 matured funds window.",
   consumerWithdrawSubmitted: "Withdrawal of ${{amount}} USDC completed!",
   consumerWithdrawBackendSyncFailed:
-    "On-chain transfer succeeded but backend update failed. The background processor will complete it automatically.",
-  consumerWithdrawReleaseFailed: "Failed to release the pending withdrawal.",
+    "Withdrawal was submitted. Your records are syncing; contact support if the status does not update soon.",
+  consumerWithdrawReleaseFailed:
+    "We could not refresh this withdrawal state. Please retry in a moment.",
   consumerWithdrawPendingExists:
     "A pending withdrawal already exists. Finish or wait for the current request.",
   consumerWithdrawResumingPending:
     "Resuming your pending withdrawal in the wallet.",
   consumerWithdrawUnderReview:
-    "Withdrawal submitted and is under review. Reason: {{reason}}",
+    "Withdrawal submitted for security review. We will update the status when review is complete.",
   consumerWithdrawTicketUnavailable:
-    "Withdrawal ticket is unavailable. Please retry after the gateway signs a fresh ticket.",
+    "Withdrawal approval is not ready yet. Please retry in a moment.",
   consumerWithdrawTicketExpiring:
-    "Withdrawal credential is about to expire. To avoid failed gas spend, create a new withdrawal request after this one expires.",
+    "This withdrawal approval is about to expire. After the on-chain safety window passes, the funds will be released automatically. Please wait a moment, then create a new withdrawal request.",
   consumerWithdrawTxSubmitted:
     "Transaction submitted — waiting for confirmation...",
   consumerWithdrawTxRejected: "Transaction rejected by wallet.",
@@ -183,20 +182,23 @@ const creditsPage: I18nMessages["creditsPage"] = {
   consumerWithdrawConfirmWallet: "Confirm in Wallet...",
   consumerWithdrawConfirmingChain: "Confirming on-chain...",
   consumerWithdrawCompleting: "Completing...",
-  consumerWithdrawProgressSigning:
-    "Requesting withdrawal ticket from server...",
+  consumerWithdrawProgressSigning: "Preparing withdrawal approval...",
   consumerWithdrawProgressOnchain:
     "Please confirm the transaction in your wallet.",
   consumerWithdrawProgressConfirming:
     "Transaction submitted. Waiting for block confirmation...",
-  consumerWithdrawProgressCompleting: "On-chain confirmed. Updating records...",
+  consumerWithdrawProgressCompleting: "Confirmed. Syncing withdrawal status...",
   consumerWithdrawMax: "Max",
   consumerWithdrawAction: "Withdraw",
+  consumerWithdrawClaimAction: "Continue Withdrawal",
   consumerWithdrawPendingTooltip:
     "A withdrawal of {{amount}} is pending. Only one active withdrawal is allowed.",
+  consumerWithdrawClaimReadyTooltip:
+    "A withdrawal of {{amount}} is approved and ready to claim in your wallet.",
   consumerWithdrawMaturityWarning:
     "Recent deposits are available for API usage, but require T+7 before withdrawal.",
   consumerWithdrawMinimumRule: "Minimum withdrawal amount: {{amount}} USDC",
+  goToAccountWithdraw: "Need to withdraw? Go to Account Withdraw",
   currentBillingCycle: "Current Billing Cycle",
   daysRemaining: "Days Remaining",
   manageSpendCapTitle: "Manage Spend Cap",
@@ -238,7 +240,7 @@ const creditsPage: I18nMessages["creditsPage"] = {
   redeemVoucherModalPlaceholder: "XXXX-XXXX-XXXX",
   redeemVoucherModalInvalid: "Enter a voucher code in XXXX-XXXX-XXXX format.",
   redeemVoucherModalUnavailable:
-    "Voucher redemption backend is not wired in this environment yet. This modal currently reserves the UI contract only.",
+    "Voucher redemption is not available in this environment yet. This modal currently reserves the UI contract only.",
   redeemVoucherModalRedeeming: "Redeeming Voucher...",
   redeemVoucherModalSuccess:
     "Voucher redeemed. {{amount}} was added to your balance.",

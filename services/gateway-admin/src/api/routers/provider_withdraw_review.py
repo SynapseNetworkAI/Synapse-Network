@@ -11,9 +11,6 @@ from src.api.deps import (
 from src.api.schemas.common import ApiResponse
 from src.api.schemas.provider_withdraw_review import (
     ProviderWithdrawReviewDecisionRequest,
-    ProviderWithdrawReviewDecisionResult,
-    ProviderWithdrawReviewHistoryItem,
-    ProviderWithdrawReviewHistoryListResponse,
     ProviderWithdrawReviewListResponse,
     ProviderWithdrawReviewSummary,
 )
@@ -65,15 +62,7 @@ def list_provider_withdraw_review_history(
 ):
     _ = admin
     payload = review_service.list_history_items(_history_query_from_request(request, limit))
-    return ApiResponse(
-        data=ProviderWithdrawReviewHistoryListResponse(
-            items=[ProviderWithdrawReviewHistoryItem(**item) for item in payload["items"]],
-            next_cursor=payload["nextCursor"],
-            total_count=payload["totalCount"],
-            total_pages=payload["totalPages"],
-        ),
-        request_id=request_id,
-    )
+    return ApiResponse(data=payload, request_id=request_id)
 
 
 @router.post("/{withdrawal_id}/decision", response_model=ApiResponse)
@@ -91,4 +80,4 @@ def decide_provider_withdraw_review(
         note=payload.note,
         request_id=request_id,
     )
-    return ApiResponse(data=ProviderWithdrawReviewDecisionResult(**result), request_id=request_id)
+    return ApiResponse(data=result, request_id=request_id)

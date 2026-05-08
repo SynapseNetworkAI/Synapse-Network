@@ -14,6 +14,7 @@ from src.domain import (
     AdminMfaEnrollmentChallenge,
     AdminMfaFactor,
     AdminMenuConfigSnapshot,
+    AdminInAppNotification,
     AdminPermission,
     AdminRole,
     AdminRolePermission,
@@ -130,6 +131,21 @@ class AdminConfigRepository(Protocol):
     def save_menu_config(self, snapshot: AdminMenuConfigSnapshot) -> AdminMenuConfigSnapshot: ...
 
 
+class AdminNotificationRepository(Protocol):
+    def enqueue(self, notification: AdminInAppNotification) -> AdminInAppNotification: ...
+    def list_for_admin(
+        self,
+        *,
+        admin_id: str,
+        limit: int = 20,
+        unread_only: bool = False,
+    ) -> Sequence[AdminInAppNotification]: ...
+    def unread_count_for_admin(self, *, admin_id: str) -> int: ...
+    def mark_read(self, *, admin_id: str, notification_id: str) -> bool: ...
+    def mark_all_read(self, *, admin_id: str) -> int: ...
+    def archive(self, *, admin_id: str, notification_id: str) -> bool: ...
+
+
 class AdminStore(Protocol):
     @property
     def identity(self) -> AdminIdentityRepository: ...
@@ -145,3 +161,6 @@ class AdminStore(Protocol):
 
     @property
     def config(self) -> AdminConfigRepository: ...
+
+    @property
+    def notifications(self) -> AdminNotificationRepository: ...

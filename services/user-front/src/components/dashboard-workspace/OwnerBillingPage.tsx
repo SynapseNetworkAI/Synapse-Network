@@ -71,6 +71,18 @@ function statusDisplay(
     };
   }
   if (row.type === "Withdraw") {
+    if (row.withdrawalStatus === "PENDING_MANUAL_REVIEW") {
+      return {
+        className: "font-medium text-[#f3b24d]",
+        label: t("billingPage.statusWithdrawReviewPending"),
+      };
+    }
+    if (row.claimable) {
+      return {
+        className: "font-medium text-[#35d07f]",
+        label: t("billingPage.statusWithdrawReadyToClaim"),
+      };
+    }
     return {
       className: "font-medium text-[#f3b24d]",
       label: t("billingPage.statusWithdrawPending"),

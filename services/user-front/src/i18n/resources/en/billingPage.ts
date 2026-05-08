@@ -24,6 +24,8 @@ const billingPage: I18nMessages["billingPage"] = {
   openTransactionExplorer: "Open transaction explorer",
   statusPending: "Pending",
   statusPendingSyncing: "Pending / Syncing",
+  statusWithdrawReviewPending: "Under review",
+  statusWithdrawReadyToClaim: "Ready to claim",
   statusWithdrawPending: "Withdrawal processing",
   statusSucceeded: "Completed",
   statusFailed: "Failed",

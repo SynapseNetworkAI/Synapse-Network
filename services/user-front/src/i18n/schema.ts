@@ -25,6 +25,8 @@ export type I18nMessages = {
     notificationsLoading: string;
     notificationsEmpty: string;
     notificationLoadFailed: string;
+    withdrawalNotificationTitle: string;
+    withdrawalNotificationBody: string;
     markAllRead: string;
     openNotification: string;
     archiveNotification: string;
@@ -46,6 +48,7 @@ export type I18nMessages = {
     quickAccessAuditDescription: string;
     quickAccessDeveloperDescription: string;
     quickAccessAccountSettingsDescription: string;
+    quickAccessAccountWithdrawDescription: string;
     quickAccessProviderConsoleDescription: string;
     quickAccessProviderCredentialsDescription: string;
     quickAccessServicesDescription: string;
@@ -1001,6 +1004,8 @@ export type I18nMessages = {
     openTransactionExplorer: string;
     statusPending: string;
     statusPendingSyncing: string;
+    statusWithdrawReviewPending: string;
+    statusWithdrawReadyToClaim: string;
     statusWithdrawPending: string;
     statusSucceeded: string;
     statusFailed: string;
@@ -1027,6 +1032,8 @@ export type I18nMessages = {
     frozenBalanceLabel: string;
     pendingBalanceHint: string;
     pendingDepositBalanceHint: string;
+    claimableWithdrawalBalanceLabel: string;
+    claimableWithdrawalBalanceHint: string;
     pendingWithdrawalBalanceHint: string;
     frozenBalanceHint: string;
     purchaseCredits: string;
@@ -1049,20 +1056,11 @@ export type I18nMessages = {
     depositToSynapseVault: string;
     depositSynapseVault: string;
     depositExpectedResult: string;
+    depositWalletPromptNotice: string;
     depositDetails: string;
     depositVaultAddress: string;
     depositToken: string;
     depositPreapproved: string;
-    depositTransactionSummary: string;
-    depositFromWallet: string;
-    depositToVault: string;
-    depositAmountSummary: string;
-    depositPermitAllowance: string;
-    depositExpectationTitle: string;
-    depositExpectationPermit: string;
-    depositExpectationGas: string;
-    depositExpectationSync: string;
-    depositMinimumWithdrawNotice: string;
     depositPermitStepTitle: string;
     depositPermitStepActive: string;
     depositPermitStepDone: string;
@@ -1111,6 +1109,11 @@ export type I18nMessages = {
     depositCloseDialog: string;
     consumerWithdrawTitle: string;
     consumerWithdrawDescription: string;
+    consumerWithdrawClaimTitle: string;
+    consumerWithdrawClaimDescription: string;
+    consumerWithdrawClaimReadyLabel: string;
+    consumerWithdrawClaimAmount: string;
+    consumerWithdrawClaimReviewPassedHint: string;
     consumerWithdrawAmountLabel: string;
     consumerWithdrawReasonLabel: string;
     consumerWithdrawReasonPlaceholder: string;
@@ -1147,9 +1150,12 @@ export type I18nMessages = {
     consumerWithdrawProgressCompleting: string;
     consumerWithdrawMax: string;
     consumerWithdrawAction: string;
+    consumerWithdrawClaimAction: string;
     consumerWithdrawPendingTooltip: string;
+    consumerWithdrawClaimReadyTooltip: string;
     consumerWithdrawMaturityWarning: string;
     consumerWithdrawMinimumRule: string;
+    goToAccountWithdraw: string;
     currentBillingCycle: string;
     daysRemaining: string;
     manageSpendCapTitle: string;
@@ -1189,6 +1195,7 @@ export type I18nMessages = {
     supportDescription: string;
     supportAction: string;
   };
+  consumerWithdrawPage: Record<string, string>;
   auditPage: {
     title: string;
     description: string;

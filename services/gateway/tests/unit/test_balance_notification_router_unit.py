@@ -416,6 +416,9 @@ async def test_consumer_withdraw_schedules_in_app_notification(monkeypatch) -> N
     assert calls[0][0] is storage
     assert calls[0][1].event_type == "consumer_withdrawal.created"
     assert calls[0][1].severity == "warning"
+    assert "consumer-withdraw-1" not in calls[0][1].body
+    assert "PENDING_MANUAL_REVIEW" not in calls[0][1].body
+    assert "security review" in calls[0][1].body
 
 
 @pytest.mark.asyncio
@@ -466,6 +469,9 @@ async def test_provider_withdraw_schedules_in_app_notification(monkeypatch) -> N
     assert response["withdrawalId"] == "provider-withdraw-1"
     assert calls[0][0] is storage
     assert calls[0][1].event_type == "provider_withdrawal.created"
+    assert "provider-withdraw-1" not in calls[0][1].body
+    assert "REQUESTED" not in calls[0][1].body
+    assert "request has been received" in calls[0][1].body
     assert calls[0][1].payload == {
         "withdrawalId": "provider-withdraw-1",
         "amount": "9.250000",

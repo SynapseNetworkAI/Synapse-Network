@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 from src.storage.admin_config import PostgresAdminConfigRepository
+from src.storage.admin_notifications import PostgresAdminNotificationRepository
 from src.storage.admin_approval import PostgresAdminApprovalRepository
 from src.storage.admin_audit import PostgresAdminAuditRepository
 from src.storage.admin_identity import PostgresAdminIdentityRepository
@@ -14,6 +15,7 @@ class PostgresAdminStore:
     approval: PostgresAdminApprovalRepository
     audit: PostgresAdminAuditRepository
     config: PostgresAdminConfigRepository
+    notifications: PostgresAdminNotificationRepository
 
     @classmethod
     def from_dsn(cls, dsn: str) -> "PostgresAdminStore":
@@ -23,4 +25,5 @@ class PostgresAdminStore:
             approval=PostgresAdminApprovalRepository(dsn),
             audit=PostgresAdminAuditRepository(dsn),
             config=PostgresAdminConfigRepository(dsn),
+            notifications=PostgresAdminNotificationRepository(dsn),
         )

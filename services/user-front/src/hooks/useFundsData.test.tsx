@@ -221,6 +221,42 @@ describe("useFundsData deposit status mapping", () => {
     });
   });
 
+  it("keeps consumer withdrawal claimability from Gateway truth", async () => {
+    withdrawalsMock.mockResolvedValue([
+      {
+        id: "withdraw-ready-1",
+        amountUsdc: "185.990000",
+        status: "REQUESTED",
+        claimable: true,
+        ticket: {
+          ticketId:
+            "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          amount: "185990000000000000000",
+          fee: "1000000000000000000",
+          deadline: 1_800_000_000,
+          signature: "0xsigned",
+          chainId: 31337,
+          contractAddress: "0x00000000000000000000000000000000000000aa",
+        },
+        updatedAt: "2026-05-06T09:14:20Z",
+      },
+    ]);
+
+    const { result } = renderHook(() => useFundsData());
+
+    await waitFor(() => {
+      expect(result.current.records[0]?.id).toBe("withdraw-ready-1");
+    });
+
+    expect(result.current.records[0]).toMatchObject({
+      type: "Withdraw",
+      status: "PENDING",
+      withdrawalStatus: "REQUESTED",
+      claimable: true,
+      amount: 185.99,
+    });
+  });
+
   it("shows the requested deposit amount when credited amount is missing or zero", async () => {
     depositIntentsMock.mockResolvedValue([
       {

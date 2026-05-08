@@ -48,3 +48,13 @@ Status: Active
 - Fix: Normalize top-level and detail money fields, support numeric/string balance diffs, and add DOM tests for provider withdrawal, consumer withdrawal, release, top-level delta, and no-amount rows.
 - Rule: User-facing finance timelines must normalize amount fields at the adapter boundary; do not create page-local one-key extractors for audit/payment records.
 - Upgrade: agents-memory
+
+### Lesson: Wallet trust copy should live before native wallet prompts
+
+- Domain: frontend
+- Severity: warning
+- Trigger: MetaMask local transaction prompts showed only generic contract interaction, making users unsure of amount and destination.
+- Root cause: Native wallet UI is not controllable, and local unverified contracts do not expose decoded method or amount reliably.
+- Fix: Show amount and Synapse Vault short address in the Deposit Review panel, add a MetaMask limitation notice, and add PNG/ICO favicon fallbacks.
+- Rule: Money-movement wallet prompts need a Synapse-owned Review source of truth; do not rely on local wallet popup decoding.
+- Upgrade: agents-memory

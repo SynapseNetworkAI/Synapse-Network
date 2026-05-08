@@ -36,6 +36,17 @@ from src.utils.money import money_str
 
 ConsumerWithdrawResponse = dict[str, Any]
 ConsumerWithdrawListResponse = list[ConsumerWithdrawResponse]
+CLAIMABLE_CONSUMER_WITHDRAW_STATUSES = frozenset(
+    {
+        "REQUESTED",
+        "APPROVED_AUTO",
+        "APPROVED_MANUAL",
+        "SIGNED",
+        "BROADCASTED",
+        "TICKET_READY",
+        "PROCESSING",
+    }
+)
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +90,25 @@ class FinanceConsumerWithdrawMixin:
     def _money_float(cls, value: Any) -> float:
         return float(cls._q6d(value))
 
+    @staticmethod
+    def _is_consumer_withdraw_claimable(payload: dict[str, Any]) -> bool:
+        status = str(payload.get("status") or "").strip().upper()
+        if status not in CLAIMABLE_CONSUMER_WITHDRAW_STATUSES:
+            return False
+        if payload.get("txHash"):
+            return False
+        ticket = payload.get("ticket")
+        if not isinstance(ticket, dict):
+            return False
+        signature = str(ticket.get("signature") or "").strip()
+        contract_address = str(ticket.get("contractAddress") or "").strip()
+        deadline = int(ticket.get("deadline") or payload.get("deadline") or 0)
+        return bool(
+            signature
+            and contract_address
+            and deadline > int(time.time())
+        )
+
     def _build_consumer_withdraw_response(
         self,
         row: RefundIntentRow,
@@ -107,6 +137,7 @@ class FinanceConsumerWithdrawMixin:
                 mode="json",
                 exclude_none=True,
             )
+        payload["claimable"] = self._is_consumer_withdraw_claimable(payload)
         return payload
 
     def _count_consumer_withdrawals_last_24h(
@@ -308,7 +339,7 @@ class FinanceConsumerWithdrawMixin:
                 if row_status in REFUND_ACTIVE_STATUSES:
                     row_amount = self._q6d(row.amount_usdc)
                     if row_amount != amount_usdc:
-                        continue
+                        raise HTTPException(409, {"code": "PENDING_WITHDRAWAL_EXISTS"})
                     ledger_check = self._load_balance_ledger()  # type: ignore[attr-defined]
                     avail_check = self._q6d(ledger_check.consumer_available_balance(owner))
                     pend_check = self._q6d(ledger_check.consumer_pending_balance(owner))
@@ -538,12 +569,12 @@ class FinanceConsumerWithdrawMixin:
                 continue
             if str(row.refund_type or "") != CONSUMER_WITHDRAW_TYPE:
                 continue
-            result.append(
-                row.model_dump(
-                    by_alias=True,
-                    mode="json",
-                    exclude_none=True,
-                )
+            payload = row.model_dump(
+                by_alias=True,
+                mode="json",
+                exclude_none=True,
             )
+            payload["claimable"] = self._is_consumer_withdraw_claimable(payload)
+            result.append(payload)
         result.sort(key=lambda r: str(r.get("updatedAt") or ""), reverse=True)
         return result

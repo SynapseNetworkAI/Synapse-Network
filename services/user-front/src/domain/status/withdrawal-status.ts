@@ -1,8 +1,13 @@
 export const WITHDRAWAL_STATUS = {
   REQUESTED: "REQUESTED",
   APPROVED_AUTO: "APPROVED_AUTO",
+  APPROVED_MANUAL: "APPROVED_MANUAL",
   PENDING: "PENDING",
   PENDING_MANUAL_REVIEW: "PENDING_MANUAL_REVIEW",
+  SIGNED: "SIGNED",
+  BROADCASTED: "BROADCASTED",
+  TICKET_READY: "TICKET_READY",
+  PROCESSING: "PROCESSING",
   REJECTED: "REJECTED",
   COMPLETED: "COMPLETED",
   CANCELLED: "CANCELLED",
@@ -11,12 +16,17 @@ export const WITHDRAWAL_STATUS = {
 } as const;
 
 export type WithdrawalStatus =
-  typeof WITHDRAWAL_STATUS[keyof typeof WITHDRAWAL_STATUS];
+  (typeof WITHDRAWAL_STATUS)[keyof typeof WITHDRAWAL_STATUS];
 
-const WITHDRAWAL_STATUS_VALUES = Object.values(WITHDRAWAL_STATUS) as WithdrawalStatus[];
+const WITHDRAWAL_STATUS_VALUES = Object.values(
+  WITHDRAWAL_STATUS
+) as WithdrawalStatus[];
 
 export function isWithdrawalStatus(value: unknown): value is WithdrawalStatus {
-  return typeof value === "string" && WITHDRAWAL_STATUS_VALUES.includes(value as WithdrawalStatus);
+  return (
+    typeof value === "string" &&
+    WITHDRAWAL_STATUS_VALUES.includes(value as WithdrawalStatus)
+  );
 }
 
 export function parseWithdrawalStatus(value: string): WithdrawalStatus | null {

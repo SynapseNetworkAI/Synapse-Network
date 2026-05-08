@@ -14,18 +14,13 @@ from src.api.schemas.dashboard import (
     AnalyticsOverview,
     AnalyticsProviderRevenue,
     AnalyticsRiskHealth,
-    DashboardDiagnostics,
     DashboardOverview,
-    DiagnosticAction,
-    DiagnosticSignal,
     FinanceOverview,
     HighlightCard,
     OperationsOverview,
     OverviewMetrics,
     ReconciliationDetail,
     ReconciliationDrilldownResult,
-    ReconciliationApprovalSummary,
-    SystemStatus,
 )
 from src.services.auth.service import AdminIdentity
 from src.services.dashboard.service import DashboardService
@@ -58,7 +53,7 @@ def get_system_status(
 ):
     _ = admin
     payload = dashboard_service.get_system_status()
-    return ApiResponse(data=SystemStatus(**payload), request_id=request_id)
+    return ApiResponse(data=payload, request_id=request_id)
 
 
 @router.get("/finance-overview", response_model=ApiResponse)
@@ -136,16 +131,7 @@ def get_diagnostics(
 ):
     _ = admin
     payload = dashboard_service.get_diagnostics()
-    return ApiResponse(
-        data=DashboardDiagnostics(
-            overallStatus=payload["overallStatus"],
-            checkedAt=payload["checkedAt"],
-            summary=payload["summary"],
-            signals=[DiagnosticSignal(**item) for item in payload["signals"]],
-            actions=[DiagnosticAction(**item) for item in payload["actions"]],
-        ),
-        request_id=request_id,
-    )
+    return ApiResponse(data=payload, request_id=request_id)
 
 
 @router.get("/analytics/overview", response_model=ApiResponse)

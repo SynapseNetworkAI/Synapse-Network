@@ -8,11 +8,11 @@ const providerSettlements: I18nMessages["providerSettlements"] = {
   nativeTokenFallback: "native token",
   walletNoGas: "Wallet has no {{symbol}} to pay gas on {{chainLabel}}.",
   vaultLiquidityInsufficient:
-    "Vault liquidity is insufficient for this withdrawal right now. The platform treasury must refill on-chain USDC before you retry.",
+    "The on-chain withdrawal reserve cannot cover this amount right now. Please retry later.",
   vaultLiquidityCheckUnavailable:
-    "Gateway cannot verify on-chain vault liquidity right now. Retry after the chain RPC reconnects.",
+    "We cannot verify withdrawal availability right now. Please retry in a moment.",
   chainRpcUnavailable:
-    "Gateway cannot reach chain RPC right now. Retry after the RPC reconnects.",
+    "The withdrawal network is temporarily unavailable. Please retry in a moment.",
   providerReceivableNotMatured:
     "Provider earnings are still in the T+7 maturity window. Only matured receivables can be withdrawn; newly earned receivables still appear in balance.",
   minWithdrawalAmountNotMet:
@@ -26,13 +26,13 @@ const providerSettlements: I18nMessages["providerSettlements"] = {
     "Network client unavailable. Reconnect wallet and retry the withdrawal.",
   connectWalletFirst: "Connect wallet before submitting this withdrawal.",
   withdrawalContractMissing:
-    "Withdrawal contract address is missing from the signed ticket.",
+    "Withdrawals are not available in this environment yet.",
   wrongNetwork:
     "Wrong network. Switch wallet to {{chainLabel}} before resuming this withdrawal.",
   ticketExpired:
-    "This withdrawal ticket has expired. Generate a new ticket before retrying.",
+    "This withdrawal approval has expired. Create a new withdrawal request before retrying.",
   ticketExpiringSoon:
-    "This withdrawal credential expires in less than 2 minutes. To avoid a failed on-chain transaction and gas loss, create a new withdrawal request after this one expires.",
+    "This withdrawal approval expires soon. Wait a moment, then create a new withdrawal request to avoid a failed transaction.",
   gasEstimateInsufficient:
     "Withdrawal requires wallet-paid gas. Estimated max network fee is {{estimateFee}} {{symbol}}, but current wallet gas balance is {{balance}} {{symbol}}. Top up gas token before retrying.",
   walletRejected:
@@ -40,41 +40,43 @@ const providerSettlements: I18nMessages["providerSettlements"] = {
   insufficientNativeGas:
     "Withdrawal could not be submitted because the wallet does not have enough native token to pay gas.",
   staleTicket:
-    "This withdrawal ticket is stale. Create a new withdrawal request before retrying.",
+    "This withdrawal approval is no longer valid. Create a new withdrawal request before retrying.",
   invalidSignature:
-    "This withdrawal ticket signature is no longer valid. Generate a new ticket before retrying.",
+    "This withdrawal approval is no longer valid. Create a new withdrawal request before retrying.",
   vaultAllowanceUnavailable:
-    "Vault allowance is not ready for this withdrawal yet. Retry after the platform refreshes the vault configuration.",
+    "Withdrawal authorization is not ready yet. Please retry in a moment.",
   contractRejectedWithName:
-    "Withdrawal was rejected by the vault contract ({{name}}).",
+    "The on-chain withdrawal was rejected. No funds were moved.",
   contractRejectedWithReason:
-    "Withdrawal was rejected by the vault contract: {{reason}}.",
+    "The on-chain withdrawal was rejected. No funds were moved.",
   generateAndClaim: "Generate & Claim",
   signerUnavailable: "Signer Unavailable",
-  creatingTicket: "Creating Ticket...",
+  creatingTicket: "Preparing...",
   txStateWalletPrompt: "Wallet Prompt",
   txStateConfirming: "Confirming",
   txStateFailed: "Failed",
   pendingTicketExpiredReleased:
-    "Previous withdrawal ticket expired. Locked receivable has been released back to available balance.",
+    "The previous withdrawal request expired. Locked receivable has been returned to your withdrawable balance.",
   pendingReviewExists:
     "A withdrawal is already pending review. Wait for review completion before creating a new one.",
-  generatingTicket: "Generating signed withdrawal ticket...",
+  generatingTicket: "Preparing withdrawal...",
   manualReviewQueued: "Withdrawal queued for manual security review.",
-  ticketGenerated: "Ticket generated. Confirm transaction in wallet.",
-  withdrawalIntentCreated: "Withdrawal intent created.",
-  withdrawalCreateFailed: "Failed to create provider withdrawal",
+  ticketGenerated:
+    "Withdrawal is ready. Confirm the transaction in your wallet.",
+  withdrawalIntentCreated: "Withdrawal request created.",
+  withdrawalCreateFailed:
+    "Unable to prepare this withdrawal. Please retry in a moment.",
   ticketSigningUnavailable:
-    "Provider withdrawals are unavailable because the gateway cannot issue signed withdrawal tickets.",
-  noPendingTicket: "No pending withdrawal ticket found",
-  settledCompleted: "Withdrawal settled and marked completed",
+    "Provider withdrawals are temporarily unavailable. Please retry later.",
+  noPendingTicket: "No pending withdrawal found",
+  settledCompleted: "Withdrawal completed",
   backendCompletionFailed:
-    "On-chain tx succeeded, but backend completion failed. Retry from history.",
+    "Withdrawal was submitted. Your records are syncing; contact support if the status does not update soon.",
   pendingWrongNetwork:
-    "Resume Pending requires the wallet to be on {{requiredChain}}. Current wallet network is {{currentChain}}.",
+    "To continue this withdrawal, switch your wallet to {{requiredChain}}. Current wallet network is {{currentChain}}.",
   pendingTicketExpiredBanner:
-    "The pending withdrawal ticket has expired. Generate a new ticket before retrying.",
-  resumePending: "Resume Pending",
+    "The pending withdrawal expired. Create a new withdrawal request before retrying.",
+  resumePending: "Continue Withdrawal",
   invalidAmountPrecision: "Use up to 2 decimal places for withdrawal amount.",
   invalidAmountValue: "Enter a valid withdrawal amount.",
   amountBelowMinimum: "Minimum withdrawal amount is {{amount}} USDC.",
@@ -89,28 +91,28 @@ const providerSettlements: I18nMessages["providerSettlements"] = {
     "Matured withdrawable amount is below the 10.00 USDC minimum",
   loadingHistory: "Loading withdrawal history...",
   expiredTicketReleasedRow:
-    "Expired ticket released back to available balance.",
+    "Expired withdrawal released back to withdrawable balance.",
   txSubmitted: "Tx submitted: {{hash}}...",
   title: "Settlement Pipeline",
   description: "Provider reconciliation & on-chain self-service withdrawal.",
   providerWithdrawalEyebrow: "Provider Withdrawal (Self-pay Gas)",
-  withdrawalTitle: "Claim Receivable to Wallet via EIP-712 Ticket",
+  withdrawalTitle: "Withdraw receivable to wallet",
   withdrawalDescription:
-    "Gateway issues EIP-712 ticket; provider claims on-chain, self-pay gas.",
+    "Confirm the withdrawal in your wallet and pay gas on-chain.",
   chainRequiredNetwork: "the required network",
   metricAvailable: "Available",
   metricGasBalance: "Gas Balance",
   metricPendingLocked: "Pending / Locked",
-  metricPendingTicket: "Pending Ticket",
+  metricPendingTicket: "Pending Withdrawal",
   metricTxState: "Tx State",
-  searchRequestPlaceholder: "Search Request ID",
+  searchRequestPlaceholder: "Search record",
   searchServicePlaceholder: "Search Service (fuzzy)",
   searchButton: "Search",
   summaryNetEarned: "Net Earned",
   summaryGrossEarnings: "Gross Earnings",
   summaryProtocolFee: "Protocol Fee",
   summaryRoutingTax: "Routing Tax",
-  eventsTableRequestId: "Request ID",
+  eventsTableRequestId: "Record",
   eventsTableService: "Service",
   eventsTableGross: "Gross",
   eventsTableProtocolFee: "Protocol Fee",
@@ -120,10 +122,11 @@ const providerSettlements: I18nMessages["providerSettlements"] = {
   eventsTableEmpty: "No settlement events yet.",
   unknownService: "unknown",
   historyTitle: "Withdrawal History",
-  historyDescription: "Includes expired-released tickets as cancelled rows.",
+  historyDescription:
+    "Includes expired withdrawals returned to your withdrawable balance.",
   historyFilterAll: "All",
   historyStatusRequested: "Requested",
-  historyStatusApprovedAuto: "Ticket Ready",
+  historyStatusApprovedAuto: "Ready to Claim",
   historyStatusPendingManualReview: "Manual Review",
   historyStatusCompleted: "Completed",
   historyStatusRejected: "Rejected",
@@ -142,19 +145,19 @@ const providerSettlements: I18nMessages["providerSettlements"] = {
   paginationShowing: "Showing {{start}}-{{end}} of {{total}}",
   paginationPrev: "Prev",
   paginationNext: "Next",
-  dedupeNote: "Deduplicated by request ID before aggregation.",
+  dedupeNote: "Duplicate retries are safely merged.",
   descriptionTip:
-    "Reconciled provider payouts from gateway settlement logs, with self-service on-chain withdrawal and ticket-based replay protection.",
+    "Review provider earnings, fees, and self-service on-chain withdrawals.",
   withdrawalDescriptionTip:
-    "Gateway issues a signed withdrawal ticket; provider submits the on-chain withdraw transaction and pays gas. Pending tickets lock receivable to prevent duplicate withdrawal and replay at ledger layer.",
+    "A pending withdrawal temporarily locks the selected receivable so the same funds cannot be withdrawn twice.",
   walletGasTip:
     "Withdrawals are on-chain transactions. The connected wallet signs the claim and pays native gas.",
   withdrawAmountHintTip:
-    "Any active ticket moves funds from Available into Pending / Locked; if the on-chain claim never succeeds, the locked amount is automatically released back to Available in about 6 minutes by default.",
+    "Any active withdrawal temporarily locks the selected amount. If it is not completed, the amount is automatically returned to your withdrawable balance.",
   historyDescriptionTip:
-    "Includes expired tickets released back to available balance as explicit cancelled history rows.",
+    "Includes expired withdrawals returned to your withdrawable balance.",
   dedupeNoteTip:
-    "Requests are deduplicated by request ID before summary aggregation to prevent double-counting across retries.",
+    "Retry attempts are grouped before summary totals so one business action is not counted twice.",
   withdrawPageTitle: "Provider Withdraw",
   withdrawPageDescription: "EIP-712 on-chain self-service withdrawal.",
   withdrawAmountLabel: "Withdraw Amount",

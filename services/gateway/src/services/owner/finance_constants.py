@@ -19,7 +19,7 @@ CONSUMER_WITHDRAW_MATURITY_SECONDS: int = int(
     settings.consumer_withdraw_maturity_seconds
 )
 CONSUMER_DEPOSIT_MIN_USDC: float = float(
-    os.getenv("CONSUMER_DEPOSIT_MIN_USDC", "10.0")
+    os.getenv("CONSUMER_DEPOSIT_MIN_USDC", "5.0")
 )
 CONSUMER_WITHDRAW_MAX_DAILY_COUNT: int = int(
     os.getenv("CONSUMER_WITHDRAW_MAX_DAILY_COUNT", "3")

@@ -3,6 +3,7 @@
 from src.api.routers import (
     admin_auth,
     admin_config,
+    admin_notifications,
     admin_users,
     approval,
     audit,
@@ -16,6 +17,7 @@ from src.api.routers import (
 __all__ = [
     "admin_auth",
     "admin_config",
+    "admin_notifications",
     "admin_users",
     "approval",
     "audit",

@@ -41,9 +41,22 @@ export const metadata: Metadata = {
       "USDC-native payment and settlement infrastructure for AI agents buying APIs, LLM calls, data services, tools, and MCP integrations.",
   },
   icons: {
-    icon: "/brand/synapse-network-icon.svg",
-    shortcut: "/brand/synapse-network-icon.svg",
-    apple: "/brand/synapse-network-icon.svg",
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icon.png", sizes: "512x512", type: "image/png" },
+      {
+        url: "/brand/synapse-network-icon.svg",
+        type: "image/svg+xml",
+      },
+    ],
+    shortcut: [{ url: "/favicon.ico" }],
+    apple: [
+      {
+        url: "/apple-touch-icon.png",
+        sizes: "180x180",
+        type: "image/png",
+      },
+    ],
   },
 };
 

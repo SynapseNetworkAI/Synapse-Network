@@ -44,6 +44,7 @@ import { useAdminStepUp } from "@/lib/use-admin-step-up";
 import { useAdminSession } from "@/lib/use-admin-session";
 import type { ProviderWithdrawReviewItem } from "@/services/admin-api";
 import {
+  canSubmitWithdrawReviewDecision,
   getWithdrawReviewActionButtonLabel,
   getWithdrawReviewActionNotice,
 } from "@/features/withdrawal-reviews/review-action-feedback";
@@ -193,6 +194,11 @@ export default function WithdrawalReviewsPage() {
     actionPhase,
     pendingDecision
   );
+  const canSubmitActiveDecision = canSubmitWithdrawReviewDecision({
+    canDecide,
+    isPending,
+    status: detailReview?.status,
+  });
 
   function openReviewDetail(review: ProviderWithdrawReviewItem) {
     setActiveReviewId(review.withdrawalId);
@@ -319,6 +325,7 @@ export default function WithdrawalReviewsPage() {
                 <Th>Amount</Th>
                 <Th>Risk</Th>
                 <Th>Status</Th>
+                <Th>审批过期时间</Th>
                 <Th>详情</Th>
               </TableHeaderRow>
               <TableBody>
@@ -358,6 +365,7 @@ export default function WithdrawalReviewsPage() {
                         tone={getWithdrawalStatusTone(item.status)}
                       />
                     </Td>
+                    <Td>{formatDateTime(item.reviewExpiresAt)}</Td>
                     <Td>
                       <Button
                         size="sm"
@@ -519,6 +527,7 @@ export default function WithdrawalReviewsPage() {
                 ["用户地址", detailReview.ownerAddress],
                 ["提现金额", `${formatUsdc(detailReview.amountUsdc)} USDC`],
                 ["申请时间", formatDateTime(detailReview.createdAt)],
+                ["审批过期时间", formatDateTime(detailReview.reviewExpiresAt)],
                 ["申请编号", inputText(detailReview.requestId)],
               ].map(([label, value]) => (
                 <Box
@@ -572,7 +581,7 @@ export default function WithdrawalReviewsPage() {
                 borderRadius="18px"
                 h="52px"
                 onClick={() => handleDecision("APPROVE")}
-                disabled={!canDecide || isPending || !detailReview}
+                disabled={!canSubmitActiveDecision}
                 loading={
                   isPending &&
                   pendingDecision === "APPROVE" &&
@@ -592,7 +601,7 @@ export default function WithdrawalReviewsPage() {
                 borderRadius="18px"
                 h="52px"
                 onClick={() => handleDecision("REJECT")}
-                disabled={!canDecide || isPending || !detailReview}
+                disabled={!canSubmitActiveDecision}
                 loading={
                   isPending &&
                   pendingDecision === "REJECT" &&
