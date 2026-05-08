@@ -1,6 +1,11 @@
 from dataclasses import dataclass
 from datetime import date, datetime, time, timezone
 
+from src.api.schemas.provider_withdraw_review import (
+    ProviderWithdrawReviewDecisionResult,
+    ProviderWithdrawReviewHistoryItem,
+    ProviderWithdrawReviewHistoryListResponse,
+)
 from src.core.errors import AppError, BadRequestError, ResourceNotFoundError
 from src.domain import AdminActionAudit
 from src.domain.enums import AuditResultStatus
@@ -87,13 +92,17 @@ class ProviderWithdrawReviewService:
                     "message": item.message,
                     "createdAt": item.created_at,
                     "updatedAt": item.updated_at,
+                    "reviewExpiresAt": item.review_expires_at,
                 }
                 for item in items
             ],
             "nextCursor": None,
         }
 
-    def list_history_items(self, filters: WithdrawReviewHistoryQuery) -> dict:
+    def list_history_items(
+        self,
+        filters: WithdrawReviewHistoryQuery,
+    ) -> ProviderWithdrawReviewHistoryListResponse:
         history_filters = _HistoryFilters(
             query=(filters.query or "").strip().lower() or None,
             reviewer=(filters.reviewer or "").strip().lower() or None,
@@ -118,12 +127,12 @@ class ProviderWithdrawReviewService:
         page_items = filtered_items[cursor_offset:cursor_offset + filters.limit]
         next_cursor = str(cursor_offset + filters.limit) if cursor_offset + filters.limit < total_count else None
         total_pages = max(1, (total_count + filters.limit - 1) // filters.limit) if total_count else 1
-        return {
-            "items": page_items,
-            "nextCursor": next_cursor,
-            "totalCount": total_count,
-            "totalPages": total_pages,
-        }
+        return ProviderWithdrawReviewHistoryListResponse(
+            items=[ProviderWithdrawReviewHistoryItem(**item) for item in page_items],
+            nextCursor=next_cursor,
+            totalCount=total_count,
+            totalPages=total_pages,
+        )
 
     def _collect_history_items(
         self,
@@ -162,7 +171,7 @@ class ProviderWithdrawReviewService:
         reviewer: AdminIdentity,
         note: str,
         request_id: str | None = None,
-    ) -> dict:
+    ) -> ProviderWithdrawReviewDecisionResult:
         normalized_decision = decision.strip().upper()
         if normalized_decision not in {"APPROVE", "REJECT"}:
             raise BadRequestError(ERR_INVALID_DECISION)
@@ -212,18 +221,18 @@ class ProviderWithdrawReviewService:
                 },
             ),
         )
-        return {
-            "withdrawalId": str(result.get("withdrawalId") or item.withdrawal_id),
-            "withdrawalKind": item.withdrawal_kind,
-            "reviewType": item.review_type,
-            "ownerAddress": str(result.get("ownerAddress") or item.owner_address),
-            "subjectAddress": item.subject_address,
-            "reviewDecision": normalized_decision,
-            "status": str(result.get("status") or "unknown"),
-            "message": result.get("message"),
-            "requestedBy": result.get("requestedBy"),
-            "ticket": result.get("ticket") or {},
-        }
+        return ProviderWithdrawReviewDecisionResult(
+            withdrawalId=str(result.get("withdrawalId") or item.withdrawal_id),
+            withdrawalKind=item.withdrawal_kind,
+            reviewType=item.review_type,
+            ownerAddress=str(result.get("ownerAddress") or item.owner_address),
+            subjectAddress=item.subject_address,
+            reviewDecision=normalized_decision,
+            status=str(result.get("status") or "unknown"),
+            message=result.get("message"),
+            requestedBy=result.get("requestedBy"),
+            ticket=result.get("ticket") or {},
+        )
 
     def _has_successful_decision(self, withdrawal_id: str) -> bool:
         actions = self._store.audit.list_actions(

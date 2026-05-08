@@ -53,6 +53,10 @@ const fixture = createAdminPaginationSortingFixture({
   runId: RUN_ID,
 });
 const { withdrawals, services, forumRows } = fixture;
+const REVIEW_EXPIRY_SEC = Number.parseInt(
+  process.env.WITHDRAWAL_MANUAL_REVIEW_EXPIRY_SEC || "86400",
+  10
+);
 
 function ok(name, detail = "") {
   passed.push({ name, detail });
@@ -315,7 +319,9 @@ function collectSqlEvidence() {
     SELECT json_agg(row_to_json(t))
     FROM (
       SELECT vw.withdrawal_id AS "withdrawalId", vw.amount_usdc::text AS "amountUsdc",
-             vw.created_at AS "createdAt", rs.payload->>'riskLevel' AS "riskLevel"
+             vw.created_at AS "createdAt",
+             (vw.created_at + (${REVIEW_EXPIRY_SEC} * INTERVAL '1 second')) AS "reviewExpiresAt",
+             rs.payload->>'riskLevel' AS "riskLevel"
       FROM synapse_vault_withdrawals vw
       LEFT JOIN synapse_runtime_state rs ON rs.state_key = CONCAT('vault_withdrawal_meta::', vw.withdrawal_id)
       WHERE vw.withdrawal_id LIKE ${sqlLiteral(`${PREFIX}_wd_%`)}
@@ -425,8 +431,21 @@ async function verifyDom(auth) {
         document.body.innerText.includes(`${prefix}_wd_latest_yellow`),
       PREFIX
     );
+    await page.waitForFunction(
+      () => document.body.innerText.includes("审批过期时间"),
+      undefined
+    );
     const withdrawalFirst = await tableFirstCells(page);
-    domEvidence.withdrawals = { firstRowText: withdrawalFirst };
+    const expiryColumnText = await page
+      .locator("tbody tr")
+      .first()
+      .locator("td")
+      .nth(5)
+      .textContent({ timeout: 30000 });
+    domEvidence.withdrawals = {
+      firstRowText: withdrawalFirst,
+      reviewExpiresAtText: expiryColumnText,
+    };
     if (
       !withdrawalFirst.includes(withdrawals[0].id) ||
       !withdrawalFirst.includes("YELLOW")
@@ -434,6 +453,9 @@ async function verifyDom(auth) {
       fail(
         "withdrawal-reviews DOM first row is not the latest seeded yellow withdrawal"
       );
+    if (!expiryColumnText?.trim()) {
+      fail("withdrawal-reviews DOM review expiration column is empty");
+    }
     ok("dom:withdrawal-reviews", withdrawals[0].id);
     await capture(page, "withdrawal-reviews-created-desc");
 
@@ -522,6 +544,11 @@ async function verifyApi(auth) {
     ids(apiEvidence.withdrawals, "withdrawalId"),
     withdrawals.map((row) => row.id)
   );
+  if (apiEvidence.withdrawals.some((row) => !row.reviewExpiresAt)) {
+    fail(
+      "withdrawal review API did not return reviewExpiresAt for all seeded rows"
+    );
+  }
 
   const serviceData = await adminApi(
     `/api/admin/v1/provider-services?query=${encodeURIComponent(
@@ -568,6 +595,9 @@ function verifySql() {
     ids(sqlEvidence.withdrawals, "withdrawalId"),
     withdrawals.map((row) => row.id)
   );
+  if (sqlEvidence.withdrawals.some((row) => !row.reviewExpiresAt)) {
+    fail("withdrawal SQL evidence did not include reviewExpiresAt");
+  }
   assertOrder(
     "sql:services",
     ids(sqlEvidence.services, "serviceId"),

@@ -302,6 +302,7 @@ export default function WithdrawalReviewsPage() {
                 <Th>Amount</Th>
                 <Th>Risk</Th>
                 <Th>Status</Th>
+                <Th>审批过期时间</Th>
                 <Th>详情</Th>
               </TableHeaderRow>
               <TableBody>
@@ -341,6 +342,7 @@ export default function WithdrawalReviewsPage() {
                         tone={getWithdrawalStatusTone(item.status)}
                       />
                     </Td>
+                    <Td>{formatDateTime(item.reviewExpiresAt)}</Td>
                     <Td>
                       <Button
                         size="sm"
@@ -502,6 +504,7 @@ export default function WithdrawalReviewsPage() {
                 ["用户地址", activeReview.ownerAddress],
                 ["提现金额", `${formatUsdc(activeReview.amountUsdc)} USDC`],
                 ["申请时间", formatDateTime(activeReview.createdAt)],
+                ["审批过期时间", formatDateTime(activeReview.reviewExpiresAt)],
                 ["申请编号", inputText(activeReview.requestId)],
               ].map(([label, value]) => (
                 <Box

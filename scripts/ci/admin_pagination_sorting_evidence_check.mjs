@@ -73,6 +73,7 @@ if (!process.exitCode) {
   const screenshotEvidence = readJson(
     path.join(dir, "screenshot-evidence.json")
   );
+  const apiEvidence = readJson(path.join(dir, "api-evidence.json"));
   const sqlEvidence = readJson(path.join(dir, "sql-evidence.json"));
   if (report.status !== "success" || report.failed?.length) {
     fatal(
@@ -129,6 +130,30 @@ if (!process.exitCode) {
         "Rerun the E2E after seed data is written successfully."
       );
     }
+  }
+  if (
+    !Array.isArray(apiEvidence.withdrawals) ||
+    apiEvidence.withdrawals.some((row) => !row.reviewExpiresAt)
+  ) {
+    fatal(
+      "ADMIN-PAGINATION-SORTING-008",
+      "API evidence is missing reviewExpiresAt for withdrawal reviews.",
+      "Return reviewExpiresAt from gateway-admin and rerun the E2E."
+    );
+  }
+  if (sqlEvidence.withdrawals.some((row) => !row.reviewExpiresAt)) {
+    fatal(
+      "ADMIN-PAGINATION-SORTING-009",
+      "SQL evidence is missing reviewExpiresAt for seeded withdrawal reviews.",
+      "Capture review expiration timestamps in SQL evidence and rerun the E2E."
+    );
+  }
+  if (!screenshotEvidence.domEvidence?.withdrawals?.reviewExpiresAtText) {
+    fatal(
+      "ADMIN-PAGINATION-SORTING-010",
+      "DOM evidence is missing the review expiration column text.",
+      "Verify the withdrawal-reviews table renders 审批过期时间 and rerun the E2E."
+    );
   }
 }
 
