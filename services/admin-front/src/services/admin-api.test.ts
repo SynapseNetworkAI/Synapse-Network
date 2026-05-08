@@ -663,6 +663,7 @@ describe("status normalization adapters", () => {
                 message: null,
                 createdAt: "2026-03-21T10:00:00Z",
                 updatedAt: "2026-03-21T10:05:00Z",
+                reviewExpiresAt: "2026-03-22T10:00:00Z",
               },
             ],
             nextCursor: null,
@@ -719,6 +720,7 @@ describe("status normalization adapters", () => {
     expect(reviews.items[0]?.withdrawalKind).toBe("provider_withdrawal");
     expect(reviews.items[0]?.reviewType).toBe("provider_withdraw_review");
     expect(reviews.items[0]?.subjectAddress).toBe("0xabc");
+    expect(reviews.items[0]?.reviewExpiresAt).toBe("2026-03-22T10:00:00Z");
     expect(jobs.items[0]?.status).toBe("RUNNING");
     expect(jobs.items[0]?.attempts[0]?.status).toBe("PENDING");
   });

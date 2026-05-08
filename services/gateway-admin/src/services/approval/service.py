@@ -117,7 +117,7 @@ class ApprovalService:
                 reviewer=reviewer,
                 note=comment,
             )
-            return {"approvalId": approval_id, "status": result["status"]}
+            return {"approvalId": approval_id, "status": result.status}
 
         approval = self._store.approval.get_approval(approval_id)
         if approval is None:
