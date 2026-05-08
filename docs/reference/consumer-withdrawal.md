@@ -180,6 +180,24 @@ This is intentionally local-only automation. Staging and production keep the
 same self-claim consumer path, but platform fee execution remains a controlled
 Safe or owner operation rather than a generic automated CI step.
 
+Approved-ticket expiry and release has its own local gate:
+
+```bash
+npm run e2e:consumer-withdraw-approval-expiry:local
+npm run ci:consumer-withdraw-approval-expiry-local-evidence
+```
+
+That gate proves a second continuous story:
+
+1. a risky withdrawal enters `PENDING_MANUAL_REVIEW`
+2. admin approval transitions it to `REQUESTED + claimable=true`
+3. User-front shows the ready-to-continue wallet state
+4. the ticket is allowed to approach physical expiry
+5. User-front changes to an expiring-warning state instead of encouraging a late claim
+6. after the local expiry buffer and RPC finality margin pass, `consumer_withdraw_processor` marks the row `FAILED_EXPIRED`
+7. pending balance is released back to withdrawable balance
+8. wallet balance, vault balance, and `platformFeePool` remain unchanged because no on-chain claim occurred
+
 ## Ticket and Fee Model
 
 - `CONSUMER_WITHDRAW_FEE_USDC` is deducted from the requested amount.
@@ -246,6 +264,17 @@ the user can retry the same ticket with normal gas before the deadline. Gateway
 only releases funds when the local expiry buffer, RPC block timestamp margin,
 and `isTicketConsumed(ticketHash)=false` all agree that the ticket is physically
 dead.
+
+This is why an expired approved withdrawal may not release the instant the
+frontend first shows “about to expire.” The system intentionally waits for all
+three conditions below before releasing pending funds:
+
+1. local wall-clock time is past `deadline + WITHDRAW_TICKET_EXPIRY_BUFFER_SEC`
+2. latest RPC block timestamp is past `deadline + WITHDRAW_RPC_FINALITY_MARGIN_SEC`
+3. `isTicketConsumed(ticketHash)` is still `false`
+
+Only then does Gateway fail closed into `FAILED_EXPIRED` and release the locked
+pending balance back to withdrawable balance.
 
 Release evidence for this model is generated with:
 

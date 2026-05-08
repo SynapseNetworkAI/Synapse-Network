@@ -201,15 +201,26 @@ describe("OwnerCreditsPage — Withdraw", () => {
     renderPage();
 
     await screen.findByRole("heading", { name: "Withdraw" });
-    expect(screen.getAllByText("Spendable credits").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Withdrawable credits").length).toBeGreaterThan(
       0
     );
+    expect(screen.queryByText("Spendable credits")).toBeNull();
+    expect(
+      screen.getAllByText("Withdrawal processing credits").length
+    ).toBeGreaterThan(0);
     expect(screen.getAllByText("$20.00").length).toBeGreaterThan(0);
   });
 
-  it("renders the withdraw form inline on the standalone page", async () => {
+  it("opens the withdraw flow in a modal from the standalone page", async () => {
+    const user = userEvent.setup();
     renderPage();
+
+    const openButton = await screen.findByRole("button", { name: "Withdraw" });
+    expect(
+      screen.queryByRole("heading", { name: "Withdraw Balance" })
+    ).toBeNull();
+
+    await user.click(openButton);
 
     expect(
       await screen.findByRole("heading", { name: "Withdraw Balance" })
@@ -242,6 +253,7 @@ describe("OwnerCreditsPage — Withdraw", () => {
   });
 
   it("continues an approved withdrawal from the standalone page", async () => {
+    const user = userEvent.setup();
     listConsumerWithdrawalsMock.mockResolvedValue([
       {
         id: "cw-approved",
@@ -253,10 +265,21 @@ describe("OwnerCreditsPage — Withdraw", () => {
 
     renderPage();
 
+    const continueButton = await screen.findByRole("button", {
+      name: "Continue Withdrawal",
+    });
     expect(
-      await screen.findByRole("button", { name: "Continue Withdrawal" })
+      screen.queryByRole("heading", { name: "Claim Withdrawal" })
+    ).toBeNull();
+
+    await user.click(continueButton);
+
+    expect(
+      await screen.findByRole("heading", { name: "Claim Withdrawal" })
     ).toBeTruthy();
-    expect(screen.getByText("Claim amount: 501.00 USDC")).toBeTruthy();
+    expect(
+      screen.getAllByText("Claim amount: 501.00 USDC").length
+    ).toBeGreaterThan(0);
   });
 
   it("disables withdrawal and explains maturity gap when withdrawable is below minimum", async () => {
@@ -333,14 +356,47 @@ describe("OwnerCreditsPage — Withdraw", () => {
 
     expect(
       await screen.findByText(
-        "Recent deposits are available for API usage, but require T+7 before withdrawal."
+        "Only matured credits can be withdrawn. Newly deposited credits become withdrawable after the T+7 maturity window."
       )
     ).toBeTruthy();
   });
 
-  it("pre-fills the amount field with the full available balance", async () => {
+  it("shows an expiry-safe state instead of continue withdrawal when the ticket is near expiry", async () => {
+    listConsumerWithdrawalsMock.mockResolvedValue([
+      {
+        id: "cw-expiring",
+        amountUsdc: "501.00",
+        status: "REQUESTED",
+        claimable: true,
+        ticket: {
+          ...requestTicket,
+          deadline: Math.floor(Date.now() / 1000) + 60,
+        },
+      },
+    ]);
+
     renderPage();
 
+    expect(
+      await screen.findByRole("heading", {
+        name: "Withdrawal approval expiring",
+      })
+    ).toBeTruthy();
+    expect(
+      screen.getByText(
+        "This withdrawal approval is about to expire. The system will release the funds back to your withdrawable balance after the on-chain safety window passes."
+      )
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole("button", { name: "Continue Withdrawal" })
+    ).toBeNull();
+  });
+
+  it("pre-fills the amount field with the full available balance", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Withdraw" }));
     await screen.findByRole("heading", { name: "Withdraw Balance" });
     const amountInput = screen.getByRole("spinbutton");
     expect((amountInput as HTMLInputElement).value).toBe("20.00");
@@ -360,6 +416,7 @@ describe("OwnerCreditsPage — Withdraw", () => {
 
     renderPage();
 
+    await user.click(await screen.findByRole("button", { name: "Withdraw" }));
     await screen.findByRole("heading", { name: "Withdraw Balance" });
 
     const withdrawButtons = screen.getAllByRole("button", {
@@ -427,6 +484,7 @@ describe("OwnerCreditsPage — Withdraw", () => {
 
     renderPage();
 
+    await user.click(await screen.findByRole("button", { name: "Withdraw" }));
     await screen.findByRole("heading", { name: "Withdraw Balance" });
 
     const withdrawButtons = screen.getAllByRole("button", {

@@ -319,7 +319,7 @@ function collectSqlEvidence() {
       FROM synapse_vault_withdrawals vw
       LEFT JOIN synapse_runtime_state rs ON rs.state_key = CONCAT('vault_withdrawal_meta::', vw.withdrawal_id)
       WHERE vw.withdrawal_id LIKE ${sqlLiteral(`${PREFIX}_wd_%`)}
-      ORDER BY vw.created_at DESC
+      ORDER BY vw.created_at DESC, vw.withdrawal_id DESC
     ) t
   `);
   sqlEvidence.services = queryJson(`
