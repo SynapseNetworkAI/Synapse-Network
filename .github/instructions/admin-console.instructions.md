@@ -55,7 +55,7 @@ Do not place pagination controls above the list body unless the workflow explici
 - Status chips are for real states, risks, and decisions, not decorative labeling.
 - Prefer one column per business concept when scan speed matters.
 - Keep rows visually stable and easy to scan on desktop.
-- Secondary metadata should move to detail drawers or secondary surfaces rather than overloading the first column.
+- Secondary metadata should move to centered detail modals or secondary pages rather than overloading the first column. Do not use right-side drawers, slide-out panels, or sidebar expansion for clicked admin operations.
 - Approval, audit, execution, withdrawal-review, and other control-plane status chips must map from canonical domain status enums or unions defined from the backend contract; do not hardcode chip colors directly in page tables.
 
 ## Shared Primitive Bias
@@ -63,6 +63,7 @@ Do not place pagination controls above the list body unless the workflow explici
 - Prefer shared list primitives and existing surfaces before inventing per-page wrappers.
 - Reuse shared filter forms, pagination bars, and table surfaces when possible.
 - If a page must diverge, the reason should be traceable to a documented workflow need.
+- Create, edit, detail, review, finance confirmation, feedback, and logout workflows must use a modal or popup primitive. The main sidebar is navigation only. Permanent in-page two-column reading contexts are allowed only when they are not opened as a slide-out overlay.
 
 ## Treasury and Hardware-Wallet Actions
 

@@ -20,7 +20,6 @@ type RequestStepUpCode = (input: {
   confirmLabel: string;
 }) => Promise<string | undefined>;
 
-
 type UseProviderWithdrawReviewsResult = {
   items: ProviderWithdrawReviewItem[];
   activeReviewId: string | null;
@@ -35,25 +34,27 @@ type UseProviderWithdrawReviewsResult = {
   setMessage: (value: string | null) => void;
   setError: (value: string | null) => void;
   handleDecision: (decision: "APPROVE" | "REJECT") => void;
+  resetActionState: () => void;
   refreshReviews: () => Promise<void>;
 };
 
-
 export function useProviderWithdrawReviews(
   token: string | null,
-  requestStepUpCode: RequestStepUpCode,
+  requestStepUpCode: RequestStepUpCode
 ): UseProviderWithdrawReviewsResult {
   const [items, setItems] = useState<ProviderWithdrawReviewItem[]>([]);
   const [activeReviewId, setActiveReviewId] = useState<string | null>(null);
   const [decisionNote, setDecisionNote] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [actionPhase, setActionPhase] = useState<WithdrawReviewActionPhase>("idle");
-  const [pendingDecision, setPendingDecision] = useState<WithdrawReviewDecision | null>(null);
+  const [actionPhase, setActionPhase] =
+    useState<WithdrawReviewActionPhase>("idle");
+  const [pendingDecision, setPendingDecision] =
+    useState<WithdrawReviewDecision | null>(null);
 
   const isPending = actionPhase !== "idle";
 
-  async function refreshReviews() {
+  async function refreshReviews(options?: { keepMissingActive?: boolean }) {
     if (!token) {
       setItems([]);
       setActiveReviewId(null);
@@ -63,7 +64,13 @@ export function useProviderWithdrawReviews(
     const reviewQueue = await listProviderWithdrawReviews(token, { limit: 20 });
     setItems(reviewQueue.items);
     setActiveReviewId((current) => {
-      if (current && reviewQueue.items.some((item) => item.withdrawalId === current)) {
+      if (
+        current &&
+        reviewQueue.items.some((item) => item.withdrawalId === current)
+      ) {
+        return current;
+      }
+      if (options?.keepMissingActive) {
         return current;
       }
       return reviewQueue.items[0]?.withdrawalId ?? null;
@@ -82,7 +89,9 @@ export function useProviderWithdrawReviews(
 
     async function load() {
       try {
-        const reviewQueue = await listProviderWithdrawReviews(activeToken, { limit: 20 });
+        const reviewQueue = await listProviderWithdrawReviews(activeToken, {
+          limit: 20,
+        });
         if (cancelled) {
           return;
         }
@@ -93,7 +102,11 @@ export function useProviderWithdrawReviews(
         if (cancelled) {
           return;
         }
-        setError(loadError instanceof Error ? loadError.message : "加载提现审核队列失败");
+        setError(
+          loadError instanceof Error
+            ? loadError.message
+            : "加载提现审核队列失败"
+        );
       }
     }
 
@@ -104,7 +117,7 @@ export function useProviderWithdrawReviews(
   }, [token]);
 
   function handleDecision(decision: "APPROVE" | "REJECT") {
-    if (!token || !activeReviewId) {
+    if (!token || !activeReviewId || actionPhase !== "idle") {
       return;
     }
     const note = decisionNote.trim();
@@ -121,31 +134,44 @@ export function useProviderWithdrawReviews(
       try {
         const otpCode = await requestStepUpCode({
           title: `${decision === "APPROVE" ? "批准" : "拒绝"}提现单`,
-          description: `你正在处理 ${activeReviewId}，完成验证码验证后系统才会提交${decision === "APPROVE" ? "放行" : "驳回"}请求。`,
+          description: `你正在处理 ${activeReviewId}，完成验证码验证后系统才会提交${
+            decision === "APPROVE" ? "放行" : "驳回"
+          }请求。`,
           confirmLabel: decision === "APPROVE" ? "确认放行" : "确认驳回",
         });
 
         setActionPhase("submitting");
-        const result = await decideProviderWithdrawReview(token, activeReviewId, {
-          decision,
-          note,
-          otpCode,
-        });
-        setMessage(getWithdrawReviewActionSuccessMessage({
-          decision,
-          status: result.status,
-          message: result.message,
-        }));
+        const result = await decideProviderWithdrawReview(
+          token,
+          activeReviewId,
+          {
+            decision,
+            note,
+            otpCode,
+          }
+        );
+        setMessage(
+          getWithdrawReviewActionSuccessMessage({
+            decision,
+            status: result.status,
+            message: result.message,
+          })
+        );
         setError(null);
         setDecisionNote("");
-        await refreshReviews();
+        setActionPhase("submitted");
+        await refreshReviews({ keepMissingActive: true });
       } catch (actionError) {
         setError(getWithdrawReviewActionErrorMessage(actionError, decision));
-      } finally {
         setActionPhase("idle");
         setPendingDecision(null);
       }
     })();
+  }
+
+  function resetActionState() {
+    setActionPhase("idle");
+    setPendingDecision(null);
   }
 
   return {
@@ -162,6 +188,7 @@ export function useProviderWithdrawReviews(
     setMessage,
     setError,
     handleDecision,
+    resetActionState,
     refreshReviews,
   };
 }

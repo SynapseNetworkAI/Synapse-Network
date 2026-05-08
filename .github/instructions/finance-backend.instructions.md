@@ -28,6 +28,10 @@ name: "Synapse Finance Backend Rules"
 - Every deposit, deduction, refund, withdraw, or settlement-like operation needs a stable idempotency key.
 - Prefer durable uniqueness at the database layer, not just in-memory or request-layer checks.
 - Replayed requests must return stable business semantics instead of duplicating state changes.
+- Wallet / owner upsert is identity de-duplication only; it is not business idempotency. Money and status changes must be keyed by a stable business key such as `withdrawalId`, `refundId`, `depositIntentId`, `txHash`, `ticketHash`, `jobId`, or `(scope, owner_id, idempotency_key)`.
+- State transitions must be conditional updates from an expected status. Do not write `UPDATE ... SET status = ... WHERE id = ...` on finance paths unless the same statement also checks the current status or a locked row has already proven the expected state.
+- Complete, fail, approve, reject, retry, and expiry release paths must be replay-safe: the same terminal action returns stable semantics, conflicting terminal actions return `409`, and balances/audit/outbox rows move at most once.
+- Notification, audit, and outbox writes triggered by finance terminal actions need a stable event or dedupe key; a replayed complete/confirm must not enqueue duplicate user-visible messages.
 
 ## Transactions and Concurrency
 
@@ -65,6 +69,7 @@ When reviewing any finance-sensitive code change, run through each severity tier
 - [ ] Every balance mutation is inside an explicit DB transaction with rollback on failure
 - [ ] Concurrency: balance reads that precede writes use row-level locks or atomic conditional updates
 - [ ] Idempotency key present on all deposit, deduction, refund, withdraw, and retry paths
+- [ ] Status-changing money paths use a business-order key plus expected-status CAS; wallet/owner upsert is not counted as idempotency
 - [ ] No SQL injection surface: queries use parameterized statements or ORM-bound values only
 - [ ] Auth/role check present before any balance-changing or approval-triggering route
 - [ ] No secret, private key, or internal stack trace leaks in any error response
@@ -88,26 +93,32 @@ When reviewing any finance-sensitive code change, run through each severity tier
 These are historical failure modes in this codebase. When reviewing financial code, check each one before completing the task:
 
 **Decimal / Float traps**
+
 - Using `float` anywhere in a fee calculation, balance delta, or settlement amount — even temporarily for display or rounding.
 - Calling `round()` on a `Decimal` and immediately passing the result back into arithmetic. Use `quantize()` with explicit rounding mode.
 
 **TOCTOU (Time-of-Check / Time-of-Use) on balances**
+
 - Reading balance → checking sufficiency → deducting in separate queries without row-level lock.
 - Correct pattern: `SELECT ... FOR UPDATE` or atomic `UPDATE balance SET amount = amount - ? WHERE amount >= ? AND id = ?` with rowcount check.
 
 **Idempotency key coverage gaps**
+
 - Adding a new money-affecting endpoint without wiring an idempotency key from day one.
 - Accepting the same `idempotency_key` across different operations (key must include operation type prefix).
 
 **Silent rollback loss**
+
 - Catching an exception inside a transaction, logging it, then allowing the function to return success while the DB already rolled back.
 - If you catch inside a transaction, re-raise or explicitly abort and surface the failure.
 
 **Partial operation returning HTTP 200**
+
 - Returning 200 when only some records in a batch were written due to a mid-loop exception.
 - Finance paths are all-or-nothing unless the contract explicitly documents partial-success semantics.
 
 **Audit trail collapse**
+
 - Writing only the final result to the audit log and omitting the `before_amount`, `delta`, and `request_id`.
 - A ledger entry without `actor`, `owner`, `request_id`, `before`, `after`, `delta`, and `status` is not a ledger entry.
 
@@ -117,7 +128,7 @@ These rules come from real Provider withdrawal approval E2E failures. Treat them
 
 - Do not return or accept `float` in withdrawal, refund, ledger, ticket, fee, or balance payloads. Use `Decimal` internally, string on the wire, and atomic integer on-chain.
 - Do not directly mutate `available_balance`, `frozen_balance`, or `pending_balance` outside an approved atomic bucket transition. Approval must move `frozen -> pending`; complete must consume `pending`.
-- Every deposit, withdrawal, refund, review, complete, and retry path must be idempotent. Duplicate approval, duplicate complete, replayed ticket, and tampered ticket must be rejected.
+- Every deposit, withdrawal, refund, review, complete, and retry path must be idempotent. Duplicate approval, replayed ticket, tampered ticket, and duplicate complete with a different `txHash` must be rejected; duplicate complete with the same `txHash` may return the stable completed result but must not move funds, audit, or notify twice.
 - Finance transaction boundaries must handle PostgreSQL `DeadlockDetected` / `40P01` with bounded retry when safe. Retry the whole transaction via `@retry_on_deadlock(...)` or `with transaction_with_retry(...):`; do not catch `DeadlockDetected` inside an already-open transaction and continue issuing SQL.
 - Approval decisions must be explicit enums or literals. Never encode business actions with `min_length` / `max_length`.
 - Evidence for funds approval is DB/API/chain/UI reconciliation, not UI smoke. Run `npm run e2e:admin-withdrawal-approval` and `npm run ci:finance-approval-e2e-evidence` for release-sensitive changes.

@@ -2,19 +2,43 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
-import { ListFilterFieldPresets, ListFilterFields, ListFilterForm, ListTableSurface } from "./console-ui";
+import {
+  DataTable,
+  EmptyBlock,
+  ListFilterFieldPresets,
+  ListFilterFields,
+  ListFilterForm,
+  ListPaginationBar,
+  ListTableSurface,
+  MessageBanner,
+  OverlayPanel,
+  SearchInput,
+  SentinelStatusChip,
+  StatusChip,
+  TableBody,
+  TableHeaderRow,
+  Td,
+  Th,
+} from "./console-ui";
 
 vi.mock("next/link", () => ({
-  default: ({ children, href }: { children: React.ReactNode; href: string }) => React.createElement("a", { href }, children),
+  default: ({ children, href }: { children: React.ReactNode; href: string }) =>
+    React.createElement("a", { href }, children),
 }));
 
 vi.mock("@chakra-ui/react", () => {
   const element = (tag: string, displayName: string) => {
-    const MockComponent = ({ children, ...props }: { children?: React.ReactNode }) => React.createElement(tag, props, children);
+    const MockComponent = ({
+      children,
+      ...props
+    }: {
+      children?: React.ReactNode;
+    }) => React.createElement(tag, props, children);
     MockComponent.displayName = displayName;
     return MockComponent;
   };
-  const MockInput = ({ children, ...props }: { children?: React.ReactNode }) => React.createElement("input", props, children);
+  const MockInput = ({ children, ...props }: { children?: React.ReactNode }) =>
+    React.createElement("input", props, children);
   MockInput.displayName = "MockInput";
   return {
     Badge: element("span", "MockBadge"),
@@ -39,8 +63,8 @@ describe("ListFilterForm", () => {
           onReset: () => undefined,
           helperText: "支持回车直接搜索；重置筛选会恢复默认条件并回到第一页。",
         },
-        React.createElement("div", null, "filters"),
-      ),
+        React.createElement("div", null, "filters")
+      )
     );
 
     expect(html).toContain("filters");
@@ -78,7 +102,7 @@ describe("ListFilterFields", () => {
             options: [{ value: "APPROVE", label: "放行" }],
           }),
         ],
-      }),
+      })
     );
 
     expect(html).toContain("搜索提现单 / 用户地址 / requestId / reviewer");
@@ -99,7 +123,7 @@ describe("ListFilterFields", () => {
           endValue: "2026-03-23",
           onEndChange: () => undefined,
         }),
-      }),
+      })
     );
 
     expect(html).toContain("2026-03-20");
@@ -118,12 +142,130 @@ describe("ListTableSurface", () => {
         filter: React.createElement("div", null, "filter-area"),
         table: React.createElement("div", null, "table-area"),
         pagination: React.createElement("div", null, "pagination-area"),
-      }),
+      })
     );
 
     expect(html).toContain("审核结果台账");
     expect(html).toContain("filter-area");
     expect(html).toContain("table-area");
     expect(html).toContain("pagination-area");
+  });
+});
+
+describe("OverlayPanel", () => {
+  it("renders operation details as a centered modal dialog, not a side edit surface", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(
+        OverlayPanel,
+        {
+          open: true,
+          title: "提现审核详情",
+          description: "确认后再提交放行或驳回。",
+          onClose: () => undefined,
+        },
+        React.createElement("div", null, "modal body")
+      )
+    );
+
+    expect(html).toContain('role="dialog"');
+    expect(html).toContain('aria-modal="true"');
+    expect(html).toContain("Action Modal");
+    expect(html).toContain("modal body");
+    expect(html).not.toContain("Edit Surface");
+    expect(html).not.toContain('role="complementary"');
+  });
+});
+
+describe("shared console primitives", () => {
+  it("renders status chips and message banners for modal review surfaces", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(
+        React.Fragment,
+        null,
+        React.createElement(StatusChip, { value: "COMPLETED" }),
+        React.createElement(SentinelStatusChip, {
+          label: "NODE ACTIVE",
+          tone: "green",
+        }),
+        React.createElement(MessageBanner, {
+          kind: "error",
+          message: "Internal server error",
+        }),
+        React.createElement(MessageBanner, {
+          kind: "success",
+          message: "审核已提交",
+        })
+      )
+    );
+
+    expect(html).toContain("COMPLETED");
+    expect(html).toContain("NODE ACTIVE");
+    expect(html).toContain("Internal server error");
+    expect(html).toContain("审核已提交");
+  });
+
+  it("renders search input and table primitives used by paginated admin pages", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(
+        React.Fragment,
+        null,
+        React.createElement(SearchInput, {
+          value: "wd-123",
+          placeholder: "Search withdrawals",
+          onChange: () => undefined,
+        }),
+        React.createElement(
+          DataTable,
+          null,
+          React.createElement(
+            TableHeaderRow,
+            null,
+            React.createElement(Th, null, "Withdrawal")
+          ),
+          React.createElement(
+            TableBody,
+            null,
+            React.createElement(
+              "tr",
+              null,
+              React.createElement(Td, null, "wd-123")
+            )
+          )
+        ),
+        React.createElement(EmptyBlock, {
+          title: "暂无数据",
+          description: "没有符合条件的记录。",
+        })
+      )
+    );
+
+    expect(html).toContain("Search withdrawals");
+    expect(html).toContain("Withdrawal");
+    expect(html).toContain("wd-123");
+    expect(html).toContain("暂无数据");
+  });
+
+  it("renders pagination controls with disabled state and count metadata", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(ListPaginationBar, {
+        pageSize: 10,
+        pageSizeOptions: [10, 20],
+        totalPages: 3,
+        totalCount: 24,
+        currentPage: 1,
+        loading: true,
+        canPrevious: false,
+        canNext: true,
+        onPageSizeChange: () => undefined,
+        onPrevious: () => undefined,
+        onNext: () => undefined,
+      })
+    );
+
+    expect(html).toContain("每页 10 条");
+    expect(html).toContain("每页 20 条");
+    expect(html).toContain("第 ");
+    expect(html).toContain("共 24 条");
+    expect(html).toContain("disabled");
   });
 });

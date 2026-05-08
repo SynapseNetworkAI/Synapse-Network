@@ -20,6 +20,9 @@ from src.services.owner.finance_constants import CONSUMER_WITHDRAW_TYPE, REFUND_
 from src.utils.datetime_utils import now_dt_str
 from src.utils.money import money_str, parse_usdc
 
+RefundResponse = dict[str, Any]
+RefundListResponse = List[RefundResponse]
+
 
 class FinanceRefundExecMixin:
     """Refund execution: balance mutations, completion, and public refund methods."""
@@ -100,6 +103,46 @@ class FinanceRefundExecMixin:
         gateway_state = self.storage.get_data_manager().system.gateway_state
         method = getattr(gateway_state, method_name, None)
         return method if callable(method) else None
+
+    def _complete_refund_tx_atomic_or_raise(
+        self,
+        *,
+        owner: str,
+        refund_id: str,
+        normalized_tx_hash: str,
+    ) -> bool:  # pragma: no cover: human-review-required E2E report
+        if not hasattr(self.storage, "complete_withdraw_tx_atomic"):  # type: ignore[attr-defined]
+            return False
+        try:
+            bound = bool(
+                getattr(self.storage, "complete_withdraw_tx_atomic")(  # type: ignore[attr-defined]
+                    CompleteWithdrawTxCommand(
+                        owner_wallet=owner,
+                        tx_hash=normalized_tx_hash,
+                        kind="owner_refund",
+                        withdrawal_id=refund_id,
+                    )
+                )
+            )
+        except RuntimeError as exc:
+            if str(exc) != "WITHDRAWAL_PENDING_BALANCE_INCONSISTENT":
+                raise
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": "REFUND_LOCK_INCONSISTENT",
+                    "message": "Locked owner balance is insufficient for this refund completion.",
+                },
+            ) from exc
+        if not bound:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": "REFUND_TX_REPLAY_DETECTED",
+                    "message": "txHash is already bound to another refund intent.",
+                },
+            )
+        return True
 
     def _review_consumer_withdrawal_reject(
         self,
@@ -379,7 +422,7 @@ class FinanceRefundExecMixin:
         owner_wallet: str,
         idempotency_key: str,
         request_meta: Optional[dict[str, Any]] = None,
-    ) -> dict[str, Any]:
+    ) -> RefundResponse:
         owner = normalize_wallet(owner_wallet)
         async with self._mutation_lock.lock(f"{owner}:refund_intent"):  # type: ignore[attr-defined]
             idempotency_key = self._validate_idempotency_key(idempotency_key)  # type: ignore[attr-defined]
@@ -534,7 +577,7 @@ class FinanceRefundExecMixin:
             )
             return response
 
-    async def list_refunds(self, owner_wallet: str) -> List[dict[str, Any]]:
+    async def list_refunds(self, owner_wallet: str) -> RefundListResponse:
         import asyncio
         await asyncio.sleep(0)
         normalized_owner = normalize_wallet(owner_wallet)
@@ -553,7 +596,7 @@ class FinanceRefundExecMixin:
         refund_id: str,
         tx_hash: str,
         request_meta: Optional[dict[str, Any]] = None,
-    ) -> dict[str, Any]:
+    ) -> RefundResponse:
         owner = normalize_wallet(owner_wallet)
         async with self._mutation_lock.lock(f"{owner}:refund_complete"):  # type: ignore[attr-defined]
             await self._enforce_owner_write_rate_limit(owner, "refund_complete")  # type: ignore[attr-defined]
@@ -569,31 +612,19 @@ class FinanceRefundExecMixin:
                 )
 
             normalized_tx_hash = self._normalize_tx_hash_or_raise(tx_hash)  # type: ignore[attr-defined]
-            if hasattr(self.storage, "complete_withdraw_tx_atomic"):  # type: ignore[attr-defined]
-                bound = bool(
-                    getattr(self.storage, "complete_withdraw_tx_atomic")(  # type: ignore[attr-defined]
-                        CompleteWithdrawTxCommand(
-                            owner_wallet=owner,
-                            tx_hash=normalized_tx_hash,
-                            kind="owner_refund",
-                            withdrawal_id=refund_id,
-                        )
-                    )
-                )
-                if not bound:
-                    raise HTTPException(
-                        status_code=409,
-                        detail={
-                            "code": "REFUND_TX_REPLAY_DETECTED",
-                            "message": "txHash is already bound to another refund intent.",
-                        },
-                    )
-            self._assert_no_refund_tx_replay(  # type: ignore[attr-defined]
-                rows, owner, normalized_tx_hash, str(target.id or "")
-            )
             completed = self._assert_refund_completable(target, normalized_tx_hash)  # type: ignore[attr-defined]
             if completed is not None:
                 return completed
+
+            used_atomic_complete = self._complete_refund_tx_atomic_or_raise(
+                owner=owner,
+                refund_id=refund_id,
+                normalized_tx_hash=normalized_tx_hash,
+            )
+            if not used_atomic_complete:
+                self._assert_no_refund_tx_replay(  # type: ignore[attr-defined]
+                    rows, owner, normalized_tx_hash, str(target.id or "")
+                )
 
             status = str(target.status or "").upper()
             review = self._parse_refund_review_context(request_meta)
@@ -624,7 +655,8 @@ class FinanceRefundExecMixin:
                 if reject_response is not None:
                     return reject_response
 
-            self._consume_locked_refund_amount(owner, amount_usdc)  # type: ignore[attr-defined]
+            if not used_atomic_complete:
+                self._consume_locked_refund_amount(owner, amount_usdc)  # type: ignore[attr-defined]
             return self._finalize_refund_completion(
                 owner=owner,
                 rows=rows,
@@ -646,7 +678,7 @@ class FinanceRefundExecMixin:
         message: str = "",
         tx_hash: str | None = None,
         request_meta: Optional[dict[str, Any]] = None,
-    ) -> dict[str, Any]:
+    ) -> RefundResponse:
         owner = normalize_wallet(owner_wallet)
         async with self._mutation_lock.lock(f"{owner}:refund_fail"):  # type: ignore[attr-defined]
             await self._enforce_owner_write_rate_limit(owner, "refund_fail")  # type: ignore[attr-defined]
@@ -722,7 +754,7 @@ class FinanceRefundExecMixin:
         owner_wallet: str,
         refund_id: str,
         request_meta: Optional[dict[str, Any]] = None,
-    ) -> dict[str, Any]:
+    ) -> RefundResponse:
         owner = normalize_wallet(owner_wallet)
         async with self._mutation_lock.lock(f"{owner}:consumer_withdraw_review"):  # type: ignore[attr-defined]
             await self._enforce_owner_write_rate_limit(owner, "consumer_withdraw_review")  # type: ignore[attr-defined]

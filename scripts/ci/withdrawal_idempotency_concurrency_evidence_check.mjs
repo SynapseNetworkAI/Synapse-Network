@@ -94,6 +94,62 @@ function hasSecretLeak(text) {
     .map(([name]) => name);
 }
 
+function requireDbEvidence(key) {
+  const row = dbEvidence[key];
+  if (!row) {
+    fatal(
+      "WITHDRAWAL-IDEMPOTENCY-CONCURRENCY-008",
+      path.join(dir, "db-evidence.json"),
+      `DB evidence is missing for ${key}.`,
+      "Record canonical balance and withdrawal-row state for every concurrency scenario."
+    );
+  }
+  return row || {};
+}
+
+function statusCode(payload) {
+  return (
+    payload?.detail?.code ||
+    payload?.error?.code ||
+    payload?.code ||
+    payload?.differentTxCompleteCode ||
+    ""
+  );
+}
+
+function requireAllStatuses(key, values, expected) {
+  if (
+    !Array.isArray(values) ||
+    values.length !== 10 ||
+    values.some((value) => Number(value) !== expected)
+  ) {
+    fatal(
+      "WITHDRAWAL-IDEMPOTENCY-CONCURRENCY-STATUS",
+      path.join(dir, "db-evidence.json"),
+      `${key} expected 10 HTTP ${expected} rows, got ${JSON.stringify(values)}`,
+      "Rerun the full concurrency E2E and fix the non-idempotent API branch."
+    );
+  }
+}
+
+function requireZeroBuckets(key, balance) {
+  for (const field of ["pending", "frozen"]) {
+    if (
+      String(balance?.[field]) !== "0.000000" &&
+      String(balance?.[field]) !== "0"
+    ) {
+      fatal(
+        "WITHDRAWAL-IDEMPOTENCY-CONCURRENCY-BALANCE",
+        path.join(dir, "db-evidence.json"),
+        `${key} expected ${field}=0 after terminal state, got ${JSON.stringify(
+          balance
+        )}`,
+        "Fix the CAS balance movement so terminal replay does not leave locked funds."
+      );
+    }
+  }
+}
+
 const dir = latestReportDir();
 if (!dir) {
   fatal(
@@ -217,12 +273,163 @@ for (const key of [
   "consumerCrossDecisionConcurrency",
   "providerCrossDecisionConcurrency",
 ]) {
-  if (!dbEvidence[key]) {
+  requireDbEvidence(key);
+}
+
+for (const key of ["consumerCreateConcurrency", "providerCreateConcurrency"]) {
+  const item = requireDbEvidence(key);
+  requireAllStatuses(key, item.httpStatuses, 200);
+  if (Array.isArray(item.httpStatuses)) {
+    const okCount = item.httpStatuses.filter(
+      (status) => Number(status) === 200
+    ).length;
+    if (okCount !== 10) {
+      fatal(
+        "WITHDRAWAL-IDEMPOTENCY-CONCURRENCY-CREATE",
+        path.join(dir, "db-evidence.json"),
+        `${key} expected stable create responses for every concurrent replay.`,
+        "Create concurrency must return the same business result without repeated lock-up."
+      );
+    }
+  }
+  if (!item.row?.ticketHash || item.row?.signaturePresent !== true) {
     fatal(
-      "WITHDRAWAL-IDEMPOTENCY-CONCURRENCY-008",
+      "WITHDRAWAL-IDEMPOTENCY-CONCURRENCY-TICKET",
       path.join(dir, "db-evidence.json"),
-      `DB evidence is missing for ${key}.`,
-      "Record canonical balance and withdrawal-row state for every concurrency scenario."
+      `${key} missing single signed ticket evidence.`,
+      "Create exactly one withdrawal row and one signed ticket under concurrent creation."
+    );
+  }
+  if (String(item.balance?.pending) !== String(item.row?.amount)) {
+    fatal(
+      "WITHDRAWAL-IDEMPOTENCY-CONCURRENCY-BUCKET",
+      path.join(dir, "db-evidence.json"),
+      `${key} pending balance does not equal the single withdrawal amount.`,
+      "Fix atomic lock-up so concurrent creates do not double-move funds."
+    );
+  }
+}
+
+for (const key of ["consumerIdempotency", "providerIdempotency"]) {
+  const item = requireDbEvidence(key);
+  if (item.firstId !== item.secondId || Number(item.mismatchStatus) !== 409) {
+    fatal(
+      "WITHDRAWAL-IDEMPOTENCY-CONCURRENCY-IDEMPOTENCY",
+      path.join(dir, "db-evidence.json"),
+      `${key} did not return stable same-key result and 409 on mismatched payload.`,
+      "Creation endpoints must persist idempotency request hash and reject key reuse with different payload."
+    );
+  }
+  if (!Array.isArray(item.rows) || item.rows.length !== 1) {
+    fatal(
+      "WITHDRAWAL-IDEMPOTENCY-CONCURRENCY-IDEMPOTENCY-ROWS",
+      path.join(dir, "db-evidence.json"),
+      `${key} expected exactly one withdrawal row, got ${JSON.stringify(
+        item.rows
+      )}`,
+      "Do not create a second order for same idempotency key."
+    );
+  }
+}
+
+for (const [key, expectedCode] of [
+  ["consumerApproveCompleteConcurrency", "REFUND_ALREADY_COMPLETED"],
+  ["providerApproveCompleteConcurrency", "WITHDRAWAL_ALREADY_COMPLETED"],
+]) {
+  const item = requireDbEvidence(key);
+  requireAllStatuses(key, item.completeStatuses, 200);
+  requireZeroBuckets(key, item.afterComplete);
+  if (
+    String(item.row?.status || "").toUpperCase() !== "COMPLETED" ||
+    !item.row?.txHash ||
+    !item.row?.ticketHash
+  ) {
+    fatal(
+      "WITHDRAWAL-IDEMPOTENCY-CONCURRENCY-COMPLETE",
+      path.join(dir, "db-evidence.json"),
+      `${key} missing completed row, txHash, or ticketHash evidence.`,
+      "Complete must advance exactly once and preserve the claimed txHash/ticketHash."
+    );
+  }
+  if (Number(item.completeIdempotentReplayCount) !== 9) {
+    fatal(
+      "WITHDRAWAL-IDEMPOTENCY-CONCURRENCY-REPLAY",
+      path.join(dir, "db-evidence.json"),
+      `${key} expected 9 idempotent same-tx complete replays, got ${item.completeIdempotentReplayCount}.`,
+      "Same withdrawalId and same txHash should replay as the same completed result without moving funds again."
+    );
+  }
+  if (
+    Number(item.differentTxCompleteStatus) !== 409 ||
+    statusCode(item) !== expectedCode
+  ) {
+    fatal(
+      "WITHDRAWAL-IDEMPOTENCY-CONCURRENCY-DIFFERENT-TX",
+      path.join(dir, "db-evidence.json"),
+      `${key} expected different txHash replay 409 ${expectedCode}, got ${
+        item.differentTxCompleteStatus
+      } ${statusCode(item)}.`,
+      "Reject different txHash complete attempts after a withdrawal is already finalized."
+    );
+  }
+  if (
+    Number(item.txDedup?.dedupeRowCount) !== 1 ||
+    Number(item.txDedup?.distinctTxHashCount) !== 1
+  ) {
+    fatal(
+      "WITHDRAWAL-IDEMPOTENCY-CONCURRENCY-TX-DEDUP",
+      path.join(dir, "db-evidence.json"),
+      `${key} expected exactly one tx dedupe row, got ${JSON.stringify(
+        item.txDedup
+      )}`,
+      "Complete callback must be guarded by withdrawalId+kind+txHash dedupe."
+    );
+  }
+}
+
+for (const key of ["consumerRejectConcurrency", "providerRejectConcurrency"]) {
+  const item = requireDbEvidence(key);
+  if (String(item.row?.status || "").toUpperCase() !== "REJECTED") {
+    fatal(
+      "WITHDRAWAL-IDEMPOTENCY-CONCURRENCY-REJECT",
+      path.join(dir, "db-evidence.json"),
+      `${key} expected REJECTED final state.`,
+      "Concurrent reject must resolve to one legal terminal state."
+    );
+  }
+  requireZeroBuckets(key, item.balance);
+  if (item.row?.ticketHash || item.row?.signaturePresent) {
+    fatal(
+      "WITHDRAWAL-IDEMPOTENCY-CONCURRENCY-REJECT-TICKET",
+      path.join(dir, "db-evidence.json"),
+      `${key} rejected row must not contain a signed ticket.`,
+      "Reject must release funds without issuing a claimable ticket."
+    );
+  }
+}
+
+const uniqueIndexRows = Array.isArray(dbEvidence.uniqueIndexes)
+  ? dbEvidence.uniqueIndexes
+  : [];
+for (const [tableName, needle] of [
+  ["synapse_vault_withdrawals", "ticket_hash"],
+  ["synapse_withdraw_tx_dedup", "tx_hash"],
+  ["synapse_idempotency_keys", "idempotency_key"],
+]) {
+  if (
+    !uniqueIndexRows.some(
+      (row) =>
+        row.tableName === tableName &&
+        String(row.indexDef || "")
+          .toLowerCase()
+          .includes(needle)
+    )
+  ) {
+    fatal(
+      "WITHDRAWAL-IDEMPOTENCY-CONCURRENCY-UNIQUE-INDEX",
+      path.join(dir, "db-evidence.json"),
+      `Missing unique/index evidence for ${tableName}.${needle}.`,
+      "Record and enforce DB-level uniqueness for ticket, tx, and idempotency keys."
     );
   }
 }

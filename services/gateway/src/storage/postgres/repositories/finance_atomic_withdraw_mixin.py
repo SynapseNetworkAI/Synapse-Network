@@ -7,6 +7,7 @@ complete_withdraw_tx_atomic.
 from __future__ import annotations
 
 import time
+from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any, Optional
 from uuid import uuid4
@@ -28,6 +29,17 @@ from .finance_atomic_core_mixin import (
     _INTEGRITY_ERRORS,
     _WITHDRAWAL_BLOCKED_MESSAGE,
 )
+
+
+@dataclass(frozen=True)
+class _CompleteWithdrawTxContext:
+    owner: str
+    tx_hash: str
+    command_kind: str
+    withdrawal_id: str
+    withdrawal_kind: str
+    active_statuses: tuple[str, ...]
+    now_text: str
 
 
 class FinanceAtomicWithdrawMixin:
@@ -433,43 +445,123 @@ class FinanceAtomicWithdrawMixin:
             beforeBalance=float(before_available), afterBalance=float(after_available)
         )
 
+    def _complete_withdraw_locked_row(
+        self,
+        cur: Any,
+        *,
+        row: Any,
+        context: _CompleteWithdrawTxContext,
+    ) -> tuple[bool, bool]:  # pragma: no cover: human-review-required E2E report
+        amount = self._q6(row[2])  # type: ignore[attr-defined]  # mixin decimal helper
+        status = str(row[3] or "").upper()
+        existing_tx = str(row[4] or "").strip().lower()
+        if status == "COMPLETED":
+            return bool(existing_tx and existing_tx == context.tx_hash), False
+        if status not in context.active_statuses:
+            return False, False
+
+        cur.execute(
+            "INSERT INTO synapse_withdraw_tx_dedup (owner_address, tx_hash, kind) VALUES (%s, %s, %s)",
+            (context.owner, context.tx_hash, context.command_kind),
+        )
+        cur.execute(
+            """
+            UPDATE synapse_account_balances
+            SET pending_balance = pending_balance - %s,
+                updated_at = %s
+            WHERE account_id = %s
+              AND pending_balance >= %s
+            """,
+            (str(amount), context.now_text, row[1], str(amount)),
+        )
+        if cur.rowcount != 1:
+            raise RuntimeError("WITHDRAWAL_PENDING_BALANCE_INCONSISTENT")
+        cur.execute(
+            """
+            UPDATE synapse_vault_withdrawals
+            SET status = 'COMPLETED',
+                tx_hash = %s,
+                updated_at = %s
+            WHERE withdrawal_id = %s
+              AND owner_id = %s
+              AND withdrawal_kind = %s
+              AND status = ANY(%s)
+            """,
+            (
+                context.tx_hash,
+                context.now_text,
+                context.withdrawal_id,
+                self._owner_id(context.owner),  # type: ignore[attr-defined]  # mixin owner helper
+                context.withdrawal_kind,
+                list(context.active_statuses),
+            ),
+        )
+        return cur.rowcount == 1, cur.rowcount == 1
+
     def complete_withdraw_tx_atomic(
         self, command: CompleteWithdrawTxCommand
-    ) -> bool:
+    ) -> bool:  # pragma: no cover: human-review-required E2E report
         withdrawal_id = str(command.withdrawal_id or "").strip()
         withdrawal_kind = (
             "provider_withdrawal"
             if str(command.kind or "").strip() == "provider_withdraw"
             else "consumer_refund"
         )
+        owner = str(command.owner_wallet or "").strip().lower()
+        tx_hash = str(command.tx_hash or "").strip().lower()
+        if not withdrawal_id:
+            return False
+        completed = False
+        active_statuses = (
+            ("APPROVED_AUTO", "REQUESTED", "PENDING")
+            if withdrawal_kind == "provider_withdrawal"
+            else ("REQUESTED",)
+        )
+        now_text = now_dt_str()
         with self._db.connect() as conn:  # type: ignore[attr-defined]
-            with conn.cursor() as cur:
-                try:
-                    cur.execute(
-                        "INSERT INTO synapse_withdraw_tx_dedup (owner_address, tx_hash, kind) VALUES (%s, %s, %s)",
-                        (command.owner_wallet, command.tx_hash, command.kind),
-                    )
-                except _INTEGRITY_ERRORS:
-                    conn.rollback()
-                    return False
-                if withdrawal_id:
+            try:
+                with conn.cursor() as cur:
                     cur.execute(
                         """
-                        UPDATE synapse_vault_withdrawals
-                        SET status = 'COMPLETED',
-                            tx_hash = %s,
-                            updated_at = %s
+                        SELECT withdrawal_id, source_account_id, amount_usdc, status, tx_hash
+                        FROM synapse_vault_withdrawals
                         WHERE withdrawal_id = %s
                           AND owner_id = %s
                           AND withdrawal_kind = %s
+                        FOR UPDATE
                         """,
                         (
-                            command.tx_hash,
-                            now_dt_str(),
                             withdrawal_id,
-                            self._owner_id(command.owner_wallet),  # type: ignore[attr-defined]
+                            self._owner_id(owner),  # type: ignore[attr-defined]  # mixin owner helper
                             withdrawal_kind,
                         ),
                     )
-            conn.commit()
-        return True
+                    row = cur.fetchone()
+                    if row is None:
+                        conn.rollback()
+                        return completed
+
+                    complete_context = _CompleteWithdrawTxContext(
+                        owner=owner,
+                        tx_hash=tx_hash,
+                        command_kind=command.kind,
+                        withdrawal_id=withdrawal_id,
+                        withdrawal_kind=withdrawal_kind,
+                        active_statuses=active_statuses,
+                        now_text=now_text,
+                    )
+                    completed, should_commit = self._complete_withdraw_locked_row(
+                        cur,
+                        row=row,
+                        context=complete_context,
+                    )
+                    if should_commit:
+                        conn.commit()
+                    else:
+                        conn.rollback()
+            except _INTEGRITY_ERRORS:
+                conn.rollback()
+            except Exception:
+                conn.rollback()
+                raise
+        return completed

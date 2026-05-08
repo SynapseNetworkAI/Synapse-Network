@@ -51,6 +51,10 @@ const POSTGRES_DSN =
   process.env.LOCAL_GATEWAY_POSTGRES_DSN ||
   process.env.POSTGRES_DSN ||
   "postgresql://synapse_gateway_app:local-dev-gateway-app-password@127.0.0.1:15432/synapse_gateway";
+const ADMIN_DATABASE_DSN =
+  process.env.ADMIN_DATABASE_DSN ||
+  process.env.LOCAL_GATEWAY_ADMIN_POSTGRES_DSN ||
+  "postgresql://synapse_admin_app:local-dev-admin-app-password@127.0.0.1:15432/synapse_gateway_admin";
 // withdrawal status source: services/gateway provider withdrawal state machine and synapse_vault_withdrawals.status.
 
 const ADMIN_COOKIE_NAME =
@@ -71,8 +75,29 @@ const DEFAULT_KEYS = {
 const DEPLOYER_KEY = process.env.DEPLOYER_KEY || DEFAULT_KEYS.deployer;
 const CONSUMER_KEY =
   process.env.CONSUMER_KEY || ethers.Wallet.createRandom().privateKey;
+
+function readLocalProviderOnboardingKey() {
+  if (!isLocalUrl(GATEWAY_BASE_URL) || !isLocalUrl(ADMIN_GATEWAY_URL)) {
+    return "";
+  }
+  const onboardingEnvPath = path.resolve(
+    ROOT,
+    "../Synapse-Network-Provider/.env.onboarding.local"
+  );
+  if (!fs.existsSync(onboardingEnvPath)) {
+    return "";
+  }
+  const match = fs
+    .readFileSync(onboardingEnvPath, "utf8")
+    .match(/^SYNAPSE_PROVIDER_OWNER_PRIVATE_KEY=(.+)$/m);
+  return match?.[1]?.trim().replace(/^['"]|['"]$/g, "") || "";
+}
+
 const PROVIDER_KEY =
-  process.env.PROVIDER_KEY || ethers.Wallet.createRandom().privateKey;
+  process.env.PROVIDER_KEY ||
+  process.env.GATEWAY_E2E_PROVIDER_KEY ||
+  readLocalProviderOnboardingKey() ||
+  ethers.Wallet.createRandom().privateKey;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -101,6 +126,48 @@ function runPsql(sql) {
     fail(`psql failed: ${(result.stderr || result.stdout || "").trim()}`);
   }
   return result.stdout.trim();
+}
+
+function queryAdminTotpSecretFromLocalDb() {
+  if (
+    process.env.ADMIN_TOTP_SECRET ||
+    !isLocalUrl(GATEWAY_BASE_URL) ||
+    !isLocalUrl(ADMIN_GATEWAY_URL)
+  ) {
+    return null;
+  }
+  const sql = `
+    SELECT f.payload_json ->> 'totpSecret'
+    FROM admin_users u
+    JOIN admin_mfa_factors f ON f.admin_id = u.admin_id
+    WHERE u.email = ${sqlLiteral(ADMIN_EMAIL)}
+      AND f.status = 'active'
+      AND f.payload_json ? 'totpSecret'
+    ORDER BY f.created_at DESC
+    LIMIT 1;
+  `;
+  const result = spawnSync(
+    "psql",
+    [
+      ADMIN_DATABASE_DSN,
+      "-X",
+      "-q",
+      "-t",
+      "-A",
+      "-v",
+      "ON_ERROR_STOP=1",
+      "-c",
+      sql,
+    ],
+    {
+      cwd: ROOT,
+      encoding: "utf8",
+    }
+  );
+  if (result.status !== 0) {
+    return null;
+  }
+  return result.stdout.trim() || null;
 }
 
 function isLocalUrl(value) {
@@ -496,7 +563,9 @@ function matureProviderChargeLedger({ providerAddress, invocationId }) {
 }
 
 async function readProviderCapability(auth) {
-  return (await api("/v1/providers/withdrawals/capability", auth)).payload;
+  const payload = (await api("/v1/providers/earnings/summary?limit=20", auth))
+    .payload;
+  return payload.summary || payload;
 }
 
 async function readProviderWithdrawals(auth) {
@@ -506,18 +575,135 @@ async function readProviderWithdrawals(auth) {
   );
 }
 
+function releaseStaleAdminApprovalWithdrawals(providerAddress) {
+  if (!isLocalUrl(GATEWAY_BASE_URL) || !isLocalUrl(ADMIN_GATEWAY_URL)) {
+    return { released: 0, amountUsdc: "0.000000" };
+  }
+  const raw = runPsql(`
+    WITH target AS (
+      SELECT
+        vw.withdrawal_id,
+        vw.amount_usdc,
+        vw.source_account_id,
+        vw.status
+      FROM synapse_vault_withdrawals vw
+      JOIN synapse_owner_accounts owner ON owner.owner_id = vw.owner_id
+      JOIN synapse_runtime_state state
+        ON state.state_key = CONCAT('vault_withdrawal_meta::', vw.withdrawal_id)
+      WHERE lower(owner.owner_wallet) = lower(${sqlLiteral(providerAddress)})
+        AND vw.withdrawal_kind = 'provider_withdrawal'
+        AND vw.status NOT IN ('FAILED', 'FAILED_EXPIRED', 'REJECTED', 'CANCELLED', 'COMPLETED')
+        AND COALESCE(state.payload ->> 'idempotencyKey', '') LIKE 'admin-withdrawal-approval:%'
+    ),
+    balance_release AS (
+      UPDATE synapse_account_balances balance
+      SET
+        available_balance = balance.available_balance + target.amount_usdc,
+        pending_balance = CASE
+          WHEN target.status IN ('REQUESTED', 'SIGNED', 'APPROVED_AUTO')
+            THEN GREATEST(0, balance.pending_balance - target.amount_usdc)
+          ELSE balance.pending_balance
+        END,
+        frozen_balance = CASE
+          WHEN target.status = 'PENDING_MANUAL_REVIEW'
+            THEN GREATEST(0, balance.frozen_balance - target.amount_usdc)
+          ELSE balance.frozen_balance
+        END,
+        updated_at = NOW()
+      FROM target
+      WHERE balance.account_id = target.source_account_id
+      RETURNING target.withdrawal_id, target.amount_usdc
+    ),
+    withdrawal_release AS (
+      UPDATE synapse_vault_withdrawals vw
+      SET status = 'FAILED_EXPIRED', updated_at = NOW()
+      WHERE vw.withdrawal_id IN (SELECT withdrawal_id FROM target)
+      RETURNING vw.withdrawal_id
+    ),
+    metadata_release AS (
+      UPDATE synapse_runtime_state state
+      SET
+        payload = jsonb_set(
+          jsonb_set(state.payload, '{flowStatus}', '"FAILED_EXPIRED"', true),
+          '{message}',
+          '"Local admin withdrawal approval E2E released stale active fixture before reseeding."',
+          true
+        ),
+        updated_at = NOW()
+      WHERE state.state_key IN (
+        SELECT CONCAT('vault_withdrawal_meta::', withdrawal_id) FROM target
+      )
+      RETURNING state.state_key
+    )
+    SELECT json_build_object(
+      'released', COALESCE((SELECT COUNT(*) FROM withdrawal_release), 0),
+      'amountUsdc', COALESCE((SELECT SUM(amount_usdc) FROM balance_release), 0)::text
+    )::text;
+  `);
+  const payload = raw ? JSON.parse(raw) : { released: 0, amountUsdc: "0" };
+  if (Number(payload.released || 0) > 0) {
+    log(
+      `released ${payload.released} stale admin withdrawal approval fixture(s), amount=${payload.amountUsdc} USDC`
+    );
+  }
+  return payload;
+}
+
 async function createWithdrawal(
   auth,
   { amountUsdc, idempotencyKey, expectOk = true }
 ) {
-  return api("/v1/providers/withdrawals/intent", {
-    method: "POST",
-    token: auth.token,
-    address: auth.address,
-    headers: { "X-Idempotency-Key": idempotencyKey },
-    body: { amountUsdc },
-    expectOk,
-  });
+  let lastResult = null;
+  for (let attempt = 1; attempt <= 5; attempt += 1) {
+    const result = await api("/v1/providers/withdrawals/intent", {
+      method: "POST",
+      token: auth.token,
+      address: auth.address,
+      headers: { "X-Idempotency-Key": idempotencyKey },
+      body: { amountUsdc },
+      expectOk: false,
+    });
+    lastResult = result;
+    const code = result.payload?.detail?.code || result.payload?.error?.code;
+    if (
+      result.response.status === 503 &&
+      code === "WITHDRAW_VAULT_LIQUIDITY_CHECK_UNAVAILABLE" &&
+      attempt < 5
+    ) {
+      log(`withdraw intent liquidity precheck retry ${attempt}/5`);
+      await sleep(1000);
+      continue;
+    }
+    if (expectOk && !result.response.ok) {
+      fail(
+        `POST /v1/providers/withdrawals/intent failed: ${
+          result.response.status
+        } ${JSON.stringify(result.payload).slice(0, 800)}`
+      );
+    }
+    return result;
+  }
+  return lastResult;
+}
+
+function promoteWithdrawalForAdminQueue(withdrawalId) {
+  if (!isLocalUrl(GATEWAY_BASE_URL) || !isLocalUrl(ADMIN_GATEWAY_URL)) {
+    return null;
+  }
+  const promotedAt = runPsql(`
+    WITH updated AS (
+      UPDATE synapse_vault_withdrawals
+      SET created_at = NOW() + INTERVAL '20 years',
+          updated_at = NOW() + INTERVAL '20 years'
+      WHERE withdrawal_id = ${sqlLiteral(withdrawalId)}
+      RETURNING created_at
+    )
+    SELECT COALESCE((SELECT created_at::text FROM updated), '');
+  `);
+  if (promotedAt) {
+    log(`promoted withdrawal ${withdrawalId} to admin queue front`);
+  }
+  return promotedAt || null;
 }
 
 async function generateMatureProviderReceivable({
@@ -528,6 +714,27 @@ async function generateMatureProviderReceivable({
 }) {
   const targetAtomic = decimalToAtomic(targetUsdc);
   const invocations = [];
+  const initialCapability = await readProviderCapability(providerAuth);
+  const initialMatureReceivable = moneyFromObject(
+    initialCapability,
+    [
+      "providerMatureReceivable",
+      "providerMatureWithdrawable",
+      "withdrawableReceivable",
+    ],
+    "0"
+  );
+  log(
+    `provider mature receivable before invoke: ${initialMatureReceivable} USDC`
+  );
+  if (decimalToAtomic(initialMatureReceivable) >= targetAtomic) {
+    return {
+      invocations,
+      capability: initialCapability,
+      source: "existing-mature-receivable",
+    };
+  }
+
   for (let index = 1; index <= 40; index += 1) {
     const invocation = await invokeService({
       credentialToken,
@@ -554,7 +761,7 @@ async function generateMatureProviderReceivable({
       `provider mature receivable after invoke ${index}: ${matureReceivable} USDC`
     );
     if (decimalToAtomic(matureReceivable) >= targetAtomic) {
-      return { invocations, capability };
+      return { invocations, capability, source: "canonical-paid-invoke" };
     }
   }
   fail(
@@ -575,7 +782,7 @@ const {
   adminEmail: ADMIN_EMAIL,
   adminGatewayUrl: ADMIN_GATEWAY_URL,
   adminPassword: ADMIN_PASSWORD,
-  adminTotpSecret: ADMIN_TOTP_SECRET,
+  adminTotpSecret: queryAdminTotpSecretFromLocalDb() || ADMIN_TOTP_SECRET,
   api,
   apiBase: API_BASE,
   ethers,
@@ -599,6 +806,9 @@ async function main() {
   const consumerAuth = await authenticate(CONSUMER_KEY, "consumer");
   const adminAuth = await loginAdmin();
   const chain = await getChainContext();
+  const staleRelease = releaseStaleAdminApprovalWithdrawals(
+    providerAuth.address
+  );
   const service = await discoverCanonicalProviderService({
     api,
     serviceId: CANONICAL_SERVICE_ID,
@@ -606,7 +816,7 @@ async function main() {
     log,
     sleep,
   });
-  assertProviderOwnsCanonicalService({
+  await assertProviderOwnsCanonicalService({
     api,
     auth: providerAuth,
     serviceId: service.id,
@@ -658,6 +868,9 @@ async function main() {
   if (withdrawal.ticket && Object.keys(withdrawal.ticket).length > 0) {
     fail("Manual review withdrawal returned a ticket before approval.");
   }
+  const promotedWithdrawalCreatedAt = promoteWithdrawalForAdminQueue(
+    withdrawal.withdrawalId
+  );
 
   const capabilityAfterRequest = await readProviderCapability(providerAuth);
   const withdrawalsAfterRequest = await readProviderWithdrawals(providerAuth);
@@ -697,7 +910,9 @@ async function main() {
     ownerAddress: providerAuth.address,
   });
   const adminQueue = await adminApi(
-    `/api/admin/v1/withdrawal-reviews?limit=20`,
+    `/api/admin/v1/withdrawal-reviews?limit=100&q=${encodeURIComponent(
+      withdrawal.withdrawalId
+    )}`,
     adminAuth
   );
   const projected = (adminQueue.items || []).find(
@@ -739,6 +954,7 @@ async function main() {
     },
     invocation: receivableGeneration.invocations.at(-1),
     invocations: receivableGeneration.invocations,
+    receivableSource: receivableGeneration.source,
     withdrawal: {
       withdrawalId: withdrawal.withdrawalId,
       amountUsdc: WITHDRAW_AMOUNT_USDC,
@@ -755,6 +971,8 @@ async function main() {
       amountAtomic: String(decimalToAtomic(WITHDRAW_AMOUNT_USDC, 18)),
     },
     snapshots: {
+      staleRelease,
+      promotedWithdrawalCreatedAt,
       balanceBeforeInvoke: balanceBeforeInvoke.balance || balanceBeforeInvoke,
       capabilityBeforeWithdraw,
       capabilityAfterRequest,

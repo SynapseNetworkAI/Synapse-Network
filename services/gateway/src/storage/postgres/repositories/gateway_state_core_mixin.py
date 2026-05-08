@@ -191,6 +191,26 @@ class GatewayStateCoreMixin:
 
     def _ensure_owner_account(self, cur: Any, wallet: str, updated_at: str) -> str:
         normalized_wallet = str(wallet or "").lower()
+        cur.execute(
+            """
+            SELECT owner_id
+            FROM synapse_owner_accounts
+            WHERE owner_wallet = %s
+            """,
+            (normalized_wallet,),
+        )
+        existing = cur.fetchone()
+        if existing is not None:
+            existing_owner_id = str(existing[0])
+            cur.execute(
+                """
+                UPDATE synapse_owner_accounts
+                SET updated_at = %s
+                WHERE owner_id = %s
+                """,
+                (updated_at, existing_owner_id),
+            )
+            return existing_owner_id
         owner_id = self._owner_id(normalized_wallet)
         cur.execute(
             """
@@ -207,6 +227,26 @@ class GatewayStateCoreMixin:
     def _ensure_provider_profile(self, cur: Any, wallet: str, updated_at: str) -> str:
         normalized_wallet = str(wallet or "").lower()
         owner_id = self._ensure_owner_account(cur, normalized_wallet, updated_at)
+        cur.execute(
+            """
+            SELECT provider_id
+            FROM synapse_provider_profiles
+            WHERE owner_id = %s
+            """,
+            (owner_id,),
+        )
+        existing = cur.fetchone()
+        if existing is not None:
+            existing_provider_id = str(existing[0])
+            cur.execute(
+                """
+                UPDATE synapse_provider_profiles
+                SET updated_at = %s
+                WHERE provider_id = %s
+                """,
+                (updated_at, existing_provider_id),
+            )
+            return existing_provider_id
         provider_id = self._provider_id(normalized_wallet)
         cur.execute(
             """

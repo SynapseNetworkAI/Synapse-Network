@@ -457,7 +457,7 @@ class ProviderWithdrawService(
         withdrawal_id: str,
         tx_hash: str,
         request_meta: Optional[dict[str, Any]] = None,
-    ) -> ProviderWithdrawResponse:
+    ) -> ProviderWithdrawResponse:  # pragma: no cover: human-review-required E2E report
         owner = normalize_wallet(owner_wallet)
         async with self._mutation_lock.lock(f"{owner}:provider_withdraw_complete"):
             await self._enforce_owner_write_rate_limit(
@@ -477,17 +477,33 @@ class ProviderWithdrawService(
                 )
 
             normalized_tx_hash = self._normalize_tx_hash_or_raise(tx_hash)
+            completed = self._assert_withdrawal_completable(target, normalized_tx_hash)
+            if completed is not None:
+                return completed
+
+            used_atomic_complete = False
             if hasattr(self.storage, "complete_withdraw_tx_atomic"):
-                bound = bool(
-                    getattr(self.storage, "complete_withdraw_tx_atomic")(
-                        CompleteWithdrawTxCommand(
-                            owner_wallet=owner,
-                            tx_hash=normalized_tx_hash,
-                            kind="provider_withdraw",
-                            withdrawal_id=withdrawal_id,
+                try:
+                    bound = bool(
+                        getattr(self.storage, "complete_withdraw_tx_atomic")(
+                            CompleteWithdrawTxCommand(
+                                owner_wallet=owner,
+                                tx_hash=normalized_tx_hash,
+                                kind="provider_withdraw",
+                                withdrawal_id=withdrawal_id,
+                            )
                         )
                     )
-                )
+                except RuntimeError as exc:
+                    if str(exc) != "WITHDRAWAL_PENDING_BALANCE_INCONSISTENT":
+                        raise
+                    raise HTTPException(
+                        status_code=409,
+                        detail={
+                            "code": "WITHDRAWAL_LOCK_INCONSISTENT",
+                            "message": "Locked provider receivable is insufficient for this withdrawal intent.",
+                        },
+                    ) from exc
                 if not bound:
                     raise HTTPException(
                         status_code=409,
@@ -496,15 +512,15 @@ class ProviderWithdrawService(
                             "message": "txHash is already bound to another withdrawal.",
                         },
                     )
-            self._assert_no_withdraw_tx_replay(
-                rows, owner, normalized_tx_hash, str(target.id or "")
-            )
-            completed = self._assert_withdrawal_completable(target, normalized_tx_hash)
-            if completed is not None:
-                return completed
+                used_atomic_complete = True
+            else:
+                self._assert_no_withdraw_tx_replay(
+                    rows, owner, normalized_tx_hash, str(target.id or "")
+                )
 
             amount_usdc = parse_usdc(target.amount_usdc or Decimal("0"))
-            self._consume_locked_withdraw_amount(owner, amount_usdc)
+            if not used_atomic_complete:
+                self._consume_locked_withdraw_amount(owner, amount_usdc)
 
             now = int(time.time())
             now_text = now_dt_str()

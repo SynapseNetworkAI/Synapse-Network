@@ -405,6 +405,41 @@ def test_confirm_deposit_intent_uses_atomic_storage_when_available() -> None:
 
     assert confirmed["id"] == "dep-atomic-1"
     assert captured[0].event_key == "evt-atomic"
+    assert storage.audit.rows == []
+
+
+def test_confirm_deposit_intent_atomic_new_confirmation_writes_one_audit() -> None:
+    storage = FakeStorage()
+    service = OwnerFinanceService(storage, DummyLockManager())
+    _configure_owner_service(service)
+    row = DepositIntentRow(
+        id="dep-atomic-2",
+        ownerAddress="0xabc",
+        txHash="0x" + "9" * 64,
+        amountUsdc=Decimal("15"),
+        idempotencyKey="deposit-intent-key-confirm-atomic-new",
+        status="CONFIRMED",
+        eventKey="evt-atomic-new",
+    )
+
+    def confirm_atomic(command):
+        assert command.event_key == "evt-atomic-new"
+        return row
+
+    storage.confirm_deposit_intent_atomic = confirm_atomic  # type: ignore[attr-defined]  # quality-budget-disable-reason: test injects optional atomic storage hook.
+
+    confirmed = asyncio.run(
+        service.confirm_deposit_intent(
+            owner_wallet="0xabc",
+            deposit_intent_id="dep-atomic-2",
+            event_key="evt-atomic-new",
+            confirmations=5,
+        )
+    )
+
+    assert confirmed["id"] == "dep-atomic-2"
+    assert len(storage.audit.rows) == 1
+    assert storage.audit.rows[0].action == "DEPOSIT_INTENT_CONFIRMED"
 
 
 def test_register_deposit_intent_rejects_invalid_amount_text() -> None:

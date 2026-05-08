@@ -124,20 +124,21 @@ async def complete_provider_withdrawal(
         tx_hash=payload.txHash,
         request_meta=_extract_request_meta(request),
     )
-    schedule_transaction_notifications(
-        storage,
-        owner_wallet=owner_wallet,
-        template_key="provider_withdrawal_completed",
-        event_type="provider_withdrawal.completed",
-        payload={
-            "withdrawalId": withdrawal_id,
-            "amount": result.get("amount") or result.get("amountUsdc"),
-            "status": "COMPLETED",
-            "txHash": payload.txHash,
-            "ownerAddress": owner_wallet,
-            "actionUrl": build_public_app_url("/provider/withdraw"),
-        },
-    )
+    if not result.get("idempotentReplay"):
+        schedule_transaction_notifications(
+            storage,
+            owner_wallet=owner_wallet,
+            template_key="provider_withdrawal_completed",
+            event_type="provider_withdrawal.completed",
+            payload={
+                "withdrawalId": withdrawal_id,
+                "amount": result.get("amount") or result.get("amountUsdc"),
+                "status": "COMPLETED",
+                "txHash": payload.txHash,
+                "ownerAddress": owner_wallet,
+                "actionUrl": build_public_app_url("/provider/withdraw"),
+            },
+        )
     return {"status": "success", "ownerAddress": owner_wallet, **result}
 
 
@@ -170,20 +171,21 @@ async def complete_provider_withdrawal_as_admin(
         tx_hash=payload.txHash,
         request_meta=request_meta,
     )
-    schedule_transaction_notifications(
-        storage,
-        owner_wallet=target_owner,
-        template_key="provider_withdrawal_completed",
-        event_type="provider_withdrawal.completed",
-        payload={
-            "withdrawalId": withdrawal_id,
-            "amount": result.get("amount") or result.get("amountUsdc"),
-            "status": "COMPLETED",
-            "txHash": payload.txHash,
-            "ownerAddress": target_owner,
-            "actionUrl": build_public_app_url("/provider/withdraw"),
-        },
-    )
+    if not result.get("idempotentReplay"):
+        schedule_transaction_notifications(
+            storage,
+            owner_wallet=target_owner,
+            template_key="provider_withdrawal_completed",
+            event_type="provider_withdrawal.completed",
+            payload={
+                "withdrawalId": withdrawal_id,
+                "amount": result.get("amount") or result.get("amountUsdc"),
+                "status": "COMPLETED",
+                "txHash": payload.txHash,
+                "ownerAddress": target_owner,
+                "actionUrl": build_public_app_url("/provider/withdraw"),
+            },
+        )
     return {
         "status": "success",
         "requestedBy": admin_wallet,

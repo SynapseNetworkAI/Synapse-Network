@@ -80,6 +80,13 @@ All list pages should follow a stable business-first structure:
 
 Use shared primitives for filters, table surfaces, and pagination. Do not rebuild page-local list scaffolding unless there is a documented exception.
 
+## Operation Surface Rules
+
+1. Create, edit, detail, review, finance confirmation, feedback, and logout actions must open a centered modal or popup.
+2. Do not introduce right-side drawers, slide-out panels, or sidebar expansion for clicked admin operations.
+3. The sidebar is navigation only. A permanent in-page two-column reading context is allowed only when it is not opened as an overlay.
+4. Modal screenshots must be backed by DOM assertions for `role="dialog"` and `aria-modal="true"`; screenshot existence alone is not enough.
+
 ## Support And Community Ops Rules
 
 Support-oriented control-plane pages, including `/forum-support`, must keep automation advisory and human action explicit:
@@ -99,7 +106,7 @@ Support-oriented control-plane pages, including `/forum-support`, must keep auto
 Withdrawal review pages are financial control surfaces. The browser may initiate a reviewed action, but it must not invent approval truth.
 
 1. `/withdrawal-reviews` must treat Gateway/Gateway-admin as the source of truth for withdrawal status, ticket, amount, reviewer, and tx hash.
-2. Approve/reject buttons must be disabled during submission to prevent double-click duplicate decisions, but backend idempotency remains mandatory.
+2. Approve/reject buttons must expose clear phases: waiting for MFA, submitting, and submitted terminal state. Both buttons must stay disabled after a successful decision while the modal keeps the current withdrawal snapshot visible.
 3. Step-up authentication must use a safe TOTP window in dogfood scripts; do not generate a code in the final seconds of a TOTP period.
 4. Any UI change that affects withdrawal approval, review history, finance reconciliation, or approval queue behavior must preserve screenshot + DB/API/chain evidence through `npm run e2e:admin-withdrawal-approval`.
 5. UI smoke does not prove funds safety. Release evidence must include provider USDC delta, vault USDC delta, DB status/txHash, and provider pending/frozen bucket checks.
