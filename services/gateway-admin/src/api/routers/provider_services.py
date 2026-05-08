@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from src.api.deps import (
     get_provider_services_adapter,
+    get_admin_notification_service,
     get_request_id,
     require_permission,
 )
@@ -19,6 +20,7 @@ from src.api.schemas.provider_services import (
     ProviderServiceListResponse,
 )
 from src.services.adapters import ProviderServicesAdapter, ProviderServicesAdapterError
+from src.services.admin_notifications import AdminNotificationService
 from src.services.auth.service import AdminIdentity
 
 router = APIRouter(prefix="/api/admin/v1/provider-services", tags=["admin-provider-services"])
@@ -84,11 +86,21 @@ def force_probe_provider_service(
     admin: Annotated[AdminIdentity, Depends(require_permission("dashboard:read"))],
     request_id: Annotated[str, Depends(get_request_id)],
     adapter: Annotated[ProviderServicesAdapter, Depends(get_provider_services_adapter)],
+    notifications: Annotated[AdminNotificationService, Depends(get_admin_notification_service)],
 ):
     try:
         payload = adapter.force_probe(actor=admin, service_id=service_id)
     except ProviderServicesAdapterError as exc:
+        notifications.notify_provider_service_action_failed(
+            actor=admin,
+            service_id=service_id,
+            action="FORCE_PROBE",
+        )
         raise _gateway_error(exc) from exc
+    notifications.notify_provider_service_probe_if_unhealthy(
+        actor=admin,
+        service=payload["service"],
+    )
     return ApiResponse(
         data=ProviderServiceActionResponse(service=payload["service"]).model_dump(by_alias=True),
         request_id=request_id,
@@ -102,6 +114,7 @@ def update_provider_service_lifecycle(
     admin: Annotated[AdminIdentity, Depends(require_permission("approval:submit"))],
     request_id: Annotated[str, Depends(get_request_id)],
     adapter: Annotated[ProviderServicesAdapter, Depends(get_provider_services_adapter)],
+    notifications: Annotated[AdminNotificationService, Depends(get_admin_notification_service)],
 ):
     try:
         result = adapter.update_lifecycle(
@@ -111,7 +124,18 @@ def update_provider_service_lifecycle(
             note=payload.note,
         )
     except ProviderServicesAdapterError as exc:
+        notifications.notify_provider_service_action_failed(
+            actor=admin,
+            service_id=service_id,
+            action=payload.action,
+        )
         raise _gateway_error(exc) from exc
+    notifications.notify_provider_service_action(
+        actor=admin,
+        service=result["service"],
+        action=payload.action,
+        status=str(result["service"].get("status") or result["service"].get("controlStatus") or "updated"),
+    )
     return ApiResponse(
         data=ProviderServiceActionResponse(service=result["service"]).model_dump(by_alias=True),
         request_id=request_id,
@@ -125,11 +149,23 @@ def delete_provider_service(
     admin: Annotated[AdminIdentity, Depends(require_permission("approval:submit"))],
     request_id: Annotated[str, Depends(get_request_id)],
     adapter: Annotated[ProviderServicesAdapter, Depends(get_provider_services_adapter)],
+    notifications: Annotated[AdminNotificationService, Depends(get_admin_notification_service)],
 ):
     try:
         adapter.delete_service(actor=admin, service_id=service_id, note=payload.note)
     except ProviderServicesAdapterError as exc:
+        notifications.notify_provider_service_action_failed(
+            actor=admin,
+            service_id=service_id,
+            action="DELETE",
+        )
         raise _gateway_error(exc) from exc
+    notifications.notify_provider_service_action(
+        actor=admin,
+        service={"serviceId": service_id, "serviceName": service_id},
+        action="DELETE",
+        status="deleted",
+    )
     return ApiResponse(
         data=ProviderServiceDeleteResponse(
             serviceId=service_id,
