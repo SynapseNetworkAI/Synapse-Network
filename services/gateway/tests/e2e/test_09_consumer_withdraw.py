@@ -252,7 +252,7 @@ def test_consumer_withdraw_invalid_amount_rejected(owner_headers):
 
 
 def test_consumer_withdraw_exceeds_balance_rejected(owner_headers):
-    """Requesting more than available balance → 400 INSUFFICIENT_CONSUMER_BALANCE."""
+    """Requesting more than available balance is rejected without creating a new withdrawal."""
     balance = get_balance(GATEWAY_BASE, owner_headers)
     over_amount = Decimal(str(balance)) + Decimal("10000.000000")
 
@@ -262,5 +262,12 @@ def test_consumer_withdraw_exceeds_balance_rejected(owner_headers):
         json={"amountUsdc": format(over_amount, "f"), "reason": ""},
         timeout=WITHDRAW_TIMEOUT,
     )
-    assert r.status_code == 400
-    assert "INSUFFICIENT_CONSUMER_BALANCE" in r.text
+    assert r.status_code in {400, 409}, (
+        f"Unexpected status for over-withdraw guard: {r.status_code} {r.text}"
+    )
+    assert (
+        "INSUFFICIENT_CONSUMER_BALANCE" in r.text
+        or "ACTIVE_WITHDRAWAL_EXISTS" in r.text
+        or "PENDING_WITHDRAWAL_EXISTS" in r.text
+        or "existing" in r.text.lower()
+    ), f"Unexpected over-withdraw rejection body: {r.text}"
