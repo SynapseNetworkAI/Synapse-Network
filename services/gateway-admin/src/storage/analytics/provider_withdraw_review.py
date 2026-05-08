@@ -1,11 +1,17 @@
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 import json
 from typing import Any, Protocol
 
 import psycopg
 from psycopg.rows import dict_row
+
+from src.core.config import get_settings
+
+
+def _manual_review_expiry_seconds() -> int:
+    return int(get_settings().withdrawal_manual_review_expiry_sec)
 
 
 def _connect(dsn: str):
@@ -35,6 +41,7 @@ class ProviderWithdrawReviewItem:
     message: str | None
     created_at: str | None
     updated_at: str | None
+    review_expires_at: str | None = None
 
 
 class ProviderWithdrawReviewRepository(Protocol):
@@ -49,6 +56,8 @@ class InMemoryProviderWithdrawReviewRepository:
 
     @classmethod
     def seed_demo(cls) -> "InMemoryProviderWithdrawReviewRepository":
+        first_created_at = _to_iso(datetime.now(timezone.utc) + timedelta(hours=1))
+        second_created_at = _to_iso(datetime.now(timezone.utc) + timedelta(hours=2))
         return cls(
             items=[
                 ProviderWithdrawReviewItem(
@@ -65,8 +74,9 @@ class InMemoryProviderWithdrawReviewRepository:
                     risk_reason_code="AUTO_SINGLE_LIMIT_EXCEEDED",
                     evidence_summary="Single withdrawal breached auto-approve threshold; provider historical income remains healthy.",
                     message="Manual review required before issuing withdraw ticket.",
-                    created_at="2026-03-16T08:05:00Z",
-                    updated_at="2026-03-16T08:05:00Z",
+                    created_at=first_created_at,
+                    updated_at=first_created_at,
+                    review_expires_at=_review_expires_at_from_iso_string(first_created_at),
                 ),
                 ProviderWithdrawReviewItem(
                     withdrawal_id="wd-demo-review-002",
@@ -82,19 +92,37 @@ class InMemoryProviderWithdrawReviewRepository:
                     risk_reason_code="AUTO_24H_LIMIT_EXCEEDED",
                     evidence_summary="24h withdrawal aggregate is above the configured auto path. Requires reviewer confirmation.",
                     message="Manual review required before issuing withdraw ticket.",
-                    created_at="2026-03-16T08:12:00Z",
-                    updated_at="2026-03-16T08:12:00Z",
+                    created_at=second_created_at,
+                    updated_at=second_created_at,
+                    review_expires_at=_review_expires_at_from_iso_string(second_created_at),
                 ),
             ]
         )
 
     def list_pending_reviews(self, limit: int = 20) -> list[ProviderWithdrawReviewItem]:
-        items = [item for item in self._items if item.status == "PENDING_MANUAL_REVIEW"]
-        items.sort(key=lambda item: item.created_at or "", reverse=True)
+        now = datetime.now(timezone.utc)
+        items = [
+            item
+            for item in self._items
+            if item.status == "PENDING_MANUAL_REVIEW"
+            and not _is_manual_review_expired(item.created_at, now=now)
+        ]
+        items.sort(
+            key=lambda item: (item.created_at or "", item.withdrawal_id),
+            reverse=True,
+        )
         return items[:limit]
 
     def count_pending_reviews(self) -> int:
-        return len([item for item in self._items if item.status == "PENDING_MANUAL_REVIEW"])
+        now = datetime.now(timezone.utc)
+        return len(
+            [
+                item
+                for item in self._items
+                if item.status == "PENDING_MANUAL_REVIEW"
+                and not _is_manual_review_expired(item.created_at, now=now)
+            ]
+        )
 
     def get_review_item(self, withdrawal_id: str) -> ProviderWithdrawReviewItem | None:
         target = withdrawal_id.strip()
@@ -124,6 +152,7 @@ class InMemoryProviderWithdrawReviewRepository:
                 message=note or item.message,
                 created_at=item.created_at,
                 updated_at=_to_iso(datetime.now(timezone.utc)),
+                review_expires_at=item.review_expires_at,
             )
             self._items[index] = updated
             return updated
@@ -148,7 +177,8 @@ class PostgresProviderWithdrawReviewRepository:
                     vw.tx_hash,
                     rs.payload,
                     vw.created_at,
-                    vw.updated_at
+                    vw.updated_at,
+                    (vw.created_at + (%s * INTERVAL '1 second')) AS review_expires_at
                 FROM synapse_vault_withdrawals vw
                 JOIN synapse_ledger_accounts account
                   ON account.account_id = vw.source_account_id
@@ -158,10 +188,15 @@ class PostgresProviderWithdrawReviewRepository:
                   ON rs.state_key = CONCAT('vault_withdrawal_meta::', vw.withdrawal_id)
                 WHERE vw.withdrawal_kind IN ('provider_withdrawal', 'consumer_refund')
                   AND COALESCE(rs.payload->>'flowStatus', vw.status) = 'PENDING_MANUAL_REVIEW'
-                ORDER BY vw.created_at DESC
+                  AND (vw.created_at + (%s * INTERVAL '1 second')) > NOW()
+                ORDER BY vw.created_at DESC, vw.withdrawal_id DESC
                 LIMIT %s
                 """,
-                (limit,),
+                (
+                    _manual_review_expiry_seconds(),
+                    _manual_review_expiry_seconds(),
+                    limit,
+                ),
             )
             rows = cur.fetchall()
         return [self._to_item(row) for row in rows]
@@ -176,7 +211,9 @@ class PostgresProviderWithdrawReviewRepository:
                   ON rs.state_key = CONCAT('vault_withdrawal_meta::', vw.withdrawal_id)
                 WHERE vw.withdrawal_kind IN ('provider_withdrawal', 'consumer_refund')
                   AND COALESCE(rs.payload->>'flowStatus', vw.status) = 'PENDING_MANUAL_REVIEW'
-                """
+                  AND (vw.created_at + (%s * INTERVAL '1 second')) > NOW()
+                """,
+                (_manual_review_expiry_seconds(),),
             )
             row = cur.fetchone()
         return int(row["total"])
@@ -195,7 +232,8 @@ class PostgresProviderWithdrawReviewRepository:
                     vw.tx_hash,
                     rs.payload,
                     vw.created_at,
-                    vw.updated_at
+                    vw.updated_at,
+                    (vw.created_at + (%s * INTERVAL '1 second')) AS review_expires_at
                 FROM synapse_vault_withdrawals vw
                 JOIN synapse_ledger_accounts account
                   ON account.account_id = vw.source_account_id
@@ -207,7 +245,10 @@ class PostgresProviderWithdrawReviewRepository:
                   AND vw.withdrawal_id = %s
                 LIMIT 1
                 """,
-                (withdrawal_id.strip(),),
+                (
+                    _manual_review_expiry_seconds(),
+                    withdrawal_id.strip(),
+                ),
             )
             row = cur.fetchone()
         if row is None:
@@ -251,4 +292,34 @@ class PostgresProviderWithdrawReviewRepository:
             message=str(payload.get("message")) if payload.get("message") else None,
             created_at=_to_iso(row.get("created_at")),
             updated_at=_to_iso(row.get("updated_at")),
+            review_expires_at=_to_iso(row.get("review_expires_at"))
+            or _review_expires_at_from_created_at(row.get("created_at")),
         )
+
+
+def _review_expires_at_from_created_at(value: datetime | None) -> str | None:
+    if value is None:
+        return None
+    expiry_at = value + timedelta(seconds=_manual_review_expiry_seconds())
+    return _to_iso(expiry_at)
+
+
+def _review_expires_at_from_iso_string(value: str | None) -> str | None:
+    if not value:
+        return None
+    try:
+        created = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return _review_expires_at_from_created_at(created)
+
+
+def _is_manual_review_expired(created_at: str | None, *, now: datetime) -> bool:
+    if not created_at:
+        return False
+    try:
+        created = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    expires_at = created + timedelta(seconds=_manual_review_expiry_seconds())
+    return expires_at <= now.astimezone(timezone.utc)

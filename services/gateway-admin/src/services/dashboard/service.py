@@ -321,6 +321,7 @@ class DashboardService:
             "message": review.message,
             "createdAt": review.created_at,
             "updatedAt": review.updated_at,
+            "reviewExpiresAt": review.review_expires_at,
         }
 
     def _resolve_requester_role(self, admin_id: str | None) -> str:

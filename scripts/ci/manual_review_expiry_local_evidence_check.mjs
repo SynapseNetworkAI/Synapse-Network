@@ -153,6 +153,14 @@ for (const actor of ["consumer", "provider"]) {
     );
     continue;
   }
+  if (!evidence.reviewExpiresAt) {
+    fatal(
+      "MANUAL-REVIEW-EXPIRY-EVIDENCE-016",
+      path.join(dir, "db-evidence.json"),
+      `${actor} reviewExpiresAt is missing.`,
+      "Include review expiration timestamp evidence in the local expiry runner."
+    );
+  }
   if (evidence.after?.status !== "FAILED_EXPIRED") {
     fatal(
       "MANUAL-REVIEW-EXPIRY-EVIDENCE-008",
