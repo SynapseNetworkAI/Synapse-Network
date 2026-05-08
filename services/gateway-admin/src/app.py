@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from src.api.routers import (
 	admin_auth,
 	admin_config,
+	admin_notifications,
 	admin_operations,
 	admin_users,
 	approval,
@@ -233,6 +234,7 @@ def create_app() -> FastAPI:
 
 	app.include_router(admin_auth.router)
 	app.include_router(admin_config.router)
+	app.include_router(admin_notifications.router)
 	app.include_router(admin_operations.router)
 	app.include_router(admin_users.router)
 	app.include_router(dashboard.router)
