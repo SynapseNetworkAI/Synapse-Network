@@ -38,7 +38,7 @@ def test_withdraw_review_decision_rejects_duplicate_successful_decision() -> Non
         note="Looks consistent.",
         request_id="req-first-review",
     )
-    assert result["status"] == "APPROVED_AUTO"
+    assert result.status == "APPROVED_AUTO"
 
     try:
         service.decide_review(
@@ -99,9 +99,9 @@ def test_withdraw_review_history_falls_back_to_audit_when_projection_is_missing(
 
     result = service.list_history_items(WithdrawReviewHistoryQuery(query=withdrawal_id))
 
-    assert result["totalCount"] == 1
-    history_item = result["items"][0]
-    assert history_item["withdrawalId"] == withdrawal_id
-    assert history_item["amountUsdc"] == "12.60"
-    assert history_item["currentStatus"] == "APPROVED_AUTO"
-    assert history_item["reviewerNote"] == "Reviewed in admin console."
+    assert result.total_count == 1
+    history_item = result.items[0]
+    assert history_item.withdrawal_id == withdrawal_id
+    assert history_item.amount_usdc == "12.60"
+    assert history_item.current_status == "APPROVED_AUTO"
+    assert history_item.reviewer_note == "Reviewed in admin console."

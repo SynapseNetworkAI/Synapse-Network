@@ -205,6 +205,8 @@ That gate proves a second continuous story:
 - The wallet executes `SynapseCore.withdraw(net, fee, ticketId, deadline, signature)`.
 - Each withdrawal request has a single ticket lifecycle. If the ticket expires before the chain claim, Gateway closes the request as `FAILED_EXPIRED`, releases the funds, and the user must create a fresh withdrawal request.
 - Manual-review withdrawals have a 24h SLA (`WITHDRAWAL_MANUAL_REVIEW_EXPIRY_SEC=86400`). If review does not happen in time, the processor marks the row `FAILED_EXPIRED`, releases frozen funds back to available balance, and sends user notification copy that explicitly says the funds were safely returned.
+- Admin `/withdrawal-reviews` must expose a review expiration timestamp equal to `created_at + WITHDRAWAL_MANUAL_REVIEW_EXPIRY_SEC`.
+- Once a manual-review withdrawal passes that expiration timestamp, it must not remain in the active `/withdrawal-reviews` queue even if the expiry reaper has not yet persisted `FAILED_EXPIRED`. Queue visibility is UX truth; final bucket release still waits for backend status transition.
 - Expiry processors are batch-limited (`WITHDRAWAL_REAPER_BATCH_SIZE=100` by default) so historical queues are drained over multiple short transactions instead of one lock-heavy sweep.
 
 The owner receives the net amount on-chain. The fee stays inside the vault as protocol revenue.

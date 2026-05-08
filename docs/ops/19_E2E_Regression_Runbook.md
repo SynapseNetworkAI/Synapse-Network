@@ -433,7 +433,7 @@ Triage owner: Gateway finance backend.
 
 ### 6.6 Consumer Withdrawal
 
-Run after consumer withdrawal creation, manual review, or completion. Consumer
+Run after consumer withdrawal creation, manual review, approval-queue expiry, or completion. Consumer
 withdrawals require T+7 matured funds. Available balance alone is not enough.
 Local app startup disables maturity enforcement by default for development
 speed; run policy E2E with `CONSUMER_WITHDRAW_MATURITY_ENFORCEMENT_ENABLED=true`
@@ -990,3 +990,9 @@ Manual review checklist:
 4. Local and staging instructions do not share secrets or wallet keys.
 5. Any behavior change in money flow also updates the finance and database
    reference docs.
+   Manual-review queue rules:
+
+- `/withdrawal-reviews` must show a backend-owned `reviewExpiresAt` / 审批过期时间 column.
+- `reviewExpiresAt = created_at + WITHDRAWAL_MANUAL_REVIEW_EXPIRY_SEC`.
+- Once a row passes `reviewExpiresAt`, it must disappear from the active queue even before the reaper finishes persisting `FAILED_EXPIRED`.
+- Final balance release still requires backend expiry processing and must be validated by the manual-review-expiry local gate.

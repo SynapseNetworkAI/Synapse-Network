@@ -1901,6 +1901,29 @@ def test_approval_decision_can_route_to_projected_provider_withdraw_review() -> 
 
 def test_provider_withdraw_review_list_and_decision() -> None:
     csrf_headers = _login_as("finance-review@synapse-network.ai")
+    repository = _test_provider_withdraw_review_repository()
+    expired_review_id = f"wd-expired-review-{uuid4().hex[:6]}"
+    if isinstance(repository, InMemoryProviderWithdrawReviewRepository):
+        repository._items.append(
+            ProviderWithdrawReviewItem(
+                withdrawal_id=expired_review_id,
+                withdrawal_kind="consumer_refund",
+                review_type="consumer_withdraw_review",
+                owner_address="0x3333333333333333333333333333333333333333",
+                subject_address="0x3333333333333333333333333333333333333333",
+                amount_usdc=Decimal("77.00"),
+                status="PENDING_MANUAL_REVIEW",
+                request_id="expired-review-request",
+                tx_hash=None,
+                risk_level="red",
+                risk_reason_code="MANUAL_REVIEW_TIMEOUT",
+                evidence_summary="Expired rows must not remain in the active queue.",
+                message="Expired row",
+                created_at="2026-03-18T09:30:00Z",
+                updated_at="2026-03-18T09:30:00Z",
+                review_expires_at="2026-03-19T09:30:00Z",
+            )
+        )
 
     list_response = client.get("/api/admin/v1/withdrawal-reviews?limit=10")
     assert list_response.status_code == 200
@@ -1908,6 +1931,9 @@ def test_provider_withdraw_review_list_and_decision() -> None:
     assert len(items) >= 1
     first_item = items[0]
     assert first_item["status"] == "PENDING_MANUAL_REVIEW"
+    assert "reviewExpiresAt" in first_item
+    assert first_item["reviewExpiresAt"] is not None
+    assert expired_review_id not in [item["withdrawalId"] for item in items]
 
     decision_response = client.post(
         f"/api/admin/v1/withdrawal-reviews/{first_item['withdrawalId']}/decision",
@@ -1933,9 +1959,9 @@ def test_withdraw_review_list_and_decision_supports_consumer_manual_withdrawal()
     repository = _test_provider_withdraw_review_repository()
     consumer_review_id = f"wd-consumer-review-{uuid4().hex[:8]}"
     if isinstance(repository, InMemoryProviderWithdrawReviewRepository):
-        repository._items.append(
-            ProviderWithdrawReviewItem(
-                withdrawal_id=consumer_review_id,
+            repository._items.append(
+                ProviderWithdrawReviewItem(
+                    withdrawal_id=consumer_review_id,
                 withdrawal_kind="consumer_refund",
                 review_type="consumer_withdraw_review",
                 owner_address="0x2222222222222222222222222222222222222222",
@@ -1944,14 +1970,14 @@ def test_withdraw_review_list_and_decision_supports_consumer_manual_withdrawal()
                 status="PENDING_MANUAL_REVIEW",
                 request_id="consumer-review-request",
                 tx_hash=None,
-                risk_level="yellow",
-                risk_reason_code="CONSUMER_WITHDRAW_MANUAL_REVIEW",
-                evidence_summary="Consumer withdrawal exceeded manual review threshold.",
-                message="Manual review required before releasing frozen consumer balance.",
-                created_at="2026-03-20T09:30:00Z",
-                updated_at="2026-03-20T09:30:00Z",
+                    risk_level="yellow",
+                    risk_reason_code="CONSUMER_WITHDRAW_MANUAL_REVIEW",
+                    evidence_summary="Consumer withdrawal exceeded manual review threshold.",
+                    message="Manual review required before releasing frozen consumer balance.",
+                    created_at=(datetime.now(timezone.utc) + timedelta(hours=1)).isoformat().replace("+00:00", "Z"),
+                    updated_at=(datetime.now(timezone.utc) + timedelta(hours=1)).isoformat().replace("+00:00", "Z"),
+                )
             )
-        )
 
     list_response = client.get("/api/admin/v1/withdrawal-reviews?limit=20")
     assert list_response.status_code == 200
@@ -3179,7 +3205,7 @@ def test_dashboard_service_pending_counts_include_projected_provider_reviews() -
     )
 
     assert service.get_overview()["metrics"]["pendingApprovals"] == 5
-    assert service.get_system_status()["approvalQueueDepth"] == 5
+    assert service.get_system_status().approval_queue_depth == 5
     assert service.get_reconciliation_detail()["pendingApprovals"] == 5
 
 
