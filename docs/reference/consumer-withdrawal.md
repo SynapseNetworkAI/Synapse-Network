@@ -143,8 +143,60 @@ parallel requests:
 - concurrent complete consumes pending once and preserves the first `txHash`
 - consumed `ticketHash` cannot be replayed on-chain
 
+Broad money-path changes must also pass the unified local finance gate:
+
+```bash
+npm run e2e:money-safety-concurrency:local
+npm run ci:money-safety-concurrency-local-evidence
+```
+
+That gate aggregates deposit replay, consumer/provider withdrawal concurrency,
+refund callback replay, invoke hold/capture/release, and platform fee boundary
+evidence into one bundle.
+
 Manual-review UI, admin permissions, screenshots, and approve/reject operations
 remain covered by `withdrawal-review-dogfood` and `admin-withdrawal-approval`.
+
+The full local consumer self-claim path now has its own money-path evidence
+lane:
+
+```bash
+npm run e2e:consumer-withdraw-claim-fullchain:local
+npm run ci:consumer-withdraw-claim-fullchain-local-evidence
+```
+
+That gate proves one continuous story:
+
+1. deposit is credited to Gateway balance
+2. a risky withdrawal enters `PENDING_MANUAL_REVIEW`
+3. admin approval transitions the row to `REQUESTED + claimable=true`
+4. User-front changes from `审核中` to `待领取`
+5. the consumer wallet executes the real `SynapseCore.withdraw(...)` claim
+6. Gateway `/complete` or watcher closes the row as `COMPLETED`
+7. `platformFeePool` increases by the signed fee
+8. a local owner-only `withdrawPlatformFees(amount)` can withdraw only that accrued fee into the platform wallet
+
+This is intentionally local-only automation. Staging and production keep the
+same self-claim consumer path, but platform fee execution remains a controlled
+Safe or owner operation rather than a generic automated CI step.
+
+Approved-ticket expiry and release has its own local gate:
+
+```bash
+npm run e2e:consumer-withdraw-approval-expiry:local
+npm run ci:consumer-withdraw-approval-expiry-local-evidence
+```
+
+That gate proves a second continuous story:
+
+1. a risky withdrawal enters `PENDING_MANUAL_REVIEW`
+2. admin approval transitions it to `REQUESTED + claimable=true`
+3. User-front shows the ready-to-continue wallet state
+4. the ticket is allowed to approach physical expiry
+5. User-front changes to an expiring-warning state instead of encouraging a late claim
+6. after the local expiry buffer and RPC finality margin pass, `consumer_withdraw_processor` marks the row `FAILED_EXPIRED`
+7. pending balance is released back to withdrawable balance
+8. wallet balance, vault balance, and `platformFeePool` remain unchanged because no on-chain claim occurred
 
 ## Ticket and Fee Model
 
@@ -153,9 +205,21 @@ remain covered by `withdrawal-review-dogfood` and `admin-withdrawal-approval`.
 - The wallet executes `SynapseCore.withdraw(net, fee, ticketId, deadline, signature)`.
 - Each withdrawal request has a single ticket lifecycle. If the ticket expires before the chain claim, Gateway closes the request as `FAILED_EXPIRED`, releases the funds, and the user must create a fresh withdrawal request.
 - Manual-review withdrawals have a 24h SLA (`WITHDRAWAL_MANUAL_REVIEW_EXPIRY_SEC=86400`). If review does not happen in time, the processor marks the row `FAILED_EXPIRED`, releases frozen funds back to available balance, and sends user notification copy that explicitly says the funds were safely returned.
+- Admin `/withdrawal-reviews` must expose a review expiration timestamp equal to `created_at + WITHDRAWAL_MANUAL_REVIEW_EXPIRY_SEC`.
+- Once a manual-review withdrawal passes that expiration timestamp, it must not remain in the active `/withdrawal-reviews` queue even if the expiry reaper has not yet persisted `FAILED_EXPIRED`. Queue visibility is UX truth; final bucket release still waits for backend status transition.
 - Expiry processors are batch-limited (`WITHDRAWAL_REAPER_BATCH_SIZE=100` by default) so historical queues are drained over multiple short transactions instead of one lock-heavy sweep.
 
 The owner receives the net amount on-chain. The fee stays inside the vault as protocol revenue.
+
+Platform revenue is not transferred to the platform wallet at claim time.
+Instead:
+
+1. consumer claim sends only the signed net amount to the user wallet
+2. the signed fee remains inside `SynapseCore` as `platformFeePool`
+3. a separate owner-only `withdrawPlatformFees(amount)` call moves that accrued fee to the platform wallet
+
+This is the key custody boundary that prevents the platform from directly
+pulling user principal during ordinary withdrawal completion.
 
 ## Payments Page Behavior
 
@@ -165,17 +229,19 @@ Payments is a Gateway-backed display surface, not a frontend chain watcher. The 
 
 Status mapping:
 
-| Withdrawal Status       | Payments Status |
-| ----------------------- | --------------- |
-| `REQUESTED`             | `PENDING`       |
-| `PENDING_MANUAL_REVIEW` | `PENDING`       |
-| `COMPLETED`             | `COMPLETED`     |
-| `FAILED`                | `FAILED`        |
-| `REJECTED`              | `FAILED`        |
-| `FAILED_EXPIRED`        | `FAILED`        |
+| Withdrawal Status       | Payments Status  |
+| ----------------------- | ---------------- |
+| `REQUESTED`             | `READY_TO_CLAIM` |
+| `PENDING_MANUAL_REVIEW` | `UNDER_REVIEW`   |
+| `COMPLETED`             | `COMPLETED`      |
+| `FAILED`                | `FAILED`         |
+| `REJECTED`              | `FAILED`         |
+| `FAILED_EXPIRED`        | `FAILED`         |
 
 Other display rules:
 
+- `REQUESTED` must render as a wallet action surface, not a generic "processing" placeholder
+- `PENDING_MANUAL_REVIEW` means the ticket is not released yet and the wallet cannot claim
 - amount is shown as a negative outflow
 - `txHash` is shown once it exists
 - failed or cancelled withdrawals keep their failure state instead of disappearing
@@ -200,6 +266,17 @@ the user can retry the same ticket with normal gas before the deadline. Gateway
 only releases funds when the local expiry buffer, RPC block timestamp margin,
 and `isTicketConsumed(ticketHash)=false` all agree that the ticket is physically
 dead.
+
+This is why an expired approved withdrawal may not release the instant the
+frontend first shows “about to expire.” The system intentionally waits for all
+three conditions below before releasing pending funds:
+
+1. local wall-clock time is past `deadline + WITHDRAW_TICKET_EXPIRY_BUFFER_SEC`
+2. latest RPC block timestamp is past `deadline + WITHDRAW_RPC_FINALITY_MARGIN_SEC`
+3. `isTicketConsumed(ticketHash)` is still `false`
+
+Only then does Gateway fail closed into `FAILED_EXPIRED` and release the locked
+pending balance back to withdrawable balance.
 
 Release evidence for this model is generated with:
 

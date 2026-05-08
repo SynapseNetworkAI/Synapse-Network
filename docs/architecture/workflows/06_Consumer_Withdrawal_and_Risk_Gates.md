@@ -272,7 +272,7 @@ Consumer 提现成功必须等链上 `SynapseCore.withdraw(...)` 成功，并且
 
 | 参数                                             | 默认值                         | 含义                                 |
 | ------------------------------------------------ | ------------------------------ | ------------------------------------ |
-| `CONSUMER_DEPOSIT_MIN_USDC`                      | 10.0                           | 最小充值金额 (USDC)                  |
+| `CONSUMER_DEPOSIT_MIN_USDC`                      | 5.0                            | 最小充值金额 (USDC)                  |
 | `CONSUMER_WITHDRAW_MIN_USDC`                     | 10.0                           | 最小提现金额 (USDC)                  |
 | `CONSUMER_WITHDRAW_MATURITY_ENFORCEMENT_ENABLED` | local=false, staging/prod=true | 是否执行 T+7 成熟期；prod 禁止 false |
 | `CONSUMER_WITHDRAW_MATURITY_SECONDS`             | 604800                         | 充值确认后 T+7 才进入可提现额度      |

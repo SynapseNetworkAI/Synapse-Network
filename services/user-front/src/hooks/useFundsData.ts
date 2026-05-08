@@ -12,6 +12,7 @@ import {
   type DepositIntentRecord,
   type RefundIntentRecord,
 } from "@/utils/balanceApi";
+import type { WithdrawalStatus } from "@/domain/status";
 import {
   formatMoneyString,
   moneyStringToNumber,
@@ -29,6 +30,8 @@ export type LedgerRecord = {
   txHash: string | null;
   timestamp: number;
   status: "PENDING" | "COMPLETED" | "FAILED";
+  withdrawalStatus?: WithdrawalStatus;
+  claimable?: boolean;
   failureReason?: string;
 };
 
@@ -146,6 +149,8 @@ function mapConsumerWithdrawalRecords(
       timestampFromValue(withdrawal.createdAt) ??
       Date.now(),
     status: statusMap[withdrawal.status?.toUpperCase()] ?? "PENDING",
+    withdrawalStatus: withdrawal.status,
+    claimable: withdrawal.claimable === true,
   }));
 }
 

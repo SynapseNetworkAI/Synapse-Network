@@ -12,6 +12,7 @@ if [[ -z "${PID}" ]]; then
 fi
 
 stop_pid "${PID}"
+stop_screen_session
 rm -f "${PID_FILE}"
 
 echo "gateway-admin stopped: PID ${PID}"

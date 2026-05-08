@@ -57,6 +57,7 @@ Current MVP audit policy: Synapse may use a founder/internal security audit with
 - Deposit, invoke debit, provider credit, refund, consumer withdrawal, provider withdrawal, and platform fee operations have stable idempotency keys and durable uniqueness.
 - Replay requests return stable semantics and never duplicate ledger writes, balance changes, settlement credits, refunds, or withdrawals.
 - Concurrent financial tests prove no overdraft, duplicate charge, negative balance, duplicate provider credit, or duplicate withdrawal completion.
+- Release-sensitive money-path changes must attach unified local evidence from `npm run e2e:money-safety-concurrency:local` and `npm run ci:money-safety-concurrency-local-evidence`, not just isolated happy-path screenshots or API 200 responses.
 - Ledger and audit are append-only for money-affecting operations and preserve actor, owner/provider, request id, idempotency key, correlation id, before, after, delta, status, reason, tx hash, and timestamp.
 - Vault reconciliation succeeds across on-chain vault balance, customer principal, provider payable, platform fee pool, pending funds, frozen funds, completed withdrawals, and failed/rejected/cancelled states.
 - Failure paths are recoverable: wallet rejection, chain receipt failure, missing completion callback, watcher downtime, provider timeout, DB transaction rollback, analytics outage, and RPC outage.

@@ -80,6 +80,7 @@ export type BalanceSummary = {
   ownerBalance: MoneyString;
   consumerAvailableBalance: MoneyString;
   consumerWithdrawableBalance: MoneyString;
+  consumerWithdrawMaturityEnforced?: boolean;
   consumerPendingBalance: MoneyString;
   consumerFrozenBalance: MoneyString;
   consumerWithdrawMinUsdc: MoneyString;
@@ -195,6 +196,7 @@ export type RefundIntentRecord = {
   amountUsdc?: MoneyString;
   reason?: string;
   status: WithdrawalStatus;
+  claimable?: boolean;
   riskLevel?: RiskLevel;
   riskReasonCode?: string;
   message?: string;
@@ -271,6 +273,7 @@ export async function getV2Balance(
       ownerBalance?: string | number;
       consumerAvailableBalance?: string | number;
       consumerWithdrawableBalance?: string | number;
+      consumerWithdrawMaturityEnforced?: boolean;
       consumerPendingBalance?: string | number;
       consumerFrozenBalance?: string | number;
       consumerWithdrawMinUsdc?: string | number;
@@ -294,6 +297,10 @@ export async function getV2Balance(
     consumerWithdrawableBalance: normalizeMoneyString(
       payload.balance?.consumerWithdrawableBalance
     ),
+    consumerWithdrawMaturityEnforced:
+      payload.balance?.consumerWithdrawMaturityEnforced === false
+        ? false
+        : true,
     consumerPendingBalance: normalizeMoneyString(
       payload.balance?.consumerPendingBalance
     ),
@@ -413,6 +420,7 @@ export async function redeemCreditVoucher(
       ownerBalance?: string | number;
       consumerAvailableBalance?: string | number;
       consumerWithdrawableBalance?: string | number;
+      consumerWithdrawMaturityEnforced?: boolean;
       providerReceivable?: string | number;
       providerReceivableBalance?: string | number;
       platform?: { feeAccrued?: string | number };
@@ -457,6 +465,10 @@ export async function redeemCreditVoucher(
       consumerWithdrawableBalance: normalizeMoneyString(
         payload.balance?.consumerWithdrawableBalance
       ),
+      consumerWithdrawMaturityEnforced:
+        payload.balance?.consumerWithdrawMaturityEnforced === false
+          ? false
+          : true,
       consumerPendingBalance: normalizeMoneyString(
         payload.balance?.consumerPendingBalance
       ),
@@ -895,6 +907,7 @@ export async function listV2Refunds(
         typeof row.status === "string"
           ? parseWithdrawalStatus(row.status) ?? "PENDING"
           : "PENDING",
+      claimable: row.claimable === true,
       riskLevel:
         typeof row.riskLevel === "string"
           ? parseRiskLevel(row.riskLevel) ?? undefined
@@ -962,6 +975,7 @@ export type ConsumerWithdrawIntent = {
   feeUsdc: MoneyString;
   netUsdc: MoneyString;
   status: WithdrawalStatus;
+  claimable?: boolean;
   riskLevel?: RiskLevel;
   riskReasonCode?: string;
   message?: string;
@@ -1025,6 +1039,7 @@ export async function requestConsumerWithdraw(
       typeof payload.status === "string"
         ? parseWithdrawalStatus(payload.status) ?? "PENDING"
         : "PENDING",
+    claimable: payload.claimable === true,
     riskLevel:
       typeof payload.riskLevel === "string"
         ? parseRiskLevel(payload.riskLevel) ?? undefined
@@ -1082,6 +1097,7 @@ export async function listConsumerWithdrawals(
       ticket: rawTicket
         ? normalizeConsumerWithdrawTicket(rawTicket)
         : undefined,
+      claimable: row.claimable === true,
       ownerAddress:
         typeof row.ownerAddress === "string" ? row.ownerAddress : undefined,
     };

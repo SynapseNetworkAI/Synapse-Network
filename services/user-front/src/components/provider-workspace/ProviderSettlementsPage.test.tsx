@@ -169,7 +169,7 @@ describe("ProviderSettlementsPage", () => {
     });
     await waitFor(() => {
       expect(toastError).toHaveBeenCalledWith(
-        "网关当前无法校验链上金库余额，请等待 RPC 恢复后再重试。",
+        "当前暂时无法确认提现可用性，请稍后重试。",
         { id: "toast-provider-withdraw" }
       );
     });

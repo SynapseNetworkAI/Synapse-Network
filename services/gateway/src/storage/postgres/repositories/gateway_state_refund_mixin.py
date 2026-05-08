@@ -254,8 +254,10 @@ class GatewayStateRefundMixin:
             base_sql += " ORDER BY created_at ASC"
             cur.execute(base_sql, params)
             rows = cur.fetchall()
-        projected: List[RefundIntentRow] = []
-        for (
+        return [self._project_consumer_refund_row(row) for row in rows]
+
+    def _project_consumer_refund_row(self, row: tuple) -> RefundIntentRow:
+        (
             row_id,
             owner,
             tx_hash,
@@ -270,56 +272,53 @@ class GatewayStateRefundMixin:
             created_at,
             updated_at,
             payload,
-        ) in rows:
-            metadata = VaultWithdrawalMetadataState.model_validate(
-                self._payload_dict(payload)
-            )
-            ticket = metadata.ticket
-            if ticket.ticket_id is None and ticket_id is not None:
-                ticket.ticket_id = str(ticket_id)
-            if ticket.ticket_hash is None and ticket_hash is not None:
-                ticket.ticket_hash = str(ticket_hash)
-            if ticket.signature is None and signature is not None:
-                ticket.signature = str(signature)
-            if ticket.nonce is None and nonce is not None:
-                ticket.nonce = int(nonce)
-            if ticket.deadline is None and deadline is not None:
-                ticket.deadline = int(deadline)
-            projected.append(
-                RefundIntentRow(
-                    id=str(row_id),
-                    ownerAddress=str(owner),
-                    txHash=tx_hash,
-                    status=str(metadata.flow_status or status or "pending"),
-                    requestId=str(request_id or metadata.request_id or ""),
-                    consumerAddress=str(metadata.consumer_address or owner or ""),
-                    amountUsdc=self._q6(amount_usdc),
-                    idempotencyKey=metadata.idempotency_key,
-                    reason=metadata.reason,
-                    signature=signature,
-                    gasPayer=metadata.gas_payer,
-                    gasModel=metadata.gas_model,
-                    originRequestId=metadata.origin_request_id,
-                    originTxHash=metadata.origin_tx_hash,
-                    refundType=metadata.refund_type,
-                    destinationAddress=metadata.destination_address,
-                    evidenceSummary=metadata.evidence_summary,
-                    riskLevel=metadata.risk_level,
-                    riskReasonCode=metadata.risk_reason_code,
-                    message=metadata.message,
-                    requestMeta=metadata.request_meta,
-                    reviewDecision=metadata.review_decision,
-                    reviewerAddress=metadata.reviewer_address,
-                    reviewerNote=metadata.reviewer_note,
-                    reviewedAt=metadata.reviewed_at,
-                    completedAt=metadata.completed_at,
-                    completeMeta=metadata.complete_meta,
-                    ticket=ticket,
-                    createdAt=to_dt_str(created_at, "") or "",
-                    updatedAt=to_dt_str(updated_at, "") or "",
-                )
-            )
-        return projected
+        ) = row
+        metadata = VaultWithdrawalMetadataState.model_validate(
+            self._payload_dict(payload)
+        )
+        ticket = metadata.ticket
+        if ticket.ticket_id is None and ticket_id is not None:
+            ticket.ticket_id = str(ticket_id)
+        if ticket.ticket_hash is None and ticket_hash is not None:
+            ticket.ticket_hash = str(ticket_hash)
+        if ticket.signature is None and signature is not None:
+            ticket.signature = str(signature)
+        if ticket.nonce is None and nonce is not None:
+            ticket.nonce = int(nonce)
+        if ticket.deadline is None and deadline is not None:
+            ticket.deadline = int(deadline)
+        return RefundIntentRow(
+            id=str(row_id),
+            ownerAddress=str(owner),
+            txHash=tx_hash,
+            status=str(status or metadata.flow_status or "pending"),
+            requestId=str(request_id or metadata.request_id or ""),
+            consumerAddress=str(metadata.consumer_address or owner or ""),
+            amountUsdc=self._q6(amount_usdc),
+            idempotencyKey=metadata.idempotency_key,
+            reason=metadata.reason,
+            signature=signature,
+            gasPayer=metadata.gas_payer,
+            gasModel=metadata.gas_model,
+            originRequestId=metadata.origin_request_id,
+            originTxHash=metadata.origin_tx_hash,
+            refundType=metadata.refund_type,
+            destinationAddress=metadata.destination_address,
+            evidenceSummary=metadata.evidence_summary,
+            riskLevel=metadata.risk_level,
+            riskReasonCode=metadata.risk_reason_code,
+            message=metadata.message,
+            requestMeta=metadata.request_meta,
+            reviewDecision=metadata.review_decision,
+            reviewerAddress=metadata.reviewer_address,
+            reviewerNote=metadata.reviewer_note,
+            reviewedAt=metadata.reviewed_at,
+            completedAt=metadata.completed_at,
+            completeMeta=metadata.complete_meta,
+            ticket=ticket,
+            createdAt=to_dt_str(created_at, "") or "",
+            updatedAt=to_dt_str(updated_at, "") or "",
+        )
 
     def write_consumer_refund_rows(
         self, rows: List[RefundIntentRow], updated_at: str | int
@@ -382,3 +381,63 @@ class GatewayStateRefundMixin:
                     consumer_wallet=consumer_wallet,
                     updated_at=row_updated_at,
                 )
+
+    def update_consumer_refund_row_atomic(
+        self,
+        row: RefundIntentRow,
+        *,
+        updated_at: str | int,
+        expected_status: str | None = None,
+    ) -> None:
+        row_updated_at = to_dt_str(row.updated_at or updated_at, now_dt_str())
+        consumer_wallet = str(
+            row.consumer_address or row.owner_address or ""
+        ).lower()
+        with self._db.tx_cursor() as cur:
+            source_account_id = self._ensure_ledger_account(
+                cur,
+                consumer_wallet,
+                "consumer_wallet",
+                row_updated_at,
+            )
+            cur.execute(
+                """
+                UPDATE synapse_vault_withdrawals
+                SET owner_id = %s,
+                    source_account_id = %s,
+                    request_id = %s,
+                    amount_usdc = %s,
+                    status = %s,
+                    tx_hash = %s,
+                    signature = %s,
+                    nonce = %s,
+                    deadline = %s,
+                    updated_at = %s
+                WHERE withdrawal_id = %s
+                  AND withdrawal_kind = 'consumer_refund'
+                  AND (%s IS NULL OR status = %s)
+                """,
+                (
+                    self._owner_id(consumer_wallet),
+                    source_account_id,
+                    row.request_id,
+                    str(self._q6(row.amount_usdc)),
+                    row.status,
+                    row.tx_hash.lower() if row.tx_hash else None,
+                    row.signature or row.ticket.signature or None,
+                    row.ticket.nonce,
+                    row.ticket.deadline,
+                    row_updated_at,
+                    row.id,
+                    expected_status,
+                    expected_status,
+                ),
+            )
+            if cur.rowcount != 1:
+                raise RuntimeError("CONSUMER_WITHDRAW_UPDATE_STATE_INCONSISTENT")
+            self._upsert_consumer_refund_metadata(
+                cur,
+                row,
+                consumer_wallet=consumer_wallet,
+                updated_at=row_updated_at,
+            )

@@ -35,6 +35,9 @@ const shared: Pick<
     notificationsLoading: "Loading notifications...",
     notificationsEmpty: "No notifications yet.",
     notificationLoadFailed: "Failed to load notifications.",
+    withdrawalNotificationTitle: "Withdrawal security review",
+    withdrawalNotificationBody:
+      "Your withdrawal is under security review. We will update the status when review is complete.",
     markAllRead: "Mark all read",
     openNotification: "Open",
     archiveNotification: "Archive notification",
@@ -66,6 +69,8 @@ const shared: Pick<
       "Open docs, runtime examples, and integration guides.",
     quickAccessAccountSettingsDescription:
       "Adjust account identity visibility, preferences, and session posture.",
+    quickAccessAccountWithdrawDescription:
+      "Withdraw matured credits back to your wallet.",
     quickAccessProviderConsoleDescription:
       "Manage provider workspace health and performance.",
     quickAccessProviderCredentialsDescription:

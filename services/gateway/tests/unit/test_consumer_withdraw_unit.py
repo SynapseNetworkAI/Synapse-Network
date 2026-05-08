@@ -162,6 +162,20 @@ class InMemoryGatewayStateRepo:
         _ = updated_at
         self.refund_rows = list(rows)
 
+    def update_consumer_refund_row_atomic(self, row, *, updated_at, expected_status=None):
+        _ = updated_at, expected_status
+        replaced = False
+        next_rows: list[RefundIntentRow] = []
+        for existing in self.refund_rows:
+            if str(existing.id) == str(row.id):
+                next_rows.append(row.model_copy(deep=True))
+                replaced = True
+            else:
+                next_rows.append(existing)
+        if not replaced:
+            raise RuntimeError("CONSUMER_WITHDRAW_UPDATE_STATE_INCONSISTENT")
+        self.refund_rows = next_rows
+
     def read_provider_withdrawal_rows(self): return list(self.withdraw_rows)
     def write_provider_withdrawal_rows(self, rows, updated_at): self.withdraw_rows = list(rows)
     def read_invocation_billing_rows(self): return list(self.usage_rows)
@@ -549,6 +563,7 @@ class TestConsumerWithdrawListings(unittest.TestCase):
         assert len(listings) == 1
         assert money(listings[0]["amountUsdc"]) == Decimal("20.000000")
         assert listings[0]["status"] == "REQUESTED"
+        assert listings[0]["claimable"] is True
 
     def test_list_excludes_other_owners(self):
         storage = FakeStorage()

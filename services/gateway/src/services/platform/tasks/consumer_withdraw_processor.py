@@ -235,17 +235,19 @@ def _process_single_withdraw(storage: BaseStorage, row: Any) -> bool:
                 "consumer_withdraw_processor: pending release failed for expired row id=%s",
                 row.id,
             )
-        rows = dm.system.gateway_state.read_consumer_refund_rows()
-        for r in rows:
-            if str(r.id or "") != str(row.id or ""):
-                continue
-            now = int(time.time())
-            r.status = "FAILED_EXPIRED"
-            r.completed_at = now
-            r.updated_at = now_dt_str()
-            r.message = "Withdrawal ticket expired before on-chain execution. Funds were released back to available balance."
-            break
-        dm.system.gateway_state.write_consumer_refund_rows(rows, int(time.time()))
+        expected_status = str(row.status or "")
+        row.status = "FAILED_EXPIRED"
+        row.completed_at = int(time.time())
+        row.updated_at = now_dt_str()
+        row.message = (
+            "Withdrawal ticket expired before on-chain execution. "
+            "Funds were released back to available balance."
+        )
+        dm.system.gateway_state.update_consumer_refund_row_atomic(
+            row,
+            updated_at=row.updated_at,
+            expected_status=expected_status,
+        )
         logger.info(
             "consumer_withdraw_processor: FAILED_EXPIRED id=%s reason=credential_expired",
             row.id,
@@ -282,18 +284,17 @@ def _complete_consumer_withdraw(
                 row.id,
             )
 
-        # Update refund row status
-        rows = dm.system.gateway_state.read_consumer_refund_rows()
-        for r in rows:
-            if str(r.id or "") == str(row.id or ""):
-                now = int(time.time())
-                r.status = "COMPLETED"
-                if tx_hash:
-                    r.tx_hash = tx_hash
-                r.completed_at = now
-                r.updated_at = now_dt_str()
-                break
-        dm.system.gateway_state.write_consumer_refund_rows(rows, int(time.time()))
+        expected_status = str(row.status or "")
+        row.status = "COMPLETED"
+        if tx_hash:
+            row.tx_hash = tx_hash
+        row.completed_at = int(time.time())
+        row.updated_at = now_dt_str()
+        dm.system.gateway_state.update_consumer_refund_row_atomic(
+            row,
+            updated_at=row.updated_at,
+            expected_status=expected_status,
+        )
 
         # Audit
         from src.domain.audit import AuditLogEntry

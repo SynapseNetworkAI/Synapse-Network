@@ -12,14 +12,19 @@ function formatTooltipAmount(value: string | null | undefined): string {
 
 export default function ConsumerWithdrawPendingTooltip({
   amountUsdc,
-}: Readonly<{ amountUsdc?: string | null }>) {
+  claimable = false,
+}: Readonly<{ amountUsdc?: string | null; claimable?: boolean }>) {
   const { t } = useLanguage();
 
   return (
     <div className="absolute left-1/2 top-full z-50 mt-2 w-[220px] -translate-x-1/2 rounded-lg border border-[#2a2a2a] bg-[#1a1a1a] px-3 py-2 text-xs text-[#f59e0b] opacity-0 shadow-xl transition-opacity pointer-events-none group-hover:opacity-100">
-      {t("creditsPage.consumerWithdrawPendingTooltip", {
-        amount: formatTooltipAmount(amountUsdc),
-      })}
+      {claimable
+        ? t("creditsPage.consumerWithdrawClaimReadyTooltip", {
+            amount: formatTooltipAmount(amountUsdc),
+          })
+        : t("creditsPage.consumerWithdrawPendingTooltip", {
+            amount: formatTooltipAmount(amountUsdc),
+          })}
     </div>
   );
 }

@@ -122,6 +122,25 @@ function withdrawalStatusLabel(
   return status;
 }
 
+function withdrawalHistoryReasonLabel(
+  status: ProviderWithdrawRecord["status"],
+  t: TranslateFn
+): string {
+  if (status === "PENDING_MANUAL_REVIEW") {
+    return t("providerSettlements.manualReviewQueued");
+  }
+  if (status === "CANCELLED" || status === "FAILED_EXPIRED") {
+    return t("providerSettlements.expiredTicketReleasedRow");
+  }
+  if (status === "APPROVED_AUTO") {
+    return t("providerSettlements.ticketGenerated");
+  }
+  if (status === "REJECTED") {
+    return t("providerSettlements.historyStatusRejected");
+  }
+  return "-";
+}
+
 function withdrawalStatusBadgeClass(
   status: ProviderWithdrawRecord["status"]
 ): string {
@@ -200,6 +219,9 @@ function resolveCreateWithdrawalIntentErrorMessage(
     if (error.code === "PENDING_WITHDRAWAL_EXISTS") {
       return t("providerSettlements.pendingWithdrawalExists");
     }
+    if (error.code === "ACTION_REJECTED") {
+      return t("providerSettlements.walletRejected");
+    }
     return t("providerSettlements.withdrawalCreateFailed");
   }
 
@@ -241,6 +263,7 @@ export default function ProviderWithdrawPage() {
       walletRejected: t("providerSettlements.walletRejected"),
       insufficientNativeGas: t("providerSettlements.insufficientNativeGas"),
       ticketExpired: t("providerSettlements.ticketExpired"),
+      ticketExpiringSoon: t("providerSettlements.ticketExpiringSoon"),
       staleTicket: t("providerSettlements.staleTicket"),
       invalidSignature: t("providerSettlements.invalidSignature"),
       vaultLiquidityInsufficient: t(
@@ -554,10 +577,9 @@ export default function ProviderWithdrawPage() {
       setWithdrawAmountInput("");
 
       if (intent.status === "PENDING_MANUAL_REVIEW") {
-        toast.success(
-          intent.message || t("providerSettlements.manualReviewQueued"),
-          { id: toastId }
-        );
+        toast.success(t("providerSettlements.manualReviewQueued"), {
+          id: toastId,
+        });
       } else if (intent.ticket) {
         try {
           await startWalletWithdraw(intent.withdrawalId, intent.ticket);
@@ -979,11 +1001,7 @@ export default function ProviderWithdrawPage() {
                     </span>
                   </td>
                   <td className="py-4 px-6 text-xs text-[#c5c5c7]">
-                    {row.message ||
-                      (row.status === "CANCELLED" ||
-                      row.status === "FAILED_EXPIRED"
-                        ? t("providerSettlements.expiredTicketReleasedRow")
-                        : "-")}
+                    {withdrawalHistoryReasonLabel(row.status, t)}
                   </td>
                   <td className="py-4 px-6 text-xs font-mono text-[#c5c5c7]">
                     <CopyableValue

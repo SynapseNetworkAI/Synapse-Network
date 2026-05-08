@@ -3,10 +3,12 @@ import { describe, expect, it } from "vitest";
 import { AdminApiError } from "@/services/admin-api";
 
 import {
+  canSubmitWithdrawReviewDecision,
   getWithdrawReviewActionButtonLabel,
   getWithdrawReviewActionErrorMessage,
   getWithdrawReviewActionNotice,
   getWithdrawReviewActionSuccessMessage,
+  getWithdrawReviewSubmittedNotice,
 } from "./review-action-feedback";
 
 describe("review-action-feedback", () => {
@@ -68,7 +70,16 @@ describe("review-action-feedback", () => {
         ),
         "APPROVE"
       )
-    ).toContain("当前申请已不处于可审核状态，请刷新页面");
+    ).toContain("当前申请已提交处理，请刷新页面");
+    expect(
+      getWithdrawReviewActionErrorMessage(
+        new AdminApiError("当前提现申请已提交处理，请刷新页面查看最新状态。", {
+          status: 400,
+          code: "BAD_REQUEST",
+        }),
+        "APPROVE"
+      )
+    ).toContain("当前申请已提交处理，请刷新页面");
     expect(
       getWithdrawReviewActionErrorMessage(
         new Error("Missing admin CSRF token"),
@@ -117,9 +128,43 @@ describe("review-action-feedback", () => {
     expect(
       getWithdrawReviewActionSuccessMessage({
         decision: "APPROVE",
-        status: "APPROVED_AUTO",
+        status: "REQUESTED",
         message: "系统已记录本次处理备注。",
       })
-    ).toBe("已提交放行处理，当前状态：APPROVED_AUTO。系统已记录本次处理备注。");
+    ).toBe("已提交放行处理，系统正在同步提现状态。");
+    expect(
+      getWithdrawReviewActionSuccessMessage({
+        decision: "REJECT",
+        status: "REQUESTED",
+        message: null,
+      })
+    ).toBe("已提交驳回处理，系统正在同步提现状态。");
+    expect(getWithdrawReviewSubmittedNotice("APPROVE")).toBe(
+      "已提交放行处理，请等待提现状态同步。"
+    );
+  });
+
+  it("only allows decisions while a review is still pending manual review", () => {
+    expect(
+      canSubmitWithdrawReviewDecision({
+        canDecide: true,
+        isPending: false,
+        status: "PENDING_MANUAL_REVIEW",
+      })
+    ).toBe(true);
+    expect(
+      canSubmitWithdrawReviewDecision({
+        canDecide: true,
+        isPending: false,
+        status: "REQUESTED",
+      })
+    ).toBe(false);
+    expect(
+      canSubmitWithdrawReviewDecision({
+        canDecide: true,
+        isPending: true,
+        status: "PENDING_MANUAL_REVIEW",
+      })
+    ).toBe(false);
   });
 });

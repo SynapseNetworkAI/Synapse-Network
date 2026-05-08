@@ -30,6 +30,7 @@ const reviews = [
     message: null,
     createdAt: "2026-03-21T12:00:00Z",
     updatedAt: "2026-03-21T12:10:00Z",
+    reviewExpiresAt: "2026-03-22T12:00:00Z",
   },
   {
     withdrawalId: "wd-001",
@@ -47,6 +48,7 @@ const reviews = [
     message: null,
     createdAt: "2026-03-21T10:00:00Z",
     updatedAt: "2026-03-21T10:10:00Z",
+    reviewExpiresAt: "2026-03-22T10:00:00Z",
   },
   {
     withdrawalId: "wd-003",
@@ -64,6 +66,7 @@ const reviews = [
     message: null,
     createdAt: "2026-03-21T09:00:00Z",
     updatedAt: "2026-03-21T09:10:00Z",
+    reviewExpiresAt: "2026-03-22T09:00:00Z",
   },
 ];
 

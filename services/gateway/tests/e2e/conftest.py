@@ -35,6 +35,30 @@ PROVIDER_BASE = os.getenv("GATEWAY_E2E_PROVIDER_BASE", "http://127.0.0.1:8001")
 RPC_URL = os.getenv("GATEWAY_E2E_RPC_URL", "http://127.0.0.1:8545")
 RELEASE_E2E = os.getenv("GATEWAY_RELEASE_E2E", "").lower() == "true"
 
+
+def _read_local_provider_owner_key() -> str:
+    explicit = os.getenv("SYNAPSE_PROVIDER_OWNER_PRIVATE_KEY", "").strip()
+    if explicit:
+        return explicit
+    provider_root = Path(
+        os.getenv("PROVIDER_ROOT", str(ROOT.parent / "Synapse-Network-Provider"))
+    )
+    env_path = Path(
+        os.getenv(
+            "PROVIDER_ONBOARDING_ENV_FILE",
+            str(provider_root / ".env.onboarding.local"),
+        )
+    )
+    if not env_path.exists():
+        return ""
+    for raw_line in env_path.read_text().splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("SYNAPSE_PROVIDER_OWNER_PRIVATE_KEY="):
+            return line.split("=", 1)[1].strip().strip('"').strip("'")
+    return ""
+
 # ── Hardhat default private keys (localhost ONLY) ─────────────────────────────
 DEPLOYER_KEY = os.getenv(
     "GATEWAY_E2E_DEPLOYER_KEY",
@@ -46,13 +70,16 @@ OWNER_KEY = os.getenv(
 )
 PROVIDER_KEY = os.getenv(
     "GATEWAY_E2E_PROVIDER_KEY",
-    "0xa9bc3f60a86d4a18c83113631aed4e39c9a83d76c95b9e229385e5e0c60b2a71",
+    _read_local_provider_owner_key()
+    or "0xa9bc3f60a86d4a18c83113631aed4e39c9a83d76c95b9e229385e5e0c60b2a71",
 )
 
 # ── Test amounts ───────────────────────────────────────────────────────────────
 FUND_USDC    = Decimal("100")
 FUND_ETH     = Decimal("1")
-DEPOSIT_USDC = Decimal("10")
+# Step 7 spends roughly 1 USDC before Step 9 withdraw checks the product minimum.
+# Seed slightly more than the withdraw floor so the suite stays deterministic.
+DEPOSIT_USDC = Decimal("20")
 
 # Unique suffix per test session to avoid name collisions on re-run
 SESSION_ID = uuid.uuid4().hex[:8]

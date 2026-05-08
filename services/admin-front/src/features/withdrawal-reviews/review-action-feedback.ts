@@ -8,6 +8,18 @@ export type WithdrawReviewActionPhase =
   | "submitting"
   | "submitted";
 
+export function canSubmitWithdrawReviewDecision(input: {
+  canDecide: boolean;
+  isPending: boolean;
+  status: WithdrawalStatus | null | undefined;
+}): boolean {
+  return (
+    input.canDecide &&
+    !input.isPending &&
+    input.status === "PENDING_MANUAL_REVIEW"
+  );
+}
+
 function getDecisionLabel(decision: WithdrawReviewDecision): string {
   return decision === "APPROVE" ? "放行" : "驳回";
 }
@@ -62,8 +74,11 @@ export function getWithdrawReviewActionErrorMessage(
   decision: WithdrawReviewDecision
 ): string {
   if (isAdminApiError(error)) {
-    if ((error.message || "").includes("is not awaiting manual review")) {
-      return "当前申请已不处于可审核状态，请刷新页面。";
+    if (
+      (error.message || "").includes("is not awaiting manual review") ||
+      (error.message || "").includes("已提交处理")
+    ) {
+      return "当前申请已提交处理，请刷新页面查看最新状态。";
     }
     if (
       error.status === 401 &&
@@ -128,10 +143,15 @@ export function getWithdrawReviewActionSuccessMessage(input: {
   status: WithdrawalStatus;
   message?: string | null;
 }): string {
-  const prefix =
-    input.decision === "APPROVE" ? "已提交放行处理" : "已提交驳回处理";
-  const detail = input.message?.trim();
-  return detail
-    ? `${prefix}，当前状态：${input.status}。${detail}`
-    : `${prefix}，当前状态：${input.status}。`;
+  return input.decision === "APPROVE"
+    ? "已提交放行处理，系统正在同步提现状态。"
+    : "已提交驳回处理，系统正在同步提现状态。";
+}
+
+export function getWithdrawReviewSubmittedNotice(
+  decision: WithdrawReviewDecision
+): string {
+  return decision === "APPROVE"
+    ? "已提交放行处理，请等待提现状态同步。"
+    : "已提交驳回处理，请等待提现状态同步。";
 }

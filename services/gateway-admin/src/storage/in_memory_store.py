@@ -37,6 +37,7 @@ from src.domain.enums import (
     RoleStatus,
 )
 from src.services.admin_config.menu_tree import build_default_menu_items
+from src.storage.admin_notifications.in_memory import InMemoryAdminNotificationRepository
 
 
 def _utcnow() -> datetime:
@@ -469,6 +470,7 @@ class InMemoryAdminStore:
     approval: InMemoryAdminApprovalRepository
     audit: InMemoryAdminAuditRepository
     config: InMemoryAdminConfigRepository
+    notifications: InMemoryAdminNotificationRepository
 
     @classmethod
     def seed_demo(cls) -> "InMemoryAdminStore":
@@ -732,4 +734,5 @@ class InMemoryAdminStore:
             approval=InMemoryAdminApprovalRepository(approvals, steps, {}, jobs, attempts),
             audit=InMemoryAdminAuditRepository(actions, []),
             config=InMemoryAdminConfigRepository(menu_snapshot),
+            notifications=InMemoryAdminNotificationRepository([]),
         )

@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 from decimal import Decimal, ROUND_HALF_UP
 
+from src.api.schemas.dashboard import DashboardDiagnostics, DiagnosticAction, DiagnosticSignal, SystemStatus
 from src.core.errors import BadRequestError
 from src.domain.enums import ExecutionJobStatus
 from src.storage.analytics import AnalyticsDashboardRepository, GatewayDashboardProjectionRepository
@@ -321,6 +322,7 @@ class DashboardService:
             "message": review.message,
             "createdAt": review.created_at,
             "updatedAt": review.updated_at,
+            "reviewExpiresAt": review.review_expires_at,
         }
 
     def _resolve_requester_role(self, admin_id: str | None) -> str:
@@ -370,20 +372,20 @@ class DashboardService:
             return True
         return bool(tx_hash and review.tx_hash and review.tx_hash.lower() == tx_hash.lower())
 
-    def get_system_status(self) -> dict:
+    def get_system_status(self) -> SystemStatus:
         snapshot = self._gateway_projection.get_operations_snapshot()
         failed_jobs = self._store.approval.list_execution_jobs(
             status=ExecutionJobStatus.FAILED.value,
             limit=1,
         )
-        return {
-            "gatewayAdmin": "healthy",
-            "gateway": "degraded" if failed_jobs and snapshot.gateway_status == "healthy" else snapshot.gateway_status,
-            "approvalQueueDepth": self._count_pending_approval_work_items(),
-            "lastReconciliationAt": self._format_timestamp(snapshot.last_reconciliation_at),
-        }
+        return SystemStatus(
+            gatewayAdmin="healthy",
+            gateway="degraded" if failed_jobs and snapshot.gateway_status == "healthy" else snapshot.gateway_status,
+            approvalQueueDepth=self._count_pending_approval_work_items(),
+            lastReconciliationAt=self._format_timestamp(snapshot.last_reconciliation_at),
+        )
 
-    def get_diagnostics(self) -> dict:
+    def get_diagnostics(self) -> DashboardDiagnostics:
         operations = self._gateway_projection.get_operations_snapshot()
         overview = self._gateway_projection.get_snapshot()
         pending_approvals = self._count_pending_approval_work_items()
@@ -394,8 +396,8 @@ class DashboardService:
         failed_job_count = len(failed_jobs)
         audit_alerts = max(operations.recent_audit_alerts, self._store.audit.count_alerts())
 
-        return {
-            "overallStatus": self._resolve_diagnostic_status(
+        return DashboardDiagnostics(
+            overallStatus=self._resolve_diagnostic_status(
                 operations.reconciliation_alert,
                 failed_job_count,
                 operations.recent_gateway_failures,
@@ -403,31 +405,37 @@ class DashboardService:
                 overview.deposit_exceptions,
                 audit_alerts,
             ),
-            "checkedAt": self._format_timestamp(datetime.now(timezone.utc)),
-            "summary": self._build_diagnostic_summary(
+            checkedAt=self._format_timestamp(datetime.now(timezone.utc)),
+            summary=self._build_diagnostic_summary(
                 operations.reconciliation_alert,
                 failed_job_count,
                 overview.deposit_exceptions,
                 pending_approvals,
                 audit_alerts,
             ),
-            "signals": self._build_diagnostic_signals(
-                operations.reconciliation_alert,
-                operations.reconciliation_delta_usdc,
-                operations.reconciliation_last_error,
-                failed_job_count,
-                pending_approvals,
-                overview.deposit_exceptions,
-                audit_alerts,
-            ),
-            "actions": self._build_diagnostic_actions(
-                operations.reconciliation_alert,
-                operations.recent_gateway_failures,
-                failed_job_count,
-                pending_approvals,
-                overview.deposit_exceptions,
-            ),
-        }
+            signals=[
+                DiagnosticSignal(**item)
+                for item in self._build_diagnostic_signals(
+                    operations.reconciliation_alert,
+                    operations.reconciliation_delta_usdc,
+                    operations.reconciliation_last_error,
+                    failed_job_count,
+                    pending_approvals,
+                    overview.deposit_exceptions,
+                    audit_alerts,
+                )
+            ],
+            actions=[
+                DiagnosticAction(**item)
+                for item in self._build_diagnostic_actions(
+                    operations.reconciliation_alert,
+                    operations.recent_gateway_failures,
+                    failed_job_count,
+                    pending_approvals,
+                    overview.deposit_exceptions,
+                )
+            ],
+        )
 
     @staticmethod
     def _resolve_diagnostic_status(

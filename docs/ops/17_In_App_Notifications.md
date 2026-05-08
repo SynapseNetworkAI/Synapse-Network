@@ -69,6 +69,8 @@ notification payloads.
 Payloads must be metadata-only. Do not store localized full sentences in JSONB.
 User-front i18n owns user-visible copy evolution; Gateway stores facts such as
 `amount`, `currency`, `txHash`, `withdrawalId`, `resourceId`, and `status`.
+Admin-front uses the same table for control-plane inbox rows. Those rows use
+`recipient_type='admin'` and `recipient_admin_id=<admin_users.admin_id>`.
 
 Timestamps returned by the API must be UTC ISO 8601 strings with `Z` suffix.
 The frontend can render relative or local time, but backend storage and API
@@ -103,12 +105,24 @@ POST /api/v1/notifications/mark-all-read
 POST /api/v1/notifications/{notificationId}/archive
 ```
 
+Admin-facing Gateway-admin endpoints:
+
+```text
+GET  /api/admin/v1/notifications?limit=20&unreadOnly=false
+GET  /api/admin/v1/notifications/unread-count
+POST /api/admin/v1/notifications/{notificationId}/read
+POST /api/admin/v1/notifications/mark-all-read
+POST /api/admin/v1/notifications/{notificationId}/archive
+```
+
 Rules:
 
 - `limit` defaults to `20` and is capped at `50`.
 - Pagination is cursor-based.
 - Archived notifications are hidden by default.
 - A wallet can only read or mutate its own owner/provider notifications.
+- An admin can only read or mutate rows where `recipient_admin_id` matches their
+  current admin identity.
 - Unread count must use indexed owner/admin lookups, not full-table scans.
 
 ## Cleanup
@@ -195,18 +209,59 @@ rather than real-time per-invoke inbox spam.
 
 ### Admin / Ops
 
-V1 keeps operational paging in Lark and Prometheus, not in-app inbox.
+Admin-front inbox is for operational items that need a human operator to notice
+or follow up. V1 sends admin notifications for:
 
-Future Admin-front inbox candidates:
+- Provider service lifecycle actions: pause, resume, suspend, and delete.
+- Provider service force-probe results only when the service remains unhealthy,
+  stale, or otherwise needs attention.
+- Provider service lifecycle/delete failures that require the acting admin to
+  refresh state or retry.
 
-- withdrawal review backlog
-- refund review backlog
-- approval failure
-- long-lived pending or frozen funds
-- reconciliation delta
-- provider outage
-- Kafka or ClickHouse lag
-- admin MFA/login anomaly
+Do not send admin inbox notifications for search, pagination, filtering, detail
+views, healthy force-probe success, or ordinary success toasts that do not need
+follow-up.
+
+Admin notification bodies must stay business-readable. Do not show table names,
+SQL, raw gateway/RPC/backend errors, stack traces, or internal error-code
+payloads in the admin inbox.
+
+Admin Inbox provider-service regression evidence is local-only. It verifies the
+full operator-facing loop:
+
+1. Pause a recoverable Provider service from the admin API.
+2. Confirm an unread admin notification exists in Postgres.
+3. Open Admin-front `/provider-services`, open the top Admin Inbox, and capture
+   screenshots.
+4. Click the notification action and verify `read_at` is set.
+5. Archive the notification and verify `archived_at` is set.
+6. Resume the Provider service in `finally` so local state is restored.
+
+Canonical SQL evidence:
+
+```sql
+SELECT notification_id, dedupe_key, recipient_type, recipient_admin_id,
+       event_type, category, severity, title, body, action_url,
+       resource_type, resource_id, read_at, archived_at, created_at
+FROM synapse_in_app_notifications
+WHERE recipient_type = 'admin'
+  AND resource_type = 'provider_service'
+  AND resource_id = :service_id
+ORDER BY created_at DESC
+LIMIT 20;
+```
+
+Expected evidence:
+
+- `recipient_admin_id` is the logged-in admin.
+- `event_type` is the provider-service lifecycle event, for example
+  `admin.provider_service.pause`.
+- `action_url` points to `/provider-services?serviceId=<serviceId>`.
+- `read_at` is initially empty, then set after clicking the notification.
+- `archived_at` is set after archive.
+- The same `dedupe_key` appears at most once.
+- Title and body do not contain table names, SQL, backend/RPC internals,
+  `HTTPException`, or raw error-code payloads.
 
 ## Validation
 
@@ -215,6 +270,9 @@ Backend narrow checks:
 ```bash
 cd services/gateway
 python -m pytest tests/unit/test_notifications_outbox_unit.py tests/unit/test_in_app_notifications_router_unit.py
+
+cd services/gateway-admin
+.venv/bin/python -m pytest tests/test_app.py tests/test_admin_notifications.py -q
 ```
 
 Frontend narrow check:
@@ -224,11 +282,21 @@ cd services/user-front
 yarn test src/components/NotificationCenter.test.tsx
 ```
 
+Admin-front narrow check:
+
+```bash
+cd services/admin-front
+yarn test src/components/admin-notification-inbox.test.tsx src/services/admin-api-route-coverage.test.ts
+```
+
 Front-to-service dogfood with screenshots:
 
 ```bash
 npm run e2e:in-app-notifications
 npm run ci:in-app-notifications-evidence
+
+npm run e2e:admin-inbox-provider-services
+npm run ci:admin-inbox-provider-services-evidence
 ```
 
 Before release-sensitive changes, also run:

@@ -13,9 +13,11 @@ const creditsPage: I18nMessages["creditsPage"] = {
   pendingWithdrawalBalanceLabel: "提现处理中的 credits",
   frozenBalanceLabel: "冻结 / 审核中的 credits",
   pendingBalanceHint:
-    "Gateway 正在索引链上充值；如果长时间未到账，请带 txHash 联系支持。",
+    "我们正在同步链上充值；如果长时间未到账，请带交易哈希联系支持。",
   pendingDepositBalanceHint:
-    "Gateway 正在索引链上充值；如果长时间未到账，请带 txHash 联系支持。",
+    "我们正在同步链上充值；如果长时间未到账，请带交易哈希联系支持。",
+  claimableWithdrawalBalanceLabel: "待领取的提现 credits",
+  claimableWithdrawalBalanceHint: "人工审核已通过。请打开钱包完成链上提现。",
   pendingWithdrawalBalanceHint:
     "提现已锁定并等待链上完成；完成后会从 pending 中扣除。",
   frozenBalanceHint: "资金已因活跃提现、人工审核或风控规则被锁定。",
@@ -42,22 +44,12 @@ const creditsPage: I18nMessages["creditsPage"] = {
   depositSynapseVault: "Synapse Vault",
   depositExpectedResult:
     "{{amount}} {{symbol}} 将存入 Synapse Vault，Gateway 确认后转为可消费 credits。",
+  depositWalletPromptNotice:
+    "MetaMask 当前可能只显示合约交互。请以本面板的 {{amount}} {{symbol}} 金额和 Synapse Vault 地址为准。",
   depositDetails: "详情",
   depositVaultAddress: "Vault 地址",
   depositToken: "Token",
   depositPreapproved: "已检测到足够授权，跳过授权步骤。",
-  depositTransactionSummary: "交易摘要",
-  depositFromWallet: "来源钱包",
-  depositToVault: "目标 Vault 合约",
-  depositAmountSummary: "充值金额",
-  depositPermitAllowance: "本次授权额度",
-  depositExpectationTitle: "确认前请核对",
-  depositExpectationPermit: "Permit 签名本身免 gas，并且只授权本次 USDC 金额。",
-  depositExpectationGas: "Vault 充值是链上交易，需要使用原生代币支付 gas。",
-  depositExpectationSync:
-    "Gateway 索引并确认充值后，资金才会转为可消费 credits。",
-  depositMinimumWithdrawNotice:
-    "Credits 余额最低提现门槛为 10 USDC，请根据实际 API 消耗需求进行充值。",
   depositPermitStepTitle: "Step 1: Permit 授权",
   depositPermitStepActive: "钱包弹窗：为精确金额签署免 gas 授权。",
   depositPermitStepDone: "Permit 签名已完成。",
@@ -115,6 +107,13 @@ const creditsPage: I18nMessages["creditsPage"] = {
   consumerWithdrawTitle: "提现余额",
   consumerWithdrawDescription:
     "把已成熟 credits 提回钱包。可取现金额：{{amount}} USDC",
+  consumerWithdrawClaimTitle: "领取提现",
+  consumerWithdrawClaimDescription:
+    "你的提现已放行。请在钱包中确认，链上领取 {{amount}} USDC。",
+  consumerWithdrawClaimReadyLabel: "已可领取",
+  consumerWithdrawClaimAmount: "领取金额：{{amount}} USDC",
+  consumerWithdrawClaimReviewPassedHint:
+    "人工审核已经通过。请打开钱包完成提现。",
   consumerWithdrawAmountLabel: "金额 (USDC)",
   consumerWithdrawReasonLabel: "原因（可选）",
   consumerWithdrawReasonPlaceholder: "为什么要提现？",
@@ -124,9 +123,8 @@ const creditsPage: I18nMessages["creditsPage"] = {
   consumerWithdrawInvalidAmount: "请输入有效金额。",
   consumerWithdrawAmountExceeds: "金额超过可用余额（${{amount}}）。",
   consumerWithdrawRequestFailed: "暂时无法准备提现，请稍后重试。",
-  consumerWithdrawChainRpcUnavailable:
-    "Gateway 当前无法连接链 RPC。本地开发时请确认本地链已启动，然后重试。",
-  consumerWithdrawContractNotConfigured: "当前环境尚未配置提现合约。",
+  consumerWithdrawChainRpcUnavailable: "提现网络服务暂时不可用，请稍后重试。",
+  consumerWithdrawContractNotConfigured: "当前环境暂不支持提现。",
   consumerWithdrawMinAmountNotMet: "Consumer 最小提现金额为 10.00 USDC。",
   consumerWithdrawAmountTooLowForFee: "提现金额必须大于平台手续费。",
   consumerWithdrawInsufficientBalance: "可用 credits 不足，无法发起本次提现。",
@@ -134,15 +132,15 @@ const creditsPage: I18nMessages["creditsPage"] = {
     "这笔资金尚未成熟。Consumer 提现需要经过 T+7 资金成熟期。",
   consumerWithdrawSubmitted: "已完成 ${{amount}} USDC 提现！",
   consumerWithdrawBackendSyncFailed:
-    "链上转账已成功，但后端状态更新失败。后台处理器会自动完成记录。",
-  consumerWithdrawReleaseFailed: "释放待处理提现失败。",
+    "提现已提交，记录正在同步中。如长时间未更新，请联系支持。",
+  consumerWithdrawReleaseFailed: "暂时无法刷新这笔提现状态，请稍后重试。",
   consumerWithdrawPendingExists: "已经存在待处理提现。请先完成或等待当前请求。",
   consumerWithdrawResumingPending: "正在钱包中继续处理待处理提现。",
-  consumerWithdrawUnderReview: "提现已提交并进入审核。原因：{{reason}}",
-  consumerWithdrawTicketUnavailable:
-    "提现 ticket 暂不可用。请等待 Gateway 重新签发后再试。",
+  consumerWithdrawUnderReview:
+    "提现已进入安全审核。审核完成后，我们会更新状态。",
+  consumerWithdrawTicketUnavailable: "提现授权暂未准备好，请稍后重试。",
   consumerWithdrawTicketExpiring:
-    "提现凭据即将过期。为避免浪费 gas，请等当前请求过期后重新创建提现。",
+    "本次提现授权即将过期。系统会在链上安全窗口通过后自动释放资金。请稍后重新发起提现，避免链上交易失败。",
   consumerWithdrawTxSubmitted: "交易已提交，等待确认...",
   consumerWithdrawTxRejected: "钱包已拒绝交易。",
   consumerWithdrawTxFailed: "链上交易失败，余额已恢复。",
@@ -150,17 +148,21 @@ const creditsPage: I18nMessages["creditsPage"] = {
   consumerWithdrawConfirmWallet: "请在钱包确认...",
   consumerWithdrawConfirmingChain: "链上确认中...",
   consumerWithdrawCompleting: "完成中...",
-  consumerWithdrawProgressSigning: "正在向服务端请求提现 ticket...",
+  consumerWithdrawProgressSigning: "正在准备提现授权...",
   consumerWithdrawProgressOnchain: "请在钱包中确认交易。",
   consumerWithdrawProgressConfirming: "交易已提交，等待区块确认...",
-  consumerWithdrawProgressCompleting: "链上已确认，正在更新记录...",
+  consumerWithdrawProgressCompleting: "已确认，正在同步提现状态...",
   consumerWithdrawMax: "最大",
   consumerWithdrawAction: "提现",
+  consumerWithdrawClaimAction: "继续提现",
   consumerWithdrawPendingTooltip:
     "有一笔 {{amount}} 的提现正在处理中。同一时间只允许一笔活跃提现。",
+  consumerWithdrawClaimReadyTooltip:
+    "有一笔 {{amount}} 的提现已放行，请在钱包中确认领取。",
   consumerWithdrawMaturityWarning:
     "近期充值可用于 API 消费，但需 T+7 后才可提现。",
   consumerWithdrawMinimumRule: "最低提现金额：{{amount}} USDC",
+  goToAccountWithdraw: "需要提现？前往 Account 提现",
   currentBillingCycle: "当前 Billing 周期",
   daysRemaining: "剩余天数",
   manageSpendCapTitle: "管理消费上限",
@@ -201,7 +203,7 @@ const creditsPage: I18nMessages["creditsPage"] = {
   redeemVoucherModalPlaceholder: "XXXX-XXXX-XXXX",
   redeemVoucherModalInvalid: "请输入 `XXXX-XXXX-XXXX` 格式的 voucher code。",
   redeemVoucherModalUnavailable:
-    "当前环境还没有接通 voucher 核销后端。现在先把 UI 契约和输入校验收口，后端上线后可直接接入。",
+    "当前环境暂不支持 voucher 核销。现在先把 UI 契约和输入校验收口，服务上线后可直接接入。",
   redeemVoucherModalRedeeming: "正在兑换 Voucher...",
   redeemVoucherModalSuccess: "Voucher 核销成功，{{amount}} 已充入你的余额。",
   supportTitle: "充值或计费遇到问题？",
