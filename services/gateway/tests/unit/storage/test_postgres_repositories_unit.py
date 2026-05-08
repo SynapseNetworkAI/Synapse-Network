@@ -1648,7 +1648,13 @@ def test_deposit_attempt_repository_upserts_stage_rows() -> None:
 def test_finance_atomic_repository_reserve_and_complete() -> None:
     db = FakeDB()
     db.connect_plan.append({"fetchone": [(Decimal("10"), Decimal("1"), Decimal("2"))]})
-    db.connect_plan.append({})
+    db.connect_plan.append(
+        {
+            "fetchone": [
+                ("wd-1", "acct-provider", Decimal("2.000000"), "APPROVED_AUTO", None)
+            ]
+        }
+    )
     repo = FinanceAtomicRepository(
         db,
         _q6,
@@ -1682,7 +1688,81 @@ def test_finance_atomic_repository_reserve_and_complete() -> None:
     assert ok is True
     second_conn_sql = "\n".join(sql for sql, _ in db.connections[1].cursor_obj.executed)
     assert "INSERT INTO synapse_withdraw_tx_dedup" in second_conn_sql
+    assert "UPDATE synapse_account_balances" in second_conn_sql
     assert "UPDATE synapse_vault_withdrawals" in second_conn_sql
+    assert "status = ANY" in second_conn_sql
+
+
+def test_finance_atomic_repository_complete_withdraw_replay_is_stable_for_same_tx() -> None:
+    db = FakeDB()
+    db.connect_plan.append(
+        {
+            "fetchone": [
+                (
+                    "wd-1",
+                    "acct-provider",
+                    Decimal("2.000000"),
+                    "COMPLETED",
+                    "0xtx",
+                )
+            ]
+        }
+    )
+    repo = FinanceAtomicRepository(
+        db,
+        _q6,
+        "UPSERT",
+        "BAL_FOR_UPDATE",
+        "AUDIT_INSERT",
+        ("restricted", "suspended", "blocked"),
+    )
+
+    ok = repo.complete_withdraw_tx_atomic(
+        CompleteWithdrawTxCommand(
+            owner_wallet="0xabc",
+            tx_hash="0xtx",
+            kind="provider_withdraw",
+            withdrawal_id="wd-1",
+        )
+    )
+
+    assert ok is True
+    second_conn_sql = "\n".join(sql for sql, _ in db.connections[0].cursor_obj.executed)
+    assert "INSERT INTO synapse_withdraw_tx_dedup" not in second_conn_sql
+    assert "UPDATE synapse_account_balances" not in second_conn_sql
+
+
+def test_finance_atomic_repository_complete_withdraw_rejects_non_active_status() -> None:
+    db = FakeDB()
+    db.connect_plan.append(
+        {
+            "fetchone": [
+                ("wd-1", "acct-provider", Decimal("2.000000"), "REJECTED", None)
+            ]
+        }
+    )
+    repo = FinanceAtomicRepository(
+        db,
+        _q6,
+        "UPSERT",
+        "BAL_FOR_UPDATE",
+        "AUDIT_INSERT",
+        ("restricted", "suspended", "blocked"),
+    )
+
+    ok = repo.complete_withdraw_tx_atomic(
+        CompleteWithdrawTxCommand(
+            owner_wallet="0xabc",
+            tx_hash="0xtx",
+            kind="provider_withdraw",
+            withdrawal_id="wd-1",
+        )
+    )
+
+    assert ok is False
+    second_conn_sql = "\n".join(sql for sql, _ in db.connections[0].cursor_obj.executed)
+    assert "INSERT INTO synapse_withdraw_tx_dedup" not in second_conn_sql
+    assert "UPDATE synapse_account_balances" not in second_conn_sql
 
 
 def test_finance_atomic_repository_processes_typed_charge_command() -> None:

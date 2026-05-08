@@ -414,18 +414,18 @@ Dashboard 数据边界要求：
 - 左侧导航已改为可配置菜单树，配置文件在 `admin/admin-front/src/lib/navigation.ts`
 - 左侧导航实际渲染优先读取 `gateway-admin` 已发布菜单配置，静态 `navigation.ts` 只作为 fallback 和默认种子
 - 菜单可见性基于当前管理员的 `role + permissions` 动态裁剪
-- `Toolbar + Table + Drawer` 已抽成前端共享 CRUD 基础组件，后续配置型页面不需要重复手写工作台骨架
+- `Toolbar + Table + Modal` 已抽成前端共享 CRUD 基础组件，后续配置型页面不需要重复手写工作台骨架；点击后的操作面板统一使用居中弹窗，不使用右侧抽屉
 - 当前页面路由包括：`/dashboard`、`/dashboard/overview`、`/dashboard/runtime`、`/dashboard/analytics`、`/dashboard/analytics/consumer-funnel`、`/dashboard/analytics/invocation-revenue`、`/dashboard/analytics/provider-revenue`、`/dashboard/analytics/money-flow`、`/dashboard/analytics/risk-health`、`/dashboard/analytics/data-quality`、`/users`、`/role-permissions`、`/menu-config`、`/approvals`、`/withdrawal-reviews`、`/review-history`、`/owner-accounts`、`/finance`、`/risk`、`/system`、`/audit`、`/execution`；旧的 `/dashboard/health` 仅保留为兼容重定向入口，实际内容已并入 `/system`
 - `控制总览 > 控制台 > Analytics` 是只读观测菜单组：总览页展示 North Star 指标和关键告警，六个专题页分别承载 Consumer 激活漏斗、调用与收入、Provider 收益、资金流、风控健康和埋点质量；前端只消费 `gateway-admin` 聚合接口，不直接查询 ClickHouse
 - `业务控制` 分组现在同时提供 `提现审核` 与 `审核历史`：前者处理待审核申请，后者回看已审批、已拒绝和已释放结果，避免 reviewer 只能依赖审计页做状态回溯
 - `业务用户` 页面提供 owner account 运营查询：默认脱敏邮箱，完整邮箱 reveal 必须有 `owner:pii:read` 并写 audit。
 - `finance` 页面已经收口为 tabs：`Overview`、`Consumer Deposits`、`Provider Withdrawals`、`Reconciliation`、`Platform Fees`。充值与 Provider 提现流水为只读查账入口，不承载补账或修账动作。
-- `审核历史` 页面支持详情抽屉，下钻展示风险 evidence、reviewer 备注和状态流转，帮助业务直接完成复核与回放
+- `审核历史` 页面支持居中详情弹窗，下钻展示风险 evidence、reviewer 备注和状态流转，帮助业务直接完成复核与回放
 - `审核历史` 默认按服务端查询执行：支持 reviewer、处理时间范围、状态、处理结论和关键字搜索，并返回分页 cursor，避免前端一次性拉全量历史记录
 - 整体视觉已切换为与 Gateway Console 对齐的 dark mode control plane：黑色背景、深灰面板、细金属边框、绿色激活态、无玻璃阴影
 - 左侧导航已升级为二级 accordion 菜单树，活动项使用绿色左边界高亮，适合值班与高密度模块切换
 - `users` 页面已经接入后台用户目录、角色模板和创建后台用户能力
-- `users` 页面已重构为标准 CRUD 工作台：顶部搜索/角色筛选 + 主体数据表格 + 右侧 Drawer 表单，编辑与删除（软禁用）已通过 `gateway-admin` 打通
+- `users` 页面已重构为标准 CRUD 工作台：顶部搜索/角色筛选 + 主体数据表格 + 居中 Modal 表单，编辑与删除（软禁用）已通过 `gateway-admin` 打通
 - `role-permissions` 页面已使用共享 CRUD 基础组件承载角色模板与权限矩阵
 - `menu-config` 页面已升级为真实配置中心工作台：编辑的是 draft，发布后写入全局 published 菜单配置
 - `audit` 页面已经接入管理员操作日志查询
@@ -438,7 +438,7 @@ Dashboard 数据边界要求：
 
 - `draft` 是服务端草稿快照，供 `super_admin` 在配置工作台里持续编辑
 - `published` 是线上全局生效快照，供 `AdminShell` 和普通后台管理员读取
-- `/menu-config` 页面的 Toolbar + Table + Drawer 工作台只针对 `draft` 做 CRUD，保证变更先集中收敛到待发布版本
+- `/menu-config` 页面的 Toolbar + Table + Modal 工作台只针对 `draft` 做 CRUD，保证变更先集中收敛到待发布版本
 - 只有显式执行 publish 时，当前 `draft` 才会被复制为新的 `published`，从而切换全站导航
 - 前端界面展示 `draftVersion`、`publishedVersion`、`isDirty`，让配置人员知道当前是否存在未发布变更
 - 后端为每次 create / update / delete / publish 记录管理员审计事件，保证配置变更可追溯

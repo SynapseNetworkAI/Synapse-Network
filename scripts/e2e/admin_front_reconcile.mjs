@@ -118,6 +118,11 @@ function verifyReport(report, fixture) {
     "provider-services.png",
     "finance.png",
     "analytics-overview.png",
+    "modal-withdrawal-review-detail.png",
+    "modal-review-history-detail.png",
+    "modal-role-permissions-create.png",
+    "modal-menu-config-create.png",
+    "modal-users-create.png",
   ];
   for (const name of requiredNames) {
     assert(
@@ -140,6 +145,46 @@ function verifyReport(report, fixture) {
     report.fixturePath === FIXTURE_PATH || report.fixturePath,
     "dogfood report did not record fixture path"
   );
+  const requiredModalScreenshots = [
+    "modal-withdrawal-review-detail",
+    "modal-review-history-detail",
+    "modal-role-permissions-create",
+    "modal-menu-config-create",
+    "modal-users-create",
+  ];
+  const modalEvidence = Array.isArray(report.modalDomEvidence)
+    ? report.modalDomEvidence
+    : [];
+  for (const screenshotName of requiredModalScreenshots) {
+    const row = modalEvidence.find(
+      (item) => item.screenshotName === screenshotName
+    );
+    assert(row, `missing modal DOM evidence: ${screenshotName}`);
+    assert(
+      row.role === "dialog" && row.ariaModal === "true",
+      `modal evidence missing dialog semantics: ${screenshotName}`
+    );
+    assert(
+      row.drawerCount === 0,
+      `modal evidence found drawer DOM: ${screenshotName}`
+    );
+    assert(row.centered === true, `modal was not centered: ${screenshotName}`);
+    assert(
+      String(row.actualDialogText || "").length > 0,
+      `modal evidence missing dialog text: ${screenshotName}`
+    );
+  }
+  const preflightChecks = Array.isArray(report.preflightChecks)
+    ? report.preflightChecks
+    : [];
+  for (const name of [
+    "admin-front-root",
+    "admin-auth-me",
+    "admin-visible-menu",
+  ]) {
+    const row = preflightChecks.find((item) => item.name === name);
+    assert(row?.ok, `missing or failed preflight check: ${name}`);
+  }
   assert(
     fixture.forum?.responseTaskId,
     "fixture missing forum response task id"

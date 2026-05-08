@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { spawnSync } from "node:child_process";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -258,6 +259,22 @@ function addComparison(
   }
 }
 
+function decimalToMicros(value) {
+  const [wholeRaw, fractionRaw = ""] = String(value ?? "0").split(".");
+  const sign = wholeRaw.trim().startsWith("-") ? -1n : 1n;
+  const whole = BigInt(wholeRaw.trim().replace(/^-/, "") || "0");
+  const fraction = BigInt(fractionRaw.padEnd(6, "0").slice(0, 6) || "0");
+  return sign * (whole * 1_000_000n + fraction);
+}
+
+function microsToDecimal(value) {
+  const sign = value < 0n ? "-" : "";
+  const absolute = value < 0n ? -value : value;
+  const whole = absolute / 1_000_000n;
+  const fraction = String(absolute % 1_000_000n).padStart(6, "0");
+  return `${sign}${whole}.${fraction}`;
+}
+
 function getDbWithdrawal(withdrawalId) {
   return queryJson(`
     SELECT json_build_object(
@@ -265,6 +282,7 @@ function getDbWithdrawal(withdrawalId) {
       'status', vw.status,
       'amountUsdc', vw.amount_usdc::text,
       'txHash', vw.tx_hash,
+      'ticketHash', vw.ticket_hash,
       'signature', vw.signature,
       'nonce', vw.nonce,
       'deadline', vw.deadline,
@@ -470,22 +488,68 @@ async function claimOnChainAndComplete(fixture, ticket) {
       expectOk: false,
     }
   );
-  const duplicateCompletePassed = !duplicateComplete.response.ok;
+  const duplicateCompleteData =
+    duplicateComplete.payload.data || duplicateComplete.payload;
+  const duplicateCompletePassed =
+    duplicateComplete.response.ok &&
+    duplicateCompleteData.status === "COMPLETED" &&
+    duplicateCompleteData.idempotentReplay === true;
   securityChecks.push({
-    name: "duplicate complete rejected",
+    name: "duplicate complete same tx idempotent replay",
     pass: duplicateCompletePassed,
     status: duplicateComplete.response.status,
     payload: duplicateComplete.payload,
   });
   if (!duplicateCompletePassed)
     failCheck(
-      "security:duplicate-complete",
-      "duplicate complete unexpectedly succeeded"
+      "security:duplicate-complete-same-tx",
+      "duplicate complete with the same txHash was not a stable idempotent replay"
     );
   else
     pass(
-      "security:duplicate-complete",
+      "security:duplicate-complete-same-tx",
       `status=${duplicateComplete.response.status}`
+    );
+
+  const differentTxHash = `0x${crypto
+    .createHash("sha256")
+    .update(`${fixture.withdrawal.withdrawalId}:${withdrawTx.hash}:different`)
+    .digest("hex")}`;
+  const differentTxComplete = await api(
+    `/v1/providers/withdrawals/${encodeURIComponent(
+      fixture.withdrawal.withdrawalId
+    )}/complete`,
+    {
+      method: "POST",
+      token: fixture.provider.token,
+      address: fixture.provider.address,
+      body: { txHash: differentTxHash },
+      expectOk: false,
+    }
+  );
+  const differentTxCode =
+    differentTxComplete.payload?.detail?.code ||
+    differentTxComplete.payload?.error?.code ||
+    differentTxComplete.payload?.code ||
+    "";
+  const differentTxPassed =
+    differentTxComplete.response.status === 409 &&
+    differentTxCode === "WITHDRAWAL_ALREADY_COMPLETED";
+  securityChecks.push({
+    name: "duplicate complete different tx rejected",
+    pass: differentTxPassed,
+    status: differentTxComplete.response.status,
+    payload: differentTxComplete.payload,
+  });
+  if (!differentTxPassed)
+    failCheck(
+      "security:duplicate-complete-different-tx",
+      `different txHash complete was not rejected with WITHDRAWAL_ALREADY_COMPLETED: ${differentTxComplete.response.status}`
+    );
+  else
+    pass(
+      "security:duplicate-complete-different-tx",
+      `status=${differentTxComplete.response.status}`
     );
 
   return { txHash: withdrawTx.hash, complete: completeData };
@@ -509,12 +573,66 @@ function verifyDogfoodReport(report, fixture) {
   );
   for (const name of [
     "01-withdrawal-review-queue.png",
-    "02-withdrawal-review-detail.png",
-    "04-after-approve.png",
+    "withdrawal-review-modal-open.png",
+    "withdrawal-review-awaiting-otp.png",
+    "withdrawal-review-submitting.png",
+    "withdrawal-review-submitted-terminal.png",
     "05-review-history.png",
     "06-finance-reconciliation.png",
   ]) {
     assert(screenshotNames.has(name), `missing screenshot ${name}`);
+  }
+  const requiredModalScreenshots = [
+    "withdrawal-review-modal-open",
+    "withdrawal-review-awaiting-otp",
+    "withdrawal-review-submitting",
+    "withdrawal-review-submitted-terminal",
+  ];
+  const modalEvidence = Array.isArray(report.modalDomEvidence)
+    ? report.modalDomEvidence
+    : [];
+  for (const screenshotName of requiredModalScreenshots) {
+    const row = modalEvidence.find(
+      (item) => item.screenshotName === screenshotName
+    );
+    assert(row, `missing modal DOM evidence: ${screenshotName}`);
+    assert(
+      row.role === "dialog" && row.ariaModal === "true",
+      `modal evidence missing dialog semantics: ${screenshotName}`
+    );
+    assert(
+      row.drawerCount === 0,
+      `modal evidence found drawer DOM: ${screenshotName}`
+    );
+    assert(row.centered === true, `modal was not centered: ${screenshotName}`);
+    assert(
+      String(row.actualDialogText || "").includes(
+        fixture.withdrawal.withdrawalId
+      ),
+      `modal evidence missing withdrawal id: ${screenshotName}`
+    );
+    if (screenshotName !== "withdrawal-review-modal-open") {
+      const buttonStates = Array.isArray(row.buttonStates)
+        ? row.buttonStates
+        : [];
+      assert(
+        buttonStates.some(
+          (item) => item.name === "approve" && item.disabled === true
+        ),
+        `modal evidence missing disabled approve button: ${screenshotName}`
+      );
+    }
+  }
+  const preflightChecks = Array.isArray(report.preflightChecks)
+    ? report.preflightChecks
+    : [];
+  for (const name of [
+    "admin-front-root",
+    "admin-auth-me",
+    "admin-visible-menu",
+  ]) {
+    const row = preflightChecks.find((item) => item.name === name);
+    assert(row?.ok, `missing or failed preflight check: ${name}`);
   }
   assert(
     report.withdrawalId === fixture.withdrawal.withdrawalId,
@@ -574,6 +692,10 @@ function writeReport({
       afterCompleteWithdrawal: dbAfterComplete,
     },
     screenshots: dogfoodReport.screenshots || [],
+    dogfood: {
+      screenshotEvidence: dogfoodReport.screenshotEvidence || [],
+      modalDomEvidence: dogfoodReport.modalDomEvidence || [],
+    },
   };
   report.evidenceDigest = sha256Json({
     financeSensitiveTreeHash: report.financeSensitiveTreeHash,
@@ -699,7 +821,8 @@ async function main() {
 
   const beforeClaimChain = await readChainBalances(fixture.provider.address);
   let chainResult = null;
-  if (approvedRow.status === "COMPLETED") {
+  const completedBeforeReconcile = approvedRow.status === "COMPLETED";
+  if (completedBeforeReconcile) {
     pass(
       "chain:claim-skipped",
       "withdrawal was already completed before reconciliation"
@@ -712,6 +835,7 @@ async function main() {
   const afterClaimDbBalance = getDbProviderBalance(fixture.provider.address);
 
   const expectedAtomic = BigInt(fixture.expected.amountAtomic);
+  const expectedChainDelta = completedBeforeReconcile ? 0n : expectedAtomic;
   const providerDelta =
     BigInt(afterClaimChain.providerUsdcAtomic) -
     BigInt(beforeClaimChain.providerUsdcAtomic);
@@ -721,16 +845,16 @@ async function main() {
   addComparison(
     "chain",
     "Provider USDC delta atomic",
-    expectedAtomic,
+    expectedChainDelta,
     providerDelta,
-    providerDelta === expectedAtomic
+    providerDelta === expectedChainDelta
   );
   addComparison(
     "chain",
     "Vault USDC delta atomic",
-    expectedAtomic,
+    expectedChainDelta,
     vaultDelta,
-    vaultDelta === expectedAtomic
+    vaultDelta === expectedChainDelta
   );
   addComparison(
     "complete",
@@ -749,16 +873,30 @@ async function main() {
   addComparison(
     "complete",
     "Provider pending balance",
-    "0.000000",
+    completedBeforeReconcile
+      ? beforeClaimDbBalance?.pendingBalance
+      : microsToDecimal(
+          decimalToMicros(beforeClaimDbBalance?.pendingBalance) -
+            decimalToMicros(fixture.expected.amountUsdc)
+        ),
     afterClaimDbBalance?.pendingBalance,
-    String(afterClaimDbBalance?.pendingBalance || "") === "0.000000"
+    String(afterClaimDbBalance?.pendingBalance || "") ===
+      String(
+        completedBeforeReconcile
+          ? beforeClaimDbBalance?.pendingBalance
+          : microsToDecimal(
+              decimalToMicros(beforeClaimDbBalance?.pendingBalance) -
+                decimalToMicros(fixture.expected.amountUsdc)
+            )
+      )
   );
   addComparison(
     "complete",
     "Provider frozen balance",
-    "0.000000",
+    beforeClaimDbBalance?.frozenBalance,
     afterClaimDbBalance?.frozenBalance,
-    String(afterClaimDbBalance?.frozenBalance || "") === "0.000000"
+    String(afterClaimDbBalance?.frozenBalance || "") ===
+      String(beforeClaimDbBalance?.frozenBalance || "")
   );
 
   const history = await adminApi(

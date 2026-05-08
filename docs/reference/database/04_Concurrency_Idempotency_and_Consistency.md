@@ -58,6 +58,28 @@ SQL 通过 `synapse_idempotency_keys` 提供统一幂等设施。
 4. 同一业务调用不重复执行和扣费
 5. 同一业务参考对象不重复生成账本分录
 
+### 2.3 状态变更级幂等
+
+资金和状态机的幂等不能靠 `wallet` / `owner` upsert。身份 upsert 只能保证同一个钱包映射到同一个 owner，
+不能证明某个提现、退款、充值确认、审核决策或执行重试只处理了一次。
+
+状态变更必须使用业务唯一键：
+
+1. `withdrawalId` / `refundId`
+2. `depositIntentId`
+3. `txHash`
+4. `ticketHash`
+5. `jobId` / `approvalId`
+6. `(scope, owner_id, idempotency_key)`
+
+同一业务键的重复请求必须做到：
+
+1. 同 payload 重放返回稳定业务结果
+2. 不同 payload 或不同终态动作返回 `409`
+3. 不重复移动 `available` / `pending` / `frozen`
+4. 不重复签 ticket
+5. 不重复写用户可见 audit / outbox / notification
+
 ## 3. 悲观锁与行锁
 
 最新 SQL 没有把锁策略写成 DDL，但从业务性质上，以下写路径必须采用数据库级悲观锁或等价原子更新。
@@ -134,6 +156,19 @@ Consumer 自动通过路径只能执行一次 `available -> pending`，人工审
 自动通过提现的 ticket 签发必须发生在余额原子锁仓成功之后。人工审核提现只有在
 `APPROVE` 成功完成 `frozen -> pending` 后才能签发 ticket。任何重复 approve、
 reject、complete 或 fail 回调都不得让同一笔余额重复释放或重复消费。
+
+### 4.4 Withdrawal Complete 事务
+
+提现完成是资金终态边界，必须在同一数据库事务内完成：
+
+1. 锁定目标 `synapse_vault_withdrawals` 行
+2. 校验 `withdrawal_id`、owner、kind 和当前 active status
+3. 写入 `synapse_withdraw_tx_dedup`
+4. 原子消费 source account 的 `pending_balance`
+5. 把 withdrawal 状态推进到 `COMPLETED` 并绑定 `tx_hash`
+
+不能先把状态标成 `COMPLETED`，再在另一个事务里消费 pending。这样会制造“DB 已完成但资金桶没扣”的半完成状态。
+重复 complete 同一 `txHash` 必须返回稳定完成结果；不同 `txHash` 或非 active 状态必须失败，不能再次消费 pending。
 
 ## 5. 状态机一致性
 

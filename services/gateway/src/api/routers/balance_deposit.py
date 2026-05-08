@@ -144,24 +144,26 @@ async def confirm_deposit_intent(
         confirmations=payload.confirmations,
         request_meta=_extract_request_meta(request),
     )
-    schedule_in_app_notification(
-        storage,
-        build_deposit_confirmed_intent(owner_wallet, confirmed),
-    )
-    schedule_transaction_notifications(
-        storage,
-        owner_wallet=owner_wallet,
-        template_key="deposit_confirmed",
-        event_type="deposit.confirmed",
-        payload={
-            "depositId": confirmed.get("depositId") or confirmed.get("id") or deposit_intent_id,
-            "amount": confirmed.get("amount") or confirmed.get("amountUsdc"),
-            "status": "CONFIRMED",
-            "txHash": confirmed.get("txHash"),
-            "ownerAddress": owner_wallet,
-            "actionUrl": build_public_app_url("/dashboard/billing/credits"),
-        },
-    )
+    newly_confirmed = str(confirmed.get("eventKey") or "") == str(payload.eventKey or "")
+    if newly_confirmed:
+        schedule_in_app_notification(
+            storage,
+            build_deposit_confirmed_intent(owner_wallet, confirmed),
+        )
+        schedule_transaction_notifications(
+            storage,
+            owner_wallet=owner_wallet,
+            template_key="deposit_confirmed",
+            event_type="deposit.confirmed",
+            payload={
+                "depositId": confirmed.get("depositId") or confirmed.get("id") or deposit_intent_id,
+                "amount": confirmed.get("amount") or confirmed.get("amountUsdc"),
+                "status": "CONFIRMED",
+                "txHash": confirmed.get("txHash"),
+                "ownerAddress": owner_wallet,
+                "actionUrl": build_public_app_url("/dashboard/billing/credits"),
+            },
+        )
     return {"status": "success", "intent": confirmed}
 
 
@@ -217,24 +219,25 @@ async def complete_refund(
         tx_hash=payload.txHash,
         request_meta=request_meta,
     )
-    schedule_in_app_notification(
-        storage,
-        build_refund_completed_intent(owner_wallet, {"refundId": refund_id, **result}),
-    )
-    schedule_transaction_notifications(
-        storage,
-        owner_wallet=owner_wallet,
-        template_key="refund_completed",
-        event_type="refund.completed",
-        payload={
-            "refundId": refund_id,
-            "amount": result.get("amount") or result.get("amountUsdc"),
-            "status": "COMPLETED",
-            "txHash": result.get("txHash"),
-            "ownerAddress": owner_wallet,
-            "actionUrl": build_public_app_url("/dashboard/billing"),
-        },
-    )
+    if not result.get("idempotentReplay"):
+        schedule_in_app_notification(
+            storage,
+            build_refund_completed_intent(owner_wallet, {"refundId": refund_id, **result}),
+        )
+        schedule_transaction_notifications(
+            storage,
+            owner_wallet=owner_wallet,
+            template_key="refund_completed",
+            event_type="refund.completed",
+            payload={
+                "refundId": refund_id,
+                "amount": result.get("amount") or result.get("amountUsdc"),
+                "status": "COMPLETED",
+                "txHash": result.get("txHash"),
+                "ownerAddress": owner_wallet,
+                "actionUrl": build_public_app_url("/dashboard/billing"),
+            },
+        )
     return {"status": "success", "ownerAddress": owner_wallet, **result}
 
 
@@ -294,20 +297,21 @@ async def complete_refund_as_admin(
         tx_hash=payload.txHash,
         request_meta=request_meta,
     )
-    schedule_transaction_notifications(
-        storage,
-        owner_wallet=target_owner,
-        template_key="refund_completed",
-        event_type="refund.completed",
-        payload={
-            "refundId": refund_id,
-            "amount": result.get("amount") or result.get("amountUsdc"),
-            "status": "COMPLETED",
-            "txHash": payload.txHash,
-            "ownerAddress": target_owner,
-            "actionUrl": build_public_app_url("/dashboard/billing"),
-        },
-    )
+    if not result.get("idempotentReplay"):
+        schedule_transaction_notifications(
+            storage,
+            owner_wallet=target_owner,
+            template_key="refund_completed",
+            event_type="refund.completed",
+            payload={
+                "refundId": refund_id,
+                "amount": result.get("amount") or result.get("amountUsdc"),
+                "status": "COMPLETED",
+                "txHash": payload.txHash,
+                "ownerAddress": target_owner,
+                "actionUrl": build_public_app_url("/dashboard/billing"),
+            },
+        )
     return {
         "status": "success",
         "requestedBy": admin_wallet,

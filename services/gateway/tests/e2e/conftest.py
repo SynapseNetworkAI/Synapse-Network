@@ -46,7 +46,7 @@ OWNER_KEY = os.getenv(
 )
 PROVIDER_KEY = os.getenv(
     "GATEWAY_E2E_PROVIDER_KEY",
-    "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ea870594801966b8ea0ecf",
+    "0xa9bc3f60a86d4a18c83113631aed4e39c9a83d76c95b9e229385e5e0c60b2a71",
 )
 
 # ── Test amounts ───────────────────────────────────────────────────────────────

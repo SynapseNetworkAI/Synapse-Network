@@ -34,7 +34,7 @@ npm run ci:frontend
 3. Prefer shared components and shared hooks over page-local duplication.
 4. Keep product wording, IA, and interaction semantics aligned with root `docs/`.
 5. List/feed/forum/marketplace pages are scanning surfaces; do not inline-expand heavy create, edit, feedback, or confirmation forms inside the list flow. Use the existing modal/popup system for those workflows.
-6. Do not use sidebar expansion or right-side drawers for feedback, create, edit, logout, or finance confirmation flows. Sidebars are navigation only.
+6. Do not use sidebar expansion, right-side drawers, or slide-out panels for feedback, create, edit, detail, review, logout, or finance confirmation flows. Use modal/popup primitives; sidebars are navigation only.
 7. Scope errors to the interaction surface that created them: modal action errors stay inside the modal, and list/data loading errors stay with the list.
 
 ## Design Alignment

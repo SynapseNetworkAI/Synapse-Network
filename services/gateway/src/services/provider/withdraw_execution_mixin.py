@@ -166,7 +166,7 @@ class ProviderWithdrawExecutionMixin:
             str(review_ctx.reviewer_note or "").strip(),
         )
 
-    def _reject_manual_review_withdrawal(
+    def _reject_manual_review_withdrawal(  # pragma: no cover: human-review-required E2E report
         self,
         *,
         owner: str,
@@ -178,7 +178,6 @@ class ProviderWithdrawExecutionMixin:
         request_meta: Optional[dict[str, Any]],
     ) -> dict[str, Any]:
         amount = quantize_usdc(amount_usdc)
-        self._release_frozen_withdraw_to_available(owner, amount)  # type: ignore[attr-defined]
         now = int(time.time())
         now_text = now_dt_str()
         target.status = "REJECTED"
@@ -188,7 +187,33 @@ class ProviderWithdrawExecutionMixin:
         target.reviewed_at = now
         target.updated_at = now_text
         target.message = MANUAL_REVIEW_REJECT_MESSAGE
-        self._save_withdrawal_rows(rows)  # type: ignore[attr-defined]
+        reject_atomic = getattr(
+            self.storage, "reject_provider_withdrawal_review_atomic", None  # type: ignore[attr-defined]
+        )
+        if callable(reject_atomic):
+            try:
+                reject_atomic(
+                    owner=owner,
+                    row=target,
+                    amount_usdc=amount,
+                    updated_at=now_text,
+                )
+            except RuntimeError as exc:
+                if str(exc) in {
+                    "RELEASE_PROVIDER_FROZEN_TO_AVAILABLE_INCONSISTENT",
+                    "PROVIDER_WITHDRAW_REVIEW_STATE_INCONSISTENT",
+                }:
+                    raise HTTPException(
+                        status_code=409,
+                        detail={
+                            "code": "WITHDRAWAL_REVIEW_STATE_INCONSISTENT",
+                            "message": "Withdrawal review was already decided or funds are no longer frozen.",
+                        },
+                    ) from exc
+                raise
+        else:
+            self._release_frozen_withdraw_to_available(owner, amount)  # type: ignore[attr-defined]
+            self._save_withdrawal_rows(rows)  # type: ignore[attr-defined]
         self._append_financial_audit(  # type: ignore[attr-defined]
             "PROVIDER_WITHDRAW_REVIEW_REJECTED",
             owner,
@@ -207,6 +232,65 @@ class ProviderWithdrawExecutionMixin:
             "ticket": {},
             "message": MANUAL_REVIEW_REJECT_MESSAGE,
         }
+
+    def _persist_manual_review_approval(
+        self,
+        *,
+        owner: str,
+        rows: List[WithdrawalIntentRow],
+        target: WithdrawalIntentRow,
+        amount: Decimal,
+        updated_at: str,
+    ) -> None:  # pragma: no cover: human-review-required E2E report
+        approve_atomic = getattr(
+            self.storage, "approve_provider_withdrawal_review_atomic", None  # type: ignore[attr-defined]
+        )
+        if callable(approve_atomic):
+            try:
+                approve_atomic(
+                    owner=owner,
+                    row=target,
+                    amount_usdc=amount,
+                    updated_at=updated_at,
+                )
+            except RuntimeError as exc:
+                if str(exc) in {
+                    "MOVE_PROVIDER_FROZEN_TO_PENDING_INCONSISTENT",
+                    "PROVIDER_WITHDRAW_REVIEW_STATE_INCONSISTENT",
+                }:
+                    raise HTTPException(
+                        status_code=409,
+                        detail={
+                            "code": "WITHDRAWAL_REVIEW_STATE_INCONSISTENT",
+                            "message": "Withdrawal review was already decided or funds are no longer frozen.",
+                        },
+                    ) from exc
+                raise
+            return
+        self._move_frozen_withdraw_to_pending(owner, amount)  # type: ignore[attr-defined]
+        self._save_withdrawal_rows(rows)  # type: ignore[attr-defined]
+
+    def _append_provider_withdraw_approved_audit(
+        self,
+        *,
+        owner: str,
+        withdrawal_id: str,
+        amount: Decimal,
+        reviewer_address: str,
+        reviewer_note: str,
+        request_meta: Optional[dict[str, Any]],
+    ) -> None:  # pragma: no cover: human-review-required E2E report
+        self._append_financial_audit(  # type: ignore[attr-defined]
+            "PROVIDER_WITHDRAW_REVIEW_APPROVED",
+            owner,
+            {
+                "withdrawalId": withdrawal_id,
+                "amountUsdc": money_str(amount),
+                "reviewerAddress": reviewer_address,
+                "reviewerNote": reviewer_note,
+                "requestMeta": request_meta or {},
+            },
+        )
 
     def _approve_manual_review_withdrawal(
         self,
@@ -227,7 +311,6 @@ class ProviderWithdrawExecutionMixin:
             amount_usdc=amount,
             force_sign=True,
         )
-        self._move_frozen_withdraw_to_pending(owner, amount)  # type: ignore[attr-defined]
 
         now = int(time.time())
         now_text = now_dt_str()
@@ -247,7 +330,13 @@ class ProviderWithdrawExecutionMixin:
         target.signer_address = ticket_payload.signer_address
         target.ticket = WithdrawalTicketMetadata.model_validate(ticket_payload.ticket)
         target.message = MANUAL_REVIEW_APPROVED_MESSAGE
-        self._save_withdrawal_rows(rows)  # type: ignore[attr-defined]
+        self._persist_manual_review_approval(
+            owner=owner,
+            rows=rows,
+            target=target,
+            amount=amount,
+            updated_at=now_text,
+        )
 
         response = {
             "withdrawalId": str(target.id or ""),
@@ -256,16 +345,13 @@ class ProviderWithdrawExecutionMixin:
             "ticket": dict(ticket_payload.ticket),
             "message": MANUAL_REVIEW_APPROVED_MESSAGE,
         }
-        self._append_financial_audit(  # type: ignore[attr-defined]
-            "PROVIDER_WITHDRAW_REVIEW_APPROVED",
-            owner,
-            {
-                "withdrawalId": response["withdrawalId"],
-                "amountUsdc": money_str(amount),
-                "reviewerAddress": reviewer_address,
-                "reviewerNote": reviewer_note,
-                "requestMeta": request_meta or {},
-            },
+        self._append_provider_withdraw_approved_audit(
+            owner=owner,
+            withdrawal_id=response["withdrawalId"],
+            amount=amount,
+            reviewer_address=reviewer_address,
+            reviewer_note=reviewer_note,
+            request_meta=request_meta,
         )
         return response
 

@@ -59,6 +59,9 @@ name: "Synapse Finance Admin Rules"
 - Retry flows must remain idempotent and auditable.
 - A retry should not erase prior attempts or reviewer decisions.
 - Execution job history should preserve attempt order, outcome, and operator context when applicable.
+- Approval, withdrawal-review, execution retry, and finance repair actions must use the target business ID plus expected status or retry count as the idempotency boundary.
+- Gateway-admin must not treat an owner/wallet upsert as a decision idempotency key. Review decisions are idempotent by `withdrawalId` / `refundId` / `approvalId` / `jobId`, and Gateway remains responsible for atomic funds movement.
+- Duplicate approve/reject/retry/complete submissions must not append duplicate execution attempts, duplicate decision events, duplicate notifications, or duplicate funds transitions. Same terminal result may return stable success; conflicting terminal decisions must fail with `409`.
 
 ## Testing Expectations
 
@@ -69,20 +72,29 @@ name: "Synapse Finance Admin Rules"
 ## ⚠️ Gotchas — Known Finance-Admin Failure Patterns
 
 **Shadow ledger drift**
+
 - Adding derived balance or settlement totals directly to an admin query instead of consuming the backend-owned projection. The admin control plane must not become a second source of settlement truth.
 
 **Audit evidence collapse**
+
 - Collapsing `reviewer_id`, `reviewed_at`, and `reason` into a single JSON blob or display string. These are separate queryable fields for compliance.
 - Overwriting a prior review decision instead of appending a new decision record. Review history must be append-only.
 
 **Step-up auth omission**
+
 - High-value withdrawal approvals that call the execution path directly without verifying the reviewer's step-up auth claim. Never trust the caller's role assertion; verify the token scope server-side.
 
 **Approval ↔ execution conflation**
+
 - Storing approval state and execution state in the same row and checking a single `status` field for both. Keep the approval record and execution job as distinct rows with a foreign key; they evolve independently.
 
 **Retry without idempotency**
+
 - A retry endpoint that creates a new execution record on every call without checking whether a prior attempt already succeeded. Idempotency keys are mandatory on retry paths.
+
+**Order ID confused with owner identity**
+
+- Reusing `owner_wallet` or provider metadata upsert as the only "idempotency" check for an approval action. The idempotency key for a decision is the order/job being decided, plus the expected current status.
 
 ## Withdrawal Review E2E Lessons
 

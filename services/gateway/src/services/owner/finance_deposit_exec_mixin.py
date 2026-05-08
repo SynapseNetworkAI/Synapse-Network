@@ -17,6 +17,9 @@ from src.services.analytics import gateway_events
 from src.services.owner.finance_constants import CONSUMER_DEPOSIT_MIN_USDC
 from src.utils.datetime_utils import now_dt_str
 
+DepositIntentResponse = dict[str, Any]
+DepositSyncStatusResponse = dict[str, Any]
+
 
 class FinanceDepositExecMixin:
     """Deposit execution: idempotency gate, intent storage, and public deposit endpoints."""
@@ -287,7 +290,7 @@ class FinanceDepositExecMixin:
         event_key: str,
         confirmations: int,
         request_meta: Optional[dict[str, Any]] = None,
-    ) -> dict[str, Any]:
+    ) -> DepositIntentResponse:
         owner = normalize_wallet(owner_wallet)
         async with self._mutation_lock.lock(f"{owner}:deposit_confirm"):  # type: ignore[attr-defined]
             await self._enforce_owner_write_rate_limit(owner, "deposit_confirm")  # type: ignore[attr-defined]
@@ -299,18 +302,22 @@ class FinanceDepositExecMixin:
                     event_key=event_key,
                     confirmations=confirmations,
                 )
-                self._audit_deposit_confirm(
-                    owner=owner,
-                    deposit_intent_id=deposit_intent_id,
-                    event_key=event_key,
-                    confirmations=confirmations,
-                    request_meta=request_meta,
-                    confirmed_row=result,
-                )
-                await self._emit_deposit_completed_for_confirmed_intent(
-                    owner=owner,
-                    confirmed_row=result,
-                )
+                newly_confirmed = result.event_key is not None and str(
+                    result.event_key
+                ) == str(event_key or "")
+                if newly_confirmed:
+                    self._audit_deposit_confirm(
+                        owner=owner,
+                        deposit_intent_id=deposit_intent_id,
+                        event_key=event_key,
+                        confirmations=confirmations,
+                        request_meta=request_meta,
+                        confirmed_row=result,
+                    )
+                    await self._emit_deposit_completed_for_confirmed_intent(
+                        owner=owner,
+                        confirmed_row=result,
+                    )
                 return result.model_dump(by_alias=True, mode="json")
 
             intents = self._load_deposit_intents()  # type: ignore[attr-defined]
@@ -357,7 +364,7 @@ class FinanceDepositExecMixin:
         owner_wallet: str,
         idempotency_key: str,
         request_meta: Optional[dict[str, Any]] = None,
-    ) -> dict[str, Any]:
+    ) -> DepositIntentResponse:
         owner = normalize_wallet(owner_wallet)
         async with self._mutation_lock.lock(f"{owner}:deposit_intent"):  # type: ignore[attr-defined]
             idempotency_key = self._validate_idempotency_key(idempotency_key)  # type: ignore[attr-defined]
@@ -447,7 +454,7 @@ class FinanceDepositExecMixin:
 
     async def get_deposit_sync_status(
         self, owner_wallet: str, tx_hash: str
-    ) -> dict[str, Any]:
+    ) -> DepositSyncStatusResponse:
         await asyncio.sleep(0)
         rows = self._load_deposit_intents()  # type: ignore[attr-defined]
         target = self._find_deposit_intent_by_tx_hash(rows, owner_wallet, tx_hash)  # type: ignore[attr-defined]

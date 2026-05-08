@@ -168,7 +168,7 @@ That suite validates:
 3. Provider executes `SynapseCore.withdraw(...)` on-chain with the issued ticket.
 4. Gateway completion writes txHash and moves the withdrawal to `COMPLETED`.
 5. Postgres, Gateway API, gateway-admin API, admin-front screenshots, and chain balances agree.
-6. Duplicate withdrawal, duplicate approval, cross decision, duplicate complete, ticket replay, amount tampering, and invalid internal token checks all fail safely.
+6. Duplicate withdrawal, duplicate approval, cross decision, ticket replay, amount tampering, and invalid internal token checks all fail safely; duplicate complete with the same `txHash` is a stable replay and must not duplicate funds movement, audit, or notifications.
 
 ## Failure Handling
 

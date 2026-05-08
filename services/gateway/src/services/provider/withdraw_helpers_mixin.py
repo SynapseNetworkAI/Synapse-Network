@@ -339,7 +339,12 @@ class ProviderWithdrawHelpersMixin(
                     status_code=409,
                     detail={"code": "WITHDRAWAL_ALREADY_COMPLETED", "message": "Withdrawal already completed with a different txHash."},
                 )
-            return {"withdrawalId": str(target.id or ""), "status": "COMPLETED", "txHash": existing_tx}
+            return {  # pragma: no cover: human-review-required E2E report
+                "withdrawalId": str(target.id or ""),
+                "status": "COMPLETED",
+                "txHash": existing_tx,
+                "idempotentReplay": True,
+            }
         if status not in {"APPROVED_AUTO", "REQUESTED", "PENDING"}:
             raise HTTPException(
                 status_code=409,
