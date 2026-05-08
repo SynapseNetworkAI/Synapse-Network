@@ -1341,6 +1341,59 @@ def _manual_consumer_refund_row(**overrides: Any) -> RefundIntentRow:
     return RefundIntentRow.model_validate(payload)
 
 
+def test_gateway_state_repository_update_consumer_refund_row_atomic_updates_row_and_metadata() -> None:
+    db = FakeDB()
+    repo = GatewayStateRepository(db, _q6)
+    row = _manual_consumer_refund_row(
+        id="ref-update-1",
+        ownerAddress="0xABC",
+        consumerAddress="0xABC",
+        status="FAILED_EXPIRED",
+        txHash="0x" + "3" * 64,
+        updatedAt="2026-03-20 13:14:26",
+        ticket={
+            "ticketId": "0x" + "4" * 64,
+            "ticketHash": "0x" + "5" * 64,
+            "amount": "7500000",
+            "fee": "0",
+            "nonce": 17,
+            "deadline": 1774016066,
+            "signature": "0xsig-update",
+            "chainId": 421614,
+            "contractAddress": "0xrouter",
+        },
+    )
+
+    repo.update_consumer_refund_row_atomic(
+        row,
+        updated_at="2026-03-20 13:14:27",
+    )
+
+    tx_sql = "\n".join(sql for sql, _ in db.tx_cursors[-1].executed)
+    tx_params = [params for _, params in db.tx_cursors[-1].executed if params is not None]
+    assert "UPDATE synapse_vault_withdrawals" in tx_sql
+    assert "WHERE withdrawal_id = %s" in tx_sql
+    assert "status = %s" in tx_sql
+    assert "tx_hash = %s" in tx_sql
+    assert "signature = %s" in tx_sql
+    assert "deadline = %s" in tx_sql
+    assert "vault_withdrawal_meta::ref-update-1" in str(tx_params)
+    assert "consumer_wallet::0xabc" in str(tx_params)
+    assert "0xsig-update" in str(tx_params)
+
+
+def test_gateway_state_repository_update_consumer_refund_row_atomic_fails_closed() -> None:
+    db = FakeDB()
+    db.tx_plan.append({"rowcount_overrides": [("UPDATE synapse_vault_withdrawals", 0)]})
+    repo = GatewayStateRepository(db, _q6)
+
+    with pytest.raises(RuntimeError, match="CONSUMER_WITHDRAW_UPDATE_STATE_INCONSISTENT"):
+        repo.update_consumer_refund_row_atomic(
+            _manual_consumer_refund_row(id="ref-update-fail", ownerAddress="0xABC"),
+            updated_at="2026-03-20 13:14:27",
+        )
+
+
 def test_gateway_state_repository_reject_consumer_withdrawal_review_atomic_releases_funds() -> None:
     db = FakeDB()
     repo = GatewayStateRepository(db, _q6)
