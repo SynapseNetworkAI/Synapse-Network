@@ -101,7 +101,7 @@ Required evidence:
 3. Expected vs actual vault USDC delta.
 4. Expected vs actual DB status and tx hash.
 5. Expected vs actual provider `pending` and `frozen` balances equal `0.000000` after complete.
-6. Security checks: duplicate approval rejected, cross decision rejected, tampered ticket rejected, replay rejected, duplicate complete rejected.
+6. Security checks: duplicate approval rejected, cross decision rejected, tampered ticket rejected, ticket replay rejected, duplicate complete with the same `txHash` returns a stable completed result without duplicate funds movement, and duplicate complete with a different `txHash` is rejected.
 7. Evidence digest bound to the finance-sensitive tree hash, not only the global commit SHA.
 
 ## CI Gates

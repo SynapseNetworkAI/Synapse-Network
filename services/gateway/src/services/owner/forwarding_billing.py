@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Optional
 from decimal import Decimal
+import logging
 
 import asyncio
 
@@ -31,6 +32,7 @@ _CREDENTIAL_USAGE_DEADLOCK_MAX_ATTEMPTS = 3
 _CREDENTIAL_USAGE_DEADLOCK_BACKOFF_SEC = 0.05
 _ROLLBACK_DEADLOCK_MAX_ATTEMPTS = 3
 _ROLLBACK_DEADLOCK_BACKOFF_SEC = 0.05
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -159,14 +161,26 @@ def append_invocation_billing(storage: BaseStorage, row: UsageLogRow | dict[str,
     repo = storage.get_data_manager().system.gateway_state
     try:
         repo.write_invocation_billing_rows(rows)
-    except Exception:
+    except Exception as exc:
         fallback_rows = [
             item.model_dump(by_alias=True, mode="json")
             if isinstance(item, UsageLogRow)
             else item
             for item in rows
         ]
-        repo.write_invocation_billing_rows(fallback_rows)
+        try:
+            repo.write_invocation_billing_rows(fallback_rows)
+        except Exception:
+            logger.warning(
+                "INVOCATION_BILLING_APPEND_FAILED",
+                extra={
+                    "requestId": getattr(typed_row, "request_id", None),
+                    "invocationId": getattr(typed_row, "id", None),
+                    "status": getattr(typed_row, "status", None),
+                    "initialError": str(exc),
+                },
+                exc_info=True,
+            )
 
 
 def append_usage_log(storage: BaseStorage, row: UsageLogRow | dict[str, Any]) -> None:

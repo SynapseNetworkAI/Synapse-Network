@@ -8,12 +8,15 @@ export const WITHDRAWAL_STATUS = {
   COMPLETED: "COMPLETED",
   CANCELLED: "CANCELLED",
   FAILED: "FAILED",
+  FAILED_EXPIRED: "FAILED_EXPIRED",
 } as const;
 
 export type WithdrawalStatus =
-  typeof WITHDRAWAL_STATUS[keyof typeof WITHDRAWAL_STATUS];
+  (typeof WITHDRAWAL_STATUS)[keyof typeof WITHDRAWAL_STATUS];
 
-const WITHDRAWAL_STATUS_VALUES = Object.values(WITHDRAWAL_STATUS) as WithdrawalStatus[];
+const WITHDRAWAL_STATUS_VALUES = Object.values(
+  WITHDRAWAL_STATUS
+) as WithdrawalStatus[];
 
 const WITHDRAWAL_STATUS_LABELS: Record<WithdrawalStatus, string> = {
   REQUESTED: "已请求",
@@ -23,6 +26,7 @@ const WITHDRAWAL_STATUS_LABELS: Record<WithdrawalStatus, string> = {
   COMPLETED: "已完成",
   CANCELLED: "已取消",
   FAILED: "失败",
+  FAILED_EXPIRED: "票据已过期",
 };
 
 const WITHDRAWAL_STATUS_TONES: Record<WithdrawalStatus, StatusTone> = {
@@ -33,10 +37,14 @@ const WITHDRAWAL_STATUS_TONES: Record<WithdrawalStatus, StatusTone> = {
   COMPLETED: "green",
   CANCELLED: "gray",
   FAILED: "red",
+  FAILED_EXPIRED: "red",
 };
 
 export function isWithdrawalStatus(value: unknown): value is WithdrawalStatus {
-  return typeof value === "string" && WITHDRAWAL_STATUS_VALUES.includes(value as WithdrawalStatus);
+  return (
+    typeof value === "string" &&
+    WITHDRAWAL_STATUS_VALUES.includes(value as WithdrawalStatus)
+  );
 }
 
 export function parseWithdrawalStatus(value: string): WithdrawalStatus | null {
@@ -60,8 +68,11 @@ export function withdrawalStatusTone(status: WithdrawalStatus): StatusTone {
 }
 
 export function isWithdrawalTerminalStatus(status: WithdrawalStatus): boolean {
-  return status === WITHDRAWAL_STATUS.REJECTED
-    || status === WITHDRAWAL_STATUS.COMPLETED
-    || status === WITHDRAWAL_STATUS.CANCELLED
-    || status === WITHDRAWAL_STATUS.FAILED;
+  return (
+    status === WITHDRAWAL_STATUS.REJECTED ||
+    status === WITHDRAWAL_STATUS.COMPLETED ||
+    status === WITHDRAWAL_STATUS.CANCELLED ||
+    status === WITHDRAWAL_STATUS.FAILED ||
+    status === WITHDRAWAL_STATUS.FAILED_EXPIRED
+  );
 }

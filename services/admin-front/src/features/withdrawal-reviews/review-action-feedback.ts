@@ -2,7 +2,11 @@ import type { WithdrawalStatus } from "@/domain/status";
 import { isAdminApiError } from "@/services/admin-api";
 
 export type WithdrawReviewDecision = "APPROVE" | "REJECT";
-export type WithdrawReviewActionPhase = "idle" | "awaitingOtp" | "submitting";
+export type WithdrawReviewActionPhase =
+  | "idle"
+  | "awaitingOtp"
+  | "submitting"
+  | "submitted";
 
 export function canSubmitWithdrawReviewDecision(input: {
   canDecide: boolean;
@@ -34,6 +38,12 @@ export function getWithdrawReviewActionNotice(
     )}请求。`;
   }
 
+  if (phase === "submitted") {
+    return `已提交${getDecisionLabel(
+      decision
+    )}处理，系统正在刷新提现队列。该申请不能在当前页面重复提交。`;
+  }
+
   return `正在提交${getDecisionLabel(
     decision
   )}请求，请稍候，不要重复点击按钮。`;
@@ -50,6 +60,10 @@ export function getWithdrawReviewActionButtonLabel(
 
   if (phase === "awaitingOtp") {
     return "等待验证码...";
+  }
+
+  if (phase === "submitted") {
+    return decision === "APPROVE" ? "已提交放行" : "已提交驳回";
   }
 
   return decision === "APPROVE" ? "放行提交中..." : "驳回提交中...";

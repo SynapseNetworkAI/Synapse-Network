@@ -10,9 +10,9 @@ import {
 
 import { ConfirmActionModal } from "@/components/confirm-action-modal";
 import {
-  CrudDrawer,
   CrudEmptyState,
   CrudField,
+  CrudModal,
   CrudSection,
   CrudTable,
   CrudToolbar,
@@ -87,7 +87,7 @@ export function UserManagement({
 }: Readonly<UserManagementProps>) {
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
-  const [isDrawerOpen, setDrawerOpen] = useState(false);
+  const [isModalOpen, setModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<AdminUserItem | null>(null);
   const [email, setEmail] = useState("");
   const [displayName, setDisplayName] = useState("");
@@ -128,12 +128,12 @@ export function UserManagement({
     setError(null);
   }
 
-  function openCreateDrawer() {
+  function openCreateModal() {
     resetForm();
-    setDrawerOpen(true);
+    setModalOpen(true);
   }
 
-  function openEditDrawer(user: AdminUserItem) {
+  function openEditModal(user: AdminUserItem) {
     setEditingUser(user);
     setEmail(user.email);
     setDisplayName(user.displayName);
@@ -143,11 +143,11 @@ export function UserManagement({
     setStatus(user.status);
     setMessage(null);
     setError(null);
-    setDrawerOpen(true);
+    setModalOpen(true);
   }
 
-  function closeDrawer() {
-    setDrawerOpen(false);
+  function closeModal() {
+    setModalOpen(false);
     resetForm();
   }
 
@@ -177,7 +177,7 @@ export function UserManagement({
           });
           setMessage("后台用户已创建并绑定角色。");
         }
-        globalThis.setTimeout(() => closeDrawer(), 160);
+        globalThis.setTimeout(() => closeModal(), 160);
       } catch (submitError) {
         setError(
           submitError instanceof Error
@@ -251,7 +251,7 @@ export function UserManagement({
               <button
                 type="button"
                 className="button button--primary crud-toolbar__create"
-                onClick={openCreateDrawer}
+                onClick={openCreateModal}
               >
                 + 创建后台用户
               </button>
@@ -339,7 +339,7 @@ export function UserManagement({
                       <button
                         type="button"
                         className="ghost-button"
-                        onClick={() => openEditDrawer(user)}
+                        onClick={() => openEditModal(user)}
                         disabled={!canManage}
                       >
                         编辑
@@ -375,18 +375,15 @@ export function UserManagement({
         </CrudTable>
       </CrudSection>
 
-      <CrudDrawer
-        open={isDrawerOpen}
+      <CrudModal
+        open={isModalOpen}
         eyebrow={editingUser ? "Edit Admin" : "Create Admin"}
         title={editingUser ? "编辑后台用户" : "创建后台用户"}
-        description="表单被收纳到侧边抽屉，主界面只保留查询和表格，这是中后台正确的工作流密度。"
-        onClose={closeDrawer}
+        description="表单在居中弹窗中完成，主界面只保留查询和表格，避免操作面板挤压列表扫描。"
+        onClose={closeModal}
       >
         {canManage ? (
-          <form
-            className="admin-form crud-drawer__form"
-            onSubmit={handleSubmit}
-          >
+          <form className="admin-form crud-modal__form" onSubmit={handleSubmit}>
             <label>
               <span>邮箱</span>
               <input
@@ -454,11 +451,11 @@ export function UserManagement({
             {error ? (
               <p className="form-message form-message--error">{error}</p>
             ) : null}
-            <div className="crud-drawer__actions">
+            <div className="crud-modal__actions">
               <button
                 type="button"
                 className="button button--secondary"
-                onClick={closeDrawer}
+                onClick={closeModal}
               >
                 取消
               </button>
@@ -476,7 +473,7 @@ export function UserManagement({
             当前角色只有读取能力，不能执行创建或编辑动作。
           </p>
         )}
-      </CrudDrawer>
+      </CrudModal>
       <ConfirmActionModal
         open={pendingDeleteUser !== null}
         title="禁用管理员"

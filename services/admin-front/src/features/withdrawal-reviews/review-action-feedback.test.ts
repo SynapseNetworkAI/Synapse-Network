@@ -19,6 +19,9 @@ describe("review-action-feedback", () => {
     expect(getWithdrawReviewActionNotice("submitting", "REJECT")).toContain(
       "正在提交驳回请求"
     );
+    expect(getWithdrawReviewActionNotice("submitted", "APPROVE")).toContain(
+      "已提交放行处理"
+    );
     expect(getWithdrawReviewActionNotice("idle", null)).toBeNull();
   });
 
@@ -32,6 +35,12 @@ describe("review-action-feedback", () => {
     expect(
       getWithdrawReviewActionButtonLabel("REJECT", "submitting", "REJECT")
     ).toBe("驳回提交中...");
+    expect(
+      getWithdrawReviewActionButtonLabel("APPROVE", "submitted", "APPROVE")
+    ).toBe("已提交放行");
+    expect(
+      getWithdrawReviewActionButtonLabel("REJECT", "submitted", "REJECT")
+    ).toBe("已提交驳回");
   });
 
   it("maps OTP, CSRF, and cancellation errors to operator-friendly messages", () => {

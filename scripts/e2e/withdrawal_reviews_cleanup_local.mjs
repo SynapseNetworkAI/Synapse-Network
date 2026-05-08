@@ -635,7 +635,8 @@ function expireLegacyMalformedRows(rows) {
       SET status = 'FAILED_EXPIRED',
           signature = NULL,
           updated_at = ${sqlLiteral(updatedAt)}::timestamptz
-      WHERE withdrawal_id = ${sqlLiteral(row.withdrawal_id)};
+      WHERE withdrawal_id = ${sqlLiteral(row.withdrawal_id)}
+        AND status = 'PENDING_MANUAL_REVIEW';
 
       UPDATE synapse_runtime_state
       SET payload = jsonb_set(

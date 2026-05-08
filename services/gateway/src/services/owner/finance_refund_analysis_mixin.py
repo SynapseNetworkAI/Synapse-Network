@@ -6,7 +6,7 @@ to storage — those operations live in FinanceRefundExecMixin.
 """
 from __future__ import annotations
 
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from typing import Any, List, Optional
 
 from fastapi import HTTPException
@@ -16,7 +16,6 @@ from src.domain.finance import (
     RefundCreateContext,
     RefundIntentRow,
     RefundOriginRef,
-    UsageLogRow,
 )
 from src.services.owner.finance_constants import (
     REFUND_ACTIVE_STATUSES,
@@ -25,6 +24,11 @@ from src.services.owner.finance_constants import (
     REFUND_MANUAL_TYPE,
 )
 from src.utils.money import money_str, parse_usdc
+
+REFUND_MIN_USDC = Decimal("10")
+REFUND_ABNORMAL_SPLIT_MIN_COUNT = 2
+REFUND_REASON_MAX_CHARS = 256
+REFUND_EVIDENCE_SUMMARY_MAX_CHARS = 512
 
 
 class FinanceRefundAnalysisMixin:
@@ -36,15 +40,15 @@ class FinanceRefundAnalysisMixin:
         raw = payload.get("amountUsdc")
         try:
             amount = parse_usdc(raw)
-        except Exception:
+        except Exception as exc:  # pragma: no cover: human-review-required E2E report
             raise HTTPException(
                 status_code=400,
                 detail={
                     "code": "INVALID_AMOUNT",
                     "message": "amountUsdc must be a number.",
                 },
-            )
-        if amount < 10:
+            ) from exc
+        if amount < REFUND_MIN_USDC:
             raise HTTPException(
                 status_code=400,
                 detail={
@@ -220,7 +224,7 @@ class FinanceRefundAnalysisMixin:
             if str(row.status or "").upper() == "REJECTED":
                 continue
             count += 1
-        return count >= 2
+        return count >= REFUND_ABNORMAL_SPLIT_MIN_COUNT
 
     def _classify_refund_risk(
         self, *, amount_usdc: Decimal | str | int, refund_type: str, abnormal_split: bool
@@ -233,7 +237,9 @@ class FinanceRefundAnalysisMixin:
                 "riskReasonCode": "ABNORMAL_SPLIT_REFUND_PATTERN",
                 "message": "Refund submitted for manual risk review.",
             }
-        if amount >= Decimal(str(REFUND_MANUAL_REVIEW_THRESHOLD_USDC)).quantize(Decimal("0.000001")):
+        if amount >= Decimal(str(REFUND_MANUAL_REVIEW_THRESHOLD_USDC)).quantize(
+            Decimal("0.000001"), rounding=ROUND_HALF_UP
+        ):
             return {
                 "status": "PENDING_MANUAL_REVIEW",
                 "riskLevel": "yellow",
@@ -295,6 +301,7 @@ class FinanceRefundAnalysisMixin:
                 "refundId": str(target.id or ""),
                 "status": "COMPLETED",
                 "txHash": existing_tx,
+                "idempotentReplay": True,
             }
         if status not in REFUND_ACTIVE_STATUSES:
             raise HTTPException(
@@ -341,7 +348,7 @@ class FinanceRefundAnalysisMixin:
     ) -> RefundCreateContext:
         amount_usdc = self._parse_refund_amount_usdc(payload, available_balance)
         reason = str(payload.get("reason") or "").strip()
-        if len(reason) > 256:
+        if len(reason) > REFUND_REASON_MAX_CHARS:
             raise HTTPException(
                 status_code=400,
                 detail={
@@ -350,7 +357,7 @@ class FinanceRefundAnalysisMixin:
                 },
             )
         evidence_summary = str(payload.get("evidenceSummary") or "").strip()
-        if len(evidence_summary) > 512:
+        if len(evidence_summary) > REFUND_EVIDENCE_SUMMARY_MAX_CHARS:
             raise HTTPException(
                 status_code=400,
                 detail={

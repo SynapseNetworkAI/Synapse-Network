@@ -16,6 +16,7 @@ from src.domain.system import ProcessedDepositEventRow, RuntimeStateRow
 from src.utils.datetime_utils import now_dt_str, to_dt_str
 
 
+RuntimeStatePayload = dict[str, Any]
 
 
 class GatewayStateWithdrawalMixin:
@@ -132,8 +133,21 @@ class GatewayStateWithdrawalMixin:
                     "provider_wallet",
                     row_updated_at,
                 )
-                owner_id = self._owner_id(owner_wallet)
-                provider_id = self._provider_id(owner_wallet)
+                cur.execute(
+                    """
+                    SELECT owner_id, provider_id
+                    FROM synapse_ledger_accounts
+                    WHERE account_id = %s
+                    """,
+                    (source_account_id,),
+                )
+                account_row = cur.fetchone()
+                owner_id = str(account_row[0]) if account_row else self._owner_id(owner_wallet)
+                provider_id = (
+                    str(account_row[1])
+                    if account_row and account_row[1] is not None
+                    else self._provider_id(owner_wallet)
+                )
                 cur.execute(
                     """
                     INSERT INTO synapse_vault_withdrawals (
@@ -203,6 +217,166 @@ class GatewayStateWithdrawalMixin:
                     ).model_dump(by_alias=True, mode="json"),
                     row_updated_at,
                 )
+
+    def approve_provider_withdrawal_review_atomic(  # pragma: no cover: human-review-required E2E report
+        self,
+        *,
+        owner: str,
+        row: WithdrawalIntentRow,
+        amount_usdc: Any,
+        updated_at: str,
+    ) -> None:
+        owner_wallet = str(owner or "").lower()
+        amount = self._q6(amount_usdc)
+        with self._db.tx_cursor() as cur:
+            source_account_id = self._ensure_ledger_account(
+                cur,
+                owner_wallet,
+                "provider_wallet",
+                updated_at,
+            )
+            cur.execute(
+                """
+                SELECT owner_id, provider_id
+                FROM synapse_ledger_accounts
+                WHERE account_id = %s
+                """,
+                (source_account_id,),
+            )
+            account_row = cur.fetchone()
+            owner_id = str(account_row[0]) if account_row else self._owner_id(owner_wallet)
+            provider_id = (
+                str(account_row[1])
+                if account_row and account_row[1] is not None
+                else self._provider_id(owner_wallet)
+            )
+            cur.execute(
+                """
+                UPDATE synapse_account_balances
+                SET frozen_balance = frozen_balance - %s,
+                    pending_balance = pending_balance + %s,
+                    updated_at = %s
+                WHERE account_id = %s
+                  AND frozen_balance >= %s
+                """,
+                (str(amount), str(amount), updated_at, source_account_id, str(amount)),
+            )
+            if cur.rowcount != 1:
+                raise RuntimeError("MOVE_PROVIDER_FROZEN_TO_PENDING_INCONSISTENT")
+            cur.execute(
+                """
+                UPDATE synapse_vault_withdrawals
+                SET owner_id = %s,
+                    provider_id = %s,
+                    source_account_id = %s,
+                    status = 'APPROVED_AUTO',
+                    ticket_id = COALESCE(ticket_id, %s),
+                    ticket_hash = COALESCE(ticket_hash, %s),
+                    signature = %s,
+                    nonce = %s,
+                    deadline = %s,
+                    updated_at = %s
+                WHERE withdrawal_id = %s
+                  AND withdrawal_kind = 'provider_withdrawal'
+                  AND status = 'PENDING_MANUAL_REVIEW'
+                """,
+                (
+                    owner_id,
+                    provider_id,
+                    source_account_id,
+                    row.ticket.ticket_id,
+                    row.ticket.ticket_hash,
+                    row.signature,
+                    row.nonce,
+                    row.deadline,
+                    updated_at,
+                    row.id,
+                ),
+            )
+            if cur.rowcount != 1:
+                raise RuntimeError("PROVIDER_WITHDRAW_REVIEW_STATE_INCONSISTENT")
+            self._upsert_provider_withdrawal_metadata(cur, row, updated_at)
+
+    def reject_provider_withdrawal_review_atomic(  # pragma: no cover: human-review-required E2E report
+        self,
+        *,
+        owner: str,
+        row: WithdrawalIntentRow,
+        amount_usdc: Any,
+        updated_at: str,
+    ) -> None:
+        owner_wallet = str(owner or "").lower()
+        amount = self._q6(amount_usdc)
+        with self._db.tx_cursor() as cur:
+            source_account_id = self._ensure_ledger_account(
+                cur,
+                owner_wallet,
+                "provider_wallet",
+                updated_at,
+            )
+            cur.execute(
+                """
+                UPDATE synapse_account_balances
+                SET frozen_balance = frozen_balance - %s,
+                    available_balance = available_balance + %s,
+                    updated_at = %s
+                WHERE account_id = %s
+                  AND frozen_balance >= %s
+                """,
+                (str(amount), str(amount), updated_at, source_account_id, str(amount)),
+            )
+            if cur.rowcount != 1:
+                raise RuntimeError("RELEASE_PROVIDER_FROZEN_TO_AVAILABLE_INCONSISTENT")
+            cur.execute(
+                """
+                UPDATE synapse_vault_withdrawals
+                SET status = 'REJECTED',
+                    signature = NULL,
+                    updated_at = %s
+                WHERE withdrawal_id = %s
+                  AND withdrawal_kind = 'provider_withdrawal'
+                  AND status = 'PENDING_MANUAL_REVIEW'
+                """,
+                (updated_at, row.id),
+            )
+            if cur.rowcount != 1:
+                raise RuntimeError("PROVIDER_WITHDRAW_REVIEW_STATE_INCONSISTENT")
+            self._upsert_provider_withdrawal_metadata(cur, row, updated_at)
+
+    def _upsert_provider_withdrawal_metadata(  # pragma: no cover: human-review-required E2E report
+        self,
+        cur: Any,
+        row: WithdrawalIntentRow,
+        updated_at: str,
+    ) -> None:
+        self._upsert_runtime_state(
+            cur,
+            self._vault_withdrawal_state_key(row.id),
+            VaultWithdrawalMetadataState(
+                idempotencyKey=row.idempotency_key,
+                amountWei=row.amount_wei,
+                feeWei=row.fee_wei,
+                chainId=row.chain_id,
+                contractAddress=row.contract_address,
+                signerAddress=row.signer_address,
+                businessType=row.business_type or "withdraw",
+                evidenceSummary=row.evidence_summary,
+                flowStatus=row.status,
+                requestId=row.request_id,
+                riskLevel=row.risk_level,
+                riskReasonCode=row.risk_reason_code,
+                message=row.message,
+                requestMeta=row.request_meta,
+                reviewDecision=row.review_decision,
+                reviewerAddress=row.reviewer_address,
+                reviewerNote=row.reviewer_note,
+                reviewedAt=row.reviewed_at,
+                ticket=row.ticket,
+                completedAt=row.completed_at,
+                completeMeta=row.complete_meta,
+            ).model_dump(by_alias=True, mode="json"),
+            updated_at,
+        )
 
     def read_owner_spend_limit_rows(self) -> List[OwnerSpendLimitRow]:
         with self._db.readonly_cursor() as cur:
@@ -321,7 +495,7 @@ class GatewayStateWithdrawalMixin:
                     (entity.dedup_key, entity.updated_at),
                 )
 
-    def read_runtime_state(self, state_key: str) -> dict[str, Any]:
+    def read_runtime_state(self, state_key: str) -> RuntimeStatePayload:
         entity = self.read_runtime_state_row(state_key)
         return entity.payload if entity is not None else {}
 

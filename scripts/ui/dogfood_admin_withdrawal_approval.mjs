@@ -2,6 +2,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
 import {
@@ -19,7 +20,15 @@ const ADMIN_GATEWAY_URL = (
 ).replace(/\/+$/, "");
 const ADMIN_COOKIE_NAME =
   process.env.ADMIN_SESSION_COOKIE_NAME || "synapse_admin_session";
-const ADMIN_TOTP_SECRET = process.env.ADMIN_TOTP_SECRET || "JBSWY3DPEHPK3PXP";
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "cliff@synapse-network.ai";
+const ADMIN_DATABASE_DSN =
+  process.env.ADMIN_DATABASE_DSN ||
+  process.env.LOCAL_GATEWAY_ADMIN_POSTGRES_DSN ||
+  "postgresql://synapse_admin_app:local-dev-admin-app-password@127.0.0.1:15432/synapse_gateway_admin";
+const ADMIN_TOTP_SECRET =
+  process.env.ADMIN_TOTP_SECRET ||
+  queryAdminTotpSecretFromLocalDb() ||
+  "JBSWY3DPEHPK3PXP";
 // withdrawal status source: services/gateway provider withdrawal state machine and gateway-admin review projection.
 const FIXTURE_PATH = process.env.ADMIN_WITHDRAWAL_APPROVAL_FIXTURE
   ? path.resolve(process.env.ADMIN_WITHDRAWAL_APPROVAL_FIXTURE)
@@ -37,9 +46,12 @@ const passed = [];
 const failed = [];
 const warnings = [];
 const screenshots = [];
+const screenshotEvidence = [];
+const modalDomEvidence = [];
 const consoleErrors = [];
 const apiResponses = [];
 const resourceErrors = [];
+const preflightChecks = [];
 let approvalResult = null;
 
 fs.mkdirSync(SCREENSHOT_DIR, { recursive: true });
@@ -59,6 +71,57 @@ function warn(name, detail) {
   console.warn(`WARN ${name} - ${detail}`);
 }
 
+function isLocalUrl(value) {
+  try {
+    const url = new URL(value);
+    return ["localhost", "127.0.0.1", "0.0.0.0"].includes(url.hostname);
+  } catch {
+    return false;
+  }
+}
+
+function sqlLiteral(value) {
+  return `'${String(value ?? "").replace(/'/g, "''")}'`;
+}
+
+function queryAdminTotpSecretFromLocalDb() {
+  if (
+    process.env.ADMIN_TOTP_SECRET ||
+    !isLocalUrl(ADMIN_FRONT_URL) ||
+    !isLocalUrl(ADMIN_GATEWAY_URL)
+  ) {
+    return null;
+  }
+  const result = spawnSync(
+    "psql",
+    [
+      ADMIN_DATABASE_DSN,
+      "-X",
+      "-q",
+      "-t",
+      "-A",
+      "-v",
+      "ON_ERROR_STOP=1",
+      "-c",
+      `
+        SELECT f.payload_json ->> 'totpSecret'
+        FROM admin_users u
+        JOIN admin_mfa_factors f ON f.admin_id = u.admin_id
+        WHERE u.email = ${sqlLiteral(ADMIN_EMAIL)}
+          AND f.status = 'active'
+          AND f.payload_json ? 'totpSecret'
+        ORDER BY f.created_at DESC
+        LIMIT 1;
+      `,
+    ],
+    { cwd: ROOT, encoding: "utf8" }
+  );
+  if (result.status !== 0) {
+    return null;
+  }
+  return result.stdout.trim() || null;
+}
+
 async function step(name, fn) {
   try {
     const detail = await fn();
@@ -68,10 +131,16 @@ async function step(name, fn) {
   }
 }
 
-async function screenshot(page, name) {
+async function screenshot(page, name, metadata = {}) {
   const filePath = path.join(SCREENSHOT_DIR, `${name}.png`);
   await page.screenshot({ path: filePath, fullPage: true });
   screenshots.push(filePath);
+  screenshotEvidence.push({
+    name,
+    filePath,
+    route: page.url(),
+    ...metadata,
+  });
   return filePath;
 }
 
@@ -87,6 +156,114 @@ async function captureDiagnostics(page, name) {
     [`url=${page.url()}`, "", bodyText.slice(0, 5000)].join("\n")
   );
   return { filePath, diagnosticPath, bodyText };
+}
+
+async function assertCenteredModal(page, expectedText, label, metadata = {}) {
+  const dialog = page.locator('[role="dialog"][aria-modal="true"]').first();
+  await dialog.waitFor({ state: "visible", timeout: 30000 });
+  const dialogText = String((await dialog.textContent()) || "");
+  const missing = expectedText.filter((text) => !dialogText.includes(text));
+  if (missing.length > 0) {
+    throw new Error(
+      `${label} modal missing expected text: ${missing.join(" | ")}`
+    );
+  }
+  const drawerCount = await page
+    .locator(".crud-drawer--open, aside.crud-drawer, aside[role='dialog']")
+    .count();
+  if (drawerCount > 0) {
+    throw new Error(`${label} opened a drawer instead of a modal`);
+  }
+  const box = await dialog.boundingBox();
+  const viewport = page.viewportSize();
+  let centered = true;
+  if (box && viewport) {
+    const modalCenter = box.x + box.width / 2;
+    const viewportCenter = viewport.width / 2;
+    centered = Math.abs(modalCenter - viewportCenter) <= viewport.width * 0.18;
+    if (!centered) {
+      throw new Error(`${label} modal is not centered`);
+    }
+  }
+  modalDomEvidence.push({
+    label,
+    route: page.url(),
+    action: metadata.action || label,
+    screenshotName: metadata.screenshotName || null,
+    withdrawalId: metadata.withdrawalId || null,
+    expectedText,
+    actualDialogText: dialogText.slice(0, 2000),
+    boundingBox: box,
+    viewport,
+    drawerCount,
+    centered,
+    role: "dialog",
+    ariaModal: "true",
+    buttonStates: metadata.buttonStates || [],
+  });
+  return {
+    actualDialogText: dialogText.slice(0, 2000),
+    boundingBox: box,
+    viewport,
+    drawerCount,
+    centered,
+    role: "dialog",
+    ariaModal: "true",
+    buttonStates: metadata.buttonStates || [],
+  };
+}
+
+async function readButtonState(page, name, locator) {
+  const visible = await locator.isVisible().catch(() => false);
+  if (!visible) {
+    return { name, visible: false, disabled: null, text: "" };
+  }
+  return {
+    name,
+    visible: true,
+    disabled: await locator.isDisabled().catch(() => null),
+    text: String((await locator.textContent().catch(() => "")) || "").trim(),
+  };
+}
+
+async function assertPreflight(fixture) {
+  const checks = [
+    {
+      name: "admin-front-root",
+      url: ADMIN_FRONT_URL,
+      headers: {},
+    },
+    {
+      name: "admin-auth-me",
+      url: `${ADMIN_GATEWAY_URL}/api/admin/v1/auth/me`,
+      headers: {
+        Cookie: `${ADMIN_COOKIE_NAME}=${fixture.auth.sessionToken}`,
+      },
+    },
+    {
+      name: "admin-visible-menu",
+      url: `${ADMIN_GATEWAY_URL}/api/admin/v1/config/menu-items/visible`,
+      headers: {
+        Cookie: `${ADMIN_COOKIE_NAME}=${fixture.auth.sessionToken}`,
+      },
+    },
+  ];
+  for (const check of checks) {
+    const response = await fetch(check.url, {
+      headers: { Accept: "application/json", ...check.headers },
+    });
+    preflightChecks.push({
+      name: check.name,
+      url: check.url,
+      status: response.status,
+      ok: response.ok,
+    });
+    if (!response.ok) {
+      throw new Error(
+        `Admin withdrawal approval preflight failed: ${check.name} ${response.status} ${check.url}`
+      );
+    }
+  }
 }
 
 function loadFixture() {
@@ -285,10 +462,33 @@ async function verifyApprovalFlow(page, fixture) {
     .getByText("审核详情")
     .waitFor({ state: "visible", timeout: 30000 })
     .catch(() => null);
-  await screenshot(page, "02-withdrawal-review-detail");
+  const openModalEvidence = await assertCenteredModal(
+    page,
+    [withdrawalId, "Action Modal", "处理摘要"],
+    "withdrawal approval detail",
+    {
+      action: "open withdrawal approval modal",
+      screenshotName: "withdrawal-review-modal-open",
+      withdrawalId,
+    }
+  );
+  await screenshot(page, "withdrawal-review-modal-open", {
+    action: "open withdrawal approval modal",
+    withdrawalId,
+    expectedText: [withdrawalId, "Action Modal", "处理摘要"],
+    ...openModalEvidence,
+  });
 
   const note = `Admin withdrawal approval dogfood ${fixture.runId}`;
   await page.locator("textarea").last().fill(note);
+  await page.route(
+    "**/api/admin/v1/withdrawal-reviews/**/decision",
+    async (route) => {
+      await page.waitForTimeout(800);
+      await route.continue();
+    },
+    { times: 1 }
+  );
   const approvalPromise = page.waitForResponse(
     (response) =>
       response
@@ -302,7 +502,69 @@ async function verifyApprovalFlow(page, fixture) {
     .getByRole("button", { name: /Approve & Issue Ticket|确认放行|放行|批准/ })
     .last()
     .click();
+  const waitingButton = page
+    .getByRole("button", { name: /等待验证码/ })
+    .first();
+  await waitingButton.waitFor({ state: "visible", timeout: 30000 });
+  if (!(await waitingButton.isDisabled().catch(() => false))) {
+    throw new Error("Approve button was not disabled while awaiting OTP");
+  }
+  const awaitingRejectButton = page
+    .getByRole("button", { name: /驳回申请|驳回|Reject/i })
+    .first();
+  const awaitingButtonStates = [
+    await readButtonState(page, "approve", waitingButton),
+    await readButtonState(page, "reject", awaitingRejectButton),
+  ];
+  const awaitingModalEvidence = await assertCenteredModal(
+    page,
+    [withdrawalId, "等待验证码"],
+    "withdrawal approval awaiting otp",
+    {
+      action: "approve clicked and waiting for MFA",
+      screenshotName: "withdrawal-review-awaiting-otp",
+      withdrawalId,
+      buttonStates: awaitingButtonStates,
+    }
+  );
+  await screenshot(page, "withdrawal-review-awaiting-otp", {
+    action: "approve clicked and waiting for MFA",
+    withdrawalId,
+    expectedText: [withdrawalId, "等待验证码"],
+    ...awaitingModalEvidence,
+  });
   await maybeSubmitStepUp(page);
+  const submittingButton = page
+    .getByRole("button", { name: /放行提交中/i })
+    .first();
+  await submittingButton.waitFor({ state: "visible", timeout: 10000 });
+  if (!(await submittingButton.isDisabled().catch(() => false))) {
+    throw new Error("Approve button was not disabled while submitting");
+  }
+  const submittingRejectButton = page
+    .getByRole("button", { name: /驳回申请|驳回|Reject/i })
+    .first();
+  const submittingButtonStates = [
+    await readButtonState(page, "approve", submittingButton),
+    await readButtonState(page, "reject", submittingRejectButton),
+  ];
+  const submittingModalEvidence = await assertCenteredModal(
+    page,
+    [withdrawalId, "放行提交中"],
+    "withdrawal approval submitting",
+    {
+      action: "approval request submitting",
+      screenshotName: "withdrawal-review-submitting",
+      withdrawalId,
+      buttonStates: submittingButtonStates,
+    }
+  );
+  await screenshot(page, "withdrawal-review-submitting", {
+    action: "approval request submitting",
+    withdrawalId,
+    expectedText: [withdrawalId, "放行提交中"],
+    ...submittingModalEvidence,
+  });
   const approvalResponse = await approvalPromise;
   const body = await approvalResponse.json().catch(() => ({}));
   approvalResult = body;
@@ -320,11 +582,44 @@ async function verifyApprovalFlow(page, fixture) {
     );
   }
   await page
-    .getByText(/放行|approved|签发|成功|ticket/i)
+    .getByText(/已提交放行|放行|approved|签发|成功|ticket/i)
     .first()
     .waitFor({ state: "visible", timeout: 30000 })
     .catch(() => null);
-  await screenshot(page, "04-after-approve");
+  const submittedButton = page
+    .getByRole("button", { name: /已提交放行/i })
+    .first();
+  await submittedButton.waitFor({ state: "visible", timeout: 30000 });
+  if (!(await submittedButton.isDisabled().catch(() => false))) {
+    throw new Error("Approve button was not locked after submit");
+  }
+  const rejectButton = page.getByRole("button", { name: /驳回申请/i }).first();
+  if (await rejectButton.isVisible().catch(() => false)) {
+    if (!(await rejectButton.isDisabled().catch(() => false))) {
+      throw new Error("Reject button was not locked after approve submit");
+    }
+  }
+  const submittedButtonStates = [
+    await readButtonState(page, "approve", submittedButton),
+    await readButtonState(page, "reject", rejectButton),
+  ];
+  const submittedModalEvidence = await assertCenteredModal(
+    page,
+    [withdrawalId, "已提交放行"],
+    "withdrawal approval submitted",
+    {
+      action: "approval submitted terminal state",
+      screenshotName: "withdrawal-review-submitted-terminal",
+      withdrawalId,
+      buttonStates: submittedButtonStates,
+    }
+  );
+  await screenshot(page, "withdrawal-review-submitted-terminal", {
+    action: "approval submitted terminal state",
+    withdrawalId,
+    expectedText: [withdrawalId, "已提交放行"],
+    ...submittedModalEvidence,
+  });
 
   await page.goto(`${ADMIN_FRONT_URL}/review-history`, {
     waitUntil: "networkidle",
@@ -366,6 +661,9 @@ function writeReport(fixture) {
     consoleErrors,
     apiResponses,
     resourceErrors,
+    screenshotEvidence,
+    modalDomEvidence,
+    preflightChecks,
     screenshots,
     approvalResult,
   };
@@ -411,6 +709,7 @@ function writeReport(fixture) {
 
 async function main() {
   const fixture = loadFixture();
+  await assertPreflight(fixture);
   const browser = await chromium.launch({
     headless: process.env.HEADLESS !== "0",
   });

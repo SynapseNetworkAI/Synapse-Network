@@ -101,7 +101,7 @@ export default function MenuConfigPage() {
   const [meta, setMeta] = useState<AdminMenuConfigMeta | null>(null);
   const [search, setSearch] = useState("");
   const [sectionFilter, setSectionFilter] = useState("all");
-  const [isDrawerOpen, setDrawerOpen] = useState(false);
+  const [isModalOpen, setModalOpen] = useState(false);
   const [editingRow, setEditingRow] = useState<AdminMenuConfigItem | null>(
     null
   );
@@ -188,12 +188,12 @@ export default function MenuConfigPage() {
     setForm(createEmptyMenuForm());
   }
 
-  function openCreateDrawer() {
+  function openCreateModal() {
     resetForm();
-    setDrawerOpen(true);
+    setModalOpen(true);
   }
 
-  function openEditDrawer(row: AdminMenuConfigItem) {
+  function openEditModal(row: AdminMenuConfigItem) {
     setEditingRow(row);
     setForm({
       itemId: row.itemId,
@@ -211,11 +211,11 @@ export default function MenuConfigPage() {
       sortOrder: String(row.sortOrder),
       keywords: row.keywords.join(", "),
     });
-    setDrawerOpen(true);
+    setModalOpen(true);
   }
 
-  function closeDrawer() {
-    setDrawerOpen(false);
+  function closeModal() {
+    setModalOpen(false);
     resetForm();
   }
 
@@ -258,7 +258,7 @@ export default function MenuConfigPage() {
       setRows(response.items);
       setMeta(response.meta);
       setMessage(editingRow ? "菜单项草稿已更新。" : "菜单项草稿已创建。");
-      closeDrawer();
+      closeModal();
     } catch (submitError) {
       setError(
         submitError instanceof Error ? submitError.message : "提交菜单项失败"
@@ -345,7 +345,7 @@ export default function MenuConfigPage() {
               bg="brand.500"
               color="white"
               _hover={{ bg: "brand.600" }}
-              onClick={openCreateDrawer}
+              onClick={openCreateModal}
             >
               创建菜单项
             </Button>
@@ -516,7 +516,7 @@ export default function MenuConfigPage() {
                       <Button
                         size="sm"
                         borderRadius="full"
-                        onClick={() => openEditDrawer(row)}
+                        onClick={() => openEditModal(row)}
                         disabled={!canManage}
                       >
                         编辑
@@ -579,7 +579,7 @@ export default function MenuConfigPage() {
             {[
               [
                 "草稿治理",
-                "Toolbar + Table + Drawer 只面向 draft 工作，保证改动先收敛到待发布版本。",
+                "Toolbar + Table + Modal 只面向 draft 工作，保证改动先收敛到待发布版本。",
               ],
               [
                 "全站生效",
@@ -608,10 +608,10 @@ export default function MenuConfigPage() {
       </Grid>
 
       <OverlayPanel
-        open={isDrawerOpen}
+        open={isModalOpen}
         title={editingRow ? "编辑菜单项" : "创建菜单项"}
         description="draft 菜单树由 backend 托管；发布后会影响所有管理员的可见导航。"
-        onClose={closeDrawer}
+        onClose={closeModal}
       >
         <form onSubmit={(event) => void handleSubmit(event)}>
           <Stack gap="16px">

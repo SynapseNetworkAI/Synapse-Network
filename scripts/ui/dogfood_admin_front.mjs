@@ -37,9 +37,12 @@ const passed = [];
 const failed = [];
 const warnings = [];
 const screenshots = [];
+const screenshotEvidence = [];
+const modalDomEvidence = [];
 const consoleErrors = [];
 const apiResponses = [];
 const pageSummaries = [];
+const preflightChecks = [];
 
 fs.mkdirSync(SCREENSHOT_DIR, { recursive: true });
 
@@ -71,10 +74,16 @@ function pageUrl(route) {
   return `${ADMIN_FRONT_URL}${route}`;
 }
 
-async function screenshot(page, name) {
+async function screenshot(page, name, metadata = {}) {
   const filePath = path.join(SCREENSHOT_DIR, `${name}.png`);
   await page.screenshot({ path: filePath, fullPage: true });
   screenshots.push(filePath);
+  screenshotEvidence.push({
+    name,
+    filePath,
+    route: page.url(),
+    ...metadata,
+  });
   return filePath;
 }
 
@@ -327,6 +336,109 @@ async function assertVisibleSection(page, selector, expectedText) {
       )}`
     );
   }
+}
+
+async function assertCenteredModal(page, expectedText, label, metadata = {}) {
+  const dialog = page.locator('[role="dialog"][aria-modal="true"]').first();
+  await dialog.waitFor({ state: "visible", timeout: 30000 });
+  const dialogText = String((await dialog.textContent()) || "");
+  const missing = expectedText.filter((text) => !dialogText.includes(text));
+  if (missing.length > 0) {
+    throw new Error(
+      `${label} modal missing expected text: ${missing.join(" | ")}`
+    );
+  }
+  const drawerCount = await page
+    .locator(".crud-drawer--open, aside.crud-drawer, aside[role='dialog']")
+    .count();
+  if (drawerCount > 0) {
+    throw new Error(`${label} opened a drawer instead of a modal`);
+  }
+  const box = await dialog.boundingBox();
+  const viewport = page.viewportSize();
+  let centered = true;
+  if (box && viewport) {
+    const modalCenter = box.x + box.width / 2;
+    const viewportCenter = viewport.width / 2;
+    centered = Math.abs(modalCenter - viewportCenter) <= viewport.width * 0.18;
+    if (!centered) {
+      throw new Error(
+        `${label} modal is not centered: modalCenter=${modalCenter}, viewportCenter=${viewportCenter}`
+      );
+    }
+  }
+  modalDomEvidence.push({
+    label,
+    route: page.url(),
+    action: metadata.action || label,
+    screenshotName: metadata.screenshotName || null,
+    expectedText,
+    actualDialogText: dialogText.slice(0, 2000),
+    boundingBox: box,
+    viewport,
+    drawerCount,
+    centered,
+    role: "dialog",
+    ariaModal: "true",
+  });
+  return dialogText;
+}
+
+async function assertPreflight(auth) {
+  const checks = [
+    {
+      name: "admin-front-root",
+      url: ADMIN_FRONT_URL,
+      headers: {},
+      expect: (response) => response.ok,
+    },
+    {
+      name: "admin-auth-me",
+      url: `${ADMIN_GATEWAY_URL}/api/admin/v1/auth/me`,
+      headers: { Cookie: `${ADMIN_COOKIE_NAME}=${auth.sessionToken}` },
+      expect: (response) => response.ok,
+    },
+    {
+      name: "admin-visible-menu",
+      url: `${ADMIN_GATEWAY_URL}/api/admin/v1/config/menu-items/visible`,
+      headers: { Cookie: `${ADMIN_COOKIE_NAME}=${auth.sessionToken}` },
+      expect: (response) => response.ok,
+    },
+  ];
+  for (const check of checks) {
+    const response = await fetch(check.url, {
+      headers: { Accept: "application/json", ...check.headers },
+    });
+    preflightChecks.push({
+      name: check.name,
+      url: check.url,
+      status: response.status,
+      ok: response.ok,
+    });
+    if (!check.expect(response)) {
+      throw new Error(
+        `Admin E2E preflight failed: ${check.name} ${response.status} ${check.url}`
+      );
+    }
+  }
+}
+
+async function closeTopModal(page) {
+  const closeButton = page
+    .locator('[role="dialog"][aria-modal="true"]')
+    .first()
+    .getByRole("button", { name: /关闭|Close/i })
+    .last();
+  if (await closeButton.isVisible().catch(() => false)) {
+    await closeButton.click();
+  } else {
+    await page.keyboard.press("Escape");
+  }
+  await page
+    .locator('[role="dialog"][aria-modal="true"]')
+    .first()
+    .waitFor({ state: "detached", timeout: 10000 })
+    .catch(() => null);
 }
 
 const authPageMatrix = [
@@ -587,6 +699,122 @@ async function verifyNavigationClicks(page) {
   }
 }
 
+async function verifyOperationModals(page) {
+  await step("modal:withdrawal-reviews-detail", async () => {
+    const route = fixture?.operationModals?.withdrawalId
+      ? `/withdrawal-reviews?q=${encodeURIComponent(
+          fixture.operationModals.withdrawalId
+        )}`
+      : "/withdrawal-reviews";
+    await page.goto(pageUrl(route), {
+      waitUntil: "networkidle",
+      timeout: 60000,
+    });
+    const detailButton = page.getByRole("button", { name: "详情" }).first();
+    await detailButton.waitFor({ state: "visible", timeout: 30000 });
+    await detailButton.click();
+    const screenshotName = "modal-withdrawal-review-detail";
+    const text = await assertCenteredModal(
+      page,
+      ["Action Modal", "处理摘要", "确认放行", "驳回申请"],
+      "withdrawal reviews detail",
+      { action: "open withdrawal review detail", screenshotName }
+    );
+    await screenshot(page, screenshotName, {
+      action: "open withdrawal review detail",
+    });
+    await closeTopModal(page);
+    return text.slice(0, 160);
+  });
+
+  await step("modal:review-history-detail", async () => {
+    const route = fixture?.operationModals?.withdrawalId
+      ? `/review-history?q=${encodeURIComponent(
+          fixture.operationModals.withdrawalId
+        )}`
+      : "/review-history";
+    await page.goto(pageUrl(route), {
+      waitUntil: "networkidle",
+      timeout: 60000,
+    });
+    const detailButton = page.getByRole("button", { name: "详情" }).first();
+    await detailButton.waitFor({ state: "visible", timeout: 30000 });
+    await detailButton.click();
+    const screenshotName = "modal-review-history-detail";
+    const text = await assertCenteredModal(
+      page,
+      ["Action Modal", "状态流转"],
+      "review history detail",
+      { action: "open review history detail", screenshotName }
+    );
+    await screenshot(page, screenshotName, {
+      action: "open review history detail",
+    });
+    await closeTopModal(page);
+    return text.slice(0, 160);
+  });
+
+  await step("modal:role-permissions-create", async () => {
+    await page.goto(pageUrl("/role-permissions"), {
+      waitUntil: "networkidle",
+      timeout: 60000,
+    });
+    await page.getByRole("button", { name: "创建角色" }).click();
+    const screenshotName = "modal-role-permissions-create";
+    const text = await assertCenteredModal(
+      page,
+      ["Action Modal", "创建角色", "Permissions"],
+      "role permissions create",
+      { action: "open role create modal", screenshotName }
+    );
+    await screenshot(page, screenshotName, {
+      action: "open role create modal",
+    });
+    await closeTopModal(page);
+    return text.slice(0, 160);
+  });
+
+  await step("modal:menu-config-create", async () => {
+    await page.goto(pageUrl("/menu-config"), {
+      waitUntil: "networkidle",
+      timeout: 60000,
+    });
+    await page.getByRole("button", { name: "创建菜单项" }).click();
+    const screenshotName = "modal-menu-config-create";
+    const text = await assertCenteredModal(
+      page,
+      ["Action Modal", "创建菜单项", "Item Id"],
+      "menu config create",
+      { action: "open menu item create modal", screenshotName }
+    );
+    await screenshot(page, screenshotName, {
+      action: "open menu item create modal",
+    });
+    await closeTopModal(page);
+    return text.slice(0, 160);
+  });
+
+  await step("modal:users-create", async () => {
+    await page.goto(pageUrl("/users"), {
+      waitUntil: "networkidle",
+      timeout: 60000,
+    });
+    await page.getByRole("button", { name: /创建后台用户|新建管理员/ }).click();
+    const screenshotName = "modal-users-create";
+    const text = await assertCenteredModal(
+      page,
+      ["创建管理员", "Email", "Role Template"],
+      "users create",
+      { action: "open admin user create modal", screenshotName }
+    );
+    await screenshot(page, screenshotName, {
+      action: "open admin user create modal",
+    });
+    await closeTopModal(page);
+    return text.slice(0, 160);
+  });
+}
+
 function writeReport() {
   const report = {
     generatedAt: new Date().toISOString(),
@@ -599,9 +827,12 @@ function writeReport() {
     failed,
     warnings,
     screenshots,
+    screenshotEvidence,
+    modalDomEvidence,
     consoleErrors,
     apiResponses,
     pageSummaries,
+    preflightChecks,
   };
   fs.writeFileSync(
     path.join(OUT_DIR, "report.json"),
@@ -646,6 +877,7 @@ function writeReport() {
 
 async function main() {
   const auth = await loginAdmin();
+  await assertPreflight(auth);
   const browser = await chromium.launch({ headless: true });
   try {
     const publicContext = await browser.newContext({
@@ -659,6 +891,7 @@ async function main() {
     const page = await createPage(context, "admin-front");
     await verifyPageMatrix(page, authenticatedPageMatrix);
     await verifyNavigationClicks(page);
+    await verifyOperationModals(page);
     await verifyBackendConsistency({
       adminApi,
       assertText,

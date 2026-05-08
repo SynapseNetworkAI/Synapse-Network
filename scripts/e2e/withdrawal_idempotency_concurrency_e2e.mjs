@@ -398,6 +398,56 @@ function withdrawalRow(withdrawalId) {
   `);
 }
 
+function txDedupEvidence(withdrawalId, ownerAddress, kind, txHash) {
+  const txKind = kind === "provider" ? "provider_withdraw" : "owner_refund";
+  return queryJson(`
+    SELECT jsonb_build_object(
+      'withdrawalId', ${sqlLiteral(withdrawalId)},
+      'ownerAddress', ${sqlLiteral(ownerAddress)},
+      'kind', ${sqlLiteral(txKind)},
+      'txHash', ${sqlLiteral(txHash)},
+      'dedupeRowCount', COUNT(*)::int,
+      'distinctTxHashCount', COUNT(DISTINCT tx_hash)::int,
+      'dedupeRows', COALESCE(jsonb_agg(jsonb_build_object(
+        'ownerAddress', owner_address,
+        'kind', kind,
+        'txHash', tx_hash,
+        'createdAt', created_at::text
+      ) ORDER BY created_at), '[]'::jsonb)
+    )
+    FROM synapse_withdraw_tx_dedup
+    WHERE lower(owner_address) = lower(${sqlLiteral(ownerAddress)})
+      AND kind = ${sqlLiteral(txKind)}
+      AND lower(tx_hash) = lower(${sqlLiteral(txHash)});
+  `);
+}
+
+function uniquenessEvidence() {
+  return (
+    queryJson(`
+    SELECT COALESCE(jsonb_agg(jsonb_build_object(
+      'tableName', tablename,
+      'indexName', indexname,
+      'indexDef', indexdef
+    ) ORDER BY tablename, indexname), '[]'::jsonb)
+    FROM pg_indexes
+    WHERE schemaname = 'public'
+      AND (
+        (tablename = 'synapse_vault_withdrawals' AND indexdef ILIKE '%ticket_hash%')
+        OR (tablename = 'synapse_withdraw_tx_dedup' AND indexdef ILIKE '%tx_hash%')
+        OR (tablename = 'synapse_idempotency_keys' AND indexdef ILIKE '%idempotency_key%')
+      );
+  `) || []
+  );
+}
+
+function deterministicDifferentTxHash(withdrawalId, txHash) {
+  return `0x${crypto
+    .createHash("sha256")
+    .update(`${RUN_ID}:${withdrawalId}:${txHash}:different-complete`)
+    .digest("hex")}`;
+}
+
 function expectTuple(label, actual, expected) {
   for (const [key, value] of Object.entries(expected)) {
     if (q6(actual[key]) !== q6(value)) {
@@ -520,7 +570,7 @@ async function expectClaimReplayRejected(privateKey, ticket) {
 
 function prepareConsumer(wallet, amount, label) {
   ensureAccount(wallet, "consumer", amount);
-  insertDeposit(wallet, amount, 90000, label);
+  insertDeposit(wallet, amount, 8 * 86400, label);
 }
 
 function prepareProvider(wallet, amount, label) {
@@ -766,10 +816,53 @@ async function runApproveAndCompleteConcurrency(kind, auth) {
     frozen: "0",
   });
   const okCompletes = completeResults.filter((item) => item.ok).length;
-  if (okCompletes !== 1)
+  if (okCompletes !== completeResults.length)
     fail(
-      `${kind} complete concurrency expected exactly one HTTP success, got ${okCompletes}`
+      `${kind} complete concurrency expected stable HTTP success for same txHash replays, got ${okCompletes}/${completeResults.length}`
     );
+  const replayCompletes = completeResults.filter(
+    (item) => item.payload?.idempotentReplay === true
+  ).length;
+  if (replayCompletes !== completeResults.length - 1) {
+    fail(
+      `${kind} complete concurrency expected ${
+        completeResults.length - 1
+      } idempotent replays, got ${replayCompletes}`
+    );
+  }
+  const differentTxHash = deterministicDifferentTxHash(
+    created.id,
+    claim.txHash
+  );
+  const differentComplete = await completeWithdrawal(
+    kind,
+    auth,
+    created.id,
+    differentTxHash,
+    `${kind}-complete-different-tx-rejected`
+  );
+  expectError(
+    differentComplete,
+    409,
+    kind === "provider"
+      ? "WITHDRAWAL_ALREADY_COMPLETED"
+      : "REFUND_ALREADY_COMPLETED"
+  );
+  const txDedup = txDedupEvidence(created.id, auth.address, kind, claim.txHash);
+  if (Number(txDedup?.dedupeRowCount || 0) !== 1) {
+    fail(
+      `${kind} complete expected one tx dedupe row, got ${JSON.stringify(
+        txDedup
+      )}`
+    );
+  }
+  if (Number(txDedup?.distinctTxHashCount || 0) !== 1) {
+    fail(
+      `${kind} complete expected one distinct tx hash in dedupe table, got ${JSON.stringify(
+        txDedup
+      )}`
+    );
+  }
   chainEvidence[`${kind}ApproveCompleteConcurrency`] = {
     withdrawalId: created.id,
     ticketHash: ticket.ticketHash,
@@ -784,10 +877,20 @@ async function runApproveAndCompleteConcurrency(kind, auth) {
     row,
     approveStatuses: approveResults.map((item) => item.status),
     completeStatuses: completeResults.map((item) => item.status),
+    completeIdempotentReplayCount: replayCompletes,
+    differentTxCompleteStatus: differentComplete.status,
+    differentTxCompleteCode:
+      differentComplete.payload?.detail?.code ||
+      differentComplete.payload?.error?.code ||
+      differentComplete.payload?.code ||
+      "",
+    txDedup,
   };
   return `withdrawalId=${created.id}, approveOk=${
     approveResults.filter((item) => item.ok).length
-  }, completeOk=1, tx=${claim.txHash}`;
+  }, completeOk=${okCompletes}, replayOk=${replayCompletes}, tx=${
+    claim.txHash
+  }`;
 }
 
 async function runRejectConcurrency(kind, auth) {
@@ -950,6 +1053,7 @@ async function main() {
     runCrossDecisionConcurrency("provider", users.providerCross)
   );
 
+  dbEvidence.uniqueIndexes = uniquenessEvidence();
   writeEvidence();
   if (failed.length > 0) {
     log(`FAILED report=${path.join(OUT_DIR, "report.md")}`);
