@@ -13,6 +13,7 @@ from src.services.platform.tasks.deposit_indexer import processing
 from src.services.platform.tasks.deposit_indexer.backfill import BackfillScanResult
 from src.services.platform.tasks.deposit_indexer.chain import (
     DepositIndexerRpcUnavailable,
+    _collect_deposit_event_rows,
     _collect_router_candidate_tx_hashes,
     _confirmed_head_block,
     _ensure_rpc_connected,
@@ -45,15 +46,29 @@ class _FakeEth:
     def __init__(self) -> None:
         self.block_number = 101
         self.blocks: dict[int, object] = {}
+        self.tagged_blocks: dict[str, object] = {}
+        self.logs: list[object] = []
+        self.last_get_logs_filter: dict[str, object] | None = None
         self.contract_decimals = 6
         self.raise_contract = False
 
-    def get_block(self, block_number: int, *, full_transactions: bool) -> object:
+    def get_block(
+        self, block_number: int | str, *, full_transactions: bool | None = None
+    ) -> object:
+        if isinstance(block_number, str):
+            block = self.tagged_blocks.get(block_number)
+            if isinstance(block, Exception):
+                raise block
+            return block or {"number": self.block_number}
         assert full_transactions is True
         block = self.blocks.get(block_number)
         if isinstance(block, Exception):
             raise block
         return block or {"transactions": []}
+
+    def get_logs(self, filter_params: dict[str, object]) -> list[object]:
+        self.last_get_logs_filter = dict(filter_params)
+        return list(self.logs)
 
     def contract(self, *, address: str, abi: object) -> object:
         assert address
@@ -109,7 +124,11 @@ def _settings(**overrides: object) -> SimpleNamespace:
         "v2_backfill_start_block": 0,
         "v2_backfill_block_batch": 10,
         "v2_deposit_confirmations": 1,
+        "deposit_event_max_log_block_range": 2000,
+        "deposit_event_finality_mode": "confirmations",
+        "deposit_event_finality_buffer_blocks": 0,
         "router_address": ROUTER,
+        "usdc_token_address": TOKEN,
     }
     defaults.update(overrides)
     return SimpleNamespace(**defaults)
@@ -149,7 +168,10 @@ def test_run_backfill_scan_once_persists_success_and_returns_typed_result(
     monkeypatch.setattr(
         backfill,
         "_process_backfill_range",
-        lambda _storage, _start, _end, _now: {"candidateTxCount": 2, "recovered": 1},
+        lambda _storage, _start, _end, _now, mode="event": {
+            "itemCount": 2,
+            "recovered": 1,
+        },
     )
     monkeypatch.setattr(
         backfill,
@@ -296,6 +318,45 @@ def test_process_backfill_range_persists_once_after_all_candidates(
     monkeypatch.setattr(backfill, "_load_deposit_intents", lambda _storage: [])
     monkeypatch.setattr(backfill, "_load_processed_deposit_event_keys", lambda _storage: [])
     monkeypatch.setattr(backfill, "_load_balance_ledger", lambda _storage: BalanceLedger())
+    monkeypatch.setattr(
+        backfill,
+        "_collect_deposit_event_rows",
+        lambda _s, _e: [
+            {"eventKey": f"{TX_HASH}:1", "ownerAddress": OWNER, "token": TOKEN, "amountRaw": 1_000_000},
+            {"eventKey": f"{TX_HASH}:2", "ownerAddress": OWNER, "token": TOKEN, "amountRaw": 2_000_000},
+        ],
+    )
+    monkeypatch.setattr(
+        backfill,
+        "_process_backfill_event",
+        lambda *_args, **_kwargs: {
+            "result": "credited",
+            "changedIntent": True,
+            "changedLedger": False,
+            "changedProcessed": True,
+        },
+    )
+    monkeypatch.setattr(
+        backfill,
+        "_persist_processing_changes",
+        lambda _storage, **kwargs: persisted.append(kwargs),
+    )
+
+    result = backfill._process_backfill_range(object(), 1, 2, 1711111111)
+
+    assert result == {"itemCount": 2, "recovered": 2}
+    assert len(persisted) == 1
+    assert persisted[0]["changed_intents"] is True
+    assert persisted[0]["changed_processed"] is True
+
+
+def test_process_backfill_range_repair_mode_uses_receipt_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    persisted: list[dict[str, object]] = []
+    monkeypatch.setattr(backfill, "_load_deposit_intents", lambda _storage: [])
+    monkeypatch.setattr(backfill, "_load_processed_deposit_event_keys", lambda _storage: [])
+    monkeypatch.setattr(backfill, "_load_balance_ledger", lambda _storage: BalanceLedger())
     monkeypatch.setattr(backfill, "_collect_router_candidate_tx_hashes", lambda _s, _e: ["a", "b"])
     monkeypatch.setattr(
         backfill,
@@ -313,12 +374,56 @@ def test_process_backfill_range_persists_once_after_all_candidates(
         lambda _storage, **kwargs: persisted.append(kwargs),
     )
 
-    result = backfill._process_backfill_range(object(), 1, 2, 1711111111)
+    result = backfill._process_backfill_range(
+        object(), 1, 2, 1711111111, mode="repair"
+    )
 
-    assert result == {"candidateTxCount": 2, "recovered": 2}
+    assert result == {"itemCount": 2, "recovered": 2}
     assert len(persisted) == 1
-    assert persisted[0]["changed_intents"] is True
-    assert persisted[0]["changed_processed"] is True
+
+
+def test_run_backfill_scan_once_chunks_large_ranges_and_persists_per_chunk(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    saved: list[dict[str, object]] = []
+    processed_ranges: list[tuple[int, int, str]] = []
+    monkeypatch.setattr(
+        backfill,
+        "settings",
+        _settings(v2_backfill_block_batch=5000, deposit_event_max_log_block_range=2000),
+    )
+    monkeypatch.setattr(backfill, "_now", lambda: 1711111111)
+    monkeypatch.setattr(backfill, "_load_backfill_state", lambda _storage: {})
+    monkeypatch.setattr(backfill, "_confirmed_head_block", lambda: 5000)
+    monkeypatch.setattr(
+        backfill,
+        "_process_backfill_range",
+        lambda _storage, _start, _end, _now, mode="event": (
+            processed_ranges.append((_start, _end, mode)) or {"itemCount": 0, "recovered": 1}
+        ),
+    )
+    monkeypatch.setattr(
+        backfill,
+        "_save_backfill_state",
+        lambda _storage, payload: saved.append(dict(payload)),
+    )
+    monkeypatch.setattr(
+        backfill,
+        "_persist_indexer_runtime_state",
+        lambda _storage: None,
+    )
+
+    result = backfill.run_backfill_scan_once(object())
+
+    assert processed_ranges == [
+        (1, 2000, "event"),
+        (2001, 4000, "event"),
+        (4001, 5000, "event"),
+    ]
+    assert [payload["lastScannedBlock"] for payload in saved] == [2000, 4000, 5000]
+    assert result == BackfillScanResult(
+        enabled=True, scanned=5000, recovered=3, last_scanned_block=5000
+    )
 
 
 def test_tx_hash_to_hex_normalizes_hexbytes_without_prefix() -> None:
@@ -331,7 +436,15 @@ def test_confirmed_head_block_checks_modern_and_legacy_connectivity(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     fake_web3 = _FakeWeb3()
-    monkeypatch.setattr(chain, "settings", _settings(v2_deposit_confirmations=2))
+    monkeypatch.setattr(
+        chain,
+        "settings",
+        _settings(
+            v2_deposit_confirmations=2,
+            deposit_event_finality_mode="confirmations",
+            deposit_event_finality_buffer_blocks=1,
+        ),
+    )
     monkeypatch.setattr(chain, "get_web3", lambda: fake_web3)
 
     assert _confirmed_head_block() == 100
@@ -344,6 +457,27 @@ def test_confirmed_head_block_checks_modern_and_legacy_connectivity(
     fake_web3.legacy_connected = False
     with pytest.raises(DepositIndexerRpcUnavailable):
         _ensure_rpc_connected(fake_web3)
+
+
+def test_confirmed_head_block_prefers_safe_then_falls_back_to_buffer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_web3 = _FakeWeb3()
+    fake_web3.eth.tagged_blocks["safe"] = {"number": 77}
+    monkeypatch.setattr(
+        chain,
+        "settings",
+        _settings(
+            deposit_event_finality_mode="safe",
+            deposit_event_finality_buffer_blocks=3,
+        ),
+    )
+    monkeypatch.setattr(chain, "get_web3", lambda: fake_web3)
+
+    assert _confirmed_head_block() == 77
+
+    fake_web3.eth.tagged_blocks["safe"] = RuntimeError("safe unavailable")
+    assert _confirmed_head_block() == 98
 
 
 def test_resolve_token_decimals_clamps_and_caches(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -382,6 +516,43 @@ def test_collect_router_candidate_tx_hashes_dedupes_and_skips_bad_blocks(
     assert _collect_router_candidate_tx_hashes(1, 2) == [TX_HASH]
 
 
+def test_collect_deposit_event_rows_decodes_canonical_logs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_web3 = _FakeWeb3()
+    fake_web3.eth.logs = [
+        {
+            "topics": [
+                chain._get_deposit_info_topic(),
+                "0x" + "0" * 24 + OWNER.removeprefix("0x"),
+            ],
+            "data": hex(1_500_000),
+            "transactionHash": _HexBytesLike("ab" * 32),
+            "logIndex": 7,
+        }
+    ]
+    monkeypatch.setattr(chain, "settings", _settings())
+    monkeypatch.setattr(chain, "get_web3", lambda: fake_web3)
+
+    events = _collect_deposit_event_rows(10, 20)
+
+    assert events == [
+        {
+            "eventKey": f"{TX_HASH}:7",
+            "ownerAddress": OWNER,
+            "amountRaw": 1_500_000,
+            "token": TOKEN,
+            "logIndex": 7,
+        }
+    ]
+    assert fake_web3.eth.last_get_logs_filter == {
+        "address": ROUTER,
+        "fromBlock": 10,
+        "toBlock": 20,
+        "topics": [chain._get_deposit_info_topic()],
+    }
+
+
 def test_register_recovery_intent_atomic_accepts_dict_and_model_results() -> None:
     intent = processing._build_recovery_intent(
         TX_HASH, OWNER, Decimal("1.000000"), "event:1", 1711111111
@@ -412,4 +583,3 @@ def test_register_recovery_intent_atomic_fails_closed_on_unknown_result() -> Non
         _register_recovery_intent_if_atomic(
             _RegisteringStorage(object()), intent, OWNER, TX_HASH
         )
-

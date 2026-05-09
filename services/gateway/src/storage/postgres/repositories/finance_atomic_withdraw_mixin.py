@@ -513,7 +513,7 @@ class FinanceAtomicWithdrawMixin:
             return False
         completed = False
         active_statuses = (
-            ("APPROVED_AUTO", "REQUESTED", "PENDING")
+            ("APPROVED_AUTO", "REQUESTED", "PENDING", "SIGNED")
             if withdrawal_kind == "provider_withdrawal"
             else ("REQUESTED",)
         )

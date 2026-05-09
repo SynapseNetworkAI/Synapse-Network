@@ -1,0 +1,176 @@
+{
+  "taskDown": {
+    "beforeBalance": {
+      "account_id": "consumer_wallet::0x9b14f7c3900aa4a9510f887f08e036412b31ea97",
+      "available_balance": "0.000000",
+      "pending_balance": "0.000000",
+      "frozen_balance": "0.000000"
+    },
+    "pendingBalance": {
+      "account_id": "consumer_wallet::0x9b14f7c3900aa4a9510f887f08e036412b31ea97",
+      "available_balance": "0.000000",
+      "pending_balance": "100.000000",
+      "frozen_balance": "0.000000",
+      "updated_at": "2026-05-09 11:37:31+00"
+    },
+    "deposits": [
+      {
+        "deposit_id": "dd0fe97d-5e56-43d1-b779-25c606c08408",
+        "owner_address": "0x9b14f7c3900aa4a9510f887f08e036412b31ea97",
+        "tx_hash": "0xaf5568fd0d1304b5cc8147929c57e4473e49704a43ffd9a3e598d5a7111dd82a",
+        "amount_usdc": "100.000000",
+        "status": "PENDING_CONFIRMATION",
+        "request_id": "dir-intent-down-af5568fd0d1304b5cc8147929c57e4473e49704a43ffd9a3e598d5a7111dd82a",
+        "created_at": "2026-05-09 11:37:31+00",
+        "updated_at": "2026-05-09 11:37:31+00"
+      }
+    ],
+    "readiness": {
+      "enabled": false,
+      "initialized": false,
+      "healthy": true,
+      "degradedReasons": []
+    }
+  },
+  "autoCredit": {
+    "sync": {
+      "txHash": "0xaf5568fd0d1304b5cc8147929c57e4473e49704a43ffd9a3e598d5a7111dd82a",
+      "found": true,
+      "synced": true,
+      "status": "CONFIRMED",
+      "confirmed": true,
+      "canRefreshBalance": true,
+      "depositIntentId": "dd0fe97d-5e56-43d1-b779-25c606c08408",
+      "ownerAddress": "0x9b14f7c3900aa4a9510f887f08e036412b31ea97",
+      "amountUsdc": "100.000000",
+      "creditedAmountUsdc": "0.000000",
+      "confirmations": 0,
+      "eventKey": null,
+      "confirmedAt": null,
+      "updatedAt": "2026-05-09 11:37:36",
+      "source": "deposit_intent"
+    },
+    "deposits": [
+      {
+        "deposit_id": "dd0fe97d-5e56-43d1-b779-25c606c08408",
+        "owner_address": "0x9b14f7c3900aa4a9510f887f08e036412b31ea97",
+        "tx_hash": "0xaf5568fd0d1304b5cc8147929c57e4473e49704a43ffd9a3e598d5a7111dd82a",
+        "amount_usdc": "100.000000",
+        "status": "CONFIRMED",
+        "request_id": "dir-intent-down-af5568fd0d1304b5cc8147929c57e4473e49704a43ffd9a3e598d5a7111dd82a",
+        "created_at": "2026-05-09 11:37:31+00",
+        "updated_at": "2026-05-09 11:37:36+00"
+      }
+    ],
+    "balance": {
+      "account_id": "consumer_wallet::0x9b14f7c3900aa4a9510f887f08e036412b31ea97",
+      "available_balance": "100.000000",
+      "pending_balance": "0.000000",
+      "frozen_balance": "0.000000",
+      "updated_at": "2026-05-09 11:37:37+00"
+    },
+    "auditRows": [
+      {
+        "event_type": "CONSUMER_DEPOSIT_CONFIRMED",
+        "owner_id": "owner:0x9b14f7c3900aa4a9510f887f08e036412b31ea97",
+        "amount_delta": "100.000000",
+        "result_status": "CONFIRMED",
+        "detail_json": {
+          "actor": null,
+          "domain": "finance",
+          "status": "CONFIRMED",
+          "txHash": "0xaf5568fd0d1304b5cc8147929c57e4473e49704a43ffd9a3e598d5a7111dd82a",
+          "message": "confirmations=1",
+          "traceId": "af5568fd0d1304b5cc8147929c57e4473e49704a43ffd9a3e598d5a7111dd82a:0",
+          "clientIp": null,
+          "ledgerId": "dd0fe97d-5e56-43d1-b779-25c606c08408",
+          "direction": null,
+          "requestId": "dir-intent-down-af5568fd0d1304b5cc8147929c57e4473e49704a43ffd9a3e598d5a7111dd82a",
+          "riskLevel": "green",
+          "userAgent": null,
+          "afterBalance": "100.000000",
+          "ownerAddress": "0x9b14f7c3900aa4a9510f887f08e036412b31ea97",
+          "beforeBalance": "0.000000",
+          "riskReasonCode": null,
+          "counterpartyAddress": null
+        },
+        "created_at": "2026-05-09 11:37:37.109191+00"
+      }
+    ]
+  },
+  "replay": {
+    "balance": {
+      "account_id": "consumer_wallet::0x9b14f7c3900aa4a9510f887f08e036412b31ea97",
+      "available_balance": "100.000000",
+      "pending_balance": "0.000000",
+      "frozen_balance": "0.000000",
+      "updated_at": "2026-05-09 11:37:37+00"
+    },
+    "deposits": [
+      {
+        "deposit_id": "dd0fe97d-5e56-43d1-b779-25c606c08408",
+        "owner_address": "0x9b14f7c3900aa4a9510f887f08e036412b31ea97",
+        "tx_hash": "0xaf5568fd0d1304b5cc8147929c57e4473e49704a43ffd9a3e598d5a7111dd82a",
+        "amount_usdc": "100.000000",
+        "status": "CONFIRMED",
+        "request_id": "dir-intent-down-af5568fd0d1304b5cc8147929c57e4473e49704a43ffd9a3e598d5a7111dd82a",
+        "created_at": "2026-05-09 11:37:31+00",
+        "updated_at": "2026-05-09 11:37:36+00"
+      }
+    ]
+  },
+  "backfill": {
+    "beforeBalance": {
+      "account_id": "consumer_wallet::0xabc85df3079a346d82a283bb806736d8ef239f3d",
+      "available_balance": "0.000000",
+      "pending_balance": "0.000000",
+      "frozen_balance": "0.000000"
+    },
+    "finalBalance": {
+      "account_id": "consumer_wallet::0xabc85df3079a346d82a283bb806736d8ef239f3d",
+      "available_balance": "100.000000",
+      "pending_balance": "0.000000",
+      "frozen_balance": "0.000000",
+      "updated_at": "2026-05-09 11:38:01+00"
+    },
+    "deposits": [
+      {
+        "deposit_id": "fe5d7e80-663c-40d3-926a-c1729585615c",
+        "owner_address": "0xabc85df3079a346d82a283bb806736d8ef239f3d",
+        "tx_hash": "0x7a633723b7c492bee1513a0bd319877b4de9006a4a0cd68ff128a39441550a3b",
+        "amount_usdc": "100.000000",
+        "status": "CONFIRMED",
+        "request_id": "deposit_backfill_0x7a633723b7c492bee1513a0bd319877b4de9006a4a0cd68ff128a39441550a3b_1",
+        "created_at": "2026-05-09 11:38:01+00",
+        "updated_at": "2026-05-09 11:38:01+00"
+      }
+    ]
+  },
+  "invalidEvent": {
+    "beforeBalance": {
+      "account_id": "consumer_wallet::0x2d1f476ce0262dba6601e8d58f91a850de144523",
+      "available_balance": "0.000000",
+      "pending_balance": "0.000000",
+      "frozen_balance": "0.000000"
+    },
+    "afterBalance": {
+      "account_id": "consumer_wallet::0x2d1f476ce0262dba6601e8d58f91a850de144523",
+      "available_balance": "0.000000",
+      "pending_balance": "11.000000",
+      "frozen_balance": "0.000000",
+      "updated_at": "2026-05-09 11:38:05+00"
+    },
+    "deposits": [
+      {
+        "deposit_id": "c3c8ac7e-c101-43c8-b664-ebc1d7137e32",
+        "owner_address": "0x2d1f476ce0262dba6601e8d58f91a850de144523",
+        "tx_hash": "0xed59c01c0e5a4cc8e70d2f7a9d78457ced43c456dd82733ddc4c5efebc7a7915",
+        "amount_usdc": "11.000000",
+        "status": "FAILED",
+        "request_id": "dir-invalid-event-ed59c01c0e5a4cc8e70d2f7a9d78457ced43c456dd82733ddc4c5efebc7a7915",
+        "created_at": "2026-05-09 11:38:05+00",
+        "updated_at": "2026-05-09 11:38:06+00"
+      }
+    ]
+  }
+}

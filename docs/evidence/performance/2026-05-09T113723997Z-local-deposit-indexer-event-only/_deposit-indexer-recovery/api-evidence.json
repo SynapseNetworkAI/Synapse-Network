@@ -1,0 +1,306 @@
+[
+  {
+    "method": "SCRIPT",
+    "pathname": "gateway:indexer-disabled",
+    "httpStatus": 0,
+    "response": "=== Restarting gateway/gateway_fastapi.py only ===\nUsing Python interpreter: /Users/cliff/workspace/agent/Synapse-Network/services/gateway/.venv/bin/python\nStarting Docker local Postgres via docker-compose on 127.0.0.1:15432...\nStopping existing gateway process on 8000: PID 57946\nProviderAPI: stopped (57946)\nGateway restarted successfully\nGateway PID                  : 58918\nAnalytics outbox worker PID  : screen:synapse-gateway-analytics-outbox\nNotification outbox worker PID: screen:synapse-gateway-notification-outbox\nPID file                     : /Users/cliff/workspace/agent/Synapse-Network/.local_env.pids\nHealth check                 : http://127.0.0.1:8000/health\nReadiness check              : http://127.0.0.1:8000/readiness\nGateway log                  : /Users/cliff/workspace/agent/Synapse-Network/services/gateway/logs/provider_api.log\nAnalytics outbox log         : /Users/cliff/workspace/agent/Synapse-Network/services/gateway/logs/analytics_outbox_worker.log\nNotification outbox log      : /Users/cliff/workspace/agent/Synapse-Network/services/gateway/logs/notification_outbox_worker.log\n"
+  },
+  {
+    "method": "GET",
+    "pathname": "/readiness",
+    "httpStatus": 200,
+    "response": {
+      "status": "ready",
+      "monitors": {
+        "deposit_indexer": {
+          "enabled": false,
+          "initialized": false,
+          "healthy": true,
+          "degradedReasons": []
+        },
+        "service_health_monitor": {
+          "enabled": true,
+          "initialized": true
+        },
+        "withdrawal_expiry_sweeper": {
+          "enabled": false,
+          "initialized": false
+        },
+        "consumer_withdraw_chain_recovery": {
+          "enabled": false,
+          "initialized": false
+        },
+        "in_app_notification_cleanup": {
+          "enabled": true,
+          "initialized": true
+        },
+        "service_health_event_cleanup": {
+          "enabled": true,
+          "initialized": true
+        }
+      },
+      "postgresPool": {
+        "poolMax": 5,
+        "poolAvailable": 2,
+        "poolSize": 2,
+        "requestsWaiting": 0,
+        "closed": false
+      }
+    }
+  },
+  {
+    "method": "GET",
+    "pathname": "/v1/auth/challenge?address=0x9b14F7C3900aa4A9510F887f08e036412B31EA97",
+    "httpStatus": 200,
+    "request": {
+      "headers": {
+        "Accept": "application/json"
+      }
+    },
+    "response": {
+      "success": true,
+      "error": null,
+      "challenge": "127.0.0.1:3000 wants you to sign in with your Ethereum account:\n0x9b14f7c3900aa4a9510f887f08e036412b31ea97\n\nSign in to Synapse Network. This does not authorize a transaction or move funds.\n\nURI: http://127.0.0.1:3000\nVersion: 1\nChain ID: unknown\nNonce: 4bf16d91ec4a71fb983374ef8fb39795\nIssued At: 2026-05-09T11:37:31Z\nExpiration Time: 2026-05-09T11:47:31Z",
+      "domain": "127.0.0.1:3000"
+    }
+  },
+  {
+    "method": "POST",
+    "pathname": "/v1/auth/verify",
+    "httpStatus": 200,
+    "request": {
+      "headers": {
+        "Accept": "application/json",
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "wallet_address": "0x9b14F7C3900aa4A9510F887f08e036412B31EA97",
+        "message": "127.0.0.1:3000 wants you to sign in with your Ethereum account:\n0x9b14f7c3900aa4a9510f887f08e036412b31ea97\n\nSign in to Synapse Network. This does not authorize a transaction or move funds.\n\nURI: http://127.0.0.1:3000\nVersion: 1\nChain ID: unknown\nNonce: 4bf16d91ec4a71fb983374ef8fb39795\nIssued At: 2026-05-09T11:37:31Z\nExpiration Time: 2026-05-09T11:47:31Z",
+        "signature": "[REDACTED]"
+      }
+    },
+    "response": {
+      "success": true,
+      "error": null,
+      "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIweDliMTRmN2MzOTAwYWE0YTk1MTBmODg3ZjA4ZTAzNjQxMmIzMWVhOTciLCJyb2xlIjoiYWdlbnQiLCJpYXQiOjE3NzgzMjY2NTEsImV4cCI6MTc3ODQxMzA1MX0.eqjEvO-sMBs1ZEgJ53Sz7jqRxH5Jwv6uNU6S7cQKGg4",
+      "token_type": "[REDACTED]",
+      "expires_in": 86400
+    }
+  },
+  {
+    "method": "POST",
+    "pathname": "/v1/balance/deposit/intent",
+    "httpStatus": 200,
+    "request": {
+      "headers": {
+        "Accept": "application/json",
+        "X-Idempotency-Key": "dir-intent-down-af5568fd0d1304b5cc8147929c57e4473e49704a43ffd9a3e598d5a7111dd82a",
+        "Content-Type": "application/json",
+        "Authorization": "[REDACTED]",
+        "X-User-Address": "0x9b14F7C3900aa4A9510F887f08e036412B31EA97"
+      },
+      "body": {
+        "txHash": "0xaf5568fd0d1304b5cc8147929c57e4473e49704a43ffd9a3e598d5a7111dd82a",
+        "amountUsdc": "100.000000"
+      }
+    },
+    "response": {
+      "status": "success",
+      "tx_hash": "0xaf5568fd0d1304b5cc8147929c57e4473e49704a43ffd9a3e598d5a7111dd82a",
+      "intent": {
+        "id": "dd0fe97d-5e56-43d1-b779-25c606c08408",
+        "ownerAddress": "0x9b14f7c3900aa4a9510f887f08e036412b31ea97",
+        "txHash": "0xaf5568fd0d1304b5cc8147929c57e4473e49704a43ffd9a3e598d5a7111dd82a",
+        "requestId": "dir-intent-down-af5568fd0d1304b5cc8147929c57e4473e49704a43ffd9a3e598d5a7111dd82a",
+        "consumerAddress": null,
+        "amountUsdc": "100.000000",
+        "idempotencyKey": "dir-intent-down-af5568fd0d1304b5cc8147929c57e4473e49704a43ffd9a3e598d5a7111dd82a",
+        "clientRequestId": null,
+        "clientIp": null,
+        "userAgent": null,
+        "status": "PENDING_CONFIRMATION",
+        "eventKey": null,
+        "confirmations": null,
+        "creditedAmountUsdc": null,
+        "confirmedAt": null,
+        "createdAt": "2026-05-09 11:37:31",
+        "updatedAt": "2026-05-09 11:37:31"
+      }
+    }
+  },
+  {
+    "method": "SCRIPT",
+    "pathname": "gateway:indexer-enabled",
+    "httpStatus": 0,
+    "response": "=== Restarting gateway/gateway_fastapi.py only ===\nUsing Python interpreter: /Users/cliff/workspace/agent/Synapse-Network/services/gateway/.venv/bin/python\nStarting Docker local Postgres via docker-compose on 127.0.0.1:15432...\nStopping existing gateway process on 8000: PID 58918\nProviderAPI: stopped (58918)\nGateway restarted successfully\nGateway PID                  : 59345\nAnalytics outbox worker PID  : screen:synapse-gateway-analytics-outbox\nNotification outbox worker PID: screen:synapse-gateway-notification-outbox\nPID file                     : /Users/cliff/workspace/agent/Synapse-Network/.local_env.pids\nHealth check                 : http://127.0.0.1:8000/health\nReadiness check              : http://127.0.0.1:8000/readiness\nGateway log                  : /Users/cliff/workspace/agent/Synapse-Network/services/gateway/logs/provider_api.log\nAnalytics outbox log         : /Users/cliff/workspace/agent/Synapse-Network/services/gateway/logs/analytics_outbox_worker.log\nNotification outbox log      : /Users/cliff/workspace/agent/Synapse-Network/services/gateway/logs/notification_outbox_worker.log\n"
+  },
+  {
+    "method": "GET",
+    "pathname": "/v1/balance/deposit/sync?txHash=0xaf5568fd0d1304b5cc8147929c57e4473e49704a43ffd9a3e598d5a7111dd82a",
+    "httpStatus": 200,
+    "request": {
+      "headers": {
+        "Accept": "application/json",
+        "Authorization": "[REDACTED]",
+        "X-User-Address": "0x9b14F7C3900aa4A9510F887f08e036412B31EA97"
+      }
+    },
+    "response": {
+      "status": "success",
+      "sync": {
+        "txHash": "0xaf5568fd0d1304b5cc8147929c57e4473e49704a43ffd9a3e598d5a7111dd82a",
+        "found": true,
+        "synced": true,
+        "status": "CONFIRMED",
+        "confirmed": true,
+        "canRefreshBalance": true,
+        "depositIntentId": "dd0fe97d-5e56-43d1-b779-25c606c08408",
+        "ownerAddress": "0x9b14f7c3900aa4a9510f887f08e036412b31ea97",
+        "amountUsdc": "100.000000",
+        "creditedAmountUsdc": "0.000000",
+        "confirmations": 0,
+        "eventKey": null,
+        "confirmedAt": null,
+        "updatedAt": "2026-05-09 11:37:36",
+        "source": "deposit_intent"
+      }
+    }
+  },
+  {
+    "method": "SCRIPT",
+    "pathname": "gateway:indexer-replay",
+    "httpStatus": 0,
+    "response": "=== Restarting gateway/gateway_fastapi.py only ===\nUsing Python interpreter: /Users/cliff/workspace/agent/Synapse-Network/services/gateway/.venv/bin/python\nStarting Docker local Postgres via docker-compose on 127.0.0.1:15432...\nStopping existing gateway process on 8000: PID 59345\nProviderAPI: stopped (59345)\nGateway restarted successfully\nGateway PID                  : 59689\nAnalytics outbox worker PID  : screen:synapse-gateway-analytics-outbox\nNotification outbox worker PID: screen:synapse-gateway-notification-outbox\nPID file                     : /Users/cliff/workspace/agent/Synapse-Network/.local_env.pids\nHealth check                 : http://127.0.0.1:8000/health\nReadiness check              : http://127.0.0.1:8000/readiness\nGateway log                  : /Users/cliff/workspace/agent/Synapse-Network/services/gateway/logs/provider_api.log\nAnalytics outbox log         : /Users/cliff/workspace/agent/Synapse-Network/services/gateway/logs/analytics_outbox_worker.log\nNotification outbox log      : /Users/cliff/workspace/agent/Synapse-Network/services/gateway/logs/notification_outbox_worker.log\n"
+  },
+  {
+    "method": "SCRIPT",
+    "pathname": "gateway:indexer-disabled-backfill-fixture",
+    "httpStatus": 0,
+    "response": "=== Restarting gateway/gateway_fastapi.py only ===\nUsing Python interpreter: /Users/cliff/workspace/agent/Synapse-Network/services/gateway/.venv/bin/python\nStarting Docker local Postgres via docker-compose on 127.0.0.1:15432...\nStopping existing gateway process on 8000: PID 59689\nProviderAPI: stopped (59689)\nGateway restarted successfully\nGateway PID                  : 60245\nAnalytics outbox worker PID  : screen:synapse-gateway-analytics-outbox\nNotification outbox worker PID: screen:synapse-gateway-notification-outbox\nPID file                     : /Users/cliff/workspace/agent/Synapse-Network/.local_env.pids\nHealth check                 : http://127.0.0.1:8000/health\nReadiness check              : http://127.0.0.1:8000/readiness\nGateway log                  : /Users/cliff/workspace/agent/Synapse-Network/services/gateway/logs/provider_api.log\nAnalytics outbox log         : /Users/cliff/workspace/agent/Synapse-Network/services/gateway/logs/analytics_outbox_worker.log\nNotification outbox log      : /Users/cliff/workspace/agent/Synapse-Network/services/gateway/logs/notification_outbox_worker.log\n"
+  },
+  {
+    "method": "GET",
+    "pathname": "/v1/auth/challenge?address=0xAbc85dF3079a346D82A283BB806736D8EF239F3d",
+    "httpStatus": 200,
+    "request": {
+      "headers": {
+        "Accept": "application/json"
+      }
+    },
+    "response": {
+      "success": true,
+      "error": null,
+      "challenge": "127.0.0.1:3000 wants you to sign in with your Ethereum account:\n0xabc85df3079a346d82a283bb806736d8ef239f3d\n\nSign in to Synapse Network. This does not authorize a transaction or move funds.\n\nURI: http://127.0.0.1:3000\nVersion: 1\nChain ID: unknown\nNonce: 8c5a4ee38847419c8f1d4f56e7366fac\nIssued At: 2026-05-09T11:37:57Z\nExpiration Time: 2026-05-09T11:47:57Z",
+      "domain": "127.0.0.1:3000"
+    }
+  },
+  {
+    "method": "POST",
+    "pathname": "/v1/auth/verify",
+    "httpStatus": 200,
+    "request": {
+      "headers": {
+        "Accept": "application/json",
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "wallet_address": "0xAbc85dF3079a346D82A283BB806736D8EF239F3d",
+        "message": "127.0.0.1:3000 wants you to sign in with your Ethereum account:\n0xabc85df3079a346d82a283bb806736d8ef239f3d\n\nSign in to Synapse Network. This does not authorize a transaction or move funds.\n\nURI: http://127.0.0.1:3000\nVersion: 1\nChain ID: unknown\nNonce: 8c5a4ee38847419c8f1d4f56e7366fac\nIssued At: 2026-05-09T11:37:57Z\nExpiration Time: 2026-05-09T11:47:57Z",
+        "signature": "[REDACTED]"
+      }
+    },
+    "response": {
+      "success": true,
+      "error": null,
+      "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIweGFiYzg1ZGYzMDc5YTM0NmQ4MmEyODNiYjgwNjczNmQ4ZWYyMzlmM2QiLCJyb2xlIjoiYWdlbnQiLCJpYXQiOjE3NzgzMjY2NzcsImV4cCI6MTc3ODQxMzA3N30.NJuLf2Azqj17suc92k-gr8qkcyTgh48q28XD-28CrX8",
+      "token_type": "[REDACTED]",
+      "expires_in": 86400
+    }
+  },
+  {
+    "method": "SCRIPT",
+    "pathname": "gateway:indexer-backfill",
+    "httpStatus": 0,
+    "response": "=== Restarting gateway/gateway_fastapi.py only ===\nUsing Python interpreter: /Users/cliff/workspace/agent/Synapse-Network/services/gateway/.venv/bin/python\nStarting Docker local Postgres via docker-compose on 127.0.0.1:15432...\nStopping existing gateway process on 8000: PID 60245\nProviderAPI: stopped (60245)\nGateway restarted successfully\nGateway PID                  : 60557\nAnalytics outbox worker PID  : screen:synapse-gateway-analytics-outbox\nNotification outbox worker PID: screen:synapse-gateway-notification-outbox\nPID file                     : /Users/cliff/workspace/agent/Synapse-Network/.local_env.pids\nHealth check                 : http://127.0.0.1:8000/health\nReadiness check              : http://127.0.0.1:8000/readiness\nGateway log                  : /Users/cliff/workspace/agent/Synapse-Network/services/gateway/logs/provider_api.log\nAnalytics outbox log         : /Users/cliff/workspace/agent/Synapse-Network/services/gateway/logs/analytics_outbox_worker.log\nNotification outbox log      : /Users/cliff/workspace/agent/Synapse-Network/services/gateway/logs/notification_outbox_worker.log\n"
+  },
+  {
+    "method": "GET",
+    "pathname": "/v1/auth/challenge?address=0x2D1F476CE0262dBA6601e8d58F91a850De144523",
+    "httpStatus": 200,
+    "request": {
+      "headers": {
+        "Accept": "application/json"
+      }
+    },
+    "response": {
+      "success": true,
+      "error": null,
+      "challenge": "127.0.0.1:3000 wants you to sign in with your Ethereum account:\n0x2d1f476ce0262dba6601e8d58f91a850de144523\n\nSign in to Synapse Network. This does not authorize a transaction or move funds.\n\nURI: http://127.0.0.1:3000\nVersion: 1\nChain ID: unknown\nNonce: b62de692f4c0f809f5ab813aecc9dbea\nIssued At: 2026-05-09T11:38:05Z\nExpiration Time: 2026-05-09T11:48:05Z",
+      "domain": "127.0.0.1:3000"
+    }
+  },
+  {
+    "method": "POST",
+    "pathname": "/v1/auth/verify",
+    "httpStatus": 200,
+    "request": {
+      "headers": {
+        "Accept": "application/json",
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "wallet_address": "0x2D1F476CE0262dBA6601e8d58F91a850De144523",
+        "message": "127.0.0.1:3000 wants you to sign in with your Ethereum account:\n0x2d1f476ce0262dba6601e8d58f91a850de144523\n\nSign in to Synapse Network. This does not authorize a transaction or move funds.\n\nURI: http://127.0.0.1:3000\nVersion: 1\nChain ID: unknown\nNonce: b62de692f4c0f809f5ab813aecc9dbea\nIssued At: 2026-05-09T11:38:05Z\nExpiration Time: 2026-05-09T11:48:05Z",
+        "signature": "[REDACTED]"
+      }
+    },
+    "response": {
+      "success": true,
+      "error": null,
+      "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIweDJkMWY0NzZjZTAyNjJkYmE2NjAxZThkNThmOTFhODUwZGUxNDQ1MjMiLCJyb2xlIjoiYWdlbnQiLCJpYXQiOjE3NzgzMjY2ODUsImV4cCI6MTc3ODQxMzA4NX0.Vkc802j7pgj3suY-Im_TShY5KYAE6M14dLL7rC-SAy0",
+      "token_type": "[REDACTED]",
+      "expires_in": 86400
+    }
+  },
+  {
+    "method": "POST",
+    "pathname": "/v1/balance/deposit/intent",
+    "httpStatus": 200,
+    "request": {
+      "headers": {
+        "Accept": "application/json",
+        "X-Idempotency-Key": "dir-invalid-event-ed59c01c0e5a4cc8e70d2f7a9d78457ced43c456dd82733ddc4c5efebc7a7915",
+        "Content-Type": "application/json",
+        "Authorization": "[REDACTED]",
+        "X-User-Address": "0x2D1F476CE0262dBA6601e8d58F91a850De144523"
+      },
+      "body": {
+        "txHash": "0xed59c01c0e5a4cc8e70d2f7a9d78457ced43c456dd82733ddc4c5efebc7a7915",
+        "amountUsdc": "11.000000"
+      }
+    },
+    "response": {
+      "status": "success",
+      "tx_hash": "0xed59c01c0e5a4cc8e70d2f7a9d78457ced43c456dd82733ddc4c5efebc7a7915",
+      "intent": {
+        "id": "c3c8ac7e-c101-43c8-b664-ebc1d7137e32",
+        "ownerAddress": "0x2d1f476ce0262dba6601e8d58f91a850de144523",
+        "txHash": "0xed59c01c0e5a4cc8e70d2f7a9d78457ced43c456dd82733ddc4c5efebc7a7915",
+        "requestId": "dir-invalid-event-ed59c01c0e5a4cc8e70d2f7a9d78457ced43c456dd82733ddc4c5efebc7a7915",
+        "consumerAddress": null,
+        "amountUsdc": "11.000000",
+        "idempotencyKey": "dir-invalid-event-ed59c01c0e5a4cc8e70d2f7a9d78457ced43c456dd82733ddc4c5efebc7a7915",
+        "clientRequestId": null,
+        "clientIp": null,
+        "userAgent": null,
+        "status": "PENDING_CONFIRMATION",
+        "eventKey": null,
+        "confirmations": null,
+        "creditedAmountUsdc": null,
+        "confirmedAt": null,
+        "createdAt": "2026-05-09 11:38:05",
+        "updatedAt": "2026-05-09 11:38:05"
+      }
+    }
+  }
+]

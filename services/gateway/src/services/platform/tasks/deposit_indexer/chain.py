@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 from decimal import Decimal
+from functools import lru_cache
 from typing import Any, List, Optional
 
 from web3.exceptions import TransactionNotFound
@@ -27,6 +28,7 @@ class DepositIndexerRpcUnavailable(RuntimeError):
 TX_HASH_HEX_LENGTH = 66
 ADDRESS_HEX_LENGTH = 42
 TRANSFER_TOPIC_COUNT = 3
+DEPOSIT_INFO_MIN_TOPIC_COUNT = 2
 MAX_TOKEN_DECIMALS = 36
 
 
@@ -45,10 +47,18 @@ def _normalize_tx_hash(value: str) -> str:
 def _topic_to_address(topic: Any) -> str:
     """把 event topic 末 20 字节解码为地址。"""
     web3_class = get_web3_class()
-    topic_hex = web3_class.to_hex(topic).lower()
+    topic_hex = str(topic).lower() if isinstance(topic, str) else web3_class.to_hex(topic).lower()
     if len(topic_hex) < ADDRESS_HEX_LENGTH:
         return ""
     return web3_class.to_checksum_address("0x" + topic_hex[-40:]).lower()
+
+
+@lru_cache(maxsize=1)
+def _get_deposit_info_topic() -> str:
+    web3_class = get_web3_class()
+    return web3_class.to_hex(
+        web3_class.keccak(text="DepositInfo(address,uint256)")
+    ).lower()
 
 
 def _make_event_row(
@@ -151,6 +161,59 @@ def _decode_router_deposit_events(tx_receipt: Any) -> List[dict[str, Any]]:
         events.extend(
             _extract_router_event_rows(contract, event_name, tx_receipt, tx_hash)
         )
+    return events
+
+
+def _decode_deposit_info_log(log: Any) -> Optional[dict[str, Any]]:
+    topics = log.get("topics") or []
+    if len(topics) < DEPOSIT_INFO_MIN_TOPIC_COUNT:
+        return None
+    topic0 = (
+        str(topics[0]).lower()
+        if isinstance(topics[0], str)
+        else get_web3_class().to_hex(topics[0]).lower()
+    )
+    if topic0 != _get_deposit_info_topic():
+        return None
+
+    owner_wallet = _topic_to_address(topics[1])
+    tx_hash = _tx_hash_to_hex(log.get("transactionHash"))
+    if not owner_wallet or not tx_hash:
+        return None
+
+    return _make_event_row(
+        tx_hash,
+        int(log.get("logIndex", 0)),
+        owner_wallet,
+        _decode_amount_raw(log.get("data", "0x0")),
+        str(settings.usdc_token_address or ""),
+    )
+
+
+def _collect_deposit_event_rows(start_block: int, end_block: int) -> List[dict[str, Any]]:
+    """Collect canonical DepositInfo logs for a bounded block range."""
+    if int(start_block) > int(end_block):
+        return []
+
+    w3 = get_web3()
+    _ensure_rpc_connected(w3)
+    router = normalize_wallet(settings.router_address)
+    if not router:
+        return []
+
+    logs = w3.eth.get_logs(
+        {
+            "address": w3.to_checksum_address(router),
+            "fromBlock": int(start_block),
+            "toBlock": int(end_block),
+            "topics": [_get_deposit_info_topic()],
+        }
+    )
+    events: List[dict[str, Any]] = []
+    for log in logs:
+        maybe_event = _decode_deposit_info_log(log)
+        if maybe_event:
+            events.append(maybe_event)
     return events
 
 
@@ -318,8 +381,32 @@ def _confirmed_head_block() -> int:
         raise
     except Exception as exc:
         raise DepositIndexerRpcUnavailable("RPC_UNAVAILABLE") from exc
-    confirmations = max(1, int(settings.v2_deposit_confirmations))
-    return max(0, latest - confirmations + 1)
+
+    finality_mode = str(
+        getattr(settings, "deposit_event_finality_mode", "confirmations")
+        or "confirmations"
+    ).strip().lower()
+    if finality_mode in {"safe", "finalized"}:
+        try:
+            block = w3.eth.get_block(finality_mode)
+            block_number = int(block.get("number") or 0)
+            if block_number > 0:
+                return block_number
+        except Exception:
+            logger.warning(
+                "deposit event scanner falling back to confirmation buffer because %s head is unavailable",
+                finality_mode,
+            )
+
+    buffer = int(
+        getattr(
+            settings,
+            "deposit_event_finality_buffer_blocks",
+            max(0, int(settings.v2_deposit_confirmations) - 1),
+        )
+        or 0
+    )
+    return max(0, latest - max(0, buffer))
 
 
 def _ensure_rpc_connected(w3: Any) -> None:

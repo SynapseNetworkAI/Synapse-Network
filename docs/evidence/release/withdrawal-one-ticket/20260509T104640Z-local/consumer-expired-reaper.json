@@ -1,0 +1,102 @@
+{
+  "name": "consumer-expired-reaper",
+  "status": "passed",
+  "pass": true,
+  "runId": "wot-20260509104656",
+  "generatedAt": "2026-05-09T10:48:11.984Z",
+  "summary": "consumer ticket expired and reaper released funds",
+  "role": "consumer",
+  "withdrawalId": "fdc081d9-d5fb-45a6-8e0f-a543b02b3543",
+  "ticketHash": "0x8b5e4760b16b56a517b3e22007e177a62ce1c75a697f73c33c8d3d05b502a7ae",
+  "deadline": 1778323684,
+  "softRevoke": null,
+  "expected": {
+    "dbStatus": "FAILED_EXPIRED",
+    "ticketConsumed": false,
+    "localPastDeadlineBuffer": true,
+    "rpcPastDeadlineMargin": true
+  },
+  "actual": {
+    "dbStatus": "FAILED_EXPIRED",
+    "ticketConsumed": false,
+    "rpcBlockTimestamp": 1778323693,
+    "localNow": 1778323691,
+    "balanceBefore": {
+      "ownerAddress": "0x918e89c214a446c58f284392bd09c046e7e3270b",
+      "ownerBalance": "153.994400",
+      "consumerAvailableBalance": "153.994400",
+      "consumerWithdrawableBalance": "153.994400",
+      "consumerPendingBalance": "10.000000",
+      "consumerFrozenBalance": "0.000000",
+      "consumerWithdrawMinUsdc": "10.000000",
+      "consumerWithdrawMaturitySeconds": 0,
+      "consumerWithdrawMaturityEnforced": false,
+      "providerReceivable": "0.000000",
+      "providerReceivableBalance": "0.000000",
+      "providerLockedBalance": "0.000000",
+      "platformFeeAccrued": "5.605600",
+      "updatedAt": "2026-05-09 10:47:04"
+    },
+    "row": {
+      "id": "fdc081d9-d5fb-45a6-8e0f-a543b02b3543",
+      "ownerAddress": "0x918e89c214a446c58f284392bd09c046e7e3270b",
+      "status": "FAILED_EXPIRED",
+      "requestId": "",
+      "consumerAddress": "0x918e89c214a446c58f284392bd09c046e7e3270b",
+      "amountUsdc": "10.000000",
+      "idempotencyKey": "wot:wot-20260509104656:consumer-expired-reaper:1778323624279",
+      "reason": "consumer-expired-reaper",
+      "signature": "[redacted]",
+      "gasPayer": "OWNER",
+      "gasModel": "OWNER_PAYS_ONCHAIN",
+      "refundType": "CONSUMER_BALANCE_WITHDRAW",
+      "destinationAddress": "0x918e89c214a446c58f284392bd09c046e7e3270b",
+      "riskLevel": "green",
+      "riskReasonCode": "",
+      "message": "Withdrawal ticket expired before on-chain execution. Funds were released back to available balance.",
+      "requestMeta": {
+        "requestId": "",
+        "clientIp": "127.0.0.1",
+        "userAgent": "node",
+        "review": {}
+      },
+      "completedAt": 1778323690,
+      "completeMeta": {
+        "review": {}
+      },
+      "ticket": {
+        "ticketId": "0x769775a4dce5088f641e46681dcae02c338a83e5a9f2a236f39d1733ced46c03",
+        "ticketHash": "0x8b5e4760b16b56a517b3e22007e177a62ce1c75a697f73c33c8d3d05b502a7ae",
+        "amount": "9500000000000000000",
+        "fee": "500000000000000000",
+        "deadline": 1778323684,
+        "signature": "[redacted]",
+        "chainId": 31337,
+        "contractAddress": "0x8f119cd256a0fffeed643e830adcd9767a1d517f"
+      },
+      "createdAt": "2026-05-09 10:47:04",
+      "updatedAt": "2026-05-09 10:48:10",
+      "claimable": false
+    }
+  },
+  "comparisons": [
+    {
+      "metric": "dbStatus",
+      "expected": "FAILED_EXPIRED",
+      "actual": "FAILED_EXPIRED",
+      "pass": true
+    },
+    {
+      "metric": "ticketConsumed",
+      "expected": "false",
+      "actual": "false",
+      "pass": true
+    },
+    {
+      "metric": "rpcBlockTimestamp",
+      "expected": ">1778323687",
+      "actual": "1778323693",
+      "pass": true
+    }
+  ]
+}

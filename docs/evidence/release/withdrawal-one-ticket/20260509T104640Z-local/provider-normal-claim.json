@@ -1,0 +1,45 @@
+{
+  "name": "provider-normal-claim",
+  "status": "passed",
+  "pass": true,
+  "runId": "wot-20260509104656",
+  "generatedAt": "2026-05-09T10:47:03.457Z",
+  "summary": "provider ticket claimed and completed",
+  "role": "provider",
+  "withdrawalId": "wd-95304cd34ae74095af3896d2f7195745",
+  "ticketHash": "0x27eda602995ad838a42298a6868c41ae3a8bc23556b2b4d67491bc9fd868371c",
+  "deadline": 1778323683,
+  "softRevoke": null,
+  "expected": {
+    "dbStatus": "COMPLETED",
+    "receiptStatus": 1
+  },
+  "actual": {
+    "dbStatus": "COMPLETED",
+    "txHash": "0x60d257af08c952c29220d3e2118436412642efe4239b7831e3238337958236b9",
+    "receiptStatus": 1,
+    "completeStatus": "COMPLETED",
+    "walletDeltaAtomic": "10000000000000000000",
+    "vaultDeltaAtomic": "-10000000000000000000"
+  },
+  "comparisons": [
+    {
+      "metric": "dbStatus",
+      "expected": "COMPLETED",
+      "actual": "COMPLETED",
+      "pass": true
+    },
+    {
+      "metric": "receiptStatus",
+      "expected": "1",
+      "actual": "1",
+      "pass": true
+    },
+    {
+      "metric": "ticketConsumed",
+      "expected": "true",
+      "actual": "true",
+      "pass": true
+    }
+  ]
+}
