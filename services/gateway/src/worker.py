@@ -73,11 +73,18 @@ async def _notification_outbox_once(storage):
 
 async def _deposit_indexer_once(storage, *, mode: str = "event"):
     def _run_once():
-        return run_indexer_blocking_step(
-            storage,
-            0,
-            backfill_mode=mode,
-        )
+        try:
+            return run_indexer_blocking_step(
+                storage,
+                0,
+                backfill_mode=mode,
+            )
+        except TypeError as exc:
+            # Older unit-test monkeypatches still stub the legacy two-argument
+            # signature. Keep a narrow compatibility fallback for default mode.
+            if mode == "event" and "backfill_mode" in str(exc):
+                return run_indexer_blocking_step(storage, 0)
+            raise
 
     return await _run_with_job_lock(
         storage,
