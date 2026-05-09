@@ -19,8 +19,8 @@ Usage:
 
 DSN selection:
   local   MIGRATION_DSN | LOCAL_POSTGRES_MIGRATOR_DSN | POSTGRES_MIGRATOR_DSN | POSTGRES_DSN | local default
-  staging MIGRATION_DSN | STAGING_POSTGRES_MIGRATOR_DSN | POSTGRES_MIGRATOR_DSN | POSTGRES_DSN
-  prod    MIGRATION_DSN | PROD_POSTGRES_MIGRATOR_DSN | POSTGRES_MIGRATOR_DSN | POSTGRES_DSN
+  staging MIGRATION_DSN | STAGING_POSTGRES_MIGRATOR_DSN | POSTGRES_MIGRATOR_DSN | split POSTGRES_MIGRATOR_* fields | POSTGRES_DSN
+  prod    MIGRATION_DSN | PROD_POSTGRES_MIGRATOR_DSN | POSTGRES_MIGRATOR_DSN | split POSTGRES_MIGRATOR_* fields | POSTGRES_DSN
 
 Prod requires:
   SYNAPSE_MIGRATION_CONFIRM=I_UNDERSTAND_THIS_CHANGES_PROD
@@ -182,6 +182,17 @@ build_conninfo_from_split_fields() {
     "${host}" "${port}" "${db_name}" "${user_name}" "${password}" "${timeout}"
 }
 
+select_remote_migration_conninfo() {
+  local environment_migrator_dsn="${1:-}"
+  MIGRATION_CONNINFO="${MIGRATION_DSN:-${environment_migrator_dsn:-${POSTGRES_MIGRATOR_DSN:-}}}"
+  if [[ -z "${MIGRATION_CONNINFO}" ]]; then
+    MIGRATION_CONNINFO="$(build_conninfo_from_split_fields || true)"
+  fi
+  if [[ -z "${MIGRATION_CONNINFO}" ]]; then
+    MIGRATION_CONNINFO="${POSTGRES_DSN:-}"
+  fi
+}
+
 if [[ ! "${ENVIRONMENT}" =~ ^(local|staging|prod)$ ]]; then
   usage
   exit 2
@@ -204,10 +215,7 @@ case "${ENVIRONMENT}" in
     fi
     ;;
   staging)
-    MIGRATION_CONNINFO="${MIGRATION_DSN:-${STAGING_POSTGRES_MIGRATOR_DSN:-${POSTGRES_MIGRATOR_DSN:-${POSTGRES_DSN:-}}}}"
-    if [[ -z "${MIGRATION_CONNINFO}" ]]; then
-      MIGRATION_CONNINFO="$(build_conninfo_from_split_fields || true)"
-    fi
+    select_remote_migration_conninfo "${STAGING_POSTGRES_MIGRATOR_DSN:-}"
     require_non_empty_dsn
     if [[ "${MIGRATION_CONNINFO}" =~ prod|production ]]; then
       echo "refusing staging migration because DSN looks production-like" >&2
@@ -219,10 +227,7 @@ case "${ENVIRONMENT}" in
       echo "refusing prod migration without SYNAPSE_MIGRATION_CONFIRM=I_UNDERSTAND_THIS_CHANGES_PROD" >&2
       exit 2
     fi
-    MIGRATION_CONNINFO="${MIGRATION_DSN:-${PROD_POSTGRES_MIGRATOR_DSN:-${POSTGRES_MIGRATOR_DSN:-${POSTGRES_DSN:-}}}}"
-    if [[ -z "${MIGRATION_CONNINFO}" ]]; then
-      MIGRATION_CONNINFO="$(build_conninfo_from_split_fields || true)"
-    fi
+    select_remote_migration_conninfo "${PROD_POSTGRES_MIGRATOR_DSN:-}"
     require_non_empty_dsn
     echo "PROD detected: schema/reference migration only; test seed skipped."
     ;;
