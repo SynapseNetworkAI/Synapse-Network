@@ -17,6 +17,12 @@ paths.
   `synapse_notification_outbox`.
 - The standalone worker sends email through Gmail SMTP:
 
+  - Primary path: Gateway enqueues the outbox row, then best-effort nudges
+    `POST /internal/jobs/notification-outbox/trigger` using
+    `X-Synapse-Internal-Token: $INTERNAL_TRIGGER_SECRET`.
+  - Fallback path: the scheduled Cloud Run job still runs `notification-outbox`
+    every 10 minutes in staging.
+
   ```bash
   python -m src.worker notification-outbox
   python -m src.worker notification-outbox --once
@@ -104,6 +110,13 @@ Alert when:
 - outbox oldest pending age exceeds 10 minutes
 - dead-letter count grows
 - Gmail returns quota errors
+
+## Internal Trigger Contract
+
+- Endpoint: `POST /internal/jobs/notification-outbox/trigger`
+- Auth: shared secret header `X-Synapse-Internal-Token`
+- Secret source: `INTERNAL_TRIGGER_SECRET`
+- V1 explicitly does **not** use IAM/OIDC or asymmetric verification
 
 ## Validation
 

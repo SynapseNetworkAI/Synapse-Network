@@ -1,6 +1,24 @@
 locals {
-  name_prefix   = "synapse-${var.environment}"
-  is_production = contains(["prod", "production"], lower(var.environment))
+  name_prefix                 = "synapse-${var.environment}"
+  is_production               = contains(["prod", "production"], lower(var.environment))
+  provider_enabled            = trimspace(var.provider_image) != ""
+  withdraw_signer_kms_enabled = trimspace(var.withdraw_signer_address) != ""
+  provider_secret_ids = toset([
+    "synapse-staging-provider-signature-secret",
+    "synapse-staging-provider-postgres-dsn",
+    "synapse-staging-provider-onboarding-owner-private-key",
+    "synapse-staging-provider-etherscan-api-key",
+    "synapse-staging-provider-twitter-x-api-key",
+    "synapse-staging-provider-twitter-x-api-secret",
+    "synapse-staging-provider-twitter-x-bearer-token",
+    "synapse-staging-provider-deepseek-api-key",
+    "synapse-staging-provider-minio-access-key",
+    "synapse-staging-provider-minio-secret-key",
+  ])
+  managed_secret_ids = setunion(
+    local.provider_enabled ? var.secret_ids : setsubtract(var.secret_ids, local.provider_secret_ids),
+    var.legacy_withdraw_private_key_secret_enabled ? toset(["synapse-staging-private-key"]) : toset([]),
+  )
   labels = merge(
     {
       app         = "synapse-network"
@@ -12,63 +30,84 @@ locals {
   )
   runtime_env = merge(
     {
-      ENVIRONMENT                             = var.environment
-      STORAGE_BACKEND                         = "postgres"
-      POSTGRES_HOST                           = "/cloudsql/${google_sql_database_instance.postgres.connection_name}"
-      POSTGRES_DB                             = var.cloud_sql_database_name
-      POSTGRES_USER                           = "synapse_gateway_app"
-      POSTGRES_MIGRATOR_USER                  = "synapse_gateway_migrator"
-      POSTGRES_CONNECT_TIMEOUT_SEC            = "5"
-      POSTGRES_POOL_MAX                       = "5"
-      POSTGRES_AUTO_INIT                      = "0"
-      CORS_ALLOW_ORIGINS                      = "https://staging.synapse-network.ai"
-      ROUTER_ADDRESS                          = "0x0bA1dcE1Cc8d877052ab1C3CE2362830459D8FF4"
-      USDC_TOKEN_ADDRESS                      = "0xfad31daE42B0046aFA106BCf56ED0dDaCA4463B9"
-      V2_INDEXER_ENABLED                      = "false"
-      PROVIDER_WITHDRAW_EXPIRY_REAPER_ENABLED = "false"
-      CONSUMER_WITHDRAW_PROCESSOR_ENABLED     = "false"
-      ANALYTICS_TRANSPORT                     = "outbox"
-      ANALYTICS_STRICT_KAFKA                  = "false"
-      ANALYTICS_KAFKA_BOOTSTRAP_SERVERS       = ""
-      DOWNSTREAM_ADAPTIVE_REDIS_ENABLED       = "false"
-      REDIS_URL                               = ""
-      EMAIL_OUTBOX_ENABLED                    = "true"
-      EMAIL_TRANSPORT                         = "gmail_smtp"
-      GMAIL_SMTP_HOST                         = "smtp.gmail.com"
-      GMAIL_SMTP_PORT                         = "587"
-      EMAIL_FROM                              = "Synapse Network Staging <staging-alerts@synapse-network.ai>"
-      EMAIL_REPLY_TO                          = "support@synapse-network.ai"
-      PUBLIC_GATEWAY_BASE_URL                 = "https://api-staging.synapse-network.ai"
-      PUBLIC_APP_BASE_URL                     = "https://staging.synapse-network.ai"
-      TRANSACTION_LARK_ENABLED                = local.is_production ? "false" : "true"
-      IN_APP_NOTIFICATION_CLEANUP_ENABLED     = "false"
-      WITHDRAWAL_AUTO_SINGLE_LIMIT_USDC       = "1.000000"
-      WITHDRAWAL_TIMEOUT_ALERT_AFTER_SEC      = "900"
-      WITHDRAW_SIGNER_MODE                    = "gcp_kms"
-      WITHDRAW_SIGNER_GCP_KMS_KEY_NAME        = "${google_kms_crypto_key.withdrawal_signer.id}/cryptoKeyVersions/${var.withdraw_signer_kms_key_version}"
-      WITHDRAW_SIGNER_ADDRESS                 = var.withdraw_signer_address
-      STAGING_ALERT_DRILL_ENABLED             = local.is_production ? "false" : "true"
+      ENVIRONMENT                              = var.environment
+      STORAGE_BACKEND                          = "postgres"
+      POSTGRES_HOST                            = "/cloudsql/${google_sql_database_instance.postgres.connection_name}"
+      POSTGRES_DB                              = var.cloud_sql_database_name
+      POSTGRES_USER                            = "synapse_gateway_app"
+      POSTGRES_MIGRATOR_USER                   = "synapse_gateway_migrator"
+      POSTGRES_CONNECT_TIMEOUT_SEC             = "5"
+      POSTGRES_POOL_MAX                        = "5"
+      POSTGRES_AUTO_INIT                       = "0"
+      CORS_ALLOW_ORIGINS                       = "https://staging.synapse-network.ai"
+      ROUTER_ADDRESS                           = "0x0bA1dcE1Cc8d877052ab1C3CE2362830459D8FF4"
+      USDC_TOKEN_ADDRESS                       = "0xfad31daE42B0046aFA106BCf56ED0dDaCA4463B9"
+      V2_INDEXER_ENABLED                       = "false"
+      PROVIDER_WITHDRAW_EXPIRY_REAPER_ENABLED  = "false"
+      CONSUMER_WITHDRAW_PROCESSOR_ENABLED      = "false"
+      CONSUMER_WITHDRAW_CHAIN_RECOVERY_ENABLED = "false"
+      WITHDRAWAL_EXPIRY_SWEEPER_ENABLED        = "false"
+      ANALYTICS_TRANSPORT                      = "outbox"
+      ANALYTICS_STRICT_KAFKA                   = "false"
+      ANALYTICS_KAFKA_BOOTSTRAP_SERVERS        = ""
+      DOWNSTREAM_ADAPTIVE_REDIS_ENABLED        = "false"
+      REDIS_URL                                = ""
+      EMAIL_OUTBOX_ENABLED                     = "true"
+      EMAIL_TRANSPORT                          = "gmail_smtp"
+      GMAIL_SMTP_HOST                          = "smtp.gmail.com"
+      GMAIL_SMTP_PORT                          = "587"
+      EMAIL_FROM                               = "Synapse Network Staging <staging-alerts@synapse-network.ai>"
+      EMAIL_REPLY_TO                           = "support@synapse-network.ai"
+      GATEWAY_PROVIDER_SIGNATURE_ENABLED       = "true"
+      GATEWAY_PROVIDER_SIGNATURE_MAX_SKEW_S    = "300"
+      NOTIFICATION_OUTBOX_TRIGGER_ENABLED      = "true"
+      NOTIFICATION_OUTBOX_TRIGGER_URL          = "http://127.0.0.1:8000/internal/jobs/notification-outbox/trigger"
+      NOTIFICATION_OUTBOX_TRIGGER_TIMEOUT_SEC  = "3"
+      NOTIFICATION_OUTBOX_FALLBACK_ENABLED     = "true"
+      PUBLIC_GATEWAY_BASE_URL                  = "https://api-staging.synapse-network.ai"
+      PUBLIC_APP_BASE_URL                      = "https://staging.synapse-network.ai"
+      TRANSACTION_LARK_ENABLED                 = local.is_production ? "false" : "true"
+      IN_APP_NOTIFICATION_CLEANUP_ENABLED      = "false"
+      WITHDRAWAL_AUTO_SINGLE_LIMIT_USDC        = "1.000000"
+      WITHDRAWAL_TIMEOUT_ALERT_AFTER_SEC       = "900"
+      STAGING_ALERT_DRILL_ENABLED              = local.is_production ? "false" : "true"
+    },
+    local.withdraw_signer_kms_enabled ? {
+      WITHDRAW_SIGNER_MODE             = "gcp_kms"
+      WITHDRAW_SIGNER_GCP_KMS_KEY_NAME = "${google_kms_crypto_key.withdrawal_signer[0].id}/cryptoKeyVersions/${var.withdraw_signer_kms_key_version}"
+      WITHDRAW_SIGNER_ADDRESS          = var.withdraw_signer_address
+      } : {
+      WITHDRAW_SIGNER_MODE = "local_private_key"
     },
     var.common_runtime_env,
   )
-  gateway_secret_env = {
-    POSTGRES_DSN                 = "synapse-staging-postgres-dsn"
-    POSTGRES_PASSWORD            = "synapse-staging-postgres-password"
-    JWT_SECRET                   = "synapse-staging-jwt-secret"
-    AUTH_SECRET                  = "synapse-staging-auth-secret"
-    METRICS_BEARER_TOKEN         = "synapse-staging-metrics-bearer-token"
-    GATEWAY_INTERNAL_JWT_SECRET  = "synapse-staging-gateway-internal-jwt-secret"
-    RPC_URL                      = "synapse-staging-arbitrum-sepolia-rpc-url"
-    GMAIL_SMTP_USERNAME          = "synapse-staging-gmail-username"
-    GMAIL_SMTP_APP_PASSWORD      = "synapse-staging-gmail-app-password"
-    TRANSACTION_LARK_WEBHOOK_URL = "synapse-staging-lark-webhook-staging-drill"
-    TRANSACTION_LARK_SECRET      = "synapse-staging-lark-secret-staging-drill"
-    STAGING_ALERT_DRILL_TOKEN    = "synapse-staging-alert-drill-token"
-    PLATFORM_FEE_ADMIN_WALLETS   = "synapse-staging-gateway-admin-wallet"
-    INDEXER_ADMIN_WALLETS        = "synapse-staging-gateway-admin-wallet"
-  }
+  gateway_withdraw_signer_secret_env = local.withdraw_signer_kms_enabled ? {} : (
+    var.legacy_withdraw_private_key_secret_enabled ? { PRIVATE_KEY = "synapse-staging-private-key" } : {}
+  )
+  gateway_secret_env = merge(
+    {
+      POSTGRES_DSN                      = "synapse-staging-postgres-dsn"
+      POSTGRES_PASSWORD                 = "synapse-staging-postgres-password"
+      JWT_SECRET                        = "synapse-staging-jwt-secret"
+      AUTH_SECRET                       = "synapse-staging-auth-secret"
+      METRICS_BEARER_TOKEN              = "synapse-staging-metrics-bearer-token"
+      GATEWAY_INTERNAL_JWT_SECRET       = "synapse-staging-gateway-internal-jwt-secret"
+      INTERNAL_TRIGGER_SECRET           = "synapse-staging-internal-trigger-secret"
+      RPC_URL                           = "synapse-staging-arbitrum-sepolia-rpc-url"
+      GMAIL_SMTP_USERNAME               = "synapse-staging-gmail-username"
+      GMAIL_SMTP_APP_PASSWORD           = "synapse-staging-gmail-app-password"
+      GATEWAY_PROVIDER_SIGNATURE_SECRET = "synapse-staging-provider-signature-secret"
+      TRANSACTION_LARK_WEBHOOK_URL      = "synapse-staging-lark-webhook-staging-drill"
+      TRANSACTION_LARK_SECRET           = "synapse-staging-lark-secret-staging-drill"
+      STAGING_ALERT_DRILL_TOKEN         = "synapse-staging-alert-drill-token"
+      PLATFORM_FEE_ADMIN_WALLETS        = "synapse-staging-gateway-admin-wallet"
+      INDEXER_ADMIN_WALLETS             = "synapse-staging-gateway-admin-wallet"
+    },
+    local.gateway_withdraw_signer_secret_env,
+  )
   gateway_migration_secret_env = merge(
     local.gateway_secret_env,
+    local.gateway_withdraw_signer_secret_env,
     {
       POSTGRES_MIGRATOR_PASSWORD = "synapse-staging-postgres-migrator-password"
     },
@@ -225,7 +264,7 @@ locals {
       max_instances   = 2
       env             = local.provider_runtime_env
       secret_env      = local.provider_runtime_secret_env
-      service_account = google_service_account.provider_runtime.email
+      service_account = local.provider_enabled ? google_service_account.provider_runtime[0].email : null
     }
   }
   enabled_cloud_run_services = {
@@ -238,34 +277,34 @@ locals {
       image           = var.gateway_image
       command         = ["python", "-m", "src.worker"]
       args            = ["deposit-indexer", "--once"]
-      schedule        = "* * * * *"
-      timeout         = "50s"
+      schedule        = "*/10 * * * *"
+      timeout         = "120s"
       max_retries     = 0
       retry_count     = 0
       env             = local.runtime_env
       secret_env      = local.gateway_secret_env
       service_account = google_service_account.runtime.email
     }
-    provider_withdraw_reaper = {
-      name            = "${local.name_prefix}-provider-withdraw-reaper"
+    consumer_withdraw_chain_recovery = {
+      name            = "${local.name_prefix}-consumer-withdraw-chain-recovery"
       image           = var.gateway_image
       command         = ["python", "-m", "src.worker"]
-      args            = ["provider-withdraw-reaper", "--once"]
-      schedule        = "* * * * *"
-      timeout         = "50s"
+      args            = ["consumer-withdraw-chain-recovery", "--once"]
+      schedule        = "*/10 * * * *"
+      timeout         = "120s"
       max_retries     = 0
       retry_count     = 0
       env             = local.runtime_env
       secret_env      = local.gateway_secret_env
       service_account = google_service_account.runtime.email
     }
-    consumer_withdraw_processor = {
-      name            = "${local.name_prefix}-consumer-withdraw-processor"
+    withdrawal_expiry_sweeper = {
+      name            = "${local.name_prefix}-withdrawal-expiry-sweeper"
       image           = var.gateway_image
       command         = ["python", "-m", "src.worker"]
-      args            = ["consumer-withdraw-processor", "--once"]
-      schedule        = "* * * * *"
-      timeout         = "50s"
+      args            = ["withdrawal-expiry-sweeper", "--once"]
+      schedule        = "*/10 * * * *"
+      timeout         = "120s"
       max_retries     = 0
       retry_count     = 0
       env             = local.runtime_env
@@ -277,7 +316,7 @@ locals {
       image           = var.gateway_image
       command         = ["python", "-m", "src.worker"]
       args            = ["notification-outbox", "--once"]
-      schedule        = "* * * * *"
+      schedule        = "*/10 * * * *"
       timeout         = "50s"
       max_retries     = 1
       retry_count     = 1
@@ -343,7 +382,7 @@ locals {
       retry_count     = 0
       env             = local.provider_onboarding_env
       secret_env      = local.provider_onboarding_secret_env
-      service_account = google_service_account.provider_onboarding.email
+      service_account = local.provider_enabled ? google_service_account.provider_onboarding[0].email : null
     }
     provider_gpp_e2e = {
       name            = "${local.name_prefix}-provider-gpp-e2e"
@@ -356,7 +395,7 @@ locals {
       retry_count     = 0
       env             = local.provider_onboarding_env
       secret_env      = local.provider_onboarding_secret_env
-      service_account = google_service_account.provider_onboarding.email
+      service_account = local.provider_enabled ? google_service_account.provider_onboarding[0].email : null
     }
   }
   enabled_cloud_run_jobs = {
@@ -440,10 +479,7 @@ resource "google_storage_bucket" "backups" {
 }
 
 resource "google_secret_manager_secret" "placeholders" {
-  for_each = setunion(
-    var.secret_ids,
-    var.legacy_withdraw_private_key_secret_enabled ? toset(["synapse-staging-private-key"]) : toset([]),
-  )
+  for_each  = local.managed_secret_ids
   secret_id = each.value
   labels    = local.labels
 
@@ -453,13 +489,15 @@ resource "google_secret_manager_secret" "placeholders" {
 }
 
 resource "google_kms_key_ring" "withdrawal_signer" {
+  count    = local.withdraw_signer_kms_enabled ? 1 : 0
   name     = local.name_prefix
   location = var.region
 }
 
 resource "google_kms_crypto_key" "withdrawal_signer" {
+  count    = local.withdraw_signer_kms_enabled ? 1 : 0
   name     = "${local.name_prefix}-withdraw-signer"
-  key_ring = google_kms_key_ring.withdrawal_signer.id
+  key_ring = google_kms_key_ring.withdrawal_signer[0].id
   purpose  = "ASYMMETRIC_SIGN"
 
   version_template {
@@ -483,12 +521,14 @@ resource "google_service_account" "scheduler" {
 }
 
 resource "google_service_account" "provider_runtime" {
-  account_id   = "${local.name_prefix}-provider-runtime"
+  count        = local.provider_enabled ? 1 : 0
+  account_id   = "syn-${var.environment}-prov-rt"
   display_name = "Synapse ${var.environment} Provider runtime"
 }
 
 resource "google_service_account" "provider_onboarding" {
-  account_id   = "${local.name_prefix}-provider-onboarding"
+  count        = local.provider_enabled ? 1 : 0
+  account_id   = "syn-${var.environment}-prov-onboard"
   display_name = "Synapse ${var.environment} Provider onboarding job"
 }
 
@@ -517,55 +557,61 @@ resource "google_project_iam_member" "runtime_cloudsql_client" {
 }
 
 resource "google_kms_crypto_key_iam_member" "runtime_withdrawal_signer" {
-  crypto_key_id = google_kms_crypto_key.withdrawal_signer.id
+  count         = local.withdraw_signer_kms_enabled ? 1 : 0
+  crypto_key_id = google_kms_crypto_key.withdrawal_signer[0].id
   role          = "roles/cloudkms.signerVerifier"
   member        = "serviceAccount:${google_service_account.runtime.email}"
 }
 
 resource "google_project_iam_member" "provider_runtime_logging_writer" {
+  count   = local.provider_enabled ? 1 : 0
   project = var.project_id
   role    = "roles/logging.logWriter"
-  member  = "serviceAccount:${google_service_account.provider_runtime.email}"
+  member  = "serviceAccount:${google_service_account.provider_runtime[0].email}"
 }
 
 resource "google_project_iam_member" "provider_runtime_monitoring_writer" {
+  count   = local.provider_enabled ? 1 : 0
   project = var.project_id
   role    = "roles/monitoring.metricWriter"
-  member  = "serviceAccount:${google_service_account.provider_runtime.email}"
+  member  = "serviceAccount:${google_service_account.provider_runtime[0].email}"
 }
 
 resource "google_project_iam_member" "provider_runtime_cloudsql_client" {
+  count   = local.provider_enabled ? 1 : 0
   project = var.project_id
   role    = "roles/cloudsql.client"
-  member  = "serviceAccount:${google_service_account.provider_runtime.email}"
+  member  = "serviceAccount:${google_service_account.provider_runtime[0].email}"
 }
 
 resource "google_project_iam_member" "provider_onboarding_logging_writer" {
+  count   = local.provider_enabled ? 1 : 0
   project = var.project_id
   role    = "roles/logging.logWriter"
-  member  = "serviceAccount:${google_service_account.provider_onboarding.email}"
+  member  = "serviceAccount:${google_service_account.provider_onboarding[0].email}"
 }
 
 resource "google_project_iam_member" "provider_onboarding_cloudsql_client" {
+  count   = local.provider_enabled ? 1 : 0
   project = var.project_id
   role    = "roles/cloudsql.client"
-  member  = "serviceAccount:${google_service_account.provider_onboarding.email}"
+  member  = "serviceAccount:${google_service_account.provider_onboarding[0].email}"
 }
 
 resource "google_secret_manager_secret_iam_member" "provider_runtime_secret_accessor" {
-  for_each  = toset(values(local.provider_runtime_secret_env))
+  for_each  = local.provider_enabled ? toset(values(local.provider_runtime_secret_env)) : toset([])
   project   = var.project_id
   secret_id = google_secret_manager_secret.placeholders[each.value].secret_id
   role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${google_service_account.provider_runtime.email}"
+  member    = "serviceAccount:${google_service_account.provider_runtime[0].email}"
 }
 
 resource "google_secret_manager_secret_iam_member" "provider_onboarding_secret_accessor" {
-  for_each  = toset(values(local.provider_onboarding_secret_env))
+  for_each  = local.provider_enabled ? toset(values(local.provider_onboarding_secret_env)) : toset([])
   project   = var.project_id
   secret_id = google_secret_manager_secret.placeholders[each.value].secret_id
   role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${google_service_account.provider_onboarding.email}"
+  member    = "serviceAccount:${google_service_account.provider_onboarding[0].email}"
 }
 
 resource "google_project_iam_member" "scheduler_run_developer" {
@@ -664,7 +710,7 @@ resource "google_cloud_run_v2_service" "services" {
     }
 
     scaling {
-      min_instance_count = each.value.min_instances
+      min_instance_count = each.value.min_instances > 0 ? each.value.min_instances : null
       max_instance_count = each.value.max_instances
     }
 
@@ -701,6 +747,12 @@ resource "google_cloud_run_v2_service" "services" {
         }
       }
     }
+  }
+
+  lifecycle {
+    ignore_changes = [
+      template[0].scaling[0],
+    ]
   }
 
   depends_on = [
@@ -791,7 +843,7 @@ resource "google_cloud_run_v2_job" "jobs" {
 resource "google_cloud_scheduler_job" "jobs" {
   for_each = local.scheduled_cloud_run_jobs
 
-  name      = "${google_cloud_run_v2_job.jobs[each.key].name}-schedule"
+  name      = "${each.value.name}-schedule"
   region    = var.region
   schedule  = each.value.schedule
   time_zone = var.scheduler_time_zone
@@ -802,7 +854,7 @@ resource "google_cloud_scheduler_job" "jobs" {
 
   http_target {
     http_method = "POST"
-    uri         = "https://${var.region}-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/${var.project_id}/jobs/${google_cloud_run_v2_job.jobs[each.key].name}:run"
+    uri         = "https://${var.region}-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/${var.project_id}/jobs/${each.value.name}:run"
 
     oauth_token {
       service_account_email = google_service_account.scheduler.email

@@ -109,13 +109,15 @@ require_cmd node
 gateway_jobs=(
   synapse-staging-db-migrate
   synapse-staging-deposit-indexer
-  synapse-staging-provider-withdraw-reaper
-  synapse-staging-consumer-withdraw-processor
+  synapse-staging-consumer-withdraw-chain-recovery
+  synapse-staging-withdrawal-expiry-sweeper
   synapse-staging-notification-outbox-drain
   synapse-staging-in-app-notification-cleanup
 )
 gateway_smoke_jobs=(
   synapse-staging-deposit-indexer
+  synapse-staging-consumer-withdraw-chain-recovery
+  synapse-staging-withdrawal-expiry-sweeper
   synapse-staging-notification-outbox-drain
 )
 gateway_admin_jobs=(synapse-staging-gateway-admin-db-migrate)
