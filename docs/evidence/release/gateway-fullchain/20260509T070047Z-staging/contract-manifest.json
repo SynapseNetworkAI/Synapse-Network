@@ -1,0 +1,14 @@
+{
+  "addresses": {
+    "MockUSDC": "0xfad31daE42B0046aFA106BCf56ED0dDaCA4463B9",
+    "SynapseCore": "0x0bA1dcE1Cc8d877052ab1C3CE2362830459D8FF4"
+  },
+  "blockNumber": null,
+  "chainId": null,
+  "codeHashes": {},
+  "configPath": "services/user-front/src/contract-config.arbitrum-sepolia.example.json",
+  "errors": [
+    "HTTP Error 429: Too Many Requests"
+  ],
+  "rpcUrl": "https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi"
+}

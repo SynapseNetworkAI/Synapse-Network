@@ -983,7 +983,7 @@ class TestConsumerWithdrawProcessor(unittest.TestCase):
             assert withdraw_processor._process_single_withdraw(storage, row) is True
 
         ledger = storage.balance_repo.read_balance_ledger()
-        assert ledger.consumer_pending_balance(OWNER) == Decimal("0.000000")
+        assert (ledger.consumer_pending_balance(OWNER), ledger.platform.fee_accrued) == (Decimal("0.000000"), Decimal("0.500000"))
         assert storage.gateway_state.refund_rows[0].status == "COMPLETED"
 
     def test_processor_marks_requested_withdraw_completed_from_event_match(self):
@@ -1006,7 +1006,7 @@ class TestConsumerWithdrawProcessor(unittest.TestCase):
 
         assert processed is True
         ledger = storage.balance_repo.read_balance_ledger()
-        assert ledger.consumer_pending_balance(OWNER) == Decimal("0.000000")
+        assert (ledger.consumer_pending_balance(OWNER), ledger.platform.fee_accrued) == (Decimal("0.000000"), Decimal("0.500000"))
         updated = storage.gateway_state.refund_rows[0]
         assert updated.status == "COMPLETED"
         assert updated.tx_hash == "0x" + "a" * 64

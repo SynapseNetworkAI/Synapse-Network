@@ -236,6 +236,32 @@ class BalanceLedger(BaseModel):
             + sum(self._legacy_money(wallet.pending_balance or Decimal("0")) for wallet in self.consumer_wallets)
         )
 
+    def total_vault_tracked_balance(self) -> Decimal:
+        """Return the full amount that should still be backed by vault collateral.
+
+        The on-chain vault balance backs more than just consumer available funds:
+        it also still custody-holds consumer pending/frozen balances, provider
+        receivables that have not been withdrawn, and accrued platform revenue.
+        Reconciliation must compare the vault against all tracked internal
+        balances, otherwise normal manual-review or provider payable states look
+        like false-positive drift.
+        """
+
+        consumer_total = sum(
+            self._legacy_money(wallet.available_balance or Decimal("0"))
+            + self._legacy_money(wallet.pending_balance or Decimal("0"))
+            + self._legacy_money(wallet.frozen_balance or Decimal("0"))
+            for wallet in self.consumer_wallets
+        )
+        provider_total = sum(
+            self._legacy_money(wallet.available_balance or Decimal("0"))
+            + self._legacy_money(wallet.pending_balance or Decimal("0"))
+            + self._legacy_money(wallet.frozen_balance or Decimal("0"))
+            for wallet in self.provider_wallets
+        )
+        platform_total = self._legacy_money(self.platform.fee_accrued or Decimal("0"))
+        return quantize_usdc(consumer_total + provider_total + platform_total)
+
 
 class FeePolicyEntity(BaseModel):
     """平台费率策略实体（全局默认 + 按 owner 覆盖）。"""

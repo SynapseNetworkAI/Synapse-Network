@@ -1,0 +1,269 @@
+{
+  "analytics": {
+    "errors": [],
+    "events": [],
+    "mode": "postgres-outbox",
+    "skippedReason": "MVP staging uses Postgres outbox/projections and does not deploy Kafka/ClickHouse.",
+    "totalEvents": null
+  },
+  "comparisons": [
+    {
+      "actual": "4",
+      "expected": "0",
+      "metricName": "Skipped tests",
+      "pass": false,
+      "stage": "pytest"
+    },
+    {
+      "actual": "73",
+      "expected": ">=50",
+      "metricName": "Collected tests",
+      "pass": true,
+      "stage": "pytest"
+    },
+    {
+      "actual": "1",
+      "expected": "0",
+      "metricName": "Contract manifest errors",
+      "pass": false,
+      "stage": "contract"
+    },
+    {
+      "actual": "postgres-outbox",
+      "expected": "postgres-outbox",
+      "metricName": "Postgres outbox mode",
+      "pass": true,
+      "stage": "analytics"
+    },
+    {
+      "actual": "test_deposit_full_pipeline=error",
+      "expected": "pass",
+      "metricName": "deposit",
+      "pass": false,
+      "stage": "gateway-fullchain"
+    },
+    {
+      "actual": "test_deposit_confirm=error, test_balance_reflects_deposit=error",
+      "expected": "pass",
+      "metricName": "confirm",
+      "pass": false,
+      "stage": "gateway-fullchain"
+    },
+    {
+      "actual": "test_get_quote_for_service=error",
+      "expected": "pass",
+      "metricName": "service_discovery",
+      "pass": false,
+      "stage": "gateway-fullchain"
+    },
+    {
+      "actual": "test_get_quote_for_service=error, test_01_quote_service=failed",
+      "expected": "pass",
+      "metricName": "quote",
+      "pass": false,
+      "stage": "gateway-fullchain"
+    },
+    {
+      "actual": "test_invocation_deducts_balance=error, test_02_invoke_service=failed",
+      "expected": "pass",
+      "metricName": "invoke",
+      "pass": false,
+      "stage": "gateway-fullchain"
+    },
+    {
+      "actual": "test_invocation_deducts_balance=error",
+      "expected": "pass",
+      "metricName": "provider_credit",
+      "pass": false,
+      "stage": "gateway-fullchain"
+    },
+    {
+      "actual": "test_invocation_receipt_reachable=skipped, test_03_get_invocation_receipt=failed",
+      "expected": "pass",
+      "metricName": "receipt",
+      "pass": false,
+      "stage": "gateway-fullchain"
+    },
+    {
+      "actual": "test_consumer_withdraw_decreases_available_balance=error, test_consumer_withdraw_record_has_correct_amount_and_status=error",
+      "expected": "pass",
+      "metricName": "consumer_withdrawal",
+      "pass": false,
+      "stage": "gateway-fullchain"
+    },
+    {
+      "actual": "test_invocation_deducts_balance=error, test_consumer_withdraw_reduces_total_spendable_capacity=error",
+      "expected": "pass",
+      "metricName": "ledger_vault_reconciliation",
+      "pass": false,
+      "stage": "gateway-fullchain"
+    }
+  ],
+  "contract": {
+    "addresses": {
+      "MockUSDC": "0xfad31daE42B0046aFA106BCf56ED0dDaCA4463B9",
+      "SynapseCore": "0x0bA1dcE1Cc8d877052ab1C3CE2362830459D8FF4"
+    },
+    "blockNumber": null,
+    "chainId": null,
+    "codeHashes": {},
+    "configPath": "services/user-front/src/contract-config.arbitrum-sepolia.example.json",
+    "errors": [
+      "HTTP Error 429: Too Many Requests"
+    ],
+    "rpcUrl": "https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi"
+  },
+  "environment": {
+    "clickHouseUrl": "http://127.0.0.1:8123",
+    "environment": "staging",
+    "gatewayBaseUrl": "https://api-staging.synapse-network.ai",
+    "generatedAt": "2026-05-09T07:01:15.476067+00:00",
+    "gitCommitSha": "63bd026dda3382051fe661dfeed55e1adaf60c98",
+    "gitDirty": true,
+    "kafkaBootstrapServers": "localhost:9092",
+    "kafkaTopic": "synapse.analytics.events",
+    "operator": "cliff",
+    "profile": "mvp-postgres",
+    "providerBaseUrl": "https://provider-staging.synapse-network.ai",
+    "rpcUrl": "https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi"
+  },
+  "evidenceDigest": "9de85704e79b9c5f45871a3a2cf06dfd2777f539abe985f5088a32f275fe5684",
+  "failed": [
+    "pytest exited with 1",
+    "pytest failures=6 errors=36",
+    "pytest skipped=4",
+    "pytest / Skipped tests expected 0 actual 4",
+    "contract / Contract manifest errors expected 0 actual 1",
+    "gateway-fullchain / deposit expected pass actual test_deposit_full_pipeline=error",
+    "gateway-fullchain / confirm expected pass actual test_deposit_confirm=error, test_balance_reflects_deposit=error",
+    "gateway-fullchain / service_discovery expected pass actual test_get_quote_for_service=error",
+    "gateway-fullchain / quote expected pass actual test_get_quote_for_service=error, test_01_quote_service=failed",
+    "gateway-fullchain / invoke expected pass actual test_invocation_deducts_balance=error, test_02_invoke_service=failed",
+    "gateway-fullchain / provider_credit expected pass actual test_invocation_deducts_balance=error",
+    "gateway-fullchain / receipt expected pass actual test_invocation_receipt_reachable=skipped, test_03_get_invocation_receipt=failed",
+    "gateway-fullchain / consumer_withdrawal expected pass actual test_consumer_withdraw_decreases_available_balance=error, test_consumer_withdraw_record_has_correct_amount_and_status=error",
+    "gateway-fullchain / ledger_vault_reconciliation expected pass actual test_invocation_deducts_balance=error, test_consumer_withdraw_reduces_total_spendable_capacity=error"
+  ],
+  "generatedAt": "2026-05-09T07:01:15.760566+00:00",
+  "jobExecution": {
+    "alreadyRunningSkipped": 0,
+    "depositConfirmSla": {
+      "creditedAt": null,
+      "delaySeconds": null,
+      "expected": "deposit credited within 1-2 minutes after on-chain confirmation",
+      "indexedAt": null
+    },
+    "jobs": [],
+    "source": "not-provided"
+  },
+  "minimumExpectedTests": 50,
+  "profile": "mvp-postgres",
+  "pytest": {
+    "errors": 36,
+    "failures": 6,
+    "skipped": 4,
+    "tests": 73
+  },
+  "reconciliation": {
+    "failed": [
+      {
+        "actual": "4",
+        "expected": "0",
+        "metricName": "Skipped tests",
+        "pass": false,
+        "stage": "pytest"
+      },
+      {
+        "actual": "1",
+        "expected": "0",
+        "metricName": "Contract manifest errors",
+        "pass": false,
+        "stage": "contract"
+      },
+      {
+        "actual": "test_deposit_full_pipeline=error",
+        "expected": "pass",
+        "metricName": "deposit",
+        "pass": false,
+        "stage": "gateway-fullchain"
+      },
+      {
+        "actual": "test_deposit_confirm=error, test_balance_reflects_deposit=error",
+        "expected": "pass",
+        "metricName": "confirm",
+        "pass": false,
+        "stage": "gateway-fullchain"
+      },
+      {
+        "actual": "test_get_quote_for_service=error",
+        "expected": "pass",
+        "metricName": "service_discovery",
+        "pass": false,
+        "stage": "gateway-fullchain"
+      },
+      {
+        "actual": "test_get_quote_for_service=error, test_01_quote_service=failed",
+        "expected": "pass",
+        "metricName": "quote",
+        "pass": false,
+        "stage": "gateway-fullchain"
+      },
+      {
+        "actual": "test_invocation_deducts_balance=error, test_02_invoke_service=failed",
+        "expected": "pass",
+        "metricName": "invoke",
+        "pass": false,
+        "stage": "gateway-fullchain"
+      },
+      {
+        "actual": "test_invocation_deducts_balance=error",
+        "expected": "pass",
+        "metricName": "provider_credit",
+        "pass": false,
+        "stage": "gateway-fullchain"
+      },
+      {
+        "actual": "test_invocation_receipt_reachable=skipped, test_03_get_invocation_receipt=failed",
+        "expected": "pass",
+        "metricName": "receipt",
+        "pass": false,
+        "stage": "gateway-fullchain"
+      },
+      {
+        "actual": "test_consumer_withdraw_decreases_available_balance=error, test_consumer_withdraw_record_has_correct_amount_and_status=error",
+        "expected": "pass",
+        "metricName": "consumer_withdrawal",
+        "pass": false,
+        "stage": "gateway-fullchain"
+      },
+      {
+        "actual": "test_invocation_deducts_balance=error, test_consumer_withdraw_reduces_total_spendable_capacity=error",
+        "expected": "pass",
+        "metricName": "ledger_vault_reconciliation",
+        "pass": false,
+        "stage": "gateway-fullchain"
+      }
+    ],
+    "passed": [
+      {
+        "actual": "73",
+        "expected": ">=50",
+        "metricName": "Collected tests",
+        "pass": true,
+        "stage": "pytest"
+      },
+      {
+        "actual": "postgres-outbox",
+        "expected": "postgres-outbox",
+        "metricName": "Postgres outbox mode",
+        "pass": true,
+        "stage": "analytics"
+      }
+    ],
+    "source": "gateway e2e expected-vs-actual comparisons"
+  },
+  "scriptVersion": "gateway-release-evidence:v1",
+  "status": "failed",
+  "traceDigest": "70957883f1f750ed7d42be2d0c2ce600752155acd6ea1d513d0aac34e008ac9d",
+  "traceLineCount": 13
+}
