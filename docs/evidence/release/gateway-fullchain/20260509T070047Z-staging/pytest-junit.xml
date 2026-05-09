@@ -1,0 +1,215 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="36" failures="6" skipped="4" tests="73" time="27.342" timestamp="2026-05-09T15:00:47.971432+08:00" hostname="haochenchengdeMac-mini.local"><testcase classname="tests.e2e.test_01_infrastructure" name="test_gateway_health" time="0.620" /><testcase classname="tests.e2e.test_01_infrastructure" name="test_provider_health" time="0.289" /><testcase classname="tests.e2e.test_01_infrastructure" name="test_hardhat_rpc_connected" time="0.267"><error message="failed on setup with &quot;AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi&#10;assert False&#10; +  where False = is_connected()&#10; +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected&quot;">.venv/lib/python3.11/site-packages/pytest_asyncio/plugin.py:730: in pytest_fixture_setup
+    return (yield)
+            ^^^^^
+tests/e2e/conftest.py:200: in w3
+    assert instance.is_connected(), f"Cannot connect to RPC at {RPC_URL}"
+E   AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi
+E   assert False
+E    +  where False = is_connected()
+E    +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected</error></testcase><testcase classname="tests.e2e.test_01_infrastructure" name="test_contract_config_has_required_keys" time="0.000"><error message="failed on setup with &quot;AssertionError: contract-config.json not found at services/user-front/src/contract-config.arbitrum-sepolia.example.json. Run scripts/local/setup_local_env.sh first.&#10;assert False&#10; +  where False = exists()&#10; +    where exists = PosixPath('services/user-front/src/contract-config.arbitrum-sepolia.example.json').exists&quot;">.venv/lib/python3.11/site-packages/pytest_asyncio/plugin.py:730: in pytest_fixture_setup
+    return (yield)
+            ^^^^^
+tests/e2e/conftest.py:177: in contract_config
+    assert CONTRACT_CONFIG_PATH.exists(), (
+E   AssertionError: contract-config.json not found at services/user-front/src/contract-config.arbitrum-sepolia.example.json. Run scripts/local/setup_local_env.sh first.
+E   assert False
+E    +  where False = exists()
+E    +    where exists = PosixPath('services/user-front/src/contract-config.arbitrum-sepolia.example.json').exists</error></testcase><testcase classname="tests.e2e.test_01_infrastructure" name="test_synapse_core_deployed" time="0.000"><error message="failed on setup with &quot;AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi&#10;assert False&#10; +  where False = is_connected()&#10; +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected&quot;">tests/e2e/conftest.py:200: in w3
+    assert instance.is_connected(), f"Cannot connect to RPC at {RPC_URL}"
+E   AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi
+E   assert False
+E    +  where False = is_connected()
+E    +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected</error></testcase><testcase classname="tests.e2e.test_01_infrastructure" name="test_mock_usdc_deployed" time="0.000"><error message="failed on setup with &quot;AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi&#10;assert False&#10; +  where False = is_connected()&#10; +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected&quot;">tests/e2e/conftest.py:200: in w3
+    assert instance.is_connected(), f"Cannot connect to RPC at {RPC_URL}"
+E   AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi
+E   assert False
+E    +  where False = is_connected()
+E    +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected</error></testcase><testcase classname="tests.e2e.test_02_wallet_auth" name="test_owner_auth_full_flow" time="0.663" /><testcase classname="tests.e2e.test_02_wallet_auth" name="test_provider_auth_full_flow" time="0.615" /><testcase classname="tests.e2e.test_02_wallet_auth" name="test_challenge_returns_valid_message" time="0.272" /><testcase classname="tests.e2e.test_02_wallet_auth" name="test_fake_signature_rejected" time="5.826" /><testcase classname="tests.e2e.test_02_wallet_auth" name="test_owner_jwt_stored_in_session" time="0.000"><error message="failed on setup with &quot;AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi&#10;assert False&#10; +  where False = is_connected()&#10; +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected&quot;">tests/e2e/conftest.py:200: in w3
+    assert instance.is_connected(), f"Cannot connect to RPC at {RPC_URL}"
+E   AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi
+E   assert False
+E    +  where False = is_connected()
+E    +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected</error></testcase><testcase classname="tests.e2e.test_03_fund_wallet" name="test_deployer_has_eth" time="0.000"><error message="failed on setup with &quot;AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi&#10;assert False&#10; +  where False = is_connected()&#10; +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected&quot;">tests/e2e/conftest.py:200: in w3
+    assert instance.is_connected(), f"Cannot connect to RPC at {RPC_URL}"
+E   AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi
+E   assert False
+E    +  where False = is_connected()
+E    +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected</error></testcase><testcase classname="tests.e2e.test_03_fund_wallet" name="test_mint_usdc_to_owner" time="0.000"><error message="failed on setup with &quot;AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi&#10;assert False&#10; +  where False = is_connected()&#10; +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected&quot;">tests/e2e/conftest.py:200: in w3
+    assert instance.is_connected(), f"Cannot connect to RPC at {RPC_URL}"
+E   AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi
+E   assert False
+E    +  where False = is_connected()
+E    +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected</error></testcase><testcase classname="tests.e2e.test_03_fund_wallet" name="test_fund_eth_to_owner" time="0.000"><error message="failed on setup with &quot;AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi&#10;assert False&#10; +  where False = is_connected()&#10; +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected&quot;">tests/e2e/conftest.py:200: in w3
+    assert instance.is_connected(), f"Cannot connect to RPC at {RPC_URL}"
+E   AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi
+E   assert False
+E    +  where False = is_connected()
+E    +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected</error></testcase><testcase classname="tests.e2e.test_03_fund_wallet" name="test_mint_usdc_to_provider" time="0.000"><error message="failed on setup with &quot;AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi&#10;assert False&#10; +  where False = is_connected()&#10; +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected&quot;">tests/e2e/conftest.py:200: in w3
+    assert instance.is_connected(), f"Cannot connect to RPC at {RPC_URL}"
+E   AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi
+E   assert False
+E    +  where False = is_connected()
+E    +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected</error></testcase><testcase classname="tests.e2e.test_03_fund_wallet" name="test_fund_eth_to_provider" time="0.000"><error message="failed on setup with &quot;AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi&#10;assert False&#10; +  where False = is_connected()&#10; +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected&quot;">tests/e2e/conftest.py:200: in w3
+    assert instance.is_connected(), f"Cannot connect to RPC at {RPC_URL}"
+E   AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi
+E   assert False
+E    +  where False = is_connected()
+E    +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected</error></testcase><testcase classname="tests.e2e.test_04_deposit" name="test_deposit_full_pipeline" time="0.000"><error message="failed on setup with &quot;AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi&#10;assert False&#10; +  where False = is_connected()&#10; +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected&quot;">tests/e2e/conftest.py:200: in w3
+    assert instance.is_connected(), f"Cannot connect to RPC at {RPC_URL}"
+E   AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi
+E   assert False
+E    +  where False = is_connected()
+E    +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected</error></testcase><testcase classname="tests.e2e.test_04_deposit" name="test_deposit_confirm" time="0.000"><error message="failed on setup with &quot;AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi&#10;assert False&#10; +  where False = is_connected()&#10; +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected&quot;">tests/e2e/conftest.py:200: in w3
+    assert instance.is_connected(), f"Cannot connect to RPC at {RPC_URL}"
+E   AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi
+E   assert False
+E    +  where False = is_connected()
+E    +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected</error></testcase><testcase classname="tests.e2e.test_04_deposit" name="test_balance_reflects_deposit" time="0.000"><error message="failed on setup with &quot;AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi&#10;assert False&#10; +  where False = is_connected()&#10; +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected&quot;">tests/e2e/conftest.py:200: in w3
+    assert instance.is_connected(), f"Cannot connect to RPC at {RPC_URL}"
+E   AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi
+E   assert False
+E    +  where False = is_connected()
+E    +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected</error></testcase><testcase classname="tests.e2e.test_04_deposit" name="test_duplicate_intent_is_idempotent" time="0.000"><error message="failed on setup with &quot;AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi&#10;assert False&#10; +  where False = is_connected()&#10; +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected&quot;">tests/e2e/conftest.py:200: in w3
+    assert instance.is_connected(), f"Cannot connect to RPC at {RPC_URL}"
+E   AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi
+E   assert False
+E    +  where False = is_connected()
+E    +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected</error></testcase><testcase classname="tests.e2e.test_05_provider_register" name="test_provider_catalog_services_are_discoverable" time="2.348" /><testcase classname="tests.e2e.test_05_provider_register" name="test_paid_mock_cost_service_has_one_usdc_price" time="0.390" /><testcase classname="tests.e2e.test_05_provider_register" name="test_free_echo_service_is_available_for_smoke_invokes" time="0.353" /><testcase classname="tests.e2e.test_05_provider_register" name="test_provider_catalog_visible_in_provider_owner_list" time="0.000"><error message="failed on setup with &quot;AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi&#10;assert False&#10; +  where False = is_connected()&#10; +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected&quot;">tests/e2e/conftest.py:200: in w3
+    assert instance.is_connected(), f"Cannot connect to RPC at {RPC_URL}"
+E   AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi
+E   assert False
+E    +  where False = is_connected()
+E    +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected</error></testcase><testcase classname="tests.e2e.test_05_provider_register" name="test_service_registration_endpoint_is_not_exercised_by_e2e" time="0.000"><error message="failed on setup with &quot;AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi&#10;assert False&#10; +  where False = is_connected()&#10; +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected&quot;">tests/e2e/conftest.py:200: in w3
+    assert instance.is_connected(), f"Cannot connect to RPC at {RPC_URL}"
+E   AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi
+E   assert False
+E    +  where False = is_connected()
+E    +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected</error></testcase><testcase classname="tests.e2e.test_05_provider_register_onboarding" name="test_provider_onboarding_prerequisite_smoke_services_discoverable" time="0.914" /><testcase classname="tests.e2e.test_05_provider_register_onboarding" name="test_provider_onboarding_prerequisite_smoke_services_owned_by_provider" time="0.000"><error message="failed on setup with &quot;AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi&#10;assert False&#10; +  where False = is_connected()&#10; +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected&quot;">tests/e2e/conftest.py:200: in w3
+    assert instance.is_connected(), f"Cannot connect to RPC at {RPC_URL}"
+E   AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi
+E   assert False
+E    +  where False = is_connected()
+E    +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected</error></testcase><testcase classname="tests.e2e.test_05_provider_credentials" name="test_provider_wallet_can_issue_secret" time="0.000"><error message="failed on setup with &quot;AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi&#10;assert False&#10; +  where False = is_connected()&#10; +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected&quot;">tests/e2e/conftest.py:200: in w3
+    assert instance.is_connected(), f"Cannot connect to RPC at {RPC_URL}"
+E   AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi
+E   assert False
+E    +  where False = is_connected()
+E    +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected</error></testcase><testcase classname="tests.e2e.test_05_provider_credentials" name="test_provider_secret_visible_in_list" time="0.000"><error message="failed on setup with &quot;AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi&#10;assert False&#10; +  where False = is_connected()&#10; +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected&quot;">tests/e2e/conftest.py:200: in w3
+    assert instance.is_connected(), f"Cannot connect to RPC at {RPC_URL}"
+E   AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi
+E   assert False
+E    +  where False = is_connected()
+E    +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected</error></testcase><testcase classname="tests.e2e.test_06_agent_credential" name="test_issue_agent_credential" time="0.000"><error message="failed on setup with &quot;AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi&#10;assert False&#10; +  where False = is_connected()&#10; +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected&quot;">tests/e2e/conftest.py:200: in w3
+    assert instance.is_connected(), f"Cannot connect to RPC at {RPC_URL}"
+E   AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi
+E   assert False
+E    +  where False = is_connected()
+E    +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected</error></testcase><testcase classname="tests.e2e.test_06_agent_credential" name="test_list_credentials_contains_issued" time="0.000"><error message="failed on setup with &quot;AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi&#10;assert False&#10; +  where False = is_connected()&#10; +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected&quot;">tests/e2e/conftest.py:200: in w3
+    assert instance.is_connected(), f"Cannot connect to RPC at {RPC_URL}"
+E   AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi
+E   assert False
+E    +  where False = is_connected()
+E    +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected</error></testcase><testcase classname="tests.e2e.test_06_agent_credential" name="test_list_credentials_active_only" time="0.000"><error message="failed on setup with &quot;AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi&#10;assert False&#10; +  where False = is_connected()&#10; +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected&quot;">tests/e2e/conftest.py:200: in w3
+    assert instance.is_connected(), f"Cannot connect to RPC at {RPC_URL}"
+E   AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi
+E   assert False
+E    +  where False = is_connected()
+E    +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected</error></testcase><testcase classname="tests.e2e.test_06_agent_credential" name="test_get_credential_status" time="0.000"><error message="failed on setup with &quot;AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi&#10;assert False&#10; +  where False = is_connected()&#10; +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected&quot;">tests/e2e/conftest.py:200: in w3
+    assert instance.is_connected(), f"Cannot connect to RPC at {RPC_URL}"
+E   AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi
+E   assert False
+E    +  where False = is_connected()
+E    +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected</error></testcase><testcase classname="tests.e2e.test_06_agent_credential" name="test_patch_credential_name_and_quota" time="0.000"><error message="failed on setup with &quot;AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi&#10;assert False&#10; +  where False = is_connected()&#10; +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected&quot;">tests/e2e/conftest.py:200: in w3
+    assert instance.is_connected(), f"Cannot connect to RPC at {RPC_URL}"
+E   AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi
+E   assert False
+E    +  where False = is_connected()
+E    +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected</error></testcase><testcase classname="tests.e2e.test_06_agent_credential" name="test_active_only_reflects_patch" time="0.000"><error message="failed on setup with &quot;AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi&#10;assert False&#10; +  where False = is_connected()&#10; +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected&quot;">tests/e2e/conftest.py:200: in w3
+    assert instance.is_connected(), f"Cannot connect to RPC at {RPC_URL}"
+E   AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi
+E   assert False
+E    +  where False = is_connected()
+E    +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected</error></testcase><testcase classname="tests.e2e.test_06_agent_credential" name="test_agent_token_non_empty" time="0.000"><failure message="AssertionError: agent_token not set by issue step&#10;assert (None)">tests/e2e/test_06_agent_credential.py:137: in test_agent_token_non_empty
+    assert token and len(token) &gt; 10, "agent_token not set by issue step"
+E   AssertionError: agent_token not set by issue step
+E   assert (None)</failure></testcase><testcase classname="tests.e2e.test_07_invoke" name="test_get_quote_for_service" time="0.000"><error message="failed on setup with &quot;AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi&#10;assert False&#10; +  where False = is_connected()&#10; +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected&quot;">tests/e2e/conftest.py:200: in w3
+    assert instance.is_connected(), f"Cannot connect to RPC at {RPC_URL}"
+E   AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi
+E   assert False
+E    +  where False = is_connected()
+E    +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected</error></testcase><testcase classname="tests.e2e.test_07_invoke" name="test_invocation_deducts_balance" time="0.000"><error message="failed on setup with &quot;AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi&#10;assert False&#10; +  where False = is_connected()&#10; +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected&quot;">tests/e2e/conftest.py:200: in w3
+    assert instance.is_connected(), f"Cannot connect to RPC at {RPC_URL}"
+E   AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi
+E   assert False
+E    +  where False = is_connected()
+E    +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected</error></testcase><testcase classname="tests.e2e.test_07_invoke" name="test_invocation_receipt_reachable" time="0.000"><skipped type="pytest.skip" message="invocation_id not set — invocation test may have failed">/Users/cliff/workspace/agent/Synapse-Network/services/gateway/tests/e2e/test_07_invoke.py:152: invocation_id not set — invocation test may have failed</skipped></testcase><testcase classname="tests.e2e.test_07_invoke" name="test_idempotent_invocation_same_id" time="0.000"><skipped type="pytest.skip" message="Prerequisites not set">/Users/cliff/workspace/agent/Synapse-Network/services/gateway/tests/e2e/test_07_invoke.py:178: Prerequisites not set</skipped></testcase><testcase classname="tests.e2e.test_08_cleanup" name="test_revoke_credential" time="0.000"><error message="failed on setup with &quot;AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi&#10;assert False&#10; +  where False = is_connected()&#10; +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected&quot;">tests/e2e/conftest.py:200: in w3
+    assert instance.is_connected(), f"Cannot connect to RPC at {RPC_URL}"
+E   AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi
+E   assert False
+E    +  where False = is_connected()
+E    +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected</error></testcase><testcase classname="tests.e2e.test_08_cleanup" name="test_revoked_credential_is_rejected" time="0.000"><skipped type="pytest.skip" message="Credential not revoked or missing agent_token/service_id">/Users/cliff/workspace/agent/Synapse-Network/services/gateway/tests/e2e/test_08_cleanup.py:28: Credential not revoked or missing agent_token/service_id</skipped></testcase><testcase classname="tests.e2e.test_08_cleanup" name="test_chain_complete" time="0.000"><failure message="AssertionError: deposit_tx_hash missing&#10;assert None&#10; +  where None = &lt;built-in method get of dict object at 0x10a655740&gt;('deposit_tx_hash')&#10; +    where &lt;built-in method get of dict object at 0x10a655740&gt; = {'catalog_service_ids': ['svc_synapse_echo', 'svc_synapse_mock_cost_1usdc', 'svc_web3_sentiment_index', 'svc_protocol_...check', 'svc_deepseek_chat'], 'free_smoke_service_id': 'svc_synapse_echo', 'service_id': 'svc_synapse_mock_cost_1usdc'}.get">tests/e2e/test_08_cleanup.py:49: in test_chain_complete
+    assert session_state.get("deposit_tx_hash"), "deposit_tx_hash missing"
+E   AssertionError: deposit_tx_hash missing
+E   assert None
+E    +  where None = &lt;built-in method get of dict object at 0x10a655740&gt;('deposit_tx_hash')
+E    +    where &lt;built-in method get of dict object at 0x10a655740&gt; = {'catalog_service_ids': ['svc_synapse_echo', 'svc_synapse_mock_cost_1usdc', 'svc_web3_sentiment_index', 'svc_protocol_...check', 'svc_deepseek_chat'], 'free_smoke_service_id': 'svc_synapse_echo', 'service_id': 'svc_synapse_mock_cost_1usdc'}.get</failure></testcase><testcase classname="tests.e2e.test_09_consumer_withdraw" name="test_consumer_has_balance_before_withdraw" time="0.000"><error message="failed on setup with &quot;AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi&#10;assert False&#10; +  where False = is_connected()&#10; +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected&quot;">tests/e2e/conftest.py:200: in w3
+    assert instance.is_connected(), f"Cannot connect to RPC at {RPC_URL}"
+E   AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi
+E   assert False
+E    +  where False = is_connected()
+E    +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected</error></testcase><testcase classname="tests.e2e.test_09_consumer_withdraw" name="test_consumer_withdraw_decreases_available_balance" time="0.000"><error message="failed on setup with &quot;AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi&#10;assert False&#10; +  where False = is_connected()&#10; +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected&quot;">tests/e2e/conftest.py:200: in w3
+    assert instance.is_connected(), f"Cannot connect to RPC at {RPC_URL}"
+E   AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi
+E   assert False
+E    +  where False = is_connected()
+E    +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected</error></testcase><testcase classname="tests.e2e.test_09_consumer_withdraw" name="test_consumer_withdraw_frozen_amount_not_available" time="0.000"><error message="failed on setup with &quot;AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi&#10;assert False&#10; +  where False = is_connected()&#10; +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected&quot;">tests/e2e/conftest.py:200: in w3
+    assert instance.is_connected(), f"Cannot connect to RPC at {RPC_URL}"
+E   AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi
+E   assert False
+E    +  where False = is_connected()
+E    +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected</error></testcase><testcase classname="tests.e2e.test_09_consumer_withdraw" name="test_consumer_withdraw_record_appears_in_listing" time="0.000"><error message="failed on setup with &quot;AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi&#10;assert False&#10; +  where False = is_connected()&#10; +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected&quot;">tests/e2e/conftest.py:200: in w3
+    assert instance.is_connected(), f"Cannot connect to RPC at {RPC_URL}"
+E   AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi
+E   assert False
+E    +  where False = is_connected()
+E    +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected</error></testcase><testcase classname="tests.e2e.test_09_consumer_withdraw" name="test_consumer_withdraw_record_has_correct_amount_and_status" time="0.000"><error message="failed on setup with &quot;AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi&#10;assert False&#10; +  where False = is_connected()&#10; +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected&quot;">tests/e2e/conftest.py:200: in w3
+    assert instance.is_connected(), f"Cannot connect to RPC at {RPC_URL}"
+E   AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi
+E   assert False
+E    +  where False = is_connected()
+E    +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected</error></testcase><testcase classname="tests.e2e.test_09_consumer_withdraw" name="test_consumer_withdraw_reduces_total_spendable_capacity" time="0.000"><error message="failed on setup with &quot;AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi&#10;assert False&#10; +  where False = is_connected()&#10; +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected&quot;">tests/e2e/conftest.py:200: in w3
+    assert instance.is_connected(), f"Cannot connect to RPC at {RPC_URL}"
+E   AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi
+E   assert False
+E    +  where False = is_connected()
+E    +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected</error></testcase><testcase classname="tests.e2e.test_09_consumer_withdraw" name="test_consumer_withdraw_invalid_amount_rejected" time="0.000"><error message="failed on setup with &quot;AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi&#10;assert False&#10; +  where False = is_connected()&#10; +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected&quot;">tests/e2e/conftest.py:200: in w3
+    assert instance.is_connected(), f"Cannot connect to RPC at {RPC_URL}"
+E   AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi
+E   assert False
+E    +  where False = is_connected()
+E    +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected</error></testcase><testcase classname="tests.e2e.test_09_consumer_withdraw" name="test_consumer_withdraw_exceeds_balance_rejected" time="0.000"><error message="failed on setup with &quot;AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi&#10;assert False&#10; +  where False = is_connected()&#10; +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected&quot;">tests/e2e/conftest.py:200: in w3
+    assert instance.is_connected(), f"Cannot connect to RPC at {RPC_URL}"
+E   AssertionError: Cannot connect to RPC at https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi
+E   assert False
+E    +  where False = is_connected()
+E    +    where is_connected = &lt;web3.main.Web3 object at 0x10a7fa590&gt;.is_connected</error></testcase><testcase classname="tests.e2e.test_api_reference.TestAuth" name="test_01_challenge_returns_nonce" time="0.394" /><testcase classname="tests.e2e.test_api_reference.TestAuth" name="test_02_verify_returns_jwt" time="0.317" /><testcase classname="tests.e2e.test_api_reference.TestAuth" name="test_03_invalid_signature_rejected" time="0.582" /><testcase classname="tests.e2e.test_api_reference.TestAuth" name="test_04_get_me_returns_profile" time="0.335" /><testcase classname="tests.e2e.test_api_reference.TestAuth" name="test_05_me_requires_auth" time="0.293" /><testcase classname="tests.e2e.test_api_reference.TestBalance" name="test_01_get_balance_returns_summary" time="0.390" /><testcase classname="tests.e2e.test_api_reference.TestBalance" name="test_02_balance_requires_auth" time="0.273" /><testcase classname="tests.e2e.test_api_reference.TestBalance" name="test_03_spending_limit_readable" time="0.327" /><testcase classname="tests.e2e.test_api_reference.TestServices" name="test_01_discover_returns_list" time="0.367" /><testcase classname="tests.e2e.test_api_reference.TestServices" name="test_02_discover_requires_auth" time="0.361" /><testcase classname="tests.e2e.test_api_reference.TestServices" name="test_03_existing_provider_catalog_service_visible" time="0.373" /><testcase classname="tests.e2e.test_api_reference.TestServices" name="test_04_list_own_services" time="1.135" /><testcase classname="tests.e2e.test_api_reference.TestServices" name="test_05_discover_search_query" time="2.623" /><testcase classname="tests.e2e.test_api_reference.TestServices" name="test_06_provider_catalog_service_remains_visible" time="0.390" /><testcase classname="tests.e2e.test_api_reference.TestCredentials" name="test_01_issue_credential" time="2.519"><failure message="AssertionError: Expected 200/201, got 409: {&quot;detail&quot;:{&quot;code&quot;:&quot;AGENT_CREDENTIAL_LIMIT_REACHED&quot;,&quot;message&quot;:&quot;Owner can create up to 5 agent credentials&quot;}}&#10;assert 409 in (200, 201)&#10; +  where 409 = &lt;Response [409 Conflict]&gt;.status_code">tests/e2e/test_api_reference.py:312: in test_01_issue_credential
+    assert r.status_code in (200, 201), f"Expected 200/201, got {r.status_code}: {r.text}"
+E   AssertionError: Expected 200/201, got 409: {"detail":{"code":"AGENT_CREDENTIAL_LIMIT_REACHED","message":"Owner can create up to 5 agent credentials"}}
+E   assert 409 in (200, 201)
+E    +  where 409 = &lt;Response [409 Conflict]&gt;.status_code</failure></testcase><testcase classname="tests.e2e.test_api_reference.TestCredentials" name="test_02_list_credentials" time="0.359" /><testcase classname="tests.e2e.test_api_reference.TestCredentials" name="test_03_credential_requires_auth" time="0.274" /><testcase classname="tests.e2e.test_api_reference.TestCredentials" name="test_04_revoke_credential" time="0.000"><skipped type="pytest.skip" message="No credential_id from test_01, skipping delete">/Users/cliff/workspace/agent/Synapse-Network/services/gateway/tests/e2e/test_api_reference.py:354: No credential_id from test_01, skipping delete</skipped></testcase><testcase classname="tests.e2e.test_api_reference.TestInvocations" name="test_01_quote_service" time="1.707"><failure message="httpx.HTTPStatusError: Client error '409 Conflict' for url 'https://api-staging.synapse-network.ai/api/v1/credentials/agent/issue'&#10;For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/409">tests/e2e/test_api_reference.py:439: in test_01_quote_service
+    headers={"X-Credential": self._cred()},
+                             ^^^^^^^^^^^^
+tests/e2e/test_api_reference.py:389: in _cred
+    r.raise_for_status()
+.venv/lib/python3.11/site-packages/httpx/_models.py:829: in raise_for_status
+    raise HTTPStatusError(message, request=request, response=self)
+E   httpx.HTTPStatusError: Client error '409 Conflict' for url 'https://api-staging.synapse-network.ai/api/v1/credentials/agent/issue'
+E   For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/409</failure></testcase><testcase classname="tests.e2e.test_api_reference.TestInvocations" name="test_02_invoke_service" time="0.000"><failure message="Failed: No quote_id from test_01, skipping invoke">tests/e2e/test_api_reference.py:465: in test_02_invoke_service
+    _skip_or_fail("No quote_id from test_01, skipping invoke")
+tests/e2e/test_api_reference.py:46: in _skip_or_fail
+    pytest.fail(message)
+E   Failed: No quote_id from test_01, skipping invoke</failure></testcase><testcase classname="tests.e2e.test_api_reference.TestInvocations" name="test_03_get_invocation_receipt" time="0.000"><failure message="Failed: No invocation_id from test_02, skipping receipt check">tests/e2e/test_api_reference.py:498: in test_03_get_invocation_receipt
+    _skip_or_fail("No invocation_id from test_02, skipping receipt check")
+tests/e2e/test_api_reference.py:46: in _skip_or_fail
+    pytest.fail(message)
+E   Failed: No invocation_id from test_02, skipping receipt check</failure></testcase><testcase classname="tests.e2e.test_api_reference.TestInvocations" name="test_04_get_invocations_list" time="1.514" /></testsuite></testsuites>

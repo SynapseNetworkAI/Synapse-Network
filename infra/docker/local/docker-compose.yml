@@ -61,6 +61,13 @@ services:
       # Browser-facing Otterscan config. The app runs in the local browser, so
       # localhost:8545 resolves to the host Anvil/Hardhat RPC.
       - ERIGON_URL=http://localhost:8545
+    volumes:
+      - ./otterscan/docker-entrypoint.d/10-synapse-signatures.sh:/docker-entrypoint.d/10-synapse-signatures.sh:ro
+      - ./otterscan/custom-signatures:/opt/synapse-otterscan/custom-signatures:ro
+    command:
+      - /bin/sh
+      - -lc
+      - /docker-entrypoint.d/10-synapse-signatures.sh && exec /run-nginx.sh
     restart: unless-stopped
 
   redis:
