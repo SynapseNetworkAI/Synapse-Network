@@ -34,7 +34,13 @@ EOF
 }
 
 if command -v uvx >/dev/null 2>&1; then
-  exec uvx --from "$PACKAGE" "$TOOL" "$@"
+  EXTRA_UVX_ARGS=()
+  if [[ "$PACKAGE" == "semgrep" ]]; then
+    # Some semgrep uvx environments miss pkg_resources unless setuptools is
+    # layered explicitly. Keep the guardrail runner self-healing.
+    EXTRA_UVX_ARGS=(--with setuptools)
+  fi
+  exec uvx "${EXTRA_UVX_ARGS[@]}" --from "$PACKAGE" "$TOOL" "$@"
 fi
 
 if command -v "$TOOL" >/dev/null 2>&1; then
