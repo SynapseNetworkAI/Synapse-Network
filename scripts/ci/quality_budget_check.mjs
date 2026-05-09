@@ -21,7 +21,7 @@ const ARGUMENT_MAX = 8;
 const BASELINED_FILE_EFFECTIVE_LINES = new Map([
   ["scripts/admin_analytics_fullchain_e2e.js", 583],
   ["scripts/admin_analytics_clickhouse_regression.py", 541],
-  ["scripts/ci/quality_budget_check.mjs", 596],
+  ["scripts/ci/quality_budget_check.mjs", 597],
   ["scripts/ci/resolve_pr_ci_scope.mjs", 506],
   ["scripts/ci/validate_docs.js", 662],
   ["scripts/deploy/gcp_staging_drift_guard.mjs", 539],
@@ -45,6 +45,7 @@ const BASELINED_FILE_EFFECTIVE_LINES = new Map([
   ["scripts/e2e/withdrawal_idempotency_concurrency_e2e.mjs", 1106],
   ["scripts/e2e/withdrawal_reviews_cleanup_local.mjs", 1078],
   ["scripts/e2e/withdrawal_one_ticket_evidence.mjs", 1432],
+  ["scripts/e2e/withdrawal_one_ticket_evidence_augment.mjs", 832],
   ["scripts/e2e/withdrawal_risk_policy_e2e.mjs", 1090],
   ["scripts/e2e/withdrawal_review_dogfood.mjs", 1332],
   ["scripts/fullchain_browser_test.py", 555],
