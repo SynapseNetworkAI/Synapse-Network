@@ -1,0 +1,106 @@
+{
+  "name": "consumer-soft-revoke-expire",
+  "status": "passed",
+  "pass": true,
+  "runId": "wot-20260509104656",
+  "generatedAt": "2026-05-09T10:49:19.692Z",
+  "summary": "consumer ticket expired and reaper released funds",
+  "role": "consumer",
+  "withdrawalId": "be6b7d4d-395e-43fe-8973-0e57e15c0037",
+  "ticketHash": "0x753d631ea578930b1d6e706275c9ac25004aa82eee391969d14dde52d71fa3fa",
+  "deadline": 1778323752,
+  "softRevoke": {
+    "requestedAt": "2026-05-09T10:48:12.060Z",
+    "mode": "SOFT_REVOKE_WAIT_EXPIRY_ONLY",
+    "note": "Operator blocks refresh/new ticket; one-ticket model waits for physical deadline before release."
+  },
+  "expected": {
+    "dbStatus": "FAILED_EXPIRED",
+    "ticketConsumed": false,
+    "localPastDeadlineBuffer": true,
+    "rpcPastDeadlineMargin": true
+  },
+  "actual": {
+    "dbStatus": "FAILED_EXPIRED",
+    "ticketConsumed": false,
+    "rpcBlockTimestamp": 1778323761,
+    "localNow": 1778323759,
+    "balanceBefore": {
+      "ownerAddress": "0x918e89c214a446c58f284392bd09c046e7e3270b",
+      "ownerBalance": "153.994400",
+      "consumerAvailableBalance": "153.994400",
+      "consumerWithdrawableBalance": "153.994400",
+      "consumerPendingBalance": "10.000000",
+      "consumerFrozenBalance": "0.000000",
+      "consumerWithdrawMinUsdc": "10.000000",
+      "consumerWithdrawMaturitySeconds": 0,
+      "consumerWithdrawMaturityEnforced": false,
+      "providerReceivable": "0.000000",
+      "providerReceivableBalance": "0.000000",
+      "providerLockedBalance": "0.000000",
+      "platformFeeAccrued": "5.605600",
+      "updatedAt": "2026-05-09 10:48:12"
+    },
+    "row": {
+      "id": "be6b7d4d-395e-43fe-8973-0e57e15c0037",
+      "ownerAddress": "0x918e89c214a446c58f284392bd09c046e7e3270b",
+      "status": "FAILED_EXPIRED",
+      "requestId": "",
+      "consumerAddress": "0x918e89c214a446c58f284392bd09c046e7e3270b",
+      "amountUsdc": "10.000000",
+      "idempotencyKey": "wot:wot-20260509104656:consumer-soft-revoke-expire:1778323691984",
+      "reason": "consumer-soft-revoke-expire",
+      "signature": "[redacted]",
+      "gasPayer": "OWNER",
+      "gasModel": "OWNER_PAYS_ONCHAIN",
+      "refundType": "CONSUMER_BALANCE_WITHDRAW",
+      "destinationAddress": "0x918e89c214a446c58f284392bd09c046e7e3270b",
+      "riskLevel": "green",
+      "riskReasonCode": "",
+      "message": "Withdrawal ticket expired before on-chain execution. Funds were released back to available balance.",
+      "requestMeta": {
+        "requestId": "",
+        "clientIp": "127.0.0.1",
+        "userAgent": "node",
+        "review": {}
+      },
+      "completedAt": 1778323759,
+      "completeMeta": {
+        "review": {}
+      },
+      "ticket": {
+        "ticketId": "0x1772a3bbc285aac8fdfef47eea12e3bb6d1237a047aa1977d1290299ce062f86",
+        "ticketHash": "0x753d631ea578930b1d6e706275c9ac25004aa82eee391969d14dde52d71fa3fa",
+        "amount": "9500000000000000000",
+        "fee": "500000000000000000",
+        "deadline": 1778323752,
+        "signature": "[redacted]",
+        "chainId": 31337,
+        "contractAddress": "0x8f119cd256a0fffeed643e830adcd9767a1d517f"
+      },
+      "createdAt": "2026-05-09 10:48:12",
+      "updatedAt": "2026-05-09 10:49:19",
+      "claimable": false
+    }
+  },
+  "comparisons": [
+    {
+      "metric": "dbStatus",
+      "expected": "FAILED_EXPIRED",
+      "actual": "FAILED_EXPIRED",
+      "pass": true
+    },
+    {
+      "metric": "ticketConsumed",
+      "expected": "false",
+      "actual": "false",
+      "pass": true
+    },
+    {
+      "metric": "rpcBlockTimestamp",
+      "expected": ">1778323755",
+      "actual": "1778323761",
+      "pass": true
+    }
+  ]
+}

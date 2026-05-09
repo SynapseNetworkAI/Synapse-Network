@@ -345,7 +345,7 @@ class ProviderWithdrawHelpersMixin(
                 "txHash": existing_tx,
                 "idempotentReplay": True,
             }
-        if status not in {"APPROVED_AUTO", "REQUESTED", "PENDING"}:
+        if status not in {"APPROVED_AUTO", "REQUESTED", "PENDING", "SIGNED"}:
             raise HTTPException(
                 status_code=409,
                 detail={"code": "WITHDRAWAL_NOT_PENDING", "message": f"Withdrawal status={status} cannot be completed."},

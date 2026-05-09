@@ -1373,7 +1373,7 @@ def test_gateway_state_repository_update_consumer_refund_row_atomic_updates_row_
     tx_params = [params for _, params in db.tx_cursors[-1].executed if params is not None]
     assert "UPDATE synapse_vault_withdrawals" in tx_sql
     assert "WHERE withdrawal_id = %s" in tx_sql
-    assert "status = %s" in tx_sql
+    assert "%s::text IS NULL OR status = %s::text" in tx_sql
     assert "tx_hash = %s" in tx_sql
     assert "signature = %s" in tx_sql
     assert "deadline = %s" in tx_sql
@@ -1818,6 +1818,40 @@ def test_finance_atomic_repository_complete_withdraw_replay_is_stable_for_same_t
     second_conn_sql = "\n".join(sql for sql, _ in db.connections[0].cursor_obj.executed)
     assert "INSERT INTO synapse_withdraw_tx_dedup" not in second_conn_sql
     assert "UPDATE synapse_account_balances" not in second_conn_sql
+
+
+def test_finance_atomic_repository_complete_withdraw_accepts_signed_status() -> None:
+    db = FakeDB()
+    db.connect_plan.append(
+        {
+            "fetchone": [
+                ("wd-1", "acct-provider", Decimal("2.000000"), "SIGNED", None)
+            ]
+        }
+    )
+    repo = FinanceAtomicRepository(
+        db,
+        _q6,
+        "UPSERT",
+        "BAL_FOR_UPDATE",
+        "AUDIT_INSERT",
+        ("restricted", "suspended", "blocked"),
+    )
+
+    ok = repo.complete_withdraw_tx_atomic(
+        CompleteWithdrawTxCommand(
+            owner_wallet="0xabc",
+            tx_hash="0xtx",
+            kind="provider_withdraw",
+            withdrawal_id="wd-1",
+        )
+    )
+
+    assert ok is True
+    second_conn_sql = "\n".join(sql for sql, _ in db.connections[0].cursor_obj.executed)
+    assert "INSERT INTO synapse_withdraw_tx_dedup" in second_conn_sql
+    assert "UPDATE synapse_account_balances" in second_conn_sql
+    assert "UPDATE synapse_vault_withdrawals" in second_conn_sql
 
 
 def test_finance_atomic_repository_complete_withdraw_rejects_non_active_status() -> None:

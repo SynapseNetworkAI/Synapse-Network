@@ -1,0 +1,6 @@
+{"generatedAt":"2026-05-09T11:38:07.798Z","name":"preflight:local-api-db-chain-ui","ok":true,"detail":""}
+{"generatedAt":"2026-05-09T11:38:07.798Z","name":"task_down_pending_ui","ok":true,"detail":"0xaf5568fd0d1304b5cc8147929c57e4473e49704a43ffd9a3e598d5a7111dd82a"}
+{"generatedAt":"2026-05-09T11:38:07.798Z","name":"restart_auto_credit","ok":true,"detail":"0xaf5568fd0d1304b5cc8147929c57e4473e49704a43ffd9a3e598d5a7111dd82a"}
+{"generatedAt":"2026-05-09T11:38:07.798Z","name":"replay_safe","ok":true,"detail":"0xaf5568fd0d1304b5cc8147929c57e4473e49704a43ffd9a3e598d5a7111dd82a"}
+{"generatedAt":"2026-05-09T11:38:07.798Z","name":"missed_intent_backfill","ok":true,"detail":"0x7a633723b7c492bee1513a0bd319877b4de9006a4a0cd68ff128a39441550a3b","startBlock":2203}
+{"generatedAt":"2026-05-09T11:38:07.798Z","name":"invalid_event_no_credit","ok":true,"detail":"0xed59c01c0e5a4cc8e70d2f7a9d78457ced43c456dd82733ddc4c5efebc7a7915"}

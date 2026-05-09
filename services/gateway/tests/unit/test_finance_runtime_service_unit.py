@@ -606,6 +606,34 @@ def test_provider_withdraw_flow_uses_typed_rows() -> None:
     assert storage.gateway_state.withdraw_rows[0].tx_hash == "0x" + "3" * 64
 
 
+def test_provider_withdraw_complete_accepts_signed_status() -> None:
+    storage = FakeStorage()
+    storage.balance.ledger.ensure_provider_wallet("0xdef").available_balance = Decimal("50.000000")
+    service = ProviderWithdrawService(storage, DummyLockManager())
+    _configure_withdraw_service(service)
+
+    created = asyncio.run(
+        service.create_provider_withdraw_intent(
+            {"amountUsdc": 12},
+            "0xdef",
+            "withdraw-intent-key-signed-complete",
+        )
+    )
+    assert created["status"] == "APPROVED_AUTO"
+    storage.gateway_state.withdraw_rows[0].status = "SIGNED"
+
+    completed = asyncio.run(
+        service.complete_provider_withdrawal(
+            "0xdef",
+            storage.gateway_state.withdraw_rows[0].id,
+            "0x" + "4" * 64,
+        )
+    )
+
+    assert completed["status"] == "COMPLETED"
+    assert storage.gateway_state.withdraw_rows[0].tx_hash == "0x" + "4" * 64
+
+
 def test_provider_withdraw_allows_two_decimal_amount() -> None:
     storage = FakeStorage()
     storage.balance.ledger.ensure_provider_wallet("0xdef").available_balance = Decimal("50.000000")

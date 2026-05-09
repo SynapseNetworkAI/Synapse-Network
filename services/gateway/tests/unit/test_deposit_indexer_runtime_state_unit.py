@@ -94,7 +94,9 @@ def test_run_backfill_if_enabled_marks_rpc_unavailable_without_raising(monkeypat
 
     monkeypatch.setattr(
         "src.services.platform.tasks.deposit_indexer.runner.run_backfill_scan_once",
-        lambda _storage: (_ for _ in ()).throw(DepositIndexerRpcUnavailable("RPC_UNAVAILABLE")),
+        lambda _storage, mode="event": (_ for _ in ()).throw(
+            DepositIndexerRpcUnavailable("RPC_UNAVAILABLE")
+        ),
     )
     monkeypatch.setattr(
         "src.services.platform.tasks.deposit_indexer.runner.settings",

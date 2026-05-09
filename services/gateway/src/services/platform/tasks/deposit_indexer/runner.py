@@ -407,12 +407,12 @@ def _mark_reconciliation_failure(now: int) -> None:
     )
 
 
-def _run_backfill_if_enabled(storage: BaseStorage) -> None:
+def _run_backfill_if_enabled(storage: BaseStorage, *, mode: str = "event") -> None:
     """执行一次 backfill 周期，失败时仅记录状态。"""
     if not settings.v2_backfill_enabled:
         return
     try:
-        run_backfill_scan_once(storage)
+        run_backfill_scan_once(storage, mode=mode)
     except DepositIndexerRpcUnavailable:
         _mark_backfill_rpc_unavailable(_now())
         _persist_indexer_runtime_state(storage)
@@ -440,12 +440,15 @@ def _run_reconciliation_if_due(
 
 
 def run_indexer_blocking_step(
-    storage: BaseStorage, last_reconciliation_at: int
+    storage: BaseStorage,
+    last_reconciliation_at: int,
+    *,
+    backfill_mode: str = "event",
 ) -> dict[str, int]:
     """Run one synchronous indexer cycle in the dedicated worker thread."""
     started = _mark_step_started()
     try:
-        _run_backfill_if_enabled(storage)
+        _run_backfill_if_enabled(storage, mode=backfill_mode)
         process_pending_deposit_intents_once(storage)
         next_reconciliation_at = _run_reconciliation_if_due(
             storage, last_reconciliation_at

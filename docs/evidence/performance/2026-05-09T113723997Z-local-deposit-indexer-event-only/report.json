@@ -1,0 +1,51 @@
+{
+  "status": "success",
+  "environment": "local",
+  "generatedAt": "2026-05-09T11:37:23.997Z",
+  "runId": "event-only-2026-05-09T113723997Z",
+  "traceDigest": "5c85f9f65e273d00f08b80a4dbc0911ad68a807958dbf7718137201500fb1ec2",
+  "checks": [
+    {
+      "name": "preflight:local",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "event-only:uses-getLogs",
+      "ok": true,
+      "detail": "getLogs=2 getBlockByNumber=0"
+    },
+    {
+      "name": "chunking:evidence-present",
+      "ok": true,
+      "detail": "plannedChunks=2 getLogsCalls=2"
+    },
+    {
+      "name": "finality-buffer:evidence-present",
+      "ok": true,
+      "detail": "lastScannedBlock=2202 confirmedHead=2202"
+    },
+    {
+      "name": "deposit:single-business-row",
+      "ok": true,
+      "detail": "[REDACTED_HEX]"
+    },
+    {
+      "name": "deposit:event-key-dedup",
+      "ok": true,
+      "detail": "processedKeys=25"
+    },
+    {
+      "name": "payments:db-dom-consistent",
+      "ok": true,
+      "detail": "0xaf5568fd...d82a"
+    }
+  ],
+  "failed": [],
+  "primaryDepositTxHash": "0xaf5568fd0d1304b5cc8147929c57e4473e49704a43ffd9a3e598d5a7111dd82a",
+  "delta": {
+    "rpcRequestsReductionPct": -98.52,
+    "cuReductionPct": -98.35,
+    "reductionFactor": 60.6
+  }
+}

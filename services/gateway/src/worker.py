@@ -72,10 +72,17 @@ async def _notification_outbox_once(storage):
 
 
 async def _deposit_indexer_once(storage):
+    def _run_once():
+        return run_indexer_blocking_step(
+            storage,
+            0,
+            backfill_mode=getattr(_deposit_indexer_once, "_mode", "event"),
+        )
+
     return await _run_with_job_lock(
         storage,
         "deposit-indexer",
-        lambda: asyncio.to_thread(run_indexer_blocking_step, storage, 0),
+        lambda: asyncio.to_thread(_run_once),
     )
 
 
@@ -179,6 +186,18 @@ async def _run(args: argparse.Namespace) -> int:
     storage = create_storage(settings)
     try:
         if args.once and args.command in _ONCE_COMMANDS:
+            if args.command == "deposit-indexer":
+                requested_mode = str(getattr(args, "mode", "event") or "event").strip().lower()
+                if (
+                    requested_mode == "repair"
+                    and not bool(settings.deposit_event_repair_fallback_enabled)
+                ):
+                    raise RuntimeError("DEPOSIT_EVENT_REPAIR_FALLBACK_DISABLED")
+                setattr(
+                    _deposit_indexer_once,
+                    "_mode",
+                    requested_mode,
+                )
             log_name, handler = _ONCE_COMMANDS[args.command]
             result = await handler(storage)
             logger.info(log_name, extra=result)
@@ -235,6 +254,12 @@ def main() -> int:
         help="Run a bounded deposit indexer tick.",
     )
     deposit_indexer.add_argument("--once", action="store_true", required=True)
+    deposit_indexer.add_argument(
+        "--mode",
+        choices=("event", "repair"),
+        default="event",
+        help="Use event-only scanning by default; repair mode falls back to receipt/block recovery.",
+    )
 
     provider_withdraw_reaper = subparsers.add_parser(
         "provider-withdraw-reaper",

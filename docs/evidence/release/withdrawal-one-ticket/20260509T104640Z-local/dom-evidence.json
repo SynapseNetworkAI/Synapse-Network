@@ -1,0 +1,24 @@
+{
+  "payments": {
+    "rows": [
+      "be...0037FailedWithdrawWallet$10.002026-05-09 10:49:19--",
+      "fd...3543FailedWithdrawWallet$10.002026-05-09 10:48:10--",
+      "a0...d18fCompletedWithdrawWallet$10.002026-05-09 10:47:02",
+      "b6...ac1aCompletedWithdrawWallet$10.002026-05-09 10:47:02",
+      "9e...61beCompletedWithdrawWallet$10.002026-05-09 10:47:02",
+      "c7...6bf6CompletedDepositWallet$250.002026-05-09 10:46:58"
+    ],
+    "topRow": "be...0037FailedWithdrawWallet$10.002026-05-09 10:49:19--",
+    "noDuplicateTxHash": true
+  },
+  "consumer": {
+    "completedRow": "10.00 USDCCompleted5/9/2026, 10:47:02 AMOpen",
+    "expiredRow": "10.00 USDCFailed5/9/2026, 10:48:12 AM--",
+    "replayRowStillCompleted": true
+  },
+  "provider": {
+    "completedFromSigned": true,
+    "lowGasRetryRecovered": true,
+    "expiredRow": "wd-faa2e3f0299...3693484010.000000 USDCExpired / ReleasedExpired withdrawal released back to withdrawable balance.-1/1/1970, 8:03:46 AM-"
+  }
+}

@@ -186,5 +186,6 @@ echo "[withdrawal-one-ticket] ensuring Synapse-Network-Provider catalog service 
 SYNAPSE_GATEWAY="$GATEWAY_BASE_URL" bash "${ROOT_DIR}/scripts/local/provider_services.sh" onboard
 
 node "${ROOT_DIR}/scripts/e2e/withdrawal_one_ticket_evidence.mjs"
+node "${ROOT_DIR}/scripts/e2e/withdrawal_one_ticket_evidence_augment.mjs"
 
 echo "[withdrawal-one-ticket] PASSED"
