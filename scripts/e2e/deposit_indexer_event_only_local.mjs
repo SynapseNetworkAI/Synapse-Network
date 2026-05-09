@@ -102,7 +102,8 @@ function assertLocalOnly() {
   ) {
     fail("deposit-indexer event-only evidence requires local Postgres");
   }
-  if (config.chainId !== 31337) fail(`Refusing non-local chainId=${config.chainId}`);
+  if (config.chainId !== 31337)
+    fail(`Refusing non-local chainId=${config.chainId}`);
 }
 
 function sanitize(value) {
@@ -111,7 +112,9 @@ function sanitize(value) {
     return Object.fromEntries(
       Object.entries(value).map(([key, inner]) => [
         key,
-        /password|privateKey|signature|jwt|token|secret|authorization/i.test(key)
+        /password|privateKey|signature|jwt|token|secret|authorization/i.test(
+          key
+        )
           ? "[REDACTED]"
           : sanitize(inner),
       ])
@@ -237,20 +240,25 @@ async function ensureBlockHead(target) {
 async function authenticate(privateKey) {
   const wallet = new ethers.Wallet(privateKey);
   const challengeResponse = await fetch(
-    `${config.gatewayBase}/api/v1/auth/challenge?address=${encodeURIComponent(wallet.address)}`
+    `${config.gatewayBase}/api/v1/auth/challenge?address=${encodeURIComponent(
+      wallet.address
+    )}`
   );
   const challenge = await challengeResponse.json();
   const message = challenge.challenge || challenge.message;
   const signature = await wallet.signMessage(message);
-  const verifyResponse = await fetch(`${config.gatewayBase}/api/v1/auth/verify`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      wallet_address: wallet.address,
-      message,
-      signature,
-    }),
-  });
+  const verifyResponse = await fetch(
+    `${config.gatewayBase}/api/v1/auth/verify`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        wallet_address: wallet.address,
+        message,
+        signature,
+      }),
+    }
+  );
   const verified = await verifyResponse.json();
   const token = verified.access_token || verified.token || verified.accessToken;
   if (!token) fail("auth token missing");
@@ -315,7 +323,8 @@ async function installAuth(context, auth) {
           if (method === "eth_accounts" || method === "eth_requestAccounts") {
             return [address];
           }
-          if (method === "eth_chainId") return `0x${Number(chainId).toString(16)}`;
+          if (method === "eth_chainId")
+            return `0x${Number(chainId).toString(16)}`;
           if (method === "net_version") return String(chainId);
           return null;
         },
@@ -358,9 +367,13 @@ async function capturePaymentsEvidence(
     const expectedDepositId = shortenBillingIdentifier(targetDepositId);
     let bodyText = "";
     for (let attempt = 0; attempt < 40; attempt += 1) {
-      bodyText = await page.locator("body").innerText().catch(() => "");
+      bodyText = await page
+        .locator("body")
+        .innerText()
+        .catch(() => "");
       if (
-        (bodyText.includes(expectedHash) || bodyText.includes(expectedDepositId)) &&
+        (bodyText.includes(expectedHash) ||
+          bodyText.includes(expectedDepositId)) &&
         bodyText.includes("Completed") &&
         bodyText.includes(targetAmountUsdc.slice(0, 5))
       ) {
@@ -447,7 +460,9 @@ async function runCommandAsync(label, command, args, env = {}) {
     stderrTail: stderr.slice(-1500),
   });
   if (status !== 0) {
-    throw new Error(`${label} failed: ${(stderr || stdout || "").slice(-2000)}`);
+    throw new Error(
+      `${label} failed: ${(stderr || stdout || "").slice(-2000)}`
+    );
   }
   return { status, stdout, stderr };
 }
@@ -539,7 +554,9 @@ async function main() {
 
   const underlyingReport = readJson(path.join(UNDERLYING_DIR, "report.json"));
   const underlyingDb = readJson(path.join(UNDERLYING_DIR, "db-evidence.json"));
-  const underlyingChain = readJson(path.join(UNDERLYING_DIR, "chain-evidence.json"));
+  const underlyingChain = readJson(
+    path.join(UNDERLYING_DIR, "chain-evidence.json")
+  );
   const primaryTxHash = underlyingChain.primary?.txHash || "";
   const primaryAmountUsdc = underlyingChain.primary?.amountUsdc || "0.000000";
   const primaryKey = privateKeyFromSeed(
@@ -547,12 +564,17 @@ async function main() {
   );
   const primaryAuth = await authenticate(primaryKey);
 
-  runCommand("gateway:restart-clean", "bash", ["scripts/local/restart_gateway.sh"], {
-    STARTUP_TIMEOUT_SEC: "30",
-    V2_INDEXER_ENABLED: "false",
-    V2_BACKFILL_ENABLED: "false",
-    V2_RECONCILIATION_ENABLED: "false",
-  });
+  runCommand(
+    "gateway:restart-clean",
+    "bash",
+    ["scripts/local/restart_gateway.sh"],
+    {
+      STARTUP_TIMEOUT_SEC: "30",
+      V2_INDEXER_ENABLED: "false",
+      V2_BACKFILL_ENABLED: "false",
+      V2_RECONCILIATION_ENABLED: "false",
+    }
+  );
   addTrace("gateway:restart-clean", {
     reason: "reset local gateway pool pressure after underlying recovery lane",
   });
@@ -583,7 +605,8 @@ async function main() {
 
   const terminatedIdle = terminateIdleGatewayConnections();
   addTrace("postgres:terminate-idle", {
-    terminatedCount: terminatedIdle.filter((row) => row.terminated === true).length,
+    terminatedCount: terminatedIdle.filter((row) => row.terminated === true)
+      .length,
   });
   await new Promise((resolve) => setTimeout(resolve, 1500));
 
@@ -592,7 +615,13 @@ async function main() {
     await runCommandAsync(
       "deposit-indexer:worker:event",
       path.join(ROOT, "services/gateway/.venv/bin/python"),
-      ["services/gateway/src/worker.py", "deposit-indexer", "--once", "--mode", "event"],
+      [
+        "services/gateway/src/worker.py",
+        "deposit-indexer",
+        "--once",
+        "--mode",
+        "event",
+      ],
       {
         PYTHONPATH: "services/gateway",
         ENV_FILE: ".env.event-only.ignore",
@@ -604,7 +633,9 @@ async function main() {
         V2_BACKFILL_BLOCK_BATCH: String(config.maxLogBlockRange + 400),
         V2_RECONCILIATION_ENABLED: "true",
         DEPOSIT_EVENT_FINALITY_MODE: config.finalityMode,
-        DEPOSIT_EVENT_FINALITY_BUFFER_BLOCKS: String(config.finalityBufferBlocks),
+        DEPOSIT_EVENT_FINALITY_BUFFER_BLOCKS: String(
+          config.finalityBufferBlocks
+        ),
         DEPOSIT_EVENT_MAX_LOG_BLOCK_RANGE: String(config.maxLogBlockRange),
       }
     );
@@ -612,7 +643,10 @@ async function main() {
     await proxy.close();
   }
 
-  const latestAfterRun = Number(await rpcCall(config.rpcUrl, "eth_blockNumber"), 16);
+  const latestAfterRun = Number(
+    await rpcCall(config.rpcUrl, "eth_blockNumber"),
+    16
+  );
   const confirmedHead = latestAfterRun - config.finalityBufferBlocks;
   const runtimeStateRows = selectJson(`
     SELECT state_key, payload, updated_at::text AS updated_at
@@ -639,8 +673,9 @@ async function main() {
   const reconciliationSnapshot =
     runtimeState["deposit_reconciliation_state"]?.payload || {};
 
-  const getLogsCalls = proxy.methods.filter((method) => method === "eth_getLogs")
-    .length;
+  const getLogsCalls = proxy.methods.filter(
+    (method) => method === "eth_getLogs"
+  ).length;
   const getBlockCalls = proxy.methods.filter(
     (method) => method === "eth_getBlockByNumber"
   ).length;
@@ -658,8 +693,9 @@ async function main() {
   );
   addCheck(
     "finality-buffer:evidence-present",
-    Number(runtimeState["deposit_backfill_state"]?.payload?.lastScannedBlock || 0) <=
-      confirmedHead,
+    Number(
+      runtimeState["deposit_backfill_state"]?.payload?.lastScannedBlock || 0
+    ) <= confirmedHead,
     `lastScannedBlock=${runtimeState["deposit_backfill_state"]?.payload?.lastScannedBlock} confirmedHead=${confirmedHead}`
   );
   addCheck(
@@ -771,7 +807,10 @@ async function main() {
       "## Checks",
       "",
       ...evidence.checks.map(
-        (row) => `- ${row.ok ? "PASS" : "FAIL"} ${row.name}${row.detail ? ` - ${row.detail}` : ""}`
+        (row) =>
+          `- ${row.ok ? "PASS" : "FAIL"} ${row.name}${
+            row.detail ? ` - ${row.detail}` : ""
+          }`
       ),
       "",
     ].join("\n"),
@@ -781,7 +820,9 @@ async function main() {
 
 main().catch((error) => {
   console.error(
-    `[deposit-indexer-event-only] fatal: ${error.stack || error.message || String(error)}`
+    `[deposit-indexer-event-only] fatal: ${
+      error.stack || error.message || String(error)
+    }`
   );
   process.exitCode = 1;
 });

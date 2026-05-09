@@ -90,13 +90,17 @@ function isLocalUrl(value) {
 
 function assertLocalOnly() {
   if (!isLocalUrl(config.gatewayBase) || !isLocalUrl(config.frontendUrl)) {
-    throw new Error("withdrawal one-ticket evidence augmentation is local-only");
+    throw new Error(
+      "withdrawal one-ticket evidence augmentation is local-only"
+    );
   }
   if (
     !config.postgresDsn.includes("127.0.0.1") &&
     !config.postgresDsn.includes("localhost")
   ) {
-    throw new Error("withdrawal one-ticket evidence augmentation is local-only");
+    throw new Error(
+      "withdrawal one-ticket evidence augmentation is local-only"
+    );
   }
 }
 
@@ -339,7 +343,8 @@ async function installAuth(context, auth) {
 }
 
 function digestTrace(traceRows) {
-  const text = traceRows.map((row) => JSON.stringify(sanitize(row))).join("\n") + "\n";
+  const text =
+    traceRows.map((row) => JSON.stringify(sanitize(row))).join("\n") + "\n";
   return {
     text,
     digest: crypto.createHash("sha256").update(text).digest("hex"),
@@ -495,7 +500,9 @@ function synthesizeDedupRows(txHashes, scenario, ownerAddress) {
       owner_address: ownerAddress,
       tx_hash: txHash,
       kind:
-        scenario.role === "provider" ? "provider_withdraw" : "consumer_withdraw",
+        scenario.role === "provider"
+          ? "provider_withdraw"
+          : "consumer_withdraw",
       created_at: scenario.generatedAt || new Date().toISOString(),
       source: "scenario-fallback",
     },
@@ -592,7 +599,10 @@ async function waitForBodyText(page, predicate, timeoutMs = 20_000) {
   const startedAt = Date.now();
   let bodyText = "";
   while (Date.now() - startedAt < timeoutMs) {
-    bodyText = await page.locator("body").innerText().catch(() => "");
+    bodyText = await page
+      .locator("body")
+      .innerText()
+      .catch(() => "");
     if (predicate(bodyText)) {
       return bodyText;
     }
@@ -601,20 +611,31 @@ async function waitForBodyText(page, predicate, timeoutMs = 20_000) {
   return bodyText;
 }
 
-async function captureScreenshot({ page, fileName, predicate, domCheckpoint, url }) {
+async function captureScreenshot({
+  page,
+  fileName,
+  predicate,
+  domCheckpoint,
+  url,
+}) {
   await page.goto(config.frontendUrl, {
     waitUntil: "domcontentloaded",
     timeout: 60_000,
   });
   await page.goto(url, { waitUntil: "commit", timeout: 60_000 });
-  await page.waitForLoadState("networkidle", { timeout: 10_000 }).catch(() => {});
+  await page
+    .waitForLoadState("networkidle", { timeout: 10_000 })
+    .catch(() => {});
   const bodyText = await waitForBodyText(page, predicate);
   if (!predicate(bodyText)) {
     throw new Error(`DOM predicate failed for ${fileName}`);
   }
-  const rowTexts = await page.locator("tbody tr").evaluateAll((rows) =>
-    rows.map((row) => (row.textContent || "").trim()).filter(Boolean)
-  ).catch(() => []);
+  const rowTexts = await page
+    .locator("tbody tr")
+    .evaluateAll((rows) =>
+      rows.map((row) => (row.textContent || "").trim()).filter(Boolean)
+    )
+    .catch(() => []);
   const relative = `screenshots/${fileName}`;
   await page.screenshot({ path: path.join(OUT_DIR, relative), fullPage: true });
   return {
@@ -659,7 +680,9 @@ async function collectDomEvidence(consumerAuth, providerAuth, report) {
       (row) => row.name === "provider-expired-reaper"
     );
     const consumerCompletedTxFragment = txHashFragment(
-      consumerCompleted.actual?.txHash || consumerCompleted.actual?.row?.txHash || ""
+      consumerCompleted.actual?.txHash ||
+        consumerCompleted.actual?.row?.txHash ||
+        ""
     );
     const replayCompletedTxFragment = txHashFragment(
       replayScenario.actual?.txHash || replayScenario.actual?.row?.txHash || ""
@@ -672,12 +695,19 @@ async function collectDomEvidence(consumerAuth, providerAuth, report) {
       fileName: "payments-history.png",
       predicate: (bodyText) =>
         bodyText.includes("Transaction") &&
-        bodyText.includes(shortBillingIdentifier(consumerCompleted.withdrawalId)) &&
-        bodyText.includes(shortBillingIdentifier(consumerExpired.withdrawalId)) &&
-        bodyText.includes(shortBillingIdentifier(replayScenario.withdrawalId)) &&
+        bodyText.includes(
+          shortBillingIdentifier(consumerCompleted.withdrawalId)
+        ) &&
+        bodyText.includes(
+          shortBillingIdentifier(consumerExpired.withdrawalId)
+        ) &&
+        bodyText.includes(
+          shortBillingIdentifier(replayScenario.withdrawalId)
+        ) &&
         bodyText.includes("Completed") &&
         bodyText.includes("Failed"),
-      domCheckpoint: "payments history shows completed and expired consumer withdrawals",
+      domCheckpoint:
+        "payments history shows completed and expired consumer withdrawals",
       url: `${config.frontendUrl}/dashboard/billing`,
     });
     screenshots.push(payments.screenshot);
@@ -697,8 +727,7 @@ async function collectDomEvidence(consumerAuth, providerAuth, report) {
       page: consumerPage,
       fileName: "consumer-withdrawals-expired.png",
       predicate: (bodyText) =>
-        bodyText.includes("Withdrawal history") &&
-        bodyText.includes("Failed"),
+        bodyText.includes("Withdrawal history") && bodyText.includes("Failed"),
       domCheckpoint: "consumer credits page shows expired withdrawal row",
       url: `${config.frontendUrl}/dashboard/account/withdraw`,
     });
@@ -733,8 +762,9 @@ async function collectDomEvidence(consumerAuth, providerAuth, report) {
           topRow: payments.rowTexts[0] || "",
           noDuplicateTxHash:
             !consumerCompletedTxFragment ||
-            payments.rowTexts.filter((row) => row.includes(consumerCompletedTxFragment))
-              .length <= 1,
+            payments.rowTexts.filter((row) =>
+              row.includes(consumerCompletedTxFragment)
+            ).length <= 1,
         },
         consumer: {
           completedRow:
@@ -791,7 +821,10 @@ async function main() {
         consumerAuth.address
       );
     } else {
-      dbEvidence[scenario.name] = claimDbEvidence(scenario, providerAuth.address);
+      dbEvidence[scenario.name] = claimDbEvidence(
+        scenario,
+        providerAuth.address
+      );
     }
   }
 
@@ -802,7 +835,10 @@ async function main() {
   );
 
   const traceRows = [
-    { name: "withdrawal-one-ticket:augment:db", scenarioCount: scenarios.length },
+    {
+      name: "withdrawal-one-ticket:augment:db",
+      scenarioCount: scenarios.length,
+    },
     {
       name: "withdrawal-one-ticket:augment:dom",
       paymentsRows: dom.payments.rows.length,
@@ -838,12 +874,18 @@ async function main() {
     `- Trace digest: ${trace.digest}`,
     "",
   ].join("\n");
-  fs.writeFileSync(path.join(OUT_DIR, "report.md"), `${md.trimEnd()}\n${appendix}`, "utf8");
+  fs.writeFileSync(
+    path.join(OUT_DIR, "report.md"),
+    `${md.trimEnd()}\n${appendix}`,
+    "utf8"
+  );
 }
 
 main().catch((error) => {
   console.error(
-    `[withdrawal-one-ticket-augment] fatal: ${error.stack || error.message || String(error)}`
+    `[withdrawal-one-ticket-augment] fatal: ${
+      error.stack || error.message || String(error)
+    }`
   );
   process.exitCode = 1;
 });
