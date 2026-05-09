@@ -71,12 +71,12 @@ async def _notification_outbox_once(storage):
     )
 
 
-async def _deposit_indexer_once(storage):
+async def _deposit_indexer_once(storage, *, mode: str = "event"):
     def _run_once():
         return run_indexer_blocking_step(
             storage,
             0,
-            backfill_mode=getattr(_deposit_indexer_once, "_mode", "event"),
+            backfill_mode=mode,
         )
 
     return await _run_with_job_lock(
@@ -193,13 +193,11 @@ async def _run(args: argparse.Namespace) -> int:
                     and not bool(settings.deposit_event_repair_fallback_enabled)
                 ):
                     raise RuntimeError("DEPOSIT_EVENT_REPAIR_FALLBACK_DISABLED")
-                setattr(
-                    _deposit_indexer_once,
-                    "_mode",
-                    requested_mode,
-                )
-            log_name, handler = _ONCE_COMMANDS[args.command]
-            result = await handler(storage)
+                log_name, _handler = _ONCE_COMMANDS[args.command]
+                result = await _deposit_indexer_once(storage, mode=requested_mode)
+            else:
+                log_name, handler = _ONCE_COMMANDS[args.command]
+                result = await handler(storage)
             logger.info(log_name, extra=result)
             print(result)
             return 0

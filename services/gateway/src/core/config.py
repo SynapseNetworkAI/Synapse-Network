@@ -41,6 +41,15 @@ _service_health_history_retention_hours_default = max(
 )
 
 
+def _deposit_event_finality_mode_env() -> str:
+    raw = (os.getenv("DEPOSIT_EVENT_FINALITY_MODE", "confirmations").strip().lower()) or (
+        "confirmations"
+    )
+    if raw in {"safe", "finalized", "confirmations"}:
+        return raw
+    return "confirmations"
+
+
 class Settings:
     # Runtime mode flag used by the gateway for environment-specific behavior.
     environment: str = _canonical_environment_name(os.getenv("ENVIRONMENT", "local"))
@@ -118,14 +127,7 @@ class Settings:
     )
     # Event finality mode. Prefer provider-exposed safe/finalized heads when
     # available, otherwise fall back to a static latest-buffer window.
-    deposit_event_finality_mode: str = (
-        lambda raw: raw
-        if raw in {"safe", "finalized", "confirmations"}
-        else "confirmations"
-    )(
-        (os.getenv("DEPOSIT_EVENT_FINALITY_MODE", "confirmations").strip().lower())
-        or "confirmations"
-    )
+    deposit_event_finality_mode: str = _deposit_event_finality_mode_env()
     deposit_event_finality_buffer_blocks: int = max(
         0,
         _env_int(
