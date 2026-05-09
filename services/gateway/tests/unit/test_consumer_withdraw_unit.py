@@ -1038,3 +1038,102 @@ class TestConsumerWithdrawProcessor(unittest.TestCase):
         updated = storage.gateway_state.refund_rows[0]
         assert updated.status == "FAILED_EXPIRED"
         assert "expired" in str(updated.message or "").lower()
+
+    def test_processor_returns_false_when_expiry_release_disabled(self):
+        row = SimpleNamespace(id="row-1", status="REQUESTED")
+        ctx = SimpleNamespace(
+            owner=OWNER,
+            amount_usdc=Decimal("20.000000"),
+            fee_usdc=Decimal("0.500000"),
+            net_usdc=Decimal("19.500000"),
+            ticket_hash="0xhash",
+            w3=SimpleNamespace(),
+            core=SimpleNamespace(),
+        )
+
+        with patch.object(withdraw_processor, "_build_requested_withdraw_context", return_value=ctx), \
+             patch.object(withdraw_processor, "_find_withdraw_tx", return_value=None):
+            assert withdraw_processor._process_single_withdraw(
+                SimpleNamespace(),
+                row,
+                allow_expiry_release=False,
+            ) is False
+
+    def test_expire_requested_consumer_withdrawal_short_circuits_invalid_inputs(self):
+        row = SimpleNamespace(id="row-2", status="COMPLETED", ticket=SimpleNamespace(deadline=0))
+        assert withdraw_processor._expire_requested_consumer_withdrawal_if_due(
+            SimpleNamespace(),
+            row,
+        ) is False
+
+        requested = SimpleNamespace(id="row-3", status="REQUESTED", ticket=SimpleNamespace(deadline=0))
+        with patch.object(withdraw_processor, "_build_requested_withdraw_context", return_value=None):
+            assert withdraw_processor._expire_requested_consumer_withdrawal_if_due(
+                SimpleNamespace(),
+                requested,
+            ) is False
+
+        ctx = SimpleNamespace(
+            owner=OWNER,
+            amount_usdc=Decimal("20.000000"),
+            fee_usdc=Decimal("0.500000"),
+            net_usdc=Decimal("19.500000"),
+            ticket_hash="0xhash",
+            w3=SimpleNamespace(),
+            core=SimpleNamespace(),
+        )
+        requested.ticket.deadline = int(time.time()) + 60
+        assert withdraw_processor._expire_requested_consumer_withdrawal_if_due(
+            SimpleNamespace(),
+            requested,
+            ctx,
+        ) is False
+
+        requested.ticket.deadline = int(time.time()) - 1000
+        with patch.object(withdraw_processor, "_rpc_block_timestamp", return_value=int(time.time())), \
+             patch.object(withdraw_processor, "_is_ticket_consumed", return_value=None):
+            assert withdraw_processor._expire_requested_consumer_withdrawal_if_due(
+                SimpleNamespace(),
+                requested,
+                ctx,
+            ) is False
+
+    def test_expire_requested_consumer_withdrawal_updates_row_even_when_release_raises(self):
+        storage = FakeStorage()
+        storage.balance_repo.seed_balance(OWNER, available=20.0)
+        svc = _make_service(storage)
+        run(svc.create_consumer_withdraw_intent(
+            payload={"amountUsdc": 20.0, "reason": "release raises"},
+            owner_wallet=OWNER,
+            idempotency_key=IDEM_KEY,
+        ))
+        row = storage.gateway_state.refund_rows[0]
+        row.ticket.deadline = int(time.time()) - 1000
+
+        original_release = storage.balance_repo.release_consumer_pending_to_available
+
+        def failing_release(*args, **kwargs):
+            original_release(*args, **kwargs)
+            raise RuntimeError("synthetic release warning")
+
+        storage.balance_repo.release_consumer_pending_to_available = failing_release
+        ctx = SimpleNamespace(
+            owner=OWNER,
+            amount_usdc=Decimal("20.000000"),
+            fee_usdc=Decimal("0.500000"),
+            net_usdc=Decimal("19.500000"),
+            ticket_hash="0xhash",
+            w3=SimpleNamespace(),
+            core=SimpleNamespace(),
+        )
+
+        with patch.object(withdraw_processor, "_rpc_block_timestamp", return_value=int(time.time())), \
+             patch.object(withdraw_processor, "_is_ticket_consumed", return_value=False):
+            assert withdraw_processor._expire_requested_consumer_withdrawal_if_due(
+                storage,
+                row,
+                ctx,
+            ) is True
+
+        updated = storage.gateway_state.refund_rows[0]
+        assert updated.status == "FAILED_EXPIRED"

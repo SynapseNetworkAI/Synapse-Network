@@ -11,7 +11,8 @@ The runtime model is:
 - Gateway signs an EIP-712 withdrawal ticket for `REQUESTED` rows.
 - Frontend asks the owner wallet to execute `SynapseCore.withdraw(...)`.
 - `/api/v1/refunds/{refundId}/complete` closes the happy path.
-- `consumer_withdraw_processor` is only a safety net for missed completion callbacks.
+- `consumer-withdraw-chain-recovery` is only a low-frequency safety net for missed completion callbacks.
+- `withdrawal-expiry-sweeper` is the time-driven release path for manual-review expiry and ticket expiry.
 
 ## Endpoints
 

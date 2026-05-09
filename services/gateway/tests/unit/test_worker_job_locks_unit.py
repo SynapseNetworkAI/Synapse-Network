@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import logging
 from contextlib import contextmanager
 from types import SimpleNamespace
@@ -14,6 +15,7 @@ from src.services.platform.job_locks import (
 )
 from src.services.platform.tasks import consumer_withdraw_processor
 from src.services.platform.tasks import provider_withdraw_expiry_reaper
+from src.services.platform.tasks import withdrawal_expiry_sweeper
 
 
 class _ClosableStorage:
@@ -170,6 +172,19 @@ def test_postgres_advisory_job_lock_rejects_unknown_job() -> None:
             pass
 
 
+def test_postgres_advisory_job_lock_supports_new_withdraw_jobs() -> None:
+    storage = _FakeStorage(acquired=True)
+
+    with postgres_advisory_job_lock(storage, "consumer-withdraw-chain-recovery") as acquired:
+        assert acquired is True
+
+    with postgres_advisory_job_lock(storage, "withdrawal-expiry-sweeper") as acquired:
+        assert acquired is True
+
+    assert isinstance(advisory_lock_key("consumer-withdraw-chain-recovery"), int)
+    assert isinstance(advisory_lock_key("withdrawal-expiry-sweeper"), int)
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("command", "job_name", "patch_name", "patch_result"),
@@ -191,6 +206,23 @@ def test_postgres_advisory_job_lock_rejects_unknown_job() -> None:
             "consumer-withdraw-processor",
             "run_consumer_withdraw_processor_once",
             {"collected": 0, "processed": 0, "completedOrExpired": 0, "failed": 0},
+        ),
+        (
+            "consumer-withdraw-chain-recovery",
+            "consumer-withdraw-chain-recovery",
+            "run_consumer_withdraw_chain_recovery_once",
+            {"collected": 0, "processed": 0, "completedOrExpired": 0, "failed": 0},
+        ),
+        (
+            "withdrawal-expiry-sweeper",
+            "withdrawal-expiry-sweeper",
+            "run_withdrawal_expiry_sweeper_once",
+            {
+                "consumerManualReviewExpired": 0,
+                "consumerTicketExpired": 0,
+                "providerExpired": 0,
+                "failed": 0,
+            },
         ),
         (
             "in-app-cleanup",
@@ -314,13 +346,13 @@ async def test_worker_closes_storage_after_failure(monkeypatch) -> None:
 
 
 @pytest.mark.asyncio
-async def test_consumer_withdraw_processor_once_counts_changed_and_failed(
+async def test_consumer_withdraw_chain_recovery_once_counts_changed_and_failed(
     monkeypatch,
 ) -> None:
     rows = [
-        SimpleNamespace(id="completed"),
-        SimpleNamespace(id="unchanged"),
-        SimpleNamespace(id="failed"),
+        SimpleNamespace(id="completed", status="REQUESTED"),
+        SimpleNamespace(id="unchanged", status="REQUESTED"),
+        SimpleNamespace(id="failed", status="REQUESTED"),
     ]
 
     monkeypatch.setattr(
@@ -329,7 +361,8 @@ async def test_consumer_withdraw_processor_once_counts_changed_and_failed(
         lambda storage: rows,
     )
 
-    def fake_process_single_withdraw(_storage, row) -> bool:
+    def fake_process_single_withdraw(_storage, row, *, allow_expiry_release) -> bool:
+        assert allow_expiry_release is False
         if row.id == "completed":
             return True
         if row.id == "unchanged":
@@ -342,7 +375,7 @@ async def test_consumer_withdraw_processor_once_counts_changed_and_failed(
         fake_process_single_withdraw,
     )
 
-    result = await consumer_withdraw_processor.run_consumer_withdraw_processor_once(
+    result = await consumer_withdraw_processor.run_consumer_withdraw_chain_recovery_once(
         "fake-storage"
     )
 
@@ -350,6 +383,138 @@ async def test_consumer_withdraw_processor_once_counts_changed_and_failed(
     assert result.processed == 2
     assert result.completedOrExpired == 1
     assert result.failed == 1
+
+
+@pytest.mark.asyncio
+async def test_withdrawal_expiry_sweeper_once_collects_counts(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        withdrawal_expiry_sweeper,
+        "collect_expired_manual_review_consumer_withdrawals",
+        lambda storage: [SimpleNamespace(id="manual-review")],
+    )
+    monkeypatch.setattr(
+        withdrawal_expiry_sweeper,
+        "_collect_requested_consumer_withdrawals",
+        lambda storage: [SimpleNamespace(id="requested", status="REQUESTED")],
+    )
+    monkeypatch.setattr(
+        withdrawal_expiry_sweeper,
+        "_collect_consumer_withdrawal_timeout_rows",
+        lambda storage: [],
+    )
+    monkeypatch.setattr(
+        withdrawal_expiry_sweeper,
+        "_emit_consumer_withdrawal_timeout_alert",
+        lambda rows: None,
+    )
+    monkeypatch.setattr(
+        withdrawal_expiry_sweeper,
+        "_emit_provider_withdrawal_timeout_alert",
+        lambda storage: None,
+    )
+    monkeypatch.setattr(
+        withdrawal_expiry_sweeper,
+        "expire_manual_review_consumer_withdrawal",
+        lambda storage, row: True,
+    )
+    monkeypatch.setattr(
+        withdrawal_expiry_sweeper,
+        "_expire_requested_consumer_withdrawal_if_due",
+        lambda storage, row: True,
+    )
+
+    class _FakeBalanceService:
+        def __init__(self, storage):
+            self.storage = storage
+
+        async def expire_stale_provider_withdrawals(self):
+            return 2
+
+    monkeypatch.setattr(withdrawal_expiry_sweeper, "BalanceService", _FakeBalanceService)
+
+    result = await withdrawal_expiry_sweeper.run_withdrawal_expiry_sweeper_once(
+        "fake-storage"
+    )
+
+    assert result.consumerManualReviewExpired == 1
+    assert result.consumerTicketExpired == 1
+    assert result.providerExpired == 2
+    assert result.failed == 0
+
+
+@pytest.mark.asyncio
+async def test_withdrawal_expiry_sweeper_once_counts_failures_and_skips_non_requested(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        withdrawal_expiry_sweeper,
+        "collect_expired_manual_review_consumer_withdrawals",
+        lambda storage: [SimpleNamespace(id="manual-fail")],
+    )
+    monkeypatch.setattr(
+        withdrawal_expiry_sweeper,
+        "_collect_requested_consumer_withdrawals",
+        lambda storage: [
+            SimpleNamespace(id="requested-fail", status="REQUESTED"),
+            SimpleNamespace(id="already-completed", status="COMPLETED"),
+        ],
+    )
+    monkeypatch.setattr(
+        withdrawal_expiry_sweeper,
+        "_collect_consumer_withdrawal_timeout_rows",
+        lambda storage: [],
+    )
+    monkeypatch.setattr(
+        withdrawal_expiry_sweeper,
+        "_emit_consumer_withdrawal_timeout_alert",
+        lambda rows: None,
+    )
+    monkeypatch.setattr(
+        withdrawal_expiry_sweeper,
+        "_emit_provider_withdrawal_timeout_alert",
+        lambda storage: None,
+    )
+
+    def fail_manual_review(storage, row):
+        raise RuntimeError(f"manual-review:{row.id}")
+
+    def fail_requested(storage, row):
+        raise RuntimeError(f"requested:{row.id}")
+
+    monkeypatch.setattr(
+        withdrawal_expiry_sweeper,
+        "expire_manual_review_consumer_withdrawal",
+        fail_manual_review,
+    )
+    monkeypatch.setattr(
+        withdrawal_expiry_sweeper,
+        "_expire_requested_consumer_withdrawal_if_due",
+        fail_requested,
+    )
+
+    class _FailingBalanceService:
+        def __init__(self, storage):
+            self.storage = storage
+
+        async def expire_stale_provider_withdrawals(self):
+            raise RuntimeError("provider-failure")
+
+    monkeypatch.setattr(
+        withdrawal_expiry_sweeper,
+        "BalanceService",
+        _FailingBalanceService,
+    )
+
+    result = await withdrawal_expiry_sweeper.run_withdrawal_expiry_sweeper_once(
+        "fake-storage"
+    )
+
+    assert result.consumerManualReviewExpired == 0
+    assert result.consumerTicketExpired == 0
+    assert result.providerExpired == 0
+    assert result.failed == 3
 
 
 def test_collect_consumer_withdrawal_timeout_rows_filters_active_consumer_rows() -> None:
@@ -398,3 +563,63 @@ def test_consumer_withdrawal_timeout_alert_logs_timed_out_rows(
     assert "withdrawal_kind=consumer" in caplog.text
     assert "count=2" in caplog.text
     assert "oldest_age_seconds=300" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_consumer_withdraw_chain_recovery_loop_logs_failure_and_stops(
+    monkeypatch,
+    caplog,
+) -> None:
+    stop_event = asyncio.Event()
+
+    async def fail_once(storage):
+        stop_event.set()
+        raise RuntimeError("synthetic-recovery-failure")
+
+    monkeypatch.setattr(
+        consumer_withdraw_processor,
+        "run_consumer_withdraw_chain_recovery_once",
+        fail_once,
+    )
+
+    with caplog.at_level(logging.INFO):
+        await consumer_withdraw_processor.run_consumer_withdraw_chain_recovery(
+            stop_event,
+            "fake-storage",
+        )
+
+    assert "consumer_withdraw_chain_recovery: tick failed" in caplog.text
+    assert "Consumer withdrawal chain recovery stopped" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_withdrawal_expiry_sweeper_loop_logs_failure_and_stops(
+    monkeypatch,
+    caplog,
+) -> None:
+    stop_event = asyncio.Event()
+
+    async def fail_once(storage):
+        stop_event.set()
+        raise RuntimeError("synthetic-sweeper-failure")
+
+    monkeypatch.setattr(
+        withdrawal_expiry_sweeper,
+        "run_withdrawal_expiry_sweeper_once",
+        fail_once,
+    )
+    monkeypatch.setattr(
+        withdrawal_expiry_sweeper.settings,
+        "withdrawal_expiry_sweeper_interval_sec",
+        1,
+        raising=False,
+    )
+
+    with caplog.at_level(logging.INFO):
+        await withdrawal_expiry_sweeper.run_withdrawal_expiry_sweeper(
+            stop_event,
+            "fake-storage",
+        )
+
+    assert "withdrawal_expiry_sweeper: tick failed" in caplog.text
+    assert "Withdrawal expiry sweeper stopped" in caplog.text

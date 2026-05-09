@@ -32,6 +32,7 @@ from src.services.notifications.templates import render_notification_email
 from src.services.notifications.transactional import (
     build_public_app_url,
     build_notification_intent_for_owner,
+    _post_notification_outbox_trigger,
     enqueue_transaction_email,
     enqueue_email_verification_code,
     schedule_transaction_notifications,
@@ -165,8 +166,8 @@ class FakeAsyncClient:
     async def __aexit__(self, exc_type, exc, tb):
         return False
 
-    async def post(self, url: str, *, json: dict):
-        self.calls.append({"url": url, "json": json, "timeout": self.timeout, "trust_env": self.trust_env})
+    async def post(self, url: str, *, json: dict, headers: dict | None = None):
+        self.calls.append({"url": url, "json": json, "headers": headers or {}, "timeout": self.timeout, "trust_env": self.trust_env})
         return FakeAsyncResponse(self.status_code)
 
 
@@ -530,7 +531,7 @@ def test_build_transaction_email_intent_dedupes_by_event_owner_resource() -> Non
     assert intent.payload["private_key"] == "[REDACTED]"
 
 
-def test_enqueue_transaction_email_requires_verified_email() -> None:
+def test_enqueue_transaction_email_requires_verified_email(monkeypatch) -> None:
     storage = FakeTransactionalStorage(FakeOwnerProfile(email="owner@synapse.test", email_verified=False))
 
     assert enqueue_transaction_email(
@@ -543,6 +544,11 @@ def test_enqueue_transaction_email_requires_verified_email() -> None:
     assert storage.enqueued == []
 
     verified_storage = FakeTransactionalStorage(FakeOwnerProfile(email="owner@synapse.test", email_verified=True))
+    trigger_calls: list[str] = []
+    monkeypatch.setattr(
+        "src.services.notifications.transactional._schedule_notification_outbox_trigger",
+        lambda: trigger_calls.append("triggered"),
+    )
     assert enqueue_transaction_email(
         verified_storage,
         owner_wallet="0xABC",
@@ -551,6 +557,7 @@ def test_enqueue_transaction_email_requires_verified_email() -> None:
         payload={"depositId": "dep-1"},
     ) is True
     assert verified_storage.enqueued[0].template_key == "deposit_confirmed"
+    assert trigger_calls == ["triggered"]
 
 
 def test_enqueue_transaction_email_skips_unknown_missing_and_failed_profiles() -> None:
@@ -617,6 +624,45 @@ def test_schedule_transaction_notifications_without_running_loop_enqueues_email(
     )
 
     assert storage.enqueued[0].template_key == "deposit_confirmed"
+
+
+@pytest.mark.asyncio
+async def test_notification_outbox_trigger_posts_with_shared_secret(monkeypatch) -> None:
+    FakeAsyncClient.calls = []
+    FakeAsyncClient.status_code = 200
+    monkeypatch.setattr(settings, "notification_outbox_trigger_enabled", True, raising=False)
+    monkeypatch.setattr(settings, "internal_trigger_secret", "unit-secret", raising=False)
+    monkeypatch.setattr(
+        settings,
+        "notification_outbox_trigger_url",
+        "http://127.0.0.1:8000/internal/jobs/notification-outbox/trigger",
+        raising=False,
+    )
+    monkeypatch.setattr(settings, "notification_outbox_trigger_timeout_sec", 2.5, raising=False)
+    monkeypatch.setattr("src.services.notifications.transactional.httpx.AsyncClient", FakeAsyncClient)
+
+    assert await _post_notification_outbox_trigger() is True
+    assert FakeAsyncClient.calls[0]["headers"]["X-Synapse-Internal-Token"] == "unit-secret"
+
+
+@pytest.mark.asyncio
+async def test_notification_outbox_trigger_handles_disabled_and_http_failure(monkeypatch) -> None:
+    monkeypatch.setattr(settings, "notification_outbox_trigger_enabled", False, raising=False)
+    assert await _post_notification_outbox_trigger() is False
+
+    FakeAsyncClient.calls = []
+    FakeAsyncClient.status_code = 500
+    monkeypatch.setattr(settings, "notification_outbox_trigger_enabled", True, raising=False)
+    monkeypatch.setattr(settings, "internal_trigger_secret", "unit-secret", raising=False)
+    monkeypatch.setattr(
+        settings,
+        "notification_outbox_trigger_url",
+        "http://127.0.0.1:8000/internal/jobs/notification-outbox/trigger",
+        raising=False,
+    )
+    monkeypatch.setattr("src.services.notifications.transactional.httpx.AsyncClient", FakeAsyncClient)
+
+    assert await _post_notification_outbox_trigger() is False
 
 
 @pytest.mark.asyncio
