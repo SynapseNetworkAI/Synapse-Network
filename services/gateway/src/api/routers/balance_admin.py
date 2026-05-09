@@ -10,7 +10,6 @@ from src.api.routers.balance_helpers import (
     OwnerSpendLimitUpdateRequest,
     VoucherRedeemRequest,
     InternalServicePrincipal,
-    normalize_wallet,
     require_internal_scope,
     get_owner_wallet,
     _extract_request_meta,
@@ -211,7 +210,7 @@ async def set_fee_policy(
     except ValueError as exc:
         raise HTTPException(
             status_code=400, detail={"code": "INVALID_FEE_POLICY", "message": str(exc)}
-        )
+        ) from exc
 
     saved = {
         **normalized,
@@ -258,7 +257,7 @@ async def replay_deposit_by_tx_hash(
                     "code": "INVALID_TX_HASH",
                     "message": "txHash must be a valid 0x-prefixed hash.",
                 },
-            )
+            ) from exc
         raise
     except RuntimeError as exc:
         code = str(exc)
@@ -266,7 +265,7 @@ async def replay_deposit_by_tx_hash(
             raise HTTPException(
                 status_code=409,
                 detail={"code": code, "message": "Transaction is not confirmed yet."},
-            )
+            ) from exc
         if code == "TX_FAILED":
             raise HTTPException(
                 status_code=409,
@@ -274,12 +273,12 @@ async def replay_deposit_by_tx_hash(
                     "code": code,
                     "message": "Transaction failed on-chain and cannot be credited.",
                 },
-            )
+            ) from exc
         if code == "MISSING_TX_RECEIPT":
             raise HTTPException(
                 status_code=409,
                 detail={"code": code, "message": "Transaction receipt is unavailable."},
-            )
+            ) from exc
         if code == "NO_MATCHING_DEPOSIT_EVENT":
             raise HTTPException(
                 status_code=404,
@@ -287,11 +286,11 @@ async def replay_deposit_by_tx_hash(
                     "code": code,
                     "message": "No router deposit event found for this tx hash.",
                 },
-            )
+            ) from exc
         raise
 
     return {
         "status": "success",
         "requestedBy": admin_wallet,
-        "replay": summary,
+        "replay": summary.to_dict(),
     }

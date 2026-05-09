@@ -4,7 +4,7 @@ import asyncio
 import time
 from concurrent.futures import Future, ThreadPoolExecutor
 from contextlib import suppress
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from typing import Any
 
 from src.core.common import normalize_wallet
@@ -59,6 +59,37 @@ from .shared import (
 @dataclass(frozen=True)
 class IndexerStepResult:
     last_reconciliation_at: int
+
+
+@dataclass(frozen=True)
+class ReplayDepositSummary:
+    tx_hash: str
+    events: int
+    intents_created: int
+    credited: int
+    failed: int
+    pending: int
+
+    def to_dict(self) -> dict[str, Any]:
+        payload = asdict(self)
+        return {
+            "txHash": payload["tx_hash"],
+            "events": payload["events"],
+            "intentsCreated": payload["intents_created"],
+            "credited": payload["credited"],
+            "failed": payload["failed"],
+            "pending": payload["pending"],
+        }
+
+
+@dataclass(frozen=True)
+class DepositIntentCounters:
+    credited: int = 0
+    failed: int = 0
+    pending: int = 0
+
+    def to_dict(self) -> dict[str, int]:
+        return asdict(self)
 
 
 def _validated_replay_receipt_or_raise(normalized_tx: str) -> dict[str, Any]:
@@ -116,7 +147,7 @@ def _process_replay_event(
 
 def replay_deposit_tx(
     storage: BaseStorage, tx_hash: str, requested_by: str
-) -> dict[str, Any]:
+) -> ReplayDepositSummary:
     """管理员按 txHash 强制重放一笔充值交易。"""
     normalized_tx = _normalize_tx_hash(tx_hash)
     if not normalized_tx:
@@ -130,14 +161,14 @@ def replay_deposit_tx(
     if not events:
         raise RuntimeError("NO_MATCHING_DEPOSIT_EVENT")
 
-    summary = {
-        "txHash": normalized_tx,
-        "events": len(events),
-        "intentsCreated": 0,
-        "credited": 0,
-        "failed": 0,
-        "pending": 0,
-    }
+    summary = ReplayDepositSummary(
+        tx_hash=normalized_tx,
+        events=len(events),
+        intents_created=0,
+        credited=0,
+        failed=0,
+        pending=0,
+    ).to_dict()
 
     with lock:
         intents = _load_deposit_intents(storage)
@@ -193,18 +224,25 @@ def replay_deposit_tx(
         summary["pending"],
         normalize_wallet(requested_by),
     )
-    return summary
+    return ReplayDepositSummary(
+        tx_hash=normalized_tx,
+        events=int(summary["events"]),
+        intents_created=int(summary["intentsCreated"]),
+        credited=int(summary["credited"]),
+        failed=int(summary["failed"]),
+        pending=int(summary["pending"]),
+    )
 
 
-def process_pending_deposit_intents_once(storage: BaseStorage) -> dict[str, int]:
+def process_pending_deposit_intents_once(storage: BaseStorage) -> DepositIntentCounters:
     """单轮处理所有待确认 intent，是最终一致性的主入口。"""
     now = _now()
-    counters = {"credited": 0, "failed": 0, "pending": 0}
+    counters = DepositIntentCounters().to_dict()
 
     with lock:
         intents = _load_deposit_intents(storage)
         if not intents:
-            return {"credited": 0, "failed": 0, "pending": 0}
+            return DepositIntentCounters()
 
         processed_keys = set(_load_processed_deposit_event_keys(storage))
         ledger = _load_balance_ledger(storage)
@@ -244,7 +282,11 @@ def process_pending_deposit_intents_once(storage: BaseStorage) -> dict[str, int]
             counters["pending"],
             len(intents),
         )
-    return counters
+    return DepositIntentCounters(
+        credited=int(counters["credited"]),
+        failed=int(counters["failed"]),
+        pending=int(counters["pending"]),
+    )
 
 
 def _hydrate_runtime_status(storage: BaseStorage) -> None:
