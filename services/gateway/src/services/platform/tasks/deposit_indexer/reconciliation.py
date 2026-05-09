@@ -22,8 +22,8 @@ RECONCILIATION_ALERT_COOLDOWN_SECONDS = 300
 
 
 def _sum_ledger_obligation_usdc(ledger: BalanceLedger):
-    """统计买家可用+待确认资金总额，作为平台应付义务。"""
-    return MoneyCodec.coerce_decimal(ledger.total_consumer_obligation())
+    """Return the full tracked internal balance still backed by vault collateral."""
+    return MoneyCodec.coerce_decimal(ledger.total_vault_tracked_balance())
 
 
 def _read_chain_vault_balance_usdc():

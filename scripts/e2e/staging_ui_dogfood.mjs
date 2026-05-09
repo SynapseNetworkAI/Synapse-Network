@@ -213,6 +213,12 @@ async function main() {
     `${config.adminFrontUrl}/login`,
     "admin-front-login.png"
   );
+  await browserFetch(
+    page,
+    checks,
+    "admin_front_to_admin_api_health",
+    `${config.adminApiUrl}/health`
+  );
   await visit(
     page,
     checks,
@@ -234,13 +240,6 @@ async function main() {
     `${config.docsFrontUrl}/api-reference`,
     "docs-front-api-reference.png"
   );
-  await browserFetch(
-    page,
-    checks,
-    "admin_front_to_admin_api_health",
-    `${config.adminApiUrl}/health`
-  );
-
   await browser.close();
 
   const failed = checks.filter((check) => !check.ok);

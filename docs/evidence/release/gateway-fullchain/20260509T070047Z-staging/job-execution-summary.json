@@ -1,0 +1,11 @@
+{
+  "alreadyRunningSkipped": 0,
+  "depositConfirmSla": {
+    "creditedAt": null,
+    "delaySeconds": null,
+    "expected": "deposit credited within 1-2 minutes after on-chain confirmation",
+    "indexedAt": null
+  },
+  "jobs": [],
+  "source": "not-provided"
+}

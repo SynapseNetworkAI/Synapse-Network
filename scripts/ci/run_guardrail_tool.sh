@@ -40,7 +40,10 @@ if command -v uvx >/dev/null 2>&1; then
     # layered explicitly. Keep the guardrail runner self-healing.
     EXTRA_UVX_ARGS=(--with setuptools)
   fi
-  exec uvx "${EXTRA_UVX_ARGS[@]}" --from "$PACKAGE" "$TOOL" "$@"
+  if [[ ${#EXTRA_UVX_ARGS[@]} -gt 0 ]]; then
+    exec uvx "${EXTRA_UVX_ARGS[@]}" --from "$PACKAGE" "$TOOL" "$@"
+  fi
+  exec uvx --from "$PACKAGE" "$TOOL" "$@"
 fi
 
 if command -v "$TOOL" >/dev/null 2>&1; then

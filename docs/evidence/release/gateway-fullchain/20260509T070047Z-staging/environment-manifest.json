@@ -1,0 +1,14 @@
+{
+  "clickHouseUrl": "http://127.0.0.1:8123",
+  "environment": "staging",
+  "gatewayBaseUrl": "https://api-staging.synapse-network.ai",
+  "generatedAt": "2026-05-09T07:01:15.476067+00:00",
+  "gitCommitSha": "63bd026dda3382051fe661dfeed55e1adaf60c98",
+  "gitDirty": true,
+  "kafkaBootstrapServers": "localhost:9092",
+  "kafkaTopic": "synapse.analytics.events",
+  "operator": "cliff",
+  "profile": "mvp-postgres",
+  "providerBaseUrl": "https://provider-staging.synapse-network.ai",
+  "rpcUrl": "https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi"
+}
