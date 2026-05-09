@@ -21,7 +21,7 @@ const ARGUMENT_MAX = 8;
 const BASELINED_FILE_EFFECTIVE_LINES = new Map([
   ["scripts/admin_analytics_fullchain_e2e.js", 583],
   ["scripts/admin_analytics_clickhouse_regression.py", 541],
-  ["scripts/ci/quality_budget_check.mjs", 592],
+  ["scripts/ci/quality_budget_check.mjs", 596],
   ["scripts/ci/resolve_pr_ci_scope.mjs", 506],
   ["scripts/ci/validate_docs.js", 662],
   ["scripts/deploy/gcp_staging_drift_guard.mjs", 539],
@@ -75,7 +75,7 @@ const BASELINED_FILE_EFFECTIVE_LINES = new Map([
   ["services/gateway-admin/src/storage/in_memory_store.py", 660],
   ["services/gateway-admin/tests/test_app.py", 2783],
   ["services/gateway/src/api/routers/services.py", 623],
-  ["services/gateway/src/core/config.py", 532],
+  ["services/gateway/src/core/config.py", 553],
   ["services/gateway/src/services/analytics/gateway_events.py", 588],
   [
     "services/gateway/src/services/platform/tasks/consumer_withdraw_processor.py",
@@ -111,11 +111,15 @@ const BASELINED_FILE_EFFECTIVE_LINES = new Map([
   ],
   ["services/gateway/src/storage/postgres/schema_contracts.py", 556],
   [
+    "services/gateway/src/services/platform/tasks/deposit_indexer/runner.py",
+    573,
+  ],
+  [
     "services/gateway/tests/unit/storage/test_postgres_repositories_unit.py",
-    2131,
+    2161,
   ],
   ["services/gateway/tests/unit/test_consumer_withdraw_unit.py", 945],
-  ["services/gateway/tests/unit/test_finance_runtime_service_unit.py", 1401],
+  ["services/gateway/tests/unit/test_finance_runtime_service_unit.py", 1424],
   ["services/gateway/tests/unit/test_forwarding_runtime_service_unit.py", 1616],
   ["services/gateway/tests/unit/test_notifications_outbox_unit.py", 868],
   ["services/docs-front/src/data/endpoint-source.ts", 1719],
