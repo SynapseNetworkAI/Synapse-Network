@@ -89,7 +89,9 @@ if (
   fatal(
     "DEPOSIT-INDEXER-EVENT-ONLY-003",
     path.join(dir, "report.json"),
-    `report status is ${report.status}; failed=${JSON.stringify(report.failed || []).slice(0, 800)}`,
+    `report status is ${report.status}; failed=${JSON.stringify(
+      report.failed || []
+    ).slice(0, 800)}`,
     "fix the failing event-only or DOM/DB check and regenerate the evidence bundle."
   );
 }
@@ -130,8 +132,7 @@ if (
   !Array.isArray(db.depositRows) ||
   db.depositRows.length !== 1 ||
   String(db.depositRows[0]?.status || "").toUpperCase() !== "CONFIRMED"
-)
-{
+) {
   fatal(
     "DEPOSIT-INDEXER-EVENT-ONLY-006",
     path.join(dir, "db-evidence.json"),
@@ -140,10 +141,7 @@ if (
   );
 }
 
-if (
-  !Array.isArray(db.processedEventKeys) ||
-  db.processedEventKeys.length < 1
-) {
+if (!Array.isArray(db.processedEventKeys) || db.processedEventKeys.length < 1) {
   fatal(
     "DEPOSIT-INDEXER-EVENT-ONLY-007",
     path.join(dir, "db-evidence.json"),
@@ -224,4 +222,6 @@ if (
   );
 }
 
-console.log(`[deposit-indexer-event-only-local] passed: ${path.join(dir, "report.json")}`);
+console.log(
+  `[deposit-indexer-event-only-local] passed: ${path.join(dir, "report.json")}`
+);

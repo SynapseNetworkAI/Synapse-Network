@@ -215,19 +215,19 @@ Audit disadvantages:
 
 ## 5. Side-By-Side Comparison
 
-| Dimension | Permit + depositWithPermit | Direct transfer to Vault |
-| --- | --- | --- |
-| Wallet confirmations | Usually 2 actions | Usually 1 action |
-| On-chain tx count | 1 | 1 |
-| Token compatibility | Requires permit compatibility | Works with standard ERC20 transfer |
-| Vault-native event | Yes, best case | No |
-| Frontend complexity | Higher | Lower |
-| User education burden | Higher | Lower |
-| Replay handling | Mature in current flow | Same intent replay rules can be reused |
-| Indexer confirmation source | Deposit event first, Transfer fallback | Transfer log primary |
-| Accidental transfer risk | Lower | Higher if users send outside managed UI |
-| Audit richness | Richer but noisier | Leaner but less semantic |
-| Best fit | Contract-semantic deposit discipline | Lowest-friction Owner funding UX |
+| Dimension                   | Permit + depositWithPermit             | Direct transfer to Vault                |
+| --------------------------- | -------------------------------------- | --------------------------------------- |
+| Wallet confirmations        | Usually 2 actions                      | Usually 1 action                        |
+| On-chain tx count           | 1                                      | 1                                       |
+| Token compatibility         | Requires permit compatibility          | Works with standard ERC20 transfer      |
+| Vault-native event          | Yes, best case                         | No                                      |
+| Frontend complexity         | Higher                                 | Lower                                   |
+| User education burden       | Higher                                 | Lower                                   |
+| Replay handling             | Mature in current flow                 | Same intent replay rules can be reused  |
+| Indexer confirmation source | Deposit event first, Transfer fallback | Transfer log primary                    |
+| Accidental transfer risk    | Lower                                  | Higher if users send outside managed UI |
+| Audit richness              | Richer but noisier                     | Leaner but less semantic                |
+| Best fit                    | Contract-semantic deposit discipline   | Lowest-friction Owner funding UX        |
 
 ## 6. Non-Negotiable Invariants For Both Options
 
