@@ -134,9 +134,9 @@ def test_app_lifespan_runs_provider_withdraw_expiry_reaper_tick(monkeypatch) -> 
     with TestClient(app, base_url="https://gateway.test"):
         assert ticked.wait(timeout=5.0)
         assert tick_count["value"] >= 1
-        assert app.state.provider_withdraw_expiry_reaper_task is not None
+        assert app.state.withdrawal_expiry_sweeper_task is not None
 
-    assert app.state.provider_withdraw_expiry_reaper_task.done()
+    assert app.state.withdrawal_expiry_sweeper_task.done()
 
 
 def test_usage_logs_returns_paginated_owner_scoped_rows() -> None:

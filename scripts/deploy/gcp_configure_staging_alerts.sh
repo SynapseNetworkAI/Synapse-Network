@@ -170,33 +170,33 @@ scheduled_jobs = [
         "job": "synapse-staging-deposit-indexer",
         "display": "Synapse Staging Deposit Indexer Freshness",
         "alertname": "synapse_staging_deposit_indexer_freshness",
-        "duration": "600s",
-        "schedule": "every minute",
-        "action": "Check Cloud Scheduler, job execution logs, RPC, Cloud SQL, and deposit indexer lock state.",
+        "duration": "1500s",
+        "schedule": "every 10 minutes",
+        "action": "Check Cloud Scheduler, deposit indexer logs, RPC, and Cloud SQL connectivity.",
     },
     {
-        "job": "synapse-staging-consumer-withdraw-processor",
-        "display": "Synapse Staging Consumer Withdraw Processor Freshness",
-        "alertname": "synapse_staging_consumer_withdraw_processor_freshness",
-        "duration": "600s",
-        "schedule": "every minute",
-        "action": "Check Cloud Scheduler, consumer withdrawal processor logs, RPC, and pending withdrawal rows.",
+        "job": "synapse-staging-consumer-withdraw-chain-recovery",
+        "display": "Synapse Staging Consumer Withdraw Chain Recovery Freshness",
+        "alertname": "synapse_staging_consumer_withdraw_chain_recovery_freshness",
+        "duration": "1500s",
+        "schedule": "every 10 minutes",
+        "action": "Check Cloud Scheduler, consumer withdraw chain recovery logs, RPC, and pending REQUESTED rows.",
     },
     {
-        "job": "synapse-staging-provider-withdraw-reaper",
-        "display": "Synapse Staging Provider Withdraw Reaper Freshness",
-        "alertname": "synapse_staging_provider_withdraw_reaper_freshness",
-        "duration": "600s",
-        "schedule": "every minute",
-        "action": "Check Cloud Scheduler, provider reaper logs, and stale provider withdrawal rows.",
+        "job": "synapse-staging-withdrawal-expiry-sweeper",
+        "display": "Synapse Staging Withdrawal Expiry Sweeper Freshness",
+        "alertname": "synapse_staging_withdrawal_expiry_sweeper_freshness",
+        "duration": "1500s",
+        "schedule": "every 10 minutes",
+        "action": "Check Cloud Scheduler, expiry sweeper logs, manual-review backlog, and stale withdrawal release flows.",
     },
     {
         "job": "synapse-staging-notification-outbox-drain",
         "display": "Synapse Staging Notification Outbox Drain Freshness",
         "alertname": "synapse_staging_notification_outbox_drain_freshness",
-        "duration": "600s",
-        "schedule": "every minute",
-        "action": "Check Cloud Scheduler, Gmail SMTP secrets, notification outbox rows, and delivery logs.",
+        "duration": "1500s",
+        "schedule": "every 10 minutes",
+        "action": "Check internal notification trigger, fallback Cloud Scheduler, Gmail SMTP secrets, notification outbox rows, and delivery logs.",
     },
 ]
 
@@ -635,13 +635,34 @@ upsert_policy() {
   fi
 }
 
+delete_policy_if_exists() {
+  local display_name="$1"
+  local existing
+  existing="$(
+    gcloud alpha monitoring policies list \
+      --project "$PROJECT_ID" \
+      --filter="displayName=\"$display_name\"" \
+      --format="value(name)" | head -n 1
+  )"
+  if [[ -z "$existing" ]]; then
+    return 0
+  fi
+  echo "[gcp-alerts] deleting superseded policy: $display_name ($existing)"
+  gcloud alpha monitoring policies delete "$existing" \
+    --project "$PROJECT_ID" \
+    --quiet >/dev/null
+}
+
 upsert_policy "Synapse Staging Gateway 5xx Rate High" "$tmp_dir/gateway-5xx.json"
 upsert_policy "Synapse Staging Gateway 5xx Count High" "$tmp_dir/gateway-5xx-count.json"
 upsert_policy "Synapse Staging Gateway-admin 5xx Rate High" "$tmp_dir/gateway-admin-5xx.json"
 upsert_policy "Synapse Staging Cloud Run Job Failed" "$tmp_dir/cloud-run-job-failed.json"
+delete_policy_if_exists "Synapse Staging Gateway Maintenance Batch Freshness"
+delete_policy_if_exists "Synapse Staging Consumer Withdraw Processor Freshness"
+delete_policy_if_exists "Synapse Staging Provider Withdraw Reaper Freshness"
 upsert_policy "Synapse Staging Deposit Indexer Freshness" "$tmp_dir/synapse-staging-deposit-indexer-freshness.json"
-upsert_policy "Synapse Staging Consumer Withdraw Processor Freshness" "$tmp_dir/synapse-staging-consumer-withdraw-processor-freshness.json"
-upsert_policy "Synapse Staging Provider Withdraw Reaper Freshness" "$tmp_dir/synapse-staging-provider-withdraw-reaper-freshness.json"
+upsert_policy "Synapse Staging Consumer Withdraw Chain Recovery Freshness" "$tmp_dir/synapse-staging-consumer-withdraw-chain-recovery-freshness.json"
+upsert_policy "Synapse Staging Withdrawal Expiry Sweeper Freshness" "$tmp_dir/synapse-staging-withdrawal-expiry-sweeper-freshness.json"
 upsert_policy "Synapse Staging Notification Outbox Drain Freshness" "$tmp_dir/synapse-staging-notification-outbox-drain-freshness.json"
 upsert_policy "Synapse Staging Gateway Health Uptime Down" "$tmp_dir/gateway-uptime-health.json"
 upsert_policy "Synapse Staging Gateway Readiness Uptime Down" "$tmp_dir/gateway-uptime-readiness.json"

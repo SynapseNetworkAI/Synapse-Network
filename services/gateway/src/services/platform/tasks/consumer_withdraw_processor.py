@@ -1,4 +1,4 @@
-"""Background task: auto-complete consumer withdrawals via on-chain events.
+"""Background task helpers for consumer withdrawal recovery and expiry.
 
 Now that consumer withdrawals use the same ``SynapseCore.withdraw()`` path as
 provider withdrawals (user executes on-chain, not the platform), this task
@@ -6,12 +6,15 @@ serves as a **safety net**.  If the user's frontend crashes after the on-chain
 tx succeeds but before calling ``/v1/refunds/{id}/complete``, the background
 task will detect the ``WithdrawInfo`` event and auto-complete the record.
 
-Flow per tick:
+Recovery flow per tick:
 1. Collect REQUESTED consumer withdrawal rows.
 2. Scan recent ``WithdrawInfo(user, ticketHash, amount, fee)`` events.
 3. Mark matching rows as **COMPLETED** with the on-chain tx hash.
-4. Only after local expiry buffer and RPC block-time finality margin pass, query
-   ``isTicketConsumed(ticketHash)`` before releasing funds as **FAILED_EXPIRED**.
+
+Expiry flow per tick:
+1. Collect expired manual-review rows.
+2. Release them as **FAILED_EXPIRED**.
+3. Sweep REQUESTED rows whose ticket deadline + safety buffers have elapsed.
 """
 from __future__ import annotations
 
@@ -28,10 +31,6 @@ from src.services.owner.finance_constants import (
     CONSUMER_WITHDRAW_PROCESSOR_INTERVAL_SEC,
     CONSUMER_WITHDRAW_TYPE,
 )
-from src.services.platform.tasks.consumer_withdraw_manual_review_expiry import (
-    collect_expired_manual_review_consumer_withdrawals,
-    expire_manual_review_consumer_withdrawal,
-)
 from src.storage.base import BaseStorage
 from src.utils.datetime_utils import to_epoch_seconds
 from src.utils.money import parse_usdc
@@ -45,6 +44,17 @@ class ConsumerWithdrawProcessorTick:
     processed: int
     completedOrExpired: int
     failed: int
+
+
+@dataclass(frozen=True)
+class RequestedConsumerWithdrawalContext:
+    owner: str
+    amount_usdc: Decimal
+    fee_usdc: Decimal
+    net_usdc: Decimal
+    ticket_hash: str
+    w3: Any
+    core: Any
 
 # Minimal ABIs — only what the event watcher needs.
 _TICKET_STATE_ABI = [
@@ -172,28 +182,47 @@ def _ticket_hash(row: Any) -> str:
     return str(_row_request_meta_dict(row).get("ticketHash") or "")
 
 
-# ---------------------------------------------------------------------------
-# Single-intent processor
-# ---------------------------------------------------------------------------
-
-def _process_single_withdraw(storage: BaseStorage, row: Any) -> bool:
-    """Check if the on-chain withdraw has been executed; if so, mark COMPLETED."""
+def _build_requested_withdraw_context(row: Any) -> RequestedConsumerWithdrawalContext | None:
     from src.core.common import normalize_wallet
-    from src.utils.datetime_utils import now_dt_str
 
     owner = normalize_wallet(str(row.owner_address or ""))
     w3, core = _get_w3_and_core()
     if w3 is None or core is None:
-        return False
+        return None
     amount_usdc = parse_usdc(row.amount_usdc)
     fee_usdc = parse_usdc(Decimal(str(CONSUMER_WITHDRAW_FEE_USDC)))
     net_usdc = parse_usdc(amount_usdc - fee_usdc)
     ticket_hash = _ticket_hash(row)
     if not ticket_hash:
         logger.warning("consumer_withdraw_processor: row %s has no claim credential digest", row.id)
+        return None
+    return RequestedConsumerWithdrawalContext(
+        owner=owner,
+        amount_usdc=amount_usdc,
+        fee_usdc=fee_usdc,
+        net_usdc=net_usdc,
+        ticket_hash=ticket_hash,
+        w3=w3,
+        core=core,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Single-intent processor
+# ---------------------------------------------------------------------------
+
+def _process_single_withdraw(
+    storage: BaseStorage,
+    row: Any,
+    *,
+    allow_expiry_release: bool = True,
+) -> bool:
+    """Check if the on-chain withdraw has been executed; if so, mark COMPLETED."""
+    ctx = _build_requested_withdraw_context(row)
+    if ctx is None:
         return False
 
-    tx_hash = _find_withdraw_tx(w3, core, owner, ticket_hash)
+    tx_hash = _find_withdraw_tx(ctx.w3, ctx.core, ctx.owner, ctx.ticket_hash)
     if tx_hash is not None:
         if str(getattr(row, "status", "") or "").upper() == "FAILED_EXPIRED":
             logger.critical(
@@ -201,60 +230,87 @@ def _process_single_withdraw(storage: BaseStorage, row: Any) -> bool:
                 row.id,
             )
             return False
-        return _complete_consumer_withdraw(storage, row, owner, amount_usdc, fee_usdc, net_usdc, tx_hash)
+        return _complete_consumer_withdraw(
+            storage,
+            row,
+            ctx.owner,
+            ctx.amount_usdc,
+            ctx.fee_usdc,
+            ctx.net_usdc,
+            tx_hash,
+        )
     if str(getattr(row, "status", "") or "").upper() == "FAILED_EXPIRED":
+        return False
+
+    if allow_expiry_release:
+        return _expire_requested_consumer_withdrawal_if_due(storage, row, ctx)
+
+    return False
+
+
+def _expire_requested_consumer_withdrawal_if_due(
+    storage: BaseStorage,
+    row: Any,
+    ctx: RequestedConsumerWithdrawalContext | None = None,
+) -> bool:
+    from src.utils.datetime_utils import now_dt_str
+
+    if str(getattr(row, "status", "") or "").upper() != "REQUESTED":
+        return False
+    if ctx is None:
+        ctx = _build_requested_withdraw_context(row)
+    if ctx is None:
         return False
 
     ticket_deadline = _ticket_deadline(row)
     expiry_buffer = max(0, int(getattr(settings, "withdraw_ticket_expiry_buffer_sec", 900) or 900))
     finality_margin = max(0, int(getattr(settings, "withdraw_rpc_finality_margin_sec", 300) or 300))
-    if ticket_deadline > 0 and int(time.time()) > ticket_deadline + expiry_buffer:
-        block_timestamp = _rpc_block_timestamp(w3)
-        if block_timestamp is None or block_timestamp <= ticket_deadline + finality_margin:
-            logger.info(
-                "consumer_withdraw_processor: RPC_BEHIND_WITHDRAW_DEADLINE id=%s",
-                row.id,
-            )
-            return False
-        consumed = _is_ticket_consumed(core, ticket_hash)
-        if consumed is None:
-            return False
-        if consumed:
-            return _complete_consumer_withdraw(
-                storage, row, owner, amount_usdc, fee_usdc, net_usdc, ""
-            )
-        try:
-            dm = storage.get_data_manager()
-            dm.finance.balance.release_consumer_pending_to_available(
-                owner=owner,
-                amount_usdc=amount_usdc,
-                updated_at=now_dt_str(),
-            )
-        except RuntimeError:
-            logger.warning(
-                "consumer_withdraw_processor: pending release failed for expired row id=%s",
-                row.id,
-            )
-        expected_status = str(row.status or "")
-        row.status = "FAILED_EXPIRED"
-        row.completed_at = int(time.time())
-        row.updated_at = now_dt_str()
-        row.message = (
-            "Withdrawal ticket expired before on-chain execution. "
-            "Funds were released back to available balance."
-        )
-        dm.system.gateway_state.update_consumer_refund_row_atomic(
-            row,
-            updated_at=row.updated_at,
-            expected_status=expected_status,
-        )
+    if ticket_deadline <= 0 or int(time.time()) <= ticket_deadline + expiry_buffer:
+        return False
+    block_timestamp = _rpc_block_timestamp(ctx.w3)
+    if block_timestamp is None or block_timestamp <= ticket_deadline + finality_margin:
         logger.info(
-            "consumer_withdraw_processor: FAILED_EXPIRED id=%s reason=credential_expired",
+            "consumer_withdraw_processor: RPC_BEHIND_WITHDRAW_DEADLINE id=%s",
             row.id,
         )
-        return True
-
-    return False
+        return False
+    consumed = _is_ticket_consumed(ctx.core, ctx.ticket_hash)
+    if consumed is None:
+        return False
+    if consumed:
+        return _complete_consumer_withdraw(
+            storage, row, ctx.owner, ctx.amount_usdc, ctx.fee_usdc, ctx.net_usdc, ""
+        )
+    try:
+        dm = storage.get_data_manager()
+        dm.finance.balance.release_consumer_pending_to_available(
+            owner=ctx.owner,
+            amount_usdc=ctx.amount_usdc,
+            updated_at=now_dt_str(),
+        )
+    except RuntimeError:
+        logger.warning(
+            "consumer_withdraw_processor: pending release failed for expired row id=%s",
+            row.id,
+        )
+    expected_status = str(row.status or "")
+    row.status = "FAILED_EXPIRED"
+    row.completed_at = int(time.time())
+    row.updated_at = now_dt_str()
+    row.message = (
+        "Withdrawal ticket expired before on-chain execution. "
+        "Funds were released back to available balance."
+    )
+    dm.system.gateway_state.update_consumer_refund_row_atomic(
+        row,
+        updated_at=row.updated_at,
+        expected_status=expected_status,
+    )
+    logger.info(
+        "consumer_withdraw_processor: FAILED_EXPIRED id=%s reason=credential_expired",
+        row.id,
+    )
+    return True
 
 
 def _complete_consumer_withdraw(
@@ -344,6 +400,55 @@ def _complete_consumer_withdraw(
 
 
 async def run_consumer_withdraw_processor_once(storage: BaseStorage) -> ConsumerWithdrawProcessorTick:
+    recovery_result = await run_consumer_withdraw_chain_recovery_once(storage)
+    expiry_result = await run_consumer_withdraw_expiry_sweep_once(storage)
+    return ConsumerWithdrawProcessorTick(
+        collected=recovery_result.collected,
+        processed=recovery_result.processed + expiry_result.processed,
+        completedOrExpired=recovery_result.completedOrExpired + expiry_result.completedOrExpired,
+        failed=recovery_result.failed + expiry_result.failed,
+    )
+
+
+async def run_consumer_withdraw_chain_recovery_once(storage: BaseStorage) -> ConsumerWithdrawProcessorTick:
+    processed = 0
+    completed_or_expired = 0
+    failed = 0
+    pending = await asyncio.to_thread(_collect_requested_consumer_withdrawals, storage)
+    for row in pending:
+        if str(getattr(row, "status", "") or "").upper() != "REQUESTED":
+            continue
+        try:
+            changed = await asyncio.to_thread(
+                _process_single_withdraw,
+                storage,
+                row,
+                allow_expiry_release=False,
+            )
+            processed += 1
+            if changed:
+                completed_or_expired += 1
+        except Exception as exc:
+            failed += 1
+            logger.warning(
+                "consumer_withdraw_processor: error processing %s: %s",
+                getattr(row, "id", "?"),
+                exc,
+            )
+    return ConsumerWithdrawProcessorTick(
+        collected=len(pending),
+        processed=processed,
+        completedOrExpired=completed_or_expired,
+        failed=failed,
+    )
+
+
+async def run_consumer_withdraw_expiry_sweep_once(storage: BaseStorage) -> ConsumerWithdrawProcessorTick:
+    from src.services.platform.tasks.consumer_withdraw_manual_review_expiry import (
+        collect_expired_manual_review_consumer_withdrawals,
+        expire_manual_review_consumer_withdrawal,
+    )
+
     processed = 0
     completed_or_expired = 0
     failed = 0
@@ -372,15 +477,21 @@ async def run_consumer_withdraw_processor_once(storage: BaseStorage) -> Consumer
                 exc,
             )
     for row in pending:
+        if str(getattr(row, "status", "") or "").upper() != "REQUESTED":
+            continue
         try:
-            changed = await asyncio.to_thread(_process_single_withdraw, storage, row)
+            changed = await asyncio.to_thread(
+                _expire_requested_consumer_withdrawal_if_due,
+                storage,
+                row,
+            )
             processed += 1
             if changed:
                 completed_or_expired += 1
         except Exception as exc:
             failed += 1
             logger.warning(
-                "consumer_withdraw_processor: error processing %s: %s",
+                "consumer_withdraw_processor: error expiring requested withdrawal %s: %s",
                 getattr(row, "id", "?"),
                 exc,
             )
@@ -469,3 +580,24 @@ async def run_consumer_withdraw_processor(
             pass
 
     logger.info("Consumer withdrawal event-watcher stopped")
+
+
+async def run_consumer_withdraw_chain_recovery(
+    stop_event: asyncio.Event, storage: BaseStorage
+) -> None:
+    interval = max(1.0, CONSUMER_WITHDRAW_PROCESSOR_INTERVAL_SEC)
+    logger.info("Consumer withdrawal chain recovery started: interval=%ss", interval)
+
+    while not stop_event.is_set():
+        try:
+            result = await run_consumer_withdraw_chain_recovery_once(storage)
+            logger.debug("consumer_withdraw_chain_recovery: tick=%s", result)
+        except Exception as exc:
+            logger.warning("consumer_withdraw_chain_recovery: tick failed: %s", exc)
+
+        try:
+            await asyncio.wait_for(stop_event.wait(), timeout=interval)
+        except asyncio.TimeoutError:
+            pass
+
+    logger.info("Consumer withdrawal chain recovery stopped")

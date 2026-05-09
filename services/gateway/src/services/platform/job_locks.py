@@ -11,6 +11,8 @@ logger = logging.getLogger(__name__)
 
 JOB_LOCK_KEYS = {
     "deposit-indexer",
+    "consumer-withdraw-chain-recovery",
+    "withdrawal-expiry-sweeper",
     "provider-withdraw-reaper",
     "consumer-withdraw-processor",
     "notification-outbox-drain",

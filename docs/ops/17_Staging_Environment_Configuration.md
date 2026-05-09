@@ -1428,14 +1428,14 @@ the same Gateway Docker image as `synapse-staging-gateway`. The worker entrypoin
 is `python -m src.worker <job> --once`, so Gateway API and jobs share `src.core`,
 `src.storage`, domain models, money utilities, and settlement state-machine code.
 
-| Job                           | Command                                                   | Schedule             | Lock key                      | Purpose                                                                                                                             |
-| ----------------------------- | --------------------------------------------------------- | -------------------- | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| DB migration                  | `bash scripts/deploy/migrate_db.sh staging`               | Release schema guard | n/a                           | Apply shared schema/reference migrations and fail if staging schema is empty, owned by the runtime user, or missing runtime grants. |
-| Deposit indexer               | `python -m src.worker deposit-indexer --once`             | Every minute         | `deposit-indexer`             | Credit confirmed deposits.                                                                                                          |
-| Provider withdrawal reaper    | `python -m src.worker provider-withdraw-reaper --once`    | Every minute         | `provider-withdraw-reaper`    | Expire provider withdrawal tickets safely.                                                                                          |
-| Consumer withdrawal processor | `python -m src.worker consumer-withdraw-processor --once` | Every minute         | `consumer-withdraw-processor` | Process consumer withdrawal lifecycle.                                                                                              |
-| Notification outbox drain     | `python -m src.worker notification-outbox --once`         | Every minute         | `notification-outbox-drain`   | Send async Gmail notifications.                                                                                                     |
-| In-app notification cleanup   | `python -m src.worker in-app-cleanup --once`              | Daily                | `in-app-notification-cleanup` | Delete expired/old inbox rows.                                                                                                      |
+| Job                         | Command                                                        | Schedule             | Lock key                           | Purpose                                                                                                                             |
+| --------------------------- | -------------------------------------------------------------- | -------------------- | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| DB migration                | `bash scripts/deploy/migrate_db.sh staging`                    | Release schema guard | n/a                                | Apply shared schema/reference migrations and fail if staging schema is empty, owned by the runtime user, or missing runtime grants. |
+| Deposit indexer             | `python -m src.worker deposit-indexer --once`                  | Every 10 minutes     | `deposit-indexer`                  | Scan confirmed deposit events and credit ledger balances.                                                                           |
+| Consumer withdraw recovery  | `python -m src.worker consumer-withdraw-chain-recovery --once` | Every 10 minutes     | `consumer-withdraw-chain-recovery` | Reconcile REQUESTED consumer withdrawals that already succeeded on-chain when `/complete` was missed.                               |
+| Withdrawal expiry sweeper   | `python -m src.worker withdrawal-expiry-sweeper --once`        | Every 10 minutes     | `withdrawal-expiry-sweeper`        | Release expired consumer/provider withdrawals and finalize expiry-driven state transitions.                                         |
+| Notification outbox drain   | `python -m src.worker notification-outbox --once`              | Every 10 minutes     | `notification-outbox-drain`        | Fallback Gmail drain; primary path is internal trigger-based.                                                                       |
+| In-app notification cleanup | `python -m src.worker in-app-cleanup --once`                   | Daily                | `in-app-notification-cleanup`      | Delete expired/old inbox rows.                                                                                                      |
 
 Each money-sensitive job must use `task_count=1`, `parallelism=1`, and the
 Postgres advisory lock. A lock skip logs `JOB_SKIPPED_ALREADY_RUNNING` and exits
@@ -1479,7 +1479,7 @@ Cloud Run Job monitoring is separate from Gateway `/readiness`:
 - GCP Monitoring alerts on any Cloud Run Job execution whose
   `run.googleapis.com/job/completed_execution_count` result is not `succeeded`.
 - GCP Monitoring also alerts when scheduled jobs stop producing successful
-  executions: 10 minutes for every-minute jobs. The daily cleanup job is
+  executions: 15 minutes for 10-minute jobs. The daily cleanup job is
   covered by failed-execution alerting and Scheduler-enabled checks; V1 does
   not use freshness for it because GCP `conditionAbsent` rejects durations
   above 23h30m, which would false-positive before a 24h cadence.
@@ -1694,16 +1694,6 @@ gcloud run services update synapse-staging-gateway-admin \
   --update-env-vars ROUTER_ADDRESS=0x0bA1dcE1Cc8d877052ab1C3CE2362830459D8FF4,USDC_TOKEN_ADDRESS=0xfad31daE42B0046aFA106BCf56ED0dDaCA4463B9
 
 gcloud run jobs update synapse-staging-deposit-indexer \
-  --project fabled-archive-494108-k5 \
-  --region us-central1 \
-  --update-env-vars ROUTER_ADDRESS=0x0bA1dcE1Cc8d877052ab1C3CE2362830459D8FF4,USDC_TOKEN_ADDRESS=0xfad31daE42B0046aFA106BCf56ED0dDaCA4463B9
-
-gcloud run jobs update synapse-staging-provider-withdraw-reaper \
-  --project fabled-archive-494108-k5 \
-  --region us-central1 \
-  --update-env-vars ROUTER_ADDRESS=0x0bA1dcE1Cc8d877052ab1C3CE2362830459D8FF4,USDC_TOKEN_ADDRESS=0xfad31daE42B0046aFA106BCf56ED0dDaCA4463B9
-
-gcloud run jobs update synapse-staging-consumer-withdraw-processor \
   --project fabled-archive-494108-k5 \
   --region us-central1 \
   --update-env-vars ROUTER_ADDRESS=0x0bA1dcE1Cc8d877052ab1C3CE2362830459D8FF4,USDC_TOKEN_ADDRESS=0xfad31daE42B0046aFA106BCf56ED0dDaCA4463B9

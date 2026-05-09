@@ -7,6 +7,7 @@ an in-process mock provider as the business service under test.
 from __future__ import annotations
 
 import os
+import time
 
 import httpx
 
@@ -90,34 +91,38 @@ def discover_service(
         {"search_query": wanted, "limit": 10},
         {"limit": 20},
     )
-    for params in candidates:
-        response = httpx.get(
-            f"{gateway_base}/api/v1/services/discover",
-            headers=headers,
-            params=params,
-            timeout=timeout,
-        )
-        if response.status_code != 200:
-            continue
-        payload = response.json()
-        rows = payload if isinstance(payload, list) else payload.get("services") or payload.get("data") or []
-        match = next(
-            (
-                row
-                for row in rows
-                if isinstance(row, dict)
-                and wanted
-                in {
-                    str(row.get("serviceId") or ""),
-                    str(row.get("service_id") or ""),
-                    str(row.get("id") or ""),
-                    str(row.get("agentToolName") or ""),
-                }
-            ),
-            None,
-        )
-        if match:
-            return match
+    deadline = time.monotonic() + max(0.1, float(timeout))
+    while time.monotonic() < deadline:
+        for params in candidates:
+            remaining = max(0.1, deadline - time.monotonic())
+            response = httpx.get(
+                f"{gateway_base}/api/v1/services/discover",
+                headers=headers,
+                params=params,
+                timeout=remaining,
+            )
+            if response.status_code != 200:
+                continue
+            payload = response.json()
+            rows = payload if isinstance(payload, list) else payload.get("services") or payload.get("data") or []
+            match = next(
+                (
+                    row
+                    for row in rows
+                    if isinstance(row, dict)
+                    and wanted
+                    in {
+                        str(row.get("serviceId") or ""),
+                        str(row.get("service_id") or ""),
+                        str(row.get("id") or ""),
+                        str(row.get("agentToolName") or ""),
+                    }
+                ),
+                None,
+            )
+            if match:
+                return match
+        time.sleep(0.5)
     return None
 
 

@@ -25,8 +25,8 @@ const PROVIDER_SERVICE_IDS = [
 const GATEWAY_JOBS = [
   "synapse-staging-db-migrate",
   "synapse-staging-deposit-indexer",
-  "synapse-staging-provider-withdraw-reaper",
-  "synapse-staging-consumer-withdraw-processor",
+  "synapse-staging-consumer-withdraw-chain-recovery",
+  "synapse-staging-withdrawal-expiry-sweeper",
   "synapse-staging-notification-outbox-drain",
   "synapse-staging-in-app-notification-cleanup",
 ];
