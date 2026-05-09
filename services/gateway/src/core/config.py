@@ -41,6 +41,15 @@ _service_health_history_retention_hours_default = max(
 )
 
 
+def _deposit_event_finality_mode_env() -> str:
+    raw = (os.getenv("DEPOSIT_EVENT_FINALITY_MODE", "confirmations").strip().lower()) or (
+        "confirmations"
+    )
+    if raw in {"safe", "finalized", "confirmations"}:
+        return raw
+    return "confirmations"
+
+
 class Settings:
     # Runtime mode flag used by the gateway for environment-specific behavior.
     environment: str = _canonical_environment_name(os.getenv("ENVIRONMENT", "local"))
@@ -111,6 +120,26 @@ class Settings:
     v2_backfill_enabled: bool = _env_bool("V2_BACKFILL_ENABLED", True)
     # Confirmed block batch size scanned per backfill round.
     v2_backfill_block_batch: int = max(1, _env_int("V2_BACKFILL_BLOCK_BATCH", 200))
+    # Hard cap for a single eth_getLogs block span; commercial RPCs reject overly
+    # wide queries, so the event scanner must chunk long downtime windows.
+    deposit_event_max_log_block_range: int = max(
+        1, _env_int("DEPOSIT_EVENT_MAX_LOG_BLOCK_RANGE", 2000)
+    )
+    # Event finality mode. Prefer provider-exposed safe/finalized heads when
+    # available, otherwise fall back to a static latest-buffer window.
+    deposit_event_finality_mode: str = _deposit_event_finality_mode_env()
+    deposit_event_finality_buffer_blocks: int = max(
+        0,
+        _env_int(
+            "DEPOSIT_EVENT_FINALITY_BUFFER_BLOCKS",
+            max(0, int(v2_deposit_confirmations) - 1),
+        ),
+    )
+    # Keep the legacy repair path available for explicit replay/recovery, but do
+    # not use it as the normal high-frequency scan path.
+    deposit_event_repair_fallback_enabled: bool = _env_bool(
+        "DEPOSIT_EVENT_REPAIR_FALLBACK_ENABLED", True
+    )
     # Optional fixed start block for backfill cursor bootstrap; 0 means auto bootstrap.
     v2_backfill_start_block: int = max(0, _env_int("V2_BACKFILL_START_BLOCK", 0))
     # Reconciliation monitor switch for chain-vs-ledger consistency checks.

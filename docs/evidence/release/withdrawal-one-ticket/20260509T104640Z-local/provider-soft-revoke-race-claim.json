@@ -1,0 +1,49 @@
+{
+  "name": "provider-soft-revoke-race-claim",
+  "status": "passed",
+  "pass": true,
+  "runId": "wot-20260509104656",
+  "generatedAt": "2026-05-09T10:47:03.760Z",
+  "summary": "provider ticket claimed and completed",
+  "role": "provider",
+  "withdrawalId": "wd-0a3c45164df6497096c3f8bd5ad82153",
+  "ticketHash": "0xf38625a7d595e3f4eac6ea4cc81cd43761be565a9d8ab3f8431196426a70fed8",
+  "deadline": 1778323683,
+  "softRevoke": {
+    "requestedAt": "2026-05-09T10:47:03.556Z",
+    "mode": "SOFT_REVOKE_WAIT_EXPIRY_ONLY",
+    "note": "No hard revoke/broadcaster; claim before deadline remains valid by design."
+  },
+  "expected": {
+    "dbStatus": "COMPLETED",
+    "receiptStatus": 1
+  },
+  "actual": {
+    "dbStatus": "COMPLETED",
+    "txHash": "0xbe61abb92e307467e4dc8284bc9a795535cdcacb489442377df4edf2688defee",
+    "receiptStatus": 1,
+    "completeStatus": "COMPLETED",
+    "walletDeltaAtomic": "10000000000000000000",
+    "vaultDeltaAtomic": "-10000000000000000000"
+  },
+  "comparisons": [
+    {
+      "metric": "dbStatus",
+      "expected": "COMPLETED",
+      "actual": "COMPLETED",
+      "pass": true
+    },
+    {
+      "metric": "receiptStatus",
+      "expected": "1",
+      "actual": "1",
+      "pass": true
+    },
+    {
+      "metric": "ticketConsumed",
+      "expected": "true",
+      "actual": "true",
+      "pass": true
+    }
+  ]
+}

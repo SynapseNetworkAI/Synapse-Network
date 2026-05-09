@@ -4,6 +4,7 @@ import asyncio
 import time
 from concurrent.futures import Future, ThreadPoolExecutor
 from contextlib import suppress
+from dataclasses import asdict, dataclass
 from typing import Any
 
 from src.core.common import normalize_wallet
@@ -15,9 +16,11 @@ from src.storage import BaseStorage
 from .backfill import run_backfill_scan_once
 from .chain import (
     DepositIndexerRpcUnavailable,
+    _amount_usdc_from_raw,
     _decode_deposit_events_from_receipt,
     _get_confirmed_receipt_or_none,
     _normalize_tx_hash,
+    _resolve_token_decimals,
 )
 from .persistence import (
     _append_audit_log,
@@ -51,6 +54,42 @@ from .shared import (
     lock,
     logger,
 )
+
+
+@dataclass(frozen=True)
+class IndexerStepResult:
+    last_reconciliation_at: int
+
+
+@dataclass(frozen=True)
+class ReplayDepositSummary:
+    tx_hash: str
+    events: int
+    intents_created: int
+    credited: int
+    failed: int
+    pending: int
+
+    def to_dict(self) -> dict[str, Any]:
+        payload = asdict(self)
+        return {
+            "txHash": payload["tx_hash"],
+            "events": payload["events"],
+            "intentsCreated": payload["intents_created"],
+            "credited": payload["credited"],
+            "failed": payload["failed"],
+            "pending": payload["pending"],
+        }
+
+
+@dataclass(frozen=True)
+class DepositIntentCounters:
+    credited: int = 0
+    failed: int = 0
+    pending: int = 0
+
+    def to_dict(self) -> dict[str, int]:
+        return asdict(self)
 
 
 def _validated_replay_receipt_or_raise(normalized_tx: str) -> dict[str, Any]:
@@ -87,8 +126,6 @@ def _process_replay_event(
     target_intent = _find_intent_by_tx_owner(intents, normalized_tx, owner_wallet)
     if target_intent is None:
         token = str(event.get("token") or "")
-        from .chain import _amount_usdc_from_raw, _resolve_token_decimals
-
         decimals = _resolve_token_decimals(token) if token else 6
         amount_usdc = _amount_usdc_from_raw(
             int(event.get("amountRaw") or 0), decimals=decimals
@@ -110,7 +147,7 @@ def _process_replay_event(
 
 def replay_deposit_tx(
     storage: BaseStorage, tx_hash: str, requested_by: str
-) -> dict[str, Any]:
+) -> ReplayDepositSummary:
     """管理员按 txHash 强制重放一笔充值交易。"""
     normalized_tx = _normalize_tx_hash(tx_hash)
     if not normalized_tx:
@@ -124,14 +161,14 @@ def replay_deposit_tx(
     if not events:
         raise RuntimeError("NO_MATCHING_DEPOSIT_EVENT")
 
-    summary = {
-        "txHash": normalized_tx,
-        "events": len(events),
-        "intentsCreated": 0,
-        "credited": 0,
-        "failed": 0,
-        "pending": 0,
-    }
+    summary = ReplayDepositSummary(
+        tx_hash=normalized_tx,
+        events=len(events),
+        intents_created=0,
+        credited=0,
+        failed=0,
+        pending=0,
+    ).to_dict()
 
     with lock:
         intents = _load_deposit_intents(storage)
@@ -187,18 +224,25 @@ def replay_deposit_tx(
         summary["pending"],
         normalize_wallet(requested_by),
     )
-    return summary
+    return ReplayDepositSummary(
+        tx_hash=normalized_tx,
+        events=int(summary["events"]),
+        intents_created=int(summary["intentsCreated"]),
+        credited=int(summary["credited"]),
+        failed=int(summary["failed"]),
+        pending=int(summary["pending"]),
+    )
 
 
-def process_pending_deposit_intents_once(storage: BaseStorage) -> dict[str, int]:
+def process_pending_deposit_intents_once(storage: BaseStorage) -> DepositIntentCounters:
     """单轮处理所有待确认 intent，是最终一致性的主入口。"""
     now = _now()
-    counters = {"credited": 0, "failed": 0, "pending": 0}
+    counters = DepositIntentCounters().to_dict()
 
     with lock:
         intents = _load_deposit_intents(storage)
         if not intents:
-            return {"credited": 0, "failed": 0, "pending": 0}
+            return DepositIntentCounters()
 
         processed_keys = set(_load_processed_deposit_event_keys(storage))
         ledger = _load_balance_ledger(storage)
@@ -238,7 +282,11 @@ def process_pending_deposit_intents_once(storage: BaseStorage) -> dict[str, int]
             counters["pending"],
             len(intents),
         )
-    return counters
+    return DepositIntentCounters(
+        credited=int(counters["credited"]),
+        failed=int(counters["failed"]),
+        pending=int(counters["pending"]),
+    )
 
 
 def _hydrate_runtime_status(storage: BaseStorage) -> None:
@@ -407,12 +455,12 @@ def _mark_reconciliation_failure(now: int) -> None:
     )
 
 
-def _run_backfill_if_enabled(storage: BaseStorage) -> None:
+def _run_backfill_if_enabled(storage: BaseStorage, *, mode: str = "event") -> None:
     """执行一次 backfill 周期，失败时仅记录状态。"""
     if not settings.v2_backfill_enabled:
         return
     try:
-        run_backfill_scan_once(storage)
+        run_backfill_scan_once(storage, mode=mode)
     except DepositIndexerRpcUnavailable:
         _mark_backfill_rpc_unavailable(_now())
         _persist_indexer_runtime_state(storage)
@@ -432,20 +480,91 @@ def _run_reconciliation_if_due(
         return last_reconciliation_at
     try:
         run_reconciliation_check_once(storage)
-        return now
     except Exception:
         _mark_reconciliation_failure(now)
         _persist_indexer_runtime_state(storage)
         return last_reconciliation_at
+    else:
+        return now
+
+
+def _update_last_reconciliation_at(
+    active_step: Future[IndexerStepResult] | None,
+    last_reconciliation_at: int,
+) -> tuple[Future[IndexerStepResult] | None, int]:
+    if active_step is None or not active_step.done():
+        return active_step, last_reconciliation_at
+    with suppress(Exception):
+        result = active_step.result()
+        last_reconciliation_at = int(result.last_reconciliation_at)
+    return None, last_reconciliation_at
+
+
+async def _wait_for_startup_or_stop(
+    stop_event: asyncio.Event, storage: BaseStorage, startup_delay: float
+) -> bool:
+    if startup_delay <= 0:
+        return True
+    try:
+        await asyncio.wait_for(stop_event.wait(), timeout=startup_delay)
+    except asyncio.TimeoutError:
+        return True
+    else:
+        _set_status(running=False, heartbeatAt=_now())
+        _persist_indexer_runtime_state(storage)
+        logger.info("deposit indexer stopped before first cycle")
+        return False
+
+
+async def _run_single_indexer_tick(
+    *,
+    loop: asyncio.AbstractEventLoop,
+    executor: ThreadPoolExecutor,
+    storage: BaseStorage,
+    active_step: Future[IndexerStepResult] | None,
+    last_reconciliation_at: int,
+) -> tuple[Future[IndexerStepResult] | None, int]:
+    if active_step is not None and not active_step.done():
+        logger.warning(
+            "deposit indexer skipped tick because previous step is still running"
+        )
+        _mark_step_still_running(storage)
+        return active_step, last_reconciliation_at
+
+    active_step, last_reconciliation_at = _update_last_reconciliation_at(
+        active_step, last_reconciliation_at
+    )
+    active_step = executor.submit(
+        run_indexer_blocking_step, storage, last_reconciliation_at
+    )
+    wrapped_step = asyncio.wrap_future(active_step, loop=loop)
+    try:
+        result = await asyncio.wait_for(
+            wrapped_step,
+            timeout=max(0.01, float(settings.v2_indexer_step_timeout_sec)),
+        )
+    except asyncio.TimeoutError:
+        logger.warning(
+            "deposit indexer step timed out after %ss",
+            settings.v2_indexer_step_timeout_sec,
+        )
+        _mark_step_timeout(storage)
+        return active_step, last_reconciliation_at
+    else:
+        last_reconciliation_at = int(result.last_reconciliation_at)
+        return None, last_reconciliation_at
 
 
 def run_indexer_blocking_step(
-    storage: BaseStorage, last_reconciliation_at: int
-) -> dict[str, int]:
+    storage: BaseStorage,
+    last_reconciliation_at: int,
+    *,
+    backfill_mode: str = "event",
+) -> IndexerStepResult:
     """Run one synchronous indexer cycle in the dedicated worker thread."""
     started = _mark_step_started()
     try:
-        _run_backfill_if_enabled(storage)
+        _run_backfill_if_enabled(storage, mode=backfill_mode)
         process_pending_deposit_intents_once(storage)
         next_reconciliation_at = _run_reconciliation_if_due(
             storage, last_reconciliation_at
@@ -466,10 +585,10 @@ def run_indexer_blocking_step(
             started_monotonic_ms=started,
             last_error=_INDEXER_LOOP_ERROR_CODE,
         )
-        return {"lastReconciliationAt": last_reconciliation_at}
+        return IndexerStepResult(last_reconciliation_at=last_reconciliation_at)
 
     _mark_step_finished(storage, started_monotonic_ms=started, last_error=None)
-    return {"lastReconciliationAt": next_reconciliation_at}
+    return IndexerStepResult(last_reconciliation_at=next_reconciliation_at)
 
 
 async def run_v2_deposit_indexer(
@@ -491,56 +610,23 @@ async def run_v2_deposit_indexer(
         startup_delay,
         settings.v2_indexer_step_timeout_sec,
     )
-    if startup_delay > 0:
-        try:
-            await asyncio.wait_for(stop_event.wait(), timeout=startup_delay)
-            _set_status(running=False, heartbeatAt=_now())
-            _persist_indexer_runtime_state(storage)
-            logger.info("deposit indexer stopped before first cycle")
-            return
-        except asyncio.TimeoutError:
-            pass
+    if not await _wait_for_startup_or_stop(stop_event, storage, startup_delay):
+        return
     _set_status(initialized=True, heartbeatAt=_now())
     _persist_indexer_runtime_state(storage)
     last_reconciliation_at = 0
-    active_step: Future[dict[str, int]] | None = None
+    active_step: Future[IndexerStepResult] | None = None
     executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="deposit-indexer")
     loop = asyncio.get_running_loop()
     try:
         while not stop_event.is_set():
-            if active_step is not None and not active_step.done():
-                logger.warning(
-                    "deposit indexer skipped tick because previous step is still running"
-                )
-                _mark_step_still_running(storage)
-            else:
-                if active_step is not None and active_step.done():
-                    with suppress(Exception):
-                        result = active_step.result()
-                        last_reconciliation_at = int(
-                            result.get("lastReconciliationAt", last_reconciliation_at)
-                        )
-                    active_step = None
-
-                active_step = executor.submit(
-                    run_indexer_blocking_step, storage, last_reconciliation_at
-                )
-                wrapped_step = asyncio.wrap_future(active_step, loop=loop)
-                try:
-                    result = await asyncio.wait_for(
-                        wrapped_step,
-                        timeout=max(0.01, float(settings.v2_indexer_step_timeout_sec)),
-                    )
-                    last_reconciliation_at = int(
-                        result.get("lastReconciliationAt", last_reconciliation_at)
-                    )
-                    active_step = None
-                except asyncio.TimeoutError:
-                    logger.warning(
-                        "deposit indexer step timed out after %ss",
-                        settings.v2_indexer_step_timeout_sec,
-                    )
-                    _mark_step_timeout(storage)
+            active_step, last_reconciliation_at = await _run_single_indexer_tick(
+                loop=loop,
+                executor=executor,
+                storage=storage,
+                active_step=active_step,
+                last_reconciliation_at=last_reconciliation_at,
+            )
 
             _set_status(heartbeatAt=_now())
             _persist_indexer_runtime_state(storage)

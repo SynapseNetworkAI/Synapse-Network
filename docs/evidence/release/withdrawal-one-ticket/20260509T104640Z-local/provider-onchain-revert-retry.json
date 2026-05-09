@@ -1,0 +1,71 @@
+{
+  "name": "provider-onchain-revert-retry",
+  "status": "passed",
+  "pass": true,
+  "runId": "wot-20260509104656",
+  "generatedAt": "2026-05-09T10:47:04.278Z",
+  "summary": "Low-gas claim reverts without consuming ticket; same ticket retries successfully before deadline",
+  "role": "provider",
+  "withdrawalId": "wd-5f4d788d32794b628a87f1038ed7fb46",
+  "ticketHash": "0xffb6828c738cce9add234bb2e4beef4d4f95b5d555d51bdf845c3edc76971855",
+  "deadline": 1778323683,
+  "expected": {
+    "lowGasFailureType": "OUT_OF_GAS_REVERT",
+    "consumedAfterLowGas": false,
+    "gatewayStatusAfterLowGas": "APPROVED_AUTO",
+    "retryReceiptStatus": 1,
+    "finalGatewayStatus": "COMPLETED"
+  },
+  "actual": {
+    "lowGas": {
+      "reverted": true,
+      "failureType": "OUT_OF_GAS_REVERT",
+      "message": "transaction execution reverted",
+      "receipt": {
+        "status": 0,
+        "transactionHash": "0xe129fc7860e8b80afd6ad04bdf0a7fbf3178dd124c60528dfed2296d28df9296",
+        "gasUsed": "30000"
+      }
+    },
+    "consumedAfterLowGas": false,
+    "gatewayStatusAfterLowGas": "APPROVED_AUTO",
+    "lowGasWalletDeltaAtomic": "0",
+    "retryTxHash": "0x15f382cc7f7cf82711d4c3a17894309089dc30dbdbcb99c589fd0b38ef2923dc",
+    "retryReceiptStatus": 1,
+    "finalGatewayStatus": "COMPLETED",
+    "retryWalletDeltaAtomic": "10000000000000000000",
+    "retryVaultDeltaAtomic": "-10000000000000000000"
+  },
+  "comparisons": [
+    {
+      "metric": "lowGasReverted",
+      "expected": "true",
+      "actual": "true",
+      "pass": true
+    },
+    {
+      "metric": "consumedAfterLowGas",
+      "expected": "false",
+      "actual": "false",
+      "pass": true
+    },
+    {
+      "metric": "gatewayNotFailedAfterLowGas",
+      "expected": "not FAILED/FAILED_EXPIRED",
+      "actual": "APPROVED_AUTO",
+      "pass": true
+    },
+    {
+      "metric": "retryReceiptStatus",
+      "expected": "1",
+      "actual": "1",
+      "pass": true
+    },
+    {
+      "metric": "finalGatewayStatus",
+      "expected": "COMPLETED",
+      "actual": "COMPLETED",
+      "pass": true
+    }
+  ]
+}

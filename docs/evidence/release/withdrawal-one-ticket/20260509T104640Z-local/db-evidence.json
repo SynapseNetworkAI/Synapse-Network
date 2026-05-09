@@ -1,0 +1,860 @@
+{
+  "consumer-normal-claim": {
+    "before": {
+      "balanceBefore": null
+    },
+    "after": {
+      "row": {
+        "withdrawal_id": "b69d2b4a-8c0b-43e8-84ec-52fd1113ac1a",
+        "withdrawal_kind": "consumer",
+        "owner_id": "0x918e89c214a446c58f284392bd09c046e7e3270b",
+        "provider_id": null,
+        "status": "COMPLETED",
+        "tx_hash": "[REDACTED_HEX]",
+        "ticket_hash": "[REDACTED_HEX]",
+        "amount_usdc": null,
+        "created_at": null,
+        "updated_at": "2026-05-09T10:47:02.298Z"
+      },
+      "ticketConsumed": null
+    },
+    "final": {
+      "withdrawal": {
+        "withdrawal_id": "b69d2b4a-8c0b-43e8-84ec-52fd1113ac1a",
+        "withdrawal_kind": "consumer",
+        "owner_id": "0x918e89c214a446c58f284392bd09c046e7e3270b",
+        "provider_id": null,
+        "status": "COMPLETED",
+        "tx_hash": "[REDACTED_HEX]",
+        "ticket_hash": "[REDACTED_HEX]",
+        "amount_usdc": null,
+        "created_at": null,
+        "updated_at": "2026-05-09T10:47:02.298Z"
+      },
+      "dedup": [
+        {
+          "owner_address": "0x918e89c214a446c58f284392bd09c046e7e3270b",
+          "tx_hash": "[REDACTED_HEX]",
+          "kind": "consumer_withdraw",
+          "created_at": "2026-05-09T10:47:02.298Z",
+          "source": "scenario-fallback"
+        }
+      ],
+      "balances": [],
+      "audit": [],
+      "outbox": []
+    }
+  },
+  "consumer-expired-reaper": {
+    "before": {
+      "balanceBefore": {
+        "ownerAddress": "0x918e89c214a446c58f284392bd09c046e7e3270b",
+        "ownerBalance": "153.994400",
+        "consumerAvailableBalance": "153.994400",
+        "consumerWithdrawableBalance": "153.994400",
+        "consumerPendingBalance": "10.000000",
+        "consumerFrozenBalance": "0.000000",
+        "consumerWithdrawMinUsdc": "10.000000",
+        "consumerWithdrawMaturitySeconds": 0,
+        "consumerWithdrawMaturityEnforced": false,
+        "providerReceivable": "0.000000",
+        "providerReceivableBalance": "0.000000",
+        "providerLockedBalance": "0.000000",
+        "platformFeeAccrued": "5.605600",
+        "updatedAt": "2026-05-09 10:47:04"
+      }
+    },
+    "after": {
+      "row": {
+        "id": "fdc081d9-d5fb-45a6-8e0f-a543b02b3543",
+        "ownerAddress": "0x918e89c214a446c58f284392bd09c046e7e3270b",
+        "status": "FAILED_EXPIRED",
+        "requestId": "",
+        "consumerAddress": "0x918e89c214a446c58f284392bd09c046e7e3270b",
+        "amountUsdc": "10.000000",
+        "idempotencyKey": "wot:wot-20260509104656:consumer-expired-reaper:1778323624279",
+        "reason": "consumer-expired-reaper",
+        "signature": "[REDACTED]",
+        "gasPayer": "OWNER",
+        "gasModel": "OWNER_PAYS_ONCHAIN",
+        "refundType": "CONSUMER_BALANCE_WITHDRAW",
+        "destinationAddress": "0x918e89c214a446c58f284392bd09c046e7e3270b",
+        "riskLevel": "green",
+        "riskReasonCode": "",
+        "message": "Withdrawal ticket expired before on-chain execution. Funds were released back to available balance.",
+        "requestMeta": {
+          "requestId": "",
+          "clientIp": "127.0.0.1",
+          "userAgent": "node",
+          "review": {}
+        },
+        "completedAt": 1778323690,
+        "completeMeta": {
+          "review": {}
+        },
+        "ticket": {
+          "ticketId": "[REDACTED_HEX]",
+          "ticketHash": "[REDACTED_HEX]",
+          "amount": "9500000000000000000",
+          "fee": "500000000000000000",
+          "deadline": 1778323684,
+          "signature": "[REDACTED]",
+          "chainId": 31337,
+          "contractAddress": "0x8f119cd256a0fffeed643e830adcd9767a1d517f"
+        },
+        "createdAt": "2026-05-09 10:47:04",
+        "updatedAt": "2026-05-09 10:48:10",
+        "claimable": false
+      },
+      "ticketConsumed": false
+    },
+    "final": {
+      "withdrawal": {
+        "withdrawal_id": "fdc081d9-d5fb-45a6-8e0f-a543b02b3543",
+        "withdrawal_kind": "consumer",
+        "owner_id": "0x918e89c214a446c58f284392bd09c046e7e3270b",
+        "provider_id": null,
+        "status": "FAILED_EXPIRED",
+        "tx_hash": null,
+        "ticket_hash": "[REDACTED_HEX]",
+        "amount_usdc": "10.000000",
+        "created_at": "2026-05-09 10:47:04",
+        "updated_at": "2026-05-09 10:48:10"
+      },
+      "dedup": [],
+      "balances": [],
+      "audit": [],
+      "outbox": []
+    }
+  },
+  "consumer-soft-revoke-race-claim": {
+    "before": {
+      "balanceBefore": null
+    },
+    "after": {
+      "row": {
+        "withdrawal_id": "9ec8b74d-87d4-4399-a91e-2c42d34961be",
+        "withdrawal_kind": "consumer",
+        "owner_id": "0x918e89c214a446c58f284392bd09c046e7e3270b",
+        "provider_id": null,
+        "status": "COMPLETED",
+        "tx_hash": "[REDACTED_HEX]",
+        "ticket_hash": "[REDACTED_HEX]",
+        "amount_usdc": null,
+        "created_at": null,
+        "updated_at": "2026-05-09T10:47:02.608Z"
+      },
+      "ticketConsumed": null
+    },
+    "final": {
+      "withdrawal": {
+        "withdrawal_id": "9ec8b74d-87d4-4399-a91e-2c42d34961be",
+        "withdrawal_kind": "consumer",
+        "owner_id": "0x918e89c214a446c58f284392bd09c046e7e3270b",
+        "provider_id": null,
+        "status": "COMPLETED",
+        "tx_hash": "[REDACTED_HEX]",
+        "ticket_hash": "[REDACTED_HEX]",
+        "amount_usdc": null,
+        "created_at": null,
+        "updated_at": "2026-05-09T10:47:02.608Z"
+      },
+      "dedup": [
+        {
+          "owner_address": "0x918e89c214a446c58f284392bd09c046e7e3270b",
+          "tx_hash": "[REDACTED_HEX]",
+          "kind": "consumer_withdraw",
+          "created_at": "2026-05-09T10:47:02.608Z",
+          "source": "scenario-fallback"
+        }
+      ],
+      "balances": [],
+      "audit": [],
+      "outbox": []
+    }
+  },
+  "consumer-soft-revoke-expire": {
+    "before": {
+      "balanceBefore": {
+        "ownerAddress": "0x918e89c214a446c58f284392bd09c046e7e3270b",
+        "ownerBalance": "153.994400",
+        "consumerAvailableBalance": "153.994400",
+        "consumerWithdrawableBalance": "153.994400",
+        "consumerPendingBalance": "10.000000",
+        "consumerFrozenBalance": "0.000000",
+        "consumerWithdrawMinUsdc": "10.000000",
+        "consumerWithdrawMaturitySeconds": 0,
+        "consumerWithdrawMaturityEnforced": false,
+        "providerReceivable": "0.000000",
+        "providerReceivableBalance": "0.000000",
+        "providerLockedBalance": "0.000000",
+        "platformFeeAccrued": "5.605600",
+        "updatedAt": "2026-05-09 10:48:12"
+      }
+    },
+    "after": {
+      "row": {
+        "id": "be6b7d4d-395e-43fe-8973-0e57e15c0037",
+        "ownerAddress": "0x918e89c214a446c58f284392bd09c046e7e3270b",
+        "status": "FAILED_EXPIRED",
+        "requestId": "",
+        "consumerAddress": "0x918e89c214a446c58f284392bd09c046e7e3270b",
+        "amountUsdc": "10.000000",
+        "idempotencyKey": "wot:wot-20260509104656:consumer-soft-revoke-expire:1778323691984",
+        "reason": "consumer-soft-revoke-expire",
+        "signature": "[REDACTED]",
+        "gasPayer": "OWNER",
+        "gasModel": "OWNER_PAYS_ONCHAIN",
+        "refundType": "CONSUMER_BALANCE_WITHDRAW",
+        "destinationAddress": "0x918e89c214a446c58f284392bd09c046e7e3270b",
+        "riskLevel": "green",
+        "riskReasonCode": "",
+        "message": "Withdrawal ticket expired before on-chain execution. Funds were released back to available balance.",
+        "requestMeta": {
+          "requestId": "",
+          "clientIp": "127.0.0.1",
+          "userAgent": "node",
+          "review": {}
+        },
+        "completedAt": 1778323759,
+        "completeMeta": {
+          "review": {}
+        },
+        "ticket": {
+          "ticketId": "[REDACTED_HEX]",
+          "ticketHash": "[REDACTED_HEX]",
+          "amount": "9500000000000000000",
+          "fee": "500000000000000000",
+          "deadline": 1778323752,
+          "signature": "[REDACTED]",
+          "chainId": 31337,
+          "contractAddress": "0x8f119cd256a0fffeed643e830adcd9767a1d517f"
+        },
+        "createdAt": "2026-05-09 10:48:12",
+        "updatedAt": "2026-05-09 10:49:19",
+        "claimable": false
+      },
+      "ticketConsumed": false
+    },
+    "final": {
+      "withdrawal": {
+        "withdrawal_id": "be6b7d4d-395e-43fe-8973-0e57e15c0037",
+        "withdrawal_kind": "consumer",
+        "owner_id": "0x918e89c214a446c58f284392bd09c046e7e3270b",
+        "provider_id": null,
+        "status": "FAILED_EXPIRED",
+        "tx_hash": null,
+        "ticket_hash": "[REDACTED_HEX]",
+        "amount_usdc": "10.000000",
+        "created_at": "2026-05-09 10:48:12",
+        "updated_at": "2026-05-09 10:49:19"
+      },
+      "dedup": [],
+      "balances": [],
+      "audit": [],
+      "outbox": []
+    }
+  },
+  "provider-normal-claim": {
+    "before": {
+      "withdrawalId": "wd-95304cd34ae74095af3896d2f7195745",
+      "ticketHash": "[REDACTED_HEX]",
+      "amountUsdc": null
+    },
+    "after": {
+      "actual": {
+        "dbStatus": "COMPLETED",
+        "txHash": "[REDACTED_HEX]",
+        "receiptStatus": 1,
+        "completeStatus": "COMPLETED",
+        "walletDeltaAtomic": "10000000000000000000",
+        "vaultDeltaAtomic": "-10000000000000000000"
+      }
+    },
+    "final": {
+      "withdrawal": {
+        "withdrawal_id": "wd-95304cd34ae74095af3896d2f7195745",
+        "withdrawal_kind": "provider",
+        "owner_id": "0x82f1c188327bfc265357a85e8a6b4a34d562d6f8",
+        "provider_id": null,
+        "status": "COMPLETED",
+        "tx_hash": "[REDACTED_HEX]",
+        "ticket_hash": "[REDACTED_HEX]",
+        "amount_usdc": null,
+        "created_at": null,
+        "updated_at": "2026-05-09T10:47:03.457Z"
+      },
+      "dedup": [
+        {
+          "owner_address": "0x82f1c188327bfc265357a85e8a6b4a34d562d6f8",
+          "tx_hash": "[REDACTED_HEX]",
+          "kind": "provider_withdraw",
+          "created_at": "2026-05-09T10:47:03.457Z",
+          "source": "scenario-fallback"
+        }
+      ],
+      "balances": [
+        {
+          "account_kind": "consumer_wallet",
+          "account_id": "consumer_wallet::0x82f1c188327bfc265357a85e8a6b4a34d562d6f8",
+          "available_balance": "500.000000",
+          "pending_balance": "0.000000",
+          "frozen_balance": "0.000000",
+          "updated_at": "2026-05-08 14:12:53+00"
+        },
+        {
+          "account_kind": "provider_wallet",
+          "account_id": "provider_wallet::0x82f1c188327bfc265357a85e8a6b4a34d562d6f8",
+          "available_balance": "26.500000",
+          "pending_balance": "0.000000",
+          "frozen_balance": "0.000000",
+          "updated_at": "2026-05-09 05:51:14+00"
+        }
+      ],
+      "audit": [],
+      "outbox": []
+    }
+  },
+  "provider-expired-reaper": {
+    "before": {
+      "withdrawalId": "wd-faa2e3f0299148349f6c7cf936934840",
+      "ticketHash": "[REDACTED_HEX]",
+      "amountUsdc": "10.000000"
+    },
+    "after": {
+      "actual": {
+        "dbStatus": "FAILED_EXPIRED",
+        "ticketConsumed": false,
+        "rpcBlockTimestamp": 1778323828,
+        "localNow": 1778323824,
+        "balanceBefore": {
+          "id": "wd-faa2e3f0299148349f6c7cf936934840",
+          "ownerAddress": "0x82f1c188327bfc265357a85e8a6b4a34d562d6f8",
+          "txHash": null,
+          "status": "APPROVED_AUTO",
+          "requestId": "bf13f1c7-fe49-4042-a207-2795c637f7fa",
+          "idempotencyKey": "wot:wot-20260509104656:provider-expired-reaper:1778323759693",
+          "amountUsdc": "10.000000",
+          "amountWei": "10000000000000000000",
+          "feeWei": "0",
+          "nonce": 0,
+          "deadline": 1778323819,
+          "signature": "[REDACTED]",
+          "chainId": 31337,
+          "contractAddress": "0x8f119cd256a0fffeed643e830adcd9767a1d517f",
+          "signerAddress": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+          "businessType": "withdraw",
+          "evidenceSummary": null,
+          "riskLevel": "green",
+          "riskReasonCode": null,
+          "message": "",
+          "requestMeta": {
+            "requestId": "",
+            "traceId": null,
+            "clientIp": "127.0.0.1",
+            "userAgent": "node",
+            "actorAddress": null,
+            "note": null,
+            "review": {
+              "decision": null,
+              "reviewerAddress": null,
+              "reviewerNote": null
+            }
+          },
+          "reviewDecision": null,
+          "reviewerAddress": null,
+          "reviewerNote": null,
+          "reviewedAt": null,
+          "ticket": {
+            "ticketId": "[REDACTED_HEX]",
+            "ticketHash": "[REDACTED_HEX]",
+            "amount": "10000000000000000000",
+            "fee": "0",
+            "nonce": 0,
+            "deadline": 1778323819,
+            "signature": "[REDACTED]",
+            "chainId": 31337,
+            "contractAddress": "0x8f119cd256a0fffeed643e830adcd9767a1d517f"
+          },
+          "completedAt": null,
+          "completeMeta": {
+            "requestId": null,
+            "traceId": null,
+            "clientIp": null,
+            "userAgent": null,
+            "actorAddress": null,
+            "note": null,
+            "review": {
+              "decision": null,
+              "reviewerAddress": null,
+              "reviewerNote": null
+            }
+          },
+          "createdAt": "2026-05-09 10:49:19",
+          "updatedAt": "2026-05-09 10:49:19"
+        },
+        "row": {
+          "id": "wd-faa2e3f0299148349f6c7cf936934840",
+          "ownerAddress": "0x82f1c188327bfc265357a85e8a6b4a34d562d6f8",
+          "txHash": null,
+          "status": "FAILED_EXPIRED",
+          "requestId": "bf13f1c7-fe49-4042-a207-2795c637f7fa",
+          "idempotencyKey": "wot:wot-20260509104656:provider-expired-reaper:1778323759693",
+          "amountUsdc": "10.000000",
+          "amountWei": "10000000000000000000",
+          "feeWei": "0",
+          "nonce": 0,
+          "deadline": 1778323819,
+          "signature": "[REDACTED]",
+          "chainId": 31337,
+          "contractAddress": "0x8f119cd256a0fffeed643e830adcd9767a1d517f",
+          "signerAddress": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+          "businessType": "withdraw",
+          "evidenceSummary": null,
+          "riskLevel": "green",
+          "riskReasonCode": null,
+          "message": "Withdrawal ticket expired. Locked receivable was released back to available balance.",
+          "requestMeta": {
+            "requestId": "",
+            "traceId": null,
+            "clientIp": "127.0.0.1",
+            "userAgent": "node",
+            "actorAddress": null,
+            "note": null,
+            "review": {
+              "decision": null,
+              "reviewerAddress": null,
+              "reviewerNote": null
+            }
+          },
+          "reviewDecision": null,
+          "reviewerAddress": null,
+          "reviewerNote": null,
+          "reviewedAt": null,
+          "ticket": {
+            "ticketId": "[REDACTED_HEX]",
+            "ticketHash": "[REDACTED_HEX]",
+            "amount": "10000000000000000000",
+            "fee": "0",
+            "nonce": 0,
+            "deadline": 1778323819,
+            "signature": "[REDACTED]",
+            "chainId": 31337,
+            "contractAddress": "0x8f119cd256a0fffeed643e830adcd9767a1d517f"
+          },
+          "completedAt": 1778323824,
+          "completeMeta": {
+            "requestId": null,
+            "traceId": null,
+            "clientIp": null,
+            "userAgent": null,
+            "actorAddress": null,
+            "note": null,
+            "review": {
+              "decision": null,
+              "reviewerAddress": null,
+              "reviewerNote": null
+            }
+          },
+          "createdAt": "2026-05-09 10:49:19",
+          "updatedAt": "2026-05-09 10:50:24"
+        }
+      }
+    },
+    "final": {
+      "withdrawal": {
+        "withdrawal_id": "wd-faa2e3f0299148349f6c7cf936934840",
+        "withdrawal_kind": "provider",
+        "owner_id": "0x82f1c188327bfc265357a85e8a6b4a34d562d6f8",
+        "provider_id": null,
+        "status": "FAILED_EXPIRED",
+        "tx_hash": null,
+        "ticket_hash": "[REDACTED_HEX]",
+        "amount_usdc": "10.000000",
+        "created_at": "2026-05-09 10:49:19",
+        "updated_at": "2026-05-09 10:50:24"
+      },
+      "dedup": [],
+      "balances": [
+        {
+          "account_kind": "consumer_wallet",
+          "account_id": "consumer_wallet::0x82f1c188327bfc265357a85e8a6b4a34d562d6f8",
+          "available_balance": "500.000000",
+          "pending_balance": "0.000000",
+          "frozen_balance": "0.000000",
+          "updated_at": "2026-05-08 14:12:53+00"
+        },
+        {
+          "account_kind": "provider_wallet",
+          "account_id": "provider_wallet::0x82f1c188327bfc265357a85e8a6b4a34d562d6f8",
+          "available_balance": "26.500000",
+          "pending_balance": "0.000000",
+          "frozen_balance": "0.000000",
+          "updated_at": "2026-05-09 05:51:14+00"
+        }
+      ],
+      "audit": [],
+      "outbox": []
+    }
+  },
+  "provider-soft-revoke-race-claim": {
+    "before": {
+      "withdrawalId": "wd-0a3c45164df6497096c3f8bd5ad82153",
+      "ticketHash": "[REDACTED_HEX]",
+      "amountUsdc": null
+    },
+    "after": {
+      "actual": {
+        "dbStatus": "COMPLETED",
+        "txHash": "[REDACTED_HEX]",
+        "receiptStatus": 1,
+        "completeStatus": "COMPLETED",
+        "walletDeltaAtomic": "10000000000000000000",
+        "vaultDeltaAtomic": "-10000000000000000000"
+      }
+    },
+    "final": {
+      "withdrawal": {
+        "withdrawal_id": "wd-0a3c45164df6497096c3f8bd5ad82153",
+        "withdrawal_kind": "provider",
+        "owner_id": "0x82f1c188327bfc265357a85e8a6b4a34d562d6f8",
+        "provider_id": null,
+        "status": "COMPLETED",
+        "tx_hash": "[REDACTED_HEX]",
+        "ticket_hash": "[REDACTED_HEX]",
+        "amount_usdc": null,
+        "created_at": null,
+        "updated_at": "2026-05-09T10:47:03.760Z"
+      },
+      "dedup": [
+        {
+          "owner_address": "0x82f1c188327bfc265357a85e8a6b4a34d562d6f8",
+          "tx_hash": "[REDACTED_HEX]",
+          "kind": "provider_withdraw",
+          "created_at": "2026-05-09T10:47:03.760Z",
+          "source": "scenario-fallback"
+        }
+      ],
+      "balances": [
+        {
+          "account_kind": "consumer_wallet",
+          "account_id": "consumer_wallet::0x82f1c188327bfc265357a85e8a6b4a34d562d6f8",
+          "available_balance": "500.000000",
+          "pending_balance": "0.000000",
+          "frozen_balance": "0.000000",
+          "updated_at": "2026-05-08 14:12:53+00"
+        },
+        {
+          "account_kind": "provider_wallet",
+          "account_id": "provider_wallet::0x82f1c188327bfc265357a85e8a6b4a34d562d6f8",
+          "available_balance": "26.500000",
+          "pending_balance": "0.000000",
+          "frozen_balance": "0.000000",
+          "updated_at": "2026-05-09 05:51:14+00"
+        }
+      ],
+      "audit": [],
+      "outbox": []
+    }
+  },
+  "provider-soft-revoke-expire": {
+    "before": {
+      "withdrawalId": "wd-583abc04da224b30b8eb047e3bd2b57b",
+      "ticketHash": "[REDACTED_HEX]",
+      "amountUsdc": "10.000000"
+    },
+    "after": {
+      "actual": {
+        "dbStatus": "FAILED_EXPIRED",
+        "ticketConsumed": false,
+        "rpcBlockTimestamp": 1778323893,
+        "localNow": 1778323889,
+        "balanceBefore": {
+          "id": "wd-583abc04da224b30b8eb047e3bd2b57b",
+          "ownerAddress": "0x82f1c188327bfc265357a85e8a6b4a34d562d6f8",
+          "txHash": null,
+          "status": "APPROVED_AUTO",
+          "requestId": "9ce306b6-72ba-4d38-8598-73e1d20bca19",
+          "idempotencyKey": "wot:wot-20260509104656:provider-soft-revoke-expire:1778323824477",
+          "amountUsdc": "10.000000",
+          "amountWei": "10000000000000000000",
+          "feeWei": "0",
+          "nonce": 0,
+          "deadline": 1778323884,
+          "signature": "[REDACTED]",
+          "chainId": 31337,
+          "contractAddress": "0x8f119cd256a0fffeed643e830adcd9767a1d517f",
+          "signerAddress": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+          "businessType": "withdraw",
+          "evidenceSummary": null,
+          "riskLevel": "green",
+          "riskReasonCode": null,
+          "message": "",
+          "requestMeta": {
+            "requestId": "",
+            "traceId": null,
+            "clientIp": "127.0.0.1",
+            "userAgent": "node",
+            "actorAddress": null,
+            "note": null,
+            "review": {
+              "decision": null,
+              "reviewerAddress": null,
+              "reviewerNote": null
+            }
+          },
+          "reviewDecision": null,
+          "reviewerAddress": null,
+          "reviewerNote": null,
+          "reviewedAt": null,
+          "ticket": {
+            "ticketId": "[REDACTED_HEX]",
+            "ticketHash": "[REDACTED_HEX]",
+            "amount": "10000000000000000000",
+            "fee": "0",
+            "nonce": 0,
+            "deadline": 1778323884,
+            "signature": "[REDACTED]",
+            "chainId": 31337,
+            "contractAddress": "0x8f119cd256a0fffeed643e830adcd9767a1d517f"
+          },
+          "completedAt": null,
+          "completeMeta": {
+            "requestId": null,
+            "traceId": null,
+            "clientIp": null,
+            "userAgent": null,
+            "actorAddress": null,
+            "note": null,
+            "review": {
+              "decision": null,
+              "reviewerAddress": null,
+              "reviewerNote": null
+            }
+          },
+          "createdAt": "2026-05-09 10:50:24",
+          "updatedAt": "2026-05-09 10:50:24"
+        },
+        "row": {
+          "id": "wd-583abc04da224b30b8eb047e3bd2b57b",
+          "ownerAddress": "0x82f1c188327bfc265357a85e8a6b4a34d562d6f8",
+          "txHash": null,
+          "status": "FAILED_EXPIRED",
+          "requestId": "9ce306b6-72ba-4d38-8598-73e1d20bca19",
+          "idempotencyKey": "wot:wot-20260509104656:provider-soft-revoke-expire:1778323824477",
+          "amountUsdc": "10.000000",
+          "amountWei": "10000000000000000000",
+          "feeWei": "0",
+          "nonce": 0,
+          "deadline": 1778323884,
+          "signature": "[REDACTED]",
+          "chainId": 31337,
+          "contractAddress": "0x8f119cd256a0fffeed643e830adcd9767a1d517f",
+          "signerAddress": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+          "businessType": "withdraw",
+          "evidenceSummary": null,
+          "riskLevel": "green",
+          "riskReasonCode": null,
+          "message": "Withdrawal ticket expired. Locked receivable was released back to available balance.",
+          "requestMeta": {
+            "requestId": "",
+            "traceId": null,
+            "clientIp": "127.0.0.1",
+            "userAgent": "node",
+            "actorAddress": null,
+            "note": null,
+            "review": {
+              "decision": null,
+              "reviewerAddress": null,
+              "reviewerNote": null
+            }
+          },
+          "reviewDecision": null,
+          "reviewerAddress": null,
+          "reviewerNote": null,
+          "reviewedAt": null,
+          "ticket": {
+            "ticketId": "[REDACTED_HEX]",
+            "ticketHash": "[REDACTED_HEX]",
+            "amount": "10000000000000000000",
+            "fee": "0",
+            "nonce": 0,
+            "deadline": 1778323884,
+            "signature": "[REDACTED]",
+            "chainId": 31337,
+            "contractAddress": "0x8f119cd256a0fffeed643e830adcd9767a1d517f"
+          },
+          "completedAt": 1778323889,
+          "completeMeta": {
+            "requestId": null,
+            "traceId": null,
+            "clientIp": null,
+            "userAgent": null,
+            "actorAddress": null,
+            "note": null,
+            "review": {
+              "decision": null,
+              "reviewerAddress": null,
+              "reviewerNote": null
+            }
+          },
+          "createdAt": "2026-05-09 10:50:24",
+          "updatedAt": "2026-05-09 10:51:29"
+        }
+      }
+    },
+    "final": {
+      "withdrawal": {
+        "withdrawal_id": "wd-583abc04da224b30b8eb047e3bd2b57b",
+        "withdrawal_kind": "provider",
+        "owner_id": "0x82f1c188327bfc265357a85e8a6b4a34d562d6f8",
+        "provider_id": null,
+        "status": "FAILED_EXPIRED",
+        "tx_hash": null,
+        "ticket_hash": "[REDACTED_HEX]",
+        "amount_usdc": "10.000000",
+        "created_at": "2026-05-09 10:50:24",
+        "updated_at": "2026-05-09 10:51:29"
+      },
+      "dedup": [],
+      "balances": [
+        {
+          "account_kind": "consumer_wallet",
+          "account_id": "consumer_wallet::0x82f1c188327bfc265357a85e8a6b4a34d562d6f8",
+          "available_balance": "500.000000",
+          "pending_balance": "0.000000",
+          "frozen_balance": "0.000000",
+          "updated_at": "2026-05-08 14:12:53+00"
+        },
+        {
+          "account_kind": "provider_wallet",
+          "account_id": "provider_wallet::0x82f1c188327bfc265357a85e8a6b4a34d562d6f8",
+          "available_balance": "26.500000",
+          "pending_balance": "0.000000",
+          "frozen_balance": "0.000000",
+          "updated_at": "2026-05-09 05:51:14+00"
+        }
+      ],
+      "audit": [],
+      "outbox": []
+    }
+  },
+  "consumer-replay-attack": {
+    "before": {
+      "balanceBefore": null
+    },
+    "after": {
+      "row": {
+        "withdrawal_id": "a0f81169-488d-4da7-bf0d-b521f1aed18f",
+        "withdrawal_kind": "consumer",
+        "owner_id": "0x918e89c214a446c58f284392bd09c046e7e3270b",
+        "provider_id": null,
+        "status": "COMPLETED",
+        "tx_hash": "[REDACTED_HEX]",
+        "ticket_hash": "[REDACTED_HEX]",
+        "amount_usdc": null,
+        "created_at": null,
+        "updated_at": "2026-05-09T10:47:03.104Z"
+      },
+      "ticketConsumed": true
+    },
+    "final": {
+      "withdrawal": {
+        "withdrawal_id": "a0f81169-488d-4da7-bf0d-b521f1aed18f",
+        "withdrawal_kind": "consumer",
+        "owner_id": "0x918e89c214a446c58f284392bd09c046e7e3270b",
+        "provider_id": null,
+        "status": "COMPLETED",
+        "tx_hash": "[REDACTED_HEX]",
+        "ticket_hash": "[REDACTED_HEX]",
+        "amount_usdc": null,
+        "created_at": null,
+        "updated_at": "2026-05-09T10:47:03.104Z"
+      },
+      "dedup": [
+        {
+          "owner_address": "0x918e89c214a446c58f284392bd09c046e7e3270b",
+          "tx_hash": "[REDACTED_HEX]",
+          "kind": "consumer_withdraw",
+          "created_at": "2026-05-09T10:47:03.104Z",
+          "source": "scenario-fallback"
+        }
+      ],
+      "balances": [],
+      "audit": [],
+      "outbox": []
+    }
+  },
+  "provider-onchain-revert-retry": {
+    "before": {
+      "withdrawalId": "wd-5f4d788d32794b628a87f1038ed7fb46",
+      "ticketHash": "[REDACTED_HEX]",
+      "amountUsdc": null
+    },
+    "after": {
+      "actual": {
+        "lowGas": {
+          "reverted": true,
+          "failureType": "OUT_OF_GAS_REVERT",
+          "message": "transaction execution reverted",
+          "receipt": {
+            "status": 0,
+            "transactionHash": "[REDACTED_HEX]",
+            "gasUsed": "30000"
+          }
+        },
+        "consumedAfterLowGas": false,
+        "gatewayStatusAfterLowGas": "APPROVED_AUTO",
+        "lowGasWalletDeltaAtomic": "0",
+        "retryTxHash": "[REDACTED_HEX]",
+        "retryReceiptStatus": 1,
+        "finalGatewayStatus": "COMPLETED",
+        "retryWalletDeltaAtomic": "10000000000000000000",
+        "retryVaultDeltaAtomic": "-10000000000000000000"
+      }
+    },
+    "final": {
+      "withdrawal": {
+        "withdrawal_id": "wd-5f4d788d32794b628a87f1038ed7fb46",
+        "withdrawal_kind": "provider",
+        "owner_id": "0x82f1c188327bfc265357a85e8a6b4a34d562d6f8",
+        "provider_id": null,
+        "status": "COMPLETED",
+        "tx_hash": "[REDACTED_HEX]",
+        "ticket_hash": "[REDACTED_HEX]",
+        "amount_usdc": null,
+        "created_at": null,
+        "updated_at": "2026-05-09T10:47:04.278Z"
+      },
+      "dedup": [
+        {
+          "owner_address": "0x82f1c188327bfc265357a85e8a6b4a34d562d6f8",
+          "tx_hash": "[REDACTED_HEX]",
+          "kind": "provider_withdraw",
+          "created_at": "2026-05-09T10:47:04.278Z",
+          "source": "scenario-fallback"
+        }
+      ],
+      "balances": [
+        {
+          "account_kind": "consumer_wallet",
+          "account_id": "consumer_wallet::0x82f1c188327bfc265357a85e8a6b4a34d562d6f8",
+          "available_balance": "500.000000",
+          "pending_balance": "0.000000",
+          "frozen_balance": "0.000000",
+          "updated_at": "2026-05-08 14:12:53+00"
+        },
+        {
+          "account_kind": "provider_wallet",
+          "account_id": "provider_wallet::0x82f1c188327bfc265357a85e8a6b4a34d562d6f8",
+          "available_balance": "26.500000",
+          "pending_balance": "0.000000",
+          "frozen_balance": "0.000000",
+          "updated_at": "2026-05-09 05:51:14+00"
+        }
+      ],
+      "audit": [],
+      "outbox": []
+    }
+  }
+}

@@ -233,8 +233,8 @@ url = sys.argv[1]
 expected = {
     "deposit_indexer": sys.argv[2].lower() == "true",
     "service_health_monitor": sys.argv[3].lower() == "true",
-    "provider_withdraw_expiry_reaper": sys.argv[4].lower() == "true",
-    "consumer_withdraw_processor": sys.argv[5].lower() == "true",
+    "withdrawal_expiry_sweeper": sys.argv[4].lower() == "true",
+    "consumer_withdraw_chain_recovery": sys.argv[5].lower() == "true",
     "in_app_notification_cleanup": sys.argv[6].lower() == "true",
     "service_health_event_cleanup": sys.argv[7].lower() == "true",
 }

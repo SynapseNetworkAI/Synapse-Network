@@ -1,0 +1,37 @@
+[
+  {
+    "path": "screenshots/billing-pending-before-indexer.png",
+    "forbiddenTextAbsent": true,
+    "expectedText": "Pending",
+    "actualDom": "dd...8408\n\tPending / Syncing\tDeposit\tWallet\t$100.00\t2026-05-09 11:37:31\t",
+    "sqlStatus": "PENDING_CONFIRMATION",
+    "txHash": "0xaf5568fd0d1304b5cc8147929c57e4473e49704a43ffd9a3e598d5a7111dd82a",
+    "depositId": "dd0fe97d-5e56-43d1-b779-25c606c08408"
+  },
+  {
+    "path": "screenshots/credits-pending-before-indexer.png",
+    "forbiddenTextAbsent": true,
+    "expectedText": "Pending / syncing credits",
+    "actualDom": "100.00",
+    "sqlAvailableBalance": "0.000000",
+    "sqlPendingBalance": "100.000000",
+    "depositId": "dd0fe97d-5e56-43d1-b779-25c606c08408"
+  },
+  {
+    "path": "screenshots/billing-completed-after-indexer.png",
+    "forbiddenTextAbsent": true,
+    "expectedText": "Completed",
+    "actualDom": "dd...8408\n\tCompleted\tDeposit\tWallet\t$100.00\t2026-05-09 11:37:36\t",
+    "sqlStatus": "CONFIRMED",
+    "txHash": "0xaf5568fd0d1304b5cc8147929c57e4473e49704a43ffd9a3e598d5a7111dd82a",
+    "depositId": "dd0fe97d-5e56-43d1-b779-25c606c08408"
+  },
+  {
+    "path": "screenshots/credits-available-after-indexer.png",
+    "forbiddenTextAbsent": true,
+    "expectedBalance": "100.000000",
+    "actualDom": "100.00",
+    "sqlAvailableBalance": "100.000000",
+    "depositId": "dd0fe97d-5e56-43d1-b779-25c606c08408"
+  }
+]

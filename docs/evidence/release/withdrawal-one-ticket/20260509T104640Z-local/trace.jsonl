@@ -1,0 +1,2 @@
+{"name":"withdrawal-one-ticket:augment:db","scenarioCount":10}
+{"name":"withdrawal-one-ticket:augment:dom","paymentsRows":6,"consumerCompleted":true,"providerCompletedFromSigned":true}
