@@ -1,0 +1,9 @@
+[
+  {
+    "file": "screenshots/payments-history.png",
+    "url": "http://127.0.0.1:3000/dashboard/billing",
+    "domCheckpoint": "payments history reflects Gateway-confirmed deposit row",
+    "forbiddenTextAbsent": true,
+    "capturedAt": "2026-05-09T11:38:18.657Z"
+  }
+]

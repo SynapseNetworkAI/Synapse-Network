@@ -1,0 +1,50 @@
+{
+  "environment": "local",
+  "status": "success",
+  "generatedAt": "2026-05-09T11:37:24.167Z",
+  "runId": "event-only-2026-05-09T113723997Z-recovery",
+  "traceDigest": "db2d308c3d624440442dd413f687d02c4a41a6fa3dfa0e084e74f56f117ebc90",
+  "failed": [],
+  "steps": [
+    {
+      "name": "preflight:local-api-db-chain-ui",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "task_down_pending_ui",
+      "ok": true,
+      "detail": "0xaf5568fd0d1304b5cc8147929c57e4473e49704a43ffd9a3e598d5a7111dd82a"
+    },
+    {
+      "name": "restart_auto_credit",
+      "ok": true,
+      "detail": "0xaf5568fd0d1304b5cc8147929c57e4473e49704a43ffd9a3e598d5a7111dd82a"
+    },
+    {
+      "name": "replay_safe",
+      "ok": true,
+      "detail": "0xaf5568fd0d1304b5cc8147929c57e4473e49704a43ffd9a3e598d5a7111dd82a"
+    },
+    {
+      "name": "missed_intent_backfill",
+      "ok": true,
+      "detail": "0x7a633723b7c492bee1513a0bd319877b4de9006a4a0cd68ff128a39441550a3b",
+      "startBlock": 2203
+    },
+    {
+      "name": "invalid_event_no_credit",
+      "ok": true,
+      "detail": "0xed59c01c0e5a4cc8e70d2f7a9d78457ced43c456dd82733ddc4c5efebc7a7915"
+    }
+  ],
+  "screenshots": [
+    "screenshots/billing-pending-before-indexer.png",
+    "screenshots/credits-pending-before-indexer.png",
+    "screenshots/billing-completed-after-indexer.png",
+    "screenshots/credits-available-after-indexer.png"
+  ],
+  "primaryDepositTxHash": "0xaf5568fd0d1304b5cc8147929c57e4473e49704a43ffd9a3e598d5a7111dd82a",
+  "backfillDepositTxHash": "0x7a633723b7c492bee1513a0bd319877b4de9006a4a0cd68ff128a39441550a3b",
+  "depositUsdc": "100.000000"
+}

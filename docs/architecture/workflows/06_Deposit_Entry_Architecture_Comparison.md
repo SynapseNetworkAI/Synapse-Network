@@ -104,11 +104,13 @@ Indexer advantages:
 1. Best-case receipt contains `DepositInfo`, which is business-semantic evidence from the Vault.
 2. If the deposit event is missing, the indexer can still fallback to ERC20 `Transfer(to=vault)` in the receipt.
 3. Existing confirmation pipeline already supports this path with no schema change.
+4. Production-grade scanning can consume `DepositInfo` directly via `eth_getLogs(address=SynapseCore, topic0=DepositInfo)` instead of sweeping entire blocks for candidate transactions.
 
 Indexer disadvantages:
 
 1. Confirmation still depends on a frontend-registered deposit intent keyed by `txHash`.
 2. If the frontend fails after chain success but before intent registration, the platform must rely on retry/replay tooling.
+3. Event-only scanning still needs `getLogs` chunking and a finality buffer; it must not query `latest` directly or request arbitrarily wide block ranges.
 
 ### 3.5 Audit Impact
 

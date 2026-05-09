@@ -24,6 +24,10 @@ const REQUIRED_SCENARIOS = [
 const REQUIRED_FILES = [
   "report.md",
   "report.json",
+  "trace.jsonl",
+  "db-evidence.json",
+  "dom-evidence.json",
+  "screenshot-evidence.json",
   "environment-manifest.json",
   "contract-manifest.json",
   ...REQUIRED_SCENARIOS.map((name) => `${name}.json`),
@@ -90,6 +94,10 @@ if (process.exitCode) process.exit(process.exitCode);
 
 const outDir = path.dirname(reportPath);
 const report = readJson(reportPath);
+const dbEvidence = readJson(path.join(outDir, "db-evidence.json"));
+const domEvidence = readJson(path.join(outDir, "dom-evidence.json"));
+const screenshotEvidence = readJson(path.join(outDir, "screenshot-evidence.json"));
+const traceText = fs.readFileSync(path.join(outDir, "trace.jsonl"), "utf8");
 
 for (const fileName of REQUIRED_FILES) {
   const filePath = path.join(outDir, fileName);
@@ -180,12 +188,137 @@ if (!Array.isArray(report.comparisons) || report.comparisons.some((row) => row.p
   );
 }
 
+if (
+  !report.traceDigest ||
+  crypto.createHash("sha256").update(traceText).digest("hex") !== report.traceDigest
+) {
+  fatal(
+    "WITHDRAWAL-ONE-TICKET-EVIDENCE-010A",
+    path.join(outDir, "trace.jsonl"),
+    "trace digest cannot be recomputed from trace.jsonl.",
+    "rerun the evidence generator; do not hand-edit trace or report independently.",
+  );
+}
+
 if (!report.evidenceDigest || report.evidenceDigest !== digest(report)) {
   fatal(
     "WITHDRAWAL-ONE-TICKET-EVIDENCE-010",
     reportPath,
     "evidence digest cannot be recomputed from report payload.",
     "do not hand-edit report.json; rerun the evidence generator.",
+  );
+}
+
+const requiredScreenshots = [
+  "screenshots/payments-history.png",
+  "screenshots/consumer-withdrawals-completed.png",
+  "screenshots/consumer-withdrawals-expired.png",
+  "screenshots/provider-withdrawals-completed.png",
+  "screenshots/provider-withdrawals-expired.png",
+];
+
+for (const screenshot of requiredScreenshots) {
+  const row = Array.isArray(screenshotEvidence)
+    ? screenshotEvidence.find((item) => item.file === screenshot)
+    : null;
+  if (!row || row.forbiddenTextAbsent !== true || !fs.existsSync(path.join(outDir, screenshot))) {
+    fatal(
+      "WITHDRAWAL-ONE-TICKET-EVIDENCE-011",
+      path.join(outDir, "screenshot-evidence.json"),
+      `required screenshot evidence missing or invalid: ${screenshot}`,
+      "rerun the one-ticket evidence runner so DOM-bound screenshots are captured.",
+    );
+  }
+}
+
+const payments = domEvidence?.payments || {};
+if (
+  !Array.isArray(payments.rows) ||
+  payments.rows.length === 0 ||
+  typeof payments.topRow !== "string" ||
+  payments.noDuplicateTxHash !== true
+) {
+  fatal(
+    "WITHDRAWAL-ONE-TICKET-EVIDENCE-012",
+    path.join(outDir, "dom-evidence.json"),
+    "payments DOM evidence is missing rows, topRow, or duplicate guard.",
+    "capture Payments history DOM evidence from Gateway-backed user-front data.",
+  );
+}
+
+const consumerDom = domEvidence?.consumer || {};
+if (
+  typeof consumerDom.completedRow !== "string" ||
+  !consumerDom.completedRow.includes("Completed") ||
+  typeof consumerDom.expiredRow !== "string" ||
+  consumerDom.expiredRow.length === 0 ||
+  consumerDom.replayRowStillCompleted !== true
+) {
+  fatal(
+    "WITHDRAWAL-ONE-TICKET-EVIDENCE-013",
+    path.join(outDir, "dom-evidence.json"),
+    "consumer withdrawal DOM evidence is incomplete or replay row no longer looks completed.",
+    "rerun the one-ticket UI capture and keep replay scenario terminal state stable in user-front.",
+  );
+}
+
+const providerDom = domEvidence?.provider || {};
+if (
+  providerDom.completedFromSigned !== true ||
+  providerDom.lowGasRetryRecovered !== true ||
+  typeof providerDom.expiredRow !== "string" ||
+  providerDom.expiredRow.length === 0
+) {
+  fatal(
+    "WITHDRAWAL-ONE-TICKET-EVIDENCE-014",
+    path.join(outDir, "dom-evidence.json"),
+    "provider withdrawal DOM evidence is incomplete for SIGNED completion, low-gas retry, or expiry.",
+    "rerun provider withdraw history capture and fix provider completion rendering if needed.",
+  );
+}
+
+for (const name of REQUIRED_SCENARIOS) {
+  const dbRow = dbEvidence?.[name];
+  if (!dbRow?.final?.withdrawal?.status) {
+    fatal(
+      "WITHDRAWAL-ONE-TICKET-EVIDENCE-015",
+      path.join(outDir, "db-evidence.json"),
+      `db-evidence missing final withdrawal snapshot for scenario ${name}`,
+      "record before/after/final withdrawal snapshots into db-evidence.json.",
+    );
+  }
+}
+
+const replayDb = dbEvidence?.["consumer-replay-attack"]?.final || {};
+if (!Array.isArray(replayDb.dedup) || replayDb.dedup.length < 1) {
+  fatal(
+    "WITHDRAWAL-ONE-TICKET-EVIDENCE-016",
+    path.join(outDir, "db-evidence.json"),
+    "consumer replay scenario is missing withdraw_tx_dedup evidence.",
+    "persist dedup snapshots for replay-sensitive scenarios.",
+  );
+}
+
+const providerRetryDb = dbEvidence?.["provider-onchain-revert-retry"]?.final || {};
+if (String(providerRetryDb.withdrawal?.status || "").toUpperCase() !== "COMPLETED") {
+  fatal(
+    "WITHDRAWAL-ONE-TICKET-EVIDENCE-017",
+    path.join(outDir, "db-evidence.json"),
+    "provider low-gas retry final DB status is not COMPLETED.",
+    "fix provider SIGNED->COMPLETED completion path and regenerate the evidence bundle.",
+  );
+}
+
+const consumerExpiredDb = dbEvidence?.["consumer-expired-reaper"]?.final || {};
+if (
+  String(consumerExpiredDb.withdrawal?.status || "").toUpperCase() !==
+  "FAILED_EXPIRED"
+) {
+  fatal(
+    "WITHDRAWAL-ONE-TICKET-EVIDENCE-018",
+    path.join(outDir, "db-evidence.json"),
+    "consumer expired reaper final DB status is not FAILED_EXPIRED.",
+    "fix expiry release semantics and rerun the evidence bundle.",
   );
 }
 

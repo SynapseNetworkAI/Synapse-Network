@@ -1,0 +1,37 @@
+[
+  {
+    "file": "screenshots/payments-history.png",
+    "url": "http://127.0.0.1:3000/dashboard/billing",
+    "domCheckpoint": "payments history shows completed and expired consumer withdrawals",
+    "forbiddenTextAbsent": true,
+    "capturedAt": "2026-05-09T11:15:18.381Z"
+  },
+  {
+    "file": "screenshots/consumer-withdrawals-completed.png",
+    "url": "http://127.0.0.1:3000/dashboard/account/withdraw",
+    "domCheckpoint": "consumer credits page shows completed withdrawal row",
+    "forbiddenTextAbsent": true,
+    "capturedAt": "2026-05-09T11:15:19.455Z"
+  },
+  {
+    "file": "screenshots/consumer-withdrawals-expired.png",
+    "url": "http://127.0.0.1:3000/dashboard/account/withdraw",
+    "domCheckpoint": "consumer credits page shows expired withdrawal row",
+    "forbiddenTextAbsent": true,
+    "capturedAt": "2026-05-09T11:15:20.503Z"
+  },
+  {
+    "file": "screenshots/provider-withdrawals-completed.png",
+    "url": "http://127.0.0.1:3000/provider/withdraw",
+    "domCheckpoint": "provider withdraw history shows completed row",
+    "forbiddenTextAbsent": true,
+    "capturedAt": "2026-05-09T11:15:21.638Z"
+  },
+  {
+    "file": "screenshots/provider-withdrawals-expired.png",
+    "url": "http://127.0.0.1:3000/provider/withdraw",
+    "domCheckpoint": "provider withdraw history shows expired row",
+    "forbiddenTextAbsent": true,
+    "capturedAt": "2026-05-09T11:15:22.704Z"
+  }
+]

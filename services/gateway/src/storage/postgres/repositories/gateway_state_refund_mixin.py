@@ -415,7 +415,7 @@ class GatewayStateRefundMixin:
                     updated_at = %s
                 WHERE withdrawal_id = %s
                   AND withdrawal_kind = 'consumer_refund'
-                  AND (%s IS NULL OR status = %s)
+                  AND (%s::text IS NULL OR status = %s::text)
                 """,
                 (
                     self._owner_id(consumer_wallet),

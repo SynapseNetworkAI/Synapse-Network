@@ -1,0 +1,401 @@
+{
+  "runtimeState": {
+    "deposit_backfill_state": {
+      "state_key": "deposit_backfill_state",
+      "payload": {
+        "updatedAt": "2026-05-09 11:38:16",
+        "lastScanAt": 1778326696,
+        "lastScannedBlock": 2202
+      },
+      "updated_at": "2026-05-09 11:38:16.818649+00"
+    },
+    "deposit_reconciliation_state": {
+      "state_key": "deposit_reconciliation_state",
+      "payload": {
+        "alert": true,
+        "deltaUsdc": "4940.991900",
+        "lastAlertAt": 1778326522,
+        "lastCheckAt": 1778326697,
+        "chainVaultUsdc": "0.000000",
+        "ledgerObligationUsdc": "4940.991900"
+      },
+      "updated_at": "2026-05-09 11:38:17.107535+00"
+    }
+  },
+  "depositRows": [
+    {
+      "deposit_id": "dd0fe97d-5e56-43d1-b779-25c606c08408",
+      "owner_address": "0x9b14f7c3900aa4a9510f887f08e036412b31ea97",
+      "tx_hash": "0xaf5568fd0d1304b5cc8147929c57e4473e49704a43ffd9a3e598d5a7111dd82a",
+      "amount_usdc": "100.000000",
+      "status": "CONFIRMED",
+      "request_id": "dir-intent-down-af5568fd0d1304b5cc8147929c57e4473e49704a43ffd9a3e598d5a7111dd82a",
+      "created_at": "2026-05-09 11:37:31+00",
+      "updated_at": "2026-05-09 11:37:36+00"
+    }
+  ],
+  "processedEventKeys": [
+    {
+      "dedup_key": "06cf29536e9de56b3b5b6e4a6a97bd01ff57bef02ec1be884af66d3a7106d49b:0",
+      "updated_at": "2026-05-09 11:38:01+00"
+    },
+    {
+      "dedup_key": "13ddc590f3aefadee9d6c0b0dcd839bd06d7861d319814b1ecbaa762f2d326f3:0",
+      "updated_at": "2026-05-09 11:38:01+00"
+    },
+    {
+      "dedup_key": "2949653df01766da992c207bb86a3bffd4bd548a213247df53ad463960f43f55:0",
+      "updated_at": "2026-05-09 11:38:01+00"
+    },
+    {
+      "dedup_key": "2ad1c674ebc09e711f9a634668ae248392a3b10f18d2252874ef862e9a12dbcd:0",
+      "updated_at": "2026-05-09 11:38:01+00"
+    },
+    {
+      "dedup_key": "310af72d09e9bf2472407ea185075968681d6c330f02084b439421d927254811:0",
+      "updated_at": "2026-05-09 11:38:01+00"
+    },
+    {
+      "dedup_key": "337db92474259954d91886ea4fe969eb7da5c7329d1e9af170b37cfaf3c0efec:0",
+      "updated_at": "2026-05-09 11:38:01+00"
+    },
+    {
+      "dedup_key": "3d27451f2ce8648a6e391a45a9a0f03eadea095b4b8afe1972d21a917efeb8f0:0",
+      "updated_at": "2026-05-09 11:38:01+00"
+    },
+    {
+      "dedup_key": "4453be1854be9ef51fc793c96fd28483683c4f4556f3c38e21e7c222023bb4f0:0",
+      "updated_at": "2026-05-09 11:38:01+00"
+    },
+    {
+      "dedup_key": "5a1a4f9fcdaa83a87d121652dd1125ab119f0c6256531e6cdd96b20770fb9a1a:0",
+      "updated_at": "2026-05-09 11:38:01+00"
+    },
+    {
+      "dedup_key": "5f693b0f32f8f39b820fd5fde9e5f82cb3253b17e89cec6ca846c2d07621c74f:0",
+      "updated_at": "2026-05-09 11:38:01+00"
+    },
+    {
+      "dedup_key": "6a55ee532df3f322f7264bce63ebc6e25907200a2596c980f1d4020abe5b24f8:0",
+      "updated_at": "2026-05-09 11:38:01+00"
+    },
+    {
+      "dedup_key": "7a633723b7c492bee1513a0bd319877b4de9006a4a0cd68ff128a39441550a3b:0",
+      "updated_at": "2026-05-09 11:38:01+00"
+    },
+    {
+      "dedup_key": "7b4036ede541095f2e18f51319a98a9c43af4d7ddfe967e1d3a40fc254a9f366:0",
+      "updated_at": "2026-05-09 11:38:01+00"
+    },
+    {
+      "dedup_key": "7e43d121ba5a7985a4c28edc5256a907904aa08c6f8e88eb925019778cabd512:0",
+      "updated_at": "2026-05-09 11:38:01+00"
+    },
+    {
+      "dedup_key": "8c7550ca6d346ed0045569b5e3e25558b3e23d72ed2cf4a558e37838708fc290:0",
+      "updated_at": "2026-05-09 11:38:01+00"
+    },
+    {
+      "dedup_key": "94eccc5f921c293666b4416bc323251e9045c8d855e24efc1d31aafbbc195a85:0",
+      "updated_at": "2026-05-09 11:38:01+00"
+    },
+    {
+      "dedup_key": "9e070aa09e330e1a37b8eca47c3e8cce104e3a4b558ea9bfc461c7cdbc5a50d2:0",
+      "updated_at": "2026-05-09 11:38:01+00"
+    },
+    {
+      "dedup_key": "ac8a71bef4fdbf042695a41667cf9baf58b7f1f5575f6d0d5c79eae92ad4fb23:0",
+      "updated_at": "2026-05-09 11:38:01+00"
+    },
+    {
+      "dedup_key": "af5568fd0d1304b5cc8147929c57e4473e49704a43ffd9a3e598d5a7111dd82a:0",
+      "updated_at": "2026-05-09 11:38:01+00"
+    },
+    {
+      "dedup_key": "b6e5cb6597ca73686fbeddb88a5e70315ee337258bf4474a6d3e3d7a212de497:0",
+      "updated_at": "2026-05-09 11:38:01+00"
+    },
+    {
+      "dedup_key": "b918bfaf02b048f7e9000b64295b3cfa4f363a6cd94178000bbf2f353ea68d02:1",
+      "updated_at": "2026-05-09 11:38:01+00"
+    },
+    {
+      "dedup_key": "c712c5f7533e8c3b4e1789678dd8e9c1fc15a2945d1d003af6f2b72ed6d15c9b:0",
+      "updated_at": "2026-05-09 11:38:01+00"
+    },
+    {
+      "dedup_key": "ceedce104ee175eeb81152c4c55b8a69debee1087551fdc1494d28ec7c437db5:0",
+      "updated_at": "2026-05-09 11:38:01+00"
+    },
+    {
+      "dedup_key": "d1a1cc8f25da9e30e10f70de1bf1b5b009306381c01d7ae40dc87876a5852717:0",
+      "updated_at": "2026-05-09 11:38:01+00"
+    },
+    {
+      "dedup_key": "d2c3a6c3aa382dd7cc4a106bb544972654b6c932ab9ee09e2f413935e8cc4727:0",
+      "updated_at": "2026-05-09 11:38:01+00"
+    }
+  ],
+  "reconciliationSnapshot": {
+    "alert": true,
+    "deltaUsdc": "4940.991900",
+    "lastAlertAt": 1778326522,
+    "lastCheckAt": 1778326697,
+    "chainVaultUsdc": "0.000000",
+    "ledgerObligationUsdc": "4940.991900"
+  },
+  "chunkingEvidence": {
+    "maxLogBlockRange": 2000,
+    "latestBlock": 2204,
+    "confirmedHead": 2202,
+    "plannedChunks": [
+      {
+        "fromBlock": 1,
+        "toBlock": 2000
+      },
+      {
+        "fromBlock": 2001,
+        "toBlock": 2202
+      }
+    ],
+    "rpcMethodCounts": {
+      "eth_getLogs": 2,
+      "eth_getBlockByNumber": 0
+    }
+  },
+  "finalityEvidence": {
+    "mode": "confirmations",
+    "bufferBlocks": 2,
+    "latestBlock": 2204,
+    "confirmedHead": 2202,
+    "lastScannedBlock": 2202
+  },
+  "underlyingRecovery": {
+    "report": {
+      "environment": "local",
+      "status": "success",
+      "generatedAt": "2026-05-09T11:37:24.167Z",
+      "runId": "event-only-2026-05-09T113723997Z-recovery",
+      "traceDigest": "db2d308c3d624440442dd413f687d02c4a41a6fa3dfa0e084e74f56f117ebc90",
+      "failed": [],
+      "steps": [
+        {
+          "name": "preflight:local-api-db-chain-ui",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "task_down_pending_ui",
+          "ok": true,
+          "detail": "[REDACTED_HEX]"
+        },
+        {
+          "name": "restart_auto_credit",
+          "ok": true,
+          "detail": "[REDACTED_HEX]"
+        },
+        {
+          "name": "replay_safe",
+          "ok": true,
+          "detail": "[REDACTED_HEX]"
+        },
+        {
+          "name": "missed_intent_backfill",
+          "ok": true,
+          "detail": "[REDACTED_HEX]",
+          "startBlock": 2203
+        },
+        {
+          "name": "invalid_event_no_credit",
+          "ok": true,
+          "detail": "[REDACTED_HEX]"
+        }
+      ],
+      "screenshots": [
+        "screenshots/billing-pending-before-indexer.png",
+        "screenshots/credits-pending-before-indexer.png",
+        "screenshots/billing-completed-after-indexer.png",
+        "screenshots/credits-available-after-indexer.png"
+      ],
+      "primaryDepositTxHash": "[REDACTED_HEX]",
+      "backfillDepositTxHash": "[REDACTED_HEX]",
+      "depositUsdc": "100.000000"
+    },
+    "db": {
+      "taskDown": {
+        "beforeBalance": {
+          "account_id": "consumer_wallet::0x9b14f7c3900aa4a9510f887f08e036412b31ea97",
+          "available_balance": "0.000000",
+          "pending_balance": "0.000000",
+          "frozen_balance": "0.000000"
+        },
+        "pendingBalance": {
+          "account_id": "consumer_wallet::0x9b14f7c3900aa4a9510f887f08e036412b31ea97",
+          "available_balance": "0.000000",
+          "pending_balance": "100.000000",
+          "frozen_balance": "0.000000",
+          "updated_at": "2026-05-09 11:37:31+00"
+        },
+        "deposits": [
+          {
+            "deposit_id": "dd0fe97d-5e56-43d1-b779-25c606c08408",
+            "owner_address": "0x9b14f7c3900aa4a9510f887f08e036412b31ea97",
+            "tx_hash": "[REDACTED_HEX]",
+            "amount_usdc": "100.000000",
+            "status": "PENDING_CONFIRMATION",
+            "request_id": "dir-intent-down-af5568fd0d1304b5cc8147929c57e4473e49704a43ffd9a3e598d5a7111dd82a",
+            "created_at": "2026-05-09 11:37:31+00",
+            "updated_at": "2026-05-09 11:37:31+00"
+          }
+        ],
+        "readiness": {
+          "enabled": false,
+          "initialized": false,
+          "healthy": true,
+          "degradedReasons": []
+        }
+      },
+      "autoCredit": {
+        "sync": {
+          "txHash": "[REDACTED_HEX]",
+          "found": true,
+          "synced": true,
+          "status": "CONFIRMED",
+          "confirmed": true,
+          "canRefreshBalance": true,
+          "depositIntentId": "dd0fe97d-5e56-43d1-b779-25c606c08408",
+          "ownerAddress": "0x9b14f7c3900aa4a9510f887f08e036412b31ea97",
+          "amountUsdc": "100.000000",
+          "creditedAmountUsdc": "0.000000",
+          "confirmations": 0,
+          "eventKey": null,
+          "confirmedAt": null,
+          "updatedAt": "2026-05-09 11:37:36",
+          "source": "deposit_intent"
+        },
+        "deposits": [
+          {
+            "deposit_id": "dd0fe97d-5e56-43d1-b779-25c606c08408",
+            "owner_address": "0x9b14f7c3900aa4a9510f887f08e036412b31ea97",
+            "tx_hash": "[REDACTED_HEX]",
+            "amount_usdc": "100.000000",
+            "status": "CONFIRMED",
+            "request_id": "dir-intent-down-af5568fd0d1304b5cc8147929c57e4473e49704a43ffd9a3e598d5a7111dd82a",
+            "created_at": "2026-05-09 11:37:31+00",
+            "updated_at": "2026-05-09 11:37:36+00"
+          }
+        ],
+        "balance": {
+          "account_id": "consumer_wallet::0x9b14f7c3900aa4a9510f887f08e036412b31ea97",
+          "available_balance": "100.000000",
+          "pending_balance": "0.000000",
+          "frozen_balance": "0.000000",
+          "updated_at": "2026-05-09 11:37:37+00"
+        },
+        "auditRows": [
+          {
+            "event_type": "CONSUMER_DEPOSIT_CONFIRMED",
+            "owner_id": "owner:0x9b14f7c3900aa4a9510f887f08e036412b31ea97",
+            "amount_delta": "100.000000",
+            "result_status": "CONFIRMED",
+            "detail_json": {
+              "actor": null,
+              "domain": "finance",
+              "status": "CONFIRMED",
+              "txHash": "[REDACTED_HEX]",
+              "message": "confirmations=1",
+              "traceId": "af5568fd0d1304b5cc8147929c57e4473e49704a43ffd9a3e598d5a7111dd82a:0",
+              "clientIp": null,
+              "ledgerId": "dd0fe97d-5e56-43d1-b779-25c606c08408",
+              "direction": null,
+              "requestId": "dir-intent-down-af5568fd0d1304b5cc8147929c57e4473e49704a43ffd9a3e598d5a7111dd82a",
+              "riskLevel": "green",
+              "userAgent": null,
+              "afterBalance": "100.000000",
+              "ownerAddress": "0x9b14f7c3900aa4a9510f887f08e036412b31ea97",
+              "beforeBalance": "0.000000",
+              "riskReasonCode": null,
+              "counterpartyAddress": null
+            },
+            "created_at": "2026-05-09 11:37:37.109191+00"
+          }
+        ]
+      },
+      "replay": {
+        "balance": {
+          "account_id": "consumer_wallet::0x9b14f7c3900aa4a9510f887f08e036412b31ea97",
+          "available_balance": "100.000000",
+          "pending_balance": "0.000000",
+          "frozen_balance": "0.000000",
+          "updated_at": "2026-05-09 11:37:37+00"
+        },
+        "deposits": [
+          {
+            "deposit_id": "dd0fe97d-5e56-43d1-b779-25c606c08408",
+            "owner_address": "0x9b14f7c3900aa4a9510f887f08e036412b31ea97",
+            "tx_hash": "[REDACTED_HEX]",
+            "amount_usdc": "100.000000",
+            "status": "CONFIRMED",
+            "request_id": "dir-intent-down-af5568fd0d1304b5cc8147929c57e4473e49704a43ffd9a3e598d5a7111dd82a",
+            "created_at": "2026-05-09 11:37:31+00",
+            "updated_at": "2026-05-09 11:37:36+00"
+          }
+        ]
+      },
+      "backfill": {
+        "beforeBalance": {
+          "account_id": "consumer_wallet::0xabc85df3079a346d82a283bb806736d8ef239f3d",
+          "available_balance": "0.000000",
+          "pending_balance": "0.000000",
+          "frozen_balance": "0.000000"
+        },
+        "finalBalance": {
+          "account_id": "consumer_wallet::0xabc85df3079a346d82a283bb806736d8ef239f3d",
+          "available_balance": "100.000000",
+          "pending_balance": "0.000000",
+          "frozen_balance": "0.000000",
+          "updated_at": "2026-05-09 11:38:01+00"
+        },
+        "deposits": [
+          {
+            "deposit_id": "fe5d7e80-663c-40d3-926a-c1729585615c",
+            "owner_address": "0xabc85df3079a346d82a283bb806736d8ef239f3d",
+            "tx_hash": "[REDACTED_HEX]",
+            "amount_usdc": "100.000000",
+            "status": "CONFIRMED",
+            "request_id": "deposit_backfill_[REDACTED_HEX]_1",
+            "created_at": "2026-05-09 11:38:01+00",
+            "updated_at": "2026-05-09 11:38:01+00"
+          }
+        ]
+      },
+      "invalidEvent": {
+        "beforeBalance": {
+          "account_id": "consumer_wallet::0x2d1f476ce0262dba6601e8d58f91a850de144523",
+          "available_balance": "0.000000",
+          "pending_balance": "0.000000",
+          "frozen_balance": "0.000000"
+        },
+        "afterBalance": {
+          "account_id": "consumer_wallet::0x2d1f476ce0262dba6601e8d58f91a850de144523",
+          "available_balance": "0.000000",
+          "pending_balance": "11.000000",
+          "frozen_balance": "0.000000",
+          "updated_at": "2026-05-09 11:38:05+00"
+        },
+        "deposits": [
+          {
+            "deposit_id": "c3c8ac7e-c101-43c8-b664-ebc1d7137e32",
+            "owner_address": "0x2d1f476ce0262dba6601e8d58f91a850de144523",
+            "tx_hash": "[REDACTED_HEX]",
+            "amount_usdc": "11.000000",
+            "status": "FAILED",
+            "request_id": "dir-invalid-event-ed59c01c0e5a4cc8e70d2f7a9d78457ced43c456dd82733ddc4c5efebc7a7915",
+            "created_at": "2026-05-09 11:38:05+00",
+            "updated_at": "2026-05-09 11:38:06+00"
+          }
+        ]
+      }
+    }
+  }
+}

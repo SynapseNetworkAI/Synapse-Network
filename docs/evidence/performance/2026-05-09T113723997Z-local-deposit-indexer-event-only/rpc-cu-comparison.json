@@ -1,0 +1,17 @@
+{
+  "before": {
+    "rpcRequestsPerTick": 202,
+    "rpcRequestsPerMonth": 872640,
+    "cuPerMonth": 23561280
+  },
+  "after": {
+    "rpcRequestsPerTick": 3,
+    "rpcRequestsPerMonth": 12960,
+    "cuPerMonth": 388800
+  },
+  "delta": {
+    "rpcRequestsReductionPct": -98.52,
+    "cuReductionPct": -98.35,
+    "reductionFactor": 60.6
+  }
+}
