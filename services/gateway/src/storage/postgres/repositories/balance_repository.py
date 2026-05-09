@@ -6,11 +6,12 @@ from typing import Any, Callable
 from src.domain.finance import BalanceLedger, ConsumerWalletRecord, ProviderWalletRecord
 from src.utils.datetime_utils import now_dt_str, to_dt_str
 
+from .balance_consumer_withdraw_mixin import BalanceConsumerWithdrawMixin
 from .balance_maturity_mixin import BalanceMaturityMixin
 from ..database_manager import DatabaseManager
 
 
-class BalanceRepository(BalanceMaturityMixin):
+class BalanceRepository(BalanceMaturityMixin, BalanceConsumerWithdrawMixin):
     def __init__(
         self,
         db: DatabaseManager,

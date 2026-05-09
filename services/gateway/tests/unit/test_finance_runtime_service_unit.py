@@ -84,7 +84,6 @@ class InMemoryBalanceRepo:
             raise RuntimeError("INSUFFICIENT_CONSUMER_PENDING_ATOMIC")
         wallet.pending_balance = (pending - amount).quantize(Decimal("0.000001"))
 
-
 class InMemoryGatewayStateRepo:
     def __init__(self):
         self.deposit_rows: list[DepositIntentRow] = []

@@ -7,7 +7,6 @@ complete_withdraw_tx_atomic.
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any, Optional
 from uuid import uuid4
@@ -29,17 +28,8 @@ from .finance_atomic_core_mixin import (
     _INTEGRITY_ERRORS,
     _WITHDRAWAL_BLOCKED_MESSAGE,
 )
-
-
-@dataclass(frozen=True)
-class _CompleteWithdrawTxContext:
-    owner: str
-    tx_hash: str
-    command_kind: str
-    withdrawal_id: str
-    withdrawal_kind: str
-    active_statuses: tuple[str, ...]
-    now_text: str
+from .finance_platform_fee_sql import accrue_platform_fee_if_consumer_withdraw
+from .finance_atomic_withdraw_types import CompleteWithdrawTxContext
 
 
 class FinanceAtomicWithdrawMixin:
@@ -450,7 +440,7 @@ class FinanceAtomicWithdrawMixin:
         cur: Any,
         *,
         row: Any,
-        context: _CompleteWithdrawTxContext,
+        context: CompleteWithdrawTxContext,
     ) -> tuple[bool, bool]:  # pragma: no cover: human-review-required E2E report
         amount = self._q6(row[2])  # type: ignore[attr-defined]  # mixin decimal helper
         status = str(row[3] or "").upper()
@@ -476,6 +466,12 @@ class FinanceAtomicWithdrawMixin:
         )
         if cur.rowcount != 1:
             raise RuntimeError("WITHDRAWAL_PENDING_BALANCE_INCONSISTENT")
+        accrue_platform_fee_if_consumer_withdraw(
+            cur,
+            self._ensure_ledger_account,  # type: ignore[attr-defined]
+            context.now_text,
+            context.withdrawal_kind,
+        )
         cur.execute(
             """
             UPDATE synapse_vault_withdrawals
@@ -541,7 +537,7 @@ class FinanceAtomicWithdrawMixin:
                         conn.rollback()
                         return completed
 
-                    complete_context = _CompleteWithdrawTxContext(
+                    complete_context = CompleteWithdrawTxContext(
                         owner=owner,
                         tx_hash=tx_hash,
                         command_kind=command.kind,
