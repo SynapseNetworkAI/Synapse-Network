@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 from decimal import Decimal
+from functools import lru_cache
 from typing import Any, List, Optional
 
 from web3.exceptions import TransactionNotFound
@@ -27,8 +28,8 @@ class DepositIndexerRpcUnavailable(RuntimeError):
 TX_HASH_HEX_LENGTH = 66
 ADDRESS_HEX_LENGTH = 42
 TRANSFER_TOPIC_COUNT = 3
+DEPOSIT_INFO_MIN_TOPIC_COUNT = 2
 MAX_TOKEN_DECIMALS = 36
-_DEPOSIT_INFO_TOPIC: str | None = None
 
 
 def _legacy_deposit_sender_key() -> str:
@@ -52,14 +53,12 @@ def _topic_to_address(topic: Any) -> str:
     return web3_class.to_checksum_address("0x" + topic_hex[-40:]).lower()
 
 
+@lru_cache(maxsize=1)
 def _get_deposit_info_topic() -> str:
-    global _DEPOSIT_INFO_TOPIC
-    if _DEPOSIT_INFO_TOPIC is None:
-        web3_class = get_web3_class()
-        _DEPOSIT_INFO_TOPIC = web3_class.to_hex(
-            web3_class.keccak(text="DepositInfo(address,uint256)")
-        ).lower()
-    return _DEPOSIT_INFO_TOPIC
+    web3_class = get_web3_class()
+    return web3_class.to_hex(
+        web3_class.keccak(text="DepositInfo(address,uint256)")
+    ).lower()
 
 
 def _make_event_row(
@@ -167,7 +166,7 @@ def _decode_router_deposit_events(tx_receipt: Any) -> List[dict[str, Any]]:
 
 def _decode_deposit_info_log(log: Any) -> Optional[dict[str, Any]]:
     topics = log.get("topics") or []
-    if len(topics) < 2:
+    if len(topics) < DEPOSIT_INFO_MIN_TOPIC_COUNT:
         return None
     topic0 = (
         str(topics[0]).lower()
