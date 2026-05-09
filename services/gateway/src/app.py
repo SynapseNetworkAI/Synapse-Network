@@ -20,16 +20,17 @@ from src.api.routers import (
     community,
     notifications,
 )
+from src.api.routers.internal_jobs import router as internal_jobs_router
 from src.storage import create_storage
 from src.services.platform.tasks.deposit_indexer import (
     get_indexer_status,
     run_v2_deposit_indexer,
 )
-from src.services.platform.tasks.provider_withdraw_expiry_reaper import (
-    run_provider_withdraw_expiry_reaper,
+from src.services.platform.tasks.consumer_withdraw_chain_recovery import (
+    run_consumer_withdraw_chain_recovery,
 )
-from src.services.platform.tasks.consumer_withdraw_processor import (
-    run_consumer_withdraw_processor,
+from src.services.platform.tasks.withdrawal_expiry_sweeper import (
+    run_withdrawal_expiry_sweeper,
 )
 from src.services.platform.service_health_service import (
     run_service_health_monitor,
@@ -43,6 +44,10 @@ from src.api.routers.events import router as events_router
 
 setup_logger()
 logger = logging.getLogger(__name__)
+
+# Backward-compatible module-level aliases for older tests and harnesses.
+run_provider_withdraw_expiry_reaper = run_withdrawal_expiry_sweeper
+run_consumer_withdraw_processor = run_consumer_withdraw_chain_recovery
 
 
 def _task_initialized(task: asyncio.Task | None) -> bool:
@@ -109,16 +114,22 @@ def _start_gateway_background_workers(app: FastAPI) -> None:
     )
     _start_background_task(
         app,
-        enabled=settings.provider_withdraw_expiry_reaper_enabled,
-        stop_attr="provider_withdraw_expiry_reaper_stop_event",
-        task_attr="provider_withdraw_expiry_reaper_task",
+        enabled=(
+            settings.withdrawal_expiry_sweeper_enabled
+            and settings.provider_withdraw_expiry_reaper_enabled
+        ),
+        stop_attr="withdrawal_expiry_sweeper_stop_event",
+        task_attr="withdrawal_expiry_sweeper_task",
         runner=run_provider_withdraw_expiry_reaper,
     )
     _start_background_task(
         app,
-        enabled=settings.consumer_withdraw_processor_enabled,
-        stop_attr="consumer_withdraw_processor_stop_event",
-        task_attr="consumer_withdraw_processor_task",
+        enabled=(
+            settings.consumer_withdraw_chain_recovery_enabled
+            and settings.consumer_withdraw_processor_enabled
+        ),
+        stop_attr="consumer_withdraw_chain_recovery_stop_event",
+        task_attr="consumer_withdraw_chain_recovery_task",
         runner=run_consumer_withdraw_processor,
     )
     _start_background_task(
@@ -152,15 +163,15 @@ async def _cancel_gateway_background_workers(app: FastAPI) -> None:
     )
     await _cancel_background_task(
         app,
-        stop_attr="provider_withdraw_expiry_reaper_stop_event",
-        task_attr="provider_withdraw_expiry_reaper_task",
-        label="Provider withdrawal expiry reaper",
+        stop_attr="withdrawal_expiry_sweeper_stop_event",
+        task_attr="withdrawal_expiry_sweeper_task",
+        label="Withdrawal expiry sweeper",
     )
     await _cancel_background_task(
         app,
-        stop_attr="consumer_withdraw_processor_stop_event",
-        task_attr="consumer_withdraw_processor_task",
-        label="Consumer withdrawal processor",
+        stop_attr="consumer_withdraw_chain_recovery_stop_event",
+        task_attr="consumer_withdraw_chain_recovery_task",
+        label="Consumer withdrawal chain recovery",
     )
     await _cancel_background_task(
         app,
@@ -262,13 +273,19 @@ def _readiness_snapshot(app: FastAPI) -> dict[str, object]:
             enabled=settings.service_health_monitor_enabled,
             task=_state_task("service_health_task"),
         ),
-        "provider_withdraw_expiry_reaper": _build_monitor_state(
-            enabled=settings.provider_withdraw_expiry_reaper_enabled,
-            task=_state_task("provider_withdraw_expiry_reaper_task"),
+        "withdrawal_expiry_sweeper": _build_monitor_state(
+            enabled=(
+                settings.withdrawal_expiry_sweeper_enabled
+                and settings.provider_withdraw_expiry_reaper_enabled
+            ),
+            task=_state_task("withdrawal_expiry_sweeper_task"),
         ),
-        "consumer_withdraw_processor": _build_monitor_state(
-            enabled=settings.consumer_withdraw_processor_enabled,
-            task=_state_task("consumer_withdraw_processor_task"),
+        "consumer_withdraw_chain_recovery": _build_monitor_state(
+            enabled=(
+                settings.consumer_withdraw_chain_recovery_enabled
+                and settings.consumer_withdraw_processor_enabled
+            ),
+            task=_state_task("consumer_withdraw_chain_recovery_task"),
         ),
         "in_app_notification_cleanup": _build_monitor_state(
             enabled=settings.in_app_notification_cleanup_enabled,
@@ -398,6 +415,7 @@ def create_app() -> FastAPI:
     app.include_router(forwarding.router, prefix="/api", tags=["forwarding"])
     app.include_router(community.router, prefix="/api", tags=["community"])
     app.include_router(notifications.router, prefix="/api", tags=["notifications"])
+    app.include_router(internal_jobs_router, tags=["internal-jobs"])
     app.include_router(events_router, tags=["analytics"])
 
     @app.get("/health")

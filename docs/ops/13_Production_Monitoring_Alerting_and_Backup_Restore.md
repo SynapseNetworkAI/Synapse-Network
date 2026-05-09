@@ -129,21 +129,21 @@ alerts route to the staging drill group only.
 
 Lark Relay runtime configuration is loaded from environment variables. Webhook URLs and robot signing secrets must come from the deployment secret store, not git-tracked files:
 
-| Variable | Meaning |
-| --- | --- |
-| `LARK_ALERT_RELAY_PORT` | Local HTTP port for `scripts/ops/lark_alert_relay.mjs`. |
-| `LARK_ALERT_RELAY_HOST` | Bind address for the Relay process, usually `0.0.0.0` inside containers. |
-| `LARK_ALERT_RELAY_MAX_RETRIES` | Bounded retry count when a Lark webhook delivery fails. |
-| `LARK_WEBHOOK_P0_WAR_ROOM` | Lark group robot webhook URL for `Synapse-P0-资金战情室`. |
-| `LARK_SECRET_P0_WAR_ROOM` | Lark robot signing secret for the P0 war room webhook, if signature verification is enabled. |
-| `LARK_WEBHOOK_PROD_ALERTS` | Lark group robot webhook URL for `Synapse-Prod-告警大厅`. |
-| `LARK_SECRET_PROD_ALERTS` | Lark robot signing secret for the production alert hall webhook, if signature verification is enabled. |
-| `LARK_WEBHOOK_STAGING_DRILL` | Lark group robot webhook URL for `Synapse-Staging-Drill-演练`. |
-| `LARK_SECRET_STAGING_DRILL` | Lark robot signing secret for the staging drill webhook, if signature verification is enabled. |
-| `GCP_ALERT_RECEIVER_ENABLED` | Enables the gateway-admin GCP Monitoring webhook receiver. |
-| `GCP_ALERT_RECEIVER_TOKEN` | Shared receiver token stored in Secret Manager; never place the Lark webhook URL in the GCP channel. |
-| `GCP_ALERT_RECEIVER_USERNAME` | HTTP Basic username for GCP webhook channels, default `synapse-gcp-alert`. |
-| `GCP_ALERT_DEFAULT_ROUTE` | Default Lark route when the alert payload lacks route labels; staging uses `staging-drill`. |
+| Variable                       | Meaning                                                                                                |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| `LARK_ALERT_RELAY_PORT`        | Local HTTP port for `scripts/ops/lark_alert_relay.mjs`.                                                |
+| `LARK_ALERT_RELAY_HOST`        | Bind address for the Relay process, usually `0.0.0.0` inside containers.                               |
+| `LARK_ALERT_RELAY_MAX_RETRIES` | Bounded retry count when a Lark webhook delivery fails.                                                |
+| `LARK_WEBHOOK_P0_WAR_ROOM`     | Lark group robot webhook URL for `Synapse-P0-资金战情室`.                                              |
+| `LARK_SECRET_P0_WAR_ROOM`      | Lark robot signing secret for the P0 war room webhook, if signature verification is enabled.           |
+| `LARK_WEBHOOK_PROD_ALERTS`     | Lark group robot webhook URL for `Synapse-Prod-告警大厅`.                                              |
+| `LARK_SECRET_PROD_ALERTS`      | Lark robot signing secret for the production alert hall webhook, if signature verification is enabled. |
+| `LARK_WEBHOOK_STAGING_DRILL`   | Lark group robot webhook URL for `Synapse-Staging-Drill-演练`.                                         |
+| `LARK_SECRET_STAGING_DRILL`    | Lark robot signing secret for the staging drill webhook, if signature verification is enabled.         |
+| `GCP_ALERT_RECEIVER_ENABLED`   | Enables the gateway-admin GCP Monitoring webhook receiver.                                             |
+| `GCP_ALERT_RECEIVER_TOKEN`     | Shared receiver token stored in Secret Manager; never place the Lark webhook URL in the GCP channel.   |
+| `GCP_ALERT_RECEIVER_USERNAME`  | HTTP Basic username for GCP webhook channels, default `synapse-gcp-alert`.                             |
+| `GCP_ALERT_DEFAULT_ROUTE`      | Default Lark route when the alert payload lacks route labels; staging uses `staging-drill`.            |
 
 If a Lark robot uses keyword-only verification, the keyword belongs in the rendered alert title or summary. Do not store a keyword in `LARK_SECRET_*` unless Lark explicitly provides it as a signing secret.
 
@@ -183,33 +183,33 @@ token, Lark webhook, JWT, private key, or raw signature.
 
 Staging GCP Monitoring must include these external uptime checks:
 
-| Uptime Check | URL | Purpose |
-| --- | --- | --- |
-| `Synapse Staging Gateway Health Uptime` | `https://api-staging.synapse-network.ai/health` | Catch DNS, TLS, Cloud Run routing, IAM, or process-down failures. |
-| `Synapse Staging Gateway Readiness Uptime` | `https://api-staging.synapse-network.ai/readiness` | Catch dependency/readiness failures even when the process is alive. |
-| `Synapse Staging User Front Uptime` | `https://staging.synapse-network.ai/` | Catch user-facing browser outage. |
-| `Synapse Staging Admin API Health Uptime` | `https://admin-api-staging.synapse-network.ai/health` | Catch admin API outage before login/review flows fail silently. |
+| Uptime Check                               | URL                                                   | Purpose                                                             |
+| ------------------------------------------ | ----------------------------------------------------- | ------------------------------------------------------------------- |
+| `Synapse Staging Gateway Health Uptime`    | `https://api-staging.synapse-network.ai/health`       | Catch DNS, TLS, Cloud Run routing, IAM, or process-down failures.   |
+| `Synapse Staging Gateway Readiness Uptime` | `https://api-staging.synapse-network.ai/readiness`    | Catch dependency/readiness failures even when the process is alive. |
+| `Synapse Staging User Front Uptime`        | `https://staging.synapse-network.ai/`                 | Catch user-facing browser outage.                                   |
+| `Synapse Staging Admin API Health Uptime`  | `https://admin-api-staging.synapse-network.ai/health` | Catch admin API outage before login/review flows fail silently.     |
 
 Staging GCP alert policies must include:
 
-| Policy | Trigger |
-| --- | --- |
-| `Synapse Staging Gateway Health Uptime Down` | Gateway `/health` uptime check fails for 2 minutes. |
-| `Synapse Staging Gateway Readiness Uptime Down` | Gateway `/readiness` uptime check fails for 2 minutes. |
-| `Synapse Staging User Front Uptime Down` | User-front uptime check fails for 2 minutes. |
-| `Synapse Staging Admin API Health Uptime Down` | Admin API `/health` uptime check fails for 2 minutes. |
-| `Synapse Staging Gateway 5xx Rate High` | Gateway 5xx ratio > 5% for 5 minutes. |
-| `Synapse Staging Gateway 5xx Count High` | Gateway 5xx count >= 5 in 5 minutes for low-traffic staging. |
-| `Synapse Staging Gateway-admin 5xx Rate High` | Gateway-admin 5xx ratio > 5% for 5 minutes. |
-| `Synapse Staging Cloud Run Job Failed` | Any staging Cloud Run Job completes with `result != succeeded`. |
-| `Synapse Staging Deposit Indexer Freshness` | Deposit indexer has no successful execution for 10 minutes. |
-| `Synapse Staging Consumer Withdraw Processor Freshness` | Consumer withdrawal processor has no successful execution for 10 minutes. |
-| `Synapse Staging Provider Withdraw Reaper Freshness` | Provider withdrawal reaper has no successful execution for 10 minutes. |
-| `Synapse Staging Notification Outbox Drain Freshness` | Notification outbox drain has no successful execution for 10 minutes. |
-| `Synapse Staging Withdrawal Timeout` | `alert_trigger=WITHDRAWAL_TIMEOUT` log observed. |
-| `Synapse Staging Reconciliation Drift` | `alert_trigger=RECONCILIATION_DRIFT` log observed. |
-| `Synapse Staging Provider Upstream Unavailable` | `alert_trigger=PROVIDER_UPSTREAM_UNAVAILABLE` log observed. |
-| `Synapse Staging Chain RPC Unavailable` | `alert_trigger=CHAIN_RPC_UNAVAILABLE` log observed. |
+| Policy                                                       | Trigger                                                                        |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------ |
+| `Synapse Staging Gateway Health Uptime Down`                 | Gateway `/health` uptime check fails for 2 minutes.                            |
+| `Synapse Staging Gateway Readiness Uptime Down`              | Gateway `/readiness` uptime check fails for 2 minutes.                         |
+| `Synapse Staging User Front Uptime Down`                     | User-front uptime check fails for 2 minutes.                                   |
+| `Synapse Staging Admin API Health Uptime Down`               | Admin API `/health` uptime check fails for 2 minutes.                          |
+| `Synapse Staging Gateway 5xx Rate High`                      | Gateway 5xx ratio > 5% for 5 minutes.                                          |
+| `Synapse Staging Gateway 5xx Count High`                     | Gateway 5xx count >= 5 in 5 minutes for low-traffic staging.                   |
+| `Synapse Staging Gateway-admin 5xx Rate High`                | Gateway-admin 5xx ratio > 5% for 5 minutes.                                    |
+| `Synapse Staging Cloud Run Job Failed`                       | Any staging Cloud Run Job completes with `result != succeeded`.                |
+| `Synapse Staging Deposit Indexer Freshness`                  | Deposit indexer has no successful execution for 15 minutes.                    |
+| `Synapse Staging Consumer Withdraw Chain Recovery Freshness` | Consumer withdraw chain recovery has no successful execution for 15 minutes.   |
+| `Synapse Staging Withdrawal Expiry Sweeper Freshness`        | Withdrawal expiry sweeper has no successful execution for 15 minutes.          |
+| `Synapse Staging Notification Outbox Drain Freshness`        | Notification outbox fallback drain has no successful execution for 15 minutes. |
+| `Synapse Staging Withdrawal Timeout`                         | `alert_trigger=WITHDRAWAL_TIMEOUT` log observed.                               |
+| `Synapse Staging Reconciliation Drift`                       | `alert_trigger=RECONCILIATION_DRIFT` log observed.                             |
+| `Synapse Staging Provider Upstream Unavailable`              | `alert_trigger=PROVIDER_UPSTREAM_UNAVAILABLE` log observed.                    |
+| `Synapse Staging Chain RPC Unavailable`                      | `alert_trigger=CHAIN_RPC_UNAVAILABLE` log observed.                            |
 
 `synapse-staging-db-migrate` and `synapse-staging-gateway-admin-db-migrate`
 are deploy/manual jobs. They are covered by the failed-job policy, but not by
@@ -427,23 +427,23 @@ gcloud logging read \
 
 Interpretation:
 
-| Symptom | Meaning |
-| --- | --- |
-| `/health` fails | L0 outage: DNS, TLS, IAM, Cloud Run routing, or process down. |
-| `/health` passes but `/readiness` fails | Gateway is alive, but dependency or monitor readiness is unhealthy. |
-| `/readiness` passes but `/api/v1/services/discover` fails | Business API, CORS, registry, or discovery path fault. |
-| Provider invoke returns 503 with no healthy target | Provider upstream health issue, not necessarily Gateway process down. |
-| `CHAIN_RPC_UNAVAILABLE` logs | RPC dependency outage or wrong RPC network/config. |
-| Cloud Run Job failed/freshness alert fires | Scheduled worker is failing or has stopped succeeding; check `resource.type="cloud_run_job"` logs by `job_name`. |
+| Symptom                                                   | Meaning                                                                                                          |
+| --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `/health` fails                                           | L0 outage: DNS, TLS, IAM, Cloud Run routing, or process down.                                                    |
+| `/health` passes but `/readiness` fails                   | Gateway is alive, but dependency or monitor readiness is unhealthy.                                              |
+| `/readiness` passes but `/api/v1/services/discover` fails | Business API, CORS, registry, or discovery path fault.                                                           |
+| Provider invoke returns 503 with no healthy target        | Provider upstream health issue, not necessarily Gateway process down.                                            |
+| `CHAIN_RPC_UNAVAILABLE` logs                              | RPC dependency outage or wrong RPC network/config.                                                               |
+| Cloud Run Job failed/freshness alert fires                | Scheduled worker is failing or has stopped succeeding; check `resource.type="cloud_run_job"` logs by `job_name`. |
 
 Cloud Logging stores service and job logs together in the same project log
 bucket, but they are tagged by resource type and labels:
 
-| Runtime | Cloud Logging filter |
-| --- | --- |
-| Gateway service | `resource.type="cloud_run_revision" AND resource.labels.service_name="synapse-staging-gateway"` |
+| Runtime               | Cloud Logging filter                                                                                  |
+| --------------------- | ----------------------------------------------------------------------------------------------------- |
+| Gateway service       | `resource.type="cloud_run_revision" AND resource.labels.service_name="synapse-staging-gateway"`       |
 | Gateway-admin service | `resource.type="cloud_run_revision" AND resource.labels.service_name="synapse-staging-gateway-admin"` |
-| Scheduled Gateway job | `resource.type="cloud_run_job" AND resource.labels.job_name="<job-name>"` |
+| Scheduled Gateway job | `resource.type="cloud_run_job" AND resource.labels.job_name="<job-name>"`                             |
 
 Run the local Lark Relay:
 

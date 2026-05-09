@@ -197,6 +197,7 @@ variable "secret_ids" {
     "synapse-staging-jwt-secret",
     "synapse-staging-auth-secret",
     "synapse-staging-gateway-internal-jwt-secret",
+    "synapse-staging-internal-trigger-secret",
     "synapse-staging-admin-csrf-secret",
     "synapse-staging-gateway-admin-wallet",
     "synapse-staging-gmail-app-password",

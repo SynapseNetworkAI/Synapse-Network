@@ -352,6 +352,39 @@ class Settings:
     consumer_withdraw_processor_enabled: bool = _env_bool(
         "CONSUMER_WITHDRAW_PROCESSOR_ENABLED", True
     )
+    consumer_withdraw_chain_recovery_enabled: bool = _env_bool(
+        "CONSUMER_WITHDRAW_CHAIN_RECOVERY_ENABLED",
+        consumer_withdraw_processor_enabled,
+    )
+    consumer_withdraw_chain_recovery_interval_sec: float = _env_float(
+        "CONSUMER_WITHDRAW_CHAIN_RECOVERY_INTERVAL_SEC",
+        30.0,
+    )
+    withdrawal_expiry_sweeper_enabled: bool = _env_bool(
+        "WITHDRAWAL_EXPIRY_SWEEPER_ENABLED",
+        provider_withdraw_expiry_reaper_enabled or consumer_withdraw_processor_enabled,
+    )
+    withdrawal_expiry_sweeper_interval_sec: float = _env_float(
+        "WITHDRAWAL_EXPIRY_SWEEPER_INTERVAL_SEC",
+        provider_withdraw_expiry_reaper_interval_sec,
+    )
+    internal_trigger_secret: str = os.getenv("INTERNAL_TRIGGER_SECRET", "").strip()
+    notification_outbox_trigger_enabled: bool = _env_bool(
+        "NOTIFICATION_OUTBOX_TRIGGER_ENABLED",
+        True,
+    )
+    notification_outbox_trigger_url: str = os.getenv(
+        "NOTIFICATION_OUTBOX_TRIGGER_URL",
+        "http://127.0.0.1:8000/internal/jobs/notification-outbox/trigger",
+    ).strip()
+    notification_outbox_trigger_timeout_sec: float = max(
+        0.1,
+        _env_float("NOTIFICATION_OUTBOX_TRIGGER_TIMEOUT_SEC", 3.0),
+    )
+    notification_outbox_fallback_enabled: bool = _env_bool(
+        "NOTIFICATION_OUTBOX_FALLBACK_ENABLED",
+        True,
+    )
     # Withdrawal risk-engine thresholds.
     withdrawal_auto_single_limit_usdc: float = max(
         0.0, _env_float("WITHDRAWAL_AUTO_SINGLE_LIMIT_USDC", 100.0)

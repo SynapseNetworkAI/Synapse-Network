@@ -195,7 +195,7 @@ Manual UI path:
 3. Switch MetaMask/Rabby to Arbitrum Sepolia.
 4. Confirm the wallet has MockUSDC and Arbitrum Sepolia ETH gas.
 5. Submit a small MockUSDC deposit.
-6. Wait 1-2 minutes for Cloud Scheduler, or manually trigger the indexer:
+6. Wait up to 10 minutes for Cloud Scheduler, or manually trigger the deposit indexer job:
 
 ```bash
 gcloud run jobs execute synapse-staging-deposit-indexer \
@@ -217,7 +217,7 @@ Success criteria:
 - Cloud SQL owner balance increases by the exact Decimal amount.
 - No duplicate credit is created for the same on-chain event.
 - Deposit credited delay is below 2 minutes for normal staging operation.
-- Delay above 5 minutes is a P1 investigation trigger.
+- Delay above 10 minutes is a P1 investigation trigger.
 
 ## Step 2 - Withdrawal State Machine
 
@@ -419,8 +419,8 @@ Success criteria:
 
 - GCP has one webhook channel named `Synapse Staging Lark Gateway-admin Receiver`.
 - GCP has uptime checks for Gateway `/health`, Gateway `/readiness`, user-front `/`, and admin API `/health`.
-- GCP has policies for Gateway uptime, user-front uptime, admin API uptime, Gateway 5xx rate, Gateway low-traffic 5xx count, Gateway-admin 5xx rate, Cloud Run Job failure, every-minute Job freshness, `WITHDRAWAL_TIMEOUT`, `RECONCILIATION_DRIFT`, `PROVIDER_UPSTREAM_UNAVAILABLE`, and `CHAIN_RPC_UNAVAILABLE`.
-- Cloud Scheduler has enabled triggers for deposit-indexer, consumer-withdraw-processor, provider-withdraw-reaper, notification-outbox-drain, and in-app-notification-cleanup.
+- GCP has policies for Gateway uptime, user-front uptime, admin API uptime, Gateway 5xx rate, Gateway low-traffic 5xx count, Gateway-admin 5xx rate, Cloud Run Job failure, 5-minute Job freshness, `WITHDRAWAL_TIMEOUT`, `RECONCILIATION_DRIFT`, `PROVIDER_UPSTREAM_UNAVAILABLE`, and `CHAIN_RPC_UNAVAILABLE`.
+- Cloud Scheduler has enabled triggers for deposit-indexer, consumer-withdraw-chain-recovery, withdrawal-expiry-sweeper, notification-outbox-drain, and in-app-notification-cleanup.
 - Lark receives a staging drill card with `NO_ACTION_REQUIRED`.
 - In full callback mode, gateway-admin logs contain
   `alert_trigger=GCP_ALERT_RECEIVED` for
@@ -624,7 +624,9 @@ npm run ci:transaction-notifications-staging-evidence
 
 The transaction notification runner seeds or reuses a verified staging owner
 email, writes deposit/refund/withdrawal notification fixtures through Gateway's
-transaction notification code, executes `synapse-staging-notification-outbox-drain`,
+transaction notification code, nudges `/internal/jobs/notification-outbox/trigger`
+with the shared secret, falls back to `synapse-staging-notification-outbox-drain`
+when trigger delivery is disabled, and verifies:
 and verifies:
 
 - `synapse_in_app_notifications` contains product inbox rows.
@@ -880,6 +882,6 @@ separate operator confirmation and a rollback owner present.
 - Provider fixture must be a public staging URL reachable by Gateway, not
   `localhost`.
 - Cloud Scheduler's minimum one-minute interval means deposit crediting within
-  1-2 minutes is acceptable for MVP staging.
+  5-10 minutes is acceptable for MVP staging.
 - Any real P0 drill must include `NO_ACTION_REQUIRED` to prevent accidental
   production incident response.

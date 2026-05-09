@@ -6,6 +6,7 @@ import hashlib
 import hmac
 import logging
 import re
+import threading
 import time
 from typing import Any
 from uuid import uuid4
@@ -65,6 +66,56 @@ def _resource_id(payload: dict[str, Any], fallback: str = "unknown") -> str:
 
 def _email_safe_key(value: str) -> str:
     return re.sub(r"[^a-zA-Z0-9_.:-]+", "-", str(value or "").strip())[:180] or uuid4().hex
+
+
+async def _post_notification_outbox_trigger() -> bool:
+    if (
+        not settings.notification_outbox_trigger_enabled
+        or not settings.internal_trigger_secret
+        or not settings.notification_outbox_trigger_url
+    ):
+        return False
+    try:
+        async with httpx.AsyncClient(
+            timeout=settings.notification_outbox_trigger_timeout_sec,
+            trust_env=False,
+        ) as client:
+            response = await client.post(
+                settings.notification_outbox_trigger_url,
+                headers={
+                    "X-Synapse-Internal-Token": settings.internal_trigger_secret,
+                },
+                json={"source": "notification_outbox_enqueue"},
+            )
+        if response.status_code < HTTP_OK_MIN or response.status_code >= HTTP_REDIRECT_MIN:
+            logger.warning(
+                "NOTIFICATION_OUTBOX_TRIGGER_FAILED status=%s",
+                response.status_code,
+            )
+            return False
+    except Exception:
+        logger.exception("NOTIFICATION_OUTBOX_TRIGGER_FAILED")
+        return False
+    return True
+
+
+def _schedule_notification_outbox_trigger() -> None:
+    if (
+        not settings.notification_outbox_trigger_enabled
+        or not settings.internal_trigger_secret
+        or not settings.notification_outbox_trigger_url
+    ):
+        return
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        threading.Thread(
+            target=lambda: asyncio.run(_post_notification_outbox_trigger()),
+            daemon=True,
+            name="notification-outbox-trigger",
+        ).start()
+        return
+    loop.create_task(_post_notification_outbox_trigger())
 
 
 def _owner_profile(storage: BaseStorage, owner_wallet: str):
@@ -147,6 +198,7 @@ def enqueue_transaction_email(
         )
         return False
     else:
+        _schedule_notification_outbox_trigger()
         return True
 
 
@@ -184,6 +236,7 @@ def enqueue_email_verification_code(
             extra={"owner": owner, "email": mask_email(recipient_email)},
         )
         return False
+    _schedule_notification_outbox_trigger()
     return True
 
 
@@ -221,6 +274,7 @@ def enqueue_account_email_notice(
             extra={"event_type": event_type, "template_key": template_key},
         )
         return False
+    _schedule_notification_outbox_trigger()
     return True
 
 

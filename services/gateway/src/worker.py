@@ -19,9 +19,15 @@ from src.services.platform.job_locks import postgres_advisory_job_lock
 from src.services.platform.tasks.consumer_withdraw_processor import (
     run_consumer_withdraw_processor_once,
 )
+from src.services.platform.tasks.consumer_withdraw_chain_recovery import (
+    run_consumer_withdraw_chain_recovery_once,
+)
 from src.services.platform.tasks.deposit_indexer.runner import run_indexer_blocking_step
 from src.services.platform.tasks.provider_withdraw_expiry_reaper import (
     run_provider_withdraw_expiry_reaper_once,
+)
+from src.services.platform.tasks.withdrawal_expiry_sweeper import (
+    run_withdrawal_expiry_sweeper_once,
 )
 from src.services.platform.service_health_event_cleanup import (
     run_service_health_event_cleanup_once,
@@ -89,6 +95,22 @@ async def _consumer_withdraw_processor_once(storage):
     )
 
 
+async def _consumer_withdraw_chain_recovery_once(storage):
+    return await _run_with_job_lock(
+        storage,
+        "consumer-withdraw-chain-recovery",
+        lambda: run_consumer_withdraw_chain_recovery_once(storage),
+    )
+
+
+async def _withdrawal_expiry_sweeper_once(storage):
+    return await _run_with_job_lock(
+        storage,
+        "withdrawal-expiry-sweeper",
+        lambda: run_withdrawal_expiry_sweeper_once(storage),
+    )
+
+
 async def _in_app_cleanup_once(storage):
     return await _run_with_job_lock(
         storage,
@@ -109,6 +131,14 @@ _ONCE_COMMANDS = {
     "analytics-outbox": ("analytics_outbox.once", _analytics_outbox_once),
     "notification-outbox": ("notification_outbox.once", _notification_outbox_once),
     "deposit-indexer": ("deposit_indexer.once", _deposit_indexer_once),
+    "consumer-withdraw-chain-recovery": (
+        "consumer_withdraw_chain_recovery.once",
+        _consumer_withdraw_chain_recovery_once,
+    ),
+    "withdrawal-expiry-sweeper": (
+        "withdrawal_expiry_sweeper.once",
+        _withdrawal_expiry_sweeper_once,
+    ),
     "provider-withdraw-reaper": (
         "provider_withdraw_reaper.once",
         _provider_withdraw_reaper_once,
@@ -217,6 +247,18 @@ def main() -> int:
         help="Process consumer withdrawal chain events and expiries once.",
     )
     consumer_withdraw_processor.add_argument("--once", action="store_true", required=True)
+
+    consumer_withdraw_chain_recovery = subparsers.add_parser(
+        "consumer-withdraw-chain-recovery",
+        help="Recover consumer withdrawals completed on-chain when /complete was missed.",
+    )
+    consumer_withdraw_chain_recovery.add_argument("--once", action="store_true", required=True)
+
+    withdrawal_expiry_sweeper = subparsers.add_parser(
+        "withdrawal-expiry-sweeper",
+        help="Sweep consumer/provider expired withdrawals once.",
+    )
+    withdrawal_expiry_sweeper.add_argument("--once", action="store_true", required=True)
 
     in_app_cleanup = subparsers.add_parser(
         "in-app-cleanup",

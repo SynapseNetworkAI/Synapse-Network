@@ -194,17 +194,17 @@ Required APIs enabled by `scripts/deploy/gcp_preflight.sh`:
 
 Terraform-created billable resources:
 
-| Service                                   | Terraform resource                                                                  | What it is used for                                                                  | Billing model                                                                               | Staging default                                                                                                                                         | Monthly estimate                      |
-| ----------------------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
-| Cloud SQL for PostgreSQL                  | `google_sql_database_instance.postgres`, `google_sql_database.gateway`              | Source of truth for ledger, idempotency, outbox, inbox, admin projections, and jobs  | Instance hours, storage, backups, network egress                                            | `db-f1-micro`, `ENTERPRISE`, zonal, 20 GB SSD, PITR 1 day                                                                                               | `$12-$18`                             |
-| Cloud Run services                        | `google_cloud_run_v2_service.*`                                                     | Gateway, Gateway-admin, User-front, Admin-front                                      | Request/instance time, vCPU, memory, requests, outbound egress, min instances if configured | Staging `min_instances=0`; services created only when image variables are non-empty                                                                     | `$0-$10` for low traffic              |
-| Cloud Run jobs                            | `google_cloud_run_v2_job.*`                                                         | Deposit indexer, withdrawal processors, notification drain, cleanup, DB migration    | Job execution CPU/memory time, container startup time, outbound egress                      | Jobs created only when `gateway_image` is set; money jobs run every minute                                                                              | `$0-$5`                               |
-| Cloud Scheduler                           | `google_cloud_scheduler_job.jobs`                                                   | Triggers periodic Cloud Run jobs                                                     | Per scheduler job per month; first 3 jobs are free per billing account                      | 5 scheduled jobs when `gateway_image` is set                                                                                                            | `$0.20-$1`                            |
-| Artifact Registry                         | `google_artifact_registry_repository.docker`                                        | Stores Docker images for Cloud Run deploys                                           | Artifact storage over free tier, data transfer, optional vulnerability scanning             | Regional repo `synapse-staging`; cleanup deletes untagged images after 7 days, staging tags after 45 days, and keeps the 10 newest versions per package | `$0.20-$3` depending on image history |
-| Cloud Storage buckets                     | `google_storage_bucket.backups` plus manually created static/evidence/state buckets | Cloud SQL backups/export artifacts, evidence archive, static assets, Terraform state | GB-month storage, operations, retrieval, egress                                             | Four `us-central1` buckets with lifecycle policy; evidence release records 365 days, debug/failed evidence 30 days, Terraform noncurrent state 365 days | `$0-$5` for tens of GB                |
-| Secret Manager                            | `google_secret_manager_secret.placeholders`                                         | Runtime secrets, private keys, webhook URLs, SMTP credentials, RPC keys              | Active secret versions and access operations                                                | About 20 staging secret placeholders, values added out-of-band                                                                                          | `$1-$3`                               |
-| Cloud Logging / Cloud Monitoring          | Google-managed service usage from Cloud Run, Cloud SQL, jobs, alerts                | Logs, metrics, alerting, dashboards, uptime/monitoring features                      | Log ingestion/storage and chargeable custom metrics or checks beyond free allotments        | Use low-volume structured logs and avoid noisy debug logs                                                                                               | `$0-$5` initially                     |
-| IAM / service accounts / Resource Manager | `google_service_account.*`, IAM bindings                                            | Runtime identity and least-privilege access                                          | No direct monthly charge for IAM bindings                                                   | Runtime and Scheduler service accounts                                                                                                                  | `$0`                                  |
+| Service                                   | Terraform resource                                                                  | What it is used for                                                                  | Billing model                                                                               | Staging default                                                                                                                                             | Monthly estimate                      |
+| ----------------------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| Cloud SQL for PostgreSQL                  | `google_sql_database_instance.postgres`, `google_sql_database.gateway`              | Source of truth for ledger, idempotency, outbox, inbox, admin projections, and jobs  | Instance hours, storage, backups, network egress                                            | `db-f1-micro`, `ENTERPRISE`, zonal, 20 GB SSD, PITR 1 day                                                                                                   | `$12-$18`                             |
+| Cloud Run services                        | `google_cloud_run_v2_service.*`                                                     | Gateway, Gateway-admin, User-front, Admin-front                                      | Request/instance time, vCPU, memory, requests, outbound egress, min instances if configured | Staging `min_instances=0`; services created only when image variables are non-empty                                                                         | `$0-$10` for low traffic              |
+| Cloud Run jobs                            | `google_cloud_run_v2_job.*`                                                         | Deposit indexer, withdraw recovery/expiry, notification drain, cleanup, DB migration | Job execution CPU/memory time, container startup time, outbound egress                      | Jobs created only when `gateway_image` is set; staging periodic jobs run every 10 minutes and notification drain is event-triggered with scheduler fallback | `$0-$5`                               |
+| Cloud Scheduler                           | `google_cloud_scheduler_job.jobs`                                                   | Triggers periodic Cloud Run jobs                                                     | Per scheduler job per month; first 3 jobs are free per billing account                      | 5 scheduled jobs when `gateway_image` is set                                                                                                                | `$0.20-$1`                            |
+| Artifact Registry                         | `google_artifact_registry_repository.docker`                                        | Stores Docker images for Cloud Run deploys                                           | Artifact storage over free tier, data transfer, optional vulnerability scanning             | Regional repo `synapse-staging`; cleanup deletes untagged images after 7 days, staging tags after 45 days, and keeps the 10 newest versions per package     | `$0.20-$3` depending on image history |
+| Cloud Storage buckets                     | `google_storage_bucket.backups` plus manually created static/evidence/state buckets | Cloud SQL backups/export artifacts, evidence archive, static assets, Terraform state | GB-month storage, operations, retrieval, egress                                             | Four `us-central1` buckets with lifecycle policy; evidence release records 365 days, debug/failed evidence 30 days, Terraform noncurrent state 365 days     | `$0-$5` for tens of GB                |
+| Secret Manager                            | `google_secret_manager_secret.placeholders`                                         | Runtime secrets, private keys, webhook URLs, SMTP credentials, RPC keys              | Active secret versions and access operations                                                | About 20 staging secret placeholders, values added out-of-band                                                                                              | `$1-$3`                               |
+| Cloud Logging / Cloud Monitoring          | Google-managed service usage from Cloud Run, Cloud SQL, jobs, alerts                | Logs, metrics, alerting, dashboards, uptime/monitoring features                      | Log ingestion/storage and chargeable custom metrics or checks beyond free allotments        | Use low-volume structured logs and avoid noisy debug logs                                                                                                   | `$0-$5` initially                     |
+| IAM / service accounts / Resource Manager | `google_service_account.*`, IAM bindings                                            | Runtime identity and least-privilege access                                          | No direct monthly charge for IAM bindings                                                   | Runtime and Scheduler service accounts                                                                                                                      | `$0`                                  |
 
 Current staging estimate:
 
@@ -873,10 +873,10 @@ max-instances/concurrency or upgrade Cloud SQL tier.
 
 Deposit indexing alerts:
 
-1. P2: deposit indexing delay above two minutes.
-2. P1: deposit indexing delay above five minutes.
+1. P2: deposit indexing delay above five minutes.
+2. P1: deposit indexing delay above ten minutes.
 3. P1: scheduled job failures above threshold.
-4. P1: `JOB_SKIPPED_ALREADY_RUNNING` repeats for more than five minutes.
+4. P1: `JOB_SKIPPED_ALREADY_RUNNING` repeats for more than fifteen minutes.
 
 Release evidence should record `indexed_at`, `credited_at`, delay seconds, and
 the scheduled job lock skip summary. `alreadyRunningSkipped` may be non-zero,
@@ -935,10 +935,11 @@ deposit indexing, or long reaper loops. Long-running work runs as Cloud Run jobs
 triggered by Cloud Scheduler. Money state transitions stay inside Gateway and
 Postgres transaction boundaries.
 
-Cloud Scheduler has a hard one-minute practical floor. MVP accepts that deposit
-credits can take roughly 1-2 minutes to appear after on-chain confirmation; the
-User-front deposit modal must say this clearly instead of adding high-frequency
-RPC polling.
+Cloud Scheduler has a hard one-minute practical floor. Staging now deliberately
+runs the hot money-path jobs on a lower-cost 5-minute cadence, so MVP staging
+accepts that deposit credits can take roughly 5-10 minutes to appear after
+on-chain confirmation; the User-front deposit modal must say this clearly
+instead of adding high-frequency RPC polling.
 
 Every money-sensitive scheduled job uses two layers of overlap protection:
 
@@ -946,18 +947,18 @@ Every money-sensitive scheduled job uses two layers of overlap protection:
 2. The worker takes a Postgres advisory lock at startup. If the previous
    execution is still running, it logs `JOB_SKIPPED_ALREADY_RUNNING` and exits
    successfully. This skip is not an incident by itself; repeated skips for more
-   than five minutes are a P1 because they indicate a stuck worker or slow RPC.
+   than fifteen minutes are a P1 because they indicate a stuck worker or slow RPC.
 
 Scheduled job defaults:
 
-| Job                           | Command                                                   | Schedule                 | Retry | Lock key                      |
-| ----------------------------- | --------------------------------------------------------- | ------------------------ | ----- | ----------------------------- |
-| DB migration                  | `bash scripts/deploy/migrate_db.sh staging\|prod`         | manual release step only | 0     | n/a                           |
-| Deposit indexer               | `python -m src.worker deposit-indexer --once`             | every 1 minute           | 0     | `deposit-indexer`             |
-| Provider withdrawal reaper    | `python -m src.worker provider-withdraw-reaper --once`    | every 1 minute           | 0     | `provider-withdraw-reaper`    |
-| Consumer withdrawal processor | `python -m src.worker consumer-withdraw-processor --once` | every 1 minute           | 0     | `consumer-withdraw-processor` |
-| Gmail outbox drain            | `python -m src.worker notification-outbox --once`         | every 1 minute           | 1     | `notification-outbox-drain`   |
-| In-app notification cleanup   | `python -m src.worker in-app-cleanup --once`              | daily                    | 0     | `in-app-notification-cleanup` |
+| Job                         | Command                                                        | Schedule                 | Retry | Lock key                           |
+| --------------------------- | -------------------------------------------------------------- | ------------------------ | ----- | ---------------------------------- |
+| DB migration                | `bash scripts/deploy/migrate_db.sh staging\|prod`              | manual release step only | 0     | n/a                                |
+| Deposit indexer             | `python -m src.worker deposit-indexer --once`                  | every 10 minutes         | 0     | `deposit-indexer`                  |
+| Consumer withdraw recovery  | `python -m src.worker consumer-withdraw-chain-recovery --once` | every 10 minutes         | 0     | `consumer-withdraw-chain-recovery` |
+| Withdrawal expiry sweeper   | `python -m src.worker withdrawal-expiry-sweeper --once`        | every 10 minutes         | 0     | `withdrawal-expiry-sweeper`        |
+| Gmail outbox drain fallback | `python -m src.worker notification-outbox --once`              | every 10 minutes         | 1     | `notification-outbox-drain`        |
+| In-app notification cleanup | `python -m src.worker in-app-cleanup --once`                   | daily                    | 0     | `in-app-notification-cleanup`      |
 
 ## Staging Chain Readiness
 

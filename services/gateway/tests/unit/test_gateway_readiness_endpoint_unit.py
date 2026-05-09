@@ -116,11 +116,11 @@ def test_readiness_reports_initialized_monitors(monkeypatch) -> None:
     assert monitors["deposit_indexer"]["healthy"] is True
     assert monitors["deposit_indexer"]["degradedReasons"] == []
     assert monitors["service_health_monitor"] == {"enabled": True, "initialized": True}
-    assert monitors["provider_withdraw_expiry_reaper"] == {
+    assert monitors["withdrawal_expiry_sweeper"] == {
         "enabled": True,
         "initialized": True,
     }
-    assert monitors["consumer_withdraw_processor"] == {
+    assert monitors["consumer_withdraw_chain_recovery"] == {
         "enabled": True,
         "initialized": True,
     }
@@ -146,11 +146,11 @@ def test_readiness_marks_disabled_monitors(monkeypatch) -> None:
         "enabled": False,
         "initialized": False,
     }
-    assert monitors["provider_withdraw_expiry_reaper"] == {
+    assert monitors["withdrawal_expiry_sweeper"] == {
         "enabled": False,
         "initialized": False,
     }
-    assert monitors["consumer_withdraw_processor"] == {
+    assert monitors["consumer_withdraw_chain_recovery"] == {
         "enabled": False,
         "initialized": False,
     }
