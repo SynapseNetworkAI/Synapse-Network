@@ -4,6 +4,7 @@ import asyncio
 import time
 from concurrent.futures import Future, ThreadPoolExecutor
 from contextlib import suppress
+from dataclasses import dataclass
 from typing import Any
 
 from src.core.common import normalize_wallet
@@ -53,6 +54,11 @@ from .shared import (
     lock,
     logger,
 )
+
+
+@dataclass(frozen=True)
+class IndexerStepResult:
+    last_reconciliation_at: int
 
 
 def _validated_replay_receipt_or_raise(normalized_tx: str) -> dict[str, Any]:
@@ -441,16 +447,14 @@ def _run_reconciliation_if_due(
 
 
 def _update_last_reconciliation_at(
-    active_step: Future[dict[str, int]] | None,
+    active_step: Future[IndexerStepResult] | None,
     last_reconciliation_at: int,
-) -> tuple[Future[dict[str, int]] | None, int]:
+) -> tuple[Future[IndexerStepResult] | None, int]:
     if active_step is None or not active_step.done():
         return active_step, last_reconciliation_at
     with suppress(Exception):
         result = active_step.result()
-        last_reconciliation_at = int(
-            result.get("lastReconciliationAt", last_reconciliation_at)
-        )
+        last_reconciliation_at = int(result.last_reconciliation_at)
     return None, last_reconciliation_at
 
 
@@ -475,9 +479,9 @@ async def _run_single_indexer_tick(
     loop: asyncio.AbstractEventLoop,
     executor: ThreadPoolExecutor,
     storage: BaseStorage,
-    active_step: Future[dict[str, int]] | None,
+    active_step: Future[IndexerStepResult] | None,
     last_reconciliation_at: int,
-) -> tuple[Future[dict[str, int]] | None, int]:
+) -> tuple[Future[IndexerStepResult] | None, int]:
     if active_step is not None and not active_step.done():
         logger.warning(
             "deposit indexer skipped tick because previous step is still running"
@@ -505,9 +509,7 @@ async def _run_single_indexer_tick(
         _mark_step_timeout(storage)
         return active_step, last_reconciliation_at
     else:
-        last_reconciliation_at = int(
-            result.get("lastReconciliationAt", last_reconciliation_at)
-        )
+        last_reconciliation_at = int(result.last_reconciliation_at)
         return None, last_reconciliation_at
 
 
@@ -516,7 +518,7 @@ def run_indexer_blocking_step(
     last_reconciliation_at: int,
     *,
     backfill_mode: str = "event",
-) -> dict[str, int]:
+) -> IndexerStepResult:
     """Run one synchronous indexer cycle in the dedicated worker thread."""
     started = _mark_step_started()
     try:
@@ -541,10 +543,10 @@ def run_indexer_blocking_step(
             started_monotonic_ms=started,
             last_error=_INDEXER_LOOP_ERROR_CODE,
         )
-        return {"lastReconciliationAt": last_reconciliation_at}
+        return IndexerStepResult(last_reconciliation_at=last_reconciliation_at)
 
     _mark_step_finished(storage, started_monotonic_ms=started, last_error=None)
-    return {"lastReconciliationAt": next_reconciliation_at}
+    return IndexerStepResult(last_reconciliation_at=next_reconciliation_at)
 
 
 async def run_v2_deposit_indexer(
@@ -571,7 +573,7 @@ async def run_v2_deposit_indexer(
     _set_status(initialized=True, heartbeatAt=_now())
     _persist_indexer_runtime_state(storage)
     last_reconciliation_at = 0
-    active_step: Future[dict[str, int]] | None = None
+    active_step: Future[IndexerStepResult] | None = None
     executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="deposit-indexer")
     loop = asyncio.get_running_loop()
     try:
