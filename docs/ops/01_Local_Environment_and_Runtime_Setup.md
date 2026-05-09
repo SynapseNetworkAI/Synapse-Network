@@ -40,6 +40,11 @@ Otterscan 的本地入口是 `http://localhost:5100`。一键脚本会随默认 
 infra 一起启动 `otterscan`，并把浏览器侧 RPC 配置为
 `http://localhost:8545`，也就是本机 Anvil/Hardhat 节点。
 
+本地 Otterscan 还会额外挂载 Synapse 自定义 selector 覆盖，保证像
+`withdraw(uint256,uint256,bytes32,uint256,bytes)` 这类本地 `SynapseCore`
+交易不会退化成 `0x5a58559b` 这种裸 selector。这个覆盖只用于 local explorer
+可读性，不改变链上 calldata 或合约行为。
+
 ## 3. 推荐启动路径
 
 ### 3.1 一键本地环境

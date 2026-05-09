@@ -1,4 +1,5 @@
 name: Deploy Staging
+run-name: Deploy Staging - ${{ inputs.deploy_scope || 'auto' }} - ${{ inputs.source_ref || github.ref_name }} - record ${{ inputs.record_id }}
 
 on:
   workflow_dispatch:
@@ -336,8 +337,27 @@ jobs:
 
       - name: Run staging drift guard
         if: ${{ steps.scope.outputs.deploy == 'true' && contains(steps.scope.outputs.services, 'gateway') }}
+        env:
+          STAGING_DRIFT_GUARD_MAX_RETRIES: "6"
+          STAGING_DRIFT_GUARD_SLEEP_SECONDS: "10"
         run: |
-          node scripts/deploy/gcp_staging_drift_guard.mjs --out drift-guard.json
+          set -euo pipefail
+          max_retries="${STAGING_DRIFT_GUARD_MAX_RETRIES:-6}"
+          sleep_seconds="${STAGING_DRIFT_GUARD_SLEEP_SECONDS:-10}"
+          attempt=1
+          while [[ "${attempt}" -le "${max_retries}" ]]; do
+            echo "[staging-drift-guard] attempt ${attempt}/${max_retries}"
+            if node scripts/deploy/gcp_staging_drift_guard.mjs --out drift-guard.json; then
+              exit 0
+            fi
+            if [[ "${attempt}" -lt "${max_retries}" ]]; then
+              echo "[staging-drift-guard] final consistency check not ready; retrying in ${sleep_seconds}s"
+              sleep "${sleep_seconds}"
+            fi
+            attempt=$((attempt + 1))
+          done
+          echo "[staging-drift-guard] failed after ${max_retries} attempts"
+          exit 1
 
       - name: Capture Cloud Run revisions
         if: ${{ steps.scope.outputs.deploy == 'true' }}

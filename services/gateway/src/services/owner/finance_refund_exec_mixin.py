@@ -17,6 +17,7 @@ from src.domain.execution import CompleteWithdrawTxCommand
 from src.domain.finance import RefundIntentRow, RefundReviewContext
 from src.domain.operation_metadata import OperationContextMetadata
 from src.services.owner.finance_constants import CONSUMER_WITHDRAW_TYPE, REFUND_ACTIVE_STATUSES
+from src.services.owner.finance_fee_policy import accrue_consumer_withdraw_fee_after_fallback
 from src.utils.datetime_utils import now_dt_str
 from src.utils.money import money_str, parse_usdc
 
@@ -48,9 +49,7 @@ class FinanceRefundExecMixin:
         )
         self._save_balance_ledger(ledger)  # type: ignore[attr-defined]
 
-    def _parse_refund_review_context(
-        self, request_meta: Optional[dict[str, Any]]
-    ) -> RefundReviewContext:
+    def _parse_refund_review_context(self, request_meta: Optional[dict[str, Any]]) -> RefundReviewContext:
         review_ctx = OperationContextMetadata.model_validate(request_meta or {}).review
         reviewer_address = (
             normalize_wallet(str(review_ctx.reviewer_address or ""))
@@ -69,11 +68,7 @@ class FinanceRefundExecMixin:
 
     @staticmethod
     def _fail_response(target: RefundIntentRow) -> dict[str, Any]:
-        return {
-            "refundId": str(target.id or ""),
-            "status": str(target.status or ""),
-            "txHash": str(target.tx_hash or ""),
-        }
+        return {"refundId": str(target.id or ""), "status": str(target.status or ""), "txHash": str(target.tx_hash or "")}
 
     @staticmethod
     def _replace_refund_row(
@@ -656,7 +651,11 @@ class FinanceRefundExecMixin:
                     return reject_response
 
             if not used_atomic_complete:
-                self._consume_locked_refund_amount(owner, amount_usdc)  # type: ignore[attr-defined]
+                self._consume_locked_refund_amount(  # type: ignore[attr-defined]
+                    owner,
+                    amount_usdc,
+                )
+                accrue_consumer_withdraw_fee_after_fallback(self.storage, target)  # type: ignore[attr-defined]  # mixin has service storage
             return self._finalize_refund_completion(
                 owner=owner,
                 rows=rows,

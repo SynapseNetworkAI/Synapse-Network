@@ -31,8 +31,13 @@ from src.services.owner.finance_constants import (
     CONSUMER_WITHDRAW_PROCESSOR_INTERVAL_SEC,
     CONSUMER_WITHDRAW_TYPE,
 )
+from src.services.platform.tasks.consumer_withdraw_completion import (
+    append_consumer_withdraw_completed_audit,
+    emit_consumer_withdraw_completed_metric,
+    settle_completed_consumer_withdraw_balance,
+)
 from src.storage.base import BaseStorage
-from src.utils.datetime_utils import to_epoch_seconds
+from src.utils.datetime_utils import now_dt_str, to_epoch_seconds
 from src.utils.money import parse_usdc
 
 logger = logging.getLogger(__name__)
@@ -327,12 +332,12 @@ def _complete_consumer_withdraw(
         dm = storage.get_data_manager()
         # Consume locked pending balance — use the atomic SQL path so
         # write_balance_ledger (which only writes available) cannot discard it.
-        from src.utils.datetime_utils import now_dt_str
         try:
-            dm.finance.balance.consume_consumer_pending_for_withdrawal(
-                owner=owner,
-                amount_usdc=amount_usdc,
-                updated_at=now_dt_str(),
+            settle_completed_consumer_withdraw_balance(
+                dm,
+                owner,
+                amount_usdc,
+                fee_usdc,
             )
         except RuntimeError:
             logger.warning(
@@ -352,38 +357,21 @@ def _complete_consumer_withdraw(
             expected_status=expected_status,
         )
 
-        # Audit
-        from src.domain.audit import AuditLogEntry
-        from uuid import uuid4
-        dm.audit.logs.append_audit_row(AuditLogEntry(
-            id=str(uuid4()),
-            timestamp=int(time.time()),
-            action="CONSUMER_WITHDRAW_EVENT_COMPLETED",
-            owner_address=owner,
-            details={
-                "withdrawId": str(row.id or ""),
-                "amountUsdc": amount_usdc,
-                "feeUsdc": fee_usdc,
-                "netUsdc": net_usdc,
-                "txHash": tx_hash,
-                "source": "event_watcher",
-            },
-        ))
+        append_consumer_withdraw_completed_audit(
+            dm,
+            row,
+            owner,
+            amount_usdc,
+            fee_usdc,
+            net_usdc,
+            tx_hash,
+        )
         logger.info(
             "consumer_withdraw_processor: COMPLETED id=%s source=event_watcher",
             row.id,
         )
 
-        # Analytics: withdrawal_completed
-        import asyncio
-        from src.services.analytics.gateway_events import emit_withdrawal_completed
-        try:
-            loop = asyncio.get_running_loop()
-            loop.create_task(emit_withdrawal_completed(
-                owner, amount_usdc=amount_usdc, tx_hash=tx_hash, role="consumer",
-            ))
-        except RuntimeError:
-            pass
+        emit_consumer_withdraw_completed_metric(owner, amount_usdc, tx_hash)
 
         return True
     except Exception as exc:

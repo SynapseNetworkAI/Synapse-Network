@@ -3,7 +3,12 @@ from __future__ import annotations
 from decimal import Decimal
 from types import SimpleNamespace
 
-from src.domain.finance import BalanceLedger, ConsumerWalletRecord
+from src.domain.finance import (
+    BalanceLedger,
+    ConsumerWalletRecord,
+    PlatformFees,
+    ProviderWalletRecord,
+)
 from src.services.platform.tasks.deposit_indexer.chain import (
     _amount_usdc_from_raw,
     _pick_matching_event,
@@ -24,8 +29,18 @@ class _FakeBalanceRepository:
                     ownerAddress="0x1111111111111111111111111111111111111111",
                     availableBalance=Decimal("7.500000"),
                     pendingBalance=Decimal("2.500000"),
+                    frozenBalance=Decimal("1.250000"),
                 )
-            ]
+            ],
+            providerWallets=[
+                ProviderWalletRecord(
+                    ownerAddress="0x2222222222222222222222222222222222222222",
+                    availableBalance=Decimal("0.750000"),
+                    pendingBalance=Decimal("0.250000"),
+                    frozenBalance=Decimal("0.500000"),
+                )
+            ],
+            platform=PlatformFees(feeAccrued=Decimal("0.500000")),
         )
 
 
@@ -108,7 +123,7 @@ def test_reconciliation_persists_money_as_strings(monkeypatch) -> None:
     )
     monkeypatch.setattr(
         "src.services.platform.tasks.deposit_indexer.reconciliation._read_chain_vault_balance_usdc",
-        lambda: Decimal("10.250000"),
+        lambda: Decimal("13.250000"),
     )
     monkeypatch.setattr(
         "src.services.platform.tasks.deposit_indexer.reconciliation._now",
@@ -117,13 +132,39 @@ def test_reconciliation_persists_money_as_strings(monkeypatch) -> None:
 
     summary = run_reconciliation_check_once(storage)
 
-    assert summary["chainVaultUsdc"] == "10.250000"
-    assert summary["ledgerObligationUsdc"] == "10.000000"
-    assert summary["deltaUsdc"] == "0.250000"
-    assert summary["alert"] is True
+    assert summary["chainVaultUsdc"] == "13.250000"
+    assert summary["ledgerObligationUsdc"] == "13.250000"
+    assert summary["deltaUsdc"] == "0.000000"
+    assert summary["alert"] is False
     persisted = storage.gateway_state.runtime_state["deposit_reconciliation_state"]
-    assert persisted["chainVaultUsdc"] == "10.250000"
-    assert persisted["deltaUsdc"] == "0.250000"
+    assert persisted["chainVaultUsdc"] == "13.250000"
+    assert persisted["ledgerObligationUsdc"] == "13.250000"
+    assert persisted["deltaUsdc"] == "0.000000"
+
+
+def test_balance_ledger_total_vault_tracked_balance_includes_frozen_provider_and_platform() -> None:
+    ledger = BalanceLedger(
+        consumerWallets=[
+            ConsumerWalletRecord(
+                ownerAddress="0x1111111111111111111111111111111111111111",
+                availableBalance=Decimal("7.500000"),
+                pendingBalance=Decimal("2.500000"),
+                frozenBalance=Decimal("1.250000"),
+            )
+        ],
+        providerWallets=[
+            ProviderWalletRecord(
+                ownerAddress="0x2222222222222222222222222222222222222222",
+                availableBalance=Decimal("0.750000"),
+                pendingBalance=Decimal("0.250000"),
+                frozenBalance=Decimal("0.500000"),
+            )
+        ],
+        platform=PlatformFees(feeAccrued=Decimal("0.500000")),
+    )
+
+    assert ledger.total_consumer_obligation() == Decimal("10.000000")
+    assert ledger.total_vault_tracked_balance() == Decimal("13.250000")
 
 
 def test_deposit_receipt_failed_tx_does_not_credit(monkeypatch) -> None:
