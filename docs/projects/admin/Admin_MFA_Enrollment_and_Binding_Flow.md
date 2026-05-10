@@ -244,6 +244,13 @@
 - `status = pending / active / revoked`
 - `factor_type = totp`
 - `last_verified_at`
+- `totp_secret_fingerprint`
+
+并明确新增一条安全约束：
+
+- 同一个 TOTP secret 不能跨管理员重复绑定
+- 落地方式不是直接拿明文字段做唯一索引，而是存 `totp_secret_fingerprint = md5(normalized_secret)`
+- 仅对 `status IN ('pending', 'active')` 的 TOTP 因子生效，`revoked` 历史因子保留审计痕迹但不占用活跃绑定名额
 
 ## 7.2 建议新增表：`admin_mfa_enrollment_challenges`
 
@@ -267,18 +274,31 @@
 
 ## 7.3 关于 secret 存储
 
-生产环境不建议继续把明文 `totpSecret` 直接塞在 `payload_json` 里。
+生产环境不能继续把明文 `totpSecret` 直接塞在 `payload_json` 里。
 
-推荐改成：
+但这不等于现在就该把 `payload_json` 整体废掉。原因很简单：
 
-- `secret_ref` 指向 KMS / Secret Manager / Vault
+- `admin_mfa_factors` 是多态因子表，不只有 TOTP，还有 WebAuthn / backup code
+- `payload_json` 对 WebAuthn 这类结构化载荷依然合适
+- 当前真正的安全洞不是“JSON 这个容器本身”，而是“没有跨用户 secret 唯一约束”
+
+当前落地已经改成：
+
+- `secret_ref` 持有加密后的 TOTP secret
 - `payload_json` 只保留非敏感元信息，例如：
   - `issuer`
   - `maskedSecret`
   - `enrolledAt`
-  - `deviceLabel`
+- `deviceLabel`
 
-本地 demo 或 seed 环境可以保留简化实现，但生产不能把静态 TOTP secret 当常态方案。
+同时已经补上：
+
+- `totp_secret_fingerprint`
+- 跨用户唯一约束
+- 重复绑定时报 `409 CONFLICT`
+- enrollment token 绑定 `client_ip + user_agent`
+
+V1 的 `secret_ref` 先用应用层加密的 inline ref，长期仍建议切到真正的 KMS / Secret Manager / Vault。本地 demo 或 seed 环境可以保留兼容读取，但生产不能把静态 TOTP secret 当常态方案。
 
 ## 8. 推荐前端流程
 

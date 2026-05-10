@@ -101,10 +101,15 @@ def login(
 @router.post("/mfa/enroll/begin", response_model=ApiResponse)
 def begin_mfa_enrollment(
     payload: MfaEnrollBeginRequest,
+    request: Request,
     request_id: Annotated[str, Depends(get_request_id)],
     auth_service: Annotated[AdminAuthService, Depends(get_auth_service)],
 ):
-    result = auth_service.begin_mfa_enrollment(payload.enrollment_token)
+    result = auth_service.begin_mfa_enrollment(
+        payload.enrollment_token,
+        client_ip=_request_client_ip(request),
+        user_agent=_request_user_agent(request),
+    )
     return ApiResponse(
         data=MfaEnrollBeginResponse(
             factorId=result.factor_id,

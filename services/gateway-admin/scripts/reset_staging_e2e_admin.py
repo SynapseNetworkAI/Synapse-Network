@@ -17,8 +17,9 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.core.security import hash_password  # noqa: E402
-from src.core.totp import generate_totp_code  # noqa: E402
+from src.core.security import hash_password  # noqa: E402 - local sys.path bootstrap above is required for direct script execution.
+from src.core.totp import generate_totp_code  # noqa: E402 - local sys.path bootstrap above is required for direct script execution.
+from src.core.totp_secret_store import build_inline_totp_secret_ref, payload_totp_metadata, totp_secret_fingerprint  # noqa: E402 - local sys.path bootstrap above is required for direct script execution.
 
 
 DEFAULT_EMAIL = "staging-admin-e2e@synapse-network.ai"
@@ -65,7 +66,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--totp-secret-env", default="STAGING_ADMIN_E2E_OTP_SECRET")
     parser.add_argument(
         "--totp-secret-ref",
-        default=os.getenv("STAGING_ADMIN_E2E_OTP_SECRET_REF", "secret-manager://synapse-staging-admin-e2e-otp-secret"),
+        default=os.getenv("STAGING_ADMIN_E2E_OTP_SECRET_REF", ""),
     )
     parser.add_argument(
         "--allow-any-staging-admin",
@@ -237,12 +238,13 @@ def reset_staging_admin(
                 """
                 INSERT INTO admin_mfa_factors (
                     factor_id, admin_id, factor_type, factor_label, status,
-                    secret_ref, payload_json, last_verified_at, created_at, updated_at, revoked_at
+                    secret_ref, totp_secret_fingerprint, payload_json, last_verified_at, created_at, updated_at, revoked_at
                 )
-                VALUES (%s, %s, 'totp', %s, 'active', %s, %s, %s, %s, %s, NULL)
+                VALUES (%s, %s, 'totp', %s, 'active', %s, %s, %s, %s, %s, %s, NULL)
                 ON CONFLICT (admin_id, factor_type, factor_label) DO UPDATE
                 SET status = 'active',
                     secret_ref = EXCLUDED.secret_ref,
+                    totp_secret_fingerprint = EXCLUDED.totp_secret_fingerprint,
                     payload_json = EXCLUDED.payload_json,
                     last_verified_at = EXCLUDED.last_verified_at,
                     updated_at = EXCLUDED.updated_at,
@@ -252,8 +254,9 @@ def reset_staging_admin(
                     f"mfa_{uuid4().hex[:24]}",
                     admin_id,
                     factor_label,
-                    totp_secret_ref.strip() if totp_secret_ref else None,
-                    Jsonb({"totpSecret": totp_secret}),
+                    totp_secret_ref.strip() if totp_secret_ref else build_inline_totp_secret_ref(totp_secret),
+                    totp_secret_fingerprint(totp_secret),
+                    Jsonb(payload_totp_metadata(totp_secret)),
                     now,
                     now,
                     now,

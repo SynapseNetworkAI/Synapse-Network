@@ -40,6 +40,16 @@ class BadRequestError(AppError):
         super().__init__(code="BAD_REQUEST", message=message, status_code=400)
 
 
+class ConflictError(AppError):
+    def __init__(self, message: str = "Conflict") -> None:
+        super().__init__(code="CONFLICT", message=message, status_code=409)
+
+
+class DuplicateGoogleAuthenticatorSecretError(ConflictError):
+    def __init__(self) -> None:
+        super().__init__("Google Authenticator secret is already bound to another admin account")
+
+
 class MfaEnrollmentRequiredError(AppError):
     def __init__(self, data: object, message: str = "MFA enrollment required") -> None:
         super().__init__(code="MFA_ENROLLMENT_REQUIRED", message=message, status_code=428, data=data)
