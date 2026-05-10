@@ -3,6 +3,7 @@ import base64
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
+import hashlib
 import importlib
 import logging
 from types import SimpleNamespace
@@ -19,8 +20,9 @@ from src.core.config import Settings, get_settings
 from src.core.metrics import MetricsRegistry
 from src.core.totp import generate_totp_code, generate_totp_secret
 from src.core.security import hash_password
+from src.core.totp_secret_store import factor_totp_secret
 from src.domain import AdminMfaFactor, AdminUser
-from src.domain.enums import AdminUserStatus, MfaFactorStatus, MfaFactorType
+from src.domain.enums import AdminUserStatus, MfaEnrollmentChallengeStatus, MfaFactorStatus, MfaFactorType
 from src.services.adapters import (
     HttpProviderWithdrawReviewAdapter,
     InMemoryGatewayExecutionAdapter,
@@ -376,7 +378,7 @@ def _otp_code_for(email: str) -> str:
     user = store.identity.get_user_by_email(email)
     assert user is not None
     factors = store.identity.list_mfa_factors(user.admin_id)
-    secret = next(str(factor.payload.get("totpSecret") or "") for factor in factors if factor.payload.get("totpSecret"))
+    secret = next(factor_totp_secret(factor) for factor in factors if factor_totp_secret(factor))
     return generate_totp_code(secret)
 
 
@@ -384,7 +386,7 @@ def _ensure_unenrolled_admin(email: str = "unenrolled@synapse-network.ai") -> No
     store = _test_store()
     existing = store.identity.get_user_by_email(email)
     if existing is None:
-        store.identity.create_user(
+        existing = store.identity.create_user(
             AdminUser(
                 admin_id="admin_unenrolled",
                 email=email,
@@ -394,7 +396,7 @@ def _ensure_unenrolled_admin(email: str = "unenrolled@synapse-network.ai") -> No
                 require_mfa=True,
             )
         )
-        return
+    assert existing is not None
     store.identity.update_user(
         AdminUser(
             admin_id=existing.admin_id,
@@ -412,6 +414,34 @@ def _ensure_unenrolled_admin(email: str = "unenrolled@synapse-network.ai") -> No
         )
     )
     store.identity.update_password_hash(existing.admin_id, hash_password(PLACEHOLDER_PASSWORD))
+    now = datetime.now(timezone.utc)
+    for factor in store.identity.list_mfa_factors(existing.admin_id):
+        if factor.factor_type != MfaFactorType.TOTP:
+            continue
+        store.identity.upsert_mfa_factor(
+            AdminMfaFactor(
+                factor_id=factor.factor_id,
+                admin_id=factor.admin_id,
+                factor_type=factor.factor_type,
+                factor_label=factor.factor_label,
+                status=MfaFactorStatus.REVOKED,
+                secret_ref=factor.secret_ref,
+                totp_secret_fingerprint=factor.totp_secret_fingerprint,
+                payload=factor.payload,
+                last_verified_at=factor.last_verified_at,
+                created_at=factor.created_at,
+                updated_at=now,
+                revoked_at=now,
+            )
+        )
+    for challenge in store.identity.list_mfa_enrollment_challenges(existing.admin_id):
+        store.identity.upsert_mfa_enrollment_challenge(
+            replace(
+                challenge,
+                status=MfaEnrollmentChallengeStatus.CANCELLED,
+                updated_at=now,
+            )
+        )
 
 
 def _create_enrolled_admin(email: str, *, require_mfa: bool = True) -> AdminUser:
@@ -1075,7 +1105,8 @@ def test_admin_auth_mfa_enrollment_begin_replaces_bootstrap_placeholder_secret()
     factor = store.identity.get_mfa_factor_by_id(existing_factor.factor_id)
     assert factor is not None
     assert factor.status == MfaFactorStatus.PENDING
-    assert factor.payload["totpSecret"] == begin_body["manualEntryKey"]
+    assert factor_totp_secret(factor) == begin_body["manualEntryKey"]
+    assert factor.payload["secretStorage"] == "secret_ref"
 
     verify_response = client.post(
         "/api/admin/v1/auth/mfa/enroll/verify",
@@ -1140,6 +1171,127 @@ def test_admin_auth_mfa_enrollment_begin_reuses_same_secret_for_same_token() -> 
     assert verify_response.status_code == 200
 
 
+def test_admin_auth_mfa_enrollment_begin_rejects_mismatched_user_agent() -> None:
+    _ensure_unenrolled_admin("ua-mismatch@synapse-network.ai")
+    client.cookies.clear()
+
+    login_response = client.post(
+        "/api/admin/v1/auth/login",
+        json={
+            "email": "ua-mismatch@synapse-network.ai",
+            "password": PLACEHOLDER_PASSWORD,
+        },
+        headers={"user-agent": "enrollment-client-a"},
+    )
+    assert login_response.status_code == 428
+    enrollment_token = login_response.json()["data"]["enrollmentToken"]
+
+    begin_response = client.post(
+        "/api/admin/v1/auth/mfa/enroll/begin",
+        json={"enrollmentToken": enrollment_token},
+        headers={"user-agent": "enrollment-client-b"},
+    )
+
+    assert begin_response.status_code == 401
+    assert begin_response.json()["error"]["message"] == "Invalid MFA enrollment token"
+
+
+def test_admin_auth_mfa_enrollment_verify_rejects_mismatched_user_agent() -> None:
+    _ensure_unenrolled_admin("ua-verify-mismatch@synapse-network.ai")
+    client.cookies.clear()
+
+    login_response = client.post(
+        "/api/admin/v1/auth/login",
+        json={
+            "email": "ua-verify-mismatch@synapse-network.ai",
+            "password": PLACEHOLDER_PASSWORD,
+        },
+        headers={"user-agent": "enrollment-client-a"},
+    )
+    assert login_response.status_code == 428
+    enrollment_token = login_response.json()["data"]["enrollmentToken"]
+
+    begin_response = client.post(
+        "/api/admin/v1/auth/mfa/enroll/begin",
+        json={"enrollmentToken": enrollment_token},
+        headers={"user-agent": "enrollment-client-a"},
+    )
+    assert begin_response.status_code == 200
+    begin_body = begin_response.json()["data"]
+
+    verify_response = client.post(
+        "/api/admin/v1/auth/mfa/enroll/verify",
+        json={
+            "enrollmentToken": enrollment_token,
+            "factorId": begin_body["factorId"],
+            "otpCode": generate_totp_code(begin_body["manualEntryKey"]),
+        },
+        headers={"user-agent": "enrollment-client-b"},
+    )
+
+    assert verify_response.status_code == 401
+    assert verify_response.json()["error"]["message"] == "Invalid MFA enrollment token"
+
+
+def test_admin_auth_mfa_enrollment_begin_rejects_secret_reused_by_another_admin(monkeypatch: pytest.MonkeyPatch) -> None:
+    reused_secret = generate_totp_secret()
+    reused_fingerprint = hashlib.md5(reused_secret.strip().upper().encode("utf-8")).hexdigest()
+    existing_email = f"existing-totp-{uuid4().hex[:8]}@synapse-network.ai"
+    enrolling_email = f"duplicate-totp-{uuid4().hex[:8]}@synapse-network.ai"
+    store = _test_store()
+    existing_user = store.identity.create_user(
+        AdminUser(
+            admin_id=f"admin_{uuid4().hex[:12]}",
+            email=existing_email,
+            display_name="Existing TOTP Admin",
+            status=AdminUserStatus.ACTIVE,
+            password_hash=hash_password(PLACEHOLDER_PASSWORD),
+            require_mfa=True,
+        )
+    )
+    store.identity.upsert_mfa_factor(
+        AdminMfaFactor(
+            factor_id=f"factor_{uuid4().hex[:12]}",
+            admin_id=existing_user.admin_id,
+            factor_type=MfaFactorType.TOTP,
+            factor_label="primary",
+            status=MfaFactorStatus.ACTIVE,
+            totp_secret_fingerprint=reused_fingerprint,
+            payload={"totpSecret": reused_secret},
+        )
+    )
+    store.identity.create_user(
+        AdminUser(
+            admin_id=f"admin_{uuid4().hex[:12]}",
+            email=enrolling_email,
+            display_name="Duplicate TOTP Admin",
+            status=AdminUserStatus.ACTIVE,
+            password_hash=hash_password(PLACEHOLDER_PASSWORD),
+            require_mfa=True,
+        )
+    )
+    monkeypatch.setattr("src.services.auth.service.generate_totp_secret", lambda: reused_secret)
+
+    client.cookies.clear()
+    login_response = client.post(
+        "/api/admin/v1/auth/login",
+        json={"email": enrolling_email, "password": PLACEHOLDER_PASSWORD},
+    )
+    assert login_response.status_code == 428
+    enrollment_token = login_response.json()["data"]["enrollmentToken"]
+
+    begin_response = client.post(
+        "/api/admin/v1/auth/mfa/enroll/begin",
+        json={"enrollmentToken": enrollment_token},
+    )
+
+    assert begin_response.status_code == 409
+    assert begin_response.json()["error"]["code"] == "CONFLICT"
+    assert begin_response.json()["error"]["message"] == (
+        "Google Authenticator secret is already bound to another admin account"
+    )
+
+
 def test_admin_auth_mfa_enrollment_begin_reuses_existing_primary_factor_identity() -> None:
     email = f"broken-factor-{uuid4().hex[:8]}@synapse-network.ai"
     store = _test_store()
@@ -1191,7 +1343,8 @@ def test_admin_auth_mfa_enrollment_begin_reuses_existing_primary_factor_identity
     ]
     assert len(primary_factors) == 1
     assert primary_factors[0].status == MfaFactorStatus.PENDING
-    assert primary_factors[0].payload["totpSecret"] == begin_body["manualEntryKey"]
+    assert factor_totp_secret(primary_factors[0]) == begin_body["manualEntryKey"]
+    assert primary_factors[0].payload["secretStorage"] == "secret_ref"
 
 
 def test_admin_auth_mfa_enrollment_verify_revokes_other_totp_factors() -> None:
@@ -2543,6 +2696,7 @@ def test_provider_withdraw_review_decision_rejects_multiple_active_google_authen
                 factor_label=factor.factor_label,
                 status=MfaFactorStatus.REVOKED,
                 secret_ref=factor.secret_ref,
+                totp_secret_fingerprint=factor.totp_secret_fingerprint,
                 payload=factor.payload,
                 last_verified_at=factor.last_verified_at,
                 created_at=factor.created_at,
@@ -2571,7 +2725,8 @@ def test_provider_withdraw_review_decision_rejects_placeholder_google_authentica
             factor_type=factor.factor_type,
             factor_label=factor.factor_label,
             status=factor.status,
-            secret_ref=factor.secret_ref,
+            secret_ref=None,
+            totp_secret_fingerprint=None,
             payload={**original_payload, "totpSecret": "__BOOTSTRAP_TOTP_SECRET__"},
             last_verified_at=factor.last_verified_at,
             created_at=factor.created_at,
@@ -2602,6 +2757,7 @@ def test_provider_withdraw_review_decision_rejects_placeholder_google_authentica
                 factor_label=factor.factor_label,
                 status=factor.status,
                 secret_ref=factor.secret_ref,
+                totp_secret_fingerprint=factor.totp_secret_fingerprint,
                 payload=original_payload,
                 last_verified_at=factor.last_verified_at,
                 created_at=factor.created_at,

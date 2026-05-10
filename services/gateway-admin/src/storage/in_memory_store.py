@@ -2,6 +2,9 @@ from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
+from src.core.errors import DuplicateGoogleAuthenticatorSecretError
+from src.core.totp_secret_store import build_inline_totp_secret_ref, payload_totp_metadata, totp_secret_fingerprint
+from src.core.totp import generate_totp_secret
 from src.domain import (
     AdminActionAudit,
     AdminApproval,
@@ -140,6 +143,20 @@ class InMemoryAdminIdentityRepository:
         return None
 
     def upsert_mfa_factor(self, factor: AdminMfaFactor) -> AdminMfaFactor:
+        if (
+            factor.factor_type == MfaFactorType.TOTP
+            and factor.totp_secret_fingerprint
+            and factor.status in {MfaFactorStatus.PENDING, MfaFactorStatus.ACTIVE}
+        ):
+            for current in self._factors:
+                if current.factor_id == factor.factor_id:
+                    continue
+                if current.factor_type != MfaFactorType.TOTP:
+                    continue
+                if current.status not in {MfaFactorStatus.PENDING, MfaFactorStatus.ACTIVE}:
+                    continue
+                if current.totp_secret_fingerprint == factor.totp_secret_fingerprint:
+                    raise DuplicateGoogleAuthenticatorSecretError()
         for index, current in enumerate(self._factors):
             if current.factor_id == factor.factor_id:
                 self._factors[index] = factor
@@ -554,10 +571,12 @@ class InMemoryAdminStore:
                 MfaFactorType.TOTP,
                 "bootstrap_totp",
                 status=MfaFactorStatus.ACTIVE,
-                secret_ref=f"kms://{user.admin_id}",
-                payload={"totpSecret": "JBSWY3DPEHPK3PXP"},
+                secret_ref=build_inline_totp_secret_ref(secret),
+                totp_secret_fingerprint=totp_secret_fingerprint(secret),
+                payload=payload_totp_metadata(secret),
             )
             for user in users.values()
+            for secret in [generate_totp_secret()]
         ]
         challenges: dict[str, AdminMfaEnrollmentChallenge] = {}
         role_bindings = [

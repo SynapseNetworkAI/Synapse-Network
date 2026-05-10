@@ -6,6 +6,7 @@ from psycopg import errors as psycopg_errors
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
+from src.core.errors import DuplicateGoogleAuthenticatorSecretError
 from src.domain import AdminMfaEnrollmentChallenge, AdminMfaFactor, AdminSession, AdminUser
 from src.domain.enums import AdminSessionStatus, AdminUserStatus, AuthSource, MfaEnrollmentChallengeStatus, MfaFactorStatus, MfaFactorType
 
@@ -42,6 +43,7 @@ def _map_factor(row: dict) -> AdminMfaFactor:
         factor_label=row["factor_label"],
         status=MfaFactorStatus(row["status"]),
         secret_ref=row["secret_ref"],
+        totp_secret_fingerprint=row.get("totp_secret_fingerprint"),
         payload=row["payload_json"],
         last_verified_at=row["last_verified_at"],
         created_at=row["created_at"],
@@ -90,15 +92,16 @@ def _mfa_factor_upsert_sql() -> str:
     return """
         INSERT INTO admin_mfa_factors (
             factor_id, admin_id, factor_type, factor_label, status,
-            secret_ref, payload_json, last_verified_at, created_at, updated_at, revoked_at
+            secret_ref, totp_secret_fingerprint, payload_json, last_verified_at, created_at, updated_at, revoked_at
         )
-        VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb, %s, COALESCE(%s, NOW()), COALESCE(%s, NOW()), %s)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, COALESCE(%s, NOW()), COALESCE(%s, NOW()), %s)
         ON CONFLICT (factor_id)
         DO UPDATE SET admin_id = EXCLUDED.admin_id,
                       factor_type = EXCLUDED.factor_type,
                       factor_label = EXCLUDED.factor_label,
                       status = EXCLUDED.status,
                       secret_ref = EXCLUDED.secret_ref,
+                      totp_secret_fingerprint = EXCLUDED.totp_secret_fingerprint,
                       payload_json = EXCLUDED.payload_json,
                       last_verified_at = EXCLUDED.last_verified_at,
                       updated_at = EXCLUDED.updated_at,
@@ -115,6 +118,7 @@ def _mfa_factor_upsert_params(factor: AdminMfaFactor) -> tuple[object, ...]:
         factor.factor_label,
         factor.status.value,
         factor.secret_ref,
+        factor.totp_secret_fingerprint,
         Jsonb(factor.payload),
         factor.last_verified_at,
         factor.created_at,
@@ -271,6 +275,7 @@ class PostgresAdminIdentityRepository:
                         UPDATE admin_mfa_factors
                         SET status = %s,
                             secret_ref = %s,
+                            totp_secret_fingerprint = %s,
                             payload_json = %s::jsonb,
                             last_verified_at = %s,
                             updated_at = COALESCE(%s, NOW()),
@@ -281,6 +286,7 @@ class PostgresAdminIdentityRepository:
                         (
                             factor.status.value,
                             factor.secret_ref,
+                            factor.totp_secret_fingerprint,
                             Jsonb(factor.payload),
                             factor.last_verified_at,
                             factor.updated_at,
@@ -292,7 +298,7 @@ class PostgresAdminIdentityRepository:
                     )
                     row = retry_cur.fetchone()
                     if row is None:
-                        raise
+                        raise DuplicateGoogleAuthenticatorSecretError() from None
         return _map_factor(row)
 
     def list_mfa_enrollment_challenges(self, admin_id: str) -> Sequence[AdminMfaEnrollmentChallenge]:

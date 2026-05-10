@@ -15,6 +15,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.core.db_migrations import apply_sql_file, grant_admin_schema_access
+from src.core.totp_secret_migration import migrate_legacy_totp_payload_secrets
 
 
 def _optional_ancestor(path: Path, levels: int) -> Path | None:
@@ -86,6 +87,7 @@ def main() -> int:
         applied_names: list[str] = []
         for sql_file in sql_files:
             applied_names.append(apply_sql_file(args.dsn, sql_file))
+        migrate_summary = migrate_legacy_totp_payload_secrets(args.dsn)
         app_user = args.app_user.strip() or _env_or_dsn_user("ADMIN_DATABASE_APP_USER", os.environ.get("ADMIN_DATABASE_DSN", ""))
         if app_user:
             grant_admin_schema_access(args.dsn, app_user, readonly_user=args.readonly_user.strip() or None)
@@ -95,7 +97,11 @@ def main() -> int:
             "Set ADMIN_DATABASE_MIGRATION_DSN to a schema-owner or superuser DSN and rerun."
         ) from exc
 
-    print(f"Applied gateway-admin bootstrap SQL: {', '.join(applied_names)}")
+    print(
+        "Applied gateway-admin bootstrap SQL: "
+        f"{', '.join(applied_names)} | "
+        f"totp secret backfill migrated={migrate_summary.migrated} scanned={migrate_summary.scanned}"
+    )
     return 0
 
 

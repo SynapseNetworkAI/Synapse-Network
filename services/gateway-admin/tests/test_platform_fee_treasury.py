@@ -7,6 +7,7 @@ from src.app import create_app
 from src.core.config import Settings
 from src.core.csrf import build_admin_csrf_token
 from src.core.security import hash_password
+from src.core.totp_secret_store import factor_totp_secret
 from src.core.totp import generate_totp_code
 from src.services.auth.service import AdminAuthService
 from src.services.finance_admin import PlatformFeeTreasuryService
@@ -60,7 +61,7 @@ def _otp_code_for(store: InMemoryAdminStore, email: str) -> str:
     user = store.identity.get_user_by_email(email)
     assert user is not None
     factors = store.identity.list_mfa_factors(user.admin_id)
-    secret = next(str(factor.payload.get("totpSecret") or "") for factor in factors if factor.payload.get("totpSecret"))
+    secret = next(factor_totp_secret(factor) for factor in factors if factor_totp_secret(factor))
     return generate_totp_code(secret)
 
 
