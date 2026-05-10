@@ -31,16 +31,17 @@ class _FakeCursor:
         if self.execute_calls == 2:
             return {
                 "factor_id": "existing_primary_factor",
-                "admin_id": self.params[6],
-                "factor_type": self.params[7],
-                "factor_label": self.params[8],
+                "admin_id": self.params[7],
+                "factor_type": self.params[8],
+                "factor_label": self.params[9],
                 "status": self.params[0],
                 "secret_ref": self.params[1],
+                "totp_secret_fingerprint": self.params[2],
                 "payload_json": {"totpSecret": "SYNAPSESECRET"},
-                "last_verified_at": self.params[3],
+                "last_verified_at": self.params[4],
                 "created_at": datetime.now(timezone.utc),
-                "updated_at": self.params[4],
-                "revoked_at": self.params[5],
+                "updated_at": self.params[5],
+                "revoked_at": self.params[6],
             }
         return {
             "factor_id": self.params[0],
@@ -49,11 +50,12 @@ class _FakeCursor:
             "factor_label": self.params[3],
             "status": self.params[4],
             "secret_ref": self.params[5],
+            "totp_secret_fingerprint": self.params[6],
             "payload_json": {"totpSecret": "SYNAPSESECRET"},
-            "last_verified_at": self.params[7],
-            "created_at": self.params[8],
-            "updated_at": self.params[9],
-            "revoked_at": self.params[10],
+            "last_verified_at": self.params[8],
+            "created_at": self.params[9],
+            "updated_at": self.params[10],
+            "revoked_at": self.params[11],
         }
 
 
@@ -88,6 +90,7 @@ def test_upsert_mfa_factor_serializes_payload_as_jsonb(monkeypatch) -> None:
             factor_type=MfaFactorType.TOTP,
             factor_label="primary",
             status=MfaFactorStatus.PENDING,
+            totp_secret_fingerprint="fingerprint_123",
             payload={"totpSecret": "SYNAPSESECRET"},
             created_at=now,
             updated_at=now,
@@ -96,7 +99,8 @@ def test_upsert_mfa_factor_serializes_payload_as_jsonb(monkeypatch) -> None:
 
     params = fake_connection.cursor_instance.params
     assert params is not None
-    assert isinstance(params[6], Jsonb)
+    assert params[6] == "fingerprint_123"
+    assert isinstance(params[7], Jsonb)
     assert factor.payload["totpSecret"] == "SYNAPSESECRET"
 
 
@@ -113,6 +117,7 @@ def test_upsert_mfa_factor_recovers_from_identity_unique_conflict(monkeypatch) -
             factor_type=MfaFactorType.TOTP,
             factor_label="primary",
             status=MfaFactorStatus.PENDING,
+            totp_secret_fingerprint="fingerprint_123",
             payload={"totpSecret": "SYNAPSESECRET"},
             created_at=now,
             updated_at=now,
@@ -123,3 +128,4 @@ def test_upsert_mfa_factor_recovers_from_identity_unique_conflict(monkeypatch) -
     assert factor.factor_id == "existing_primary_factor"
     assert factor.factor_label == "primary"
     assert factor.payload["totpSecret"] == "SYNAPSESECRET"
+    assert factor.totp_secret_fingerprint == "fingerprint_123"

@@ -64,6 +64,7 @@ ADMIN_SESSION_COOKIE_NAME=synapse_admin_session
 ADMIN_SESSION_COOKIE_SECURE=false
 ADMIN_SESSION_COOKIE_SAMESITE=lax
 ADMIN_CSRF_SECRET=replace-this-with-a-dedicated-admin-csrf-secret
+ADMIN_TOTP_SECRET_ENCRYPTION_KEY=MDEyMzQ1Njc4OUFCQ0RFRjAxMjM0NTY3ODlBQkNERUY=
 ADMIN_GOOGLE_AUTHENTICATOR_LOGIN_ENABLED=true
 ADMIN_GOOGLE_AUTHENTICATOR_HIGH_RISK_ENABLED=true
 ADMIN_DATABASE_DSN=postgresql://synapse_admin_app:12345678@localhost:5432/synapse_gateway_admin
@@ -79,6 +80,11 @@ EXECUTION_WORKER_ENABLED=true
 EXECUTION_WORKER_POLL_INTERVAL_SEC=5
 EXECUTION_WORKER_BATCH_SIZE=10
 ```
+
+注意：
+
+1. 上面这组占位值只适用于 local。
+2. `staging/prod` 现在对 `ADMIN_GATEWAY_DEBUG`、`ADMIN_SESSION_COOKIE_SECURE`、`ADMIN_CSRF_SECRET`、`GATEWAY_INTERNAL_JWT_SECRET`、`ADMIN_TOTP_SECRET_ENCRYPTION_KEY` 走 fail-closed；如果仍是默认占位值，服务会直接拒绝启动。
 
 详细变量含义见 [Gateway_Admin_Environment_Variables.md](./Gateway_Admin_Environment_Variables.md)。
 

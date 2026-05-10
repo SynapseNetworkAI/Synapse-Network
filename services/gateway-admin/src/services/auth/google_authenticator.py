@@ -3,6 +3,7 @@ from dataclasses import dataclass
 
 from src.core.config import get_settings
 from src.core.totp import verify_totp_code
+from src.core.totp_secret_store import factor_totp_secret
 from src.domain import AdminMfaFactor
 
 
@@ -23,7 +24,7 @@ def build_google_authenticator_policy() -> AdminGoogleAuthenticatorPolicy:
 
 
 def verify_google_authenticator_code(factor: AdminMfaFactor, code: str) -> bool:
-    secret = str(factor.payload.get("totpSecret") or "").strip()
+    secret = factor_totp_secret(factor).strip()
     if not secret:
         return False
     settings = get_settings()

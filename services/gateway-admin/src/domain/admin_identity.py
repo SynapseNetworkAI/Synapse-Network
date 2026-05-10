@@ -32,6 +32,7 @@ class AdminMfaFactor:
     factor_label: str
     status: MfaFactorStatus = MfaFactorStatus.PENDING
     secret_ref: str | None = None
+    totp_secret_fingerprint: str | None = None
     payload: dict[str, Any] = field(default_factory=dict)
     last_verified_at: datetime | None = None
     created_at: datetime | None = None

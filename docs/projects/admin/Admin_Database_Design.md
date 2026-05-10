@@ -82,23 +82,23 @@ Dashboard 不建议自己再建一套交易明细真相表。一期建议：
 
 用途：管理员主档。
 
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| `admin_id` | `TEXT` / `UUID` PK | 管理员主键 |
-| `email` | `TEXT` | 登录邮箱，大小写不敏感唯一 |
-| `display_name` | `TEXT` | 显示名 |
-| `status` | `TEXT` | `active / disabled / locked / pending_invite` |
-| `auth_source` | `TEXT` | `bootstrap / sso / oidc` |
-| `sso_subject` | `TEXT` | SSO 或 OIDC subject，可空 |
-| `password_hash` | `TEXT` | 仅本地应急模式使用，可空 |
-| `require_mfa` | `BOOLEAN` | 是否强制 MFA |
-| `last_login_at` | `TIMESTAMPTZ` | 最近登录时间 |
-| `failed_login_attempts` | `INTEGER` | 连续密码或 OTP 登录失败次数，成功登录后清零 |
-| `last_failed_login_at` | `TIMESTAMPTZ` | 最近一次登录失败时间 |
-| `locked_until` | `TIMESTAMPTZ` | 账号临时锁定到期时间；大于当前时间时拒绝登录 |
-| `created_at` | `TIMESTAMPTZ` | 创建时间 |
-| `updated_at` | `TIMESTAMPTZ` | 更新时间 |
-| `disabled_at` | `TIMESTAMPTZ` | 禁用时间，可空 |
+| 字段                    | 类型               | 说明                                          |
+| ----------------------- | ------------------ | --------------------------------------------- |
+| `admin_id`              | `TEXT` / `UUID` PK | 管理员主键                                    |
+| `email`                 | `TEXT`             | 登录邮箱，大小写不敏感唯一                    |
+| `display_name`          | `TEXT`             | 显示名                                        |
+| `status`                | `TEXT`             | `active / disabled / locked / pending_invite` |
+| `auth_source`           | `TEXT`             | `bootstrap / sso / oidc`                      |
+| `sso_subject`           | `TEXT`             | SSO 或 OIDC subject，可空                     |
+| `password_hash`         | `TEXT`             | 仅本地应急模式使用，可空                      |
+| `require_mfa`           | `BOOLEAN`          | 是否强制 MFA                                  |
+| `last_login_at`         | `TIMESTAMPTZ`      | 最近登录时间                                  |
+| `failed_login_attempts` | `INTEGER`          | 连续密码或 OTP 登录失败次数，成功登录后清零   |
+| `last_failed_login_at`  | `TIMESTAMPTZ`      | 最近一次登录失败时间                          |
+| `locked_until`          | `TIMESTAMPTZ`      | 账号临时锁定到期时间；大于当前时间时拒绝登录  |
+| `created_at`            | `TIMESTAMPTZ`      | 创建时间                                      |
+| `updated_at`            | `TIMESTAMPTZ`      | 更新时间                                      |
+| `disabled_at`           | `TIMESTAMPTZ`      | 禁用时间，可空                                |
 
 关键约束与索引：
 
@@ -117,46 +117,54 @@ Dashboard 不建议自己再建一套交易明细真相表。一期建议：
 
 #### `admin_mfa_factors`
 
-用途：管理员 MFA 因子，不保存明文 secret，只保存密文引用或安全载荷。
+用途：管理员 MFA 因子主表。当前实现仍保留多因子通用 `payload_json`，但 TOTP secret 已不再直接明文放在 `payload_json` 里；运行态改为 `secret_ref` 持有加密后的 secret，`payload_json` 只保留非敏感元信息。
 
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| `factor_id` | `TEXT` / `UUID` PK | MFA 因子主键 |
-| `admin_id` | `TEXT` FK | 关联 `admin_users.admin_id` |
-| `factor_type` | `TEXT` | `totp / webauthn / backup_code` |
-| `factor_label` | `TEXT` | 设备或因子名称 |
-| `status` | `TEXT` | `pending / active / revoked` |
-| `secret_ref` | `TEXT` | KMS / Vault 引用，不存明文 |
-| `payload_json` | `JSONB` | WebAuthn 公钥等结构化信息 |
-| `last_verified_at` | `TIMESTAMPTZ` | 最近验证时间 |
-| `created_at` | `TIMESTAMPTZ` | 创建时间 |
-| `updated_at` | `TIMESTAMPTZ` | 更新时间 |
-| `revoked_at` | `TIMESTAMPTZ` | 吊销时间 |
+| 字段                      | 类型               | 说明                                                                                                     |
+| ------------------------- | ------------------ | -------------------------------------------------------------------------------------------------------- |
+| `factor_id`               | `TEXT` / `UUID` PK | MFA 因子主键                                                                                             |
+| `admin_id`                | `TEXT` FK          | 关联 `admin_users.admin_id`                                                                              |
+| `factor_type`             | `TEXT`             | `totp / webauthn / backup_code`                                                                          |
+| `factor_label`            | `TEXT`             | 设备或因子名称                                                                                           |
+| `status`                  | `TEXT`             | `pending / active / revoked`                                                                             |
+| `secret_ref`              | `TEXT`             | 当前 TOTP secret 的加密存储位置。V1 先用应用层加密的 inline ref，长期可切到 KMS / Secret Manager / Vault |
+| `totp_secret_fingerprint` | `TEXT`             | TOTP secret 的归一化指纹，只用于跨用户唯一约束，不保存明文                                               |
+| `payload_json`            | `JSONB`            | 多因子通用结构化载荷。TOTP 只保留 `maskedSecret` / `secretStorage` 等非敏感元信息；WebAuthn 也复用这块   |
+| `last_verified_at`        | `TIMESTAMPTZ`      | 最近验证时间                                                                                             |
+| `created_at`              | `TIMESTAMPTZ`      | 创建时间                                                                                                 |
+| `updated_at`              | `TIMESTAMPTZ`      | 更新时间                                                                                                 |
+| `revoked_at`              | `TIMESTAMPTZ`      | 吊销时间                                                                                                 |
 
 关键约束与索引：
 
 - `INDEX (admin_id, status)`
 - `UNIQUE (admin_id, factor_type, factor_label)`
+- `UNIQUE (totp_secret_fingerprint) WHERE factor_type='totp' AND status IN ('pending','active')`
+
+说明：
+
+- `payload_json` 还保留着，不是因为 JSON 比字段更“安全”，而是这张表本来就是 `totp / webauthn / backup_code` 的多态因子表，WebAuthn 这类结构化载荷天然更适合走 JSON。
+- 这轮已经堵住两类洞：同一个 Google Authenticator secret 被两个管理员共用，以及 TOTP 明文 secret 直接躺在 `payload_json`。
+- 当前 V1 采用 `secret_ref=inline-fernet:v1:...` 的应用层加密方案；长期仍建议把 `secret_ref` 切到真正的 Secret Manager / KMS / Vault。
 
 #### `admin_sessions`
 
 用途：后台会话与 token 生命周期管理。
 
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| `session_id` | `TEXT` / `UUID` PK | 会话主键 |
-| `admin_id` | `TEXT` FK | 关联管理员 |
-| `token_jti` | `TEXT` | access token 唯一标识 |
-| `refresh_token_hash` | `TEXT` | refresh token 哈希，可空 |
-| `status` | `TEXT` | `active / revoked / expired / locked` |
-| `mfa_verified_at` | `TIMESTAMPTZ` | MFA 完成时间 |
-| `client_ip` | `TEXT` | 登录 IP |
-| `user_agent` | `TEXT` | 设备标识 |
-| `issued_at` | `TIMESTAMPTZ` | 签发时间 |
-| `last_seen_at` | `TIMESTAMPTZ` | 最近活跃时间 |
-| `expires_at` | `TIMESTAMPTZ` | 过期时间 |
-| `revoked_at` | `TIMESTAMPTZ` | 撤销时间 |
-| `created_at` | `TIMESTAMPTZ` | 创建时间 |
+| 字段                 | 类型               | 说明                                  |
+| -------------------- | ------------------ | ------------------------------------- |
+| `session_id`         | `TEXT` / `UUID` PK | 会话主键                              |
+| `admin_id`           | `TEXT` FK          | 关联管理员                            |
+| `token_jti`          | `TEXT`             | access token 唯一标识                 |
+| `refresh_token_hash` | `TEXT`             | refresh token 哈希，可空              |
+| `status`             | `TEXT`             | `active / revoked / expired / locked` |
+| `mfa_verified_at`    | `TIMESTAMPTZ`      | MFA 完成时间                          |
+| `client_ip`          | `TEXT`             | 登录 IP                               |
+| `user_agent`         | `TEXT`             | 设备标识                              |
+| `issued_at`          | `TIMESTAMPTZ`      | 签发时间                              |
+| `last_seen_at`       | `TIMESTAMPTZ`      | 最近活跃时间                          |
+| `expires_at`         | `TIMESTAMPTZ`      | 过期时间                              |
+| `revoked_at`         | `TIMESTAMPTZ`      | 撤销时间                              |
+| `created_at`         | `TIMESTAMPTZ`      | 创建时间                              |
 
 关键约束与索引：
 
@@ -170,39 +178,39 @@ Dashboard 不建议自己再建一套交易明细真相表。一期建议：
 
 用途：系统内置角色定义。第一期建议仍以固定角色为主，但表要先建好，避免把角色硬编码死在数据库之外。
 
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| `role_key` | `TEXT` PK | 例如 `finance_admin` |
-| `role_name` | `TEXT` | 角色展示名 |
-| `description` | `TEXT` | 角色说明 |
-| `is_system` | `BOOLEAN` | 是否系统内置角色 |
-| `status` | `TEXT` | `active / disabled` |
-| `created_at` | `TIMESTAMPTZ` | 创建时间 |
-| `updated_at` | `TIMESTAMPTZ` | 更新时间 |
+| 字段          | 类型          | 说明                 |
+| ------------- | ------------- | -------------------- |
+| `role_key`    | `TEXT` PK     | 例如 `finance_admin` |
+| `role_name`   | `TEXT`        | 角色展示名           |
+| `description` | `TEXT`        | 角色说明             |
+| `is_system`   | `BOOLEAN`     | 是否系统内置角色     |
+| `status`      | `TEXT`        | `active / disabled`  |
+| `created_at`  | `TIMESTAMPTZ` | 创建时间             |
+| `updated_at`  | `TIMESTAMPTZ` | 更新时间             |
 
 #### `admin_permissions`
 
 用途：权限点字典。
 
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| `permission_key` | `TEXT` PK | 例如 `approval:decide` |
-| `resource_domain` | `TEXT` | 例如 `approval`、`audit`、`system` |
-| `action` | `TEXT` | `read / submit / decide / export / execute` |
-| `risk_level` | `TEXT` | `low / medium / high / critical` |
-| `description` | `TEXT` | 权限说明 |
-| `created_at` | `TIMESTAMPTZ` | 创建时间 |
+| 字段              | 类型          | 说明                                        |
+| ----------------- | ------------- | ------------------------------------------- |
+| `permission_key`  | `TEXT` PK     | 例如 `approval:decide`                      |
+| `resource_domain` | `TEXT`        | 例如 `approval`、`audit`、`system`          |
+| `action`          | `TEXT`        | `read / submit / decide / export / execute` |
+| `risk_level`      | `TEXT`        | `low / medium / high / critical`            |
+| `description`     | `TEXT`        | 权限说明                                    |
+| `created_at`      | `TIMESTAMPTZ` | 创建时间                                    |
 
 #### `admin_role_permissions`
 
 用途：角色与权限映射。
 
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| `role_key` | `TEXT` FK | 关联角色 |
-| `permission_key` | `TEXT` FK | 关联权限 |
-| `created_at` | `TIMESTAMPTZ` | 创建时间 |
-| `created_by` | `TEXT` | 变更操作者 |
+| 字段             | 类型          | 说明       |
+| ---------------- | ------------- | ---------- |
+| `role_key`       | `TEXT` FK     | 关联角色   |
+| `permission_key` | `TEXT` FK     | 关联权限   |
+| `created_at`     | `TIMESTAMPTZ` | 创建时间   |
+| `created_by`     | `TEXT`        | 变更操作者 |
 
 主键建议：
 
@@ -212,19 +220,19 @@ Dashboard 不建议自己再建一套交易明细真相表。一期建议：
 
 用途：管理员与角色绑定，支持作用域与生效期，为后续 ABAC 留接口。
 
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| `binding_id` | `TEXT` / `UUID` PK | 绑定主键 |
-| `admin_id` | `TEXT` FK | 管理员 |
-| `role_key` | `TEXT` FK | 角色 |
-| `scope_json` | `JSONB` | 可选作用域，例如环境、业务线、区域 |
-| `status` | `TEXT` | `active / expired / revoked` |
-| `granted_by` | `TEXT` | 授权人 |
-| `grant_reason` | `TEXT` | 授权原因 |
-| `starts_at` | `TIMESTAMPTZ` | 生效时间 |
-| `expires_at` | `TIMESTAMPTZ` | 过期时间 |
-| `created_at` | `TIMESTAMPTZ` | 创建时间 |
-| `updated_at` | `TIMESTAMPTZ` | 更新时间 |
+| 字段           | 类型               | 说明                               |
+| -------------- | ------------------ | ---------------------------------- |
+| `binding_id`   | `TEXT` / `UUID` PK | 绑定主键                           |
+| `admin_id`     | `TEXT` FK          | 管理员                             |
+| `role_key`     | `TEXT` FK          | 角色                               |
+| `scope_json`   | `JSONB`            | 可选作用域，例如环境、业务线、区域 |
+| `status`       | `TEXT`             | `active / expired / revoked`       |
+| `granted_by`   | `TEXT`             | 授权人                             |
+| `grant_reason` | `TEXT`             | 授权原因                           |
+| `starts_at`    | `TIMESTAMPTZ`      | 生效时间                           |
+| `expires_at`   | `TIMESTAMPTZ`      | 过期时间                           |
+| `created_at`   | `TIMESTAMPTZ`      | 创建时间                           |
+| `updated_at`   | `TIMESTAMPTZ`      | 更新时间                           |
 
 关键约束与索引：
 
@@ -238,32 +246,32 @@ Dashboard 不建议自己再建一套交易明细真相表。一期建议：
 
 用途：审批主表，是后台控制面的核心真相。
 
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| `approval_id` | `TEXT` PK | 例如 `APR-20260316-001` |
-| `approval_type` | `TEXT` | `deposit_repair / refund_approve / withdrawal_approve / fee_policy_change` |
-| `approval_level` | `TEXT` | `L1 / L2 / L3 / L4` |
-| `status` | `TEXT` | `DRAFT / SUBMITTED / UNDER_REVIEW / APPROVED_PENDING_EXECUTION / EXECUTING / EXECUTED / REJECTED / FAILED / CANCELLED / EXPIRED` |
-| `requester_id` | `TEXT` FK | 发起人 |
-| `current_approver_id` | `TEXT` FK | 当前审批人，可空 |
-| `resource_type` | `TEXT` | 例如 `deposit_intent` |
-| `resource_id` | `TEXT` | 目标业务对象 ID |
-| `owner_address` | `TEXT` | 受影响钱包地址，可空 |
-| `tx_hash` | `TEXT` | 关联链上交易，可空 |
-| `event_key` | `TEXT` | 关联链上事件键，可空 |
-| `risk_level` | `TEXT` | `green / yellow / red` |
-| `amount_usdc` | `NUMERIC(36, 6)` | 影响金额 |
-| `reason` | `TEXT` | 发起原因 |
-| `payload_json` | `JSONB` | 动作参数快照 |
-| `request_id` | `TEXT` | 前端请求号 |
-| `trace_id` | `TEXT` | 技术链路号 |
-| `submitted_at` | `TIMESTAMPTZ` | 提交时间 |
-| `approved_at` | `TIMESTAMPTZ` | 审批通过时间 |
-| `rejected_at` | `TIMESTAMPTZ` | 审批拒绝时间 |
-| `executed_at` | `TIMESTAMPTZ` | 执行成功时间 |
-| `expires_at` | `TIMESTAMPTZ` | 过期时间 |
-| `created_at` | `TIMESTAMPTZ` | 创建时间 |
-| `updated_at` | `TIMESTAMPTZ` | 更新时间 |
+| 字段                  | 类型             | 说明                                                                                                                             |
+| --------------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `approval_id`         | `TEXT` PK        | 例如 `APR-20260316-001`                                                                                                          |
+| `approval_type`       | `TEXT`           | `deposit_repair / refund_approve / withdrawal_approve / fee_policy_change`                                                       |
+| `approval_level`      | `TEXT`           | `L1 / L2 / L3 / L4`                                                                                                              |
+| `status`              | `TEXT`           | `DRAFT / SUBMITTED / UNDER_REVIEW / APPROVED_PENDING_EXECUTION / EXECUTING / EXECUTED / REJECTED / FAILED / CANCELLED / EXPIRED` |
+| `requester_id`        | `TEXT` FK        | 发起人                                                                                                                           |
+| `current_approver_id` | `TEXT` FK        | 当前审批人，可空                                                                                                                 |
+| `resource_type`       | `TEXT`           | 例如 `deposit_intent`                                                                                                            |
+| `resource_id`         | `TEXT`           | 目标业务对象 ID                                                                                                                  |
+| `owner_address`       | `TEXT`           | 受影响钱包地址，可空                                                                                                             |
+| `tx_hash`             | `TEXT`           | 关联链上交易，可空                                                                                                               |
+| `event_key`           | `TEXT`           | 关联链上事件键，可空                                                                                                             |
+| `risk_level`          | `TEXT`           | `green / yellow / red`                                                                                                           |
+| `amount_usdc`         | `NUMERIC(36, 6)` | 影响金额                                                                                                                         |
+| `reason`              | `TEXT`           | 发起原因                                                                                                                         |
+| `payload_json`        | `JSONB`          | 动作参数快照                                                                                                                     |
+| `request_id`          | `TEXT`           | 前端请求号                                                                                                                       |
+| `trace_id`            | `TEXT`           | 技术链路号                                                                                                                       |
+| `submitted_at`        | `TIMESTAMPTZ`    | 提交时间                                                                                                                         |
+| `approved_at`         | `TIMESTAMPTZ`    | 审批通过时间                                                                                                                     |
+| `rejected_at`         | `TIMESTAMPTZ`    | 审批拒绝时间                                                                                                                     |
+| `executed_at`         | `TIMESTAMPTZ`    | 执行成功时间                                                                                                                     |
+| `expires_at`          | `TIMESTAMPTZ`    | 过期时间                                                                                                                         |
+| `created_at`          | `TIMESTAMPTZ`    | 创建时间                                                                                                                         |
+| `updated_at`          | `TIMESTAMPTZ`    | 更新时间                                                                                                                         |
 
 关键约束与索引：
 
@@ -278,21 +286,21 @@ Dashboard 不建议自己再建一套交易明细真相表。一期建议：
 
 用途：多级审批步骤表，解决 L2/L3/L4 审批链和 SoD 约束。
 
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| `step_id` | `TEXT` / `UUID` PK | 步骤主键 |
-| `approval_id` | `TEXT` FK | 所属审批单 |
-| `step_no` | `INTEGER` | 第几级审批 |
-| `required_role` | `TEXT` | 本步骤要求角色 |
-| `required_permission` | `TEXT` | 本步骤要求权限 |
-| `approver_id` | `TEXT` FK | 实际审批人，可空 |
-| `decision` | `TEXT` | `APPROVE / REJECT / ESCALATE / SKIP` |
-| `decision_comment` | `TEXT` | 审批意见 |
-| `assigned_at` | `TIMESTAMPTZ` | 分配时间 |
-| `decided_at` | `TIMESTAMPTZ` | 决策时间 |
-| `due_at` | `TIMESTAMPTZ` | 截止时间 |
-| `metadata_json` | `JSONB` | 扩展信息 |
-| `created_at` | `TIMESTAMPTZ` | 创建时间 |
+| 字段                  | 类型               | 说明                                 |
+| --------------------- | ------------------ | ------------------------------------ |
+| `step_id`             | `TEXT` / `UUID` PK | 步骤主键                             |
+| `approval_id`         | `TEXT` FK          | 所属审批单                           |
+| `step_no`             | `INTEGER`          | 第几级审批                           |
+| `required_role`       | `TEXT`             | 本步骤要求角色                       |
+| `required_permission` | `TEXT`             | 本步骤要求权限                       |
+| `approver_id`         | `TEXT` FK          | 实际审批人，可空                     |
+| `decision`            | `TEXT`             | `APPROVE / REJECT / ESCALATE / SKIP` |
+| `decision_comment`    | `TEXT`             | 审批意见                             |
+| `assigned_at`         | `TIMESTAMPTZ`      | 分配时间                             |
+| `decided_at`          | `TIMESTAMPTZ`      | 决策时间                             |
+| `due_at`              | `TIMESTAMPTZ`      | 截止时间                             |
+| `metadata_json`       | `JSONB`            | 扩展信息                             |
+| `created_at`          | `TIMESTAMPTZ`      | 创建时间                             |
 
 关键约束与索引：
 
@@ -303,20 +311,20 @@ Dashboard 不建议自己再建一套交易明细真相表。一期建议：
 
 用途：审批状态机事件流，记录每次状态变化与责任链。
 
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| `event_id` | `BIGSERIAL` PK | 事件主键 |
-| `approval_id` | `TEXT` FK | 所属审批单 |
-| `event_type` | `TEXT` | `CREATED / SUBMITTED / ASSIGNED / APPROVED / REJECTED / EXECUTION_STARTED / EXECUTION_FAILED` |
-| `operator_id` | `TEXT` | 操作者 |
-| `operator_role` | `TEXT` | 操作者角色 |
-| `from_status` | `TEXT` | 原状态 |
-| `to_status` | `TEXT` | 新状态 |
-| `comment` | `TEXT` | 补充说明 |
-| `request_id` | `TEXT` | 请求号 |
-| `trace_id` | `TEXT` | 链路号 |
-| `detail_json` | `JSONB` | 事件细节 |
-| `created_at` | `TIMESTAMPTZ` | 发生时间 |
+| 字段            | 类型           | 说明                                                                                          |
+| --------------- | -------------- | --------------------------------------------------------------------------------------------- |
+| `event_id`      | `BIGSERIAL` PK | 事件主键                                                                                      |
+| `approval_id`   | `TEXT` FK      | 所属审批单                                                                                    |
+| `event_type`    | `TEXT`         | `CREATED / SUBMITTED / ASSIGNED / APPROVED / REJECTED / EXECUTION_STARTED / EXECUTION_FAILED` |
+| `operator_id`   | `TEXT`         | 操作者                                                                                        |
+| `operator_role` | `TEXT`         | 操作者角色                                                                                    |
+| `from_status`   | `TEXT`         | 原状态                                                                                        |
+| `to_status`     | `TEXT`         | 新状态                                                                                        |
+| `comment`       | `TEXT`         | 补充说明                                                                                      |
+| `request_id`    | `TEXT`         | 请求号                                                                                        |
+| `trace_id`      | `TEXT`         | 链路号                                                                                        |
+| `detail_json`   | `JSONB`        | 事件细节                                                                                      |
+| `created_at`    | `TIMESTAMPTZ`  | 发生时间                                                                                      |
 
 关键约束与索引：
 
@@ -327,26 +335,26 @@ Dashboard 不建议自己再建一套交易明细真相表。一期建议：
 
 用途：审批通过后的执行任务队列，保证控制面和交易执行面解耦。
 
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| `job_id` | `TEXT` / `UUID` PK | 执行任务主键 |
-| `approval_id` | `TEXT` FK | 来源审批单 |
-| `execution_type` | `TEXT` | `deposit_repair / refund_execute / withdrawal_release / fee_policy_apply` |
-| `target_system` | `TEXT` | `gateway / config_center / analytics` |
-| `status` | `TEXT` | `PENDING / RUNNING / SUCCEEDED / FAILED / CANCELLED` |
-| `idempotency_key` | `TEXT` | 执行幂等键 |
-| `handler_name` | `TEXT` | 处理器名 |
-| `request_payload_json` | `JSONB` | 发送给执行器的参数 |
-| `result_payload_json` | `JSONB` | 执行结果快照 |
-| `error_code` | `TEXT` | 失败错误码 |
-| `error_message` | `TEXT` | 失败摘要 |
-| `queued_by` | `TEXT` | 入队操作者 |
-| `started_at` | `TIMESTAMPTZ` | 开始执行时间 |
-| `finished_at` | `TIMESTAMPTZ` | 完成时间 |
-| `retry_count` | `INTEGER` | 已重试次数 |
-| `max_retry_count` | `INTEGER` | 最大重试次数 |
-| `created_at` | `TIMESTAMPTZ` | 创建时间 |
-| `updated_at` | `TIMESTAMPTZ` | 更新时间 |
+| 字段                   | 类型               | 说明                                                                      |
+| ---------------------- | ------------------ | ------------------------------------------------------------------------- |
+| `job_id`               | `TEXT` / `UUID` PK | 执行任务主键                                                              |
+| `approval_id`          | `TEXT` FK          | 来源审批单                                                                |
+| `execution_type`       | `TEXT`             | `deposit_repair / refund_execute / withdrawal_release / fee_policy_apply` |
+| `target_system`        | `TEXT`             | `gateway / config_center / analytics`                                     |
+| `status`               | `TEXT`             | `PENDING / RUNNING / SUCCEEDED / FAILED / CANCELLED`                      |
+| `idempotency_key`      | `TEXT`             | 执行幂等键                                                                |
+| `handler_name`         | `TEXT`             | 处理器名                                                                  |
+| `request_payload_json` | `JSONB`            | 发送给执行器的参数                                                        |
+| `result_payload_json`  | `JSONB`            | 执行结果快照                                                              |
+| `error_code`           | `TEXT`             | 失败错误码                                                                |
+| `error_message`        | `TEXT`             | 失败摘要                                                                  |
+| `queued_by`            | `TEXT`             | 入队操作者                                                                |
+| `started_at`           | `TIMESTAMPTZ`      | 开始执行时间                                                              |
+| `finished_at`          | `TIMESTAMPTZ`      | 完成时间                                                                  |
+| `retry_count`          | `INTEGER`          | 已重试次数                                                                |
+| `max_retry_count`      | `INTEGER`          | 最大重试次数                                                              |
+| `created_at`           | `TIMESTAMPTZ`      | 创建时间                                                                  |
+| `updated_at`           | `TIMESTAMPTZ`      | 更新时间                                                                  |
 
 关键约束与索引：
 
@@ -358,19 +366,19 @@ Dashboard 不建议自己再建一套交易明细真相表。一期建议：
 
 用途：执行重试明细。没有这张表，后续排查“为什么补账单重试 3 次还失败”会直接瞎。
 
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| `attempt_id` | `BIGSERIAL` PK | 重试记录主键 |
-| `job_id` | `TEXT` FK | 所属执行任务 |
-| `attempt_no` | `INTEGER` | 第几次执行 |
-| `status` | `TEXT` | `RUNNING / SUCCEEDED / FAILED` |
-| `request_id` | `TEXT` | 执行请求号 |
-| `trace_id` | `TEXT` | 链路号 |
-| `started_at` | `TIMESTAMPTZ` | 开始时间 |
-| `finished_at` | `TIMESTAMPTZ` | 完成时间 |
-| `error_code` | `TEXT` | 失败错误码 |
-| `error_summary` | `TEXT` | 失败摘要 |
-| `response_digest` | `TEXT` | 执行结果摘要 |
+| 字段              | 类型           | 说明                           |
+| ----------------- | -------------- | ------------------------------ |
+| `attempt_id`      | `BIGSERIAL` PK | 重试记录主键                   |
+| `job_id`          | `TEXT` FK      | 所属执行任务                   |
+| `attempt_no`      | `INTEGER`      | 第几次执行                     |
+| `status`          | `TEXT`         | `RUNNING / SUCCEEDED / FAILED` |
+| `request_id`      | `TEXT`         | 执行请求号                     |
+| `trace_id`        | `TEXT`         | 链路号                         |
+| `started_at`      | `TIMESTAMPTZ`  | 开始时间                       |
+| `finished_at`     | `TIMESTAMPTZ`  | 完成时间                       |
+| `error_code`      | `TEXT`         | 失败错误码                     |
+| `error_summary`   | `TEXT`         | 失败摘要                       |
+| `response_digest` | `TEXT`         | 执行结果摘要                   |
 
 关键约束与索引：
 
@@ -383,28 +391,28 @@ Dashboard 不建议自己再建一套交易明细真相表。一期建议：
 
 用途：后台控制面统一审计主表。
 
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| `audit_id` | `BIGSERIAL` PK | 审计主键 |
-| `action_type` | `TEXT` | 例如 `admin.login.success`、`approval.submit`、`approval.decide` |
-| `operator_id` | `TEXT` | 操作者 |
-| `operator_email` | `TEXT` | 操作者邮箱 |
-| `operator_role` | `TEXT` | 操作者角色 |
-| `session_id` | `TEXT` | 会话号 |
-| `approval_id` | `TEXT` | 关联审批单，可空 |
-| `job_id` | `TEXT` | 关联执行任务，可空 |
-| `request_id` | `TEXT` | 请求号 |
-| `trace_id` | `TEXT` | 链路号 |
-| `resource_type` | `TEXT` | 资源类型 |
-| `resource_id` | `TEXT` | 资源 ID |
-| `result_status` | `TEXT` | `success / failure / denied` |
-| `error_code` | `TEXT` | 错误码 |
-| `client_ip` | `TEXT` | 客户端 IP |
-| `user_agent` | `TEXT` | 设备信息 |
-| `before_json` | `JSONB` | 变更前快照 |
-| `after_json` | `JSONB` | 变更后快照 |
-| `detail_json` | `JSONB` | 额外上下文 |
-| `created_at` | `TIMESTAMPTZ` | 记录时间 |
+| 字段             | 类型           | 说明                                                             |
+| ---------------- | -------------- | ---------------------------------------------------------------- |
+| `audit_id`       | `BIGSERIAL` PK | 审计主键                                                         |
+| `action_type`    | `TEXT`         | 例如 `admin.login.success`、`approval.submit`、`approval.decide` |
+| `operator_id`    | `TEXT`         | 操作者                                                           |
+| `operator_email` | `TEXT`         | 操作者邮箱                                                       |
+| `operator_role`  | `TEXT`         | 操作者角色                                                       |
+| `session_id`     | `TEXT`         | 会话号                                                           |
+| `approval_id`    | `TEXT`         | 关联审批单，可空                                                 |
+| `job_id`         | `TEXT`         | 关联执行任务，可空                                               |
+| `request_id`     | `TEXT`         | 请求号                                                           |
+| `trace_id`       | `TEXT`         | 链路号                                                           |
+| `resource_type`  | `TEXT`         | 资源类型                                                         |
+| `resource_id`    | `TEXT`         | 资源 ID                                                          |
+| `result_status`  | `TEXT`         | `success / failure / denied`                                     |
+| `error_code`     | `TEXT`         | 错误码                                                           |
+| `client_ip`      | `TEXT`         | 客户端 IP                                                        |
+| `user_agent`     | `TEXT`         | 设备信息                                                         |
+| `before_json`    | `JSONB`        | 变更前快照                                                       |
+| `after_json`     | `JSONB`        | 变更后快照                                                       |
+| `detail_json`    | `JSONB`        | 额外上下文                                                       |
+| `created_at`     | `TIMESTAMPTZ`  | 记录时间                                                         |
 
 关键约束与索引：
 
@@ -418,18 +426,18 @@ Dashboard 不建议自己再建一套交易明细真相表。一期建议：
 
 用途：审计导出留痕。没有它，导出就是黑洞。
 
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| `export_id` | `TEXT` / `UUID` PK | 导出任务主键 |
-| `operator_id` | `TEXT` | 导出发起人 |
-| `export_scope` | `TEXT` | `approval / audit_admin / audit_finance` |
-| `filters_json` | `JSONB` | 导出过滤条件 |
-| `row_count` | `INTEGER` | 导出行数 |
-| `contains_sensitive_data` | `BOOLEAN` | 是否包含敏感字段 |
-| `status` | `TEXT` | `queued / completed / failed / expired` |
-| `file_ref` | `TEXT` | 文件引用或对象存储地址 |
-| `created_at` | `TIMESTAMPTZ` | 创建时间 |
-| `expires_at` | `TIMESTAMPTZ` | 过期时间 |
+| 字段                      | 类型               | 说明                                     |
+| ------------------------- | ------------------ | ---------------------------------------- |
+| `export_id`               | `TEXT` / `UUID` PK | 导出任务主键                             |
+| `operator_id`             | `TEXT`             | 导出发起人                               |
+| `export_scope`            | `TEXT`             | `approval / audit_admin / audit_finance` |
+| `filters_json`            | `JSONB`            | 导出过滤条件                             |
+| `row_count`               | `INTEGER`          | 导出行数                                 |
+| `contains_sensitive_data` | `BOOLEAN`          | 是否包含敏感字段                         |
+| `status`                  | `TEXT`             | `queued / completed / failed / expired`  |
+| `file_ref`                | `TEXT`             | 文件引用或对象存储地址                   |
+| `created_at`              | `TIMESTAMPTZ`      | 创建时间                                 |
+| `expires_at`              | `TIMESTAMPTZ`      | 过期时间                                 |
 
 关键约束与索引：
 
@@ -440,18 +448,18 @@ Dashboard 不建议自己再建一套交易明细真相表。一期建议：
 
 用途：保存控制面的文档型配置快照。当前第一批只落 `admin_menu_config`，由 `draft` / `published` 两个版本组成。
 
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| `config_key` | `TEXT` PK | 配置类型，例如 `admin_menu_config` |
-| `draft_payload_json` | `JSONB` | 草稿配置快照 |
-| `published_payload_json` | `JSONB` | 已发布配置快照 |
-| `draft_version` | `INTEGER` | 草稿版本号 |
-| `published_version` | `INTEGER` | 已发布版本号 |
-| `updated_by` | `TEXT` FK | 最近编辑人 |
-| `published_by` | `TEXT` FK | 最近发布人 |
-| `created_at` | `TIMESTAMPTZ` | 创建时间 |
-| `updated_at` | `TIMESTAMPTZ` | 最近草稿更新时间 |
-| `published_at` | `TIMESTAMPTZ` | 最近发布时间 |
+| 字段                     | 类型          | 说明                               |
+| ------------------------ | ------------- | ---------------------------------- |
+| `config_key`             | `TEXT` PK     | 配置类型，例如 `admin_menu_config` |
+| `draft_payload_json`     | `JSONB`       | 草稿配置快照                       |
+| `published_payload_json` | `JSONB`       | 已发布配置快照                     |
+| `draft_version`          | `INTEGER`     | 草稿版本号                         |
+| `published_version`      | `INTEGER`     | 已发布版本号                       |
+| `updated_by`             | `TEXT` FK     | 最近编辑人                         |
+| `published_by`           | `TEXT` FK     | 最近发布人                         |
+| `created_at`             | `TIMESTAMPTZ` | 创建时间                           |
+| `updated_at`             | `TIMESTAMPTZ` | 最近草稿更新时间                   |
+| `published_at`           | `TIMESTAMPTZ` | 最近发布时间                       |
 
 `admin_menu_config` 的 payload 采用文档型树节点数组：
 
