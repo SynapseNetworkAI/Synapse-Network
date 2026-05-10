@@ -6,9 +6,16 @@ import secrets
 from uuid import uuid4
 
 from src.core.config import get_settings
-from src.core.errors import AdminAccountLockedError, AuthenticationError, BadRequestError, MfaEnrollmentRequiredError
+from src.core.errors import AdminAccountLockedError, AuthenticationError, BadRequestError, ConflictError, DuplicateGoogleAuthenticatorSecretError, MfaEnrollmentRequiredError
 from src.core.security import verify_password
 from src.core.totp import build_totp_otpauth_url, generate_totp_secret
+from src.core.totp_secret_store import (
+    build_inline_totp_secret_ref,
+    factor_totp_secret,
+    is_totp_secret_configured,
+    payload_totp_metadata,
+    totp_secret_fingerprint,
+)
 from src.domain import AdminActionAudit, AdminSession
 from src.domain import AdminMfaEnrollmentChallenge, AdminMfaFactor, AdminUser
 from src.domain.enums import AdminSessionStatus, AdminUserStatus, AuditResultStatus, MfaEnrollmentChallengeStatus, MfaFactorStatus, MfaFactorType, RoleBindingStatus
@@ -41,11 +48,6 @@ ADMIN_ACCOUNT_LOCKED_MESSAGE = "Admin account is temporarily locked. Try later o
 SHORT_EMAIL_LOCAL_PART_MAX = 2
 
 logger = logging.getLogger(__name__)
-
-
-def _totp_secret_is_configured(secret: str) -> bool:
-    normalized = secret.strip()
-    return bool(normalized) and normalized != "__BOOTSTRAP_TOTP_SECRET__"
 
 
 @dataclass(frozen=True)
@@ -120,11 +122,22 @@ class AdminAuthService:
     def get_security_policy(self) -> AdminGoogleAuthenticatorPolicy:
         return build_google_authenticator_policy()
 
-    def begin_mfa_enrollment(self, enrollment_token: str) -> MfaEnrollmentBeginResult:
-        challenge = self._get_valid_enrollment_challenge(enrollment_token)
+    def begin_mfa_enrollment(
+        self,
+        enrollment_token: str,
+        *,
+        client_ip: str | None = None,
+        user_agent: str | None = None,
+    ) -> MfaEnrollmentBeginResult:
+        challenge = self._get_valid_enrollment_challenge(
+            enrollment_token,
+            client_ip=client_ip,
+            user_agent=user_agent,
+        )
         user = self._get_active_user(challenge.admin_id)
         now = datetime.now(timezone.utc)
         factor = self._get_or_create_pending_factor(user, challenge, now)
+        factor_secret = factor_totp_secret(factor)
         expires_in = max(0, int((challenge.expires_at - now).total_seconds())) if challenge.expires_at else 0
         return MfaEnrollmentBeginResult(
             factor_id=factor.factor_id,
@@ -133,9 +146,9 @@ class AdminAuthService:
             otpauth_url=build_totp_otpauth_url(
                 issuer=self._settings.admin_google_authenticator_issuer,
                 account_name=user.email,
-                secret=str(factor.payload.get("totpSecret") or ""),
+                secret=factor_secret,
             ),
-            manual_entry_key=str(factor.payload.get("totpSecret") or ""),
+            manual_entry_key=factor_secret,
             expires_in=expires_in,
         )
 
@@ -151,7 +164,11 @@ class AdminAuthService:
     ) -> tuple[str, AdminIdentity]:
         if not factor_id.strip() or not otp_code.strip():
             raise BadRequestError(FACTOR_ID_OTP_CODE_REQUIRED)
-        challenge = self._get_valid_enrollment_challenge(enrollment_token)
+        challenge = self._get_valid_enrollment_challenge(
+            enrollment_token,
+            client_ip=client_ip,
+            user_agent=user_agent,
+        )
         if challenge.factor_id != factor_id:
             raise AuthenticationError(INVALID_MFA_ENROLLMENT_FACTOR)
         user = self._get_active_user(challenge.admin_id)
@@ -164,7 +181,7 @@ class AdminAuthService:
             raise AuthenticationError(INVALID_GOOGLE_AUTHENTICATOR_CODE)
         self._store.identity.clear_login_failures(user.admin_id)
         now = datetime.now(timezone.utc)
-        self._store.identity.upsert_mfa_factor(
+        self._persist_mfa_factor(
             AdminMfaFactor(
                 factor_id=factor.factor_id,
                 admin_id=factor.admin_id,
@@ -172,6 +189,7 @@ class AdminAuthService:
                 factor_label=factor.factor_label,
                 status=MfaFactorStatus.ACTIVE,
                 secret_ref=factor.secret_ref,
+                totp_secret_fingerprint=totp_secret_fingerprint(factor_totp_secret(factor)),
                 payload=factor.payload,
                 last_verified_at=now,
                 created_at=factor.created_at,
@@ -186,7 +204,7 @@ class AdminAuthService:
                 continue
             if other_factor.status not in {MfaFactorStatus.PENDING, MfaFactorStatus.ACTIVE}:
                 continue
-            self._store.identity.upsert_mfa_factor(self._revoked_totp_factor(other_factor, now))
+            self._persist_mfa_factor(self._revoked_totp_factor(other_factor, now))
         self._store.identity.upsert_mfa_enrollment_challenge(
             AdminMfaEnrollmentChallenge(
                 challenge_id=challenge.challenge_id,
@@ -222,7 +240,7 @@ class AdminAuthService:
         if not (otp_code or "").strip():
             raise AuthenticationError(HIGH_RISK_GOOGLE_AUTHENTICATOR_CODE_REQUIRED)
         factor = self._get_active_totp_factor(user)
-        if not _totp_secret_is_configured(str(factor.payload.get("totpSecret") or "")):
+        if not is_totp_secret_configured(factor_totp_secret(factor)):
             raise AuthenticationError(ADMIN_GOOGLE_AUTHENTICATOR_NOT_CONFIGURED)
         if not verify_google_authenticator_code(factor, otp_code or ""):
             raise AuthenticationError(INVALID_GOOGLE_AUTHENTICATOR_CODE)
@@ -539,11 +557,17 @@ class AdminAuthService:
                 continue
             if factor.factor_type != MfaFactorType.TOTP:
                 continue
-            if _totp_secret_is_configured(str(factor.payload.get("totpSecret") or "")):
+            if is_totp_secret_configured(factor_totp_secret(factor)):
                 return True
         return False
 
-    def _get_valid_enrollment_challenge(self, enrollment_token: str) -> AdminMfaEnrollmentChallenge:
+    def _get_valid_enrollment_challenge(
+        self,
+        enrollment_token: str,
+        *,
+        client_ip: str | None,
+        user_agent: str | None,
+    ) -> AdminMfaEnrollmentChallenge:
         if not enrollment_token.strip():
             raise BadRequestError(ENROLLMENT_TOKEN_REQUIRED)
         token_hash = self._hash_enrollment_token(enrollment_token)
@@ -572,6 +596,10 @@ class AdminAuthService:
             raise AuthenticationError(MFA_ENROLLMENT_TOKEN_EXPIRED)
         if challenge.status != MfaEnrollmentChallengeStatus.ISSUED:
             raise AuthenticationError(MFA_ENROLLMENT_TOKEN_NOT_VALID)
+        if challenge.client_ip and challenge.client_ip != (client_ip or ""):
+            raise AuthenticationError(INVALID_MFA_ENROLLMENT_TOKEN)
+        if challenge.user_agent and challenge.user_agent != (user_agent or ""):
+            raise AuthenticationError(INVALID_MFA_ENROLLMENT_TOKEN)
         return challenge
 
     def _get_or_create_pending_factor(
@@ -585,17 +613,19 @@ class AdminAuthService:
             factor = self._find_reusable_enrollment_factor(user)
         factor_id = factor.factor_id if factor else uuid4().hex
         created_at = factor.created_at if factor else now
-        candidate_secret = str(factor.payload.get("totpSecret") or "").strip() if factor else ""
-        existing_secret = candidate_secret if _totp_secret_is_configured(candidate_secret) else ""
-        factor = self._store.identity.upsert_mfa_factor(
+        candidate_secret = factor_totp_secret(factor) if factor else ""
+        existing_secret = candidate_secret if is_totp_secret_configured(candidate_secret) else ""
+        secret = existing_secret or generate_totp_secret()
+        factor = self._persist_mfa_factor(
             AdminMfaFactor(
                 factor_id=factor_id,
                 admin_id=user.admin_id,
                 factor_type=MfaFactorType.TOTP,
                 factor_label=factor.factor_label if factor else "primary",
                 status=MfaFactorStatus.PENDING,
-                secret_ref=None,
-                payload={"totpSecret": existing_secret or generate_totp_secret()},
+                secret_ref=build_inline_totp_secret_ref(secret),
+                totp_secret_fingerprint=totp_secret_fingerprint(secret),
+                payload=payload_totp_metadata(secret, migrated=bool(factor and not factor.secret_ref)),
                 last_verified_at=None,
                 created_at=created_at,
                 updated_at=now,
@@ -630,7 +660,7 @@ class AdminAuthService:
                 return candidate
             if candidate.factor_label != "primary":
                 continue
-            if not _totp_secret_is_configured(str(candidate.payload.get("totpSecret") or "")):
+            if not is_totp_secret_configured(factor_totp_secret(candidate)):
                 primary_candidate = candidate
         return primary_candidate
 
@@ -661,7 +691,7 @@ class AdminAuthService:
         factor = self._get_active_totp_factor(user)
         if not (otp_code or "").strip():
             raise BadRequestError(LOGIN_TOTP_CODE_REQUIRED)
-        if not _totp_secret_is_configured(str(factor.payload.get("totpSecret") or "")):
+        if not is_totp_secret_configured(factor_totp_secret(factor)):
             raise AuthenticationError(ADMIN_GOOGLE_AUTHENTICATOR_NOT_CONFIGURED)
         if not verify_google_authenticator_code(factor, otp_code or ""):
             raise AuthenticationError(INVALID_GOOGLE_AUTHENTICATOR_CODE)
@@ -673,7 +703,7 @@ class AdminAuthService:
                 continue
             if factor.factor_type != MfaFactorType.TOTP:
                 continue
-            if _totp_secret_is_configured(str(factor.payload.get("totpSecret") or "")):
+            if is_totp_secret_configured(factor_totp_secret(factor)):
                 active_factors.append(factor)
         if not active_factors:
             raise AuthenticationError(ADMIN_GOOGLE_AUTHENTICATOR_NOT_CONFIGURED)
@@ -689,9 +719,18 @@ class AdminAuthService:
             factor_label=factor.factor_label,
             status=MfaFactorStatus.REVOKED,
             secret_ref=factor.secret_ref,
+            totp_secret_fingerprint=factor.totp_secret_fingerprint,
             payload=factor.payload,
             last_verified_at=factor.last_verified_at,
             created_at=factor.created_at,
             updated_at=now,
             revoked_at=now,
         )
+
+    def _persist_mfa_factor(self, factor: AdminMfaFactor) -> AdminMfaFactor:
+        try:
+            return self._store.identity.upsert_mfa_factor(factor)
+        except DuplicateGoogleAuthenticatorSecretError:
+            raise
+        except ConflictError as exc:
+            raise DuplicateGoogleAuthenticatorSecretError() from exc

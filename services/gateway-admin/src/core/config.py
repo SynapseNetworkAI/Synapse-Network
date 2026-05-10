@@ -2,8 +2,10 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Optional
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from src.core.totp_secret_constants import DEFAULT_LOCAL_TOTP_ENCRYPTION_KEY, DEFAULT_LOCAL_TOTP_ENCRYPTION_KEY_PLACEHOLDER, MIN_INTERNAL_JWT_SECRET_BYTES
 
 
 SERVICE_ROOT = Path(__file__).resolve().parents[2]
@@ -26,6 +28,8 @@ ADMIN_LOGIN_LOCK_THRESHOLD_TYPE_ERROR = "ADMIN_LOGIN_LOCK_THRESHOLD must be an i
 ADMIN_LOGIN_LOCK_THRESHOLD_RANGE_ERROR = "ADMIN_LOGIN_LOCK_THRESHOLD must be between 3 and 10"
 ADMIN_LOGIN_LOCK_HOURS_TYPE_ERROR = "ADMIN_LOGIN_LOCK_HOURS must be an integer between 1 and 168"
 ADMIN_LOGIN_LOCK_HOURS_RANGE_ERROR = "ADMIN_LOGIN_LOCK_HOURS must be between 1 and 168"
+DEFAULT_ADMIN_CSRF_SECRET = "replace-this-with-a-dedicated-admin-csrf-secret"  # noqa: S105 - documented placeholder, rejected outside local.
+DEFAULT_GATEWAY_INTERNAL_TOKEN_PLACEHOLDER = "replace-this-with-a-32-byte-minimum-jwt-secret"  # noqa: S105 - documented placeholder, rejected outside local.
 
 
 class Settings(BaseSettings):
@@ -124,8 +128,12 @@ class Settings(BaseSettings):
         alias="ADMIN_SESSION_COOKIE_DOMAIN",
     )
     admin_csrf_secret: str = Field(
-        default="replace-this-with-a-dedicated-admin-csrf-secret",
+        default=DEFAULT_ADMIN_CSRF_SECRET,
         alias="ADMIN_CSRF_SECRET",
+    )
+    admin_totp_secret_encryption_key: str = Field(
+        default=DEFAULT_LOCAL_TOTP_ENCRYPTION_KEY,
+        alias="ADMIN_TOTP_SECRET_ENCRYPTION_KEY",
     )
     admin_google_authenticator_login_enabled: bool = Field(
         default=True,
@@ -196,7 +204,7 @@ class Settings(BaseSettings):
         alias="GATEWAY_INTERNAL_ADMIN_WALLET",
     )
     gateway_internal_jwt_secret: str = Field(
-        default="replace-this-with-a-32-byte-minimum-jwt-secret",
+        default=DEFAULT_GATEWAY_INTERNAL_TOKEN_PLACEHOLDER,
         alias="GATEWAY_INTERNAL_JWT_SECRET",
     )
     gateway_internal_token_issuer: str = Field(
@@ -278,6 +286,36 @@ class Settings(BaseSettings):
         if hours < ADMIN_LOGIN_LOCK_HOURS_MIN or hours > ADMIN_LOGIN_LOCK_HOURS_MAX:
             raise ValueError(ADMIN_LOGIN_LOCK_HOURS_RANGE_ERROR)
         return hours
+
+    @model_validator(mode="after")
+    def validate_security_baseline(self) -> "Settings":
+        if self.environment not in {"staging", "prod"}:
+            return self
+
+        violations: list[str] = []
+        if self.debug:
+            violations.append("ADMIN_GATEWAY_DEBUG must be false outside local")
+        if not self.admin_session_cookie_secure:
+            violations.append("ADMIN_SESSION_COOKIE_SECURE must be true outside local")
+        if not self.admin_csrf_secret.strip() or self.admin_csrf_secret == DEFAULT_ADMIN_CSRF_SECRET:
+            violations.append("ADMIN_CSRF_SECRET must be replaced outside local")
+        if (
+            not self.gateway_internal_jwt_secret.strip()
+            or self.gateway_internal_jwt_secret == DEFAULT_GATEWAY_INTERNAL_TOKEN_PLACEHOLDER
+            or len(self.gateway_internal_jwt_secret) < MIN_INTERNAL_JWT_SECRET_BYTES
+        ):
+            violations.append("GATEWAY_INTERNAL_JWT_SECRET must be replaced with a 32-byte minimum secret outside local")
+        if (
+            not self.admin_totp_secret_encryption_key.strip()
+            or self.admin_totp_secret_encryption_key in {
+                DEFAULT_LOCAL_TOTP_ENCRYPTION_KEY,
+                DEFAULT_LOCAL_TOTP_ENCRYPTION_KEY_PLACEHOLDER,
+            }
+        ):
+            violations.append("ADMIN_TOTP_SECRET_ENCRYPTION_KEY must be replaced outside local")
+        if violations:
+            raise ValueError("; ".join(violations))
+        return self
 
     def cors_origins(self) -> list[str]:
         origins = [item.strip() for item in self.allowed_origins.split(",") if item.strip()]

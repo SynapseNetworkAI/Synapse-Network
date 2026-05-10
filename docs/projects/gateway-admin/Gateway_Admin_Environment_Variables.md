@@ -73,6 +73,7 @@ sh scripts/ops/start-prod.sh
 6. `ADMIN_GATEWAY_TOKEN_PREFIX`: 管理员 token 前缀，便于审计识别。
 7. `ADMIN_LOGIN_LOCK_THRESHOLD`: 管理员账号连续登录失败锁定阈值，默认 `5`，允许范围 `3..10`，越界拒绝启动。
 8. `ADMIN_LOGIN_LOCK_HOURS`: 管理员账号临时锁定时长，默认 `24` 小时，允许范围 `1..168`，越界拒绝启动。
+9. `ADMIN_TOTP_SECRET_ENCRYPTION_KEY`: 管理员 Google Authenticator secret 的加密主密钥。`staging/prod` 必须替换成真实值，否则服务拒绝启动。
 
 ### 4.2 数据库与只读投影配置
 
@@ -89,6 +90,12 @@ sh scripts/ops/start-prod.sh
 5. `GATEWAY_INTERNAL_TOKEN_AUDIENCE`: 内部 token `aud`。
 6. `GATEWAY_INTERNAL_SERVICE_SUBJECT`: 内部 token `sub`。
 7. `GATEWAY_INTERNAL_TIMEOUT_SEC`: 调用 gateway 内部接口的超时时间。
+
+硬约束：
+
+1. `staging/prod` 下如果 `ADMIN_GATEWAY_DEBUG=true`，服务必须拒绝启动。
+2. `staging/prod` 下如果 `ADMIN_SESSION_COOKIE_SECURE=false`，服务必须拒绝启动。
+3. `staging/prod` 下如果 `ADMIN_CSRF_SECRET`、`GATEWAY_INTERNAL_JWT_SECRET`、`ADMIN_TOTP_SECRET_ENCRYPTION_KEY` 仍是默认占位值，服务必须拒绝启动。
 
 ### 4.4 execution worker 配置
 
