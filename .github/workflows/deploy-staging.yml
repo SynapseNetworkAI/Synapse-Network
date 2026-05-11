@@ -228,7 +228,7 @@ jobs:
         run: |
           services=",${{ steps.scope.outputs.services }},"
           case "${services}" in
-            *,gateway,*|*,gateway-admin,*|*,user-front,*|*,admin-front,*)
+            *,gateway,*|*,user-front,*)
               ;;
             *)
               echo "No Gateway-dependent service in deploy scope; skipping Gateway DB migration guard."
