@@ -1653,14 +1653,25 @@ deploy whitelisted Cloud Run staging services, run staging migration jobs, and
 write deployment evidence. It must not have production deploy or rollback
 authority.
 
-The automated workflow supports:
+Ops Console dispatches staging services through narrow family workflows:
+
+```text
+gateway -> deploy-staging-gateway.yml
+gateway-admin | admin-front -> deploy-staging-admin.yml
+user-front | docs-front -> deploy-staging-frontends.yml
+```
+
+Those family workflows call the reusable core `deploy-staging.yml`, which still
+supports:
 
 ```text
 deploy_scope=auto | gateway | gateway-admin | user-front | admin-front | docs-front | all
 ```
 
-`auto` uses `scripts/deploy/resolve_deploy_scope.mjs` to infer affected services.
-Docs-only changes become `no_deploy` records and do not trigger Cloud Build.
+`auto` uses `scripts/deploy/resolve_deploy_scope.mjs` to infer affected services
+for the compatibility/core runner. New release-task dispatch should prefer the
+family workflow selected by service key, not the mega workflow directly. Docs-only
+changes become `no_deploy` records and do not trigger Cloud Build.
 
 Seed data is not migration data:
 
