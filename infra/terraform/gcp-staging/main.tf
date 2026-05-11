@@ -113,21 +113,22 @@ locals {
     },
   )
   gateway_admin_secret_env = {
-    METRICS_BEARER_TOKEN          = "synapse-staging-metrics-bearer-token"
-    ADMIN_CSRF_SECRET             = "synapse-staging-admin-csrf-secret"
-    ADMIN_DATABASE_DSN            = "synapse-staging-admin-database-dsn"
-    ADMIN_DATABASE_MIGRATION_DSN  = "synapse-staging-admin-database-migration-dsn"
-    GATEWAY_READONLY_DSN          = "synapse-staging-gateway-readonly-dsn"
-    GATEWAY_FORUM_WRITE_DSN       = "synapse-staging-gateway-forum-write-dsn"
-    GATEWAY_INTERNAL_ADMIN_WALLET = "synapse-staging-gateway-admin-wallet"
-    GATEWAY_INTERNAL_JWT_SECRET   = "synapse-staging-gateway-internal-jwt-secret"
-    GCP_ALERT_RECEIVER_TOKEN      = "synapse-staging-gcp-alert-receiver-token"
-    LARK_WEBHOOK_STAGING_DRILL    = "synapse-staging-lark-webhook-staging-drill"
-    LARK_SECRET_STAGING_DRILL     = "synapse-staging-lark-secret-staging-drill"
-    LARK_WEBHOOK_P0_WAR_ROOM      = "synapse-staging-lark-webhook-p0"
-    LARK_SECRET_P0_WAR_ROOM       = "synapse-staging-lark-secret-p0"
-    LARK_WEBHOOK_PROD_ALERTS      = "synapse-staging-lark-webhook-prod-alerts"
-    LARK_SECRET_PROD_ALERTS       = "synapse-staging-lark-secret-prod-alerts"
+    METRICS_BEARER_TOKEN             = "synapse-staging-metrics-bearer-token"
+    ADMIN_CSRF_SECRET                = "synapse-staging-admin-csrf-secret"
+    ADMIN_DATABASE_DSN               = "synapse-staging-admin-database-dsn"
+    ADMIN_DATABASE_MIGRATION_DSN     = "synapse-staging-admin-database-migration-dsn"
+    ADMIN_TOTP_SECRET_ENCRYPTION_KEY = "synapse-staging-admin-totp-secret-encryption-key"
+    GATEWAY_READONLY_DSN             = "synapse-staging-gateway-readonly-dsn"
+    GATEWAY_FORUM_WRITE_DSN          = "synapse-staging-gateway-forum-write-dsn"
+    GATEWAY_INTERNAL_ADMIN_WALLET    = "synapse-staging-gateway-admin-wallet"
+    GATEWAY_INTERNAL_JWT_SECRET      = "synapse-staging-gateway-internal-jwt-secret"
+    GCP_ALERT_RECEIVER_TOKEN         = "synapse-staging-gcp-alert-receiver-token"
+    LARK_WEBHOOK_STAGING_DRILL       = "synapse-staging-lark-webhook-staging-drill"
+    LARK_SECRET_STAGING_DRILL        = "synapse-staging-lark-secret-staging-drill"
+    LARK_WEBHOOK_P0_WAR_ROOM         = "synapse-staging-lark-webhook-p0"
+    LARK_SECRET_P0_WAR_ROOM          = "synapse-staging-lark-secret-p0"
+    LARK_WEBHOOK_PROD_ALERTS         = "synapse-staging-lark-webhook-prod-alerts"
+    LARK_SECRET_PROD_ALERTS          = "synapse-staging-lark-secret-prod-alerts"
   }
   provider_runtime_env = {
     PROVIDER_ENV                           = var.environment
@@ -198,6 +199,7 @@ locals {
         {
           POSTGRES_POOL_MAX             = "3"
           EXECUTION_WORKER_ENABLED      = "false"
+          ADMIN_GATEWAY_DEBUG           = "false"
           ADMIN_GATEWAY_PORT            = "8000"
           ADMIN_GATEWAY_ALLOWED_ORIGINS = "https://admin-staging.synapse-network.ai"
           ADMIN_SESSION_COOKIE_SECURE   = "true"
@@ -362,10 +364,12 @@ locals {
       env = merge(
         local.runtime_env,
         {
-          POSTGRES_POOL_MAX        = "3"
-          POSTGRES_AUTO_INIT       = "0"
-          EXECUTION_WORKER_ENABLED = "false"
-          ADMIN_GATEWAY_PORT       = "8000"
+          POSTGRES_POOL_MAX           = "3"
+          POSTGRES_AUTO_INIT          = "0"
+          EXECUTION_WORKER_ENABLED    = "false"
+          ADMIN_GATEWAY_DEBUG         = "false"
+          ADMIN_GATEWAY_PORT          = "8000"
+          ADMIN_SESSION_COOKIE_SECURE = "true"
         },
       )
       secret_env      = local.gateway_admin_secret_env

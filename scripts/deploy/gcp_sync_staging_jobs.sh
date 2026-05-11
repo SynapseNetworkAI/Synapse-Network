@@ -233,11 +233,19 @@ update_job_set() {
   local job
   for job in "${jobs[@]}"; do
     echo "[gcp-sync-staging-jobs] ${family}: ${job} -> ${image}" >&2
+    local update_flags=()
+    if [[ "${family}" == "gateway-admin" ]]; then
+      update_flags+=(
+        --set-env-vars "ADMIN_GATEWAY_DEBUG=false,ADMIN_SESSION_COOKIE_SECURE=true"
+        --set-secrets "ADMIN_TOTP_SECRET_ENCRYPTION_KEY=synapse-staging-admin-totp-secret-encryption-key:latest"
+      )
+    fi
     if [[ "${DRY_RUN}" != "true" ]]; then
       gcloud run jobs update "${job}" \
         --project "${PROJECT_ID}" \
         --region "${REGION}" \
         --image "${image}" \
+        "${update_flags[@]}" \
         --quiet >/dev/null
     fi
 

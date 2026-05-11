@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import os
 from typing import Any
 
 from cryptography.fernet import Fernet, InvalidToken
@@ -44,6 +45,10 @@ def masked_totp_secret(secret: str) -> str:
 def totp_secret_store_key(raw_key: str | None = None) -> str:
     if raw_key and raw_key.strip():
         return raw_key.strip()
+
+    env_candidate = os.environ.get("ADMIN_TOTP_SECRET_ENCRYPTION_KEY", "").strip()
+    if env_candidate:
+        return env_candidate
 
     settings = get_settings()
     candidate = settings.admin_totp_secret_encryption_key.strip()

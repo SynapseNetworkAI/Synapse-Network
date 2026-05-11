@@ -19,6 +19,7 @@ class TotpSecretMigrationSummary:
 def migrate_legacy_totp_payload_secrets(
     dsn: str,
     *,
+    encryption_key: str | None = None,
     connect: Callable[..., object] | None = None,
 ) -> TotpSecretMigrationSummary:
     connect_fn = connect or psycopg.connect
@@ -51,7 +52,7 @@ def migrate_legacy_totp_payload_secrets(
                     WHERE factor_id = %s
                     """,
                     (
-                        build_inline_totp_secret_ref(legacy_secret),
+                        build_inline_totp_secret_ref(legacy_secret, encryption_key=encryption_key),
                         totp_secret_fingerprint(legacy_secret),
                         Jsonb(payload_totp_metadata(legacy_secret, migrated=True)),
                         factor_id,

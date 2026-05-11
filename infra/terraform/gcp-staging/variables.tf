@@ -192,6 +192,7 @@ variable "secret_ids" {
     "synapse-staging-admin-postgres-password",
     "synapse-staging-admin-database-dsn",
     "synapse-staging-admin-database-migration-dsn",
+    "synapse-staging-admin-totp-secret-encryption-key",
     "synapse-staging-gateway-readonly-dsn",
     "synapse-staging-gateway-forum-write-dsn",
     "synapse-staging-jwt-secret",
