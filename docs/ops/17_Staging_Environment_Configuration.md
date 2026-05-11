@@ -1449,12 +1449,17 @@ controls execution. This prevents the dangerous split-brain state where the API
 writes new ledger/storage shapes while old indexer, processor, or outbox code
 continues to run.
 
-When deploy scope includes any Gateway-dependent service (`gateway`,
-`gateway-admin`, `user-front`, or `admin-front`), the workflow executes the
-Gateway DB migration job before rollout. If the Gateway image is not in scope,
-the workflow still runs the currently deployed migration job as a schema guard.
-This catches half-initialized staging states where Terraform and Secret Manager
-exist but the real Cloud SQL schema is empty or permission-drifted.
+When deploy scope includes a Gateway-runtime-dependent service (`gateway` or
+`user-front`), the workflow executes the Gateway DB migration job before rollout.
+If the Gateway image is not in scope, the workflow still runs the currently
+deployed migration job as a schema guard. This catches half-initialized staging
+states where Terraform and Secret Manager exist but the real Cloud SQL schema is
+empty or permission-drifted.
+
+`gateway-admin` and `admin-front` releases use the separate Gateway-admin DB
+migration job. They must not execute the Gateway migration job unless `gateway`
+is also in the deploy scope, because the two schemas and migration jobs are
+owned by different runtimes.
 
 Manual drift repair uses the same job list as the workflow:
 
@@ -1532,7 +1537,8 @@ sequence is:
 1. Resolve the selected branch/tag/commit into an immutable commit SHA.
 2. Resolve deploy scope (`auto`, one service, or `all`).
 3. Build only affected service images in Cloud Build.
-4. Run the Gateway DB migration job before every Gateway-dependent rollout.
+4. Run the Gateway DB migration job before every Gateway-runtime-dependent
+   rollout (`gateway` or `user-front`).
    This is intentional even when no migration file changed: the migration job
    also checks the real staging Cloud SQL database for table count, required
    tables, migrator ownership, and runtime grants.
