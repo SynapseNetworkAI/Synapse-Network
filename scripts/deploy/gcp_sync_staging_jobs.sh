@@ -126,6 +126,30 @@ provider_jobs=(
   synapse-staging-provider-gpp-e2e
 )
 
+gateway_admin_secret_env=(
+  "METRICS_BEARER_TOKEN=synapse-staging-metrics-bearer-token:latest"
+  "ADMIN_CSRF_SECRET=synapse-staging-admin-csrf-secret:latest"
+  "ADMIN_DATABASE_DSN=synapse-staging-admin-database-dsn:latest"
+  "ADMIN_DATABASE_MIGRATION_DSN=synapse-staging-admin-database-migration-dsn:latest"
+  "ADMIN_TOTP_SECRET_ENCRYPTION_KEY=synapse-staging-admin-totp-secret-encryption-key:latest"
+  "GATEWAY_READONLY_DSN=synapse-staging-gateway-readonly-dsn:latest"
+  "GATEWAY_FORUM_WRITE_DSN=synapse-staging-gateway-forum-write-dsn:latest"
+  "GATEWAY_INTERNAL_ADMIN_WALLET=synapse-staging-gateway-admin-wallet:latest"
+  "GATEWAY_INTERNAL_JWT_SECRET=synapse-staging-gateway-internal-jwt-secret:latest"
+  "GCP_ALERT_RECEIVER_TOKEN=synapse-staging-gcp-alert-receiver-token:latest"
+  "LARK_WEBHOOK_STAGING_DRILL=synapse-staging-lark-webhook-staging-drill:latest"
+  "LARK_SECRET_STAGING_DRILL=synapse-staging-lark-secret-staging-drill:latest"
+  "LARK_WEBHOOK_P0_WAR_ROOM=synapse-staging-lark-webhook-p0:latest"
+  "LARK_SECRET_P0_WAR_ROOM=synapse-staging-lark-secret-p0:latest"
+  "LARK_WEBHOOK_PROD_ALERTS=synapse-staging-lark-webhook-prod-alerts:latest"
+  "LARK_SECRET_PROD_ALERTS=synapse-staging-lark-secret-prod-alerts:latest"
+)
+
+join_by_comma() {
+  local IFS=,
+  echo "$*"
+}
+
 requested_jobs=()
 if [[ -n "${JOBS_CSV}" ]]; then
   IFS=',' read -r -a requested_jobs <<< "${JOBS_CSV}"
@@ -237,7 +261,7 @@ update_job_set() {
     if [[ "${family}" == "gateway-admin" ]]; then
       update_flags+=(
         --set-env-vars "ADMIN_GATEWAY_DEBUG=false,ADMIN_SESSION_COOKIE_SECURE=true"
-        --set-secrets "ADMIN_TOTP_SECRET_ENCRYPTION_KEY=synapse-staging-admin-totp-secret-encryption-key:latest"
+        --set-secrets "$(join_by_comma "${gateway_admin_secret_env[@]}")"
       )
     fi
     if [[ "${DRY_RUN}" != "true" ]]; then
