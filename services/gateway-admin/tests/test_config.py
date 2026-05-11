@@ -315,3 +315,54 @@ def test_migrate_legacy_totp_payload_secrets_encrypts_secret_refs() -> None:
     assert params is not None
     assert str(params[0]).startswith("inline-fernet:v1:")
     assert params[1]
+
+
+def test_migrate_legacy_totp_payload_secrets_accepts_migration_only_key(monkeypatch) -> None:
+    from cryptography.fernet import Fernet
+
+    for key in (
+        "ADMIN_GATEWAY_DEBUG",
+        "ADMIN_SESSION_COOKIE_SECURE",
+        "ADMIN_CSRF_SECRET",
+        "GATEWAY_INTERNAL_JWT_SECRET",
+    ):
+        monkeypatch.delenv(key, raising=False)
+    monkeypatch.setenv("ENVIRONMENT", "staging")
+    monkeypatch.setenv("ADMIN_TOTP_SECRET_ENCRYPTION_KEY", Fernet.generate_key().decode("utf-8"))
+
+    executed: list[tuple[object, object | None]] = []
+
+    class FakeCursor:
+        def __enter__(self) -> "FakeCursor":
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> None:
+            return None
+
+        def execute(self, sql: object, params: object | None = None) -> None:
+            executed.append((sql, params))
+
+        def fetchall(self) -> list[dict[str, object]]:
+            return [{"factor_id": "factor_legacy", "payload_json": {"totpSecret": "JBSWY3DPEHPK3PXP"}}]
+
+    class FakeConnection:
+        def __enter__(self) -> "FakeConnection":
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> None:
+            return None
+
+        def cursor(self) -> FakeCursor:
+            return FakeCursor()
+
+        def commit(self) -> None:
+            return None
+
+    summary = migrate_legacy_totp_payload_secrets(
+        "postgresql://example",
+        connect=lambda *args, **kwargs: FakeConnection(),
+    )
+
+    assert summary.scanned == 1
+    assert summary.migrated == 1
+    assert any("UPDATE admin_mfa_factors" in str(sql) for sql, _ in executed)
