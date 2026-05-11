@@ -1,5 +1,5 @@
-"""gateway-admin package."""
+"""Gateway-admin package.
 
-from src.app import app, create_app
-
-__all__ = ["app", "create_app"]
+Importing ``src`` must stay side-effect free so migration and maintenance
+commands can import core modules without constructing the FastAPI app.
+"""
