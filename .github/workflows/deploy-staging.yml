@@ -367,7 +367,10 @@ jobs:
             'docs-front': 'synapse-staging-docs-front',
           }
           for (const [service, image] of Object.entries(images)) {
-            console.log(`gcloud run deploy ${names[service]} --project "$PROJECT_ID" --region "$REGION" --image '${image}' --quiet`)
+            const extraFlags = service === 'gateway-admin'
+              ? " --set-env-vars 'ADMIN_GATEWAY_DEBUG=false,ADMIN_SESSION_COOKIE_SECURE=true' --set-secrets 'ADMIN_TOTP_SECRET_ENCRYPTION_KEY=synapse-staging-admin-totp-secret-encryption-key:latest'"
+              : ''
+            console.log(`gcloud run deploy ${names[service]} --project "$PROJECT_ID" --region "$REGION" --image '${image}'${extraFlags} --quiet`)
           }
           NODE
           bash deploy-services.sh

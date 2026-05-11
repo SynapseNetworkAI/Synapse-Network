@@ -77,6 +77,11 @@ def main() -> int:
         default=os.environ.get("ADMIN_DATABASE_READONLY_USER", ""),
         help="Optional readonly database user that should receive SELECT grants after migrations.",
     )
+    parser.add_argument(
+        "--totp-secret-encryption-key",
+        default=os.environ.get("ADMIN_TOTP_SECRET_ENCRYPTION_KEY", ""),
+        help="Fernet key used to migrate legacy TOTP payload secrets. Defaults to ADMIN_TOTP_SECRET_ENCRYPTION_KEY.",
+    )
     args = parser.parse_args()
 
     if not args.dsn:
@@ -87,7 +92,10 @@ def main() -> int:
         applied_names: list[str] = []
         for sql_file in sql_files:
             applied_names.append(apply_sql_file(args.dsn, sql_file))
-        migrate_summary = migrate_legacy_totp_payload_secrets(args.dsn)
+        migrate_summary = migrate_legacy_totp_payload_secrets(
+            args.dsn,
+            encryption_key=args.totp_secret_encryption_key.strip() or None,
+        )
         app_user = args.app_user.strip() or _env_or_dsn_user("ADMIN_DATABASE_APP_USER", os.environ.get("ADMIN_DATABASE_DSN", ""))
         if app_user:
             grant_admin_schema_access(args.dsn, app_user, readonly_user=args.readonly_user.strip() or None)
