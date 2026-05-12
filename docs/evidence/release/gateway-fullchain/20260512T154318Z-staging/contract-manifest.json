@@ -1,0 +1,15 @@
+{
+  "addresses": {
+    "MockUSDC": "0xfad31daE42B0046aFA106BCf56ED0dDaCA4463B9",
+    "SynapseCore": "0x0bA1dcE1Cc8d877052ab1C3CE2362830459D8FF4"
+  },
+  "blockNumber": 267724372,
+  "chainId": 421614,
+  "codeHashes": {
+    "MockUSDC": "2b6ccf31cf139a5e1a0cc22a46182ab626a511a402f4ecdb49751e876e834b43",
+    "SynapseCore": "05f1ebd8659035aa06f42f191b9ffdd2d7e66efd15bc7ed5c40b1dfcf622dbc7"
+  },
+  "configPath": "services/user-front/src/contract-config.arbitrum-sepolia.example.json",
+  "errors": [],
+  "rpcUrl": "https://arb-sepolia.g.alchemy.com/v2/LNQ4SuGenxsUtQCpH3kMi"
+}
