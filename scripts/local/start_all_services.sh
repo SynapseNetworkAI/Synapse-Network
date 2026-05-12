@@ -516,7 +516,11 @@ status_apps() {
   echo "Infra status:"
   print_status_line "postgres" 15432 "postgresql://127.0.0.1:15432"
   print_status_line "redis" 6379 "redis://127.0.0.1:6379"
-  print_status_line "minio" 9001 "http://127.0.0.1:9001"
+  if [[ "${LOCAL_ENABLE_MINIO:-0}" == "1" ]]; then
+    print_status_line "minio" 9001 "http://127.0.0.1:9001"
+  else
+    printf "%-14s %s\n" "minio" "disabled by default; set LOCAL_ENABLE_MINIO=1 to start"
+  fi
   print_status_line "otterscan" 5100 "http://localhost:5100"
   print_status_line "anvil" 8545 "http://127.0.0.1:8545"
 }

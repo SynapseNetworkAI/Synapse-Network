@@ -1,0 +1,98 @@
+{
+  "failed": [
+    {
+      "actual": "8",
+      "expected": "0",
+      "metricName": "Skipped tests",
+      "pass": false,
+      "stage": "pytest"
+    },
+    {
+      "actual": "test_deposit_full_pipeline=error",
+      "expected": "pass",
+      "metricName": "deposit",
+      "pass": false,
+      "stage": "gateway-fullchain"
+    },
+    {
+      "actual": "test_deposit_confirm=failed",
+      "expected": "pass",
+      "metricName": "confirm",
+      "pass": false,
+      "stage": "gateway-fullchain"
+    },
+    {
+      "actual": "test_get_quote_for_service=skipped",
+      "expected": "pass",
+      "metricName": "service_discovery",
+      "pass": false,
+      "stage": "gateway-fullchain"
+    },
+    {
+      "actual": "test_get_quote_for_service=skipped, test_01_quote_service=failed",
+      "expected": "pass",
+      "metricName": "quote",
+      "pass": false,
+      "stage": "gateway-fullchain"
+    },
+    {
+      "actual": "test_invocation_deducts_balance=skipped, test_02_invoke_service=failed",
+      "expected": "pass",
+      "metricName": "invoke",
+      "pass": false,
+      "stage": "gateway-fullchain"
+    },
+    {
+      "actual": "test_invocation_deducts_balance=skipped",
+      "expected": "pass",
+      "metricName": "provider_credit",
+      "pass": false,
+      "stage": "gateway-fullchain"
+    },
+    {
+      "actual": "test_invocation_receipt_reachable=skipped, test_03_get_invocation_receipt=failed",
+      "expected": "pass",
+      "metricName": "receipt",
+      "pass": false,
+      "stage": "gateway-fullchain"
+    },
+    {
+      "actual": "test_invocation_deducts_balance=skipped",
+      "expected": "pass",
+      "metricName": "ledger_vault_reconciliation",
+      "pass": false,
+      "stage": "gateway-fullchain"
+    }
+  ],
+  "passed": [
+    {
+      "actual": "73",
+      "expected": ">=50",
+      "metricName": "Collected tests",
+      "pass": true,
+      "stage": "pytest"
+    },
+    {
+      "actual": "0",
+      "expected": "0",
+      "metricName": "Contract manifest errors",
+      "pass": true,
+      "stage": "contract"
+    },
+    {
+      "actual": "postgres-outbox",
+      "expected": "postgres-outbox",
+      "metricName": "Postgres outbox mode",
+      "pass": true,
+      "stage": "analytics"
+    },
+    {
+      "actual": "2 testcase(s) passed",
+      "expected": "pass",
+      "metricName": "consumer_withdrawal",
+      "pass": true,
+      "stage": "gateway-fullchain"
+    }
+  ],
+  "source": "gateway e2e expected-vs-actual comparisons"
+}
