@@ -105,17 +105,30 @@ function readGcloudSecret(secretId) {
   }
 }
 
+function isUsableRpcUrl(value) {
+  if (!value) return false;
+  if (!/^https?:\/\//i.test(value)) return false;
+  return !/(replace-with|placeholder|alchemy[_-]?key|infura[_-]?key|api[_-]?key|your[_-]?rpc|must-be-authenticated)/i.test(
+    value
+  );
+}
+
 function resolveRpcUrl() {
   const direct = env(
     "STAGING_RPC_URL",
     env("ARBITRUM_SEPOLIA_RPC_URL", env("RPC_URL", ""))
   );
-  if (direct && !/replace-with|PLACEHOLDER/i.test(direct)) return direct;
+  if (isUsableRpcUrl(direct)) return direct;
   const secretId = env(
     "STAGING_RPC_SECRET_ID",
     "synapse-staging-arbitrum-sepolia-rpc-url"
   );
-  return readGcloudSecret(secretId);
+  const fromSecret = readGcloudSecret(secretId);
+  if (isUsableRpcUrl(fromSecret)) return fromSecret;
+  return env(
+    "STAGING_PUBLIC_RPC_URL",
+    "https://sepolia-rollup.arbitrum.io/rpc"
+  );
 }
 
 function redact(value) {

@@ -384,9 +384,25 @@ jobs:
             'LARK_WEBHOOK_PROD_ALERTS=synapse-staging-lark-webhook-prod-alerts:latest',
             'LARK_SECRET_PROD_ALERTS=synapse-staging-lark-secret-prod-alerts:latest',
           ].join(',')
+          const gatewayAdminEnv = [
+            'POSTGRES_POOL_MAX=3',
+            'EXECUTION_WORKER_ENABLED=false',
+            'ADMIN_GATEWAY_DEBUG=false',
+            'ADMIN_GATEWAY_PORT=8000',
+            'ADMIN_GATEWAY_ALLOWED_ORIGINS=https://admin-staging.synapse-network.ai',
+            'ADMIN_SESSION_COOKIE_SECURE=true',
+            'ADMIN_SESSION_COOKIE_SAMESITE=lax',
+            'ADMIN_SESSION_COOKIE_DOMAIN=.synapse-network.ai',
+            'ADMIN_LOGIN_LOCK_THRESHOLD=5',
+            'ADMIN_LOGIN_LOCK_HOURS=24',
+            'GATEWAY_INTERNAL_BASE_URL=https://api-staging.synapse-network.ai',
+            'GCP_ALERT_RECEIVER_ENABLED=true',
+            'GCP_ALERT_RECEIVER_USERNAME=synapse-gcp-alert',
+            'GCP_ALERT_DEFAULT_ROUTE=staging-drill',
+          ].join(',')
           for (const [service, image] of Object.entries(images)) {
             const extraFlags = service === 'gateway-admin'
-              ? ` --set-env-vars 'ADMIN_GATEWAY_DEBUG=false,ADMIN_SESSION_COOKIE_SECURE=true' --set-secrets '${gatewayAdminSecrets}'`
+              ? ` --set-env-vars '${gatewayAdminEnv}' --set-secrets '${gatewayAdminSecrets}'`
               : ''
             console.log(`gcloud run deploy ${names[service]} --project "$PROJECT_ID" --region "$REGION" --image '${image}'${extraFlags} --quiet`)
           }

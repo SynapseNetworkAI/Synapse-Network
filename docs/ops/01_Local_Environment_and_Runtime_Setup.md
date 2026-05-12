@@ -169,7 +169,7 @@ LOCAL_GATEWAY_RESET_CONFIRM=I_UNDERSTAND_LOCAL_DATA_LOSS \
 ```
 
 该 reset 只适用于 local，会执行 `docker compose -f infra/docker/local/docker-compose.yml down -v`
-再启动 `postgres redis minio`，不会 `rm -rf` 宿主机 volume 目录。
+再启动 `postgres redis`；MinIO 默认不启动，需要对象存储本地调试时设置 `LOCAL_ENABLE_MINIO=1`。脚本不会 `rm -rf` 宿主机 volume 目录。
 
 ### 3.3 本地链调试
 
@@ -527,7 +527,7 @@ TARGET_WALLET=0x1111111111111111111111111111111111111111,0x222222222222222222222
    LOCAL_GATEWAY_RESET_CONFIRM=I_UNDERSTAND_LOCAL_DATA_LOSS \
      bash scripts/local/reset_gateway_docker_data.sh
    ```
-3. 实现只调用 Docker Compose：`down -v` 后 `up -d postgres redis minio`
+3. 实现只调用 Docker Compose：`down -v` 后 `up -d postgres redis`；需要 MinIO 时设置 `LOCAL_ENABLE_MINIO=1`
 4. 不访问、不删除宿主机 Docker volume 物理目录
 5. 不适用于 staging/prod
 

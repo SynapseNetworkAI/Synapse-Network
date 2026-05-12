@@ -21,10 +21,13 @@ from web3 import Web3
 from tests.e2e.helpers.service_fixtures import is_test_service_id
 
 # ── Directory layout ──────────────────────────────────────────────────────────
-ROOT = Path(__file__).parents[4]          # services/gateway/tests/e2e -> repo root
+ROOT = Path(__file__).parents[4]  # services/gateway/tests/e2e -> repo root
 FRONTEND_SRC = ROOT / "services" / "user-front" / "src"
-CONTRACT_CONFIG_PATH = Path(
+_contract_config_raw = Path(
     os.getenv("GATEWAY_E2E_CONTRACT_CONFIG_PATH", str(FRONTEND_SRC / "contract-config.json"))
+)
+CONTRACT_CONFIG_PATH = (
+    _contract_config_raw if _contract_config_raw.is_absolute() else ROOT / _contract_config_raw
 )
 MOCK_USDC_ABI_PATH = FRONTEND_SRC / "MockUSDCABI.json"
 SYNAPSE_CORE_ABI_PATH = FRONTEND_SRC / "SynapseCoreABI.json"
@@ -40,9 +43,7 @@ def _read_local_provider_owner_key() -> str:
     explicit = os.getenv("SYNAPSE_PROVIDER_OWNER_PRIVATE_KEY", "").strip()
     if explicit:
         return explicit
-    provider_root = Path(
-        os.getenv("PROVIDER_ROOT", str(ROOT.parent / "Synapse-Network-Provider"))
-    )
+    provider_root = Path(os.getenv("PROVIDER_ROOT", str(ROOT.parent / "Synapse-Network-Provider")))
     env_path = Path(
         os.getenv(
             "PROVIDER_ONBOARDING_ENV_FILE",
@@ -58,6 +59,7 @@ def _read_local_provider_owner_key() -> str:
         if line.startswith("SYNAPSE_PROVIDER_OWNER_PRIVATE_KEY="):
             return line.split("=", 1)[1].strip().strip('"').strip("'")
     return ""
+
 
 # ── Hardhat default private keys (localhost ONLY) ─────────────────────────────
 DEPLOYER_KEY = os.getenv(
@@ -75,8 +77,8 @@ PROVIDER_KEY = os.getenv(
 )
 
 # ── Test amounts ───────────────────────────────────────────────────────────────
-FUND_USDC    = Decimal("100")
-FUND_ETH     = Decimal("1")
+FUND_USDC = Decimal("100")
+FUND_ETH = Decimal("1")
 # Step 7 spends roughly 1 USDC before Step 9 withdraw checks the product minimum.
 # Seed slightly more than the withdraw floor so the suite stays deterministic.
 DEPOSIT_USDC = Decimal("20")
@@ -86,6 +88,7 @@ SESSION_ID = uuid.uuid4().hex[:8]
 
 
 # ── Session-scoped fixtures ────────────────────────────────────────────────────
+
 
 @pytest.fixture(scope="session", autouse=True)
 def require_live_gateway() -> None:
@@ -220,6 +223,7 @@ def provider_account(w3: Web3):
 def owner_jwt(owner_account) -> str:
     """Authenticate owner wallet and return JWT token."""
     from tests.e2e.helpers.auth import authenticate_wallet
+
     token, _ = authenticate_wallet(GATEWAY_BASE, OWNER_KEY)
     return token
 
@@ -228,6 +232,7 @@ def owner_jwt(owner_account) -> str:
 def provider_jwt(provider_account) -> str:
     """Authenticate provider wallet and return JWT token."""
     from tests.e2e.helpers.auth import authenticate_wallet
+
     token, _ = authenticate_wallet(GATEWAY_BASE, PROVIDER_KEY)
     return token
 
@@ -257,6 +262,9 @@ _E2E_CREDENTIAL_NAME_PREFIXES = (
     "api-ref-test-",
     "inv-test-",
     "provider-gpp-e2e-local-",
+    "staging-load-",
+    "wr-staging-",
+    "consumer-test-",
 )
 
 
