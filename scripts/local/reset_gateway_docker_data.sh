@@ -15,7 +15,7 @@ if [[ "${LOCAL_GATEWAY_RESET_CONFIRM:-}" != "I_UNDERSTAND_LOCAL_DATA_LOSS" ]]; t
   cat >&2 <<'EOF'
 Refusing to reset local Gateway Docker data.
 Set LOCAL_GATEWAY_RESET_CONFIRM=I_UNDERSTAND_LOCAL_DATA_LOSS to delete local Docker volumes.
-This is local-only and will remove local Gateway Postgres, Redis, and MinIO data.
+This is local-only and will remove local Gateway Postgres, Redis, and optional MinIO data.
 EOF
   exit 2
 fi
@@ -35,7 +35,11 @@ echo "Resetting local Gateway Docker data with docker compose down -v..."
 "${COMPOSE_CMD[@]}" -f "${COMPOSE_FILE}" down -v
 
 echo "Starting fresh local Gateway Docker dependencies on Postgres port ${LOCAL_GATEWAY_POSTGRES_PORT}..."
+infra_services=(postgres redis)
+if [[ "${LOCAL_ENABLE_MINIO:-0}" == "1" ]]; then
+  infra_services+=(minio)
+fi
 SYNAPSE_POSTGRES_HOST_PORT="${LOCAL_GATEWAY_POSTGRES_PORT}" \
-  "${COMPOSE_CMD[@]}" -f "${COMPOSE_FILE}" up -d postgres redis minio
+  "${COMPOSE_CMD[@]}" -f "${COMPOSE_FILE}" up -d "${infra_services[@]}"
 
 echo "Local Gateway Docker data reset complete."

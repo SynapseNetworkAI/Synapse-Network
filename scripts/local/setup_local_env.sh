@@ -80,8 +80,13 @@ ensure_local_docker_infra() {
 	ensure_docker_runtime "$compose_cmd"
 
 	echo "0) Starting Docker local infra via ${compose_cmd}..."
-	echo "   postgres: 127.0.0.1:${LOCAL_GATEWAY_POSTGRES_PORT}, redis: 127.0.0.1:6379, minio: http://127.0.0.1:9001, otterscan: http://localhost:5100"
-	SYNAPSE_POSTGRES_HOST_PORT="$LOCAL_GATEWAY_POSTGRES_PORT" ${compose_cmd} -f "${ROOT_DIR}/infra/docker/local/docker-compose.yml" up -d postgres redis minio otterscan >/dev/null
+	echo "   postgres: 127.0.0.1:${LOCAL_GATEWAY_POSTGRES_PORT}, redis: 127.0.0.1:6379, otterscan: http://localhost:5100"
+	local infra_services=(postgres redis otterscan)
+	if [[ "${LOCAL_ENABLE_MINIO:-0}" == "1" ]]; then
+		echo "   minio: http://127.0.0.1:9001"
+		infra_services+=(minio)
+	fi
+	SYNAPSE_POSTGRES_HOST_PORT="$LOCAL_GATEWAY_POSTGRES_PORT" ${compose_cmd} -f "${ROOT_DIR}/infra/docker/local/docker-compose.yml" up -d "${infra_services[@]}" >/dev/null
 	if ! wait_for_postgres_ready 45; then
 		echo "Error: local Postgres failed to become ready on 127.0.0.1:${PGPORT:-${SYNAPSE_POSTGRES_HOST_PORT:-${LOCAL_GATEWAY_POSTGRES_PORT}}}."
 		return 1
