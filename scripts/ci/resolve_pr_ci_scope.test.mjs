@@ -21,6 +21,10 @@ function cleanGitEnv() {
       delete env[key];
     }
   }
+  delete env.SYNAPSE_CI_SCOPE;
+  delete env.SYNAPSE_CI_SCOPE_FILE;
+  delete env.SYNAPSE_CI_COMMANDS;
+  delete env.QUALITY_BASE_REF;
   return env;
 }
 
@@ -197,6 +201,24 @@ test("weekly hygiene harness changes avoid full CI", () => {
   assert.equal(scope.mode, "auto");
   assert.equal(scope.failClosed, false);
   assert.ok(scope.riskScopes.includes("weekly-hygiene"));
+  assert.ok(scope.commands.includes("ci_meta_checks"));
+  assert.ok(scope.commands.includes("quality_budget_check"));
+  assert.ok(scope.commands.includes("docs_checks"));
+});
+
+test("GCP billing review harness changes avoid full CI", () => {
+  const scope = resolveAfterChange({
+    "scripts/ops/gcp_billing_review.mjs": "console.log('billing review');\n",
+    "scripts/ops/gcp_billing_review.sh": "#!/usr/bin/env bash\nexit 0\n",
+    "scripts/ops/gcp_billing_review_billing.mjs": "export const billing = 1;\n",
+    "scripts/ops/gcp_billing_review_common.mjs": "export const common = 1;\n",
+    "scripts/ops/gcp_billing_review_repo.mjs": "export const repo = 1;\n",
+    "scripts/ops/gcp_billing_review_report.mjs": "export const report = 1;\n",
+    "scripts/ops/fixtures/gcp_billing_review_fixture.json": "{}\n",
+  });
+  assert.equal(scope.mode, "auto");
+  assert.equal(scope.failClosed, false);
+  assert.ok(scope.riskScopes.includes("cost-review"));
   assert.ok(scope.commands.includes("ci_meta_checks"));
   assert.ok(scope.commands.includes("quality_budget_check"));
   assert.ok(scope.commands.includes("docs_checks"));
