@@ -40,6 +40,10 @@ name: "Synapse Frontend Rules"
 - Extract repeated business logic into hooks, presenter modules, or typed helpers instead of duplicating page logic.
 - Prefer feature-oriented structure for non-trivial surfaces.
 - Keep components lean. Heavy orchestration, normalization, and derived-state shaping should live outside view components.
+- New runtime frontend files should stay below `500` effective lines; test-like files should stay below `800` effective lines.
+- JavaScript and TypeScript runtime functions/components should stay below `120` effective lines. If a component grows past that boundary, extract presenter helpers, hooks, or private subcomponents before splitting into a new module.
+- Split modules only around clear responsibilities such as adapter, client, serializer, policy, runner, or view section. Do not create tiny no-op fragments just to satisfy the quality budget.
+- See `docs/reference/Engineering_Quality_Guardrails.md` for the shared quality-budget and refactoring rules.
 
 ## Styling and Visual System
 

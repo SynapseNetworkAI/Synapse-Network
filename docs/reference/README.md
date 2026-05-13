@@ -3,7 +3,7 @@
 - Status: canonical
 - Code paths: `gateway/src/api/`, `gateway/src/services/`, `sdk/python/`, `provider_service/`, `docs/06_Reference/`
 - Verified with: `npm run ci:pr`, `npm run ci:docs`
-- Last verified against code: 2026-03-25
+- Last verified against code: 2026-05-14
 
 本目录收敛 Synapse 面向实现者和集成者必须稳定理解的参考契约。
 
@@ -41,6 +41,7 @@
 6. `04_Development_Testing_and_Integration_Reference.md`
 7. `AI_Quick_Reference.md`
 8. `Validation_Entry_Points.md`
+9. `Engineering_Quality_Guardrails.md`
 
 ## 模块边界
 
@@ -60,3 +61,4 @@ Reference 模块的职责，是把 Synapse 的关键外部契约压缩成可实�
 1. `AI_Quick_Reference.md` 用最小上下文压缩仓库核心事实、项目边界与优先阅读路径。
 2. `Validation_Entry_Points.md` 明确当前项目级与仓库级验证入口，降低 AI 和人类重复搜索命令的成本。
 3. `Codex_Token_Optimization.md` 约束高频 Codex 使用时的 memory、上下文路由、handoff、搜索和 reasoning 策略，降低 token 浪费但不降低能力。
+4. `Engineering_Quality_Guardrails.md` 固化 500/800 文件预算、120/80 函数预算、复杂度提示、PR 说明和按需上下文加载规则。

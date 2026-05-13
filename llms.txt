@@ -64,6 +64,7 @@ Synapse Network is an agent-first settlement layer for AI agents. The primary pr
 - .github/instructions/README.md - routing manifest for Python, frontend, finance, docs-sync, admin-console, and safety instructions
 - docs/reference/AI_Instruction_Entrypoints.md - agent-specific entrypoint map and bridge drift policy
 - docs/reference/Codex_Token_Optimization.md - high-frequency Codex memory, context, search, handoff, and reasoning-effort policy for lowering token use without reducing capability
+- docs/reference/Engineering_Quality_Guardrails.md - quality-budget source of truth for 500/800 file budgets, 120/80 function budgets, complexity guidance, PR expectations, and context loading
 - docs/06_Reference/AI_Quick_Reference.md - compressed repository facts for agents
 - docs/reference/Validation_Entry_Points.md - current validation commands and workflow checks
 - docs/ops/19_E2E_Regression_Runbook.md - local/staging regression runbook; API/UI E2E is not complete until the SQL evidence layer proves Postgres state, balances, ledger, audit, outbox, and contract config are correct

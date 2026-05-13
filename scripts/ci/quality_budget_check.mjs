@@ -481,7 +481,7 @@ function metricFindings(file, line, metrics, lineMax) {
   const findings = [];
   if (metrics.lines > lineMax) {
     findings.push(
-      `FATAL QUALITY-FUNCTION-LINES: ${file}:${line} has ${metrics.lines} effective lines; split it below ${lineMax}.`
+      `FATAL QUALITY-FUNCTION-LINES: ${file}:${line} has ${metrics.lines} effective lines; budget is ${lineMax}. Extract responsibility-focused helpers first, and split modules only at clear scanner/runner/serializer/adapter/client/policy boundaries. Do not create mechanical fragments just to pass CI.`
     );
   }
   if (metrics.nesting > NESTING_MAX) {
@@ -491,7 +491,7 @@ function metricFindings(file, line, metrics, lineMax) {
   }
   if (metrics.complexity > COMPLEXITY_MAX) {
     findings.push(
-      `FATAL QUALITY-COMPLEXITY: ${file}:${line} has complexity ${metrics.complexity}; extract smaller helpers.`
+      `FATAL QUALITY-COMPLEXITY: ${file}:${line} has complexity ${metrics.complexity}; extract responsibility-focused helpers or state/policy modules instead of mechanical fragments.`
     );
   }
   if (metrics.args > ARGUMENT_MAX) {
@@ -581,7 +581,7 @@ function scanFileBudget(file) {
   const maxLines = lineBudget(file);
   if (lineCount > maxLines) {
     findings.push(
-      `FATAL QUALITY-FILE-LINES: ${file} has ${lineCount} effective lines; budget is ${maxLines}. Split the file or lower the legacy baseline first.`
+      `FATAL QUALITY-FILE-LINES: ${file} has ${lineCount} effective lines; budget is ${maxLines}. Split by real responsibility such as scanner, runner, serializer, adapter, client, or policy; do not create mechanical fragments just to pass CI.`
     );
   }
   if (isTestLike(file) || BASELINED_FUNCTION_FILES.has(file)) {
