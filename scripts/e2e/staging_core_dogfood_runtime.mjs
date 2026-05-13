@@ -195,7 +195,10 @@ export function assertSafety() {
 }
 
 export function readJson(relativePath) {
-  return JSON.parse(fs.readFileSync(path.join(ROOT, relativePath), "utf8"));
+  const target = path.isAbsolute(relativePath)
+    ? relativePath
+    : path.join(ROOT, relativePath);
+  return JSON.parse(fs.readFileSync(target, "utf8"));
 }
 
 export function psqlJson(sql) {
