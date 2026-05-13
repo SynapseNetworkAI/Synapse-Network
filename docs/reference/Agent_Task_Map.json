@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "repository": "Synapse-Network",
-  "updated_at": "2026-05-13",
+  "updated_at": "2026-05-14",
   "purpose": "Task-to-file routing map for AI agents. Use before broad repository search.",
   "global_entrypoints": [
     "llms.txt",
@@ -346,9 +346,12 @@
       "id": "ci_and_quality_gates",
       "title": "CI and quality gates",
       "use_when": [
-        "package scripts, CI wrappers, validation commands, or PR gate behavior changes"
+        "package scripts, CI wrappers, validation commands, or PR gate behavior changes",
+        "quality-budget, file-size, function-length, complexity, or PR-template rules change"
       ],
       "instruction_files": [
+        ".github/instructions/python.instructions.md",
+        ".github/instructions/frontend.instructions.md",
         ".github/instructions/docs-sync.instructions.md",
         ".github/instructions/safety-guard.instructions.md"
       ],
@@ -356,18 +359,22 @@
         "package.json",
         "scripts/ci",
         ".github/workflows",
-        "docs/reference/Validation_Entry_Points.md"
+        ".github/pull_request_template.md",
+        "docs/reference/Validation_Entry_Points.md",
+        "docs/reference/Engineering_Quality_Guardrails.md"
       ],
       "supporting_files": [
         "docs/00_Governance/Documentation_Constraints.md",
         "docs/05_DevOps_Deployment/README.md"
       ],
       "validation_commands": [
+        "npm run ci:quality-budget",
         "node --test scripts/ci/resolve_pr_ci_scope.test.mjs",
         "npm run ci:pr:fast",
         "npm run ci:docs"
       ],
       "notes": [
+        "Use docs/reference/Engineering_Quality_Guardrails.md as the quality-budget source of truth.",
         "Keep local scripts and GitHub Actions entrypoints aligned.",
         "PR CI is dynamically scoped; workflow and ordinary CI-tool changes should run CI meta checks without forcing full CI unless they touch root dependencies, deploy scripts, security, finance, or unknown paths."
       ]
