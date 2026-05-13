@@ -61,6 +61,8 @@ test("typescript function budget catches large components", () => {
     `export function HugeWidget() {\n${body}\n  return value0;\n}`
   );
   assert.match(findings.join("\n"), /QUALITY-FUNCTION-LINES/);
+  assert.match(findings.join("\n"), /responsibility-focused helpers/);
+  assert.match(findings.join("\n"), /Do not create mechanical fragments/);
 });
 
 test("python function budget catches too many arguments", () => {
@@ -69,4 +71,18 @@ test("python function budget catches too many arguments", () => {
     "def too_wide(a, b, c, d, e, f, g, h, i):\n    return a\n"
   );
   assert.match(findings.join("\n"), /QUALITY-ARGS/);
+});
+
+test("typescript complexity budget explains responsibility-based extraction", () => {
+  const nested = Array.from(
+    { length: 13 },
+    (_, index) => `  if (value${index}) result += ${index};`
+  ).join("\n");
+  const findings = scanJsLikeFunctions(
+    "services/user-front/src/utils/complex.ts",
+    `export function complex(value0: boolean) {\n  let result = 0;\n${nested}\n  return result;\n}`
+  );
+  assert.match(findings.join("\n"), /QUALITY-COMPLEXITY/);
+  assert.match(findings.join("\n"), /state\/policy modules/);
+  assert.match(findings.join("\n"), /mechanical fragments/);
 });

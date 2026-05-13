@@ -45,6 +45,10 @@ Update docs in the same change when you modify any of the following:
 - Cleanup automation must be allowlist-based. It may report tracked source,
   docs, or `docs/evidence/**` as review candidates, but it must not auto-delete
   them.
+- Quality-budget, file-size, function-length, PR-template, or CI-gate rule
+  changes must update `docs/reference/Engineering_Quality_Guardrails.md`,
+  `docs/reference/Validation_Entry_Points.md`, and the relevant instruction
+  routing entries in the same change.
 
 ## Sync Pipeline
 

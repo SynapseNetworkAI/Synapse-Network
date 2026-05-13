@@ -119,6 +119,14 @@ Before implementation:
 6. Read the target subproject `AGENTS.md` for local commands, runtime boundaries, and validation flow.
 7. If the task is finance-sensitive, admin-console-heavy, or behavior-changing across docs/tests/contracts, expect the finer-grained instructions to apply too.
 
+## 6.1 Engineering Quality Budgets
+
+- New runtime files should stay below `500` effective lines. New test-like files should stay below `800` effective lines.
+- Runtime functions should stay below the repo quality gate budgets: JavaScript/TypeScript `120` effective lines and Python `80` effective lines.
+- Split complex logic into private helpers first. Split modules only when the new boundary has a clear responsibility such as scanner, runner, serializer, adapter, client, or policy.
+- Do not create meaningless tiny files only to pass a line-count gate. The split must make ownership and review easier.
+- For quality-budget, file-size, function-length, PR template, or CI gate work, load `docs/reference/Engineering_Quality_Guardrails.md` through `docs/reference/Agent_Task_Map.*`.
+
 ## 7. Docs-Code-Test Sync
 
 - Any observable behavior change must update the matching docs.
@@ -137,10 +145,10 @@ If a rule only matters to one service's role, environment, or runtime workflow, 
 
 Reusable scripts live in `scripts/tools/`. See `scripts/tools/README.md` for full docs.
 
-| Tool | Purpose |
-|------|---------|
-| `screenshot_docs.js` | Take EN + ZH Playwright screenshots of any docs page to verify i18n rendering |
-| `audit_i18n_comments.js` | Scan docs pages for hardcoded CJK `//` comments that need i18n extraction |
+| Tool                     | Purpose                                                                       |
+| ------------------------ | ----------------------------------------------------------------------------- |
+| `screenshot_docs.js`     | Take EN + ZH Playwright screenshots of any docs page to verify i18n rendering |
+| `audit_i18n_comments.js` | Scan docs pages for hardcoded CJK `//` comments that need i18n extraction     |
 
 ### agent-browser — AI Browser Automation CLI
 
@@ -155,6 +163,7 @@ agent-browser install          # download Chrome for Testing (~165 MB)
 ```
 
 > If npm fails with `ECONNREFUSED 127.0.0.1:7890`, unset the stale proxy first:
+>
 > ```bash
 > unset HTTP_PROXY HTTPS_PROXY ALL_PROXY && npm install -g agent-browser
 > ```
@@ -181,13 +190,14 @@ agent-browser screenshot /tmp/user-front.png
 **Do not hardcode CJK or language-specific text inside CodeBlock `code` props.**
 
 Use the array-join pattern instead:
-```tsx
-const cAuth = tList("docsPage.consumerCodeAuth");  // string[]
 
-<CodeBlock lang="typescript" code={[
-  `// ${cAuth[0]}`,
-  `const { challenge } = await fetch(...)`,
-].join('\n')} />
+```tsx
+const cAuth = tList("docsPage.consumerCodeAuth"); // string[]
+
+<CodeBlock
+  lang="typescript"
+  code={[`// ${cAuth[0]}`, `const { challenge } = await fetch(...)`].join("\n")}
+/>;
 ```
 
 Add corresponding arrays to both `en/docsPage.ts`, `zh/docsPage.ts`, and `schema.ts`.
@@ -223,6 +233,7 @@ scripts/ → tools/scripts/   # symlink — see "symlink note" below
 logically, so `pwd` reports the logical path (e.g. `Synapse-Network/scripts/local`).
 
 This means:
+
 - `SCRIPT_DIR/../../..` → **parent of repo root** (wrong)
 - `SCRIPT_DIR/../..` → **repo root** ✓
 
@@ -232,6 +243,7 @@ reach `ROOT_DIR`, regardless of how deep the subdirectory is under `scripts/`.
 ### Mandatory checklist when renaming or moving directories
 
 When any of the following changes:
+
 - A directory under `services/` is renamed or moved
 - A sibling repo path changes (e.g. `Synapse-Network-Provider/`)
 - The `scripts/` symlink target changes

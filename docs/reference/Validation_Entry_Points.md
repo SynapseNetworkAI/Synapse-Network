@@ -156,6 +156,16 @@ define `created_at` must also define a same-table index that includes
 sequential scans. `npm run ci:docs` runs this guard as part of lightweight schema
 governance.
 
+`npm run ci:quality-budget` is the canonical code-size and complexity guard.
+It enforces the current Synapse budgets: new runtime files under `500`
+effective lines, new test-like files under `800` effective lines,
+JavaScript/TypeScript runtime functions under `120` effective lines, and Python
+runtime functions under `80` effective lines. When a PR touches file-size,
+function-length, complexity, PR-template, or quality-gate rules, load
+`docs/reference/Engineering_Quality_Guardrails.md` and explain any split in the
+PR description. CI is the hard gate; docs and instructions are the design-time
+prevention layer.
+
 `npm run ci:state-idempotency-safety` is the canonical guard for money and
 state-machine idempotency. It checks that withdrawal complete uses a locked
 business order row, expected-status CAS, txHash dedupe, and same-transaction

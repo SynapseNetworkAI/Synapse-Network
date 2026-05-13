@@ -48,7 +48,11 @@ Recommended split for backend services:
 
 ## File Size Discipline
 
-- **Any file exceeding 500 lines must be split** before adding new functionality. Extract a focused sub-module that owns a single responsibility (e.g. lifecycle CRUD, billing helpers, record builders). Preserve backwards compatibility via re-exports in the original file. See `forwarding_service.py` → `forwarding_budget.py` + `forwarding_records.py`, `credential_service.py` → `credential_lifecycle.py` for examples.
+- **New runtime Python files should stay below 500 effective lines.** Test-like files should stay below 800 effective lines.
+- **Runtime Python functions should stay below 80 effective lines.** If a function crosses that boundary, first extract private helpers with names that describe the sub-decision or transformation.
+- Split modules only when the responsibility boundary is clear, such as `scanner`, `runner`, `serializer`, `adapter`, `client`, or `policy`. Do not create meaningless fragments only to satisfy a line-count gate.
+- Existing baseline files are ratcheted by `npm run ci:quality-budget`; do not grow them casually. Preserve backwards compatibility via re-exports when a large public module is split.
+- See `docs/reference/Engineering_Quality_Guardrails.md` for the full quality-budget policy and refactoring playbook.
 
 ## Finance and Safety
 
