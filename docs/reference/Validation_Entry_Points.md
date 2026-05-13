@@ -157,6 +157,11 @@ session, then rerun `bash scripts/ci/pr_checks.sh`. To collect every failing
 runtime probe in one pass, set `CI_RUNTIME_PREFLIGHT_COLLECT_ALL=true`. Do not
 make `--no-verify` the normal path; keep it for true emergency pushes only.
 
+Repository hygiene utility:
+
+1. `DRY_RUN=1 MIN_AGE_DAYS=7 MAX_AGE_DAYS=14 bash scripts/git/cleanup_old_branches.sh` previews candidate local/remote branches whose latest `committerdate` is at least 7 days old but less than 14 days old. The script automatically excludes `main`, the current branch, open PR heads, and branches currently attached to a Git worktree.
+2. `MIN_AGE_DAYS=7 MAX_AGE_DAYS=14 bash scripts/git/cleanup_old_branches.sh` performs the real cleanup by deleting matching remote branches through `gh api` and matching local branches through `git branch -D`, then prunes remote refs and prunable worktrees.
+
 ## 3. Project-Level Validation
 
 ### 3.1 apps/frontend
