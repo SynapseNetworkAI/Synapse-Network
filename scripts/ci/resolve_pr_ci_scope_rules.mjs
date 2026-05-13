@@ -93,7 +93,7 @@ function classifyWeeklyHygieneFile(file) {
 function classifyGcpBillingReviewFile(file) {
   if (
     matchesAny(file, [
-      /^scripts\/ops\/gcp_billing_review\.mjs$/,
+      /^scripts\/ops\/gcp_billing_review(?:_[a-z0-9_]+)?\.mjs$/,
       /^scripts\/ops\/gcp_billing_review\.sh$/,
       /^scripts\/ops\/fixtures\/gcp_billing_review_fixture\.json$/,
     ])
@@ -101,7 +101,8 @@ function classifyGcpBillingReviewFile(file) {
     return {
       commands: ["ci_meta_checks", "quality_budget_check", "docs_checks"],
       riskScopes: ["cost-review"],
-      reason: "GCP billing review automation change mapped to cost/static checks",
+      reason:
+        "GCP billing review automation change mapped to cost/static checks",
     };
   }
   return null;

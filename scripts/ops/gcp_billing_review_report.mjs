@@ -29,7 +29,11 @@ export function writeMarkdownReport(outputDir, report) {
     "",
     ...renderOptimizationCandidates(report),
   ];
-  writeFileSync(path.join(outputDir, "report.md"), `${sections.join("\n")}\n`, "utf8");
+  writeFileSync(
+    path.join(outputDir, "report.md"),
+    `${sections.join("\n")}\n`,
+    "utf8"
+  );
 }
 
 export function printSummary(outputDir, report) {
@@ -53,7 +57,9 @@ export function printSummary(outputDir, report) {
     console.log(`PR_URL ${report.prUrl}`);
   }
   console.log(
-    `SUMMARY bundle=${outputDir} candidates=${report.optimizationCandidates.length} blocked=${report.blockedReason ?? "none"}`
+    `SUMMARY bundle=${outputDir} candidates=${
+      report.optimizationCandidates.length
+    } blocked=${report.blockedReason ?? "none"}`
   );
 }
 
@@ -67,7 +73,9 @@ function renderSummarySection(report) {
     `- Project: \`${report.projectId ?? "unknown"}\``,
   ];
   if (report.windowStart && report.windowEnd) {
-    lines.push(`- Window: \`${report.windowStart}\` to \`${report.windowEnd}\` (UTC)`);
+    lines.push(
+      `- Window: \`${report.windowStart}\` to \`${report.windowEnd}\` (UTC)`
+    );
   }
   if (typeof report.totalCost === "number") {
     lines.push(`- Recent 7d total: \`$${report.totalCost.toFixed(2)}\``);
@@ -101,11 +109,13 @@ function renderSkuBreakdown(report) {
   if (report.topSkuBreakdown.length === 0) {
     return ["- No SKU breakdown available."];
   }
-  return report.topSkuBreakdown.slice(0, 10).map(
-    (sku) =>
-      `- ${sku.sku}: $${sku.recentCost.toFixed(2)} recent, ` +
-      `$${sku.previousCost.toFixed(2)} previous`
-  );
+  return report.topSkuBreakdown
+    .slice(0, 10)
+    .map(
+      (sku) =>
+        `- ${sku.sku}: $${sku.recentCost.toFixed(2)} recent, ` +
+        `$${sku.previousCost.toFixed(2)} previous`
+    );
 }
 
 function renderOptimizationCandidates(report) {

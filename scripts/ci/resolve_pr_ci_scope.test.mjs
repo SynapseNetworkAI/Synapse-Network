@@ -210,6 +210,10 @@ test("GCP billing review harness changes avoid full CI", () => {
   const scope = resolveAfterChange({
     "scripts/ops/gcp_billing_review.mjs": "console.log('billing review');\n",
     "scripts/ops/gcp_billing_review.sh": "#!/usr/bin/env bash\nexit 0\n",
+    "scripts/ops/gcp_billing_review_billing.mjs": "export const billing = 1;\n",
+    "scripts/ops/gcp_billing_review_common.mjs": "export const common = 1;\n",
+    "scripts/ops/gcp_billing_review_repo.mjs": "export const repo = 1;\n",
+    "scripts/ops/gcp_billing_review_report.mjs": "export const report = 1;\n",
     "scripts/ops/fixtures/gcp_billing_review_fixture.json": "{}\n",
   });
   assert.equal(scope.mode, "auto");

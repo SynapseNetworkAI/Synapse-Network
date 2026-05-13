@@ -32,7 +32,10 @@ const REPO_ROOT = path.resolve(
 );
 const REPORT_ROOT = path.join(REPO_ROOT, "docs", "evidence", "cost");
 const NOW = new Date();
-const WINDOW_DAYS = Number.parseInt(process.env.GCP_BILLING_WINDOW_DAYS ?? "7", 10);
+const WINDOW_DAYS = Number.parseInt(
+  process.env.GCP_BILLING_WINDOW_DAYS ?? "7",
+  10
+);
 const COMPARISON_DAYS = Number.parseInt(
   process.env.GCP_BILLING_COMPARISON_DAYS ?? "7",
   10
@@ -120,9 +123,17 @@ try {
     rows: dataset.rows,
     summary,
   });
-  writeJson(outputDir, "optimization-candidates.json", state.optimizationCandidates);
+  writeJson(
+    outputDir,
+    "optimization-candidates.json",
+    state.optimizationCandidates
+  );
 
-  const repoPatchPlan = buildRepoPatchPlan(summary, state.optimizationCandidates, NOW);
+  const repoPatchPlan = buildRepoPatchPlan(
+    summary,
+    state.optimizationCandidates,
+    NOW
+  );
   if (repoPatchPlan.patches.length > 0 && CREATE_PR) {
     const prResult = maybeCreatePullRequest({
       plan: repoPatchPlan,
@@ -141,11 +152,16 @@ try {
     state.blockedReason = error.message;
   } else {
     state.status = "failed";
-    state.blockedReason = error instanceof Error ? error.message : String(error);
+    state.blockedReason =
+      error instanceof Error ? error.message : String(error);
   }
 } finally {
   writeJson(outputDir, "report.json", state);
-  writeJson(outputDir, "optimization-candidates.json", state.optimizationCandidates);
+  writeJson(
+    outputDir,
+    "optimization-candidates.json",
+    state.optimizationCandidates
+  );
   writeMarkdownReport(outputDir, state);
   printSummary(outputDir, state);
 }

@@ -61,8 +61,7 @@ export function loadBillingDataset({
     throw new BlockedError("missing_billing_export");
   }
 
-  const tableFqn =
-    `\`${exportTable.projectId}.${exportTable.datasetId}.${exportTable.tableId}\``;
+  const tableFqn = `\`${exportTable.projectId}.${exportTable.datasetId}.${exportTable.tableId}\``;
   const sql = buildBillingQuery({
     tableFqn,
     projectId,
@@ -71,13 +70,7 @@ export function loadBillingDataset({
 
   const rows = runJsonCommand(
     "bq",
-    [
-      "query",
-      "--use_legacy_sql=false",
-      "--format=json",
-      "--quiet",
-      sql,
-    ],
+    ["query", "--use_legacy_sql=false", "--format=json", "--quiet", sql],
     {
       label: "bq billing export query",
       timeoutMs: 120000,
@@ -87,13 +80,18 @@ export function loadBillingDataset({
   return { exportTable, rows };
 }
 
-export function summarizeBillingRows(rows, { now, windowDays, comparisonDays }) {
+export function summarizeBillingRows(
+  rows,
+  { now, windowDays, comparisonDays }
+) {
   const todayUtc = startOfUtcDay(now);
   const recentStart = addUtcDays(todayUtc, -(windowDays - 1));
   const previousStart = addUtcDays(recentStart, -comparisonDays);
   const previousEnd = addUtcDays(recentStart, -1);
 
-  const normalizedRows = rows.map(normalizeBillingRow).filter((row) => row.usage_date);
+  const normalizedRows = rows
+    .map(normalizeBillingRow)
+    .filter((row) => row.usage_date);
   const recentRows = rowsInWindow(normalizedRows, recentStart, todayUtc);
   const previousRows = rowsInWindow(normalizedRows, previousStart, previousEnd);
 
@@ -102,7 +100,9 @@ export function summarizeBillingRows(rows, { now, windowDays, comparisonDays }) 
   }
 
   const recentTotal = roundCurrency(sumBy(recentRows, (row) => row.net_cost));
-  const previousTotal = roundCurrency(sumBy(previousRows, (row) => row.net_cost));
+  const previousTotal = roundCurrency(
+    sumBy(previousRows, (row) => row.net_cost)
+  );
 
   return {
     windowStart: toDateOnly(recentStart),
@@ -121,7 +121,8 @@ export function summarizeBillingRows(rows, { now, windowDays, comparisonDays }) 
     topSkuBreakdown: buildBreakdown({
       recentRows,
       previousRows,
-      keyForRow: (row) => `${row.service_description} :: ${row.sku_description}`,
+      keyForRow: (row) =>
+        `${row.service_description} :: ${row.sku_description}`,
       labelKey: "sku",
       totalRecent: recentTotal,
     }).slice(0, 10),
@@ -143,15 +144,14 @@ function verifyGithubAuth() {
 }
 
 function verifyActiveGcloudAccount(defaultTimeoutMs) {
-  const authList = runJsonCommand(
-    "gcloud",
-    ["auth", "list", "--format=json"],
-    {
-      label: "gcloud auth list",
-      timeoutMs: Math.min(defaultTimeoutMs, 15000),
-    }
-  );
-  if (!Array.isArray(authList) || !authList.some((entry) => entry.status === "ACTIVE")) {
+  const authList = runJsonCommand("gcloud", ["auth", "list", "--format=json"], {
+    label: "gcloud auth list",
+    timeoutMs: Math.min(defaultTimeoutMs, 15000),
+  });
+  if (
+    !Array.isArray(authList) ||
+    !authList.some((entry) => entry.status === "ACTIVE")
+  ) {
     throw new BlockedError("missing_active_gcloud_account");
   }
 }
@@ -221,7 +221,9 @@ function collectExportTableCandidates(projectId, datasets) {
 }
 
 function extractDatasetId(dataset) {
-  return dataset?.datasetReference?.datasetId ?? dataset?.id?.split(":")?.[1] ?? null;
+  return (
+    dataset?.datasetReference?.datasetId ?? dataset?.id?.split(":")?.[1] ?? null
+  );
 }
 
 function listTables(projectId, datasetId) {
@@ -269,7 +271,8 @@ function selectWinningExportTable(candidates) {
     return null;
   }
   candidates.sort(
-    (left, right) => right.score - left.score || left.tableId.localeCompare(right.tableId)
+    (left, right) =>
+      right.score - left.score || left.tableId.localeCompare(right.tableId)
   );
   const [winner] = candidates;
   return {
@@ -323,23 +326,37 @@ function buildEmptySummary(windowStart, windowEnd) {
   };
 }
 
-function buildBreakdown({ recentRows, previousRows, keyForRow, labelKey, totalRecent }) {
+function buildBreakdown({
+  recentRows,
+  previousRows,
+  keyForRow,
+  labelKey,
+  totalRecent,
+}) {
   const recentMap = accumulateByKey(recentRows, keyForRow);
   const previousMap = accumulateByKey(previousRows, keyForRow);
   const keys = new Set([...recentMap.keys(), ...previousMap.keys()]);
 
   return [...keys]
-    .map((key) => buildBreakdownRow({
-      key,
-      labelKey,
-      totalRecent,
-      recentMap,
-      previousMap,
-    }))
+    .map((key) =>
+      buildBreakdownRow({
+        key,
+        labelKey,
+        totalRecent,
+        recentMap,
+        previousMap,
+      })
+    )
     .sort((left, right) => right.recentCost - left.recentCost);
 }
 
-function buildBreakdownRow({ key, labelKey, totalRecent, recentMap, previousMap }) {
+function buildBreakdownRow({
+  key,
+  labelKey,
+  totalRecent,
+  recentMap,
+  previousMap,
+}) {
   const recentCost = roundCurrency(recentMap.get(key) ?? 0);
   const previousCost = roundCurrency(previousMap.get(key) ?? 0);
   return {
@@ -347,7 +364,8 @@ function buildBreakdownRow({ key, labelKey, totalRecent, recentMap, previousMap 
     recentCost,
     previousCost,
     deltaCost: roundCurrency(recentCost - previousCost),
-    sharePct: totalRecent > 0 ? roundPercent((recentCost / totalRecent) * 100) : 0,
+    sharePct:
+      totalRecent > 0 ? roundPercent((recentCost / totalRecent) * 100) : 0,
   };
 }
 

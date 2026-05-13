@@ -72,7 +72,9 @@ export function runJsonCommand(command, args, options = {}) {
   try {
     return JSON.parse(result.stdout || "[]");
   } catch {
-    throw new Error(`${commandLabel(command, args, options)} returned invalid JSON`);
+    throw new Error(
+      `${commandLabel(command, args, options)} returned invalid JSON`
+    );
   }
 }
 
@@ -99,7 +101,9 @@ export function addUtcDays(date, deltaDays) {
 }
 
 export function startOfUtcDay(date) {
-  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  return new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate())
+  );
 }
 
 export function toDateOnly(date) {

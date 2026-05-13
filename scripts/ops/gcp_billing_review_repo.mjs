@@ -26,7 +26,8 @@ export function buildRepoPatchPlan(summary, candidates, now) {
 
   return {
     branchName: `codex/gcp-billing-review-${formatDateYYYYMMDD(now)}`,
-    commitMessage: "[codex] Optimize GCP cost controls from weekly billing review",
+    commitMessage:
+      "[codex] Optimize GCP cost controls from weekly billing review",
     prTitle: "[codex] Optimize GCP cost controls from weekly billing review",
     patches,
     summary,
@@ -115,7 +116,8 @@ function buildCloudRunCandidate(service, lower) {
 }
 
 function buildLoggingCandidate(service, lower) {
-  const isObservability = lower.includes("logging") || lower.includes("monitoring");
+  const isObservability =
+    lower.includes("logging") || lower.includes("monitoring");
   if (!isObservability || service.sharePct < 10) {
     return null;
   }
@@ -236,10 +238,14 @@ function buildPullRequestBody(summary, candidates) {
 }
 
 function formatTopServiceLines(summary) {
-  const lines = summary.serviceBreakdown.slice(0, 3).map(
-    (service) =>
-      `- ${service.service}: $${service.recentCost.toFixed(2)} (${service.sharePct.toFixed(2)}%)`
-  );
+  const lines = summary.serviceBreakdown
+    .slice(0, 3)
+    .map(
+      (service) =>
+        `- ${service.service}: $${service.recentCost.toFixed(
+          2
+        )} (${service.sharePct.toFixed(2)}%)`
+    );
   return lines.length > 0 ? lines : ["- No service breakdown available"];
 }
 
