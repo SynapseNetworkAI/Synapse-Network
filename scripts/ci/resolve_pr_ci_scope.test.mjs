@@ -12,6 +12,15 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 import assert from "node:assert/strict";
 
+import {
+  BASELINE_POLICY_COMMANDS,
+  BASELINE_QUALITY_COMMANDS,
+  BASELINE_STATIC_COMMANDS,
+  isDocsFile,
+  isFullTriggerFile,
+  isKnownFile,
+} from "./resolve_pr_ci_scope_rules.mjs";
+
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "../..");
 
 function cleanGitEnv() {
@@ -24,6 +33,7 @@ function cleanGitEnv() {
   delete env.SYNAPSE_CI_SCOPE;
   delete env.SYNAPSE_CI_SCOPE_FILE;
   delete env.SYNAPSE_CI_COMMANDS;
+  delete env.SYNAPSE_CI_ONLY_GATES;
   delete env.QUALITY_BASE_REF;
   return env;
 }
@@ -96,6 +106,73 @@ function resolveAfterChange(changes) {
   return JSON.parse(raw);
 }
 
+test("baseline shards keep the expected command split", () => {
+  assert.deepEqual(BASELINE_STATIC_COMMANDS, [
+    "runtime_preflight",
+    "ci_meta_checks",
+    "local_runtime_guard_scan",
+    "security_secret_scan",
+    "e2e_env_isolation_check",
+  ]);
+  assert.deepEqual(BASELINE_QUALITY_COMMANDS, [
+    "code_quality_architecture_scan",
+    "quality_budget_check",
+    "format_check",
+    "diff_coverage_gate",
+  ]);
+  assert.deepEqual(BASELINE_POLICY_COMMANDS, [
+    "security_money_scan",
+    "security_money_ts_scan",
+    "finance_approval_safety_scan",
+    "finance_mypy_scan",
+    "e2e_script_model_drift_scan",
+    "docs_checks",
+    "release_go_no_go_checks",
+    "monitoring_alert_rules",
+  ]);
+});
+
+test("docs files remain docs-classified", () => {
+  assert.equal(isDocsFile("docs/reference/Validation_Entry_Points.md"), true);
+  assert.equal(isDocsFile("llms.txt"), true);
+  assert.equal(isDocsFile("scripts/ops/gcp_billing_review.sh"), false);
+});
+
+test("workflow, ci, and ops files are known without forcing full CI", () => {
+  const narrowFiles = [
+    ".github/workflows/pr-ci.yml",
+    "scripts/ci/resolve_pr_ci_scope.mjs",
+    "scripts/ops/gcp_billing_review.sh",
+    "scripts/git/cleanup_old_branches.sh",
+    "infra/docker/local/docker-compose.yml",
+  ];
+
+  for (const file of narrowFiles) {
+    assert.equal(isKnownFile(file), true, `${file} should be known`);
+    assert.equal(
+      isFullTriggerFile(file),
+      false,
+      `${file} should not force full CI`
+    );
+  }
+});
+
+test("deploy and lockfile changes still fail closed into full CI", () => {
+  const fullFiles = [
+    "scripts/deploy/migrate_db.sh",
+    "package-lock.json",
+    "yarn.lock",
+  ];
+
+  for (const file of fullFiles) {
+    assert.equal(
+      isFullTriggerFile(file),
+      true,
+      `${file} should remain full-trigger`
+    );
+  }
+});
+
 test("docs-only changes stay on baseline scope", () => {
   const scope = resolveAfterChange({
     "docs/README.md": "# docs\n\nupdated\n",
@@ -125,7 +202,6 @@ test("GitHub workflow changes run workflow static checks without full CI", () =>
   assert.equal(scope.mode, "auto");
   assert.equal(scope.failClosed, false);
   assert.ok(scope.riskScopes.includes("github-actions"));
-  assert.ok(scope.commands.includes("github_actions_runtime_check"));
   assert.ok(scope.commands.includes("ci_meta_checks"));
 });
 
@@ -222,6 +298,16 @@ test("GCP billing review harness changes avoid full CI", () => {
   assert.ok(scope.commands.includes("ci_meta_checks"));
   assert.ok(scope.commands.includes("quality_budget_check"));
   assert.ok(scope.commands.includes("docs_checks"));
+});
+
+test("local infra changes avoid unknown full fail-closed", () => {
+  const scope = resolveAfterChange({
+    "infra/docker/local/docker-compose.yml": "services: {}\n",
+  });
+  assert.equal(scope.mode, "auto");
+  assert.equal(scope.failClosed, false);
+  assert.ok(scope.riskScopes.includes("local-infra"));
+  assert.ok(scope.commands.includes("local_runtime_guard_scan"));
 });
 
 test("unknown files still fail closed", () => {

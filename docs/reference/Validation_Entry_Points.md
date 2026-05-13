@@ -115,21 +115,33 @@ Emergency bypass remains `git push --no-verify`.
 `ci:pr` defaults to dynamic scope. `bash scripts/ci/pr_checks.sh` resolves
 changed files with `scripts/ci/resolve_pr_ci_scope.mjs`, prints the selected
 commands, and then runs only the relevant gates. GitHub PR CI now shards the
-selected commands into baseline/risk, user-front, admin-front, gateway,
-gateway-admin, contracts, provider-service, sdk-python, and terraform jobs, so a
-frontend-only change no longer installs every project. Workflow and ordinary CI
-tool changes run static/runtime CI meta checks instead of automatic full CI;
-root dependency/lockfile changes, deploy-script changes, security/finance
-guardrail changes, unknown paths, or merge-base resolution failures still fail
-closed into full CI. Root `package.json` script-only changes are mapped narrowly
-when they are ordinary evidence/E2E/local PR wrappers. Each selected gate prints
+selected commands into `baseline-static`, `baseline-quality`,
+`baseline-policy`, `user-front`, `admin-front`, `gateway`, `gateway-admin`,
+`contracts`, `provider-service`, `sdk-python`, and `terraform` jobs, so a
+frontend-only change no longer installs every project and repeated pushes cancel
+older runs through workflow concurrency. Workflow and ordinary CI/ops tool
+changes such as `.github/workflows/*`, `scripts/ci/*`, `scripts/ops/*`,
+automation harnesses, and hygiene utilities are mapped explicitly so they do
+not fall back to `full` just because the resolver does not recognize them. Root
+dependency/lockfile changes, deploy-script changes, security/finance guardrail
+changes, unknown paths, or merge-base resolution failures still fail closed
+into full CI. Root `package.json` script-only changes are mapped narrowly when
+they are ordinary evidence/E2E/local PR wrappers. Each selected gate prints
 `DONE` with a duration and the run ends with a gate duration summary. Use
-`npm run ci:pr:local` before pushing to run the affected-scope PR gate locally,
-`npm run ci:pr:fast` for the cheaper pre-push gate, and `npm run ci:pr:full` or
-`SYNAPSE_CI_SCOPE=full bash scripts/ci/pr_checks.sh` when you need the old full
-aggregate gate explicitly. On GitHub, `main` pushes and `workflow_dispatch` with
-`ci_scope=full` still force full CI; adding the `ci/full` label to a pull request
-does the same without changing code.
+`npm run ci:pr` as the default local PR preflight from repo root; use
+`npm run ci:pr:local` before pushing when you want the affected-scope wrapper
+explicitly, `npm run ci:pr:fast` for the cheaper pre-push gate, and
+`npm run ci:pr:full` or `SYNAPSE_CI_SCOPE=full bash scripts/ci/pr_checks.sh`
+when you need the old full aggregate gate explicitly. On GitHub, `main` pushes
+and `workflow_dispatch` with `ci_scope=full` still force full CI; adding the
+`ci/full` label to a pull request does the same without changing code.
+
+For workflow, YAML, or scope-rule changes, run `npm run ci:pr` locally first,
+then use [`act`](https://github.com/nektos/act) for workflow smoke only.
+`act` is useful for validating job wiring, conditions, and step order, but it is
+not a GitHub-hosted runner equivalence proof. For ordinary app or backend code
+changes, `act` is optional; the default expectation is a clean local
+`npm run ci:pr` plus the narrow focused gates for the touched surface.
 
 `npm run ci:github-actions-runtime` is the canonical GitHub Actions JavaScript
 runtime guard. It requires every workflow to force Node 24 with
