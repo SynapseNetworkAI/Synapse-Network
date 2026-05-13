@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 
 const GUARDRAIL_SCRIPTS = new Set([
   "ci:pr",
@@ -44,7 +45,10 @@ function unique(values) {
 }
 
 function jsonAt(ref, path) {
-  const raw = tryGit(["show", `${ref}:${path}`]);
+  const raw =
+    ref === "WORKTREE"
+      ? readFileSync(path, "utf8")
+      : tryGit(["show", `${ref}:${path}`]);
   if (!raw) return null;
   try {
     return JSON.parse(raw);
@@ -86,6 +90,16 @@ function classifyAgentLessonScript(scriptName, scriptValue) {
     /\bscripts\/ci\/agent_lessons_check\.mjs\b/.test(scriptValue)
   ) {
     return { riskScopes: ["agent-lessons"] };
+  }
+  return null;
+}
+
+function classifyPrLocalScript(scriptName, scriptValue) {
+  if (
+    /^ci:pr:(local|fast|full)$/.test(scriptName) &&
+    /\bscripts\/ci\/pr_local\.sh\b/.test(scriptValue)
+  ) {
+    return { commands: ["ci_meta_checks"], riskScopes: ["ci-meta"] };
   }
   return null;
 }
@@ -150,6 +164,7 @@ function classifyLocalDevScript(scriptName) {
 
 const SCRIPT_CLASSIFIERS = [
   classifyAgentLessonScript,
+  classifyPrLocalScript,
   classifyGuardrailScript,
   classifyMonitoringScript,
   classifyContractScript,
@@ -177,9 +192,12 @@ function addScopeResult(target, result) {
   target.needsRootNpmDeps ||= Boolean(result.needsRootNpmDeps);
 }
 
-export function classifyPackageJsonChange(mergeBase, head) {
+export function classifyPackageJsonChange(mergeBase, head, options = {}) {
   const before = jsonAt(mergeBase, "package.json");
-  const after = jsonAt(head, "package.json");
+  const after = jsonAt(
+    options.preferWorkingTree ? "WORKTREE" : head,
+    "package.json"
+  );
   if (!before || !after) {
     return { fullReason: "package.json could not be parsed from both refs" };
   }
