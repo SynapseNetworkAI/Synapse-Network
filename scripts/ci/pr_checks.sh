@@ -9,7 +9,9 @@ SCOPE_FILE="${SYNAPSE_CI_SCOPE_FILE:-}"
 echo "[ci:pr] running pull request quality gates"
 echo "[ci:pr] requested scope: ${REQUESTED_SCOPE}"
 
-npm run ci:agent-lessons
+if [[ "${SYNAPSE_CI_SKIP_AGENT_LESSONS:-0}" != "1" ]]; then
+  npm run ci:agent-lessons
+fi
 
 if [[ "$REQUESTED_SCOPE" != "auto" && "$REQUESTED_SCOPE" != "full" ]]; then
   echo "FATAL CI-SCOPE-001: SYNAPSE_CI_SCOPE must be auto or full" >&2
@@ -45,11 +47,37 @@ for (const command of scope.commands || []) {
 }
 NODE
 
+if [[ -n "${SYNAPSE_CI_ONLY_GATES:-}" ]]; then
+  FILTERED_COMMANDS_FILE="$(mktemp "${TMPDIR:-/tmp}/synapse-pr-ci-filtered-commands.XXXXXX")"
+  node - "$COMMANDS_FILE" "$FILTERED_COMMANDS_FILE" "${SYNAPSE_CI_ONLY_GATES}" <<'NODE'
+const fs = require("fs");
+const inputPath = process.argv[2];
+const outputPath = process.argv[3];
+const allowlist = new Set(
+  String(process.argv[4] || "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean)
+);
+const commands = fs
+  .readFileSync(inputPath, "utf8")
+  .split("\n")
+  .map((value) => value.trim())
+  .filter(Boolean)
+  .filter((value) => allowlist.has(value));
+fs.writeFileSync(outputPath, `${commands.join("\n")}${commands.length ? "\n" : ""}`);
+NODE
+  COMMANDS_FILE="$FILTERED_COMMANDS_FILE"
+fi
+
 run_gate_command() {
   local gate="$1"
   case "$gate" in
     runtime_preflight)
       bash "$ROOT_DIR/scripts/ci/runtime_preflight.sh"
+      ;;
+    ci_meta_checks)
+      bash "$ROOT_DIR/scripts/ci/ci_meta_checks.sh"
       ;;
     security_money_scan)
       bash "$ROOT_DIR/scripts/ci/security_money_scan.sh"
@@ -155,6 +183,10 @@ run_gate() {
 }
 
 if [[ ! -s "$COMMANDS_FILE" ]]; then
+  if [[ -n "${SYNAPSE_CI_ONLY_GATES:-}" ]]; then
+    echo "[ci:pr] selected shard has no matching gates; skipping"
+    exit 0
+  fi
   echo "FATAL CI-SCOPE-003: resolver returned no commands" >&2
   exit 2
 fi

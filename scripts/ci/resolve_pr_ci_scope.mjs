@@ -3,47 +3,17 @@ import { execFileSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 
 import { classifyPackageJsonChange } from "./resolve_pr_ci_scope_package.mjs";
-
-const FULL_COMMANDS = [
-  "runtime_preflight",
-  "security_money_scan",
-  "security_money_ts_scan",
-  "finance_approval_safety_scan",
-  "finance_mypy_scan",
-  "local_runtime_guard_scan",
-  "e2e_script_model_drift_scan",
-  "code_quality_architecture_scan",
-  "quality_budget_check",
-  "format_check",
-  "diff_coverage_gate",
-  "security_secret_scan",
-  "e2e_env_isolation_check",
-  "gateway_stress_review_checks",
-  "monitoring_alert_rules",
-  "docs_checks",
-  "release_go_no_go_checks",
-  "frontend_checks",
-  "admin_front_checks",
-  "gateway_checks",
-  "performance_reliability_checks",
-  "admin_gateway_checks",
-  "provider_service_checks",
-  "sdk_python_checks",
-  "contracts_checks",
-];
-
-const BASELINE_COMMANDS = [
-  "runtime_preflight",
-  "local_runtime_guard_scan",
-  "quality_budget_check",
-  "format_check",
-  "security_secret_scan",
-  "e2e_env_isolation_check",
-  "docs_checks",
-  "release_go_no_go_checks",
-];
-
-const ORDER = [...FULL_COMMANDS, "terraform_staging_validate"];
+import {
+  BASELINE_COMMANDS,
+  FULL_COMMANDS,
+  ORDER,
+  docsPatterns,
+  fullTriggerPatterns,
+  knownPatterns,
+  matchesAny,
+  narrowCiToolPatterns,
+  rootE2eScriptPatterns,
+} from "./resolve_pr_ci_scope_rules.mjs";
 
 function usage() {
   console.error(
@@ -79,10 +49,6 @@ function unique(values) {
 
 function addCommand(set, command) {
   set.add(command);
-}
-
-function matchesAny(file, patterns) {
-  return patterns.some((pattern) => pattern.test(file));
 }
 
 const requestedMode = (
@@ -189,55 +155,6 @@ if (requestedMode === "full") {
     let unknownFile = "";
     let forceFullReason = "";
 
-    const docsPatterns = [/^docs\//, /^llms\.txt$/, /\.md$/];
-    const narrowCiToolPatterns = [
-      /^scripts\/ci\/agent_lessons_check(\.test)?\.mjs$/,
-    ];
-    const rootE2eScriptPatterns = [
-      /^scripts\/e2e_fullflow_test\.py$/,
-      /^scripts\/fullchain_browser_test\.py$/,
-      /^scripts\/verify_chain\.py$/,
-    ];
-    const fullTriggerPatterns = [
-      /^\.github\/workflows\//,
-      /^scripts\/ci\//,
-      /^scripts\/deploy\//,
-      /^scripts\/dev\/install_git_hooks\.sh$/,
-      /^semgrep\//,
-      /^AGENTS\.md$/,
-      /^package-lock\.json$/,
-      /^yarn\.lock$/,
-      /^pnpm-lock\.yaml$/,
-    ];
-    const knownPatterns = [
-      ...docsPatterns,
-      /^services\/gateway\//,
-      /^services\/gateway-admin\//,
-      /^services\/user-front\//,
-      /^services\/admin-front\//,
-      /^contracts\//,
-      /^scripts\/chain\//,
-      /^scripts\/ops\/lark_alert_relay\.mjs$/,
-      /^scripts\/e2e\//,
-      ...rootE2eScriptPatterns,
-      /^scripts\/perf\//,
-      /^scripts\/local\//,
-      /^scripts\/staging\//,
-      /^scripts\/prod\//,
-      /^scripts\/tools\//,
-      /^scripts\/python\//,
-      /^infra\/monitoring\//,
-      /^infra\/terraform\//,
-      /^migrations\//,
-      /^\.github\/instructions\//,
-      /^\.githooks\//,
-      /^hardhat\.config\./,
-      /^package\.json$/,
-      /^tsconfig/,
-      /^ruff\.toml$/,
-      /^\.jscpd\.json$/,
-    ];
-
     const packageJsonScope = changedFiles.includes("package.json")
       ? classifyPackageJsonChange(mergeBase, head)
       : null;
@@ -292,6 +209,29 @@ if (requestedMode === "full") {
         addCommand(commands, "e2e_script_model_drift_scan");
         addCommand(commands, "code_quality_architecture_scan");
         addCommand(commands, "diff_coverage_gate");
+        continue;
+      }
+
+      if (
+        file.startsWith(".github/workflows/") ||
+        file.startsWith(".github/instructions/") ||
+        file.startsWith(".githooks/") ||
+        file.startsWith("scripts/ci/")
+      ) {
+        docsOnly = false;
+        riskScopes.add("ci-tooling");
+        addCommand(commands, "ci_meta_checks");
+        continue;
+      }
+
+      if (file.startsWith("scripts/ops/") || file.startsWith("scripts/git/")) {
+        docsOnly = false;
+        riskScopes.add("ops-automation");
+        addCommand(commands, "ci_meta_checks");
+        if (/alert|monitoring|lark/i.test(file)) {
+          riskScopes.add("monitoring");
+          addCommand(commands, "monitoring_alert_rules");
+        }
         continue;
       }
 

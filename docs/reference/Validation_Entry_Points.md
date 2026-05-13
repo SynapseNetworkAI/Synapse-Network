@@ -105,15 +105,28 @@ add a structured `Lesson:` block when the session exposed a reusable failure
 pattern.
 Emergency bypass remains `git push --no-verify`.
 
-`ci:pr` defaults to dynamic scope. `bash scripts/ci/pr_checks.sh` resolves changed
-files with `scripts/ci/resolve_pr_ci_scope.mjs`, prints the selected commands,
-and then runs only the relevant gates. It fails closed into full CI for CI
-workflow changes, root dependency/lockfile changes, deploy-script changes,
-guardrail script changes, unknown paths, or merge-base resolution failures.
-Root `package.json` script-only changes are mapped narrowly when they are
-ordinary evidence/E2E wrappers. Each selected gate prints `DONE` with a duration
-and the run ends with a gate duration summary. Use `SYNAPSE_CI_SCOPE=full bash
+`npm run ci:pr` is the default local PR preflight. `bash scripts/ci/pr_checks.sh`
+resolves changed files with `scripts/ci/resolve_pr_ci_scope.mjs`, prints the
+selected commands, and then runs only the relevant gates. The baseline lane is
+split into `baseline-static`, `baseline-quality`, and `baseline-policy` so
+GitHub-hosted PR runs can fail faster and finish with lower wall-clock time
+without dropping guardrails. CI and ops files such as `scripts/ci/*`,
+`scripts/ops/*`, `.github/workflows/*`, billing-review automation, and hygiene
+utilities are mapped explicitly so they no longer fall back to `full` just
+because the resolver does not recognize them. It still fails closed into full
+CI for root dependency/lockfile changes, deploy-script changes, semgrep changes,
+unknown paths, or merge-base resolution failures. Root `package.json`
+script-only changes are mapped narrowly when they are ordinary evidence/E2E
+wrappers. Each selected gate prints `DONE` with a duration and the run ends
+with a gate duration summary. Use `SYNAPSE_CI_SCOPE=full bash
 scripts/ci/pr_checks.sh` when you need the old full aggregate gate explicitly.
+
+For workflow, YAML, or scope-rule changes, run `npm run ci:pr` locally first,
+then use [`act`](https://github.com/nektos/act) for workflow smoke only.
+`act` is useful for validating job wiring, conditions, and step order, but it is
+not a GitHub-hosted runner equivalence proof. For ordinary app or backend code
+changes, `act` is optional; the default expectation is a clean local
+`npm run ci:pr` plus the narrow focused gates for the touched surface.
 
 `npm run ci:github-actions-runtime` is the canonical GitHub Actions JavaScript
 runtime guard. It requires every workflow to force Node 24 with
@@ -161,6 +174,12 @@ Repository hygiene utility:
 
 1. `DRY_RUN=1 MIN_AGE_DAYS=7 MAX_AGE_DAYS=14 bash scripts/git/cleanup_old_branches.sh` previews candidate local/remote branches whose latest `committerdate` is at least 7 days old but less than 14 days old. The script automatically excludes `main`, the current branch, open PR heads, and branches currently attached to a Git worktree.
 2. `MIN_AGE_DAYS=7 MAX_AGE_DAYS=14 bash scripts/git/cleanup_old_branches.sh` performs the real cleanup by deleting matching remote branches through `gh api` and matching local branches through `git branch -D`, then prunes remote refs and prunable worktrees.
+
+GCP billing review utility:
+
+1. `bash scripts/ops/gcp_billing_review.sh` is the canonical weekly GCP cost-review entrypoint. It requires `gh`, `gcloud`, `bq`, `jq`, and `node`, resolves the current GCP project from `gcloud`, prefers a Cloud Billing Export table in BigQuery, and writes a fresh evidence bundle under `docs/evidence/cost/<timestamp>-gcp-billing-review/`.
+2. If no billing export dataset/table is discoverable for the current project, the review fails closed with `BLOCKED missing_billing_export`, writes a blocked `report.json` / `report.md`, and does not open a PR.
+3. Only explicit repo-local optimization patches may create a PR. Pure console-only or architecture/SLA-sensitive recommendations stay in the report bundle and must not open an empty PR.
 
 ## 3. Project-Level Validation
 
