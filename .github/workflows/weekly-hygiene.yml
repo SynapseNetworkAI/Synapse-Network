@@ -1,0 +1,99 @@
+name: Weekly Hygiene
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Sunday 02:00 Malaysia Time (UTC+08).
+    - cron: "0 18 * * 6"
+
+permissions:
+  contents: read
+  issues: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+concurrency:
+  group: weekly-hygiene-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  weekly-hygiene:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Cache npm
+        uses: actions/cache@v5
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-weekly-${{ hashFiles('package-lock.json', 'services/user-front/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
+
+      - name: Install CI command-line tools
+        run: |
+          if ! command -v rg >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y ripgrep
+          fi
+          if ! command -v uvx >/dev/null 2>&1; then
+            curl -LsSf https://astral.sh/uv/install.sh | sh
+            echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          fi
+          if ! command -v jscpd >/dev/null 2>&1; then
+            npm install -g jscpd
+          fi
+          if ! command -v prettier >/dev/null 2>&1; then
+            npm install -g prettier@2.8.8
+          fi
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Run weekly hygiene harness
+        run: npm run weekly:hygiene
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WEEKLY_HYGIENE_COMMAND_TIMEOUT_MS: "900000"
+
+      - name: Validate weekly hygiene evidence
+        run: npm run ci:weekly-hygiene-evidence
+
+      - name: Upload weekly hygiene report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: weekly-hygiene-report
+          path: output/weekly-hygiene/
+          retention-days: 30
+
+      - name: Create or update weekly hygiene issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          report_dir="$(node -e "const fs=require('fs'); const p=JSON.parse(fs.readFileSync('output/weekly-hygiene/latest.json','utf8')); console.log(p.reportDir)")"
+          issue_required="$(node -e "const fs=require('fs'); const r=JSON.parse(fs.readFileSync(process.argv[1] + '/report.json','utf8')); console.log(r.issueRequired ? 'true' : 'false')" "$report_dir")"
+          if [[ "$issue_required" != "true" ]]; then
+            echo "[weekly-hygiene] no issue required"
+            exit 0
+          fi
+          title="Weekly Hygiene Report: $(date -u +%F)"
+          issue_number="$(gh issue list --state open --limit 100 --json number,title --jq ".[] | select(.title == \"$title\") | .number" | head -n 1)"
+          if [[ -n "$issue_number" ]]; then
+            gh issue edit "$issue_number" --body-file "$report_dir/issue.md"
+          else
+            gh issue create --title "$title" --body-file "$report_dir/issue.md"
+          fi

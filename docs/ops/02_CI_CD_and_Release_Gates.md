@@ -120,6 +120,25 @@ GitHub PR CI 仍然保留单个 required check：`pr-checks`。动态 scope 只�
 2. 每个目录在 CI 里自建自己的 `.venv`
 3. 每个目录只安装自己的依赖和本次门禁需要的测试工具
 
+### 4.1.1 Weekly Hygiene Harness
+
+`.github/workflows/weekly-hygiene.yml` 是每周日的仓库卫生巡检，不替代
+PR CI 或 release evidence。它在每周日 02:00 MYT 运行，对应 UTC cron
+`0 18 * * 6`。
+
+默认权限是 Report + Issue：
+
+1. 运行 `npm run weekly:hygiene`，收集代码质量、docs、资金安全、evidence
+   freshness、generated artifact 和 GitHub PR/branch hygiene 结果。
+2. 运行 `npm run ci:weekly-hygiene-evidence`，验证报告结构、必要检查、
+   safety flags、freshness 和 redaction。
+3. 上传 `output/weekly-hygiene/**`，artifact retention 为 30 天。
+4. 仅当报告为 `attention_required` 时创建或更新 GitHub Issue。
+
+Weekly hygiene 不允许自动删除 tracked source/docs/evidence，不允许 mutation
+staging/prod DB，不允许关闭 PR 或删除远程分支。任何真正的数据清理必须走
+对应 local/staging/prod runbook 和显式确认。
+
 ### 4.2 Financial Security CI
 
 这是最高优先级专项流水线。
