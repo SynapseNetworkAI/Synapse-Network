@@ -1,0 +1,7 @@
+{
+  "errors": [],
+  "events": [],
+  "mode": "postgres-outbox",
+  "skippedReason": "MVP staging uses Postgres outbox/projections and does not deploy Kafka/ClickHouse.",
+  "totalEvents": null
+}
