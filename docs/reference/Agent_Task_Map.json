@@ -362,8 +362,15 @@
         "docs/00_Governance/Documentation_Constraints.md",
         "docs/05_DevOps_Deployment/README.md"
       ],
-      "validation_commands": ["npm run ci:docs"],
-      "notes": ["Keep local scripts and GitHub Actions entrypoints aligned."]
+      "validation_commands": [
+        "node --test scripts/ci/resolve_pr_ci_scope.test.mjs",
+        "npm run ci:pr:fast",
+        "npm run ci:docs"
+      ],
+      "notes": [
+        "Keep local scripts and GitHub Actions entrypoints aligned.",
+        "PR CI is dynamically scoped; workflow and ordinary CI-tool changes should run CI meta checks without forcing full CI unless they touch root dependencies, deploy scripts, security, finance, or unknown paths."
+      ]
     },
     {
       "id": "codex_token_optimization",
