@@ -5,11 +5,20 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 REQUESTED_SCOPE="${SYNAPSE_CI_SCOPE:-auto}"
 SCOPE_FILE="${SYNAPSE_CI_SCOPE_FILE:-}"
+COMMAND_FILTER="${SYNAPSE_CI_COMMANDS:-}"
+SKIP_AGENT_LESSONS="${SYNAPSE_SKIP_AGENT_LESSONS:-0}"
 
 echo "[ci:pr] running pull request quality gates"
 echo "[ci:pr] requested scope: ${REQUESTED_SCOPE}"
+if [[ -n "$COMMAND_FILTER" ]]; then
+  echo "[ci:pr] command filter: ${COMMAND_FILTER}"
+fi
 
-npm run ci:agent-lessons
+if [[ "$SKIP_AGENT_LESSONS" == "1" ]]; then
+  echo "[ci:pr] skipping agent lessons gate for this shard"
+else
+  npm run ci:agent-lessons
+fi
 
 if [[ "$REQUESTED_SCOPE" != "auto" && "$REQUESTED_SCOPE" != "full" ]]; then
   echo "FATAL CI-SCOPE-001: SYNAPSE_CI_SCOPE must be auto or full" >&2
@@ -37,10 +46,27 @@ NODE
 
 COMMANDS_FILE="$(mktemp "${TMPDIR:-/tmp}/synapse-pr-ci-commands.XXXXXX")"
 TIMINGS_FILE="$(mktemp "${TMPDIR:-/tmp}/synapse-pr-ci-timings.XXXXXX")"
-node - "$SCOPE_FILE" > "$COMMANDS_FILE" <<'NODE'
+node - "$SCOPE_FILE" "$COMMAND_FILTER" > "$COMMANDS_FILE" <<'NODE'
 const fs = require("fs");
 const scope = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
-for (const command of scope.commands || []) {
+const requested = String(process.argv[3] || "")
+  .split(",")
+  .map((item) => item.trim())
+  .filter(Boolean);
+const allowed = new Set(requested);
+const available = new Set(scope.commands || []);
+for (const command of requested) {
+  if (!available.has(command)) {
+    console.error(
+      `FATAL CI-SCOPE-004: requested command '${command}' is not in resolved PR scope`
+    );
+    process.exit(2);
+  }
+}
+const commands = requested.length
+  ? (scope.commands || []).filter((command) => allowed.has(command))
+  : scope.commands || [];
+for (const command of commands) {
   console.log(command);
 }
 NODE
@@ -50,6 +76,12 @@ run_gate_command() {
   case "$gate" in
     runtime_preflight)
       bash "$ROOT_DIR/scripts/ci/runtime_preflight.sh"
+      ;;
+    github_actions_runtime_check)
+      npm run ci:github-actions-runtime
+      ;;
+    ci_meta_checks)
+      node --test "$ROOT_DIR/scripts/ci/resolve_pr_ci_scope.test.mjs"
       ;;
     security_money_scan)
       bash "$ROOT_DIR/scripts/ci/security_money_scan.sh"
@@ -155,6 +187,10 @@ run_gate() {
 }
 
 if [[ ! -s "$COMMANDS_FILE" ]]; then
+  if [[ -n "$COMMAND_FILTER" ]]; then
+    echo "[ci:pr] no commands selected for this shard; skipping"
+    exit 0
+  fi
   echo "FATAL CI-SCOPE-003: resolver returned no commands" >&2
   exit 2
 fi

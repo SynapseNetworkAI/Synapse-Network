@@ -93,10 +93,18 @@ class FakeCredentialAuthRepo:
         daily_limit: int,
         send_date,
     ) -> OwnerProfileRecord:
-        _ = code_hash, expires_at, daily_limit, send_date
+        _ = code_hash, daily_limit, send_date
         if self.raise_daily_limit:
             raise ValueError("EMAIL_VERIFICATION_DAILY_LIMIT_REACHED")
-        self.profile = self.profile.model_copy(update={"pending_email": email})
+        self.profile = self.profile.model_copy(
+            update={
+                "pending_email": email,
+                "email_verification_expires_at": expires_at.strftime(
+                    "%Y-%m-%d %H:%M:%S"
+                ),
+                "email_verification_attempts": 0,
+            }
+        )
         return self.profile
 
     def mark_owner_email_verification_sent(
@@ -239,6 +247,27 @@ def test_get_me_returns_owner_profile(monkeypatch) -> None:
     assert body["profile"]["ownerAddress"] == "0xabc"
     assert body["profile"]["displayName"] == "Synapse Ops"
     assert storage.credential_auth.read_calls == [("0xabc", True)]
+
+
+def test_get_me_marks_pending_email_without_active_code_expired(monkeypatch) -> None:
+    with _http_client(monkeypatch) as (client, storage):
+        storage.credential_auth.profile = storage.credential_auth.profile.model_copy(
+            update={
+                "pending_email": "cliff@synapse-network.ai",
+                "email_verification_expires_at": None,
+                "email_verification_send_count": 0,
+            }
+        )
+        response = client.get(
+            "/api/v1/auth/me",
+            headers={"Authorization": "Bearer test", "X-User-Address": "0xAbC"},
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["profile"]["pendingEmail"] == "cliff@synapse-network.ai"
+    assert body["profile"]["emailVerificationStatus"] == "expired"
+    assert body["profile"]["emailVerificationSendsRemaining"] == 5
 
 
 def test_profile_challenge_uses_owner_scoped_payload(monkeypatch) -> None:

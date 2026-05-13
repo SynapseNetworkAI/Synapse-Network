@@ -128,6 +128,22 @@ const evidence = {
 
 fs.mkdirSync(SCREENSHOT_DIR, { recursive: true });
 
+const STAGING_PROVIDER_FIXTURE_CANDIDATES = [
+  "svc_synapse_mock_cost_1usdc",
+  "svc_deepseek_chat",
+  "wr_staging_provider_",
+  "svc_synapse_echo",
+];
+const E2E_CREDENTIAL_NAME_PREFIXES = [
+  "e2e-agent-",
+  "api-ref-test-",
+  "inv-test-",
+  "provider-gpp-e2e-local-",
+  "staging-load-",
+  "wr-staging-",
+  "consumer-test-",
+];
+
 function redact(value) {
   return String(value ?? "")
     .replace(/0x[a-fA-F0-9]{64}/g, "[REDACTED_HEX64]")
@@ -490,28 +506,360 @@ async function loginAdmin() {
 async function authWallet(privateKey, label) {
   const wallet = new ethers.Wallet(privateKey);
   const address = wallet.address;
-  const challenge = await httpJson(
+  let lastError = null;
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      const challenge = await httpJson(
+        `${config.gatewayBase}/api`,
+        `/v1/auth/challenge?address=${encodeURIComponent(address)}`,
+        { scenario: `${label}:auth-challenge` }
+      );
+      const message = challenge.payload.challenge || challenge.payload.message;
+      const signature = await wallet.signMessage(message);
+      const verified = await httpJson(
+        `${config.gatewayBase}/api`,
+        "/v1/auth/verify",
+        {
+          method: "POST",
+          body: { wallet_address: address, message, signature },
+          scenario: `${label}:auth-verify`,
+        }
+      );
+      const token =
+        verified.payload.access_token ||
+        verified.payload.token ||
+        verified.payload.accessToken;
+      if (!token) throw new Error(`${label} auth response missing token`);
+      return { address, token, privateKey };
+    } catch (error) {
+      lastError = error;
+      const text = String(error?.message || error);
+      if (
+        attempt < 3 &&
+        (text.includes("Invalid signature or expired challenge") ||
+          text.includes("401"))
+      ) {
+        warn(`${label}:auth-retry`, `attempt=${attempt}`);
+        continue;
+      }
+      throw error;
+    }
+  }
+  throw lastError || new Error(`${label} auth failed`);
+}
+
+function moneyString(...candidates) {
+  for (const candidate of candidates) {
+    if (candidate === null || candidate === undefined) continue;
+    const value = String(candidate).trim();
+    if (value) return value;
+  }
+  return "0";
+}
+
+async function listProviderOwnedServices(auth) {
+  const result = await httpJson(`${config.gatewayBase}/api`, "/v1/services", {
+    token: auth.token,
+    address: auth.address,
+    scenario: "provider:owned-services",
+  });
+  return Array.isArray(result.payload?.services)
+    ? result.payload.services
+    : Array.isArray(result.payload?.data?.services)
+    ? result.payload.data.services
+    : [];
+}
+
+async function listActiveAgentCredentials(auth) {
+  const result = await httpJson(
     `${config.gatewayBase}/api`,
-    `/v1/auth/challenge?address=${encodeURIComponent(address)}`,
-    { scenario: `${label}:auth-challenge` }
-  );
-  const message = challenge.payload.challenge || challenge.payload.message;
-  const signature = await wallet.signMessage(message);
-  const verified = await httpJson(
-    `${config.gatewayBase}/api`,
-    "/v1/auth/verify",
+    "/v1/credentials/agent/list?active_only=true",
     {
-      method: "POST",
-      body: { wallet_address: address, message, signature },
-      scenario: `${label}:auth-verify`,
+      token: auth.token,
+      address: auth.address,
+      scenario: "consumer:list-agent-credentials",
     }
   );
+  return Array.isArray(result.payload?.credentials)
+    ? result.payload.credentials
+    : Array.isArray(result.payload?.data?.credentials)
+    ? result.payload.data.credentials
+    : [];
+}
+
+async function revokeCredential(auth, credentialId) {
+  const revoke = await httpJson(
+    `${config.gatewayBase}/api`,
+    `/v1/credentials/agent/${encodeURIComponent(credentialId)}/revoke`,
+    {
+      method: "POST",
+      token: auth.token,
+      address: auth.address,
+      scenario: "consumer:revoke-agent-credential",
+      expectOk: false,
+    }
+  );
+  return [200, 204, 404].includes(revoke.response.status);
+}
+
+async function rotateAgentCredential(auth, credentialId) {
+  const result = await httpJson(
+    `${config.gatewayBase}/api`,
+    `/v1/credentials/agent/${encodeURIComponent(credentialId)}/rotate`,
+    {
+      method: "POST",
+      token: auth.token,
+      address: auth.address,
+      scenario: "consumer:rotate-agent-credential",
+    }
+  );
+  const credential = result.payload?.credential || result.payload || {};
   const token =
-    verified.payload.access_token ||
-    verified.payload.token ||
-    verified.payload.accessToken;
-  if (!token) throw new Error(`${label} auth response missing token`);
-  return { address, token, privateKey };
+    credential.token || credential.secretKey || credential.agentToken || "";
+  if (!credential.id || !token) {
+    throw new Error(
+      `agent credential rotate response missing id/token: ${JSON.stringify(
+        credential
+      ).slice(0, 800)}`
+    );
+  }
+  return {
+    id: credential.id,
+    token,
+    tokenPrefix: credential.tokenPrefix || credential.secretPrefix || "",
+  };
+}
+
+async function reclaimE2eCredentialSlots(auth) {
+  const credentials = await listActiveAgentCredentials(auth);
+  let revoked = 0;
+  for (const credential of credentials) {
+    const name = String(credential.name || "").trim();
+    if (
+      !E2E_CREDENTIAL_NAME_PREFIXES.some((prefix) => name.startsWith(prefix))
+    ) {
+      continue;
+    }
+    const credentialId =
+      credential.credentialId ||
+      credential.credential_id ||
+      credential.id ||
+      "";
+    if (!credentialId) continue;
+    if (await revokeCredential(auth, credentialId)) {
+      revoked += 1;
+    }
+  }
+  return revoked;
+}
+
+async function issueAgentCredential(auth, namePrefix = "wr-staging") {
+  const body = {
+    name: `${namePrefix}-${runId()}`,
+    rpm: 60,
+    maxCalls: 500,
+    creditLimit: "1000",
+    resetInterval: "daily",
+  };
+  let result = await httpJson(
+    `${config.gatewayBase}/api`,
+    "/v1/credentials/agent/issue",
+    {
+      method: "POST",
+      token: auth.token,
+      address: auth.address,
+      body,
+      scenario: "consumer:issue-agent-credential",
+      expectOk: false,
+    }
+  );
+  const errorCode =
+    result.payload?.detail?.code ||
+    result.payload?.error?.code ||
+    result.payload?.code;
+  if (
+    result.response.status === 409 &&
+    String(errorCode).includes("AGENT_CREDENTIAL_LIMIT_REACHED")
+  ) {
+    const revoked = await reclaimE2eCredentialSlots(auth);
+    warn("consumer:agent-credential-slots-reclaimed", `revoked=${revoked}`);
+    result = await httpJson(
+      `${config.gatewayBase}/api`,
+      "/v1/credentials/agent/issue",
+      {
+        method: "POST",
+        token: auth.token,
+        address: auth.address,
+        body,
+        scenario: "consumer:issue-agent-credential-retry",
+      }
+    );
+  } else if (!result.response.ok || result.payload?.success === false) {
+    throw new Error(
+      `POST /v1/credentials/agent/issue failed: ${
+        result.response.status
+      } ${JSON.stringify(result.payload).slice(0, 900)}`
+    );
+  }
+  const credential = result.payload?.credential || result.payload || {};
+  const token =
+    credential.token || credential.secretKey || credential.agentToken || "";
+  if (!credential.id || !token) {
+    throw new Error(
+      `agent credential issue response missing id/token: ${JSON.stringify(
+        credential
+      ).slice(0, 800)}`
+    );
+  }
+  return {
+    id: credential.id,
+    token,
+    tokenPrefix: credential.tokenPrefix || credential.secretPrefix || "",
+  };
+}
+
+function selectStagingProviderFixtureService(services) {
+  const rows = Array.isArray(services) ? services : [];
+  for (const wanted of STAGING_PROVIDER_FIXTURE_CANDIDATES) {
+    const healthyPaid = rows.find((row) => {
+      const serviceId = String(
+        row.serviceId || row.service_id || row.id || row.agentToolName || ""
+      ).trim();
+      const price = Number.parseFloat(
+        moneyString(
+          row.pricingAmount,
+          row.priceUsdc,
+          row.pricing?.amount,
+          row.pricing?.amountUsdc
+        )
+      );
+      return (
+        row.runtimeAvailable === true &&
+        Number.isFinite(price) &&
+        price > 0 &&
+        (wanted.endsWith("_")
+          ? serviceId.startsWith(wanted)
+          : serviceId === wanted)
+      );
+    });
+    if (healthyPaid) return healthyPaid;
+    const match = rows.find((row) => {
+      const serviceId = String(
+        row.serviceId || row.service_id || row.id || row.agentToolName || ""
+      ).trim();
+      if (!serviceId) return false;
+      if (wanted.endsWith("_")) return serviceId.startsWith(wanted);
+      return serviceId === wanted;
+    });
+    if (match) return match;
+  }
+  return rows.find((row) => {
+    const price = Number.parseFloat(
+      moneyString(
+        row.pricingAmount,
+        row.priceUsdc,
+        row.pricing?.amount,
+        row.pricing?.amountUsdc
+      )
+    );
+    return Number.isFinite(price) && price > 0;
+  });
+}
+
+function fixtureInvokePayload(serviceId, suffix) {
+  const normalized = String(serviceId || "").trim();
+  if (normalized === "svc_deepseek_chat") {
+    return {
+      messages: [
+        {
+          role: "user",
+          content: `withdrawal review ${suffix}`,
+        },
+      ],
+      stream: false,
+    };
+  }
+  if (normalized === "svc_synapse_mock_cost_1usdc") {
+    return {
+      message: `withdrawal review ${suffix}`,
+      source: "withdrawal-review-dogfood",
+    };
+  }
+  if (normalized === "svc_synapse_echo") {
+    return {
+      message: `withdrawal review ${suffix}`,
+      source: "withdrawal-review-dogfood",
+    };
+  }
+  return { query: `withdrawal review ${suffix}` };
+}
+
+async function buildStagingProviderReviewFixture() {
+  const consumerAuth = await authWallet(config.consumerKey, "consumer-fixture");
+  const providerAuth = await authWallet(config.providerKey, "provider-fixture");
+  const services = await listProviderOwnedServices(providerAuth);
+  const service = selectStagingProviderFixtureService(services);
+  if (!service) {
+    throw new Error(
+      `No provider-owned staging fixture service found for ${providerAuth.address}`
+    );
+  }
+  const issuedCredential = await issueAgentCredential(consumerAuth);
+  const credential = await rotateAgentCredential(
+    consumerAuth,
+    issuedCredential.id
+  );
+  const normalizedServiceId = String(
+    service.serviceId ||
+      service.service_id ||
+      service.id ||
+      service.agentToolName
+  ).trim();
+  const fixture = {
+    version: 1,
+    mode: "withdrawal-review-staging-provider",
+    runId: runId(),
+    generatedAt: new Date().toISOString(),
+    consumer: {
+      address: consumerAuth.address,
+    },
+    provider: {
+      address: providerAuth.address,
+    },
+    service: {
+      id: normalizedServiceId,
+      name: service.serviceName || service.name || normalizedServiceId,
+      priceUsdc: moneyString(
+        service.pricingAmount,
+        service.priceUsdc,
+        service.pricing?.amount,
+        service.pricing?.amountUsdc,
+        "1.000000"
+      ),
+      mockUrl:
+        service.primaryEndpoint?.endpointUrl ||
+        service.invoke?.targets?.[0]?.url ||
+        "",
+      discovery: sanitize(service),
+    },
+    credential,
+  };
+  const fixturePath = path.join(
+    OUT_DIR,
+    `${runId()}-staging-provider-review-fixture.json`
+  );
+  fs.writeFileSync(fixturePath, `${JSON.stringify(fixture, null, 2)}\n`);
+  pass(
+    "provider:staging-fixture-generated",
+    `${normalizedServiceId} credential=${credential.id}`
+  );
+  evidence.api.providerRejectFixture = {
+    serviceId: normalizedServiceId,
+    credentialId: credential.id,
+    consumerAddress: consumerAuth.address,
+    providerAddress: providerAuth.address,
+  };
+  return { fixturePath, fixture };
 }
 
 function queryJson(sql) {
@@ -586,6 +934,69 @@ function dbWithdrawal(withdrawalId) {
     WHERE vw.withdrawal_id = ${sqlLiteral(withdrawalId)}
     LIMIT 1
   `);
+}
+
+function dbProviderMatureReceivable(ownerAddress) {
+  return queryJson(`
+    WITH provider_account AS (
+      SELECT
+        lower(owner.owner_wallet) AS provider_wallet,
+        account.account_id
+      FROM synapse_owner_accounts owner
+      JOIN synapse_ledger_accounts account
+        ON account.owner_id = owner.owner_id
+       AND account.account_kind = 'provider_wallet'
+      WHERE lower(owner.owner_wallet) = lower(${sqlLiteral(ownerAddress)})
+      LIMIT 1
+    ),
+    matured_income AS (
+      SELECT COALESCE(SUM(entry.amount_usdc), 0) AS amount
+      FROM synapse_ledger_entries entry
+      JOIN provider_account provider ON provider.account_id = entry.credit_account_id
+      WHERE entry.business_type = 'charge'
+        AND entry.status = 'posted'
+        AND entry.created_at <= NOW() - INTERVAL '7 days'
+    ),
+    active_withdrawals AS (
+      SELECT COALESCE(SUM(vw.amount_usdc), 0) AS amount
+      FROM synapse_vault_withdrawals vw
+      JOIN synapse_owner_accounts owner ON owner.owner_id = vw.owner_id
+      JOIN provider_account provider
+        ON lower(owner.owner_wallet) = provider.provider_wallet
+      WHERE vw.withdrawal_kind = 'provider_withdrawal'
+        AND vw.status NOT IN ('FAILED', 'FAILED_EXPIRED', 'REJECTED', 'CANCELLED')
+    )
+    SELECT json_build_object(
+      'maturedIncomeUsdc', (SELECT amount::text FROM matured_income),
+      'activeWithdrawOrLockedUsdc', (SELECT amount::text FROM active_withdrawals),
+      'providerMatureReceivableUsdc',
+        GREATEST(
+          (SELECT amount FROM matured_income) - (SELECT amount FROM active_withdrawals),
+          0
+        )::text
+    )
+  `);
+}
+
+function dbPendingManualReviewRows(ownerAddress, withdrawalKind) {
+  return (
+    queryJson(`
+      SELECT COALESCE(json_agg(row_to_json(t) ORDER BY t."createdAt" ASC), '[]'::json)
+      FROM (
+        SELECT
+          vw.withdrawal_id AS "withdrawalId",
+          vw.withdrawal_kind AS "withdrawalKind",
+          vw.status,
+          vw.amount_usdc::text AS "amountUsdc",
+          vw.created_at::text AS "createdAt"
+        FROM synapse_vault_withdrawals vw
+        JOIN synapse_owner_accounts owner ON owner.owner_id = vw.owner_id
+        WHERE lower(owner.owner_wallet) = lower(${sqlLiteral(ownerAddress)})
+          AND vw.withdrawal_kind = ${sqlLiteral(withdrawalKind)}
+          AND vw.status = 'PENDING_MANUAL_REVIEW'
+      ) t
+    `) || []
+  );
 }
 
 function q6Atomic(value) {
@@ -719,6 +1130,43 @@ async function adminDecision(adminAuth, withdrawalId, decision, scenario) {
   return result;
 }
 
+async function rejectStaleManualReviewRows(
+  adminAuth,
+  ownerAddress,
+  withdrawalKind,
+  scenario
+) {
+  const rows = dbPendingManualReviewRows(ownerAddress, withdrawalKind);
+  if (!rows.length) return [];
+  const rejected = [];
+  for (const row of rows) {
+    await adminDecision(
+      adminAuth,
+      row.withdrawalId,
+      "REJECT",
+      `${scenario}:${row.withdrawalId}`
+    );
+    const refreshed = dbWithdrawal(row.withdrawalId);
+    if (String(refreshed?.status || "").toUpperCase() !== "REJECTED") {
+      throw new Error(
+        `stale manual review cleanup failed for ${
+          row.withdrawalId
+        }: ${JSON.stringify(refreshed)}`
+      );
+    }
+    rejected.push({
+      withdrawalId: row.withdrawalId,
+      amountUsdc: row.amountUsdc,
+      withdrawalKind,
+    });
+  }
+  warn(
+    `${scenario}:stale-manual-review-rejected`,
+    rejected.map((row) => row.withdrawalId).join(",")
+  );
+  return rejected;
+}
+
 async function createConsumerWithdrawal(auth, amountUsdc, label) {
   const idempotencyKey = `${label}:${runId()}:${crypto.randomUUID()}`;
   const result = await httpJson(
@@ -788,7 +1236,7 @@ async function invokeFixtureService(fixture, suffix) {
       serviceId: fixture.service.id,
       idempotencyKey: requestId,
       costUsdc: fixture.service.priceUsdc,
-      payload: { body: { query: `withdrawal review ${suffix}` } },
+      payload: { body: fixtureInvokePayload(fixture.service.id, suffix) },
       responseMode: "sync",
     }),
   });
@@ -812,13 +1260,72 @@ async function invokeFixtureService(fixture, suffix) {
   return payload;
 }
 
+async function ensureProviderMatureReceivable(
+  fixture,
+  providerAuth,
+  targetAmountUsdc
+) {
+  const target = Number.parseFloat(targetAmountUsdc);
+  if (!Number.isFinite(target) || target <= 0) {
+    throw new Error(
+      `Invalid provider mature receivable target: ${targetAmountUsdc}`
+    );
+  }
+  const servicePrice = Number.parseFloat(
+    moneyString(fixture?.service?.priceUsdc, "0")
+  );
+  if (!Number.isFinite(servicePrice) || servicePrice <= 0) {
+    throw new Error(
+      `Provider fixture service price is invalid: ${JSON.stringify(
+        fixture?.service || {}
+      )}`
+    );
+  }
+  let maturity = dbProviderMatureReceivable(providerAuth.address);
+  let current = Number.parseFloat(
+    maturity?.providerMatureReceivableUsdc || "0"
+  );
+  if (Number.isFinite(current) && current >= target) {
+    evidence.db.providerMatureReceivable = maturity;
+    pass(
+      "provider:mature-receivable-ready",
+      `${maturity.providerMatureReceivableUsdc} USDC`
+    );
+    return maturity;
+  }
+  const gap = Math.max(target - (Number.isFinite(current) ? current : 0), 0);
+  const callsNeeded = Math.max(1, Math.ceil(gap / servicePrice) + 1);
+  for (let index = 0; index < callsNeeded; index += 1) {
+    await invokeFixtureService(fixture, `provider-topup-${index + 1}`);
+  }
+  matureProviderCharges(providerAuth.address);
+  maturity = dbProviderMatureReceivable(providerAuth.address);
+  current = Number.parseFloat(maturity?.providerMatureReceivableUsdc || "0");
+  evidence.db.providerMatureReceivable = maturity;
+  evidence.api.providerRejectFixtureTopup = {
+    serviceId: fixture.service.id,
+    priceUsdc: fixture.service.priceUsdc,
+    targetAmountUsdc,
+    invokeCount: callsNeeded,
+  };
+  if (!Number.isFinite(current) || current < target) {
+    throw new Error(
+      `Provider mature receivable did not reach target after top-up: current=${maturity?.providerMatureReceivableUsdc} target=${targetAmountUsdc} invokes=${callsNeeded}`
+    );
+  }
+  pass(
+    "provider:mature-receivable-ready",
+    `${maturity.providerMatureReceivableUsdc} USDC after ${callsNeeded} invoke(s)`
+  );
+  return maturity;
+}
+
 async function runProviderApprovalBaseline() {
   if (IS_STAGING) {
     if (!config.stagingFixture || !fs.existsSync(config.stagingFixture)) {
-      throw new Error(
-        "Staging provider review requires WITHDRAWAL_REVIEW_DOGFOOD_FIXTURE. " +
-          "The fixture must contain authenticated consumer/provider tokens, a provider service id, and an agent credential token."
-      );
+      const generated = await buildStagingProviderReviewFixture();
+      warn("provider:staging-fixture-autogenerated", generated.fixturePath);
+      return generated.fixture;
     }
     const fixture = readJson(config.stagingFixture);
     pass("provider:staging-fixture-loaded", config.stagingFixture);
@@ -1033,11 +1540,11 @@ async function runProviderReject(fixture, providerAuth, adminAuth) {
       "Provider reject requires provider approval fixture with service and credential."
     );
   }
-  await invokeFixtureService(fixture, "provider-reject-a");
-  await invokeFixtureService(fixture, "provider-reject-b");
-  if (!IS_STAGING) {
-    matureProviderCharges(providerAuth.address);
-  }
+  await ensureProviderMatureReceivable(
+    fixture,
+    providerAuth,
+    config.providerRejectAmountUsdc
+  );
   const before = dbBalance(providerAuth.address, "provider");
   const created = await createProviderWithdrawal(
     providerAuth,
@@ -1165,9 +1672,24 @@ async function runMain() {
       ? fixture.provider
       : await authWallet(config.providerKey, "provider");
 
-  if (!IS_STAGING) {
-    matureConsumerDeposits(consumerAuth.address);
+  if (IS_STAGING) {
+    evidence.db.stagingCleanup = {
+      consumer: await rejectStaleManualReviewRows(
+        adminAuth,
+        consumerAuth.address,
+        "consumer_refund",
+        "consumer-cleanup"
+      ),
+      provider: await rejectStaleManualReviewRows(
+        adminAuth,
+        providerAuth.address,
+        "provider_withdrawal",
+        "provider-cleanup"
+      ),
+    };
   }
+
+  matureConsumerDeposits(consumerAuth.address);
 
   await runConsumerReject(consumerAuth, adminAuth);
   await runConsumerApprove(consumerAuth, adminAuth);

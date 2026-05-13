@@ -3,9 +3,12 @@ import { execFileSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 
 import { classifyPackageJsonChange } from "./resolve_pr_ci_scope_package.mjs";
+import { classifyCiToolFile } from "./resolve_pr_ci_scope_rules.mjs";
 
 const FULL_COMMANDS = [
   "runtime_preflight",
+  "github_actions_runtime_check",
+  "ci_meta_checks",
   "security_money_scan",
   "security_money_ts_scan",
   "finance_approval_safety_scan",
@@ -164,6 +167,21 @@ if (requestedMode === "full") {
           .filter(Boolean)
       );
     }
+    const localChangedFiles = new Set();
+    for (const localDiffArgs of [
+      ["diff", "--name-only"],
+      ["diff", "--name-only", "--cached"],
+    ]) {
+      const localDiffOutput = tryGit(localDiffArgs);
+      if (localDiffOutput) {
+        const localFiles = localDiffOutput
+          .split("\n")
+          .map((item) => item.trim())
+          .filter(Boolean);
+        for (const file of localFiles) localChangedFiles.add(file);
+        changedFiles.push(...localFiles);
+      }
+    }
     const untrackedOutput = tryGit([
       "ls-files",
       "--others",
@@ -190,17 +208,12 @@ if (requestedMode === "full") {
     let forceFullReason = "";
 
     const docsPatterns = [/^docs\//, /^llms\.txt$/, /\.md$/];
-    const narrowCiToolPatterns = [
-      /^scripts\/ci\/agent_lessons_check(\.test)?\.mjs$/,
-    ];
     const rootE2eScriptPatterns = [
       /^scripts\/e2e_fullflow_test\.py$/,
       /^scripts\/fullchain_browser_test\.py$/,
       /^scripts\/verify_chain\.py$/,
     ];
     const fullTriggerPatterns = [
-      /^\.github\/workflows\//,
-      /^scripts\/ci\//,
       /^scripts\/deploy\//,
       /^scripts\/dev\/install_git_hooks\.sh$/,
       /^semgrep\//,
@@ -226,6 +239,7 @@ if (requestedMode === "full") {
       /^scripts\/prod\//,
       /^scripts\/tools\//,
       /^scripts\/python\//,
+      /^scripts\/ci\//,
       /^infra\/monitoring\//,
       /^infra\/terraform\//,
       /^migrations\//,
@@ -239,18 +253,37 @@ if (requestedMode === "full") {
     ];
 
     const packageJsonScope = changedFiles.includes("package.json")
-      ? classifyPackageJsonChange(mergeBase, head)
+      ? classifyPackageJsonChange(mergeBase, head, {
+          preferWorkingTree: localChangedFiles.has("package.json"),
+        })
       : null;
 
     for (const file of changedFiles) {
       const isDocsFile = matchesAny(file, docsPatterns);
-      const isNarrowCiToolFile = matchesAny(file, narrowCiToolPatterns);
       docsOnly &&= isDocsFile;
 
-      if (isNarrowCiToolFile) {
+      const ciToolChange = classifyCiToolFile(file);
+      if (ciToolChange?.fullReason) {
+        forceFullReason = ciToolChange.fullReason;
+        break;
+      }
+      if (ciToolChange) {
         docsOnly = false;
-        riskScopes.add("agent-lessons");
-        reasons.push("agent lessons CI tool change mapped narrowly");
+        for (const command of ciToolChange.commands || []) {
+          addCommand(commands, command);
+        }
+        for (const scope of ciToolChange.riskScopes || []) {
+          riskScopes.add(scope);
+        }
+        if (
+          ciToolChange.project &&
+          !["docs", "performance"].includes(ciToolChange.project)
+        ) {
+          affectedProjects.add(ciToolChange.project);
+        }
+        needsUserFrontDeps ||= Boolean(ciToolChange.needsUserFrontDeps);
+        needsAdminFrontDeps ||= Boolean(ciToolChange.needsAdminFrontDeps);
+        if (ciToolChange.reason) reasons.push(ciToolChange.reason);
         continue;
       }
 

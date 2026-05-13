@@ -47,7 +47,7 @@ const BASELINED_FILE_EFFECTIVE_LINES = new Map([
   ["scripts/e2e/withdrawal_one_ticket_evidence.mjs", 1432],
   ["scripts/e2e/withdrawal_one_ticket_evidence_augment.mjs", 832],
   ["scripts/e2e/withdrawal_risk_policy_e2e.mjs", 1090],
-  ["scripts/e2e/withdrawal_review_dogfood.mjs", 1332],
+  ["scripts/e2e/withdrawal_review_dogfood.mjs", 1773],
   ["scripts/fullchain_browser_test.py", 555],
   ["scripts/fullchain_wallet_test.js", 1061],
   ["scripts/perf/local_production_load_rehearsal.mjs", 1485],

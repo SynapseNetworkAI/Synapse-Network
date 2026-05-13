@@ -10,7 +10,7 @@ export function createWithdrawalReviewMaturityHelpers({
     const result = queryJson(`
       WITH updated AS (
         UPDATE synapse_vault_deposits deposit
-        SET updated_at = NOW() - INTERVAL '2 days'
+        SET updated_at = NOW() - INTERVAL '8 days'
         WHERE lower(deposit.owner_address) = lower(${sqlLiteral(ownerAddress)})
           AND deposit.status = 'CONFIRMED'
         RETURNING deposit.deposit_id

@@ -14,6 +14,7 @@ const BASELINE_ACTION_MAJORS = new Map([
   ["actions/setup-python", 6],
   ["actions/cache", 5],
   ["actions/upload-artifact", 4],
+  ["actions/download-artifact", 4],
 ]);
 
 const failures = [];

@@ -41,43 +41,46 @@ From repository root:
 21. `npm run ci:provider-service`
 22. `npm run ci:sdk-python`
 23. `npm run ci:contracts`
-24. `npm run ci:pr`
-25. `npm run perf:local-production-load-rehearsal`
-26. `npm run ci:local-production-load-evidence`
-27. `npm run ci:monitoring-alert-rules`
-28. `npm run e2e:lark-alerts`
-29. `npm run ci:lark-alert-e2e-evidence`
-30. `npm run e2e:in-app-notifications`
-31. `npm run ci:in-app-notifications-evidence`
-32. `npm run e2e:admin-inbox-provider-services`
-33. `npm run ci:admin-inbox-provider-services-evidence`
-34. `npm run e2e:user-front-deposit-balance`
-35. `npm run ci:user-front-deposit-balance-evidence`
-36. `npm run e2e:user-front-payments-gateway-truth:local`
-37. `npm run ci:user-front-payments-gateway-truth-local-evidence`
-38. `npm run e2e:deposit-indexer-recovery:local`
-39. `npm run ci:deposit-indexer-recovery-local-evidence`
-40. `npm run e2e:deposit-indexer-event-only:local`
-41. `npm run ci:deposit-indexer-event-only-local-evidence`
-42. `npm run e2e:invocation-billing-migration:local`
-43. `npm run ci:invocation-billing-migration-local-evidence`
-44. `npm run e2e:admin-dashboard-projection-readmodel:local`
-45. `npm run ci:admin-dashboard-projection-readmodel-local-evidence`
-46. `npm run e2e:admin-regression`
-47. `npm run ci:admin-regression-evidence`
-48. `npm run e2e:admin-pagination-sorting`
-49. `npm run ci:admin-pagination-sorting-evidence`
-50. `npm run e2e:withdrawal-reviews-cleanup:local`
-51. `npm run ci:withdrawal-reviews-cleanup-local-evidence`
-52. `npm run ci:backup-restore-evidence`
-53. `npm run deploy:contracts:arbitrum-sepolia:dry-run`
-54. `npm run ci:contract-deployment-evidence`
-55. `npm run e2e:consumer-withdraw-claim-fullchain:local`
-56. `npm run ci:consumer-withdraw-claim-fullchain-local-evidence`
-57. `npm run e2e:consumer-withdraw-approval-expiry:local`
-58. `npm run ci:consumer-withdraw-approval-expiry-local-evidence`
-59. `npm run ci:migration-seed-guard`
-60. `npm run weekly:hygiene -- --dry-run` and
+24. `npm run ci:pr:fast`
+25. `npm run ci:pr:local`
+26. `npm run ci:pr`
+27. `npm run ci:pr:full`
+28. `npm run perf:local-production-load-rehearsal`
+29. `npm run ci:local-production-load-evidence`
+30. `npm run ci:monitoring-alert-rules`
+31. `npm run e2e:lark-alerts`
+32. `npm run ci:lark-alert-e2e-evidence`
+33. `npm run e2e:in-app-notifications`
+34. `npm run ci:in-app-notifications-evidence`
+35. `npm run e2e:admin-inbox-provider-services`
+36. `npm run ci:admin-inbox-provider-services-evidence`
+37. `npm run e2e:user-front-deposit-balance`
+38. `npm run ci:user-front-deposit-balance-evidence`
+39. `npm run e2e:user-front-payments-gateway-truth:local`
+40. `npm run ci:user-front-payments-gateway-truth-local-evidence`
+41. `npm run e2e:deposit-indexer-recovery:local`
+42. `npm run ci:deposit-indexer-recovery-local-evidence`
+43. `npm run e2e:deposit-indexer-event-only:local`
+44. `npm run ci:deposit-indexer-event-only-local-evidence`
+45. `npm run e2e:invocation-billing-migration:local`
+46. `npm run ci:invocation-billing-migration-local-evidence`
+47. `npm run e2e:admin-dashboard-projection-readmodel:local`
+48. `npm run ci:admin-dashboard-projection-readmodel-local-evidence`
+49. `npm run e2e:admin-regression`
+50. `npm run ci:admin-regression-evidence`
+51. `npm run e2e:admin-pagination-sorting`
+52. `npm run ci:admin-pagination-sorting-evidence`
+53. `npm run e2e:withdrawal-reviews-cleanup:local`
+54. `npm run ci:withdrawal-reviews-cleanup-local-evidence`
+55. `npm run ci:backup-restore-evidence`
+56. `npm run deploy:contracts:arbitrum-sepolia:dry-run`
+57. `npm run ci:contract-deployment-evidence`
+58. `npm run e2e:consumer-withdraw-claim-fullchain:local`
+59. `npm run ci:consumer-withdraw-claim-fullchain-local-evidence`
+60. `npm run e2e:consumer-withdraw-approval-expiry:local`
+61. `npm run ci:consumer-withdraw-approval-expiry-local-evidence`
+62. `npm run ci:migration-seed-guard`
+63. `npm run weekly:hygiene -- --dry-run` and
     `npm run ci:weekly-hygiene-evidence`
 
 Use these wrappers when final integration confidence is required.
@@ -99,23 +102,34 @@ Local hook bootstrap:
 
 1. `bash scripts/dev/install_git_hooks.sh`
 
-After installation, `git push` automatically runs `bash scripts/ci/pr_checks.sh`.
-That PR gate starts with `npm run ci:agent-lessons`, which requires
+After installation, `git push` automatically runs `npm run ci:pr:fast` by default. Use
+`SYNAPSE_PRE_PUSH_MODE=auto git push` to run the same affected-scope gate as the
+remote PR, or `SYNAPSE_PRE_PUSH_MODE=full git push` for the full aggregate gate.
+The hook still starts with `npm run ci:agent-lessons`, which requires
 `docs/reference/agent-lessons/<branch-slug>.md` for non-merge work unless the
 branch has no local changes. Use `No new lessons.` for a clean push review, or
 add a structured `Lesson:` block when the session exposed a reusable failure
 pattern.
 Emergency bypass remains `git push --no-verify`.
 
-`ci:pr` defaults to dynamic scope. `bash scripts/ci/pr_checks.sh` resolves changed
-files with `scripts/ci/resolve_pr_ci_scope.mjs`, prints the selected commands,
-and then runs only the relevant gates. It fails closed into full CI for CI
-workflow changes, root dependency/lockfile changes, deploy-script changes,
-guardrail script changes, unknown paths, or merge-base resolution failures.
-Root `package.json` script-only changes are mapped narrowly when they are
-ordinary evidence/E2E wrappers. Each selected gate prints `DONE` with a duration
-and the run ends with a gate duration summary. Use `SYNAPSE_CI_SCOPE=full bash
-scripts/ci/pr_checks.sh` when you need the old full aggregate gate explicitly.
+`ci:pr` defaults to dynamic scope. `bash scripts/ci/pr_checks.sh` resolves
+changed files with `scripts/ci/resolve_pr_ci_scope.mjs`, prints the selected
+commands, and then runs only the relevant gates. GitHub PR CI now shards the
+selected commands into baseline/risk, user-front, admin-front, gateway,
+gateway-admin, contracts, provider-service, sdk-python, and terraform jobs, so a
+frontend-only change no longer installs every project. Workflow and ordinary CI
+tool changes run static/runtime CI meta checks instead of automatic full CI;
+root dependency/lockfile changes, deploy-script changes, security/finance
+guardrail changes, unknown paths, or merge-base resolution failures still fail
+closed into full CI. Root `package.json` script-only changes are mapped narrowly
+when they are ordinary evidence/E2E/local PR wrappers. Each selected gate prints
+`DONE` with a duration and the run ends with a gate duration summary. Use
+`npm run ci:pr:local` before pushing to run the affected-scope PR gate locally,
+`npm run ci:pr:fast` for the cheaper pre-push gate, and `npm run ci:pr:full` or
+`SYNAPSE_CI_SCOPE=full bash scripts/ci/pr_checks.sh` when you need the old full
+aggregate gate explicitly. On GitHub, `main` pushes and `workflow_dispatch` with
+`ci_scope=full` still force full CI; adding the `ci/full` label to a pull request
+does the same without changing code.
 
 `npm run ci:github-actions-runtime` is the canonical GitHub Actions JavaScript
 runtime guard. It requires every workflow to force Node 24 with
@@ -162,7 +176,10 @@ fresh evidence bundle.
 `ci:pr` starts selected runs with `bash scripts/ci/runtime_preflight.sh`. This probe gives
 Node and each project Python virtualenv interpreter 8 seconds to print a version
 before the expensive gates run. It fails fast on the first startup failure so
-pre-push does not hang indefinitely. If the probe times out on macOS with
+remote PR and strict local PR runs do not hang indefinitely. The default
+`npm run ci:pr:fast` pre-push path intentionally skips this runtime probe; use
+`SYNAPSE_PRE_PUSH_MODE=auto git push` or `npm run ci:pr:local` when you want the
+stricter affected-scope gate locally. If the probe times out on macOS with
 processes stuck before printing a version, treat it as a local runtime/session
 issue rather than a test failure: restart the affected terminal or Codex
 session, then rerun `bash scripts/ci/pr_checks.sh`. To collect every failing
