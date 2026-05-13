@@ -196,6 +196,17 @@ session, then rerun `bash scripts/ci/pr_checks.sh`. To collect every failing
 runtime probe in one pass, set `CI_RUNTIME_PREFLIGHT_COLLECT_ALL=true`. Do not
 make `--no-verify` the normal path; keep it for true emergency pushes only.
 
+Repository hygiene utility:
+
+1. `DRY_RUN=1 MIN_AGE_DAYS=7 MAX_AGE_DAYS=14 bash scripts/git/cleanup_old_branches.sh` previews candidate local/remote branches whose latest `committerdate` is at least 7 days old but less than 14 days old. The script automatically excludes `main`, the current branch, open PR heads, and branches currently attached to a Git worktree.
+2. `MIN_AGE_DAYS=7 MAX_AGE_DAYS=14 bash scripts/git/cleanup_old_branches.sh` performs the real cleanup by deleting matching remote branches through `gh api` and matching local branches through `git branch -D`, then prunes remote refs and prunable worktrees.
+
+GCP billing review utility:
+
+1. `bash scripts/ops/gcp_billing_review.sh` is the canonical weekly GCP cost-review entrypoint. It requires `gh`, `gcloud`, `bq`, `jq`, and `node`, resolves the current GCP project from `gcloud`, prefers a Cloud Billing Export table in BigQuery, and writes a fresh evidence bundle under `docs/evidence/cost/<timestamp>-gcp-billing-review/`.
+2. If no billing export dataset/table is discoverable for the current project, the review fails closed with `BLOCKED missing_billing_export`, writes a blocked `report.json` / `report.md`, and does not open a PR.
+3. Only explicit repo-local optimization patches may create a PR. Pure console-only or architecture/SLA-sensitive recommendations stay in the report bundle and must not open an empty PR.
+
 ## 3. Project-Level Validation
 
 ### 3.1 apps/frontend

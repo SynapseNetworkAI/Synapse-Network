@@ -1,0 +1,69 @@
+{
+  "exportTable": {
+    "projectId": "fabled-archive-494108-k5",
+    "datasetId": "fixture_cost_export",
+    "tableId": "gcp_billing_export_resource_v1_fixture"
+  },
+  "rows": [
+    {
+      "usage_date": "2026-05-13",
+      "service_description": "Cloud Run",
+      "sku_description": "Container CPU",
+      "net_cost": 3.42
+    },
+    {
+      "usage_date": "2026-05-12",
+      "service_description": "Cloud Run",
+      "sku_description": "Container Memory",
+      "net_cost": 1.18
+    },
+    {
+      "usage_date": "2026-05-11",
+      "service_description": "Cloud SQL",
+      "sku_description": "DB Instance Core",
+      "net_cost": 2.27
+    },
+    {
+      "usage_date": "2026-05-10",
+      "service_description": "Cloud Scheduler",
+      "sku_description": "Job Execution",
+      "net_cost": 0.24
+    },
+    {
+      "usage_date": "2026-05-09",
+      "service_description": "Cloud Logging",
+      "sku_description": "Logs Storage",
+      "net_cost": 0.86
+    },
+    {
+      "usage_date": "2026-05-08",
+      "service_description": "Secret Manager",
+      "sku_description": "Active Secret Version",
+      "net_cost": 0.19
+    },
+    {
+      "usage_date": "2026-05-07",
+      "service_description": "Cloud Run",
+      "sku_description": "Container CPU",
+      "net_cost": 2.76
+    },
+    {
+      "usage_date": "2026-05-06",
+      "service_description": "Cloud Run",
+      "sku_description": "Container CPU",
+      "net_cost": 1.95
+    },
+    {
+      "usage_date": "2026-05-05",
+      "service_description": "Cloud SQL",
+      "sku_description": "DB Instance Core",
+      "net_cost": 1.93
+    },
+    {
+      "usage_date": "2026-05-04",
+      "service_description": "Cloud Logging",
+      "sku_description": "Logs Storage",
+      "net_cost": 0.49
+    }
+  ]
+}
