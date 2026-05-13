@@ -5,8 +5,8 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 REQUESTED_SCOPE="${SYNAPSE_CI_SCOPE:-auto}"
 SCOPE_FILE="${SYNAPSE_CI_SCOPE_FILE:-}"
-COMMAND_FILTER="${SYNAPSE_CI_COMMANDS:-}"
-SKIP_AGENT_LESSONS="${SYNAPSE_SKIP_AGENT_LESSONS:-0}"
+COMMAND_FILTER="${SYNAPSE_CI_COMMANDS:-${SYNAPSE_CI_ONLY_GATES:-}}"
+SKIP_AGENT_LESSONS="${SYNAPSE_SKIP_AGENT_LESSONS:-${SYNAPSE_CI_SKIP_AGENT_LESSONS:-0}}"
 
 echo "[ci:pr] running pull request quality gates"
 echo "[ci:pr] requested scope: ${REQUESTED_SCOPE}"
@@ -81,7 +81,7 @@ run_gate_command() {
       npm run ci:github-actions-runtime
       ;;
     ci_meta_checks)
-      node --test "$ROOT_DIR/scripts/ci/resolve_pr_ci_scope.test.mjs"
+      bash "$ROOT_DIR/scripts/ci/ci_meta_checks.sh"
       ;;
     security_money_scan)
       bash "$ROOT_DIR/scripts/ci/security_money_scan.sh"
