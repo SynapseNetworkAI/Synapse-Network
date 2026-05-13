@@ -13,6 +13,10 @@ import {
   readDotenvFile,
   resolveE2eEnvironment,
 } from "../lib/e2e_env_guard.mjs";
+import {
+  readEmailEvidence,
+  waitForEmailEvidence,
+} from "./email_binding_evidence.mjs";
 import { assertSeedEnvironment } from "./seed_env_guard.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -678,27 +682,6 @@ function runLocalOutboxWorker() {
   return redact(result.stdout || "{}");
 }
 
-function readEmailEvidence(
-  owner,
-  email = testEmail,
-  templateKey = "email_verification"
-) {
-  const row = queryJson(`
-    SELECT row_to_json(result)
-    FROM (
-      SELECT
-        count(*) FILTER (WHERE log.template_key = 'email_verification') AS "deliveryCount",
-        bool_or(log.message_id IS NOT NULL)::text AS "messageIdPresent",
-        max(log.sent_at) AS "lastSentAt"
-      FROM synapse_notification_delivery_log log
-      WHERE log.recipient_owner_id = lower(${sqlLiteral(owner)})
-        AND log.recipient_email = lower(${sqlLiteral(email)})
-        AND log.template_key = ${sqlLiteral(templateKey)}
-    ) result
-  `);
-  return row || {};
-}
-
 function readProfileEvidence(owner) {
   const row = queryJson(`
     SELECT row_to_json(result)
@@ -1114,10 +1097,15 @@ async function main() {
     );
     if (!codeRow) throw new Error("verification code missing");
     dbEvidence.pending = { ...codeRow, verificationCode: "[REDACTED_CODE]" };
-    await step("send_verification_email", () => {
+    await step("send_verification_email", async () => {
       const output = runLocalOutboxWorker();
       emailEvidence.outboxWorker = output;
-      const delivery = readEmailEvidence(ownerAuth.address);
+      const delivery = await waitForEmailEvidence(
+        queryJson,
+        sqlLiteral,
+        ownerAuth.address,
+        testEmail
+      );
       if (Number(delivery.deliveryCount || 0) < 1) {
         throw new Error("email_verification delivery log missing");
       }
@@ -1166,10 +1154,15 @@ async function main() {
       ...changeCodeRow,
       verificationCode: "[REDACTED_CODE]",
     };
-    await step("send_change_verification_email", () => {
+    await step("send_change_verification_email", async () => {
       const output = runLocalOutboxWorker();
       emailEvidence.changeOutboxWorker = output;
-      const delivery = readEmailEvidence(ownerAuth.address, changeEmail);
+      const delivery = await waitForEmailEvidence(
+        queryJson,
+        sqlLiteral,
+        ownerAuth.address,
+        changeEmail
+      );
       if (Number(delivery.deliveryCount || 0) < 1) {
         throw new Error("change email verification delivery log missing");
       }
@@ -1204,6 +1197,8 @@ async function main() {
       const output = runLocalOutboxWorker();
       emailEvidence.removedNoticeWorker = output;
       const delivery = readEmailEvidence(
+        queryJson,
+        sqlLiteral,
         ownerAuth.address,
         testEmail,
         "email_removed_notice"
