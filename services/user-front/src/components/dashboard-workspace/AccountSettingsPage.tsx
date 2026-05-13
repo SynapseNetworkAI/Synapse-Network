@@ -21,7 +21,6 @@ import {
   formsEqual,
   isValidEmail,
   maskWallet,
-  normalizeEmail,
   profileToForm,
   toPayload,
   type AccountSettingsForm,
