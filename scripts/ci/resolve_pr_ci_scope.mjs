@@ -7,11 +7,11 @@ import {
   BASELINE_COMMANDS,
   FULL_COMMANDS,
   ORDER,
+  classifyCiToolFile,
   docsPatterns,
   fullTriggerPatterns,
-  knownPatterns,
+  isKnownFile,
   matchesAny,
-  narrowCiToolPatterns,
   rootE2eScriptPatterns,
 } from "./resolve_pr_ci_scope_rules.mjs";
 
@@ -130,6 +130,23 @@ if (requestedMode === "full") {
           .filter(Boolean)
       );
     }
+
+    const localChangedFiles = new Set();
+    for (const localDiffArgs of [
+      ["diff", "--name-only"],
+      ["diff", "--name-only", "--cached"],
+    ]) {
+      const localDiffOutput = tryGit(localDiffArgs);
+      if (localDiffOutput) {
+        const localFiles = localDiffOutput
+          .split("\n")
+          .map((item) => item.trim())
+          .filter(Boolean);
+        for (const file of localFiles) localChangedFiles.add(file);
+        changedFiles.push(...localFiles);
+      }
+    }
+
     const untrackedOutput = tryGit([
       "ls-files",
       "--others",
@@ -143,6 +160,7 @@ if (requestedMode === "full") {
           .filter(Boolean)
       );
     }
+
     changedFiles = unique(changedFiles).sort();
 
     const commands = new Set(BASELINE_COMMANDS);
@@ -156,18 +174,37 @@ if (requestedMode === "full") {
     let forceFullReason = "";
 
     const packageJsonScope = changedFiles.includes("package.json")
-      ? classifyPackageJsonChange(mergeBase, head)
+      ? classifyPackageJsonChange(mergeBase, head, {
+          preferWorkingTree: localChangedFiles.has("package.json"),
+        })
       : null;
 
     for (const file of changedFiles) {
       const isDocsFile = matchesAny(file, docsPatterns);
-      const isNarrowCiToolFile = matchesAny(file, narrowCiToolPatterns);
       docsOnly &&= isDocsFile;
 
-      if (isNarrowCiToolFile) {
+      const ciToolChange = classifyCiToolFile(file);
+      if (ciToolChange?.fullReason) {
+        forceFullReason = ciToolChange.fullReason;
+        break;
+      }
+      if (ciToolChange) {
         docsOnly = false;
-        riskScopes.add("agent-lessons");
-        reasons.push("agent lessons CI tool change mapped narrowly");
+        for (const command of ciToolChange.commands || []) {
+          addCommand(commands, command);
+        }
+        for (const scope of ciToolChange.riskScopes || []) {
+          riskScopes.add(scope);
+        }
+        if (
+          ciToolChange.project &&
+          !["docs", "performance"].includes(ciToolChange.project)
+        ) {
+          affectedProjects.add(ciToolChange.project);
+        }
+        needsUserFrontDeps ||= Boolean(ciToolChange.needsUserFrontDeps);
+        needsAdminFrontDeps ||= Boolean(ciToolChange.needsAdminFrontDeps);
+        if (ciToolChange.reason) reasons.push(ciToolChange.reason);
         continue;
       }
 
@@ -175,7 +212,7 @@ if (requestedMode === "full") {
         forceFullReason = `${file} changes CI/tooling/root dependency behavior`;
         break;
       }
-      if (!matchesAny(file, knownPatterns)) {
+      if (!isKnownFile(file)) {
         unknownFile = file;
         break;
       }
@@ -209,29 +246,6 @@ if (requestedMode === "full") {
         addCommand(commands, "e2e_script_model_drift_scan");
         addCommand(commands, "code_quality_architecture_scan");
         addCommand(commands, "diff_coverage_gate");
-        continue;
-      }
-
-      if (
-        file.startsWith(".github/workflows/") ||
-        file.startsWith(".github/instructions/") ||
-        file.startsWith(".githooks/") ||
-        file.startsWith("scripts/ci/")
-      ) {
-        docsOnly = false;
-        riskScopes.add("ci-tooling");
-        addCommand(commands, "ci_meta_checks");
-        continue;
-      }
-
-      if (file.startsWith("scripts/ops/") || file.startsWith("scripts/git/")) {
-        docsOnly = false;
-        riskScopes.add("ops-automation");
-        addCommand(commands, "ci_meta_checks");
-        if (/alert|monitoring|lark/i.test(file)) {
-          riskScopes.add("monitoring");
-          addCommand(commands, "monitoring_alert_rules");
-        }
         continue;
       }
 

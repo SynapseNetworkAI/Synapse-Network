@@ -15,6 +15,17 @@ import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { useAuth } from "@/components/WalletAuthGuard";
 import { getStoredAuthSession } from "@/utils/authSession";
 import {
+  EMPTY_FORM,
+  INPUT_CLASSES,
+  PRIMARY_BUTTON_CLASSES,
+  formsEqual,
+  isValidEmail,
+  maskWallet,
+  profileToForm,
+  toPayload,
+  type AccountSettingsForm,
+} from "@/components/dashboard-workspace/accountSettingsModel";
+import {
   getOwnerProfile,
   resendOwnerEmailCode,
   requestOwnerProfileChallenge,
@@ -26,71 +37,6 @@ import {
   isWalletUnstableError,
   signWalletMessage,
 } from "@/utils/walletSignature";
-
-type AccountSettingsForm = {
-  displayName: string;
-  email: string;
-  notifyMarketing: boolean;
-  notifyAlerts: boolean;
-};
-
-const EMPTY_FORM: AccountSettingsForm = {
-  displayName: "",
-  email: "",
-  notifyMarketing: true,
-  notifyAlerts: true,
-};
-
-function maskWallet(wallet: string | null): string {
-  if (!wallet) {
-    return "";
-  }
-  return `${wallet.slice(0, 6)}...${wallet.slice(-4)}`;
-}
-
-function normalizeEmail(value: string): string {
-  return value.trim().toLowerCase();
-}
-
-function isValidEmail(value: string): boolean {
-  if (!value) {
-    return true;
-  }
-  return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value);
-}
-
-function toPayload(form: AccountSettingsForm) {
-  return {
-    displayName: form.displayName.trim() || null,
-    email: normalizeEmail(form.email) || null,
-    notifyMarketing: form.notifyMarketing,
-    notifyAlerts: form.notifyAlerts,
-  };
-}
-
-function profileToForm(profile: OwnerProfile): AccountSettingsForm {
-  return {
-    displayName: profile.displayName ?? "",
-    email: profile.email ?? "",
-    notifyMarketing: profile.notifyMarketing,
-    notifyAlerts: profile.notifyAlerts,
-  };
-}
-
-function formsEqual(a: AccountSettingsForm, b: AccountSettingsForm): boolean {
-  return (
-    a.displayName.trim() === b.displayName.trim() &&
-    normalizeEmail(a.email) === normalizeEmail(b.email) &&
-    a.notifyMarketing === b.notifyMarketing &&
-    a.notifyAlerts === b.notifyAlerts
-  );
-}
-
-const INPUT_CLASSES =
-  "h-9 rounded-[10px] border border-[#2f3336] bg-transparent px-3 py-0 text-[13px] leading-5 text-white placeholder:text-[#71767b] focus-visible:border-[#536471]";
-
-const PRIMARY_BUTTON_CLASSES =
-  "inline-flex h-9 items-center justify-center rounded-full border border-white/80 bg-white/95 px-4 text-[13px] font-semibold leading-none text-neutral-900 shadow-[0_0_30px_rgba(255,255,255,0.12)] transition-[box-shadow,transform,background-color] duration-200 hover:bg-white hover:shadow-[0_0_40px_rgba(255,255,255,0.2)] disabled:cursor-not-allowed disabled:opacity-45";
 
 export default function AccountSettingsPage() {
   const { t } = useLanguage();
@@ -108,6 +54,7 @@ export default function AccountSettingsPage() {
     null
   );
   const [isVerificationOpen, setIsVerificationOpen] = useState(false);
+  const [isPreparingVerification, setIsPreparingVerification] = useState(false);
   const [isChangingEmail, setIsChangingEmail] = useState(false);
   const [isRemoveEmailConfirmOpen, setIsRemoveEmailConfirmOpen] =
     useState(false);
@@ -310,6 +257,42 @@ export default function AccountSettingsPage() {
     setForm(profileToForm(nextProfile));
     setBaselineForm(profileToForm(nextProfile));
   }, [boundWallet, t, verificationEmail]);
+
+  const openEmailVerification = useCallback(
+    async (email: string) => {
+      setVerificationEmail(email);
+      if (profile?.emailVerificationStatus === "pending") {
+        setIsVerificationOpen(true);
+        return;
+      }
+      if ((profile?.emailVerificationSendsRemaining ?? 0) <= 0) {
+        toast.error(t("accountSettingsPage.emailVerificationDailyLimit"));
+        setIsVerificationOpen(true);
+        return;
+      }
+      if (!boundWallet) {
+        toast.error(t("accountSettingsPage.walletRequired"));
+        return;
+      }
+
+      setIsPreparingVerification(true);
+      try {
+        const nextProfile = await resendOwnerEmailCode(boundWallet, email);
+        setProfile(nextProfile);
+        setForm(profileToForm(nextProfile));
+        setBaselineForm(profileToForm(nextProfile));
+        setVerificationEmail(nextProfile.pendingEmail ?? email);
+        setIsVerificationOpen(true);
+        toast.success(t("accountSettingsPage.emailVerificationResent"));
+      } catch (error) {
+        console.error("Failed to prepare email verification:", error);
+        toast.error(t("accountSettingsPage.emailVerificationResendFailed"));
+      } finally {
+        setIsPreparingVerification(false);
+      }
+    },
+    [boundWallet, profile, t]
+  );
 
   const submitSignedProfile = useCallback(
     async (nextForm: AccountSettingsForm) => {
@@ -589,13 +572,15 @@ export default function AccountSettingsPage() {
                   <div className="flex flex-wrap gap-3">
                     <button
                       type="button"
-                      onClick={() => {
-                        setVerificationEmail(profile.pendingEmail ?? null);
-                        setIsVerificationOpen(true);
-                      }}
-                      className="text-[12px] font-semibold leading-4 text-[#7ff7be] hover:text-[#a8ffd4]"
+                      onClick={() =>
+                        void openEmailVerification(profile.pendingEmail ?? "")
+                      }
+                      disabled={isPreparingVerification || isSaving}
+                      className="text-[12px] font-semibold leading-4 text-[#7ff7be] hover:text-[#a8ffd4] disabled:cursor-not-allowed disabled:opacity-45"
                     >
-                      {t("accountSettingsPage.emailVerificationOpen")}
+                      {isPreparingVerification
+                        ? t("accountSettingsPage.emailVerificationResending")
+                        : t("accountSettingsPage.emailVerificationOpen")}
                     </button>
                     <button
                       type="button"

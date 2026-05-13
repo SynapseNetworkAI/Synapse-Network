@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 
 const GUARDRAIL_SCRIPTS = new Set([
   "ci:pr",
@@ -44,7 +45,10 @@ function unique(values) {
 }
 
 function jsonAt(ref, path) {
-  const raw = tryGit(["show", `${ref}:${path}`]);
+  const raw =
+    ref === "WORKTREE"
+      ? readFileSync(path, "utf8")
+      : tryGit(["show", `${ref}:${path}`]);
   if (!raw) return null;
   try {
     return JSON.parse(raw);
@@ -90,6 +94,16 @@ function classifyAgentLessonScript(scriptName, scriptValue) {
   return null;
 }
 
+function classifyPrLocalScript(scriptName, scriptValue) {
+  if (
+    /^ci:pr:(local|fast|full)$/.test(scriptName) &&
+    /\bscripts\/ci\/pr_local\.sh\b/.test(scriptValue)
+  ) {
+    return { commands: ["ci_meta_checks"], riskScopes: ["ci-meta"] };
+  }
+  return null;
+}
+
 function classifyGuardrailScript(scriptName, scriptValue) {
   if (
     GUARDRAIL_SCRIPTS.has(scriptName) ||
@@ -111,6 +125,30 @@ function classifyMonitoringScript(scriptName, scriptValue) {
   ) {
     return { commands: ["monitoring_alert_rules"], riskScopes: ["monitoring"] };
   }
+  return null;
+}
+
+function classifyWeeklyHygieneScript(scriptName, scriptValue) {
+  if (
+    /^weekly:hygiene$/.test(scriptName) &&
+    /\bscripts\/ops\/weekly_hygiene\.mjs\b/.test(scriptValue)
+  ) {
+    return {
+      commands: ["ci_meta_checks", "quality_budget_check", "docs_checks"],
+      riskScopes: ["weekly-hygiene"],
+    };
+  }
+
+  if (
+    /^ci:weekly-hygiene-evidence$/.test(scriptName) &&
+    /\bscripts\/ci\/weekly_hygiene_evidence_check\.mjs\b/.test(scriptValue)
+  ) {
+    return {
+      commands: ["ci_meta_checks", "quality_budget_check", "docs_checks"],
+      riskScopes: ["weekly-hygiene"],
+    };
+  }
+
   return null;
 }
 
@@ -150,8 +188,10 @@ function classifyLocalDevScript(scriptName) {
 
 const SCRIPT_CLASSIFIERS = [
   classifyAgentLessonScript,
+  classifyPrLocalScript,
   classifyGuardrailScript,
   classifyMonitoringScript,
+  classifyWeeklyHygieneScript,
   classifyContractScript,
   classifyE2eScript,
   classifyLocalDevScript,
@@ -177,9 +217,12 @@ function addScopeResult(target, result) {
   target.needsRootNpmDeps ||= Boolean(result.needsRootNpmDeps);
 }
 
-export function classifyPackageJsonChange(mergeBase, head) {
+export function classifyPackageJsonChange(mergeBase, head, options = {}) {
   const before = jsonAt(mergeBase, "package.json");
-  const after = jsonAt(head, "package.json");
+  const after = jsonAt(
+    options.preferWorkingTree ? "WORKTREE" : head,
+    "package.json"
+  );
   if (!before || !after) {
     return { fullReason: "package.json could not be parsed from both refs" };
   }

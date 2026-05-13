@@ -27,7 +27,7 @@ def email_verification_status(row) -> str:
     if int(getattr(row, "email_verification_attempts", 0) or 0) >= EMAIL_VERIFICATION_MAX_ATTEMPTS:
         return "locked"
     expires_at = str(getattr(row, "email_verification_expires_at", "") or "")
-    if expires_at and expires_at < now_dt_str():
+    if not expires_at or expires_at < now_dt_str():
         return "expired"
     return "pending"
 

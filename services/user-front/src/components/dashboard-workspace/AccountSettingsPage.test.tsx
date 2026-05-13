@@ -228,6 +228,19 @@ describe("AccountSettingsPage", () => {
       createdAt: "2026-04-03 10:00:00",
       updatedAt: "2026-04-03 10:03:00",
     });
+    resendOwnerEmailCodeMock.mockResolvedValue({
+      ownerAddress: "0xabc",
+      displayName: "Synapse Ops",
+      email: "ops@synapse.test",
+      emailVerified: true,
+      pendingEmail: "new@synapse.test",
+      emailVerificationStatus: "pending",
+      emailVerificationSendsRemaining: 4,
+      notifyMarketing: true,
+      notifyAlerts: true,
+      createdAt: "2026-04-03 10:00:00",
+      updatedAt: "2026-04-03 10:07:00",
+    });
   });
 
   it("loads the owner profile and shows wallet identity summary", async () => {
@@ -428,5 +441,44 @@ describe("AccountSettingsPage", () => {
     expect(toastSuccessMock).toHaveBeenCalledWith(
       "Pending email change cancelled."
     );
+  });
+
+  it("resends before opening an expired pending email verification", async () => {
+    const user = userEvent.setup();
+    getOwnerProfileMock.mockResolvedValueOnce({
+      ownerAddress: "0xabc",
+      displayName: "Synapse Ops",
+      email: "ops@synapse.test",
+      emailVerified: true,
+      pendingEmail: "new@synapse.test",
+      emailVerificationStatus: "expired",
+      emailVerificationSendsRemaining: 5,
+      notifyMarketing: true,
+      notifyAlerts: true,
+      createdAt: "2026-04-03 10:00:00",
+      updatedAt: "2026-04-03 10:05:00",
+    });
+
+    render(<AccountSettingsPage />);
+
+    await user.click(
+      await screen.findByRole("button", { name: "Enter verification code" })
+    );
+
+    await waitFor(() => {
+      expect(resendOwnerEmailCodeMock).toHaveBeenCalledWith(
+        "0xabc",
+        "new@synapse.test"
+      );
+    });
+    expect(toastSuccessMock).toHaveBeenCalledWith(
+      "Verification code sent again."
+    );
+    expect(
+      await screen.findByRole("dialog", { name: "Verify email" })
+    ).toBeTruthy();
+    expect(
+      screen.getByText("You have 4 verification emails left today.")
+    ).toBeTruthy();
   });
 });

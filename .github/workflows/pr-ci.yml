@@ -2,7 +2,7 @@ name: PR CI
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, labeled, unlabeled]
   push:
     branches:
       - main
@@ -28,17 +28,17 @@ jobs:
     runs-on: ubuntu-slim
     outputs:
       resolved_mode: ${{ steps.scope.outputs.resolved_mode }}
-      run_baseline_static: ${{ steps.scope.outputs.run_baseline_static }}
-      run_baseline_quality: ${{ steps.scope.outputs.run_baseline_quality }}
-      run_baseline_policy: ${{ steps.scope.outputs.run_baseline_policy }}
-      run_frontend: ${{ steps.scope.outputs.run_frontend }}
-      run_admin_front: ${{ steps.scope.outputs.run_admin_front }}
-      run_gateway: ${{ steps.scope.outputs.run_gateway }}
-      run_admin_gateway: ${{ steps.scope.outputs.run_admin_gateway }}
-      run_provider_service: ${{ steps.scope.outputs.run_provider_service }}
-      run_sdk_python: ${{ steps.scope.outputs.run_sdk_python }}
-      run_contracts: ${{ steps.scope.outputs.run_contracts }}
-      run_terraform: ${{ steps.scope.outputs.run_terraform }}
+      baseline_static_commands: ${{ steps.scope.outputs.baseline_static_commands }}
+      baseline_quality_commands: ${{ steps.scope.outputs.baseline_quality_commands }}
+      baseline_policy_commands: ${{ steps.scope.outputs.baseline_policy_commands }}
+      user_front_commands: ${{ steps.scope.outputs.user_front_commands }}
+      admin_front_commands: ${{ steps.scope.outputs.admin_front_commands }}
+      gateway_commands: ${{ steps.scope.outputs.gateway_commands }}
+      admin_gateway_commands: ${{ steps.scope.outputs.admin_gateway_commands }}
+      contracts_commands: ${{ steps.scope.outputs.contracts_commands }}
+      provider_service_commands: ${{ steps.scope.outputs.provider_service_commands }}
+      sdk_python_commands: ${{ steps.scope.outputs.sdk_python_commands }}
+      terraform_commands: ${{ steps.scope.outputs.terraform_commands }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -51,10 +51,12 @@ jobs:
       - name: Resolve PR CI scope
         id: scope
         shell: bash
+        env:
+          HAS_FULL_LABEL: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'ci/full') }}
         run: |
           set -euo pipefail
           requested_scope="${{ inputs.ci_scope || 'auto' }}"
-          if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
+          if [[ "${GITHUB_EVENT_NAME}" == "push" || "${HAS_FULL_LABEL}" == "true" ]]; then
             requested_scope="full"
           fi
 
@@ -77,48 +79,65 @@ jobs:
 
           const scope = JSON.parse(fs.readFileSync("pr-ci-scope.json", "utf8"));
           const commands = new Set(scope.commands || []);
-          const includeAny = (items) => items.some((item) => commands.has(item));
+          const pick = (items) => items.filter((item) => commands.has(item)).join(",");
+          const emit = (name, value) => console.log(`${name}=${value}`);
 
-          const outputs = {
-            resolved_mode: scope.mode,
-            run_baseline_static: includeAny([
-              "runtime_preflight",
-              "ci_meta_checks",
-              "local_runtime_guard_scan",
-              "security_secret_scan",
-              "e2e_env_isolation_check",
-            ]),
-            run_baseline_quality: includeAny([
-              "code_quality_architecture_scan",
-              "quality_budget_check",
-              "format_check",
-              "diff_coverage_gate",
-            ]),
-            run_baseline_policy: includeAny([
-              "security_money_scan",
-              "security_money_ts_scan",
-              "finance_approval_safety_scan",
-              "finance_mypy_scan",
-              "e2e_script_model_drift_scan",
-              "docs_checks",
-              "release_go_no_go_checks",
-              "monitoring_alert_rules",
-            ]),
-            run_frontend: commands.has("frontend_checks"),
-            run_admin_front: commands.has("admin_front_checks"),
-            run_gateway: commands.has("gateway_checks"),
-            run_admin_gateway: commands.has("admin_gateway_checks"),
-            run_provider_service: commands.has("provider_service_checks"),
-            run_sdk_python: commands.has("sdk_python_checks"),
-            run_contracts: commands.has("contracts_checks"),
-            run_terraform: commands.has("terraform_staging_validate"),
-          };
+          const baselineStatic = [
+            "runtime_preflight",
+            "ci_meta_checks",
+            "local_runtime_guard_scan",
+            "security_secret_scan",
+            "e2e_env_isolation_check",
+          ];
+          const baselineQuality = [
+            "code_quality_architecture_scan",
+            "quality_budget_check",
+            "format_check",
+            "diff_coverage_gate",
+          ];
+          const baselinePolicy = [
+            "security_money_scan",
+            "security_money_ts_scan",
+            "finance_approval_safety_scan",
+            "finance_mypy_scan",
+            "e2e_script_model_drift_scan",
+            "docs_checks",
+            "release_go_no_go_checks",
+            "monitoring_alert_rules",
+          ];
 
-          for (const [key, value] of Object.entries(outputs)) {
-            console.log(`${key}=${value === true ? "true" : value === false ? "false" : value}`);
-          }
+          emit("resolved_mode", scope.mode);
+          emit("baseline_static_commands", pick(baselineStatic));
+          emit("baseline_quality_commands", pick(baselineQuality));
+          emit("baseline_policy_commands", pick(baselinePolicy));
+          emit("user_front_commands", pick(["frontend_checks"]));
+          emit("admin_front_commands", pick(["admin_front_checks"]));
+          emit(
+            "gateway_commands",
+            pick([
+              "gateway_checks",
+              "gateway_stress_review_checks",
+              "performance_reliability_checks",
+            ])
+          );
+          emit("admin_gateway_commands", pick(["admin_gateway_checks"]));
+          emit("contracts_commands", pick(["contracts_checks"]));
+          emit("provider_service_commands", pick(["provider_service_checks"]));
+          emit("sdk_python_commands", pick(["sdk_python_checks"]));
+          emit("terraform_commands", pick(["terraform_staging_validate"]));
           NODE
-      - name: Upload resolved scope artifact
+
+          node - <<'NODE' >> "$GITHUB_STEP_SUMMARY"
+          const fs = require('fs')
+          const scope = JSON.parse(fs.readFileSync('pr-ci-scope.json', 'utf8'))
+          console.log('## PR CI scope')
+          console.log(`- Mode: ${scope.mode}${scope.failClosed ? ' (fail-closed)' : ''}`)
+          console.log(`- Affected projects: ${(scope.affectedProjects || []).join(', ') || 'none'}`)
+          console.log(`- Risk scopes: ${(scope.riskScopes || []).join(', ') || 'none'}`)
+          console.log(`- Commands: ${(scope.commands || []).join(', ') || 'none'}`)
+          for (const reason of scope.reasons || []) console.log(`- Reason: ${reason}`)
+          NODE
+      - name: Upload PR CI scope
         uses: actions/upload-artifact@v4
         with:
           name: pr-ci-scope
@@ -127,46 +146,46 @@ jobs:
 
   baseline-static:
     needs: resolve-scope
-    if: ${{ needs.resolve-scope.outputs.run_baseline_static == 'true' }}
+    if: ${{ needs.resolve-scope.outputs.baseline_static_commands != '' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
+      - uses: actions/download-artifact@v5
+        with:
+          name: pr-ci-scope
       - uses: actions/setup-node@v6
         with:
           node-version: "22"
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
-      - uses: actions/download-artifact@v5
-        with:
-          name: pr-ci-scope
       - name: Bootstrap CI tools
         run: bash scripts/ci/bootstrap_ci_tools.sh
       - name: Run baseline static shard
         run: |
           SYNAPSE_CI_SCOPE_FILE=pr-ci-scope.json \
-          SYNAPSE_CI_SKIP_AGENT_LESSONS=1 \
-          SYNAPSE_CI_ONLY_GATES=runtime_preflight,ci_meta_checks,local_runtime_guard_scan,security_secret_scan,e2e_env_isolation_check \
+          SYNAPSE_SKIP_AGENT_LESSONS=1 \
+          SYNAPSE_CI_COMMANDS=${{ needs.resolve-scope.outputs.baseline_static_commands }} \
           bash scripts/ci/pr_checks.sh
 
   baseline-quality:
     needs: resolve-scope
-    if: ${{ needs.resolve-scope.outputs.run_baseline_quality == 'true' }}
+    if: ${{ needs.resolve-scope.outputs.baseline_quality_commands != '' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
+      - uses: actions/download-artifact@v5
+        with:
+          name: pr-ci-scope
       - uses: actions/setup-node@v6
         with:
           node-version: "22"
           cache: npm
           cache-dependency-path: package-lock.json
-      - uses: actions/download-artifact@v5
-        with:
-          name: pr-ci-scope
       - name: Install root npm dependencies
         run: npm ci
       - name: Bootstrap CI tools
@@ -174,18 +193,21 @@ jobs:
       - name: Run baseline quality shard
         run: |
           SYNAPSE_CI_SCOPE_FILE=pr-ci-scope.json \
-          SYNAPSE_CI_SKIP_AGENT_LESSONS=1 \
-          SYNAPSE_CI_ONLY_GATES=code_quality_architecture_scan,quality_budget_check,format_check,diff_coverage_gate \
+          SYNAPSE_SKIP_AGENT_LESSONS=1 \
+          SYNAPSE_CI_COMMANDS=${{ needs.resolve-scope.outputs.baseline_quality_commands }} \
           bash scripts/ci/pr_checks.sh
 
   baseline-policy:
     needs: resolve-scope
-    if: ${{ needs.resolve-scope.outputs.run_baseline_policy == 'true' }}
+    if: ${{ needs.resolve-scope.outputs.baseline_policy_commands != '' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
+      - uses: actions/download-artifact@v5
+        with:
+          name: pr-ci-scope
       - uses: actions/setup-node@v6
         with:
           node-version: "22"
@@ -202,9 +224,6 @@ jobs:
             services/gateway/pyproject.toml
             services/gateway-admin/pyproject.toml
             sdk/python/pyproject.toml
-      - uses: actions/download-artifact@v5
-        with:
-          name: pr-ci-scope
       - name: Install root npm dependencies
         run: npm ci
       - name: Bootstrap CI tools
@@ -212,68 +231,71 @@ jobs:
       - name: Run baseline policy shard
         run: |
           SYNAPSE_CI_SCOPE_FILE=pr-ci-scope.json \
-          SYNAPSE_CI_SKIP_AGENT_LESSONS=1 \
-          SYNAPSE_CI_ONLY_GATES=security_money_scan,security_money_ts_scan,finance_approval_safety_scan,finance_mypy_scan,e2e_script_model_drift_scan,docs_checks,release_go_no_go_checks,monitoring_alert_rules \
+          SYNAPSE_SKIP_AGENT_LESSONS=1 \
+          SYNAPSE_CI_COMMANDS=${{ needs.resolve-scope.outputs.baseline_policy_commands }} \
           bash scripts/ci/pr_checks.sh
 
-  frontend:
+  user-front:
     needs: resolve-scope
-    if: ${{ needs.resolve-scope.outputs.run_frontend == 'true' }}
+    if: ${{ needs.resolve-scope.outputs.user_front_commands != '' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
+      - uses: actions/download-artifact@v5
+        with:
+          name: pr-ci-scope
       - uses: actions/setup-node@v6
         with:
           node-version: "22"
           cache: yarn
           cache-dependency-path: services/user-front/yarn.lock
-      - uses: actions/download-artifact@v5
-        with:
-          name: pr-ci-scope
       - name: Install user-front dependencies
         run: yarn --cwd services/user-front install --frozen-lockfile
-      - name: Run frontend shard
+      - name: Run user-front gates
         run: |
+          SYNAPSE_SKIP_AGENT_LESSONS=1 \
           SYNAPSE_CI_SCOPE_FILE=pr-ci-scope.json \
-          SYNAPSE_CI_SKIP_AGENT_LESSONS=1 \
-          SYNAPSE_CI_ONLY_GATES=frontend_checks \
+          SYNAPSE_CI_COMMANDS=${{ needs.resolve-scope.outputs.user_front_commands }} \
           bash scripts/ci/pr_checks.sh
 
   admin-front:
     needs: resolve-scope
-    if: ${{ needs.resolve-scope.outputs.run_admin_front == 'true' }}
+    if: ${{ needs.resolve-scope.outputs.admin_front_commands != '' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
+      - uses: actions/download-artifact@v5
+        with:
+          name: pr-ci-scope
       - uses: actions/setup-node@v6
         with:
           node-version: "22"
           cache: yarn
           cache-dependency-path: services/admin-front/yarn.lock
-      - uses: actions/download-artifact@v5
-        with:
-          name: pr-ci-scope
       - name: Install admin-front dependencies
         run: yarn --cwd services/admin-front install --frozen-lockfile
-      - name: Run admin-front shard
+      - name: Run admin-front gates
         run: |
+          SYNAPSE_SKIP_AGENT_LESSONS=1 \
           SYNAPSE_CI_SCOPE_FILE=pr-ci-scope.json \
-          SYNAPSE_CI_SKIP_AGENT_LESSONS=1 \
-          SYNAPSE_CI_ONLY_GATES=admin_front_checks \
+          SYNAPSE_CI_COMMANDS=${{ needs.resolve-scope.outputs.admin_front_commands }} \
           bash scripts/ci/pr_checks.sh
 
   gateway:
     needs: resolve-scope
-    if: ${{ needs.resolve-scope.outputs.run_gateway == 'true' }}
+    if: ${{ needs.resolve-scope.outputs.gateway_commands != '' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
+      - uses: actions/download-artifact@v5
+        with:
+          name: pr-ci-scope
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
@@ -281,24 +303,24 @@ jobs:
           cache-dependency-path: |
             services/gateway/requirements.txt
             services/gateway/pyproject.toml
-      - uses: actions/download-artifact@v5
-        with:
-          name: pr-ci-scope
-      - name: Run gateway shard
+      - name: Run gateway gates
         run: |
+          SYNAPSE_SKIP_AGENT_LESSONS=1 \
           SYNAPSE_CI_SCOPE_FILE=pr-ci-scope.json \
-          SYNAPSE_CI_SKIP_AGENT_LESSONS=1 \
-          SYNAPSE_CI_ONLY_GATES=gateway_checks,gateway_stress_review_checks,performance_reliability_checks \
+          SYNAPSE_CI_COMMANDS=${{ needs.resolve-scope.outputs.gateway_commands }} \
           bash scripts/ci/pr_checks.sh
 
-  admin-gateway:
+  gateway-admin:
     needs: resolve-scope
-    if: ${{ needs.resolve-scope.outputs.run_admin_gateway == 'true' }}
+    if: ${{ needs.resolve-scope.outputs.admin_gateway_commands != '' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
+      - uses: actions/download-artifact@v5
+        with:
+          name: pr-ci-scope
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
@@ -306,45 +328,70 @@ jobs:
           cache-dependency-path: |
             services/gateway-admin/requirements.txt
             services/gateway-admin/pyproject.toml
+      - name: Run gateway-admin gates
+        run: |
+          SYNAPSE_SKIP_AGENT_LESSONS=1 \
+          SYNAPSE_CI_SCOPE_FILE=pr-ci-scope.json \
+          SYNAPSE_CI_COMMANDS=${{ needs.resolve-scope.outputs.admin_gateway_commands }} \
+          bash scripts/ci/pr_checks.sh
+
+  contracts:
+    needs: resolve-scope
+    if: ${{ needs.resolve-scope.outputs.contracts_commands != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
       - uses: actions/download-artifact@v5
         with:
           name: pr-ci-scope
-      - name: Run gateway-admin shard
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install root npm dependencies
+        run: npm ci
+      - name: Run contract gates
         run: |
+          SYNAPSE_SKIP_AGENT_LESSONS=1 \
           SYNAPSE_CI_SCOPE_FILE=pr-ci-scope.json \
-          SYNAPSE_CI_SKIP_AGENT_LESSONS=1 \
-          SYNAPSE_CI_ONLY_GATES=admin_gateway_checks \
+          SYNAPSE_CI_COMMANDS=${{ needs.resolve-scope.outputs.contracts_commands }} \
           bash scripts/ci/pr_checks.sh
 
   provider-service:
     needs: resolve-scope
-    if: ${{ needs.resolve-scope.outputs.run_provider_service == 'true' }}
+    if: ${{ needs.resolve-scope.outputs.provider_service_commands != '' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.13"
       - uses: actions/download-artifact@v5
         with:
           name: pr-ci-scope
-      - name: Run provider-service shard
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Run provider-service gates
         run: |
+          SYNAPSE_SKIP_AGENT_LESSONS=1 \
           SYNAPSE_CI_SCOPE_FILE=pr-ci-scope.json \
-          SYNAPSE_CI_SKIP_AGENT_LESSONS=1 \
-          SYNAPSE_CI_ONLY_GATES=provider_service_checks \
+          SYNAPSE_CI_COMMANDS=${{ needs.resolve-scope.outputs.provider_service_commands }} \
           bash scripts/ci/pr_checks.sh
 
   sdk-python:
     needs: resolve-scope
-    if: ${{ needs.resolve-scope.outputs.run_sdk_python == 'true' }}
+    if: ${{ needs.resolve-scope.outputs.sdk_python_commands != '' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
+      - uses: actions/download-artifact@v5
+        with:
+          name: pr-ci-scope
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
@@ -352,58 +399,30 @@ jobs:
           cache-dependency-path: |
             sdk/python/requirements.txt
             sdk/python/pyproject.toml
-      - uses: actions/download-artifact@v5
-        with:
-          name: pr-ci-scope
-      - name: Run sdk-python shard
+      - name: Run sdk-python gates
         run: |
+          SYNAPSE_SKIP_AGENT_LESSONS=1 \
           SYNAPSE_CI_SCOPE_FILE=pr-ci-scope.json \
-          SYNAPSE_CI_SKIP_AGENT_LESSONS=1 \
-          SYNAPSE_CI_ONLY_GATES=sdk_python_checks \
+          SYNAPSE_CI_COMMANDS=${{ needs.resolve-scope.outputs.sdk_python_commands }} \
           bash scripts/ci/pr_checks.sh
 
-  contracts:
+  terraform:
     needs: resolve-scope
-    if: ${{ needs.resolve-scope.outputs.run_contracts == 'true' }}
+    if: ${{ needs.resolve-scope.outputs.terraform_commands != '' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v6
-        with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: package-lock.json
       - uses: actions/download-artifact@v5
         with:
           name: pr-ci-scope
-      - name: Install root npm dependencies
-        run: npm ci
-      - name: Run contracts shard
-        run: |
-          SYNAPSE_CI_SCOPE_FILE=pr-ci-scope.json \
-          SYNAPSE_CI_SKIP_AGENT_LESSONS=1 \
-          SYNAPSE_CI_ONLY_GATES=contracts_checks \
-          bash scripts/ci/pr_checks.sh
-
-  terraform-staging:
-    needs: resolve-scope
-    if: ${{ needs.resolve-scope.outputs.run_terraform == 'true' }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
       - uses: hashicorp/setup-terraform@v4
-      - uses: actions/download-artifact@v5
-        with:
-          name: pr-ci-scope
-      - name: Run Terraform staging validation
+      - name: Run terraform gates
         run: |
+          SYNAPSE_SKIP_AGENT_LESSONS=1 \
           SYNAPSE_CI_SCOPE_FILE=pr-ci-scope.json \
-          SYNAPSE_CI_SKIP_AGENT_LESSONS=1 \
-          SYNAPSE_CI_ONLY_GATES=terraform_staging_validate \
+          SYNAPSE_CI_COMMANDS=${{ needs.resolve-scope.outputs.terraform_commands }} \
           bash scripts/ci/pr_checks.sh
 
   pr-checks:
@@ -412,45 +431,40 @@ jobs:
       - baseline-static
       - baseline-quality
       - baseline-policy
-      - frontend
+      - user-front
       - admin-front
       - gateway
-      - admin-gateway
+      - gateway-admin
+      - contracts
       - provider-service
       - sdk-python
-      - contracts
-      - terraform-staging
+      - terraform
     if: ${{ always() }}
     runs-on: ubuntu-slim
     steps:
       - uses: actions/setup-node@v6
         with:
           node-version: "22"
-      - name: Summarize shard results
+      - name: Summarize sharded PR checks
         env:
           NEEDS_JSON: ${{ toJSON(needs) }}
         run: |
           node --input-type=module - <<'NODE'
-          const needs = JSON.parse(process.env.NEEDS_JSON);
-          const failures = [];
-
-          for (const [name, status] of Object.entries(needs)) {
-            console.log(`[pr-checks] ${name}=${status.result}`);
+          const needs = JSON.parse(process.env.NEEDS_JSON)
+          const failures = []
+          for (const [name, data] of Object.entries(needs)) {
+            console.log(`[ci:pr] shard ${name} -> ${data.result}`)
             if (name === "resolve-scope") {
-              if (status.result !== "success") {
-                failures.push(`${name}=${status.result}`);
-              }
-              continue;
+              if (data.result !== "success") failures.push(name)
+              continue
             }
-            if (!["success", "skipped"].includes(status.result)) {
-              failures.push(`${name}=${status.result}`);
+            if (!["success", "skipped"].includes(data.result)) {
+              failures.push(name)
             }
           }
-
-          if (failures.length > 0) {
-            console.error(`[pr-checks] failing shards: ${failures.join(", ")}`);
-            process.exit(1);
+          if (failures.length) {
+            console.error(`[ci:pr] failing shards: ${failures.join(", ")}`)
+            process.exit(1)
           }
-
-          console.log("[pr-checks] all required shards passed");
+          console.log("[ci:pr] all selected shards passed or were skipped")
           NODE

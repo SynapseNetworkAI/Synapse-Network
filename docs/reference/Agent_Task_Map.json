@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "repository": "Synapse-Network",
-  "updated_at": "2026-05-03",
+  "updated_at": "2026-05-13",
   "purpose": "Task-to-file routing map for AI agents. Use before broad repository search.",
   "global_entrypoints": [
     "llms.txt",
@@ -362,8 +362,49 @@
         "docs/00_Governance/Documentation_Constraints.md",
         "docs/05_DevOps_Deployment/README.md"
       ],
-      "validation_commands": ["npm run ci:docs"],
-      "notes": ["Keep local scripts and GitHub Actions entrypoints aligned."]
+      "validation_commands": [
+        "node --test scripts/ci/resolve_pr_ci_scope.test.mjs",
+        "npm run ci:pr:fast",
+        "npm run ci:docs"
+      ],
+      "notes": [
+        "Keep local scripts and GitHub Actions entrypoints aligned.",
+        "PR CI is dynamically scoped; workflow and ordinary CI-tool changes should run CI meta checks without forcing full CI unless they touch root dependencies, deploy scripts, security, finance, or unknown paths."
+      ]
+    },
+    {
+      "id": "weekly_hygiene",
+      "title": "Weekly cleanup, code review, and repository hygiene",
+      "use_when": [
+        "the task mentions weekly cleanup, garbage cleanup, stale evidence, stale PRs, or repository hygiene",
+        "the task changes recurring cleanup/review automation",
+        "the task asks what should run in the Sunday hygiene harness"
+      ],
+      "instruction_files": [
+        ".github/instructions/docs-sync.instructions.md",
+        ".github/instructions/safety-guard.instructions.md"
+      ],
+      "primary_files": [
+        ".github/workflows/weekly-hygiene.yml",
+        "scripts/ops/weekly_hygiene.mjs",
+        "scripts/ci/weekly_hygiene_evidence_check.mjs",
+        "docs/ops/Weekly_Hygiene_Runbook.md",
+        "docs/reference/Validation_Entry_Points.md"
+      ],
+      "supporting_files": [
+        ".github/instructions/agents-memory/standards/planning/harness-engineering.md",
+        "docs/ops/02_CI_CD_and_Release_Gates.md",
+        "llms.txt"
+      ],
+      "validation_commands": [
+        "npm run weekly:hygiene -- --dry-run",
+        "npm run ci:weekly-hygiene-evidence",
+        "npm run ci:docs"
+      ],
+      "notes": [
+        "Weekly hygiene is Report + Issue by default and must not auto-delete tracked files or mutate staging/prod data.",
+        "New recurring cleanup tasks need a command, an evidence checker, and a runbook."
+      ]
     },
     {
       "id": "codex_token_optimization",

@@ -5,6 +5,25 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd -P)"
 
-echo "[pre-push] running PR quality gates"
+MODE="${SYNAPSE_PRE_PUSH_MODE:-fast}"
 
-bash "$ROOT_DIR/scripts/ci/pr_checks.sh"
+echo "[pre-push] running local PR gate mode=${MODE}"
+
+case "$MODE" in
+  fast)
+    bash "$ROOT_DIR/scripts/ci/pr_local.sh" fast
+    ;;
+  auto|local)
+    bash "$ROOT_DIR/scripts/ci/pr_local.sh" auto
+    ;;
+  full)
+    bash "$ROOT_DIR/scripts/ci/pr_local.sh" full
+    ;;
+  skip)
+    echo "[pre-push] skipped by SYNAPSE_PRE_PUSH_MODE=skip"
+    ;;
+  *)
+    echo "FATAL PRE-PUSH-001: SYNAPSE_PRE_PUSH_MODE must be fast, auto, local, full, or skip" >&2
+    exit 2
+    ;;
+esac

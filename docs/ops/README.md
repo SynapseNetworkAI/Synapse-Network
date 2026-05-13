@@ -50,7 +50,8 @@
 17. `18_Staging_Domains_and_Network_Access.md`
 18. `18_Staging_Validation_Runbook.md`
 19. `19_E2E_Regression_Runbook.md`
-20. `../security/README.md`
+20. `Weekly_Hygiene_Runbook.md`
+21. `../security/README.md`
 
 ## 模块边界
 
