@@ -236,6 +236,11 @@ Cost guardrails:
 8. If monthly staging cost exceeds `$50` before real traffic, inspect Cloud SQL,
    Cloud Run min instances, log ingestion, image retention, and egress before
    increasing infrastructure size.
+9. Keep a weekly cost-review loop alive. The canonical repo entrypoint is
+   `bash scripts/ops/gcp_billing_review.sh`, which audits the current GCP
+   project via Cloud Billing Export on BigQuery, writes evidence under
+   `docs/evidence/cost/`, and only opens a PR when a deterministic repo-local
+   optimization patch exists.
 
 Pricing references:
 
