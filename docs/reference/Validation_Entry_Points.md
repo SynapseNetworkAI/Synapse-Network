@@ -77,6 +77,8 @@ From repository root:
 57. `npm run e2e:consumer-withdraw-approval-expiry:local`
 58. `npm run ci:consumer-withdraw-approval-expiry-local-evidence`
 59. `npm run ci:migration-seed-guard`
+60. `npm run weekly:hygiene -- --dry-run` and
+    `npm run ci:weekly-hygiene-evidence`
 
 Use these wrappers when final integration confidence is required.
 
@@ -122,6 +124,16 @@ runtime guard. It requires every workflow to force Node 24 with
 baseline for `actions/checkout`, `actions/setup-node`, `actions/setup-python`,
 `actions/cache`, and `actions/upload-artifact`. `npm run ci:docs` runs this guard
 as part of lightweight documentation and workflow governance.
+
+`npm run weekly:hygiene` is the Sunday repository hygiene harness. It runs code,
+docs, finance-safety, evidence-freshness, generated-artifact, and GitHub PR/branch
+reviews, then writes `output/weekly-hygiene/<timestamp>/report.json`,
+`report.md`, and `issue.md`. The scheduled workflow runs every Sunday at 02:00
+MYT (`0 18 * * 6` UTC), uploads the bundle with 30-day retention, and creates or
+updates a GitHub issue only when the report is `attention_required`. It must not
+delete tracked source, docs, or `docs/evidence/**`, and it must not mutate staging
+or production databases. `npm run ci:weekly-hygiene-evidence` validates the
+latest bundle shape, required checks, safety flags, freshness, and redaction.
 
 `npm run ci:created-at-indexes` is the canonical schema guard for Admin
 pagination defaults. Gateway runtime schema and Gateway-Admin schema tables that
