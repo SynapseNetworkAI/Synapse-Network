@@ -99,7 +99,11 @@ export const knownPatterns = [
 
 const CI_GATE_COMMANDS = [
   [/^scripts\/ci\/frontend_checks\.sh$/, "frontend_checks", "user-front"],
-  [/^scripts\/ci\/admin_front_checks\.sh$/, "admin_front_checks", "admin-front"],
+  [
+    /^scripts\/ci\/admin_front_checks\.sh$/,
+    "admin_front_checks",
+    "admin-front",
+  ],
   [/^scripts\/ci\/gateway_checks\.sh$/, "gateway_checks", "gateway"],
   [
     /^scripts\/ci\/admin_gateway_checks\.sh$/,
