@@ -12,21 +12,33 @@ export function ensureCommand(command) {
 }
 
 export function runCommand(command, args, options = {}) {
-  const result = spawnSync(command, args, {
-    cwd: options.cwd ?? process.cwd(),
-    env: options.env ?? process.env,
-    encoding: "utf8",
-    timeout: options.timeoutMs ?? 30000,
-  });
+  const result = spawnSync(command, args, buildSpawnOptions(options));
 
   if (result.error) {
     throwCommandError(command, args, options, result.error);
   }
 
-  if (result.status !== 0 && !options.allowFailure) {
+  if (shouldThrowForStatus(result.status, options.allowFailure)) {
     throw new Error(buildCommandFailureMessage(command, args, options, result));
   }
 
+  return formatCommandResult(result);
+}
+
+function buildSpawnOptions(options) {
+  return {
+    cwd: options.cwd ?? process.cwd(),
+    env: options.env ?? process.env,
+    encoding: "utf8",
+    timeout: options.timeoutMs ?? 30000,
+  };
+}
+
+function shouldThrowForStatus(status, allowFailure) {
+  return status !== 0 && !allowFailure;
+}
+
+function formatCommandResult(result) {
   return {
     status: result.status ?? 0,
     stdout: result.stdout ?? "",

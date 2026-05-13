@@ -361,11 +361,10 @@ function accumulateByKey(rows, keyForRow) {
 }
 
 function normalizeBillingRow(row) {
-  const usageDate = row.usage_date ?? row.usageDate;
-  const serviceDescription =
-    row.service_description ?? row.serviceDescription ?? "Unknown service";
-  const skuDescription = row.sku_description ?? row.skuDescription ?? "Unknown SKU";
-  const netCost = Number.parseFloat(String(row.net_cost ?? row.netCost ?? "0"));
+  const usageDate = pickUsageDate(row);
+  const serviceDescription = pickServiceDescription(row);
+  const skuDescription = pickSkuDescription(row);
+  const netCost = parseNetCost(row);
 
   return {
     usage_date: usageDate,
@@ -374,4 +373,22 @@ function normalizeBillingRow(row) {
     net_cost: Number.isFinite(netCost) ? netCost : 0,
     date: usageDate ? new Date(`${usageDate}T00:00:00.000Z`) : null,
   };
+}
+
+function pickUsageDate(row) {
+  return row.usage_date ?? row.usageDate;
+}
+
+function pickServiceDescription(row) {
+  return row.service_description ?? row.serviceDescription ?? "Unknown service";
+}
+
+function pickSkuDescription(row) {
+  return row.sku_description ?? row.skuDescription ?? "Unknown SKU";
+}
+
+function parseNetCost(row) {
+  const rawCost = row.net_cost ?? row.netCost ?? "0";
+  const parsed = Number.parseFloat(String(rawCost));
+  return Number.isFinite(parsed) ? parsed : 0;
 }
