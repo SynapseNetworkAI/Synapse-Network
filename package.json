@@ -29,6 +29,8 @@
     "ci:contracts": "bash scripts/ci/contracts_checks.sh",
     "ci:docs": "bash scripts/ci/docs_checks.sh",
     "ci:github-actions-runtime": "node scripts/ci/github_actions_node_runtime_check.mjs",
+    "weekly:hygiene": "node scripts/ops/weekly_hygiene.mjs",
+    "ci:weekly-hygiene-evidence": "node scripts/ci/weekly_hygiene_evidence_check.mjs",
     "ci:created-at-indexes": "node scripts/ci/created_at_index_check.mjs && node --test scripts/ci/created_at_index_check.test.mjs",
     "ci:state-idempotency-safety": "node scripts/ci/state_idempotency_safety_check.mjs",
     "ci:llms-links": "node scripts/ci/llms_links_check.mjs",

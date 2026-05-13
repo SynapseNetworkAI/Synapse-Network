@@ -37,6 +37,7 @@ Use it before broad repository search. It does not replace `AGENTS.md`, `.github
 | `contracts_and_deployments`   | Solidity contracts, Hardhat, staging/prod deployment evidence                                      |
 | `docs_governance`             | docs structure, canonical README metadata, retired paths, docs CI                                  |
 | `ci_and_quality_gates`        | CI scripts, validation entrypoints, PR gates, local check commands                                 |
+| `weekly_hygiene`              | weekly cleanup, garbage cleanup, stale evidence, stale PRs, repository hygiene                     |
 | `codex_token_optimization`    | Codex memory settings, low-token workflow, handoff summaries, search boundaries, reasoning effort  |
 
 ## Update Rules

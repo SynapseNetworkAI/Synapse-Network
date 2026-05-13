@@ -128,6 +128,30 @@ function classifyMonitoringScript(scriptName, scriptValue) {
   return null;
 }
 
+function classifyWeeklyHygieneScript(scriptName, scriptValue) {
+  if (
+    /^weekly:hygiene$/.test(scriptName) &&
+    /\bscripts\/ops\/weekly_hygiene\.mjs\b/.test(scriptValue)
+  ) {
+    return {
+      commands: ["ci_meta_checks", "quality_budget_check", "docs_checks"],
+      riskScopes: ["weekly-hygiene"],
+    };
+  }
+
+  if (
+    /^ci:weekly-hygiene-evidence$/.test(scriptName) &&
+    /\bscripts\/ci\/weekly_hygiene_evidence_check\.mjs\b/.test(scriptValue)
+  ) {
+    return {
+      commands: ["ci_meta_checks", "quality_budget_check", "docs_checks"],
+      riskScopes: ["weekly-hygiene"],
+    };
+  }
+
+  return null;
+}
+
 function classifyContractScript(scriptName, scriptValue) {
   if (
     /contract|arbitrum|hardhat|arb-sepolia/i.test(scriptName) ||
@@ -167,6 +191,7 @@ const SCRIPT_CLASSIFIERS = [
   classifyPrLocalScript,
   classifyGuardrailScript,
   classifyMonitoringScript,
+  classifyWeeklyHygieneScript,
   classifyContractScript,
   classifyE2eScript,
   classifyLocalDevScript,

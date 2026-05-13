@@ -168,6 +168,40 @@ test("local PR package scripts map narrowly", () => {
   assert.ok(scope.commands.includes("ci_meta_checks"));
 });
 
+test("weekly hygiene package scripts map narrowly", () => {
+  const scope = resolveAfterChange({
+    "package.json": JSON.stringify(
+      {
+        scripts: {
+          "weekly:hygiene": "node scripts/ops/weekly_hygiene.mjs",
+          "ci:weekly-hygiene-evidence":
+            "node scripts/ci/weekly_hygiene_evidence_check.mjs",
+        },
+      },
+      null,
+      2
+    ),
+  });
+  assert.equal(scope.mode, "auto");
+  assert.equal(scope.failClosed, false);
+  assert.ok(scope.riskScopes.includes("weekly-hygiene"));
+  assert.ok(scope.commands.includes("ci_meta_checks"));
+  assert.ok(scope.commands.includes("quality_budget_check"));
+  assert.ok(scope.commands.includes("docs_checks"));
+});
+
+test("weekly hygiene harness changes avoid full CI", () => {
+  const scope = resolveAfterChange({
+    "scripts/ops/weekly_hygiene.mjs": "console.log('weekly hygiene');\n",
+  });
+  assert.equal(scope.mode, "auto");
+  assert.equal(scope.failClosed, false);
+  assert.ok(scope.riskScopes.includes("weekly-hygiene"));
+  assert.ok(scope.commands.includes("ci_meta_checks"));
+  assert.ok(scope.commands.includes("quality_budget_check"));
+  assert.ok(scope.commands.includes("docs_checks"));
+});
+
 test("unknown files still fail closed", () => {
   const scope = resolveAfterChange({
     "surprise/new-file.txt": "unknown\n",
