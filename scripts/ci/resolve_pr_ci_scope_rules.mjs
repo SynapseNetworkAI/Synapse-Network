@@ -35,7 +35,7 @@ function matchesAny(file, patterns) {
   return patterns.some((pattern) => pattern.test(file));
 }
 
-export function classifyCiToolFile(file) {
+function classifyWorkflowFile(file) {
   if (/^\.github\/workflows\/[^/]+\.ya?ml$/.test(file)) {
     return {
       commands: ["github_actions_runtime_check", "ci_meta_checks"],
@@ -43,7 +43,10 @@ export function classifyCiToolFile(file) {
       reason: "GitHub workflow change mapped to workflow/static CI checks",
     };
   }
+  return null;
+}
 
+function classifyHighRiskCiFile(file) {
   if (
     matchesAny(file, [
       /^scripts\/ci\/security_/,
@@ -55,7 +58,10 @@ export function classifyCiToolFile(file) {
       fullReason: `${file} changes security/finance CI guardrail behavior`,
     };
   }
+  return null;
+}
 
+function classifyPrCiToolFile(file) {
   if (
     matchesAny(file, [
       /^scripts\/ci\/pr_checks\.sh$/,
@@ -70,7 +76,21 @@ export function classifyCiToolFile(file) {
       reason: "PR CI resolver/runner change mapped to CI meta checks",
     };
   }
+  return null;
+}
 
+function classifyWeeklyHygieneFile(file) {
+  if (/^scripts\/ops\/weekly_hygiene\.mjs$/.test(file)) {
+    return {
+      commands: ["ci_meta_checks", "quality_budget_check", "docs_checks"],
+      riskScopes: ["weekly-hygiene"],
+      reason: "Weekly hygiene harness change mapped to hygiene/static checks",
+    };
+  }
+  return null;
+}
+
+function classifyCiGateFile(file) {
   for (const [pattern, command, project] of CI_GATE_COMMANDS) {
     if (pattern.test(file)) {
       return {
@@ -83,7 +103,10 @@ export function classifyCiToolFile(file) {
       };
     }
   }
+  return null;
+}
 
+function classifyGenericCiToolFile(file) {
   if (
     matchesAny(file, [
       /^scripts\/ci\/[a-z0-9_]+_check(\.test)?\.mjs$/,
@@ -96,6 +119,23 @@ export function classifyCiToolFile(file) {
       riskScopes: ["ci-tool"],
       reason: `${file} mapped to CI meta checks without full CI`,
     };
+  }
+  return null;
+}
+
+const CI_TOOL_CLASSIFIERS = [
+  classifyWorkflowFile,
+  classifyHighRiskCiFile,
+  classifyPrCiToolFile,
+  classifyWeeklyHygieneFile,
+  classifyCiGateFile,
+  classifyGenericCiToolFile,
+];
+
+export function classifyCiToolFile(file) {
+  for (const classifier of CI_TOOL_CLASSIFIERS) {
+    const result = classifier(file);
+    if (result) return result;
   }
 
   return null;
