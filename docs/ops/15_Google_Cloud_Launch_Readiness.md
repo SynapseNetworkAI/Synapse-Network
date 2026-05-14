@@ -236,16 +236,11 @@ Cost guardrails:
    directly to Artifact Registry.
 7. Keep Cloud Logging at `INFO` for staging and avoid per-request debug body
    logs. Debug logs can quietly become the real tax monster.
-7. Configure a Billing Budget for staging at `$50/month` with alerts at
+8. Configure a Billing Budget for staging at `$50/month` with alerts at
    `50%`, `80%`, and `100%`.
-8. If monthly staging cost exceeds `$50` before real traffic, inspect Cloud SQL,
+9. If monthly staging cost exceeds `$50` before real traffic, inspect Cloud SQL,
    Cloud Run min instances, log ingestion, image retention, and egress before
    increasing infrastructure size.
-9. Keep a weekly cost-review loop alive. The canonical repo entrypoint is
-   `bash scripts/ops/gcp_billing_review.sh`, which audits the current GCP
-   project via Cloud Billing Export on BigQuery, writes evidence under
-   `docs/evidence/cost/`, and only opens a PR when a deterministic repo-local
-   optimization patch exists.
 
 Pricing references:
 
