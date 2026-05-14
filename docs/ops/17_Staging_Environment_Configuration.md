@@ -1547,6 +1547,14 @@ sequence is:
    image changed.
 6. If Gateway is affected, update all Gateway jobs to the same Gateway image digest.
 7. Deploy affected Cloud Run services by immutable image digest when available.
+   Image digest resolution uses the Artifact Registry Docker Registry manifest
+   endpoint through `scripts/deploy/resolve_artifact_registry_image_digests.mjs`.
+   Do not use `gcloud artifacts docker images describe` in staging workflows for
+   this step: that command can require Container Analysis occurrence permissions
+   (`containeranalysis.occurrences.list`) even when the deployer only needs the
+   pushed image digest. If digest lookup fails, the workflow logs a controlled
+   warning and falls back to the pushed tag, matching the existing deployment
+   fallback behavior without printing a scary permission stack.
 8. Run HTTP smoke tests only for affected services. For User-front, do not
    treat a listening port or Cloud Run `Ready=True` as sufficient; verify a real
    page such as `/dashboard/account/settings` or `/` responds successfully.

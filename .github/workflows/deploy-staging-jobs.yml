@@ -203,23 +203,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          node - <<'NODE'
-          const fs = require('node:fs')
-          const { execFileSync } = require('node:child_process')
-          const build = JSON.parse(fs.readFileSync('build-images.json', 'utf8'))
-          const digests = {}
-          for (const [service, image] of Object.entries(build.services || {})) {
-            let digest = ''
-            try {
-              digest = execFileSync('gcloud', ['artifacts', 'docker', 'images', 'describe', image, '--format=value(image_summary.digest)'], { encoding: 'utf8' }).trim()
-            } catch {
-              digest = ''
-            }
-            const imageName = image.includes(':') ? image.slice(0, image.lastIndexOf(':')) : image
-            digests[service] = digest ? `${imageName}@${digest}` : image
-          }
-          fs.writeFileSync('image-digests.json', `${JSON.stringify(digests, null, 2)}\n`)
-          NODE
+          node scripts/deploy/resolve_artifact_registry_image_digests.mjs \
+            --build-images build-images.json \
+            --out image-digests.json
 
       - name: Sync Cloud Run Jobs
         shell: bash
