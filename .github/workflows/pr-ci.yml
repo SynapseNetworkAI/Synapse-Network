@@ -78,6 +78,9 @@ jobs:
           const scope = JSON.parse(fs.readFileSync("pr-ci-scope.json", "utf8"));
           const commands = new Set(scope.commands || []);
           const includeAny = (items) => items.some((item) => commands.has(item));
+          const sdkPythonExists =
+            fs.existsSync("sdk/python/requirements.txt") ||
+            fs.existsSync("sdk/python/pyproject.toml");
 
           const outputs = {
             resolved_mode: scope.mode,
@@ -109,7 +112,7 @@ jobs:
             run_gateway: commands.has("gateway_checks"),
             run_admin_gateway: commands.has("admin_gateway_checks"),
             run_provider_service: commands.has("provider_service_checks"),
-            run_sdk_python: commands.has("sdk_python_checks"),
+            run_sdk_python: commands.has("sdk_python_checks") && sdkPythonExists,
             run_contracts: commands.has("contracts_checks"),
             run_terraform: commands.has("terraform_staging_validate"),
           };
