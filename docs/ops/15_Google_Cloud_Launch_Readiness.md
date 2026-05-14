@@ -223,22 +223,22 @@ Cost guardrails:
    project via Cloud Billing Export on BigQuery, writes evidence under
    `docs/evidence/cost/`, and only opens a PR when a deterministic repo-local
    optimization patch exists.
-3. Keep `POSTGRES_POOL_MAX=5` for Gateway and `POSTGRES_POOL_MAX=3` for
+2. Keep `POSTGRES_POOL_MAX=5` for Gateway and `POSTGRES_POOL_MAX=3` for
    Gateway-admin so Cloud SQL does not get crushed by connection count.
-4. Do not set Cloud Run image variables until images are ready. Empty image
+3. Do not set Cloud Run image variables until images are ready. Empty image
    variables let Terraform create the durable substrate without starting
    services/jobs.
-5. Keep Artifact Registry retention short. Delete stale image tags after
+4. Keep Artifact Registry retention short. Delete stale image tags after
    release evidence is captured.
-6. Prefer Cloud Build for staging image builds on Apple Silicon laptops. Local
+5. Prefer Cloud Build for staging image builds on Apple Silicon laptops. Local
    Docker `linux/amd64` builds emulate x86 and can OOM during Next.js builds;
    Cloud Build shifts the heavy work to an ephemeral Google builder and pushes
    directly to Artifact Registry.
-7. Keep Cloud Logging at `INFO` for staging and avoid per-request debug body
+6. Keep Cloud Logging at `INFO` for staging and avoid per-request debug body
    logs. Debug logs can quietly become the real tax monster.
-8. Configure a Billing Budget for staging at `$50/month` with alerts at
+7. Configure a Billing Budget for staging at `$50/month` with alerts at
    `50%`, `80%`, and `100%`.
-9. If monthly staging cost exceeds `$50` before real traffic, inspect Cloud SQL,
+8. If monthly staging cost exceeds `$50` before real traffic, inspect Cloud SQL,
    Cloud Run min instances, log ingestion, image retention, and egress before
    increasing infrastructure size.
 
