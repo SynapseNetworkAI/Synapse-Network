@@ -23,11 +23,15 @@ export interface AnalyticsEvent {
   properties: Record<string, unknown>;
 }
 
+export interface AnalyticsBatch {
+  events: AnalyticsEvent[];
+}
+
 export interface AnalyticsConfig {
   /** Gateway events endpoint. Defaults to the configured gateway /api/v1/events */
   endpoint: string;
   /** Current environment */
-  env: "local" | "staging" | "prod";
+  env: "local" | "staging" | "prod" | "test";
   /** Max events before auto-flush */
   batchSize: number;
   /** Max ms between flushes */
@@ -149,7 +153,6 @@ function detectSurface(): Surface {
   if (path.startsWith("/provider")) return "provider_console";
   if (path.startsWith("/owner") || path.startsWith("/consumer"))
     return "console";
-  if (path.startsWith("/docs")) return "docs";
   return "landing";
 }
 

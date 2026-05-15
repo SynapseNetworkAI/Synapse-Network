@@ -154,8 +154,11 @@ describe("consumer withdrawal ticket normalization", () => {
         message: oversized,
       });
 
-      expect(body?.message).toBe(normalizeRefundFailureMessage(oversized));
-      expect(String(body?.message ?? "").length).toBe(512);
+      const capturedBody = body as Record<string, unknown> | null;
+      expect(capturedBody?.message).toBe(
+        normalizeRefundFailureMessage(oversized)
+      );
+      expect(String(capturedBody?.message ?? "").length).toBe(512);
     } finally {
       globalThis.fetch = originalFetch;
     }
