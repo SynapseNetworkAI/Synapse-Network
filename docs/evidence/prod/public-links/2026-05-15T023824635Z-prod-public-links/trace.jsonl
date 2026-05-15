@@ -1,0 +1,18 @@
+{"at":"2026-05-15T02:38:24.923Z","url":"https://www.synapse-network.ai/","expectedStatuses":[200],"actualStatus":200,"ok":true,"note":""}
+{"at":"2026-05-15T02:38:25.150Z","url":"https://www.synapse-network.ai/llms.txt","expectedStatuses":[200],"actualStatus":200,"ok":true,"note":""}
+{"at":"2026-05-15T02:38:25.441Z","url":"https://docs.synapse-network.ai/","expectedStatuses":[200],"actualStatus":200,"ok":true,"note":""}
+{"at":"2026-05-15T02:38:25.721Z","url":"https://docs.synapse-network.ai/api-reference","expectedStatuses":[200],"actualStatus":200,"ok":true,"note":""}
+{"at":"2026-05-15T02:38:26.001Z","url":"https://docs.synapse-network.ai/get-started/agent-builders","expectedStatuses":[200],"actualStatus":200,"ok":true,"note":""}
+{"at":"2026-05-15T02:38:26.287Z","url":"https://docs.synapse-network.ai/sdks/typescript","expectedStatuses":[200],"actualStatus":200,"ok":true,"note":""}
+{"at":"2026-05-15T02:38:26.570Z","url":"https://docs.synapse-network.ai/smart-contracts/synapse-core","expectedStatuses":[200],"actualStatus":200,"ok":true,"note":""}
+{"at":"2026-05-15T02:38:26.818Z","url":"https://docs.synapse-network.ai/support","expectedStatuses":[200],"actualStatus":200,"ok":true,"note":""}
+{"at":"2026-05-15T02:38:27.054Z","url":"https://docs.synapse-network.ai/llms.mdx/docs/api-reference/content.md","expectedStatuses":[200],"actualStatus":200,"ok":true,"note":""}
+{"at":"2026-05-15T02:38:27.836Z","url":"https://github.com/SynapseNetworkAI/Synapse-Network-Docs/blob/main/content/docs/api-reference.mdx","expectedStatuses":[200],"actualStatus":200,"ok":true,"note":""}
+{"at":"2026-05-15T02:38:28.453Z","url":"https://github.com/SynapseNetworkAI/Synapse-Network-Docs/blob/main/content/docs/get-started/agent-builders.mdx","expectedStatuses":[200],"actualStatus":200,"ok":true,"note":""}
+{"at":"2026-05-15T02:38:28.736Z","url":"https://docs.synapse-network.ai/api-reference","expectedStatuses":[200],"actualStatus":200,"ok":true,"note":""}
+{"at":"2026-05-15T02:38:38.986Z","url":"https://docs.synapse-network.ai/get-started/agent-builders","expectedStatuses":[200],"actualStatus":200,"ok":true,"note":""}
+{"at":"2026-05-15T02:38:45.899Z","url":"https://github.com/SynapseNetworkAI/Synapse-Network-Docs","expectedStatuses":[200],"actualStatus":200,"ok":true,"note":""}
+{"at":"2026-05-15T02:38:46.733Z","url":"https://github.com/SynapseNetworkAI/Synapse-Network-Sdk","expectedStatuses":[200],"actualStatus":200,"ok":true,"note":""}
+{"at":"2026-05-15T02:38:47.016Z","url":"https://api.synapse-network.ai/health","expectedStatuses":[200],"actualStatus":200,"ok":true,"note":"public health endpoint"}
+{"at":"2026-05-15T02:38:47.386Z","url":"https://admin.synapse-network.ai/","expectedStatuses":[401,403],"actualStatus":403,"ok":true,"note":"protected gate expected"}
+{"at":"2026-05-15T02:38:47.687Z","url":"https://admin-api.synapse-network.ai/","expectedStatuses":[401,403],"actualStatus":403,"ok":true,"note":"protected gate expected"}

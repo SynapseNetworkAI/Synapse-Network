@@ -32,6 +32,16 @@ Cloud Run container ports stay unchanged. Next.js containers still listen on `30
 | `gateway-admin` | `https://admin-api-staging.synapse-network.ai` | `https://admin-api.synapse-network.ai` |
 | `tx-explorer`   | `https://sepolia.arbiscan.io`                  | `https://arbiscan.io`                  |
 
+Production admin routing note:
+
+1. Staging may still use browser-to-`admin-api` calls for public dogfood.
+2. Production `admin-front` and `gateway-admin` are expected to run behind
+   Cloud Run `Require IAM`.
+3. Production browsers should use same-origin `/api/admin/*` via `admin-front`;
+   `admin-front` then forwards to `gateway-admin` with a Google OIDC Identity
+   Token. Do not assume the browser can anonymously call
+   `https://admin-api.synapse-network.ai`.
+
 ## Env Defaults
 
 Local user-front must point docs links at docs-front:

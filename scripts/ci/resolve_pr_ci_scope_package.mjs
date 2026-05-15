@@ -152,6 +152,32 @@ function classifyWeeklyHygieneScript(scriptName, scriptValue) {
   return null;
 }
 
+function classifyDocsPublicScript(scriptName, scriptValue) {
+  if (
+    scriptName === "docs:sync-public-mirror" &&
+    /\bscripts\/tools\/sync_public_docs_mirror\.mjs\b/.test(scriptValue)
+  ) {
+    return {
+      commands: ["docs_checks"],
+      riskScopes: ["docs-public-mirror"],
+    };
+  }
+
+  if (
+    /^(e2e:prod-public-docs-links|ci:prod-public-docs-links-evidence)$/.test(
+      scriptName
+    ) &&
+    /prod_public_docs_links_(e2e|evidence_check)\.mjs\b/.test(scriptValue)
+  ) {
+    return {
+      commands: ["docs_checks", "e2e_script_model_drift_scan"],
+      riskScopes: ["docs-public-links"],
+    };
+  }
+
+  return null;
+}
+
 function classifyContractScript(scriptName, scriptValue) {
   if (
     /contract|arbitrum|hardhat|arb-sepolia/i.test(scriptName) ||
@@ -189,12 +215,13 @@ function classifyLocalDevScript(scriptName) {
 const SCRIPT_CLASSIFIERS = [
   classifyAgentLessonScript,
   classifyPrLocalScript,
-  classifyGuardrailScript,
-  classifyMonitoringScript,
   classifyWeeklyHygieneScript,
+  classifyDocsPublicScript,
+  classifyMonitoringScript,
   classifyContractScript,
   classifyE2eScript,
   classifyLocalDevScript,
+  classifyGuardrailScript,
 ];
 
 function classifyScriptChange(scriptName, scriptValue) {
@@ -268,3 +295,5 @@ export function classifyPackageJsonChange(mergeBase, head, options = {}) {
     needsRootNpmDeps: scopeResult.needsRootNpmDeps,
   };
 }
+
+export { classifyScriptChange };

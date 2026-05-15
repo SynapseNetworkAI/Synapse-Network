@@ -9,6 +9,7 @@ import {
   isFullTriggerFile,
   isKnownFile,
 } from "./resolve_pr_ci_scope_rules.mjs";
+import { classifyScriptChange } from "./resolve_pr_ci_scope_package.mjs";
 
 test("baseline shards keep the expected command split", () => {
   assert.deepEqual(BASELINE_STATIC_COMMANDS, [
@@ -76,4 +77,28 @@ test("deploy and non-npm lockfile changes still fail closed into full CI", () =>
 test("root npm lockfile no longer forces full CI by itself", () => {
   assert.equal(isKnownFile("package-lock.json"), true);
   assert.equal(isFullTriggerFile("package-lock.json"), false);
+});
+
+test("public docs package scripts map to narrow docs scopes", () => {
+  assert.deepEqual(
+    classifyScriptChange(
+      "docs:sync-public-mirror",
+      "node scripts/tools/sync_public_docs_mirror.mjs"
+    ),
+    {
+      commands: ["docs_checks"],
+      riskScopes: ["docs-public-mirror"],
+    }
+  );
+
+  assert.deepEqual(
+    classifyScriptChange(
+      "ci:prod-public-docs-links-evidence",
+      "node scripts/ci/prod_public_docs_links_evidence_check.mjs"
+    ),
+    {
+      commands: ["docs_checks", "e2e_script_model_drift_scan"],
+      riskScopes: ["docs-public-links"],
+    }
+  );
 });

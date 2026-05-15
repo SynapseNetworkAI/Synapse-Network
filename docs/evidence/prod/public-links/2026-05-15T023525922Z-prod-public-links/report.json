@@ -1,0 +1,182 @@
+{
+  "environment": "prod",
+  "generatedAt": "2026-05-15T02:36:49.588Z",
+  "status": "failed",
+  "rootUrl": "https://www.synapse-network.ai",
+  "docsUrl": "https://docs.synapse-network.ai",
+  "docsRepoUrl": "https://github.com/SynapseNetworkAI/Synapse-Network-Docs",
+  "failed": [
+    {
+      "name": "docs_api_reference_open_menu",
+      "detail": "locator.waitFor: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('a[href=\"https://docs.synapse-network.ai/llms.mdx/docs/api-reference/content.md\"]').first() to be visible\u001b[22m\n"
+    },
+    {
+      "name": "docs_agent_builders_open_menu",
+      "detail": "locator.waitFor: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('a[href=\"https://docs.synapse-network.ai/llms.mdx/docs/get-started/agent-builders/content.md\"]').first() to be visible\u001b[22m\n"
+    }
+  ],
+  "checks": [
+    {
+      "name": "www_home",
+      "url": "https://www.synapse-network.ai/",
+      "status": 200,
+      "ok": true,
+      "detail": "expected status",
+      "startedAt": "2026-05-15T02:35:25.923Z",
+      "finishedAt": "2026-05-15T02:35:26.237Z"
+    },
+    {
+      "name": "www_llms",
+      "url": "https://www.synapse-network.ai/llms.txt",
+      "status": 200,
+      "ok": true,
+      "detail": "expected status",
+      "startedAt": "2026-05-15T02:35:26.237Z",
+      "finishedAt": "2026-05-15T02:35:26.468Z"
+    },
+    {
+      "name": "docs_home",
+      "url": "https://docs.synapse-network.ai/",
+      "status": 200,
+      "ok": true,
+      "detail": "expected status",
+      "startedAt": "2026-05-15T02:35:26.469Z",
+      "finishedAt": "2026-05-15T02:35:26.781Z"
+    },
+    {
+      "name": "docs_api_reference",
+      "url": "https://docs.synapse-network.ai/api-reference",
+      "status": 200,
+      "ok": true,
+      "detail": "expected status",
+      "startedAt": "2026-05-15T02:35:26.782Z",
+      "finishedAt": "2026-05-15T02:35:27.067Z"
+    },
+    {
+      "name": "docs_get_started",
+      "url": "https://docs.synapse-network.ai/get-started/agent-builders",
+      "status": 200,
+      "ok": true,
+      "detail": "expected status",
+      "startedAt": "2026-05-15T02:35:27.067Z",
+      "finishedAt": "2026-05-15T02:35:27.315Z"
+    },
+    {
+      "name": "docs_sdks",
+      "url": "https://docs.synapse-network.ai/sdks/typescript",
+      "status": 200,
+      "ok": true,
+      "detail": "expected status",
+      "startedAt": "2026-05-15T02:35:27.315Z",
+      "finishedAt": "2026-05-15T02:35:27.599Z"
+    },
+    {
+      "name": "docs_smart_contracts",
+      "url": "https://docs.synapse-network.ai/smart-contracts/synapse-core",
+      "status": 200,
+      "ok": true,
+      "detail": "expected status",
+      "startedAt": "2026-05-15T02:35:27.599Z",
+      "finishedAt": "2026-05-15T02:35:27.875Z"
+    },
+    {
+      "name": "docs_support",
+      "url": "https://docs.synapse-network.ai/support",
+      "status": 200,
+      "ok": true,
+      "detail": "expected status",
+      "startedAt": "2026-05-15T02:35:27.875Z",
+      "finishedAt": "2026-05-15T02:35:28.145Z"
+    },
+    {
+      "name": "docs_api_reference_markdown",
+      "url": "https://docs.synapse-network.ai/llms.mdx/docs/api-reference/content.md",
+      "status": 200,
+      "ok": true,
+      "detail": "expected status",
+      "startedAt": "2026-05-15T02:35:28.145Z",
+      "finishedAt": "2026-05-15T02:35:28.407Z"
+    },
+    {
+      "name": "docs_api_reference_github",
+      "url": "https://github.com/SynapseNetworkAI/Synapse-Network-Docs/blob/main/content/docs/api-reference.mdx",
+      "status": 200,
+      "ok": true,
+      "detail": "expected status",
+      "startedAt": "2026-05-15T02:35:28.407Z",
+      "finishedAt": "2026-05-15T02:35:29.130Z"
+    },
+    {
+      "name": "docs_agent_builders_github",
+      "url": "https://github.com/SynapseNetworkAI/Synapse-Network-Docs/blob/main/content/docs/get-started/agent-builders.mdx",
+      "status": 200,
+      "ok": true,
+      "detail": "expected status",
+      "startedAt": "2026-05-15T02:35:29.130Z",
+      "finishedAt": "2026-05-15T02:35:29.849Z"
+    },
+    {
+      "name": "docs_api_reference_open_menu",
+      "url": "https://docs.synapse-network.ai/api-reference",
+      "status": 200,
+      "ok": false,
+      "detail": "locator.waitFor: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('a[href=\"https://docs.synapse-network.ai/llms.mdx/docs/api-reference/content.md\"]').first() to be visible\u001b[22m\n",
+      "startedAt": "2026-05-15T02:35:29.849Z",
+      "finishedAt": "2026-05-15T02:35:30.094Z"
+    },
+    {
+      "name": "docs_agent_builders_open_menu",
+      "url": "https://docs.synapse-network.ai/get-started/agent-builders",
+      "status": 200,
+      "ok": false,
+      "detail": "locator.waitFor: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('a[href=\"https://docs.synapse-network.ai/llms.mdx/docs/get-started/agent-builders/content.md\"]').first() to be visible\u001b[22m\n",
+      "startedAt": "2026-05-15T02:36:10.089Z",
+      "finishedAt": "2026-05-15T02:36:10.398Z"
+    },
+    {
+      "name": "docs_repo_root",
+      "url": "https://github.com/SynapseNetworkAI/Synapse-Network-Docs",
+      "status": 200,
+      "ok": true,
+      "detail": "expected status",
+      "startedAt": "2026-05-15T02:36:46.973Z",
+      "finishedAt": "2026-05-15T02:36:47.703Z"
+    },
+    {
+      "name": "sdk_repo_root",
+      "url": "https://github.com/SynapseNetworkAI/Synapse-Network-Sdk",
+      "status": 200,
+      "ok": true,
+      "detail": "expected status",
+      "startedAt": "2026-05-15T02:36:47.703Z",
+      "finishedAt": "2026-05-15T02:36:48.498Z"
+    },
+    {
+      "name": "gateway_health",
+      "url": "https://api.synapse-network.ai/health",
+      "status": 200,
+      "ok": true,
+      "detail": "public health endpoint",
+      "startedAt": "2026-05-15T02:36:48.498Z",
+      "finishedAt": "2026-05-15T02:36:48.788Z"
+    },
+    {
+      "name": "admin_gate",
+      "url": "https://admin.synapse-network.ai/",
+      "status": 403,
+      "ok": true,
+      "detail": "protected gate expected",
+      "startedAt": "2026-05-15T02:36:48.788Z",
+      "finishedAt": "2026-05-15T02:36:49.188Z"
+    },
+    {
+      "name": "admin_api_gate",
+      "url": "https://admin-api.synapse-network.ai/",
+      "status": 403,
+      "ok": true,
+      "detail": "protected gate expected",
+      "startedAt": "2026-05-15T02:36:49.188Z",
+      "finishedAt": "2026-05-15T02:36:49.588Z"
+    }
+  ]
+}

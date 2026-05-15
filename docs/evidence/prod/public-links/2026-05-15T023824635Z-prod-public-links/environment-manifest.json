@@ -1,0 +1,9 @@
+{
+  "environment": "prod",
+  "rootUrl": "https://www.synapse-network.ai",
+  "docsUrl": "https://docs.synapse-network.ai",
+  "gatewayUrl": "https://api.synapse-network.ai",
+  "adminUrl": "https://admin.synapse-network.ai",
+  "adminApiUrl": "https://admin-api.synapse-network.ai",
+  "docsRepoUrl": "https://github.com/SynapseNetworkAI/Synapse-Network-Docs"
+}

@@ -5,6 +5,17 @@ require("@nomicfoundation/hardhat-toolbox");
 
 const ARBITRUM_SEPOLIA_CHAIN_ID = 421614;
 
+function isQuoted(value) {
+  return (
+    (value.startsWith('"') && value.endsWith('"')) ||
+    (value.startsWith("'") && value.endsWith("'"))
+  );
+}
+
+function normalizeEnvValue(value) {
+  return isQuoted(value) ? value.slice(1, -1) : value;
+}
+
 function applyEnvFile(filePath) {
   if (!filePath || !fs.existsSync(filePath)) {
     return;
@@ -20,17 +31,21 @@ function applyEnvFile(filePath) {
       continue;
     }
     const key = trimmed.slice(0, eqIndex).trim();
-    let value = trimmed.slice(eqIndex + 1).trim();
-    if (
-      (value.startsWith('"') && value.endsWith('"')) ||
-      (value.startsWith("'") && value.endsWith("'"))
-    ) {
-      value = value.slice(1, -1);
-    }
+    const value = normalizeEnvValue(trimmed.slice(eqIndex + 1).trim());
     if (!(key in process.env)) {
       process.env[key] = value;
     }
   }
+}
+
+function pushCandidate(candidates, value) {
+  if (value) {
+    candidates.push(value);
+  }
+}
+
+function gatewayEnvPath(repoRoot, fileName) {
+  return path.resolve(repoRoot, "services", "gateway", fileName);
 }
 
 function resolveEnvCandidates() {
@@ -39,31 +54,26 @@ function resolveEnvCandidates() {
   const candidates = [];
 
   if (explicit) {
-    candidates.push(
-      path.isAbsolute(explicit) ? explicit : path.resolve(repoRoot, explicit),
-      path.resolve(repoRoot, "services", "gateway", explicit),
+    pushCandidate(
+      candidates,
+      path.isAbsolute(explicit) ? explicit : path.resolve(repoRoot, explicit)
     );
+    pushCandidate(candidates, gatewayEnvPath(repoRoot, explicit));
   }
 
   const environment = (process.env.ENVIRONMENT || "").trim().toLowerCase();
   if (environment) {
-    candidates.push(
-      path.resolve(repoRoot, `.env.${environment}`),
-      path.resolve(repoRoot, "services", "gateway", `.env.${environment}`),
-    );
+    pushCandidate(candidates, path.resolve(repoRoot, `.env.${environment}`));
+    pushCandidate(candidates, gatewayEnvPath(repoRoot, `.env.${environment}`));
   }
 
   if (process.argv.includes("arbitrumSepolia")) {
-    candidates.push(
-      path.resolve(repoRoot, ".env.staging"),
-      path.resolve(repoRoot, "services", "gateway", ".env.staging"),
-    );
+    pushCandidate(candidates, path.resolve(repoRoot, ".env.staging"));
+    pushCandidate(candidates, gatewayEnvPath(repoRoot, ".env.staging"));
   }
 
-  candidates.push(
-    path.resolve(repoRoot, ".env"),
-    path.resolve(repoRoot, "services", "gateway", ".env"),
-  );
+  pushCandidate(candidates, path.resolve(repoRoot, ".env"));
+  pushCandidate(candidates, gatewayEnvPath(repoRoot, ".env"));
 
   return [...new Set(candidates)];
 }
@@ -87,8 +97,8 @@ module.exports = {
   solidity: {
     version: "0.8.24",
     settings: {
-      evmVersion: "cancun"
-    }
+      evmVersion: "cancun",
+    },
   },
   networks: {
     arbitrumSepolia: {
