@@ -348,14 +348,9 @@ await check(
   },
   "public admin shell should render app bootstrap"
 );
-await check(
-  "admin_api_health",
-  `${ADMIN_API_ROOT}/health`,
-  [200],
-  (body) => {
-    assertContains(body, "\"service\":\"gateway-admin\"", "admin api health");
-  }
-);
+await check("admin_api_health", `${ADMIN_API_ROOT}/health`, [200], (body) => {
+  assertContains(body, '"service":"gateway-admin"', "admin api health");
+});
 await check(
   "admin_api_me_unauth",
   `${ADMIN_API_ROOT}/api/admin/v1/auth/me`,
