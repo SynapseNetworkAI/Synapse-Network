@@ -1,6 +1,6 @@
 """API Reference E2E — 验证每个文档接口可以正常调用
 
-对应文档: http://localhost:3000/docs/api-reference
+对应文档: http://localhost:3100/api-reference
 运行方式:
     cd services/gateway
     pytest tests/e2e/test_api_reference.py -v --tb=short -s

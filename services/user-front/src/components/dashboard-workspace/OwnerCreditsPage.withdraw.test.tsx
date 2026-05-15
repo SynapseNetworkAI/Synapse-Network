@@ -8,8 +8,12 @@ import { createElement } from "react";
 import ConsumerWithdrawPage from "@/components/dashboard-workspace/ConsumerWithdrawPage";
 import { WithdrawBalanceModal } from "@/components/dashboard-workspace/OwnerCreditsPage";
 import { LanguageProvider } from "@/components/i18n/LanguageProvider";
+import type { WithdrawalStatus } from "@/domain/status";
 import { I18N_STORAGE_KEY } from "@/i18n/config";
-import { ConsumerWithdrawApiError } from "@/utils/balanceApi";
+import {
+  ConsumerWithdrawApiError,
+  type ConsumerWithdrawTicket,
+} from "@/utils/balanceApi";
 
 const {
   authorizeMock,
@@ -130,7 +134,7 @@ const requestTicket = {
   signature: "0xabc123",
   chainId: 11155111,
   contractAddress: "0x0000000000000000000000000000000000000001",
-};
+} satisfies ConsumerWithdrawTicket;
 
 const spendingLimitDefault = {
   ownerAddress: "0xabc",
@@ -156,7 +160,7 @@ function renderWithdrawModal(
     existingWithdrawal?: {
       id: string;
       amountUsdc: string;
-      status: string;
+      status: WithdrawalStatus;
       ticket?: typeof requestTicket;
     };
   } = {}
