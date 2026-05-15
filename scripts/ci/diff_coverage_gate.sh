@@ -59,6 +59,10 @@ run_frontend_coverage() {
   local project_dir="$1"
   (
     cd "$project_dir"
+    if [[ ! -x node_modules/.bin/vitest ]]; then
+      echo "[diff-coverage] bootstrapping frontend test deps in $project_dir"
+      yarn install --frozen-lockfile --non-interactive
+    fi
     yarn test --coverage
   )
 }
