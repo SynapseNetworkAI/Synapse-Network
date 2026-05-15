@@ -46,6 +46,54 @@ on:
         required: false
         type: string
 
+  workflow_call:
+    inputs:
+      requirement_id:
+        required: true
+        type: string
+      record_id:
+        required: true
+        type: string
+      commit_sha:
+        required: true
+        type: string
+      source_ref_type:
+        required: false
+        type: string
+        default: branch
+      source_ref:
+        required: false
+        type: string
+        default: main
+      deploy_scope:
+        required: true
+        type: string
+      actor:
+        required: true
+        type: string
+      trigger_source:
+        required: false
+        type: string
+      callback_url:
+        required: false
+        type: string
+      callback_token:
+        required: false
+        type: string
+    secrets:
+      PROD_GCP_WORKLOAD_IDENTITY_PROVIDER:
+        required: false
+      PROD_GCP_DEPLOY_SERVICE_ACCOUNT:
+        required: false
+      PROD_GCP_PROJECT_ID:
+        required: false
+      PROD_GCP_REGION:
+        required: false
+      PROD_ARTIFACT_REGISTRY_REPOSITORY:
+        required: false
+      PROD_EVIDENCE_BUCKET:
+        required: false
+
 permissions:
   contents: read
   id-token: write

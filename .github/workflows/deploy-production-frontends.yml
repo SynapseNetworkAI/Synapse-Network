@@ -1,0 +1,65 @@
+name: Deploy Production Frontends
+run-name: Deploy Production Frontends - ${{ inputs.deploy_scope }} - ${{ inputs.source_ref || 'main' }} - record ${{ inputs.record_id }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      requirement_id:
+        required: true
+        type: string
+      record_id:
+        required: true
+        type: string
+      commit_sha:
+        required: true
+        type: string
+      source_ref_type:
+        required: false
+        type: choice
+        default: branch
+        options:
+          - branch
+          - commit
+      source_ref:
+        required: false
+        type: string
+        default: main
+      deploy_scope:
+        required: true
+        type: choice
+        options:
+          - admin-front
+          - user-front
+          - docs-front
+      actor:
+        required: true
+        type: string
+      trigger_source:
+        required: false
+        type: string
+      callback_url:
+        required: false
+        type: string
+      callback_token:
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    uses: ./.github/workflows/deploy-production.yml
+    with:
+      requirement_id: ${{ inputs.requirement_id }}
+      record_id: ${{ inputs.record_id }}
+      commit_sha: ${{ inputs.commit_sha }}
+      source_ref_type: ${{ inputs.source_ref_type }}
+      source_ref: ${{ inputs.source_ref }}
+      deploy_scope: ${{ inputs.deploy_scope }}
+      actor: ${{ inputs.actor }}
+      trigger_source: ${{ inputs.trigger_source }}
+      callback_url: ${{ inputs.callback_url }}
+      callback_token: ${{ inputs.callback_token }}
+    secrets: inherit
