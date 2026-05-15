@@ -19,6 +19,7 @@ Synapse Network is an agent-first settlement layer for AI agents. The primary pr
 - docs/ops/13_Production_Monitoring_Alerting_and_Backup_Restore.md - production monitoring, alerting, and backup restore evidence gate
 - docs/ops/14_Gmail_Email_Notifications.md - async Gmail SMTP notification outbox, quotas, and delivery semantics
 - docs/ops/15_Google_Cloud_Launch_Readiness.md - Google Cloud staging/prod readiness, Terraform bootstrap, and production blockers
+- docs/ops/20_Production_GCP_Operator_Checklist.md - operator split between repo-automated production GCP bootstrap and human-provided prod secrets, allowlists, custody, and release confirmations
 - docs/ops/16_Arbitrum_Sepolia_Staging_Contracts.md - Arbitrum Sepolia staging deployment, MockUSDC pre-mint, Arbiscan verification, and contract evidence gates
 - docs/ops/17_Staging_Environment_Configuration.md - staging DNS, Cloud Run env, Secret Manager, Gmail, Lark, and Arbitrum Sepolia configuration checklist
 - docs/ops/17_In_App_Notifications.md - self-hosted Postgres inbox, after-commit notification writes, TTL cleanup, and User-front smart polling

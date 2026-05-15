@@ -1,0 +1,16 @@
+{
+  "contracts": [
+    {
+      "contractName": "SynapseCore",
+      "address": "0x4967d23cAbe3881f809677932Cc30c11de6957B0",
+      "status": "success",
+      "attempts": [
+        {
+          "attempt": 1,
+          "status": "success"
+        }
+      ],
+      "explorerUrl": "https://arbiscan.io/address/0x4967d23cAbe3881f809677932Cc30c11de6957B0#code"
+    }
+  ]
+}

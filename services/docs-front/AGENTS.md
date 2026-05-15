@@ -14,6 +14,7 @@ Local execution mirror for `services/docs-front/`.
 
 - `services/docs-front` is the public developer documentation site.
 - It owns `docs.synapse-network.ai`, `docs-staging.synapse-network.ai`, `llms.txt`, `llms-full.txt`, `openapi.json`, and the docs sitemap.
+- Public "Open in GitHub" links must target the public mirror repo `Synapse-Network-Docs`, even though rendered docs still source from this repo.
 - It is separate from `services/user-front`; do not import user-front React components into docs-front.
 - OpenAPI generation uses `services/docs-front/src/data/endpoint-source.ts` until Gateway owns a first-class OpenAPI export.
 

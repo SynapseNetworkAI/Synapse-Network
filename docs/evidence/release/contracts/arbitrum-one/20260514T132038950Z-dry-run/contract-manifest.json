@@ -1,0 +1,35 @@
+{
+  "generatedAt": "2026-05-14T13:20:38.950Z",
+  "dryRun": true,
+  "chainId": 42161,
+  "chainName": "Arbitrum One",
+  "network": "arbitrumOne",
+  "deploymentMode": "ledger",
+  "deployer": "0x121a2aDbe1b7d3aA41C47058af790439897a9034",
+  "owner": "0xA8A49dcd8AC6319ca789316Cc8022e316aF13C33",
+  "withdrawSigner": "0x0d0b4b2F8d49e5210e2f023f0508e2fAB6b6c0Ee",
+  "usdcTokenAddress": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+  "rpc": {
+    "protocol": "https:",
+    "host": "arb-mainnet.g.alchemy.com",
+    "path": "/v2/[REDACTED]"
+  },
+  "contracts": {
+    "synapseCore": {
+      "address": "",
+      "owner": "0xA8A49dcd8AC6319ca789316Cc8022e316aF13C33",
+      "withdrawSigner": "0x0d0b4b2F8d49e5210e2f023f0508e2fAB6b6c0Ee",
+      "usdc": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+      "constructorArgs": [
+        "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+        "0x0d0b4b2F8d49e5210e2f023f0508e2fAB6b6c0Ee",
+        "0xA8A49dcd8AC6319ca789316Cc8022e316aF13C33"
+      ],
+      "constructorArgsHash": "42c8801fbac00b988437d94c2e2e01cbbfa651b9ffc13c2154de03874703d846",
+      "abiHash": "07f2bd273377e54411367b978bcabd307a698e696073b06ca263944cd45e1c3b",
+      "bytecodeHash": "b1c7bb6d53a98e4e5a97904f65f59ca117e90d57cee0d28484f72d788bb88ce1",
+      "deployedCodeHash": "",
+      "explorerUrl": ""
+    }
+  }
+}

@@ -3,6 +3,7 @@
 - Status: canonical
 - Surface: `services/docs-front` dedicated docs site
 - Code paths: `services/docs-front/content/docs/`, `services/docs-front/src/app/`, `services/docs-front/scripts/generate-openapi.mjs`, `scripts/ui/verify_docs_pages.mjs`
+- Public source mirror: `../Synapse-Network-Docs/content/docs/`
 - Entry point: `http://localhost:3100/`
 - Source of truth: MDX content plus generated `services/docs-front/src/data/api-reference.json`
 - Validation entry points: `npm run ci:docs-pages`, `DOCS_BASE_URL=http://localhost:3100 node scripts/ui/verify_docs_pages.mjs`
@@ -13,6 +14,8 @@
 The dedicated docs surface is the public developer documentation for Synapse. It must explain how an owner, agent builder, provider, SDK user, or contract integrator discovers the platform, understands the architecture, and reaches the exact API or workflow page they need.
 
 The main `services/user-front` app no longer owns public docs content. It owns product links and legacy `/docs/*` redirects into the environment-specific docs origin.
+
+Rendered docs still source from `services/docs-front/content/docs`, but public "Open in GitHub" links must resolve against the mirrored files in `../Synapse-Network-Docs/content/docs/` because the main repo remains private.
 
 ## Page Matrix
 
@@ -73,3 +76,4 @@ A docs page is considered verified only when:
 5. User navigation is verified by simulated click or browser click, not by screenshot alone.
 6. Screenshots exist for representative visual states when running the Playwright evidence script.
 7. Docs-front visual theme stays fixed dark: `/get-started/agent-builders` must prove readable headings, paragraph text, ordered-list numbers/content, active sidebar item, and right-side TOC against the Synapse dark background.
+8. Public source-view links must resolve to the public mirror repo rather than the private main repository.
