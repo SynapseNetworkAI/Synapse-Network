@@ -207,17 +207,17 @@ locals {
           ADMIN_GATEWAY_ALLOWED_ORIGINS = "https://admin.synapse-network.ai"
           ADMIN_SESSION_COOKIE_SECURE   = "true"
           ADMIN_SESSION_COOKIE_SAMESITE = "lax"
-          ADMIN_SESSION_COOKIE_DOMAIN   = ".synapse-network.ai"
           ADMIN_LOGIN_LOCK_THRESHOLD    = "5"
           ADMIN_LOGIN_LOCK_HOURS        = "24"
           GATEWAY_INTERNAL_BASE_URL     = "https://api.synapse-network.ai"
+          PUBLIC_APP_BASE_URL           = "https://admin.synapse-network.ai"
           GCP_ALERT_RECEIVER_ENABLED    = "true"
           GCP_ALERT_RECEIVER_USERNAME   = "synapse-gcp-alert"
           GCP_ALERT_DEFAULT_ROUTE       = "prod-alerts"
         },
       )
       secret_env      = local.gateway_admin_secret_env
-      public_invoker  = false
+      public_invoker  = true
       use_vpc_egress  = true
       service_account = google_service_account.gateway_admin_runtime.email
     }
@@ -246,11 +246,10 @@ locals {
         {
           NEXT_PUBLIC_ADMIN_API_BASE_URL = ""
           ADMIN_API_PROXY_TARGET         = "https://admin-api.synapse-network.ai"
-          ADMIN_API_PROXY_AUDIENCE       = "https://admin-api.synapse-network.ai"
         },
       )
       secret_env      = {}
-      public_invoker  = false
+      public_invoker  = true
       use_vpc_egress  = false
       service_account = google_service_account.admin_front_runtime.email
     }
@@ -1055,7 +1054,7 @@ resource "google_cloud_scheduler_job" "jobs" {
 }
 
 resource "google_cloud_run_service_iam_member" "admin_front_invoker_group" {
-  count    = trimspace(var.admin_invoker_group_email) != "" && contains(keys(local.enabled_cloud_run_services), "admin_front") ? 1 : 0
+  count    = trimspace(var.admin_invoker_group_email) != "" && contains(keys(local.enabled_cloud_run_services), "admin_front") && !local.enabled_cloud_run_services["admin_front"].public_invoker ? 1 : 0
   project  = var.project_id
   location = var.region
   service  = google_cloud_run_v2_service.services["admin_front"].name
@@ -1064,7 +1063,7 @@ resource "google_cloud_run_service_iam_member" "admin_front_invoker_group" {
 }
 
 resource "google_cloud_run_service_iam_member" "gateway_admin_invoker_admin_front" {
-  count    = contains(keys(local.enabled_cloud_run_services), "gateway_admin") ? 1 : 0
+  count    = contains(keys(local.enabled_cloud_run_services), "gateway_admin") && !local.enabled_cloud_run_services["gateway_admin"].public_invoker ? 1 : 0
   project  = var.project_id
   location = var.region
   service  = google_cloud_run_v2_service.services["gateway_admin"].name
@@ -1073,7 +1072,7 @@ resource "google_cloud_run_service_iam_member" "gateway_admin_invoker_admin_fron
 }
 
 resource "google_cloud_run_service_iam_member" "gateway_admin_invoker_breakglass_group" {
-  count    = trimspace(var.gateway_admin_breakglass_group_email) != "" && contains(keys(local.enabled_cloud_run_services), "gateway_admin") ? 1 : 0
+  count    = trimspace(var.gateway_admin_breakglass_group_email) != "" && contains(keys(local.enabled_cloud_run_services), "gateway_admin") && !local.enabled_cloud_run_services["gateway_admin"].public_invoker ? 1 : 0
   project  = var.project_id
   location = var.region
   service  = google_cloud_run_v2_service.services["gateway_admin"].name

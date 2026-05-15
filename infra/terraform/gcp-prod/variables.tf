@@ -189,13 +189,13 @@ variable "legacy_withdraw_private_key_secret_enabled" {
 }
 
 variable "admin_invoker_group_email" {
-  description = "Google Group email allowlisted to invoke the production admin-front Cloud Run service."
+  description = "Optional Google Group email for legacy private admin-front mode. Leave empty when admin-front is public and protected at the application layer."
   type        = string
   default     = ""
 }
 
 variable "gateway_admin_breakglass_group_email" {
-  description = "Optional Google Group email allowlisted for direct break-glass invocation of production gateway-admin."
+  description = "Optional Google Group email for legacy private gateway-admin break-glass invocation. Leave empty when gateway-admin is public and protected at the application layer."
   type        = string
   default     = ""
 }

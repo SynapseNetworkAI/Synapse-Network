@@ -557,6 +557,26 @@ critical: staging already proved that deploying Gateway-admin before its schema
 exists turns login and withdrawal review into 500s. Production must run the
 admin migration job first, then deploy `synapse-prod-gateway-admin`.
 
+### Production Admin Entry Boundary
+
+Production admin access uses a public Cloud Run entrypoint plus application
+auth, not Cloud Run IAM as the human browser gate:
+
+1. `admin-front` is the public login entrypoint at
+   `https://admin.synapse-network.ai`
+2. `gateway-admin` is publicly reachable at
+   `https://admin-api.synapse-network.ai`
+3. security stays in the application layer: session cookie, CSRF, TOTP
+   step-up, RBAC, lockout, and audit
+4. anonymous browser/API requests should reach the application and fail with
+   login redirect or application `401/403`, not Google Frontend `403`
+5. `ADMIN_GATEWAY_ALLOWED_ORIGINS` must stay pinned to
+   `https://admin.synapse-network.ai`
+6. `PUBLIC_APP_BASE_URL` for `gateway-admin` must point to
+   `https://admin.synapse-network.ai`
+7. leave `ADMIN_SESSION_COOKIE_DOMAIN` unset in production so the admin session
+   stays host-only on `admin.synapse-network.ai`
+
 Runtime services must use `POSTGRES_AUTO_INIT=0`. API containers validate schema
 but must not create tables, apply DDL, or run seed data. The migrator user is
 separate from the app user:
