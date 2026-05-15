@@ -112,15 +112,15 @@ Operator-managed production secrets:
 3. `synapse-prod-gmail-app-password`
 4. `synapse-prod-metrics-basic-username` if you want metrics Basic auth alongside bearer token
 5. `synapse-prod-metrics-basic-password` if you want metrics Basic auth alongside bearer token
-4. `synapse-prod-lark-webhook-p0`
-5. `synapse-prod-lark-secret-p0`
-6. `synapse-prod-lark-webhook-prod-alerts`
-7. `synapse-prod-lark-secret-prod-alerts`
-8. `synapse-prod-lark-webhook-staging-drill`
-9. `synapse-prod-lark-secret-staging-drill`
-10. `synapse-prod-arbitrum-one-rpc-url`
-11. `synapse-prod-arbiscan-api-key`
-12. `synapse-prod-deployer-private-key` only if you intentionally fall back to a raw hot-wallet deploy path instead of the default Ledger deploy path
+6. `synapse-prod-lark-webhook-p0`
+7. `synapse-prod-lark-secret-p0`
+8. `synapse-prod-lark-webhook-prod-alerts`
+9. `synapse-prod-lark-secret-prod-alerts`
+10. `synapse-prod-lark-webhook-staging-drill`
+11. `synapse-prod-lark-secret-staging-drill`
+12. `synapse-prod-arbitrum-one-rpc-url`
+13. `synapse-prod-arbiscan-api-key`
+14. `synapse-prod-deployer-private-key` only if you intentionally fall back to a raw hot-wallet deploy path instead of the default Ledger deploy path
 
 Optional provider-service production secrets:
 

@@ -13,7 +13,7 @@ async function proxyAdminRequest(request: NextRequest): Promise<NextResponse> {
   const upstreamUrl = buildAdminApiProxyUrl(
     target,
     request.nextUrl.pathname,
-    request.nextUrl.search,
+    request.nextUrl.search
   );
   const headers = await buildAdminApiProxyHeaders(request.headers, target);
   const method = request.method.toUpperCase();

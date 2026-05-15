@@ -13,7 +13,7 @@ runVerification({
     "evidence",
     "release",
     "contracts",
-    "arbitrum-sepolia",
+    "arbitrum-sepolia"
   ),
   reportTitle: "Arbitrum Sepolia Contract Deployment Evidence",
   reportNotes: [

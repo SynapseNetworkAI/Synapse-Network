@@ -1,6 +1,8 @@
 import { GoogleAuth } from "google-auth-library";
 
-type AuthHeadersProvider = (audience: string) => Promise<Record<string, string>>;
+type AuthHeadersProvider = (
+  audience: string
+) => Promise<Record<string, string>>;
 
 const HOP_BY_HOP_HEADERS = new Set([
   "connection",
@@ -22,7 +24,9 @@ function isLocalHostname(hostname: string): boolean {
 }
 
 export function normalizeAdminApiProxyTarget(target: string): string {
-  const normalized = String(target || "").trim().replace(/\/$/, "");
+  const normalized = String(target || "")
+    .trim()
+    .replace(/\/$/, "");
   if (!normalized) {
     throw new Error("ADMIN_API_PROXY_TARGET is required");
   }
@@ -60,7 +64,7 @@ const defaultAuthHeadersProvider: AuthHeadersProvider = async (audience) => {
 export async function buildAdminApiProxyHeaders(
   incoming: Headers,
   target: string,
-  authHeadersProvider: AuthHeadersProvider = defaultAuthHeadersProvider,
+  authHeadersProvider: AuthHeadersProvider = defaultAuthHeadersProvider
 ): Promise<Headers> {
   const headers = new Headers();
 
@@ -92,7 +96,7 @@ export async function buildAdminApiProxyHeaders(
 export function buildAdminApiProxyUrl(
   target: string,
   pathname: string,
-  search: string,
+  search: string
 ): string {
   const normalizedTarget = normalizeAdminApiProxyTarget(target);
   return `${normalizedTarget}${pathname}${search}`;

@@ -13,7 +13,7 @@ runVerification({
     "evidence",
     "release",
     "contracts",
-    "arbitrum-one",
+    "arbitrum-one"
   ),
   reportTitle: "Arbitrum One Contract Deployment Evidence",
   reportNotes: [

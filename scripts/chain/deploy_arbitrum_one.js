@@ -24,7 +24,7 @@ const EVIDENCE_ROOT = path.resolve(
   "evidence",
   "release",
   "contracts",
-  "arbitrum-one",
+  "arbitrum-one"
 );
 const REPORT_TITLE = "Arbitrum One Contract Deployment Evidence";
 const REPORT_NOTES = [
@@ -69,7 +69,7 @@ function artifactFor(contractName) {
     "artifacts",
     "contracts",
     `${contractName}.sol`,
-    `${contractName}.json`,
+    `${contractName}.json`
   );
   const artifact = JSON.parse(fs.readFileSync(artifactPath, "utf8"));
   return { artifactPath, artifact };
@@ -108,7 +108,7 @@ function runCommand(command, args, { env, cwd } = {}) {
         result.stderr ? `stderr:\n${result.stderr}` : "",
       ]
         .filter(Boolean)
-        .join("\n\n"),
+        .join("\n\n")
     );
   }
   return {
@@ -167,9 +167,13 @@ function renderMarkdown(report) {
 function readInputs() {
   const rpcUrl = requireEnv("ARBITRUM_ONE_RPC_URL");
   const ownerAddress = requireAddressEnv("PROD_CONTRACT_OWNER_ADDRESS");
-  const withdrawSignerAddress = requireAddressEnv("PROD_WITHDRAW_SIGNER_ADDRESS");
+  const withdrawSignerAddress = requireAddressEnv(
+    "PROD_WITHDRAW_SIGNER_ADDRESS"
+  );
   const usdcAddress = requireAddressEnv("PROD_USDC_TOKEN_ADDRESS");
-  const ledgerDeployerAddress = requireAddressEnv("PROD_LEDGER_DEPLOYER_ADDRESS");
+  const ledgerDeployerAddress = requireAddressEnv(
+    "PROD_LEDGER_DEPLOYER_ADDRESS"
+  );
   const ledgerDerivationPath =
     process.env.PROD_LEDGER_DERIVATION_PATH?.trim() || "m/44'/60'/0'/0/0";
   requireAnyEnv(["ETHERSCAN_API_KEY", "ARBISCAN_API_KEY"]);
@@ -187,7 +191,7 @@ function createRuntimeState(dryRun) {
   const generatedAt = new Date().toISOString();
   const evidenceDir = path.join(
     EVIDENCE_ROOT,
-    `${timestampForPath()}-${dryRun ? "dry-run" : "deploy"}`,
+    `${timestampForPath()}-${dryRun ? "dry-run" : "deploy"}`
   );
   mkdirp(evidenceDir);
   return {
@@ -207,16 +211,29 @@ function createRuntimeState(dryRun) {
 }
 
 function appendRoleFailures(failed, inputs) {
-  if (inputs.ledgerDeployerAddress.toLowerCase() === inputs.ownerAddress.toLowerCase()) {
-    failed.push("PROD_LEDGER_DEPLOYER_ADDRESS and PROD_CONTRACT_OWNER_ADDRESS must be separate roles");
-  }
-  if (inputs.ledgerDeployerAddress.toLowerCase() === inputs.withdrawSignerAddress.toLowerCase()) {
+  if (
+    inputs.ledgerDeployerAddress.toLowerCase() ===
+    inputs.ownerAddress.toLowerCase()
+  ) {
     failed.push(
-      "PROD_LEDGER_DEPLOYER_ADDRESS and PROD_WITHDRAW_SIGNER_ADDRESS must be separate roles",
+      "PROD_LEDGER_DEPLOYER_ADDRESS and PROD_CONTRACT_OWNER_ADDRESS must be separate roles"
     );
   }
-  if (inputs.ownerAddress.toLowerCase() === inputs.withdrawSignerAddress.toLowerCase()) {
-    failed.push("PROD_CONTRACT_OWNER_ADDRESS and PROD_WITHDRAW_SIGNER_ADDRESS must be separate roles");
+  if (
+    inputs.ledgerDeployerAddress.toLowerCase() ===
+    inputs.withdrawSignerAddress.toLowerCase()
+  ) {
+    failed.push(
+      "PROD_LEDGER_DEPLOYER_ADDRESS and PROD_WITHDRAW_SIGNER_ADDRESS must be separate roles"
+    );
+  }
+  if (
+    inputs.ownerAddress.toLowerCase() ===
+    inputs.withdrawSignerAddress.toLowerCase()
+  ) {
+    failed.push(
+      "PROD_CONTRACT_OWNER_ADDRESS and PROD_WITHDRAW_SIGNER_ADDRESS must be separate roles"
+    );
   }
 }
 
@@ -230,7 +247,7 @@ async function compileAndValidateNetwork(provider, failed) {
 
 async function validateLedgerAddress(inputs, failed) {
   console.log(
-    `Resolving Ledger deployer address with path ${inputs.ledgerDerivationPath}. Connect the Ledger device and open the Ethereum app if prompted.`,
+    `Resolving Ledger deployer address with path ${inputs.ledgerDerivationPath}. Connect the Ledger device and open the Ethereum app if prompted.`
   );
   const derivedAddressOutput = runCommand(
     "cast",
@@ -241,15 +258,15 @@ async function validateLedgerAddress(inputs, failed) {
       "--mnemonic-derivation-path",
       inputs.ledgerDerivationPath,
     ],
-    { cwd: path.resolve(__dirname, "..", "..") },
+    { cwd: path.resolve(__dirname, "..", "..") }
   );
   const derivedAddress = extractAddress(
     `${derivedAddressOutput.stdout}\n${derivedAddressOutput.stderr}`,
-    "Ledger address",
+    "Ledger address"
   );
   if (derivedAddress !== inputs.ledgerDeployerAddress) {
     failed.push(
-      `Ledger derivation path resolved ${derivedAddress}, expected ${inputs.ledgerDeployerAddress}`,
+      `Ledger derivation path resolved ${derivedAddress}, expected ${inputs.ledgerDeployerAddress}`
     );
   }
 }
@@ -277,9 +294,17 @@ function buildManifest(generatedAt, dryRun, inputs) {
   };
 }
 
-async function deploySynapseCore(initCode, inputs, provider, deploymentTxs, manifest, confirmations, failed) {
+async function deploySynapseCore(
+  initCode,
+  inputs,
+  provider,
+  deploymentTxs,
+  manifest,
+  confirmations,
+  failed
+) {
   console.log(
-    `Deploying SynapseCore to ${CHAIN_NAME} with Ledger signer ${inputs.ledgerDeployerAddress}. Confirm the deployment transaction on the device when prompted.`,
+    `Deploying SynapseCore to ${CHAIN_NAME} with Ledger signer ${inputs.ledgerDeployerAddress}. Confirm the deployment transaction on the device when prompted.`
   );
   const sendOutput = runCommand(
     "cast",
@@ -299,7 +324,7 @@ async function deploySynapseCore(initCode, inputs, provider, deploymentTxs, mani
       "--create",
       initCode,
     ],
-    { cwd: path.resolve(__dirname, "..", "..") },
+    { cwd: path.resolve(__dirname, "..", "..") }
   );
   const txHash = extractTxHash(`${sendOutput.stdout}\n${sendOutput.stderr}`);
   const receipt = await provider.waitForTransaction(txHash, confirmations);
@@ -327,7 +352,11 @@ async function deploySynapseCore(initCode, inputs, provider, deploymentTxs, mani
 
   const coreArtifact = artifactHash("SynapseCore");
   const coreCode = await provider.getCode(coreAddress);
-  const core = await hre.ethers.getContractAt("SynapseCore", coreAddress, provider);
+  const core = await hre.ethers.getContractAt(
+    "SynapseCore",
+    coreAddress,
+    provider
+  );
   manifest.contracts.synapseCore = {
     address: coreAddress,
     owner: await core.owner(),
@@ -358,7 +387,14 @@ function attachDryRunContract(manifest) {
   };
 }
 
-function writeEvidence(evidenceDir, walletPreflight, manifest, deploymentTxs, verification, report) {
+function writeEvidence(
+  evidenceDir,
+  walletPreflight,
+  manifest,
+  deploymentTxs,
+  verification,
+  report
+) {
   const { constructorArgs, ...manifestForWrite } = manifest;
   writeJson(path.join(evidenceDir, "contract-manifest.json"), manifestForWrite);
   writeJson(path.join(evidenceDir, "deployment-txs.json"), deploymentTxs);
@@ -369,7 +405,9 @@ function writeEvidence(evidenceDir, walletPreflight, manifest, deploymentTxs, ve
 }
 
 async function buildWalletPreflight(provider, inputs, failed) {
-  const minGasWei = hre.ethers.parseEther(process.env.PROD_MIN_GAS_ETH || "0.02");
+  const minGasWei = hre.ethers.parseEther(
+    process.env.PROD_MIN_GAS_ETH || "0.02"
+  );
   const walletPreflight = await getWalletPreflight({
     provider,
     deployerAddress: inputs.ledgerDeployerAddress,
@@ -393,7 +431,15 @@ function buildManifestAndInitCode(runtime, dryRun, inputs) {
   };
 }
 
-async function executeDeployment(runtime, dryRun, inputs, provider, manifest, initCode, confirmations) {
+async function executeDeployment(
+  runtime,
+  dryRun,
+  inputs,
+  provider,
+  manifest,
+  initCode,
+  confirmations
+) {
   if (!dryRun) {
     await validateLedgerAddress(inputs, runtime.failed);
   }
@@ -406,7 +452,7 @@ async function executeDeployment(runtime, dryRun, inputs, provider, manifest, in
       runtime.deploymentTxs,
       manifest,
       confirmations,
-      runtime.failed,
+      runtime.failed
     );
     return;
   }
@@ -418,7 +464,12 @@ function buildReport(runtime, dryRun, inputs, manifest) {
   return {
     generatedAt: runtime.generatedAt,
     verificationUpdatedAt: null,
-    status: runtime.failed.length === 0 ? (dryRun ? "dry_run_success" : "success") : "failed",
+    status:
+      runtime.failed.length === 0
+        ? dryRun
+          ? "dry_run_success"
+          : "success"
+        : "failed",
     failed: runtime.failed,
     environment: dryRun ? "dry-run" : "prod",
     network: NETWORK_NAME,
@@ -435,16 +486,36 @@ function buildReport(runtime, dryRun, inputs, manifest) {
 
 async function main() {
   const dryRun =
-    process.env.SYNAPSE_DEPLOY_DRY_RUN === "1" || process.argv.includes("--dry-run");
+    process.env.SYNAPSE_DEPLOY_DRY_RUN === "1" ||
+    process.argv.includes("--dry-run");
   const runtime = createRuntimeState(dryRun);
   const inputs = readInputs();
   appendRoleFailures(runtime.failed, inputs);
-  const provider = new hre.ethers.JsonRpcProvider(inputs.rpcUrl, Number(CHAIN_ID));
+  const provider = new hre.ethers.JsonRpcProvider(
+    inputs.rpcUrl,
+    Number(CHAIN_ID)
+  );
   await compileAndValidateNetwork(provider, runtime.failed);
   const confirmations = Number(process.env.PROD_DEPLOY_CONFIRMATIONS || 10);
-  const walletPreflight = await buildWalletPreflight(provider, inputs, runtime.failed);
-  const { manifest, initCode } = buildManifestAndInitCode(runtime, dryRun, inputs);
-  await executeDeployment(runtime, dryRun, inputs, provider, manifest, initCode, confirmations);
+  const walletPreflight = await buildWalletPreflight(
+    provider,
+    inputs,
+    runtime.failed
+  );
+  const { manifest, initCode } = buildManifestAndInitCode(
+    runtime,
+    dryRun,
+    inputs
+  );
+  await executeDeployment(
+    runtime,
+    dryRun,
+    inputs,
+    provider,
+    manifest,
+    initCode,
+    confirmations
+  );
   const report = buildReport(runtime, dryRun, inputs, manifest);
 
   writeEvidence(
@@ -453,7 +524,7 @@ async function main() {
     manifest,
     runtime.deploymentTxs,
     runtime.verification,
-    report,
+    report
   );
 
   console.log(`${CHAIN_NAME} deployment evidence: ${runtime.evidenceDir}`);

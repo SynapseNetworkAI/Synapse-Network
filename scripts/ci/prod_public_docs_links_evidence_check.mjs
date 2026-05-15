@@ -38,7 +38,10 @@ function latestEvidenceDir() {
   return (
     fs
       .readdirSync(EVIDENCE_ROOT, { withFileTypes: true })
-      .filter((entry) => entry.isDirectory() && entry.name.endsWith("-prod-public-links"))
+      .filter(
+        (entry) =>
+          entry.isDirectory() && entry.name.endsWith("-prod-public-links")
+      )
       .map((entry) => path.join(EVIDENCE_ROOT, entry.name))
       .sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs)[0] || ""
   );
@@ -79,7 +82,9 @@ if (report.environment !== "prod") {
 if (report.status !== "success" || (report.failed || []).length > 0) {
   fail(
     "PROD-PUBLIC-DOCS-EVIDENCE-004",
-    `report status=${report.status}; failed=${JSON.stringify(report.failed || [])}`,
+    `report status=${report.status}; failed=${JSON.stringify(
+      report.failed || []
+    )}`,
     "fix the failing prod public link or gate check and regenerate evidence."
   );
 }
@@ -87,10 +92,16 @@ if (report.status !== "success" || (report.failed || []).length > 0) {
 const generatedAt = Date.parse(report.generatedAt || "");
 const maxAgeHours = Number(process.env.PROD_PUBLIC_DOCS_MAX_AGE_HOURS || "72");
 const ageHours = (Date.now() - generatedAt) / 3_600_000;
-if (!Number.isFinite(generatedAt) || ageHours < -0.1 || ageHours > maxAgeHours) {
+if (
+  !Number.isFinite(generatedAt) ||
+  ageHours < -0.1 ||
+  ageHours > maxAgeHours
+) {
   fail(
     "PROD-PUBLIC-DOCS-EVIDENCE-005",
-    `evidence is stale or invalid; age=${Number.isFinite(ageHours) ? ageHours.toFixed(2) : "invalid"}h`,
+    `evidence is stale or invalid; age=${
+      Number.isFinite(ageHours) ? ageHours.toFixed(2) : "invalid"
+    }h`,
     "rerun npm run e2e:prod-public-docs-links."
   );
 }

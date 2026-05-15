@@ -11,9 +11,7 @@ import {
 describe("admin api proxy helpers", () => {
   it("normalizes the configured target", () => {
     expect(
-      normalizeAdminApiProxyTarget(
-        "https://admin-api.synapse-network.ai/",
-      ),
+      normalizeAdminApiProxyTarget("https://admin-api.synapse-network.ai/")
     ).toBe("https://admin-api.synapse-network.ai");
   });
 
@@ -22,7 +20,7 @@ describe("admin api proxy helpers", () => {
     process.env.ADMIN_API_PROXY_AUDIENCE =
       "https://admin-api.synapse-network.ai";
     expect(
-      resolveAdminApiProxyAudience("https://admin-api-internal.example"),
+      resolveAdminApiProxyAudience("https://admin-api-internal.example")
     ).toBe("https://admin-api.synapse-network.ai");
     process.env.ADMIN_API_PROXY_AUDIENCE = original;
   });
@@ -31,25 +29,21 @@ describe("admin api proxy helpers", () => {
     const original = process.env.ADMIN_API_PROXY_AUDIENCE;
     delete process.env.ADMIN_API_PROXY_AUDIENCE;
     expect(
-      resolveAdminApiProxyAudience(
-        "https://admin-api.synapse-network.ai/",
-      ),
+      resolveAdminApiProxyAudience("https://admin-api.synapse-network.ai/")
     ).toBe("https://admin-api.synapse-network.ai");
     process.env.ADMIN_API_PROXY_AUDIENCE = original;
   });
 
   it("attaches google identity tokens only for non-local https targets", () => {
     expect(
-      shouldAttachGoogleIdentityToken(
-        "https://admin-api.synapse-network.ai",
-      ),
+      shouldAttachGoogleIdentityToken("https://admin-api.synapse-network.ai")
     ).toBe(true);
     expect(shouldAttachGoogleIdentityToken("http://localhost:8300")).toBe(
-      false,
+      false
     );
-    expect(
-      shouldAttachGoogleIdentityToken("https://127.0.0.1:8300"),
-    ).toBe(false);
+    expect(shouldAttachGoogleIdentityToken("https://127.0.0.1:8300")).toBe(
+      false
+    );
   });
 
   it("builds upstream urls from target and request path", () => {
@@ -57,8 +51,8 @@ describe("admin api proxy helpers", () => {
       buildAdminApiProxyUrl(
         "https://admin-api.synapse-network.ai/",
         "/api/admin/v1/auth/me",
-        "?page=2",
-      ),
+        "?page=2"
+      )
     ).toBe("https://admin-api.synapse-network.ai/api/admin/v1/auth/me?page=2");
   });
 
@@ -77,7 +71,7 @@ describe("admin api proxy helpers", () => {
     const headers = await buildAdminApiProxyHeaders(
       incoming,
       "https://admin-api.synapse-network.ai",
-      provideAuthHeaders,
+      provideAuthHeaders
     );
 
     expect(provideAuthHeaders).toHaveBeenCalledOnce();
@@ -99,7 +93,7 @@ describe("admin api proxy helpers", () => {
     const headers = await buildAdminApiProxyHeaders(
       incoming,
       "http://localhost:8300",
-      provideAuthHeaders,
+      provideAuthHeaders
     );
 
     expect(provideAuthHeaders).not.toHaveBeenCalled();

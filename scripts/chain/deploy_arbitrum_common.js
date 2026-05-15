@@ -88,15 +88,19 @@ function readDeploymentInputs(config) {
   requireAnyEnv(config.explorerApiKeyEnvNames);
 
   const minGasWei = hre.ethers.parseEther(
-    process.env[config.minGasEthEnv] || config.defaultMinGasEth,
+    process.env[config.minGasEthEnv] || config.defaultMinGasEth
   );
   const confirmations = Number(
-    process.env[config.confirmationsEnv] || config.defaultConfirmations,
+    process.env[config.confirmationsEnv] || config.defaultConfirmations
   );
-  const verifyDelayMs = Number(process.env[config.verifyDelayEnv] || config.defaultVerifyDelayMs);
-  const verifyRetries = Number(process.env[config.verifyRetriesEnv] || config.defaultVerifyRetries);
+  const verifyDelayMs = Number(
+    process.env[config.verifyDelayEnv] || config.defaultVerifyDelayMs
+  );
+  const verifyRetries = Number(
+    process.env[config.verifyRetriesEnv] || config.defaultVerifyRetries
+  );
   const verifyRetryDelayMs = Number(
-    process.env[config.verifyRetryDelayEnv] || config.defaultVerifyRetryDelayMs,
+    process.env[config.verifyRetryDelayEnv] || config.defaultVerifyRetryDelayMs
   );
 
   const inputs = {
@@ -119,7 +123,8 @@ function readDeploymentInputs(config) {
   if (config.mockUsdc) {
     inputs.consumerAddress = requireAddress(config.mockUsdc.consumerEnv);
     inputs.providerAddress = requireAddress(config.mockUsdc.providerEnv);
-    inputs.preMintUsdc = process.env[config.mockUsdc.preMintEnv] || config.mockUsdc.defaultPreMint;
+    inputs.preMintUsdc =
+      process.env[config.mockUsdc.preMintEnv] || config.mockUsdc.defaultPreMint;
     inputs.preMintAtomic = hre.ethers.parseUnits(inputs.preMintUsdc, 18);
   } else {
     inputs.usdcAddress = requireAddress(config.usdcTokenEnv);
@@ -128,12 +133,21 @@ function readDeploymentInputs(config) {
   return inputs;
 }
 
-function appendRoleFailures(failed, deployerAddress, ownerAddress, withdrawSignerAddress) {
+function appendRoleFailures(
+  failed,
+  deployerAddress,
+  ownerAddress,
+  withdrawSignerAddress
+) {
   if (deployerAddress.toLowerCase() === ownerAddress.toLowerCase()) {
-    failed.push("deployer private key and contract owner must be separate roles");
+    failed.push(
+      "deployer private key and contract owner must be separate roles"
+    );
   }
   if (deployerAddress.toLowerCase() === withdrawSignerAddress.toLowerCase()) {
-    failed.push("deployer private key and withdraw signer must be separate roles");
+    failed.push(
+      "deployer private key and withdraw signer must be separate roles"
+    );
   }
   if (ownerAddress.toLowerCase() === withdrawSignerAddress.toLowerCase()) {
     failed.push("contract owner and withdraw signer must be separate roles");
@@ -145,7 +159,7 @@ function buildWalletRoles(config, deployerAddress, inputs) {
   if (config.mockUsdc) {
     walletRoles.push(
       ["consumer", inputs.consumerAddress],
-      ["provider", inputs.providerAddress],
+      ["provider", inputs.providerAddress]
     );
   }
   return walletRoles;
@@ -154,7 +168,9 @@ function buildWalletRoles(config, deployerAddress, inputs) {
 function appendGasFailures(failed, wallets) {
   for (const wallet of wallets) {
     if (!wallet.pass) {
-      failed.push(`${wallet.role} wallet ${wallet.address} has insufficient gas`);
+      failed.push(
+        `${wallet.role} wallet ${wallet.address} has insufficient gas`
+      );
     }
   }
 }
@@ -190,26 +206,47 @@ function buildManifest(config, generatedAt, dryRun, deployerAddress, inputs) {
   return manifest;
 }
 
-async function deployMockUsdc(config, deployer, inputs, deploymentTxs, manifest, confirmations) {
+async function deployMockUsdc(
+  config,
+  deployer,
+  inputs,
+  deploymentTxs,
+  manifest,
+  confirmations
+) {
   const MockUSDC = await hre.ethers.getContractFactory("MockUSDC", deployer);
   const mockUsdc = await MockUSDC.deploy(deployer.address);
   await mockUsdc.waitForDeployment();
   const usdcAddress = await mockUsdc.getAddress();
   deploymentTxs.mockUsdcDeploy = await waitForReceipt(
     mockUsdc.deploymentTransaction(),
-    confirmations,
+    confirmations
   );
 
-  const consumerMintTx = await mockUsdc.mint(inputs.consumerAddress, inputs.preMintAtomic);
-  deploymentTxs.mockUsdcMintConsumer = await waitForReceipt(consumerMintTx, confirmations);
+  const consumerMintTx = await mockUsdc.mint(
+    inputs.consumerAddress,
+    inputs.preMintAtomic
+  );
+  deploymentTxs.mockUsdcMintConsumer = await waitForReceipt(
+    consumerMintTx,
+    confirmations
+  );
 
-  const providerMintTx = await mockUsdc.mint(inputs.providerAddress, inputs.preMintAtomic);
-  deploymentTxs.mockUsdcMintProvider = await waitForReceipt(providerMintTx, confirmations);
+  const providerMintTx = await mockUsdc.mint(
+    inputs.providerAddress,
+    inputs.preMintAtomic
+  );
+  deploymentTxs.mockUsdcMintProvider = await waitForReceipt(
+    providerMintTx,
+    confirmations
+  );
 
-  const transferOwnershipTx = await mockUsdc.transferOwnership(inputs.ownerAddress);
+  const transferOwnershipTx = await mockUsdc.transferOwnership(
+    inputs.ownerAddress
+  );
   deploymentTxs.mockUsdcTransferOwnership = await waitForReceipt(
     transferOwnershipTx,
-    confirmations,
+    confirmations
   );
 
   const mockArtifact = artifactHash("MockUSDC");
@@ -237,14 +274,29 @@ async function deployMockUsdc(config, deployer, inputs, deploymentTxs, manifest,
   return usdcAddress;
 }
 
-async function deploySynapseCore(config, deployer, usdcAddress, inputs, deploymentTxs, manifest, confirmations) {
-  const SynapseCore = await hre.ethers.getContractFactory("SynapseCore", deployer);
-  const core = await SynapseCore.deploy(usdcAddress, inputs.withdrawSignerAddress, inputs.ownerAddress);
+async function deploySynapseCore(
+  config,
+  deployer,
+  usdcAddress,
+  inputs,
+  deploymentTxs,
+  manifest,
+  confirmations
+) {
+  const SynapseCore = await hre.ethers.getContractFactory(
+    "SynapseCore",
+    deployer
+  );
+  const core = await SynapseCore.deploy(
+    usdcAddress,
+    inputs.withdrawSignerAddress,
+    inputs.ownerAddress
+  );
   await core.waitForDeployment();
   const coreAddress = await core.getAddress();
   deploymentTxs.synapseCoreDeploy = await waitForReceipt(
     core.deploymentTransaction(),
-    confirmations,
+    confirmations
   );
 
   const coreArtifact = artifactHash("SynapseCore");
@@ -254,9 +306,17 @@ async function deploySynapseCore(config, deployer, usdcAddress, inputs, deployme
     owner: await core.owner(),
     withdrawSigner: await core.platformSigner(),
     usdc: await core.usdc(),
-    constructorArgs: [usdcAddress, inputs.withdrawSignerAddress, inputs.ownerAddress],
+    constructorArgs: [
+      usdcAddress,
+      inputs.withdrawSignerAddress,
+      inputs.ownerAddress,
+    ],
     constructorArgsHash: sha256(
-      stableStringify([usdcAddress, inputs.withdrawSignerAddress, inputs.ownerAddress]),
+      stableStringify([
+        usdcAddress,
+        inputs.withdrawSignerAddress,
+        inputs.ownerAddress,
+      ])
     ),
     abiHash: coreArtifact.abiHash,
     bytecodeHash: coreArtifact.bytecodeHash,
@@ -267,7 +327,14 @@ async function deploySynapseCore(config, deployer, usdcAddress, inputs, deployme
   return coreAddress;
 }
 
-async function runVerificationPass(config, deployer, inputs, usdcAddress, coreAddress, verification) {
+async function runVerificationPass(
+  config,
+  deployer,
+  inputs,
+  usdcAddress,
+  coreAddress,
+  verification
+) {
   await delay(inputs.verifyDelayMs);
   if (config.mockUsdc) {
     verification.contracts.push(
@@ -278,7 +345,7 @@ async function runVerificationPass(config, deployer, inputs, usdcAddress, coreAd
         constructorArguments: [deployer.address],
         retries: inputs.verifyRetries,
         retryDelayMs: inputs.verifyRetryDelayMs,
-      }),
+      })
     );
   }
   verification.contracts.push(
@@ -286,10 +353,14 @@ async function runVerificationPass(config, deployer, inputs, usdcAddress, coreAd
       explorerUrl: config.explorerUrl,
       contractName: "SynapseCore",
       address: coreAddress,
-      constructorArguments: [usdcAddress, inputs.withdrawSignerAddress, inputs.ownerAddress],
+      constructorArguments: [
+        usdcAddress,
+        inputs.withdrawSignerAddress,
+        inputs.ownerAddress,
+      ],
       retries: inputs.verifyRetries,
       retryDelayMs: inputs.verifyRetryDelayMs,
-    }),
+    })
   );
 }
 
@@ -301,13 +372,24 @@ function appendVerificationFailures(failed, verificationResults) {
   }
 }
 
-function writeDeploymentEvidence(evidenceDir, walletPreflight, manifest, deploymentTxs, verification, report, config) {
+function writeDeploymentEvidence(
+  evidenceDir,
+  walletPreflight,
+  manifest,
+  deploymentTxs,
+  verification,
+  report,
+  config
+) {
   writeJson(path.join(evidenceDir, "wallet-preflight.json"), walletPreflight);
   writeJson(path.join(evidenceDir, "contract-manifest.json"), manifest);
   writeJson(path.join(evidenceDir, "deployment-txs.json"), deploymentTxs);
   writeJson(path.join(evidenceDir, "verification.json"), verification);
   writeJson(path.join(evidenceDir, "report.json"), report);
-  fs.writeFileSync(path.join(evidenceDir, "report.md"), reportMarkdown(report, config));
+  fs.writeFileSync(
+    path.join(evidenceDir, "report.md"),
+    reportMarkdown(report, config)
+  );
 }
 
 function reportMarkdown(report, config) {
@@ -316,7 +398,9 @@ function reportMarkdown(report, config) {
     deployedContracts.push(`- MockUSDC: ${report.contracts.mockUsdc.address}`);
   }
   if (report.contracts?.synapseCore?.address) {
-    deployedContracts.push(`- SynapseCore: ${report.contracts.synapseCore.address}`);
+    deployedContracts.push(
+      `- SynapseCore: ${report.contracts.synapseCore.address}`
+    );
   }
 
   const lines = [
@@ -350,11 +434,12 @@ function reportMarkdown(report, config) {
 
 async function runDeployment(config) {
   const dryRun =
-    process.env.SYNAPSE_DEPLOY_DRY_RUN === "1" || process.argv.includes("--dry-run");
+    process.env.SYNAPSE_DEPLOY_DRY_RUN === "1" ||
+    process.argv.includes("--dry-run");
   const generatedAt = new Date().toISOString();
   const evidenceDir = path.join(
     config.evidenceRoot,
-    `${timestampForPath()}-${dryRun ? "dry-run" : "deploy"}`,
+    `${timestampForPath()}-${dryRun ? "dry-run" : "deploy"}`
   );
   mkdirp(evidenceDir);
 
@@ -362,20 +447,25 @@ async function runDeployment(config) {
   const deploymentTxs = {};
   const verification = { contracts: [] };
   const inputs = readDeploymentInputs(config);
-  const deployer = new hre.ethers.Wallet(inputs.deployerPrivateKey, hre.ethers.provider);
+  const deployer = new hre.ethers.Wallet(
+    inputs.deployerPrivateKey,
+    hre.ethers.provider
+  );
 
   appendRoleFailures(
     failed,
     deployer.address,
     inputs.ownerAddress,
-    inputs.withdrawSignerAddress,
+    inputs.withdrawSignerAddress
   );
 
   await hre.run("compile");
 
   const network = await hre.ethers.provider.getNetwork();
   if (network.chainId !== config.chainId) {
-    failed.push(`RPC chainId must be ${config.chainId}, got ${network.chainId}`);
+    failed.push(
+      `RPC chainId must be ${config.chainId}, got ${network.chainId}`
+    );
   }
 
   const walletRoles = buildWalletRoles(config, deployer.address, inputs);
@@ -396,7 +486,13 @@ async function runDeployment(config) {
     minGasEth: hre.ethers.formatEther(inputs.minGasWei),
     wallets,
   };
-  const manifest = buildManifest(config, generatedAt, dryRun, deployer.address, inputs);
+  const manifest = buildManifest(
+    config,
+    generatedAt,
+    dryRun,
+    deployer.address,
+    inputs
+  );
 
   if (!dryRun && failed.length === 0) {
     let usdcAddress = inputs.usdcAddress;
@@ -407,7 +503,7 @@ async function runDeployment(config) {
         inputs,
         deploymentTxs,
         manifest,
-        inputs.confirmations,
+        inputs.confirmations
       );
     }
     const coreAddress = await deploySynapseCore(
@@ -417,13 +513,21 @@ async function runDeployment(config) {
       inputs,
       deploymentTxs,
       manifest,
-      inputs.confirmations,
+      inputs.confirmations
     );
-    await runVerificationPass(config, deployer, inputs, usdcAddress, coreAddress, verification);
+    await runVerificationPass(
+      config,
+      deployer,
+      inputs,
+      usdcAddress,
+      coreAddress,
+      verification
+    );
     appendVerificationFailures(failed, verification.contracts);
   }
 
-  const status = failed.length === 0 ? (dryRun ? "dry_run_success" : "success") : "failed";
+  const status =
+    failed.length === 0 ? (dryRun ? "dry_run_success" : "success") : "failed";
   const report = {
     generatedAt,
     status,
@@ -446,7 +550,7 @@ async function runDeployment(config) {
     deploymentTxs,
     verification,
     report,
-    config,
+    config
   );
 
   console.log(`${config.chainName} deployment evidence: ${evidenceDir}`);

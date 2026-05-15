@@ -53,7 +53,7 @@ function resolveEnvCandidates() {
   if (explicit) {
     candidates.push(
       path.isAbsolute(explicit) ? explicit : path.resolve(repoRoot, explicit),
-      path.resolve(repoRoot, "services", "gateway", explicit),
+      path.resolve(repoRoot, "services", "gateway", explicit)
     );
   }
 
@@ -61,26 +61,26 @@ function resolveEnvCandidates() {
   if (environment) {
     candidates.push(
       path.resolve(repoRoot, `.env.${environment}`),
-      path.resolve(repoRoot, "services", "gateway", `.env.${environment}`),
+      path.resolve(repoRoot, "services", "gateway", `.env.${environment}`)
     );
   }
 
   if (process.argv.includes("arbitrumSepolia")) {
     candidates.push(
       path.resolve(repoRoot, ".env.staging"),
-      path.resolve(repoRoot, "services", "gateway", ".env.staging"),
+      path.resolve(repoRoot, "services", "gateway", ".env.staging")
     );
   }
   if (process.argv.includes("arbitrumOne")) {
     candidates.push(
       path.resolve(repoRoot, ".env.prod"),
-      path.resolve(repoRoot, "services", "gateway", ".env.prod"),
+      path.resolve(repoRoot, "services", "gateway", ".env.prod")
     );
   }
 
   candidates.push(
     path.resolve(repoRoot, ".env"),
-    path.resolve(repoRoot, "services", "gateway", ".env"),
+    path.resolve(repoRoot, "services", "gateway", ".env")
   );
 
   return [...new Set(candidates)];
@@ -105,8 +105,8 @@ module.exports = {
   solidity: {
     version: "0.8.24",
     settings: {
-      evmVersion: "cancun"
-    }
+      evmVersion: "cancun",
+    },
   },
   networks: {
     arbitrumOne: {

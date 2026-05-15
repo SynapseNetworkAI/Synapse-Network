@@ -14,7 +14,7 @@ runDeployment({
     "evidence",
     "release",
     "contracts",
-    "arbitrum-sepolia",
+    "arbitrum-sepolia"
   ),
   environmentLabel: "staging",
   reportTitle: "Arbitrum Sepolia Contract Deployment Evidence",

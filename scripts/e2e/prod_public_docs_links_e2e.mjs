@@ -15,8 +15,10 @@ const OUT_DIR = path.join(
 );
 
 const PROD_ROOT = process.env.PROD_ROOT_URL || "https://www.synapse-network.ai";
-const DOCS_ROOT = process.env.PROD_DOCS_URL || "https://docs.synapse-network.ai";
-const API_ROOT = process.env.PROD_GATEWAY_URL || "https://api.synapse-network.ai";
+const DOCS_ROOT =
+  process.env.PROD_DOCS_URL || "https://docs.synapse-network.ai";
+const API_ROOT =
+  process.env.PROD_GATEWAY_URL || "https://api.synapse-network.ai";
 const ADMIN_ROOT =
   process.env.PROD_ADMIN_URL || "https://admin.synapse-network.ai";
 const ADMIN_API_ROOT =
@@ -50,7 +52,9 @@ function markdownReport(report) {
 
   for (const check of report.checks) {
     lines.push(
-      `- ${check.ok ? "PASS" : "FAIL"} \`${check.name}\` - ${check.status} ${check.url}`
+      `- ${check.ok ? "PASS" : "FAIL"} \`${check.name}\` - ${check.status} ${
+        check.url
+      }`
     );
   }
 
@@ -77,7 +81,9 @@ async function request(url, expectedStatuses, note = "") {
     const ok = expectedStatuses.includes(response.status);
     const detail = ok
       ? note || "expected status"
-      : `expected one of ${expectedStatuses.join(", ")}, got ${response.status}`;
+      : `expected one of ${expectedStatuses.join(", ")}, got ${
+          response.status
+        }`;
     trace.push({
       at: nowIso(),
       url,
@@ -148,10 +154,18 @@ function assertContains(text, fragment, label) {
   }
 }
 
-async function inspectDocsOpenMenu(pageUrl, expectedGitHubUrl, expectedMarkdownUrl) {
+async function inspectDocsOpenMenu(
+  pageUrl,
+  expectedGitHubUrl,
+  expectedMarkdownUrl
+) {
   const browser = await chromium.launch({
     headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+    ],
   });
 
   try {
@@ -205,17 +219,30 @@ await check("www_home", `${PROD_ROOT}/`, [200], (body) => {
 });
 
 await check("www_llms", `${PROD_ROOT}/llms.txt`, [200], (body) => {
-  assertContains(body, "https://docs.synapse-network.ai/api-reference", "api reference url");
-  assertContains(body, "https://docs.synapse-network.ai/support", "support url");
+  assertContains(
+    body,
+    "https://docs.synapse-network.ai/api-reference",
+    "api reference url"
+  );
+  assertContains(
+    body,
+    "https://docs.synapse-network.ai/support",
+    "support url"
+  );
 });
 
 await check("docs_home", `${DOCS_ROOT}/`, [200], (body) => {
   assertContains(body, "Documentation", "docs homepage content");
 });
 
-await check("docs_api_reference", `${DOCS_ROOT}/api-reference`, [200], (body) => {
-  assertContains(body, "API Reference", "api reference title");
-});
+await check(
+  "docs_api_reference",
+  `${DOCS_ROOT}/api-reference`,
+  [200],
+  (body) => {
+    assertContains(body, "API Reference", "api reference title");
+  }
+);
 
 await check(
   "docs_get_started",
@@ -295,8 +322,20 @@ await check(
   [200]
 );
 
-await check("gateway_health", `${API_ROOT}/health`, [200], undefined, "public health endpoint");
-await check("admin_gate", `${ADMIN_ROOT}/`, [401, 403], undefined, "protected gate expected");
+await check(
+  "gateway_health",
+  `${API_ROOT}/health`,
+  [200],
+  undefined,
+  "public health endpoint"
+);
+await check(
+  "admin_gate",
+  `${ADMIN_ROOT}/`,
+  [401, 403],
+  undefined,
+  "protected gate expected"
+);
 await check(
   "admin_api_gate",
   `${ADMIN_API_ROOT}/`,
@@ -335,10 +374,9 @@ writeJson(path.join(OUT_DIR, "environment-manifest.json"), {
 console.log(`Prod public docs evidence: ${OUT_DIR}`);
 if (failed.length > 0) {
   console.error(
-    `FATAL PROD-PUBLIC-DOCS-001: ${failed.length} checks failed. See ${path.join(
-      OUT_DIR,
-      "report.json"
-    )}`
+    `FATAL PROD-PUBLIC-DOCS-001: ${
+      failed.length
+    } checks failed. See ${path.join(OUT_DIR, "report.json")}`
   );
   process.exit(1);
 }

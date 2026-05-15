@@ -4,7 +4,11 @@ const crypto = require("crypto");
 const hre = require("hardhat");
 
 function timestampForPath() {
-  return new Date().toISOString().replace(/[-:.]/g, "").replace("T", "T").replace("Z", "Z");
+  return new Date()
+    .toISOString()
+    .replace(/[-:.]/g, "")
+    .replace("T", "T")
+    .replace("Z", "Z");
 }
 
 function mkdirp(dir) {
@@ -50,7 +54,7 @@ function artifactHash(contractName) {
     "artifacts",
     "contracts",
     `${contractName}.sol`,
-    `${contractName}.json`,
+    `${contractName}.json`
   );
   const artifact = JSON.parse(fs.readFileSync(artifactPath, "utf8"));
   return {
@@ -65,12 +69,16 @@ async function delay(ms) {
 
 function isAlreadyVerified(error) {
   const text = String(error && (error.message || error));
-  return /already verified|already been verified|contract source code already verified/i.test(text);
+  return /already verified|already been verified|contract source code already verified/i.test(
+    text
+  );
 }
 
 function isInvalidExplorerApiKey(error) {
   const text = String(error && (error.message || error));
-  return /invalid api key|deprecated v1 endpoint|switch to etherscan api v2/i.test(text);
+  return /invalid api key|deprecated v1 endpoint|switch to etherscan api v2/i.test(
+    text
+  );
 }
 
 async function verifyWithRetry({

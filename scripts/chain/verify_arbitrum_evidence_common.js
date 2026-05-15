@@ -36,7 +36,9 @@ function resolveEvidenceDir(evidenceRoot) {
     .readdirSync(evidenceRoot)
     .map((entry) => path.join(evidenceRoot, entry))
     .filter((entryPath) => fs.statSync(entryPath).isDirectory())
-    .filter((entryPath) => fs.existsSync(path.join(entryPath, "contract-manifest.json")))
+    .filter((entryPath) =>
+      fs.existsSync(path.join(entryPath, "contract-manifest.json"))
+    )
     .sort()
     .reverse();
   if (dirs.length === 0) {
@@ -51,7 +53,9 @@ function reportMarkdown(report, config) {
     deployedContracts.push(`- MockUSDC: ${report.contracts.mockUsdc.address}`);
   }
   if (report.contracts?.synapseCore?.address) {
-    deployedContracts.push(`- SynapseCore: ${report.contracts.synapseCore.address}`);
+    deployedContracts.push(
+      `- SynapseCore: ${report.contracts.synapseCore.address}`
+    );
   }
 
   const lines = [
@@ -106,7 +110,9 @@ function readEvidence(bundle) {
 
 function validateEvidence(config, manifest, synapseCore) {
   if (manifest.chainId !== Number(config.chainId)) {
-    throw new Error(`Evidence chainId must be ${config.chainId}, got ${manifest.chainId}`);
+    throw new Error(
+      `Evidence chainId must be ${config.chainId}, got ${manifest.chainId}`
+    );
   }
   if (!synapseCore?.address) {
     throw new Error("Evidence manifest is missing SynapseCore address");
@@ -117,20 +123,31 @@ async function validateVerificationNetwork(config) {
   await hre.run("compile");
   const network = await hre.ethers.provider.getNetwork();
   if (network.chainId !== config.chainId) {
-    throw new Error(`RPC chainId must be ${config.chainId}, got ${network.chainId}`);
+    throw new Error(
+      `RPC chainId must be ${config.chainId}, got ${network.chainId}`
+    );
   }
 }
 
 function readRetryPolicy(config) {
   return {
-    retries: Number(process.env[config.verifyRetriesEnv] || config.defaultVerifyRetries),
+    retries: Number(
+      process.env[config.verifyRetriesEnv] || config.defaultVerifyRetries
+    ),
     retryDelayMs: Number(
-      process.env[config.verifyRetryDelayEnv] || config.defaultVerifyRetryDelayMs,
+      process.env[config.verifyRetryDelayEnv] ||
+        config.defaultVerifyRetryDelayMs
     ),
   };
 }
 
-async function verifyContract(config, contractName, address, constructorArguments, retryPolicy) {
+async function verifyContract(
+  config,
+  contractName,
+  address,
+  constructorArguments,
+  retryPolicy
+) {
   return verifyWithRetry({
     explorerUrl: config.explorerUrl,
     contractName,
@@ -141,7 +158,12 @@ async function verifyContract(config, contractName, address, constructorArgument
   });
 }
 
-async function buildVerificationResults(config, manifest, synapseCore, retryPolicy) {
+async function buildVerificationResults(
+  config,
+  manifest,
+  synapseCore,
+  retryPolicy
+) {
   const verification = { contracts: [] };
   if (config.mockUsdc) {
     const mockUsdc = manifest.contracts?.mockUsdc;
@@ -154,8 +176,8 @@ async function buildVerificationResults(config, manifest, synapseCore, retryPoli
         "MockUSDC",
         mockUsdc.address,
         mockUsdc.constructorArgs || [manifest.deployer],
-        retryPolicy,
-      ),
+        retryPolicy
+      )
     );
   }
 
@@ -165,18 +187,22 @@ async function buildVerificationResults(config, manifest, synapseCore, retryPoli
       "SynapseCore",
       synapseCore.address,
       synapseCore.constructorArgs || [
-        config.mockUsdc ? manifest.contracts.mockUsdc.address : manifest.usdcTokenAddress,
+        config.mockUsdc
+          ? manifest.contracts.mockUsdc.address
+          : manifest.usdcTokenAddress,
         manifest.withdrawSigner,
         manifest.owner,
       ],
-      retryPolicy,
-    ),
+      retryPolicy
+    )
   );
   return verification;
 }
 
 function collectFailures(existingFailures, verificationContracts) {
-  const failed = existingFailures.filter((entry) => !/Arbiscan verification failed/i.test(entry));
+  const failed = existingFailures.filter(
+    (entry) => !/Arbiscan verification failed/i.test(entry)
+  );
   for (const result of verificationContracts) {
     if (!["success", "already_verified"].includes(result.status)) {
       failed.push(`${result.contractName} Arbiscan verification failed`);
@@ -188,7 +214,10 @@ function collectFailures(existingFailures, verificationContracts) {
 function writeVerificationOutputs(bundle, updatedReport, verification, config) {
   writeJson(bundle.verificationPath, verification);
   writeJson(bundle.reportPath, updatedReport);
-  fs.writeFileSync(bundle.reportMarkdownPath, reportMarkdown(updatedReport, config));
+  fs.writeFileSync(
+    bundle.reportMarkdownPath,
+    reportMarkdown(updatedReport, config)
+  );
 }
 
 async function runVerification(config) {
@@ -200,7 +229,12 @@ async function runVerification(config) {
   validateEvidence(config, manifest, synapseCore);
   await validateVerificationNetwork(config);
   const retryPolicy = readRetryPolicy(config);
-  const verification = await buildVerificationResults(config, manifest, synapseCore, retryPolicy);
+  const verification = await buildVerificationResults(
+    config,
+    manifest,
+    synapseCore,
+    retryPolicy
+  );
   const failed = collectFailures(report.failed || [], verification.contracts);
 
   const updatedReport = {
@@ -215,7 +249,9 @@ async function runVerification(config) {
 
   writeVerificationOutputs(bundle, updatedReport, verification, config);
 
-  console.log(`${config.chainName} verification evidence updated: ${evidenceDir}`);
+  console.log(
+    `${config.chainName} verification evidence updated: ${evidenceDir}`
+  );
   if (failed.length > 0) {
     for (const failure of failed) {
       console.error(`FATAL CONTRACT-VERIFY-001: ${failure}`);
