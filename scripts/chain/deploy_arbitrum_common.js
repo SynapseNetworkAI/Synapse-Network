@@ -1,43 +1,28 @@
-const fs = require("fs");
 const path = require("path");
 const hre = require("hardhat");
+const {
+  renderReportMarkdown,
+  writeEvidenceBundle,
+} = require("./contract_report_support");
 const {
   artifactHash,
   delay,
   mkdirp,
+  requireAnyEnv,
+  requireEnv,
   rpcSummary,
   sha256,
   stableStringify,
   timestampForPath,
   verifyWithRetry,
-  writeJson,
 } = require("./contract_script_support");
-
-function isZeroAddress(address) {
-  return address.toLowerCase() === hre.ethers.ZeroAddress.toLowerCase();
-}
-
-function requireEnv(name) {
-  const value = process.env[name];
-  if (!value || !value.trim()) {
-    throw new Error(`Missing required env ${name}`);
-  }
-  return value.trim();
-}
-
-function requireAnyEnv(names) {
-  for (const name of names) {
-    const value = process.env[name];
-    if (value && value.trim()) {
-      return value.trim();
-    }
-  }
-  throw new Error(`Missing required env ${names.join(" or ")}`);
-}
 
 function requireAddress(name) {
   const value = requireEnv(name);
-  if (!hre.ethers.isAddress(value) || isZeroAddress(value)) {
+  if (
+    !hre.ethers.isAddress(value) ||
+    value.toLowerCase() === hre.ethers.ZeroAddress.toLowerCase()
+  ) {
     throw new Error(`${name} must be a non-zero Ethereum address`);
   }
   return hre.ethers.getAddress(value);
@@ -381,13 +366,15 @@ function writeDeploymentEvidence(
   report,
   config
 ) {
-  writeJson(path.join(evidenceDir, "wallet-preflight.json"), walletPreflight);
-  writeJson(path.join(evidenceDir, "contract-manifest.json"), manifest);
-  writeJson(path.join(evidenceDir, "deployment-txs.json"), deploymentTxs);
-  writeJson(path.join(evidenceDir, "verification.json"), verification);
-  writeJson(path.join(evidenceDir, "report.json"), report);
-  fs.writeFileSync(
-    path.join(evidenceDir, "report.md"),
+  writeEvidenceBundle(
+    evidenceDir,
+    {
+      "wallet-preflight.json": walletPreflight,
+      "contract-manifest.json": manifest,
+      "deployment-txs.json": deploymentTxs,
+      "verification.json": verification,
+      "report.json": report,
+    },
     reportMarkdown(report, config)
   );
 }
@@ -403,33 +390,22 @@ function reportMarkdown(report, config) {
     );
   }
 
-  const lines = [
-    `# ${config.reportTitle}`,
-    "",
-    `- Status: ${report.status}`,
-    `- Environment: ${report.environment}`,
-    `- Chain: ${report.chainName} (${report.chainId})`,
-    `- Generated at: ${report.generatedAt}`,
-    `- Deployer: ${report.deployer}`,
-    `- Contract owner: ${report.owner}`,
-    `- Withdraw signer: ${report.withdrawSigner}`,
-    ...deployedContracts,
-    `- Failed checks: ${report.failed.length}`,
-  ];
-
-  if (report.failed.length > 0) {
-    lines.push("", "## Failed", "");
-    for (const failure of report.failed) {
-      lines.push(`- ${failure}`);
-    }
-  }
-
-  lines.push("", "## Notes", "");
-  for (const note of config.reportNotes) {
-    lines.push(`- ${note}`);
-  }
-
-  return `${lines.join("\n")}\n`;
+  return renderReportMarkdown({
+    title: config.reportTitle,
+    report,
+    notes: config.reportNotes,
+    summaryLines: [
+      `- Status: ${report.status}`,
+      `- Environment: ${report.environment}`,
+      `- Chain: ${report.chainName} (${report.chainId})`,
+      `- Generated at: ${report.generatedAt}`,
+      `- Deployer: ${report.deployer}`,
+      `- Contract owner: ${report.owner}`,
+      `- Withdraw signer: ${report.withdrawSigner}`,
+      ...deployedContracts,
+      `- Failed checks: ${report.failed.length}`,
+    ],
+  });
 }
 
 async function runDeployment(config) {

@@ -3,13 +3,18 @@ const path = require("path");
 const { spawnSync } = require("child_process");
 const hre = require("hardhat");
 const {
+  renderReportMarkdown,
+  writeEvidenceBundle,
+} = require("./contract_report_support");
+const {
   artifactHash,
   mkdirp,
+  requireAnyEnv,
+  requireEnv,
   rpcSummary,
   sha256,
   stableStringify,
   timestampForPath,
-  writeJson,
 } = require("./contract_script_support");
 
 const CHAIN_ID = 42161n;
@@ -34,24 +39,6 @@ const REPORT_NOTES = [
   "Contract owner must be the production Safe treasury and withdraw signer must be the KMS-derived signer address.",
   "Manual admin approval remains separate from withdrawal ticket signing; Gateway still signs tickets through KMS after approval.",
 ];
-
-function requireEnv(name) {
-  const value = process.env[name];
-  if (!value || !value.trim()) {
-    throw new Error(`Missing required env ${name}`);
-  }
-  return value.trim();
-}
-
-function requireAnyEnv(names) {
-  for (const name of names) {
-    const value = process.env[name];
-    if (value && value.trim()) {
-      return value.trim();
-    }
-  }
-  throw new Error(`Missing required env ${names.join(" or ")}`);
-}
 
 function requireAddressEnv(name) {
   const value = requireEnv(name);
@@ -135,33 +122,23 @@ async function getWalletPreflight({ provider, deployerAddress, minGasWei }) {
 }
 
 function renderMarkdown(report) {
-  const lines = [
-    `# ${REPORT_TITLE}`,
-    "",
-    `- Status: ${report.status}`,
-    `- Environment: ${report.environment}`,
-    `- Chain: ${report.chainName} (${report.chainId})`,
-    `- Generated at: ${report.generatedAt}`,
-    `- Deployment mode: ${report.deploymentMode}`,
-    `- Deployer: ${report.deployer}`,
-    `- Contract owner: ${report.owner}`,
-    `- Withdraw signer: ${report.withdrawSigner}`,
-    `- SynapseCore: ${report.contracts?.synapseCore?.address || "n/a"}`,
-    `- Failed checks: ${report.failed.length}`,
-    "",
-    "## Notes",
-    "",
-    ...REPORT_NOTES.map((note) => `- ${note}`),
-  ];
-
-  if (report.failed.length > 0) {
-    lines.push("", "## Failed", "");
-    for (const failure of report.failed) {
-      lines.push(`- ${failure}`);
-    }
-  }
-
-  return `${lines.join("\n")}\n`;
+  return renderReportMarkdown({
+    title: REPORT_TITLE,
+    report,
+    notes: REPORT_NOTES,
+    summaryLines: [
+      `- Status: ${report.status}`,
+      `- Environment: ${report.environment}`,
+      `- Chain: ${report.chainName} (${report.chainId})`,
+      `- Generated at: ${report.generatedAt}`,
+      `- Deployment mode: ${report.deploymentMode}`,
+      `- Deployer: ${report.deployer}`,
+      `- Contract owner: ${report.owner}`,
+      `- Withdraw signer: ${report.withdrawSigner}`,
+      `- SynapseCore: ${report.contracts?.synapseCore?.address || "n/a"}`,
+      `- Failed checks: ${report.failed.length}`,
+    ],
+  });
 }
 
 function readInputs() {
@@ -396,12 +373,17 @@ function writeEvidence(
   report
 ) {
   const { constructorArgs, ...manifestForWrite } = manifest;
-  writeJson(path.join(evidenceDir, "contract-manifest.json"), manifestForWrite);
-  writeJson(path.join(evidenceDir, "deployment-txs.json"), deploymentTxs);
-  writeJson(path.join(evidenceDir, "verification.json"), verification);
-  writeJson(path.join(evidenceDir, "wallet-preflight.json"), walletPreflight);
-  writeJson(path.join(evidenceDir, "report.json"), report);
-  fs.writeFileSync(path.join(evidenceDir, "report.md"), renderMarkdown(report));
+  writeEvidenceBundle(
+    evidenceDir,
+    {
+      "contract-manifest.json": manifestForWrite,
+      "deployment-txs.json": deploymentTxs,
+      "verification.json": verification,
+      "wallet-preflight.json": walletPreflight,
+      "report.json": report,
+    },
+    renderMarkdown(report)
+  );
 }
 
 async function buildWalletPreflight(provider, inputs, failed) {

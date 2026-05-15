@@ -36,6 +36,24 @@ function sha256(value) {
   return crypto.createHash("sha256").update(value).digest("hex");
 }
 
+function requireEnv(name) {
+  const value = process.env[name];
+  if (!value || !value.trim()) {
+    throw new Error(`Missing required env ${name}`);
+  }
+  return value.trim();
+}
+
+function requireAnyEnv(names) {
+  for (const name of names) {
+    const value = process.env[name];
+    if (value && value.trim()) {
+      return value.trim();
+    }
+  }
+  throw new Error(`Missing required env ${names.join(" or ")}`);
+}
+
 function rpcSummary(rawUrl) {
   const url = new URL(rawUrl);
   const redactedPath = url.pathname.replace(/\/v2\/[^/]+/i, "/v2/[REDACTED]");
@@ -152,6 +170,8 @@ module.exports = {
   artifactHash,
   delay,
   mkdirp,
+  requireAnyEnv,
+  requireEnv,
   rpcSummary,
   sha256,
   stableStringify,
