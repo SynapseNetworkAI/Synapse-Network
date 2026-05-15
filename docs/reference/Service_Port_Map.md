@@ -35,12 +35,14 @@ Cloud Run container ports stay unchanged. Next.js containers still listen on `30
 Production admin routing note:
 
 1. Staging may still use browser-to-`admin-api` calls for public dogfood.
-2. Production `admin-front` and `gateway-admin` are expected to run behind
-   Cloud Run `Require IAM`.
-3. Production browsers should use same-origin `/api/admin/*` via `admin-front`;
-   `admin-front` then forwards to `gateway-admin` with a Google OIDC Identity
-   Token. Do not assume the browser can anonymously call
-   `https://admin-api.synapse-network.ai`.
+2. Production `admin-front` is a public login entrypoint. Unauthenticated
+   access should render the admin login flow, not a Cloud Run `403`.
+3. Production browsers should keep using same-origin `/api/admin/*` via
+   `admin-front` rewrites; `gateway-admin` is publicly reachable at
+   `https://admin-api.synapse-network.ai`, but application-layer auth still
+   owns session, CSRF, MFA, and RBAC enforcement.
+4. Anonymous requests to protected `gateway-admin` business routes should fail
+   with application `401/403`, not Google Frontend `403`.
 
 ## Env Defaults
 

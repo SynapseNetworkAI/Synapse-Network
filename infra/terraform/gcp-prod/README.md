@@ -26,14 +26,14 @@ The production shape is intentionally isolated from staging:
 
 Production admin does **not** use IAP/LB in this MVP substrate.
 
-- `synapse-prod-admin-front` uses Cloud Run `Require IAM`
-- `synapse-prod-gateway-admin` uses Cloud Run `Require IAM`
-- a Google Group allowlist receives `roles/run.invoker` on `admin-front`
-- `admin-front` receives `roles/run.invoker` on `gateway-admin`
-- optional break-glass groups can be added for direct `gateway-admin` access
-
-`admin-front` must forward backend calls with a Google-signed OIDC Identity
-Token via `google-auth-library` and `getIdTokenClient(...)`.
+- `synapse-prod-admin-front` is a public login entrypoint
+- `synapse-prod-gateway-admin` is a public API entrypoint
+- browser and API security stays in the application layer: session cookie,
+  CSRF, TOTP step-up, RBAC, lockout, and audit
+- `admin-front` keeps same-origin `/api/admin/*` rewrites pointed at
+  `https://admin-api.synapse-network.ai`
+- protected business routes must fail with application `401/403`, not Google
+  Frontend `403`
 
 ## Private Cloud SQL
 
@@ -54,7 +54,7 @@ bash scripts/deploy/gcp_preflight.sh --env prod --project YOUR_PROJECT_ID
 
 cd infra/terraform/gcp-prod
 cp terraform.tfvars.example terraform.tfvars
-# edit project_id, backup_bucket_name, allowlist groups, and image values
+# edit project_id, backup_bucket_name, public runtime env values, and image values
 terraform init
 terraform plan
 terraform apply
@@ -63,10 +63,9 @@ terraform apply
 After apply:
 
 1. add real Secret Manager values out of band
-2. confirm Google Group allowlist memberships
-3. confirm KMS-derived signer address
-4. deploy Cloud Run images
-5. run explicit migration jobs
-6. attach production release manifest and small-value rehearsal evidence
+2. confirm KMS-derived signer address
+3. deploy Cloud Run images
+4. run explicit migration jobs
+5. attach production release manifest and small-value rehearsal evidence
 
 Do not commit `terraform.tfvars`, `.terraform/`, or real secret values.
