@@ -1,0 +1,8 @@
+{
+  "contracts": [
+    {
+      "contractName": "SynapseCore",
+      "status": "not_run_dry_run"
+    }
+  ]
+}
