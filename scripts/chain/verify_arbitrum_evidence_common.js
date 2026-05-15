@@ -1,44 +1,10 @@
 const fs = require("fs");
 const path = require("path");
 const hre = require("hardhat");
+const { verifyWithRetry, writeJson } = require("./contract_script_support");
 
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, "utf8"));
-}
-
-function writeJson(filePath, value) {
-  fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`);
-}
-
-async function delay(ms) {
-  await new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function stableStringify(value) {
-  if (Array.isArray(value)) {
-    return `[${value.map((entry) => stableStringify(entry)).join(",")}]`;
-  }
-  if (value && typeof value === "object") {
-    return `{${Object.keys(value)
-      .sort()
-      .map((key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`)
-      .join(",")}}`;
-  }
-  return JSON.stringify(value);
-}
-
-function sha256(value) {
-  return require("crypto").createHash("sha256").update(value).digest("hex");
-}
-
-function isAlreadyVerified(error) {
-  const text = String(error && (error.message || error));
-  return /already verified|already been verified|contract source code already verified/i.test(text);
-}
-
-function isInvalidExplorerApiKey(error) {
-  const text = String(error && (error.message || error));
-  return /invalid api key|deprecated v1 endpoint|switch to etherscan api v2/i.test(text);
 }
 
 function requireEnv(name) {
@@ -77,73 +43,6 @@ function resolveEvidenceDir(evidenceRoot) {
     throw new Error(`No evidence directories found in ${evidenceRoot}`);
   }
   return dirs[0];
-}
-
-async function verifyWithRetry({
-  explorerUrl,
-  contractName,
-  address,
-  constructorArguments,
-  retries,
-  retryDelayMs,
-}) {
-  const attempts = [];
-
-  for (let attempt = 1; attempt <= retries; attempt += 1) {
-    try {
-      await hre.run("verify:verify", {
-        address,
-        constructorArguments,
-      });
-      attempts.push({ attempt, status: "success" });
-      return {
-        contractName,
-        address,
-        status: "success",
-        attempts,
-        explorerUrl: `${explorerUrl}/address/${address}#code`,
-      };
-    } catch (error) {
-      if (isAlreadyVerified(error)) {
-        attempts.push({ attempt, status: "already_verified" });
-        return {
-          contractName,
-          address,
-          status: "already_verified",
-          attempts,
-          explorerUrl: `${explorerUrl}/address/${address}#code`,
-        };
-      }
-
-      if (isInvalidExplorerApiKey(error)) {
-        attempts.push({
-          attempt,
-          status: "failed",
-          error:
-            "Invalid explorer API key. Use an Etherscan API V2 key; old Arbiscan/chain-specific keys are rejected.",
-        });
-        break;
-      }
-
-      attempts.push({
-        attempt,
-        status: "failed",
-        error: String(error && (error.message || error)).slice(0, 600),
-      });
-
-      if (attempt < retries) {
-        await delay(retryDelayMs);
-      }
-    }
-  }
-
-  return {
-    contractName,
-    address,
-    status: "failed",
-    attempts,
-    explorerUrl: `${explorerUrl}/address/${address}#code`,
-  };
 }
 
 function reportMarkdown(report, config) {
@@ -185,80 +84,124 @@ function reportMarkdown(report, config) {
   return `${lines.join("\n")}\n`;
 }
 
-async function runVerification(config) {
-  requireEnv(config.rpcEnv);
-  requireAnyEnv(config.explorerApiKeyEnvNames);
+function loadEvidenceBundle(evidenceDir) {
+  return {
+    evidenceDir,
+    manifestPath: path.join(evidenceDir, "contract-manifest.json"),
+    verificationPath: path.join(evidenceDir, "verification.json"),
+    reportPath: path.join(evidenceDir, "report.json"),
+    reportMarkdownPath: path.join(evidenceDir, "report.md"),
+  };
+}
 
-  const evidenceDir = resolveEvidenceDir(config.evidenceRoot);
-  const manifestPath = path.join(evidenceDir, "contract-manifest.json");
-  const verificationPath = path.join(evidenceDir, "verification.json");
-  const reportPath = path.join(evidenceDir, "report.json");
-  const reportMarkdownPath = path.join(evidenceDir, "report.md");
+function readEvidence(bundle) {
+  const manifest = readJson(bundle.manifestPath);
+  const report = readJson(bundle.reportPath);
+  return {
+    manifest,
+    report,
+    synapseCore: manifest.contracts?.synapseCore,
+  };
+}
 
-  const manifest = readJson(manifestPath);
-  const report = readJson(reportPath);
-  const synapseCore = manifest.contracts?.synapseCore;
-
+function validateEvidence(config, manifest, synapseCore) {
   if (manifest.chainId !== Number(config.chainId)) {
     throw new Error(`Evidence chainId must be ${config.chainId}, got ${manifest.chainId}`);
   }
   if (!synapseCore?.address) {
     throw new Error("Evidence manifest is missing SynapseCore address");
   }
+}
 
+async function validateVerificationNetwork(config) {
   await hre.run("compile");
   const network = await hre.ethers.provider.getNetwork();
   if (network.chainId !== config.chainId) {
     throw new Error(`RPC chainId must be ${config.chainId}, got ${network.chainId}`);
   }
+}
 
-  const retries = Number(process.env[config.verifyRetriesEnv] || config.defaultVerifyRetries);
-  const retryDelayMs = Number(
-    process.env[config.verifyRetryDelayEnv] || config.defaultVerifyRetryDelayMs,
-  );
+function readRetryPolicy(config) {
+  return {
+    retries: Number(process.env[config.verifyRetriesEnv] || config.defaultVerifyRetries),
+    retryDelayMs: Number(
+      process.env[config.verifyRetryDelayEnv] || config.defaultVerifyRetryDelayMs,
+    ),
+  };
+}
+
+async function verifyContract(config, contractName, address, constructorArguments, retryPolicy) {
+  return verifyWithRetry({
+    explorerUrl: config.explorerUrl,
+    contractName,
+    address,
+    constructorArguments,
+    retries: retryPolicy.retries,
+    retryDelayMs: retryPolicy.retryDelayMs,
+  });
+}
+
+async function buildVerificationResults(config, manifest, synapseCore, retryPolicy) {
   const verification = { contracts: [] };
-
   if (config.mockUsdc) {
     const mockUsdc = manifest.contracts?.mockUsdc;
     if (!mockUsdc?.address) {
       throw new Error("Evidence manifest is missing MockUSDC address");
     }
     verification.contracts.push(
-      await verifyWithRetry({
-        explorerUrl: config.explorerUrl,
-        contractName: "MockUSDC",
-        address: mockUsdc.address,
-        constructorArguments: mockUsdc.constructorArgs || [manifest.deployer],
-        retries,
-        retryDelayMs,
-      }),
+      await verifyContract(
+        config,
+        "MockUSDC",
+        mockUsdc.address,
+        mockUsdc.constructorArgs || [manifest.deployer],
+        retryPolicy,
+      ),
     );
   }
 
   verification.contracts.push(
-    await verifyWithRetry({
-      explorerUrl: config.explorerUrl,
-      contractName: "SynapseCore",
-      address: synapseCore.address,
-      constructorArguments:
-        synapseCore.constructorArgs || [
-          config.mockUsdc ? manifest.contracts.mockUsdc.address : manifest.usdcTokenAddress,
-          manifest.withdrawSigner,
-          manifest.owner,
-        ],
-      retries,
-      retryDelayMs,
-    }),
+    await verifyContract(
+      config,
+      "SynapseCore",
+      synapseCore.address,
+      synapseCore.constructorArgs || [
+        config.mockUsdc ? manifest.contracts.mockUsdc.address : manifest.usdcTokenAddress,
+        manifest.withdrawSigner,
+        manifest.owner,
+      ],
+      retryPolicy,
+    ),
   );
+  return verification;
+}
 
-  const failed = (report.failed || []).filter(
-    (entry) => !/Arbiscan verification failed/i.test(entry),
-  );
-  for (const result of verification.contracts) {
+function collectFailures(existingFailures, verificationContracts) {
+  const failed = existingFailures.filter((entry) => !/Arbiscan verification failed/i.test(entry));
+  for (const result of verificationContracts) {
     if (!["success", "already_verified"].includes(result.status)) {
       failed.push(`${result.contractName} Arbiscan verification failed`);
     }
   }
+  return failed;
+}
+
+function writeVerificationOutputs(bundle, updatedReport, verification, config) {
+  writeJson(bundle.verificationPath, verification);
+  writeJson(bundle.reportPath, updatedReport);
+  fs.writeFileSync(bundle.reportMarkdownPath, reportMarkdown(updatedReport, config));
+}
+
+async function runVerification(config) {
+  requireEnv(config.rpcEnv);
+  requireAnyEnv(config.explorerApiKeyEnvNames);
+  const evidenceDir = resolveEvidenceDir(config.evidenceRoot);
+  const bundle = loadEvidenceBundle(evidenceDir);
+  const { manifest, report, synapseCore } = readEvidence(bundle);
+  validateEvidence(config, manifest, synapseCore);
+  await validateVerificationNetwork(config);
+  const retryPolicy = readRetryPolicy(config);
+  const verification = await buildVerificationResults(config, manifest, synapseCore, retryPolicy);
+  const failed = collectFailures(report.failed || [], verification.contracts);
 
   const updatedReport = {
     ...report,
@@ -270,9 +213,7 @@ async function runVerification(config) {
     contracts: manifest.contracts,
   };
 
-  writeJson(verificationPath, verification);
-  writeJson(reportPath, updatedReport);
-  fs.writeFileSync(reportMarkdownPath, reportMarkdown(updatedReport, config));
+  writeVerificationOutputs(bundle, updatedReport, verification, config);
 
   console.log(`${config.chainName} verification evidence updated: ${evidenceDir}`);
   if (failed.length > 0) {

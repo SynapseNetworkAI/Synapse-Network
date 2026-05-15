@@ -12,26 +12,37 @@ function applyEnvFile(filePath) {
   }
   const raw = fs.readFileSync(filePath, "utf8");
   for (const line of raw.split(/\r?\n/)) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) {
-      continue;
-    }
-    const eqIndex = trimmed.indexOf("=");
-    if (eqIndex <= 0) {
-      continue;
-    }
-    const key = trimmed.slice(0, eqIndex).trim();
-    let value = trimmed.slice(eqIndex + 1).trim();
-    if (
-      (value.startsWith('"') && value.endsWith('"')) ||
-      (value.startsWith("'") && value.endsWith("'"))
-    ) {
-      value = value.slice(1, -1);
-    }
-    if (!(key in process.env)) {
-      process.env[key] = value;
+    const parsed = parseEnvLine(line);
+    if (parsed && !(parsed.key in process.env)) {
+      process.env[parsed.key] = parsed.value;
     }
   }
+}
+
+function parseEnvLine(line) {
+  const trimmed = line.trim();
+  if (!trimmed || trimmed.startsWith("#")) {
+    return null;
+  }
+
+  const eqIndex = trimmed.indexOf("=");
+  if (eqIndex <= 0) {
+    return null;
+  }
+
+  const key = trimmed.slice(0, eqIndex).trim();
+  const value = stripOuterQuotes(trimmed.slice(eqIndex + 1).trim());
+  return { key, value };
+}
+
+function stripOuterQuotes(value) {
+  if (
+    (value.startsWith('"') && value.endsWith('"')) ||
+    (value.startsWith("'") && value.endsWith("'"))
+  ) {
+    return value.slice(1, -1);
+  }
+  return value;
 }
 
 function resolveEnvCandidates() {

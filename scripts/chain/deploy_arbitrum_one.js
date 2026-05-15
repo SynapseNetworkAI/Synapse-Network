@@ -1,8 +1,16 @@
 const fs = require("fs");
 const path = require("path");
-const crypto = require("crypto");
 const { spawnSync } = require("child_process");
 const hre = require("hardhat");
+const {
+  artifactHash,
+  mkdirp,
+  rpcSummary,
+  sha256,
+  stableStringify,
+  timestampForPath,
+  writeJson,
+} = require("./contract_script_support");
 
 const CHAIN_ID = 42161n;
 const CHAIN_NAME = "Arbitrum One";
@@ -26,35 +34,6 @@ const REPORT_NOTES = [
   "Contract owner must be the production Safe treasury and withdraw signer must be the KMS-derived signer address.",
   "Manual admin approval remains separate from withdrawal ticket signing; Gateway still signs tickets through KMS after approval.",
 ];
-
-function timestampForPath() {
-  return new Date().toISOString().replace(/[-:.]/g, "").replace("T", "T").replace("Z", "Z");
-}
-
-function mkdirp(dir) {
-  fs.mkdirSync(dir, { recursive: true });
-}
-
-function writeJson(filePath, value) {
-  fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`);
-}
-
-function stableStringify(value) {
-  if (Array.isArray(value)) {
-    return `[${value.map((entry) => stableStringify(entry)).join(",")}]`;
-  }
-  if (value && typeof value === "object") {
-    return `{${Object.keys(value)
-      .sort()
-      .map((key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`)
-      .join(",")}}`;
-  }
-  return JSON.stringify(value);
-}
-
-function sha256(value) {
-  return crypto.createHash("sha256").update(value).digest("hex");
-}
 
 function requireEnv(name) {
   const value = process.env[name];
@@ -82,16 +61,6 @@ function requireAddressEnv(name) {
   return hre.ethers.getAddress(value);
 }
 
-function rpcSummary(rawUrl) {
-  const url = new URL(rawUrl);
-  const redactedPath = url.pathname.replace(/\/v2\/[^/]+/i, "/v2/[REDACTED]");
-  return {
-    protocol: url.protocol,
-    host: url.host,
-    path: redactedPath || "/",
-  };
-}
-
 function artifactFor(contractName) {
   const artifactPath = path.resolve(
     __dirname,
@@ -104,14 +73,6 @@ function artifactFor(contractName) {
   );
   const artifact = JSON.parse(fs.readFileSync(artifactPath, "utf8"));
   return { artifactPath, artifact };
-}
-
-function artifactHash(contractName) {
-  const { artifact } = artifactFor(contractName);
-  return {
-    abiHash: sha256(stableStringify(artifact.abi)),
-    bytecodeHash: sha256(artifact.bytecode),
-  };
 }
 
 function extractAddress(text, label) {
@@ -203,27 +164,7 @@ function renderMarkdown(report) {
   return `${lines.join("\n")}\n`;
 }
 
-async function main() {
-  const dryRun =
-    process.env.SYNAPSE_DEPLOY_DRY_RUN === "1" || process.argv.includes("--dry-run");
-  const generatedAt = new Date().toISOString();
-  const evidenceDir = path.join(
-    EVIDENCE_ROOT,
-    `${timestampForPath()}-${dryRun ? "dry-run" : "deploy"}`,
-  );
-  mkdirp(evidenceDir);
-
-  const failed = [];
-  const deploymentTxs = {};
-  const verification = {
-    contracts: [
-      {
-        contractName: "SynapseCore",
-        status: dryRun ? "not_run_dry_run" : "pending_manual_verify",
-      },
-    ],
-  };
-
+function readInputs() {
   const rpcUrl = requireEnv("ARBITRUM_ONE_RPC_URL");
   const ownerAddress = requireAddressEnv("PROD_CONTRACT_OWNER_ADDRESS");
   const withdrawSignerAddress = requireAddressEnv("PROD_WITHDRAW_SIGNER_ADDRESS");
@@ -232,189 +173,292 @@ async function main() {
   const ledgerDerivationPath =
     process.env.PROD_LEDGER_DERIVATION_PATH?.trim() || "m/44'/60'/0'/0/0";
   requireAnyEnv(["ETHERSCAN_API_KEY", "ARBISCAN_API_KEY"]);
+  return {
+    rpcUrl,
+    ownerAddress,
+    withdrawSignerAddress,
+    usdcAddress,
+    ledgerDeployerAddress,
+    ledgerDerivationPath,
+  };
+}
 
-  if (ledgerDeployerAddress.toLowerCase() === ownerAddress.toLowerCase()) {
+function createRuntimeState(dryRun) {
+  const generatedAt = new Date().toISOString();
+  const evidenceDir = path.join(
+    EVIDENCE_ROOT,
+    `${timestampForPath()}-${dryRun ? "dry-run" : "deploy"}`,
+  );
+  mkdirp(evidenceDir);
+  return {
+    generatedAt,
+    evidenceDir,
+    failed: [],
+    deploymentTxs: {},
+    verification: {
+      contracts: [
+        {
+          contractName: "SynapseCore",
+          status: dryRun ? "not_run_dry_run" : "pending_manual_verify",
+        },
+      ],
+    },
+  };
+}
+
+function appendRoleFailures(failed, inputs) {
+  if (inputs.ledgerDeployerAddress.toLowerCase() === inputs.ownerAddress.toLowerCase()) {
     failed.push("PROD_LEDGER_DEPLOYER_ADDRESS and PROD_CONTRACT_OWNER_ADDRESS must be separate roles");
   }
-  if (ledgerDeployerAddress.toLowerCase() === withdrawSignerAddress.toLowerCase()) {
+  if (inputs.ledgerDeployerAddress.toLowerCase() === inputs.withdrawSignerAddress.toLowerCase()) {
     failed.push(
       "PROD_LEDGER_DEPLOYER_ADDRESS and PROD_WITHDRAW_SIGNER_ADDRESS must be separate roles",
     );
   }
-  if (ownerAddress.toLowerCase() === withdrawSignerAddress.toLowerCase()) {
+  if (inputs.ownerAddress.toLowerCase() === inputs.withdrawSignerAddress.toLowerCase()) {
     failed.push("PROD_CONTRACT_OWNER_ADDRESS and PROD_WITHDRAW_SIGNER_ADDRESS must be separate roles");
   }
+}
 
+async function compileAndValidateNetwork(provider, failed) {
   await hre.run("compile");
-
-  const provider = new hre.ethers.JsonRpcProvider(rpcUrl, Number(CHAIN_ID));
   const network = await provider.getNetwork();
   if (network.chainId !== CHAIN_ID) {
     failed.push(`RPC chainId must be ${CHAIN_ID}, got ${network.chainId}`);
   }
+}
 
-  const minGasWei = hre.ethers.parseEther(process.env.PROD_MIN_GAS_ETH || "0.02");
-  const confirmations = Number(process.env.PROD_DEPLOY_CONFIRMATIONS || 10);
-  const walletPreflight = await getWalletPreflight({
-    provider,
-    deployerAddress: ledgerDeployerAddress,
-    minGasWei,
-  });
-
-  if (!walletPreflight.wallets[0].pass) {
-    failed.push("Ledger deployer wallet is below the minimum gas threshold");
+async function validateLedgerAddress(inputs, failed) {
+  console.log(
+    `Resolving Ledger deployer address with path ${inputs.ledgerDerivationPath}. Connect the Ledger device and open the Ethereum app if prompted.`,
+  );
+  const derivedAddressOutput = runCommand(
+    "cast",
+    [
+      "wallet",
+      "address",
+      "--ledger",
+      "--mnemonic-derivation-path",
+      inputs.ledgerDerivationPath,
+    ],
+    { cwd: path.resolve(__dirname, "..", "..") },
+  );
+  const derivedAddress = extractAddress(
+    `${derivedAddressOutput.stdout}\n${derivedAddressOutput.stderr}`,
+    "Ledger address",
+  );
+  if (derivedAddress !== inputs.ledgerDeployerAddress) {
+    failed.push(
+      `Ledger derivation path resolved ${derivedAddress}, expected ${inputs.ledgerDeployerAddress}`,
+    );
   }
+}
 
-  const { artifact: synapseCoreArtifact } = artifactFor("SynapseCore");
-  const constructorArgs = [usdcAddress, withdrawSignerAddress, ownerAddress];
-  const encodedArgs = hre.ethers.AbiCoder.defaultAbiCoder()
-    .encode(["address", "address", "address"], constructorArgs)
-    .slice(2);
-  const initCode = `${synapseCoreArtifact.bytecode}${encodedArgs}`;
-
-  const manifest = {
+function buildManifest(generatedAt, dryRun, inputs) {
+  const constructorArgs = [
+    inputs.usdcAddress,
+    inputs.withdrawSignerAddress,
+    inputs.ownerAddress,
+  ];
+  return {
     generatedAt,
     dryRun,
     chainId: Number(CHAIN_ID),
     chainName: CHAIN_NAME,
     network: NETWORK_NAME,
     deploymentMode: "ledger",
-    deployer: ledgerDeployerAddress,
-    owner: ownerAddress,
-    withdrawSigner: withdrawSignerAddress,
-    usdcTokenAddress: usdcAddress,
-    rpc: rpcSummary(rpcUrl),
+    deployer: inputs.ledgerDeployerAddress,
+    owner: inputs.ownerAddress,
+    withdrawSigner: inputs.withdrawSignerAddress,
+    usdcTokenAddress: inputs.usdcAddress,
+    rpc: rpcSummary(inputs.rpcUrl),
     contracts: {},
+    constructorArgs,
   };
+}
 
-  if (!dryRun) {
-    console.log(
-      `Resolving Ledger deployer address with path ${ledgerDerivationPath}. Connect the Ledger device and open the Ethereum app if prompted.`,
-    );
-    const derivedAddressOutput = runCommand(
-      "cast",
-      [
-        "wallet",
-        "address",
-        "--ledger",
-        "--mnemonic-derivation-path",
-        ledgerDerivationPath,
-      ],
-      { cwd: path.resolve(__dirname, "..", "..") },
-    );
-    const derivedAddress = extractAddress(
-      `${derivedAddressOutput.stdout}\n${derivedAddressOutput.stderr}`,
-      "Ledger address",
-    );
-    if (derivedAddress !== ledgerDeployerAddress) {
-      failed.push(
-        `Ledger derivation path resolved ${derivedAddress}, expected ${ledgerDeployerAddress}`,
-      );
-    }
+async function deploySynapseCore(initCode, inputs, provider, deploymentTxs, manifest, confirmations, failed) {
+  console.log(
+    `Deploying SynapseCore to ${CHAIN_NAME} with Ledger signer ${inputs.ledgerDeployerAddress}. Confirm the deployment transaction on the device when prompted.`,
+  );
+  const sendOutput = runCommand(
+    "cast",
+    [
+      "send",
+      "--async",
+      "--json",
+      "--ledger",
+      "--from",
+      inputs.ledgerDeployerAddress,
+      "--mnemonic-derivation-path",
+      inputs.ledgerDerivationPath,
+      "--rpc-url",
+      inputs.rpcUrl,
+      "--chain",
+      String(CHAIN_ID),
+      "--create",
+      initCode,
+    ],
+    { cwd: path.resolve(__dirname, "..", "..") },
+  );
+  const txHash = extractTxHash(`${sendOutput.stdout}\n${sendOutput.stderr}`);
+  const receipt = await provider.waitForTransaction(txHash, confirmations);
+
+  if (!receipt) {
+    failed.push(`Deployment receipt not found for transaction ${txHash}`);
+    return;
+  }
+  if (receipt.status !== 1) {
+    failed.push(`Deployment transaction ${txHash} failed`);
+    return;
+  }
+  if (!receipt.contractAddress) {
+    failed.push(`Deployment receipt ${txHash} is missing contractAddress`);
+    return;
   }
 
-  if (failed.length === 0 && !dryRun) {
-    console.log(
-      `Deploying SynapseCore to ${CHAIN_NAME} with Ledger signer ${ledgerDeployerAddress}. Confirm the deployment transaction on the device when prompted.`,
-    );
-    const sendOutput = runCommand(
-      "cast",
-      [
-        "send",
-        "--async",
-        "--json",
-        "--ledger",
-        "--from",
-        ledgerDeployerAddress,
-        "--mnemonic-derivation-path",
-        ledgerDerivationPath,
-        "--rpc-url",
-        rpcUrl,
-        "--chain",
-        String(CHAIN_ID),
-        "--create",
-        initCode,
-      ],
-      { cwd: path.resolve(__dirname, "..", "..") },
-    );
-    const txHash = extractTxHash(`${sendOutput.stdout}\n${sendOutput.stderr}`);
-    const receipt = await provider.waitForTransaction(txHash, confirmations);
-
-    if (!receipt) {
-      failed.push(`Deployment receipt not found for transaction ${txHash}`);
-    } else if (receipt.status !== 1) {
-      failed.push(`Deployment transaction ${txHash} failed`);
-    } else if (!receipt.contractAddress) {
-      failed.push(`Deployment receipt ${txHash} is missing contractAddress`);
-    } else {
-      const coreAddress = hre.ethers.getAddress(receipt.contractAddress);
-      deploymentTxs.synapseCoreDeploy = {
-        hash: txHash,
-        blockNumber: receipt.blockNumber,
-        status: receipt.status,
-        contractAddress: coreAddress,
-      };
-
-      const coreArtifact = artifactHash("SynapseCore");
-      const coreCode = await provider.getCode(coreAddress);
-      const core = await hre.ethers.getContractAt("SynapseCore", coreAddress, provider);
-
-      manifest.contracts.synapseCore = {
-        address: coreAddress,
-        owner: await core.owner(),
-        withdrawSigner: await core.platformSigner(),
-        usdc: await core.usdc(),
-        constructorArgs,
-        constructorArgsHash: sha256(stableStringify(constructorArgs)),
-        abiHash: coreArtifact.abiHash,
-        bytecodeHash: coreArtifact.bytecodeHash,
-        deployedCodeHash: hre.ethers.keccak256(coreCode),
-        explorerUrl: `${EXPLORER_URL}/address/${coreAddress}`,
-      };
-    }
-  } else {
-    const coreArtifact = artifactHash("SynapseCore");
-    manifest.contracts.synapseCore = {
-      address: "",
-      owner: ownerAddress,
-      withdrawSigner: withdrawSignerAddress,
-      usdc: usdcAddress,
-      constructorArgs,
-      constructorArgsHash: sha256(stableStringify(constructorArgs)),
-      abiHash: coreArtifact.abiHash,
-      bytecodeHash: coreArtifact.bytecodeHash,
-      deployedCodeHash: "",
-      explorerUrl: "",
-    };
-  }
-
-  const report = {
-    generatedAt,
-    verificationUpdatedAt: null,
-    status: failed.length === 0 ? (dryRun ? "dry_run_success" : "success") : "failed",
-    failed,
-    environment: dryRun ? "dry-run" : "prod",
-    network: NETWORK_NAME,
-    chainName: CHAIN_NAME,
-    chainId: Number(CHAIN_ID),
-    deploymentMode: "ledger",
-    deployer: ledgerDeployerAddress,
-    owner: ownerAddress,
-    withdrawSigner: withdrawSignerAddress,
-    contracts: manifest.contracts,
-    evidenceDir,
+  const coreAddress = hre.ethers.getAddress(receipt.contractAddress);
+  deploymentTxs.synapseCoreDeploy = {
+    hash: txHash,
+    blockNumber: receipt.blockNumber,
+    status: receipt.status,
+    contractAddress: coreAddress,
   };
 
-  writeJson(path.join(evidenceDir, "contract-manifest.json"), manifest);
+  const coreArtifact = artifactHash("SynapseCore");
+  const coreCode = await provider.getCode(coreAddress);
+  const core = await hre.ethers.getContractAt("SynapseCore", coreAddress, provider);
+  manifest.contracts.synapseCore = {
+    address: coreAddress,
+    owner: await core.owner(),
+    withdrawSigner: await core.platformSigner(),
+    usdc: await core.usdc(),
+    constructorArgs: manifest.constructorArgs,
+    constructorArgsHash: sha256(stableStringify(manifest.constructorArgs)),
+    abiHash: coreArtifact.abiHash,
+    bytecodeHash: coreArtifact.bytecodeHash,
+    deployedCodeHash: hre.ethers.keccak256(coreCode),
+    explorerUrl: `${EXPLORER_URL}/address/${coreAddress}`,
+  };
+}
+
+function attachDryRunContract(manifest) {
+  const coreArtifact = artifactHash("SynapseCore");
+  manifest.contracts.synapseCore = {
+    address: "",
+    owner: manifest.owner,
+    withdrawSigner: manifest.withdrawSigner,
+    usdc: manifest.usdcTokenAddress,
+    constructorArgs: manifest.constructorArgs,
+    constructorArgsHash: sha256(stableStringify(manifest.constructorArgs)),
+    abiHash: coreArtifact.abiHash,
+    bytecodeHash: coreArtifact.bytecodeHash,
+    deployedCodeHash: "",
+    explorerUrl: "",
+  };
+}
+
+function writeEvidence(evidenceDir, walletPreflight, manifest, deploymentTxs, verification, report) {
+  const { constructorArgs, ...manifestForWrite } = manifest;
+  writeJson(path.join(evidenceDir, "contract-manifest.json"), manifestForWrite);
   writeJson(path.join(evidenceDir, "deployment-txs.json"), deploymentTxs);
   writeJson(path.join(evidenceDir, "verification.json"), verification);
   writeJson(path.join(evidenceDir, "wallet-preflight.json"), walletPreflight);
   writeJson(path.join(evidenceDir, "report.json"), report);
   fs.writeFileSync(path.join(evidenceDir, "report.md"), renderMarkdown(report));
+}
 
-  console.log(`${CHAIN_NAME} deployment evidence: ${evidenceDir}`);
-  if (failed.length > 0) {
-    for (const failure of failed) {
+async function buildWalletPreflight(provider, inputs, failed) {
+  const minGasWei = hre.ethers.parseEther(process.env.PROD_MIN_GAS_ETH || "0.02");
+  const walletPreflight = await getWalletPreflight({
+    provider,
+    deployerAddress: inputs.ledgerDeployerAddress,
+    minGasWei,
+  });
+  if (!walletPreflight.wallets[0].pass) {
+    failed.push("Ledger deployer wallet is below the minimum gas threshold");
+  }
+  return walletPreflight;
+}
+
+function buildManifestAndInitCode(runtime, dryRun, inputs) {
+  const { artifact: synapseCoreArtifact } = artifactFor("SynapseCore");
+  const manifest = buildManifest(runtime.generatedAt, dryRun, inputs);
+  const encodedArgs = hre.ethers.AbiCoder.defaultAbiCoder()
+    .encode(["address", "address", "address"], manifest.constructorArgs)
+    .slice(2);
+  return {
+    manifest,
+    initCode: `${synapseCoreArtifact.bytecode}${encodedArgs}`,
+  };
+}
+
+async function executeDeployment(runtime, dryRun, inputs, provider, manifest, initCode, confirmations) {
+  if (!dryRun) {
+    await validateLedgerAddress(inputs, runtime.failed);
+  }
+
+  if (runtime.failed.length === 0 && !dryRun) {
+    await deploySynapseCore(
+      initCode,
+      inputs,
+      provider,
+      runtime.deploymentTxs,
+      manifest,
+      confirmations,
+      runtime.failed,
+    );
+    return;
+  }
+
+  attachDryRunContract(manifest);
+}
+
+function buildReport(runtime, dryRun, inputs, manifest) {
+  return {
+    generatedAt: runtime.generatedAt,
+    verificationUpdatedAt: null,
+    status: runtime.failed.length === 0 ? (dryRun ? "dry_run_success" : "success") : "failed",
+    failed: runtime.failed,
+    environment: dryRun ? "dry-run" : "prod",
+    network: NETWORK_NAME,
+    chainName: CHAIN_NAME,
+    chainId: Number(CHAIN_ID),
+    deploymentMode: "ledger",
+    deployer: inputs.ledgerDeployerAddress,
+    owner: inputs.ownerAddress,
+    withdrawSigner: inputs.withdrawSignerAddress,
+    contracts: manifest.contracts,
+    evidenceDir: runtime.evidenceDir,
+  };
+}
+
+async function main() {
+  const dryRun =
+    process.env.SYNAPSE_DEPLOY_DRY_RUN === "1" || process.argv.includes("--dry-run");
+  const runtime = createRuntimeState(dryRun);
+  const inputs = readInputs();
+  appendRoleFailures(runtime.failed, inputs);
+  const provider = new hre.ethers.JsonRpcProvider(inputs.rpcUrl, Number(CHAIN_ID));
+  await compileAndValidateNetwork(provider, runtime.failed);
+  const confirmations = Number(process.env.PROD_DEPLOY_CONFIRMATIONS || 10);
+  const walletPreflight = await buildWalletPreflight(provider, inputs, runtime.failed);
+  const { manifest, initCode } = buildManifestAndInitCode(runtime, dryRun, inputs);
+  await executeDeployment(runtime, dryRun, inputs, provider, manifest, initCode, confirmations);
+  const report = buildReport(runtime, dryRun, inputs, manifest);
+
+  writeEvidence(
+    runtime.evidenceDir,
+    walletPreflight,
+    manifest,
+    runtime.deploymentTxs,
+    runtime.verification,
+    report,
+  );
+
+  console.log(`${CHAIN_NAME} deployment evidence: ${runtime.evidenceDir}`);
+  if (runtime.failed.length > 0) {
+    for (const failure of runtime.failed) {
       console.error(`FATAL CONTRACT-DEPLOY-001: ${failure}`);
     }
     process.exit(1);
