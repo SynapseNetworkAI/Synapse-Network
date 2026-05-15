@@ -15,7 +15,7 @@ The design goal is low-friction reporting without leaking secrets. Feedback and 
 ### Docs
 
 - Docs live in `services/docs-front` on `docs.synapse-network.ai`.
-- Main-site `/docs/*` routes redirect to the dedicated docs origin.
+- Main-site `/docs/*` routes are not a supported entrypoint.
 - `/support` on docs-front links to Forum, Billing Support, Bug Report, Docs Issue, GitHub, and Status.
 
 ### Dev Console

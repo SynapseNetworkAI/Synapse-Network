@@ -12,7 +12,7 @@
 
 The dedicated docs surface is the public developer documentation for Synapse. It must explain how an owner, agent builder, provider, SDK user, or contract integrator discovers the platform, understands the architecture, and reaches the exact API or workflow page they need.
 
-The main `services/user-front` app no longer owns public docs content. It owns product links and legacy `/docs/*` redirects into the environment-specific docs origin.
+The main `services/user-front` app no longer owns public docs content or `/docs/*` compatibility redirects. Product links must point directly to the environment-specific docs origin.
 
 ## Page Matrix
 
@@ -44,13 +44,11 @@ The main `services/user-front` app no longer owns public docs content. It owns p
 
 ## Non-Docs Resources
 
-`services/user-front` keeps these redirects so old links do not die:
+`services/user-front` and `services/docs-front` do not serve or redirect `/docs/*`. Use the canonical docs origin directly:
 
-- `/docs` -> docs origin root.
-- `/docs/getting-started/:path*` -> `/get-started/:path*`.
-- `/docs/sdk/:path*` -> `/sdks/:path*`.
-- `/docs/contracts/:path*` -> `/smart-contracts/:path*`.
-- `/docs/:path*` -> `/:path*`.
+- Local: `http://localhost:3100/`
+- Staging: `https://docs-staging.synapse-network.ai/`
+- Production: `https://docs.synapse-network.ai/`
 
 ## Agent-Facing API Boundary
 

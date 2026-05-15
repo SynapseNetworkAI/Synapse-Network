@@ -261,17 +261,6 @@ try {
     });
   }
 
-  await step("legacy-redirects", async () => {
-    await goto(page, "/docs/getting-started/consumer");
-    await page.waitForURL("**/get-started/agent-builders", { timeout: 10000 });
-    await goto(page, "/docs/getting-started/provider");
-    await page.waitForURL("**/get-started/api-providers", { timeout: 10000 });
-    await goto(page, "/docs/sdk/typescript");
-    await page.waitForURL("**/sdks/typescript", { timeout: 10000 });
-    await goto(page, "/docs/contracts");
-    await page.waitForURL("**/smart-contracts", { timeout: 10000 });
-  });
-
   const endpointIds = readEndpointIds();
   await step("api:endpoint-detail-pages", async () => {
     for (const id of endpointIds) {

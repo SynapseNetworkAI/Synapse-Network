@@ -39,7 +39,6 @@ Screenshots are evidence for visual review. They are not enough by themselves to
 | `/marketplace/registry.json`  | implemented API        | Agent-facing callable registry JSON                                               | `GET /api/v1/services/discover`                                       | JSON schema, pagination, available-only filtering                                                                                  |
 | `/about`                      | thin page              | Minimal public description                                                        | Static                                                                | Render smoke                                                                                                                       |
 | `/blog`                       | thin page              | Minimal blog shell                                                                | Static                                                                | Render smoke                                                                                                                       |
-| `/docs` and docs children     | external redirects     | Legacy docs URLs redirect to `NEXT_PUBLIC_DOCS_BASE_URL`                          | None                                                                  | Redirect checks in docs-front browser verification                                                                                 |
 | `/dashboard`                  | compatibility redirect | Role-aware dashboard entry                                                        | None                                                                  | Redirect test                                                                                                                      |
 | `/dashboard/overview`         | implemented            | Consumer overview and high-level account state                                    | Gateway balance/indexer                                               | Authenticated smoke; header shows Connect Wallet when disconnected and short wallet address when connected                         |
 | `/dashboard/billing`          | implemented            | Payments ledger for deposits, refunds, and consumer withdrawals                   | Gateway deposit intents + withdrawal/refund APIs                      | Authenticated smoke; frontend merges large-limit Gateway rows for display only; Completed means Gateway credited spendable balance |
@@ -109,7 +108,7 @@ A page passes functional verification only when:
 - Global Quick Access result clicks navigate to the exact target route.
 - Page-level primary buttons or links navigate to the expected route.
 - Redirect routes land on their documented target.
-- Main-site `/docs/*` URLs redirect to the dedicated docs origin.
+- Main-site `/docs/*` URLs are not a supported entrypoint; product links must use the dedicated docs origin directly.
 - Browser console has no uncaught application errors.
 - Public data-backed pages call the real backend when `USER_FRONT_VERIFY_REAL_BACKEND=1`.
 - Authenticated data-backed pages are either verified with wallet/JWT fixtures or explicitly marked blocked.
