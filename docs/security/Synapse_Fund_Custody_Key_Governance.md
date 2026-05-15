@@ -23,23 +23,11 @@ hot wallet.
 2. **Withdrawal signer key** controls `SynapseCore.platformSigner`. It only
    signs EIP-712 consumer/provider withdrawal tickets. Production should use
    Cloud KMS or AWS KMS secp256k1 signing, not a raw `0x...` private key.
-3. **Deployment signer** publishes the production `SynapseCore` bytecode to
-   Arbitrum One. Production should use a Ledger-backed deployer signer for the
-   main path. It must be separate from both the Safe owner and the KMS ticket
-   signer.
 
 `withdrawPlatformFees()` can only transfer accrued `platformFeePool` to the
 contract owner/Safe. It cannot withdraw arbitrary user principal. User/provider
 principal leaves the vault only through `withdraw(...)` with a valid
 platform-signed ticket and the caller's own wallet transaction.
-
-Admin withdrawal approval and ticket signing are also separate concerns:
-
-1. Admin/Gateway-admin decides whether a withdrawal request is approved,
-   rejected, or sent to manual review.
-2. After approval, Gateway generates and signs the EIP-712 withdrawal ticket.
-3. In production that ticket signing must still happen through KMS, not through
-   a human Ledger confirmation on every withdrawal.
 
 ## Production signer policy
 
@@ -61,14 +49,6 @@ Required production signer evidence:
 5. Gateway-admin, frontend, developer laptops, and CI do not have sign
    permission.
 6. A signer rollback drill proves Safe can rotate to a new KMS signer.
-
-Required production deployment evidence:
-
-1. The deployer address is Ledger-backed and distinct from both the Safe owner
-   and the KMS signer.
-2. `SynapseCore.owner()` equals the Safe treasury address.
-3. `SynapseCore.platformSigner()` equals the KMS-derived signer address.
-4. `SynapseCore.usdc()` equals the official Arbitrum One USDC address.
 
 KMS keys are environment-scoped. Prefer separate GCP projects for staging and
 production; at minimum use different key rings / crypto keys:

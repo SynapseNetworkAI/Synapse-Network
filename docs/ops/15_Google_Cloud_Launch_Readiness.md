@@ -11,10 +11,6 @@ This document is the Google Cloud staging/prod readiness plan for Synapse
 Network. It defines the tooling, staging topology, email setup, production
 blockers, and evidence required before launch.
 
-For the final production operator handoff, use
-`docs/ops/20_Production_GCP_Operator_Checklist.md` as the canonical split
-between repo-automated bootstrap and human-provided prod confirmations.
-
 ## Tooling Decision
 
 Use Google Cloud official tooling, but keep production control inside Synapse
@@ -98,7 +94,7 @@ terraform apply
 Preflight:
 
 ```bash
-bash scripts/deploy/gcp_preflight.sh --env staging --project <gcp-project-id>
+bash scripts/deploy/gcp_preflight.sh <gcp-project-id>
 ```
 
 The preflight verifies `gcloud`, Terraform, project access, billing, and required
@@ -278,10 +274,7 @@ deletion_protection = true
 connector_enforcement = "REQUIRED"
 
 ip_configuration {
-  ipv4_enabled                                  = false
-  private_network                               = google_compute_network.prod.id
-  enable_private_path_for_google_cloud_services = true
-  ssl_mode                                      = "ENCRYPTED_ONLY"
+  ipv4_enabled = true
 }
 
 database_flags {
@@ -290,13 +283,13 @@ database_flags {
 }
 ```
 
-V1 production uses **private-only Cloud SQL**. Do not enable public IPv4, do
-not add office/home/`0.0.0.0/0` authorized networks, and do not rely on
-Cloud SQL Auth Proxy as the normal application path. Gateway, Gateway-admin,
-and DB migration jobs must reach Postgres through the same VPC network and
-Serverless VPC Access Connector or Direct VPC egress path. Routine SQL changes
-must go through migration jobs; Cloud SQL Studio stays read-only by default and
-write SQL remains breakglass only.
+V1 production uses the pragmatic Cloud SQL Auth Proxy posture: public IPv4 can
+remain enabled for low-ops diagnostics, but authorized networks must be empty
+and connector enforcement must be `REQUIRED`. Cloud Run uses the Cloud SQL
+connector; operators use Cloud SQL Auth Proxy plus IAM database authentication.
+Do not add office, home, or `0.0.0.0/0` authorized networks. Routine SQL
+changes must go through migration jobs; Cloud SQL Studio is read-only by
+default and write SQL is breakglass only.
 
 Production backup policy:
 
@@ -312,49 +305,6 @@ backup_configuration {
 Production must not launch until small-value chain rehearsal, withdrawal caps,
 manual approval thresholds, P0 Lark routing, restore evidence, and owner risk
 acceptance are attached.
-
-## Production Admin Access Model
-
-Production admin does **not** use IAP + Global HTTPS Load Balancer in the MVP
-substrate. The canonical model is:
-
-1. `synapse-prod-admin-front` uses **Cloud Run Require IAM**.
-2. `synapse-prod-gateway-admin` uses **Cloud Run Require IAM**.
-3. A Google Group allowlist such as `synapse-prod-admins@...` receives
-   `roles/run.invoker` on `admin-front`.
-4. `gateway-admin` receives `roles/run.invoker` for the
-   `synapse-prod-admin-front` service account, plus an optional smaller
-   break-glass Google Group.
-
-`admin-front` remains the default operator entrypoint. Browsers should not talk
-to `gateway-admin` anonymously.
-
-### Admin-front to Gateway-admin OIDC Proxy
-
-`admin-front` must forward backend requests with a Google-signed **OIDC Identity
-Token**, not a plain OAuth access token. The canonical implementation is:
-
-1. Use `google-auth-library` in the Node.js / Next.js server-side proxy.
-2. Call `auth.getIdTokenClient(TARGET_AUDIENCE)`.
-3. Set `TARGET_AUDIENCE` to the full `https://admin-api.synapse-network.ai`
-   URL.
-4. Forward the request with `Authorization: Bearer <id-token>`.
-
-Do not hand-roll JWT signing logic. Do not use a regular Google access token
-for this hop; Cloud Run `Require IAM` expects a Google-signed Identity Token
-with the correct audience.
-
-Required runtime config:
-
-```bash
-NEXT_PUBLIC_ADMIN_API_BASE_URL=
-ADMIN_API_PROXY_TARGET=https://admin-api.synapse-network.ai
-ADMIN_API_PROXY_AUDIENCE=https://admin-api.synapse-network.ai
-```
-
-The app-layer session, CSRF, MFA, RBAC, and audit semantics on `gateway-admin`
-remain unchanged. Cloud Run IAM protects ingress; the application still protects
-business actions.
 
 ## Google Cloud Infrastructure Checklist
 
@@ -472,7 +422,7 @@ Secret Manager, every referenced placeholder must already have at least one
 enabled version:
 
 ```bash
-bash scripts/deploy/gcp_check_cloud_run_secret_versions.sh --env staging --project fabled-archive-494108-k5
+bash scripts/deploy/gcp_check_staging_cloud_run_secret_versions.sh fabled-archive-494108-k5
 ```
 
 This check is mandatory before `terraform apply` updates Cloud Run images,
@@ -615,10 +565,6 @@ separate from the app user:
 - Migrator user: release-time DDL and reference data.
 - The migration runner grants runtime table/sequence privileges back to the app
   user after applying schema, keeping API containers out of DDL territory.
-- `bash scripts/deploy/gcp_bootstrap.sh --env prod --project <project>` now
-  creates the minimum production Cloud SQL users and writes the DSN secrets for
-  gateway runtime, gateway-admin runtime, gateway-admin migration, and gateway
-  readonly/forum access.
 - Secret ids:
   - `synapse-staging-postgres-password`
   - `synapse-staging-postgres-migrator-password`
@@ -702,7 +648,7 @@ Gmail/SMTP route secrets:
 ```bash
 GMAIL_SMTP_USERNAME="<sender-email>"
 GMAIL_SMTP_APP_PASSWORD="<from Secret Manager>"
-EMAIL_FROM="Synapse Network <alerts@synapse-network.ai>"
+EMAIL_FROM="Synapse Network Staging <sender-email>"
 EMAIL_REPLY_TO="<ops-or-support-email>"
 ```
 
@@ -750,8 +696,8 @@ production must use its own separate KMS/HSM signer.
 This keeps the launch path simple:
 
 1. Terraform creates Secret Manager secret placeholders.
-2. `gcp_bootstrap.sh --env staging` validates the Cloud SQL / Secret Manager
-   bootstrap path before Cloud Run deploys and migration jobs run.
+2. `gcp_staging_bootstrap.sh` creates the Cloud SQL app user and writes the
+   generated password to Secret Manager.
 3. `gcp_put_secret.sh` writes third-party credentials and deployment-only wallet
    material from stdin into Secret Manager.
 4. Cloud Run reads staging secrets through Secret Manager IAM.
@@ -810,7 +756,7 @@ deleted with `scripts/deploy/gcp_cleanup_staging_security_config.sh`.
 After Terraform creates Cloud SQL and Secret Manager placeholders, run:
 
 ```bash
-bash scripts/deploy/gcp_bootstrap.sh --env staging --project <gcp-project-id>
+bash scripts/deploy/gcp_staging_bootstrap.sh <gcp-project-id>
 ```
 
 The bootstrap script:
@@ -1061,49 +1007,6 @@ WITHDRAW_SIGNER_ADDRESS="<kms-derived Ethereum address>"
 ```
 
 Details: `docs/ops/16_Arbitrum_Sepolia_Staging_Contracts.md`.
-
-## Production Chain Readiness
-
-Production contracts deploy to Arbitrum One (`chainId=42161`) using the
-official mainnet USDC address. This path does not deploy `MockUSDC` and does
-not pre-mint test balances.
-
-Required commands:
-
-```bash
-npm run deploy:contracts:arbitrum-one:dry-run
-npm run deploy:contracts:arbitrum-one:ledger
-npm run verify:contracts:arbitrum-one:evidence
-```
-
-Required local/deploy environment for production contracts:
-
-```bash
-ARBITRUM_ONE_RPC_URL="<rpc-url>"
-PROD_LEDGER_DEPLOYER_ADDRESS="<ledger-deployer-address>"
-PROD_LEDGER_DERIVATION_PATH="m/44'/60'/0'/0/0"
-PROD_CONTRACT_OWNER_ADDRESS="<safe-treasury-address>"
-PROD_WITHDRAW_SIGNER_ADDRESS="<kms-derived-withdraw-signer-address>"
-PROD_USDC_TOKEN_ADDRESS="0xaf88d065e77c8cC2239327C5EDb3A432268e5831"
-ARBISCAN_API_KEY="<etherscan-api-v2-key>"
-```
-
-The production evidence lives under:
-
-```text
-docs/evidence/release/contracts/arbitrum-one/<timestamp>-deploy/
-```
-
-The evidence must prove:
-
-1. `chainId === 42161`
-2. `SynapseCore` bytecode exists on Arbitrum One
-3. ABI, bytecode, and constructor arg hashes match local artifacts
-4. Arbiscan source verification succeeded or was already verified
-5. Ledger deployer, Safe owner, and KMS withdraw signer are separate roles
-6. the constructor bound `owner()` to the Safe treasury address
-7. the constructor bound `platformSigner()` to the KMS-derived signer address
-8. admin approval remains manual, but withdrawal ticket signing still happens automatically through KMS after approval
 
 ## Current Production NO-GO Blockers
 

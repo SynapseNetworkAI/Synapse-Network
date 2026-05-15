@@ -71,13 +71,12 @@ From repository root:
 51. `npm run ci:withdrawal-reviews-cleanup-local-evidence`
 52. `npm run ci:backup-restore-evidence`
 53. `npm run deploy:contracts:arbitrum-sepolia:dry-run`
-54. `npm run deploy:contracts:arbitrum-one:dry-run`
-55. `npm run ci:contract-deployment-evidence`
-56. `npm run e2e:consumer-withdraw-claim-fullchain:local`
-57. `npm run ci:consumer-withdraw-claim-fullchain-local-evidence`
-58. `npm run e2e:consumer-withdraw-approval-expiry:local`
-59. `npm run ci:consumer-withdraw-approval-expiry-local-evidence`
-60. `npm run ci:migration-seed-guard`
+54. `npm run ci:contract-deployment-evidence`
+55. `npm run e2e:consumer-withdraw-claim-fullchain:local`
+56. `npm run ci:consumer-withdraw-claim-fullchain-local-evidence`
+57. `npm run e2e:consumer-withdraw-approval-expiry:local`
+58. `npm run ci:consumer-withdraw-approval-expiry-local-evidence`
+59. `npm run ci:migration-seed-guard`
 
 Use these wrappers when final integration confidence is required.
 
@@ -89,21 +88,10 @@ Local pending-deposit diagnosis:
 
 Infrastructure preflight:
 
-1. `bash scripts/deploy/gcp_preflight.sh --env staging --project <gcp-project-id>` before the first Google Cloud staging Terraform apply.
-2. `bash scripts/deploy/gcp_preflight.sh --env prod --project <gcp-project-id>` before the first production Terraform plan/apply.
-3. `bash scripts/deploy/gcp_bootstrap.sh --env staging --project <gcp-project-id>` or `--env prod` to verify the project, Cloud SQL databases, Secret Manager placeholders, and enabled secret versions before Cloud Run deploys.
-4. `bash scripts/deploy/gcp_check_cloud_run_secret_versions.sh --env staging --project <gcp-project-id>` or `--env prod` before Terraform or `gcloud run deploy` creates revisions/jobs that reference `:latest`.
-5. `bash scripts/deploy/gcp_build_images.sh --env staging --project <gcp-project-id>` or `--env prod` to build and push the canonical Gateway, Gateway-admin, User-front, Admin-front, and Docs-front images with environment-correct base URLs.
-6. `bash scripts/deploy/gcp_sync_jobs.sh --env staging --project <gcp-project-id> --service all --gateway-image <img> --gateway-admin-image <img>` or the prod equivalent after image promotion when Cloud Run jobs must follow the released service family image digest.
-7. `bash scripts/deploy/gcp_configure_alerts.sh --env staging --project <gcp-project-id> --receiver-url <gateway-admin-webhook-url>` or the prod equivalent to create the Monitoring webhook channel and uptime checks that back the GCP alert relay.
-8. `bash scripts/deploy/migrate_db.sh local|staging|prod` for explicit schema/reference migration; prod requires `SYNAPSE_MIGRATION_CONFIRM=I_UNDERSTAND_THIS_CHANGES_PROD`
-9. `npm run ci:staging-schema-guard -- --project fabled-archive-494108-k5 --port 15543` after starting Cloud SQL Auth Proxy on `15543`; verifies staging Gateway/Admin databases have required tables, migrator ownership, runtime grants, and consistent DSN/password secrets.
-10. `npm run ci:staging-drift-guard` verifies staging Cloud SQL keeps the V1 Auth Proxy security posture: public IPv4 is retained, authorized networks are empty, connector enforcement is `REQUIRED`, IAM database authentication is on, backups/PITR are enabled, and password policy is enabled.
-
-Production operator handoff:
-
-1. Use `docs/ops/20_Production_GCP_Operator_Checklist.md` as the canonical split between repo-automated production bootstrap and human-provided prod secrets, Google Group allowlists, custody inputs, and final go/no-go confirmations.
-2. Production Arbitrum One contract deployment uses `npm run deploy:contracts:arbitrum-one:dry-run`, `npm run deploy:contracts:arbitrum-one:ledger`, and `npm run verify:contracts:arbitrum-one:evidence`. The main path requires `ARBITRUM_ONE_RPC_URL`, `PROD_LEDGER_DEPLOYER_ADDRESS`, `PROD_CONTRACT_OWNER_ADDRESS`, `PROD_WITHDRAW_SIGNER_ADDRESS`, `PROD_USDC_TOKEN_ADDRESS`, and an Etherscan API V2 key. `PROD_DEPLOYER_PRIVATE_KEY` is fallback-only and must not be treated as the production default.
+1. `bash scripts/deploy/gcp_preflight.sh <gcp-project-id>` before the first Google Cloud staging Terraform apply
+2. `bash scripts/deploy/migrate_db.sh local|staging|prod` for explicit schema/reference migration; prod requires `SYNAPSE_MIGRATION_CONFIRM=I_UNDERSTAND_THIS_CHANGES_PROD`
+3. `npm run ci:staging-schema-guard -- --project fabled-archive-494108-k5 --port 15543` after starting Cloud SQL Auth Proxy on `15543`; verifies staging Gateway/Admin databases have required tables, migrator ownership, runtime grants, and consistent DSN/password secrets.
+4. `npm run ci:staging-drift-guard` verifies staging Cloud SQL keeps the V1 Auth Proxy security posture: public IPv4 is retained, authorized networks are empty, connector enforcement is `REQUIRED`, IAM database authentication is on, backups/PITR are enabled, and password policy is enabled.
 
 Local hook bootstrap:
 
@@ -235,8 +223,6 @@ Working directory: `services/docs-front/`
 6. `npm run ci:docs-pages` from repository root when repo-standard docs-page gating is needed
 7. `npm run e2e:staging-smoke` and `npm run ci:staging-smoke-evidence` after deploying docs-front to staging; the smoke runner checks `https://docs-staging.synapse-network.ai`, `llms.txt`, `llms-full.txt`, `sitemap.xml`, `openapi.json`, `/sdks`, and `/api-reference`
 8. `npm run e2e:staging-ui-dogfood` after staging docs-front UI changes to capture docs screenshots and browser console/network failures
-9. `npm run docs:sync-public-mirror` when public docs MDX changes need to refresh the public-source mirror in `../Synapse-Network-Docs/content/docs`
-10. `npm run e2e:prod-public-docs-links` and `npm run ci:prod-public-docs-links-evidence` to validate `www` + `docs` public links, `llms.txt`, markdown export, public GitHub source links, gateway health, and protected admin gates in production
 
 `services/docs-front/public/openapi.json` and
 `services/docs-front/src/data/api-reference.json` are tracked generated
