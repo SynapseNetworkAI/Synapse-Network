@@ -10,7 +10,10 @@ const workflowPath = path.join(
   ROOT,
   ".github/workflows/deploy-staging-frontends.yml"
 );
-const stagingWorkflowPath = path.join(ROOT, ".github/workflows/deploy-staging.yml");
+const stagingWorkflowPath = path.join(
+  ROOT,
+  ".github/workflows/deploy-staging.yml"
+);
 
 function workflowText() {
   return fs.readFileSync(workflowPath, "utf8");
@@ -56,9 +59,15 @@ test("staging frontend workflow has bounded long-running steps", () => {
   const text = workflowText();
 
   assert.match(text, /timeout-minutes:\s*25/);
-  assert.match(text, /timeout\s+15m\s+bash\s+scripts\/deploy\/gcp_cloudbuild_staging_images\.sh/);
+  assert.match(
+    text,
+    /timeout\s+15m\s+bash\s+scripts\/deploy\/gcp_cloudbuild_staging_images\.sh/
+  );
   assert.match(text, /timeout\s+8m\s+bash\s+deploy-frontend-services\.sh/);
-  assert.match(text, /timeout\s+5m\s+bash\s+scripts\/deploy\/gcp_smoke_staging_services\.sh/);
+  assert.match(
+    text,
+    /timeout\s+5m\s+bash\s+scripts\/deploy\/gcp_smoke_staging_services\.sh/
+  );
   assert.match(text, /failedStep/);
 });
 
@@ -67,8 +76,14 @@ test("staging frontend workflow supports prebuilt immutable image deploys", () =
 
   assert.match(text, /prebuilt_image_digest:/);
   assert.match(text, /Use prebuilt frontend image digest/);
-  assert.match(text, /Build frontend image[\s\S]*env\.PREBUILT_IMAGE_DIGEST == ''/);
-  assert.match(text, /Resolve immutable image refs[\s\S]*env\.PREBUILT_IMAGE_DIGEST == ''/);
+  assert.match(
+    text,
+    /Build frontend image[\s\S]*env\.PREBUILT_IMAGE_DIGEST == ''/
+  );
+  assert.match(
+    text,
+    /Resolve immutable image refs[\s\S]*env\.PREBUILT_IMAGE_DIGEST == ''/
+  );
   assert.match(text, /@sha256:\[0-9a-f\]\{64\}/);
   assert.match(text, /imageSource:\s*'prebuilt_digest'/);
 });
@@ -90,7 +105,10 @@ test("local staging image builder uses an ephemeral detached worktree and attach
 test("admin-front staging deploy does not execute admin database migration", () => {
   const text = stagingWorkflowText();
 
-  assert.match(text, /Admin front image only; skipping Gateway-admin DB migration guard\./);
+  assert.match(
+    text,
+    /Admin front image only; skipping Gateway-admin DB migration guard\./
+  );
   assert.doesNotMatch(
     text,
     /\*,gateway-admin,\*\|\*,admin-front,\*/,
