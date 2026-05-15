@@ -31,6 +31,9 @@ on:
         options:
           - user-front
           - docs-front
+      prebuilt_image_digest:
+        required: false
+        type: string
       actor:
         required: true
         type: string
@@ -52,17 +55,401 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
-  deploy-frontend-family:
-    uses: ./.github/workflows/deploy-staging.yml
-    with:
-      requirement_id: ${{ inputs.requirement_id }}
-      record_id: ${{ inputs.record_id }}
-      commit_sha: ${{ inputs.commit_sha || '' }}
-      source_ref_type: ${{ inputs.source_ref_type || 'branch' }}
-      source_ref: ${{ inputs.source_ref || '' }}
-      deploy_scope: ${{ inputs.deploy_scope || 'user-front' }}
-      actor: ${{ inputs.actor }}
-      trigger_source: ${{ inputs.trigger_source || '' }}
-      callback_url: ${{ inputs.callback_url || '' }}
-      callback_token: ${{ inputs.callback_token || '' }}
-    secrets: inherit
+  deploy-frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      PROJECT_ID: ${{ secrets.STAGING_GCP_PROJECT_ID || 'fabled-archive-494108-k5' }}
+      REGION: ${{ secrets.STAGING_GCP_REGION || 'us-central1' }}
+      ARTIFACT_REGISTRY_REPOSITORY: ${{ secrets.STAGING_ARTIFACT_REGISTRY_REPOSITORY || 'synapse-staging' }}
+      EVIDENCE_BUCKET: ${{ secrets.STAGING_EVIDENCE_BUCKET || 'synapse-staging-evidence-fabled-archive-494108-k5' }}
+      SOURCE_REF_TYPE: ${{ inputs.source_ref_type || 'branch' }}
+      SOURCE_REF: ${{ inputs.source_ref }}
+      DEPLOY_SCOPE: ${{ inputs.deploy_scope || 'user-front' }}
+      PREBUILT_IMAGE_DIGEST: ${{ inputs.prebuilt_image_digest }}
+      CALLBACK_URL: ${{ inputs.callback_url }}
+      CALLBACK_TOKEN: ${{ inputs.callback_token }}
+      DEPLOY_STARTED_AT: ${{ github.run_started_at }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Validate staging Workload Identity configuration
+        shell: bash
+        env:
+          WIF_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          DEPLOY_SERVICE_ACCOUNT: ${{ secrets.GCP_DEPLOY_SERVICE_ACCOUNT }}
+        run: |
+          set -euo pipefail
+          missing=()
+          [[ -n "${WIF_PROVIDER}" ]] || missing+=("GCP_WORKLOAD_IDENTITY_PROVIDER")
+          [[ -n "${DEPLOY_SERVICE_ACCOUNT}" ]] || missing+=("GCP_DEPLOY_SERVICE_ACCOUNT")
+          if (( ${#missing[@]} > 0 )); then
+            printf 'Missing required GitHub Actions secret(s): %s\n' "${missing[*]}" >&2
+            printf 'Configure GCP Workload Identity Federation before dispatching staging frontend deploy.\n' >&2
+            exit 2
+          fi
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOY_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v3
+
+      - name: Resolve source ref
+        id: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "FAILED_STEP=resolve_source_ref" >> "$GITHUB_ENV"
+          git fetch origin main --prune
+          source_ref_type="${SOURCE_REF_TYPE:-branch}"
+          source_ref="${SOURCE_REF:-}"
+          legacy_commit="${{ inputs.commit_sha }}"
+
+          if [[ "${source_ref_type}" == "commit" ]]; then
+            resolved="${source_ref:-${legacy_commit}}"
+            [[ -n "${resolved}" ]] || { echo "missing commit source_ref/commit_sha" >&2; exit 2; }
+            git fetch origin "${resolved}" --depth=1 || true
+          elif [[ "${source_ref_type}" == "tag" ]]; then
+            [[ -n "${source_ref}" ]] || { echo "missing tag source_ref" >&2; exit 2; }
+            git fetch origin "+refs/tags/${source_ref}:refs/tags/${source_ref}"
+            resolved="$(git rev-parse "refs/tags/${source_ref}^{commit}")"
+          else
+            if [[ -z "${source_ref}" ]]; then
+              source_ref="$(git rev-parse --abbrev-ref HEAD)"
+            fi
+            git fetch origin "+refs/heads/${source_ref}:refs/remotes/origin/${source_ref}"
+            resolved="$(git rev-parse "refs/remotes/origin/${source_ref}^{commit}")"
+          fi
+
+          git checkout --detach "${resolved}"
+          short_sha="$(git rev-parse --short=12 HEAD)"
+          base_sha="$(git merge-base origin/main HEAD || git rev-parse HEAD^)"
+          safe_ref="$(printf '%s' "${source_ref:-commit}" | tr '/[:upper:]' '-[:lower:]' | tr -cd 'a-z0-9._-' | cut -c1-40)"
+          display_timestamp="$(date -u '+%Y-%m-%d %H:%M:%S')"
+          tag_timestamp="$(date -u '+%Y-%m-%d-%H%M%S')"
+          release_id="staging-${safe_ref}-${short_sha}-${tag_timestamp}"
+
+          {
+            echo "resolved_commit_sha=$(git rev-parse HEAD)"
+            echo "base_sha=${base_sha}"
+            echo "source_ref=${source_ref:-${resolved}}"
+            echo "source_ref_type=${source_ref_type}"
+            echo "release_id=${release_id}"
+            echo "short_sha=${short_sha}"
+            echo "safe_ref=${safe_ref}"
+            echo "tag_timestamp=${tag_timestamp}"
+            echo "display_timestamp=${display_timestamp}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Resolve frontend deploy scope
+        id: scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "FAILED_STEP=resolve_frontend_deploy_scope" >> "$GITHUB_ENV"
+          case "${DEPLOY_SCOPE}" in
+            user-front|docs-front)
+              ;;
+            *)
+              echo "Deploy Staging Frontends only supports user-front or docs-front; got ${DEPLOY_SCOPE}" >&2
+              exit 2
+              ;;
+          esac
+          node scripts/deploy/resolve_deploy_scope.mjs \
+            --base "${{ steps.source.outputs.base_sha }}" \
+            --head "${{ steps.source.outputs.resolved_commit_sha }}" \
+            --scope "${DEPLOY_SCOPE}" \
+            --json scope.json
+          node - <<'NODE' >> "$GITHUB_OUTPUT"
+          const fs = require('fs')
+          const scope = JSON.parse(fs.readFileSync('scope.json', 'utf8'))
+          const unsupported = (scope.services || []).filter(
+            (service) => !['user-front', 'docs-front'].includes(service)
+          )
+          if (unsupported.length > 0) {
+            throw new Error(`frontend workflow received unsupported services: ${unsupported.join(', ')}`)
+          }
+          console.log(`deploy=${scope.deploy ? 'true' : 'false'}`)
+          console.log(`services=${(scope.services || []).join(',')}`)
+          NODE
+
+      - name: Report no deploy
+        if: ${{ steps.scope.outputs.deploy == 'false' && env.CALLBACK_URL != '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const fs = require('fs')
+          const scope = JSON.parse(fs.readFileSync('scope.json', 'utf8'))
+          const payload = {
+            status: 'no_deploy',
+            external_run_id: process.env.GITHUB_RUN_ID,
+            external_url: `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`,
+            branch_name: process.env.SOURCE_REF || null,
+            commit_sha: process.env.RESOLVED_COMMIT_SHA,
+            health_status: 'not_applicable',
+            notes: (scope.reason || []).join('; ') || 'no frontend deploy required',
+            metadata: { sourceRefType: process.env.SOURCE_REF_TYPE, sourceRef: process.env.SOURCE_REF, resolvedCommitSha: process.env.RESOLVED_COMMIT_SHA, deployScope: [], noDeployReason: scope.reason || [] },
+          }
+          fs.writeFileSync('callback.json', JSON.stringify(payload))
+          NODE
+          curl --fail --silent --show-error \
+            -X POST "${CALLBACK_URL}" \
+            -H "Content-Type: application/json" \
+            -H "X-Deploy-Token: ${CALLBACK_TOKEN}" \
+            -d @callback.json
+        env:
+          RESOLVED_COMMIT_SHA: ${{ steps.source.outputs.resolved_commit_sha }}
+          SOURCE_REF: ${{ steps.source.outputs.source_ref }}
+          SOURCE_REF_TYPE: ${{ steps.source.outputs.source_ref_type }}
+
+      - name: Use prebuilt frontend image digest
+        if: ${{ steps.scope.outputs.deploy == 'true' && env.PREBUILT_IMAGE_DIGEST != '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "FAILED_STEP=validate_prebuilt_frontend_image_digest" >> "$GITHUB_ENV"
+          node - <<'NODE'
+          const fs = require('fs')
+          const service = process.env.DEPLOY_SCOPE
+          const image = process.env.PREBUILT_IMAGE_DIGEST
+          const project = process.env.PROJECT_ID
+          const region = process.env.REGION
+          const repository = process.env.ARTIFACT_REGISTRY_REPOSITORY
+          const services = (process.env.DEPLOY_SERVICES || '').split(',').filter(Boolean)
+          if (!['user-front', 'docs-front'].includes(service)) {
+            throw new Error(`prebuilt frontend image is not supported for ${service}`)
+          }
+          if (services.length !== 1 || services[0] !== service) {
+            throw new Error(`prebuilt frontend image must target exactly ${service}; got ${services.join(', ') || 'none'}`)
+          }
+          const prefix = `${region}-docker.pkg.dev/${project}/${repository}/${service}@sha256:`
+          if (!image.startsWith(prefix) || !/^.+@sha256:[0-9a-f]{64}$/.test(image)) {
+            throw new Error(`prebuilt image digest must be an immutable ${service} Artifact Registry image`)
+          }
+          fs.writeFileSync('build-images.json', JSON.stringify({
+            tag: 'prebuilt-digest',
+            registry: `${region}-docker.pkg.dev/${project}/${repository}`,
+            services: { [service]: image },
+            imageSource: 'prebuilt_digest',
+          }, null, 2) + '\n')
+          fs.writeFileSync('image-digests.json', JSON.stringify({ [service]: image }, null, 2) + '\n')
+          fs.writeFileSync('prebuilt-image.json', JSON.stringify({
+            imageSource: 'prebuilt_digest',
+            service,
+            image,
+            resolvedCommitSha: process.env.RESOLVED_COMMIT_SHA,
+          }, null, 2) + '\n')
+          NODE
+          printf '{"updated":[],"smokeExecutions":[]}\n' > jobs.json
+          printf '{"status":"skipped","reason":"frontend deploy does not run gateway drift guard"}\n' > drift-guard.json
+        env:
+          DEPLOY_SERVICES: ${{ steps.scope.outputs.services }}
+          RESOLVED_COMMIT_SHA: ${{ steps.source.outputs.resolved_commit_sha }}
+
+      - name: Build frontend image
+        if: ${{ steps.scope.outputs.deploy == 'true' && env.PREBUILT_IMAGE_DIGEST == '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "FAILED_STEP=build_frontend_image" >> "$GITHUB_ENV"
+          started_at="$(date +%s)"
+          TAG="staging-${{ steps.source.outputs.safe_ref }}-${{ steps.source.outputs.short_sha }}-${{ steps.source.outputs.tag_timestamp }}"
+          timeout 15m bash scripts/deploy/gcp_cloudbuild_staging_images.sh "${PROJECT_ID}" \
+            --services "${{ steps.scope.outputs.services }}" \
+            --tag "${TAG}" \
+            --json-output build-images.json
+          echo "[frontend-deploy] build duration seconds=$(( $(date +%s) - started_at ))"
+
+      - name: Resolve immutable image refs
+        if: ${{ steps.scope.outputs.deploy == 'true' && env.PREBUILT_IMAGE_DIGEST == '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "FAILED_STEP=resolve_immutable_image_refs" >> "$GITHUB_ENV"
+          node scripts/deploy/resolve_artifact_registry_image_digests.mjs \
+            --build-images build-images.json \
+            --out image-digests.json
+          printf '{"updated":[],"smokeExecutions":[]}\n' > jobs.json
+          printf '{"status":"skipped","reason":"frontend deploy does not run gateway drift guard"}\n' > drift-guard.json
+
+      - name: Deploy frontend Cloud Run service
+        if: ${{ steps.scope.outputs.deploy == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "FAILED_STEP=deploy_frontend_cloud_run_service" >> "$GITHUB_ENV"
+          node - <<'NODE' > deploy-frontend-services.sh
+          const fs = require('fs')
+          const images = JSON.parse(fs.readFileSync('image-digests.json', 'utf8'))
+          const names = {
+            'user-front': 'synapse-staging-user-front',
+            'docs-front': 'synapse-staging-docs-front',
+          }
+          const unsupported = Object.keys(images).filter((service) => !names[service])
+          if (unsupported.length > 0) {
+            throw new Error(`frontend deploy cannot deploy: ${unsupported.join(', ')}`)
+          }
+          for (const [service, image] of Object.entries(images)) {
+            console.log(`gcloud run deploy ${names[service]} --project "$PROJECT_ID" --region "$REGION" --image '${image}' --quiet`)
+          }
+          NODE
+          started_at="$(date +%s)"
+          timeout 8m bash deploy-frontend-services.sh
+          echo "[frontend-deploy] cloud run deploy duration seconds=$(( $(date +%s) - started_at ))"
+
+      - name: Smoke frontend service
+        if: ${{ steps.scope.outputs.deploy == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "FAILED_STEP=smoke_frontend_service" >> "$GITHUB_ENV"
+          started_at="$(date +%s)"
+          timeout 5m bash scripts/deploy/gcp_smoke_staging_services.sh \
+            --project "${PROJECT_ID}" \
+            --region "${REGION}" \
+            --services "${{ steps.scope.outputs.services }}" \
+            --json-output smoke.json \
+            --details-output smoke-details.json
+          echo "[frontend-deploy] smoke duration seconds=$(( $(date +%s) - started_at ))"
+
+      - name: Capture frontend Cloud Run revision
+        if: ${{ steps.scope.outputs.deploy == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "FAILED_STEP=capture_frontend_cloud_run_revision" >> "$GITHUB_ENV"
+          node - <<'NODE' > revision-services.sh
+          const fs = require('fs')
+          const images = JSON.parse(fs.readFileSync('image-digests.json', 'utf8'))
+          const names = {
+            'user-front': 'synapse-staging-user-front',
+            'docs-front': 'synapse-staging-docs-front',
+          }
+          for (const service of Object.keys(images)) {
+            console.log(`printf '${service}=' >> revisions.env`)
+            console.log(`gcloud run services describe ${names[service]} --project "$PROJECT_ID" --region "$REGION" --format='value(status.latestReadyRevisionName)' >> revisions.env`)
+          }
+          NODE
+          bash revision-services.sh
+          node - <<'NODE'
+          const fs = require('fs')
+          const revisions = {}
+          for (const line of fs.readFileSync('revisions.env', 'utf8').split('\n')) {
+            if (!line.trim()) continue
+            const [key, value] = line.split('=')
+            revisions[key] = value
+          }
+          fs.writeFileSync('revisions.json', JSON.stringify(revisions, null, 2))
+          NODE
+
+      - name: Write and upload frontend deployment manifest
+        if: ${{ steps.scope.outputs.deploy == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "FAILED_STEP=write_frontend_deployment_manifest" >> "$GITHUB_ENV"
+          export RELEASE_ID="${{ steps.source.outputs.release_id }}"
+          export SOURCE_REF_TYPE="${{ steps.source.outputs.source_ref_type }}"
+          export SOURCE_REF="${{ steps.source.outputs.source_ref }}"
+          export RESOLVED_COMMIT_SHA="${{ steps.source.outputs.resolved_commit_sha }}"
+          mkdir -p "output/deployments/staging/${RELEASE_ID}"
+          node scripts/deploy/write_deployment_manifest.mjs \
+            --out "output/deployments/staging/${RELEASE_ID}/release-manifest.json" \
+            --environment staging \
+            --release-id "${RELEASE_ID}" \
+            --source-ref-type "${SOURCE_REF_TYPE}" \
+            --source-ref "${SOURCE_REF}" \
+            --resolved-commit-sha "${RESOLVED_COMMIT_SHA}" \
+            --scope scope.json \
+            --build build-images.json \
+            --image-digests image-digests.json \
+            --jobs jobs.json \
+            --drift-guard drift-guard.json \
+            --revisions revisions.json \
+            --smoke smoke.json \
+            --smoke-details smoke-details.json \
+            --generated-at-display "${{ steps.source.outputs.display_timestamp }}" \
+            --timestamp-timezone UTC
+          gcloud storage cp -r "output/deployments/staging/${RELEASE_ID}" "gs://${EVIDENCE_BUCKET}/deployments/"
+          echo "EVIDENCE_URI=gs://${EVIDENCE_BUCKET}/deployments/${RELEASE_ID}/release-manifest.json" >> "$GITHUB_ENV"
+        env:
+          MIGRATION_RAN: "false"
+          MIGRATION_STATUS: "skipped"
+
+      - name: Report success
+        if: ${{ success() && steps.scope.outputs.deploy == 'true' && env.CALLBACK_URL != '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const fs = require('fs')
+          const manifest = JSON.parse(fs.readFileSync(`output/deployments/staging/${process.env.RELEASE_ID}/release-manifest.json`, 'utf8'))
+          const payload = {
+            status: 'succeeded',
+            external_run_id: process.env.GITHUB_RUN_ID,
+            external_url: `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`,
+            branch_name: manifest.sourceRef,
+            commit_sha: manifest.resolvedCommitSha,
+            health_status: 'passed',
+            notes: `staging frontend deploy succeeded: ${manifest.deployScope.join(', ')}`,
+            metadata: { ...manifest, evidenceUri: process.env.EVIDENCE_URI },
+          }
+          fs.writeFileSync('callback.json', JSON.stringify(payload))
+          NODE
+          curl --fail --silent --show-error \
+            -X POST "${CALLBACK_URL}" \
+            -H "Content-Type: application/json" \
+            -H "X-Deploy-Token: ${CALLBACK_TOKEN}" \
+            -d @callback.json
+        env:
+          RELEASE_ID: ${{ steps.source.outputs.release_id }}
+
+      - name: Report failure
+        if: ${{ failure() && env.CALLBACK_URL != '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const fs = require('fs')
+          const smokeDetails = fs.existsSync('smoke-details.json')
+            ? JSON.parse(fs.readFileSync('smoke-details.json', 'utf8'))
+            : []
+          const elapsedSeconds = Math.max(0, Math.floor((Date.now() - Date.parse(process.env.DEPLOY_STARTED_AT || new Date().toISOString())) / 1000))
+          const failedStep = process.env.FAILED_STEP || 'unknown'
+          const payload = {
+            status: 'failed',
+            external_run_id: process.env.GITHUB_RUN_ID,
+            external_url: `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`,
+            branch_name: process.env.SOURCE_REF || null,
+            commit_sha: process.env.RESOLVED_COMMIT_SHA || null,
+            health_status: 'failed',
+            notes: `staging frontend deploy failed at ${failedStep}; inspect GitHub Actions logs`,
+            metadata: {
+              sourceRefType: process.env.SOURCE_REF_TYPE,
+              sourceRef: process.env.SOURCE_REF,
+              resolvedCommitSha: process.env.RESOLVED_COMMIT_SHA || null,
+              deployScope: process.env.DEPLOY_SCOPE,
+              failedStep,
+              elapsedSeconds,
+              smokeDetails,
+            },
+          }
+          fs.writeFileSync('callback.json', JSON.stringify(payload))
+          NODE
+          curl --silent --show-error \
+            -X POST "${CALLBACK_URL}" \
+            -H "Content-Type: application/json" \
+            -H "X-Deploy-Token: ${CALLBACK_TOKEN}" \
+            -d @callback.json
+        env:
+          RESOLVED_COMMIT_SHA: ${{ steps.source.outputs.resolved_commit_sha }}
+          SOURCE_REF: ${{ steps.source.outputs.source_ref }}
+          SOURCE_REF_TYPE: ${{ steps.source.outputs.source_ref_type }}

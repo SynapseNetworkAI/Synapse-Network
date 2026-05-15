@@ -106,6 +106,7 @@ env:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 35
     env:
       PROJECT_ID: ${{ secrets.STAGING_GCP_PROJECT_ID || 'fabled-archive-494108-k5' }}
       REGION: ${{ secrets.STAGING_GCP_REGION || 'us-central1' }}
@@ -278,7 +279,7 @@ jobs:
               --image "${gateway_image}" \
               --quiet
           fi
-          gcloud run jobs execute synapse-staging-db-migrate \
+          timeout 8m gcloud run jobs execute synapse-staging-db-migrate \
             --project "${PROJECT_ID}" \
             --region "${REGION}" \
             --wait
@@ -290,7 +291,11 @@ jobs:
         run: |
           services=",${{ steps.scope.outputs.services }},"
           case "${services}" in
-            *,gateway-admin,*|*,admin-front,*)
+            *,gateway-admin,*)
+              ;;
+            *,admin-front,*)
+              echo "Admin front image only; skipping Gateway-admin DB migration guard."
+              exit 0
               ;;
             *)
               echo "No Gateway-admin-dependent service in deploy scope; skipping admin DB migration guard."
@@ -309,7 +314,7 @@ jobs:
               --json-output jobs-gateway-admin.json
             node -e "const fs=require('fs'); const base=JSON.parse(fs.readFileSync('jobs.json','utf8')); const next=JSON.parse(fs.readFileSync('jobs-gateway-admin.json','utf8')); base.updated.push(...(next.updated||[])); base.smokeExecutions.push(...(next.smokeExecutions||[])); fs.writeFileSync('jobs.json', JSON.stringify(base,null,2)+'\\n')"
           fi
-          gcloud run jobs execute synapse-staging-gateway-admin-db-migrate \
+          timeout 8m gcloud run jobs execute synapse-staging-gateway-admin-db-migrate \
             --project "${PROJECT_ID}" \
             --region "${REGION}" \
             --wait
@@ -393,12 +398,12 @@ jobs:
             console.log(`gcloud run deploy ${names[service]} --project "$PROJECT_ID" --region "$REGION" --image '${image}'${extraFlags} --quiet`)
           }
           NODE
-          bash deploy-services.sh
+          timeout 8m bash deploy-services.sh
 
       - name: Smoke affected services
         if: ${{ steps.scope.outputs.deploy == 'true' }}
         run: |
-          bash scripts/deploy/gcp_smoke_staging_services.sh \
+          timeout 5m bash scripts/deploy/gcp_smoke_staging_services.sh \
             --project "${PROJECT_ID}" \
             --region "${REGION}" \
             --services "${{ steps.scope.outputs.services }}" \
