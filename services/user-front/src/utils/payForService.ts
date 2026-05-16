@@ -9,6 +9,10 @@ import type { Address, EIP1193Provider, Hash } from "viem";
 import contractConfig from "@/contract-config.json";
 import SynapseCoreABI from "@/SynapseCoreABI.json";
 import MockUSDCABI from "@/MockUSDCABI.json";
+import {
+  getSupportedEvmInjectedProviderOrThrow,
+  type SupportedEvmInjectedProvider,
+} from "@/utils/evmProvider";
 import { getRpcUrl } from "@/utils/runtimeEnv";
 
 export type PayForServiceInput = {
@@ -22,14 +26,10 @@ export type PayForServiceInput = {
 };
 
 const ensureWalletTransport = () => {
-  const injectedEthereum = (globalThis as { ethereum?: EIP1193Provider })
-    .ethereum;
-  if (!injectedEthereum) {
-    throw new Error(
-      "No injected wallet found. Please install MetaMask or use a web3 wallet."
-    );
-  }
-  return custom(injectedEthereum);
+  return custom(
+    getSupportedEvmInjectedProviderOrThrow() as SupportedEvmInjectedProvider &
+      EIP1193Provider
+  );
 };
 
 const normalizeAddress = (value: string): Address => value as Address;
