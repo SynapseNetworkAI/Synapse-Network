@@ -258,13 +258,44 @@ Production uses the same simplified shape, but every boundary is isolated from
 staging:
 
 1. Separate Cloud SQL instance.
-2. Separate secrets.
-3. Separate Lark routes.
-4. Separate Gmail sender.
-5. Separate contract addresses.
-6. Separate owner and signer wallets.
-7. Separate domain.
-8. Separate evidence directory.
+
+## Production Admin Entry Boundary
+
+Production `admin-front` and `gateway-admin` now use a public Cloud Run entry
+surface, but the security boundary remains application-auth-first.
+
+Required invariants:
+
+1. `https://admin.synapse-network.ai/login` stays publicly reachable so human
+   operators can open the login page.
+2. `https://admin-api.synapse-network.ai/health` may be publicly reachable for
+   health checks, but business routes must still require app-layer auth.
+3. A bootstrap or seeded admin without `password_hash` must not be able to log
+   in and must not be able to enter a usable MFA enrollment path.
+4. `MFA_ENROLLMENT_REQUIRED` is only valid after password verification succeeds
+   for an active admin who requires MFA but has no usable active Google
+   Authenticator factor.
+5. `POST /api/admin/v1/auth/mfa/enroll/begin` and
+   `POST /api/admin/v1/auth/mfa/enroll/verify` must continue to require a valid
+   short-lived enrollment token minted by the password-verified login branch.
+6. No admin session cookie may be issued until MFA enrollment verify succeeds
+   for first-bind flows.
+
+Operational interpretation:
+
+1. Public login page does not mean public admin access.
+2. Password remains the first mandatory gate.
+3. Google Authenticator TOTP remains the second gate for bound accounts and the
+   first-bind requirement for unbound `require_mfa=true` accounts.
+4. Session cookie, CSRF, RBAC, lockout, audit trail, and high-risk TOTP step-up
+   remain the main runtime protections after the network edge is made public.
+5. Separate secrets.
+6. Separate Lark routes.
+7. Separate Gmail sender.
+8. Separate contract addresses.
+9. Separate owner and signer wallets.
+10. Separate domain.
+11. Separate evidence directory.
 
 Production Cloud SQL minimum:
 

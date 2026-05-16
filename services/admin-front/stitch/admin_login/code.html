@@ -1,203 +1,367 @@
 <!DOCTYPE html>
 
-<html class="dark" lang="en"><head>
-<meta charset="utf-8"/>
-<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>Gateway-Admin Control Plane | Synapse Network</title>
-<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&amp;family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;700&amp;display=swap" rel="stylesheet"/>
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
-<script id="tailwind-config">
+<html class="dark" lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>Gateway-Admin Control Plane | Synapse Network</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&amp;family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;700&amp;display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+      rel="stylesheet"
+    />
+    <script id="tailwind-config">
       tailwind.config = {
         darkMode: "class",
         theme: {
           extend: {
             colors: {
-              "background": "#020617",
-              "surface": "#0f172a",
-              "primary": "#0ea5e9",
-              "secondary": "#334155",
+              background: "#020617",
+              surface: "#0f172a",
+              primary: "#0ea5e9",
+              secondary: "#334155",
               "accent-cyan": "#22d3ee",
               "on-surface": "#f8fafc",
               "on-surface-variant": "#94a3b8",
               "outline-variant": "#1e293b",
             },
             fontFamily: {
-              "headline": ["Manrope"],
-              "body": ["Inter"],
-              "mono": ["JetBrains Mono"],
+              headline: ["Manrope"],
+              body: ["Inter"],
+              mono: ["JetBrains Mono"],
             },
-            borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "9999px"},
+            borderRadius: {
+              DEFAULT: "0.125rem",
+              lg: "0.25rem",
+              xl: "0.5rem",
+              full: "9999px",
+            },
           },
         },
-      }
+      };
     </script>
-<style>
-        .material-symbols-outlined {
-            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    <style>
+      .material-symbols-outlined {
+        font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
+      }
+      .future-grid {
+        background-image: linear-gradient(
+            to right,
+            rgba(34, 211, 238, 0.05) 1px,
+            transparent 1px
+          ),
+          linear-gradient(
+            to bottom,
+            rgba(34, 211, 238, 0.05) 1px,
+            transparent 1px
+          );
+        background-size: 50px 50px;
+      }
+      .circuit-bg {
+        background-image: radial-gradient(
+          circle at 1px 1px,
+          #1e293b 1px,
+          transparent 0
+        );
+        background-size: 20px 20px;
+      }
+      .glow-accent {
+        box-shadow: 0 0 15px rgba(34, 211, 238, 0.3);
+      }
+      .neon-border {
+        border: 1px solid rgba(34, 211, 238, 0.2);
+        box-shadow: inset 0 0 10px rgba(34, 211, 238, 0.05);
+      }
+      .node-pulse {
+        animation: pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+      }
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 0.1;
         }
-        .future-grid {
-            background-image: 
-                linear-gradient(to right, rgba(34, 211, 238, 0.05) 1px, transparent 1px),
-                linear-gradient(to bottom, rgba(34, 211, 238, 0.05) 1px, transparent 1px);
-            background-size: 50px 50px;
+        50% {
+          opacity: 0.3;
         }
-        .circuit-bg {
-            background-image: radial-gradient(circle at 1px 1px, #1e293b 1px, transparent 0);
-            background-size: 20px 20px;
+      }
+      .scanline {
+        width: 100%;
+        height: 100px;
+        z-index: 5;
+        background: linear-gradient(
+          0deg,
+          rgba(34, 211, 238, 0) 0%,
+          rgba(34, 211, 238, 0.02) 50%,
+          rgba(34, 211, 238, 0) 100%
+        );
+        position: absolute;
+        bottom: 100%;
+        animation: scan 8s linear infinite;
+      }
+      @keyframes scan {
+        0% {
+          bottom: 100%;
         }
-        .glow-accent {
-            box-shadow: 0 0 15px rgba(34, 211, 238, 0.3);
+        100% {
+          bottom: -100px;
         }
-        .neon-border {
-            border: 1px solid rgba(34, 211, 238, 0.2);
-            box-shadow: inset 0 0 10px rgba(34, 211, 238, 0.05);
-        }
-        .node-pulse {
-            animation: pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-        }
-        @keyframes pulse {
-            0%, 100% { opacity: 0.1; }
-            50% { opacity: 0.3; }
-        }
-        .scanline {
-            width: 100%;
-            height: 100px;
-            z-index: 5;
-            background: linear-gradient(0deg, rgba(34, 211, 238, 0) 0%, rgba(34, 211, 238, 0.02) 50%, rgba(34, 211, 238, 0) 100%);
-            position: absolute;
-            bottom: 100%;
-            animation: scan 8s linear infinite;
-        }
-        @keyframes scan {
-            0% { bottom: 100%; }
-            100% { bottom: -100px; }
-        }
+      }
     </style>
-</head>
-<body class="bg-background font-body text-on-surface antialiased min-h-screen flex flex-col overflow-x-hidden">
-<!-- Background Elements -->
-<div class="fixed inset-0 future-grid pointer-events-none"></div>
-<div class="fixed inset-0 circuit-bg pointer-events-none opacity-40"></div>
-<div class="scanline"></div>
-<!-- Decorative Blockchain/Neural Nodes -->
-<div class="fixed top-1/4 left-10 w-32 h-32 border border-accent-cyan/10 rounded-full node-pulse flex items-center justify-center">
-<div class="w-16 h-16 border border-accent-cyan/20 rounded-full animate-spin [animation-duration:10s]"></div>
-</div>
-<div class="fixed bottom-1/4 right-10 w-48 h-48 border border-accent-cyan/10 rounded-full node-pulse flex items-center justify-center [animation-delay:2s]">
-<div class="w-24 h-24 border border-accent-cyan/20 rounded-full animate-reverse-spin animate-[spin_15s_linear_infinite]"></div>
-</div>
-<!-- Header Shell -->
-<header class="fixed top-0 w-full z-50 bg-slate-950/80 backdrop-blur-md border-b border-accent-cyan/10">
-<div class="flex justify-between items-center px-6 py-4 max-w-7xl mx-auto">
-<div class="flex items-center gap-3">
-<div class="w-8 h-8 flex items-center justify-center bg-accent-cyan/10 rounded border border-accent-cyan/30">
-<span class="material-symbols-outlined text-accent-cyan text-[18px]" data-icon="hub">hub</span>
-</div>
-<span class="text-xl font-extrabold tracking-tighter text-white font-headline">Synapse Network</span>
-<span class="bg-accent-cyan/20 text-[10px] text-accent-cyan px-2 py-0.5 rounded-sm font-bold tracking-widest uppercase border border-accent-cyan/30">Admin_Portal</span>
-</div>
-<div class="flex items-center gap-6 text-slate-400">
-<div class="flex items-center gap-2 text-[11px] font-mono tracking-tighter hidden md:flex">
-<span class="w-1.5 h-1.5 rounded-full bg-accent-cyan animate-pulse"></span>
-                NODE_ACTIVE :: 0x4F...32A
+  </head>
+  <body
+    class="bg-background font-body text-on-surface antialiased min-h-screen flex flex-col overflow-x-hidden"
+  >
+    <!-- Background Elements -->
+    <div class="fixed inset-0 future-grid pointer-events-none"></div>
+    <div class="fixed inset-0 circuit-bg pointer-events-none opacity-40"></div>
+    <div class="scanline"></div>
+    <!-- Decorative Blockchain/Neural Nodes -->
+    <div
+      class="fixed top-1/4 left-10 w-32 h-32 border border-accent-cyan/10 rounded-full node-pulse flex items-center justify-center"
+    >
+      <div
+        class="w-16 h-16 border border-accent-cyan/20 rounded-full animate-spin [animation-duration:10s]"
+      ></div>
+    </div>
+    <div
+      class="fixed bottom-1/4 right-10 w-48 h-48 border border-accent-cyan/10 rounded-full node-pulse flex items-center justify-center [animation-delay:2s]"
+    >
+      <div
+        class="w-24 h-24 border border-accent-cyan/20 rounded-full animate-reverse-spin animate-[spin_15s_linear_infinite]"
+      ></div>
+    </div>
+    <!-- Header Shell -->
+    <header
+      class="fixed top-0 w-full z-50 bg-slate-950/80 backdrop-blur-md border-b border-accent-cyan/10"
+    >
+      <div
+        class="flex justify-between items-center px-6 py-4 max-w-7xl mx-auto"
+      >
+        <div class="flex items-center gap-3">
+          <div
+            class="w-8 h-8 flex items-center justify-center bg-accent-cyan/10 rounded border border-accent-cyan/30"
+          >
+            <span
+              class="material-symbols-outlined text-accent-cyan text-[18px]"
+              data-icon="hub"
+              >hub</span
+            >
+          </div>
+          <span
+            class="text-xl font-extrabold tracking-tighter text-white font-headline"
+            >Synapse Network</span
+          >
+          <span
+            class="bg-accent-cyan/20 text-[10px] text-accent-cyan px-2 py-0.5 rounded-sm font-bold tracking-widest uppercase border border-accent-cyan/30"
+            >Admin_Portal</span
+          >
+        </div>
+        <div class="flex items-center gap-6 text-slate-400">
+          <div
+            class="flex items-center gap-2 text-[11px] font-mono tracking-tighter hidden md:flex"
+          >
+            <span
+              class="w-1.5 h-1.5 rounded-full bg-accent-cyan animate-pulse"
+            ></span>
+            NODE_ACTIVE :: 0x4F...32A
+          </div>
+          <span
+            class="material-symbols-outlined text-[20px] hover:text-accent-cyan cursor-help transition-colors"
+            data-icon="security"
+            >security</span
+          >
+        </div>
+      </div>
+    </header>
+    <!-- Main Content -->
+    <main
+      class="flex-grow flex items-center justify-center pt-20 pb-32 relative z-10 px-6"
+    >
+      <section class="w-full max-w-[460px]">
+        <!-- High-Tech Access Panel -->
+        <div class="relative">
+          <!-- Glitch Accents -->
+          <div
+            class="absolute -top-[1px] -left-[1px] w-4 h-4 border-t-2 border-l-2 border-accent-cyan"
+          ></div>
+          <div
+            class="absolute -bottom-[1px] -right-[1px] w-4 h-4 border-b-2 border-r-2 border-accent-cyan"
+          ></div>
+          <div
+            class="bg-surface/90 backdrop-blur-xl neon-border p-8 md:p-10 flex flex-col gap-8 rounded-lg"
+          >
+            <!-- Branding & Title -->
+            <div class="space-y-1 relative">
+              <div
+                class="absolute -left-10 top-0 w-1 h-12 bg-accent-cyan/50 hidden md:block"
+              ></div>
+              <h1
+                class="font-headline font-extrabold text-2xl tracking-tight text-white flex items-center gap-2"
+              >
+                Admin Console Login
+              </h1>
+              <p
+                class="text-on-surface-variant text-xs font-mono tracking-wider uppercase opacity-80"
+              >
+                Gateway Control Plane v4.0.8
+              </p>
             </div>
-<span class="material-symbols-outlined text-[20px] hover:text-accent-cyan cursor-help transition-colors" data-icon="security">security</span>
-</div>
-</div>
-</header>
-<!-- Main Content -->
-<main class="flex-grow flex items-center justify-center pt-20 pb-32 relative z-10 px-6">
-<section class="w-full max-w-[460px]">
-<!-- High-Tech Access Panel -->
-<div class="relative">
-<!-- Glitch Accents -->
-<div class="absolute -top-[1px] -left-[1px] w-4 h-4 border-t-2 border-l-2 border-accent-cyan"></div>
-<div class="absolute -bottom-[1px] -right-[1px] w-4 h-4 border-b-2 border-r-2 border-accent-cyan"></div>
-<div class="bg-surface/90 backdrop-blur-xl neon-border p-8 md:p-10 flex flex-col gap-8 rounded-lg">
-<!-- Branding & Title -->
-<div class="space-y-1 relative">
-<div class="absolute -left-10 top-0 w-1 h-12 bg-accent-cyan/50 hidden md:block"></div>
-<h1 class="font-headline font-extrabold text-2xl tracking-tight text-white flex items-center gap-2">
-                        System Authorization
-                    </h1>
-<p class="text-on-surface-variant text-xs font-mono tracking-wider uppercase opacity-80">Gateway Control Plane v4.0.8</p>
-</div>
-<!-- Form -->
-<form class="space-y-5">
-<!-- Input Email -->
-<div class="space-y-2">
-<label class="font-mono text-[10px] font-bold uppercase tracking-widest text-accent-cyan/70">Operator Identification</label>
-<div class="relative flex items-center">
-<input class="w-full pl-4 pr-4 py-3.5 bg-slate-900/50 border border-slate-800 rounded-md focus:ring-1 focus:ring-accent-cyan/50 focus:border-accent-cyan/50 transition-all text-on-surface placeholder:text-slate-600 font-mono text-sm" placeholder="EMAIL_UID" type="email"/>
-</div>
-</div>
-<!-- Input Password -->
-<div class="space-y-2">
-<div class="flex justify-between items-center">
-<label class="font-mono text-[10px] font-bold uppercase tracking-widest text-accent-cyan/70">Access Cipher</label>
-<a class="text-[10px] font-mono text-slate-500 hover:text-accent-cyan transition-colors" href="#">RECOVER_KEY</a>
-</div>
-<div class="relative flex items-center">
-<input class="w-full pl-4 pr-12 py-3.5 bg-slate-900/50 border border-slate-800 rounded-md focus:ring-1 focus:ring-accent-cyan/50 focus:border-accent-cyan/50 transition-all text-on-surface placeholder:text-slate-600 font-mono text-sm" placeholder="PASSWORD" type="password"/>
-<span class="absolute right-4 material-symbols-outlined text-slate-600 cursor-pointer hover:text-accent-cyan text-[20px]" data-icon="visibility_off">visibility_off</span>
-</div>
-</div>
-<!-- Google Authenticator (2FA) -->
-<div class="space-y-2 pt-1">
-<label class="font-mono text-[10px] font-bold uppercase tracking-widest text-accent-cyan/70">Google Authenticator Token</label>
-<div class="flex gap-2">
-<div class="relative flex-grow">
-<span class="absolute left-4 top-1/2 -translate-y-1/2 material-symbols-outlined text-accent-cyan/50 text-[18px]" data-icon="vibration">vibration</span>
-<input class="w-full pl-11 pr-4 py-3.5 bg-slate-900/50 border border-slate-800 rounded-md focus:ring-1 focus:ring-accent-cyan/50 focus:border-accent-cyan/50 transition-all text-on-surface placeholder:text-slate-600 font-mono text-sm tracking-[0.5em]" maxlength="6" placeholder="000000" type="text"/>
-</div>
-<div class="w-12 flex items-center justify-center bg-slate-900/30 border border-slate-800 rounded-md">
-<span class="material-symbols-outlined text-slate-500 text-[18px] animate-pulse" data-icon="schedule">schedule</span>
-</div>
-</div>
-</div>
-<!-- Execution Button -->
-<div class="pt-4">
-<button class="w-full py-4 bg-accent-cyan text-slate-950 font-black font-mono text-xs uppercase tracking-[0.2em] rounded-md hover:bg-white hover:glow-accent active:scale-[0.98] transition-all flex items-center justify-center gap-3 group relative overflow-hidden" type="submit">
-<span class="relative z-10">Execute Initialization</span>
-<span class="material-symbols-outlined text-[18px] group-hover:translate-x-1 transition-transform relative z-10" data-icon="terminal">terminal</span>
-<!-- Button scan effect -->
-<div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700"></div>
-</button>
-</div>
-</form>
-<!-- Status Monitor -->
-<div class="mt-2 p-3 bg-slate-900/40 rounded-md border border-slate-800/50 flex flex-col gap-2">
-<div class="flex justify-between items-center text-[9px] font-mono text-slate-500 uppercase">
-<span>Terminal_Status</span>
-<span class="text-accent-cyan">Encrypted_Link</span>
-</div>
-<div class="h-1 bg-slate-800 rounded-full overflow-hidden">
-<div class="h-full bg-accent-cyan/40 w-2/3"></div>
-</div>
-</div>
-</div>
-</div>
-<!-- System Meta -->
-<div class="mt-8 flex flex-col items-center gap-3 opacity-50">
-<div class="flex items-center gap-4">
-<div class="h-px w-8 bg-slate-700"></div>
-<div class="text-[9px] uppercase tracking-[0.4em] font-mono font-bold text-slate-400">Layer-2 Validation Active</div>
-<div class="h-px w-8 bg-slate-700"></div>
-</div>
-<div class="text-[8px] font-mono text-slate-500">SECURE_SENTINEL_PROTOCOL_v4.2 // AGENT_ID: 88-ALPHA</div>
-</div>
-</section>
-</main>
-<!-- Footer -->
-<footer class="fixed bottom-0 w-full pb-6 z-50">
-<div class="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-4">
-<span class="font-mono text-[10px] uppercase tracking-widest text-slate-500">© 2024 Synapse Network. Consensus Reached.</span>
-<div class="flex gap-6">
-<a class="font-mono text-[10px] uppercase tracking-widest text-slate-500 hover:text-accent-cyan transition-colors" href="#">Neural_Net_TOS</a>
-<a class="font-mono text-[10px] uppercase tracking-widest text-accent-cyan underline decoration-accent-cyan/30 underline-offset-4" href="#">Blockchain_Sec</a>
-<a class="font-mono text-[10px] uppercase tracking-widest text-slate-500 hover:text-accent-cyan transition-colors" href="#">Node_Metrics</a>
-</div>
-</div>
-</footer>
-</body></html>
+            <!-- Form -->
+            <form class="space-y-5">
+              <!-- Input Email -->
+              <div class="space-y-2">
+                <label
+                  class="font-mono text-[10px] font-bold uppercase tracking-widest text-accent-cyan/70"
+                  >Operator Identification</label
+                >
+                <div class="relative flex items-center">
+                  <input
+                    class="w-full pl-4 pr-4 py-3.5 bg-slate-900/50 border border-slate-800 rounded-md focus:ring-1 focus:ring-accent-cyan/50 focus:border-accent-cyan/50 transition-all text-on-surface placeholder:text-slate-600 font-mono text-sm"
+                    placeholder="EMAIL_UID"
+                    type="email"
+                  />
+                </div>
+              </div>
+              <!-- Input Password -->
+              <div class="space-y-2">
+                <div class="flex justify-between items-center">
+                  <label
+                    class="font-mono text-[10px] font-bold uppercase tracking-widest text-accent-cyan/70"
+                    >Access Cipher</label
+                  >
+                  <a
+                    class="text-[10px] font-mono text-slate-500 hover:text-accent-cyan transition-colors"
+                    href="#"
+                    >RECOVER_KEY</a
+                  >
+                </div>
+                <div class="relative flex items-center">
+                  <input
+                    class="w-full pl-4 pr-12 py-3.5 bg-slate-900/50 border border-slate-800 rounded-md focus:ring-1 focus:ring-accent-cyan/50 focus:border-accent-cyan/50 transition-all text-on-surface placeholder:text-slate-600 font-mono text-sm"
+                    placeholder="PASSWORD"
+                    type="password"
+                  />
+                  <span
+                    class="absolute right-4 material-symbols-outlined text-slate-600 cursor-pointer hover:text-accent-cyan text-[20px]"
+                    data-icon="visibility_off"
+                    >visibility_off</span
+                  >
+                </div>
+              </div>
+              <!-- Google Authenticator (2FA) -->
+              <div class="space-y-2 pt-1">
+                <label
+                  class="font-mono text-[10px] font-bold uppercase tracking-widest text-accent-cyan/70"
+                  >Google Authenticator Token</label
+                >
+                <div class="flex gap-2">
+                  <div class="relative flex-grow">
+                    <span
+                      class="absolute left-4 top-1/2 -translate-y-1/2 material-symbols-outlined text-accent-cyan/50 text-[18px]"
+                      data-icon="vibration"
+                      >vibration</span
+                    >
+                    <input
+                      class="w-full pl-11 pr-4 py-3.5 bg-slate-900/50 border border-slate-800 rounded-md focus:ring-1 focus:ring-accent-cyan/50 focus:border-accent-cyan/50 transition-all text-on-surface placeholder:text-slate-600 font-mono text-sm tracking-[0.5em]"
+                      maxlength="6"
+                      placeholder="000000"
+                      type="text"
+                    />
+                  </div>
+                  <div
+                    class="w-12 flex items-center justify-center bg-slate-900/30 border border-slate-800 rounded-md"
+                  >
+                    <span
+                      class="material-symbols-outlined text-slate-500 text-[18px] animate-pulse"
+                      data-icon="schedule"
+                      >schedule</span
+                    >
+                  </div>
+                </div>
+              </div>
+              <!-- Execution Button -->
+              <div class="pt-4">
+                <button
+                  class="w-full py-4 bg-accent-cyan text-slate-950 font-black font-mono text-xs uppercase tracking-[0.2em] rounded-md hover:bg-white hover:glow-accent active:scale-[0.98] transition-all flex items-center justify-center gap-3 group relative overflow-hidden"
+                  type="submit"
+                >
+                  <span class="relative z-10">Continue Secure Sign-In</span>
+                  <span
+                    class="material-symbols-outlined text-[18px] group-hover:translate-x-1 transition-transform relative z-10"
+                    data-icon="terminal"
+                    >terminal</span
+                  >
+                  <!-- Button scan effect -->
+                  <div
+                    class="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700"
+                  ></div>
+                </button>
+              </div>
+            </form>
+            <!-- Status Monitor -->
+            <div
+              class="mt-2 p-3 bg-slate-900/40 rounded-md border border-slate-800/50 flex flex-col gap-2"
+            >
+              <div
+                class="flex justify-between items-center text-[9px] font-mono text-slate-500 uppercase"
+              >
+                <span>Terminal_Status</span>
+                <span class="text-accent-cyan">Encrypted_Link</span>
+              </div>
+              <div class="h-1 bg-slate-800 rounded-full overflow-hidden">
+                <div class="h-full bg-accent-cyan/40 w-2/3"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- System Meta -->
+        <div class="mt-8 flex flex-col items-center gap-3 opacity-50">
+          <div class="flex items-center gap-4">
+            <div class="h-px w-8 bg-slate-700"></div>
+            <div
+              class="text-[9px] uppercase tracking-[0.4em] font-mono font-bold text-slate-400"
+            >
+              Layer-2 Validation Active
+            </div>
+            <div class="h-px w-8 bg-slate-700"></div>
+          </div>
+          <div class="text-[8px] font-mono text-slate-500">
+            SECURE_SENTINEL_PROTOCOL_v4.2 // AGENT_ID: 88-ALPHA
+          </div>
+        </div>
+      </section>
+    </main>
+    <!-- Footer -->
+    <footer class="fixed bottom-0 w-full pb-6 z-50">
+      <div
+        class="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-4"
+      >
+        <span
+          class="font-mono text-[10px] uppercase tracking-widest text-slate-500"
+          >© 2024 Synapse Network. Consensus Reached.</span
+        >
+        <div class="flex gap-6">
+          <a
+            class="font-mono text-[10px] uppercase tracking-widest text-slate-500 hover:text-accent-cyan transition-colors"
+            href="#"
+            >Neural_Net_TOS</a
+          >
+          <a
+            class="font-mono text-[10px] uppercase tracking-widest text-accent-cyan underline decoration-accent-cyan/30 underline-offset-4"
+            href="#"
+            >Blockchain_Sec</a
+          >
+          <a
+            class="font-mono text-[10px] uppercase tracking-widest text-slate-500 hover:text-accent-cyan transition-colors"
+            href="#"
+            >Node_Metrics</a
+          >
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>

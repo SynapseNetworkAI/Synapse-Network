@@ -142,9 +142,11 @@ Operators must:
 
 1. keep `admin-front` as the default human operator entrypoint
 2. keep `gateway-admin` business routes protected by app-layer auth, CSRF,
-   TOTP step-up, and RBAC
+   password-first login, TOTP step-up, and RBAC
 3. verify anonymous access reaches the login/API surface instead of Google
    Frontend `403`
+4. ensure bootstrap admins still require a manually initialized password before
+   any MFA enrollment can begin
 
 Required production runtime settings:
 
@@ -160,8 +162,16 @@ Expected public-entry behavior:
 1. `https://admin.synapse-network.ai/login` returns `200`
 2. `https://admin.synapse-network.ai/` routes to the app login flow instead of
    Cloud Run `Forbidden`
-3. `https://admin-api.synapse-network.ai/health` returns `200`
-4. anonymous protected admin API calls return application `401/403`
+3. accounts without `password_hash` cannot log in and cannot reach a usable MFA
+   enrollment path
+4. password-verified but unbound admins receive
+   `428 MFA_ENROLLMENT_REQUIRED`
+5. `https://admin-api.synapse-network.ai/health` returns `200`
+6. anonymous protected admin API calls return application `401/403`
+7. MFA enrollment begin/verify only succeeds when the request carries a valid
+   login-minted enrollment token
+8. first-bind accounts do not receive `synapse_admin_session` until Google
+   Authenticator enrollment verify succeeds
 
 ## 5. Private Cloud SQL Network Checks
 
