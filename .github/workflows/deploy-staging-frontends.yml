@@ -29,11 +29,13 @@ on:
         type: choice
         default: user-front
         options:
+          - admin-front
           - user-front
           - docs-front
       prebuilt_image_digest:
         required: false
         type: string
+        description: "Optional immutable Artifact Registry image@sha256 digest for admin-front/user-front/docs-front."
       actor:
         required: true
         type: string
@@ -155,10 +157,10 @@ jobs:
           set -euo pipefail
           echo "FAILED_STEP=resolve_frontend_deploy_scope" >> "$GITHUB_ENV"
           case "${DEPLOY_SCOPE}" in
-            user-front|docs-front)
+            admin-front|user-front|docs-front)
               ;;
             *)
-              echo "Deploy Staging Frontends only supports user-front or docs-front; got ${DEPLOY_SCOPE}" >&2
+              echo "Deploy Staging Frontends only supports admin-front, user-front, or docs-front; got ${DEPLOY_SCOPE}" >&2
               exit 2
               ;;
           esac
@@ -171,7 +173,7 @@ jobs:
           const fs = require('fs')
           const scope = JSON.parse(fs.readFileSync('scope.json', 'utf8'))
           const unsupported = (scope.services || []).filter(
-            (service) => !['user-front', 'docs-front'].includes(service)
+            (service) => !['admin-front', 'user-front', 'docs-front'].includes(service)
           )
           if (unsupported.length > 0) {
             throw new Error(`frontend workflow received unsupported services: ${unsupported.join(', ')}`)
@@ -224,7 +226,7 @@ jobs:
           const region = process.env.REGION
           const repository = process.env.ARTIFACT_REGISTRY_REPOSITORY
           const services = (process.env.DEPLOY_SERVICES || '').split(',').filter(Boolean)
-          if (!['user-front', 'docs-front'].includes(service)) {
+          if (!['admin-front', 'user-front', 'docs-front'].includes(service)) {
             throw new Error(`prebuilt frontend image is not supported for ${service}`)
           }
           if (services.length !== 1 || services[0] !== service) {
@@ -290,6 +292,7 @@ jobs:
           const fs = require('fs')
           const images = JSON.parse(fs.readFileSync('image-digests.json', 'utf8'))
           const names = {
+            'admin-front': 'synapse-staging-admin-front',
             'user-front': 'synapse-staging-user-front',
             'docs-front': 'synapse-staging-docs-front',
           }
@@ -330,6 +333,7 @@ jobs:
           const fs = require('fs')
           const images = JSON.parse(fs.readFileSync('image-digests.json', 'utf8'))
           const names = {
+            'admin-front': 'synapse-staging-admin-front',
             'user-front': 'synapse-staging-user-front',
             'docs-front': 'synapse-staging-docs-front',
           }

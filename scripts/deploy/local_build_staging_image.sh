@@ -14,10 +14,11 @@ ATTACH="auto"
 usage() {
   cat <<'USAGE'
 Usage:
-  scripts/deploy/local_build_staging_image.sh --service user-front --ref main --release-task-id 123
+  scripts/deploy/local_build_staging_image.sh --service admin-front --ref main --release-task-id 123
 
 Options:
-  --service <user-front|docs-front>      Frontend service to build.
+  --service <admin-front|user-front|docs-front>
+                                      Frontend service to build.
   --ref <branch|tag|sha>                 Git ref to build from. Default: main.
   --release-task-id <id>                 Attach the immutable digest to this Ops Console release task.
   --ops-console-url <url>                Ops Console URL. Default: http://localhost:9700.
@@ -77,10 +78,10 @@ require_cmd docker
 require_cmd node
 
 case "${SERVICE}" in
-  user-front|docs-front)
+  admin-front|user-front|docs-front)
     ;;
   *)
-    echo "--service must be user-front or docs-front" >&2
+    echo "--service must be admin-front, user-front, or docs-front" >&2
     exit 2
     ;;
 esac
