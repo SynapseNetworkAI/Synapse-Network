@@ -43,16 +43,12 @@ test("staging frontend workflow is standalone and does not run database migratio
   );
 });
 
-test("staging frontend workflow only accepts user-front and docs-front", () => {
+test("staging frontend workflow accepts the three frontend services", () => {
   const text = workflowText();
 
+  assert.match(text, /deploy_scope:[\s\S]*options:[\s\S]*-\s+admin-front/);
   assert.match(text, /deploy_scope:[\s\S]*options:[\s\S]*-\s+user-front/);
   assert.match(text, /deploy_scope:[\s\S]*options:[\s\S]*-\s+docs-front/);
-  assert.doesNotMatch(
-    text,
-    /deploy_scope:[\s\S]*options:[\s\S]*-\s+admin-front/,
-    "admin-front must continue through the admin workflow because it depends on gateway-admin migration"
-  );
 });
 
 test("staging frontend workflow has bounded long-running steps", () => {

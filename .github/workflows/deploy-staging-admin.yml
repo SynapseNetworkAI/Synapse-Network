@@ -30,7 +30,6 @@ on:
         default: gateway-admin
         options:
           - gateway-admin
-          - admin-front
       actor:
         required: true
         type: string
