@@ -31,6 +31,7 @@ import {
 import { normalizeMoneyString } from "@/utils/money";
 import { isWalletUserRejectedError } from "@/utils/walletActionErrors";
 import { showWalletStatusToast } from "@/utils/walletToast";
+import { getSupportedEvmInjectedProvider } from "@/utils/evmProvider";
 import {
   normalizeTokenDecimals,
   shortAddress,
@@ -112,6 +113,7 @@ type VaultDepositCopy = {
   walletBalanceChanged: string;
   networkSwitchPending: string;
   networkSwitchFailed: string;
+  unsupportedWallet: string;
   permitTimedOut: string;
   permitFallbackAvailable: string;
   approveTransactionFailed: string;
@@ -163,6 +165,8 @@ const DEFAULT_VAULT_DEPOSIT_COPY: VaultDepositCopy = {
     "Open your wallet extension to finish the network switch.",
   networkSwitchFailed:
     "Unable to switch network from the app. Please switch in your wallet and retry.",
+  unsupportedWallet:
+    "Phantom does not support the Synapse EVM settlement network. Please reconnect with MetaMask, Rabby, or Coinbase Wallet.",
   permitTimedOut:
     "Wallet did not respond. If you use a hardware wallet, try Approve transaction instead.",
   permitFallbackAvailable:
@@ -869,19 +873,10 @@ export function useVaultDeposit(options?: UseVaultDepositOptions) {
   ]);
 
   const switchToRequiredNetwork = useCallback(async () => {
-    const ethereum = (
-      globalThis as typeof globalThis & {
-        ethereum?: {
-          request: (args: {
-            method: string;
-            params?: unknown[];
-          }) => Promise<unknown>;
-        };
-      }
-    ).ethereum;
+    const ethereum = getSupportedEvmInjectedProvider();
     if (!ethereum) {
-      setDepositError(copy.walletReconnect);
-      showWalletStatusToast(copy.walletReconnect, { icon: "🔌" });
+      setDepositError(copy.unsupportedWallet);
+      showWalletStatusToast(copy.unsupportedWallet, { icon: "🔌" });
       return;
     }
 

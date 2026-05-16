@@ -114,6 +114,8 @@ const creditsPage: I18nMessages["creditsPage"] = {
     "Open your wallet extension to finish the network switch.",
   depositNetworkSwitchFailed:
     "Unable to switch network from the app. Please switch in your wallet and retry.",
+  depositUnsupportedWallet:
+    "Phantom does not support the Synapse EVM settlement network. Reconnect with MetaMask, Rabby, or Coinbase Wallet.",
   depositPermitTimedOut:
     "Wallet did not respond. If you use a hardware wallet, try Approve transaction instead.",
   depositPermitFallbackAvailable:

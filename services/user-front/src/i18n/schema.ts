@@ -1102,6 +1102,7 @@ export type I18nMessages = {
     depositWalletBalanceChanged: string;
     depositNetworkSwitchPending: string;
     depositNetworkSwitchFailed: string;
+    depositUnsupportedWallet: string;
     depositPermitTimedOut: string;
     depositPermitFallbackAvailable: string;
     depositApproveFailed: string;
