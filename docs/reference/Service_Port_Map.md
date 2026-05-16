@@ -43,6 +43,10 @@ Production admin routing note:
    owns session, CSRF, MFA, and RBAC enforcement.
 4. Anonymous requests to protected `gateway-admin` business routes should fail
    with application `401/403`, not Google Frontend `403`.
+5. Public reachability does not bypass the bootstrap hardening path: accounts
+   without a password hash must still fail login before MFA enrollment can
+   begin, and first-bind Google Authenticator flows must not mint an admin
+   session until enrollment verify succeeds.
 
 ## Env Defaults
 
