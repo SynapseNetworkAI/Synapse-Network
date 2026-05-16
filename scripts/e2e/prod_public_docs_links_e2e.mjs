@@ -330,7 +330,7 @@ await check(
   "public health endpoint"
 );
 await check("admin_login_page", `${ADMIN_ROOT}/login`, [200], (body) => {
-  assertContains(body, "System Authorization", "admin login title");
+  assertContains(body, "Admin Console Login", "admin login title");
 });
 await check(
   "admin_root_entry",
