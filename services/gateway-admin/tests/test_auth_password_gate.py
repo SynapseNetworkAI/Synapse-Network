@@ -2,7 +2,7 @@ from uuid import uuid4
 
 from src.domain import AdminUser
 from src.domain.enums import AdminUserStatus
-from tests.test_app import PLACEHOLDER_PASSWORD, _test_store, client
+from test_app import PLACEHOLDER_PASSWORD, _test_store, client
 
 
 def test_admin_auth_login_does_not_start_mfa_enrollment_without_password_hash() -> None:

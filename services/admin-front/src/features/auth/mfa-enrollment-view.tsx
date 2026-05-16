@@ -190,7 +190,13 @@ function EnrollmentAlert({
         };
 
   return (
-    <Box borderRadius="14px" p="4" bg={palette.bg} border={palette.border} color={palette.color}>
+    <Box
+      borderRadius="14px"
+      p="4"
+      bg={palette.bg}
+      border={palette.border}
+      color={palette.color}
+    >
       {message}
     </Box>
   );

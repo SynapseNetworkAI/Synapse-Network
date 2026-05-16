@@ -30,8 +30,37 @@ type EnrollmentRequestState = {
   promise: Promise<MfaEnrollBeginResponse> | null;
 };
 
+type PendingEnrollment = ReturnType<typeof readPendingMfaEnrollment>;
+
+type EnrollmentBootstrapState = {
+  enrollment: PendingEnrollment;
+  setEnrollment: (value: PendingEnrollment) => void;
+  beginState: MfaEnrollBeginResponse | null;
+  qrCodeDataUrl: string | null;
+  requestError: string | null;
+  setRequestError: (value: string | null) => void;
+  qrError: string | null;
+  expiresAt: number;
+  requestRef: MutableRefObject<EnrollmentRequestState>;
+};
+
+type QrCodePayload = {
+  dataUrl: string | null;
+  error: string | null;
+};
+
+type VerifyEnrollmentOptions = {
+  enrollment: NonNullable<PendingEnrollment>;
+  beginState: MfaEnrollBeginResponse;
+  otpCode: string;
+  expiresAt: number;
+  onExpired: () => void;
+  onSuccess: () => void;
+  onError: (message: string) => void;
+};
+
 export type MfaEnrollmentState = {
-  enrollment: ReturnType<typeof readPendingMfaEnrollment>;
+  enrollment: PendingEnrollment;
   beginState: MfaEnrollBeginResponse | null;
   qrCodeDataUrl: string | null;
   otpCode: string;
@@ -66,6 +95,13 @@ function formatEnrollmentLoadError(error: unknown): string {
   return "无法开始 Google Authenticator 绑定";
 }
 
+function formatQrCodeError(error: unknown): string {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+  return "二维码渲染失败，请改用手动密钥完成绑定";
+}
+
 async function buildQrCodeDataUrl(otpauthUrl: string): Promise<string> {
   return QRCode.toDataURL(otpauthUrl, {
     width: 280,
@@ -75,6 +111,20 @@ async function buildQrCodeDataUrl(otpauthUrl: string): Promise<string> {
       light: "#ffffff",
     },
   });
+}
+
+async function buildQrCodePayload(otpauthUrl: string): Promise<QrCodePayload> {
+  try {
+    return {
+      dataUrl: await buildQrCodeDataUrl(otpauthUrl),
+      error: null,
+    };
+  } catch (error) {
+    return {
+      dataUrl: null,
+      error: formatQrCodeError(error),
+    };
+  }
 }
 
 function resetEnrollmentRequestState(
@@ -102,20 +152,79 @@ function ensureEnrollmentRequest(
   return promise;
 }
 
-export function useMfaEnrollmentState(router: ReplaceRouter): MfaEnrollmentState {
-  const [enrollment, setEnrollment] = useState(() =>
+async function hydrateEnrollmentState(options: {
+  enrollmentToken: string;
+  requestRef: MutableRefObject<EnrollmentRequestState>;
+  isActive: () => boolean;
+  setBeginState: (value: MfaEnrollBeginResponse | null) => void;
+  setQrCodeDataUrl: (value: string | null) => void;
+  setQrError: (value: string | null) => void;
+  setRequestError: (value: string | null) => void;
+}): Promise<void> {
+  try {
+    const result = await ensureEnrollmentRequest(
+      options.enrollmentToken,
+      options.requestRef
+    );
+    if (!options.isActive()) {
+      return;
+    }
+    options.setBeginState(result);
+
+    const qrCodePayload = await buildQrCodePayload(result.otpauthUrl);
+    if (!options.isActive()) {
+      return;
+    }
+    options.setQrCodeDataUrl(qrCodePayload.dataUrl);
+    options.setQrError(qrCodePayload.error);
+  } catch (error) {
+    if (!options.isActive()) {
+      return;
+    }
+    options.requestRef.current.promise = null;
+    options.setBeginState(null);
+    options.setRequestError(formatEnrollmentLoadError(error));
+  }
+}
+
+async function copyToClipboard(value: string): Promise<boolean> {
+  if (typeof navigator === "undefined" || !navigator.clipboard) {
+    return false;
+  }
+  await navigator.clipboard.writeText(value);
+  return true;
+}
+
+async function verifyEnrollmentAndRoute(
+  options: VerifyEnrollmentOptions
+): Promise<void> {
+  try {
+    await verifyAdminMfaEnrollment({
+      enrollmentToken: options.enrollment.enrollmentToken,
+      factorId: options.beginState.factorId,
+      otpCode: options.otpCode,
+    });
+    options.onSuccess();
+  } catch (error) {
+    if (isAdminApiError(error) && Date.now() >= options.expiresAt) {
+      options.onExpired();
+    }
+    options.onError(error instanceof Error ? error.message : "MFA 绑定失败");
+  }
+}
+
+function useEnrollmentBootstrap(
+  router: ReplaceRouter
+): EnrollmentBootstrapState {
+  const [enrollment, setEnrollment] = useState<PendingEnrollment>(() =>
     readPendingMfaEnrollment()
   );
   const [beginState, setBeginState] = useState<MfaEnrollBeginResponse | null>(
     null
   );
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string | null>(null);
-  const [otpCode, setOtpCode] = useState("");
   const [requestError, setRequestError] = useState<string | null>(null);
   const [qrError, setQrError] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
-  const [now, setNow] = useState(() => Date.now());
-  const [copied, setCopied] = useState(false);
   const requestRef = useRef<EnrollmentRequestState>({
     token: null,
     promise: null,
@@ -141,42 +250,52 @@ export function useMfaEnrollmentState(router: ReplaceRouter): MfaEnrollmentState
     setQrError(null);
     setQrCodeDataUrl(null);
 
-    const loadEnrollment = async (): Promise<void> => {
-      try {
-        const result = await ensureEnrollmentRequest(enrollmentToken, requestRef);
-        if (!active) {
-          return;
-        }
-        setBeginState(result);
-        try {
-          const dataUrl = await buildQrCodeDataUrl(result.otpauthUrl);
-          if (active) {
-            setQrCodeDataUrl(dataUrl);
-          }
-        } catch (error) {
-          if (active) {
-            setQrError(
-              error instanceof Error
-                ? error.message
-                : "二维码渲染失败，请改用手动密钥完成绑定"
-            );
-          }
-        }
-      } catch (error) {
-        if (!active) {
-          return;
-        }
-        requestRef.current.promise = null;
-        setBeginState(null);
-        setRequestError(formatEnrollmentLoadError(error));
-      }
-    };
+    void hydrateEnrollmentState({
+      enrollmentToken,
+      requestRef,
+      isActive: () => active,
+      setBeginState,
+      setQrCodeDataUrl,
+      setQrError,
+      setRequestError,
+    });
 
-    void loadEnrollment();
     return () => {
       active = false;
     };
   }, [enrollment, router]);
+
+  return {
+    enrollment,
+    setEnrollment,
+    beginState,
+    qrCodeDataUrl,
+    requestError,
+    setRequestError,
+    qrError,
+    expiresAt,
+    requestRef,
+  };
+}
+
+export function useMfaEnrollmentState(
+  router: ReplaceRouter
+): MfaEnrollmentState {
+  const {
+    enrollment,
+    setEnrollment,
+    beginState,
+    qrCodeDataUrl,
+    requestError,
+    setRequestError,
+    qrError,
+    expiresAt,
+    requestRef,
+  } = useEnrollmentBootstrap(router);
+  const [otpCode, setOtpCode] = useState("");
+  const [now, setNow] = useState(() => Date.now());
+  const [copied, setCopied] = useState(false);
+  const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
     const timer = globalThis.setInterval(() => setNow(Date.now()), 1000);
@@ -190,14 +309,13 @@ export function useMfaEnrollmentState(router: ReplaceRouter): MfaEnrollmentState
   };
 
   const handleCopyManualKey = async (): Promise<void> => {
-    if (
-      !beginState?.manualEntryKey ||
-      typeof navigator === "undefined" ||
-      !navigator.clipboard
-    ) {
+    if (!beginState?.manualEntryKey) {
       return;
     }
-    await navigator.clipboard.writeText(beginState.manualEntryKey);
+    const copiedToClipboard = await copyToClipboard(beginState.manualEntryKey);
+    if (!copiedToClipboard) {
+      return;
+    }
     setCopied(true);
     globalThis.setTimeout(() => setCopied(false), 1600);
   };
@@ -210,25 +328,22 @@ export function useMfaEnrollmentState(router: ReplaceRouter): MfaEnrollmentState
     setRequestError(null);
     return new Promise((resolve) => {
       startTransition(async () => {
-        try {
-          await verifyAdminMfaEnrollment({
-            enrollmentToken: enrollment.enrollmentToken,
-            factorId: beginState.factorId,
-            otpCode,
-          });
-          clearPendingMfaEnrollment();
-          router.replace("/dashboard");
-        } catch (error) {
-          if (isAdminApiError(error) && Date.now() >= expiresAt) {
+        await verifyEnrollmentAndRoute({
+          enrollment,
+          beginState,
+          otpCode,
+          expiresAt,
+          onExpired: () => {
             clearPendingMfaEnrollment();
             setEnrollment(null);
-          }
-          setRequestError(
-            error instanceof Error ? error.message : "MFA 绑定失败"
-          );
-        } finally {
-          resolve();
-        }
+          },
+          onSuccess: () => {
+            clearPendingMfaEnrollment();
+            router.replace("/dashboard");
+          },
+          onError: setRequestError,
+        });
+        resolve();
       });
     });
   };
