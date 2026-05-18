@@ -24,9 +24,13 @@ notifications, and evidence must all tell the same story.
 | L4 contract release | Before contract address, ABI, signer, or chain config changes | local, staging | Contract dry-run, deployment evidence, and Gateway config alignment pass.     |
 | L5 resilience       | Before production readiness or reliability-sensitive release  | local, staging | Load, backup/restore, alerting, and chaos/recovery evidence pass.             |
 
-Production is not a destructive E2E target. Production regression is limited to
-read-only health, public asset, monitoring, and evidence review unless a separate
-production go/no-go plan explicitly authorizes a small-value rehearsal.
+Production is not a destructive E2E target by default. Production regression is
+limited to read-only health, public asset, monitoring, and evidence review unless
+a separate production go/no-go plan explicitly authorizes a small-value
+rehearsal. The V1 production core runner keeps that split: read-only smoke is
+safe by default; small-value deposit/invoke requires a dedicated production test
+wallet, dedicated Agent credential, read-only SQL DSN, and an explicit mutation
+confirmation.
 
 ## 2. Service Fixture Policy
 
@@ -158,12 +162,130 @@ evidence.
 | Load/recovery                | `npm run perf:staging-load-suite`, `npm run drill:backup-restore:staging`                                         | Reconciliation evidence and restore report                                                                            | No unexplained Postgres ledger/vault delta; restore status is successful.                                                                                          |
 | Contracts                    | `npm run deploy:contracts:arbitrum-sepolia:dry-run`, then release-approved deploy/evidence commands               | Runtime state/config plus contract evidence manifest                                                                  | Chain id, contract addresses, owner, signer, bytecode, and Gateway env agree.                                                                                      |
 
-## 6. SQL Evidence Templates
+## 6. Production Core E2E
+
+Production validation has two lanes.
+
+### 6.1 Read-only smoke
+
+Use this before and after production deploys, DNS changes, production env changes,
+or production launch sign-off:
+
+```bash
+gcloud auth login
+gcloud config set account cliff@synapse-network.ai
+
+cloud-sql-proxy synapse-network-prod:us-central1:synapse-prod-postgres \
+  --private-ip \
+  --auto-iam-authn \
+  --port 15544
+
+PROD_GATEWAY_URL=https://api.synapse-network.ai \
+PROD_USER_FRONT_URL=https://synapse-network.ai \
+PROD_DOCS_URL=https://docs.synapse-network.ai \
+PROD_ADMIN_FRONT_URL=https://admin.synapse-network.ai \
+PROD_ADMIN_API_URL=https://admin-api.synapse-network.ai \
+PROD_GCP_PROJECT_ID=synapse-network-prod \
+PROD_GCP_REGION=us-central1 \
+PROD_GATEWAY_READONLY_DSN='postgresql://<readonly-user>@127.0.0.1:15544/synapse_gateway_prod' \
+npm run e2e:prod-smoke-readonly
+
+npm run ci:prod-core-e2e-evidence
+```
+
+Expected evidence:
+
+1. `synapse-network.ai`, `api.synapse-network.ai`, `admin.synapse-network.ai`,
+   `admin-api.synapse-network.ai`, and `docs.synapse-network.ai` are reachable.
+2. `docs.synapse-network.ai/llms.txt` and `/openapi.json` are reachable.
+3. Cloud Run env is checked when `gcloud` is authenticated.
+4. SQL evidence is read-only and proves canonical provider services exist.
+5. No production SQL writes are performed by the smoke lane.
+
+Prod Cloud SQL currently uses private IP only. The proxy command above must run
+from a machine or network that can route to the production VPC private address;
+otherwise the public-domain and Cloud Run checks can still pass, but SQL
+evidence remains blocked.
+
+### 6.2 Small-value production rehearsal
+
+Before moving gas or USDC, use the free catalog service to prove production
+login, credential, discovery, and invoke work end to end. This writes production
+auth/credential/invocation records, but does not touch chain funds and does not
+need `PROD_E2E_RPC_URL`.
+
+```bash
+PROD_E2E_CONFIRM=I_UNDERSTAND_THIS_MUTATES_PROD_FREE_INVOKE \
+PROD_E2E_CONSUMER_PRIVATE_KEY='0x...' \
+PROD_E2E_SERVICE_ID='svc_oss_security_healthcheck' \
+PROD_E2E_ISSUE_AGENT_CREDENTIAL=1 \
+PROD_E2E_PRINT_ISSUED_CREDENTIAL_ONCE=1 \
+npm run e2e:prod-free-invoke
+
+npm run ci:prod-core-e2e-evidence
+```
+
+When the runner issues the credential, it intentionally sends no expiration
+field. Capture the printed `PROD_E2E_AGENT_CREDENTIAL` once, store it in the
+approved secret/env location, then reuse it for all later production E2E runs.
+Evidence files continue to redact the token.
+
+Only run the small-value lane after explicit go/no-go approval with a dedicated
+production test wallet and Agent credential. Do not use customer, treasury,
+founder, or personal wallets.
+
+```bash
+PROD_E2E_CONFIRM=I_UNDERSTAND_THIS_MUTATES_PROD_SMALL_VALUE \
+PROD_E2E_CONSUMER_PRIVATE_KEY='0x...' \
+PROD_E2E_AGENT_CREDENTIAL='agt_...' \
+PROD_E2E_SERVICE_ID='svc_synapse_mock_cost_1usdc' \
+PROD_E2E_RPC_URL='https://...' \
+PROD_GATEWAY_READONLY_DSN='postgresql://<readonly-user>@127.0.0.1:15544/synapse_gateway_prod' \
+npm run e2e:prod-core-small-value
+
+npm run ci:prod-core-e2e-evidence
+```
+
+The runner:
+
+1. Logs in with a fresh SIWE challenge and verifies the challenge uses
+   `synapse-network.ai`, not `www.synapse-network.ai`.
+2. Approves and deposits at least `5.00 USDC` into the production Synapse Vault
+   on Arbitrum One.
+3. Registers the deposit intent and waits for Gateway indexing to confirm the
+   deposit.
+4. Discovers the existing production catalog service and uses the live discovery
+   price for invoke.
+5. Invokes through `/api/v1/agent/invoke` with the provided Agent credential.
+6. Writes read-only SQL evidence for deposit, balance, ledger, audit,
+   invocation, budget events, and service state.
+7. Captures user-front screenshots for credits, billing, and invocations.
+8. Does not create production provider services.
+9. Does not bypass T+7. Consumer or provider withdrawal remains skipped unless
+   a separate mature-funds runbook explicitly authorizes the claim.
+
+`PROD_E2E_RPC_URL` is an Arbitrum One JSON-RPC endpoint, for example a dedicated
+Alchemy/Infura/QuickNode production endpoint. It is only required for the
+small-value lane because that lane reads token balances and submits
+approve/deposit transactions. The free invoke lane does not require RPC or gas.
+
+Acceptance:
+
+1. The deposit is confirmed once and balance buckets are non-negative.
+2. The invocation has DB evidence and is reconcilable to ledger/audit/budget
+   events.
+3. UI screenshots render without raw `503`, `RPC`, `HTTPException`, backend,
+   ledger, ticket, or error-code leakage.
+4. Optional withdrawal is reported as `blocked_by_maturity` unless the dedicated
+   test wallet already has mature funds and an explicit withdrawal runbook is
+   approved.
+
+## 7. SQL Evidence Templates
 
 Replace every `:placeholder` with identifiers from the E2E report. Do not guess
 IDs from unrelated rows.
 
-### 6.1 Owner, Agent, and Credential
+### 7.1 Owner, Agent, and Credential
 
 Run after consumer login, agent creation, or SDK/MCP credential flows.
 
@@ -198,7 +320,7 @@ Expected:
 Failure usually means auth, owner bootstrap, credential issuance, or budget
 bootstrap drift. Triage owner: Gateway runtime.
 
-### 6.2 Provider Registration and Service Discovery
+### 7.2 Provider Registration and Service Discovery
 
 Run after provider onboarding and service registration.
 
@@ -247,7 +369,7 @@ Failure usually means provider onboarding wrote only part of the service graph,
 or health/search indexing drifted. Triage owner: Gateway runtime and provider
 service.
 
-### 6.3 Consumer Deposit
+### 7.3 Consumer Deposit
 
 Run after on-chain deposit and Gateway deposit sync.
 
@@ -370,7 +492,7 @@ Expected:
 Failure usually means deposit indexing, idempotency, ledger write, or audit
 write drift. Triage owner: Gateway finance backend.
 
-### 6.4 Invoke Settlement
+### 7.4 Invoke Settlement
 
 Run after `discover_services -> invoke_and_pay -> get_receipt` or SDK invoke.
 
@@ -418,7 +540,7 @@ Expected:
 Failure usually means idempotency, budget hold, settlement, or receipt drift.
 Triage owner: Gateway runtime and finance backend.
 
-### 6.5 Provider Revenue Balance
+### 7.5 Provider Revenue Balance
 
 Run after a paid invocation that should credit the provider.
 
@@ -448,7 +570,7 @@ Expected:
 Failure usually means provider revenue split or ledger account routing drift.
 Triage owner: Gateway finance backend.
 
-### 6.6 Consumer Withdrawal
+### 7.6 Consumer Withdrawal
 
 Run after consumer withdrawal creation, manual review, approval-queue expiry, or completion. Consumer
 withdrawals require T+7 matured funds. Available balance alone is not enough.
@@ -514,7 +636,7 @@ Failure usually means T+7 maturity, active withdrawal lock, ticket signing,
 completion callback, or balance bucket drift. Triage owner: Gateway finance
 backend and admin finance control plane.
 
-### 6.7 Provider Withdrawal and Admin Review
+### 7.7 Provider Withdrawal and Admin Review
 
 Run after provider withdrawal request, admin approve/reject, and chain claim.
 Provider earnings require T+7 matured receivables. Earned receivable is not
@@ -565,7 +687,7 @@ Failure usually means T+7 maturity, admin review, one-ticket, idempotency, or
 completion drift. Triage owner: Gateway finance backend, Gateway-admin, and
 admin-front.
 
-### 6.7.1 Provider Mature Receivable UX Evidence
+### 7.7.1 Provider Mature Receivable UX Evidence
 
 Run when changing Provider withdraw balances, mature receivable formulas,
 localized withdrawal copy, MAX behavior, or minimum-withdrawal UX.
@@ -731,7 +853,7 @@ Expected:
    exception text.
 3. No evidence query mutates data.
 
-### 6.8 Notifications and Outboxes
+### 7.8 Notifications and Outboxes
 
 Run after deposit, invoke, withdrawal, support, Lark, Gmail, or in-app
 notification E2E.
@@ -771,7 +893,7 @@ Failure usually means after-commit notification write drift, outbox delivery
 failure, template drift, or unsafe blocking notification behavior. Triage owner:
 Gateway notifications and frontend.
 
-### 6.9 Analytics Outbox
+### 7.9 Analytics Outbox
 
 Run after analytics, admin dashboard, or release full-chain flows.
 
@@ -800,7 +922,7 @@ Expected:
 Failure usually means analytics outbox drift or ClickHouse transport drift.
 Triage owner: Gateway analytics and admin analytics.
 
-### 6.9.1 Admin Dashboard Projection Read Models
+### 7.9.1 Admin Dashboard Projection Read Models
 
 Run after Gateway-admin dashboard projection repositories, Admin-front
 overview/finance/runtime pages, or dashboard projection views change.
@@ -830,7 +952,7 @@ Failure usually means the dashboard read-model repository is flattening native
 Postgres types, a projection view is missing canonical columns, or Admin-front
 is rendering stale API fields. Triage owner: Gateway-admin dashboard analytics.
 
-### 6.10 Contract Deployment and Runtime Config
+### 7.10 Contract Deployment and Runtime Config
 
 Run after contract deployment dry-run, staging deployment, or signer/ABI/address
 changes.
@@ -865,7 +987,7 @@ Expected:
 Failure usually means chain config drift, signer mismatch, ABI/address drift, or
 fee policy drift. Triage owner: contracts and Gateway deployment.
 
-## 7. Cross-Flow Invariant Queries
+## 8. Cross-Flow Invariant Queries
 
 Run these after any full money-path regression.
 
@@ -912,9 +1034,9 @@ Expected: active and terminal status counts match the E2E run report. Unknown
 growth in `FAILED`, `FAILED_EXPIRED`, or `PENDING_MANUAL_REVIEW` requires
 triage.
 
-## 8. Contract Regression
+## 9. Contract Regression
 
-### 8.1 Local
+### 9.1 Local
 
 Run:
 
@@ -931,7 +1053,7 @@ also mutates Postgres. The contract gate must prove:
 4. Platform fee withdrawal is bounded by accrued fees.
 5. ABI changes do not silently break Gateway or frontend assumptions.
 
-### 8.2 Staging Dry-Run and Deploy
+### 9.2 Staging Dry-Run and Deploy
 
 Dry-run before any staging contract change:
 
@@ -957,7 +1079,7 @@ signer change, rerun:
 4. Provider withdrawal and admin review regression.
 5. Staging smoke and release evidence gates.
 
-### 8.3 Hardware Wallet Migration Readiness
+### 9.3 Hardware Wallet Migration Readiness
 
 Hardware wallet migration is a manual gated release path until the signer
 integration exists. The regression evidence must include:
@@ -971,7 +1093,7 @@ integration exists. The regression evidence must include:
 Do not put hardware wallet seeds, private keys, screenshots with secrets, or
 raw signing material into the repository.
 
-## 9. Release Acceptance
+## 10. Release Acceptance
 
 A full regression is green only when:
 
@@ -987,7 +1109,7 @@ A full regression is green only when:
 9. Contract evidence agrees with Gateway runtime configuration.
 10. Staging failures are triaged as product bugs, not repaired by ad hoc SQL.
 
-## 10. Validation for This Runbook
+## 11. Validation for This Runbook
 
 When changing this runbook:
 
