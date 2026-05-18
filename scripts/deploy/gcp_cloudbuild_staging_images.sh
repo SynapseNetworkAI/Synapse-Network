@@ -3,12 +3,18 @@ set -euo pipefail
 
 PROJECT_ID="${1:-${PROJECT_ID:-${GOOGLE_CLOUD_PROJECT:-${CLOUDSDK_CORE_PROJECT:-}}}}"
 REGION="${REGION:-us-central1}"
-REPOSITORY="${ARTIFACT_REGISTRY_REPOSITORY:-synapse-staging}"
 TAG="${TAG:-staging-$(date -u +%Y-%m-%d-%H%M%S)}"
 SERVICES="gateway,gateway-admin,user-front,admin-front,docs-front"
 JSON_OUTPUT=""
 BUILD_BACKEND="${STAGING_IMAGE_BUILD_BACKEND:-cloudbuild}"
 DOCKER_PLATFORM="${DOCKER_PLATFORM:-linux/amd64}"
+frontend_app_env="${NEXT_PUBLIC_APP_ENV:-staging}"
+if [[ "${frontend_app_env}" == "prod" || "${frontend_app_env}" == "production" ]]; then
+  default_repository="synapse-prod"
+else
+  default_repository="synapse-staging"
+fi
+REPOSITORY="${ARTIFACT_REGISTRY_REPOSITORY:-${default_repository}}"
 
 shift_if_project=false
 if [[ $# -gt 0 && "${1:-}" != --* ]]; then
@@ -60,6 +66,22 @@ gateway_admin_image="${registry}/gateway-admin:${TAG}"
 user_front_image="${registry}/user-front:${TAG}"
 admin_front_image="${registry}/admin-front:${TAG}"
 docs_front_image="${registry}/docs-front:${TAG}"
+
+if [[ "${frontend_app_env}" == "prod" || "${frontend_app_env}" == "production" ]]; then
+  frontend_gateway_base_url="${NEXT_PUBLIC_GATEWAY_BASE_URL:-https://api.synapse-network.ai}"
+  frontend_analytics_endpoint="${NEXT_PUBLIC_ANALYTICS_ENDPOINT:-https://api.synapse-network.ai/api/v1/events}"
+  frontend_docs_base_url="${NEXT_PUBLIC_DOCS_BASE_URL:-https://docs.synapse-network.ai}"
+  frontend_tx_explorer_base_url="${NEXT_PUBLIC_TX_EXPLORER_BASE_URL:-https://arbiscan.io}"
+  frontend_rpc_url="${NEXT_PUBLIC_RPC_URL:-https://arb1.arbitrum.io/rpc}"
+  frontend_contract_config_source="${CONTRACT_CONFIG_SOURCE:-src/contract-config.arbitrum-one.prod.json}"
+else
+  frontend_gateway_base_url="${NEXT_PUBLIC_GATEWAY_BASE_URL:-https://api-staging.synapse-network.ai}"
+  frontend_analytics_endpoint="${NEXT_PUBLIC_ANALYTICS_ENDPOINT:-https://api-staging.synapse-network.ai/api/v1/events}"
+  frontend_docs_base_url="${NEXT_PUBLIC_DOCS_BASE_URL:-https://docs-staging.synapse-network.ai}"
+  frontend_tx_explorer_base_url="${NEXT_PUBLIC_TX_EXPLORER_BASE_URL:-https://sepolia.arbiscan.io}"
+  frontend_rpc_url="${NEXT_PUBLIC_RPC_URL:-https://sepolia-rollup.arbitrum.io/rpc}"
+  frontend_contract_config_source="${CONTRACT_CONFIG_SOURCE:-src/contract-config.arbitrum-sepolia.example.json}"
+fi
 
 IFS=',' read -r -a requested_services <<<"${SERVICES}"
 normalized_services=()
@@ -146,19 +168,19 @@ if contains_service user-front; then
       - "--platform"
       - "${DOCKER_PLATFORM}"
       - "--build-arg"
-      - "NEXT_PUBLIC_GATEWAY_BASE_URL=${NEXT_PUBLIC_GATEWAY_BASE_URL:-https://api-staging.synapse-network.ai}"
+      - "NEXT_PUBLIC_GATEWAY_BASE_URL=${frontend_gateway_base_url}"
       - "--build-arg"
-      - "NEXT_PUBLIC_ANALYTICS_ENDPOINT=${NEXT_PUBLIC_ANALYTICS_ENDPOINT:-https://api-staging.synapse-network.ai/api/v1/events}"
+      - "NEXT_PUBLIC_ANALYTICS_ENDPOINT=${frontend_analytics_endpoint}"
       - "--build-arg"
       - "NEXT_PUBLIC_SERVICE_LIST_CACHE_TTL_MS=${NEXT_PUBLIC_SERVICE_LIST_CACHE_TTL_MS:-20000}"
       - "--build-arg"
-      - "NEXT_PUBLIC_APP_ENV=${NEXT_PUBLIC_APP_ENV:-staging}"
+      - "NEXT_PUBLIC_APP_ENV=${frontend_app_env}"
       - "--build-arg"
-      - "NEXT_PUBLIC_DOCS_BASE_URL=${NEXT_PUBLIC_DOCS_BASE_URL:-https://docs-staging.synapse-network.ai}"
+      - "NEXT_PUBLIC_DOCS_BASE_URL=${frontend_docs_base_url}"
       - "--build-arg"
-      - "NEXT_PUBLIC_TX_EXPLORER_BASE_URL=${NEXT_PUBLIC_TX_EXPLORER_BASE_URL:-https://sepolia.arbiscan.io}"
+      - "NEXT_PUBLIC_TX_EXPLORER_BASE_URL=${frontend_tx_explorer_base_url}"
       - "--build-arg"
-      - "NEXT_PUBLIC_RPC_URL=${NEXT_PUBLIC_RPC_URL:-https://sepolia-rollup.arbitrum.io/rpc}"
+      - "NEXT_PUBLIC_RPC_URL=${frontend_rpc_url}"
       - "--build-arg"
       - "NEXT_PUBLIC_SUPPORT_EMAIL=${NEXT_PUBLIC_SUPPORT_EMAIL:-support@synapse-network.ai}"
       - "--build-arg"
@@ -168,7 +190,7 @@ if contains_service user-front; then
       - "--build-arg"
       - "NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=${NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID:-}"
       - "--build-arg"
-      - "CONTRACT_CONFIG_SOURCE=${CONTRACT_CONFIG_SOURCE:-src/contract-config.arbitrum-sepolia.example.json}"
+      - "CONTRACT_CONFIG_SOURCE=${frontend_contract_config_source}"
       - "-t"
       - "${user_front_image}"
       - "services/user-front"
@@ -243,38 +265,46 @@ docker_build_and_push() {
 
   gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
 
+  docker_build_local() {
+    if docker buildx version >/dev/null 2>&1; then
+      docker buildx build --load "$@"
+      return
+    fi
+    docker build --pull "$@"
+  }
+
   if contains_service gateway; then
-    docker build --platform "${DOCKER_PLATFORM}" -t "${gateway_image}" services/gateway
+    docker_build_local --platform "${DOCKER_PLATFORM}" -t "${gateway_image}" services/gateway
     docker push "${gateway_image}"
   fi
 
   if contains_service gateway-admin; then
-    docker build --platform "${DOCKER_PLATFORM}" -f services/gateway-admin/Dockerfile -t "${gateway_admin_image}" .
+    docker_build_local --platform "${DOCKER_PLATFORM}" -f services/gateway-admin/Dockerfile -t "${gateway_admin_image}" .
     docker push "${gateway_admin_image}"
   fi
 
   if contains_service user-front; then
-    docker build \
+    docker_build_local \
       --platform "${DOCKER_PLATFORM}" \
-      --build-arg "NEXT_PUBLIC_GATEWAY_BASE_URL=${NEXT_PUBLIC_GATEWAY_BASE_URL:-https://api-staging.synapse-network.ai}" \
-      --build-arg "NEXT_PUBLIC_ANALYTICS_ENDPOINT=${NEXT_PUBLIC_ANALYTICS_ENDPOINT:-https://api-staging.synapse-network.ai/api/v1/events}" \
+      --build-arg "NEXT_PUBLIC_GATEWAY_BASE_URL=${frontend_gateway_base_url}" \
+      --build-arg "NEXT_PUBLIC_ANALYTICS_ENDPOINT=${frontend_analytics_endpoint}" \
       --build-arg "NEXT_PUBLIC_SERVICE_LIST_CACHE_TTL_MS=${NEXT_PUBLIC_SERVICE_LIST_CACHE_TTL_MS:-20000}" \
-      --build-arg "NEXT_PUBLIC_APP_ENV=${NEXT_PUBLIC_APP_ENV:-staging}" \
-      --build-arg "NEXT_PUBLIC_DOCS_BASE_URL=${NEXT_PUBLIC_DOCS_BASE_URL:-https://docs-staging.synapse-network.ai}" \
-      --build-arg "NEXT_PUBLIC_TX_EXPLORER_BASE_URL=${NEXT_PUBLIC_TX_EXPLORER_BASE_URL:-https://sepolia.arbiscan.io}" \
-      --build-arg "NEXT_PUBLIC_RPC_URL=${NEXT_PUBLIC_RPC_URL:-https://sepolia-rollup.arbitrum.io/rpc}" \
+      --build-arg "NEXT_PUBLIC_APP_ENV=${frontend_app_env}" \
+      --build-arg "NEXT_PUBLIC_DOCS_BASE_URL=${frontend_docs_base_url}" \
+      --build-arg "NEXT_PUBLIC_TX_EXPLORER_BASE_URL=${frontend_tx_explorer_base_url}" \
+      --build-arg "NEXT_PUBLIC_RPC_URL=${frontend_rpc_url}" \
       --build-arg "NEXT_PUBLIC_SUPPORT_EMAIL=${NEXT_PUBLIC_SUPPORT_EMAIL:-support@synapse-network.ai}" \
       --build-arg "NEXT_PUBLIC_SUPPORT_PORTAL_URL=${NEXT_PUBLIC_SUPPORT_PORTAL_URL:-}" \
       --build-arg "NEXT_PUBLIC_REOWN_PROJECT_ID=${NEXT_PUBLIC_REOWN_PROJECT_ID:-}" \
       --build-arg "NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=${NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID:-}" \
-      --build-arg "CONTRACT_CONFIG_SOURCE=${CONTRACT_CONFIG_SOURCE:-src/contract-config.arbitrum-sepolia.example.json}" \
+      --build-arg "CONTRACT_CONFIG_SOURCE=${frontend_contract_config_source}" \
       -t "${user_front_image}" \
       services/user-front
     docker push "${user_front_image}"
   fi
 
   if contains_service admin-front; then
-    docker build \
+    docker_build_local \
       --platform "${DOCKER_PLATFORM}" \
       --build-arg "NEXT_PUBLIC_ADMIN_API_BASE_URL=${NEXT_PUBLIC_ADMIN_API_BASE_URL:-https://admin-api-staging.synapse-network.ai}" \
       --build-arg "ADMIN_API_PROXY_TARGET=${ADMIN_API_PROXY_TARGET:-https://admin-api-staging.synapse-network.ai}" \
@@ -285,7 +315,8 @@ docker_build_and_push() {
   fi
 
   if contains_service docs-front; then
-    docker build \
+    docker pull --platform "${DOCKER_PLATFORM}" node:22-alpine
+    docker_build_local \
       --platform "${DOCKER_PLATFORM}" \
       --build-arg "NEXT_PUBLIC_APP_ENV=${NEXT_PUBLIC_APP_ENV:-staging}" \
       --build-arg "NEXT_PUBLIC_DOCS_BASE_URL=${NEXT_PUBLIC_DOCS_BASE_URL:-https://docs-staging.synapse-network.ai}" \

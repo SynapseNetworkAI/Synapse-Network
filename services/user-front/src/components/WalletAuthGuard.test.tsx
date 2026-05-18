@@ -12,6 +12,7 @@ const {
   clearAuthSessionMock,
   toastDefaultMock,
   toastErrorMock,
+  wagmiState,
 } = vi.hoisted(() => ({
   signMessageAsyncMock: vi.fn(),
   requestAuthChallengeMock: vi.fn(),
@@ -20,6 +21,13 @@ const {
   clearAuthSessionMock: vi.fn(),
   toastDefaultMock: vi.fn(),
   toastErrorMock: vi.fn(),
+  wagmiState: {
+    isConnected: true,
+    address: "0x82f1c188327bfc265357a85e8a6b4a34d562d6f8",
+    connectorName: "Injected",
+    connectorId: "injected",
+    chainId: 31337,
+  },
 }));
 
 vi.mock("react-hot-toast", () => ({
@@ -30,11 +38,12 @@ vi.mock("react-hot-toast", () => ({
 
 vi.mock("wagmi", () => ({
   useAccount: () => ({
-    isConnected: true,
-    address: "0x82f1c188327bfc265357a85e8a6b4a34d562d6f8",
+    isConnected: wagmiState.isConnected,
+    address: wagmiState.address,
+    connector: { name: wagmiState.connectorName, id: wagmiState.connectorId },
   }),
   useAccountEffect: () => undefined,
-  useChainId: () => 31337,
+  useChainId: () => wagmiState.chainId,
   useDisconnect: () => ({ disconnect: vi.fn() }),
   useSignMessage: () => ({ signMessageAsync: signMessageAsyncMock }),
 }));
@@ -92,6 +101,8 @@ vi.mock("@/components/i18n/LanguageProvider", () => ({
         "walletActions.walletConnectorNotReady": "Wallet not ready.",
         "walletActions.walletSingleAccount": "Select one account.",
         "walletActions.walletUnstable": "Wallet unstable.",
+        "walletActions.walletUnsupportedForArbitrum":
+          "Phantom currently does not support Arbitrum. Please use MetaMask or Rabby for Synapse on Arbitrum.",
         "walletActions.authFailedPrefix": `Auth failed: ${vars?.message ?? ""}`,
       };
       return messages[key] ?? fallbackText ?? key;
@@ -114,6 +125,16 @@ describe("WalletAuthGuard", () => {
   beforeEach(() => {
     cleanup();
     vi.clearAllMocks();
+    wagmiState.isConnected = true;
+    wagmiState.address = "0x82f1c188327bfc265357a85e8a6b4a34d562d6f8";
+    wagmiState.connectorName = "Injected";
+    wagmiState.connectorId = "injected";
+    wagmiState.chainId = 31337;
+    (
+      globalThis as typeof globalThis & {
+        ethereum?: unknown;
+      }
+    ).ethereum = undefined;
     requestAuthChallengeMock.mockResolvedValue({
       success: true,
       domain: "localhost:3000",
@@ -178,5 +199,67 @@ describe("WalletAuthGuard", () => {
       id: "wallet-status",
     });
     expect(toastErrorMock).not.toHaveBeenCalled();
+  });
+
+  it("blocks Phantom on Arbitrum before requesting a challenge", async () => {
+    const user = userEvent.setup();
+    wagmiState.connectorName = "Phantom";
+    wagmiState.connectorId = "phantom";
+    wagmiState.chainId = 42161;
+    (
+      globalThis as typeof globalThis & {
+        ethereum?: unknown;
+      }
+    ).ethereum = { isPhantom: true };
+
+    render(
+      <WalletAuthGuard>
+        <AuthorizeButton />
+      </WalletAuthGuard>
+    );
+
+    await user.click(screen.getByRole("button", { name: "authorize" }));
+
+    await waitFor(() => {
+      expect(toastDefaultMock).toHaveBeenCalledWith(
+        "Phantom currently does not support Arbitrum. Please use MetaMask or Rabby for Synapse on Arbitrum.",
+        {
+          icon: "🧭",
+          id: "wallet-status",
+        }
+      );
+    });
+
+    expect(requestAuthChallengeMock).not.toHaveBeenCalled();
+    expect(signMessageAsyncMock).not.toHaveBeenCalled();
+  });
+
+  it("allows MetaMask on Arbitrum when Phantom is also installed", async () => {
+    const user = userEvent.setup();
+    wagmiState.connectorName = "MetaMask";
+    wagmiState.connectorId = "metaMask";
+    wagmiState.chainId = 42161;
+    (
+      globalThis as typeof globalThis & {
+        ethereum?: unknown;
+      }
+    ).ethereum = {
+      providers: [{ isMetaMask: true }, { isPhantom: true }],
+    };
+
+    render(
+      <WalletAuthGuard>
+        <AuthorizeButton />
+      </WalletAuthGuard>
+    );
+
+    await user.click(screen.getByRole("button", { name: "authorize" }));
+
+    expect(requestAuthChallengeMock).toHaveBeenCalledTimes(1);
+    expect(
+      screen.queryByText(
+        "Phantom currently does not support Arbitrum. Please use MetaMask or Rabby for Synapse on Arbitrum."
+      )
+    ).toBeNull();
   });
 });
