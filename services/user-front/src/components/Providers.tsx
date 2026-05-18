@@ -3,46 +3,37 @@
 import * as React from "react";
 import {
   RainbowKitProvider,
-  getDefaultConfig,
+  connectorsForWallets,
   darkTheme,
 } from "@rainbow-me/rainbowkit";
+import {
+  metaMaskWallet,
+  rabbyWallet,
+  walletConnectWallet,
+} from "@rainbow-me/rainbowkit/wallets";
 import { WagmiProvider, createConfig, http } from "wagmi";
 import { injected } from "wagmi/connectors";
-import { hardhat, sepolia, baseSepolia, arbitrumSepolia } from "wagmi/chains";
+import { arbitrum, arbitrumSepolia, hardhat } from "wagmi/chains";
 import { QueryClientProvider, QueryClient } from "@tanstack/react-query";
 import {
   isIgnorableWalletExtensionError,
   toWalletExtensionErrorDetails,
 } from "@/utils/walletExtensionErrors";
-import { getRpcUrlForChain } from "@/utils/runtimeEnv";
+import {
+  getInjectedEthereumProvider,
+  getWalletCompatibilityMessage,
+} from "@/utils/walletCompatibility";
+import { getRpcUrlForChain, getRuntimeEnvironmentConfig } from "@/utils/runtimeEnv";
 import "@rainbow-me/rainbowkit/styles.css";
-
-const chains = [hardhat, sepolia, baseSepolia, arbitrumSepolia] as const;
 const walletConnectProjectId =
   process.env.NEXT_PUBLIC_REOWN_PROJECT_ID?.trim() ||
   process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID?.trim() ||
   "";
-
-const config = walletConnectProjectId
-  ? getDefaultConfig({
-      appName: "Synapse Network Dashboard",
-      projectId: walletConnectProjectId,
-      chains,
-      ssr: false,
-    })
-  : createConfig({
-      chains,
-      ssr: false,
-      connectors: [
-        injected({ shimDisconnect: true, unstable_shimAsyncInject: 2_000 }),
-      ],
-      transports: {
-        [hardhat.id]: http(getRpcUrlForChain(hardhat.id)),
-        [sepolia.id]: http(),
-        [baseSepolia.id]: http(),
-        [arbitrumSepolia.id]: http(getRpcUrlForChain(arbitrumSepolia.id)),
-      },
-    });
+const transports = {
+  [hardhat.id]: http(getRpcUrlForChain(hardhat.id)),
+  [arbitrumSepolia.id]: http(getRpcUrlForChain(arbitrumSepolia.id)),
+  [arbitrum.id]: http(getRpcUrlForChain(arbitrum.id)),
+} as const;
 
 const queryClient = new QueryClient();
 
@@ -86,10 +77,52 @@ if (globalThis.window === undefined && serverGlobal.indexedDB === undefined) {
   serverGlobal.DOMException = class DOMException extends Error {};
 }
 
+function getSupportedChains(appEnv: ReturnType<typeof getRuntimeEnvironmentConfig>["appEnv"]) {
+  switch (appEnv) {
+    case "prod":
+      return [arbitrum] as const;
+    case "staging":
+      return [arbitrumSepolia] as const;
+    case "local":
+    default:
+      return [hardhat] as const;
+  }
+}
+
 export function Providers({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   const [mounted, setMounted] = React.useState(false);
+  const runtimeEnv = getRuntimeEnvironmentConfig();
+  const chains = React.useMemo(
+    () => getSupportedChains(runtimeEnv.appEnv),
+    [runtimeEnv.appEnv]
+  );
+  const config = React.useMemo(
+    () =>
+      createConfig({
+        chains,
+        ssr: false,
+        connectors: walletConnectProjectId
+          ? connectorsForWallets(
+              [
+                {
+                  groupName: "Recommended",
+                  wallets: [metaMaskWallet, rabbyWallet, walletConnectWallet],
+                },
+              ],
+              {
+                appName: "Synapse Network Dashboard",
+                projectId: walletConnectProjectId,
+              }
+            )
+          : [
+              injected({ shimDisconnect: true, unstable_shimAsyncInject: 2_000 }),
+            ],
+        transports,
+      }),
+    [chains]
+  );
 
   React.useEffect(() => {
     setMounted(true);
@@ -98,6 +131,15 @@ export function Providers({
       console.warn(
         "[Reown Config] Missing NEXT_PUBLIC_REOWN_PROJECT_ID/NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID. WalletConnect disabled; using injected wallet connector only."
       );
+    }
+
+    const walletCompatibilityMessage = getWalletCompatibilityMessage({
+      chainId: runtimeEnv.chainId,
+      connectorId: null,
+      injectedProvider: getInjectedEthereumProvider(),
+    });
+    if (walletCompatibilityMessage) {
+      console.warn("[Wallet Compatibility]", walletCompatibilityMessage);
     }
 
     const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
@@ -147,7 +189,7 @@ export function Providers({
         capture: true,
       });
     };
-  }, []);
+  }, [runtimeEnv.chainId]);
 
   if (!mounted) {
     return null;
