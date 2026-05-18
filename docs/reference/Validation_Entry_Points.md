@@ -77,6 +77,10 @@ From repository root:
 57. `npm run e2e:consumer-withdraw-approval-expiry:local`
 58. `npm run ci:consumer-withdraw-approval-expiry-local-evidence`
 59. `npm run ci:migration-seed-guard`
+60. `npm run e2e:prod-smoke-readonly`
+61. `npm run e2e:prod-free-invoke`
+62. `npm run e2e:prod-core-small-value`
+63. `npm run ci:prod-core-e2e-evidence`
 
 Use these wrappers when final integration confidence is required.
 
@@ -92,6 +96,13 @@ Infrastructure preflight:
 2. `bash scripts/deploy/migrate_db.sh local|staging|prod` for explicit schema/reference migration; prod requires `SYNAPSE_MIGRATION_CONFIRM=I_UNDERSTAND_THIS_CHANGES_PROD`
 3. `npm run ci:staging-schema-guard -- --project fabled-archive-494108-k5 --port 15543` after starting Cloud SQL Auth Proxy on `15543`; verifies staging Gateway/Admin databases have required tables, migrator ownership, runtime grants, and consistent DSN/password secrets.
 4. `npm run ci:staging-drift-guard` verifies staging Cloud SQL keeps the V1 Auth Proxy security posture: public IPv4 is retained, authorized networks are empty, connector enforcement is `REQUIRED`, IAM database authentication is on, backups/PITR are enabled, and password policy is enabled.
+
+Production core E2E:
+
+1. `npm run e2e:prod-smoke-readonly` validates production public domains, Gateway/Admin health, docs assets, Cloud Run env when `gcloud` is authenticated, and read-only Cloud SQL evidence through `PROD_GATEWAY_READONLY_DSN`. Prod Cloud SQL is private-IP only, so local SQL evidence requires Cloud SQL Auth Proxy with `--private-ip` from a network that can route to the prod VPC.
+2. `npm run e2e:prod-free-invoke` validates production login, optional no-expiry credential issue, discovery, and free catalog invoke through the production free catalog service, currently `svc_oss_security_healthcheck`. It requires `PROD_E2E_CONFIRM=I_UNDERSTAND_THIS_MUTATES_PROD_FREE_INVOKE` and a dedicated `PROD_E2E_CONSUMER_PRIVATE_KEY`, but no RPC, gas, or USDC.
+3. `npm run e2e:prod-core-small-value` is the explicit small-value production rehearsal. It requires `PROD_E2E_CONFIRM=I_UNDERSTAND_THIS_MUTATES_PROD_SMALL_VALUE`, a dedicated `PROD_E2E_CONSUMER_PRIVATE_KEY`, `PROD_E2E_AGENT_CREDENTIAL`, `PROD_E2E_RPC_URL`, and a read-only SQL DSN. `PROD_E2E_RPC_URL` is the Arbitrum One JSON-RPC endpoint used only for chain balance reads and approve/deposit transactions. It deposits at least `5.00 USDC`, invokes an existing catalog service, and refuses to create provider services.
+4. `npm run ci:prod-core-e2e-evidence` validates the latest production core evidence bundle under `docs/evidence/prod/core-e2e/`. Evidence must include `report.json`, `trace.jsonl`, SQL/API/chain evidence, screenshots for small-value runs, and no raw private keys, agent credentials, bearer tokens, or signatures.
 
 Local hook bootstrap:
 

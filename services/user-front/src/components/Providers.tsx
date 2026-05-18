@@ -2,33 +2,42 @@
 
 import * as React from "react";
 import {
-  RainbowKitProvider,
   connectorsForWallets,
+  RainbowKitProvider,
   darkTheme,
 } from "@rainbow-me/rainbowkit";
 import {
+  coinbaseWallet,
   metaMaskWallet,
   rabbyWallet,
   walletConnectWallet,
 } from "@rainbow-me/rainbowkit/wallets";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { EIP1193Provider } from "viem";
 import { WagmiProvider, createConfig, http } from "wagmi";
 import { injected } from "wagmi/connectors";
 import { arbitrum, arbitrumSepolia, hardhat } from "wagmi/chains";
-import { QueryClientProvider, QueryClient } from "@tanstack/react-query";
+import { getSupportedEvmInjectedProvider } from "@/utils/evmProvider";
+import {
+  getInjectedEthereumProvider,
+  getWalletCompatibilityMessage,
+} from "@/utils/walletCompatibility";
 import {
   isIgnorableWalletExtensionError,
   toWalletExtensionErrorDetails,
 } from "@/utils/walletExtensionErrors";
 import {
-  getInjectedEthereumProvider,
-  getWalletCompatibilityMessage,
-} from "@/utils/walletCompatibility";
-import { getRpcUrlForChain, getRuntimeEnvironmentConfig } from "@/utils/runtimeEnv";
+  getRpcUrlForChain,
+  getRuntimeEnvironmentConfig,
+} from "@/utils/runtimeEnv";
 import "@rainbow-me/rainbowkit/styles.css";
+
 const walletConnectProjectId =
   process.env.NEXT_PUBLIC_REOWN_PROJECT_ID?.trim() ||
   process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID?.trim() ||
   "";
+
+const appName = "Synapse Network Dashboard";
 const transports = {
   [hardhat.id]: http(getRpcUrlForChain(hardhat.id)),
   [arbitrumSepolia.id]: http(getRpcUrlForChain(arbitrumSepolia.id)),
@@ -56,7 +65,7 @@ type WalletPolyfillGlobal = {
   DOMException?: new (message?: string) => Error;
 };
 
-// 核心修复：防止 WalletConnect 的底层依赖(idb-keyval) 在 Next.js 服务端预渲染时因找不到浏览器环境的 indexedDB 报错崩溃
+// Prevent WalletConnect SSR crashes when browser-only indexedDB APIs are missing.
 const serverGlobal = globalThis as unknown as WalletPolyfillGlobal;
 if (globalThis.window === undefined && serverGlobal.indexedDB === undefined) {
   serverGlobal.indexedDB = {
@@ -77,7 +86,9 @@ if (globalThis.window === undefined && serverGlobal.indexedDB === undefined) {
   serverGlobal.DOMException = class DOMException extends Error {};
 }
 
-function getSupportedChains(appEnv: ReturnType<typeof getRuntimeEnvironmentConfig>["appEnv"]) {
+function getSupportedChains(
+  appEnv: ReturnType<typeof getRuntimeEnvironmentConfig>["appEnv"]
+) {
   switch (appEnv) {
     case "prod":
       return [arbitrum] as const;
@@ -108,16 +119,36 @@ export function Providers({
               [
                 {
                   groupName: "Recommended",
-                  wallets: [metaMaskWallet, rabbyWallet, walletConnectWallet],
+                  wallets: [
+                    metaMaskWallet,
+                    rabbyWallet,
+                    coinbaseWallet,
+                    walletConnectWallet,
+                  ],
                 },
               ],
               {
-                appName: "Synapse Network Dashboard",
+                appName,
                 projectId: walletConnectProjectId,
               }
             )
           : [
-              injected({ shimDisconnect: true, unstable_shimAsyncInject: 2_000 }),
+              injected({
+                shimDisconnect: true,
+                unstable_shimAsyncInject: 2_000,
+                target: () => {
+                  const provider = getSupportedEvmInjectedProvider();
+                  if (!provider) {
+                    return undefined;
+                  }
+
+                  return {
+                    id: "synapse-supported-evm-wallet",
+                    name: "Supported EVM Wallet",
+                    provider: provider as unknown as EIP1193Provider,
+                  };
+                },
+              }),
             ],
         transports,
       }),

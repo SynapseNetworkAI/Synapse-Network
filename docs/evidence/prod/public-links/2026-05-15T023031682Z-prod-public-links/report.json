@@ -1,0 +1,190 @@
+{
+  "environment": "prod",
+  "generatedAt": "2026-05-15T02:30:43.682Z",
+  "status": "failed",
+  "rootUrl": "https://www.synapse-network.ai",
+  "docsUrl": "https://docs.synapse-network.ai",
+  "docsRepoUrl": "https://github.com/SynapseNetworkAI/Synapse-Network-Docs",
+  "failed": [
+    {
+      "name": "docs_api_reference_github",
+      "detail": "expected one of 200, got 404"
+    },
+    {
+      "name": "docs_agent_builders_github",
+      "detail": "expected one of 200, got 404"
+    },
+    {
+      "name": "docs_api_reference_open_menu",
+      "detail": "locator.click: Error: strict mode violation: getByRole('button', { name: 'Open' }) resolved to 2 elements:\n    1) <button type=\"button\" data-search=\"\" aria-label=\"Open Search\" class=\"inline-flex items-center justify-center text-sm font-medium transition-colors duration-100 disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fd-ring hover:bg-fd-accent hover:text-fd-accent-foreground p-1.5 [&_svg]:size-4.5 rounded-lg\">…</button> aka getByRole('button', { name: 'Open Search' })\n    2) <button type=\"button\" data-state=\"closed\" aria-expanded=\"false\" aria-haspopup=\"dialog\" aria-controls=\"radix-_R_9qav5u9flb_\" class=\"inline-flex items-center justify-center rounded-md p-2 font-medium transition-colors duration-100 disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fd-ring border bg-fd-secondary text-fd-secondary-foreground hover:bg-fd-accent hover:text-fd-accent-foreground px-2 py-1.5 text-xs gap-2 data-[state=open]:bg-fd-…>…</button> aka getByRole('button', { name: 'Open', exact: true })\n\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: 'Open' })\u001b[22m\n"
+    },
+    {
+      "name": "docs_agent_builders_open_menu",
+      "detail": "locator.click: Error: strict mode violation: getByRole('button', { name: 'Open' }) resolved to 2 elements:\n    1) <button type=\"button\" data-search=\"\" aria-label=\"Open Search\" class=\"inline-flex items-center justify-center text-sm font-medium transition-colors duration-100 disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fd-ring hover:bg-fd-accent hover:text-fd-accent-foreground p-1.5 [&_svg]:size-4.5 rounded-lg\">…</button> aka getByRole('button', { name: 'Open Search' })\n    2) <button type=\"button\" data-state=\"closed\" aria-expanded=\"false\" aria-haspopup=\"dialog\" aria-controls=\"radix-_R_9qav5u9flb_\" class=\"inline-flex items-center justify-center rounded-md p-2 font-medium transition-colors duration-100 disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fd-ring border bg-fd-secondary text-fd-secondary-foreground hover:bg-fd-accent hover:text-fd-accent-foreground px-2 py-1.5 text-xs gap-2 data-[state=open]:bg-fd-…>…</button> aka getByRole('button', { name: 'Open', exact: true })\n\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: 'Open' })\u001b[22m\n"
+    }
+  ],
+  "checks": [
+    {
+      "name": "www_home",
+      "url": "https://www.synapse-network.ai/",
+      "status": 200,
+      "ok": true,
+      "detail": "expected status",
+      "startedAt": "2026-05-15T02:30:31.682Z",
+      "finishedAt": "2026-05-15T02:30:32.167Z"
+    },
+    {
+      "name": "www_llms",
+      "url": "https://www.synapse-network.ai/llms.txt",
+      "status": 200,
+      "ok": true,
+      "detail": "expected status",
+      "startedAt": "2026-05-15T02:30:32.167Z",
+      "finishedAt": "2026-05-15T02:30:32.435Z"
+    },
+    {
+      "name": "docs_home",
+      "url": "https://docs.synapse-network.ai/",
+      "status": 200,
+      "ok": true,
+      "detail": "expected status",
+      "startedAt": "2026-05-15T02:30:32.435Z",
+      "finishedAt": "2026-05-15T02:30:34.449Z"
+    },
+    {
+      "name": "docs_api_reference",
+      "url": "https://docs.synapse-network.ai/api-reference",
+      "status": 200,
+      "ok": true,
+      "detail": "expected status",
+      "startedAt": "2026-05-15T02:30:34.449Z",
+      "finishedAt": "2026-05-15T02:30:34.746Z"
+    },
+    {
+      "name": "docs_get_started",
+      "url": "https://docs.synapse-network.ai/get-started/agent-builders",
+      "status": 200,
+      "ok": true,
+      "detail": "expected status",
+      "startedAt": "2026-05-15T02:30:34.746Z",
+      "finishedAt": "2026-05-15T02:30:35.085Z"
+    },
+    {
+      "name": "docs_sdks",
+      "url": "https://docs.synapse-network.ai/sdks/typescript",
+      "status": 200,
+      "ok": true,
+      "detail": "expected status",
+      "startedAt": "2026-05-15T02:30:35.085Z",
+      "finishedAt": "2026-05-15T02:30:35.367Z"
+    },
+    {
+      "name": "docs_smart_contracts",
+      "url": "https://docs.synapse-network.ai/smart-contracts/synapse-core",
+      "status": 200,
+      "ok": true,
+      "detail": "expected status",
+      "startedAt": "2026-05-15T02:30:35.368Z",
+      "finishedAt": "2026-05-15T02:30:35.657Z"
+    },
+    {
+      "name": "docs_support",
+      "url": "https://docs.synapse-network.ai/support",
+      "status": 200,
+      "ok": true,
+      "detail": "expected status",
+      "startedAt": "2026-05-15T02:30:35.657Z",
+      "finishedAt": "2026-05-15T02:30:35.936Z"
+    },
+    {
+      "name": "docs_api_reference_markdown",
+      "url": "https://docs.synapse-network.ai/llms.mdx/docs/api-reference/content.md",
+      "status": 200,
+      "ok": true,
+      "detail": "expected status",
+      "startedAt": "2026-05-15T02:30:35.936Z",
+      "finishedAt": "2026-05-15T02:30:36.265Z"
+    },
+    {
+      "name": "docs_api_reference_github",
+      "url": "https://github.com/SynapseNetworkAI/Synapse-Network-Docs/blob/main/content/docs/api-reference.mdx",
+      "status": 404,
+      "ok": false,
+      "detail": "expected one of 200, got 404",
+      "startedAt": "2026-05-15T02:30:36.265Z",
+      "finishedAt": "2026-05-15T02:30:36.927Z"
+    },
+    {
+      "name": "docs_agent_builders_github",
+      "url": "https://github.com/SynapseNetworkAI/Synapse-Network-Docs/blob/main/content/docs/get-started/agent-builders.mdx",
+      "status": 404,
+      "ok": false,
+      "detail": "expected one of 200, got 404",
+      "startedAt": "2026-05-15T02:30:36.927Z",
+      "finishedAt": "2026-05-15T02:30:37.436Z"
+    },
+    {
+      "name": "docs_api_reference_open_menu",
+      "url": "https://docs.synapse-network.ai/api-reference",
+      "status": 200,
+      "ok": false,
+      "detail": "locator.click: Error: strict mode violation: getByRole('button', { name: 'Open' }) resolved to 2 elements:\n    1) <button type=\"button\" data-search=\"\" aria-label=\"Open Search\" class=\"inline-flex items-center justify-center text-sm font-medium transition-colors duration-100 disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fd-ring hover:bg-fd-accent hover:text-fd-accent-foreground p-1.5 [&_svg]:size-4.5 rounded-lg\">…</button> aka getByRole('button', { name: 'Open Search' })\n    2) <button type=\"button\" data-state=\"closed\" aria-expanded=\"false\" aria-haspopup=\"dialog\" aria-controls=\"radix-_R_9qav5u9flb_\" class=\"inline-flex items-center justify-center rounded-md p-2 font-medium transition-colors duration-100 disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fd-ring border bg-fd-secondary text-fd-secondary-foreground hover:bg-fd-accent hover:text-fd-accent-foreground px-2 py-1.5 text-xs gap-2 data-[state=open]:bg-fd-…>…</button> aka getByRole('button', { name: 'Open', exact: true })\n\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: 'Open' })\u001b[22m\n",
+      "startedAt": "2026-05-15T02:30:37.436Z",
+      "finishedAt": "2026-05-15T02:30:37.693Z"
+    },
+    {
+      "name": "docs_agent_builders_open_menu",
+      "url": "https://docs.synapse-network.ai/get-started/agent-builders",
+      "status": 200,
+      "ok": false,
+      "detail": "locator.click: Error: strict mode violation: getByRole('button', { name: 'Open' }) resolved to 2 elements:\n    1) <button type=\"button\" data-search=\"\" aria-label=\"Open Search\" class=\"inline-flex items-center justify-center text-sm font-medium transition-colors duration-100 disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fd-ring hover:bg-fd-accent hover:text-fd-accent-foreground p-1.5 [&_svg]:size-4.5 rounded-lg\">…</button> aka getByRole('button', { name: 'Open Search' })\n    2) <button type=\"button\" data-state=\"closed\" aria-expanded=\"false\" aria-haspopup=\"dialog\" aria-controls=\"radix-_R_9qav5u9flb_\" class=\"inline-flex items-center justify-center rounded-md p-2 font-medium transition-colors duration-100 disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fd-ring border bg-fd-secondary text-fd-secondary-foreground hover:bg-fd-accent hover:text-fd-accent-foreground px-2 py-1.5 text-xs gap-2 data-[state=open]:bg-fd-…>…</button> aka getByRole('button', { name: 'Open', exact: true })\n\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: 'Open' })\u001b[22m\n",
+      "startedAt": "2026-05-15T02:30:39.643Z",
+      "finishedAt": "2026-05-15T02:30:39.901Z"
+    },
+    {
+      "name": "docs_repo_root",
+      "url": "https://github.com/SynapseNetworkAI/Synapse-Network-Docs",
+      "status": 200,
+      "ok": true,
+      "detail": "expected status",
+      "startedAt": "2026-05-15T02:30:40.701Z",
+      "finishedAt": "2026-05-15T02:30:41.539Z"
+    },
+    {
+      "name": "sdk_repo_root",
+      "url": "https://github.com/SynapseNetworkAI/Synapse-Network-Sdk",
+      "status": 200,
+      "ok": true,
+      "detail": "expected status",
+      "startedAt": "2026-05-15T02:30:41.539Z",
+      "finishedAt": "2026-05-15T02:30:42.578Z"
+    },
+    {
+      "name": "gateway_health",
+      "url": "https://api.synapse-network.ai/health",
+      "status": 200,
+      "ok": true,
+      "detail": "public health endpoint",
+      "startedAt": "2026-05-15T02:30:42.578Z",
+      "finishedAt": "2026-05-15T02:30:42.856Z"
+    },
+    {
+      "name": "admin_gate",
+      "url": "https://admin.synapse-network.ai/",
+      "status": 403,
+      "ok": true,
+      "detail": "protected gate expected",
+      "startedAt": "2026-05-15T02:30:42.856Z",
+      "finishedAt": "2026-05-15T02:30:43.209Z"
+    },
+    {
+      "name": "admin_api_gate",
+      "url": "https://admin-api.synapse-network.ai/",
+      "status": 403,
+      "ok": true,
+      "detail": "protected gate expected",
+      "startedAt": "2026-05-15T02:30:43.209Z",
+      "finishedAt": "2026-05-15T02:30:43.682Z"
+    }
+  ]
+}

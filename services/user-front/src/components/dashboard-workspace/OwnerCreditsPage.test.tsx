@@ -266,6 +266,7 @@ describe("OwnerCreditsPage", () => {
 
   it("does not render withdrawal processing as a credits-page bucket", async () => {
     ownerStatsState.value = {
+      ...ownerStatsState.value,
       ownerBalance: "0",
       consumerPendingBalance: "185.99",
       consumerFrozenBalance: "0",
@@ -307,6 +308,7 @@ describe("OwnerCreditsPage", () => {
 
   it("keeps mixed pending display focused on deposit sync only", async () => {
     ownerStatsState.value = {
+      ...ownerStatsState.value,
       ownerBalance: "2",
       consumerPendingBalance: "20",
       consumerFrozenBalance: "0",
@@ -342,6 +344,7 @@ describe("OwnerCreditsPage", () => {
 
   it("keeps manual review withdrawal funds in the frozen bucket", async () => {
     ownerStatsState.value = {
+      ...ownerStatsState.value,
       ownerBalance: "2",
       consumerPendingBalance: "0",
       consumerFrozenBalance: "12.50",
@@ -366,6 +369,7 @@ describe("OwnerCreditsPage", () => {
 
   it("keeps approved withdrawals out of the credits-page primary actions", async () => {
     ownerStatsState.value = {
+      ...ownerStatsState.value,
       ownerBalance: "249",
       consumerPendingBalance: "501",
       consumerFrozenBalance: "0",

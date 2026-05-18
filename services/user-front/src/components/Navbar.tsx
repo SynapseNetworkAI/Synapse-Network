@@ -12,27 +12,25 @@ import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { getDocsUrl } from "@/utils/docsUrl";
 import { getGatewayBaseUrl } from "@/utils/gatewayApi";
 
-type TopNavHref = "/marketplace" | "/blog" | "/about" | "/docs";
+type TopNavKey = "marketplace" | "blog" | "about" | "docs";
 
 export default function Navbar() {
   const pathname = usePathname();
   const activePath = pathname ?? "/";
-  const isDocsPage = activePath.startsWith("/docs");
   const isAboutPage =
     activePath === "/about" || activePath.startsWith("/about/");
   const isMarketingPage =
-    !isDocsPage &&
-    (activePath === "/" ||
-      activePath === "/marketplace" ||
-      activePath === "/blog" ||
-      activePath === "/about");
+    activePath === "/" ||
+    activePath === "/marketplace" ||
+    activePath === "/blog" ||
+    activePath === "/about";
   const { t, lang } = useLanguage();
   const docsUrl = getDocsUrl();
 
   const [gatewayStatus, setGatewayStatus] = useState<
     "online" | "offline" | "checking"
   >("checking");
-  const [hoveredTopNavHref, setHoveredTopNavHref] = useState<TopNavHref | null>(
+  const [hoveredTopNavKey, setHoveredTopNavKey] = useState<TopNavKey | null>(
     null
   );
   const [quickAccessOpen, setQuickAccessOpen] = useState(false);
@@ -47,7 +45,7 @@ export default function Navbar() {
   });
   const topNavTrackRef = useRef<HTMLDivElement | null>(null);
   const topNavItemRefs = useRef<
-    Partial<Record<TopNavHref, HTMLAnchorElement | null>>
+    Partial<Record<TopNavKey, HTMLAnchorElement | null>>
   >({});
 
   let gatewayStatusLabel = t("nav.checking");
@@ -72,22 +70,13 @@ export default function Navbar() {
 
     const checkGateway = async () => {
       try {
-        const res = await fetch(
-          `${getGatewayBaseUrl()}/api/v1/services/discover`,
-          {
-            method: "GET",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            signal: AbortSignal.timeout(3000),
-          }
-        );
+        const res = await fetch(`${getGatewayBaseUrl()}/health`, {
+          method: "GET",
+          signal: AbortSignal.timeout(3000),
+        });
 
         if (mounted) {
-          if (!res.ok) {
-            // Any HTTP response still means the gateway is reachable.
-          }
-          setGatewayStatus("online");
+          setGatewayStatus(res.ok ? "online" : "offline");
         }
       } catch {
         if (mounted) {
@@ -128,18 +117,18 @@ export default function Navbar() {
     setQuickAccessOpen(false);
   }, [activePath]);
 
-  const getActiveTopNavHref = useCallback((): TopNavHref => {
+  const getActiveTopNavKey = useCallback((): TopNavKey => {
     if (activePath === "/marketplace" || activePath.startsWith("/marketplace/"))
-      return "/marketplace";
+      return "marketplace";
     if (activePath === "/blog" || activePath.startsWith("/blog/"))
-      return "/blog";
+      return "blog";
     if (activePath === "/about" || activePath.startsWith("/about/"))
-      return "/about";
-    return "/marketplace";
+      return "about";
+    return "marketplace";
   }, [activePath]);
 
-  const getTopNavLinkClasses = (href: TopNavHref) => {
-    const isHighlighted = (hoveredTopNavHref ?? getActiveTopNavHref()) === href;
+  const getTopNavLinkClasses = (key: TopNavKey) => {
+    const isHighlighted = (hoveredTopNavKey ?? getActiveTopNavKey()) === key;
 
     return [
       "relative z-10 rounded-full px-3.5 py-1.5 text-sm font-semibold tracking-[0.01em] transition-transform duration-100 active:scale-[0.98]",
@@ -154,8 +143,8 @@ export default function Navbar() {
     }
 
     const updateSlider = () => {
-      const targetHref = hoveredTopNavHref ?? getActiveTopNavHref();
-      const activeElement = topNavItemRefs.current[targetHref];
+      const targetKey = hoveredTopNavKey ?? getActiveTopNavKey();
+      const activeElement = topNavItemRefs.current[targetKey];
       const trackElement = topNavTrackRef.current;
       if (!activeElement || !trackElement) {
         setSliderStyle((prev) => ({ ...prev, visible: false }));
@@ -175,7 +164,7 @@ export default function Navbar() {
       cancelAnimationFrame(frame);
       window.removeEventListener("resize", updateSlider);
     };
-  }, [getActiveTopNavHref, hoveredTopNavHref, isMarketingPage, lang]);
+  }, [getActiveTopNavKey, hoveredTopNavKey, isMarketingPage, lang]);
 
   const brandMark = (
     <span className="relative inline-flex h-8 w-8 items-center justify-center rounded-[10px] border border-white/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_10px_24px_rgba(0,0,0,0.24)] transition-transform duration-300 group-hover:scale-[1.03]">
@@ -202,9 +191,6 @@ export default function Navbar() {
       />
     </span>
   );
-
-  // Docs pages render their own DocsTopNav — suppress the global navbar
-  if (isDocsPage) return null;
 
   return (
     <>
@@ -326,7 +312,7 @@ export default function Navbar() {
                 ref={topNavTrackRef}
                 className="relative flex items-center gap-1.5"
                 aria-label="Marketing"
-                onMouseLeave={() => setHoveredTopNavHref(null)}
+                onMouseLeave={() => setHoveredTopNavKey(null)}
               >
                 <span
                   className="pointer-events-none absolute inset-y-0 rounded-full bg-white/[0.11] transition-[transform,width,opacity] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)]"
@@ -352,51 +338,51 @@ export default function Navbar() {
                 />
                 <Link
                   ref={(node) => {
-                    topNavItemRefs.current["/marketplace"] = node;
+                    topNavItemRefs.current.marketplace = node;
                   }}
                   href="/marketplace"
-                  className={getTopNavLinkClasses("/marketplace")}
-                  onMouseEnter={() => setHoveredTopNavHref("/marketplace")}
-                  onFocus={() => setHoveredTopNavHref("/marketplace")}
-                  onBlur={() => setHoveredTopNavHref(null)}
+                  className={getTopNavLinkClasses("marketplace")}
+                  onMouseEnter={() => setHoveredTopNavKey("marketplace")}
+                  onFocus={() => setHoveredTopNavKey("marketplace")}
+                  onBlur={() => setHoveredTopNavKey(null)}
                 >
                   {t("nav.apiMarketplace")}
                 </Link>
                 <Link
                   ref={(node) => {
-                    topNavItemRefs.current["/blog"] = node;
+                    topNavItemRefs.current.blog = node;
                   }}
                   href="/blog"
-                  className={getTopNavLinkClasses("/blog")}
-                  onMouseEnter={() => setHoveredTopNavHref("/blog")}
-                  onFocus={() => setHoveredTopNavHref("/blog")}
-                  onBlur={() => setHoveredTopNavHref(null)}
+                  className={getTopNavLinkClasses("blog")}
+                  onMouseEnter={() => setHoveredTopNavKey("blog")}
+                  onFocus={() => setHoveredTopNavKey("blog")}
+                  onBlur={() => setHoveredTopNavKey(null)}
                 >
                   {t("nav.blog")}
                 </Link>
                 <Link
                   ref={(node) => {
-                    topNavItemRefs.current["/about"] = node;
+                    topNavItemRefs.current.about = node;
                   }}
                   href="/about"
-                  className={getTopNavLinkClasses("/about")}
-                  onMouseEnter={() => setHoveredTopNavHref("/about")}
-                  onFocus={() => setHoveredTopNavHref("/about")}
-                  onBlur={() => setHoveredTopNavHref(null)}
+                  className={getTopNavLinkClasses("about")}
+                  onMouseEnter={() => setHoveredTopNavKey("about")}
+                  onFocus={() => setHoveredTopNavKey("about")}
+                  onBlur={() => setHoveredTopNavKey(null)}
                 >
                   {t("nav.about")}
                 </Link>
                 <a
                   ref={(node) => {
-                    topNavItemRefs.current["/docs"] = node;
+                    topNavItemRefs.current.docs = node;
                   }}
                   href={docsUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className={getTopNavLinkClasses("/docs")}
-                  onMouseEnter={() => setHoveredTopNavHref("/docs")}
-                  onFocus={() => setHoveredTopNavHref("/docs")}
-                  onBlur={() => setHoveredTopNavHref(null)}
+                  className={getTopNavLinkClasses("docs")}
+                  onMouseEnter={() => setHoveredTopNavKey("docs")}
+                  onFocus={() => setHoveredTopNavKey("docs")}
+                  onBlur={() => setHoveredTopNavKey(null)}
                 >
                   {t("nav.docs")}
                 </a>

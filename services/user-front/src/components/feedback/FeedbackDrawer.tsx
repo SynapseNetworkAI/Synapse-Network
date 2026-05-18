@@ -114,8 +114,7 @@ export default function FeedbackDrawer({ open, onClose, seed }: Props) {
     setError(null);
     try {
       const result = await submitFeedback({
-        source:
-          seed?.source ?? (route.startsWith("/docs") ? "docs" : "dashboard"),
+        source: seed?.source ?? "dashboard",
         sentiment,
         category,
         message,

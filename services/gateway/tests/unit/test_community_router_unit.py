@@ -96,7 +96,7 @@ def test_feedback_allows_optional_auth_and_returns_feedback_id(monkeypatch) -> N
             "sentiment": "not_helpful",
             "category": "docs_issue",
             "message": "This page is missing the settlement state diagram.",
-            "route": "/docs/concepts#settlement",
+            "route": "https://docs.synapse-network.ai/concepts/agent-settlement",
             "context": {"authorization": "Bearer should-not-be-kept"},
         },
     )

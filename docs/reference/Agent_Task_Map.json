@@ -90,10 +90,10 @@
     },
     {
       "id": "user_front_docs",
-      "title": "User-front docs links and legacy redirects",
+      "title": "User-front docs links",
       "use_when": [
         "the task mentions main-site Docs navigation",
-        "the task mentions /docs legacy redirects",
+        "the task mentions removal of /docs legacy redirects",
         "NEXT_PUBLIC_DOCS_BASE_URL changes",
         "product UI links need to open the dedicated docs origin"
       ],
@@ -120,7 +120,7 @@
         "npm --prefix services/user-front run build"
       ],
       "notes": [
-        "Main-site /docs/* must redirect to the environment-specific docs domain.",
+        "Main-site /docs/* is not a supported entrypoint; product links must open the environment-specific docs domain directly.",
         "Browser code must use static NEXT_PUBLIC_DOCS_BASE_URL access so Next can inline public env values."
       ]
     },
