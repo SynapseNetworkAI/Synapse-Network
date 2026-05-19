@@ -34,8 +34,8 @@ admin_front_image   = ""
 docs_front_image    = ""
 provider_image      = ""
 
-admin_invoker_group_email             = "synapse-prod-admins@example.com"
-gateway_admin_breakglass_group_email  = "synapse-prod-admin-breakglass@example.com"
+admin_invoker_group_email             = ""
+gateway_admin_breakglass_group_email  = ""
 vpc_network_name                      = "synapse-prod-vpc"
 vpc_subnet_name                       = "synapse-prod-subnet"
 vpc_subnet_cidr                       = "10.30.0.0/24"
@@ -59,7 +59,6 @@ frontend_runtime_env = {
   NEXT_PUBLIC_TX_EXPLORER_BASE_URL = "https://arbiscan.io"
   NEXT_PUBLIC_CONSOLE_BASE_URL     = "https://synapse-network.ai/dashboard/overview"
   ADMIN_API_PROXY_TARGET           = "https://admin-api.synapse-network.ai"
-  ADMIN_API_PROXY_AUDIENCE         = "https://admin-api.synapse-network.ai"
   NEXT_PUBLIC_APP_ENV              = "prod"
 }
 

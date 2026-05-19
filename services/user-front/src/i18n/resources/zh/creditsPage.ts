@@ -97,6 +97,8 @@ const creditsPage: I18nMessages["creditsPage"] = {
   depositWalletBalanceChanged: "钱包余额已变化，请重新确认金额。",
   depositNetworkSwitchPending: "请打开钱包插件完成网络切换。",
   depositNetworkSwitchFailed: "无法从页面切换网络，请在钱包中切换后重试。",
+  depositUnsupportedWallet:
+    "Phantom 不支持 Synapse 当前的 EVM 结算网络。请改用 MetaMask、Rabby 或 Coinbase Wallet 重新连接。",
   depositPermitTimedOut:
     "钱包似乎没有响应。如果你使用硬件钱包，请尝试改用 Approve 交易。",
   depositPermitFallbackAvailable:

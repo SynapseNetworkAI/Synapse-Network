@@ -1547,6 +1547,14 @@ sequence is:
    image changed.
 6. If Gateway is affected, update all Gateway jobs to the same Gateway image digest.
 7. Deploy affected Cloud Run services by immutable image digest when available.
+   Image digest resolution uses the Artifact Registry Docker Registry manifest
+   endpoint through `scripts/deploy/resolve_artifact_registry_image_digests.mjs`.
+   Do not use `gcloud artifacts docker images describe` in staging workflows for
+   this step: that command can require Container Analysis occurrence permissions
+   (`containeranalysis.occurrences.list`) even when the deployer only needs the
+   pushed image digest. If digest lookup fails, the workflow logs a controlled
+   warning and falls back to the pushed tag, matching the existing deployment
+   fallback behavior without printing a scary permission stack.
 8. Run HTTP smoke tests only for affected services. For User-front, do not
    treat a listening port or Cloud Run `Ready=True` as sufficient; verify a real
    page such as `/dashboard/account/settings` or `/` responds successfully.
@@ -1661,8 +1669,8 @@ gateway-admin | admin-front -> deploy-staging-admin.yml
 user-front | docs-front -> deploy-staging-frontends.yml
 ```
 
-Those family workflows call the reusable core `deploy-staging.yml`, which still
-supports:
+Gateway and admin family workflows call the reusable core `deploy-staging.yml`,
+which still supports:
 
 ```text
 deploy_scope=auto | gateway | gateway-admin | user-front | admin-front | docs-front | all
@@ -1672,6 +1680,26 @@ deploy_scope=auto | gateway | gateway-admin | user-front | admin-front | docs-fr
 for the compatibility/core runner. New release-task dispatch should prefer the
 family workflow selected by service key, not the mega workflow directly. Docs-only
 changes become `no_deploy` records and do not trigger Cloud Build.
+
+Frontend staging deploys are intentionally isolated from database migration:
+
+- `deploy-staging-frontends.yml` is a standalone frontend-only workflow.
+- `user-front` and `docs-front` releases only build the selected frontend image,
+  deploy the matching Cloud Run service, smoke `/`, write evidence, and callback
+  Ops Console.
+- For faster operator-led staging verification, `user-front` and `docs-front`
+  may use `scripts/deploy/local_build_staging_image.sh` to build from an
+  ephemeral detached worktree, push the image to staging Artifact Registry, and
+  attach the immutable `image@sha256` digest to an Ops Console ReleaseTask.
+  The GitHub workflow then validates the digest path and deploys by digest,
+  skipping Cloud Build. This shortcut is staging-frontends only.
+- Frontend releases must not execute `synapse-staging-db-migrate`,
+  `synapse-staging-gateway-admin-db-migrate`, SQL, or Cloud Run Jobs. Gateway and
+  Gateway Admin workflows own schema migration and schema drift validation.
+- Frontend compatibility with Gateway is proven through HTTP readiness and smoke
+  checks, not through database writes.
+- Production must not deploy arbitrary locally built images. Production image
+  flow should promote a digest that has already passed staging evidence gates.
 
 Seed data is not migration data:
 

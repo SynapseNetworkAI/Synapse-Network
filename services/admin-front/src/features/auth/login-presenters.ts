@@ -5,40 +5,66 @@ export type LoginFeedback = {
   message: string;
 };
 
-export function isLoginTotpEnabled(security: AdminAuthSecurityPolicy | null): boolean {
+export function isLoginTotpEnabled(
+  security: AdminAuthSecurityPolicy | null
+): boolean {
   return Boolean(security?.loginTotpRequired);
 }
 
-export function buildLoginRailDescription(security: AdminAuthSecurityPolicy | null): string {
+export function buildLoginRailDescription(
+  security: AdminAuthSecurityPolicy | null
+): string {
   if (isLoginTotpEnabled(security)) {
-    return "输入管理员邮箱、密码和验证码后进入控制台。";
+    return "输入管理员邮箱、密码和 Google Authenticator 验证码后进入控制台。";
   }
-  return "输入管理员邮箱和密码后进入控制台。";
+  return "输入管理员邮箱和密码开始登录；若账号尚未绑定 Google Authenticator，将在密码验证通过后进入首绑流程。";
 }
 
-export function buildLoginRailFacts(security: AdminAuthSecurityPolicy | null): Array<{ label: string; value: string }> {
+export function buildLoginRailFacts(
+  security: AdminAuthSecurityPolicy | null
+): Array<{ label: string; value: string }> {
   return [
     { label: "Primary Session", value: "cookie-session" },
-    { label: "Login TOTP", value: isLoginTotpEnabled(security) ? "required" : "disabled" },
+    {
+      label: "Login TOTP",
+      value: isLoginTotpEnabled(security) ? "required" : "disabled",
+    },
   ];
 }
 
-export function buildLoginFeedback(error: string | null, security: AdminAuthSecurityPolicy | null): LoginFeedback {
+export function buildLoginFeedback(
+  error: string | null,
+  security: AdminAuthSecurityPolicy | null
+): LoginFeedback {
   if (error) {
     return { tone: "error", message: error };
   }
 
   if (isLoginTotpEnabled(security)) {
-    return { tone: "info", message: "请输入管理员邮箱、密码和 Google Authenticator 验证码后进入控制台。" };
+    return {
+      tone: "info",
+      message:
+        "请输入管理员邮箱、密码和 Google Authenticator 验证码后进入控制台。",
+    };
   }
 
-  return { tone: "info", message: "请输入管理员邮箱和密码后进入控制台。" };
+  return {
+    tone: "info",
+    message:
+      "请输入管理员邮箱和密码。只有密码验证通过后，系统才会允许未绑定账号进入 Google Authenticator 首绑流程。",
+  };
 }
 
-export function buildLoginErrorMessage(code: string | null, message: string | null): string {
+export function buildLoginErrorMessage(
+  code: string | null,
+  message: string | null
+): string {
   const normalizedMessage = (message ?? "").trim().toLowerCase();
 
-  if (code === "INVALID_GOOGLE_AUTHENTICATOR_CODE" || normalizedMessage === "invalid google authenticator code") {
+  if (
+    code === "INVALID_GOOGLE_AUTHENTICATOR_CODE" ||
+    normalizedMessage === "invalid google authenticator code"
+  ) {
     return "验证码错误或已过期，请使用最新 6 位码重试。";
   }
 
@@ -54,7 +80,10 @@ export function buildLoginErrorMessage(code: string | null, message: string | nu
     return "账号因连续登录失败已临时锁定，请 24 小时后重试或联系 Owner。";
   }
 
-  if (normalizedMessage === "failed to fetch" || normalizedMessage.includes("networkerror")) {
+  if (
+    normalizedMessage === "failed to fetch" ||
+    normalizedMessage.includes("networkerror")
+  ) {
     return "暂时无法连接管理后台，请稍后重试。";
   }
 

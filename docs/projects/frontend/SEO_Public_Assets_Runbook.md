@@ -24,7 +24,7 @@ Synapse docs-front publishes crawler-facing developer docs assets from
 - Do not use or reference `sitemap.website.xml`.
 - Do not add docs `.md` mirror routes for crawlers; docs-front owns `llms.txt` and `llms-full.txt` instead.
 - Do not list private app surfaces in `llms.txt` or sitemap: `/dashboard`, `/provider`, `/api`, or `/marketplace/registry.json`.
-- Do not list main-site `/docs/*` routes in the user-front sitemap. They are redirects; canonical docs URLs live on `docs.synapse-network.ai`.
+- Do not list main-site `/docs/*` routes in the user-front sitemap. They are unsupported legacy paths; canonical docs URLs live on `docs.synapse-network.ai`.
 - Do not hand-write JSON-LD in V1; title, description, OG, Twitter, sitemap, robots, and `llms.txt` are the SEO contract.
 
 ## XML Pollution Check

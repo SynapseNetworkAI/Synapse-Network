@@ -332,6 +332,29 @@ describe("useVaultDeposit", () => {
     expect(signTypedDataAsyncMock).not.toHaveBeenCalled();
   });
 
+  it("does not open Phantom when the required EVM network is unsupported", async () => {
+    chainIdState.value = 1;
+    const request = vi.fn();
+    (globalThis as typeof globalThis & { ethereum?: unknown }).ethereum = {
+      isPhantom: true,
+      request,
+    };
+
+    const { result } = renderHook(() =>
+      useVaultDeposit({ initialAmount: "10" })
+    );
+
+    await result.current.handleDeposit();
+
+    await waitFor(() => {
+      expect(result.current.depositError).toContain(
+        "Phantom does not support the Synapse EVM settlement network"
+      );
+    });
+    expect(request).not.toHaveBeenCalled();
+    expect(signTypedDataAsyncMock).not.toHaveBeenCalled();
+  });
+
   it("adds the required network when wallet reports the chain is unknown", async () => {
     chainIdState.value = 1;
     const request = vi

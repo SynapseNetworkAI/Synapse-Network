@@ -55,7 +55,7 @@ synapse_load_gcp_env() {
       export ADMIN_FRONT_HOST="${ADMIN_FRONT_HOST:-admin.synapse-network.ai}"
       export ADMIN_API_HOST="${ADMIN_API_HOST:-admin-api.synapse-network.ai}"
       export DOCS_HOST="${DOCS_HOST:-docs.synapse-network.ai}"
-      export USER_FRONT_HOST="${USER_FRONT_HOST:-www.synapse-network.ai}"
+      export USER_FRONT_HOST="${USER_FRONT_HOST:-synapse-network.ai}"
       export TX_EXPLORER_BASE_URL="${TX_EXPLORER_BASE_URL:-https://arbiscan.io}"
       export PUBLIC_RPC_URL="${PUBLIC_RPC_URL:-https://arb1.arbitrum.io/rpc}"
       export USER_FRONT_CONTRACT_CONFIG_SOURCE="${USER_FRONT_CONTRACT_CONFIG_SOURCE:-src/contract-config.arbitrum-one.prod.json}"

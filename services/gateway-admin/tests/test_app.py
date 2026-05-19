@@ -970,7 +970,6 @@ def test_admin_auth_login_requires_mfa_enrollment_for_unbound_account() -> None:
     assert body["data"]["expiresIn"] == 600
     assert body["data"]["totpIssuer"] == "Synapse Gateway Admin"
 
-
 def test_admin_auth_login_requires_mfa_enrollment_for_bootstrap_placeholder_totp() -> None:
     email = f"bootstrap-placeholder-{uuid4().hex[:8]}@synapse-network.ai"
     store = _test_store()

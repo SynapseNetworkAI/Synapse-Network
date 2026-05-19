@@ -7,6 +7,7 @@ type RegistryRow = {
   id: string;
   href: string;
   kind: string;
+  purpose: string;
   maturity: string;
   redirectsTo?: string;
   expectedTexts: string[];

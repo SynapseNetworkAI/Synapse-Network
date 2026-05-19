@@ -49,20 +49,18 @@ These values must be provided or confirmed by an operator:
 1. production GCP project id
 2. billing account attached to the production project
 3. `backup_bucket_name`
-4. `admin_invoker_group_email`
-5. `gateway_admin_breakglass_group_email`
-6. production domains:
+4. production domains:
    - `synapse-network.ai`
    - `api.synapse-network.ai`
    - `admin.synapse-network.ai`
    - `admin-api.synapse-network.ai`
    - `docs.synapse-network.ai`
-7. production contract addresses:
+5. production contract addresses:
    - `SynapseCore`
    - `USDC`
-8. Safe treasury address
-9. Ledger owner signer address
-10. KMS crypto key resource id and derived Ethereum signer address
+6. Safe treasury address
+7. Ledger owner signer address
+8. KMS crypto key resource id and derived Ethereum signer address
 
 ## 3. Secret Manager Values
 
@@ -137,21 +135,43 @@ Optional provider-service production secrets:
 
 ## 4. Admin Access Setup
 
-Production admin access is Cloud Run IAM-based, not IAP-based.
+Production admin access is application-auth-based, not Cloud Run IAM- or
+IAP-based.
 
 Operators must:
 
-1. create and maintain the production Google Group allowlist
-2. ensure `admin-front` is the default operator entrypoint
-3. keep `gateway-admin` direct access narrower than `admin-front`
+1. keep `admin-front` as the default human operator entrypoint
+2. keep `gateway-admin` business routes protected by app-layer auth, CSRF,
+   password-first login, TOTP step-up, and RBAC
+3. verify anonymous access reaches the login/API surface instead of Google
+   Frontend `403`
+4. ensure bootstrap admins still require a manually initialized password before
+   any MFA enrollment can begin
 
 Required production runtime settings:
 
 ```bash
 NEXT_PUBLIC_ADMIN_API_BASE_URL=
 ADMIN_API_PROXY_TARGET=https://admin-api.synapse-network.ai
-ADMIN_API_PROXY_AUDIENCE=https://admin-api.synapse-network.ai
+ADMIN_GATEWAY_ALLOWED_ORIGINS=https://admin.synapse-network.ai
+PUBLIC_APP_BASE_URL=https://admin.synapse-network.ai
 ```
+
+Expected public-entry behavior:
+
+1. `https://admin.synapse-network.ai/login` returns `200`
+2. `https://admin.synapse-network.ai/` routes to the app login flow instead of
+   Cloud Run `Forbidden`
+3. accounts without `password_hash` cannot log in and cannot reach a usable MFA
+   enrollment path
+4. password-verified but unbound admins receive
+   `428 MFA_ENROLLMENT_REQUIRED`
+5. `https://admin-api.synapse-network.ai/health` returns `200`
+6. anonymous protected admin API calls return application `401/403`
+7. MFA enrollment begin/verify only succeeds when the request carries a valid
+   login-minted enrollment token
+8. first-bind accounts do not receive `synapse_admin_session` until Google
+   Authenticator enrollment verify succeeds
 
 ## 5. Private Cloud SQL Network Checks
 

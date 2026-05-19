@@ -23,8 +23,10 @@ const REQUIRED_CHECKS = [
   "docs_api_reference_open_menu",
   "docs_agent_builders_open_menu",
   "gateway_health",
-  "admin_gate",
-  "admin_api_gate",
+  "admin_login_page",
+  "admin_root_entry",
+  "admin_api_health",
+  "admin_api_me_unauth",
 ];
 
 function fail(code, why, fix) {

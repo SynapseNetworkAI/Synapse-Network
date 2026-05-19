@@ -13,9 +13,6 @@
 1. 管理员登录、MFA enrollment、step-up。
 2. Dashboard、审批、菜单配置、审计、执行、提现审核等后台页面。
 3. 默认通过 Next.js 同源代理把 `/api/admin/*` 转发到 `gateway-admin`。
-4. 生产环境下 `admin-front` 和 `gateway-admin` 都使用 Cloud Run `Require IAM`；
-   `admin-front` 服务端代理必须用 Google OIDC Identity Token 转发到
-   `gateway-admin`，而不是让浏览器匿名直连 `admin-api`。
 
 ## 说明
 
