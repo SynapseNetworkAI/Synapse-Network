@@ -70,22 +70,13 @@ export default function Navbar() {
 
     const checkGateway = async () => {
       try {
-        const res = await fetch(
-          `${getGatewayBaseUrl()}/api/v1/services/discover`,
-          {
-            method: "GET",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            signal: AbortSignal.timeout(3000),
-          }
-        );
+        const res = await fetch(`${getGatewayBaseUrl()}/health`, {
+          method: "GET",
+          signal: AbortSignal.timeout(3000),
+        });
 
         if (mounted) {
-          if (!res.ok) {
-            // Any HTTP response still means the gateway is reachable.
-          }
-          setGatewayStatus("online");
+          setGatewayStatus(res.ok ? "online" : "offline");
         }
       } catch {
         if (mounted) {
