@@ -143,7 +143,12 @@ function createWalletConnectors() {
   );
 }
 
-function createWagmiConfig(chains: readonly [typeof hardhat] | readonly [typeof arbitrumSepolia] | readonly [typeof arbitrum]) {
+function createWagmiConfig(
+  chains:
+    | readonly [typeof hardhat]
+    | readonly [typeof arbitrumSepolia]
+    | readonly [typeof arbitrum]
+) {
   return createConfig({
     chains,
     ssr: false,
@@ -176,7 +181,10 @@ function createUnhandledRejectionHandler() {
       return;
     }
 
-    console.warn("Ignored browser wallet extension rejection.", details.message);
+    console.warn(
+      "Ignored browser wallet extension rejection.",
+      details.message
+    );
     event.preventDefault();
   };
 }
