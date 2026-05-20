@@ -100,6 +100,104 @@ function getSupportedChains(
   }
 }
 
+function createInjectedWalletConnector() {
+  return injected({
+    shimDisconnect: true,
+    unstable_shimAsyncInject: 2_000,
+    target: () => {
+      const provider = getSupportedEvmInjectedProvider();
+      if (!provider) {
+        return undefined;
+      }
+
+      return {
+        id: "synapse-supported-evm-wallet",
+        name: "Supported EVM Wallet",
+        provider: provider as unknown as EIP1193Provider,
+      };
+    },
+  });
+}
+
+function createWalletConnectors() {
+  if (!walletConnectProjectId) {
+    return [createInjectedWalletConnector()];
+  }
+
+  return connectorsForWallets(
+    [
+      {
+        groupName: "Recommended",
+        wallets: [
+          metaMaskWallet,
+          rabbyWallet,
+          coinbaseWallet,
+          walletConnectWallet,
+        ],
+      },
+    ],
+    {
+      appName,
+      projectId: walletConnectProjectId,
+    }
+  );
+}
+
+function createWagmiConfig(chains: readonly [typeof hardhat] | readonly [typeof arbitrumSepolia] | readonly [typeof arbitrum]) {
+  return createConfig({
+    chains,
+    ssr: false,
+    connectors: createWalletConnectors(),
+    transports,
+  });
+}
+
+function warnAboutWalletConfiguration(chainId: number) {
+  if (!walletConnectProjectId) {
+    console.warn(
+      "[Reown Config] Missing NEXT_PUBLIC_REOWN_PROJECT_ID/NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID. WalletConnect disabled; using injected wallet connector only."
+    );
+  }
+
+  const walletCompatibilityMessage = getWalletCompatibilityMessage({
+    chainId,
+    connectorId: null,
+    injectedProvider: getInjectedEthereumProvider(),
+  });
+  if (walletCompatibilityMessage) {
+    console.warn("[Wallet Compatibility]", walletCompatibilityMessage);
+  }
+}
+
+function createUnhandledRejectionHandler() {
+  return (event: PromiseRejectionEvent) => {
+    const details = toWalletExtensionErrorDetails(event.reason);
+    if (!isIgnorableWalletExtensionError(details)) {
+      return;
+    }
+
+    console.warn("Ignored browser wallet extension rejection.", details.message);
+    event.preventDefault();
+  };
+}
+
+function createWindowErrorHandler() {
+  return (event: ErrorEvent) => {
+    if (
+      !isIgnorableWalletExtensionError({
+        message: event.message,
+        filename: event.filename,
+        stack: event.error instanceof Error ? event.error.stack : null,
+      })
+    ) {
+      return;
+    }
+
+    console.warn("Ignored browser wallet extension error.", event.message);
+    event.preventDefault();
+  };
+}
+
 export function Providers({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
@@ -109,97 +207,14 @@ export function Providers({
     () => getSupportedChains(runtimeEnv.appEnv),
     [runtimeEnv.appEnv]
   );
-  const config = React.useMemo(
-    () =>
-      createConfig({
-        chains,
-        ssr: false,
-        connectors: walletConnectProjectId
-          ? connectorsForWallets(
-              [
-                {
-                  groupName: "Recommended",
-                  wallets: [
-                    metaMaskWallet,
-                    rabbyWallet,
-                    coinbaseWallet,
-                    walletConnectWallet,
-                  ],
-                },
-              ],
-              {
-                appName,
-                projectId: walletConnectProjectId,
-              }
-            )
-          : [
-              injected({
-                shimDisconnect: true,
-                unstable_shimAsyncInject: 2_000,
-                target: () => {
-                  const provider = getSupportedEvmInjectedProvider();
-                  if (!provider) {
-                    return undefined;
-                  }
-
-                  return {
-                    id: "synapse-supported-evm-wallet",
-                    name: "Supported EVM Wallet",
-                    provider: provider as unknown as EIP1193Provider,
-                  };
-                },
-              }),
-            ],
-        transports,
-      }),
-    [chains]
-  );
+  const config = React.useMemo(() => createWagmiConfig(chains), [chains]);
 
   React.useEffect(() => {
     setMounted(true);
+    warnAboutWalletConfiguration(runtimeEnv.chainId);
 
-    if (!walletConnectProjectId) {
-      console.warn(
-        "[Reown Config] Missing NEXT_PUBLIC_REOWN_PROJECT_ID/NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID. WalletConnect disabled; using injected wallet connector only."
-      );
-    }
-
-    const walletCompatibilityMessage = getWalletCompatibilityMessage({
-      chainId: runtimeEnv.chainId,
-      connectorId: null,
-      injectedProvider: getInjectedEthereumProvider(),
-    });
-    if (walletCompatibilityMessage) {
-      console.warn("[Wallet Compatibility]", walletCompatibilityMessage);
-    }
-
-    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
-      const details = toWalletExtensionErrorDetails(event.reason);
-      if (!isIgnorableWalletExtensionError(details)) {
-        return;
-      }
-
-      console.warn(
-        "Ignored browser wallet extension rejection.",
-        details.message
-      );
-      event.preventDefault();
-    };
-
-    const handleWindowError = (event: ErrorEvent) => {
-      if (
-        !isIgnorableWalletExtensionError({
-          message: event.message,
-          filename: event.filename,
-          stack: event.error instanceof Error ? event.error.stack : null,
-        })
-      ) {
-        return;
-      }
-
-      console.warn("Ignored browser wallet extension error.", event.message);
-      event.preventDefault();
-    };
+    const handleUnhandledRejection = createUnhandledRejectionHandler();
+    const handleWindowError = createWindowErrorHandler();
 
     globalThis.window.addEventListener(
       "unhandledrejection",
