@@ -38,6 +38,10 @@ import {
   createWalletUserRejectedError,
   isWalletUserRejectedError,
 } from "@/utils/walletActionErrors";
+import {
+  getInjectedEthereumProvider,
+  getWalletCompatibilityMessage,
+} from "@/utils/walletCompatibility";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
 import WalletActionIntentDialog from "@/components/wallet/WalletActionIntentDialog";
 
@@ -87,7 +91,7 @@ function readLocalE2eWalletAddress(): string | null {
 export default function WalletAuthGuard({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  const { isConnected, address } = useAccount();
+  const { isConnected, address, connector } = useAccount();
   const chainId = useChainId();
   const { disconnect } = useDisconnect();
   const { signMessageAsync } = useSignMessage();
@@ -244,6 +248,21 @@ export default function WalletAuthGuard({
       setAuthError(null);
 
       try {
+        const walletCompatibilityMessage = getWalletCompatibilityMessage({
+          chainId,
+          connectorName: connector?.name,
+          connectorId: connector?.id,
+          injectedProvider: getInjectedEthereumProvider(),
+        });
+        if (walletCompatibilityMessage) {
+          setAuthError(t("walletActions.walletUnsupportedForArbitrum"));
+          setIsAuthorizing(false);
+          showWalletStatusToast(t("walletActions.walletUnsupportedForArbitrum"), {
+            icon: "🧭",
+          });
+          return false;
+        }
+
         const normalizedWallet = effectiveAddress.toLowerCase();
         const existing = getStoredAuthSession();
         if (localE2eWallet && existing?.wallet === normalizedWallet) {
@@ -316,9 +335,11 @@ export default function WalletAuthGuard({
     effectiveIsConnected,
     chainId,
     localE2eWallet,
+    connector,
     waitForLoginIntentApproval,
     signChallengeMessage,
     handleAuthorizeFailure,
+    t,
   ]);
 
   const isSessionAuthenticated = Boolean(
