@@ -32,7 +32,9 @@ function asInjectedEthereumProvider(
   return provider as InjectedEthereumProvider;
 }
 
-function hasPhantomProviderFlag(provider: InjectedEthereumProvider | null): boolean {
+function hasPhantomProviderFlag(
+  provider: InjectedEthereumProvider | null
+): boolean {
   if (!provider) {
     return false;
   }
@@ -112,10 +114,12 @@ export function getInjectedEthereumProvider(): unknown | null {
     return null;
   }
   return (
-    globalThis as typeof globalThis & {
-      ethereum?: unknown;
-    }
-  ).ethereum ?? null;
+    (
+      globalThis as typeof globalThis & {
+        ethereum?: unknown;
+      }
+    ).ethereum ?? null
+  );
 }
 
 export function getWalletCompatibilityMessage(

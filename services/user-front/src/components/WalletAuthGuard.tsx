@@ -257,9 +257,12 @@ export default function WalletAuthGuard({
         if (walletCompatibilityMessage) {
           setAuthError(t("walletActions.walletUnsupportedForArbitrum"));
           setIsAuthorizing(false);
-          showWalletStatusToast(t("walletActions.walletUnsupportedForArbitrum"), {
-            icon: "🧭",
-          });
+          showWalletStatusToast(
+            t("walletActions.walletUnsupportedForArbitrum"),
+            {
+              icon: "🧭",
+            }
+          );
           return false;
         }
 
