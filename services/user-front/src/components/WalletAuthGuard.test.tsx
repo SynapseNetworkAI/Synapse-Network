@@ -71,6 +71,22 @@ vi.mock("@/utils/walletSignature", () => ({
   ) => signMessageAsync({ message }),
 }));
 
+vi.mock("@/utils/runtimeEnv", () => ({
+  getRuntimeEnvironmentConfig: () => ({
+    appEnv: "prod",
+    chainId: 42161,
+    chainName: "Arbitrum One",
+    rpcUrl: "https://arb1.arbitrum.io/rpc",
+    txExplorerBaseUrl: "https://arbiscan.io/tx/",
+  }),
+}));
+
+vi.mock("@/utils/walletNetwork", () => ({
+  ensureWalletOnRuntimeChain: () => Promise.resolve(),
+  isWalletChainMismatchError: (message: string) =>
+    message.toLowerCase().includes("chain id does not match"),
+}));
+
 vi.mock("@/components/i18n/LanguageProvider", () => ({
   useLanguage: () => ({
     t: (
