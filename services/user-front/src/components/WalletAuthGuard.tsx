@@ -26,7 +26,6 @@ import {
   verifyAuthSignature,
 } from "@/utils/authSession";
 import {
-  isWalletUnstableError,
   readInjectedAccounts,
   signWalletMessage,
 } from "@/utils/walletSignature";
