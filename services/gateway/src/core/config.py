@@ -252,8 +252,8 @@ class Settings:
     )
 
     # Global platform fee rate for gateway billing split, range [0.0, 1.0].
-    # Example: 0.10 means 10% platform fee and 90% provider net.
-    platform_fee_rate: float = _env_rate("PLATFORM_FEE_RATE", 0.10)
+    # Example: 0.05 means 5% platform fee and 95% provider net.
+    platform_fee_rate: float = _env_rate("PLATFORM_FEE_RATE", 0.05)
     # Fixed per-request routing fee charged to the consumer, in USDC.
     # Example: 0.0001 adds $0.0001 to every agent invoke call.
     gateway_routing_tax: float = max(0.0, _env_float("GATEWAY_ROUTING_TAX", 0.0001))

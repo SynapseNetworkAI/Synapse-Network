@@ -25,7 +25,7 @@ class FakeStorage:
             finance=SimpleNamespace(
                 fee_policy=SimpleNamespace(
                     get_platform_fee_policy=lambda: SimpleNamespace(
-                        default_rate=0.1,
+                        default_rate=0.05,
                         owner_rates={},
                         updated_at=1710000000,
                         updated_by="seed",

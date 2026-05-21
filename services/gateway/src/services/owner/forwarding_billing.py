@@ -66,7 +66,7 @@ def sanitize_fee_rate(raw: Any, fallback: Decimal | str | int) -> Decimal:
 
 def resolve_platform_fee_rate(storage: BaseStorage, provider_wallet: str) -> Decimal:
     """Resolve effective fee rate using owner override > runtime default > global config."""
-    fallback = sanitize_fee_rate(settings.platform_fee_rate, Decimal("0.10"))
+    fallback = sanitize_fee_rate(settings.platform_fee_rate, Decimal("0.05"))
     policy = storage.get_data_manager().finance.fee_policy.get_platform_fee_policy()
 
     if (

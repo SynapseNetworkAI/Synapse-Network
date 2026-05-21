@@ -77,7 +77,7 @@ class InMemoryBalanceRepo:
 
 class InMemoryFeePolicyRepo:
     def get_platform_fee_policy(self):
-        return FeePolicyEntity(defaultRate=0.1, updatedAt="2026-03-17 00:00:00")
+        return FeePolicyEntity(defaultRate=0.05, updatedAt="2026-03-17 00:00:00")
 
 
 class InMemoryGatewayStateRepo:
@@ -757,8 +757,8 @@ def test_invoke_v1_paid_invocation_uses_typed_execution_models(
     assert storage.gateway_state.usage_rows == []
 
     assert storage.balance.ledger.consumer_available_balance("0xabc") == Decimal("8.750000")
-    assert storage.balance.ledger.provider_receivable_balance("0xdef") == Decimal("1.080000")
-    assert storage.balance.ledger.platform.fee_accrued == Decimal("0.170000")
+    assert storage.balance.ledger.provider_receivable_balance("0xdef") == Decimal("1.140000")
+    assert storage.balance.ledger.platform.fee_accrued == Decimal("0.110000")
 
     assert len(storage.audit.rows) == 1
     assert storage.audit.rows[0].action == "V2_USAGE_CHARGED"
@@ -815,14 +815,14 @@ def test_invoke_v1_llm_auto_preauth_settles_usage_and_releases_hold(monkeypatch)
         "holdUsdc": "0.000336",
         "chargedUsdc": "0.000280",
         "releasedUsdc": "0.000056",
-        "providerRevenueUsdc": "0.000252",
-        "platformFeeUsdc": "0.000028",
+        "providerRevenueUsdc": "0.000266",
+        "platformFeeUsdc": "0.000014",
         "preAuthMode": "auto",
     }
     assert storage.balance.ledger.consumer_available_balance("0xabc") == Decimal("9.999720")
     assert storage.balance.ledger.consumer_frozen_balance("0xabc") == Decimal("0.000000")
-    assert storage.balance.ledger.provider_receivable_balance("0xdef") == Decimal("0.000252")
-    assert storage.balance.ledger.platform.fee_accrued == Decimal("0.000028")
+    assert storage.balance.ledger.provider_receivable_balance("0xdef") == Decimal("0.000266")
+    assert storage.balance.ledger.platform.fee_accrued == Decimal("0.000014")
 
 
 def test_invoke_v1_llm_atomic_settle_does_not_increment_usage_outside_transaction(monkeypatch) -> None:
@@ -1175,7 +1175,7 @@ async def test_invoke_busy_rejects_before_charge_or_success_billing(monkeypatch)
     assert len(failures) == 1
     assert failures[0].detail["code"] == "SERVICE_BUSY"
     assert storage.balance.ledger.consumer_available_balance("0xabc") == Decimal("8.750000")
-    assert storage.balance.ledger.provider_receivable_balance("0xdef") == Decimal("1.080000")
+    assert storage.balance.ledger.provider_receivable_balance("0xdef") == Decimal("1.140000")
     assert len(storage.audit.rows) == 1
     assert all(row.status != "succeeded" for row in storage.gateway_state.usage_rows)
 
