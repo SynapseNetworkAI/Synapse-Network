@@ -1884,6 +1884,7 @@ def test_visible_menu_config_is_filtered_by_backend_permissions() -> None:
         "withdrawal-reviews",
         "review-history",
         "finance",
+        "contract-addresses",
         "risk",
     }
     runtime_item = next(item for item in response.json()["data"]["items"] if item["itemId"] == "dashboard-runtime")
@@ -1893,6 +1894,7 @@ def test_visible_menu_config_is_filtered_by_backend_permissions() -> None:
     consumer_funnel_item = next(item for item in response.json()["data"]["items"] if item["itemId"] == "analytics-consumer-funnel")
     system_item = next(item for item in response.json()["data"]["items"] if item["itemId"] == "system")
     provider_services_item = next(item for item in response.json()["data"]["items"] if item["itemId"] == "provider-services")
+    contract_addresses_item = next(item for item in response.json()["data"]["items"] if item["itemId"] == "contract-addresses")
     assert dashboard_item["href"] is None
     assert dashboard_item["nodeType"] == "category"
     assert analytics_item["href"] is None
@@ -1905,6 +1907,7 @@ def test_visible_menu_config_is_filtered_by_backend_permissions() -> None:
     assert runtime_item["href"] == "/dashboard/runtime"
     assert system_item["href"] == "/system"
     assert provider_services_item["href"] == "/provider-services"
+    assert contract_addresses_item["href"] == "/contract-addresses"
 
 
 def test_provider_services_management_routes_proxy_gateway_state() -> None:
