@@ -604,7 +604,7 @@ def test_service_registry_repository_read_and_write() -> None:
                 "auth": {"type": "gateway_signed"},
                 "providerProfile": {"displayName": "Sentiment Desk"},
                 "payoutAccount": {
-                    "payoutAddress": "0x1234567890abcdef1234567890abcdef12345678",
+                    "payoutAddress": "0x1234567890ABCDEF1234567890abcdef12345678",
                     "chainId": 8453,
                     "settlementCurrency": "USDC",
                 },
@@ -637,7 +637,6 @@ def test_service_registry_repository_read_and_write() -> None:
     assert "INSERT INTO synapse_service_search_index" in all_sql
     assert "INSERT INTO synapse_runtime_state" in all_sql
     assert "INSERT INTO synapse_provider_payout_accounts" in all_sql
-
 
 def test_service_registry_repository_normalizes_datetime_health_timestamps() -> None:
     db = FakeDB()

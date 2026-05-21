@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any, List
 
+from src.core.common import normalize_wallet
 from src.domain.service_contract import (
     ServiceAuthRecord,
     ServiceDefinitionRecord,
@@ -29,7 +30,7 @@ class ServiceRegistryQueryMixin:
     ) -> None:
         if row.payout_account is None:
             return
-        payout_address = str(row.payout_account.payout_address or "").strip()
+        payout_address = normalize_wallet(str(row.payout_account.payout_address or "").strip())
         chain_id = int(row.payout_account.chain_id or 0)
         if not payout_address or chain_id <= 0:
             return
