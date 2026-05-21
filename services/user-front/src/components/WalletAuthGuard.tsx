@@ -30,29 +30,26 @@ import {
   readInjectedAccounts,
   signWalletMessage,
 } from "@/utils/walletSignature";
-import {
-  showWalletStatusErrorToast,
-  showWalletStatusToast,
-} from "@/utils/walletToast";
+import { showWalletStatusToast } from "@/utils/walletToast";
 import {
   createWalletUserRejectedError,
-  isWalletUserRejectedError,
 } from "@/utils/walletActionErrors";
 import {
   getInjectedEthereumProvider,
   getWalletCompatibilityMessage,
 } from "@/utils/walletCompatibility";
+import {
+  ensureWalletOnRuntimeChain,
+} from "@/utils/walletNetwork";
+import { getRuntimeEnvironmentConfig } from "@/utils/runtimeEnv";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
 import WalletActionIntentDialog from "@/components/wallet/WalletActionIntentDialog";
-
-interface AuthContextType {
-  isConnected: boolean;
-  isSessionAuthenticated: boolean;
-  address: string | undefined;
-  authError: string | null;
-  isAuthorizing: boolean;
-  authorize: () => Promise<boolean>;
-}
+import {
+  AuthContextType,
+  handleWalletAuthFailure,
+  LoginIntentState,
+  readLocalE2eWalletAddress,
+} from "@/components/walletAuthGuardShared";
 
 export const AuthContext = createContext<AuthContextType>({
   isConnected: false,
@@ -66,28 +63,6 @@ export const AuthContext = createContext<AuthContextType>({
 export const useAuth = () => useContext(AuthContext);
 
 const SESSION_EXPIRED_TOAST_COOLDOWN_MS = 2500;
-const E2E_WALLET_CONNECTED_STORAGE_KEY = "synapse_e2e_wallet_connected";
-
-type LoginIntentState = {
-  domain: string;
-  wallet: string;
-  chainId: number;
-};
-
-function readLocalE2eWalletAddress(): string | null {
-  if (typeof window === "undefined") return null;
-  const isLocalApp =
-    process.env.NEXT_PUBLIC_APP_ENV === "local" ||
-    window.location.hostname === "localhost" ||
-    window.location.hostname === "127.0.0.1";
-  if (!isLocalApp) return null;
-  if (window.localStorage.getItem(E2E_WALLET_CONNECTED_STORAGE_KEY) !== "1")
-    return null;
-
-  const session = getStoredAuthSession();
-  return session?.wallet?.toLowerCase() || null;
-}
-
 export default function WalletAuthGuard({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
@@ -113,6 +88,7 @@ export default function WalletAuthGuard({
   const lastSessionExpiredToastAtRef = useRef(0);
   const effectiveAddress = address || localE2eWallet || undefined;
   const effectiveIsConnected = isConnected || Boolean(localE2eWallet);
+  const runtimeEnv = useMemo(() => getRuntimeEnvironmentConfig(), []);
 
   useEffect(() => {
     const e2eWallet = readLocalE2eWalletAddress();
@@ -182,56 +158,11 @@ export default function WalletAuthGuard({
       clearAuthSession();
       setVerifiedWallet(null);
       setIsAuthorizing(false);
-      if (isWalletUserRejectedError(error)) {
-        setAuthError(null);
-        showWalletStatusToast(t("walletActions.requestCancelled"), {
-          icon: "ℹ️",
-        });
-        return;
-      }
-      const errorMsg =
-        error instanceof Error
-          ? error.message
-          : "Wallet signature authentication failed or was cancelled";
-
-      if (errorMsg.includes("unavailable while reconnecting")) {
-        setAuthError(t("walletActions.walletReconnecting"));
-        showWalletStatusToast(t("walletActions.walletReconnecting"), {
-          icon: "⏳",
-        });
-        return;
-      }
-
-      if (errorMsg.includes("Connector not connected")) {
-        setAuthError(t("walletActions.walletConnectorNotReady"));
-        showWalletStatusToast(t("walletActions.walletConnectorNotReady"), {
-          icon: "🔌",
-        });
-        return;
-      }
-
-      if (errorMsg.includes("Multiple wallet accounts selected")) {
-        setAuthError(t("walletActions.walletSingleAccount"));
-        showWalletStatusToast(t("walletActions.walletSingleAccount"), {
-          icon: "1️⃣",
-        });
+      const result = handleWalletAuthFailure(error, t);
+      setAuthError(result.authError);
+      if (result.shouldForceReconnect) {
         forceReconnectIfNeeded();
-        return;
       }
-
-      if (isWalletUnstableError(errorMsg)) {
-        setAuthError(t("walletActions.walletUnstable"));
-        showWalletStatusToast(t("walletActions.walletUnstable"), {
-          icon: "⚠️",
-        });
-        return;
-      }
-
-      setAuthError(errorMsg);
-
-      showWalletStatusErrorToast(
-        t("walletActions.authFailedPrefix", { message: errorMsg })
-      );
     },
     [forceReconnectIfNeeded, t]
   );
@@ -249,7 +180,7 @@ export default function WalletAuthGuard({
 
       try {
         const walletCompatibilityMessage = getWalletCompatibilityMessage({
-          chainId,
+          chainId: runtimeEnv.chainId,
           connectorName: connector?.name,
           connectorId: connector?.id,
           injectedProvider: getInjectedEthereumProvider(),
@@ -257,13 +188,14 @@ export default function WalletAuthGuard({
         if (walletCompatibilityMessage) {
           setAuthError(t("walletActions.walletUnsupportedForArbitrum"));
           setIsAuthorizing(false);
-          showWalletStatusToast(
-            t("walletActions.walletUnsupportedForArbitrum"),
-            {
-              icon: "🧭",
-            }
-          );
+          showWalletStatusToast(t("walletActions.walletUnsupportedForArbitrum"), {
+            icon: "🧭",
+          });
           return false;
+        }
+
+        if (chainId !== runtimeEnv.chainId) {
+          await ensureWalletOnRuntimeChain(runtimeEnv);
         }
 
         const normalizedWallet = effectiveAddress.toLowerCase();
@@ -287,7 +219,10 @@ export default function WalletAuthGuard({
           return true;
         }
 
-        const challenge = await requestAuthChallenge(effectiveAddress, chainId);
+        const challenge = await requestAuthChallenge(
+          effectiveAddress,
+          runtimeEnv.chainId
+        );
         const challengeMessage = challenge.challenge;
         if (!challengeMessage) {
           throw new Error("Auth challenge missing from server response");
@@ -339,6 +274,7 @@ export default function WalletAuthGuard({
     chainId,
     localE2eWallet,
     connector,
+    runtimeEnv,
     waitForLoginIntentApproval,
     signChallengeMessage,
     handleAuthorizeFailure,
