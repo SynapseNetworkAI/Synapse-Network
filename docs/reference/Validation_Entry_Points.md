@@ -262,6 +262,8 @@ Working directory: `services/admin-front/`
 5. `npm run ci:admin-front` from repository root when repo-standard gating is needed; this runs lint, Vitest, and production build
 6. `cd services/admin-front && yarn test src/components/admin-notification-inbox.test.tsx src/services/admin-api-route-coverage.test.ts` when changing Admin Inbox, admin notification API clients, unread badges, read/archive actions, or provider-service notification rendering
 7. `npm run e2e:admin-inbox-provider-services && npm run ci:admin-inbox-provider-services-evidence` when closing local Admin Inbox provider-service notification behavior; this must produce screenshots and SQL evidence for unread, read, archive, and dedupe state
+8. `cd services/admin-front && yarn test src/features/contract-addresses/contract-addresses-page.test.tsx` when changing the read-only contract/address registry UI, custody address book, contract check rendering, or platform fee reconciliation cards
+9. `npm run e2e:admin-contract-addresses-readonly && npm run ci:admin-contract-addresses-evidence` when closing local Admin contract/address registry behavior; this must produce API, DOM, screenshot, and read-only SQL evidence for `/contract-addresses`, expected address tails, balances, platform fee reconciliation, copy/explorer links, and absence of mutation controls
 
 ### 3.4 services/gateway-admin
 
@@ -270,6 +272,7 @@ Working directory: `services/gateway-admin/`
 1. `/Users/cliff/workspace/agent/Synapse-Network/services/gateway-admin/.venv/bin/python -m pytest tests -q`
 2. `npm run ci:admin-gateway` from repository root when repo-standard gating is needed; this runs the full gateway-admin pytest suite
 3. `cd services/gateway-admin && .venv/bin/python -m pytest tests/test_app.py tests/test_admin_notifications.py -q` when changing admin notification repositories, Admin Inbox API scoping, or Provider Services notification triggers
+4. `cd services/gateway-admin && .venv/bin/python -m pytest tests/test_contract_address_registry.py -q` when changing the read-only contract/address registry API, on-chain contract check aggregation, custody balance reads, or platform fee registry projections
 
 Runtime ops anchors:
 

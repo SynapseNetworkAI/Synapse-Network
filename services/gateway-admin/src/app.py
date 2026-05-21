@@ -16,6 +16,7 @@ from src.api.routers import (
 	admin_users,
 	approval,
 	audit,
+	contract_addresses,
 	dashboard,
 	execution,
 	forum_support,
@@ -237,6 +238,7 @@ def create_app() -> FastAPI:
 	app.include_router(admin_notifications.router)
 	app.include_router(admin_operations.router)
 	app.include_router(admin_users.router)
+	app.include_router(contract_addresses.router)
 	app.include_router(dashboard.router)
 	app.include_router(approval.router)
 	app.include_router(audit.router)

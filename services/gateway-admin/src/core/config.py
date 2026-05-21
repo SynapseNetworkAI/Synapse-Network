@@ -228,7 +228,12 @@ class Settings(BaseSettings):
         alias="WITHDRAWAL_MANUAL_REVIEW_EXPIRY_SEC",
     )
     chain_rpc_url: str = Field(default="http://127.0.0.1:8545", alias="RPC_URL")
+    chain_id: int = Field(default=31337, alias="CHAIN_ID")
+    chain_name: str = Field(default="GoChain Testnet", alias="CHAIN_NAME")
+    explorer_base_url: str = Field(default="http://localhost:5100", alias="TX_EXPLORER_BASE_URL")
     synapse_core_address: str = Field(default="", alias="SYNAPSE_CORE_ADDRESS")
+    usdc_token_address: str = Field(default="", alias="USDC_TOKEN_ADDRESS")
+    withdraw_signer_address: str = Field(default="", alias="WITHDRAW_SIGNER_ADDRESS")
     platform_treasury_safe_address: str = Field(
         default="",
         alias="PLATFORM_TREASURY_SAFE_ADDRESS",
@@ -238,6 +243,10 @@ class Settings(BaseSettings):
         alias="PLATFORM_TREASURY_LEDGER_SIGNER_ADDRESS",
     )
     platform_fee_token_decimals: int = Field(default=18, alias="PLATFORM_FEE_TOKEN_DECIMALS")
+    contract_registry_min_signer_native_balance: str = Field(
+        default="0.010000",
+        alias="CONTRACT_REGISTRY_MIN_SIGNER_NATIVE_BALANCE",
+    )
     execution_worker_enabled: bool = Field(
         default=True,
         alias="EXECUTION_WORKER_ENABLED",

@@ -100,6 +100,11 @@ const navLookupById: Record<string, NavLookupRecord> = {
     description: "Consumer / Provider owner、钱包和邮箱验证状态。",
   },
   finance: { label: "财务控制", description: "充值、扣费、退款与责任敞口。" },
+  "contract-addresses": {
+    label: "合约 / 地址",
+    description:
+      "生产合约、Safe、Ledger、KMS signer、Vault 余额和平台 fee 对账状态。",
+  },
   risk: { label: "风险控制", description: "风险信号、策略与异常处置。" },
   audit: { label: "审计追踪", description: "操作留痕、追踪检索与审计检视。" },
 };
