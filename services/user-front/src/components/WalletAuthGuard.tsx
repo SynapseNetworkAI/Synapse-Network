@@ -31,16 +31,12 @@ import {
   signWalletMessage,
 } from "@/utils/walletSignature";
 import { showWalletStatusToast } from "@/utils/walletToast";
-import {
-  createWalletUserRejectedError,
-} from "@/utils/walletActionErrors";
+import { createWalletUserRejectedError } from "@/utils/walletActionErrors";
 import {
   getInjectedEthereumProvider,
   getWalletCompatibilityMessage,
 } from "@/utils/walletCompatibility";
-import {
-  ensureWalletOnRuntimeChain,
-} from "@/utils/walletNetwork";
+import { ensureWalletOnRuntimeChain } from "@/utils/walletNetwork";
 import { getRuntimeEnvironmentConfig } from "@/utils/runtimeEnv";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
 import WalletActionIntentDialog from "@/components/wallet/WalletActionIntentDialog";
@@ -188,9 +184,12 @@ export default function WalletAuthGuard({
         if (walletCompatibilityMessage) {
           setAuthError(t("walletActions.walletUnsupportedForArbitrum"));
           setIsAuthorizing(false);
-          showWalletStatusToast(t("walletActions.walletUnsupportedForArbitrum"), {
-            icon: "🧭",
-          });
+          showWalletStatusToast(
+            t("walletActions.walletUnsupportedForArbitrum"),
+            {
+              icon: "🧭",
+            }
+          );
           return false;
         }
 

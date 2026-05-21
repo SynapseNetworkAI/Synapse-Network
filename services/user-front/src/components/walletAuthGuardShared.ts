@@ -2,9 +2,7 @@ import {
   showWalletStatusErrorToast,
   showWalletStatusToast,
 } from "@/utils/walletToast";
-import {
-  isWalletUserRejectedError,
-} from "@/utils/walletActionErrors";
+import { isWalletUserRejectedError } from "@/utils/walletActionErrors";
 import { isWalletUnstableError } from "@/utils/walletSignature";
 import { isWalletChainMismatchError } from "@/utils/walletNetwork";
 import { getStoredAuthSession } from "@/utils/authSession";
