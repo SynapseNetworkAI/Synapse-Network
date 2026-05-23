@@ -35,11 +35,22 @@ type TransferLog = {
   };
 };
 
+type ConnectedWalletBadgeProps = {
+  address: string | undefined;
+  masterBalance: string;
+  onLogout: () => void;
+  t: (key: string) => string;
+};
+
 function formatUsdcBalance(rawBalance: unknown) {
   if (rawBalance === undefined) {
     return "0.00";
   }
   return (Number(rawBalance) / 1e18).toFixed(2);
+}
+
+function formatShortAddress(address: string | undefined) {
+  return `${address?.slice(0, 6)}...${address?.slice(-4)}`;
 }
 
 function isWalletTransfer(
@@ -60,10 +71,6 @@ function refetchBalanceWhenWalletMoves(
     return;
   }
   refetch();
-}
-
-function formatShortAddress(address: string | undefined) {
-  return `${address?.slice(0, 6)}...${address?.slice(-4)}`;
 }
 
 function useWalletUsdcBalance(address: `0x${string}` | undefined) {
@@ -87,10 +94,25 @@ function useWalletUsdcBalance(address: `0x${string}` | undefined) {
   return formatUsdcBalance(walletUsdcBalanceRaw);
 }
 
+function useWalletLogout(address: string | undefined) {
+  const { disconnect } = useDisconnect();
+  const { t } = useLanguage();
+
+  const handleLogout = useCallback(async () => {
+    await logoutBackendSession(address);
+    clearAuthSession();
+    disconnect();
+    toast.success(t("nav.walletDisconnected"));
+  }, [address, disconnect, t]);
+
+  return { handleLogout, t };
+}
+
 async function logoutBackendSession(address: string | undefined) {
   if (!address) {
     return;
   }
+
   try {
     const response = await fetch(`${getGatewayBaseUrl()}/api/v1/auth/logout`, {
       method: "POST",
@@ -106,19 +128,12 @@ async function logoutBackendSession(address: string | undefined) {
   }
 }
 
-type ConnectedWalletBadgeProps = {
-  address: string | undefined;
-  masterBalance: string;
-  onLogout: () => void;
-};
-
-function CompactWalletBadge({
+function CompactWalletProfile({
   address,
   masterBalance,
   onLogout,
+  t,
 }: Readonly<ConnectedWalletBadgeProps>) {
-  const { t } = useLanguage();
-
   return (
     <div className="flex items-center gap-2">
       <div className="hidden h-10 items-center gap-2 rounded-[14px] border border-white/10 bg-[#0b0f15] px-3.5 text-sm text-white/88 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] md:flex">
@@ -143,13 +158,12 @@ function CompactWalletBadge({
   );
 }
 
-function FullWalletBadge({
+function FullWalletProfile({
   address,
   masterBalance,
   onLogout,
+  t,
 }: Readonly<ConnectedWalletBadgeProps>) {
-  const { t } = useLanguage();
-
   return (
     <div className="flex gap-4">
       <div className="flex items-center space-x-4 bg-gray-900 border border-gray-700 rounded-lg px-4 py-2">
@@ -179,36 +193,23 @@ export default function WalletProfileBadge({
   compact = false,
 }: Readonly<WalletProfileBadgeProps>) {
   const { address, isConnected } = useAccount();
-  const { disconnect } = useDisconnect();
-  const { t } = useLanguage();
   const masterBalance = useWalletUsdcBalance(address);
-
-  const handleLogout = useCallback(async () => {
-    await logoutBackendSession(address);
-    clearAuthSession();
-    disconnect();
-    toast.success(t("nav.walletDisconnected"));
-  }, [address, disconnect, t]);
+  const { handleLogout, t } = useWalletLogout(address);
 
   if (!isConnected) {
-    return <SupportedWalletConnectButton compact />;
+    return <SupportedWalletConnectButton compact={compact} />;
   }
 
-  if (compact) {
-    return (
-      <CompactWalletBadge
-        address={address}
-        masterBalance={masterBalance}
-        onLogout={handleLogout}
-      />
-    );
-  }
+  const profileProps = {
+    address,
+    masterBalance,
+    onLogout: handleLogout,
+    t,
+  };
 
-  return (
-    <FullWalletBadge
-      address={address}
-      masterBalance={masterBalance}
-      onLogout={handleLogout}
-    />
+  return compact ? (
+    <CompactWalletProfile {...profileProps} />
+  ) : (
+    <FullWalletProfile {...profileProps} />
   );
 }

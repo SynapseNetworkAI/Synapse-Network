@@ -4,12 +4,35 @@ function isContractAddress(value: string) {
   return /^0x[a-fA-F0-9]{40}$/.test(value);
 }
 
+function isUrl(value: string) {
+  return /^https?:\/\//i.test(value);
+}
+
+function isInternalConfigPath(value: string) {
+  return value.includes("/") && !isUrl(value) && !isContractAddress(value);
+}
+
+function isReservedValue(value: string) {
+  return value.toLowerCase().startsWith("reserved until");
+}
+
+function publicAddressLabel(value: string) {
+  if (isReservedValue(value)) {
+    return "Not published";
+  }
+  if (isInternalConfigPath(value)) {
+    return "Configured locally";
+  }
+  return value;
+}
+
 function ExplorerAddressLink({
   address,
   explorerUrl,
 }: Readonly<{ address: string; explorerUrl: string }>) {
+  const publicLabel = publicAddressLabel(address);
   if (!isContractAddress(address)) {
-    return <span>{address}</span>;
+    return <span>{publicLabel}</span>;
   }
 
   return (
@@ -24,6 +47,23 @@ function ExplorerAddressLink({
   );
 }
 
+function EnvironmentValue({ value }: Readonly<{ value: string }>) {
+  if (isUrl(value)) {
+    return (
+      <a
+        className="text-[#7ff7be] underline-offset-4 hover:underline"
+        href={value}
+        rel="noreferrer"
+        target="_blank"
+      >
+        {value}
+      </a>
+    );
+  }
+
+  return <span>{publicAddressLabel(value)}</span>;
+}
+
 function CodePanel({ children }: Readonly<{ children: string }>) {
   return (
     <pre className="my-4 overflow-auto rounded-[10px] border border-white/[0.08] bg-[#050708] p-4 text-[12px] leading-6 text-[#d6fbe7]">
@@ -36,7 +76,6 @@ export function EnvironmentConfigSummary() {
   const rows = [
     ["Environment", environmentConfig.appEnv],
     ["Gateway Base", environmentConfig.gatewayBaseUrl],
-    ["Console", environmentConfig.consoleUrl],
     ["Docs", environmentConfig.docsUrl],
     ["Chain", `${environmentConfig.chainName} (${environmentConfig.chainId})`],
     ["Explorer", environmentConfig.explorerUrl],
@@ -59,7 +98,7 @@ export function EnvironmentConfigSummary() {
               {label}
             </dt>
             <dd className="break-all font-mono text-xs text-fd-foreground">
-              {value}
+              <EnvironmentValue value={value} />
             </dd>
           </div>
         ))}
@@ -130,7 +169,14 @@ export function EnvironmentNetworksTable() {
                 />
               </td>
               <td className="break-all px-4 py-3 font-mono text-xs">
-                {row.explorerUrl}
+                <a
+                  className="text-[#7ff7be] underline-offset-4 hover:underline"
+                  href={row.explorerUrl}
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  {row.explorerUrl}
+                </a>
               </td>
             </tr>
           ))}
