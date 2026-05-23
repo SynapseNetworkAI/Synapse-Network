@@ -119,8 +119,10 @@ function createInjectedWalletConnector() {
   });
 }
 
-function createWalletConnectors() {
-  if (!walletConnectProjectId) {
+function createWalletConnectors(
+  appEnv: ReturnType<typeof getRuntimeEnvironmentConfig>["appEnv"]
+) {
+  if (appEnv === "local" || !walletConnectProjectId) {
     return [createInjectedWalletConnector()];
   }
 
@@ -152,7 +154,7 @@ function createWagmiConfig(
   return createConfig({
     chains,
     ssr: false,
-    connectors: createWalletConnectors(),
+    connectors: createWalletConnectors(getRuntimeEnvironmentConfig().appEnv),
     transports,
   });
 }
