@@ -139,6 +139,7 @@ export const pages = [
     texts: [
       "@synapse-network-ai/sdk",
       "SynapseClient",
+      "https://www.npmjs.com/package/@synapse-network-ai/sdk/v/1.0.0",
       "Gateway Base",
       "http://127.0.0.1:8000",
       "SYNAPSE_ENV",
@@ -149,8 +150,9 @@ export const pages = [
     href: "/sdks/python",
     heading: "Python SDK",
     texts: [
-      "synapse-client",
+      "synapse-network-ai-sdk",
       "synapse_client",
+      "https://pypi.org/project/synapse-network-ai-sdk/1.0.0/",
       "invoke_llm",
       "Gateway Base",
       "http://127.0.0.1:8000",
@@ -163,6 +165,7 @@ export const pages = [
     heading: "Go SDK",
     texts: [
       "go get github.com/SynapseNetworkAI/Synapse-Network-Sdk/go",
+      "https://pkg.go.dev/github.com/SynapseNetworkAI/Synapse-Network-Sdk/go@v1.0.0",
       "MaxCostUSDC",
       "Gateway Base",
       "http://127.0.0.1:8000",
@@ -174,8 +177,9 @@ export const pages = [
     href: "/sdks/java",
     heading: "Java/JVM SDK",
     texts: [
-      "ai.synapsenetwork",
+      "ai.synapse-network",
       "synapse-network-sdk",
+      "https://repo1.maven.org/maven2/ai/synapse-network/synapse-network-sdk/1.0.0/",
       "maxCostUsdc",
       "Gateway Base",
       "http://127.0.0.1:8000",
@@ -188,7 +192,7 @@ export const pages = [
     heading: ".NET SDK",
     texts: [
       "SynapseNetwork.Sdk",
-      "0.1.0-preview",
+      "https://www.nuget.org/packages/SynapseNetwork.Sdk/1.0.0",
       "MaxCostUsdc",
       "Gateway Base",
       "http://127.0.0.1:8000",

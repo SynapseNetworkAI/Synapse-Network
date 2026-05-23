@@ -138,8 +138,43 @@ print("Result:", result["data"])
 print("Charged:", result["chargedUsdc"], "USDC")`.trim();
 }
 
-const TS_INSTALL = "npm install @synapse-network-ai/sdk";
-const PY_INSTALL = "pip install synapse-network-sdk";
+const SDK_SOURCE_REPO =
+  "https://github.com/SynapseNetworkAI/Synapse-Network-Sdk";
+const SDK_INSTALL_OPTIONS = [
+  {
+    key: "typescript",
+    label: "TypeScript",
+    install: "npm install @synapse-network-ai/sdk@1.0.0",
+    registry: "https://www.npmjs.com/package/@synapse-network-ai/sdk/v/1.0.0",
+  },
+  {
+    key: "python",
+    label: "Python",
+    install: "pip install synapse-network-ai-sdk==1.0.0",
+    registry: "https://pypi.org/project/synapse-network-ai-sdk/1.0.0/",
+  },
+  {
+    key: "go",
+    label: "Go",
+    install: "go get github.com/SynapseNetworkAI/Synapse-Network-Sdk/go@v1.0.0",
+    registry:
+      "https://pkg.go.dev/github.com/SynapseNetworkAI/Synapse-Network-Sdk/go@v1.0.0",
+  },
+  {
+    key: "java",
+    label: "Java",
+    install:
+      "mvn dependency:get -Dartifact=ai.synapse-network:synapse-network-sdk:1.0.0",
+    registry:
+      "https://repo1.maven.org/maven2/ai/synapse-network/synapse-network-sdk/1.0.0/",
+  },
+  {
+    key: "dotnet",
+    label: ".NET",
+    install: "dotnet add package SynapseNetwork.Sdk --version 1.0.0",
+    registry: "https://www.nuget.org/packages/SynapseNetwork.Sdk/1.0.0",
+  },
+];
 
 // ── Docs sidebar links — pointing to the dedicated docs project ─────────────
 
@@ -166,7 +201,11 @@ const DOC_LINKS = [
     href: getDocsUrl("/concepts/agent-settlement"),
   },
   { label: "API Reference", href: getDocsUrl("/api-reference") },
+  { label: "Python SDK", href: getDocsUrl("/sdks/python") },
   { label: "TypeScript SDK", href: getDocsUrl("/sdks/typescript") },
+  { label: "Go SDK", href: getDocsUrl("/sdks/go") },
+  { label: "Java/JVM SDK", href: getDocsUrl("/sdks/java") },
+  { label: ".NET SDK", href: getDocsUrl("/sdks/dotnet") },
 ];
 
 // ── Component ────────────────────────────────────────────────────────────────
@@ -188,8 +227,6 @@ export default function DeveloperPage() {
     sdk === "ts"
       ? buildTsCode(envConfig.gatewayBaseUrl)
       : buildPyCode(envConfig.gatewayBaseUrl);
-  const installCmd = sdk === "ts" ? TS_INSTALL : PY_INSTALL;
-
   return (
     <div className="p-8 space-y-6">
       {/* ── Header ── */}
@@ -330,21 +367,55 @@ export default function DeveloperPage() {
               <p className="text-xs text-[#6b7280] leading-relaxed mb-3">
                 {t("developerPage.sdkInstallationDescription")}
               </p>
-              <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-black border border-white/[0.06]">
-                <code className="text-[11px] font-mono text-[#9ca3af]">
-                  {installCmd}
-                </code>
-                <button
-                  onClick={() => copy(installCmd, "install")}
-                  className="text-[#4b5563] hover:text-white transition-colors ml-2"
-                  aria-label="Copy install command"
+              <div className="space-y-2">
+                {SDK_INSTALL_OPTIONS.map((item) => (
+                  <div
+                    key={item.key}
+                    className="rounded-lg bg-black border border-white/[0.06] p-3"
+                  >
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-[#6b7280]">
+                        {item.label}
+                      </span>
+                      <a
+                        href={item.registry}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-400 hover:text-blue-300"
+                      >
+                        Open registry
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <code className="break-all text-[11px] font-mono text-[#9ca3af]">
+                        {item.install}
+                      </code>
+                      <button
+                        onClick={() =>
+                          copy(item.install, `install-${item.key}`)
+                        }
+                        className="shrink-0 text-[#4b5563] hover:text-white transition-colors ml-2"
+                        aria-label={`Copy ${item.label} install command`}
+                      >
+                        {copied === `install-${item.key}` ? (
+                          <Check className="w-3.5 h-3.5 text-emerald-400" />
+                        ) : (
+                          <Copy className="w-3.5 h-3.5" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                <a
+                  href={SDK_SOURCE_REPO}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-[11px] font-bold text-blue-400 hover:text-blue-300 transition-colors uppercase tracking-widest"
                 >
-                  {copied === "install" ? (
-                    <Check className="w-3.5 h-3.5 text-emerald-400" />
-                  ) : (
-                    <Copy className="w-3.5 h-3.5" />
-                  )}
-                </button>
+                  Source repository
+                  <ExternalLink className="w-3 h-3" />
+                </a>
               </div>
             </div>
 

@@ -1,16 +1,18 @@
 ---
 title: .NET SDK
-description: Use the Public Preview .NET SDK from .NET 8 services and worker agents.
+description: Use the published .NET SDK from .NET 8 services and worker agents.
 ---
 
-The .NET SDK is in Public Preview and is intended for NuGet publication as `SynapseNetwork.Sdk`.
+The .NET SDK is published to NuGet as `SynapseNetwork.Sdk` version `1.0.0`.
+
+[Install](#install) · [NuGet](https://www.nuget.org/packages/SynapseNetwork.Sdk/1.0.0) · [Source](https://github.com/SynapseNetworkAI/Synapse-Network-Sdk)
 
 <EnvironmentConfigSummary />
 
 <GatewayEnvExport />
 
 ```xml
-<PackageReference Include="SynapseNetwork.Sdk" Version="0.1.0-preview" />
+<PackageReference Include="SynapseNetwork.Sdk" Version="1.0.0" />
 ```
 
 ```csharp
@@ -60,6 +62,6 @@ var result = await client.InvokeLlmAsync(
 </AgentNote>
 
 <WarningNote>
-  Treat the package as Public Preview until the NuGet release and production
-  docs are formally promoted.
+  Use the pinned `1.0.0` package for reproducible production examples. Upgrade
+  intentionally when a newer public release is published.
 </WarningNote>

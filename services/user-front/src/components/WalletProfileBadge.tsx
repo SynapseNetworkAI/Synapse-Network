@@ -20,33 +20,78 @@ type WalletProfileBadgeProps = {
   compact?: boolean;
 };
 
-function useWalletUsdcBalance(address?: `0x${string}`) {
+const MOCK_USDC_ADDRESS = contractConfig.MockUSDC as `0x${string}`;
+const BALANCE_OF_ABI = parseAbi([
+  "function balanceOf(address) view returns (uint256)",
+]);
+const TRANSFER_EVENT_ABI = parseAbi([
+  "event Transfer(address indexed from, address indexed to, uint256 value)",
+]);
+
+type TransferLog = {
+  args: {
+    from?: string;
+    to?: string;
+  };
+};
+
+type ConnectedWalletBadgeProps = {
+  address: string | undefined;
+  masterBalance: string;
+  onLogout: () => void;
+  t: (key: string) => string;
+};
+
+function formatUsdcBalance(rawBalance: unknown) {
+  if (rawBalance === undefined) {
+    return "0.00";
+  }
+  return (Number(rawBalance) / 1e18).toFixed(2);
+}
+
+function formatShortAddress(address: string | undefined) {
+  return `${address?.slice(0, 6)}...${address?.slice(-4)}`;
+}
+
+function isWalletTransfer(
+  logs: readonly TransferLog[],
+  address: string | undefined
+) {
+  return logs.some(
+    (log) => log.args.from === address || log.args.to === address
+  );
+}
+
+function refetchBalanceWhenWalletMoves(
+  logs: readonly TransferLog[],
+  address: string | undefined,
+  refetch: () => void
+) {
+  if (!isWalletTransfer(logs, address)) {
+    return;
+  }
+  refetch();
+}
+
+function useWalletUsdcBalance(address: `0x${string}` | undefined) {
   const { data: walletUsdcBalanceRaw, refetch } = useReadContract({
-    address: contractConfig.MockUSDC as `0x${string}`,
-    abi: parseAbi(["function balanceOf(address) view returns (uint256)"]),
+    address: MOCK_USDC_ADDRESS,
+    abi: BALANCE_OF_ABI,
     functionName: "balanceOf",
     args: address ? [address] : undefined,
     query: { enabled: !!address },
   });
 
   useWatchContractEvent({
-    address: contractConfig.MockUSDC as `0x${string}`,
-    abi: parseAbi([
-      "event Transfer(address indexed from, address indexed to, uint256 value)",
-    ]),
+    address: MOCK_USDC_ADDRESS,
+    abi: TRANSFER_EVENT_ABI,
     eventName: "Transfer",
     onLogs(logs) {
-      if (
-        logs.some((log) => log.args.from === address || log.args.to === address)
-      ) {
-        refetch();
-      }
+      refetchBalanceWhenWalletMoves(logs, address, refetch);
     },
   });
 
-  return walletUsdcBalanceRaw === undefined
-    ? "0.00"
-    : (Number(walletUsdcBalanceRaw) / 1e18).toFixed(2);
+  return formatUsdcBalance(walletUsdcBalanceRaw);
 }
 
 function useWalletLogout(address: string | undefined) {
@@ -88,18 +133,13 @@ function CompactWalletProfile({
   masterBalance,
   onLogout,
   t,
-}: Readonly<{
-  address?: string;
-  masterBalance: string;
-  onLogout: () => void;
-  t: (key: string) => string;
-}>) {
+}: Readonly<ConnectedWalletBadgeProps>) {
   return (
     <div className="flex items-center gap-2">
       <div className="hidden h-10 items-center gap-2 rounded-[14px] border border-white/10 bg-[#0b0f15] px-3.5 text-sm text-white/88 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] md:flex">
         <span className="inline-flex h-2 w-2 rounded-full bg-[#7ff7be] shadow-[0_0_10px_rgba(127,247,190,0.58)]" />
         <span className="font-semibold tracking-[-0.02em]">
-          {address?.slice(0, 6)}...{address?.slice(-4)}
+          {formatShortAddress(address)}
         </span>
       </div>
       <div className="hidden h-10 items-center gap-2 rounded-[14px] border border-white/10 bg-[#0b0f15] px-3.5 text-sm font-semibold text-[#7ff7be] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] xl:flex">
@@ -123,18 +163,13 @@ function FullWalletProfile({
   masterBalance,
   onLogout,
   t,
-}: Readonly<{
-  address?: string;
-  masterBalance: string;
-  onLogout: () => void;
-  t: (key: string) => string;
-}>) {
+}: Readonly<ConnectedWalletBadgeProps>) {
   return (
     <div className="flex gap-4">
       <div className="flex items-center space-x-4 bg-gray-900 border border-gray-700 rounded-lg px-4 py-2">
         <div className="flex items-center text-sm font-medium text-white">
           <div className="w-2 h-2 rounded-full bg-green-500 mr-2 animate-pulse" />
-          {address?.slice(0, 6)}...{address?.slice(-4)}
+          {formatShortAddress(address)}
         </div>
         <div className="h-4 w-px bg-gray-700" />
         <div className="flex items-center text-sm font-bold text-green-400">
