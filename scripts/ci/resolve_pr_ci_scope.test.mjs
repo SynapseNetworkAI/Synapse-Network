@@ -40,6 +40,10 @@ test("baseline shards keep the expected command split", () => {
 test("docs files remain docs-classified", () => {
   assert.equal(isDocsFile("docs/reference/Validation_Entry_Points.md"), true);
   assert.equal(isDocsFile("llms.txt"), true);
+  assert.equal(
+    isDocsFile("services/docs-front/src/components/docs/EnvironmentConfig.tsx"),
+    true
+  );
   assert.equal(isDocsFile("scripts/ops/gcp_billing_review.sh"), false);
 });
 
