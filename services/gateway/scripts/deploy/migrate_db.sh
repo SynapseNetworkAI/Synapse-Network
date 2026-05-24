@@ -82,7 +82,7 @@ SQL
 validate_gateway_schema_guardrails() {
   local app_user="${POSTGRES_APP_USER:-${POSTGRES_RUNTIME_USER:-${POSTGRES_USER:-}}}"
   local migrator_user="${POSTGRES_MIGRATOR_USER:-}"
-  local readonly_user="${POSTGRES_READONLY_USER:-${GATEWAY_READONLY_DB_USER:-}}"
+  local readonly_user="${POSTGRES_READONLY_USER:-${GATEWAY_READONLY_DB_USER:-synapse_gateway_ro}}"
   local table_count
   local missing_required
   local owner_mismatch_count
@@ -269,13 +269,23 @@ psql "${MIGRATION_CONNINFO}" -X -v ON_ERROR_STOP=1 -f "${SCHEMA_SQL}" >/dev/null
 
 APP_DB_USER="${POSTGRES_APP_USER:-${POSTGRES_RUNTIME_USER:-${POSTGRES_USER:-}}}"
 MIGRATOR_DB_USER="${POSTGRES_MIGRATOR_USER:-}"
-READONLY_DB_USER="${POSTGRES_READONLY_USER:-${GATEWAY_READONLY_DB_USER:-}}"
+READONLY_DB_USER="${POSTGRES_READONLY_USER:-${GATEWAY_READONLY_DB_USER:-synapse_gateway_ro}}"
 if [[ -n "${APP_DB_USER}" && "${APP_DB_USER}" != "${MIGRATOR_DB_USER}" ]]; then
   echo "[migrate-db] granting runtime privileges to app user ${APP_DB_USER}"
   psql "${MIGRATION_CONNINFO}" -X -v ON_ERROR_STOP=1 --set=app_user="${APP_DB_USER}" <<'SQL' >/dev/null
 SELECT format('GRANT USAGE ON SCHEMA public TO %I', :'app_user') \gexec
-SELECT format('GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO %I', :'app_user') \gexec
-SELECT format('GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO %I', :'app_user') \gexec
+SELECT format('GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE %I.%I TO %I', n.nspname, c.relname, :'app_user')
+FROM pg_class c
+JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE n.nspname = 'public'
+  AND c.relkind IN ('r', 'p')
+  AND pg_get_userbyid(c.relowner) = current_user \gexec
+SELECT format('GRANT USAGE, SELECT, UPDATE ON SEQUENCE %I.%I TO %I', n.nspname, c.relname, :'app_user')
+FROM pg_class c
+JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE n.nspname = 'public'
+  AND c.relkind = 'S'
+  AND pg_get_userbyid(c.relowner) = current_user \gexec
 SELECT format('ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO %I', :'app_user') \gexec
 SELECT format('ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO %I', :'app_user') \gexec
 SQL
