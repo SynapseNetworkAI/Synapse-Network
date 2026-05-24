@@ -140,7 +140,6 @@ else
 fi
 
 ROOT="$(git rev-parse --show-toplevel)"
-TOOL_ROOT="${ROOT}"
 TARGET_COMMIT="$(git -C "${ROOT}" rev-parse "${REF}^{commit}")"
 SHORT_SHA="${TARGET_COMMIT:0:12}"
 TIMESTAMP="$(date -u +%Y%m%d%H%M%S)"
@@ -172,12 +171,12 @@ export ARTIFACT_REGISTRY_REPOSITORY="${REPOSITORY}"
 export STAGING_IMAGE_BUILD_BACKEND="${STAGING_IMAGE_BUILD_BACKEND:-local-docker}"
 export DOCKER_PLATFORM="${DOCKER_PLATFORM:-linux/amd64}"
 
-bash "${TOOL_ROOT}/scripts/deploy/gcp_cloudbuild_staging_images.sh" "${PROJECT_ID}" \
+bash "scripts/deploy/gcp_cloudbuild_staging_images.sh" "${PROJECT_ID}" \
   --services "${SERVICE}" \
   --tag "${TAG}" \
   --json-output build-images.json
 
-node "${TOOL_ROOT}/scripts/deploy/resolve_artifact_registry_image_digests.mjs" \
+node "scripts/deploy/resolve_artifact_registry_image_digests.mjs" \
   --build-images build-images.json \
   --out image-digests.json
 

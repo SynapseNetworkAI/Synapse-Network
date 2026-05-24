@@ -128,6 +128,11 @@ test("production admin-front image builds cannot inherit staging admin API endpo
     localBuilder,
     /export ADMIN_API_PROXY_TARGET="https:\/\/admin-api\.synapse-network\.ai"/
   );
+  assert.match(
+    localBuilder,
+    /bash "scripts\/deploy\/gcp_cloudbuild_staging_images\.sh"/
+  );
+  assert.doesNotMatch(localBuilder, /TOOL_ROOT/);
   assert.match(cloudBuildHelper, /admin_front_app_env="prod"/);
   assert.match(cloudBuildHelper, /admin_front_public_api_base_url=""/);
   assert.match(
