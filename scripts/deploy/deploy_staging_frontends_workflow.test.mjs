@@ -130,7 +130,11 @@ test("production admin-front image builds cannot inherit staging admin API endpo
   );
   assert.match(
     localBuilder,
-    /bash "scripts\/deploy\/gcp_cloudbuild_staging_images\.sh"/
+    /bash "\$\{WORKTREE_DIR\}\/scripts\/deploy\/gcp_cloudbuild_staging_images\.sh"/
+  );
+  assert.match(
+    localBuilder,
+    /node "\$\{WORKTREE_DIR\}\/scripts\/deploy\/resolve_artifact_registry_image_digests\.mjs"/
   );
   assert.doesNotMatch(localBuilder, /TOOL_ROOT/);
   assert.match(cloudBuildHelper, /admin_front_app_env="prod"/);
