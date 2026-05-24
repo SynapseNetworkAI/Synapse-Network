@@ -131,7 +131,15 @@ async function main() {
   fs.writeFileSync(outPath, `${JSON.stringify(digests, null, 2)}\n`);
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+function isEntrypoint() {
+  if (!process.argv[1]) return false;
+  return (
+    fs.realpathSync(process.argv[1]) ===
+    fs.realpathSync(fileURLToPath(import.meta.url))
+  );
+}
+
+if (isEntrypoint()) {
   main().catch((error) => {
     console.error(`[artifact-digest] ${error.message}`);
     process.exit(1);
