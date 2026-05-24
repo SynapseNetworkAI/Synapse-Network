@@ -111,3 +111,35 @@ test("admin-front staging deploy does not execute admin database migration", () 
     "admin-front must not share the gateway-admin migration case"
   );
 });
+
+test("production admin-front image builds cannot inherit staging admin API endpoints", () => {
+  const localBuilder = fs.readFileSync(
+    path.join(ROOT, "scripts/deploy/local_build_frontend_image.sh"),
+    "utf8"
+  );
+  const cloudBuildHelper = fs.readFileSync(
+    path.join(ROOT, "scripts/deploy/gcp_cloudbuild_staging_images.sh"),
+    "utf8"
+  );
+
+  assert.match(localBuilder, /export NEXT_PUBLIC_APP_ENV="prod"/);
+  assert.match(localBuilder, /export NEXT_PUBLIC_ADMIN_API_BASE_URL=""/);
+  assert.match(
+    localBuilder,
+    /export ADMIN_API_PROXY_TARGET="https:\/\/admin-api\.synapse-network\.ai"/
+  );
+  assert.match(cloudBuildHelper, /admin_front_app_env="prod"/);
+  assert.match(cloudBuildHelper, /admin_front_public_api_base_url=""/);
+  assert.match(
+    cloudBuildHelper,
+    /admin_front_proxy_target="https:\/\/admin-api\.synapse-network\.ai"/
+  );
+  assert.match(
+    cloudBuildHelper,
+    /refusing to build production admin-front with staging admin API settings/
+  );
+  assert.doesNotMatch(
+    cloudBuildHelper,
+    /NEXT_PUBLIC_ADMIN_API_BASE_URL=\$\{NEXT_PUBLIC_ADMIN_API_BASE_URL:-https:\/\/admin-api-staging\.synapse-network\.ai\}/
+  );
+});
