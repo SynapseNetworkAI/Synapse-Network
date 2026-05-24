@@ -74,6 +74,9 @@ if [[ "${frontend_app_env}" == "prod" || "${frontend_app_env}" == "production" ]
   frontend_tx_explorer_base_url="${NEXT_PUBLIC_TX_EXPLORER_BASE_URL:-https://arbiscan.io}"
   frontend_rpc_url="${NEXT_PUBLIC_RPC_URL:-https://arb1.arbitrum.io/rpc}"
   frontend_contract_config_source="${CONTRACT_CONFIG_SOURCE:-src/contract-config.arbitrum-one.prod.json}"
+  admin_front_app_env="prod"
+  admin_front_public_api_base_url=""
+  admin_front_proxy_target="https://admin-api.synapse-network.ai"
 else
   frontend_gateway_base_url="${NEXT_PUBLIC_GATEWAY_BASE_URL:-https://api-staging.synapse-network.ai}"
   frontend_analytics_endpoint="${NEXT_PUBLIC_ANALYTICS_ENDPOINT:-https://api-staging.synapse-network.ai/api/v1/events}"
@@ -81,6 +84,14 @@ else
   frontend_tx_explorer_base_url="${NEXT_PUBLIC_TX_EXPLORER_BASE_URL:-https://sepolia.arbiscan.io}"
   frontend_rpc_url="${NEXT_PUBLIC_RPC_URL:-https://sepolia-rollup.arbitrum.io/rpc}"
   frontend_contract_config_source="${CONTRACT_CONFIG_SOURCE:-src/contract-config.arbitrum-sepolia.example.json}"
+  admin_front_app_env="staging"
+  admin_front_public_api_base_url="${NEXT_PUBLIC_ADMIN_API_BASE_URL:-https://admin-api-staging.synapse-network.ai}"
+  admin_front_proxy_target="${ADMIN_API_PROXY_TARGET:-https://admin-api-staging.synapse-network.ai}"
+fi
+
+if [[ "${admin_front_app_env}" == "prod" ]] && [[ "${admin_front_public_api_base_url}${admin_front_proxy_target}" == *"staging"* ]]; then
+  echo "refusing to build production admin-front with staging admin API settings" >&2
+  exit 2
 fi
 
 IFS=',' read -r -a requested_services <<<"${SERVICES}"
@@ -237,11 +248,11 @@ if contains_service admin-front; then
       - "--platform"
       - "${DOCKER_PLATFORM}"
       - "--build-arg"
-      - "NEXT_PUBLIC_ADMIN_API_BASE_URL=${NEXT_PUBLIC_ADMIN_API_BASE_URL:-https://admin-api-staging.synapse-network.ai}"
+      - "NEXT_PUBLIC_ADMIN_API_BASE_URL=${admin_front_public_api_base_url}"
       - "--build-arg"
-      - "ADMIN_API_PROXY_TARGET=${ADMIN_API_PROXY_TARGET:-https://admin-api-staging.synapse-network.ai}"
+      - "ADMIN_API_PROXY_TARGET=${admin_front_proxy_target}"
       - "--build-arg"
-      - "NEXT_PUBLIC_APP_ENV=${NEXT_PUBLIC_APP_ENV:-staging}"
+      - "NEXT_PUBLIC_APP_ENV=${admin_front_app_env}"
       - "-t"
       - "${admin_front_image}"
       - "services/admin-front"
@@ -306,9 +317,9 @@ docker_build_and_push() {
   if contains_service admin-front; then
     docker_build_local \
       --platform "${DOCKER_PLATFORM}" \
-      --build-arg "NEXT_PUBLIC_ADMIN_API_BASE_URL=${NEXT_PUBLIC_ADMIN_API_BASE_URL:-https://admin-api-staging.synapse-network.ai}" \
-      --build-arg "ADMIN_API_PROXY_TARGET=${ADMIN_API_PROXY_TARGET:-https://admin-api-staging.synapse-network.ai}" \
-      --build-arg "NEXT_PUBLIC_APP_ENV=${NEXT_PUBLIC_APP_ENV:-staging}" \
+      --build-arg "NEXT_PUBLIC_ADMIN_API_BASE_URL=${admin_front_public_api_base_url}" \
+      --build-arg "ADMIN_API_PROXY_TARGET=${admin_front_proxy_target}" \
+      --build-arg "NEXT_PUBLIC_APP_ENV=${admin_front_app_env}" \
       -t "${admin_front_image}" \
       services/admin-front
     docker push "${admin_front_image}"
