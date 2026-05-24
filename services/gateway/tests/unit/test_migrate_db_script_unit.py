@@ -11,6 +11,7 @@ def _write_fake_tools(tmp_path: Path) -> tuple[Path, Path]:
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
     psql_calls = tmp_path / "psql-calls.txt"
+    psql_sql = tmp_path / "psql-sql.txt"
     (fake_bin / "psql").write_text(
         """#!/usr/bin/env bash
 set -euo pipefail
@@ -21,6 +22,7 @@ for arg in "$@"; do
   fi
 done
 stdin="$(cat || true)"
+printf '%s\\n--- psql call ---\\n' "$stdin" >> "${FAKE_PSQL_SQL}"
 case "$stdin" in
   *"information_schema.tables"*) echo "40" ;;
   *"string_agg(required_table"*) echo "" ;;
@@ -44,12 +46,16 @@ echo "schema contract validation passed"
     return fake_bin, psql_calls
 
 
-def _run_migrate_with_fake_tools(tmp_path: Path, env: dict[str, str]) -> list[str]:
+def _run_migrate_with_fake_tools(
+    tmp_path: Path, env: dict[str, str]
+) -> tuple[list[str], str]:
     fake_bin, psql_calls = _write_fake_tools(tmp_path)
+    psql_sql = tmp_path / "psql-sql.txt"
     run_env = {
         **os.environ,
         "PATH": f"{fake_bin}:{os.environ['PATH']}",
         "FAKE_PSQL_CALLS": str(psql_calls),
+        "FAKE_PSQL_SQL": str(psql_sql),
         "GATEWAY_PYTHON": "python3",
         **env,
     }
@@ -61,13 +67,16 @@ def _run_migrate_with_fake_tools(tmp_path: Path, env: dict[str, str]) -> list[st
         check=True,
         capture_output=True,
     )
-    return psql_calls.read_text(encoding="utf-8").splitlines()
+    return (
+        psql_calls.read_text(encoding="utf-8").splitlines(),
+        psql_sql.read_text(encoding="utf-8"),
+    )
 
 
 def test_staging_migration_prefers_split_migrator_fields_over_runtime_dsn(
     tmp_path: Path,
 ) -> None:
-    calls = _run_migrate_with_fake_tools(
+    calls, _sql = _run_migrate_with_fake_tools(
         tmp_path,
         {
             "POSTGRES_DSN": "postgresql://runtime:runtime-pw@runtime-host/db",
@@ -87,7 +96,7 @@ def test_staging_migration_prefers_split_migrator_fields_over_runtime_dsn(
 
 def test_staging_migration_uses_runtime_dsn_only_as_last_resort(tmp_path: Path) -> None:
     runtime_dsn = "postgresql://runtime:runtime-pw@runtime-host/db"
-    calls = _run_migrate_with_fake_tools(
+    calls, _sql = _run_migrate_with_fake_tools(
         tmp_path,
         {
             "POSTGRES_DSN": runtime_dsn,
@@ -97,3 +106,24 @@ def test_staging_migration_uses_runtime_dsn_only_as_last_resort(tmp_path: Path) 
 
     assert calls
     assert all(call == runtime_dsn for call in calls)
+
+
+def test_staging_migration_grants_analytics_outbox_to_readonly_user(
+    tmp_path: Path,
+) -> None:
+    _calls, sql = _run_migrate_with_fake_tools(
+        tmp_path,
+        {
+            "POSTGRES_DSN": "postgresql://runtime:runtime-pw@runtime-host/db",
+            "POSTGRES_USER": "synapse_gateway_app",
+            "POSTGRES_MIGRATOR_USER": "synapse_gateway_migrator",
+            "GATEWAY_READONLY_DB_USER": "synapse_gateway_ro",
+        },
+    )
+
+    assert "GRANT SELECT ON TABLE public.synapse_analytics_outbox" in sql
+    assert "readonly_user" in sql
+    assert (
+        "has_table_privilege(:'readonly_user', 'public.synapse_analytics_outbox', 'SELECT')"
+        in sql
+    )
