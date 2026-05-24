@@ -130,7 +130,7 @@ describe("shouldUseSameOriginAdminProxy", () => {
     ).toBe(true);
   });
 
-  it("preserves non-local absolute admin API URLs", () => {
+  it("routes managed Synapse admin domains through the same-origin proxy", () => {
     expect(
       shouldUseSameOriginAdminProxy(
         "https://admin-api-staging.synapse-network.ai",
@@ -140,6 +140,26 @@ describe("shouldUseSameOriginAdminProxy", () => {
           origin: "https://admin-staging.synapse-network.ai",
         }
       )
+    ).toBe(true);
+  });
+
+  it("does not treat cross-environment Synapse admin domains as a safe proxy pair", () => {
+    expect(
+      shouldUseSameOriginAdminProxy(
+        "https://admin-api-staging.synapse-network.ai",
+        {
+          protocol: "https:",
+          hostname: "admin.synapse-network.ai",
+          origin: "https://admin.synapse-network.ai",
+        }
+      )
+    ).toBe(false);
+    expect(
+      shouldUseSameOriginAdminProxy("https://admin-api.synapse-network.ai", {
+        protocol: "https:",
+        hostname: "admin-staging.synapse-network.ai",
+        origin: "https://admin-staging.synapse-network.ai",
+      })
     ).toBe(false);
   });
 
@@ -169,7 +189,7 @@ describe("buildAdminRequestUrl", () => {
     ).toBe("/api/admin/v1/auth/login");
   });
 
-  it("uses explicit external admin API origins outside local browser dev", () => {
+  it("keeps staging admin custom domains on the same-origin proxy", () => {
     expect(
       buildAdminRequestUrl(
         "/api/admin/v1/auth/login",
@@ -178,6 +198,34 @@ describe("buildAdminRequestUrl", () => {
           protocol: "https:",
           hostname: "admin-staging.synapse-network.ai",
           origin: "https://admin-staging.synapse-network.ai",
+        }
+      )
+    ).toBe("/api/admin/v1/auth/login");
+  });
+
+  it("keeps production admin custom domains on the same-origin proxy", () => {
+    expect(
+      buildAdminRequestUrl(
+        "/api/admin/v1/auth/login",
+        "https://admin-api.synapse-network.ai",
+        {
+          protocol: "https:",
+          hostname: "admin.synapse-network.ai",
+          origin: "https://admin.synapse-network.ai",
+        }
+      )
+    ).toBe("/api/admin/v1/auth/login");
+  });
+
+  it("does not silently rewrite production admin pages to staging admin APIs", () => {
+    expect(
+      buildAdminRequestUrl(
+        "/api/admin/v1/auth/login",
+        "https://admin-api-staging.synapse-network.ai",
+        {
+          protocol: "https:",
+          hostname: "admin.synapse-network.ai",
+          origin: "https://admin.synapse-network.ai",
         }
       )
     ).toBe(

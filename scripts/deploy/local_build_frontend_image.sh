@@ -169,7 +169,7 @@ git -C "${ROOT}" worktree add --detach "${WORKTREE_DIR}" "${TARGET_COMMIT}"
 pushd "${WORKTREE_DIR}" >/dev/null
 export REGION
 export ARTIFACT_REGISTRY_REPOSITORY="${REPOSITORY}"
-export STAGING_IMAGE_BUILD_BACKEND=local-docker
+export STAGING_IMAGE_BUILD_BACKEND="${STAGING_IMAGE_BUILD_BACKEND:-local-docker}"
 export DOCKER_PLATFORM="${DOCKER_PLATFORM:-linux/amd64}"
 
 bash "${TOOL_ROOT}/scripts/deploy/gcp_cloudbuild_staging_images.sh" "${PROJECT_ID}" \

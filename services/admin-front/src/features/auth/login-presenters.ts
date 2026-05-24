@@ -77,7 +77,7 @@ export function buildLoginErrorMessage(
   }
 
   if (code === "ADMIN_ACCOUNT_LOCKED") {
-    return "账号因连续登录失败已临时锁定，请 24 小时后重试或联系 Owner。";
+    return "该账号已被登录失败保护锁定，默认锁定 24 小时；请稍后重试或联系 Owner 解锁。";
   }
 
   if (
