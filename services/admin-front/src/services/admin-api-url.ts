@@ -4,6 +4,33 @@ function isLocalBrowserHostname(hostname: string): boolean {
   );
 }
 
+function isSynapseAdminConsoleHostname(hostname: string): boolean {
+  return (
+    hostname === "admin.synapse-network.ai" ||
+    hostname === "admin-staging.synapse-network.ai"
+  );
+}
+
+function isSynapseAdminApiHostname(hostname: string): boolean {
+  return (
+    hostname === "admin-api.synapse-network.ai" ||
+    hostname === "admin-api-staging.synapse-network.ai"
+  );
+}
+
+function isMatchingSynapseAdminPair(
+  consoleHostname: string,
+  apiHostname: string
+): boolean {
+  if (consoleHostname === "admin.synapse-network.ai") {
+    return apiHostname === "admin-api.synapse-network.ai";
+  }
+  if (consoleHostname === "admin-staging.synapse-network.ai") {
+    return apiHostname === "admin-api-staging.synapse-network.ai";
+  }
+  return false;
+}
+
 export function shouldUseSameOriginAdminProxy(
   baseUrl: string,
   currentLocation?: Pick<Location, "hostname" | "origin" | "protocol">
@@ -17,12 +44,19 @@ export function shouldUseSameOriginAdminProxy(
 
   try {
     const target = new URL(baseUrl, location.origin);
-    return (
+    const isLocalProxyPair =
       target.origin !== location.origin &&
       target.protocol === location.protocol &&
       isLocalBrowserHostname(target.hostname) &&
-      isLocalBrowserHostname(location.hostname)
-    );
+      isLocalBrowserHostname(location.hostname);
+    const isSynapseAdminProxyPair =
+      target.origin !== location.origin &&
+      target.protocol === location.protocol &&
+      isSynapseAdminApiHostname(target.hostname) &&
+      isSynapseAdminConsoleHostname(location.hostname) &&
+      isMatchingSynapseAdminPair(location.hostname, target.hostname);
+
+    return isLocalProxyPair || isSynapseAdminProxyPair;
   } catch {
     return false;
   }
