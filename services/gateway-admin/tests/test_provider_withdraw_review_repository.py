@@ -3,8 +3,12 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
+import psycopg
+
+from src.storage.analytics import provider_withdraw_review as provider_withdraw_review_module
 from src.storage.analytics.provider_withdraw_review import (
     InMemoryProviderWithdrawReviewRepository,
+    PostgresProviderWithdrawReviewRepository,
     ProviderWithdrawReviewItem,
     _is_manual_review_expired,
     _review_expires_at_from_created_at,
@@ -114,6 +118,36 @@ def test_in_memory_withdraw_review_repository_uses_withdrawal_id_desc_as_stable_
     items = repository.list_pending_reviews(limit=10)
 
     assert [item.withdrawal_id for item in items] == ["wd-omega", "wd-alpha"]
+
+
+def test_postgres_withdraw_review_repository_degrades_when_readonly_permissions_are_missing(
+    monkeypatch,
+) -> None:
+    repository = PostgresProviderWithdrawReviewRepository("postgresql://readonly@db/synapse_gateway_prod")
+
+    def _raise_permission_denied(_: str):
+        raise psycopg.errors.InsufficientPrivilege("permission denied for table synapse_vault_withdrawals")
+
+    monkeypatch.setattr(provider_withdraw_review_module, "_connect", _raise_permission_denied)
+
+    assert repository.list_pending_reviews(limit=10) == []
+    assert repository.count_pending_reviews() == 0
+    assert repository.get_review_item("wd-prod") is None
+
+
+def test_postgres_withdraw_review_repository_degrades_when_tables_are_missing(
+    monkeypatch,
+) -> None:
+    repository = PostgresProviderWithdrawReviewRepository("postgresql://readonly@db/synapse_gateway_prod")
+
+    def _raise_undefined_table(_: str):
+        raise psycopg.errors.UndefinedTable("relation synapse_vault_withdrawals does not exist")
+
+    monkeypatch.setattr(provider_withdraw_review_module, "_connect", _raise_undefined_table)
+
+    assert repository.list_pending_reviews(limit=10) == []
+    assert repository.count_pending_reviews() == 0
+    assert repository.get_review_item("wd-prod") is None
 
 
 def test_in_memory_withdraw_review_repository_uses_withdrawal_id_desc_as_stable_tiebreaker() -> None:

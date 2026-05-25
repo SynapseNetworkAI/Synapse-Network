@@ -2,12 +2,20 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 import json
+import logging
 from typing import Any, Protocol
 
 import psycopg
 from psycopg.rows import dict_row
 
 from src.core.config import get_settings
+
+
+logger = logging.getLogger(__name__)
+_READONLY_UNAVAILABLE_ERRORS = (
+    psycopg.errors.InsufficientPrivilege,
+    psycopg.errors.UndefinedTable,
+)
 
 
 def _manual_review_expiry_seconds() -> int:
@@ -164,93 +172,114 @@ class PostgresProviderWithdrawReviewRepository:
         self._dsn = dsn
 
     def list_pending_reviews(self, limit: int = 20) -> list[ProviderWithdrawReviewItem]:
-        with _connect(self._dsn) as conn, conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT
-                    vw.withdrawal_id,
-                    vw.withdrawal_kind,
-                    owner.owner_wallet,
-                    vw.amount_usdc,
-                    COALESCE(rs.payload->>'flowStatus', vw.status) AS flow_status,
-                    COALESCE(vw.request_id, rs.payload->>'requestId') AS request_id,
-                    vw.tx_hash,
-                    rs.payload,
-                    vw.created_at,
-                    vw.updated_at,
-                    (vw.created_at + (%s * INTERVAL '1 second')) AS review_expires_at
-                FROM synapse_vault_withdrawals vw
-                JOIN synapse_ledger_accounts account
-                  ON account.account_id = vw.source_account_id
-                JOIN synapse_owner_accounts owner
-                  ON owner.owner_id = account.owner_id
-                LEFT JOIN synapse_runtime_state rs
-                  ON rs.state_key = CONCAT('vault_withdrawal_meta::', vw.withdrawal_id)
-                WHERE vw.withdrawal_kind IN ('provider_withdrawal', 'consumer_refund')
-                  AND COALESCE(rs.payload->>'flowStatus', vw.status) = 'PENDING_MANUAL_REVIEW'
-                  AND (vw.created_at + (%s * INTERVAL '1 second')) > NOW()
-                ORDER BY vw.created_at DESC, vw.withdrawal_id DESC
-                LIMIT %s
-                """,
-                (
-                    _manual_review_expiry_seconds(),
-                    _manual_review_expiry_seconds(),
-                    limit,
-                ),
+        try:
+            with _connect(self._dsn) as conn, conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT
+                        vw.withdrawal_id,
+                        vw.withdrawal_kind,
+                        owner.owner_wallet,
+                        vw.amount_usdc,
+                        COALESCE(rs.payload->>'flowStatus', vw.status) AS flow_status,
+                        COALESCE(vw.request_id, rs.payload->>'requestId') AS request_id,
+                        vw.tx_hash,
+                        rs.payload,
+                        vw.created_at,
+                        vw.updated_at,
+                        (vw.created_at + (%s * INTERVAL '1 second')) AS review_expires_at
+                    FROM synapse_vault_withdrawals vw
+                    JOIN synapse_ledger_accounts account
+                      ON account.account_id = vw.source_account_id
+                    JOIN synapse_owner_accounts owner
+                      ON owner.owner_id = account.owner_id
+                    LEFT JOIN synapse_runtime_state rs
+                      ON rs.state_key = CONCAT('vault_withdrawal_meta::', vw.withdrawal_id)
+                    WHERE vw.withdrawal_kind IN ('provider_withdrawal', 'consumer_refund')
+                      AND COALESCE(rs.payload->>'flowStatus', vw.status) = 'PENDING_MANUAL_REVIEW'
+                      AND (vw.created_at + (%s * INTERVAL '1 second')) > NOW()
+                    ORDER BY vw.created_at DESC, vw.withdrawal_id DESC
+                    LIMIT %s
+                    """,
+                    (
+                        _manual_review_expiry_seconds(),
+                        _manual_review_expiry_seconds(),
+                        limit,
+                    ),
+                )
+                rows = cur.fetchall()
+        except _READONLY_UNAVAILABLE_ERRORS as exc:
+            logger.warning(
+                "provider withdraw pending review list unavailable; returning empty backlog",
+                extra={"error": str(exc)},
             )
-            rows = cur.fetchall()
+            return []
         return [self._to_item(row) for row in rows]
 
     def count_pending_reviews(self) -> int:
-        with _connect(self._dsn) as conn, conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT COUNT(*) AS total
-                FROM synapse_vault_withdrawals vw
-                LEFT JOIN synapse_runtime_state rs
-                  ON rs.state_key = CONCAT('vault_withdrawal_meta::', vw.withdrawal_id)
-                WHERE vw.withdrawal_kind IN ('provider_withdrawal', 'consumer_refund')
-                  AND COALESCE(rs.payload->>'flowStatus', vw.status) = 'PENDING_MANUAL_REVIEW'
-                  AND (vw.created_at + (%s * INTERVAL '1 second')) > NOW()
-                """,
-                (_manual_review_expiry_seconds(),),
+        try:
+            with _connect(self._dsn) as conn, conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT COUNT(*) AS total
+                    FROM synapse_vault_withdrawals vw
+                    LEFT JOIN synapse_runtime_state rs
+                      ON rs.state_key = CONCAT('vault_withdrawal_meta::', vw.withdrawal_id)
+                    WHERE vw.withdrawal_kind IN ('provider_withdrawal', 'consumer_refund')
+                      AND COALESCE(rs.payload->>'flowStatus', vw.status) = 'PENDING_MANUAL_REVIEW'
+                      AND (vw.created_at + (%s * INTERVAL '1 second')) > NOW()
+                    """,
+                    (_manual_review_expiry_seconds(),),
+                )
+                row = cur.fetchone()
+        except _READONLY_UNAVAILABLE_ERRORS as exc:
+            logger.warning(
+                "provider withdraw pending review count unavailable; returning zero",
+                extra={"error": str(exc)},
             )
-            row = cur.fetchone()
+            return 0
         return int(row["total"])
 
     def get_review_item(self, withdrawal_id: str) -> ProviderWithdrawReviewItem | None:
-        with _connect(self._dsn) as conn, conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT
-                    vw.withdrawal_id,
-                    vw.withdrawal_kind,
-                    owner.owner_wallet,
-                    vw.amount_usdc,
-                    COALESCE(rs.payload->>'flowStatus', vw.status) AS flow_status,
-                    COALESCE(vw.request_id, rs.payload->>'requestId') AS request_id,
-                    vw.tx_hash,
-                    rs.payload,
-                    vw.created_at,
-                    vw.updated_at,
-                    (vw.created_at + (%s * INTERVAL '1 second')) AS review_expires_at
-                FROM synapse_vault_withdrawals vw
-                JOIN synapse_ledger_accounts account
-                  ON account.account_id = vw.source_account_id
-                JOIN synapse_owner_accounts owner
-                  ON owner.owner_id = account.owner_id
-                LEFT JOIN synapse_runtime_state rs
-                  ON rs.state_key = CONCAT('vault_withdrawal_meta::', vw.withdrawal_id)
-                WHERE vw.withdrawal_kind IN ('provider_withdrawal', 'consumer_refund')
-                  AND vw.withdrawal_id = %s
-                LIMIT 1
-                """,
-                (
-                    _manual_review_expiry_seconds(),
-                    withdrawal_id.strip(),
-                ),
+        try:
+            with _connect(self._dsn) as conn, conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT
+                        vw.withdrawal_id,
+                        vw.withdrawal_kind,
+                        owner.owner_wallet,
+                        vw.amount_usdc,
+                        COALESCE(rs.payload->>'flowStatus', vw.status) AS flow_status,
+                        COALESCE(vw.request_id, rs.payload->>'requestId') AS request_id,
+                        vw.tx_hash,
+                        rs.payload,
+                        vw.created_at,
+                        vw.updated_at,
+                        (vw.created_at + (%s * INTERVAL '1 second')) AS review_expires_at
+                    FROM synapse_vault_withdrawals vw
+                    JOIN synapse_ledger_accounts account
+                      ON account.account_id = vw.source_account_id
+                    JOIN synapse_owner_accounts owner
+                      ON owner.owner_id = account.owner_id
+                    LEFT JOIN synapse_runtime_state rs
+                      ON rs.state_key = CONCAT('vault_withdrawal_meta::', vw.withdrawal_id)
+                    WHERE vw.withdrawal_kind IN ('provider_withdrawal', 'consumer_refund')
+                      AND vw.withdrawal_id = %s
+                    LIMIT 1
+                    """,
+                    (
+                        _manual_review_expiry_seconds(),
+                        withdrawal_id.strip(),
+                    ),
+                )
+                row = cur.fetchone()
+        except _READONLY_UNAVAILABLE_ERRORS as exc:
+            logger.warning(
+                "provider withdraw review item unavailable; returning missing item",
+                extra={"error": str(exc), "withdrawal_id": withdrawal_id.strip()},
             )
-            row = cur.fetchone()
+            return None
         if row is None:
             return None
         return self._to_item(row)
