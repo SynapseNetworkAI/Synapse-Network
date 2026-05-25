@@ -1,4 +1,5 @@
 import json
+import logging
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from decimal import Decimal
@@ -9,6 +10,13 @@ import psycopg
 from psycopg.rows import dict_row
 
 from src.storage.analytics.gateway_dashboard_demo import build_seed_demo_repository
+
+logger = logging.getLogger(__name__)
+
+_READONLY_UNAVAILABLE_ERRORS = (
+    psycopg.errors.InsufficientPrivilege,
+    psycopg.errors.UndefinedTable,
+)
 
 
 def _connect(dsn: str) -> Any:
@@ -239,6 +247,17 @@ class GatewayReconciliationRuntimeState:
     delta_usdc: Decimal | None
     alert: bool
     updated_at: datetime | None
+
+
+def _empty_reconciliation_runtime_state() -> GatewayReconciliationRuntimeState:
+    return GatewayReconciliationRuntimeState(
+        last_check_at=None,
+        chain_vault_usdc=None,
+        ledger_obligation_usdc=None,
+        delta_usdc=None,
+        alert=False,
+        updated_at=None,
+    )
 
 
 class GatewayDashboardProjectionRepository(Protocol):
@@ -484,25 +503,25 @@ class PostgresGatewayDashboardProjectionRepository:
         return _operations_snapshot_from_row(row)
 
     def get_reconciliation_runtime_state(self) -> GatewayReconciliationRuntimeState:
-        with _connect(self._dsn) as conn, conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT payload, updated_at
-                FROM synapse_runtime_state
-                WHERE state_key = 'deposit_reconciliation_state'
-                LIMIT 1
-                """
+        try:
+            with _connect(self._dsn) as conn, conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT payload, updated_at
+                    FROM synapse_runtime_state
+                    WHERE state_key = 'deposit_reconciliation_state'
+                    LIMIT 1
+                    """
+                )
+                row = cur.fetchone()
+        except _READONLY_UNAVAILABLE_ERRORS as exc:
+            logger.warning(
+                "gateway_dashboard.reconciliation_runtime_state_unavailable",
+                exc_info=exc,
             )
-            row = cur.fetchone()
+            return _empty_reconciliation_runtime_state()
         if row is None:
-            return GatewayReconciliationRuntimeState(
-                last_check_at=None,
-                chain_vault_usdc=None,
-                ledger_obligation_usdc=None,
-                delta_usdc=None,
-                alert=False,
-                updated_at=None,
-            )
+            return _empty_reconciliation_runtime_state()
 
         payload = self._payload_dict(row.get("payload"))
         chain_vault = payload.get("chainVaultUsdc")
