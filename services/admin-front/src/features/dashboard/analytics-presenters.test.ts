@@ -50,7 +50,11 @@ describe("analytics dashboard presenters", () => {
   it("builds consumer summary cards for the drilldown page", () => {
     const cards = buildConsumerFunnelSummaryCards({
       window: "24h",
-      steps: [],
+      steps: [
+        { eventName: "page_viewed", label: "page viewed", users: 100, events: 120, conversionRate: 1, dropoffRate: 0 },
+        { eventName: "quote_generated", label: "quote generated", users: 100, events: 100, conversionRate: 1, dropoffRate: 0 },
+        { eventName: "deposit_completed", label: "deposit completed", users: 100, events: 100, conversionRate: 1, dropoffRate: 0 },
+      ],
       summary: {
         activationRate: 0.181,
         firstInvokeUsers: 88,
@@ -66,7 +70,35 @@ describe("analytics dashboard presenters", () => {
       "deposit-to-first-invoke",
     ]);
     expect(cards[0]).toMatchObject({ value: "18.1%", tone: "orange" });
+    expect(cards[0]).toMatchObject({ statusLabel: "Watch" });
     expect(cards[2]).toMatchObject({ value: "64%", tone: "green" });
+    expect(cards[2]).toMatchObject({ statusLabel: "Healthy" });
+  });
+
+  it("labels consumer funnel zero-denominator metrics as no data instead of degraded", () => {
+    const cards = buildConsumerFunnelSummaryCards({
+      window: "24h",
+      steps: [
+        { eventName: "page_viewed", label: "page viewed", users: 0, events: 0, conversionRate: 1, dropoffRate: 0 },
+        { eventName: "quote_generated", label: "quote generated", users: 0, events: 0, conversionRate: 0, dropoffRate: 1 },
+        { eventName: "deposit_completed", label: "deposit completed", users: 0, events: 0, conversionRate: 0, dropoffRate: 1 },
+      ],
+      summary: {
+        activationRate: 0,
+        firstInvokeUsers: 0,
+        quoteToInvokeRate: 0,
+        depositToFirstInvokeRate: 0,
+      },
+    });
+
+    expect(cards).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ key: "activation-rate", tone: "gray", statusLabel: "No data" }),
+        expect.objectContaining({ key: "first-invoke-users", tone: "gray", statusLabel: "No data" }),
+        expect.objectContaining({ key: "quote-to-invoke", tone: "gray", statusLabel: "No data" }),
+        expect.objectContaining({ key: "deposit-to-first-invoke", tone: "gray", statusLabel: "No data" }),
+      ])
+    );
   });
 
   it("marks invocation latency and low success rate as degraded", () => {
