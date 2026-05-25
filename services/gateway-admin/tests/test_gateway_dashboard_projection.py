@@ -1,6 +1,8 @@
 from datetime import datetime, timezone
 from decimal import Decimal
 
+import psycopg
+
 from src.storage.analytics import gateway_dashboard
 
 
@@ -49,6 +51,15 @@ class _FakeCursor:
 
     def fetchall(self) -> list[dict[str, object]]:
         return self._rows
+
+
+class _FailingCursor(_FakeCursor):
+    def __init__(self, error: Exception) -> None:
+        super().__init__(None)
+        self._error = error
+
+    def execute(self, sql: str, params: tuple[object, ...] | None = None) -> None:
+        raise self._error
 
 
 class _FakeConnection:
@@ -256,6 +267,32 @@ def test_get_operations_snapshot_returns_empty_when_projection_is_missing(monkey
     assert operations.indexer_running is False
     assert operations.reconciliation_delta_usdc == gateway_dashboard.Decimal("0")
     assert operations.projected_at is None
+
+
+def test_get_reconciliation_runtime_state_degrades_when_readonly_permission_missing(
+    monkeypatch,
+) -> None:
+    repository = gateway_dashboard.PostgresGatewayDashboardProjectionRepository(
+        "postgresql://example"
+    )
+    cursor = _FailingCursor(
+        psycopg.errors.InsufficientPrivilege(
+            "permission denied for table synapse_runtime_state"
+        )
+    )
+
+    monkeypatch.setattr(
+        gateway_dashboard, "_connect", lambda dsn: _FakeConnection(cursor)
+    )
+
+    state = repository.get_reconciliation_runtime_state()
+
+    assert state.last_check_at is None
+    assert state.chain_vault_usdc is None
+    assert state.ledger_obligation_usdc is None
+    assert state.delta_usdc is None
+    assert state.alert is False
+    assert state.updated_at is None
 
 
 def test_seed_demo_exposes_funds_observability_metrics() -> None:
