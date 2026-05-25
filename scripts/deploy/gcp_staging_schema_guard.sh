@@ -263,15 +263,24 @@ echo "[ok] gateway app user has runtime table privileges"
 gateway_readonly_privileges="$(
   psql "${gateway_migrator_dsn}" -X -v ON_ERROR_STOP=1 -q -t -A \
     --set=readonly_user="${GATEWAY_READONLY_DB_USER}" <<'SQL'
-SELECT has_table_privilege(:'readonly_user', 'public.synapse_analytics_outbox', 'SELECT')::text;
+SELECT COALESCE(string_agg(required_table, ', '), '')
+FROM (
+  VALUES
+    ('synapse_analytics_outbox'),
+    ('synapse_vault_withdrawals'),
+    ('synapse_runtime_state'),
+    ('synapse_ledger_accounts'),
+    ('synapse_owner_accounts')
+) AS required(required_table)
+WHERE NOT has_table_privilege(:'readonly_user', format('public.%I', required_table), 'SELECT');
 SQL
 )"
-gateway_readonly_privileges="$(printf '%s' "${gateway_readonly_privileges}" | tr -d '[:space:]')"
-if [[ "${gateway_readonly_privileges}" != "true" ]]; then
-  echo "FATAL STAGING-SCHEMA-005B: gateway readonly user lacks SELECT on synapse_analytics_outbox: ${gateway_readonly_privileges}" >&2
+gateway_readonly_privileges="$(printf '%s' "${gateway_readonly_privileges}" | xargs)"
+if [[ -n "${gateway_readonly_privileges}" ]]; then
+  echo "FATAL STAGING-SCHEMA-005B: gateway readonly user lacks SELECT on required dashboard tables: ${gateway_readonly_privileges}" >&2
   exit 1
 fi
-echo "[ok] gateway readonly user can read analytics outbox"
+echo "[ok] gateway readonly user can read dashboard and analytics tables"
 
 psql "${gateway_app_dsn}" -X -v ON_ERROR_STOP=1 \
   -c "SELECT '[ok] gateway app DSN can read owner accounts: ' || COUNT(*) FROM synapse_owner_accounts;" >/dev/null
