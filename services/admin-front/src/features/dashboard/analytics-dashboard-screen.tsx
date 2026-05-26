@@ -283,7 +283,7 @@ function SignalGrid({ cards }: Readonly<{ cards: AnalyticsSignalCard[] }>) {
               <Text fontSize="11px" letterSpacing="0.16em" textTransform="uppercase" color="ink.500">{card.label}</Text>
               <Heading size="md" letterSpacing="-0.03em">{card.value}</Heading>
             </Stack>
-            <SentinelStatusChip label={resolveStatusLabel(card.tone)} tone={card.tone} />
+            <SentinelStatusChip label={card.statusLabel ?? resolveStatusLabel(card.tone)} tone={card.tone} />
           </HStack>
           <Text mt="10px" color="ink.500">{card.detail}</Text>
         </Box>
