@@ -25,6 +25,7 @@ def _build_client(monkeypatch):
     monkeypatch.setattr(gateway_app.settings, "provider_withdraw_expiry_reaper_enabled", False, raising=False)
     monkeypatch.setattr(gateway_app.settings, "consumer_withdraw_processor_enabled", False, raising=False)
     monkeypatch.setattr(gateway_app.settings, "notification_outbox_trigger_enabled", True, raising=False)
+    monkeypatch.setattr(gateway_app.settings, "deposit_indexer_trigger_enabled", True, raising=False)
     monkeypatch.setattr(gateway_app.settings, "internal_trigger_secret", "unit-secret", raising=False)
     return TestClient(gateway_app.create_app(), base_url="https://gateway.test")
 
@@ -62,3 +63,72 @@ def test_internal_notification_trigger_runs_once(monkeypatch) -> None:
         )
     assert response.status_code == 200
     assert response.json()["jobName"] == "notification-outbox-drain"
+
+
+def test_internal_deposit_trigger_requires_shared_secret(monkeypatch) -> None:
+    with _build_client(monkeypatch) as client:
+        response = client.post("/internal/jobs/deposit-indexer/trigger", json={"source": "unit"})
+    assert response.status_code == 401
+
+
+def test_internal_deposit_trigger_runs_pending_sweep(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "src.api.routers.internal_jobs.run_locked_bounded_pending_confirmation_sweep",
+        lambda _storage: type(
+            "_Result",
+            (),
+            {
+                "status": "ok",
+                "attempts": 2,
+                "credited": 1,
+                "failed": 0,
+                "pending": 1,
+                "reason": "",
+            },
+        )(),
+    )
+    with _build_client(monkeypatch) as client:
+        response = client.post(
+            "/internal/jobs/deposit-indexer/trigger",
+            headers={"X-Synapse-Internal-Token": "unit-secret"},
+            json={"source": "unit"},
+        )
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "ok",
+        "jobName": "deposit-indexer",
+        "attempts": 2,
+        "result": {"credited": 1, "failed": 0, "pending": 1},
+    }
+
+
+def test_internal_deposit_trigger_skips_when_already_running(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "src.api.routers.internal_jobs.run_locked_bounded_pending_confirmation_sweep",
+        lambda _storage: type(
+            "_Result",
+            (),
+            {
+                "status": "skipped",
+                "attempts": 0,
+                "credited": 0,
+                "failed": 0,
+                "pending": 0,
+                "reason": "already_running",
+            },
+        )(),
+    )
+    with _build_client(monkeypatch) as client:
+        response = client.post(
+            "/internal/jobs/deposit-indexer/trigger",
+            headers={"X-Synapse-Internal-Token": "unit-secret"},
+            json={"source": "unit"},
+        )
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "skipped",
+        "jobName": "deposit-indexer",
+        "attempts": 0,
+        "result": {"credited": 0, "failed": 0, "pending": 0},
+        "reason": "already_running",
+    }

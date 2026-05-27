@@ -6,6 +6,7 @@ from typing import Any, List, Optional
 from uuid import uuid4
 
 from src.core.common import normalize_wallet
+from src.core.config import settings
 from src.domain.execution import DepositIntentConfirmCommand, DepositIntentRegisterCommand
 from src.domain.finance import BalanceLedger
 from src.domain.ledger import DepositIntentRow
@@ -14,7 +15,7 @@ from src.services.analytics.gateway_events import (
     emit_deposit_failed,
 )
 from src.storage import BaseStorage
-from src.utils.datetime_utils import now_dt_str, to_dt_str
+from src.utils.datetime_utils import now_dt_str, to_dt_str, to_epoch_seconds
 from src.utils.money import MoneyCodec, money_str
 
 from .chain import (
@@ -48,6 +49,18 @@ def _mark_intent_failed(intent: dict[str, Any], reason: str, now: int) -> None:
             loop.create_task(emit_deposit_failed(owner, amount_usdc=amount, error_code=reason))
         except RuntimeError:
             pass
+
+
+def _intent_created_at_epoch(intent: dict[str, Any], now: int) -> int:
+    created_at = intent.get("createdAt") or intent.get("updatedAt")
+    return to_epoch_seconds(created_at, default=now)
+
+
+def _intent_is_stale(intent: dict[str, Any], now: int) -> bool:
+    created_at = _intent_created_at_epoch(intent, now)
+    return max(0, int(now) - int(created_at)) >= int(
+        settings.deposit_pending_intent_stale_after_sec
+    )
 
 
 def _extract_intent_fields(intent: dict[str, Any]) -> Optional[dict[str, Any]]:
@@ -123,6 +136,9 @@ def _resolve_deposit_receipt_state(
     """判断链上交易是否已确认且能匹配到合法 deposit 事件。"""
     tx_receipt = _get_confirmed_receipt_or_none(tx_hash)
     if tx_receipt is None:
+        if _intent_is_stale(intent, now):
+            _mark_intent_failed(intent, "MISSING_TX_RECEIPT_TIMEOUT", now)
+            return {"result": "failed"}
         return None
     if tx_receipt.get("failed") is True:
         _mark_intent_failed(intent, "CHAIN_TX_FAILED", now)

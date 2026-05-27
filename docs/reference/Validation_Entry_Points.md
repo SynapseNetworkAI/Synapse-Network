@@ -77,10 +77,6 @@ From repository root:
 57. `npm run e2e:consumer-withdraw-approval-expiry:local`
 58. `npm run ci:consumer-withdraw-approval-expiry-local-evidence`
 59. `npm run ci:migration-seed-guard`
-60. `npm run e2e:prod-smoke-readonly`
-61. `npm run e2e:prod-free-invoke`
-62. `npm run e2e:prod-core-small-value`
-63. `npm run ci:prod-core-e2e-evidence`
 
 Use these wrappers when final integration confidence is required.
 
@@ -96,13 +92,6 @@ Infrastructure preflight:
 2. `bash scripts/deploy/migrate_db.sh local|staging|prod` for explicit schema/reference migration; prod requires `SYNAPSE_MIGRATION_CONFIRM=I_UNDERSTAND_THIS_CHANGES_PROD`
 3. `npm run ci:staging-schema-guard -- --project fabled-archive-494108-k5 --port 15543` after starting Cloud SQL Auth Proxy on `15543`; verifies staging Gateway/Admin databases have required tables, migrator ownership, runtime grants, and consistent DSN/password secrets.
 4. `npm run ci:staging-drift-guard` verifies staging Cloud SQL keeps the V1 Auth Proxy security posture: public IPv4 is retained, authorized networks are empty, connector enforcement is `REQUIRED`, IAM database authentication is on, backups/PITR are enabled, and password policy is enabled.
-
-Production core E2E:
-
-1. `npm run e2e:prod-smoke-readonly` validates production public domains, Gateway/Admin health, docs assets, Cloud Run env when `gcloud` is authenticated, and read-only Cloud SQL evidence through `PROD_GATEWAY_READONLY_DSN`. Prod Cloud SQL is private-IP only, so local SQL evidence requires Cloud SQL Auth Proxy with `--private-ip` from a network that can route to the prod VPC.
-2. `npm run e2e:prod-free-invoke` validates production login, optional no-expiry credential issue, discovery, and free catalog invoke through the production free catalog service, currently `svc_oss_security_healthcheck`. It requires `PROD_E2E_CONFIRM=I_UNDERSTAND_THIS_MUTATES_PROD_FREE_INVOKE` and a dedicated `PROD_E2E_CONSUMER_PRIVATE_KEY`, but no RPC, gas, or USDC.
-3. `npm run e2e:prod-core-small-value` is the explicit small-value production rehearsal. It requires `PROD_E2E_CONFIRM=I_UNDERSTAND_THIS_MUTATES_PROD_SMALL_VALUE`, a dedicated `PROD_E2E_CONSUMER_PRIVATE_KEY`, `PROD_E2E_AGENT_CREDENTIAL`, `PROD_E2E_RPC_URL`, and a read-only SQL DSN. `PROD_E2E_RPC_URL` is the Arbitrum One JSON-RPC endpoint used only for chain balance reads and approve/deposit transactions. It deposits at least `5.00 USDC`, invokes an existing catalog service, and refuses to create provider services.
-4. `npm run ci:prod-core-e2e-evidence` validates the latest production core evidence bundle under `docs/evidence/prod/core-e2e/`. Evidence must include `report.json`, `trace.jsonl`, SQL/API/chain evidence, screenshots for small-value runs, and no raw private keys, agent credentials, bearer tokens, or signatures.
 
 Local hook bootstrap:
 
@@ -262,8 +251,6 @@ Working directory: `services/admin-front/`
 5. `npm run ci:admin-front` from repository root when repo-standard gating is needed; this runs lint, Vitest, and production build
 6. `cd services/admin-front && yarn test src/components/admin-notification-inbox.test.tsx src/services/admin-api-route-coverage.test.ts` when changing Admin Inbox, admin notification API clients, unread badges, read/archive actions, or provider-service notification rendering
 7. `npm run e2e:admin-inbox-provider-services && npm run ci:admin-inbox-provider-services-evidence` when closing local Admin Inbox provider-service notification behavior; this must produce screenshots and SQL evidence for unread, read, archive, and dedupe state
-8. `cd services/admin-front && yarn test src/features/contract-addresses/contract-addresses-page.test.tsx` when changing the read-only contract/address registry UI, custody address book, contract check rendering, or platform fee reconciliation cards
-9. `npm run e2e:admin-contract-addresses-readonly && npm run ci:admin-contract-addresses-evidence` when closing local Admin contract/address registry behavior; this must produce API, DOM, screenshot, and read-only SQL evidence for `/contract-addresses`, expected address tails, balances, platform fee reconciliation, copy/explorer links, and absence of mutation controls
 
 ### 3.4 services/gateway-admin
 
@@ -272,7 +259,6 @@ Working directory: `services/gateway-admin/`
 1. `/Users/cliff/workspace/agent/Synapse-Network/services/gateway-admin/.venv/bin/python -m pytest tests -q`
 2. `npm run ci:admin-gateway` from repository root when repo-standard gating is needed; this runs the full gateway-admin pytest suite
 3. `cd services/gateway-admin && .venv/bin/python -m pytest tests/test_app.py tests/test_admin_notifications.py -q` when changing admin notification repositories, Admin Inbox API scoping, or Provider Services notification triggers
-4. `cd services/gateway-admin && .venv/bin/python -m pytest tests/test_contract_address_registry.py -q` when changing the read-only contract/address registry API, on-chain contract check aggregation, custody balance reads, or platform fee registry projections
 
 Runtime ops anchors:
 
@@ -367,7 +353,13 @@ Before finishing:
 16. run `npm run e2e:user-front-copyable-identifiers` and `npm run ci:user-front-copyable-identifiers-evidence` when changing visible copy controls for transaction IDs, invocation IDs, service IDs, agent IDs, wallet addresses, tx hashes, withdrawal IDs, nonce/ticket fields, or privacy-sensitive invocation/provider tables. This is a local DOM/clipboard evidence gate, not a DB/ledger money-path gate.
 17. run `npm run e2e:user-front-payments-gateway-truth:local` and `npm run ci:user-front-payments-gateway-truth-local-evidence` when changing Billing/Payments history aggregation, deposit/withdraw/refund API adapters, or frontend money-history data sources. The evidence must prove Payments rows come from Gateway DB/API, each source uses `limit=100`, DOM renders the sorted top 50 rows, pending intents survive refresh, and frontend chain-log scans are not reintroduced.
 18. run `npm run e2e:deposit-indexer-recovery:local` and `npm run ci:deposit-indexer-recovery-local-evidence` when changing deposit indexer startup, backfill, replay protection, local Gateway indexer env, or pending-deposit reliability. The evidence must prove indexer-down UI stays pending, restart auto-confirms valid deposits, backfill recovers missed intents, invalid events do not credit, and replay does not double-credit.
-19. run `npm run e2e:deposit-indexer-event-only:local` and `npm run ci:deposit-indexer-event-only-local-evidence` when changing deposit event scanning, `DepositInfo` decoding, `eth_getLogs` chunking, finality-buffer rules, processed deposit event key dedup, or the local zero-user RPC/CU baseline used for cost reporting. The evidence must prove the worker tick uses `eth_getLogs` without default block scans, chunking emits at least two `getLogs` ranges for a >2000-block catch-up, `lastScannedBlock` stays behind `confirmedHead`, Payments history still renders the Gateway-backed deposit row exactly once, and `rpc-cu-comparison.json` preserves the approved before/after baseline.
+19. run `npm run e2e:deposit-indexer-event-only:local` and `npm run ci:deposit-indexer-event-only-local-evidence` when changing deposit event scanning, `DepositInfo` decoding, `eth_getLogs` chunking, finality-buffer rules, processed deposit event key dedup, bounded pending sweep retry, Alchemy deposit webhook wakeups, or the local zero-user RPC/CU baseline used for cost reporting. The evidence must prove three things together: first, `POST /api/v1/balance/deposit/intent` can confirm a deposit with `V2_INDEXER_ENABLED=false` and no scheduler-first help; second, the signed `POST /internal/webhooks/alchemy/deposits` lane can move a still-pending deposit to `CONFIRMED` without trigger or scheduler first-hop help, while invalid signatures return `401`, duplicate webhook delivery stays idempotent, and unknown-intent payloads do not credit funds; third, the worker tick still uses `eth_getLogs` without default block scans, chunking emits at least two `getLogs` ranges for a >2000-block catch-up, `lastScannedBlock` stays behind `confirmedHead`, Payments history still renders the Gateway-backed deposit row exactly once, and `rpc-cu-comparison.json` preserves the approved before/after baseline.
+   Keep the environment contract aligned while doing this work:
+   prod uses Alchemy app `synapse-network-prod`, staging uses
+   `synapse-network-staging`, and both environments rely on HMAC signature
+   validation as the primary webhook trust root. Do not present app-layer
+   source-IP filtering as a real allowlist unless the callback has been moved
+   behind LB + Cloud Armor.
 20. run `npm run e2e:admin-dashboard-projection-readmodel:local` and `npm run ci:admin-dashboard-projection-readmodel-local-evidence` when changing Gateway-admin dashboard projection repositories, Admin-front dashboard/finance/runtime read-model rendering, or projection view SQL. The local gate proves Admin API, explicit Postgres projection column queries, DOM values, and screenshots agree without `row_to_json` or dashboard projection `SELECT *`.
 21. run `npm run ci:diff-coverage` when changed code needs line-level coverage evidence; Python and Vitest coverage must be Cobertura XML
 22. run `npm run ci:agent-guardrails` when Agent-generated backend/admin code touches finance, approval, storage, or shared state-machine logic; install `uv` once if the runner reports a missing Python guardrail tool

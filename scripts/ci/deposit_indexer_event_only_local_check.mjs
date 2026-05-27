@@ -13,8 +13,10 @@ const REQUIRED_FILES = [
   "report.json",
   "report.md",
   "trace.jsonl",
+  "api-evidence.json",
   "db-evidence.json",
   "dom-evidence.json",
+  "log-evidence.json",
   "screenshot-evidence.json",
   "rpc-cu-comparison.json",
 ];
@@ -77,6 +79,8 @@ if (process.exitCode) process.exit(process.exitCode);
 const report = readJson(path.join(dir, "report.json"));
 const db = readJson(path.join(dir, "db-evidence.json"));
 const dom = readJson(path.join(dir, "dom-evidence.json"));
+const api = readJson(path.join(dir, "api-evidence.json"));
+const logs = readJson(path.join(dir, "log-evidence.json"));
 const screenshots = readJson(path.join(dir, "screenshot-evidence.json"));
 const rpc = readJson(path.join(dir, "rpc-cu-comparison.json"));
 const traceText = fs.readFileSync(path.join(dir, "trace.jsonl"), "utf8");
@@ -111,6 +115,15 @@ if (
 const checkMap = new Map((report.checks || []).map((row) => [row.name, row]));
 for (const name of [
   "preflight:local",
+  "event-trigger:no-scheduler-preflight",
+  "event-trigger-no-scheduler-confirmation",
+  "alchemy-webhook:preflight",
+  "alchemy-webhook:pending-before-replay",
+  "alchemy-webhook:invalid-signature",
+  "alchemy-webhook-signed-replay",
+  "alchemy-webhook:duplicate-safe",
+  "alchemy-webhook:unknown-intent-no-credit",
+  "alchemy-webhook:db-dom-consistent",
   "event-only:uses-getLogs",
   "chunking:evidence-present",
   "finality-buffer:evidence-present",
@@ -138,6 +151,41 @@ if (
     path.join(dir, "db-evidence.json"),
     "depositRows must contain exactly one confirmed business row.",
     "make the event-only lane persist a single confirmed deposit row snapshot."
+  );
+}
+
+const webhookDb = db.alchemyWebhook || {};
+if (
+  !Array.isArray(webhookDb.confirmedRows) ||
+  webhookDb.confirmedRows.length !== 1 ||
+  String(webhookDb.confirmedRows[0]?.status || "").toUpperCase() !== "CONFIRMED"
+) {
+  fatal(
+    "DEPOSIT-INDEXER-EVENT-ONLY-006A",
+    path.join(dir, "db-evidence.json"),
+    "alchemy webhook confirmedRows must contain exactly one confirmed business row.",
+    "persist the signed webhook replay DB snapshot after confirmation."
+  );
+}
+
+if (
+  !Array.isArray(api) ||
+  !api.some(
+    (entry) =>
+      entry.pathname === "/internal/webhooks/alchemy/deposits" &&
+      entry.httpStatus === 200
+  ) ||
+  !api.some(
+    (entry) =>
+      entry.pathname === "/internal/webhooks/alchemy/deposits" &&
+      entry.httpStatus === 401
+  )
+) {
+  fatal(
+    "DEPOSIT-INDEXER-EVENT-ONLY-006B",
+    path.join(dir, "api-evidence.json"),
+    "alchemy webhook API evidence must include both 200 and 401 callback attempts.",
+    "record invalid-signature and successful signed replay calls in api-evidence.json."
   );
 }
 
@@ -195,6 +243,18 @@ if (
   );
 }
 
+if (
+  !dom?.alchemyWebhook?.payments ||
+  dom.alchemyWebhook.payments.noDuplicateTxHash !== true
+) {
+  fatal(
+    "DEPOSIT-INDEXER-EVENT-ONLY-010A",
+    path.join(dir, "dom-evidence.json"),
+    "alchemy webhook DOM evidence is incomplete or duplicate protection failed.",
+    "capture a dedicated Billing/Payments screenshot after signed webhook confirmation."
+  );
+}
+
 const paymentsShot = Array.isArray(screenshots)
   ? screenshots.find((row) => row.file === "screenshots/payments-history.png")
   : null;
@@ -204,6 +264,27 @@ if (!paymentsShot || paymentsShot.forbiddenTextAbsent !== true) {
     path.join(dir, "screenshot-evidence.json"),
     "payments screenshot evidence is missing or not DOM-verified.",
     "capture payments-history.png only after the DOM checkpoint passes."
+  );
+}
+
+const webhookShot = Array.isArray(screenshots)
+  ? screenshots.find((row) => row.file === "screenshots/payments-history-webhook.png")
+  : null;
+if (!webhookShot || webhookShot.forbiddenTextAbsent !== true) {
+  fatal(
+    "DEPOSIT-INDEXER-EVENT-ONLY-011A",
+    path.join(dir, "screenshot-evidence.json"),
+    "signed webhook payments screenshot evidence is missing or not DOM-verified.",
+    "capture payments-history-webhook.png only after the signed webhook DOM checkpoint passes."
+  );
+}
+
+if (!Array.isArray(logs?.webhookSignals) || logs.webhookSignals.length < 1) {
+  fatal(
+    "DEPOSIT-INDEXER-EVENT-ONLY-011B",
+    path.join(dir, "log-evidence.json"),
+    "alchemy webhook log evidence is missing.",
+    "persist the recent gateway log lines that show webhook or trigger activity."
   );
 }
 
