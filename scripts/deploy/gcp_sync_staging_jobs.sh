@@ -145,6 +145,26 @@ gateway_admin_secret_env=(
   "LARK_SECRET_PROD_ALERTS=synapse-staging-lark-secret-prod-alerts:latest"
 )
 
+gateway_service_name="synapse-staging-gateway"
+
+gateway_job_env_flags=()
+
+build_gateway_job_env_flags() {
+  local gateway_service_url
+  gateway_service_url="$(gcloud run services describe "${gateway_service_name}" \
+    --project "${PROJECT_ID}" \
+    --region "${REGION}" \
+    --format='value(status.url)')"
+  [[ -n "${gateway_service_url}" ]] || {
+    echo "failed to resolve staging gateway service URL" >&2
+    exit 1
+  }
+  gateway_job_env_flags=(
+    --update-env-vars
+    "DEPOSIT_INDEXER_TRIGGER_ENABLED=false,DEPOSIT_INDEXER_TRIGGER_URL=${gateway_service_url}/internal/jobs/deposit-indexer/trigger,NOTIFICATION_OUTBOX_TRIGGER_ENABLED=false,NOTIFICATION_OUTBOX_TRIGGER_URL=${gateway_service_url}/internal/jobs/notification-outbox/trigger,ALCHEMY_DEPOSIT_WEBHOOK_ENABLED=false"
+  )
+}
+
 join_by_comma() {
   local IFS=,
   echo "$*"
@@ -258,6 +278,12 @@ update_job_set() {
   for job in "${jobs[@]}"; do
     echo "[gcp-sync-staging-jobs] ${family}: ${job} -> ${image}" >&2
     local update_flags=()
+    if [[ "${family}" == "gateway" ]]; then
+      if (( ${#gateway_job_env_flags[@]} == 0 )); then
+        build_gateway_job_env_flags
+      fi
+      update_flags+=("${gateway_job_env_flags[@]}")
+    fi
     if [[ "${family}" == "gateway-admin" ]]; then
       update_flags+=(
         --set-env-vars "ADMIN_GATEWAY_DEBUG=false,ADMIN_SESSION_COOKIE_SECURE=true"
@@ -265,12 +291,20 @@ update_job_set() {
       )
     fi
     if [[ "${DRY_RUN}" != "true" ]]; then
-      gcloud run jobs update "${job}" \
-        --project "${PROJECT_ID}" \
-        --region "${REGION}" \
-        --image "${image}" \
-        "${update_flags[@]}" \
-        --quiet >/dev/null
+      if (( ${#update_flags[@]} > 0 )); then
+        gcloud run jobs update "${job}" \
+          --project "${PROJECT_ID}" \
+          --region "${REGION}" \
+          --image "${image}" \
+          "${update_flags[@]}" \
+          --quiet >/dev/null
+      else
+        gcloud run jobs update "${job}" \
+          --project "${PROJECT_ID}" \
+          --region "${REGION}" \
+          --image "${image}" \
+          --quiet >/dev/null
+      fi
     fi
 
     local effective_image="${image}"

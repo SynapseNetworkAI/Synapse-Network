@@ -137,6 +137,7 @@ consumer/provider wallets.
 | L0 Infra smoke                 | DNS, TLS, Cloud Run health/readiness, CORS, docs-front public docs endpoints                                                                                                                           | `npm run e2e:staging-smoke` and `npm run ci:staging-smoke-evidence`                                                                    |
 | L1 Chain smoke                 | Arbitrum Sepolia RPC, chain id, deployed bytecode, wallet gas                                                                                                                                          | `npm run staging:arb-sepolia:wallets:status` and `npm run ci:contract-deployment-evidence`                                             |
 | L2 Business E2E                | Gateway full-chain deposit, invoke, withdraw, reconciliation                                                                                                                                           | `GATEWAY_RELEASE_E2E_PROFILE=mvp-postgres npm run release:evidence:gateway-fullchain:staging`                                          |
+| L2.2 Webhook deposit proof     | Real Arbitrum Sepolia deposit, real Alchemy callback, Cloud Run logs, Cloud SQL balance buckets, and Billing/Credits UI must prove webhook-driven credit without manual confirm or scheduler-first help | `npm run e2e:staging-webhook-deposit` and `npm run ci:staging-webhook-deposit-evidence`                                                 |
 | L2.5 Full regression           | Deployed User-front dashboard, billing, discovery, canonical provider invoke, LLM invoke, provider console, and admin read-only state must match Cloud SQL evidence without creating provider services | `npm run e2e:staging-full-regression` and `npm run ci:staging-full-regression-evidence`                                                |
 | L3 UI dogfood                  | User-front/Admin-front/Docs-front browser render, CORS, screenshots, console/network errors                                                                                                            | `npm run e2e:staging-ui-dogfood`                                                                                                       |
 | L3.5 Withdrawal review dogfood | Consumer large withdrawal and Provider withdrawal approve/reject review paths with screenshots, DB, and chain evidence                                                                                 | `npm run e2e:withdrawal-review-dogfood:staging`                                                                                        |
@@ -218,6 +219,33 @@ Success criteria:
 - No duplicate credit is created for the same on-chain event.
 - Deposit credited delay is below 2 minutes for normal staging operation.
 - Delay above 10 minutes is a P1 investigation trigger.
+
+Webhook proof path:
+
+```bash
+STAGING_WEBHOOK_DEPOSIT_CONFIRM=I_UNDERSTAND_THIS_MUTATES_STAGING \
+npm run e2e:staging-webhook-deposit
+npm run ci:staging-webhook-deposit-evidence
+```
+
+Additional success criteria for the webhook proof lane:
+
+- The E2E must **not** call `POST /api/v1/balance/deposit/intents/{id}/confirm`.
+- The E2E must **not** manually execute `synapse-staging-deposit-indexer`.
+- Cloud Run logs must show `ALCHEMY_DEPOSIT_WEBHOOK_RECEIVED` for the same `txHash`.
+- Cloud Run logs must show `DEPOSIT_CREDITED` for the same `txHash`.
+- `ALCHEMY_DEPOSIT_WEBHOOK_RECEIVED` must appear before or at the same time as credit.
+- If the deposit-indexer Cloud Run Job runs during the proof window, the run is ambiguous and must fail.
+- The staging Alchemy webhook should be `Address Activity` scoped to
+  `0x0bA1dcE1Cc8d877052ab1C3CE2362830459D8FF4` (`SynapseCore`). A long-lived
+  `Custom Webhook` is a config bug for this lane because it fires on every
+  canonical block and can flood the callback with empty `logs`.
+- Gateway worker jobs must keep `DEPOSIT_INDEXER_TRIGGER_ENABLED=false`,
+  `NOTIFICATION_OUTBOX_TRIGGER_ENABLED=false`, and
+  `ALCHEMY_DEPOSIT_WEBHOOK_ENABLED=false`. If staging starts logging
+  `DEPOSIT_INDEXER_TRIGGER_URL_LOOPBACK_FORBIDDEN`, treat it as Cloud Run job
+  template drift and re-run `bash scripts/deploy/gcp_sync_staging_jobs.sh ...`
+  before investigating webhook delivery.
 
 ## Step 2 - Withdrawal State Machine
 
