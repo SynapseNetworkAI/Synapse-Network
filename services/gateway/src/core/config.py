@@ -6,6 +6,7 @@ that test code that accesses them via ``config.<helper>`` continues to work.
 import os
 from datetime import datetime, timezone
 
+from src.core.internal_trigger_urls import is_loopback_trigger_url
 from src.core.config_loaders import (
     _build_redis_url_from_components,  # noqa: F401 - re-exported for config helper tests.
     _canonical_environment_name,
@@ -57,6 +58,14 @@ class Settings:
 
     def __init__(self) -> None:
         _validate_withdraw_maturity_enforcement(self.environment, self.consumer_withdraw_maturity_enforcement_enabled, self.provider_withdraw_maturity_enforcement_enabled)
+        if (
+            self.deposit_indexer_trigger_enabled
+            and self.environment in {"staging", "prod"}
+            and is_loopback_trigger_url(self.deposit_indexer_trigger_url)
+        ):
+            raise RuntimeError("DEPOSIT_INDEXER_TRIGGER_URL_LOOPBACK_FORBIDDEN")
+        if self.alchemy_deposit_webhook_enabled and not self.alchemy_deposit_webhook_signing_key:
+            raise RuntimeError("ALCHEMY_DEPOSIT_WEBHOOK_SIGNING_KEY_REQUIRED")
     # Structured logging defaults (JSON file sink managed via stdlib handlers).
     log_directory: str = os.path.abspath(
         os.getenv(
@@ -252,8 +261,8 @@ class Settings:
     )
 
     # Global platform fee rate for gateway billing split, range [0.0, 1.0].
-    # Example: 0.05 means 5% platform fee and 95% provider net.
-    platform_fee_rate: float = _env_rate("PLATFORM_FEE_RATE", 0.05)
+    # Example: 0.10 means 10% platform fee and 90% provider net.
+    platform_fee_rate: float = _env_rate("PLATFORM_FEE_RATE", 0.10)
     # Fixed per-request routing fee charged to the consumer, in USDC.
     # Example: 0.0001 adds $0.0001 to every agent invoke call.
     gateway_routing_tax: float = max(0.0, _env_float("GATEWAY_ROUTING_TAX", 0.0001))
@@ -410,6 +419,42 @@ class Settings:
         0.1,
         _env_float("NOTIFICATION_OUTBOX_TRIGGER_TIMEOUT_SEC", 3.0),
     )
+    deposit_indexer_trigger_enabled: bool = _env_bool(
+        "DEPOSIT_INDEXER_TRIGGER_ENABLED",
+        True,
+    )
+    deposit_indexer_trigger_url: str = os.getenv(
+        "DEPOSIT_INDEXER_TRIGGER_URL",
+        "http://127.0.0.1:8000/internal/jobs/deposit-indexer/trigger",
+    ).strip()
+    deposit_indexer_trigger_delay_sec: float = max(
+        0.0,
+        _env_float("DEPOSIT_INDEXER_TRIGGER_DELAY_SEC", 4.0),
+    )
+    deposit_indexer_trigger_timeout_sec: float = max(
+        0.1,
+        _env_float("DEPOSIT_INDEXER_TRIGGER_TIMEOUT_SEC", 12.0),
+    )
+    deposit_pending_sweep_max_wait_sec: float = max(
+        0.0,
+        _env_float("DEPOSIT_PENDING_SWEEP_MAX_WAIT_SEC", 20.0),
+    )
+    deposit_pending_sweep_poll_interval_sec: float = max(
+        0.1,
+        _env_float("DEPOSIT_PENDING_SWEEP_POLL_INTERVAL_SEC", 2.0),
+    )
+    deposit_pending_intent_stale_after_sec: int = max(
+        1,
+        _env_int("DEPOSIT_PENDING_INTENT_STALE_AFTER_SEC", 1800),
+    )
+    alchemy_deposit_webhook_enabled: bool = _env_bool(
+        "ALCHEMY_DEPOSIT_WEBHOOK_ENABLED",
+        False,
+    )
+    alchemy_deposit_webhook_signing_key: str = os.getenv(
+        "ALCHEMY_DEPOSIT_WEBHOOK_SIGNING_KEY",
+        "",
+    ).strip()
     notification_outbox_fallback_enabled: bool = _env_bool(
         "NOTIFICATION_OUTBOX_FALLBACK_ENABLED",
         True,

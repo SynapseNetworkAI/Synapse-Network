@@ -289,6 +289,11 @@ def process_pending_deposit_intents_once(storage: BaseStorage) -> DepositIntentC
     )
 
 
+def run_pending_confirmation_step(storage: BaseStorage) -> dict[str, int]:
+    """事件触发路径只扫当前待确认 intent，不顺手跑 backfill/reconciliation。"""
+    return process_pending_deposit_intents_once(storage).to_dict()
+
+
 def _hydrate_runtime_status(storage: BaseStorage) -> None:
     """启动时从数据库恢复 backfill/reconciliation 游标，避免状态只存在内存。"""
     indexer_state = _load_indexer_runtime_state(storage)
