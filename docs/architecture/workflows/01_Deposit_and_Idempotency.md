@@ -62,7 +62,9 @@ sequenceDiagram
     participant V as Vault Contract
     participant G as Gateway API
     participant DB as PostgreSQL
-    participant I as Deposit Indexer
+    participant T as Trigger Sweep
+    participant W as Alchemy Webhook
+    participant I as Deposit Indexer Job
 
     O->>F: 输入充值金额
     F->>O: 签名 permit
@@ -73,10 +75,14 @@ sequenceDiagram
     G->>DB: 写 synapse_vault_deposits(status=PENDING_CONFIRMATION)
     G->>DB: 更新 account_balances.pending_balance
     G->>DB: 写 audit event
-    I->>V: 查询 receipt + deposit event
-    I->>DB: deposit.status -> CONFIRMED
-    I->>DB: pending_balance -> available_balance
-    I->>DB: 写 ledger entries + audit event
+    G->>T: 延迟几秒后触发 bounded pending sweep
+    V-->>W: DepositInfo(address user, uint256 amount)
+    W->>T: signed webhook callback
+    T->>V: 查询 receipt + deposit event
+    T->>DB: deposit.status -> CONFIRMED
+    T->>DB: pending_balance -> available_balance
+    T->>DB: 写 ledger entries + audit event
+    I->>V: fallback backfill + pending sweep + reconciliation
 ```
 
 ### 5.1 Step A: Owner 发起链上入金
@@ -99,6 +105,14 @@ Gateway 收到 `txHash + amount + owner scope + idempotency key` 后，必须先
 2. 校验 `tx_hash` 格式与金额合法性。
 3. 检查 `synapse_idempotency_keys`，保证同一请求不会重复入账。
 4. 检查 `synapse_vault_deposits.tx_hash` 唯一约束，防止重复登记同一链上交易。
+
+登记事务提交成功后，Gateway 会在**同一个外部请求还活着时**等待一个短缓冲，再 best-effort 触发一次 bounded pending sweep：
+
+1. 触发目标必须是 Gateway 的真实 internal URL，而不是 `127.0.0.1` loopback。
+2. sweep 在一个有界窗口内轮询当前所有 `PENDING_CONFIRMATION` intents，而不是只扫一次。
+3. 这次 sweep 只处理当前 pending intents，不顺手跑 full backfill/reconciliation。
+4. 触发失败不会回滚这次 intent 登记；Cloud Scheduler 里的 `deposit-indexer` job 继续作为最终一致性兜底。
+5. 这意味着 `POST /api/v1/balance/deposit/intent` 可能比过去慢几秒，但通常能明显缩短 pending 资金转 spendable 的等待时间。
 
 登记成功后，事务内执行：
 
@@ -123,6 +137,16 @@ Deposit Indexer 异步校验：
 2. 交易状态成功
 3. event 中的 amount 与登记金额一致
 4. event 的接收方和链上合约地址匹配
+
+正常主路径下，这次校验优先由 **intent-triggered bounded pending sweep** 立即尝试；如果 RPC 还没看到交易、trigger 失败、webhook 未送达或实例锁冲突，才回退到低频 scheduled `deposit-indexer` job。
+
+Alchemy Custom Webhook 只是推送加速器：
+
+1. 只监听 **Arbitrum Mainnet 上 SynapseCore 的 `DepositInfo(address,uint256)`**。
+2. 它不会直接记账，只会唤醒同一个 bounded pending sweep。
+3. 资金真相源仍然是 **Gateway deposit intent + ledger**，不是 webhook payload 自己。
+4. prod callback 固定为 `https://api.synapse-network.ai/internal/webhooks/alchemy/deposits`。
+5. staging callback 固定为 `https://api-staging.synapse-network.ai/internal/webhooks/alchemy/deposits`。
 
 只有全部通过，才能推进到 `CONFIRMED`。
 
@@ -186,11 +210,13 @@ Deposit 链路必须同时做 API 级幂等和链上事实级防重放。
 2. 不进入 `available_balance`
 3. 可以标记为 `FAILED` 并写审计事件
 
-### 7.2 receipt 找不到或 event 不匹配
+### 7.2 receipt 找不到、广播被丢弃或 event 不匹配
 
-1. 保持 `PENDING_CONFIRMATION` 一段时间重试
-2. 超过 SLA 后转 `FAILED`
-3. 进入对账告警和人工调查
+1. 如果用户在钱包里取消签名 / 根本没广播链上交易，则前端**不应创建** deposit intent。
+2. 如果 intent 已创建，但链上始终没有 receipt，则 bounded retry 和 webhook 可以继续尝试确认。
+3. 超过 `DEPOSIT_PENDING_INTENT_STALE_AFTER_SEC` 后，intent 统一转 `FAILED`，并写 `failureReason=MISSING_TX_RECEIPT_TIMEOUT`。
+4. 如果 receipt 存在但交易失败，标记 `CHAIN_TX_FAILED`。
+5. 如果 receipt 存在但没有匹配到合法 deposit 事件，标记 `NO_MATCHING_DEPOSIT_EVENT`。
 
 ### 7.3 API 重试
 
@@ -198,7 +224,88 @@ Deposit 链路必须同时做 API 级幂等和链上事实级防重放。
 2. 不重复增加 `pending_balance`
 3. 同一 `tx_hash` 在 replay window 内再次命中时，服务端必须返回已存在的 deposit intent，而不是抛 409
 
-## 8. 数据一致性原则
+## 8. Alchemy Webhook 配置与安全边界
+
+### 8.1 Dashboard 配置路径
+
+在 Alchemy Dashboard 中，推荐固定按下面路径配置：
+
+1. 进入 [Alchemy Dashboard](https://dashboard.alchemy.com/)。
+2. 选择目标 app：
+   1. prod：`synapse-network-prod`
+   2. staging：`synapse-network-staging`
+3. 左侧导航进入 `Data -> Webhooks`。
+4. 点击 `Create Webhook`。
+5. 类型选择 `Custom Webhook`。
+6. 网络固定为：
+   1. `Chain = Arbitrum`
+   2. prod `Network = Mainnet`
+   3. staging `Network = Sepolia`，必须和 staging 当前真实 SynapseCore 部署网络保持一致
+7. `Webhook URL` 固定填：
+   1. prod：`https://api.synapse-network.ai/internal/webhooks/alchemy/deposits`
+   2. staging：`https://api-staging.synapse-network.ai/internal/webhooks/alchemy/deposits`
+8. GraphQL filter 只监听我们的合约与事件：
+   1. prod address：生产 `SynapseCore`
+   2. staging address：staging 当前真实 `SynapseCore`
+   3. topic0：`0x25444993e521e5a804289b2bc7720c808ea8583f4ead8d7c65f5435f03ea8015`
+9. `Test Webhook` 只是 Alchemy UI 侧的便捷校验，不是唯一真相源。最终可用性必须以 Gateway 实际回调行为为准：
+   1. `GET` callback 返回 `405`
+   2. 无签名 `POST` 返回 `401`
+   3. 正确 `X-Alchemy-Signature` 的 `POST` 返回 `200`
+10. 创建完成后进入该 webhook 详情页，从右上角复制 `Signing Key`。
+11. 把 Signing Key 写入目标环境：
+   1. prod：`synapse-prod-alchemy-deposit-webhook-signing-key`
+   2. staging：`synapse-staging-alchemy-deposit-webhook-signing-key`
+12. Cloud Run 在 revision 启动时把 Signing Key 注入 `ALCHEMY_DEPOSIT_WEBHOOK_SIGNING_KEY` 环境变量；运行时请求不得按次调用 Secret Manager。
+
+### 8.2 推荐 GraphQL 监听范围
+
+Webhook 只监听 SynapseCore 的 `DepositInfo(address,uint256)`，不是全链事件：
+
+```graphql
+{
+  block {
+    logs(
+      filter: {
+        addresses: ["0x4967d23cAbe3881f809677932Cc30c11de6957B0"]
+        topics: ["0x25444993e521e5a804289b2bc7720c808ea8583f4ead8d7c65f5435f03ea8015"]
+      }
+    ) {
+      topics
+      account {
+        address
+      }
+      transaction {
+        hash
+      }
+    }
+  }
+}
+```
+
+### 8.3 安全边界
+
+Alchemy webhook 的安全模型固定如下：
+
+1. 主信任根是 `X-Alchemy-Signature` 的 HMAC SHA-256 校验。
+2. 当前 prod/staging 的 `api*.synapse-network.ai` 使用 Cloud Run domain mapping，不是已经挂好 Cloud Armor 的负载均衡入口。
+3. 因此当前**没有**可宣称为正式安全边界的 infra IP allowlist；不得把应用层 `X-Forwarded-For` 判断包装成“真实 IP 白名单”。
+3. 当前官方公开的 webhook 源 IP 是：
+   1. `54.236.136.17`
+   2. `34.237.24.169`
+4. 真正的 IP allowlist 只作为后续基础设施增强项：
+   1. `api*.synapse-network.ai` 前挂 External Application Load Balancer
+   2. serverless NEG 指向 Cloud Run
+   3. Cloud Armor allowlist 只放 Alchemy 官方源 IP
+   4. HMAC 保留，形成双保险
+5. Webhook 不会直接 credit 资金；它只能唤醒 bounded pending sweep。
+6. 真正入账仍然必须同时满足：
+   1. 已存在 deposit intent
+   2. receipt 与合法 `DepositInfo` 事件匹配成功
+   3. Gateway 在一个事务内完成 `pending -> available`
+7. 因此开放公网 callback 不会天然变成直接的资金窃取面，但它仍然是需要严格验签、限流和审计的入口。
+
+## 9. 数据一致性原则
 
 Deposit 链路必须遵守下面三个不变量：
 
@@ -206,7 +313,7 @@ Deposit 链路必须遵守下面三个不变量：
 2. `PENDING_CONFIRMATION` deposit 的金额只能停留在 `pending_balance`，不能提前消费。
 3. 任意时刻都必须能从 `synapse_vault_deposits + synapse_ledger_entries + synapse_account_balances` 三者互相对账。
 
-## 9. 与 Agent Runtime 的关系边界
+## 10. 与 Agent Runtime 的关系边界
 
 Deposit 不直接绑定：
 
@@ -224,13 +331,31 @@ Deposit 的职责只是把 Owner 的钱送进平台资金层。
 3. `synapse_service_quotes`
 4. `synapse_invocations`
 
-## 10. 文档结论
+## 11. 文档结论
 
 Deposit 是一条 **Owner funding workflow**，不是一条 Agent execution workflow。
 
 只有把入金确认、幂等、pending/available 分层和 ledger 审计全部做实，后面的 Quote / Invoke 才不会建立在假余额之上。
 
-## 11. Entry Path Trade-Off
+## 12. 当前生产/演练架构图
+
+```mermaid
+flowchart TD
+    A["Consumer wallet"] -->|"approve + SynapseCore.deposit()"| B["Arbitrum / SynapseCore"]
+    A -->|"POST /api/v1/balance/deposit/intent (txHash)"| C["Gateway API"]
+    C -->|"write PENDING_CONFIRMATION + pending_balance"| D["Cloud SQL"]
+    C -->|"sleep then trigger bounded sweep"| E["Internal trigger"]
+    B -->|"DepositInfo"| F["Alchemy Custom Webhook"]
+    F -->|"signed callback"| G["Webhook listener"]
+    G -->|"wake same bounded sweep"| E
+    E -->|"scan all current pending intents"| H["RPC receipt + event matcher"]
+    H -->|"match valid deposit evidence"| D
+    D -->|"pending -> available once"| I["Credits / Billing"]
+    J["Cloud Scheduler 10m"] --> K["deposit-indexer job"]
+    K -->|"backfill + pending sweep + reconciliation"| D
+```
+
+## 13. Entry Path Trade-Off
 
 当前文档默认按 `permit + depositWithPermit + txHash intent registration` 描述主流程。
 

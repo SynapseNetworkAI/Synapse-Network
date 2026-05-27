@@ -43,6 +43,9 @@ const config = {
     "postgresql://synapse_gateway_app:local-dev-gateway-app-password@127.0.0.1:15432/synapse_gateway",
   chainId: Number.parseInt(process.env.CHAIN_ID || "31337", 10),
   headless: process.env.DEPOSIT_INDEXER_EVENT_ONLY_HEADLESS !== "0",
+  deployerKey:
+    process.env.DEPLOYER_KEY ||
+    "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
   maxLogBlockRange: Number.parseInt(
     process.env.DEPOSIT_EVENT_MAX_LOG_BLOCK_RANGE || "2000",
     10
@@ -71,8 +74,10 @@ const evidence = {
   runId: RUN_ID,
   checks: [],
   failed: [],
+  api: [],
   db: {},
   dom: {},
+  logs: {},
   screenshots: [],
   trace: [],
 };
@@ -265,6 +270,287 @@ async function authenticate(privateKey) {
   return { address: wallet.address.toLowerCase(), token };
 }
 
+async function gatewayApi(
+  pathname,
+  { method = "GET", token, address, body, headers = {}, expectOk = true } = {}
+) {
+  const requestHeaders = { Accept: "application/json", ...headers };
+  if (body !== undefined) requestHeaders["Content-Type"] = "application/json";
+  if (token) requestHeaders.Authorization = `Bearer ${token}`;
+  if (address) requestHeaders["X-User-Address"] = address;
+  const response = await fetch(`${config.gatewayBase}/api${pathname}`, {
+    method,
+    headers: requestHeaders,
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const payload = await response.json();
+  if (expectOk && !response.ok) {
+    fail(`${method} ${pathname} failed (${response.status}): ${JSON.stringify(payload)}`);
+  }
+  return { response, payload };
+}
+
+async function rawGateway(pathname) {
+  const response = await fetch(`${config.gatewayBase}${pathname}`);
+  const payload = await response.json();
+  if (!response.ok) {
+    fail(`GET ${pathname} failed (${response.status}): ${JSON.stringify(payload)}`);
+  }
+  return payload;
+}
+
+async function postRawGateway(
+  pathname,
+  { method = "POST", body, headers = {}, expectOk = true } = {}
+) {
+  const requestHeaders = { Accept: "application/json", ...headers };
+  const response = await fetch(`${config.gatewayBase}${pathname}`, {
+    method,
+    headers: requestHeaders,
+    body,
+  });
+  const payload = await response.json().catch(() => ({}));
+  evidence.api.push(
+    sanitize({
+      method,
+      pathname,
+      httpStatus: response.status,
+      request: {
+        headers: requestHeaders,
+        body:
+          typeof body === "string"
+            ? body
+            : body instanceof Uint8Array
+              ? Buffer.from(body).toString("utf8")
+              : "",
+      },
+      response: payload,
+    })
+  );
+  if (expectOk && !response.ok) {
+    fail(`${method} ${pathname} failed (${response.status}): ${JSON.stringify(payload)}`);
+  }
+  return { response, payload };
+}
+
+async function waitForRawGateway(pathname, { timeoutMs = 15000, intervalMs = 500 } = {}) {
+  const startedAt = Date.now();
+  let lastError = null;
+  while (Date.now() - startedAt < timeoutMs) {
+    try {
+      return await rawGateway(pathname);
+    } catch (error) {
+      lastError = error;
+      await new Promise((resolve) => setTimeout(resolve, intervalMs));
+    }
+  }
+  throw lastError || new Error(`timed out waiting for ${pathname}`);
+}
+
+function hmacSha256Hex(body, signingKey) {
+  return crypto
+    .createHmac("sha256", signingKey)
+    .update(body, "utf8")
+    .digest("hex");
+}
+
+function buildAlchemyWebhookPayload(txHash, contractAddress) {
+  return {
+    webhookId: "wh_local_signed_replay",
+    id: `whevt_${txHash.slice(2, 10)}`,
+    createdAt: new Date().toISOString(),
+    type: "GRAPHQL",
+    event: {
+      network: "ARB_MAINNET",
+      data: {
+        block: {
+          logs: [
+            {
+              account: {
+                address: contractAddress,
+              },
+              topics: [
+                "0x25444993e521e5a804289b2bc7720c808ea8583f4ead8d7c65f5435f03ea8015",
+              ],
+              transaction: {
+                hash: txHash,
+              },
+            },
+          ],
+        },
+      },
+      sequenceNumber: String(Date.now()),
+    },
+  };
+}
+
+function accountId(address) {
+  return `consumer_wallet::${String(address || "").toLowerCase()}`;
+}
+
+function decimalToAtomic(value, decimals = 6) {
+  const normalized = String(value ?? "0").trim();
+  if (!/^\d+(\.\d+)?$/.test(normalized)) return 0n;
+  const [whole, fraction = ""] = normalized.split(".");
+  return (
+    BigInt(whole) * 10n ** BigInt(decimals) +
+    BigInt(fraction.padEnd(decimals, "0").slice(0, decimals))
+  );
+}
+
+async function chainContext() {
+  const provider = new ethers.JsonRpcProvider(config.rpcUrl);
+  const network = await provider.getNetwork();
+  if (Number(network.chainId) !== config.chainId) {
+    fail(`RPC chainId mismatch ${network.chainId}`);
+  }
+  const contracts = readJson(
+    path.join(ROOT, "services/user-front/src/contract-config.json")
+  );
+  return {
+    provider,
+    coreAddress: ethers.getAddress(contracts.SynapseCore),
+    usdcAddress: ethers.getAddress(contracts.MockUSDC),
+    coreAbi: readJson(path.join(ROOT, "services/user-front/src/SynapseCoreABI.json")),
+    usdcAbi: readJson(path.join(ROOT, "services/user-front/src/MockUSDCABI.json")),
+  };
+}
+
+async function waitTx(label, makeTx) {
+  const tx = await makeTx();
+  const receipt = await tx.wait();
+  if (receipt?.status !== 1) {
+    fail(`${label} tx failed: ${tx.hash}`);
+  }
+  return {
+    txHash: String(tx.hash).toLowerCase(),
+    blockNumber: Number(receipt.blockNumber),
+  };
+}
+
+async function fundAndDeposit(privateKey, amountUsdc) {
+  const ctx = await chainContext();
+  const deployer = new ethers.NonceManager(
+    new ethers.Wallet(config.deployerKey, ctx.provider)
+  );
+  const consumer = new ethers.NonceManager(
+    new ethers.Wallet(privateKey, ctx.provider)
+  );
+  const consumerAddress = await consumer.getAddress();
+  const usdcDeployer = new ethers.Contract(
+    ctx.usdcAddress,
+    ctx.usdcAbi,
+    deployer
+  );
+  const usdcConsumer = new ethers.Contract(
+    ctx.usdcAddress,
+    ctx.usdcAbi,
+    consumer
+  );
+  const coreConsumer = new ethers.Contract(
+    ctx.coreAddress,
+    ctx.coreAbi,
+    consumer
+  );
+  const decimals = Number(await usdcDeployer.decimals());
+  const amountAtomic = ethers.parseUnits(amountUsdc, decimals);
+  const balance = await ctx.provider.getBalance(consumerAddress);
+  const targetEth = ethers.parseEther("1");
+  if (balance < targetEth) {
+    await waitTx("eth topup", () =>
+      deployer.sendTransaction({
+        to: consumerAddress,
+        value: targetEth - balance,
+      })
+    );
+  }
+  await waitTx("mint usdc", () => usdcDeployer.mint(consumerAddress, amountAtomic));
+  await waitTx("approve usdc", () =>
+    usdcConsumer.approve(ctx.coreAddress, amountAtomic)
+  );
+  const deposit = await waitTx("vault deposit", () =>
+    coreConsumer.deposit(amountAtomic)
+  );
+  return {
+    ...deposit,
+    amountUsdc,
+    ownerAddress: consumerAddress,
+    coreAddress: ctx.coreAddress,
+  };
+}
+
+function addMoney(value, delta) {
+  const atomic = decimalToAtomic(value) + decimalToAtomic(delta);
+  const scale = 10n ** 6n;
+  return `${atomic / scale}.${String(atomic % scale).padStart(6, "0")}`;
+}
+
+function readDepositRows(txHash) {
+  return selectJson(`
+    SELECT deposit_id, owner_address, tx_hash, amount_usdc::text AS amount_usdc,
+           status, request_id, created_at::text AS created_at, updated_at::text AS updated_at
+    FROM synapse_vault_deposits
+    WHERE tx_hash = ${sqlLiteral(txHash)}
+    ORDER BY created_at DESC
+  `);
+}
+
+function readBalanceRow(address) {
+  const rows = selectJson(`
+    SELECT account_id, available_balance::text AS available_balance,
+           pending_balance::text AS pending_balance,
+           frozen_balance::text AS frozen_balance, updated_at::text AS updated_at
+    FROM synapse_account_balances
+    WHERE account_id = ${sqlLiteral(accountId(address))}
+  `);
+  return (
+    rows[0] || {
+      account_id: accountId(address),
+      available_balance: "0.000000",
+      pending_balance: "0.000000",
+      frozen_balance: "0.000000",
+    }
+  );
+}
+
+async function registerDepositIntent(auth, deposit, prefix) {
+  const response = await gatewayApi("/v1/balance/deposit/intent", {
+    method: "POST",
+    token: auth.token,
+    address: auth.address,
+    headers: {
+      "X-Idempotency-Key": `${prefix}-${deposit.txHash.replace(/^0x/, "").slice(0, 48)}`,
+    },
+    body: {
+      txHash: deposit.txHash,
+      amountUsdc: deposit.amountUsdc,
+    },
+  });
+  return response.payload.intent || {};
+}
+
+async function pollDepositStatus(auth, txHash, expectedStatus, timeoutMs = 20_000) {
+  const deadline = Date.now() + timeoutMs;
+  let latest = {};
+  while (Date.now() < deadline) {
+    const response = await gatewayApi(
+      `/v1/balance/deposit/sync?txHash=${encodeURIComponent(txHash)}`,
+      {
+        token: auth.token,
+        address: auth.address,
+      }
+    );
+    latest = response.payload.sync || {};
+    if (String(latest.status || "").toUpperCase() === expectedStatus) {
+      return latest;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+  fail(
+    `deposit ${txHash} did not reach ${expectedStatus}; latest=${JSON.stringify(latest)}`
+  );
+}
+
 async function installAuth(context, auth) {
   await context.addInitScript(
     ({ address, token, chainId }) => {
@@ -352,7 +638,8 @@ async function capturePaymentsEvidence(
   auth,
   targetTxHash,
   targetAmountUsdc,
-  targetDepositId
+  targetDepositId,
+  screenshotName = "payments-history.png"
 ) {
   const browser = await chromium.launch({ headless: config.headless });
   try {
@@ -387,7 +674,7 @@ async function capturePaymentsEvidence(
         items.map((item) => (item.textContent || "").trim()).filter(Boolean)
       )
       .catch(() => []);
-    const relative = "screenshots/payments-history.png";
+    const relative = `screenshots/${screenshotName}`;
     await page.screenshot({
       path: path.join(OUT_DIR, relative),
       fullPage: true,
@@ -573,11 +860,230 @@ async function main() {
       V2_INDEXER_ENABLED: "false",
       V2_BACKFILL_ENABLED: "false",
       V2_RECONCILIATION_ENABLED: "false",
+      DEPOSIT_INDEXER_TRIGGER_ENABLED: "true",
+      DEPOSIT_INDEXER_TRIGGER_DELAY_SEC: "1",
+      DEPOSIT_PENDING_SWEEP_MAX_WAIT_SEC: "8",
+      DEPOSIT_PENDING_SWEEP_POLL_INTERVAL_SEC: "1",
     }
   );
   addTrace("gateway:restart-clean", {
     reason: "reset local gateway pool pressure after underlying recovery lane",
   });
+
+  const readiness = await waitForRawGateway("/readiness");
+  addCheck(
+    "event-trigger:no-scheduler-preflight",
+    readiness.monitors?.deposit_indexer?.enabled === false,
+    JSON.stringify(readiness.monitors?.deposit_indexer || {})
+  );
+
+  const triggerKey = privateKeyFromSeed(
+    `deposit-indexer-event-trigger:${RUN_ID}`
+  );
+  const triggerAuth = await authenticate(triggerKey);
+  const triggerDeposit = await fundAndDeposit(triggerKey, "5.000000");
+  const balanceBeforeTrigger = readBalanceRow(triggerAuth.address);
+  const triggerIntent = await registerDepositIntent(
+    triggerAuth,
+    triggerDeposit,
+    "event-trigger-no-scheduler"
+  );
+  const triggerSync = await pollDepositStatus(
+    triggerAuth,
+    triggerDeposit.txHash,
+    "CONFIRMED"
+  );
+  const triggerRows = readDepositRows(triggerDeposit.txHash);
+  const balanceAfterTrigger = readBalanceRow(triggerAuth.address);
+  const triggerConfirmedRow = triggerRows.find(
+    (row) => String(row.status || "").toUpperCase() === "CONFIRMED"
+  );
+  addCheck(
+    "event-trigger-no-scheduler-confirmation",
+    Boolean(triggerConfirmedRow) &&
+      String(triggerSync.status || "").toUpperCase() === "CONFIRMED" &&
+      balanceAfterTrigger.pending_balance === balanceBeforeTrigger.pending_balance &&
+      balanceAfterTrigger.available_balance ===
+        addMoney(balanceBeforeTrigger.available_balance, triggerDeposit.amountUsdc),
+    triggerDeposit.txHash,
+    {
+      intentId: triggerIntent.id || "",
+      sync: triggerSync,
+      balanceBefore: balanceBeforeTrigger,
+      balanceAfter: balanceAfterTrigger,
+    }
+  );
+
+  runCommand(
+    "gateway:restart-alchemy-webhook-only",
+    "bash",
+    ["scripts/local/restart_gateway.sh"],
+    {
+      STARTUP_TIMEOUT_SEC: "30",
+      V2_INDEXER_ENABLED: "false",
+      V2_BACKFILL_ENABLED: "false",
+      V2_RECONCILIATION_ENABLED: "false",
+      DEPOSIT_INDEXER_TRIGGER_ENABLED: "false",
+      ALCHEMY_DEPOSIT_WEBHOOK_ENABLED: "true",
+      ALCHEMY_DEPOSIT_WEBHOOK_SIGNING_KEY: "alchemy-local-signed-replay",
+      DEPOSIT_PENDING_SWEEP_MAX_WAIT_SEC: "8",
+      DEPOSIT_PENDING_SWEEP_POLL_INTERVAL_SEC: "1",
+    }
+  );
+  const webhookReadiness = await waitForRawGateway("/readiness");
+  addCheck(
+    "alchemy-webhook:preflight",
+    webhookReadiness.monitors?.deposit_indexer?.enabled === false,
+    JSON.stringify(webhookReadiness.monitors?.deposit_indexer || {})
+  );
+
+  const webhookKey = privateKeyFromSeed(`deposit-indexer-webhook:${RUN_ID}`);
+  const webhookAuth = await authenticate(webhookKey);
+  const webhookDeposit = await fundAndDeposit(webhookKey, "5.000000");
+  const webhookBalanceBefore = readBalanceRow(webhookAuth.address);
+  const webhookIntent = await registerDepositIntent(
+    webhookAuth,
+    webhookDeposit,
+    "alchemy-webhook-signed-replay"
+  );
+  const webhookRowsPending = readDepositRows(webhookDeposit.txHash);
+  const webhookPendingBalance = readBalanceRow(webhookAuth.address);
+  addCheck(
+    "alchemy-webhook:pending-before-replay",
+    String(webhookRowsPending[0]?.status || "").toUpperCase() ===
+      "PENDING_CONFIRMATION" &&
+      webhookPendingBalance.available_balance ===
+        webhookBalanceBefore.available_balance &&
+      webhookPendingBalance.pending_balance ===
+        addMoney(webhookBalanceBefore.pending_balance, webhookDeposit.amountUsdc),
+    webhookDeposit.txHash
+  );
+
+  const invalidWebhookBody = JSON.stringify(
+    buildAlchemyWebhookPayload(webhookDeposit.txHash, webhookDeposit.coreAddress)
+  );
+  const invalidWebhook = await postRawGateway(
+    "/internal/webhooks/alchemy/deposits",
+    {
+      body: invalidWebhookBody,
+      headers: {
+        "Content-Type": "application/json",
+        "X-Alchemy-Signature": "invalid-signature",
+      },
+      expectOk: false,
+    }
+  );
+  addCheck(
+    "alchemy-webhook:invalid-signature",
+    invalidWebhook.response.status === 401,
+    String(invalidWebhook.response.status)
+  );
+
+  const validWebhookBody = JSON.stringify(
+    buildAlchemyWebhookPayload(webhookDeposit.txHash, webhookDeposit.coreAddress)
+  );
+  const validWebhook = await postRawGateway(
+    "/internal/webhooks/alchemy/deposits",
+    {
+      body: validWebhookBody,
+      headers: {
+        "Content-Type": "application/json",
+        "X-Alchemy-Signature": hmacSha256Hex(
+          validWebhookBody,
+          "alchemy-local-signed-replay"
+        ),
+      },
+    }
+  );
+  const webhookSync = await pollDepositStatus(
+    webhookAuth,
+    webhookDeposit.txHash,
+    "CONFIRMED"
+  );
+  const webhookRowsConfirmed = readDepositRows(webhookDeposit.txHash);
+  const webhookBalanceAfter = readBalanceRow(webhookAuth.address);
+  addCheck(
+    "alchemy-webhook-signed-replay",
+    validWebhook.response.ok === true &&
+      String(webhookSync.status || "").toUpperCase() === "CONFIRMED" &&
+      webhookBalanceAfter.available_balance ===
+        addMoney(webhookBalanceBefore.available_balance, webhookDeposit.amountUsdc) &&
+      webhookBalanceAfter.pending_balance === webhookBalanceBefore.pending_balance,
+    webhookDeposit.txHash,
+    {
+      intentId: webhookIntent.id || "",
+      webhookResponse: validWebhook.payload,
+      sync: webhookSync,
+    }
+  );
+
+  const duplicateWebhook = await postRawGateway(
+    "/internal/webhooks/alchemy/deposits",
+    {
+      body: validWebhookBody,
+      headers: {
+        "Content-Type": "application/json",
+        "X-Alchemy-Signature": hmacSha256Hex(
+          validWebhookBody,
+          "alchemy-local-signed-replay"
+        ),
+      },
+    }
+  );
+  const webhookRowsAfterDuplicate = readDepositRows(webhookDeposit.txHash);
+  const webhookBalanceAfterDuplicate = readBalanceRow(webhookAuth.address);
+  addCheck(
+    "alchemy-webhook:duplicate-safe",
+    duplicateWebhook.response.ok === true &&
+      webhookRowsAfterDuplicate.length === 1 &&
+      webhookBalanceAfterDuplicate.available_balance ===
+        webhookBalanceAfter.available_balance &&
+      webhookBalanceAfterDuplicate.pending_balance ===
+        webhookBalanceAfter.pending_balance,
+    webhookDeposit.txHash
+  );
+
+  const unmatchedTxHash = `0x${crypto.createHash("sha256").update(`${RUN_ID}:unmatched-webhook`).digest("hex")}`;
+  const unmatchedWebhookBody = JSON.stringify(
+    buildAlchemyWebhookPayload(unmatchedTxHash, webhookDeposit.coreAddress)
+  );
+  const unmatchedBeforeCount = readDepositRows(unmatchedTxHash).length;
+  const unmatchedWebhook = await postRawGateway(
+    "/internal/webhooks/alchemy/deposits",
+    {
+      body: unmatchedWebhookBody,
+      headers: {
+        "Content-Type": "application/json",
+        "X-Alchemy-Signature": hmacSha256Hex(
+          unmatchedWebhookBody,
+          "alchemy-local-signed-replay"
+        ),
+      },
+    }
+  );
+  const unmatchedAfterCount = readDepositRows(unmatchedTxHash).length;
+  addCheck(
+    "alchemy-webhook:unknown-intent-no-credit",
+    unmatchedWebhook.response.ok === true &&
+      unmatchedBeforeCount === 0 &&
+      unmatchedAfterCount === 0 &&
+      Number(unmatchedWebhook.payload?.result?.credited || 0) === 0,
+    unmatchedTxHash
+  );
+
+  const webhookDom = await capturePaymentsEvidence(
+    webhookAuth,
+    webhookDeposit.txHash,
+    webhookDeposit.amountUsdc,
+    webhookRowsConfirmed[0]?.deposit_id || "",
+    "payments-history-webhook.png"
+  );
+  addCheck(
+    "alchemy-webhook:db-dom-consistent",
+    webhookDom.payments.noDuplicateTxHash === true &&
+      webhookDom.payments.rows.some((row) => row.includes("Completed")),
+    shortenTxHash(webhookDeposit.txHash)
+  );
 
   const latestBeforeMine = Number(
     await rpcCall(config.rpcUrl, "eth_blockNumber"),
@@ -724,6 +1230,25 @@ async function main() {
   );
 
   evidence.db = {
+    triggerNoScheduler: {
+      readinessMonitor: readiness.monitors?.deposit_indexer || {},
+      depositRows: triggerRows,
+      balanceBefore: balanceBeforeTrigger,
+      balanceAfter: balanceAfterTrigger,
+      txHash: triggerDeposit.txHash,
+    },
+    alchemyWebhook: {
+      readinessMonitor: webhookReadiness.monitors?.deposit_indexer || {},
+      pendingRows: webhookRowsPending,
+      confirmedRows: webhookRowsConfirmed,
+      duplicateRows: webhookRowsAfterDuplicate,
+      balanceBefore: webhookBalanceBefore,
+      pendingBalance: webhookPendingBalance,
+      balanceAfter: webhookBalanceAfter,
+      balanceAfterDuplicate: webhookBalanceAfterDuplicate,
+      txHash: webhookDeposit.txHash,
+      unmatchedTxHash,
+    },
     runtimeState,
     depositRows: primaryDepositRows,
     processedEventKeys,
@@ -750,6 +1275,21 @@ async function main() {
       report: underlyingReport,
       db: underlyingDb,
     }),
+  };
+  evidence.dom.alchemyWebhook = webhookDom;
+
+  const gatewayLogLines = fs
+    .readFileSync(path.join(ROOT, "services/gateway/logs/provider_api.log"), "utf8")
+    .split("\n")
+    .filter(
+      (line) =>
+        line.includes("ALCHEMY_DEPOSIT_WEBHOOK") ||
+        line.includes("deposit-indexer/trigger") ||
+        line.includes("DEPOSIT_INDEXER_TRIGGER")
+    )
+    .slice(-20);
+  evidence.logs = {
+    webhookSignals: gatewayLogLines,
   };
 
   const rpcComparison = {
@@ -781,8 +1321,10 @@ async function main() {
   };
 
   writeJson("report.json", report);
+  writeJson("api-evidence.json", evidence.api);
   writeJson("db-evidence.json", evidence.db);
   writeJson("dom-evidence.json", evidence.dom);
+  writeJson("log-evidence.json", evidence.logs);
   writeJson("screenshot-evidence.json", evidence.screenshots);
   writeJson("rpc-cu-comparison.json", rpcComparison);
   fs.writeFileSync(path.join(OUT_DIR, "trace.jsonl"), traceText, "utf8");

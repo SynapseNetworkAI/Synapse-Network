@@ -31,6 +31,7 @@ from src.services.notifications.in_app import (
     schedule_in_app_notification,
 )
 from src.services.notifications.transactional import build_public_app_url, schedule_transaction_notifications
+from src.services.platform.tasks.deposit_indexer import post_deposit_indexer_trigger
 from src.storage import BaseStorage, get_storage
 
 router = APIRouter()
@@ -74,6 +75,11 @@ async def register_deposit_intent(
         owner_wallet,
         idempotency_key,
         _extract_request_meta(request),
+    )
+    await post_deposit_indexer_trigger(
+        source="deposit_intent_registered",
+        triggered_by="api.v1.balance.deposit.intent",
+        tx_hash=str(stored_intent.get("txHash") or ""),
     )
     return {
         "status": "success",

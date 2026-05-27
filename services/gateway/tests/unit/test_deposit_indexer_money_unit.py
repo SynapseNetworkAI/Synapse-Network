@@ -19,6 +19,7 @@ from src.services.platform.tasks.deposit_indexer.reconciliation import (
 from src.services.platform.tasks.deposit_indexer.processing import (
     _resolve_deposit_receipt_state,
 )
+from src.utils.datetime_utils import to_epoch_seconds
 
 
 class _FakeBalanceRepository:
@@ -219,3 +220,33 @@ def test_deposit_receipt_without_matching_current_contract_event_does_not_credit
     assert result == {"result": "failed"}
     assert intent["status"] == "FAILED"
     assert intent["failureReason"] == "NO_MATCHING_DEPOSIT_EVENT"
+
+
+def test_pending_intent_times_out_when_receipt_never_appears(monkeypatch) -> None:
+    intent = {
+        "id": "dep_timeout",
+        "ownerAddress": "0x1111111111111111111111111111111111111111",
+        "amountUsdc": "1.000000",
+        "status": "PENDING_CONFIRMATION",
+        "createdAt": "2026-05-27 00:00:00",
+    }
+    monkeypatch.setattr(
+        "src.services.platform.tasks.deposit_indexer.processing._get_confirmed_receipt_or_none",
+        lambda _tx_hash: None,
+    )
+    monkeypatch.setattr(
+        "src.services.platform.tasks.deposit_indexer.processing.settings",
+        SimpleNamespace(deposit_pending_intent_stale_after_sec=10),
+    )
+
+    result = _resolve_deposit_receipt_state(
+        tx_hash="0xabc",
+        owner_wallet="0x1111111111111111111111111111111111111111",
+        min_amount_usdc=Decimal("1.000000"),
+        now=to_epoch_seconds("2026-05-27 00:00:30"),
+        intent=intent,
+    )
+
+    assert result == {"result": "failed"}
+    assert intent["status"] == "FAILED"
+    assert intent["failureReason"] == "MISSING_TX_RECEIPT_TIMEOUT"
