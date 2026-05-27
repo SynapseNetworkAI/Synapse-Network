@@ -1381,7 +1381,7 @@ with the Gateway bounded-retry design:
 | `DEPOSIT_PENDING_SWEEP_POLL_INTERVAL_SEC`  | `2`                                                                                    | Poll interval inside the bounded retry window.                                            |
 | `DEPOSIT_PENDING_INTENT_STALE_AFTER_SEC`   | `1800`                                                                                 | Timeout before a missing-receipt pending intent is marked failed.                        |
 | `Webhook callback URL`                     | `https://api-staging.synapse-network.ai/internal/webhooks/alchemy/deposits`           | Staging Alchemy callback target.                                                          |
-| `Alchemy app`                              | `synapse-network-staging`                                                              | Same Alchemy account as prod, but a separate app per environment.                        |
+| `Alchemy app`                              | `SynapseNetwork`                                                                       | Staging Alchemy app in the shared team account.                                           |
 
 Required operating notes:
 
@@ -1395,6 +1395,15 @@ Required operating notes:
 4. The staging `deposit-indexer` fallback job must run the same gateway image as
    the staging gateway service so event-trigger and scheduler fallback logic do
    not drift.
+5. Use `Address Activity`, not `Custom Webhook`, for staging deposit wakeups.
+   Alchemy Custom Webhooks fire on every canonical block and can still deliver
+   empty `logs` payloads even when the GraphQL filter is strict, which wastes
+   Alchemy CU and Cloud Run requests for this use case.
+6. The staging Address Activity webhook must track exactly one address:
+   `0x0bA1dcE1Cc8d877052ab1C3CE2362830459D8FF4` (`SynapseCore` on Arbitrum
+   Sepolia). Deposit credit still stays safe because Gateway only uses the
+   callback to extract `txHash` and wake the bounded pending sweep; final credit
+   still requires an existing deposit intent plus receipt/event matching.
 
 ## Arbitrum Sepolia Deployment
 
@@ -1501,6 +1510,12 @@ bash scripts/deploy/gcp_sync_staging_jobs.sh \
   --region us-central1 \
   --service gateway \
   --image us-central1-docker.pkg.dev/fabled-archive-494108-k5/synapse-staging/gateway@sha256:<digest>
+
+# The sync script also force-aligns gateway one-shot jobs to the safe staging
+# contract: DEPOSIT_INDEXER_TRIGGER_ENABLED=false,
+# NOTIFICATION_OUTBOX_TRIGGER_ENABLED=false, and
+# ALCHEMY_DEPOSIT_WEBHOOK_ENABLED=false. Only the staging gateway service keeps
+# webhook + intent-trigger enabled.
 ```
 
 Use the manual script only for emergency drift repair, rollback alignment, or
