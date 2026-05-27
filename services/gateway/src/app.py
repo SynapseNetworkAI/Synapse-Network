@@ -21,6 +21,7 @@ from src.api.routers import (
     notifications,
 )
 from src.api.routers.internal_jobs import router as internal_jobs_router
+from src.api.routers.internal_webhooks import router as internal_webhooks_router
 from src.storage import create_storage
 from src.services.platform.tasks.deposit_indexer import (
     get_indexer_status,
@@ -416,6 +417,7 @@ def create_app() -> FastAPI:
     app.include_router(community.router, prefix="/api", tags=["community"])
     app.include_router(notifications.router, prefix="/api", tags=["notifications"])
     app.include_router(internal_jobs_router, tags=["internal-jobs"])
+    app.include_router(internal_webhooks_router, tags=["internal-webhooks"])
     app.include_router(events_router, tags=["analytics"])
 
     @app.get("/health")

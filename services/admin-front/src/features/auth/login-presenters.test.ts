@@ -85,9 +85,7 @@ describe("login presenters", () => {
         "ADMIN_ACCOUNT_LOCKED",
         "Admin account is temporarily locked. Try later or contact an owner."
       )
-    ).toBe(
-      "该账号已被登录失败保护锁定，默认锁定 24 小时；请稍后重试或联系 Owner 解锁。"
-    );
+    ).toBe("该账号已被登录失败保护锁定，默认锁定 24 小时；请稍后重试或联系 Owner 解锁。");
     expect(buildLoginErrorMessage(null, "Failed to fetch")).toBe(
       "暂时无法连接管理后台，请稍后重试。"
     );

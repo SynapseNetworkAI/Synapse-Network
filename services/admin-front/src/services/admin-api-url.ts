@@ -18,10 +18,7 @@ function isSynapseAdminApiHostname(hostname: string): boolean {
   );
 }
 
-function isMatchingSynapseAdminPair(
-  consoleHostname: string,
-  apiHostname: string
-): boolean {
+function isMatchingSynapseAdminPair(consoleHostname: string, apiHostname: string): boolean {
   if (consoleHostname === "admin.synapse-network.ai") {
     return apiHostname === "admin-api.synapse-network.ai";
   }

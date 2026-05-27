@@ -1364,6 +1364,38 @@ Gateway-admin persistence needs an admin database/user. If V1 uses the same
 Cloud SQL instance, create a separate admin database and least-privilege user;
 do not reuse the Gateway write user for admin control-plane writes.
 
+## Staging Deposit Webhook Runtime Contract
+
+Alchemy webhook acceleration for staging deposit confirmation must stay aligned
+with the Gateway bounded-retry design:
+
+| Variable                                   | Staging value / source                                                                 | Purpose                                                                                   |
+| ------------------------------------------ | -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `ALCHEMY_DEPOSIT_WEBHOOK_ENABLED`          | `true`                                                                                 | Enables `POST /internal/webhooks/alchemy/deposits`.                                       |
+| `ALCHEMY_DEPOSIT_WEBHOOK_SIGNING_KEY`      | Secret Manager `synapse-staging-alchemy-deposit-webhook-signing-key`                  | HMAC signing key copied from the `synapse-network-staging` Alchemy app webhook.          |
+| `DEPOSIT_INDEXER_TRIGGER_ENABLED`          | `true`                                                                                 | Enables intent-triggered bounded pending sweep.                                           |
+| `DEPOSIT_INDEXER_TRIGGER_URL`              | `<staging gateway real run.app>/internal/jobs/deposit-indexer/trigger`                | Must use the staging gateway real Cloud Run URL, not loopback.                           |
+| `DEPOSIT_INDEXER_TRIGGER_DELAY_SEC`        | `4`                                                                                    | Short RPC/finality buffer before first trigger attempt.                                   |
+| `DEPOSIT_INDEXER_TRIGGER_TIMEOUT_SEC`      | `12`                                                                                   | Bounded timeout for one internal trigger request.                                         |
+| `DEPOSIT_PENDING_SWEEP_MAX_WAIT_SEC`       | `20`                                                                                   | Bounded retry window for pending confirmation sweep.                                      |
+| `DEPOSIT_PENDING_SWEEP_POLL_INTERVAL_SEC`  | `2`                                                                                    | Poll interval inside the bounded retry window.                                            |
+| `DEPOSIT_PENDING_INTENT_STALE_AFTER_SEC`   | `1800`                                                                                 | Timeout before a missing-receipt pending intent is marked failed.                        |
+| `Webhook callback URL`                     | `https://api-staging.synapse-network.ai/internal/webhooks/alchemy/deposits`           | Staging Alchemy callback target.                                                          |
+| `Alchemy app`                              | `synapse-network-staging`                                                              | Same Alchemy account as prod, but a separate app per environment.                        |
+
+Required operating notes:
+
+1. Staging and prod must use separate Alchemy apps even if they share the same
+   Alchemy account.
+2. Cloud Run reads `ALCHEMY_DEPOSIT_WEBHOOK_SIGNING_KEY` from Secret Manager at
+   revision startup; webhook requests must not fetch Secret Manager per call.
+3. Staging currently uses Cloud Run domain mapping. There is no current
+   Cloud Armor IP allowlist on the callback path, so the primary trust root is
+   HMAC `X-Alchemy-Signature`, not app-layer source-IP filtering.
+4. The staging `deposit-indexer` fallback job must run the same gateway image as
+   the staging gateway service so event-trigger and scheduler fallback logic do
+   not drift.
+
 ## Arbitrum Sepolia Deployment
 
 These variables are required for `npm run deploy:contracts:arbitrum-sepolia:*`.
@@ -1687,19 +1719,30 @@ Frontend staging deploys are intentionally isolated from database migration:
 - `user-front` and `docs-front` releases only build the selected frontend image,
   deploy the matching Cloud Run service, smoke `/`, write evidence, and callback
   Ops Console.
-- For faster operator-led staging verification, `user-front` and `docs-front`
-  may use `scripts/deploy/local_build_staging_image.sh` to build from an
-  ephemeral detached worktree, push the image to staging Artifact Registry, and
-  attach the immutable `image@sha256` digest to an Ops Console ReleaseTask.
-  The GitHub workflow then validates the digest path and deploys by digest,
-  skipping Cloud Build. This shortcut is staging-frontends only.
 - Frontend releases must not execute `synapse-staging-db-migrate`,
   `synapse-staging-gateway-admin-db-migrate`, SQL, or Cloud Run Jobs. Gateway and
   Gateway Admin workflows own schema migration and schema drift validation.
 - Frontend compatibility with Gateway is proven through HTTP readiness and smoke
   checks, not through database writes.
-- Production must not deploy arbitrary locally built images. Production image
-  flow should promote a digest that has already passed staging evidence gates.
+- To speed up repeat frontend releases, an operator may prebuild a staging
+  frontend image from a clean detached worktree and attach the immutable digest
+  to an Ops Console release task:
+
+  ```bash
+  bash scripts/deploy/local_build_staging_image.sh \
+    --service user-front \
+    --ref main \
+    --release-task-id <release-task-id>
+  ```
+
+  The script builds from the resolved commit, pushes to staging Artifact
+  Registry, resolves `image@sha256:<digest>`, and calls
+  `/api/releases/tasks/{id}/attach-prebuilt-image`. When the task is later
+  published, `deploy-staging-frontends.yml` receives `prebuilt_image_digest`,
+  skips Cloud Build, validates the digest belongs to the selected frontend
+  service, deploys by digest, smokes the service, and records
+  `imageSource=prebuilt_digest` in the deployment manifest. This path is staging
+  frontend-only; production must not deploy arbitrary locally built images.
 
 Seed data is not migration data:
 
