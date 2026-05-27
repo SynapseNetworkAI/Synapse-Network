@@ -123,16 +123,16 @@ if [[ "${ENVIRONMENT}" == "production" ]]; then
   PROJECT_ID="${PROJECT_ID:-${PROD_GCP_PROJECT_ID:-synapse-network-prod}}"
   REGION="${REGION:-${PROD_GCP_REGION:-us-central1}}"
   REPOSITORY="${REPOSITORY:-${PROD_ARTIFACT_REGISTRY_REPOSITORY:-synapse-prod}}"
-  export NEXT_PUBLIC_APP_ENV="prod"
-  export NEXT_PUBLIC_GATEWAY_BASE_URL="https://api.synapse-network.ai"
-  export NEXT_PUBLIC_ANALYTICS_ENDPOINT="https://api.synapse-network.ai/api/v1/events"
-  export NEXT_PUBLIC_DOCS_BASE_URL="https://docs.synapse-network.ai"
-  export NEXT_PUBLIC_CONSOLE_BASE_URL="https://www.synapse-network.ai/dashboard/overview"
-  export NEXT_PUBLIC_ADMIN_API_BASE_URL=""
-  export ADMIN_API_PROXY_TARGET="https://admin-api.synapse-network.ai"
-  export NEXT_PUBLIC_TX_EXPLORER_BASE_URL="https://arbiscan.io"
-  export NEXT_PUBLIC_RPC_URL="https://arb1.arbitrum.io/rpc"
-  export CONTRACT_CONFIG_SOURCE="src/contract-config.arbitrum-one.prod.json"
+  export NEXT_PUBLIC_APP_ENV="${NEXT_PUBLIC_APP_ENV:-prod}"
+  export NEXT_PUBLIC_GATEWAY_BASE_URL="${NEXT_PUBLIC_GATEWAY_BASE_URL:-https://api.synapse-network.ai}"
+  export NEXT_PUBLIC_ANALYTICS_ENDPOINT="${NEXT_PUBLIC_ANALYTICS_ENDPOINT:-https://api.synapse-network.ai/api/v1/events}"
+  export NEXT_PUBLIC_DOCS_BASE_URL="${NEXT_PUBLIC_DOCS_BASE_URL:-https://docs.synapse-network.ai}"
+  export NEXT_PUBLIC_CONSOLE_BASE_URL="${NEXT_PUBLIC_CONSOLE_BASE_URL:-https://www.synapse-network.ai/dashboard/overview}"
+  export NEXT_PUBLIC_ADMIN_API_BASE_URL="${NEXT_PUBLIC_ADMIN_API_BASE_URL:-https://admin-api.synapse-network.ai}"
+  export ADMIN_API_PROXY_TARGET="${ADMIN_API_PROXY_TARGET:-https://admin-api.synapse-network.ai}"
+  export NEXT_PUBLIC_TX_EXPLORER_BASE_URL="${NEXT_PUBLIC_TX_EXPLORER_BASE_URL:-https://arbiscan.io}"
+  export NEXT_PUBLIC_RPC_URL="${NEXT_PUBLIC_RPC_URL:-https://arb1.arbitrum.io/rpc}"
+  export CONTRACT_CONFIG_SOURCE="${CONTRACT_CONFIG_SOURCE:-src/contract-config.arbitrum-one.prod.json}"
 else
   PROJECT_ID="${PROJECT_ID:-${STAGING_GCP_PROJECT_ID:-fabled-archive-494108-k5}}"
   REGION="${REGION:-${STAGING_GCP_REGION:-us-central1}}"
@@ -140,6 +140,7 @@ else
 fi
 
 ROOT="$(git rev-parse --show-toplevel)"
+TOOL_ROOT="${ROOT}"
 TARGET_COMMIT="$(git -C "${ROOT}" rev-parse "${REF}^{commit}")"
 SHORT_SHA="${TARGET_COMMIT:0:12}"
 TIMESTAMP="$(date -u +%Y%m%d%H%M%S)"
@@ -171,12 +172,12 @@ export ARTIFACT_REGISTRY_REPOSITORY="${REPOSITORY}"
 export STAGING_IMAGE_BUILD_BACKEND="${STAGING_IMAGE_BUILD_BACKEND:-local-docker}"
 export DOCKER_PLATFORM="${DOCKER_PLATFORM:-linux/amd64}"
 
-bash "${WORKTREE_DIR}/scripts/deploy/gcp_cloudbuild_staging_images.sh" "${PROJECT_ID}" \
+bash "${TOOL_ROOT}/scripts/deploy/gcp_cloudbuild_staging_images.sh" "${PROJECT_ID}" \
   --services "${SERVICE}" \
   --tag "${TAG}" \
   --json-output build-images.json
 
-node "${WORKTREE_DIR}/scripts/deploy/resolve_artifact_registry_image_digests.mjs" \
+node "${TOOL_ROOT}/scripts/deploy/resolve_artifact_registry_image_digests.mjs" \
   --build-images build-images.json \
   --out image-digests.json
 
