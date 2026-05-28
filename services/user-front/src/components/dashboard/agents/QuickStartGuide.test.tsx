@@ -26,8 +26,13 @@ vi.mock("wagmi", () => ({
     isConnected: true,
   }),
   useChainId: () => 31337,
-  useReadContract: () => ({
-    data: 100n * 10n ** 18n,
+  useReadContract: ({ functionName }: { functionName?: string } = {}) => ({
+    data:
+      functionName === "decimals"
+        ? 18
+        : functionName === "name"
+          ? "MockUSDC"
+          : 100n * 10n ** 18n,
     refetch: vi.fn(),
   }),
   useSignTypedData: () => ({
@@ -68,7 +73,7 @@ describe("QuickStartGuide i18n", () => {
     renderWithLanguage(createElement(QuickStartGuide), "en");
 
     expect(
-      screen.getByRole("region", { name: "Agent quick start" })
+      screen.getByRole("region", { name: "Agent quick start" }),
     ).toBeTruthy();
     expect(screen.getByText("Deposit")).toBeTruthy();
     expect(screen.getByText("Create Agent")).toBeTruthy();
@@ -88,14 +93,14 @@ describe("QuickStartGuide i18n", () => {
 
     expect(screen.getByRole("heading", { name: "充值 USDC" })).toBeTruthy();
     const amountInput = screen.getByLabelText(
-      "金额 (USDC)"
+      "金额 (USDC)",
     ) as HTMLInputElement;
     await user.clear(amountInput);
     await user.type(amountInput, "0");
     await user.click(screen.getAllByRole("button", { name: "充值" }).at(-1)!);
 
     expect((await screen.findByRole("alert")).textContent).toContain(
-      "请输入有效的充值金额。"
+      "请输入有效的充值金额。",
     );
     expect(toastErrorMock).not.toHaveBeenCalled();
   });

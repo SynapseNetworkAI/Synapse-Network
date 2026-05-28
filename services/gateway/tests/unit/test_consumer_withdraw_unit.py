@@ -311,6 +311,24 @@ class TestConsumerWithdrawBalanceDecrease(unittest.TestCase):
         assert row.status == "REQUESTED"
         assert row.refund_type == "CONSUMER_BALANCE_WITHDRAW"
 
+    def test_row_save_failure_releases_reserved_pending_balance(self):
+        def failing_write(rows, updated_at):
+            _ = rows, updated_at
+            raise RuntimeError("synthetic row save failure")
+
+        self.storage.gateway_state.write_consumer_refund_rows = failing_write
+
+        with pytest.raises(RuntimeError):
+            run(self.svc.create_consumer_withdraw_intent(
+                payload={"amountUsdc": 20.0, "reason": "storage failure"},
+                owner_wallet=OWNER,
+                idempotency_key=IDEM_KEY,
+            ))
+
+        ledger = self.storage.balance_repo.read_balance_ledger()
+        assert ledger.consumer_available_balance(OWNER) == Decimal("20.000000")
+        assert ledger.consumer_pending_balance(OWNER) == Decimal("0.000000")
+
     def test_audit_log_created(self):
         run(self.svc.create_consumer_withdraw_intent(
             payload={"amountUsdc": 20.0, "reason": ""},
@@ -341,6 +359,24 @@ class TestConsumerWithdrawFrozenBalance(unittest.TestCase):
         ledger = self.storage.balance_repo.read_balance_ledger()
         assert ledger.consumer_available_balance(OWNER) == Decimal("400.000000")
         assert ledger.consumer_frozen_balance(OWNER) == Decimal("600.000000")
+
+    def test_manual_review_row_save_failure_releases_reserved_frozen_balance(self):
+        def failing_write(rows, updated_at):
+            _ = rows, updated_at
+            raise RuntimeError("synthetic row save failure")
+
+        self.storage.gateway_state.write_consumer_refund_rows = failing_write
+
+        with pytest.raises(RuntimeError):
+            run(self.svc.create_consumer_withdraw_intent(
+                payload={"amountUsdc": 600.0, "reason": "storage failure"},
+                owner_wallet=OWNER,
+                idempotency_key=IDEM_KEY,
+            ))
+
+        ledger = self.storage.balance_repo.read_balance_ledger()
+        assert ledger.consumer_available_balance(OWNER) == Decimal("1000.000000")
+        assert ledger.consumer_frozen_balance(OWNER) == Decimal("0.000000")
 
 
 class TestConsumerWithdrawFrozenBlocksApiCalls(unittest.TestCase):

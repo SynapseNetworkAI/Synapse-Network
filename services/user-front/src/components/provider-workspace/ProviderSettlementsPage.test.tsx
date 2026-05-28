@@ -116,7 +116,12 @@ describe("ProviderSettlementsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     globalThis.localStorage.setItem(I18N_STORAGE_KEY, "zh");
-    readContractMock.mockResolvedValue(20n * 10n ** 18n);
+    readContractMock.mockImplementation(({ functionName }) => {
+      if (functionName === "decimals") {
+        return Promise.resolve(18);
+      }
+      return Promise.resolve(20n * 10n ** 18n);
+    });
     getProviderWithdrawCapabilityMock.mockResolvedValue({
       ticketSigningEnabled: true,
       code: null,
@@ -129,8 +134,8 @@ describe("ProviderSettlementsPage", () => {
       new ProviderWithdrawApiError(
         "Gateway cannot verify on-chain vault liquidity right now. Retry after the chain RPC reconnects.",
         "WITHDRAW_VAULT_LIQUIDITY_CHECK_UNAVAILABLE",
-        503
-      )
+        503,
+      ),
     );
   });
 
@@ -141,8 +146,8 @@ describe("ProviderSettlementsPage", () => {
       createElement(
         LanguageProvider,
         null,
-        createElement(ProviderSettlementsPage)
-      )
+        createElement(ProviderSettlementsPage),
+      ),
     );
 
     await waitFor(() => {
@@ -164,13 +169,13 @@ describe("ProviderSettlementsPage", () => {
     await waitFor(() => {
       expect(createProviderWithdrawIntentMock).toHaveBeenCalledWith(
         "0xabc",
-        "8.5"
+        "8.5",
       );
     });
     await waitFor(() => {
       expect(toastError).toHaveBeenCalledWith(
         "当前暂时无法确认提现可用性，请稍后重试。",
-        { id: "toast-provider-withdraw" }
+        { id: "toast-provider-withdraw" },
       );
     });
   });
@@ -181,16 +186,16 @@ describe("ProviderSettlementsPage", () => {
       new ProviderWithdrawApiError(
         "Requested 12.600000 USDC exceeds mature provider receivable of 0.000000 USDC. Provider earnings must mature for 7 days before withdrawal.",
         "PROVIDER_RECEIVABLE_NOT_MATURED",
-        400
-      )
+        400,
+      ),
     );
 
     render(
       createElement(
         LanguageProvider,
         null,
-        createElement(ProviderSettlementsPage)
-      )
+        createElement(ProviderSettlementsPage),
+      ),
     );
 
     await waitFor(() => {
@@ -212,13 +217,13 @@ describe("ProviderSettlementsPage", () => {
     await waitFor(() => {
       expect(createProviderWithdrawIntentMock).toHaveBeenCalledWith(
         "0xabc",
-        "8.5"
+        "8.5",
       );
     });
     await waitFor(() => {
       expect(toastError).toHaveBeenCalledWith(
         "当前收益尚未达到 T+7 成熟期。只有已成熟应收可以提现；新产生的应收仍会显示在余额中。",
-        { id: "toast-provider-withdraw" }
+        { id: "toast-provider-withdraw" },
       );
     });
   });

@@ -173,6 +173,9 @@ def test_withdraw_vault_liquidity_reads_token_balance_and_asserts(monkeypatch):
             assert account == OWNER
             return _Call(value=self.value)
 
+        def decimals(self):
+            return _Call(value=18)
+
     class _Eth:
         def __init__(self, value: int) -> None:
             self.value = value
