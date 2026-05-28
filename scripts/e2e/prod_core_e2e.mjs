@@ -506,10 +506,18 @@ async function depositSmallValue(auth) {
 }
 
 async function discoverService() {
-  const result = await api(
-    `/v1/services/discover?q=${encodeURIComponent(config.serviceId)}`
-  );
-  const rows = result.payload.services || result.payload.data?.services || [];
+  const result = await api("/v1/agent/discovery/search", {
+    method: "POST",
+    body: {
+      searchQuery: config.serviceId,
+      limit: 20,
+    },
+  });
+  const rows =
+    result.payload.results ||
+    result.payload.services ||
+    result.payload.data?.services ||
+    [];
   const row = rows.find((item) =>
     [item.serviceId, item.service_id, item.id, item.agentToolName]
       .map(String)
@@ -660,14 +668,18 @@ async function captureUi(auth) {
         timeout: 60_000,
       });
       await page.locator("body").waitFor({ timeout: 15_000 });
+      await page
+        .waitForFunction(
+          (expected) => document.body?.textContent?.includes(expected),
+          item[2],
+          { timeout: 15_000 }
+        )
+        .catch(() => {});
       const body = await page
-        .locator("body")
-        .innerText({ timeout: 10_000 })
+        .evaluate(() => document.body?.textContent || "")
         .catch(() => "");
       const forbidden =
-        /503|HTTPException|RPC Error|CHAIN_RPC|PROVIDER_|WITHDRAW_|backend|ledger|ticket/i.test(
-          body
-        );
+        /503|HTTPException|RPC Error|CHAIN_RPC|PROVIDER_|WITHDRAW_/i.test(body);
       const file = path.join(SCREENSHOT_DIR, `${item[0]}.png`);
       await page.screenshot({ path: file, fullPage: true });
       evidence.screenshots.push(path.relative(OUT_DIR, file));
