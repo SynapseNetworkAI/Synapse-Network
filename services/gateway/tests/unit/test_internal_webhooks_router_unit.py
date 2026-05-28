@@ -100,3 +100,51 @@ def test_alchemy_webhook_triggers_bounded_sweep(monkeypatch) -> None:
         "txHashes": ["0xabc"],
         "result": {"credited": 1, "failed": 0, "pending": 0},
     }
+
+
+def test_alchemy_address_activity_webhook_triggers_bounded_sweep(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "src.api.routers.internal_webhooks.run_locked_bounded_pending_confirmation_sweep",
+        lambda _storage: type(
+            "_Result",
+            (),
+            {
+                "status": "ok",
+                "attempts": 1,
+                "credited": 0,
+                "failed": 0,
+                "pending": 0,
+                "reason": "",
+            },
+        )(),
+    )
+    payload = {
+        "type": "ADDRESS_ACTIVITY",
+        "event": {
+            "network": "ARB_SEPOLIA",
+            "activity": [
+                {
+                    "hash": "0xdef",
+                    "transactionHash": "0xdef",
+                }
+            ],
+        },
+    }
+    body = json.dumps(payload).encode("utf-8")
+    with _build_client(monkeypatch) as client:
+        response = client.post(
+            "/internal/webhooks/alchemy/deposits",
+            content=body,
+            headers={
+                "Content-Type": "application/json",
+                "X-Alchemy-Signature": _signature(body),
+            },
+        )
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "ok",
+        "source": "alchemy_address_activity",
+        "attempts": 1,
+        "txHashes": ["0xdef"],
+        "result": {"credited": 0, "failed": 0, "pending": 0},
+    }

@@ -1,11 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAccount } from "wagmi";
 import { getV2Balance } from "@/utils/balanceApi";
-import { formatMoneyString } from "@/utils/money";
+import { normalizeMoneyString } from "@/utils/money";
 import { listUsageLogs, type UsageLogRecord } from "@/utils/usageApi";
-import { clearAuthSession } from "@/utils/authSession";
+import { clearAuthSession, getStoredAuthSession } from "@/utils/authSession";
 import { useAuth } from "@/components/WalletAuthGuard";
 
 const WALLET_SESSION_MISSING_MESSAGE =
@@ -44,6 +44,11 @@ export function useOwnerData() {
   });
 
   const [logs, setLogs] = useState<UsageLogRecord[]>([]);
+  const hasStoredSession = useMemo(() => {
+    if (!userAddress) return false;
+    return getStoredAuthSession()?.wallet === userAddress.toLowerCase();
+  }, [userAddress]);
+  const hasWalletSession = isSessionAuthenticated || hasStoredSession;
 
   const fetchOwnerData = useCallback(async (addr: string) => {
     if (!addr) return;
@@ -77,26 +82,22 @@ export function useOwnerData() {
       });
 
       setStats({
-        ownerBalance: formatMoneyString(balanceSummary.ownerBalance, 2),
-        consumerAvailableBalance: formatMoneyString(
-          balanceSummary.consumerAvailableBalance,
-          2
+        ownerBalance: normalizeMoneyString(balanceSummary.ownerBalance),
+        consumerAvailableBalance: normalizeMoneyString(
+          balanceSummary.consumerAvailableBalance
         ),
-        consumerWithdrawableBalance: formatMoneyString(
-          balanceSummary.consumerWithdrawableBalance,
-          2
+        consumerWithdrawableBalance: normalizeMoneyString(
+          balanceSummary.consumerWithdrawableBalance
         ),
-        consumerPendingBalance: formatMoneyString(
-          balanceSummary.consumerPendingBalance,
-          2
+        consumerPendingBalance: normalizeMoneyString(
+          balanceSummary.consumerPendingBalance
         ),
-        consumerFrozenBalance: formatMoneyString(
-          balanceSummary.consumerFrozenBalance,
-          2
+        consumerFrozenBalance: normalizeMoneyString(
+          balanceSummary.consumerFrozenBalance
         ),
-        consumerWithdrawMinUsdc: formatMoneyString(
+        consumerWithdrawMinUsdc: normalizeMoneyString(
           balanceSummary.consumerWithdrawMinUsdc,
-          2
+          "10"
         ),
         consumerWithdrawMaturitySeconds:
           balanceSummary.consumerWithdrawMaturitySeconds,
@@ -123,7 +124,7 @@ export function useOwnerData() {
     let isActive = true;
 
     const bootstrapOwnerData = async () => {
-      if (isConnected && userAddress && isSessionAuthenticated) {
+      if (isConnected && userAddress && hasWalletSession) {
         setIsBootstrapping(true);
         try {
           await fetchOwnerData(userAddress);
@@ -156,15 +157,15 @@ export function useOwnerData() {
     return () => {
       isActive = false;
     };
-  }, [isConnected, isSessionAuthenticated, userAddress, fetchOwnerData]);
+  }, [fetchOwnerData, hasWalletSession, isConnected, userAddress]);
 
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
-    if (isConnected && userAddress && isSessionAuthenticated) {
+    if (isConnected && userAddress && hasWalletSession) {
       await fetchOwnerData(userAddress);
     }
     setTimeout(() => setIsRefreshing(false), 500);
-  }, [isConnected, isSessionAuthenticated, userAddress, fetchOwnerData]);
+  }, [fetchOwnerData, hasWalletSession, isConnected, userAddress]);
 
   return {
     userAddress,
