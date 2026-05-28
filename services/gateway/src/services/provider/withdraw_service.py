@@ -15,7 +15,6 @@ from src.services.balance_mixins import (
     BalanceAuditMixin,
     BalanceRedisGuardMixin,
     BalanceWithdrawSigningMixin,
-    USDC_DECIMALS,
 )
 from src.services.provider.withdraw_helpers_mixin import (
     ProviderWithdrawHelpersMixin,
@@ -123,7 +122,10 @@ class ProviderWithdrawService(
             raise RuntimeError("WITHDRAW_VAULT_LIQUIDITY_CHECK_UNAVAILABLE") from exc
 
     def _assert_withdraw_vault_liquidity(self, amount_usdc: Decimal) -> None:
-        amount_wei = usdc_decimal_to_atomic(amount_usdc, decimals=USDC_DECIMALS)
+        amount_wei = usdc_decimal_to_atomic(
+            amount_usdc,
+            decimals=self._resolve_withdraw_token_decimals(),
+        )
         vault_balance_wei = self._read_vault_liquidity_amount_wei()
         if vault_balance_wei < amount_wei:
             raise RuntimeError("INSUFFICIENT_VAULT_LIQUIDITY")
@@ -480,6 +482,14 @@ class ProviderWithdrawService(
             completed = self._assert_withdrawal_completable(target, normalized_tx_hash)
             if completed is not None:
                 return completed
+
+            self._assert_withdraw_receipt_matches_ticket(
+                owner_wallet=owner,
+                tx_hash=normalized_tx_hash,
+                amount_wei=int(target.ticket.amount or target.amount_wei or 0),
+                fee_wei=int(target.ticket.fee or target.fee_wei or 0),
+                ticket_hash=str(target.ticket.ticket_hash or ""),
+            )
 
             used_atomic_complete = False
             if hasattr(self.storage, "complete_withdraw_tx_atomic"):

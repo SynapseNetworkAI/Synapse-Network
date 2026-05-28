@@ -117,6 +117,7 @@ name: "Synapse Frontend Rules"
 - Consumer-facing balances, Payments rows, withdrawal lists, and pending/frozen state must come from Gateway DB/API truth, not frontend chain-log scans. `DepositInfo` / `WithdrawInfo` parsing is allowed only for transient wallet feedback after a user-submitted transaction; it must not create persistent ledger rows or mark money-path state completed.
 - Consumer withdrawal UI must not collapse manual-review and ticket-ready states into the same generic pending label. `PENDING_MANUAL_REVIEW` stays non-actionable; ticket-ready `REQUESTED` / `TICKET_READY` rows must surface a wallet claim action.
 - Deposit and withdrawal money actions must create a durable Gateway intent before opening the wallet. If intent creation fails, do not prompt the wallet. This prevents page refreshes from hiding a submitted or pending money action.
+- Deposit and withdrawal token amount conversions must read token `decimals()` or consume a verified backend/env token-decimals contract. Do not hardcode USDC as 18 decimals in wallet writes, liquidity checks, or claim readiness logic; production USDC can be 6 decimals.
 - When a page must merge several Gateway history endpoints for display, each source must use an explicit sufficiently large fetch limit or a backend-owned unified feed. Do not merge small default pages such as three separate `limit=10` results into one apparent timeline.
 
 **i18n drift**

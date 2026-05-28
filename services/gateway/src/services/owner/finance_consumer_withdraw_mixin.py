@@ -527,7 +527,39 @@ class FinanceConsumerWithdrawMixin:
                 ticket=ticket or {},
             )
             rows.append(row)
-            self._save_refund_rows(rows, now)  # type: ignore[attr-defined]
+            try:
+                self._save_refund_rows(rows, now)  # type: ignore[attr-defined]
+            except Exception:
+                logger.exception(
+                    "Consumer withdrawal row save failed after balance reserve",
+                    extra={
+                        "owner": owner,
+                        "withdrawal_id": withdraw_id,
+                        "amount_usdc": amount_usdc,
+                        "risk_status": risk["status"],
+                    },
+                )
+                try:
+                    if risk["status"] == "PENDING_MANUAL_REVIEW":
+                        self._release_consumer_frozen_to_available(  # type: ignore[attr-defined]
+                            owner,
+                            amount_usdc,
+                        )
+                    else:
+                        self._release_consumer_pending_to_available(  # type: ignore[attr-defined]
+                            owner,
+                            amount_usdc,
+                        )
+                except Exception:
+                    logger.exception(
+                        "Consumer withdrawal balance compensation failed",
+                        extra={
+                            "owner": owner,
+                            "withdrawal_id": withdraw_id,
+                            "amount_usdc": amount_usdc,
+                        },
+                    )
+                raise
 
             response = self._build_consumer_withdraw_response(row)
             await self._finalize_consumer_withdraw_idempotency(

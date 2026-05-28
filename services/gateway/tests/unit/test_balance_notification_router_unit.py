@@ -227,7 +227,7 @@ async def test_get_balance_wraps_storage_errors_for_safe_client_response() -> No
 
 
 @pytest.mark.asyncio
-async def test_confirm_deposit_schedules_in_app_notification(monkeypatch) -> None:
+async def test_confirm_deposit_is_indexer_owned(monkeypatch) -> None:
     calls: list[tuple[object, object]] = []
     storage = _Storage()
     monkeypatch.setattr(
@@ -236,46 +236,23 @@ async def test_confirm_deposit_schedules_in_app_notification(monkeypatch) -> Non
         lambda storage_arg, intent: calls.append((storage_arg, intent)),
     )
 
-    response = await balance_deposit.confirm_deposit_intent(
-        "dep-intent-1",
-        DepositConfirmRequest(eventKey="evt-1", confirmations=3),
-        _Request(),
-        "0xAbC",
-        _BalanceService(),
-        storage,
-    )
+    with pytest.raises(HTTPException) as exc_info:
+        await balance_deposit.confirm_deposit_intent(
+            "dep-intent-1",
+            DepositConfirmRequest(eventKey="evt-1", confirmations=3),
+            _Request(),
+            "0xAbC",
+            _BalanceService(),
+            storage,
+        )
 
-    assert response["status"] == "success"
-    assert response["intent"]["depositId"] == "dep-intent-1"
-    assert calls[0][0] is storage
-    assert calls[0][1].event_type == "deposit.confirmed"
-    assert calls[0][1].payload == {
-        "depositId": "dep-intent-1",
-        "amount": "12.000000",
-        "currency": "USDC",
-        "status": "CONFIRMED",
-    }
+    assert exc_info.value.status_code == 410
+    assert exc_info.value.detail["code"] == "DEPOSIT_CONFIRM_INDEXER_ONLY"
+    assert calls == []
 
 
 @pytest.mark.asyncio
-async def test_confirm_deposit_replay_does_not_reschedule_notification(monkeypatch) -> None:
-    class _ReplayBalanceService(_BalanceService):
-        async def confirm_deposit_intent(
-            self,
-            *,
-            owner_wallet: str,
-            deposit_intent_id: str,
-            event_key: str,
-            confirmations: int,
-            request_meta: dict[str, object],
-        ) -> dict[str, object]:
-            _ = owner_wallet, deposit_intent_id, event_key, confirmations, request_meta
-            return {
-                "depositId": "dep-intent-1",
-                "amount": "12.000000",
-                "status": "CONFIRMED",
-            }
-
+async def test_confirm_deposit_replay_does_not_call_legacy_service(monkeypatch) -> None:
     calls: list[tuple[object, object]] = []
     storage = _Storage()
     monkeypatch.setattr(
@@ -284,17 +261,17 @@ async def test_confirm_deposit_replay_does_not_reschedule_notification(monkeypat
         lambda storage_arg, intent: calls.append((storage_arg, intent)),
     )
 
-    response = await balance_deposit.confirm_deposit_intent(
-        "dep-intent-1",
-        DepositConfirmRequest(eventKey="evt-1", confirmations=3),
-        _Request(),
-        "0xAbC",
-        _ReplayBalanceService(),
-        storage,
-    )
+    with pytest.raises(HTTPException) as exc_info:
+        await balance_deposit.confirm_deposit_intent(
+            "dep-intent-1",
+            DepositConfirmRequest(eventKey="evt-1", confirmations=3),
+            _Request(),
+            "0xAbC",
+            _BalanceService(),
+            storage,
+        )
 
-    assert response["status"] == "success"
-    assert response["intent"]["status"] == "CONFIRMED"
+    assert exc_info.value.status_code == 410
     assert calls == []
 
 
