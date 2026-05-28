@@ -84,12 +84,12 @@ const BASELINED_FILE_EFFECTIVE_LINES = new Map([
   ],
   [
     "services/gateway/src/services/owner/finance_consumer_withdraw_mixin.py",
-    544,
+    576,
   ],
-  ["services/gateway/src/services/owner/finance_refund_exec_mixin.py", 788],
+  ["services/gateway/src/services/owner/finance_refund_exec_mixin.py", 794],
   ["services/gateway/src/services/platform/finance_service.py", 503],
-  ["services/gateway/src/services/provider/withdraw_execution_mixin.py", 527],
-  ["services/gateway/src/services/provider/withdraw_service.py", 513],
+  ["services/gateway/src/services/provider/withdraw_execution_mixin.py", 529],
+  ["services/gateway/src/services/provider/withdraw_service.py", 522],
   [
     "services/gateway/src/storage/postgres/repositories/balance_repository.py",
     530,
@@ -119,8 +119,8 @@ const BASELINED_FILE_EFFECTIVE_LINES = new Map([
     "services/gateway/tests/unit/storage/test_postgres_repositories_unit.py",
     2161,
   ],
-  ["services/gateway/tests/unit/test_consumer_withdraw_unit.py", 945],
-  ["services/gateway/tests/unit/test_finance_runtime_service_unit.py", 1424],
+  ["services/gateway/tests/unit/test_consumer_withdraw_unit.py", 973],
+  ["services/gateway/tests/unit/test_finance_runtime_service_unit.py", 1468],
   ["services/gateway/tests/unit/test_forwarding_runtime_service_unit.py", 1616],
   ["services/gateway/tests/unit/test_notifications_outbox_unit.py", 868],
   ["services/docs-front/src/data/endpoint-source.ts", 1719],
@@ -160,7 +160,7 @@ const BASELINED_FILE_EFFECTIVE_LINES = new Map([
   ],
   [
     "services/user-front/src/components/dashboard/agents/QuickStartGuide.tsx",
-    567,
+    584,
   ],
   [
     "services/user-front/src/components/provider-workspace/ProviderServiceDeployPage.tsx",
@@ -386,10 +386,10 @@ function isJsLikeFunctionStart(line) {
   return (
     /\bfunction\s+[A-Za-z0-9_$]+\s*\(/.test(line) ||
     /\b(?:const|let|var)\s+[A-Z_a-z][A-Za-z0-9_$]*\s*=\s*(?:async\s*)?\([^)]*\)\s*=>/.test(
-      line
+      line,
     ) ||
     /\b(?:const|let|var)\s+[A-Z_a-z][A-Za-z0-9_$]*\s*=\s*(?:async\s*)?[A-Za-z0-9_$]+\s*=>/.test(
-      line
+      line,
     )
   );
 }
@@ -424,7 +424,7 @@ function scanJsLikeFunctions(file, text) {
       args,
     };
     findings.push(
-      ...metricFindings(file, index + 1, current, FUNCTION_LINE_MAX)
+      ...metricFindings(file, index + 1, current, FUNCTION_LINE_MAX),
     );
     index = end;
   }
@@ -437,7 +437,7 @@ function scanPythonFunctions(file, text) {
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index];
     const defMatch = line.match(
-      /^(\s*)(?:async\s+)?def\s+([A-Za-z0-9_]+)\s*\(/
+      /^(\s*)(?:async\s+)?def\s+([A-Za-z0-9_]+)\s*\(/,
     );
     if (!defMatch) continue;
     const indent = defMatch[1].length;
@@ -455,7 +455,7 @@ function scanPythonFunctions(file, text) {
       args: argumentCount(line),
     };
     findings.push(
-      ...metricFindings(file, index + 1, current, PYTHON_FUNCTION_LINE_MAX)
+      ...metricFindings(file, index + 1, current, PYTHON_FUNCTION_LINE_MAX),
     );
     index = end - 1;
   }
@@ -481,22 +481,22 @@ function metricFindings(file, line, metrics, lineMax) {
   const findings = [];
   if (metrics.lines > lineMax) {
     findings.push(
-      `FATAL QUALITY-FUNCTION-LINES: ${file}:${line} has ${metrics.lines} effective lines; budget is ${lineMax}. Extract responsibility-focused helpers first, and split modules only at clear scanner/runner/serializer/adapter/client/policy boundaries. Do not create mechanical fragments just to pass CI.`
+      `FATAL QUALITY-FUNCTION-LINES: ${file}:${line} has ${metrics.lines} effective lines; budget is ${lineMax}. Extract responsibility-focused helpers first, and split modules only at clear scanner/runner/serializer/adapter/client/policy boundaries. Do not create mechanical fragments just to pass CI.`,
     );
   }
   if (metrics.nesting > NESTING_MAX) {
     findings.push(
-      `FATAL QUALITY-NESTING: ${file}:${line} has nesting depth ${metrics.nesting}; use guard clauses or state handlers.`
+      `FATAL QUALITY-NESTING: ${file}:${line} has nesting depth ${metrics.nesting}; use guard clauses or state handlers.`,
     );
   }
   if (metrics.complexity > COMPLEXITY_MAX) {
     findings.push(
-      `FATAL QUALITY-COMPLEXITY: ${file}:${line} has complexity ${metrics.complexity}; extract responsibility-focused helpers or state/policy modules instead of mechanical fragments.`
+      `FATAL QUALITY-COMPLEXITY: ${file}:${line} has complexity ${metrics.complexity}; extract responsibility-focused helpers or state/policy modules instead of mechanical fragments.`,
     );
   }
   if (metrics.args > ARGUMENT_MAX) {
     findings.push(
-      `FATAL QUALITY-ARGS: ${file}:${line} has ${metrics.args} parameters; introduce a request/context object.`
+      `FATAL QUALITY-ARGS: ${file}:${line} has ${metrics.args} parameters; introduce a request/context object.`,
     );
   }
   return findings;
@@ -522,7 +522,7 @@ function addedDisableLines() {
     const comment = commentPortion(added);
     if (
       /(eslint-disable|@ts-ignore|@ts-expect-error|type:\s*ignore|noqa|ruff:\s*noqa)/.test(
-        comment
+        comment,
       )
     ) {
       entries.push({ file: currentFile, line: comment });
@@ -581,7 +581,7 @@ function scanFileBudget(file) {
   const maxLines = lineBudget(file);
   if (lineCount > maxLines) {
     findings.push(
-      `FATAL QUALITY-FILE-LINES: ${file} has ${lineCount} effective lines; budget is ${maxLines}. Split by real responsibility such as scanner, runner, serializer, adapter, client, or policy; do not create mechanical fragments just to pass CI.`
+      `FATAL QUALITY-FILE-LINES: ${file} has ${lineCount} effective lines; budget is ${maxLines}. Split by real responsibility such as scanner, runner, serializer, adapter, client, or policy; do not create mechanical fragments just to pass CI.`,
     );
   }
   if (isTestLike(file) || BASELINED_FUNCTION_FILES.has(file)) {
@@ -606,7 +606,7 @@ export function scanQualityBudget(files) {
       findings.push(
         `FATAL QUALITY-DISABLE-REASON: ${
           entry.file
-        } adds '${entry.line.trim()}' without an inline reason.`
+        } adds '${entry.line.trim()}' without an inline reason.`,
       );
     }
   }

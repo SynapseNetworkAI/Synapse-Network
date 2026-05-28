@@ -24,7 +24,6 @@ from src.domain.finance import BalanceLedger
 from src.domain.idempotency import IdempotencyRow
 from src.domain.ledger import WithdrawalIntentRow
 from src.domain.operation_metadata import OperationContextMetadata, WithdrawalTicketMetadata
-from src.services.balance_mixins import USDC_DECIMALS
 from src.services.balance_mixins.withdraw_ticket_signers import (
     withdraw_signer_address_from_config,
 )
@@ -97,7 +96,10 @@ class ProviderWithdrawExecutionMixin:
         requires_manual_review = (
             amount >= parse_usdc(str(settings.withdrawal_auto_single_limit_usdc))
         ) and not force_sign
-        amount_wei = usdc_decimal_to_atomic(amount, decimals=USDC_DECIMALS)
+        amount_wei = usdc_decimal_to_atomic(
+            amount,
+            decimals=self._resolve_withdraw_token_decimals(),  # type: ignore[attr-defined]
+        )
 
         if requires_manual_review:
             return PreparedWithdrawTicket(

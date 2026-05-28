@@ -26,7 +26,6 @@ from src.api.routers.balance_helpers import (
 from src.api.schemas.pydantic_models import ConsumerWithdrawRequest
 from src.services.notifications.in_app import (
     build_consumer_withdrawal_created_intent,
-    build_deposit_confirmed_intent,
     build_refund_completed_intent,
     schedule_in_app_notification,
 )
@@ -143,34 +142,17 @@ async def confirm_deposit_intent(
     service: Annotated[BalanceService, Depends(get_balance_service)],
     storage: Annotated[BaseStorage, Depends(get_storage)],
 ):
-    confirmed = await service.confirm_deposit_intent(
-        owner_wallet=owner_wallet,
-        deposit_intent_id=deposit_intent_id,
-        event_key=payload.eventKey,
-        confirmations=payload.confirmations,
-        request_meta=_extract_request_meta(request),
+    _ = deposit_intent_id, payload, request, owner_wallet, service, storage
+    raise HTTPException(
+        status_code=410,
+        detail={
+            "code": "DEPOSIT_CONFIRM_INDEXER_ONLY",
+            "message": (
+                "Deposit confirmation is owned by the chain indexer. "
+                "Wait for sync status or ask an operator to replay the transaction."
+            ),
+        },
     )
-    newly_confirmed = str(confirmed.get("eventKey") or "") == str(payload.eventKey or "")
-    if newly_confirmed:
-        schedule_in_app_notification(
-            storage,
-            build_deposit_confirmed_intent(owner_wallet, confirmed),
-        )
-        schedule_transaction_notifications(
-            storage,
-            owner_wallet=owner_wallet,
-            template_key="deposit_confirmed",
-            event_type="deposit.confirmed",
-            payload={
-                "depositId": confirmed.get("depositId") or confirmed.get("id") or deposit_intent_id,
-                "amount": confirmed.get("amount") or confirmed.get("amountUsdc"),
-                "status": "CONFIRMED",
-                "txHash": confirmed.get("txHash"),
-                "ownerAddress": owner_wallet,
-                "actionUrl": build_public_app_url("/dashboard/billing/credits"),
-            },
-        )
-    return {"status": "success", "intent": confirmed}
 
 
 @router.post("/v1/refund")

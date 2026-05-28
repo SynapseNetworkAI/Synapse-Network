@@ -190,7 +190,7 @@ function renderPage() {
 async function submitProviderWithdrawIntent(user = userEvent.setup()) {
   renderPage();
   await waitFor(() =>
-    expect(getProviderWithdrawCapabilityMock).toHaveBeenCalled()
+    expect(getProviderWithdrawCapabilityMock).toHaveBeenCalled(),
   );
   const btn = screen.getByRole("button", {
     name: languageState.value === "zh" ? /生成并提现/i : /Generate & Claim/i,
@@ -201,14 +201,14 @@ async function submitProviderWithdrawIntent(user = userEvent.setup()) {
     expect(
       screen.getByRole("button", {
         name: languageState.value === "zh" ? "确认提现" : /Confirm/i,
-      })
-    ).toBeTruthy()
+      }),
+    ).toBeTruthy(),
   );
   await user.click(screen.getByRole("button", { name: /MAX/i }));
   await user.click(
     screen.getByRole("button", {
       name: languageState.value === "zh" ? "确认提现" : /Confirm/i,
-    })
+    }),
   );
 }
 
@@ -234,7 +234,12 @@ describe("ProviderWithdrawPage", () => {
       duplicateRowsDropped: 0,
     };
     walletBalance = 10n ** 18n;
-    readContractMock.mockResolvedValue(20n * 10n ** 18n);
+    readContractMock.mockImplementation(({ functionName }) => {
+      if (functionName === "decimals") {
+        return Promise.resolve(18);
+      }
+      return Promise.resolve(20n * 10n ** 18n);
+    });
     writeContractAsyncMock.mockResolvedValue("0xtx");
     getProviderWithdrawCapabilityMock.mockResolvedValue({
       ticketSigningEnabled: true,
@@ -263,7 +268,7 @@ describe("ProviderWithdrawPage", () => {
     renderPage();
     await waitFor(() => {
       expect(
-        screen.getByRole("button", { name: /Generate & Claim/i })
+        screen.getByRole("button", { name: /Generate & Claim/i }),
       ).toBeTruthy();
     });
   });
@@ -281,14 +286,14 @@ describe("ProviderWithdrawPage", () => {
 
     expect(btn.disabled).toBe(true);
     expect(btn.title).toBe(
-      "Matured withdrawable amount is below the 10.00 USDC minimum"
+      "Matured withdrawable amount is below the 10.00 USDC minimum",
     );
     expect(screen.getByText("5.00 USDC")).toBeTruthy();
     expect(screen.getByText("Receivable balance: 50.00 USDC")).toBeTruthy();
     expect(
       screen.getByText(
-        "Newly earned receivables appear in balance first, then enter withdrawable receivable after T+7."
-      )
+        "Newly earned receivables appear in balance first, then enter withdrawable receivable after T+7.",
+      ),
     ).toBeTruthy();
   });
 
@@ -299,7 +304,7 @@ describe("ProviderWithdrawPage", () => {
     renderPage();
     await waitFor(() => {
       expect(
-        screen.getByRole("button", { name: /Generate & Claim/i })
+        screen.getByRole("button", { name: /Generate & Claim/i }),
       ).toBeTruthy();
     });
     const btn = screen.getByRole("button", {
@@ -340,7 +345,7 @@ describe("ProviderWithdrawPage", () => {
     renderPage();
     await waitFor(() => {
       expect(
-        screen.getByRole("button", { name: /Generate & Claim/i })
+        screen.getByRole("button", { name: /Generate & Claim/i }),
       ).toBeTruthy();
     });
     const btn = screen.getByRole("button", {
@@ -353,7 +358,7 @@ describe("ProviderWithdrawPage", () => {
     });
     expect(
       (screen.getByRole("button", { name: /Confirm/i }) as HTMLButtonElement)
-        .disabled
+        .disabled,
     ).toBe(true);
   });
 
@@ -362,7 +367,7 @@ describe("ProviderWithdrawPage", () => {
     renderPage();
     await waitFor(() => {
       expect(
-        screen.getByRole("button", { name: /Generate & Claim/i })
+        screen.getByRole("button", { name: /Generate & Claim/i }),
       ).toBeTruthy();
     });
     const btn = screen.getByRole("button", {
@@ -378,7 +383,7 @@ describe("ProviderWithdrawPage", () => {
     expect(input.value).toBe("12.50");
     expect(
       (screen.getByRole("button", { name: /Confirm/i }) as HTMLButtonElement)
-        .disabled
+        .disabled,
     ).toBe(false);
   });
 
@@ -387,7 +392,7 @@ describe("ProviderWithdrawPage", () => {
     renderPage();
     await waitFor(() => {
       expect(
-        screen.getByRole("button", { name: /Generate & Claim/i })
+        screen.getByRole("button", { name: /Generate & Claim/i }),
       ).toBeTruthy();
     });
     const btn = screen.getByRole("button", {
@@ -400,11 +405,11 @@ describe("ProviderWithdrawPage", () => {
     await user.type(input, "9.99");
 
     expect(
-      screen.getByText("Minimum withdrawal amount is 10.00 USDC.")
+      screen.getByText("Minimum withdrawal amount is 10.00 USDC."),
     ).toBeTruthy();
     expect(
       (screen.getByRole("button", { name: /Confirm/i }) as HTMLButtonElement)
-        .disabled
+        .disabled,
     ).toBe(true);
   });
 
@@ -429,7 +434,7 @@ describe("ProviderWithdrawPage", () => {
     renderPage();
     await waitFor(() => {
       expect(
-        screen.getByRole("button", { name: /Resume Pending/i })
+        screen.getByRole("button", { name: /Resume Pending/i }),
       ).toBeTruthy();
     });
   });
@@ -441,7 +446,7 @@ describe("ProviderWithdrawPage", () => {
       expect(getProviderWithdrawCapabilityMock).toHaveBeenCalled();
     });
     expect(
-      screen.queryByRole("button", { name: /Resume Pending/i })
+      screen.queryByRole("button", { name: /Resume Pending/i }),
     ).toBeNull();
   });
 
@@ -523,7 +528,7 @@ describe("ProviderWithdrawPage", () => {
     await waitFor(() => expect(screen.getByText("wd-old")).toBeTruthy());
 
     const fromInput = document.querySelectorAll(
-      'input[type="date"]'
+      'input[type="date"]',
     )[0] as HTMLInputElement;
     const sevenDaysAgo = new Date(Date.now() - 86400 * 7 * 1000)
       .toISOString()
@@ -544,7 +549,7 @@ describe("ProviderWithdrawPage", () => {
     await waitFor(() => {
       const link = screen.getByText(/View Invocation Records/i);
       expect(link.closest("a")?.getAttribute("href")).toBe(
-        "/provider/withdraw/history"
+        "/provider/withdraw/history",
       );
     });
   });
@@ -596,8 +601,8 @@ describe("ProviderWithdrawPage", () => {
         new ProviderWithdrawApiError(
           "503: {'code': 'CHAIN_RPC_UNAVAILABLE', 'message': 'HTTPException'}",
           code,
-          503
-        )
+          503,
+        ),
       );
 
       await submitProviderWithdrawIntent();
@@ -609,13 +614,13 @@ describe("ProviderWithdrawPage", () => {
       });
       expect(toastError).not.toHaveBeenCalledWith(
         expect.stringContaining("503:"),
-        expect.anything()
+        expect.anything(),
       );
       expect(toastError).not.toHaveBeenCalledWith(
         expect.stringContaining("HTTPException"),
-        expect.anything()
+        expect.anything(),
       );
-    }
+    },
   );
 
   it("localizes provider receivable maturity errors by code", async () => {
@@ -624,15 +629,15 @@ describe("ProviderWithdrawPage", () => {
       new ProviderWithdrawApiError(
         "Requested 12.600000 USDC exceeds mature provider receivable of 0.000000 USDC. Provider earnings must mature for 7 days before withdrawal.",
         "PROVIDER_RECEIVABLE_NOT_MATURED",
-        400
-      )
+        400,
+      ),
     );
     await submitProviderWithdrawIntent(user);
 
     await waitFor(() => {
       expect(toastError).toHaveBeenCalledWith(
         "Provider earnings are still in the T+7 maturity window. Only matured receivables can be withdrawn; newly earned receivables still appear in balance.",
-        { id: "toast-provider-withdraw" }
+        { id: "toast-provider-withdraw" },
       );
     });
   });
@@ -644,14 +649,14 @@ describe("ProviderWithdrawPage", () => {
       new ProviderWithdrawApiError(
         "Requested 12.600000 USDC exceeds mature provider receivable of 0.000000 USDC. Provider earnings must mature for 7 days before withdrawal.",
         "PROVIDER_RECEIVABLE_NOT_MATURED",
-        400
-      )
+        400,
+      ),
     );
 
     renderPage();
     await waitFor(() => {
       expect(
-        screen.getByRole("heading", { name: "Provider 提现" })
+        screen.getByRole("heading", { name: "Provider 提现" }),
       ).toBeTruthy();
     });
     expect(screen.getByText("可提现额度")).toBeTruthy();
@@ -662,7 +667,7 @@ describe("ProviderWithdrawPage", () => {
     await waitFor(() => expect(btn.disabled).toBe(false));
     await user.click(btn);
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: "确认提现" })).toBeTruthy()
+      expect(screen.getByRole("button", { name: "确认提现" })).toBeTruthy(),
     );
     await user.click(screen.getByRole("button", { name: /MAX/i }));
     await user.click(screen.getByRole("button", { name: "确认提现" }));
@@ -670,7 +675,7 @@ describe("ProviderWithdrawPage", () => {
     await waitFor(() => {
       expect(toastError).toHaveBeenCalledWith(
         "当前收益尚未达到 T+7 成熟期。只有已成熟应收可以提现；新产生的应收仍会显示在余额中。",
-        { id: "toast-provider-withdraw" }
+        { id: "toast-provider-withdraw" },
       );
     });
   });
@@ -694,7 +699,7 @@ describe("ProviderWithdrawPage", () => {
     });
     renderPage();
     await waitFor(() =>
-      expect(getProviderWithdrawCapabilityMock).toHaveBeenCalled()
+      expect(getProviderWithdrawCapabilityMock).toHaveBeenCalled(),
     );
     const btn = screen.getByRole("button", {
       name: /Generate & Claim/i,
@@ -703,7 +708,7 @@ describe("ProviderWithdrawPage", () => {
     await user.click(btn);
 
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: /Confirm/i })).toBeTruthy()
+      expect(screen.getByRole("button", { name: /Confirm/i })).toBeTruthy(),
     );
     await user.click(screen.getByRole("button", { name: /MAX/i }));
     await user.click(screen.getByRole("button", { name: /Confirm/i }));
@@ -711,7 +716,7 @@ describe("ProviderWithdrawPage", () => {
     await waitFor(() => {
       expect(toastError).toHaveBeenCalledWith(
         "This withdrawal approval expires soon. Wait a moment, then create a new withdrawal request to avoid a failed transaction.",
-        { id: "toast-provider-withdraw" }
+        { id: "toast-provider-withdraw" },
       );
     });
   });
@@ -721,7 +726,7 @@ describe("ProviderWithdrawPage", () => {
     writeContractAsyncMock.mockRejectedValue(
       Object.assign(new Error("User denied message signature"), {
         code: 4001,
-      })
+      }),
     );
     createProviderWithdrawIntentMock.mockResolvedValue({
       withdrawalId: "wd-wallet-rejected",
@@ -749,7 +754,7 @@ describe("ProviderWithdrawPage", () => {
     });
     expect(toastError).not.toHaveBeenCalledWith(
       expect.stringContaining("User denied message signature"),
-      expect.anything()
+      expect.anything(),
     );
   });
 });

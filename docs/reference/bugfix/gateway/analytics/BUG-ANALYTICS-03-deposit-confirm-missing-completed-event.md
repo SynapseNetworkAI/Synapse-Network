@@ -10,7 +10,9 @@ The ordered full-chain analytics E2E completed provider registration, consumer d
 
 ## Root Cause
 
-`deposit_completed` was emitted only by the asynchronous deposit indexer path. The E2E and frontend-style flow also supports an explicit `POST /api/v1/balance/deposit/intents/{id}/confirm` path, which moves pending deposit balance into available balance immediately. That synchronous confirm path updated the ledger and audit rows, but did not emit the analytics success event.
+`deposit_completed` was emitted only by the asynchronous deposit indexer path. At the time, a legacy explicit deposit confirm path could move pending deposit balance into available balance immediately. That synchronous confirm path updated the ledger and audit rows, but did not emit the analytics success event.
+
+> 2026-05 security note: the legacy public confirm route is retired. Deposit confirmation is now indexer-owned and must be backed by verified on-chain receipt/event evidence.
 
 ## Fix
 
