@@ -77,6 +77,8 @@ From repository root:
 57. `npm run e2e:consumer-withdraw-approval-expiry:local`
 58. `npm run ci:consumer-withdraw-approval-expiry-local-evidence`
 59. `npm run ci:migration-seed-guard`
+60. `npm run e2e:staging-consumer-withdraw-auto-approve`
+61. `npm run ci:staging-consumer-withdraw-auto-approve-evidence`
 
 Use these wrappers when final integration confidence is required.
 
@@ -211,6 +213,11 @@ Working directory: `services/user-front/`
 12. `USER_FRONT_BASE_URL=http://127.0.0.1:3000 npm run e2e:user-front-copyable-identifiers` and `npm run ci:user-front-copyable-identifiers-evidence` when changing copyable IDs, hashes, addresses, invocation privacy, or provider identifier tables. This local DOM/clipboard gate proves short display values copy the full canonical value and ordinary user pages do not expose `agent:agent:*`, counterparty, or provider wallet internals.
 13. `USER_FRONT_BASE_URL=http://127.0.0.1:3000 npm run e2e:user-front-payments-gateway-truth:local` and `npm run ci:user-front-payments-gateway-truth-local-evidence` when changing Billing/Payments history, deposit intent display, consumer withdrawal rows, refund rows, or frontend money-history aggregation. This local DOM/API/SQL gate proves Payments rows come from Gateway DB/API, use `limit=100` per source, render the sorted top 50 records, and do not reintroduce frontend `DepositInfo` / `WithdrawInfo` chain-log ledger rows.
 14. `npm run ci:frontend` from repository root when repo-standard frontend gating is needed. The gate is scope-aware: if the PR scope contains no `services/user-front/*` files and no contract/chain integration files, the shard exits before Yarn install; otherwise it runs targeted `next lint --file` and `vitest related` against changed files, keeps TypeScript `--noEmit`, and reserves `yarn build` for non-test user-front source/config changes or contract integration smoke.
+
+Staging/prod withdrawal validation:
+
+1. `npm run e2e:staging-consumer-withdraw-auto-approve` is the canonical live staging lane for the consumer auto-approve happy path. It mutates staging, requires `STAGING_CONSUMER_WITHDRAW_CONFIRM=I_UNDERSTAND_THIS_MUTATES_STAGING`, and fails closed unless `POSTGRES_DSN` points to Cloud SQL Auth Proxy on localhost.
+2. `npm run ci:staging-consumer-withdraw-auto-approve-evidence` validates the fresh evidence bundle under `docs/evidence/staging/consumer-withdraw-auto-approve/`.
 
 ### 3.2 services/docs-front
 

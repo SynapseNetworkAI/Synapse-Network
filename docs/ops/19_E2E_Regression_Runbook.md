@@ -28,6 +28,15 @@ Production is not a destructive E2E target. Production regression is limited to
 read-only health, public asset, monitoring, and evidence review unless a separate
 production go/no-go plan explicitly authorizes a small-value rehearsal.
 
+Consumer withdrawal currently does **not** use an Alchemy webhook. The canonical
+happy path remains:
+
+1. `POST /api/v1/balance/consumer/withdraw` returns `REQUESTED`
+2. the owner wallet executes `SynapseCore.withdraw(...)`
+3. User-front or the E2E harness calls `/api/v1/refunds/{refundId}/complete`
+4. `consumer-withdraw-chain-recovery` is only the safety net when `/complete`
+   is missed
+
 ## 2. Service Fixture Policy
 
 Local/staging invoke, billing, UI, withdrawal, and release E2E must reuse the
@@ -152,6 +161,8 @@ evidence.
 | Full regression              | `npm run e2e:staging-full-regression` and `npm run ci:staging-full-regression-evidence`                           | User-front DOM, Gateway API, Cloud SQL, chain config, invocation ledger                                               | Dashboard, billing, discovery, fixed invoke, LLM invoke, provider console, and admin read-only pages match staging DB evidence without creating provider services. |
 | Invocation billing migration | `npm run e2e:invocation-billing-migration:staging` and `npm run ci:invocation-billing-migration-staging-evidence` | Legacy `invocation_billing::%` KV, `synapse_invocation_billing`, Admin finance/activity projection, invocation ledger | Staging billing projection migrates without total drift; fixed and LLM invokes dual-write typed + legacy billing and reconcile to zero.                            |
 | Core money path              | `npm run e2e:staging-core-dogfood` and `npm run ci:staging-core-dogfood-evidence`                                 | Owner, provider, service, deposit, invocation, ledger, audit                                                          | Deposit, invoke, and balance state are correct in Cloud SQL.                                                                                                       |
+| Webhook deposit proof        | `npm run e2e:staging-webhook-deposit` and `npm run ci:staging-webhook-deposit-evidence`                           | Deposit intent row, owner balance buckets, Billing/Credits DOM, Cloud Run webhook logs                               | A real Alchemy callback credits the deposit within 2 minutes without manual `deposit/confirm` or scheduler-first help.                                            |
+| Consumer withdraw auto-approve | `npm run e2e:staging-consumer-withdraw-auto-approve` and `npm run ci:staging-consumer-withdraw-auto-approve-evidence` | Consumer withdrawal row, owner balance buckets, Billing/Credits DOM, chain tx, Cloud Run completion logs             | A real auto-approved consumer withdrawal reaches `REQUESTED -> COMPLETED` within 2 minutes through wallet claim + `/complete`, without manual review.            |
 | Gateway release chain        | `GATEWAY_RELEASE_E2E_PROFILE=mvp-postgres npm run release:evidence:gateway-fullchain:staging`                     | Full SQL evidence for deposit, invoke, withdrawal, reconciliation                                                     | Trace and report are non-empty and match Cloud SQL state.                                                                                                          |
 | Withdrawal review            | `npm run e2e:withdrawal-review-dogfood:staging`                                                                   | Withdrawal rows, audit, admin notifications, tx dedup                                                                 | Consumer and provider review states are visible, actionable, and finalizable.                                                                                      |
 | Notifications                | Staging Gmail, transaction, Lark, and GCP alert E2E suites as relevant                                            | Outbox, delivery log, in-app notifications                                                                            | Real staging notifications are delivered and evidence is sanitized.                                                                                                |
@@ -390,11 +401,13 @@ contract fixed:
 2. Alchemy app mapping:
    1. prod: `synapse-network-prod`
    2. staging: `synapse-network-staging`
-3. Webhook type: `Custom Webhook`
-4. Chain scope: only the SynapseCore contract and only
-   `DepositInfo(address,uint256)`
-5. topic0:
-   `0x25444993e521e5a804289b2bc7720c808ea8583f4ead8d7c65f5435f03ea8015`
+3. Recommended webhook type: `Address Activity`
+4. Address scope:
+   1. prod: production `SynapseCore`
+   2. staging: `0x0bA1dcE1Cc8d877052ab1C3CE2362830459D8FF4`
+5. Do not leave a long-lived `Custom Webhook` enabled for deposit wakeups.
+   Alchemy Custom Webhooks fire on each canonical block and can still deliver
+   empty `logs`, which inflates Alchemy CU and Cloud Run request volume.
 6. Required secrets:
    1. prod: `synapse-prod-alchemy-deposit-webhook-signing-key`
    2. staging: `synapse-staging-alchemy-deposit-webhook-signing-key`
