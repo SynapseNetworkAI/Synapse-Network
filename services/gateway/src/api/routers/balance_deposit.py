@@ -50,6 +50,8 @@ def _read_consumer_withdraw_row(
     owner_wallet: str,
     refund_id: str,
 ) -> RefundIntentRow | None:
+    if not hasattr(storage, "get_data_manager"):
+        return None
     rows = storage.get_data_manager().system.gateway_state.read_consumer_refund_rows(
         owner_wallet=owner_wallet
     )
@@ -66,11 +68,18 @@ def _emit_consumer_withdraw_client_complete_log(
     refund_id: str,
     tx_hash: str,
 ) -> None:
-    row = _read_consumer_withdraw_row(
-        storage,
-        owner_wallet=owner_wallet,
-        refund_id=refund_id,
-    )
+    try:
+        row = _read_consumer_withdraw_row(
+            storage,
+            owner_wallet=owner_wallet,
+            refund_id=refund_id,
+        )
+    except Exception:
+        logger.exception(
+            "consumer withdrawal completion log skipped refund_id=%s",
+            refund_id,
+        )
+        return
     if row is None or str(row.refund_type or "").upper() != CONSUMER_WITHDRAW_TYPE:
         return
     amount_usdc = parse_usdc(row.amount_usdc)

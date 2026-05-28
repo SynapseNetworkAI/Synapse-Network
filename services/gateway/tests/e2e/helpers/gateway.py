@@ -59,7 +59,11 @@ def deposit_confirm(
     intent_id: str,
     event_key: str,
 ) -> dict:
-    """Confirm a registered deposit intent."""
+    """Confirm a registered deposit intent.
+
+    The public confirm route is retired in indexer-owned environments. New tests
+    should call :func:`deposit_confirm_retired` and then poll sync status.
+    """
     r = httpx.post(
         f"{gateway_base}/api/v1/balance/deposit/intents/{intent_id}/confirm",
         headers=headers,
@@ -67,6 +71,65 @@ def deposit_confirm(
         timeout=TIMEOUT,
     )
     assert r.status_code == 200, f"deposit confirm failed ({r.status_code}): {r.text}"
+    return r.json()
+
+
+def deposit_confirm_retired(
+    gateway_base: str,
+    headers: dict,
+    intent_id: str,
+    event_key: str,
+) -> dict:
+    """Assert the public deposit confirm route is indexer-only."""
+    r = httpx.post(
+        f"{gateway_base}/api/v1/balance/deposit/intents/{intent_id}/confirm",
+        headers=headers,
+        json={"eventKey": event_key, "confirmations": 1},
+        timeout=TIMEOUT,
+    )
+    assert r.status_code == 410, (
+        f"deposit confirm should be retired ({r.status_code}): {r.text}"
+    )
+    payload = r.json()
+    detail = payload.get("detail", {})
+    assert detail.get("code") == "DEPOSIT_CONFIRM_INDEXER_ONLY", payload
+    return payload
+
+
+def get_deposit_sync_status(
+    gateway_base: str,
+    headers: dict,
+    tx_hash: str,
+) -> dict:
+    r = httpx.get(
+        f"{gateway_base}/api/v1/balance/deposit/sync",
+        headers=headers,
+        params={"txHash": tx_hash},
+        timeout=TIMEOUT,
+    )
+    assert r.status_code == 200, f"deposit sync failed ({r.status_code}): {r.text}"
+    return r.json().get("sync", {})
+
+
+def trigger_deposit_indexer(
+    gateway_base: str,
+    internal_trigger_secret: str,
+    *,
+    tx_hash: str,
+) -> dict:
+    r = httpx.post(
+        f"{gateway_base}/internal/jobs/deposit-indexer/trigger",
+        headers={"X-Synapse-Internal-Token": internal_trigger_secret},
+        json={
+            "source": "gateway-release-e2e",
+            "triggeredBy": "pytest",
+            "txHash": tx_hash,
+        },
+        timeout=TIMEOUT,
+    )
+    assert r.status_code == 200, (
+        f"deposit indexer trigger failed ({r.status_code}): {r.text}"
+    )
     return r.json()
 
 
