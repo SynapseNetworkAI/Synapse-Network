@@ -12,6 +12,7 @@ import { useConnectModal } from "@rainbow-me/rainbowkit";
 import toast from "react-hot-toast";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { useAuth } from "@/components/WalletAuthGuard";
+import { getStoredAuthSession } from "@/utils/authSession";
 import CreditBucketRow from "@/components/dashboard-workspace/CreditBucketRow";
 import SupportContactPanel from "@/components/shared/SupportContactPanel";
 import { useOwnerData } from "@/hooks/useOwnerData";
@@ -670,6 +671,11 @@ export default function OwnerCreditsPage() {
   const { openConnectModal } = useConnectModal();
   const { isSessionAuthenticated, authorize } = useAuth();
   const { stats, handleRefresh, isBootstrapping } = useOwnerData();
+  const hasStoredSession = useMemo(() => {
+    if (!userAddress) return false;
+    return getStoredAuthSession()?.wallet === userAddress.toLowerCase();
+  }, [userAddress]);
+  const hasWalletSession = isSessionAuthenticated || hasStoredSession;
   const optimisticStorageKey = userAddress
     ? `synapse_credits_optimistic_${userAddress.toLowerCase()}`
     : null;
@@ -686,7 +692,7 @@ export default function OwnerCreditsPage() {
     useState<RefundIntentRecord | null>(null);
 
   const fetchPendingWithdrawal = useCallback(async () => {
-    if (!isConnected || !userAddress || !isSessionAuthenticated) {
+    if (!isConnected || !userAddress || !hasWalletSession) {
       setPendingWithdrawal(null);
       return;
     }
@@ -698,14 +704,14 @@ export default function OwnerCreditsPage() {
     } catch {
       setPendingWithdrawal(null);
     }
-  }, [isConnected, isSessionAuthenticated, userAddress]);
+  }, [hasWalletSession, isConnected, userAddress]);
 
   useEffect(() => {
     void fetchPendingWithdrawal();
   }, [fetchPendingWithdrawal]);
 
   const fetchSpendingLimit = useCallback(async () => {
-    if (!isConnected || !userAddress || !isSessionAuthenticated) {
+    if (!isConnected || !userAddress || !hasWalletSession) {
       setSpendingLimit(null);
       setIsSpendCapLoading(false);
       setIsSpendCapAvailable(true);
@@ -736,7 +742,7 @@ export default function OwnerCreditsPage() {
     } finally {
       setIsSpendCapLoading(false);
     }
-  }, [isConnected, isSessionAuthenticated, t, userAddress]);
+  }, [hasWalletSession, isConnected, t, userAddress]);
 
   useEffect(() => {
     void fetchSpendingLimit();
