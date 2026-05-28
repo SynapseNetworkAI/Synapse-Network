@@ -8,6 +8,9 @@ from uuid import uuid4
 
 from src.domain.audit import AuditLogEntry
 from src.services.analytics.gateway_events import emit_withdrawal_completed
+from src.services.owner.consumer_withdraw_logging import (
+    log_consumer_withdraw_completed,
+)
 from src.utils.datetime_utils import now_dt_str
 from src.utils.money import parse_usdc
 
@@ -70,8 +73,6 @@ def append_consumer_withdraw_completed_audit(
             },
         )
     )
-
-
 def emit_consumer_withdraw_completed_metric(
     owner: str,
     amount_usdc: Decimal,
