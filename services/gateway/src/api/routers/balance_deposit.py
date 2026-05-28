@@ -24,6 +24,7 @@ from src.api.routers.balance_helpers import (
     _ensure_fee_policy_admin,
 )
 from src.api.schemas.pydantic_models import ConsumerWithdrawRequest
+from src.domain.finance import RefundIntentRow
 from src.services.notifications.in_app import (
     build_consumer_withdrawal_created_intent,
     build_deposit_confirmed_intent,
@@ -31,11 +32,60 @@ from src.services.notifications.in_app import (
     schedule_in_app_notification,
 )
 from src.services.notifications.transactional import build_public_app_url, schedule_transaction_notifications
+from src.services.owner.consumer_withdraw_logging import (
+    log_consumer_withdraw_completed,
+)
+from src.services.owner.finance_constants import CONSUMER_WITHDRAW_TYPE
+from src.services.owner.finance_fee_policy import consumer_withdraw_fee_usdc
 from src.services.platform.tasks.deposit_indexer import post_deposit_indexer_trigger
 from src.storage import BaseStorage, get_storage
+from src.utils.money import parse_usdc
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+def _read_consumer_withdraw_row(
+    storage: BaseStorage,
+    *,
+    owner_wallet: str,
+    refund_id: str,
+) -> RefundIntentRow | None:
+    rows = storage.get_data_manager().system.gateway_state.read_consumer_refund_rows(
+        owner_wallet=owner_wallet
+    )
+    for row in rows:
+        if str(row.id or "") == refund_id:
+            return row
+    return None
+
+
+def _emit_consumer_withdraw_client_complete_log(
+    storage: BaseStorage,
+    *,
+    owner_wallet: str,
+    refund_id: str,
+    tx_hash: str,
+) -> None:
+    row = _read_consumer_withdraw_row(
+        storage,
+        owner_wallet=owner_wallet,
+        refund_id=refund_id,
+    )
+    if row is None or str(row.refund_type or "").upper() != CONSUMER_WITHDRAW_TYPE:
+        return
+    amount_usdc = parse_usdc(row.amount_usdc)
+    fee_usdc = consumer_withdraw_fee_usdc()
+    net_usdc = parse_usdc(amount_usdc - fee_usdc)
+    log_consumer_withdraw_completed(
+        withdrawal_id=refund_id,
+        owner=owner_wallet,
+        amount_usdc=amount_usdc,
+        fee_usdc=fee_usdc,
+        net_usdc=net_usdc,
+        tx_hash=tx_hash,
+        completion_source="client_complete",
+    )
 
 
 @router.get("/v1/balance", responses={500: {"description": "Database IO blocked"}})
@@ -226,6 +276,12 @@ async def complete_refund(
         request_meta=request_meta,
     )
     if not result.get("idempotentReplay"):
+        _emit_consumer_withdraw_client_complete_log(
+            storage,
+            owner_wallet=owner_wallet,
+            refund_id=refund_id,
+            tx_hash=str(result.get("txHash") or payload.txHash),
+        )
         schedule_in_app_notification(
             storage,
             build_refund_completed_intent(owner_wallet, {"refundId": refund_id, **result}),

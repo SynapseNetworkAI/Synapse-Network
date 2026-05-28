@@ -138,6 +138,7 @@ consumer/provider wallets.
 | L1 Chain smoke                 | Arbitrum Sepolia RPC, chain id, deployed bytecode, wallet gas                                                                                                                                          | `npm run staging:arb-sepolia:wallets:status` and `npm run ci:contract-deployment-evidence`                                             |
 | L2 Business E2E                | Gateway full-chain deposit, invoke, withdraw, reconciliation                                                                                                                                           | `GATEWAY_RELEASE_E2E_PROFILE=mvp-postgres npm run release:evidence:gateway-fullchain:staging`                                          |
 | L2.2 Webhook deposit proof     | Real Arbitrum Sepolia deposit, real Alchemy callback, Cloud Run logs, Cloud SQL balance buckets, and Billing/Credits UI must prove webhook-driven credit without manual confirm or scheduler-first help | `npm run e2e:staging-webhook-deposit` and `npm run ci:staging-webhook-deposit-evidence`                                                 |
+| L2.3 Consumer withdraw auto-approve | Real small consumer withdrawal, wallet claim, `/complete`, Cloud SQL, Billing/Credits UI, and Cloud Run completion logs must prove the auto-approve happy path end-to-end                              | `npm run e2e:staging-consumer-withdraw-auto-approve` and `npm run ci:staging-consumer-withdraw-auto-approve-evidence`                  |
 | L2.5 Full regression           | Deployed User-front dashboard, billing, discovery, canonical provider invoke, LLM invoke, provider console, and admin read-only state must match Cloud SQL evidence without creating provider services | `npm run e2e:staging-full-regression` and `npm run ci:staging-full-regression-evidence`                                                |
 | L3 UI dogfood                  | User-front/Admin-front/Docs-front browser render, CORS, screenshots, console/network errors                                                                                                            | `npm run e2e:staging-ui-dogfood`                                                                                                       |
 | L3.5 Withdrawal review dogfood | Consumer large withdrawal and Provider withdrawal approve/reject review paths with screenshots, DB, and chain evidence                                                                                 | `npm run e2e:withdrawal-review-dogfood:staging`                                                                                        |
@@ -258,7 +259,8 @@ Small automatic path:
    into Gateway.
 4. Gateway returns an EIP-712 withdrawal ticket.
 5. Consumer claims against SynapseCore.
-6. Replaying the same ticket must fail.
+6. User-front or the E2E harness calls `/api/v1/refunds/{refundId}/complete`.
+7. Replaying the same ticket must fail.
 
 Large manual path:
 
@@ -278,6 +280,10 @@ Large manual path:
 Success criteria:
 
 - Small withdrawal can generate a valid ticket without manual approval.
+- Small withdrawal has **no webhook dependency**. The canonical happy-path
+  close signal is `/api/v1/refunds/{refundId}/complete`; the
+  `consumer-withdraw-chain-recovery` job is only a safety net when `/complete`
+  is missed.
 - Large withdrawal cannot be claimed before approval.
 - Approval writes an admin audit record.
 - Consumer reject writes an admin audit record with

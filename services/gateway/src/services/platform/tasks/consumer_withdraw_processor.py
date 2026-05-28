@@ -34,6 +34,7 @@ from src.services.owner.finance_constants import (
 from src.services.platform.tasks.consumer_withdraw_completion import (
     append_consumer_withdraw_completed_audit,
     emit_consumer_withdraw_completed_metric,
+    log_consumer_withdraw_completed,
     settle_completed_consumer_withdraw_balance,
 )
 from src.storage.base import BaseStorage
@@ -365,6 +366,15 @@ def _complete_consumer_withdraw(
             fee_usdc,
             net_usdc,
             tx_hash,
+        )
+        log_consumer_withdraw_completed(
+            withdrawal_id=str(row.id or ""),
+            owner=owner,
+            amount_usdc=amount_usdc,
+            fee_usdc=fee_usdc,
+            net_usdc=net_usdc,
+            tx_hash=tx_hash,
+            completion_source="watcher_recovery",
         )
         logger.info(
             "consumer_withdraw_processor: COMPLETED id=%s source=event_watcher",

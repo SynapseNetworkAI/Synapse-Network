@@ -13,6 +13,8 @@ The runtime model is:
 - `/api/v1/refunds/{refundId}/complete` closes the happy path.
 - `consumer-withdraw-chain-recovery` is only a low-frequency safety net for missed completion callbacks.
 - `withdrawal-expiry-sweeper` is the time-driven release path for manual-review expiry and ticket expiry.
+- There is currently **no Alchemy webhook** on the withdrawal path. Client
+  `/complete` is the primary close signal; chain recovery is the safety net.
 
 ## Endpoints
 
@@ -176,6 +178,25 @@ That gate proves one continuous story:
 6. Gateway `/complete` or watcher closes the row as `COMPLETED`
 7. `platformFeePool` increases by the signed fee
 8. a local owner-only `withdrawPlatformFees(amount)` can withdraw only that accrued fee into the platform wallet
+
+The staging auto-approve consumer happy path now has its own narrow live lane:
+
+```bash
+STAGING_CONSUMER_WITHDRAW_CONFIRM=I_UNDERSTAND_THIS_MUTATES_STAGING \
+POSTGRES_DSN=postgresql://...@127.0.0.1:15432/... \
+npm run e2e:staging-consumer-withdraw-auto-approve
+
+npm run ci:staging-consumer-withdraw-auto-approve-evidence
+```
+
+That lane proves a separate story:
+
+1. `POST /api/v1/balance/consumer/withdraw` returns `REQUESTED`
+2. the signed ticket is auto-approved, not `PENDING_MANUAL_REVIEW`
+3. the wallet executes the real `SynapseCore.withdraw(...)` claim
+4. the frontend or E2E harness calls `/api/v1/refunds/{refundId}/complete`
+5. Gateway closes the row as `COMPLETED`
+6. Billing/Credits UI, Cloud SQL, API, chain tx, and Cloud Run logs agree
 
 This is intentionally local-only automation. Staging and production keep the
 same self-claim consumer path, but platform fee execution remains a controlled
