@@ -222,6 +222,10 @@ def _noop_assert_withdraw_vault_liquidity(amount_usdc) -> None:
     _ = amount_usdc
 
 
+def _noop_assert_withdraw_receipt_matches_ticket(**kwargs) -> None:
+    _ = kwargs
+
+
 def _money_decimal(value) -> Decimal:
     return Decimal(str(value)).quantize(Decimal("0.000001"))
 
@@ -232,6 +236,7 @@ def _configure_owner_service(service: OwnerFinanceService) -> None:
     service._start_idempotency_redis = _async_true
     service._complete_idempotency_redis = _async_none
     service._enforce_owner_write_rate_limit = _async_none
+    service._assert_withdraw_receipt_matches_ticket = _noop_assert_withdraw_receipt_matches_ticket
 
 
 def _configure_withdraw_service(service: ProviderWithdrawService) -> None:
@@ -243,6 +248,7 @@ def _configure_withdraw_service(service: ProviderWithdrawService) -> None:
     service._complete_idempotency_redis = _async_none
     service._enforce_owner_write_rate_limit = _async_none
     service._assert_withdraw_vault_liquidity = _noop_assert_withdraw_vault_liquidity
+    service._assert_withdraw_receipt_matches_ticket = _noop_assert_withdraw_receipt_matches_ticket
     service._withdraw_rpc_head_past_deadline = lambda deadline: True
     service._withdraw_ticket_consumed_or_unknown = lambda ticket_hash: False
     service._prepare_withdraw_ticket = lambda **kwargs: PreparedWithdrawTicket(
@@ -633,6 +639,48 @@ def test_provider_withdraw_complete_accepts_signed_status() -> None:
     assert storage.gateway_state.withdraw_rows[0].tx_hash == "0x" + "4" * 64
 
 
+def test_provider_withdraw_complete_rejects_tx_without_matching_receipt() -> None:
+    storage = FakeStorage()
+    storage.balance.ledger.ensure_provider_wallet("0xdef").available_balance = Decimal("50.000000")
+    service = ProviderWithdrawService(storage, DummyLockManager())
+    _configure_withdraw_service(service)
+
+    created = asyncio.run(
+        service.create_provider_withdraw_intent(
+            {"amountUsdc": 12},
+            "0xdef",
+            "withdraw-intent-key-receipt-mismatch",
+        )
+    )
+    assert created["status"] == "APPROVED_AUTO"
+
+    def reject_receipt(**kwargs) -> None:
+        _ = kwargs
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "WITHDRAW_EVENT_MISMATCH",
+                "message": "Withdrawal transaction does not match this withdrawal intent.",
+            },
+        )
+
+    service._assert_withdraw_receipt_matches_ticket = reject_receipt
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(
+            service.complete_provider_withdrawal(
+                "0xdef",
+                storage.gateway_state.withdraw_rows[0].id,
+                "0x" + "4" * 64,
+            )
+        )
+
+    assert exc_info.value.status_code == 409
+    assert exc_info.value.detail["code"] == "WITHDRAW_EVENT_MISMATCH"
+    assert storage.gateway_state.withdraw_rows[0].status == "APPROVED_AUTO"
+    assert not storage.gateway_state.withdraw_rows[0].tx_hash
+
+
 def test_provider_withdraw_allows_two_decimal_amount() -> None:
     storage = FakeStorage()
     storage.balance.ledger.ensure_provider_wallet("0xdef").available_balance = Decimal("50.000000")
@@ -711,11 +759,17 @@ def test_provider_withdraw_atomic_path_reads_vault_liquidity_from_contract_tuple
         def call(self) -> int:
             return 50 * 10**18
 
+    class _FakeDecimalsCall:
+        def call(self) -> int:
+            return 18
+
     class _FakeBalanceOfFunctions:
         def __getattr__(self, name: str):
-            if name != "balanceOf":
-                raise AttributeError(name)
-            return lambda _account: _FakeBalanceOfCall()
+            if name == "decimals":
+                return lambda: _FakeDecimalsCall()
+            if name == "balanceOf":
+                return lambda _account: _FakeBalanceOfCall()
+            raise AttributeError(name)
 
     class _FakeEth:
         def contract(self, *, address: str, abi):
@@ -783,7 +837,7 @@ def test_provider_withdraw_maps_missing_vault_web3_provider_to_service_unavailab
         )
 
     assert exc_info.value.status_code == 503
-    assert exc_info.value.detail["code"] == "WITHDRAW_VAULT_LIQUIDITY_CHECK_UNAVAILABLE"
+    assert exc_info.value.detail["code"] == "CHAIN_RPC_UNAVAILABLE"
 
 
 def test_provider_withdraw_manual_review_approval_generates_ticket_and_moves_to_pending() -> None:

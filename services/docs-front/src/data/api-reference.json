@@ -317,10 +317,10 @@
             "outputs": [
               {
                 "key": "intent.id",
-                "desc": "Deposit intent ID — use in the confirm endpoint"
+                "desc": "Deposit intent ID — use to poll sync status while the indexer verifies chain evidence"
               }
             ],
-            "next": "Call POST /balance/deposit/intents/:id/confirm"
+            "next": "Poll GET /balance/deposit/sync?txHash=...; confirmation is indexer-owned"
           },
           "errors": [
             {
@@ -1881,10 +1881,10 @@
         "outputs": [
           {
             "key": "intent.id",
-            "desc": "Deposit intent ID — use in the confirm endpoint"
+            "desc": "Deposit intent ID — use to poll sync status while the indexer verifies chain evidence"
           }
         ],
-        "next": "Call POST /balance/deposit/intents/:id/confirm"
+        "next": "Poll GET /balance/deposit/sync?txHash=...; confirmation is indexer-owned"
       },
       "errors": [
         {

@@ -611,16 +611,6 @@ class FinanceRefundExecMixin:
             if completed is not None:
                 return completed
 
-            used_atomic_complete = self._complete_refund_tx_atomic_or_raise(
-                owner=owner,
-                refund_id=refund_id,
-                normalized_tx_hash=normalized_tx_hash,
-            )
-            if not used_atomic_complete:
-                self._assert_no_refund_tx_replay(  # type: ignore[attr-defined]
-                    rows, owner, normalized_tx_hash, str(target.id or "")
-                )
-
             status = str(target.status or "").upper()
             review = self._parse_refund_review_context(request_meta)
             review_decision = review.decision
@@ -649,6 +639,24 @@ class FinanceRefundExecMixin:
                 )
                 if reject_response is not None:
                     return reject_response
+
+            self._assert_withdraw_receipt_matches_ticket(  # type: ignore[attr-defined]
+                owner_wallet=owner,
+                tx_hash=normalized_tx_hash,
+                amount_wei=int(target.ticket.amount or 0),
+                fee_wei=int(target.ticket.fee or 0),
+                ticket_hash=str(target.ticket.ticket_hash or ""),
+            )
+
+            used_atomic_complete = self._complete_refund_tx_atomic_or_raise(
+                owner=owner,
+                refund_id=refund_id,
+                normalized_tx_hash=normalized_tx_hash,
+            )
+            if not used_atomic_complete:
+                self._assert_no_refund_tx_replay(  # type: ignore[attr-defined]
+                    rows, owner, normalized_tx_hash, str(target.id or "")
+                )
 
             if not used_atomic_complete:
                 self._consume_locked_refund_amount(  # type: ignore[attr-defined]

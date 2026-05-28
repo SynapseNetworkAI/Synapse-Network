@@ -57,6 +57,15 @@ const ERC20_BALANCE_OF_ABI = [
     outputs: [{ name: "", type: "uint256" }],
   },
 ] as const;
+const ERC20_DECIMALS_ABI = [
+  {
+    type: "function",
+    name: "decimals",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint8" }],
+  },
+] as const;
 const CHAIN_LABELS: Record<number, string> = {
   31337: "Hardhat Local",
   11155111: "Sepolia",
@@ -79,7 +88,7 @@ type WithdrawalHistoryStatusFilter =
 type TranslateFn = (
   key: string,
   vars?: Record<string, string | number>,
-  fallbackText?: string
+  fallbackText?: string,
 ) => string;
 
 function normalizeSignature(signature: string): `0x${string}` {
@@ -103,7 +112,7 @@ function formatTimestamp(seconds?: number | string, locale?: string): string {
 
 function withdrawalStatusLabel(
   status: ProviderWithdrawRecord["status"],
-  t: TranslateFn
+  t: TranslateFn,
 ): string {
   if (status === "APPROVED_AUTO")
     return t("providerSettlements.historyStatusApprovedAuto");
@@ -124,7 +133,7 @@ function withdrawalStatusLabel(
 
 function withdrawalHistoryReasonLabel(
   status: ProviderWithdrawRecord["status"],
-  t: TranslateFn
+  t: TranslateFn,
 ): string {
   if (status === "PENDING_MANUAL_REVIEW") {
     return t("providerSettlements.manualReviewQueued");
@@ -142,7 +151,7 @@ function withdrawalHistoryReasonLabel(
 }
 
 function withdrawalStatusBadgeClass(
-  status: ProviderWithdrawRecord["status"]
+  status: ProviderWithdrawRecord["status"],
 ): string {
   if (status === "COMPLETED")
     return "border-[#22c55e]/30 bg-[#22c55e]/10 text-[#86efac]";
@@ -156,10 +165,10 @@ function withdrawalStatusBadgeClass(
 }
 
 function resolveTicketContractAddress(
-  ticket: ProviderWithdrawTicket
+  ticket: ProviderWithdrawTicket,
 ): `0x${string}` | undefined {
   const contractAddress = String(
-    ticket.contractAddress || VAULT_ADDRESS || ""
+    ticket.contractAddress || VAULT_ADDRESS || "",
   ).trim();
   return contractAddress ? (contractAddress as `0x${string}`) : undefined;
 }
@@ -167,7 +176,7 @@ function resolveTicketContractAddress(
 function validateRequestedWithdrawAmount(
   requestedAmount: string,
   availableReceivable: MoneyString,
-  t: TranslateFn
+  t: TranslateFn,
 ): string | null {
   if (!requestedAmount) {
     return null;
@@ -198,7 +207,7 @@ function validateRequestedWithdrawAmount(
 
 function resolveCreateWithdrawalIntentErrorMessage(
   error: unknown,
-  t: TranslateFn
+  t: TranslateFn,
 ): string {
   if (error instanceof ProviderWithdrawApiError) {
     if (error.code === "WITHDRAW_VAULT_LIQUIDITY_CHECK_UNAVAILABLE") {
@@ -246,10 +255,10 @@ export default function ProviderWithdrawPage() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [activeWithdrawalId, setActiveWithdrawalId] = useState<string | null>(
-    null
+    null,
   );
   const [activeTxChainId, setActiveTxChainId] = useState<number | undefined>(
-    undefined
+    undefined,
   );
   const [withdrawCapability, setWithdrawCapability] =
     useState<ProviderWithdrawCapability | null>(null);
@@ -267,22 +276,22 @@ export default function ProviderWithdrawPage() {
       staleTicket: t("providerSettlements.staleTicket"),
       invalidSignature: t("providerSettlements.invalidSignature"),
       vaultLiquidityInsufficient: t(
-        "providerSettlements.vaultLiquidityInsufficient"
+        "providerSettlements.vaultLiquidityInsufficient",
       ),
       vaultAllowanceUnavailable: t(
-        "providerSettlements.vaultAllowanceUnavailable"
+        "providerSettlements.vaultAllowanceUnavailable",
       ),
       contractRejectedWithName: (name: string) =>
         t("providerSettlements.contractRejectedWithName", { name }),
       contractRejectedWithReason: (reason: string) =>
         t("providerSettlements.contractRejectedWithReason", { reason }),
     }),
-    [t]
+    [t],
   );
 
   const receivableBalance = normalizeMoneyString(providerStats.receivable);
   const availableReceivable = normalizeMoneyString(
-    providerStats.matureReceivable ?? providerStats.receivable
+    providerStats.matureReceivable ?? providerStats.receivable,
   );
   const withdrawMaturityEnforced =
     providerStats.withdrawMaturityEnforced !== false;
@@ -309,10 +318,10 @@ export default function ProviderWithdrawPage() {
     () =>
       withdrawals.find((row) =>
         ["REQUESTED", "APPROVED_AUTO", "PENDING_MANUAL_REVIEW"].includes(
-          row.status
-        )
+          row.status,
+        ),
       ) || null,
-    [withdrawals]
+    [withdrawals],
   );
   const filteredWithdrawals = useMemo(() => {
     let result = withdrawals;
@@ -351,11 +360,11 @@ export default function ProviderWithdrawPage() {
   }, [t, withdrawalStatusFilter, withdrawals.length]);
   const pendingTicket = pendingWithdrawal?.ticket;
   const pendingTicketChainMismatch = Boolean(
-    pendingTicket?.chainId && chainId !== pendingTicket.chainId
+    pendingTicket?.chainId && chainId !== pendingTicket.chainId,
   );
   const pendingTicketExpired = Boolean(
     pendingTicket?.deadline &&
-      pendingTicket.deadline < Math.floor(Date.now() / 1000)
+    pendingTicket.deadline < Math.floor(Date.now() / 1000),
   );
   const hasEnoughGas = useMemo(() => {
     if (!isConnected || !nativeBalanceData) return true;
@@ -371,7 +380,7 @@ export default function ProviderWithdrawPage() {
     } catch (error) {
       console.error("Failed to load provider withdrawals", error);
       toast.error(
-        toSafeErrorMessage(error, t("providerSettlements.loadHistoryFailed"))
+        toSafeErrorMessage(error, t("providerSettlements.loadHistoryFailed")),
       );
     } finally {
       setLoadingWithdrawals(false);
@@ -448,7 +457,7 @@ export default function ProviderWithdrawPage() {
     return validateRequestedWithdrawAmount(
       withdrawAmountInput.trim(),
       availableReceivable,
-      t
+      t,
     );
   }, [availableReceivable, t, withdrawAmountInput]);
 
@@ -458,7 +467,7 @@ export default function ProviderWithdrawPage() {
   };
 
   const validateWithdrawIntentReadiness = async (
-    amountUsdc: MoneyString
+    amountUsdc: MoneyString,
   ): Promise<void> => {
     if (!publicClient) {
       throw new Error(t("providerSettlements.walletClientUnavailable"));
@@ -467,7 +476,12 @@ export default function ProviderWithdrawPage() {
       throw new Error(t("providerSettlements.vaultLiquidityInsufficient"));
     }
 
-    const requestedAmountWei = parseUnits(amountUsdc, 18);
+    const tokenDecimals = await publicClient.readContract({
+      address: USDC_TOKEN_ADDRESS,
+      abi: ERC20_DECIMALS_ABI,
+      functionName: "decimals",
+    });
+    const requestedAmountWei = parseUnits(amountUsdc, Number(tokenDecimals));
     const vaultUsdcBalance = await publicClient.readContract({
       address: USDC_TOKEN_ADDRESS,
       abi: ERC20_BALANCE_OF_ABI,
@@ -496,7 +510,7 @@ export default function ProviderWithdrawPage() {
       try {
         await startWalletWithdraw(
           pendingWithdrawal.id,
-          pendingWithdrawal.ticket
+          pendingWithdrawal.ticket,
         );
       } catch (error) {
         showWithdrawWalletErrorToast(error, withdrawWalletErrorMessages);
@@ -533,7 +547,7 @@ export default function ProviderWithdrawPage() {
     const validationMessage = validateRequestedWithdrawAmount(
       requestedAmount,
       availableReceivable,
-      t
+      t,
     );
     if (validationMessage) {
       toast.error(validationMessage);
@@ -553,7 +567,7 @@ export default function ProviderWithdrawPage() {
       toast.error(
         t("providerSettlements.amountBelowMinimum", {
           amount: PROVIDER_WITHDRAW_MIN_USDC,
-        })
+        }),
       );
       return;
     }
@@ -605,7 +619,7 @@ export default function ProviderWithdrawPage() {
   };
 
   const validateWalletWithdrawReadiness = async (
-    ticket: ProviderWithdrawTicket
+    ticket: ProviderWithdrawTicket,
   ): Promise<{
     contractAddress: `0x${string}`;
     targetChainId?: number;
@@ -619,7 +633,7 @@ export default function ProviderWithdrawPage() {
       throw new Error(
         t("providerSettlements.wrongNetwork", {
           chainLabel: formatChainLabel(ticket.chainId, t),
-        })
+        }),
       );
     }
 
@@ -648,7 +662,7 @@ export default function ProviderWithdrawPage() {
         t("providerSettlements.walletNoGas", {
           symbol,
           chainLabel: formatChainLabel(chainId, t),
-        })
+        }),
       );
     }
 
@@ -685,7 +699,7 @@ export default function ProviderWithdrawPage() {
             estimateFee: formatEther(estimatedFeeWei),
             balance: formatEther(liveNativeBalance),
             symbol,
-          })
+          }),
         );
       }
     }
@@ -698,7 +712,7 @@ export default function ProviderWithdrawPage() {
 
   const startWalletWithdraw = async (
     withdrawalId: string,
-    ticket: ProviderWithdrawTicket
+    ticket: ProviderWithdrawTicket,
   ) => {
     const { contractAddress, targetChainId } =
       await validateWalletWithdrawReadiness(ticket);
@@ -720,7 +734,7 @@ export default function ProviderWithdrawPage() {
     setActiveWithdrawalId(withdrawalId);
     setActiveTxChainId(targetChainId);
     toast.success(
-      t("providerSettlements.txSubmitted", { hash: hash.slice(0, 10) })
+      t("providerSettlements.txSubmitted", { hash: hash.slice(0, 10) }),
     );
   };
 
@@ -738,7 +752,7 @@ export default function ProviderWithdrawPage() {
 
   const isAnyLoading = creatingIntent || isWalletPrompting || isTxConfirming;
   const ticketSigningEnabled = Boolean(
-    withdrawCapability?.ticketSigningEnabled
+    withdrawCapability?.ticketSigningEnabled,
   );
   let generateClaimLabel = t("providerSettlements.signerUnavailable");
   if (ticketSigningEnabled) {
@@ -765,7 +779,7 @@ export default function ProviderWithdrawPage() {
           <div className="flex flex-col gap-4 rounded-[12px] border border-[#232323] bg-[#1a1a1a] p-4 md:min-h-[116px] md:flex-row md:items-center md:justify-between md:gap-6">
             <ProviderWithdrawBalanceSummary
               withdrawableLabel={t(
-                "providerSettlements.withdrawableReceivable"
+                "providerSettlements.withdrawableReceivable",
               )}
               receivableLabel={t("providerSettlements.receivableBalance")}
               immatureNotice={t("providerSettlements.immatureReceivableNotice")}
@@ -799,7 +813,7 @@ export default function ProviderWithdrawPage() {
                   title={
                     matureReceivableBelowMinimum
                       ? t(
-                          "providerSettlements.matureReceivableBelowMinimumTitle"
+                          "providerSettlements.matureReceivableBelowMinimumTitle",
                         )
                       : undefined
                   }
@@ -889,7 +903,7 @@ export default function ProviderWithdrawPage() {
               value={withdrawalStatusFilter}
               onChange={(e) =>
                 setWithdrawalStatusFilter(
-                  e.target.value as WithdrawalHistoryStatusFilter
+                  e.target.value as WithdrawalHistoryStatusFilter,
                 )
               }
               className="inline-flex min-h-10 items-center rounded-lg border border-[#222222] bg-[#050505] px-3 py-2 text-sm text-white outline-none cursor-pointer [color-scheme:dark]"
@@ -994,7 +1008,7 @@ export default function ProviderWithdrawPage() {
                   <td className="px-6 py-4 text-xs">
                     <span
                       className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${withdrawalStatusBadgeClass(
-                        row.status
+                        row.status,
                       )}`}
                     >
                       {withdrawalStatusLabel(row.status, t)}
