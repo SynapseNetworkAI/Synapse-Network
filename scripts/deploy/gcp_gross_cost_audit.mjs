@@ -6,8 +6,7 @@ const STAGING_PROJECT_ID =
   process.env.STAGING_PROJECT_ID ||
   process.env.PROJECT_ID ||
   "fabled-archive-494108-k5";
-const PROD_PROJECT_ID =
-  process.env.PROD_PROJECT_ID || "synapse-network-prod";
+const PROD_PROJECT_ID = process.env.PROD_PROJECT_ID || "synapse-network-prod";
 const STAGING_SECRET_ID =
   process.env.STAGING_REFRESH_TOKEN_SECRET_ID ||
   "x-official-oauth2-refresh-token";
@@ -25,7 +24,7 @@ function runGcloud(args, { json = false, allowFailure = false } = {}) {
     if (allowFailure) return json ? null : "";
     const stderr = String(error.stderr || "").trim();
     throw new Error(
-      `gcloud ${args.join(" ")} failed${stderr ? `: ${stderr}` : ""}`
+      `gcloud ${args.join(" ")} failed${stderr ? `: ${stderr}` : ""}`,
     );
   }
 }
@@ -54,7 +53,7 @@ function enabledSecretVersionCount(projectId, secretId) {
       "--filter=state=enabled",
       "--format=value(name)",
     ],
-    { allowFailure: true }
+    { allowFailure: true },
   );
   return output ? output.split(/\r?\n/).filter(Boolean).length : 0;
 }
@@ -70,11 +69,13 @@ function schedulerJobs(projectId) {
       `--location=${REGION}`,
       "--format=json",
     ],
-    { json: true }
+    { json: true },
   );
   const map = new Map();
   for (const row of rows || []) {
-    const id = String(row.name || "").split("/").pop();
+    const id = String(row.name || "")
+      .split("/")
+      .pop();
     map.set(id, row);
   }
   return map;
@@ -92,7 +93,7 @@ function serviceJson(projectId, serviceName) {
       `--region=${REGION}`,
       "--format=json",
     ],
-    { json: true }
+    { json: true },
   );
 }
 
@@ -110,7 +111,11 @@ function hasValue(value) {
 }
 
 function cloudRunMinScale(service) {
-  const v2Min = nestedValue(service, ["template", "scaling", "minInstanceCount"]);
+  const v2Min = nestedValue(service, [
+    "template",
+    "scaling",
+    "minInstanceCount",
+  ]);
   if (hasValue(v2Min)) {
     return Number(v2Min);
   }
@@ -134,7 +139,7 @@ function repositoryJson(projectId, repository) {
       `--location=${REGION}`,
       "--format=json",
     ],
-    { json: true }
+    { json: true },
   );
 }
 
@@ -161,21 +166,24 @@ function vpcConnectorJson(projectId, connectorName) {
       `--region=${REGION}`,
       "--format=json",
     ],
-    { json: true, allowFailure: true }
+    { json: true, allowFailure: true },
   );
 }
 
 function checkSecretVersions() {
-  const enabled = enabledSecretVersionCount(STAGING_PROJECT_ID, STAGING_SECRET_ID);
+  const enabled = enabledSecretVersionCount(
+    STAGING_PROJECT_ID,
+    STAGING_SECRET_ID,
+  );
   if (enabled <= 1) {
     pass(
       "staging refresh token enabled secret versions",
-      `${STAGING_SECRET_ID}: enabled=${enabled} or secret absent`
+      `${STAGING_SECRET_ID}: enabled=${enabled} or secret absent`,
     );
   } else {
     warn(
       "staging refresh token enabled secret versions",
-      `${STAGING_SECRET_ID}: enabled=${enabled}, expected <= 1`
+      `${STAGING_SECRET_ID}: enabled=${enabled}, expected <= 1`,
     );
   }
 }
@@ -229,11 +237,14 @@ function checkArtifactRegistry() {
     const dryRun = Boolean(repo?.cleanupPolicyDryRun);
     const count = cleanupKeepCount(repo);
     if (!dryRun && count === 3) {
-      pass(`${repository} Artifact Registry cleanup`, "dryRun=false keepCount=3");
+      pass(
+        `${repository} Artifact Registry cleanup`,
+        "dryRun=false keepCount=3",
+      );
     } else {
       warn(
         `${repository} Artifact Registry cleanup`,
-        `dryRun=${dryRun} keepCount=${count ?? "<missing>"}, expected false/3`
+        `dryRun=${dryRun} keepCount=${count ?? "<missing>"}, expected false/3`,
       );
     }
   }
@@ -244,7 +255,7 @@ function checkVpcConnector() {
   if (!connector) {
     warn(
       "prod VPC connector",
-      "syn-prod-vpcconn not readable; check API enablement/permissions"
+      "syn-prod-vpcconn not readable; check API enablement/permissions",
     );
     return;
   }
@@ -254,7 +265,7 @@ function checkVpcConnector() {
   } else {
     warn(
       "prod VPC connector minInstances",
-      `minInstances=${minInstances}; fixed-cost connector still active`
+      `minInstances=${minInstances}; fixed-cost connector still active`,
     );
   }
 }
@@ -272,7 +283,7 @@ function main() {
 
   const warnCount = checks.filter((item) => item.status === "WARN").length;
   console.log(
-    `summary: pass=${checks.length - warnCount} warn=${warnCount} region=${REGION}`
+    `summary: pass=${checks.length - warnCount} warn=${warnCount} region=${REGION}`,
   );
 }
 

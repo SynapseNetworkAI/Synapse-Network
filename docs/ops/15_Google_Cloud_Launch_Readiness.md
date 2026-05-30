@@ -1010,14 +1010,14 @@ Every money-sensitive scheduled job uses two layers of overlap protection:
 
 Scheduled job defaults:
 
-| Job                         | Command                                                        | Schedule                 | Retry | Lock key                           |
-| --------------------------- | -------------------------------------------------------------- | ------------------------ | ----- | ---------------------------------- |
-| DB migration                | `bash scripts/deploy/migrate_db.sh staging\|prod`              | manual release step only | 0     | n/a                                |
+| Job                         | Command                                                        | Schedule                                        | Retry | Lock key                           |
+| --------------------------- | -------------------------------------------------------------- | ----------------------------------------------- | ----- | ---------------------------------- |
+| DB migration                | `bash scripts/deploy/migrate_db.sh staging\|prod`              | manual release step only                        | 0     | n/a                                |
 | Deposit indexer             | `python -m src.worker deposit-indexer --once`                  | staging every 30 minutes; prod every 10 minutes | 0     | `deposit-indexer`                  |
 | Consumer withdraw recovery  | `python -m src.worker consumer-withdraw-chain-recovery --once` | staging every 30 minutes; prod every 10 minutes | 0     | `consumer-withdraw-chain-recovery` |
 | Withdrawal expiry sweeper   | `python -m src.worker withdrawal-expiry-sweeper --once`        | staging every 30 minutes; prod every 10 minutes | 0     | `withdrawal-expiry-sweeper`        |
 | Gmail outbox drain fallback | `python -m src.worker notification-outbox --once`              | staging every 30 minutes; prod every 10 minutes | 1     | `notification-outbox-drain`        |
-| In-app notification cleanup | `python -m src.worker in-app-cleanup --once`                   | daily                    | 0     | `in-app-notification-cleanup`      |
+| In-app notification cleanup | `python -m src.worker in-app-cleanup --once`                   | daily                                           | 0     | `in-app-notification-cleanup`      |
 
 ## Staging Chain Readiness
 

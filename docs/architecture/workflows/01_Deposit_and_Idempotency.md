@@ -27,14 +27,14 @@ Deposit 完成后，Agent Runtime 才能在后续 Quote / Invoke 中消耗这笔
 
 最新 SQL 下，Deposit 链路的核心真相表是：
 
-| 表 | 作用 |
-| --- | --- |
-| `synapse_vault_deposits` | 记录 Owner 的链上入金事实和确认状态 |
-| `synapse_ledger_accounts` | 定义 Owner consumer wallet 账户 |
+| 表                         | 作用                                                             |
+| -------------------------- | ---------------------------------------------------------------- |
+| `synapse_vault_deposits`   | 记录 Owner 的链上入金事实和确认状态                              |
+| `synapse_ledger_accounts`  | 定义 Owner consumer wallet 账户                                  |
 | `synapse_account_balances` | 保存 `available_balance / pending_balance / frozen_balance` 快照 |
-| `synapse_ledger_entries` | 保存 append-only 资金分录 |
-| `synapse_idempotency_keys` | 保存 API 级幂等键 |
-| `synapse_audit_events` | 保存入金登记、确认、失败、回放等审计事件 |
+| `synapse_ledger_entries`   | 保存 append-only 资金分录                                        |
+| `synapse_idempotency_keys` | 保存 API 级幂等键                                                |
+| `synapse_audit_events`     | 保存入金登记、确认、失败、回放等审计事件                         |
 
 补充约束：
 
@@ -254,9 +254,9 @@ Deposit 链路必须同时做 API 级幂等和链上事实级防重放。
    3. 正确 `X-Alchemy-Signature` 的 `POST` 返回 `200`
 10. 创建完成后进入该 webhook 详情页，从右上角复制 `Signing Key`。
 11. 把 Signing Key 写入目标环境：
-   1. prod：`synapse-prod-alchemy-deposit-webhook-signing-key`
-   2. staging：`synapse-staging-alchemy-deposit-webhook-signing-key`
-12. Cloud Run 在 revision 启动时把 Signing Key 注入 `ALCHEMY_DEPOSIT_WEBHOOK_SIGNING_KEY` 环境变量；运行时请求不得按次调用 Secret Manager。
+12. prod：`synapse-prod-alchemy-deposit-webhook-signing-key`
+13. staging：`synapse-staging-alchemy-deposit-webhook-signing-key`
+14. Cloud Run 在 revision 启动时把 Signing Key 注入 `ALCHEMY_DEPOSIT_WEBHOOK_SIGNING_KEY` 环境变量；运行时请求不得按次调用 Secret Manager。
 
 ### 8.2 推荐 GraphQL 监听范围
 
@@ -268,7 +268,9 @@ Webhook 只监听 SynapseCore 的 `DepositInfo(address,uint256)`，不是全链�
     logs(
       filter: {
         addresses: ["0x4967d23cAbe3881f809677932Cc30c11de6957B0"]
-        topics: ["0x25444993e521e5a804289b2bc7720c808ea8583f4ead8d7c65f5435f03ea8015"]
+        topics: [
+          "0x25444993e521e5a804289b2bc7720c808ea8583f4ead8d7c65f5435f03ea8015"
+        ]
       }
     ) {
       topics
@@ -290,20 +292,20 @@ Alchemy webhook 的安全模型固定如下：
 1. 主信任根是 `X-Alchemy-Signature` 的 HMAC SHA-256 校验。
 2. 当前 prod/staging 的 `api*.synapse-network.ai` 使用 Cloud Run domain mapping，不是已经挂好 Cloud Armor 的负载均衡入口。
 3. 因此当前**没有**可宣称为正式安全边界的 infra IP allowlist；不得把应用层 `X-Forwarded-For` 判断包装成“真实 IP 白名单”。
-3. 当前官方公开的 webhook 源 IP 是：
+4. 当前官方公开的 webhook 源 IP 是：
    1. `54.236.136.17`
    2. `34.237.24.169`
-4. 真正的 IP allowlist 只作为后续基础设施增强项：
+5. 真正的 IP allowlist 只作为后续基础设施增强项：
    1. `api*.synapse-network.ai` 前挂 External Application Load Balancer
    2. serverless NEG 指向 Cloud Run
    3. Cloud Armor allowlist 只放 Alchemy 官方源 IP
    4. HMAC 保留，形成双保险
-5. Webhook 不会直接 credit 资金；它只能唤醒 bounded pending sweep。
-6. 真正入账仍然必须同时满足：
+6. Webhook 不会直接 credit 资金；它只能唤醒 bounded pending sweep。
+7. 真正入账仍然必须同时满足：
    1. 已存在 deposit intent
    2. receipt 与合法 `DepositInfo` 事件匹配成功
    3. Gateway 在一个事务内完成 `pending -> available`
-7. 因此开放公网 callback 不会天然变成直接的资金窃取面，但它仍然是需要严格验签、限流和审计的入口。
+8. 因此开放公网 callback 不会天然变成直接的资金窃取面，但它仍然是需要严格验签、限流和审计的入口。
 
 ## 9. 数据一致性原则
 
