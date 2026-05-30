@@ -106,6 +106,7 @@ from .service_contract import (
 )
 from .registry import ServiceRegistryRow, ServiceTargetHealth, ServiceTargetHealthHistory
 from .system import (
+    BusinessPolicyConfigRow,
     DepositDedupRow,
     PlatformFeePolicyDefaultRow,
     PlatformFeePolicyOwnerRow,
@@ -129,6 +130,7 @@ __all__ = [
     "BalanceLedgerRecord",
     "BalanceMutationResult",
     "BalanceRow",
+    "BusinessPolicyConfigRow",
     "BudgetEventRecord",
     "BudgetPolicyRecord",
     "ChargeConsumerUsageCommand",

@@ -17,8 +17,8 @@ from src.domain.voucher import VoucherRedeemCommand, VoucherRedemptionResult
 from src.services.balance_mixins import BalanceAuditMixin, BalanceRedisGuardMixin
 from src.services.platform.finance_read_models import OwnerBalanceSummaryResponse, OwnerSpendingLimitResponse, VoucherRedeemResponse
 from src.services.platform.finance_withdrawal_policy import read_consumer_withdrawable_balance
+from src.services.platform.business_policy import consumer_withdraw_min_amount
 from src.services.owner.finance_constants import (
-    CONSUMER_WITHDRAW_MIN_USDC,
     CONSUMER_WITHDRAW_TYPE,
     REFUND_ACTIVE_STATUSES,
 )
@@ -280,7 +280,9 @@ class PlatformFinanceService(BalanceAuditMixin, BalanceRedisGuardMixin):
             "consumerWithdrawableBalance": money_str(consumer_withdrawable),
             "consumerPendingBalance": money_str(balance_data.consumer_pending_balance(normalized_owner)),
             "consumerFrozenBalance": money_str(balance_data.consumer_frozen_balance(normalized_owner)),
-            "consumerWithdrawMinUsdc": money_str(str(CONSUMER_WITHDRAW_MIN_USDC)),
+            "consumerWithdrawMinUsdc": money_str(
+                consumer_withdraw_min_amount(self.storage)
+            ),
             "consumerWithdrawMaturitySeconds": settings.consumer_withdraw_maturity_seconds,
             "consumerWithdrawMaturityEnforced": settings.consumer_withdraw_maturity_enforcement_enabled,
             "providerReceivable": money_str(balance_data.provider_receivable_balance(normalized_owner)),

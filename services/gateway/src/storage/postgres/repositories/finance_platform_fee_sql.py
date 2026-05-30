@@ -2,13 +2,11 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
-from src.services.owner.finance_fee_policy import consumer_withdraw_fee_usdc
-
-
 def accrue_platform_fee_for_consumer_withdraw(
     cur: Any,
     ensure_ledger_account: Callable[[Any, str, str, str], str],
     now_text: str,
+    fee_usdc: Any,
 ) -> None:
     platform_account_id = ensure_ledger_account(cur, "__platform__", "platform_fee", now_text)
     cur.execute(
@@ -27,7 +25,7 @@ def accrue_platform_fee_for_consumer_withdraw(
             updated_at        = %s
         WHERE account_id = %s
         """,
-        (str(consumer_withdraw_fee_usdc()), now_text, platform_account_id),
+        (str(fee_usdc), now_text, platform_account_id),
     )
     if cur.rowcount != 1:
         raise RuntimeError("PLATFORM_FEE_ACCRUAL_INCONSISTENT")
@@ -38,6 +36,7 @@ def accrue_platform_fee_if_consumer_withdraw(
     ensure_ledger_account: Callable[[Any, str, str, str], str],
     now_text: str,
     withdrawal_kind: str,
+    fee_usdc: Any = "0.500000",
 ) -> None:
     if withdrawal_kind == "consumer_refund":
-        accrue_platform_fee_for_consumer_withdraw(cur, ensure_ledger_account, now_text)
+        accrue_platform_fee_for_consumer_withdraw(cur, ensure_ledger_account, now_text, fee_usdc)

@@ -1121,6 +1121,69 @@ export type AdminMenuConfigResponse = {
   meta: AdminMenuConfigMeta;
 };
 
+export type BusinessPolicyPayload = {
+  finance: {
+    platformFeeRate: string;
+    gatewayRoutingTaxUsdc: string;
+    consumerWithdrawFeeUsdc: string;
+    consumerDepositMinUsdc: string;
+  };
+  consumerWithdraw: {
+    minUsdc: string;
+    manualReviewThresholdUsdc: string;
+    maxDailyCount: number;
+    maturitySeconds: number;
+  };
+  risk: {
+    withdrawalAutoSingleLimitUsdc: string;
+    withdrawalAuto24hLimitUsdc: string;
+    withdrawalWindowHours: number;
+  };
+  reconciliation: {
+    alertDeltaUsdc: string;
+  };
+};
+
+export type BusinessPolicyMeta = {
+  draftVersion: number;
+  publishedVersion: number;
+  isDirty: boolean;
+  updatedAt: string | null;
+  publishedAt: string | null;
+  updatedBy: string | null;
+  publishedBy: string | null;
+};
+
+export type BusinessPolicyConfigResponse = {
+  policy: BusinessPolicyPayload;
+  meta: BusinessPolicyMeta;
+};
+
+export type ConfigOverviewEnvItem = {
+  source: string;
+  value?: string | boolean | null;
+  configured?: boolean | null;
+};
+
+export type BusinessPolicyRuntimeSnapshot = {
+  policy?: BusinessPolicyPayload | null;
+  source?: string | null;
+  publishedVersion?: number | null;
+  updatedAt?: string | null;
+  updatedBy?: string | null;
+};
+
+export type BusinessPolicyOverviewResponse = {
+  draft: BusinessPolicyConfigResponse;
+  published: BusinessPolicyConfigResponse;
+  runtime: {
+    status?: string;
+    error?: { code: string; message: string };
+    businessPolicy?: BusinessPolicyRuntimeSnapshot | null;
+    envSummary?: Record<string, Record<string, ConfigOverviewEnvItem>>;
+  };
+};
+
 export function resolveAdminApiBaseUrl(baseUrl: string | undefined): string {
   const normalized = baseUrl?.trim().replace(/\/$/, "");
   return normalized && normalized.length > 0 ? normalized : "";
@@ -1967,4 +2030,64 @@ export async function publishAdminMenuConfig(
       headers: otpCode ? { "X-Admin-OTP-Code": otpCode } : undefined,
     }
   );
+}
+
+export async function getBusinessPolicyConfig(
+  token: string,
+  params?: { stage?: "draft" | "published" }
+): Promise<BusinessPolicyConfigResponse> {
+  return request<BusinessPolicyConfigResponse>(
+    buildPath("/api/admin/v1/config/business-policy", params)
+  );
+}
+
+export async function updateBusinessPolicyConfig(
+  token: string,
+  policy: BusinessPolicyPayload
+): Promise<BusinessPolicyConfigResponse> {
+  return request<BusinessPolicyConfigResponse>(
+    "/api/admin/v1/config/business-policy",
+    {
+      method: "PATCH",
+      body: JSON.stringify({ policy }),
+    }
+  );
+}
+
+export async function publishBusinessPolicyConfig(
+  token: string,
+  otpCode?: string
+): Promise<{
+  config: BusinessPolicyConfigResponse;
+  runtime: {
+    status?: string;
+    requestedBy?: string;
+    policy?: BusinessPolicyPayload;
+    source?: string;
+    publishedVersion?: number;
+    updatedAt?: string | null;
+    updatedBy?: string | null;
+  };
+}> {
+  return request<{
+    config: BusinessPolicyConfigResponse;
+    runtime: {
+      status?: string;
+      requestedBy?: string;
+      policy?: BusinessPolicyPayload;
+      source?: string;
+      publishedVersion?: number;
+      updatedAt?: string | null;
+      updatedBy?: string | null;
+    };
+  }>("/api/admin/v1/config/business-policy/publish", {
+    method: "POST",
+    headers: otpCode ? { "X-Admin-OTP-Code": otpCode } : undefined,
+  });
+}
+
+export async function getConfigOverview(
+  token: string
+): Promise<BusinessPolicyOverviewResponse> {
+  return request<BusinessPolicyOverviewResponse>("/api/admin/v1/config/overview");
 }

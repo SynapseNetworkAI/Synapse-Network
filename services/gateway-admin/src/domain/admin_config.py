@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Any
 
 
 @dataclass(slots=True, frozen=True)
@@ -25,6 +26,20 @@ class AdminMenuConfigSnapshot:
     config_key: str
     draft_items: tuple[AdminMenuConfigItem, ...] = field(default_factory=tuple)
     published_items: tuple[AdminMenuConfigItem, ...] = field(default_factory=tuple)
+    draft_version: int = 1
+    published_version: int = 1
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+    updated_by: str | None = None
+    published_at: datetime | None = None
+    published_by: str | None = None
+
+
+@dataclass(slots=True, frozen=True)
+class AdminDocumentConfigSnapshot:
+    config_key: str
+    draft_payload: dict[str, Any] = field(default_factory=dict)
+    published_payload: dict[str, Any] = field(default_factory=dict)
     draft_version: int = 1
     published_version: int = 1
     created_at: datetime | None = None

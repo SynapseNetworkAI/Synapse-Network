@@ -708,6 +708,17 @@ CREATE TABLE IF NOT EXISTS synapse_platform_fee_policy_owner (
     CHECK (fee_rate >= 0)
 );
 
+CREATE TABLE IF NOT EXISTS synapse_business_policy_config (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    singleton_id INTEGER NOT NULL UNIQUE,
+    payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+    published_version INTEGER NOT NULL DEFAULT 1,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_by TEXT NOT NULL,
+    CHECK (singleton_id = 1),
+    CHECK (published_version >= 1)
+);
+
 CREATE TABLE IF NOT EXISTS synapse_provider_risk_flags (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     owner_address TEXT NOT NULL UNIQUE,

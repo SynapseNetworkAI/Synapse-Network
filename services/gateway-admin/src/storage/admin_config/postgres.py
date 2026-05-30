@@ -1,6 +1,10 @@
 from psycopg.types.json import Jsonb
 
-from src.domain.admin_config import AdminMenuConfigItem, AdminMenuConfigSnapshot
+from src.domain.admin_config import (
+    AdminDocumentConfigSnapshot,
+    AdminMenuConfigItem,
+    AdminMenuConfigSnapshot,
+)
 
 
 def _connect(dsn: str):
@@ -73,6 +77,21 @@ def _map_snapshot(row: dict) -> AdminMenuConfigSnapshot:
     )
 
 
+def _map_document_snapshot(row: dict) -> AdminDocumentConfigSnapshot:
+    return AdminDocumentConfigSnapshot(
+        config_key=row["config_key"],
+        draft_payload=dict(row.get("draft_payload_json") or {}),
+        published_payload=dict(row.get("published_payload_json") or {}),
+        draft_version=row["draft_version"],
+        published_version=row["published_version"],
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
+        updated_by=row["updated_by"],
+        published_at=row["published_at"],
+        published_by=row["published_by"],
+    )
+
+
 class PostgresAdminConfigRepository:
     def __init__(self, dsn: str) -> None:
         self._dsn = dsn
@@ -128,3 +147,58 @@ class PostgresAdminConfigRepository:
             )
             row = cur.fetchone()
         return _map_snapshot(row)
+
+    def get_document_config(self, config_key: str) -> AdminDocumentConfigSnapshot | None:
+        with _connect(self._dsn) as conn, conn.cursor() as cur:
+            cur.execute(
+                "SELECT * FROM admin_config_documents WHERE config_key = %s",
+                (config_key,),
+            )
+            row = cur.fetchone()
+        return _map_document_snapshot(row) if row else None
+
+    def save_document_config(
+        self, snapshot: AdminDocumentConfigSnapshot
+    ) -> AdminDocumentConfigSnapshot:
+        with _connect(self._dsn) as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO admin_config_documents (
+                    config_key,
+                    draft_payload_json,
+                    published_payload_json,
+                    draft_version,
+                    published_version,
+                    created_at,
+                    updated_at,
+                    updated_by,
+                    published_at,
+                    published_by
+                )
+                VALUES (%s, %s, %s, %s, %s, COALESCE(%s, NOW()), COALESCE(%s, NOW()), %s, %s, %s)
+                ON CONFLICT (config_key) DO UPDATE
+                SET draft_payload_json = EXCLUDED.draft_payload_json,
+                    published_payload_json = EXCLUDED.published_payload_json,
+                    draft_version = EXCLUDED.draft_version,
+                    published_version = EXCLUDED.published_version,
+                    updated_at = EXCLUDED.updated_at,
+                    updated_by = EXCLUDED.updated_by,
+                    published_at = EXCLUDED.published_at,
+                    published_by = EXCLUDED.published_by
+                RETURNING *
+                """,
+                (
+                    snapshot.config_key,
+                    Jsonb(snapshot.draft_payload),
+                    Jsonb(snapshot.published_payload),
+                    snapshot.draft_version,
+                    snapshot.published_version,
+                    snapshot.created_at,
+                    snapshot.updated_at,
+                    snapshot.updated_by,
+                    snapshot.published_at,
+                    snapshot.published_by,
+                ),
+            )
+            row = cur.fetchone()
+        return _map_document_snapshot(row)
