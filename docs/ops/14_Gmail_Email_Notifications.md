@@ -16,12 +16,11 @@ paths.
 - Request handlers and finance services enqueue notification intents into
   `synapse_notification_outbox`.
 - The standalone worker sends email through Gmail SMTP:
-
   - Primary path: Gateway enqueues the outbox row, then best-effort nudges
     `POST /internal/jobs/notification-outbox/trigger` using
     `X-Synapse-Internal-Token: $INTERNAL_TRIGGER_SECRET`.
   - Fallback path: the scheduled Cloud Run job still runs `notification-outbox`
-    every 10 minutes in staging.
+    every 30 minutes in staging.
 
   ```bash
   python -m src.worker notification-outbox
