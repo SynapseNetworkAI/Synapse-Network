@@ -76,6 +76,14 @@ tmp/admin-withdrawal-approval/
 docs/evidence/alerts/lark/*-lark-e2e/
 docs/evidence/staging/
 
+# Generated E2E evidence from local/staging/prod verification runs. These
+# bundles can include transient reports, screenshots, traces, SQL evidence, and
+# environment-specific operator artifacts. Commit successful release-gate
+# evidence only after explicit review/redaction with `git add -f`.
+docs/evidence/prod/core-e2e/
+docs/evidence/release/gateway-fullchain/*-local/
+docs/evidence/release/gateway-fullchain/*-staging/
+
 # Generated contract deployment evidence can include failed dry-runs or
 # environment-specific operator artifacts. Commit successful release evidence
 # explicitly with `git add -f` when it is part of a release gate.
