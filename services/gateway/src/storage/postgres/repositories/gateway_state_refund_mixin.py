@@ -335,7 +335,11 @@ class GatewayStateRefundMixin:
                     "consumer_wallet",
                     row_updated_at,
                 )
-                owner_id = self._owner_id(consumer_wallet)
+                owner_id = self._ensure_owner_account(
+                    cur,
+                    consumer_wallet,
+                    row_updated_at,
+                )
                 cur.execute(
                     """
                     INSERT INTO synapse_vault_withdrawals (

@@ -111,6 +111,15 @@ ensure_yarn_deps() {
   fi
 }
 
+ensure_node_bin() {
+  local app_dir="$1"
+  local bin_name="$2"
+  if [[ ! -x "${app_dir}/node_modules/.bin/${bin_name}" ]]; then
+    echo "[local-apps] ${app_dir#${ROOT_DIR}/} is missing node_modules/.bin/${bin_name}; reinstalling dependencies"
+    (cd "${app_dir}" && yarn install)
+  fi
+}
+
 resolve_python_bin() {
   local app_dir="$1"
   if [[ -x "${app_dir}/.venv/bin/python" ]]; then
@@ -358,6 +367,7 @@ start_user_front() {
   fi
 
   ensure_yarn_deps "${ROOT_DIR}/services/user-front"
+  ensure_node_bin "${ROOT_DIR}/services/user-front" "next"
   echo "[local-apps] starting user-front on http://localhost:3000"
   if command -v screen >/dev/null 2>&1; then
     screen -S synapse-user-front -X quit >/dev/null 2>&1 || true
@@ -393,6 +403,7 @@ start_docs_front() {
   fi
 
   ensure_yarn_deps "${ROOT_DIR}/services/docs-front"
+  ensure_node_bin "${ROOT_DIR}/services/docs-front" "next"
   echo "[local-apps] starting docs-front on http://localhost:3100"
   if command -v screen >/dev/null 2>&1; then
     screen -S synapse-docs-front -X quit >/dev/null 2>&1 || true
@@ -444,6 +455,7 @@ start_admin_front() {
   fi
 
   ensure_yarn_deps "${ROOT_DIR}/services/admin-front"
+  ensure_node_bin "${ROOT_DIR}/services/admin-front" "next"
   echo "[local-apps] starting admin-front on http://127.0.0.1:3200"
   if command -v screen >/dev/null 2>&1; then
     screen -S synapse-admin-front -X quit >/dev/null 2>&1 || true

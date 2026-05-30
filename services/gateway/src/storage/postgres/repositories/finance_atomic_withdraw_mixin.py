@@ -21,6 +21,7 @@ from src.domain.execution import (
 )
 from src.domain.finance import BalanceMutationResult
 from src.domain.runtime_state import VaultWithdrawalMetadataState
+from src.utils.money import parse_usdc
 from src.utils.datetime_utils import now_dt_str, to_dt_str
 
 from .finance_atomic_core_mixin import (
@@ -34,6 +35,15 @@ from .finance_atomic_withdraw_types import CompleteWithdrawTxContext
 
 class FinanceAtomicWithdrawMixin:
     """Withdrawal domain helpers and public atomic methods."""
+
+    def _consumer_withdraw_fee_usdc(self) -> Decimal:
+        repository = getattr(self, "_business_policy_repository", None)
+        if repository is None:
+            return parse_usdc(Decimal("0.50"))
+        row = repository.get_business_policy_config()
+        payload = dict(getattr(row, "payload", {}) or {})
+        finance = payload.get("finance") if isinstance(payload.get("finance"), dict) else {}
+        return parse_usdc(Decimal(str(finance.get("consumerWithdrawFeeUsdc") or "0.50")))
 
     def _build_vault_withdrawal_metadata(
         self, spec: VaultWithdrawalUpsertSpec, provider_address: Optional[str]
@@ -471,6 +481,7 @@ class FinanceAtomicWithdrawMixin:
             self._ensure_ledger_account,  # type: ignore[attr-defined]
             context.now_text,
             context.withdrawal_kind,
+            self._consumer_withdraw_fee_usdc(),
         )
         cur.execute(
             """
