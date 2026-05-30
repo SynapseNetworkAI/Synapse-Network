@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+
 PROJECT_ID="${PROJECT_ID:-${GOOGLE_CLOUD_PROJECT:-${CLOUDSDK_CORE_PROJECT:-}}}"
 REGION="${REGION:-us-central1}"
 SERVICE=""
@@ -93,6 +96,12 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+if [[ -f "${ROOT_DIR}/env.staging" ]]; then
+  # shellcheck source=../lib/load_repo_env.sh
+  source "${ROOT_DIR}/scripts/lib/load_repo_env.sh"
+  load_synapse_repo_env staging "${ROOT_DIR}"
+fi
+
 [[ -n "${PROJECT_ID}" ]] || { echo "missing --project or PROJECT_ID" >&2; usage; }
 [[ -n "${SERVICE}" ]] || { echo "missing --service" >&2; usage; }
 
@@ -134,7 +143,6 @@ gateway_admin_secret_env=(
   "ADMIN_TOTP_SECRET_ENCRYPTION_KEY=synapse-staging-admin-totp-secret-encryption-key:latest"
   "GATEWAY_READONLY_DSN=synapse-staging-gateway-readonly-dsn:latest"
   "GATEWAY_FORUM_WRITE_DSN=synapse-staging-gateway-forum-write-dsn:latest"
-  "GATEWAY_INTERNAL_ADMIN_WALLET=synapse-staging-gateway-admin-wallet:latest"
   "GATEWAY_INTERNAL_JWT_SECRET=synapse-staging-gateway-internal-jwt-secret:latest"
   "GCP_ALERT_RECEIVER_TOKEN=synapse-staging-gcp-alert-receiver-token:latest"
   "LARK_WEBHOOK_STAGING_DRILL=synapse-staging-lark-webhook-staging-drill:latest"
@@ -285,8 +293,12 @@ update_job_set() {
       update_flags+=("${gateway_job_env_flags[@]}")
     fi
     if [[ "${family}" == "gateway-admin" ]]; then
+      if [[ -z "${GATEWAY_INTERNAL_ADMIN_WALLET:-}" ]]; then
+        echo "GATEWAY_INTERNAL_ADMIN_WALLET must be set in env.staging or shell env for gateway-admin jobs." >&2
+        exit 2
+      fi
       update_flags+=(
-        --set-env-vars "ADMIN_GATEWAY_DEBUG=false,ADMIN_SESSION_COOKIE_SECURE=true"
+        --set-env-vars "ADMIN_GATEWAY_DEBUG=false,ADMIN_SESSION_COOKIE_SECURE=true,GATEWAY_INTERNAL_ADMIN_WALLET=${GATEWAY_INTERNAL_ADMIN_WALLET}"
         --set-secrets "$(join_by_comma "${gateway_admin_secret_env[@]}")"
       )
     fi

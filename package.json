@@ -29,6 +29,7 @@
     "ci:contracts": "bash scripts/ci/contracts_checks.sh",
     "ci:docs": "bash scripts/ci/docs_checks.sh",
     "ci:github-actions-runtime": "node scripts/ci/github_actions_node_runtime_check.mjs",
+    "ci:repo-env-loader": "bash -n scripts/lib/load_repo_env.sh && node --test scripts/ci/repo_env_loader.test.mjs",
     "weekly:hygiene": "node scripts/ops/weekly_hygiene.mjs",
     "ci:weekly-hygiene-evidence": "node scripts/ci/weekly_hygiene_evidence_check.mjs",
     "ci:created-at-indexes": "node scripts/ci/created_at_index_check.mjs && node --test scripts/ci/created_at_index_check.test.mjs",

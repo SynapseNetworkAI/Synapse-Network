@@ -48,9 +48,7 @@ REQUIRED_SECRET_IDS=(
   synapse-staging-auth-secret
   synapse-staging-gateway-internal-jwt-secret
   synapse-staging-admin-csrf-secret
-  synapse-staging-gateway-admin-wallet
   synapse-staging-gmail-app-password
-  synapse-staging-gmail-username
   synapse-staging-lark-webhook-p0
   synapse-staging-lark-webhook-prod-alerts
   synapse-staging-lark-webhook-staging-drill
@@ -70,9 +68,7 @@ USER_PROVIDED_SECRET_IDS=(
   synapse-staging-auth-secret
   synapse-staging-gateway-internal-jwt-secret
   synapse-staging-admin-csrf-secret
-  synapse-staging-gateway-admin-wallet
   synapse-staging-gmail-app-password
-  synapse-staging-gmail-username
   synapse-staging-lark-webhook-p0
   synapse-staging-lark-webhook-prod-alerts
   synapse-staging-lark-webhook-staging-drill

@@ -12,7 +12,6 @@ CLOUD_RUN_SECRET_IDS=(
   synapse-staging-metrics-bearer-token
   synapse-staging-gateway-internal-jwt-secret
   synapse-staging-arbitrum-sepolia-rpc-url
-  synapse-staging-gmail-username
   synapse-staging-gmail-app-password
   synapse-staging-alert-drill-token
   synapse-staging-postgres-migrator-password
@@ -21,7 +20,6 @@ CLOUD_RUN_SECRET_IDS=(
   synapse-staging-admin-database-migration-dsn
   synapse-staging-gateway-readonly-dsn
   synapse-staging-gateway-forum-write-dsn
-  synapse-staging-gateway-admin-wallet
   synapse-staging-gcp-alert-receiver-token
   synapse-staging-lark-webhook-staging-drill
   synapse-staging-lark-secret-staging-drill
