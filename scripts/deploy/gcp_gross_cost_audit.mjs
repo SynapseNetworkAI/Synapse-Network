@@ -96,17 +96,30 @@ function serviceJson(projectId, serviceName) {
   );
 }
 
+function nestedValue(source, path) {
+  let value = source;
+  for (const key of path) {
+    if (value == null) return undefined;
+    value = value[key];
+  }
+  return value;
+}
+
+function hasValue(value) {
+  return ![undefined, null, ""].includes(value);
+}
+
 function cloudRunMinScale(service) {
-  const v2Min = service?.template?.scaling?.minInstanceCount;
-  if (v2Min !== undefined && v2Min !== null && v2Min !== "") {
+  const v2Min = nestedValue(service, ["template", "scaling", "minInstanceCount"]);
+  if (hasValue(v2Min)) {
     return Number(v2Min);
   }
   const annotations =
-    service?.spec?.template?.metadata?.annotations ||
-    service?.metadata?.annotations ||
+    nestedValue(service, ["spec", "template", "metadata", "annotations"]) ||
+    nestedValue(service, ["metadata", "annotations"]) ||
     {};
   const annotation = annotations["autoscaling.knative.dev/minScale"];
-  return annotation === undefined || annotation === "" ? 0 : Number(annotation);
+  return hasValue(annotation) ? Number(annotation) : 0;
 }
 
 function repositoryJson(projectId, repository) {
