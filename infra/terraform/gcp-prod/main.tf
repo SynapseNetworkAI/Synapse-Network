@@ -885,8 +885,12 @@ resource "google_cloud_run_v2_service" "services" {
     dynamic "vpc_access" {
       for_each = each.value.use_vpc_egress ? [1] : []
       content {
-        connector = google_vpc_access_connector.cloud_run.id
-        egress    = "PRIVATE_RANGES_ONLY"
+        egress = "PRIVATE_RANGES_ONLY"
+
+        network_interfaces {
+          network    = google_compute_network.prod.name
+          subnetwork = google_compute_subnetwork.prod.name
+        }
       }
     }
 
@@ -971,8 +975,12 @@ resource "google_cloud_run_v2_job" "jobs" {
       dynamic "vpc_access" {
         for_each = each.value.use_vpc_egress ? [1] : []
         content {
-          connector = google_vpc_access_connector.cloud_run.id
-          egress    = "PRIVATE_RANGES_ONLY"
+          egress = "PRIVATE_RANGES_ONLY"
+
+          network_interfaces {
+            network    = google_compute_network.prod.name
+            subnetwork = google_compute_subnetwork.prod.name
+          }
         }
       }
 
