@@ -16,7 +16,7 @@ USER_FRONT_PUBLIC_HOST="${USER_FRONT_PUBLIC_HOST:-staging.synapse-network.ai}"
 ADMIN_API_PUBLIC_HOST="${ADMIN_API_PUBLIC_HOST:-admin-api-staging.synapse-network.ai}"
 
 if [[ -z "$PROJECT_ID" || -z "$RECEIVER_URL" ]]; then
-  echo "Usage: GCP_ALERT_RECEIVER_TOKEN=<token> bash scripts/deploy/gcp_configure_staging_alerts.sh <project-id> <receiver-url>" >&2
+  echo "Usage: GCP_ALERT_RECEIVER_TOKEN=<token> bash scripts/ops/gcp_configure_staging_alerts.sh <project-id> <receiver-url>" >&2
   exit 2
 fi
 
@@ -170,32 +170,32 @@ scheduled_jobs = [
         "job": "synapse-staging-deposit-indexer",
         "display": "Synapse Staging Deposit Indexer Freshness",
         "alertname": "synapse_staging_deposit_indexer_freshness",
-        "duration": "1500s",
-        "schedule": "every 10 minutes",
+        "duration": "2700s",
+        "schedule": "every 30 minutes",
         "action": "Check Cloud Scheduler, deposit indexer logs, RPC, and Cloud SQL connectivity.",
     },
     {
         "job": "synapse-staging-consumer-withdraw-chain-recovery",
         "display": "Synapse Staging Consumer Withdraw Chain Recovery Freshness",
         "alertname": "synapse_staging_consumer_withdraw_chain_recovery_freshness",
-        "duration": "1500s",
-        "schedule": "every 10 minutes",
+        "duration": "2700s",
+        "schedule": "every 30 minutes",
         "action": "Check Cloud Scheduler, consumer withdraw chain recovery logs, RPC, and pending REQUESTED rows.",
     },
     {
         "job": "synapse-staging-withdrawal-expiry-sweeper",
         "display": "Synapse Staging Withdrawal Expiry Sweeper Freshness",
         "alertname": "synapse_staging_withdrawal_expiry_sweeper_freshness",
-        "duration": "1500s",
-        "schedule": "every 10 minutes",
+        "duration": "2700s",
+        "schedule": "every 30 minutes",
         "action": "Check Cloud Scheduler, expiry sweeper logs, manual-review backlog, and stale withdrawal release flows.",
     },
     {
         "job": "synapse-staging-notification-outbox-drain",
         "display": "Synapse Staging Notification Outbox Drain Freshness",
         "alertname": "synapse_staging_notification_outbox_drain_freshness",
-        "duration": "1500s",
-        "schedule": "every 10 minutes",
+        "duration": "2700s",
+        "schedule": "every 30 minutes",
         "action": "Check internal notification trigger, fallback Cloud Scheduler, Gmail SMTP secrets, notification outbox rows, and delivery logs.",
     },
 ]

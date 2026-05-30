@@ -182,7 +182,7 @@ locals {
       image           = var.gateway_image
       port            = 8000
       concurrency     = local.is_production ? 40 : 20
-      min_instances   = local.is_production ? 1 : 0
+      min_instances   = var.gateway_min_instances
       max_instances   = local.is_production ? 3 : 2
       env             = local.runtime_env
       secret_env      = local.gateway_secret_env
@@ -298,7 +298,7 @@ locals {
       image       = var.gateway_image
       command     = ["python", "-m", "src.worker"]
       args        = ["deposit-indexer", "--once"]
-      schedule    = "*/10 * * * *"
+      schedule    = var.deposit_indexer_schedule
       timeout     = "120s"
       max_retries = 0
       retry_count = 0
@@ -315,7 +315,7 @@ locals {
       image       = var.gateway_image
       command     = ["python", "-m", "src.worker"]
       args        = ["consumer-withdraw-chain-recovery", "--once"]
-      schedule    = "*/10 * * * *"
+      schedule    = var.consumer_withdraw_chain_recovery_schedule
       timeout     = "120s"
       max_retries = 0
       retry_count = 0
@@ -332,7 +332,7 @@ locals {
       image       = var.gateway_image
       command     = ["python", "-m", "src.worker"]
       args        = ["withdrawal-expiry-sweeper", "--once"]
-      schedule    = "*/10 * * * *"
+      schedule    = var.withdrawal_expiry_sweeper_schedule
       timeout     = "120s"
       max_retries = 0
       retry_count = 0
@@ -349,7 +349,7 @@ locals {
       image       = var.gateway_image
       command     = ["python", "-m", "src.worker"]
       args        = ["notification-outbox", "--once"]
-      schedule    = "*/10 * * * *"
+      schedule    = var.notification_outbox_drain_schedule
       timeout     = "50s"
       max_retries = 1
       retry_count = 1
@@ -502,11 +502,11 @@ resource "google_artifact_registry_repository" "docker" {
   }
 
   cleanup_policies {
-    id     = "keep-recent-10-per-package"
+    id     = "keep-recent-${var.artifact_registry_keep_recent_count}-per-package"
     action = "KEEP"
 
     most_recent_versions {
-      keep_count = 10
+      keep_count = var.artifact_registry_keep_recent_count
     }
   }
 }
@@ -885,8 +885,12 @@ resource "google_cloud_run_v2_service" "services" {
     dynamic "vpc_access" {
       for_each = each.value.use_vpc_egress ? [1] : []
       content {
-        connector = google_vpc_access_connector.cloud_run.id
-        egress    = "PRIVATE_RANGES_ONLY"
+        egress = "PRIVATE_RANGES_ONLY"
+
+        network_interfaces {
+          network    = google_compute_network.prod.name
+          subnetwork = google_compute_subnetwork.prod.name
+        }
       }
     }
 
@@ -971,8 +975,12 @@ resource "google_cloud_run_v2_job" "jobs" {
       dynamic "vpc_access" {
         for_each = each.value.use_vpc_egress ? [1] : []
         content {
-          connector = google_vpc_access_connector.cloud_run.id
-          egress    = "PRIVATE_RANGES_ONLY"
+          egress = "PRIVATE_RANGES_ONLY"
+
+          network_interfaces {
+            network    = google_compute_network.prod.name
+            subnetwork = google_compute_subnetwork.prod.name
+          }
         }
       }
 

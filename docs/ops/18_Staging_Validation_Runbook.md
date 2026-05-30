@@ -196,7 +196,7 @@ Manual UI path:
 3. Switch MetaMask/Rabby to Arbitrum Sepolia.
 4. Confirm the wallet has MockUSDC and Arbitrum Sepolia ETH gas.
 5. Submit a small MockUSDC deposit.
-6. Wait up to 10 minutes for Cloud Scheduler, or manually trigger the deposit indexer job:
+6. Wait up to 30 minutes for Cloud Scheduler, or manually trigger the deposit indexer job:
 
 ```bash
 gcloud run jobs execute synapse-staging-deposit-indexer \
@@ -218,7 +218,8 @@ Success criteria:
 - Cloud SQL owner balance increases by the exact Decimal amount.
 - No duplicate credit is created for the same on-chain event.
 - Deposit credited delay is below 2 minutes for normal staging operation.
-- Delay above 10 minutes is a P1 investigation trigger.
+- Delay above 30 minutes is a P1 investigation trigger for the scheduler-only
+  recovery path.
 
 Webhook proof path:
 
@@ -405,7 +406,7 @@ export GCP_ALERT_RECEIVER_TOKEN="$(gcloud secrets versions access latest \
   --secret=synapse-staging-gcp-alert-receiver-token \
   --project="$PROJECT_ID")"
 
-bash scripts/deploy/gcp_configure_staging_alerts.sh \
+bash scripts/ops/gcp_configure_staging_alerts.sh \
   "$PROJECT_ID" \
   "$GCP_ALERT_RECEIVER_URL"
 ```

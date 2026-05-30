@@ -284,7 +284,7 @@ locals {
       image           = var.gateway_image
       command         = ["python", "-m", "src.worker"]
       args            = ["deposit-indexer", "--once"]
-      schedule        = "*/10 * * * *"
+      schedule        = var.deposit_indexer_schedule
       timeout         = "120s"
       max_retries     = 0
       retry_count     = 0
@@ -297,7 +297,7 @@ locals {
       image           = var.gateway_image
       command         = ["python", "-m", "src.worker"]
       args            = ["consumer-withdraw-chain-recovery", "--once"]
-      schedule        = "*/10 * * * *"
+      schedule        = var.consumer_withdraw_chain_recovery_schedule
       timeout         = "120s"
       max_retries     = 0
       retry_count     = 0
@@ -310,7 +310,7 @@ locals {
       image           = var.gateway_image
       command         = ["python", "-m", "src.worker"]
       args            = ["withdrawal-expiry-sweeper", "--once"]
-      schedule        = "*/10 * * * *"
+      schedule        = var.withdrawal_expiry_sweeper_schedule
       timeout         = "120s"
       max_retries     = 0
       retry_count     = 0
@@ -323,7 +323,7 @@ locals {
       image           = var.gateway_image
       command         = ["python", "-m", "src.worker"]
       args            = ["notification-outbox", "--once"]
-      schedule        = "*/10 * * * *"
+      schedule        = var.notification_outbox_drain_schedule
       timeout         = "50s"
       max_retries     = 1
       retry_count     = 1
@@ -457,11 +457,11 @@ resource "google_artifact_registry_repository" "docker" {
   }
 
   cleanup_policies {
-    id     = "keep-recent-10-per-package"
+    id     = "keep-recent-${var.artifact_registry_keep_recent_count}-per-package"
     action = "KEEP"
 
     most_recent_versions {
-      keep_count = 10
+      keep_count = var.artifact_registry_keep_recent_count
     }
   }
 }

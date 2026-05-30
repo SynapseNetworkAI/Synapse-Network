@@ -38,6 +38,12 @@ variable "artifact_registry_cleanup_policy_dry_run" {
   default     = false
 }
 
+variable "artifact_registry_keep_recent_count" {
+  description = "Number of recent Artifact Registry image versions to keep per package after cleanup."
+  type        = number
+  default     = 3
+}
+
 variable "cloud_sql_database_version" {
   description = "Cloud SQL Postgres database version."
   type        = string
@@ -122,6 +128,12 @@ variable "gateway_image" {
   default     = ""
 }
 
+variable "gateway_min_instances" {
+  description = "Minimum Cloud Run instances for the production Gateway. Keep 0 before formal launch to avoid idle min-instance spend."
+  type        = number
+  default     = 0
+}
+
 variable "gateway_admin_image" {
   description = "Optional Gateway-admin container image. Leave empty to provision substrate first."
   type        = string
@@ -168,6 +180,30 @@ variable "scheduler_time_zone" {
   description = "Cloud Scheduler timezone for background jobs. Keep UTC for deterministic release evidence."
   type        = string
   default     = "Etc/UTC"
+}
+
+variable "deposit_indexer_schedule" {
+  description = "Cloud Scheduler cron for the production deposit indexer recovery job."
+  type        = string
+  default     = "*/10 * * * *"
+}
+
+variable "consumer_withdraw_chain_recovery_schedule" {
+  description = "Cloud Scheduler cron for the production consumer withdrawal chain recovery safety-net job."
+  type        = string
+  default     = "*/10 * * * *"
+}
+
+variable "withdrawal_expiry_sweeper_schedule" {
+  description = "Cloud Scheduler cron for the production withdrawal expiry sweeper job."
+  type        = string
+  default     = "*/10 * * * *"
+}
+
+variable "notification_outbox_drain_schedule" {
+  description = "Cloud Scheduler cron for the production notification outbox drain job."
+  type        = string
+  default     = "*/10 * * * *"
 }
 
 variable "withdraw_signer_address" {
