@@ -64,8 +64,12 @@ export const rootE2eScriptPatterns = [
   /^scripts\/verify_chain\.py$/,
 ];
 
+export const deployOpsScriptPatterns = [
+  /^scripts\/deploy\/gcp_configure_staging_alerts\.sh$/,
+];
+
 export const fullTriggerPatterns = [
-  /^scripts\/deploy\//,
+  /^scripts\/deploy\/(?!gcp_configure_staging_alerts\.sh$)/,
   /^scripts\/dev\/install_git_hooks\.sh$/,
   /^semgrep\//,
   /^AGENTS\.md$/,
@@ -82,6 +86,7 @@ export const knownPatterns = [
   /^contracts\//,
   /^scripts\/chain\//,
   /^scripts\/ci\//,
+  ...deployOpsScriptPatterns,
   /^scripts\/ops\//,
   /^scripts\/git\//,
   /^scripts\/e2e\//,
