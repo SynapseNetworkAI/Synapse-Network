@@ -206,6 +206,11 @@ Terraform-created billable resources:
 | Cloud Logging / Cloud Monitoring          | Google-managed service usage from Cloud Run, Cloud SQL, jobs, alerts                | Logs, metrics, alerting, dashboards, uptime/monitoring features                      | Log ingestion/storage and chargeable custom metrics or checks beyond free allotments        | Use low-volume structured logs and avoid noisy debug logs                                                                                                   | `$0-$5` initially                     |
 | IAM / service accounts / Resource Manager | `google_service_account.*`, IAM bindings                                            | Runtime identity and least-privilege access                                          | No direct monthly charge for IAM bindings                                                   | Runtime and Scheduler service accounts                                                                                                                      | `$0`                                  |
 
+Production Cloud Run uses Direct VPC egress for private Cloud SQL access. During
+the migration window, `syn-prod-vpcconn` may remain provisioned as a rollback
+bridge; delete it only after gateway, gateway-admin, provider, and scheduled job
+prod verification passes without connector references.
+
 Current staging estimate:
 
 | Deployment phase                                       | Expected monthly cost | Notes                                                                                         |
