@@ -560,7 +560,7 @@ async function runUiAssertions() {
   });
   page.on("pageerror", (error) => consoleErrors.push(error.message));
   try {
-    await page.goto(`${USER_FRONT_URL}/dashboard/overview`, {
+    await page.goto(`${USER_FRONT_URL}/dashboard/account/settings`, {
       waitUntil: "networkidle",
       timeout: 45000,
     });
@@ -578,7 +578,7 @@ async function runUiAssertions() {
       { timeout: 30000 }
     );
     await screenshot(page, "03-action-url-opened");
-    await page.goto(`${USER_FRONT_URL}/dashboard/overview`, {
+    await page.goto(`${USER_FRONT_URL}/dashboard/account/settings`, {
       waitUntil: "networkidle",
       timeout: 45000,
     });

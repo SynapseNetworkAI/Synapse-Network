@@ -36,6 +36,7 @@ const REQUIRED_FUNCTION_IDS = [
   "approvals-withdrawal-review",
   "execution-risk-audit",
   "users-rbac-menu",
+  "config-business-policy",
   "provider-services",
   "forum-support",
   "notifications",
@@ -155,6 +156,49 @@ if (!process.exitCode) {
       "ADMIN-REGRESSION-007",
       "Analytics SQL evidence did not declare source=postgres.",
       "Use Postgres analytics evidence, not ClickHouse evidence, for admin-regression."
+    );
+  }
+  const adminConfigProbe = (sqlEvidence.admin || []).find(
+    (probe) => probe.name === "business-policy-config-admin"
+  );
+  const runtimeConfigProbe = (sqlEvidence.gateway || []).find(
+    (probe) => probe.name === "business-policy-config-runtime"
+  );
+  if (
+    adminConfigProbe?.data?.exists !== true ||
+    !adminConfigProbe?.data?.lastPublishedAudit ||
+    runtimeConfigProbe?.data?.exists !== true ||
+    JSON.stringify(adminConfigProbe?.data?.publishedPayload ?? null) !==
+      JSON.stringify(runtimeConfigProbe?.data?.payload ?? null) ||
+    Number(adminConfigProbe?.data?.publishedVersion ?? -1) !==
+      Number(runtimeConfigProbe?.data?.publishedVersion ?? -2)
+  ) {
+    fatal(
+      "ADMIN-REGRESSION-CONFIG-001",
+      `Business policy config SQL evidence is incomplete or mismatched. admin=${JSON.stringify(
+        adminConfigProbe?.data || null
+      ).slice(0, 600)} runtime=${JSON.stringify(
+        runtimeConfigProbe?.data || null
+      ).slice(0, 600)}`,
+      "Run the config center round-trip and ensure admin_config_documents and synapse_business_policy_config stay in sync."
+    );
+  }
+  const configRoundTrip = (screenshotEvidence.backendConsistencyEvidence || []).find(
+    (entry) => entry?.businessPolicyRoundTrip
+  )?.businessPolicyRoundTrip;
+  if (
+    !configRoundTrip ||
+    configRoundTrip.restored !== true ||
+    !configRoundTrip.originalValue ||
+    !configRoundTrip.updatedValue ||
+    configRoundTrip.originalValue !== configRoundTrip.restoredValue
+  ) {
+    fatal(
+      "ADMIN-REGRESSION-CONFIG-002",
+      `Config round-trip evidence missing or not restored: ${JSON.stringify(
+        configRoundTrip || null
+      ).slice(0, 600)}`,
+      "Ensure /config saves a draft, publishes the changed alertDeltaUsdc, then restores and republishes the original value."
     );
   }
   const coverage = screenshotEvidence.requiredKeywordCoverage || {};

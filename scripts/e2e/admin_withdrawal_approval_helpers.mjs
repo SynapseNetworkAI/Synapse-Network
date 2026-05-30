@@ -17,6 +17,17 @@ export function createAdminWithdrawalApprovalHelpers({
   runId,
   sleep,
 }) {
+  const E2E_CREDENTIAL_PREFIXES = [
+    "awa-agent-",
+    "wr-staging-",
+    "staging-load-",
+    "e2e-agent-",
+    "api-ref-test-",
+    "inv-test-",
+    "provider-gpp-e2e-local-",
+    "consumer-test-",
+  ];
+
   async function issueProviderSecret({ token, address }) {
     const payload = (
       await api("/v1/secrets/provider/issue", {
@@ -38,21 +49,150 @@ export function createAdminWithdrawalApprovalHelpers({
     };
   }
 
-  async function issueAgentCredential({ token, address }) {
+  async function listActiveAgentCredentials({ token, address }) {
     const payload = (
-      await api("/v1/credentials/agent/issue", {
+      await api("/v1/credentials/agent/list?active_only=true", {
+        token,
+        address,
+      })
+    ).payload;
+    return Array.isArray(payload?.credentials)
+      ? payload.credentials
+      : Array.isArray(payload?.data?.credentials)
+      ? payload.data.credentials
+      : [];
+  }
+
+  async function revokeAgentCredential({ token, address }, credentialId) {
+    const result = await api(
+      `/v1/credentials/agent/${encodeURIComponent(credentialId)}/revoke`,
+      {
+        method: "POST",
+        token,
+        address,
+        expectOk: false,
+      }
+    );
+    return [200, 204, 404].includes(result.response.status);
+  }
+
+  async function rotateAgentCredential({ token, address }, credentialId) {
+    const payload = (
+      await api(
+        `/v1/credentials/agent/${encodeURIComponent(credentialId)}/rotate`,
+        {
+          method: "POST",
+          token,
+          address,
+        }
+      )
+    ).payload;
+    const credential = payload.credential || payload;
+    const credentialToken =
+      credential.token || credential.secretKey || credential.agentToken;
+    if (!credential?.id || !credentialToken) {
+      fail("agent credential rotate response missing id or token");
+    }
+    return {
+      id: credential.id,
+      token: credentialToken,
+      tokenPrefix: credential.tokenPrefix || credential.secretPrefix || "",
+    };
+  }
+
+  async function reclaimE2eCredentialSlots(auth) {
+    const credentials = await listActiveAgentCredentials(auth);
+    let revoked = 0;
+    for (const credential of credentials) {
+      const name = String(credential.name || "").trim();
+      if (!E2E_CREDENTIAL_PREFIXES.some((prefix) => name.startsWith(prefix))) {
+        continue;
+      }
+      const credentialId =
+        credential.credentialId || credential.credential_id || credential.id || "";
+      if (!credentialId) continue;
+      if (await revokeAgentCredential(auth, credentialId)) {
+        revoked += 1;
+      }
+    }
+    return revoked;
+  }
+
+  async function rotateExistingE2eCredential(auth) {
+    const credentials = await listActiveAgentCredentials(auth);
+    const candidate = credentials.find((credential) => {
+      const name = String(credential.name || "").trim();
+      return E2E_CREDENTIAL_PREFIXES.some((prefix) => name.startsWith(prefix));
+    });
+    const credentialId =
+      candidate?.credentialId || candidate?.credential_id || candidate?.id || "";
+    if (!credentialId) {
+      return null;
+    }
+    return rotateAgentCredential(auth, credentialId);
+  }
+
+  async function issueAgentCredential({ token, address }) {
+    const auth = { token, address };
+    let result = await api("/v1/credentials/agent/issue", {
+      method: "POST",
+      token,
+      address,
+      body: {
+        name: `awa-agent-${runId}`,
+        rpm: 600,
+        maxCalls: 500,
+        creditLimit: "1000",
+        resetInterval: "daily",
+      },
+      expectOk: false,
+    });
+    const errorCode =
+      result.payload?.detail?.code ||
+      result.payload?.error?.code ||
+      result.payload?.code;
+    if (
+      result.response.status === 409 &&
+      String(errorCode).includes("AGENT_CREDENTIAL_LIMIT_REACHED")
+    ) {
+      const revoked = await reclaimE2eCredentialSlots(auth);
+      log(`agent credential slots reclaimed: ${revoked}`);
+      result = await api("/v1/credentials/agent/issue", {
         method: "POST",
         token,
         address,
         body: {
           name: `awa-agent-${runId}`,
-          rpm: 60,
-          maxCalls: 50,
+          rpm: 600,
+          maxCalls: 500,
           creditLimit: "1000",
           resetInterval: "daily",
         },
-      })
-    ).payload;
+        expectOk: false,
+      });
+      if (
+        result.response.status === 409 &&
+        String(
+          result.payload?.detail?.code ||
+            result.payload?.error?.code ||
+            result.payload?.code
+        ).includes("AGENT_CREDENTIAL_LIMIT_REACHED")
+      ) {
+        const rotated = await rotateExistingE2eCredential(auth);
+        if (rotated) {
+          log(`agent credential rotated: ${rotated.id}`);
+          return rotated;
+        }
+      }
+    }
+    if (!result.response.ok || result.payload?.success === false) {
+      fail(
+        `POST /v1/credentials/agent/issue failed: ${result.response.status} ${JSON.stringify(
+          result.payload
+        ).slice(0, 900)}`
+      );
+    }
+    const payload = result.payload;
     const credential = payload.credential || payload;
     const credentialToken =
       credential.token || credential.secretKey || credential.agentToken;
