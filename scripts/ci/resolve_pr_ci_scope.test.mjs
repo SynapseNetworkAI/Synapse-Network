@@ -52,6 +52,7 @@ test("workflow, ci, and ops files are known without forcing full CI", () => {
     ".github/workflows/pr-ci.yml",
     "scripts/ci/resolve_pr_ci_scope.mjs",
     "scripts/ops/gcp_billing_review.sh",
+    "scripts/deploy/gcp_configure_staging_alerts.sh",
     "scripts/git/cleanup_old_branches.sh",
     "package-lock.json",
   ];

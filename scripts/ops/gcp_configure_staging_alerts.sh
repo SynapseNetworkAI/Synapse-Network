@@ -16,7 +16,7 @@ USER_FRONT_PUBLIC_HOST="${USER_FRONT_PUBLIC_HOST:-staging.synapse-network.ai}"
 ADMIN_API_PUBLIC_HOST="${ADMIN_API_PUBLIC_HOST:-admin-api-staging.synapse-network.ai}"
 
 if [[ -z "$PROJECT_ID" || -z "$RECEIVER_URL" ]]; then
-  echo "Usage: GCP_ALERT_RECEIVER_TOKEN=<token> bash scripts/deploy/gcp_configure_staging_alerts.sh <project-id> <receiver-url>" >&2
+  echo "Usage: GCP_ALERT_RECEIVER_TOKEN=<token> bash scripts/ops/gcp_configure_staging_alerts.sh <project-id> <receiver-url>" >&2
   exit 2
 fi
 

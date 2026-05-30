@@ -406,7 +406,7 @@ export GCP_ALERT_RECEIVER_TOKEN="$(gcloud secrets versions access latest \
   --secret=synapse-staging-gcp-alert-receiver-token \
   --project="$PROJECT_ID")"
 
-bash scripts/deploy/gcp_configure_staging_alerts.sh \
+bash scripts/ops/gcp_configure_staging_alerts.sh \
   "$PROJECT_ID" \
   "$GCP_ALERT_RECEIVER_URL"
 ```
