@@ -254,18 +254,6 @@ variable "vpc_subnet_cidr" {
   default     = "10.30.0.0/24"
 }
 
-variable "vpc_connector_name" {
-  description = "Serverless VPC Access connector name for Cloud Run services and jobs."
-  type        = string
-  default     = "syn-prod-vpcconn"
-}
-
-variable "vpc_connector_cidr" {
-  description = "CIDR range reserved for the Serverless VPC Access connector."
-  type        = string
-  default     = "10.30.8.0/28"
-}
-
 variable "private_service_range_name" {
   description = "Name for the reserved service networking range used by private Cloud SQL."
   type        = string
