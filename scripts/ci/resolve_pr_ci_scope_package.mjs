@@ -80,7 +80,7 @@ function changedScriptNames(beforeScripts, afterScripts) {
     ...Object.keys(afterScripts || {}),
   ]).sort();
   return names.filter(
-    (name) => (beforeScripts || {})[name] !== (afterScripts || {})[name]
+    (name) => (beforeScripts || {})[name] !== (afterScripts || {})[name],
   );
 }
 
@@ -108,7 +108,7 @@ function classifyGuardrailScript(scriptName, scriptValue) {
   if (
     GUARDRAIL_SCRIPTS.has(scriptName) ||
     /\bscripts\/ci\/(pr_checks|diff_coverage|finance_|security_|e2e_env_isolation|quality_budget|format_check|code_quality_|gateway_checks|admin_gateway_checks|frontend_checks|admin_front_checks)/.test(
-      scriptValue
+      scriptValue,
     )
   ) {
     return {
@@ -124,6 +124,19 @@ function classifyMonitoringScript(scriptName, scriptValue) {
     /gcp_alerts|lark_alert|monitoring_alert/i.test(scriptValue)
   ) {
     return { commands: ["monitoring_alert_rules"], riskScopes: ["monitoring"] };
+  }
+  return null;
+}
+
+function classifyGcpCostScript(scriptName, scriptValue) {
+  if (
+    scriptName === "ci:gcp-gross-cost-audit" &&
+    /\bscripts\/ops\/gcp_gross_cost_audit\.mjs\b/.test(scriptValue)
+  ) {
+    return {
+      commands: ["ci_meta_checks", "quality_budget_check", "docs_checks"],
+      riskScopes: ["gcp-cost-audit"],
+    };
   }
   return null;
 }
@@ -165,7 +178,7 @@ function classifyDocsPublicScript(scriptName, scriptValue) {
 
   if (
     /^(e2e:prod-public-docs-links|ci:prod-public-docs-links-evidence)$/.test(
-      scriptName
+      scriptName,
     ) &&
     /prod_public_docs_links_(e2e|evidence_check)\.mjs\b/.test(scriptValue)
   ) {
@@ -216,6 +229,7 @@ const SCRIPT_CLASSIFIERS = [
   classifyAgentLessonScript,
   classifyPrLocalScript,
   classifyWeeklyHygieneScript,
+  classifyGcpCostScript,
   classifyDocsPublicScript,
   classifyMonitoringScript,
   classifyContractScript,
@@ -248,7 +262,7 @@ export function classifyPackageJsonChange(mergeBase, head, options = {}) {
   const before = jsonAt(mergeBase, "package.json");
   const after = jsonAt(
     options.preferWorkingTree ? "WORKTREE" : head,
-    "package.json"
+    "package.json",
   );
   if (!before || !after) {
     return { fullReason: "package.json could not be parsed from both refs" };
@@ -290,7 +304,7 @@ export function classifyPackageJsonChange(mergeBase, head, options = {}) {
     commands: [...scopeResult.commands],
     riskScopes: [...scopeResult.riskScopes],
     reason: `package.json script-only change mapped narrowly: ${scripts.join(
-      ", "
+      ", ",
     )}`,
     needsRootNpmDeps: scopeResult.needsRootNpmDeps,
   };
