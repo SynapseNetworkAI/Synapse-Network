@@ -20,6 +20,12 @@ ADMIN_FRONT_LOG="${ROOT_DIR}/services/admin-front/admin_front_dev.log"
 ACTION="${1:-start}"
 ADMIN_SCHEMA_MIGRATED=0
 
+if [[ -f "${ROOT_DIR}/env.local" ]]; then
+  # shellcheck source=../lib/load_repo_env.sh
+  source "${ROOT_DIR}/scripts/lib/load_repo_env.sh"
+  load_synapse_repo_env local "${ROOT_DIR}"
+fi
+
 find_pid_by_port() {
   local port="$1"
   lsof -t -nP -iTCP:"${port}" -sTCP:LISTEN 2>/dev/null | head -n 1 || true

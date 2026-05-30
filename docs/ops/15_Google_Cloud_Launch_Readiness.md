@@ -474,7 +474,6 @@ Required staging secrets:
 | `synapse-staging-private-key`                 | Legacy staging withdraw signer private key             | Cleanup only after KMS withdrawal E2E passes |
 | `synapse-staging-gateway-internal-jwt-secret` | Gateway-admin to Gateway internal auth                 | Gateway, Gateway-admin                       |
 | `synapse-staging-admin-csrf-secret`           | Gateway-admin CSRF/session protection secret           | Gateway-admin                                |
-| `synapse-staging-gateway-admin-wallet`        | Internal admin wallet subject/allow-list identity      | Gateway, Gateway-admin                       |
 | `synapse-staging-gmail-app-password`          | Gmail app password or SMTP relay credential            | Notification outbox worker                   |
 | `synapse-staging-lark-webhook-p0`             | P0 Lark group robot webhook URL                        | Lark relay / alert jobs                      |
 | `synapse-staging-lark-webhook-prod-alerts`    | Staging/prod alert hall webhook for non-P0 route tests | Lark relay / alert jobs                      |
@@ -490,7 +489,6 @@ Recommended additional secrets before release evidence:
 | `synapse-staging-arbitrum-sepolia-rpc-url` | Alchemy/Infura/other Arbitrum Sepolia RPC URL          |
 | `synapse-staging-arbiscan-api-key`         | Arbiscan verification API key                          |
 | `synapse-staging-deployer-private-key`     | Staging contract deployer key, used only during deploy |
-| `synapse-staging-gmail-username`           | Gmail/Workspace sender username                        |
 | `synapse-staging-metrics-bearer-token`     | Optional metrics/readiness scrape token                |
 
 Use a newline-free write pattern:

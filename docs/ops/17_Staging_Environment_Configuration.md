@@ -497,9 +497,6 @@ Gmail staging uses SMTP app password or Workspace SMTP relay. The Gmail API is
 not required for V1 email delivery.
 
 ```bash
-printf '%s' 'staging-alerts@synapse-network.ai' | \
-  bash scripts/deploy/gcp_put_secret.sh synapse-staging-gmail-username
-
 printf '%s' 'YOUR_GMAIL_APP_PASSWORD_OR_RELAY_CREDENTIAL' | \
   bash scripts/deploy/gcp_put_secret.sh synapse-staging-gmail-app-password
 ```
@@ -594,8 +591,6 @@ secrets for production.
 | `synapse-staging-private-key`                  | Legacy Gateway withdrawal signer private key. Cleanup-only after KMS evidence is green; must not be injected into Gateway.                                                           | None after KMS migration                | Legacy staging signer wallet                                               | Cleanup audit only             |
 | `synapse-staging-gateway-internal-jwt-secret`  | Gateway-admin to Gateway internal service-token secret.                                                                                                                              | Gateway, Gateway-admin                  | User-generated 32+ byte secret                                             | Admin actions                  |
 | `synapse-staging-admin-csrf-secret`            | Gateway-admin CSRF/session protection secret.                                                                                                                                        | Gateway-admin                           | User-generated 32+ byte secret                                             | Admin login                    |
-| `synapse-staging-gateway-admin-wallet`         | Internal admin wallet subject/allow-list identity.                                                                                                                                   | Gateway, Gateway-admin                  | Dedicated staging admin wallet address                                     | Admin actions                  |
-| `synapse-staging-gmail-username`               | Gmail/Workspace sender username.                                                                                                                                                     | Email worker                            | Google Workspace mailbox                                                   | Email E2E                      |
 | `synapse-staging-gmail-app-password`           | Gmail app password or SMTP relay credential.                                                                                                                                         | Email worker                            | Google Workspace                                                           | Email E2E                      |
 | `synapse-staging-lark-webhook-p0`              | P0 Lark war-room webhook URL.                                                                                                                                                        | Lark E2E / alert relay                  | Lark bot                                                                   | Lark E2E                       |
 | `synapse-staging-lark-webhook-prod-alerts`     | Production-alert-hall style webhook used for staging route tests.                                                                                                                    | Lark E2E / alert relay                  | Lark bot                                                                   | Lark E2E                       |
@@ -668,7 +663,7 @@ services and jobs must explicitly inject each secret as an environment variable.
 For Gmail delivery, Gateway and `synapse-staging-notification-outbox-drain`
 must expose:
 
-- `GMAIL_SMTP_USERNAME` from `synapse-staging-gmail-username`
+- `GMAIL_SMTP_USERNAME` from repo-root `env.staging`
 - `GMAIL_SMTP_APP_PASSWORD` from `synapse-staging-gmail-app-password`
 - `POSTGRES_DSN` from `synapse-staging-postgres-dsn`
 - `EMAIL_FROM=Synapse Network Staging <staging-alerts@synapse-network.ai>`
@@ -859,14 +854,14 @@ Temporary manual repair, if Terraform has not yet been applied:
 gcloud run services update synapse-staging-gateway \
   --project "$PROJECT_ID" \
   --region us-central1 \
-  --update-secrets GMAIL_SMTP_USERNAME=synapse-staging-gmail-username:latest,GMAIL_SMTP_APP_PASSWORD=synapse-staging-gmail-app-password:latest \
-  --update-env-vars EMAIL_FROM='Synapse Network Staging <staging-alerts@synapse-network.ai>',EMAIL_REPLY_TO='support@synapse-network.ai'
+  --update-secrets GMAIL_SMTP_APP_PASSWORD=synapse-staging-gmail-app-password:latest \
+  --update-env-vars GMAIL_SMTP_USERNAME="$GMAIL_SMTP_USERNAME",EMAIL_FROM='Synapse Network Staging <staging-alerts@synapse-network.ai>',EMAIL_REPLY_TO='support@synapse-network.ai'
 
 gcloud run jobs update synapse-staging-notification-outbox-drain \
   --project "$PROJECT_ID" \
   --region us-central1 \
-  --update-secrets POSTGRES_DSN=synapse-staging-postgres-dsn:latest,GMAIL_SMTP_USERNAME=synapse-staging-gmail-username:latest,GMAIL_SMTP_APP_PASSWORD=synapse-staging-gmail-app-password:latest \
-  --update-env-vars EMAIL_FROM='Synapse Network Staging <staging-alerts@synapse-network.ai>',EMAIL_REPLY_TO='support@synapse-network.ai'
+  --update-secrets POSTGRES_DSN=synapse-staging-postgres-dsn:latest,GMAIL_SMTP_APP_PASSWORD=synapse-staging-gmail-app-password:latest \
+  --update-env-vars GMAIL_SMTP_USERNAME="$GMAIL_SMTP_USERNAME",EMAIL_FROM='Synapse Network Staging <staging-alerts@synapse-network.ai>',EMAIL_REPLY_TO='support@synapse-network.ai'
 ```
 
 Transaction notification behavior:
@@ -1264,11 +1259,16 @@ cp services/user-front/src/contract-config.arbitrum-sepolia.example.json \
 Template: `services/gateway/.env.staging.example`.
 Local private file: `services/gateway/.env.staging`.
 
-The local private file is ignored by Git. Cloud Run does not read this file
-directly; production-like staging deploys must inject the same values through
-Terraform, `gcloud run deploy`, and Secret Manager. Changing runtime env values
-on Cloud Run creates a new revision and does not require rebuilding the Gateway
-image unless the code changed.
+The service-local private file is ignored by Git. Repo-root `env.staging` is the
+operator-owned plain-config source for staging URLs, flags, limits, addresses,
+timeouts, and `NEXT_PUBLIC_*` values. Load it with
+`scripts/lib/load_repo_env.sh`; the loader exports keys for child processes but
+does not print values. Cloud Run does not read either local file directly;
+production-like staging deploys must inject plain values through Terraform
+`common_runtime_env` / `frontend_runtime_env` or `gcloud run deploy`, while
+credential values remain in Secret Manager. Changing runtime env values on Cloud
+Run creates a new revision and does not require rebuilding the Gateway image
+unless the code changed.
 
 | Variable                                  | Staging value                                              | Purpose                                                                                                                                                                                                          | Secret | Source                                         |
 | ----------------------------------------- | ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ | ---------------------------------------------- |
@@ -1307,7 +1307,7 @@ image unless the code changed.
 | `REDIS_URL`                               | empty                                                      | Redis disabled for MVP staging.                                                                                                                                                                                  | No     | MVP default                                    |
 | `DOWNSTREAM_ADAPTIVE_REDIS_ENABLED`       | `false`                                                    | Disable Redis-backed adaptive routing.                                                                                                                                                                           | No     | MVP default                                    |
 | `EMAIL_OUTBOX_ENABLED`                    | `true`                                                     | Persist async email intents.                                                                                                                                                                                     | No     | MVP default                                    |
-| `GMAIL_SMTP_USERNAME`                     | Secret Manager value                                       | SMTP sender username.                                                                                                                                                                                            | Yes    | `synapse-staging-gmail-username`               |
+| `GMAIL_SMTP_USERNAME`                     | `env.staging` / plain runtime env                          | SMTP sender username.                                                                                                                                                                                            | No     | Operator local config                          |
 | `GMAIL_SMTP_APP_PASSWORD`                 | Secret Manager value                                       | SMTP app password/relay credential.                                                                                                                                                                              | Yes    | `synapse-staging-gmail-app-password`           |
 
 ## Admin-front
@@ -1335,30 +1335,30 @@ The local private file is ignored by Git. Cloud Run must receive the equivalent
 values through runtime env and Secret Manager. Changing Gateway-admin runtime
 env creates a new Cloud Run revision; rebuild only when code changes.
 
-| Variable                           | Staging value                              | Purpose                                                                                                                     | Secret                | Source                                         |
-| ---------------------------------- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- | --------------------- | ---------------------------------------------- |
-| `ENVIRONMENT`                      | `staging`                                  | Admin API environment marker.                                                                                               | No                    | Fixed                                          |
-| `ADMIN_GATEWAY_PORT`               | `8000`                                     | Cloud Run container port for Gateway-admin.                                                                                 | No                    | Fixed                                          |
-| `ADMIN_GATEWAY_ALLOWED_ORIGINS`    | `https://admin-staging.synapse-network.ai` | Admin-front origin allowed by CORS.                                                                                         | No                    | Fixed staging domain                           |
-| `ADMIN_SESSION_COOKIE_SECURE`      | `true`                                     | Send admin session cookie only over HTTPS.                                                                                  | No                    | Fixed                                          |
-| `ADMIN_SESSION_COOKIE_SAMESITE`    | `lax`                                      | Admin session CSRF boundary.                                                                                                | No                    | Fixed                                          |
-| `ADMIN_SESSION_COOKIE_DOMAIN`      | `.synapse-network.ai`                      | Admin session cookie domain.                                                                                                | No                    | Fixed parent domain                            |
-| `ADMIN_LOGIN_LOCK_THRESHOLD`       | `5`                                        | Lock an admin account after five consecutive password or OTP failures. Valid range is `3..10`; invalid values fail startup. | No                    | Fixed                                          |
-| `ADMIN_LOGIN_LOCK_HOURS`           | `24`                                       | Temporary account lock duration in hours. Valid range is `1..168`; invalid values fail startup.                             | No                    | Fixed                                          |
-| `ADMIN_CSRF_SECRET`                | Secret Manager value                       | CSRF/session signing secret.                                                                                                | Yes                   | `synapse-staging-admin-csrf-secret`            |
-| `ADMIN_TOTP_SECRET_ENCRYPTION_KEY` | Secret Manager value                       | Encrypts admin Google Authenticator secrets at rest. Placeholder or local default values fail startup in staging/prod.      | Yes                   | `synapse-staging-admin-totp-encryption-key`    |
-| `ADMIN_DATABASE_DSN`               | Secret Manager value                       | Admin control-plane database full DSN.                                                                                      | Yes                   | `synapse-staging-admin-database-dsn`           |
-| `ADMIN_DATABASE_MIGRATION_DSN`     | Secret Manager value                       | Admin schema migration full DSN.                                                                                            | Yes                   | `synapse-staging-admin-database-migration-dsn` |
-| `GATEWAY_READONLY_DSN`             | Secret Manager value                       | Read Gateway projections without write access.                                                                              | Yes                   | `synapse-staging-gateway-readonly-dsn`         |
-| `GATEWAY_FORUM_WRITE_DSN`          | Secret Manager value                       | Write forum/support records into Gateway DB where required.                                                                 | Yes                   | `synapse-staging-gateway-forum-write-dsn`      |
-| `GATEWAY_INTERNAL_BASE_URL`        | `https://api-staging.synapse-network.ai`   | Internal admin calls to Gateway.                                                                                            | No                    | Fixed staging domain                           |
-| `GATEWAY_INTERNAL_ADMIN_WALLET`    | Secret Manager value or injected address   | Internal admin wallet subject.                                                                                              | Yes/Address-sensitive | `synapse-staging-gateway-admin-wallet`         |
-| `GATEWAY_INTERNAL_JWT_SECRET`      | Secret Manager value                       | Signs Gateway-admin service tokens.                                                                                         | Yes                   | `synapse-staging-gateway-internal-jwt-secret`  |
-| `GATEWAY_INTERNAL_TOKEN_ISSUER`    | `gateway-admin`                            | Internal JWT issuer.                                                                                                        | No                    | Fixed                                          |
-| `GATEWAY_INTERNAL_TOKEN_AUDIENCE`  | `gateway-internal`                         | Internal JWT audience.                                                                                                      | No                    | Fixed                                          |
-| `GATEWAY_INTERNAL_SERVICE_SUBJECT` | `service:gateway-admin`                    | Internal JWT subject.                                                                                                       | No                    | Fixed                                          |
-| `GATEWAY_INTERNAL_TIMEOUT_SEC`     | `10`                                       | Gateway internal call timeout.                                                                                              | No                    | Fixed                                          |
-| `EXECUTION_WORKER_ENABLED`         | `false`                                    | Keep long-running admin worker loops out of the API-serving Cloud Run service for MVP staging.                              | No                    | Fixed                                          |
+| Variable                           | Staging value                              | Purpose                                                                                                                     | Secret | Source                                         |
+| ---------------------------------- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- | ------ | ---------------------------------------------- |
+| `ENVIRONMENT`                      | `staging`                                  | Admin API environment marker.                                                                                               | No     | Fixed                                          |
+| `ADMIN_GATEWAY_PORT`               | `8000`                                     | Cloud Run container port for Gateway-admin.                                                                                 | No     | Fixed                                          |
+| `ADMIN_GATEWAY_ALLOWED_ORIGINS`    | `https://admin-staging.synapse-network.ai` | Admin-front origin allowed by CORS.                                                                                         | No     | Fixed staging domain                           |
+| `ADMIN_SESSION_COOKIE_SECURE`      | `true`                                     | Send admin session cookie only over HTTPS.                                                                                  | No     | Fixed                                          |
+| `ADMIN_SESSION_COOKIE_SAMESITE`    | `lax`                                      | Admin session CSRF boundary.                                                                                                | No     | Fixed                                          |
+| `ADMIN_SESSION_COOKIE_DOMAIN`      | `.synapse-network.ai`                      | Admin session cookie domain.                                                                                                | No     | Fixed parent domain                            |
+| `ADMIN_LOGIN_LOCK_THRESHOLD`       | `5`                                        | Lock an admin account after five consecutive password or OTP failures. Valid range is `3..10`; invalid values fail startup. | No     | Fixed                                          |
+| `ADMIN_LOGIN_LOCK_HOURS`           | `24`                                       | Temporary account lock duration in hours. Valid range is `1..168`; invalid values fail startup.                             | No     | Fixed                                          |
+| `ADMIN_CSRF_SECRET`                | Secret Manager value                       | CSRF/session signing secret.                                                                                                | Yes    | `synapse-staging-admin-csrf-secret`            |
+| `ADMIN_TOTP_SECRET_ENCRYPTION_KEY` | Secret Manager value                       | Encrypts admin Google Authenticator secrets at rest. Placeholder or local default values fail startup in staging/prod.      | Yes    | `synapse-staging-admin-totp-encryption-key`    |
+| `ADMIN_DATABASE_DSN`               | Secret Manager value                       | Admin control-plane database full DSN.                                                                                      | Yes    | `synapse-staging-admin-database-dsn`           |
+| `ADMIN_DATABASE_MIGRATION_DSN`     | Secret Manager value                       | Admin schema migration full DSN.                                                                                            | Yes    | `synapse-staging-admin-database-migration-dsn` |
+| `GATEWAY_READONLY_DSN`             | Secret Manager value                       | Read Gateway projections without write access.                                                                              | Yes    | `synapse-staging-gateway-readonly-dsn`         |
+| `GATEWAY_FORUM_WRITE_DSN`          | Secret Manager value                       | Write forum/support records into Gateway DB where required.                                                                 | Yes    | `synapse-staging-gateway-forum-write-dsn`      |
+| `GATEWAY_INTERNAL_BASE_URL`        | `https://api-staging.synapse-network.ai`   | Internal admin calls to Gateway.                                                                                            | No     | Fixed staging domain                           |
+| `GATEWAY_INTERNAL_ADMIN_WALLET`    | `env.staging` / plain runtime env          | Internal admin wallet subject.                                                                                              | No     | Operator local config                          |
+| `GATEWAY_INTERNAL_JWT_SECRET`      | Secret Manager value                       | Signs Gateway-admin service tokens.                                                                                         | Yes    | `synapse-staging-gateway-internal-jwt-secret`  |
+| `GATEWAY_INTERNAL_TOKEN_ISSUER`    | `gateway-admin`                            | Internal JWT issuer.                                                                                                        | No     | Fixed                                          |
+| `GATEWAY_INTERNAL_TOKEN_AUDIENCE`  | `gateway-internal`                         | Internal JWT audience.                                                                                                      | No     | Fixed                                          |
+| `GATEWAY_INTERNAL_SERVICE_SUBJECT` | `service:gateway-admin`                    | Internal JWT subject.                                                                                                       | No     | Fixed                                          |
+| `GATEWAY_INTERNAL_TIMEOUT_SEC`     | `10`                                       | Gateway internal call timeout.                                                                                              | No     | Fixed                                          |
+| `EXECUTION_WORKER_ENABLED`         | `false`                                    | Keep long-running admin worker loops out of the API-serving Cloud Run service for MVP staging.                              | No     | Fixed                                          |
 
 Gateway-admin persistence needs an admin database/user. If V1 uses the same
 Cloud SQL instance, create a separate admin database and least-privilege user;
@@ -1369,19 +1369,19 @@ do not reuse the Gateway write user for admin control-plane writes.
 Alchemy webhook acceleration for staging deposit confirmation must stay aligned
 with the Gateway bounded-retry design:
 
-| Variable                                   | Staging value / source                                                                 | Purpose                                                                                   |
-| ------------------------------------------ | -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `ALCHEMY_DEPOSIT_WEBHOOK_ENABLED`          | `true`                                                                                 | Enables `POST /internal/webhooks/alchemy/deposits`.                                       |
-| `ALCHEMY_DEPOSIT_WEBHOOK_SIGNING_KEY`      | Secret Manager `synapse-staging-alchemy-deposit-webhook-signing-key`                  | HMAC signing key copied from the `synapse-network-staging` Alchemy app webhook.          |
-| `DEPOSIT_INDEXER_TRIGGER_ENABLED`          | `true`                                                                                 | Enables intent-triggered bounded pending sweep.                                           |
-| `DEPOSIT_INDEXER_TRIGGER_URL`              | `<staging gateway real run.app>/internal/jobs/deposit-indexer/trigger`                | Must use the staging gateway real Cloud Run URL, not loopback.                           |
-| `DEPOSIT_INDEXER_TRIGGER_DELAY_SEC`        | `4`                                                                                    | Short RPC/finality buffer before first trigger attempt.                                   |
-| `DEPOSIT_INDEXER_TRIGGER_TIMEOUT_SEC`      | `12`                                                                                   | Bounded timeout for one internal trigger request.                                         |
-| `DEPOSIT_PENDING_SWEEP_MAX_WAIT_SEC`       | `20`                                                                                   | Bounded retry window for pending confirmation sweep.                                      |
-| `DEPOSIT_PENDING_SWEEP_POLL_INTERVAL_SEC`  | `2`                                                                                    | Poll interval inside the bounded retry window.                                            |
-| `DEPOSIT_PENDING_INTENT_STALE_AFTER_SEC`   | `1800`                                                                                 | Timeout before a missing-receipt pending intent is marked failed.                        |
-| `Webhook callback URL`                     | `https://api-staging.synapse-network.ai/internal/webhooks/alchemy/deposits`           | Staging Alchemy callback target.                                                          |
-| `Alchemy app`                              | `SynapseNetwork`                                                                       | Staging Alchemy app in the shared team account.                                           |
+| Variable                                  | Staging value / source                                                      | Purpose                                                                         |
+| ----------------------------------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `ALCHEMY_DEPOSIT_WEBHOOK_ENABLED`         | `true`                                                                      | Enables `POST /internal/webhooks/alchemy/deposits`.                             |
+| `ALCHEMY_DEPOSIT_WEBHOOK_SIGNING_KEY`     | Secret Manager `synapse-staging-alchemy-deposit-webhook-signing-key`        | HMAC signing key copied from the `synapse-network-staging` Alchemy app webhook. |
+| `DEPOSIT_INDEXER_TRIGGER_ENABLED`         | `true`                                                                      | Enables intent-triggered bounded pending sweep.                                 |
+| `DEPOSIT_INDEXER_TRIGGER_URL`             | `<staging gateway real run.app>/internal/jobs/deposit-indexer/trigger`      | Must use the staging gateway real Cloud Run URL, not loopback.                  |
+| `DEPOSIT_INDEXER_TRIGGER_DELAY_SEC`       | `4`                                                                         | Short RPC/finality buffer before first trigger attempt.                         |
+| `DEPOSIT_INDEXER_TRIGGER_TIMEOUT_SEC`     | `12`                                                                        | Bounded timeout for one internal trigger request.                               |
+| `DEPOSIT_PENDING_SWEEP_MAX_WAIT_SEC`      | `20`                                                                        | Bounded retry window for pending confirmation sweep.                            |
+| `DEPOSIT_PENDING_SWEEP_POLL_INTERVAL_SEC` | `2`                                                                         | Poll interval inside the bounded retry window.                                  |
+| `DEPOSIT_PENDING_INTENT_STALE_AFTER_SEC`  | `1800`                                                                      | Timeout before a missing-receipt pending intent is marked failed.               |
+| `Webhook callback URL`                    | `https://api-staging.synapse-network.ai/internal/webhooks/alchemy/deposits` | Staging Alchemy callback target.                                                |
+| `Alchemy app`                             | `SynapseNetwork`                                                            | Staging Alchemy app in the shared team account.                                 |
 
 Required operating notes:
 
@@ -1804,9 +1804,10 @@ gcloud run jobs update synapse-staging-deposit-indexer \
 ```
 
 If Terraform owns Cloud Run env for this deployment, set the same values in
-local private `infra/terraform/gcp-staging/terraform.tfvars` under
-`common_runtime_env` instead of hand-updating Cloud Run. Do not commit private
-`terraform.tfvars`.
+repo-root `env.staging` first, then mirror them into local private
+`infra/terraform/gcp-staging/terraform.tfvars` under `common_runtime_env` /
+`frontend_runtime_env` instead of hand-updating Cloud Run. Do not commit
+`env.staging` or private `terraform.tfvars`.
 
 ```bash
 curl https://staging.synapse-network.ai

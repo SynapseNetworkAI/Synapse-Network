@@ -7,6 +7,12 @@ ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 PID_FILE="${ROOT_DIR}/.staging_env.pids"
 LOG_FILE="${ROOT_DIR}/services/gateway/logs/provider_api_staging.log"
 
+if [[ -f "${ROOT_DIR}/env.staging" ]]; then
+  # shellcheck source=../lib/load_repo_env.sh
+  source "${ROOT_DIR}/scripts/lib/load_repo_env.sh"
+  load_synapse_repo_env staging "${ROOT_DIR}"
+fi
+
 find_pid_by_port() {
   local port="$1"
   lsof -t -nP -iTCP:"$port" -sTCP:LISTEN 2>/dev/null | head -n 1 || true

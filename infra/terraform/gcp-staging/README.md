@@ -117,9 +117,12 @@ Recommended flow:
 5. Grant Cloud Run service accounts access only to the secrets they need. Gateway
    currently uses the shared runtime account; Provider runtime and Provider
    onboarding use separate service accounts with per-secret IAM bindings.
-6. Inject secrets into Cloud Run with Terraform `secret_env` or, for an
+6. Keep plain config in repo-root private `env.staging` / `env.prod` and map it
+   into Terraform `common_runtime_env` / `frontend_runtime_env`. Never use these
+   env files for DSNs, passwords, API keys, signing secrets, or private keys.
+7. Inject secrets into Cloud Run with Terraform `secret_env` or, for an
    emergency manual repair, `gcloud run ... --update-secrets`.
-7. Derive the KMS Ethereum signer address with
+8. Derive the KMS Ethereum signer address with
    `node scripts/chain/gcp_kms_derive_eth_address.mjs <cryptoKeyVersion>` and
    set Terraform variable `withdraw_signer_address` only after
    `SynapseCore.platformSigner()` has been rotated to that address.
@@ -128,10 +131,10 @@ Cloud Run resolves `secret:latest` while creating revisions/jobs. A Secret
 Manager placeholder without an enabled version is not deployable and will fail
 `terraform apply` after other resources may already have changed.
 
-Gateway-backed services and jobs inject Gmail SMTP credentials from
-`synapse-staging-gmail-username` and `synapse-staging-gmail-app-password`.
-Secret Manager having a value is not enough: the Cloud Run service/job must also
-list `GMAIL_SMTP_USERNAME` and `GMAIL_SMTP_APP_PASSWORD` in its environment.
+Gateway-backed services and jobs inject `GMAIL_SMTP_USERNAME` from plain
+`env.staging` / `common_runtime_env`, while `GMAIL_SMTP_APP_PASSWORD` stays in
+Secret Manager. Secret Manager having a password value is not enough: the Cloud
+Run service/job must also list both SMTP environment variables.
 Use `docs/ops/17_Staging_Environment_Configuration.md` for the full write,
 runtime-injection, and verification commands.
 
