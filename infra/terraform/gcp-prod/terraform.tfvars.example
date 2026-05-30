@@ -8,6 +8,7 @@ artifact_registry_repository = "synapse-prod"
 # Set to true only when testing cleanup candidates. Normal production should
 # keep this false so old untagged images are actually removed.
 artifact_registry_cleanup_policy_dry_run = false
+artifact_registry_keep_recent_count      = 3
 
 # Production starts conservative, then scales with live evidence.
 cloud_sql_tier                           = "db-g1-small"
@@ -20,6 +21,16 @@ cloud_sql_deletion_protection            = true
 cloud_sql_backup_start_time              = "19:00" # UTC; 03:00 Asia/Kuala_Lumpur
 cloud_sql_transaction_log_retention_days = 7
 cloud_sql_retained_backups               = 7
+
+# Cost control: keep the production Gateway cold-startable before formal launch.
+gateway_min_instances = 0
+
+# Production job schedules stay conservative by default. Tune only with
+# money-path recovery evidence.
+deposit_indexer_schedule                  = "*/10 * * * *"
+consumer_withdraw_chain_recovery_schedule = "*/10 * * * *"
+withdrawal_expiry_sweeper_schedule        = "*/10 * * * *"
+notification_outbox_drain_schedule        = "*/10 * * * *"
 
 # Optional: set container image URLs once Artifact Registry images exist.
 # These are Docker/OCI images for Cloud Run, not website pictures.

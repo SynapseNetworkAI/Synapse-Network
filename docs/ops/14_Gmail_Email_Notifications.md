@@ -21,7 +21,7 @@ paths.
     `POST /internal/jobs/notification-outbox/trigger` using
     `X-Synapse-Internal-Token: $INTERNAL_TRIGGER_SECRET`.
   - Fallback path: the scheduled Cloud Run job still runs `notification-outbox`
-    every 10 minutes in staging.
+    every 30 minutes in staging.
 
   ```bash
   python -m src.worker notification-outbox

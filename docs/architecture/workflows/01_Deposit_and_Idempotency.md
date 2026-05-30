@@ -351,7 +351,7 @@ flowchart TD
     E -->|"scan all current pending intents"| H["RPC receipt + event matcher"]
     H -->|"match valid deposit evidence"| D
     D -->|"pending -> available once"| I["Credits / Billing"]
-    J["Cloud Scheduler 10m"] --> K["deposit-indexer job"]
+    J["Cloud Scheduler recovery (30m staging / 10m prod)"] --> K["deposit-indexer job"]
     K -->|"backfill + pending sweep + reconciliation"| D
 ```
 
