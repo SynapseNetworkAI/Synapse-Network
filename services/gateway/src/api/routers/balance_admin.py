@@ -26,6 +26,13 @@ from src.api.routers.balance_helpers import (
     BaseStorage,
     get_storage,
 )
+from src.services.platform.business_policy import (
+    build_env_config_summary,
+    get_business_policy_snapshot,
+    publish_business_policy_snapshot,
+    validate_business_policy_payload,
+)
+from src.utils.datetime_utils import now_dt_str
 
 router = APIRouter()
 
@@ -229,6 +236,98 @@ async def set_fee_policy(
         "status": "success",
         "requestedBy": admin_wallet,
         "policy": saved,
+    }
+
+
+@router.get(
+    "/v1/admin/business-policy",
+    responses={403: {"description": "Forbidden or fee admin not configured"}},
+)
+async def get_business_policy(
+    principal: Annotated[
+        InternalServicePrincipal, Depends(require_internal_scope("business_policy.read"))
+    ],
+    storage: Annotated[BaseStorage, Depends(get_storage)],
+):
+    admin_wallet = _ensure_fee_policy_admin(principal.admin_wallet)
+    snapshot = get_business_policy_snapshot(storage)
+    return {
+        "status": "success",
+        "requestedBy": admin_wallet,
+        "policy": snapshot.payload,
+        "source": snapshot.source,
+        "publishedVersion": snapshot.published_version,
+        "updatedAt": snapshot.updated_at,
+        "updatedBy": snapshot.updated_by,
+    }
+
+
+@router.put(
+    "/v1/admin/business-policy",
+    responses={
+        400: {"description": "Invalid business policy payload"},
+        403: {"description": "Forbidden or fee admin not configured"},
+    },
+)
+async def set_business_policy(
+    payload: dict[str, Any],
+    principal: Annotated[
+        InternalServicePrincipal, Depends(require_internal_scope("business_policy.write"))
+    ],
+    storage: Annotated[BaseStorage, Depends(get_storage)],
+):
+    admin_wallet = _ensure_fee_policy_admin(principal.admin_wallet)
+    try:
+        published_version = int(payload.get("publishedVersion") or 1)
+        normalized = validate_business_policy_payload(
+            payload.get("policy") if isinstance(payload, dict) else {}
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "INVALID_BUSINESS_POLICY", "message": str(exc)},
+        ) from exc
+    snapshot = publish_business_policy_snapshot(
+        storage,
+        payload=normalized,
+        published_version=published_version,
+        updated_by=admin_wallet,
+        updated_at=now_dt_str(),
+    )
+    return {
+        "status": "success",
+        "requestedBy": admin_wallet,
+        "policy": snapshot.payload,
+        "source": snapshot.source,
+        "publishedVersion": snapshot.published_version,
+        "updatedAt": snapshot.updated_at,
+        "updatedBy": snapshot.updated_by,
+    }
+
+
+@router.get(
+    "/v1/admin/config-overview",
+    responses={403: {"description": "Forbidden or fee admin not configured"}},
+)
+async def get_config_overview(
+    principal: Annotated[
+        InternalServicePrincipal, Depends(require_internal_scope("business_policy.read"))
+    ],
+    storage: Annotated[BaseStorage, Depends(get_storage)],
+):
+    admin_wallet = _ensure_fee_policy_admin(principal.admin_wallet)
+    snapshot = get_business_policy_snapshot(storage)
+    return {
+        "status": "success",
+        "requestedBy": admin_wallet,
+        "businessPolicy": {
+            "policy": snapshot.payload,
+            "source": snapshot.source,
+            "publishedVersion": snapshot.published_version,
+            "updatedAt": snapshot.updated_at,
+            "updatedBy": snapshot.updated_by,
+        },
+        "envSummary": build_env_config_summary(),
     }
 
 

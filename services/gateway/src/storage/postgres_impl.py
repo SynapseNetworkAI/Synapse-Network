@@ -18,6 +18,7 @@ from .postgres.schema_contracts import (
 from .postgres.repositories.audit_log_repository import AuditLogRepository
 from .postgres.repositories.analytics_outbox_repository import AnalyticsOutboxRepository
 from .postgres.repositories.balance_repository import BalanceRepository
+from .postgres.repositories.business_policy_repository import BusinessPolicyRepository
 from .postgres.repositories.credential_auth_repository import CredentialAuthRepository
 from .postgres.repositories.deposit_attempt_repository import DepositAttemptRepository
 from .postgres.repositories.execution_repository import ExecutionRepository
@@ -130,6 +131,7 @@ class PostgresStorage(BaseStorage):
 
         # -- Build repository set (inlined from former repository_factory.py) --
         q6 = _q6
+        business_policy = BusinessPolicyRepository(self._db, q6)
         fee_policy = FeePolicyRepository(self._db, q6)
         idempotency = IdempotencyRepository(self._db)
         audit = AuditLogRepository(self._db, _AUDIT_INSERT_SQL)
@@ -149,6 +151,7 @@ class PostgresStorage(BaseStorage):
             _BALANCE_FOR_UPDATE_SQL,
             _AUDIT_INSERT_SQL,
             _RISK_RESTRICTED_SESSION_STATUSES,
+            business_policy_repository=business_policy,
         )
         self._deposit_attempts = deposit_attempts
         self.analytics_outbox = analytics_outbox
@@ -157,7 +160,10 @@ class PostgresStorage(BaseStorage):
         self._data_manager = SynapseDataManager(
             uow=SynapseUnitOfWork(db=self._db),
             finance=FinanceDomain(
-                balance=balance, atomic=finance_atomic, fee_policy=fee_policy
+                balance=balance,
+                atomic=finance_atomic,
+                fee_policy=fee_policy,
+                business_policy=business_policy,
             ),
             system=SystemDomain(
                 gateway_state=gateway_state,

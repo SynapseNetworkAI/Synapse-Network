@@ -143,6 +143,14 @@ export const FUNCTION_MATRIX = [
     screenshots: ["users", "role-permissions", "menu-config"],
   },
   {
+    id: "config-business-policy",
+    label: "Config center / business policy publish sync",
+    routes: ["/config"],
+    steps: ["admin-front"],
+    sql: ["business-policy-config-admin", "business-policy-config-runtime"],
+    screenshots: ["config-overview", "config-draft-dirty", "config-restored"],
+  },
+  {
     id: "provider-services",
     label: "Provider services / health probe",
     routes: ["/provider-services"],

@@ -5,6 +5,7 @@ from typing import Any
 from src.core.common import normalize_wallet
 from src.core.config import settings
 from src.domain.finance import BalanceLedger
+from src.services.platform.business_policy import reconciliation_alert_delta
 from src.storage import BaseStorage
 from src.utils.money import MoneyCodec, money_str
 
@@ -64,7 +65,7 @@ def run_reconciliation_check_once(storage: BaseStorage) -> dict[str, Any]:
     ledger_obligation = _sum_ledger_obligation_usdc(ledger)
     chain_vault = _read_chain_vault_balance_usdc()
     delta = MoneyCodec.coerce_decimal(abs(chain_vault - ledger_obligation))
-    threshold = MoneyCodec.coerce_decimal(settings.v2_reconciliation_alert_delta_usdc)
+    threshold = MoneyCodec.coerce_decimal(reconciliation_alert_delta(storage))
     alert = bool(delta > threshold)
 
     state = _load_runtime_state(storage, "deposit_reconciliation_state")

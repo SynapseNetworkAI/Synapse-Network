@@ -24,6 +24,11 @@ const OUT_DIR = path.resolve(
   process.env.ADMIN_REGRESSION_OUTPUT_DIR ||
     path.join(ROOT, "output/dogfood/admin-regression", RUN_ID)
 );
+const ADMIN_FRONT_DOGFOOD_OUT_DIR = path.join(OUT_DIR, "artifacts/admin-front");
+const ADMIN_FRONT_DOGFOOD_REPORT = path.join(
+  ADMIN_FRONT_DOGFOOD_OUT_DIR,
+  "report.json"
+);
 const ADMIN_DSN =
   process.env.ADMIN_DATABASE_DSN ||
   "postgresql://synapse_admin_app:local-dev-admin-app-password@127.0.0.1:15432/synapse_gateway_admin";
@@ -35,18 +40,28 @@ const GATEWAY_DSN =
 
 const REQUIRED_SCREENSHOT_KEYWORDS = [
   "analytics",
+  "config",
   "finance",
   "provider-services",
   "withdraw",
   "forum",
 ];
+const LOCAL_WITHDRAWAL_AUTO_SINGLE_LIMIT_USDC =
+  process.env.WITHDRAWAL_AUTO_SINGLE_LIMIT_USDC || "1.000000";
+const STEP_MAX_BUFFER_BYTES = 20 * 1024 * 1024;
 
 const LOCAL_STEPS = [
+  [
+    "local-gateway-schema",
+    ["__shell", "bash", "services/gateway/scripts/deploy/migrate_db.sh", "local"],
+  ],
   [
     "local-gateway-health",
     ["__shell", "bash", "scripts/local/restart_gateway.sh"],
   ],
-  ["admin-front", ["run", "e2e:admin-front"]],
+  ["admin-front-seed", ["run", "e2e:admin-front:seed"]],
+  ["admin-front-dogfood", ["run", "e2e:admin-front:dogfood"]],
+  ["admin-front-reconcile", ["run", "e2e:admin-front:reconcile"]],
   ["admin-login-lockout", ["run", "e2e:admin-login-lockout:dogfood"]],
   ["admin-withdrawal-approval", ["run", "e2e:admin-withdrawal-approval"]],
   [
@@ -79,6 +94,14 @@ const LOCAL_STEPS = [
   ["admin-analytics-postgres", ["run", "e2e:admin-analytics-postgres"]],
 ];
 
+const STEPS_REQUIRING_ROOT_ADMIN_TOTP = new Set([
+  "admin-front-seed",
+  "admin-front-dogfood",
+  "admin-front-reconcile",
+  "admin-login-lockout",
+  "admin-withdrawal-approval",
+]);
+
 const STAGING_STEPS = [
   [
     "withdrawal-review-dogfood-staging",
@@ -97,6 +120,34 @@ function mkdirp(dir) {
 }
 
 let cachedLocalAdminTotpSecret;
+let cachedLocalProviderKey;
+
+function decryptInlineTotpSecretRef(secretRef) {
+  const gatewayAdminPython = path.join(
+    ROOT,
+    "services/gateway-admin/.venv/bin/python"
+  );
+  if (!secretRef || !fs.existsSync(gatewayAdminPython)) {
+    return "";
+  }
+  const decrypted = spawnSync(
+    gatewayAdminPython,
+    [
+      "-c",
+      [
+        "import sys",
+        `sys.path.insert(0, ${JSON.stringify(
+          path.join(ROOT, "services/gateway-admin")
+        )})`,
+        "from src.core.totp_secret_store import decrypt_inline_totp_secret_ref",
+        "print(decrypt_inline_totp_secret_ref(sys.argv[1]))",
+      ].join("; "),
+      secretRef,
+    ],
+    { cwd: ROOT, encoding: "utf8" }
+  );
+  return decrypted.status === 0 ? String(decrypted.stdout || "").trim() : "";
+}
 
 function resolveLocalAdminTotpSecret() {
   if (cachedLocalAdminTotpSecret !== undefined) {
@@ -118,12 +169,14 @@ function resolveLocalAdminTotpSecret() {
       "ON_ERROR_STOP=1",
       "-c",
       `
-      SELECT to_json(payload_json->>'totpSecret')
+      SELECT json_build_object(
+        'totpSecret', payload_json->>'totpSecret',
+        'secretRef', secret_ref
+      )
       FROM admin_mfa_factors mf
       JOIN admin_users au ON au.admin_id = mf.admin_id
       WHERE au.email = 'cliff@synapse-network.ai'
         AND mf.status = 'active'
-        AND payload_json ? 'totpSecret'
       ORDER BY mf.updated_at DESC
       LIMIT 1
     `,
@@ -135,23 +188,63 @@ function resolveLocalAdminTotpSecret() {
   }
   try {
     const value = JSON.parse(result.stdout.trim() || "null");
-    cachedLocalAdminTotpSecret =
-      typeof value === "string" && value.trim() ? value.trim() : "";
+    const inlineSecret = String(value?.totpSecret || "").trim();
+    if (inlineSecret) {
+      cachedLocalAdminTotpSecret = inlineSecret;
+      return cachedLocalAdminTotpSecret;
+    }
+    const secretRef = String(value?.secretRef || "").trim();
+    cachedLocalAdminTotpSecret = secretRef
+      ? decryptInlineTotpSecretRef(secretRef)
+      : "";
   } catch {
     cachedLocalAdminTotpSecret = "";
   }
   return cachedLocalAdminTotpSecret;
 }
 
+function resolveLocalProviderKey() {
+  if (cachedLocalProviderKey !== undefined) {
+    return cachedLocalProviderKey;
+  }
+  cachedLocalProviderKey = "";
+  if (MODE !== "local") {
+    return cachedLocalProviderKey;
+  }
+  const candidates = [
+    process.env.SYNAPSE_PROVIDER_ONBOARDING_ENV || "",
+    path.resolve(ROOT, "../Synapse-Network-Provider/.env.onboarding.local"),
+    "/Users/cliff/workspace/agent/Synapse-Network-Provider/.env.onboarding.local",
+  ].filter(Boolean);
+  for (const onboardingEnvPath of candidates) {
+    if (!fs.existsSync(onboardingEnvPath)) {
+      continue;
+    }
+    const envText = fs.readFileSync(onboardingEnvPath, "utf8");
+    const match =
+      envText.match(/^PROVIDER_KEY=(.+)$/m) ||
+      envText.match(/^SYNAPSE_PROVIDER_OWNER_PRIVATE_KEY=(.+)$/m);
+    if (match?.[1]?.trim()) {
+      cachedLocalProviderKey = match[1]
+        .trim()
+        .replace(/^['"]|['"]$/g, "");
+      return cachedLocalProviderKey;
+    }
+  }
+  return cachedLocalProviderKey;
+}
+
 function runStep(name, args) {
   const startedAt = new Date().toISOString();
   const logPath = path.join(OUT_DIR, `${name}.log`);
   const localTotpSecret = resolveLocalAdminTotpSecret();
+  const localProviderKey = resolveLocalProviderKey();
   const executable = args[0] === "__shell" ? args[1] : "npm";
   const executableArgs = args[0] === "__shell" ? args.slice(2) : args;
   const result = spawnSync(executable, executableArgs, {
     cwd: ROOT,
     encoding: "utf8",
+    maxBuffer: STEP_MAX_BUFFER_BYTES,
     env: {
       ...process.env,
       ADMIN_ANALYTICS_SOURCE: process.env.ADMIN_ANALYTICS_SOURCE || "postgres",
@@ -160,7 +253,28 @@ function runStep(name, args) {
         process.env.ADMIN_ANALYTICS_STRICT_REAL_PIPELINE || "0",
       ADMIN_ANALYTICS_LOAD_PREPARE_LOCAL:
         process.env.ADMIN_ANALYTICS_LOAD_PREPARE_LOCAL || "0",
-      ...(localTotpSecret ? { ADMIN_TOTP_SECRET: localTotpSecret } : {}),
+      ...(["admin-front", "admin-front-seed", "admin-front-dogfood", "admin-front-reconcile"].includes(name)
+        ? {
+            ADMIN_FRONT_DOGFOOD_OUT_DIR,
+            ADMIN_FRONT_DOGFOOD_REPORT: ADMIN_FRONT_DOGFOOD_REPORT,
+          }
+        : {}),
+      ...(localTotpSecret && STEPS_REQUIRING_ROOT_ADMIN_TOTP.has(name)
+        ? { ADMIN_TOTP_SECRET: localTotpSecret }
+        : {}),
+      ...(localProviderKey
+        ? {
+            GATEWAY_E2E_PROVIDER_KEY: localProviderKey,
+            PROVIDER_KEY: localProviderKey,
+          }
+        : {}),
+      ...(MODE === "local" &&
+      ["admin-withdrawal-approval"].includes(name)
+        ? {
+            WITHDRAWAL_AUTO_SINGLE_LIMIT_USDC:
+              LOCAL_WITHDRAWAL_AUTO_SINGLE_LIMIT_USDC,
+          }
+        : {}),
     },
   });
   fs.writeFileSync(logPath, `${result.stdout || ""}\n${result.stderr || ""}`);
@@ -243,6 +357,50 @@ function collectSqlEvidence() {
           'approvalEvents', (SELECT COUNT(*) FROM admin_approval_events),
           'executionJobsByStatus', COALESCE((SELECT json_object_agg(status, count) FROM (SELECT status, COUNT(*) AS count FROM admin_execution_jobs GROUP BY status) s), '{}'::json),
           'executionAttempts', (SELECT COUNT(*) FROM admin_execution_attempts)
+        )
+      `
+      ),
+      sqlProbe(
+        ADMIN_DSN,
+        "business-policy-config-admin",
+        `
+        SELECT json_build_object(
+          'exists', EXISTS(
+            SELECT 1 FROM admin_config_documents
+            WHERE config_key = 'business_policy_config'
+          ),
+          'draftVersion', (
+            SELECT draft_version
+            FROM admin_config_documents
+            WHERE config_key = 'business_policy_config'
+          ),
+          'publishedVersion', (
+            SELECT published_version
+            FROM admin_config_documents
+            WHERE config_key = 'business_policy_config'
+          ),
+          'draftPayload', (
+            SELECT draft_payload_json
+            FROM admin_config_documents
+            WHERE config_key = 'business_policy_config'
+          ),
+          'publishedPayload', (
+            SELECT published_payload_json
+            FROM admin_config_documents
+            WHERE config_key = 'business_policy_config'
+          ),
+          'lastPublishedAudit', (
+            SELECT json_build_object(
+              'auditId', audit_id,
+              'createdAt', created_at,
+              'actorAdminId', operator_id,
+              'resultStatus', result_status
+            )
+            FROM admin_action_audit
+            WHERE action_type = 'business_policy_config.publish'
+            ORDER BY created_at DESC
+            LIMIT 1
+          )
         )
       `
       ),
@@ -351,13 +509,30 @@ function collectSqlEvidence() {
         )
       `
       ),
+      sqlProbe(
+        GATEWAY_DSN,
+        "business-policy-config-runtime",
+        `
+        WITH runtime AS (
+          SELECT payload, published_version, updated_at, updated_by
+          FROM synapse_business_policy_config
+          WHERE singleton_id = 1
+        )
+        SELECT json_build_object(
+          'exists', EXISTS(SELECT 1 FROM runtime),
+          'publishedVersion', (SELECT published_version FROM runtime),
+          'payload', (SELECT payload FROM runtime),
+          'updatedAt', (SELECT updated_at FROM runtime),
+          'updatedBy', (SELECT updated_by FROM runtime)
+        )
+      `
+      ),
     ],
   };
 }
 
 function findLatestReports() {
   const roots = [
-    "output/dogfood/admin-front",
     "output/dogfood/admin-withdrawal-approval",
     "output/dogfood/withdrawal-review",
     "output/dogfood/admin-withdrawal-review-local",
@@ -366,6 +541,21 @@ function findLatestReports() {
     "output/analytics-load",
   ];
   const reports = [];
+  if (fs.existsSync(ADMIN_FRONT_DOGFOOD_REPORT)) {
+    reports.push(ADMIN_FRONT_DOGFOOD_REPORT);
+  } else {
+    const adminFrontRoot = path.join(ROOT, "output/dogfood/admin-front");
+    if (fs.existsSync(adminFrontRoot)) {
+      const candidates = fs
+        .readdirSync(adminFrontRoot)
+        .map((entry) => path.join(adminFrontRoot, entry, "report.json"))
+        .filter((filePath) => fs.existsSync(filePath))
+        .sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs);
+      if (candidates[0]) {
+        reports.push(candidates[0]);
+      }
+    }
+  }
   for (const rel of roots) {
     const root = path.join(ROOT, rel);
     if (!fs.existsSync(root)) continue;
@@ -427,6 +617,12 @@ function collectScreenshotEvidence() {
     screenshots,
     pageAssertions,
     reportSummaries,
+    backendConsistencyEvidence: reports
+      .map((reportPath) => {
+        const report = JSON.parse(fs.readFileSync(reportPath, "utf8"));
+        return report.backendConsistencyEvidence || null;
+      })
+      .filter(Boolean),
     requiredKeywordCoverage: Object.fromEntries(
       REQUIRED_SCREENSHOT_KEYWORDS.map((keyword) => [
         keyword,
@@ -445,6 +641,20 @@ function checkStatus(ok, evidence, notApplicable = false) {
 
 function buildFunctionResults(steps, sqlEvidence, screenshotEvidence) {
   const stepMap = new Map(steps.map((step) => [step.name, step]));
+  const compositeStepStatuses = new Map([
+    [
+      "admin-front",
+      ["admin-front-seed", "admin-front-dogfood", "admin-front-reconcile"].every(
+        (name) => stepMap.get(name)?.status === "passed"
+      )
+        ? "passed"
+        : ["admin-front-seed", "admin-front-dogfood", "admin-front-reconcile"].some(
+              (name) => stepMap.has(name)
+            )
+          ? "failed"
+          : "missing",
+    ],
+  ]);
   const probes = [...(sqlEvidence.admin || []), ...(sqlEvidence.gateway || [])];
   const probeMap = new Map(probes.map((probe) => [probe.name, probe]));
   const pageRoutes = new Set(
@@ -465,7 +675,7 @@ function buildFunctionResults(steps, sqlEvidence, screenshotEvidence) {
     }));
     const stepEvidence = item.steps.map((name) => ({
       name,
-      status: stepMap.get(name)?.status || "missing",
+      status: stepMap.get(name)?.status || compositeStepStatuses.get(name) || "missing",
       logPath: stepMap.get(name)?.logPath || null,
     }));
     const sqlEvidenceForItem = item.sql.map((name) => ({
@@ -564,6 +774,7 @@ function buildExpectedState() {
       MODE === "staging"
         ? "Safe draft plus optional hardware-wallet execution evidence"
         : "Safe draft only; no direct broadcast",
+    businessPolicyRoundTripRequired: true,
   };
 }
 

@@ -51,3 +51,13 @@ class PlatformFeePolicyOwnerRow(BaseModel):
 
     owner_address: str = Field(alias="ownerAddress")
     fee_rate: Decimal = Field(default=Decimal("0"), alias="feeRate")
+
+
+class BusinessPolicyConfigRow(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    singleton_id: int = Field(default=1, alias="singletonId")
+    payload: dict[str, object] = Field(default_factory=dict)
+    published_version: int = Field(default=1, alias="publishedVersion")
+    updated_at: Optional[str] = Field(default=None, alias="updatedAt")
+    updated_by: Optional[str] = Field(default=None, alias="updatedBy")

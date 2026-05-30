@@ -27,6 +27,12 @@ const MODE = (
 ).toLowerCase();
 const IS_STAGING = MODE === "staging";
 const IS_ADMIN_REVIEW_FOCUSED = process.env.ADMIN_WITHDRAWAL_REVIEW_E2E === "1";
+const LOCAL_ADMIN_E2E_TOTP_SECRET =
+  process.env.LOCAL_ADMIN_E2E_TOTP_SECRET || "KVKFKRCPNZQUYMLXOVYDSQKJKZDTSRLD";
+const LOCAL_DEFAULT_CONSUMER_KEY =
+  "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d";
+const LOCAL_DEFAULT_PROVIDER_KEY =
+  "0xa9bc3f60a86d4a18c83113631aed4e39c9a83d76c95b9e229385e5e0c60b2a71";
 const timestamp = new Date()
   .toISOString()
   .replace(/[:.]/g, "")
@@ -47,6 +53,11 @@ const OUT_DIR = process.env.WITHDRAWAL_REVIEW_DOGFOOD_OUT_DIR
       }`
     );
 const SCREENSHOT_DIR = path.join(OUT_DIR, "screenshots");
+const ADMIN_DSN =
+  process.env.ADMIN_DATABASE_MIGRATION_DSN ||
+  process.env.ADMIN_DATABASE_DSN ||
+  "postgresql://synapse_admin_app:local-dev-admin-app-password@127.0.0.1:15432/synapse_gateway_admin";
+let cachedLocalAdminTotpSecret;
 
 const config = {
   mode: MODE,
@@ -80,10 +91,14 @@ const config = {
       "postgresql://synapse_gateway_app:local-dev-gateway-app-password@127.0.0.1:15432/synapse_gateway",
   adminCookieName:
     process.env.ADMIN_SESSION_COOKIE_NAME || "synapse_admin_session",
-  adminTotpSecret:
-    process.env.STAGING_ADMIN_E2E_OTP_SECRET ||
-    process.env.ADMIN_TOTP_SECRET ||
-    "JBSWY3DPEHPK3PXP",
+  adminTotpSecret: IS_STAGING
+    ? process.env.STAGING_ADMIN_E2E_OTP_SECRET ||
+      process.env.ADMIN_TOTP_SECRET ||
+      "JBSWY3DPEHPK3PXP"
+    : process.env.LOCAL_ADMIN_E2E_TOTP_SECRET ||
+      LOCAL_ADMIN_E2E_TOTP_SECRET ||
+      process.env.ADMIN_TOTP_SECRET ||
+      "KVKFKRCPNZQUYMLXOVYDSQKJKZDTSRLD",
   adminEmail:
     process.env.ADMIN_EMAIL ||
     (IS_STAGING
@@ -113,6 +128,91 @@ const config = {
   topupDepositUsdc:
     process.env.WITHDRAWAL_REVIEW_TOPUP_DEPOSIT_USDC || "1200.000000",
 };
+
+function decryptInlineTotpSecretRef(secretRef) {
+  const gatewayAdminPython = path.join(
+    ROOT,
+    "services/gateway-admin/.venv/bin/python"
+  );
+  if (!secretRef || !fs.existsSync(gatewayAdminPython)) {
+    return "";
+  }
+  const decrypted = spawnSync(
+    gatewayAdminPython,
+    [
+      "-c",
+      [
+        "import sys",
+        `sys.path.insert(0, ${JSON.stringify(
+          path.join(ROOT, "services/gateway-admin")
+        )})`,
+        "from src.core.totp_secret_store import decrypt_inline_totp_secret_ref",
+        "print(decrypt_inline_totp_secret_ref(sys.argv[1]))",
+      ].join("; "),
+      secretRef,
+    ],
+    { cwd: ROOT, encoding: "utf8" }
+  );
+  return decrypted.status === 0 ? String(decrypted.stdout || "").trim() : "";
+}
+
+function resolveLocalAdminTotpSecret() {
+  if (cachedLocalAdminTotpSecret !== undefined) {
+    return cachedLocalAdminTotpSecret;
+  }
+  cachedLocalAdminTotpSecret = "";
+  if (MODE !== "local" || process.env.ADMIN_TOTP_SECRET) {
+    return cachedLocalAdminTotpSecret;
+  }
+  const result = spawnSync(
+    "psql",
+    [
+      ADMIN_DSN,
+      "-X",
+      "-q",
+      "-t",
+      "-A",
+      "-v",
+      "ON_ERROR_STOP=1",
+      "-c",
+      `
+      SELECT json_build_object(
+        'totpSecret', payload_json->>'totpSecret',
+        'secretRef', secret_ref
+      )
+      FROM admin_mfa_factors mf
+      JOIN admin_users au ON au.admin_id = mf.admin_id
+      WHERE au.email = '${config.adminEmail}'
+        AND mf.status = 'active'
+      ORDER BY mf.updated_at DESC
+      LIMIT 1
+    `,
+    ],
+    { cwd: ROOT, encoding: "utf8" }
+  );
+  if (result.status !== 0) {
+    return cachedLocalAdminTotpSecret;
+  }
+  try {
+    const value = JSON.parse(result.stdout.trim() || "null");
+    const inlineSecret = String(value?.totpSecret || "").trim();
+    if (inlineSecret) {
+      cachedLocalAdminTotpSecret = inlineSecret;
+      return cachedLocalAdminTotpSecret;
+    }
+    const secretRef = String(value?.secretRef || "").trim();
+    cachedLocalAdminTotpSecret = secretRef
+      ? decryptInlineTotpSecretRef(secretRef)
+      : "";
+  } catch {
+    cachedLocalAdminTotpSecret = "";
+  }
+  return cachedLocalAdminTotpSecret;
+}
+
+function resolvedAdminTotpSecret() {
+  return process.env.ADMIN_TOTP_SECRET || resolveLocalAdminTotpSecret() || config.adminTotpSecret;
+}
 
 const evidence = {
   trace: [],
@@ -247,6 +347,20 @@ function isLocalUrl(value) {
   }
 }
 
+function readLocalProviderOnboardingKey() {
+  const onboardingEnvPath = path.resolve(
+    ROOT,
+    "../Synapse-Network-Provider/.env.onboarding.local"
+  );
+  if (!fs.existsSync(onboardingEnvPath)) {
+    return "";
+  }
+  const match = fs
+    .readFileSync(onboardingEnvPath, "utf8")
+    .match(/^SYNAPSE_PROVIDER_OWNER_PRIVATE_KEY=(.+)$/m);
+  return match?.[1]?.trim().replace(/^['"]|['"]$/g, "") || "";
+}
+
 function assertSeedEnvironment() {
   if (!["local", "staging"].includes(MODE)) {
     throw new Error("WITHDRAWAL_REVIEW_DOGFOOD_ENV must be local or staging.");
@@ -265,7 +379,7 @@ function assertSeedEnvironment() {
       ["GATEWAY_E2E_OWNER_KEY", config.consumerKey],
       ["GATEWAY_E2E_PROVIDER_KEY", config.providerKey],
       ["STAGING_ADMIN_E2E_PASSWORD", config.adminPassword],
-      ["STAGING_ADMIN_E2E_OTP_SECRET", config.adminTotpSecret],
+      ["STAGING_ADMIN_E2E_OTP_SECRET", resolvedAdminTotpSecret()],
       ["POSTGRES_DSN", config.postgresDsn],
     ]) {
       if (
@@ -362,7 +476,7 @@ function resetLocalAdminE2eAccount() {
     ],
     {
       STAGING_ADMIN_E2E_PASSWORD: config.adminPassword,
-      STAGING_ADMIN_E2E_OTP_SECRET: config.adminTotpSecret,
+      STAGING_ADMIN_E2E_OTP_SECRET: resolvedAdminTotpSecret(),
     }
   );
   pass("admin:local-e2e-reset", config.adminEmail);
@@ -452,7 +566,7 @@ async function loginAdmin() {
     body: JSON.stringify({
       email: config.adminEmail,
       password: config.adminPassword,
-      otpCode: generateTotpCode(config.adminTotpSecret),
+      otpCode: generateTotpCode(resolvedAdminTotpSecret()),
     }),
   });
   const body = await response.json().catch(() => ({}));
@@ -887,6 +1001,30 @@ function queryJson(sql) {
   return text ? JSON.parse(text) : null;
 }
 
+function execSql(sql) {
+  const result = spawnSync(
+    "psql",
+    [
+      config.postgresDsn,
+      "-X",
+      "-q",
+      "-t",
+      "-A",
+      "-v",
+      "ON_ERROR_STOP=1",
+      "-c",
+      sql,
+    ],
+    { cwd: ROOT, encoding: "utf8" }
+  );
+  if (result.status !== 0) {
+    throw new Error(
+      `psql exec failed: ${redact(result.stderr || result.stdout || "")}`
+    );
+  }
+  return result.stdout.trim();
+}
+
 function sqlLiteral(value) {
   return `'${String(value ?? "").replace(/'/g, "''")}'`;
 }
@@ -999,6 +1137,30 @@ function dbPendingManualReviewRows(ownerAddress, withdrawalKind) {
   );
 }
 
+function dbPendingManualReviewBacklog(limit = 200) {
+  return (
+    queryJson(`
+      SELECT COALESCE(json_agg(row_to_json(t) ORDER BY t."createdAt" ASC), '[]'::json)
+      FROM (
+        SELECT
+          vw.withdrawal_id AS "withdrawalId",
+          vw.withdrawal_kind AS "withdrawalKind",
+          owner.owner_wallet AS "ownerAddress",
+          vw.amount_usdc::text AS "amountUsdc",
+          vw.created_at::text AS "createdAt"
+        FROM synapse_vault_withdrawals vw
+        JOIN synapse_owner_accounts owner ON owner.owner_id = vw.owner_id
+        LEFT JOIN synapse_runtime_state rs
+          ON rs.state_key = CONCAT('vault_withdrawal_meta::', vw.withdrawal_id)
+        WHERE vw.withdrawal_kind IN ('provider_withdrawal', 'consumer_refund')
+          AND COALESCE(rs.payload->>'flowStatus', vw.status) = 'PENDING_MANUAL_REVIEW'
+        ORDER BY vw.created_at ASC, vw.withdrawal_id ASC
+        LIMIT ${Number(limit)}
+      ) t
+    `) || []
+  );
+}
+
 function q6Atomic(value) {
   const normalized = String(value ?? "0").trim();
   const sign = normalized.startsWith("-") ? -1n : 1n;
@@ -1090,7 +1252,7 @@ async function adminDecision(adminAuth, withdrawalId, decision, scenario) {
     guardSeconds: 8,
     sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
   });
-  const otpCode = generateTotpCode(config.adminTotpSecret);
+  const otpCode = generateTotpCode(resolvedAdminTotpSecret());
   recordAdminAuthCheckpoint(`decision:${scenario}`, {
     sessionCookiePresent: Boolean(adminAuth.sessionToken),
     csrfTokenPresent: Boolean(adminAuth.csrfToken),
@@ -1167,6 +1329,66 @@ async function rejectStaleManualReviewRows(
   return rejected;
 }
 
+async function trimPendingManualReviewBacklog(adminAuth, targetCount = 90) {
+  if (IS_STAGING) return [];
+  const backlog = dbPendingManualReviewBacklog(300);
+  if (backlog.length <= targetCount) return [];
+  const rejected = [];
+  for (const row of backlog.slice(0, backlog.length - targetCount)) {
+    await adminDecision(
+      adminAuth,
+      row.withdrawalId,
+      "REJECT",
+      `backlog-trim:${row.withdrawalId}`
+    );
+    const refreshed = dbWithdrawal(row.withdrawalId);
+    if (String(refreshed?.status || "").toUpperCase() !== "REJECTED") {
+      throw new Error(
+        `backlog trim failed for ${row.withdrawalId}: ${JSON.stringify(
+          refreshed
+        )}`
+      );
+    }
+    rejected.push({
+      withdrawalId: row.withdrawalId,
+      ownerAddress: row.ownerAddress,
+      amountUsdc: row.amountUsdc,
+      withdrawalKind: row.withdrawalKind,
+    });
+  }
+  warn(
+    "backlog-trim:stale-manual-review-rejected",
+    rejected.map((row) => row.withdrawalId).join(",")
+  );
+  return rejected;
+}
+
+function cleanupSyntheticModalPendingRows() {
+  if (IS_STAGING) return [];
+  const rows =
+    queryJson(`
+      WITH affected AS (
+        UPDATE synapse_vault_withdrawals
+        SET status = 'REJECTED',
+            updated_at = NOW()
+        WHERE withdrawal_id LIKE 'admin\\_%\\_modal\\_wd\\_%' ESCAPE '\\'
+          AND status = 'PENDING_MANUAL_REVIEW'
+        RETURNING withdrawal_id
+      ), runtime_cleanup AS (
+        DELETE FROM synapse_runtime_state
+        WHERE state_key IN (
+          SELECT CONCAT('vault_withdrawal_meta::', withdrawal_id) FROM affected
+        )
+      )
+      SELECT COALESCE(json_agg(withdrawal_id ORDER BY withdrawal_id), '[]'::json)
+      FROM affected
+    `) || [];
+  if (rows.length > 0) {
+    warn("synthetic-modal-cleanup:rejected", rows.join(","));
+  }
+  return rows;
+}
+
 async function createConsumerWithdrawal(auth, amountUsdc, label) {
   const idempotencyKey = `${label}:${runId()}:${crypto.randomUUID()}`;
   const result = await httpJson(
@@ -1220,7 +1442,20 @@ async function createProviderWithdrawal(auth, amountUsdc, label) {
 }
 
 async function invokeFixtureService(fixture, suffix) {
-  seedServiceHealth(fixture.service.id, fixture.service.mockUrl);
+  const targetUrl =
+    fixture?.service?.mockUrl ||
+    fixture?.service?.endpointUrl ||
+    fixture?.service?.discovery?.primaryEndpoint?.endpointUrl ||
+    fixture?.service?.discovery?.invoke?.targets?.[0]?.url ||
+    "";
+  if (!targetUrl) {
+    throw new Error(
+      `Provider fixture is missing an invokable target URL: ${JSON.stringify(
+        fixture?.service || {}
+      ).slice(0, 800)}`
+    );
+  }
+  seedServiceHealth(fixture.service.id, targetUrl);
   const requestId = `withdrawal-review-${runId()}-${suffix}`;
   const started = Date.now();
   const response = await fetch(`${config.gatewayBase}/api/v1/agent/invoke`, {
@@ -1293,29 +1528,41 @@ async function ensureProviderMatureReceivable(
     );
     return maturity;
   }
-  const gap = Math.max(target - (Number.isFinite(current) ? current : 0), 0);
-  const callsNeeded = Math.max(1, Math.ceil(gap / servicePrice) + 1);
-  for (let index = 0; index < callsNeeded; index += 1) {
-    await invokeFixtureService(fixture, `provider-topup-${index + 1}`);
+  const initialCurrent = Number.isFinite(current) ? current : 0;
+  const gap = Math.max(target - initialCurrent, 0);
+  const conservativePerInvoke = Math.max(servicePrice * 0.5, 0.01);
+  const maxInvokes = Math.max(3, Math.ceil(gap / conservativePerInvoke) + 6);
+  let invokeCount = 0;
+
+  while (invokeCount < maxInvokes) {
+    invokeCount += 1;
+    await invokeFixtureService(fixture, `provider-topup-${invokeCount}`);
+    matureProviderCharges(providerAuth.address);
+    maturity = dbProviderMatureReceivable(providerAuth.address);
+    current = Number.parseFloat(maturity?.providerMatureReceivableUsdc || "0");
+    if (Number.isFinite(current) && current >= target) {
+      break;
+    }
   }
-  matureProviderCharges(providerAuth.address);
-  maturity = dbProviderMatureReceivable(providerAuth.address);
-  current = Number.parseFloat(maturity?.providerMatureReceivableUsdc || "0");
+
   evidence.db.providerMatureReceivable = maturity;
   evidence.api.providerRejectFixtureTopup = {
     serviceId: fixture.service.id,
     priceUsdc: fixture.service.priceUsdc,
     targetAmountUsdc,
-    invokeCount: callsNeeded,
+    invokeCount,
+    initialProviderMatureReceivableUsdc: initialCurrent.toFixed(6),
+    finalProviderMatureReceivableUsdc:
+      maturity?.providerMatureReceivableUsdc || "0",
   };
   if (!Number.isFinite(current) || current < target) {
     throw new Error(
-      `Provider mature receivable did not reach target after top-up: current=${maturity?.providerMatureReceivableUsdc} target=${targetAmountUsdc} invokes=${callsNeeded}`
+      `Provider mature receivable did not reach target after top-up: current=${maturity?.providerMatureReceivableUsdc} target=${targetAmountUsdc} invokes=${invokeCount}/${maxInvokes}`
     );
   }
   pass(
     "provider:mature-receivable-ready",
-    `${maturity.providerMatureReceivableUsdc} USDC after ${callsNeeded} invoke(s)`
+    `${maturity.providerMatureReceivableUsdc} USDC after ${invokeCount} invoke(s)`
   );
   return maturity;
 }
@@ -1333,9 +1580,14 @@ async function runProviderApprovalBaseline() {
   }
   const fixturePath = path.join(OUT_DIR, "provider-approval-fixture.json");
   const localConsumerKey =
-    process.env.CONSUMER_KEY || ethers.Wallet.createRandom().privateKey;
+    config.consumerKey ||
+    process.env.CONSUMER_KEY ||
+    LOCAL_DEFAULT_CONSUMER_KEY;
   const localProviderKey =
-    process.env.PROVIDER_KEY || ethers.Wallet.createRandom().privateKey;
+    config.providerKey ||
+    process.env.PROVIDER_KEY ||
+    readLocalProviderOnboardingKey() ||
+    LOCAL_DEFAULT_PROVIDER_KEY;
   runCommand(
     "provider-approval-baseline",
     "npm",
@@ -1344,14 +1596,14 @@ async function runProviderApprovalBaseline() {
       ADMIN_WITHDRAWAL_APPROVAL_FIXTURE: fixturePath,
       ADMIN_WITHDRAWAL_APPROVAL_DEPOSIT_USDC: config.topupDepositUsdc,
       ADMIN_WITHDRAWAL_APPROVAL_AMOUNT_USDC:
-        process.env.ADMIN_WITHDRAWAL_APPROVAL_AMOUNT_USDC || "100.000000",
+        process.env.ADMIN_WITHDRAWAL_APPROVAL_AMOUNT_USDC || "10.000000",
       WITHDRAWAL_AUTO_SINGLE_LIMIT_USDC:
         process.env.WITHDRAWAL_AUTO_SINGLE_LIMIT_USDC || "1.000000",
       CONSUMER_KEY: localConsumerKey,
       PROVIDER_KEY: localProviderKey,
       ADMIN_EMAIL: config.adminEmail,
       ADMIN_PASSWORD: config.adminPassword,
-      ADMIN_TOTP_SECRET: config.adminTotpSecret,
+      ADMIN_TOTP_SECRET: resolvedAdminTotpSecret(),
     }
   );
   const fixture = readJson(fixturePath);
@@ -1540,6 +1792,19 @@ async function runProviderReject(fixture, providerAuth, adminAuth) {
       "Provider reject requires provider approval fixture with service and credential."
     );
   }
+  if (fixture?.consumer?.privateKey) {
+    const consumerFixtureAuth = await authWallet(
+      fixture.consumer.privateKey,
+      "consumer-provider-reject-fixture"
+    );
+    fixture.credential = fixture?.credential?.id
+      ? await rotateAgentCredential(consumerFixtureAuth, fixture.credential.id)
+      : await issueAgentCredential(consumerFixtureAuth);
+    evidence.api.providerRejectFixtureRefreshedCredential = {
+      credentialId: fixture.credential.id,
+      consumerAddress: consumerFixtureAuth.address,
+    };
+  }
   await ensureProviderMatureReceivable(
     fixture,
     providerAuth,
@@ -1605,7 +1870,7 @@ async function duplicateDecisionMustFail(adminAuth, withdrawalId, label) {
       method: "POST",
       session: adminAuth.sessionToken,
       csrfToken: adminAuth.csrfToken,
-      otpCode: generateTotpCode(config.adminTotpSecret),
+      otpCode: generateTotpCode(resolvedAdminTotpSecret()),
       body: { decision: "APPROVE", note: `${label} duplicate must fail` },
       expectOk: false,
       scenario: `${label}:duplicate-decision`,
@@ -1672,22 +1937,22 @@ async function runMain() {
       ? fixture.provider
       : await authWallet(config.providerKey, "provider");
 
-  if (IS_STAGING) {
-    evidence.db.stagingCleanup = {
-      consumer: await rejectStaleManualReviewRows(
-        adminAuth,
-        consumerAuth.address,
-        "consumer_refund",
-        "consumer-cleanup"
-      ),
-      provider: await rejectStaleManualReviewRows(
-        adminAuth,
-        providerAuth.address,
-        "provider_withdrawal",
-        "provider-cleanup"
-      ),
-    };
-  }
+  evidence.db.syntheticModalCleanup = cleanupSyntheticModalPendingRows();
+  evidence.db.backlogTrim = await trimPendingManualReviewBacklog(adminAuth, 90);
+  evidence.db.stagingCleanup = {
+    consumer: await rejectStaleManualReviewRows(
+      adminAuth,
+      consumerAuth.address,
+      "consumer_refund",
+      "consumer-cleanup"
+    ),
+    provider: await rejectStaleManualReviewRows(
+      adminAuth,
+      providerAuth.address,
+      "provider_withdrawal",
+      "provider-cleanup"
+    ),
+  };
 
   matureConsumerDeposits(consumerAuth.address);
 

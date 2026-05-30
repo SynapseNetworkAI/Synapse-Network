@@ -27,10 +27,10 @@ from typing import Any, Optional
 
 from src.core.config import settings
 from src.services.owner.finance_constants import (
-    CONSUMER_WITHDRAW_FEE_USDC,
     CONSUMER_WITHDRAW_PROCESSOR_INTERVAL_SEC,
     CONSUMER_WITHDRAW_TYPE,
 )
+from src.services.platform.business_policy import consumer_withdraw_fee_amount
 from src.services.platform.tasks.consumer_withdraw_completion import (
     append_consumer_withdraw_completed_audit,
     emit_consumer_withdraw_completed_metric,
@@ -188,7 +188,9 @@ def _ticket_hash(row: Any) -> str:
     return str(_row_request_meta_dict(row).get("ticketHash") or "")
 
 
-def _build_requested_withdraw_context(row: Any) -> RequestedConsumerWithdrawalContext | None:
+def _build_requested_withdraw_context(
+    storage: BaseStorage, row: Any
+) -> RequestedConsumerWithdrawalContext | None:
     from src.core.common import normalize_wallet
 
     owner = normalize_wallet(str(row.owner_address or ""))
@@ -196,7 +198,7 @@ def _build_requested_withdraw_context(row: Any) -> RequestedConsumerWithdrawalCo
     if w3 is None or core is None:
         return None
     amount_usdc = parse_usdc(row.amount_usdc)
-    fee_usdc = parse_usdc(Decimal(str(CONSUMER_WITHDRAW_FEE_USDC)))
+    fee_usdc = parse_usdc(consumer_withdraw_fee_amount(storage))
     net_usdc = parse_usdc(amount_usdc - fee_usdc)
     ticket_hash = _ticket_hash(row)
     if not ticket_hash:
@@ -224,7 +226,7 @@ def _process_single_withdraw(
     allow_expiry_release: bool = True,
 ) -> bool:
     """Check if the on-chain withdraw has been executed; if so, mark COMPLETED."""
-    ctx = _build_requested_withdraw_context(row)
+    ctx = _build_requested_withdraw_context(storage, row)
     if ctx is None:
         return False
 

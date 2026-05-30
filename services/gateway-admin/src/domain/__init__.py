@@ -8,7 +8,11 @@ from src.domain.admin_approval import (
 	AdminExecutionJob,
 )
 from src.domain.admin_audit import AdminActionAudit, AdminAuditExport
-from src.domain.admin_config import AdminMenuConfigItem, AdminMenuConfigSnapshot
+from src.domain.admin_config import (
+	AdminDocumentConfigSnapshot,
+	AdminMenuConfigItem,
+	AdminMenuConfigSnapshot,
+)
 from src.domain.admin_notification import AdminInAppNotification
 from src.domain.admin_authorization import (
 	AdminPermission,
@@ -25,6 +29,7 @@ __all__ = [
 	"AdminApprovalEvent",
 	"AdminApprovalStep",
 	"AdminAuditExport",
+	"AdminDocumentConfigSnapshot",
 	"AdminMenuConfigItem",
 	"AdminMenuConfigSnapshot",
 	"AdminInAppNotification",
