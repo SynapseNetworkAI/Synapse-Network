@@ -778,16 +778,6 @@ resource "google_service_networking_connection" "private_vpc_connection" {
   reserved_peering_ranges = [google_compute_global_address.private_service_range.name]
 }
 
-resource "google_vpc_access_connector" "cloud_run" {
-  name          = var.vpc_connector_name
-  project       = var.project_id
-  region        = var.region
-  network       = google_compute_network.prod.name
-  ip_cidr_range = var.vpc_connector_cidr
-  min_instances = 2
-  max_instances = 3
-}
-
 resource "google_sql_database_instance" "postgres" {
   name                = "${local.name_prefix}-postgres"
   region              = var.region

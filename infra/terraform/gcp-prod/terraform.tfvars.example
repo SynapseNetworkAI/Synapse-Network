@@ -50,8 +50,6 @@ gateway_admin_breakglass_group_email  = ""
 vpc_network_name                      = "synapse-prod-vpc"
 vpc_subnet_name                       = "synapse-prod-subnet"
 vpc_subnet_cidr                       = "10.30.0.0/24"
-vpc_connector_name                    = "syn-prod-vpcconn"
-vpc_connector_cidr                    = "10.30.8.0/28"
 private_service_range_name            = "synapse-prod-sql-private-range"
 private_service_range_prefix_length   = 16
 
