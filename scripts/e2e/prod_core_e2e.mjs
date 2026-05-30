@@ -8,8 +8,8 @@ import {
   CANONICAL_PAID_SERVICE_ID,
   CANONICAL_PROVIDER_SERVICE_IDS,
   canonicalInvokePayload,
-  moneyFromDiscovery,
 } from "./lib/canonical_provider_service.mjs";
+import { discoverProdCoreService } from "./lib/prod_core_discovery.mjs";
 import { createProdCoreAuthHelpers } from "./lib/prod_core_e2e_auth.mjs";
 import {
   assertProdUrl,
@@ -506,38 +506,13 @@ async function depositSmallValue(auth) {
 }
 
 async function discoverService() {
-  const result = await api("/v1/agent/discovery/search", {
-    method: "POST",
-    body: {
-      searchQuery: config.serviceId,
-      limit: 20,
-    },
-  });
-  const rows =
-    result.payload.results ||
-    result.payload.services ||
-    result.payload.data?.services ||
-    [];
-  const row = rows.find((item) =>
-    [item.serviceId, item.service_id, item.id, item.agentToolName]
-      .map(String)
-      .includes(config.serviceId)
-  );
-  if (!row) fatal(`Prod catalog service not discoverable: ${config.serviceId}`);
-  const priceUsdc = moneyFromDiscovery(row, "");
-  if (!priceUsdc)
-    fatal(`Prod catalog service missing live price: ${config.serviceId}`);
-  addCheck("invoke:discover-service-live-price", true, {
+  return discoverProdCoreService({
+    api,
+    addCheck,
+    fatal,
+    mode: MODE,
     serviceId: config.serviceId,
-    priceUsdc,
   });
-  if (MODE === "free-invoke") {
-    addCheck("invoke:free-service-price-zero", Number(priceUsdc) === 0, {
-      serviceId: config.serviceId,
-      priceUsdc,
-    });
-  }
-  return { row, priceUsdc };
 }
 
 async function invokeService(service, { requireDb = true } = {}) {
