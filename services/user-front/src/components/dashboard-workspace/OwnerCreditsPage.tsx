@@ -849,7 +849,6 @@ export default function OwnerCreditsPage() {
       walletBalanceChanged: t("creditsPage.depositWalletBalanceChanged"),
       networkSwitchPending: t("creditsPage.depositNetworkSwitchPending"),
       networkSwitchFailed: t("creditsPage.depositNetworkSwitchFailed"),
-      unsupportedWallet: t("creditsPage.depositUnsupportedWallet"),
       permitTimedOut: t("creditsPage.depositPermitTimedOut"),
       permitFallbackAvailable: t("creditsPage.depositPermitFallbackAvailable"),
       approveTransactionFailed: t("creditsPage.depositApproveFailed"),

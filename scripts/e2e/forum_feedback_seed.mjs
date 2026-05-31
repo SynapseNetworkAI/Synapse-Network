@@ -16,9 +16,6 @@ const FORUM_BASE_URL = (
   process.env.USER_FRONT_BASE_URL ||
   "http://127.0.0.1:3000"
 ).replace(/\/+$/, "");
-const DOCS_BASE_URL = (
-  process.env.DOCS_BASE_URL || "http://localhost:3100"
-).replace(/\/+$/, "");
 const GATEWAY_BASE_URL = (
   process.env.GATEWAY_BASE_URL ||
   process.env.USER_FRONT_GATEWAY_BASE_URL ||
@@ -39,7 +36,7 @@ const DEFAULT_AUTHOR_KEY =
 const AUTHOR_KEY = process.env.FORUM_FEEDBACK_AUTHOR_KEY || DEFAULT_AUTHOR_KEY;
 
 const EXPECTED = {
-  docsFeedbackMessage: `Docs feedback dogfood ${RUN_ID} route=${DOCS_BASE_URL}/support privateKey=0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`,
+  docsFeedbackMessage: `Docs feedback dogfood ${RUN_ID} route=/docs privateKey=0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`,
   dashboardFeedbackMessage: `Dashboard feedback dogfood ${RUN_ID} route=/dashboard/discovery Bearer seed-secret-token-abcdef`,
   seedTopicTitle: `Seeded forum dogfood topic ${RUN_ID}`,
   seedTopicBody: `Seeded baseline body for ${RUN_ID}. This topic proves API writes and resolved state before browser dogfood starts.`,
@@ -207,7 +204,7 @@ async function main() {
       sentiment: "not_helpful",
       category: "docs_issue",
       message: EXPECTED.docsFeedbackMessage,
-      route: `${DOCS_BASE_URL}/support?runId=${RUN_ID}`,
+      route: `/docs/support?runId=${RUN_ID}`,
       pageTitle: "Developer Support",
       language: "en",
       context: {

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-09T02:01:55.050Z",
+  "generatedAt": "2026-05-30T11:35:33.539Z",
   "source": "services/docs-front/src/data/endpoint-source.ts",
   "groups": [
     {
@@ -317,10 +317,10 @@
             "outputs": [
               {
                 "key": "intent.id",
-                "desc": "Deposit intent ID — use to poll sync status while the indexer verifies chain evidence"
+                "desc": "Deposit intent ID — use in the confirm endpoint"
               }
             ],
-            "next": "Poll GET /balance/deposit/sync?txHash=...; confirmation is indexer-owned"
+            "next": "Call POST /balance/deposit/intents/:id/confirm"
           },
           "errors": [
             {
@@ -1881,10 +1881,10 @@
         "outputs": [
           {
             "key": "intent.id",
-            "desc": "Deposit intent ID — use to poll sync status while the indexer verifies chain evidence"
+            "desc": "Deposit intent ID — use in the confirm endpoint"
           }
         ],
-        "next": "Poll GET /balance/deposit/sync?txHash=...; confirmation is indexer-owned"
+        "next": "Call POST /balance/deposit/intents/:id/confirm"
       },
       "errors": [
         {

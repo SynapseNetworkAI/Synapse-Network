@@ -39,6 +39,7 @@ Screenshots are evidence for visual review. They are not enough by themselves to
 | `/marketplace/registry.json`  | implemented API        | Agent-facing callable registry JSON                                               | `GET /api/v1/services/discover`                                       | JSON schema, pagination, available-only filtering                                                                                  |
 | `/about`                      | thin page              | Minimal public description                                                        | Static                                                                | Render smoke                                                                                                                       |
 | `/blog`                       | thin page              | Minimal blog shell                                                                | Static                                                                | Render smoke                                                                                                                       |
+| `/docs` and docs children     | external redirects     | Legacy docs URLs redirect to `NEXT_PUBLIC_DOCS_BASE_URL`                          | None                                                                  | Redirect checks in docs-front browser verification                                                                                 |
 | `/dashboard`                  | compatibility redirect | Role-aware dashboard entry                                                        | None                                                                  | Redirect test                                                                                                                      |
 | `/dashboard/overview`         | implemented            | Consumer overview and high-level account state                                    | Gateway balance/indexer                                               | Authenticated smoke; header shows Connect Wallet when disconnected and short wallet address when connected                         |
 | `/dashboard/billing`          | implemented            | Payments ledger for deposits, refunds, and consumer withdrawals                   | Gateway deposit intents + withdrawal/refund APIs                      | Authenticated smoke; frontend merges large-limit Gateway rows for display only; Completed means Gateway credited spendable balance |
@@ -108,7 +109,7 @@ A page passes functional verification only when:
 - Global Quick Access result clicks navigate to the exact target route.
 - Page-level primary buttons or links navigate to the expected route.
 - Redirect routes land on their documented target.
-- Main-site `/docs/*` URLs are not a supported entrypoint; product links must use the dedicated docs origin directly.
+- Main-site `/docs/*` URLs redirect to the dedicated docs origin.
 - Browser console has no uncaught application errors.
 - Public data-backed pages call the real backend when `USER_FRONT_VERIFY_REAL_BACKEND=1`.
 - Authenticated data-backed pages are either verified with wallet/JWT fixtures or explicitly marked blocked.
@@ -141,6 +142,7 @@ Use this focused matrix whenever changing console copy, modals, placeholders, to
 All wallet actions must use a Synapse-owned explanation layer before opening the wallet extension. Native wallet popups cannot be fully styled, so trust comes from matching the preflight preview to the wallet prompt.
 
 - Login signatures use SIWE-compatible copy with environment-aware domain/URI, wallet, chain ID, nonce, issued time, expiration time, and the statement that no transaction or fund movement is authorized.
+- Wallet compatibility messaging must be environment-aware. In Synapse `Arbitrum One / Arbitrum Sepolia` environments, the UI should explicitly recommend `MetaMask` or `Rabby` and must not leave Phantom users stuck in an infinite connect/loading state.
 - Each login attempt or retry requests a fresh `/api/v1/auth/challenge`; cancelled, expired, or failed challenges are never reused.
 - Deposit shows Permit authorization first, then Vault deposit transaction. Permit is gasless; the vault transaction needs native gas.
 - Consumer and provider withdrawals explain matured funds, Gateway-issued tickets, deadline, vault contract, amount, and native gas before the wallet claim.

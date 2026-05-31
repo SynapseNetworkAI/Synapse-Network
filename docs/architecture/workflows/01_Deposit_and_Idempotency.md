@@ -236,7 +236,9 @@ Deposit 链路必须同时做 API 级幂等和链上事实级防重放。
    2. staging：`synapse-network-staging`
 3. 左侧导航进入 `Data -> Webhooks`。
 4. 点击 `Create Webhook`。
-5. 类型选择 `Custom Webhook`。
+5. 类型选择：
+   1. prod/staging 当前推荐都使用 `Address Activity`
+   2. 不要把 `Custom Webhook` 当成省流量方案；Alchemy 会按最新 canonical block 持续投递 Custom Webhook，即使过滤后的 `logs` 为空
 6. 网络固定为：
    1. `Chain = Arbitrum`
    2. prod `Network = Mainnet`
@@ -244,31 +246,42 @@ Deposit 链路必须同时做 API 级幂等和链上事实级防重放。
 7. `Webhook URL` 固定填：
    1. prod：`https://api.synapse-network.ai/internal/webhooks/alchemy/deposits`
    2. staging：`https://api-staging.synapse-network.ai/internal/webhooks/alchemy/deposits`
-8. GraphQL filter 只监听我们的合约与事件：
+8. Address Activity 地址固定只填 `SynapseCore`：
    1. prod address：生产 `SynapseCore`
-   2. staging address：staging 当前真实 `SynapseCore`
-   3. topic0：`0x25444993e521e5a804289b2bc7720c808ea8583f4ead8d7c65f5435f03ea8015`
-9. `Test Webhook` 只是 Alchemy UI 侧的便捷校验，不是唯一真相源。最终可用性必须以 Gateway 实际回调行为为准：
+   2. staging address：`0x0bA1dcE1Cc8d877052ab1C3CE2362830459D8FF4`
+9. 如果只是为了研究历史或临时排查而创建 `Custom Webhook`，它的 GraphQL filter 也必须锁死：
+   1. `addresses = [SynapseCore]`
+   2. `topic0 = 0x25444993e521e5a804289b2bc7720c808ea8583f4ead8d7c65f5435f03ea8015`
+   3. 但它不应作为长期 deposit wakeup 配置保留在生产或 staging
+10. `Test Webhook` 只是 Alchemy UI 侧的便捷校验，不是唯一真相源。最终可用性必须以 Gateway 实际回调行为为准：
    1. `GET` callback 返回 `405`
    2. 无签名 `POST` 返回 `401`
    3. 正确 `X-Alchemy-Signature` 的 `POST` 返回 `200`
-10. 创建完成后进入该 webhook 详情页，从右上角复制 `Signing Key`。
-11. 把 Signing Key 写入目标环境：
+11. 创建完成后进入该 webhook 详情页，从右上角复制 `Signing Key`。
+12. 把 Signing Key 写入目标环境：
    1. prod：`synapse-prod-alchemy-deposit-webhook-signing-key`
    2. staging：`synapse-staging-alchemy-deposit-webhook-signing-key`
-12. Cloud Run 在 revision 启动时把 Signing Key 注入 `ALCHEMY_DEPOSIT_WEBHOOK_SIGNING_KEY` 环境变量；运行时请求不得按次调用 Secret Manager。
+13. Cloud Run 在 revision 启动时把 Signing Key 注入 `ALCHEMY_DEPOSIT_WEBHOOK_SIGNING_KEY` 环境变量；运行时请求不得按次调用 Secret Manager。
 
-### 8.2 推荐 GraphQL 监听范围
+### 8.2 推荐监听范围
 
-Webhook 只监听 SynapseCore 的 `DepositInfo(address,uint256)`，不是全链事件：
+Address Activity webhook 只跟踪 `SynapseCore` 地址本身：
+
+1. staging：`0x0bA1dcE1Cc8d877052ab1C3CE2362830459D8FF4`
+2. prod：生产 `SynapseCore`
+
+Gateway callback 会从 Alchemy payload 中提取 `event.activity[].hash` /
+`event.activity[].transactionHash`，再唤醒 bounded pending sweep。
+
+如果只是在临时排查里需要 `Custom Webhook`，其 GraphQL filter 也必须严格锁住：
 
 ```graphql
 {
   block {
     logs(
       filter: {
-        addresses: ["0x4967d23cAbe3881f809677932Cc30c11de6957B0"]
-        topics: ["0x25444993e521e5a804289b2bc7720c808ea8583f4ead8d7c65f5435f03ea8015"]
+        addresses: ["0x0bA1dcE1Cc8d877052ab1C3CE2362830459D8FF4"]
+        topics: [["0x25444993e521e5a804289b2bc7720c808ea8583f4ead8d7c65f5435f03ea8015"]]
       }
     ) {
       topics
@@ -282,6 +295,9 @@ Webhook 只监听 SynapseCore 的 `DepositInfo(address,uint256)`，不是全链�
   }
 }
 ```
+
+但这条 GraphQL 只适合短时分析，不适合作为长期实时 wakeup，因为 Alchemy
+Custom Webhook 会按区块投递，即使 `logs` 为空也可能继续触发回调。
 
 ### 8.3 安全边界
 

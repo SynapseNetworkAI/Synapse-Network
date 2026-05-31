@@ -7,12 +7,15 @@ from src.core.config import get_settings
 from src.core.errors import AuthenticationError, AuthorizationError
 from src.services.approval.service import ApprovalService
 from src.services.admin_config.service import AdminConfigService
+from src.services.admin_config.business_policy import BusinessPolicyConfigService
 from src.services.admin_user.service import AdminUserService
 from src.services.admin_notifications import AdminNotificationService
 from src.services.admin_operations import AdminOperationsService
 from src.services.adapters import (
     GatewayExecutionAdapter,
     HttpGatewayExecutionAdapter,
+    BusinessPolicyAdapter,
+    HttpBusinessPolicyAdapter,
     HttpProviderWithdrawReviewAdapter,
     HttpProviderServicesAdapter,
     ProviderWithdrawReviewAdapter,
@@ -66,6 +69,25 @@ def get_admin_user_service() -> AdminUserService:
 @lru_cache(maxsize=1)
 def get_admin_config_service() -> AdminConfigService:
     return AdminConfigService(get_store())
+
+
+@lru_cache(maxsize=1)
+def get_business_policy_adapter() -> BusinessPolicyAdapter:
+    settings = get_settings()
+    return HttpBusinessPolicyAdapter(
+        base_url=settings.gateway_internal_base_url,
+        admin_wallet=settings.gateway_internal_admin_wallet,
+        jwt_secret=settings.gateway_internal_jwt_secret,
+        token_issuer=settings.gateway_internal_token_issuer,
+        token_audience=settings.gateway_internal_token_audience,
+        service_subject=settings.gateway_internal_service_subject,
+        timeout_sec=settings.gateway_internal_timeout_sec,
+    )
+
+
+@lru_cache(maxsize=1)
+def get_business_policy_config_service() -> BusinessPolicyConfigService:
+    return BusinessPolicyConfigService(get_store(), get_business_policy_adapter())
 
 
 @lru_cache(maxsize=1)

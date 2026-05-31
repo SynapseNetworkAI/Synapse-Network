@@ -239,16 +239,6 @@ GATEWAY_INTERNAL_SERVICE_SUBJECTS=service:gateway-admin
 
 Docker bootstrap 只创建管理员账号、角色绑定和占位 MFA 记录，不会初始化密码。`admin_users.password_hash` 为 `NULL` 时，登录会返回通用“邮箱或密码不正确”。
 
-这个安全边界必须明确保持：
-
-1. 没有密码就不可登录。
-2. 没有密码就不能进入可用的 MFA enrollment 流程。
-3. 只有密码先验证通过，且账号 `require_mfa = true` 但没有可用 active
-   Google Authenticator 因子时，登录接口才允许返回
-   `428 MFA_ENROLLMENT_REQUIRED`。
-4. Google Authenticator enrollment verify 成功前，不会签发
-   `synapse_admin_session`。
-
 ```bash
 cd /Users/cliff/workspace/agent/Synapse-Network/services/gateway-admin
 .venv/bin/python scripts/set_bootstrap_password.py \
@@ -269,18 +259,6 @@ cd /Users/cliff/workspace/agent/Synapse-Network/services/gateway-admin
 ```
 
 如果登录 MFA 开启，bootstrap 管理员默认没有可用 TOTP secret，需要先完成 MFA enrollment。Manual Setup Key 由 Gateway-admin 在 enrollment begin 时随机生成，Google Authenticator 只负责读取这个标准 TOTP secret，不会返回 secret 给我们。历史库里如果还存在 `__BOOTSTRAP_TOTP_SECRET__`，它只是不可用的 legacy 哨兵值，必须按未绑定 MFA 处理，不能展示给管理员、不能扫码使用。高危审核动作始终应保留 OTP step-up。
-
-推荐验证步骤：
-
-1. 先执行上面的 `set_bootstrap_password.py`
-2. 打开 `https://admin.synapse-network.ai/login`
-3. 使用刚设置的密码发起登录；只有密码正确时，才允许进入 MFA enrollment
-4. expected result: `428 MFA_ENROLLMENT_REQUIRED`
-5. 进入首绑流程，完成 Google Authenticator 扫码或手工录入
-6. 提交首个 6 位验证码后，正式获得后台 session
-
-如果第 3 步密码错误，预期结果必须始终是通用 `401 UNAUTHORIZED`，而不是
-`MFA_ENROLLMENT_REQUIRED`。
 
 ### 2.8 重置未绑定 MFA 的联调测试管理员
 

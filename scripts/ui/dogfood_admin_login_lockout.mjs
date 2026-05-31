@@ -45,8 +45,10 @@ const PASSWORD =
   process.env.ADMIN_LOCKOUT_DOGFOOD_PASSWORD || "LockoutDogfood#2026!";
 const WRONG_PASSWORD =
   process.env.ADMIN_LOCKOUT_DOGFOOD_WRONG_PASSWORD || "wrong-password";
-const LOCKED_MESSAGE =
-  "账号因连续登录失败已临时锁定，请 24 小时后重试或联系 Owner。";
+const LOCKED_MESSAGES = [
+  "该账号已被登录失败保护锁定，默认锁定 24 小时；请稍后重试或联系 Owner 解锁。",
+  "账号因连续登录失败已临时锁定，请 24 小时后重试或联系 Owner。",
+];
 const GENERIC_FAILURE_MESSAGE = "邮箱或密码不正确，请检查后重试。";
 
 const passed = [];
@@ -177,7 +179,7 @@ async function submitLogin(page, password) {
         item.request().method() === "POST",
       { timeout: 15000 }
     ),
-    page.getByRole("button", { name: /Continue Secure Sign-In/i }).click(),
+    page.getByRole("button", { name: /Execute Initialization/i }).click(),
   ]);
   const body = await response.json().catch(() => ({}));
   apiResponses.push({
@@ -191,14 +193,17 @@ async function submitLogin(page, password) {
 }
 
 async function expectBodyText(page, expected, label) {
+  const expectedTexts = Array.isArray(expected) ? expected : [expected];
   await page.waitForFunction(
-    (text) => document.body.innerText.includes(text),
-    expected,
+    (texts) => texts.some((text) => document.body.innerText.includes(text)),
+    expectedTexts,
     { timeout: 10000 }
   );
   const bodyText = await page.locator("body").innerText({ timeout: 5000 });
-  if (!bodyText.includes(expected)) {
-    throw new Error(`${label} missing expected text: ${expected}`);
+  if (!expectedTexts.some((text) => bodyText.includes(text))) {
+    throw new Error(
+      `${label} missing expected text: ${expectedTexts.join(" | ")}`
+    );
   }
   return bodyText;
 }
@@ -269,7 +274,7 @@ async function runBrowserDogfood() {
         )}`
       );
     }
-    await expectBodyText(page, LOCKED_MESSAGE, "locked account");
+    await expectBodyText(page, LOCKED_MESSAGES, "locked account");
     await screenshot(page, "07-locked-message");
   } finally {
     await context.close();

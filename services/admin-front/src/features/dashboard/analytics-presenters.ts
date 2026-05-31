@@ -36,7 +36,6 @@ export type AnalyticsSignalCard = {
   value: string;
   detail: string;
   tone: AnalyticsTone;
-  statusLabel?: string;
 };
 
 export type AnalyticsFunnelSummaryCard = AnalyticsSignalCard;
@@ -95,58 +94,6 @@ function formatMetricValue(card: AnalyticsMetricCard): string {
   return String(card.value ?? "n/a");
 }
 
-function consumerRateTone(value: number, denominator: number): AnalyticsTone {
-  if (denominator <= 0 && value <= 0) {
-    return "gray";
-  }
-
-  if (value >= 0.25) {
-    return "green";
-  }
-
-  if (value >= 0.1) {
-    return "orange";
-  }
-
-  return "red";
-}
-
-function consumerRateStatusLabel(tone: AnalyticsTone): string {
-  if (tone === "gray") {
-    return "No data";
-  }
-
-  if (tone === "red") {
-    return "Low";
-  }
-
-  if (tone === "orange") {
-    return "Watch";
-  }
-
-  return "Healthy";
-}
-
-function consumerThresholdTone(value: number, denominator: number, green: number, orange: number): AnalyticsTone {
-  if (denominator <= 0 && value <= 0) {
-    return "gray";
-  }
-
-  if (value >= green) {
-    return "green";
-  }
-
-  if (value >= orange) {
-    return "orange";
-  }
-
-  return "red";
-}
-
-function consumerStepUsers(funnel: AnalyticsConsumerFunnel | null, eventName: string): number {
-  return funnel?.steps.find((step) => step.eventName === eventName)?.users ?? 0;
-}
-
 export function buildAnalyticsNorthStarCards(cards: AnalyticsMetricCard[]): AnalyticsNorthStarCard[] {
   return cards.map((card) => ({
     key: card.key,
@@ -173,50 +120,34 @@ export function buildConsumerFunnelSteps(funnel: AnalyticsConsumerFunnel | null)
 }
 
 export function buildConsumerFunnelSummaryCards(funnel: AnalyticsConsumerFunnel | null): AnalyticsFunnelSummaryCard[] {
-  const activationRate = funnel?.summary.activationRate ?? 0;
-  const firstInvokeUsers = funnel?.summary.firstInvokeUsers ?? 0;
-  const quoteToInvokeRate = funnel?.summary.quoteToInvokeRate ?? 0;
-  const depositToFirstInvokeRate = funnel?.summary.depositToFirstInvokeRate ?? 0;
-  const pageViewedUsers = consumerStepUsers(funnel, "page_viewed");
-  const quoteUsers = consumerStepUsers(funnel, "quote_generated");
-  const depositUsers = consumerStepUsers(funnel, "deposit_completed");
-  const activationTone = consumerRateTone(activationRate, pageViewedUsers);
-  const quoteToInvokeTone = consumerThresholdTone(quoteToInvokeRate, quoteUsers, 0.6, 0.35);
-  const depositToFirstInvokeTone = consumerThresholdTone(depositToFirstInvokeRate, depositUsers, 0.5, 0.25);
-  const firstInvokeTone: AnalyticsTone = firstInvokeUsers > 0 ? "green" : "gray";
-
   return [
     {
       key: "activation-rate",
       label: "Activation Rate",
-      value: formatRate(activationRate),
+      value: formatRate(funnel?.summary.activationRate),
       detail: "invoke_completed users / page_viewed users.",
-      tone: activationTone,
-      statusLabel: consumerRateStatusLabel(activationTone),
+      tone: (funnel?.summary.activationRate ?? 0) >= 0.25 ? "green" : (funnel?.summary.activationRate ?? 0) >= 0.1 ? "orange" : "red",
     },
     {
       key: "first-invoke-users",
       label: "First Invoke Users",
-      value: formatCount(firstInvokeUsers),
+      value: formatCount(funnel?.summary.firstInvokeUsers),
       detail: "Users with is_first_invoke in invoke_completed.",
-      tone: firstInvokeTone,
-      statusLabel: firstInvokeUsers > 0 ? "Healthy" : "No data",
+      tone: (funnel?.summary.firstInvokeUsers ?? 0) > 0 ? "green" : "gray",
     },
     {
       key: "quote-to-invoke",
       label: "Quote To Invoke",
-      value: formatRate(quoteToInvokeRate),
+      value: formatRate(funnel?.summary.quoteToInvokeRate),
       detail: "invoke_completed users / quote_generated users.",
-      tone: quoteToInvokeTone,
-      statusLabel: consumerRateStatusLabel(quoteToInvokeTone),
+      tone: (funnel?.summary.quoteToInvokeRate ?? 0) >= 0.6 ? "green" : (funnel?.summary.quoteToInvokeRate ?? 0) >= 0.35 ? "orange" : "red",
     },
     {
       key: "deposit-to-first-invoke",
       label: "Deposit To First Invoke",
-      value: formatRate(depositToFirstInvokeRate),
+      value: formatRate(funnel?.summary.depositToFirstInvokeRate),
       detail: "first invoke users / deposit_completed users.",
-      tone: depositToFirstInvokeTone,
-      statusLabel: consumerRateStatusLabel(depositToFirstInvokeTone),
+      tone: (funnel?.summary.depositToFirstInvokeRate ?? 0) >= 0.5 ? "green" : (funnel?.summary.depositToFirstInvokeRate ?? 0) >= 0.25 ? "orange" : "red",
     },
   ];
 }

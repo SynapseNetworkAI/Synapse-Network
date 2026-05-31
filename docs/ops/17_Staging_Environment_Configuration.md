@@ -497,9 +497,6 @@ Gmail staging uses SMTP app password or Workspace SMTP relay. The Gmail API is
 not required for V1 email delivery.
 
 ```bash
-printf '%s' 'staging-alerts@synapse-network.ai' | \
-  bash scripts/deploy/gcp_put_secret.sh synapse-staging-gmail-username
-
 printf '%s' 'YOUR_GMAIL_APP_PASSWORD_OR_RELAY_CREDENTIAL' | \
   bash scripts/deploy/gcp_put_secret.sh synapse-staging-gmail-app-password
 ```
@@ -594,8 +591,6 @@ secrets for production.
 | `synapse-staging-private-key`                  | Legacy Gateway withdrawal signer private key. Cleanup-only after KMS evidence is green; must not be injected into Gateway.                                                           | None after KMS migration                | Legacy staging signer wallet                                               | Cleanup audit only             |
 | `synapse-staging-gateway-internal-jwt-secret`  | Gateway-admin to Gateway internal service-token secret.                                                                                                                              | Gateway, Gateway-admin                  | User-generated 32+ byte secret                                             | Admin actions                  |
 | `synapse-staging-admin-csrf-secret`            | Gateway-admin CSRF/session protection secret.                                                                                                                                        | Gateway-admin                           | User-generated 32+ byte secret                                             | Admin login                    |
-| `synapse-staging-gateway-admin-wallet`         | Internal admin wallet subject/allow-list identity.                                                                                                                                   | Gateway, Gateway-admin                  | Dedicated staging admin wallet address                                     | Admin actions                  |
-| `synapse-staging-gmail-username`               | Gmail/Workspace sender username.                                                                                                                                                     | Email worker                            | Google Workspace mailbox                                                   | Email E2E                      |
 | `synapse-staging-gmail-app-password`           | Gmail app password or SMTP relay credential.                                                                                                                                         | Email worker                            | Google Workspace                                                           | Email E2E                      |
 | `synapse-staging-lark-webhook-p0`              | P0 Lark war-room webhook URL.                                                                                                                                                        | Lark E2E / alert relay                  | Lark bot                                                                   | Lark E2E                       |
 | `synapse-staging-lark-webhook-prod-alerts`     | Production-alert-hall style webhook used for staging route tests.                                                                                                                    | Lark E2E / alert relay                  | Lark bot                                                                   | Lark E2E                       |
@@ -668,7 +663,7 @@ services and jobs must explicitly inject each secret as an environment variable.
 For Gmail delivery, Gateway and `synapse-staging-notification-outbox-drain`
 must expose:
 
-- `GMAIL_SMTP_USERNAME` from `synapse-staging-gmail-username`
+- `GMAIL_SMTP_USERNAME` from repo-root `env.staging`
 - `GMAIL_SMTP_APP_PASSWORD` from `synapse-staging-gmail-app-password`
 - `POSTGRES_DSN` from `synapse-staging-postgres-dsn`
 - `EMAIL_FROM=Synapse Network Staging <staging-alerts@synapse-network.ai>`
@@ -859,14 +854,14 @@ Temporary manual repair, if Terraform has not yet been applied:
 gcloud run services update synapse-staging-gateway \
   --project "$PROJECT_ID" \
   --region us-central1 \
-  --update-secrets GMAIL_SMTP_USERNAME=synapse-staging-gmail-username:latest,GMAIL_SMTP_APP_PASSWORD=synapse-staging-gmail-app-password:latest \
-  --update-env-vars EMAIL_FROM='Synapse Network Staging <staging-alerts@synapse-network.ai>',EMAIL_REPLY_TO='support@synapse-network.ai'
+  --update-secrets GMAIL_SMTP_APP_PASSWORD=synapse-staging-gmail-app-password:latest \
+  --update-env-vars GMAIL_SMTP_USERNAME="$GMAIL_SMTP_USERNAME",EMAIL_FROM='Synapse Network Staging <staging-alerts@synapse-network.ai>',EMAIL_REPLY_TO='support@synapse-network.ai'
 
 gcloud run jobs update synapse-staging-notification-outbox-drain \
   --project "$PROJECT_ID" \
   --region us-central1 \
-  --update-secrets POSTGRES_DSN=synapse-staging-postgres-dsn:latest,GMAIL_SMTP_USERNAME=synapse-staging-gmail-username:latest,GMAIL_SMTP_APP_PASSWORD=synapse-staging-gmail-app-password:latest \
-  --update-env-vars EMAIL_FROM='Synapse Network Staging <staging-alerts@synapse-network.ai>',EMAIL_REPLY_TO='support@synapse-network.ai'
+  --update-secrets POSTGRES_DSN=synapse-staging-postgres-dsn:latest,GMAIL_SMTP_APP_PASSWORD=synapse-staging-gmail-app-password:latest \
+  --update-env-vars GMAIL_SMTP_USERNAME="$GMAIL_SMTP_USERNAME",EMAIL_FROM='Synapse Network Staging <staging-alerts@synapse-network.ai>',EMAIL_REPLY_TO='support@synapse-network.ai'
 ```
 
 Transaction notification behavior:
@@ -1264,11 +1259,16 @@ cp services/user-front/src/contract-config.arbitrum-sepolia.example.json \
 Template: `services/gateway/.env.staging.example`.
 Local private file: `services/gateway/.env.staging`.
 
-The local private file is ignored by Git. Cloud Run does not read this file
-directly; production-like staging deploys must inject the same values through
-Terraform, `gcloud run deploy`, and Secret Manager. Changing runtime env values
-on Cloud Run creates a new revision and does not require rebuilding the Gateway
-image unless the code changed.
+The service-local private file is ignored by Git. Repo-root `env.staging` is the
+operator-owned plain-config source for staging URLs, flags, limits, addresses,
+timeouts, and `NEXT_PUBLIC_*` values. Load it with
+`scripts/lib/load_repo_env.sh`; the loader exports keys for child processes but
+does not print values. Cloud Run does not read either local file directly;
+production-like staging deploys must inject plain values through Terraform
+`common_runtime_env` / `frontend_runtime_env` or `gcloud run deploy`, while
+credential values remain in Secret Manager. Changing runtime env values on Cloud
+Run creates a new revision and does not require rebuilding the Gateway image
+unless the code changed.
 
 | Variable                                  | Staging value                                              | Purpose                                                                                                                                                                                                          | Secret | Source                                         |
 | ----------------------------------------- | ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ | ---------------------------------------------- |
@@ -1307,7 +1307,7 @@ image unless the code changed.
 | `REDIS_URL`                               | empty                                                      | Redis disabled for MVP staging.                                                                                                                                                                                  | No     | MVP default                                    |
 | `DOWNSTREAM_ADAPTIVE_REDIS_ENABLED`       | `false`                                                    | Disable Redis-backed adaptive routing.                                                                                                                                                                           | No     | MVP default                                    |
 | `EMAIL_OUTBOX_ENABLED`                    | `true`                                                     | Persist async email intents.                                                                                                                                                                                     | No     | MVP default                                    |
-| `GMAIL_SMTP_USERNAME`                     | Secret Manager value                                       | SMTP sender username.                                                                                                                                                                                            | Yes    | `synapse-staging-gmail-username`               |
+| `GMAIL_SMTP_USERNAME`                     | `env.staging` / plain runtime env                          | SMTP sender username.                                                                                                                                                                                            | No     | Operator local config                          |
 | `GMAIL_SMTP_APP_PASSWORD`                 | Secret Manager value                                       | SMTP app password/relay credential.                                                                                                                                                                              | Yes    | `synapse-staging-gmail-app-password`           |
 
 ## Admin-front
@@ -1352,7 +1352,7 @@ env creates a new Cloud Run revision; rebuild only when code changes.
 | `GATEWAY_READONLY_DSN`             | Secret Manager value                       | Read Gateway projections without write access.                                                                              | Yes                   | `synapse-staging-gateway-readonly-dsn`         |
 | `GATEWAY_FORUM_WRITE_DSN`          | Secret Manager value                       | Write forum/support records into Gateway DB where required.                                                                 | Yes                   | `synapse-staging-gateway-forum-write-dsn`      |
 | `GATEWAY_INTERNAL_BASE_URL`        | `https://api-staging.synapse-network.ai`   | Internal admin calls to Gateway.                                                                                            | No                    | Fixed staging domain                           |
-| `GATEWAY_INTERNAL_ADMIN_WALLET`    | Secret Manager value or injected address   | Internal admin wallet subject.                                                                                              | Yes/Address-sensitive | `synapse-staging-gateway-admin-wallet`         |
+| `GATEWAY_INTERNAL_ADMIN_WALLET`    | `env.staging` / plain runtime env          | Internal admin wallet subject.                                                                                              | No                    | Operator local config                          |
 | `GATEWAY_INTERNAL_JWT_SECRET`      | Secret Manager value                       | Signs Gateway-admin service tokens.                                                                                         | Yes                   | `synapse-staging-gateway-internal-jwt-secret`  |
 | `GATEWAY_INTERNAL_TOKEN_ISSUER`    | `gateway-admin`                            | Internal JWT issuer.                                                                                                        | No                    | Fixed                                          |
 | `GATEWAY_INTERNAL_TOKEN_AUDIENCE`  | `gateway-internal`                         | Internal JWT audience.                                                                                                      | No                    | Fixed                                          |
@@ -1804,9 +1804,10 @@ gcloud run jobs update synapse-staging-deposit-indexer \
 ```
 
 If Terraform owns Cloud Run env for this deployment, set the same values in
-local private `infra/terraform/gcp-staging/terraform.tfvars` under
-`common_runtime_env` instead of hand-updating Cloud Run. Do not commit private
-`terraform.tfvars`.
+repo-root `env.staging` first, then mirror them into local private
+`infra/terraform/gcp-staging/terraform.tfvars` under `common_runtime_env` /
+`frontend_runtime_env` instead of hand-updating Cloud Run. Do not commit
+`env.staging` or private `terraform.tfvars`.
 
 ```bash
 curl https://staging.synapse-network.ai

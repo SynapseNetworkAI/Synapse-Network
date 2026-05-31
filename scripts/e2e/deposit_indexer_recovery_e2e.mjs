@@ -620,6 +620,7 @@ async function scenarioTaskDownPendingUi() {
   restartLocalGateway("gateway:indexer-disabled", {
     V2_INDEXER_ENABLED: "false",
     V2_BACKFILL_ENABLED: "false",
+    DEPOSIT_INDEXER_TRIGGER_ENABLED: "false",
   });
   const readiness = await rawGateway("/readiness");
   const monitor = readiness.monitors?.deposit_indexer || {};

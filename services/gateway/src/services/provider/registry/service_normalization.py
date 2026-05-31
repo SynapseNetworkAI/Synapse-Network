@@ -12,7 +12,6 @@ import string
 import time
 from typing import Any, List, Literal, cast
 
-from src.core.common import normalize_wallet
 from src.core.config import settings
 from src.domain.service_contract import (
     ServiceConstraintRecord,
@@ -175,7 +174,7 @@ def normalized_payout_account(req_data: dict[str, Any]) -> dict[str, Any] | None
     payout_account = dict_payload(req_data.get("payoutAccount"))
     if not payout_account:
         return None
-    payout_address = normalize_wallet(str(payout_account.get("payoutAddress") or "").strip())
+    payout_address = str(payout_account.get("payoutAddress") or "").strip()
     if not payout_address:
         raise ValueError("payoutAccount.payoutAddress is required")
     chain_id = as_int(payout_account.get("chainId"), 0)

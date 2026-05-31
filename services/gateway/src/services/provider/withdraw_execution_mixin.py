@@ -24,6 +24,7 @@ from src.domain.finance import BalanceLedger
 from src.domain.idempotency import IdempotencyRow
 from src.domain.ledger import WithdrawalIntentRow
 from src.domain.operation_metadata import OperationContextMetadata, WithdrawalTicketMetadata
+from src.services.balance_mixins import USDC_DECIMALS
 from src.services.balance_mixins.withdraw_ticket_signers import (
     withdraw_signer_address_from_config,
 )
@@ -31,6 +32,11 @@ from src.services.provider.withdraw_helpers_mixin import (
     INSUFFICIENT_RECEIVABLE_MESSAGE,
     MANUAL_REVIEW_REJECT_MESSAGE,
     MANUAL_REVIEW_APPROVED_MESSAGE,
+)
+from src.services.platform.business_policy import (
+    withdrawal_auto_24h_limit,
+    withdrawal_auto_single_limit,
+    withdrawal_window_hours,
 )
 from src.utils.datetime_utils import now_dt_str
 from src.utils.money import money_str, parse_usdc, quantize_usdc, usdc_decimal_to_atomic
@@ -94,12 +100,9 @@ class ProviderWithdrawExecutionMixin:
     ) -> PreparedWithdrawTicket:
         amount = quantize_usdc(amount_usdc)
         requires_manual_review = (
-            amount >= parse_usdc(str(settings.withdrawal_auto_single_limit_usdc))
+            amount >= parse_usdc(withdrawal_auto_single_limit(self.storage))
         ) and not force_sign
-        amount_wei = usdc_decimal_to_atomic(
-            amount,
-            decimals=self._resolve_withdraw_token_decimals(),  # type: ignore[attr-defined]
-        )
+        amount_wei = usdc_decimal_to_atomic(amount, decimals=USDC_DECIMALS)
 
         if requires_manual_review:
             return PreparedWithdrawTicket(
@@ -415,13 +418,9 @@ class ProviderWithdrawExecutionMixin:
                 request_id=request_id,
                 idempotency_key=idempotency_key,
                 request_meta=request_meta,
-                single_limit_usdc=Decimal(
-                    str(settings.withdrawal_auto_single_limit_usdc)
-                ),
-                rolling_24h_limit_usdc=Decimal(
-                    str(settings.withdrawal_auto_24h_limit_usdc)
-                ),
-                window_seconds=max(1, int(settings.withdrawal_window_hours)) * 3600,
+                single_limit_usdc=withdrawal_auto_single_limit(self.storage),
+                rolling_24h_limit_usdc=withdrawal_auto_24h_limit(self.storage),
+                window_seconds=max(1, int(withdrawal_window_hours(self.storage))) * 3600,
                 high_risk_override=False,
             )
         )
@@ -519,7 +518,7 @@ class ProviderWithdrawExecutionMixin:
             if ticket_payload.requires_manual_review
             else "APPROVED_AUTO"
         )
-        manual_review_limit = settings.withdrawal_auto_single_limit_usdc
+        manual_review_limit = withdrawal_auto_single_limit(self.storage)
         message = (
             f"Withdrawal requested. Amounts at or above ${manual_review_limit:g} require manual security review (ETA: 12-24 hrs)."
             if ticket_payload.requires_manual_review

@@ -373,6 +373,13 @@ Dashboard 数据边界要求：
 - 限流策略
 - 服务注册配置
 
+当前一期已经明确收敛为 **业务参数配置中心**：
+
+- `draft / published` 快照保存在 `admin_config_documents`
+- 后台控制面负责查看、编辑 draft、发布以及审计留痕
+- Gateway 运行时只读取已发布的 `business_policy_config`
+- 运行时 secrets / infra 参数保持在 env / Secret Manager，只在配置中心里做只读来源摘要展示
+
 ### 5.4 资金运营中心
 
 - 充值记录查询
@@ -415,7 +422,7 @@ Dashboard 数据边界要求：
 - 左侧导航实际渲染优先读取 `gateway-admin` 已发布菜单配置，静态 `navigation.ts` 只作为 fallback 和默认种子
 - 菜单可见性基于当前管理员的 `role + permissions` 动态裁剪
 - `Toolbar + Table + Modal` 已抽成前端共享 CRUD 基础组件，后续配置型页面不需要重复手写工作台骨架；点击后的操作面板统一使用居中弹窗，不使用右侧抽屉
-- 当前页面路由包括：`/dashboard`、`/dashboard/overview`、`/dashboard/runtime`、`/dashboard/analytics`、`/dashboard/analytics/consumer-funnel`、`/dashboard/analytics/invocation-revenue`、`/dashboard/analytics/provider-revenue`、`/dashboard/analytics/money-flow`、`/dashboard/analytics/risk-health`、`/dashboard/analytics/data-quality`、`/users`、`/role-permissions`、`/menu-config`、`/approvals`、`/withdrawal-reviews`、`/review-history`、`/owner-accounts`、`/finance`、`/risk`、`/system`、`/audit`、`/execution`；旧的 `/dashboard/health` 仅保留为兼容重定向入口，实际内容已并入 `/system`
+- 当前页面路由包括：`/dashboard`、`/dashboard/overview`、`/dashboard/runtime`、`/dashboard/analytics`、`/dashboard/analytics/consumer-funnel`、`/dashboard/analytics/invocation-revenue`、`/dashboard/analytics/provider-revenue`、`/dashboard/analytics/money-flow`、`/dashboard/analytics/risk-health`、`/dashboard/analytics/data-quality`、`/users`、`/role-permissions`、`/menu-config`、`/config`、`/approvals`、`/withdrawal-reviews`、`/review-history`、`/owner-accounts`、`/finance`、`/risk`、`/system`、`/audit`、`/execution`；旧的 `/dashboard/health` 仅保留为兼容重定向入口，实际内容已并入 `/system`
 - `控制总览 > 控制台 > Analytics` 是只读观测菜单组：总览页展示 North Star 指标和关键告警，六个专题页分别承载 Consumer 激活漏斗、调用与收入、Provider 收益、资金流、风控健康和埋点质量；前端只消费 `gateway-admin` 聚合接口，不直接查询 ClickHouse
 - `业务控制` 分组现在同时提供 `提现审核` 与 `审核历史`：前者处理待审核申请，后者回看已审批、已拒绝和已释放结果，避免 reviewer 只能依赖审计页做状态回溯
 - `业务用户` 页面提供 owner account 运营查询：默认脱敏邮箱，完整邮箱 reveal 必须有 `owner:pii:read` 并写 audit。
@@ -428,6 +435,7 @@ Dashboard 数据边界要求：
 - `users` 页面已重构为标准 CRUD 工作台：顶部搜索/角色筛选 + 主体数据表格 + 居中 Modal 表单，编辑与删除（软禁用）已通过 `gateway-admin` 打通
 - `role-permissions` 页面已使用共享 CRUD 基础组件承载角色模板与权限矩阵
 - `menu-config` 页面已升级为真实配置中心工作台：编辑的是 draft，发布后写入全局 published 菜单配置
+- `config` 页面已落成业务参数配置中心第一期：支持查看 draft / published / runtime 来源，`super_admin` 可编辑 draft 并发布，`platform_ops_admin` 只读查看
 - `audit` 页面已经接入管理员操作日志查询
 - `execution` 页面已经接入 execution jobs 查询和失败任务重试
 - `finance`、`risk`、`system` 页面已作为模块入口页承接后续受控动作与只读查询
@@ -521,6 +529,7 @@ Dashboard 数据边界要求：
 
 - `admin_auth`: 登录、登出、当前管理员信息
 - `admin_config`: 菜单配置 draft / published 读取、CRUD 与发布
+- `admin_config`: 菜单配置与业务参数配置中心的 draft / published 读取、编辑与发布
 - `admin_users`: 用户目录、角色权限模板、创建后台用户
 - `admin_dashboard`: `overview`、`system-status`、`finance-overview`、`activity-trends`、`operations-overview`、`diagnostics`；其中 `diagnostics` 负责首页和 system 页共享控制面状态结论与建议动作
 - `admin_approval`: 审批单读取、创建、审批决策
@@ -530,10 +539,11 @@ Dashboard 数据边界要求：
 `admin_config` 当前的核心设计：
 
 - 持久化表为 `admin_config_documents`
-- 当前落地的配置文档类型为菜单配置 `menu-items`
+- 当前落地的配置文档类型为菜单配置 `menu-items` 与业务策略配置 `business-policy`
 - 存储模型维护 `draft` 与 `published` 两个 stage，而不是直接覆盖单份配置
 - 权限上区分“草稿治理”和“线上读取”：只有控制面角色能读原始 draft / published，只有 `super_admin` 能发布
 - 前端 `use-admin-navigation` hook 改为读取后端裁剪后的 `visible` 菜单；浏览器不再复制角色/权限过滤逻辑
+- 业务策略发布时，`gateway-admin` 不直接把 admin DB 当作运行时真相源，而是通过内部 adapter 把 `published` 快照同步到 gateway 的 `synapse_business_policy_config`
 
 当前还没有完全落成独立 router 的模块包括：
 

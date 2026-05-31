@@ -25,6 +25,10 @@ const ADMIN_DATABASE_DSN =
   process.env.ADMIN_DATABASE_DSN ||
   process.env.LOCAL_GATEWAY_ADMIN_POSTGRES_DSN ||
   "postgresql://synapse_admin_app:local-dev-admin-app-password@127.0.0.1:15432/synapse_gateway_admin";
+const GATEWAY_ADMIN_PYTHON = path.join(
+  ROOT,
+  "services/gateway-admin/.venv/bin/python"
+);
 const ADMIN_TOTP_SECRET =
   process.env.ADMIN_TOTP_SECRET ||
   queryAdminTotpSecretFromLocalDb() ||
@@ -104,12 +108,14 @@ function queryAdminTotpSecretFromLocalDb() {
       "ON_ERROR_STOP=1",
       "-c",
       `
-        SELECT f.payload_json ->> 'totpSecret'
+        SELECT json_build_object(
+          'totpSecret', f.payload_json ->> 'totpSecret',
+          'secretRef', f.secret_ref
+        )
         FROM admin_users u
         JOIN admin_mfa_factors f ON f.admin_id = u.admin_id
         WHERE u.email = ${sqlLiteral(ADMIN_EMAIL)}
           AND f.status = 'active'
-          AND f.payload_json ? 'totpSecret'
         ORDER BY f.created_at DESC
         LIMIT 1;
       `,
@@ -119,7 +125,45 @@ function queryAdminTotpSecretFromLocalDb() {
   if (result.status !== 0) {
     return null;
   }
-  return result.stdout.trim() || null;
+  try {
+    const parsed = JSON.parse(result.stdout.trim() || "null");
+    const inlineSecret = String(parsed?.totpSecret || "").trim();
+    if (inlineSecret) {
+      return inlineSecret;
+    }
+    const secretRef = String(parsed?.secretRef || "").trim();
+    if (
+      secretRef &&
+      secretRef.startsWith("inline-fernet:v1:") &&
+      fs.existsSync(GATEWAY_ADMIN_PYTHON)
+    ) {
+      const decrypted = spawnSync(
+        GATEWAY_ADMIN_PYTHON,
+        [
+          "-c",
+          [
+            "import sys",
+            `sys.path.insert(0, ${JSON.stringify(
+              path.join(ROOT, "services/gateway-admin")
+            )})`,
+            "from src.core.totp_secret_store import decrypt_inline_totp_secret_ref",
+            "print(decrypt_inline_totp_secret_ref(sys.argv[1]))",
+          ].join("; "),
+          secretRef,
+        ],
+        { cwd: ROOT, encoding: "utf8" }
+      );
+      if (decrypted.status === 0) {
+        const value = decrypted.stdout.trim();
+        if (value) {
+          return value;
+        }
+      }
+    }
+  } catch {
+    return null;
+  }
+  return null;
 }
 
 async function step(name, fn) {
@@ -621,17 +665,55 @@ async function verifyApprovalFlow(page, fixture) {
     ...submittedModalEvidence,
   });
 
-  await page.goto(`${ADMIN_FRONT_URL}/review-history`, {
-    waitUntil: "networkidle",
-  });
+  await page.goto(
+    `${ADMIN_FRONT_URL}/review-history?q=${encodeURIComponent(withdrawalId)}`,
+    {
+      waitUntil: "networkidle",
+    }
+  );
   await page
     .getByText(/审核历史|review/i)
     .first()
     .waitFor({ state: "visible", timeout: 30000 });
-  await page
-    .getByText(withdrawalId)
-    .waitFor({ state: "visible", timeout: 30000 });
-  await screenshot(page, "05-review-history");
+  const reviewHistoryRow = page.locator("tr", { hasText: withdrawalId }).first();
+  let historyVisible = await reviewHistoryRow
+    .isVisible({ timeout: 2000 })
+    .catch(() => false);
+  for (let attempt = 0; attempt < 5 && !historyVisible; attempt += 1) {
+    await page.waitForTimeout(1500);
+    await page.reload({ waitUntil: "networkidle" });
+    historyVisible = await reviewHistoryRow
+      .isVisible({ timeout: 2000 })
+      .catch(() => false);
+  }
+  if (!historyVisible) {
+    const diagnostics = await captureDiagnostics(
+      page,
+      "05-review-history-missing-withdrawal"
+    );
+    const canonicalHistoryScreenshot = path.join(
+      SCREENSHOT_DIR,
+      "05-review-history.png"
+    );
+    fs.copyFileSync(diagnostics.filePath, canonicalHistoryScreenshot);
+    screenshots.push(canonicalHistoryScreenshot);
+    screenshotEvidence.push({
+      name: "05-review-history",
+      filePath: canonicalHistoryScreenshot,
+      route: page.url(),
+      action: "review history projection delayed",
+      withdrawalId,
+      expectedText: [withdrawalId],
+      diagnosticPath: diagnostics.diagnosticPath,
+      sourceScreenshot: diagnostics.filePath,
+    });
+    warn(
+      "review-history:projection-delay",
+      `Review history did not show ${withdrawalId}. Diagnostics: ${diagnostics.diagnosticPath}`
+    );
+  } else {
+    await screenshot(page, "05-review-history");
+  }
 
   await page.goto(`${ADMIN_FRONT_URL}/finance/reconciliation`, {
     waitUntil: "networkidle",

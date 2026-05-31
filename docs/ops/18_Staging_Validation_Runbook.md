@@ -41,7 +41,6 @@ for s in \
   synapse-staging-lark-webhook-p0 \
   synapse-staging-lark-webhook-prod-alerts \
   synapse-staging-lark-webhook-staging-drill \
-  synapse-staging-gmail-username \
   synapse-staging-gmail-app-password \
   synapse-staging-e2e-consumer-private-key \
   synapse-staging-e2e-provider-private-key \

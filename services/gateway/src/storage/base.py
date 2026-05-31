@@ -26,6 +26,7 @@ class FinanceDomain:
     balance: Any
     atomic: Any
     fee_policy: Any
+    business_policy: Any = None
 
 
 @dataclass(frozen=True)

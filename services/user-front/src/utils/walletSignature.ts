@@ -1,7 +1,6 @@
 "use client";
 
 import { toHex } from "viem";
-import { getSupportedEvmInjectedProviderOrThrow } from "@/utils/evmProvider";
 
 export function shouldFallbackSignError(message: string): boolean {
   return (
@@ -22,8 +21,16 @@ export function isWalletUnstableError(message: string): boolean {
 }
 
 export async function readInjectedAccounts(): Promise<string[]> {
+  const ethereum = (
+    globalThis as {
+      ethereum?: { request: (args: { method: string }) => Promise<unknown> };
+    }
+  ).ethereum;
+  if (!ethereum) {
+    return [];
+  }
+
   try {
-    const ethereum = getSupportedEvmInjectedProviderOrThrow();
     const accounts = await ethereum.request({ method: "eth_accounts" });
     if (!Array.isArray(accounts)) {
       return [];
@@ -40,7 +47,21 @@ export async function signWithInjectedProvider(
   message: string,
   walletAddress: string
 ): Promise<string> {
-  const ethereum = getSupportedEvmInjectedProviderOrThrow();
+  const ethereum = (
+    globalThis as {
+      ethereum?: {
+        request: (args: {
+          method: string;
+          params: unknown[];
+        }) => Promise<string>;
+      };
+    }
+  ).ethereum;
+  if (!ethereum) {
+    throw new Error(
+      "Wallet provider unavailable. Please reconnect wallet and retry."
+    );
+  }
 
   const hexMessage = toHex(message);
   const attempts: Array<unknown[]> = [
@@ -53,10 +74,10 @@ export async function signWithInjectedProvider(
   let lastError: unknown = null;
   for (const params of attempts) {
     try {
-      const signature = (await ethereum.request({
+      const signature = await ethereum.request({
         method: "personal_sign",
         params,
-      })) as unknown;
+      });
       if (typeof signature === "string" && signature.length > 0) {
         return signature;
       }

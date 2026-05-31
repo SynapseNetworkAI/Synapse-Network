@@ -52,9 +52,6 @@ name: "Synapse Finance Backend Rules"
 - Amounts must be positive when the operation semantics require positive input.
 - Validate currency, owner identifiers, request IDs, transaction hashes, and status enums explicitly.
 - Reject malformed or partial finance input instead of guessing intent.
-- Chain transaction hashes are not completion evidence by themselves. Deposit confirmation and withdrawal completion must verify a successful receipt, expected contract, decoded event, owner, amount, fee, and ticket/event key before mutating balances or terminal statuses.
-- USDC atomic conversions must use the deployed token's actual `decimals()` value or a verified config. Never hardcode `18` for production USDC paths.
-- Withdrawal request creation must not reserve `pending` or `frozen` funds without a durable matching withdrawal row. Prefer one database transaction; if a legacy two-step path remains, compensate by releasing the reserved amount on any row-write failure and cover it with tests.
 
 ## Testing Expectations
 
@@ -75,9 +72,6 @@ When reviewing any finance-sensitive code change, run through each severity tier
 - [ ] Status-changing money paths use a business-order key plus expected-status CAS; wallet/owner upsert is not counted as idempotency
 - [ ] No SQL injection surface: queries use parameterized statements or ORM-bound values only
 - [ ] Auth/role check present before any balance-changing or approval-triggering route
-- [ ] Chain-backed money state changes verify receipt + decoded event evidence, not only user-provided `txHash`, `eventKey`, or `confirmations`
-- [ ] Token atomic conversions use actual token decimals; local MockUSDC precision does not leak into staging/prod
-- [ ] Withdrawal row creation and balance reservation are atomic or have tested compensation on row-write failure
 - [ ] No secret, private key, or internal stack trace leaks in any error response
 
 ### 🟡 WARNING — Should fix in same change

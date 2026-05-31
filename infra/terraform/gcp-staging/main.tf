@@ -28,6 +28,9 @@ locals {
     },
     var.labels,
   )
+  # Plain env: non-sensitive URLs, feature flags, limits, addresses, and public
+  # config. Operator-owned overrides should come from root env.staging/env.prod
+  # or private tfvars, then flow into common_runtime_env/frontend_runtime_env.
   runtime_env = merge(
     {
       ENVIRONMENT                              = var.environment
@@ -54,6 +57,7 @@ locals {
       REDIS_URL                                = ""
       EMAIL_OUTBOX_ENABLED                     = "true"
       EMAIL_TRANSPORT                          = "gmail_smtp"
+      GMAIL_SMTP_USERNAME                      = ""
       GMAIL_SMTP_HOST                          = "smtp.gmail.com"
       GMAIL_SMTP_PORT                          = "587"
       EMAIL_FROM                               = "Synapse Network Staging <staging-alerts@synapse-network.ai>"
@@ -71,6 +75,9 @@ locals {
       WITHDRAWAL_AUTO_SINGLE_LIMIT_USDC        = "1.000000"
       WITHDRAWAL_TIMEOUT_ALERT_AFTER_SEC       = "900"
       STAGING_ALERT_DRILL_ENABLED              = local.is_production ? "false" : "true"
+      PLATFORM_FEE_ADMIN_WALLETS               = ""
+      INDEXER_ADMIN_WALLETS                    = ""
+      GATEWAY_INTERNAL_ADMIN_WALLET            = ""
     },
     local.withdraw_signer_kms_enabled ? {
       WITHDRAW_SIGNER_MODE             = "gcp_kms"
@@ -84,6 +91,8 @@ locals {
   gateway_withdraw_signer_secret_env = local.withdraw_signer_kms_enabled ? {} : (
     var.legacy_withdraw_private_key_secret_enabled ? { PRIVATE_KEY = "synapse-staging-private-key" } : {}
   )
+  # Secret env: credentials and signing material only. These remain references
+  # to Secret Manager secret ids and must not come from committed tfvars.
   gateway_secret_env = merge(
     {
       POSTGRES_DSN                      = "synapse-staging-postgres-dsn"
@@ -94,14 +103,11 @@ locals {
       GATEWAY_INTERNAL_JWT_SECRET       = "synapse-staging-gateway-internal-jwt-secret"
       INTERNAL_TRIGGER_SECRET           = "synapse-staging-internal-trigger-secret"
       RPC_URL                           = "synapse-staging-arbitrum-sepolia-rpc-url"
-      GMAIL_SMTP_USERNAME               = "synapse-staging-gmail-username"
       GMAIL_SMTP_APP_PASSWORD           = "synapse-staging-gmail-app-password"
       GATEWAY_PROVIDER_SIGNATURE_SECRET = "synapse-staging-provider-signature-secret"
       TRANSACTION_LARK_WEBHOOK_URL      = "synapse-staging-lark-webhook-staging-drill"
       TRANSACTION_LARK_SECRET           = "synapse-staging-lark-secret-staging-drill"
       STAGING_ALERT_DRILL_TOKEN         = "synapse-staging-alert-drill-token"
-      PLATFORM_FEE_ADMIN_WALLETS        = "synapse-staging-gateway-admin-wallet"
-      INDEXER_ADMIN_WALLETS             = "synapse-staging-gateway-admin-wallet"
     },
     local.gateway_withdraw_signer_secret_env,
   )
@@ -120,7 +126,6 @@ locals {
     ADMIN_TOTP_SECRET_ENCRYPTION_KEY = "synapse-staging-admin-totp-secret-encryption-key"
     GATEWAY_READONLY_DSN             = "synapse-staging-gateway-readonly-dsn"
     GATEWAY_FORUM_WRITE_DSN          = "synapse-staging-gateway-forum-write-dsn"
-    GATEWAY_INTERNAL_ADMIN_WALLET    = "synapse-staging-gateway-admin-wallet"
     GATEWAY_INTERNAL_JWT_SECRET      = "synapse-staging-gateway-internal-jwt-secret"
     GCP_ALERT_RECEIVER_TOKEN         = "synapse-staging-gcp-alert-receiver-token"
     LARK_WEBHOOK_STAGING_DRILL       = "synapse-staging-lark-webhook-staging-drill"
@@ -452,11 +457,11 @@ resource "google_artifact_registry_repository" "docker" {
   }
 
   cleanup_policies {
-    id     = "keep-recent-10-per-package"
+    id     = "keep-recent-3-per-package"
     action = "KEEP"
 
     most_recent_versions {
-      keep_count = 10
+      keep_count = 3
     }
   }
 }

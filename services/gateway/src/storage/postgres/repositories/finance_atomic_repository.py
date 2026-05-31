@@ -41,6 +41,7 @@ class FinanceAtomicRepository(
         balance_for_update_sql: str,
         audit_insert_sql: str,
         restricted_session_statuses: tuple[str, ...],
+        business_policy_repository: Any | None = None,
     ):
         self._db = db
         self._q6 = quantize6
@@ -48,6 +49,7 @@ class FinanceAtomicRepository(
         self._balance_for_update_sql = balance_for_update_sql
         _ = audit_insert_sql
         self._restricted_session_statuses = restricted_session_statuses
+        self._business_policy_repository = business_policy_repository
 
     def redeem_credit_voucher_atomic(
         self, command: VoucherRedeemCommand

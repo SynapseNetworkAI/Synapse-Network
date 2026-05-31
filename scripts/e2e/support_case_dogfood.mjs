@@ -738,12 +738,12 @@ async function submitBillingSupportViaUi(browser, userAuth) {
   const context = await makeUserContext(browser, userAuth);
   const page = await context.newPage();
   try {
-    await page.goto(`${userFrontUrl}/dashboard/billing/credits`, {
+    await page.goto(`${userFrontUrl}/docs/support`, {
       waitUntil: "domcontentloaded",
       timeout: 60000,
     });
-    await screenshot(page, "billing-credits-support-entry.png");
-    await page.getByTestId("feedback-floating-button").click();
+    await screenshot(page, "support-page.png");
+    await page.getByTestId("support-card-billing_support").click();
     await page
       .getByTestId("feedback-drawer")
       .waitFor({ state: "visible", timeout: 20000 });
@@ -797,7 +797,7 @@ async function submitFeedbackViaApi(auth, category, message) {
       sentiment: "report_issue",
       category,
       message,
-      route: `/support?runId=${encodeURIComponent(
+      route: `/docs/support?runId=${encodeURIComponent(
         runId
       )}&category=${encodeURIComponent(category)}`,
       pageTitle: `Support Dogfood ${category}`,
