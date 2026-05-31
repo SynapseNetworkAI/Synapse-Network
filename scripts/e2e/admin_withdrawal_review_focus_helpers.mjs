@@ -211,16 +211,35 @@ export function createAdminWithdrawalReviewFocusHelpers({
   async function captureReviewScreenshots(adminAuth, withdrawalId, prefix) {
     const { browser, page, consoleErrors } = await openAdminContext(adminAuth);
     try {
-      await page.goto(
-        `${config.adminFront}/withdrawal-reviews?q=${encodeURIComponent(
-          withdrawalId
-        )}`,
-        { waitUntil: "networkidle", timeout: 45_000 }
-      );
-      await page
-        .getByText(withdrawalId)
-        .first()
-        .waitFor({ state: "visible", timeout: 30_000 });
+      const reviewUrl = `${config.adminFront}/withdrawal-reviews?q=${encodeURIComponent(
+        withdrawalId
+      )}`;
+      await page.goto(reviewUrl, {
+        waitUntil: "networkidle",
+        timeout: 45_000,
+      });
+      let foundInQueue = false;
+      for (let attempt = 1; attempt <= 12; attempt += 1) {
+        const textMatch = page.getByText(withdrawalId).first();
+        if (await textMatch.isVisible().catch(() => false)) {
+          foundInQueue = true;
+          break;
+        }
+        const rowMatch = page.locator("tr", { hasText: withdrawalId }).first();
+        if (await rowMatch.isVisible().catch(() => false)) {
+          foundInQueue = true;
+          break;
+        }
+        if (attempt < 12) {
+          await page.reload({ waitUntil: "networkidle", timeout: 45_000 });
+          await page.waitForTimeout(2_000);
+        }
+      }
+      if (!foundInQueue) {
+        throw new Error(
+          `withdrawal review projection did not surface ${withdrawalId} within reload window`
+        );
+      }
       const queueShot = await screenshotAdmin(page, `${prefix}-review-queue`, {
         expectedText: [withdrawalId],
         domCheckpoint: `${prefix} review queue contains withdrawal id`,

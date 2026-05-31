@@ -289,6 +289,122 @@ class BalanceWithdrawSigningMixin:
                 },
             )
 
+    def _assert_withdraw_receipt_matches_ticket(
+        self,
+        *,
+        owner_wallet: str,
+        tx_hash: str,
+        amount_wei: int,
+        fee_wei: int,
+        ticket_hash: str,
+    ) -> None:
+        provider, _contract = self._withdraw_contract()
+        web3_class = _web3_class()
+        if web3_class is None:
+            raise HTTPException(
+                status_code=500,
+                detail={
+                    "code": "CHAIN_SDK_NOT_INSTALLED",
+                    "message": "web3 dependency is required for withdrawal receipt validation.",
+                },
+            )
+        contract_address = normalize_wallet(settings.router_address)
+        contract = provider.eth.contract(
+            address=web3_class.to_checksum_address(contract_address),
+            abi=[
+                {
+                    "anonymous": False,
+                    "inputs": [
+                        {
+                            "indexed": True,
+                            "internalType": "address",
+                            "name": "user",
+                            "type": "address",
+                        },
+                        {
+                            "indexed": True,
+                            "internalType": "bytes32",
+                            "name": "ticketHash",
+                            "type": "bytes32",
+                        },
+                        {
+                            "indexed": False,
+                            "internalType": "uint256",
+                            "name": "amount",
+                            "type": "uint256",
+                        },
+                        {
+                            "indexed": False,
+                            "internalType": "uint256",
+                            "name": "fee",
+                            "type": "uint256",
+                        },
+                    ],
+                    "name": "WithdrawInfo",
+                    "type": "event",
+                }
+            ],
+        )
+        try:
+            receipt = provider.eth.get_transaction_receipt(tx_hash)
+        except Exception as exc:
+            _log_chain_rpc_unavailable("withdraw_receipt_lookup", exc)
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "code": "CHAIN_RPC_UNAVAILABLE",
+                    "message": "Unable to query withdrawal transaction receipt.",
+                },
+            ) from exc
+        if int(receipt.get("status", 0) or 0) != 1:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": "WITHDRAW_RECEIPT_MISMATCH",
+                    "message": "Withdrawal transaction receipt is not successful.",
+                },
+            )
+        checksum_owner = web3_class.to_checksum_address(owner_wallet)
+        normalized_ticket_hash = str(ticket_hash or "").strip().lower()
+        try:
+            events = contract.events.WithdrawInfo().process_receipt(receipt)
+        except Exception as exc:
+            _log_chain_rpc_unavailable("withdraw_receipt_decode", exc)
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "code": "CHAIN_RPC_UNAVAILABLE",
+                    "message": "Unable to decode withdrawal transaction receipt.",
+                },
+            ) from exc
+        def _normalize_event_ticket_hash(value: Any) -> str:
+            if isinstance(value, (bytes, bytearray)):
+                return "0x" + bytes(value).hex()
+            raw = str(value or "").strip().lower()
+            if raw.startswith("0x"):
+                return raw
+            return f"0x{raw}" if raw else ""
+        for event in events:
+            args = getattr(event, "args", None) or {}
+            event_user = normalize_wallet(str(args.get("user") or ""))
+            event_ticket_hash = _normalize_event_ticket_hash(args.get("ticketHash"))
+            event_amount = int(args.get("amount") or 0)
+            event_fee = int(args.get("fee") or 0)
+            if (
+                event_user == normalize_wallet(checksum_owner)
+                and event_ticket_hash == normalized_ticket_hash
+                and event_amount == int(amount_wei)
+                and event_fee == int(fee_wei)
+            ):
+                return
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "WITHDRAW_RECEIPT_MISMATCH",
+                "message": "Withdrawal receipt does not match the signed ticket.",
+            },
+        )
+
     def _read_vault_liquidity_amount_wei(self) -> int:
         token_address = normalize_wallet(settings.usdc_token_address)
         router_address = normalize_wallet(settings.router_address)

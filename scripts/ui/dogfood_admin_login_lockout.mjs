@@ -179,7 +179,11 @@ async function submitLogin(page, password) {
         item.request().method() === "POST",
       { timeout: 15000 }
     ),
-    page.getByRole("button", { name: /Execute Initialization/i }).click(),
+    page
+      .getByRole("button", {
+        name: /Continue Secure Sign-In|Execute Initialization/i,
+      })
+      .click(),
   ]);
   const body = await response.json().catch(() => ({}));
   apiResponses.push({

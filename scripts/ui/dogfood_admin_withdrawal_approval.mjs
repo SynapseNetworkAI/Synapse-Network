@@ -414,32 +414,42 @@ async function maybeSubmitStepUp(page) {
     return false;
   }
   await screenshot(page, "03-step-up-verification");
-  await waitForSafeTotpWindow({
-    guardSeconds: 10,
-    sleep: (ms) => page.waitForTimeout(ms),
-  });
-  await page
-    .locator('input[placeholder="123456"]')
-    .fill(generateTotpCode(ADMIN_TOTP_SECRET));
+  const otpInput = page.locator('input[placeholder="123456"]');
   const confirmButton = page
     .getByRole("button", { name: /确认放行|确认|Approve|Submit/ })
     .last();
   await confirmButton.waitFor({ state: "visible", timeout: 10000 });
-  await page.waitForFunction(
-    () => {
-      const buttons = Array.from(document.querySelectorAll("button"));
-      const target = buttons
-        .reverse()
-        .find((button) =>
-          /确认放行|确认|Approve|Submit/.test(button.textContent || "")
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    await waitForSafeTotpWindow({
+      guardSeconds: 10,
+      sleep: (ms) => page.waitForTimeout(ms),
+    });
+    await otpInput.fill(generateTotpCode(ADMIN_TOTP_SECRET));
+    const enabled = await page.waitForFunction(
+      () => {
+        const buttons = Array.from(document.querySelectorAll("button"));
+        const target = buttons
+          .reverse()
+          .find((button) =>
+            /确认放行|确认|Approve|Submit/.test(button.textContent || "")
+          );
+        const warningText = document.body?.innerText || "";
+        return Boolean(
+          target &&
+            !target.disabled &&
+            !/等待下一轮|验证码即将过期|temporarily locked/i.test(warningText)
         );
-      return Boolean(target && !target.disabled);
-    },
-    null,
-    { timeout: 10000 }
-  );
-  await confirmButton.click();
-  return true;
+      },
+      null,
+      { timeout: 5000 }
+    ).then(() => true).catch(() => false);
+    if (enabled) {
+      await confirmButton.click();
+      return true;
+    }
+    await page.waitForTimeout(2500);
+  }
+  throw new Error("Step-up verification never reached a safe submit window after 4 attempts");
 }
 
 async function waitForWithdrawalReviewPage(page, withdrawalId) {
@@ -506,6 +516,7 @@ async function verifyApprovalFlow(page, fixture) {
     .getByText("审核详情")
     .waitFor({ state: "visible", timeout: 30000 })
     .catch(() => null);
+  const activeDialog = page.locator('[role="dialog"][aria-modal="true"]').first();
   const openModalEvidence = await assertCenteredModal(
     page,
     [withdrawalId, "Action Modal", "处理摘要"],
@@ -542,18 +553,20 @@ async function verifyApprovalFlow(page, fixture) {
         ) && response.request().method() === "POST",
     { timeout: 60000 }
   );
-  await page
+  console.log(`[admin-withdrawal-approval] clicking approve for ${withdrawalId}`);
+  await activeDialog
     .getByRole("button", { name: /Approve & Issue Ticket|确认放行|放行|批准/ })
-    .last()
+    .first()
     .click();
-  const waitingButton = page
+  const waitingButton = activeDialog
     .getByRole("button", { name: /等待验证码/ })
     .first();
   await waitingButton.waitFor({ state: "visible", timeout: 30000 });
+  console.log(`[admin-withdrawal-approval] waiting-otp visible for ${withdrawalId}`);
   if (!(await waitingButton.isDisabled().catch(() => false))) {
     throw new Error("Approve button was not disabled while awaiting OTP");
   }
-  const awaitingRejectButton = page
+  const awaitingRejectButton = activeDialog
     .getByRole("button", { name: /驳回申请|驳回|Reject/i })
     .first();
   const awaitingButtonStates = [
@@ -577,15 +590,17 @@ async function verifyApprovalFlow(page, fixture) {
     expectedText: [withdrawalId, "等待验证码"],
     ...awaitingModalEvidence,
   });
+  console.log(`[admin-withdrawal-approval] step-up start for ${withdrawalId}`);
   await maybeSubmitStepUp(page);
-  const submittingButton = page
+  console.log(`[admin-withdrawal-approval] step-up submitted for ${withdrawalId}`);
+  const submittingButton = activeDialog
     .getByRole("button", { name: /放行提交中/i })
     .first();
   await submittingButton.waitFor({ state: "visible", timeout: 10000 });
   if (!(await submittingButton.isDisabled().catch(() => false))) {
     throw new Error("Approve button was not disabled while submitting");
   }
-  const submittingRejectButton = page
+  const submittingRejectButton = activeDialog
     .getByRole("button", { name: /驳回申请|驳回|Reject/i })
     .first();
   const submittingButtonStates = [
@@ -610,6 +625,7 @@ async function verifyApprovalFlow(page, fixture) {
     ...submittingModalEvidence,
   });
   const approvalResponse = await approvalPromise;
+  console.log(`[admin-withdrawal-approval] decision response status=${approvalResponse.status()} for ${withdrawalId}`);
   const body = await approvalResponse.json().catch(() => ({}));
   approvalResult = body;
   if (!approvalResponse.ok()) {
@@ -630,14 +646,14 @@ async function verifyApprovalFlow(page, fixture) {
     .first()
     .waitFor({ state: "visible", timeout: 30000 })
     .catch(() => null);
-  const submittedButton = page
+  const submittedButton = activeDialog
     .getByRole("button", { name: /已提交放行/i })
     .first();
   await submittedButton.waitFor({ state: "visible", timeout: 30000 });
   if (!(await submittedButton.isDisabled().catch(() => false))) {
     throw new Error("Approve button was not locked after submit");
   }
-  const rejectButton = page.getByRole("button", { name: /驳回申请/i }).first();
+  const rejectButton = activeDialog.getByRole("button", { name: /驳回申请/i }).first();
   if (await rejectButton.isVisible().catch(() => false)) {
     if (!(await rejectButton.isDisabled().catch(() => false))) {
       throw new Error("Reject button was not locked after approve submit");

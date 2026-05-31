@@ -1,0 +1,76 @@
+project_id = "replace-with-your-gcp-project-id"
+region     = "us-central1"
+
+# Must be globally unique.
+backup_bucket_name = "replace-with-unique-synapse-prod-backups-bucket"
+
+artifact_registry_repository = "synapse-prod"
+# Set to true only when testing cleanup candidates. Normal production should
+# keep this false so old untagged images are actually removed.
+artifact_registry_cleanup_policy_dry_run = false
+artifact_registry_keep_recent_count      = 3
+
+# Production starts conservative, then scales with live evidence.
+cloud_sql_tier                           = "db-g1-small"
+cloud_sql_edition                        = "ENTERPRISE"
+cloud_sql_availability_type              = "ZONAL"
+cloud_sql_disk_type                      = "PD_SSD"
+cloud_sql_disk_size_gb                   = 20
+cloud_sql_disk_autoresize                = true
+cloud_sql_deletion_protection            = true
+cloud_sql_backup_start_time              = "19:00" # UTC; 03:00 Asia/Kuala_Lumpur
+cloud_sql_transaction_log_retention_days = 7
+cloud_sql_retained_backups               = 7
+
+# Cost control: keep the production Gateway cold-startable before formal launch.
+gateway_min_instances = 0
+
+# Production job schedules stay conservative by default. Tune only with
+# money-path recovery evidence.
+deposit_indexer_schedule                  = "*/10 * * * *"
+consumer_withdraw_chain_recovery_schedule = "*/10 * * * *"
+withdrawal_expiry_sweeper_schedule        = "*/10 * * * *"
+notification_outbox_drain_schedule        = "*/10 * * * *"
+
+# Optional: set container image URLs once Artifact Registry images exist.
+# These are Docker/OCI images for Cloud Run, not website pictures.
+# If left empty, Terraform provisions the substrate only and first deploy can use
+# gcloud run deploy.
+# Example:
+# gateway_image = "us-central1-docker.pkg.dev/<project>/synapse-prod/gateway:<tag>"
+gateway_image       = ""
+gateway_admin_image = ""
+user_front_image    = ""
+admin_front_image   = ""
+docs_front_image    = ""
+provider_image      = ""
+
+admin_invoker_group_email             = ""
+gateway_admin_breakglass_group_email  = ""
+vpc_network_name                      = "synapse-prod-vpc"
+vpc_subnet_name                       = "synapse-prod-subnet"
+vpc_subnet_cidr                       = "10.30.0.0/24"
+private_service_range_name            = "synapse-prod-sql-private-range"
+private_service_range_prefix_length   = 16
+
+common_runtime_env = {
+  ANALYTICS_KAFKA_BOOTSTRAP_SERVERS = ""
+  CORS_ALLOW_ORIGINS                = "https://synapse-network.ai"
+  REDIS_URL                         = ""
+  ROUTER_ADDRESS                    = ""
+  USDC_TOKEN_ADDRESS                = ""
+}
+
+frontend_runtime_env = {
+  NEXT_PUBLIC_GATEWAY_BASE_URL     = "https://api.synapse-network.ai"
+  NEXT_PUBLIC_ADMIN_API_BASE_URL   = ""
+  NEXT_PUBLIC_DOCS_BASE_URL        = "https://docs.synapse-network.ai"
+  NEXT_PUBLIC_TX_EXPLORER_BASE_URL = "https://arbiscan.io"
+  NEXT_PUBLIC_CONSOLE_BASE_URL     = "https://synapse-network.ai/dashboard/overview"
+  ADMIN_API_PROXY_TARGET           = "https://admin-api.synapse-network.ai"
+  NEXT_PUBLIC_APP_ENV              = "prod"
+}
+
+labels = {
+  owner = "synapse"
+}

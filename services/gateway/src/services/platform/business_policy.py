@@ -34,18 +34,20 @@ def build_default_business_policy_payload() -> dict[str, Any]:
             "platformFeeRate": MoneyCodec.quantize_usdc(Decimal(str(settings.platform_fee_rate))).to_eng_string(),
             "gatewayRoutingTaxUsdc": MoneyCodec.quantize_usdc(Decimal(str(settings.gateway_routing_tax))).to_eng_string(),
             "consumerWithdrawFeeUsdc": parse_usdc(
-                Decimal("0.50")
+                Decimal(str(settings.consumer_withdraw_fee_usdc))
             ).to_eng_string(),
-            "consumerDepositMinUsdc": parse_usdc(Decimal("5.0")).to_eng_string(),
+            "consumerDepositMinUsdc": parse_usdc(
+                Decimal(str(settings.consumer_deposit_min_usdc))
+            ).to_eng_string(),
         },
         "consumerWithdraw": {
             "minUsdc": parse_usdc(
-                Decimal("10.0")
+                Decimal(str(settings.consumer_withdraw_min_usdc))
             ).to_eng_string(),
             "manualReviewThresholdUsdc": parse_usdc(
-                Decimal("500.0")
+                Decimal(str(settings.consumer_withdraw_manual_review_threshold_usdc))
             ).to_eng_string(),
-            "maxDailyCount": 3,
+            "maxDailyCount": int(settings.consumer_withdraw_max_daily_count),
             "maturitySeconds": int(settings.consumer_withdraw_maturity_seconds),
         },
         "risk": {

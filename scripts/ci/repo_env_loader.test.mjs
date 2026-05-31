@@ -57,10 +57,9 @@ test("repo env loader rejects invalid keys without echoing line values", () => {
     writeFileSync(join(dir, "env.staging"), "BAD-KEY=super-secret-value\n");
 
     const result = runBash(
-      [
-        `source "${loaderPath}"`,
-        `load_synapse_repo_env staging "${dir}"`,
-      ].join("; "),
+      [`source "${loaderPath}"`, `load_synapse_repo_env staging "${dir}"`].join(
+        "; ",
+      ),
     );
 
     assert.notEqual(result.status, 0);

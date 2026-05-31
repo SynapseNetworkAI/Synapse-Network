@@ -460,6 +460,21 @@ class Settings:
         True,
     )
     # Withdrawal risk-engine thresholds.
+    consumer_withdraw_fee_usdc: float = max(
+        0.0, _env_float("CONSUMER_WITHDRAW_FEE_USDC", 0.50)
+    )
+    consumer_deposit_min_usdc: float = max(
+        0.0, _env_float("CONSUMER_DEPOSIT_MIN_USDC", 5.0)
+    )
+    consumer_withdraw_min_usdc: float = max(
+        0.0, _env_float("CONSUMER_WITHDRAW_MIN_USDC", 10.0)
+    )
+    consumer_withdraw_manual_review_threshold_usdc: float = max(
+        0.0, _env_float("CONSUMER_WITHDRAW_MANUAL_REVIEW_THRESHOLD_USDC", 500.0)
+    )
+    consumer_withdraw_max_daily_count: int = max(
+        1, _env_int("CONSUMER_WITHDRAW_MAX_DAILY_COUNT", 3)
+    )
     withdrawal_auto_single_limit_usdc: float = max(
         0.0, _env_float("WITHDRAWAL_AUTO_SINGLE_LIMIT_USDC", 100.0)
     )
