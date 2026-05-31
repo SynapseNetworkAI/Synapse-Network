@@ -7,10 +7,11 @@ REPO_ROOT = Path(__file__).resolve().parents[4]
 MIGRATE_SCRIPT = REPO_ROOT / "services/gateway/scripts/deploy/migrate_db.sh"
 
 
-def _write_fake_tools(tmp_path: Path) -> tuple[Path, Path]:
+def _write_fake_tools(tmp_path: Path) -> tuple[Path, Path, Path]:
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
     psql_calls = tmp_path / "psql-calls.txt"
+    psql_stdin = tmp_path / "psql-stdin.txt"
     (fake_bin / "psql").write_text(
         """#!/usr/bin/env bash
 set -euo pipefail
@@ -21,6 +22,7 @@ for arg in "$@"; do
   fi
 done
 stdin="$(cat || true)"
+printf -- '---STDIN---\\n%s\\n' "$stdin" >> "${FAKE_PSQL_STDIN}"
 case "$stdin" in
   *"information_schema.tables"*) echo "40" ;;
   *"string_agg(required_table"*) echo "" ;;
@@ -41,15 +43,16 @@ echo "schema contract validation passed"
     )
     os.chmod(fake_bin / "psql", 0o755)
     os.chmod(fake_bin / "python3", 0o755)
-    return fake_bin, psql_calls
+    return fake_bin, psql_calls, psql_stdin
 
 
-def _run_migrate_with_fake_tools(tmp_path: Path, env: dict[str, str]) -> list[str]:
-    fake_bin, psql_calls = _write_fake_tools(tmp_path)
+def _run_migrate_with_fake_tools(tmp_path: Path, env: dict[str, str]) -> tuple[list[str], str]:
+    fake_bin, psql_calls, psql_stdin = _write_fake_tools(tmp_path)
     run_env = {
         **os.environ,
         "PATH": f"{fake_bin}:{os.environ['PATH']}",
         "FAKE_PSQL_CALLS": str(psql_calls),
+        "FAKE_PSQL_STDIN": str(psql_stdin),
         "GATEWAY_PYTHON": "python3",
         **env,
     }
@@ -61,13 +64,16 @@ def _run_migrate_with_fake_tools(tmp_path: Path, env: dict[str, str]) -> list[st
         check=True,
         capture_output=True,
     )
-    return psql_calls.read_text(encoding="utf-8").splitlines()
+    return (
+        psql_calls.read_text(encoding="utf-8").splitlines(),
+        psql_stdin.read_text(encoding="utf-8"),
+    )
 
 
 def test_staging_migration_prefers_split_migrator_fields_over_runtime_dsn(
     tmp_path: Path,
 ) -> None:
-    calls = _run_migrate_with_fake_tools(
+    calls, _stdin_log = _run_migrate_with_fake_tools(
         tmp_path,
         {
             "POSTGRES_DSN": "postgresql://runtime:runtime-pw@runtime-host/db",
@@ -87,7 +93,7 @@ def test_staging_migration_prefers_split_migrator_fields_over_runtime_dsn(
 
 def test_staging_migration_uses_runtime_dsn_only_as_last_resort(tmp_path: Path) -> None:
     runtime_dsn = "postgresql://runtime:runtime-pw@runtime-host/db"
-    calls = _run_migrate_with_fake_tools(
+    calls, _stdin_log = _run_migrate_with_fake_tools(
         tmp_path,
         {
             "POSTGRES_DSN": runtime_dsn,
@@ -97,3 +103,23 @@ def test_staging_migration_uses_runtime_dsn_only_as_last_resort(tmp_path: Path) 
 
     assert calls
     assert all(call == runtime_dsn for call in calls)
+
+
+def test_staging_migration_grants_projection_select_to_gateway_readonly_user(tmp_path: Path) -> None:
+    _calls, stdin_log = _run_migrate_with_fake_tools(
+        tmp_path,
+        {
+            "POSTGRES_DSN": "postgresql://runtime:runtime-pw@runtime-host/db",
+            "POSTGRES_HOST": "/cloudsql/project:region:instance",
+            "POSTGRES_DB": "synapse_gateway_staging",
+            "POSTGRES_USER": "synapse_gateway_app",
+            "POSTGRES_PASSWORD": "runtime-pw",
+            "POSTGRES_MIGRATOR_USER": "synapse_gateway_migrator",
+            "POSTGRES_MIGRATOR_PASSWORD": "migrator-pw",
+            "POSTGRES_READONLY_USER": "synapse_gateway_ro",
+        },
+    )
+
+    assert "GRANT SELECT ON TABLE %I.%I TO %I" in stdin_log
+    assert "readonly_user" in stdin_log
+    assert "has_table_privilege(:'readonly_user', 'public.synapse_admin_dashboard_operations_projection', 'SELECT')" in stdin_log
