@@ -446,7 +446,10 @@ Dashboard 不建议自己再建一套交易明细真相表。一期建议：
 
 ### 4.5 `admin_config_documents`
 
-用途：保存控制面的文档型配置快照。当前第一批只落 `admin_menu_config`，由 `draft` / `published` 两个版本组成。
+用途：保存控制面的文档型配置快照。当前已落两类配置：
+
+- `admin_menu_config`：后台导航树
+- `business_policy_config`：业务策略参数配置中心草稿/发布快照
 
 | 字段                     | 类型          | 说明                               |
 | ------------------------ | ------------- | ---------------------------------- |
@@ -495,6 +498,39 @@ Dashboard 不建议自己再建一套交易明细真相表。一期建议：
 - `parentItemId` 形成树结构，删除父节点时必须级联删除子树，避免孤儿节点。
 - `iconKey`、`keywords` 属于 IA/搜索元数据，不应该再散落在前端硬编码常量里。
 - `draft_payload_json` 与 `published_payload_json` 必须是完整快照，而不是 patch 日志，这样前端壳子和审计回溯都更稳定。
+
+`business_policy_config` 的 payload 采用按域分组的业务参数快照：
+
+```json
+{
+  "finance": {
+    "platformFeeRate": "0.100000",
+    "gatewayRoutingTaxUsdc": "0.000100",
+    "consumerWithdrawFeeUsdc": "0.500000",
+    "consumerDepositMinUsdc": "5.000000"
+  },
+  "consumerWithdraw": {
+    "minUsdc": "10.000000",
+    "manualReviewThresholdUsdc": "500.000000",
+    "maxDailyCount": 3,
+    "maturitySeconds": 604800
+  },
+  "risk": {
+    "withdrawalAutoSingleLimitUsdc": "100.000000",
+    "withdrawalAuto24hLimitUsdc": "500.000000",
+    "withdrawalWindowHours": 24
+  },
+  "reconciliation": {
+    "alertDeltaUsdc": "1.000000"
+  }
+}
+```
+
+`business_policy_config` 的关键边界：
+
+- 这里只保存 **业务策略参数** 的 `draft / published` 快照。
+- `published` 真正生效时，会通过受控 publish 动作同步到 gateway 可读的运行时表 `synapse_business_policy_config`。
+- `RPC_URL`、`POSTGRES_DSN`、Webhook signing key、KMS key、内部 trigger URL 等 secrets / infra 配置 **不进入** 这个文档配置中心。
 
 ## 5. 一期可以暂缓的表
 

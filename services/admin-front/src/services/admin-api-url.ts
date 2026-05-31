@@ -53,7 +53,9 @@ export function shouldUseSameOriginAdminProxy(
       isSynapseAdminConsoleHostname(location.hostname) &&
       isMatchingSynapseAdminPair(location.hostname, target.hostname);
 
-    return isLocalProxyPair || isSynapseAdminProxyPair;
+    return (
+      isLocalProxyPair || isSynapseAdminProxyPair
+    );
   } catch {
     return false;
   }

@@ -76,17 +76,16 @@ export default function AccountSettingsPage() {
       return;
     }
 
+    if (!isSessionAuthenticated && !hasStoredSession) {
+      setIsLoading(false);
+      setLoadError(null);
+      return;
+    }
+
     setIsLoading(true);
     setLoadError(null);
 
     try {
-      if (!isSessionAuthenticated && !hasStoredSession) {
-        const ok = await authorize();
-        if (!ok) {
-          throw new Error(t("accountSettingsPage.authorizeFirst"));
-        }
-      }
-
       const nextProfile = await getOwnerProfile(boundWallet);
       const nextForm = profileToForm(nextProfile);
       setProfile(nextProfile);
@@ -102,7 +101,7 @@ export default function AccountSettingsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [authorize, boundWallet, hasStoredSession, isSessionAuthenticated, t]);
+  }, [boundWallet, hasStoredSession, isSessionAuthenticated, t]);
 
   useEffect(() => {
     void loadProfile();

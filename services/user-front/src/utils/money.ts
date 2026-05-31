@@ -53,32 +53,10 @@ export function compareMoneyStrings(left: unknown, right: unknown): number {
 }
 
 export function formatMoneyString(value: unknown, fractionDigits: number = 2): string {
-  const normalizedFractionDigits = Math.max(
-    0,
-    Math.min(fractionDigits, MONEY_SCALE)
-  );
-  const roundingUnit = 10n ** BigInt(MONEY_SCALE - normalizedFractionDigits);
-  const roundedAtomic =
-    normalizedFractionDigits === MONEY_SCALE
-      ? toMoneyAtomic(value)
-      : (toMoneyAtomic(value) + roundingUnit / 2n) / roundingUnit;
-
-  const divisor = 10n ** BigInt(normalizedFractionDigits);
-  const wholeValue =
-    normalizedFractionDigits === 0
-      ? roundedAtomic
-      : roundedAtomic / divisor;
-  const whole = wholeValue
-    .toString()
-    .replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-
-  if (normalizedFractionDigits <= 0) return whole;
-
-  const fractionValue =
-    normalizedFractionDigits === MONEY_SCALE
-      ? roundedAtomic % divisor
-      : roundedAtomic % divisor;
-  return `${whole}.${fractionValue
-    .toString()
-    .padStart(normalizedFractionDigits, "0")}`;
+  const normalized = normalizeMoneyString(value);
+  const [wholeRaw, fractionRaw = ""] = normalized.split(".");
+  const whole = wholeRaw.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  if (fractionDigits <= 0) return whole;
+  const fraction = `${fractionRaw}000000`.slice(0, Math.min(fractionDigits, MONEY_SCALE));
+  return `${whole}.${fraction}`;
 }

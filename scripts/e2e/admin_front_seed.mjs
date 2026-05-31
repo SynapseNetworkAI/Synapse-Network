@@ -50,6 +50,10 @@ const operationModalFixture = createAdminPaginationSortingFixture({
   prefix: OPERATION_MODAL_PREFIX,
   runId: RUN_ID,
 });
+const GATEWAY_ADMIN_PYTHON = path.join(
+  ROOT,
+  "services/gateway-admin/.venv/bin/python"
+);
 
 function isLocalUrl(value) {
   try {
@@ -124,12 +128,14 @@ function queryAdminTotpSecretFromLocalDb() {
     return null;
   }
   const sql = `
-    SELECT f.payload_json ->> 'totpSecret'
+    SELECT json_build_object(
+      'totpSecret', f.payload_json ->> 'totpSecret',
+      'secretRef', f.secret_ref
+    )
     FROM admin_users u
     JOIN admin_mfa_factors f ON f.admin_id = u.admin_id
     WHERE u.email = ${sqlLiteral(ADMIN_EMAIL)}
       AND f.status = 'active'
-      AND f.payload_json ? 'totpSecret'
     ORDER BY f.created_at DESC
     LIMIT 1;
   `;
@@ -154,7 +160,44 @@ function queryAdminTotpSecretFromLocalDb() {
   if (result.status !== 0) {
     return null;
   }
-  return result.stdout.trim() || null;
+  try {
+    const parsed = JSON.parse(result.stdout.trim() || "null");
+    const inlineSecret = String(parsed?.totpSecret || "").trim();
+    if (inlineSecret) return inlineSecret;
+    const secretRef = String(parsed?.secretRef || "").trim();
+    if (
+      secretRef &&
+      secretRef.startsWith("inline-fernet:v1:") &&
+      fs.existsSync(GATEWAY_ADMIN_PYTHON)
+    ) {
+      const decrypted = spawnSync(
+        GATEWAY_ADMIN_PYTHON,
+        [
+          "-c",
+          [
+            "import sys",
+            `sys.path.insert(0, ${JSON.stringify(
+              path.join(ROOT, "services/gateway-admin")
+            )})`,
+            "from src.core.totp_secret_store import decrypt_inline_totp_secret_ref",
+            "print(decrypt_inline_totp_secret_ref(sys.argv[1]))",
+          ].join("; "),
+          secretRef,
+        ],
+        {
+          cwd: ROOT,
+          encoding: "utf8",
+        }
+      );
+      if (decrypted.status === 0) {
+        const value = decrypted.stdout.trim();
+        if (value) return value;
+      }
+    }
+  } catch {
+    return null;
+  }
+  return null;
 }
 
 function parseSessionCookie(setCookieHeader) {

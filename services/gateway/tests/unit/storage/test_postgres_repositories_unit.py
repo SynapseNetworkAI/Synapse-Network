@@ -604,7 +604,7 @@ def test_service_registry_repository_read_and_write() -> None:
                 "auth": {"type": "gateway_signed"},
                 "providerProfile": {"displayName": "Sentiment Desk"},
                 "payoutAccount": {
-                    "payoutAddress": "0x1234567890ABCDEF1234567890abcdef12345678",
+                    "payoutAddress": "0x1234567890abcdef1234567890abcdef12345678",
                     "chainId": 8453,
                     "settlementCurrency": "USDC",
                 },
@@ -637,6 +637,7 @@ def test_service_registry_repository_read_and_write() -> None:
     assert "INSERT INTO synapse_service_search_index" in all_sql
     assert "INSERT INTO synapse_runtime_state" in all_sql
     assert "INSERT INTO synapse_provider_payout_accounts" in all_sql
+
 
 def test_service_registry_repository_normalizes_datetime_health_timestamps() -> None:
     db = FakeDB()
@@ -721,6 +722,62 @@ def test_service_registry_repository_deactivates_old_endpoints_with_paused_statu
 
     assert "status = 'paused'" in update_sql
     assert update_params[1] == "svc-1"
+
+
+def test_service_registry_repository_reuses_existing_owner_wallet_and_provider_profile() -> None:
+    db = FakeDB()
+    db.tx_plan.append(
+        {
+            "fetchone": [
+                ("admin_legacy_owner",),
+                ("admin_legacy_provider",),
+            ]
+        }
+    )
+    repo = ServiceRegistryRepository(db)
+
+    repo.write_service_registry_rows([
+        ServiceDefinitionRecord.model_validate(
+            {
+                "serviceId": "svc-legacy-wallet",
+                "ownerAddress": "0xDEF",
+                "serviceName": "svc-legacy-wallet",
+                "summary": "demo",
+                "status": "active",
+                "isActive": True,
+                "pricingAmount": "0.010000",
+                "pricingCurrency": "USDC",
+                "constraints": {
+                    "timeoutMs": 3000,
+                    "maxQps": 50,
+                    "maxRequestBytes": 4096,
+                    "maxResponseBytes": 8192,
+                },
+                "id": "rec-legacy",
+                "schemaVersion": 2,
+                "role": "provider",
+                "address": "0xdef",
+                "tags": ["legacy"],
+                "auth": {"type": "gateway_signed"},
+                "providerProfile": {"displayName": "Legacy Desk"},
+                "healthCheck": {"path": "/health", "method": "GET"},
+                "forwarding": {"requestIdHeader": "X-Synapse-Request-Id"},
+                "metering": {"billingUnit": "per_call"},
+                "invoke": {"method": "POST", "targets": [{"url": "https://legacy"}]},
+                "createdAt": "2026-03-15 14:24:00",
+                "updatedAt": "2026-03-15 14:24:01",
+            }
+        )
+    ])
+
+    executed = db.tx_cursors[-1].executed
+    manifest_insert_params = [
+        params
+        for sql, params in executed
+        if "INSERT INTO synapse_service_manifests" in sql
+    ][0]
+    assert manifest_insert_params[1] == "admin_legacy_owner"
+    assert manifest_insert_params[2] == "admin_legacy_provider"
 
 
 def test_credential_auth_repository_read_write_and_roles() -> None:

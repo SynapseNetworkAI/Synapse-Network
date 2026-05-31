@@ -10,7 +10,7 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 
-ARG NEXT_PUBLIC_ADMIN_API_BASE_URL=https://admin-api-staging.synapse-network.ai
+ARG NEXT_PUBLIC_ADMIN_API_BASE_URL=
 ARG ADMIN_API_PROXY_TARGET=https://admin-api-staging.synapse-network.ai
 ARG NEXT_PUBLIC_APP_ENV=staging
 

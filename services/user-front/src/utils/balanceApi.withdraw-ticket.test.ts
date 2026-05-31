@@ -136,12 +136,12 @@ describe("consumer withdrawal ticket normalization", () => {
 
   it("caps refund failure messages before sending them to the Gateway", async () => {
     const originalFetch = globalThis.fetch;
-    let body: Record<string, unknown> | null = null;
+    let body: { message?: string } | undefined;
     globalThis.fetch = async (_input, init) => {
       body =
         typeof init?.body === "string"
-          ? (JSON.parse(init.body) as Record<string, unknown>)
-          : null;
+          ? (JSON.parse(init.body) as { message?: string })
+          : undefined;
       return new Response(JSON.stringify({ status: "success" }), {
         status: 200,
       });
@@ -154,11 +154,9 @@ describe("consumer withdrawal ticket normalization", () => {
         message: oversized,
       });
 
-      const capturedBody = body as Record<string, unknown> | null;
-      expect(capturedBody?.message).toBe(
-        normalizeRefundFailureMessage(oversized)
-      );
-      expect(String(capturedBody?.message ?? "").length).toBe(512);
+      expect(body).toBeDefined();
+      expect(body!.message).toBe(normalizeRefundFailureMessage(oversized));
+      expect(String(body!.message ?? "").length).toBe(512);
     } finally {
       globalThis.fetch = originalFetch;
     }

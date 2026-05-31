@@ -21,13 +21,18 @@ from fastapi import HTTPException
 
 from src.core.common import normalize_wallet
 from src.services.owner.finance_constants import (
-    CONSUMER_WITHDRAW_FEE_USDC,
     CONSUMER_WITHDRAW_MANUAL_REVIEW_THRESHOLD_USDC,
     CONSUMER_WITHDRAW_MAX_DAILY_COUNT,
     CONSUMER_WITHDRAW_MIN_USDC,
     CONSUMER_WITHDRAW_TYPE,
     REFUND_ACTIVE_STATUSES,
     read_consumer_mature_withdrawable,
+)
+from src.services.platform.business_policy import (
+    consumer_withdraw_fee_amount,
+    consumer_withdraw_manual_review_threshold,
+    consumer_withdraw_max_daily_count,
+    consumer_withdraw_min_amount,
 )
 from src.domain.finance import RefundIntentRow
 from src.utils.datetime_utils import now_dt_str
@@ -53,6 +58,9 @@ logger = logging.getLogger(__name__)
 
 class FinanceConsumerWithdrawMixin:
     """Consumer balance withdraw: reserve, create intent, and list."""
+
+    def _business_policy_storage(self) -> Any | None:
+        return getattr(self, "storage", None)
 
     @staticmethod
     def _raise_consumer_withdraw_runtime_error(code: str) -> None:
@@ -116,7 +124,7 @@ class FinanceConsumerWithdrawMixin:
         existing_withdrawal: bool = False,
     ) -> dict[str, Any]:
         amount_usdc = self._q6d(row.amount_usdc)
-        fee_usdc = self._q6d(CONSUMER_WITHDRAW_FEE_USDC)
+        fee_usdc = self._q6d(consumer_withdraw_fee_amount(self.storage))
         payload = {
             "withdrawId": str(row.id or ""),
             "amountUsdc": float(amount_usdc),
@@ -197,23 +205,34 @@ class FinanceConsumerWithdrawMixin:
         self, amount_usdc: Decimal | str | int, daily_count: int
     ) -> dict[str, str]:
         amount = self._q6d(amount_usdc)
-        if daily_count >= CONSUMER_WITHDRAW_MAX_DAILY_COUNT:
+        storage = self._business_policy_storage()
+        max_daily_count = (
+            consumer_withdraw_max_daily_count(storage)
+            if storage is not None
+            else CONSUMER_WITHDRAW_MAX_DAILY_COUNT
+        )
+        if daily_count >= max_daily_count:
             return {
                 "status": "PENDING_MANUAL_REVIEW",
                 "riskLevel": "red",
                 "riskReasonCode": "DAILY_WITHDRAW_LIMIT_EXCEEDED",
                 "message": (
-                    f"You have already made {CONSUMER_WITHDRAW_MAX_DAILY_COUNT} withdrawals in the past 24 hours. "
+                    f"You have already made {max_daily_count} withdrawals in the past 24 hours. "
                     "This request requires manual review."
                 ),
             }
-        if amount >= self._q6d(CONSUMER_WITHDRAW_MANUAL_REVIEW_THRESHOLD_USDC):
+        manual_review_threshold = self._q6d(
+            consumer_withdraw_manual_review_threshold(storage)
+            if storage is not None
+            else CONSUMER_WITHDRAW_MANUAL_REVIEW_THRESHOLD_USDC
+        )
+        if amount >= manual_review_threshold:
             return {
                 "status": "PENDING_MANUAL_REVIEW",
                 "riskLevel": "yellow",
                 "riskReasonCode": "LARGE_WITHDRAWAL_REQUIRES_MANUAL_REVIEW",
                 "message": (
-                    f"Withdrawals ≥ ${CONSUMER_WITHDRAW_MANUAL_REVIEW_THRESHOLD_USDC:.0f} USDC "
+                    f"Withdrawals ≥ ${manual_review_threshold:.0f} USDC "
                     "require manual review (ETA 12–24 h)."
                 ),
             }
@@ -270,14 +289,23 @@ class FinanceConsumerWithdrawMixin:
                     status_code=400,
                     detail={"code": "INVALID_AMOUNT", "message": "amountUsdc must be a number."},
                 )
-            min_amount = self._q6d(CONSUMER_WITHDRAW_MIN_USDC)
-            fee_usdc = self._q6d(CONSUMER_WITHDRAW_FEE_USDC)
+            storage = self._business_policy_storage()
+            min_amount = self._q6d(
+                consumer_withdraw_min_amount(storage)
+                if storage is not None
+                else CONSUMER_WITHDRAW_MIN_USDC
+            )
+            fee_usdc = self._q6d(
+                consumer_withdraw_fee_amount(storage)
+                if storage is not None
+                else "0.50"
+            )
             if amount_usdc < min_amount:
                 raise HTTPException(
                     status_code=400,
                     detail={
                         "code": "MIN_WITHDRAWAL_AMOUNT_NOT_MET",
-                        "message": f"Minimum consumer withdrawal amount is {CONSUMER_WITHDRAW_MIN_USDC:g} USDC.",
+                        "message": f"Minimum consumer withdrawal amount is {min_amount:g} USDC.",
                     },
                 )
             if amount_usdc <= fee_usdc:
@@ -287,7 +315,7 @@ class FinanceConsumerWithdrawMixin:
                         "code": "AMOUNT_TOO_LOW_FOR_FEE",
                         "message": (
                             f"Withdrawal amount must exceed the platform fee of "
-                            f"${CONSUMER_WITHDRAW_FEE_USDC:.2f} USDC."
+                            f"${fee_usdc:.2f} USDC."
                         ),
                     },
                 )
@@ -527,39 +555,7 @@ class FinanceConsumerWithdrawMixin:
                 ticket=ticket or {},
             )
             rows.append(row)
-            try:
-                self._save_refund_rows(rows, now)  # type: ignore[attr-defined]
-            except Exception:
-                logger.exception(
-                    "Consumer withdrawal row save failed after balance reserve",
-                    extra={
-                        "owner": owner,
-                        "withdrawal_id": withdraw_id,
-                        "amount_usdc": amount_usdc,
-                        "risk_status": risk["status"],
-                    },
-                )
-                try:
-                    if risk["status"] == "PENDING_MANUAL_REVIEW":
-                        self._release_consumer_frozen_to_available(  # type: ignore[attr-defined]
-                            owner,
-                            amount_usdc,
-                        )
-                    else:
-                        self._release_consumer_pending_to_available(  # type: ignore[attr-defined]
-                            owner,
-                            amount_usdc,
-                        )
-                except Exception:
-                    logger.exception(
-                        "Consumer withdrawal balance compensation failed",
-                        extra={
-                            "owner": owner,
-                            "withdrawal_id": withdraw_id,
-                            "amount_usdc": amount_usdc,
-                        },
-                    )
-                raise
+            self._save_refund_rows(rows, now)  # type: ignore[attr-defined]
 
             response = self._build_consumer_withdraw_response(row)
             await self._finalize_consumer_withdraw_idempotency(

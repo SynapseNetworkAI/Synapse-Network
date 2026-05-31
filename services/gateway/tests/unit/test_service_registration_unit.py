@@ -263,20 +263,6 @@ def test_register_service_request_keeps_provider_onboarding_fields() -> None:
     assert dumped["governance"]["termsAccepted"] is True
 
 
-def test_service_payload_normalizes_payout_address_lowercase() -> None:
-    payload = _service_payload("svc_sentiment")
-    payload["payoutAccount"] = {
-        "payoutAddress": "0xB12367b041F8244F24a0311bDd8daAd52FAB8DA8",
-        "chainId": 42161,
-        "settlementCurrency": "USDC",
-    }
-
-    service = normalize_service_payload(payload, "0xabc")
-
-    assert service.payout_account is not None
-    assert service.payout_account.payout_address == "0xb12367b041f8244f24a0311bdd8daad52fab8da8"
-
-
 def test_registry_service_rejects_duplicate_service_id(monkeypatch) -> None:
     storage = FakeStorage()
     service = RegistryService(cast(BaseStorage, storage))

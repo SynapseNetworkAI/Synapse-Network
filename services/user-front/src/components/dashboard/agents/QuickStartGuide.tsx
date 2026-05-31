@@ -9,7 +9,7 @@ import {
   useWaitForTransactionReceipt,
   useWriteContract,
 } from "wagmi";
-import { formatUnits, parseAbi, parseUnits, type Hex } from "viem";
+import { parseAbi, parseUnits, type Hex } from "viem";
 import {
   ChevronRight,
   Zap,
@@ -99,27 +99,10 @@ export default function QuickStartGuide({
       args: userAddress ? [userAddress] : undefined,
       query: { enabled: !!userAddress },
     });
-  const { data: usdcDecimalsRaw } = useReadContract({
-    address: contractConfig.MockUSDC as `0x${string}`,
-    abi: parseAbi(["function decimals() view returns (uint8)"]),
-    functionName: "decimals",
-    query: { enabled: !!userAddress },
-  });
-  const { data: usdcTokenNameRaw } = useReadContract({
-    address: contractConfig.MockUSDC as `0x${string}`,
-    abi: parseAbi(["function name() view returns (string)"]),
-    functionName: "name",
-    query: { enabled: !!userAddress },
-  });
-  const usdcDecimals = Number(usdcDecimalsRaw ?? 18);
-  const usdcTokenName =
-    typeof usdcTokenNameRaw === "string" && usdcTokenNameRaw.trim()
-      ? usdcTokenNameRaw.trim()
-      : "USDC";
 
   const walletUsdcBalance =
     isConnected && userAddress && walletUsdcBalanceRaw !== undefined
-      ? Number(formatUnits(walletUsdcBalanceRaw, usdcDecimals))
+      ? Number(walletUsdcBalanceRaw) / 1e18
       : 0;
 
   const { signTypedDataAsync } = useSignTypedData();
@@ -147,7 +130,7 @@ export default function QuickStartGuide({
         return;
       }
 
-      const amount = parseUnits(depositAmount, usdcDecimals);
+      const amount = parseUnits(depositAmount, 18);
       const deadline = Math.floor(Date.now() / 1000) + 3600;
       const nonce = usdcNonce ?? BigInt(0);
       const permitChainId = resolvePermitDomainChainId(chainId);
@@ -159,7 +142,7 @@ export default function QuickStartGuide({
       }
 
       const domain = {
-        name: usdcTokenName,
+        name: "MockUSDC",
         version: "1",
         chainId: permitChainId,
         verifyingContract: contractConfig.MockUSDC as `0x${string}`,
@@ -218,8 +201,6 @@ export default function QuickStartGuide({
     signTypedDataAsync,
     depositAmount,
     walletUsdcBalance,
-    usdcDecimals,
-    usdcTokenName,
     usdcNonce,
     writeContractAsync,
     t,

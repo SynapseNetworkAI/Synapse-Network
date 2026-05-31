@@ -50,6 +50,7 @@ except Exception:  # pragma: no cover
 WITHDRAW_DEADLINE_SEC_MIN = 60
 WITHDRAW_DEADLINE_SEC_MAX = 86400
 WITHDRAW_DEADLINE_SEC_DEFAULT = 1800
+USDC_DECIMALS = 18
 EXPECTED_STAGING_CHAIN_ID = 421614
 
 
@@ -157,18 +158,7 @@ class BalanceWithdrawSigningMixin:
                         ],
                         "stateMutability": "view",
                         "type": "function",
-                    },
-                    {
-                        "anonymous": False,
-                        "inputs": [
-                            {"indexed": True, "name": "user", "type": "address"},
-                            {"indexed": True, "name": "ticketHash", "type": "bytes32"},
-                            {"indexed": False, "name": "amount", "type": "uint256"},
-                            {"indexed": False, "name": "fee", "type": "uint256"},
-                        ],
-                        "name": "WithdrawInfo",
-                        "type": "event",
-                    },
+                    }
                 ],
             )
             return provider, contract
@@ -299,56 +289,6 @@ class BalanceWithdrawSigningMixin:
                 },
             )
 
-    def _resolve_withdraw_token_decimals(self) -> int:
-        token_address = normalize_wallet(settings.usdc_token_address)
-        if not token_address:
-            raise HTTPException(
-                status_code=500,
-                detail={
-                    "code": "WITHDRAW_TOKEN_NOT_CONFIGURED",
-                    "message": "USDC token address is not configured.",
-                },
-            )
-        try:
-            _provider, contract = self._withdraw_contract()
-            web3 = getattr(contract, "w3", None)
-            if web3 is None:
-                raise RuntimeError("missing web3")
-            token_contract = web3.eth.contract(
-                address=web3.to_checksum_address(token_address),
-                abi=[
-                    {
-                        "constant": True,
-                        "inputs": [],
-                        "name": "decimals",
-                        "outputs": [{"name": "", "type": "uint8"}],
-                        "stateMutability": "view",
-                        "type": "function",
-                    }
-                ],
-            )
-            decimals = int(token_contract.functions.decimals().call())
-        except HTTPException:
-            raise
-        except Exception as exc:
-            _log_chain_rpc_unavailable("withdraw_token_decimals", exc)
-            raise HTTPException(
-                status_code=503,
-                detail={
-                    "code": "CHAIN_RPC_UNAVAILABLE",
-                    "message": "Unable to query USDC token metadata for withdrawal.",
-                },
-            ) from exc
-        if decimals < 0 or decimals > 36:
-            raise HTTPException(
-                status_code=500,
-                detail={
-                    "code": "WITHDRAW_TOKEN_DECIMALS_INVALID",
-                    "message": "USDC token decimals are outside the supported range.",
-                },
-            )
-        return decimals
-
     def _read_vault_liquidity_amount_wei(self) -> int:
         token_address = normalize_wallet(settings.usdc_token_address)
         router_address = normalize_wallet(settings.router_address)
@@ -385,103 +325,10 @@ class BalanceWithdrawSigningMixin:
             raise RuntimeError("WITHDRAW_VAULT_LIQUIDITY_CHECK_UNAVAILABLE") from exc
 
     def _assert_withdraw_vault_liquidity(self, amount_usdc: Decimal) -> None:
-        amount_wei = usdc_decimal_to_atomic(
-            amount_usdc,
-            decimals=self._resolve_withdraw_token_decimals(),
-        )
+        amount_wei = usdc_decimal_to_atomic(amount_usdc, decimals=USDC_DECIMALS)
         vault_balance_wei = self._read_vault_liquidity_amount_wei()
         if vault_balance_wei < amount_wei:
             raise RuntimeError("INSUFFICIENT_VAULT_LIQUIDITY")
-
-    @staticmethod
-    def _normalize_bytes32(value: Any) -> str:
-        raw = str(value or "").strip().lower()
-        if raw.startswith("0x") and len(raw) == 66:
-            return raw
-        return ""
-
-    def _assert_withdraw_receipt_matches_ticket(
-        self,
-        *,
-        owner_wallet: str,
-        tx_hash: str,
-        amount_wei: int,
-        fee_wei: int,
-        ticket_hash: str,
-    ) -> None:
-        """Verify a completion tx really emitted the expected SynapseCore withdraw event."""
-        expected_owner = normalize_wallet(owner_wallet)
-        expected_ticket_hash = self._normalize_bytes32(ticket_hash)
-        if not expected_owner or not expected_ticket_hash:
-            raise HTTPException(
-                status_code=409,
-                detail={
-                    "code": "WITHDRAW_RECEIPT_EVIDENCE_MISSING",
-                    "message": "Withdrawal completion is missing signed ticket evidence.",
-                },
-            )
-
-        provider, contract = self._withdraw_contract()
-        web3 = getattr(contract, "w3", None)
-        try:
-            receipt = provider.eth.get_transaction_receipt(str(tx_hash).lower())
-        except Exception as exc:
-            _log_chain_rpc_unavailable("withdraw_receipt", exc)
-            raise HTTPException(
-                status_code=409,
-                detail={
-                    "code": "WITHDRAW_TX_NOT_CONFIRMED",
-                    "message": "Withdrawal transaction is not confirmed yet.",
-                },
-            ) from exc
-        if receipt is None or int(receipt.get("status", 0)) != 1:
-            raise HTTPException(
-                status_code=409,
-                detail={
-                    "code": "WITHDRAW_TX_NOT_CONFIRMED",
-                    "message": "Withdrawal transaction is not confirmed successfully.",
-                },
-            )
-        receipt_to = normalize_wallet(str(receipt.get("to") or ""))
-        expected_contract = normalize_wallet(settings.router_address)
-        if receipt_to and expected_contract and receipt_to != expected_contract:
-            raise HTTPException(
-                status_code=409,
-                detail={
-                    "code": "WITHDRAW_TX_CONTRACT_MISMATCH",
-                    "message": "Withdrawal transaction does not target the Synapse vault.",
-                },
-            )
-
-        try:
-            rows = contract.events.WithdrawInfo().process_receipt(receipt)
-        except Exception as exc:
-            raise HTTPException(
-                status_code=409,
-                detail={
-                    "code": "WITHDRAW_EVENT_NOT_FOUND",
-                    "message": "Withdrawal transaction does not contain a valid Synapse withdraw event.",
-                },
-            ) from exc
-        for row in rows:
-            args = row.get("args", {})
-            event_ticket_hash = args.get("ticketHash")
-            if not isinstance(event_ticket_hash, str) and web3 is not None:
-                event_ticket_hash = web3.to_hex(event_ticket_hash)
-            if (
-                normalize_wallet(str(args.get("user") or "")) == expected_owner
-                and self._normalize_bytes32(event_ticket_hash) == expected_ticket_hash
-                and int(args.get("amount") or 0) == int(amount_wei)
-                and int(args.get("fee") or 0) == int(fee_wei)
-            ):
-                return
-        raise HTTPException(
-            status_code=409,
-            detail={
-                "code": "WITHDRAW_EVENT_MISMATCH",
-                "message": "Withdrawal transaction does not match this withdrawal intent.",
-            },
-        )
 
     def _latest_withdraw_rpc_block_timestamp(self) -> int:
         provider, _contract = self._withdraw_contract()

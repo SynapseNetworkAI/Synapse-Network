@@ -27,6 +27,12 @@ const MODE = (
 ).toLowerCase();
 const IS_STAGING = MODE === "staging";
 const IS_ADMIN_REVIEW_FOCUSED = process.env.ADMIN_WITHDRAWAL_REVIEW_E2E === "1";
+const LOCAL_ADMIN_E2E_TOTP_SECRET =
+  process.env.LOCAL_ADMIN_E2E_TOTP_SECRET || "KVKFKRCPNZQUYMLXOVYDSQKJKZDTSRLD";
+const LOCAL_DEFAULT_CONSUMER_KEY =
+  "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d";
+const LOCAL_DEFAULT_PROVIDER_KEY =
+  "0xa9bc3f60a86d4a18c83113631aed4e39c9a83d76c95b9e229385e5e0c60b2a71";
 const timestamp = new Date()
   .toISOString()
   .replace(/[:.]/g, "")
@@ -80,10 +86,14 @@ const config = {
       "postgresql://synapse_gateway_app:local-dev-gateway-app-password@127.0.0.1:15432/synapse_gateway",
   adminCookieName:
     process.env.ADMIN_SESSION_COOKIE_NAME || "synapse_admin_session",
-  adminTotpSecret:
-    process.env.STAGING_ADMIN_E2E_OTP_SECRET ||
-    process.env.ADMIN_TOTP_SECRET ||
-    "JBSWY3DPEHPK3PXP",
+  adminTotpSecret: IS_STAGING
+    ? process.env.STAGING_ADMIN_E2E_OTP_SECRET ||
+      process.env.ADMIN_TOTP_SECRET ||
+      "JBSWY3DPEHPK3PXP"
+    : process.env.LOCAL_ADMIN_E2E_TOTP_SECRET ||
+      LOCAL_ADMIN_E2E_TOTP_SECRET ||
+      process.env.ADMIN_TOTP_SECRET ||
+      "KVKFKRCPNZQUYMLXOVYDSQKJKZDTSRLD",
   adminEmail:
     process.env.ADMIN_EMAIL ||
     (IS_STAGING
@@ -245,6 +255,20 @@ function isLocalUrl(value) {
   } catch {
     return false;
   }
+}
+
+function readLocalProviderOnboardingKey() {
+  const onboardingEnvPath = path.resolve(
+    ROOT,
+    "../Synapse-Network-Provider/.env.onboarding.local"
+  );
+  if (!fs.existsSync(onboardingEnvPath)) {
+    return "";
+  }
+  const match = fs
+    .readFileSync(onboardingEnvPath, "utf8")
+    .match(/^SYNAPSE_PROVIDER_OWNER_PRIVATE_KEY=(.+)$/m);
+  return match?.[1]?.trim().replace(/^['"]|['"]$/g, "") || "";
 }
 
 function assertSeedEnvironment() {
@@ -1220,7 +1244,20 @@ async function createProviderWithdrawal(auth, amountUsdc, label) {
 }
 
 async function invokeFixtureService(fixture, suffix) {
-  seedServiceHealth(fixture.service.id, fixture.service.mockUrl);
+  const targetUrl =
+    fixture?.service?.mockUrl ||
+    fixture?.service?.endpointUrl ||
+    fixture?.service?.discovery?.primaryEndpoint?.endpointUrl ||
+    fixture?.service?.discovery?.invoke?.targets?.[0]?.url ||
+    "";
+  if (!targetUrl) {
+    throw new Error(
+      `Provider fixture is missing an invokable target URL: ${JSON.stringify(
+        fixture?.service || {}
+      ).slice(0, 800)}`
+    );
+  }
+  seedServiceHealth(fixture.service.id, targetUrl);
   const requestId = `withdrawal-review-${runId()}-${suffix}`;
   const started = Date.now();
   const response = await fetch(`${config.gatewayBase}/api/v1/agent/invoke`, {
@@ -1293,29 +1330,41 @@ async function ensureProviderMatureReceivable(
     );
     return maturity;
   }
-  const gap = Math.max(target - (Number.isFinite(current) ? current : 0), 0);
-  const callsNeeded = Math.max(1, Math.ceil(gap / servicePrice) + 1);
-  for (let index = 0; index < callsNeeded; index += 1) {
-    await invokeFixtureService(fixture, `provider-topup-${index + 1}`);
+  const initialCurrent = Number.isFinite(current) ? current : 0;
+  const gap = Math.max(target - initialCurrent, 0);
+  const conservativePerInvoke = Math.max(servicePrice * 0.5, 0.01);
+  const maxInvokes = Math.max(3, Math.ceil(gap / conservativePerInvoke) + 6);
+  let invokeCount = 0;
+
+  while (invokeCount < maxInvokes) {
+    invokeCount += 1;
+    await invokeFixtureService(fixture, `provider-topup-${invokeCount}`);
+    matureProviderCharges(providerAuth.address);
+    maturity = dbProviderMatureReceivable(providerAuth.address);
+    current = Number.parseFloat(maturity?.providerMatureReceivableUsdc || "0");
+    if (Number.isFinite(current) && current >= target) {
+      break;
+    }
   }
-  matureProviderCharges(providerAuth.address);
-  maturity = dbProviderMatureReceivable(providerAuth.address);
-  current = Number.parseFloat(maturity?.providerMatureReceivableUsdc || "0");
+
   evidence.db.providerMatureReceivable = maturity;
   evidence.api.providerRejectFixtureTopup = {
     serviceId: fixture.service.id,
     priceUsdc: fixture.service.priceUsdc,
     targetAmountUsdc,
-    invokeCount: callsNeeded,
+    invokeCount,
+    initialProviderMatureReceivableUsdc: initialCurrent.toFixed(6),
+    finalProviderMatureReceivableUsdc:
+      maturity?.providerMatureReceivableUsdc || "0",
   };
   if (!Number.isFinite(current) || current < target) {
     throw new Error(
-      `Provider mature receivable did not reach target after top-up: current=${maturity?.providerMatureReceivableUsdc} target=${targetAmountUsdc} invokes=${callsNeeded}`
+      `Provider mature receivable did not reach target after top-up: current=${maturity?.providerMatureReceivableUsdc} target=${targetAmountUsdc} invokes=${invokeCount}/${maxInvokes}`
     );
   }
   pass(
     "provider:mature-receivable-ready",
-    `${maturity.providerMatureReceivableUsdc} USDC after ${callsNeeded} invoke(s)`
+    `${maturity.providerMatureReceivableUsdc} USDC after ${invokeCount} invoke(s)`
   );
   return maturity;
 }
@@ -1333,9 +1382,14 @@ async function runProviderApprovalBaseline() {
   }
   const fixturePath = path.join(OUT_DIR, "provider-approval-fixture.json");
   const localConsumerKey =
-    process.env.CONSUMER_KEY || ethers.Wallet.createRandom().privateKey;
+    config.consumerKey ||
+    process.env.CONSUMER_KEY ||
+    LOCAL_DEFAULT_CONSUMER_KEY;
   const localProviderKey =
-    process.env.PROVIDER_KEY || ethers.Wallet.createRandom().privateKey;
+    config.providerKey ||
+    process.env.PROVIDER_KEY ||
+    readLocalProviderOnboardingKey() ||
+    LOCAL_DEFAULT_PROVIDER_KEY;
   runCommand(
     "provider-approval-baseline",
     "npm",
@@ -1344,7 +1398,7 @@ async function runProviderApprovalBaseline() {
       ADMIN_WITHDRAWAL_APPROVAL_FIXTURE: fixturePath,
       ADMIN_WITHDRAWAL_APPROVAL_DEPOSIT_USDC: config.topupDepositUsdc,
       ADMIN_WITHDRAWAL_APPROVAL_AMOUNT_USDC:
-        process.env.ADMIN_WITHDRAWAL_APPROVAL_AMOUNT_USDC || "100.000000",
+        process.env.ADMIN_WITHDRAWAL_APPROVAL_AMOUNT_USDC || "10.000000",
       WITHDRAWAL_AUTO_SINGLE_LIMIT_USDC:
         process.env.WITHDRAWAL_AUTO_SINGLE_LIMIT_USDC || "1.000000",
       CONSUMER_KEY: localConsumerKey,
@@ -1539,6 +1593,19 @@ async function runProviderReject(fixture, providerAuth, adminAuth) {
     throw new Error(
       "Provider reject requires provider approval fixture with service and credential."
     );
+  }
+  if (fixture?.consumer?.privateKey) {
+    const consumerFixtureAuth = await authWallet(
+      fixture.consumer.privateKey,
+      "consumer-provider-reject-fixture"
+    );
+    fixture.credential = fixture?.credential?.id
+      ? await rotateAgentCredential(consumerFixtureAuth, fixture.credential.id)
+      : await issueAgentCredential(consumerFixtureAuth);
+    evidence.api.providerRejectFixtureRefreshedCredential = {
+      credentialId: fixture.credential.id,
+      consumerAddress: consumerFixtureAuth.address,
+    };
   }
   await ensureProviderMatureReceivable(
     fixture,

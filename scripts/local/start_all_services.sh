@@ -20,6 +20,12 @@ ADMIN_FRONT_LOG="${ROOT_DIR}/services/admin-front/admin_front_dev.log"
 ACTION="${1:-start}"
 ADMIN_SCHEMA_MIGRATED=0
 
+if [[ -f "${ROOT_DIR}/env.local" ]]; then
+  # shellcheck source=../lib/load_repo_env.sh
+  source "${ROOT_DIR}/scripts/lib/load_repo_env.sh"
+  load_synapse_repo_env local "${ROOT_DIR}"
+fi
+
 find_pid_by_port() {
   local port="$1"
   lsof -t -nP -iTCP:"${port}" -sTCP:LISTEN 2>/dev/null | head -n 1 || true
@@ -101,6 +107,15 @@ ensure_yarn_deps() {
   local app_dir="$1"
   if [[ ! -d "${app_dir}/node_modules" ]]; then
     echo "[local-apps] installing dependencies in ${app_dir#${ROOT_DIR}/}"
+    (cd "${app_dir}" && yarn install)
+  fi
+}
+
+ensure_node_bin() {
+  local app_dir="$1"
+  local bin_name="$2"
+  if [[ ! -x "${app_dir}/node_modules/.bin/${bin_name}" ]]; then
+    echo "[local-apps] ${app_dir#${ROOT_DIR}/} is missing node_modules/.bin/${bin_name}; reinstalling dependencies"
     (cd "${app_dir}" && yarn install)
   fi
 }
@@ -352,6 +367,7 @@ start_user_front() {
   fi
 
   ensure_yarn_deps "${ROOT_DIR}/services/user-front"
+  ensure_node_bin "${ROOT_DIR}/services/user-front" "next"
   echo "[local-apps] starting user-front on http://localhost:3000"
   if command -v screen >/dev/null 2>&1; then
     screen -S synapse-user-front -X quit >/dev/null 2>&1 || true
@@ -387,6 +403,7 @@ start_docs_front() {
   fi
 
   ensure_yarn_deps "${ROOT_DIR}/services/docs-front"
+  ensure_node_bin "${ROOT_DIR}/services/docs-front" "next"
   echo "[local-apps] starting docs-front on http://localhost:3100"
   if command -v screen >/dev/null 2>&1; then
     screen -S synapse-docs-front -X quit >/dev/null 2>&1 || true
@@ -438,6 +455,7 @@ start_admin_front() {
   fi
 
   ensure_yarn_deps "${ROOT_DIR}/services/admin-front"
+  ensure_node_bin "${ROOT_DIR}/services/admin-front" "next"
   echo "[local-apps] starting admin-front on http://127.0.0.1:3200"
   if command -v screen >/dev/null 2>&1; then
     screen -S synapse-admin-front -X quit >/dev/null 2>&1 || true

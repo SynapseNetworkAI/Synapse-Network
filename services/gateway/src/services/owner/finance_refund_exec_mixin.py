@@ -17,7 +17,13 @@ from src.domain.execution import CompleteWithdrawTxCommand
 from src.domain.finance import RefundIntentRow, RefundReviewContext
 from src.domain.operation_metadata import OperationContextMetadata
 from src.services.owner.finance_constants import CONSUMER_WITHDRAW_TYPE, REFUND_ACTIVE_STATUSES
-from src.services.owner.finance_fee_policy import accrue_consumer_withdraw_fee_after_fallback
+from src.services.owner.consumer_withdraw_logging import (
+    log_consumer_withdraw_completed,
+)
+from src.services.owner.finance_fee_policy import (
+    accrue_consumer_withdraw_fee_after_fallback,
+    consumer_withdraw_fee_usdc,
+)
 from src.utils.datetime_utils import now_dt_str
 from src.utils.money import money_str, parse_usdc
 
@@ -366,6 +372,12 @@ class FinanceRefundExecMixin:
         request_meta: Optional[dict[str, Any]],
     ) -> dict[str, Any]:
         refund_amount = parse_usdc(amount_usdc)
+        fee_usdc = (
+            consumer_withdraw_fee_usdc()
+            if self._is_consumer_withdraw_row(target)
+            else Decimal("0")
+        )
+        net_usdc = parse_usdc(refund_amount - fee_usdc)
         now = int(time.time())
         target.status = "COMPLETED"
         target.tx_hash = normalized_tx_hash
@@ -404,6 +416,17 @@ class FinanceRefundExecMixin:
             ))
         except RuntimeError:
             pass
+
+        if self._is_consumer_withdraw_row(target):
+            log_consumer_withdraw_completed(
+                withdrawal_id=str(target.id or ""),
+                owner=owner,
+                amount_usdc=refund_amount,
+                fee_usdc=fee_usdc,
+                net_usdc=net_usdc,
+                tx_hash=normalized_tx_hash,
+                completion_source="client_complete",
+            )
 
         return {
             "refundId": str(target.id or ""),
@@ -475,7 +498,7 @@ class FinanceRefundExecMixin:
                 if idem_hit is not None:
                     return idem_hit
 
-            rows = self._load_refund_rows()  # type: ignore[attr-defined]
+            rows = self._load_refund_rows(owner_wallet=owner)  # type: ignore[attr-defined]
             limits = self._validate_refund_origin_limit_or_raise(  # type: ignore[attr-defined]
                 owner=owner,
                 origin=origin,
@@ -595,7 +618,7 @@ class FinanceRefundExecMixin:
         owner = normalize_wallet(owner_wallet)
         async with self._mutation_lock.lock(f"{owner}:refund_complete"):  # type: ignore[attr-defined]
             await self._enforce_owner_write_rate_limit(owner, "refund_complete")  # type: ignore[attr-defined]
-            rows = self._load_refund_rows()  # type: ignore[attr-defined]
+            rows = self._load_refund_rows(owner_wallet=owner)  # type: ignore[attr-defined]
             target = self._find_refund_by_id(rows, owner, refund_id)  # type: ignore[attr-defined]
             if target is None:
                 raise HTTPException(
@@ -610,6 +633,16 @@ class FinanceRefundExecMixin:
             completed = self._assert_refund_completable(target, normalized_tx_hash)  # type: ignore[attr-defined]
             if completed is not None:
                 return completed
+
+            used_atomic_complete = self._complete_refund_tx_atomic_or_raise(
+                owner=owner,
+                refund_id=refund_id,
+                normalized_tx_hash=normalized_tx_hash,
+            )
+            if not used_atomic_complete:
+                self._assert_no_refund_tx_replay(  # type: ignore[attr-defined]
+                    rows, owner, normalized_tx_hash, str(target.id or "")
+                )
 
             status = str(target.status or "").upper()
             review = self._parse_refund_review_context(request_meta)
@@ -639,24 +672,6 @@ class FinanceRefundExecMixin:
                 )
                 if reject_response is not None:
                     return reject_response
-
-            self._assert_withdraw_receipt_matches_ticket(  # type: ignore[attr-defined]
-                owner_wallet=owner,
-                tx_hash=normalized_tx_hash,
-                amount_wei=int(target.ticket.amount or 0),
-                fee_wei=int(target.ticket.fee or 0),
-                ticket_hash=str(target.ticket.ticket_hash or ""),
-            )
-
-            used_atomic_complete = self._complete_refund_tx_atomic_or_raise(
-                owner=owner,
-                refund_id=refund_id,
-                normalized_tx_hash=normalized_tx_hash,
-            )
-            if not used_atomic_complete:
-                self._assert_no_refund_tx_replay(  # type: ignore[attr-defined]
-                    rows, owner, normalized_tx_hash, str(target.id or "")
-                )
 
             if not used_atomic_complete:
                 self._consume_locked_refund_amount(  # type: ignore[attr-defined]
@@ -689,7 +704,7 @@ class FinanceRefundExecMixin:
         owner = normalize_wallet(owner_wallet)
         async with self._mutation_lock.lock(f"{owner}:refund_fail"):  # type: ignore[attr-defined]
             await self._enforce_owner_write_rate_limit(owner, "refund_fail")  # type: ignore[attr-defined]
-            rows = self._load_refund_rows()  # type: ignore[attr-defined]
+            rows = self._load_refund_rows(owner_wallet=owner)  # type: ignore[attr-defined]
             target = self._find_refund_by_id(rows, owner, refund_id)  # type: ignore[attr-defined]
             if target is None:
                 raise HTTPException(

@@ -12,6 +12,9 @@ from src.services.owner.finance_fee_policy import (
     accrue_consumer_withdraw_fee_after_fallback,
     consumer_withdraw_fee_usdc,
 )
+from src.services.owner.consumer_withdraw_logging import (
+    log_consumer_withdraw_completed,
+)
 from src.services.platform.tasks import consumer_withdraw_completion
 from src.services.platform.tasks.consumer_withdraw_completion import (
     emit_consumer_withdraw_completed_metric,
@@ -174,6 +177,25 @@ async def test_emit_consumer_withdraw_completed_metric_schedules_background_even
     await asyncio.sleep(0)
 
     assert calls == [("0xabc", Decimal("3.25"), "0xtx", "consumer")]
+
+
+def test_log_consumer_withdraw_completed_emits_structured_line(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level("INFO"):
+        log_consumer_withdraw_completed(
+            withdrawal_id="wd-1",
+            owner="0xabc",
+            amount_usdc=Decimal("10"),
+            fee_usdc=Decimal("0.5"),
+            net_usdc=Decimal("9.5"),
+            tx_hash="0xtx",
+            completion_source="client_complete",
+        )
+
+    assert "event=CONSUMER_WITHDRAW_COMPLETED" in caplog.text
+    assert "withdrawal_id=wd-1" in caplog.text
+    assert "completion_source=client_complete" in caplog.text
 
 
 def test_balance_repository_consumes_consumer_pending_and_accrues_platform_fee() -> None:

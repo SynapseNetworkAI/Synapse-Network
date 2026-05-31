@@ -421,10 +421,10 @@ export const ROUTE_GROUPS: RouteGroup[] = [
           outputs: [
             {
               key: "intent.id",
-              desc: "Deposit intent ID — use to poll sync status while the indexer verifies chain evidence",
+              desc: "Deposit intent ID — use in the confirm endpoint",
             },
           ],
-          next: "Poll GET /balance/deposit/sync?txHash=...; confirmation is indexer-owned",
+          next: "Call POST /balance/deposit/intents/:id/confirm",
         },
         errors: [
           {
@@ -1695,7 +1695,7 @@ export const ALL_ROUTES: (RouteEndpoint & {
     groupId: g.id,
     groupTitle: g.title,
     groupDescription: g.description,
-  })),
+  }))
 );
 
 // ─── cURL builder ─────────────────────────────────────────────────────────────
@@ -1705,7 +1705,7 @@ export function buildCurl(
   gatewayUrl: string,
   token: string,
   paramValues: Record<string, string>,
-  bodyText: string,
+  bodyText: string
 ): string {
   let url = `${route.base === "frontend" ? "" : gatewayUrl}${route.path}`;
   (route.params ?? [])

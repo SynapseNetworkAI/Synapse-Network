@@ -4,7 +4,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import crypto from "node:crypto";
+import { spawnSync } from "node:child_process";
 import { chromium } from "playwright";
+import { waitForSafeTotpWindow } from "../lib/totp_window.mjs";
 import { verifyBackendConsistency } from "./admin_front_backend_consistency.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -29,6 +31,14 @@ const OUT_DIR = process.env.ADMIN_FRONT_DOGFOOD_OUT_DIR
   : path.join(ROOT, "output/dogfood/admin-front", timestamp);
 const SCREENSHOT_DIR = path.join(OUT_DIR, "screenshots");
 const ADMIN_TOTP_SECRET = process.env.ADMIN_TOTP_SECRET || "JBSWY3DPEHPK3PXP";
+const ADMIN_DATABASE_DSN =
+  process.env.ADMIN_DATABASE_DSN ||
+  process.env.LOCAL_GATEWAY_ADMIN_POSTGRES_DSN ||
+  "postgresql://synapse_admin_app:local-dev-admin-app-password@127.0.0.1:15432/synapse_gateway_admin";
+const GATEWAY_ADMIN_PYTHON = path.join(
+  ROOT,
+  "services/gateway-admin/.venv/bin/python"
+);
 
 const fixture = fs.existsSync(FIXTURE_PATH)
   ? JSON.parse(fs.readFileSync(FIXTURE_PATH, "utf8"))
@@ -43,6 +53,7 @@ const consoleErrors = [];
 const apiResponses = [];
 const pageSummaries = [];
 const preflightChecks = [];
+let backendConsistencyEvidence = null;
 
 fs.mkdirSync(SCREENSHOT_DIR, { recursive: true });
 
@@ -143,6 +154,81 @@ function generateTotpCode(secret, nowMs = Date.now()) {
   return String(binary % 1_000_000).padStart(6, "0");
 }
 
+function sqlLiteral(value) {
+  return `'${String(value ?? "").replace(/'/g, "''")}'`;
+}
+
+function resolveLocalAdminTotpSecret() {
+  if (
+    process.env.ADMIN_TOTP_SECRET ||
+    !isLocalUrl(ADMIN_FRONT_URL) ||
+    !isLocalUrl(ADMIN_GATEWAY_URL)
+  ) {
+    return ADMIN_TOTP_SECRET;
+  }
+  const result = spawnSync(
+    "psql",
+    [
+      ADMIN_DATABASE_DSN,
+      "-X",
+      "-q",
+      "-t",
+      "-A",
+      "-v",
+      "ON_ERROR_STOP=1",
+      "-c",
+      `
+      SELECT json_build_object(
+        'totpSecret', f.payload_json->>'totpSecret',
+        'secretRef', f.secret_ref
+      )
+      FROM admin_users u
+      JOIN admin_mfa_factors f ON f.admin_id = u.admin_id
+      WHERE u.email = ${sqlLiteral(process.env.ADMIN_EMAIL || "cliff@synapse-network.ai")}
+        AND f.status = 'active'
+      ORDER BY f.updated_at DESC
+      LIMIT 1
+      `,
+    ],
+    { cwd: ROOT, encoding: "utf8" }
+  );
+  if (result.status !== 0) {
+    return ADMIN_TOTP_SECRET;
+  }
+  try {
+    const parsed = JSON.parse(result.stdout.trim() || "null");
+    const inlineSecret = String(parsed?.totpSecret || "").trim();
+    if (inlineSecret) return inlineSecret;
+    const secretRef = String(parsed?.secretRef || "").trim();
+    if (
+      secretRef &&
+      secretRef.startsWith("inline-fernet:v1:") &&
+      fs.existsSync(GATEWAY_ADMIN_PYTHON)
+    ) {
+      const decrypted = spawnSync(
+        GATEWAY_ADMIN_PYTHON,
+        [
+          "-c",
+          [
+            "import sys",
+            `sys.path.insert(0, ${JSON.stringify(
+              path.join(ROOT, "services/gateway-admin")
+            )})`,
+            "from src.core.totp_secret_store import decrypt_inline_totp_secret_ref",
+            "print(decrypt_inline_totp_secret_ref(sys.argv[1]))",
+          ].join("; "),
+          secretRef,
+        ],
+        { cwd: ROOT, encoding: "utf8" }
+      );
+      if (decrypted.status === 0 && String(decrypted.stdout || "").trim()) {
+        return String(decrypted.stdout || "").trim();
+      }
+    }
+  } catch {}
+  return ADMIN_TOTP_SECRET;
+}
+
 async function loginAdmin() {
   if (fixture?.auth?.sessionToken) {
     return fixture.auth;
@@ -153,6 +239,7 @@ async function loginAdmin() {
       csrfToken: process.env.ADMIN_CSRF_TOKEN || "",
     };
   }
+  const resolvedTotpSecret = resolveLocalAdminTotpSecret();
   const response = await fetch(`${ADMIN_GATEWAY_URL}/api/admin/v1/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -162,7 +249,7 @@ async function loginAdmin() {
       otpCode:
         process.env.ADMIN_OTP_CODE ||
         (isLocalUrl(ADMIN_FRONT_URL) && isLocalUrl(ADMIN_GATEWAY_URL)
-          ? generateTotpCode(ADMIN_TOTP_SECRET)
+          ? generateTotpCode(resolvedTotpSecret)
           : undefined),
     }),
   });
@@ -199,6 +286,29 @@ async function adminApi(pathname, auth) {
     );
   }
   return body.data;
+}
+
+async function adminWrite(pathname, auth, { method, body, otpCode } = {}) {
+  const response = await fetch(`${ADMIN_GATEWAY_URL}${pathname}`, {
+    method: method || "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      Cookie: `${ADMIN_COOKIE_NAME}=${auth.sessionToken}`,
+      "X-CSRF-Token": auth.csrfToken || "",
+      ...(otpCode ? { "X-Admin-OTP-Code": otpCode } : {}),
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || !payload.success) {
+    throw new Error(
+      `Admin write failed ${pathname}: ${response.status} ${JSON.stringify(
+        payload
+      ).slice(0, 800)}`
+    );
+  }
+  return payload.data;
 }
 
 async function createContext(browser, auth) {
@@ -442,7 +552,7 @@ async function closeTopModal(page) {
 }
 
 const authPageMatrix = [
-  { route: "/login", name: "login", text: ["Admin Console Login"] },
+  { route: "/login", name: "login", text: ["System Authorization"] },
   {
     route: "/login/mfa-enroll",
     name: "login-mfa-enroll",
@@ -508,6 +618,11 @@ const authenticatedPageMatrix = [
   { route: "/users", name: "users", text: ["后台用户"] },
   { route: "/role-permissions", name: "role-permissions", text: ["角色权限"] },
   { route: "/menu-config", name: "menu-config", text: ["菜单配置"] },
+  {
+    route: "/config",
+    name: "config-overview",
+    text: ["配置中心", "业务参数草稿"],
+  },
   { route: "/approvals", name: "approvals", text: ["审批中心"] },
   {
     route: "/withdrawal-reviews",
@@ -833,6 +948,7 @@ function writeReport() {
     apiResponses,
     pageSummaries,
     preflightChecks,
+    backendConsistencyEvidence,
   };
   fs.writeFileSync(
     path.join(OUT_DIR, "report.json"),
@@ -877,31 +993,39 @@ function writeReport() {
 
 async function main() {
   const auth = await loginAdmin();
+  const totpSecret = resolveLocalAdminTotpSecret();
   await assertPreflight(auth);
   const browser = await chromium.launch({ headless: true });
+  let publicContext;
+  let context;
   try {
-    const publicContext = await browser.newContext({
+    publicContext = await browser.newContext({
       viewport: { width: 1440, height: 1000 },
     });
     const publicPage = await createPage(publicContext, "admin-front-public");
     await verifyPageMatrix(publicPage, authPageMatrix);
     await publicContext.close();
+    publicContext = null;
 
-    const context = await createContext(browser, auth);
+    context = await createContext(browser, auth);
     const page = await createPage(context, "admin-front");
     await verifyPageMatrix(page, authenticatedPageMatrix);
     await verifyNavigationClicks(page);
     await verifyOperationModals(page);
-    await verifyBackendConsistency({
+    backendConsistencyEvidence = await verifyBackendConsistency({
       adminApi,
+      adminWrite,
       assertText,
       auth,
       fixture,
+      generateTotpCode,
       page,
       pageUrl,
       screenshot,
       step,
+      totpSecret,
       warn,
+      waitForSafeTotpWindow,
     });
     await step("browser:console-errors", async () => {
       if (consoleErrors.length > 0) {
@@ -912,8 +1036,16 @@ async function main() {
       return "no uncaught console errors or hidden 5xx admin API responses";
     });
   } finally {
-    await browser.close();
     writeReport();
+    await Promise.allSettled([
+      publicContext?.close?.(),
+      context?.close?.(),
+      Promise.race([
+        browser.close(),
+        new Promise((resolve) => setTimeout(resolve, 5000)),
+      ]),
+    ]);
+    setImmediate(() => process.exit(process.exitCode || 0));
   }
 }
 

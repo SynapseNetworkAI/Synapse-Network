@@ -161,6 +161,20 @@ class ServiceRegistryCoreMixin:
         provider_id = self._provider_id(wallet)
         cur.execute(
             """
+            SELECT owner_id
+            FROM synapse_owner_accounts
+            WHERE owner_wallet = %s
+            LIMIT 1
+            """,
+            (wallet,),
+        )
+        existing_owner_row = cur.fetchone()
+        if existing_owner_row:
+            existing_owner_id = str(existing_owner_row[0] or "").strip()
+            if existing_owner_id:
+                owner_id = existing_owner_id
+        cur.execute(
+            """
             INSERT INTO synapse_owner_accounts (
                 owner_id, owner_wallet, status, default_currency, created_at, updated_at
             ) VALUES (%s, %s, 'active', 'USDC', %s, %s)
@@ -169,6 +183,20 @@ class ServiceRegistryCoreMixin:
             """,
             (owner_id, wallet, now_dt_str(), now_dt_str()),
         )
+        cur.execute(
+            """
+            SELECT provider_id
+            FROM synapse_provider_profiles
+            WHERE owner_id = %s
+            LIMIT 1
+            """,
+            (owner_id,),
+        )
+        existing_provider_row = cur.fetchone()
+        if existing_provider_row:
+            existing_provider_id = str(existing_provider_row[0] or "").strip()
+            if existing_provider_id:
+                provider_id = existing_provider_id
         cur.execute(
             """
             INSERT INTO synapse_provider_profiles (

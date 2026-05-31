@@ -29,6 +29,7 @@ from src.services.adapters import (
     InMemoryProviderWithdrawReviewAdapter,
     ProviderWithdrawReviewError,
 )
+from src.services.admin_config.business_policy import BusinessPolicyConfigService
 from src.services.admin_config.service import AdminConfigService
 from src.services.admin_notifications import AdminNotificationService
 from src.services.admin_user.service import AdminUserService
@@ -268,6 +269,81 @@ class FakeProviderServicesAdapter:
 TEST_PROVIDER_SERVICES_ADAPTER = FakeProviderServicesAdapter()
 
 
+class FakeBusinessPolicyAdapter:
+    def __init__(self) -> None:
+        self._runtime_policy: dict = {
+            "finance": {
+                "platformFeeRate": "0.100000",
+                "gatewayRoutingTaxUsdc": "0.000100",
+                "consumerWithdrawFeeUsdc": "0.500000",
+                "consumerDepositMinUsdc": "5.000000",
+            },
+            "consumerWithdraw": {
+                "minUsdc": "10.000000",
+                "manualReviewThresholdUsdc": "500.000000",
+                "maxDailyCount": 3,
+                "maturitySeconds": 604800,
+            },
+            "risk": {
+                "withdrawalAutoSingleLimitUsdc": "100.000000",
+                "withdrawalAuto24hLimitUsdc": "500.000000",
+                "withdrawalWindowHours": 24,
+            },
+            "reconciliation": {
+                "alertDeltaUsdc": "1.000000",
+            },
+        }
+        self._published_version = 1
+
+    def get_policy(self, operator: AdminIdentity) -> dict:
+        _ = operator
+        return {
+            "status": "success",
+            "policy": self._runtime_policy,
+            "source": "database_published",
+            "publishedVersion": self._published_version,
+            "updatedAt": "2026-05-30T00:00:00Z",
+            "updatedBy": "adm_super_admin",
+        }
+
+    def publish_policy(
+        self, *, operator: AdminIdentity, policy: dict, published_version: int
+    ) -> dict:
+        _ = operator
+        self._runtime_policy = policy
+        self._published_version = published_version
+        return {
+            "status": "success",
+            "policy": self._runtime_policy,
+            "source": "database_published",
+            "publishedVersion": self._published_version,
+            "updatedAt": "2026-05-30T00:00:00Z",
+            "updatedBy": "adm_super_admin",
+        }
+
+    def get_overview(self, operator: AdminIdentity) -> dict:
+        _ = operator
+        return {
+            "status": "success",
+            "businessPolicy": {
+                "policy": self._runtime_policy,
+                "source": "database_published",
+                "publishedVersion": self._published_version,
+                "updatedAt": "2026-05-30T00:00:00Z",
+                "updatedBy": "adm_super_admin",
+            },
+            "envSummary": {
+                "infra": {
+                    "rpcUrl": {"source": "env", "configured": True},
+                    "withdrawSignerMode": {"source": "env", "value": "gcp_kms"},
+                }
+            },
+        }
+
+
+TEST_BUSINESS_POLICY_ADAPTER = FakeBusinessPolicyAdapter()
+
+
 def _test_store() -> InMemoryAdminStore:
     return TEST_STORE
 
@@ -290,6 +366,10 @@ def _get_test_admin_user_service() -> AdminUserService:
 
 def _get_test_admin_config_service() -> AdminConfigService:
     return AdminConfigService(TEST_STORE)
+
+
+def _get_test_business_policy_config_service() -> BusinessPolicyConfigService:
+    return BusinessPolicyConfigService(TEST_STORE, TEST_BUSINESS_POLICY_ADAPTER)
 
 
 def _get_test_admin_notification_service() -> AdminNotificationService:
@@ -325,6 +405,8 @@ app.dependency_overrides[deps.get_store] = _test_store
 app.dependency_overrides[deps.get_auth_service] = _get_test_auth_service
 app.dependency_overrides[deps.get_admin_user_service] = _get_test_admin_user_service
 app.dependency_overrides[deps.get_admin_config_service] = _get_test_admin_config_service
+app.dependency_overrides[deps.get_business_policy_adapter] = lambda: TEST_BUSINESS_POLICY_ADAPTER
+app.dependency_overrides[deps.get_business_policy_config_service] = _get_test_business_policy_config_service
 app.dependency_overrides[deps.get_admin_notification_service] = _get_test_admin_notification_service
 app.dependency_overrides[deps.get_approval_service] = _get_test_approval_service
 app.dependency_overrides[deps.get_gateway_dashboard_projection_repository] = _test_gateway_projection_repository
@@ -969,6 +1051,7 @@ def test_admin_auth_login_requires_mfa_enrollment_for_unbound_account() -> None:
     assert body["data"]["enrollmentToken"]
     assert body["data"]["expiresIn"] == 600
     assert body["data"]["totpIssuer"] == "Synapse Gateway Admin"
+
 
 def test_admin_auth_login_requires_mfa_enrollment_for_bootstrap_placeholder_totp() -> None:
     email = f"bootstrap-placeholder-{uuid4().hex[:8]}@synapse-network.ai"
@@ -1884,7 +1967,6 @@ def test_visible_menu_config_is_filtered_by_backend_permissions() -> None:
         "withdrawal-reviews",
         "review-history",
         "finance",
-        "contract-addresses",
         "risk",
     }
     runtime_item = next(item for item in response.json()["data"]["items"] if item["itemId"] == "dashboard-runtime")
@@ -1894,7 +1976,6 @@ def test_visible_menu_config_is_filtered_by_backend_permissions() -> None:
     consumer_funnel_item = next(item for item in response.json()["data"]["items"] if item["itemId"] == "analytics-consumer-funnel")
     system_item = next(item for item in response.json()["data"]["items"] if item["itemId"] == "system")
     provider_services_item = next(item for item in response.json()["data"]["items"] if item["itemId"] == "provider-services")
-    contract_addresses_item = next(item for item in response.json()["data"]["items"] if item["itemId"] == "contract-addresses")
     assert dashboard_item["href"] is None
     assert dashboard_item["nodeType"] == "category"
     assert analytics_item["href"] is None
@@ -1907,7 +1988,114 @@ def test_visible_menu_config_is_filtered_by_backend_permissions() -> None:
     assert runtime_item["href"] == "/dashboard/runtime"
     assert system_item["href"] == "/system"
     assert provider_services_item["href"] == "/provider-services"
-    assert contract_addresses_item["href"] == "/contract-addresses"
+
+
+def test_business_policy_config_crud_publish_and_overview() -> None:
+    csrf_headers = _login_as("cliff@synapse-network.ai")
+
+    draft_response = client.get("/api/admin/v1/config/business-policy?stage=draft")
+    assert draft_response.status_code == 200
+    assert (
+        draft_response.json()["data"]["policy"]["finance"]["platformFeeRate"]
+        == "0.100000"
+    )
+
+    update_response = client.patch(
+        "/api/admin/v1/config/business-policy",
+        headers=csrf_headers,
+        json={
+            "policy": {
+                "finance": {
+                    "platformFeeRate": "0.120000",
+                    "gatewayRoutingTaxUsdc": "0.000150",
+                    "consumerWithdrawFeeUsdc": "0.750000",
+                    "consumerDepositMinUsdc": "6.000000",
+                },
+                "consumerWithdraw": {
+                    "minUsdc": "12.000000",
+                    "manualReviewThresholdUsdc": "650.000000",
+                    "maxDailyCount": 4,
+                    "maturitySeconds": 604800,
+                },
+                "risk": {
+                    "withdrawalAutoSingleLimitUsdc": "150.000000",
+                    "withdrawalAuto24hLimitUsdc": "600.000000",
+                    "withdrawalWindowHours": 36,
+                },
+                "reconciliation": {
+                    "alertDeltaUsdc": "1.500000",
+                },
+            }
+        },
+    )
+    assert update_response.status_code == 200
+    assert (
+        update_response.json()["data"]["policy"]["finance"]["platformFeeRate"]
+        == "0.120000"
+    )
+    assert update_response.json()["data"]["meta"]["isDirty"] is True
+
+    publish_headers = {
+        **csrf_headers,
+        "X-Admin-OTP-Code": _otp_code_for("cliff@synapse-network.ai"),
+    }
+    publish_response = client.post(
+        "/api/admin/v1/config/business-policy/publish",
+        headers=publish_headers,
+    )
+    assert publish_response.status_code == 200
+    assert publish_response.json()["data"]["config"]["meta"]["isDirty"] is False
+    assert (
+        publish_response.json()["data"]["runtime"]["publishedVersion"]
+        == publish_response.json()["data"]["config"]["meta"]["publishedVersion"]
+    )
+
+    overview_response = client.get("/api/admin/v1/config/overview")
+    assert overview_response.status_code == 200
+    assert (
+        overview_response.json()["data"]["runtime"]["businessPolicy"]["policy"][
+            "finance"
+        ]["platformFeeRate"]
+        == "0.120000"
+    )
+    assert "rpcUrl" in overview_response.json()["data"]["runtime"]["envSummary"][
+        "infra"
+    ]
+
+
+def test_business_policy_config_is_read_only_for_platform_ops_admin() -> None:
+    csrf_headers = _login_as("ops@synapse-network.ai")
+
+    read_response = client.get("/api/admin/v1/config/business-policy?stage=draft")
+    assert read_response.status_code == 200
+
+    write_response = client.patch(
+        "/api/admin/v1/config/business-policy",
+        headers=csrf_headers,
+        json={
+            "policy": {
+                "finance": {
+                    "platformFeeRate": "0.100000",
+                    "gatewayRoutingTaxUsdc": "0.000100",
+                    "consumerWithdrawFeeUsdc": "0.500000",
+                    "consumerDepositMinUsdc": "5.000000",
+                },
+                "consumerWithdraw": {
+                    "minUsdc": "10.000000",
+                    "manualReviewThresholdUsdc": "500.000000",
+                    "maxDailyCount": 3,
+                    "maturitySeconds": 604800,
+                },
+                "risk": {
+                    "withdrawalAutoSingleLimitUsdc": "100.000000",
+                    "withdrawalAuto24hLimitUsdc": "500.000000",
+                    "withdrawalWindowHours": 24,
+                },
+                "reconciliation": {"alertDeltaUsdc": "1.000000"},
+            }
+        },
+    )
+    assert write_response.status_code == 403
 
 
 def test_provider_services_management_routes_proxy_gateway_state() -> None:

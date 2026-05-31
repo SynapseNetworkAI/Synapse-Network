@@ -30,6 +30,14 @@ const walletActions: I18nMessages["walletActions"] = {
     "Please select only one account in your wallet, then reconnect.",
   walletUnstable:
     "Wallet connection is unstable. Please reconnect wallet and retry.",
+  walletUnsupportedForArbitrum:
+    "Phantom currently does not support Arbitrum. Please use MetaMask or Rabby for Synapse on Arbitrum.",
+  connectWalletArbitrumHint:
+    "Recommended for Arbitrum: MetaMask or Rabby. Phantom supports some EVM chains, but not Arbitrum.",
+  authGatewayUnavailable:
+    "Unable to reach the wallet auth gateway. Please refresh and try again.",
+  walletWrongNetwork:
+    "Wallet network does not match Synapse Arbitrum. Please switch wallet network and try again.",
   authFailedPrefix: "Auth failed: {{message}}",
   depositChecklistTitle: "Wallet checklist",
   depositChecklistNetwork: "Network matches this Synapse environment.",
