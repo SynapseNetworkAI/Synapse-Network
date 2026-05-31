@@ -15,7 +15,7 @@ def _write_fake_tools(tmp_path: Path) -> tuple[Path, Path, Path]:
     (fake_bin / "psql").write_text(
         """#!/usr/bin/env bash
 set -euo pipefail
-printf '%s\\n' "$1" >> "${FAKE_PSQL_CALLS}"
+printf '%s\\n' "$*" >> "${FAKE_PSQL_CALLS}"
 for arg in "$@"; do
   if [[ "$arg" == "-f" ]]; then
     exit 0
@@ -102,11 +102,11 @@ def test_staging_migration_uses_runtime_dsn_only_as_last_resort(tmp_path: Path) 
     )
 
     assert calls
-    assert all(call == runtime_dsn for call in calls)
+    assert all(call.startswith(runtime_dsn) for call in calls)
 
 
 def test_staging_migration_grants_projection_select_to_gateway_readonly_user(tmp_path: Path) -> None:
-    _calls, stdin_log = _run_migrate_with_fake_tools(
+    calls, stdin_log = _run_migrate_with_fake_tools(
         tmp_path,
         {
             "POSTGRES_DSN": "postgresql://runtime:runtime-pw@runtime-host/db",
@@ -120,6 +120,10 @@ def test_staging_migration_grants_projection_select_to_gateway_readonly_user(tmp
         },
     )
 
+    projection_sql_calls = [call for call in calls if "gateway-admin/00" in call]
+    assert any("003_gateway_admin_projection_views.sql" in call for call in projection_sql_calls)
+    assert any("004_admin_funds_observability_projection_upgrade.sql" in call for call in projection_sql_calls)
+    assert any("005_admin_task_monitoring_projection_upgrade.sql" in call for call in projection_sql_calls)
     assert "GRANT SELECT ON TABLE %I.%I TO %I" in stdin_log
     assert "readonly_user" in stdin_log
     assert "has_table_privilege(:'readonly_user', 'public.synapse_admin_dashboard_operations_projection', 'SELECT')" in stdin_log

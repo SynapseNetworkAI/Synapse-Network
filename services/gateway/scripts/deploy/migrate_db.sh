@@ -7,6 +7,12 @@ REPO_ROOT="$(cd "${SERVICE_ROOT}/../.." 2>/dev/null && pwd || true)"
 CANONICAL_SCHEMA="${REPO_ROOT}/infra/postgres/init/gateway/001_synapse_schema.sql"
 PACKAGED_SCHEMA="${SERVICE_ROOT}/migrations/postgres/001_synapse_schema.sql"
 SCHEMA_SQL="${CANONICAL_SCHEMA}"
+CANONICAL_ADMIN_PROJECTION_DIR="${REPO_ROOT}/infra/postgres/init/gateway-admin"
+ADMIN_PROJECTION_SQLS=(
+  "${CANONICAL_ADMIN_PROJECTION_DIR}/003_gateway_admin_projection_views.sql"
+  "${CANONICAL_ADMIN_PROJECTION_DIR}/004_admin_funds_observability_projection_upgrade.sql"
+  "${CANONICAL_ADMIN_PROJECTION_DIR}/005_admin_task_monitoring_projection_upgrade.sql"
+)
 
 if [[ ! -f "${SCHEMA_SQL}" ]]; then
   SCHEMA_SQL="${PACKAGED_SCHEMA}"
@@ -221,6 +227,13 @@ if [[ ! -f "${SCHEMA_SQL}" ]]; then
   exit 1
 fi
 
+for projection_sql in "${ADMIN_PROJECTION_SQLS[@]}"; do
+  if [[ ! -f "${projection_sql}" ]]; then
+    echo "gateway admin projection SQL not found: ${projection_sql}" >&2
+    exit 1
+  fi
+done
+
 case "${ENVIRONMENT}" in
   local)
     MIGRATION_CONNINFO="${MIGRATION_DSN:-${LOCAL_POSTGRES_MIGRATOR_DSN:-${POSTGRES_MIGRATOR_DSN:-${POSTGRES_DSN:-postgresql://synapse:local-dev-postgres-password@127.0.0.1:15432/synapse_gateway}}}}"
@@ -266,6 +279,10 @@ echo "[migrate-db] checking existing schema ownership"
 run_schema_owner_preflight
 echo "[migrate-db] applying gateway target-state schema"
 psql "${MIGRATION_CONNINFO}" -X -v ON_ERROR_STOP=1 -f "${SCHEMA_SQL}" >/dev/null
+for projection_sql in "${ADMIN_PROJECTION_SQLS[@]}"; do
+  echo "[migrate-db] applying admin projection SQL $(basename "${projection_sql}")"
+  psql "${MIGRATION_CONNINFO}" -X -v ON_ERROR_STOP=1 -f "${projection_sql}" >/dev/null
+done
 
 APP_DB_USER="${POSTGRES_APP_USER:-${POSTGRES_RUNTIME_USER:-${POSTGRES_USER:-}}}"
 READONLY_DB_USER="${POSTGRES_READONLY_USER:-${GATEWAY_READONLY_DB_USER:-}}"
