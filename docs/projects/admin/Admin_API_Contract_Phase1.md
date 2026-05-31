@@ -46,6 +46,10 @@
 - `POST /api/admin/v1/withdrawal-reviews/{withdrawalId}/decision`
 - `POST /api/admin/v1/execution-jobs/{jobId}/retry`
 - `POST /api/admin/v1/config/menu-items/publish`
+- `GET /api/admin/v1/config/business-policy?stage=draft|published`
+- `PATCH /api/admin/v1/config/business-policy`
+- `POST /api/admin/v1/config/business-policy/publish`
+- `GET /api/admin/v1/config/overview`
 - `POST /api/admin/v1/provider-services/{serviceId}/lifecycle`
 - `DELETE /api/admin/v1/provider-services/{serviceId}`
 
@@ -64,6 +68,21 @@
 - `nodeType` 只允许 `category / page / panel`
 - `page` 节点必须带 `href`，`category / panel` 允许 `href = null`
 - `visible` 接口会自动补回仍然需要显示的祖先 `category` 与父 `page`，这样前端无需猜测展开路径
+
+### 2.5 业务参数配置中心边界
+
+业务参数配置中心与菜单配置中心共享 `draft / published` 治理模式，但运行时边界不同：
+
+- `GET /api/admin/v1/config/business-policy?stage=draft|published`：读取后台保存的业务参数草稿或已发布快照
+- `PATCH /api/admin/v1/config/business-policy`：只更新 `draft`
+- `POST /api/admin/v1/config/business-policy/publish`：把当前 `draft` 发布，并通过内部 gateway adapter 同步到 runtime published 配置
+- `GET /api/admin/v1/config/overview`：聚合返回 draft、published、gateway runtime snapshot，以及 env-only / secret-only 配置来源摘要
+
+说明：
+
+- `super_admin` 才能修改 draft 和执行 publish；`platform_ops_admin` 默认只读。
+- 业务参数配置只覆盖平台费率、提现阈值、风险限额、reconciliation alert 等业务策略字段。
+- `RPC_URL`、`POSTGRES_DSN`、Webhook signing key、KMS key、内部 trigger URL 等基础设施配置不进入数据库可编辑范围。
 
 ### 2.2 通用响应结构
 

@@ -5,14 +5,13 @@ usage() {
   cat >&2 <<'EOF'
 Usage:
   printf '%s' '<secret-value>' | bash scripts/deploy/gcp_put_secret.sh <synapse-staging-secret-id>
-  printf '%s' '<secret-value>' | bash scripts/deploy/gcp_put_secret.sh <synapse-prod-secret-id>
 
 Environment:
   PROJECT_ID  Optional. If set, it must match the active gcloud project.
 
 Notes:
   - Secret values must be provided through stdin, never as CLI arguments.
-  - Only synapse-staging-* and synapse-prod-* secret ids are accepted by this helper.
+  - Only synapse-staging-* secret ids are accepted by this MVP helper.
 EOF
 }
 
@@ -29,9 +28,9 @@ if [[ "$#" -ne 1 ]]; then
 fi
 
 SECRET_ID="$1"
-if [[ ! "${SECRET_ID}" =~ ^synapse-(staging|prod)-[a-z0-9-]+$ ]]; then
-  echo "refusing to write non-Synapse env secret id: ${SECRET_ID}" >&2
-  echo "Agent fix: use a Secret Manager id beginning with synapse-staging- or synapse-prod-." >&2
+if [[ ! "${SECRET_ID}" =~ ^synapse-staging-[a-z0-9-]+$ ]]; then
+  echo "refusing to write non-staging secret id: ${SECRET_ID}" >&2
+  echo "Agent fix: use a Secret Manager id beginning with synapse-staging-." >&2
   exit 2
 fi
 
@@ -59,7 +58,7 @@ fi
 
 if ! gcloud secrets describe "${SECRET_ID}" --project="${PROJECT_ID}" >/dev/null 2>&1; then
   echo "Secret Manager placeholder does not exist: ${SECRET_ID}" >&2
-  echo "Agent fix: run Terraform apply for the matching infra/terraform/gcp-<env> first." >&2
+  echo "Agent fix: run Terraform apply for infra/terraform/gcp-staging first." >&2
   exit 1
 fi
 

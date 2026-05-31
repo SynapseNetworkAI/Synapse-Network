@@ -13,11 +13,6 @@ from src.storage.analytics.gateway_dashboard_demo import build_seed_demo_reposit
 
 logger = logging.getLogger(__name__)
 
-_READONLY_UNAVAILABLE_ERRORS = (
-    psycopg.errors.InsufficientPrivilege,
-    psycopg.errors.UndefinedTable,
-)
-
 
 def _connect(dsn: str) -> Any:
     return psycopg.connect(dsn, row_factory=dict_row)  # type: ignore[arg-type]
@@ -514,10 +509,10 @@ class PostgresGatewayDashboardProjectionRepository:
                     """
                 )
                 row = cur.fetchone()
-        except _READONLY_UNAVAILABLE_ERRORS as exc:
+        except (psycopg.errors.InsufficientPrivilege, psycopg.errors.UndefinedTable) as exc:
             logger.warning(
-                "gateway_dashboard.reconciliation_runtime_state_unavailable",
-                exc_info=exc,
+                "reconciliation runtime state unavailable; returning empty state",
+                extra={"error": str(exc)},
             )
             return _empty_reconciliation_runtime_state()
         if row is None:

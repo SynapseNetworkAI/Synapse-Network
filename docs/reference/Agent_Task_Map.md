@@ -3,7 +3,7 @@
 - Status: canonical
 - Code paths: `docs/reference/Agent_Task_Map.*`, `llms.txt`, `AGENTS.md`, `.github/instructions/`, `services/`, `contracts/`
 - Verified with: `npm run ci:docs`
-- Last verified against code: 2026-04-25
+- Last verified against code: 2026-05-14
 
 This page is the task-to-file index for AI agents working in `Synapse-Network`.
 
@@ -28,7 +28,7 @@ Use it before broad repository search. It does not replace `AGENTS.md`, `.github
 | ----------------------------- | -------------------------------------------------------------------------------------------------- |
 | `gateway_runtime`             | agent invoke, discovery, credentials, provider service calls, runtime API contracts                |
 | `docs_front`                  | `localhost:3100`, docs.synapse-network.ai, MDX docs pages, OpenAPI API reference, public docs copy |
-| `user_front_docs`             | product links into the dedicated docs project; `/docs/*` legacy redirects are removed              |
+| `user_front_docs`             | legacy `/docs/*` redirects and product links into the dedicated docs project                       |
 | `user_front_product`          | marketplace, owner console, public app pages, product-facing frontend                              |
 | `sdk_contract_alignment`      | SDK docs in product docs, SDK onboarding, public preview environment copy                          |
 | `finance_sensitive_backend`   | balance, deposits, withdrawals, refunds, settlement, ledger, audit                                 |
@@ -36,7 +36,8 @@ Use it before broad repository search. It does not replace `AGENTS.md`, `.github
 | `e2e_regression`              | local/staging regression, full-chain E2E, SQL evidence, staging dogfood, release evidence          |
 | `contracts_and_deployments`   | Solidity contracts, Hardhat, staging/prod deployment evidence                                      |
 | `docs_governance`             | docs structure, canonical README metadata, retired paths, docs CI                                  |
-| `ci_and_quality_gates`        | CI scripts, validation entrypoints, PR gates, local check commands                                 |
+| `ci_and_quality_gates`        | CI scripts, validation entrypoints, PR gates, quality budgets, complexity, local check commands    |
+| `weekly_hygiene`              | weekly cleanup, garbage cleanup, stale evidence, stale PRs, repository hygiene                     |
 | `codex_token_optimization`    | Codex memory settings, low-token workflow, handoff summaries, search boundaries, reasoning effort  |
 
 ## Update Rules

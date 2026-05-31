@@ -50,7 +50,7 @@ function sdk(overrides: Record<string, unknown> = {}): SynapseAnalytics {
     endpoint: 'https://api.synapse.test/api/v1/events',
     batchSize: 1,
     flushIntervalMs: 60_000,
-    env: 'test',
+    env: 'local',
     debug: false,
     ...overrides,
   });

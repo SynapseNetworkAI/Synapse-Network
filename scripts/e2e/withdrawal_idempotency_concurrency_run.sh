@@ -121,6 +121,7 @@ POSTGRES_USER=synapse \
 POSTGRES_PASSWORD=local-dev-postgres-password \
 POSTGRES_DB="$POSTGRES_DB_NAME" \
 SYNAPSE_GATEWAY_DB="$POSTGRES_DB_NAME" \
+LOCAL_GATEWAY_POSTGRES_DSN="postgresql://synapse:local-dev-postgres-password@127.0.0.1:${POSTGRES_PORT}/${POSTGRES_DB_NAME}" \
 GATEWAY_PYTHON="${GATEWAY_PYTHON:-${ROOT_DIR}/services/gateway/.venv/bin/python}" \
 CONSUMER_WITHDRAW_MIN_USDC="${CONSUMER_WITHDRAW_MIN_USDC:-10}" \
 CONSUMER_WITHDRAW_MATURITY_ENFORCEMENT_ENABLED="${CONSUMER_WITHDRAW_MATURITY_ENFORCEMENT_ENABLED:-false}" \
@@ -146,11 +147,51 @@ export WITHDRAWAL_IDEMPOTENCY_CONCURRENCY_OUT_DIR="$OUT_DIR"
 export GATEWAY_BASE_URL="${GATEWAY_BASE_URL:-http://127.0.0.1:8000}"
 export RPC_URL="${RPC_URL:-http://127.0.0.1:8545}"
 export POSTGRES_DSN="postgresql://synapse:local-dev-postgres-password@127.0.0.1:${POSTGRES_PORT}/${POSTGRES_DB_NAME}"
+export LOCAL_GATEWAY_POSTGRES_DSN="$POSTGRES_DSN"
 export GATEWAY_INTERNAL_ADMIN_WALLET="${GATEWAY_INTERNAL_ADMIN_WALLET:-0xA0f67a47D9eF18183Cd113eD85A654E2772c5901}"
 export GATEWAY_INTERNAL_JWT_SECRET="${GATEWAY_INTERNAL_JWT_SECRET:-pfazKmMdEZ8RCTB-8A_hH9AAknSXoP6y}"
 export GATEWAY_INTERNAL_TOKEN_ISSUER="${GATEWAY_INTERNAL_TOKEN_ISSUER:-gateway-admin}"
 export GATEWAY_INTERNAL_TOKEN_AUDIENCE="${GATEWAY_INTERNAL_TOKEN_AUDIENCE:-gateway-internal}"
 export GATEWAY_INTERNAL_SERVICE_SUBJECT="${GATEWAY_INTERNAL_SERVICE_SUBJECT:-service:gateway-admin}"
+
+psql "$POSTGRES_DSN" -X -q -v ON_ERROR_STOP=1 <<'SQL'
+INSERT INTO synapse_business_policy_config (
+  singleton_id,
+  payload,
+  published_version,
+  updated_at,
+  updated_by
+)
+VALUES (
+  1,
+  jsonb_build_object(
+    'consumerWithdraw',
+    jsonb_build_object('manualReviewThresholdUsdc', '50.000000'),
+    'risk',
+    jsonb_build_object('withdrawalAutoSingleLimitUsdc', '50.000000')
+  ),
+  1,
+  NOW(),
+  'withdrawal-idempotency-concurrency-local'
+)
+ON CONFLICT (singleton_id) DO UPDATE
+SET payload = jsonb_set(
+      jsonb_set(
+        COALESCE(synapse_business_policy_config.payload, '{}'::jsonb),
+        '{consumerWithdraw,manualReviewThresholdUsdc}',
+        to_jsonb('50.000000'::text),
+        true
+      ),
+      '{risk,withdrawalAutoSingleLimitUsdc}',
+      to_jsonb('50.000000'::text),
+      true
+    ),
+    updated_at = NOW(),
+    updated_by = 'withdrawal-idempotency-concurrency-local';
+SQL
+
+bash "${ROOT_DIR}/scripts/local/restart_gateway.sh"
+wait_for_http "http://127.0.0.1:8000/health" 45
 
 node "${ROOT_DIR}/scripts/e2e/withdrawal_idempotency_concurrency_e2e.mjs"
 

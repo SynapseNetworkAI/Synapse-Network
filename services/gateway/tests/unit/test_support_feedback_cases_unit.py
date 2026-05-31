@@ -65,7 +65,7 @@ async def test_actionable_feedback_creates_support_task_and_lark_card(monkeypatc
             "sentiment": "report_issue",
             "category": "billing_support",
             "message": "Refund is stuck. Bearer secret-token should be redacted.",
-            "route": "https://docs.synapse-network.ai/support",
+            "route": "/docs/support",
             "pageTitle": "Support",
             "context": {"authorization": "Bearer should-not-survive"},
         },

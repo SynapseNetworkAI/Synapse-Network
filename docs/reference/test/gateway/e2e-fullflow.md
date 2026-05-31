@@ -128,9 +128,9 @@ For each page, screenshot before and after invocation:
 | Field               | Expected                 | Actual            |
 | ------------------- | ------------------------ | ----------------- |
 | Consumer deducted   | `service_price + 0.0001` | `0.010100 USDC` ✓ |
-| Provider net earned | `price × 0.95 + 0.0001`  | `0.0096 USDC` ✓   |
-| Provider receivable | `price - platformFee`    | `0.0095 USDC` ✓   |
-| Platform fee        | `price × 0.05`           | `0.0005 USDC` ✓   |
+| Provider net earned | `price × 0.90 + 0.0001`  | `0.0091 USDC` ✓   |
+| Provider receivable | `price - platformFee`    | `0.009 USDC` ✓    |
+| Platform fee        | `price × 0.10`           | `0.001 USDC` ✓    |
 
 ### Dashboard Page Screenshots
 
@@ -166,7 +166,7 @@ Bug reports: `docs/reference/bugfix/gateway/`
 
 ```
 consumer_deducted = service_price + routing_tax (0.0001 USDC)
-platform_fee = service_price * platform_fee_rate (5%)
+platform_fee = service_price * platform_fee_rate (10%)
 provider_net = service_price - platform_fee + routing_tax
 total_charge = service_price + routing_tax
 ```
@@ -174,9 +174,9 @@ total_charge = service_price + routing_tax
 Example with service_price = 0.01 USDC:
 
 - consumer_deducted = 0.01 + 0.0001 = **0.0101 USDC**
-- platform_fee = 0.01 × 0.05 = **0.0005 USDC**
-- provider_net = 0.01 - 0.0005 + 0.0001 = **0.0096 USDC**
-- provider_receivable = 0.01 - 0.0005 = **0.0095 USDC** (excludes routing tax)
+- platform_fee = 0.01 × 0.1 = **0.001 USDC**
+- provider_net = 0.01 - 0.001 + 0.0001 = **0.0091 USDC**
+- provider_receivable = 0.01 - 0.001 = **0.009 USDC** (excludes routing tax)
 
 ## Automation Script
 
