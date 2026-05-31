@@ -13,11 +13,10 @@ def _utc(year: int, month: int, day: int, hour: int, minute: int = 0) -> datetim
 def test_get_snapshot_returns_empty_when_projection_is_missing(monkeypatch) -> None:
     repository = gateway_dashboard.PostgresGatewayDashboardProjectionRepository("postgresql://example")
 
-    monkeypatch.setattr(
-        repository,
-        "_get_projection_columns",
-        lambda table_name: frozenset(),
-    )
+    def _raise_missing_projection(_: str):
+        raise psycopg.errors.UndefinedTable("relation does not exist")
+
+    monkeypatch.setattr(gateway_dashboard, "_connect", _raise_missing_projection)
 
     snapshot = repository.get_snapshot()
 
@@ -150,7 +149,6 @@ def test_get_finance_snapshot_maps_native_projection_row(monkeypatch) -> None:
         }
     )
 
-    monkeypatch.setattr(repository, "_get_projection_columns", lambda table_name: frozenset({"projected_at"}))
     monkeypatch.setattr(gateway_dashboard, "_connect", lambda dsn: _FakeConnection(cursor))
 
     finance = repository.get_finance_snapshot()
@@ -165,11 +163,10 @@ def test_get_finance_snapshot_maps_native_projection_row(monkeypatch) -> None:
 def test_get_finance_snapshot_returns_empty_when_projection_is_missing(monkeypatch) -> None:
     repository = gateway_dashboard.PostgresGatewayDashboardProjectionRepository("postgresql://example")
 
-    monkeypatch.setattr(
-        repository,
-        "_get_projection_columns",
-        lambda table_name: frozenset(),
-    )
+    def _raise_missing_projection(_: str):
+        raise psycopg.errors.UndefinedTable("relation does not exist")
+
+    monkeypatch.setattr(gateway_dashboard, "_connect", _raise_missing_projection)
 
     finance = repository.get_finance_snapshot()
 
@@ -196,7 +193,6 @@ def test_list_activity_trends_maps_native_projection_rows(monkeypatch) -> None:
         ]
     )
 
-    monkeypatch.setattr(repository, "_get_projection_columns", lambda table_name: frozenset({"bucket_date"}))
     monkeypatch.setattr(gateway_dashboard, "_connect", lambda dsn: _FakeConnection(cursor))
 
     trends = repository.list_activity_trends()
@@ -211,11 +207,10 @@ def test_list_activity_trends_maps_native_projection_rows(monkeypatch) -> None:
 def test_list_activity_trends_returns_empty_when_projection_is_missing(monkeypatch) -> None:
     repository = gateway_dashboard.PostgresGatewayDashboardProjectionRepository("postgresql://example")
 
-    monkeypatch.setattr(
-        repository,
-        "_get_projection_columns",
-        lambda table_name: frozenset(),
-    )
+    def _raise_missing_projection(_: str):
+        raise psycopg.errors.UndefinedTable("relation does not exist")
+
+    monkeypatch.setattr(gateway_dashboard, "_connect", _raise_missing_projection)
 
     assert repository.list_activity_trends() == []
 
@@ -247,7 +242,6 @@ def test_get_operations_snapshot_maps_native_projection_row(monkeypatch) -> None
         }
     )
 
-    monkeypatch.setattr(repository, "_get_projection_columns", lambda table_name: frozenset({"projected_at"}))
     monkeypatch.setattr(gateway_dashboard, "_connect", lambda dsn: _FakeConnection(cursor))
 
     snapshot = repository.get_operations_snapshot()
@@ -265,11 +259,10 @@ def test_get_operations_snapshot_maps_native_projection_row(monkeypatch) -> None
 def test_get_operations_snapshot_returns_empty_when_projection_is_missing(monkeypatch) -> None:
     repository = gateway_dashboard.PostgresGatewayDashboardProjectionRepository("postgresql://example")
 
-    monkeypatch.setattr(
-        repository,
-        "_get_projection_columns",
-        lambda table_name: frozenset(),
-    )
+    def _raise_missing_projection(_: str):
+        raise psycopg.errors.UndefinedTable("relation does not exist")
+
+    monkeypatch.setattr(gateway_dashboard, "_connect", _raise_missing_projection)
 
     operations = repository.get_operations_snapshot()
 
