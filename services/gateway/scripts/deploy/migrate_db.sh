@@ -24,10 +24,11 @@ CANONICAL_SCHEMA="${REPO_ROOT}/infra/postgres/init/gateway/001_synapse_schema.sq
 PACKAGED_SCHEMA="${SERVICE_ROOT}/migrations/postgres/001_synapse_schema.sql"
 SCHEMA_SQL="${CANONICAL_SCHEMA}"
 CANONICAL_ADMIN_PROJECTION_DIR="${REPO_ROOT}/infra/postgres/init/gateway-admin"
+PACKAGED_ADMIN_PROJECTION_DIR="${SERVICE_ROOT}/migrations/postgres"
 ADMIN_PROJECTION_SQLS=(
-  "${CANONICAL_ADMIN_PROJECTION_DIR}/003_gateway_admin_projection_views.sql"
-  "${CANONICAL_ADMIN_PROJECTION_DIR}/004_admin_funds_observability_projection_upgrade.sql"
-  "${CANONICAL_ADMIN_PROJECTION_DIR}/005_admin_task_monitoring_projection_upgrade.sql"
+  "003_gateway_admin_projection_views.sql"
+  "004_admin_funds_observability_projection_upgrade.sql"
+  "005_admin_task_monitoring_projection_upgrade.sql"
 )
 
 if [[ ! -f "${SCHEMA_SQL}" ]]; then
@@ -243,11 +244,29 @@ if [[ ! -f "${SCHEMA_SQL}" ]]; then
   exit 1
 fi
 
-for projection_sql in "${ADMIN_PROJECTION_SQLS[@]}"; do
-  if [[ ! -f "${projection_sql}" ]]; then
-    echo "gateway admin projection SQL not found: ${projection_sql}" >&2
+resolve_projection_sql() {
+  local filename="$1"
+  local canonical_path="${CANONICAL_ADMIN_PROJECTION_DIR}/${filename}"
+  local packaged_path="${PACKAGED_ADMIN_PROJECTION_DIR}/${filename}"
+  if [[ -f "${canonical_path}" ]]; then
+    printf '%s\n' "${canonical_path}"
+    return 0
+  fi
+  if [[ -f "${packaged_path}" ]]; then
+    printf '%s\n' "${packaged_path}"
+    return 0
+  fi
+  return 1
+}
+
+RESOLVED_ADMIN_PROJECTION_SQLS=()
+for projection_filename in "${ADMIN_PROJECTION_SQLS[@]}"; do
+  projection_sql="$(resolve_projection_sql "${projection_filename}" || true)"
+  if [[ -z "${projection_sql}" ]]; then
+    echo "gateway admin projection SQL not found: ${projection_filename}" >&2
     exit 1
   fi
+  RESOLVED_ADMIN_PROJECTION_SQLS+=("${projection_sql}")
 done
 
 case "${ENVIRONMENT}" in
@@ -295,7 +314,7 @@ echo "[migrate-db] checking existing schema ownership"
 run_schema_owner_preflight
 echo "[migrate-db] applying gateway target-state schema"
 psql "${MIGRATION_CONNINFO}" -X -v ON_ERROR_STOP=1 -f "${SCHEMA_SQL}" >/dev/null
-for projection_sql in "${ADMIN_PROJECTION_SQLS[@]}"; do
+for projection_sql in "${RESOLVED_ADMIN_PROJECTION_SQLS[@]}"; do
   echo "[migrate-db] applying admin projection SQL $(basename "${projection_sql}")"
   psql "${MIGRATION_CONNINFO}" -X -v ON_ERROR_STOP=1 -f "${projection_sql}" >/dev/null
 done
