@@ -3,7 +3,23 @@ set -euo pipefail
 
 ENVIRONMENT="${1:-}"
 SERVICE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-REPO_ROOT="$(cd "${SERVICE_ROOT}/../.." 2>/dev/null && pwd || true)"
+resolve_repo_root() {
+  local candidate
+  for candidate in \
+    "${SERVICE_ROOT}/../.." \
+    "${SERVICE_ROOT}/.." \
+    "${PWD}" \
+    "/app"
+  do
+    if [[ -f "${candidate}/infra/postgres/init/gateway-admin/003_gateway_admin_projection_views.sql" ]]; then
+      (cd "${candidate}" && pwd)
+      return 0
+    fi
+  done
+  return 1
+}
+
+REPO_ROOT="$(resolve_repo_root || true)"
 CANONICAL_SCHEMA="${REPO_ROOT}/infra/postgres/init/gateway/001_synapse_schema.sql"
 PACKAGED_SCHEMA="${SERVICE_ROOT}/migrations/postgres/001_synapse_schema.sql"
 SCHEMA_SQL="${CANONICAL_SCHEMA}"
