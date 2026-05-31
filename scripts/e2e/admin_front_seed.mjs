@@ -32,6 +32,10 @@ const POSTGRES_DSN =
   process.env.LOCAL_GATEWAY_POSTGRES_DSN ||
   process.env.POSTGRES_DSN ||
   "postgresql://synapse_gateway_app:local-dev-gateway-app-password@127.0.0.1:15432/synapse_gateway";
+const GATEWAY_ADMIN_PYTHON = path.join(
+  ROOT,
+  "services/gateway-admin/.venv/bin/python"
+);
 const OUT_DIR = path.join(ROOT, "tmp/admin-front-dogfood");
 const FIXTURE_PATH = process.env.ADMIN_FRONT_FIXTURE
   ? path.resolve(process.env.ADMIN_FRONT_FIXTURE)
@@ -50,10 +54,6 @@ const operationModalFixture = createAdminPaginationSortingFixture({
   prefix: OPERATION_MODAL_PREFIX,
   runId: RUN_ID,
 });
-const GATEWAY_ADMIN_PYTHON = path.join(
-  ROOT,
-  "services/gateway-admin/.venv/bin/python"
-);
 
 function isLocalUrl(value) {
   try {
@@ -119,6 +119,29 @@ function generateTotpCode(secret, nowMs = Date.now()) {
   return String(binary % 1_000_000).padStart(6, "0");
 }
 
+function decryptInlineTotpSecretRef(secretRef) {
+  if (!secretRef || !fs.existsSync(GATEWAY_ADMIN_PYTHON)) {
+    return null;
+  }
+  const result = spawnSync(
+    GATEWAY_ADMIN_PYTHON,
+    [
+      "-c",
+      [
+        "import sys",
+        `sys.path.insert(0, ${JSON.stringify(
+          path.join(ROOT, "services/gateway-admin")
+        )})`,
+        "from src.core.totp_secret_store import decrypt_inline_totp_secret_ref",
+        "print(decrypt_inline_totp_secret_ref(sys.argv[1]))",
+      ].join("; "),
+      secretRef,
+    ],
+    { cwd: ROOT, encoding: "utf8" }
+  );
+  return result.status === 0 ? result.stdout.trim() || null : null;
+}
+
 function queryAdminTotpSecretFromLocalDb() {
   if (
     process.env.ADMIN_TOTP_SECRET ||
@@ -161,43 +184,16 @@ function queryAdminTotpSecretFromLocalDb() {
     return null;
   }
   try {
-    const parsed = JSON.parse(result.stdout.trim() || "null");
-    const inlineSecret = String(parsed?.totpSecret || "").trim();
-    if (inlineSecret) return inlineSecret;
-    const secretRef = String(parsed?.secretRef || "").trim();
-    if (
-      secretRef &&
-      secretRef.startsWith("inline-fernet:v1:") &&
-      fs.existsSync(GATEWAY_ADMIN_PYTHON)
-    ) {
-      const decrypted = spawnSync(
-        GATEWAY_ADMIN_PYTHON,
-        [
-          "-c",
-          [
-            "import sys",
-            `sys.path.insert(0, ${JSON.stringify(
-              path.join(ROOT, "services/gateway-admin")
-            )})`,
-            "from src.core.totp_secret_store import decrypt_inline_totp_secret_ref",
-            "print(decrypt_inline_totp_secret_ref(sys.argv[1]))",
-          ].join("; "),
-          secretRef,
-        ],
-        {
-          cwd: ROOT,
-          encoding: "utf8",
-        }
-      );
-      if (decrypted.status === 0) {
-        const value = decrypted.stdout.trim();
-        if (value) return value;
-      }
+    const payload = JSON.parse(result.stdout.trim() || "null");
+    const inlineSecret = String(payload?.totpSecret || "").trim();
+    if (inlineSecret) {
+      return inlineSecret;
     }
+    const secretRef = String(payload?.secretRef || "").trim();
+    return decryptInlineTotpSecretRef(secretRef);
   } catch {
     return null;
   }
-  return null;
 }
 
 function parseSessionCookie(setCookieHeader) {

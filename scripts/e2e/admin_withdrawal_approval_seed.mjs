@@ -84,17 +84,24 @@ function readLocalProviderOnboardingKey() {
   if (!isLocalUrl(GATEWAY_BASE_URL) || !isLocalUrl(ADMIN_GATEWAY_URL)) {
     return "";
   }
-  const onboardingEnvPath = path.resolve(
-    ROOT,
-    "../Synapse-Network-Provider/.env.onboarding.local"
-  );
-  if (!fs.existsSync(onboardingEnvPath)) {
-    return "";
+  const candidates = [
+    process.env.SYNAPSE_PROVIDER_ONBOARDING_ENV || "",
+    path.resolve(ROOT, "../Synapse-Network-Provider/.env.onboarding.local"),
+    "/Users/cliff/workspace/agent/Synapse-Network-Provider/.env.onboarding.local",
+  ].filter(Boolean);
+  for (const onboardingEnvPath of candidates) {
+    if (!fs.existsSync(onboardingEnvPath)) {
+      continue;
+    }
+    const envText = fs.readFileSync(onboardingEnvPath, "utf8");
+    const match =
+      envText.match(/^PROVIDER_KEY=(.+)$/m) ||
+      envText.match(/^SYNAPSE_PROVIDER_OWNER_PRIVATE_KEY=(.+)$/m);
+    if (match?.[1]?.trim()) {
+      return match[1].trim().replace(/^['"]|['"]$/g, "");
+    }
   }
-  const match = fs
-    .readFileSync(onboardingEnvPath, "utf8")
-    .match(/^SYNAPSE_PROVIDER_OWNER_PRIVATE_KEY=(.+)$/m);
-  return match?.[1]?.trim().replace(/^['"]|['"]$/g, "") || "";
+  return "";
 }
 
 const PROVIDER_KEY =
@@ -475,28 +482,41 @@ async function api(
   if (token) requestHeaders.Authorization = `Bearer ${token}`;
   if (address) requestHeaders["X-User-Address"] = address;
 
-  const response = await fetch(`${API_BASE}${pathname}`, {
-    method,
-    headers: requestHeaders,
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
-  const text = await response.text();
-  let payload = {};
-  if (text) {
+  let lastError = null;
+  for (let attempt = 1; attempt <= 5; attempt += 1) {
     try {
-      payload = JSON.parse(text);
-    } catch {
-      payload = { raw: text };
+      const response = await fetch(`${API_BASE}${pathname}`, {
+        method,
+        headers: requestHeaders,
+        body: body === undefined ? undefined : JSON.stringify(body),
+      });
+      const text = await response.text();
+      let payload = {};
+      if (text) {
+        try {
+          payload = JSON.parse(text);
+        } catch {
+          payload = { raw: text };
+        }
+      }
+      if (expectOk && !response.ok) {
+        fail(
+          `${method} ${pathname} failed: ${response.status} ${JSON.stringify(
+            payload
+          ).slice(0, 800)}`
+        );
+      }
+      return { response, payload };
+    } catch (error) {
+      lastError = error;
+      if (attempt >= 5) {
+        break;
+      }
+      log(`${method} ${pathname} fetch retry ${attempt}/5: ${error.message}`);
+      await sleep(1000);
     }
   }
-  if (expectOk && !response.ok) {
-    fail(
-      `${method} ${pathname} failed: ${response.status} ${JSON.stringify(
-        payload
-      ).slice(0, 800)}`
-    );
-  }
-  return { response, payload };
+  fail(`${method} ${pathname} fetch failed: ${lastError?.message || "unknown error"}`);
 }
 
 async function authenticate(privateKey, label) {
@@ -716,10 +736,28 @@ async function confirmLocalDepositIntent({
         eventKey: `admin-withdrawal-approval:${String(txHash).toLowerCase()}`,
         confirmations: 1,
       },
+      expectOk: false,
     }
   );
-  log(`deposit intent confirmed locally: ${depositIntentId}`);
-  return confirmed.payload;
+  if (confirmed.response.ok) {
+    log(`deposit intent confirmed locally: ${depositIntentId}`);
+    return confirmed.payload;
+  }
+  const errorCode = String(confirmed.payload?.detail?.code || "").trim();
+  if (
+    confirmed.response.status === 410 &&
+    errorCode === "DEPOSIT_CONFIRM_INDEXER_ONLY"
+  ) {
+    log(
+      `deposit intent confirmation delegated to indexer: ${depositIntentId}`
+    );
+    return depositIntent;
+  }
+  fail(
+    `deposit intent confirmation failed: ${confirmed.response.status} ${JSON.stringify(
+      confirmed.payload
+    ).slice(0, 800)}`
+  );
 }
 
 async function waitForBalanceAtLeast({ token, address, expectedUsdc, txHash }) {

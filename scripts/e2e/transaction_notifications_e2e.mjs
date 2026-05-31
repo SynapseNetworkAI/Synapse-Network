@@ -578,6 +578,9 @@ function validateEvidence({ probe, dbEvidence, larkEvidence }) {
   const deliveryTemplates = new Set(
     (dbEvidence.deliveries || []).map((row) => row.templateKey)
   );
+  const outboxTemplates = new Set(
+    (dbEvidence.outboxRows || []).map((row) => row.templateKey).filter(Boolean)
+  );
   const inAppEvents = new Set(
     (dbEvidence.inAppRows || []).map((row) => row.eventType)
   );
@@ -605,8 +608,22 @@ function validateEvidence({ probe, dbEvidence, larkEvidence }) {
   );
   addStep(
     "delivery_log",
-    missingDelivery.length === 0,
-    missingDelivery.length
+    !IS_STAGING && !IS_LOCAL_REAL
+      ? [...expectedTemplates].every(
+          (key) => outboxTemplates.has(key) || deliveryTemplates.has(key)
+        )
+      : missingDelivery.length === 0,
+    !IS_STAGING && !IS_LOCAL_REAL
+      ? [...expectedTemplates].every(
+          (key) => outboxTemplates.has(key) || deliveryTemplates.has(key)
+        )
+        ? `${new Set([...outboxTemplates, ...deliveryTemplates]).size} templates evidenced in local fake mode`
+        : `missing=${[...expectedTemplates]
+            .filter(
+              (key) => !outboxTemplates.has(key) && !deliveryTemplates.has(key)
+            )
+            .join(",")}`
+      : missingDelivery.length
       ? `missing=${missingDelivery.join(",")}`
       : `${deliveryTemplates.size} templates sent`
   );

@@ -552,7 +552,11 @@ async function closeTopModal(page) {
 }
 
 const authPageMatrix = [
-  { route: "/login", name: "login", text: ["System Authorization"] },
+  {
+    route: "/login",
+    name: "login",
+    text: ["Admin Console Login", "Operator Identification"],
+  },
   {
     route: "/login/mfa-enroll",
     name: "login-mfa-enroll",

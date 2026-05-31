@@ -94,6 +94,14 @@ const LOCAL_STEPS = [
   ["admin-analytics-postgres", ["run", "e2e:admin-analytics-postgres"]],
 ];
 
+const STEPS_REQUIRING_ROOT_ADMIN_TOTP = new Set([
+  "admin-front-seed",
+  "admin-front-dogfood",
+  "admin-front-reconcile",
+  "admin-login-lockout",
+  "admin-withdrawal-approval",
+]);
+
 const STAGING_STEPS = [
   [
     "withdrawal-review-dogfood-staging",
@@ -112,6 +120,7 @@ function mkdirp(dir) {
 }
 
 let cachedLocalAdminTotpSecret;
+let cachedLocalProviderKey;
 
 function decryptInlineTotpSecretRef(secretRef) {
   const gatewayAdminPython = path.join(
@@ -194,10 +203,42 @@ function resolveLocalAdminTotpSecret() {
   return cachedLocalAdminTotpSecret;
 }
 
+function resolveLocalProviderKey() {
+  if (cachedLocalProviderKey !== undefined) {
+    return cachedLocalProviderKey;
+  }
+  cachedLocalProviderKey = "";
+  if (MODE !== "local") {
+    return cachedLocalProviderKey;
+  }
+  const candidates = [
+    process.env.SYNAPSE_PROVIDER_ONBOARDING_ENV || "",
+    path.resolve(ROOT, "../Synapse-Network-Provider/.env.onboarding.local"),
+    "/Users/cliff/workspace/agent/Synapse-Network-Provider/.env.onboarding.local",
+  ].filter(Boolean);
+  for (const onboardingEnvPath of candidates) {
+    if (!fs.existsSync(onboardingEnvPath)) {
+      continue;
+    }
+    const envText = fs.readFileSync(onboardingEnvPath, "utf8");
+    const match =
+      envText.match(/^PROVIDER_KEY=(.+)$/m) ||
+      envText.match(/^SYNAPSE_PROVIDER_OWNER_PRIVATE_KEY=(.+)$/m);
+    if (match?.[1]?.trim()) {
+      cachedLocalProviderKey = match[1]
+        .trim()
+        .replace(/^['"]|['"]$/g, "");
+      return cachedLocalProviderKey;
+    }
+  }
+  return cachedLocalProviderKey;
+}
+
 function runStep(name, args) {
   const startedAt = new Date().toISOString();
   const logPath = path.join(OUT_DIR, `${name}.log`);
   const localTotpSecret = resolveLocalAdminTotpSecret();
+  const localProviderKey = resolveLocalProviderKey();
   const executable = args[0] === "__shell" ? args[1] : "npm";
   const executableArgs = args[0] === "__shell" ? args.slice(2) : args;
   const result = spawnSync(executable, executableArgs, {
@@ -218,9 +259,17 @@ function runStep(name, args) {
             ADMIN_FRONT_DOGFOOD_REPORT: ADMIN_FRONT_DOGFOOD_REPORT,
           }
         : {}),
-      ...(localTotpSecret ? { ADMIN_TOTP_SECRET: localTotpSecret } : {}),
+      ...(localTotpSecret && STEPS_REQUIRING_ROOT_ADMIN_TOTP.has(name)
+        ? { ADMIN_TOTP_SECRET: localTotpSecret }
+        : {}),
+      ...(localProviderKey
+        ? {
+            GATEWAY_E2E_PROVIDER_KEY: localProviderKey,
+            PROVIDER_KEY: localProviderKey,
+          }
+        : {}),
       ...(MODE === "local" &&
-      ["admin-withdrawal-approval", "withdrawal-idempotency-concurrency"].includes(name)
+      ["admin-withdrawal-approval"].includes(name)
         ? {
             WITHDRAWAL_AUTO_SINGLE_LIMIT_USDC:
               LOCAL_WITHDRAWAL_AUTO_SINGLE_LIMIT_USDC,
