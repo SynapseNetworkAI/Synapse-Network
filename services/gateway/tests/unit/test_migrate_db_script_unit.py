@@ -124,6 +124,7 @@ def test_staging_migration_grants_projection_select_to_gateway_readonly_user(tmp
     assert any("003_gateway_admin_projection_views.sql" in call for call in projection_sql_calls)
     assert any("004_admin_funds_observability_projection_upgrade.sql" in call for call in projection_sql_calls)
     assert any("005_admin_task_monitoring_projection_upgrade.sql" in call for call in projection_sql_calls)
+    assert all("--set=synapse_gateway_db=1" in call for call in projection_sql_calls)
     assert "GRANT SELECT ON TABLE %I.%I TO %I" in stdin_log
     assert "readonly_user" in stdin_log
     assert "has_table_privilege(:'readonly_user', 'public.synapse_admin_dashboard_operations_projection', 'SELECT')" in stdin_log

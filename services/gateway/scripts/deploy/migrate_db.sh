@@ -316,7 +316,7 @@ echo "[migrate-db] applying gateway target-state schema"
 psql "${MIGRATION_CONNINFO}" -X -v ON_ERROR_STOP=1 -f "${SCHEMA_SQL}" >/dev/null
 for projection_sql in "${RESOLVED_ADMIN_PROJECTION_SQLS[@]}"; do
   echo "[migrate-db] applying admin projection SQL $(basename "${projection_sql}")"
-  psql "${MIGRATION_CONNINFO}" -X -v ON_ERROR_STOP=1 -f "${projection_sql}" >/dev/null
+  psql "${MIGRATION_CONNINFO}" -X -v ON_ERROR_STOP=1 --set=synapse_gateway_db=1 -f "${projection_sql}" >/dev/null
 done
 
 APP_DB_USER="${POSTGRES_APP_USER:-${POSTGRES_RUNTIME_USER:-${POSTGRES_USER:-}}}"
