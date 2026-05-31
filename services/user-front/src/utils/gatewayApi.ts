@@ -70,3 +70,11 @@ export function getGatewayBaseUrlCandidates(): string[] {
 export function getGatewayBaseUrl(): string {
   return getGatewayBaseUrlCandidates()[0];
 }
+
+export function getDirectGatewayBaseUrl(): string {
+  const candidates = getGatewayBaseUrlCandidates();
+  const directLocalCandidate = candidates.find((candidate) =>
+    isLocalGatewayUrl(candidate)
+  );
+  return directLocalCandidate ?? candidates[0];
+}

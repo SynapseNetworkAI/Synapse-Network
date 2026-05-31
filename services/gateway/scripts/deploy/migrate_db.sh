@@ -82,7 +82,6 @@ SQL
 validate_gateway_schema_guardrails() {
   local app_user="${POSTGRES_APP_USER:-${POSTGRES_RUNTIME_USER:-${POSTGRES_USER:-}}}"
   local migrator_user="${POSTGRES_MIGRATOR_USER:-}"
-  local readonly_user="${POSTGRES_READONLY_USER:-${GATEWAY_READONLY_DB_USER:-synapse_gateway_ro}}"
   local table_count
   local missing_required
   local owner_mismatch_count
@@ -164,21 +163,6 @@ SQL
     if [[ "${app_can_select}" != "t" || "${app_can_insert}" != "t" ]]; then
       echo "FATAL: Gateway schema guard failed: runtime app user ${app_user} lacks required table privileges." >&2
       echo "Details: synapse_owner_accounts SELECT=${app_can_select}; synapse_invocations INSERT=${app_can_insert}" >&2
-      exit 2
-    fi
-  fi
-
-  if [[ -n "${readonly_user}" ]]; then
-    local readonly_can_select_analytics
-    readonly_can_select_analytics="$(
-      psql "${MIGRATION_CONNINFO}" -X -v ON_ERROR_STOP=1 -q -t -A \
-        --set=readonly_user="${readonly_user}" <<'SQL'
-SELECT has_table_privilege(:'readonly_user', 'public.synapse_analytics_outbox', 'SELECT');
-SQL
-    )"
-    readonly_can_select_analytics="$(printf '%s' "${readonly_can_select_analytics}" | tr -d '[:space:]')"
-    if [[ "${readonly_can_select_analytics}" != "t" ]]; then
-      echo "FATAL: Gateway schema guard failed: readonly user ${readonly_user} lacks SELECT on synapse_analytics_outbox." >&2
       exit 2
     fi
   fi
@@ -269,7 +253,6 @@ psql "${MIGRATION_CONNINFO}" -X -v ON_ERROR_STOP=1 -f "${SCHEMA_SQL}" >/dev/null
 
 APP_DB_USER="${POSTGRES_APP_USER:-${POSTGRES_RUNTIME_USER:-${POSTGRES_USER:-}}}"
 MIGRATOR_DB_USER="${POSTGRES_MIGRATOR_USER:-}"
-READONLY_DB_USER="${POSTGRES_READONLY_USER:-${GATEWAY_READONLY_DB_USER:-synapse_gateway_ro}}"
 if [[ -n "${APP_DB_USER}" && "${APP_DB_USER}" != "${MIGRATOR_DB_USER}" ]]; then
   echo "[migrate-db] granting runtime privileges to app user ${APP_DB_USER}"
   psql "${MIGRATION_CONNINFO}" -X -v ON_ERROR_STOP=1 --set=app_user="${APP_DB_USER}" <<'SQL' >/dev/null
@@ -279,23 +262,21 @@ FROM pg_class c
 JOIN pg_namespace n ON n.oid = c.relnamespace
 WHERE n.nspname = 'public'
   AND c.relkind IN ('r', 'p')
-  AND pg_get_userbyid(c.relowner) = current_user \gexec
+  AND c.relname LIKE 'synapse_%' \gexec
+SELECT format('GRANT SELECT ON TABLE %I.%I TO %I', n.nspname, c.relname, :'app_user')
+FROM pg_class c
+JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE n.nspname = 'public'
+  AND c.relkind IN ('v', 'm')
+  AND c.relname LIKE 'synapse_%' \gexec
 SELECT format('GRANT USAGE, SELECT, UPDATE ON SEQUENCE %I.%I TO %I', n.nspname, c.relname, :'app_user')
 FROM pg_class c
 JOIN pg_namespace n ON n.oid = c.relnamespace
 WHERE n.nspname = 'public'
   AND c.relkind = 'S'
-  AND pg_get_userbyid(c.relowner) = current_user \gexec
+  AND c.relname LIKE 'synapse_%' \gexec
 SELECT format('ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO %I', :'app_user') \gexec
 SELECT format('ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO %I', :'app_user') \gexec
-SQL
-fi
-
-if [[ -n "${READONLY_DB_USER}" && "${READONLY_DB_USER}" != "${MIGRATOR_DB_USER}" ]]; then
-  echo "[migrate-db] granting analytics readonly privileges to readonly user ${READONLY_DB_USER}"
-  psql "${MIGRATION_CONNINFO}" -X -v ON_ERROR_STOP=1 --set=readonly_user="${READONLY_DB_USER}" <<'SQL' >/dev/null
-SELECT format('GRANT USAGE ON SCHEMA public TO %I', :'readonly_user') \gexec
-SELECT format('GRANT SELECT ON TABLE public.synapse_analytics_outbox TO %I', :'readonly_user') \gexec
 SQL
 fi
 

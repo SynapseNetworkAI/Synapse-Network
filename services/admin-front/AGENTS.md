@@ -52,7 +52,7 @@ Recommended prototype lookup order:
 
 - `services/admin-front/stitch/overview/`: console shell, dashboard density, card rhythm, signal surfaces, and global Sentinel tone.
 - `services/admin-front/stitch/admin_login/`: admin sign-in composition, security framing, CTA posture, and auth entry hierarchy.
-- `services/admin-front/stitch/mfa_setup_registration/`: password-gated MFA enrollment, QR/manual key layout, verification cadence, and activation-state copy.
+- `services/admin-front/stitch/mfa_setup_registration/`: MFA enrollment, QR/manual key layout, verification cadence, and secure initialization mood.
 - `services/admin-front/stitch/reset_successful/`: success-state composition, post-action confirmation rhythm, and return-entry CTA treatment.
 - `services/admin-front/stitch/synapse_sentinel/`: shared Sentinel design language and supporting visual rules.
 

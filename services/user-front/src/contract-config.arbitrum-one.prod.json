@@ -3,6 +3,5 @@
   "chainName": "Arbitrum One",
   "explorer": "https://arbiscan.io",
   "MockUSDC": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
-  "Treasury": "0xA8A49dcd8AC6319ca789316Cc8022e316aF13C33",
   "SynapseCore": "0x4967d23cAbe3881f809677932Cc30c11de6957B0"
 }

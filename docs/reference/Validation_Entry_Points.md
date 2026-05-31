@@ -79,8 +79,7 @@ From repository root:
 59. `npm run ci:migration-seed-guard`
 60. `npm run e2e:staging-consumer-withdraw-auto-approve`
 61. `npm run ci:staging-consumer-withdraw-auto-approve-evidence`
-62. `npm run e2e:prod-free-invoke`
-63. `npm run ci:prod-core-e2e-evidence`
+62. `npm run e2e:prod-consumer-withdraw-auto-approve-rehearsal`
 
 Use these wrappers when final integration confidence is required.
 
@@ -220,6 +219,7 @@ Staging/prod withdrawal validation:
 
 1. `npm run e2e:staging-consumer-withdraw-auto-approve` is the canonical live staging lane for the consumer auto-approve happy path. It mutates staging, requires `STAGING_CONSUMER_WITHDRAW_CONFIRM=I_UNDERSTAND_THIS_MUTATES_STAGING`, and fails closed unless `POSTGRES_DSN` points to Cloud SQL Auth Proxy on localhost.
 2. `npm run ci:staging-consumer-withdraw-auto-approve-evidence` validates the fresh evidence bundle under `docs/evidence/staging/consumer-withdraw-auto-approve/`.
+3. `npm run e2e:prod-consumer-withdraw-auto-approve-rehearsal` is the narrow production rehearsal wrapper. It keeps the current no-webhook withdrawal model, requires `PROD_E2E_CONFIRM=I_UNDERSTAND_THIS_MUTATES_PRODUCTION`, and fails closed if the withdrawal would enter manual review instead of auto-approve.
 
 ### 3.2 services/docs-front
 
@@ -364,17 +364,16 @@ Before finishing:
 17. run `npm run e2e:user-front-payments-gateway-truth:local` and `npm run ci:user-front-payments-gateway-truth-local-evidence` when changing Billing/Payments history aggregation, deposit/withdraw/refund API adapters, or frontend money-history data sources. The evidence must prove Payments rows come from Gateway DB/API, each source uses `limit=100`, DOM renders the sorted top 50 rows, pending intents survive refresh, and frontend chain-log scans are not reintroduced.
 18. run `npm run e2e:deposit-indexer-recovery:local` and `npm run ci:deposit-indexer-recovery-local-evidence` when changing deposit indexer startup, backfill, replay protection, local Gateway indexer env, or pending-deposit reliability. The evidence must prove indexer-down UI stays pending, restart auto-confirms valid deposits, backfill recovers missed intents, invalid events do not credit, and replay does not double-credit.
 19. run `npm run e2e:deposit-indexer-event-only:local` and `npm run ci:deposit-indexer-event-only-local-evidence` when changing deposit event scanning, `DepositInfo` decoding, `eth_getLogs` chunking, finality-buffer rules, processed deposit event key dedup, bounded pending sweep retry, Alchemy deposit webhook wakeups, or the local zero-user RPC/CU baseline used for cost reporting. The evidence must prove three things together: first, `POST /api/v1/balance/deposit/intent` can confirm a deposit with `V2_INDEXER_ENABLED=false` and no scheduler-first help; second, the signed `POST /internal/webhooks/alchemy/deposits` lane can move a still-pending deposit to `CONFIRMED` without trigger or scheduler first-hop help, while invalid signatures return `401`, duplicate webhook delivery stays idempotent, and unknown-intent payloads do not credit funds; third, the worker tick still uses `eth_getLogs` without default block scans, chunking emits at least two `getLogs` ranges for a >2000-block catch-up, `lastScannedBlock` stays behind `confirmedHead`, Payments history still renders the Gateway-backed deposit row exactly once, and `rpc-cu-comparison.json` preserves the approved before/after baseline.
-    Keep the environment contract aligned while doing this work:
-    prod uses Alchemy app `synapse-network-prod`, staging uses
-    `synapse-network-staging`, and both environments rely on HMAC signature
-    validation as the primary webhook trust root. Do not present app-layer
-    source-IP filtering as a real allowlist unless the callback has been moved
-    behind LB + Cloud Armor.
+   Keep the environment contract aligned while doing this work:
+   prod uses Alchemy app `synapse-network-prod`, staging uses
+   `synapse-network-staging`, and both environments rely on HMAC signature
+   validation as the primary webhook trust root. Do not present app-layer
+   source-IP filtering as a real allowlist unless the callback has been moved
+   behind LB + Cloud Armor.
 20. run `npm run e2e:admin-dashboard-projection-readmodel:local` and `npm run ci:admin-dashboard-projection-readmodel-local-evidence` when changing Gateway-admin dashboard projection repositories, Admin-front dashboard/finance/runtime read-model rendering, or projection view SQL. The local gate proves Admin API, explicit Postgres projection column queries, DOM values, and screenshots agree without `row_to_json` or dashboard projection `SELECT *`.
 21. run `npm run ci:diff-coverage` when changed code needs line-level coverage evidence; Python and Vitest coverage must be Cobertura XML
 22. run `npm run ci:agent-guardrails` when Agent-generated backend/admin code touches finance, approval, storage, or shared state-machine logic; install `uv` once if the runner reports a missing Python guardrail tool
 23. run `npm run release:evidence:gateway-fullchain:local` for a local rehearsal of the full live Gateway E2E evidence chain; run `GATEWAY_RELEASE_E2E_PROFILE=mvp-postgres npm run release:evidence:gateway-fullchain:staging` plus `GATEWAY_RELEASE_E2E_REQUIRED_ENV=staging npm run ci:gateway-release-e2e-evidence` for MVP Cloud Run + Cloud SQL staging release evidence. The bundle must include a non-empty `trace.jsonl` with a matching `report.json.traceDigest`
-    23a. run `PROD_E2E_CONFIRM=I_UNDERSTAND_THIS_MUTATES_PROD_FREE_INVOKE npm run e2e:prod-free-invoke` plus `npm run ci:prod-core-e2e-evidence` after a production gateway/user-front/docs-front release when paid production rehearsal is not explicitly approved. The runner must use `POST /api/v1/agent/discovery/search` to find the configured free catalog service, must not use legacy `/api/v1/services/discover`, and must prove SIWE auth, active agent credential, free service discovery, invocation receipt, and dashboard rendering without raw `503`, `HTTPException`, `RPC Error`, `CHAIN_RPC`, `PROVIDER_`, or `WITHDRAW_` text. Production SQL evidence requires a runner with VPC access to the private Cloud SQL instance; do not weaken Cloud SQL networking to make a laptop evidence run pass.
 24. run `npm run perf:local-production-load-rehearsal` and `npm run ci:local-production-load-evidence` before staging load when changing invoke, balance, deposit confirm, withdrawal, provider health, admin finance views, load-runner behavior, or wallet/signing isolation; this validates local runId isolation, temporary wallet pools, per-wallet chain serialization, bounded concurrency, drain hard cap, and no secret leakage
 25. run `npm run ci:monitoring-alert-rules` when changing metrics, readiness, dashboards, Alertmanager routes, Lark Relay behavior, alert rules, or monitoring runbooks
 26. run `npm run e2e:gcp-alerts:local` and `npm run ci:gcp-alerts-local-evidence` before deploying GCP Monitoring receiver/drill changes; then run `npm run e2e:gcp-alerts:staging` and `npm run ci:gcp-alerts-staging-evidence` after staging deploy. Set `GCP_ALERTS_REQUIRE_MONITORING_DELIVERY=true` once per release candidate to prove GCP policy callback delivery
@@ -400,9 +399,9 @@ Before finishing:
 46. run `npm run e2e:admin-login-lockout:dogfood` when closing admin login lockout UX, API, audit, or config behavior; it must create a disposable local admin, trigger the five-failure lockout through Admin-front, capture screenshots/video, assert DB audit state, write `bugfix-log.md`, and delete the test account
 47. run `terraform -chdir=infra/terraform/gcp-staging fmt -check` and `terraform -chdir=infra/terraform/gcp-staging validate` when changing Google Cloud staging infrastructure; `terraform validate` requires `terraform init` first
 48. run `npm run deploy:contracts:arbitrum-sepolia:dry-run` before Arbitrum Sepolia staging deployment, then `npm run deploy:contracts:arbitrum-sepolia` and `npm run ci:contract-deployment-evidence` to close staging contract evidence; this requires live Arbitrum Sepolia RPC and funded staging deployer/consumer/provider wallets
-49. follow `docs/ops/19_E2E_Regression_Runbook.md` when doing full local or staging regression. Provider registration, consumer login, deposit, invoke, consumer withdrawal, provider withdrawal/admin review, notifications, analytics, and contract release checks must include the documented read-only SQL evidence. Staging SQL must use an approved read-only DSN or Cloud SQL Auth Proxy connection and must never repair state during regression.
+48. follow `docs/ops/19_E2E_Regression_Runbook.md` when doing full local or staging regression. Provider registration, consumer login, deposit, invoke, consumer withdrawal, provider withdrawal/admin review, notifications, analytics, and contract release checks must include the documented read-only SQL evidence. Staging SQL must use an approved read-only DSN or Cloud SQL Auth Proxy connection and must never repair state during regression.
     Ordinary invoke, billing, UI, withdrawal, admin approval, and one-ticket E2E must reuse the Synapse-Network-Provider catalog. Default paid settlement uses `svc_synapse_mock_cost_1usdc`, free smoke uses `svc_synapse_echo`, and Gateway local/staging E2E must not POST service registrations; service-registration behavior is covered by backend unit/router/service tests.
-50. run `npm run e2e:admin-regression` and `npm run ci:admin-regression-evidence` when closing Admin-wide regression, Admin Analytics Postgres source changes, admin notification evidence, withdrawal review orchestration, platform treasury Safe draft evidence, or screenshot/SQL evidence contracts. The evidence must include `expected_state.json`, `sql_evidence.json`, `screenshot_evidence.json`, final-state DOM checkpoints, and Postgres-only Analytics source proof.
+49. run `npm run e2e:admin-regression` and `npm run ci:admin-regression-evidence` when closing Admin-wide regression, Admin Analytics Postgres source changes, admin notification evidence, withdrawal review orchestration, platform treasury Safe draft evidence, or screenshot/SQL evidence contracts. The evidence must include `expected_state.json`, `sql_evidence.json`, `screenshot_evidence.json`, final-state DOM checkpoints, and Postgres-only Analytics source proof.
 
 Withdrawal evidence coverage is intentionally split:
 

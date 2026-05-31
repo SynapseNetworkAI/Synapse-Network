@@ -42,6 +42,23 @@ class _BrokenBalanceService:
 
 
 class _BalanceService:
+    async def register_deposit_intent(
+        self,
+        intent: dict[str, object],
+        owner_wallet: str,
+        idempotency_key: str,
+        request_meta: dict[str, object],
+    ) -> dict[str, object]:
+        assert intent["txHash"] == "0x" + "a" * 64
+        assert owner_wallet == "0xAbC"
+        assert idempotency_key == "idem-deposit-intent-0001"
+        assert request_meta["requestId"] == "req-notify-router"
+        return {
+            "id": "dep-intent-router-1",
+            "txHash": "0x" + "a" * 64,
+            "status": "PENDING_CONFIRMATION",
+        }
+
     async def confirm_deposit_intent(
         self,
         *,
@@ -227,32 +244,72 @@ async def test_get_balance_wraps_storage_errors_for_safe_client_response() -> No
 
 
 @pytest.mark.asyncio
-async def test_confirm_deposit_is_indexer_owned(monkeypatch) -> None:
-    calls: list[tuple[object, object]] = []
-    storage = _Storage()
-    monkeypatch.setattr(
-        balance_deposit,
-        "schedule_in_app_notification",
-        lambda storage_arg, intent: calls.append((storage_arg, intent)),
+async def test_register_deposit_intent_triggers_deposit_indexer_after_commit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    trigger_calls: list[dict[str, str]] = []
+
+    async def _fake_trigger(*, source: str, triggered_by: str, tx_hash: str | None = None) -> bool:
+        trigger_calls.append(
+            {
+                "source": source,
+                "triggered_by": triggered_by,
+                "tx_hash": str(tx_hash or ""),
+            }
+        )
+        return True
+
+    monkeypatch.setattr(balance_deposit, "post_deposit_indexer_trigger", _fake_trigger)
+
+    response = await balance_deposit.register_deposit_intent(
+        balance_helpers.DepositIntentRequest(
+            txHash="0x" + "a" * 64,
+            amountUsdc="5.000000",
+        ),
+        _Request(),
+        "idem-deposit-intent-0001",
+        "0xAbC",
+        _BalanceService(),
     )
 
-    with pytest.raises(HTTPException) as exc_info:
-        await balance_deposit.confirm_deposit_intent(
-            "dep-intent-1",
-            DepositConfirmRequest(eventKey="evt-1", confirmations=3),
-            _Request(),
-            "0xAbC",
-            _BalanceService(),
-            storage,
-        )
-
-    assert exc_info.value.status_code == 410
-    assert exc_info.value.detail["code"] == "DEPOSIT_CONFIRM_INDEXER_ONLY"
-    assert calls == []
+    assert response["status"] == "success"
+    assert response["intent"]["status"] == "PENDING_CONFIRMATION"
+    assert trigger_calls == [
+        {
+            "source": "deposit_intent_registered",
+            "triggered_by": "api.v1.balance.deposit.intent",
+            "tx_hash": "0x" + "a" * 64,
+        }
+    ]
 
 
 @pytest.mark.asyncio
-async def test_confirm_deposit_replay_does_not_call_legacy_service(monkeypatch) -> None:
+async def test_register_deposit_intent_returns_success_even_when_trigger_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _fake_trigger(*, source: str, triggered_by: str, tx_hash: str | None = None) -> bool:
+        _ = (source, triggered_by, tx_hash)
+        return False
+
+    monkeypatch.setattr(balance_deposit, "post_deposit_indexer_trigger", _fake_trigger)
+
+    response = await balance_deposit.register_deposit_intent(
+        balance_helpers.DepositIntentRequest(
+            txHash="0x" + "a" * 64,
+            amountUsdc="5.000000",
+        ),
+        _Request(),
+        "idem-deposit-intent-0001",
+        "0xAbC",
+        _BalanceService(),
+    )
+
+    assert response["status"] == "success"
+    assert response["intent"]["status"] == "PENDING_CONFIRMATION"
+
+
+@pytest.mark.asyncio
+async def test_confirm_deposit_schedules_in_app_notification(monkeypatch) -> None:
     calls: list[tuple[object, object]] = []
     storage = _Storage()
     monkeypatch.setattr(
@@ -261,17 +318,65 @@ async def test_confirm_deposit_replay_does_not_call_legacy_service(monkeypatch) 
         lambda storage_arg, intent: calls.append((storage_arg, intent)),
     )
 
-    with pytest.raises(HTTPException) as exc_info:
-        await balance_deposit.confirm_deposit_intent(
-            "dep-intent-1",
-            DepositConfirmRequest(eventKey="evt-1", confirmations=3),
-            _Request(),
-            "0xAbC",
-            _BalanceService(),
-            storage,
-        )
+    response = await balance_deposit.confirm_deposit_intent(
+        "dep-intent-1",
+        DepositConfirmRequest(eventKey="evt-1", confirmations=3),
+        _Request(),
+        "0xAbC",
+        _BalanceService(),
+        storage,
+    )
 
-    assert exc_info.value.status_code == 410
+    assert response["status"] == "success"
+    assert response["intent"]["depositId"] == "dep-intent-1"
+    assert calls[0][0] is storage
+    assert calls[0][1].event_type == "deposit.confirmed"
+    assert calls[0][1].payload == {
+        "depositId": "dep-intent-1",
+        "amount": "12.000000",
+        "currency": "USDC",
+        "status": "CONFIRMED",
+    }
+
+
+@pytest.mark.asyncio
+async def test_confirm_deposit_replay_does_not_reschedule_notification(monkeypatch) -> None:
+    class _ReplayBalanceService(_BalanceService):
+        async def confirm_deposit_intent(
+            self,
+            *,
+            owner_wallet: str,
+            deposit_intent_id: str,
+            event_key: str,
+            confirmations: int,
+            request_meta: dict[str, object],
+        ) -> dict[str, object]:
+            _ = owner_wallet, deposit_intent_id, event_key, confirmations, request_meta
+            return {
+                "depositId": "dep-intent-1",
+                "amount": "12.000000",
+                "status": "CONFIRMED",
+            }
+
+    calls: list[tuple[object, object]] = []
+    storage = _Storage()
+    monkeypatch.setattr(
+        balance_deposit,
+        "schedule_in_app_notification",
+        lambda storage_arg, intent: calls.append((storage_arg, intent)),
+    )
+
+    response = await balance_deposit.confirm_deposit_intent(
+        "dep-intent-1",
+        DepositConfirmRequest(eventKey="evt-1", confirmations=3),
+        _Request(),
+        "0xAbC",
+        _ReplayBalanceService(),
+        storage,
+    )
+
+    assert response["status"] == "success"
+    assert response["intent"]["status"] == "CONFIRMED"
     assert calls == []
 
 

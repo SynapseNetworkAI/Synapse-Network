@@ -354,6 +354,10 @@ export type I18nMessages = {
     walletConnectorNotReady: string;
     walletSingleAccount: string;
     walletUnstable: string;
+    walletUnsupportedForArbitrum: string;
+    connectWalletArbitrumHint: string;
+    authGatewayUnavailable: string;
+    walletWrongNetwork: string;
     authFailedPrefix: string;
     depositChecklistTitle: string;
     depositChecklistNetwork: string;
@@ -1102,7 +1106,6 @@ export type I18nMessages = {
     depositWalletBalanceChanged: string;
     depositNetworkSwitchPending: string;
     depositNetworkSwitchFailed: string;
-    depositUnsupportedWallet: string;
     depositPermitTimedOut: string;
     depositPermitFallbackAvailable: string;
     depositApproveFailed: string;

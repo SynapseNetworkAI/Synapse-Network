@@ -86,10 +86,10 @@ cat >"${tmp_dir}/artifact-cleanup.json" <<'JSON'
     }
   },
   {
-    "name": "keep-recent-10-per-package",
+    "name": "keep-recent-3-per-package",
     "action": {"type": "Keep"},
     "mostRecentVersions": {
-      "keepCount": 10
+      "keepCount": 3
     }
   }
 ]

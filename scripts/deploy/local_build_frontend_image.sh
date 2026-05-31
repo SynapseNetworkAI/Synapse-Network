@@ -128,10 +128,12 @@ if [[ "${ENVIRONMENT}" == "production" ]]; then
   export NEXT_PUBLIC_ANALYTICS_ENDPOINT="${NEXT_PUBLIC_ANALYTICS_ENDPOINT:-https://api.synapse-network.ai/api/v1/events}"
   export NEXT_PUBLIC_DOCS_BASE_URL="${NEXT_PUBLIC_DOCS_BASE_URL:-https://docs.synapse-network.ai}"
   export NEXT_PUBLIC_CONSOLE_BASE_URL="${NEXT_PUBLIC_CONSOLE_BASE_URL:-https://www.synapse-network.ai/dashboard/overview}"
-  export NEXT_PUBLIC_ADMIN_API_BASE_URL="${NEXT_PUBLIC_ADMIN_API_BASE_URL:-https://admin-api.synapse-network.ai}"
+  export NEXT_PUBLIC_ADMIN_API_BASE_URL="${NEXT_PUBLIC_ADMIN_API_BASE_URL:-}"
   export ADMIN_API_PROXY_TARGET="${ADMIN_API_PROXY_TARGET:-https://admin-api.synapse-network.ai}"
   export NEXT_PUBLIC_TX_EXPLORER_BASE_URL="${NEXT_PUBLIC_TX_EXPLORER_BASE_URL:-https://arbiscan.io}"
   export NEXT_PUBLIC_RPC_URL="${NEXT_PUBLIC_RPC_URL:-https://arb1.arbitrum.io/rpc}"
+  export NEXT_PUBLIC_REOWN_PROJECT_ID="${NEXT_PUBLIC_REOWN_PROJECT_ID:-f0053f1a487ee7af348aa329ab83ff68}"
+  export NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID="${NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID:-${NEXT_PUBLIC_REOWN_PROJECT_ID}}"
   export CONTRACT_CONFIG_SOURCE="${CONTRACT_CONFIG_SOURCE:-src/contract-config.arbitrum-one.prod.json}"
 else
   PROJECT_ID="${PROJECT_ID:-${STAGING_GCP_PROJECT_ID:-fabled-archive-494108-k5}}"

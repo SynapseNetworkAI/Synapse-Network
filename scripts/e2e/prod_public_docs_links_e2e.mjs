@@ -329,34 +329,19 @@ await check(
   undefined,
   "public health endpoint"
 );
-await check("admin_login_page", `${ADMIN_ROOT}/login`, [200], (body) => {
-  assertContains(body, "Admin Console Login", "admin login title");
-});
 await check(
-  "admin_root_entry",
+  "admin_gate",
   `${ADMIN_ROOT}/`,
-  [200],
-  (body) => {
-    if (body.includes("Error: Forbidden")) {
-      throw new Error("admin root still returns Cloud Run forbidden content");
-    }
-    assertContains(
-      body,
-      "Session Route Bootstrap",
-      "admin root session bootstrap"
-    );
-  },
-  "public admin shell should render app bootstrap"
-);
-await check("admin_api_health", `${ADMIN_API_ROOT}/health`, [200], (body) => {
-  assertContains(body, '"service":"gateway-admin"', "admin api health");
-});
-await check(
-  "admin_api_me_unauth",
-  `${ADMIN_API_ROOT}/api/admin/v1/auth/me`,
   [401, 403],
   undefined,
-  "application-layer auth expected"
+  "protected gate expected"
+);
+await check(
+  "admin_api_gate",
+  `${ADMIN_API_ROOT}/`,
+  [401, 403],
+  undefined,
+  "protected gate expected"
 );
 
 const report = {

@@ -23,6 +23,13 @@ const walletActions: I18nMessages["walletActions"] = {
   walletConnectorNotReady: "钱包连接尚未就绪，请重新连接后重试。",
   walletSingleAccount: "请在钱包里只选择一个账户，然后重新连接。",
   walletUnstable: "钱包连接不稳定，请重新连接钱包后重试。",
+  walletUnsupportedForArbitrum:
+    "Phantom 当前不支持 Arbitrum。请在 Synapse 的 Arbitrum 环境中改用 MetaMask 或 Rabby。",
+  connectWalletArbitrumHint:
+    "Arbitrum 环境推荐使用 MetaMask 或 Rabby。Phantom 仅支持部分 EVM 链，不支持 Arbitrum。",
+  authGatewayUnavailable: "无法连接钱包认证网关。请刷新页面后重试。",
+  walletWrongNetwork:
+    "钱包网络与当前 Synapse Arbitrum 环境不一致。请先切换钱包网络后重试。",
   authFailedPrefix: "登录失败：{{message}}",
   depositChecklistTitle: "钱包核对清单",
   depositChecklistNetwork: "网络与当前 Synapse 环境一致。",

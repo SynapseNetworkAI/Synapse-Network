@@ -198,6 +198,20 @@ That lane proves a separate story:
 5. Gateway closes the row as `COMPLETED`
 6. Billing/Credits UI, Cloud SQL, API, chain tx, and Cloud Run logs agree
 
+Production keeps a smaller rehearsal-only contract:
+
+```bash
+PROD_E2E_CONFIRM=I_UNDERSTAND_THIS_MUTATES_PRODUCTION \
+npm run e2e:prod-consumer-withdraw-auto-approve-rehearsal
+```
+
+This production wrapper is fail-closed:
+
+1. it does not auto-approve admin review
+2. it stops if the amount would enter `PENDING_MANUAL_REVIEW`
+3. it requires mature consumer withdrawable balance to already exist
+4. it treats watcher-only recovery as a safety-net outcome, not the primary success signal
+
 This is intentionally local-only automation. Staging and production keep the
 same self-claim consumer path, but platform fee execution remains a controlled
 Safe or owner operation rather than a generic automated CI step.

@@ -287,8 +287,13 @@ def _apply_confirmed_deposit(
         },
     )
     logger.info(
-        "deposit credited deposit_id=%s status=confirmed",
+        "event=DEPOSIT_CREDITED deposit_id=%s status=confirmed tx_hash=%s owner_wallet=%s event_key=%s amount_usdc=%s balance_after=%s",
         str(intent.get("id") or ""),
+        tx_hash,
+        owner_wallet,
+        event_key,
+        money_str(intent.get("creditedAmountUsdc") or amount_usdc),
+        money_str(next_balance),
     )
 
     try:

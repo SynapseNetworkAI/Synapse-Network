@@ -53,15 +53,6 @@ class _FakeCursor:
         return self._rows
 
 
-class _FailingCursor(_FakeCursor):
-    def __init__(self, error: Exception) -> None:
-        super().__init__(None)
-        self._error = error
-
-    def execute(self, sql: str, params: tuple[object, ...] | None = None) -> None:
-        raise self._error
-
-
 class _FakeConnection:
     def __init__(self, cursor: _FakeCursor) -> None:
         self._cursor = cursor
@@ -269,21 +260,13 @@ def test_get_operations_snapshot_returns_empty_when_projection_is_missing(monkey
     assert operations.projected_at is None
 
 
-def test_get_reconciliation_runtime_state_degrades_when_readonly_permission_missing(
-    monkeypatch,
-) -> None:
-    repository = gateway_dashboard.PostgresGatewayDashboardProjectionRepository(
-        "postgresql://example"
-    )
-    cursor = _FailingCursor(
-        psycopg.errors.InsufficientPrivilege(
-            "permission denied for table synapse_runtime_state"
-        )
-    )
+def test_get_reconciliation_runtime_state_returns_empty_when_readonly_access_is_denied(monkeypatch) -> None:
+    repository = gateway_dashboard.PostgresGatewayDashboardProjectionRepository("postgresql://example")
 
-    monkeypatch.setattr(
-        gateway_dashboard, "_connect", lambda dsn: _FakeConnection(cursor)
-    )
+    def _raise_permission_denied(_: str):
+        raise psycopg.errors.InsufficientPrivilege("permission denied for table synapse_runtime_state")
+
+    monkeypatch.setattr(gateway_dashboard, "_connect", _raise_permission_denied)
 
     state = repository.get_reconciliation_runtime_state()
 

@@ -63,10 +63,11 @@ const generatedAtDate = new Date();
 const generatedAt = generatedAtDate.toISOString();
 const services = Object.fromEntries(
   Object.entries(build.services || {}).map(([service, imageTag]) => [
-    service,
-    {
+  service,
+  {
       imageTag,
       imageDigest: imageDigests[service] || imageTag,
+      imageSource: build.imageSource || "cloudbuild",
       cloudRunRevision: revisions[service] || null,
       smokeStatus: smoke[service] || "not_run",
       smokeDetails: Array.isArray(smokeDetails)

@@ -1,45 +1,35 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 
-const here = dirname(fileURLToPath(import.meta.url));
-const root = resolve(here, "..");
+const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const component = readFileSync(
-  resolve(root, "src/components/docs/EnvironmentConfig.tsx"),
+  join(root, "src/components/docs/EnvironmentConfig.tsx"),
   "utf8"
 );
-const shared = readFileSync(resolve(root, "src/lib/shared.ts"), "utf8");
+const shared = readFileSync(join(root, "src/lib/shared.ts"), "utf8");
 
-assert.equal(
-  component.includes('["Console"'),
-  false,
-  "Environment summary must not expose Console URLs"
+assert(!component.includes('["Console"'), "summary must not render Console");
+assert(
+  component.includes("function EnvironmentValue"),
+  "summary values must flow through the public value renderer"
 );
-assert.match(
-  component,
-  /function EnvironmentValue/,
-  "Environment summary URLs should render through link-aware EnvironmentValue"
+assert(
+  component.includes("target=\"_blank\""),
+  "public URLs must render as clickable external links"
 );
-assert.match(
-  component,
-  /target="_blank"/,
-  "Public environment URLs should be clickable external links"
+assert(
+  component.includes("Configured locally"),
+  "internal local config paths must be replaced with a safe public label"
 );
-assert.match(
-  component,
-  /Configured locally/,
-  "Internal local config paths should be redacted"
+assert(
+  component.includes("Not published"),
+  "reserved production addresses must be replaced with a safe public label"
 );
-assert.match(
-  component,
-  /Not published/,
-  "Reserved production placeholders should be redacted"
-);
-assert.equal(
+assert(
   shared.includes("services/user-front/src/contract-config.json"),
-  true,
-  "Test fixture should cover local internal path redaction"
+  "fixture should still cover local internal path redaction"
 );
 
 console.log("EnvironmentConfig public address checks passed");
