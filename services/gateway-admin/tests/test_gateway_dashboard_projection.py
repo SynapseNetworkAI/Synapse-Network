@@ -27,6 +27,25 @@ def test_get_snapshot_returns_empty_when_projection_is_missing(monkeypatch) -> N
     assert snapshot.last_reconciliation_at is None
 
 
+def test_get_table_columns_uses_visible_search_path_schemas(monkeypatch) -> None:
+    cursor = _FakeCursor([{"column_name": "gateway_status"}])
+
+    gateway_dashboard._get_table_columns.cache_clear()
+    monkeypatch.setattr(gateway_dashboard, "_connect", lambda dsn: _FakeConnection(cursor))
+
+    columns = gateway_dashboard._get_table_columns(
+        "postgresql://example",
+        "synapse_admin_dashboard_operations_projection",
+    )
+
+    assert columns == frozenset({"gateway_status"})
+    sql = _executed_sql(cursor)
+    assert "current_schemas(true)" in sql
+    assert "current_schema()" not in sql
+
+    gateway_dashboard._get_table_columns.cache_clear()
+
+
 class _FakeCursor:
     def __init__(self, rows: list[dict[str, object]] | dict[str, object] | None = None) -> None:
         if isinstance(rows, list):

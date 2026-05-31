@@ -25,8 +25,8 @@ def _get_table_columns(dsn: str, table_name: str) -> frozenset[str]:
             """
             SELECT column_name
             FROM information_schema.columns
-            WHERE table_schema = current_schema()
-              AND table_name = %s
+            WHERE table_name = %s
+              AND table_schema = ANY(current_schemas(TRUE))
             ORDER BY ordinal_position
             """,
             (table_name,),
