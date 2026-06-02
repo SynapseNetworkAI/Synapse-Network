@@ -185,25 +185,25 @@ variable "scheduler_time_zone" {
 variable "deposit_indexer_schedule" {
   description = "Cloud Scheduler cron for the production deposit indexer recovery job."
   type        = string
-  default     = "*/10 * * * *"
+  default     = "0 * * * *"
 }
 
 variable "consumer_withdraw_chain_recovery_schedule" {
   description = "Cloud Scheduler cron for the production consumer withdrawal chain recovery safety-net job."
   type        = string
-  default     = "*/10 * * * *"
+  default     = "0 */4 * * *"
 }
 
 variable "withdrawal_expiry_sweeper_schedule" {
   description = "Cloud Scheduler cron for the production withdrawal expiry sweeper job."
   type        = string
-  default     = "*/10 * * * *"
+  default     = "0 */4 * * *"
 }
 
 variable "notification_outbox_drain_schedule" {
   description = "Cloud Scheduler cron for the production notification outbox drain job."
   type        = string
-  default     = "*/10 * * * *"
+  default     = "0 */4 * * *"
 }
 
 variable "withdraw_signer_address" {

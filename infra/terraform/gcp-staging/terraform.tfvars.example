@@ -15,6 +15,7 @@ artifact_registry_keep_recent_count      = 3
 cloud_sql_tier                           = "db-f1-micro"
 cloud_sql_edition                        = "ENTERPRISE"
 cloud_sql_availability_type              = "ZONAL"
+cloud_sql_activation_policy              = "NEVER"
 cloud_sql_disk_type                      = "PD_SSD"
 cloud_sql_disk_size_gb                   = 20
 cloud_sql_disk_autoresize                = true
@@ -22,6 +23,14 @@ cloud_sql_deletion_protection            = false
 cloud_sql_backup_start_time              = "19:00" # UTC; 03:00 Asia/Kuala_Lumpur
 cloud_sql_transaction_log_retention_days = 1
 cloud_sql_retained_backups               = 3
+
+# Staging private Cloud SQL path. Direct VPC egress has no fixed connector VM
+# cost and lets Cloud SQL release the public IPv4 reservation.
+vpc_network_name                    = "synapse-staging-vpc"
+vpc_subnet_name                     = "synapse-staging-subnet"
+vpc_subnet_cidr                     = "10.40.0.0/24"
+private_service_range_name          = "synapse-staging-sql-private-range"
+private_service_range_prefix_length = 16
 
 # Cost controls: staging scheduled workers default to lower frequency than prod.
 deposit_indexer_schedule                   = "*/30 * * * *"
