@@ -1270,6 +1270,14 @@ credential values remain in Secret Manager. Changing runtime env values on Cloud
 Run creates a new revision and does not require rebuilding the Gateway image
 unless the code changed.
 
+Staging Cloud SQL is private IP only. Terraform attaches backend Cloud Run
+services and jobs through Direct VPC egress with `PRIVATE_RANGES_ONLY`; frontend
+Cloud Run services stay off VPC egress. Keep DB secrets in Cloud SQL Unix-socket
+DSN form, for example
+`postgresql://<user>:<password>@/<db>?host=/cloudsql/<project>:us-central1:synapse-staging-postgres`,
+so connector enforcement remains compatible after the public IPv4 address is
+released.
+
 | Variable                                  | Staging value                                              | Purpose                                                                                                                                                                                                          | Secret | Source                                         |
 | ----------------------------------------- | ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ | ---------------------------------------------- |
 | `ENVIRONMENT`                             | `staging`                                                  | Gateway runtime environment.                                                                                                                                                                                     | No     | Fixed                                          |
