@@ -22,6 +22,10 @@ from src.domain.invocation_response import (
 )
 from src.domain.identity import RuntimeCredentialRecord
 from src.services.platform import credential_service
+from src.services.platform.business_policy import (
+    gateway_routing_tax_decimal,
+    platform_fee_rate_decimal,
+)
 from src.storage import BaseStorage
 from src.domain.finance import ChargeConsumerUsageCommand
 from src.utils.money import MoneyCodec
@@ -66,7 +70,7 @@ def sanitize_fee_rate(raw: Any, fallback: Decimal | str | int) -> Decimal:
 
 def resolve_platform_fee_rate(storage: BaseStorage, provider_wallet: str) -> Decimal:
     """Resolve effective fee rate using owner override > runtime default > global config."""
-    fallback = sanitize_fee_rate(settings.platform_fee_rate, Decimal("0.05"))
+    fallback = sanitize_fee_rate(platform_fee_rate_decimal(storage), Decimal("0.10"))
     policy = storage.get_data_manager().finance.fee_policy.get_platform_fee_policy()
 
     if (
@@ -83,12 +87,9 @@ def resolve_platform_fee_rate(storage: BaseStorage, provider_wallet: str) -> Dec
     return policy_default
 
 
-def resolve_gateway_routing_tax() -> Decimal:
+def resolve_gateway_routing_tax(storage: BaseStorage) -> Decimal:
     """Resolve fixed routing tax per request and normalize precision for ledger safety."""
-    try:
-        value = Decimal(str(settings.gateway_routing_tax))
-    except Exception:
-        return Decimal("0")
+    value = gateway_routing_tax_decimal(storage)
     if value < Decimal("0"):
         return Decimal("0")
     return MoneyCodec.quantize_usdc(value)
@@ -138,7 +139,7 @@ def pricing_breakdown(
     normalized_unit_price = _money_decimal(unit_price)
     fee_rate = resolve_platform_fee_rate(storage, provider_wallet)
     protocol_fee = MoneyCodec.quantize_usdc(normalized_unit_price * fee_rate)
-    routing_tax = Decimal("0") if normalized_unit_price == Decimal("0") else resolve_gateway_routing_tax()
+    routing_tax = Decimal("0") if normalized_unit_price == Decimal("0") else resolve_gateway_routing_tax(storage)
     platform_fee_total = _money_decimal(protocol_fee + routing_tax)
     provider_net = _money_decimal(normalized_unit_price - protocol_fee)
     total_charge = _money_decimal(normalized_unit_price + routing_tax)

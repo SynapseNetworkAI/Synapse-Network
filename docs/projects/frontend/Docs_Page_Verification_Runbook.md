@@ -10,7 +10,7 @@
 
 ## Current Model
 
-Public docs no longer live under `services/user-front/src/app/docs`, and the main user-front app no longer serves `/docs/*` redirects. All docs content, OpenAPI generation, `llms.txt`, sitemap, robots, and OG metadata live in `services/docs-front`.
+Public docs no longer live under `services/user-front/src/app/docs`. The main user-front app keeps `/docs/*` redirects through `NEXT_PUBLIC_DOCS_BASE_URL`; all docs content, OpenAPI generation, `llms.txt`, sitemap, robots, and OG metadata live in `services/docs-front`.
 
 ## Verification
 
@@ -26,7 +26,7 @@ Required result:
 
 - `ci:docs-pages` builds `services/docs-front` and regenerates OpenAPI from `src/data/endpoint-source.ts`.
 - `ci:docs` passes docs governance and public asset checks.
-- Browser verification passes every canonical docs page, generated API endpoint page, and console-error check.
+- Browser verification passes every docs page, legacy `/docs/*` redirect, generated API endpoint page, and console-error check.
 
 ## Updating Docs
 

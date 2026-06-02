@@ -204,3 +204,60 @@ export function readStagingSecret(
     return "";
   }
 }
+
+export function readProductionSecret(
+  secretId,
+  {
+    projectId = projectIdFromEnv() || "synapse-network-prod",
+    required = false,
+    confirmEnv = "PROD_E2E_CONFIRM",
+    confirmValue = "I_UNDERSTAND_THIS_MUTATES_PRODUCTION",
+  } = {}
+) {
+  const envName = String(process.env.SYNAPSE_E2E_ENV || "")
+    .trim()
+    .toLowerCase();
+  if (envName !== "prod") {
+    throw new Error(
+      `NON_PROD_E2E_FORBIDS_PROD_SECRET_MANAGER: attempted to read ${secretId}`
+    );
+  }
+  if (process.env.ALLOW_GCP_SECRET_MANAGER !== "1") {
+    throw new Error(
+      `PROD_E2E_REQUIRES_ALLOW_GCP_SECRET_MANAGER: attempted to read ${secretId}`
+    );
+  }
+  if (process.env[confirmEnv] !== confirmValue) {
+    throw new Error(
+      `Set ${confirmEnv}=${confirmValue} before reading ${secretId}.`
+    );
+  }
+  if (!/^synapse-prod-[A-Za-z0-9_-]+$/.test(secretId)) {
+    throw new Error(`PROD_E2E_FORBIDS_NON_PROD_SECRET: ${secretId}`);
+  }
+  if (!projectId) {
+    if (required) throw new Error(`PROD_E2E_MISSING_PROJECT_ID: ${secretId}`);
+    return "";
+  }
+  try {
+    return execFileSync(
+      "gcloud",
+      [
+        "secrets",
+        "versions",
+        "access",
+        "latest",
+        `--secret=${secretId}`,
+        `--project=${projectId}`,
+      ],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }
+    ).trim();
+  } catch (error) {
+    if (required) {
+      throw new Error(
+        `PROD_E2E_SECRET_READ_FAILED: ${secretId}: ${error.message}`
+      );
+    }
+    return "";
+  }
+}

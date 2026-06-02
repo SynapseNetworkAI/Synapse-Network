@@ -15,9 +15,28 @@ function normalizeGatewayProxyTarget(rawUrl) {
   }
 }
 
+function normalizeDocsBaseUrl(rawUrl) {
+  const appEnv = (process.env.NEXT_PUBLIC_APP_ENV || "local").trim();
+  const fallback =
+    appEnv === "prod" || appEnv === "production"
+      ? "https://docs.synapse-network.ai"
+      : appEnv === "staging"
+      ? "https://docs-staging.synapse-network.ai"
+      : "http://localhost:3100";
+  const value = (rawUrl || fallback).trim() || fallback;
+
+  try {
+    const parsed = new URL(value);
+    return parsed.toString().replace(/\/+$/, "");
+  } catch {
+    return fallback;
+  }
+}
+
 const gatewayBaseUrl = normalizeGatewayProxyTarget(
   process.env.NEXT_PUBLIC_GATEWAY_BASE_URL
 );
+const docsBaseUrl = normalizeDocsBaseUrl(process.env.NEXT_PUBLIC_DOCS_BASE_URL);
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -48,6 +67,45 @@ const nextConfig = {
       {
         source: "/api/v1/:path*",
         destination: `${gatewayBaseUrl}/api/v1/:path*`,
+      },
+    ];
+  },
+  async redirects() {
+    return [
+      {
+        source: "/docs",
+        destination: docsBaseUrl,
+        permanent: true,
+      },
+      {
+        source: "/docs/getting-started/consumer",
+        destination: `${docsBaseUrl}/get-started/agent-builders`,
+        permanent: true,
+      },
+      {
+        source: "/docs/getting-started/provider",
+        destination: `${docsBaseUrl}/get-started/api-providers`,
+        permanent: true,
+      },
+      {
+        source: "/docs/getting-started/:path*",
+        destination: `${docsBaseUrl}/get-started/:path*`,
+        permanent: true,
+      },
+      {
+        source: "/docs/sdk/:path*",
+        destination: `${docsBaseUrl}/sdks/:path*`,
+        permanent: true,
+      },
+      {
+        source: "/docs/contracts/:path*",
+        destination: `${docsBaseUrl}/smart-contracts/:path*`,
+        permanent: true,
+      },
+      {
+        source: "/docs/:path*",
+        destination: `${docsBaseUrl}/:path*`,
+        permanent: true,
       },
     ];
   },

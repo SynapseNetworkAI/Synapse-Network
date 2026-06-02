@@ -9,6 +9,7 @@ from src.domain import (
     AdminApprovalEvent,
     AdminApprovalStep,
     AdminAuditExport,
+    AdminDocumentConfigSnapshot,
     AdminExecutionAttempt,
     AdminExecutionJob,
     AdminMfaEnrollmentChallenge,
@@ -129,6 +130,10 @@ class AdminAuditRepository(Protocol):
 class AdminConfigRepository(Protocol):
     def get_menu_config(self, config_key: str) -> AdminMenuConfigSnapshot | None: ...
     def save_menu_config(self, snapshot: AdminMenuConfigSnapshot) -> AdminMenuConfigSnapshot: ...
+    def get_document_config(self, config_key: str) -> AdminDocumentConfigSnapshot | None: ...
+    def save_document_config(
+        self, snapshot: AdminDocumentConfigSnapshot
+    ) -> AdminDocumentConfigSnapshot: ...
 
 
 class AdminNotificationRepository(Protocol):

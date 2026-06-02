@@ -77,6 +77,18 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
+function safeGitCommitSha() {
+  const result = spawnSync("git", ["rev-parse", "HEAD"], {
+    cwd: ROOT,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+  });
+  if (result.status === 0) {
+    return String(result.stdout || "").trim();
+  }
+  return "unknown";
+}
+
 function readJson(relativePath) {
   return JSON.parse(fs.readFileSync(path.join(ROOT, relativePath), "utf8"));
 }
@@ -664,10 +676,7 @@ function writeReport({
     status,
     generatedAt: new Date().toISOString(),
     scriptVersion: "admin-withdrawal-approval-e2e:v1",
-    gitCommitSha: spawnSync("git", ["rev-parse", "HEAD"], {
-      cwd: ROOT,
-      encoding: "utf8",
-    }).stdout.trim(),
+    gitCommitSha: safeGitCommitSha(),
     financeSensitiveTreeHash: financeSensitive.hash,
     financeSensitiveFiles: financeSensitive.files,
     fixtureHash,

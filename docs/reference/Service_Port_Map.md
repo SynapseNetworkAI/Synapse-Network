@@ -32,22 +32,6 @@ Cloud Run container ports stay unchanged. Next.js containers still listen on `30
 | `gateway-admin` | `https://admin-api-staging.synapse-network.ai` | `https://admin-api.synapse-network.ai` |
 | `tx-explorer`   | `https://sepolia.arbiscan.io`                  | `https://arbiscan.io`                  |
 
-Production admin routing note:
-
-1. Staging may still use browser-to-`admin-api` calls for public dogfood.
-2. Production `admin-front` is a public login entrypoint. Unauthenticated
-   access should render the admin login flow, not a Cloud Run `403`.
-3. Production browsers should keep using same-origin `/api/admin/*` via
-   `admin-front` rewrites; `gateway-admin` is publicly reachable at
-   `https://admin-api.synapse-network.ai`, but application-layer auth still
-   owns session, CSRF, MFA, and RBAC enforcement.
-4. Anonymous requests to protected `gateway-admin` business routes should fail
-   with application `401/403`, not Google Frontend `403`.
-5. Public reachability does not bypass the bootstrap hardening path: accounts
-   without a password hash must still fail login before MFA enrollment can
-   begin, and first-bind Google Authenticator flows must not mint an admin
-   session until enrollment verify succeeds.
-
 ## Env Defaults
 
 Local user-front must point docs links at docs-front:

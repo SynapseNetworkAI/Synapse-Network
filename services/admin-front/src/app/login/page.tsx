@@ -120,11 +120,11 @@ export default function LoginPage() {
 
   return (
     <AuthProtocolShell
-      eyebrow="Admin Console Login"
-      title="Admin Console Login"
+      eyebrow="System Authorization"
+      title="System Authorization"
       versionLabel="Gateway Control Plane v4.0.8"
       statusLabel="NODE_ACTIVE :: ENCRYPTED_LINK"
-      railTitle="管理员密码验证入口。"
+      railTitle="管理员登录控制台。"
       railDescription={buildLoginRailDescription(security)}
       railFacts={buildLoginRailFacts(security)}
       layout="centered"
@@ -314,7 +314,7 @@ export default function LoginPage() {
             }}
             disabled={isPending}
           >
-            {isPending ? "Authenticating..." : "Continue Secure Sign-In"}
+            {isPending ? "Executing..." : "Execute Initialization"}
           </Button>
 
           <Box

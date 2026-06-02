@@ -12,6 +12,7 @@ const {
   clearAuthSessionMock,
   toastDefaultMock,
   toastErrorMock,
+  ensureWalletOnRuntimeChainMock,
   wagmiState,
 } = vi.hoisted(() => ({
   signMessageAsyncMock: vi.fn(),
@@ -21,6 +22,7 @@ const {
   clearAuthSessionMock: vi.fn(),
   toastDefaultMock: vi.fn(),
   toastErrorMock: vi.fn(),
+  ensureWalletOnRuntimeChainMock: vi.fn(),
   wagmiState: {
     isConnected: true,
     address: "0x82f1c188327bfc265357a85e8a6b4a34d562d6f8",
@@ -71,20 +73,22 @@ vi.mock("@/utils/walletSignature", () => ({
   ) => signMessageAsync({ message }),
 }));
 
+vi.mock("@/utils/walletNetwork", () => ({
+  ensureWalletOnRuntimeChain: ensureWalletOnRuntimeChainMock,
+  isWalletChainMismatchError: (message: string) =>
+    message.toLowerCase().includes("chain id does not match"),
+}));
+
 vi.mock("@/utils/runtimeEnv", () => ({
   getRuntimeEnvironmentConfig: () => ({
     appEnv: "prod",
+    gatewayBaseUrl: "https://api.synapse-network.ai",
+    docsBaseUrl: "https://docs.synapse-network.ai",
+    txExplorerBaseUrl: "https://arbiscan.io",
+    rpcUrl: "https://arb1.arbitrum.io/rpc",
     chainId: 42161,
     chainName: "Arbitrum One",
-    rpcUrl: "https://arb1.arbitrum.io/rpc",
-    txExplorerBaseUrl: "https://arbiscan.io/tx/",
   }),
-}));
-
-vi.mock("@/utils/walletNetwork", () => ({
-  ensureWalletOnRuntimeChain: () => Promise.resolve(),
-  isWalletChainMismatchError: (message: string) =>
-    message.toLowerCase().includes("chain id does not match"),
 }));
 
 vi.mock("@/components/i18n/LanguageProvider", () => ({
@@ -119,6 +123,8 @@ vi.mock("@/components/i18n/LanguageProvider", () => ({
         "walletActions.walletUnstable": "Wallet unstable.",
         "walletActions.walletUnsupportedForArbitrum":
           "Phantom currently does not support Arbitrum. Please use MetaMask or Rabby for Synapse on Arbitrum.",
+        "walletActions.walletWrongNetwork":
+          "Wallet network does not match Synapse Arbitrum. Please switch wallet network and try again.",
         "walletActions.authFailedPrefix": `Auth failed: ${vars?.message ?? ""}`,
       };
       return messages[key] ?? fallbackText ?? key;
@@ -162,6 +168,7 @@ describe("WalletAuthGuard", () => {
       expiresInSec: 3600,
     });
     signMessageAsyncMock.mockResolvedValue("0xsignature");
+    ensureWalletOnRuntimeChainMock.mockResolvedValue(undefined);
   });
 
   it("requests a fresh challenge before each login intent and waits for continue", async () => {
@@ -277,5 +284,33 @@ describe("WalletAuthGuard", () => {
         "Phantom currently does not support Arbitrum. Please use MetaMask or Rabby for Synapse on Arbitrum."
       )
     ).toBeNull();
+  });
+
+  it("switches MetaMask onto Arbitrum before signing when wallet is on the wrong chain", async () => {
+    const user = userEvent.setup();
+    wagmiState.connectorName = "MetaMask";
+    wagmiState.connectorId = "metaMask";
+    wagmiState.chainId = 1;
+    (
+      globalThis as typeof globalThis & {
+        ethereum?: unknown;
+      }
+    ).ethereum = {
+      providers: [{ isMetaMask: true }, { isPhantom: true }],
+    };
+
+    render(
+      <WalletAuthGuard>
+        <AuthorizeButton />
+      </WalletAuthGuard>
+    );
+
+    await user.click(screen.getByRole("button", { name: "authorize" }));
+
+    expect(ensureWalletOnRuntimeChainMock).toHaveBeenCalledTimes(1);
+    expect(requestAuthChallengeMock).toHaveBeenCalledWith(
+      "0x82f1c188327bfc265357a85e8a6b4a34d562d6f8",
+      42161
+    );
   });
 });

@@ -81,6 +81,19 @@ cp services/user-front/src/contract-config.arbitrum-sepolia.example.json service
 8. `NEXT_PUBLIC_REOWN_PROJECT_ID` / `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID`: 钱包连接项目 ID，可选。
 9. `contract-config.json`: 填入目标测试网的 `MockUSDC / Treasury / SynapseCore` 地址。
 
+## 钱包支持说明
+
+当前 `services/user-front` 运行时默认围绕 `Arbitrum Sepolia`（staging）和 `Arbitrum One`（prod）。
+
+- `MetaMask` / `Rabby`: 当前 Arbitrum 环境的推荐钱包。
+- `Phantom`: 支持部分 EVM 链，但 **不支持 Arbitrum**，也不能在 Phantom 里手动添加自定义网络。
+- 如果用户在 Synapse 的 Arbitrum 环境里使用 Phantom，前端应明确提示改用 `MetaMask` 或 `Rabby`，而不是一直卡在连接中。
+
+支持矩阵的当前产品口径：
+
+- `Arbitrum One / Arbitrum Sepolia` → `MetaMask` / `Rabby`
+- `Ethereum / Base / Polygon` → `Phantom` 可能可用，但不构成 Synapse 当前 Arbitrum 环境的正式支持承诺
+
 共享测试网 / 预发环境建议直接使用：
 
 ```bash

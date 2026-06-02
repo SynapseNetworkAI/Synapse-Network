@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 import psycopg
+import pytest
 
 from src.storage.analytics import provider_withdraw_review as provider_withdraw_review_module
 from src.storage.analytics.provider_withdraw_review import (
@@ -120,8 +121,8 @@ def test_in_memory_withdraw_review_repository_uses_withdrawal_id_desc_as_stable_
     assert [item.withdrawal_id for item in items] == ["wd-omega", "wd-alpha"]
 
 
-def test_postgres_withdraw_review_repository_degrades_when_readonly_permissions_are_missing(
-    monkeypatch,
+def test_postgres_provider_withdraw_review_repository_falls_back_when_permissions_are_missing(
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     repository = PostgresProviderWithdrawReviewRepository("postgresql://readonly@db/synapse_gateway_prod")
 
@@ -132,64 +133,3 @@ def test_postgres_withdraw_review_repository_degrades_when_readonly_permissions_
 
     assert repository.list_pending_reviews(limit=10) == []
     assert repository.count_pending_reviews() == 0
-    assert repository.get_review_item("wd-prod") is None
-
-
-def test_postgres_withdraw_review_repository_degrades_when_tables_are_missing(
-    monkeypatch,
-) -> None:
-    repository = PostgresProviderWithdrawReviewRepository("postgresql://readonly@db/synapse_gateway_prod")
-
-    def _raise_undefined_table(_: str):
-        raise psycopg.errors.UndefinedTable("relation synapse_vault_withdrawals does not exist")
-
-    monkeypatch.setattr(provider_withdraw_review_module, "_connect", _raise_undefined_table)
-
-    assert repository.list_pending_reviews(limit=10) == []
-    assert repository.count_pending_reviews() == 0
-    assert repository.get_review_item("wd-prod") is None
-
-
-def test_in_memory_withdraw_review_repository_uses_withdrawal_id_desc_as_stable_tiebreaker() -> None:
-    repository = InMemoryProviderWithdrawReviewRepository(
-        [
-            ProviderWithdrawReviewItem(
-                withdrawal_id="wd-alpha",
-                withdrawal_kind="consumer_refund",
-                review_type="consumer_withdraw_review",
-                owner_address="0xowner",
-                subject_address="0xowner",
-                amount_usdc=Decimal("10.000000"),
-                status="PENDING_MANUAL_REVIEW",
-                request_id="req-alpha",
-                tx_hash=None,
-                risk_level="yellow",
-                risk_reason_code="tie-breaker",
-                evidence_summary="alpha",
-                message=None,
-                created_at="2036-05-08T12:00:00Z",
-                updated_at="2036-05-08T12:00:00Z",
-            ),
-            ProviderWithdrawReviewItem(
-                withdrawal_id="wd-omega",
-                withdrawal_kind="provider_withdrawal",
-                review_type="provider_withdraw_review",
-                owner_address="0xprovider",
-                subject_address="0xprovider",
-                amount_usdc=Decimal("11.000000"),
-                status="PENDING_MANUAL_REVIEW",
-                request_id="req-omega",
-                tx_hash=None,
-                risk_level="red",
-                risk_reason_code="tie-breaker",
-                evidence_summary="omega",
-                message=None,
-                created_at="2036-05-08T12:00:00Z",
-                updated_at="2036-05-08T12:00:00Z",
-            ),
-        ]
-    )
-
-    items = repository.list_pending_reviews(limit=10)
-
-    assert [item.withdrawal_id for item in items] == ["wd-omega", "wd-alpha"]

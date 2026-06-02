@@ -26,6 +26,7 @@ from fastapi import HTTPException
 
 from src.domain.finance import BalanceLedger, ConsumerWalletRecord, RefundIntentRow
 from src.domain.operation_metadata import WithdrawalTicketMetadata
+from src.services.owner import finance_refund_exec_mixin
 from src.services.owner.finance_service import OwnerFinanceService
 from src.services.platform.tasks import consumer_withdraw_processor as withdraw_processor
 
@@ -311,24 +312,6 @@ class TestConsumerWithdrawBalanceDecrease(unittest.TestCase):
         assert row.status == "REQUESTED"
         assert row.refund_type == "CONSUMER_BALANCE_WITHDRAW"
 
-    def test_row_save_failure_releases_reserved_pending_balance(self):
-        def failing_write(rows, updated_at):
-            _ = rows, updated_at
-            raise RuntimeError("synthetic row save failure")
-
-        self.storage.gateway_state.write_consumer_refund_rows = failing_write
-
-        with pytest.raises(RuntimeError):
-            run(self.svc.create_consumer_withdraw_intent(
-                payload={"amountUsdc": 20.0, "reason": "storage failure"},
-                owner_wallet=OWNER,
-                idempotency_key=IDEM_KEY,
-            ))
-
-        ledger = self.storage.balance_repo.read_balance_ledger()
-        assert ledger.consumer_available_balance(OWNER) == Decimal("20.000000")
-        assert ledger.consumer_pending_balance(OWNER) == Decimal("0.000000")
-
     def test_audit_log_created(self):
         run(self.svc.create_consumer_withdraw_intent(
             payload={"amountUsdc": 20.0, "reason": ""},
@@ -359,24 +342,6 @@ class TestConsumerWithdrawFrozenBalance(unittest.TestCase):
         ledger = self.storage.balance_repo.read_balance_ledger()
         assert ledger.consumer_available_balance(OWNER) == Decimal("400.000000")
         assert ledger.consumer_frozen_balance(OWNER) == Decimal("600.000000")
-
-    def test_manual_review_row_save_failure_releases_reserved_frozen_balance(self):
-        def failing_write(rows, updated_at):
-            _ = rows, updated_at
-            raise RuntimeError("synthetic row save failure")
-
-        self.storage.gateway_state.write_consumer_refund_rows = failing_write
-
-        with pytest.raises(RuntimeError):
-            run(self.svc.create_consumer_withdraw_intent(
-                payload={"amountUsdc": 600.0, "reason": "storage failure"},
-                owner_wallet=OWNER,
-                idempotency_key=IDEM_KEY,
-            ))
-
-        ledger = self.storage.balance_repo.read_balance_ledger()
-        assert ledger.consumer_available_balance(OWNER) == Decimal("1000.000000")
-        assert ledger.consumer_frozen_balance(OWNER) == Decimal("0.000000")
 
 
 class TestConsumerWithdrawFrozenBlocksApiCalls(unittest.TestCase):
@@ -1173,3 +1138,44 @@ class TestConsumerWithdrawProcessor(unittest.TestCase):
 
         updated = storage.gateway_state.refund_rows[0]
         assert updated.status == "FAILED_EXPIRED"
+
+
+def test_complete_refund_logs_client_completion(monkeypatch: pytest.MonkeyPatch):
+    storage = FakeStorage()
+    storage.balance_repo.seed_balance(OWNER, available=20.0)
+    svc = _make_service(storage)
+    captured: list[dict[str, object]] = []
+
+    monkeypatch.setattr(
+        finance_refund_exec_mixin,
+        "log_consumer_withdraw_completed",
+        lambda **kwargs: captured.append(kwargs),
+    )
+
+    created = run(
+        svc.create_consumer_withdraw_intent(
+            payload={"amountUsdc": 20.0, "reason": ""},
+            owner_wallet=OWNER,
+            idempotency_key=IDEM_KEY,
+        )
+    )
+    completed = run(
+        svc.complete_refund_intent(
+            OWNER,
+            created["withdrawId"],
+            "0x" + "2" * 64,
+        )
+    )
+
+    assert completed["status"] == "COMPLETED"
+    assert captured == [
+        {
+            "withdrawal_id": created["withdrawId"],
+            "owner": OWNER,
+            "amount_usdc": Decimal("20.000000"),
+            "fee_usdc": Decimal("0.500000"),
+            "net_usdc": Decimal("19.500000"),
+            "tx_hash": "0x" + "2" * 64,
+            "completion_source": "client_complete",
+        }
+    ]

@@ -3,10 +3,33 @@ set -euo pipefail
 
 ENVIRONMENT="${1:-}"
 SERVICE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-REPO_ROOT="$(cd "${SERVICE_ROOT}/../.." 2>/dev/null && pwd || true)"
+resolve_repo_root() {
+  local candidate
+  for candidate in \
+    "${SERVICE_ROOT}/../.." \
+    "${SERVICE_ROOT}/.." \
+    "${PWD}" \
+    "/app"
+  do
+    if [[ -f "${candidate}/infra/postgres/init/gateway-admin/003_gateway_admin_projection_views.sql" ]]; then
+      (cd "${candidate}" && pwd)
+      return 0
+    fi
+  done
+  return 1
+}
+
+REPO_ROOT="$(resolve_repo_root || true)"
 CANONICAL_SCHEMA="${REPO_ROOT}/infra/postgres/init/gateway/001_synapse_schema.sql"
 PACKAGED_SCHEMA="${SERVICE_ROOT}/migrations/postgres/001_synapse_schema.sql"
 SCHEMA_SQL="${CANONICAL_SCHEMA}"
+CANONICAL_ADMIN_PROJECTION_DIR="${REPO_ROOT}/infra/postgres/init/gateway-admin"
+PACKAGED_ADMIN_PROJECTION_DIR="${SERVICE_ROOT}/migrations/postgres"
+ADMIN_PROJECTION_SQLS=(
+  "003_gateway_admin_projection_views.sql"
+  "004_admin_funds_observability_projection_upgrade.sql"
+  "005_admin_task_monitoring_projection_upgrade.sql"
+)
 
 if [[ ! -f "${SCHEMA_SQL}" ]]; then
   SCHEMA_SQL="${PACKAGED_SCHEMA}"
@@ -81,8 +104,8 @@ SQL
 
 validate_gateway_schema_guardrails() {
   local app_user="${POSTGRES_APP_USER:-${POSTGRES_RUNTIME_USER:-${POSTGRES_USER:-}}}"
+  local readonly_user="${POSTGRES_READONLY_USER:-${GATEWAY_READONLY_DB_USER:-}}"
   local migrator_user="${POSTGRES_MIGRATOR_USER:-}"
-  local readonly_user="${POSTGRES_READONLY_USER:-${GATEWAY_READONLY_DB_USER:-synapse_gateway_ro}}"
   local table_count
   local missing_required
   local owner_mismatch_count
@@ -169,16 +192,16 @@ SQL
   fi
 
   if [[ -n "${readonly_user}" ]]; then
-    local readonly_can_select_analytics
-    readonly_can_select_analytics="$(
+    local readonly_projection_select
+    readonly_projection_select="$(
       psql "${MIGRATION_CONNINFO}" -X -v ON_ERROR_STOP=1 -q -t -A \
         --set=readonly_user="${readonly_user}" <<'SQL'
-SELECT has_table_privilege(:'readonly_user', 'public.synapse_analytics_outbox', 'SELECT');
+SELECT has_table_privilege(:'readonly_user', 'public.synapse_admin_dashboard_operations_projection', 'SELECT');
 SQL
     )"
-    readonly_can_select_analytics="$(printf '%s' "${readonly_can_select_analytics}" | tr -d '[:space:]')"
-    if [[ "${readonly_can_select_analytics}" != "t" ]]; then
-      echo "FATAL: Gateway schema guard failed: readonly user ${readonly_user} lacks SELECT on synapse_analytics_outbox." >&2
+    readonly_projection_select="$(printf '%s' "${readonly_projection_select}" | tr -d '[:space:]')"
+    if [[ "${readonly_projection_select}" != "t" ]]; then
+      echo "FATAL: Gateway schema guard failed: readonly user ${readonly_user} lacks SELECT on synapse_admin_dashboard_operations_projection." >&2
       exit 2
     fi
   fi
@@ -220,6 +243,31 @@ if [[ ! -f "${SCHEMA_SQL}" ]]; then
   echo "  - ${PACKAGED_SCHEMA}" >&2
   exit 1
 fi
+
+resolve_projection_sql() {
+  local filename="$1"
+  local canonical_path="${CANONICAL_ADMIN_PROJECTION_DIR}/${filename}"
+  local packaged_path="${PACKAGED_ADMIN_PROJECTION_DIR}/${filename}"
+  if [[ -f "${canonical_path}" ]]; then
+    printf '%s\n' "${canonical_path}"
+    return 0
+  fi
+  if [[ -f "${packaged_path}" ]]; then
+    printf '%s\n' "${packaged_path}"
+    return 0
+  fi
+  return 1
+}
+
+RESOLVED_ADMIN_PROJECTION_SQLS=()
+for projection_filename in "${ADMIN_PROJECTION_SQLS[@]}"; do
+  projection_sql="$(resolve_projection_sql "${projection_filename}" || true)"
+  if [[ -z "${projection_sql}" ]]; then
+    echo "gateway admin projection SQL not found: ${projection_filename}" >&2
+    exit 1
+  fi
+  RESOLVED_ADMIN_PROJECTION_SQLS+=("${projection_sql}")
+done
 
 case "${ENVIRONMENT}" in
   local)
@@ -266,10 +314,14 @@ echo "[migrate-db] checking existing schema ownership"
 run_schema_owner_preflight
 echo "[migrate-db] applying gateway target-state schema"
 psql "${MIGRATION_CONNINFO}" -X -v ON_ERROR_STOP=1 -f "${SCHEMA_SQL}" >/dev/null
+for projection_sql in "${RESOLVED_ADMIN_PROJECTION_SQLS[@]}"; do
+  echo "[migrate-db] applying admin projection SQL $(basename "${projection_sql}")"
+  psql "${MIGRATION_CONNINFO}" -X -v ON_ERROR_STOP=1 --set=synapse_gateway_db=1 -f "${projection_sql}" >/dev/null
+done
 
 APP_DB_USER="${POSTGRES_APP_USER:-${POSTGRES_RUNTIME_USER:-${POSTGRES_USER:-}}}"
+READONLY_DB_USER="${POSTGRES_READONLY_USER:-${GATEWAY_READONLY_DB_USER:-}}"
 MIGRATOR_DB_USER="${POSTGRES_MIGRATOR_USER:-}"
-READONLY_DB_USER="${POSTGRES_READONLY_USER:-${GATEWAY_READONLY_DB_USER:-synapse_gateway_ro}}"
 if [[ -n "${APP_DB_USER}" && "${APP_DB_USER}" != "${MIGRATOR_DB_USER}" ]]; then
   echo "[migrate-db] granting runtime privileges to app user ${APP_DB_USER}"
   psql "${MIGRATION_CONNINFO}" -X -v ON_ERROR_STOP=1 --set=app_user="${APP_DB_USER}" <<'SQL' >/dev/null
@@ -279,23 +331,42 @@ FROM pg_class c
 JOIN pg_namespace n ON n.oid = c.relnamespace
 WHERE n.nspname = 'public'
   AND c.relkind IN ('r', 'p')
-  AND pg_get_userbyid(c.relowner) = current_user \gexec
+  AND c.relname LIKE 'synapse_%' \gexec
+SELECT format('GRANT SELECT ON TABLE %I.%I TO %I', n.nspname, c.relname, :'app_user')
+FROM pg_class c
+JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE n.nspname = 'public'
+  AND c.relkind IN ('v', 'm')
+  AND c.relname LIKE 'synapse_%' \gexec
 SELECT format('GRANT USAGE, SELECT, UPDATE ON SEQUENCE %I.%I TO %I', n.nspname, c.relname, :'app_user')
 FROM pg_class c
 JOIN pg_namespace n ON n.oid = c.relnamespace
 WHERE n.nspname = 'public'
   AND c.relkind = 'S'
-  AND pg_get_userbyid(c.relowner) = current_user \gexec
+  AND c.relname LIKE 'synapse_%' \gexec
 SELECT format('ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO %I', :'app_user') \gexec
 SELECT format('ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO %I', :'app_user') \gexec
 SQL
 fi
 
-if [[ -n "${READONLY_DB_USER}" && "${READONLY_DB_USER}" != "${MIGRATOR_DB_USER}" ]]; then
-  echo "[migrate-db] granting analytics readonly privileges to readonly user ${READONLY_DB_USER}"
+if [[ -n "${READONLY_DB_USER}" && "${READONLY_DB_USER}" != "${MIGRATOR_DB_USER}" && "${READONLY_DB_USER}" != "${APP_DB_USER}" ]]; then
+  echo "[migrate-db] granting readonly privileges to user ${READONLY_DB_USER}"
   psql "${MIGRATION_CONNINFO}" -X -v ON_ERROR_STOP=1 --set=readonly_user="${READONLY_DB_USER}" <<'SQL' >/dev/null
 SELECT format('GRANT USAGE ON SCHEMA public TO %I', :'readonly_user') \gexec
-SELECT format('GRANT SELECT ON TABLE public.synapse_analytics_outbox TO %I', :'readonly_user') \gexec
+SELECT format('GRANT SELECT ON TABLE %I.%I TO %I', n.nspname, c.relname, :'readonly_user')
+FROM pg_class c
+JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE n.nspname = 'public'
+  AND c.relkind IN ('r', 'p', 'v', 'm')
+  AND c.relname LIKE 'synapse_%' \gexec
+SELECT format('GRANT SELECT ON SEQUENCE %I.%I TO %I', n.nspname, c.relname, :'readonly_user')
+FROM pg_class c
+JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE n.nspname = 'public'
+  AND c.relkind = 'S'
+  AND c.relname LIKE 'synapse_%' \gexec
+SELECT format('ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO %I', :'readonly_user') \gexec
+SELECT format('ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON SEQUENCES TO %I', :'readonly_user') \gexec
 SQL
 fi
 

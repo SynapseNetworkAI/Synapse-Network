@@ -38,6 +38,7 @@ DEFAULT_MENU_FIELD_MIGRATION_ITEM_IDS = {
     "permissions-matrix",
     "module-boundaries",
     "reviewer-split",
+    "config-center",
 }
 DRAFT_READ_ROLES = {"super_admin", "platform_ops_admin"}
 WRITE_ROLES = {"super_admin"}

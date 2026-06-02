@@ -167,15 +167,23 @@ function resolveProjectId(env, defaultTimeoutMs) {
   );
 }
 
-function discoverBillingExportTable({ projectId, env }) {
+export function discoverBillingExportTable({ projectId, env }, deps = {}) {
+  const listDatasetsFn = deps.listDatasets ?? listDatasets;
+  const collectExportTableCandidatesFn =
+    deps.collectExportTableCandidates ?? collectExportTableCandidates;
   const explicit = buildExplicitExportTable(projectId, env);
   if (explicit) {
     return explicit;
   }
 
-  const datasets = listDatasets(projectId);
-  const candidates = collectExportTableCandidates(projectId, datasets);
-  return selectWinningExportTable(candidates);
+  const localCandidates = collectExportTableCandidatesFn(
+    projectId,
+    listDatasetsFn(projectId)
+  );
+  if (localCandidates.length > 0) {
+    return selectWinningExportTable(localCandidates);
+  }
+  return null;
 }
 
 function buildExplicitExportTable(projectId, env) {

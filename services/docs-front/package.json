@@ -10,6 +10,7 @@
     "prebuild": "yarn generate:openapi",
     "dev": "next dev -p 3100",
     "start": "next start",
+    "test": "node scripts/test-environment-config.mjs",
     "types:check": "fumadocs-mdx && next typegen && tsc --noEmit",
     "postinstall": "fumadocs-mdx",
     "lint": "eslint"
