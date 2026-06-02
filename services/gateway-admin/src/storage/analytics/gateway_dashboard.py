@@ -13,11 +13,6 @@ from src.storage.analytics.gateway_dashboard_demo import build_seed_demo_reposit
 
 logger = logging.getLogger(__name__)
 
-_READONLY_UNAVAILABLE_ERRORS = (
-    psycopg.errors.InsufficientPrivilege,
-    psycopg.errors.UndefinedTable,
-)
-
 
 def _connect(dsn: str) -> Any:
     return psycopg.connect(dsn, row_factory=dict_row)  # type: ignore[arg-type]
@@ -30,8 +25,8 @@ def _get_table_columns(dsn: str, table_name: str) -> frozenset[str]:
             """
             SELECT column_name
             FROM information_schema.columns
-            WHERE table_schema = current_schema()
-              AND table_name = %s
+            WHERE table_name = %s
+              AND table_schema = ANY(current_schemas(TRUE))
             ORDER BY ordinal_position
             """,
             (table_name,),
@@ -314,9 +309,6 @@ class PostgresGatewayDashboardProjectionRepository:
     def __init__(self, dsn: str) -> None:
         self._dsn = dsn
 
-    def _get_projection_columns(self, table_name: str) -> frozenset[str]:
-        return _get_table_columns(self._dsn, table_name)
-
     @staticmethod
     def _payload_dict(payload: Any) -> dict[str, Any]:
         if isinstance(payload, dict):
@@ -334,23 +326,27 @@ class PostgresGatewayDashboardProjectionRepository:
         return {}
 
     def get_snapshot(self) -> GatewayDashboardSnapshot:
-        columns = self._get_projection_columns("synapse_admin_dashboard_projection")
-        if not columns:
+        try:
+            with _connect(self._dsn) as conn, conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT
+                        deposit_exceptions,
+                        audit_alerts,
+                        vault_ledger_delta_usdc,
+                        gateway_status,
+                        last_reconciliation_at
+                    FROM synapse_admin_dashboard_projection
+                    LIMIT 1
+                    """
+                )
+                row = cur.fetchone()
+        except (
+            psycopg.errors.InsufficientPrivilege,
+            psycopg.errors.UndefinedTable,
+            psycopg.errors.UndefinedColumn,
+        ):
             return _empty_dashboard_snapshot()
-        with _connect(self._dsn) as conn, conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT
-                    deposit_exceptions,
-                    audit_alerts,
-                    vault_ledger_delta_usdc,
-                    gateway_status,
-                    last_reconciliation_at
-                FROM synapse_admin_dashboard_projection
-                LIMIT 1
-                """
-            )
-            row = cur.fetchone()
         if row is None:
             return _empty_dashboard_snapshot()
         return GatewayDashboardSnapshot(
@@ -362,38 +358,42 @@ class PostgresGatewayDashboardProjectionRepository:
         )
 
     def get_finance_snapshot(self) -> GatewayFinanceSnapshot:
-        columns = self._get_projection_columns("synapse_admin_dashboard_finance_projection")
-        if not columns:
+        try:
+            with _connect(self._dsn) as conn, conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT
+                        today_charge_usdc,
+                        today_deposit_usdc,
+                        today_consumer_refund_usdc,
+                        today_provider_withdrawal_usdc,
+                        today_invocation_count,
+                        today_platform_fee_earned_usdc,
+                        today_provider_earned_usdc,
+                        consumer_liability_usdc,
+                        refundable_consumer_balance_usdc,
+                        provider_payable_usdc,
+                        provider_available_to_withdraw_usdc,
+                        provider_locked_balance_usdc,
+                        platform_fee_balance_usdc,
+                        vault_ledger_delta_usdc,
+                        pending_deposit_count,
+                        pending_provider_withdrawal_count,
+                        chain_confirmed_not_ledger_confirmed_count,
+                        deposit_p95_sync_delay_seconds,
+                        recently_completed_outflows_usdc,
+                        projected_at
+                    FROM synapse_admin_dashboard_finance_projection
+                    LIMIT 1
+                    """
+                )
+                row = cur.fetchone()
+        except (
+            psycopg.errors.InsufficientPrivilege,
+            psycopg.errors.UndefinedTable,
+            psycopg.errors.UndefinedColumn,
+        ):
             return _empty_finance_snapshot()
-        with _connect(self._dsn) as conn, conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT
-                    today_charge_usdc,
-                    today_deposit_usdc,
-                    today_consumer_refund_usdc,
-                    today_provider_withdrawal_usdc,
-                    today_invocation_count,
-                    today_platform_fee_earned_usdc,
-                    today_provider_earned_usdc,
-                    consumer_liability_usdc,
-                    refundable_consumer_balance_usdc,
-                    provider_payable_usdc,
-                    provider_available_to_withdraw_usdc,
-                    provider_locked_balance_usdc,
-                    platform_fee_balance_usdc,
-                    vault_ledger_delta_usdc,
-                    pending_deposit_count,
-                    pending_provider_withdrawal_count,
-                    chain_confirmed_not_ledger_confirmed_count,
-                    deposit_p95_sync_delay_seconds,
-                    recently_completed_outflows_usdc,
-                    projected_at
-                FROM synapse_admin_dashboard_finance_projection
-                LIMIT 1
-                """
-            )
-            row = cur.fetchone()
         if row is None:
             return _empty_finance_snapshot()
         return GatewayFinanceSnapshot(
@@ -429,27 +429,31 @@ class PostgresGatewayDashboardProjectionRepository:
         )
 
     def list_activity_trends(self) -> list[GatewayActivityTrendPoint]:
-        columns = self._get_projection_columns("synapse_admin_dashboard_activity_trend_projection")
-        if not columns:
+        try:
+            with _connect(self._dsn) as conn, conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT
+                        bucket_date,
+                        deposit_usdc,
+                        charge_usdc,
+                        invocation_count,
+                        platform_fee_earned_usdc,
+                        provider_earned_usdc,
+                        consumer_refund_usdc,
+                        provider_withdrawal_usdc,
+                        net_flow_usdc
+                    FROM synapse_admin_dashboard_activity_trend_projection
+                    ORDER BY bucket_date ASC
+                    """
+                )
+                rows = cur.fetchall()
+        except (
+            psycopg.errors.InsufficientPrivilege,
+            psycopg.errors.UndefinedTable,
+            psycopg.errors.UndefinedColumn,
+        ):
             return []
-        with _connect(self._dsn) as conn, conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT
-                    bucket_date,
-                    deposit_usdc,
-                    charge_usdc,
-                    invocation_count,
-                    platform_fee_earned_usdc,
-                    provider_earned_usdc,
-                    consumer_refund_usdc,
-                    provider_withdrawal_usdc,
-                    net_flow_usdc
-                FROM synapse_admin_dashboard_activity_trend_projection
-                ORDER BY bucket_date ASC
-                """
-            )
-            rows = cur.fetchall()
         return [
             GatewayActivityTrendPoint(
                 bucket_date=_projection_date(row, "bucket_date"),
@@ -466,38 +470,42 @@ class PostgresGatewayDashboardProjectionRepository:
         ]
 
     def get_operations_snapshot(self) -> GatewayOperationsSnapshot:
-        columns = self._get_projection_columns("synapse_admin_dashboard_operations_projection")
-        if not columns:
+        try:
+            with _connect(self._dsn) as conn, conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT
+                        gateway_status,
+                        indexer_running,
+                        indexer_last_processed_at,
+                        indexer_last_heartbeat_at,
+                        indexer_last_error,
+                        indexer_poll_interval_sec,
+                        backfill_enabled,
+                        backfill_last_scan_at,
+                        backfill_last_scanned_block,
+                        backfill_last_recovered,
+                        backfill_last_error,
+                        recent_gateway_failures,
+                        failed_deposit_count,
+                        recent_audit_alerts,
+                        reconciliation_enabled,
+                        last_reconciliation_at,
+                        reconciliation_alert,
+                        reconciliation_delta_usdc,
+                        reconciliation_last_error,
+                        projected_at
+                    FROM synapse_admin_dashboard_operations_projection
+                    LIMIT 1
+                    """
+                )
+                row = cur.fetchone()
+        except (
+            psycopg.errors.InsufficientPrivilege,
+            psycopg.errors.UndefinedTable,
+            psycopg.errors.UndefinedColumn,
+        ):
             return _empty_operations_snapshot()
-        with _connect(self._dsn) as conn, conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT
-                    gateway_status,
-                    indexer_running,
-                    indexer_last_processed_at,
-                    indexer_last_heartbeat_at,
-                    indexer_last_error,
-                    indexer_poll_interval_sec,
-                    backfill_enabled,
-                    backfill_last_scan_at,
-                    backfill_last_scanned_block,
-                    backfill_last_recovered,
-                    backfill_last_error,
-                    recent_gateway_failures,
-                    failed_deposit_count,
-                    recent_audit_alerts,
-                    reconciliation_enabled,
-                    last_reconciliation_at,
-                    reconciliation_alert,
-                    reconciliation_delta_usdc,
-                    reconciliation_last_error,
-                    projected_at
-                FROM synapse_admin_dashboard_operations_projection
-                LIMIT 1
-                """
-            )
-            row = cur.fetchone()
         if row is None:
             return _empty_operations_snapshot()
         return _operations_snapshot_from_row(row)
@@ -514,10 +522,10 @@ class PostgresGatewayDashboardProjectionRepository:
                     """
                 )
                 row = cur.fetchone()
-        except _READONLY_UNAVAILABLE_ERRORS as exc:
+        except (psycopg.errors.InsufficientPrivilege, psycopg.errors.UndefinedTable) as exc:
             logger.warning(
-                "gateway_dashboard.reconciliation_runtime_state_unavailable",
-                exc_info=exc,
+                "reconciliation runtime state unavailable; returning empty state",
+                extra={"error": str(exc)},
             )
             return _empty_reconciliation_runtime_state()
         if row is None:

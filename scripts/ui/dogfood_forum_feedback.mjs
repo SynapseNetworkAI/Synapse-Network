@@ -13,9 +13,6 @@ const FORUM_BASE_URL = (
   process.env.USER_FRONT_BASE_URL ||
   "http://localhost:3000"
 ).replace(/\/+$/, "");
-const DOCS_BASE_URL = (
-  process.env.DOCS_BASE_URL || "http://localhost:3100"
-).replace(/\/+$/, "");
 const GATEWAY_BASE_URL = (
   process.env.GATEWAY_BASE_URL ||
   process.env.USER_FRONT_GATEWAY_BASE_URL ||
@@ -89,7 +86,6 @@ async function step(name, fn) {
 }
 
 function pageUrl(href) {
-  if (/^https?:\/\//i.test(href)) return href;
   return `${FORUM_BASE_URL}${href}`;
 }
 
@@ -387,15 +383,42 @@ async function verifyDocsSupport(browser) {
   const context = await createContext(browser, false);
   const page = await createPage(context, "docs-support");
   try {
-    await goto(page, `${DOCS_BASE_URL}/support`);
-    await assertBodyContains(page, "Support", "docs support heading");
+    await goto(page, "/docs/support");
+    await assertBodyContains(page, "Developer Support", "docs support heading");
+    await screenshot(page, "docs-support.png");
+    await page
+      .getByRole("link", { name: /Developer Forum/i })
+      .first()
+      .click();
+    await page.waitForURL("**/forum", { timeout: 20000 });
     await assertBodyContains(
       page,
-      "support@synapse-network.ai",
-      "docs support email"
+      "Developer Forum",
+      "forum after docs support link"
     );
-    await screenshot(page, "docs-support.png");
-    return "docs support canonical page rendered";
+    return "docs support forum link navigated";
+  } finally {
+    await page.close().catch(() => {});
+    await context.close().catch(() => {});
+  }
+}
+
+async function submitDocsFeedback(browser) {
+  const context = await createContext(browser, true);
+  const page = await createPage(context, "docs-feedback");
+  try {
+    await goto(page, "/docs");
+    await page.getByTestId("docs-page-feedback").scrollIntoViewIfNeeded();
+    await page.getByRole("button", { name: /Not helpful/i }).click();
+    await page
+      .getByTestId("feedback-drawer")
+      .waitFor({ state: "visible", timeout: 10000 });
+    uiState.docsFeedbackId = await submitFeedbackDrawer(
+      page,
+      expected.uiDocsFeedbackMessage
+    );
+    await screenshot(page, "docs-feedback-drawer.png");
+    return `docs feedback=${uiState.docsFeedbackId}`;
   } finally {
     await page.close().catch(() => {});
     await context.close().catch(() => {});
@@ -452,9 +475,9 @@ function verifyDatabaseRows() {
   const feedbackIds = [
     fixture.seed.docsFeedbackId,
     fixture.seed.dashboardFeedbackId,
+    uiState.docsFeedbackId,
     uiState.dashboardFeedbackId,
   ]
-    .filter(Boolean)
     .map(sqlLiteral)
     .join(", ");
   const feedbackRows = queryJson(`
@@ -466,9 +489,9 @@ function verifyDatabaseRows() {
       ORDER BY created_at ASC
     ) t
   `);
-  if (!Array.isArray(feedbackRows) || feedbackRows.length !== 3) {
+  if (!Array.isArray(feedbackRows) || feedbackRows.length !== 4) {
     throw new Error(
-      `expected 3 feedback rows, found ${
+      `expected 4 feedback rows, found ${
         Array.isArray(feedbackRows) ? feedbackRows.length : "non-array"
       }`
     );
@@ -478,7 +501,7 @@ function verifyDatabaseRows() {
     (row) =>
       row.feedback_id === fixture.seed.docsFeedbackId &&
       row.source === "docs" &&
-      row.route.includes(`${DOCS_BASE_URL}/support`),
+      row.route.includes("/docs"),
     "seed docs feedback"
   );
   expectOne(
@@ -488,6 +511,14 @@ function verifyDatabaseRows() {
       row.source === "dashboard" &&
       row.route.includes("/dashboard/discovery"),
     "seed dashboard feedback"
+  );
+  expectOne(
+    feedbackRows,
+    (row) =>
+      row.feedback_id === uiState.docsFeedbackId &&
+      row.source === "docs" &&
+      row.message.includes(runId),
+    "ui docs feedback"
   );
   expectOne(
     feedbackRows,
@@ -690,6 +721,7 @@ async function main() {
       createUiTopicAndReply(browser)
     );
     await step("docs:support-link", () => verifyDocsSupport(browser));
+    await step("feedback:docs-page", () => submitDocsFeedback(browser));
     await step("feedback:dashboard-discovery", () =>
       submitDashboardFeedback(browser)
     );

@@ -34,6 +34,35 @@ stop_pid() {
   fi
 }
 
+stop_user_front_processes() {
+  local stopped_any=0
+  local pid=""
+  screen -S synapse-user-front -X quit >/dev/null 2>&1 || true
+  while true; do
+    pid="$(find_pid_by_port 3000)"
+    if [[ -z "$pid" ]]; then
+      break
+    fi
+    stop_pid "user-front" "$pid"
+    stopped_any=1
+    sleep 1
+  done
+  pkill -f "/services/user-front/.*/next dev --hostname 0.0.0.0" >/dev/null 2>&1 || true
+  sleep 1
+  while true; do
+    pid="$(find_pid_by_port 3000)"
+    if [[ -z "$pid" ]]; then
+      break
+    fi
+    stop_pid "user-front-residual" "$pid"
+    stopped_any=1
+    sleep 1
+  done
+  if [[ "$stopped_any" -eq 1 ]]; then
+    echo "[withdrawal-risk-policy] user-front listeners cleared from port 3000"
+  fi
+}
+
 resolve_compose_cmd() {
   if docker compose version >/dev/null 2>&1; then
     echo "docker compose"
@@ -103,7 +132,7 @@ fi
 
 existing_frontend_pid="$(find_pid_by_port 3000)"
 if [[ -n "$existing_frontend_pid" ]]; then
-  stop_pid "user-front" "$existing_frontend_pid"
+  stop_user_front_processes
 fi
 
 echo "[withdrawal-risk-policy] bootstrapping contracts, gateway, and user-front"

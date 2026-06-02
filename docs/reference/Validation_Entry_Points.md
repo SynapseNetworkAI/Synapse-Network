@@ -79,8 +79,7 @@ From repository root:
 59. `npm run ci:migration-seed-guard`
 60. `npm run e2e:staging-consumer-withdraw-auto-approve`
 61. `npm run ci:staging-consumer-withdraw-auto-approve-evidence`
-62. `npm run e2e:prod-free-invoke`
-63. `npm run ci:prod-core-e2e-evidence`
+62. `npm run e2e:prod-consumer-withdraw-auto-approve-rehearsal`
 
 Use these wrappers when final integration confidence is required.
 
@@ -220,6 +219,7 @@ Staging/prod withdrawal validation:
 
 1. `npm run e2e:staging-consumer-withdraw-auto-approve` is the canonical live staging lane for the consumer auto-approve happy path. It mutates staging, requires `STAGING_CONSUMER_WITHDRAW_CONFIRM=I_UNDERSTAND_THIS_MUTATES_STAGING`, and fails closed unless `POSTGRES_DSN` points to Cloud SQL Auth Proxy on localhost.
 2. `npm run ci:staging-consumer-withdraw-auto-approve-evidence` validates the fresh evidence bundle under `docs/evidence/staging/consumer-withdraw-auto-approve/`.
+3. `npm run e2e:prod-consumer-withdraw-auto-approve-rehearsal` is the narrow production rehearsal wrapper. It keeps the current no-webhook withdrawal model, requires `PROD_E2E_CONFIRM=I_UNDERSTAND_THIS_MUTATES_PRODUCTION`, and fails closed if the withdrawal would enter manual review instead of auto-approve.
 
 ### 3.2 services/docs-front
 
@@ -374,7 +374,6 @@ Before finishing:
 21. run `npm run ci:diff-coverage` when changed code needs line-level coverage evidence; Python and Vitest coverage must be Cobertura XML
 22. run `npm run ci:agent-guardrails` when Agent-generated backend/admin code touches finance, approval, storage, or shared state-machine logic; install `uv` once if the runner reports a missing Python guardrail tool
 23. run `npm run release:evidence:gateway-fullchain:local` for a local rehearsal of the full live Gateway E2E evidence chain; run `GATEWAY_RELEASE_E2E_PROFILE=mvp-postgres npm run release:evidence:gateway-fullchain:staging` plus `GATEWAY_RELEASE_E2E_REQUIRED_ENV=staging npm run ci:gateway-release-e2e-evidence` for MVP Cloud Run + Cloud SQL staging release evidence. The bundle must include a non-empty `trace.jsonl` with a matching `report.json.traceDigest`
-    23a. run `PROD_E2E_CONFIRM=I_UNDERSTAND_THIS_MUTATES_PROD_FREE_INVOKE npm run e2e:prod-free-invoke` plus `npm run ci:prod-core-e2e-evidence` after a production gateway/user-front/docs-front release when paid production rehearsal is not explicitly approved. The runner must use `POST /api/v1/agent/discovery/search` to find the configured free catalog service, must not use legacy `/api/v1/services/discover`, and must prove SIWE auth, active agent credential, free service discovery, invocation receipt, and dashboard rendering without raw `503`, `HTTPException`, `RPC Error`, `CHAIN_RPC`, `PROVIDER_`, or `WITHDRAW_` text. Production SQL evidence requires a runner with VPC access to the private Cloud SQL instance; do not weaken Cloud SQL networking to make a laptop evidence run pass.
 24. run `npm run perf:local-production-load-rehearsal` and `npm run ci:local-production-load-evidence` before staging load when changing invoke, balance, deposit confirm, withdrawal, provider health, admin finance views, load-runner behavior, or wallet/signing isolation; this validates local runId isolation, temporary wallet pools, per-wallet chain serialization, bounded concurrency, drain hard cap, and no secret leakage
 25. run `npm run ci:monitoring-alert-rules` when changing metrics, readiness, dashboards, Alertmanager routes, Lark Relay behavior, alert rules, or monitoring runbooks
 26. run `npm run e2e:gcp-alerts:local` and `npm run ci:gcp-alerts-local-evidence` before deploying GCP Monitoring receiver/drill changes; then run `npm run e2e:gcp-alerts:staging` and `npm run ci:gcp-alerts-staging-evidence` after staging deploy. Set `GCP_ALERTS_REQUIRE_MONITORING_DELIVERY=true` once per release candidate to prove GCP policy callback delivery
@@ -391,7 +390,7 @@ Before finishing:
 37. run `npm run e2e:llm-deepseek:local` and `npm run ci:llm-deepseek-local-evidence` before deploying LLM token-metered billing changes; local evidence defaults to a local OpenAI-compatible fake LLM happy path plus fake timeout, missing-usage, and slow-success fixtures proving no final usage means no charge. Set `LLM_E2E_USE_REGISTERED_DEEPSEEK=1` only when local Provider has a real DeepSeek API key. After staging deploy run `npm run e2e:llm-deepseek:staging` and `npm run ci:llm-deepseek-staging-evidence`. The staging runner calls live DeepSeek Chat through Gateway, mutates staging balance, requires `LLM_DEEPSEEK_E2E_CONFIRM=I_UNDERSTAND_THIS_CALLS_LIVE_LLM_AND_CHARGES_STAGING`, and validates usage, charge, hold release, and provider/platform split exactly.
 38. run `npm run ci:quality-budget` when changing production code, tests, E2E scripts, or CI guardrails; new production source files must stay under 500 effective lines, test-like files under 800 effective lines, and new disable comments must include a reason.
 39. run `npm run ci:format-check` when changing TypeScript, JavaScript, JSON, YAML, or Markdown; this is a read-only Prettier check and must not be closed by committing unreviewed formatter churn.
-40. run `npm run ci:e2e-env-isolation` whenever changing E2E, perf, drill, or root npm script environment boundaries; local E2E must never read Google Secret Manager, dual-mode scripts must not load `.env.staging`, staging Secret Manager reads must go through the shared wrapper, and ordinary local/staging E2E must not POST `/api/v1/services`.
+40. run `npm run ci:e2e-env-isolation` whenever changing E2E, perf, drill, or root npm script environment boundaries; local E2E must never read Google Secret Manager, dual-mode scripts must not load `.env.staging`, staging and production Secret Manager reads must go through the shared wrapper, and ordinary local/staging E2E must not POST `/api/v1/services`.
 41. run `npm run drill:backup-restore:staging` and `npm run ci:backup-restore-evidence` before release approval when changing backup, restore, reconciliation, database bootstrap, ClickHouse analytics storage, or production recovery runbooks
 42. run `cd services/gateway && python -m pytest tests/unit/test_notifications_outbox_unit.py` when changing Gmail email notifications; email sending must remain async outbox-driven and must not block Gateway request paths
 43. run `cd services/gateway && python -m pytest tests/unit/test_notifications_outbox_unit.py tests/unit/test_in_app_notifications_router_unit.py` and `cd services/user-front && yarn test src/components/NotificationCenter.test.tsx` when changing in-app notifications; inbox writes must remain best-effort and must not block funds state machines

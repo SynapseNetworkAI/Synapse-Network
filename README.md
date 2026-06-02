@@ -16,7 +16,7 @@ Core idea:
 
 Current public preview integrations should start on staging:
 
-- App docs: `https://docs-staging.synapse-network.ai/sdks`
+- App docs: `https://staging.synapse-network.ai/docs/sdk`
 - Gateway: `https://api-staging.synapse-network.ai`
 - Chain: Arbitrum Sepolia testnet
 - Asset: MockUSDC for integration testing, not production USDC

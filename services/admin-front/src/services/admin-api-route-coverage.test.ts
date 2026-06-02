@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   beginAdminMfaEnrollment,
   archiveAdminNotification,
+  getBusinessPolicyConfig,
+  getConfigOverview,
   createAdminMenuItem,
   createAdminRole,
   createAdminUser,
@@ -34,7 +36,9 @@ import {
   markAdminNotificationRead,
   markAllAdminNotificationsRead,
   publishAdminMenuConfig,
+  publishBusinessPolicyConfig,
   retryExecutionJob,
+  updateBusinessPolicyConfig,
   updateAdminMenuItem,
   updateAdminRole,
   updateAdminUser,
@@ -203,6 +207,31 @@ describe("admin API adapter route coverage", () => {
     await getAdminMenuConfig("cookie-session", { stage: "draft" });
     await getVisibleAdminMenuConfig("cookie-session");
     await publishAdminMenuConfig("cookie-session", "123456");
+    await getBusinessPolicyConfig("cookie-session", { stage: "draft" });
+    await updateBusinessPolicyConfig("cookie-session", {
+      finance: {
+        platformFeeRate: "0.100000",
+        gatewayRoutingTaxUsdc: "0.000100",
+        consumerWithdrawFeeUsdc: "0.500000",
+        consumerDepositMinUsdc: "5.000000",
+      },
+      consumerWithdraw: {
+        minUsdc: "10.000000",
+        manualReviewThresholdUsdc: "500.000000",
+        maxDailyCount: 3,
+        maturitySeconds: 604800,
+      },
+      risk: {
+        withdrawalAutoSingleLimitUsdc: "100.000000",
+        withdrawalAuto24hLimitUsdc: "500.000000",
+        withdrawalWindowHours: 24,
+      },
+      reconciliation: {
+        alertDeltaUsdc: "1.000000",
+      },
+    });
+    await publishBusinessPolicyConfig("cookie-session", "123456");
+    await getConfigOverview("cookie-session");
 
     const urls = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.map(
       (call) => call[0]
@@ -210,6 +239,9 @@ describe("admin API adapter route coverage", () => {
     expect(urls).toContain("/api/admin/v1/auth/mfa/enroll/begin");
     expect(urls).toContain("/api/admin/v1/auth/mfa/enroll/verify");
     expect(urls).toContain("/api/admin/v1/config/menu-items/publish");
+    expect(urls).toContain("/api/admin/v1/config/business-policy?stage=draft");
+    expect(urls).toContain("/api/admin/v1/config/business-policy/publish");
+    expect(urls).toContain("/api/admin/v1/config/overview");
   });
 
   it("covers withdrawal decision, history, provider force-probe, and provider delete routes", async () => {

@@ -37,11 +37,6 @@ output "artifact_registry_repository" {
   value       = google_artifact_registry_repository.docker.name
 }
 
-output "vpc_connector_name" {
-  description = "Serverless VPC Access connector used by private Cloud SQL clients."
-  value       = google_vpc_access_connector.cloud_run.name
-}
-
 output "cloud_run_service_urls" {
   description = "URLs for Cloud Run services created by Terraform. Empty when image variables are not set."
   value = {

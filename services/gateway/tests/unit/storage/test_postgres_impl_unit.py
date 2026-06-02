@@ -241,25 +241,6 @@ def test_withdrawal_status_constraint_matches_bootstrap_sql() -> None:
     assert bootstrap_statuses == expected_statuses
 
 
-def test_bootstrap_sql_handles_duplicate_price_model_constraints_idempotently() -> None:
-    repo_root = Path(__file__).resolve().parents[5]
-    bootstrap_sql_path_candidates = [
-        repo_root / "infra/postgres/init/gateway/001_synapse_schema.sql",
-        repo_root / "docker-compose/postgres/init/gateway/001_synapse_schema.sql",
-    ]
-    bootstrap_sql_path = next(
-        (candidate for candidate in bootstrap_sql_path_candidates if candidate.is_file()),
-        bootstrap_sql_path_candidates[0],
-    )
-    bootstrap_sql = bootstrap_sql_path.read_text(encoding="utf-8")
-
-    assert "DROP CONSTRAINT IF EXISTS synapse_service_manifests_price_model_check;" in bootstrap_sql
-    assert "DROP CONSTRAINT IF EXISTS synapse_service_quotes_price_model_check;" in bootstrap_sql
-    assert bootstrap_sql.count("WHEN duplicate_object THEN") >= 2
-    assert "public.synapse_service_manifests'::regclass" in bootstrap_sql
-    assert "public.synapse_service_quotes'::regclass" in bootstrap_sql
-
-
 def test_validate_schema_contract_rejects_missing_endpoint_url() -> None:
     storage = _storage_with_db(
         _schema_rows(missing_column=("synapse_service_endpoints", "endpoint_url"))

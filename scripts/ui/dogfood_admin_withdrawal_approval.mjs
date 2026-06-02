@@ -25,6 +25,10 @@ const ADMIN_DATABASE_DSN =
   process.env.ADMIN_DATABASE_DSN ||
   process.env.LOCAL_GATEWAY_ADMIN_POSTGRES_DSN ||
   "postgresql://synapse_admin_app:local-dev-admin-app-password@127.0.0.1:15432/synapse_gateway_admin";
+const GATEWAY_ADMIN_PYTHON = path.join(
+  ROOT,
+  "services/gateway-admin/.venv/bin/python"
+);
 const ADMIN_TOTP_SECRET =
   process.env.ADMIN_TOTP_SECRET ||
   queryAdminTotpSecretFromLocalDb() ||
@@ -104,12 +108,14 @@ function queryAdminTotpSecretFromLocalDb() {
       "ON_ERROR_STOP=1",
       "-c",
       `
-        SELECT f.payload_json ->> 'totpSecret'
+        SELECT json_build_object(
+          'totpSecret', f.payload_json ->> 'totpSecret',
+          'secretRef', f.secret_ref
+        )
         FROM admin_users u
         JOIN admin_mfa_factors f ON f.admin_id = u.admin_id
         WHERE u.email = ${sqlLiteral(ADMIN_EMAIL)}
           AND f.status = 'active'
-          AND f.payload_json ? 'totpSecret'
         ORDER BY f.created_at DESC
         LIMIT 1;
       `,
@@ -119,7 +125,45 @@ function queryAdminTotpSecretFromLocalDb() {
   if (result.status !== 0) {
     return null;
   }
-  return result.stdout.trim() || null;
+  try {
+    const parsed = JSON.parse(result.stdout.trim() || "null");
+    const inlineSecret = String(parsed?.totpSecret || "").trim();
+    if (inlineSecret) {
+      return inlineSecret;
+    }
+    const secretRef = String(parsed?.secretRef || "").trim();
+    if (
+      secretRef &&
+      secretRef.startsWith("inline-fernet:v1:") &&
+      fs.existsSync(GATEWAY_ADMIN_PYTHON)
+    ) {
+      const decrypted = spawnSync(
+        GATEWAY_ADMIN_PYTHON,
+        [
+          "-c",
+          [
+            "import sys",
+            `sys.path.insert(0, ${JSON.stringify(
+              path.join(ROOT, "services/gateway-admin")
+            )})`,
+            "from src.core.totp_secret_store import decrypt_inline_totp_secret_ref",
+            "print(decrypt_inline_totp_secret_ref(sys.argv[1]))",
+          ].join("; "),
+          secretRef,
+        ],
+        { cwd: ROOT, encoding: "utf8" }
+      );
+      if (decrypted.status === 0) {
+        const value = decrypted.stdout.trim();
+        if (value) {
+          return value;
+        }
+      }
+    }
+  } catch {
+    return null;
+  }
+  return null;
 }
 
 async function step(name, fn) {
@@ -370,32 +414,42 @@ async function maybeSubmitStepUp(page) {
     return false;
   }
   await screenshot(page, "03-step-up-verification");
-  await waitForSafeTotpWindow({
-    guardSeconds: 10,
-    sleep: (ms) => page.waitForTimeout(ms),
-  });
-  await page
-    .locator('input[placeholder="123456"]')
-    .fill(generateTotpCode(ADMIN_TOTP_SECRET));
+  const otpInput = page.locator('input[placeholder="123456"]');
   const confirmButton = page
     .getByRole("button", { name: /确认放行|确认|Approve|Submit/ })
     .last();
   await confirmButton.waitFor({ state: "visible", timeout: 10000 });
-  await page.waitForFunction(
-    () => {
-      const buttons = Array.from(document.querySelectorAll("button"));
-      const target = buttons
-        .reverse()
-        .find((button) =>
-          /确认放行|确认|Approve|Submit/.test(button.textContent || "")
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    await waitForSafeTotpWindow({
+      guardSeconds: 10,
+      sleep: (ms) => page.waitForTimeout(ms),
+    });
+    await otpInput.fill(generateTotpCode(ADMIN_TOTP_SECRET));
+    const enabled = await page.waitForFunction(
+      () => {
+        const buttons = Array.from(document.querySelectorAll("button"));
+        const target = buttons
+          .reverse()
+          .find((button) =>
+            /确认放行|确认|Approve|Submit/.test(button.textContent || "")
+          );
+        const warningText = document.body?.innerText || "";
+        return Boolean(
+          target &&
+            !target.disabled &&
+            !/等待下一轮|验证码即将过期|temporarily locked/i.test(warningText)
         );
-      return Boolean(target && !target.disabled);
-    },
-    null,
-    { timeout: 10000 }
-  );
-  await confirmButton.click();
-  return true;
+      },
+      null,
+      { timeout: 5000 }
+    ).then(() => true).catch(() => false);
+    if (enabled) {
+      await confirmButton.click();
+      return true;
+    }
+    await page.waitForTimeout(2500);
+  }
+  throw new Error("Step-up verification never reached a safe submit window after 4 attempts");
 }
 
 async function waitForWithdrawalReviewPage(page, withdrawalId) {
@@ -462,6 +516,7 @@ async function verifyApprovalFlow(page, fixture) {
     .getByText("审核详情")
     .waitFor({ state: "visible", timeout: 30000 })
     .catch(() => null);
+  const activeDialog = page.locator('[role="dialog"][aria-modal="true"]').first();
   const openModalEvidence = await assertCenteredModal(
     page,
     [withdrawalId, "Action Modal", "处理摘要"],
@@ -498,18 +553,20 @@ async function verifyApprovalFlow(page, fixture) {
         ) && response.request().method() === "POST",
     { timeout: 60000 }
   );
-  await page
+  console.log(`[admin-withdrawal-approval] clicking approve for ${withdrawalId}`);
+  await activeDialog
     .getByRole("button", { name: /Approve & Issue Ticket|确认放行|放行|批准/ })
-    .last()
+    .first()
     .click();
-  const waitingButton = page
+  const waitingButton = activeDialog
     .getByRole("button", { name: /等待验证码/ })
     .first();
   await waitingButton.waitFor({ state: "visible", timeout: 30000 });
+  console.log(`[admin-withdrawal-approval] waiting-otp visible for ${withdrawalId}`);
   if (!(await waitingButton.isDisabled().catch(() => false))) {
     throw new Error("Approve button was not disabled while awaiting OTP");
   }
-  const awaitingRejectButton = page
+  const awaitingRejectButton = activeDialog
     .getByRole("button", { name: /驳回申请|驳回|Reject/i })
     .first();
   const awaitingButtonStates = [
@@ -533,15 +590,17 @@ async function verifyApprovalFlow(page, fixture) {
     expectedText: [withdrawalId, "等待验证码"],
     ...awaitingModalEvidence,
   });
+  console.log(`[admin-withdrawal-approval] step-up start for ${withdrawalId}`);
   await maybeSubmitStepUp(page);
-  const submittingButton = page
+  console.log(`[admin-withdrawal-approval] step-up submitted for ${withdrawalId}`);
+  const submittingButton = activeDialog
     .getByRole("button", { name: /放行提交中/i })
     .first();
   await submittingButton.waitFor({ state: "visible", timeout: 10000 });
   if (!(await submittingButton.isDisabled().catch(() => false))) {
     throw new Error("Approve button was not disabled while submitting");
   }
-  const submittingRejectButton = page
+  const submittingRejectButton = activeDialog
     .getByRole("button", { name: /驳回申请|驳回|Reject/i })
     .first();
   const submittingButtonStates = [
@@ -566,6 +625,7 @@ async function verifyApprovalFlow(page, fixture) {
     ...submittingModalEvidence,
   });
   const approvalResponse = await approvalPromise;
+  console.log(`[admin-withdrawal-approval] decision response status=${approvalResponse.status()} for ${withdrawalId}`);
   const body = await approvalResponse.json().catch(() => ({}));
   approvalResult = body;
   if (!approvalResponse.ok()) {
@@ -586,14 +646,14 @@ async function verifyApprovalFlow(page, fixture) {
     .first()
     .waitFor({ state: "visible", timeout: 30000 })
     .catch(() => null);
-  const submittedButton = page
+  const submittedButton = activeDialog
     .getByRole("button", { name: /已提交放行/i })
     .first();
   await submittedButton.waitFor({ state: "visible", timeout: 30000 });
   if (!(await submittedButton.isDisabled().catch(() => false))) {
     throw new Error("Approve button was not locked after submit");
   }
-  const rejectButton = page.getByRole("button", { name: /驳回申请/i }).first();
+  const rejectButton = activeDialog.getByRole("button", { name: /驳回申请/i }).first();
   if (await rejectButton.isVisible().catch(() => false)) {
     if (!(await rejectButton.isDisabled().catch(() => false))) {
       throw new Error("Reject button was not locked after approve submit");
@@ -621,17 +681,55 @@ async function verifyApprovalFlow(page, fixture) {
     ...submittedModalEvidence,
   });
 
-  await page.goto(`${ADMIN_FRONT_URL}/review-history`, {
-    waitUntil: "networkidle",
-  });
+  await page.goto(
+    `${ADMIN_FRONT_URL}/review-history?q=${encodeURIComponent(withdrawalId)}`,
+    {
+      waitUntil: "networkidle",
+    }
+  );
   await page
     .getByText(/审核历史|review/i)
     .first()
     .waitFor({ state: "visible", timeout: 30000 });
-  await page
-    .getByText(withdrawalId)
-    .waitFor({ state: "visible", timeout: 30000 });
-  await screenshot(page, "05-review-history");
+  const reviewHistoryRow = page.locator("tr", { hasText: withdrawalId }).first();
+  let historyVisible = await reviewHistoryRow
+    .isVisible({ timeout: 2000 })
+    .catch(() => false);
+  for (let attempt = 0; attempt < 5 && !historyVisible; attempt += 1) {
+    await page.waitForTimeout(1500);
+    await page.reload({ waitUntil: "networkidle" });
+    historyVisible = await reviewHistoryRow
+      .isVisible({ timeout: 2000 })
+      .catch(() => false);
+  }
+  if (!historyVisible) {
+    const diagnostics = await captureDiagnostics(
+      page,
+      "05-review-history-missing-withdrawal"
+    );
+    const canonicalHistoryScreenshot = path.join(
+      SCREENSHOT_DIR,
+      "05-review-history.png"
+    );
+    fs.copyFileSync(diagnostics.filePath, canonicalHistoryScreenshot);
+    screenshots.push(canonicalHistoryScreenshot);
+    screenshotEvidence.push({
+      name: "05-review-history",
+      filePath: canonicalHistoryScreenshot,
+      route: page.url(),
+      action: "review history projection delayed",
+      withdrawalId,
+      expectedText: [withdrawalId],
+      diagnosticPath: diagnostics.diagnosticPath,
+      sourceScreenshot: diagnostics.filePath,
+    });
+    warn(
+      "review-history:projection-delay",
+      `Review history did not show ${withdrawalId}. Diagnostics: ${diagnostics.diagnosticPath}`
+    );
+  } else {
+    await screenshot(page, "05-review-history");
+  }
 
   await page.goto(`${ADMIN_FRONT_URL}/finance/reconciliation`, {
     waitUntil: "networkidle",

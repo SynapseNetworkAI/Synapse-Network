@@ -42,6 +42,7 @@ def _extract_tx_hashes(payload: dict[str, Any]) -> list[str]:
     event = payload.get("event")
     if not isinstance(event, dict):
         return []
+
     activity = event.get("activity")
     if isinstance(activity, list):
         for item in activity:
@@ -49,6 +50,7 @@ def _extract_tx_hashes(payload: dict[str, Any]) -> list[str]:
                 continue
             _push(item.get("hash"))
             _push(item.get("transactionHash"))
+
     data = event.get("data")
     if not isinstance(data, dict):
         return hashes

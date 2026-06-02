@@ -32,6 +32,10 @@ const POSTGRES_DSN =
   process.env.LOCAL_GATEWAY_POSTGRES_DSN ||
   process.env.POSTGRES_DSN ||
   "postgresql://synapse_gateway_app:local-dev-gateway-app-password@127.0.0.1:15432/synapse_gateway";
+const GATEWAY_ADMIN_PYTHON = path.join(
+  ROOT,
+  "services/gateway-admin/.venv/bin/python"
+);
 const OUT_DIR = path.join(ROOT, "tmp/admin-front-dogfood");
 const FIXTURE_PATH = process.env.ADMIN_FRONT_FIXTURE
   ? path.resolve(process.env.ADMIN_FRONT_FIXTURE)
@@ -115,6 +119,29 @@ function generateTotpCode(secret, nowMs = Date.now()) {
   return String(binary % 1_000_000).padStart(6, "0");
 }
 
+function decryptInlineTotpSecretRef(secretRef) {
+  if (!secretRef || !fs.existsSync(GATEWAY_ADMIN_PYTHON)) {
+    return null;
+  }
+  const result = spawnSync(
+    GATEWAY_ADMIN_PYTHON,
+    [
+      "-c",
+      [
+        "import sys",
+        `sys.path.insert(0, ${JSON.stringify(
+          path.join(ROOT, "services/gateway-admin")
+        )})`,
+        "from src.core.totp_secret_store import decrypt_inline_totp_secret_ref",
+        "print(decrypt_inline_totp_secret_ref(sys.argv[1]))",
+      ].join("; "),
+      secretRef,
+    ],
+    { cwd: ROOT, encoding: "utf8" }
+  );
+  return result.status === 0 ? result.stdout.trim() || null : null;
+}
+
 function queryAdminTotpSecretFromLocalDb() {
   if (
     process.env.ADMIN_TOTP_SECRET ||
@@ -124,12 +151,14 @@ function queryAdminTotpSecretFromLocalDb() {
     return null;
   }
   const sql = `
-    SELECT f.payload_json ->> 'totpSecret'
+    SELECT json_build_object(
+      'totpSecret', f.payload_json ->> 'totpSecret',
+      'secretRef', f.secret_ref
+    )
     FROM admin_users u
     JOIN admin_mfa_factors f ON f.admin_id = u.admin_id
     WHERE u.email = ${sqlLiteral(ADMIN_EMAIL)}
       AND f.status = 'active'
-      AND f.payload_json ? 'totpSecret'
     ORDER BY f.created_at DESC
     LIMIT 1;
   `;
@@ -154,7 +183,17 @@ function queryAdminTotpSecretFromLocalDb() {
   if (result.status !== 0) {
     return null;
   }
-  return result.stdout.trim() || null;
+  try {
+    const payload = JSON.parse(result.stdout.trim() || "null");
+    const inlineSecret = String(payload?.totpSecret || "").trim();
+    if (inlineSecret) {
+      return inlineSecret;
+    }
+    const secretRef = String(payload?.secretRef || "").trim();
+    return decryptInlineTotpSecretRef(secretRef);
+  } catch {
+    return null;
+  }
 }
 
 function parseSessionCookie(setCookieHeader) {

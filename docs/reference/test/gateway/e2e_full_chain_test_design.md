@@ -271,10 +271,11 @@ def test_wallet_auth_full_flow():
 from decimal import Decimal
 from web3 import Web3
 
+USDC_DECIMALS = 18   # MockUSDC 精度（本地与真实 USDC 6位不同，需确认）
+
 def mint_usdc(w3, usdc_contract, deployer, recipient: str, amount_usdc: Decimal):
     """Deployer 调用 MockUSDC.mint()，向 recipient 铸造测试 USDC"""
-    usdc_decimals = usdc_contract.functions.decimals().call()
-    amount_wei = int(amount_usdc * Decimal(10) ** usdc_decimals)
+    amount_wei = int(amount_usdc * 10**USDC_DECIMALS)
     nonce = w3.eth.get_transaction_count(deployer.address)
     tx = usdc_contract.functions.mint(
         Web3.to_checksum_address(recipient), amount_wei

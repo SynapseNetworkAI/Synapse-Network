@@ -294,27 +294,12 @@ CREATE TABLE IF NOT EXISTS synapse_service_quotes (
     CHECK (jsonb_typeof(invoke_constraints) = 'object')
 );
 
-DO $$
-BEGIN
-    ALTER TABLE synapse_service_manifests
-    DROP CONSTRAINT IF EXISTS synapse_service_manifests_price_model_check;
+ALTER TABLE synapse_service_manifests
+DROP CONSTRAINT IF EXISTS synapse_service_manifests_price_model_check;
 
-    ALTER TABLE synapse_service_manifests
-    ADD CONSTRAINT synapse_service_manifests_price_model_check
-    CHECK (price_model IN ('fixed', 'tiered', 'quote', 'token_metered'));
-EXCEPTION
-    WHEN duplicate_object THEN
-        IF NOT EXISTS (
-            SELECT 1
-            FROM pg_constraint
-            WHERE conname = 'synapse_service_manifests_price_model_check'
-              AND conrelid = 'public.synapse_service_manifests'::regclass
-              AND pg_get_constraintdef(oid) = 'CHECK ((price_model = ANY (ARRAY[''fixed''::text, ''tiered''::text, ''quote''::text, ''token_metered''::text])))'
-        ) THEN
-            RAISE;
-        END IF;
-END
-$$;
+ALTER TABLE synapse_service_manifests
+ADD CONSTRAINT synapse_service_manifests_price_model_check
+CHECK (price_model IN ('fixed', 'tiered', 'quote', 'token_metered'));
 
 ALTER TABLE synapse_service_manifests
 DROP CONSTRAINT IF EXISTS synapse_service_manifests_status_check;
@@ -323,27 +308,12 @@ ALTER TABLE synapse_service_manifests
 ADD CONSTRAINT synapse_service_manifests_status_check
 CHECK (status IN ('draft', 'active', 'paused', 'offline', 'archived'));
 
-DO $$
-BEGIN
-    ALTER TABLE synapse_service_quotes
-    DROP CONSTRAINT IF EXISTS synapse_service_quotes_price_model_check;
+ALTER TABLE synapse_service_quotes
+DROP CONSTRAINT IF EXISTS synapse_service_quotes_price_model_check;
 
-    ALTER TABLE synapse_service_quotes
-    ADD CONSTRAINT synapse_service_quotes_price_model_check
-    CHECK (price_model IN ('fixed', 'tiered', 'quote', 'token_metered'));
-EXCEPTION
-    WHEN duplicate_object THEN
-        IF NOT EXISTS (
-            SELECT 1
-            FROM pg_constraint
-            WHERE conname = 'synapse_service_quotes_price_model_check'
-              AND conrelid = 'public.synapse_service_quotes'::regclass
-              AND pg_get_constraintdef(oid) = 'CHECK ((price_model = ANY (ARRAY[''fixed''::text, ''tiered''::text, ''quote''::text, ''token_metered''::text])))'
-        ) THEN
-            RAISE;
-        END IF;
-END
-$$;
+ALTER TABLE synapse_service_quotes
+ADD CONSTRAINT synapse_service_quotes_price_model_check
+CHECK (price_model IN ('fixed', 'tiered', 'quote', 'token_metered'));
 
 ALTER TABLE synapse_service_quotes
 DROP CONSTRAINT IF EXISTS synapse_service_quotes_quoted_price_usdc_check;
@@ -706,6 +676,17 @@ CREATE TABLE IF NOT EXISTS synapse_platform_fee_policy_owner (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CHECK (fee_rate >= 0)
+);
+
+CREATE TABLE IF NOT EXISTS synapse_business_policy_config (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    singleton_id INTEGER NOT NULL UNIQUE,
+    payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+    published_version INTEGER NOT NULL DEFAULT 1,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_by TEXT NOT NULL,
+    CHECK (singleton_id = 1),
+    CHECK (published_version >= 1)
 );
 
 CREATE TABLE IF NOT EXISTS synapse_provider_risk_flags (

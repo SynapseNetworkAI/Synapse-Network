@@ -11,6 +11,7 @@ from src.domain import (
     AdminApprovalEvent,
     AdminApprovalStep,
     AdminAuditExport,
+    AdminDocumentConfigSnapshot,
     AdminExecutionAttempt,
     AdminExecutionJob,
     AdminMfaEnrollmentChallenge,
@@ -62,6 +63,7 @@ SUPPORT_TRIAGE = "support:triage"
 class InMemoryAdminConfigRepository:
     def __init__(self, menu_snapshot: AdminMenuConfigSnapshot | None = None) -> None:
         self._menu_snapshot = menu_snapshot
+        self._document_snapshots: dict[str, AdminDocumentConfigSnapshot] = {}
 
     def get_menu_config(self, config_key: str) -> AdminMenuConfigSnapshot | None:
         if self._menu_snapshot is None or self._menu_snapshot.config_key != config_key:
@@ -70,6 +72,15 @@ class InMemoryAdminConfigRepository:
 
     def save_menu_config(self, snapshot: AdminMenuConfigSnapshot) -> AdminMenuConfigSnapshot:
         self._menu_snapshot = snapshot
+        return snapshot
+
+    def get_document_config(self, config_key: str) -> AdminDocumentConfigSnapshot | None:
+        return self._document_snapshots.get(config_key)
+
+    def save_document_config(
+        self, snapshot: AdminDocumentConfigSnapshot
+    ) -> AdminDocumentConfigSnapshot:
+        self._document_snapshots[snapshot.config_key] = snapshot
         return snapshot
 
 

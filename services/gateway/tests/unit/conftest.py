@@ -23,6 +23,10 @@ def reset_gateway_settings():
         "staging_alert_drill_token": gateway_app.settings.staging_alert_drill_token,
         "internal_trigger_secret": gateway_app.settings.internal_trigger_secret,
         "notification_outbox_trigger_enabled": gateway_app.settings.notification_outbox_trigger_enabled,
+        "deposit_indexer_trigger_enabled": gateway_app.settings.deposit_indexer_trigger_enabled,
+        "deposit_indexer_trigger_url": gateway_app.settings.deposit_indexer_trigger_url,
+        "deposit_indexer_trigger_delay_sec": gateway_app.settings.deposit_indexer_trigger_delay_sec,
+        "deposit_indexer_trigger_timeout_sec": gateway_app.settings.deposit_indexer_trigger_timeout_sec,
     }
     gateway_app.settings.consumer_withdraw_maturity_enforcement_enabled = True
     gateway_app.settings.provider_withdraw_maturity_enforcement_enabled = True

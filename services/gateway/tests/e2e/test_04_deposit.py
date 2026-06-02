@@ -1,5 +1,4 @@
-"""Step 4: 充值全链路 — approve → deposit on-chain → intent → indexer → balance check"""
-import os
+"""Step 4: 充值全链路 — approve → deposit on-chain → intent → confirm → balance check"""
 import time
 from decimal import Decimal
 
@@ -12,17 +11,7 @@ from tests.e2e.helpers.chain import (
     deposit_on_chain,
     get_usdc_decimals,
 )
-from tests.e2e.helpers.gateway import (
-    deposit_confirm_retired,
-    deposit_intent,
-    get_balance,
-    get_deposit_sync_status,
-    trigger_deposit_indexer,
-)
-
-DEPOSIT_SYNC_TIMEOUT_SEC = int(
-    os.getenv("GATEWAY_E2E_DEPOSIT_SYNC_TIMEOUT_SEC", "120")
-)
+from tests.e2e.helpers.gateway import deposit_intent, deposit_confirm, get_balance
 
 
 def test_deposit_full_pipeline(
@@ -67,44 +56,23 @@ def test_deposit_full_pipeline(
 
 
 def test_deposit_confirm(owner_headers, session_state):
-    """Verify public confirm is retired and the indexer-owned path credits funds."""
+    """Confirm the deposit intent registered in the previous step."""
     intent_id = session_state.get("deposit_intent_id")
     event_key = session_state.get("deposit_event_key")
-    tx_hash = session_state.get("deposit_tx_hash")
     assert intent_id, "deposit_intent_id missing — did test_deposit_full_pipeline pass?"
     assert event_key, "deposit_event_key missing"
-    assert tx_hash, "deposit_tx_hash missing"
 
-    deposit_confirm_retired(GATEWAY_BASE, owner_headers, intent_id, event_key)
-
-    trigger_secret = os.getenv("GATEWAY_E2E_INTERNAL_TRIGGER_SECRET", "").strip()
-    if trigger_secret:
-        trigger_deposit_indexer(GATEWAY_BASE, trigger_secret, tx_hash=tx_hash)
-
-    deadline = time.monotonic() + DEPOSIT_SYNC_TIMEOUT_SEC
-    last_sync = {}
-    while time.monotonic() < deadline:
-        last_sync = get_deposit_sync_status(GATEWAY_BASE, owner_headers, tx_hash)
-        if last_sync.get("confirmed") is True:
-            session_state["deposit_sync_status"] = last_sync
-            return
-        if trigger_secret:
-            trigger_deposit_indexer(GATEWAY_BASE, trigger_secret, tx_hash=tx_hash)
-        time.sleep(3)
-    raise AssertionError(f"Deposit did not reach CONFIRMED via indexer: {last_sync}")
+    confirm_resp = deposit_confirm(GATEWAY_BASE, owner_headers, intent_id, event_key)
+    assert confirm_resp.get("status") == "success", f"Confirm resp: {confirm_resp}"
 
 
 def test_balance_reflects_deposit(owner_headers):
-    """After indexer confirmation, gateway balance must be >= DEPOSIT_USDC."""
-    deadline = time.monotonic() + DEPOSIT_SYNC_TIMEOUT_SEC
-    last_balance = Decimal("0")
-    while time.monotonic() < deadline:
-        last_balance = get_balance(GATEWAY_BASE, owner_headers)
-        if last_balance >= DEPOSIT_USDC:
-            return
-        time.sleep(3)
-    raise AssertionError(
-        f"Balance {last_balance} is less than deposited {DEPOSIT_USDC}"
+    """After confirm, gateway balance must be >= DEPOSIT_USDC."""
+    # Allow a brief moment for async indexing if applicable
+    time.sleep(1)
+    balance = get_balance(GATEWAY_BASE, owner_headers)
+    assert balance >= DEPOSIT_USDC, (
+        f"Balance {balance} is less than deposited {DEPOSIT_USDC}"
     )
 
 

@@ -36,4 +36,4 @@ artifacts. After `yarn dev`, `yarn build`, or `yarn generate:openapi`, commit
 them in the same PR when the API reference changed. If they only changed during
 an unrelated task, restore them before switching branches or handing off work.
 
-`services/user-front` links to this app through `NEXT_PUBLIC_DOCS_BASE_URL`. The legacy `/docs/*` redirect layer is intentionally removed; use the dedicated docs origin directly.
+`services/user-front` links to this app through `NEXT_PUBLIC_DOCS_BASE_URL` and keeps `/docs/*` redirects for old URLs.

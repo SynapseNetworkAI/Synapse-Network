@@ -53,6 +53,12 @@ def test_prod_settings_refuse_disabled_withdraw_maturity(monkeypatch) -> None:
     monkeypatch.setattr(config.Settings, "environment", "prod", raising=False)
     monkeypatch.setattr(
         config.Settings,
+        "deposit_indexer_trigger_enabled",
+        False,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        config.Settings,
         "consumer_withdraw_maturity_enforcement_enabled",
         False,
         raising=False,

@@ -28,6 +28,27 @@ const {
   toastErrorMock: vi.fn(),
 }));
 
+const authState = {
+  isSessionAuthenticated: true,
+  isAuthorizing: false,
+};
+
+const storedSessionState: {
+  value:
+    | {
+        token: string;
+        wallet: string;
+        expiresAt: number;
+      }
+    | null;
+} = {
+  value: {
+    token: "jwt",
+    wallet: "0xabc",
+    expiresAt: Date.now() + 60_000,
+  },
+};
+
 const TRANSLATIONS: Record<string, string> = {
   "accountSettingsPage.title": "Settings",
   "accountSettingsPage.description":
@@ -144,8 +165,8 @@ vi.mock("react-hot-toast", () => ({
 
 vi.mock("@/components/WalletAuthGuard", () => ({
   useAuth: () => ({
-    isSessionAuthenticated: true,
-    isAuthorizing: false,
+    isSessionAuthenticated: authState.isSessionAuthenticated,
+    isAuthorizing: authState.isAuthorizing,
     authorize: authorizeMock,
   }),
 }));
@@ -157,11 +178,7 @@ vi.mock("@/components/i18n/LanguageProvider", () => ({
 }));
 
 vi.mock("@/utils/authSession", () => ({
-  getStoredAuthSession: () => ({
-    token: "jwt",
-    wallet: "0xabc",
-    expiresAt: Date.now() + 60_000,
-  }),
+  getStoredAuthSession: () => storedSessionState.value,
 }));
 
 vi.mock("@/utils/accountProfileApi", () => ({
@@ -186,6 +203,13 @@ describe("AccountSettingsPage", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    authState.isSessionAuthenticated = true;
+    authState.isAuthorizing = false;
+    storedSessionState.value = {
+      token: "jwt",
+      wallet: "0xabc",
+      expiresAt: Date.now() + 60_000,
+    };
     getOwnerProfileMock.mockResolvedValue({
       ownerAddress: "0xabc",
       displayName: "Synapse Ops",
@@ -249,6 +273,18 @@ describe("AccountSettingsPage", () => {
     expect(await screen.findByLabelText("Account name")).toBeTruthy();
     expect(getOwnerProfileMock).toHaveBeenCalledWith("0xabc");
     expect(screen.getByText("0xabc")).toBeTruthy();
+  });
+
+  it("waits for wallet auth instead of auto-triggering a second authorize on mount", async () => {
+    authState.isSessionAuthenticated = false;
+    storedSessionState.value = null;
+
+    render(<AccountSettingsPage />);
+
+    await waitFor(() => {
+      expect(getOwnerProfileMock).not.toHaveBeenCalled();
+    });
+    expect(authorizeMock).not.toHaveBeenCalled();
   });
 
   it("requests a signed challenge and updates the owner profile", async () => {

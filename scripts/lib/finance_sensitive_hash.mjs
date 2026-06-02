@@ -19,18 +19,28 @@ const SENSITIVE_PATH_PATTERNS = [
 ];
 
 function listGitFiles(rootDir) {
-  const tracked = execFileSync("git", ["ls-files"], {
-    cwd: rootDir,
-    encoding: "utf8",
-  });
-  const untracked = execFileSync("git", ["ls-files", "--others", "--exclude-standard"], {
-    cwd: rootDir,
-    encoding: "utf8",
-  });
-  return [...new Set([
-    ...tracked.split(/\r?\n/).filter(Boolean),
-    ...untracked.split(/\r?\n/).filter(Boolean),
-  ])];
+  try {
+    const tracked = execFileSync("git", ["ls-files"], {
+      cwd: rootDir,
+      encoding: "utf8",
+    });
+    const untracked = execFileSync(
+      "git",
+      ["ls-files", "--others", "--exclude-standard"],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+      }
+    );
+    return [
+      ...new Set([
+        ...tracked.split(/\r?\n/).filter(Boolean),
+        ...untracked.split(/\r?\n/).filter(Boolean),
+      ]),
+    ];
+  } catch {
+    return [];
+  }
 }
 
 export function listFinanceSensitiveFiles(rootDir = REPO_ROOT) {

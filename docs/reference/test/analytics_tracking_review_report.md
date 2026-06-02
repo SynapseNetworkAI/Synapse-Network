@@ -32,7 +32,7 @@ author: devrel-agent
 | Deduplication enforced (`event_id` unique)         | ✅ PASS    |
 | Correlation ID links quote → invoke → revenue      | ✅ PASS    |
 | E2E Kafka → ClickHouse pipeline test               | ⚠️ SKIPPED |
-| Platform fee rate consistency (5%)                 | ✅ PASS    |
+| Platform fee rate consistency (5% vs 10%)          | ⚠️ NOTE    |
 
 **Overall verdict: ACCEPTED with minor follow-ups.** Core analytics tracking is complete, correct, and verified against a live ClickHouse instance. All privacy invariants hold. Test coverage is comprehensive across unit, integration, and fullstack layers. Two informational items require follow-up before production deployment.
 
@@ -164,12 +164,12 @@ All 34 events carry a 64-character hex `distinct_id`, confirming consistent SHA-
 
 ### Query 5 — Provider Revenue Breakdown
 
-| gross | fee    | net    | Effective fee rate |
-| ----- | ------ | ------ | ------------------ |
-| 1.2   | 0.06   | 1.14   | 5%                 |
-| 0.01  | 0.0005 | 0.0095 | 5%                 |
+| gross | fee   | net   | Effective fee rate |
+| ----- | ----- | ----- | ------------------ |
+| 1.2   | 0.12  | 1.08  | 10%                |
+| 0.01  | 0.001 | 0.009 | 10%                |
 
-> ✅ **Resolved:** The platform fee examples now align to the 5% product specification and current production default.
+> ⚠️ **Informational:** The platform fee applied in test data is **10%**, while the product context specifies **5%**. This may reflect hardcoded test fixtures rather than a logic error. Verify the intended fee rate with the product team and update test fixtures accordingly before production deployment.
 
 ### Query 6 — Correlation ID Linking
 
@@ -255,7 +255,7 @@ Key design properties confirmed:
 | 10  | Deduplication enforced (`event_id` unique)        | ✅ PASS                                                                                                                                    |
 | 11  | Correlation ID links quote → invoke → revenue     | ✅ PASS                                                                                                                                    |
 | 12  | E2E Kafka → ClickHouse pipeline test              | ⚠️ SKIPPED — requires `aiokafka` + `ANALYTICS_TEST_KAFKA=true`; compose available at `services/gateway/infra/analytics/docker-compose.yml` |
-| 13  | Platform fee rate consistent with product spec    | ✅ PASS — examples and test data align to the 5% product specification                                                                     |
+| 13  | Platform fee rate consistent with product spec    | ⚠️ NOTE — test data uses 10%, product context specifies 5%; verify before production                                                       |
 
 ---
 
@@ -324,6 +324,6 @@ The analytics tracking implementation is complete, correct, and verified end-to-
 Two items require resolution before production deployment:
 
 1. **ClickHouse TTL syntax fix** (Issue 1) — schema will fail to initialise on ClickHouse 24.3+ without this one-line change.
-2. **Platform fee rate verification** (Issue 13) — examples and fixtures now align to the 5% product specification; keep future fee changes synchronized across runtime defaults and docs.
+2. **Platform fee rate verification** (Issue 13) — confirm whether 10% in test fixtures is intentional or a misconfiguration relative to the 5% product specification.
 
 All other open items (health check type error, Kafka CI dependency) are low-risk quality-of-life improvements that can be addressed in the next sprint.

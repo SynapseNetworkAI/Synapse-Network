@@ -13,11 +13,10 @@ def _utc(year: int, month: int, day: int, hour: int, minute: int = 0) -> datetim
 def test_get_snapshot_returns_empty_when_projection_is_missing(monkeypatch) -> None:
     repository = gateway_dashboard.PostgresGatewayDashboardProjectionRepository("postgresql://example")
 
-    monkeypatch.setattr(
-        repository,
-        "_get_projection_columns",
-        lambda table_name: frozenset(),
-    )
+    def _raise_missing_projection(_: str):
+        raise psycopg.errors.UndefinedTable("relation does not exist")
+
+    monkeypatch.setattr(gateway_dashboard, "_connect", _raise_missing_projection)
 
     snapshot = repository.get_snapshot()
 
@@ -25,6 +24,25 @@ def test_get_snapshot_returns_empty_when_projection_is_missing(monkeypatch) -> N
     assert snapshot.deposit_exceptions == 0
     assert snapshot.vault_ledger_delta == gateway_dashboard.Decimal("0")
     assert snapshot.last_reconciliation_at is None
+
+
+def test_get_table_columns_uses_visible_search_path_schemas(monkeypatch) -> None:
+    cursor = _FakeCursor([{"column_name": "gateway_status"}])
+
+    gateway_dashboard._get_table_columns.cache_clear()
+    monkeypatch.setattr(gateway_dashboard, "_connect", lambda dsn: _FakeConnection(cursor))
+
+    columns = gateway_dashboard._get_table_columns(
+        "postgresql://example",
+        "synapse_admin_dashboard_operations_projection",
+    )
+
+    assert columns == frozenset({"gateway_status"})
+    sql = _executed_sql(cursor)
+    assert "current_schemas(true)" in sql
+    assert "current_schema()" not in sql
+
+    gateway_dashboard._get_table_columns.cache_clear()
 
 
 class _FakeCursor:
@@ -51,15 +69,6 @@ class _FakeCursor:
 
     def fetchall(self) -> list[dict[str, object]]:
         return self._rows
-
-
-class _FailingCursor(_FakeCursor):
-    def __init__(self, error: Exception) -> None:
-        super().__init__(None)
-        self._error = error
-
-    def execute(self, sql: str, params: tuple[object, ...] | None = None) -> None:
-        raise self._error
 
 
 class _FakeConnection:
@@ -140,7 +149,6 @@ def test_get_finance_snapshot_maps_native_projection_row(monkeypatch) -> None:
         }
     )
 
-    monkeypatch.setattr(repository, "_get_projection_columns", lambda table_name: frozenset({"projected_at"}))
     monkeypatch.setattr(gateway_dashboard, "_connect", lambda dsn: _FakeConnection(cursor))
 
     finance = repository.get_finance_snapshot()
@@ -155,11 +163,10 @@ def test_get_finance_snapshot_maps_native_projection_row(monkeypatch) -> None:
 def test_get_finance_snapshot_returns_empty_when_projection_is_missing(monkeypatch) -> None:
     repository = gateway_dashboard.PostgresGatewayDashboardProjectionRepository("postgresql://example")
 
-    monkeypatch.setattr(
-        repository,
-        "_get_projection_columns",
-        lambda table_name: frozenset(),
-    )
+    def _raise_missing_projection(_: str):
+        raise psycopg.errors.UndefinedTable("relation does not exist")
+
+    monkeypatch.setattr(gateway_dashboard, "_connect", _raise_missing_projection)
 
     finance = repository.get_finance_snapshot()
 
@@ -186,7 +193,6 @@ def test_list_activity_trends_maps_native_projection_rows(monkeypatch) -> None:
         ]
     )
 
-    monkeypatch.setattr(repository, "_get_projection_columns", lambda table_name: frozenset({"bucket_date"}))
     monkeypatch.setattr(gateway_dashboard, "_connect", lambda dsn: _FakeConnection(cursor))
 
     trends = repository.list_activity_trends()
@@ -201,11 +207,10 @@ def test_list_activity_trends_maps_native_projection_rows(monkeypatch) -> None:
 def test_list_activity_trends_returns_empty_when_projection_is_missing(monkeypatch) -> None:
     repository = gateway_dashboard.PostgresGatewayDashboardProjectionRepository("postgresql://example")
 
-    monkeypatch.setattr(
-        repository,
-        "_get_projection_columns",
-        lambda table_name: frozenset(),
-    )
+    def _raise_missing_projection(_: str):
+        raise psycopg.errors.UndefinedTable("relation does not exist")
+
+    monkeypatch.setattr(gateway_dashboard, "_connect", _raise_missing_projection)
 
     assert repository.list_activity_trends() == []
 
@@ -237,7 +242,6 @@ def test_get_operations_snapshot_maps_native_projection_row(monkeypatch) -> None
         }
     )
 
-    monkeypatch.setattr(repository, "_get_projection_columns", lambda table_name: frozenset({"projected_at"}))
     monkeypatch.setattr(gateway_dashboard, "_connect", lambda dsn: _FakeConnection(cursor))
 
     snapshot = repository.get_operations_snapshot()
@@ -255,11 +259,10 @@ def test_get_operations_snapshot_maps_native_projection_row(monkeypatch) -> None
 def test_get_operations_snapshot_returns_empty_when_projection_is_missing(monkeypatch) -> None:
     repository = gateway_dashboard.PostgresGatewayDashboardProjectionRepository("postgresql://example")
 
-    monkeypatch.setattr(
-        repository,
-        "_get_projection_columns",
-        lambda table_name: frozenset(),
-    )
+    def _raise_missing_projection(_: str):
+        raise psycopg.errors.UndefinedTable("relation does not exist")
+
+    monkeypatch.setattr(gateway_dashboard, "_connect", _raise_missing_projection)
 
     operations = repository.get_operations_snapshot()
 
@@ -269,21 +272,13 @@ def test_get_operations_snapshot_returns_empty_when_projection_is_missing(monkey
     assert operations.projected_at is None
 
 
-def test_get_reconciliation_runtime_state_degrades_when_readonly_permission_missing(
-    monkeypatch,
-) -> None:
-    repository = gateway_dashboard.PostgresGatewayDashboardProjectionRepository(
-        "postgresql://example"
-    )
-    cursor = _FailingCursor(
-        psycopg.errors.InsufficientPrivilege(
-            "permission denied for table synapse_runtime_state"
-        )
-    )
+def test_get_reconciliation_runtime_state_returns_empty_when_readonly_access_is_denied(monkeypatch) -> None:
+    repository = gateway_dashboard.PostgresGatewayDashboardProjectionRepository("postgresql://example")
 
-    monkeypatch.setattr(
-        gateway_dashboard, "_connect", lambda dsn: _FakeConnection(cursor)
-    )
+    def _raise_permission_denied(_: str):
+        raise psycopg.errors.InsufficientPrivilege("permission denied for table synapse_runtime_state")
+
+    monkeypatch.setattr(gateway_dashboard, "_connect", _raise_permission_denied)
 
     state = repository.get_reconciliation_runtime_state()
 

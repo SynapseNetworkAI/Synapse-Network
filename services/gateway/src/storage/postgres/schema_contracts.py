@@ -430,6 +430,16 @@ POSTGRES_TABLE_SCHEMA_CONTRACTS: tuple[TableSchemaContract, ...] = (
         ),
     ),
     TableSchemaContract(
+        table_name="synapse_business_policy_config",
+        required_columns=frozenset(
+            {"id", "singleton_id", "payload", "published_version", "updated_at", "updated_by"}
+        ),
+        required_constraints=(
+            _constraint("primary key on business policy config id", PRIMARY_KEY_FRAGMENT, "id"),
+            _constraint("unique business policy singleton row", "unique", "singleton_id"),
+        ),
+    ),
+    TableSchemaContract(
         table_name="synapse_platform_fee_policy_owner",
         required_columns=frozenset({"id", "owner_address", "fee_rate", "created_at", "updated_at"}),
         required_indexes=frozenset({"idx_synapse_platform_fee_policy_owner_address"}),

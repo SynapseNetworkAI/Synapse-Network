@@ -34,11 +34,11 @@ const RUN_ID =
     .toISOString()
     .replace(/[^0-9]/g, "")
     .slice(0, 14)}`;
-const DEPOSIT_USDC =
+const REQUESTED_DEPOSIT_USDC =
   process.env.ADMIN_WITHDRAWAL_APPROVAL_DEPOSIT_USDC || "150.000000";
-const WITHDRAW_AMOUNT_USDC =
+const REQUESTED_WITHDRAW_AMOUNT_USDC =
   process.env.ADMIN_WITHDRAWAL_APPROVAL_AMOUNT_USDC || "10.000000";
-const ACTIVE_DIFFERENT_AMOUNT_USDC =
+const REQUESTED_ACTIVE_DIFFERENT_AMOUNT_USDC =
   process.env.ADMIN_WITHDRAWAL_APPROVAL_ACTIVE_DIFFERENT_AMOUNT_USDC ||
   "11.000000";
 const CANONICAL_SERVICE_ID = configuredCanonicalServiceId();
@@ -55,6 +55,10 @@ const ADMIN_DATABASE_DSN =
   process.env.ADMIN_DATABASE_DSN ||
   process.env.LOCAL_GATEWAY_ADMIN_POSTGRES_DSN ||
   "postgresql://synapse_admin_app:local-dev-admin-app-password@127.0.0.1:15432/synapse_gateway_admin";
+const GATEWAY_ADMIN_PYTHON = path.join(
+  ROOT,
+  "services/gateway-admin/.venv/bin/python"
+);
 // withdrawal status source: services/gateway provider withdrawal state machine and synapse_vault_withdrawals.status.
 
 const ADMIN_COOKIE_NAME =
@@ -80,17 +84,24 @@ function readLocalProviderOnboardingKey() {
   if (!isLocalUrl(GATEWAY_BASE_URL) || !isLocalUrl(ADMIN_GATEWAY_URL)) {
     return "";
   }
-  const onboardingEnvPath = path.resolve(
-    ROOT,
-    "../Synapse-Network-Provider/.env.onboarding.local"
-  );
-  if (!fs.existsSync(onboardingEnvPath)) {
-    return "";
+  const candidates = [
+    process.env.SYNAPSE_PROVIDER_ONBOARDING_ENV || "",
+    path.resolve(ROOT, "../Synapse-Network-Provider/.env.onboarding.local"),
+    "/Users/cliff/workspace/agent/Synapse-Network-Provider/.env.onboarding.local",
+  ].filter(Boolean);
+  for (const onboardingEnvPath of candidates) {
+    if (!fs.existsSync(onboardingEnvPath)) {
+      continue;
+    }
+    const envText = fs.readFileSync(onboardingEnvPath, "utf8");
+    const match =
+      envText.match(/^PROVIDER_KEY=(.+)$/m) ||
+      envText.match(/^SYNAPSE_PROVIDER_OWNER_PRIVATE_KEY=(.+)$/m);
+    if (match?.[1]?.trim()) {
+      return match[1].trim().replace(/^['"]|['"]$/g, "");
+    }
   }
-  const match = fs
-    .readFileSync(onboardingEnvPath, "utf8")
-    .match(/^SYNAPSE_PROVIDER_OWNER_PRIVATE_KEY=(.+)$/m);
-  return match?.[1]?.trim().replace(/^['"]|['"]$/g, "") || "";
+  return "";
 }
 
 const PROVIDER_KEY =
@@ -128,6 +139,182 @@ function runPsql(sql) {
   return result.stdout.trim();
 }
 
+function parseUsdcAtomic(value) {
+  return ethers.parseUnits(String(value || "0"), 6);
+}
+
+function formatUsdcAtomic(value) {
+  return Number(ethers.formatUnits(value, 6)).toFixed(6);
+}
+
+function readWithdrawalAutoSingleLimitUsdc() {
+  try {
+    return (
+      runPsql(`
+        SELECT COALESCE(payload #>> '{risk,withdrawalAutoSingleLimitUsdc}', '')
+        FROM synapse_business_policy_config
+        ORDER BY updated_at DESC
+        LIMIT 1
+      `) || ""
+    ).trim();
+  } catch {
+    return "";
+  }
+}
+
+function resolveManualReviewWithdrawalPlan() {
+  const configuredSingleLimitUsdc =
+    readWithdrawalAutoSingleLimitUsdc() ||
+    process.env.WITHDRAWAL_AUTO_SINGLE_LIMIT_USDC ||
+    "100.000000";
+  const requestedWithdrawAmountAtomic = parseUsdcAtomic(
+    REQUESTED_WITHDRAW_AMOUNT_USDC
+  );
+  const singleLimitAtomic = configuredSingleLimitUsdc
+    ? parseUsdcAtomic(configuredSingleLimitUsdc)
+    : 0n;
+  const minimumManualReviewAtomic =
+    singleLimitAtomic > 0n
+      ? singleLimitAtomic + parseUsdcAtomic("1.000000")
+      : requestedWithdrawAmountAtomic;
+  const withdrawAmountAtomic =
+    requestedWithdrawAmountAtomic >= minimumManualReviewAtomic
+      ? requestedWithdrawAmountAtomic
+      : minimumManualReviewAtomic;
+  const requestedDepositAtomic = parseUsdcAtomic(REQUESTED_DEPOSIT_USDC);
+  const minimumDepositAtomic =
+    withdrawAmountAtomic + parseUsdcAtomic("20.000000");
+  const depositAmountAtomic =
+    requestedDepositAtomic >= minimumDepositAtomic
+      ? requestedDepositAtomic
+      : minimumDepositAtomic;
+  const requestedActiveDifferentAmountAtomic = parseUsdcAtomic(
+    REQUESTED_ACTIVE_DIFFERENT_AMOUNT_USDC
+  );
+  const activeDifferentAmountAtomic =
+    requestedActiveDifferentAmountAtomic > withdrawAmountAtomic
+      ? requestedActiveDifferentAmountAtomic
+      : withdrawAmountAtomic + parseUsdcAtomic("1.000000");
+  return {
+    configuredSingleLimitUsdc: configuredSingleLimitUsdc || null,
+    depositAmountUsdc: formatUsdcAtomic(depositAmountAtomic),
+    withdrawAmountUsdc: formatUsdcAtomic(withdrawAmountAtomic),
+    activeDifferentAmountUsdc: formatUsdcAtomic(activeDifferentAmountAtomic),
+  };
+}
+
+function readBusinessPolicyConfigRow() {
+  const raw = runPsql(`
+    SELECT COALESCE(
+      json_build_object(
+        'exists', true,
+        'payload', payload,
+        'publishedVersion', published_version,
+        'updatedBy', updated_by
+      )::text,
+      ''
+    )
+    FROM synapse_business_policy_config
+    WHERE singleton_id = 1
+    LIMIT 1
+  `);
+  return raw ? JSON.parse(raw) : { exists: false };
+}
+
+function ensureLocalProviderManualReviewPolicy(desiredSingleLimitUsdc = "1.000000") {
+  if (!isLocalUrl(GATEWAY_BASE_URL) || !isLocalUrl(ADMIN_GATEWAY_URL)) {
+    return null;
+  }
+  const original = readBusinessPolicyConfigRow();
+  const currentSingleLimitUsdc = String(
+    original?.payload?.risk?.withdrawalAutoSingleLimitUsdc || ""
+  ).trim();
+  if (
+    currentSingleLimitUsdc &&
+    parseUsdcAtomic(currentSingleLimitUsdc) <=
+      parseUsdcAtomic(desiredSingleLimitUsdc)
+  ) {
+    return { original, applied: false };
+  }
+  runPsql(`
+    INSERT INTO synapse_business_policy_config (
+      singleton_id, payload, published_version, updated_at, updated_by
+    )
+    VALUES (
+      1,
+      jsonb_build_object(
+        'risk',
+        jsonb_build_object('withdrawalAutoSingleLimitUsdc', ${sqlLiteral(desiredSingleLimitUsdc)})
+      ),
+      1,
+      NOW(),
+      'admin-withdrawal-approval-local'
+    )
+    ON CONFLICT (singleton_id) DO UPDATE
+    SET payload = jsonb_set(
+          COALESCE(synapse_business_policy_config.payload, '{}'::jsonb),
+          '{risk,withdrawalAutoSingleLimitUsdc}',
+          to_jsonb(${sqlLiteral(desiredSingleLimitUsdc)}::text),
+          true
+        ),
+        updated_at = NOW(),
+        updated_by = 'admin-withdrawal-approval-local'
+  `);
+  log(
+    `local business policy override applied: withdrawalAutoSingleLimitUsdc=${desiredSingleLimitUsdc}`
+  );
+  return { original, applied: true };
+}
+
+function restoreLocalProviderManualReviewPolicy(handle) {
+  if (!handle || !handle.applied) {
+    return;
+  }
+  if (!handle.original?.exists) {
+    runPsql(`
+      DELETE FROM synapse_business_policy_config
+      WHERE singleton_id = 1
+        AND updated_by = 'admin-withdrawal-approval-local'
+    `);
+    log("local business policy override removed");
+    return;
+  }
+  runPsql(`
+    UPDATE synapse_business_policy_config
+    SET payload = ${sqlLiteral(JSON.stringify(handle.original.payload || {}))}::jsonb,
+        published_version = ${Number(handle.original.publishedVersion || 1)},
+        updated_at = NOW(),
+        updated_by = ${sqlLiteral(String(handle.original.updatedBy || "restored"))}
+    WHERE singleton_id = 1
+  `);
+  log("local business policy override restored");
+}
+
+function restartLocalGatewayRuntime(reason) {
+  if (!isLocalUrl(GATEWAY_BASE_URL) || !isLocalUrl(ADMIN_GATEWAY_URL)) {
+    return;
+  }
+  log(`restarting local gateway runtime (${reason})`);
+  const result = spawnSync("bash", ["scripts/local/restart_gateway.sh"], {
+    cwd: ROOT,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      WITHDRAWAL_AUTO_SINGLE_LIMIT_USDC:
+        process.env.WITHDRAWAL_AUTO_SINGLE_LIMIT_USDC || "1.000000",
+    },
+  });
+  if (result.status !== 0) {
+    fail(
+      `restart_gateway.sh failed during ${reason}: ${(
+        result.stderr ||
+        result.stdout ||
+        ""
+      ).trim()}`
+    );
+  }
+}
+
 function queryAdminTotpSecretFromLocalDb() {
   if (
     process.env.ADMIN_TOTP_SECRET ||
@@ -137,12 +324,14 @@ function queryAdminTotpSecretFromLocalDb() {
     return null;
   }
   const sql = `
-    SELECT f.payload_json ->> 'totpSecret'
+    SELECT json_build_object(
+      'totpSecret', f.payload_json ->> 'totpSecret',
+      'secretRef', f.secret_ref
+    )
     FROM admin_users u
     JOIN admin_mfa_factors f ON f.admin_id = u.admin_id
     WHERE u.email = ${sqlLiteral(ADMIN_EMAIL)}
       AND f.status = 'active'
-      AND f.payload_json ? 'totpSecret'
     ORDER BY f.created_at DESC
     LIMIT 1;
   `;
@@ -167,7 +356,48 @@ function queryAdminTotpSecretFromLocalDb() {
   if (result.status !== 0) {
     return null;
   }
-  return result.stdout.trim() || null;
+  try {
+    const parsed = JSON.parse(result.stdout.trim() || "null");
+    const inlineSecret = String(parsed?.totpSecret || "").trim();
+    if (inlineSecret) {
+      return inlineSecret;
+    }
+    const secretRef = String(parsed?.secretRef || "").trim();
+    if (
+      secretRef &&
+      secretRef.startsWith("inline-fernet:v1:") &&
+      fs.existsSync(GATEWAY_ADMIN_PYTHON)
+    ) {
+      const decrypted = spawnSync(
+        GATEWAY_ADMIN_PYTHON,
+        [
+          "-c",
+          [
+            "import sys",
+            `sys.path.insert(0, ${JSON.stringify(
+              path.join(ROOT, "services/gateway-admin")
+            )})`,
+            "from src.core.totp_secret_store import decrypt_inline_totp_secret_ref",
+            "print(decrypt_inline_totp_secret_ref(sys.argv[1]))",
+          ].join("; "),
+          secretRef,
+        ],
+        {
+          cwd: ROOT,
+          encoding: "utf8",
+        }
+      );
+      if (decrypted.status === 0) {
+        const value = decrypted.stdout.trim();
+        if (value) {
+          return value;
+        }
+      }
+    }
+  } catch {
+    return null;
+  }
+  return null;
 }
 
 function isLocalUrl(value) {
@@ -252,28 +482,41 @@ async function api(
   if (token) requestHeaders.Authorization = `Bearer ${token}`;
   if (address) requestHeaders["X-User-Address"] = address;
 
-  const response = await fetch(`${API_BASE}${pathname}`, {
-    method,
-    headers: requestHeaders,
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
-  const text = await response.text();
-  let payload = {};
-  if (text) {
+  let lastError = null;
+  for (let attempt = 1; attempt <= 5; attempt += 1) {
     try {
-      payload = JSON.parse(text);
-    } catch {
-      payload = { raw: text };
+      const response = await fetch(`${API_BASE}${pathname}`, {
+        method,
+        headers: requestHeaders,
+        body: body === undefined ? undefined : JSON.stringify(body),
+      });
+      const text = await response.text();
+      let payload = {};
+      if (text) {
+        try {
+          payload = JSON.parse(text);
+        } catch {
+          payload = { raw: text };
+        }
+      }
+      if (expectOk && !response.ok) {
+        fail(
+          `${method} ${pathname} failed: ${response.status} ${JSON.stringify(
+            payload
+          ).slice(0, 800)}`
+        );
+      }
+      return { response, payload };
+    } catch (error) {
+      lastError = error;
+      if (attempt >= 5) {
+        break;
+      }
+      log(`${method} ${pathname} fetch retry ${attempt}/5: ${error.message}`);
+      await sleep(1000);
     }
   }
-  if (expectOk && !response.ok) {
-    fail(
-      `${method} ${pathname} failed: ${response.status} ${JSON.stringify(
-        payload
-      ).slice(0, 800)}`
-    );
-  }
-  return { response, payload };
+  fail(`${method} ${pathname} fetch failed: ${lastError?.message || "unknown error"}`);
 }
 
 async function authenticate(privateKey, label) {
@@ -392,7 +635,7 @@ async function topUpEthIfNeeded({
   return tx.hash;
 }
 
-async function fundAndDeposit({ consumerAddress, providerAddress }) {
+async function fundAndDeposit({ consumerAddress, providerAddress, amountUsdc }) {
   const { provider, coreAbi, usdcAbi, usdcAddress, coreAddress } =
     await getChainContext();
   const deployer = new ethers.Wallet(DEPLOYER_KEY, provider);
@@ -401,7 +644,7 @@ async function fundAndDeposit({ consumerAddress, providerAddress }) {
   const usdcConsumer = new ethers.Contract(usdcAddress, usdcAbi, consumer);
   const coreConsumer = new ethers.Contract(coreAddress, coreAbi, consumer);
   const decimals = Number(await usdcDeployer.decimals());
-  const amountAtomic = ethers.parseUnits(DEPOSIT_USDC, decimals);
+  const amountAtomic = ethers.parseUnits(amountUsdc, decimals);
 
   const consumerEthTopupTx = await topUpEthIfNeeded({
     targetAddress: consumerAddress,
@@ -422,7 +665,7 @@ async function fundAndDeposit({ consumerAddress, providerAddress }) {
     usdcDeployer.mint(consumerAddress, amountAtomic)
   );
   await mintTx.wait();
-  log(`${DEPOSIT_USDC} MockUSDC minted for consumer`);
+  log(`${amountUsdc} MockUSDC minted for consumer`);
 
   const approveTx = await sendWithRetry("approve-usdc", async () =>
     usdcConsumer.approve(coreAddress, amountAtomic)
@@ -439,7 +682,7 @@ async function fundAndDeposit({ consumerAddress, providerAddress }) {
   log(`chain deposit confirmed: ${depositTx.hash}`);
   return {
     txHash: depositTx.hash,
-    amountUsdc: DEPOSIT_USDC,
+    amountUsdc,
     decimals,
     coreAddress,
     usdcAddress,
@@ -493,10 +736,28 @@ async function confirmLocalDepositIntent({
         eventKey: `admin-withdrawal-approval:${String(txHash).toLowerCase()}`,
         confirmations: 1,
       },
+      expectOk: false,
     }
   );
-  log(`deposit intent confirmed locally: ${depositIntentId}`);
-  return confirmed.payload;
+  if (confirmed.response.ok) {
+    log(`deposit intent confirmed locally: ${depositIntentId}`);
+    return confirmed.payload;
+  }
+  const errorCode = String(confirmed.payload?.detail?.code || "").trim();
+  if (
+    confirmed.response.status === 410 &&
+    errorCode === "DEPOSIT_CONFIRM_INDEXER_ONLY"
+  ) {
+    log(
+      `deposit intent confirmation delegated to indexer: ${depositIntentId}`
+    );
+    return depositIntent;
+  }
+  fail(
+    `deposit intent confirmation failed: ${confirmed.response.status} ${JSON.stringify(
+      confirmed.payload
+    ).slice(0, 800)}`
+  );
 }
 
 async function waitForBalanceAtLeast({ token, address, expectedUsdc, txHash }) {
@@ -802,129 +1063,145 @@ async function main() {
 
   fs.mkdirSync(OUT_DIR, { recursive: true });
 
-  const providerAuth = await authenticate(PROVIDER_KEY, "provider");
-  const consumerAuth = await authenticate(CONSUMER_KEY, "consumer");
-  const adminAuth = await loginAdmin();
-  const chain = await getChainContext();
-  const staleRelease = releaseStaleAdminApprovalWithdrawals(
-    providerAuth.address
-  );
-  const service = await discoverCanonicalProviderService({
-    api,
-    serviceId: CANONICAL_SERVICE_ID,
-    fail,
-    log,
-    sleep,
-  });
-  await assertProviderOwnsCanonicalService({
-    api,
-    auth: providerAuth,
-    serviceId: service.id,
-    fail,
-    log,
-  });
-  const providerSecret = await issueProviderSecret(providerAuth);
+  const manualReviewPolicyHandle = ensureLocalProviderManualReviewPolicy();
+  try {
+    if (manualReviewPolicyHandle?.applied) {
+      restartLocalGatewayRuntime("business policy override");
+      await assertReachable("gateway health", `${GATEWAY_BASE_URL}/health`);
+      await assertReachable(
+        "gateway-admin health",
+        `${ADMIN_GATEWAY_URL}/health`
+      );
+    }
 
-  const deposit = await fundAndDeposit({
-    consumerAddress: consumerAuth.address,
-    providerAddress: providerAuth.address,
-  });
-  const depositIntent = await registerDepositIntent({
-    ...consumerAuth,
-    txHash: deposit.txHash,
-    amountUsdc: deposit.amountUsdc,
-  });
-  const confirmedDeposit = await confirmLocalDepositIntent({
-    ...consumerAuth,
-    depositIntent,
-    txHash: deposit.txHash,
-  });
-  const balanceBeforeInvoke = await waitForBalanceAtLeast({
-    ...consumerAuth,
-    expectedUsdc: deposit.amountUsdc,
-    txHash: deposit.txHash,
-  });
-  const credential = await issueAgentCredential(consumerAuth);
-  const receivableGeneration = await generateMatureProviderReceivable({
-    credentialToken: credential.token,
-    providerAuth,
-    service,
-    targetUsdc: WITHDRAW_AMOUNT_USDC,
-  });
-
-  const capabilityBeforeWithdraw = receivableGeneration.capability;
-  const chainBeforeWithdraw = await readChainBalances(providerAuth.address);
-  const primaryKey = `admin-withdrawal-approval:${RUN_ID}:primary`;
-  const withdrawalResult = await createWithdrawal(providerAuth, {
-    amountUsdc: WITHDRAW_AMOUNT_USDC,
-    idempotencyKey: primaryKey,
-  });
-  const withdrawal = withdrawalResult.payload;
-  if (withdrawal.status !== "PENDING_MANUAL_REVIEW") {
-    fail(
-      `Expected withdrawal to enter PENDING_MANUAL_REVIEW. Got ${withdrawal.status}. Start gateway with WITHDRAWAL_AUTO_SINGLE_LIMIT_USDC=1.000000.`
+    const providerAuth = await authenticate(PROVIDER_KEY, "provider");
+    const consumerAuth = await authenticate(CONSUMER_KEY, "consumer");
+    const adminAuth = await loginAdmin();
+    const chain = await getChainContext();
+    const staleRelease = releaseStaleAdminApprovalWithdrawals(
+      providerAuth.address
     );
-  }
-  if (withdrawal.ticket && Object.keys(withdrawal.ticket).length > 0) {
-    fail("Manual review withdrawal returned a ticket before approval.");
-  }
-  const promotedWithdrawalCreatedAt = promoteWithdrawalForAdminQueue(
-    withdrawal.withdrawalId
-  );
-
-  const capabilityAfterRequest = await readProviderCapability(providerAuth);
-  const withdrawalsAfterRequest = await readProviderWithdrawals(providerAuth);
-  const duplicateSameKey = await createWithdrawal(providerAuth, {
-    amountUsdc: WITHDRAW_AMOUNT_USDC,
-    idempotencyKey: primaryKey,
-  });
-  if (duplicateSameKey.payload.withdrawalId !== withdrawal.withdrawalId) {
-    fail(
-      `Same idempotency key returned different withdrawalId: ${duplicateSameKey.payload.withdrawalId}`
+    const withdrawalPlan = resolveManualReviewWithdrawalPlan();
+    log(
+      `withdrawal plan amount=${withdrawalPlan.withdrawAmountUsdc} activeDifferent=${withdrawalPlan.activeDifferentAmountUsdc} deposit=${withdrawalPlan.depositAmountUsdc} singleLimit=${withdrawalPlan.configuredSingleLimitUsdc || "fallback"}`
     );
-  }
+    const service = await discoverCanonicalProviderService({
+      api,
+      serviceId: CANONICAL_SERVICE_ID,
+      fail,
+      log,
+      sleep,
+    });
+    await assertProviderOwnsCanonicalService({
+      api,
+      auth: providerAuth,
+      serviceId: service.id,
+      fail,
+      log,
+    });
+    const providerSecret = await issueProviderSecret(providerAuth);
 
-  const duplicateActiveSameAmount = await createWithdrawal(providerAuth, {
-    amountUsdc: WITHDRAW_AMOUNT_USDC,
-    idempotencyKey: `admin-withdrawal-approval:${RUN_ID}:active-same-amount`,
-  });
-  if (
-    duplicateActiveSameAmount.payload.withdrawalId !== withdrawal.withdrawalId
-  ) {
-    fail(
-      `Active same-amount withdrawal returned different withdrawalId: ${duplicateActiveSameAmount.payload.withdrawalId}`
-    );
-  }
+    const deposit = await fundAndDeposit({
+      consumerAddress: consumerAuth.address,
+      providerAddress: providerAuth.address,
+      amountUsdc: withdrawalPlan.depositAmountUsdc,
+    });
+    const depositIntent = await registerDepositIntent({
+      ...consumerAuth,
+      txHash: deposit.txHash,
+      amountUsdc: deposit.amountUsdc,
+    });
+    const confirmedDeposit = await confirmLocalDepositIntent({
+      ...consumerAuth,
+      depositIntent,
+      txHash: deposit.txHash,
+    });
+    const balanceBeforeInvoke = await waitForBalanceAtLeast({
+      ...consumerAuth,
+      expectedUsdc: deposit.amountUsdc,
+      txHash: deposit.txHash,
+    });
+    const credential = await issueAgentCredential(consumerAuth);
+    const receivableGeneration = await generateMatureProviderReceivable({
+      credentialToken: credential.token,
+      providerAuth,
+      service,
+      targetUsdc: withdrawalPlan.withdrawAmountUsdc,
+    });
 
-  const duplicateActiveDifferentAmount = await createWithdrawal(providerAuth, {
-    amountUsdc: ACTIVE_DIFFERENT_AMOUNT_USDC,
-    idempotencyKey: `admin-withdrawal-approval:${RUN_ID}:active-different-amount`,
-    expectOk: false,
-  });
-  if (duplicateActiveDifferentAmount.response.ok) {
-    fail("Active different-amount withdrawal unexpectedly succeeded.");
-  }
-
-  const invalidInternalToken = await invalidInternalTokenReview({
-    withdrawalId: withdrawal.withdrawalId,
-    ownerAddress: providerAuth.address,
-  });
-  const adminQueue = await adminApi(
-    `/api/admin/v1/withdrawal-reviews?limit=100&q=${encodeURIComponent(
+    const capabilityBeforeWithdraw = receivableGeneration.capability;
+    const chainBeforeWithdraw = await readChainBalances(providerAuth.address);
+    const primaryKey = `admin-withdrawal-approval:${RUN_ID}:primary`;
+    const withdrawalResult = await createWithdrawal(providerAuth, {
+      amountUsdc: withdrawalPlan.withdrawAmountUsdc,
+      idempotencyKey: primaryKey,
+    });
+    const withdrawal = withdrawalResult.payload;
+    if (withdrawal.status !== "PENDING_MANUAL_REVIEW") {
+      fail(
+        `Expected withdrawal to enter PENDING_MANUAL_REVIEW. Got ${withdrawal.status}. Start gateway with WITHDRAWAL_AUTO_SINGLE_LIMIT_USDC=1.000000.`
+      );
+    }
+    if (withdrawal.ticket && Object.keys(withdrawal.ticket).length > 0) {
+      fail("Manual review withdrawal returned a ticket before approval.");
+    }
+    const promotedWithdrawalCreatedAt = promoteWithdrawalForAdminQueue(
       withdrawal.withdrawalId
-    )}`,
-    adminAuth
-  );
-  const projected = (adminQueue.items || []).find(
-    (item) => item.withdrawalId === withdrawal.withdrawalId
-  );
-  if (!projected) {
-    fail(
-      `gateway-admin did not project withdrawal ${withdrawal.withdrawalId} into /withdrawal-reviews.`
     );
-  }
 
-  const fixture = {
+    const capabilityAfterRequest = await readProviderCapability(providerAuth);
+    const withdrawalsAfterRequest = await readProviderWithdrawals(providerAuth);
+    const duplicateSameKey = await createWithdrawal(providerAuth, {
+      amountUsdc: withdrawalPlan.withdrawAmountUsdc,
+      idempotencyKey: primaryKey,
+    });
+    if (duplicateSameKey.payload.withdrawalId !== withdrawal.withdrawalId) {
+      fail(
+        `Same idempotency key returned different withdrawalId: ${duplicateSameKey.payload.withdrawalId}`
+      );
+    }
+
+    const duplicateActiveSameAmount = await createWithdrawal(providerAuth, {
+      amountUsdc: withdrawalPlan.withdrawAmountUsdc,
+      idempotencyKey: `admin-withdrawal-approval:${RUN_ID}:active-same-amount`,
+    });
+    if (
+      duplicateActiveSameAmount.payload.withdrawalId !== withdrawal.withdrawalId
+    ) {
+      fail(
+        `Active same-amount withdrawal returned different withdrawalId: ${duplicateActiveSameAmount.payload.withdrawalId}`
+      );
+    }
+
+    const duplicateActiveDifferentAmount = await createWithdrawal(providerAuth, {
+      amountUsdc: withdrawalPlan.activeDifferentAmountUsdc,
+      idempotencyKey: `admin-withdrawal-approval:${RUN_ID}:active-different-amount`,
+      expectOk: false,
+    });
+    if (duplicateActiveDifferentAmount.response.ok) {
+      fail("Active different-amount withdrawal unexpectedly succeeded.");
+    }
+
+    const invalidInternalToken = await invalidInternalTokenReview({
+      withdrawalId: withdrawal.withdrawalId,
+      ownerAddress: providerAuth.address,
+    });
+    const adminQueue = await adminApi(
+      `/api/admin/v1/withdrawal-reviews?limit=100&q=${encodeURIComponent(
+        withdrawal.withdrawalId
+      )}`,
+      adminAuth
+    );
+    const projected = (adminQueue.items || []).find(
+      (item) => item.withdrawalId === withdrawal.withdrawalId
+    );
+    if (!projected) {
+      fail(
+        `gateway-admin did not project withdrawal ${withdrawal.withdrawalId} into /withdrawal-reviews.`
+      );
+    }
+
+    const fixture = {
     version: 1,
     mode: "admin-withdrawal-approval-provider",
     runId: RUN_ID,
@@ -957,9 +1234,11 @@ async function main() {
     receivableSource: receivableGeneration.source,
     withdrawal: {
       withdrawalId: withdrawal.withdrawalId,
-      amountUsdc: WITHDRAW_AMOUNT_USDC,
+      amountUsdc: withdrawalPlan.withdrawAmountUsdc,
       idempotencyKey: primaryKey,
-      expectedAmountAtomic: String(decimalToAtomic(WITHDRAW_AMOUNT_USDC, 18)),
+      expectedAmountAtomic: String(
+        decimalToAtomic(withdrawalPlan.withdrawAmountUsdc, 18)
+      ),
       initialStatus: withdrawal.status,
       message: withdrawal.message || "",
     },
@@ -967,8 +1246,10 @@ async function main() {
       manualReviewStatus: "PENDING_MANUAL_REVIEW",
       approvedStatus: "APPROVED_AUTO",
       completedStatus: "COMPLETED",
-      amountUsdc: WITHDRAW_AMOUNT_USDC,
-      amountAtomic: String(decimalToAtomic(WITHDRAW_AMOUNT_USDC, 18)),
+      amountUsdc: withdrawalPlan.withdrawAmountUsdc,
+      amountAtomic: String(
+        decimalToAtomic(withdrawalPlan.withdrawAmountUsdc, 18)
+      ),
     },
     snapshots: {
       staleRelease,
@@ -995,11 +1276,17 @@ async function main() {
       },
       invalidInternalToken,
     },
-  };
+    };
 
-  fs.writeFileSync(FIXTURE_PATH, `${JSON.stringify(fixture, null, 2)}\n`);
-  log(`fixture written: ${FIXTURE_PATH}`);
-  log(`withdrawal ready for admin approval: ${withdrawal.withdrawalId}`);
+    fs.writeFileSync(FIXTURE_PATH, `${JSON.stringify(fixture, null, 2)}\n`);
+    log(`fixture written: ${FIXTURE_PATH}`);
+    log(`withdrawal ready for admin approval: ${withdrawal.withdrawalId}`);
+  } finally {
+    restoreLocalProviderManualReviewPolicy(manualReviewPolicyHandle);
+    if (manualReviewPolicyHandle?.applied) {
+      restartLocalGatewayRuntime("business policy restore");
+    }
+  }
 }
 
 main().catch((error) => {

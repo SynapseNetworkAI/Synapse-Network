@@ -51,7 +51,7 @@ for (const file of SCAN_DIRS.flatMap(walk).sort()) {
       file,
       code: "E2E-ENV-SECRET-001",
       message:
-        "Direct gcloud Secret Manager reads are forbidden. Use scripts/lib/e2e_env_guard.mjs readStagingSecret().",
+        "Direct gcloud Secret Manager reads are forbidden. Use scripts/lib/e2e_env_guard.mjs secret helpers.",
     });
   }
   if (

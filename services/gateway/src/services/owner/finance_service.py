@@ -126,14 +126,15 @@ class OwnerFinanceService(
         self, *, owner: str, gross_amount_usdc: Decimal, withdrawal_id: str
     ) -> WithdrawalTicketMetadata:
         from src.core.config import settings
+        from src.services.balance_mixins.withdraw_signing import USDC_DECIMALS
+
         fee_usdc = Decimal(str(CONSUMER_WITHDRAW_FEE_USDC))
         net_usdc = quantize_usdc(gross_amount_usdc - fee_usdc)
         signer_config = self._require_withdraw_signer()
         chain_id = self._resolve_withdraw_chain()
         deadline = int(time.time()) + self._resolve_withdraw_deadline_sec()
-        token_decimals = self._resolve_withdraw_token_decimals()
-        net_wei = usdc_decimal_to_atomic(net_usdc, decimals=token_decimals)
-        fee_wei = usdc_decimal_to_atomic(fee_usdc, decimals=token_decimals)
+        net_wei = usdc_decimal_to_atomic(net_usdc, decimals=USDC_DECIMALS)
+        fee_wei = usdc_decimal_to_atomic(fee_usdc, decimals=USDC_DECIMALS)
         ticket_id = self._derive_withdraw_ticket_id(withdrawal_id=withdrawal_id)
         typed_data = self._build_withdraw_typed_data(
             owner_wallet=owner,

@@ -14,7 +14,11 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { SynapseAnalytics, type AnalyticsEvent, type AnalyticsBatch } from '../analytics';
+import { SynapseAnalytics, type AnalyticsEvent } from '../analytics';
+
+type AnalyticsBatch = {
+  events: AnalyticsEvent[];
+};
 
 // ---------------------------------------------------------------------------
 // Browser mocks (same pattern as analytics.test.ts)

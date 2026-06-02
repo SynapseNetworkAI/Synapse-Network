@@ -109,7 +109,6 @@ require_staging_env() {
     GATEWAY_E2E_DEPLOYER_KEY
     GATEWAY_E2E_OWNER_KEY
     GATEWAY_E2E_PROVIDER_KEY
-    GATEWAY_E2E_INTERNAL_TRIGGER_SECRET
     POSTGRES_DSN
   )
   if [[ "$PROFILE" != "mvp-postgres" ]]; then
@@ -234,7 +233,6 @@ start_gateway_strict_kafka() {
       ENV_FILE=.env.local \
       GATEWAY_RELOAD=false \
       POSTGRES_DSN="$dsn" \
-      INTERNAL_TRIGGER_SECRET="${GATEWAY_E2E_INTERNAL_TRIGGER_SECRET:-release-e2e-internal-trigger}" \
       RPC_URL="${GATEWAY_E2E_RPC_URL:-http://127.0.0.1:8545}" \
       ROUTER_ADDRESS="$router_address" \
       ANALYTICS_STRICT_KAFKA=true \
@@ -314,7 +312,6 @@ if [[ "$MODE" == "local" ]]; then
   export GATEWAY_E2E_GATEWAY_BASE="${GATEWAY_E2E_GATEWAY_BASE:-http://127.0.0.1:8000}"
   export GATEWAY_E2E_PROVIDER_BASE="${GATEWAY_E2E_PROVIDER_BASE:-http://127.0.0.1:8001}"
   export GATEWAY_E2E_RPC_URL="${GATEWAY_E2E_RPC_URL:-http://127.0.0.1:8545}"
-  export GATEWAY_E2E_INTERNAL_TRIGGER_SECRET="${GATEWAY_E2E_INTERNAL_TRIGGER_SECRET:-release-e2e-internal-trigger}"
   export POSTGRES_DSN="${POSTGRES_DSN:-postgresql://synapse:local-dev-postgres-password@127.0.0.1:${POSTGRES_PORT:-15432}/${POSTGRES_DB_NAME}}"
 fi
 

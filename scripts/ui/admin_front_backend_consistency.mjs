@@ -8,6 +8,77 @@ export const dashboardApiPaths = [
   "/api/admin/v1/dashboard/diagnostics",
 ];
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function clonePolicy(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function addUsdcDelta(value, delta = 0.01) {
+  const next = Number.parseFloat(String(value || "0")) + delta;
+  return next.toFixed(6);
+}
+
+async function openConfigPage(page, pageUrl, cacheBust = Date.now()) {
+  await page.goto(`${pageUrl("/config")}?roundtrip=${cacheBust}`, {
+    waitUntil: "domcontentloaded",
+    timeout: 60000,
+  });
+  await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
+  await page.waitForFunction(
+    () =>
+      document.body.innerText.includes("配置中心") &&
+      document.body.innerText.includes("业务参数草稿"),
+    { timeout: 30000 }
+  );
+}
+
+async function waitForConfigFieldValue(page, expectedValue) {
+  const selector =
+    '[data-testid="business-policy-field-reconciliation.alertDeltaUsdc"]';
+  await page.waitForFunction(
+    ({ selector, expectedValue }) => {
+      const input = document.querySelector(selector);
+      return input instanceof HTMLInputElement && input.value === expectedValue;
+    },
+    { selector, expectedValue },
+    { timeout: 30000 }
+  );
+}
+
+async function waitForBusinessPolicyValue({
+  adminApi,
+  auth,
+  expectedValue,
+  timeoutMs = 45000,
+  intervalMs = 1000,
+}) {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    const overview = await adminApi("/api/admin/v1/config/overview", auth);
+    const draftValue = String(
+      overview?.draft?.policy?.reconciliation?.alertDeltaUsdc || ""
+    ).trim();
+    const publishedValue = String(
+      overview?.published?.policy?.reconciliation?.alertDeltaUsdc || ""
+    ).trim();
+    const runtimeValue = String(
+      overview?.runtime?.businessPolicy?.policy?.reconciliation?.alertDeltaUsdc || ""
+    ).trim();
+    if (
+      draftValue === expectedValue &&
+      publishedValue === expectedValue &&
+      runtimeValue === expectedValue
+    ) {
+      return overview;
+    }
+    await sleep(intervalMs);
+  }
+  throw new Error(
+    `business policy runtime did not converge to ${expectedValue} within ${timeoutMs}ms`
+  );
+}
+
 async function verifyDashboardEndpoints({ adminApi, auth, step }) {
   await step("api:dashboard-endpoints-200", async () => {
     for (const pathname of dashboardApiPaths) await adminApi(pathname, auth);
@@ -173,28 +244,163 @@ async function verifyAnalyticsPage({ adminApi, auth, page, pageUrl, step }) {
   });
 }
 
-export async function verifyBackendConsistency({
-  adminApi,
-  assertText,
+
+async function publishBusinessPolicyWithRetry({
+  adminWrite,
   auth,
-  fixture,
+  generateTotpCode,
+  totpSecret,
+  waitForSafeTotpWindow,
+  maxAttempts = 4,
+}) {
+  let lastError = null;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    await waitForSafeTotpWindow();
+    const otpCode = generateTotpCode(totpSecret);
+    try {
+      await adminWrite("/api/admin/v1/config/business-policy/publish", auth, {
+        method: "POST",
+        otpCode,
+      });
+      return;
+    } catch (error) {
+      lastError = error;
+      const message = error instanceof Error ? error.message : String(error);
+      if (!/401|invalid google authenticator code|google authenticator/i.test(message.toLowerCase())) {
+        throw error;
+      }
+      await sleep(2500);
+    }
+  }
+  throw lastError || new Error("business policy publish failed after retries");
+}
+
+async function verifyConfigBusinessPolicyRoundTrip({
+  adminApi,
+  adminWrite,
+  auth,
+  generateTotpCode,
   page,
   pageUrl,
   screenshot,
   step,
+  totpSecret,
+  waitForSafeTotpWindow,
+}) {
+  const evidence = {
+    originalValue: "",
+    updatedValue: "",
+    restoredValue: "",
+    restored: false,
+  };
+  await step("flow:config-business-policy-round-trip", async () => {
+    const originalOverview = await adminApi("/api/admin/v1/config/overview", auth);
+    const originalValue = String(
+      originalOverview?.published?.policy?.reconciliation?.alertDeltaUsdc || ""
+    ).trim();
+    if (!originalValue) {
+      throw new Error(
+        "config overview missing published reconciliation.alertDeltaUsdc"
+      );
+    }
+    const draftPolicy = clonePolicy(originalOverview.draft.policy);
+    const updatedValue = addUsdcDelta(originalValue);
+    evidence.originalValue = originalValue;
+    evidence.updatedValue = updatedValue;
+    draftPolicy.reconciliation.alertDeltaUsdc = updatedValue;
+
+    await adminWrite("/api/admin/v1/config/business-policy", auth, {
+      method: "PATCH",
+      body: { policy: draftPolicy },
+    });
+    await openConfigPage(page, pageUrl);
+    await waitForConfigFieldValue(page, updatedValue);
+    const dirtyBody = String((await page.textContent("body")) || "");
+    if (!dirtyBody.includes("Dirty")) {
+      throw new Error(
+        `config page did not show dirty draft with updated alert delta ${updatedValue}`
+      );
+    }
+    await screenshot(page, "config-draft-dirty");
+
+    await publishBusinessPolicyWithRetry({
+      adminWrite,
+      auth,
+      generateTotpCode,
+      totpSecret,
+      waitForSafeTotpWindow,
+    });
+    await waitForBusinessPolicyValue({
+      adminApi,
+      auth,
+      expectedValue: updatedValue,
+    });
+
+    const restorePolicy = clonePolicy(originalOverview.published.policy);
+    await adminWrite("/api/admin/v1/config/business-policy", auth, {
+      method: "PATCH",
+      body: { policy: restorePolicy },
+    });
+    await publishBusinessPolicyWithRetry({
+      adminWrite,
+      auth,
+      generateTotpCode,
+      totpSecret,
+      waitForSafeTotpWindow,
+    });
+    await waitForBusinessPolicyValue({
+      adminApi,
+      auth,
+      expectedValue: originalValue,
+    });
+
+    await openConfigPage(page, pageUrl);
+    await waitForConfigFieldValue(page, originalValue);
+    const restoredBody = String((await page.textContent("body")) || "");
+    if (!restoredBody.includes("Clean")) {
+      throw new Error(
+        `config page did not return to clean state with original alert delta ${originalValue}`
+      );
+    }
+    evidence.restoredValue = originalValue;
+    evidence.restored = true;
+    await screenshot(page, "config-restored");
+    return `${originalValue} -> ${updatedValue} -> ${originalValue}`;
+  });
+  return evidence;
+}
+
+export async function verifyBackendConsistency({
+  adminApi,
+  adminWrite,
+  assertText,
+  auth,
+  fixture,
+  generateTotpCode,
+  page,
+  pageUrl,
+  screenshot,
+  step,
+  totpSecret,
+  waitForSafeTotpWindow,
   warn,
 }) {
   const context = {
     adminApi,
+    adminWrite,
     assertText,
     auth,
     fixture,
+    generateTotpCode,
     page,
     pageUrl,
     screenshot,
     step,
+    totpSecret,
+    waitForSafeTotpWindow,
   };
   await verifyDashboardEndpoints(context);
+  const businessPolicyRoundTrip = await verifyConfigBusinessPolicyRoundTrip(context);
 
   const forumTaskId = fixture?.forum?.responseTaskId;
   if (!forumTaskId) {
@@ -210,4 +416,7 @@ export async function verifyBackendConsistency({
   await verifyProviderServicesPage(context);
   await verifyFinancePage(context);
   await verifyAnalyticsPage(context);
+  return {
+    businessPolicyRoundTrip,
+  };
 }
