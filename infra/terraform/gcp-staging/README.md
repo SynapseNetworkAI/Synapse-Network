@@ -72,6 +72,14 @@ Staging Cloud SQL intentionally uses `cloud_sql_edition = "ENTERPRISE"` with
 staging tier; Enterprise Plus requires the newer performance-optimized machine
 families and will reject `db-f1-micro`.
 
+Staging Cloud SQL uses private IP only. Terraform creates
+`synapse-staging-vpc`, `synapse-staging-subnet`, and the private services access
+range, then attaches backend Cloud Run services and jobs with Direct VPC egress
+using `PRIVATE_RANGES_ONLY`. Do not add a Serverless VPC Access connector for
+this path; the connector has fixed VM cost and is not required for Cloud Run
+Direct VPC egress. Keep database DSNs in Cloud SQL Unix-socket form, for
+example `?host=/cloudsql/<project>:us-central1:synapse-staging-postgres`.
+
 After apply, add secret **values** outside Terraform, for example:
 
 ```bash

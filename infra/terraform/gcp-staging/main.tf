@@ -188,17 +188,19 @@ locals {
       concurrency     = local.is_production ? 40 : 20
       min_instances   = local.is_production ? 1 : 0
       max_instances   = local.is_production ? 3 : 2
+      use_vpc_egress  = true
       env             = local.runtime_env
       secret_env      = local.gateway_secret_env
       service_account = google_service_account.runtime.email
     }
     gateway_admin = {
-      name          = "${local.name_prefix}-gateway-admin"
-      image         = var.gateway_admin_image
-      port          = 8000
-      concurrency   = 10
-      min_instances = 0
-      max_instances = 1
+      name           = "${local.name_prefix}-gateway-admin"
+      image          = var.gateway_admin_image
+      port           = 8000
+      concurrency    = 10
+      min_instances  = 0
+      max_instances  = 1
+      use_vpc_egress = true
       env = merge(
         local.runtime_env,
         {
@@ -228,6 +230,7 @@ locals {
       concurrency     = 40
       min_instances   = 0
       max_instances   = 2
+      use_vpc_egress  = false
       env             = var.frontend_runtime_env
       secret_env      = {}
       service_account = google_service_account.runtime.email
@@ -239,17 +242,19 @@ locals {
       concurrency     = 20
       min_instances   = 0
       max_instances   = 1
+      use_vpc_egress  = false
       env             = var.frontend_runtime_env
       secret_env      = {}
       service_account = google_service_account.runtime.email
     }
     docs_front = {
-      name          = "${local.name_prefix}-docs-front"
-      image         = var.docs_front_image
-      port          = 3000
-      concurrency   = 40
-      min_instances = 0
-      max_instances = 2
+      name           = "${local.name_prefix}-docs-front"
+      image          = var.docs_front_image
+      port           = 3000
+      concurrency    = 40
+      min_instances  = 0
+      max_instances  = 2
+      use_vpc_egress = false
       env = merge(
         var.frontend_runtime_env,
         {
@@ -269,6 +274,7 @@ locals {
       concurrency     = 10
       min_instances   = 0
       max_instances   = 2
+      use_vpc_egress  = true
       env             = local.provider_runtime_env
       secret_env      = local.provider_runtime_secret_env
       service_account = local.provider_enabled ? google_service_account.provider_runtime[0].email : null
@@ -288,6 +294,7 @@ locals {
       timeout         = "120s"
       max_retries     = 0
       retry_count     = 0
+      use_vpc_egress  = true
       env             = local.runtime_env
       secret_env      = local.gateway_secret_env
       service_account = google_service_account.runtime.email
@@ -301,6 +308,7 @@ locals {
       timeout         = "120s"
       max_retries     = 0
       retry_count     = 0
+      use_vpc_egress  = true
       env             = local.runtime_env
       secret_env      = local.gateway_secret_env
       service_account = google_service_account.runtime.email
@@ -314,6 +322,7 @@ locals {
       timeout         = "120s"
       max_retries     = 0
       retry_count     = 0
+      use_vpc_egress  = true
       env             = local.runtime_env
       secret_env      = local.gateway_secret_env
       service_account = google_service_account.runtime.email
@@ -327,6 +336,7 @@ locals {
       timeout         = "50s"
       max_retries     = 1
       retry_count     = 1
+      use_vpc_egress  = true
       env             = local.runtime_env
       secret_env      = local.gateway_secret_env
       service_account = google_service_account.runtime.email
@@ -340,6 +350,7 @@ locals {
       timeout         = "600s"
       max_retries     = 0
       retry_count     = 0
+      use_vpc_egress  = true
       env             = merge(local.runtime_env, { IN_APP_NOTIFICATION_CLEANUP_ENABLED = "true" })
       secret_env      = local.gateway_secret_env
       service_account = google_service_account.runtime.email
@@ -353,19 +364,21 @@ locals {
       timeout         = "600s"
       max_retries     = 0
       retry_count     = 0
+      use_vpc_egress  = true
       env             = merge(local.runtime_env, { POSTGRES_AUTO_INIT = "0" })
       secret_env      = local.gateway_migration_secret_env
       service_account = google_service_account.runtime.email
     }
     gateway_admin_db_migrate = {
-      name        = "${local.name_prefix}-gateway-admin-db-migrate"
-      image       = var.gateway_admin_image
-      command     = ["python", "scripts/apply_migrations.py"]
-      args        = []
-      schedule    = ""
-      timeout     = "600s"
-      max_retries = 0
-      retry_count = 0
+      name           = "${local.name_prefix}-gateway-admin-db-migrate"
+      image          = var.gateway_admin_image
+      command        = ["python", "scripts/apply_migrations.py"]
+      args           = []
+      schedule       = ""
+      timeout        = "600s"
+      max_retries    = 0
+      retry_count    = 0
+      use_vpc_egress = true
       env = merge(
         local.runtime_env,
         {
@@ -389,6 +402,7 @@ locals {
       timeout         = "300s"
       max_retries     = 0
       retry_count     = 0
+      use_vpc_egress  = true
       env             = local.provider_onboarding_env
       secret_env      = local.provider_onboarding_secret_env
       service_account = local.provider_enabled ? google_service_account.provider_onboarding[0].email : null
@@ -402,6 +416,7 @@ locals {
       timeout         = "600s"
       max_retries     = 0
       retry_count     = 0
+      use_vpc_egress  = true
       env             = local.provider_onboarding_env
       secret_env      = local.provider_onboarding_secret_env
       service_account = local.provider_enabled ? google_service_account.provider_onboarding[0].email : null
@@ -635,6 +650,43 @@ resource "google_service_account_iam_member" "scheduler_runtime_act_as" {
   member             = "serviceAccount:${google_service_account.scheduler.email}"
 }
 
+resource "google_project_service" "service_networking" {
+  project            = var.project_id
+  service            = "servicenetworking.googleapis.com"
+  disable_on_destroy = false
+}
+
+resource "google_compute_network" "staging" {
+  name                    = var.vpc_network_name
+  project                 = var.project_id
+  auto_create_subnetworks = false
+}
+
+resource "google_compute_subnetwork" "staging" {
+  name          = var.vpc_subnet_name
+  project       = var.project_id
+  region        = var.region
+  network       = google_compute_network.staging.id
+  ip_cidr_range = var.vpc_subnet_cidr
+}
+
+resource "google_compute_global_address" "private_service_range" {
+  name          = var.private_service_range_name
+  project       = var.project_id
+  purpose       = "VPC_PEERING"
+  address_type  = "INTERNAL"
+  prefix_length = var.private_service_range_prefix_length
+  network       = google_compute_network.staging.id
+}
+
+resource "google_service_networking_connection" "private_vpc_connection" {
+  network                 = google_compute_network.staging.id
+  service                 = "servicenetworking.googleapis.com"
+  reserved_peering_ranges = [google_compute_global_address.private_service_range.name]
+
+  depends_on = [google_project_service.service_networking]
+}
+
 resource "google_sql_database_instance" "postgres" {
   name                = "${local.name_prefix}-postgres"
   region              = var.region
@@ -642,6 +694,7 @@ resource "google_sql_database_instance" "postgres" {
   deletion_protection = var.cloud_sql_deletion_protection
 
   settings {
+    activation_policy     = var.cloud_sql_activation_policy
     tier                  = var.cloud_sql_tier
     edition               = var.cloud_sql_edition
     availability_type     = var.cloud_sql_availability_type
@@ -657,8 +710,10 @@ resource "google_sql_database_instance" "postgres" {
     }
 
     ip_configuration {
-      ipv4_enabled = true
-      ssl_mode     = "ALLOW_UNENCRYPTED_AND_ENCRYPTED"
+      ipv4_enabled                                  = false
+      private_network                               = google_compute_network.staging.id
+      enable_private_path_for_google_cloud_services = true
+      ssl_mode                                      = "ENCRYPTED_ONLY"
     }
 
     backup_configuration {
@@ -688,6 +743,8 @@ resource "google_sql_database_instance" "postgres" {
       enable_password_policy      = true
     }
   }
+
+  depends_on = [google_service_networking_connection.private_vpc_connection]
 }
 
 resource "google_sql_database" "gateway" {
@@ -721,6 +778,18 @@ resource "google_cloud_run_v2_service" "services" {
     scaling {
       min_instance_count = each.value.min_instances > 0 ? each.value.min_instances : null
       max_instance_count = each.value.max_instances
+    }
+
+    dynamic "vpc_access" {
+      for_each = each.value.use_vpc_egress ? [1] : []
+      content {
+        egress = "PRIVATE_RANGES_ONLY"
+
+        network_interfaces {
+          network    = google_compute_network.staging.name
+          subnetwork = google_compute_subnetwork.staging.name
+        }
+      }
     }
 
     containers {
@@ -760,6 +829,10 @@ resource "google_cloud_run_v2_service" "services" {
 
   lifecycle {
     ignore_changes = [
+      client,
+      client_version,
+      scaling,
+      template[0].containers[0].env,
       template[0].scaling[0],
     ]
   }
@@ -802,6 +875,18 @@ resource "google_cloud_run_v2_job" "jobs" {
         }
       }
 
+      dynamic "vpc_access" {
+        for_each = each.value.use_vpc_egress ? [1] : []
+        content {
+          egress = "PRIVATE_RANGES_ONLY"
+
+          network_interfaces {
+            network    = google_compute_network.staging.name
+            subnetwork = google_compute_subnetwork.staging.name
+          }
+        }
+      }
+
       containers {
         image   = each.value.image
         command = each.value.command
@@ -834,6 +919,14 @@ resource "google_cloud_run_v2_job" "jobs" {
         }
       }
     }
+  }
+
+  lifecycle {
+    ignore_changes = [
+      client,
+      client_version,
+      template[0].template[0].containers[0].env,
+    ]
   }
 
   depends_on = [

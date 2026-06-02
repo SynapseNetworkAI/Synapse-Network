@@ -74,6 +74,12 @@ variable "cloud_sql_availability_type" {
   default     = "ZONAL"
 }
 
+variable "cloud_sql_activation_policy" {
+  description = "Cloud SQL activation policy. Staging should stay NEVER except during explicit test windows."
+  type        = string
+  default     = "NEVER"
+}
+
 variable "cloud_sql_disk_type" {
   description = "Cloud SQL disk type."
   type        = string
@@ -114,6 +120,36 @@ variable "cloud_sql_retained_backups" {
   description = "Number of automated backups retained."
   type        = number
   default     = 3
+}
+
+variable "vpc_network_name" {
+  description = "Dedicated VPC network name for staging private Cloud SQL and Cloud Run egress."
+  type        = string
+  default     = "synapse-staging-vpc"
+}
+
+variable "vpc_subnet_name" {
+  description = "Subnetwork name used by Cloud Run Direct VPC egress and private Cloud SQL."
+  type        = string
+  default     = "synapse-staging-subnet"
+}
+
+variable "vpc_subnet_cidr" {
+  description = "CIDR range for the staging VPC subnet."
+  type        = string
+  default     = "10.40.0.0/24"
+}
+
+variable "private_service_range_name" {
+  description = "Name for the reserved service networking range used by private Cloud SQL."
+  type        = string
+  default     = "synapse-staging-sql-private-range"
+}
+
+variable "private_service_range_prefix_length" {
+  description = "Prefix length for the service networking reserved range."
+  type        = number
+  default     = 16
 }
 
 variable "gateway_image" {

@@ -27,10 +27,10 @@ gateway_min_instances = 0
 
 # Production job schedules stay conservative by default. Tune only with
 # money-path recovery evidence.
-deposit_indexer_schedule                  = "*/10 * * * *"
-consumer_withdraw_chain_recovery_schedule = "*/10 * * * *"
-withdrawal_expiry_sweeper_schedule        = "*/10 * * * *"
-notification_outbox_drain_schedule        = "*/10 * * * *"
+deposit_indexer_schedule                  = "0 * * * *"
+consumer_withdraw_chain_recovery_schedule = "0 */4 * * *"
+withdrawal_expiry_sweeper_schedule        = "0 */4 * * *"
+notification_outbox_drain_schedule        = "0 */4 * * *"
 
 # Optional: set container image URLs once Artifact Registry images exist.
 # These are Docker/OCI images for Cloud Run, not website pictures.
