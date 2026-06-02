@@ -7,7 +7,9 @@ BASE_REF="${QUALITY_BASE_REF:-origin/main}"
 
 bash "$ROOT_DIR/scripts/ci/ensure_diff_base.sh" "$BASE_REF"
 
-if [[ -x "$ROOT_DIR/node_modules/.bin/prettier" ]]; then
+if [[ -f "$ROOT_DIR/node_modules/prettier/bin-prettier.js" ]]; then
+  PRETTIER_CMD=(node "$ROOT_DIR/node_modules/prettier/bin-prettier.js")
+elif [[ -x "$ROOT_DIR/node_modules/.bin/prettier" ]]; then
   PRETTIER_CMD=("$ROOT_DIR/node_modules/.bin/prettier")
 elif command -v prettier >/dev/null 2>&1; then
   PRETTIER_CMD=(prettier)
