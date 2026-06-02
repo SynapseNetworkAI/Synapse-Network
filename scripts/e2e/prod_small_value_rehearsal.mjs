@@ -1,12 +1,27 @@
 #!/usr/bin/env node
 
-import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { chromium } from "playwright";
 import { ethers } from "ethers";
+import { readProductionSecret } from "../lib/e2e_env_guard.mjs";
+import {
+  authHeaders,
+  buildIdempotencyKey,
+  collectProdLogs,
+  createBrowserCaptureHelpers,
+  createEvidenceRecorders,
+  createHttpJsonHelpers,
+  credentialHeaders,
+  ensureHex32,
+  moneyGt,
+  moneyGte,
+  moneyLt,
+  moneyMin,
+  normalizeMoneyString,
+  runCloudRunJobAndWait,
+  sleep,
+} from "./lib/prod_small_value_rehearsal_support.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "../..");
@@ -24,8 +39,7 @@ const PROVIDER_WITHDRAW_MIN_USDC = "10.000000";
 const TARGET_CONSUMER_AVAILABLE_USDC = "12.000000";
 const SMALL_VALUE_PROVIDER_WITHDRAW_MAX_USDC = "20.000000";
 const ZERO_USDC = "0.000000";
-const REHEARSAL_MODE =
-  process.env.PROD_SMALL_VALUE_REHEARSAL_MODE || "full";
+const REHEARSAL_MODE = process.env.PROD_SMALL_VALUE_REHEARSAL_MODE || "full";
 
 const config = {
   gatewayBase:
@@ -34,15 +48,15 @@ const config = {
     process.env.PROD_E2E_FRONTEND_BASE_URL || "https://synapse-network.ai",
   rpcUrl:
     process.env.PROD_E2E_RPC_URL ||
-    readSecret("synapse-prod-arbitrum-one-rpc-url"),
+    readProductionSecret("synapse-prod-arbitrum-one-rpc-url"),
   chainId: 42161,
   consumerKey:
     process.env.PROD_E2E_CONSUMER_PRIVATE_KEY ||
-    readSecret("synapse-prod-e2e-consumer-private-key"),
+    readProductionSecret("synapse-prod-e2e-consumer-private-key"),
   providerKey:
     process.env.PROD_E2E_PROVIDER_PRIVATE_KEY ||
-    readSecret("synapse-prod-e2e-provider-private-key") ||
-    readSecret("synapse-prod-provider-onboarding-owner-private-key"),
+    readProductionSecret("synapse-prod-e2e-provider-private-key") ||
+    readProductionSecret("synapse-prod-provider-onboarding-owner-private-key"),
   consumerDepositUsdc:
     process.env.PROD_E2E_DEPOSIT_USDC || TARGET_CONSUMER_AVAILABLE_USDC,
 };
@@ -71,7 +85,11 @@ const usdcAbi = JSON.parse(
     "utf8"
   )
 );
-const usdc = new ethers.Contract(contractConfig.MockUSDC, usdcAbi, consumerWallet);
+const usdc = new ethers.Contract(
+  contractConfig.MockUSDC,
+  usdcAbi,
+  consumerWallet
+);
 const synapseCore = new ethers.Contract(
   contractConfig.SynapseCore,
   synapseCoreAbi,
@@ -122,6 +140,26 @@ const report = {
 
 fs.mkdirSync(SCREENSHOT_DIR, { recursive: true });
 
+const { getJson, postJson } = createHttpJsonHelpers({ traceRows, apiEvidence });
+const { captureScreenshots, captureConsumerWithdrawalScreenshots } =
+  createBrowserCaptureHelpers({ config, outDir: OUT_DIR, report });
+const { recordSummary, recordFailure, finalize } = createEvidenceRecorders({
+  outDir: OUT_DIR,
+  report,
+  traceRows,
+  apiEvidence,
+  sqlEvidence,
+  txEvidence,
+  logEvidence,
+  reportMetadata: () => [
+    { label: "Consumer wallet", value: consumerWallet.address.toLowerCase() },
+    { label: "Provider wallet", value: providerWallet.address.toLowerCase() },
+    { label: "Service", value: CANONICAL_SERVICE_ID },
+    { label: "Frontend", value: config.frontendBase },
+    { label: "Gateway", value: config.gatewayBase },
+  ],
+});
+
 main().catch((error) => {
   recordFailure("unhandled", error);
   finalize("failed");
@@ -142,8 +180,9 @@ async function main() {
     activeWithdrawals: preflight.consumerWithdrawals.withdrawals?.length || 0,
   };
   report.lanes.providerWithdraw.preflight = {
-    matureReceivableUsdc:
-      String(preflight.providerSummary.summary?.providerMatureReceivable ?? 0),
+    matureReceivableUsdc: String(
+      preflight.providerSummary.summary?.providerMatureReceivable ?? 0
+    ),
     activeWithdrawals: preflight.providerWithdrawals.withdrawals?.length || 0,
     capability: preflight.providerCapability,
   };
@@ -156,7 +195,9 @@ async function main() {
       "consumer-withdraw-auto-approve mode skips deposit/invoke/provider flows and fails closed unless mature consumer withdrawable balance is already available."
     );
     await captureConsumerWithdrawalScreenshots(consumerAuth);
-    const consumerWithdrawOutcome = await maybeRunConsumerWithdraw(consumerAuth);
+    const consumerWithdrawOutcome = await maybeRunConsumerWithdraw(
+      consumerAuth
+    );
     report.lanes.consumerWithdraw = {
       ...report.lanes.consumerWithdraw,
       ...consumerWithdrawOutcome,
@@ -171,13 +212,18 @@ async function main() {
       );
     }
     txEvidence.afterChain = await readChainState();
-    await collectLogs();
+    await collectProdLogs({ root: ROOT, logEvidence, report, recordFailure });
     finalize(report.failures.length ? "failed" : "passed");
     return;
   }
 
   let consumerBalance = preflight.consumerBalance;
-  if (moneyLt(consumerBalance.consumerAvailableBalance, TARGET_CONSUMER_AVAILABLE_USDC)) {
+  if (
+    moneyLt(
+      consumerBalance.consumerAvailableBalance,
+      TARGET_CONSUMER_AVAILABLE_USDC
+    )
+  ) {
     consumerBalance = await executeDeposit(consumerAuth, consumerBalance);
   } else {
     recordSummary(
@@ -187,7 +233,10 @@ async function main() {
 
   const credential = await ensureAgentCredential(consumerAuth);
   const discovery = await searchCanonicalService(credential.token);
-  const invokeResult = await invokePaidService(credential.token, discovery.service);
+  const invokeResult = await invokePaidService(
+    credential.token,
+    discovery.service
+  );
 
   const afterInvokeConsumerBalance = await getJson(
     "consumerBalanceAfterInvoke",
@@ -249,7 +298,7 @@ async function main() {
   };
 
   txEvidence.afterChain = await readChainState();
-  await collectLogs();
+  await collectProdLogs({ root: ROOT, logEvidence, report, recordFailure });
   finalize(report.failures.length ? "failed" : "passed");
 }
 
@@ -258,27 +307,6 @@ function ensureProdGuard() {
     throw new Error(
       `Set PROD_E2E_CONFIRM=${PROD_CONFIRM} before mutating production.`
     );
-  }
-}
-
-function readSecret(secretName) {
-  try {
-    return execFileSync(
-      "gcloud",
-      [
-        "secrets",
-        "versions",
-        "access",
-        "latest",
-        "--secret",
-        secretName,
-        "--project",
-        "synapse-network-prod",
-      ],
-      { cwd: ROOT, encoding: "utf8" }
-    ).trim();
-  } catch {
-    return "";
   }
 }
 
@@ -370,7 +398,10 @@ async function executeDeposit(consumerAuth, currentBalance) {
     contractConfig.SynapseCore
   );
   if (allowance < depositUnits) {
-    const approveTx = await usdc.approve(contractConfig.SynapseCore, depositUnits);
+    const approveTx = await usdc.approve(
+      contractConfig.SynapseCore,
+      depositUnits
+    );
     const approveReceipt = await approveTx.wait();
     txEvidence.transactions.push({
       kind: "approve",
@@ -406,7 +437,11 @@ async function executeDeposit(consumerAuth, currentBalance) {
       },
     }
   );
-  await runJobAndWait("synapse-prod-deposit-indexer");
+  await runCloudRunJobAndWait({
+    root: ROOT,
+    jobName: "synapse-prod-deposit-indexer",
+    recordSummary,
+  });
 
   let syncResponse = null;
   let refreshedBalance = currentBalance;
@@ -430,71 +465,16 @@ async function executeDeposit(consumerAuth, currentBalance) {
       break;
     }
   }
-  if (!syncResponse || String(syncResponse.sync?.status || "").toUpperCase() !== "CONFIRMED") {
+  if (
+    !syncResponse ||
+    String(syncResponse.sync?.status || "").toUpperCase() !== "CONFIRMED"
+  ) {
     throw new Error("deposit intent never reached confirmed status");
   }
   recordSummary(
     `deposit confirmed: ${depositUsdc} USDC -> available ${refreshedBalance.consumerAvailableBalance} USDC`
   );
   return refreshedBalance;
-}
-
-async function runJobAndWait(jobName) {
-  const executionName = execFileSync(
-    "gcloud",
-    [
-      "run",
-      "jobs",
-      "execute",
-      jobName,
-      "--project",
-      "synapse-network-prod",
-      "--region",
-      "us-central1",
-      "--format=value(metadata.name)",
-    ],
-    { cwd: ROOT, encoding: "utf8" }
-  )
-    .trim()
-    .split(/\s+/)
-    .at(-1);
-  if (!executionName) {
-    throw new Error(`failed to start Cloud Run job ${jobName}`);
-  }
-  for (let attempt = 0; attempt < 60; attempt += 1) {
-    await sleep(5000);
-    const execution = JSON.parse(
-      execFileSync(
-        "gcloud",
-        [
-          "run",
-          "jobs",
-          "executions",
-          "describe",
-          executionName,
-          "--project",
-          "synapse-network-prod",
-          "--region",
-          "us-central1",
-          "--format=json",
-        ],
-        { cwd: ROOT, encoding: "utf8" }
-      ) || "{}"
-    );
-    const completed = Array.isArray(execution.status?.conditions)
-      ? execution.status.conditions.find((item) => item.type === "Completed")
-      : null;
-    if (completed?.status === "True") {
-      recordSummary(`${jobName} completed via ${executionName}`);
-      return execution;
-    }
-    if (completed?.status === "False") {
-      throw new Error(
-        `${jobName} execution ${executionName} failed: ${completed.message || completed.reason || "unknown"}`
-      );
-    }
-  }
-  throw new Error(`${jobName} execution did not complete within timeout`);
 }
 
 async function ensureAgentCredential(consumerAuth) {
@@ -537,7 +517,24 @@ async function searchCanonicalService(credentialToken) {
     { headers: credentialHeaders(credentialToken) }
   );
   const results = Array.isArray(discovery.results) ? discovery.results : [];
-  const service = results.find((item) => item.serviceId === CANONICAL_SERVICE_ID);
+  let service = findServiceById(results, CANONICAL_SERVICE_ID);
+  if (!service) {
+    const catalog = await postJson(
+      "agentDiscoveryCatalogFallback",
+      `${config.gatewayBase}/api/v1/agent/discovery/search`,
+      { query: "", pageSize: 100 },
+      { headers: credentialHeaders(credentialToken) }
+    );
+    const catalogResults = Array.isArray(catalog.results)
+      ? catalog.results
+      : [];
+    service = findServiceById(catalogResults, CANONICAL_SERVICE_ID);
+    if (service) {
+      report.warnings.push(
+        `canonical paid service ${CANONICAL_SERVICE_ID} required catalog fallback after exact discovery miss`
+      );
+    }
+  }
   if (!service) {
     throw new Error(
       `canonical paid service ${CANONICAL_SERVICE_ID} is not discoverable in production`
@@ -546,9 +543,20 @@ async function searchCanonicalService(credentialToken) {
   return { discovery, service };
 }
 
+function findServiceById(results, serviceId) {
+  return results.find((item) =>
+    [item.serviceId, item.service_id, item.id, item.agentToolName]
+      .map((value) => String(value || ""))
+      .includes(serviceId)
+  );
+}
+
 async function invokePaidService(credentialToken, service) {
   const costUsdc = normalizeMoneyString(
-    service.basePriceUsdc || service.priceUsdc || service?.pricing?.amount || "1"
+    service.basePriceUsdc ||
+      service.priceUsdc ||
+      service?.pricing?.amount ||
+      "1"
   );
   const invokeResponse = await postJson(
     "agentInvoke",
@@ -606,7 +614,16 @@ function assertPhaseAPassed({
   const receiptStatus = String(
     receipt.status || receipt.invocationStatus || receipt.finalStatus || ""
   ).toLowerCase();
-  if (!["completed", "success", "accepted", "billed", "fulfilled", "succeeded"].includes(receiptStatus)) {
+  if (
+    ![
+      "completed",
+      "success",
+      "accepted",
+      "billed",
+      "fulfilled",
+      "succeeded",
+    ].includes(receiptStatus)
+  ) {
     throw new Error(`unexpected invocation receipt status ${receiptStatus}`);
   }
   recordSummary(
@@ -620,17 +637,25 @@ async function maybeRunConsumerWithdraw(consumerAuth) {
     `${config.gatewayBase}/api/v1/balance`,
     { headers: authHeaders(consumerAuth) }
   );
-  const mature = balanceResponse.balance?.consumerWithdrawableBalance || ZERO_USDC;
+  const mature =
+    balanceResponse.balance?.consumerWithdrawableBalance || ZERO_USDC;
   if (moneyLt(mature, CONSUMER_WITHDRAW_MIN_USDC)) {
     const reason = `policy-blocked: mature consumer withdrawable ${mature} < ${CONSUMER_WITHDRAW_MIN_USDC}`;
     report.warnings.push(reason);
-    return { status: "blocked-by-policy", reason, matureWithdrawableUsdc: mature };
+    return {
+      status: "blocked-by-policy",
+      reason,
+      matureWithdrawableUsdc: mature,
+    };
   }
 
   const withdrawResponse = await postJson(
     "consumerWithdrawIntent",
     `${config.gatewayBase}/api/v1/balance/consumer/withdraw`,
-    { amountUsdc: CONSUMER_WITHDRAW_MIN_USDC, reason: "prod small-value rehearsal" },
+    {
+      amountUsdc: CONSUMER_WITHDRAW_MIN_USDC,
+      reason: "prod small-value rehearsal",
+    },
     {
       headers: {
         ...authHeaders(consumerAuth),
@@ -639,7 +664,9 @@ async function maybeRunConsumerWithdraw(consumerAuth) {
     }
   );
   const normalized = withdrawResponse;
-  const status = String(normalized.status || normalized.withdrawalStatus || "").toUpperCase();
+  const status = String(
+    normalized.status || normalized.withdrawalStatus || ""
+  ).toUpperCase();
   if (status === "PENDING_MANUAL_REVIEW") {
     return {
       status: "blocked-manual-review",
@@ -685,7 +712,11 @@ async function maybeRunProviderWithdraw(providerAuth) {
   if (moneyLt(mature, PROVIDER_WITHDRAW_MIN_USDC)) {
     const reason = `policy-blocked: mature provider receivable ${mature} < ${PROVIDER_WITHDRAW_MIN_USDC}`;
     report.warnings.push(reason);
-    return { status: "blocked-by-policy", reason, matureReceivableUsdc: mature };
+    return {
+      status: "blocked-by-policy",
+      reason,
+      matureReceivableUsdc: mature,
+    };
   }
   const requestedAmount = moneyMin(
     mature,
@@ -702,7 +733,9 @@ async function maybeRunProviderWithdraw(providerAuth) {
       },
     }
   );
-  const status = String(intent.status || intent.withdrawalStatus || "").toUpperCase();
+  const status = String(
+    intent.status || intent.withdrawalStatus || ""
+  ).toUpperCase();
   if (status === "PENDING_MANUAL_REVIEW") {
     return {
       status: "blocked-manual-review",
@@ -760,415 +793,4 @@ async function submitWithdrawClaim({ kind, contract, ticket }) {
     ticketId: ticket.ticketId,
   });
   return receipt.hash;
-}
-
-async function captureScreenshots(consumerAuth, providerAuth) {
-  const browser = await chromium.launch({ headless: true });
-  try {
-    const consumerContext = await browser.newContext();
-    await installBrowserAuth(consumerContext, consumerAuth, "CONSUMER");
-    const consumerPage = await consumerContext.newPage();
-    await capturePage(consumerPage, {
-      name: "consumer-billing-credits",
-      url: `${config.frontendBase}/dashboard/billing/credits`,
-      expectedTexts: ["Billing", "Credits"],
-    });
-    await consumerContext.close();
-
-    const providerContext = await browser.newContext();
-    await installBrowserAuth(providerContext, providerAuth, "PROVIDER");
-    const providerPage = await providerContext.newPage();
-    await capturePage(providerPage, {
-      name: "provider-withdraw",
-      url: `${config.frontendBase}/provider/withdraw`,
-      expectedTexts: ["Withdraw", "USDC"],
-    });
-    await providerContext.close();
-  } finally {
-    await browser.close();
-  }
-}
-
-async function captureConsumerWithdrawalScreenshots(consumerAuth) {
-  const browser = await chromium.launch({ headless: true });
-  try {
-    const consumerContext = await browser.newContext();
-    await installBrowserAuth(consumerContext, consumerAuth, "CONSUMER");
-    const consumerPage = await consumerContext.newPage();
-    await capturePage(consumerPage, {
-      name: "consumer-billing-credits",
-      url: `${config.frontendBase}/dashboard/billing/credits`,
-      expectedTexts: ["Billing", "Credits"],
-    });
-    await capturePage(consumerPage, {
-      name: "consumer-billing-payments",
-      url: `${config.frontendBase}/dashboard/billing`,
-      expectedTexts: ["Billing", "Payments"],
-    });
-    await consumerContext.close();
-  } finally {
-    await browser.close();
-  }
-}
-
-async function installBrowserAuth(context, auth, role) {
-  await context.addInitScript(
-    ({ address, token, expiresAt, chainId, rpcUrl, role }) => {
-      const store = {
-        state: {
-          connections: {
-            __type: "Map",
-            value: [
-              [
-                "injected",
-                {
-                  accounts: [address],
-                  chainId,
-                  connector: {
-                    id: "injected",
-                    name: "Injected",
-                    type: "injected",
-                    uid: "injected",
-                  },
-                },
-              ],
-            ],
-          },
-          chainId,
-          current: "injected",
-          status: "connected",
-        },
-        version: 2,
-      };
-      localStorage.setItem("synapse_lang", "en");
-      localStorage.setItem("a2a_selected_role", role);
-      localStorage.setItem(`a2a_role_${String(address).toLowerCase()}`, role);
-      localStorage.setItem(
-        "a2a_auth_session",
-        JSON.stringify({
-          wallet: String(address).toLowerCase(),
-          token,
-          expiresAt,
-        })
-      );
-      localStorage.setItem("wagmi.store", JSON.stringify(store));
-      localStorage.setItem("wagmi.recentConnectorId", JSON.stringify("injected"));
-      localStorage.setItem("wagmi.injected.connected", JSON.stringify(true));
-      const chainHex = `0x${Number(chainId).toString(16)}`;
-      window.ethereum = {
-        isMetaMask: true,
-        chainId: chainHex,
-        selectedAddress: address,
-        isConnected: () => true,
-        request: async (args) => {
-          const method = args?.method;
-          if (method === "eth_requestAccounts" || method === "eth_accounts") return [address];
-          if (method === "eth_chainId") return chainHex;
-          const response = await fetch(rpcUrl, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              jsonrpc: "2.0",
-              id: Date.now(),
-              method,
-              params: args?.params || [],
-            }),
-          });
-          const payload = await response.json();
-          if (payload.error) throw new Error(payload.error.message || "RPC failed");
-          return payload.result;
-        },
-        on: () => {},
-        removeListener: () => {},
-      };
-    },
-    {
-      address: auth.address,
-      token: auth.token,
-      expiresAt: auth.expiresAt,
-      chainId: config.chainId,
-      rpcUrl: config.rpcUrl,
-      role,
-    }
-  );
-}
-
-async function capturePage(page, item) {
-  const response = await page.goto(item.url, {
-    waitUntil: "networkidle",
-    timeout: 60000,
-  });
-  const body = await page.locator("body").innerText({ timeout: 10000 });
-  for (const text of item.expectedTexts) {
-    if (!body.includes(text)) {
-      throw new Error(
-        `${item.name} missing expected text ${text}; body excerpt=${body.slice(0, 500)}`
-      );
-    }
-  }
-  const relativePath = `screenshots/${item.name}.png`;
-  await page.screenshot({
-    path: path.join(OUT_DIR, relativePath),
-    fullPage: true,
-  });
-  report.screenshots.push({
-    name: item.name,
-    url: item.url,
-    status: response?.status() || 0,
-    path: relativePath,
-  });
-}
-
-async function collectLogs() {
-  const services = [
-    "synapse-prod-gateway",
-    "synapse-prod-user-front",
-    "synapse-prod-gateway-admin",
-  ];
-  for (const service of services) {
-    try {
-      logEvidence.services[service] = {
-        latestReadyRevisionName: execFileSync(
-          "gcloud",
-          [
-            "run",
-            "services",
-            "describe",
-            service,
-            "--project",
-            "synapse-network-prod",
-            "--region",
-            "us-central1",
-            "--format=value(status.latestReadyRevisionName)",
-          ],
-          { cwd: ROOT, encoding: "utf8" }
-        ).trim(),
-      };
-    } catch {
-      logEvidence.services[service] = {
-        latestReadyRevisionName: "",
-      };
-    }
-  }
-  const since = new Date(Date.now() - 30 * 60 * 1000).toISOString();
-  const filter =
-    `resource.type="cloud_run_revision" severity>=ERROR timestamp>="${since}" ` +
-    `(resource.labels.service_name="synapse-prod-gateway" OR ` +
-    `resource.labels.service_name="synapse-prod-user-front" OR ` +
-    `resource.labels.service_name="synapse-prod-gateway-admin")`;
-  try {
-    const raw = execFileSync(
-      "gcloud",
-      [
-        "logging",
-        "read",
-        filter,
-        "--project",
-        "synapse-network-prod",
-        "--limit",
-        "50",
-        "--format=json",
-      ],
-      { cwd: ROOT, encoding: "utf8" }
-    );
-    logEvidence.errors = JSON.parse(raw || "[]");
-    if (logEvidence.errors.length > 0) {
-      recordFailure(
-        "prodLogs",
-        new Error(`found ${logEvidence.errors.length} ERROR log entries`)
-      );
-    }
-  } catch (error) {
-    report.warnings.push(`log query failed: ${String(error.message || error)}`);
-  }
-}
-
-async function getJson(name, url, options) {
-  const startedAt = Date.now();
-  const response = await fetch(url, { method: "GET", ...(options || {}) });
-  const text = await response.text();
-  const payload = parseJson(text);
-  traceRows.push({
-    name,
-    method: "GET",
-    url,
-    status: response.status,
-    durationMs: Date.now() - startedAt,
-    response: payload,
-  });
-  apiEvidence[name] = { status: response.status, payload };
-  if (!response.ok) {
-    throw new Error(`${name} failed (${response.status}): ${text.slice(0, 500)}`);
-  }
-  return payload;
-}
-
-async function postJson(name, url, body, options = {}) {
-  const startedAt = Date.now();
-  const headers = {
-    "Content-Type": "application/json",
-    ...(options.headers || {}),
-  };
-  const response = await fetch(url, {
-    method: "POST",
-    ...options,
-    headers,
-    body: JSON.stringify(body),
-  });
-  const text = await response.text();
-  const payload = parseJson(text);
-  traceRows.push({
-    name,
-    method: "POST",
-    url,
-    status: response.status,
-    durationMs: Date.now() - startedAt,
-    request: body,
-    response: payload,
-  });
-  apiEvidence[name] = { status: response.status, request: body, payload };
-  if (!response.ok) {
-    throw new Error(`${name} failed (${response.status}): ${text.slice(0, 500)}`);
-  }
-  return payload;
-}
-
-function parseJson(text) {
-  if (!text) return {};
-  try {
-    return JSON.parse(text);
-  } catch {
-    return { raw: text };
-  }
-}
-
-function authHeaders(auth) {
-  return {
-    Authorization: `Bearer ${auth.token}`,
-    "X-User-Address": auth.address,
-  };
-}
-
-function credentialHeaders(token) {
-  return {
-    "X-Credential": token,
-    "Content-Type": "application/json",
-  };
-}
-
-function buildIdempotencyKey(prefix) {
-  return `${prefix}_${Date.now().toString(36)}_${crypto.randomUUID().replaceAll("-", "")}`.slice(
-    0,
-    120
-  );
-}
-
-function moneyToMicros(value) {
-  return ethers.parseUnits(normalizeMoneyString(value), 6);
-}
-
-function moneyLt(left, right) {
-  return moneyToMicros(left) < moneyToMicros(right);
-}
-
-function moneyGt(left, right) {
-  return moneyToMicros(left) > moneyToMicros(right);
-}
-
-function moneyGte(left, right) {
-  return moneyToMicros(left) >= moneyToMicros(right);
-}
-
-function moneyMin(left, right) {
-  return moneyLt(left, right) ? normalizeMoneyString(left) : normalizeMoneyString(right);
-}
-
-function normalizeMoneyString(value) {
-  return ethers.formatUnits(ethers.parseUnits(String(value || "0"), 6), 6);
-}
-
-function ensureHex32(value) {
-  const raw = String(value || "");
-  return raw.startsWith("0x") ? raw : `0x${raw}`;
-}
-
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function recordSummary(message) {
-  report.summary.push(message);
-  console.log(message);
-}
-
-function recordFailure(name, error) {
-  const detail = error instanceof Error ? error.message : String(error);
-  report.failures.push({ name, detail });
-  console.error(`FAIL ${name}: ${detail}`);
-}
-
-function finalize(status) {
-  report.status = report.failures.length ? "failed" : status;
-  const traceJsonl =
-    traceRows.map((row) => JSON.stringify(row)).join("\n") +
-    (traceRows.length ? "\n" : "");
-  fs.writeFileSync(path.join(OUT_DIR, "trace.jsonl"), traceJsonl, "utf8");
-  fs.writeFileSync(
-    path.join(OUT_DIR, "api-evidence.json"),
-    JSON.stringify(apiEvidence, null, 2)
-  );
-  fs.writeFileSync(
-    path.join(OUT_DIR, "sql-evidence.json"),
-    JSON.stringify(sqlEvidence, null, 2)
-  );
-  fs.writeFileSync(
-    path.join(OUT_DIR, "tx-evidence.json"),
-    JSON.stringify(txEvidence, null, 2)
-  );
-  fs.writeFileSync(
-    path.join(OUT_DIR, "log-evidence.json"),
-    JSON.stringify(logEvidence, null, 2)
-  );
-  fs.writeFileSync(
-    path.join(OUT_DIR, "report.json"),
-    JSON.stringify(report, null, 2)
-  );
-  fs.writeFileSync(
-    path.join(OUT_DIR, "report.md"),
-    [
-      "# Prod Small-Value E2E Rehearsal",
-      "",
-      `- Status: ${report.status}`,
-      `- Consumer wallet: ${consumerWallet.address.toLowerCase()}`,
-      `- Provider wallet: ${providerWallet.address.toLowerCase()}`,
-      `- Service: ${CANONICAL_SERVICE_ID}`,
-      `- Frontend: ${config.frontendBase}`,
-      `- Gateway: ${config.gatewayBase}`,
-      "",
-      "## Summary",
-      "",
-      ...report.summary.map((item) => `- ${item}`),
-      "",
-      "## Warnings",
-      "",
-      ...(report.warnings.length
-        ? report.warnings.map((item) => `- ${item}`)
-        : ["- none"]),
-      "",
-      "## Failures",
-      "",
-      ...(report.failures.length
-        ? report.failures.map((item) => `- ${item.name}: ${item.detail}`)
-        : ["- none"]),
-      "",
-      "## Screenshots",
-      "",
-      ...(report.screenshots.length
-        ? report.screenshots.map((item) => `- ${item.path}`)
-        : ["- none"]),
-      "",
-    ].join("\n"),
-    "utf8"
-  );
-  console.log(`evidence written to ${OUT_DIR}`);
 }
