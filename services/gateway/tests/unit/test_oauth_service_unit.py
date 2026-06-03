@@ -4,11 +4,10 @@ import base64
 import hashlib
 from types import SimpleNamespace
 
-import jwt  # type: ignore[import-untyped]
+import jwt  # type: ignore[import-untyped]  # quality-disable-reason: PyJWT ships without complete type stubs in the gateway venv.
 import pytest
 from fastapi import HTTPException
 
-from src.core.config import settings
 from src.services.platform import credential_service, oauth_service
 from src.services.platform.credential_builders import (
     CredentialRuntimeSeed,
@@ -87,14 +86,14 @@ def _credential(owner: str = "0xabc"):
 
 @pytest.fixture()
 def oauth_settings(monkeypatch):
-    monkeypatch.setattr(settings, "oauth_issuer", "https://www.synapse-network.ai")
-    monkeypatch.setattr(settings, "oauth_mcp_resource", "https://mcp.synapse-network.ai/mcp")
-    monkeypatch.setattr(settings, "oauth_allowed_redirect_hosts", "chatgpt.com")
-    monkeypatch.setattr(settings, "oauth_allowed_client_ids", "chatgpt-custom-mcp")
-    monkeypatch.setattr(settings, "oauth_authorization_code_ttl_sec", 300)
-    monkeypatch.setattr(settings, "oauth_access_token_ttl_sec", 900)
-    monkeypatch.setattr(settings, "oauth_refresh_token_ttl_sec", 3600)
-    monkeypatch.setattr(settings, "oauth_jwt_secret", "unit-test-oauth-secret-with-32-bytes")
+    monkeypatch.setenv("SYNAPSE_OAUTH_ISSUER", "https://www.synapse-network.ai")
+    monkeypatch.setenv("SYNAPSE_OAUTH_MCP_RESOURCE", "https://mcp.synapse-network.ai/mcp")
+    monkeypatch.setenv("SYNAPSE_OAUTH_ALLOWED_REDIRECT_HOSTS", "chatgpt.com")
+    monkeypatch.setenv("SYNAPSE_OAUTH_ALLOWED_CLIENT_IDS", "chatgpt-custom-mcp")
+    monkeypatch.setenv("SYNAPSE_OAUTH_AUTHORIZATION_CODE_TTL_SEC", "300")
+    monkeypatch.setenv("SYNAPSE_OAUTH_ACCESS_TOKEN_TTL_SEC", "900")
+    monkeypatch.setenv("SYNAPSE_OAUTH_REFRESH_TOKEN_TTL_SEC", "3600")
+    monkeypatch.setenv("SYNAPSE_OAUTH_JWT_SECRET", "unit-test-oauth-secret-with-32-bytes")
 
 
 def _authorize_request(challenge: str) -> oauth_service.OAuthAuthorizeRequest:
@@ -134,10 +133,10 @@ def test_oauth_code_exchange_and_runtime_resolution(oauth_settings) -> None:
 
     decoded = jwt.decode(
         token_response.access_token,
-        settings.oauth_jwt_secret,
+        oauth_service.oauth_jwt_secret(),
         algorithms=["HS256"],
-        audience=settings.oauth_mcp_resource,
-        issuer=settings.oauth_issuer,
+        audience=oauth_service.oauth_mcp_resource(),
+        issuer=oauth_service.oauth_issuer(),
     )
     assert decoded["credential_id"] == "cred-chatgpt"
     assert decoded["token_use"] == "synapse_mcp_access"

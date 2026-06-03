@@ -81,21 +81,33 @@ export async function approveOAuthAuthorization(
 }
 
 async function parseOAuthError(response: Response): Promise<string> {
+  const parsed = await readErrorPayload(response);
+  return messageFromOAuthPayload(parsed) || "OAuth authorization failed.";
+}
+
+async function readErrorPayload(response: Response): Promise<unknown> {
   try {
-    const parsed = (await response.json()) as {
-      detail?: { message?: string; error_description?: string } | string;
-      message?: string;
-      error_description?: string;
-    };
-    if (typeof parsed.detail === "string") return parsed.detail;
-    return (
-      parsed.detail?.message ||
-      parsed.detail?.error_description ||
-      parsed.message ||
-      parsed.error_description ||
-      "OAuth authorization failed."
-    );
+    return await response.json();
   } catch {
-    return "OAuth authorization failed.";
+    return null;
   }
+}
+
+function messageFromOAuthPayload(payload: unknown): string | null {
+  if (!payload || typeof payload !== "object") return null;
+  const record = payload as { detail?: unknown; message?: unknown; error_description?: unknown };
+  if (typeof record.detail === "string") return record.detail;
+  if (record.detail && typeof record.detail === "object") {
+    return messageFromOAuthDetail(record.detail);
+  }
+  if (typeof record.message === "string") return record.message;
+  if (typeof record.error_description === "string") return record.error_description;
+  return null;
+}
+
+function messageFromOAuthDetail(detail: object): string | null {
+  const record = detail as { message?: unknown; error_description?: unknown };
+  if (typeof record.message === "string") return record.message;
+  if (typeof record.error_description === "string") return record.error_description;
+  return null;
 }

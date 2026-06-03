@@ -1,6 +1,4 @@
-import type { I18nMessages } from "@/i18n/schema";
-
-const oauthAuthorizePage: I18nMessages["oauthAuthorizePage"] = {
+export const oauthAuthorizeCopy = {
   eyebrow: "Synapse OAuth",
   title: "Authorize ChatGPT Remote MCP",
   description:
@@ -25,6 +23,4 @@ const oauthAuthorizePage: I18nMessages["oauthAuthorizePage"] = {
   invalidRequest: "This OAuth request is missing redirect URI or PKCE S256 parameters.",
   approve: "Authorize ChatGPT",
   approveFailed: "OAuth authorization failed",
-};
-
-export default oauthAuthorizePage;
+} as const;

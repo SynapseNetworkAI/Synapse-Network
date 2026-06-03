@@ -16,7 +16,6 @@ import home from "@/i18n/resources/en/home";
 import invocationsPage from "@/i18n/resources/en/invocationsPage";
 import marketplacePage from "@/i18n/resources/en/marketplacePage";
 import overviewPage from "@/i18n/resources/en/overviewPage";
-import oauthAuthorizePage from "@/i18n/resources/en/oauthAuthorizePage";
 import paidInvokePanel from "@/i18n/resources/en/paidInvokePanel";
 import providerConsolePage from "@/i18n/resources/en/providerConsolePage";
 import providerServiceDeployPage from "@/i18n/resources/en/providerServiceDeployPage";
@@ -32,7 +31,6 @@ import walletActions from "@/i18n/resources/en/walletActions";
 const en: I18nMessages = {
   ...shared,
   overviewPage,
-  oauthAuthorizePage,
   walletActions,
   agentsPage,
   agentCredentialsPage,

@@ -4,19 +4,20 @@ from __future__ import annotations
 import base64
 import hashlib
 import hmac
+import os
 import secrets
 import time
 from dataclasses import dataclass
 from typing import Any, Optional
 from urllib.parse import parse_qs, urlencode, urlparse
 
-import jwt  # type: ignore[import-untyped]
+import jwt  # type: ignore[import-untyped]  # quality-disable-reason: PyJWT ships without complete type stubs in the gateway venv.
 from fastapi import HTTPException
 
 from src.core.common import normalize_wallet
 from src.core.config import settings
 from src.domain.identity import RuntimeCredentialRecord
-from src.services.platform import credential_service
+from src.services.platform import credential_lookup, credential_service
 from src.storage import BaseStorage
 
 READ_SCOPES = {"synapse.discovery.read", "synapse.receipts.read"}
@@ -26,6 +27,38 @@ ALLOWED_SCOPES = READ_SCOPES | WRITE_SCOPES | SYSTEM_SCOPES
 
 DEFAULT_READ_SCOPES = "synapse.discovery.read synapse.receipts.read offline_access"
 ACCESS_TOKEN_USE = "synapse_mcp_access"
+
+
+def oauth_issuer() -> str:
+    return _env_str("SYNAPSE_OAUTH_ISSUER", "https://www.synapse-network.ai").rstrip("/")
+
+
+def oauth_mcp_resource() -> str:
+    return _env_str("SYNAPSE_OAUTH_MCP_RESOURCE", "https://mcp.synapse-network.ai/mcp").rstrip("/")
+
+
+def oauth_jwt_secret() -> str:
+    return _env_str("SYNAPSE_OAUTH_JWT_SECRET", settings.jwt_secret)
+
+
+def oauth_access_token_ttl_sec() -> int:
+    return max(60, _env_int("SYNAPSE_OAUTH_ACCESS_TOKEN_TTL_SEC", 900))
+
+
+def oauth_refresh_token_ttl_sec() -> int:
+    return max(3600, _env_int("SYNAPSE_OAUTH_REFRESH_TOKEN_TTL_SEC", 30 * 24 * 60 * 60))
+
+
+def oauth_authorization_code_ttl_sec() -> int:
+    return max(60, _env_int("SYNAPSE_OAUTH_AUTHORIZATION_CODE_TTL_SEC", 300))
+
+
+def oauth_allowed_client_ids() -> set[str]:
+    return _env_csv("SYNAPSE_OAUTH_ALLOWED_CLIENT_IDS", "chatgpt-custom-mcp,chatgpt")
+
+
+def oauth_allowed_redirect_hosts() -> set[str]:
+    return _env_csv("SYNAPSE_OAUTH_ALLOWED_REDIRECT_HOSTS", "chatgpt.com,chat.openai.com")
 
 
 @dataclass(frozen=True)
@@ -62,7 +95,7 @@ class OAuthTokenResponse:
 
 
 def authorization_server_metadata() -> dict[str, Any]:
-    issuer = settings.oauth_issuer
+    issuer = oauth_issuer()
     return {
         "issuer": issuer,
         "authorization_endpoint": f"{issuer}/oauth/authorize",
@@ -74,7 +107,7 @@ def authorization_server_metadata() -> dict[str, Any]:
         "code_challenge_methods_supported": ["S256"],
         "token_endpoint_auth_methods_supported": ["none"],
         "scopes_supported": sorted(ALLOWED_SCOPES),
-        "resource_documentation": "https://mcp.synapse-network.ai/mcp",
+        "resource_documentation": oauth_mcp_resource(),
     }
 
 
@@ -97,7 +130,7 @@ def create_authorization_code(
 ) -> str:
     _validate_authorize_request(request)
     owner = normalize_wallet(owner_wallet)
-    credential = credential_service.resolve_active_credential_by_id(
+    credential = credential_lookup.resolve_active_credential_by_id(
         storage,
         request.credential_id,
         owner,
@@ -116,7 +149,7 @@ def create_authorization_code(
         "codeChallenge": request.code_challenge,
         "codeChallengeMethod": request.code_challenge_method,
         "createdAt": now,
-        "expiresAt": now + settings.oauth_authorization_code_ttl_sec,
+        "expiresAt": now + oauth_authorization_code_ttl_sec(),
     }
     _write_state(storage, _code_key(code), payload)
     return _redirect_with_code(request.redirect_uri, code, request.state)
@@ -148,10 +181,10 @@ def revoke_token(storage: BaseStorage, form: dict[str, str]) -> dict[str, str]:
     try:
         payload = jwt.decode(
             token,
-            settings.oauth_jwt_secret,
+            oauth_jwt_secret(),
             algorithms=["HS256"],
-            audience=settings.oauth_mcp_resource,
-            issuer=settings.oauth_issuer,
+            audience=oauth_mcp_resource(),
+            issuer=oauth_issuer(),
         )
     except Exception:
         return {"status": "ok"}
@@ -171,10 +204,10 @@ def resolve_runtime_credential(
     try:
         payload = jwt.decode(
             token,
-            settings.oauth_jwt_secret,
+            oauth_jwt_secret(),
             algorithms=["HS256"],
-            audience=settings.oauth_mcp_resource,
-            issuer=settings.oauth_issuer,
+            audience=oauth_mcp_resource(),
+            issuer=oauth_issuer(),
         )
     except jwt.ExpiredSignatureError:
         raise HTTPException(
@@ -209,7 +242,7 @@ def resolve_runtime_credential(
         )
     owner = normalize_wallet(str(payload.get("sub") or ""))
     credential_id = str(payload.get("credential_id") or "")
-    return credential_service.resolve_active_credential_by_id(storage, credential_id, owner)
+    return credential_lookup.resolve_active_credential_by_id(storage, credential_id, owner)
 
 
 def _exchange_authorization_code(storage: BaseStorage, form: dict[str, str]) -> OAuthTokenResponse:
@@ -258,10 +291,10 @@ def _issue_token_pair(
 ) -> OAuthTokenResponse:
     now = _now()
     scopes = [str(scope) for scope in grant_state.get("scope", [])]
-    access_ttl = settings.oauth_access_token_ttl_sec
+    access_ttl = oauth_access_token_ttl_sec()
     jti = secrets.token_urlsafe(18)
     access_payload = {
-        "iss": settings.oauth_issuer,
+        "iss": oauth_issuer(),
         "sub": grant_state["ownerWallet"],
         "aud": grant_state["resource"],
         "iat": now,
@@ -273,7 +306,7 @@ def _issue_token_pair(
         "scope": " ".join(scopes),
         "token_use": ACCESS_TOKEN_USE,
     }
-    access_token = jwt.encode(access_payload, settings.oauth_jwt_secret, algorithm="HS256")
+    access_token = jwt.encode(access_payload, oauth_jwt_secret(), algorithm="HS256")
     refresh_token = None
     if rotate_refresh or "offline_access" in scopes:
         refresh_token = f"syn_rt_{secrets.token_urlsafe(48)}"
@@ -288,7 +321,7 @@ def _issue_token_pair(
                 "scope": scopes,
                 "resource": grant_state["resource"],
                 "createdAt": now,
-                "expiresAt": now + settings.oauth_refresh_token_ttl_sec,
+                "expiresAt": now + oauth_refresh_token_ttl_sec(),
             },
         )
     return OAuthTokenResponse(
@@ -313,8 +346,7 @@ def _validate_authorize_request(request: OAuthAuthorizeRequest) -> None:
 
 def _validate_client_id(client_id: str) -> None:
     value = str(client_id or "").strip()
-    allowed = {item.strip() for item in settings.oauth_allowed_client_ids.split(",") if item.strip()}
-    if value in allowed:
+    if value in oauth_allowed_client_ids():
         return
     parsed = urlparse(value)
     if parsed.scheme == "https" and _host_allowed(parsed.hostname or ""):
@@ -333,8 +365,10 @@ def _validate_redirect_uri(redirect_uri: str) -> None:
 
 def _host_allowed(hostname: str) -> bool:
     host = hostname.lower()
-    allowed = [item.strip().lower() for item in settings.oauth_allowed_redirect_hosts.split(",") if item.strip()]
-    return any(host == item or host.endswith(f".{item}") for item in allowed)
+    return any(
+        host == allowed_host or host.endswith(f".{allowed_host}")
+        for allowed_host in oauth_allowed_redirect_hosts()
+    )
 
 
 def _validate_pkce(code_verifier: str, expected_challenge: str) -> None:
@@ -355,8 +389,9 @@ def _parse_scopes(raw_scope: str) -> set[str]:
 
 
 def _resource(raw_resource: Optional[str]) -> str:
-    resource = str(raw_resource or settings.oauth_mcp_resource).strip().rstrip("/")
-    if resource != settings.oauth_mcp_resource:
+    expected = oauth_mcp_resource()
+    resource = str(raw_resource or expected).strip().rstrip("/")
+    if resource != expected:
         raise HTTPException(status_code=400, detail={"code": "INVALID_RESOURCE", "message": "OAuth token resource is not allowed"})
     return resource
 
@@ -395,3 +430,19 @@ def _hash_secret(value: str) -> str:
 
 def _now() -> int:
     return int(time.time())
+
+
+def _env_str(name: str, default: str) -> str:
+    return (os.getenv(name, default).strip() or default).strip()
+
+
+def _env_int(name: str, default: int) -> int:
+    try:
+        return int(os.getenv(name, str(default)).strip())
+    except Exception:
+        return default
+
+
+def _env_csv(name: str, default: str) -> set[str]:
+    raw = os.getenv(name, default)
+    return {item.strip().lower() for item in raw.split(",") if item.strip()}
