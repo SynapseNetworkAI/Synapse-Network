@@ -1,11 +1,26 @@
 "use client";
 
-import { Avatar, Box, Button, Flex, Grid, Heading, HStack, Stack, Text } from "@chakra-ui/react";
+import {
+  Avatar,
+  Box,
+  Button,
+  Flex,
+  Grid,
+  Heading,
+  HStack,
+  Stack,
+  Text,
+} from "@chakra-ui/react";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 
-import { filterNavigation, findNavPathByPath, resolveExpandedNavigationIds, type NavItem } from "@/lib/navigation";
+import {
+  filterNavigation,
+  findNavPathByPath,
+  resolveExpandedNavigationIds,
+  type NavItem,
+} from "@/lib/navigation";
 import { logoutAdmin, type AdminProfile } from "@/services/admin-api";
 
 import { NavSearchBar } from "@/components/nav-search-bar";
@@ -18,7 +33,260 @@ type AdminSidebarProps = {
   onCloseMobile: () => void;
 };
 
-export function AdminSidebar({ admin, navigation, mobileOpen, onCloseMobile }: Readonly<AdminSidebarProps>) {
+function adminInitialsFor(displayName: string) {
+  return displayName
+    .split(" ")
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+}
+
+function sidebarLeft(mobileOpen: boolean) {
+  return { base: mobileOpen ? 0 : "-100%", lg: "auto" };
+}
+
+function isEditableTarget(target: EventTarget | null) {
+  return (
+    target instanceof HTMLElement &&
+    (target.tagName === "INPUT" ||
+      target.tagName === "TEXTAREA" ||
+      target.isContentEditable)
+  );
+}
+
+function isSearchShortcut(event: KeyboardEvent) {
+  return (
+    event.key === "/" &&
+    !event.metaKey &&
+    !event.ctrlKey &&
+    !event.altKey &&
+    !isEditableTarget(event.target)
+  );
+}
+
+function updateExpandedList(
+  current: string[],
+  id: string,
+  isExpanded: boolean
+) {
+  return isExpanded
+    ? current.filter((entry) => entry !== id)
+    : Array.from(new Set([...current, id]));
+}
+
+function updateCollapsedList(
+  current: string[],
+  id: string,
+  isExpanded: boolean
+) {
+  return isExpanded
+    ? Array.from(new Set([...current, id]))
+    : current.filter((entry) => entry !== id);
+}
+
+function useNavigationSearchShortcut(
+  inputRef: RefObject<HTMLInputElement | null>
+) {
+  useEffect(() => {
+    function handleShortcut(event: KeyboardEvent) {
+      if (!isSearchShortcut(event)) return;
+      event.preventDefault();
+      inputRef.current?.focus();
+    }
+
+    globalThis.addEventListener("keydown", handleShortcut);
+    return () => globalThis.removeEventListener("keydown", handleShortcut);
+  }, [inputRef]);
+}
+
+function SidebarBrand({
+  onCloseMobile,
+}: Readonly<{ onCloseMobile: () => void }>) {
+  return (
+    <Flex justify="space-between" align="flex-start" gap="10px">
+      <Flex align="center" gap="10px">
+        <Grid
+          placeItems="center"
+          w="46px"
+          h="46px"
+          borderRadius="md"
+          bg="shadcn.sidebarPrimary"
+          border="1px solid"
+          borderColor="shadcn.sidebarRing"
+          overflow="hidden"
+        >
+          <Image
+            src="/brand/synapse-network-icon.svg"
+            alt="SynapseNetwork"
+            width={36}
+            height={36}
+          />
+        </Grid>
+        <Stack gap="1px">
+          <Text
+            fontSize="11px"
+            letterSpacing="0.22em"
+            textTransform="uppercase"
+            color="color-mix(in oklch, var(--sidebar-foreground) 58%, transparent)"
+          >
+            Synapse Network
+          </Text>
+          <Heading size="md" letterSpacing="-0.02em">
+            Admin Sentinel
+          </Heading>
+        </Stack>
+      </Flex>
+      <Button
+        display={{ base: "inline-flex", lg: "none" }}
+        variant="ghost"
+        color="shadcn.sidebarForeground"
+        onClick={onCloseMobile}
+      >
+        关闭
+      </Button>
+    </Flex>
+  );
+}
+
+function SidebarNavigation({
+  activePathIds,
+  expandedIds,
+  filtered,
+  onNavigate,
+  onToggle,
+}: Readonly<{
+  activePathIds: Set<string>;
+  expandedIds: Set<string>;
+  filtered: NavItem[];
+  onNavigate: (href: string) => void;
+  onToggle: (id: string) => void;
+}>) {
+  return (
+    <Box flex="1" overflowY="auto" pr="4px" css={{ scrollbarWidth: "thin" }}>
+      <Stack gap="10px">
+        {filtered.map((item) => (
+          <NavTreeNode
+            key={item.id}
+            item={item}
+            depth={0}
+            expandedIds={expandedIds}
+            activePathIds={activePathIds}
+            onToggle={onToggle}
+            onNavigate={onNavigate}
+          />
+        ))}
+        {filtered.length === 0 ? <SidebarEmptySearch /> : null}
+      </Stack>
+    </Box>
+  );
+}
+
+function SidebarEmptySearch() {
+  return (
+    <Box
+      borderRadius="lg"
+      border="1px solid"
+      borderColor="shadcn.sidebarBorder"
+      bg="shadcn.sidebarAccent"
+      p="16px"
+    >
+      <Text fontWeight="700">No matching modules</Text>
+      <Text
+        mt="4px"
+        fontSize="13px"
+        color="color-mix(in oklch, var(--sidebar-foreground) 62%, transparent)"
+      >
+        调整关键词后会重新匹配所有层级，并展开相关路径。
+      </Text>
+    </Box>
+  );
+}
+
+function SidebarActions({ onLogout }: Readonly<{ onLogout: () => void }>) {
+  return (
+    <Stack gap="10px">
+      <Button
+        justifyContent="flex-start"
+        variant="ghost"
+        color="shadcn.sidebarForeground"
+        borderRadius="lg"
+        bg="shadcn.sidebarAccent"
+      >
+        SETTINGS
+      </Button>
+      <Button
+        justifyContent="flex-start"
+        variant="ghost"
+        color="shadcn.sidebarForeground"
+        borderRadius="lg"
+        bg="shadcn.sidebarAccent"
+        onClick={onLogout}
+      >
+        LOGOUT
+      </Button>
+    </Stack>
+  );
+}
+
+function SidebarSessionCard({ admin }: Readonly<{ admin: AdminProfile }>) {
+  return (
+    <Box
+      borderRadius="lg"
+      bg="shadcn.sidebarAccent"
+      border="1px solid"
+      borderColor="shadcn.sidebarBorder"
+      p="16px"
+    >
+      <Text
+        fontSize="11px"
+        letterSpacing="0.18em"
+        textTransform="uppercase"
+        color="color-mix(in oklch, var(--sidebar-foreground) 50%, transparent)"
+      >
+        Active Session
+      </Text>
+      <Flex mt="10px" align="center" gap="12px">
+        <Avatar.Root size="md" colorPalette="green" variant="solid">
+          <Avatar.Fallback name={admin.displayName}>
+            {adminInitialsFor(admin.displayName)}
+          </Avatar.Fallback>
+        </Avatar.Root>
+        <Stack gap="1px">
+          <Heading size="sm">{admin.displayName}</Heading>
+          <Text color="color-mix(in oklch, var(--sidebar-foreground) 70%, transparent)">
+            {admin.email}
+          </Text>
+        </Stack>
+      </Flex>
+      <HStack mt="12px" gap="8px" wrap="wrap">
+        <Box
+          px="10px"
+          py="6px"
+          borderRadius="full"
+          bg="color-mix(in oklch, var(--sidebar-foreground) 10%, transparent)"
+        >
+          {admin.role}
+        </Box>
+        <Box
+          px="10px"
+          py="6px"
+          borderRadius="full"
+          bg="color-mix(in oklch, var(--sidebar-primary) 22%, transparent)"
+        >
+          {admin.permissions.length} permissions
+        </Box>
+      </HStack>
+    </Box>
+  );
+}
+
+export function AdminSidebar({
+  admin,
+  navigation,
+  mobileOpen,
+  onCloseMobile,
+}: Readonly<AdminSidebarProps>) {
   const pathname = usePathname();
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -26,28 +294,23 @@ export function AdminSidebar({ admin, navigation, mobileOpen, onCloseMobile }: R
   const [manualExpandedIds, setManualExpandedIds] = useState<string[]>([]);
   const [manualCollapsedIds, setManualCollapsedIds] = useState<string[]>([]);
 
-  const adminInitials = useMemo(() => admin.displayName.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase(), [admin.displayName]);
-  const activePath = useMemo(() => findNavPathByPath(navigation, pathname), [navigation, pathname]);
-  const filteredResult = useMemo(() => filterNavigation(navigation, query), [navigation, query]);
+  const activePath = useMemo(
+    () => findNavPathByPath(navigation, pathname),
+    [navigation, pathname]
+  );
+  const filteredResult = useMemo(
+    () => filterNavigation(navigation, query),
+    [navigation, query]
+  );
 
   useEffect(() => {
     const activeAncestorIds = new Set(activePath.slice(0, -1));
-    setManualCollapsedIds((current) => current.filter((id) => !activeAncestorIds.has(id)));
+    setManualCollapsedIds((current) =>
+      current.filter((id) => !activeAncestorIds.has(id))
+    );
   }, [pathname, activePath]);
 
-  useEffect(() => {
-    function handleShortcut(event: KeyboardEvent) {
-      const target = event.target;
-      const isEditable = target instanceof HTMLElement && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
-      if (event.key === "/" && !event.metaKey && !event.ctrlKey && !event.altKey && !isEditable) {
-        event.preventDefault();
-        inputRef.current?.focus();
-      }
-    }
-
-    globalThis.addEventListener("keydown", handleShortcut);
-    return () => globalThis.removeEventListener("keydown", handleShortcut);
-  }, []);
+  useNavigationSearchShortcut(inputRef);
 
   async function handleLogout() {
     try {
@@ -60,8 +323,12 @@ export function AdminSidebar({ admin, navigation, mobileOpen, onCloseMobile }: R
   function handleToggle(id: string) {
     const isExpanded = expandedIds.has(id);
 
-    setManualExpandedIds((current) => isExpanded ? current.filter((entry) => entry !== id) : Array.from(new Set([...current, id])));
-    setManualCollapsedIds((current) => isExpanded ? Array.from(new Set([...current, id])) : current.filter((entry) => entry !== id));
+    setManualExpandedIds((current) =>
+      updateExpandedList(current, id, isExpanded)
+    );
+    setManualCollapsedIds((current) =>
+      updateCollapsedList(current, id, isExpanded)
+    );
   }
 
   function handleNavigate(href: string) {
@@ -69,96 +336,51 @@ export function AdminSidebar({ admin, navigation, mobileOpen, onCloseMobile }: R
     router.push(href);
   }
 
-  const expandedIds = new Set(resolveExpandedNavigationIds({
-    manualExpandedIds,
-    manualCollapsedIds,
-    activePath,
-    filteredExpandedIds: filteredResult.expandedIds,
-    query,
-  }));
+  const expandedIds = new Set(
+    resolveExpandedNavigationIds({
+      manualExpandedIds,
+      manualCollapsedIds,
+      activePath,
+      filteredExpandedIds: filteredResult.expandedIds,
+      query,
+    })
+  );
   const activePathIds = new Set(activePath);
 
   return (
     <Box
-      bg="#0a0d12"
-      color="#f4f7fb"
-      borderRadius={{ base: "0", lg: "30px" }}
+      bg="shadcn.sidebar"
+      color="shadcn.sidebarForeground"
+      borderRadius={{ base: "0", lg: "xl" }}
       minH={{ base: "100dvh", lg: "calc(100dvh - 32px)" }}
       p={{ base: "18px", lg: "22px" }}
       position={{ base: "fixed", lg: "sticky" }}
       top={{ base: 0, lg: "16px" }}
-      left={{ base: mobileOpen ? 0 : "-100%", lg: "auto" }}
+      left={sidebarLeft(mobileOpen)}
       w={{ base: "100%", lg: "340px" }}
       transition="left 0.24s ease"
       zIndex={30}
       display="flex"
       flexDirection="column"
       gap="14px"
-      boxShadow="0 30px 80px rgba(7, 10, 15, 0.38)"
-      border="1px solid rgba(255,255,255,0.05)"
-      backgroundImage="radial-gradient(circle at top left, rgba(34, 211, 238, 0.12), transparent 26%), linear-gradient(180deg, rgba(255,255,255,0.03) 0%, rgba(10,13,18,0) 24%)"
+      boxShadow="0 30px 80px oklch(0.12 0.024 252 / 38%)"
+      border="1px solid"
+      borderColor="shadcn.sidebarBorder"
+      backgroundImage="linear-gradient(180deg, color-mix(in oklch, var(--sidebar-accent) 42%, transparent) 0%, transparent 30%)"
       overflow="hidden"
+      data-testid="admin-console-sidebar"
     >
-      <Flex justify="space-between" align="flex-start" gap="10px">
-        <Stack gap="4px">
-          <Flex align="center" gap="10px">
-            <Grid placeItems="center" w="46px" h="46px" borderRadius="14px" bg="rgba(248, 251, 255, 0.96)" border="1px solid rgba(34, 211, 238, 0.24)" overflow="hidden">
-              <Image src="/brand/synapse-network-icon.svg" alt="SynapseNetwork" width={36} height={36} />
-            </Grid>
-            <Stack gap="1px">
-              <Text fontSize="11px" letterSpacing="0.22em" textTransform="uppercase" color="rgba(244,247,251,0.52)">Synapse Network</Text>
-              <Heading size="md" letterSpacing="-0.02em">Admin Sentinel</Heading>
-            </Stack>
-          </Flex>
-        </Stack>
-        <Button display={{ base: "inline-flex", lg: "none" }} variant="ghost" color="#f4f7fb" onClick={onCloseMobile}>关闭</Button>
-      </Flex>
-
+      <SidebarBrand onCloseMobile={onCloseMobile} />
       <NavSearchBar value={query} onChange={setQuery} inputRef={inputRef} />
-
-      <Box flex="1" overflowY="auto" pr="4px" css={{ scrollbarWidth: "thin" }}>
-        <Stack gap="10px">
-          {filteredResult.filtered.map((item) => (
-            <NavTreeNode
-              key={item.id}
-              item={item}
-              depth={0}
-              expandedIds={expandedIds}
-              activePathIds={activePathIds}
-              onToggle={handleToggle}
-              onNavigate={handleNavigate}
-            />
-          ))}
-          {filteredResult.filtered.length === 0 ? (
-            <Box borderRadius="16px" border="1px solid rgba(255,255,255,0.06)" bg="rgba(255,255,255,0.03)" p="16px">
-              <Text fontWeight="700">No matching modules</Text>
-              <Text mt="4px" fontSize="13px" color="rgba(244,247,251,0.58)">调整关键词后会重新匹配所有层级，并展开相关路径。</Text>
-            </Box>
-          ) : null}
-        </Stack>
-      </Box>
-
-      <Stack gap="10px">
-        <Button justifyContent="flex-start" variant="ghost" color="#f4f7fb" borderRadius="16px" bg="rgba(255,255,255,0.04)">SETTINGS</Button>
-        <Button justifyContent="flex-start" variant="ghost" color="#f4f7fb" borderRadius="16px" bg="rgba(255,255,255,0.04)" onClick={() => void handleLogout()}>LOGOUT</Button>
-      </Stack>
-
-      <Box borderRadius="20px" bg="rgba(255,255,255,0.05)" border="1px solid rgba(255,255,255,0.08)" p="16px">
-        <Text fontSize="11px" letterSpacing="0.18em" textTransform="uppercase" color="rgba(244,247,251,0.46)">Active Session</Text>
-        <Flex mt="10px" align="center" gap="12px">
-          <Avatar.Root size="md" colorPalette="green" variant="solid">
-            <Avatar.Fallback name={admin.displayName}>{adminInitials}</Avatar.Fallback>
-          </Avatar.Root>
-          <Stack gap="1px">
-            <Heading size="sm">{admin.displayName}</Heading>
-            <Text color="rgba(244,247,251,0.68)">{admin.email}</Text>
-          </Stack>
-        </Flex>
-        <HStack mt="12px" gap="8px" wrap="wrap">
-          <Box px="10px" py="6px" borderRadius="full" bg="rgba(255,255,255,0.08)">{admin.role}</Box>
-          <Box px="10px" py="6px" borderRadius="full" bg="rgba(31,146,87,0.18)">{admin.permissions.length} permissions</Box>
-        </HStack>
-      </Box>
+      <SidebarNavigation
+        activePathIds={activePathIds}
+        expandedIds={expandedIds}
+        filtered={filteredResult.filtered}
+        onNavigate={handleNavigate}
+        onToggle={handleToggle}
+      />
+      <SidebarActions onLogout={() => void handleLogout()} />
+      <SidebarSessionCard admin={admin} />
     </Box>
   );
 }

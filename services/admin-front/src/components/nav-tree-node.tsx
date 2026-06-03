@@ -26,15 +26,16 @@ function getNodeVisualState(
 ): NavTreeNodeVisualState {
   if (isActive) {
     return {
-      borderColor: "rgba(76, 214, 251, 0.4)",
-      background: "rgba(34, 211, 238, 0.12)",
+      borderColor: "var(--sidebar-ring)",
+      background:
+        "color-mix(in oklch, var(--sidebar-primary) 18%, transparent)",
     };
   }
 
   if (isInActiveTrail) {
     return {
-      borderColor: "rgba(255,255,255,0.08)",
-      background: "rgba(255,255,255,0.04)",
+      borderColor: "var(--sidebar-border)",
+      background: "var(--sidebar-accent)",
     };
   }
 
@@ -74,9 +75,17 @@ function TreeNodeRow({
         justify="center"
         w="32px"
         h="32px"
-        borderRadius="10px"
-        bg={isActive ? "rgba(34, 211, 238, 0.18)" : "rgba(255,255,255,0.06)"}
-        color={isActive ? "#b3ebff" : "rgba(244,247,251,0.84)"}
+        borderRadius="md"
+        bg={
+          isActive
+            ? "color-mix(in oklch, var(--sidebar-primary) 28%, transparent)"
+            : "color-mix(in oklch, var(--sidebar-foreground) 8%, transparent)"
+        }
+        color={
+          isActive
+            ? "var(--sidebar-primary)"
+            : "color-mix(in oklch, var(--sidebar-foreground) 84%, transparent)"
+        }
         fontSize="11px"
         fontWeight="900"
         fontFamily="mono"
@@ -88,13 +97,21 @@ function TreeNodeRow({
         <Text
           fontSize="13px"
           fontWeight="700"
-          color={isActive ? "#f4f7fb" : "rgba(244,247,251,0.88)"}
+          color={
+            isActive
+              ? "var(--sidebar-foreground)"
+              : "color-mix(in oklch, var(--sidebar-foreground) 88%, transparent)"
+          }
           lineClamp={1}
         >
           {item.title}
         </Text>
         {item.description ? (
-          <Text fontSize="11px" color="rgba(244,247,251,0.48)" lineClamp={1}>
+          <Text
+            fontSize="11px"
+            color="color-mix(in oklch, var(--sidebar-foreground) 50%, transparent)"
+            lineClamp={1}
+          >
             {item.description}
           </Text>
         ) : null}
@@ -155,18 +172,20 @@ function TreeNodeRow({
       pl={`${leftPadding}px`}
       pr="12px"
       py="11px"
-      borderRadius="16px"
+      borderRadius="md"
       border="1px solid"
       borderColor={visualState.borderColor}
       bg={visualState.background}
       boxShadow={
         isActive
-          ? "inset 0 0 0 1px rgba(76, 214, 251, 0.18), 0 0 20px rgba(34, 211, 238, 0.12)"
+          ? "inset 0 0 0 1px color-mix(in oklch, var(--sidebar-primary) 26%, transparent), 0 0 20px color-mix(in oklch, var(--sidebar-primary) 16%, transparent)"
           : "none"
       }
       position="relative"
       _hover={{
-        bg: isActive ? "rgba(34, 211, 238, 0.14)" : "rgba(255,255,255,0.04)",
+        bg: isActive
+          ? "color-mix(in oklch, var(--sidebar-primary) 20%, transparent)"
+          : "var(--sidebar-accent)",
       }}
     >
       <Box
@@ -175,7 +194,7 @@ function TreeNodeRow({
         top="6px"
         bottom="6px"
         w="1px"
-        bg={depth > 0 ? "rgba(255,255,255,0.08)" : "transparent"}
+        bg={depth > 0 ? "var(--sidebar-border)" : "transparent"}
       />
       {labelControl}
       {hasChildren ? (
@@ -185,8 +204,10 @@ function TreeNodeRow({
           h="28px"
           p="0"
           borderRadius="full"
-          color="rgba(244,247,251,0.72)"
-          _hover={{ bg: "rgba(255,255,255,0.08)" }}
+          color="color-mix(in oklch, var(--sidebar-foreground) 72%, transparent)"
+          _hover={{
+            bg: "color-mix(in oklch, var(--sidebar-foreground) 8%, transparent)",
+          }}
           onClick={(event) => {
             event.preventDefault();
             event.stopPropagation();

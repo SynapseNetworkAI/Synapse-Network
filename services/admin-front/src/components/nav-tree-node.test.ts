@@ -188,6 +188,30 @@ describe("NavTreeNode", () => {
     expect(html).not.toContain('role="button"');
   });
 
+  it("renders active navigation with sidebar theme tokens", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(NavTreeNode, {
+        item: {
+          id: "config-center",
+          title: "配置中心",
+          icon: "CF",
+          nodeType: "page",
+          path: "/config",
+        },
+        depth: 0,
+        expandedIds: new Set(),
+        activePathIds: new Set(["config-center"]),
+        onToggle: () => undefined,
+        onNavigate: () => undefined,
+      })
+    );
+
+    expect(html).toContain("var(--sidebar-ring)");
+    expect(html).toContain("var(--sidebar-primary)");
+    expect(html).toContain("var(--sidebar-foreground)");
+    expect(html).toContain('data-nav-path="/config"');
+  });
+
   it("keeps sibling page nodes as links instead of expandable controls", () => {
     const html = renderToStaticMarkup(
       React.createElement(NavTreeNode, {

@@ -7,7 +7,7 @@ Local execution mirror for `services/admin-front/`.
 1. `docs/AGENTS.md`
 2. `.github/instructions/frontend.instructions.md`
 3. `.github/instructions/admin-console.instructions.md`
-4. `docs/03_Projects/admin-front/Admin_Front_Agent_Rules.md`
+4. `docs/projects/admin-front/Admin_Front_Agent_Rules.md`
 5. `docs/reference/Service_Port_Map.md`
 
 ## Local Commands
@@ -26,21 +26,21 @@ Always use `yarn dev` while iterating. Do not keep the dev server running while 
 
 ### 保持文档和前端页面一致
 
-When working on `services/admin-front`, consult the backend/admin document index under `docs/admin/` so page behavior, IA, approval semantics, and control-plane wording stay aligned with `gateway-admin`.
+When working on `services/admin-front`, consult the backend/admin document index under `docs/projects/admin/` so page behavior, IA, approval semantics, and control-plane wording stay aligned with `gateway-admin`.
 
-Recommended `docs/admin/` reading order:
+Recommended `docs/projects/admin/` reading order:
 
-- `docs/admin/README.md`: admin document entrypoint and scope overview.
-- `docs/admin/Platform_Admin_Backoffice_Architecture.md`: source of truth for module boundaries, page responsibilities, and admin-front vs gateway-admin separation.
-- `docs/admin/Admin_API_Contract_Phase1.md`: backend contract baseline for dashboard, approvals, audit, execution, users, and config APIs.
-- `docs/admin/Admin_RBAC_Design.md`: admin roles, permission boundaries, and surface visibility model.
-- `docs/admin/Admin_Approval_Workflow.md`: approval states, reviewer flow, and high-risk action control path.
-- `docs/admin/Admin_Audit_and_Compliance.md`: audit trail semantics, operator trace requirements, and compliance expectations.
-- `docs/admin/Admin_Finance_Operations_Runbook.md`: finance console responsibilities, operational actions, and exception handling flows.
-- `docs/admin/Admin_Gateway_Security_Design.md`: admin security boundary, MFA, token, and privileged action guardrails.
-- `docs/admin/Admin_Database_Design.md`: admin-side persistent model and read-model boundaries.
-- `docs/admin/Gateway_Admin_Projection_Views_SQL_Design.md`: projection/read-model semantics that drive dashboard, finance, and operations pages.
-- `docs/admin/Admin_PostgreSQL_Deployment_Design.md`: deployment and operational constraints relevant to runtime/system pages.
+- `docs/projects/admin/Platform_Admin_Backoffice_Architecture.md`: source of truth for module boundaries, page responsibilities, and admin-front vs gateway-admin separation.
+- `docs/projects/admin/Admin_API_Contract_Phase1.md`: backend contract baseline for dashboard, approvals, audit, execution, users, and config APIs.
+- `docs/projects/admin/Admin_RBAC_Design.md`: admin roles, permission boundaries, and surface visibility model.
+- `docs/projects/admin/Admin_Approval_Workflow.md`: approval states, reviewer flow, and high-risk action control path.
+- `docs/projects/admin/Admin_Audit_and_Compliance.md`: audit trail semantics, operator trace requirements, and compliance expectations.
+- `docs/projects/admin/Admin_Finance_Operations_Runbook.md`: finance console responsibilities, operational actions, and exception handling flows.
+- `docs/projects/admin/Admin_Gateway_Security_Design.md`: admin security boundary, MFA, token, and privileged action guardrails.
+- `docs/projects/admin/Admin_Database_Design.md`: admin-side persistent model and read-model boundaries.
+- `docs/projects/admin/Gateway_Admin_Projection_Views_SQL_Design.md`: projection/read-model semantics that drive dashboard, finance, and operations pages.
+- `docs/projects/admin/Admin_PostgreSQL_Deployment_Design.md`: deployment and operational constraints relevant to runtime/system pages.
+- `docs/projects/admin-front/Admin_Control_Console_Redesign.md`: product IA, token model, shell pattern, and local screenshot verification plan for the new console UI.
 
 For any admin-front page that maps to a `gateway-admin` module, align UI copy, filters, statuses, and control flow to these documents before inventing frontend-only semantics.
 
@@ -60,9 +60,9 @@ For each matching page, review `screen.png`, `code.html`, and `DESIGN.md` in tha
 
 Resolution rules when references differ:
 
-- `docs/admin/` defines product semantics, IA, permissions, workflow states, and backend-aligned wording.
+- `docs/projects/admin/` defines product semantics, IA, permissions, workflow states, and backend-aligned wording.
 - `stitch/` defines visual hierarchy, spatial composition, component silhouette, and auth/dashboard atmosphere.
-- If behavior from `docs/admin/` conflicts with a prototype, keep the documented behavior and adapt the prototype visually instead of changing product semantics.
+- If behavior from `docs/projects/admin/` conflicts with a prototype, keep the documented behavior and adapt the prototype visually instead of changing product semantics.
 
 ## Admin Console Detail Rules
 
