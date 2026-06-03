@@ -1,0 +1,42 @@
+---
+title: Cursor
+description: Configure Synapse MCP in Cursor.
+---
+
+Add a project-local Cursor MCP config at `.cursor/mcp.json`.
+
+```json
+{
+  "mcpServers": {
+    "synapse": {
+      "command": "npx",
+      "args": ["-y", "@synapse-network-ai/mcp-server"],
+      "env": {
+        "SYNAPSE_AGENT_KEY": "agt_xxx",
+        "SYNAPSE_ENV": "prod"
+      }
+    }
+  }
+}
+```
+
+Then enable the server in Cursor Settings.
+
+## Verify
+
+Cursor should show the Synapse MCP server with available tools:
+
+- `discover_services`
+- `invoke_and_pay`
+- `get_receipt`
+
+## First prompt
+
+```text
+Use the Synapse MCP server to discover provider services for security analysis.
+Do not call invoke_and_pay until I confirm the service and price.
+```
+
+## Production policy
+
+Use a dedicated Agent Credential with a low spend cap for Cursor. Do not reuse a broad production credential for experiments.

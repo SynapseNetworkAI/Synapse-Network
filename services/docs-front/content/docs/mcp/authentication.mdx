@@ -1,0 +1,58 @@
+---
+title: MCP Authentication
+description: Understand BYOK Agent Key auth, Synapse OAuth, and the billing boundary for hosted MCP clients.
+---
+
+Synapse MCP supports two user-facing authentication models.
+
+## BYOK Agent Key
+
+BYOK means bring your own key. The user supplies an Agent Credential that starts with `agt_`.
+
+```text
+Authorization: Bearer agt_xxx
+```
+
+The hosted MCP layer forwards that credential to Gateway as the runtime credential. Usage is charged to the balance and limits attached to that Agent Credential.
+
+Use BYOK for:
+
+- Codex Remote MCP with `--bearer-token-env-var SYNAPSE_AGENT_KEY`.
+- Local stdio clients such as Claude Desktop, Cursor, VS Code, Windsurf, Cline, and Roo.
+- Agent runtimes where the user can safely provide an environment variable.
+
+## Synapse OAuth
+
+OAuth is for connector-style clients such as ChatGPT custom MCP apps and Codex OAuth login.
+
+Flow:
+
+1. The client connects to `https://mcp.synapse-network.ai/mcp`.
+2. The MCP server returns a 401 challenge with protected-resource metadata.
+3. The client redirects the user to `https://www.synapse-network.ai/oauth/authorize`.
+4. The user logs in, connects a wallet, and selects or creates a dedicated Agent Credential.
+5. Synapse issues an OAuth access token and refresh token.
+6. The MCP server validates the OAuth token and Gateway resolves it to the linked Agent Credential.
+
+The client receives an OAuth token, not the raw `agt_xxx` key.
+
+## Scopes
+
+| Scope | Tools |
+| --- | --- |
+| `synapse.discovery.read` | `discover_services` |
+| `synapse.receipts.read` | `get_receipt` |
+| `synapse.invocations.write` | `invoke_and_pay` |
+| `offline_access` | Long-lived connector sessions through refresh tokens |
+
+## Token boundary
+
+<WarningNote title="OAuth token is not an Agent Key">
+  An OAuth token authorizes a connector session. An Agent Credential controls
+  billing, budgets, and invocation rights. Synapse maps OAuth tokens to Agent
+  Credentials on the server side.
+</WarningNote>
+
+## Wallet connection errors
+
+If the OAuth page says wallet connection is unavailable, install or enable a supported Arbitrum wallet such as MetaMask or Rabby, refresh the page, and retry the connector authorization.

@@ -1,0 +1,59 @@
+---
+title: Claude
+description: Configure Synapse MCP for Claude Desktop and Claude Code.
+---
+
+Use local stdio MCP for the most portable Claude setup. Use hosted Remote MCP only in Claude clients or plans that support custom remote connectors.
+
+## Claude Desktop
+
+Add Synapse to your Claude Desktop MCP config:
+
+```json
+{
+  "mcpServers": {
+    "synapse": {
+      "command": "npx",
+      "args": ["-y", "@synapse-network-ai/mcp-server"],
+      "env": {
+        "SYNAPSE_AGENT_KEY": "agt_xxx",
+        "SYNAPSE_ENV": "prod"
+      }
+    }
+  }
+}
+```
+
+Restart Claude Desktop after editing the config.
+
+## Claude Code
+
+In a project-local `.mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "synapse": {
+      "command": "npx",
+      "args": ["-y", "@synapse-network-ai/mcp-server"],
+      "env": {
+        "SYNAPSE_AGENT_KEY": "agt_xxx",
+        "SYNAPSE_ENV": "prod"
+      }
+    }
+  }
+}
+```
+
+Use the Claude MCP status command to confirm Synapse is connected.
+
+## Prompt
+
+```text
+Use Synapse to discover services for text summarization. Return service id, price model, and required input schema. Do not invoke paid tools.
+```
+
+<WarningNote>
+  Do not paste a real Agent Key into chat. Store it in the MCP config or
+  environment variables supported by your Claude client.
+</WarningNote>

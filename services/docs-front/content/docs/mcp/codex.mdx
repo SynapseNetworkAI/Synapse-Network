@@ -1,0 +1,65 @@
+---
+title: Codex
+description: Add Synapse Remote MCP to Codex with BYOK Agent Key or OAuth login.
+---
+
+Codex can use Synapse Remote MCP through Streamable HTTP.
+
+## BYOK Agent Key
+
+Add the hosted MCP endpoint:
+
+```bash
+codex mcp add synapse-remote-mcp \
+  --url https://mcp.synapse-network.ai/mcp \
+  --bearer-token-env-var SYNAPSE_AGENT_KEY
+```
+
+Set your Agent Key:
+
+```bash
+export SYNAPSE_AGENT_KEY=agt_xxx
+```
+
+Check the configuration:
+
+```bash
+codex mcp get synapse-remote-mcp
+```
+
+## OAuth login
+
+Add the OAuth version:
+
+```bash
+codex mcp add synapse-remote-mcp-oauth \
+  --url https://mcp.synapse-network.ai/mcp \
+  --oauth-client-id codex \
+  --oauth-resource https://mcp.synapse-network.ai/mcp
+```
+
+Log in:
+
+```bash
+codex mcp login synapse-remote-mcp-oauth \
+  --scopes synapse.discovery.read,synapse.receipts.read,offline_access
+```
+
+The browser authorization flow redirects to Synapse. If the page reports that wallet connection is unavailable, install or enable MetaMask or Rabby and retry.
+
+## Verify
+
+```bash
+codex mcp list
+```
+
+Expected result:
+
+- `synapse-remote-mcp` is enabled with bearer-token auth, or
+- `synapse-remote-mcp-oauth` is enabled and logged in.
+
+## First prompt
+
+```text
+Use the Synapse MCP server to discover services for weather data. Do not call invoke_and_pay.
+```

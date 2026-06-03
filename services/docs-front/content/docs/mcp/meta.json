@@ -1,0 +1,19 @@
+{
+  "title": "MCP",
+  "pages": [
+    "index",
+    "quickstart",
+    "authentication",
+    "tools",
+    "chatgpt",
+    "openai-responses-api",
+    "codex",
+    "claude",
+    "cursor",
+    "vscode",
+    "windsurf",
+    "cline-roo",
+    "registry",
+    "troubleshooting"
+  ]
+}
