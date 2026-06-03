@@ -28,7 +28,7 @@ export function AnalyticsMoneyFlowScreen({
 }: Readonly<AnalyticsScreenProps>) {
   const [windowValue, setWindowValue] = useQueryBackedWindow(
     ANALYTICS_WINDOWS,
-    "24h",
+    "24h"
   );
   const {
     data: money,
@@ -38,14 +38,14 @@ export function AnalyticsMoneyFlowScreen({
     token,
     windowValue,
     getAnalyticsMoneyFlow,
-    "Money flow failed to load",
+    "Money flow failed to load"
   );
   const cards = useMemo(
     () => [
       ...buildMoneyFlowSignalCards(money),
       ...buildMoneyFlowContextCards(money),
     ],
-    [money],
+    [money]
   );
 
   if (loading && !money) {

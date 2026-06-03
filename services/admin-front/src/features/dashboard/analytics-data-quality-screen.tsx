@@ -130,7 +130,7 @@ export function AnalyticsDataQualityScreen({
 }: Readonly<AnalyticsScreenProps>) {
   const [windowValue, setWindowValue] = useQueryBackedWindow(
     DATA_QUALITY_WINDOWS,
-    "24h",
+    "24h"
   );
   const {
     data: dataQuality,
@@ -140,18 +140,18 @@ export function AnalyticsDataQualityScreen({
     token,
     windowValue,
     getAnalyticsDataQuality,
-    "Data quality failed to load",
+    "Data quality failed to load"
   );
   const signalCards = useMemo(
     () => [
       ...buildDataQualitySignalCards(dataQuality),
       ...buildDataQualityLagCards(dataQuality),
     ],
-    [dataQuality],
+    [dataQuality]
   );
   const schemaRows = useMemo(
     () => buildDataQualitySchemaIssueRows(dataQuality),
-    [dataQuality],
+    [dataQuality]
   );
 
   if (loading && !dataQuality) {

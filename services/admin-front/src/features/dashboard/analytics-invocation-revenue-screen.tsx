@@ -36,7 +36,7 @@ export function AnalyticsInvocationRevenueScreen({
 }: Readonly<AnalyticsScreenProps>) {
   const [windowValue, setWindowValue] = useQueryBackedWindow(
     ANALYTICS_WINDOWS,
-    "24h",
+    "24h"
   );
   const {
     data: invocation,
@@ -46,15 +46,15 @@ export function AnalyticsInvocationRevenueScreen({
     token,
     windowValue,
     getAnalyticsInvocationRevenue,
-    "Invocation revenue failed to load",
+    "Invocation revenue failed to load"
   );
   const primaryCards = useMemo(
     () => buildInvocationSignalCards(invocation),
-    [invocation],
+    [invocation]
   );
   const volumeCards = useMemo(
     () => buildInvocationVolumeCards(invocation),
-    [invocation],
+    [invocation]
   );
 
   if (loading && !invocation) {

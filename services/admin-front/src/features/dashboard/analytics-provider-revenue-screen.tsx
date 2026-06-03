@@ -35,7 +35,7 @@ export function AnalyticsProviderRevenueScreen({
 }: Readonly<AnalyticsScreenProps>) {
   const [windowValue, setWindowValue] = useQueryBackedWindow(
     ANALYTICS_WINDOWS,
-    "24h",
+    "24h"
   );
   const {
     data: provider,
@@ -45,14 +45,14 @@ export function AnalyticsProviderRevenueScreen({
     token,
     windowValue,
     getAnalyticsProviderRevenue,
-    "Provider revenue failed to load",
+    "Provider revenue failed to load"
   );
   const cards = useMemo(
     () => [
       ...buildProviderSignalCards(provider),
       ...buildProviderSettlementCards(provider),
     ],
-    [provider],
+    [provider]
   );
 
   if (loading && !provider) {

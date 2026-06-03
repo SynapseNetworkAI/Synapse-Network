@@ -52,19 +52,19 @@ export const ANALYTICS_WINDOWS: AnalyticsWindow[] = ["24h", "7d", "30d"];
 function resolveWindowParam<TWindow extends string>(
   value: string | null,
   windows: readonly TWindow[],
-  fallback: TWindow,
+  fallback: TWindow
 ): TWindow {
   return windows.includes(value as TWindow) ? (value as TWindow) : fallback;
 }
 
 export function useQueryBackedWindow<TWindow extends string>(
   windows: readonly TWindow[],
-  fallback: TWindow,
+  fallback: TWindow
 ): [TWindow, (value: TWindow) => void] {
   const searchParams = useSearchParams();
   const queryWindow = searchParams.get("window");
   const [windowValue, setWindowValue] = useState<TWindow>(() =>
-    resolveWindowParam(queryWindow, windows, fallback),
+    resolveWindowParam(queryWindow, windows, fallback)
   );
 
   useEffect(() => {
@@ -78,7 +78,7 @@ export function useAnalyticsResource<T, TWindow extends string>(
   token: string,
   windowValue: TWindow,
   fetcher: (token: string, windowValue: TWindow) => Promise<T>,
-  errorMessage: string,
+  errorMessage: string
 ): AnalyticsResource<T> {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);

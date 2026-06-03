@@ -39,7 +39,7 @@ export function AnalyticsRiskHealthScreen({
 }: Readonly<AnalyticsScreenProps>) {
   const [windowValue, setWindowValue] = useQueryBackedWindow(
     ANALYTICS_WINDOWS,
-    "24h",
+    "24h"
   );
   const searchParams = useSearchParams();
   const {
@@ -50,11 +50,11 @@ export function AnalyticsRiskHealthScreen({
     token,
     windowValue,
     getAnalyticsRiskHealth,
-    "Risk health failed to load",
+    "Risk health failed to load"
   );
   const cards = useMemo(
     () => [...buildRiskSignalCards(risk), ...buildRiskContextCards(risk)],
-    [risk],
+    [risk]
   );
   const focusBudgetBlocks = searchParams.get("focus") === "budget_blocked";
 

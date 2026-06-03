@@ -37,7 +37,7 @@ export function createEmptyMenuForm(): MenuFormState {
 }
 
 export function createMenuFormFromItem(
-  item: AdminMenuConfigItem,
+  item: AdminMenuConfigItem
 ): MenuFormState {
   return {
     itemId: item.itemId,

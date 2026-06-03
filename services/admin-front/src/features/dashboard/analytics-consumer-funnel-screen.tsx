@@ -70,8 +70,8 @@ function FunnelStepRow({
                 step.tone === "red"
                   ? "#b83131"
                   : step.tone === "orange"
-                    ? "#f36a1d"
-                    : "#1f9257"
+                  ? "#f36a1d"
+                  : "#1f9257"
               }
             />
           </Box>
@@ -114,7 +114,7 @@ export function AnalyticsConsumerFunnelScreen({
 }: Readonly<AnalyticsScreenProps>) {
   const [windowValue, setWindowValue] = useQueryBackedWindow(
     ANALYTICS_WINDOWS,
-    "24h",
+    "24h"
   );
   const {
     data: funnel,
@@ -124,11 +124,11 @@ export function AnalyticsConsumerFunnelScreen({
     token,
     windowValue,
     getAnalyticsConsumerFunnel,
-    "Consumer funnel failed to load",
+    "Consumer funnel failed to load"
   );
   const summaryCards = useMemo(
     () => buildConsumerFunnelSummaryCards(funnel),
-    [funnel],
+    [funnel]
   );
   const steps = useMemo(() => buildConsumerFunnelSteps(funnel), [funnel]);
 
