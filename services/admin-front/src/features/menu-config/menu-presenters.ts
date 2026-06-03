@@ -8,7 +8,7 @@ type SentinelTone = "green" | "orange" | "red" | "gray";
 export function filterMenuItems(
   items: AdminMenuConfigItem[],
   search: string,
-  sectionFilter: string,
+  sectionFilter: string
 ): AdminMenuConfigItem[] {
   const normalizedSearch = search.trim().toLowerCase();
 
@@ -23,7 +23,7 @@ export function filterMenuItems(
       item.nodeType.toLowerCase().includes(normalizedSearch) ||
       item.iconKey.toLowerCase().includes(normalizedSearch) ||
       item.keywords.some((keyword) =>
-        keyword.toLowerCase().includes(normalizedSearch),
+        keyword.toLowerCase().includes(normalizedSearch)
       );
     const matchesSection =
       sectionFilter === "all" || item.sectionId === sectionFilter;
@@ -43,16 +43,16 @@ export function buildMenuSections(items: AdminMenuConfigItem[]) {
     map.set(item.sectionId, section);
   });
   return Array.from(map.values()).sort((left, right) =>
-    left.label.localeCompare(right.label),
+    left.label.localeCompare(right.label)
   );
 }
 
 export function sortMenuItemsByTopology(
-  items: AdminMenuConfigItem[],
+  items: AdminMenuConfigItem[]
 ): AdminMenuConfigItem[] {
   return [...items].sort((left, right) => {
     const sectionDifference = left.sectionLabel.localeCompare(
-      right.sectionLabel,
+      right.sectionLabel
     );
     if (sectionDifference !== 0) {
       return sectionDifference;
@@ -62,7 +62,7 @@ export function sortMenuItemsByTopology(
       return orderDifference;
     }
     const parentDifference = (left.parentItemId ?? "").localeCompare(
-      right.parentItemId ?? "",
+      right.parentItemId ?? ""
     );
     if (parentDifference !== 0) {
       return parentDifference;
@@ -73,17 +73,17 @@ export function sortMenuItemsByTopology(
 
 export function buildMenuMetrics(
   items: AdminMenuConfigItem[],
-  meta: AdminMenuConfigMeta | null,
+  meta: AdminMenuConfigMeta | null
 ) {
   const gatedByRoleCount = items.filter(
-    (item) => item.requiredRoles.length > 0,
+    (item) => item.requiredRoles.length > 0
   ).length;
   const gatedByPermissionCount = items.filter(
-    (item) => item.requiredPermissions.length > 0,
+    (item) => item.requiredPermissions.length > 0
   ).length;
   const multiGatedCount = items.filter(
     (item) =>
-      item.requiredRoles.length > 0 && item.requiredPermissions.length > 0,
+      item.requiredRoles.length > 0 && item.requiredPermissions.length > 0
   ).length;
 
   return {
@@ -135,7 +135,7 @@ export function buildMenuGateCards(items: AdminMenuConfigItem[]) {
         roleGateCount: rows.filter((row) => row.requiredRoles.length > 0)
           .length,
         permissionGateCount: rows.filter(
-          (row) => row.requiredPermissions.length > 0,
+          (row) => row.requiredPermissions.length > 0
         ).length,
       };
     });

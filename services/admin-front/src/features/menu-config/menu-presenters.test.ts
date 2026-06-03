@@ -73,7 +73,7 @@ const meta = {
 describe("menu-presenters", () => {
   it("filters and sorts topology rows", () => {
     expect(
-      filterMenuItems(items, "fin", "ops").map((item) => item.itemId),
+      filterMenuItems(items, "fin", "ops").map((item) => item.itemId)
     ).toEqual(["finance"]);
     expect(sortMenuItemsByTopology(items).map((item) => item.itemId)).toEqual([
       "users",
