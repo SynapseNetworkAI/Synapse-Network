@@ -346,6 +346,14 @@ def get_invocation_receipt_v1(
 ) -> InvocationStateResponse:
     token = forwarding_validation.validate_credential_token(credential_token)
     credential = credential_service.resolve_active_credential(storage, token)
+    return get_invocation_receipt_for_credential(storage, invocation_id, credential)
+
+
+def get_invocation_receipt_for_credential(
+    storage: BaseStorage,
+    invocation_id: str,
+    credential: RuntimeCredentialRecord,
+) -> InvocationStateResponse:
     invocation = read_invocation(storage, invocation_id)
     if invocation.credential_id != credential.credential.credential_id:
         raise HTTPException(
@@ -365,7 +373,16 @@ async def invoke_v1(
     token = forwarding_validation.validate_credential_token(credential_token)
     trace_request_id = forwarding_validation.resolve_request_id(x_request_id)
     credential = credential_service.resolve_active_credential(storage, token)
+    return await invoke_with_credential_v1(storage, request, credential, trace_request_id)
 
+
+async def invoke_with_credential_v1(
+    storage: BaseStorage,
+    request: AgentInvokeRequest,
+    credential: RuntimeCredentialRecord,
+    trace_request_id: str,
+) -> InvocationStateResponse:
+    """Run the invoke pipeline for an already authenticated runtime credential."""
     service = forwarding_validation.find_active_service(storage, request.serviceId)
     if forwarding_llm.is_llm_service(service):
         invocation = await forwarding_llm.invoke_llm_v1(

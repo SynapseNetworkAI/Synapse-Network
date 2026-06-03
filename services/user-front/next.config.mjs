@@ -68,6 +68,26 @@ const nextConfig = {
         source: "/api/v1/:path*",
         destination: `${gatewayBaseUrl}/api/v1/:path*`,
       },
+      {
+        source: "/.well-known/oauth-authorization-server",
+        destination: `${gatewayBaseUrl}/.well-known/oauth-authorization-server`,
+      },
+      {
+        source: "/.well-known/jwks.json",
+        destination: `${gatewayBaseUrl}/.well-known/jwks.json`,
+      },
+      {
+        source: "/oauth/authorize/approve",
+        destination: `${gatewayBaseUrl}/oauth/authorize/approve`,
+      },
+      {
+        source: "/oauth/token",
+        destination: `${gatewayBaseUrl}/oauth/token`,
+      },
+      {
+        source: "/oauth/revoke",
+        destination: `${gatewayBaseUrl}/oauth/revoke`,
+      },
     ];
   },
   async redirects() {

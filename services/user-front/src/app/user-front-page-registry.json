@@ -284,6 +284,28 @@
     "screenshotName": "dashboard-credentials.png"
   },
   {
+    "id": "oauth-authorize",
+    "href": "/oauth/authorize",
+    "kind": "page",
+    "audience": "consumer",
+    "maturity": "production",
+    "expectedTexts": ["Authorize ChatGPT Remote MCP"],
+    "purpose": "First-party OAuth consent screen for ChatGPT Custom MCP app authorization.",
+    "primaryInteractions": [
+      "Wallet sign-in",
+      "Select Agent Credential",
+      "Create ChatGPT Remote MCP credential",
+      "Approve OAuth authorization"
+    ],
+    "dataVerification": "authenticated-gateway",
+    "dataSources": [
+      "GET /api/v1/credentials/agent/list",
+      "POST /api/v1/credentials/agent/issue",
+      "POST /oauth/authorize/approve"
+    ],
+    "visualVerification": "component-smoke"
+  },
+  {
     "id": "dashboard-invocations",
     "href": "/dashboard/invocations",
     "kind": "page",
