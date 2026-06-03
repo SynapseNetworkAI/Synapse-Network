@@ -19,6 +19,7 @@ from src.api.routers import (
     forwarding,
     community,
     notifications,
+    oauth,
 )
 from src.api.routers.internal_jobs import router as internal_jobs_router
 from src.api.routers.internal_webhooks import router as internal_webhooks_router
@@ -416,6 +417,7 @@ def create_app() -> FastAPI:
     app.include_router(forwarding.router, prefix="/api", tags=["forwarding"])
     app.include_router(community.router, prefix="/api", tags=["community"])
     app.include_router(notifications.router, prefix="/api", tags=["notifications"])
+    app.include_router(oauth.router, tags=["oauth"])
     app.include_router(internal_jobs_router, tags=["internal-jobs"])
     app.include_router(internal_webhooks_router, tags=["internal-webhooks"])
     app.include_router(events_router, tags=["analytics"])

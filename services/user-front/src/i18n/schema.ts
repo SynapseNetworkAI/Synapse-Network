@@ -764,6 +764,29 @@ export type I18nMessages = {
     save: string;
     loadingUi: string;
   };
+  oauthAuthorizePage: {
+    eyebrow: string;
+    title: string;
+    description: string;
+    boundaryTitle: string;
+    boundaryDescription: string;
+    signIn: string;
+    selectCredential: string;
+    createCredential: string;
+    credentialCreated: string;
+    createFailed: string;
+    loadFailed: string;
+    unnamedCredential: string;
+    credentialLimits: string;
+    emptyCredentials: string;
+    requestTitle: string;
+    client: string;
+    resource: string;
+    scopes: string;
+    invalidRequest: string;
+    approve: string;
+    approveFailed: string;
+  };
   paidInvokePanel: {
     missingConfig: string;
     inactiveService: string;

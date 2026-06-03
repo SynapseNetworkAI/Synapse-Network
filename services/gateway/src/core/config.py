@@ -677,6 +677,31 @@ class Settings:
         .strip()
         .rstrip("/")
     )
+    # First-party OAuth for hosted MCP connectors such as ChatGPT custom apps.
+    oauth_issuer: str = (
+        os.getenv("SYNAPSE_OAUTH_ISSUER", "https://www.synapse-network.ai")
+        .strip()
+        .rstrip("/")
+    )
+    oauth_mcp_resource: str = (
+        os.getenv("SYNAPSE_OAUTH_MCP_RESOURCE", "https://mcp.synapse-network.ai/mcp")
+        .strip()
+        .rstrip("/")
+    )
+    oauth_jwt_secret: str = os.getenv("SYNAPSE_OAUTH_JWT_SECRET", jwt_secret).strip()
+    oauth_access_token_ttl_sec: int = max(60, _env_int("SYNAPSE_OAUTH_ACCESS_TOKEN_TTL_SEC", 900))
+    oauth_refresh_token_ttl_sec: int = max(
+        3600, _env_int("SYNAPSE_OAUTH_REFRESH_TOKEN_TTL_SEC", 30 * 24 * 60 * 60)
+    )
+    oauth_authorization_code_ttl_sec: int = max(
+        60, _env_int("SYNAPSE_OAUTH_AUTHORIZATION_CODE_TTL_SEC", 300)
+    )
+    oauth_allowed_client_ids: str = os.getenv(
+        "SYNAPSE_OAUTH_ALLOWED_CLIENT_IDS", "chatgpt-custom-mcp,chatgpt"
+    ).strip()
+    oauth_allowed_redirect_hosts: str = os.getenv(
+        "SYNAPSE_OAUTH_ALLOWED_REDIRECT_HOSTS", "chatgpt.com,chat.openai.com"
+    ).strip()
     email_verification_ttl_sec: int = max(300, _env_int("EMAIL_VERIFICATION_TTL_SEC", 600))
     email_verification_daily_send_limit: int = max(
         1,

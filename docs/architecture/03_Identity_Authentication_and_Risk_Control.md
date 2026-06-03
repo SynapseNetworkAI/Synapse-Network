@@ -74,6 +74,19 @@ Agent credential 是 Runtime 支付身份。
 2. Owner 与 Gateway 才能看到完整预算策略、吊销状态、风控标签和审计元数据。
 3. `owner_wallet` 之类绑定信息属于平台控制面和审计面，不应成为外部运行时协议字段。
 
+### 3.2.1 Connector OAuth Token
+
+ChatGPT custom MCP app 这类托管连接器不应拿到原始 `agt_xxx`。Synapse first-party OAuth 把连接器凭据与运行时支付身份分开：
+
+1. ChatGPT 获取的是 Synapse OAuth access token / refresh token。
+2. OAuth authorization code 必须使用 PKCE S256，短期、一次性使用。
+3. Refresh token 是 opaque token，服务端只保存 hash，并在刷新时旋转。
+4. Access token 的 audience/resource 必须是 `https://mcp.synapse-network.ai/mcp`，不能被复用于其他资源。
+5. Gateway 校验 OAuth token 后，按 token grant 绑定的 `credential_id` 找到 Owner 授权的 Agent Credential。
+6. 扣费、预算、调用上限、receipt 归属仍然只看映射后的 Agent Credential。
+
+这意味着 OAuth token 是 connector authorization，不是 Agent Credential 本身。撤销 OAuth grant 不需要泄露或轮换 `agt_xxx`；撤销 Agent Credential 则会让所有映射到它的 OAuth token 失去运行时能力。
+
 ### 3.3 Provider Role
 
 Provider 不是另一套根身份，而是 Owner 的供给侧业务角色。
