@@ -2,7 +2,7 @@
 
 ## Role
 
-1. `admin/admin-front/` is the platform administrator frontend.
+1. `services/admin-front/` is the platform administrator frontend.
 2. It renders the control-plane UX for operations, finance, risk, approvals, audit, and system surfaces.
 3. It must stay aligned with `gateway-admin` semantics, not invent browser-only truth.
 
@@ -34,25 +34,25 @@ yarn build
 
 ## Documentation Alignment
 
-When working on `admin/admin-front`, consult `docs/admin/` first so page behavior, IA, approval semantics, and control-plane wording stay aligned with `gateway-admin`.
+When working on `services/admin-front`, consult `docs/projects/admin/` first so page behavior, IA, approval semantics, and control-plane wording stay aligned with `gateway-admin`.
 
 Recommended reading order:
 
-1. `docs/admin/README.md`
-2. `docs/admin/Platform_Admin_Backoffice_Architecture.md`
-3. `docs/admin/Admin_API_Contract_Phase1.md`
-4. `docs/admin/Admin_RBAC_Design.md`
-5. `docs/admin/Admin_Approval_Workflow.md`
-6. `docs/admin/Admin_Audit_and_Compliance.md`
-7. `docs/admin/Admin_Finance_Operations_Runbook.md`
-8. `docs/admin/Admin_Gateway_Security_Design.md`
-9. `docs/admin/Admin_Database_Design.md`
-10. `docs/admin/Gateway_Admin_Projection_Views_SQL_Design.md`
-11. `docs/admin/Admin_PostgreSQL_Deployment_Design.md`
+1. `docs/projects/admin/Platform_Admin_Backoffice_Architecture.md`
+2. `docs/projects/admin/Admin_API_Contract_Phase1.md`
+3. `docs/projects/admin/Admin_RBAC_Design.md`
+4. `docs/projects/admin/Admin_Approval_Workflow.md`
+5. `docs/projects/admin/Admin_Audit_and_Compliance.md`
+6. `docs/projects/admin/Admin_Finance_Operations_Runbook.md`
+7. `docs/projects/admin/Admin_Gateway_Security_Design.md`
+8. `docs/projects/admin/Admin_Database_Design.md`
+9. `docs/projects/admin/Gateway_Admin_Projection_Views_SQL_Design.md`
+10. `docs/projects/admin/Admin_PostgreSQL_Deployment_Design.md`
+11. `docs/projects/admin-front/Admin_Control_Console_Redesign.md`
 
 ## Prototype Alignment
 
-Treat `admin/admin-front/stitch/` as the primary visual and interaction prototype library.
+Treat `services/admin-front/stitch/` as the primary visual and interaction prototype library.
 
 Priority lookup:
 
@@ -64,7 +64,7 @@ Priority lookup:
 
 Resolution rule:
 
-1. `docs/admin/` defines product semantics.
+1. `docs/projects/admin/` defines product semantics.
 2. `stitch/` defines visual hierarchy and interaction atmosphere.
 3. If they conflict, keep documented behavior and adapt the prototype visually.
 
@@ -124,11 +124,11 @@ Admin front follows the Synapse Sentinel cyber-industrial design language:
 
 If admin-front behavior, IA, setup, or control-plane wording changes, update together:
 
-1. `admin/admin-front/README.md`
-2. `admin/admin-front/AGENTS.md`
-3. `docs/03_Projects/admin-front/Admin_Front_Local_Development.md`
+1. `services/admin-front/README.md`
+2. `services/admin-front/AGENTS.md`
+3. `docs/projects/admin-front/Admin_Front_Local_Development.md`
 4. this file
-5. any affected `docs/admin/` canonical docs
+5. any affected `docs/projects/admin/` canonical docs
 
 ## Stop Conditions
 
