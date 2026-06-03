@@ -1,0 +1,33 @@
+---
+title: Windsurf
+description: Configure Synapse MCP in Windsurf.
+---
+
+Windsurf MCP configuration depends on the installed version, but the Synapse stdio server contract is the same.
+
+```json
+{
+  "mcpServers": {
+    "synapse": {
+      "command": "npx",
+      "args": ["-y", "@synapse-network-ai/mcp-server"],
+      "env": {
+        "SYNAPSE_AGENT_KEY": "agt_xxx",
+        "SYNAPSE_ENV": "prod"
+      }
+    }
+  }
+}
+```
+
+After adding the server, restart Windsurf or reload MCP servers from settings.
+
+## Recommended first run
+
+```text
+Use Synapse MCP to discover services for API monitoring. Return schemas and prices. Do not call invoke_and_pay.
+```
+
+## Auth
+
+Use a dedicated Agent Credential. Keep the key in the MCP config or an environment variable, not in chat messages.

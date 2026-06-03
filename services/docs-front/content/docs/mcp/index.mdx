@@ -1,0 +1,76 @@
+---
+title: Synapse MCP
+description: Connect model-compatible agents to Synapse service discovery, payable invocation, and receipts.
+---
+
+The Synapse MCP server exposes the Gateway workflow to MCP-compatible agent runtimes. It is a thin runtime bridge over Synapse Gateway, not a wallet, custody layer, provider manager, or pricing database.
+
+<StatLine>discover_services -> invoke_and_pay -> get_receipt</StatLine>
+
+## Endpoints
+
+| Surface | Value |
+| --- | --- |
+| Remote MCP URL | `https://mcp.synapse-network.ai/mcp` |
+| Protected resource metadata | `https://mcp.synapse-network.ai/.well-known/oauth-protected-resource` |
+| OAuth issuer | `https://www.synapse-network.ai` |
+| OAuth metadata | `https://www.synapse-network.ai/.well-known/oauth-authorization-server` |
+| Local stdio package | `npx -y @synapse-network-ai/mcp-server` |
+| MCP Registry name | `io.github.SynapseNetworkAI/synapse-network-mcp-server` |
+
+## Choose an integration path
+
+<QuickLinks
+  items={[
+    {
+      href: '/mcp/chatgpt',
+      title: 'ChatGPT Custom MCP App',
+      description: 'Register the hosted Remote MCP endpoint with OAuth, tool scan, and action controls.',
+    },
+    {
+      href: '/mcp/codex',
+      title: 'Codex',
+      description: 'Add Synapse Remote MCP with a BYOK Agent Key or OAuth login.',
+    },
+    {
+      href: '/mcp/claude',
+      title: 'Claude',
+      description: 'Use local stdio MCP today and Remote MCP where your Claude plan supports custom connectors.',
+    },
+    {
+      href: '/mcp/cursor',
+      title: 'Cursor',
+      description: 'Add Synapse to .cursor/mcp.json for project-local MCP tooling.',
+    },
+    {
+      href: '/mcp/openai-responses-api',
+      title: 'OpenAI Responses API',
+      description: 'Use the remote MCP tool type with server_url and a Synapse OAuth access token.',
+    },
+    {
+      href: '/mcp/registry',
+      title: 'Registry and directories',
+      description: 'Find Synapse in the official MCP Registry and third-party directories.',
+    },
+  ]}
+/>
+
+## Tools
+
+- `discover_services`: search callable services and read their current schemas, price models, and cost fields.
+- `invoke_and_pay`: call a selected service with a bounded credential and the pricing observed during discovery.
+- `get_receipt`: fetch settlement evidence for audit, retries, and reconciliation.
+
+## Safety boundary
+
+<WarningNote title="Paid tools require fresh discovery">
+  Synapse MCP is stateless. Every paid task must call `discover_services` before
+  `invoke_and_pay`, copy the current `costUsdc` for fixed-price services, or set
+  `maxCostUsdc` for token-metered services.
+</WarningNote>
+
+<AgentNote>
+  Read-only setup should allow `discover_services` and `get_receipt`. Treat
+  `invoke_and_pay` as a consequential write action because it can move USDC
+  balance through an Agent Credential.
+</AgentNote>
