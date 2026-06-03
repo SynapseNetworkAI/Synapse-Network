@@ -11,7 +11,10 @@ import {
   listOAuthAgentCredentials,
 } from "@/utils/oauthApi";
 
-export function useOAuthAuthorizeController(address: string | undefined, isSessionAuthenticated: boolean) {
+export function useOAuthAuthorizeController(
+  address: string | undefined,
+  isSessionAuthenticated: boolean
+) {
   const [credentials, setCredentials] = useState<AgentCredentialRecord[]>([]);
   const [selectedCredentialId, setSelectedCredentialId] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -84,7 +87,11 @@ export function useOAuthAuthorizeController(address: string | undefined, isSessi
   };
 }
 
-function showError(value: unknown, fallback: string, setError: (message: string) => void) {
+function showError(
+  value: unknown,
+  fallback: string,
+  setError: (message: string) => void
+) {
   const message = errorMessage(value, fallback);
   setError(message);
   toast.error(message);

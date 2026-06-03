@@ -29,7 +29,11 @@ export default function OAuthCredentialPicker({
           disabled={isLoading}
           className="inline-flex items-center gap-2 rounded-lg border border-emerald-300/40 px-4 py-2 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-300/10 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
+          {isLoading ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <KeyRound className="h-4 w-4" />
+          )}
           {copy.createCredential}
         </button>
       </div>
@@ -68,7 +72,9 @@ function CredentialOption({
   return (
     <label
       className={`flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition ${
-        isSelected ? "border-emerald-300 bg-emerald-300/10" : "border-white/10 bg-white/[0.03] hover:border-white/25"
+        isSelected
+          ? "border-emerald-300 bg-emerald-300/10"
+          : "border-white/10 bg-white/[0.03] hover:border-white/25"
       }`}
     >
       <input
@@ -80,8 +86,12 @@ function CredentialOption({
         className="mt-1"
       />
       <span className="min-w-0">
-        <span className="block text-sm font-semibold">{credential.name || copy.unnamedCredential}</span>
-        <span className="mt-1 block break-all text-xs text-slate-400">{credential.id}</span>
+        <span className="block text-sm font-semibold">
+          {credential.name || copy.unnamedCredential}
+        </span>
+        <span className="mt-1 block break-all text-xs text-slate-400">
+          {credential.id}
+        </span>
         <span className="mt-2 block text-xs text-slate-300">{limits}</span>
       </span>
     </label>

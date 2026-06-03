@@ -13,14 +13,16 @@ export const oauthAuthorizeCopy = {
   createFailed: "Failed to create ChatGPT MCP credential",
   loadFailed: "Failed to load Agent Credentials",
   unnamedCredential: "Unnamed Agent Credential",
-  credentialLimits: "Max {{maxCalls}} calls, {{rpm}} rpm, {{creditLimit}} USDC/day",
+  credentialLimits:
+    "Max {{maxCalls}} calls, {{rpm}} rpm, {{creditLimit}} USDC/day",
   emptyCredentials:
     "No active Agent Credentials are available. Create a dedicated ChatGPT credential before approving.",
   requestTitle: "Authorization request",
   client: "Client",
   resource: "MCP resource",
   scopes: "Scopes",
-  invalidRequest: "This OAuth request is missing redirect URI or PKCE S256 parameters.",
+  invalidRequest:
+    "This OAuth request is missing redirect URI or PKCE S256 parameters.",
   approve: "Authorize ChatGPT",
   approveFailed: "OAuth authorization failed",
 } as const;

@@ -95,19 +95,25 @@ async function readErrorPayload(response: Response): Promise<unknown> {
 
 function messageFromOAuthPayload(payload: unknown): string | null {
   if (!payload || typeof payload !== "object") return null;
-  const record = payload as { detail?: unknown; message?: unknown; error_description?: unknown };
+  const record = payload as {
+    detail?: unknown;
+    message?: unknown;
+    error_description?: unknown;
+  };
   if (typeof record.detail === "string") return record.detail;
   if (record.detail && typeof record.detail === "object") {
     return messageFromOAuthDetail(record.detail);
   }
   if (typeof record.message === "string") return record.message;
-  if (typeof record.error_description === "string") return record.error_description;
+  if (typeof record.error_description === "string")
+    return record.error_description;
   return null;
 }
 
 function messageFromOAuthDetail(detail: object): string | null {
   const record = detail as { message?: unknown; error_description?: unknown };
   if (typeof record.message === "string") return record.message;
-  if (typeof record.error_description === "string") return record.error_description;
+  if (typeof record.error_description === "string")
+    return record.error_description;
   return null;
 }

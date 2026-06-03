@@ -32,7 +32,11 @@ export default function OAuthAuthAction({
       disabled={isAuthorizing}
       className="inline-flex items-center gap-2 rounded-lg bg-emerald-400 px-5 py-3 text-sm font-semibold text-black transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
     >
-      {isAuthorizing ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
+      {isAuthorizing ? (
+        <Loader2 className="h-4 w-4 animate-spin" />
+      ) : (
+        <KeyRound className="h-4 w-4" />
+      )}
       {copy.signIn}
     </button>
   );

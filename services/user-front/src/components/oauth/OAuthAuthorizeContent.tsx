@@ -11,17 +11,31 @@ import { oauthAuthorizeCopy as copy } from "@/components/oauth/oauthAuthorizeCop
 import type { OAuthParams } from "@/components/oauth/oauthAuthorizeTypes";
 import { useOAuthAuthorizeController } from "@/components/oauth/useOAuthAuthorizeController";
 
-const DEFAULT_SCOPE = "synapse.discovery.read synapse.receipts.read offline_access";
+const DEFAULT_SCOPE =
+  "synapse.discovery.read synapse.receipts.read offline_access";
 
 export default function OAuthAuthorizeContent() {
   const searchParams = useSearchParams();
   const auth = useAuth();
-  const controller = useOAuthAuthorizeController(auth.address, auth.isSessionAuthenticated);
+  const controller = useOAuthAuthorizeController(
+    auth.address,
+    auth.isSessionAuthenticated
+  );
 
-  const oauthParams = useMemo(() => readOAuthParams(searchParams), [searchParams]);
-  const requestedScopes = useMemo(() => oauthParams.scope.split(/\s+/).filter(Boolean), [oauthParams.scope]);
+  const oauthParams = useMemo(
+    () => readOAuthParams(searchParams),
+    [searchParams]
+  );
+  const requestedScopes = useMemo(
+    () => oauthParams.scope.split(/\s+/).filter(Boolean),
+    [oauthParams.scope]
+  );
   const missingProtocolParams = hasMissingProtocolParams(oauthParams);
-  const canApprove = canApproveOAuth(auth.isSessionAuthenticated, controller.selectedCredentialId, missingProtocolParams);
+  const canApprove = canApproveOAuth(
+    auth.isSessionAuthenticated,
+    controller.selectedCredentialId,
+    missingProtocolParams
+  );
 
   return (
     <section className="min-h-[calc(100vh-80px)] bg-[#060b10] px-4 py-10 text-white sm:px-6 lg:px-8">
@@ -54,7 +68,9 @@ export default function OAuthAuthorizeContent() {
   );
 }
 
-function readOAuthParams(searchParams: ReturnType<typeof useSearchParams>): OAuthParams {
+function readOAuthParams(
+  searchParams: ReturnType<typeof useSearchParams>
+): OAuthParams {
   return {
     client_id: queryParam(searchParams, "client_id", "chatgpt-custom-mcp"),
     redirect_uri: queryParam(searchParams, "redirect_uri", ""),
@@ -62,31 +78,63 @@ function readOAuthParams(searchParams: ReturnType<typeof useSearchParams>): OAut
     scope: queryParam(searchParams, "scope", DEFAULT_SCOPE),
     state: queryParam(searchParams, "state", undefined),
     code_challenge: queryParam(searchParams, "code_challenge", ""),
-    code_challenge_method: queryParam(searchParams, "code_challenge_method", ""),
+    code_challenge_method: queryParam(
+      searchParams,
+      "code_challenge_method",
+      ""
+    ),
     resource: queryParam(searchParams, "resource", undefined),
   };
 }
 
-function queryParam(searchParams: ReturnType<typeof useSearchParams>, key: string, fallback: string): string;
-function queryParam(searchParams: ReturnType<typeof useSearchParams>, key: string, fallback: undefined): string | undefined;
-function queryParam(searchParams: ReturnType<typeof useSearchParams>, key: string, fallback: string | undefined) {
+function queryParam(
+  searchParams: ReturnType<typeof useSearchParams>,
+  key: string,
+  fallback: string
+): string;
+function queryParam(
+  searchParams: ReturnType<typeof useSearchParams>,
+  key: string,
+  fallback: undefined
+): string | undefined;
+function queryParam(
+  searchParams: ReturnType<typeof useSearchParams>,
+  key: string,
+  fallback: string | undefined
+) {
   return searchParams?.get(key) || fallback;
 }
 
 function hasMissingProtocolParams(oauthParams: OAuthParams): boolean {
-  return !oauthParams.redirect_uri || !oauthParams.code_challenge || oauthParams.code_challenge_method !== "S256";
+  return (
+    !oauthParams.redirect_uri ||
+    !oauthParams.code_challenge ||
+    oauthParams.code_challenge_method !== "S256"
+  );
 }
 
-function canApproveOAuth(isSessionAuthenticated: boolean, selectedCredentialId: string, missingProtocolParams: boolean): boolean {
-  return isSessionAuthenticated && Boolean(selectedCredentialId) && !missingProtocolParams;
+function canApproveOAuth(
+  isSessionAuthenticated: boolean,
+  selectedCredentialId: string,
+  missingProtocolParams: boolean
+): boolean {
+  return (
+    isSessionAuthenticated &&
+    Boolean(selectedCredentialId) &&
+    !missingProtocolParams
+  );
 }
 
 function PageHeader() {
   return (
     <div>
-      <p className="text-sm font-semibold uppercase tracking-[0.18em] text-emerald-300">{copy.eyebrow}</p>
+      <p className="text-sm font-semibold uppercase tracking-[0.18em] text-emerald-300">
+        {copy.eyebrow}
+      </p>
       <h1 className="mt-3 text-3xl font-semibold sm:text-4xl">{copy.title}</h1>
-      <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-300">{copy.description}</p>
+      <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-300">
+        {copy.description}
+      </p>
     </div>
   );
 }
@@ -98,7 +146,9 @@ function BoundaryNotice() {
         <ShieldCheck className="mt-1 h-5 w-5 text-emerald-300" />
         <div>
           <h2 className="text-base font-semibold">{copy.boundaryTitle}</h2>
-          <p className="mt-2 text-sm leading-6 text-slate-300">{copy.boundaryDescription}</p>
+          <p className="mt-2 text-sm leading-6 text-slate-300">
+            {copy.boundaryDescription}
+          </p>
         </div>
       </div>
     </div>
