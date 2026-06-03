@@ -32,6 +32,26 @@ const providerConsolePage: I18nMessages["providerConsolePage"] = {
   createService: "创建服务",
   credentialsBannerText: "发布服务前请先创建 Provider 凭据，只需一分钟。",
   credentialsBannerAction: "创建凭据",
+  llmEyebrow: "LLM 能力闸门",
+  llmTitle: "LLM 能力",
+  llmDescription:
+    "查看平台托管的 OpenAI-compatible 模型服务、Provider 签名凭据、价格复核状态和生产显式启用闸门。",
+  llmViewServices: "查看服务",
+  llmRegisteredServices: "已注册 LLM 服务",
+  llmSigningSecrets: "Provider 签名凭据",
+  llmProdEnabled: "生产已启用",
+  llmBoundaryNotice:
+    "上游 LLM API key 只保存在 Secret Manager 或运行时环境变量中。本控制台不暴露 Owner private key、上游 API key 或 Gateway 结算控制。",
+  llmTableModel: "模型",
+  llmTableService: "Synapse 服务",
+  llmTableGates: "就绪闸门",
+  llmTableAction: "操作",
+  llmRegistered: "已注册",
+  llmNotRegistered: "未注册",
+  llmSecretReady: "凭据就绪",
+  llmSecretMissing: "缺少凭据",
+  llmPricingReview: "价格复核",
+  llmRequestReview: "申请复核",
 };
 
 export default providerConsolePage;

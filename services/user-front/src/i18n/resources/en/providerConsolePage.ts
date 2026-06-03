@@ -32,6 +32,26 @@ const providerConsolePage: I18nMessages["providerConsolePage"] = {
   createService: "Create Service",
   credentialsBannerText: "Set up Provider Credentials before publishing a service. This only takes a minute.",
   credentialsBannerAction: "Create Credentials",
+  llmEyebrow: "LLM capability gate",
+  llmTitle: "LLM Capabilities",
+  llmDescription:
+    "Track platform-managed OpenAI-compatible model services, provider signing readiness, pricing review status, and production opt-in gates.",
+  llmViewServices: "View Services",
+  llmRegisteredServices: "Registered LLM Services",
+  llmSigningSecrets: "Provider Signing Secrets",
+  llmProdEnabled: "Prod Enabled",
+  llmBoundaryNotice:
+    "Upstream LLM API keys stay in Secret Manager or runtime environment variables. This console never exposes Owner private keys, upstream API keys, or Gateway settlement controls.",
+  llmTableModel: "Model",
+  llmTableService: "Synapse Service",
+  llmTableGates: "Readiness Gates",
+  llmTableAction: "Action",
+  llmRegistered: "registered",
+  llmNotRegistered: "not registered",
+  llmSecretReady: "secret ready",
+  llmSecretMissing: "secret missing",
+  llmPricingReview: "pricing review",
+  llmRequestReview: "Request Review",
 };
 
 export default providerConsolePage;

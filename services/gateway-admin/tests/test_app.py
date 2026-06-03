@@ -1961,6 +1961,7 @@ def test_visible_menu_config_is_filtered_by_backend_permissions() -> None:
         "analytics-risk-health",
         "analytics-data-quality",
         "provider-services",
+        "provider-llm-config",
         "system",
         "business-control",
         "approvals",
@@ -1976,6 +1977,7 @@ def test_visible_menu_config_is_filtered_by_backend_permissions() -> None:
     consumer_funnel_item = next(item for item in response.json()["data"]["items"] if item["itemId"] == "analytics-consumer-funnel")
     system_item = next(item for item in response.json()["data"]["items"] if item["itemId"] == "system")
     provider_services_item = next(item for item in response.json()["data"]["items"] if item["itemId"] == "provider-services")
+    provider_llm_item = next(item for item in response.json()["data"]["items"] if item["itemId"] == "provider-llm-config")
     assert dashboard_item["href"] is None
     assert dashboard_item["nodeType"] == "category"
     assert analytics_item["href"] is None
@@ -1988,6 +1990,7 @@ def test_visible_menu_config_is_filtered_by_backend_permissions() -> None:
     assert runtime_item["href"] == "/dashboard/runtime"
     assert system_item["href"] == "/system"
     assert provider_services_item["href"] == "/provider-services"
+    assert provider_llm_item["href"] == "/provider-llm-config"
 
 
 def test_business_policy_config_crud_publish_and_overview() -> None:

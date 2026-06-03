@@ -14,6 +14,7 @@
 1. 展示平台定位、产品入口与主控制台
 2. 承接用户对 Gateway 的充值、余额、服务发现与调用观测
 3. 提供 Agent-first 运行时的可视化辅助入口
+4. 提供 Provider owner 自助台，包括服务注册、Provider signing secrets、运行健康、用量、结算和 LLM 能力状态查看
 
 一句话：这是 Owner 面向 Synapse Runtime 的用户控制台，不是后台管理系统。
 
@@ -45,6 +46,11 @@
 2. 管理员审批与审计
 3. Provider 独立服务实现
 4. SDK 运行时封装
+5. 上游 LLM API key、Owner private key、prod opt-in 或价格复核的直接编辑入口
+
+### Provider LLM 能力边界
+
+`/provider/llm` 是 Provider owner 的只读自助视图：它展示平台托管 LLM service 是否已注册、Provider signing secret 是否就绪、价格复核和生产上线闸门。普通 Provider owner 可以从该视图发起复核/支持入口，但不能绕过后台审批直接修改 prod 价格、上游 API key、Gateway settlement 配置或 onboarding allowlist。
 
 ## 5. 直接依赖关系
 

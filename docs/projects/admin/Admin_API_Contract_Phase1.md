@@ -20,6 +20,7 @@
 - `dashboard`
 - `approval`
 - `provider_services`
+- `provider_llm_config`
 - `forum_support`
 - `owner_accounts`
 - `finance_operations`
@@ -52,6 +53,7 @@
 - `GET /api/admin/v1/config/overview`
 - `POST /api/admin/v1/provider-services/{serviceId}/lifecycle`
 - `DELETE /api/admin/v1/provider-services/{serviceId}`
+- `POST /api/admin/v1/provider-llm-config/rollout-requests`
 
 ### 2.4 菜单配置读取边界
 
@@ -211,6 +213,32 @@ Provider withdrawal 字段：
 - deposit detail 必须能展开 ledger entries、audit events、notification evidence。
 - provider withdrawal detail 必须能展开 ledger entries、audit events、notification evidence、review history。
 - 过期/失败 withdrawal 必须明确 `fundsState`，说明资金是否已退回 provider 可提现余额。
+
+## 3.1.1 provider_llm_config
+
+用途：把平台托管的 OpenAI-compatible LLM 接入从 env/catalog/onboarding 脚本升级为后台可见的治理面。这里不保存上游 API key，不执行 runtime 动态路由，也不替代 Gateway service registry。
+
+页面入口：
+
+- `/provider-llm-config`
+
+权限：
+
+1. `GET /api/admin/v1/provider-llm-config`：`dashboard:read`
+2. `POST /api/admin/v1/provider-llm-config/rollout-requests`：`approval:submit`
+
+只读快照字段：
+
+- `vendors`：provider code、display name、base URL、API docs、pricing URL、环境覆盖、默认 timeout/QPS、secret reference、secret 是否存在、最近 smoke 状态。
+- `models`：model id、display name、streaming/tool calling 能力、默认 max output tokens、绑定的 Synapse service ids。
+- `pricingReviews`：token-metered 价格复核状态、source currency、input/output/cache 价格、markup、display amount、hold buffer、max auto hold。
+- `rolloutStates`：环境、上线资格、prod opt-in、onboarding action、最近 smoke 和 blocked reason。
+
+关键约束：
+
+1. 当前 10 个新 LLM 默认 `pricingStatus=operator_review_required`，生产 `prod_enable` request 必须返回 `blocked`，直到运营完成价格复核。
+2. `secretReference` 只能指向 Secret Manager 或部署环境变量；响应不得出现 `apiKey`、Owner private key 或 Gateway settlement 配置。
+3. 后台动作只创建 rollout request；实际 onboarding dry-run、ensure、smoke 和 prod opt-in 仍由受控 onboarding job 执行。
 
 ## 3.2 forum_support
 
