@@ -84,6 +84,8 @@ Remote MCP OAuth 入口：
 4. `POST /api/v1/agent/invoke` 接受原有 `X-Credential: agt_xxx`，也接受 Synapse OAuth `Authorization: Bearer <access-token>`；OAuth token 必须有 `synapse.invocations.write`。
 5. `GET /api/v1/agent/invocations/{id}` 接受原有 `X-Credential: agt_xxx`，也接受 Synapse OAuth `Authorization: Bearer <access-token>`；OAuth token 必须有 `synapse.receipts.read`。
 6. Gateway 使用 `SYNAPSE_OAUTH_JWT_SECRET` 签发和验证 Synapse OAuth access token；Remote MCP 的 `SYNAPSE_OAUTH_JWT_SECRET` 必须与 Gateway 同值。这不是 Agent Key，也不能暴露给 ChatGPT。
+7. 默认 OAuth client allowlist 支持 ChatGPT custom MCP 和 Codex CLI；Codex 的本地 OAuth callback 允许 `http://localhost`、`http://127.0.0.1`、`http://[::1]` loopback，非本地 redirect 仍必须是 HTTPS allowlist host。生产环境可用 `SYNAPSE_OAUTH_ALLOWED_CLIENT_IDS` 和 `SYNAPSE_OAUTH_ALLOWED_REDIRECT_HOSTS` 收紧。
+8. Codex CLI 注册 OAuth MCP 时应使用 `--oauth-client-id codex --oauth-resource https://mcp.synapse-network.ai/mcp`，并通过 `codex mcp login` 完成 PKCE 授权。
 
 ## 3. Finance API Semantics
 
