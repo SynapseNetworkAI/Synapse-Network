@@ -1,6 +1,6 @@
 "use client";
 
-import { AnalyticsRiskHealthScreen } from "@/features/dashboard/analytics-dashboard-screen";
+import { AnalyticsRiskHealthScreen } from "@/features/dashboard/analytics-risk-health-screen";
 import { useAdminSession } from "@/lib/use-admin-session";
 
 export default function AnalyticsRiskHealthPage() {
