@@ -3,9 +3,11 @@ import { describe, expect, it } from "vitest";
 import {
   buildLoginErrorMessage,
   buildLoginFeedback,
+  buildLoginFeedbackStyles,
   buildLoginRailDescription,
   buildLoginRailFacts,
   isLoginTotpEnabled,
+  sanitizeLoginOtpCode,
 } from "./login-presenters";
 
 const enabledPolicy = {
@@ -64,6 +66,29 @@ describe("login presenters", () => {
     });
   });
 
+  it("normalizes login totp input to the first six digits", () => {
+    expect(sanitizeLoginOtpCode("12 3-abc4567")).toBe("123456");
+    expect(sanitizeLoginOtpCode("abc")).toBe("");
+    expect(sanitizeLoginOtpCode("000000")).toBe("000000");
+  });
+
+  it("maps feedback tone to the auth panel palette", () => {
+    expect(
+      buildLoginFeedbackStyles({ tone: "error", message: "登录失败" })
+    ).toEqual({
+      bg: "rgba(127, 29, 29, 0.22)",
+      border: "1px solid rgba(248, 113, 113, 0.24)",
+      color: "#fecaca",
+    });
+    expect(
+      buildLoginFeedbackStyles({ tone: "info", message: "请输入凭据" })
+    ).toEqual({
+      bg: "rgba(15, 23, 42, 0.42)",
+      border: "1px solid rgba(34, 211, 238, 0.18)",
+      color: "rgba(226, 232, 240, 0.86)",
+    });
+  });
+
   it("maps login failures to localized operator-facing messages", () => {
     expect(buildLoginErrorMessage(null, "Invalid admin credentials")).toBe(
       "邮箱或密码不正确，请检查后重试。"
@@ -85,7 +110,9 @@ describe("login presenters", () => {
         "ADMIN_ACCOUNT_LOCKED",
         "Admin account is temporarily locked. Try later or contact an owner."
       )
-    ).toBe("该账号已被登录失败保护锁定，默认锁定 24 小时；请稍后重试或联系 Owner 解锁。");
+    ).toBe(
+      "该账号已被登录失败保护锁定，默认锁定 24 小时；请稍后重试或联系 Owner 解锁。"
+    );
     expect(buildLoginErrorMessage(null, "Failed to fetch")).toBe(
       "暂时无法连接管理后台，请稍后重试。"
     );
