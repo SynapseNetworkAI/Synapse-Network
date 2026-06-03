@@ -46,8 +46,12 @@ function findRollout(
 
 export default function ProviderLlmConfigPage() {
   const { admin, token, loading } = useAdminSession();
-  const { snapshot, bootstrapping, error, setError } = useProviderLlmSnapshot(token);
-  const { busyServiceId, notice, requestRollout } = useLlmRolloutActions(token, setError);
+  const { snapshot, bootstrapping, error, setError } =
+    useProviderLlmSnapshot(token);
+  const { busyServiceId, notice, requestRollout } = useLlmRolloutActions(
+    token,
+    setError
+  );
   const readyAdmin = getReadyAdmin(admin, loading, bootstrapping);
 
   if (!readyAdmin) {
@@ -124,7 +128,9 @@ function ProviderLlmConfigContent({
 }
 
 function useProviderLlmSnapshot(token: string | null) {
-  const [snapshot, setSnapshot] = useState<ProviderLlmConfigSnapshot | null>(null);
+  const [snapshot, setSnapshot] = useState<ProviderLlmConfigSnapshot | null>(
+    null
+  );
   const [bootstrapping, setBootstrapping] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -201,14 +207,30 @@ function useLlmRolloutActions(
   return { busyServiceId, notice, requestRollout };
 }
 
-function RolloutMetrics({ snapshot }: { snapshot: ProviderLlmConfigSnapshot | null }) {
+function RolloutMetrics({
+  snapshot,
+}: {
+  snapshot: ProviderLlmConfigSnapshot | null;
+}) {
   const metrics = getRolloutMetrics(snapshot);
   return (
     <Grid templateColumns={{ base: "1fr", md: "repeat(4, 1fr)" }} gap="16px">
       <MetricCard label="Vendors" value={metrics.vendors} detail="上游供应商" />
-      <MetricCard label="Models" value={metrics.models} detail="绑定 Synapse service" />
-      <MetricCard label="Pricing Review" value={metrics.pricingBlocked} detail="operator review required" />
-      <MetricCard label="Prod Opt-in" value={metrics.prodOptIn} detail="生产显式启用" />
+      <MetricCard
+        label="Models"
+        value={metrics.models}
+        detail="绑定 Synapse service"
+      />
+      <MetricCard
+        label="Pricing Review"
+        value={metrics.pricingBlocked}
+        detail="operator review required"
+      />
+      <MetricCard
+        label="Prod Opt-in"
+        value={metrics.prodOptIn}
+        detail="生产显式启用"
+      />
     </Grid>
   );
 }
@@ -276,20 +298,32 @@ function VendorRow({ vendor }: { vendor: ProviderLlmVendorConfig }) {
     <Box as="tr">
       <Td>
         <Text fontWeight="800">{vendor.displayName}</Text>
-        <Text color="ink.500" fontSize="13px">{vendor.providerCode}</Text>
+        <Text color="ink.500" fontSize="13px">
+          {vendor.providerCode}
+        </Text>
       </Td>
-      <Td><Text fontSize="13px">{vendor.baseUrl}</Text></Td>
+      <Td>
+        <Text fontSize="13px">{vendor.baseUrl}</Text>
+      </Td>
       <Td>
         <Badge colorScheme={vendor.secretPresent ? "green" : "orange"}>
           {vendor.secretPresent ? "present" : "missing"}
         </Badge>
-        <Text mt="4px" color="ink.500" fontSize="12px">{vendor.secretReference}</Text>
+        <Text mt="4px" color="ink.500" fontSize="12px">
+          {vendor.secretReference}
+        </Text>
       </Td>
-      <Td><StatusChip value={vendor.lastSmokeStatus} /></Td>
+      <Td>
+        <StatusChip value={vendor.lastSmokeStatus} />
+      </Td>
       <Td>
         <HStack gap="10px">
-          <Link href={vendor.apiDocsUrl} target="_blank" color="blue.600">API</Link>
-          <Link href={vendor.pricingUrl} target="_blank" color="blue.600">Pricing</Link>
+          <Link href={vendor.apiDocsUrl} target="_blank" color="blue.600">
+            API
+          </Link>
+          <Link href={vendor.pricingUrl} target="_blank" color="blue.600">
+            Pricing
+          </Link>
         </HStack>
       </Td>
     </Box>
@@ -315,7 +349,10 @@ function ModelCatalogTable({
       stamp={`${models.length} models`}
       table={
         models.length === 0 ? (
-          <EmptyBlock title="暂无模型" description="当前没有可治理的 LLM 模型。" />
+          <EmptyBlock
+            title="暂无模型"
+            description="当前没有可治理的 LLM 模型。"
+          />
         ) : (
           <DataTable>
             <TableHeaderRow>
@@ -331,7 +368,10 @@ function ModelCatalogTable({
                 <ModelRow
                   key={`${model.providerCode}:${model.modelId}`}
                   model={model}
-                  rollout={findRollout(rollouts, model.boundServiceIds[0] ?? model.modelId)}
+                  rollout={findRollout(
+                    rollouts,
+                    model.boundServiceIds[0] ?? model.modelId
+                  )}
                   busyServiceId={busyServiceId}
                   onRequestRollout={onRequestRollout}
                 />
@@ -361,16 +401,26 @@ function ModelRow({
     <Box as="tr">
       <Td>
         <Text fontWeight="800">{model.displayName}</Text>
-        <Text color="ink.500" fontSize="13px">{model.modelId}</Text>
+        <Text color="ink.500" fontSize="13px">
+          {model.modelId}
+        </Text>
       </Td>
-      <Td><Text fontSize="13px">{serviceId}</Text></Td>
+      <Td>
+        <Text fontSize="13px">{serviceId}</Text>
+      </Td>
       <Td>
         <Stack gap="4px">
-          <Text fontSize="13px">streaming: {model.supportsStreaming ? "yes" : "no"}</Text>
-          <Text fontSize="13px">tools: {model.supportsToolCalling ? "yes" : "no"}</Text>
+          <Text fontSize="13px">
+            streaming: {model.supportsStreaming ? "yes" : "no"}
+          </Text>
+          <Text fontSize="13px">
+            tools: {model.supportsToolCalling ? "yes" : "no"}
+          </Text>
         </Stack>
       </Td>
-      <Td><StatusChip value={model.status} /></Td>
+      <Td>
+        <StatusChip value={model.status} />
+      </Td>
       <Td>
         <StatusChip value={rollout?.eligibilityStatus ?? "unknown"} />
         <Text mt="4px" color="ink.500" fontSize="12px">
@@ -379,10 +429,19 @@ function ModelRow({
       </Td>
       <Td>
         <HStack gap="8px">
-          <Button size="sm" isLoading={busy} onClick={() => onRequestRollout(model, "smoke")}>
+          <Button
+            size="sm"
+            isLoading={busy}
+            onClick={() => onRequestRollout(model, "smoke")}
+          >
             staging smoke
           </Button>
-          <Button size="sm" colorScheme="orange" isLoading={busy} onClick={() => onRequestRollout(model, "prod_enable")}>
+          <Button
+            size="sm"
+            colorScheme="orange"
+            isLoading={busy}
+            onClick={() => onRequestRollout(model, "prod_enable")}
+          >
             prod enable
           </Button>
         </HStack>
@@ -391,12 +450,31 @@ function ModelRow({
   );
 }
 
-function MetricCard({ label, value, detail }: { label: string; value: number; detail: string }) {
+function MetricCard({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: number;
+  detail: string;
+}) {
   return (
-    <Box borderRadius="8px" bg="rgba(255,255,255,0.94)" border="1px solid rgba(15,17,21,0.08)" p="18px">
-      <Text fontSize="11px" textTransform="uppercase" color="ink.500">{label}</Text>
-      <Heading mt="8px" size="lg">{value}</Heading>
-      <Text mt="6px" color="ink.500" fontSize="13px">{detail}</Text>
+    <Box
+      borderRadius="8px"
+      bg="rgba(255,255,255,0.94)"
+      border="1px solid rgba(15,17,21,0.08)"
+      p="18px"
+    >
+      <Text fontSize="11px" textTransform="uppercase" color="ink.500">
+        {label}
+      </Text>
+      <Heading mt="8px" size="lg">
+        {value}
+      </Heading>
+      <Text mt="6px" color="ink.500" fontSize="13px">
+        {detail}
+      </Text>
     </Box>
   );
 }

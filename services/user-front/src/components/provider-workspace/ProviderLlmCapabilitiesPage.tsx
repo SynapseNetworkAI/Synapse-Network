@@ -38,7 +38,10 @@ const COPY = {
   requestReview: "Request Review",
 };
 
-function hasService(services: ServiceRegistryRecord[], capability: ProviderLlmCapability): boolean {
+function hasService(
+  services: ServiceRegistryRecord[],
+  capability: ProviderLlmCapability
+): boolean {
   return services.some((service) => service.serviceId === capability.serviceId);
 }
 
@@ -79,7 +82,10 @@ export default function ProviderLlmCapabilitiesPage() {
           secretCount={secretCount}
         />
         <BoundaryNotice />
-        <CapabilityTable services={services} hasSigningSecret={secretCount > 0} />
+        <CapabilityTable
+          services={services}
+          hasSigningSecret={secretCount > 0}
+        />
       </div>
     </div>
   );
@@ -168,8 +174,14 @@ function LlmMetrics({
 }) {
   return (
     <section className="grid gap-4 md:grid-cols-3">
-      <Metric label={COPY.registeredServices} value={loading ? "..." : String(registeredCount)} />
-      <Metric label={COPY.signingSecrets} value={loading ? "..." : String(secretCount)} />
+      <Metric
+        label={COPY.registeredServices}
+        value={loading ? "..." : String(registeredCount)}
+      />
+      <Metric
+        label={COPY.signingSecrets}
+        value={loading ? "..." : String(secretCount)}
+      />
       <Metric label={COPY.prodEnabled} value="0" />
     </section>
   );
@@ -228,20 +240,30 @@ function CapabilityRow({
     <div className="grid grid-cols-1 gap-4 border-b border-[#151515] px-5 py-5 last:border-b-0 md:grid-cols-[1.4fr_1fr_1fr_1fr]">
       <div>
         <p className="font-bold text-white">{capability.displayName}</p>
-        <p className="mt-1 text-xs text-[#86868b]">{capability.providerName} / {capability.modelId}</p>
+        <p className="mt-1 text-xs text-[#86868b]">
+          {capability.providerName} / {capability.modelId}
+        </p>
       </div>
       <div className="text-sm text-[#d4d4d8]">
         <p>{capability.serviceId}</p>
         <p className="mt-1 text-xs text-[#86868b]">{capability.slug}</p>
       </div>
       <div className="flex flex-wrap gap-2">
-        <GatePill ready={registered} label={registered ? COPY.registered : COPY.notRegistered} />
-        <GatePill ready={hasSigningSecret} label={hasSigningSecret ? COPY.secretReady : COPY.secretMissing} />
+        <GatePill
+          ready={registered}
+          label={registered ? COPY.registered : COPY.notRegistered}
+        />
+        <GatePill
+          ready={hasSigningSecret}
+          label={hasSigningSecret ? COPY.secretReady : COPY.secretMissing}
+        />
         <GatePill ready={false} label={COPY.pricingReview} />
       </div>
       <div className="flex items-center">
         <Link
-          href={`/forum?category=Provider%20Services&serviceId=${encodeURIComponent(capability.serviceId)}`}
+          href={`/forum?category=Provider%20Services&serviceId=${encodeURIComponent(
+            capability.serviceId
+          )}`}
           className="rounded-xl border border-[#333333] px-4 py-2 text-xs font-bold uppercase tracking-[0.12em] text-white transition hover:border-[#ffffff]/60"
         >
           {COPY.requestReview}
@@ -254,8 +276,12 @@ function CapabilityRow({
 function Metric({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-2xl border border-[#222222] bg-[#0a0a0a] p-5">
-      <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#86868b]">{label}</p>
-      <p className="mt-3 font-mono text-3xl font-[800] tracking-tight text-white">{value}</p>
+      <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#86868b]">
+        {label}
+      </p>
+      <p className="mt-3 font-mono text-3xl font-[800] tracking-tight text-white">
+        {value}
+      </p>
     </div>
   );
 }

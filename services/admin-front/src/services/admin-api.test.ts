@@ -522,7 +522,6 @@ describe("provider services API adapters", () => {
       JSON.stringify({ action: "PAUSE", note: "ops pause" })
     );
   });
-
 });
 
 describe("forum support API adapters", () => {

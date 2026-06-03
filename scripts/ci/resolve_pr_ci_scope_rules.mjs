@@ -45,7 +45,12 @@ export const FULL_COMMANDS = [
 
 export const ORDER = [...FULL_COMMANDS, "terraform_staging_validate"];
 
-export const docsPatterns = [/^docs\//, /^llms\.txt$/, /^services\/docs-front\//, /\.md$/];
+export const docsPatterns = [
+  /^docs\//,
+  /^llms\.txt$/,
+  /^services\/docs-front\//,
+  /\.md$/,
+];
 
 export const narrowCiToolPatterns = [
   /^scripts\/ci\/agent_lessons_check(\.test)?\.mjs$/,

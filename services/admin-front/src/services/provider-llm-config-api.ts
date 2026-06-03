@@ -81,7 +81,9 @@ export type ProviderLlmRolloutRequest = {
 };
 
 export async function getProviderLlmConfig(): Promise<ProviderLlmConfigSnapshot> {
-  return request<ProviderLlmConfigSnapshot>("/api/admin/v1/provider-llm-config");
+  return request<ProviderLlmConfigSnapshot>(
+    "/api/admin/v1/provider-llm-config"
+  );
 }
 
 export async function createProviderLlmRolloutRequest(input: {
