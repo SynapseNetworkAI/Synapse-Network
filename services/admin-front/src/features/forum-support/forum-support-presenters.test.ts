@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import type { ForumResponseTask } from "@/services/admin-api";
+import type {
+  ForumResponseTask,
+  ForumTopicContext,
+} from "@/services/admin-api";
 import {
   buildForumGrowingLinks,
   buildForumSupportMetrics,
+  buildForumTopicMetrics,
   canIgnoreForumTask,
   canSendForumReply,
   forumSupportModeFromStatus,
@@ -36,12 +40,44 @@ function task(overrides: Partial<ForumResponseTask> = {}): ForumResponseTask {
   };
 }
 
+function topic(overrides: Partial<ForumTopicContext> = {}): ForumTopicContext {
+  return {
+    topicId: "topic_1",
+    title: "How do agent payments settle?",
+    body: "Can you explain settlement?",
+    excerpt: "Can you explain settlement?",
+    category: "payments",
+    status: "open",
+    authorDisplay: "Cliff",
+    authorAddress: "0xabc",
+    resolved: false,
+    pinned: false,
+    locked: false,
+    repliesCount: 0,
+    officialRepliesCount: 0,
+    viewsCount: 0,
+    lastActivityAt: "2026-04-19T00:00:00Z",
+    createdAt: "2026-04-19T00:00:00Z",
+    updatedAt: "2026-04-19T00:00:00Z",
+    closedReason: null,
+    ...overrides,
+  };
+}
+
 describe("forum support presenters", () => {
   it("maps status modes to the backend queue filters", () => {
-    expect(forumSupportStatusForMode("active")).toBe("awaiting_response,draft_ready");
-    expect(forumSupportStatusForMode("history")).toBe("responded,ignored,closed");
-    expect(forumSupportModeFromStatus("responded,ignored,closed")).toBe("history");
-    expect(forumSupportModeFromStatus("awaiting_response,draft_ready")).toBe("active");
+    expect(forumSupportStatusForMode("active")).toBe(
+      "awaiting_response,draft_ready"
+    );
+    expect(forumSupportStatusForMode("history")).toBe(
+      "responded,ignored,closed"
+    );
+    expect(forumSupportModeFromStatus("responded,ignored,closed")).toBe(
+      "history"
+    );
+    expect(forumSupportModeFromStatus("awaiting_response,draft_ready")).toBe(
+      "active"
+    );
   });
 
   it("allows reply and ignore actions only for active response tasks", () => {
@@ -59,11 +95,21 @@ describe("forum support presenters", () => {
   });
 
   it("summarizes queue metrics from visible tasks", () => {
-    expect(buildForumSupportMetrics([
-      task({ status: "draft_ready", classification: "bug", priority: "critical" }),
-      task({ status: "awaiting_response", classification: "question", priority: "normal" }),
-      task({ status: "responded", classification: "bug", priority: "high" }),
-    ])).toEqual({
+    expect(
+      buildForumSupportMetrics([
+        task({
+          status: "draft_ready",
+          classification: "bug",
+          priority: "critical",
+        }),
+        task({
+          status: "awaiting_response",
+          classification: "question",
+          priority: "normal",
+        }),
+        task({ status: "responded", classification: "bug", priority: "high" }),
+      ])
+    ).toEqual({
       total: 3,
       draftReady: 1,
       bugs: 2,
@@ -71,12 +117,32 @@ describe("forum support presenters", () => {
     });
   });
 
+  it("summarizes topic lifecycle metrics from visible topics", () => {
+    expect(
+      buildForumTopicMetrics([
+        topic({ status: "open" }),
+        topic({ topicId: "topic_2", status: "awaiting_admin", pinned: true }),
+        topic({ topicId: "topic_3", status: "closed" }),
+        topic({ topicId: "topic_4", status: "hidden", pinned: true }),
+      ])
+    ).toEqual({
+      open: 2,
+      awaitingAdmin: 1,
+      closed: 1,
+      pinned: 2,
+    });
+  });
+
   it("builds Growing deep links from task linkage fields", () => {
-    expect(buildForumGrowingLinks(task({
-      linkedRequirementCandidateId: "cand_42",
-      linkedRequirementId: "req_7",
-      linkedWorkflowRunId: "wf_9",
-    }))).toEqual([
+    expect(
+      buildForumGrowingLinks(
+        task({
+          linkedRequirementCandidateId: "cand_42",
+          linkedRequirementId: "req_7",
+          linkedWorkflowRunId: "wf_9",
+        })
+      )
+    ).toEqual([
       {
         key: "candidate",
         label: "打开 Growing Candidate",

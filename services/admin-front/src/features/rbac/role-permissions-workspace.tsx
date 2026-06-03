@@ -1,24 +1,16 @@
 "use client";
 
 import { Button, Grid } from "@chakra-ui/react";
-import type { FormEvent } from "react";
 import { useDeferredValue, useMemo, useState } from "react";
 
 import { AdminShell } from "@/components/admin-shell";
 import { ControlPlaneLoadingScreen } from "@/components/control-plane-loading-screen";
 import { MessageBanner } from "@/components/console-ui";
 import { useAdminSession } from "@/lib/use-admin-session";
-import {
-  createAdminRole,
-  deleteAdminRole,
-  updateAdminRole,
-  type AdminRoleCatalogItem,
-} from "@/services/admin-api";
+import type { AdminRoleCatalogItem } from "@/services/admin-api";
 
 import { RoleEditorModal } from "./role-editor-modal";
 import {
-  buildCreateRolePayload,
-  buildRoleMutationPayload,
   createEmptyRoleForm,
   createRoleFormFromCatalogItem,
   toggleRolePermission,
@@ -39,6 +31,7 @@ import {
   sortRolesByPriority,
 } from "./role-presenters";
 import { useRolePermissionsData } from "./use-role-permissions-data";
+import { useRolePermissionsMutations } from "./use-role-permissions-mutations";
 
 export function RolePermissionsWorkspace() {
   const { admin, token, loading } = useAdminSession();
@@ -53,6 +46,13 @@ export function RolePermissionsWorkspace() {
     deferredSearch,
     statusFilter
   );
+  const canManage = admin?.role === "super_admin";
+  const mutations = useRolePermissionsMutations({
+    token,
+    canManage,
+    data,
+    editor,
+  });
 
   if (loading || !admin || data.bootstrapping) {
     return (
@@ -61,51 +61,6 @@ export function RolePermissionsWorkspace() {
         message="正在载入角色权限矩阵..."
       />
     );
-  }
-
-  const canManage = admin.role === "super_admin";
-
-  async function handleDelete(roleKey: string) {
-    if (!token || !canManage) {
-      return;
-    }
-    data.clearNotices();
-    try {
-      await deleteAdminRole(token, roleKey);
-      await data.loadData(token);
-      data.setMessage("角色已禁用。");
-    } catch (deleteError) {
-      data.setError(
-        deleteError instanceof Error ? deleteError.message : "禁用角色失败"
-      );
-    }
-  }
-
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!token) {
-      return;
-    }
-    data.clearNotices();
-    try {
-      if (editor.editingRole) {
-        await updateAdminRole(
-          token,
-          editor.editingRole.roleKey,
-          buildRoleMutationPayload(editor.form)
-        );
-        data.setMessage("角色权限已更新。");
-      } else {
-        await createAdminRole(token, buildCreateRolePayload(editor.form));
-        data.setMessage("角色已创建。");
-      }
-      await data.loadData(token);
-      editor.closeModal();
-    } catch (submitError) {
-      data.setError(
-        submitError instanceof Error ? submitError.message : "保存角色失败"
-      );
-    }
   }
 
   return (
@@ -128,6 +83,44 @@ export function RolePermissionsWorkspace() {
         ) : undefined
       }
     >
+      <RolePermissionsBody
+        canManage={canManage}
+        data={data}
+        editor={editor}
+        mutations={mutations}
+        search={search}
+        setSearch={setSearch}
+        setStatusFilter={setStatusFilter}
+        statusFilter={statusFilter}
+        viewModel={viewModel}
+      />
+    </AdminShell>
+  );
+}
+
+function RolePermissionsBody({
+  canManage,
+  data,
+  editor,
+  mutations,
+  search,
+  setSearch,
+  setStatusFilter,
+  statusFilter,
+  viewModel,
+}: Readonly<{
+  canManage: boolean;
+  data: ReturnType<typeof useRolePermissionsData>;
+  editor: ReturnType<typeof useRoleEditor>;
+  mutations: ReturnType<typeof useRolePermissionsMutations>;
+  search: string;
+  setSearch: (value: string) => void;
+  setStatusFilter: (value: string) => void;
+  statusFilter: string;
+  viewModel: ReturnType<typeof useRolePermissionsViewModel>;
+}>) {
+  return (
+    <>
       <RoleNotices error={data.error} message={data.message} />
       <RoleMetricGrid
         metrics={viewModel.metrics}
@@ -145,7 +138,7 @@ export function RolePermissionsWorkspace() {
           onSearchChange={setSearch}
           onStatusFilterChange={setStatusFilter}
           onEdit={editor.openEdit}
-          onDelete={(roleKey) => void handleDelete(roleKey)}
+          onDelete={(roleKey) => void mutations.deleteRole(roleKey)}
         />
       </Grid>
       <RoleModuleBoundaries
@@ -159,11 +152,11 @@ export function RolePermissionsWorkspace() {
         form={editor.form}
         permissionGroups={viewModel.permissionGroups}
         onClose={editor.closeModal}
-        onSubmit={(event) => void handleSubmit(event)}
+        onSubmit={(event) => void mutations.submitRole(event)}
         onFieldChange={editor.updateField}
         onTogglePermission={editor.togglePermission}
       />
-    </AdminShell>
+    </>
   );
 }
 
