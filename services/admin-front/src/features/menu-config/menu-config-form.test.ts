@@ -56,7 +56,7 @@ describe("menu-config-form", () => {
         iconKey: "",
         sortOrder: "",
         keywords: "",
-      }),
+      })
     ).toMatchObject({
       href: null,
       parentItemId: null,
@@ -84,7 +84,7 @@ describe("menu-config-form", () => {
         requiredPermissions: ["config:read"],
         sortOrder: 43,
         keywords: ["runtime"],
-      }),
+      })
     ).toMatchObject({
       itemId: "runtime-config",
       href: "/config/runtime",

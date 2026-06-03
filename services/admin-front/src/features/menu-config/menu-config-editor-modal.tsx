@@ -29,7 +29,7 @@ export function MenuConfigEditorModal({
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onFieldChange: <Key extends keyof MenuFormState>(
     key: Key,
-    value: MenuFormState[Key],
+    value: MenuFormState[Key]
   ) => void;
 }>) {
   return (
@@ -85,7 +85,7 @@ function MenuIdentityFields({
   editingRow: AdminMenuConfigItem | null;
   onFieldChange: <Key extends keyof MenuFormState>(
     key: Key,
-    value: MenuFormState[Key],
+    value: MenuFormState[Key]
   ) => void;
 }>) {
   return (
@@ -130,7 +130,7 @@ function MenuTopologyFields({
   topologyRows: AdminMenuConfigItem[];
   onFieldChange: <Key extends keyof MenuFormState>(
     key: Key,
-    value: MenuFormState[Key],
+    value: MenuFormState[Key]
   ) => void;
 }>) {
   return (
@@ -141,7 +141,7 @@ function MenuTopologyFields({
           onChange={(event) =>
             onFieldChange(
               "nodeType",
-              event.target.value as MenuFormState["nodeType"],
+              event.target.value as MenuFormState["nodeType"]
             )
           }
           style={nativeFieldStyle}
@@ -180,7 +180,7 @@ function MenuDisplayFields({
   form: MenuFormState;
   onFieldChange: <Key extends keyof MenuFormState>(
     key: Key,
-    value: MenuFormState[Key],
+    value: MenuFormState[Key]
   ) => void;
 }>) {
   return (
@@ -237,7 +237,7 @@ function MenuAccessFields({
   form: MenuFormState;
   onFieldChange: <Key extends keyof MenuFormState>(
     key: Key,
-    value: MenuFormState[Key],
+    value: MenuFormState[Key]
   ) => void;
 }>) {
   return (
