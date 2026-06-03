@@ -233,7 +233,7 @@ def build_default_menu_items() -> tuple[AdminMenuConfigItem, ...]:
             parent_item_id="control-overview",
             node_type=MENU_NODE_PAGE,
             icon_key="LM",
-            required_permissions=(DASHBOARD_READ_PERMISSION,),
+            required_permissions=("execution:read",),
             sort_order=36,
             keywords=("provider", "llm", "models", "pricing", "rollout", "openai"),
         ),

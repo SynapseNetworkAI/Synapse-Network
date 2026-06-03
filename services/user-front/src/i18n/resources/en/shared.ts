@@ -76,8 +76,6 @@ const shared: Pick<
     quickAccessProviderCredentialsDescription:
       "Issue provider secrets and signing material.",
     quickAccessServicesDescription: "Create, edit, and publish monetized APIs.",
-    quickAccessLlmCapabilitiesDescription:
-      "Review LLM model onboarding and production gates.",
     quickAccessUsageDescription:
       "Track request volume, latency, and provider earnings.",
     quickAccessSettlementsDescription:
@@ -116,7 +114,6 @@ const shared: Pick<
     providerConsole: "Provider Console",
     providerCredentials: "Provider Credentials",
     myServices: "My Services",
-    llmCapabilities: "LLM Capabilities",
     usageAnalytics: "Usage Analytics",
     settlements: "Settlements",
     settlement: "Settlement",

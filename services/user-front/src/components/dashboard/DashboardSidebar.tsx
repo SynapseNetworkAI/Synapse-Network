@@ -375,13 +375,6 @@ export default function DashboardSidebar() {
               )}
             </Link>
             <Link
-              {...getRouteLinkProps(`${providerRoot}/llm`)}
-              className={getLinkClasses([`${providerRoot}/llm`], false)}
-            >
-              <Bot className="mr-3 h-4 w-4 text-white/44 transition-colors group-hover:text-white/66" />
-              {t("sidebar.llmCapabilities")}
-            </Link>
-            <Link
               {...getRouteLinkProps(`${providerRoot}/usage`)}
               className={getLinkClasses([`${providerRoot}/usage`], false)}
             >

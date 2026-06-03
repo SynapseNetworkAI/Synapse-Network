@@ -52,7 +52,6 @@ export type I18nMessages = {
     quickAccessProviderConsoleDescription: string;
     quickAccessProviderCredentialsDescription: string;
     quickAccessServicesDescription: string;
-    quickAccessLlmCapabilitiesDescription: string;
     quickAccessUsageDescription: string;
     quickAccessSettlementsDescription: string;
     quickAccessMarketplaceDescription: string;
@@ -87,7 +86,6 @@ export type I18nMessages = {
     providerConsole: string;
     providerCredentials: string;
     myServices: string;
-    llmCapabilities: string;
     usageAnalytics: string;
     settlements: string;
     settlement: string;
@@ -1414,24 +1412,6 @@ export type I18nMessages = {
     createService: string;
     credentialsBannerText: string;
     credentialsBannerAction: string;
-    llmEyebrow: string;
-    llmTitle: string;
-    llmDescription: string;
-    llmViewServices: string;
-    llmRegisteredServices: string;
-    llmSigningSecrets: string;
-    llmProdEnabled: string;
-    llmBoundaryNotice: string;
-    llmTableModel: string;
-    llmTableService: string;
-    llmTableGates: string;
-    llmTableAction: string;
-    llmRegistered: string;
-    llmNotRegistered: string;
-    llmSecretReady: string;
-    llmSecretMissing: string;
-    llmPricingReview: string;
-    llmRequestReview: string;
   };
   providerSettlements: {
     walletPaysGasDisconnected: string;
