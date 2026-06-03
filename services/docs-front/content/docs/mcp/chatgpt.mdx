@@ -1,0 +1,54 @@
+---
+title: ChatGPT Custom MCP App
+description: Register Synapse Remote MCP as a ChatGPT custom MCP app with OAuth.
+---
+
+ChatGPT custom MCP apps should use Synapse OAuth.
+
+## Requirements
+
+- ChatGPT Business, Enterprise, Edu, or another plan with custom MCP app support.
+- Developer mode enabled for the user or workspace.
+- A Synapse wallet session with a supported Arbitrum wallet such as MetaMask or Rabby.
+- A dedicated Agent Credential for ChatGPT, preferably with conservative spend and call limits.
+
+## App settings
+
+| Field | Value |
+| --- | --- |
+| MCP endpoint | `https://mcp.synapse-network.ai/mcp` |
+| Auth | OAuth |
+| Authorization server | `https://www.synapse-network.ai` |
+| Read scopes | `synapse.discovery.read synapse.receipts.read offline_access` |
+| Write scope | `synapse.invocations.write` |
+
+## Registration flow
+
+1. In ChatGPT, open Workspace Settings.
+2. Go to Apps and create a custom app.
+3. Enter the MCP endpoint.
+4. Choose OAuth.
+5. Complete the Synapse authorization prompt.
+6. Click Scan Tools.
+7. Confirm that ChatGPT imports `discover_services`, `get_receipt`, and `invoke_and_pay`.
+8. Before publishing, configure action controls.
+
+## Action controls
+
+| Tool | Recommended control |
+| --- | --- |
+| `discover_services` | Allow without confirmation |
+| `get_receipt` | Allow without confirmation |
+| `invoke_and_pay` | Require confirmation |
+
+<WarningNote title="Do not disable confirmation for paid invocation">
+  `invoke_and_pay` can spend from the linked Agent Credential. Keep it behind a
+  human confirmation or equivalent workspace action control.
+</WarningNote>
+
+## Troubleshooting
+
+- `Wallet connection is unavailable`: install or enable MetaMask or Rabby and retry.
+- Tool scan fails with `401`: complete OAuth authorization again.
+- Tool scan fails with `424`: check OAuth scopes and make sure the connector passes a valid access token.
+- Tools changed after publishing: refresh or recreate the custom app so ChatGPT re-scans tool definitions.

@@ -1,0 +1,53 @@
+---
+title: MCP Tools
+description: Tool contracts and pricing rules for discover_services, invoke_and_pay, and get_receipt.
+---
+
+## `discover_services`
+
+Searches Synapse provider services and returns current schemas, pricing, provider metadata, and invocation policy.
+
+Use it before every paid action.
+
+Typical prompt:
+
+```text
+Discover services for image captioning. Show the service id, price model, input schema, and max cost.
+Do not invoke anything yet.
+```
+
+## `invoke_and_pay`
+
+Invokes a selected service through Synapse Gateway.
+
+This tool can charge the Agent Credential. Treat it as a consequential/write action in clients that support action controls.
+
+Rules:
+
+- Fixed-price services must pass the current `costUsdc` observed from `discover_services`.
+- Token-metered services must pass `maxCostUsdc` as the budget ceiling.
+- Include an idempotency key when the client can generate one.
+- If Gateway returns `PRICE_MISMATCH`, call `discover_services` again and retry only with the fresh price.
+
+## `get_receipt`
+
+Fetches invocation and settlement evidence after a call.
+
+Use it for:
+
+- User-visible receipts.
+- Retry and reconciliation decisions.
+- Auditing charged amount, provider status, and invocation status.
+
+## Safe default tool policy
+
+| Tool | Default access |
+| --- | --- |
+| `discover_services` | Allow read-only |
+| `get_receipt` | Allow read-only |
+| `invoke_and_pay` | Require human confirmation |
+
+<AgentNote>
+  A good MCP client prompt should return receipt IDs whenever money moves. That
+  makes cost review, retry policy, and support handoff much easier.
+</AgentNote>

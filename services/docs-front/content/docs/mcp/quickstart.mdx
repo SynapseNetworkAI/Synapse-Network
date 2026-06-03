@@ -1,0 +1,52 @@
+---
+title: MCP Quick Start
+description: The shortest path to connect Synapse MCP from a model-compatible client.
+---
+
+Use the hosted Remote MCP endpoint when your client supports Streamable HTTP. Use the local stdio package when your client expects a command.
+
+## Hosted Remote MCP
+
+Remote endpoint:
+
+```text
+https://mcp.synapse-network.ai/mcp
+```
+
+Unauthenticated requests should return `401`. That is expected: the server is public at the network layer and protected by Synapse auth at the MCP layer.
+
+```bash
+curl -i https://mcp.synapse-network.ai/.well-known/oauth-protected-resource
+```
+
+```bash
+curl -i -X POST https://mcp.synapse-network.ai/mcp \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  --data '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"probe","version":"0"}}}'
+```
+
+## Local stdio MCP
+
+```bash
+npx -y @synapse-network-ai/mcp-server
+```
+
+Required environment:
+
+<McpEnvironmentExample />
+
+## Recommended first prompt
+
+Ask your client to run a read-only discovery first:
+
+```text
+Use the Synapse MCP server to discover one free or lowest-price weather API service.
+Do not call invoke_and_pay.
+```
+
+## Production caution
+
+- `staging` is for sandbox/testnet workflows.
+- `prod` uses real production balances.
+- Do not share real `agt_xxx` keys, OAuth access tokens, OpenAI keys, private keys, or wallet mnemonics in prompts, screenshots, docs, or logs.

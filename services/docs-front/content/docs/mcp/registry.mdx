@@ -1,0 +1,44 @@
+---
+title: Registry and Directories
+description: Find Synapse MCP in the official MCP Registry and third-party MCP directories.
+---
+
+Synapse MCP is published in the official MCP Registry.
+
+## Official MCP Registry
+
+| Field | Value |
+| --- | --- |
+| Registry name | `io.github.SynapseNetworkAI/synapse-network-mcp-server` |
+| Package | `@synapse-network-ai/mcp-server` |
+| Remote endpoint | `https://mcp.synapse-network.ai/mcp` |
+| Transport | `stdio` package and Streamable HTTP remote |
+| Repository | `https://github.com/SynapseNetworkAI/Synapse-Network-MCP-Server` |
+
+Search:
+
+```bash
+curl 'https://registry.modelcontextprotocol.io/v0.1/servers?search=SynapseNetworkAI'
+```
+
+## Third-party directories
+
+Use the same metadata for:
+
+- Smithery
+- Glama
+- PulseMCP
+- mcp.so / MCP.so
+- awesome-mcp-servers style GitHub lists
+
+## Directory copy
+
+```text
+SynapseNetwork MCP Server exposes service discovery, payable invocation, and receipts for agent runtimes. Agents can discover APIs, inspect current pricing and schemas, invoke with bounded USDC spend, and fetch settlement receipts.
+```
+
+## Security copy
+
+```text
+Use a dedicated Synapse Agent Credential with a bounded spend limit. Read-only tools are discover_services and get_receipt. invoke_and_pay is consequential and should require user confirmation.
+```
