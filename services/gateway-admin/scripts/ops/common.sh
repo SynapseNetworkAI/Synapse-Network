@@ -120,11 +120,23 @@ start_gateway_admin() {
   local host
   local existing_pid
   local new_pid
+  local login_mfa_override_set=0
+  local login_mfa_override=""
+  local high_risk_mfa_override_set=0
+  local high_risk_mfa_override=""
 
   python_bin="$(resolve_python_bin)"
   uvicorn_bin="$(resolve_uvicorn_bin)"
   port="${ADMIN_GATEWAY_PORT:-8300}"
   host="${ADMIN_GATEWAY_HOST:-0.0.0.0}"
+  if [[ -n "${ADMIN_GOOGLE_AUTHENTICATOR_LOGIN_ENABLED+x}" ]]; then
+    login_mfa_override_set=1
+    login_mfa_override="${ADMIN_GOOGLE_AUTHENTICATOR_LOGIN_ENABLED}"
+  fi
+  if [[ -n "${ADMIN_GOOGLE_AUTHENTICATOR_HIGH_RISK_ENABLED+x}" ]]; then
+    high_risk_mfa_override_set=1
+    high_risk_mfa_override="${ADMIN_GOOGLE_AUTHENTICATOR_HIGH_RISK_ENABLED}"
+  fi
 
   if [[ -z "${python_bin}" ]]; then
     echo "Error: python3 not found."
@@ -152,6 +164,12 @@ start_gateway_admin() {
     set +a
     port="${ADMIN_GATEWAY_PORT:-$port}"
     host="${ADMIN_GATEWAY_HOST:-$host}"
+  fi
+  if [[ "${login_mfa_override_set}" == "1" ]]; then
+    export ADMIN_GOOGLE_AUTHENTICATOR_LOGIN_ENABLED="${login_mfa_override}"
+  fi
+  if [[ "${high_risk_mfa_override_set}" == "1" ]]; then
+    export ADMIN_GOOGLE_AUTHENTICATOR_HIGH_RISK_ENABLED="${high_risk_mfa_override}"
   fi
 
   if command -v screen >/dev/null 2>&1; then
