@@ -27,6 +27,8 @@ ALLOWED_SCOPES = READ_SCOPES | WRITE_SCOPES | SYSTEM_SCOPES
 
 DEFAULT_READ_SCOPES = "synapse.discovery.read synapse.receipts.read offline_access"
 ACCESS_TOKEN_USE = "synapse_mcp_access"
+DEFAULT_ALLOWED_CLIENT_IDS = "chatgpt-custom-mcp,chatgpt,codex"
+DEFAULT_ALLOWED_REDIRECT_HOSTS = "chatgpt.com,chat.openai.com,localhost,127.0.0.1,::1"
 
 
 def oauth_issuer() -> str:
@@ -54,11 +56,11 @@ def oauth_authorization_code_ttl_sec() -> int:
 
 
 def oauth_allowed_client_ids() -> set[str]:
-    return _env_csv("SYNAPSE_OAUTH_ALLOWED_CLIENT_IDS", "chatgpt-custom-mcp,chatgpt")
+    return _env_csv("SYNAPSE_OAUTH_ALLOWED_CLIENT_IDS", DEFAULT_ALLOWED_CLIENT_IDS)
 
 
 def oauth_allowed_redirect_hosts() -> set[str]:
-    return _env_csv("SYNAPSE_OAUTH_ALLOWED_REDIRECT_HOSTS", "chatgpt.com,chat.openai.com")
+    return _env_csv("SYNAPSE_OAUTH_ALLOWED_REDIRECT_HOSTS", DEFAULT_ALLOWED_REDIRECT_HOSTS)
 
 
 @dataclass(frozen=True)
@@ -356,7 +358,10 @@ def _validate_client_id(client_id: str) -> None:
 
 def _validate_redirect_uri(redirect_uri: str) -> None:
     parsed = urlparse(str(redirect_uri or ""))
-    if parsed.scheme != "https" or not _host_allowed(parsed.hostname or ""):
+    host = parsed.hostname or ""
+    is_https_allowed = parsed.scheme == "https" and _host_allowed(host)
+    is_loopback_http = parsed.scheme == "http" and _loopback_host_allowed(host)
+    if not is_https_allowed and not is_loopback_http:
         raise HTTPException(
             status_code=400,
             detail={"code": "INVALID_REDIRECT_URI", "message": "OAuth redirect URI is not allowed"},
@@ -369,6 +374,10 @@ def _host_allowed(hostname: str) -> bool:
         host == allowed_host or host.endswith(f".{allowed_host}")
         for allowed_host in oauth_allowed_redirect_hosts()
     )
+
+
+def _loopback_host_allowed(hostname: str) -> bool:
+    return hostname.lower() in {"localhost", "127.0.0.1", "::1"} and _host_allowed(hostname)
 
 
 def _validate_pkce(code_verifier: str, expected_challenge: str) -> None:

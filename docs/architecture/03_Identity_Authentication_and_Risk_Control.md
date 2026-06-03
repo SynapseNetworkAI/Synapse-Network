@@ -78,12 +78,17 @@ Agent credential 是 Runtime 支付身份。
 
 ChatGPT custom MCP app 这类托管连接器不应拿到原始 `agt_xxx`。Synapse first-party OAuth 把连接器凭据与运行时支付身份分开：
 
-1. ChatGPT 获取的是 Synapse OAuth access token / refresh token。
-2. OAuth authorization code 必须使用 PKCE S256，短期、一次性使用。
-3. Refresh token 是 opaque token，服务端只保存 hash，并在刷新时旋转。
-4. Access token 的 audience/resource 必须是 `https://mcp.synapse-network.ai/mcp`，不能被复用于其他资源。
-5. Gateway 校验 OAuth token 后，按 token grant 绑定的 `credential_id` 找到 Owner 授权的 Agent Credential。
-6. 扣费、预算、调用上限、receipt 归属仍然只看映射后的 Agent Credential。
+1. ChatGPT custom MCP 使用 Synapse OAuth access token 连接 `https://mcp.synapse-network.ai/mcp`。
+2. Codex CLI 也使用同一套 OAuth resource；注册时使用 `client_id=codex` 和 resource `https://mcp.synapse-network.ai/mcp`。
+3. Codex 的 OAuth redirect 是 HTTP loopback callback，默认 allowlist 允许 `localhost`、`127.0.0.1`、`::1`，但非本地 redirect 仍必须是 HTTPS allowlist host。
+4. OAuth token 只映射到用户在授权页选择的 Agent Credential；连接器永远不接收原始 `agt_xxx`。
+
+5. ChatGPT 获取的是 Synapse OAuth access token / refresh token。
+6. OAuth authorization code 必须使用 PKCE S256，短期、一次性使用。
+7. Refresh token 是 opaque token，服务端只保存 hash，并在刷新时旋转。
+8. Access token 的 audience/resource 必须是 `https://mcp.synapse-network.ai/mcp`，不能被复用于其他资源。
+9. Gateway 校验 OAuth token 后，按 token grant 绑定的 `credential_id` 找到 Owner 授权的 Agent Credential。
+10. 扣费、预算、调用上限、receipt 归属仍然只看映射后的 Agent Credential。
 
 这意味着 OAuth token 是 connector authorization，不是 Agent Credential 本身。撤销 OAuth grant 不需要泄露或轮换 `agt_xxx`；撤销 Agent Credential 则会让所有映射到它的 OAuth token 失去运行时能力。
 
