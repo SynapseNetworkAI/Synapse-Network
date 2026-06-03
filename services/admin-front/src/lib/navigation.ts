@@ -72,6 +72,10 @@ const navLookupById: Record<string, NavLookupRecord> = {
     label: "Provider 服务",
     description: "注册服务、探活状态与自动摘流管理。",
   },
+  "provider-llm-config": {
+    label: "LLM 配置治理",
+    description: "上游供应商、模型目录、价格复核与生产上线闸门。",
+  },
   "forum-support": {
     label: "社区回复",
     description: "未回复帖子、Agent 建议回复与人工发送。",
