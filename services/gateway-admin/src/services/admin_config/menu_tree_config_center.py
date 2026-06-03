@@ -1,0 +1,68 @@
+from src.domain.admin_config import AdminMenuConfigItem
+
+
+def build_config_center_menu_items(
+    section_label: str, section_description: str
+) -> tuple[AdminMenuConfigItem, ...]:
+    return (
+        AdminMenuConfigItem(
+            item_id="config-center",
+            section_id="ops-controls",
+            section_label=section_label,
+            section_description=section_description,
+            label="配置中心",
+            href="/config",
+            description="配置健康状态和业务参数工作台入口。",
+            parent_item_id="business-control",
+            node_type="page",
+            icon_key="CF",
+            required_roles=("super_admin", "platform_ops_admin"),
+            sort_order=205,
+            keywords=("config", "policy", "runtime"),
+        ),
+        AdminMenuConfigItem(
+            item_id="business-policy-config",
+            section_id="ops-controls",
+            section_label=section_label,
+            section_description=section_description,
+            label="业务策略配置",
+            href="/config/business-policy",
+            description="按业务域编辑 draft 并发布业务策略参数。",
+            parent_item_id="config-center",
+            node_type="page",
+            icon_key="BP",
+            required_roles=("super_admin", "platform_ops_admin"),
+            sort_order=206,
+            keywords=("business", "policy", "draft", "publish"),
+        ),
+        AdminMenuConfigItem(
+            item_id="runtime-config",
+            section_id="ops-controls",
+            section_label=section_label,
+            section_description=section_description,
+            label="运行时来源",
+            href="/config/runtime",
+            description="只读检查 Gateway runtime、env 和 default 来源。",
+            parent_item_id="config-center",
+            node_type="page",
+            icon_key="RT",
+            required_roles=("super_admin", "platform_ops_admin"),
+            sort_order=207,
+            keywords=("runtime", "env", "source", "configured"),
+        ),
+        AdminMenuConfigItem(
+            item_id="published-config",
+            section_id="ops-controls",
+            section_label=section_label,
+            section_description=section_description,
+            label="已发布快照",
+            href="/config/published",
+            description="结构化查看 published policy 与 draft 差异。",
+            parent_item_id="config-center",
+            node_type="page",
+            icon_key="PB",
+            required_roles=("super_admin", "platform_ops_admin"),
+            sort_order=208,
+            keywords=("published", "snapshot", "diff"),
+        ),
+    )

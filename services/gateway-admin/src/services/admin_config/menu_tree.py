@@ -1,4 +1,7 @@
 from src.domain.admin_config import AdminMenuConfigItem
+from src.services.admin_config.menu_tree_config_center import (
+    build_config_center_menu_items,
+)
 
 MENU_NODE_CATEGORY = "category"
 MENU_NODE_PAGE = "page"
@@ -360,19 +363,8 @@ def build_default_menu_items() -> tuple[AdminMenuConfigItem, ...]:
             required_roles=("super_admin", "platform_ops_admin"),
             sort_order=130,
         ),
-        AdminMenuConfigItem(
-            item_id="config-center",
-            section_id="ops-controls",
-            section_label=OPS_CONTROLS_LABEL,
-            section_description=OPS_CONTROLS_DESCRIPTION,
-            label="配置中心",
-            href="/config",
-            description="业务策略参数的 draft、published 与运行时来源总览。",
-            parent_item_id="business-control",
-            node_type=MENU_NODE_PAGE,
-            icon_key="CF",
-            required_roles=("super_admin", "platform_ops_admin"),
-            sort_order=205,
+        *build_config_center_menu_items(
+            OPS_CONTROLS_LABEL, OPS_CONTROLS_DESCRIPTION
         ),
         AdminMenuConfigItem(
             item_id="business-control",
