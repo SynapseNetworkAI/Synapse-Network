@@ -63,7 +63,7 @@
         "operationId": "get-challenge",
         "tags": ["Auth"],
         "summary": "Get EIP-191 sign challenge",
-        "description": "Returns a one-time nonce string for the given wallet address. Sign it with the owner private key and submit to /verify.\n\nAgent policy: Step 1 of owner auth. Call with the owner wallet address to receive a time-limited nonce. Sign it immediately with ECDSA (EIP-191) and pass to POST /auth/verify.",
+        "description": "Returns a time-limited SIWE-style EIP-191 message for the given wallet address. Sign the exact challenge string and submit it to /verify.\n\nAgent policy: Step 1 of owner auth. Call with the owner wallet address to receive a time-limited SIWE-style message. Sign the exact challenge with ECDSA (EIP-191) and pass it to POST /auth/verify.",
         "security": [],
         "parameters": [
           {
@@ -71,7 +71,17 @@
             "in": "query",
             "required": true,
             "description": "Owner wallet address (0x...)",
-            "schema": { "type": "string", "example": "0xYourWalletAddress" }
+            "schema": {
+              "type": "string",
+              "example": "0x1234567890abcdef1234567890abcdef12345678"
+            }
+          },
+          {
+            "name": "chainId",
+            "in": "query",
+            "required": false,
+            "description": "Optional chain ID to bind into the SIWE-style message. Production Arbitrum One uses 42161.",
+            "schema": { "type": "integer", "example": "42161" }
           }
         ],
         "responses": {
@@ -83,11 +93,13 @@
                   "type": "object",
                   "additionalProperties": true,
                   "example": {
-                    "challenge": "Synapse login nonce: abc123 | ts: 1711234567"
+                    "challenge": "synapse-network.ai wants you to sign in with your Ethereum account:\n0x1234567890abcdef1234567890abcdef12345678\n\nSign in to Synapse Network. This does not authorize a transaction or move funds.\n\nURI: https://synapse-network.ai\nVersion: 1\nChain ID: 42161\nNonce: abc123\nIssued At: 2026-05-30T13:25:02Z\nExpiration Time: 2026-05-30T13:35:02Z",
+                    "domain": "synapse-network.ai"
                   }
                 },
                 "example": {
-                  "challenge": "Synapse login nonce: abc123 | ts: 1711234567"
+                  "challenge": "synapse-network.ai wants you to sign in with your Ethereum account:\n0x1234567890abcdef1234567890abcdef12345678\n\nSign in to Synapse Network. This does not authorize a transaction or move funds.\n\nURI: https://synapse-network.ai\nVersion: 1\nChain ID: 42161\nNonce: abc123\nIssued At: 2026-05-30T13:25:02Z\nExpiration Time: 2026-05-30T13:35:02Z",
+                  "domain": "synapse-network.ai"
                 }
               }
             }
@@ -140,7 +152,7 @@
         "operationId": "post-verify",
         "tags": ["Auth"],
         "summary": "Verify signature, return JWT",
-        "description": "Submit the EIP-191 signed challenge. Gateway verifies the signature and returns a 24-hour JWT.\n\nAgent policy: Step 2 of owner auth. Submit the signed challenge. On success the gateway returns a 24-hour JWT. Store it — all owner-side calls require it as the Bearer token.",
+        "description": "Submit the EIP-191 signed challenge. Gateway verifies the signature and returns a 24-hour JWT.\n\nAgent policy: Step 2 of owner auth. Submit wallet_address, the exact signed challenge message, and the signature. On success the gateway returns a 24-hour JWT. Store access_token — all owner-side calls require it as the Bearer token.",
         "security": [],
         "parameters": [],
         "responses": {
@@ -152,11 +164,15 @@
                   "type": "object",
                   "additionalProperties": true,
                   "example": {
-                    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+                    "token_type": "bearer",
+                    "expires_in": 86400
                   }
                 },
                 "example": {
-                  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+                  "token_type": "bearer",
+                  "expires_in": 86400
                 }
               }
             }
@@ -210,14 +226,14 @@
                 "type": "object",
                 "additionalProperties": true,
                 "example": {
-                  "address": "0xYourWalletAddress",
-                  "message": "Synapse login nonce: abc123 | ts: 1711234567",
+                  "wallet_address": "0x1234567890abcdef1234567890abcdef12345678",
+                  "message": "synapse-network.ai wants you to sign in with your Ethereum account:\n0x1234567890abcdef1234567890abcdef12345678\n\nSign in to Synapse Network. This does not authorize a transaction or move funds.\n\nURI: https://synapse-network.ai\nVersion: 1\nChain ID: 42161\nNonce: abc123\nIssued At: 2026-05-30T13:25:02Z\nExpiration Time: 2026-05-30T13:35:02Z",
                   "signature": "0x..."
                 }
               },
               "example": {
-                "address": "0xYourWalletAddress",
-                "message": "Synapse login nonce: abc123 | ts: 1711234567",
+                "wallet_address": "0x1234567890abcdef1234567890abcdef12345678",
+                "message": "synapse-network.ai wants you to sign in with your Ethereum account:\n0x1234567890abcdef1234567890abcdef12345678\n\nSign in to Synapse Network. This does not authorize a transaction or move funds.\n\nURI: https://synapse-network.ai\nVersion: 1\nChain ID: 42161\nNonce: abc123\nIssued At: 2026-05-30T13:25:02Z\nExpiration Time: 2026-05-30T13:35:02Z",
                 "signature": "0x..."
               }
             }
@@ -297,11 +313,13 @@
                   "type": "object",
                   "additionalProperties": true,
                   "example": {
-                    "challenge": "Synapse profile update nonce: def456 | ts: 1711234600"
+                    "challenge": "Update Synapse account profile\nWallet: 0x1234567890abcdef1234567890abcdef12345678\nPayload Hash: 3f8b2f...\nNonce: def456\nTimestamp: 1711234600",
+                    "expiresInSec": 600
                   }
                 },
                 "example": {
-                  "challenge": "Synapse profile update nonce: def456 | ts: 1711234600"
+                  "challenge": "Update Synapse account profile\nWallet: 0x1234567890abcdef1234567890abcdef12345678\nPayload Hash: 3f8b2f...\nNonce: def456\nTimestamp: 1711234600",
+                  "expiresInSec": 600
                 }
               }
             }
@@ -363,7 +381,7 @@
                 "additionalProperties": true,
                 "example": {
                   "signature": "0x...",
-                  "message": "Synapse profile update nonce: def456 | ts: 1711234600",
+                  "message": "Update Synapse account profile\nWallet: 0x1234567890abcdef1234567890abcdef12345678\nPayload Hash: 3f8b2f...\nNonce: def456\nTimestamp: 1711234600",
                   "username": "new-alias",
                   "email": "new@example.com",
                   "notifications": true
@@ -371,7 +389,7 @@
               },
               "example": {
                 "signature": "0x...",
-                "message": "Synapse profile update nonce: def456 | ts: 1711234600",
+                "message": "Update Synapse account profile\nWallet: 0x1234567890abcdef1234567890abcdef12345678\nPayload Hash: 3f8b2f...\nNonce: def456\nTimestamp: 1711234600",
                 "username": "new-alias",
                 "email": "new@example.com",
                 "notifications": true
