@@ -1,0 +1,43 @@
+---
+title: VS Code
+description: Configure Synapse MCP for VS Code and GitHub Copilot MCP clients.
+---
+
+Add a project-local `.vscode/mcp.json`.
+
+```json
+{
+  "servers": {
+    "synapse": {
+      "command": "npx",
+      "args": ["-y", "@synapse-network-ai/mcp-server"],
+      "env": {
+        "SYNAPSE_AGENT_KEY": "agt_xxx",
+        "SYNAPSE_ENV": "prod"
+      }
+    }
+  }
+}
+```
+
+Open the file in VS Code and start the server from the MCP UI.
+
+## Verify
+
+Confirm that VS Code lists:
+
+- `discover_services`
+- `invoke_and_pay`
+- `get_receipt`
+
+## Safe prompt
+
+```text
+Discover Synapse services related to blockchain analytics. Show prices and schemas only.
+Do not invoke paid services.
+```
+
+## Notes
+
+- Some VS Code MCP clients use `mcpServers`; others use `servers`.
+- If the UI cannot find the server, check the exact schema expected by your extension.

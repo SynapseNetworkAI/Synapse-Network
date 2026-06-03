@@ -1,0 +1,42 @@
+---
+title: Cline and Roo Code
+description: Configure Synapse MCP for Cline, Roo Code, and similar VS Code agent extensions.
+---
+
+Cline, Roo Code, and similar extensions use MCP server JSON with a command and environment.
+
+```json
+{
+  "mcpServers": {
+    "synapse": {
+      "command": "npx",
+      "args": ["-y", "@synapse-network-ai/mcp-server"],
+      "env": {
+        "SYNAPSE_AGENT_KEY": "agt_xxx",
+        "SYNAPSE_ENV": "prod"
+      }
+    }
+  }
+}
+```
+
+## Tool approval
+
+Set your extension to require confirmation for:
+
+```text
+invoke_and_pay
+```
+
+Allow read-only use of:
+
+```text
+discover_services
+get_receipt
+```
+
+## First prompt
+
+```text
+Discover Synapse services that can help with code security review. Show the service id, schema, and current price. Stop before invoking.
+```

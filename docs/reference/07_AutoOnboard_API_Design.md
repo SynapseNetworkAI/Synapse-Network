@@ -20,13 +20,13 @@
 
 ```
 1. GET  /api/v1/auth/challenge?address={wallet_address}
-        → { nonce }
+        → { challenge, domain }
 
-2. sign(nonce)  ← 用私钥在本地签名，不上网
+2. sign(challenge)  ← 用私钥在本地签名，不上网
 
 3. POST /api/v1/auth/verify
-        body: { address, signature, nonce }
-        → { token: "<owner_jwt>" }
+        body: { wallet_address, message: challenge, signature }
+        → { access_token: "<owner_jwt>", token_type: "bearer", expires_in }
 
 4. GET  /api/v1/credentials/agent/list?active_only=true
         Authorization: Bearer <owner_jwt>

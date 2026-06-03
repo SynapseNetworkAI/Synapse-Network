@@ -11,6 +11,7 @@ const endpointDataPath = path.join(APP_ROOT, "src/data/endpoint-source.ts");
 const publicOpenApiPath = path.join(APP_ROOT, "public/openapi.json");
 const dataPath = path.join(APP_ROOT, "src/data/api-reference.json");
 const sourceLabel = "services/docs-front/src/data/endpoint-source.ts";
+const moduleCache = new Map();
 
 function resolveAppRoot() {
   const cwd = process.cwd();
@@ -25,8 +26,33 @@ function resolveAppRoot() {
   );
 }
 
-function loadRouteGroups() {
-  const source = fs.readFileSync(endpointDataPath, "utf8");
+function resolveLocalModule(fromPath, request) {
+  if (!request.startsWith(".")) {
+    throw new Error(`Unsupported endpoint-source import: ${request}`);
+  }
+
+  const basePath = path.resolve(path.dirname(fromPath), request);
+  for (const candidate of [
+    basePath,
+    `${basePath}.ts`,
+    `${basePath}.js`,
+    path.join(basePath, "index.ts"),
+    path.join(basePath, "index.js"),
+  ]) {
+    if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
+      return candidate;
+    }
+  }
+
+  throw new Error(`Cannot resolve endpoint-source import: ${request}`);
+}
+
+function loadTsModule(filePath) {
+  const resolvedPath = path.resolve(filePath);
+  const cached = moduleCache.get(resolvedPath);
+  if (cached) return cached.exports;
+
+  const source = fs.readFileSync(resolvedPath, "utf8");
   const output = ts.transpileModule(source, {
     compilerOptions: {
       module: ts.ModuleKind.CommonJS,
@@ -34,17 +60,29 @@ function loadRouteGroups() {
     },
   }).outputText;
 
-  const sandbox = { exports: {} };
+  const localModule = { exports: {} };
+  moduleCache.set(resolvedPath, localModule);
+  const sandbox = {
+    exports: localModule.exports,
+    module: localModule,
+    require: (request) =>
+      loadTsModule(resolveLocalModule(resolvedPath, request)),
+  };
   vm.runInNewContext(output, sandbox, {
-    filename: endpointDataPath,
+    filename: resolvedPath,
     timeout: 1000,
   });
+  return localModule.exports;
+}
 
-  if (!Array.isArray(sandbox.exports.ROUTE_GROUPS)) {
+function loadRouteGroups() {
+  const exports = loadTsModule(endpointDataPath);
+
+  if (!Array.isArray(exports.ROUTE_GROUPS)) {
     throw new Error("ROUTE_GROUPS export was not found in endpoint-source.ts");
   }
 
-  return sandbox.exports.ROUTE_GROUPS;
+  return exports.ROUTE_GROUPS;
 }
 
 function normalizePath(routePath) {
