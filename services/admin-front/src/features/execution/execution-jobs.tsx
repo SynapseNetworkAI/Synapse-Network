@@ -2,16 +2,18 @@
 
 import { useTransition } from "react";
 
-import { EXECUTION_JOB_STATUS, executionJobStatusTone, type StatusTone } from "@/domain/status";
+import {
+  EXECUTION_JOB_STATUS,
+  executionJobStatusTone,
+  type StatusTone,
+} from "@/domain/status";
 import { getExecutionStatusLabel } from "@/features/execution/execution-presenters";
 import type { ExecutionJobItem } from "@/services/admin-api";
-
 
 type ExecutionJobsProps = {
   items: ExecutionJobItem[];
   onRetry: (jobId: string) => Promise<void>;
 };
-
 
 function getToneClassName(tone: StatusTone): string {
   if (tone === "green") {
@@ -23,8 +25,10 @@ function getToneClassName(tone: StatusTone): string {
   return "status-pill status-pill--degraded";
 }
 
-
-export function ExecutionJobs({ items, onRetry }: Readonly<ExecutionJobsProps>) {
+export function ExecutionJobs({
+  items,
+  onRetry,
+}: Readonly<ExecutionJobsProps>) {
   const [isPending, startTransition] = useTransition();
 
   return (
@@ -33,7 +37,10 @@ export function ExecutionJobs({ items, onRetry }: Readonly<ExecutionJobsProps>) 
         <div>
           <p className="panel__eyebrow">Execution Queue</p>
           <h3 className="panel__title">执行任务与重试</h3>
-          <p className="panel__text">审批通过后的高风险动作统一转成 execution jobs，由后台 worker 自动消费或由 reviewer 手工重试。</p>
+          <p className="panel__text">
+            审批通过后的高风险动作统一转成 execution jobs，由后台 worker
+            自动消费或由 reviewer 手工重试。
+          </p>
         </div>
         <span className="dashboard-section__stamp">{items.length} jobs</span>
       </div>
@@ -44,27 +51,42 @@ export function ExecutionJobs({ items, onRetry }: Readonly<ExecutionJobsProps>) 
               <div>
                 <p className="queue__id">{job.jobId}</p>
                 <h4>{job.executionType}</h4>
-                <p className="queue__meta">approval: {job.approvalId} · target: {job.targetSystem} · retry {job.retryCount}/{job.maxRetryCount}</p>
+                <p className="queue__meta">
+                  approval: {job.approvalId} · target: {job.targetSystem} ·
+                  retry {job.retryCount}/{job.maxRetryCount}
+                </p>
               </div>
               <div className="pill-row">
-                <span className={getToneClassName(executionJobStatusTone(job.status))}>
+                <span
+                  className={getToneClassName(
+                    executionJobStatusTone(job.status)
+                  )}
+                >
                   {getExecutionStatusLabel(job.status)}
                 </span>
-                {job.errorCode ? <span className="permission-chip">{job.errorCode}</span> : null}
+                {job.errorCode ? (
+                  <span className="permission-chip">{job.errorCode}</span>
+                ) : null}
               </div>
             </div>
             <div className="queue__body queue__body--secondary">
               <div className="pill-row">
                 {job.attempts.map((attempt) => (
-                  <span key={`${job.jobId}-${attempt.attemptNo}`} className="permission-chip">
-                    #{attempt.attemptNo} {getExecutionStatusLabel(attempt.status)}
+                  <span
+                    key={`${job.jobId}-${attempt.attemptNo}`}
+                    className="permission-chip"
+                  >
+                    #{attempt.attemptNo}{" "}
+                    {getExecutionStatusLabel(attempt.status)}
                   </span>
                 ))}
               </div>
               <button
                 type="button"
                 className="button button--secondary"
-                disabled={isPending || job.status !== EXECUTION_JOB_STATUS.FAILED}
+                disabled={
+                  isPending || job.status !== EXECUTION_JOB_STATUS.FAILED
+                }
                 onClick={() => startTransition(async () => onRetry(job.jobId))}
               >
                 {isPending ? "处理中..." : "重试执行"}
