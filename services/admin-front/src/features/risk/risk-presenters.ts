@@ -1,18 +1,54 @@
 import type { ApprovalItem } from "@/services/admin-api";
 
-const riskTypes = ["risk", "withdraw", "refund", "deposit", "provider_withdraw_review"];
+const riskTypes = [
+  "risk",
+  "withdraw",
+  "refund",
+  "deposit",
+  "provider_withdraw_review",
+];
+
+export function getRiskLevelTone(
+  level: string
+): "green" | "orange" | "red" | "gray" {
+  if (level === "L3") {
+    return "red";
+  }
+  if (level === "L2") {
+    return "orange";
+  }
+  return "gray";
+}
+
+export function getRiskStatusTone(
+  status: string
+): "green" | "orange" | "red" | "gray" {
+  if (status === "UNDER_REVIEW") {
+    return "orange";
+  }
+  if (status === "SUBMITTED") {
+    return "gray";
+  }
+  return "green";
+}
 
 export function filterRiskApprovals(items: ApprovalItem[]): ApprovalItem[] {
   return items.filter((item) => {
     const normalizedType = item.approvalType.toLowerCase();
-    return riskTypes.some((value) => normalizedType.includes(value)) || item.approvalLevel === "L2" || item.approvalLevel === "L3";
+    return (
+      riskTypes.some((value) => normalizedType.includes(value)) ||
+      item.approvalLevel === "L2" ||
+      item.approvalLevel === "L3"
+    );
   });
 }
 
 export function buildRiskMetrics(items: ApprovalItem[]) {
   const red = items.filter((item) => item.approvalLevel === "L3").length;
   const yellow = items.filter((item) => item.approvalLevel === "L2").length;
-  const underReview = items.filter((item) => item.status === "UNDER_REVIEW").length;
+  const underReview = items.filter(
+    (item) => item.status === "UNDER_REVIEW"
+  ).length;
   const submitted = items.filter((item) => item.status === "SUBMITTED").length;
 
   return {
@@ -24,15 +60,21 @@ export function buildRiskMetrics(items: ApprovalItem[]) {
   };
 }
 
-export function filterVisibleRiskItems(items: ApprovalItem[], search: string, levelFilter: string): ApprovalItem[] {
+export function filterVisibleRiskItems(
+  items: ApprovalItem[],
+  search: string,
+  levelFilter: string
+): ApprovalItem[] {
   const normalizedSearch = search.trim().toLowerCase();
 
   return items.filter((item) => {
-    const matchesSearch = !normalizedSearch
-      || item.approvalId.toLowerCase().includes(normalizedSearch)
-      || item.approvalType.toLowerCase().includes(normalizedSearch)
-      || item.requesterRole.toLowerCase().includes(normalizedSearch);
-    const matchesLevel = levelFilter === "all" || item.approvalLevel === levelFilter;
+    const matchesSearch =
+      !normalizedSearch ||
+      item.approvalId.toLowerCase().includes(normalizedSearch) ||
+      item.approvalType.toLowerCase().includes(normalizedSearch) ||
+      item.requesterRole.toLowerCase().includes(normalizedSearch);
+    const matchesLevel =
+      levelFilter === "all" || item.approvalLevel === levelFilter;
     return matchesSearch && matchesLevel;
   });
 }

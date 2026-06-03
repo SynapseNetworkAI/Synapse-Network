@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { buildRiskMetrics, filterRiskApprovals, filterVisibleRiskItems, sortRiskItems } from "./risk-presenters";
+import {
+  buildRiskMetrics,
+  filterRiskApprovals,
+  filterVisibleRiskItems,
+  getRiskLevelTone,
+  getRiskStatusTone,
+  sortRiskItems,
+} from "./risk-presenters";
 
 const approvals = [
   {
@@ -34,7 +41,9 @@ const approvals = [
 
 describe("risk-presenters", () => {
   it("keeps risk-sensitive approvals", () => {
-    expect(filterRiskApprovals(approvals).map((item) => item.approvalId)).toEqual(["risk-1", "risk-2", "risk-3"]);
+    expect(
+      filterRiskApprovals(approvals).map((item) => item.approvalId)
+    ).toEqual(["risk-1", "risk-2", "risk-3"]);
   });
 
   it("builds queue metrics", () => {
@@ -48,10 +57,27 @@ describe("risk-presenters", () => {
   });
 
   it("filters visible items by search and level", () => {
-    expect(filterVisibleRiskItems(approvals, "reviewer", "L3").map((item) => item.approvalId)).toEqual(["risk-1"]);
+    expect(
+      filterVisibleRiskItems(approvals, "reviewer", "L3").map(
+        (item) => item.approvalId
+      )
+    ).toEqual(["risk-1"]);
   });
 
   it("sorts higher-risk items first", () => {
-    expect(sortRiskItems(approvals).map((item) => item.approvalId)).toEqual(["risk-1", "risk-2", "risk-3"]);
+    expect(sortRiskItems(approvals).map((item) => item.approvalId)).toEqual([
+      "risk-1",
+      "risk-2",
+      "risk-3",
+    ]);
+  });
+
+  it("maps risk tones", () => {
+    expect(getRiskLevelTone("L3")).toBe("red");
+    expect(getRiskLevelTone("L2")).toBe("orange");
+    expect(getRiskLevelTone("L1")).toBe("gray");
+    expect(getRiskStatusTone("UNDER_REVIEW")).toBe("orange");
+    expect(getRiskStatusTone("SUBMITTED")).toBe("gray");
+    expect(getRiskStatusTone("EXECUTED")).toBe("green");
   });
 });
