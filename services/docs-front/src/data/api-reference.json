@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-30T12:06:51.690Z",
+  "generatedAt": "2026-06-03T09:26:08.034Z",
   "source": "services/docs-front/src/data/endpoint-source.ts",
   "groups": [
     {
@@ -12,7 +12,7 @@
           "method": "GET",
           "path": "/api/v1/auth/challenge",
           "summary": "Get EIP-191 sign challenge",
-          "description": "Returns a one-time nonce string for the given wallet address. Sign it with the owner private key and submit to /verify.",
+          "description": "Returns a time-limited SIWE-style EIP-191 message for the given wallet address. Sign the exact challenge string and submit it to /verify.",
           "auth": "none",
           "params": [
             {
@@ -21,23 +21,36 @@
               "required": true,
               "type": "string",
               "description": "Owner wallet address (0x...)",
-              "example": "0xYourWalletAddress"
+              "example": "0x1234567890abcdef1234567890abcdef12345678"
+            },
+            {
+              "name": "chainId",
+              "in": "query",
+              "required": false,
+              "type": "integer",
+              "description": "Optional chain ID to bind into the SIWE-style message. Production Arbitrum One uses 42161.",
+              "example": "42161"
             }
           ],
           "responseExample": {
-            "challenge": "Synapse login nonce: abc123 | ts: 1711234567"
+            "challenge": "synapse-network.ai wants you to sign in with your Ethereum account:\n0x1234567890abcdef1234567890abcdef12345678\n\nSign in to Synapse Network. This does not authorize a transaction or move funds.\n\nURI: https://synapse-network.ai\nVersion: 1\nChain ID: 42161\nNonce: abc123\nIssued At: 2026-05-30T13:25:02Z\nExpiration Time: 2026-05-30T13:35:02Z",
+            "domain": "synapse-network.ai"
           },
           "agentMeta": {
             "role": "owner",
             "phase": "auth",
-            "note": "Step 1 of owner auth. Call with the owner wallet address to receive a time-limited nonce. Sign it immediately with ECDSA (EIP-191) and pass to POST /auth/verify.",
+            "note": "Step 1 of owner auth. Call with the owner wallet address to receive a time-limited SIWE-style message. Sign the exact challenge with ECDSA (EIP-191) and pass it to POST /auth/verify.",
             "outputs": [
               {
                 "key": "challenge",
-                "desc": "Nonce string to sign with the owner private key"
+                "desc": "Full message string to sign with the owner private key"
+              },
+              {
+                "key": "domain",
+                "desc": "Domain bound into the challenge message"
               }
             ],
-            "next": "Sign the nonce and submit to POST /api/v1/auth/verify"
+            "next": "Sign the challenge and submit to POST /api/v1/auth/verify"
           },
           "errors": [
             {
@@ -60,22 +73,24 @@
           "description": "Submit the EIP-191 signed challenge. Gateway verifies the signature and returns a 24-hour JWT.",
           "auth": "none",
           "bodyExample": {
-            "address": "0xYourWalletAddress",
-            "message": "Synapse login nonce: abc123 | ts: 1711234567",
+            "wallet_address": "0x1234567890abcdef1234567890abcdef12345678",
+            "message": "synapse-network.ai wants you to sign in with your Ethereum account:\n0x1234567890abcdef1234567890abcdef12345678\n\nSign in to Synapse Network. This does not authorize a transaction or move funds.\n\nURI: https://synapse-network.ai\nVersion: 1\nChain ID: 42161\nNonce: abc123\nIssued At: 2026-05-30T13:25:02Z\nExpiration Time: 2026-05-30T13:35:02Z",
             "signature": "0x..."
           },
           "responseExample": {
-            "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+            "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+            "token_type": "bearer",
+            "expires_in": 86400
           },
           "agentMeta": {
             "role": "owner",
             "phase": "auth",
-            "note": "Step 2 of owner auth. Submit the signed challenge. On success the gateway returns a 24-hour JWT. Store it — all owner-side calls require it as the Bearer token.",
+            "note": "Step 2 of owner auth. Submit wallet_address, the exact signed challenge message, and the signature. On success the gateway returns a 24-hour JWT. Store access_token — all owner-side calls require it as the Bearer token.",
             "requires": "GET /auth/challenge must be called first",
             "outputs": [
               {
-                "key": "token",
-                "desc": "JWT — Authorization: Bearer <token> on all JWT-required endpoints"
+                "key": "access_token",
+                "desc": "JWT — Authorization: Bearer <access_token> on all JWT-required endpoints"
               }
             ],
             "next": "Store the JWT. Call GET /balance, POST /agent/credentials, or GET /services"
@@ -127,7 +142,8 @@
           "description": "Generates a one-time signing challenge for updating the account profile (name, email, preferences).",
           "auth": "jwt",
           "responseExample": {
-            "challenge": "Synapse profile update nonce: def456 | ts: 1711234600"
+            "challenge": "Update Synapse account profile\nWallet: 0x1234567890abcdef1234567890abcdef12345678\nPayload Hash: 3f8b2f...\nNonce: def456\nTimestamp: 1711234600",
+            "expiresInSec": 600
           },
           "agentMeta": {
             "role": "owner",
@@ -136,7 +152,7 @@
             "outputs": [
               {
                 "key": "challenge",
-                "desc": "Nonce to sign before submitting profile update"
+                "desc": "Full profile-update message to sign before submitting the update"
               }
             ],
             "next": "Sign the challenge and submit via PUT /api/v1/auth/me/profile"
@@ -151,7 +167,7 @@
           "auth": "jwt",
           "bodyExample": {
             "signature": "0x...",
-            "message": "Synapse profile update nonce: def456 | ts: 1711234600",
+            "message": "Update Synapse account profile\nWallet: 0x1234567890abcdef1234567890abcdef12345678\nPayload Hash: 3f8b2f...\nNonce: def456\nTimestamp: 1711234600",
             "username": "new-alias",
             "email": "new@example.com",
             "notifications": true
@@ -317,10 +333,10 @@
             "outputs": [
               {
                 "key": "intent.id",
-                "desc": "Deposit intent ID — use to poll sync status while the indexer verifies chain evidence"
+                "desc": "Deposit intent ID — use in the confirm endpoint"
               }
             ],
-            "next": "Poll GET /balance/deposit/sync?txHash=...; confirmation is indexer-owned"
+            "next": "Call POST /balance/deposit/intents/:id/confirm"
           },
           "errors": [
             {
@@ -1565,7 +1581,7 @@
       "method": "GET",
       "path": "/api/v1/auth/challenge",
       "summary": "Get EIP-191 sign challenge",
-      "description": "Returns a one-time nonce string for the given wallet address. Sign it with the owner private key and submit to /verify.",
+      "description": "Returns a time-limited SIWE-style EIP-191 message for the given wallet address. Sign the exact challenge string and submit it to /verify.",
       "auth": "none",
       "params": [
         {
@@ -1574,23 +1590,33 @@
           "required": true,
           "type": "string",
           "description": "Owner wallet address (0x...)",
-          "example": "0xYourWalletAddress"
+          "example": "0x1234567890abcdef1234567890abcdef12345678"
+        },
+        {
+          "name": "chainId",
+          "in": "query",
+          "required": false,
+          "type": "integer",
+          "description": "Optional chain ID to bind into the SIWE-style message. Production Arbitrum One uses 42161.",
+          "example": "42161"
         }
       ],
       "responseExample": {
-        "challenge": "Synapse login nonce: abc123 | ts: 1711234567"
+        "challenge": "synapse-network.ai wants you to sign in with your Ethereum account:\n0x1234567890abcdef1234567890abcdef12345678\n\nSign in to Synapse Network. This does not authorize a transaction or move funds.\n\nURI: https://synapse-network.ai\nVersion: 1\nChain ID: 42161\nNonce: abc123\nIssued At: 2026-05-30T13:25:02Z\nExpiration Time: 2026-05-30T13:35:02Z",
+        "domain": "synapse-network.ai"
       },
       "agentMeta": {
         "role": "owner",
         "phase": "auth",
-        "note": "Step 1 of owner auth. Call with the owner wallet address to receive a time-limited nonce. Sign it immediately with ECDSA (EIP-191) and pass to POST /auth/verify.",
+        "note": "Step 1 of owner auth. Call with the owner wallet address to receive a time-limited SIWE-style message. Sign the exact challenge with ECDSA (EIP-191) and pass it to POST /auth/verify.",
         "outputs": [
           {
             "key": "challenge",
-            "desc": "Nonce string to sign with the owner private key"
-          }
+            "desc": "Full message string to sign with the owner private key"
+          },
+          { "key": "domain", "desc": "Domain bound into the challenge message" }
         ],
-        "next": "Sign the nonce and submit to POST /api/v1/auth/verify"
+        "next": "Sign the challenge and submit to POST /api/v1/auth/verify"
       },
       "errors": [
         {
@@ -1616,20 +1642,24 @@
       "description": "Submit the EIP-191 signed challenge. Gateway verifies the signature and returns a 24-hour JWT.",
       "auth": "none",
       "bodyExample": {
-        "address": "0xYourWalletAddress",
-        "message": "Synapse login nonce: abc123 | ts: 1711234567",
+        "wallet_address": "0x1234567890abcdef1234567890abcdef12345678",
+        "message": "synapse-network.ai wants you to sign in with your Ethereum account:\n0x1234567890abcdef1234567890abcdef12345678\n\nSign in to Synapse Network. This does not authorize a transaction or move funds.\n\nURI: https://synapse-network.ai\nVersion: 1\nChain ID: 42161\nNonce: abc123\nIssued At: 2026-05-30T13:25:02Z\nExpiration Time: 2026-05-30T13:35:02Z",
         "signature": "0x..."
       },
-      "responseExample": { "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." },
+      "responseExample": {
+        "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+        "token_type": "bearer",
+        "expires_in": 86400
+      },
       "agentMeta": {
         "role": "owner",
         "phase": "auth",
-        "note": "Step 2 of owner auth. Submit the signed challenge. On success the gateway returns a 24-hour JWT. Store it — all owner-side calls require it as the Bearer token.",
+        "note": "Step 2 of owner auth. Submit wallet_address, the exact signed challenge message, and the signature. On success the gateway returns a 24-hour JWT. Store access_token — all owner-side calls require it as the Bearer token.",
         "requires": "GET /auth/challenge must be called first",
         "outputs": [
           {
-            "key": "token",
-            "desc": "JWT — Authorization: Bearer <token> on all JWT-required endpoints"
+            "key": "access_token",
+            "desc": "JWT — Authorization: Bearer <access_token> on all JWT-required endpoints"
           }
         ],
         "next": "Store the JWT. Call GET /balance, POST /agent/credentials, or GET /services"
@@ -1687,7 +1717,8 @@
       "description": "Generates a one-time signing challenge for updating the account profile (name, email, preferences).",
       "auth": "jwt",
       "responseExample": {
-        "challenge": "Synapse profile update nonce: def456 | ts: 1711234600"
+        "challenge": "Update Synapse account profile\nWallet: 0x1234567890abcdef1234567890abcdef12345678\nPayload Hash: 3f8b2f...\nNonce: def456\nTimestamp: 1711234600",
+        "expiresInSec": 600
       },
       "agentMeta": {
         "role": "owner",
@@ -1696,7 +1727,7 @@
         "outputs": [
           {
             "key": "challenge",
-            "desc": "Nonce to sign before submitting profile update"
+            "desc": "Full profile-update message to sign before submitting the update"
           }
         ],
         "next": "Sign the challenge and submit via PUT /api/v1/auth/me/profile"
@@ -1714,7 +1745,7 @@
       "auth": "jwt",
       "bodyExample": {
         "signature": "0x...",
-        "message": "Synapse profile update nonce: def456 | ts: 1711234600",
+        "message": "Update Synapse account profile\nWallet: 0x1234567890abcdef1234567890abcdef12345678\nPayload Hash: 3f8b2f...\nNonce: def456\nTimestamp: 1711234600",
         "username": "new-alias",
         "email": "new@example.com",
         "notifications": true
@@ -1881,10 +1912,10 @@
         "outputs": [
           {
             "key": "intent.id",
-            "desc": "Deposit intent ID — use to poll sync status while the indexer verifies chain evidence"
+            "desc": "Deposit intent ID — use in the confirm endpoint"
           }
         ],
-        "next": "Poll GET /balance/deposit/sync?txHash=...; confirmation is indexer-owned"
+        "next": "Call POST /balance/deposit/intents/:id/confirm"
       },
       "errors": [
         {
