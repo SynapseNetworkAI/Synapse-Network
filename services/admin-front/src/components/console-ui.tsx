@@ -11,28 +11,15 @@ import {
   Stack,
   Text,
 } from "@chakra-ui/react";
-import { useState, type CSSProperties, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import Link from "next/link";
 
 import { toneFromStatus, toneStyles } from "@/lib/admin-console";
 
-export const nativeFieldStyle: CSSProperties = {
-  width: "100%",
-  minHeight: "48px",
-  padding: "0 14px",
-  borderRadius: "14px",
-  border: "1px solid rgba(99, 92, 82, 0.18)",
-  background: "rgba(255,255,255,0.86)",
-  color: "#1d1a17",
-  outline: "none",
-  fontSize: "14px",
-};
-
-export const nativeTextAreaStyle: CSSProperties = {
-  ...nativeFieldStyle,
-  padding: "12px 14px",
-  minHeight: "120px",
-};
+import { InlineHintTooltip } from "./inline-hint-tooltip";
+import { nativeFieldStyle } from "./native-field-style";
+export { InlineHintTooltip } from "./inline-hint-tooltip";
+export { nativeFieldStyle, nativeTextAreaStyle } from "./native-field-style";
 
 export function SurfaceCard({
   eyebrow,
@@ -51,11 +38,13 @@ export function SurfaceCard({
 }>) {
   return (
     <Box
-      bg="rgba(255,255,255,0.92)"
-      border="1px solid rgba(15,17,21,0.06)"
-      borderRadius="28px"
+      bg="shadcn.card"
+      border="1px solid"
+      borderColor="shadcn.border"
+      borderRadius="lg"
       boxShadow="panel"
       p={{ base: "20px", md: "24px" }}
+      data-testid={title ? `admin-surface-${title}` : undefined}
     >
       {eyebrow || title || description || stamp || actions ? (
         <Box mb="18px">
@@ -71,18 +60,22 @@ export function SurfaceCard({
                   fontSize="11px"
                   letterSpacing="0.22em"
                   textTransform="uppercase"
-                  color="signal.700"
+                  color="shadcn.accentForeground"
                 >
                   {eyebrow}
                 </Text>
               ) : null}
               {title ? (
-                <Heading size="md" color="ink.900" letterSpacing="-0.02em">
+                <Heading
+                  size="md"
+                  color="shadcn.foreground"
+                  letterSpacing="-0.02em"
+                >
                   {title}
                 </Heading>
               ) : null}
               {description ? (
-                <Text color="ink.500" maxW="3xl">
+                <Text color="shadcn.mutedForeground" maxW="3xl">
                   {description}
                 </Text>
               ) : null}
@@ -97,9 +90,10 @@ export function SurfaceCard({
                   borderRadius="full"
                   px="12px"
                   py="6px"
-                  bg="rgba(31,146,87,0.10)"
-                  color="signal.700"
-                  border="1px solid rgba(31,146,87,0.18)"
+                  bg="shadcn.accent"
+                  color="shadcn.accentForeground"
+                  border="1px solid"
+                  borderColor="shadcn.border"
                 >
                   {stamp}
                 </Badge>
@@ -131,10 +125,14 @@ export function MetricCard({
 }>) {
   const card = (
     <Box
-      borderRadius="26px"
+      borderRadius="lg"
       p="18px"
-      bg={accent ?? "linear-gradient(180deg, #ffffff 0%, #f3f6fa 100%)"}
-      border="1px solid rgba(15,17,21,0.06)"
+      bg={
+        accent ??
+        "linear-gradient(180deg, var(--card) 0%, var(--console-panel) 100%)"
+      }
+      border="1px solid"
+      borderColor="shadcn.border"
       minH="154px"
       overflow="visible"
       position="relative"
@@ -143,8 +141,8 @@ export function MetricCard({
         href
           ? {
               transform: "translateY(-2px)",
-              boxShadow: "0 16px 40px rgba(15,17,21,0.08)",
-              borderColor: "rgba(31,146,87,0.24)",
+              boxShadow: "panelSoft",
+              borderColor: "shadcn.ring",
             }
           : undefined
       }
@@ -163,7 +161,7 @@ export function MetricCard({
           w="96px"
           h="96px"
           borderRadius="full"
-          bg="rgba(31,146,87,0.06)"
+          bg="var(--accent-soft)"
         />
       </Box>
       <Box
@@ -172,7 +170,7 @@ export function MetricCard({
         fontSize="11px"
         letterSpacing="0.18em"
         textTransform="uppercase"
-        color="ink.500"
+        color="shadcn.mutedForeground"
       >
         {label}
       </Box>
@@ -181,13 +179,18 @@ export function MetricCard({
         zIndex={1}
         mt="18px"
         size="2xl"
-        color="ink.900"
+        color="shadcn.foreground"
         letterSpacing="-0.04em"
       >
         {value}
       </Heading>
       {meta ? (
-        <Text position="relative" zIndex={1} mt="10px" color="ink.500">
+        <Text
+          position="relative"
+          zIndex={1}
+          mt="10px"
+          color="shadcn.mutedForeground"
+        >
           {meta}
         </Text>
       ) : null}
@@ -197,7 +200,7 @@ export function MetricCard({
           zIndex={1}
           mt="12px"
           fontWeight="700"
-          color="signal.700"
+          color="shadcn.accentForeground"
         >
           {actionLabel ?? "查看明细"}
         </Text>
@@ -213,91 +216,6 @@ export function MetricCard({
     <Link href={href} style={{ display: "block", textDecoration: "none" }}>
       {card}
     </Link>
-  );
-}
-
-export function InlineHintTooltip({
-  label,
-  content,
-}: Readonly<{
-  label: string;
-  content: string;
-}>) {
-  const [open, setOpen] = useState(false);
-
-  return (
-    <Box
-      position="relative"
-      display="inline-flex"
-      alignItems="center"
-      onMouseEnter={() => setOpen(true)}
-      onMouseLeave={() => setOpen(false)}
-      onFocus={() => setOpen(true)}
-      onBlur={() => setOpen(false)}
-    >
-      <Flex
-        tabIndex={0}
-        align="center"
-        justify="center"
-        w="18px"
-        h="18px"
-        borderRadius="full"
-        border="1px solid rgba(99,92,82,0.18)"
-        bg="rgba(255,255,255,0.72)"
-        color="ink.500"
-        fontSize="10px"
-        fontWeight="800"
-        cursor="help"
-        aria-label={label}
-        role="button"
-      >
-        ?
-      </Flex>
-      <Box
-        position="absolute"
-        left="50%"
-        bottom="calc(100% + 12px)"
-        minW="220px"
-        maxW="280px"
-        px="12px"
-        py="10px"
-        borderRadius="14px"
-        border="1px solid rgba(15,17,21,0.10)"
-        bg="rgba(255,255,255,0.98)"
-        boxShadow="0 16px 42px rgba(23, 19, 17, 0.12)"
-        pointerEvents="none"
-        opacity={open ? 1 : 0}
-        visibility={open ? "visible" : "hidden"}
-        transition="opacity 140ms ease, transform 140ms ease, visibility 140ms ease"
-        transform={
-          open
-            ? "translateX(-50%) translateY(0)"
-            : "translateX(-50%) translateY(6px)"
-        }
-        zIndex={20}
-      >
-        <Box
-          position="absolute"
-          left="50%"
-          bottom="-6px"
-          w="12px"
-          h="12px"
-          transform="translateX(-50%) rotate(45deg)"
-          bg="rgba(255,255,255,0.98)"
-          borderRight="1px solid rgba(15,17,21,0.10)"
-          borderBottom="1px solid rgba(15,17,21,0.10)"
-        />
-        <Text
-          fontSize="12px"
-          lineHeight="1.55"
-          textTransform="none"
-          letterSpacing="normal"
-          color="ink.700"
-        >
-          {content}
-        </Text>
-      </Box>
-    </Box>
   );
 }
 

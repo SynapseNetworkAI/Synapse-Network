@@ -80,33 +80,40 @@ vi.mock("@/components/console-ui", () => ({
     React.createElement("div", null, message),
 }));
 
-vi.mock("@/features/dashboard/dashboard-surfaces", () => ({
-  DashboardSentinelMetricsGrid: ({
+vi.mock("@/features/admin-rewrite/module-catalog", () => ({
+  findAdminRewriteRoute: () => ({
+    route: "/dashboard/overview",
+    module: "overview",
+    title: "控制台概览",
+    eyebrow: "Control Overview",
+    description: "rewrite overview",
+    mode: "overview",
+    sections: ["当前值班结论", "首页重点提醒", "资金链路摘要"],
+  }),
+}));
+
+vi.mock("@/features/admin-rewrite/rewrite-primitives", () => ({
+  RewriteModuleWorkspace: ({
     metrics,
   }: {
-    metrics: Array<{
-      label: string;
-      value: string;
-      meta: string;
-      actionLabel?: string;
-    }>;
+    metrics: Array<{ label: string; value: string; meta: string }>;
   }) =>
     React.createElement(
       "div",
-      { "data-testid": "sentinel-metrics" },
+      { "data-testid": "rewrite-module-overview" },
       metrics.map((metric) =>
         React.createElement(
           "article",
           { key: metric.label },
           React.createElement("span", null, metric.label),
           React.createElement("span", null, metric.value),
-          React.createElement("span", null, metric.meta),
-          metric.actionLabel
-            ? React.createElement("span", null, metric.actionLabel)
-            : null
+          React.createElement("span", null, metric.meta)
         )
       )
     ),
+}));
+
+vi.mock("@/features/dashboard/dashboard-surfaces", () => ({
   DashboardDiagnosticsSurface: ({
     diagnostics,
   }: {

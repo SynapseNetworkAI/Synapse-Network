@@ -1,6 +1,6 @@
 "use client";
 
-import { AnalyticsConsumerFunnelScreen } from "@/features/dashboard/analytics-dashboard-screen";
+import { AnalyticsConsumerFunnelScreen } from "@/features/dashboard/analytics-consumer-funnel-screen";
 import { useAdminSession } from "@/lib/use-admin-session";
 
 export default function AnalyticsConsumerFunnelPage() {
