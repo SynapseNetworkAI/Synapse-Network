@@ -9,26 +9,39 @@ type SessionRouteRouter = {
   replace: (href: string) => void;
 };
 
+function routeIfActive({
+  cancelled,
+  router,
+  target,
+}: Readonly<{
+  cancelled: boolean;
+  router: SessionRouteRouter;
+  target: string;
+}>) {
+  if (cancelled) {
+    return;
+  }
+  router.replace(target);
+}
+
+async function bootstrapSessionRoute(
+  router: SessionRouteRouter,
+  isCancelled: () => boolean
+) {
+  try {
+    await getCurrentAdmin("cookie-session");
+    routeIfActive({ cancelled: isCancelled(), router, target: "/dashboard" });
+  } catch {
+    routeIfActive({ cancelled: isCancelled(), router, target: "/login" });
+  }
+}
+
 export function SessionRouteBootstrapScreen({
   router,
 }: Readonly<{ router: SessionRouteRouter }>) {
   useEffect(() => {
     let cancelled = false;
-
-    async function routeSession() {
-      try {
-        await getCurrentAdmin("cookie-session");
-        if (!cancelled) {
-          router.replace("/dashboard");
-        }
-      } catch {
-        if (!cancelled) {
-          router.replace("/login");
-        }
-      }
-    }
-
-    void routeSession();
+    void bootstrapSessionRoute(router, () => cancelled);
 
     return () => {
       cancelled = true;

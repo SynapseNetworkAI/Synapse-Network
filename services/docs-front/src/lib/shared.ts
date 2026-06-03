@@ -15,7 +15,8 @@ export type EnvironmentConfig = {
   token: string;
 };
 
-const RESERVED = "Reserved until production deployment evidence is complete";
+const PROD_SYNAPSE_CORE = "0x4967d23cAbe3881f809677932Cc30c11de6957B0";
+const PROD_USDC = "0xaf88d065e77c8cC2239327C5EDb3A432268e5831";
 
 function normalizeAppEnvironment(value?: string): AppEnvironment {
   const normalized = String(value || "")
@@ -71,12 +72,10 @@ const defaults: Record<AppEnvironment, EnvironmentConfig> = {
     chainName: "Arbitrum One",
     asset: "USDC",
     explorerUrl: "https://arbiscan.io",
-    synapseCore: RESERVED,
-    token: RESERVED,
+    synapseCore: PROD_SYNAPSE_CORE,
+    token: PROD_USDC,
   },
 };
-
-export const environmentRows = Object.values(defaults);
 
 export const environmentConfig: EnvironmentConfig = {
   ...defaults[appEnv],

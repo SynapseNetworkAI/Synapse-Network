@@ -1,0 +1,88 @@
+---
+title: OpenAI Responses API
+description: Call Synapse Remote MCP from the OpenAI Responses API.
+---
+
+Use the OpenAI MCP tool type with the hosted Synapse Remote MCP URL.
+
+## JavaScript example
+
+```ts
+import OpenAI from "openai";
+
+const client = new OpenAI();
+
+const response = await client.responses.create({
+  model: "gpt-4.1-mini",
+  input:
+    "Use Synapse to discover one free or lowest-price weather API service. Do not invoke paid tools.",
+  tools: [
+    {
+      type: "mcp",
+      server_label: "synapse",
+      server_url: "https://mcp.synapse-network.ai/mcp",
+      authorization: process.env.SYNAPSE_OAUTH_ACCESS_TOKEN,
+      allowed_tools: ["discover_services"],
+      require_approval: "never",
+    },
+  ],
+});
+
+console.log(response.output_text);
+```
+
+## Python example
+
+```python
+import os
+from openai import OpenAI
+
+client = OpenAI()
+
+response = client.responses.create(
+    model="gpt-4.1-mini",
+    input="Use Synapse to discover one free or lowest-price weather API service. Do not invoke paid tools.",
+    tools=[
+        {
+            "type": "mcp",
+            "server_label": "synapse",
+            "server_url": "https://mcp.synapse-network.ai/mcp",
+            "authorization": os.environ["SYNAPSE_OAUTH_ACCESS_TOKEN"],
+            "allowed_tools": ["discover_services"],
+            "require_approval": "never",
+        }
+    ],
+)
+
+print(response.output_text)
+```
+
+## Important authorization detail
+
+Pass the raw OAuth access token in `authorization`.
+
+Do this:
+
+```text
+authorization: "$SYNAPSE_OAUTH_ACCESS_TOKEN"
+```
+
+Do not include a `Bearer ` prefix:
+
+```text
+authorization: "Bearer $SYNAPSE_OAUTH_ACCESS_TOKEN"
+```
+
+OpenAI adds the bearer header when calling the MCP server.
+
+## Smoke test policy
+
+For release smoke, use:
+
+```json
+{
+  "allowed_tools": ["discover_services"]
+}
+```
+
+Do not include `invoke_and_pay` in automated smoke unless a human explicitly approves a paid invocation.
