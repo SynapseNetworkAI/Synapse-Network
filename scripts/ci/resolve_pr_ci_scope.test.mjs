@@ -44,6 +44,10 @@ test("docs files remain docs-classified", () => {
     isDocsFile("services/docs-front/src/components/docs/EnvironmentConfig.tsx"),
     true,
   );
+  assert.equal(
+    isDocsFile("docs/reference/agent-lessons/codex-provider-llm-config-management.md"),
+    true,
+  );
   assert.equal(isDocsFile("scripts/ops/gcp_billing_review.sh"), false);
 });
 
