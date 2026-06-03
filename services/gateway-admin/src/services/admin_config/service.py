@@ -30,6 +30,7 @@ DEFAULT_MENU_MIGRATION_ITEM_IDS = {
     "analytics-risk-health",
     "analytics-data-quality",
     "provider-services",
+    "provider-llm-config",
     "owner-accounts",
     "review-history",
     "forum-support",

@@ -10,6 +10,7 @@ from src.api.routers import (
     dashboard,
     execution,
     platform_fee_treasury,
+    provider_llm_config,
     provider_services,
     provider_withdraw_review,
 )
@@ -24,6 +25,7 @@ __all__ = [
     "dashboard",
     "execution",
     "platform_fee_treasury",
+    "provider_llm_config",
     "provider_services",
     "provider_withdraw_review",
 ]

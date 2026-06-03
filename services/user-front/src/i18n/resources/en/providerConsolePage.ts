@@ -1,10 +1,13 @@
 import type { I18nMessages } from "@/i18n/schema";
 
 const providerConsolePage: I18nMessages["providerConsolePage"] = {
-  missingSigningSecret: "Create a Provider Signing Secret before publishing a service.",
-  verifySigningSecretFailed: "Unable to verify Provider Signing Secrets. Open Provider Credentials and retry.",
+  missingSigningSecret:
+    "Create a Provider Signing Secret before publishing a service.",
+  verifySigningSecretFailed:
+    "Unable to verify Provider Signing Secrets. Open Provider Credentials and retry.",
   title: "Provider Console",
-  description: "Define API services, publish service definitions, wrap with SDK, and settle zero-gas billing to Synapse Vault.",
+  description:
+    "Define API services, publish service definitions, wrap with SDK, and settle zero-gas billing to Synapse Vault.",
   newService: "New Service",
   refreshConsole: "Refresh console",
   metricNetEarnings: "Net Earnings",
@@ -24,13 +27,16 @@ const providerConsolePage: I18nMessages["providerConsolePage"] = {
   providerNetLifetime: "Provider Net (Lifetime)",
   deploymentPipeline: "Deployment Pipeline (2 Steps)",
   providerCredentialsTitle: "Provider Credentials",
-  providerCredentialsDescription: "Issue Provider Signing Secrets that Synapse Gateway uses to sign routed requests and that your runtime uses to verify inbound calls.",
+  providerCredentialsDescription:
+    "Issue Provider Signing Secrets that Synapse Gateway uses to sign routed requests and that your runtime uses to verify inbound calls.",
   connectTerminalToManageKeys: "Connect terminal to manage keys",
   manageProviderCredentials: "Manage Provider Credentials",
   publishApiServiceTitle: "Publish API Service",
-  publishApiServiceDescription: "Publish an API service definition to the marketplace and start metered runtime routing in one shot.",
+  publishApiServiceDescription:
+    "Publish an API service definition to the marketplace and start metered runtime routing in one shot.",
   createService: "Create Service",
-  credentialsBannerText: "Set up Provider Credentials before publishing a service. This only takes a minute.",
+  credentialsBannerText:
+    "Set up Provider Credentials before publishing a service. This only takes a minute.",
   credentialsBannerAction: "Create Credentials",
 };
 
