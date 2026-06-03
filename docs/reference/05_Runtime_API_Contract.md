@@ -71,8 +71,19 @@ Gateway 同步调用按 service profile 执行 bounded timeout：
 
 1. `Owner` 是 session 根身份。
 2. `Agent Credential` 是 Runtime 调用凭据。
-3. `Provider` 是 Owner 的供给侧业务角色，不是另一套根账户。
-4. 同一个 Owner 可以同时拥有消费侧资金桶和供给侧收益桶。
+3. `OAuth access token` 是 ChatGPT / Remote MCP 这类连接器的授权凭据，不是 Agent Credential。
+4. Gateway 解析 Synapse OAuth token 后，服务端映射到已授权的 Agent Credential，再进入同一套预算、扣费和 receipt 权限检查。
+5. `Provider` 是 Owner 的供给侧业务角色，不是另一套根账户。
+6. 同一个 Owner 可以同时拥有消费侧资金桶和供给侧收益桶。
+
+Remote MCP OAuth 入口：
+
+1. `GET /.well-known/oauth-authorization-server` 暴露 Synapse OAuth metadata。
+2. `POST /oauth/token` 支持 `authorization_code` + PKCE S256 和 rotating `refresh_token`。
+3. `POST /oauth/revoke` 撤销 refresh token 或标记 access token revoke。
+4. `POST /api/v1/agent/invoke` 接受原有 `X-Credential: agt_xxx`，也接受 Synapse OAuth `Authorization: Bearer <access-token>`；OAuth token 必须有 `synapse.invocations.write`。
+5. `GET /api/v1/agent/invocations/{id}` 接受原有 `X-Credential: agt_xxx`，也接受 Synapse OAuth `Authorization: Bearer <access-token>`；OAuth token 必须有 `synapse.receipts.read`。
+6. Gateway 使用 `SYNAPSE_OAUTH_JWT_SECRET` 签发和验证 Synapse OAuth access token；Remote MCP 的 `SYNAPSE_OAUTH_JWT_SECRET` 必须与 Gateway 同值。这不是 Agent Key，也不能暴露给 ChatGPT。
 
 ## 3. Finance API Semantics
 

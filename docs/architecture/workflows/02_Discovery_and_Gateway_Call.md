@@ -42,11 +42,13 @@ Synapse 的核心不是“给人手工点 API”，而是让 Agent 在受控预�
    真正做 discover、选择服务、发起调用的运行时主体。
 2. `Agent Credential`
    Runtime 支付身份和预算约束入口。
-3. `Platform Gateway`
+3. `Connector OAuth Token`
+   ChatGPT Remote MCP 等托管连接器使用的授权凭据。Gateway 会把它解析到服务端绑定的 Agent Credential，再执行同一套预算与 receipt 归属检查。
+4. `Platform Gateway`
    承担发现、路由、转发、审计和扣费决策。
-4. `Provider Service`
+5. `Provider Service`
    真正执行上游能力的服务提供方。
-5. `PostgreSQL`
+6. `PostgreSQL`
    保存 Service Catalog、Quote、Invocation、Budget Event 和 Audit Event。
 
 ## 4. 核心表
