@@ -37,7 +37,12 @@ function MobileNavigation({
 }>) {
   return (
     <Box display={{ base: "block", lg: "none" }} mb="12px">
-      <Button onClick={onOpen} bg="#0f1115" color="#f4f7fb" borderRadius="full">
+      <Button
+        onClick={onOpen}
+        bg="shadcn.primary"
+        color="shadcn.primaryForeground"
+        borderRadius="lg"
+      >
         打开导航
       </Button>
       {mobileOpen ? (
@@ -68,12 +73,14 @@ function AdminTopBar({
       position={{ base: "static", lg: "sticky" }}
       top={{ lg: "16px" }}
       zIndex={10}
-      borderRadius="28px"
-      bg="rgba(255,255,255,0.84)"
-      border="1px solid rgba(15,17,21,0.06)"
-      boxShadow="panel"
+      borderRadius="lg"
+      bg="shadcn.card"
+      border="1px solid"
+      borderColor="shadcn.border"
+      boxShadow="panelSoft"
       p={{ base: "16px", md: "18px 20px" }}
       backdropFilter="blur(20px)"
+      data-testid="admin-console-topbar"
     >
       <Flex
         justify="space-between"
@@ -85,12 +92,13 @@ function AdminTopBar({
           <Box flex="1" maxW={{ xl: "420px" }}>
             <Input
               placeholder="Search operators, approvals, incidents"
-              bg="#f7f9fc"
-              borderRadius="18px"
-              borderColor="rgba(15,17,21,0.08)"
+              bg="shadcn.background"
+              borderRadius="md"
+              borderColor="shadcn.input"
               _focusVisible={{
-                borderColor: "signal.400",
-                boxShadow: "0 0 0 3px rgba(31,146,87,0.16)",
+                borderColor: "shadcn.ring",
+                boxShadow:
+                  "0 0 0 3px color-mix(in oklch, var(--ring) 24%, transparent)",
               }}
             />
           </Box>
@@ -99,9 +107,10 @@ function AdminTopBar({
             borderRadius="full"
             px="12px"
             py="8px"
-            bg="rgba(31,146,87,0.12)"
-            color="signal.700"
-            border="1px solid rgba(31,146,87,0.16)"
+            bg="shadcn.accent"
+            color="shadcn.accentForeground"
+            border="1px solid"
+            borderColor="shadcn.border"
           >
             NODE ACTIVE SENTINEL
           </Badge>
@@ -116,9 +125,10 @@ function AdminTopBar({
             gap="10px"
             px="12px"
             py="8px"
-            borderRadius="18px"
-            bg="#f7f9fc"
-            border="1px solid rgba(15,17,21,0.06)"
+            borderRadius="md"
+            bg="shadcn.background"
+            border="1px solid"
+            borderColor="shadcn.border"
           >
             <Avatar.Root size="sm" colorPalette="green" variant="subtle">
               <Avatar.Fallback name={admin.displayName}>
@@ -157,11 +167,13 @@ function PageHeader({
 
   return (
     <Box
-      borderRadius="30px"
-      bg="rgba(255,255,255,0.86)"
-      border="1px solid rgba(15,17,21,0.06)"
+      borderRadius="lg"
+      bg="shadcn.card"
+      border="1px solid"
+      borderColor="shadcn.border"
       boxShadow="panel"
       p={{ base: "20px", md: "24px", xl: "28px" }}
+      data-testid="admin-console-page-header"
     >
       <Flex
         justify="space-between"
@@ -198,9 +210,10 @@ function PageHeader({
         >
           <Box
             minW={{ base: "100%", md: "280px" }}
-            borderRadius="20px"
-            bg="#f7f9fc"
-            border="1px solid rgba(15,17,21,0.06)"
+            borderRadius="md"
+            bg="shadcn.background"
+            border="1px solid"
+            borderColor="shadcn.border"
             p="13px 16px"
           >
             <Text
@@ -266,8 +279,10 @@ export function AdminLayout({
   return (
     <Box
       minH="100dvh"
-      bg="linear-gradient(180deg, #f5f7fa 0%, #eef2f6 100%)"
+      bg="linear-gradient(180deg, var(--background) 0%, var(--console-stage) 100%)"
       color="ink.900"
+      data-testid="admin-console-shell"
+      data-ui-system="shadcn-token-console"
     >
       <Box px={{ base: "0", lg: "16px" }} py={{ base: "0", lg: "16px" }}>
         <Grid

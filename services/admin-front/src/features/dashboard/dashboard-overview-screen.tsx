@@ -12,8 +12,9 @@ import {
   DashboardDiagnosticsSurface,
   DashboardFlowSnapshotSurface,
   DashboardQueuePressureSurface,
-  DashboardSentinelMetricsGrid,
 } from "@/features/dashboard/dashboard-surfaces";
+import { RewriteModuleWorkspace } from "@/features/admin-rewrite/rewrite-primitives";
+import { findAdminRewriteRoute } from "@/features/admin-rewrite/module-catalog";
 import {
   buildDashboardCapitalPulseLanes,
   buildDashboardFlowCards,
@@ -25,7 +26,10 @@ import { omitDiagnosticSignals } from "@/features/diagnostics/diagnostic-present
 import { useDashboardSnapshot } from "@/features/dashboard/use-dashboard-snapshot";
 import type { AdminProfile } from "@/services/admin-api";
 
-export function DashboardOverviewScreen({ admin, token }: Readonly<{ admin: AdminProfile; token: string }>) {
+export function DashboardOverviewScreen({
+  admin,
+  token,
+}: Readonly<{ admin: AdminProfile; token: string }>) {
   const {
     overview,
     financeOverview,
@@ -40,26 +44,65 @@ export function DashboardOverviewScreen({ admin, token }: Readonly<{ admin: Admi
   } = useDashboardSnapshot(token, { includeApprovals: false });
 
   const sentinelMetrics = useMemo(() => {
-    return buildSentinelMetrics(overview, operationsOverview, diagnostics, reconciliationDetail);
+    return buildSentinelMetrics(
+      overview,
+      operationsOverview,
+      diagnostics,
+      reconciliationDetail
+    );
   }, [diagnostics, operationsOverview, overview, reconciliationDetail]);
   const overviewDiagnostics = useMemo(
-    () => omitDiagnosticSignals(diagnostics, ["reconciliation"], { actionIds: ["system-center"] }),
-    [diagnostics],
+    () =>
+      omitDiagnosticSignals(diagnostics, ["reconciliation"], {
+        actionIds: ["system-center"],
+      }),
+    [diagnostics]
   );
 
-  const flowCards = useMemo(() => buildDashboardFlowCards(financeOverview), [financeOverview]);
-  const pressureCards = useMemo(() => buildDashboardPressureCards(overview, financeOverview), [financeOverview, overview]);
-  const funnelCards = useMemo(() => buildDashboardFunnelCards(financeOverview, operationsOverview, null), [financeOverview, operationsOverview]);
-  const capitalPulseLanes = useMemo(() => buildDashboardCapitalPulseLanes(financeOverview), [financeOverview]);
+  const flowCards = useMemo(
+    () => buildDashboardFlowCards(financeOverview),
+    [financeOverview]
+  );
+  const pressureCards = useMemo(
+    () => buildDashboardPressureCards(overview, financeOverview),
+    [financeOverview, overview]
+  );
+  const funnelCards = useMemo(
+    () => buildDashboardFunnelCards(financeOverview, operationsOverview, null),
+    [financeOverview, operationsOverview]
+  );
+  const capitalPulseLanes = useMemo(
+    () => buildDashboardCapitalPulseLanes(financeOverview),
+    [financeOverview]
+  );
+  const rewriteSpec = findAdminRewriteRoute("/dashboard/overview");
   const headerActions = (
     <>
-      <Link href="/dashboard/runtime"><Button borderRadius="full" variant="ghost">查看业务运行情况</Button></Link>
-      <Link href="/system"><Button borderRadius="full" bg="#0f1115" color="#f4f7fb" _hover={{ bg: "#1b1f26" }}>查看系统状态</Button></Link>
+      <Link href="/dashboard/runtime">
+        <Button borderRadius="full" variant="ghost">
+          查看业务运行情况
+        </Button>
+      </Link>
+      <Link href="/system">
+        <Button
+          borderRadius="full"
+          bg="#0f1115"
+          color="#f4f7fb"
+          _hover={{ bg: "#1b1f26" }}
+        >
+          查看系统状态
+        </Button>
+      </Link>
     </>
   );
 
   if (bootstrapping) {
-    return <ControlPlaneLoadingScreen title="概览加载中" message="正在汇总首页关键数据，请稍候..." />;
+    return (
+      <ControlPlaneLoadingScreen
+        title="概览加载中"
+        message="正在汇总首页关键数据，请稍候..."
+      />
+    );
   }
 
   return (
@@ -71,7 +114,16 @@ export function DashboardOverviewScreen({ admin, token }: Readonly<{ admin: Admi
       actions={headerActions}
     >
       {error ? <MessageBanner kind="error" message={error} /> : null}
-      <DashboardSentinelMetricsGrid metrics={sentinelMetrics} />
+      {rewriteSpec ? (
+        <RewriteModuleWorkspace
+          spec={rewriteSpec}
+          metrics={sentinelMetrics.map((metric) => ({
+            label: metric.label,
+            meta: metric.meta,
+            value: metric.value,
+          }))}
+        />
+      ) : null}
       <DashboardDiagnosticsSurface
         diagnostics={overviewDiagnostics}
         diagnosticError={diagnosticError}

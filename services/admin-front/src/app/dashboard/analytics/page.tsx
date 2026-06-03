@@ -1,6 +1,6 @@
 "use client";
 
-import { AnalyticsDashboardScreen } from "@/features/dashboard/analytics-dashboard-screen";
+import { AnalyticsOverviewScreen } from "@/features/dashboard/analytics-overview-screen";
 import { useAdminSession } from "@/lib/use-admin-session";
 
 export default function DashboardAnalyticsPage() {
@@ -10,5 +10,5 @@ export default function DashboardAnalyticsPage() {
     return null;
   }
 
-  return <AnalyticsDashboardScreen admin={admin} token={token} />;
+  return <AnalyticsOverviewScreen admin={admin} token={token} />;
 }

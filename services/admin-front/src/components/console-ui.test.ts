@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   DataTable,
   EmptyBlock,
+  MetricCard,
   ListFilterFieldPresets,
   ListFilterFields,
   ListFilterForm,
@@ -14,6 +15,7 @@ import {
   OverlayPanel,
   SearchInput,
   SentinelStatusChip,
+  SurfaceCard,
   StatusChip,
   TableBody,
   TableHeaderRow,
@@ -177,6 +179,35 @@ describe("OverlayPanel", () => {
 });
 
 describe("shared console primitives", () => {
+  it("renders surfaces and metric cards with shadcn-style semantic tokens", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(
+        React.Fragment,
+        null,
+        React.createElement(
+          SurfaceCard,
+          {
+            eyebrow: "Control module",
+            title: "配置中心",
+            description: "只展示状态和入口。",
+          },
+          React.createElement("div", null, "overview body")
+        ),
+        React.createElement(MetricCard, {
+          label: "Runtime Source",
+          value: "published",
+          meta: "Gateway reads the active snapshot.",
+        })
+      )
+    );
+
+    expect(html).toContain("shadcn.card");
+    expect(html).toContain("shadcn.border");
+    expect(html).toContain("shadcn.foreground");
+    expect(html).toContain("var(--console-panel)");
+    expect(html).toContain("配置中心");
+  });
+
   it("renders status chips and message banners for modal review surfaces", () => {
     const html = renderToStaticMarkup(
       React.createElement(
