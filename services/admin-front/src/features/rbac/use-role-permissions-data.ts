@@ -42,31 +42,15 @@ export function useRolePermissionsData(token: string | null) {
     if (!token) {
       return;
     }
-    const activeToken = token;
     let cancelled = false;
 
-    async function load() {
-      try {
-        await loadData(activeToken);
-        if (!cancelled) {
-          setError(null);
-        }
-      } catch (loadError) {
-        if (!cancelled) {
-          setError(
-            loadError instanceof Error
-              ? loadError.message
-              : "加载角色权限矩阵失败"
-          );
-        }
-      } finally {
-        if (!cancelled) {
-          setBootstrapping(false);
-        }
-      }
-    }
-
-    void load();
+    void loadBootstrappedRoles({
+      token,
+      loadData,
+      setError,
+      setBootstrapping,
+      isCancelled: () => cancelled,
+    });
     return () => {
       cancelled = true;
     };
@@ -83,4 +67,35 @@ export function useRolePermissionsData(token: string | null) {
     setError,
     setMessage,
   };
+}
+
+async function loadBootstrappedRoles({
+  token,
+  loadData,
+  setError,
+  setBootstrapping,
+  isCancelled,
+}: Readonly<{
+  token: string;
+  loadData: (activeToken?: string | null) => Promise<void>;
+  setError: (value: string | null) => void;
+  setBootstrapping: (value: boolean) => void;
+  isCancelled: () => boolean;
+}>) {
+  try {
+    await loadData(token);
+    if (!isCancelled()) {
+      setError(null);
+    }
+  } catch (loadError) {
+    if (!isCancelled()) {
+      setError(
+        loadError instanceof Error ? loadError.message : "加载角色权限矩阵失败"
+      );
+    }
+  } finally {
+    if (!isCancelled()) {
+      setBootstrapping(false);
+    }
+  }
 }
