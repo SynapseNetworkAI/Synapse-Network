@@ -261,6 +261,7 @@ Working directory: `services/admin-front/`
 5. `npm run ci:admin-front` from repository root when repo-standard gating is needed; this runs lint, Vitest, and production build
 6. `cd services/admin-front && yarn test src/components/admin-notification-inbox.test.tsx src/services/admin-api-route-coverage.test.ts` when changing Admin Inbox, admin notification API clients, unread badges, read/archive actions, or provider-service notification rendering
 7. `npm run e2e:admin-inbox-provider-services && npm run ci:admin-inbox-provider-services-evidence` when closing local Admin Inbox provider-service notification behavior; this must produce screenshots and SQL evidence for unread, read, archive, and dedupe state
+8. `ADMIN_GOOGLE_AUTHENTICATOR_LOGIN_ENABLED=false ADMIN_GOOGLE_AUTHENTICATOR_HIGH_RISK_ENABLED=false bash scripts/local/start_all_services.sh restart`, then `npm run e2e:admin-menu-config:local && npm run ci:admin-menu-config-local-evidence` when validating backend-owned Admin menu config locally; this must prove password-only login, disabled login Google FA, visible menu API for `config-center -> /config` plus the `/config/business-policy`, `/config/runtime`, and `/config/published` subentries, sidebar/screenshots across two fresh logins, and `admin_config_documents` SQL evidence
 
 ### 3.4 services/gateway-admin
 

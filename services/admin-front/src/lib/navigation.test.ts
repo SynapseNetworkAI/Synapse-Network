@@ -5,7 +5,6 @@ import {
   filterNavigation,
   findNavItemByPath,
   findNavPathByPath,
-  getNavVisual,
   resolveExpandedNavigationIds,
 } from "./navigation";
 
@@ -131,7 +130,7 @@ describe("buildAdminNavigation", () => {
     expect(navigation[0]?.children?.[0]?.path).toBe("/dashboard/overview");
   });
 
-  it("recovers known dashboard page routes when backend node types drift", () => {
+  it("does not recover page routes when the backend omits hrefs", () => {
     const navigation = buildAdminNavigation([
       createMenuItem({
         itemId: "control-overview",
@@ -171,12 +170,12 @@ describe("buildAdminNavigation", () => {
 
     expect(dashboard?.path).toBeUndefined();
     expect(dashboard?.children?.map((item) => [item.id, item.path])).toEqual([
-      ["dashboard-overview", "/dashboard/overview"],
-      ["dashboard-runtime", "/dashboard/runtime"],
+      ["dashboard-overview", undefined],
+      ["dashboard-runtime", undefined],
     ]);
   });
 
-  it("falls back to the other-modules bucket for orphan items", () => {
+  it("does not render orphan items that the backend returns without a parent", () => {
     const navigation = buildAdminNavigation([
       createMenuItem({
         itemId: "custom-module",
@@ -191,8 +190,7 @@ describe("buildAdminNavigation", () => {
       }),
     ]);
 
-    expect(navigation).toHaveLength(1);
-    expect(navigation[0]?.id).toBe("other-modules");
+    expect(navigation).toHaveLength(0);
   });
 
   it("builds the Analytics category with all drilldown pages", () => {
@@ -275,20 +273,41 @@ describe("buildAdminNavigation", () => {
       "analytics"
     );
   });
-});
 
-describe("getNavVisual", () => {
-  it("returns the Sentinel metadata for known items", () => {
-    expect(getNavVisual("dashboard")).toEqual({
-      icon: "DA",
-      kicker: "总览与业务运行态入口。",
-    });
-  });
+  it("uses backend-provided menu display fields", () => {
+    const navigation = buildAdminNavigation([
+      createMenuItem({
+        itemId: "business-control",
+        sectionId: "ops-controls",
+        sectionLabel: "业务控制",
+        sectionDescription: "审批、资金与风险联动控制台。",
+        label: "业务控制",
+        href: null,
+        nodeType: "category",
+        iconKey: "BC",
+        sortOrder: 20,
+      }),
+      createMenuItem({
+        itemId: "config-center",
+        sectionId: "ops-controls",
+        sectionLabel: "业务控制",
+        sectionDescription: "审批、资金与风险联动控制台。",
+        label: "配置中心",
+        href: "/config",
+        description: "业务策略参数由数据库配置。",
+        parentItemId: "business-control",
+        nodeType: "page",
+        iconKey: "CF",
+        sortOrder: 21,
+      }),
+    ]);
 
-  it("returns a generic fallback for unknown items", () => {
-    expect(getNavVisual("unknown")).toEqual({
-      icon: "SN",
-      kicker: "control module",
+    expect(navigation[0]?.children?.[0]).toMatchObject({
+      id: "config-center",
+      title: "配置中心",
+      icon: "CF",
+      path: "/config",
+      description: "业务策略参数由数据库配置。",
     });
   });
 });
@@ -431,7 +450,7 @@ describe("navigation tree helpers", () => {
     );
   });
 
-  it("filters legacy health child items out of the dashboard navigation", () => {
+  it("renders backend-provided health child items instead of hiding them locally", () => {
     const mappedNavigation = buildAdminNavigation([
       createMenuItem({
         itemId: "control-overview",
@@ -472,7 +491,9 @@ describe("navigation tree helpers", () => {
       }),
     ]);
 
-    expect(mappedNavigation[0]?.children?.[0]?.children ?? []).toHaveLength(0);
+    expect(mappedNavigation[0]?.children?.[0]?.children?.[0]?.id).toBe(
+      "dashboard-system-health"
+    );
     expect(findNavItemByPath(mappedNavigation, "/system")).toBeNull();
   });
 

@@ -33,12 +33,19 @@ DEFAULT_MENU_MIGRATION_ITEM_IDS = {
     "owner-accounts",
     "review-history",
     "forum-support",
+    "config-center",
+    "business-policy-config",
+    "runtime-config",
+    "published-config",
 }
 DEFAULT_MENU_FIELD_MIGRATION_ITEM_IDS = {
     "permissions-matrix",
     "module-boundaries",
     "reviewer-split",
     "config-center",
+    "business-policy-config",
+    "runtime-config",
+    "published-config",
 }
 DRAFT_READ_ROLES = {"super_admin", "platform_ops_admin"}
 WRITE_ROLES = {"super_admin"}
