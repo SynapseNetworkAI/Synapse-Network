@@ -120,7 +120,7 @@ function ProviderLlmConfigContent({
           models={models}
           rollouts={rollouts}
           busyServiceId={busyServiceId}
-          onRequestRollout={requestRollout}
+          onRequestRollout={onRequestRollout}
         />
       </Stack>
     </AdminShell>
@@ -273,6 +273,7 @@ function VendorTable({ vendors }: { vendors: ProviderLlmVendorConfig[] }) {
       title="上游供应商"
       description="只展示运行态配置引用和 smoke 状态；上游 API key 必须留在 Secret Manager 或部署环境。"
       stamp={`${vendors.length} vendors`}
+      filter={null}
       table={
         <DataTable>
           <TableHeaderRow>
@@ -347,6 +348,7 @@ function ModelCatalogTable({
       title="模型目录与上线闸门"
       description="v1 固定 stream=false；生产启用必须先完成价格复核和显式 opt-in。"
       stamp={`${models.length} models`}
+      filter={null}
       table={
         models.length === 0 ? (
           <EmptyBlock
@@ -431,7 +433,7 @@ function ModelRow({
         <HStack gap="8px">
           <Button
             size="sm"
-            isLoading={busy}
+            loading={busy}
             onClick={() => onRequestRollout(model, "smoke")}
           >
             staging smoke
@@ -439,7 +441,7 @@ function ModelRow({
           <Button
             size="sm"
             colorScheme="orange"
-            isLoading={busy}
+            loading={busy}
             onClick={() => onRequestRollout(model, "prod_enable")}
           >
             prod enable
