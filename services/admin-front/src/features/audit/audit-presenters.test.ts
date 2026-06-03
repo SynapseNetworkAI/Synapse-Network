@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { buildAuditMetrics, collectAuditStatuses, filterAuditItems, sortAuditItems, topAuditErrorCodes } from "./audit-presenters";
+import {
+  buildAuditMetrics,
+  collectAuditStatuses,
+  filterAuditItems,
+  getAuditResultTone,
+  sortAuditItems,
+  topAuditErrorCodes,
+} from "./audit-presenters";
 
 const items = [
   {
@@ -49,7 +56,9 @@ const items = [
 
 describe("audit-presenters", () => {
   it("filters by search and result status", () => {
-    expect(filterAuditItems(items, "beta", "failed").map((item) => item.auditId)).toEqual([2, 3]);
+    expect(
+      filterAuditItems(items, "beta", "failed").map((item) => item.auditId)
+    ).toEqual([2, 3]);
   });
 
   it("builds audit metrics", () => {
@@ -64,10 +73,19 @@ describe("audit-presenters", () => {
 
   it("collects statuses and top error codes", () => {
     expect(collectAuditStatuses(items)).toEqual(["success", "failed"]);
-    expect(topAuditErrorCodes(items)).toEqual([{ errorCode: "QUEUE_TIMEOUT", count: 2 }]);
+    expect(topAuditErrorCodes(items)).toEqual([
+      { errorCode: "QUEUE_TIMEOUT", count: 2 },
+    ]);
   });
 
   it("sorts newest events first", () => {
-    expect(sortAuditItems(items).map((item) => item.auditId)).toEqual([3, 2, 1]);
+    expect(sortAuditItems(items).map((item) => item.auditId)).toEqual([
+      3, 2, 1,
+    ]);
+  });
+
+  it("maps result tones", () => {
+    expect(getAuditResultTone("success")).toBe("green");
+    expect(getAuditResultTone("failed")).toBe("red");
   });
 });
