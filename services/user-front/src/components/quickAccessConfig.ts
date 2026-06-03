@@ -131,6 +131,14 @@ export const QUICK_ACCESS_CONFIG: QuickAccessEntryConfig[] = [
     matches: (value) => value.startsWith("/provider/services"),
   },
   {
+    href: "/provider/llm",
+    labelKey: "sidebar.myServices",
+    descriptionKey: "nav.quickAccessServicesDescription",
+    icon: Bot,
+    keywords: ["provider", "llm", "models", "openai"],
+    matches: (value) => value.startsWith("/provider/llm"),
+  },
+  {
     href: "/provider/usage",
     labelKey: "sidebar.usageAnalytics",
     descriptionKey: "nav.quickAccessUsageDescription",

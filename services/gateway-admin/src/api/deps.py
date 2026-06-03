@@ -27,6 +27,7 @@ from src.services.dashboard.service import DashboardService
 from src.services.execution import ExecutionService, ExecutionWorker
 from src.services.finance_admin import ProviderWithdrawReviewService
 from src.services.forum_support import ForumSupportService
+from src.services.provider_llm_config import ProviderLlmConfigService
 from src.storage.analytics import (
     AnalyticsDashboardRepository,
     ClickHouseAnalyticsDashboardRepository,
@@ -177,6 +178,11 @@ def get_provider_services_adapter() -> ProviderServicesAdapter:
         service_subject=settings.gateway_internal_service_subject,
         timeout_sec=settings.gateway_internal_timeout_sec,
     )
+
+
+@lru_cache(maxsize=1)
+def get_provider_llm_config_service() -> ProviderLlmConfigService:
+    return ProviderLlmConfigService()
 
 
 @lru_cache(maxsize=1)
