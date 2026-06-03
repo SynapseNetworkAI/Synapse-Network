@@ -29,10 +29,100 @@ import {
   useAnalyticsResource,
   useQueryBackedWindow,
 } from "@/features/dashboard/analytics-dashboard-screen";
-import type { AnalyticsDataQualityWindow } from "@/services/admin-api";
+import type {
+  AnalyticsDataQuality,
+  AnalyticsDataQualityWindow,
+} from "@/services/admin-api";
 import { getAnalyticsDataQuality } from "@/services/admin-api";
 
 const DATA_QUALITY_WINDOWS: AnalyticsDataQualityWindow[] = ["1h", "24h"];
+type SchemaIssueRow = ReturnType<
+  typeof buildDataQualitySchemaIssueRows
+>[number];
+
+function DataQualityCoverageSurface({
+  dataQuality,
+}: Readonly<{ dataQuality: AnalyticsDataQuality | null }>) {
+  return (
+    <SurfaceCard
+      eyebrow="Coverage"
+      title="Source coverage"
+      description="frontend / gateway 来源覆盖，用于确认全链路埋点是否同时在线。"
+    >
+      <Stack gap="12px">
+        <Box
+          borderRadius="20px"
+          p="16px"
+          bg="#f7f9fc"
+          border="1px solid rgba(15,17,21,0.06)"
+        >
+          <Text
+            fontSize="11px"
+            letterSpacing="0.16em"
+            textTransform="uppercase"
+            color="ink.500"
+          >
+            Source Coverage
+          </Text>
+          <Text mt="8px" fontWeight="700">
+            {summarizeSourceCoverage(dataQuality)}
+          </Text>
+        </Box>
+        <Box
+          borderRadius="20px"
+          p="16px"
+          bg="#f7f9fc"
+          border="1px solid rgba(15,17,21,0.06)"
+        >
+          <Text
+            fontSize="11px"
+            letterSpacing="0.16em"
+            textTransform="uppercase"
+            color="ink.500"
+          >
+            Critical Freshness
+          </Text>
+          <Text mt="8px" fontWeight="700">
+            {summarizeCriticalFreshness(dataQuality)}
+          </Text>
+        </Box>
+      </Stack>
+    </SurfaceCard>
+  );
+}
+
+function DataQualitySchemaSurface({
+  schemaRows,
+}: Readonly<{ schemaRows: SchemaIssueRow[] }>) {
+  return (
+    <SurfaceCard
+      eyebrow="Schema"
+      title="Schema issue samples"
+      description="展示缺失必填字段、schema 不匹配等样本，不输出敏感原始 payload。"
+    >
+      {schemaRows.length ? (
+        <DataTable>
+          <TableHeaderRow>
+            <Th>Event</Th>
+            <Th>Issue</Th>
+            <Th>Count</Th>
+          </TableHeaderRow>
+          <TableBody>
+            {schemaRows.map((item) => (
+              <tr key={item.key}>
+                <Td>{item.eventName}</Td>
+                <Td>{item.issue}</Td>
+                <Td>{item.count}</Td>
+              </tr>
+            ))}
+          </TableBody>
+        </DataTable>
+      ) : (
+        <AnalyticsEmptyState label="当前窗口暂无 schema issue samples" />
+      )}
+    </SurfaceCard>
+  );
+}
 
 export function AnalyticsDataQualityScreen({
   admin,
@@ -40,7 +130,7 @@ export function AnalyticsDataQualityScreen({
 }: Readonly<AnalyticsScreenProps>) {
   const [windowValue, setWindowValue] = useQueryBackedWindow(
     DATA_QUALITY_WINDOWS,
-    "24h"
+    "24h",
   );
   const {
     data: dataQuality,
@@ -50,18 +140,18 @@ export function AnalyticsDataQualityScreen({
     token,
     windowValue,
     getAnalyticsDataQuality,
-    "Data quality failed to load"
+    "Data quality failed to load",
   );
   const signalCards = useMemo(
     () => [
       ...buildDataQualitySignalCards(dataQuality),
       ...buildDataQualityLagCards(dataQuality),
     ],
-    [dataQuality]
+    [dataQuality],
   );
   const schemaRows = useMemo(
     () => buildDataQualitySchemaIssueRows(dataQuality),
-    [dataQuality]
+    [dataQuality],
   );
 
   if (loading && !dataQuality) {
@@ -93,76 +183,8 @@ export function AnalyticsDataQualityScreen({
       {error ? <MessageBanner kind="error" message={error} /> : null}
       <SignalGrid cards={signalCards} />
       <Grid templateColumns={{ base: "1fr", xl: "1fr 1fr" }} gap="16px">
-        <SurfaceCard
-          eyebrow="Coverage"
-          title="Source coverage"
-          description="frontend / gateway 来源覆盖，用于确认全链路埋点是否同时在线。"
-        >
-          <Stack gap="12px">
-            <Box
-              borderRadius="20px"
-              p="16px"
-              bg="#f7f9fc"
-              border="1px solid rgba(15,17,21,0.06)"
-            >
-              <Text
-                fontSize="11px"
-                letterSpacing="0.16em"
-                textTransform="uppercase"
-                color="ink.500"
-              >
-                Source Coverage
-              </Text>
-              <Text mt="8px" fontWeight="700">
-                {summarizeSourceCoverage(dataQuality)}
-              </Text>
-            </Box>
-            <Box
-              borderRadius="20px"
-              p="16px"
-              bg="#f7f9fc"
-              border="1px solid rgba(15,17,21,0.06)"
-            >
-              <Text
-                fontSize="11px"
-                letterSpacing="0.16em"
-                textTransform="uppercase"
-                color="ink.500"
-              >
-                Critical Freshness
-              </Text>
-              <Text mt="8px" fontWeight="700">
-                {summarizeCriticalFreshness(dataQuality)}
-              </Text>
-            </Box>
-          </Stack>
-        </SurfaceCard>
-        <SurfaceCard
-          eyebrow="Schema"
-          title="Schema issue samples"
-          description="展示缺失必填字段、schema 不匹配等样本，不输出敏感原始 payload。"
-        >
-          {schemaRows.length ? (
-            <DataTable>
-              <TableHeaderRow>
-                <Th>Event</Th>
-                <Th>Issue</Th>
-                <Th>Count</Th>
-              </TableHeaderRow>
-              <TableBody>
-                {schemaRows.map((item) => (
-                  <tr key={item.key}>
-                    <Td>{item.eventName}</Td>
-                    <Td>{item.issue}</Td>
-                    <Td>{item.count}</Td>
-                  </tr>
-                ))}
-              </TableBody>
-            </DataTable>
-          ) : (
-            <AnalyticsEmptyState label="当前窗口暂无 schema issue samples" />
-          )}
-        </SurfaceCard>
+        <DataQualityCoverageSurface dataQuality={dataQuality} />
+        <DataQualitySchemaSurface schemaRows={schemaRows} />
       </Grid>
     </AnalyticsPageShell>
   );

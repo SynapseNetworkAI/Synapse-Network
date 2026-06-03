@@ -1,6 +1,6 @@
 "use client";
 
-import { AnalyticsMoneyFlowScreen } from "@/features/dashboard/analytics-dashboard-screen";
+import { AnalyticsMoneyFlowScreen } from "@/features/dashboard/analytics-money-flow-screen";
 import { useAdminSession } from "@/lib/use-admin-session";
 
 export default function AnalyticsMoneyFlowPage() {

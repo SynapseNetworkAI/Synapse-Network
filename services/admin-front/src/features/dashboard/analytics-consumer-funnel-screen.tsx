@@ -24,13 +24,97 @@ import {
 } from "@/features/dashboard/analytics-dashboard-screen";
 import { getAnalyticsConsumerFunnel } from "@/services/admin-api";
 
+type FunnelStep = ReturnType<typeof buildConsumerFunnelSteps>[number];
+
+function FunnelStepRow({
+  index,
+  step,
+}: Readonly<{ index: number; step: FunnelStep }>) {
+  return (
+    <Box
+      borderRadius="20px"
+      p="14px"
+      bg="#f7f9fc"
+      border="1px solid rgba(15,17,21,0.06)"
+    >
+      <Grid
+        templateColumns={{ base: "1fr", md: "1.2fr 0.8fr auto" }}
+        gap="12px"
+        alignItems="center"
+      >
+        <Stack gap="2px">
+          <Text
+            fontSize="11px"
+            letterSpacing="0.16em"
+            textTransform="uppercase"
+            color="ink.500"
+          >
+            Step {index + 1}
+          </Text>
+          <Text fontSize="16px" fontWeight="800">
+            {step.label}
+          </Text>
+          <Text color="ink.500">{step.eventName}</Text>
+        </Stack>
+        <Box>
+          <Box
+            h="10px"
+            borderRadius="999px"
+            bg="rgba(15,17,21,0.08)"
+            overflow="hidden"
+          >
+            <Box
+              h="100%"
+              w={`${Math.min(100, Number(step.conversion.replace("%", "")))}%`}
+              bg={
+                step.tone === "red"
+                  ? "#b83131"
+                  : step.tone === "orange"
+                    ? "#f36a1d"
+                    : "#1f9257"
+              }
+            />
+          </Box>
+          <Text mt="6px" color="ink.500">
+            users {step.users} / events {step.events}
+          </Text>
+        </Box>
+        <HStack gap="8px" justify="flex-end">
+          <SentinelStatusChip label={step.conversion} tone={step.tone} />
+          <Text color="ink.500">drop {step.dropoff}</Text>
+        </HStack>
+      </Grid>
+    </Box>
+  );
+}
+
+function FunnelStepsSurface({ steps }: Readonly<{ steps: FunnelStep[] }>) {
+  return (
+    <SurfaceCard
+      eyebrow="Funnel Ladder"
+      title="事件链路"
+      description="每一步展示 users、events、conversion 和 dropoff；不做用户级追踪。"
+    >
+      {steps.length ? (
+        <Stack gap="12px">
+          {steps.map((step, index) => (
+            <FunnelStepRow key={step.eventName} index={index} step={step} />
+          ))}
+        </Stack>
+      ) : (
+        <AnalyticsEmptyState label="当前窗口暂无完整 consumer 激活链路" />
+      )}
+    </SurfaceCard>
+  );
+}
+
 export function AnalyticsConsumerFunnelScreen({
   admin,
   token,
 }: Readonly<AnalyticsScreenProps>) {
   const [windowValue, setWindowValue] = useQueryBackedWindow(
     ANALYTICS_WINDOWS,
-    "24h"
+    "24h",
   );
   const {
     data: funnel,
@@ -40,11 +124,11 @@ export function AnalyticsConsumerFunnelScreen({
     token,
     windowValue,
     getAnalyticsConsumerFunnel,
-    "Consumer funnel failed to load"
+    "Consumer funnel failed to load",
   );
   const summaryCards = useMemo(
     () => buildConsumerFunnelSummaryCards(funnel),
-    [funnel]
+    [funnel],
   );
   const steps = useMemo(() => buildConsumerFunnelSteps(funnel), [funnel]);
 
@@ -69,81 +153,7 @@ export function AnalyticsConsumerFunnelScreen({
     >
       {error ? <MessageBanner kind="error" message={error} /> : null}
       <SignalGrid cards={summaryCards} />
-      <SurfaceCard
-        eyebrow="Funnel Ladder"
-        title="事件链路"
-        description="每一步展示 users、events、conversion 和 dropoff；不做用户级追踪。"
-      >
-        {steps.length ? (
-          <Stack gap="12px">
-            {steps.map((step, index) => (
-              <Box
-                key={step.eventName}
-                borderRadius="20px"
-                p="14px"
-                bg="#f7f9fc"
-                border="1px solid rgba(15,17,21,0.06)"
-              >
-                <Grid
-                  templateColumns={{ base: "1fr", md: "1.2fr 0.8fr auto" }}
-                  gap="12px"
-                  alignItems="center"
-                >
-                  <Stack gap="2px">
-                    <Text
-                      fontSize="11px"
-                      letterSpacing="0.16em"
-                      textTransform="uppercase"
-                      color="ink.500"
-                    >
-                      Step {index + 1}
-                    </Text>
-                    <Text fontSize="16px" fontWeight="800">
-                      {step.label}
-                    </Text>
-                    <Text color="ink.500">{step.eventName}</Text>
-                  </Stack>
-                  <Box>
-                    <Box
-                      h="10px"
-                      borderRadius="999px"
-                      bg="rgba(15,17,21,0.08)"
-                      overflow="hidden"
-                    >
-                      <Box
-                        h="100%"
-                        w={`${Math.min(
-                          100,
-                          Number(step.conversion.replace("%", ""))
-                        )}%`}
-                        bg={
-                          step.tone === "red"
-                            ? "#b83131"
-                            : step.tone === "orange"
-                            ? "#f36a1d"
-                            : "#1f9257"
-                        }
-                      />
-                    </Box>
-                    <Text mt="6px" color="ink.500">
-                      users {step.users} / events {step.events}
-                    </Text>
-                  </Box>
-                  <HStack gap="8px" justify="flex-end">
-                    <SentinelStatusChip
-                      label={step.conversion}
-                      tone={step.tone}
-                    />
-                    <Text color="ink.500">drop {step.dropoff}</Text>
-                  </HStack>
-                </Grid>
-              </Box>
-            ))}
-          </Stack>
-        ) : (
-          <AnalyticsEmptyState label="当前窗口暂无完整 consumer 激活链路" />
-        )}
-      </SurfaceCard>
+      <FunnelStepsSurface steps={steps} />
     </AnalyticsPageShell>
   );
 }
