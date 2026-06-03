@@ -16,7 +16,7 @@ assert(
   "summary values must flow through the public value renderer"
 );
 assert(
-  component.includes("target=\"_blank\""),
+  component.includes('target="_blank"'),
   "public URLs must render as clickable external links"
 );
 assert(
@@ -26,6 +26,14 @@ assert(
 assert(
   component.includes("Not published"),
   "reserved production addresses must be replaced with a safe public label"
+);
+assert(
+  !component.includes("environmentRows"),
+  "network docs must render only the current docs environment"
+);
+assert(
+  !shared.includes("environmentRows"),
+  "shared config must not expose a mixed-environment docs table source"
 );
 assert(
   shared.includes("services/user-front/src/contract-config.json"),
