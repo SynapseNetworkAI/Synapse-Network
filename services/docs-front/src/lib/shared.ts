@@ -77,8 +77,6 @@ const defaults: Record<AppEnvironment, EnvironmentConfig> = {
   },
 };
 
-export const environmentRows = Object.values(defaults);
-
 export const environmentConfig: EnvironmentConfig = {
   ...defaults[appEnv],
   docsUrl: optionalUrl(
