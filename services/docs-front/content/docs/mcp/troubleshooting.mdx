@@ -1,0 +1,58 @@
+---
+title: MCP Troubleshooting
+description: Fix common Synapse MCP setup, auth, tool scan, and pricing errors.
+---
+
+## `/mcp` returns 401
+
+This is expected when the request is unauthenticated. The hosted MCP service is public at the network layer and protected by MCP auth.
+
+Check metadata:
+
+```bash
+curl -i https://mcp.synapse-network.ai/.well-known/oauth-protected-resource
+```
+
+## Wallet connection is unavailable
+
+Install or enable a supported Arbitrum wallet such as MetaMask or Rabby, then refresh the OAuth authorization page.
+
+## Codex shows `Not logged in`
+
+Run:
+
+```bash
+codex mcp login synapse-remote-mcp-oauth \
+  --scopes synapse.discovery.read,synapse.receipts.read,offline_access
+```
+
+If the browser authorization fails, use the BYOK Agent Key setup:
+
+```bash
+codex mcp add synapse-remote-mcp \
+  --url https://mcp.synapse-network.ai/mcp \
+  --bearer-token-env-var SYNAPSE_AGENT_KEY
+```
+
+## OpenAI returns `424 Failed Dependency`
+
+Common causes:
+
+- OAuth token expired or missing.
+- Token scope does not include `synapse.discovery.read`.
+- The `authorization` field includes `Bearer ` when the API expects a raw access token.
+- Tool scan is using a stale custom app snapshot.
+
+## `PRICE_MISMATCH`
+
+Do not retry with the old price. Call `discover_services` again and use the latest `costUsdc` or `maxCostUsdc`.
+
+## No tools appear
+
+Check:
+
+1. The MCP server is enabled in your client.
+2. The server URL is `https://mcp.synapse-network.ai/mcp`.
+3. The Agent Key or OAuth login is valid.
+4. Your client supports Streamable HTTP or local stdio MCP.
+5. The client was restarted after configuration changes.
