@@ -110,6 +110,20 @@ def _authorize_request(challenge: str) -> oauth_service.OAuthAuthorizeRequest:
     )
 
 
+def _codex_authorize_request(challenge: str, redirect_uri: str) -> oauth_service.OAuthAuthorizeRequest:
+    return oauth_service.OAuthAuthorizeRequest(
+        client_id="codex",
+        redirect_uri=redirect_uri,
+        response_type="code",
+        scope="synapse.discovery.read synapse.receipts.read offline_access",
+        state="state-codex",
+        code_challenge=challenge,
+        code_challenge_method="S256",
+        resource="https://mcp.synapse-network.ai/mcp",
+        credential_id="cred-chatgpt",
+    )
+
+
 def test_oauth_code_exchange_and_runtime_resolution(oauth_settings) -> None:
     storage = _FakeStorage([_credential()])
     verifier, challenge = _pkce_pair()
@@ -161,6 +175,42 @@ def test_oauth_code_exchange_and_runtime_resolution(oauth_settings) -> None:
             },
         )
     assert reused.value.status_code == 400
+
+
+def test_oauth_defaults_allow_codex_local_callback(monkeypatch) -> None:
+    monkeypatch.setenv("SYNAPSE_OAUTH_ISSUER", "https://www.synapse-network.ai")
+    monkeypatch.setenv("SYNAPSE_OAUTH_MCP_RESOURCE", "https://mcp.synapse-network.ai/mcp")
+    monkeypatch.delenv("SYNAPSE_OAUTH_ALLOWED_REDIRECT_HOSTS", raising=False)
+    monkeypatch.delenv("SYNAPSE_OAUTH_ALLOWED_CLIENT_IDS", raising=False)
+    monkeypatch.setenv("SYNAPSE_OAUTH_JWT_SECRET", "unit-test-oauth-secret-with-32-bytes")
+    storage = _FakeStorage([_credential()])
+    _, challenge = _pkce_pair()
+
+    redirect_url = oauth_service.create_authorization_code(
+        storage,
+        "0xabc",
+        _codex_authorize_request(challenge, "http://127.0.0.1:4321/callback"),
+    )
+
+    assert redirect_url.startswith("http://127.0.0.1:4321/callback?code=syn_code_")
+
+
+def test_oauth_defaults_reject_untrusted_codex_redirect(monkeypatch) -> None:
+    monkeypatch.setenv("SYNAPSE_OAUTH_ISSUER", "https://www.synapse-network.ai")
+    monkeypatch.setenv("SYNAPSE_OAUTH_MCP_RESOURCE", "https://mcp.synapse-network.ai/mcp")
+    monkeypatch.delenv("SYNAPSE_OAUTH_ALLOWED_REDIRECT_HOSTS", raising=False)
+    monkeypatch.delenv("SYNAPSE_OAUTH_ALLOWED_CLIENT_IDS", raising=False)
+    storage = _FakeStorage([_credential()])
+    _, challenge = _pkce_pair()
+
+    with pytest.raises(HTTPException) as rejected:
+        oauth_service.create_authorization_code(
+            storage,
+            "0xabc",
+            _codex_authorize_request(challenge, "https://evil.example/callback"),
+        )
+
+    assert rejected.value.status_code == 400
 
 
 def test_oauth_scope_gate_and_refresh_rotation(oauth_settings) -> None:
