@@ -4,6 +4,7 @@ import fs from "node:fs";
 import https from "node:https";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { resolve } from "node:path";
 
 const DEFAULT_ACCEPT = [
   "application/vnd.oci.image.index.v1+json",
@@ -53,6 +54,17 @@ export function immutableImageRef(image, digest) {
     return image;
   }
   return `${parsed.imageName}@${digest}`;
+}
+
+export function isSameFilesystemPath(left, right) {
+  if (!left || !right) {
+    return false;
+  }
+  try {
+    return fs.realpathSync(left) === fs.realpathSync(right);
+  } catch {
+    return resolve(left) === resolve(right);
+  }
 }
 
 function accessToken() {
@@ -131,7 +143,7 @@ async function main() {
   fs.writeFileSync(outPath, `${JSON.stringify(digests, null, 2)}\n`);
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isSameFilesystemPath(process.argv[1], fileURLToPath(import.meta.url))) {
   main().catch((error) => {
     console.error(`[artifact-digest] ${error.message}`);
     process.exit(1);

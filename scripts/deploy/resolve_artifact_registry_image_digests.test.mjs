@@ -1,8 +1,12 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 
 import {
   immutableImageRef,
+  isSameFilesystemPath,
   parseTaggedArtifactRegistryImage,
 } from "./resolve_artifact_registry_image_digests.mjs";
 
@@ -54,4 +58,18 @@ test("parseTaggedArtifactRegistryImage rejects refs without explicit tag", () =>
     ),
     null
   );
+});
+
+test("isSameFilesystemPath treats symlinked entry paths as the same file", () => {
+  const tempDir = mkdtempSync(join(tmpdir(), "artifact-digest-test-"));
+  try {
+    const realFile = join(tempDir, "resolver.mjs");
+    const linkFile = join(tempDir, "resolver-link.mjs");
+    writeFileSync(realFile, "", "utf8");
+    symlinkSync(realFile, linkFile);
+
+    assert.equal(isSameFilesystemPath(realFile, linkFile), true);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
 });
