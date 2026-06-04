@@ -34,11 +34,16 @@ export function ApprovalQueue({ items }: Readonly<ApprovalQueueProps>) {
           <article key={item.approvalId} className="queue__item">
             <div>
               <p className="queue__id">{item.approvalId}</p>
-              <p className="queue__meta">{approvalTypeLabelMap[item.approvalType] ?? item.approvalType} · {item.requesterRole}</p>
+              <p className="queue__meta">
+                {approvalTypeLabelMap[item.approvalType] ?? item.approvalType} ·{" "}
+                {item.requesterRole}
+              </p>
             </div>
             <div className="queue__right">
               <span className="queue__level">{item.approvalLevel}</span>
-              <span className="queue__status">{statusLabelMap[item.status] ?? item.status}</span>
+              <span className="queue__status">
+                {statusLabelMap[item.status] ?? item.status}
+              </span>
             </div>
           </article>
         ))}

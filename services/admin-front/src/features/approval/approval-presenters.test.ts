@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { buildApprovalMetrics, filterApprovals, getApprovalStatusLabel, getApprovalStatusTone, getApprovalTypeLabel, sortApprovalsByPriority } from "./approval-presenters";
+import {
+  buildApprovalMetrics,
+  filterApprovals,
+  getApprovalStatusLabel,
+  getApprovalStatusTone,
+  getApprovalTypeLabel,
+  sortApprovalsByPriority,
+} from "./approval-presenters";
 
 const approvals = [
   {
@@ -45,15 +52,23 @@ describe("approval-presenters", () => {
   });
 
   it("filters by search and status", () => {
-    expect(filterApprovals(approvals, "risk", "all", "SUBMITTED").map((item) => item.approvalId)).toEqual(["appr-001"]);
+    expect(
+      filterApprovals(approvals, "risk", "all", "SUBMITTED").map(
+        (item) => item.approvalId
+      )
+    ).toEqual(["appr-001"]);
   });
 
   it("sorts the hottest approvals first", () => {
-    expect(sortApprovalsByPriority(approvals).map((item) => item.approvalId)).toEqual(["appr-001", "appr-003", "appr-002"]);
+    expect(
+      sortApprovalsByPriority(approvals).map((item) => item.approvalId)
+    ).toEqual(["appr-001", "appr-003", "appr-002"]);
   });
 
   it("maps labels for known status and type", () => {
-    expect(getApprovalTypeLabel("provider_withdraw_review")).toBe("Provider 提现人工审核");
+    expect(getApprovalTypeLabel("provider_withdraw_review")).toBe(
+      "Provider 提现人工审核"
+    );
     expect(getApprovalStatusLabel("APPROVED_PENDING_EXECUTION")).toBe("待执行");
     expect(getApprovalStatusTone("REJECTED")).toBe("red");
   });

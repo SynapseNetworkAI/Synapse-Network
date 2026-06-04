@@ -1,6 +1,16 @@
 import type { AuditActionItem } from "@/services/admin-api";
 
-export function filterAuditItems(items: AuditActionItem[], search: string, statusFilter: string): AuditActionItem[] {
+export function getAuditResultTone(
+  resultStatus: string
+): "green" | "orange" | "red" | "gray" {
+  return resultStatus === "success" ? "green" : "red";
+}
+
+export function filterAuditItems(
+  items: AuditActionItem[],
+  search: string,
+  statusFilter: string
+): AuditActionItem[] {
   const normalizedSearch = search.trim().toLowerCase();
 
   return items.filter((item) => {
@@ -13,18 +23,26 @@ export function filterAuditItems(items: AuditActionItem[], search: string, statu
       item.approvalId,
       item.jobId,
       item.errorCode,
-    ].join(" ").toLowerCase();
+    ]
+      .join(" ")
+      .toLowerCase();
 
-    const matchesSearch = !normalizedSearch || haystack.includes(normalizedSearch);
-    const matchesStatus = statusFilter === "all" || item.resultStatus === statusFilter;
+    const matchesSearch =
+      !normalizedSearch || haystack.includes(normalizedSearch);
+    const matchesStatus =
+      statusFilter === "all" || item.resultStatus === statusFilter;
     return matchesSearch && matchesStatus;
   });
 }
 
 export function buildAuditMetrics(items: AuditActionItem[]) {
   const failed = items.filter((item) => item.resultStatus !== "success").length;
-  const success = items.filter((item) => item.resultStatus === "success").length;
-  const approvalLinked = items.filter((item) => Boolean(item.approvalId)).length;
+  const success = items.filter(
+    (item) => item.resultStatus === "success"
+  ).length;
+  const approvalLinked = items.filter((item) =>
+    Boolean(item.approvalId)
+  ).length;
   const executionLinked = items.filter((item) => Boolean(item.jobId)).length;
 
   return {
