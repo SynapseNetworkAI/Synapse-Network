@@ -2,9 +2,9 @@
 
 Synapse user-front publishes crawler-facing assets from `services/user-front`:
 
-- `public/llms.txt` -> `https://synapse-network.ai/llms.txt`
-- `public/robots.txt` -> `https://synapse-network.ai/robots.txt`
-- `src/app/sitemap.ts` -> `https://synapse-network.ai/sitemap.xml`
+- `public/llms.txt` -> `https://www.synapse-network.ai/llms.txt`
+- `public/robots.txt` -> `https://www.synapse-network.ai/robots.txt`
+- `src/app/sitemap.ts` -> `https://www.synapse-network.ai/sitemap.xml`
 - `src/app/layout.tsx` -> homepage metadata, OpenGraph, and Twitter metadata
 
 Synapse docs-front publishes crawler-facing developer docs assets from
@@ -18,12 +18,14 @@ Synapse docs-front publishes crawler-facing developer docs assets from
 
 ## Hard Rules
 
-- Use HTTPS only for the canonical production domain. `http://synapse-network.ai` must never appear in `llms.txt`, `robots.txt`, sitemap output, or metadata.
-- Keep the sitemap path singular and stable: `https://synapse-network.ai/sitemap.xml`.
+- Use HTTPS only for the canonical production domain. `http://synapse-network.ai` and `http://www.synapse-network.ai` must never appear in `llms.txt`, `robots.txt`, sitemap output, or metadata.
+- Keep the sitemap path singular and stable: `https://www.synapse-network.ai/sitemap.xml`.
 - Keep docs sitemap singular and stable: `https://docs.synapse-network.ai/sitemap.xml`.
 - Do not use or reference `sitemap.website.xml`.
 - Do not add docs `.md` mirror routes for crawlers; docs-front owns `llms.txt` and `llms-full.txt` instead.
 - Do not list private app surfaces in `llms.txt` or sitemap: `/dashboard`, `/provider`, `/api`, or `/marketplace/registry.json`.
+- Keep the public AI payment landing pages listed in the user-front sitemap:
+  `/ai-agent-payments` and `/agent-payment-api`.
 - Do not list main-site `/docs/*` routes in the user-front sitemap. They are redirects; canonical docs URLs live on `docs.synapse-network.ai`.
 - Do not hand-write JSON-LD in V1; title, description, OG, Twitter, sitemap, robots, and `llms.txt` are the SEO contract.
 
@@ -34,11 +36,11 @@ Browser extensions can inject scripts into the DOM view of XML pages. Treat brow
 Use `curl` to verify the server response:
 
 ```bash
-curl -fsS https://synapse-network.ai/sitemap.xml | sed -n '1,40p'
-curl -fsS https://synapse-network.ai/robots.txt
+curl -fsS https://www.synapse-network.ai/sitemap.xml | sed -n '1,40p'
+curl -fsS https://www.synapse-network.ai/robots.txt
 ```
 
-The sitemap response must start with XML and must not contain `<script`, `chrome-extension://`, `http://synapse-network.ai`, or `sitemap.website.xml`.
+The sitemap response must start with XML and must not contain `<script`, `chrome-extension://`, `http://synapse-network.ai`, `http://www.synapse-network.ai`, or `sitemap.website.xml`.
 
 ## Validation
 
@@ -62,7 +64,7 @@ Production validation is read-only:
 
 ```bash
 SEO_PUBLIC_ASSETS_ENV=prod \
-SEO_PUBLIC_ASSETS_BASE_URL=https://synapse-network.ai \
+SEO_PUBLIC_ASSETS_BASE_URL=https://www.synapse-network.ai \
 npm run e2e:seo-public-assets:prod
 
 npm run ci:seo-public-assets-evidence

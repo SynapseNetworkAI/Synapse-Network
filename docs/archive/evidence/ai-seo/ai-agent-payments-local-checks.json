@@ -1,0 +1,47 @@
+{
+  "checkedAt": "2026-06-04T15:08:04.683Z",
+  "checks": [
+    {
+      "route": "/ai-agent-payments",
+      "status": 200,
+      "ok": true,
+      "expected": ["AI Agent Payments", "Synapse", "USDC", "Agent Credentials"],
+      "present": true
+    },
+    {
+      "route": "/ai-agent-payments/faq",
+      "status": 200,
+      "ok": true,
+      "expected": ["What is Synapse Network?", "ChatGPT", "Claude"],
+      "present": true
+    },
+    {
+      "route": "/sitemap.xml",
+      "status": 200,
+      "ok": true,
+      "expected": [
+        "http://localhost:3100/ai-agent-payments",
+        "http://localhost:3100/ai-agent-payments/faq"
+      ],
+      "present": true
+    },
+    {
+      "route": "/llms.txt",
+      "status": 200,
+      "ok": true,
+      "expected": ["AI Agent Payments", "/ai-agent-payments"],
+      "present": true
+    },
+    {
+      "route": "/ai-agent-payments",
+      "screenshot": "/Users/cliff/workspace/agent/Synapse-Network/docs/archive/evidence/ai-seo/ai-agent-payments-docs-local.png",
+      "ok": true
+    },
+    {
+      "route": "/ai-agent-payments/synapse-vs-x402",
+      "screenshot": "/Users/cliff/workspace/agent/Synapse-Network/docs/archive/evidence/ai-seo/ai-agent-payments-synapse-vs-x402-local.png",
+      "ok": true
+    }
+  ],
+  "passed": true
+}

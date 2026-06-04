@@ -1,5 +1,6 @@
 import type { I18nMessages } from "@/i18n/schema";
 import agentCredentialsPage from "@/i18n/resources/en/agentCredentialsPage";
+import aiAgentPaymentsPage from "@/i18n/resources/en/aiAgentPaymentsPage";
 import aboutPage from "@/i18n/resources/en/aboutPage";
 import agentsPage from "@/i18n/resources/en/agentsPage";
 import auditPage from "@/i18n/resources/en/auditPage";
@@ -35,6 +36,7 @@ const en: I18nMessages = {
   agentsPage,
   agentCredentialsPage,
   paidInvokePanel,
+  aiAgentPaymentsPage,
   home,
   marketplacePage,
   discoveryPage,

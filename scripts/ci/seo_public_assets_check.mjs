@@ -16,11 +16,18 @@ const iconPngPath = path.join(userFrontRoot, "public", "icon.png");
 const appleTouchIconPath = path.join(
   userFrontRoot,
   "public",
-  "apple-touch-icon.png"
+  "apple-touch-icon.png",
 );
-const siteHostname = "synapse-network.ai";
+const siteHostname = "www.synapse-network.ai";
 
-const PUBLIC_ROUTES = ["/", "/about", "/marketplace", "/forum"];
+const PUBLIC_ROUTES = [
+  "/",
+  "/about",
+  "/ai-agent-payments",
+  "/agent-payment-api",
+  "/marketplace",
+  "/forum",
+];
 
 const PRIVATE_PATTERNS = [
   "/dashboard",
@@ -112,6 +119,8 @@ if (assertFile(llmsPath, "llms.txt")) {
 
   for (const expected of [
     "SynapseNetwork",
+    "AI Agent Payments",
+    "Agent Payment API",
     "LLM billing",
     "MCP Server GitHub",
     "https://github.com/SynapseNetworkAI/Synapse-Network-MCP-Server",
@@ -147,7 +156,7 @@ if (assertFile(llmsPath, "llms.txt")) {
     const routePath = normalizeInternalPath(rawUrl);
     if (routePath.endsWith(".md")) {
       fail(
-        `Internal llms.txt URL must not use docs .md mirror routes: ${rawUrl}`
+        `Internal llms.txt URL must not use docs .md mirror routes: ${rawUrl}`,
       );
       continue;
     }
@@ -167,7 +176,7 @@ if (assertFile(robotsPath, "robots.txt")) {
     "Disallow: /provider/",
     "Disallow: /api/",
     "Disallow: /_next/data/",
-    "Sitemap: https://synapse-network.ai/sitemap.xml",
+    "Sitemap: https://www.synapse-network.ai/sitemap.xml",
   ];
 
   for (const line of requiredLines) {
@@ -180,7 +189,7 @@ if (assertFile(robotsPath, "robots.txt")) {
 if (assertFile(sitemapPath, "sitemap.ts")) {
   const sitemap = readText(sitemapPath);
   assertNoForbiddenSeoText("sitemap.ts", sitemap);
-  if (!sitemap.includes('const SITE_URL = "https://synapse-network.ai";')) {
+  if (!sitemap.includes('const SITE_URL = "https://www.synapse-network.ai";')) {
     fail("sitemap.ts must hard-code the canonical HTTPS site URL");
   }
   for (const route of PUBLIC_ROUTES) {
@@ -199,7 +208,7 @@ if (assertFile(layoutPath, "layout.tsx")) {
   const layout = readText(layoutPath);
   assertNoForbiddenSeoText("layout.tsx", layout);
   for (const expected of [
-    'metadataBase: new URL("https://synapse-network.ai")',
+    'metadataBase: new URL("https://www.synapse-network.ai")',
     "SynapseNetwork | Settlement Layer for AI Agents",
     "USDC-native payment and settlement infrastructure",
     "openGraph",

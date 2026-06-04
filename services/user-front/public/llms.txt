@@ -14,16 +14,25 @@ SynapseNetwork is the settlement layer for the AI agent economy. It lets AI agen
 
 ## Start Here
 
-- Homepage: https://synapse-network.ai/
-- About: https://synapse-network.ai/about
-- Marketplace: https://synapse-network.ai/marketplace
+- Homepage: https://www.synapse-network.ai/
+- About: https://www.synapse-network.ai/about
+- AI Agent Payments: https://www.synapse-network.ai/ai-agent-payments
+- Agent Payment API: https://www.synapse-network.ai/agent-payment-api
+- Marketplace: https://www.synapse-network.ai/marketplace
 - Documentation: https://docs.synapse-network.ai/
 - API Reference: https://docs.synapse-network.ai/api-reference
 - Support: https://docs.synapse-network.ai/support
-- Forum: https://synapse-network.ai/forum
+- Forum: https://www.synapse-network.ai/forum
 
 ## Developer Guides
 
+- AI Agent Payments: https://docs.synapse-network.ai/ai-agent-payments
+- Agent Payment API: https://docs.synapse-network.ai/ai-agent-payments/agent-payment-api
+- Agents Paying for LLM Calls: https://docs.synapse-network.ai/ai-agent-payments/agent-pays-for-llm-calls
+- API Provider Monetization: https://docs.synapse-network.ai/ai-agent-payments/provider-monetization
+- Receipts and Budget Isolation: https://docs.synapse-network.ai/ai-agent-payments/receipts-and-budget-isolation
+- Synapse vs x402: https://docs.synapse-network.ai/ai-agent-payments/synapse-vs-x402
+- AI Agent Payments FAQ: https://docs.synapse-network.ai/ai-agent-payments/faq
 - Concepts: https://docs.synapse-network.ai/concepts/agent-settlement
 - Getting Started: https://docs.synapse-network.ai/get-started
 - Agent Builder Quickstart: https://docs.synapse-network.ai/get-started/agent-builders

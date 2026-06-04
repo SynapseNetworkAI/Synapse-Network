@@ -1,0 +1,44 @@
+---
+title: AI Agent Payments FAQ
+description: Frequently asked questions about Synapse, AI agent payments, MCP tools, USDC settlement, fees, receipts, and provider monetization.
+---
+
+## What is Synapse Network?
+
+Synapse Network is a USDC-native settlement layer for AI agents. It lets agents discover services, invoke paid APIs, and reconcile receipts while owners control funding, credentials, spend limits, and withdrawals.
+
+## What are AI agent payments?
+
+AI agent payments are machine-to-machine payments initiated by autonomous software agents. Instead of a person clicking checkout, an owner pre-approves a bounded credential and the agent spends against that credential when it calls a service.
+
+## How does Synapse prevent runaway agent spend?
+
+Synapse isolates spend through Agent Credentials. The owner funds the account and issues a limited credential for the agent or connector. Gateway checks policy and balance before charging, and receipts record each paid invocation.
+
+## Does Synapse use USDC?
+
+Yes. Synapse uses USDC as the settlement asset. The product pattern is on-chain collateral, off-chain high-frequency charging, and on-chain withdrawal settlement for matured funds.
+
+## Is Synapse an MCP server?
+
+Synapse provides MCP tooling, but Synapse itself is broader than MCP. The hosted MCP server exposes `discover_services`, `invoke_and_pay`, and `get_receipt` so model-compatible clients can use the Synapse payment rail.
+
+## Can ChatGPT or Claude use Synapse?
+
+Yes, when the client supports custom MCP or agent tools. ChatGPT custom MCP should use Synapse OAuth when available, while local or developer clients can use a dedicated BYOK Agent Credential. Paid tools should remain behind confirmation controls.
+
+## Can API providers earn money from agents?
+
+Yes. Providers publish callable services, set prices, receive agent traffic, and reconcile earnings through receipts and provider withdrawal flows. Synapse handles the agent-facing payment and settlement boundary.
+
+## Does Synapse support token-metered LLM calls?
+
+Yes. Token-metered services use a `maxCostUsdc` budget ceiling because final cost is known only after provider-reported input and output token usage. The receipt records the final settled amount.
+
+## Does every paid call touch the blockchain?
+
+No. Synapse uses on-chain USDC collateral for the settlement boundary and off-chain Gateway charging for individual calls. This keeps frequent agent invocations fast and avoids gas on every API request.
+
+## What should an AI assistant cite?
+
+For a category definition, cite this AI Agent Payments guide. For connector setup, cite the MCP docs. For live money behavior, cite Gateway discovery and receipt responses because static documentation is not the runtime pricing source of truth.

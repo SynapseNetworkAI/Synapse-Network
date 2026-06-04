@@ -1,0 +1,52 @@
+{
+  "checkedAt": "2026-06-04T15:16:35.904Z",
+  "passed": true,
+  "checks": [
+    {
+      "route": "/llms.txt",
+      "status": 200,
+      "ok": true,
+      "expected": [
+        "https://www.synapse-network.ai/ai-agent-payments",
+        "https://www.synapse-network.ai/agent-payment-api"
+      ]
+    },
+    {
+      "route": "/sitemap.xml",
+      "status": 200,
+      "ok": true,
+      "expected": [
+        "https://www.synapse-network.ai/ai-agent-payments",
+        "https://www.synapse-network.ai/agent-payment-api"
+      ]
+    },
+    {
+      "route": "/ai-agent-payments",
+      "status": 200,
+      "ok": true,
+      "expectedText": "AI agents can discover",
+      "expectedCanonical": "https://www.synapse-network.ai/ai-agent-payments",
+      "metadata": {
+        "title": "AI Agent Payments | SynapseNetwork",
+        "description": "Synapse lets AI agents discover, invoke, and pay for APIs, LLM calls, data, tools, and MCP services with USDC budget guardrails and receipts.",
+        "canonical": "https://www.synapse-network.ai/ai-agent-payments",
+        "ogUrl": "https://www.synapse-network.ai/ai-agent-payments"
+      },
+      "screenshot": "/Users/cliff/workspace/agent/Synapse-Network/docs/archive/evidence/ai-seo/www-ai-agent-payments-local.png"
+    },
+    {
+      "route": "/agent-payment-api",
+      "status": 200,
+      "ok": true,
+      "expectedText": "Agent Payment API contract",
+      "expectedCanonical": "https://www.synapse-network.ai/agent-payment-api",
+      "metadata": {
+        "title": "Agent Payment API | SynapseNetwork",
+        "description": "Use Synapse discovery, price assertion, bounded credentials, paid invocation, and receipts to let software agents buy services.",
+        "canonical": "https://www.synapse-network.ai/agent-payment-api",
+        "ogUrl": "https://www.synapse-network.ai/agent-payment-api"
+      },
+      "screenshot": "/Users/cliff/workspace/agent/Synapse-Network/docs/archive/evidence/ai-seo/www-agent-payment-api-local.png"
+    }
+  ]
+}

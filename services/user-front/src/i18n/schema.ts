@@ -1954,4 +1954,4 @@ export type I18nMessages = {
     missionBody: string;
     values: string[];
   };
-};
+} & import("@/i18n/pageMessageSchemas/aiAgentPaymentsPage").AiAgentPaymentsPageSchema;
