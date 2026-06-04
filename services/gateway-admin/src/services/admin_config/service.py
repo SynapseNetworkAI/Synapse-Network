@@ -21,6 +21,7 @@ from src.storage.base import AdminStore
 MENU_CONFIG_KEY = "admin_menu_config"
 OWNER_READ_PERMISSION = "owner:read"
 DEFAULT_MENU_MIGRATION_ITEM_IDS = {
+    "dashboard-system-health",
     "analytics",
     "dashboard-analytics",
     "analytics-consumer-funnel",
@@ -33,6 +34,7 @@ DEFAULT_MENU_MIGRATION_ITEM_IDS = {
     "provider-llm-config",
     "owner-accounts",
     "review-history",
+    "finance-reconciliation",
     "forum-support",
     "config-center",
     "business-policy-config",
@@ -40,6 +42,10 @@ DEFAULT_MENU_MIGRATION_ITEM_IDS = {
     "published-config",
 }
 DEFAULT_MENU_FIELD_MIGRATION_ITEM_IDS = {
+    "dashboard",
+    "dashboard-overview",
+    "dashboard-runtime",
+    "dashboard-system-health",
     "permissions-matrix",
     "module-boundaries",
     "reviewer-split",

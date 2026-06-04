@@ -71,6 +71,7 @@ function PolicyTabsBar({
       {policyFieldGroups.map((group) => (
         <Button
           key={group.id}
+          data-testid={`business-policy-tab-${group.id}`}
           size="sm"
           borderRadius="999px"
           variant={activeGroupId === group.id ? "solid" : "outline"}

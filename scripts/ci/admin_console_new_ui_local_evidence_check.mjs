@@ -15,6 +15,7 @@ const requiredFiles = [
   "report.md",
   "trace.jsonl",
   "api-evidence.json",
+  "db-evidence.json",
   "dom-evidence.json",
   "screenshot-evidence.json",
 ];
@@ -101,6 +102,35 @@ function requireApi(api) {
   }
 }
 
+function requireDb(db) {
+  if (!Array.isArray(db)) {
+    fail("db-evidence.json", "DB evidence must be an array");
+    return;
+  }
+  const published = db.find((row) => row.source === "admin_config_documents");
+  if (
+    !published ||
+    !Array.isArray(published.items) ||
+    published.items.length === 0
+  ) {
+    fail(
+      "db-evidence.json",
+      "published admin_menu_config items were not proven from DB"
+    );
+  }
+  const comparison = db.find((row) => row.source === "visible-menu-vs-db");
+  if (
+    !comparison ||
+    !Array.isArray(comparison.mismatches) ||
+    comparison.mismatches.length > 0
+  ) {
+    fail(
+      "db-evidence.json",
+      "visible menu API was not proven to match published DB menu"
+    );
+  }
+}
+
 function hasNewShellProof(row) {
   return (
     row.uiSystem === "shadcn-token-console" &&
@@ -136,6 +166,12 @@ function requireDomRoute(row, spec) {
   }
   if (!hasExpectedTextProof(row)) {
     fail("dom-evidence.json", `route ${spec.route} lacks expected text proof`);
+  }
+  if (row.navigation !== "sidebar-row-click") {
+    fail(
+      "dom-evidence.json",
+      `route ${spec.route} was not reached by sidebar row click`
+    );
   }
   if (hasMissingTexts(row)) {
     fail(
@@ -197,6 +233,12 @@ function requireScreenshotRouteProof(row, file) {
       `screenshot ${file} is not bound to route function text proof`
     );
   }
+  if (!isLoginScreenshot(row) && row.navigation !== "sidebar-row-click") {
+    fail(
+      "screenshot-evidence.json",
+      `screenshot ${file} is not bound to sidebar row click navigation`
+    );
+  }
   if (hasMissingTexts(row)) {
     fail("screenshot-evidence.json", `screenshot ${file} has missing texts`);
   }
@@ -244,10 +286,12 @@ if (!dir) {
   requireFiles(dir);
   const report = readJson(path.join(dir, "report.json"));
   const api = readJson(path.join(dir, "api-evidence.json"));
+  const db = readJson(path.join(dir, "db-evidence.json"));
   const dom = readJson(path.join(dir, "dom-evidence.json"));
   const screenshots = readJson(path.join(dir, "screenshot-evidence.json"));
   requireReport(report, routeSpecs);
   requireApi(api);
+  requireDb(db);
   requireDom(dom, routeSpecs);
   requireScreenshots(dir, screenshots, routeSpecs);
   requireNoSecrets(dir);

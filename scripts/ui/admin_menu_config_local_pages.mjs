@@ -233,7 +233,7 @@ async function verifyBusinessPolicyRoute(page, runIndex, apiEvidence, ops) {
     "/config/business-policy"
   );
   const tabProofs = await verifyBusinessPolicyTabs(page);
-  await page.getByRole("button", { name: "Finance" }).click();
+  await page.getByTestId("business-policy-tab-finance").click();
   const screenshot = await ops.capture(
     page,
     `config-business-policy-run-${runIndex}`,
@@ -256,9 +256,15 @@ async function verifyBusinessPolicyRoute(page, runIndex, apiEvidence, ops) {
 }
 
 async function verifyBusinessPolicyTabs(page) {
+  const tabIds = {
+    Finance: "finance",
+    "Consumer Withdraw": "consumerWithdraw",
+    Risk: "risk",
+    Reconciliation: "reconciliation",
+  };
   const tabProofs = [];
   for (const proof of businessPolicyTabProofs) {
-    await page.getByRole("button", { name: proof.tab }).click();
+    await page.getByTestId(`business-policy-tab-${tabIds[proof.tab]}`).click();
     await page.waitForTimeout(100);
     const tabBody = await page.locator("body").innerText({ timeout: 10000 });
     const missing = proof.expectedTexts.filter(
