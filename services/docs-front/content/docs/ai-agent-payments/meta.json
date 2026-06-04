@@ -1,0 +1,12 @@
+{
+  "title": "AI Agent Payments",
+  "pages": [
+    "index",
+    "agent-payment-api",
+    "agent-pays-for-llm-calls",
+    "provider-monetization",
+    "receipts-and-budget-isolation",
+    "synapse-vs-x402",
+    "faq"
+  ]
+}

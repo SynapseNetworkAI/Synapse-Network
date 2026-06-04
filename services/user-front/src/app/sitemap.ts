@@ -1,8 +1,15 @@
 import type { MetadataRoute } from "next";
 
-const SITE_URL = "https://synapse-network.ai";
+const SITE_URL = "https://www.synapse-network.ai";
 
-const PUBLIC_ROUTES = ["/", "/about", "/marketplace", "/forum"] as const;
+const PUBLIC_ROUTES = [
+  "/",
+  "/about",
+  "/ai-agent-payments",
+  "/agent-payment-api",
+  "/marketplace",
+  "/forum",
+] as const;
 
 export default function sitemap(): MetadataRoute.Sitemap {
   return PUBLIC_ROUTES.map((route) => ({

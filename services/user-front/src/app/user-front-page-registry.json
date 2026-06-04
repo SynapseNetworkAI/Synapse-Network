@@ -73,6 +73,48 @@
     "screenshotName": "about-page.png"
   },
   {
+    "id": "ai-agent-payments",
+    "href": "/ai-agent-payments",
+    "kind": "page",
+    "audience": "public",
+    "maturity": "v1",
+    "expectedTexts": [
+      "AI Agent Payments",
+      "AI agents can discover",
+      "Machine-readable facts"
+    ],
+    "purpose": "Public AI agent payment category landing page for search engines, model crawlers, agent builders, API providers, and MCP clients.",
+    "primaryInteractions": [
+      "Open marketplace",
+      "Open AI Agent Payments technical docs"
+    ],
+    "dataVerification": "static",
+    "dataSources": [],
+    "visualVerification": "screenshot-required",
+    "screenshotName": "ai-agent-payments.png"
+  },
+  {
+    "id": "agent-payment-api",
+    "href": "/agent-payment-api",
+    "kind": "page",
+    "audience": "public",
+    "maturity": "v1",
+    "expectedTexts": [
+      "Agent Payment API",
+      "Agent Payment API contract",
+      "Rules for production agents"
+    ],
+    "purpose": "Public Agent Payment API landing page explaining discovery, price assertion, paid invocation, receipts, and production agent rules.",
+    "primaryInteractions": [
+      "Open marketplace",
+      "Open Agent Payment API technical docs"
+    ],
+    "dataVerification": "static",
+    "dataSources": [],
+    "visualVerification": "screenshot-required",
+    "screenshotName": "agent-payment-api.png"
+  },
+  {
     "id": "blog",
     "href": "/blog",
     "kind": "external-redirect",
@@ -526,6 +568,22 @@
     "dataSources": ["POST /api/v1/services"],
     "visualVerification": "screenshot-required",
     "screenshotName": "provider-services-deploy.png"
+  },
+  {
+    "id": "provider-llm-capabilities",
+    "href": "/provider/llm",
+    "kind": "page",
+    "audience": "provider",
+    "maturity": "v1",
+    "expectedTexts": ["LLM", "Provider"],
+    "purpose": "Provider LLM capabilities page for configuring or reviewing token-metered model service readiness.",
+    "primaryInteractions": [
+      "Inspect LLM capability guidance",
+      "Open provider service configuration"
+    ],
+    "dataVerification": "static-preview",
+    "dataSources": [],
+    "visualVerification": "component-smoke"
   },
   {
     "id": "provider-health",

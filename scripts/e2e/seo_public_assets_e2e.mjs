@@ -16,7 +16,7 @@ const ENVIRONMENT = (
   "local"
 ).trim();
 const BASE_URL = normalizeBaseUrl(
-  process.env.SEO_PUBLIC_ASSETS_BASE_URL || defaultBaseUrl(ENVIRONMENT)
+  process.env.SEO_PUBLIC_ASSETS_BASE_URL || defaultBaseUrl(ENVIRONMENT),
 );
 const GENERATED_AT = new Date();
 const RUN_ID =
@@ -24,27 +24,36 @@ const RUN_ID =
   `seo-public-assets-${ENVIRONMENT}-${Date.now().toString(36)}`;
 const OUT_DIR = path.resolve(
   process.env.SEO_PUBLIC_ASSETS_EVIDENCE_DIR ||
-    defaultEvidenceDir(ENVIRONMENT, GENERATED_AT)
+    defaultEvidenceDir(ENVIRONMENT, GENERATED_AT),
 );
 const SCREENSHOT_DIR = path.join(OUT_DIR, "screenshots");
 
 const EXPECTED_TITLE = "SynapseNetwork | Settlement Layer for AI Agents";
 const EXPECTED_DESCRIPTION =
   "USDC-native payment and settlement infrastructure for AI agents buying APIs, LLM calls, data services, tools, and MCP integrations.";
-const PUBLIC_ROUTES = ["/", "/about", "/marketplace", "/forum"];
+const PUBLIC_ROUTES = [
+  "/",
+  "/about",
+  "/ai-agent-payments",
+  "/agent-payment-api",
+  "/marketplace",
+  "/forum",
+];
 const FORBIDDEN_SITEMAP_URLS = [
   "http://synapse-network.ai",
-  "https://synapse-network.ai/dashboard",
-  "https://synapse-network.ai/provider",
-  "https://synapse-network.ai/api",
-  "https://synapse-network.ai/marketplace/registry.json",
-  "https://synapse-network.ai/sitemap.website.xml",
+  "http://www.synapse-network.ai",
+  "https://www.synapse-network.ai/dashboard",
+  "https://www.synapse-network.ai/provider",
+  "https://www.synapse-network.ai/api",
+  "https://www.synapse-network.ai/marketplace/registry.json",
+  "https://www.synapse-network.ai/sitemap.website.xml",
   "sitemap.website.xml",
   "chrome-extension://",
   "<script",
 ];
 const FORBIDDEN_PUBLIC_ASSET_TEXT = [
   "http://synapse-network.ai",
+  "http://www.synapse-network.ai",
   "sitemap.website.xml",
   "chrome-extension://",
   "<script",
@@ -58,7 +67,7 @@ fs.mkdirSync(SCREENSHOT_DIR, { recursive: true });
 
 function defaultBaseUrl(environment) {
   if (environment === "staging") return "https://staging.synapse-network.ai";
-  if (environment === "prod") return "https://synapse-network.ai";
+  if (environment === "prod") return "https://www.synapse-network.ai";
   return "http://localhost:3000";
 }
 
@@ -68,14 +77,14 @@ function defaultEvidenceDir(environment, date) {
     return path.join(
       ROOT,
       "docs/evidence/staging/seo-public-assets",
-      `${stamp}-staging`
+      `${stamp}-staging`,
     );
   }
   if (environment === "prod") {
     return path.join(
       ROOT,
       "docs/evidence/prod/seo-public-assets",
-      `${stamp}-prod`
+      `${stamp}-prod`,
     );
   }
   return path.join(ROOT, "output/dogfood/seo-public-assets", `${stamp}-local`);
@@ -103,7 +112,7 @@ function redact(value) {
     .replace(/\b0x[a-fA-F0-9]{64,}\b/g, "0x[REDACTED]")
     .replace(
       /(token|secret|password|private[_-]?key|signature|cookie)\s*[:=]\s*[^,\s"']+/gi,
-      "$1=[REDACTED]"
+      "$1=[REDACTED]",
     );
 }
 
@@ -111,7 +120,7 @@ function sanitize(value) {
   if (Array.isArray(value)) return value.map(sanitize);
   if (value && typeof value === "object") {
     return Object.fromEntries(
-      Object.entries(value).map(([key, next]) => [key, sanitize(next)])
+      Object.entries(value).map(([key, next]) => [key, sanitize(next)]),
     );
   }
   if (typeof value === "string") return redact(value);
@@ -124,7 +133,7 @@ function addTrace(entry) {
       runId: RUN_ID,
       timestamp: new Date().toISOString(),
       ...entry,
-    })
+    }),
   );
 }
 
@@ -199,7 +208,9 @@ function assertExcludes({ name, text, values }) {
 
 function extractUrls(text) {
   return [
-    ...new Set(text.match(/https:\/\/synapse-network\.ai\/?[^\s),]*/g) || []),
+    ...new Set(
+      text.match(/https:\/\/www\.synapse-network\.ai\/?[^\s),]*/g) || [],
+    ),
   ].map((url) => url.replace(/[.,;]+$/, ""));
 }
 
@@ -210,7 +221,7 @@ async function verifyInternalLinks(llmsText) {
     const parsed = new URL(originalUrl);
     const route = parsed.pathname || "/";
     const localUrl = absoluteUrl(
-      route === "/" ? "/" : route.replace(/\/+$/, "")
+      route === "/" ? "/" : route.replace(/\/+$/, ""),
     );
     const started = Date.now();
     const response = await fetch(localUrl, { redirect: "manual" });
@@ -228,7 +239,7 @@ async function verifyInternalLinks(llmsText) {
     fail(
       "llms_internal_links_200",
       "One or more llms.txt internal links did not return 2xx",
-      { failed, internalLinks }
+      { failed, internalLinks },
     );
   } else {
     pass("llms_internal_links_200", {
@@ -261,7 +272,7 @@ async function capturePage({ page, route, fileName, expectedText }) {
     "This page could not be found",
   ];
   const forbiddenPresent = forbiddenText.filter((text) =>
-    bodyText.includes(text)
+    bodyText.includes(text),
   );
   const filePath = path.join(SCREENSHOT_DIR, fileName);
   await page.screenshot({ path: filePath, fullPage: true });
@@ -288,7 +299,7 @@ async function capturePage({ page, route, fileName, expectedText }) {
     fail(
       `screenshot_${fileName}`,
       "Screenshot DOM checkpoint failed",
-      evidence
+      evidence,
     );
   }
 }
@@ -352,7 +363,7 @@ async function verifyMetadata(page) {
         metadata,
         expectedTitle: EXPECTED_TITLE,
         expectedDescription: EXPECTED_DESCRIPTION,
-      }
+      },
     );
   }
 }
@@ -375,18 +386,24 @@ async function main() {
       assertIncludes({
         name: "llms_txt_expected_content",
         text: llms.text,
-        values: ["SynapseNetwork", "MCP Server GitHub", "LLM billing"],
+        values: [
+          "SynapseNetwork",
+          "AI Agent Payments",
+          "Agent Payment API",
+          "MCP Server GitHub",
+          "LLM billing",
+        ],
       });
       assertExcludes({
         name: "llms_txt_no_private_routes",
         text: llms.text,
         values: [
           ...FORBIDDEN_PUBLIC_ASSET_TEXT,
-          "https://synapse-network.ai/dashboard",
-          "https://synapse-network.ai/provider",
-          "https://synapse-network.ai/api",
-          "https://synapse-network.ai/marketplace/registry.json",
-          "https://synapse-network.ai/docs.md",
+          "https://www.synapse-network.ai/dashboard",
+          "https://www.synapse-network.ai/provider",
+          "https://www.synapse-network.ai/api",
+          "https://www.synapse-network.ai/marketplace/registry.json",
+          "https://www.synapse-network.ai/docs.md",
         ],
       });
       await verifyInternalLinks(llms.text);
@@ -412,7 +429,7 @@ async function main() {
           "Disallow: /dashboard/",
           "Disallow: /provider/",
           "Disallow: /api/",
-          "Sitemap: https://synapse-network.ai/sitemap.xml",
+          "Sitemap: https://www.synapse-network.ai/sitemap.xml",
         ],
       });
       assertExcludes({
@@ -437,7 +454,8 @@ async function main() {
         name: "sitemap_xml_public_routes",
         text: sitemap.text,
         values: PUBLIC_ROUTES.map(
-          (route) => `https://synapse-network.ai${route === "/" ? "" : route}`
+          (route) =>
+            `https://www.synapse-network.ai${route === "/" ? "" : route}`,
         ),
       });
       assertExcludes({
@@ -472,6 +490,18 @@ async function main() {
     });
     await capturePage({
       page,
+      route: "/ai-agent-payments",
+      fileName: "ai-agent-payments.png",
+      expectedText: "AI agent payments",
+    });
+    await capturePage({
+      page,
+      route: "/agent-payment-api",
+      fileName: "agent-payment-api.png",
+      expectedText: "Agent Payment API",
+    });
+    await capturePage({
+      page,
       route: "/robots.txt",
       fileName: "robots-txt.png",
       expectedText: "User-agent: *",
@@ -480,7 +510,7 @@ async function main() {
       page,
       route: "/sitemap.xml",
       fileName: "sitemap-xml.png",
-      expectedText: "https://synapse-network.ai",
+      expectedText: "https://www.synapse-network.ai",
     });
   } finally {
     await browser.close();
@@ -492,7 +522,7 @@ async function main() {
     console.error(
       `[seo-public-assets] failed: ${failed
         .map((check) => check.name)
-        .join(", ")}`
+        .join(", ")}`,
     );
     process.exit(1);
   }
@@ -510,7 +540,7 @@ function writeEvidence() {
   fs.writeFileSync(path.join(OUT_DIR, "trace.jsonl"), traceText);
   fs.writeFileSync(
     path.join(OUT_DIR, "screenshot-evidence.json"),
-    `${JSON.stringify(screenshotEvidence.map(sanitize), null, 2)}\n`
+    `${JSON.stringify(screenshotEvidence.map(sanitize), null, 2)}\n`,
   );
 
   const failed = checks.filter((check) => check.status !== "passed");
@@ -527,11 +557,11 @@ function writeEvidence() {
   });
   fs.writeFileSync(
     path.join(OUT_DIR, "report.json"),
-    `${JSON.stringify(report, null, 2)}\n`
+    `${JSON.stringify(report, null, 2)}\n`,
   );
   fs.writeFileSync(
     path.join(OUT_DIR, "report.md"),
-    renderReportMarkdown(report)
+    renderReportMarkdown(report),
   );
 }
 
@@ -552,7 +582,7 @@ function renderReportMarkdown(report) {
     "## Screenshots",
     "",
     ...report.screenshots.map(
-      (screenshot) => `- ${screenshot.file}: ${screenshot.url}`
+      (screenshot) => `- ${screenshot.file}: ${screenshot.url}`,
     ),
     "",
   ].join("\n");

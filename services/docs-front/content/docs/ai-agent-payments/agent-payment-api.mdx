@@ -1,0 +1,40 @@
+---
+title: Agent Payment API
+description: The Synapse Agent Payment API flow for service discovery, price assertion, paid invocation, and settlement receipts.
+---
+
+The Synapse Agent Payment API is the runtime path that lets an AI agent buy a service with a bounded credential. The agent discovers a service, reads live pricing, invokes with a price assertion or budget ceiling, and stores the returned receipt for reconciliation.
+
+## Payment flow
+
+1. The owner funds Synapse with USDC.
+2. The owner creates an Agent Credential with limited spend and policy.
+3. The agent searches callable services through Gateway, SDK, or MCP.
+4. The agent copies current pricing into the invocation request.
+5. Gateway checks credential policy, charges usage, calls the provider, and returns a receipt.
+
+## Runtime contract
+
+| Step | Runtime truth | Agent rule |
+| --- | --- | --- |
+| Discover | Current schema, price model, `costUsdc`, token pricing, and service status. | Never use stale prompt memory for price. |
+| Invoke | Credential, service ID, input payload, idempotency key, and price assertion. | Use `costUsdc` for fixed price or `maxCostUsdc` for metered usage. |
+| Receipt | Charge, provider receivable, platform fee, routing tax, and invocation ID. | Treat the receipt as final settlement evidence. |
+| Retry | Gateway error and idempotency state. | Rediscover on `PRICE_MISMATCH`; do not blindly retry paid calls. |
+
+## MCP equivalent
+
+Synapse MCP exposes the same payment shape through model tools:
+
+- `discover_services` reads callable services and pricing.
+- `invoke_and_pay` makes the paid call through an Agent Credential.
+- `get_receipt` retrieves settlement evidence.
+
+<WarningNote title="Live pricing is mandatory">
+  Static docs explain the contract shape. Production agents must read price,
+  schema, and fee truth from Gateway discovery and receipt responses.
+</WarningNote>
+
+## When to use this API
+
+Use the Agent Payment API when an agent needs to buy APIs, data feeds, model calls, compute tasks, or automation services at runtime. Use MCP when the caller is a model-compatible client such as ChatGPT, Claude, Codex, Cursor, or another MCP host.

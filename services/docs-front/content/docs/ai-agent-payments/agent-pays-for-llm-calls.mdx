@@ -1,0 +1,34 @@
+---
+title: Agent Pays for LLM Calls
+description: How Synapse supports token-metered LLM services with budget ceilings, receipts, and final usage charging.
+---
+
+An AI agent can pay for LLM calls through Synapse when the provider exposes the model as a token-metered service. The agent sets a `maxCostUsdc` ceiling, Gateway invokes the provider, final token usage determines the charge, and the receipt records the settled amount.
+
+## Token-metered billing
+
+Token-metered services do not know the final cost before generation completes. Synapse handles this with a budget ceiling:
+
+| Field | Meaning |
+| --- | --- |
+| `maxCostUsdc` | Maximum amount the agent allows this invocation to spend. |
+| Input tokens | Provider-reported prompt token usage. |
+| Output tokens | Provider-reported completion token usage. |
+| Receipt cost | Final settled amount after usage is known. |
+
+## Agent rules for LLM services
+
+1. Discover the model service before invocation.
+2. Read token pricing, model capability, schema, and provider status.
+3. Choose a `maxCostUsdc` that fits the task budget.
+4. Treat the receipt as final usage truth.
+5. Do not run paid model calls without an owner-approved Agent Credential.
+
+## Streaming policy
+
+Synapse V1 does not support LLM streaming for token-metered billing because final usage is required before settlement can be completed. Providers should return final usage in the response so Gateway can charge accurately and produce a receipt.
+
+<AgentNote>
+  If an agent needs streaming UX, use a non-paid preview or a provider-specific
+  flow until the Synapse paid streaming settlement policy is implemented.
+</AgentNote>

@@ -1,0 +1,31 @@
+---
+title: Synapse vs x402
+description: Compare Synapse with x402, Stripe, RapidAPI, custom API keys, and direct on-chain transfers for AI agent payments.
+---
+
+Synapse and x402 both aim to make machine payments easier, but they sit at different layers. x402 focuses on HTTP payment signaling. Synapse focuses on agent credentials, service discovery, budget isolation, off-chain usage charging, provider receivables, and USDC settlement receipts.
+
+## Comparison
+
+| Option | Best fit | Limitation for agents | Synapse difference |
+| --- | --- | --- | --- |
+| Synapse | AI agents buying APIs, tools, data, LLM calls, and MCP services. | Requires Synapse Gateway and Agent Credentials. | Built around agent budgets, discovery, receipts, and provider payouts. |
+| x402 | HTTP-native payment requests. | Does not by itself solve agent budget isolation or provider marketplace settlement. | Synapse can be the broader agent settlement layer around payable services. |
+| Stripe | Human checkout, subscriptions, and card payments. | Card fees and checkout assumptions do not fit $0.01 agent calls. | USDC collateral plus off-chain charging supports micropayment-scale usage. |
+| RapidAPI | Humans browsing and subscribing to APIs. | Not designed for autonomous agent budget enforcement. | Gateway exposes payable machine services and settlement receipts. |
+| Custom API keys | Simple direct provider access. | No universal agent budget, payment, or receipt standard. | Agent Credentials isolate spend across services. |
+| Direct on-chain transfers | Trust-minimized settlement. | Gas and confirmation latency are expensive for high-frequency calls. | On-chain collateral, off-chain invocation charging. |
+
+## When to choose Synapse
+
+Choose Synapse when the primary problem is not just sending a payment header, but letting an autonomous agent find a service, understand its current price, pay with a bounded credential, and produce evidence that the owner and provider can reconcile.
+
+## Can Synapse work with payment protocols?
+
+Yes. Synapse can coexist with external payment protocols when they help service discovery or HTTP payment negotiation. The core Synapse value is the agent-first runtime layer: budget isolation, gateway policy, receipts, and provider settlement.
+
+<WarningNote title="Do not reduce this to a header">
+  AI agent payments need identity, authorization, budget policy, idempotency,
+  pricing truth, receipts, and revocation. A payment header alone is not enough
+  for autonomous paid tool use.
+</WarningNote>

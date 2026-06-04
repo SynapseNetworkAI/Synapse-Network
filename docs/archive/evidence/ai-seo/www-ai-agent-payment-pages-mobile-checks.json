@@ -1,0 +1,14 @@
+{
+  "checkedAt": "2026-06-04T15:16:57.424Z",
+  "passed": true,
+  "checks": [
+    {
+      "route": "/ai-agent-payments",
+      "status": 200,
+      "ok": true,
+      "expectedText": "Machine-readable facts",
+      "horizontalOverflow": false,
+      "screenshot": "/Users/cliff/workspace/agent/Synapse-Network/docs/archive/evidence/ai-seo/www-ai-agent-payments-mobile-local.png"
+    }
+  ]
+}

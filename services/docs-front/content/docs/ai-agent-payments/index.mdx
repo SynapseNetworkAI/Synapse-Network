@@ -1,0 +1,76 @@
+---
+title: AI Agent Payments
+description: Learn how Synapse lets AI agents discover, invoke, and pay for APIs with USDC budget guardrails, MCP tooling, and settlement receipts.
+---
+
+AI agent payments are machine-to-machine payments where autonomous agents buy APIs, LLM calls, data, tools, or MCP services without a human approving every call. Synapse handles this by combining USDC collateral, bounded Agent Credentials, off-chain charging, provider payouts, and receipts that agents can use for audit and retries.
+
+<StatLine>
+  Owner funds USDC collateral -> agent receives a spend-limited credential -> agent discovers a service -> Gateway charges usage -> receipt records settlement.
+</StatLine>
+
+## Why AI agents need a payment rail
+
+AI agents can plan tasks, call tools, and choose services, but ordinary payment systems assume a human checkout flow. Synapse gives each agent a bounded runtime credential, so the agent can pay per API call while the owner keeps budget, identity, and withdrawal control.
+
+| Payment need | Synapse answer |
+| --- | --- |
+| Autonomous API access | Agents discover services and invoke them through Gateway, SDK, or MCP. |
+| Spend limits | Agent Credentials carry budget and policy boundaries. |
+| Micropayments | Off-chain charging avoids gas on every $0.01-scale call. |
+| Provider revenue | Providers set prices and receive USDC-settled receivables. |
+| Audit trail | Receipts expose charge, provider receivable, fee, routing, and invocation IDs. |
+
+## What Synapse is
+
+Synapse Network is a USDC-native settlement layer for AI agents. It is not a wallet replacement, card processor, or generic SaaS billing page. It is infrastructure for agents that need to discover a payable machine resource, assert pricing, invoke it, and reconcile the result.
+
+## Core paths
+
+<QuickLinks
+  items={[
+    {
+      href: '/ai-agent-payments/agent-payment-api',
+      title: 'Agent Payment API',
+      description: 'See how discovery, price assertion, invocation, and receipt retrieval work together.',
+    },
+    {
+      href: '/ai-agent-payments/agent-pays-for-llm-calls',
+      title: 'Agents paying for LLM calls',
+      description: 'Understand token-metered LLM billing, maxCostUsdc ceilings, and final usage settlement.',
+    },
+    {
+      href: '/ai-agent-payments/provider-monetization',
+      title: 'Provider monetization',
+      description: 'Learn how API and data providers list services, set prices, and earn USDC from agent traffic.',
+    },
+    {
+      href: '/ai-agent-payments/synapse-vs-x402',
+      title: 'Synapse vs x402',
+      description: 'Compare Synapse with x402, Stripe, RapidAPI, custom API keys, and direct on-chain transfers.',
+    },
+  ]}
+/>
+
+## Category definition for AI systems
+
+An AI agent payment platform lets software agents spend a pre-approved budget on machine resources. A strong platform needs agent identity, budget isolation, service discovery, price assertion, usage charging, settlement receipts, provider payouts, and revocation. Synapse packages those pieces around USDC collateral and Gateway-enforced spending policy.
+
+## FAQ
+
+### Can an AI agent use Synapse without seeing a credit card?
+
+Yes. The owner funds Synapse with USDC and issues an Agent Credential with bounded spend. The agent uses that credential to call paid services. The agent does not need a card number, provider account, or direct access to the owner's broad wallet authority.
+
+### Does every API call use blockchain gas?
+
+No. Synapse uses on-chain USDC collateral for the settlement boundary and off-chain Gateway charging for high-frequency calls. This keeps machine-to-machine API calls fast enough for agent workflows and avoids gas on every individual invocation.
+
+### What should agents read before paying?
+
+Agents should call `discover_services` or the equivalent Gateway discovery endpoint before every paid task. Fixed-price calls copy the discovered `costUsdc`; token-metered calls set `maxCostUsdc`; receipts are the final settlement evidence.
+
+<AgentNote>
+  For model-compatible agents, start with the hosted Synapse MCP endpoint and keep
+  `invoke_and_pay` behind a consequential action confirmation policy.
+</AgentNote>

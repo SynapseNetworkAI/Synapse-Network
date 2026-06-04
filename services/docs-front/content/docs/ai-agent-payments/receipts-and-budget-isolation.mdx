@@ -1,0 +1,36 @@
+---
+title: Receipts and Budget Isolation
+description: How Synapse uses Agent Credentials, spend boundaries, and receipts to control autonomous agent payment risk.
+---
+
+Budget isolation means an AI agent receives a limited payment credential instead of broad owner authority. Synapse Agent Credentials can be scoped, revoked, and reconciled, so an agent loop cannot spend beyond the owner-approved boundary.
+
+## Agent Credential boundary
+
+| Boundary | Purpose |
+| --- | --- |
+| Owner wallet | Controls funding, credential issuance, and withdrawal authority. |
+| Agent Credential | Lets the agent spend only inside approved limits. |
+| Gateway policy | Checks balances, service status, idempotency, and price assertions. |
+| Receipt | Records what was charged and why. |
+
+## What a receipt proves
+
+A Synapse receipt is settlement evidence for a paid invocation. It should include the invocation ID, service ID, credential context, charged amount, provider receivable, platform fee, routing tax when applicable, and enough status detail for audit or retry decisions.
+
+## Why receipts matter for AI agents
+
+Autonomous agents need more than a response payload. They need to know whether money moved, which service was paid, which budget was used, and whether a retry would duplicate a charge. Receipts give agents and owners a durable audit trail.
+
+## Common controls
+
+1. Create a dedicated credential per agent, workspace, or MCP connector.
+2. Keep default spend caps low until the workflow is proven.
+3. Require fresh discovery before every paid call.
+4. Store receipt IDs for reconciliation and support.
+5. Revoke credentials that are no longer needed.
+
+<AgentNote>
+  ChatGPT or Claude should receive OAuth connector access or a dedicated
+  low-limit Agent Credential. They should never receive a broad owner wallet key.
+</AgentNote>

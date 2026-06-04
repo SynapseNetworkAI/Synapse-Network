@@ -6,4 +6,4 @@ Disallow: /provider/
 Disallow: /api/
 Disallow: /_next/data/
 
-Sitemap: https://synapse-network.ai/sitemap.xml
+Sitemap: https://www.synapse-network.ai/sitemap.xml

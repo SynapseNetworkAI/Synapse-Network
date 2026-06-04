@@ -1,0 +1,36 @@
+---
+title: Provider Monetization
+description: How API, data, tool, and LLM providers monetize services for autonomous AI agents through Synapse.
+---
+
+Synapse lets API providers sell machine-readable services to AI agents. A provider publishes a service manifest, sets pricing, receives agent traffic through Gateway, and earns USDC-settled receivables when agents invoke the service.
+
+## Provider path
+
+1. Register as a provider.
+2. Publish a service manifest with schema, category, price model, and execution endpoint.
+3. Test discovery and invocation through Gateway.
+4. Let agents discover the service through API, SDK, marketplace, or MCP.
+5. Reconcile earnings through receipts and provider withdrawal flows.
+
+## What providers can sell
+
+| Provider type | Example service |
+| --- | --- |
+| Data provider | Market data, risk scores, identity checks, Web3 analytics. |
+| LLM provider | Token-metered model calls or domain-tuned inference. |
+| Tool provider | Browser automation, file processing, scraping, code execution. |
+| Workflow provider | Specialized tasks that return a structured result. |
+
+## Why this is different from a normal API key
+
+Traditional API keys require each customer or agent owner to create an account with the provider. Synapse lets providers expose a payable machine service once, while Gateway handles agent credential checks, spend boundaries, invocation records, settlement evidence, and receivables.
+
+<WarningNote title="Provider pricing is runtime data">
+  Provider prices and fee treatment can change. Agents must read live pricing
+  through discovery and must not rely on screenshots, cached docs, or model memory.
+</WarningNote>
+
+## Provider outcome
+
+The desired provider outcome is simple: list an API, set the price, receive paid agent traffic, and withdraw matured USDC receivables. Synapse owns the agent-facing payment and receipt rail around that provider service.

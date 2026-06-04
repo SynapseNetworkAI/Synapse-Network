@@ -19,7 +19,7 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://synapse-network.ai"),
+  metadataBase: new URL("https://www.synapse-network.ai"),
   title: "SynapseNetwork | Settlement Layer for AI Agents",
   description:
     "USDC-native payment and settlement infrastructure for AI agents buying APIs, LLM calls, data services, tools, and MCP integrations.",
@@ -30,7 +30,7 @@ export const metadata: Metadata = {
     title: "SynapseNetwork | Settlement Layer for AI Agents",
     description:
       "USDC-native payment and settlement infrastructure for AI agents buying APIs, LLM calls, data services, tools, and MCP integrations.",
-    url: "https://synapse-network.ai",
+    url: "https://www.synapse-network.ai",
     siteName: "SynapseNetwork",
     type: "website",
   },

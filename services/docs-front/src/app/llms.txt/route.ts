@@ -11,6 +11,7 @@ const criticalNotes = `## Critical Runtime Notes
 - Example values only: PLATFORM_FEE_RATE=10%, CONSUMER_WITHDRAW_FEE_USDC=0.50 USDC, GATEWAY_ROUTING_TAX=0.000100 USDC.
 - Runtime truth comes from Gateway responses: discover_services, invoke response, receipt, withdrawal ticket, and fee policy.
 - MCP pricing rules: call discover_services before invoke_and_pay, copy fixed-price costUsdc, use maxCostUsdc for token-metered services, and rediscover on PRICE_MISMATCH.
+- AI Agent Payments: use the AI Agent Payments pages for category definition, agent payment API behavior, provider monetization, budget isolation, receipts, and Synapse vs x402 comparisons.
 `;
 
 export function GET() {
