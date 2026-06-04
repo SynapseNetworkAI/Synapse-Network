@@ -20,9 +20,10 @@ export function getCanonicalWwwRedirectUrl(
     return null;
   }
 
-  const redirectUrl = new URL(requestUrl.toString());
-  redirectUrl.protocol = "https:";
-  redirectUrl.host = CANONICAL_PRODUCTION_HOST;
+  const redirectUrl = new URL(
+    `${requestUrl.pathname}${requestUrl.search}`,
+    `https://${CANONICAL_PRODUCTION_HOST}`,
+  );
   return redirectUrl;
 }
 

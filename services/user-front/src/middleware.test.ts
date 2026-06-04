@@ -29,6 +29,14 @@ describe("canonical production host middleware", () => {
     );
   });
 
+  it("does not leak the internal Next.js port into the canonical URL", () => {
+    const redirectUrl = redirectFor("http://synapse-network.ai:3000/", {
+      host: "synapse-network.ai",
+    });
+
+    expect(redirectUrl?.toString()).toBe("https://www.synapse-network.ai/");
+  });
+
   it.each([
     "www.synapse-network.ai",
     "staging.synapse-network.ai",
