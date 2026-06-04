@@ -5,9 +5,11 @@ import {
   BASELINE_POLICY_COMMANDS,
   BASELINE_QUALITY_COMMANDS,
   BASELINE_STATIC_COMMANDS,
+  gatewayAdminProjectionSqlPatterns,
   isDocsFile,
   isFullTriggerFile,
   isKnownFile,
+  matchesAny,
 } from "./resolve_pr_ci_scope_rules.mjs";
 import { classifyScriptChange } from "./resolve_pr_ci_scope_package.mjs";
 
@@ -61,6 +63,9 @@ test("workflow, ci, and ops files are known without forcing full CI", () => {
     "scripts/deploy/gcp_configure_staging_alerts.sh",
     "scripts/git/cleanup_old_branches.sh",
     "package-lock.json",
+    "infra/postgres/init/gateway-admin/003_gateway_admin_projection_views.sql",
+    "scripts/ui/admin_menu_config_local_pages.mjs",
+    "scripts/ui/verify_admin_console_new_ui_local.mjs",
   ];
 
   for (const file of narrowFiles) {
@@ -88,6 +93,23 @@ test("deploy and non-npm lockfile changes still fail closed into full CI", () =>
 test("root npm lockfile no longer forces full CI by itself", () => {
   assert.equal(isKnownFile("package-lock.json"), true);
   assert.equal(isFullTriggerFile("package-lock.json"), false);
+});
+
+test("gateway-admin projection SQL is scoped away from gateway runtime migrations", () => {
+  assert.equal(
+    matchesAny(
+      "services/gateway/migrations/postgres/003_gateway_admin_projection_views.sql",
+      gatewayAdminProjectionSqlPatterns
+    ),
+    true
+  );
+  assert.equal(
+    matchesAny(
+      "services/gateway/migrations/postgres/004_gateway_runtime_schema.sql",
+      gatewayAdminProjectionSqlPatterns
+    ),
+    false
+  );
 });
 
 test("public docs package scripts map to narrow docs scopes", () => {

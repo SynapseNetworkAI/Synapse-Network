@@ -2,6 +2,7 @@ from src.domain.admin_config import AdminMenuConfigItem
 from src.services.admin_config.menu_tree_config_center import (
     build_config_center_menu_items,
 )
+from src.services.admin_config.menu_tree_finance import build_finance_menu_items
 
 MENU_NODE_CATEGORY = "category"
 MENU_NODE_PAGE = "page"
@@ -75,6 +76,21 @@ def build_default_menu_items() -> tuple[AdminMenuConfigItem, ...]:
             required_permissions=(DASHBOARD_READ_PERMISSION,),
             sort_order=22,
             keywords=("runtime", "queue", "operations"),
+        ),
+        AdminMenuConfigItem(
+            item_id="dashboard-system-health",
+            section_id="control-overview",
+            section_label="控制总览",
+            section_description=CONTROL_OVERVIEW_DESCRIPTION,
+            label="系统健康",
+            href="/dashboard/health",
+            description="健康度、告警和关键诊断动作。",
+            parent_item_id="dashboard",
+            node_type=MENU_NODE_PAGE,
+            icon_key="03",
+            required_roles=("super_admin", "platform_ops_admin"),
+            sort_order=23,
+            keywords=("health", "diagnostic", "alerts"),
         ),
         AdminMenuConfigItem(
             item_id="analytics",
@@ -422,19 +438,10 @@ def build_default_menu_items() -> tuple[AdminMenuConfigItem, ...]:
             sort_order=225,
             keywords=("review", "history", "withdrawal"),
         ),
-        AdminMenuConfigItem(
-            item_id="finance",
-            section_id="ops-controls",
-            section_label=OPS_CONTROLS_LABEL,
-            section_description=OPS_CONTROLS_DESCRIPTION,
-            label="资金运营",
-            href="/finance",
-            description="充值异常、退款与提现控制面，聚焦受控动作。",
-            parent_item_id="business-control",
-            node_type=MENU_NODE_PAGE,
-            icon_key="FN",
-            required_permissions=(DASHBOARD_READ_PERMISSION,),
-            sort_order=230,
+        *build_finance_menu_items(
+            OPS_CONTROLS_LABEL,
+            OPS_CONTROLS_DESCRIPTION,
+            DASHBOARD_READ_PERMISSION,
         ),
         AdminMenuConfigItem(
             item_id="risk",

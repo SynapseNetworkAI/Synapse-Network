@@ -7,9 +7,11 @@ import {
   BASELINE_COMMANDS,
   FULL_COMMANDS,
   ORDER,
+  adminUiScriptPatterns,
   deployOpsScriptPatterns,
   docsPatterns,
   fullTriggerPatterns,
+  gatewayAdminProjectionSqlPatterns,
   knownPatterns,
   matchesAny,
   narrowCiToolPatterns,
@@ -18,7 +20,7 @@ import {
 
 function usage() {
   console.error(
-    "Usage: node scripts/ci/resolve_pr_ci_scope.mjs [--base <ref>] [--head <ref>] [--mode auto|full] [--json <path>]",
+    "Usage: node scripts/ci/resolve_pr_ci_scope.mjs [--base <ref>] [--head <ref>] [--mode auto|full] [--json <path>]"
   );
   process.exit(2);
 }
@@ -67,7 +69,7 @@ if (!["auto", "full"].includes(requestedMode)) usage();
 const fullResult = (reason, extra = {}) => {
   const changedFiles = extra.changedFiles || [];
   const needsTerraform = changedFiles.some((file) =>
-    file.startsWith("infra/terraform/"),
+    file.startsWith("infra/terraform/")
   );
   return {
     mode: "full",
@@ -115,7 +117,7 @@ if (requestedMode === "full") {
 
   if (!mergeBase) {
     result = fullResult(
-      "unable to resolve merge-base; running full CI fail-closed",
+      "unable to resolve merge-base; running full CI fail-closed"
     );
   } else {
     const diffOutput = tryGit([
@@ -128,7 +130,7 @@ if (requestedMode === "full") {
         ...diffOutput
           .split("\n")
           .map((item) => item.trim())
-          .filter(Boolean),
+          .filter(Boolean)
       );
     }
     const untrackedOutput = tryGit([
@@ -141,7 +143,7 @@ if (requestedMode === "full") {
         ...untrackedOutput
           .split("\n")
           .map((item) => item.trim())
-          .filter(Boolean),
+          .filter(Boolean)
       );
     }
     changedFiles = unique(changedFiles).sort();
@@ -208,7 +210,7 @@ if (requestedMode === "full") {
         addCommand(commands, "ci_meta_checks");
         addCommand(commands, "contracts_checks");
         reasons.push(
-          "root npm lockfile changed; running baseline plus root toolchain checks",
+          "root npm lockfile changed; running baseline plus root toolchain checks"
         );
         continue;
       }
@@ -221,6 +223,35 @@ if (requestedMode === "full") {
         addCommand(commands, "e2e_script_model_drift_scan");
         addCommand(commands, "code_quality_architecture_scan");
         addCommand(commands, "diff_coverage_gate");
+        continue;
+      }
+
+      if (matchesAny(file, adminUiScriptPatterns)) {
+        docsOnly = false;
+        affectedProjects.add("admin-front");
+        affectedProjects.add("gateway-admin");
+        needsAdminFrontDeps = true;
+        riskScopes.add("admin-ui-e2e");
+        addCommand(commands, "e2e_script_model_drift_scan");
+        addCommand(commands, "code_quality_architecture_scan");
+        addCommand(commands, "diff_coverage_gate");
+        addCommand(commands, "admin_front_checks");
+        addCommand(commands, "admin_gateway_checks");
+        continue;
+      }
+
+      if (matchesAny(file, gatewayAdminProjectionSqlPatterns)) {
+        docsOnly = false;
+        affectedProjects.add("gateway-admin");
+        riskScopes.add("gateway-admin");
+        riskScopes.add("schema-migration");
+        addCommand(commands, "security_money_scan");
+        addCommand(commands, "finance_approval_safety_scan");
+        addCommand(commands, "finance_mypy_scan");
+        addCommand(commands, "e2e_script_model_drift_scan");
+        addCommand(commands, "code_quality_architecture_scan");
+        addCommand(commands, "diff_coverage_gate");
+        addCommand(commands, "admin_gateway_checks");
         continue;
       }
 
@@ -294,7 +325,7 @@ if (requestedMode === "full") {
         addCommand(commands, "frontend_checks");
         if (
           /services\/user-front\/src\/.*(wallet|withdraw|billing|credits|payment|finance|audit|contract)/i.test(
-            file,
+            file
           )
         ) {
           addCommand(commands, "security_money_ts_scan");
@@ -310,7 +341,7 @@ if (requestedMode === "full") {
         addCommand(commands, "admin_front_checks");
         if (
           /services\/admin-front\/src\/.*(withdraw|finance|reconciliation|approval|risk|audit|analytics)/i.test(
-            file,
+            file
           )
         ) {
           addCommand(commands, "security_money_ts_scan");
@@ -364,7 +395,7 @@ if (requestedMode === "full") {
     } else if (unknownFile) {
       result = fullResult(
         `unknown file category ${unknownFile}; running full CI fail-closed`,
-        { changedFiles },
+        { changedFiles }
       );
     } else {
       if (docsOnly) {

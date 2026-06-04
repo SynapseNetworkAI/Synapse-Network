@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import crypto from "node:crypto";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { chromium } from "playwright";
@@ -31,6 +32,7 @@ const evidence = {
   checks: [],
   failed: [],
   api: [],
+  db: [],
   dom: [],
   screenshots: [],
   trace: [],
@@ -57,6 +59,10 @@ function addCheck(name, ok, detail = "") {
 
 function slugRoute(route) {
   return route.replace(/^\/+/, "").replace(/[^a-z0-9]+/gi, "-") || "root";
+}
+
+function selectorForNavPath(href) {
+  return `[data-nav-row-path="${String(href).replaceAll('"', '\\"')}"]`;
 }
 
 async function fetchJson(url, init = {}) {
@@ -162,8 +168,165 @@ async function readVisibleMenu(page) {
   return items;
 }
 
+function readPublishedMenuFromDb() {
+  const result = spawnSync(
+    "psql",
+    [
+      config.adminDsn,
+      "-X",
+      "-q",
+      "-t",
+      "-A",
+      "-v",
+      "ON_ERROR_STOP=1",
+      "-c",
+      `
+      WITH menu_doc AS (
+        SELECT published_payload_json
+        FROM admin_config_documents
+        WHERE config_key = 'admin_menu_config'
+        LIMIT 1
+      ),
+      menu_items AS (
+        SELECT item
+        FROM menu_doc, jsonb_array_elements(published_payload_json->'items') AS item
+      )
+      SELECT json_build_object(
+        'itemCount', COALESCE((SELECT count(*) FROM menu_items), 0),
+        'items', COALESCE(
+          (
+            SELECT json_agg(
+              json_build_object(
+                'itemId', item->>'itemId',
+                'label', item->>'label',
+                'href', item->>'href',
+                'parentItemId', item->>'parentItemId',
+                'nodeType', item->>'nodeType'
+              )
+              ORDER BY item->>'itemId'
+            )
+            FROM menu_items
+          ),
+          '[]'::json
+        )
+      )
+    `,
+    ],
+    { cwd: ROOT, encoding: "utf8", maxBuffer: 2 * 1024 * 1024 }
+  );
+  if (result.status !== 0) {
+    throw new Error(
+      `Failed to read admin_menu_config from DB: ${
+        result.stderr || result.stdout
+      }`
+    );
+  }
+  const proof = JSON.parse(result.stdout.trim() || "{}");
+  evidence.db.push(sanitize({ source: "admin_config_documents", ...proof }));
+  const ok = Array.isArray(proof.items) && proof.items.length > 0;
+  addCheck("db:published-menu-loaded", ok, `${proof.itemCount || 0} items`);
+  if (!ok) throw new Error("DB admin_menu_config has no published menu items.");
+  return proof.items;
+}
+
+function verifyVisibleMenuMatchesDb(menuItems, dbItems) {
+  const dbById = new Map(dbItems.map((item) => [item.itemId, item]));
+  const mismatches = menuItems
+    .map((item) => {
+      const dbItem = dbById.get(item.itemId);
+      if (!dbItem) return { itemId: item.itemId, reason: "missing-in-db" };
+      const fields = ["label", "href", "nodeType"];
+      const changed = fields.filter(
+        (field) => String(item[field] ?? "") !== String(dbItem[field] ?? "")
+      );
+      return changed.length > 0
+        ? { itemId: item.itemId, reason: "field-mismatch", fields: changed }
+        : null;
+    })
+    .filter(Boolean);
+  evidence.db.push(
+    sanitize({
+      source: "visible-menu-vs-db",
+      visibleItemCount: menuItems.length,
+      dbItemCount: dbItems.length,
+      mismatches,
+    })
+  );
+  addCheck(
+    "db:visible-menu-api-matches-published-menu",
+    mismatches.length === 0,
+    `${mismatches.length} mismatches`
+  );
+  if (mismatches.length > 0) {
+    throw new Error("Visible menu API does not match published DB menu.");
+  }
+}
+
 function currentPathname(page) {
   return new URL(page.url()).pathname;
+}
+
+function visibleSidebar(page) {
+  return page
+    .locator('[data-testid="admin-console-sidebar"]')
+    .filter({
+      has: page.locator(
+        'input[placeholder="Search modules, states, reviewers"]'
+      ),
+    })
+    .first();
+}
+
+async function clearNavigationSearch(page) {
+  const search = visibleSidebar(page).locator(
+    'input[placeholder="Search modules, states, reviewers"]'
+  );
+  await search.fill("");
+}
+
+function resolveMenuItemForRoute(spec, menuItems) {
+  const candidates = new Set([spec.route, spec.expectedPath]);
+  return menuItems.find((item) => candidates.has(item.href)) || null;
+}
+
+async function clickSidebarRoute(page, spec, menuItems) {
+  const menuItem = resolveMenuItemForRoute(spec, menuItems);
+  if (!menuItem?.href) {
+    throw new Error(`No visible backend menu item maps to ${spec.route}`);
+  }
+
+  const sidebar = visibleSidebar(page);
+  const search = sidebar.locator(
+    'input[placeholder="Search modules, states, reviewers"]'
+  );
+  await search.fill(menuItem.label || menuItem.href);
+  const row = sidebar.locator(selectorForNavPath(menuItem.href)).first();
+  await row.waitFor({ state: "visible", timeout: 15000 });
+  const box = await row.boundingBox();
+  if (!box) {
+    throw new Error(`Sidebar row has no click box for ${menuItem.itemId}`);
+  }
+  await row.click({
+    position: {
+      x: Math.max(12, Math.min(box.width - 52, box.width * 0.72)),
+      y: box.height / 2,
+    },
+  });
+  await page.waitForURL((url) => url.pathname === spec.expectedPath, {
+    timeout: 25000,
+  });
+  await page.waitForLoadState("networkidle");
+  await clearNavigationSearch(page);
+  evidence.api.push(
+    sanitize({
+      route: spec.route,
+      navigation: "sidebar-row-click",
+      itemId: menuItem.itemId,
+      label: menuItem.label,
+      href: menuItem.href,
+      expectedPath: spec.expectedPath,
+    })
+  );
 }
 
 async function waitForExpectedTexts(page, spec) {
@@ -185,12 +348,10 @@ async function waitForExpectedTexts(page, spec) {
   return { bodyText, missingTexts };
 }
 
-async function verifyRoute(page, spec, menuItemIds) {
+async function verifyRoute(page, spec, menuItems) {
   const { route, expectedPath, expectedTexts } = spec;
   addTrace("route:start", { route });
-  await page.goto(`${config.adminFrontUrl}${route}`, {
-    waitUntil: "networkidle",
-  });
+  await clickSidebarRoute(page, spec, menuItems);
   await page.locator('[data-testid="admin-console-shell"]').waitFor({
     state: "visible",
     timeout: 20000,
@@ -227,7 +388,8 @@ async function verifyRoute(page, spec, menuItemIds) {
     domCheckpoint: true,
     expectedTexts,
     missingTexts,
-    menuItemIdsFromApi: menuItemIds,
+    menuItemIdsFromApi: menuItems.map((item) => item.itemId).sort(),
+    navigation: "sidebar-row-click",
   });
   evidence.dom.push(
     sanitize({
@@ -241,6 +403,7 @@ async function verifyRoute(page, spec, menuItemIds) {
       sidebarOk: true,
       topbarOk: true,
       screenshot: screenshot.file,
+      navigation: "sidebar-row-click",
     })
   );
   addCheck(`dom:route:${route}`, true, screenshot.file);
@@ -272,6 +435,7 @@ function writeReport() {
   };
   writeJson("report.json", report);
   writeJson("api-evidence.json", evidence.api);
+  writeJson("db-evidence.json", evidence.db);
   writeJson("dom-evidence.json", evidence.dom);
   writeJson("screenshot-evidence.json", evidence.screenshots);
   fs.writeFileSync(
@@ -289,7 +453,8 @@ function writeReport() {
       "",
       "- Local Google FA login policy is disabled.",
       "- Password-only login succeeds.",
-      "- Each authenticated admin route renders the tokenized admin shell and route-level function texts.",
+      "- Each authenticated admin route is reached by clicking its backend menu row in the sidebar.",
+      "- Visible menu API entries are compared with admin_config_documents published menu rows.",
       "- Screenshots are captured after DOM checkpoints pass.",
     ].join("\n") + "\n"
   );
@@ -310,9 +475,10 @@ async function main() {
     const page = await context.newPage();
     await login(page);
     const menuItems = await readVisibleMenu(page);
-    const menuItemIds = menuItems.map((item) => item.itemId).sort();
+    const dbItems = readPublishedMenuFromDb();
+    verifyVisibleMenuMatchesDb(menuItems, dbItems);
     for (const spec of routeSpecs) {
-      await verifyRoute(page, spec, menuItemIds);
+      await verifyRoute(page, spec, menuItems);
     }
     await context.close();
   } catch (error) {
