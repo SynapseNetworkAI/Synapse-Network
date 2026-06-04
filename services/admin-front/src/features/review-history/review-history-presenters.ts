@@ -23,7 +23,9 @@ export function getReviewHistoryStatusLabel(status: WithdrawalStatus): string {
   return withdrawalStatusLabel(status);
 }
 
-export function getReviewHistoryStatusTone(status: WithdrawalStatus): StatusTone {
+export function getReviewHistoryStatusTone(
+  status: WithdrawalStatus
+): StatusTone {
   return withdrawalStatusTone(status);
 }
 
@@ -31,7 +33,9 @@ export function getReviewDecisionLabel(decision: string): string {
   return decisionLabels[decision] ?? decision;
 }
 
-export function getReviewDecisionTone(decision: string): "green" | "red" | "gray" {
+export function getReviewDecisionTone(
+  decision: string
+): "green" | "red" | "gray" {
   if (decision === "APPROVE") {
     return "green";
   }
@@ -41,29 +45,43 @@ export function getReviewDecisionTone(decision: string): "green" | "red" | "gray
   return "gray";
 }
 
-export function buildReviewHistoryMetrics(items: ProviderWithdrawReviewHistoryItem[]) {
+export function buildReviewHistoryMetrics(
+  items: ProviderWithdrawReviewHistoryItem[]
+) {
   return {
     total: items.length,
     approved: items.filter((item) => item.reviewDecision === "APPROVE").length,
-    completed: items.filter((item) => item.currentStatus === "COMPLETED").length,
+    completed: items.filter((item) => item.currentStatus === "COMPLETED")
+      .length,
     rejected: items.filter((item) => item.currentStatus === "REJECTED").length,
-    cancelled: items.filter((item) => item.currentStatus === "CANCELLED").length,
+    cancelled: items.filter((item) => item.currentStatus === "CANCELLED")
+      .length,
   };
 }
 
-export function collectReviewHistoryStatuses(items: ProviderWithdrawReviewHistoryItem[]): WithdrawalStatus[] {
+export function collectReviewHistoryStatuses(
+  items: ProviderWithdrawReviewHistoryItem[]
+): WithdrawalStatus[] {
   return [...new Set(items.map((item) => item.currentStatus))];
 }
 
-export function collectReviewHistoryReviewers(items: ProviderWithdrawReviewHistoryItem[]): string[] {
-  return [...new Set(items.map((item) => item.reviewerEmail).filter((item): item is string => Boolean(item)))];
+export function collectReviewHistoryReviewers(
+  items: ProviderWithdrawReviewHistoryItem[]
+): string[] {
+  return [
+    ...new Set(
+      items
+        .map((item) => item.reviewerEmail)
+        .filter((item): item is string => Boolean(item))
+    ),
+  ];
 }
 
 export function filterReviewHistoryItems(
   items: ProviderWithdrawReviewHistoryItem[],
   search: string,
   statusFilter: string,
-  decisionFilter: string,
+  decisionFilter: string
 ): ProviderWithdrawReviewHistoryItem[] {
   const normalizedSearch = search.trim().toLowerCase();
 
@@ -78,25 +96,40 @@ export function filterReviewHistoryItems(
       item.reviewerNote,
       item.reviewDecision,
       item.currentStatus,
-    ].filter(Boolean).join(" ").toLowerCase();
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
 
-    const matchesSearch = !normalizedSearch || haystack.includes(normalizedSearch);
-    const matchesStatus = statusFilter === "all" || item.currentStatus === statusFilter;
-    const matchesDecision = decisionFilter === "all" || item.reviewDecision === decisionFilter;
+    const matchesSearch =
+      !normalizedSearch || haystack.includes(normalizedSearch);
+    const matchesStatus =
+      statusFilter === "all" || item.currentStatus === statusFilter;
+    const matchesDecision =
+      decisionFilter === "all" || item.reviewDecision === decisionFilter;
     return matchesSearch && matchesStatus && matchesDecision;
   });
 }
 
-export function sortReviewHistoryItems(items: ProviderWithdrawReviewHistoryItem[]): ProviderWithdrawReviewHistoryItem[] {
-  return [...items].sort((left, right) => (right.reviewedAt ?? "").localeCompare(left.reviewedAt ?? ""));
+export function sortReviewHistoryItems(
+  items: ProviderWithdrawReviewHistoryItem[]
+): ProviderWithdrawReviewHistoryItem[] {
+  return [...items].sort((left, right) =>
+    (right.reviewedAt ?? "").localeCompare(left.reviewedAt ?? "")
+  );
 }
 
-export function buildReviewHistoryFlow(item: ProviderWithdrawReviewHistoryItem): ReviewHistoryFlowStep[] {
+export function buildReviewHistoryFlow(
+  item: ProviderWithdrawReviewHistoryItem
+): ReviewHistoryFlowStep[] {
   const steps: ReviewHistoryFlowStep[] = [
     {
       key: "submitted",
       label: "进入人工审核",
-      detail: item.evidenceSummary ?? item.message ?? "系统判定该提现需要 reviewer 介入。",
+      detail:
+        item.evidenceSummary ??
+        item.message ??
+        "系统判定该提现需要 reviewer 介入。",
       timestamp: item.createdAt,
       tone: "orange",
     },

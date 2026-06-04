@@ -1,5 +1,8 @@
 import { formatDateTime, formatUsdc } from "@/lib/admin-console";
-import { getFinanceMetricGlossary, getFinanceQueueGlossary } from "@/features/finance/finance-glossary";
+import {
+  getFinanceMetricGlossary,
+  getFinanceQueueGlossary,
+} from "@/features/finance/finance-glossary";
 import type {
   ProviderWithdrawReviewItem,
   ReconciliationApprovalItem,
@@ -62,6 +65,18 @@ export function describeImbalance(detail: ReconciliationDetail): string {
   return "当前仅拿到稳定投影摘要，缺少 runtime state 拆解字段。";
 }
 
+export function resolveReconciliationTone(
+  detail: ReconciliationDetail
+): "green" | "orange" | "red" {
+  if (detail.reconciliationAlert) {
+    return "red";
+  }
+  if (detail.imbalanceDirection !== "balanced") {
+    return "orange";
+  }
+  return "green";
+}
+
 export function formatSignedUsdc(value: string | null): string {
   if (!value) {
     return "n/a";
@@ -71,13 +86,23 @@ export function formatSignedUsdc(value: string | null): string {
   return `${prefix}${formatUsdc(value)} USDC`;
 }
 
-export function buildApprovalDrilldownTokens(item: ReconciliationApprovalItem): DrilldownToken[] {
+export function buildApprovalDrilldownTokens(
+  item: ReconciliationApprovalItem
+): DrilldownToken[] {
   const tokens: DrilldownToken[] = [];
   if (item.ownerAddress) {
-    tokens.push({ kind: "ownerAddress", label: "Owner", value: item.ownerAddress });
+    tokens.push({
+      kind: "ownerAddress",
+      label: "Owner",
+      value: item.ownerAddress,
+    });
   }
   if (item.requestId) {
-    tokens.push({ kind: "requestId", label: "Request ID", value: item.requestId });
+    tokens.push({
+      kind: "requestId",
+      label: "Request ID",
+      value: item.requestId,
+    });
   }
   if (item.txHash) {
     tokens.push({ kind: "txHash", label: "Tx Hash", value: item.txHash });
@@ -85,10 +110,18 @@ export function buildApprovalDrilldownTokens(item: ReconciliationApprovalItem): 
   return tokens;
 }
 
-export function buildWithdrawReviewDrilldownTokens(item: ProviderWithdrawReviewItem): DrilldownToken[] {
-  const tokens: DrilldownToken[] = [{ kind: "ownerAddress", label: "Owner", value: item.ownerAddress }];
+export function buildWithdrawReviewDrilldownTokens(
+  item: ProviderWithdrawReviewItem
+): DrilldownToken[] {
+  const tokens: DrilldownToken[] = [
+    { kind: "ownerAddress", label: "Owner", value: item.ownerAddress },
+  ];
   if (item.requestId) {
-    tokens.push({ kind: "requestId", label: "Request ID", value: item.requestId });
+    tokens.push({
+      kind: "requestId",
+      label: "Request ID",
+      value: item.requestId,
+    });
   }
   if (item.txHash) {
     tokens.push({ kind: "txHash", label: "Tx Hash", value: item.txHash });
@@ -96,7 +129,9 @@ export function buildWithdrawReviewDrilldownTokens(item: ProviderWithdrawReviewI
   return tokens;
 }
 
-export function buildReconciliationBreakdownCards(detail: ReconciliationDetail): ReconciliationBreakdownCard[] {
+export function buildReconciliationBreakdownCards(
+  detail: ReconciliationDetail
+): ReconciliationBreakdownCard[] {
   return [
     {
       label: getFinanceMetricGlossary("platformIncome").label,
@@ -105,12 +140,16 @@ export function buildReconciliationBreakdownCards(detail: ReconciliationDetail):
     },
     {
       label: getFinanceMetricGlossary("chainVault").label,
-      value: detail.chainVaultUsdc ? `${formatUsdc(detail.chainVaultUsdc)} USDC` : "n/a",
+      value: detail.chainVaultUsdc
+        ? `${formatUsdc(detail.chainVaultUsdc)} USDC`
+        : "n/a",
       description: getFinanceMetricGlossary("chainVault").hint,
     },
     {
       label: getFinanceMetricGlossary("ledgerObligation").label,
-      value: detail.ledgerObligationUsdc ? `${formatUsdc(detail.ledgerObligationUsdc)} USDC` : "n/a",
+      value: detail.ledgerObligationUsdc
+        ? `${formatUsdc(detail.ledgerObligationUsdc)} USDC`
+        : "n/a",
       description: getFinanceMetricGlossary("ledgerObligation").hint,
     },
     {
@@ -126,12 +165,16 @@ export function buildReconciliationBreakdownCards(detail: ReconciliationDetail):
   ];
 }
 
-export function buildReconciliationHeroCards(detail: ReconciliationDetail): ReconciliationMetricSurfaceCard[] {
+export function buildReconciliationHeroCards(
+  detail: ReconciliationDetail
+): ReconciliationMetricSurfaceCard[] {
   return [
     {
       key: "chain-vault",
       label: getFinanceMetricGlossary("chainVault").label,
-      value: detail.chainVaultUsdc ? `${formatUsdc(detail.chainVaultUsdc)} USDC` : "n/a",
+      value: detail.chainVaultUsdc
+        ? `${formatUsdc(detail.chainVaultUsdc)} USDC`
+        : "n/a",
       description: getFinanceMetricGlossary("chainVault").hint,
       hint: getFinanceMetricGlossary("chainVault").hint,
       meta: getFinanceMetricGlossary("chainVault").meta,
@@ -139,7 +182,9 @@ export function buildReconciliationHeroCards(detail: ReconciliationDetail): Reco
     {
       key: "ledger-obligation",
       label: getFinanceMetricGlossary("ledgerObligation").label,
-      value: detail.ledgerObligationUsdc ? `${formatUsdc(detail.ledgerObligationUsdc)} USDC` : "n/a",
+      value: detail.ledgerObligationUsdc
+        ? `${formatUsdc(detail.ledgerObligationUsdc)} USDC`
+        : "n/a",
       description: getFinanceMetricGlossary("ledgerObligation").hint,
       hint: getFinanceMetricGlossary("ledgerObligation").hint,
       meta: getFinanceMetricGlossary("ledgerObligation").meta,
@@ -163,7 +208,9 @@ export function buildReconciliationHeroCards(detail: ReconciliationDetail): Reco
   ];
 }
 
-export function buildReconciliationSupportingCards(detail: ReconciliationDetail): ReconciliationMetricSurfaceCard[] {
+export function buildReconciliationSupportingCards(
+  detail: ReconciliationDetail
+): ReconciliationMetricSurfaceCard[] {
   return [
     {
       key: "owner-liability",
@@ -192,7 +239,9 @@ export function buildReconciliationSupportingCards(detail: ReconciliationDetail)
   ];
 }
 
-export function buildReconciliationDepositEvidenceCards(detail: ReconciliationDetail): ReconciliationMetricSurfaceCard[] {
+export function buildReconciliationDepositEvidenceCards(
+  detail: ReconciliationDetail
+): ReconciliationMetricSurfaceCard[] {
   return [
     {
       key: "pending-deposits",
@@ -214,7 +263,8 @@ export function buildReconciliationDepositEvidenceCards(detail: ReconciliationDe
       key: "chain-confirmed-not-ledger-confirmed",
       label: getFinanceMetricGlossary("chainConfirmedNotLedgerConfirmed").label,
       value: String(detail.chainConfirmedNotLedgerConfirmedCount),
-      description: "链上 receipt 已确认，但账本仍未完成 confirmed 入账的充值数量。",
+      description:
+        "链上 receipt 已确认，但账本仍未完成 confirmed 入账的充值数量。",
       hint: getFinanceMetricGlossary("chainConfirmedNotLedgerConfirmed").hint,
       meta: getFinanceMetricGlossary("chainConfirmedNotLedgerConfirmed").meta,
       pending: false,
@@ -223,7 +273,8 @@ export function buildReconciliationDepositEvidenceCards(detail: ReconciliationDe
       key: "deposit-p95-sync-delay",
       label: getFinanceMetricGlossary("depositP95SyncDelay").label,
       value: formatSeconds(detail.depositP95SyncDelaySeconds),
-      description: "从 receipt confirmed 到账本 confirmed 的充值同步 P95 时延。",
+      description:
+        "从 receipt confirmed 到账本 confirmed 的充值同步 P95 时延。",
       hint: getFinanceMetricGlossary("depositP95SyncDelay").hint,
       meta: getFinanceMetricGlossary("depositP95SyncDelay").meta,
       pending: false,
@@ -231,13 +282,16 @@ export function buildReconciliationDepositEvidenceCards(detail: ReconciliationDe
   ];
 }
 
-export function buildReconciliationOutflowEvidenceCards(detail: ReconciliationDetail): ReconciliationMetricSurfaceCard[] {
+export function buildReconciliationOutflowEvidenceCards(
+  detail: ReconciliationDetail
+): ReconciliationMetricSurfaceCard[] {
   return [
     {
       key: "today-refund",
       label: getFinanceMetricGlossary("todayRefund").label,
       value: `${formatUsdc(detail.todayRefundUsdc)} USDC`,
-      description: "今日已完成退款金额，用于判断链上余额下降是否来自 consumer refund。",
+      description:
+        "今日已完成退款金额，用于判断链上余额下降是否来自 consumer refund。",
       hint: getFinanceMetricGlossary("todayRefund").hint,
       meta: getFinanceMetricGlossary("todayRefund").meta,
       pending: false,
@@ -246,7 +300,8 @@ export function buildReconciliationOutflowEvidenceCards(detail: ReconciliationDe
       key: "today-withdrawal",
       label: getFinanceMetricGlossary("todayWithdrawal").label,
       value: `${formatUsdc(detail.todayWithdrawalUsdc)} USDC`,
-      description: "今日已完成 provider withdrawal 金额，用于判断偏差是否来自出账链路。",
+      description:
+        "今日已完成 provider withdrawal 金额，用于判断偏差是否来自出账链路。",
       hint: getFinanceMetricGlossary("todayWithdrawal").hint,
       meta: getFinanceMetricGlossary("todayWithdrawal").meta,
       pending: false,
@@ -263,7 +318,8 @@ export function buildReconciliationOutflowEvidenceCards(detail: ReconciliationDe
       key: "recently-completed-outflows",
       label: getFinanceMetricGlossary("recentlyCompletedOutflows").label,
       value: `${formatUsdc(detail.recentlyCompletedOutflowsUsdc)} USDC`,
-      description: "最近 6 小时已完成 refund / withdrawal 的聚合金额，用来解释链上余额短时下降。",
+      description:
+        "最近 6 小时已完成 refund / withdrawal 的聚合金额，用来解释链上余额短时下降。",
       hint: getFinanceMetricGlossary("recentlyCompletedOutflows").hint,
       meta: getFinanceMetricGlossary("recentlyCompletedOutflows").meta,
       pending: false,
@@ -271,7 +327,9 @@ export function buildReconciliationOutflowEvidenceCards(detail: ReconciliationDe
   ];
 }
 
-export function buildReconciliationQueueCards(detail: ReconciliationDetail): ReconciliationQueueCard[] {
+export function buildReconciliationQueueCards(
+  detail: ReconciliationDetail
+): ReconciliationQueueCard[] {
   return [
     {
       label: getFinanceQueueGlossary("pendingApprovals").label,
@@ -286,7 +344,8 @@ export function buildReconciliationQueueCards(detail: ReconciliationDetail): Rec
     {
       label: getFinanceQueueGlossary("queuePendingWithdrawals").label,
       value: String(detail.pendingWithdrawalCount),
-      description: getFinanceQueueGlossary("queuePendingWithdrawals").description,
+      description: getFinanceQueueGlossary("queuePendingWithdrawals")
+        .description,
     },
     {
       label: getFinanceQueueGlossary("auditAlerts").label,
@@ -296,11 +355,17 @@ export function buildReconciliationQueueCards(detail: ReconciliationDetail): Rec
   ];
 }
 
-export function resolveReconciliationStamp(detail: ReconciliationDetail): string {
-  return detail.projectedAt ? formatDateTime(detail.projectedAt) : "projection pending";
+export function resolveReconciliationStamp(
+  detail: ReconciliationDetail
+): string {
+  return detail.projectedAt
+    ? formatDateTime(detail.projectedAt)
+    : "projection pending";
 }
 
-export function resolveDrilldownTitle(result: ReconciliationDrilldownResult): string {
+export function resolveDrilldownTitle(
+  result: ReconciliationDrilldownResult
+): string {
   if (result.ownerAddress) {
     return `Owner ${result.ownerAddress}`;
   }
@@ -313,6 +378,12 @@ export function resolveDrilldownTitle(result: ReconciliationDrilldownResult): st
   return "Cross locator";
 }
 
-export function resolveDrilldownCount(result: ReconciliationDrilldownResult): number {
-  return result.priorityApprovals.length + result.depositRepairApprovals.length + result.pendingWithdrawalReviews.length;
+export function resolveDrilldownCount(
+  result: ReconciliationDrilldownResult
+): number {
+  return (
+    result.priorityApprovals.length +
+    result.depositRepairApprovals.length +
+    result.pendingWithdrawalReviews.length
+  );
 }

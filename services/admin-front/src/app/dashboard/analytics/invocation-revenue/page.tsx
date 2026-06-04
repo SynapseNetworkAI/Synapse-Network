@@ -1,6 +1,6 @@
 "use client";
 
-import { AnalyticsInvocationRevenueScreen } from "@/features/dashboard/analytics-dashboard-screen";
+import { AnalyticsInvocationRevenueScreen } from "@/features/dashboard/analytics-invocation-revenue-screen";
 import { useAdminSession } from "@/lib/use-admin-session";
 
 export default function AnalyticsInvocationRevenuePage() {
