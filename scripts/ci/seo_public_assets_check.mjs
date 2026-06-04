@@ -8,13 +8,7 @@ const repoRoot = process.cwd();
 const userFrontRoot = path.join(repoRoot, "services", "user-front");
 const llmsPath = path.join(userFrontRoot, "public", "llms.txt");
 const robotsPath = path.join(userFrontRoot, "public", "robots.txt");
-const sitemapRoutePath = path.join(
-  userFrontRoot,
-  "src",
-  "app",
-  "sitemap.xml",
-  "route.ts",
-);
+const sitemapPath = path.join(userFrontRoot, "public", "sitemap.xml");
 const layoutPath = path.join(userFrontRoot, "src", "app", "layout.tsx");
 const appRoot = path.join(userFrontRoot, "src", "app");
 const faviconPath = path.join(appRoot, "favicon.ico");
@@ -93,10 +87,6 @@ function routeExists(routePath) {
   }
   const segments = routePath === "/" ? [] : routePath.slice(1).split("/");
   return fs.existsSync(path.join(appRoot, ...segments, "page.tsx"));
-}
-
-function includesRoute(text, route) {
-  return text.includes(`"${route}"`) || text.includes(`'${route}'`);
 }
 
 function includesPrivateRouteLiteral(text, route) {
@@ -192,30 +182,26 @@ if (assertFile(robotsPath, "robots.txt")) {
   }
 }
 
-if (assertFile(sitemapRoutePath, "sitemap.xml route")) {
-  const sitemapRoute = readText(sitemapRoutePath);
-  assertNoForbiddenSeoText("sitemap.xml route", sitemapRoute);
+if (assertFile(sitemapPath, "sitemap.xml")) {
+  const sitemap = readText(sitemapPath);
+  assertNoForbiddenSeoText("sitemap.xml", sitemap);
   if (
-    !sitemapRoute.includes('const SITE_URL = "https://www.synapse-network.ai";')
+    !sitemap.includes(
+      '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+    )
   ) {
-    fail("sitemap.xml route must hard-code the canonical HTTPS site URL");
+    fail("sitemap.xml must be a sitemap.org URL set");
   }
   for (const route of PUBLIC_ROUTES) {
-    if (!includesRoute(sitemapRoute, route)) {
-      fail(`sitemap.xml route missing public route: ${route}`);
+    const expectedUrl = `https://${siteHostname}${route === "/" ? "" : route}`;
+    if (!sitemap.includes(`<loc>${expectedUrl}</loc>`)) {
+      fail(`sitemap.xml missing public URL: ${expectedUrl}`);
     }
   }
   for (const privatePattern of PRIVATE_PATTERNS) {
-    if (includesPrivateRouteLiteral(sitemapRoute, privatePattern)) {
-      fail(
-        `sitemap.xml route must not include private/app route: ${privatePattern}`,
-      );
+    if (includesPrivateRouteLiteral(sitemap, privatePattern)) {
+      fail(`sitemap.xml must not include private/app route: ${privatePattern}`);
     }
-  }
-  if (
-    !sitemapRoute.includes('"Content-Type": "application/xml; charset=utf-8"')
-  ) {
-    fail("sitemap.xml route must return an application/xml content type");
   }
 }
 
