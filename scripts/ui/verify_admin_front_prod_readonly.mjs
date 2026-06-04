@@ -30,7 +30,13 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "";
 const ADMIN_OTP_CODE = process.env.ADMIN_OTP_CODE || "";
 const ADMIN_SESSION_TOKEN = process.env.ADMIN_SESSION_TOKEN || "";
 const ADMIN_CSRF_TOKEN = process.env.ADMIN_CSRF_TOKEN || "";
-const HEADLESS = process.env.ADMIN_PROD_READONLY_HEADLESS !== "0";
+const MANUAL_LOGIN = process.env.ADMIN_PROD_READONLY_MANUAL_LOGIN === "1";
+const HEADLESS = MANUAL_LOGIN
+  ? false
+  : process.env.ADMIN_PROD_READONLY_HEADLESS !== "0";
+const MANUAL_LOGIN_TIMEOUT_MS = Number(
+  process.env.ADMIN_PROD_READONLY_MANUAL_LOGIN_TIMEOUT_MS || 180000
+);
 const ALLOW_LOG_SKIP = process.env.ADMIN_PROD_READONLY_ALLOW_LOG_SKIP === "1";
 
 const AUTH_ROUTES = [
@@ -112,9 +118,12 @@ async function loginAdmin() {
   if (ADMIN_SESSION_TOKEN) {
     return { sessionToken: ADMIN_SESSION_TOKEN, csrfToken: ADMIN_CSRF_TOKEN };
   }
+  if (MANUAL_LOGIN) {
+    return null;
+  }
   if (!ADMIN_EMAIL || !ADMIN_PASSWORD || !ADMIN_OTP_CODE) {
     throw new Error(
-      "Missing prod admin auth. Set ADMIN_SESSION_TOKEN or ADMIN_EMAIL/ADMIN_PASSWORD/ADMIN_OTP_CODE."
+      "Missing prod admin auth. Set ADMIN_SESSION_TOKEN, ADMIN_EMAIL/ADMIN_PASSWORD/ADMIN_OTP_CODE, or ADMIN_PROD_READONLY_MANUAL_LOGIN=1."
     );
   }
   const response = await fetch(`${ADMIN_GATEWAY_URL}/api/admin/v1/auth/login`, {
@@ -176,29 +185,73 @@ async function createContext(browser, auth) {
   return context;
 }
 
-async function apiPreflight(auth) {
+async function manualLogin(context) {
+  const page = await context.newPage();
+  await page.goto(`${ADMIN_FRONT_URL}/login`, {
+    waitUntil: "domcontentloaded",
+    timeout: 60000,
+  });
+  console.log(
+    `[admin-front-prod-readonly] manual login requested. Complete prod login in the opened browser within ${Math.round(
+      MANUAL_LOGIN_TIMEOUT_MS / 1000
+    )}s.`
+  );
+  const deadline = Date.now() + MANUAL_LOGIN_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    const currentUrl = new URL(page.url());
+    if (!currentUrl.pathname.startsWith("/login")) {
+      const response = await context.request
+        .get(`${ADMIN_GATEWAY_URL}/api/admin/v1/auth/me`, {
+          headers: { Accept: "application/json" },
+        })
+        .catch(() => null);
+      const body = response ? await response.json().catch(() => ({})) : {};
+      if (response && responseOk(response) && body?.success !== false) {
+        await page.close();
+        return;
+      }
+    }
+    await page.waitForTimeout(1000);
+  }
+  throw new Error("Manual prod admin login timed out before /auth/me passed.");
+}
+
+function responseOk(response) {
+  return typeof response.ok === "function" ? response.ok() : response.ok;
+}
+
+function responseStatus(response) {
+  return typeof response.status === "function" ? response.status() : response.status;
+}
+
+async function apiPreflight(auth, context) {
   const endpoints = [
     "/api/admin/v1/auth/policy",
     "/api/admin/v1/auth/me",
   ];
   for (const endpoint of endpoints) {
-    const response = await fetch(`${ADMIN_GATEWAY_URL}${endpoint}`, {
-      headers: {
-        Accept: "application/json",
-        Cookie: `${ADMIN_COOKIE_NAME}=${auth.sessionToken}`,
-      },
-    });
+    const response = auth?.sessionToken
+      ? await fetch(`${ADMIN_GATEWAY_URL}${endpoint}`, {
+          headers: {
+            Accept: "application/json",
+            Cookie: `${ADMIN_COOKIE_NAME}=${auth.sessionToken}`,
+          },
+        })
+      : await context.request.get(`${ADMIN_GATEWAY_URL}${endpoint}`, {
+          headers: { Accept: "application/json" },
+        });
     const body = await response.json().catch(() => ({}));
-    const ok = response.ok && body.success !== false;
+    const status = responseStatus(response);
+    const ok = responseOk(response) && body.success !== false;
     apiResults.push({
       route: endpoint,
       ok,
-      status: response.status,
+      status,
       success: body.success ?? null,
       bodySnippet: redact(JSON.stringify(body).slice(0, 500)),
     });
     if (!ok) {
-      addFailure(endpoint, `API preflight failed with ${response.status}`);
+      addFailure(endpoint, `API preflight failed with ${status}`);
     }
   }
 }
@@ -390,10 +443,15 @@ function renderReport(startedAtIso, finishedAtIso) {
 async function main() {
   const startedAtIso = new Date().toISOString();
   const auth = await loginAdmin();
-  await apiPreflight(auth);
 
   const browser = await chromium.launch({ headless: HEADLESS });
-  const context = await createContext(browser, auth);
+  const context = auth
+    ? await createContext(browser, auth)
+    : await browser.newContext({ viewport: { width: 1440, height: 1100 } });
+  if (!auth && MANUAL_LOGIN) {
+    await manualLogin(context);
+  }
+  await apiPreflight(auth, context);
 
   for (const spec of AUTH_ROUTES) {
     await verifyRoute(context, spec, false);
