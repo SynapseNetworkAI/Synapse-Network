@@ -16,6 +16,7 @@ const STATIC_ROUTES = [
   "/ai-agent-payments/synapse-vs-x402",
   "/ai-agent-payments/faq",
   "/mcp",
+  "/mcp/paid-api-calls",
   "/money-flows",
   "/money-flows/deposit-usdc",
   "/money-flows/consumer-withdrawals",
