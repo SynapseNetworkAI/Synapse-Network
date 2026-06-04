@@ -5,10 +5,38 @@ export type LoginFeedback = {
   message: string;
 };
 
+export type LoginFeedbackStyles = {
+  bg: string;
+  border: string;
+  color: string;
+};
+
 export function isLoginTotpEnabled(
   security: AdminAuthSecurityPolicy | null
 ): boolean {
   return Boolean(security?.loginTotpRequired);
+}
+
+export function sanitizeLoginOtpCode(value: string): string {
+  return value.replace(/\D/g, "").slice(0, 6);
+}
+
+export function buildLoginFeedbackStyles(
+  feedback: LoginFeedback
+): LoginFeedbackStyles {
+  if (feedback.tone === "error") {
+    return {
+      bg: "rgba(127, 29, 29, 0.22)",
+      border: "1px solid rgba(248, 113, 113, 0.24)",
+      color: "#fecaca",
+    };
+  }
+
+  return {
+    bg: "rgba(15, 23, 42, 0.42)",
+    border: "1px solid rgba(34, 211, 238, 0.18)",
+    color: "rgba(226, 232, 240, 0.86)",
+  };
 }
 
 export function buildLoginRailDescription(

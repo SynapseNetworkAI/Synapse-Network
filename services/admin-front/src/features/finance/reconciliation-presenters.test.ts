@@ -12,6 +12,7 @@ import {
   resolveDrilldownCount,
   resolveDrilldownTitle,
   resolveReconciliationStamp,
+  resolveReconciliationTone,
 } from "./reconciliation-presenters";
 
 const detail = {
@@ -160,6 +161,23 @@ describe("reconciliation presenters", () => {
 
   it("formats projection stamp via shared datetime helper", () => {
     expect(resolveReconciliationStamp(detail)).toBe("03/21 18:05");
+  });
+
+  it("resolves reconciliation tone from backend alert and imbalance fields", () => {
+    expect(resolveReconciliationTone(detail)).toBe("red");
+    expect(
+      resolveReconciliationTone({
+        ...detail,
+        reconciliationAlert: false,
+      })
+    ).toBe("orange");
+    expect(
+      resolveReconciliationTone({
+        ...detail,
+        imbalanceDirection: "balanced",
+        reconciliationAlert: false,
+      })
+    ).toBe("green");
   });
 
   it("builds locator tokens for approvals and reviews", () => {
