@@ -39,12 +39,20 @@ export function getApprovalLevelTone(level: string): StatusTone {
 }
 
 export function buildApprovalMetrics(items: ApprovalItem[]) {
-  const projectedWithdrawReviews = items.filter((item) => item.approvalType === "provider_withdraw_review");
+  const projectedWithdrawReviews = items.filter(
+    (item) => item.approvalType === "provider_withdraw_review"
+  );
   const l3Count = items.filter((item) => item.approvalLevel === "L3").length;
-  const awaitingReviewCount = items.filter((item) => isApprovalAwaitingReviewStatus(item.status)).length;
-  const pendingExecutionCount = items.filter((item) => item.status === APPROVAL_STATUS.APPROVED_PENDING_EXECUTION).length;
-  const projectedWithdrawAmount = projectedWithdrawReviews
-    .reduce((sum, item) => sum + parseMoneyStringForChart(item.amountUsdc || "0"), 0);
+  const awaitingReviewCount = items.filter((item) =>
+    isApprovalAwaitingReviewStatus(item.status)
+  ).length;
+  const pendingExecutionCount = items.filter(
+    (item) => item.status === APPROVAL_STATUS.APPROVED_PENDING_EXECUTION
+  ).length;
+  const projectedWithdrawAmount = projectedWithdrawReviews.reduce(
+    (sum, item) => sum + parseMoneyStringForChart(item.amountUsdc || "0"),
+    0
+  );
 
   return {
     total: items.length,
@@ -56,18 +64,26 @@ export function buildApprovalMetrics(items: ApprovalItem[]) {
   };
 }
 
-export function filterApprovals(items: ApprovalItem[], search: string, typeFilter: string, statusFilter: string): ApprovalItem[] {
+export function filterApprovals(
+  items: ApprovalItem[],
+  search: string,
+  typeFilter: string,
+  statusFilter: string
+): ApprovalItem[] {
   const normalizedSearch = search.trim().toLowerCase();
 
   return items.filter((item) => {
-    const matchesSearch = !normalizedSearch
-      || item.approvalId.toLowerCase().includes(normalizedSearch)
-      || item.approvalType.toLowerCase().includes(normalizedSearch)
-      || item.requesterRole.toLowerCase().includes(normalizedSearch)
-      || item.approvalLevel.toLowerCase().includes(normalizedSearch);
+    const matchesSearch =
+      !normalizedSearch ||
+      item.approvalId.toLowerCase().includes(normalizedSearch) ||
+      item.approvalType.toLowerCase().includes(normalizedSearch) ||
+      item.requesterRole.toLowerCase().includes(normalizedSearch) ||
+      item.approvalLevel.toLowerCase().includes(normalizedSearch);
 
-    const matchesType = typeFilter === "all" || item.approvalType === typeFilter;
-    const matchesStatus = statusFilter === "all" || item.status === statusFilter;
+    const matchesType =
+      typeFilter === "all" || item.approvalType === typeFilter;
+    const matchesStatus =
+      statusFilter === "all" || item.status === statusFilter;
 
     return matchesSearch && matchesType && matchesStatus;
   });

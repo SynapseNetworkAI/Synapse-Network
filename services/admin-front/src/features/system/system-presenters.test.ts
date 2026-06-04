@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { buildRuntimeCards, buildSystemMetrics, getRuntimeTone } from "./system-presenters";
+import {
+  buildRuntimeCards,
+  buildSystemMetrics,
+  getRuntimeTone,
+} from "./system-presenters";
 
 const status = {
   gatewayAdmin: "healthy",
@@ -59,28 +63,32 @@ describe("system-presenters", () => {
         key: "indexer",
         label: "Indexer task",
         value: "healthy",
-        description: "running yes; heartbeat 2026-03-21T09:00:30Z; last processed 2026-03-21T09:00:00Z",
+        description:
+          "running yes; heartbeat 2026-03-21T09:00:30Z; last processed 2026-03-21T09:00:00Z",
         format: "text",
       },
       {
         key: "backfill-scan",
         label: "Backfill task",
         value: "healthy",
-        description: "enabled yes; last scan 2026-03-21T08:00:00Z; block 123; recovered 4",
+        description:
+          "enabled yes; last scan 2026-03-21T08:00:00Z; block 123; recovered 4",
         format: "text",
       },
       {
         key: "reconciliation",
         label: "Reconciliation task",
         value: "alert",
-        description: "enabled yes; last check 2026-03-21T10:00:00Z; delta 12.00 USDC; error delta mismatch",
+        description:
+          "enabled yes; last check 2026-03-21T10:00:00Z; delta 12.00 USDC; error delta mismatch",
         format: "text",
       },
       {
         key: "projection",
         label: "Projection updated",
         value: "2026-03-21T10:05:00Z",
-        description: "运维读模型最近一次刷新时间，用于交叉验证持久化任务状态和聚合计数。",
+        description:
+          "运维读模型最近一次刷新时间，用于交叉验证持久化任务状态和聚合计数。",
         format: "datetime",
       },
     ]);

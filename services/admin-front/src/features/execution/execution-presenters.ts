@@ -58,6 +58,30 @@ export function getExecutionTone(status: ExecutionJobStatus): StatusTone {
   return executionJobStatusTone(status);
 }
 
+export function isExecutionJobRetryable(job: ExecutionJobItem): boolean {
+  return isRetryable(job);
+}
+
+export function getExecutionRetryActionLabel({
+  isRetrying,
+  retryable,
+}: Readonly<{ isRetrying: boolean; retryable: boolean }>): string {
+  if (isRetrying) {
+    return "处理中...";
+  }
+  return retryable ? "Retry" : "Locked";
+}
+
+export function getExecutionTargetCardTone({
+  failedCount,
+  inflightCount,
+}: Readonly<{ failedCount: number; inflightCount: number }>): StatusTone {
+  if (failedCount > 0) {
+    return "red";
+  }
+  return inflightCount > 0 ? "orange" : "green";
+}
+
 export function buildExecutionMetrics(items: ExecutionJobItem[]) {
   const failedCount = items.filter(isFailed).length;
   const retryableCount = items.filter(isRetryable).length;
@@ -75,25 +99,34 @@ export function buildExecutionMetrics(items: ExecutionJobItem[]) {
   };
 }
 
-export function filterExecutionJobs(items: ExecutionJobItem[], search: string, statusFilter: string, targetFilter: string): ExecutionJobItem[] {
+export function filterExecutionJobs(
+  items: ExecutionJobItem[],
+  search: string,
+  statusFilter: string,
+  targetFilter: string
+): ExecutionJobItem[] {
   const normalizedSearch = search.trim().toLowerCase();
 
   return items.filter((job) => {
-    const matchesSearch = !normalizedSearch
-      || job.jobId.toLowerCase().includes(normalizedSearch)
-      || job.approvalId.toLowerCase().includes(normalizedSearch)
-      || job.executionType.toLowerCase().includes(normalizedSearch)
-      || job.targetSystem.toLowerCase().includes(normalizedSearch)
-      || (job.errorCode ?? "").toLowerCase().includes(normalizedSearch);
+    const matchesSearch =
+      !normalizedSearch ||
+      job.jobId.toLowerCase().includes(normalizedSearch) ||
+      job.approvalId.toLowerCase().includes(normalizedSearch) ||
+      job.executionType.toLowerCase().includes(normalizedSearch) ||
+      job.targetSystem.toLowerCase().includes(normalizedSearch) ||
+      (job.errorCode ?? "").toLowerCase().includes(normalizedSearch);
 
     const matchesStatus = statusFilter === "all" || job.status === statusFilter;
-    const matchesTarget = targetFilter === "all" || job.targetSystem === targetFilter;
+    const matchesTarget =
+      targetFilter === "all" || job.targetSystem === targetFilter;
 
     return matchesSearch && matchesStatus && matchesTarget;
   });
 }
 
-export function sortExecutionJobsByPriority(items: ExecutionJobItem[]): ExecutionJobItem[] {
+export function sortExecutionJobsByPriority(
+  items: ExecutionJobItem[]
+): ExecutionJobItem[] {
   return [...items].sort((left, right) => {
     const weightDifference = priorityWeight(right) - priorityWeight(left);
     if (weightDifference !== 0) {
@@ -104,13 +137,19 @@ export function sortExecutionJobsByPriority(items: ExecutionJobItem[]): Executio
 }
 
 export function buildExecutionFailureClusters(items: ExecutionJobItem[]) {
-  const buckets = new Map<string, { code: string; count: number; jobIds: string[] }>();
+  const buckets = new Map<
+    string,
+    { code: string; count: number; jobIds: string[] }
+  >();
 
   items.forEach((job) => {
     if (!isFailed(job)) {
       return;
     }
-    const code = job.errorCode ?? job.attempts.find((attempt) => attempt.errorCode)?.errorCode ?? "unknown";
+    const code =
+      job.errorCode ??
+      job.attempts.find((attempt) => attempt.errorCode)?.errorCode ??
+      "unknown";
     const bucket = buckets.get(code);
     if (bucket) {
       bucket.count += 1;
@@ -124,11 +163,23 @@ export function buildExecutionFailureClusters(items: ExecutionJobItem[]) {
     });
   });
 
-  return [...buckets.values()].sort((left, right) => right.count - left.count || left.code.localeCompare(right.code));
+  return [...buckets.values()].sort(
+    (left, right) =>
+      right.count - left.count || left.code.localeCompare(right.code)
+  );
 }
 
 export function buildExecutionTargetCards(items: ExecutionJobItem[]) {
-  const buckets = new Map<string, { key: string; label: string; totalCount: number; failedCount: number; inflightCount: number }>();
+  const buckets = new Map<
+    string,
+    {
+      key: string;
+      label: string;
+      totalCount: number;
+      failedCount: number;
+      inflightCount: number;
+    }
+  >();
 
   items.forEach((job) => {
     const key = job.targetSystem;
@@ -151,7 +202,11 @@ export function buildExecutionTargetCards(items: ExecutionJobItem[]) {
     buckets.set(key, bucket);
   });
 
-  return [...buckets.values()].sort((left, right) => right.totalCount - left.totalCount || left.label.localeCompare(right.label));
+  return [...buckets.values()].sort(
+    (left, right) =>
+      right.totalCount - left.totalCount ||
+      left.label.localeCompare(right.label)
+  );
 }
 
 export function listExecutionTargets(items: ExecutionJobItem[]): string[] {

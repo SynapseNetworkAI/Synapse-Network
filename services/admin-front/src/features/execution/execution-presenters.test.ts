@@ -1,6 +1,17 @@
 import { describe, expect, it } from "vitest";
 
-import { buildExecutionFailureClusters, buildExecutionMetrics, buildExecutionTargetCards, filterExecutionJobs, getExecutionStatusLabel, getExecutionTone, sortExecutionJobsByPriority } from "./execution-presenters";
+import {
+  buildExecutionFailureClusters,
+  buildExecutionMetrics,
+  buildExecutionTargetCards,
+  filterExecutionJobs,
+  getExecutionRetryActionLabel,
+  getExecutionStatusLabel,
+  getExecutionTargetCardTone,
+  getExecutionTone,
+  isExecutionJobRetryable,
+  sortExecutionJobsByPriority,
+} from "./execution-presenters";
 
 const jobs = [
   {
@@ -16,7 +27,15 @@ const jobs = [
     maxRetryCount: 3,
     queuedBy: "finance-admin",
     updatedAt: "2026-03-21T10:00:00Z",
-    attempts: [{ attemptNo: 1, status: "SUCCEEDED", errorCode: null, errorSummary: null, finishedAt: "2026-03-21T10:00:00Z" }],
+    attempts: [
+      {
+        attemptNo: 1,
+        status: "SUCCEEDED",
+        errorCode: null,
+        errorSummary: null,
+        finishedAt: "2026-03-21T10:00:00Z",
+      },
+    ],
   },
   {
     jobId: "job-001",
@@ -31,7 +50,15 @@ const jobs = [
     maxRetryCount: 3,
     queuedBy: "risk-admin",
     updatedAt: "2026-03-21T12:00:00Z",
-    attempts: [{ attemptNo: 1, status: "FAILED", errorCode: "ADAPTER_TIMEOUT", errorSummary: "timeout", finishedAt: "2026-03-21T12:00:00Z" }],
+    attempts: [
+      {
+        attemptNo: 1,
+        status: "FAILED",
+        errorCode: "ADAPTER_TIMEOUT",
+        errorSummary: "timeout",
+        finishedAt: "2026-03-21T12:00:00Z",
+      },
+    ],
   },
   {
     jobId: "job-002",
@@ -46,7 +73,15 @@ const jobs = [
     maxRetryCount: 3,
     queuedBy: "ops-admin",
     updatedAt: "2026-03-21T11:00:00Z",
-    attempts: [{ attemptNo: 3, status: "FAILED", errorCode: "ADAPTER_TIMEOUT", errorSummary: "timeout", finishedAt: "2026-03-21T11:00:00Z" }],
+    attempts: [
+      {
+        attemptNo: 3,
+        status: "FAILED",
+        errorCode: "ADAPTER_TIMEOUT",
+        errorSummary: "timeout",
+        finishedAt: "2026-03-21T11:00:00Z",
+      },
+    ],
   },
   {
     jobId: "job-004",
@@ -78,11 +113,17 @@ describe("execution-presenters", () => {
   });
 
   it("filters by search, status, and target", () => {
-    expect(filterExecutionJobs(jobs, "withdrawal", "FAILED", "gateway").map((item) => item.jobId)).toEqual(["job-001"]);
+    expect(
+      filterExecutionJobs(jobs, "withdrawal", "FAILED", "gateway").map(
+        (item) => item.jobId
+      )
+    ).toEqual(["job-001"]);
   });
 
   it("sorts retryable failures ahead of exhausted and successful jobs", () => {
-    expect(sortExecutionJobsByPriority(jobs).map((item) => item.jobId)).toEqual(["job-001", "job-002", "job-004", "job-003"]);
+    expect(sortExecutionJobsByPriority(jobs).map((item) => item.jobId)).toEqual(
+      ["job-001", "job-002", "job-004", "job-003"]
+    );
   });
 
   it("clusters failed jobs by error code", () => {
@@ -93,11 +134,52 @@ describe("execution-presenters", () => {
 
   it("builds target cards and status labels", () => {
     expect(buildExecutionTargetCards(jobs)).toEqual([
-      { key: "gateway", label: "gateway", totalCount: 2, failedCount: 1, inflightCount: 0 },
-      { key: "config-service", label: "config-service", totalCount: 1, failedCount: 0, inflightCount: 1 },
-      { key: "gateway-admin", label: "gateway-admin", totalCount: 1, failedCount: 1, inflightCount: 0 },
+      {
+        key: "gateway",
+        label: "gateway",
+        totalCount: 2,
+        failedCount: 1,
+        inflightCount: 0,
+      },
+      {
+        key: "config-service",
+        label: "config-service",
+        totalCount: 1,
+        failedCount: 0,
+        inflightCount: 1,
+      },
+      {
+        key: "gateway-admin",
+        label: "gateway-admin",
+        totalCount: 1,
+        failedCount: 1,
+        inflightCount: 0,
+      },
     ]);
     expect(getExecutionStatusLabel("FAILED")).toBe("执行失败");
     expect(getExecutionTone("RUNNING")).toBe("orange");
+  });
+
+  it("builds retry and target action state", () => {
+    expect(isExecutionJobRetryable(jobs[1])).toBe(true);
+    expect(isExecutionJobRetryable(jobs[2])).toBe(false);
+    expect(
+      getExecutionRetryActionLabel({ isRetrying: true, retryable: true })
+    ).toBe("处理中...");
+    expect(
+      getExecutionRetryActionLabel({ isRetrying: false, retryable: true })
+    ).toBe("Retry");
+    expect(
+      getExecutionRetryActionLabel({ isRetrying: false, retryable: false })
+    ).toBe("Locked");
+    expect(
+      getExecutionTargetCardTone({ failedCount: 1, inflightCount: 0 })
+    ).toBe("red");
+    expect(
+      getExecutionTargetCardTone({ failedCount: 0, inflightCount: 1 })
+    ).toBe("orange");
+    expect(
+      getExecutionTargetCardTone({ failedCount: 0, inflightCount: 0 })
+    ).toBe("green");
   });
 });
