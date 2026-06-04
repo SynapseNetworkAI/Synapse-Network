@@ -42,3 +42,21 @@ test("gateway-admin staging job sync keeps its existing secret contract", () => 
 
   assert.match(text, /--set-secrets "\$\(join_by_comma "\$\{gateway_admin_secret_env\[@\]\}"\)"/);
 });
+
+test("gateway-admin staging job sync preserves existing wallet env when local env is absent", () => {
+  const text = scriptText();
+
+  assert.match(text, /extract_cloud_run_env_value\(\)/);
+  assert.match(text, /resolve_job_env_value\(\)/);
+  assert.match(text, /node -e/);
+  assert.match(text, /function visit\(value\)/);
+  assert.match(text, /Array\.isArray\(value\.containers\)/);
+  assert.match(
+    text,
+    /GATEWAY_INTERNAL_ADMIN_WALLET="\$\(resolve_job_env_value "\$\{job\}" "GATEWAY_INTERNAL_ADMIN_WALLET"\)"/,
+  );
+  assert.match(
+    text,
+    /existing gateway-admin job env/,
+  );
+});
