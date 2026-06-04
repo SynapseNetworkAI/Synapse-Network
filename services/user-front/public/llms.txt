@@ -10,6 +10,7 @@ SynapseNetwork is the settlement layer for the AI agent economy. It lets AI agen
 - Runtime model: on-chain collateral, off-chain usage charging, on-chain withdrawal settlement
 - LLM billing: token-metered services charge by final provider-reported input and output token usage
 - MCP support: Synapse exposes MCP server tooling so agents can discover and consume payable services through model-compatible tool interfaces
+- MCP paid API calls: Synapse Remote MCP is a hosted MCP server for paid API calls, with `discover_services`, `invoke_and_pay`, and `get_receipt` tools for service discovery, bounded payment, and receipts
 - Streaming policy: LLM streaming is not supported in Synapse V1 because final usage is required for billing
 
 ## Start Here
@@ -28,6 +29,7 @@ SynapseNetwork is the settlement layer for the AI agent economy. It lets AI agen
 
 - AI Agent Payments: https://docs.synapse-network.ai/ai-agent-payments
 - Agent Payment API: https://docs.synapse-network.ai/ai-agent-payments/agent-payment-api
+- MCP Server for Paid API Calls: https://docs.synapse-network.ai/mcp/paid-api-calls
 - Agents Paying for LLM Calls: https://docs.synapse-network.ai/ai-agent-payments/agent-pays-for-llm-calls
 - API Provider Monetization: https://docs.synapse-network.ai/ai-agent-payments/provider-monetization
 - Receipts and Budget Isolation: https://docs.synapse-network.ai/ai-agent-payments/receipts-and-budget-isolation
@@ -50,3 +52,4 @@ SynapseNetwork is the settlement layer for the AI agent economy. It lets AI agen
 - X: https://x.com/SynapseNetworkA
 - SDK GitHub: https://github.com/SynapseNetworkAI/Synapse-Network-Sdk
 - MCP Server GitHub: https://github.com/SynapseNetworkAI/Synapse-Network-MCP-Server
+- Remote MCP endpoint: https://mcp.synapse-network.ai/mcp
