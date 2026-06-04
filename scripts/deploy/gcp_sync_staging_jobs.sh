@@ -243,6 +243,55 @@ process.stdin.on("end", () => {
 '
 }
 
+extract_cloud_run_env_value() {
+  local env_name="$1"
+  node -e '
+const envName = process.argv[1];
+let source = "";
+process.stdin.on("data", (chunk) => source += chunk);
+process.stdin.on("end", () => {
+  const resource = JSON.parse(source || "{}");
+  const seen = new Set();
+  function visit(value) {
+    if (!value || typeof value !== "object" || seen.has(value)) return "";
+    seen.add(value);
+    if (Array.isArray(value.containers)) {
+      for (const container of value.containers) {
+        for (const entry of container.env || []) {
+          if (entry?.name === envName && typeof entry.value === "string") {
+            return entry.value;
+          }
+        }
+      }
+    }
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        const found = visit(item);
+        if (found) return found;
+      }
+      return "";
+    }
+    for (const [key, item] of Object.entries(value)) {
+      if (key === "containers") continue;
+      const found = visit(item);
+      if (found) return found;
+    }
+    return "";
+  }
+  console.log(visit(resource));
+});
+' "${env_name}"
+}
+
+resolve_job_env_value() {
+  local job="$1"
+  local env_name="$2"
+  gcloud run jobs describe "${job}" \
+    --project "${PROJECT_ID}" \
+    --region "${REGION}" \
+    --format=json | extract_cloud_run_env_value "${env_name}"
+}
+
 job_requested() {
   local job="$1"
   if (( ${#requested_jobs[@]} == 0 )); then
@@ -294,7 +343,11 @@ update_job_set() {
     fi
     if [[ "${family}" == "gateway-admin" ]]; then
       if [[ -z "${GATEWAY_INTERNAL_ADMIN_WALLET:-}" ]]; then
-        echo "GATEWAY_INTERNAL_ADMIN_WALLET must be set in env.staging or shell env for gateway-admin jobs." >&2
+        GATEWAY_INTERNAL_ADMIN_WALLET="$(resolve_job_env_value "${job}" "GATEWAY_INTERNAL_ADMIN_WALLET")"
+        export GATEWAY_INTERNAL_ADMIN_WALLET
+      fi
+      if [[ -z "${GATEWAY_INTERNAL_ADMIN_WALLET:-}" ]]; then
+        echo "GATEWAY_INTERNAL_ADMIN_WALLET must be set in env.staging, shell env, or the existing gateway-admin job env." >&2
         exit 2
       fi
       update_flags+=(
