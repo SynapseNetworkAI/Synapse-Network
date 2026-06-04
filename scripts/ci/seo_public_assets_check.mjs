@@ -8,7 +8,13 @@ const repoRoot = process.cwd();
 const userFrontRoot = path.join(repoRoot, "services", "user-front");
 const llmsPath = path.join(userFrontRoot, "public", "llms.txt");
 const robotsPath = path.join(userFrontRoot, "public", "robots.txt");
-const sitemapPath = path.join(userFrontRoot, "src", "app", "sitemap.ts");
+const sitemapRoutePath = path.join(
+  userFrontRoot,
+  "src",
+  "app",
+  "sitemap.xml",
+  "route.ts",
+);
 const layoutPath = path.join(userFrontRoot, "src", "app", "layout.tsx");
 const appRoot = path.join(userFrontRoot, "src", "app");
 const faviconPath = path.join(appRoot, "favicon.ico");
@@ -186,21 +192,30 @@ if (assertFile(robotsPath, "robots.txt")) {
   }
 }
 
-if (assertFile(sitemapPath, "sitemap.ts")) {
-  const sitemap = readText(sitemapPath);
-  assertNoForbiddenSeoText("sitemap.ts", sitemap);
-  if (!sitemap.includes('const SITE_URL = "https://www.synapse-network.ai";')) {
-    fail("sitemap.ts must hard-code the canonical HTTPS site URL");
+if (assertFile(sitemapRoutePath, "sitemap.xml route")) {
+  const sitemapRoute = readText(sitemapRoutePath);
+  assertNoForbiddenSeoText("sitemap.xml route", sitemapRoute);
+  if (
+    !sitemapRoute.includes('const SITE_URL = "https://www.synapse-network.ai";')
+  ) {
+    fail("sitemap.xml route must hard-code the canonical HTTPS site URL");
   }
   for (const route of PUBLIC_ROUTES) {
-    if (!includesRoute(sitemap, route)) {
-      fail(`sitemap.ts missing public route: ${route}`);
+    if (!includesRoute(sitemapRoute, route)) {
+      fail(`sitemap.xml route missing public route: ${route}`);
     }
   }
   for (const privatePattern of PRIVATE_PATTERNS) {
-    if (includesPrivateRouteLiteral(sitemap, privatePattern)) {
-      fail(`sitemap.ts must not include private/app route: ${privatePattern}`);
+    if (includesPrivateRouteLiteral(sitemapRoute, privatePattern)) {
+      fail(
+        `sitemap.xml route must not include private/app route: ${privatePattern}`,
+      );
     }
+  }
+  if (
+    !sitemapRoute.includes('"Content-Type": "application/xml; charset=utf-8"')
+  ) {
+    fail("sitemap.xml route must return an application/xml content type");
   }
 }
 

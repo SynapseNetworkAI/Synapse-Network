@@ -115,6 +115,19 @@
     "screenshotName": "agent-payment-api.png"
   },
   {
+    "id": "sitemap-xml",
+    "href": "/sitemap.xml",
+    "kind": "api",
+    "audience": "crawler",
+    "maturity": "production",
+    "expectedTexts": [],
+    "purpose": "Public XML sitemap for search engines, model crawlers, and answer-engine ingestion of canonical www pages.",
+    "primaryInteractions": ["Fetch XML sitemap with public canonical URLs"],
+    "dataVerification": "static",
+    "dataSources": [],
+    "visualVerification": "none"
+  },
+  {
     "id": "blog",
     "href": "/blog",
     "kind": "external-redirect",
