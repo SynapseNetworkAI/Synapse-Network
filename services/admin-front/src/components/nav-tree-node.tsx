@@ -2,6 +2,7 @@
 
 import { Box, Button, Flex, Stack, Text } from "@chakra-ui/react";
 import { AnimatePresence, motion } from "framer-motion";
+import type { KeyboardEvent } from "react";
 import type { NavItem } from "@/lib/navigation";
 
 const MotionBox = motion.create(Box);
@@ -68,6 +69,27 @@ function TreeNodeRow({
 }>) {
   const leftPadding = 14 + depth * 18;
   const visualState = getNodeVisualState(isActive, isInActiveTrail);
+  const activateRow = () => {
+    if (navigablePath) {
+      onNavigate(navigablePath);
+      return;
+    }
+    if (hasChildren) {
+      onToggle(item.id);
+    }
+  };
+  const rowIsInteractive = Boolean(navigablePath || hasChildren);
+  const rowRole = navigablePath ? "link" : hasChildren ? "button" : undefined;
+  const rowCursor = rowIsInteractive ? "pointer" : undefined;
+  const rowTabIndex = rowIsInteractive ? 0 : undefined;
+  const rowExpanded = hasChildren && !navigablePath ? isExpanded : undefined;
+  const handleRowKeyDown = (event: KeyboardEvent) => {
+    if (!rowIsInteractive || (event.key !== "Enter" && event.key !== " ")) {
+      return;
+    }
+    event.preventDefault();
+    activateRow();
+  };
   const labelContent = (
     <Flex align="center" gap="10px" minW="0" position="relative" zIndex={1}>
       <Flex
@@ -143,23 +165,7 @@ function TreeNodeRow({
       {labelContent}
     </a>
   ) : (
-    <Box
-      onClick={() => (hasChildren ? onToggle(item.id) : undefined)}
-      onKeyDown={(event) => {
-        if (!hasChildren || (event.key !== "Enter" && event.key !== " ")) {
-          return;
-        }
-        event.preventDefault();
-        onToggle(item.id);
-      }}
-      cursor={hasChildren ? "pointer" : "default"}
-      role={hasChildren ? "button" : undefined}
-      tabIndex={hasChildren ? 0 : undefined}
-      aria-expanded={hasChildren ? isExpanded : undefined}
-      display="flex"
-      flex="1"
-      minW="0"
-    >
+    <Box cursor={rowCursor ?? "default"} display="flex" flex="1" minW="0">
       {labelContent}
     </Box>
   );
@@ -182,6 +188,14 @@ function TreeNodeRow({
           : "none"
       }
       position="relative"
+      cursor={rowCursor}
+      data-nav-row-id={item.id}
+      data-nav-row-path={navigablePath}
+      role={rowRole}
+      tabIndex={rowTabIndex}
+      aria-expanded={rowExpanded}
+      onClick={activateRow}
+      onKeyDown={handleRowKeyDown}
       _hover={{
         bg: isActive
           ? "color-mix(in oklch, var(--sidebar-primary) 20%, transparent)"

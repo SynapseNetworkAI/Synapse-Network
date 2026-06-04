@@ -315,6 +315,33 @@ describe("NavTreeNode", () => {
     expect(onNavigate).toHaveBeenCalledTimes(1);
   });
 
+  it("navigates when the clickable row chrome is pressed outside the text link", () => {
+    const onNavigate = vi.fn();
+    const nodes = renderNodeTree({
+      item: {
+        id: "dashboard-runtime",
+        title: "运行态",
+        icon: "02",
+        nodeType: "page",
+        path: "/dashboard/runtime",
+      },
+      depth: 1,
+      expandedIds: new Set(["control-overview", "dashboard"]),
+      activePathIds: new Set(["control-overview", "dashboard-overview"]),
+      onToggle: () => undefined,
+      onNavigate,
+    });
+    const row = nodes.find(
+      (node) => node.props["data-nav-row-path"] === "/dashboard/runtime"
+    );
+    expect(row).toBeTruthy();
+
+    (row?.props.onClick as () => void)();
+
+    expect(row?.props.role).toBe("link");
+    expect(onNavigate).toHaveBeenCalledWith("/dashboard/runtime");
+  });
+
   it("toggles non-link category rows with click and keyboard activation", () => {
     const onToggle = vi.fn();
     const nodes = renderNodeTree({

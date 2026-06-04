@@ -64,6 +64,16 @@ export const rootE2eScriptPatterns = [
   /^scripts\/verify_chain\.py$/,
 ];
 
+export const adminUiScriptPatterns = [
+  /^scripts\/ui\/admin_menu_config_local_pages\.mjs$/,
+  /^scripts\/ui\/verify_admin_console_new_ui_local\.mjs$/,
+];
+
+export const gatewayAdminProjectionSqlPatterns = [
+  /^infra\/postgres\/init\/gateway-admin\/003_gateway_admin_projection_views\.sql$/,
+  /^services\/gateway\/migrations\/postgres\/003_gateway_admin_projection_views\.sql$/,
+];
+
 export const deployOpsScriptPatterns = [
   /^scripts\/deploy\/gcp_configure_staging_alerts\.sh$/,
 ];
@@ -90,6 +100,7 @@ export const knownPatterns = [
   /^scripts\/ops\//,
   /^scripts\/git\//,
   /^scripts\/e2e\//,
+  ...adminUiScriptPatterns,
   ...rootE2eScriptPatterns,
   /^scripts\/perf\//,
   /^scripts\/local\//,
@@ -98,6 +109,7 @@ export const knownPatterns = [
   /^scripts\/tools\//,
   /^scripts\/python\//,
   /^infra\/monitoring\//,
+  /^infra\/postgres\/init\//,
   /^infra\/terraform\//,
   /^migrations\//,
   /^\.github\/instructions\//,
