@@ -1,6 +1,75 @@
+User-agent: OAI-SearchBot
+Allow: /
+Disallow: /dashboard/
+Disallow: /provider/
+Disallow: /api/
+Disallow: /_next/data/
+
+User-agent: ChatGPT-User
+Allow: /
+Disallow: /dashboard/
+Disallow: /provider/
+Disallow: /api/
+Disallow: /_next/data/
+
+User-agent: GPTBot
+Allow: /
+Disallow: /dashboard/
+Disallow: /provider/
+Disallow: /api/
+Disallow: /_next/data/
+
+User-agent: ClaudeBot
+Allow: /
+Disallow: /dashboard/
+Disallow: /provider/
+Disallow: /api/
+Disallow: /_next/data/
+
+User-agent: Claude-User
+Allow: /
+Disallow: /dashboard/
+Disallow: /provider/
+Disallow: /api/
+Disallow: /_next/data/
+
+User-agent: Claude-SearchBot
+Allow: /
+Disallow: /dashboard/
+Disallow: /provider/
+Disallow: /api/
+Disallow: /_next/data/
+
+User-agent: anthropic-ai
+Allow: /
+Disallow: /dashboard/
+Disallow: /provider/
+Disallow: /api/
+Disallow: /_next/data/
+
+User-agent: PerplexityBot
+Allow: /
+Disallow: /dashboard/
+Disallow: /provider/
+Disallow: /api/
+Disallow: /_next/data/
+
+User-agent: Bingbot
+Allow: /
+Disallow: /dashboard/
+Disallow: /provider/
+Disallow: /api/
+Disallow: /_next/data/
+
+User-agent: Google-Extended
+Allow: /
+Disallow: /dashboard/
+Disallow: /provider/
+Disallow: /api/
+Disallow: /_next/data/
+
 User-agent: *
 Allow: /
-
 Disallow: /dashboard/
 Disallow: /provider/
 Disallow: /api/

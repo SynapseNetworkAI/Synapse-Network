@@ -44,13 +44,13 @@ test("docs files remain docs-classified", () => {
   assert.equal(isDocsFile("llms.txt"), true);
   assert.equal(
     isDocsFile("services/docs-front/src/components/docs/EnvironmentConfig.tsx"),
-    true
+    true,
   );
   assert.equal(
     isDocsFile(
-      "docs/reference/agent-lessons/codex-provider-llm-config-management.md"
+      "docs/reference/agent-lessons/codex-provider-llm-config-management.md",
     ),
-    true
+    true,
   );
   assert.equal(isDocsFile("scripts/ops/gcp_billing_review.sh"), false);
 });
@@ -73,7 +73,7 @@ test("workflow, ci, and ops files are known without forcing full CI", () => {
     assert.equal(
       isFullTriggerFile(file),
       false,
-      `${file} should not force full CI`
+      `${file} should not force full CI`,
     );
   }
 });
@@ -85,7 +85,7 @@ test("deploy and non-npm lockfile changes still fail closed into full CI", () =>
     assert.equal(
       isFullTriggerFile(file),
       true,
-      `${file} should remain full-trigger`
+      `${file} should remain full-trigger`,
     );
   }
 });
@@ -99,40 +99,51 @@ test("gateway-admin projection SQL is scoped away from gateway runtime migration
   assert.equal(
     matchesAny(
       "services/gateway/migrations/postgres/003_gateway_admin_projection_views.sql",
-      gatewayAdminProjectionSqlPatterns
+      gatewayAdminProjectionSqlPatterns,
     ),
-    true
+    true,
   );
   assert.equal(
     matchesAny(
       "services/gateway/migrations/postgres/004_gateway_runtime_schema.sql",
-      gatewayAdminProjectionSqlPatterns
+      gatewayAdminProjectionSqlPatterns,
     ),
-    false
+    false,
   );
 });
 
 test("public docs package scripts map to narrow docs scopes", () => {
   assert.deepEqual(
     classifyScriptChange(
+      "ci:ai-visibility-assets",
+      "node scripts/ci/ai_visibility_assets_check.mjs",
+    ),
+    {
+      commands: ["ci_meta_checks", "quality_budget_check", "docs_checks"],
+      riskScopes: ["ai-visibility-assets"],
+    },
+  );
+
+  assert.deepEqual(
+    classifyScriptChange(
       "docs:sync-public-mirror",
-      "node scripts/tools/sync_public_docs_mirror.mjs"
+      "node scripts/tools/sync_public_docs_mirror.mjs",
     ),
     {
       commands: ["docs_checks"],
       riskScopes: ["docs-public-mirror"],
-    }
+    },
   );
 
   assert.deepEqual(
     classifyScriptChange(
       "ci:prod-public-docs-links-evidence",
-      "node scripts/ci/prod_public_docs_links_evidence_check.mjs"
+      "node scripts/ci/prod_public_docs_links_evidence_check.mjs",
     ),
     {
       commands: ["docs_checks", "e2e_script_model_drift_scan"],
       riskScopes: ["docs-public-links"],
-    }
+    },
   );
 });
 
@@ -140,11 +151,11 @@ test("GCP gross cost audit package script maps to narrow ops scope", () => {
   assert.deepEqual(
     classifyScriptChange(
       "ci:gcp-gross-cost-audit",
-      "node scripts/ops/gcp_gross_cost_audit.mjs"
+      "node scripts/ops/gcp_gross_cost_audit.mjs",
     ),
     {
       commands: ["ci_meta_checks", "quality_budget_check", "docs_checks"],
       riskScopes: ["gcp-cost-audit"],
-    }
+    },
   );
 });

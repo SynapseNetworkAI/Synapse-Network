@@ -58,6 +58,24 @@ const FORBIDDEN_PUBLIC_ASSET_TEXT = [
   "chrome-extension://",
   "<script",
 ];
+const AI_SEARCH_CRAWLERS = [
+  "OAI-SearchBot",
+  "ChatGPT-User",
+  "GPTBot",
+  "ClaudeBot",
+  "Claude-User",
+  "Claude-SearchBot",
+  "anthropic-ai",
+  "PerplexityBot",
+  "Bingbot",
+  "Google-Extended",
+];
+const PRIVATE_ROBOTS_DISALLOWS = [
+  "Disallow: /dashboard/",
+  "Disallow: /provider/",
+  "Disallow: /api/",
+  "Disallow: /_next/data/",
+];
 
 const checks = [];
 const trace = [];
@@ -104,6 +122,17 @@ function normalizeBaseUrl(value) {
 
 function absoluteUrl(route) {
   return `${BASE_URL}${route}`;
+}
+
+function shouldVerifyBareDomainRedirect() {
+  const parsed = new URL(BASE_URL);
+  return (
+    parsed.protocol === "https:" && parsed.hostname === "www.synapse-network.ai"
+  );
+}
+
+function bareDomainUrl(route) {
+  return `https://synapse-network.ai${route}`;
 }
 
 function redact(value) {
@@ -184,6 +213,58 @@ async function fetchText(route) {
     bodyExcerpt: text.slice(0, 500),
   });
   return result;
+}
+
+async function verifyBareDomainRedirect() {
+  if (!shouldVerifyBareDomainRedirect()) {
+    pass("bare_domain_redirect_skipped", {
+      reason: "Only required for the production www canonical host.",
+      baseUrl: BASE_URL,
+      environment: ENVIRONMENT,
+    });
+    return;
+  }
+
+  const routes = ["/", "/ai-agent-payments", "/agent-payment-api"];
+  const results = [];
+  for (const route of routes) {
+    const url = bareDomainUrl(route);
+    const expectedLocation = absoluteUrl(route);
+    const started = Date.now();
+    const response = await fetch(url, { redirect: "manual" });
+    const location = response.headers.get("location") || "";
+    const result = {
+      route,
+      url,
+      expectedLocation,
+      status: response.status,
+      location,
+      ok:
+        (response.status === 301 || response.status === 308) &&
+        location === expectedLocation,
+      durationMs: Date.now() - started,
+    };
+    results.push(result);
+    addTrace({
+      scenario: `bare-domain-redirect:${route}`,
+      method: "GET",
+      url,
+      httpStatus: response.status,
+      location,
+      durationMs: result.durationMs,
+    });
+  }
+
+  const failed = results.filter((result) => !result.ok);
+  if (failed.length > 0) {
+    fail(
+      "bare_domain_redirect_to_www",
+      "Bare production domain did not permanently redirect to canonical www URL",
+      { failed, results },
+    );
+  } else {
+    pass("bare_domain_redirect_to_www", { results });
+  }
 }
 
 function assertIncludes({ name, text, values }) {
@@ -377,6 +458,8 @@ async function main() {
   });
 
   try {
+    await verifyBareDomainRedirect();
+
     const llms = await fetchText("/llms.txt");
     if (llms.status === 200) {
       pass("llms_txt_http_200", {
@@ -424,14 +507,24 @@ async function main() {
         name: "robots_txt_expected_content",
         text: robots.text,
         values: [
+          ...AI_SEARCH_CRAWLERS.map((crawler) => `User-agent: ${crawler}`),
           "User-agent: *",
           "Allow: /",
-          "Disallow: /dashboard/",
-          "Disallow: /provider/",
-          "Disallow: /api/",
+          ...PRIVATE_ROBOTS_DISALLOWS,
           "Sitemap: https://www.synapse-network.ai/sitemap.xml",
         ],
       });
+      for (const crawler of AI_SEARCH_CRAWLERS) {
+        const groupPattern = new RegExp(
+          `User-agent:\\s*${crawler}[\\s\\S]*?(?=\\nUser-agent:|\\nSitemap:|$)`,
+        );
+        const group = robots.text.match(groupPattern)?.[0] || "";
+        assertIncludes({
+          name: `robots_txt_${crawler}_private_guards`,
+          text: group,
+          values: ["Allow: /", ...PRIVATE_ROBOTS_DISALLOWS],
+        });
+      }
       assertExcludes({
         name: "robots_txt_no_bad_sitemap_paths",
         text: robots.text,

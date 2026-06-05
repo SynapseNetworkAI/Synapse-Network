@@ -21,8 +21,8 @@ function normalizeDocsBaseUrl(rawUrl) {
     appEnv === "prod" || appEnv === "production"
       ? "https://docs.synapse-network.ai"
       : appEnv === "staging"
-      ? "https://docs-staging.synapse-network.ai"
-      : "http://localhost:3100";
+        ? "https://docs-staging.synapse-network.ai"
+        : "http://localhost:3100";
   const value = (rawUrl || fallback).trim() || fallback;
 
   try {
@@ -34,7 +34,7 @@ function normalizeDocsBaseUrl(rawUrl) {
 }
 
 const gatewayBaseUrl = normalizeGatewayProxyTarget(
-  process.env.NEXT_PUBLIC_GATEWAY_BASE_URL
+  process.env.NEXT_PUBLIC_GATEWAY_BASE_URL,
 );
 const docsBaseUrl = normalizeDocsBaseUrl(process.env.NEXT_PUBLIC_DOCS_BASE_URL);
 
@@ -92,6 +92,12 @@ const nextConfig = {
   },
   async redirects() {
     return [
+      {
+        source: "/:path*",
+        has: [{ type: "host", value: "synapse-network.ai" }],
+        destination: "https://www.synapse-network.ai/:path*",
+        permanent: true,
+      },
       {
         source: "/docs",
         destination: docsBaseUrl,
