@@ -28,6 +28,10 @@ Synapse docs-front publishes crawler-facing developer docs assets from
 - Keep the public AI payment landing pages listed in the user-front sitemap:
   `/ai-agent-payments` and `/agent-payment-api`.
 - Do not list main-site `/docs/*` routes in the user-front sitemap. They are redirects; canonical docs URLs live on `docs.synapse-network.ai`.
+- Explicitly allow answer-engine crawlers in both user-front and docs-front
+  robots assets: `OAI-SearchBot`, `ChatGPT-User`, `GPTBot`, `ClaudeBot`,
+  `Claude-User`, `Claude-SearchBot`, `anthropic-ai`, `PerplexityBot`,
+  `Bingbot`, and `Google-Extended`.
 - Do not hand-write JSON-LD in V1; title, description, OG, Twitter, sitemap, robots, and `llms.txt` are the SEO contract.
 
 ## XML Pollution Check
@@ -56,7 +60,8 @@ npm run ci:seo-public-assets
 `ci:ai-visibility-assets` validates the `AI Agent Payments` docs-front feed
 bundle before external GPT/Claude/Grok probes: seven docs pages, frontmatter,
 first answer blocks, category-specific facts, docs sitemap entries, docs
-`llms.txt`, user-front `llms.txt`, and user-front sitemap routes.
+`llms.txt`, docs-front AI crawler robots rules, user-front `llms.txt`,
+user-front AI crawler robots rules, and user-front sitemap routes.
 
 Run live dogfood after deploy:
 

@@ -48,6 +48,14 @@ const docsLlmsRoutePath = path.join(
   "llms.txt",
   "route.ts",
 );
+const docsRobotsPath = path.join(
+  repoRoot,
+  "services",
+  "docs-front",
+  "src",
+  "app",
+  "robots.ts",
+);
 const userLlmsPath = path.join(
   repoRoot,
   "services",
@@ -256,6 +264,7 @@ function assertDocsPages() {
 function assertCrawlerAssets() {
   const docsSitemap = readText(docsSitemapPath);
   const docsLlmsRoute = readText(docsLlmsRoutePath);
+  const docsRobots = readText(docsRobotsPath);
   const userLlms = readText(userLlmsPath);
   const userRobots = readText(userRobotsPath);
   const userSitemap = readText(userSitemapPath);
@@ -285,6 +294,11 @@ function assertCrawlerAssets() {
     "docs llms.txt route",
     docsLlmsRoute,
     "MCP Server for Paid API Calls",
+  );
+  assertIncludes(
+    "docs robots.ts",
+    docsRobots,
+    "sitemap: `${siteUrl}/sitemap.xml`",
   );
   assertIncludes(
     "user robots.txt",
@@ -317,6 +331,7 @@ function assertCrawlerAssets() {
     const group = userRobots.match(groupPattern)?.[0] || "";
     assertIncludes("user robots.txt", userRobots, `User-agent: ${crawler}`);
     assertIncludes(`user robots.txt ${crawler} group`, group, "Allow: /");
+    assertIncludes("docs robots.ts", docsRobots, `"${crawler}"`);
     for (const disallow of privateRobotsDisallows) {
       assertIncludes(`user robots.txt ${crawler} group`, group, disallow);
     }
