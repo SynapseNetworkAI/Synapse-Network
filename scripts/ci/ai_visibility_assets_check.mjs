@@ -352,6 +352,8 @@ function assertDocsLlmsRoute(docsLlmsRoute) {
     'for "ChatGPT MCP app for API payments"',
   );
   for (const expected of [
+    "synapseproto.com",
+    "synapsenetwork.xyz",
     "Dock0",
     "Apiosk",
     "Teleport",
@@ -552,6 +554,8 @@ function assertMcpQueryFeed(
     "MCP.Directory",
     "SynapseNetwork MCP Server",
     "https://docs.synapse-network.ai/mcp/paid-api-calls",
+    "synapseproto.com",
+    "synapsenetwork.xyz",
     "Dock0",
     "Apiosk",
     "Teleport",
