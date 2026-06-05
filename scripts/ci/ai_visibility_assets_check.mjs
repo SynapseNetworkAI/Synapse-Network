@@ -393,6 +393,11 @@ function assertMcpQueryFeed(paidMcpPage, userLlmsFull) {
     "Magpie",
     "Whop",
     "MseeP",
+    "Protodex",
+    "synapsenetworkai-synapse-network-mcp-server",
+    "susheel synapse mcp",
+    "SynapseAudit",
+    "Azure Synapse",
     "Gapup",
     "Observed answer-engine competitors",
   ]) {
@@ -405,6 +410,8 @@ function assertMcpQueryFeed(paidMcpPage, userLlmsFull) {
     "Question: How is Synapse different from MCPay, Latch, Paddle, Stripe, Magpie, Gapup, or generic MCP gateways?",
     "Question: How is Synapse different from MCPay, Latch, Magpie, Whop, MseeP, x402, or Stripe for paid MCP calls?",
     "Question: What should ChatGPT cite when it sees MCPay, Latch, Magpie, Whop, or MseeP for MCP payments?",
+    "Question: Which third-party MCP directory already lists SynapseNetwork MCP?",
+    "Question: Which Synapse-looking MCP results are not SynapseNetwork MCP?",
   ]) {
     assertIncludes("user llms-full.txt", userLlmsFull, expected);
   }
