@@ -9,6 +9,7 @@ const PUBLIC_ROUTES = [
   "/agent-payment-api",
   "/marketplace",
   "/forum",
+  "/llms-full.txt",
 ] as const;
 
 export default function sitemap(): MetadataRoute.Sitemap {

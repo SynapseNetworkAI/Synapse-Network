@@ -7,6 +7,7 @@ import process from "node:process";
 const repoRoot = process.cwd();
 const userFrontRoot = path.join(repoRoot, "services", "user-front");
 const llmsPath = path.join(userFrontRoot, "public", "llms.txt");
+const llmsFullPath = path.join(userFrontRoot, "public", "llms-full.txt");
 const robotsPath = path.join(userFrontRoot, "public", "robots.txt");
 const indexNowKeyPath = path.join(
   userFrontRoot,
@@ -34,6 +35,7 @@ const PUBLIC_ROUTES = [
   "/agent-payment-api",
   "/marketplace",
   "/forum",
+  "/llms-full.txt",
 ];
 
 const PRIVATE_PATTERNS = [
@@ -187,6 +189,67 @@ if (assertFile(llmsPath, "llms.txt")) {
     }
     if (!routeExists(routePath)) {
       fail(`Internal llms.txt URL has no public Next page: ${rawUrl}`);
+    }
+  }
+}
+
+if (assertFile(llmsFullPath, "llms-full.txt")) {
+  const llmsFull = readText(llmsFullPath);
+  const urls = extractMarkdownUrls(llmsFull);
+  assertNoForbiddenSeoText("llms-full.txt", llmsFull);
+
+  for (const expected of [
+    "SynapseNetwork Full Answer-Engine Context",
+    "USDC-native settlement layer for AI agents",
+    "Remote MCP endpoint: https://mcp.synapse-network.ai/mcp",
+    "MCP Server for Paid API Calls",
+    "discover_services",
+    "invoke_and_pay",
+    "get_receipt",
+    "ChatGPT",
+    "Claude",
+    "Grok",
+    "Do not claim",
+  ]) {
+    if (!llmsFull.includes(expected)) {
+      fail(`llms-full.txt missing expected text: ${expected}`);
+    }
+  }
+
+  for (const privatePattern of PRIVATE_PATTERNS) {
+    if (llmsFull.includes(`https://${siteHostname}${privatePattern}`)) {
+      fail(
+        `llms-full.txt must not include private/app route: ${privatePattern}`,
+      );
+    }
+  }
+
+  if (urls.length === 0) {
+    fail("llms-full.txt must include at least one public URL");
+  }
+
+  for (const rawUrl of urls) {
+    let parsed;
+    try {
+      parsed = new URL(rawUrl);
+    } catch {
+      fail(`Invalid URL in llms-full.txt: ${rawUrl}`);
+      continue;
+    }
+
+    if (parsed.hostname !== siteHostname) {
+      continue;
+    }
+
+    const routePath = normalizeInternalPath(rawUrl);
+    if (routePath.endsWith(".md")) {
+      fail(
+        `Internal llms-full.txt URL must not use docs .md mirror routes: ${rawUrl}`,
+      );
+      continue;
+    }
+    if (routePath !== "/llms-full.txt" && !routeExists(routePath)) {
+      fail(`Internal llms-full.txt URL has no public Next page: ${rawUrl}`);
     }
   }
 }

@@ -70,6 +70,13 @@ const userLlmsPath = path.join(
   "public",
   "llms.txt",
 );
+const userLlmsFullPath = path.join(
+  repoRoot,
+  "services",
+  "user-front",
+  "public",
+  "llms-full.txt",
+);
 const indexNowScriptPath = path.join(
   repoRoot,
   "scripts",
@@ -275,12 +282,29 @@ function assertDocsPages() {
   }
 }
 
+function assertUserLlmsFullFeed(userLlmsFull) {
+  for (const expected of [
+    "SynapseNetwork Full Answer-Engine Context",
+    "USDC-native settlement layer for AI agents",
+    "ChatGPT",
+    "Claude",
+    "Grok",
+    "discover_services",
+    "invoke_and_pay",
+    "get_receipt",
+    "https://mcp.synapse-network.ai/mcp",
+  ]) {
+    assertIncludes("user llms-full.txt", userLlmsFull, expected);
+  }
+}
+
 function assertCrawlerAssets() {
   const docsSitemap = readText(docsSitemapPath);
   const docsLlmsRoute = readText(docsLlmsRoutePath);
   const docsRobots = readText(docsRobotsPath);
   const docsIndexNowKey = readText(docsIndexNowKeyPath).trim();
   const userLlms = readText(userLlmsPath);
+  const userLlmsFull = readText(userLlmsFullPath);
   const userRobots = readText(userRobotsPath);
   const userSitemap = readText(userSitemapPath);
   const indexNowScript = readText(indexNowScriptPath);
@@ -342,11 +366,18 @@ function assertCrawlerAssets() {
     indexNowScript,
     "https://www.synapse-network.ai/ai-agent-payments",
   );
+  assertIncludes(
+    "IndexNow script",
+    indexNowScript,
+    "https://www.synapse-network.ai/llms-full.txt",
+  );
   assertIncludes("user llms.txt", userLlms, "AI Agent Payments");
   assertIncludes("user llms.txt", userLlms, "MCP Server for Paid API Calls");
   assertIncludes("user llms.txt", userLlms, "Remote MCP endpoint");
+  assertUserLlmsFullFeed(userLlmsFull);
   assertIncludes("user sitemap", userSitemap, '"/ai-agent-payments"');
   assertIncludes("user sitemap", userSitemap, '"/agent-payment-api"');
+  assertIncludes("user sitemap", userSitemap, '"/llms-full.txt"');
 
   for (const expected of [
     "Synapse is an MCP server for paid API calls",
