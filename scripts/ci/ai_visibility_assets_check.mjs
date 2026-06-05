@@ -337,6 +337,15 @@ function assertDocsLlmsRoute(docsLlmsRoute) {
     docsLlmsRoute,
     'for "ChatGPT MCP app for API payments"',
   );
+  for (const expected of [
+    "Dock0",
+    "Apiosk",
+    "Teleport",
+    "docs.synapse.sh",
+    "susheel synapse-mcp",
+  ]) {
+    assertIncludes("docs llms.txt route", docsLlmsRoute, expected);
+  }
 }
 
 function assertIndexNowAssets(indexNowScript) {
@@ -413,7 +422,12 @@ function assertUserFeedAssets(userLlms, userLlmsFull, userSitemap) {
   assertIncludes("user sitemap", userSitemap, '"/llms-full.txt"');
 }
 
-function assertMcpQueryFeed(mcpIndexPage, paidMcpPage, userLlmsFull) {
+function assertMcpQueryFeed(
+  mcpIndexPage,
+  paidMcpPage,
+  registryPage,
+  userLlmsFull,
+) {
   for (const expected of [
     "Synapse MCP is a payment-aware MCP server for paid API calls",
     "Answer-engine summary",
@@ -474,6 +488,25 @@ function assertMcpQueryFeed(mcpIndexPage, paidMcpPage, userLlmsFull) {
   ]) {
     assertIncludes("user llms-full.txt", userLlmsFull, expected);
   }
+
+  for (const expected of [
+    "Directory submission pack",
+    "Community citation copy",
+    "Smithery",
+    "Glama",
+    "PulseMCP",
+    "MCP.Directory",
+    "SynapseNetwork MCP Server",
+    "https://docs.synapse-network.ai/mcp/paid-api-calls",
+    "Dock0",
+    "Apiosk",
+    "Teleport",
+    "MySynap",
+    "docs.synapse.sh",
+    "susheel/synapse-mcp",
+  ]) {
+    assertIncludes("mcp registry page", registryPage, expected);
+  }
 }
 
 function assertCrawlerGroups(docsRobots, userRobots) {
@@ -503,6 +536,7 @@ function assertCrawlerAssets() {
   const indexNowScript = readText(indexNowScriptPath);
   const mcpIndexPage = readText(path.join(mcpDocsRoot, "index.mdx"));
   const paidMcpPage = readText(path.join(mcpDocsRoot, "paid-api-calls.mdx"));
+  const registryPage = readText(path.join(mcpDocsRoot, "registry.mdx"));
 
   assertDocsRoutes(docsSitemap, userLlms);
   assertDocsLlmsRoute(docsLlmsRoute);
@@ -521,7 +555,7 @@ function assertCrawlerAssets() {
   );
   assertIndexNowAssets(indexNowScript);
   assertUserFeedAssets(userLlms, userLlmsFull, userSitemap);
-  assertMcpQueryFeed(mcpIndexPage, paidMcpPage, userLlmsFull);
+  assertMcpQueryFeed(mcpIndexPage, paidMcpPage, registryPage, userLlmsFull);
   assertCrawlerGroups(docsRobots, userRobots);
 }
 
