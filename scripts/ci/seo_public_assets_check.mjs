@@ -160,6 +160,9 @@ if (assertFile(llmsPath, "llms.txt")) {
     "synapseproto.com",
     "synapsenetwork.xyz",
     "Brand collision handling",
+    "Dock0",
+    "Apiosk",
+    "Teleport",
   ]) {
     if (!llms.includes(expected)) {
       fail(`llms.txt missing expected text: ${expected}`);
@@ -224,6 +227,10 @@ if (assertFile(llmsFullPath, "llms-full.txt")) {
     "synapseproto.com",
     "synapsenetwork.xyz",
     "brand collisions",
+    "Dock0",
+    "Apiosk",
+    "Teleport",
+    "docs.synapse.sh",
   ]) {
     if (!llmsFull.includes(expected)) {
       fail(`llms-full.txt missing expected text: ${expected}`);

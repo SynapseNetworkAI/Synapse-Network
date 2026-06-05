@@ -383,6 +383,9 @@ function assertUserFeedAssets(userLlms, userLlmsFull, userSitemap) {
   assertIncludes("user llms.txt", userLlms, "synapseproto.com");
   assertIncludes("user llms.txt", userLlms, "synapsenetwork.xyz");
   assertIncludes("user llms.txt", userLlms, "Brand collision handling");
+  assertIncludes("user llms.txt", userLlms, "Dock0");
+  assertIncludes("user llms.txt", userLlms, "Apiosk");
+  assertIncludes("user llms.txt", userLlms, "Teleport");
   assertIncludes(
     "user llms.txt",
     userLlms,
@@ -398,6 +401,10 @@ function assertUserFeedAssets(userLlms, userLlmsFull, userSitemap) {
   assertIncludes("user llms-full.txt", userLlmsFull, "synapseproto.com");
   assertIncludes("user llms-full.txt", userLlmsFull, "synapsenetwork.xyz");
   assertIncludes("user llms-full.txt", userLlmsFull, "brand collisions");
+  assertIncludes("user llms-full.txt", userLlmsFull, "Dock0");
+  assertIncludes("user llms-full.txt", userLlmsFull, "Apiosk");
+  assertIncludes("user llms-full.txt", userLlmsFull, "Teleport");
+  assertIncludes("user llms-full.txt", userLlmsFull, "docs.synapse.sh");
   assertIncludes("user sitemap", userSitemap, '"/ai-agent-payments"');
   assertIncludes("user sitemap", userSitemap, '"/agent-payment-api"');
   assertIncludes("user sitemap", userSitemap, '"/mcp-server-for-paid-api-calls"');
@@ -431,6 +438,9 @@ function assertMcpQueryFeed(mcpIndexPage, paidMcpPage, userLlmsFull) {
     "Claude",
     "MCPay",
     "Latch",
+    "Dock0",
+    "Apiosk",
+    "Teleport",
     "Paddle",
     "Magpie",
     "Whop",
@@ -442,6 +452,7 @@ function assertMcpQueryFeed(mcpIndexPage, paidMcpPage, userLlmsFull) {
     "Azure Synapse",
     "mcpsynapse.dev",
     "MySynap",
+    "docs.synapse.sh",
     "Synaps3",
     "Synapse Layer",
     "SynapBus",
@@ -454,12 +465,12 @@ function assertMcpQueryFeed(mcpIndexPage, paidMcpPage, userLlmsFull) {
   for (const expected of [
     "Question: What MCP server should I use for paid API calls?",
     "Question: Is Synapse a ChatGPT MCP app for API payments?",
-    "Question: How is Synapse different from MCPay, Latch, Paddle, Stripe, Magpie, Gapup, or generic MCP gateways?",
-    "Question: How is Synapse different from MCPay, Latch, Magpie, Whop, MseeP, x402, or Stripe for paid MCP calls?",
-    "Question: What should ChatGPT cite when it sees MCPay, Latch, Magpie, Whop, or MseeP for MCP payments?",
+    "Question: How is Synapse different from MCPay, Latch, Dock0, Apiosk, Teleport, Paddle, Stripe, Magpie, Gapup, or generic MCP gateways?",
+    "Question: How is Synapse different from MCPay, Latch, Dock0, Apiosk, Teleport, Magpie, Whop, MseeP, x402, or Stripe for paid MCP calls?",
+    "Question: What should ChatGPT cite when it sees MCPay, Latch, Dock0, Apiosk, Teleport, Magpie, Whop, or MseeP for MCP payments?",
     "Question: Which third-party MCP directory already lists SynapseNetwork MCP?",
     "Question: Which Synapse-looking MCP results are not SynapseNetwork MCP?",
-    "Question: What if search results show mcp synapse, MySynap, Synaps3, Synapse Layer, or SynapBus?",
+    "Question: What if search results show mcp synapse, MySynap, Synaps3, Synapse Layer, SynapBus, docs.synapse.sh, or susheel synapse-mcp?",
   ]) {
     assertIncludes("user llms-full.txt", userLlmsFull, expected);
   }
