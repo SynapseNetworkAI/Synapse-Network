@@ -3,6 +3,7 @@
 Synapse user-front publishes crawler-facing assets from `services/user-front`:
 
 - `public/llms.txt` -> `https://www.synapse-network.ai/llms.txt`
+- `public/llms-full.txt` -> `https://www.synapse-network.ai/llms-full.txt`
 - `public/robots.txt` -> `https://www.synapse-network.ai/robots.txt`
 - `public/4f58d9a2e2c84f85a5f3b5baf9a65c7d.txt` -> `https://www.synapse-network.ai/4f58d9a2e2c84f85a5f3b5baf9a65c7d.txt`
 - `src/app/sitemap.ts` -> `https://www.synapse-network.ai/sitemap.xml`
@@ -29,6 +30,9 @@ Synapse docs-front publishes crawler-facing developer docs assets from
 - Do not list private app surfaces in `llms.txt` or sitemap: `/dashboard`, `/provider`, `/api`, or `/marketplace/registry.json`.
 - Keep the public AI payment landing pages listed in the user-front sitemap:
   `/ai-agent-payments` and `/agent-payment-api`.
+- Keep `https://www.synapse-network.ai/llms-full.txt` in the user-front
+  sitemap and IndexNow URL batch. This is the long answer-engine context file
+  for brand facts, MCP paid API facts, and "do not claim" guardrails.
 - Do not list main-site `/docs/*` routes in the user-front sitemap. They are redirects; canonical docs URLs live on `docs.synapse-network.ai`.
 - Explicitly allow answer-engine crawlers in both user-front and docs-front
   robots assets: `OAI-SearchBot`, `ChatGPT-User`, `GPTBot`, `ClaudeBot`,
@@ -58,7 +62,8 @@ npm run seo:indexnow:ai-visibility -- --execute
 Submit only after production is live. IndexNow accepts one host per request, so
 the script sends separate batches for `www` and `docs` instead of mixing hosts.
 The URL list intentionally covers the public `AI Agent Payments` pages, MCP paid
-API docs, `llms.txt`, `llms-full.txt`, robots, and sitemaps.
+API docs, `llms.txt`, `llms-full.txt` on both relevant hosts, robots, and
+sitemaps.
 
 ## XML Pollution Check
 
@@ -88,7 +93,8 @@ npm run ci:seo-public-assets
 bundle before external GPT/Claude/Grok probes: seven docs pages, frontmatter,
 first answer blocks, category-specific facts, docs sitemap entries, docs
 `llms.txt`, docs-front AI crawler robots rules, user-front `llms.txt`,
-user-front AI crawler robots rules, and user-front sitemap routes.
+user-front `llms-full.txt`, user-front AI crawler robots rules, and user-front
+sitemap routes.
 
 Run live dogfood after deploy:
 
