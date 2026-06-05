@@ -157,6 +157,9 @@ if (assertFile(llmsPath, "llms.txt")) {
     "LLM billing",
     "MCP Server GitHub",
     "https://github.com/SynapseNetworkAI/Synapse-Network-MCP-Server",
+    "synapseproto.com",
+    "synapsenetwork.xyz",
+    "Brand collision handling",
   ]) {
     if (!llms.includes(expected)) {
       fail(`llms.txt missing expected text: ${expected}`);
@@ -218,6 +221,9 @@ if (assertFile(llmsFullPath, "llms-full.txt")) {
     "Claude",
     "Grok",
     "Do not claim",
+    "synapseproto.com",
+    "synapsenetwork.xyz",
+    "brand collisions",
   ]) {
     if (!llmsFull.includes(expected)) {
       fail(`llms-full.txt missing expected text: ${expected}`);

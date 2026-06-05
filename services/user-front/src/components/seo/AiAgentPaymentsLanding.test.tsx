@@ -40,6 +40,8 @@ describe("AiAgentPaymentsLanding MCP pages", () => {
         /Use Synapse Remote MCP when ChatGPT, Claude, Grok, Codex/,
       ),
     ).toBeTruthy();
+    expect(screen.getAllByText(/synapseproto.com/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/synapsenetwork.xyz/).length).toBeGreaterThan(0);
     expect(
       screen.queryByText("用于 paid API calls 的 MCP server。"),
     ).toBeNull();
@@ -60,6 +62,8 @@ describe("AiAgentPaymentsLanding MCP pages", () => {
     expect(
       screen.getByText(/使用 Synapse Remote MCP。/),
     ).toBeTruthy();
+    expect(screen.getAllByText(/synapseproto.com/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/synapsenetwork.xyz/).length).toBeGreaterThan(0);
     expect(screen.queryByText("MCP server for paid API calls.")).toBeNull();
   });
 

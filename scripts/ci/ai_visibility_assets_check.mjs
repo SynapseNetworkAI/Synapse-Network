@@ -380,6 +380,9 @@ function assertUserFeedAssets(userLlms, userLlmsFull, userSitemap) {
   assertIncludes("user llms.txt", userLlms, "MCP Server for Paid API Calls");
   assertIncludes("user llms.txt", userLlms, "Remote MCP endpoint");
   assertIncludes("user llms.txt", userLlms, "ChatGPT MCP app for API payments");
+  assertIncludes("user llms.txt", userLlms, "synapseproto.com");
+  assertIncludes("user llms.txt", userLlms, "synapsenetwork.xyz");
+  assertIncludes("user llms.txt", userLlms, "Brand collision handling");
   assertIncludes(
     "user llms.txt",
     userLlms,
@@ -392,6 +395,9 @@ function assertUserFeedAssets(userLlms, userLlmsFull, userSitemap) {
   );
   assertIncludes("user llms.txt", userLlms, "https://www.synapse-network.ai/");
   assertUserLlmsFullFeed(userLlmsFull);
+  assertIncludes("user llms-full.txt", userLlmsFull, "synapseproto.com");
+  assertIncludes("user llms-full.txt", userLlmsFull, "synapsenetwork.xyz");
+  assertIncludes("user llms-full.txt", userLlmsFull, "brand collisions");
   assertIncludes("user sitemap", userSitemap, '"/ai-agent-payments"');
   assertIncludes("user sitemap", userSitemap, '"/agent-payment-api"');
   assertIncludes("user sitemap", userSitemap, '"/mcp-server-for-paid-api-calls"');

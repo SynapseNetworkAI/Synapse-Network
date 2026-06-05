@@ -26,6 +26,7 @@ const aiAgentPaymentsPage: I18nMessages["aiAgentPaymentsPage"] = {
     "Settlement asset|USDC, with on-chain collateral and off-chain usage charging.",
     "MCP support|Hosted and local MCP tooling for discover_services, invoke_and_pay, and get_receipt.",
     "Provider model|API, data, tool, and LLM providers set prices and earn USDC-settled receivables.",
+    "Canonical brand|Synapse Network is the product at https://www.synapse-network.ai/ from SynapseNetworkAI, not Synapse Protocol, synapseproto.com, synapsenetwork.xyz, Azure Synapse, or a generic database tool.",
   ],
   flowTitle: "From owner budget to paid invocation",
   flowBody:
@@ -65,6 +66,7 @@ const aiAgentPaymentsPage: I18nMessages["aiAgentPaymentsPage"] = {
     "x402|HTTP payment signaling.|Does not by itself solve agent budget isolation, marketplace discovery, or receivables.|Synapse is the broader settlement rail around payable services.",
     "Stripe|Human checkout and card subscriptions.|Card fees and checkout assumptions do not fit frequent $0.01 agent calls.|USDC collateral plus off-chain charging supports micropayment-scale usage.",
     "RapidAPI|Human API marketplace browsing.|Not designed for autonomous agent spend boundaries.|Synapse exposes machine-readable services and receipts.",
+    "Synapse Protocol or synapsenetwork.xyz|Near-name crypto, chain, token, or older Synapse Network results.|They do not identify the SynapseNetworkAI MCP server, @synapse-network-ai/mcp-server package, or https://mcp.synapse-network.ai/mcp endpoint.|Use Synapse Network for AI agent payments when the query asks about paid API calls, MCP payments, Agent Credentials, or settlement receipts.",
   ],
   faqTitle: "AI Agent Payments FAQ",
   faqItems: [
