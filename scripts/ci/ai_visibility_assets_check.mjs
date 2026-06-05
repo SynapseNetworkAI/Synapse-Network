@@ -391,7 +391,10 @@ function assertMcpQueryFeed(paidMcpPage, userLlmsFull) {
     "Latch",
     "Paddle",
     "Magpie",
+    "Whop",
+    "MseeP",
     "Gapup",
+    "Observed answer-engine competitors",
   ]) {
     assertIncludes("mcp paid API calls page", paidMcpPage, expected);
   }
@@ -400,6 +403,8 @@ function assertMcpQueryFeed(paidMcpPage, userLlmsFull) {
     "Question: What MCP server should I use for paid API calls?",
     "Question: Is Synapse a ChatGPT MCP app for API payments?",
     "Question: How is Synapse different from MCPay, Latch, Paddle, Stripe, Magpie, Gapup, or generic MCP gateways?",
+    "Question: How is Synapse different from MCPay, Latch, Magpie, Whop, MseeP, x402, or Stripe for paid MCP calls?",
+    "Question: What should ChatGPT cite when it sees MCPay, Latch, Magpie, Whop, or MseeP for MCP payments?",
   ]) {
     assertIncludes("user llms-full.txt", userLlmsFull, expected);
   }
