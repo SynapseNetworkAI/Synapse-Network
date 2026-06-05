@@ -4,12 +4,14 @@ Synapse user-front publishes crawler-facing assets from `services/user-front`:
 
 - `public/llms.txt` -> `https://www.synapse-network.ai/llms.txt`
 - `public/robots.txt` -> `https://www.synapse-network.ai/robots.txt`
+- `public/4f58d9a2e2c84f85a5f3b5baf9a65c7d.txt` -> `https://www.synapse-network.ai/4f58d9a2e2c84f85a5f3b5baf9a65c7d.txt`
 - `src/app/sitemap.ts` -> `https://www.synapse-network.ai/sitemap.xml`
 - `src/app/layout.tsx` -> homepage metadata, OpenGraph, and Twitter metadata
 
 Synapse docs-front publishes crawler-facing developer docs assets from
 `services/docs-front`:
 
+- `public/4f58d9a2e2c84f85a5f3b5baf9a65c7d.txt` -> `https://docs.synapse-network.ai/4f58d9a2e2c84f85a5f3b5baf9a65c7d.txt`
 - `src/app/llms.txt/route.ts` -> `https://docs.synapse-network.ai/llms.txt`
 - `src/app/llms-full.txt/route.ts` -> `https://docs.synapse-network.ai/llms-full.txt`
 - `src/app/robots.ts` -> `https://docs.synapse-network.ai/robots.txt`
@@ -32,7 +34,31 @@ Synapse docs-front publishes crawler-facing developer docs assets from
   robots assets: `OAI-SearchBot`, `ChatGPT-User`, `GPTBot`, `ClaudeBot`,
   `Claude-User`, `Claude-SearchBot`, `anthropic-ai`, `PerplexityBot`,
   `Bingbot`, and `Google-Extended`.
+- Keep the public IndexNow key file hosted on both `www` and `docs` before
+  running IndexNow submissions. The key is not a secret; it is the ownership
+  proof file that search engines fetch.
 - Do not hand-write JSON-LD in V1; title, description, OG, Twitter, sitemap, robots, and `llms.txt` are the SEO contract.
+
+## IndexNow Submission
+
+After a production deploy that changes answer-engine assets, run a dry-run first:
+
+```bash
+npm run seo:indexnow:ai-visibility
+```
+
+The dry-run prints the exact `www.synapse-network.ai` and
+`docs.synapse-network.ai` URL batches, key file locations, and IndexNow
+endpoint. After confirming both key files are live, submit the changed URLs:
+
+```bash
+npm run seo:indexnow:ai-visibility -- --execute
+```
+
+Submit only after production is live. IndexNow accepts one host per request, so
+the script sends separate batches for `www` and `docs` instead of mixing hosts.
+The URL list intentionally covers the public `AI Agent Payments` pages, MCP paid
+API docs, `llms.txt`, `llms-full.txt`, robots, and sitemaps.
 
 ## XML Pollution Check
 
@@ -54,6 +80,7 @@ Run the static PR gate:
 
 ```bash
 npm run ci:ai-visibility-assets
+npm run seo:indexnow:ai-visibility
 npm run ci:seo-public-assets
 ```
 

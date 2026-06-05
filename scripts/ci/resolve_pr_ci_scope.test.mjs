@@ -62,6 +62,7 @@ test("workflow, ci, and ops files are known without forcing full CI", () => {
     "scripts/ops/gcp_billing_review.sh",
     "scripts/deploy/gcp_configure_staging_alerts.sh",
     "scripts/git/cleanup_old_branches.sh",
+    "scripts/seo/submit_indexnow_ai_visibility.mjs",
     "package-lock.json",
     "infra/postgres/init/gateway-admin/003_gateway_admin_projection_views.sql",
     "scripts/ui/admin_menu_config_local_pages.mjs",
@@ -117,6 +118,17 @@ test("public docs package scripts map to narrow docs scopes", () => {
     classifyScriptChange(
       "ci:ai-visibility-assets",
       "node scripts/ci/ai_visibility_assets_check.mjs",
+    ),
+    {
+      commands: ["ci_meta_checks", "quality_budget_check", "docs_checks"],
+      riskScopes: ["ai-visibility-assets"],
+    },
+  );
+
+  assert.deepEqual(
+    classifyScriptChange(
+      "seo:indexnow:ai-visibility",
+      "node scripts/seo/submit_indexnow_ai_visibility.mjs",
     ),
     {
       commands: ["ci_meta_checks", "quality_budget_check", "docs_checks"],

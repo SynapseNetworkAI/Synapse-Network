@@ -8,6 +8,11 @@ const repoRoot = process.cwd();
 const userFrontRoot = path.join(repoRoot, "services", "user-front");
 const llmsPath = path.join(userFrontRoot, "public", "llms.txt");
 const robotsPath = path.join(userFrontRoot, "public", "robots.txt");
+const indexNowKeyPath = path.join(
+  userFrontRoot,
+  "public",
+  "4f58d9a2e2c84f85a5f3b5baf9a65c7d.txt",
+);
 const sitemapPath = path.join(userFrontRoot, "src", "app", "sitemap.ts");
 const layoutPath = path.join(userFrontRoot, "src", "app", "layout.tsx");
 const nextConfigPath = path.join(userFrontRoot, "next.config.mjs");
@@ -20,6 +25,7 @@ const appleTouchIconPath = path.join(
   "apple-touch-icon.png",
 );
 const siteHostname = "www.synapse-network.ai";
+const indexNowKey = "4f58d9a2e2c84f85a5f3b5baf9a65c7d";
 
 const PUBLIC_ROUTES = [
   "/",
@@ -217,6 +223,13 @@ if (assertFile(robotsPath, "robots.txt")) {
         );
       }
     }
+  }
+}
+
+if (assertFile(indexNowKeyPath, "IndexNow key file")) {
+  const keyText = readText(indexNowKeyPath).trim();
+  if (keyText !== indexNowKey) {
+    fail("IndexNow key file must contain the public IndexNow key.");
   }
 }
 
