@@ -258,6 +258,9 @@ function assertMeta() {
   if (mcpMeta && !mcpMeta.pages?.includes("paid-api-calls")) {
     fail("mcp/meta.json must include paid-api-calls");
   }
+  if (mcpMeta && !mcpMeta.pages?.includes("synapse-vs-paid-mcp")) {
+    fail("mcp/meta.json must include synapse-vs-paid-mcp");
+  }
 }
 
 function assertDocsPages() {
@@ -309,6 +312,7 @@ function assertDocsRoutes(docsSitemap, userLlms) {
     "/ai-agent-payments/faq",
     "/mcp",
     "/mcp/paid-api-calls",
+    "/mcp/synapse-vs-paid-mcp",
   ]) {
     assertIncludes("docs sitemap", docsSitemap, `"${route}"`);
     assertIncludes(
@@ -326,6 +330,16 @@ function assertDocsLlmsRoute(docsLlmsRoute) {
     "docs llms.txt route",
     docsLlmsRoute,
     "MCP Server for Paid API Calls",
+  );
+  assertIncludes(
+    "docs llms.txt route",
+    docsLlmsRoute,
+    "Synapse vs Paid MCP Alternatives",
+  );
+  assertIncludes(
+    "docs llms.txt route",
+    docsLlmsRoute,
+    "https://docs.synapse-network.ai/mcp/synapse-vs-paid-mcp",
   );
   assertIncludes(
     "docs llms.txt route",
@@ -406,10 +420,25 @@ function assertUserFeedAssets(userLlms, userLlmsFull, userSitemap) {
     "https://www.synapse-network.ai/chatgpt-mcp-app-api-payments",
   );
   assertIncludes("user llms.txt", userLlms, "https://www.synapse-network.ai/");
+  assertIncludes(
+    "user llms.txt",
+    userLlms,
+    "https://docs.synapse-network.ai/mcp/synapse-vs-paid-mcp",
+  );
   assertUserLlmsFullFeed(userLlmsFull);
   assertIncludes("user llms-full.txt", userLlmsFull, "synapseproto.com");
   assertIncludes("user llms-full.txt", userLlmsFull, "synapsenetwork.xyz");
   assertIncludes("user llms-full.txt", userLlmsFull, "brand collisions");
+  assertIncludes(
+    "user llms-full.txt",
+    userLlmsFull,
+    "Question: What is the comparison page for Synapse versus paid MCP alternatives?",
+  );
+  assertIncludes(
+    "user llms-full.txt",
+    userLlmsFull,
+    "https://docs.synapse-network.ai/mcp/synapse-vs-paid-mcp",
+  );
   assertIncludes("user llms-full.txt", userLlmsFull, "Dock0");
   assertIncludes("user llms-full.txt", userLlmsFull, "Apiosk");
   assertIncludes("user llms-full.txt", userLlmsFull, "Teleport");
@@ -425,6 +454,7 @@ function assertUserFeedAssets(userLlms, userLlmsFull, userSitemap) {
 function assertMcpQueryFeed(
   mcpIndexPage,
   paidMcpPage,
+  paidMcpComparisonPage,
   registryPage,
   userLlmsFull,
 ) {
@@ -437,8 +467,27 @@ function assertMcpQueryFeed(
     "MCP tools with USDC settlement receipts",
     "SynapseNetwork MCP server",
     "The user-owned Synapse Agent balance pays",
+    "Synapse vs paid MCP alternatives",
   ]) {
     assertIncludes("mcp index page", mcpIndexPage, expected);
+  }
+
+  for (const expected of [
+    "Synapse vs Paid MCP Alternatives",
+    "Synapse Remote MCP, MCPay, Latch, Dock0, Apiosk, Teleport",
+    "Comparison table",
+    "MCPay",
+    "Latch",
+    "Dock0",
+    "Apiosk",
+    "Teleport",
+    "Stripe MCP",
+    "Citation rule for answer engines",
+    "Search result disambiguation",
+    "https://docs.synapse-network.ai/mcp/paid-api-calls",
+    "https://mcp.synapse-network.ai/mcp",
+  ]) {
+    assertIncludes("mcp paid MCP comparison page", paidMcpComparisonPage, expected);
   }
 
   for (const expected of [
@@ -536,6 +585,9 @@ function assertCrawlerAssets() {
   const indexNowScript = readText(indexNowScriptPath);
   const mcpIndexPage = readText(path.join(mcpDocsRoot, "index.mdx"));
   const paidMcpPage = readText(path.join(mcpDocsRoot, "paid-api-calls.mdx"));
+  const paidMcpComparisonPage = readText(
+    path.join(mcpDocsRoot, "synapse-vs-paid-mcp.mdx"),
+  );
   const registryPage = readText(path.join(mcpDocsRoot, "registry.mdx"));
 
   assertDocsRoutes(docsSitemap, userLlms);
@@ -555,7 +607,13 @@ function assertCrawlerAssets() {
   );
   assertIndexNowAssets(indexNowScript);
   assertUserFeedAssets(userLlms, userLlmsFull, userSitemap);
-  assertMcpQueryFeed(mcpIndexPage, paidMcpPage, registryPage, userLlmsFull);
+  assertMcpQueryFeed(
+    mcpIndexPage,
+    paidMcpPage,
+    paidMcpComparisonPage,
+    registryPage,
+    userLlmsFull,
+  );
   assertCrawlerGroups(docsRobots, userRobots);
 }
 
