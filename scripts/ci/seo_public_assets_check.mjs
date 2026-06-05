@@ -14,6 +14,7 @@ const indexNowKeyPath = path.join(
   "public",
   "4f58d9a2e2c84f85a5f3b5baf9a65c7d.txt",
 );
+const publicSitemapPath = path.join(userFrontRoot, "public", "sitemap.xml");
 const sitemapPath = path.join(userFrontRoot, "src", "app", "sitemap.ts");
 const layoutPath = path.join(userFrontRoot, "src", "app", "layout.tsx");
 const nextConfigPath = path.join(userFrontRoot, "next.config.mjs");
@@ -294,6 +295,12 @@ if (assertFile(indexNowKeyPath, "IndexNow key file")) {
   if (keyText !== indexNowKey) {
     fail("IndexNow key file must contain the public IndexNow key.");
   }
+}
+
+if (fs.existsSync(publicSitemapPath)) {
+  fail(
+    "services/user-front/public/sitemap.xml must not exist because it shadows src/app/sitemap.ts",
+  );
 }
 
 if (assertFile(sitemapPath, "sitemap.ts")) {
