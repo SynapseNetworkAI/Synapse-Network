@@ -56,12 +56,25 @@ const docsRobotsPath = path.join(
   "app",
   "robots.ts",
 );
+const docsIndexNowKeyPath = path.join(
+  repoRoot,
+  "services",
+  "docs-front",
+  "public",
+  "4f58d9a2e2c84f85a5f3b5baf9a65c7d.txt",
+);
 const userLlmsPath = path.join(
   repoRoot,
   "services",
   "user-front",
   "public",
   "llms.txt",
+);
+const indexNowScriptPath = path.join(
+  repoRoot,
+  "scripts",
+  "seo",
+  "submit_indexnow_ai_visibility.mjs",
 );
 const userRobotsPath = path.join(
   repoRoot,
@@ -156,6 +169,7 @@ const privateRobotsDisallows = [
   "Disallow: /api/",
   "Disallow: /_next/data/",
 ];
+const indexNowKey = "4f58d9a2e2c84f85a5f3b5baf9a65c7d";
 
 function fail(message) {
   failures.push(message);
@@ -265,9 +279,11 @@ function assertCrawlerAssets() {
   const docsSitemap = readText(docsSitemapPath);
   const docsLlmsRoute = readText(docsLlmsRoutePath);
   const docsRobots = readText(docsRobotsPath);
+  const docsIndexNowKey = readText(docsIndexNowKeyPath).trim();
   const userLlms = readText(userLlmsPath);
   const userRobots = readText(userRobotsPath);
   const userSitemap = readText(userSitemapPath);
+  const indexNowScript = readText(indexNowScriptPath);
   const paidMcpPage = readText(path.join(mcpDocsRoot, "paid-api-calls.mdx"));
 
   for (const route of [
@@ -300,10 +316,31 @@ function assertCrawlerAssets() {
     docsRobots,
     "sitemap: `${siteUrl}/sitemap.xml`",
   );
+  if (docsIndexNowKey !== indexNowKey) {
+    fail("docs-front IndexNow key file must contain the public IndexNow key.");
+  }
   assertIncludes(
     "user robots.txt",
     userRobots,
     "Sitemap: https://www.synapse-network.ai/sitemap.xml",
+  );
+  assertIncludes(
+    "IndexNow script",
+    indexNowScript,
+    "https://api.indexnow.org/indexnow",
+  );
+  assertIncludes("IndexNow script", indexNowScript, "docs.synapse-network.ai");
+  assertIncludes("IndexNow script", indexNowScript, indexNowKey);
+  assertIncludes("IndexNow script", indexNowScript, "${INDEXNOW_KEY}.txt");
+  assertIncludes(
+    "IndexNow script",
+    indexNowScript,
+    "https://docs.synapse-network.ai/mcp/paid-api-calls",
+  );
+  assertIncludes(
+    "IndexNow script",
+    indexNowScript,
+    "https://www.synapse-network.ai/ai-agent-payments",
   );
   assertIncludes("user llms.txt", userLlms, "AI Agent Payments");
   assertIncludes("user llms.txt", userLlms, "MCP Server for Paid API Calls");

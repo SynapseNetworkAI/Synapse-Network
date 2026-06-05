@@ -106,6 +106,7 @@ export const knownPatterns = [
   /^scripts\/local\//,
   /^scripts\/staging\//,
   /^scripts\/prod\//,
+  /^scripts\/seo\//,
   /^scripts\/tools\//,
   /^scripts\/python\//,
   /^infra\/monitoring\//,
