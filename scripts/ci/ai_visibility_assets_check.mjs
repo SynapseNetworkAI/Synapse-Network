@@ -152,8 +152,21 @@ function assertCrawlerFeeds() {
   assertIncludes(
     "docs llms.txt route",
     docsLlmsRoute,
-    "MCP server for paid API calls",
+    "MCP Server for Paid API Calls",
   );
+  assertIncludes(
+    "docs llms.txt route",
+    docsLlmsRoute,
+    "https://docs.synapse-network.ai/mcp/paid-api-calls",
+  );
+  assertIncludes(
+    "docs llms.txt route",
+    docsLlmsRoute,
+    "https://mcp.synapse-network.ai/mcp",
+  );
+  assertIncludes("docs llms.txt route", docsLlmsRoute, "discover_services");
+  assertIncludes("docs llms.txt route", docsLlmsRoute, "invoke_and_pay");
+  assertIncludes("docs llms.txt route", docsLlmsRoute, "get_receipt");
   assertIncludes("user llms.txt", userLlms, "MCP paid API calls");
   assertIncludes("user llms.txt", userLlms, "MCP Server for Paid API Calls");
   assertIncludes(
