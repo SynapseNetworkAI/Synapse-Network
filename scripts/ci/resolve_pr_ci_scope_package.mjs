@@ -167,6 +167,16 @@ function classifyWeeklyHygieneScript(scriptName, scriptValue) {
 
 function classifyDocsPublicScript(scriptName, scriptValue) {
   if (
+    scriptName === "ci:ai-visibility-assets" &&
+    /\bscripts\/ci\/ai_visibility_assets_check\.mjs\b/.test(scriptValue)
+  ) {
+    return {
+      commands: ["ci_meta_checks", "quality_budget_check", "docs_checks"],
+      riskScopes: ["ai-visibility-assets"],
+    };
+  }
+
+  if (
     scriptName === "docs:sync-public-mirror" &&
     /\bscripts\/tools\/sync_public_docs_mirror\.mjs\b/.test(scriptValue)
   ) {

@@ -35,6 +35,7 @@
     "ci:created-at-indexes": "node scripts/ci/created_at_index_check.mjs && node --test scripts/ci/created_at_index_check.test.mjs",
     "ci:state-idempotency-safety": "node scripts/ci/state_idempotency_safety_check.mjs",
     "ci:llms-links": "node scripts/ci/llms_links_check.mjs",
+    "ci:ai-visibility-assets": "node scripts/ci/ai_visibility_assets_check.mjs",
     "ci:seo-public-assets": "node scripts/ci/seo_public_assets_check.mjs",
     "ci:seo-public-assets-evidence": "node scripts/ci/seo_public_assets_evidence_check.mjs",
     "ci:docs-pages": "cd services/docs-front && yarn build",

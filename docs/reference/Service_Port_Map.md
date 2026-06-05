@@ -25,7 +25,7 @@ Cloud Run container ports stay unchanged. Next.js containers still listen on `30
 
 | Project         | Staging                                        | Production                             |
 | --------------- | ---------------------------------------------- | -------------------------------------- |
-| `user-front`    | `https://staging.synapse-network.ai`           | `https://synapse-network.ai`           |
+| `user-front`    | `https://staging.synapse-network.ai`           | `https://www.synapse-network.ai`       |
 | `docs-front`    | `https://docs-staging.synapse-network.ai`      | `https://docs.synapse-network.ai`      |
 | `admin-front`   | `https://admin-staging.synapse-network.ai`     | `https://admin.synapse-network.ai`     |
 | `gateway`       | `https://api-staging.synapse-network.ai`       | `https://api.synapse-network.ai`       |

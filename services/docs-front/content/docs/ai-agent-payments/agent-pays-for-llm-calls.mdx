@@ -1,6 +1,7 @@
 ---
 title: Agent Pays for LLM Calls
 description: How Synapse supports token-metered LLM services with budget ceilings, receipts, and final usage charging.
+lastUpdated: 2026-06-05
 ---
 
 An AI agent can pay for LLM calls through Synapse when the provider exposes the model as a token-metered service. The agent sets a `maxCostUsdc` ceiling, Gateway invokes the provider, final token usage determines the charge, and the receipt records the settled amount.

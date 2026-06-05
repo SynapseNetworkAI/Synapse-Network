@@ -15,9 +15,22 @@ import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { getDocsUrl } from "@/utils/docsUrl";
 
 type PageMode = "overview" | "api";
-
 type SplitPair = [string, string];
 type ComparisonRow = [string, string, string, string];
+
+interface LandingCopy {
+  isApi: boolean;
+  title: string;
+  description: string;
+  docsUrl: string;
+  flowSteps: SplitPair[];
+  facts: SplitPair[];
+  paths: SplitPair[];
+  apiRows: SplitPair[];
+  apiRules: string[];
+  comparisons: ComparisonRow[];
+  faqItems: SplitPair[];
+}
 
 function splitPair(value: string): SplitPair {
   const [title, body = ""] = value.split("|");
@@ -31,74 +44,60 @@ function splitComparison(value: string): ComparisonRow {
 
 export function AiAgentPaymentsLanding({ mode }: Readonly<{ mode: PageMode }>) {
   const { t, tList } = useLanguage();
-  const isApi = mode === "api";
-  const title = isApi
-    ? t("aiAgentPaymentsPage.apiTitle")
-    : t("aiAgentPaymentsPage.overviewTitle");
-  const description = isApi
-    ? t("aiAgentPaymentsPage.apiDescription")
-    : t("aiAgentPaymentsPage.overviewDescription");
-  const docsUrl = getDocsUrl(
-    isApi ? "/ai-agent-payments/agent-payment-api" : "/ai-agent-payments",
-  );
-  const flowSteps = tList("aiAgentPaymentsPage.flowSteps").map(splitPair);
-  const facts = tList("aiAgentPaymentsPage.facts").map(splitPair);
-  const paths = tList("aiAgentPaymentsPage.paths").map(splitPair);
-  const apiRows = tList("aiAgentPaymentsPage.apiRows").map(splitPair);
-  const apiRules = tList("aiAgentPaymentsPage.apiRules");
-  const comparisons = tList("aiAgentPaymentsPage.comparisonRows").map(
-    splitComparison,
-  );
-  const faqItems = tList("aiAgentPaymentsPage.faqItems").map(splitPair);
+  const copy = buildLandingCopy(mode, t, tList);
 
   return (
     <main className="min-h-screen overflow-hidden bg-[#020403] text-white">
-      <PaymentRailAnimations />
-      <HeroSection
-        description={description}
-        docsUrl={docsUrl}
-        eyebrow={t("aiAgentPaymentsPage.heroEyebrow")}
-        flowBody={t("aiAgentPaymentsPage.flowBody")}
-        flowSteps={flowSteps}
-        primaryCta={t("aiAgentPaymentsPage.primaryCta")}
-        secondaryCta={t("aiAgentPaymentsPage.secondaryCta")}
-        title={title}
-      />
-      <DefinitionSection
-        body={t("aiAgentPaymentsPage.definitionBody")}
-        title={t("aiAgentPaymentsPage.definitionTitle")}
-      />
-      <FactsSection facts={facts} title={t("aiAgentPaymentsPage.factsTitle")} />
-      <FlowSection steps={flowSteps} />
-      <UseCaseSection
-        rows={isApi ? apiRows : paths}
-        title={
-          isApi
-            ? t("aiAgentPaymentsPage.apiSectionTitle")
-            : t("aiAgentPaymentsPage.pathsTitle")
-        }
-      />
-      {isApi ? (
-        <ApiRulesSection
-          rules={apiRules}
-          title={t("aiAgentPaymentsPage.apiRulesTitle")}
-        />
+      <PaymentRailAnimation />
+      <HeroSection copy={copy} t={t} />
+      <DefinitionSection t={t} />
+      <FactsSection copy={copy} t={t} />
+      <FlowSection items={copy.flowSteps} />
+      <PathSection copy={copy} t={t} />
+      {copy.isApi ? (
+        <ApiRulesSection rules={copy.apiRules} t={t} />
       ) : (
         <ComparisonTable
           title={t("aiAgentPaymentsPage.comparisonTitle")}
-          rows={comparisons}
+          rows={copy.comparisons}
         />
       )}
-      <FaqSection items={faqItems} title={t("aiAgentPaymentsPage.faqTitle")} />
-      <FinalCtaSection
-        description={t("aiAgentPaymentsPage.finalDescription")}
-        title={t("aiAgentPaymentsPage.finalTitle")}
-      />
+      <FaqSection items={copy.faqItems} t={t} />
+      <FinalCta t={t} />
     </main>
   );
 }
 
-function PaymentRailAnimations() {
+function buildLandingCopy(
+  mode: PageMode,
+  t: (key: string) => string,
+  tList: (key: string) => string[],
+): LandingCopy {
+  const isApi = mode === "api";
+  return {
+    isApi,
+    title: isApi
+      ? t("aiAgentPaymentsPage.apiTitle")
+      : t("aiAgentPaymentsPage.overviewTitle"),
+    description: isApi
+      ? t("aiAgentPaymentsPage.apiDescription")
+      : t("aiAgentPaymentsPage.overviewDescription"),
+    docsUrl: getDocsUrl(
+      isApi ? "/ai-agent-payments/agent-payment-api" : "/ai-agent-payments",
+    ),
+    flowSteps: tList("aiAgentPaymentsPage.flowSteps").map(splitPair),
+    facts: tList("aiAgentPaymentsPage.facts").map(splitPair),
+    paths: tList("aiAgentPaymentsPage.paths").map(splitPair),
+    apiRows: tList("aiAgentPaymentsPage.apiRows").map(splitPair),
+    apiRules: tList("aiAgentPaymentsPage.apiRules"),
+    comparisons: tList("aiAgentPaymentsPage.comparisonRows").map(
+      splitComparison,
+    ),
+    faqItems: tList("aiAgentPaymentsPage.faqItems").map(splitPair),
+  };
+}
+
+function PaymentRailAnimation() {
   return (
     <style jsx global>{`
       @keyframes paymentRailMove {
@@ -131,75 +130,63 @@ function PaymentRailAnimations() {
 }
 
 function HeroSection({
-  description,
-  docsUrl,
-  eyebrow,
-  flowBody,
-  flowSteps,
-  primaryCta,
-  secondaryCta,
-  title,
-}: Readonly<{
-  description: string;
-  docsUrl: string;
-  eyebrow: string;
-  flowBody: string;
-  flowSteps: SplitPair[];
-  primaryCta: string;
-  secondaryCta: string;
-  title: string;
-}>) {
+  copy,
+  t,
+}: Readonly<{ copy: LandingCopy; t: (key: string) => string }>) {
   return (
     <section className="relative border-b border-white/10">
       <div className="absolute inset-0 bg-[linear-gradient(180deg,#07100c_0%,#020403_82%)]" />
       <div className="absolute inset-0 opacity-[0.14] [background-image:linear-gradient(rgba(127,247,190,0.2)_1px,transparent_1px),linear-gradient(90deg,rgba(127,247,190,0.16)_1px,transparent_1px)] [background-size:72px_72px]" />
       <div className="relative mx-auto grid min-h-[calc(100svh-76px)] max-w-[1480px] gap-10 px-5 py-12 sm:px-8 lg:grid-cols-[0.52fr_0.48fr] lg:px-16">
         <div className="flex flex-col justify-center">
-          <p className="text-xs font-bold uppercase tracking-[0.34em] text-[#7ff7be]">
-            {eyebrow}
+          <p className="text-xs font-bold uppercase tracking-normal text-[#7ff7be]">
+            {t("aiAgentPaymentsPage.heroEyebrow")}
           </p>
-          <h1 className="mt-5 max-w-4xl text-[clamp(2.45rem,6vw,5.8rem)] font-black leading-[0.95] tracking-[-0.07em] text-white">
-            {title}
+          <h1 className="mt-5 max-w-4xl text-[clamp(2.45rem,6vw,5.8rem)] font-black leading-none tracking-normal text-white">
+            {copy.title}
           </h1>
           <p className="mt-7 max-w-2xl text-lg leading-8 text-white/66 md:text-xl">
-            {description}
+            {copy.description}
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Link
               href="/marketplace"
               className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-[#7ff7be] px-5 text-sm font-bold text-[#03100a] shadow-[0_18px_50px_rgba(127,247,190,0.2)] transition hover:bg-[#a7ffd1]"
             >
-              {primaryCta}
+              {t("aiAgentPaymentsPage.primaryCta")}
               <ArrowRight className="h-4 w-4" />
             </Link>
             <a
-              href={docsUrl}
+              href={copy.docsUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-white/14 bg-black/28 px-5 text-sm font-semibold text-white/86 backdrop-blur transition hover:bg-white/[0.06] hover:text-white"
             >
               <BookOpen className="h-4 w-4" />
-              {secondaryCta}
+              {t("aiAgentPaymentsPage.secondaryCta")}
             </a>
           </div>
         </div>
-        <PaymentRail flowBody={flowBody} flowSteps={flowSteps} />
+        <RailCard
+          flowSteps={copy.flowSteps}
+          flowBody={t("aiAgentPaymentsPage.flowBody")}
+        />
       </div>
     </section>
   );
 }
 
-function PaymentRail({
-  flowBody,
+function RailCard({
   flowSteps,
-}: Readonly<{ flowBody: string; flowSteps: SplitPair[] }>) {
+  flowBody,
+}: Readonly<{ flowSteps: SplitPair[]; flowBody: string }>) {
   const icons = [CircleDollarSign, KeyRound, Network, FileText];
   return (
     <div className="relative flex items-center">
       <div className="relative w-full overflow-hidden rounded-[8px] border border-white/10 bg-black/40 p-5 shadow-[0_28px_100px_rgba(0,0,0,0.42)]">
         <div className="mb-5 flex items-center justify-between border-b border-white/10 pb-4">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[#7ff7be]">
+            <p className="text-xs font-semibold uppercase tracking-normal text-[#7ff7be]">
               settlement rail
             </p>
             <p className="mt-2 text-sm text-white/54">
@@ -222,7 +209,7 @@ function PaymentRail({
                   <div className="flex h-14 w-14 items-center justify-center rounded-full border border-[#7ff7be]/30 bg-[#07150f] text-[#7ff7be] [animation:paymentNodePulse_3.4s_ease-in-out_infinite]">
                     <Icon className="h-6 w-6" />
                   </div>
-                  <p className="text-center text-xs font-bold uppercase tracking-[0.18em] text-white/70">
+                  <p className="text-center text-xs font-bold uppercase tracking-normal text-white/70">
                     {stepTitle}
                   </p>
                 </div>
@@ -238,36 +225,35 @@ function PaymentRail({
   );
 }
 
-function DefinitionSection({
-  body,
-  title,
-}: Readonly<{ body: string; title: string }>) {
+function DefinitionSection({ t }: Readonly<{ t: (key: string) => string }>) {
   return (
     <section className="mx-auto grid max-w-[1480px] gap-10 px-5 py-16 sm:px-8 lg:grid-cols-[0.36fr_0.64fr] lg:px-16">
       <div>
-        <p className="text-xs font-bold uppercase tracking-[0.3em] text-[#7ff7be]">
+        <p className="text-xs font-bold uppercase tracking-normal text-[#7ff7be]">
           definition
         </p>
-        <h2 className="mt-4 text-3xl font-bold tracking-[-0.05em] md:text-5xl">
-          {title}
+        <h2 className="mt-4 text-3xl font-bold tracking-normal md:text-5xl">
+          {t("aiAgentPaymentsPage.definitionTitle")}
         </h2>
       </div>
-      <p className="text-xl leading-9 text-white/70">{body}</p>
+      <p className="text-xl leading-9 text-white/70">
+        {t("aiAgentPaymentsPage.definitionBody")}
+      </p>
     </section>
   );
 }
 
 function FactsSection({
-  facts,
-  title,
-}: Readonly<{ facts: SplitPair[]; title: string }>) {
+  copy,
+  t,
+}: Readonly<{ copy: LandingCopy; t: (key: string) => string }>) {
   return (
     <section className="mx-auto max-w-[1480px] px-5 py-10 sm:px-8 lg:px-16">
-      <h2 className="text-3xl font-bold tracking-[-0.05em] text-white md:text-4xl">
-        {title}
+      <h2 className="text-3xl font-bold tracking-normal text-white md:text-4xl">
+        {t("aiAgentPaymentsPage.factsTitle")}
       </h2>
       <div className="mt-7 overflow-hidden rounded-[8px] border border-white/10">
-        {facts.map(([label, body]) => (
+        {copy.facts.map(([label, body]) => (
           <div
             key={label}
             className="grid gap-3 border-b border-white/10 bg-white/[0.025] px-5 py-4 last:border-b-0 md:grid-cols-[240px_minmax(0,1fr)]"
@@ -281,15 +267,15 @@ function FactsSection({
   );
 }
 
-function FlowSection({ steps }: Readonly<{ steps: SplitPair[] }>) {
+function FlowSection({ items }: Readonly<{ items: SplitPair[] }>) {
   return (
     <section className="mx-auto grid max-w-[1480px] gap-8 px-5 py-12 sm:px-8 lg:grid-cols-4 lg:px-16">
-      {steps.map(([stepTitle, stepBody], index) => (
+      {items.map(([stepTitle, stepBody], index) => (
         <div key={stepTitle} className="border-l border-[#7ff7be]/28 pl-5">
-          <p className="text-xs font-bold uppercase tracking-[0.28em] text-[#7ff7be]">
+          <p className="text-xs font-bold uppercase tracking-normal text-[#7ff7be]">
             0{index + 1}
           </p>
-          <h3 className="mt-3 text-2xl font-semibold tracking-[-0.04em]">
+          <h3 className="mt-3 text-2xl font-semibold tracking-normal">
             {stepTitle}
           </h3>
           <p className="mt-3 leading-7 text-white/58">{stepBody}</p>
@@ -299,15 +285,18 @@ function FlowSection({ steps }: Readonly<{ steps: SplitPair[] }>) {
   );
 }
 
-function UseCaseSection({
-  rows,
-  title,
-}: Readonly<{ rows: SplitPair[]; title: string }>) {
+function PathSection({
+  copy,
+  t,
+}: Readonly<{ copy: LandingCopy; t: (key: string) => string }>) {
+  const rows = copy.isApi ? copy.apiRows : copy.paths;
   return (
     <section className="mx-auto max-w-[1480px] px-5 py-12 sm:px-8 lg:px-16">
       <div className="grid gap-10 lg:grid-cols-[0.35fr_0.65fr]">
-        <h2 className="text-3xl font-bold tracking-[-0.05em] md:text-4xl">
-          {title}
+        <h2 className="text-3xl font-bold tracking-normal md:text-4xl">
+          {copy.isApi
+            ? t("aiAgentPaymentsPage.apiSectionTitle")
+            : t("aiAgentPaymentsPage.pathsTitle")}
         </h2>
         <div className="grid gap-5">
           {rows.map(([itemTitle, itemBody]) => (
@@ -324,14 +313,16 @@ function UseCaseSection({
 
 function ApiRulesSection({
   rules,
-  title,
-}: Readonly<{ rules: string[]; title: string }>) {
+  t,
+}: Readonly<{ rules: string[]; t: (key: string) => string }>) {
   return (
     <section className="mx-auto max-w-[1480px] px-5 py-12 sm:px-8 lg:px-16">
       <div className="rounded-[8px] border border-[#7ff7be]/20 bg-[#07100c] p-6 md:p-8">
         <div className="flex items-center gap-3">
           <ShieldCheck className="h-7 w-7 text-[#7ff7be]" />
-          <h2 className="text-2xl font-bold tracking-[-0.04em]">{title}</h2>
+          <h2 className="text-2xl font-bold tracking-normal">
+            {t("aiAgentPaymentsPage.apiRulesTitle")}
+          </h2>
         </div>
         <div className="mt-6 grid gap-3 md:grid-cols-2">
           {rules.map((rule) => (
@@ -351,12 +342,12 @@ function ApiRulesSection({
 
 function FaqSection({
   items,
-  title,
-}: Readonly<{ items: SplitPair[]; title: string }>) {
+  t,
+}: Readonly<{ items: SplitPair[]; t: (key: string) => string }>) {
   return (
     <section className="mx-auto max-w-[1480px] px-5 py-16 sm:px-8 lg:px-16">
-      <h2 className="text-3xl font-bold tracking-[-0.05em] md:text-4xl">
-        {title}
+      <h2 className="text-3xl font-bold tracking-normal md:text-4xl">
+        {t("aiAgentPaymentsPage.faqTitle")}
       </h2>
       <div className="mt-8 grid gap-8 md:grid-cols-2">
         {items.map(([question, answer]) => (
@@ -370,19 +361,16 @@ function FaqSection({
   );
 }
 
-function FinalCtaSection({
-  description,
-  title,
-}: Readonly<{ description: string; title: string }>) {
+function FinalCta({ t }: Readonly<{ t: (key: string) => string }>) {
   return (
     <section className="border-t border-white/10 px-5 py-16 sm:px-8 lg:px-16">
       <div className="mx-auto flex max-w-[1480px] flex-col gap-5 md:flex-row md:items-end md:justify-between">
         <div>
-          <h2 className="max-w-3xl text-4xl font-black tracking-[-0.06em] md:text-6xl">
-            {title}
+          <h2 className="max-w-3xl text-4xl font-black tracking-normal md:text-6xl">
+            {t("aiAgentPaymentsPage.finalTitle")}
           </h2>
           <p className="mt-5 max-w-2xl text-lg leading-8 text-white/60">
-            {description}
+            {t("aiAgentPaymentsPage.finalDescription")}
           </p>
         </div>
         <Link
@@ -403,13 +391,13 @@ function ComparisonTable({
 }: Readonly<{ title: string; rows: ComparisonRow[] }>) {
   return (
     <section className="mx-auto max-w-[1480px] px-5 py-12 sm:px-8 lg:px-16">
-      <h2 className="text-3xl font-bold tracking-[-0.05em] md:text-4xl">
+      <h2 className="text-3xl font-bold tracking-normal md:text-4xl">
         {title}
       </h2>
       <div className="mt-7 overflow-x-auto rounded-[8px] border border-white/10">
         <table className="min-w-[920px] w-full border-collapse text-left">
           <thead>
-            <tr className="bg-white/[0.06] text-sm uppercase tracking-[0.16em] text-white/70">
+            <tr className="bg-white/[0.06] text-sm uppercase tracking-normal text-white/70">
               <th className="px-4 py-4">Option</th>
               <th className="px-4 py-4">Best fit</th>
               <th className="px-4 py-4">Limitation</th>

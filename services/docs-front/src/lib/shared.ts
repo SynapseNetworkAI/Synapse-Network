@@ -66,7 +66,7 @@ const defaults: Record<AppEnvironment, EnvironmentConfig> = {
   prod: {
     appEnv: "prod",
     docsUrl: "https://docs.synapse-network.ai",
-    consoleUrl: "https://synapse-network.ai/dashboard/overview",
+    consoleUrl: "https://www.synapse-network.ai/dashboard/overview",
     gatewayBaseUrl: "https://api.synapse-network.ai",
     chainId: "42161",
     chainName: "Arbitrum One",
@@ -81,15 +81,15 @@ export const environmentConfig: EnvironmentConfig = {
   ...defaults[appEnv],
   docsUrl: optionalUrl(
     process.env.NEXT_PUBLIC_DOCS_BASE_URL,
-    defaults[appEnv].docsUrl
+    defaults[appEnv].docsUrl,
   ),
   consoleUrl: optionalUrl(
     process.env.NEXT_PUBLIC_CONSOLE_BASE_URL,
-    defaults[appEnv].consoleUrl
+    defaults[appEnv].consoleUrl,
   ),
   gatewayBaseUrl: optionalUrl(
     process.env.NEXT_PUBLIC_GATEWAY_BASE_URL,
-    defaults[appEnv].gatewayBaseUrl
+    defaults[appEnv].gatewayBaseUrl,
   ),
 };
 

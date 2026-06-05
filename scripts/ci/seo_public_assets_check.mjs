@@ -8,8 +8,9 @@ const repoRoot = process.cwd();
 const userFrontRoot = path.join(repoRoot, "services", "user-front");
 const llmsPath = path.join(userFrontRoot, "public", "llms.txt");
 const robotsPath = path.join(userFrontRoot, "public", "robots.txt");
-const sitemapPath = path.join(userFrontRoot, "public", "sitemap.xml");
+const sitemapPath = path.join(userFrontRoot, "src", "app", "sitemap.ts");
 const layoutPath = path.join(userFrontRoot, "src", "app", "layout.tsx");
+const nextConfigPath = path.join(userFrontRoot, "next.config.mjs");
 const appRoot = path.join(userFrontRoot, "src", "app");
 const faviconPath = path.join(appRoot, "favicon.ico");
 const iconPngPath = path.join(userFrontRoot, "public", "icon.png");
@@ -40,6 +41,24 @@ const FORBIDDEN_SEO_TEXT = [
   "sitemap.website.xml",
   "chrome-extension://",
   "<script",
+];
+const AI_SEARCH_CRAWLERS = [
+  "OAI-SearchBot",
+  "ChatGPT-User",
+  "GPTBot",
+  "ClaudeBot",
+  "Claude-User",
+  "Claude-SearchBot",
+  "anthropic-ai",
+  "PerplexityBot",
+  "Bingbot",
+  "Google-Extended",
+];
+const PRIVATE_ROBOTS_DISALLOWS = [
+  "Disallow: /dashboard/",
+  "Disallow: /provider/",
+  "Disallow: /api/",
+  "Disallow: /_next/data/",
 ];
 
 const failures = [];
@@ -87,6 +106,10 @@ function routeExists(routePath) {
   }
   const segments = routePath === "/" ? [] : routePath.slice(1).split("/");
   return fs.existsSync(path.join(appRoot, ...segments, "page.tsx"));
+}
+
+function includesRoute(text, route) {
+  return text.includes(`"${route}"`) || text.includes(`'${route}'`);
 }
 
 function includesPrivateRouteLiteral(text, route) {
@@ -166,12 +189,10 @@ if (assertFile(robotsPath, "robots.txt")) {
   const robots = readText(robotsPath);
   assertNoForbiddenSeoText("robots.txt", robots);
   const requiredLines = [
+    ...AI_SEARCH_CRAWLERS.map((crawler) => `User-agent: ${crawler}`),
     "User-agent: *",
     "Allow: /",
-    "Disallow: /dashboard/",
-    "Disallow: /provider/",
-    "Disallow: /api/",
-    "Disallow: /_next/data/",
+    ...PRIVATE_ROBOTS_DISALLOWS,
     "Sitemap: https://www.synapse-network.ai/sitemap.xml",
   ];
 
@@ -180,27 +201,39 @@ if (assertFile(robotsPath, "robots.txt")) {
       fail(`robots.txt missing required line: ${line}`);
     }
   }
+
+  for (const crawler of AI_SEARCH_CRAWLERS) {
+    const groupPattern = new RegExp(
+      `User-agent:\\s*${crawler}[\\s\\S]*?(?=\\nUser-agent:|\\nSitemap:|$)`,
+    );
+    const group = robots.match(groupPattern)?.[0] || "";
+    if (!group.includes("Allow: /")) {
+      fail(`robots.txt ${crawler} group must explicitly allow /`);
+    }
+    for (const disallow of PRIVATE_ROBOTS_DISALLOWS) {
+      if (!group.includes(disallow)) {
+        fail(
+          `robots.txt ${crawler} group missing private path guard: ${disallow}`,
+        );
+      }
+    }
+  }
 }
 
-if (assertFile(sitemapPath, "sitemap.xml")) {
+if (assertFile(sitemapPath, "sitemap.ts")) {
   const sitemap = readText(sitemapPath);
-  assertNoForbiddenSeoText("sitemap.xml", sitemap);
-  if (
-    !sitemap.includes(
-      '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
-    )
-  ) {
-    fail("sitemap.xml must be a sitemap.org URL set");
+  assertNoForbiddenSeoText("sitemap.ts", sitemap);
+  if (!sitemap.includes('const SITE_URL = "https://www.synapse-network.ai";')) {
+    fail("sitemap.ts must hard-code the canonical HTTPS site URL");
   }
   for (const route of PUBLIC_ROUTES) {
-    const expectedUrl = `https://${siteHostname}${route === "/" ? "" : route}`;
-    if (!sitemap.includes(`<loc>${expectedUrl}</loc>`)) {
-      fail(`sitemap.xml missing public URL: ${expectedUrl}`);
+    if (!includesRoute(sitemap, route)) {
+      fail(`sitemap.ts missing public route: ${route}`);
     }
   }
   for (const privatePattern of PRIVATE_PATTERNS) {
     if (includesPrivateRouteLiteral(sitemap, privatePattern)) {
-      fail(`sitemap.xml must not include private/app route: ${privatePattern}`);
+      fail(`sitemap.ts must not include private/app route: ${privatePattern}`);
     }
   }
 }
@@ -220,6 +253,22 @@ if (assertFile(layoutPath, "layout.tsx")) {
   ]) {
     if (!layout.includes(expected)) {
       fail(`layout metadata missing expected text: ${expected}`);
+    }
+  }
+}
+
+if (assertFile(nextConfigPath, "next.config.mjs")) {
+  const nextConfig = readText(nextConfigPath);
+  assertNoForbiddenSeoText("next.config.mjs", nextConfig);
+  for (const expected of [
+    'has: [{ type: "host", value: "synapse-network.ai" }]',
+    'destination: "https://www.synapse-network.ai/:path*"',
+    "permanent: true",
+  ]) {
+    if (!nextConfig.includes(expected)) {
+      fail(
+        `next.config.mjs missing canonical www redirect evidence: ${expected}`,
+      );
     }
   }
 }
