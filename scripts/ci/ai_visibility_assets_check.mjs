@@ -177,6 +177,8 @@ const privateRobotsDisallows = [
   "Disallow: /_next/data/",
 ];
 const indexNowKey = "4f58d9a2e2c84f85a5f3b5baf9a65c7d";
+const canonicalHomepage = "https://www.synapse-network.ai";
+const bareProductionHomepage = "https://synapse-network.ai";
 
 function fail(message) {
   failures.push(message);
@@ -204,6 +206,14 @@ function readJson(filePath) {
 function assertIncludes(label, text, expected) {
   if (!text.includes(expected))
     fail(`${label} missing expected text: ${expected}`);
+}
+
+function assertNoBareProductionHomepage(label, text) {
+  if (text.includes(bareProductionHomepage)) {
+    fail(
+      `${label} must use ${canonicalHomepage} as the answer-engine canonical homepage, not ${bareProductionHomepage}`,
+    );
+  }
 }
 
 function frontmatterValue(text, key) {
@@ -598,6 +608,23 @@ function assertCrawlerAssets() {
     path.join(mcpDocsRoot, "synapse-vs-paid-mcp.mdx"),
   );
   const registryPage = readText(path.join(mcpDocsRoot, "registry.mdx"));
+
+  for (const [label, text] of [
+    ["docs sitemap", docsSitemap],
+    ["docs llms.txt route", docsLlmsRoute],
+    ["docs robots.ts", docsRobots],
+    ["user llms.txt", userLlms],
+    ["user llms-full.txt", userLlmsFull],
+    ["user robots.txt", userRobots],
+    ["user sitemap", userSitemap],
+    ["IndexNow script", indexNowScript],
+    ["mcp index page", mcpIndexPage],
+    ["mcp paid API calls page", paidMcpPage],
+    ["mcp paid MCP comparison page", paidMcpComparisonPage],
+    ["mcp registry page", registryPage],
+  ]) {
+    assertNoBareProductionHomepage(label, text);
+  }
 
   assertDocsRoutes(docsSitemap, userLlms);
   assertDocsLlmsRoute(docsLlmsRoute);

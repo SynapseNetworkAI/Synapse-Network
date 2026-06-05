@@ -27,6 +27,8 @@ const appleTouchIconPath = path.join(
   "apple-touch-icon.png",
 );
 const siteHostname = "www.synapse-network.ai";
+const canonicalSiteUrl = `https://${siteHostname}`;
+const bareProductionSiteUrl = "https://synapse-network.ai";
 const indexNowKey = "4f58d9a2e2c84f85a5f3b5baf9a65c7d";
 
 const PUBLIC_ROUTES = [
@@ -140,6 +142,11 @@ function assertNoForbiddenSeoText(label, text) {
     if (text.includes(forbidden)) {
       fail(`${label} must not include forbidden SEO text: ${forbidden}`);
     }
+  }
+  if (text.includes(bareProductionSiteUrl)) {
+    fail(
+      `${label} must use ${canonicalSiteUrl} as the answer-engine canonical homepage, not ${bareProductionSiteUrl}`,
+    );
   }
 }
 
