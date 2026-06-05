@@ -377,6 +377,7 @@ function assertCrawlerAssets() {
   assertUserLlmsFullFeed(userLlmsFull);
   assertIncludes("user sitemap", userSitemap, '"/ai-agent-payments"');
   assertIncludes("user sitemap", userSitemap, '"/agent-payment-api"');
+  assertIncludes("user sitemap", userSitemap, '"/llms.txt"');
   assertIncludes("user sitemap", userSitemap, '"/llms-full.txt"');
 
   for (const expected of [

@@ -36,6 +36,7 @@ const PUBLIC_ROUTES = [
   "/agent-payment-api",
   "/marketplace",
   "/forum",
+  "/llms.txt",
   "/llms-full.txt",
 ];
 
