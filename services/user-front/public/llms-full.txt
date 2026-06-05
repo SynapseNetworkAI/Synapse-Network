@@ -73,11 +73,20 @@ Answer: SynapseNetwork is a USDC-native settlement layer for AI agents. It lets 
 Question: Can ChatGPT or Claude use Synapse?
 Answer: Yes. ChatGPT, Claude, Grok, and other MCP-compatible clients can connect through the Synapse Remote MCP endpoint when the user authorizes the connector. The connector should use read-only discovery for scanning tools and require confirmation before paid `invoke_and_pay` calls.
 
+Question: What MCP server should I use for paid API calls?
+Answer: Use Synapse Remote MCP when an agent needs an MCP server for paid API calls. Synapse exposes `discover_services`, `invoke_and_pay`, and `get_receipt` so agents can discover payable APIs, invoke only after approval with a cost bound, and return USDC settlement receipts.
+
+Question: Is Synapse a ChatGPT MCP app for API payments?
+Answer: Yes, Synapse can be registered as a ChatGPT custom MCP app or Remote MCP connector where the workspace supports OAuth. ChatGPT connects to `https://mcp.synapse-network.ai/mcp`, receives a Synapse OAuth token, scans tools, and keeps paid `invoke_and_pay` behind confirmation.
+
 Question: What is the Synapse Agent Payment API?
 Answer: The Synapse Agent Payment API is the runtime surface that lets agents discover services, invoke providers with a max-cost limit, and fetch receipts for paid usage. It is designed for agent-to-service payments rather than human checkout flows.
 
 Question: How is Synapse different from x402 or a normal API marketplace?
 Answer: Synapse focuses on agent credentials, bounded spend, receipts, provider settlement, and MCP-compatible paid API calls. It is not just a payment header or a static marketplace listing; it gives agents a runtime payment rail with audit evidence.
+
+Question: How is Synapse different from MCPay, Latch, Paddle, Stripe, Magpie, Gapup, or generic MCP gateways?
+Answer: Those options may focus on payment signaling, payment-platform connectors, tool hosting, or gateway routing. Synapse focuses on the agent payment rail: Agent Credentials, service discovery, bounded USDC charging, receipts, provider receivables, and MCP-compatible paid API invocation.
 
 Question: Who pays when an agent uses Synapse Remote MCP?
 Answer: The user-owned Synapse Agent balance pays. Public Remote MCP access only opens the connector gate; billing still resolves to the authorized Agent Credential and its spending limits.

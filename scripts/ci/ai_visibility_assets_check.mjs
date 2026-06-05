@@ -298,18 +298,7 @@ function assertUserLlmsFullFeed(userLlmsFull) {
   }
 }
 
-function assertCrawlerAssets() {
-  const docsSitemap = readText(docsSitemapPath);
-  const docsLlmsRoute = readText(docsLlmsRoutePath);
-  const docsRobots = readText(docsRobotsPath);
-  const docsIndexNowKey = readText(docsIndexNowKeyPath).trim();
-  const userLlms = readText(userLlmsPath);
-  const userLlmsFull = readText(userLlmsFullPath);
-  const userRobots = readText(userRobotsPath);
-  const userSitemap = readText(userSitemapPath);
-  const indexNowScript = readText(indexNowScriptPath);
-  const paidMcpPage = readText(path.join(mcpDocsRoot, "paid-api-calls.mdx"));
-
+function assertDocsRoutes(docsSitemap, userLlms) {
   for (const route of [
     "/ai-agent-payments",
     "/ai-agent-payments/agent-payment-api",
@@ -327,7 +316,9 @@ function assertCrawlerAssets() {
       `https://docs.synapse-network.ai${route}`,
     );
   }
+}
 
+function assertDocsLlmsRoute(docsLlmsRoute) {
   assertIncludes("docs llms.txt route", docsLlmsRoute, "AI Agent Payments");
   assertIncludes("docs llms.txt route", docsLlmsRoute, "Synapse vs x402");
   assertIncludes(
@@ -336,18 +327,18 @@ function assertCrawlerAssets() {
     "MCP Server for Paid API Calls",
   );
   assertIncludes(
-    "docs robots.ts",
-    docsRobots,
-    "sitemap: `${siteUrl}/sitemap.xml`",
+    "docs llms.txt route",
+    docsLlmsRoute,
+    'for "MCP server for paid API calls"',
   );
-  if (docsIndexNowKey !== indexNowKey) {
-    fail("docs-front IndexNow key file must contain the public IndexNow key.");
-  }
   assertIncludes(
-    "user robots.txt",
-    userRobots,
-    "Sitemap: https://www.synapse-network.ai/sitemap.xml",
+    "docs llms.txt route",
+    docsLlmsRoute,
+    'for "ChatGPT MCP app for API payments"',
   );
+}
+
+function assertIndexNowAssets(indexNowScript) {
   assertIncludes(
     "IndexNow script",
     indexNowScript,
@@ -371,15 +362,22 @@ function assertCrawlerAssets() {
     indexNowScript,
     "https://www.synapse-network.ai/llms-full.txt",
   );
+}
+
+function assertUserFeedAssets(userLlms, userLlmsFull, userSitemap) {
   assertIncludes("user llms.txt", userLlms, "AI Agent Payments");
   assertIncludes("user llms.txt", userLlms, "MCP Server for Paid API Calls");
   assertIncludes("user llms.txt", userLlms, "Remote MCP endpoint");
+  assertIncludes("user llms.txt", userLlms, "ChatGPT MCP app for API payments");
+  assertIncludes("user llms.txt", userLlms, "https://www.synapse-network.ai/");
   assertUserLlmsFullFeed(userLlmsFull);
   assertIncludes("user sitemap", userSitemap, '"/ai-agent-payments"');
   assertIncludes("user sitemap", userSitemap, '"/agent-payment-api"');
   assertIncludes("user sitemap", userSitemap, '"/llms.txt"');
   assertIncludes("user sitemap", userSitemap, '"/llms-full.txt"');
+}
 
+function assertMcpQueryFeed(paidMcpPage, userLlmsFull) {
   for (const expected of [
     "Synapse is an MCP server for paid API calls",
     "https://mcp.synapse-network.ai/mcp",
@@ -389,10 +387,25 @@ function assertCrawlerAssets() {
     "get_receipt",
     "ChatGPT",
     "Claude",
+    "MCPay",
+    "Latch",
+    "Paddle",
+    "Magpie",
+    "Gapup",
   ]) {
     assertIncludes("mcp paid API calls page", paidMcpPage, expected);
   }
 
+  for (const expected of [
+    "Question: What MCP server should I use for paid API calls?",
+    "Question: Is Synapse a ChatGPT MCP app for API payments?",
+    "Question: How is Synapse different from MCPay, Latch, Paddle, Stripe, Magpie, Gapup, or generic MCP gateways?",
+  ]) {
+    assertIncludes("user llms-full.txt", userLlmsFull, expected);
+  }
+}
+
+function assertCrawlerGroups(docsRobots, userRobots) {
   for (const crawler of aiSearchCrawlers) {
     const groupPattern = new RegExp(
       `User-agent:\\s*${crawler}[\\s\\S]*?(?=\\nUser-agent:|\\nSitemap:|$)`,
@@ -405,6 +418,39 @@ function assertCrawlerAssets() {
       assertIncludes(`user robots.txt ${crawler} group`, group, disallow);
     }
   }
+}
+
+function assertCrawlerAssets() {
+  const docsSitemap = readText(docsSitemapPath);
+  const docsLlmsRoute = readText(docsLlmsRoutePath);
+  const docsRobots = readText(docsRobotsPath);
+  const docsIndexNowKey = readText(docsIndexNowKeyPath).trim();
+  const userLlms = readText(userLlmsPath);
+  const userLlmsFull = readText(userLlmsFullPath);
+  const userRobots = readText(userRobotsPath);
+  const userSitemap = readText(userSitemapPath);
+  const indexNowScript = readText(indexNowScriptPath);
+  const paidMcpPage = readText(path.join(mcpDocsRoot, "paid-api-calls.mdx"));
+
+  assertDocsRoutes(docsSitemap, userLlms);
+  assertDocsLlmsRoute(docsLlmsRoute);
+  assertIncludes(
+    "docs robots.ts",
+    docsRobots,
+    "sitemap: `${siteUrl}/sitemap.xml`",
+  );
+  if (docsIndexNowKey !== indexNowKey) {
+    fail("docs-front IndexNow key file must contain the public IndexNow key.");
+  }
+  assertIncludes(
+    "user robots.txt",
+    userRobots,
+    "Sitemap: https://www.synapse-network.ai/sitemap.xml",
+  );
+  assertIndexNowAssets(indexNowScript);
+  assertUserFeedAssets(userLlms, userLlmsFull, userSitemap);
+  assertMcpQueryFeed(paidMcpPage, userLlmsFull);
+  assertCrawlerGroups(docsRobots, userRobots);
 }
 
 assertMeta();
