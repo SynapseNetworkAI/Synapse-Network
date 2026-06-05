@@ -19,6 +19,13 @@ const sitemapPath = path.join(userFrontRoot, "src", "app", "sitemap.ts");
 const layoutPath = path.join(userFrontRoot, "src", "app", "layout.tsx");
 const nextConfigPath = path.join(userFrontRoot, "next.config.mjs");
 const appRoot = path.join(userFrontRoot, "src", "app");
+const aiLandingPath = path.join(
+  userFrontRoot,
+  "src",
+  "components",
+  "seo",
+  "AiAgentPaymentsStructuredData.tsx",
+);
 const faviconPath = path.join(appRoot, "favicon.ico");
 const iconPngPath = path.join(userFrontRoot, "public", "icon.png");
 const appleTouchIconPath = path.join(
@@ -363,6 +370,30 @@ if (assertFile(layoutPath, "layout.tsx")) {
   ]) {
     if (!layout.includes(expected)) {
       fail(`layout metadata missing expected text: ${expected}`);
+    }
+  }
+}
+
+if (assertFile(aiLandingPath, "AI visibility structured data")) {
+  const structuredData = readText(aiLandingPath);
+  if (structuredData.includes(bareProductionSiteUrl)) {
+    fail(
+      `AI visibility structured data must use ${canonicalSiteUrl} as the answer-engine canonical homepage, not ${bareProductionSiteUrl}`,
+    );
+  }
+  for (const expected of [
+    "application/ld+json",
+    "FAQPage",
+    "SoftwareApplication",
+    "WebPage",
+    "https://www.synapse-network.ai",
+    "https://mcp.synapse-network.ai/mcp",
+    "discover_services",
+    "invoke_and_pay",
+    "get_receipt",
+  ]) {
+    if (!structuredData.includes(expected)) {
+      fail(`AI visibility structured data missing expected text: ${expected}`);
     }
   }
 }

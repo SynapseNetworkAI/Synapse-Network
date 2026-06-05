@@ -45,6 +45,11 @@ describe("AiAgentPaymentsLanding MCP pages", () => {
     expect(
       screen.queryByText("用于 paid API calls 的 MCP server。"),
     ).toBeNull();
+    expectJsonLd({
+      url: "https://www.synapse-network.ai/mcp-server-for-paid-api-calls",
+      title: "MCP server for paid API calls.",
+      keyword: "MCP server for paid API calls",
+    });
   });
 
   it("renders the MCP landing copy in Chinese", () => {
@@ -105,5 +110,37 @@ describe("AiAgentPaymentsLanding MCP pages", () => {
     expect(
       screen.queryByText("ChatGPT MCP app for API payments."),
     ).toBeNull();
+    expectJsonLd({
+      url: "https://www.synapse-network.ai/chatgpt-mcp-app-api-payments",
+      title: "用于 API payments 的 ChatGPT MCP app。",
+      keyword: "ChatGPT MCP app",
+    });
   });
 });
+
+function expectJsonLd({
+  url,
+  title,
+  keyword,
+}: {
+  url: string;
+  title: string;
+  keyword: string;
+}) {
+  const script = document.querySelector(
+    'script[data-testid="ai-agent-payments-jsonld"]',
+  );
+  expect(script?.textContent).toBeTruthy();
+  const payload = JSON.parse(script?.textContent || "{}");
+  const graph = payload["@graph"] as Array<Record<string, unknown>>;
+  expect(graph.some((node) => node["@type"] === "FAQPage")).toBe(true);
+  expect(
+    graph.some((node) => node["@type"] === "SoftwareApplication"),
+  ).toBe(true);
+  expect(
+    graph.some((node) => node["@type"] === "WebPage" && node.url === url),
+  ).toBe(true);
+  expect(JSON.stringify(payload)).toContain(title);
+  expect(JSON.stringify(payload)).toContain(keyword);
+  expect(JSON.stringify(payload)).toContain("https://mcp.synapse-network.ai/mcp");
+}

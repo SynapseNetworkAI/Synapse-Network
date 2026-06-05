@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { getDocsUrl } from "@/utils/docsUrl";
+import { AiAgentPaymentsStructuredData } from "./AiAgentPaymentsStructuredData";
 
 type PageMode = "overview" | "api" | "mcp" | "chatgptMcp";
 type SplitPair = [string, string];
@@ -48,6 +49,13 @@ export function AiAgentPaymentsLanding({ mode }: Readonly<{ mode: PageMode }>) {
 
   return (
     <main className="min-h-screen overflow-hidden bg-[#020403] text-white">
+      <AiAgentPaymentsStructuredData
+        mode={mode}
+        title={copy.title}
+        description={copy.description}
+        docsUrl={copy.docsUrl}
+        faqItems={copy.faqItems}
+      />
       <PaymentRailAnimation />
       <HeroSection copy={copy} t={t} />
       <DefinitionSection t={t} />
