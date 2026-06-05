@@ -8,6 +8,12 @@ const aiAgentPaymentsPage: I18nMessages["aiAgentPaymentsPage"] = {
   apiTitle: "Agent Payment API for paid machine-to-machine calls.",
   apiDescription:
     "Use Synapse discovery, price assertion, bounded credentials, paid invocation, and receipt retrieval to let software agents buy services without a human checkout flow.",
+  mcpTitle: "MCP server for paid API calls.",
+  mcpDescription:
+    "Use Synapse Remote MCP when ChatGPT, Claude, Grok, Codex, or another agent client needs to discover payable APIs, invoke approved paid tools, and return settlement receipts.",
+  chatgptMcpTitle: "ChatGPT MCP app for API payments.",
+  chatgptMcpDescription:
+    "Register Synapse Remote MCP as a ChatGPT custom MCP app or connector so ChatGPT can scan read-only discovery tools while keeping paid invoke_and_pay calls behind confirmation.",
   primaryCta: "Explore marketplace",
   secondaryCta: "Read technical docs",
   definitionTitle: "What are AI agent payments?",

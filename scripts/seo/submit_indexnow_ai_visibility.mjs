@@ -16,6 +16,8 @@ const batches = [
       "https://www.synapse-network.ai/",
       "https://www.synapse-network.ai/ai-agent-payments",
       "https://www.synapse-network.ai/agent-payment-api",
+      "https://www.synapse-network.ai/mcp-server-for-paid-api-calls",
+      "https://www.synapse-network.ai/chatgpt-mcp-app-api-payments",
       "https://www.synapse-network.ai/llms.txt",
       "https://www.synapse-network.ai/llms-full.txt",
       "https://www.synapse-network.ai/robots.txt",

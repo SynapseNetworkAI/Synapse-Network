@@ -7,6 +7,8 @@ const PUBLIC_ROUTES = [
   "/about",
   "/ai-agent-payments",
   "/agent-payment-api",
+  "/mcp-server-for-paid-api-calls",
+  "/chatgpt-mcp-app-api-payments",
   "/marketplace",
   "/forum",
   "/llms.txt",

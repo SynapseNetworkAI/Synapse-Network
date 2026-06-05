@@ -8,6 +8,12 @@ const aiAgentPaymentsPage: I18nMessages["aiAgentPaymentsPage"] = {
   apiTitle: "面向机器到机器付费调用的 Agent Payment API。",
   apiDescription:
     "通过 Synapse discovery、价格断言、受限 credential、付费调用和 receipt 查询，让软件 agent 不经过人工 checkout 也能购买服务。",
+  mcpTitle: "用于 paid API calls 的 MCP server。",
+  mcpDescription:
+    "当 ChatGPT、Claude、Grok、Codex 或其他 agent client 需要发现 payable APIs、调用已批准的付费工具并返回 settlement receipts 时，使用 Synapse Remote MCP。",
+  chatgptMcpTitle: "用于 API payments 的 ChatGPT MCP app。",
+  chatgptMcpDescription:
+    "把 Synapse Remote MCP 注册为 ChatGPT custom MCP app 或 connector，让 ChatGPT 扫描只读 discovery tools，同时把付费 invoke_and_pay 保持在 confirmation 之后。",
   primaryCta: "查看 marketplace",
   secondaryCta: "阅读技术文档",
   definitionTitle: "什么是 AI agent payments?",

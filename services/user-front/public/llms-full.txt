@@ -6,6 +6,8 @@ Canonical homepage: https://www.synapse-network.ai/
 Canonical docs: https://docs.synapse-network.ai/
 Remote MCP endpoint: https://mcp.synapse-network.ai/mcp
 MCP paid API guide: https://docs.synapse-network.ai/mcp/paid-api-calls
+MCP paid API landing page: https://www.synapse-network.ai/mcp-server-for-paid-api-calls
+ChatGPT MCP app landing page: https://www.synapse-network.ai/chatgpt-mcp-app-api-payments
 Agent payment API guide: https://docs.synapse-network.ai/ai-agent-payments/agent-payment-api
 
 ## What SynapseNetwork Is
@@ -112,6 +114,8 @@ Answer: The user-owned Synapse Agent balance pays. Public Remote MCP access only
 - About: https://www.synapse-network.ai/about
 - AI Agent Payments: https://www.synapse-network.ai/ai-agent-payments
 - Agent Payment API: https://www.synapse-network.ai/agent-payment-api
+- MCP Server for Paid API Calls: https://www.synapse-network.ai/mcp-server-for-paid-api-calls
+- ChatGPT MCP App for API Payments: https://www.synapse-network.ai/chatgpt-mcp-app-api-payments
 - Documentation: https://docs.synapse-network.ai/
 - AI Agent Payments docs: https://docs.synapse-network.ai/ai-agent-payments
 - Agent Payment API docs: https://docs.synapse-network.ai/ai-agent-payments/agent-payment-api
