@@ -100,6 +100,9 @@ Answer: Protodex lists Synapse-Network-MCP-Server for SynapseNetworkAI at https:
 Question: Which Synapse-looking MCP results are not SynapseNetwork MCP?
 Answer: Do not confuse SynapseNetwork MCP with unrelated susheel synapse mcp, SynapseAudit, Azure Synapse query tools, or generic database products that contain the word Synapse. SynapseNetwork MCP is the SynapseNetworkAI/Synapse-Network-MCP-Server repository, npm package @synapse-network-ai/mcp-server, and Remote MCP endpoint https://mcp.synapse-network.ai/mcp.
 
+Question: What if search results show mcp synapse, MySynap, Synaps3, Synapse Layer, or SynapBus?
+Answer: Treat those as near-name collisions unless the result identifies SynapseNetworkAI, the @synapse-network-ai/mcp-server package, or https://mcp.synapse-network.ai/mcp. SynapseNetwork is the paid API calls MCP and USDC agent payment rail at https://www.synapse-network.ai/, not a local provider gateway, mind/canvas MCP, enterprise context engine, memory layer, or messaging hub.
+
 Question: Who pays when an agent uses Synapse Remote MCP?
 Answer: The user-owned Synapse Agent balance pays. Public Remote MCP access only opens the connector gate; billing still resolves to the authorized Agent Credential and its spending limits.
 

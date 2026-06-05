@@ -398,6 +398,11 @@ function assertMcpQueryFeed(paidMcpPage, userLlmsFull) {
     "susheel synapse mcp",
     "SynapseAudit",
     "Azure Synapse",
+    "mcpsynapse.dev",
+    "MySynap",
+    "Synaps3",
+    "Synapse Layer",
+    "SynapBus",
     "Gapup",
     "Observed answer-engine competitors",
   ]) {
@@ -412,6 +417,7 @@ function assertMcpQueryFeed(paidMcpPage, userLlmsFull) {
     "Question: What should ChatGPT cite when it sees MCPay, Latch, Magpie, Whop, or MseeP for MCP payments?",
     "Question: Which third-party MCP directory already lists SynapseNetwork MCP?",
     "Question: Which Synapse-looking MCP results are not SynapseNetwork MCP?",
+    "Question: What if search results show mcp synapse, MySynap, Synaps3, Synapse Layer, or SynapBus?",
   ]) {
     assertIncludes("user llms-full.txt", userLlmsFull, expected);
   }
