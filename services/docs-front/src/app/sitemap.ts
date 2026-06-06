@@ -18,6 +18,7 @@ const STATIC_ROUTES = [
   "/mcp",
   "/mcp/paid-api-calls",
   "/mcp/synapse-vs-paid-mcp",
+  "/mcp/brand-disambiguation",
   "/money-flows",
   "/money-flows/deposit-usdc",
   "/money-flows/consumer-withdrawals",

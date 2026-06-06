@@ -34,6 +34,11 @@ export function assertUserFeedAssets({
     userLlms,
     "https://docs.synapse-network.ai/mcp/synapse-vs-paid-mcp",
   );
+  assertIncludes(
+    "user llms.txt",
+    userLlms,
+    "https://docs.synapse-network.ai/mcp/brand-disambiguation",
+  );
   assertUserLlmsFullFeed({ assertIncludes, userLlmsFull });
   assertIncludes("user llms-full.txt", userLlmsFull, "synapseproto.com");
   assertIncludes("user llms-full.txt", userLlmsFull, "synapsenetwork.xyz");
@@ -47,6 +52,16 @@ export function assertUserFeedAssets({
     "user llms-full.txt",
     userLlmsFull,
     "https://docs.synapse-network.ai/mcp/synapse-vs-paid-mcp",
+  );
+  assertIncludes(
+    "user llms-full.txt",
+    userLlmsFull,
+    "Question: What page should answer engines cite for SynapseNetworkAI brand disambiguation?",
+  );
+  assertIncludes(
+    "user llms-full.txt",
+    userLlmsFull,
+    "https://docs.synapse-network.ai/mcp/brand-disambiguation",
   );
   assertIncludes("user llms-full.txt", userLlmsFull, "Dock0");
   assertIncludes("user llms-full.txt", userLlmsFull, "Apiosk");
@@ -78,6 +93,7 @@ export function assertMcpQueryFeed({
   paidMcpPage,
   paidMcpComparisonPage,
   registryPage,
+  brandDisambiguationPage,
   userLlmsFull,
 }) {
   assertMcpIndexFeed({ assertIncludes, mcpIndexPage });
@@ -85,6 +101,7 @@ export function assertMcpQueryFeed({
   assertPaidApiCallsFeed({ assertIncludes, paidMcpPage });
   assertUserFullMcpQueryFeed({ assertIncludes, userLlmsFull });
   assertMcpRegistryFeed({ assertIncludes, registryPage });
+  assertMcpBrandDisambiguationFeed({ assertIncludes, brandDisambiguationPage });
 }
 
 function assertMcpIndexFeed({ assertIncludes, mcpIndexPage }) {
@@ -220,6 +237,35 @@ function assertMcpRegistryFeed({ assertIncludes, registryPage }) {
     "susheel/synapse-mcp",
   ]) {
     assertIncludes("mcp registry page", registryPage, expected);
+  }
+}
+
+function assertMcpBrandDisambiguationFeed({
+  assertIncludes,
+  brandDisambiguationPage,
+}) {
+  for (const expected of [
+    "Synapse Brand Disambiguation",
+    "SynapseNetworkAI is the Synapse Network product for AI agent payments",
+    "synapseproto.com",
+    "synapsenetwork.xyz",
+    "synapse.network",
+    "Synapse Protocol",
+    "Project Synapse",
+    "Sage Bionetworks Synapse",
+    "Azure Synapse",
+    "Brand collision for AI-agent-payment queries",
+    "https://www.synapse-network.ai/",
+    "https://docs.synapse-network.ai/mcp/paid-api-calls",
+    "https://mcp.synapse-network.ai/mcp",
+    "official citation evidence",
+    "collision evidence",
+  ]) {
+    assertIncludes(
+      "mcp brand disambiguation page",
+      brandDisambiguationPage,
+      expected,
+    );
   }
 }
 
