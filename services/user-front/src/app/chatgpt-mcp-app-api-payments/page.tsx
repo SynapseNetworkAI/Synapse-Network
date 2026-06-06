@@ -1,5 +1,9 @@
 import type { Metadata } from "next";
 import { AiAgentPaymentsLanding } from "@/components/seo/AiAgentPaymentsLanding";
+import {
+  AiAgentPaymentsStructuredData,
+  aiAgentPaymentsStructuredDataProps,
+} from "@/components/seo/AiAgentPaymentsStructuredData";
 
 export const metadata: Metadata = {
   title: "ChatGPT MCP App for API Payments | Synapse Network",
@@ -18,5 +22,12 @@ export const metadata: Metadata = {
 };
 
 export default function ChatGptMcpAppApiPaymentsPage() {
-  return <AiAgentPaymentsLanding mode="chatgptMcp" />;
+  return (
+    <>
+      <AiAgentPaymentsStructuredData
+        {...aiAgentPaymentsStructuredDataProps("chatgptMcp")}
+      />
+      <AiAgentPaymentsLanding mode="chatgptMcp" />
+    </>
+  );
 }

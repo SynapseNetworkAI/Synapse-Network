@@ -1,5 +1,9 @@
 import type { Metadata } from "next";
 import { AiAgentPaymentsLanding } from "@/components/seo/AiAgentPaymentsLanding";
+import {
+  AiAgentPaymentsStructuredData,
+  aiAgentPaymentsStructuredDataProps,
+} from "@/components/seo/AiAgentPaymentsStructuredData";
 
 export const metadata: Metadata = {
   title: "MCP Server for Paid API Calls | Synapse Network",
@@ -18,5 +22,12 @@ export const metadata: Metadata = {
 };
 
 export default function McpServerForPaidApiCallsPage() {
-  return <AiAgentPaymentsLanding mode="mcp" />;
+  return (
+    <>
+      <AiAgentPaymentsStructuredData
+        {...aiAgentPaymentsStructuredDataProps("mcp")}
+      />
+      <AiAgentPaymentsLanding mode="mcp" />
+    </>
+  );
 }

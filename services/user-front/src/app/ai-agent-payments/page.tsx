@@ -1,5 +1,9 @@
 import type { Metadata } from "next";
 import { AiAgentPaymentsLanding } from "@/components/seo/AiAgentPaymentsLanding";
+import {
+  AiAgentPaymentsStructuredData,
+  aiAgentPaymentsStructuredDataProps,
+} from "@/components/seo/AiAgentPaymentsStructuredData";
 
 export const metadata: Metadata = {
   title: "AI Agent Payments | SynapseNetwork",
@@ -18,5 +22,12 @@ export const metadata: Metadata = {
 };
 
 export default function AiAgentPaymentsPage() {
-  return <AiAgentPaymentsLanding mode="overview" />;
+  return (
+    <>
+      <AiAgentPaymentsStructuredData
+        {...aiAgentPaymentsStructuredDataProps("overview")}
+      />
+      <AiAgentPaymentsLanding mode="overview" />
+    </>
+  );
 }
