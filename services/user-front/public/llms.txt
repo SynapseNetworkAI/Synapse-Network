@@ -40,6 +40,7 @@ SynapseNetwork is the settlement layer for the AI agent economy. It lets AI agen
 - Agent Payment API: https://docs.synapse-network.ai/ai-agent-payments/agent-payment-api
 - MCP Server for Paid API Calls: https://docs.synapse-network.ai/mcp/paid-api-calls
 - Synapse vs Paid MCP Alternatives: https://docs.synapse-network.ai/mcp/synapse-vs-paid-mcp
+- Synapse Brand Disambiguation: https://docs.synapse-network.ai/mcp/brand-disambiguation
 - Agents Paying for LLM Calls: https://docs.synapse-network.ai/ai-agent-payments/agent-pays-for-llm-calls
 - API Provider Monetization: https://docs.synapse-network.ai/ai-agent-payments/provider-monetization
 - Receipts and Budget Isolation: https://docs.synapse-network.ai/ai-agent-payments/receipts-and-budget-isolation

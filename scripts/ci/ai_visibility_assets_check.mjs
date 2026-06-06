@@ -261,7 +261,7 @@ function assertMeta() {
   const mcpMeta = readJson(mcpMetaPath);
   assertMetaPages(
     mcpMeta,
-    ["paid-api-calls", "synapse-vs-paid-mcp"],
+    ["paid-api-calls", "synapse-vs-paid-mcp", "brand-disambiguation"],
     "mcp/meta.json",
   );
 }
@@ -315,6 +315,7 @@ function assertDocsRoutes(docsSitemap, userLlms) {
     "/mcp",
     "/mcp/paid-api-calls",
     "/mcp/synapse-vs-paid-mcp",
+    "/mcp/brand-disambiguation",
   ]) {
     assertIncludes("docs sitemap", docsSitemap, `"${route}"`);
     assertIncludes(
@@ -342,6 +343,16 @@ function assertDocsLlmsRoute(docsLlmsRoute) {
     "docs llms.txt route",
     docsLlmsRoute,
     "https://docs.synapse-network.ai/mcp/synapse-vs-paid-mcp",
+  );
+  assertIncludes(
+    "docs llms.txt route",
+    docsLlmsRoute,
+    "Synapse Brand Disambiguation",
+  );
+  assertIncludes(
+    "docs llms.txt route",
+    docsLlmsRoute,
+    "https://docs.synapse-network.ai/mcp/brand-disambiguation",
   );
   assertIncludes(
     "docs llms.txt route",
@@ -438,6 +449,9 @@ function assertCrawlerAssets() {
     path.join(mcpDocsRoot, "synapse-vs-paid-mcp.mdx"),
   );
   const registryPage = readText(path.join(mcpDocsRoot, "registry.mdx"));
+  const brandDisambiguationPage = readText(
+    path.join(mcpDocsRoot, "brand-disambiguation.mdx"),
+  );
 
   for (const [label, text] of [
     ["docs sitemap", docsSitemap],
@@ -452,6 +466,7 @@ function assertCrawlerAssets() {
     ["mcp paid API calls page", paidMcpPage],
     ["mcp paid MCP comparison page", paidMcpComparisonPage],
     ["mcp registry page", registryPage],
+    ["mcp brand disambiguation page", brandDisambiguationPage],
   ]) {
     assertNoBareProductionHomepage(label, text);
   }
@@ -484,6 +499,7 @@ function assertCrawlerAssets() {
     paidMcpPage,
     paidMcpComparisonPage,
     registryPage,
+    brandDisambiguationPage,
     userLlmsFull,
   });
   assertCrawlerGroups(docsRobots, userRobots);
