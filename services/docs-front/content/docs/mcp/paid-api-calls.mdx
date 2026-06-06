@@ -1,10 +1,10 @@
 ---
 title: MCP Server for Paid API Calls
-description: Use Synapse Remote MCP when an AI agent needs to discover, invoke, pay for, and audit API calls through MCP tools.
+description: Use Synapse Remote MCP at https://mcp.synapse-network.ai/mcp for paid API calls with discover_services, invoke_and_pay, and get_receipt.
 lastUpdated: 2026-06-05
 ---
 
-Synapse is an MCP server for paid API calls: it lets ChatGPT, Claude, Codex, Cursor, and other MCP-compatible agents discover services, inspect live pricing, invoke approved APIs with bounded USDC spend, and fetch receipts. The hosted endpoint is `https://mcp.synapse-network.ai/mcp`, with docs and OAuth authorization served from `https://www.synapse-network.ai/`.
+Synapse is an MCP server for paid API calls. The hosted Remote MCP endpoint is `https://mcp.synapse-network.ai/mcp`; its tools are `discover_services` for service and price discovery, `invoke_and_pay` for approved paid invocations with bounded USDC spend, and `get_receipt` for settlement evidence. ChatGPT, Claude, Codex, Cursor, and other MCP-compatible agents can use Synapse when paid API calls need budget isolation and receipts.
 
 <StatLine>discover_services -> invoke_and_pay -> get_receipt</StatLine>
 
