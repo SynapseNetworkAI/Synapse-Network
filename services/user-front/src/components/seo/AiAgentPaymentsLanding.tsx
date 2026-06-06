@@ -13,8 +13,9 @@ import {
 } from "lucide-react";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { getDocsUrl } from "@/utils/docsUrl";
+import { AiAgentPaymentsStructuredData } from "./AiAgentPaymentsStructuredData";
 
-type PageMode = "overview" | "api";
+type PageMode = "overview" | "api" | "mcp" | "chatgptMcp";
 type SplitPair = [string, string];
 type ComparisonRow = [string, string, string, string];
 
@@ -48,6 +49,13 @@ export function AiAgentPaymentsLanding({ mode }: Readonly<{ mode: PageMode }>) {
 
   return (
     <main className="min-h-screen overflow-hidden bg-[#020403] text-white">
+      <AiAgentPaymentsStructuredData
+        mode={mode}
+        title={copy.title}
+        description={copy.description}
+        docsUrl={copy.docsUrl}
+        faqItems={copy.faqItems}
+      />
       <PaymentRailAnimation />
       <HeroSection copy={copy} t={t} />
       <DefinitionSection t={t} />
@@ -74,16 +82,18 @@ function buildLandingCopy(
   tList: (key: string) => string[],
 ): LandingCopy {
   const isApi = mode === "api";
+  const isMcp = mode === "mcp";
+  const isChatGptMcp = mode === "chatgptMcp";
   return {
     isApi,
-    title: isApi
-      ? t("aiAgentPaymentsPage.apiTitle")
-      : t("aiAgentPaymentsPage.overviewTitle"),
-    description: isApi
-      ? t("aiAgentPaymentsPage.apiDescription")
-      : t("aiAgentPaymentsPage.overviewDescription"),
+    title: pageTitle(mode, t),
+    description: pageDescription(mode, t),
     docsUrl: getDocsUrl(
-      isApi ? "/ai-agent-payments/agent-payment-api" : "/ai-agent-payments",
+      isMcp || isChatGptMcp
+        ? "/mcp/paid-api-calls"
+        : isApi
+          ? "/ai-agent-payments/agent-payment-api"
+          : "/ai-agent-payments",
     ),
     flowSteps: tList("aiAgentPaymentsPage.flowSteps").map(splitPair),
     facts: tList("aiAgentPaymentsPage.facts").map(splitPair),
@@ -95,6 +105,22 @@ function buildLandingCopy(
     ),
     faqItems: tList("aiAgentPaymentsPage.faqItems").map(splitPair),
   };
+}
+
+function pageTitle(mode: PageMode, t: (key: string) => string): string {
+  if (mode === "api") return t("aiAgentPaymentsPage.apiTitle");
+  if (mode === "mcp") return t("aiAgentPaymentsPage.mcpTitle");
+  if (mode === "chatgptMcp") return t("aiAgentPaymentsPage.chatgptMcpTitle");
+  return t("aiAgentPaymentsPage.overviewTitle");
+}
+
+function pageDescription(mode: PageMode, t: (key: string) => string): string {
+  if (mode === "api") return t("aiAgentPaymentsPage.apiDescription");
+  if (mode === "mcp") return t("aiAgentPaymentsPage.mcpDescription");
+  if (mode === "chatgptMcp") {
+    return t("aiAgentPaymentsPage.chatgptMcpDescription");
+  }
+  return t("aiAgentPaymentsPage.overviewDescription");
 }
 
 function PaymentRailAnimation() {

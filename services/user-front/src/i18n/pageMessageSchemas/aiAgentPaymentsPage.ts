@@ -4,6 +4,10 @@ export type AiAgentPaymentsPageMessages = {
   overviewDescription: string;
   apiTitle: string;
   apiDescription: string;
+  mcpTitle: string;
+  mcpDescription: string;
+  chatgptMcpTitle: string;
+  chatgptMcpDescription: string;
   primaryCta: string;
   secondaryCta: string;
   definitionTitle: string;

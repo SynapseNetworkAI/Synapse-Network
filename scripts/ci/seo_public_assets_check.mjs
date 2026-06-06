@@ -19,6 +19,13 @@ const sitemapPath = path.join(userFrontRoot, "src", "app", "sitemap.ts");
 const layoutPath = path.join(userFrontRoot, "src", "app", "layout.tsx");
 const nextConfigPath = path.join(userFrontRoot, "next.config.mjs");
 const appRoot = path.join(userFrontRoot, "src", "app");
+const aiLandingPath = path.join(
+  userFrontRoot,
+  "src",
+  "components",
+  "seo",
+  "AiAgentPaymentsStructuredData.tsx",
+);
 const faviconPath = path.join(appRoot, "favicon.ico");
 const iconPngPath = path.join(userFrontRoot, "public", "icon.png");
 const appleTouchIconPath = path.join(
@@ -27,6 +34,8 @@ const appleTouchIconPath = path.join(
   "apple-touch-icon.png",
 );
 const siteHostname = "www.synapse-network.ai";
+const canonicalSiteUrl = `https://${siteHostname}`;
+const bareProductionSiteUrl = "https://synapse-network.ai";
 const indexNowKey = "4f58d9a2e2c84f85a5f3b5baf9a65c7d";
 
 const PUBLIC_ROUTES = [
@@ -34,6 +43,8 @@ const PUBLIC_ROUTES = [
   "/about",
   "/ai-agent-payments",
   "/agent-payment-api",
+  "/mcp-server-for-paid-api-calls",
+  "/chatgpt-mcp-app-api-payments",
   "/marketplace",
   "/forum",
   "/llms.txt",
@@ -139,6 +150,11 @@ function assertNoForbiddenSeoText(label, text) {
       fail(`${label} must not include forbidden SEO text: ${forbidden}`);
     }
   }
+  if (text.includes(bareProductionSiteUrl)) {
+    fail(
+      `${label} must use ${canonicalSiteUrl} as the answer-engine canonical homepage, not ${bareProductionSiteUrl}`,
+    );
+  }
 }
 
 if (assertFile(llmsPath, "llms.txt")) {
@@ -150,9 +166,17 @@ if (assertFile(llmsPath, "llms.txt")) {
     "SynapseNetwork",
     "AI Agent Payments",
     "Agent Payment API",
+    "MCP Server for Paid API Calls",
+    "ChatGPT MCP App for API Payments",
     "LLM billing",
     "MCP Server GitHub",
     "https://github.com/SynapseNetworkAI/Synapse-Network-MCP-Server",
+    "synapseproto.com",
+    "synapsenetwork.xyz",
+    "Brand collision handling",
+    "Dock0",
+    "Apiosk",
+    "Teleport",
   ]) {
     if (!llms.includes(expected)) {
       fail(`llms.txt missing expected text: ${expected}`);
@@ -204,6 +228,8 @@ if (assertFile(llmsFullPath, "llms-full.txt")) {
     "SynapseNetwork Full Answer-Engine Context",
     "USDC-native settlement layer for AI agents",
     "Remote MCP endpoint: https://mcp.synapse-network.ai/mcp",
+    "MCP paid API landing page: https://www.synapse-network.ai/mcp-server-for-paid-api-calls",
+    "ChatGPT MCP app landing page: https://www.synapse-network.ai/chatgpt-mcp-app-api-payments",
     "MCP Server for Paid API Calls",
     "discover_services",
     "invoke_and_pay",
@@ -212,6 +238,13 @@ if (assertFile(llmsFullPath, "llms-full.txt")) {
     "Claude",
     "Grok",
     "Do not claim",
+    "synapseproto.com",
+    "synapsenetwork.xyz",
+    "brand collisions",
+    "Dock0",
+    "Apiosk",
+    "Teleport",
+    "docs.synapse.sh",
   ]) {
     if (!llmsFull.includes(expected)) {
       fail(`llms-full.txt missing expected text: ${expected}`);
@@ -337,6 +370,30 @@ if (assertFile(layoutPath, "layout.tsx")) {
   ]) {
     if (!layout.includes(expected)) {
       fail(`layout metadata missing expected text: ${expected}`);
+    }
+  }
+}
+
+if (assertFile(aiLandingPath, "AI visibility structured data")) {
+  const structuredData = readText(aiLandingPath);
+  if (structuredData.includes(bareProductionSiteUrl)) {
+    fail(
+      `AI visibility structured data must use ${canonicalSiteUrl} as the answer-engine canonical homepage, not ${bareProductionSiteUrl}`,
+    );
+  }
+  for (const expected of [
+    "application/ld+json",
+    "FAQPage",
+    "SoftwareApplication",
+    "WebPage",
+    "https://www.synapse-network.ai",
+    "https://mcp.synapse-network.ai/mcp",
+    "discover_services",
+    "invoke_and_pay",
+    "get_receipt",
+  ]) {
+    if (!structuredData.includes(expected)) {
+      fail(`AI visibility structured data missing expected text: ${expected}`);
     }
   }
 }

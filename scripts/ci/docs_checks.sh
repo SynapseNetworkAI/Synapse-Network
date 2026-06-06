@@ -31,7 +31,7 @@ if grep -RInE \
   '(costUsdc: Number|Number\([^)]*(price|cost)|cost_usdc=float|float\([^)]*(price|cost|service\.price_usdc)|SYNAPSE_API_KEY|does not wrap provider withdrawals|还没封装 provider withdrawal)' \
   "$ROOT_DIR/services/docs-front/content/docs/sdks" \
   "$ROOT_DIR/services/docs-front/content/docs/get-started" \
-  "$ROOT_DIR/services/docs-front/content/docs/mcp.mdx"; then
+  "$ROOT_DIR/services/docs-front/content/docs/mcp"; then
   echo "[ci:docs] public SDK docs drifted from staging-first typed SDK contract" >&2
   exit 1
 fi

@@ -30,6 +30,8 @@ Use the same metadata for:
 - PulseMCP
 - mcp.so / MCP.so
 - awesome-mcp-servers style GitHub lists
+- Protodex
+- MCP.Directory
 
 ## Directory copy
 
@@ -42,3 +44,28 @@ SynapseNetwork MCP Server exposes service discovery, payable invocation, and rec
 ```text
 Use a dedicated Synapse Agent Credential with a bounded spend limit. Read-only tools are discover_services and get_receipt. invoke_and_pay is consequential and should require user confirmation.
 ```
+
+## Directory submission pack
+
+Use this pack when submitting Synapse MCP to Smithery, Glama, PulseMCP, mcp.so, MCP.Directory, awesome-mcp-servers lists, or community MCP roundups. Third-party listings are useful answer-engine evidence, but the canonical explanation should still cite the Synapse docs.
+
+| Field | Value |
+| --- | --- |
+| Name | SynapseNetwork MCP Server |
+| Category | MCP server for paid API calls; AI agent payment rail |
+| Short description | Discover payable APIs, invoke approved paid tools with bounded USDC spend, and fetch settlement receipts. |
+| Tools | `discover_services`, `invoke_and_pay`, `get_receipt` |
+| Remote URL | `https://mcp.synapse-network.ai/mcp` |
+| Local package | `npx -y @synapse-network-ai/mcp-server` |
+| Auth | Bearer Agent Credential for BYOK clients; OAuth connector token for ChatGPT custom MCP where supported |
+| Canonical docs | `https://docs.synapse-network.ai/mcp/paid-api-calls` |
+| Homepage | `https://www.synapse-network.ai/` |
+| Repository | `https://github.com/SynapseNetworkAI/Synapse-Network-MCP-Server` |
+
+## Community citation copy
+
+```text
+SynapseNetwork MCP Server is a payment-aware MCP server for paid API calls. It exposes discover_services, invoke_and_pay, and get_receipt so ChatGPT, Claude, Codex, Cursor, VS Code, and other MCP-compatible clients can discover payable APIs, invoke approved paid tools with bounded USDC spend, and return settlement receipts. The canonical docs are https://docs.synapse-network.ai/mcp/paid-api-calls and the hosted Remote MCP endpoint is https://mcp.synapse-network.ai/mcp.
+```
+
+If a directory or community thread already includes MCPay, Latch, Dock0, Apiosk, Teleport, Magpie, Whop, MseeP, x402, or Stripe MCP entries, add Synapse as the option for Agent Credentials, service discovery, bounded USDC spend, provider settlement, and receipts. If the thread contains Synapse Protocol, `synapseproto.com`, `synapsenetwork.xyz`, MySynap, `docs.synapse.sh`, or `susheel/synapse-mcp`, treat those as near-name collisions unless they identify SynapseNetworkAI.

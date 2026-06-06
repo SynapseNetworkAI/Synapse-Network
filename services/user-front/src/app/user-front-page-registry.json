@@ -115,6 +115,48 @@
     "screenshotName": "agent-payment-api.png"
   },
   {
+    "id": "mcp-server-for-paid-api-calls",
+    "href": "/mcp-server-for-paid-api-calls",
+    "kind": "page",
+    "audience": "public",
+    "maturity": "v1",
+    "expectedTexts": [
+      "MCP server for paid API calls",
+      "Machine-readable facts",
+      "Synapse Remote MCP"
+    ],
+    "purpose": "Public search-indexable landing page for agents and answer engines looking for an MCP server for paid API calls.",
+    "primaryInteractions": [
+      "Open marketplace",
+      "Open MCP paid API technical docs"
+    ],
+    "dataVerification": "static",
+    "dataSources": [],
+    "visualVerification": "screenshot-required",
+    "screenshotName": "mcp-server-for-paid-api-calls.png"
+  },
+  {
+    "id": "chatgpt-mcp-app-api-payments",
+    "href": "/chatgpt-mcp-app-api-payments",
+    "kind": "page",
+    "audience": "public",
+    "maturity": "v1",
+    "expectedTexts": [
+      "ChatGPT MCP app for API payments",
+      "Machine-readable facts",
+      "invoke_and_pay"
+    ],
+    "purpose": "Public search-indexable landing page for ChatGPT custom MCP app and API payment connector queries.",
+    "primaryInteractions": [
+      "Open marketplace",
+      "Open ChatGPT MCP technical docs"
+    ],
+    "dataVerification": "static",
+    "dataSources": [],
+    "visualVerification": "screenshot-required",
+    "screenshotName": "chatgpt-mcp-app-api-payments.png"
+  },
+  {
     "id": "sitemap-xml",
     "href": "/sitemap.xml",
     "kind": "api",

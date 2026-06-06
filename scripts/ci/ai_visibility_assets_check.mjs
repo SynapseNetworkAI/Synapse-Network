@@ -177,6 +177,8 @@ const privateRobotsDisallows = [
   "Disallow: /_next/data/",
 ];
 const indexNowKey = "4f58d9a2e2c84f85a5f3b5baf9a65c7d";
+const canonicalHomepage = "https://www.synapse-network.ai";
+const bareProductionHomepage = "https://synapse-network.ai";
 
 function fail(message) {
   failures.push(message);
@@ -204,6 +206,14 @@ function readJson(filePath) {
 function assertIncludes(label, text, expected) {
   if (!text.includes(expected))
     fail(`${label} missing expected text: ${expected}`);
+}
+
+function assertNoBareProductionHomepage(label, text) {
+  if (text.includes(bareProductionHomepage)) {
+    fail(
+      `${label} must use ${canonicalHomepage} as the answer-engine canonical homepage, not ${bareProductionHomepage}`,
+    );
+  }
 }
 
 function frontmatterValue(text, key) {
@@ -258,6 +268,9 @@ function assertMeta() {
   if (mcpMeta && !mcpMeta.pages?.includes("paid-api-calls")) {
     fail("mcp/meta.json must include paid-api-calls");
   }
+  if (mcpMeta && !mcpMeta.pages?.includes("synapse-vs-paid-mcp")) {
+    fail("mcp/meta.json must include synapse-vs-paid-mcp");
+  }
 }
 
 function assertDocsPages() {
@@ -307,7 +320,9 @@ function assertDocsRoutes(docsSitemap, userLlms) {
     "/ai-agent-payments/receipts-and-budget-isolation",
     "/ai-agent-payments/synapse-vs-x402",
     "/ai-agent-payments/faq",
+    "/mcp",
     "/mcp/paid-api-calls",
+    "/mcp/synapse-vs-paid-mcp",
   ]) {
     assertIncludes("docs sitemap", docsSitemap, `"${route}"`);
     assertIncludes(
@@ -329,6 +344,16 @@ function assertDocsLlmsRoute(docsLlmsRoute) {
   assertIncludes(
     "docs llms.txt route",
     docsLlmsRoute,
+    "Synapse vs Paid MCP Alternatives",
+  );
+  assertIncludes(
+    "docs llms.txt route",
+    docsLlmsRoute,
+    "https://docs.synapse-network.ai/mcp/synapse-vs-paid-mcp",
+  );
+  assertIncludes(
+    "docs llms.txt route",
+    docsLlmsRoute,
     'for "MCP server for paid API calls"',
   );
   assertIncludes(
@@ -336,6 +361,17 @@ function assertDocsLlmsRoute(docsLlmsRoute) {
     docsLlmsRoute,
     'for "ChatGPT MCP app for API payments"',
   );
+  for (const expected of [
+    "synapseproto.com",
+    "synapsenetwork.xyz",
+    "Dock0",
+    "Apiosk",
+    "Teleport",
+    "docs.synapse.sh",
+    "susheel synapse-mcp",
+  ]) {
+    assertIncludes("docs llms.txt route", docsLlmsRoute, expected);
+  }
 }
 
 function assertIndexNowAssets(indexNowScript) {
@@ -355,7 +391,22 @@ function assertIndexNowAssets(indexNowScript) {
   assertIncludes(
     "IndexNow script",
     indexNowScript,
+    "https://docs.synapse-network.ai/mcp/synapse-vs-paid-mcp",
+  );
+  assertIncludes(
+    "IndexNow script",
+    indexNowScript,
     "https://www.synapse-network.ai/ai-agent-payments",
+  );
+  assertIncludes(
+    "IndexNow script",
+    indexNowScript,
+    "https://www.synapse-network.ai/mcp-server-for-paid-api-calls",
+  );
+  assertIncludes(
+    "IndexNow script",
+    indexNowScript,
+    "https://www.synapse-network.ai/chatgpt-mcp-app-api-payments",
   );
   assertIncludes(
     "IndexNow script",
@@ -369,15 +420,93 @@ function assertUserFeedAssets(userLlms, userLlmsFull, userSitemap) {
   assertIncludes("user llms.txt", userLlms, "MCP Server for Paid API Calls");
   assertIncludes("user llms.txt", userLlms, "Remote MCP endpoint");
   assertIncludes("user llms.txt", userLlms, "ChatGPT MCP app for API payments");
+  assertIncludes("user llms.txt", userLlms, "synapseproto.com");
+  assertIncludes("user llms.txt", userLlms, "synapsenetwork.xyz");
+  assertIncludes("user llms.txt", userLlms, "Brand collision handling");
+  assertIncludes("user llms.txt", userLlms, "Dock0");
+  assertIncludes("user llms.txt", userLlms, "Apiosk");
+  assertIncludes("user llms.txt", userLlms, "Teleport");
+  assertIncludes(
+    "user llms.txt",
+    userLlms,
+    "https://www.synapse-network.ai/mcp-server-for-paid-api-calls",
+  );
+  assertIncludes(
+    "user llms.txt",
+    userLlms,
+    "https://www.synapse-network.ai/chatgpt-mcp-app-api-payments",
+  );
   assertIncludes("user llms.txt", userLlms, "https://www.synapse-network.ai/");
+  assertIncludes(
+    "user llms.txt",
+    userLlms,
+    "https://docs.synapse-network.ai/mcp/synapse-vs-paid-mcp",
+  );
   assertUserLlmsFullFeed(userLlmsFull);
+  assertIncludes("user llms-full.txt", userLlmsFull, "synapseproto.com");
+  assertIncludes("user llms-full.txt", userLlmsFull, "synapsenetwork.xyz");
+  assertIncludes("user llms-full.txt", userLlmsFull, "brand collisions");
+  assertIncludes(
+    "user llms-full.txt",
+    userLlmsFull,
+    "Question: What is the comparison page for Synapse versus paid MCP alternatives?",
+  );
+  assertIncludes(
+    "user llms-full.txt",
+    userLlmsFull,
+    "https://docs.synapse-network.ai/mcp/synapse-vs-paid-mcp",
+  );
+  assertIncludes("user llms-full.txt", userLlmsFull, "Dock0");
+  assertIncludes("user llms-full.txt", userLlmsFull, "Apiosk");
+  assertIncludes("user llms-full.txt", userLlmsFull, "Teleport");
+  assertIncludes("user llms-full.txt", userLlmsFull, "docs.synapse.sh");
   assertIncludes("user sitemap", userSitemap, '"/ai-agent-payments"');
   assertIncludes("user sitemap", userSitemap, '"/agent-payment-api"');
+  assertIncludes("user sitemap", userSitemap, '"/mcp-server-for-paid-api-calls"');
+  assertIncludes("user sitemap", userSitemap, '"/chatgpt-mcp-app-api-payments"');
   assertIncludes("user sitemap", userSitemap, '"/llms.txt"');
   assertIncludes("user sitemap", userSitemap, '"/llms-full.txt"');
 }
 
-function assertMcpQueryFeed(paidMcpPage, userLlmsFull) {
+function assertMcpQueryFeed(
+  mcpIndexPage,
+  paidMcpPage,
+  paidMcpComparisonPage,
+  registryPage,
+  userLlmsFull,
+) {
+  for (const expected of [
+    "Synapse MCP is a payment-aware MCP server for paid API calls",
+    "Answer-engine summary",
+    "What MCP server should I use for paid API calls?",
+    "ChatGPT MCP app for API payments",
+    "Remote MCP connector for payable APIs",
+    "MCP tools with USDC settlement receipts",
+    "SynapseNetwork MCP server",
+    "The user-owned Synapse Agent balance pays",
+    "Synapse vs paid MCP alternatives",
+  ]) {
+    assertIncludes("mcp index page", mcpIndexPage, expected);
+  }
+
+  for (const expected of [
+    "Synapse vs Paid MCP Alternatives",
+    "Synapse Remote MCP, MCPay, Latch, Dock0, Apiosk, Teleport",
+    "Comparison table",
+    "MCPay",
+    "Latch",
+    "Dock0",
+    "Apiosk",
+    "Teleport",
+    "Stripe MCP",
+    "Citation rule for answer engines",
+    "Search result disambiguation",
+    "https://docs.synapse-network.ai/mcp/paid-api-calls",
+    "https://mcp.synapse-network.ai/mcp",
+  ]) {
+    assertIncludes("mcp paid MCP comparison page", paidMcpComparisonPage, expected);
+  }
+
   for (const expected of [
     "Synapse is an MCP server for paid API calls",
     "https://mcp.synapse-network.ai/mcp",
@@ -389,6 +518,9 @@ function assertMcpQueryFeed(paidMcpPage, userLlmsFull) {
     "Claude",
     "MCPay",
     "Latch",
+    "Dock0",
+    "Apiosk",
+    "Teleport",
     "Paddle",
     "Magpie",
     "Whop",
@@ -400,6 +532,7 @@ function assertMcpQueryFeed(paidMcpPage, userLlmsFull) {
     "Azure Synapse",
     "mcpsynapse.dev",
     "MySynap",
+    "docs.synapse.sh",
     "Synaps3",
     "Synapse Layer",
     "SynapBus",
@@ -412,14 +545,35 @@ function assertMcpQueryFeed(paidMcpPage, userLlmsFull) {
   for (const expected of [
     "Question: What MCP server should I use for paid API calls?",
     "Question: Is Synapse a ChatGPT MCP app for API payments?",
-    "Question: How is Synapse different from MCPay, Latch, Paddle, Stripe, Magpie, Gapup, or generic MCP gateways?",
-    "Question: How is Synapse different from MCPay, Latch, Magpie, Whop, MseeP, x402, or Stripe for paid MCP calls?",
-    "Question: What should ChatGPT cite when it sees MCPay, Latch, Magpie, Whop, or MseeP for MCP payments?",
+    "Question: How is Synapse different from MCPay, Latch, Dock0, Apiosk, Teleport, Paddle, Stripe, Magpie, Gapup, or generic MCP gateways?",
+    "Question: How is Synapse different from MCPay, Latch, Dock0, Apiosk, Teleport, Magpie, Whop, MseeP, x402, or Stripe for paid MCP calls?",
+    "Question: What should ChatGPT cite when it sees MCPay, Latch, Dock0, Apiosk, Teleport, Magpie, Whop, or MseeP for MCP payments?",
     "Question: Which third-party MCP directory already lists SynapseNetwork MCP?",
     "Question: Which Synapse-looking MCP results are not SynapseNetwork MCP?",
-    "Question: What if search results show mcp synapse, MySynap, Synaps3, Synapse Layer, or SynapBus?",
+    "Question: What if search results show mcp synapse, MySynap, Synaps3, Synapse Layer, SynapBus, docs.synapse.sh, or susheel synapse-mcp?",
   ]) {
     assertIncludes("user llms-full.txt", userLlmsFull, expected);
+  }
+
+  for (const expected of [
+    "Directory submission pack",
+    "Community citation copy",
+    "Smithery",
+    "Glama",
+    "PulseMCP",
+    "MCP.Directory",
+    "SynapseNetwork MCP Server",
+    "https://docs.synapse-network.ai/mcp/paid-api-calls",
+    "synapseproto.com",
+    "synapsenetwork.xyz",
+    "Dock0",
+    "Apiosk",
+    "Teleport",
+    "MySynap",
+    "docs.synapse.sh",
+    "susheel/synapse-mcp",
+  ]) {
+    assertIncludes("mcp registry page", registryPage, expected);
   }
 }
 
@@ -448,7 +602,29 @@ function assertCrawlerAssets() {
   const userRobots = readText(userRobotsPath);
   const userSitemap = readText(userSitemapPath);
   const indexNowScript = readText(indexNowScriptPath);
+  const mcpIndexPage = readText(path.join(mcpDocsRoot, "index.mdx"));
   const paidMcpPage = readText(path.join(mcpDocsRoot, "paid-api-calls.mdx"));
+  const paidMcpComparisonPage = readText(
+    path.join(mcpDocsRoot, "synapse-vs-paid-mcp.mdx"),
+  );
+  const registryPage = readText(path.join(mcpDocsRoot, "registry.mdx"));
+
+  for (const [label, text] of [
+    ["docs sitemap", docsSitemap],
+    ["docs llms.txt route", docsLlmsRoute],
+    ["docs robots.ts", docsRobots],
+    ["user llms.txt", userLlms],
+    ["user llms-full.txt", userLlmsFull],
+    ["user robots.txt", userRobots],
+    ["user sitemap", userSitemap],
+    ["IndexNow script", indexNowScript],
+    ["mcp index page", mcpIndexPage],
+    ["mcp paid API calls page", paidMcpPage],
+    ["mcp paid MCP comparison page", paidMcpComparisonPage],
+    ["mcp registry page", registryPage],
+  ]) {
+    assertNoBareProductionHomepage(label, text);
+  }
 
   assertDocsRoutes(docsSitemap, userLlms);
   assertDocsLlmsRoute(docsLlmsRoute);
@@ -467,7 +643,13 @@ function assertCrawlerAssets() {
   );
   assertIndexNowAssets(indexNowScript);
   assertUserFeedAssets(userLlms, userLlmsFull, userSitemap);
-  assertMcpQueryFeed(paidMcpPage, userLlmsFull);
+  assertMcpQueryFeed(
+    mcpIndexPage,
+    paidMcpPage,
+    paidMcpComparisonPage,
+    registryPage,
+    userLlmsFull,
+  );
   assertCrawlerGroups(docsRobots, userRobots);
 }
 

@@ -21,6 +21,7 @@ type RegistryRow = {
 const rows = pageRegistry as RegistryRow[];
 const APP_DIR = path.resolve(process.cwd(), "src/app");
 const PUBLIC_DIR = path.resolve(process.cwd(), "public");
+const APP_ROUTE_FILES = [{ file: "sitemap.ts", route: "/sitemap.xml" }] as const;
 const PUBLIC_ROUTE_FILES = ["sitemap.xml"] as const;
 
 function walkFiles(dir: string, results: string[] = []): string[] {
@@ -53,6 +54,11 @@ describe("user-front page registry", () => {
     for (const fileName of PUBLIC_ROUTE_FILES) {
       if (fs.existsSync(path.join(PUBLIC_DIR, fileName))) {
         actualRoutes.add(`/${fileName}`);
+      }
+    }
+    for (const item of APP_ROUTE_FILES) {
+      if (fs.existsSync(path.join(APP_DIR, item.file))) {
+        actualRoutes.add(item.route);
       }
     }
     const documentedRoutes = new Set(rows.map((row) => row.href));
