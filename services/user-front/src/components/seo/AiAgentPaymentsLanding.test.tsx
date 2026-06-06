@@ -5,6 +5,10 @@ import { cleanup, screen } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 
 import { AiAgentPaymentsLanding } from "@/components/seo/AiAgentPaymentsLanding";
+import {
+  AiAgentPaymentsStructuredData,
+  aiAgentPaymentsStructuredDataProps,
+} from "@/components/seo/AiAgentPaymentsStructuredData";
 import { renderWithLanguage } from "@/test/renderWithLanguage";
 
 vi.mock("next/link", () => ({
@@ -45,11 +49,6 @@ describe("AiAgentPaymentsLanding MCP pages", () => {
     expect(
       screen.queryByText("用于 paid API calls 的 MCP server。"),
     ).toBeNull();
-    expectJsonLd({
-      url: "https://www.synapse-network.ai/mcp-server-for-paid-api-calls",
-      title: "MCP server for paid API calls.",
-      keyword: "MCP server for paid API calls",
-    });
   });
 
   it("renders the MCP landing copy in Chinese", () => {
@@ -110,9 +109,36 @@ describe("AiAgentPaymentsLanding MCP pages", () => {
     expect(
       screen.queryByText("ChatGPT MCP app for API payments."),
     ).toBeNull();
+  });
+
+  it("renders server-readable MCP JSON-LD", () => {
+    renderWithLanguage(
+      createElement(
+        AiAgentPaymentsStructuredData,
+        aiAgentPaymentsStructuredDataProps("mcp"),
+      ),
+      "en",
+    );
+
+    expectJsonLd({
+      url: "https://www.synapse-network.ai/mcp-server-for-paid-api-calls",
+      title: "MCP server for paid API calls.",
+      keyword: "MCP server for paid API calls",
+    });
+  });
+
+  it("renders server-readable ChatGPT MCP JSON-LD", () => {
+    renderWithLanguage(
+      createElement(
+        AiAgentPaymentsStructuredData,
+        aiAgentPaymentsStructuredDataProps("chatgptMcp"),
+      ),
+      "en",
+    );
+
     expectJsonLd({
       url: "https://www.synapse-network.ai/chatgpt-mcp-app-api-payments",
-      title: "用于 API payments 的 ChatGPT MCP app。",
+      title: "ChatGPT MCP app for API payments.",
       keyword: "ChatGPT MCP app",
     });
   });

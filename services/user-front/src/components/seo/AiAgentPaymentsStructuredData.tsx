@@ -1,9 +1,7 @@
-"use client";
-
 type PageMode = "overview" | "api" | "mcp" | "chatgptMcp";
 type FaqItem = [string, string];
 
-interface StructuredDataProps {
+export interface AiAgentPaymentsStructuredDataProps {
   mode: PageMode;
   title: string;
   description: string;
@@ -19,6 +17,36 @@ const MODE_PATHS: Record<PageMode, string> = {
   api: "/agent-payment-api",
   mcp: "/mcp-server-for-paid-api-calls",
   chatgptMcp: "/chatgpt-mcp-app-api-payments",
+};
+
+const MODE_COPY: Record<
+  PageMode,
+  Pick<AiAgentPaymentsStructuredDataProps, "title" | "description" | "docsUrl">
+> = {
+  overview: {
+    title: "AI agents can discover, invoke, and pay for APIs.",
+    description:
+      "Synapse is the USDC-native settlement layer for autonomous agents buying APIs, LLM calls, data, tools, and MCP services with budget guardrails and receipts.",
+    docsUrl: "https://docs.synapse-network.ai/ai-agent-payments",
+  },
+  api: {
+    title: "Agent Payment API for paid machine-to-machine calls.",
+    description:
+      "Use Synapse discovery, price assertion, bounded credentials, paid invocation, and receipt retrieval to let software agents buy services without a human checkout flow.",
+    docsUrl: "https://docs.synapse-network.ai/ai-agent-payments/agent-payment-api",
+  },
+  mcp: {
+    title: "MCP server for paid API calls.",
+    description:
+      "Use Synapse Remote MCP when ChatGPT, Claude, Grok, Codex, or another agent client needs to discover payable APIs, invoke approved paid tools, and return settlement receipts.",
+    docsUrl: "https://docs.synapse-network.ai/mcp/paid-api-calls",
+  },
+  chatgptMcp: {
+    title: "ChatGPT MCP app for API payments.",
+    description:
+      "Register Synapse Remote MCP as a ChatGPT custom MCP app or connector so ChatGPT can scan read-only discovery tools while keeping paid invoke_and_pay calls behind confirmation.",
+    docsUrl: "https://docs.synapse-network.ai/mcp/paid-api-calls",
+  },
 };
 
 const MODE_KEYWORDS: Record<PageMode, string[]> = {
@@ -49,13 +77,42 @@ const MODE_KEYWORDS: Record<PageMode, string[]> = {
   ],
 };
 
+const FAQ_ITEMS: FaqItem[] = [
+  [
+    "Can an AI agent pay without seeing a credit card?",
+    "Yes. The owner funds Synapse with USDC and gives the agent a limited Agent Credential. The agent spends only inside that approved boundary.",
+  ],
+  [
+    "Does every API call use blockchain gas?",
+    "No. Synapse uses on-chain collateral for the settlement boundary and off-chain Gateway charging for high-frequency API calls.",
+  ],
+  [
+    "Can ChatGPT or Claude use this?",
+    "Yes, through Synapse MCP or compatible tool integrations. Paid invocation should remain behind confirmation controls.",
+  ],
+  [
+    "How do providers earn?",
+    "Providers publish callable services, set prices, receive paid agent traffic, and withdraw matured USDC receivables.",
+  ],
+];
+
+export function aiAgentPaymentsStructuredDataProps(
+  mode: PageMode,
+): AiAgentPaymentsStructuredDataProps {
+  return {
+    mode,
+    ...MODE_COPY[mode],
+    faqItems: FAQ_ITEMS,
+  };
+}
+
 export function AiAgentPaymentsStructuredData({
   mode,
   title,
   description,
   docsUrl,
   faqItems,
-}: Readonly<StructuredDataProps>) {
+}: Readonly<AiAgentPaymentsStructuredDataProps>) {
   const pageUrl = `${SITE_URL}${MODE_PATHS[mode]}`;
   const graph = [
     organizationNode(),
