@@ -39,7 +39,7 @@ locals {
       POSTGRES_CONNECT_TIMEOUT_SEC             = "5"
       POSTGRES_POOL_MAX                        = "5"
       POSTGRES_AUTO_INIT                       = "0"
-      CORS_ALLOW_ORIGINS                       = "https://synapse-network.ai"
+      CORS_ALLOW_ORIGINS                       = "https://www.synapse-network.ai"
       ROUTER_ADDRESS                           = ""
       USDC_TOKEN_ADDRESS                       = ""
       V2_INDEXER_ENABLED                       = "false"
@@ -65,7 +65,7 @@ locals {
       NOTIFICATION_OUTBOX_TRIGGER_TIMEOUT_SEC  = "3"
       NOTIFICATION_OUTBOX_FALLBACK_ENABLED     = "true"
       PUBLIC_GATEWAY_BASE_URL                  = "https://api.synapse-network.ai"
-      PUBLIC_APP_BASE_URL                      = "https://synapse-network.ai"
+      PUBLIC_APP_BASE_URL                      = "https://www.synapse-network.ai"
       TRANSACTION_LARK_ENABLED                 = "true"
       IN_APP_NOTIFICATION_CLEANUP_ENABLED      = "false"
       WITHDRAWAL_AUTO_SINGLE_LIMIT_USDC        = "1.000000"
@@ -265,7 +265,7 @@ locals {
         {
           NEXT_PUBLIC_APP_ENV          = var.environment
           NEXT_PUBLIC_DOCS_BASE_URL    = local.is_production ? "https://docs.synapse-network.ai" : "https://docs-synapse-network.ai"
-          NEXT_PUBLIC_CONSOLE_BASE_URL = local.is_production ? "https://synapse-network.ai/dashboard/overview" : "https://synapse-network.ai/dashboard/overview"
+          NEXT_PUBLIC_CONSOLE_BASE_URL = local.is_production ? "https://www.synapse-network.ai/dashboard/overview" : "https://www.synapse-network.ai/dashboard/overview"
           NEXT_PUBLIC_GATEWAY_BASE_URL = local.is_production ? "https://api.synapse-network.ai" : "https://api-synapse-network.ai"
         },
       )

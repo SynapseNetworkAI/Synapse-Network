@@ -55,7 +55,7 @@ private_service_range_prefix_length   = 16
 
 common_runtime_env = {
   ANALYTICS_KAFKA_BOOTSTRAP_SERVERS = ""
-  CORS_ALLOW_ORIGINS                = "https://synapse-network.ai"
+  CORS_ALLOW_ORIGINS                = "https://www.synapse-network.ai"
   REDIS_URL                         = ""
   ROUTER_ADDRESS                    = ""
   USDC_TOKEN_ADDRESS                = ""
@@ -66,7 +66,7 @@ frontend_runtime_env = {
   NEXT_PUBLIC_ADMIN_API_BASE_URL   = ""
   NEXT_PUBLIC_DOCS_BASE_URL        = "https://docs.synapse-network.ai"
   NEXT_PUBLIC_TX_EXPLORER_BASE_URL = "https://arbiscan.io"
-  NEXT_PUBLIC_CONSOLE_BASE_URL     = "https://synapse-network.ai/dashboard/overview"
+  NEXT_PUBLIC_CONSOLE_BASE_URL     = "https://www.synapse-network.ai/dashboard/overview"
   ADMIN_API_PROXY_TARGET           = "https://admin-api.synapse-network.ai"
   NEXT_PUBLIC_APP_ENV              = "prod"
 }

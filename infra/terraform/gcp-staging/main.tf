@@ -260,7 +260,7 @@ locals {
         {
           NEXT_PUBLIC_APP_ENV          = var.environment
           NEXT_PUBLIC_DOCS_BASE_URL    = local.is_production ? "https://docs.synapse-network.ai" : "https://docs-staging.synapse-network.ai"
-          NEXT_PUBLIC_CONSOLE_BASE_URL = local.is_production ? "https://synapse-network.ai/dashboard/overview" : "https://staging.synapse-network.ai/dashboard/overview"
+          NEXT_PUBLIC_CONSOLE_BASE_URL = local.is_production ? "https://www.synapse-network.ai/dashboard/overview" : "https://staging.synapse-network.ai/dashboard/overview"
           NEXT_PUBLIC_GATEWAY_BASE_URL = local.is_production ? "https://api.synapse-network.ai" : "https://api-staging.synapse-network.ai"
         },
       )
