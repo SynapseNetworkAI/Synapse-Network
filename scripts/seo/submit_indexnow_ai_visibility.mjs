@@ -40,6 +40,7 @@ const batches = [
       "https://docs.synapse-network.ai/mcp",
       "https://docs.synapse-network.ai/mcp/paid-api-calls",
       "https://docs.synapse-network.ai/mcp/synapse-vs-paid-mcp",
+      "https://docs.synapse-network.ai/mcp/brand-disambiguation",
       "https://docs.synapse-network.ai/llms.txt",
       "https://docs.synapse-network.ai/llms-full.txt",
       "https://docs.synapse-network.ai/robots.txt",

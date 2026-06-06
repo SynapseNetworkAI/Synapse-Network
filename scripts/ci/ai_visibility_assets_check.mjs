@@ -399,6 +399,11 @@ function assertIndexNowAssets(indexNowScript) {
   assertIncludes(
     "IndexNow script",
     indexNowScript,
+    "https://docs.synapse-network.ai/mcp/brand-disambiguation",
+  );
+  assertIncludes(
+    "IndexNow script",
+    indexNowScript,
     "https://www.synapse-network.ai/ai-agent-payments",
   );
   assertIncludes(
