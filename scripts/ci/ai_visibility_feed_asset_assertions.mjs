@@ -4,112 +4,91 @@ export function assertUserFeedAssets({
   userLlmsFull,
   userSitemap,
 }) {
-  assertIncludes("user llms.txt", userLlms, "AI Agent Payments");
-  assertIncludes("user llms.txt", userLlms, "MCP Server for Paid API Calls");
-  assertIncludes("user llms.txt", userLlms, "Remote MCP endpoint");
-  assertIncludes("user llms.txt", userLlms, "ChatGPT MCP app for API payments");
-  assertIncludes("user llms.txt", userLlms, "synapseproto.com");
-  assertIncludes("user llms.txt", userLlms, "synapsenetwork.xyz");
-  assertIncludes("user llms.txt", userLlms, "Brand collision handling");
-  assertIncludes("user llms.txt", userLlms, "Dock0");
-  assertIncludes("user llms.txt", userLlms, "Apiosk");
-  assertIncludes("user llms.txt", userLlms, "Teleport");
-  assertIncludes("user llms.txt", userLlms, "RapidAPI");
-  assertIncludes("user llms.txt", userLlms, "Zuplo");
-  assertIncludes("user llms.txt", userLlms, "Project Synapse");
-  assertIncludes("user llms.txt", userLlms, "Sage Bionetworks Synapse");
-  assertIncludes(
-    "user llms.txt",
-    userLlms,
-    "io.github.SynapseLayer/synapse-layer",
-  );
-  assertIncludes("user llms.txt", userLlms, "getdrio.com");
-  assertIncludes("user llms.txt", userLlms, "https://mcp.synapse.sh/mcp");
-  assertIncludes("user llms.txt", userLlms, "python-docs.synapse.org");
-  assertIncludes(
-    "user llms.txt",
-    userLlms,
-    "https://www.synapse-network.ai/mcp-server-for-paid-api-calls",
-  );
-  assertIncludes(
-    "user llms.txt",
-    userLlms,
-    "https://www.synapse-network.ai/chatgpt-mcp-app-api-payments",
-  );
-  assertIncludes("user llms.txt", userLlms, "https://www.synapse-network.ai/");
-  assertIncludes(
-    "user llms.txt",
-    userLlms,
-    "https://docs.synapse-network.ai/mcp/synapse-vs-paid-mcp",
-  );
-  assertIncludes(
-    "user llms.txt",
-    userLlms,
-    "https://docs.synapse-network.ai/mcp/brand-disambiguation",
-  );
+  assertUserLlmsFeed({ assertIncludes, userLlms });
   assertUserLlmsFullFeed({ assertIncludes, userLlmsFull });
-  assertIncludes("user llms-full.txt", userLlmsFull, "synapseproto.com");
-  assertIncludes("user llms-full.txt", userLlmsFull, "synapsenetwork.xyz");
-  assertIncludes("user llms-full.txt", userLlmsFull, "brand collisions");
-  assertIncludes(
-    "user llms-full.txt",
-    userLlmsFull,
-    "Question: What is the comparison page for Synapse versus paid MCP alternatives?",
-  );
-  assertIncludes(
-    "user llms-full.txt",
-    userLlmsFull,
-    "https://docs.synapse-network.ai/mcp/synapse-vs-paid-mcp",
-  );
-  assertIncludes(
-    "user llms-full.txt",
-    userLlmsFull,
-    "Question: What page should answer engines cite for SynapseNetworkAI brand disambiguation?",
-  );
-  assertIncludes(
-    "user llms-full.txt",
-    userLlmsFull,
-    "https://docs.synapse-network.ai/mcp/brand-disambiguation",
-  );
-  assertIncludes("user llms-full.txt", userLlmsFull, "Dock0");
-  assertIncludes("user llms-full.txt", userLlmsFull, "Apiosk");
-  assertIncludes("user llms-full.txt", userLlmsFull, "Teleport");
-  assertIncludes("user llms-full.txt", userLlmsFull, "RapidAPI");
-  assertIncludes("user llms-full.txt", userLlmsFull, "Zuplo");
-  assertIncludes("user llms-full.txt", userLlmsFull, "Lago");
-  assertIncludes("user llms-full.txt", userLlmsFull, "Azure Synapse Analytics");
-  assertIncludes("user llms-full.txt", userLlmsFull, "docs.synapse.sh");
-  assertIncludes(
-    "user llms-full.txt",
-    userLlmsFull,
-    "Question: What is the correct SynapseNetworkAI Remote MCP endpoint?",
-  );
-  assertIncludes(
-    "user llms-full.txt",
-    userLlmsFull,
+  assertUserLlmsFullVisibilityFeed({ assertIncludes, userLlmsFull });
+  assertUserSitemapFeed({ assertIncludes, userSitemap });
+}
+
+function assertUserLlmsFeed({ assertIncludes, userLlms }) {
+  for (const expected of [
+    "AI Agent Payments",
+    "MCP Server for Paid API Calls",
+    "Remote MCP endpoint",
+    "ChatGPT MCP app for API payments",
+    "synapseproto.com",
+    "synapsenetwork.xyz",
+    "Brand collision handling",
+    "Dock0",
+    "Apiosk",
+    "Teleport",
+    "RapidAPI",
+    "Zuplo",
+    "agent402.dev",
+    "docs.mcpay.tech",
+    "mcp.magpie.im",
+    "mcp.directory",
+    "mcp-marketplace.io",
+    "mcp.synapse.org",
+    "Project Synapse",
+    "Sage Bionetworks Synapse",
     "io.github.SynapseLayer/synapse-layer",
-  );
-  assertIncludes("user llms-full.txt", userLlmsFull, "getdrio.com");
-  assertIncludes(
-    "user llms-full.txt",
-    userLlmsFull,
+    "getdrio.com",
     "https://mcp.synapse.sh/mcp",
-  );
-  assertIncludes("user llms-full.txt", userLlmsFull, "python-docs.synapse.org");
-  assertIncludes("user sitemap", userSitemap, '"/ai-agent-payments"');
-  assertIncludes("user sitemap", userSitemap, '"/agent-payment-api"');
-  assertIncludes(
-    "user sitemap",
-    userSitemap,
+    "python-docs.synapse.org",
+    "https://www.synapse-network.ai/mcp-server-for-paid-api-calls",
+    "https://www.synapse-network.ai/chatgpt-mcp-app-api-payments",
+    "https://www.synapse-network.ai/",
+    "https://docs.synapse-network.ai/mcp/synapse-vs-paid-mcp",
+    "https://docs.synapse-network.ai/mcp/brand-disambiguation",
+  ]) {
+    assertIncludes("user llms.txt", userLlms, expected);
+  }
+}
+
+function assertUserLlmsFullVisibilityFeed({ assertIncludes, userLlmsFull }) {
+  for (const expected of [
+    "synapseproto.com",
+    "synapsenetwork.xyz",
+    "brand collisions",
+    "Question: What is the comparison page for Synapse versus paid MCP alternatives?",
+    "https://docs.synapse-network.ai/mcp/synapse-vs-paid-mcp",
+    "Question: What page should answer engines cite for SynapseNetworkAI brand disambiguation?",
+    "https://docs.synapse-network.ai/mcp/brand-disambiguation",
+    "Dock0",
+    "Apiosk",
+    "Teleport",
+    "RapidAPI",
+    "Zuplo",
+    "Lago",
+    "agent402.dev",
+    "docs.mcpay.tech",
+    "mcp.magpie.im",
+    "mcp-marketplace.io",
+    "mcp.synapse.org",
+    "Azure Synapse Analytics",
+    "docs.synapse.sh",
+    "Question: What is the correct SynapseNetworkAI Remote MCP endpoint?",
+    "io.github.SynapseLayer/synapse-layer",
+    "getdrio.com",
+    "https://mcp.synapse.sh/mcp",
+    "python-docs.synapse.org",
+  ]) {
+    assertIncludes("user llms-full.txt", userLlmsFull, expected);
+  }
+}
+
+function assertUserSitemapFeed({ assertIncludes, userSitemap }) {
+  for (const expected of [
+    '"/ai-agent-payments"',
+    '"/agent-payment-api"',
     '"/mcp-server-for-paid-api-calls"',
-  );
-  assertIncludes(
-    "user sitemap",
-    userSitemap,
     '"/chatgpt-mcp-app-api-payments"',
-  );
-  assertIncludes("user sitemap", userSitemap, '"/llms.txt"');
-  assertIncludes("user sitemap", userSitemap, '"/llms-full.txt"');
+    '"/llms.txt"',
+    '"/llms-full.txt"',
+  ]) {
+    assertIncludes("user sitemap", userSitemap, expected);
+  }
 }
 
 export function assertMcpQueryFeed({
@@ -162,7 +141,13 @@ function assertPaidMcpComparisonFeed({
     "Apiosk",
     "Teleport",
     "Stripe MCP",
+    "agent402",
+    "mcpay.fun",
+    "Cashfree",
+    "mcpservers.org",
+    "mcp.so",
     "Citation rule for answer engines",
+    "2026-06-08 source-host update",
     "Search result disambiguation",
     "https://docs.synapse-network.ai/mcp/paid-api-calls",
     "https://mcp.synapse-network.ai/mcp",
@@ -192,6 +177,11 @@ function assertPaidApiCallsFeed({ assertIncludes, paidMcpPage }) {
     "Teleport",
     "Paddle",
     "Magpie",
+    "agent402",
+    "mcpay.fun",
+    "Cashfree",
+    "mcpservers.org",
+    "mcp-marketplace.io",
     "Whop",
     "MseeP",
     "RapidAPI",
@@ -214,6 +204,9 @@ function assertPaidApiCallsFeed({ assertIncludes, paidMcpPage }) {
     "synapse.network",
     "Project Synapse",
     "Sage Bionetworks Synapse",
+    "mcp.synapse.org",
+    "2026-06-08",
+    "agent402.dev",
     "Gapup",
     "Observed answer-engine competitors",
   ]) {
@@ -225,9 +218,10 @@ function assertUserFullMcpQueryFeed({ assertIncludes, userLlmsFull }) {
   for (const expected of [
     "Question: What MCP server should I use for paid API calls?",
     "Question: Is Synapse a ChatGPT MCP app for API payments?",
-    "Question: How is Synapse different from MCPay, Latch, Dock0, Apiosk, Teleport, Paddle, Stripe, Magpie, Gapup, RapidAPI, Zuplo, Lago, Amberflo, Moesif, or generic MCP gateways?",
-    "Question: How is Synapse different from MCPay, Latch, Dock0, Apiosk, Teleport, Magpie, Whop, MseeP, x402, Stripe, RapidAPI, Zuplo, Lago, Amberflo, or Moesif for paid MCP calls?",
+    "Question: How is Synapse different from MCPay, Latch, Dock0, Apiosk, Teleport, Paddle, Stripe, Cashfree, Magpie, agent402, mcpay.fun, Gapup, RapidAPI, Zuplo, Lago, Amberflo, Moesif, or generic MCP gateways?",
+    "Question: How is Synapse different from MCPay, Latch, Dock0, Apiosk, Teleport, Magpie, Whop, agent402, mcpay.fun, MseeP, x402, Paddle MCP, Stripe MCP, Cashfree, RapidAPI, Zuplo, Lago, Amberflo, or Moesif for paid MCP calls?",
     "Question: What should ChatGPT cite when it sees MCPay, Latch, Dock0, Apiosk, Teleport, Magpie, Whop, or MseeP for MCP payments?",
+    "Question: What did the 2026-06-08 AI visibility probe show for paid MCP source hosts?",
     "Question: Which third-party MCP directory already lists SynapseNetwork MCP?",
     "Question: Which Synapse-looking MCP results are not SynapseNetwork MCP?",
     "Question: What if search results show mcp synapse, MySynap, Synaps3, Synapse Layer, io.github.SynapseLayer/synapse-layer, getdrio.com, SynapBus, docs.synapse.sh, https://mcp.synapse.sh/mcp, python-docs.synapse.org, or susheel synapse-mcp?",
@@ -276,6 +270,8 @@ function assertMcpBrandDisambiguationFeed({
     "synapseproto.com",
     "synapsenetwork.xyz",
     "synapse.network",
+    "synapse.org",
+    "mcp.synapse.org",
     "Synapse Protocol",
     "Project Synapse",
     "Sage Bionetworks Synapse",
