@@ -327,49 +327,26 @@ function assertDocsRoutes(docsSitemap, userLlms) {
 }
 
 function assertDocsLlmsRoute(docsLlmsRoute) {
-  assertIncludes("docs llms.txt route", docsLlmsRoute, "AI Agent Payments");
-  assertIncludes("docs llms.txt route", docsLlmsRoute, "Synapse vs x402");
-  assertIncludes(
-    "docs llms.txt route",
-    docsLlmsRoute,
-    "MCP Server for Paid API Calls",
-  );
-  assertIncludes(
-    "docs llms.txt route",
-    docsLlmsRoute,
-    "Synapse vs Paid MCP Alternatives",
-  );
-  assertIncludes(
-    "docs llms.txt route",
-    docsLlmsRoute,
-    "https://docs.synapse-network.ai/mcp/synapse-vs-paid-mcp",
-  );
-  assertIncludes(
-    "docs llms.txt route",
-    docsLlmsRoute,
-    "Synapse Brand Disambiguation",
-  );
-  assertIncludes(
-    "docs llms.txt route",
-    docsLlmsRoute,
-    "https://docs.synapse-network.ai/mcp/brand-disambiguation",
-  );
-  assertIncludes(
-    "docs llms.txt route",
-    docsLlmsRoute,
-    'for "MCP server for paid API calls"',
-  );
-  assertIncludes(
-    "docs llms.txt route",
-    docsLlmsRoute,
-    'for "ChatGPT MCP app for API payments"',
-  );
   for (const expected of [
+    "AI Agent Payments",
+    "Synapse vs x402",
+    "MCP Server for Paid API Calls",
+    "Synapse vs Paid MCP Alternatives",
+    "https://docs.synapse-network.ai/mcp/synapse-vs-paid-mcp",
+    "Synapse Brand Disambiguation",
+    "https://docs.synapse-network.ai/mcp/brand-disambiguation",
+    'for "MCP server for paid API calls"',
+    'for "ChatGPT MCP app for API payments"',
     "synapseproto.com",
     "synapsenetwork.xyz",
     "Dock0",
     "Apiosk",
     "Teleport",
+    "agent402",
+    "mcpay.fun",
+    "Cashfree",
+    "mcp-marketplace.io",
+    "mcp.synapse.org",
     "docs.synapse.sh",
     "io.github.SynapseLayer/synapse-layer",
     "getdrio.com",
