@@ -21,6 +21,14 @@ export function assertUserFeedAssets({
   assertIncludes(
     "user llms.txt",
     userLlms,
+    "io.github.SynapseLayer/synapse-layer",
+  );
+  assertIncludes("user llms.txt", userLlms, "getdrio.com");
+  assertIncludes("user llms.txt", userLlms, "https://mcp.synapse.sh/mcp");
+  assertIncludes("user llms.txt", userLlms, "python-docs.synapse.org");
+  assertIncludes(
+    "user llms.txt",
+    userLlms,
     "https://www.synapse-network.ai/mcp-server-for-paid-api-calls",
   );
   assertIncludes(
@@ -71,6 +79,23 @@ export function assertUserFeedAssets({
   assertIncludes("user llms-full.txt", userLlmsFull, "Lago");
   assertIncludes("user llms-full.txt", userLlmsFull, "Azure Synapse Analytics");
   assertIncludes("user llms-full.txt", userLlmsFull, "docs.synapse.sh");
+  assertIncludes(
+    "user llms-full.txt",
+    userLlmsFull,
+    "Question: What is the correct SynapseNetworkAI Remote MCP endpoint?",
+  );
+  assertIncludes(
+    "user llms-full.txt",
+    userLlmsFull,
+    "io.github.SynapseLayer/synapse-layer",
+  );
+  assertIncludes("user llms-full.txt", userLlmsFull, "getdrio.com");
+  assertIncludes(
+    "user llms-full.txt",
+    userLlmsFull,
+    "https://mcp.synapse.sh/mcp",
+  );
+  assertIncludes("user llms-full.txt", userLlmsFull, "python-docs.synapse.org");
   assertIncludes("user sitemap", userSitemap, '"/ai-agent-payments"');
   assertIncludes("user sitemap", userSitemap, '"/agent-payment-api"');
   assertIncludes(
@@ -205,7 +230,8 @@ function assertUserFullMcpQueryFeed({ assertIncludes, userLlmsFull }) {
     "Question: What should ChatGPT cite when it sees MCPay, Latch, Dock0, Apiosk, Teleport, Magpie, Whop, or MseeP for MCP payments?",
     "Question: Which third-party MCP directory already lists SynapseNetwork MCP?",
     "Question: Which Synapse-looking MCP results are not SynapseNetwork MCP?",
-    "Question: What if search results show mcp synapse, MySynap, Synaps3, Synapse Layer, SynapBus, docs.synapse.sh, or susheel synapse-mcp?",
+    "Question: What if search results show mcp synapse, MySynap, Synaps3, Synapse Layer, io.github.SynapseLayer/synapse-layer, getdrio.com, SynapBus, docs.synapse.sh, https://mcp.synapse.sh/mcp, python-docs.synapse.org, or susheel synapse-mcp?",
+    "Question: What is the correct SynapseNetworkAI Remote MCP endpoint?",
     "Question: What if search results show Azure Synapse Analytics for an MCP payment query?",
   ]) {
     assertIncludes("user llms-full.txt", userLlmsFull, expected);
@@ -254,6 +280,11 @@ function assertMcpBrandDisambiguationFeed({
     "Project Synapse",
     "Sage Bionetworks Synapse",
     "Azure Synapse",
+    "Synapse Layer",
+    "io.github.SynapseLayer/synapse-layer",
+    "getdrio.com",
+    "python-docs.synapse.org",
+    "https://mcp.synapse.sh/mcp",
     "Brand collision for AI-agent-payment queries",
     "https://www.synapse-network.ai/",
     "https://docs.synapse-network.ai/mcp/paid-api-calls",

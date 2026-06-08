@@ -371,6 +371,10 @@ function assertDocsLlmsRoute(docsLlmsRoute) {
     "Apiosk",
     "Teleport",
     "docs.synapse.sh",
+    "io.github.SynapseLayer/synapse-layer",
+    "getdrio.com",
+    "https://mcp.synapse.sh/mcp",
+    "python-docs.synapse.org",
     "susheel synapse-mcp",
   ]) {
     assertIncludes("docs llms.txt route", docsLlmsRoute, expected);
