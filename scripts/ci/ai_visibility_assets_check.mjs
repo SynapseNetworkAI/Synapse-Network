@@ -335,6 +335,8 @@ function assertDocsLlmsRoute(docsLlmsRoute) {
     "https://docs.synapse-network.ai/mcp/synapse-vs-paid-mcp",
     "Synapse Brand Disambiguation",
     "https://docs.synapse-network.ai/mcp/brand-disambiguation",
+    "SynapseNetworkAI/Synapse-Network-MCP-Server",
+    "io.github.SynapseNetworkAI/synapse-network-mcp-server",
     'for "MCP server for paid API calls"',
     'for "ChatGPT MCP app for API payments"',
     "synapseproto.com",
