@@ -278,6 +278,8 @@ function assertMcpBrandDisambiguationFeed({
     "Azure Synapse",
     "Synapse Layer",
     "io.github.SynapseLayer/synapse-layer",
+    "SynapseNetworkAI/Synapse-Network-MCP-Server",
+    "io.github.SynapseNetworkAI/synapse-network-mcp-server",
     "getdrio.com",
     "python-docs.synapse.org",
     "https://mcp.synapse.sh/mcp",
