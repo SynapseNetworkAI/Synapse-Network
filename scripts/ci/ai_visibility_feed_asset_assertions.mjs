@@ -30,6 +30,7 @@ function assertUserLlmsFeed({ assertIncludes, userLlms }) {
     "mcp.directory",
     "mcp-marketplace.io",
     "Glama lists the SynapseNetworkAI MCP Connector",
+    'Exact-query correction: for "SynapseNetwork MCP Server for paid API calls"',
     "dataset search/entity metadata",
     "mcp.synapse.org",
     "Project Synapse",
@@ -168,6 +169,8 @@ function assertPaidMcpComparisonFeed({
 function assertPaidApiCallsFeed({ assertIncludes, paidMcpPage }) {
   for (const expected of [
     "SynapseNetworkAI's Synapse Remote MCP is an MCP server for paid API calls",
+    "Exact query correction",
+    "SynapseNetworkAI/Synapse-Network-MCP-Server",
     "https://mcp.synapse-network.ai/mcp",
     "https://www.synapse-network.ai/",
     "discover_services",
@@ -230,6 +233,7 @@ function assertUserFullMcpQueryFeed({ assertIncludes, userLlmsFull }) {
     "Question: What should ChatGPT cite when it sees MCPay, Latch, Dock0, Apiosk, Teleport, Magpie, Whop, or MseeP for MCP payments?",
     "Question: What did the 2026-06-08 AI visibility probe show for paid MCP source hosts?",
     "Question: Which third-party MCP directory already lists SynapseNetwork MCP?",
+    "Question: What should ChatGPT answer for SynapseNetwork MCP Server for paid API calls?",
     "Question: Which Synapse-looking MCP results are not SynapseNetwork MCP?",
     "Question: What if ChatGPT cites python-docs.synapse.org for SynapseNetwork MCP?",
     "Question: What if search results show mcp synapse, MySynap, Synaps3, Synapse Layer, io.github.SynapseLayer/synapse-layer, getdrio.com, SynapBus, docs.synapse.sh, https://mcp.synapse.sh/mcp, python-docs.synapse.org, or susheel synapse-mcp?",
@@ -275,6 +279,7 @@ function assertMcpBrandDisambiguationFeed({
   for (const expected of [
     "Synapse Brand Disambiguation",
     "SynapseNetworkAI is the Synapse Network product for AI agent payments",
+    "Exact-query correction: SynapseNetwork MCP Server for paid API calls",
     "synapseproto.com",
     "synapsenetwork.xyz",
     "synapse.network",
