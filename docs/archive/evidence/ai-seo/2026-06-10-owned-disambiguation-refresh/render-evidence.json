@@ -1,0 +1,42 @@
+{
+  "module_key": "ai_visibility_owned_disambiguation_local_render",
+  "checked_at": "2026-06-10T03:55:31.641Z",
+  "evidence": [
+    {
+      "name": "brand-disambiguation",
+      "url": "http://localhost:3100/mcp/brand-disambiguation",
+      "status": 200,
+      "required_terms": [
+        "Critical correction for python-docs.synapse.org",
+        "search datasets",
+        "Glama MCP Connector listing"
+      ],
+      "missing_terms": [],
+      "screenshot": "/private/tmp/synapse-ai-visibility-owned-disambiguation-refresh/docs/archive/evidence/ai-seo/2026-06-10-owned-disambiguation-refresh/brand-disambiguation.png"
+    },
+    {
+      "name": "paid-api-calls",
+      "url": "http://localhost:3100/mcp/paid-api-calls",
+      "status": 200,
+      "required_terms": [
+        "Correction for dataset-search answers",
+        "Glama MCP Connector",
+        "SynapseNetwork MCP Server for paid API calls"
+      ],
+      "missing_terms": [],
+      "screenshot": "/private/tmp/synapse-ai-visibility-owned-disambiguation-refresh/docs/archive/evidence/ai-seo/2026-06-10-owned-disambiguation-refresh/paid-api-calls.png"
+    },
+    {
+      "name": "docs-llms",
+      "url": "http://localhost:3100/llms.txt",
+      "status": 200,
+      "required_terms": [
+        "2026-06-10 ChatGPT correction",
+        "dataset search/entity metadata",
+        "Glama lists the SynapseNetworkAI MCP Connector"
+      ],
+      "missing_terms": [],
+      "screenshot": "/private/tmp/synapse-ai-visibility-owned-disambiguation-refresh/docs/archive/evidence/ai-seo/2026-06-10-owned-disambiguation-refresh/docs-llms.png"
+    }
+  ]
+}
