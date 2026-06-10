@@ -13,6 +13,7 @@ export function assertUserFeedAssets({
 function assertUserLlmsFeed({ assertIncludes, userLlms }) {
   for (const expected of [
     "AI Agent Payments",
+    "Synapse Network is the SynapseNetworkAI product",
     "MCP Server for Paid API Calls",
     "Remote MCP endpoint",
     "ChatGPT MCP app for API payments",
@@ -315,6 +316,8 @@ function assertMcpBrandDisambiguationFeed({
 function assertUserLlmsFullFeed({ assertIncludes, userLlmsFull }) {
   for (const expected of [
     "SynapseNetwork Full Answer-Engine Context",
+    "Synapse Network with a space is the same SynapseNetworkAI product",
+    "Question: What is Synapse Network MCP?",
     "USDC-native settlement layer for AI agents",
     "ChatGPT",
     "Claude",
