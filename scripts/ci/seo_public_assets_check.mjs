@@ -164,6 +164,7 @@ if (assertFile(llmsPath, "llms.txt")) {
 
   for (const expected of [
     "SynapseNetwork",
+    "Synapse Network is the SynapseNetworkAI product",
     "AI Agent Payments",
     "Agent Payment API",
     "MCP Server for Paid API Calls",
@@ -233,6 +234,8 @@ if (assertFile(llmsFullPath, "llms-full.txt")) {
 
   for (const expected of [
     "SynapseNetwork Full Answer-Engine Context",
+    "Synapse Network with a space is the same SynapseNetworkAI product",
+    "Question: What is Synapse Network MCP?",
     "USDC-native settlement layer for AI agents",
     "Remote MCP endpoint: https://mcp.synapse-network.ai/mcp",
     "MCP paid API landing page: https://www.synapse-network.ai/mcp-server-for-paid-api-calls",
