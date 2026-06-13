@@ -1,9 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import {
-  discoverBillingExportTable,
-} from "./gcp_billing_review_billing.mjs";
+import { discoverBillingExportTable } from "./gcp_billing_review_billing.mjs";
 import { BlockedError } from "./gcp_billing_review_common.mjs";
 
 test("only scans the current project for billing export tables", () => {
@@ -22,7 +20,7 @@ test("only scans the current project for billing export tables", () => {
       collectExportTableCandidates() {
         return [];
       },
-    }
+    },
   );
 
   assert.equal(result, null);
@@ -44,8 +42,8 @@ test("propagates blocked discovery failures instead of masking them as missing e
           collectExportTableCandidates() {
             return [];
           },
-        }
+        },
       ),
-    /billing_export_discovery_failed/
+    /billing_export_discovery_failed/,
   );
 });

@@ -74,7 +74,7 @@ export function loadBillingDataset({
       label: "bq billing export query",
       timeoutMs: 120000,
     },
-    "billing_export_query_failed"
+    "billing_export_query_failed",
   ).map(normalizeBillingRow);
 
   return { exportTable, rows };
@@ -82,7 +82,7 @@ export function loadBillingDataset({
 
 export function summarizeBillingRows(
   rows,
-  { now, windowDays, comparisonDays }
+  { now, windowDays, comparisonDays },
 ) {
   const todayUtc = startOfUtcDay(now);
   const recentStart = addUtcDays(todayUtc, -(windowDays - 1));
@@ -101,7 +101,7 @@ export function summarizeBillingRows(
 
   const recentTotal = roundCurrency(sumBy(recentRows, (row) => row.net_cost));
   const previousTotal = roundCurrency(
-    sumBy(previousRows, (row) => row.net_cost)
+    sumBy(previousRows, (row) => row.net_cost),
   );
 
   return {
@@ -178,7 +178,7 @@ export function discoverBillingExportTable({ projectId, env }, deps = {}) {
 
   const localCandidates = collectExportTableCandidatesFn(
     projectId,
-    listDatasetsFn(projectId)
+    listDatasetsFn(projectId),
   );
   if (localCandidates.length > 0) {
     return selectWinningExportTable(localCandidates);
@@ -204,7 +204,7 @@ function listDatasets(projectId) {
         label: "bq ls datasets",
         timeoutMs: 20000,
       },
-      "billing_export_discovery_failed"
+      "billing_export_discovery_failed",
     );
   } catch (error) {
     if (error instanceof BlockedError) {
@@ -252,7 +252,7 @@ function listTables(projectId, datasetId) {
         label: `bq ls ${datasetId}`,
         timeoutMs: 20000,
       },
-      "billing_export_discovery_failed"
+      "billing_export_discovery_failed",
     );
   } catch (error) {
     if (error instanceof BlockedError) {
@@ -276,7 +276,7 @@ function runBillingJsonCommand(args, options, blockedReason) {
 
 function looksLikeBillingAccessFailure(message) {
   return /(Reauthentication failed|auth login|cannot prompt during non-interactive execution|Access Denied|Permission denied|not have bigquery\.(datasets|tables|get|list)|oauth2|credentials)/i.test(
-    message
+    message,
   );
 }
 
@@ -304,7 +304,7 @@ function selectWinningExportTable(candidates) {
   }
   candidates.sort(
     (left, right) =>
-      right.score - left.score || left.tableId.localeCompare(right.tableId)
+      right.score - left.score || left.tableId.localeCompare(right.tableId),
   );
   const [winner] = candidates;
   return {
@@ -377,7 +377,7 @@ function buildBreakdown({
         totalRecent,
         recentMap,
         previousMap,
-      })
+      }),
     )
     .sort((left, right) => right.recentCost - left.recentCost);
 }
