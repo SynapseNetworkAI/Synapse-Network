@@ -68,13 +68,13 @@ export function loadBillingDataset({
     lookbackDays: windowDays + comparisonDays,
   });
 
-  const rows = runJsonCommand(
-    "bq",
+  const rows = runBillingJsonCommand(
     ["query", "--use_legacy_sql=false", "--format=json", "--quiet", sql],
     {
       label: "bq billing export query",
       timeoutMs: 120000,
-    }
+    },
+    "billing_export_query_failed",
   ).map(normalizeBillingRow);
 
   return { exportTable, rows };
@@ -82,7 +82,7 @@ export function loadBillingDataset({
 
 export function summarizeBillingRows(
   rows,
-  { now, windowDays, comparisonDays }
+  { now, windowDays, comparisonDays },
 ) {
   const todayUtc = startOfUtcDay(now);
   const recentStart = addUtcDays(todayUtc, -(windowDays - 1));
@@ -101,7 +101,7 @@ export function summarizeBillingRows(
 
   const recentTotal = roundCurrency(sumBy(recentRows, (row) => row.net_cost));
   const previousTotal = roundCurrency(
-    sumBy(previousRows, (row) => row.net_cost)
+    sumBy(previousRows, (row) => row.net_cost),
   );
 
   return {
@@ -178,7 +178,7 @@ export function discoverBillingExportTable({ projectId, env }, deps = {}) {
 
   const localCandidates = collectExportTableCandidatesFn(
     projectId,
-    listDatasetsFn(projectId)
+    listDatasetsFn(projectId),
   );
   if (localCandidates.length > 0) {
     return selectWinningExportTable(localCandidates);
@@ -198,15 +198,18 @@ function buildExplicitExportTable(projectId, env) {
 
 function listDatasets(projectId) {
   try {
-    return runJsonCommand(
-      "bq",
+    return runBillingJsonCommand(
       ["ls", "--project_id", projectId, "--format=json", "--max_results=1000"],
       {
         label: "bq ls datasets",
         timeoutMs: 20000,
-      }
+      },
+      "billing_export_discovery_failed",
     );
-  } catch {
+  } catch (error) {
+    if (error instanceof BlockedError) {
+      throw error;
+    }
     return [];
   }
 }
@@ -236,8 +239,7 @@ function extractDatasetId(dataset) {
 
 function listTables(projectId, datasetId) {
   try {
-    return runJsonCommand(
-      "bq",
+    return runBillingJsonCommand(
       [
         "ls",
         "--project_id",
@@ -249,11 +251,33 @@ function listTables(projectId, datasetId) {
       {
         label: `bq ls ${datasetId}`,
         timeoutMs: 20000,
-      }
+      },
+      "billing_export_discovery_failed",
     );
-  } catch {
+  } catch (error) {
+    if (error instanceof BlockedError) {
+      throw error;
+    }
     return [];
   }
+}
+
+function runBillingJsonCommand(args, options, blockedReason) {
+  try {
+    return runJsonCommand("bq", args, options);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (looksLikeBillingAccessFailure(message)) {
+      throw new BlockedError(blockedReason);
+    }
+    throw error;
+  }
+}
+
+function looksLikeBillingAccessFailure(message) {
+  return /(Reauthentication failed|auth login|cannot prompt during non-interactive execution|Access Denied|Permission denied|not have bigquery\.(datasets|tables|get|list)|oauth2|credentials)/i.test(
+    message,
+  );
 }
 
 function toExportTableCandidate(projectId, datasetId, table) {
@@ -280,7 +304,7 @@ function selectWinningExportTable(candidates) {
   }
   candidates.sort(
     (left, right) =>
-      right.score - left.score || left.tableId.localeCompare(right.tableId)
+      right.score - left.score || left.tableId.localeCompare(right.tableId),
   );
   const [winner] = candidates;
   return {
@@ -353,7 +377,7 @@ function buildBreakdown({
         totalRecent,
         recentMap,
         previousMap,
-      })
+      }),
     )
     .sort((left, right) => right.recentCost - left.recentCost);
 }

@@ -184,7 +184,8 @@ GCP billing review utility:
 
 1. `bash scripts/ops/gcp_billing_review.sh` is the canonical weekly GCP cost-review entrypoint. It requires `gh`, `gcloud`, `bq`, `jq`, and `node`, resolves the current GCP project from `gcloud`, prefers a Cloud Billing Export table in BigQuery, and writes a fresh evidence bundle under `docs/evidence/cost/<timestamp>-gcp-billing-review/`.
 2. If no billing export dataset/table is discoverable for the current project, the review fails closed with `BLOCKED missing_billing_export`, writes a blocked `report.json` / `report.md`, and does not open a PR.
-3. Only explicit repo-local optimization patches may create a PR. Pure console-only or architecture/SLA-sensitive recommendations stay in the report bundle and must not open an empty PR.
+3. If `bq` cannot discover or query Billing Export because auth or access fails, the review fails closed with `BLOCKED billing_export_discovery_failed` or `BLOCKED billing_export_query_failed` instead of misreporting a missing export table.
+4. Only explicit repo-local optimization patches may create a PR. Pure console-only or architecture/SLA-sensitive recommendations stay in the report bundle and must not open an empty PR.
 
 ## 3. Project-Level Validation
 
