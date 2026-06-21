@@ -1,377 +1,213 @@
-<p align="center">
-  <img src="./services/user-front/public/brand/synapse-network-logo.svg" alt="SynapseNetwork logo" width="460" />
-</p>
-
 # Synapse Network
 
-Synapse Network is an AI-native payment and settlement infrastructure for machine-to-machine API commerce.
+Synapse Network is an agent-first payment and settlement layer for AI services.
+It lets an owner fund an agent, lets that agent discover and invoke paid APIs,
+and settles the call through a fast off-chain gateway with an on-chain USDC
+custody boundary.
 
-Core idea:
+This repository is the open-source core for the Synapse protocol runtime,
+contracts, admin control plane, local development stack, and public developer
+documentation.
 
-- On-chain vault and deposit guarantee (USDC)
-- Off-chain speed gateway for real-time billing and routing
-- Credential-based API access for high-frequency AI-to-AI calls
+> Status: public preview. Use testnet or local assets for development. Do not
+> route production funds through a fork until you have completed your own
+> security review, key-management setup, monitoring, and contract verification.
 
-## Public Developer Entry
+## Why Synapse Exists
 
-Current public preview integrations should start on staging:
+AI agents need to buy API services without a human approving every call. The
+normal SaaS API-key model is too coarse for agent-to-agent commerce: it lacks
+per-agent budgets, call receipts, provider settlement, and machine-readable
+payment semantics.
 
-- App docs: `https://staging.synapse-network.ai/docs/sdk`
-- Gateway: `https://api-staging.synapse-network.ai`
-- Chain: Arbitrum Sepolia testnet
-- Asset: MockUSDC for integration testing, not production USDC
-- Agent runtime credential: `SYNAPSE_AGENT_KEY=agt_xxx`
+Synapse splits the system into a fast runtime path and a conservative settlement
+boundary:
 
-Recommended developer flow:
+- **On-chain custody:** USDC deposits, vault accounting, and withdrawal
+  settlement live in Solidity contracts.
+- **Off-chain execution:** the Gateway handles discovery, quote, invoke,
+  budget checks, billing, receipts, provider routing, and audit emission.
+- **Agent identity:** runtime access is scoped to agent credentials rather than
+  broad owner API keys.
+- **Provider marketplace:** providers expose services; agents buy those services
+  through a standard Gateway flow.
 
-1. Connect a wallet in the staging Gateway Dashboard.
-2. Generate or issue an Agent Key.
-3. Use the official SDK or MCP server with `SYNAPSE_AGENT_KEY`.
-4. Run a fixed-price API invoke with the discovered string price.
-5. Run a token-metered LLM invoke with optional `maxCostUsdc`.
-6. Read the invocation receipt and verify settlement metadata.
+## Architecture
 
-Production examples remain reserved until production DNS, contracts, gateway health, and public docs deployment are verified.
+```mermaid
+graph TD
+    OWNER["Owner / Developer"] --> USER_FRONT["services/user-front<br/>Owner console"]
+    OWNER --> DOCS_FRONT["services/docs-front<br/>Developer docs"]
+    AGENT["AI Agent / SDK / MCP Client"] --> SDK["SDKs and MCP clients"]
+    PROVIDER["Provider"] --> PROVIDER_API["Provider runtime APIs"]
+    ADMIN["Platform operator"] --> ADMIN_FRONT["services/admin-front<br/>Admin console"]
 
-## What This Repo Contains
+    USER_FRONT --> GATEWAY["services/gateway<br/>Runtime gateway"]
+    SDK --> GATEWAY
+    GATEWAY --> PROVIDER_API
+    GATEWAY --> DB["PostgreSQL<br/>ledger, receipts, audit, config"]
+    GATEWAY --> CONTRACTS["contracts/<br/>USDC vault and settlement"]
 
-This repository includes:
+    ADMIN_FRONT --> GATEWAY_ADMIN["services/gateway-admin<br/>Admin control-plane API"]
+    GATEWAY_ADMIN --> DB
+    GATEWAY_ADMIN --> GATEWAY
 
-- Smart contracts and contributor chain tooling
-- Python provider gateway (FastAPI) and SDK
-- Frontend console (Next.js)
-- Structured architecture and product documentation
+    DOCS_FRONT --> PUBLIC_DOCS["OpenAPI, guides, llms.txt"]
 
-Synapse-Network/
-├── apps/
-│ ├── gateway/ # 核心结算网关（FastAPI）
-│ │ ├── src/
-│ │ ├── tests/
-│ │ ├── main.py # 原 provider_fastapi 入口
-│ │ ├── pyproject.toml
-│ │ └── .env.example
-│ └── frontend/ # Next.js 控制台
-├── packages/
-│ ├── sdk-python/ # 第三方 Python SDK
-│ │ ├── synapse_client/
-│ │ ├── tests/
-│ │ └── pyproject.toml
-│ └── contracts/ # 纯 Solidity/Hardhat 工作区
-│ ├── src/ # solidity contracts（原 contracts/\*.sol）
-│ ├── scripts/ # 部署脚本
-│ ├── test/
-│ ├── hardhat.config.js
-│ └── package.json
-├── docker-compose/ # canonical compose entry + postgres bootstrap SQL
-├── docs/ # 原 doc/
-├── tools/ # 运维/开发脚本（原 scripts/）
+    subgraph "Runtime Plane"
+        AGENT
+        SDK
+        GATEWAY
+        PROVIDER_API
+    end
 
-## Contributor/Internal Local Development
+    subgraph "Settlement Plane"
+        DB
+        CONTRACTS
+    end
 
-### 1) One-command local environment
-
-From repo root:
-
-```bash
-npm run dev:all
+    subgraph "Control Plane"
+        OWNER
+        USER_FRONT
+        ADMIN
+        ADMIN_FRONT
+        GATEWAY_ADMIN
+    end
 ```
 
-This starts the four local app services: Gateway, Gateway-admin, User-front, and Admin-front.
-It does not create databases, redeploy contracts, or rerun SQL bootstrap on every start.
+Core rule: smart contracts stay small and conservative; high-frequency routing,
+budget checks, and provider execution stay in the Gateway where they can be
+audited, tested, rate-limited, and upgraded safely.
 
-Useful lifecycle commands:
+## Repository Map
+
+| Path | Purpose |
+| --- | --- |
+| `contracts/` | Solidity contracts and Hardhat tooling for the custody and settlement boundary. |
+| `services/gateway/` | Python FastAPI runtime Gateway for discovery, quotes, invokes, billing, receipts, ledger writes, and provider routing. |
+| `services/gateway-admin/` | Python FastAPI admin control-plane API for RBAC, reviews, projections, approvals, and operations. |
+| `services/user-front/` | Next.js owner/developer console for funding, agents, credentials, invocations, and provider flows. |
+| `services/admin-front/` | Next.js privileged admin console for finance, operations, risk, audit, and configuration workflows. |
+| `services/docs-front/` | Public developer documentation site, API reference source, sitemap, and `llms.txt` assets. |
+| `infra/` | Local Docker, Postgres bootstrap, monitoring, and Terraform examples. |
+| `scripts/` | Local lifecycle, CI, E2E, chain, deploy, recovery, and evidence tooling. |
+| `docs/` | Canonical architecture, workflow, security, operations, and project documentation. |
+
+## Local Development
+
+Prerequisites:
+
+- Node.js 20.x
+- Python 3.11+
+- Docker
+- Foundry or another local EVM toolchain when running contract-backed flows
+
+Start the standard local stack from the repository root:
+
+```bash
+npm run dev:bootstrap
+npm run dev:all
+npm run dev:status
+```
+
+Useful local lifecycle commands:
 
 ```bash
 npm run dev:migrate
-npm run dev:bootstrap
-npm run dev:status
-npm run dev:logs
 npm run dev:restart
+npm run dev:logs
 npm run dev:stop
 ```
 
-Use `npm run dev:migrate` when the gateway-admin schema is missing or after admin DB schema changes.
-Use `npm run dev:bootstrap` once for first-time local infra setup: local Postgres bootstrap, Anvil, local contract deploy, Gateway, and User-front.
-
-Provider marketplace visibility helpers:
+Service-specific entrypoints:
 
 ```bash
-npm run dev:provider:onboard
-npm run dev:provider:probe
-npm run dev:provider:status
+cd services/gateway && python3.11 -m venv .venv && .venv/bin/pip install -r requirements.txt
+cd services/gateway-admin && python3.11 -m venv .venv && .venv/bin/pip install -r requirements.txt
+cd services/user-front && yarn install && yarn dev
+cd services/admin-front && yarn install && yarn dev
+cd services/docs-front && yarn install && yarn dev
 ```
 
-`dev:provider:onboard` runs the sibling Provider onboarding flow and waits until the registered services are visible in Gateway public discovery. `dev:provider:probe` re-runs the local ensure + force-probe path for the current Provider services when marketplace looks stale. `dev:provider:status` prints discovery and health snapshots without mutating state.
+Environment templates live beside each service:
 
-If you only need the lower-level runtime Gateway + User-front subset, use the setup script directly:
+- `services/gateway/.env.local.example`
+- `services/gateway/.env.example`
+- `services/gateway-admin/.env.example`
+- `services/user-front/.env.local.example`
+- `services/admin-front/.env.staging.example`
 
-```bash
-chmod +x scripts/local/setup_local_env.sh
-./scripts/local/setup_local_env.sh
-```
+Never commit `.env.local`, private keys, database DSNs, bearer tokens, wallet
+mnemonics, service-account JSON, or provider secrets. Local `.env.local` files
+are ignored by `.gitignore`.
 
-That script will start local chain, deploy contracts, start Gateway, and run User-front.
-It now auto-activates `Node.js 20.19.0` through `nvm` when the current shell is still on an older Node runtime.
+## Validation
 
-If the script says `anvil is not installed`, install Foundry first:
-
-```bash
-curl -L https://foundry.paradigm.xyz | bash
-source ~/.bashrc
-foundryup
-anvil --version
-```
-
-If `anvil` is still not found in the current shell, run:
+Fast checks:
 
 ```bash
-export PATH="$HOME/.foundry/bin:$PATH"
-anvil --version
-```
-
-### 2) Restart / stop
-
-```bash
-chmod +x scripts/local/restart_local_env.sh
-./scripts/local/restart_local_env.sh
-
-chmod +x scripts/local/stop_local_env.sh
-./scripts/local/stop_local_env.sh
-```
-
-### 3) Staging backend scripts (provider_fastapi only)
-
-Staging scripts only manage `gateway/provider_fastapi.py` and do not start local Anvil or deploy localhost contracts.
-
-```bash
-chmod +x scripts/staging/start_staging_env.sh
-./scripts/staging/start_staging_env.sh
-
-chmod +x scripts/staging/restart_staging_env.sh
-./scripts/staging/restart_staging_env.sh
-
-chmod +x scripts/staging/stop_staging_env.sh
-./scripts/staging/stop_staging_env.sh
-```
-
-### 3.1) Prod backend scripts (provider_fastapi only)
-
-Prod scripts manage the final public profile after staging is stable.
-
-```bash
-chmod +x scripts/prod/start_prod_env.sh
-./scripts/prod/start_prod_env.sh
-
-chmod +x scripts/prod/restart_prod_env.sh
-./scripts/prod/restart_prod_env.sh
-
-chmod +x scripts/prod/stop_prod_env.sh
-./scripts/prod/stop_prod_env.sh
-```
-
-### 4) Frontend only
-
-```bash
-cd apps/frontend
-yarn install
-yarn dev
-```
-
-### 4.1) Frontend CI gate
-
-From repo root:
-
-```bash
+npm run ci:docs
+npm run ci:contracts
+npm run ci:gateway
+npm run ci:admin-gateway
 npm run ci:frontend
 ```
 
-This runs the frontend quality checks currently enforced in the repository CI chain:
-
-- `yarn lint`
-- `yarn test`
-- `yarn build`
-
-### 4.2) Pull request CI gate
-
-From repo root:
+Full pull-request gate:
 
 ```bash
 npm run ci:pr
 ```
 
-This aggregates the repository PR checks currently wired in:
-
-- source API shape: public service/API methods must return typed objects, not raw `dict` / `Record<string, unknown>`; legacy debt is baselined in `scripts/ci/source_quality_baseline.json`
-- `apps/frontend`: lint / test / build
-- `admin/admin-front`: lint / build
-- `gateway`: create `gateway/.venv`, install dependencies, run pytest
-- `admin/gateway-admin`: create `admin/gateway-admin/.venv`, install dependencies, run pytest
-- `provider_service`: create `provider_service/.venv`, install dependencies, run pytest
-- `sdk/python`: create `sdk/python/.venv`, install editable package dependencies, run pytest unit coverage + `python -m build`; live gateway demo test is opt-in
-- root contracts: hardhat compile, plus hardhat test when root contract tests exist
-
-Current Python packaging target in this repository:
-
-- `sdk/python`: distributable Python SDK package (`pyproject.toml` present)
-
-Current Python service projects that do not run `python -m build` in CI:
-
-- `gateway`
-- `admin/gateway-admin`
-- `provider_service`
-
-These three are runtime service processes, not Python distribution packages today.
-
-### 5) Python backend only
+Security-oriented checks:
 
 ```bash
-cd gateway
-python3.11 -m venv .venv
-source .venv/bin/activate
-python -m pip install -r requirements.txt
-.venv/bin/python provider_fastapi.py
+bash scripts/ci/security_secret_scan.sh
+npm run ci:financial-security
+npm run ci:e2e-env-isolation
 ```
 
-### 6) Gateway env templates
+For architecture and runtime details, start with:
 
-Gateway env templates live under `gateway/`:
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- [docs/README.md](docs/README.md)
+- [docs/security/README.md](docs/security/README.md)
+- [docs/reference/Validation_Entry_Points.md](docs/reference/Validation_Entry_Points.md)
 
-- `.env.local.example`: local bootstrap template
-- `.env.staging.example`: shared testnet / demo template
-- `.env.prod.example`: production bootstrap template
-- `.env.example`: full variable catalog
+## Security And Open-Source Safety
 
-If you want Provider withdrawals to work, these are hard requirements:
+This repository contains payment, wallet, and settlement infrastructure. Treat
+every credential and money-moving path as high risk.
 
-- `PRIVATE_KEY`: gateway-side withdraw signer private key used to issue EIP-712 withdrawal tickets
-- `RPC_URL`: chain RPC used by withdraw signing, deposit sync, and reconciliation
-- `ROUTER_ADDRESS`: deployed SynapseCore contract address
+Before publishing a fork or release:
 
-Recommended local flow:
+1. Run the secret scan and review any match manually.
+2. Confirm local env files are not tracked: `git ls-files | grep '.env.local'`
+   should print nothing.
+3. Replace all local development keys with project-specific secrets managed by
+   your own secret manager.
+4. Do not use browser-wallet mnemonics or Anvil/Hardhat test private keys in
+   staging or production.
+5. Verify contracts, deployment manifests, RPC configuration, withdrawal signer
+   mode, monitoring, and backup/restore evidence before handling real funds.
 
-1. Copy `gateway/.env.local.example` to `gateway/.env.local`.
-2. Fill `PRIVATE_KEY`, `RPC_URL`, `ROUTER_ADDRESS`, `POSTGRES_DSN`, `JWT_SECRET`.
-3. Restart the gateway with `./scripts/local/restart_gateway.sh` or `bash scripts/local/restart_gateway.sh`.
+Please report vulnerabilities through the process in [SECURITY.md](SECURITY.md).
 
-Where does `PRIVATE_KEY` come from?
+## Contributing
 
-- Local dev: use a private key from your local chain test accounts. Anvil / Hardhat usually prints funded dev accounts and their private keys at startup.
-- Staging / production: use a dedicated withdraw signer account managed by your infra stack, ideally injected via Secret Manager, KMS, or HSM-backed workflows.
+Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. For
+agent-assisted development, start with [llms.txt](llms.txt) and
+[AGENTS.md](AGENTS.md); they route contributors to the canonical docs and
+validation commands.
 
-Do not use a personal browser-wallet mnemonic or commit a real production private key into the repository.
+High-signal contribution areas:
 
-## Documentation Map
+- Gateway runtime correctness, idempotency, and auditability
+- Agent SDK and MCP integration ergonomics
+- Provider service integration patterns
+- Contract and settlement safety tests
+- Developer documentation and examples
 
-All docs are under [docs/](docs/README.md).
+## License
 
-Contribution workflow and quality gates are in [CONTRIBUTING.md](CONTRIBUTING.md).
-
-## Weekly Execution Board
-
-Storage and production-hardening work items are tracked here:
-
-- Release and gate baseline: [docs/05_DevOps_Deployment/02_CI_CD_and_Release_Gates.md](docs/05_DevOps_Deployment/02_CI_CD_and_Release_Gates.md)
-- Production operations and incident response: [docs/05_DevOps_Deployment/04_Financial_Incident_Response_and_Production_Operations.md](docs/05_DevOps_Deployment/04_Financial_Incident_Response_and_Production_Operations.md)
-- Product roadmap board: [docs/01_Product_Vision/ROADMAP.md](docs/01_Product_Vision/ROADMAP.md)
-
-This week focus:
-
-- P0 financial safety baseline: transaction atomicity, row-level locks, idempotency unique constraints
-- P0 backup and restore readiness: full + incremental backup and one restore drill
-- P1 logging partitioning baseline: monthly partitions and retention policy
-- Delivery gate: P0 complete before any public production exposure
-
-## Deployment Automation
-
-Repository-level deployment execution now uses:
-
-1. `.github/workflows/pr-ci.yml`
-2. `.github/workflows/deploy-staging.yml`
-3. `.github/workflows/deploy-production.yml`
-4. `scripts/deploy/staging.sh`
-5. `scripts/deploy/production.sh`
-6. `scripts/deploy/rollback.sh`
-
-These workflows are designed to be triggered by `Synapse-Network-Growing`, which acts as the deploy control plane for staging/prod promotion and rollback audit.
-
-Staging deploy authentication uses Google Cloud Workload Identity Federation.
-`deploy-staging.yml` requires `GCP_WORKLOAD_IDENTITY_PROVIDER` and
-`GCP_DEPLOY_SERVICE_ACCOUNT` GitHub Actions secrets in addition to the staging
-project, region, Artifact Registry repository, and evidence bucket secrets. Do
-not add or commit a GCP service account JSON key.
-
-## Lowest-cost rollout recommendation
-
-For the current pre-launch phase, the default recommendation is:
-
-1. start with a single `staging` GCE VM
-2. co-host `Synapse-Network`, `Synapse-Network-Provider`, Postgres, Kafka, ClickHouse, and reverse proxy on that machine
-3. deploy through `GitHub Actions -> SSH -> staging deploy script`
-4. postpone the dedicated `prod` VM until staging is stable and support / backup / monitoring are in place
-
-Operational runbook:
-
-- [docs/ops/09_Staging_First_GCE_Rollout.md](docs/ops/09_Staging_First_GCE_Rollout.md)
-
-GitHub issue templates for direct assignment:
-
-- Board checklist: [.github/ISSUE_TEMPLATE/production-upgrade-checklist.md](.github/ISSUE_TEMPLATE/production-upgrade-checklist.md)
-- Single work item: [.github/ISSUE_TEMPLATE/production-upgrade-work-item.md](.github/ISSUE_TEMPLATE/production-upgrade-work-item.md)
-- Official docs entrypoint: [docs/README.md](docs/README.md)
-
-### 1) Product and Frontend
-
-- [docs/01_Product_Frontend](docs/01_Product_Frontend)
-
-### 2) System Architecture
-
-- [docs/02_System_Architecture](docs/02_System_Architecture)
-
-### 3) Core Workflows
-
-- [docs/03_Core_Workflows](docs/03_Core_Workflows)
-
-### 4) Database Design
-
-- [docs/04_Database_Design](docs/04_Database_Design)
-
-### 5) DevOps and Deployment
-
-- [docs/05_DevOps_Deployment](docs/05_DevOps_Deployment)
-
-### 6) Reference
-
-- [docs/06_Reference](docs/06_Reference)
-
-## Main Project Structure
-
-```text
-Synapse-Network/
-	contracts/                # Solidity contracts
-	scripts/                  # Deploy scripts + local/prod operation scripts
-	test/                     # Contract tests
-	gateway/                  # FastAPI settlement gateway
-	sdk/python/               # Python client SDK
-	frontend/                 # Next.js dashboard and developer console
-	docker-compose/           # Optional infra services
-	docs/                     # Product, architecture, protocol, and operation docs
-```
-
-## Current API Entry Points
-
-- Gateway health: `GET /health`
-- Credential lifecycle: `/api/v1/credentials/*`
-- Paid invoke: `POST /api/v1/gateway/generate`
-- Deposit and balance flow: `/api/v1/balance/*`
-
-## Design Principles
-
-- Stateless speed gateway
-- Strict credential and quota enforcement
-- USDC-native accounting model
-- Clear separation of router, service, model, and storage layers
-
-## Notes
-
-- Gateway runtime state is stored in PostgreSQL; `runtime_storage/` is no longer part of the active persistence path.
-- For architecture and protocol details, start from [docs/README.md](docs/README.md).
+Licensed under the [Apache License 2.0](LICENSE).
